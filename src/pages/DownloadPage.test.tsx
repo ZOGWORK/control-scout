@@ -156,6 +156,18 @@ describe("the Offline page's layout", () => {
     expect(await partialDownloads()).toEqual([]);
   });
 
+  it("Resume on a paused predictions pack that still can't finish says so (syncLite itself stays quiet)", async () => {
+    const { download, finishDownload } = await import("../lib/offline/download");
+    const data = new Uint8Array(4000).fill(9);
+    const dying = vi.fn(async () => new Response(new ReadableStream({ n: 0, pull(c) { if ((this as { n: number }).n++) c.error(new TypeError("network")); else c.enqueue(data.slice(0, 2000)); } } as UnderlyingDefaultSource<Uint8Array>)));
+    await download({ url: "/packs/lite.json.gz", bytes: 4000, sha256: "e".repeat(64) }, { owner: { kind: "lite", id: "lite", label: "Predictions for every team" }, fetch: dying as unknown as typeof fetch }).catch(() => {});
+    mount("/download");
+    await screen.findByText(/Paused at 50%/);
+    fireEvent.click(screen.getByRole("button", { name: /Resume/ }));
+    await waitFor(() => expect(toastErr).toHaveBeenCalledWith("Couldn't finish downloading the predictions pack. Try again in a moment."));
+    await finishDownload("e".repeat(64));
+  });
+
   it("every saved pack shows its size and one total; Delete says how much it freed", async () => {
     saved = [sv(2025, "b"), sv(2024, "old")];
     mount("/download");

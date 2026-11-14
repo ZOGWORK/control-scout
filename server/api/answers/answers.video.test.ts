@@ -70,7 +70,7 @@ describe("answerVideo: the one match or event an answer is about", () => {
   it("a match with only the event's recording starts it at the match's second (Massachusetts Q12)", async () => {
     // 12:21:07 EDT is 16:21:07Z, 2 h 46 min 51 s into the broadcast, less the 20 s lead-in.
     const v = await answerVideo(stat({ headline: { value: "97–83", label: "Q12", href: href("USMACMP", "qual:0:12") } }), NOW);
-    expect(v?.main).toEqual({ videoId: "xnQFL9T27fY", t: 9991, kind: "recording", match: "Q12" });
+    expect(v?.main).toEqual({ videoId: "xnQFL9T27fY", t: 9991, end: 10231, kind: "recording", match: "Q12" });
   });
 
   it("a match the recording doesn't hold: no player, a link to the event's recording (Chesapeake F1, the next day)", async () => {
@@ -117,8 +117,8 @@ describe("answerVideo: a list's play buttons", () => {
     expect(v?.main?.videoId).toBe("ruupjlPEQns");
     expect(v?.rows).toEqual({
       [href("FTCCMP1EDIS", "playoff:2:1")]: { videoId: "4elyC6MxtEY", t: 0, kind: "match", match: "M2" },
-      [href("USMACMP", "playoff:10:1")]: { videoId: "xnQFL9T27fY", t: 33152, kind: "recording", match: "M10" },
-      [href("USMACMP", "qual:0:1")]: { videoId: "xnQFL9T27fY", t: 6265, kind: "recording", match: "Q1" },
+      [href("USMACMP", "playoff:10:1")]: { videoId: "xnQFL9T27fY", t: 33152, end: 33392, kind: "recording", match: "M10" },
+      [href("USMACMP", "qual:0:1")]: { videoId: "xnQFL9T27fY", t: 6265, end: 6505, kind: "recording", match: "Q1" },
     });
   });
 
@@ -130,7 +130,7 @@ describe("answerVideo: a list's play buttons", () => {
     expect(v?.main).toBeUndefined();
     expect(v?.rows).toEqual({
       [href("FTCCMP1EDIS", "playoff:1:1")]: { videoId: "ruupjlPEQns", t: 0, kind: "match", match: "M1" },
-      [href("USMACMP", "playoff:10:1")]: { videoId: "xnQFL9T27fY", t: 33152, kind: "recording", match: "M10" },
+      [href("USMACMP", "playoff:10:1")]: { videoId: "xnQFL9T27fY", t: 33152, end: 33392, kind: "recording", match: "M10" },
     });
   });
 
@@ -275,7 +275,7 @@ describe("answerVideo: a headline match whose day's video can't be placed (23268
     expect(v?.mainRow).toBeUndefined();
     expect(v?.watch).toEqual({ videoId: "uncheckedxx", t: 0, kind: "stream", match: "Q85", day: "Sunday" });
     // 14:40:49.95 EDT is 18:40:49.95Z, 2 h 10 min 43 s into the Saturday broadcast, less the 20 s lead-in.
-    expect(v?.rows?.[href("USCHSLAOS", "qual:0:18")]).toEqual({ videoId: "a7WJBT3RHZU", t: 7823, kind: "recording", match: "Q18" });
+    expect(v?.rows?.[href("USCHSLAOS", "qual:0:18")]).toEqual({ videoId: "a7WJBT3RHZU", t: 7823, end: 8063, kind: "recording", match: "Q18" });
     expect(v?.rows?.[href("USCHSLAOS", "qual:0:85")]).toBeUndefined();
   });
 
@@ -290,9 +290,9 @@ describe("answerVideo: a headline match whose day's video can't be placed (23268
     const v = await answerVideo(highlights, NOW);
     // The card's player is Q85 itself: 11:31:52.218 EDT is 15:31:52Z, 3 h 36 min 28 s into the Sunday broadcast, less
     // the 20 s lead-in. No "watch the Sunday recording" link any more.
-    expect(v?.main).toEqual({ videoId: "W6ywzjs-MUM", t: 12968, kind: "recording", match: "Q85" });
+    expect(v?.main).toEqual({ videoId: "W6ywzjs-MUM", t: 12968, end: 13208, kind: "recording", match: "Q85" });
     expect(v?.mainRow).toBe(href("USCHSLAOS", "qual:0:85"));
-    expect(v?.rows?.[href("USCHSLAOS", "qual:0:18")]).toEqual({ videoId: "a7WJBT3RHZU", t: 7823, kind: "recording", match: "Q18" });
+    expect(v?.rows?.[href("USCHSLAOS", "qual:0:18")]).toEqual({ videoId: "a7WJBT3RHZU", t: 7823, end: 8063, kind: "recording", match: "Q18" });
     expect(v?.watch).toBeUndefined();
   });
 });
@@ -316,6 +316,6 @@ describe("search's answer, end to end", () => {
     await rebuildSearch();
     const a = await searchAnswer("USMACMP Q12", { learn: false, limit: 25 });
     expect(a.hits[0]).toMatchObject({ kind: "match", ref: "2025:USMACMP:qual:0:12" });
-    expect((await answerVideo(a, NOW))?.main).toEqual({ videoId: "xnQFL9T27fY", t: 9991, kind: "recording", match: "Q12" });
+    expect((await answerVideo(a, NOW))?.main).toEqual({ videoId: "xnQFL9T27fY", t: 9991, end: 10231, kind: "recording", match: "Q12" });
   });
 });

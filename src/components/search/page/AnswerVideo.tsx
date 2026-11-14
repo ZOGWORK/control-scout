@@ -9,7 +9,7 @@ import { ExternalLink, Play, PlayCircle } from "lucide-react";
 import type { SearchAnswer, SearchVideo, SearchVideoItem } from "../../../shared/api";
 import { embedUrl, thumbnailUrl } from "../../../shared/stream";
 import { clipTime, watchUrl } from "../../../shared/recording";
-import { playMatchVideo } from "../../../lib/streamSeek";
+import { clipParams, playMatchVideo } from "../../../lib/streamSeek";
 import { cn } from "../../cn";
 import { VideoCredit } from "../../contributors/VideoCredit";
 import { Button } from "../../ui/button";
@@ -57,7 +57,7 @@ function Player({ v, className }: { v: SearchVideoItem; className?: string }) {
   const { rowPlays } = useContext(Video);
   useEffect(() => { setOn(false); }, [rowPlays]);
   const caption = videoCaption(v);
-  const src = `${embedUrl(v.videoId)}?${new URLSearchParams({ autoplay: "1", rel: "0", ...(v.t ? { start: String(v.t) } : {}) })}`;
+  const src = `${embedUrl(v.videoId)}?${new URLSearchParams({ autoplay: "1", rel: "0", ...clipParams(v) })}`;
   return (
     <figure className={cn("my-4 max-sm:-mx-4 sm:max-w-[680px]", className)} data-answer-video={v.kind}>
       <div className="relative aspect-video w-full overflow-hidden border-y border-border bg-black sm:rounded-xl sm:border">
@@ -113,7 +113,7 @@ export function AnswerClip({ about, className }: { about?: string; className?: s
     <section aria-label="Watch this match" className={cn("rounded-xl border border-border bg-card p-4", className)} data-answer-clip={v.kind}>
       <h2 className="text-sm font-semibold text-foreground">Watch this match</h2>
       <p className="mt-0.5 text-xs text-muted-foreground" data-video-caption>{videoCaption(v)}</p>
-      <Button type="button" className="mt-3 w-full" onClick={() => { rowPlayed(); playMatchVideo({ videoId: v.videoId, t: v.t, label }); }}
+      <Button type="button" className="mt-3 w-full" onClick={() => { rowPlayed(); playMatchVideo({ videoId: v.videoId, t: v.t, end: v.end, label }); }}
         aria-label={`View clip: ${label}`} data-video-control>
         <PlayCircle className="size-5" aria-hidden />View clip
       </Button>
@@ -140,7 +140,7 @@ export function useClips(): { clip: (href: string) => SearchVideoItem | undefine
   const { video, rowPlayed } = useContext(Video);
   return {
     clip: (href) => video?.rows?.[href] ?? (video?.mainRow === href ? video.main : undefined),
-    play: (v, label) => { rowPlayed(); playMatchVideo({ videoId: v.videoId, t: v.t, label }); },
+    play: (v, label) => { rowPlayed(); playMatchVideo({ videoId: v.videoId, t: v.t, end: v.end, label }); },
   };
 }
 
@@ -156,7 +156,7 @@ export function RowPlay({ href, label, className }: { href: string; label: strin
   const v = video?.rows?.[href];
   if (!v) return null;
   return (
-    <button type="button" onClick={() => { rowPlayed(); playMatchVideo({ videoId: v.videoId, t: v.t, label }); }}
+    <button type="button" onClick={() => { rowPlayed(); playMatchVideo({ videoId: v.videoId, t: v.t, end: v.end, label }); }}
       className={cn("inline-flex size-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-text-base/[0.06] hover:text-foreground max-md:size-[44px] pointer-coarse:size-[44px]", className)}
       aria-label={`Play ${label}: ${v.kind === "match" ? "official match video" : v.kind === "contributor" ? `video by ${v.contributor?.name}` : `the event's recording from ${clipTime(v.t)}`}`} title={videoCaption(v)} data-row-play={v.kind} data-video-control>
       <PlayCircle className="size-5" aria-hidden />

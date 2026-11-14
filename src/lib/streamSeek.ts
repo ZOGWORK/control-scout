@@ -3,8 +3,15 @@
 // player there (another page, an event without a recording), the app's video dialog (components/VideoDialog.tsx)
 // does. Only a modifier click or a middle click follows the link to YouTube.
 
-/** What to play: a YouTube video from a second (0: its start), and which match it is, for the title and the overlay. */
-export interface MatchPlay { videoId: string; t: number; label: string; matchKey?: string; /** A highlight video, not a match's. */ highlight?: boolean }
+/** What to play: a YouTube video from a second (0: its start), and which match it is, for the title and the overlay.
+ *  `end`: the second it stops at, a recording's clip only (MatchClip.end: its match's end); none plays on. */
+export interface MatchPlay { videoId: string; t: number; end?: number; label: string; matchKey?: string; /** A highlight video, not a match's. */ highlight?: boolean }
+
+/** A YouTube embed's start= and end= for a play (end only after its start). */
+export const clipParams = (p: { t: number; end?: number | null }): Record<string, string> => ({
+  ...(p.t ? { start: String(p.t) } : {}),
+  ...(p.end != null && p.end > p.t ? { end: String(p.end) } : {}),
+});
 type Play = (p: MatchPlay) => void;
 let player: Play | null = null;
 let dialog: Play | null = null;

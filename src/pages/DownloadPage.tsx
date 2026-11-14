@@ -353,6 +353,14 @@ function SeasonRowView({ r, version, dataAsOf, current, active, queued, disabled
  * here, when its data is from, what a newer release brings, Update and Delete. One total, and the browser's
  * own figure for the whole site.
  */
+/** Get the predictions pack (Update, Resume). syncLite stays quiet on failure (it also runs in the background), so
+ *  this checks what it left: no pack, or not the release asked for, is an error the person sees. */
+export async function getLite(version: string | undefined): Promise<void> {
+  const meta = await syncLite();
+  const have = packStatus();
+  if (!meta || !have || (version && have.version !== version)) throw new Error("Couldn't finish downloading the predictions pack. Try again in a moment.");
+}
+
 function OnDevice({ m, local }: { m: PackManifest | null; local: PackMeta | null }) {
   const saved = useSavedSeasons();
   const savedBundles = useSavedBundles();
@@ -393,7 +401,7 @@ function OnDevice({ m, local }: { m: PackManifest | null; local: PackMeta | null
   };
 
   const update = (it: DeviceItem) => act(it.key, async () => {
-    if (it.kind === "lite") { await syncLite(); return; }
+    if (it.kind === "lite") { await getLite(m?.version); return; }
     if (it.kind === "season" && m) {
       const f = currentFile(m, it.season!);
       if (!f || f.seasons[0] !== it.season) return;
@@ -415,7 +423,7 @@ function OnDevice({ m, local }: { m: PackManifest | null; local: PackMeta | null
     freed(it.label, n || it.bytes);
   });
   const resume = (p: PausedItem) => act(p.key, async () => {
-    if (p.kind === "lite") { await syncLite(); return; }
+    if (p.kind === "lite") { await getLite(m?.version); return; }
     const f = m && currentFile(m, Number(p.partial.owner.id));
     if (!m || !f || f.seasons[0] !== Number(p.partial.owner.id)) throw new Error("This season isn't offered any more. Delete the paused download.");
     const r = await runSeasonBatch([f], m);
