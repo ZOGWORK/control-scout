@@ -67,6 +67,21 @@ describe("withVideoAlternatives", () => {
     expect(run).toEqual([]);
   });
 
+  it("past the wait, the questions already found are offered, and a check whose turn comes later never runs", async () => {
+    const a = answer();
+    const run: string[] = [];
+    const ask = async (q: string) => {
+      run.push(q);
+      if (q === "c highlights") await new Promise((r) => setTimeout(r, 200));
+      return askOf(q);
+    };
+    const out = await withVideoAlternatives("6980 at east bergen with video", a, undefined, ask, videoOf, 80, async () => ["b highlights", "c highlights", "d highlights"]);
+    const offered = out.stat?.blocks.find((x) => x.kind === "related");
+    expect(offered && offered.kind === "related" ? offered.queries : []).toEqual(["b highlights"]);
+    await new Promise((r) => setTimeout(r, 300));
+    expect(run).not.toContain("d highlights");
+  });
+
   it("stray spaces around a query are no watch word", async () => {
     const a = answer();
     expect(await withVideoAlternatives(" 4215 matches ", a, undefined, askOf, videoOf, 1000, cands)).toBe(a);
