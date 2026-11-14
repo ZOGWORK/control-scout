@@ -229,11 +229,12 @@ function Controls({ m, liteFlag, liteOn, connected }: { m: PackManifest | null; 
 
 /** Clear cache (how much it frees, measured first), recordings, and the site's whole share of storage. */
 function CleanUp() {
-  const [plan, setPlan] = useState<CachePlan | null | undefined>(undefined);
+  // null: no Cache Storage here; "failed": it couldn't be measured (full or broken), which never hides Clear.
+  const [plan, setPlan] = useState<CachePlan | null | undefined | "failed">(undefined);
   const [busy, setBusy] = useState(false);
   const [freed, setFreed] = useState<number | null>(null);
   const [est, setEst] = useState<{ usage?: number; quota?: number } | null>(null);
-  const measure = () => { planAppCache().then(setPlan, () => setPlan(null)); navigator.storage?.estimate?.().then(setEst, () => setEst({})); };
+  const measure = () => { planAppCache().then(setPlan, () => setPlan("failed")); navigator.storage?.estimate?.().then(setEst, () => setEst({})); };
   useEffect(measure, []);
   const clear = async () => {
     setBusy(true);
@@ -244,15 +245,17 @@ function CleanUp() {
     } catch (e) { toast.error(e instanceof Error ? e.message : "Couldn't clear the cache"); }
     finally { setBusy(false); measure(); }
   };
-  const bytes = plan?.bytes ?? 0;
+  const failed = plan === "failed";
+  const bytes = plan && plan !== "failed" ? plan.bytes : 0;
   return (
     <Group title="Clean up">
       <Row label="Clear cache" description={<>
         Removes old copies of the app's files. Your downloads, scouting notes and settings stay, and the app still opens offline.
+        {failed && <span role="status" className="mt-1 block text-warning">Couldn't measure the cache. Clear still works.</span>}
         {freed != null && <span role="status" className="mt-1 flex items-center gap-1 text-success"><CheckCircle2 className="size-3.5" /> Freed {fmtBytes(freed)}</span>}
       </>}>
-        <Button variant="outline" className="h-11 sm:h-9" onClick={clear} disabled={busy || plan === undefined || !bytes} data-net-clear>
-          <Trash2 /> {plan === undefined ? "Measuring…" : plan === null ? "Nothing cached" : bytes ? `Clear ${fmtBytes(bytes)}` : "Nothing to clear"}
+        <Button variant="outline" className="h-11 sm:h-9" onClick={clear} disabled={busy || plan === undefined || (!bytes && !failed)} data-net-clear>
+          <Trash2 /> {plan === undefined ? "Measuring…" : failed ? "Clear cache" : plan === null ? "Nothing cached" : bytes ? `Clear ${fmtBytes(bytes)}` : "Nothing to clear"}
         </Button>
       </Row>
       <Row label="Recordings" description="Match videos recorded in the app live only on this device.">

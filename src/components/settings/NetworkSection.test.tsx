@@ -12,7 +12,8 @@ import { TooltipProvider } from "../ui/overlay";
 
 const h = vi.hoisted(() => ({ personal: {} as Record<string, unknown>, settings: {} as Record<string, unknown> }));
 vi.mock("../../lib/personal", () => ({ usePersonal: () => h.personal }));
-vi.mock("../../lib/offline/appCache", () => ({ planAppCache: async () => ({ items: [], bytes: 2_500_000 }), clearAppCache: async () => 2_500_000 }));
+const cache = vi.hoisted(() => ({ plan: async (): Promise<unknown> => ({ items: [], bytes: 2_500_000 }) }));
+vi.mock("../../lib/offline/appCache", () => ({ planAppCache: () => cache.plan(), clearAppCache: async () => 2_500_000 }));
 
 const { default: SettingsPage } = await import("../../pages/SettingsPage");
 
@@ -131,5 +132,22 @@ describe("Network & offline: the real sizes", () => {
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: /Check again/ })); });
     expect(await screen.findByText("Offline predictions use 3.8 MB.")).toBeTruthy();
     expect(listAsks).toBe(2);
+  });
+});
+
+describe("Network & offline: clear cache when it can't be measured", () => {
+  it("says so and leaves Clear usable, never \"Nothing cached\"", async () => {
+    const before = cache.plan;
+    cache.plan = async () => { throw new DOMException("refused", "UnknownError"); };
+    try {
+      vi.stubGlobal("fetch", health({ ok: true }));
+      show();
+      expect(await screen.findByText("Couldn't measure the cache. Clear still works.")).toBeTruthy();
+      const button = screen.getByRole("button", { name: /^Clear cache$/ }) as HTMLButtonElement;
+      expect(button.disabled).toBe(false);
+      expect(screen.queryByText("Nothing cached")).toBeNull();
+      await act(async () => { fireEvent.click(button); });
+      expect(await screen.findByText(/Freed 2\.5 MB/)).toBeTruthy();
+    } finally { cache.plan = before; }
   });
 });
