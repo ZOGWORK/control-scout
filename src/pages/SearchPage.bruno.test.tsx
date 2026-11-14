@@ -22,7 +22,9 @@ const summaries: TeamSummary[] = [
 ];
 vi.mock("../lib/api", async (orig) => ({ ...(await orig<typeof import("../lib/api")>()), useApi: (p: string | null) => ({ data: p ? { teams: summaries } : undefined, error: null, loading: false }) }));
 vi.mock("../lib/flags", async (orig) => ({ ...(await orig<typeof import("../lib/flags")>()), useServerFlag: (n: string) => n === "brunoAnswers" }));
-vi.mock("../lib/personal", async (orig) => ({ ...(await orig<typeof import("../lib/personal")>()), useTeamFlags: () => ({ bookmarked: false, toggleBookmark: () => {} }) }));
+vi.mock("../lib/personal", async (orig) => ({ ...(await orig<typeof import("../lib/personal")>()), useTeamFlags: () => ({ bookmarked: false, toggleBookmark: () => {} }),
+  // The phone's search bar is a real SearchBox, which ranks the visitor's own teams first: none here.
+  usePersonal: () => ({ state: { myTeam: null, tracked: { teams: [], events: [] }, bookmarks: [] } }) }));
 const asked = vi.hoisted(() => [] as string[]);
 vi.mock("../lib/brunoStream", () => ({
   streamBrunoAnswer: (url: string) => { asked.push(url); return Promise.resolve({ text: "Bruno's overview of the records.", points: [] }); },

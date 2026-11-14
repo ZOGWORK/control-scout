@@ -282,6 +282,8 @@ export interface SearchBoxProps {
   label: string;
   size?: "md" | "lg";
   className?: string;
+  /** Extra classes for the field's own bordered row (e.g. a taller bar on a phone). */
+  fieldClassName?: string;
   inputRef?: Ref<HTMLInputElement>;
   /** Shown under the field while it's empty and focused (e.g. quick picks). */
   emptyHint?: ReactNode;
@@ -380,7 +382,7 @@ export function AnswerCard({ card, compact, onOpen }: { card: SearchCard; compac
   );
 }
 
-export function SearchBox({ onPick, kinds, placeholder, label, size = "md", className, inputRef, emptyHint, autoFocus, onClose, onEscape, hint, initialQuery, seeAll = true, discover, examples, syncQuery }: SearchBoxProps) {
+export function SearchBox({ onPick, kinds, placeholder, label, size = "md", className, fieldClassName, inputRef, emptyHint, autoFocus, onClose, onEscape, hint, initialQuery, seeAll = true, discover, examples, syncQuery }: SearchBoxProps) {
   const [q, setQ] = useState(initialQuery ?? syncQuery ?? "");
   const [open, setOpen] = useState(!!initialQuery);
   const synced = useRef(syncQuery);
@@ -548,7 +550,7 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
   const lg = size === "lg";
   return (
     <div ref={box} data-search-box data-opens-search={seeAll && !kinds ? "" : undefined} className={cn("relative", className)} onBlur={(e) => { if (!box.current?.contains(e.relatedTarget as Node | null)) { setOpen(false); onClose?.(); } }}>
-      <div className={cn("flex items-center gap-2.5 rounded-xl border border-border bg-card text-foreground transition-[border-color,box-shadow] focus-within:border-accent/60 focus-within:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_18%,transparent)]", lg ? "h-14 px-4" : "h-9 px-3")}>
+      <div className={cn("flex items-center gap-2.5 rounded-xl border border-border bg-card text-foreground transition-[border-color,box-shadow] focus-within:border-accent/60 focus-within:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_18%,transparent)]", lg ? "h-14 px-4" : "h-9 px-3", fieldClassName)}>
         {/* The magnifier searches, like Enter: it never just focuses the field (only an empty one, with nothing to
             search). The press keeps focus in the field so the list stays open until the search goes; going closes
             the keyboard. */}
@@ -581,7 +583,8 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
           className={cn("min-w-0 flex-1 bg-transparent outline-none placeholder:text-muted-foreground", lg ? "text-base" : "text-sm")}
         />
         {!q && hint && <kbd className="hidden shrink-0 rounded border border-border px-1.5 font-mono text-[10px] text-muted-foreground sm:inline">{hint}</kbd>}
-        {q && <button type="button" onClick={() => setQ("")} aria-label="Clear search" className="rounded p-0.5 text-muted-foreground hover:text-foreground"><X className="size-4" /></button>}
+        {/* A touch screen: a 44px target (the icon alone is too small to hit), pulled into the row's padding. */}
+        {q && <button type="button" onClick={() => setQ("")} aria-label="Clear search" className="flex shrink-0 items-center justify-center rounded p-0.5 text-muted-foreground hover:text-foreground pointer-coarse:-my-1 pointer-coarse:-mr-2 pointer-coarse:size-[44px]"><X className="size-4" /></button>}
       </div>
       {showList && (
         <m.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.14, ease: [0.2, 0.8, 0.2, 1] }}
