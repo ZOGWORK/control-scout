@@ -12,11 +12,17 @@ export interface EventListQuery { season: number; from?: string; to?: string; q?
 
 /** GET /api/events?season=S (…): the list view's fields only (detail pages use /events/:season/:code: venue,
  *  division, region and remote aren't shown in lists), with what there is to watch. The season pack's boards carry
- *  this answer too (server/packs/boards.ts). */
-export async function eventListAnswer(q: EventListQuery): Promise<{ events: EventListItem[] }> {
+ *  this answer too (server/packs/boards.ts).
+ *  `strict` (the pack builder): a failed recordings read fails the answer, so a pack never ships a list without its
+ *  LIVE dots and videos for a whole version. Online, one request degrades to no dots (and logs why). */
+export async function eventListAnswer(q: EventListQuery, opts: { strict?: boolean } = {}): Promise<{ events: EventListItem[] }> {
   // Events with a recording (the owner's stream or FIRST's YouTube link): stream: true, for the LIVE dot; and
   // what video there is to watch, for the list's video filter.
-  const [streams, videos] = await Promise.all([seasonRecordings(q.season).catch(() => new Map()), seasonVideoKinds(q.season).catch(() => new Map())]);
+  const soft = <T,>(what: string, p: Promise<Map<string, T>>): Promise<Map<string, T>> => (opts.strict ? p : p.catch((e) => {
+    console.warn(`[events list] ${what} for ${q.season} failed, listing without them: ${(e as Error)?.message ?? e}`);
+    return new Map<string, T>();
+  }));
+  const [streams, videos] = await Promise.all([soft("recordings", seasonRecordings(q.season)), soft("video kinds", seasonVideoKinds(q.season))]);
   return {
     events: (await listEvents(q)).map(({ venue: _v, divisionCode: _d, region: _r, remote: _m, ...e }) => {
       const video = videos.get(e.code);

@@ -8,6 +8,7 @@ import { dismissLite, hasPageData, isPageData, noteArrived, resetLiteSuggest, us
 import { load, prime } from "./api";
 import { LITE_FAILS, LITE_SLOW_MS } from "../shared/lite";
 import { matchReportPath } from "./matchReport";
+import { checkInternet, resetConnection } from "./connection";
 
 const setOnline = (v: boolean) => Object.defineProperty(navigator, "onLine", { configurable: true, get: () => v });
 const visit = (path: string) => window.history.replaceState(null, "", path);
@@ -191,6 +192,24 @@ describe("light version offer", () => {
     expect(result.current).toBe(false);
     act(() => { setOnline(true); window.dispatchEvent(new Event("online")); });
     expect(result.current).toBe(true);
+  });
+
+  it("no internet, or a Wi-Fi sign-in page, while the browser says online: hidden, and never offered (Lite can't load either)", async () => {
+    const { result } = renderHook(() => useLiteSuggested());
+    act(() => { arrive("/teams/1"); vi.advanceTimersByTime(LITE_SLOW_MS); });
+    expect(result.current).toBe(true);
+    for (const [answer, want] of [
+      [async () => { throw new TypeError("Failed to fetch"); }, "no"],
+      [async () => new Response("<html>Sign in</html>", { status: 200 }), "portal"],
+    ] as const) {
+      vi.stubGlobal("fetch", vi.fn(answer));
+      await act(async () => { expect(await checkInternet()).toBe(want); });
+      expect(result.current).toBe(false);
+      act(() => { resetLiteSuggest(); for (let i = 0; i < LITE_FAILS; i++) watchRequest("/api/meta").failed(); arrive("/events/2025/X"); vi.advanceTimersByTime(LITE_SLOW_MS); });
+      expect(result.current).toBe(false);
+    }
+    vi.unstubAllGlobals();
+    act(() => resetConnection());
   });
 
   it("goes away when the page's data comes back quickly, or on the next page; Keep waiting holds for the session", () => {

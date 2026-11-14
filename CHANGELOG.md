@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.2.5 — 2026-11-14
+## 6.2.6 — 2026-11-14
 
 The leaderboards work with no signal from a saved season: world rankings, records, league standings, the events list and power rankings, with the same numbers as online and their time.
 
@@ -27,7 +27,7 @@ The leaderboards work with no signal from a saved season: world rankings, record
 
 ### Added
 - World rankings offline: the ranking's reads and its page moved to `src/shared/rankingsBoard.ts`; the server calls them, and a saved season pack runs the same SQL on its own tables, so every place filter, page and the latest weeks give the server's numbers. The pack now carries the season's ranking weeks and, for the current season, the newest 3 weeks' snapshot rows and the week before them (so each shown week moves against its last week, as online). An older week says it needs a connection.
-- Season boards (`server/packs/boards.ts`): each season pack holds the server's own answers, gzipped, for the season record line and regions, the first two pages of each records table as it opens (cut on the device to the columns a table asks for), every league's standings, the events list and, in the current season's pack, every power rankings week. A filter or another sort on a records table says filters need a connection.
+- Season boards (`server/packs/boards.ts`): each season pack holds the server's own answers, gzipped, for the season record line and regions, the first two pages of each records table as it opens (cut on the device to the columns a table asks for), every league's standings (a league with no standings yet too), the events list (a pack whose recordings can't be read fails to build rather than ship it without LIVE dots and videos) and, in the current season's pack, every power rankings week. A filter or another sort on a records table says filters need a connection.
 - The event pack of a league meet carries its league's standings.
 - An offline board says what it is and its data time ("Offline: Rankings as of Nov 13, 8:09 PM, from your saved 2026–27 data").
 - Parity tests (`server/packs/boards.test.ts`): a pack built by the real builder, opened as the app opens it, answers every board path exactly as the server does.
@@ -37,6 +37,30 @@ The leaderboards work with no signal from a saved season: world rankings, record
 - Match records mark a score that isn't an official record ("Not an official record", the reason on hover), on the table and the phone cards.
 - Season packs now include every rated team, so the ranking names them as online does.
 - A season pack is built in memory and written whole at the end: a build that fails leaves no file behind, and one whose data a sync moved mid-build is built again, so it never carries an older data time than its rows. (#1488)
+
+## 6.2.5 — 2026-11-14
+
+With no internet, pages you saved open straight away instead of after a wait, and one small pill in the top bar says you're offline and how fresh your data is. Wi-Fi that wants a sign-in page is spotted too.
+
+### Highlights
+- [offline] Saved pages open at once with no internet, no waiting first
+- [offline] One "Offline · updated 8:09 PM" pill in the top bar
+- [offline] Wi-Fi that needs a sign-in page says so plainly
+- [offline] Back online, pages refresh by themselves without reloading
+- [fixes] The "Slow connection?" offer stays away when there's no internet
+
+### Added
+- A real internet check (`src/lib/connection.ts`): asks `/api/health` (no cache, 2.5 s at most). Our own answer means internet; a sign-in page, a redirect or any other answer means a Wi-Fi that wants you to sign in; nothing means offline. It checks again when the browser says the network changed, when the tab comes back into view, soon after a request fails, every 30 s while offline and every 5 minutes otherwise. `useConnection()` gives online, internet (yes, no, portal, unknown), connection type and Data Saver for the rest of the app.
+- The Offline pill (`src/components/ConnectionStatus.tsx`), which replaces the old "Offline, showing saved data" badge: "Offline · updated <time>" (the time of the saved data on screen, else of the newest thing saved), or "No internet on this Wi-Fi". On a phone it takes the centred logo's place; on a wider screen it sits in the bar's spare space, so nothing moves. Tapping it lists what's on this device, with Try again and Downloads.
+- `npm run offline:check` (`scripts/offline-check.ts`): opens the offline journeys on a 390 px phone behind a local proxy that can drop the network (the service worker's own requests too), act as a Wi-Fi sign-in page (`--portal`) or slow everything to about 400 kbps (`--throttle`). `--prod` runs it against the local production build.
+
+### Changed
+- Known offline, reads that saved data can answer come from it with no network try and no 4 s wait. Other reads say they need a connection at once (after one quick check) instead of spinning. Writes still go to the network.
+- When the internet comes back, whatever is on screen from saved data refreshes in the background, keeping the page and anything typed.
+- A page that gets no answer in 3 s (Wi-Fi that carries nothing) opens from the app saved on the device instead of a blank screen. Light pages keep waiting.
+- Opening a page again soon after one found no internet starts from that answer (checked again at once), so every page after the first opens straight from saved data. A Wi-Fi sign-in page that answers where our data should be counts as no internet. A read still waiting when the check finds no internet is let go and answered from saved data at once.
+- The "needs a connection" message says "No internet on this Wi-Fi" when a sign-in page is in the way.
+- The "Slow connection?" offer only shows when there is internet: with none, the light version can't load either. (#1487)
 
 ## 6.2.4 — 2026-11-14
 

@@ -67,7 +67,7 @@ async function seed() {
   await snap(W1, [[104, 1, 75], [101, 2, 70], [9999, 3, 68], [103, 4, 65], [102, 5, 60]]);
   await snap(W0, [[101, 1, 89], [102, 2, 84], [103, 3, 84], [104, 4, 71], [105, 5, 59]]);
   // Events: a league meet (with its league's standings) and a qualifier, each with a played match.
-  for (const [season, code, name, type, league] of [[S, "USTXLM1", "Texas League Meet 1", "LeagueMeet", "LS"], [S, "USTXQ1", "Texas Qualifier", "Qualifier", null], [PAST, "FPECAR", "Carolinas Premier Event", "Premier", null], [PAST, "USNCQ1", "Carolina Qualifier", "Qualifier", null]] as const) {
+  for (const [season, code, name, type, league] of [[S, "USTXLM1", "Texas League Meet 1", "LeagueMeet", "LS"], [S, "USTXQ1", "Texas Qualifier", "Qualifier", null], [S, "USTXPLM1", "Prairie League Meet 1", "LeagueMeet", "PL"], [PAST, "FPECAR", "Carolinas Premier Event", "Premier", null], [PAST, "USNCQ1", "Carolina Qualifier", "Qualifier", null]] as const) {
     await run("INSERT INTO events (season, code, name, type, region, league, city, state, country, start, end, remote, hybrid, source) VALUES (?, ?, ?, ?, 'USTX', ?, 'Austin', 'TX', 'USA', '2026-10-10', '2026-10-10', 0, 0, 'test')", [season, code, name, type, league]);
     await run(`INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, red_auto, red_teleop, red_endgame, red_pen,
       blue_total, blue_np, blue_auto, blue_teleop, blue_endgame, blue_pen, source) VALUES (?, ?, 'qual', 0, 1, 'Q1', '2026-10-10T10:00:00', 1, 90, 90, 20, 50, 20, 0, 60, 60, 10, 40, 10, 0, 'test')`, [season, code]);
@@ -199,6 +199,12 @@ describe("boards offline = the server's", () => {
       expect(await readBoard(packs.get(S)!, p), p).toEqual(online.body);
     }
     expect((await get(`/api/leagues/${S}/USTX/LS`)).body.rows).toHaveLength(4);
+  });
+  it("a league with no standings yet (only its meets name it) still has its board, the server's answer", async () => {
+    const online = await get(`/api/leagues/${S}/USTX/PL`);
+    expect(online.status).toBe(200);
+    expect(online.body.rows).toEqual([]);
+    expect(await readBoard(packs.get(S)!, `/api/leagues/${S}/USTX/PL`)).toEqual(online.body);
   });
   it("a path the boards don't hold is no answer (the server is asked)", async () => {
     expect(await readBoard(packs.get(S)!, `/api/events?season=${S}&from=2026-10-01&to=2026-10-31`)).toBeNull();

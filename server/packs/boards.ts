@@ -16,7 +16,7 @@ import { CURRENT_SEASON } from "../data/seasons.js";
 import { isEnabled } from "../flags.js";
 import { listRecords, recordRegions, recordsQuery } from "../api/records.js";
 import { seasonRecordLine } from "../api/searchHighScores.js";
-import { leagueStandings, leaguesOf } from "../api/leagues.js";
+import { leagueStandings, seasonLeagues } from "../api/leagues.js";
 import { eventListAnswer } from "../api/reads.js";
 import { latestRankings, publishedWeeks, rankingsWeek } from "../powerRankings/store.js";
 import { BOARDS_TABLE } from "../../src/shared/packSchema.js";
@@ -52,9 +52,10 @@ export const BOARD_READS: Reads[] = [
     { path: `/api/records/${s}/regions`, read: async () => ({ regions: await recordRegions(s) }) },
   ],
   recordPages,
-  async (s) => (await leaguesOf(s)).map((l) => ({ path: `/api/leagues/${s}/${l.region}/${l.code}`, read: () => leagueStandings(s, l.region, l.code) })),
+  // Every league the route answers (with standings or not yet), as it finds them (server/api/leagues.ts storedLeague).
+  async (s) => (await seasonLeagues(s)).map((l) => ({ path: `/api/leagues/${s}/${l.region}/${l.code}`, read: () => leagueStandings(s, l.region, l.code) })),
   async (s) => [
-    { path: `/api/events?season=${s}`, read: () => eventListAnswer({ season: s, hideNoMatch: true, limit: 3000 }) },
+    { path: `/api/events?season=${s}`, read: () => eventListAnswer({ season: s, hideNoMatch: true, limit: 3000 }, { strict: true }) },
   ],
   async (s) => {
     if (s !== CURRENT_SEASON || !(await isEnabled("powerRankings"))) return [];
