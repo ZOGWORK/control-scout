@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { actualStart, chapterLabel, chaptersConfirm, CHAPTER_MIN_ANCHORS, CHAPTER_MIN_GAP_S, CHAPTER_TAIL, CLIP_LEAD_S, clearOfPrevious, clipEnd, clipSecond, CLIP_TAIL_S, LIVE_DELAY_MAX_S, LIVE_DELAY_MIN_S, clipTime, gapSlack, GAP_SLACK_MAX_S, MATCH_PLAY_S, timingTrusted, watchUrl, type Chapter } from "./recording";
+import { actualStart, chapterLabel, chaptersConfirm, CHAPTER_MIN_ANCHORS, CHAPTER_MIN_GAP_S, CHAPTER_TAIL, CLIP_LEAD_S, clearOfPrevious, clipEnd, clipSecond, CLIP_TAIL_S, LIVE_DELAY_MAX_S, LIVE_DELAY_MIN_S, clipTime, FRAME_TAIL_S, frameClipEnd, gapSlack, GAP_SLACK_MAX_S, MATCH_PLAY_S, timingTrusted, watchUrl, type Chapter } from "./recording";
 
 const rec = { start: "2026-05-02T12:58:13Z", length: 4 * 3600, live: false };
 
@@ -336,5 +336,21 @@ describe("a recording cut short, its chapters checked", () => {
     const nano = { ...timing, length: 52972 - 21 * 60 };
     expect(gapSlack(nano)).toBeNull();
     expect(confirm(nano, chapters, quals)).toBe(clock(30 - CHAPTER_TAIL + 1));
+  });
+});
+
+describe("frameClipEnd (a clip placed from the recording's frames)", () => {
+  it("stops once the match's final score is up: its timer's start + play + the score settling", () => {
+    expect(frameClipEnd(8674, null, 30807)).toBe(8674 + MATCH_PLAY_S + FRAME_TAIL_S);
+    expect(frameClipEnd(8674, null, null)).toBe(8884);
+  });
+  it("stops when the next match's timer starts, but never before its own play is over", () => {
+    expect(frameClipEnd(1000, 1180, null)).toBe(1180);
+    expect(frameClipEnd(1000, 1100, null)).toBe(1000 + MATCH_PLAY_S);
+    // A start before this one (another event's, or a misread) doesn't cut it.
+    expect(frameClipEnd(1000, 900, null)).toBe(1210);
+  });
+  it("never runs past the video's end", () => {
+    expect(frameClipEnd(100, null, 213)).toBe(213);
   });
 });

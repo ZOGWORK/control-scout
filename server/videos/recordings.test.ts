@@ -7,7 +7,9 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { get, kvSet, migrate, openDb, run, setDb } from "../db";
 import { createApp } from "../app";
 import { clearAllCaches } from "../caches";
-import { backfillVideoMeta, due, firstVideoId, type VideoMeta } from "./recordings";
+import { backfillVideoMeta, due, firstVideoId, seasonRecordings, withClips, type VideoMeta } from "./recordings";
+import { setFrameTimingsForTests } from "../data/frameTimings";
+import type { MatchView } from "../../src/shared/api";
 
 let server: Server;
 let base = "";
@@ -184,6 +186,49 @@ describe("event recordings", () => {
     } finally {
       await run("UPDATE events SET division_code = NULL WHERE season = ? AND code IN ('UPLOAD', 'CLIPS', 'GAPPED')", [S]);
       await run("DELETE FROM events WHERE season = ? AND code IN ('CHAMP', 'PAIR')", [S]);
+      clearAllCaches();
+    }
+  });
+});
+
+describe("matches read off a recording's own frames", () => {
+  it("play from there, for an upload and for a video with a gap the clock can't place", async () => {
+    setFrameTimingsForTests([
+      { videoId: UPLOAD_ID, code: "UPLOAD", checked: "2026-11-13", starts: { Q1: 100 } },
+      { videoId: GAPPED_ID, code: "GAPPED", checked: "2026-11-13", starts: { Q1: 1500 } },
+      // Another event's timings on the same video are never this event's: ELSEWHEN's Q1 never moves CLIPS's Q1.
+      { videoId: FIRST_ID, code: "ELSEWHEN", checked: "2026-11-13", starts: { Q1: 50 } },
+    ]);
+    try {
+      clearAllCaches();
+      // A 213 s upload: the clip stops at the video's end.
+      expect((await getJson(`/api/events/${S}/UPLOAD`)).matches[0].clip).toEqual({ videoId: UPLOAD_ID, t: 80, url: `https://www.youtube.com/watch?v=${UPLOAD_ID}&t=80s`, end: 213 });
+      // Its timer starts at 1500 s: the clip stops at 1710 s, its play over (+160) and its final score up (+50).
+      expect((await getJson(`/api/events/${S}/GAPPED`)).matches[0].clip).toMatchObject({ videoId: GAPPED_ID, t: 1480, end: 1710 });
+      // A match's own page: the same second.
+      expect((await getJson(`/api/events/${S}/UPLOAD/matches/qual:0:1`)).match.clip.t).toBe(80);
+      // The clock's clips elsewhere are untouched.
+      expect((await getJson(`/api/events/${S}/CLIPS`)).matches[0].clip.t).toBe(120 - 20);
+      const { events } = await getJson(`/api/events?season=${S}`);
+      const by = Object.fromEntries(events.map((e: any) => [e.code, e.video ?? null]));
+      expect(by).toMatchObject({ UPLOAD: "clips", GAPPED: "clips", ELSEWHEN: "clips" });
+    } finally {
+      setFrameTimingsForTests([]);
+      clearAllCaches();
+    }
+  });
+  it("leave a match out when they weren't read for it, and are left out on request (what YouTube's facts alone give)", async () => {
+    setFrameTimingsForTests([{ videoId: UPLOAD_ID, code: "UPLOAD", checked: "2026-11-13", starts: { Q7: 100 } }]);
+    try {
+      clearAllCaches();
+      expect((await getJson(`/api/events/${S}/UPLOAD`)).matches[0].clip).toBeUndefined();
+      setFrameTimingsForTests([{ videoId: UPLOAD_ID, code: "UPLOAD", checked: "2026-11-13", starts: { Q1: 100 } }]);
+      const rec = (await seasonRecordings(S)).get("UPLOAD")!;
+      const m: Pick<MatchView, "label" | "time" | "startsAt" | "played" | "clip">[] = [{ label: "Q1", time: `${DAY}T13:00:13`, startsAt: `${DAY}T13:00:13.000Z`, played: true, clip: undefined }];
+      expect(withClips(m, rec)[0].clip?.t).toBe(80);
+      expect(withClips(m, rec, Date.now(), undefined, { frames: false })[0].clip).toBeUndefined();
+    } finally {
+      setFrameTimingsForTests([]);
       clearAllCaches();
     }
   });
