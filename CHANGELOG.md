@@ -34,7 +34,7 @@ One Network & offline screen in Settings answers it all in plain words: are you 
 
 ### Changed
 - Downloads: "Wi-Fi only" / "Wi-Fi and mobile data", the second with the real sizes it may use. Updates: "Update packs automatically on Wi-Fi" / "Never update automatically (I'll tap Update)". Same stored settings as before (`offlineNetwork`, `offlineUpdates`), so nothing changes for anyone.
-- The Download page no longer has its own copy of those two settings: it links to Network & offline. Old links to Settings › Offline data (`?section=offline`, `#offline`) open Network & offline.
+- The Download page no longer has its own copy of those two settings: it links to Network & offline. Old links to Settings › Offline data (`?section=offline`, `#offline`) open Network & offline. (#1491)
 
 ## 6.1.8 — 2026-11-14
 
