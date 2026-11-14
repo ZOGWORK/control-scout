@@ -29,9 +29,17 @@ import { AUTO_S, SAME_S, SWITCH_S, TELEOP_S, TRIES, elapsed, judge, NOTHING_READ
 
 const arg = (k: string) => { const i = process.argv.indexOf(`--${k}`); return i > 0 ? process.argv[i + 1] : undefined; };
 const flag = (k: string) => process.argv.includes(`--${k}`);
-const season = Number(arg("season") ?? 2025);
+/** A number flag, or the run stops before anything is read: a misspelt one mustn't look like a run that read nothing. */
+function count(name: string, fallback: number): number {
+  const v = arg(name);
+  if (v == null) return fallback;
+  const n = Number(v);
+  if (!Number.isFinite(n) || n < 1) { console.error(`--${name} ${v}: give a whole number, 1 or more`); process.exit(2); }
+  return Math.floor(n);
+}
+const season = count("season", 2025);
 const only = arg("codes")?.split(",").map((c) => c.trim().toUpperCase()).filter(Boolean);
-const limit = Number(arg("limit") ?? Infinity);
+const limit = count("limit", Infinity);
 const CHECK = flag("check"), ALL = flag("all"), DRY = flag("dry");
 
 const { migrate, all } = await import("../server/db.js");
@@ -176,6 +184,9 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
   const note = async (r: Read) => {
     const named = r.label ? byName.get(r.label) : undefined;
     if (!named || r.start == null) return;
+    // A match with replays and nothing yet to place the read against (no read placed, no broadcast clock): which of
+    // them it shows can't be told, so the read is left rather than guessed.
+    if (named.length > 1 && near(named[0]) == null) return;
     // Of a match and its replays, the one whose clock place (by the nearest read's distance) the read's start is nearest.
     const off = (k: number) => Math.abs(r.start! - (ms[k].epoch + (near(k) ?? 0)));
     const i = named.reduce((a, b) => (off(b) < off(a) ? b : a));
@@ -328,9 +339,20 @@ async function doCode(code: string): Promise<void> {
   // Any of its videos that couldn't be played at all keeps the event unread, so the next run tries it again. (An event's
   // rows are saved once all its videos are read, so a run cut short leaves none of them.)
   // So does a video whose facts YouTube hasn't given yet (it isn't read until they come).
-  const read = [...kept.values()].filter((f) => f.code === code);
-  const waiting = [rec, ...(rec.more ?? [])].some((v) => !v.meta || v.meta.status === "error");
-  if (!CHECK && !ALL && read.length && !waiting && !read.some((f) => Object.values(f.missing ?? {}).some((w) => w.startsWith(PLAY_FAILED)))) return;
+  // Read means each of this event's own videos that holds a played match has a row (by video, not by code: a code
+  // recurs from season to season, and a video linked since is new).
+  const own = [rec, ...(rec.more ?? [])];
+  const waiting = own.some((v) => !v.meta || v.meta.status === "error");
+  const holds = (v: (typeof own)[number]) => {
+    const m = v.meta;
+    if (m?.status !== "ok" || !m.length) return false;
+    if (!m.start) return true;
+    const a = Date.parse(m.start) / 1000, b = m.end ? Date.parse(m.end) / 1000 : Infinity;
+    return played.some((x) => a <= x.epoch && x.epoch <= b);
+  };
+  const rowOf = (v: (typeof own)[number]) => kept.get(`${v.videoId}|${code}`);
+  const read = own.filter(holds).every((v) => { const f = rowOf(v); return f && !Object.values(f.missing ?? {}).some((w) => w.startsWith(PLAY_FAILED)); });
+  if (!CHECK && !ALL && !waiting && own.some(holds) && read) return;
   // Checked again once claimed: a lane that passed its check while another was still loading would read past --limit.
   if (++done > limit) return;
   // An event's lines together (events run side by side).
@@ -407,7 +429,7 @@ async function doCode(code: string): Promise<void> {
 // A few events at a time: most of a read is waiting for YouTube to seek.
 const queue = [...codes];
 const lane = async () => { while (queue.length && done < limit) await doCode(queue.shift()!); };
-await Promise.all(Array.from({ length: Math.max(1, Number(arg("lanes") ?? 3)) }, lane));
+await Promise.all(Array.from({ length: count("lanes", 3) }, lane));
 await browser.close();
 await worker.terminate();
 await digits.terminate();
