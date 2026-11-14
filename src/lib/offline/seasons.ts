@@ -10,6 +10,7 @@
 import type { Database, SqlJsStatic } from "sql.js";
 import { checkFormat, del, fetchVerified, getv, keys, put, type PackFile, type PackManifest } from "../packs";
 import { savedSeasons, writeSaved, type SavedSeason } from "./saved";
+import { finishDownload } from "./download";
 import { wrap, type Db, type SeasonDb } from "./readers";
 
 export { savedSeasons, useSavedSeasons, SEASONS_EVENT, type SavedSeason } from "./saved";
@@ -106,8 +107,6 @@ export async function saveSeason(file: PackFile, manifest: PackManifest, onProgr
   // published checksum already vouches for the bytes; this just refuses a file that isn't SQLite.
   // (The pack's format and season are checked when it's first opened, offline.)
   if (!isSqlite(bytes)) throw new Error("That file isn't a Control Scout season pack — not saved.");
-  // Ask the browser not to clear it under storage pressure (granted quietly or not at all).
-  navigator.storage?.persist?.().catch(() => {});
   // One save per season at a time, across tabs: two releases saved at once would otherwise both
   // replace the same previous copy and leave one download stored but unlisted.
   return oneAtATime(season, () => {
@@ -144,7 +143,7 @@ async function store(season: number, file: PackFile, manifest: PackManifest, byt
     throw (e as DOMException)?.name === "QuotaExceededError" ? new Error("Not enough storage on this device to save this season. Remove another saved season, or free some space.") : e;
   }
   await keepEngine();
-  const meta: SavedSeason = { season, version: manifest.version, sha256: file.sha256, bytes: bytes.length, savedAt: Date.now(), dataAsOf: manifest.dataAsOf, builtAt: manifest.builtAt };
+  const meta: SavedSeason = { season, version: manifest.version, sha256: file.sha256, bytes: bytes.length, savedAt: Date.now(), dataAsOf: manifest.dataAsOf, builtAt: manifest.builtAt, ...(file.stats ? { stats: file.stats } : {}) };
   try { writeSaved([...savedSeasons().filter((s) => s.season !== season), meta]); }
   catch (e) {
     // Roll back: the previous copy (if any) stays listed and readable; the new bytes go.
@@ -156,11 +155,13 @@ async function store(season: number, file: PackFile, manifest: PackManifest, byt
   if (was && was.sha256 !== file.sha256) close(season);
   if (prev && prev.sha256 !== file.sha256) await del(key(season, prev.sha256)).catch(() => {});
   await sweep(season).catch(() => {}); // tidying only: the save itself succeeded
+  await finishDownload(file.sha256, file.gz?.sha256); // the downloaded pieces: the saved copy stands now
   return meta;
 }
 
-export async function removeSeason(season: number): Promise<void> {
-  await oneAtATime(season, async () => {
+/** Delete a saved season (its bytes and its place in the list). Returns the bytes freed. */
+export async function removeSeason(season: number): Promise<number> {
+  return oneAtATime(season, async () => {
     const meta = savedSeasons().find((s) => s.season === season);
     close(season);
     // The list and the file change together: if either step fails, the season stays listed with its
@@ -171,6 +172,7 @@ export async function removeSeason(season: number): Promise<void> {
     try { writeSaved(savedSeasons().filter((s) => s.season !== season)); }
     catch (e) { if (k && bytes) await put(k, bytes).catch(() => {}); throw e; }
     await sweep(season).catch(() => {}); // leftovers of interrupted saves; the season itself is gone
+    return meta?.bytes ?? 0;
   });
 }
 

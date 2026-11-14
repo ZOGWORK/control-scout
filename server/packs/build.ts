@@ -5,7 +5,10 @@
 //           with no server (same engine). Target < 10 MB.
 //   full  — scout-pack-<version>-<season>.db : one SQLite file per season with
 //           events, teams, rankings, matches (scores, breakdowns, penalties),
-//           lineups, alliances, awards, advancement and computed stats.
+//           lineups, alliances, awards, advancement and computed stats. Its
+//           gzipped twin (.db.gz) is what the app downloads: browsers ask for a
+//           resumed range uncompressed, so resuming the .db would cost the raw
+//           size, a range of the .gz only its own few MB.
 //   latest.json — the manifest the app polls (version, size, sha256, seasons).
 //
 // Versions are dated (YYYY-MM-DD.N); the last few are kept so a device that
@@ -34,7 +37,14 @@ const KEEP_VERSIONS = 3;
 
 const sha256 = (buf: Buffer) => createHash("sha256").update(buf).digest("hex");
 
-export interface BuiltFile { name: string; url: string; bytes: number; sha256: string; seasons: number[]; kind: "lite" | "full"; contents: string }
+export interface BuiltGz { name: string; url: string; bytes: number; sha256: string }
+export interface BuiltFile {
+  name: string; url: string; bytes: number; sha256: string; seasons: number[]; kind: "lite" | "full"; contents: string;
+  /** Full packs: the same file gzipped (the app's download; the .db stays for analysts). */
+  gz?: BuiltGz;
+  /** Full packs: played matches and events with any played match, so the app can say what a release adds. */
+  stats?: { matches: number; events: number };
+}
 export interface Manifest { format: number; version: string; builtAt: string; engineVersion: string; dataAsOf: string | null; lite: BuiltFile | null; full: BuiltFile[] }
 
 async function nextVersion(dir: string): Promise<string> {
@@ -136,8 +146,13 @@ export async function buildFull(season: number, version: string, dir: string, lo
   copyFileSync(tmp, join(dir, name));
   try { rmSync(tmp); } catch { /* removed on the next build */ }
   const buf = readFileSync(join(dir, name));
-  log(`full ${season}: ${rows + teams.length} rows → ${(buf.length / 1e6).toFixed(1)} MB`);
+  const gz = gzipSync(buf, { level: 9 });
+  writeFileSync(join(dir, `${name}.gz`), gz);
+  const played = await all<{ m: number; e: number }>("SELECT COUNT(*) m, COUNT(DISTINCT code) e FROM matches WHERE season = ? AND played = 1", [season]);
+  log(`full ${season}: ${rows + teams.length} rows → ${(buf.length / 1e6).toFixed(1)} MB (${(gz.length / 1e6).toFixed(2)} MB gz)`);
   return { name, url: `/packs/${name}`, bytes: buf.length, sha256: sha256(buf), seasons: [season], kind: "full",
+    gz: { name: `${name}.gz`, url: `/packs/${name}.gz`, bytes: gz.length, sha256: sha256(gz) },
+    stats: { matches: Number(played[0]?.m ?? 0), events: Number(played[0]?.e ?? 0) },
     contents: `Every ${seasonInfo(season).label} ${seasonInfo(season).game} event, team, match (scores, breakdowns, penalties, lineups), ranking, alliance, award and computed stat — a plain SQLite file.` };
 }
 

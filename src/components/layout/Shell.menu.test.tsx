@@ -120,7 +120,7 @@ describe("the phone's top bar and tab bar", () => {
     const { sheet } = await openMenu();
     expect(button.getAttribute("aria-expanded")).toBe("true");
     const pages = within(sheet).getByRole("navigation", { name: "All pages" });
-    for (const name of ["Home", "Events", "Teams", "Rankings", "Power rankings", "Predict", "Compare", "Shortlist", "Scout", "Download"]) expect(within(pages).getByRole("link", { name })).toBeTruthy();
+    for (const name of ["Home", "Events", "Teams", "Rankings", "Power rankings", "Predict", "Compare", "Shortlist", "Scout", "Offline"]) expect(within(pages).getByRole("link", { name })).toBeTruthy();
     // How it works opens to its two pages (Predictions, FTC One Search) instead of being one.
     expect(within(pages).getByRole("button", { name: "How it works" }).getAttribute("aria-expanded")).toBe("false");
   });
@@ -189,7 +189,7 @@ describe("the desktop sidebar", () => {
     fireEvent.click(more);
     expect(more.getAttribute("aria-expanded")).toBe("true");
     expect(morePages().hidden).toBe(false);
-    for (const name of ["Power rankings", "Compare", "Shortlist", "Download"]) expect(within(morePages()).getByRole("link", { name })).toBeTruthy();
+    for (const name of ["Power rankings", "Compare", "Shortlist", "Offline"]) expect(within(morePages()).getByRole("link", { name })).toBeTruthy();
     expect(within(morePages()).getByRole("button", { name: "How it works" })).toBeTruthy();
     // Settings is the footer's gear alone; What's new sits in the footer, in view with More folded.
     expect(within(morePages()).queryByRole("link", { name: "Settings" })).toBeNull();
@@ -201,7 +201,7 @@ describe("the desktop sidebar", () => {
     wide(true);
     shell();
     fireEvent.click(moreButton());
-    const download = within(morePages()).getByRole("link", { name: "Download" });
+    const download = within(morePages()).getByRole("link", { name: "Offline" });
     act(() => download.focus());
     fireEvent.keyDown(download, { key: "Escape" });
     expect(moreButton().getAttribute("aria-expanded")).toBe("false");
@@ -224,7 +224,7 @@ describe("the desktop sidebar", () => {
     wide(true);
     shell("/download");
     expect(moreButton().getAttribute("aria-expanded")).toBe("true");
-    expect(within(morePages()).getByRole("link", { name: "Download" }).getAttribute("aria-current")).toBe("page");
+    expect(within(morePages()).getByRole("link", { name: "Offline" }).getAttribute("aria-current")).toBe("page");
   });
 
   it("keeps What's new in view at its foot, above Sign in, with More folded", () => {

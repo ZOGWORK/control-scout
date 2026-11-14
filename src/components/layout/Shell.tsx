@@ -55,7 +55,7 @@ const SECTIONS: { title: string | null; items: NavItem[]; more?: boolean }[] = [
     { to: "/compare", label: "Compare", icon: Scale },
     { to: "/shortlist", label: "Shortlist", icon: Bookmark },
     { to: "/rules", label: "Rules", icon: Gavel },
-    { to: "/download", label: "Download", icon: Download },
+    { to: "/download", label: "Offline", icon: Download },
     { to: "/methodology", label: "How it works", icon: BookOpen, children: [
       { to: "/methodology", label: "Predictions", icon: Sparkles },
       { to: "/how-it-works/search", label: "FTC One Search", icon: Search },
