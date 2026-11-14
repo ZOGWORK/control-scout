@@ -147,7 +147,9 @@ function seasonNewer(b: SavedBundle): boolean {
  *  `skipOlder`: leave out packs older than the saved season (that answers first; they're its fallback). */
 export async function packAnswer(path: string, skipOlder = false): Promise<unknown | null> {
   for (const meta of bundlesWith(path)) {
-    if (skipOlder && seasonNewer(meta)) continue;
+    // Newest first: once one pack is older than the saved season, every later one is too, so the season answers
+    // first (an older pack never wins over it).
+    if (skipOlder && seasonNewer(meta)) return null;
     const bundle = await loadBundle(meta.season, meta.code);
     const got = packLookup(bundle?.api, path);
     if (!got) continue;

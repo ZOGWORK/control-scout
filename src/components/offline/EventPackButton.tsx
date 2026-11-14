@@ -17,24 +17,33 @@ const CHIP = "mt-3 inline-flex min-h-9 items-center gap-1.5 rounded-md border bo
 
 export function EventPackButton({ season, code, field }: { season: number; code: string; field: number[] }) {
   useSavedBundles(); // re-render when a bundle is saved or removed
-  const saved = bundleFor(season, code);
+  const found = bundleFor(season, code);
+  // A bundle saved before the event pack (no team or match pages inside) isn't the offline event: it's updated.
+  const saved = found?.apiPaths?.length ? found : null;
+  const older = found && !saved ? found : null;
   const { state, user } = usePersonal();
   const team = state.myTeam != null && field.includes(state.myTeam) ? state.myTeam : null;
-  const req: BundleRequest = { season, code, team, workspace: null, account: user?.id ?? null };
+  // An older bundle is updated with what it was made for (its team, its workspace's pick list).
+  const req: BundleRequest = older
+    ? { season, code, team: older.team, workspace: older.workspace?.id ?? null, account: user?.id ?? null }
+    : { season, code, team, workspace: null, account: user?.id ?? null };
   const [manifest, setManifest] = useState<BundleManifest | null>(null);
   const [failed, setFailed] = useState(false);
   const [done, setDone] = useState<number | null>(null);
 
-  // Its size, asked once the page is idle (only while nothing is saved for this event).
+  // Its size, asked once the page is idle (only while the event pack isn't saved). Leaving the page first asks
+  // nothing (the idle callback is cancelled) and stops a manifest still being prepared.
   useEffect(() => {
     if (saved) return;
     let live = true;
+    const ctrl = new AbortController();
     setManifest(null); setFailed(false);
-    const go = () => { void bundles().then((b) => b.fetchBundleManifest(req)).then((m) => live && setManifest(m), () => live && setFailed(true)); };
-    const idle = (window as { requestIdleCallback?: (f: () => void) => number }).requestIdleCallback;
-    const h = idle ? idle(go) : window.setTimeout(go, 300);
-    return () => { live = false; if (!idle) clearTimeout(h); };
-  }, [season, code, team, !!saved]);
+    const go = () => { void bundles().then((b) => b.fetchBundleManifest(req, ctrl.signal)).then((m) => live && setManifest(m), () => live && setFailed(true)); };
+    const w = window as { requestIdleCallback?: (f: () => void) => number; cancelIdleCallback?: (h: number) => void };
+    const idle = !!w.requestIdleCallback && !!w.cancelIdleCallback;
+    const h = idle ? w.requestIdleCallback!(go) : window.setTimeout(go, 300);
+    return () => { live = false; ctrl.abort(); if (idle) w.cancelIdleCallback!(h); else clearTimeout(h); };
+  }, [season, code, req.team, req.workspace, !!saved]);
 
   if (saved) {
     return (
@@ -58,10 +67,10 @@ export function EventPackButton({ season, code, field }: { season: number; code:
   };
   return (
     <button type="button" onClick={() => void download()} disabled={!manifest || done != null} className={cn(CHIP, "disabled:opacity-70")} data-bundle-link data-pack-download
-      aria-label={manifest ? `Download this event for offline, ${fmtBytes(manifest.bytes)}` : "Download this event for offline"}>
+      aria-label={`${older ? "Update" : "Download"} this event for offline${manifest ? `, ${fmtBytes(manifest.bytes)}` : ""}`}>
       {done != null ? <Loader2 className="size-4 animate-spin text-accent" aria-hidden /> : <HardDriveDownload className="size-4 text-accent" aria-hidden />}
       {done != null && manifest ? <span className="tabular-nums">Downloading · {fmtBytes(done)} of {fmtBytes(manifest.bytes)}</span>
-        : <>Download for offline{manifest ? <span className="tabular-nums"> · {fmtBytes(manifest.bytes)}</span> : <span className="text-muted-foreground"> · checking size…</span>}</>}
+        : <>{older ? "Update for offline" : "Download for offline"}{manifest ? <span className="tabular-nums"> · {fmtBytes(manifest.bytes)}</span> : <span className="text-muted-foreground"> · checking size…</span>}</>}
     </button>
   );
 }

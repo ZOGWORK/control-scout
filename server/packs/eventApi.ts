@@ -112,6 +112,9 @@ const packs = new Map<string, { at: number; value: Promise<PackParts> }>();
 registerCache("Event packs", () => packs.clear());
 /** Tests: forget every kept pack. */
 export function clearPackCache() { packs.clear(); }
+let packReads: Reads[] = PACK_READS;
+/** Tests: build packs from another list of paths (null: PACK_READS again). */
+export function setPackReads(r: Reads[] | null) { packReads = r ?? PACK_READS; }
 
 /** The event pack's `api` and `compare` sections for an event (its detail as the bundle holds it): kept per data
  *  version, the event's own data and the owner switches that gate its paths. */
@@ -122,7 +125,7 @@ export async function packApi(season: number, ev: EventDetail): Promise<PackPart
     createHash("sha256").update(stableJson(ev)).digest("hex").slice(0, 16), switches.join(",")].join("|");
   const hit = packs.get(key);
   if (hit && Date.now() - hit.at < PACK_TTL_MS) return hit.value;
-  const value = buildPackApi(season, ev);
+  const value = buildPackApi(season, ev, packReads);
   packs.delete(key);
   packs.set(key, { at: Date.now(), value });
   value.catch(() => { if (packs.get(key)?.value === value) packs.delete(key); });
@@ -176,7 +179,17 @@ export async function buildPackApi(season: number, ev: EventDetail, reads: Reads
   const code = ev.event.code;
   let detail: Promise<EventDetail | null> | undefined;
   const c: PackContext = { season, code, ev, teams: packTeams(ev), matches: ev.matches, detail: () => (detail ??= eventDetail(season, code)) };
-  const list = (await Promise.all(reads.map((r) => r(c)))).flat();
+  // Compare: each team's column for the event's season, and the latest season it has results in (what /api/compare
+  // picks with no season asked). Early in a season that's still last season for most teams: their columns and
+  // season matches for it go in too (a season either side of the event's), so Compare opened with no season works.
+  const compare: Record<string, PackCompareTeam> = {};
+  await inTurns(c.teams, 6, async (t) => { compare[String(t)] = { block: await compareBlockOf(t, season), latest: await latestResultsSeason(t) }; });
+  const others = [...new Set(Object.values(compare).map((x) => x.latest).filter((s): s is number => s != null && s !== season && Math.abs(s - season) <= 1))];
+  for (const s of others) {
+    await inTurns(c.teams, 6, async (t) => { (compare[String(t)].others ??= {})[String(s)] = await compareBlockOf(t, s); });
+  }
+  const extra = (cx: PackContext): PackRead[] => others.flatMap((s) => cx.teams.map((t) => ({ path: `/api/teams/${t}/matches?season=${s}`, read: () => teamMatchesAnswer(t, s), needed: `team ${t}'s ${s} matches` })));
+  const list = (await Promise.all([...reads, extra].map((r) => r(c)))).flat();
   const api: PackApi = { answers: {}, same: {}, errors: {} };
   // The same answer twice (a profile with and without ?season=) is stored once.
   const byText = new Map<string, string>();
@@ -196,8 +209,6 @@ export async function buildPackApi(season: number, ev: EventDetail, reads: Reads
     byText.set(text, key);
     api.answers[key] = body;
   });
-  const compare: Record<string, PackCompareTeam> = {};
-  await inTurns(c.teams, 6, async (t) => { compare[String(t)] = { block: await compareBlockOf(t, season), latest: await latestResultsSeason(t) }; });
   assertComplete(c, api, compare);
   return { api: poolMatches(api), compare };
 }

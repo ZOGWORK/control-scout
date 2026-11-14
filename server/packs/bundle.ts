@@ -33,7 +33,7 @@ import { consensusFor } from "../scout/consensus.js";
 import { readPickList } from "../scout/picklist.js";
 import { matchReportHtml, picklistHtml, rulesHtml } from "./snapshotHtml.js";
 import { hasRuleReference, ruleReference } from "../../src/shared/rules/index.js";
-import { packApi, packApiPaths } from "./eventApi.js";
+import { PackBroken, packApi, packApiPaths } from "./eventApi.js";
 
 /** A build answers the same asker this long (the manifest, then its file). */
 export const BUNDLE_TTL_MS = 5 * 60_000;
@@ -163,7 +163,11 @@ export async function buildBundle(input: BuildInput): Promise<BuiltBundle | null
 const built = new Map<string, BuiltBundle>();
 const building = new Map<string, Promise<BuiltBundle | null>>();
 /** Tests: forget every build. */
-export function clearBundleCache() { built.clear(); building.clear(); }
+export function clearBundleCache() { built.clear(); building.clear(); failed.clear(); }
+/** A build that failed (a broken event pack, say), kept FAILED_FOR_MS: the next asks get its error instead of
+ *  starting the same build again behind a "preparing" answer. */
+const failed = new Map<string, { at: number; error: Error }>();
+const FAILED_FOR_MS = 60_000;
 
 /** `maxAgeMs`: a build this recent is still the answer (0: always build afresh, unless one is under way). */
 async function cachedBuild(key: string, input: BuildInput, maxAgeMs: number): Promise<BuiltBundle | null> {
@@ -171,8 +175,14 @@ async function cachedBuild(key: string, input: BuildInput, maxAgeMs: number): Pr
   if (hit && Date.now() - hit.at < maxAgeMs) return hit;
   let p = building.get(key);
   if (!p) {
+    const f = failed.get(key);
+    if (f && Date.now() - f.at < FAILED_FOR_MS) throw f.error;
     p = buildBundle(input).finally(() => building.delete(key));
     building.set(key, p);
+    p.then(() => failed.delete(key), (e: Error) => {
+      failed.set(key, { at: Date.now(), error: e });
+      console.error(`[bundle] ${input.season} ${input.code}: ${e?.message ?? e}`);
+    });
   }
   const b = await p;
   if (b) {
@@ -231,7 +241,14 @@ export function bundleRouter(): Router {
     // a sync) answers 202 "preparing" at once and goes on; the app asks again (lib/offline/bundles.ts).
     let timer: ReturnType<typeof setTimeout> | undefined;
     const slow = new Promise<"slow">((r) => { timer = setTimeout(() => r("slow"), PREPARE_MS); });
-    const b = await Promise.race([build, slow]).finally(() => clearTimeout(timer));
+    let b: Awaited<typeof build> | "slow";
+    try { b = await Promise.race([build, slow]).finally(() => clearTimeout(timer)); }
+    catch (e) {
+      // A pack missing a team or a match isn't shipped: said plainly (and the next asks get the same answer for a
+      // minute instead of building it again).
+      if (e instanceof PackBroken) { res.status(500).json({ error: `${e.message} Try again later.` }); return; }
+      throw e;
+    }
     if (b === "slow") {
       build.catch(() => {});
       res.status(202).set("Retry-After", String(Math.ceil(PREPARE_RETRY_MS / 1000)));

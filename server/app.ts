@@ -223,7 +223,12 @@ function limiter(perMinute: number) {
     const b = buckets.get(ip) ?? { tokens: perMinute, at: now };
     b.tokens = Math.min(perMinute, b.tokens + ((now - b.at) / 60000) * perMinute);
     b.at = now;
-    if (b.tokens < 1) { res.status(429).json({ error: "Too many requests — try again in a minute." }); return; }
+    if (b.tokens < 1) {
+      // When the next request will get through, so a client that waits (an event pack being prepared) can.
+      res.setHeader("Retry-After", String(Math.max(1, Math.ceil(((1 - b.tokens) / perMinute) * 60))));
+      res.status(429).json({ error: "Too many requests — try again in a minute." });
+      return;
+    }
     b.tokens -= 1;
     buckets.set(ip, b);
     if (buckets.size > 10000) buckets.clear();

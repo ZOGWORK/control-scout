@@ -96,8 +96,26 @@ describe("the event pack answers with no signal", () => {
       await vi.advanceTimersByTimeAsync(4100);
       expect((await got).version).toBe("p1");
       expect(asks).toBe(3);
+      // Many phones on one wifi used up the address's budget (429): it waits as told, then asks again.
+      asks = 0;
+      vi.stubGlobal("fetch", vi.fn(async () => (++asks < 2
+        ? new Response(JSON.stringify({ error: "Too many requests" }), { status: 429, headers: { "Retry-After": "7" } })
+        : new Response(JSON.stringify(ready)))));
+      const later = fetchBundleManifest({ season: S, code: "USTXQ1", team: null, workspace: null });
+      await vi.advanceTimersByTimeAsync(6900);
+      expect(asks).toBe(1);
+      await vi.advanceTimersByTimeAsync(200);
+      expect((await later).version).toBe("p1");
     } finally { vi.useRealTimers(); }
   });
+
+  it("lib/api.ts: with no answer in 4 s, the pack answers, and a 404 it recorded stays a 404", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => new Promise(() => {}))); // venue wifi that connects but carries nothing
+    const { apiFetch } = await import("../api");
+    const p = apiFetch<{ team: { number: number } }>(`/api/teams/11?season=${S}`);
+    expect((await p).team.number).toBe(11);
+    await expect(apiFetch(`/api/teams/7?season=${S}`)).rejects.toMatchObject({ status: 404, message: "No FTC team 7 in our data" });
+  }, 15_000);
 
   it("lib/api.ts counts those reads as answerable offline (the 4 s fallback covers them)", () => {
     expect(bundleCanAnswer(`/api/teams/11?season=${S}`)).toBe(true);

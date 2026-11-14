@@ -72,7 +72,12 @@ export interface ComparePack { season: number; bundle: Pick<EventBundle, "api" |
  * plain words, never a partial comparison. Copies: the packs' decoded data is never handed out to be changed.
  */
 export function compareFromPacks(numbers: number[], season: number | undefined, packs: ComparePack[]): { view: CompareView } | { missing: string } {
-  const holding = (t: number, s?: number) => packs.find((p) => (s == null || p.season === s) && p.bundle.api && p.bundle.compare?.[String(t)]);
+  /** A team's column for season `s` in a pack: its event season's, or another season the pack keeps for it. */
+  const columnIn = (p: ComparePack, t: number, s?: number): CompareTeam | undefined => {
+    const c = p.bundle.api ? p.bundle.compare?.[String(t)] : undefined;
+    return !c ? undefined : s == null || p.season === s ? c.block : c.others?.[String(s)];
+  };
+  const holding = (t: number, s?: number) => packs.find((p) => columnIn(p, t, s));
   const missing = numbers.filter((t) => !holding(t, season));
   if (missing.length) {
     const which = missing.length === 1 ? `Team ${missing[0]} isn't` : `Teams ${missing.join(", ")} aren't`;
@@ -83,7 +88,7 @@ export function compareFromPacks(numbers: number[], season: number | undefined, 
     const latest = numbers.map((t) => holding(t)!.bundle.compare![String(t)].latest).filter((x): x is number => x != null);
     s = latest.length ? Math.max(...latest) : holding(numbers[0])!.season;
   }
-  const blocks = numbers.map((t) => holding(t, s)?.bundle.compare![String(t)].block);
+  const blocks = numbers.map((t) => { const p = holding(t, s); return p && columnIn(p, t, s); });
   const absent = numbers.filter((_, i) => !blocks[i]);
   if (absent.length) return { missing: `Your downloaded event packs don't hold ${absent.length === 1 ? `team ${absent[0]}` : `teams ${absent.join(", ")}`} for ${seasonLabel(s)}. With no connection, Compare works for the seasons of the events you saved.` };
   const matchesOf = (t: number): MatchView[] => {

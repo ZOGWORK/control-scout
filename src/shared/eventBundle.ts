@@ -69,7 +69,13 @@ function unpool(api: PackApi, key: string, body: unknown): unknown {
 
 /** The pack's `compare` section, per team number: its Compare column for the event's season (the server's
  *  compareBlockOf) and the latest season it has results in (what /api/compare picks with no season asked). */
-export interface PackCompareTeam { block: CompareTeam; latest: number | null }
+export interface PackCompareTeam {
+  block: CompareTeam;
+  latest: number | null;
+  /** Its columns for a season either side of the event's that any of the pack's teams last had results in (early in
+   *  a season, last season: what Compare with no season asked shows), by season. */
+  others?: Record<string, CompareTeam>;
+}
 
 /**
  * An API path the way the pack keys it, so the app's request finds its answer however it spelled it: the path

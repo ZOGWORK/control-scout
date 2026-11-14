@@ -78,6 +78,10 @@ export function bundlesCompare(path: string): boolean {
   return teams.length > 0 && teams.every((t) => packs.some((b) => b.teams?.includes(t)));
 }
 
+/** A comparison while some event pack is saved: even one with a team no pack holds goes to the saved data with no
+ *  signal, which says which team is missing (it doesn't get the offline timeout: only bundleCanAnswer reads do). */
+export const comparePacksSaved = (path: string): boolean => COMPARE_PATH.test(path) && savedBundles().some((b) => b.apiPaths?.length);
+
 /** A saved event pack can answer this read with no signal (lib/api.ts gives it the offline timeout). */
 export const bundleCanAnswer = (path: string): boolean => bundlesWith(path).length > 0 || bundlesCompare(path);
 

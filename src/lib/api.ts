@@ -13,7 +13,7 @@
 // background (packSync.tsx) is separate: that only stores bytes for later.
 import { createContext, useCallback, useContext, useEffect, useRef, useSyncExternalStore } from "react";
 import { offlineSource, savedSeasons } from "./offline/saved";
-import { bundleCanAnswer, bundleFor, savedBundles } from "./offline/bundleMeta";
+import { bundleCanAnswer, bundleFor, comparePacksSaved, savedBundles } from "./offline/bundleMeta";
 import { packStatus } from "./packPolicy";
 import { FEATURE_DISABLED, featureOffMessage } from "../shared/flags";
 import { noteArrived, watchRequest } from "./liteSuggest";
@@ -123,12 +123,7 @@ export function useOfflineMode(): boolean {
   return useSyncExternalStore(subscribeMode, () => usingSaved, () => false);
 }
 
-/** The saved seasons' answer for a read, or null when they can't give one. Loads the offline code. */
-function savedAnswer(path: string): Promise<unknown> {
-  return import("./offline/answer").then((m) => m.offlineAnswer(path)).catch(() => null);
-}
-
-/** The saved data's answer, or what it says instead (an OfflineAnswerError from lib/offline/answer.ts: the
+/** The saved data's answer for a read (loads the offline code; null when it can't give one), or what it says instead (an OfflineAnswerError from lib/offline/answer.ts: the
  *  server's own 404 the pack recorded, or "team X isn't in your downloaded pack"), as the error to show. */
 function savedAnswerOrError(path: string): Promise<{ data: unknown } | { error: ApiError }> {
   return import("./offline/answer").then((m) => m.offlineAnswer(path)).then(
@@ -143,7 +138,8 @@ function savedAnswerOrError(path: string): Promise<{ data: unknown } | { error: 
  *  else fail with the network error. Never used for an HTTP error — the
  *  server's answer stands. */
 async function offlineOr<T>(path: string, method: string | undefined, error: ApiError): Promise<T> {
-  if ((method ?? "GET").toUpperCase() !== "GET" || !(OFFLINE_PATHS.test(path) || bundleCanAnswer(path)) || (!savedSeasons().length && !savedBundles().length)) throw error;
+  // A comparison with a team no saved pack holds still reaches the saved data, which says which team is missing.
+  if ((method ?? "GET").toUpperCase() !== "GET" || !(OFFLINE_PATHS.test(path) || bundleCanAnswer(path) || comparePacksSaved(path)) || (!savedSeasons().length && !savedBundles().length)) throw error;
   const got = await savedAnswerOrError(path);
   if ("error" in got) throw got.error;
   const data = got.data;
@@ -176,8 +172,15 @@ async function respond<T>(request: Promise<Response>, kind: "saved" | "lite" | "
     ctrl.abort();
     throw new ApiError(0, SEARCH_SLOW, false, SEARCH_RETRY);
   }
-  const won = await Promise.race([request.then((res) => ({ res })), savedAnswer(path).then((data) => ({ data }))]);
+  const won = await Promise.race([request.then((res) => ({ res })), savedAnswerOrError(path)]);
   if ("res" in won) return won.res;
+  // The server's own error the pack recorded (a team with no page: 404) is its answer too. "Not in your pack" isn't:
+  // the server may still answer, so it's waited for.
+  if ("error" in won) {
+    if (!won.error.status) return request;
+    ctrl.abort();
+    throw won.error;
+  }
   if (won.data == null) return request;
   ctrl.abort();
   return { saved: won.data as T };

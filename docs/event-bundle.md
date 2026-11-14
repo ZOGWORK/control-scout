@@ -36,7 +36,9 @@ Two more sections make the whole event work with no signal, with the same number
   missing.
 - Compare offline is assembled by `compareFromParts` (`src/shared/compare.ts`), the function the server's
   `compareTeams` calls too, from the pack's columns and the teams' season matches. A team in no saved pack: "Team X
-  isn't in your downloaded event packs".
+  isn't in your downloaded event packs". Compare with no season asked shows the latest season any of the teams has
+  results in; early in a season that's last season, so the pack also keeps each team's column and season matches for
+  a season either side of the event's that a team last played (`others`).
 - A match two of the event's teams played is the same JSON in both teams' lists: each is stored once (`pool`), the
   lists holding indexes, and `packLookup` gives the lists back whole (`poolMatches`, about 20–25% smaller).
 - A pack is built once per data version (`packApi`, kept up to 10 minutes), not on every manifest look. After a sync,
@@ -44,7 +46,9 @@ Two more sections make the whole event work with no signal, with the same number
   server's 15-second tick), so the next look doesn't wait for one.
 - A manifest whose build takes longer than `PREPARE_MS` (2.5 s; a cold pack after a sync takes 5–15 s on a warm
   server) answers `202 {preparing: true, retryAfterMs}` at once and the build goes on; the app asks again every few
-  seconds, up to 90 s (`fetchBundleManifest`). No request is held open on venue wifi.
+  seconds, up to 90 s (`fetchBundleManifest`), and waits as told on a 429 (phones on one venue wifi share an
+  address's request budget; the limiter now sends Retry-After). No request is held open on venue wifi. A build that
+  fails (a broken pack) is remembered for a minute, so the next asks get its error instead of building it again.
 - Match videos are never in the pack: with the page from the pack (or the browser offline) the match's video buttons
   say "Needs a connection" (`components/MatchClip.tsx`).
 - The manifest lists the paths (`apiPaths`), kept with the saved bundle, so `lib/api.ts` knows which reads a pack

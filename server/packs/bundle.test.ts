@@ -16,11 +16,11 @@ import { clearInfoCache } from "../auth/controlPoint";
 import { closeAllStreams } from "../scout/stream";
 import { clearConsensusCache } from "../scout/consensus";
 import { clearCutoffCache } from "../api/matchReport";
-import { clearBundleCache, defaultRulesProvider, setPrepareMs, setRulesProvider } from "./bundle";
+import { buildBundle, clearBundleCache, defaultRulesProvider, setPrepareMs, setRulesProvider } from "./bundle";
 import { setFlag } from "../flags";
 import { packLookup, packPath, type BundleManifest, type EventBundle, type PackApi, type PackCompareTeam } from "../../src/shared/eventBundle";
 import { compareFromPacks } from "../../src/shared/compare";
-import { assertComplete, clearPackCache } from "./eventApi";
+import { PACK_READS, assertComplete, clearPackCache, setPackReads } from "./eventApi";
 import type { CompareView, EventDetail } from "../../src/shared/api";
 
 const KEY = "k".repeat(40);
@@ -355,6 +355,45 @@ describe("the event pack", () => {
       expect(again.status).toBe(200);
       expect(again.json.apiPaths!.length).toBeGreaterThan(0);
     } finally { setPrepareMs(2500); setRulesProvider(defaultRulesProvider); }
+  });
+
+  it("a broken pack is said plainly, and the next ask gets the same answer instead of a new build", async () => {
+    await kvSet("data:version", `broken${Date.now()}`);
+    clearBundleCache(); clearPackCache();
+    let reads = 0;
+    // Only the match pages: every team is missing.
+    setPackReads([(c) => { reads++; return PACK_READS[2](c); }]);
+    try {
+      const a = await manifest(anon, "?team=14");
+      expect(a.status).toBe(500);
+      expect((a.json as unknown as { error: string }).error).toMatch(/event pack for 2025 RPTQ1 is broken: it's missing team 11/);
+      const b = await manifest(anon, "?team=14");
+      expect(b.status).toBe(500);
+      expect(reads).toBe(1);
+    } finally { setPackReads(null); clearBundleCache(); clearPackCache(); }
+  });
+
+  it("Compare with no season asked works when the teams' latest results are another season", async () => {
+    // Team 11 already has 2026 results: /api/compare with no season shows 2026 for any comparison with it.
+    await run("INSERT INTO team_season_stats (season, team, opr_np, matches, wins, losses, ties) VALUES (2026, 11, 60, 3, 2, 1, 0)");
+    await kvSet("data:version", `next${Date.now()}`);
+    clearBundleCache(); clearPackCache();
+    try {
+      // Built directly (the HTTP manifest has its own per-address limit, which this file's asks already use up).
+      const built = await buildBundle({ season: S, code: EV, team: 12, workspace: null });
+      const body = JSON.parse(gunzipSync(built!.gz).toString("utf8")) as EventBundle;
+      expect(body.compare!["12"].others!["2026"].team.number).toBe(12);
+      for (const q of [[11, 12], [12, 13, 11]]) {
+        const live = await anon("GET", `/api/compare?teams=${q.join(",")}`);
+        expect(live.json.season).toBe(2026);
+        const off = compareFromPacks(q, undefined, [{ season: S, bundle: body }]);
+        expect("view" in off && JSON.stringify(off.view)).toBe(JSON.stringify(live.json));
+      }
+    } finally {
+      await run("DELETE FROM team_season_stats WHERE season = 2026 AND team = 11");
+      await kvSet("data:version", `back${Date.now()}`);
+      clearBundleCache(); clearPackCache();
+    }
   });
 
   it("a team or match missing from the pack fails the build loudly", () => {
