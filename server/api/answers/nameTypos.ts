@@ -1,11 +1,12 @@
 // Event names stored with a typo (one event's name missing a letter that eight other events spell in full): never
 // offered as a question to try (./videoSuggest.ts). Precise by design, from the event names alone: a word reads as a
-// typo only when no other event's name has it, and it is a slip from a word in at least two other events' names: a
-// letter dropped, added or two swapped, inside the word (never its first or last letter). A letter changed is never
-// read as one: real names differ so ("Grant", "Grand"; "Stone", "Store"), and so do endings ("Australian",
-// "Australia"). A rare real name ("Humber", "Cactus Wren", "Défi Robotique") has no such neighbour and stays. Words are compared accents stripped on both sides (fuzzy.ts words). Built once per search
-// index version, off the request path: at server start, every few seconds after (server/index.ts), and, while a newer
-// one builds, the last one is used.
+// typo only when no other event's name has it, and it is a slip from a word in at least three other events' names: a
+// letter dropped, a letter doubled, or two swapped, inside the word (never its first or last letter). Real names differ
+// from common words by just the other kinds, so those never count: a letter changed ("Grant", "Grand"), added
+// ("Texans", "Texas"; "Johnston", "Johnson") or at the end ("Australian", "Australia"). A rare real name ("Humber",
+// "Cactus Wren", "Défi Robotique") has no such neighbour and stays. Words are compared with accents stripped on both
+// sides (fuzzy.ts words). Built once per search index version, off the request path: at server start, every few seconds
+// after (server/index.ts), and, while a newer one builds, the last one is used.
 import { all } from "../../db.js";
 import { registerCache } from "../../caches.js";
 import { words } from "../fuzzy.js";
@@ -14,19 +15,21 @@ import { searchVersion } from "../searchReads.js";
 /** Shortest word read as a typo: shorter ones have too many real neighbours ("Quail", "Qual"; "Twain", "Twin"). */
 const MIN_LEN = 6;
 /** Other events' names the usual spelling must be in. */
-const NEIGHBOUR_NAMES = 2;
+const NEIGHBOUR_NAMES = 3;
 
-/** `w` is `c` with one letter dropped, added, or two side by side swapped, inside the word: its first and last letters
- *  are `c`'s own. */
+/** `w` is `c` typed with one letter dropped, one doubled, or two side by side swapped, inside the word: its first and
+ *  last letters are `c`'s own. */
 export function slip(w: string, c: string): boolean {
   if (w === c || w[0] !== c[0] || w.at(-1) !== c.at(-1)) return false;
-  const [s, l] = w.length < c.length ? [w, c] : [c, w];
-  if (l.length === s.length + 1) {
+  if (Math.abs(w.length - c.length) === 1) {
+    const [s, l] = w.length < c.length ? [w, c] : [c, w];
     let i = 0;
     while (i < s.length && s[i] === l[i]) i++;
-    return i > 0 && i < l.length - 1 && l.slice(i + 1) === s.slice(i);
+    if (!(i > 0 && i < l.length - 1 && l.slice(i + 1) === s.slice(i))) return false;
+    // A letter dropped, or one added only when it doubles the one before it ("Herritage").
+    return w.length < c.length || w[i] === w[i - 1];
   }
-  if (l.length !== s.length) return false;
+  if (w.length !== c.length) return false;
   let i = 0;
   while (i < w.length && w[i] === c[i]) i++;
   return i > 0 && i + 1 < w.length - 1 && w[i] === c[i + 1] && w[i + 1] === c[i] && w.slice(i + 2) === c.slice(i + 2);
