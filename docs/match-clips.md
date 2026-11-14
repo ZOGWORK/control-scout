@@ -34,6 +34,34 @@ video's chapters (the same list a visitor gets), so they're read from it (`parse
 Generated chapters can be wrong. Terra Division 2026's playoff chapters sit 13 min apart where its matches were
 6–8 min apart. Chapters therefore only ever confirm the clock; they never place a match on their own.
 
+### A start cut off the video
+
+Some recordings lose their start: the stream ran for hours before play began, and the archive kept only the part with
+matches. Every match is then the same distance from its chapter: the time cut off. The clock and the chapters agree
+on that shift, so each match goes at its clock time less it (`chaptersConfirm` returns `{ to, shift }`; `clipSecond`
+applies it). It takes both signals, never chapters alone, and it's strict, because a wrong clip is worse than none:
+
+- The shift is the chapters' median distance from their matches, capped at the time the video is missing.
+- Every chapter-named match must agree with it (within the chapters' drift). If one sits at its own clock time, the
+  video began with its broadcast and lost time later. That's a gap, not a cut, and gets none (Qualifier Hasselt 2026).
+- The cut must be all the time missing (within 3 min). With time still unaccounted for, a drop-out can hide between
+  chapters and put a match on the one before it, so none.
+- A match that began before the cut gets no clip (it's not in the video), never one at the video's start in its place.
+- With no time left for a gap, the last few matches are trusted too (the usual tail rule is for a late gap).
+
+Checked against the live database (1,008 events with a recording, 34,822 played matches): 75 more clips in 3 events,
+none lost or moved anywhere else. All 75 were checked on the video, a frame 30 s into each clip: the overlay names
+that match every time.
+
+- APOC 2026 (AUSYOS) Saturday part 1, `fBZOzjZr-60`: its broadcast ran 7 h 23 min and the video is 3 h 5 min, with
+  its first 4 h 17 min cut off. It had no clips at all. Now Q11 to Q31 all have one (shift 15,445 s), each opening
+  about 27 s before its match, the teams on screen FIRST's.
+- Baltic 2025-01-18 (USIABALM6) Q1 to Q30, and Tasman 2024-11-23 (USIATASM3) Q1 to Q24.
+
+A first, looser version (any agreeing median) placed 261 more in 11 events. Frames showed wrong ones: Qualifier
+Hasselt Q5 on Q1, Northern Qualifier Q6 on Q5, FiT-North I&S Q31 in Q30. Those videos lost time after play began,
+so they wait for frame timings (docs/frame-timings.md).
+
 ## One pass at a time, never stuck
 
 The server reads YouTube's facts in one pass every 5 minutes (`backfillVideoMeta`), one pass at a time. On 13 Nov a
