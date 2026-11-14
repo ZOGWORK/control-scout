@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.0.4 — 2026-11-13
+## 6.0.5 — 2026-11-14
 
 The slow-connection pop-up is clearer: it says what it saw, what Lite changes, and gives two big buttons.
 
@@ -26,6 +26,19 @@ The slow-connection pop-up is clearer: it says what it saw, what Lite changes, a
 
 ### Changed
 - Slow connection pop-up: it names the evidence ("This page has been loading for 11 s.", ticking, or "3 requests couldn't reach the server, the last one 4 s ago."; once a slow page arrives it stops counting and says "This page took 12 s to load."), says in three lines what Control Scout Lite changes, and offers "Keep waiting" and "Switch to Lite" as 44 px buttons with a 44 px close. Body text moved from 12 px to 14 px, the card got real padding and a gold edge, and on desktop it sits clear of the sidebar's account footer. `cs-lite-demo` shows it at once for screenshots. (`src/components/layout/LiteSuggest.tsx`, `src/lib/liteSuggest.ts`) (#1459)
+## 6.0.4 — 2026-11-14
+
+A new first-visit onboarding: four short steps on Home that show what Control Scout does, set up your team, and point to search and the main places.
+
+### Highlights
+- [home] First visit: a four-step welcome to what's here, with Skip on every step
+- [home] Pick your team in step 2 and My team shows its next match and odds
+- [home] Settings › About › Show the welcome again brings it back any time
+
+### Added
+- The first-visit onboarding (`src/components/onboarding/Onboarding.tsx`, `src/lib/onboarding.ts`): a locked dialog with four steps (what Control Scout is; your team, saved as My team; search answers plain questions; where the main places are). It opens on Home for someone new (nothing saved on the device or account), after the privacy choice, holding the first-run slot. Skip, in the header on every step, is the only way out besides the last step's button: Escape, the backdrop, outside clicks or taps, focus leaving, Ctrl/⌘ K, "/" and route changes do nothing, and the page behind is inert. A reload brings it back on the same step; finished or skipped, it never starts by itself again (`cs-onboarding`, device-only). Never to crawlers or automated browsers (`cs-onboarding-demo` opts in).
+- Settings › About › Show the welcome again; Clear all local data forgets it.
+- `npm run shots -- --onboarding` for its screenshots, and `scripts/onboarding-journeys.ts`: the acceptance journeys (checks only) against any running copy, in Chromium and WebKit, at 1440×900 and 390×844. (#1455)
 
 ## 6.0.3 — 2026-11-13
 

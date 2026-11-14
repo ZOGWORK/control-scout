@@ -1,5 +1,5 @@
 // One first-run surface at a time. A first visit can trigger several "hello"
-// surfaces (the add-to-home-screen nudge, …); stacking
+// surfaces (the first-visit onboarding, the add-to-home-screen nudge, …); stacking
 // them is noise, so each one asks for the single slot here before it shows and
 // gives it back when it closes. Whoever asks first gets it; the others wait
 // (useFirstRunSlot re-asks when the slot frees). The privacy banner is not a
