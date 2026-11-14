@@ -178,12 +178,23 @@ function withPieces<T>(sha: string, fn: () => Promise<T>): Promise<T> {
   return run;
 }
 
+/** Drop a file's pieces only if nothing is working on them right now (another tab may still be downloading
+ *  that release): never waits, and leaves them for a later tidy-up when they're busy. */
+async function dropIfIdle(sha: string): Promise<void> {
+  if (typeof navigator !== "undefined" && navigator.locks) {
+    await navigator.locks.request(`cs-download-${sha}`, { ifAvailable: true }, async (lock) => { if (lock) await db().drop(sha); });
+    return;
+  }
+  if (inflight.has(sha)) return;
+  await db().drop(sha);
+}
+
 async function run(file: DownloadFile, opts: DownloadOptions): Promise<Uint8Array> {
   askPersist();
   const s = db();
-  // Another release's half download of the same thing is no use any more.
+  // Another release's half download of the same thing is no use any more (unless a tab is still on it).
   for (const old of await s.list().catch(() => [])) {
-    if (old.sha256 !== file.sha256 && ownerKey(old.owner) === ownerKey(opts.owner)) await s.drop(old.sha256).catch(() => {});
+    if (old.sha256 !== file.sha256 && ownerKey(old.owner) === ownerKey(opts.owner)) await dropIfIdle(old.sha256).catch(() => {});
   }
   let p = await s.get(file.sha256).catch(() => undefined);
   const resumed = !!p && p.have > 0;

@@ -208,16 +208,25 @@ describe("event packs", () => {
   });
 });
 
+/** Web Locks as a browser gives them: one holder per name across every tab (here: module instances), ifAvailable included. */
+function lockRequest(held: Map<string, Promise<unknown>>) {
+  const busy = new Set<string>();
+  return (name: string, a: unknown, b?: unknown) => {
+    const fn = (typeof a === "function" ? a : b) as (lock: unknown) => Promise<unknown>;
+    const opts = (typeof a === "function" ? {} : a) as { ifAvailable?: boolean };
+    if (opts.ifAvailable && busy.has(name)) return fn(null);
+    const run = (held.get(name) ?? Promise.resolve()).catch(() => {}).then(async () => { busy.add(name); try { return await fn({ name }); } finally { busy.delete(name); } });
+    held.set(name, run);
+    return run;
+  };
+}
+
 describe("two downloads of one file", () => {
   it("in two tabs, take turns on its pieces: the first tab's cleanup waits until the second has read them back", async () => {
     // Web Locks as a browser gives them: one holder per name, across every tab (here: two module instances).
     const held = new Map<string, Promise<unknown>>();
     vi.stubGlobal("navigator", Object.assign(Object.create(navigator), { locks: {
-      request: (name: string, fn: () => Promise<unknown>) => {
-        const run = (held.get(name) ?? Promise.resolve()).catch(() => {}).then(fn);
-        held.set(name, run);
-        return run;
-      },
+      request: lockRequest(held),
     } }));
     vi.resetModules();
     const tabA = await import("./download");
@@ -237,6 +246,35 @@ describe("two downloads of one file", () => {
     await aDone;
     await tabB.finishDownload(file.sha256);
     expect(await tabA.partialDownloads()).toEqual([]);
+  });
+  it("a tab saving a newer release leaves another tab's older download alone while it runs", async () => {
+    vi.stubGlobal("navigator", Object.assign(Object.create(navigator), { locks: { request: lockRequest(new Map()) } }));
+    vi.resetModules();
+    const tabA = await import("./download");
+    vi.resetModules();
+    const tabB = await import("./download");
+    const old = bytes(PIECE * 2 + 3, 3), now = bytes(PIECE + 9, 5);
+    // Tab A's old-release download stalls after its first piece until let go.
+    let go!: () => void;
+    const gate = new Promise<void>((r) => { go = r; });
+    let sent = 0;
+    const slow = vi.fn(async () => new Response(new ReadableStream({
+      async pull(c) {
+        if (sent >= old.length) { c.close(); return; }
+        if (sent >= PIECE) await gate;
+        const n = Math.min(PIECE, old.length - sent);
+        c.enqueue(old.slice(sent, sent + n));
+        sent += n;
+      },
+    }))) as unknown as typeof fetch;
+    const a = tabA.download({ url: "/packs/old", bytes: old.length, sha256: sha(old) }, { owner, fetch: slow });
+    await vi.waitFor(async () => expect((await tabB.partialDownloads()).some((p) => p.sha256 === sha(old) && p.have >= PIECE)).toBe(true));
+    // Tab B saves the newer release of the same pack meanwhile.
+    expect(sha(await tabB.download({ url: "/packs/new", bytes: now.length, sha256: sha(now) }, { owner, fetch: server(now).fn }))).toBe(sha(now));
+    go();
+    expect(sha(await a)).toBe(sha(old)); // A's pieces were left alone: its file still comes out whole
+    await tabA.finishDownload(sha(old));
+    await tabB.finishDownload(sha(now));
   });
 });
 
