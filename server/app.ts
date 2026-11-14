@@ -53,6 +53,7 @@ import { teamRecordPage } from "./teamRecordPage.js";
 import { eventHighlightsPage } from "./eventHighlightsPage.js";
 import { perTeamOf, simulatedRankings } from "./projections/rankingSim.js";
 import { eventRecording, recordingStream, seasonRecordings, seasonVideoKinds, withClips, eventMatchSpan } from "./videos/recordings.js";
+import { eventClipCoverage } from "./videos/coverage.js";
 import { answerVideo } from "./api/answers/video.js";
 import { matchDetail, matchViews } from "./api/matches.js";
 import { matchReport } from "./api/matchReport.js";
@@ -140,7 +141,7 @@ import { liteRouter, liteSwitch } from "./lite/routes.js";
 import { openSearchRoute } from "./openSearch.js";
 import { latestEventSeason, storedEventCode } from "./eventCodes.js";
 import { eventPath, isEventCodeParam } from "../src/shared/eventCode.js";
-import type { EventRefreshResult, ForecastView, MatchExplanationView, Meta, SearchHit, MatchView } from "../src/shared/api.js";
+import type { EventRefreshResult, ForecastView, MatchExplanationView, Meta, SearchHit, MatchView, ClipCoverage } from "../src/shared/api.js";
 
 export class HttpError extends Error { constructor(readonly status: number, message: string) { super(message); } }
 const bad = (msg: string) => new HttpError(400, msg);
@@ -691,6 +692,14 @@ export function createApp(opts: { dist?: string; /** Tests only: a smaller searc
     const rec = await eventRecording(d.event.season, d.event.code).catch(() => null);
     // The event's own first and last matches, so this match gets the clip it has on the event page.
     return rec ? { ...d, match: withClips([d.match], rec, Date.now(), await eventMatchSpan(d.event.season, d.event.code))[0] } : d;
+  }));
+
+  // Clip coverage (server/videos/coverage.ts): which days and parts are recorded, and each played match without a clip
+  // with its reason, for the event page's "What's missing". Only the matches without one: the page has the rest.
+  api.get("/events/:season/:code/coverage", h(async (req): Promise<ClipCoverage> => {
+    const c = await eventClipCoverage(season(req.params.season), code(req.params.code));
+    if (!c) throw new HttpError(404, `No event ${req.params.code} in ${req.params.season}`);
+    return { ...c, matches: c.matches.filter((m) => !m.clip).map(({ teams: _t, ...m }) => m) };
   }));
 
   // Simulated rankings before quals start (projections/rankingSim.ts): run on a click, kept per data version.
