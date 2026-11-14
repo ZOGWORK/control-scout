@@ -81,7 +81,7 @@ export const PACK_READS: Reads[] = [
   // FTC One Search for what people type at a meet (packSearchQueries): the whole answer as /search shows it, for anyone
   // (server/api/searchPage.ts), and the season numbers its team cards ask for (/api/teams-summary, one team a path:
   // lib/offline/search.ts puts a request for several together, in the order asked).
-  (c) => packSearchQueries(c).map((q) => ({ path: searchPackPath(q), read: () => packSearchAnswer(q) })),
+  async (c) => packSearchQueries(c, await packTeamNames(c.teams)).map((q) => ({ path: searchPackPath(q), read: () => packSearchAnswer(q) })),
   (c) => summarySeasons(c.season).flatMap((s) => c.teams.map((t) => ({ path: `/api/teams-summary?season=${s}&teams=${t}`, read: async () => ({ season: s, teams: await teamSummaries([t], s) }) }))),
   // A league meet or tournament: its league's standings (the event page links to them).
   (c) => (c.ev.event.league && c.ev.event.region
@@ -96,8 +96,7 @@ export const PACK_READS: Reads[] = [
 
 /** The searches the pack answers: every team in it by number and by name, the event by code and by name, and each
  *  match as search reads one ("USMIMIQ1 Q12": the code and the match's label; "Q12" alone is no match online). */
-export function packSearchQueries(c: Pick<PackContext, "code" | "ev" | "teams" | "matches">): string[] {
-  const names = new Map(c.ev.field.map((f) => [f.team, f.name]));
+export function packSearchQueries(c: Pick<PackContext, "code" | "ev" | "teams" | "matches">, names: ReadonlyMap<number, string | null>): string[] {
   const qs = [
     ...c.teams.map(String),
     ...c.teams.map((t) => cleanTeamName(t, names.get(t)) ?? "").filter((n) => n && !/^\d+$/.test(n)),
@@ -107,6 +106,12 @@ export function packSearchQueries(c: Pick<PackContext, "code" | "ev" | "teams" |
   // Once each, however it's spelled (two teams sharing a name, an event named like a team).
   const seen = new Set<string>();
   return qs.map((q) => q.trim().replace(/\s+/g, " ")).filter((q) => { const k = q.toLowerCase(); if (!q || seen.has(k)) return false; seen.add(k); return true; });
+}
+
+/** Every pack team's stored name, the field's and the lineups' alike (packTeams), read as packSearch reads its teams'
+ *  facts: the names their searches are asked by. */
+export async function packTeamNames(teams: number[]): Promise<Map<number, string | null>> {
+  return new Map([...(await teamFacts(teams))].map(([n, f]) => [n, f.name]));
 }
 
 /** The seasons /search asks team numbers for: the event's and the one before (early in a season, last season's numbers

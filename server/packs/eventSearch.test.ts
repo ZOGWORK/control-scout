@@ -10,7 +10,7 @@ import { migrate, openDb, run, setDb } from "../db";
 import { createApp } from "../app";
 import { rebuildSearch } from "../stats/job";
 import { eventDetail } from "../api/events";
-import { buildPackApi, packSearchQueries, packTeams } from "./eventApi";
+import { buildPackApi, packSearchQueries, packTeamNames, packTeams } from "./eventApi";
 import { packLookup, searchPackPath, type EventBundle } from "../../src/shared/eventBundle";
 import { searchFromPacks, teamSummariesFromPacks } from "../../src/shared/searchOffline";
 import { packParseContext } from "../../src/shared/query/packContext";
@@ -40,6 +40,9 @@ async function seed() {
   };
   await match(1, [1111, 2222], [3333, 4444]);
   await match(2, [5555, 1111], [2222, 3333]);
+  // A team on the schedule only (in a lineup, not in the event's field): the pack holds it all the same.
+  await run("INSERT INTO teams (number, name, city, state, country) VALUES (8888, 'Lone Lynx', 'Midland', 'MI', 'USA')");
+  await match(3, [8888, 4444], [5555, 2222]);
   // Season numbers: this season for every team, last season for most (the compare card picks the latest all played).
   const stat = (season: number, team: number, opr: number, rank: number) => run(
     `INSERT INTO team_season_stats (season, team, opr_np, opr_auto, opr_teleop, opr_endgame, rank_np, ranked_teams, rating_np, rating_auto, rating_teleop, rating_endgame, rating_sd, rating_rank, matches, wins, losses, ties)
@@ -107,9 +110,10 @@ beforeAll(async () => {
 afterAll(() => { app?.close(); });
 
 describe("the event pack's searches", () => {
-  it("are every team by number and name, the event by code and name, and each match as search reads one", () => {
-    const qs = packSearchQueries({ code: EV, ev: pack.event, teams: packTeams(pack.event), matches: pack.event.matches });
-    expect(qs).toEqual(["1111", "2222", "3333", "4444", "5555", "6666", "7777", "Gear Grinders", "Bolt Brigade", "Circuit Owls", "Torque Turtles", "Pixel Pirates", "Iron Eagles", EV, "Midland Tundra Qualifier", `${EV} Q1`, `${EV} Q2`]);
+  it("are every team by number and name, the event by code and name, and each match as search reads one", async () => {
+    const teams = packTeams(pack.event);
+    const qs = packSearchQueries({ code: EV, ev: pack.event, teams, matches: pack.event.matches }, await packTeamNames(teams));
+    expect(qs).toEqual(["1111", "2222", "3333", "4444", "5555", "6666", "7777", "8888", "Gear Grinders", "Bolt Brigade", "Circuit Owls", "Torque Turtles", "Pixel Pirates", "Iron Eagles", "Lone Lynx", EV, "Midland Tundra Qualifier", `${EV} Q1`, `${EV} Q2`, `${EV} Q3`]);
     for (const q of qs) expect(packLookup(pack.api, searchPackPath(q)), q).toMatchObject({ body: { q } });
   });
 
@@ -210,9 +214,18 @@ describe("the event pack's searches", () => {
     expect(rows).toMatchObject({ rows: [{ label: "Q1", opponents: [{ label: "29000 Squad29000" }, { label: "29001 Squad29001" }] }] });
   });
 
+  it("a team on the schedule only, not in the field: its name finds the server's own answer", async () => {
+    expect(pack.event.field.some((f) => f.team === 8888)).toBe(false);
+    for (const q of ["Lone Lynx", "lone lynx", "8888"]) {
+      const off = await offline(q);
+      expect(off.notInPack, q).toBeUndefined();
+      expect(JSON.stringify(off), q).toBe(JSON.stringify(await online(q)));
+    }
+  });
+
   it("anything else says what it needs that isn't in the pack, and what is", async () => {
     const far = await offline("9999");
-    expect(far.notInPack).toEqual({ about: ["team 9999"], packs: [{ season: S, code: EV, name: "Midland Tundra Qualifier", teams: 7, matches: 2, dataAsOf: "2025-11-08T20:09:00Z" }], links: [] });
+    expect(far.notInPack).toEqual({ about: ["team 9999"], packs: [{ season: S, code: EV, name: "Midland Tundra Qualifier", teams: 8, matches: 3, dataAsOf: "2025-11-08T20:09:00Z" }], links: [] });
     expect((await offline("who won decode")).notInPack?.about).toEqual(["the 2025–26 season"]);
     expect((await offline("1111 vs 9999")).notInPack?.about).toEqual(["team 9999"]);
     // A match of the pack named alone ("Q2" is no match online): its page, to open.

@@ -10,10 +10,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { downloadBundle, removeBundle } from "./bundles";
 
 // A hook into reading a saved pack (the decode respond() races the server with), for what happens meanwhile.
-const decode = vi.hoisted(() => ({ during: null as null | (() => Promise<void>) }));
+const decode = vi.hoisted(() => ({ during: null as null | (() => Promise<void>), unreadable: false }));
 vi.mock("./bundles", async (importOriginal) => {
   const m = await importOriginal<typeof import("./bundles")>();
-  return { ...m, loadBundle: async (...a: Parameters<typeof m.loadBundle>) => { const f = decode.during; decode.during = null; await f?.(); return m.loadBundle(...a); } };
+  return { ...m, loadBundle: async (...a: Parameters<typeof m.loadBundle>) => { const f = decode.during; decode.during = null; await f?.(); return decode.unreadable ? null : m.loadBundle(...a); } };
 });
 import { packSearchSaved, writeBundles } from "./bundleMeta";
 import { offlineAnswer } from "./answer";
@@ -56,7 +56,7 @@ beforeEach(async () => {
   vi.stubGlobal("fetch", vi.fn(async (url: string) => (String(url).includes("/manifest") ? new Response(JSON.stringify(m)) : new Response(gz))));
   await downloadBundle({ season: S, code: "USMIQ9", team: null, workspace: null });
 });
-afterEach(async () => { await removeBundle(S, "USMIQ9"); writeBundles([]); vi.unstubAllGlobals(); });
+afterEach(async () => { decode.unreadable = false; await removeBundle(S, "USMIQ9"); writeBundles([]); vi.unstubAllGlobals(); });
 
 describe("search with no signal, from a saved event pack", () => {
   it("a search the pack holds is the server's own answer, whoever asks and however it's typed, marked with the pack", async () => {
@@ -182,4 +182,34 @@ describe("search with no signal, from a saved event pack", () => {
     expect(took).toBeLessThan(SEARCH_SLOW_MS + 3000);
     expect(aborted).toEqual([`/api/teams-summary?season=${S}&teams=12,4215`]);
   }, 30_000);
+
+  // A search the saved pack gives nothing for, while it lists searches: the server waited for as before any pack was
+  // saved, SEARCH_SLOW_MS a try and one more try, never without end.
+  for (const [what, q, setup] of [
+    ["a query that cleans to nothing", "%3F%3F", () => {}],
+    ["a pack whose bytes can't be read", "who%20won%20decode", () => { decode.unreadable = true; }],
+  ] as const) {
+    it(`lib/api.ts: ${what}: a hung first try, then the retry's answer, in SEARCH_SLOW_MS`, async () => {
+      const { apiFetch, SEARCH_SLOW_MS } = await import("../api");
+      const answer: SearchAnswer = { q: "x", hits: [hit(12, NAMES[12])], pages: [], step: "deterministic", weak: false };
+      let searches = 0;
+      const aborted: number[] = [];
+      vi.stubGlobal("fetch", vi.fn((url: string, init?: RequestInit) => {
+        if (!String(url).startsWith("/api/search")) return Promise.resolve(new Response("{}"));
+        const n = ++searches;
+        if (n > 1) return Promise.resolve(new Response(JSON.stringify(answer)));
+        return new Promise<Response>((_, reject) => init?.signal?.addEventListener("abort", () => { aborted.push(n); reject(new DOMException("aborted", "AbortError")); }));
+      }));
+      await apiFetch("/api/health");
+      setup();
+      const t0 = performance.now();
+      const a = await apiFetch<SearchAnswer>(`/api/search?q=${q}&limit=25&answer=1`);
+      const took = performance.now() - t0;
+      expect(a.hits.map((h) => h.ref)).toEqual(["12"]);
+      expect(searches).toBe(2);
+      expect(aborted).toEqual([1]);
+      expect(took).toBeGreaterThanOrEqual(SEARCH_SLOW_MS - 50);
+      expect(took).toBeLessThan(SEARCH_SLOW_MS + 3000);
+    }, 30_000);
+  }
 });

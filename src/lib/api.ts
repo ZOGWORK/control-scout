@@ -232,22 +232,36 @@ async function respond<T>(request: Promise<Response>, kind: "saved" | "lite" | "
   // Whether the server is up, decided now: other requests settling while the saved answer is read (a pack decode)
   // can change serverUp() meanwhile.
   const up = serverUp();
+  // The server's answer within the rest of SEARCH_SLOW_MS, else TIMED_OUT.
+  const slowRest = () => Promise.race([request, new Promise<typeof TIMED_OUT>((r) => { timer = setTimeout(() => r(TIMED_OUT), SEARCH_SLOW_MS - OFFLINE_TIMEOUT_MS); })]).finally(() => clearTimeout(timer));
+  // A search waited for as any slow search is: the rest of SEARCH_SLOW_MS, then one more try (apiFetch, searchOnline).
+  const slowSearch = async () => {
+    const more = await slowRest();
+    if (more !== TIMED_OUT) return more;
+    ctrl.abort();
+    throw new ApiError(0, SEARCH_SLOW, false, SEARCH_RETRY);
+  };
   noteRequestFailed(); // no answer in time: the connection check finds out whether there's any internet
   if (kind === "lite" || kind === "snapshot") { ctrl.abort(); throw unreachable(); }
   // A search asked before anything else answered (the page's first request), while the server has answered
   // something since: slow, not offline. It gets up to SEARCH_SLOW_MS in all, then one more try as any search while
   // the server is up (apiFetch, searchOnline); saved data never answers.
   // Not when a saved event pack answers searches: no answer in OFFLINE_TIMEOUT_MS is no signal for it, as for any read.
-  if (SEARCH_PATH.test(path) && up && !packSearchSaved(path)) {
-    const more = await Promise.race([request, new Promise<typeof TIMED_OUT>((r) => { timer = setTimeout(() => r(TIMED_OUT), SEARCH_SLOW_MS - OFFLINE_TIMEOUT_MS); })]).finally(() => clearTimeout(timer));
-    if (more !== TIMED_OUT) return more;
-    ctrl.abort();
-    throw new ApiError(0, SEARCH_SLOW, false, SEARCH_RETRY);
-  }
+  if (SEARCH_PATH.test(path) && up && !packSearchSaved(path)) return slowSearch();
   const won = await Promise.race([request.then((res) => ({ res })), savedAnswerOrError(path)]);
   if ("res" in won) return won.res;
   // The server's own error the pack recorded (a team with no page: 404) is its answer too. "Not in your pack" isn't:
   // the server may still answer, so it's waited for.
+  // Nothing saved answers it: a search or the team cards' numbers (which only a saved pack makes "saved" reads) as
+  // before any pack was saved, never waited for without end; any other read keeps waiting for the server.
+  const nothing = ("error" in won && !won.error.status) || (!("error" in won) && won.data == null);
+  if (nothing && SEARCH_PATH.test(path)) return slowSearch();
+  if (nothing && SUMMARY_PATH.test(path)) {
+    const more = await slowRest();
+    if (more !== TIMED_OUT) return more;
+    ctrl.abort();
+    throw unreachable();
+  }
   if ("error" in won) {
     if (!won.error.status) return request;
     ctrl.abort();
@@ -256,17 +270,12 @@ async function respond<T>(request: Promise<Response>, kind: "saved" | "lite" | "
   if (won.data == null) return request;
   // A search the packs can't answer while the server answers other requests: slow, not offline. It's waited for as
   // any slow search is: up to SEARCH_SLOW_MS in all, then one more try (searchOnline), then said to be slow.
-  if (SEARCH_PATH.test(path) && up && (won.data as { notInPack?: unknown }).notInPack) {
-    const more = await Promise.race([request, new Promise<typeof TIMED_OUT>((r) => { timer = setTimeout(() => r(TIMED_OUT), SEARCH_SLOW_MS - OFFLINE_TIMEOUT_MS); })]).finally(() => clearTimeout(timer));
-    if (more !== TIMED_OUT) return more;
-    ctrl.abort();
-    throw new ApiError(0, SEARCH_SLOW, false, SEARCH_RETRY);
-  }
+  if (SEARCH_PATH.test(path) && up && (won.data as { notInPack?: unknown }).notInPack) return slowSearch();
   // The team cards' numbers when the packs hold only some of the teams asked, while the server answers other
   // requests: the server's answer, which has them all, is waited for (with no network the pack's part still answers,
   // offlineOr). Waited for as long as a slow search; past that, the cards the pack holds.
   if (SUMMARY_PATH.test(path) && up && !summaryWhole(path, won.data)) {
-    const more = await Promise.race([request, new Promise<typeof TIMED_OUT>((r) => { timer = setTimeout(() => r(TIMED_OUT), SEARCH_SLOW_MS - OFFLINE_TIMEOUT_MS); })]).finally(() => clearTimeout(timer));
+    const more = await slowRest();
     if (more !== TIMED_OUT) return more;
   }
   ctrl.abort();
