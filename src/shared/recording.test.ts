@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { actualStart, chapterLabel, chaptersConfirm, CHAPTER_MIN_ANCHORS, CHAPTER_MIN_GAP_S, CHAPTER_TAIL, CLIP_LEAD_S, clearOfPrevious, clipSecond, clipTime, gapSlack, GAP_SLACK_MAX_S, MATCH_PLAY_S, timingTrusted, watchUrl, type Chapter } from "./recording";
+import { actualStart, chapterLabel, chaptersConfirm, CHAPTER_MIN_ANCHORS, CHAPTER_MIN_GAP_S, CHAPTER_TAIL, CLIP_LEAD_S, clearOfPrevious, clipEnd, clipSecond, CLIP_TAIL_S, LIVE_DELAY_MAX_S, LIVE_DELAY_MIN_S, clipTime, gapSlack, GAP_SLACK_MAX_S, MATCH_PLAY_S, timingTrusted, watchUrl, type Chapter } from "./recording";
 
 const rec = { start: "2026-05-02T12:58:13Z", length: 4 * 3600, live: false };
 
@@ -25,6 +25,50 @@ describe("a match's second in the recording", () => {
     const now = Date.parse("2026-05-02T14:00:00Z");
     expect(clipSecond("2026-05-02T13:30:00Z", { ...rec, length: null, live: true }, now)).toBe(1907 - CLIP_LEAD_S);
     expect(clipSecond("2026-05-02T14:30:00Z", { ...rec, length: null, live: true }, now)).toBeNull();
+  });
+});
+
+describe("where a match's clip stops", () => {
+  // Edison M14 at 14,225 s into a 5 h video, on a trusted clock.
+  const M14 = "2026-05-02T16:55:18.162Z";
+  const long = { ...rec, length: 5 * 3600 };
+  it("at the match's own second, plus its play and the tail (the live delay and the final score)", () => {
+    expect(clipEnd(M14, long)).toBe(14225 + MATCH_PLAY_S + CLIP_TAIL_S);
+    expect(MATCH_PLAY_S + CLIP_TAIL_S).toBe(220);
+    // A clip that starts at 0 (a match right after the broadcast began) still ends from the match's own second.
+    expect(clipEnd("2026-05-02T12:58:23Z", rec)).toBe(10 + 220);
+  });
+  it("never past the video's end", () => {
+    expect(clipEnd(M14, rec)).toBe(4 * 3600); // in the 4 h video: 14,445 would be past 14,400
+  });
+  it("none where there's no clip: outside the video, no start, a gap it can't place", () => {
+    expect(clipEnd("2026-05-02T17:00:00Z", rec)).toBeNull();
+    expect(clipEnd(null, rec)).toBeNull();
+    expect(clipEnd("2026-05-02T13:00:13Z", { ...rec, start: null })).toBeNull();
+    const gapped = { start: "2026-05-30T15:02:06Z", end: "2026-05-31T01:14:37Z", length: 30807, live: false };
+    expect(clipEnd("2026-05-30T15:21:09Z", gapped)).toBeNull();
+  });
+  it("an early start (gapSlack) never moves it earlier: the match may sit before its clock second, never after", () => {
+    const short13 = { start: "2026-11-07T12:57:06Z", end: "2026-11-08T00:00:35Z", length: 39013, live: false, firstMatch: "2026-11-07T16:15:45Z", lastMatch: "2026-11-07T23:23:13Z" };
+    expect(clipSecond("2026-11-07T22:21:39Z", short13)).toBe(33873 - 796 - CLIP_LEAD_S);
+    expect(clipEnd("2026-11-07T22:21:39Z", short13)).toBe(33873 + 220);
+  });
+  it("a start cut off the video (shift): from the match's place in the video, as its clip's start", () => {
+    // AUSYOS Saturday part 1 kind: 15,445 s cut off the start, the chapters agreeing.
+    const cut = { ...long, confirmedTo: 6 * 3600, shift: 3600 };
+    expect(clipEnd(M14, cut)).toBe(14225 - 3600 + 220);
+  });
+  it("before the next match's timer shows, though never before its own play is over", () => {
+    // The next match 3 min on (two fields): the clip stops as that one's timer could first show.
+    expect(clipEnd(M14, long, "2026-05-02T16:58:30Z")).toBe(14225 + 192 + LIVE_DELAY_MIN_S);
+    // 1 min on: its own play first, at the latest it may show.
+    expect(clipEnd(M14, long, "2026-05-02T16:56:18Z")).toBe(14225 + MATCH_PLAY_S + LIVE_DELAY_MAX_S);
+    // Far off: the whole tail.
+    expect(clipEnd(M14, long, "2026-05-02T17:05:00Z")).toBe(14225 + 220);
+  });
+  it("while live, isn't held to a length", () => {
+    const now = Date.parse("2026-05-02T14:00:00Z");
+    expect(clipEnd("2026-05-02T13:30:00Z", { ...rec, length: null, live: true }, null, now)).toBe(1907 + 220);
   });
 });
 
@@ -159,11 +203,13 @@ describe("a recording cut short, its chapters checked", () => {
   });
   const clock = (n: number) => 1100 + (n - 1) * 500; // Qn's second by the clock
   const shift = (from: number, by: number) => chapters.map(([t, title], i): Chapter => [i >= from && i <= 30 ? t - by : t, title]);
-  const clips = (rec: typeof timing & { confirmedTo?: number | null }) => quals.map((q) => clipSecond(q.startsAt, rec) != null);
+  /** How far the chapters vouch for the clock, as the tests before the shift was kept read it. */
+  const confirm = (...a: Parameters<typeof chaptersConfirm>) => chaptersConfirm(...a)?.to ?? null;
+  const clips = (rec: typeof timing & { confirmedTo?: number | null; shift?: number | null }) => quals.map((q) => clipSecond(q.startsAt, rec) != null);
 
   it("chapters near their matches all day vouch for the clock up to the last match with enough chapters after it", () => {
     expect(timingTrusted(timing)).toBe(false); // the length alone can't tell a cut from a drop-out
-    const confirmedTo = chaptersConfirm(timing, chapters, quals);
+    const confirmedTo = confirm(timing, chapters, quals);
     expect(confirmedTo).toBe(clock(30 - CHAPTER_TAIL + 1));
     expect(clipSecond(quals[4].startsAt, { ...timing, confirmedTo })).toBe(3100 - CLIP_LEAD_S);
     // The last few, too few to tell from a late gap: none.
@@ -172,43 +218,123 @@ describe("a recording cut short, its chapters checked", () => {
   it("a numbering that drifts and comes back is no gap", () => {
     // Chapters 12 min early for Q12 to Q15, then back: as USTXFMS1's generated ones do late in the quals.
     const drift = chapters.map(([t, title], i): Chapter => [i >= 12 && i <= 15 ? t - 720 : t, title]);
-    expect(chaptersConfirm(timing, drift, quals)).toBe(clock(27));
+    expect(confirm(timing, drift, quals)).toBe(clock(27));
   });
   it("one stray early chapter is no gap after it, but a gap among the first few still is", () => {
     // Only Q1's chapter 12 min early: the rest agree.
     const stray = chapters.map(([t, title], i): Chapter => [i === 1 ? t - 720 : t, title]);
-    expect(chaptersConfirm(timing, stray, quals)).toBe(clock(27));
+    expect(confirm(timing, stray, quals)).toBe(clock(27));
     // 40 min lost after Q4: too little before it to vouch for.
-    expect(chaptersConfirm(timing, shift(5, 2400), quals)).toBeNull();
+    expect(confirm(timing, shift(5, 2400), quals)).toBeNull();
   });
   it("a drop-out stops it at the match before, wherever it falls, however much a cut at the end also took", () => {
     // 40 min lost after Q15, in this video that's also 6 h short at the end: in the video, Q16 on come that much sooner.
-    const mid = chaptersConfirm(timing, shift(16, 2400), quals)!;
+    const mid = confirm(timing, shift(16, 2400), quals)!;
     expect(mid).toBeGreaterThanOrEqual(clock(13));
     expect(mid).toBeLessThan(clock(16));
     expect(clips({ ...timing, confirmedTo: mid }).slice(15).some(Boolean)).toBe(false);
     // Lost late, after Q25: the five after it are shifted, though the later half's chapters mostly aren't.
-    const late = chaptersConfirm(timing, shift(26, 1200), quals)!;
+    const late = confirm(timing, shift(26, 1200), quals)!;
     expect(late).toBeLessThan(clock(26));
     expect(late).toBeGreaterThanOrEqual(clock(22));
     // A stream that ended soon after, its 40 min lost after Q15: the same.
     const ended = { ...timing, length: 17000, end: at(17000 + 2400) };
-    expect(chaptersConfirm(ended, shift(16, 2400), quals)!).toBeLessThan(clock(16));
-    // Lost before the first match: every match that far from its chapter.
-    expect(chaptersConfirm(timing, chapters.map(([t, x]): Chapter => [Math.max(0, t - 2400), x]), quals)).toBeNull();
+    expect(confirm(ended, shift(16, 2400), quals)!).toBeLessThan(clock(16));
+  });
+  // 40 min cut off the video's start, and nothing else lost: the broadcast ran 40 min longer than the video holds.
+  const cutRec = { ...timing, end: at(29449 + 2400) };
+  // Its chapters 2400 s sooner; those of matches before the cut (Q1 to Q3) aren't in the video.
+  const cut = chapters.filter(([t], i) => i === 0 || t - 2400 >= 0).map(([t, x], i): Chapter => [i === 0 ? 0 : t - 2400, x]);
+  it("time cut off the start is a shift the clock and chapters agree on: every match placed that far back", () => {
+    expect(timingTrusted(cutRec)).toBe(false);
+    const c = chaptersConfirm(cutRec, cut, quals)!;
+    // The chapters say 2500 s (each sits 100 s before its match), but a video never lost more than it's missing: 2400.
+    expect(c.shift).toBe(2400);
+    const rec = { ...cutRec, confirmedTo: c.to, shift: c.shift };
+    // Q10, 5600 s by the clock: 3200 s into the video, less the lead-in.
+    expect(clipSecond(quals[9].startsAt, rec)).toBe(clock(10) - 2400 - CLIP_LEAD_S);
+    // Q1 to Q3 began before the cut: none, never a clip at the video's start in their place. Every match after, the
+    // last few too: the cut is all the time missing, so no gap can follow it.
+    expect(clips(rec)).toEqual(quals.map((_, i) => i >= 3));
+  });
+  it("no cut where the chapters say otherwise", () => {
+    // Chapters later than their matches: a video never holds more than its broadcast.
+    expect(chaptersConfirm(cutRec, chapters.map(([t, x]): Chapter => [t + 2400, x]), quals)).toBeNull();
+    // A shift larger than the time missing (and past the chapters' drift).
+    expect(chaptersConfirm({ ...cutRec, end: at(29449 + 1200) }, cut, quals)).toBeNull();
+    // Time still missing beyond the cut: a drop-out could hide anywhere after it (frames showed Qualifier Hasselt's
+    // Q5 placed on Q1 that way), so none.
+    expect(chaptersConfirm(timing, cut, quals)).toBeNull();
+    expect(chaptersConfirm({ ...cutRec, end: at(29449 + 2400 + 600) }, cut, quals)).toBeNull();
+    // One match at its own clock time, the rest shifted: a video that began with its broadcast and lost time after
+    // it (Qualifier Hasselt 2026, NLHAQ: Q1 in place, a drop-out over lunch), not a cut.
+    const gapAfterQ1 = chapters.map(([t, x], i): Chapter => [i >= 2 && i <= 30 ? t - 2400 : t, x]);
+    expect(chaptersConfirm(cutRec, gapAfterQ1, quals)).toBeNull();
+  });
+  it("a cut, then a gap under the chapters' drift: none (the matches before the gap would open early)", () => {
+    // 2400 s cut off, then 500 s lost after Q6: Q4 to Q6 sit 2400 s from their chapters, the rest 2900, and the video
+    // is missing 2900. The median says 2900, which would put Q4 to Q6 500 s early.
+    const gapRec = { ...timing, end: at(29449 + 2900) };
+    const cutThenGap = chapters.filter(([t], i) => i === 0 || t - 2400 >= 0).map(([t, x], i): Chapter => {
+      const n = /^Match (four|five|six)$/.test(x) ? 2400 : 2900;
+      return [i === 0 ? 0 : Math.max(0, t - n), x];
+    });
+    expect(chaptersConfirm(gapRec, cutThenGap, quals)).toBeNull();
+  });
+  it("matches before the first chapter-named one get no shifted clip: a gap after them looks like a cut", () => {
+    // Q1 to Q4 in place with no chapters, then 40 min lost: the later chapters all agree on the shift, but Q1 to Q4
+    // shifted would land 40 min early, on other matches. Only from Q5, the first a chapter names.
+    const noEarly = chapters.filter(([, x]) => !/^Match (one|two|three|four)$/.test(x)).map(([t, x]): Chapter => [x.startsWith("Match") ? t - 2400 : t, x]);
+    const c = chaptersConfirm(cutRec, noEarly, quals)!;
+    expect(c.from).toBe(clock(5));
+    // The first named match itself keeps its clip (its clock to the second, as clipSecond reads it).
+    expect(clipSecond(quals[4].startsAt, { ...cutRec, confirmedTo: c.to, shift: c.shift, confirmedFrom: c.from })).toBe(clock(5) - 2400 - CLIP_LEAD_S);
+    const rec = { ...cutRec, confirmedTo: c.to, shift: c.shift, confirmedFrom: c.from };
+    expect(clips(rec)).toEqual(quals.map((_, i) => i >= 4));
+  });
+  it("APOC 2026 Saturday part 1 (AUSYOS): 4 h 20 min cut off its start, Q11 to Q30 named by their chapters", () => {
+    // Its broadcast and video as YouTube gives them; each match's real start (FIRST), and its chapter.
+    const sat = { start: "2026-07-03T23:42:02.000Z", end: "2026-07-04T07:04:47.000Z", length: 11120, live: false };
+    const clockAt = [15600, 16199, 16776, 17355, 17892, 18354, 18760, 19194, 19530, 20047, 20584, 21147, 21526, 22119, 22648, 23128, 23563, 24325, 24915, 25737];
+    const chapterAt = [0, 693, 1188, 1913, 2343, 2768, 3174, 3651, 4022, 4381, 4956, 5469, 6000, 6326, 7036, 7462, 8032, 8425, 9294, 9743];
+    const s0 = Date.parse(sat.start);
+    const qs = clockAt.map((c, i) => ({ label: `Q${i + 11}`, startsAt: new Date(s0 + c * 1000).toISOString() }));
+    const ch: Chapter[] = chapterAt.flatMap((t, i): Chapter[] => [[t, `Match ${i + 11} qualification`], [t + 300, `Match ${i + 11} results`]]);
+    const rec = { ...sat, firstMatch: qs[0].startsAt, lastMatch: qs.at(-1)!.startsAt };
+    expect(timingTrusted(rec)).toBe(false);
+    const c = chaptersConfirm(rec, ch, qs)!;
+    expect(c.shift).toBeGreaterThanOrEqual(15442);
+    expect(c.shift).toBeLessThanOrEqual(15994);
+    const placed = qs.map((q) => clipSecond(q.startsAt, { ...rec, confirmedTo: c.to, shift: c.shift }));
+    // The cut is all the time missing (15,445 s): no gap can follow it, so every match gets its clip, the last few too.
+    expect(c.shift).toBe(15445);
+    expect(placed.every((t) => t != null)).toBe(true);
+    // Checked by eye on the video (its overlay naming the match, its timer 3 s in, 30 s after the clip's start).
+    expect([placed[0], placed[9], placed[19]]).toEqual([135, 4582, 10272]);
+    // In order, each within its chapter's drift of its own chapter.
+    placed.forEach((t, i) => { if (t != null) expect(Math.abs(t - chapterAt[i])).toBeLessThan(600); });
+    expect(placed.filter((t): t is number => t != null)).toEqual([...placed.filter((t): t is number => t != null)].sort((a, b) => a - b));
+    // Each clip stops at its match's end in the video, the shift taken off too: its clip's start + the lead-in + 220 s.
+    // Checked by eye: Q11, Q20 and Q30 each show their own match at 0:00 with its final score at that second.
+    const shifted = { ...rec, confirmedTo: c.to, shift: c.shift };
+    const ends = qs.map((q, i) => clipEnd(q.startsAt, shifted, qs[i + 1]?.startsAt));
+    expect([ends[0], ends[9], ends[19]]).toEqual([375, 4822, 10512]);
+    ends.forEach((e, i) => expect(e).toBe(placed[i]! + CLIP_LEAD_S + 220));
+    // Never past the video (11,120 s).
+    expect(Math.max(...ends.map(Number))).toBeLessThanOrEqual(sat.length);
   });
   it("says nothing without enough chapters naming matches, or for a small shortfall", () => {
-    expect(chaptersConfirm(timing, chapters.slice(0, CHAPTER_MIN_ANCHORS + CHAPTER_TAIL - 1), quals)).toBeNull(); // one short
-    expect(chaptersConfirm(timing, [], quals)).toBeNull();
-    expect(chaptersConfirm(timing, undefined, quals)).toBeNull();
-    expect(chaptersConfirm({ ...timing, length: 52972 - CHAPTER_MIN_GAP_S + 1 }, chapters, quals)).toBeNull();
-    expect(chaptersConfirm({ ...timing, end: null }, chapters, quals)).toBeNull();
+    expect(confirm(timing, chapters.slice(0, CHAPTER_MIN_ANCHORS + CHAPTER_TAIL - 1), quals)).toBeNull(); // one short
+    expect(confirm(timing, [], quals)).toBeNull();
+    expect(confirm(timing, undefined, quals)).toBeNull();
+    expect(confirm({ ...timing, length: 52972 - CHAPTER_MIN_GAP_S + 1 }, chapters, quals)).toBeNull();
+    expect(confirm({ ...timing, end: null }, chapters, quals)).toBeNull();
   });
   it("chapters count from where an early start stops covering, so no shortfall is left with neither", () => {
     expect(CHAPTER_MIN_GAP_S).toBe(GAP_SLACK_MAX_S);
     // 21 min short (Minnesota Championship Nano 2026): more than an early start covers, and the chapters are heard.
     const nano = { ...timing, length: 52972 - 21 * 60 };
     expect(gapSlack(nano)).toBeNull();
-    expect(chaptersConfirm(nano, chapters, quals)).toBe(clock(30 - CHAPTER_TAIL + 1));
+    expect(confirm(nano, chapters, quals)).toBe(clock(30 - CHAPTER_TAIL + 1));
   });
 });

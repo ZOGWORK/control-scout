@@ -193,6 +193,8 @@ export interface SearchAnswer {
 export interface SearchVideoItem {
   videoId: string;
   t: number;
+  /** A recording's clip: the second it stops at, its match's end (MatchClip.end). */
+  end?: number;
   kind: "match" | "recording" | "stream" | "contributor";
   /** The match's label ("Q12", "M3"): match and recording only. */
   match?: string;
@@ -545,7 +547,9 @@ export interface MatchView {
 /** A match's place in its event's recording: the video, the second to start from, and YouTube's link to it. */
 /** `early`: a recording with a gap whose place isn't known (src/shared/recording.ts gapSlack): `t` may be up to this
  *  many seconds (plus the lead-in) before the match, so nothing times the match from it (lib/videoMoment.ts). */
-export interface MatchClip { videoId: string; t: number; url: string; early?: number }
+/** `end`: the second the clip stops at, its match's end (src/shared/recording.ts clipEnd): every player in the app stops
+ *  there. */
+export interface MatchClip { videoId: string; t: number; url: string; early?: number; end?: number }
 
 /** Why a played match has no clip (server/videos/coverage.ts), each said in plain words beside it (`why`). */
 export type CoverageReason = "no-start" | "no-recording-day" | "outside-span" | "before-broadcast" | "after-broadcast" | "video-unavailable"

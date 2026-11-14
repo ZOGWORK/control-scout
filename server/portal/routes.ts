@@ -15,6 +15,7 @@ import { featureOwnerRoutes } from "./features.js";
 import { bugReportOwnerRoutes } from "../bugReports.js";
 import { flushMetrics, usageSummary } from "../metrics.js";
 import { vitalsSummary } from "../vitals.js";
+import { onboardingSummary } from "../onboardingStats.js";
 import { liveConnections } from "../liveConnections.js";
 import { statsSummary } from "../analytics.js";
 import type { OwnerUsage } from "../../src/shared/owner.js";
@@ -83,8 +84,8 @@ export function ownerRouter(): Router {
     const days = num(req.query.days, 14, 1, 90);
     // Today's numbers so far: what's still in memory goes in first.
     await flushMetrics().catch(() => {});
-    const [usage, views, vitals] = await Promise.all([usageSummary(days), statsSummary(days), vitalsSummary(days)]);
-    return { ...usage, live: liveConnections(), pageViews: views.daily.map((d) => ({ day: d.day, views: Number(d.views) })), vitals };
+    const [usage, views, vitals, onboarding] = await Promise.all([usageSummary(days), statsSummary(days), vitalsSummary(days), onboardingSummary(days)]);
+    return { ...usage, live: liveConnections(), pageViews: views.daily.map((d) => ({ day: d.day, views: Number(d.views) })), vitals, onboarding };
   }));
 
   r.get("/predictions", h(async (req) => {

@@ -11,7 +11,7 @@ import { Link } from "react-router-dom";
 import { Check, Play, X } from "lucide-react";
 import type { EventDetail, EventStream, MatchView } from "../shared/api";
 import { embedUrl, thumbnailUrl } from "../shared/stream";
-import { onStreamSeek } from "../lib/streamSeek";
+import { clipParams, onStreamSeek } from "../lib/streamSeek";
 import { bridgedSrc, useVideoClock } from "../lib/ytBridge";
 import { MATCH_S, videoMoment } from "../lib/videoMoment";
 import { VideoPredictions, useVideoPredictions, type OverlayCall } from "./VideoPredictions";
@@ -47,7 +47,8 @@ export function WatchLive({ d, stream }: { d: EventDetail; stream: EventStream }
 function Player({ stream, title, matches, liveCall, recording }: { stream: EventStream; title: string; matches: MatchView[]; liveCall: OverlayCall | null; recording: boolean }) {
   // null: the facade; else playing from that second (0 from the start). n counts the loads, so the same match's Watch
   // again restarts it when the player can't be moved within the video. own: a match's own video instead of the recording.
-  const [play, setPlay] = useState<{ t: number; n: number; own?: { videoId: string; label: string; matchKey?: string } } | null>(null);
+  // end: a match's clip stops at its match's end (MatchClip.end); the recording from the day picker or the picture plays on.
+  const [play, setPlay] = useState<{ t: number; n: number; end?: number; own?: { videoId: string; label: string; matchKey?: string } } | null>(null);
   const start = play?.t ?? null;
   const own = play?.own ?? null;
   // An event broadcast a day at a time: the day's video playing (a match's Watch moves to its day).
@@ -77,10 +78,11 @@ function Player({ stream, title, matches, liveCall, recording }: { stream: Event
   const ownRef = useRef(own);
   ownRef.current = own;
   const dayIds = days.map((d) => d.videoId).join(",");
-  useEffect(() => onStreamSeek(({ videoId, t, label, matchKey }) => {
+  useEffect(() => onStreamSeek(({ videoId, t, end, label, matchKey }) => {
     if (!dayIds.split(",").includes(videoId)) setPlay((p) => ({ t, n: (p?.n ?? 0) + 1, own: { videoId, label, matchKey } }));
-    else if (videoId !== dayRef.current) { setDay(videoId); setPlay((p) => ({ t, n: (p?.n ?? 0) + 1 })); }
-    else if (ownRef.current || !seekRef.current(t)) setPlay((p) => ({ t, n: (p?.n ?? 0) + 1 }));
+    else if (videoId !== dayRef.current) { setDay(videoId); setPlay((p) => ({ t, end, n: (p?.n ?? 0) + 1 })); }
+    // Within the open recording: that match's clip, from its start to its end (a loaded clip, not a seek: see ClipLoad).
+    else if (ownRef.current || !seekRef.current(t, { videoId, end })) setPlay((p) => ({ t, end, n: (p?.n ?? 0) + 1 }));
     box.current?.scrollIntoView({ block: "center", behavior: smoothBehavior() });
   }), [dayIds]);
   // What the overlay shows: a recording follows the player's second; live, the match being called.
@@ -99,7 +101,7 @@ function Player({ stream, title, matches, liveCall, recording }: { stream: Event
       {start != null ? (
         // Loaded by a click (the facade, or a match's Watch), so autoplay here is the viewer's own choice.
         <>
-          <iframe ref={frame} key={play!.n} className="absolute inset-0 size-full" src={bridgedSrc(own ? embedUrl(own.videoId) : day === stream.videoId ? stream.streamUrl : embedUrl(day), { autoplay: 1, rel: 0, ...(start ? { start } : {}) })} title={own ? `${own.label}: official match video` : title}
+          <iframe ref={frame} key={play!.n} className="absolute inset-0 size-full" src={bridgedSrc(own ? embedUrl(own.videoId) : day === stream.videoId ? stream.streamUrl : embedUrl(day), { autoplay: 1, rel: 0, ...clipParams({ t: start, end: own ? undefined : play!.end }) })} title={own ? `${own.label}: official match video` : title}
             allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen" referrerPolicy="strict-origin-when-cross-origin" />
           {/* A match's own video is a recording too, even while the event is live. */}
           <VideoPredictions call={call} live={liveVideo && !own} pos={pos} />

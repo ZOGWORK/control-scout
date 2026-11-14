@@ -110,6 +110,7 @@ import { bundleRouter } from "./packs/bundle.js";
 import { cachedPublicUsage, collectRouter, PUBLIC_USAGE_MAX_AGE_S, rateLimiter, statsRouter } from "./analytics.js";
 import { visitorIp } from "./visitorIp.js";
 import { vitalsRouter } from "./vitals.js";
+import { onboardingStatsRouter } from "./onboardingStats.js";
 import { abuseMonitor } from "./moderation.js";
 import { homeOverview } from "./api/home.js";
 import { coinFlips, radarEtag } from "./api/coinFlips.js";
@@ -303,7 +304,7 @@ export function createApp(opts: { dist?: string; /** Tests only: a smaller searc
   // 2 MB JSON parser skips all three.
   const json = express.json({ limit: "2mb" });
   // Same matching as Express routing (case-insensitive, optional trailing slash).
-  app.use((req, res, next) => (/^\/api\/(collect(\/vitals)?|digest\/webhook|csp-report)\/?$/i.test(req.path) ? next() : json(req, res, next)));
+  app.use((req, res, next) => (/^\/api\/(collect(\/vitals|\/onboarding)?|digest\/webhook|csp-report)\/?$/i.test(req.path) ? next() : json(req, res, next)));
 
   // One search limit for the page and the API (searchLimit): a visit to /search and the app's request for it count as two.
   const searches = searchLimit(opts.searchesPerMinute);
@@ -1006,6 +1007,7 @@ export function createApp(opts: { dist?: string; /** Tests only: a smaller searc
   // The email digest (docs/digest.md): the Settings switch, the unsubscribe link and Resend's bounce reports.
   api.use("/digest", limiter(30), digestRouter());
   api.use("/collect/vitals", vitalsRouter());
+  api.use("/collect/onboarding", onboardingStatsRouter());
   api.use("/collect", collectRouter());
   api.use("/stats", statsRouter());
   api.use("/contact", contactRouter());

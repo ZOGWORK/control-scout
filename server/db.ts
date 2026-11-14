@@ -2316,6 +2316,23 @@ CREATE TABLE service_heartbeats (
   },
   {
     version: 87,
+    name: "onboarding funnel",
+    sql: `
+-- The first-visit onboarding's anonymous daily totals (server/onboardingStats.ts), from visitors who allowed usage
+-- statistics: no IDs, one count per day, event, step, screen bucket and whether a team was picked.
+CREATE TABLE onboarding_daily (
+  day TEXT NOT NULL,
+  event TEXT NOT NULL,
+  step INTEGER NOT NULL,
+  screen TEXT NOT NULL,
+  team INTEGER NOT NULL DEFAULT 0,
+  count INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (day, event, step, screen, team)
+);
+`,
+  },
+  {
+    version: 88,
     name: "clip coverage",
     sql: `
 -- Each event's clip coverage as last checked (server/videos/coverageCheck.ts): rechecked whenever its recording's videos,
