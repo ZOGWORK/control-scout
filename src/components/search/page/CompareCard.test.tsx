@@ -133,6 +133,15 @@ describe("comparison card: the teams' matches together", () => {
     expect(section!.querySelectorAll("[data-row-play]")).toHaveLength(1);
   });
 
+  it("the answer's clip of a match not listed never plays in the section", async () => {
+    const { AnswerVideoProvider } = await import("./AnswerVideo");
+    const other = "/events/2025/USPAQ1?match=qual:0:9";
+    const main = { videoId: "xnQFL9T27fY", t: 100, end: 300, kind: "recording" as const, match: "Q9" };
+    const at = (mainRow: string) => render(<MemoryRouter><AnswerVideoProvider video={{ main, mainRow }}><StatAnswerCard stat={withMatches} /></AnswerVideoProvider></MemoryRouter>).container.querySelector("[data-block='together']")!;
+    expect(at(other).querySelector("[data-video-facade]")).toBeNull();
+    expect(at(Q4).querySelector("[data-video-facade]")).not.toBeNull();
+  });
+
   it("no matches together: no section", () => {
     expect(html(VS).querySelector("[data-block='together']")).toBeNull();
   });
