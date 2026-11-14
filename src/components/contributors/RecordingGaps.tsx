@@ -6,7 +6,7 @@ import { Check, CircleSlash, TriangleAlert } from "lucide-react";
 import type { ClipCoverage, MatchView } from "../../shared/api";
 import { labelRanges, missingGroups } from "../../shared/coverage";
 import { useApi } from "../../lib/api";
-import { useContributorVideos } from "./EventClips";
+import { CoverageLine, useContributorVideos } from "./EventClips";
 import { cn } from "../cn";
 
 /** What the page's coverage depends on, as a short hash: which played matches have no video and their times (FIRST
@@ -28,13 +28,27 @@ export function chipTone(v: { matches: number; clipped: number }): "done" | "sho
 export const coveragePath = (season: number, code: string) => `/api/events/${season}/${encodeURIComponent(code)}/coverage`;
 
 /** `recorded`: the event has a recording linked, playable or not (a private one still says why); `videos`: its videos' ids. */
-export function RecordingGaps({ season, code, recorded, matches, videos = [] }: { season: number; code: string; recorded: boolean; matches: MatchView[]; videos?: string[] }) {
-  const byKey = useContributorVideos();
-  // Asked only when a played match has neither a clip nor FIRST's video; asked again when the matches move (a live
-  // event's new results, Refresh results, a clip placed): the path carries what the page has.
+export interface RecordingProps { season: number; code: string; recorded: boolean; matches: MatchView[]; videos?: string[] }
+
+/** The coverage check for the page: asked only when a played match has neither a clip nor FIRST's video; asked again
+ *  when the matches move (a live event's new results, Refresh results, a clip placed): the path carries what the page
+ *  has. The line and the gaps below it read the same path, so it's one request. */
+function useRecordingCoverage({ season, code, recorded, matches, videos = [] }: RecordingProps) {
   const played = matches.filter((m) => m.played);
   const gap = recorded && played.some((m) => !m.clip && !m.video);
-  const s = useApi<ClipCoverage>(gap ? `${coveragePath(season, code)}?m=${missingSignature(played, videos)}` : null);
+  return { gap, s: useApi<ClipCoverage>(gap ? `${coveragePath(season, code)}?m=${missingSignature(played, videos)}` : null) };
+}
+
+/** The coverage line, told when a day of the event has no recording, so a partly recorded event never reads as only
+ *  "Recording" (FPEWESEA 2025: Friday and Sunday unrecorded). `playable`: the page plays the recording. */
+export function RecordingCoverageLine({ reserve, playable, unplayable, ...rec }: RecordingProps & { reserve?: boolean; playable: boolean; unplayable: boolean }) {
+  const { gap, s } = useRecordingCoverage(rec);
+  return <CoverageLine reserve={reserve} recorded={playable} unplayable={unplayable} partial={gap && !!s.data?.daysMissing.length} />;
+}
+
+export function RecordingGaps(rec: RecordingProps) {
+  const byKey = useContributorVideos();
+  const { gap, s } = useRecordingCoverage(rec);
   // A match someone added a video for has one: not missing here.
   const missing = useMemo(() => (s.data?.matches ?? []).filter((m) => !m.clip && !byKey[m.key]), [s.data, byKey]);
   const c = s.data;
