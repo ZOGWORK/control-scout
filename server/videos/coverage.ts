@@ -54,6 +54,7 @@ const WHY: Record<CoverageReason, string> = {
   "gap-unplaced": "Video shorter than its broadcast, missing time can't be placed",
   "past-chapters": "Past the part of the video its chapters confirm",
   "past-video-end": "After the video ends",
+  "before-cut": "Before the video starts",
   "overlaps-previous": "An early start would open on the match before",
   "no-first-video": "FIRST posted no video for this match",
   unexplained: "No clip, reason not found",
@@ -91,7 +92,8 @@ function judge(v: RecordingVideo, r: Recording, whole: EventSpan, timezone: stri
   }
   const missing = missingOf(timing) ?? 0;
   const basis = timing.confirmedTo != null
-    ? (checkedTo(v.videoId) === timing.confirmedTo ? "clock + frames checked by eye" : "clock + YouTube chapters")
+    ? (checkedTo(v.videoId) === timing.confirmedTo ? "clock + frames checked by eye"
+      : timing.shift ? `clock + YouTube chapters (its first ${span(timing.shift)} cut off)` : "clock + YouTube chapters")
     : slack ? `clock only, started up to ${span(slack)} early (gap can't be placed)`
       : missing > 180 ? "clock, tail of the stream cut after the event"
         : "clock, video length matches its broadcast";
@@ -123,12 +125,15 @@ function reasonFor(m: CoverageInput, videos: Judged[], now: number): { reason: C
     const at = m.startsAt ? Date.parse(m.startsAt) : NaN, from = j.v.meta?.start ? Date.parse(j.v.meta.start) : NaN;
     return at < from ? { reason: "before-broadcast", why: WHY["before-broadcast"], videoId: id } : { reason: "after-broadcast", why: WHY["after-broadcast"], videoId: id };
   }
-  const t = j.timing!, slack = j.slack!;
-  const from = Date.parse(t.start!), offset = Math.floor((Date.parse(m.startsAt!) - from) / 1000);
+  const t = j.timing!, slack = j.slack!, shift = t.shift ?? 0;
+  // clipSecond's own steps: the clock against what the chapters vouch for, then the video's seconds (clock − shift).
+  const from = Date.parse(t.start!), clock = Math.floor((Date.parse(m.startsAt!) - from) / 1000), offset = clock - shift;
   if (clipSecond(m.startsAt, t, now) == null) {
-    if (t.confirmedTo != null && offset > t.confirmedTo) return { reason: "past-chapters", why: `${WHY["past-chapters"]} (to ${span(t.confirmedTo)} into the broadcast)`, videoId: id };
+    if (clock < 0) return { reason: "before-broadcast", why: WHY["before-broadcast"], videoId: id };
+    if (t.confirmedTo != null && clock > t.confirmedTo) return { reason: "past-chapters", why: `${WHY["past-chapters"]} (to ${span(t.confirmedTo)} into the broadcast)`, videoId: id };
+    if (shift && t.confirmedFrom != null && clock < t.confirmedFrom) return { reason: "past-chapters", why: `${WHY["past-chapters"]} (from ${span(t.confirmedFrom)} into the broadcast)`, videoId: id };
+    if (offset < 0) return { reason: "before-cut", why: `${WHY["before-cut"]} (its first ${span(shift)} were cut off)`, videoId: id };
     if (t.length != null && offset - slack > t.length) return { reason: "past-video-end", why: `${WHY["past-video-end"]} (the video stops ${span(offset - slack - t.length)} before it)`, videoId: id };
-    if (Date.parse(m.startsAt!) < from) return { reason: "before-broadcast", why: WHY["before-broadcast"], videoId: id };
   } else if (!clearOfPrevious(m.startsAt, slack ? previousStart(j.starts!, m.startsAt) : null, slack)) {
     return { reason: "overlaps-previous", why: `${WHY["overlaps-previous"]} (starts up to ${span(slack + CLIP_LEAD_S)} early)`, videoId: id };
   }
