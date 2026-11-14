@@ -11,6 +11,7 @@
 // answered is never replaced. The first server answer afterwards (or the
 // browser coming back online) switches back. Downloading the pack in the
 // background (packSync.tsx) is separate: that only stores bytes for later.
+import type { TeamSummary } from "../shared/api";
 import { createContext, useCallback, useContext, useEffect, useRef, useSyncExternalStore } from "react";
 import { offlineSource, savedSeasons } from "./offline/saved";
 import { bundleCanAnswer, bundleFor, comparePacksSaved, packSearchSaved, savedBundles } from "./offline/bundleMeta";
@@ -238,7 +239,7 @@ const SUMMARY_PATH = /^\/api\/teams-summary(\?|$)/;
 /** A saved /api/teams-summary answer holds every team asked (lib/offline/search.ts leaves out the ones no pack holds). */
 function summaryWhole(path: string, data: unknown): boolean {
   const asked = (new URL(path, "http://offline.invalid").searchParams.get("teams") ?? "").split(",").filter((t) => /^\d{1,6}$/.test(t));
-  const got = new Set(((data as { teams?: { number: number }[] }).teams ?? []).map((t) => String(t.number)));
+  const got = new Set(((data as { teams?: Pick<TeamSummary, "team">[] }).teams ?? []).map((t) => String(t.team)));
   return asked.every((t) => got.has(String(Number(t))));
 }
 /** The server is up: the browser says it's online and the server answered within the last minute, since the last

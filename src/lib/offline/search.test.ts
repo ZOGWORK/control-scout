@@ -12,21 +12,23 @@ import { packSearchSaved, writeBundles } from "./bundleMeta";
 import { offlineAnswer } from "./answer";
 import { offlineSource } from "./saved";
 import { packPath, searchPackPath, type BundleManifest, type EventBundle, type PackApi } from "../../shared/eventBundle";
-import type { SearchAnswer, SearchHit } from "../../shared/api";
+import type { SearchAnswer, SearchHit, TeamSummary } from "../../shared/api";
 import type { PackSearch, SeasonRow } from "../../shared/searchVersus";
 
 const S = 2025;
 const hit = (n: number, name: string): SearchHit => ({ kind: "team", ref: String(n), title: `${n} | ${name}`, subtitle: "Midland, MI, USA", season: S, team: { season: S, opr: 40, record: { w: 3, l: 1, t: 0 }, rank: { n: n - 10, of: 40 } } } as SearchHit);
 const row = (team: number, opr: number): SeasonRow => ({ team, season: S, opr_np: opr, opr_auto: opr / 4, opr_teleop: opr / 2, opr_endgame: opr / 4, rank_np: team - 10, rank_auto: null, rank_teleop: null, rank_endgame: null, ranked_teams: 40, rating_np: opr, rating_auto: null, rating_teleop: null, rating_endgame: null, rating_sd: 4, rating_rank: 1, matches: 4, wins: 3, losses: 1, ties: 0 });
-const NAMES: Record<number, string> = { 11: "Gear Grinders", 12: "Bolt Brigade", 13: "Circuit Owls" };
+const NAMES: Record<number, string> = { 11: "Gear Grinders", 12: "Bolt Brigade", 13: "Circuit Owls", 4215: "Terabridges" };
+/** A team card's numbers, in /api/teams-summary's own shape (TeamSummary). `opr` tells the pack's from the server's. */
+const summary = (team: number, opr = 40): TeamSummary => ({ team, name: NAMES[team], place: "Midland, MI, USA", opr, oprRank: 3, of: 40, rating: opr, ratingSd: 4, record: "3-1-0", lastEvent: null, nextEvent: null });
 
 function pack(): EventBundle {
   const api: PackApi = { answers: {}, same: {}, errors: {} };
   const lone: SearchAnswer = { q: "11", hits: [hit(11, NAMES[11])], pages: [], step: "deterministic", weak: false, understood: { kind: "team", label: "Gear Grinders (11)" } };
   api.answers[packPath(searchPackPath("11"))!] = lone;
   api.answers[packPath(searchPackPath("Gear Grinders"))!] = { ...lone, q: "Gear Grinders" };
-  api.answers[packPath(`/api/teams-summary?season=${S}&teams=12`)!] = { season: S, teams: [{ number: 12, name: "Bolt Brigade" }] };
-  api.answers[packPath(`/api/teams-summary?season=${S}&teams=11`)!] = { season: S, teams: [{ number: 11, name: "Gear Grinders" }] };
+  api.answers[packPath(`/api/teams-summary?season=${S}&teams=12`)!] = { season: S, teams: [summary(12)] };
+  api.answers[packPath(`/api/teams-summary?season=${S}&teams=11`)!] = { season: S, teams: [summary(11)] };
   const search: PackSearch = {
     teams: Object.fromEntries([11, 12, 13].map((n, i) => [String(n), { facts: { number: n, name: NAMES[n], city: "Midland", state: "MI", country: "USA" }, hit: hit(n, NAMES[n]), rows: [row(n, 60 - i * 10)] }])),
     scales: { [S]: { opr_np: 100, opr_auto: 30, opr_teleop: 60, opr_endgame: 30, rating_np: 100 } }, current: S, legacy: [2019, 2020, 2021, 2022],
@@ -74,7 +76,7 @@ describe("search with no signal, from a saved event pack", () => {
   });
 
   it("the team cards' numbers, in the order asked, without teams the pack doesn't hold", async () => {
-    expect(await offlineAnswer(`/api/teams-summary?season=${S}&teams=12,4215,11`)).toEqual({ season: S, teams: [{ number: 12, name: "Bolt Brigade" }, { number: 11, name: "Gear Grinders" }] });
+    expect(await offlineAnswer(`/api/teams-summary?season=${S}&teams=12,4215,11`)).toEqual({ season: S, teams: [summary(12), summary(11)] });
   });
 
   it("lib/api.ts: with no network, the pack answers at once (no 10-second slow-search wait)", async () => {
@@ -123,20 +125,22 @@ describe("search with no signal, from a saved event pack", () => {
 
   it("lib/api.ts: team cards' numbers the pack holds only some of wait for a slow server, which has them all", async () => {
     const { apiFetch } = await import("../api");
-    const whole = { season: S, teams: [{ number: 12, name: "Bolt Brigade" }, { number: 4215, name: "Terabridges" }] };
+    // The server's own answer: every team asked, told apart from the pack's by its OPR.
+    const server = (path: string) => ({ season: S, teams: (new URL(path, "http://x.invalid").searchParams.get("teams") ?? "").split(",").map((t) => summary(Number(t), 99)) });
     vi.stubGlobal("fetch", vi.fn((url: string) => {
       if (!String(url).startsWith("/api/teams-summary")) return Promise.resolve(new Response("{}"));
       // Slower than the offline timeout (4 s), then the server's whole answer.
-      return new Promise<Response>((r) => setTimeout(() => r(new Response(JSON.stringify(whole))), 5500));
+      return new Promise<Response>((r) => setTimeout(() => r(new Response(JSON.stringify(server(String(url))))), 5500));
     }));
     await apiFetch("/api/health");
-    expect(await apiFetch(`/api/teams-summary?season=${S}&teams=12,4215`)).toEqual(whole);
-    // Every team asked in the pack: the pack answers once the server is past the offline timeout.
+    // The pack holds 12, not 4215: the server's answer, waited for.
+    expect(await apiFetch(`/api/teams-summary?season=${S}&teams=12,4215`)).toEqual(server("/api/teams-summary?teams=12,4215"));
+    // Every team asked in the pack: the pack's answer once the server is past the offline timeout, not the server's.
     const t0 = performance.now();
-    expect(await apiFetch(`/api/teams-summary?season=${S}&teams=12,11`)).toEqual({ season: S, teams: [{ number: 12, name: "Bolt Brigade" }, { number: 11, name: "Gear Grinders" }] });
+    expect(await apiFetch(`/api/teams-summary?season=${S}&teams=12,11`)).toEqual({ season: S, teams: [summary(12), summary(11)] });
     expect(performance.now() - t0).toBeLessThan(5400);
     // No network at all: the part the pack holds still answers.
     vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("Failed to fetch"); }));
-    expect(await apiFetch(`/api/teams-summary?season=${S}&teams=12,4215`)).toEqual({ season: S, teams: [{ number: 12, name: "Bolt Brigade" }] });
+    expect(await apiFetch(`/api/teams-summary?season=${S}&teams=12,4215`)).toEqual({ season: S, teams: [summary(12)] });
   }, 30_000);
 });
