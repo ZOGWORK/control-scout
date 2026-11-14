@@ -9,10 +9,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SearchAnswer, SearchHit, TeamSummary } from "../shared/api";
 import type { StatAnswer } from "../shared/searchStat";
 
-const state = vi.hoisted(() => ({ answer: undefined as SearchAnswer | undefined, stale: false }));
+const state = vi.hoisted(() => ({ answer: undefined as SearchAnswer | undefined, stale: false, busy: false }));
 vi.mock("../components/search/SearchBox", async (orig) => ({
   ...(await orig<typeof import("../components/search/SearchBox")>()),
-  useSearchHits: () => ({ hits: state.answer?.hits ?? [], answer: state.answer, busy: false, error: null, retry: () => {}, searchNow: () => {}, logPick: () => {}, stale: state.stale, prefer: "" }),
+  useSearchHits: () => ({ hits: state.answer?.hits ?? [], answer: state.answer, busy: state.busy, error: null, retry: () => {}, searchNow: () => {}, logPick: () => {}, stale: state.stale, prefer: "" }),
 }));
 vi.mock("../lib/meta", async (orig) => ({ ...(await orig<typeof import("../lib/meta")>()), useMeta: () => null, useCurrentSeason: () => 2025 }));
 const summaries: TeamSummary[] = [
@@ -37,7 +37,10 @@ vi.mock("../lib/consent", async (orig) => ({ ...(await orig<typeof import("../li
 const shortlisted = vi.hoisted(() => new Set<number>());
 vi.mock("../lib/personal", async (orig) => {
   const { useState } = await import("react");
+  // The phone's search bar is a real SearchBox, which ranks the visitor's own teams first: none here.
+  const none = { myTeam: null, tracked: { teams: [], events: [] }, bookmarks: [] };
   return { ...(await orig<typeof import("../lib/personal")>()),
+    usePersonal: () => ({ state: none }),
     useTeamFlags: (n: number) => {
       const [, bump] = useState(0);
       return { bookmarked: shortlisted.has(n), toggleBookmark: () => { if (shortlisted.has(n)) shortlisted.delete(n); else shortlisted.add(n); bump((x) => x + 1); } };
@@ -45,6 +48,7 @@ vi.mock("../lib/personal", async (orig) => {
 });
 
 const { default: SearchPage } = await import("./SearchPage");
+const { SearchProvider, GlobalSearch } = await import("../components/layout/Search");
 
 const team = (n: number, name: string, place: string): SearchHit => ({ kind: "team", ref: String(n), title: `${n} ${name}`, subtitle: place, season: 2025 });
 const ev = (code: string, name: string, start: string, season = 2025): SearchHit => ({ kind: "event", ref: `${season}:${code}`, title: name, subtitle: `${code} · ${start} · Oradell, NJ, USA`, season });
@@ -53,7 +57,7 @@ const answer = (hits: SearchHit[], extra: Partial<SearchAnswer> = {}): SearchAns
 let loc = "";
 function Where() { const l = useLocation(); loc = `${l.pathname}${l.search}`; return null; }
 const show = (url: string) => render(<MemoryRouter initialEntries={[url]}><SearchPage /><Where /></MemoryRouter>);
-afterEach(() => { cleanup(); state.answer = undefined; state.stale = false; });
+afterEach(() => { cleanup(); state.answer = undefined; state.stale = false; state.busy = false; });
 
 describe("search results page", () => {
   it("puts a Compare in its own section above the teams, not counted as a team", () => {
@@ -647,14 +651,46 @@ describe("search results page, phone (Part B 3b)", () => {
     detail: `${season} · Apr 19–23, 2022 · Houston, TX`, results: [`Ranked #${rank}`, "4-4-0 in quals", `OPR ${opr.toFixed(1)}`], href: `/events/${season.slice(0, 4)}/X?team=7149`,
   });
 
-  it("a search bar holding the query with a clear button, and a short Results header", () => {
+  // With the app's search context and the top bar's field mounted too, as in the app: the page's bar claims the one
+  // search box, so the top bar's field (and its phone button) step aside.
+  const withTopBar = (url: string) => render(<MemoryRouter initialEntries={[url]}><SearchProvider><GlobalSearch /><SearchPage /></SearchProvider><Where /></MemoryRouter>);
+
+  it("a search bar that is the page's real field, holding the query, and a short Results header", () => {
     state.answer = answer([team(18061, "Simply Complex", "Plainsboro, NJ")]);
-    const { container } = show("/search?q=how%20good%20is%20simply%20complex");
+    const { container } = withTopBar("/search?q=how%20good%20is%20simply%20complex");
     const bar = container.querySelector("[data-phone-search]")!;
-    expect(bar.textContent).toContain("how good is simply complex");
+    // The field itself, not a button that opens another box over it: one tap edits it.
+    const field = within(bar as HTMLElement).getByRole("combobox", { name: "Search teams, events and matches" }) as HTMLInputElement;
+    expect(field.value).toBe("how good is simply complex");
+    expect(within(bar as HTMLElement).queryByRole("button", { name: /Change the search/ })).toBeNull();
+    // One field on the page: the top bar's is gone, and so is its search button (it would open a second box).
+    expect(screen.getAllByRole("combobox")).toHaveLength(1);
+    expect(screen.queryByRole("button", { name: "Search" })).toBeNull();
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Results: Simply Complex (18061)");
-    fireEvent.click(screen.getByRole("button", { name: "Clear the search" }));
-    expect(loc).toBe("/search");
+    // × empties the field for a new search; typed and submitted, the new search's results page.
+    fireEvent.click(within(bar as HTMLElement).getByRole("button", { name: "Clear search" }));
+    expect(field.value).toBe("");
+    fireEvent.change(field, { target: { value: "simply complex in nj" } });
+    fireEvent.keyDown(field, { key: "Enter" });
+    expect(loc).toBe("/search?q=simply%20complex%20in%20nj");
+  });
+
+  it("what's typed in the bar while a search loads is still there, in the same field, when its results arrive", () => {
+    state.busy = true;
+    const { container, rerender } = withTopBar("/search?q=how%20good%20is%20simply%20complex");
+    expect(container.querySelector("[data-search-loading]")).not.toBeNull();
+    const field = within(container.querySelector("[data-phone-search]") as HTMLElement).getByRole("combobox") as HTMLInputElement;
+    field.focus();
+    fireEvent.change(field, { target: { value: "how good is simply comp" } });
+    state.busy = false;
+    state.answer = answer([team(18061, "Simply Complex", "Plainsboro, NJ")]);
+    rerender(<MemoryRouter initialEntries={["/search?q=how%20good%20is%20simply%20complex"]}><SearchProvider><GlobalSearch /><SearchPage /></SearchProvider><Where /></MemoryRouter>);
+    expect(container.querySelector("[data-search-loading]")).toBeNull();
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Results: Simply Complex (18061)");
+    const after = within(container.querySelector("[data-phone-search]") as HTMLElement).getByRole("combobox") as HTMLInputElement;
+    expect(after).toBe(field);
+    expect(after.value).toBe("how good is simply comp");
+    expect(document.activeElement).toBe(after);
   });
 
   it("every season as a chip; the team the answer is about gets no card of its own, its pages are in the summary", () => {
