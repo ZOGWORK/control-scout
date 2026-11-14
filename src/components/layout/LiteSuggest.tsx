@@ -8,7 +8,7 @@ import { AnimatePresence } from "motion/react";
 import { Check, Snail, X, Zap } from "lucide-react";
 import { m } from "../motion";
 import { Button } from "../ui/button";
-import { liteHref } from "../../shared/lite";
+import { liteOffer } from "../../shared/lite";
 import { dismissLite, useLiteReason, useLiteSuggested, watchPage, type LiteReason } from "../../lib/liteSuggest";
 import { useFlag } from "../../lib/flags";
 
@@ -18,7 +18,7 @@ export function LiteSuggest() {
   const reason = useLiteReason();
   // Never while the owner has the light version switched off (venueLightMode).
   const on = useFlag("venueLightMode");
-  const href = on ? liteHref(loc.pathname, loc.search) : null;
+  const href = on ? liteOffer(loc.pathname, loc.search) : null;
   // Each page with a twin is timed from when the visitor gets there (another season or workspace is another page).
   const watched = href != null;
   useEffect(() => (watched ? watchPage(loc.pathname, loc.search) : undefined), [watched, loc.pathname, loc.search]);

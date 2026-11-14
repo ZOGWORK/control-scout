@@ -168,6 +168,51 @@ describe("the shipped list", () => {
     const apocSat = au.filter((x) => x.code === "AUSYOS" && x.day === "2026-07-04");
     expect(apocSat.map((x) => x.part).sort()).toEqual(["Part 1", "Part 2"]);
   });
+  it("puts Westwood Robotics' streams on the GEMS league each title names: Diamond never on Emerald, Meet 1 never on Meet 2", async () => {
+    const WW = "UCyv6fRBcoK6mD6Br5M366yA";
+    const ww = data.videos.filter((x) => x.channelId === WW);
+    // Each event's league and meet, as Scout's event names give them (seasons 2024-26).
+    const meets: Record<string, [league: "Diamond" | "Emerald", meet: number]> = {
+      "2026/USTXCEGDM1": ["Diamond", 1], "2026/USTXCEGEM1": ["Emerald", 1], "2026/USTXCEGDM2": ["Diamond", 2], "2026/USTXCEGEM2": ["Emerald", 2],
+      "2025/USTXCRDM1": ["Diamond", 1], "2025/USTXCREM1": ["Emerald", 1], "2025/USTXCRDM2": ["Diamond", 2], "2025/USTXCREM2": ["Emerald", 2],
+      "2025/USTXCRDM3": ["Diamond", 3], "2025/USTXCREM3": ["Emerald", 3],
+      "2024/USTXCGM6": ["Diamond", 1], "2024/USTXCGM1": ["Emerald", 1], "2024/USTXCGM2": ["Diamond", 2], "2024/USTXCGM4": ["Emerald", 2],
+      "2024/USTXCGM5": ["Diamond", 3], "2024/USTXCGM3": ["Emerald", 3],
+    };
+    const others: Record<string, RegExp> = { "2025/USTXCRLT1": /GEMS League Tournament/, "2024/USTXCGLT": /GEMS League Tournament/, "2025/USTXAUSQ": /Austin Semi-Regional/, "2024/USTXAUQ": /Austin Semi-Area Championship/ };
+    expect(ww).toHaveLength(21);
+    for (const x of ww) {
+      const key = `${x.season}/${x.code}`;
+      expect(x.kind, x.videoId).toBe("recording");
+      const m = meets[key];
+      if (m) {
+        expect(x.title, x.videoId).toMatch(new RegExp(`\\b${m[0]}\\b`));
+        expect(x.title, x.videoId).not.toMatch(m[0] === "Diamond" ? /Emerald/ : /Diamond/);
+        expect(x.title, x.videoId).toMatch(new RegExp(`\\bMeet ${m[1]}\\b`));
+      } else {
+        expect(others[key], key).toBeTruthy();
+        expect(x.title, x.videoId).toMatch(others[key]);
+      }
+      expect(x.day! >= `${x.season}-09-01` && x.day! <= `${x.season + 1}-08-31`, `${x.videoId} ${x.day}`).toBe(true);
+    }
+    // Meet 2 of 2026-11-14 is listed before it airs, like FIRST's own livestream link.
+    expect(ww.filter((x) => x.day === "2026-11-14").map((x) => x.videoId).sort()).toEqual(["rZ988MTkb5U", "tN9INIKnCT4"]);
+    // The one split day names its parts (Qual 1-3, Qual 4-14).
+    expect(ww.filter((x) => x.code === "USTXCGM4").map((x) => `${x.part} ${x.videoId}`).sort()).toEqual(["Part 1 5bz2KShacYM", "Part 2 ZMHn9_sK_AI"]);
+    // Never: the overlays-only test stream, a scheduled stream that never aired, or Round Rock Gems titles (the 2023 events are in Austin).
+    const ids = new Set(data.videos.map((x) => x.videoId));
+    for (const no of ["28VU7025PRI", "6JHyF5LlZgA", "zazjO7ceiaE", "L_1obJYg4ew", "e7ogZt3pf5s", "YUWd0jBUM3g", "6n2jU5JXAqI"]) expect(ids.has(no), no).toBe(false);
+    // The watcher reads the channel too, for those events only.
+    const { OFFICIAL_CHANNELS } = await import("../data/officialChannels");
+    const seed = OFFICIAL_CHANNELS.find((c) => c.channelId === WW)!;
+    const inRegion = parseRule(seed.region)!;
+    const tx = { season: 2026, type: "LeagueMeet", city: "Austin", state: "TX", country: "USA", start: "2026-11-14", end: "2026-11-14", timezone: "America/Chicago", divisionCode: null, parent: false };
+    expect(inRegion({ ...tx, code: "USTXCEGDM2", name: "CTX GEMS Diamond League Meet 2" })).toBe(true);
+    expect(inRegion({ ...tx, code: "USTXAUSQ", name: "FiT-Central Austin Semi-Regional" })).toBe(true);
+    expect(inRegion({ ...tx, code: "USTXNONIM1", name: "NTX I-League Meet #1" })).toBe(false);
+    expect(inRegion({ ...tx, code: "USIAIRISM3", name: "Iris Manson", state: "IA" })).toBe(false);
+  });
+
   it("puts FIRST in Missouri's and FIRST MOKS's recordings on the Missouri/Kansas meet each title names, one session each", async () => {
     const FIMO = "UCoo2NYUOcTUZB65dGMAp1vg", MOKS = "UCy_GHfjX6LsALdrIceg8_pw";
     const pin = (ch: string) => data.videos.filter((x) => x.channelId === ch).map((x) => `${x.season}/${x.code} ${x.day} ${x.videoId}`).sort();

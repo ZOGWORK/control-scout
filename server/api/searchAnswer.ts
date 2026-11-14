@@ -39,6 +39,7 @@ import { highScoreAnswer, parseHighScore } from "./searchHighScores.js";
 import { eventVersusSearch, leagueSearch, statAnswer } from "./answers/index.js";
 import { divisionFieldAnswer, oprPhaseOf, readDivisionField, type EventRow } from "./answers/families/eventVersus.js";
 import { seasonOfDate } from "./query/time.js";
+import { WATCH_TAKERS } from "./query/intents.js";
 import { searchToday } from "./searchEvents.js";
 import { placeAwardsSearch, readPlaceAwards } from "./answers/families/placeAwards.js";
 import { refreshSearchSeason } from "./answers/season.js";
@@ -313,10 +314,10 @@ export function withoutWatch(q: string): string {
 }
 
 /** Whether an answer is one that watching asks for: highlights, a page of match videos, or matches found with video. */
-function tookWatch(a: SearchAnswer): boolean {
+export function tookWatch(a: SearchAnswer): boolean {
   const s = a.stat;
   if (!s) return false;
-  return /highlights|video/.test(s.intent) || s.scope.includes("With video") || s.blocks.some((b) => b.kind === "videos" || (b.kind === "matches" && b.rows.length > 0 && b.rows.every((r) => r.note)));
+  return /highlights|video/.test(s.intent) || WATCH_TAKERS.has(s.intent) || s.scope.includes("With video") || s.blocks.some((b) => b.kind === "videos" || (b.kind === "matches" && b.rows.length > 0 && b.rows.every((r) => r.note)));
 }
 
 /** `q` with a game's name (and a "year" or "season" after it, an "in" or a comma before it) said as its season's years

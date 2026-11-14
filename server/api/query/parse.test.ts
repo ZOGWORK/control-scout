@@ -616,6 +616,9 @@ describe("with video (search video brief, point 5)", () => {
       expect(p, q).toMatchObject({ withVideo: true, complete: true });
     }
   });
+  it("highlights take it: they are the matches' videos already", async () => {
+    expect(await parse("6980 highlights with video")).toMatchObject({ intent: "highlights", withVideo: true, complete: true });
+  });
   it("any other intent leaves the parse to search's other readers, never answered without it", async () => {
     expect(await parse("6980 opr with video")).toMatchObject({ withVideo: true, complete: false });
   });

@@ -1,9 +1,9 @@
 // Theme + density from the personal settings (dark graphite is the default).
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePersonal } from "../lib/personal";
 import type { ThemeChoice } from "../shared/personal";
 import { useFlag } from "../lib/flags";
-import { writeThemeCookie } from "../lib/liteCookies";
+import { takeLitePick, writeThemeCookie } from "../lib/liteCookies";
 
 const prefersLight = () => typeof window !== "undefined" && window.matchMedia?.("(prefers-color-scheme: light)").matches;
 
@@ -34,7 +34,7 @@ export function useTheme() {
 /** Applies theme + density classes to <html> (mounted once at the root). */
 export function ThemeSync() {
   const { palette, theme } = useTheme();
-  const { state } = usePersonal();
+  const { state, update } = usePersonal();
   const dog = useFlag("dogTheme");
   useEffect(() => {
     const root = document.documentElement.classList;
@@ -42,8 +42,18 @@ export function ThemeSync() {
     root.toggle("dog", dog);
     document.querySelector('meta[name="theme-color"]')?.setAttribute("content", (dog ? DOG_THEME_COLOR : THEME_COLOR)[palette]);
   }, [palette, dog]);
+  // A theme picked on Lite's Settings page since the app last ran (only its cookie changed there): taken once, as this
+  // device's choice, before the app's older one is written back over it (src/lib/liteCookies.ts).
+  const [fromLite] = useState(() => takeLitePick("theme"));
+  const waiting = useRef(fromLite != null && fromLite !== theme);
+  useEffect(() => {
+    if (waiting.current && fromLite) update("settings", (s) => ({ ...s, theme: fromLite }));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- once, when the app starts
   // Control Scout Lite draws on the server with no script: it reads the choice from a cookie (src/lib/liteCookies.ts).
-  useEffect(() => { writeThemeCookie(theme); }, [theme]);
+  useEffect(() => {
+    if (waiting.current) { if (theme !== fromLite) return; waiting.current = false; }
+    writeThemeCookie(theme);
+  }, [theme, fromLite]);
   useEffect(() => { document.documentElement.classList.toggle("compact", state.settings.density === "compact"); }, [state.settings.density]);
   useEffect(() => { document.documentElement.classList.toggle("ambient-off", state.settings.ambient === false); }, [state.settings.ambient]);
   return null;

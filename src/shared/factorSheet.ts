@@ -5,6 +5,17 @@ import { compactFactorSheet, type FactorSheet, type SheetFactor } from "@control
 
 export type { FactorSheet, SheetFactor };
 
+/** A factor's share of the call as the sheet prints it ("0%", "<1%", "23%"): the app's panel and Lite's table. */
+export const sharePct = (w: number) => (w <= 0 ? "0%" : w < 0.005 ? "<1%" : `${Math.round(w * 100)}%`);
+
+/** What the call leans on: the shares of the factors pulling for red (A) and for blue (B), of those two together
+ *  (phases and the win model's inputs; reasons weigh nothing). Null when nothing leans either way. */
+export function sheetPull(sheet: FactorSheet): { red: number; blue: number } | null {
+  const sum = (side: "A" | "B") => [...sheet.phases, ...sheet.model].filter((f) => f.favors === side && f.weight > 0).reduce((s, f) => s + f.weight, 0);
+  const red = sum("A"), blue = sum("B"), total = red + blue;
+  return total > 0 ? { red: red / total, blue: blue / total } : null;
+}
+
 /** The sheet as stored and sent: log-odds and weights to 4 places (about 0.01 percentage points). */
 export const compactSheet = compactFactorSheet;
 

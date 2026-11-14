@@ -5,18 +5,31 @@ second app: the server builds plain HTML from the same functions the API answers
 the page shows. Same data, same predictions, same brand (black and gold, the C-mark), the app's five themes and
 its text size.
 
-| Lite page | Full page | Data |
+| Lite page | Full page | Data (the API route's own function) |
 |---|---|---|
+| `/lite` | `/` | `listEvents` (as `/api/events`), the Home calendar's window and order |
+| `/lite/search?q=&in=` | `/search?q=&in=` | `pageAnswer` + `withHighlights` + `answerHits` (`server/api/searchPageAnswer.ts`, as `/api/search?answer=1`) |
 | `/lite/events/:season/:code` | `/events/:season/:code` | `cachedEventDetail` → `liteEvent` |
 | `/lite/events/:season/:code/match/:key` | `/events/:season/:code/match/:key` | `matchDetail` → `liteMatch` |
 | `/lite/teams/:number[?season=]` | `/teams/:number[?season=]` | `teamProfile` + `matchViews` → `liteTeam` |
+| `/lite/predict?red=&blue=&season=` | `/predict?mode=match&…` (any mode) | `matchExplanation` (as `/api/predict/match`) |
+| `/lite/compare?teams=&season=` | `/compare?teams=&season=` | `compareAnswer` (as `/api/compare`) |
+| `/lite/rankings?season=&region=&page=` | `/rankings?…` | `rankingsPage` (the JSON `/api/rankings` sends), live ranking only |
 | `/lite/picklist?space=&season=` | `/scout?space=&tab=data&view=picklist&season=` | `readPickList` + `teamSummaries` → `litePicks` |
+| `/lite/scout?…` | `/scout?…` (any other view) | none: scouting's forms need scripts; one button to the full app's same view |
+| `/lite/settings` | `/settings` | the cookies below |
 
-Code: `src/shared/lite.ts` (the address rule, both ways, and the thresholds), `server/lite/trim.ts` (trimming),
-`server/lite/render.ts` (stylesheet, layout primitives and pages), `server/lite/routes.ts` (routes, `?lite=1`,
-Lite on/off), `src/shared/themeTokens.ts` (the themes' colours and the cookies), `src/lib/liteCookies.ts` (the
-app writing them), `src/lib/liteSuggest.ts` and `src/components/layout/LiteSuggest.tsx` (the in-app offer),
-`server/bootShell.ts` (the first paint's offer).
+Code: `src/shared/lite.ts` (the address rule, both ways, and the thresholds; `src/sw.template.js` keeps a copy,
+held to it by `src/sw.lite.test.ts`), `server/lite/trim.ts` (trimming), `server/lite/render.ts` (stylesheet,
+layout primitives, event, team, match and pick list pages), `server/lite/pages.ts` (Home, Search, Predict,
+Compare, Rankings, Scouting, Settings), `server/lite/routes.ts` (routes, `?lite=1`, Lite on/off, theme and text
+size), `src/shared/themeTokens.ts` (the themes' colours and the cookies), `src/lib/liteCookies.ts` (the app writing
+them, and taking a choice made on Lite's Settings), `src/lib/liteSuggest.ts` and
+`src/components/layout/LiteSuggest.tsx` (the in-app offer), `server/bootShell.ts` (the first paint's offer).
+
+Forms (search, Predict's four boxes, Compare's four) are plain GET forms to the Lite page itself: no script. A side's
+two boxes arrive as `?red=1&red=2`, read the same as a link's `?red=1,2`. Inputs are 44 px tall, number boxes
+`inputmode="numeric"`, 16 px text at least (no zoom on iPhone).
 
 ## Rules
 
@@ -44,6 +57,17 @@ Lite runs no script, so it can't read the app's settings from localStorage. The 
 | `cs-theme` | `light`, `dim`, `dark`, `midnight`, `system` (absent: dark, the app's default) | `<html class="light|dim|midnight">`; System is `class="sys"`, Light or Dark by `prefers-color-scheme` |
 | `cs-text-size` | `s`, `l`, `xl` (absent: Default) | `<html data-text-size>`, scaling the root font size as the app does (14 px on phones, 16 px wider, × 0.9 / 1.125 / 1.25) |
 
+Lite's Settings page changes them with plain links, no script:
+
+| Endpoint | Does |
+|---|---|
+| `GET /lite/theme?set=<theme>&next=<path>` | Sets `cs-theme` (one of the five), notes `theme` in `cs-lite-picked`, then 302 to `next` (Lite's Settings when none) |
+| `GET /lite/size?set=s|m|l|xl&next=<path>` | Sets `cs-text-size` (`m` clears it), notes `size` in `cs-lite-picked`, then 302 to `next` |
+
+Anything else for `set` changes nothing; `next` follows the same rule as `/lite/on`. `cs-lite-picked` (`theme`,
+`size` or `size.theme`) tells the app, the next time it starts, to take that cookie's value as this device's
+setting (`takeLitePick`) instead of writing its older choice over it: one setting, whichever page changed it.
+
 The colours are `src/shared/themeTokens.ts`; `src/shared/themeTokens.test.ts` holds each one equal to
 `src/index.css`'s value in that theme and every text colour to 4.5:1 on the surfaces it sits on.
 
@@ -66,6 +90,9 @@ least 44 px tall; `lite.test.ts` checks the stylesheet and every link on every p
 | `list(rows, empty)` + `listRow(href, cells, one?)` | Rows that are whole links, at least 56 px tall (matches, workspaces) |
 | `chips([{href, text}])` | Small 44 px link buttons in a wrapping row (alliance teams, seasons, back to the event) |
 | `button(href, text, primary?)` | A 44 px button; primary is gold, one per screen |
+| `searchBox(q)` / `form(action, fields, submit)` (`pages.ts`) | A GET form: 44 px boxes, one gold submit |
+| `textBar(value, max)` (`pages.ts`) | `█████░░░░░`: a bar in text, where the full page draws a chart |
+| `liteLink(href)` (`pages.ts`) | A site link as Lite opens it: its Lite twin, else the full page |
 
 ## Triggers
 
@@ -74,8 +101,10 @@ least 44 px tall; `lite.test.ts` checks the stylesheet and every link on every p
 3. The static first paint (before the app's code runs) shows "Slow connection? Open Control Scout Lite" after
    `LITE_BOOT_S` (10 s), by CSS alone. The app's first render removes it.
 4. In the app (`liteSuggest.ts`), while `navigator.onLine` is true: the page's own data (event, team, match,
-   pick list) still missing after `LITE_SLOW_MS` (8 s), or `LITE_FAILS` (3) requests that couldn't reach the
-   server within a minute. A page's data arriving quickly again withdraws the offer; "Keep waiting" holds for the
+   pick list, Home's calendar, a search's answer, a matchup, a comparison, the ranking) still missing after
+   `LITE_SLOW_MS` (8 s), or `LITE_FAILS` (3) requests that couldn't reach the server within a minute. A page with
+   no data of its own (Settings, a search not asked yet) is never timed. Never on scouting's forms (`liteOffer`):
+   they keep working offline in the full app, and Lite can only point back to them. A page's data arriving quickly again withdraws the offer; "Keep waiting" holds for the
    browser session.
 5. Lite on (below).
 

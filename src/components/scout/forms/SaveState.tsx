@@ -1,8 +1,8 @@
 // Where saving stands, as the entry forms' sticky Save bar says it: every Save keeps the entry on this device first
 // (offline-first, src/pages/ScoutPage.tsx), then it syncs when it can. The words follow the page's real sync
 // state and pending count, never a "Synced" that hasn't happened: Saved on this device (no account), Saving…,
-// Queued offline · 3 to sync, Sync failed · 3 to sync with Retry, or Saved once nothing waits.
-import { Check, CloudOff, HardDrive, Loader2, RotateCw, TriangleAlert } from "lucide-react";
+// Saved on this device · 3 will sync (no signal: calm, it goes up by itself), Sync failed · 3 to sync with Retry, or Saved once nothing waits.
+import { Check, HardDrive, Loader2, RotateCw, TriangleAlert } from "lucide-react";
 import { cn } from "../../cn";
 
 /** The page's sync state: useScouting's status ("local": no account), with this space's pending count. */
@@ -19,15 +19,15 @@ export function saveState(s: SaveSync, savedHere: boolean): { kind: SaveStateKin
   const toSync = `${s.pending} to sync`;
   if (s.status === "local") return savedHere ? { kind: "device", text: "Saved on this device" } : { kind: "unsaved", text: "Saves on this device, no signal needed" };
   if (s.status === "error") return { kind: "failed", text: s.pending ? `Sync failed · ${toSync}` : "Sync failed" };
-  if (s.status === "offline") return s.pending ? { kind: "queued", text: `Queued offline · ${toSync}` } : savedHere ? { kind: "device", text: "Saved on this device · offline" } : { kind: "unsaved", text: "Offline: saves on this device" };
+  if (s.status === "offline") return s.pending ? { kind: "queued", text: `Saved on this device · ${s.pending} will sync` } : savedHere ? { kind: "device", text: "Saved on this device · offline" } : { kind: "unsaved", text: "Offline: saves on this device" };
   if (s.status === "syncing" || s.pending) return { kind: "saving", text: s.pending ? `Saving… ${toSync}` : "Saving…" };
   return savedHere ? { kind: "saved", text: "Saved" } : { kind: "unsaved", text: "Saved on this device first, then synced" };
 }
 
-const ICON = { unsaved: HardDrive, device: HardDrive, saving: Loader2, queued: CloudOff, failed: TriangleAlert, saved: Check } as const;
+const ICON = { unsaved: HardDrive, device: HardDrive, saving: Loader2, queued: HardDrive, failed: TriangleAlert, saved: Check } as const;
 const TONE: Record<SaveStateKind, string> = {
   unsaved: "text-muted-foreground", device: "text-foreground", saving: "text-muted-foreground",
-  queued: "text-warning-text", failed: "text-danger-text", saved: "text-success-text",
+  queued: "text-foreground", failed: "text-danger-text", saved: "text-success-text",
 };
 
 export function SaveState({ sync, savedHere, className }: { sync: SaveSync; savedHere: boolean; className?: string }) {

@@ -15,6 +15,7 @@ import { localToUtcMs } from "../../src/shared/time.js";
 import type { EventStream, MatchView } from "../../src/shared/api.js";
 import { env } from "../env.js";
 import { fetchFromApi, fetchWatchPage, type WatchPageFacts } from "./youtube.js";
+import { youtubeId } from "../../src/shared/personal.js";
 import { officialRecordingIds, seasonOfficial } from "./officialVideos.js";
 import { checkedTo } from "../data/checkedTimings.js";
 
@@ -209,8 +210,9 @@ export function seasonClipKeys(season: number, now = Date.now()): Promise<Set<st
   if (hit && now - hit.at < KINDS_TTL_MS) return hit.v;
   const v = (async () => {
     const out = new Set<string>();
-    const own = await all<{ code: string; level: string; series: number; number: number }>("SELECT code, level, series, number FROM matches WHERE season = ? AND played = 1 AND video IS NOT NULL", [season]);
-    for (const r of own) out.add(`${r.code}|${r.level}|${Number(r.series)}|${Number(r.number)}`);
+    const own = await all<{ code: string; level: string; series: number; number: number; video: string }>("SELECT code, level, series, number, video FROM matches WHERE season = ? AND played = 1 AND video IS NOT NULL AND video != ''", [season]);
+    // Only a video an answer can play (a YouTube link), as answerVideo and the event page read it.
+    for (const r of own) if (youtubeId(String(r.video))) out.add(`${r.code}|${r.level}|${Number(r.series)}|${Number(r.number)}`);
     const recs = [...(await seasonRecordings(season))].filter(([, r]) => [r.meta, ...(r.more ?? []).map((d) => d.meta)].some((m) => m?.status === "ok" && m.start));
     for (let i = 0; i < recs.length; i += 200) {
       const part = recs.slice(i, i + 200);

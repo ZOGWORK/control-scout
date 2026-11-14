@@ -66,7 +66,8 @@ describe("the HTML route", () => {
     expect((await fetch(`${base}/teams/4215`)).headers.get("vary")).toBe("Accept-Encoding, Cookie");
     // A match page isn't kept: drawn each time, and still per cookie.
     expect((await fetch(`${base}/events/2025/USNJQ1/match/qual:0:1`)).headers.get("vary")).toMatch(/Cookie/);
-    expect((await fetch(`${base}/predict`)).headers.get("vary") ?? "").not.toMatch(/Cookie/);
+    expect((await fetch(`${base}/predict`)).headers.get("vary")).toMatch(/Cookie/);
+    expect((await fetch(`${base}/events`)).headers.get("vary") ?? "").not.toMatch(/Cookie/);
   });
 
   const raw = (path: string, enc: string, more: Record<string, string> = {}) => new Promise<{ status: number; etag: string | undefined; encoding: string | undefined; body: Buffer }>((resolve, reject) => {

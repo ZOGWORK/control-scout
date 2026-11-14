@@ -62,8 +62,8 @@ export function EventBundles() {
       <div className="border-b border-border bg-accent/[0.07] p-4 sm:p-6">
         <h2 id="bundle-title" className="flex items-center gap-2 font-display text-xl font-semibold"><Luggage className="size-5 text-accent" />Event-day bundle</h2>
         <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-          One tap before you leave for the venue. The event's teams, schedule, rankings and ratings, your matches' Know your match reports and your pick list,
-          frozen with the time they're from, plus a venue card. Small enough for any phone; with no signal the event page and your reports answer from it.
+          One tap before you leave for the venue. Every team page, match page and Compare of the event, its schedule, rankings and ratings, Know your match reports and your pick list,
+          frozen with the time they're from, plus a venue card. Small enough for venue wifi; with no signal those pages answer from it, with the same numbers. Match videos still need a connection.
         </p>
       </div>
       {on ? <Builder saved={saved} /> : <p className="p-4 text-sm text-muted-foreground sm:p-6" data-bundles-off>New bundles are switched off for now. The ones on this device keep working.</p>}
@@ -166,7 +166,7 @@ function Builder({ saved }: { saved: SavedBundle[] }) {
               ) : upToDate ? (
                 <p className="inline-flex items-center gap-1.5 text-sm text-success"><CheckCircle2 className="size-4" />On this device and current. <Link to={`/bundle/${have!.season}/${encodeURIComponent(have!.code)}`} className="underline">Open it</Link></p>
               ) : (
-                <Button size="lg" onClick={() => void download()} data-bundle-download><HardDriveDownload /> {have ? "Update" : "Download"} bundle · {fmtBytes(manifest.bytes)}</Button>
+                <Button size="lg" onClick={() => void download()} data-bundle-download><HardDriveDownload /> {have ? "Update" : "Download for offline"} · {fmtBytes(manifest.bytes)}</Button>
               )}
             </>
           )}

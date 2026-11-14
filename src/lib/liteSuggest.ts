@@ -37,6 +37,26 @@ export function isPageData(path: string, here = typeof location === "undefined" 
     const space = params.get("space"), season = params.get("season");
     return (!space || decodeURIComponent(m[1]) === space.toLowerCase()) && (!season || reqParams.get("season") === season);
   }
+  // Home's calendar; the search's answer; the matchup; the comparison; the ranking.
+  if (page === "" || page === "/") return req === "/api/events" && reqParams.has("from");
+  if (page === "/search") return req === "/api/search" && reqParams.get("answer") === "1";
+  if (page === "/predict") return req === "/api/predict/match";
+  if (page === "/compare") return req === "/api/compare";
+  if (page === "/rankings") return req === "/api/rankings";
+  return false;
+}
+
+/** Does the page at `here` load main data of its own, so a wait for it can be timed? Settings, scouting's forms, a
+ *  search or comparison not asked yet and Predict without a matchup have none: nothing to wait for. */
+export function hasPageData(here: string, search = ""): boolean {
+  const page = here.toLowerCase().replace(/\/+$/, "");
+  const params = new URLSearchParams(search);
+  if (/^\/events\/\d{4}\/[^/]+(\/match\/[^/]+)?$/.test(page) || /^\/teams\/\d+$/.test(page)) return true;
+  if (page === "/scout") return params.get("view") === "picklist" || (params.get("tab") === "planning" && !params.get("view"));
+  if (page === "" || page === "/rankings") return true;
+  if (page === "/search") return !!params.get("q")?.trim();
+  if (page === "/compare") return !!params.get("teams");
+  if (page === "/predict") return !!params.get("red") && !!params.get("blue");
   return false;
 }
 
@@ -84,6 +104,8 @@ export function noteArrived(path: string) {
  */
 export function watchPage(here: string, search = ""): () => void {
   if (slow) { slow = false; emit(); }
+  // A page with no data of its own to wait for is never timed (requests failing can still offer Lite).
+  if (!hasPageData(here, search)) return () => {};
   const since = Date.now();
   const timer = setTimeout(() => {
     if ((typeof location === "undefined" || (location.pathname === here && location.search === search)) && !hasArrived(here, search, since)) raise({ kind: "waiting", since });

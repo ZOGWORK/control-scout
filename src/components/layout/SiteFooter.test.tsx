@@ -35,7 +35,10 @@ describe("SiteFooter", () => {
     at("/teams/18360?season=2024");
     expect(screen.getByRole("link", { name: "Control Scout Lite" }).getAttribute("href")).toBe("/lite/teams/18360?season=2024");
     cleanup();
-    at("/predict");
+    at("/predict?mode=match&red=1,2&blue=3,4");
+    expect(screen.getByRole("link", { name: "Control Scout Lite" }).getAttribute("href")).toBe("/lite/predict?red=1,2&blue=3,4");
+    cleanup();
+    at("/events");
     expect(screen.queryByRole("link", { name: "Control Scout Lite" })).toBeNull();
     cleanup();
     resetFlags({ ...DEFAULT_FLAGS, venueLightMode: false }, true);

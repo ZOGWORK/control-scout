@@ -14,6 +14,11 @@ export const TEXT_SIZE_COOKIES: readonly TextSizeCookie[] = ["s", "l", "xl"];
 export const THEME_COOKIE = "cs-theme";
 export const TEXT_SIZE_COOKIE = "cs-text-size";
 export const LITE_COOKIE = "cs-lite";
+/** Which of the two Lite's own Settings page changed ("theme", "size" or "theme.size"): the app takes those values
+ *  from their cookies once when it next starts, instead of writing its older choice over them (src/lib/liteCookies.ts). */
+export const LITE_PICKED_COOKIE = "cs-lite-picked";
+export type LitePick = "theme" | "size";
+export const pickedOnLite = (v: string): LitePick[] => v.split(".").filter((x): x is LitePick => x === "theme" || x === "size");
 
 /** Lite's token → the index.css custom property it copies. */
 export const TOKEN_SOURCE = {

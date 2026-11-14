@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useLocation, useNavigationType, useParams, useSearchParams } from "react-router-dom";
 import { pickHelperQuery } from "../shared/scoutSections";
 import { eventOver } from "../shared/eventDay";
-import { Award, CalendarDays, ChevronDown, Clock, ExternalLink, Gavel, Info, ListOrdered, Loader2, Luggage, MapPin, Radar, Radio, RefreshCw, Search, Sparkles, Swords, Trophy, Tv, Users } from "lucide-react";
+import { Award, CalendarDays, ChevronDown, Clock, ExternalLink, Gavel, Info, ListOrdered, Loader2, MapPin, Radar, Radio, RefreshCw, Search, Sparkles, Swords, Trophy, Tv, Users } from "lucide-react";
 import { leagueHref } from "../shared/leagues";
 import { BRACKETS, type Slot } from "@control-scout/predict-engine";
 import { advOddsBasis, rankingCoverage, unofficialNote } from "../lib/eventRankingNotes";
@@ -64,6 +64,7 @@ import { hasTeamPage } from "../shared/teamPages";
 import { eventRoster, eventStanding } from "../shared/eventStanding";
 import { SWING_LINE, swingText, swingTitle } from "../shared/reliability";
 import { AllianceChip, AllianceOddsCard, BracketAccuracyNote, BracketSeries, OddsHeading } from "../components/PlayoffBracket";
+import { EventPackButton } from "../components/offline/EventPackButton";
 
 export default function EventPage() {
   const { season, code } = useParams();
@@ -174,10 +175,8 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
       {d.provisional && <ProvisionalDetails p={d.provisional} />}
       {!predictable && <p className="mt-3 text-xs text-muted-foreground">{seasonLabel(e.season)} is shown for history: results, rankings and awards, no predictions (those start with 2023–24).</p>}
       {e.status !== "finished" && bundleOn && packsOn && (
-        // Going to it? One small download keeps this event, your match reports and your pick list working with no signal.
-        <Link to={`/download?event=${e.season}:${encodeURIComponent(e.code)}`} className="mt-3 inline-flex min-h-9 items-center gap-1.5 rounded-md border border-accent/40 bg-accent/[0.07] px-2.5 text-sm font-medium hover:border-accent" data-bundle-link>
-          <Luggage className="size-4 text-accent" aria-hidden />Event-day bundle
-        </Link>
+        // Going to it? One tap saves the whole event (every team, match and Compare) for no signal, its size on the button.
+        <EventPackButton season={e.season} code={e.code} field={d.field.map((f) => f.team)} />
       )}
       <TeamsSource d={d} provisional={!!provisionalTeams} />
     </>
