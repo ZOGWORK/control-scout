@@ -35,12 +35,13 @@ describe("clipCoverage", () => {
     expect(by.Q3).toMatchObject({ clip: false, reason: "gap-unplaced", videoId: "SATURDAYv01" });
     expect(by.Q3.why).toContain("4 h shorter than its broadcast");
     expect(by.Q5).toMatchObject({ clip: false, reason: "no-recording-day", why: "No recording for Sunday" });
-    expect(by.Q6).toMatchObject({ clip: false, reason: "no-start" });
+    // Counted in its day: Friday is 2 of 3, never shown as fully clipped.
+    expect(by.Q6).toMatchObject({ clip: false, reason: "no-start", videoId: "FRIDAYvid01" });
     expect(c.matches.some((x) => x.reason === "unexplained")).toBe(false);
   });
 
   it("names each day's video, what it holds, and the day with none", () => {
-    expect(c.videos.map((v) => [v.label, v.matches, v.clipped])).toEqual([["Friday", 2, 2], ["Saturday", 2, 0]]);
+    expect(c.videos.map((v) => [v.label, v.matches, v.clipped])).toEqual([["Friday", 3, 2], ["Saturday", 2, 0]]);
     expect(c.videos[1].why).toMatch(/shorter than its broadcast/);
     expect(c.daysMissing).toEqual([{ date: "2026-03-08", label: "Sunday", matches: 1 }]);
   });
