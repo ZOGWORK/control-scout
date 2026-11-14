@@ -243,7 +243,7 @@ function Controls({ m, liteFlag, liteOn, internet }: { m: PackManifest | null; l
       </Row>
       <Row label="Updates" stack description="When a newer copy of something you downloaded is out.">
         <Choice<UpdateMode> label="Updates" value={mode} onChange={setMode} options={[
-          { value: "auto", name: network === "any" ? "Update packs automatically" : "Update packs automatically on Wi-Fi", line: network === "any" ? "Updates download by themselves, on Wi-Fi or mobile data." : unknownNet ? "Updates download by themselves. This browser can't tell Wi-Fi from mobile data, so that may include mobile data." : "Updates download by themselves when you're on Wi-Fi." },
+          { value: "auto", name: network === "any" || unknownNet ? "Update packs automatically" : "Update packs automatically on Wi-Fi", line: network === "any" ? "Updates download by themselves, on Wi-Fi or mobile data." : unknownNet ? "Updates download by themselves. This browser can't tell Wi-Fi from mobile data, so that may include mobile data." : "Updates download by themselves when you're on Wi-Fi." },
           { value: "ask", name: "Never update automatically (I'll tap Update)", line: "You get a note when an update is out; nothing downloads until you tap Update." },
         ]} />
       </Row>
