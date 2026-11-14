@@ -28,8 +28,9 @@ const seasonWords = (s: number) => `${s}-${String((s + 1) % 100).padStart(2, "0"
 
 /** Whether the search asked to watch: its words ("with video", "highlights", "video") or an answer of highlights. */
 export function asksVideo(q: string, a: SearchAnswer): boolean {
-  // Compared with the query's own spacing evened out, as withoutWatch returns it: only a watch word dropped counts.
-  return withoutWatch(q) !== q.replace(/\s+/g, " ").trim() || /highlights|video/.test(a.stat?.intent ?? "") || !!a.stat?.scope.includes("With video");
+  // The query's spacing evened out first: only a watch word dropped counts.
+  const flat = q.replace(/\s+/g, " ").trim();
+  return withoutWatch(flat) !== flat || /highlights|video/.test(a.stat?.intent ?? "") || !!a.stat?.scope.includes("With video");
 }
 
 /** Whether an answer has anything to play. */
@@ -81,10 +82,12 @@ export async function withVideoAlternatives(q: string, a: SearchAnswer, v: Searc
   ask: (q: string) => Promise<SearchAnswer>, video: (a: SearchAnswer) => Promise<SearchVideo | undefined>, waitMs = WAIT_MS,
   candidates: (a: SearchAnswer) => Promise<string[]> = videoCandidates): Promise<SearchAnswer> {
   if (!a.stat || hasVideo(v) || !asksVideo(q, a)) return a;
+  // Past the wait the answer goes as it is, and the checks still to come are never run.
+  let gaveUp = false;
   const find = (async () => {
     const offered: string[] = [];
     for (const c of await candidates(a).catch(() => [])) {
-      if (offered.length >= OFFER_MAX) break;
+      if (offered.length >= OFFER_MAX || gaveUp) break;
       // Each check takes its turn in the process's one queue (./followUps.ts inTurns), so other requests and the
       // wait's own timer run between them.
       const ok = await inTurns(async () => {
@@ -97,7 +100,7 @@ export async function withVideoAlternatives(q: string, a: SearchAnswer, v: Searc
   })();
   find.catch(() => {});
   let timer: ReturnType<typeof setTimeout> | undefined;
-  const offered = await Promise.race([find, new Promise<string[]>((r) => { timer = setTimeout(() => r([]), waitMs); })]).finally(() => clearTimeout(timer));
+  const offered = await Promise.race([find, new Promise<string[]>((r) => { timer = setTimeout(() => { gaveUp = true; r([]); }, waitMs); })]).finally(() => clearTimeout(timer));
   if (!offered.length) return a;
   const block: StatAnswer["blocks"][number] = { kind: "related", title: "Questions with video", queries: offered };
   return { ...a, stat: { ...a.stat, blocks: [block, ...a.stat.blocks] } };
