@@ -173,7 +173,9 @@ describe("the shipped list", () => {
     const rows = data.videos.filter((x) => x.channelId === FANGV).map((x) => `${x.season}/${x.code} ${x.day} ${x.videoId} ${x.kind}`).sort();
     // Meet 1, 3 and 4 already play FIRST's own link to the same streams; Meet 2 (Sat 08:45 EST) and Meet 5 (Sat 11-14, listed before it airs) don't.
     expect(rows).toEqual(["2026/USMIWMM2 2026-11-07 1K5DNOqzuIg recording", "2026/USMIWMM5 2026-11-14 6lcZz9UrOdE recording"]);
-    for (const x of data.videos.filter((v) => v.channelId === FANGV)) expect(x.title, x.videoId).toMatch(new RegExp(`^West Michigan FTC League Meet ${x.code.slice(-1)} - BIOBUZZ$`));
+    // Each title's meet number is the event's ("West Michigan Meet 2" is USMIWMM2 in Scout).
+    const meet: Record<string, number> = { USMIWMM2: 2, USMIWMM5: 5 };
+    for (const x of data.videos.filter((v) => v.channelId === FANGV)) expect(x.title, x.videoId).toBe(`West Michigan FTC League Meet ${meet[x.code]} - BIOBUZZ`);
     // Stars of the Galaxy's streams are all FIRST's own links already (Central Ohio 2025 and 2026): nothing added twice.
     expect(data.videos.some((x) => x.channelId === SOTG)).toBe(false);
     // Never FANGV's Robot in 3 Days (FRC) streams.
