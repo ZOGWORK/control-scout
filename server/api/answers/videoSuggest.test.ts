@@ -118,6 +118,20 @@ describe("withVideoAlternatives", () => {
     expect((await withVideoAlternatives("6980 at east bergen with video", answer(), undefined, ask, videoOf, 1000, one)).stat?.blocks[0]).toMatchObject({ kind: "related" });
   });
 
+  it("a full list of checks never drops one still running", async () => {
+    const many = Array.from({ length: 499 }, (_, i) => `n${i} highlights`);
+    await withVideoAlternatives("6980 at east bergen with video", answer(), undefined, askOf, async () => undefined, 5000, async () => many);
+    let slowAsks = 0;
+    const ask = async (q: string) => { if (q === "b highlights") { slowAsks++; await new Promise((r) => setTimeout(r, 80)); } return askOf(q); };
+    const one = (c: string) => async () => [c];
+    const first = withVideoAlternatives("6980 at east bergen with video", answer(), undefined, ask, videoOf, 1000, one("b highlights"));
+    await new Promise((r) => setTimeout(r, 10));
+    await withVideoAlternatives("6980 at east bergen with video", answer(), undefined, ask, videoOf, 1000, one("x highlights"));
+    const second = withVideoAlternatives("6980 at east bergen with video", answer(), undefined, ask, videoOf, 1000, one("b highlights"));
+    await Promise.all([first, second]);
+    expect(slowAsks).toBe(1);
+  });
+
   it("stray spaces around a query are no watch word", async () => {
     const a = answer();
     expect(await withVideoAlternatives(" 4215 matches ", a, undefined, askOf, videoOf, 1000, cands)).toBe(a);
