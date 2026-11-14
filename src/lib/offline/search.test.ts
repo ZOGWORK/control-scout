@@ -120,4 +120,23 @@ describe("search with no signal, from a saved event pack", () => {
     expect(took).toBeGreaterThanOrEqual(SEARCH_SLOW_MS - 50);
     expect(took).toBeLessThan(SEARCH_SLOW_MS + 3000);
   }, 30_000);
+
+  it("lib/api.ts: team cards' numbers the pack holds only some of wait for a slow server, which has them all", async () => {
+    const { apiFetch } = await import("../api");
+    const whole = { season: S, teams: [{ number: 12, name: "Bolt Brigade" }, { number: 4215, name: "Terabridges" }] };
+    vi.stubGlobal("fetch", vi.fn((url: string) => {
+      if (!String(url).startsWith("/api/teams-summary")) return Promise.resolve(new Response("{}"));
+      // Slower than the offline timeout (4 s), then the server's whole answer.
+      return new Promise<Response>((r) => setTimeout(() => r(new Response(JSON.stringify(whole))), 5500));
+    }));
+    await apiFetch("/api/health");
+    expect(await apiFetch(`/api/teams-summary?season=${S}&teams=12,4215`)).toEqual(whole);
+    // Every team asked in the pack: the pack answers once the server is past the offline timeout.
+    const t0 = performance.now();
+    expect(await apiFetch(`/api/teams-summary?season=${S}&teams=12,11`)).toEqual({ season: S, teams: [{ number: 12, name: "Bolt Brigade" }, { number: 11, name: "Gear Grinders" }] });
+    expect(performance.now() - t0).toBeLessThan(5400);
+    // No network at all: the part the pack holds still answers.
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("Failed to fetch"); }));
+    expect(await apiFetch(`/api/teams-summary?season=${S}&teams=12,4215`)).toEqual({ season: S, teams: [{ number: 12, name: "Bolt Brigade" }] });
+  }, 30_000);
 });

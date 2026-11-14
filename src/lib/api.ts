@@ -211,6 +211,10 @@ async function respond<T>(request: Promise<Response>, kind: "saved" | "lite" | "
     ctrl.abort();
     throw new ApiError(0, SEARCH_SLOW, false, SEARCH_RETRY);
   }
+  // The team cards' numbers when the packs hold only some of the teams asked, while the server answers other
+  // requests: the server's answer, which has them all, is waited for (with no network the pack's part still answers,
+  // offlineOr).
+  if (SUMMARY_PATH.test(path) && serverUp() && !summaryWhole(path, won.data)) return request;
   ctrl.abort();
   return { saved: won.data as T };
 }
@@ -230,6 +234,13 @@ export const SEARCH_SLOW_MS = 10_000;
 const SEARCH_RETRY = "search-slow-retry";
 export const SEARCH_SLOW = "Search is slow right now. Try again.";
 const SEARCH_PATH = /^\/api\/search(\?|$)/;
+const SUMMARY_PATH = /^\/api\/teams-summary(\?|$)/;
+/** A saved /api/teams-summary answer holds every team asked (lib/offline/search.ts leaves out the ones no pack holds). */
+function summaryWhole(path: string, data: unknown): boolean {
+  const asked = (new URL(path, "http://offline.invalid").searchParams.get("teams") ?? "").split(",").filter((t) => /^\d{1,6}$/.test(t));
+  const got = new Set(((data as { teams?: { number: number }[] }).teams ?? []).map((t) => String(t.number)));
+  return asked.every((t) => got.has(String(Number(t))));
+}
 /** The server is up: the browser says it's online and the server answered within the last minute, since the last
  *  request that failed for want of a network. */
 const serverUp = () => navigator.onLine !== false && answeredSinceFail && Math.abs(Date.now() - lastAnswerAt) < 60_000;

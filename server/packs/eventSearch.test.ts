@@ -13,6 +13,9 @@ import { eventDetail } from "../api/events";
 import { buildPackApi, packSearchQueries, packTeams } from "./eventApi";
 import { packLookup, searchPackPath, type EventBundle } from "../../src/shared/eventBundle";
 import { searchFromPacks, teamSummariesFromPacks } from "../../src/shared/searchOffline";
+import { packParseContext } from "../../src/shared/query/packContext";
+import { parseQuery } from "../../src/shared/query/parse";
+import { parseContext } from "../api/query/context";
 import type { EventDetail, SearchAnswer } from "../../src/shared/api";
 
 const S = 2025, EV = "USMIQ9";
@@ -46,6 +49,15 @@ async function seed() {
     if (n !== 5555) await stat(S - 1, n, 50 - i * 5, i + 3);
     await run("INSERT INTO team_event_stats (season, code, team, opr_np, matches) VALUES (?, ?, ?, 50, 2)", [S, EV, n]);
   }
+  // Two teams of one name at the event, one far stronger: search's parser picks the stronger one (shared.ts
+  // pickShared), offline as online.
+  for (const [n, city, rank] of [[6666, "Flint", 2], [7777, "Saginaw", 36]] as const) {
+    await run("INSERT INTO teams (number, name, city, state, country) VALUES (?, 'Iron Eagles', ?, 'MI', 'USA')", [n, city]);
+    await run("INSERT INTO event_teams (season, code, team, rank, wins, losses, ties, qual_played) VALUES (?, ?, ?, ?, 0, 0, 0, 0)", [S, EV, n, rank]);
+    await stat(S, n, 70 - rank, rank);
+    await stat(S - 1, n, 60 - rank, rank);
+    await run("INSERT INTO team_event_stats (season, code, team, opr_np, matches) VALUES (?, ?, ?, 40, 2)", [S, EV, n]);
+  }
   await rebuildSearch();
 }
 
@@ -75,7 +87,7 @@ afterAll(() => { app?.close(); });
 describe("the event pack's searches", () => {
   it("are every team by number and name, the event by code and name, and each match as search reads one", () => {
     const qs = packSearchQueries({ code: EV, ev: pack.event, teams: packTeams(pack.event), matches: pack.event.matches });
-    expect(qs).toEqual(["1111", "2222", "3333", "4444", "5555", "Gear Grinders", "Bolt Brigade", "Circuit Owls", "Torque Turtles", "Pixel Pirates", EV, "Midland Robot Qualifier", `${EV} Q1`, `${EV} Q2`]);
+    expect(qs).toEqual(["1111", "2222", "3333", "4444", "5555", "6666", "7777", "Gear Grinders", "Bolt Brigade", "Circuit Owls", "Torque Turtles", "Pixel Pirates", "Iron Eagles", EV, "Midland Robot Qualifier", `${EV} Q1`, `${EV} Q2`]);
     for (const q of qs) expect(packLookup(pack.api, searchPackPath(q)), q).toMatchObject({ body: { q } });
   });
 
@@ -112,9 +124,24 @@ describe("the event pack's searches", () => {
     expect((await offline("1111 vs 3333 2024-25")).stat?.title).toBe("1111 vs 3333, 2024–25");
   });
 
+  it("two teams of one name: the stronger one, read offline as online (strength from the pack's rows)", async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const ctx = packParseContext([pack], today);
+    const server = await parseContext();
+    for (const q of ["iron eagles opr", "iron eagles vs gear grinders", "1111 vs iron eagles"]) {
+      const off = await parseQuery(q, ctx);
+      expect(off.teams[0]?.number === 6666 || off.teams[1]?.number === 6666, q).toBe(true);
+      // The parser's whole reading, the team's strength in it too, byte for byte the server's.
+      expect(JSON.stringify(off), q).toBe(JSON.stringify(await parseQuery(q, server)));
+    }
+    // The card names the pack's team it's about, not every team worldwide.
+    const card = (await offline("iron eagles opr")).notInPack;
+    expect(card?.links).toEqual([{ label: "6666 Iron Eagles", href: `/teams/6666?season=${S}` }]);
+  });
+
   it("anything else says what it needs that isn't in the pack, and what is", async () => {
     const far = await offline("9999");
-    expect(far.notInPack).toEqual({ about: ["team 9999"], packs: [{ season: S, code: EV, name: "Midland Robot Qualifier", teams: 5, matches: 2, dataAsOf: "2025-11-08T20:09:00Z" }], links: [] });
+    expect(far.notInPack).toEqual({ about: ["team 9999"], packs: [{ season: S, code: EV, name: "Midland Robot Qualifier", teams: 7, matches: 2, dataAsOf: "2025-11-08T20:09:00Z" }], links: [] });
     expect((await offline("who won decode")).notInPack?.about).toEqual(["the 2025–26 season"]);
     expect((await offline("1111 vs 9999")).notInPack?.about).toEqual(["team 9999"]);
     // A match of the pack named alone ("Q2" is no match online): its page, to open.
