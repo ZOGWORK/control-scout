@@ -176,7 +176,9 @@ async function main() {
 
   // Online: install the service worker, and learn the event's teams and a match.
   await page.goto(BASE + "/", { waitUntil: "load" });
-  await page.evaluate(() => navigator.serviceWorker?.ready.then(() => true));
+  // `ready` never settles without a worker (the dev server registers none): a clear failure, not a hang.
+  const swOk = await page.evaluate(() => Promise.race([navigator.serviceWorker?.ready.then(() => true) ?? Promise.resolve(false), new Promise<boolean>((r) => setTimeout(() => r(false), 60_000))]));
+  if (!swOk) throw new Error("The service worker never became ready. Offline journeys need a production build: npm run build, then --prod (or the live --base).");
   await page.reload({ waitUntil: "load" });
   const ev = await page.evaluate(async ([s, c]) => (await fetch(`/api/events/${s}/${c}`)).json(), [SEASON, CODE]) as { field?: { team?: number; number?: number }[]; matches?: { key: string; played: boolean; red: { teams: { number: number }[] }; blue: { teams: { number: number }[] } }[] };
   const teams = (ev.field ?? []).map((t) => (t.team ?? t.number) as number).filter(Boolean);

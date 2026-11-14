@@ -500,6 +500,12 @@ onInternetChange((now) => {
   if (offlineOnScreen().length) refetchOffline(); else setUsingSaved(false);
 });
 
+/** One saved answer's data time: its data's own time, else its bundle's build, else when it was saved. Null for
+ *  savedAt 0 (a kept row known only by its number, loaded at no time; OfflineNote skips it too), never "1970". */
+export function savedDataTime(src: { dataAsOf: string | null; savedAt: number; bundle?: { builtAt: string } }): string | null {
+  return src.dataAsOf ?? src.bundle?.builtAt ?? (src.savedAt > 0 ? new Date(src.savedAt).toISOString() : null);
+}
+
 /** When the data on screen from saved data is from: the oldest such answer's data time (else when it was saved), or
  *  null when nothing on screen came from saved data. For the top bar's "Offline · updated …" pill. */
 export function offlineAsOf(): string | null {
@@ -508,7 +514,8 @@ export function offlineAsOf(): string | null {
     if (!listeners.get(path)?.size) continue;
     const src = offlineSource(e.data);
     if (!src) continue;
-    const at = src.dataAsOf ?? (src.bundle?.builtAt ?? new Date(src.savedAt).toISOString());
+    const at = savedDataTime(src);
+    if (!at) continue;
     if (!oldest || at < oldest) oldest = at;
   }
   return oldest;

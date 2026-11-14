@@ -32,7 +32,7 @@ With no internet, pages you saved open straight away instead of after a wait, an
 - `npm run offline:check` (`scripts/offline-check.ts`): opens the offline journeys on a 390 px phone behind a local proxy that can drop the network (the service worker's own requests too), act as a Wi-Fi sign-in page (`--portal`) or slow everything to about 400 kbps (`--throttle`). `--prod` runs it against the local production build.
 
 ### Changed
-- Known offline, reads saved data can answer come from it with no network try and no 4 s wait. Other reads say they need a connection at once (after one quick check) instead of spinning. Writes still go to the network.
+- Known offline, reads that saved data can answer come from it with no network try and no 4 s wait. Other reads say they need a connection at once (after one quick check) instead of spinning. Writes still go to the network.
 - When the internet comes back, whatever is on screen from saved data refreshes in the background, keeping the page and anything typed.
 - A page that gets no answer in 3 s (Wi-Fi that carries nothing) opens from the app saved on the device instead of a blank screen. Light pages keep waiting.
 - Opening a page again soon after one found no internet starts from that answer (checked again at once), so every page after the first opens straight from saved data. A Wi-Fi sign-in page that answers where our data should be counts as no internet. A read still waiting when the check finds no internet is let go and answered from saved data at once.

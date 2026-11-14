@@ -6,7 +6,7 @@
 //
 // It never moves anything: on a phone it takes the centred logo's place; on a wider screen it sits over the bar's
 // spare space just left of the bar's right-hand buttons.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { RefreshCw, WifiOff } from "lucide-react";
 import { useOfflineAsOf, useOfflineMode } from "../lib/api";
@@ -59,6 +59,8 @@ export function ConnectionPill({ place }: { place: "phone" | "wide" }) {
   const seasons = useSavedSeasons();
   const bundles = useSavedBundles();
   const [open, setOpen] = useState(false);
+  // Hidden means gone: the next offline spell starts with the panel closed (the wide pill stays mounted).
+  useEffect(() => { if (!show) setOpen(false); }, [show]);
   // Always in the tree, so screen readers hear it appear and go.
   if (!show) return <span role="status" className="sr-only" />;
   const lite = packStatus();
