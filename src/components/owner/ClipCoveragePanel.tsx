@@ -68,7 +68,8 @@ function Pages({ first, reviewed: isReviewed, onDone }: { first: OwnerClipCovera
   const total = isReviewed ? first.reviewed : first.open;
   const next = async () => {
     setBusy(true);
-    try { const r = await apiFetch<OwnerClipCoverage>(`${listPath(isReviewed)}&offset=${shown.length}`); setMore((m) => [...m, ...r.events]); }
+    const last = shown[shown.length - 1];
+    try { const r = await apiFetch<OwnerClipCoverage>(`${listPath(isReviewed)}&after=${last.season}/${encodeURIComponent(last.code)}`); setMore((m) => [...m, ...r.events]); }
     catch (err) { toast.error((err as ApiError).message); }
     setBusy(false);
   };
