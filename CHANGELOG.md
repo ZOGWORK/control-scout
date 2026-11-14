@@ -15,6 +15,23 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 6.1.9 — 2026-11-14
+
+Match clips read off a recording's own frames now need two signals that agree before a match gets one: a frame read is checked before and after its start, and a lone read goes to the owner's review list instead of becoming a clip. Every match a recording holds without a clip now has a reason. Clips placed from frames stop once the match's final score is up.
+
+### Highlights
+- [history] Match clips need two signals that agree before they show
+- [history] Frame-read clips stop once the final score is up
+- [history] Finals and playoff matches now get clips from the frames too
+
+### Changed
+- The frame reader (`scripts/video-frames.ts`, `docs/frame-timings.md`) confirms each read: 70 to 140 s into the match the overlay must name the same match with the same start (within 6 s), past camera cutaways, and 25 s before the start that match mustn't be running yet. `judge` (`scripts/lib/videoFrames.ts`) keeps the clock as the anchor: two confirmed reads that agree on where the video sits place themselves (high) and the matches between them (medium); one read places a match only when the broadcast's own clock agrees, otherwise it goes to review, as does a start outside the video, out of order or overlapping the next match. Every other match gets a reason (in a gap, its read didn't confirm, nothing could be read). `server/data/frameTimings.ts` holds `medium`, `review` and `missing` per video, read with `frameReview`, `frameMissing` and `frameConfidence`; only placed starts become clips.
+- A video that reads nothing at all gets one more go in a fresh player; a frame read that hangs over 2 minutes fails its video with that reason.
+- The overlay's "Finals Match 2" is read as F2 and a bare "Match 7" (2025's playoff overlay) as M7.
+
+### Added
+- Clips placed from frames carry an `end` (`frameClipEnd`, `src/shared/recording.ts`): the timer's start plus 2:40 of play and 50 s for the final score, stopping at the next framed match's start in the same video, never before its own play is over or past the video's end.
+
 ## 6.1.8 — 2026-11-14
 
 Control Scout Lite now covers the whole app: Home, Search, Predict, Compare, Rankings, Scouting and Settings each have a light page, with the same answers and numbers as the full version.
