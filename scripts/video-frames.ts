@@ -27,8 +27,25 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
 import { AUTO_S, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, elapsed, judge, NOTHING_READ, overlayLabel, secondsOf, type Judged, type M } from "./lib/videoFrames";
 
-const arg = (k: string) => { const i = process.argv.indexOf(`--${k}`); return i > 0 ? process.argv[i + 1] : undefined; };
-const flag = (k: string) => process.argv.includes(`--${k}`);
+// The command line: --name value or --name=value for the value flags, --name alone for the others. Anything else stops
+// the run before it reads: a misspelt flag mustn't quietly read (and write) every recording of the season.
+const VALUE_FLAGS = new Set(["season", "codes", "limit", "lanes"]), BOOL_FLAGS = new Set(["all", "check", "dry"]);
+const args = new Map<string, string | true>();
+{
+  const argv = process.argv.slice(2);
+  for (let i = 0; i < argv.length; i++) {
+    const m = /^--([a-z-]+)(?:=(.*))?$/.exec(argv[i]);
+    const name = m?.[1] ?? "";
+    if (m && VALUE_FLAGS.has(name)) {
+      const v = m[2] ?? argv[++i];
+      if (v == null || v === "" || v.startsWith("--")) { console.error(`--${name}: give it a value`); process.exit(2); }
+      args.set(name, v);
+    } else if (m && BOOL_FLAGS.has(name) && m[2] == null) args.set(name, true);
+    else { console.error(`${argv[i]}: not a flag this script takes (--season, --codes, --limit, --lanes, --all, --check, --dry)`); process.exit(2); }
+  }
+}
+const arg = (k: string) => { const v = args.get(k); return typeof v === "string" ? v : undefined; };
+const flag = (k: string) => args.get(k) === true;
 /** A number flag, or the run stops before anything is read: a misspelt one mustn't look like a run that read nothing. */
 function count(name: string, fallback: number): number {
   const v = arg(name);
