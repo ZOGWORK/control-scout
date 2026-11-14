@@ -54,6 +54,22 @@ export const NOTHING_READ = "no frame of the video could be read";
  *  overlap. */
 export const MATCH_S = AUTO_S + SWITCH_S + TELEOP_S;
 
+/** How long before a broadcast's start a match no broadcast holds is still looked for in it (seconds). */
+export const LEAD_IN_S = 6 * 3600;
+
+/**
+ * Whether the video `i` (of an event's videos, by broadcast window, epoch seconds) should be read for a match at `at`
+ * that its broadcast starts after. The clock says before it, yet it's often in it: FIRST's times can be the schedule's,
+ * and YouTube's broadcast start can be late. So a match no broadcast holds, up to LEAD_IN_S before this one's start,
+ * with no other broadcast starting between them, is looked for here too. Its frames decide, as for any match.
+ */
+export function leadIn(at: number, i: number, windows: { start: number | null; end: number | null }[]): boolean {
+  const from = windows[i]?.start;
+  if (from == null || at >= from || from - at > LEAD_IN_S) return false;
+  if (windows.some((w) => w.start != null && w.start <= at && (w.end == null || at <= w.end))) return false;
+  return !windows.some((w, k) => k !== i && w.start != null && at < w.start && w.start < from);
+}
+
 /** The rows of server/data/frameTimings.ts as written (one JSON row a line after the data marker). */
 export function dataRows<T>(text: string): T[] {
   const data = text.split("// --- Data")[1] ?? "";
