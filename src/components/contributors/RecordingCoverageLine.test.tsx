@@ -19,7 +19,7 @@ vi.mock("../../lib/contributors", async (orig) => ({
 vi.mock("../../lib/personal", () => ({ usePersonal: () => ({ user: null, providers: {}, state: { myTeam: null }, syncReady: false }) }));
 
 const { EventClipsProvider } = await import("./EventClips");
-const { RecordingCoverageLine } = await import("./RecordingGaps");
+const { RecordingCoverageLine, RecordingGaps } = await import("./RecordingGaps");
 
 const m = (n: number, day: string): MatchView => ({
   key: `qual:0:${n}`, label: `Q${n}`, level: "qual", series: 0, number: n, season: 2025, code: "FPEWESEA", played: true, video: null, clip: null,
@@ -81,6 +81,28 @@ describe("the event page's coverage line, wired to the coverage check", () => {
     expect(h.paths[h.paths.length - 1]).not.toBe(first);
     expect(state()).toBe("partial");
     expect(screen.getByText("Partially recorded — 0 of 3 matches have video")).toBeTruthy();
+  });
+
+  it("the day chips and missing list under it keep the last answer too while a live event re-asks", () => {
+    h.api.data = {
+      ...coverage([{ date: "2026-05-29", label: "Friday", matches: 1 }]),
+      videos: [{ videoId: "SATURDAYv01", label: "Saturday", date: "2026-05-30", matches: 1, clipped: 0 }],
+      matches: [{ key: "qual:0:2", label: "Q2", date: "2026-05-30", clip: false, videoId: "SATURDAYv01", reason: "gap-unplaced", why: "Video 1 h 11 min shorter than its broadcast" }],
+    };
+    const tree = (ms: MatchView[]) => (
+      <MemoryRouter>
+        <EventClipsProvider season={2025} code="FPEWESEA">
+          <RecordingGaps season={2025} code="FPEWESEA" recorded matches={ms} videos={["SATURDAYv01"]} />
+        </EventClipsProvider>
+      </MemoryRouter>
+    );
+    const { rerender } = render(tree(matches));
+    const shown = () => [document.querySelector("[data-day-video]")?.textContent, document.querySelector("[data-day-missing]")?.textContent, document.querySelector("[data-missing-clips]")?.textContent];
+    const before = shown();
+    expect(before.every(Boolean)).toBe(true);
+    h.api.data = undefined;
+    rerender(tree([...matches, m(4, "2026-05-31")]));
+    expect(shown()).toEqual(before);
   });
 
   it("goes on without the check when it fails", () => {
