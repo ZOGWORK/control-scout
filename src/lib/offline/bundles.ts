@@ -52,6 +52,7 @@ export async function downloadBundle(r: BundleRequest, onProgress?: (done: numbe
     savedAt: Date.now(), builtAt: m.builtAt, dataAsOf: m.dataAsOf, team: m.team, workspace: m.workspace, accountId: m.workspace ? r.account ?? null : null,
     // A workspace bundle always holds its pick list (empty or not); a public one never does.
     reports: m.sections.find((s) => s.id === "reports")?.items ?? 0, reportKeys: m.reportKeys ?? [], teams: m.field.map(([t]) => t), picklist: !!m.workspace,
+    ...(m.apiPaths ? { apiPaths: m.apiPaths } : {}),
   };
   try { writeBundles([...allBundles().filter((b) => !(b.season === m.season && b.code === m.code)), saved]); }
   catch (e) {

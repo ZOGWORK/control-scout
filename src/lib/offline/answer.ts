@@ -14,9 +14,11 @@ import { rangesOf } from "../../shared/scoreRange";
 import { compactSheet } from "../../shared/factorSheet";
 import { markOffline, savedSeasons, type OfflineSource } from "./saved";
 import { readSaved } from "./seasons";
-import { bundleFor } from "./bundleMeta";
+import { bundleFor, bundlesWith, savedBundles } from "./bundleMeta";
 import { loadBundle } from "./bundles";
-import { bundleTime } from "../../shared/eventBundle";
+import { bundleTime, packLookup, type EventBundle, type SavedBundle } from "../../shared/eventBundle";
+import { compareFromPacks } from "../../shared/compare";
+import type { CompareView } from "../../shared/api";
 import { readEventDetail, readMatchViews, readProjections, readSearch, readTeamProfile, readTeamSchedule, type ReadOpts } from "./readers";
 
 let books: { pack: LitePack | null; bySeason: Map<number, RatingBook | null> } | null = null;
@@ -126,10 +128,76 @@ export async function offlineSearch(q: string, limit = 15, prefer: ReadonlySet<s
 
 const int = (s: string | null) => (s && /^\d+$/.test(s) ? Number(s) : undefined);
 
-/** The offline answer for an API path, or null when the saved seasons can't answer it. */
+/** What the saved data says instead of an answer: the server's own error the pack recorded (404 for a team with no
+ *  page), or a plain "not in your pack" (status 0) for a read it can't make. lib/api.ts shows it as the error. */
+export class OfflineAnswerError extends Error {
+  readonly offlineAnswer = true;
+  constructor(readonly status: number, message: string) { super(message); }
+}
+
+const bundleSource = (b: SavedBundle): OfflineSource => ({ season: b.season, savedAt: b.savedAt, dataAsOf: b.dataAsOf, bundle: { builtAt: b.builtAt, name: b.name } });
+
+/** A saved season's data is newer than this bundle's (it answers first then). */
+function seasonNewer(b: SavedBundle): boolean {
+  const src = source(b.season);
+  return !!src && (src.dataAsOf ?? new Date(src.savedAt).toISOString()) > bundleTime(b);
+}
+
+/** The server's own answer for this path from a saved event pack (newest first), or null when none holds it.
+ *  `skipOlder`: leave out packs older than the saved season (that answers first; they're its fallback). */
+export async function packAnswer(path: string, skipOlder = false): Promise<unknown | null> {
+  for (const meta of bundlesWith(path)) {
+    if (skipOlder && seasonNewer(meta)) continue;
+    const bundle = await loadBundle(meta.season, meta.code);
+    const got = packLookup(bundle?.api, path);
+    if (!got) continue;
+    if ("body" in got) {
+      // A copy (structuredClone keeps the shape exactly): the offline mark goes on the answer, never on the decoded
+      // bundle other reads share.
+      const body = got.body;
+      return body && typeof body === "object" ? markOffline(structuredClone(body) as object, bundleSource(meta)) : body;
+    }
+    throw new OfflineAnswerError(got.status, got.error);
+  }
+  return null;
+}
+
+/**
+ * /api/compare from the saved event packs: each team's Compare column and season matches as the server gave them,
+ * assembled by the same function the server uses (src/shared/compare.ts compareFromParts), so the numbers match.
+ * A team in no saved pack: says so (OfflineAnswerError), never a partial comparison.
+ */
+export async function offlineCompare(numbers: number[], season?: number): Promise<CompareView | null> {
+  const metas = savedBundles().filter((b) => b.apiPaths?.length);
+  if (!metas.length) return null;
+  const loaded = (await Promise.all(metas.map(async (meta) => ({ meta, bundle: await loadBundle(meta.season, meta.code) }))))
+    .filter((x): x is { meta: SavedBundle; bundle: EventBundle } => !!x.bundle?.compare && !!x.bundle.api)
+    .sort((a, b) => bundleTime(b.meta).localeCompare(bundleTime(a.meta)));
+  const got = compareFromPacks(numbers, season, loaded.map((x) => ({ season: x.meta.season, bundle: x.bundle })));
+  if ("missing" in got) throw new OfflineAnswerError(0, got.missing);
+  const first = loaded.find((x) => x.meta.season === got.view.season && x.bundle.compare![String(numbers[0])]) ?? loaded[0];
+  return markOffline(got.view, bundleSource(first.meta));
+}
+
+/** The offline answer for an API path, or null when the saved data can't answer it. Throws OfflineAnswerError
+ *  when the saved data says the answer is an error (the server's 404, or a team not in the pack). */
 export async function offlineAnswer(path: string): Promise<unknown | null> {
   const url = new URL(path, "http://offline.invalid");
   const season = int(url.searchParams.get("season"));
+  if (url.pathname === "/api/compare") {
+    const teams = (url.searchParams.get("teams") ?? "").split(",").map((t) => t.trim()).filter(Boolean);
+    if (!teams.length || teams.length > 4 || teams.some((t) => !/^\d{1,6}$/.test(t)) || new Set(teams).size !== teams.length) return null;
+    return offlineCompare(teams.map(Number), season);
+  }
+  // An event pack holds the server's own answer: it answers first, unless a saved season's data is newer (then it's
+  // the fallback when the season can't answer).
+  const fromPack = await packAnswer(path, true);
+  if (fromPack != null) return fromPack;
+  const fromSeason = await seasonAnswer(path, url, season);
+  return fromSeason ?? packAnswer(path);
+}
+
+async function seasonAnswer(path: string, url: URL, season: number | undefined): Promise<unknown | null> {
   let m: RegExpExecArray | null;
   if ((m = /^\/api\/teams\/(\d{1,6})$/.exec(url.pathname))) return offlineTeamProfile(Number(m[1]), season);
   if ((m = /^\/api\/teams\/(\d{1,6})\/matches$/.exec(url.pathname))) return offlineTeamMatches(Number(m[1]), season);

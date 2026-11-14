@@ -18,7 +18,7 @@
 // internet comes back, whatever is on screen from saved data is fetched again in the background.
 import { createContext, useCallback, useContext, useEffect, useRef, useSyncExternalStore } from "react";
 import { offlineSource, savedSeasons } from "./offline/saved";
-import { bundleFor, savedBundles } from "./offline/bundleMeta";
+import { bundleCanAnswer, bundleFor, savedBundles } from "./offline/bundleMeta";
 import { packStatus } from "./packPolicy";
 import { FEATURE_DISABLED, featureOffMessage } from "../shared/flags";
 import { noteArrived, watchRequest } from "./liteSuggest";
@@ -61,6 +61,8 @@ const REPORT_PATH = /^\/api\/events\/(\d{4})\/([^/?]+)\/matches\/([^/?]+)\/repor
 
 function offlineKind(path: string, method: string | undefined): "saved" | "lite" | "snapshot" | null {
   if ((method ?? "GET").toUpperCase() !== "GET") return null;
+  // A saved event pack holds the server's own answer for this read (team and match pages, Compare of its teams).
+  if (bundleCanAnswer(path)) return "saved";
   const url = new URL(path, "http://offline.invalid");
   const asked = Number(url.searchParams.get("season")) || null;
   if (OFFLINE_PATHS.test(path)) {
@@ -134,12 +136,25 @@ function savedAnswer(path: string): Promise<unknown> {
   return import("./offline/answer").then((m) => m.offlineAnswer(path)).catch(() => null);
 }
 
+/** The saved data's answer, or what it says instead (an OfflineAnswerError from lib/offline/answer.ts: the
+ *  server's own 404 the pack recorded, or "team X isn't in your downloaded pack"), as the error to show. */
+function savedAnswerOrError(path: string): Promise<{ data: unknown } | { error: ApiError }> {
+  return import("./offline/answer").then((m) => m.offlineAnswer(path)).then(
+    (data) => ({ data }),
+    (e: { offlineAnswer?: boolean; status?: number; message?: string }) => (e?.offlineAnswer
+      ? { error: new ApiError(e.status ?? 0, e.message ?? "Not in the saved data.", !e.status) }
+      : { data: null }),
+  );
+}
+
 /** No network: answer from the seasons saved on this device when they can,
  *  else fail with the network error. Never used for an HTTP error — the
  *  server's answer stands. */
 async function offlineOr<T>(path: string, method: string | undefined, error: ApiError): Promise<T> {
-  if ((method ?? "GET").toUpperCase() !== "GET" || !OFFLINE_PATHS.test(path) || (!savedSeasons().length && !savedBundles().length)) throw error;
-  const data = await savedAnswer(path);
+  if ((method ?? "GET").toUpperCase() !== "GET" || !(OFFLINE_PATHS.test(path) || bundleCanAnswer(path)) || (!savedSeasons().length && !savedBundles().length)) throw error;
+  const got = await savedAnswerOrError(path);
+  if ("error" in got) throw got.error;
+  const data = got.data;
   if (data == null) throw error;
   setUsingSaved(true);
   return data as T;

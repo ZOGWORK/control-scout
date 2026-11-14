@@ -2,7 +2,7 @@
 // bundles.ts). Tiny on purpose, like saved.ts: api.ts imports it to know whether a bundle could answer a read
 // with no signal; everything heavier loads lazily.
 import { useSyncExternalStore } from "react";
-import type { SavedBundle } from "../../shared/eventBundle";
+import { bundleTime, packPath, type SavedBundle } from "../../shared/eventBundle";
 
 const KEY = "cs-event-bundles";
 /** Fired on window when a bundle is saved, updated or removed. */
@@ -49,6 +49,37 @@ export function bundleFor(season: number, code: string): SavedBundle | null {
   const c = code.toUpperCase();
   return savedBundles().find((b) => b.season === season && b.code.toUpperCase() === c) ?? null;
 }
+
+/** The packPath()s each saved bundle's event pack answers, by bundle (rebuilt when the list changes). */
+let pathSets: { list: SavedBundle[]; sets: Map<SavedBundle, Set<string>> } | null = null;
+function pathSet(b: SavedBundle): Set<string> {
+  const list = savedBundles();
+  if (pathSets?.list !== list) pathSets = { list, sets: new Map() };
+  let s = pathSets.sets.get(b);
+  if (!s) { s = new Set(b.apiPaths ?? []); pathSets.sets.set(b, s); }
+  return s;
+}
+
+/** The saved bundles whose event pack holds this API path, newest data first (none: []). */
+export function bundlesWith(path: string): SavedBundle[] {
+  const key = packPath(path);
+  if (key == null) return [];
+  return savedBundles().filter((b) => b.apiPaths?.length && pathSet(b).has(key)).sort((a, b) => bundleTime(b).localeCompare(bundleTime(a)));
+}
+
+const COMPARE_PATH = /^\/api\/compare(\?|$)/;
+/** A comparison the saved packs hold: every team asked for is in a saved bundle's event (with the season asked for). */
+export function bundlesCompare(path: string): boolean {
+  if (!COMPARE_PATH.test(path)) return false;
+  const url = new URL(path, "http://offline.invalid");
+  const teams = (url.searchParams.get("teams") ?? "").split(",").filter(Boolean).map(Number);
+  const season = Number(url.searchParams.get("season")) || null;
+  const packs = savedBundles().filter((b) => b.apiPaths?.length && (season == null || b.season === season));
+  return teams.length > 0 && teams.every((t) => packs.some((b) => b.teams?.includes(t)));
+}
+
+/** A saved event pack can answer this read with no signal (lib/api.ts gives it the offline timeout). */
+export const bundleCanAnswer = (path: string): boolean => bundlesWith(path).length > 0 || bundlesCompare(path);
 
 function subscribe(fn: () => void) {
   const onStorage = (e: StorageEvent) => { if (e.key === KEY || e.key === OWNER_KEY) fn(); }; // another tab saved or removed one, or another account signed in

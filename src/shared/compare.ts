@@ -2,6 +2,8 @@
 // from its database (server/api/teams.ts compareTeams); with no signal the app reads the very same parts from a
 // saved event pack (src/lib/offline/answer.ts). Both call compareFromParts, so online and offline can't drift.
 import type { CompareTeam, CompareView, MatchView, TeamEventRow, TeamInfo, TeamSeasonStats } from "./api";
+import { packLookup, type EventBundle } from "./eventBundle.js";
+import { seasonLabel } from "./format.js";
 
 /** Schedule order, as matchViews returns matches: by time (none first), event, quals before playoffs, series, number. */
 export function bySchedule(a: { time: string | null; code: string; level: string; series: number; number: number }, b: typeof a): number {
@@ -58,4 +60,35 @@ export function compareFromParts(numbers: number[], season: number, blocks: Comp
     meetings.sort(bySchedule);
   }
   return { season, teams: blocks, meetings };
+}
+
+/** One saved event pack, as compareFromPacks reads it. */
+export interface ComparePack { season: number; bundle: Pick<EventBundle, "api" | "compare"> }
+
+/**
+ * /api/compare answered from saved event packs (newest first): each team's Compare column and season matches as the
+ * server gave them, assembled by compareFromParts, the server's own assembly. No season asked: the latest any of
+ * them has results in, the server's rule, from the packs' record of it. A team no pack holds: `missing` says so in
+ * plain words, never a partial comparison. Copies: the packs' decoded data is never handed out to be changed.
+ */
+export function compareFromPacks(numbers: number[], season: number | undefined, packs: ComparePack[]): { view: CompareView } | { missing: string } {
+  const holding = (t: number, s?: number) => packs.find((p) => (s == null || p.season === s) && p.bundle.api && p.bundle.compare?.[String(t)]);
+  const missing = numbers.filter((t) => !holding(t, season));
+  if (missing.length) {
+    const which = missing.length === 1 ? `Team ${missing[0]} isn't` : `Teams ${missing.join(", ")} aren't`;
+    return { missing: `${which} in your downloaded event packs${season ? ` for ${seasonLabel(season)}` : ""}. With no connection, Compare works for the teams at the events you saved.` };
+  }
+  let s = season;
+  if (s == null) {
+    const latest = numbers.map((t) => holding(t)!.bundle.compare![String(t)].latest).filter((x): x is number => x != null);
+    s = latest.length ? Math.max(...latest) : holding(numbers[0])!.season;
+  }
+  const blocks = numbers.map((t) => holding(t, s)?.bundle.compare![String(t)].block);
+  const absent = numbers.filter((_, i) => !blocks[i]);
+  if (absent.length) return { missing: `Your downloaded event packs don't hold ${absent.length === 1 ? `team ${absent[0]}` : `teams ${absent.join(", ")}`} for ${seasonLabel(s)}. With no connection, Compare works for the seasons of the events you saved.` };
+  const matchesOf = (t: number): MatchView[] => {
+    const got = packLookup(holding(t, s)!.bundle.api, `/api/teams/${t}/matches?season=${s}`);
+    return got && "body" in got ? ((got.body as { matches?: MatchView[] }).matches ?? []) : [];
+  };
+  return { view: compareFromParts(numbers, s, structuredClone(blocks as CompareTeam[]), (t) => structuredClone(matchesOf(t))) };
 }

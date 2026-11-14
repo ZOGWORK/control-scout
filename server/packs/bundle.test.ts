@@ -18,7 +18,10 @@ import { clearConsensusCache } from "../scout/consensus";
 import { clearCutoffCache } from "../api/matchReport";
 import { clearBundleCache, defaultRulesProvider, setRulesProvider } from "./bundle";
 import { setFlag } from "../flags";
-import type { BundleManifest, EventBundle } from "../../src/shared/eventBundle";
+import { packLookup, packPath, type BundleManifest, type EventBundle, type PackApi, type PackCompareTeam } from "../../src/shared/eventBundle";
+import { compareFromPacks } from "../../src/shared/compare";
+import { assertComplete } from "./eventApi";
+import type { CompareView, EventDetail } from "../../src/shared/api";
 
 const KEY = "k".repeat(40);
 const S = 2025;
@@ -150,7 +153,7 @@ describe("a public bundle", () => {
     expect(r.headers.get("cache-control")).toMatch(/private/);
     const m = r.json;
     expect(m).toMatchObject({ format: 1, season: S, code: EV, name: "Report Qualifier", team: 13, workspace: null });
-    expect(m.sections.map((s) => s.id)).toEqual(["event", "ratings", "reports", "picklist", "rules", "venue"]);
+    expect(m.sections.map((s) => s.id)).toEqual(["event", "ratings", "api", "compare", "reports", "picklist", "rules", "venue"]);
     expect(m.sections.find((s) => s.id === "reports")!.items).toBe(3); // 13 plays Q1, Q2 and Q3
     expect(m.sections.find((s) => s.id === "picklist")!.note).toMatch(/workspace/);
     expect(m.field.map(([t]) => t).sort()).toEqual([11, 12, 13, 14]);
@@ -269,5 +272,76 @@ describe("the workspace parts", () => {
     expect((await manifest(anon, `?workspace=${WS}`)).status).toBe(401);
     expect((await manifest(olly, `?workspace=${WS}`)).status).toBe(403);
     expect((await fetch(`${base}/api/bundles/${S}/${EV}/file?workspace=${WS}`)).status).toBe(401);
+  });
+});
+
+// The event pack (docs/event-bundle.md "The event pack"): the server's own JSON for every team and match page of the
+// event, and Compare assembled offline by the server's own function: the same JSON as online, byte for byte.
+describe("the event pack", () => {
+  const anon = client();
+  const pack = async () => (await file((await manifest(anon, "?team=13")).json)).body;
+
+  it("holds every team and every match of the event, each answer exactly what the API serves", async () => {
+    const body = await pack();
+    const api = body.api!;
+    const m = (await manifest(anon, "?team=13")).json;
+    expect(m.apiPaths!.length).toBe(Object.keys(api.answers).length + Object.keys(api.same).length + Object.keys(api.errors).length);
+    for (const t of [11, 12, 13, 14]) {
+      for (const p of [`/api/teams/${t}?season=${S}`, `/api/teams/${t}`, `/api/teams/${t}/matches?season=${S}`, `/api/teams/${t}/report-card?season=${S}`]) {
+        const got = packLookup(api, p);
+        expect(got, p).not.toBeNull();
+        const live = await anon("GET", p);
+        expect(live.status, p).toBe(200);
+        expect((got as { body: unknown }).body, p).toEqual(live.json);
+      }
+      expect(body.compare![String(t)].block.team.number).toBe(t);
+    }
+    for (const x of body.event.matches) {
+      for (const p of [`/api/events/${S}/${EV}/matches/${x.key}`, `/api/events/${S}/${EV}/matches/${x.key}/report`]) {
+        const got = packLookup(api, p);
+        expect(got, p).not.toBeNull();
+        expect((got as { body: unknown }).body, p).toEqual((await anon("GET", p)).json);
+      }
+    }
+    // The app asks in any case and order: the same answer.
+    expect(packLookup(api, `/api/events/${S}/${EV.toLowerCase()}/matches/qual:0:1`)).toEqual(packLookup(api, `/api/events/${S}/${EV}/matches/qual:0:1`));
+    expect(packLookup(api, `/api/teams/99999?season=${S}`)).toBeNull();
+  });
+
+  it("Compare from the pack is the API's comparison, byte for byte (with and without a season asked)", async () => {
+    const body = await pack();
+    const packs = [{ season: S, bundle: body }];
+    for (const q of [[11, 12, 13, 14], [13, 11], [12, 14, 11]]) {
+      for (const season of [S, undefined]) {
+        const live = await anon("GET", `/api/compare?teams=${q.join(",")}${season ? `&season=${season}` : ""}`);
+        expect(live.status).toBe(200);
+        const off = compareFromPacks(q, season, packs);
+        expect("view" in off && JSON.stringify(off.view)).toBe(JSON.stringify(live.json));
+      }
+    }
+    // Head-to-head is in it: 11 and 12 partnered in Q1 against 13 and 14.
+    const four = compareFromPacks([11, 12, 13, 14], S, packs) as { view: CompareView };
+    expect(four.view.meetings.map((x) => x.key)).toEqual(["qual:0:1"]);
+    expect((compareFromPacks([11, 4321], S, packs) as { missing: string }).missing).toMatch(/Team 4321 isn't in your downloaded event packs/);
+  });
+
+  it("a team or match missing from the pack fails the build loudly", () => {
+    const ev = { field: [{ team: 11, name: "A" }, { team: 12, name: "B" }], matches: [{ key: "qual:0:1", label: "Q1", red: { teams: [] }, blue: { teams: [] } }] } as unknown as EventDetail;
+    const c = { season: S, code: EV, ev, teams: [11, 12], matches: ev.matches };
+    const full: PackApi = { answers: {}, same: {}, errors: {} };
+    for (const t of [11, 12]) {
+      full.answers[packPath(`/api/teams/${t}?season=${S}`)!] = {};
+      full.answers[packPath(`/api/teams/${t}/matches?season=${S}`)!] = {};
+    }
+    full.answers[packPath(`/api/events/${S}/${EV}/matches/qual:0:1`)!] = {};
+    const compare = { 11: { block: {}, latest: S }, 12: { block: {}, latest: S } } as unknown as Record<string, PackCompareTeam>;
+    expect(() => assertComplete(c, full, compare)).not.toThrow();
+    const noTeam = structuredClone(full);
+    delete noTeam.answers[packPath(`/api/teams/12?season=${S}`)!];
+    expect(() => assertComplete(c, noTeam, compare)).toThrow(/broken: it's missing team 12/);
+    const noMatch = structuredClone(full);
+    delete noMatch.answers[packPath(`/api/events/${S}/${EV}/matches/qual:0:1`)!];
+    expect(() => assertComplete(c, noMatch, compare)).toThrow(/missing match Q1/);
+    expect(() => assertComplete(c, full, { 11: compare[11] })).toThrow(/team 12's Compare column/);
   });
 });
