@@ -21,7 +21,7 @@ Searching for one match, such as a team's best Auto or highest score, now shows 
 
 ### Highlights
 - [fixes] View clip under People also ask plays the match your search is about
-- [fixes] The whole match plays, from FIRST's video or the event's recording, never a cut of one part
+- [fixes] It plays the whole match, never a cut of one part
 - [fixes] "best auto highlights" and "highest score video" now answer instead of saying Sorry
 
 ### Added
