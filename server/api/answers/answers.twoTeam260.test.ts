@@ -180,6 +180,16 @@ describe("the answers", () => {
     expect(b.stat!.teams!.map((x) => x.number)).toEqual([4215, 6980, 33950]);
     expect(b.hits[0]).toMatchObject({ kind: "compare", ref: "4215,6980,33950" });
   });
+  it("a comparison lists the matches every team played in, latest first; none, no list", async () => {
+    const a = await ask("4215 versus 6980 compare");
+    const m = a.stat!.blocks.find((b) => b.kind === "matches");
+    expect(m && m.kind === "matches" ? m.rows.map((r) => r.label) : []).toEqual(["Q4", "Q3", "Q2", "Q1"]);
+    // Three teams: only the match all three were on the field for (Q2: 4215 and 207 against 6980).
+    const b = await ask("4215 207 6980 compare");
+    const mb = b.stat!.blocks.find((x) => x.kind === "matches");
+    expect(mb && mb.kind === "matches" ? mb.rows.map((r) => r.label) : []).toEqual(["Q3", "Q2", "Q1"]);
+    expect((await ask("6980 33950 compare")).stat!.blocks.some((x) => x.kind === "matches")).toBe(false);
+  });
   it("256–260: phase, reliability and awards, the winner named", async () => {
     expect((await ask("4215 versus 6980 who is better at auto")).stat!.headline).toMatchObject({ value: "4215 leads 28.3 – 13.2", label: "+15.1" });
     const e = await ask("4215 versus 6980 who is better at endgame");

@@ -31,9 +31,11 @@ export function videoCaption(v: SearchVideoItem): string {
   return v.live ? "The event's live stream" : "The event's recording";
 }
 
-/** The card's player: 16:9, the card's full width on a phone, loaded on a click. */
-export function AnswerVideo({ className }: { className?: string }) {
+/** The card's player: 16:9, the card's full width on a phone, loaded on a click. `only`: the matches a section lists;
+ *  the player shows there only when the answer's match is one of them, never another match's clip. */
+export function AnswerVideo({ className, only }: { className?: string; only?: string[] }) {
   const video = useContext(Video).video;
+  if (only && !(video?.mainRow && only.includes(video.mainRow))) return null;
   const v = video?.main;
   // Another answer's video starts at its picture again.
   if (v) return <Player key={`${v.videoId}:${v.t}`} v={v} className={className} />;

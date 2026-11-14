@@ -608,3 +608,16 @@ describe("two teams and a place to compare them", () => {
     expect((await parse("4215 6980")).complete).toBe(false);
   });
 });
+
+describe("a match by its number, with no event named (search video brief, point 4)", () => {
+  it("a team and a match's number is that team's match lookup, in any word order, asked to watch or not", async () => {
+    for (const q of ["6980 Q7", "q7 6980", "6980 match 7", "6980 q7 video", "bad wolf qual 7"]) expect(await parse(q), q).toMatchObject({ intent: "match-lookup", complete: true, teams: [{ number: 6980 }], matchNumber: 7 });
+    expect((await parse("6980 Q7")).level).toBe("qual");
+  });
+  it("an M number is a playoff match's; with no team, the match's number in a scope", async () => {
+    expect(await parse("6980 m3")).toMatchObject({ intent: "match-lookup", level: "playoff", matchNumber: 3 });
+    expect(await parse("m11 into the deep finals")).toMatchObject({ intent: "match-label", complete: true, teams: [], level: "playoff", finals: true, matchNumber: 11 });
+    expect(await parse("q9 at worlds")).toMatchObject({ intent: "match-label", complete: true, worlds: true, matchNumber: 9, level: "qual" });
+  });
+});
+

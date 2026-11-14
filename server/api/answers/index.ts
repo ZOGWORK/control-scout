@@ -27,7 +27,7 @@ import { predictHref } from "../../../src/shared/predictUrl.js";
 import { CHAMPIONSHIP_TYPE, STATES_TYPE, inScope, officialClause, scopeChips, scopePhrase, type Scope } from "./clauses.js";
 import { reliabilityEvents, teamEventSet, type TeamEvent } from "./eventSet.js";
 import { awardsAnswer, awardsTitle } from "./families/awards.js";
-import { championshipMatchesAnswer, eventScopeAnswer } from "./families/eventScope.js";
+import { championshipMatchesAnswer, eventScopeAnswer, matchLabelAnswer } from "./families/eventScope.js";
 import { eventAnswer } from "./families/events.js";
 import { factAnswer, readTeamFact, seasonOf as factSeason, type FactQuestion } from "./families/facts.js";
 import { leagueAskAnswer, readLeagueAsk } from "./families/league.js";
@@ -702,6 +702,9 @@ async function build(it: StatQuestion, team: { number: number; name: string | nu
     const at = await eventScopeAnswer(it.id, team, ms, evs.find((e) => e.code === scope.event!.code), scope, { n: it.n, each: evs });
     if (at) return at;
   }
+  // A match by its number with no event named ("<team> Q6", "<team> M14 at worlds"): each event's in the scope, of
+  // one season.
+  if (it.id === "match-lookup" && it.n != null) return matchLabelAnswer(team, ms, scope, it.n);
   if (MATCH_STAT_IDS.has(it.id)) return matchStatAnswer(it.id, team, ms, scope, { n: it.n, variant: it.variant });
   if (it.id === "results" && (scope.championship || scope.states)) return championshipMatchesAnswer(team, ms, scope);
   return matchAnswer(it.id, team, ms, scope, { leadEvent: it.leadEvent, n: it.n, outcome: it.outcome, perEvent: it.variant === "per-event", ...(it.under != null ? { under: it.under } : {}) });

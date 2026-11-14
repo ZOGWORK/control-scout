@@ -23,7 +23,7 @@ import { teamHighlights, type TeamHighlightScope } from "../answers/highlights.j
 import { shortEvent } from "../answers/matchSet.js";
 import { CHAMPIONSHIP_TYPE, OFFICIAL_TYPES, STATES_TYPE } from "../answers/clauses.js";
 import { eventScoresAnswer, eventScoresTitle, type EventScoresQuestion } from "../answers/families/eventScores.js";
-import { FROM as FIND_FROM, eventKindOf, matchFindAnswer, where as findWhere, type MatchFind, type MatchMeasure } from "./matchFind.js";
+import { FROM as FIND_FROM, eventKindOf, labelText, matchFindAnswer, where as findWhere, type MatchFind, type MatchMeasure } from "./matchFind.js";
 import { seasonOfDate } from "./time.js";
 import { searchToday } from "../searchEvents.js";
 import { eventFor, forecastAt, teamEventOfType } from "./forecast.js";
@@ -220,6 +220,8 @@ const MEETINGS = new Set<TwoTeamId>(["head-to-head", "h2h-wins", "shared-matches
 const FIND: Partial<Record<PipelineIntent, MatchMeasure>> = {
   "low-matches": "low", "close-matches": "closest", "lopsided-matches": "lopsided", "penalty-matches": "penalties", "upset-matches": "upset", "comeback-matches": "comeback", "loss-matches": "loss-high",
   "miss-matches": "miss", "accurate-matches": "accurate",
+  // A match by its number, no team: those with it in the scope, the highest-scoring first.
+  "match-label": "high",
 };
 /** The match finder's measures one team's matches take ("<team>'s most unpredictable match"). */
 const TEAM_FIND = new Set<MatchMeasure>(["miss", "accurate"]);
@@ -313,8 +315,9 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     // A season's penalty total is its own reader's ("12345 total penalties"); here only an event's.
     if (id === "penalties" && (p.symbols.includes("agg:sum") || p.symbols.includes("agg:count")) && !p.symbols.includes("per:match") && !scope.at) return null;
     const team = p.teams[0];
-    // "12345 at worlds in 2026": the championship held that year (2025–26), as the readers take a year there.
-    const held = id === "results" && scope.championship && scope.year && scope.season != null;
+    // "12345 at worlds in 2026", "12345 q6 at states 2026": the championship held that year (2025–26), as the readers
+    // take a year there.
+    const held = (id === "results" || id === "match-lookup") && (scope.championship || scope.states) && scope.year && scope.season != null;
     if (held) { scope.season! -= 1; scope.year = false; }
     // A season or a year with no events on record yet (a future year): said so, never the latest instead.
     const future = held ? null : await noEventsYet(p, team.number, id, opts);
@@ -521,18 +524,24 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   // ("matches at <event> where both alliances scored over 250"), listed best first; "matches" alone, a place's or a
   // match type's ("playoff matches in NJ") are left to search.
   if (intent === "top-matches" && !p.teams.length && !p.symbols.includes("agg:max") && !scope.window && !p.scoreCond) return null;
-  const kind = p.event ? eventKindOf(normalise(p.event.words)) : p.eventKind ? eventKindOf(p.eventKind) : null;
+  // A match's number with an event named by name is the names reader's (its exact event and match, search.ts).
+  if (intent === "match-label" && p.event) return null;
+  const labelled = intent === "match-label" && p.matchNumber != null;
+  // A match's number at Worlds ("q6 at worlds"): Worlds' matches with it, its divisions' and finals'.
+  const kind = labelled && p.worlds ? WORLDS_KIND : labelled && p.states ? STATES_KIND : p.event ? eventKindOf(normalise(p.event.words)) : p.eventKind ? eventKindOf(p.eventKind) : null;
   // One team's match by its score ("<team> 226 point match"): that team's matches with the score, found the same way.
   const scored = p.teams.length === 1 && p.scoreCond?.op === "=" && (intent === "season-matches" || intent === "top-matches");
   const teamFind = p.teams.length === 1 && (TEAM_FIND.has(FIND[intent]!) || scored);
   if ((!p.teams.length || teamFind) && (FIND[intent] || scored || (intent === "top-matches" && (p.level || p.finals || kind || p.scoreCond)))) {
+    // A match's number said to any other finder ("highest scoring M14 matches") is never dropped: left to search.
+    if (p.matchNumber != null && !labelled) return null;
     // An event named with a score to reach ("matches at <event> where both alliances scored over 250"): its matches,
     // its divisions' too. A calendar year said is the edition held that year; none said, its latest.
     const year = p.time?.kind === "season" && p.time.year != null && !p.time.relative ? p.time.year : null;
-    const named = p.event && !kind && p.scoreCond ? await eventsNamed(normalise(p.event.words), null, year != null ? (e) => (e.start ?? "").startsWith(String(year)) : undefined) : null;
+    const named = p.event && !kind && (p.scoreCond || labelled) ? await eventsNamed(normalise(p.event.words), null, year != null ? (e) => (e.start ?? "").startsWith(String(year)) : undefined) : null;
     const events = named && year != null ? named.filter((e) => (e.start ?? "").startsWith(String(year))) : named;
     if (events && !events.length) return null;
-    if (((p.event || p.eventKind) && !kind && !events) || p.worlds || p.states || p.alliance || scope.ever || (p.place && p.place.kind === "city")) return null;
+    if (((p.event || p.eventKind) && !kind && !events) || (p.worlds && !labelled) || (p.states && !labelled) || p.alliance || scope.ever || (p.place && p.place.kind === "city")) return null;
     // Its name as each season held it: the main event's, never a division's.
     const mainFirst = events ? [...events].sort((x, y) => Number(x.division != null) - Number(y.division != null)) : [];
     const eventKeys = events ? (await scopeEvents({ season: 0, region: null, level: null, finals: false, kind: null, events })) ?? [] : null;
@@ -543,11 +552,12 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     const plural = /\b(?:matches|games|scores|upsets|comebacks|blowouts|routs|mismatches|underdogs|wins|losses|predictions|misses)\b/.test(said);
     const f: MatchFind = {
       // The current season is the one today is in.
-      measure: FIND[intent] ?? "high", season: eventSeason ?? placeSeason(p, scope.season, opts), region: regionOf(p), level: p.level, finals: p.finals, kind,
+      // A match's number at Worlds or states in a year ("q6 at worlds 2026") is the championship held that year (2025–26).
+      measure: FIND[intent] ?? "high", season: eventSeason ?? (labelled && (p.worlds || p.states) && year != null ? year - 1 : placeSeason(p, scope.season, opts)), region: regionOf(p), level: p.level, finals: p.finals, kind,
       ...(["metric:win", "metric:loss", "outcome:W", "outcome:L"].some((s) => p.symbols.includes(s)) ? { decided: true } : {}),
       ...(scope.window ? { window: scope.window } : {}), n: p.n ?? (plural ? 10 : 5), ...(plural || p.n != null ? { list: true } : {}),
       ...(teamFind ? { team: { number: p.teams[0].number, name: p.teams[0].name } } : {}), ...(p.over != null ? { over: p.over } : {}),
-      ...(p.scoreCond ? { cond: p.scoreCond } : {}), ...(events && eventKeys ? {
+      ...(p.scoreCond ? { cond: p.scoreCond } : {}), ...(labelled ? { label: { n: p.matchNumber!, level: p.level } } : {}), ...(events && eventKeys ? {
         events: eventKeys.map((k) => ({ ...k, name: mainFirst.find((e) => e.season === k.season)?.name })),
         // An off-season event named ("MTI") is its own matches, though the finder otherwise reads official events only.
         ...(events.some((e) => !(OFFICIAL_TYPES as readonly string[]).includes(e.type ?? "")) ? { named: true } : {}),
@@ -572,8 +582,10 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     if (scope.window && scope.season != null && p.time?.year == null) return relaxed(a, windowSteps(scope.window, scope.season), (season) => card({ ...f, window: undefined, season }));
     // No season said, or "this season": the current one, then the one before when it has nothing yet.
     // Its note says what there's none of: matches, when nothing is played there yet; else the matches asked for.
+    // A match's number: that match, where it was asked ("No 2026–27 Q6 at Worlds yet"), whatever else was played.
     const played = !/^From 0 /.test(a.stat?.source ?? "");
-    if (!events && (!p.time || (p.time.kind === "season" && p.time.relative === "this"))) return relaxed(a, defaultSteps(f.season, where, played ? MATCH_NOUN[f.measure] : "matches"), (season) => card({ ...f, season }));
+    const noun = f.label ? `${labelText(f.label)}${f.kind ? ` at ${f.kind === WORLDS_KIND ? "Worlds" : f.kind === STATES_KIND ? "states" : f.kind.label.toLowerCase()}` : ""}` : played ? MATCH_NOUN[f.measure] : "matches";
+    if (!events && (!p.time || (p.time.kind === "season" && p.time.relative === "this"))) return relaxed(a, defaultSteps(f.season, where, noun), (season) => card({ ...f, season }));
     return a;
   }
   // A count's board ("the most matches played", "most awards in nj"): answered as the leaderboard reader reads it, never

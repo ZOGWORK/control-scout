@@ -396,7 +396,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     const t = toks[i];
     if (t.used) continue;
     const qm = /^(?:q|qm|qual|m)(\d{1,3})$/.exec(t.w);
-    if (qm) { p.matchNumber = Number(qm[1]); if (/^q/.test(t.w)) p.level = "qual"; t.used = true; symbols.add("thing:match"); continue; }
+    if (qm) { p.matchNumber = Number(qm[1]); if (/^q/.test(t.w)) p.level = "qual"; else if (/^m\d/.test(t.w)) p.level = "playoff"; t.used = true; symbols.add("thing:match"); continue; }
     // A team's number with its possessive typed without the apostrophe ("4215s chances"): that team's number.
     const poss = /^(\d{1,5})s$/.exec(t.w);
     if (poss && ctx.names.team(Number(poss[1]))) t.w = poss[1];

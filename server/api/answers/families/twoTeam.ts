@@ -16,7 +16,7 @@ import { predictHref } from "../../../../src/shared/predictUrl.js";
 import { isLegacy } from "../../../data/seasons.js";
 import { all, get } from "../../../db.js";
 import { OFFICIAL_TYPES, inScope, scopeChips, scopePhrase, type Scope } from "../clauses.js";
-import { matchHref, matchRow, teamHref, teamLinks, type TeamMatch } from "../matchSet.js";
+import { matchHref, matchRow, teamHref, teamLinks, teamMatches, type TeamMatch } from "../matchSet.js";
 import type { TwoTeamId, IntentId } from "../read.js";
 import { teamReliability } from "../../teams.js";
 import { currentSeason, seasonWhy } from "../season.js";
@@ -394,6 +394,8 @@ export async function awardsSideBySide(a: AnswerTeam, b: AnswerTeam, season: num
   };
 }
 
+/** Most matches together a comparison lists. */
+const TOGETHER_MAX = 10;
 const COMPARE_RULE = "Each team's stored season numbers, as their team pages show them: OPR (the points a team adds to its alliance without penalties) and its rank among every team with an OPR that season, OPR by phase, the prediction rating (points per match ± its uncertainty) and the season's record.";
 
 /** "12345 vs 67890 compare", "12345 67890 33950 compare": the teams' season numbers in one card. */
@@ -423,12 +425,19 @@ export async function compareAnswer(teams: AnswerTeam[], scope: Scope): Promise<
   const crow = block.kind === "compare" ? block.rows : [];
   const two = teams.length === 2;
   const who = (i: number) => (two ? "" : `${teams[i].number} `);
+  // The matches every one of them played in that season at official events (on one alliance or against each other;
+  // never a scrimmage or an off-season event, as head to head counts them), latest first: each a
+  // match box the answer's video gives its own clip (../video.ts), one alone the match the card plays.
+  const others = teams.slice(1).map((t) => t.number);
+  const together = (await teamMatches(teams[0].number)).filter((m) => m.season === season && m.onField && (OFFICIAL_TYPES as readonly string[]).includes(m.type ?? "") && others.every((n) => m.partners.includes(n) || m.opponents.includes(n))).reverse().slice(0, TOGETHER_MAX);
+  const togetherLinks = together.length ? await teamLinks(together.flatMap((m) => [...m.partners, ...m.opponents])) : null;
   const context = [...rows.map((r, i) => `${who(i)}${r.rank_np ? `#${r.rank_np.toLocaleString("en-US")} of ${(r.ranked_teams ?? 0).toLocaleString("en-US")}` : "unranked"} (${recText(rec(r))})`), decidedText(crow)];
   return {
     ...base,
     headline: noOpr ? { value: "No OPR", label: `No ${seasonLabel(season)} OPR on record for these teams`, href: compareHref } : leadHeadline(teams, crow[0], context, teamHref(lead.number, season)),
     blocks: [
       block,
+      ...(together.length ? [{ kind: "matches" as const, title: `Their matches together in ${seasonLabel(season)}`, rows: together.map((m) => matchRow(m, togetherLinks!, teams[0].number)) }] : []),
       { kind: "links", title: "Try it", items: [...(two && !isLegacy(season) ? [{ label: "Open in Predict", href: predictHref({ mode: "match", season, red: [teams[0].number], blue: [teams[1].number] }) }] : []), { label: "Compare side by side", href: compareHref }] },
     ],
   };
