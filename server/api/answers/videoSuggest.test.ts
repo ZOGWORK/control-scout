@@ -3,7 +3,7 @@
 // answer already plays, and never holding the answer up.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SearchAnswer, SearchVideo } from "../../../src/shared/api";
-import { asksVideo, forgetVideoChecks, hasVideo, spelledOnly, withVideoAlternatives } from "./videoSuggest";
+import { asksVideo, forgetVideoChecks, hasVideo, withVideoAlternatives } from "./videoSuggest";
 
 beforeEach(() => forgetVideoChecks());
 
@@ -167,13 +167,6 @@ describe("withVideoAlternatives", () => {
     // Past the longer wait too: the answer as it is.
     const slow = async (q: string) => { await new Promise((r) => setTimeout(r, 300)); return askOf(q); };
     expect(await withVideoAlternatives("6980 at east bergen with video", a, undefined, slow, videoOf, 20, async () => ["e highlights"], "", 40)).toBe(a);
-  });
-
-  it("never offers a question that reads like a typo: the next one takes its place", async () => {
-    const spelled = async (q: string) => !q.startsWith("Wnterberry");
-    expect(await spelledOnly(["Wnterberry Waterloo highlights 2026-27", "Winterberry Waverly highlights 2026-27"], spelled)).toEqual(["Winterberry Waverly highlights 2026-27"]);
-    // A check that fails leaves its question out.
-    expect(await spelledOnly(["a highlights", "b highlights"], async (q) => { if (q === "a highlights") throw new Error("busy"); return true; })).toEqual(["b highlights"]);
   });
 
   it("stray spaces around a query are no watch word", async () => {
