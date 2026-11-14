@@ -195,29 +195,29 @@ export function OnboardingDialog({ step }: { step: number }) {
           onCloseAutoFocus={(e) => e.preventDefault()}
           style={vv ? ({ "--ob-top": `${vv.top}px`, "--ob-h": `${vv.height}px` } as React.CSSProperties) : undefined}
           className={cn(
-            "fixed z-[91] flex flex-col overflow-hidden border-line bg-elevated text-text-base shadow-2xl outline-none",
+            "fixed z-[91] flex flex-col overflow-hidden text-[15px] border-line bg-elevated text-text-base shadow-2xl outline-none",
             // Phone: the whole visible screen (the keyboard shrinks it, the header stays on it).
             "inset-x-0 top-[var(--ob-top,0px)] h-[var(--ob-h,100dvh)] max-md:border-0",
             // Wider: a centred panel.
-            "md:inset-x-auto md:left-1/2 md:top-1/2 md:h-auto md:max-h-[min(640px,calc(100dvh-3rem))] md:w-[480px] md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-2xl md:border",
+            "md:inset-x-auto md:left-1/2 md:top-1/2 md:h-[min(600px,calc(100dvh-3rem))] md:w-[480px] md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-2xl md:border",
           )}
         >
           {/* Header: where you are, and Skip, in the same place on every step. */}
           <div className="flex shrink-0 items-center gap-3 border-b border-line px-4 pb-2 pt-[calc(env(safe-area-inset-top)+0.5rem)] md:pt-2">
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-medium text-text-muted" aria-hidden>Step {step + 1} of {ONBOARDING_STEPS}</p>
+              <p className="text-[13px] font-medium text-text-muted" aria-hidden>Step {step + 1} of {ONBOARDING_STEPS}</p>
               <div className="mt-1.5 flex gap-1" aria-hidden>
                 {Array.from({ length: ONBOARDING_STEPS }, (_, i) => (
                   <span key={i} className={cn("h-1.5 flex-1 rounded-full transition-colors", i <= step ? "bg-accent" : "bg-text-base/15")} />
                 ))}
               </div>
             </div>
-            <Button variant="ghost" size="sm" className="h-[44px] min-w-[64px] shrink-0 px-3 text-sm" onClick={skip} data-onboarding-skip="">Skip</Button>
+            <Button variant="outline" size="sm" className="h-[44px] min-w-[72px] shrink-0 px-4 text-[15px]" onClick={skip} data-onboarding-skip="">Skip</Button>
           </div>
 
           {/* The step. */}
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5">
-            <D.Title id={titleId} className="font-display text-xl font-semibold tracking-[-0.01em] text-text-base">
+            <D.Title id={titleId} className="font-display text-[22px] leading-tight font-semibold tracking-[-0.01em] text-text-base">
               <span className="sr-only">Step {step + 1} of {ONBOARDING_STEPS}: </span>{title}
             </D.Title>
             <D.Description asChild><div id={bodyId} className="mt-3">{body}</div></D.Description>
@@ -226,9 +226,9 @@ export function OnboardingDialog({ step }: { step: number }) {
           {/* Back and the main button. */}
           <div className="flex shrink-0 items-center gap-2 border-t border-line px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] md:pb-3">
             {step > 0 && (
-              <Button variant="secondary" className="h-[44px] md:h-10" onClick={() => go(step - 1)} data-onboarding-back=""><ArrowLeft /> Back</Button>
+              <Button variant="secondary" className="h-[44px] text-[15px] md:h-10" onClick={() => go(step - 1)} data-onboarding-back=""><ArrowLeft /> Back</Button>
             )}
-            <Button ref={primaryRef} className="ml-auto h-[44px] min-w-0 md:h-10" onClick={primary.run} data-onboarding-next="">
+            <Button ref={primaryRef} className="ml-auto h-[44px] min-w-0 text-[15px] md:h-10" onClick={primary.run} data-onboarding-next="">
               <span className="truncate">{primary.label}</span>{!last && <ArrowRight />}
             </Button>
           </div>
@@ -249,15 +249,15 @@ function StepWelcome() {
     <div>
       <div className="flex items-center gap-3">
         <BrandMark className="size-10 shrink-0" />
-        <p className="text-sm leading-relaxed text-text-muted">Free FTC stats, match odds and scouting. No account needed.</p>
+        <p className="text-[15px] leading-relaxed text-text-muted">Free FTC stats, match odds and scouting. No account needed.</p>
       </div>
       <ul className="mt-4 grid gap-2">
         {tiles.map((t) => (
           <li key={t.title} className="flex items-start gap-3 rounded-xl border border-line bg-text-base/[0.02] p-3">
             <span className={cn("flex size-9 shrink-0 items-center justify-center rounded-lg", t.tone)}><t.icon className="size-[18px]" aria-hidden /></span>
             <span className="min-w-0">
-              <span className="block text-sm font-semibold text-text-base">{t.title}</span>
-              <span className="block text-sm text-text-muted">{t.text}</span>
+              <span className="block text-[15px] font-semibold text-text-base">{t.title}</span>
+              <span className="block text-[15px] text-text-muted">{t.text}</span>
             </span>
           </li>
         ))}
@@ -306,15 +306,15 @@ function StepTeam({ inputRef, picked, savedTeam, onPick, onNone, onEnter }: {
 
   return (
     <div>
-      <p className="text-sm leading-relaxed text-text-muted">Pick it and Home leads with its next match and odds. It stays on this device; no account needed.</p>
+      <p className="text-[15px] leading-relaxed text-text-muted">Pick it and Home leads with its next match and odds. It stays on this device; no account needed.</p>
       {chosen ? (
         <div className="mt-4 flex items-center gap-3 rounded-xl border border-accent/50 bg-accent/10 p-3" data-onboarding-team={chosen.number}>
           <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent text-black"><Star className="size-[18px] fill-current" aria-hidden /></span>
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-sm font-semibold text-text-base">{chosen.number} · {chosen.name}</span>
-            {chosen.place && <span className="block truncate text-xs text-text-muted">{chosen.place}</span>}
+            <span className="block truncate text-[15px] font-semibold text-text-base">{chosen.number} · {chosen.name}</span>
+            {chosen.place && <span className="block truncate text-[13px] text-text-muted">{chosen.place}</span>}
           </span>
-          <Button variant="ghost" size="sm" className="h-[44px] shrink-0 md:h-9" onClick={() => { onPick(null); setQ(""); window.setTimeout(() => inputRef.current?.focus(), 0); }}>Change</Button>
+          <Button variant="ghost" size="sm" className="h-[44px] shrink-0 text-[15px] md:h-9" onClick={() => { onPick(null); setQ(""); window.setTimeout(() => inputRef.current?.focus(), 0); }}>Change</Button>
         </div>
       ) : (
         <>
@@ -326,7 +326,7 @@ function StepTeam({ inputRef, picked, savedTeam, onPick, onNone, onEnter }: {
               onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); if (hits[0]) onPick(hits[0]); else onEnter(); } }}
               inputMode="search" autoComplete="off" enterKeyHint="search" placeholder="Team number or name"
               role="combobox" aria-expanded={hits.length > 0} aria-controls={listId} aria-autocomplete="list"
-              className="h-[48px] min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-text-muted md:h-11 md:text-sm"
+              className="h-[48px] min-w-0 flex-1 bg-transparent text-[16px] outline-none placeholder:text-text-muted md:h-11 md:text-[15px]"
             />
             {busy && <Loader2 className="size-4 shrink-0 animate-spin text-text-muted" aria-hidden />}
           </label>
@@ -334,20 +334,20 @@ function StepTeam({ inputRef, picked, savedTeam, onPick, onNone, onEnter }: {
             {hits.map((h) => (
               <li key={h.number} role="option" aria-selected={false}>
                 <button type="button" onClick={() => onPick(h)} className="flex min-h-[48px] w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors hover:bg-text-base/[0.06] focus-visible:bg-text-base/[0.06] focus-visible:outline-none" data-onboarding-team-option={h.number}>
-                  <span className="w-14 shrink-0 font-mono text-sm font-semibold text-accent-text">{h.number}</span>
+                  <span className="w-14 shrink-0 font-mono text-[15px] font-semibold text-accent-text">{h.number}</span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-medium text-text-base">{h.name}</span>
-                    {h.place && <span className="block truncate text-xs text-text-muted">{h.place}</span>}
+                    <span className="block truncate text-[15px] font-medium text-text-base">{h.name}</span>
+                    {h.place && <span className="block truncate text-[13px] text-text-muted">{h.place}</span>}
                   </span>
                 </button>
               </li>
             ))}
           </ul>
-          {failed && <p className="mt-2 text-sm text-text-muted" role="status">Search isn't answering right now. You can pick your team later on My team.</p>}
-          {!busy && !failed && q.trim() !== "" && hits.length === 0 && <p className="mt-2 text-sm text-text-muted" role="status">No team matches that yet.</p>}
+          {failed && <p className="mt-2 text-[15px] text-text-muted" role="status">Search isn't answering right now. You can pick your team later on My team.</p>}
+          {!busy && !failed && q.trim() !== "" && hits.length === 0 && <p className="mt-2 text-[15px] text-text-muted" role="status">No team matches that yet.</p>}
         </>
       )}
-      <button type="button" onClick={onNone} className="mt-4 inline-flex min-h-[44px] items-center text-sm font-medium text-text-muted underline underline-offset-4 hover:text-text-base" data-onboarding-no-team="">
+      <button type="button" onClick={onNone} className="mt-4 inline-flex min-h-[44px] items-center text-[15px] font-medium text-text-muted underline underline-offset-4 hover:text-text-base" data-onboarding-no-team="">
         I'm not on a team
       </button>
     </div>
@@ -370,18 +370,18 @@ function StepSearch({ team }: { team: number | null }) {
   const mac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
   return (
     <div>
-      <p className="text-sm leading-relaxed text-text-muted">Search answers FTC questions in plain words, with the numbers right there. For example:</p>
+      <p className="text-[15px] leading-relaxed text-text-muted">Search answers FTC questions in plain words, with the numbers right there. For example:</p>
       <ul className="mt-4 grid gap-2" aria-label="Example searches">
         {examples.map((x) => (
-          <li key={x.text} className="flex items-center gap-3 rounded-full border border-line bg-text-base/[0.03] py-2 pl-3 pr-4 text-sm font-medium text-text-base">
+          <li key={x.text} className="flex items-center gap-3 rounded-full border border-line bg-text-base/[0.03] py-2 pl-3 pr-4 text-[15px] font-medium text-text-base">
             <x.icon className={cn("size-4 shrink-0", x.tone)} aria-hidden /> <span className="truncate">“{x.text}”</span>
           </li>
         ))}
       </ul>
-      <p className="mt-4 hidden text-sm text-text-muted md:block">
-        Press <kbd className="rounded border border-line bg-text-base/[0.05] px-1.5 py-0.5 font-mono text-xs text-text-base">{mac ? "⌘" : "Ctrl"} K</kbd> on any page to search.
+      <p className="mt-4 hidden text-[15px] text-text-muted md:block">
+        Press <kbd className="rounded border border-line bg-text-base/[0.05] px-1.5 py-0.5 font-mono text-[13px] text-text-base">{mac ? "⌘" : "Ctrl"} K</kbd> on any page to search.
       </p>
-      <p className="mt-4 text-sm text-text-muted md:hidden">The search box is at the top of every page.</p>
+      <p className="mt-4 text-[15px] text-text-muted md:hidden">The search box is at the top of every page.</p>
     </div>
   );
 }
@@ -398,19 +398,19 @@ function StepPlaces() {
   ];
   return (
     <div>
-      <p className="text-sm leading-relaxed text-text-muted">
+      <p className="text-[15px] leading-relaxed text-text-muted">
         <span className="md:hidden">They're in the bar along the bottom, and the menu at the top left.</span>
         <span className="max-md:hidden">They're in the menu on the left.</span>
       </p>
       <ul className="mt-4 grid grid-cols-2 gap-2">
         {places.map((p) => (
           <li key={p.name} className="rounded-xl border border-line bg-text-base/[0.02] p-3">
-            <span className="flex items-center gap-2 text-sm font-semibold text-text-base"><p.icon className={cn("size-4 shrink-0", p.tone)} aria-hidden />{p.name}</span>
-            <span className="mt-0.5 block text-xs leading-snug text-text-muted">{p.text}</span>
+            <span className="flex items-center gap-2 text-[15px] font-semibold text-text-base"><p.icon className={cn("size-4 shrink-0", p.tone)} aria-hidden />{p.name}</span>
+            <span className="mt-0.5 block text-[13px] leading-snug text-text-muted">{p.text}</span>
           </li>
         ))}
       </ul>
-      <p className="mt-4 flex items-center gap-2 text-sm text-text-muted"><Check className="size-4 shrink-0 text-success-text" aria-hidden /> That's it. Settings can show this again.</p>
+      <p className="mt-4 flex items-center gap-2 text-[15px] text-text-muted"><Check className="size-4 shrink-0 text-success-text" aria-hidden /> That's it. Settings can show this again.</p>
     </div>
   );
 }
