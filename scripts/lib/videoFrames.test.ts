@@ -50,6 +50,14 @@ describe("the frame reader", () => {
     expect(j.placed.get("Q8")).toEqual({ t: 3800 - 107, confidence: "medium" });
   });
 
+  it("doesn't take reads drifting a slack at a time for agreement", () => {
+    const ms: M[] = Array.from({ length: 3 }, (_, i) => ({ label: `Q${i + 1}`, epoch: 1000 + i * 400 }));
+    const j = judge(ms, new Map([[0, 1000], [1, 1400 + 6], [2, 1800 + 12]]), null, 10_000);
+    // Q1 and Q2 agree; Q3, 12 s above Q1, is a rise and is set aside.
+    expect([...j.placed.keys()]).toEqual(["Q1", "Q2"]);
+    expect(j.missing.get("Q3")).toMatch(/disagrees/);
+  });
+
   it("keeps the two reads that agree over a misread between them", () => {
     const ms: M[] = Array.from({ length: 3 }, (_, i) => ({ label: `Q${i + 1}`, epoch: 1000 + i * 400 }));
     const j = judge(ms, new Map([[0, 1000], [1, 1400 - 120], [2, 1800]]), null, 10_000);
