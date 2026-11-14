@@ -552,8 +552,8 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     const plural = /\b(?:matches|games|scores|upsets|comebacks|blowouts|routs|mismatches|underdogs|wins|losses|predictions|misses)\b/.test(said);
     const f: MatchFind = {
       // The current season is the one today is in.
-      // A match's number at Worlds in a year ("q6 at worlds 2026") is the championship held that year (2025–26).
-      measure: FIND[intent] ?? "high", season: eventSeason ?? (labelled && p.worlds && year != null ? year - 1 : placeSeason(p, scope.season, opts)), region: regionOf(p), level: p.level, finals: p.finals, kind,
+      // A match's number at Worlds or states in a year ("q6 at worlds 2026") is the championship held that year (2025–26).
+      measure: FIND[intent] ?? "high", season: eventSeason ?? (labelled && (p.worlds || p.states) && year != null ? year - 1 : placeSeason(p, scope.season, opts)), region: regionOf(p), level: p.level, finals: p.finals, kind,
       ...(["metric:win", "metric:loss", "outcome:W", "outcome:L"].some((s) => p.symbols.includes(s)) ? { decided: true } : {}),
       ...(scope.window ? { window: scope.window } : {}), n: p.n ?? (plural ? 10 : 5), ...(plural || p.n != null ? { list: true } : {}),
       ...(teamFind ? { team: { number: p.teams[0].number, name: p.teams[0].name } } : {}), ...(p.over != null ? { over: p.over } : {}),
@@ -584,7 +584,7 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     // Its note says what there's none of: matches, when nothing is played there yet; else the matches asked for.
     // A match's number: that match, where it was asked ("No 2026–27 Q6 at Worlds yet"), whatever else was played.
     const played = !/^From 0 /.test(a.stat?.source ?? "");
-    const noun = f.label ? `${labelText(f.label)}${f.kind ? ` at ${f.kind === WORLDS_KIND ? "Worlds" : "states"}` : ""}` : played ? MATCH_NOUN[f.measure] : "matches";
+    const noun = f.label ? `${labelText(f.label)}${f.kind ? ` at ${f.kind === WORLDS_KIND ? "Worlds" : f.kind === STATES_KIND ? "states" : f.kind.label.toLowerCase()}` : ""}` : played ? MATCH_NOUN[f.measure] : "matches";
     if (!events && (!p.time || (p.time.kind === "season" && p.time.relative === "this"))) return relaxed(a, defaultSteps(f.season, where, noun), (season) => card({ ...f, season }));
     return a;
   }
