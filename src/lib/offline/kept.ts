@@ -13,7 +13,7 @@ import { deviceOffline } from "./online";
 
 /** The reads kept (GET paths, query included). Event lists: a season's whole list only (`?season=`, and the event
  *  picker's `all=1` one), never a search as it's typed (offline, the whole list is narrowed instead). */
-export const KEPT_PATHS = /^\/api\/(events\?season=\d{4}(&all=1&limit=\d+)?$|events\/\d{4}\/[^/?]+\/pick-ratings$|shortlist\?|predict\/event\?|projections\/\d{4}\/[^/?]+(\?|$)|teams\/\d+(\/matches)?(\?|$)|scout\/workspaces\/[^/?]+\/alliances([/?]|$))/;
+export const KEPT_PATHS = /^\/api\/(events\?season=\d{4}(&all=1&limit=\d+)?$|events\/\d{4}\/[^/?]+\/pick-ratings$|shortlist\?|predict\/event\?|projections\/\d{4}\/[^/?]+(\?|$)|teams\/\d+(\/matches)?(\?|$)|scout\/workspaces\/[^/?]+\/alliances([/?]|$)|scout\/workspaces\/[^/?]+\/picklist\?season=\d+$)/;
 export const MAX_KEPT = 150;
 
 const INDEX = "cs-kept-answers";

@@ -37,6 +37,7 @@
 //   listed on its own as damaged, with only Discard, which removes that one record (audit V4-PRIVATE-001).
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { apiFetch, ApiError, isFeatureDisabled } from "./api";
+import { offlineSource } from "./offline/saved";
 import type { LiveMode } from "./scoutLive";
 import { applyPickOp, cleanNote, isPickList, MAX_OP_QUERY, NOTE_CHANGED, WRONG_ACCOUNT, type Pick, type PickList, type PickOp, type PickPerson } from "../shared/picklist";
 import { deleteDamagedOp, deleteKeptOp, KEPT_OPS_CHANGED, keptOps, newPageForTests, putKeptOp, readKeptOps, TAB_ID, type DamagedPickOp, type KeptPickOp } from "./picklistOps";
@@ -151,7 +152,10 @@ export interface FailedChange { id: number; op: Exclude<PickOp, { op: "note" }>;
   /** Kept from before this page (a reload, or another tab). */ restored?: boolean;
   /** What a Retry found that the member decides (see picklistConflict.ts). */ conflict?: PickConflict;
   /** Never sent as things are: another account is signed in, the workspace can't be reached as this one, or it's read-only. */
-  blocked?: "account" | "revoked" | "readonly" }
+  blocked?: "account" | "revoked" | "readonly";
+  /** It didn't go for want of a network (made with no signal): sent again by itself once the signal is back
+   *  (sendOfflineChanges), with its own op id, checked first like a Retry. */
+  offline?: boolean }
 
 // One write at a time per workspace's list, in the order they were made: a list's own changes and Retries of
 // kept ones join the same line, so an older change sent again can never land after a newer one and undo it.
@@ -266,10 +270,10 @@ function persist<T>(opId: string, fn: () => Promise<T>): Promise<T> {
   void settled.then(() => { if (storeLines.get(opId) === settled) storeLines.delete(opId); });
   return run;
 }
-interface Recordable { op: FailedChange["op"]; space: string; season: number; message: string; uncertain: boolean; base?: number[]; baseVersion?: number; at?: number; account: number; opId: string }
+interface Recordable { op: FailedChange["op"]; space: string; season: number; message: string; uncertain: boolean; base?: number[]; baseVersion?: number; at?: number; account: number; opId: string; offline?: boolean }
 const recordOf = (f: Recordable, state: KeptPickOp["state"]): KeptPickOp => ({
   account: f.account, space: f.space, season: f.season, opId: f.opId, op: f.op, at: f.at ?? Date.now(), base: f.base ?? [], baseVersion: f.baseVersion ?? 0,
-  state, tab: TAB_ID, ...(state === "kept" ? { message: f.message, uncertain: f.uncertain } : {}),
+  state, tab: TAB_ID, ...(state === "kept" ? { message: f.message, uncertain: f.uncertain, ...(f.offline ? { offline: true } : {}) } : {}),
 });
 const forget = (account: number | null, space: string, season: number, opId: string | undefined) => {
   if (account != null && opId) void persist(opId, () => deleteKeptOp(account, space, season, opId));
@@ -427,6 +431,30 @@ export async function retryKeptChanges(account: number | null, space: string, se
   }
 }
 
+/**
+ * Send again, by themselves, the changes that didn't go for want of a network (made with no signal), once there's a
+ * network again: each list's oldest first, through retryKeptChanges (its own op id, so one the server took already
+ * isn't applied twice; a conflict found on the way stops there and waits for the member, as a Retry would).
+ * Only the signed-in account's own (retryKeptChanges never sends another account's).
+ */
+let sendingOffline: Promise<void> | null = null;
+/** A pick list read found no network (or was answered from the kept copy) since the server last answered one. */
+let listUnreachable = false;
+export function sendOfflineChanges(): Promise<void> {
+  if (sendingOffline) return sendingOffline;
+  const scopes = new Map<string, { account: number | null; space: string; season: number }>();
+  for (const f of failedChanges.values()) {
+    if (!f.offline || f.busy || f.blocked || f.conflict || (signedInAccount !== undefined && f.account !== signedInAccount)) continue;
+    scopes.set(`${f.account}\n${f.space}\n${f.season}`, { account: f.account, space: f.space, season: f.season });
+  }
+  if (!scopes.size) return Promise.resolve();
+  sendingOffline = (async () => {
+    for (const s of scopes.values()) await retryKeptChanges(s.account, s.space, s.season).catch(() => {});
+  })().finally(() => { sendingOffline = null; });
+  return sendingOffline;
+}
+if (typeof window !== "undefined") window.addEventListener("online", () => { void sendOfflineChanges(); });
+
 /** Let go of every kept change of one list (damaged ones of it included). */
 export function discardKeptChanges(account: number | null, space: string, season: number) {
   for (const f of [...failedChanges.values()]) if (f.account === account && f.space === space && f.season === season && !f.busy) discardFailedChange(f.id);
@@ -466,7 +494,8 @@ async function syncKept(account: number, reconcile: boolean): Promise<void> {
     const id = ++failedSeq;
     failedChanges.set(id, {
       id, op: r.op, space: r.space, season: r.season, account: r.account, opId: r.opId, base: r.base, baseVersion: r.baseVersion, at: r.at,
-      message: r.state === "kept" && r.message ? r.message : NOT_SENT_BEFORE_RELOAD, uncertain: !!r.uncertain, stored: true, restored: true, ...more,
+      message: r.state === "kept" && r.message ? r.message : NOT_SENT_BEFORE_RELOAD, uncertain: !!r.uncertain, stored: true, restored: true,
+      ...(r.state === "kept" && r.offline ? { offline: true } : {}), ...more,
     });
     dirty = true;
   };
@@ -622,7 +651,12 @@ export function usePickList(space: string | null, season: number, live: LiveMode
       if (keyRef.current !== k) return;
       if (isPickList(r.list)) accept(r.list);
       setError(null);
+      // The list came from this device's kept copy (no signal); or the server answered after that: the signal is
+      // back, so changes made without it go up now.
+      if (offlineSource(r)) listUnreachable = true;
+      else if (listUnreachable) { listUnreachable = false; void sendOfflineChanges(); }
     } catch (e) {
+      if (e instanceof ApiError && e.offline) listUnreachable = true;
       if (keyRef.current === k) setError(e instanceof ApiError ? e : new ApiError(0, "Couldn't load the pick list."));
     } finally {
       if (keyRef.current === k) setLoading(false);
@@ -742,7 +776,7 @@ export function usePickList(space: string | null, season: number, live: LiveMode
             const blocked = blockOf(err) ?? (err.status === 409 ? "account" : undefined);
             const message = blocked ? BLOCKED_MESSAGE[blocked] : uncertain ? CHANGE_UNCONFIRMED : `Not saved: ${err.message}`;
             keepFailed({ op, space: p.space, season: p.season, account: p.account, message, uncertain, opId: p.opId, base: p.base, baseVersion: p.baseVersion, at: p.at,
-              ...(blocked ? { blocked } : {}) });
+              ...(blocked ? { blocked } : {}), ...(!blocked && err.offline ? { offline: true } : {}) });
             if (keyRef.current === k && !uncertain) refused.current(`Not saved: ${err.message}`);
           }
           if (keyRef.current === k) void refetch.current();

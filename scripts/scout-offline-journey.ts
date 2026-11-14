@@ -63,6 +63,12 @@ async function main() {
   check("offline: /scout opens with the event picker and the saved event", pickerOk && !BAD.test(await text(page)), (await text(page)).slice(0, 160), Date.now() - t0);
   await shot(page, "1-scout-offline-picker");
   if (!pickerOk) return finish();
+  await page.waitForTimeout(1500);
+  const dialog = page.locator("[role=dialog]");
+  // A new test account is asked to finish signing up first: "Browse first" puts it off.
+  const later = page.getByRole("button", { name: "Browse first" });
+  if (await later.isVisible().catch(() => false)) await later.click();
+  console.log("  kept note on the picker:", await page.locator("[data-offline-kept]").count());
   await saved.click();
   await page.waitForTimeout(1500);
   await shot(page, "2-scout-offline-event");
@@ -143,6 +149,9 @@ async function main() {
     const here = mine.filter((e) => e.eventCode?.toUpperCase() === "AUBRQ1");
     const uuids = new Set(here.map((e) => e.uuid));
     check("online again: the server holds each entry exactly once", here.length === nTeams && uuids.size === here.length, `${here.length} on the server, ${uuids.size} distinct`);
+    const state = await page.evaluate(async () => (await (await fetch("/api/me/state")).json()).state as { bookmarks?: { value: number[] } });
+    const marks = state.bookmarks?.value ?? [];
+    check("online again: the shortlist synced, each team once", addTeams.every((t) => marks.filter((x) => x === t).length === 1), JSON.stringify(marks));
   }
   await shot(page, "8-online-again");
   await finish();

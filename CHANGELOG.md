@@ -15,6 +15,32 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 6.0.5 — 2026-11-14
+
+Scouting works with no signal: open Scout, pick your downloaded event, scout matches, build your shortlist and use the pick helper offline. Everything is saved on the phone and syncs once when you're back online.
+
+### Highlights
+- [offline] Scout opens with no signal and lists the events on your phone
+- [offline] Shortlist and pick helper work offline, showing when loaded
+- [scout] Saved on this device · will sync, instead of an offline warning
+- [picklist] Pick list changes made offline sync by themselves, once each
+
+### Added
+- The last answer to each read the scouting pages need is kept on the device (`src/lib/offline/kept.ts`): the season's event list, an event's pick ratings and projections, shortlist rows, team profiles and matches, the scouting alliance views and the workspace pick list. Per account; at most 150; the server's own JSON, never recomputed. With no signal (or no answer in 4 s) the kept answer is shown with "Offline: last loaded on this device at …", and the page asks the server again once it's back (`src/lib/offline/scoutReads.ts`).
+- Scout's event picker lists the events downloaded to this device under "Saved on this device", one tap to scout, signal or not; with no signal the event list is the last one loaded plus every downloaded event.
+- When an event bundle downloads (and each time Scout or the shortlist opens with signal, at most every 30 minutes), the reads Scout needs at that event are fetched and kept: the event list, pick ratings, projections and every team's shortlist row (`src/lib/offline/warm.ts`). A team added to the shortlist with no signal shows its stats; one never loaded shows its name and place, with no made-up numbers.
+- The pick helper offline uses the last pick ratings loaded (the server's own answer); the radar math is the same function online and offline (`src/shared/pickRadar.ts`).
+- `scripts/scout-offline-journey.ts`: journey 5 of the offline brief on a production build, through a local proxy that cuts the network for the service worker too (`scripts/lib/netSwitch.ts`).
+
+### Changed
+- Scout's sync chip says "Saved on this device · N will sync" with no signal (it said "Offline — N pending" with a warning icon); signed out it says "Saved on this device". The shortlist says the same while it waits to sync.
+- Shared pick list order changes that didn't go for want of a network are sent again by themselves once the signal is back (they waited for Retry): each with its own op id, checked against the list first like a Retry, so none lands twice and a conflict still waits for you.
+
+### Tests
+- An entry pushed twice (an offline replay) is stored once, and an older copy sent late never replaces the newer one (server).
+- Entries saved offline survive a reload and go up once each, under the ids they were made with; a lost answer retries the same ids.
+- Kept answers: per account, capped, marked offline; the event list gains bundled events; the shortlist lists every team asked for.
+
 ## 6.0.4 — 2026-11-14
 
 A new first-visit onboarding: four short steps on Home that show what Control Scout does, set up your team, and point to search and the main places.

@@ -39,7 +39,7 @@ export default function ShortlistPage() {
   useTitle("Shortlist");
   // While there's signal: the shortlist rows of every team at the events downloaded here, kept for the venue.
   useEffect(() => { void warmScoutReads(); }, []);
-  const { state, update, stored, user } = usePersonal();
+  const { state, update, stored, user, sync, offlineAccount } = usePersonal();
   const current = useCurrentSeason();
   const [sp, setSp] = useSearchParams();
   const season = Number(sp.get("season")) || current;
@@ -122,7 +122,8 @@ export default function ShortlistPage() {
     detail: <TeamDetail t={t} season={season} rank={rank} total={shown.length} topPicks={shown.slice(0, MAX_COMPARE)} onMove={(d) => reorder.moveBy(t.team, d)} onRemove={() => remove(t.team)} />,
   });
 
-  const synced = user ? "Synced to your account." : <>Saved on this device; <Link to="/settings?section=profile" className="underline">sign in</Link> to sync.</>;
+  // No signal: the change is on this device and goes up by itself once it's back (lib/personal.tsx's queue).
+  const synced = user ? (offlineAccount || sync === "offline" ? "Saved on this device · syncs when you're back online." : "Synced to your account.") : <>Saved on this device; <Link to="/settings?section=profile" className="underline">sign in</Link> to sync.</>;
   if (!list.length) {
     // A first visit: what the list is for, how to fill it, and everything it can do once it has picks.
     return (

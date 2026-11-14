@@ -274,6 +274,21 @@ describe("an order change", () => {
     expect(allPending()).toEqual([]);
   });
 
+  it("made with no signal: goes up by itself once the signal is back, once, with its own op id", async () => {
+    await ready();
+    getsFail = true; dropPosts = 99; // no network at all: the change can't go, nor can the list be read
+    fireEvent.keyDown(screen.getByRole("button", { name: /Reorder 102/ }), { key: "ArrowUp" });
+    await waitFor(() => expect(allPending()).toHaveLength(1));
+    const sentWith = ids.at(-1)!.opId;
+    getsFail = false; dropPosts = 0; // the signal is back
+    act(() => { window.dispatchEvent(new Event("online")); });
+    await waitFor(() => expect(server.picks.map((p) => p.team)).toEqual([102, 101]));
+    await waitFor(() => expect(allPending()).toEqual([]));
+    const moves = ids.filter((_, i) => posts[i].op === "move");
+    expect(moves.every((x) => x.opId === sentWith)).toBe(true);
+    expect(appliedIds.size).toBe(1);
+  });
+
   it("survives closing the list (switching view, workspace or season), and Retry sends it to its own workspace and season", async () => {
     const view = show();
     await waitFor(() => expect(rows()).toEqual([101, 102]));
