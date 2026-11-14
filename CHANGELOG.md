@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 6.1.3 — 2026-11-14
+
+Rhode Island, New York City, Long Island and Ontario events now play their recordings from the region's own channels, back to 2022: 76 checked recordings, with restarted broadcasts as Part 1 and Part 2.
+
+### Highlights
+- [history] NYC qualifiers and championships play recordings from 2022
+- [history] Rhode Island qualifiers and championships back to 2023
+- [history] Long Island and Ontario events gain their missing recordings
+- [live] Five more channels join the auto-watcher for their next events
+
+### Added
+- Official videos: Rhode Island FTC, NYC FIRST, FIRST Long Island, FTC Ontario and Town of Penfield Television (ids read from the YouTube Data API) join the official channels and the auto-watcher's list, each for its own region's events only (Penfield for upstate NY Excelsior events). 76 recordings are checked against each event's name, number, city, date and division: 45 NYC, 15 Rhode Island, 10 Long Island and 6 Ontario (Ottawa 2024, the 2026 Provincial Championship and the Canada Cup's two divisions, both days). Videos FIRST's event pages already link, titles whose date or number disagrees with the broadcast, uploads with no broadcast date and Penfield's edits of days NY Excelsior already covers are left out. (`server/data/officialVideos.json`, `server/data/officialChannels.ts`, `docs/official-videos.md`) (#1483)
+
 ## 6.1.2 — 2026-11-14
 
 West Michigan's league meets at GVSU now play their streams from the FIRST Alumni Network Grand Valley, and Saturday's Meet 5 shows its stream before, during and after it airs. Scout also watches the Central Ohio league's own streamer for its next meets.
@@ -38,7 +51,6 @@ Missouri and Kansas events now play their recordings from the region's two strea
 
 ### Added
 - Official videos: FIRST in Missouri (`UCoo2NYUOcTUZB65dGMAp1vg`) and FIRST MOKS (`UCy_GHfjX6LsALdrIceg8_pw`), both read from the YouTube Data API's uploads lists, join the official channels and the auto-watcher's list for Missouri and Kansas events. 103 of their recordings are checked against each event's name, venue, city, date, league and session ("FTC Meet @ Belton 8AM (2026-11-7)" is "Belton Meet @ 8 AM"): 14 from FIRST in Missouri (St. Louis North, Mid and South meets and tournaments since 2023, and the four meets of 2026-11-14, listed before they air) and 89 from FIRST MOKS (Kansas City meets, league tournaments, super qualifiers and championships since 2019). An alternate feed, a second upload of a day, a title fitting two meets, undated uploads, one video for two meets, a venue that isn't the event's, a video that can't be embedded and streams that never aired are left out. (`server/data/officialVideos.json`, `server/data/officialChannels.ts`, `docs/official-videos.md`) (#1477)
-
 
 ## 6.1.0 — 2026-11-14
 
