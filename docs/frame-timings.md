@@ -37,16 +37,39 @@ the first and last match a video holds, and the middle of any stretch whose ends
 about 2 log n reads. `placed` then keeps the longest run of reads that never rise (dropping misreads such as a replay
 or an overlay left on the previous match) and fills each stretch between two reads that agree.
 
-A match is kept only where a read saw it, or where two agreeing reads hold it between them. A match in a gap (the
-stream was off) stays without a clip.
+## Two signals, never one
+
+No match is placed on one signal alone.
+
+1. **Each read is checked before and after its start.** A read gives a match and its start. 70 s later (TeleOp) the
+   overlay must name the same match and its timer give the same start, within 6 s; 25 s before the start, that match
+   mustn't be running yet. A read that fails either is dropped. This catches a wrong match number on screen for a few
+   seconds, a replay, or a digit read wrong.
+2. **The clock is the anchor, the frames must agree with it.** `judge` keeps the longest run of reads that never rise
+   (as above), then groups them into stretches that agree on how far the video sits from the clock:
+   - a stretch of two or more reads places its reads (**high** confidence) and every match between them (**medium**:
+     filled, not read);
+   - a stretch of one read is placed only when the broadcast's own clock (YouTube's start, where the video kept it)
+     agrees with it (high). Otherwise it is one signal only, and goes to **review**.
+3. **Plausible or review.** Placed starts must be inside the video, in match order, and at least a match (2:38) apart.
+   Any that aren't go to review.
+4. **Missing, with the reason.** Every other match of the video gets a reason: its read disagreed with the matches
+   around it, its frames didn't confirm a start, it sits in a gap whose two sides disagree (the stream may have been
+   off), no frame of the video could be read, or no read near it.
+
+A gap in one stretch doesn't stop the day: the next read that agrees with another starts a new stretch.
+
+Only `starts` become clips. `review` (with the start found and why) and `missing` (with why) are written per video for
+the owner's review list; review starts are never shown as clips, and nothing is dropped without a reason.
 
 A video where three matches in a row give no read, and nothing has been read yet, counts as one without the overlay
-and is left. Any video gets at most 4 reads per match (40 at least).
+and is left. Any video gets at most 4 reads per match (40 at least), plus two to confirm each read.
 
 ## Where the timings live
 
 `server/data/frameTimings.ts`: one row per recording and event, `starts` mapping each match label to the second its
-timer starts in the video. The server checks it before the clock model: a framed match gets its clip at that second
+timer starts in the video; `medium` the placed matches filled rather than read; `review` and `missing` as above
+(`frameReview`, `frameMissing`, `frameConfidence` read them). The server checks it before the clock model: a framed match gets its clip at that second
 less the usual lead-in. An event with any framed played match counts as having clips in the events list, and so does
 its parent championship.
 
