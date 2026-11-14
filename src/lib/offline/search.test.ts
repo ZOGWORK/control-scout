@@ -8,6 +8,13 @@ import { gzipSync } from "node:zlib";
 import { createHash } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { downloadBundle, removeBundle } from "./bundles";
+
+// A hook into reading a saved pack (the decode respond() races the server with), for what happens meanwhile.
+const decode = vi.hoisted(() => ({ during: null as null | (() => Promise<void>) }));
+vi.mock("./bundles", async (importOriginal) => {
+  const m = await importOriginal<typeof import("./bundles")>();
+  return { ...m, loadBundle: async (...a: Parameters<typeof m.loadBundle>) => { const f = decode.during; decode.during = null; await f?.(); return m.loadBundle(...a); } };
+});
 import { packSearchSaved, writeBundles } from "./bundleMeta";
 import { offlineAnswer } from "./answer";
 import { offlineSource } from "./saved";
@@ -142,5 +149,20 @@ describe("search with no signal, from a saved event pack", () => {
     // No network at all: the part the pack holds still answers.
     vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("Failed to fetch"); }));
     expect(await apiFetch(`/api/teams-summary?season=${S}&teams=12,4215`)).toEqual({ season: S, teams: [summary(12)] });
+  }, 30_000);
+
+  it("lib/api.ts: whether the server is up is decided when the offline timeout fires, not after the pack is read", async () => {
+    const { apiFetch } = await import("../api");
+    const server = { season: S, teams: [summary(12, 99), summary(4215, 99)] };
+    vi.stubGlobal("fetch", vi.fn((url: string) => {
+      if (String(url).startsWith("/api/broken")) return Promise.reject(new TypeError("Failed to fetch"));
+      if (!String(url).startsWith("/api/teams-summary")) return Promise.resolve(new Response("{}"));
+      return new Promise<Response>((r) => setTimeout(() => r(new Response(JSON.stringify(server))), 5500));
+    }));
+    await apiFetch("/api/health");
+    // Another read fails for want of a network while the pack is read: the server was up when this one ran out of time.
+    decode.during = async () => { await apiFetch("/api/broken").catch(() => {}); };
+    expect(await apiFetch(`/api/teams-summary?season=${S}&teams=12,4215`)).toEqual(server);
+    expect(decode.during).toBeNull();
   }, 30_000);
 });

@@ -228,13 +228,16 @@ async function respond<T>(request: Promise<Response>, kind: "saved" | "lite" | "
   const deadline = new Promise<typeof TIMED_OUT>((r) => { timer = setTimeout(() => r(TIMED_OUT), OFFLINE_TIMEOUT_MS); });
   const first = await Promise.race([request, deadline]).finally(() => clearTimeout(timer));
   if (first !== TIMED_OUT) return first;
+  // Whether the server is up, decided now: other requests settling while the saved answer is read (a pack decode)
+  // can change serverUp() meanwhile.
+  const up = serverUp();
   noteRequestFailed(); // no answer in time: the connection check finds out whether there's any internet
   if (kind === "lite" || kind === "snapshot") { ctrl.abort(); throw unreachable(); }
   // A search asked before anything else answered (the page's first request), while the server has answered
   // something since: slow, not offline. It gets up to SEARCH_SLOW_MS in all, then one more try as any search while
   // the server is up (apiFetch, searchOnline); saved data never answers.
   // Not when a saved event pack answers searches: no answer in OFFLINE_TIMEOUT_MS is no signal for it, as for any read.
-  if (SEARCH_PATH.test(path) && serverUp() && !packSearchSaved(path)) {
+  if (SEARCH_PATH.test(path) && up && !packSearchSaved(path)) {
     const more = await Promise.race([request, new Promise<typeof TIMED_OUT>((r) => { timer = setTimeout(() => r(TIMED_OUT), SEARCH_SLOW_MS - OFFLINE_TIMEOUT_MS); })]).finally(() => clearTimeout(timer));
     if (more !== TIMED_OUT) return more;
     ctrl.abort();
@@ -252,7 +255,7 @@ async function respond<T>(request: Promise<Response>, kind: "saved" | "lite" | "
   if (won.data == null) return request;
   // A search the packs can't answer while the server answers other requests: slow, not offline. It's waited for as
   // any slow search is: up to SEARCH_SLOW_MS in all, then one more try (searchOnline), then said to be slow.
-  if (SEARCH_PATH.test(path) && serverUp() && (won.data as { notInPack?: unknown }).notInPack) {
+  if (SEARCH_PATH.test(path) && up && (won.data as { notInPack?: unknown }).notInPack) {
     const more = await Promise.race([request, new Promise<typeof TIMED_OUT>((r) => { timer = setTimeout(() => r(TIMED_OUT), SEARCH_SLOW_MS - OFFLINE_TIMEOUT_MS); })]).finally(() => clearTimeout(timer));
     if (more !== TIMED_OUT) return more;
     ctrl.abort();
@@ -261,7 +264,7 @@ async function respond<T>(request: Promise<Response>, kind: "saved" | "lite" | "
   // The team cards' numbers when the packs hold only some of the teams asked, while the server answers other
   // requests: the server's answer, which has them all, is waited for (with no network the pack's part still answers,
   // offlineOr).
-  if (SUMMARY_PATH.test(path) && serverUp() && !summaryWhole(path, won.data)) return request;
+  if (SUMMARY_PATH.test(path) && up && !summaryWhole(path, won.data)) return request;
   ctrl.abort();
   return { saved: won.data as T };
 }
