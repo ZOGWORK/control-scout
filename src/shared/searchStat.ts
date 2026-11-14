@@ -110,7 +110,9 @@ export type StatBlock =
       eventHref?: string;
       /** A match row's two alliances, as team chips in their alliance colours, and which won (the official result,
        *  penalties included; null on a tie). */
-      teams?: { red: StatLink[]; blue: StatLink[] }; winner?: "red" | "blue" | null }[]; more?: string }
+      teams?: { red: StatLink[]; blue: StatLink[] }; winner?: "red" | "blue" | null }[]; more?: string;
+      /** Matches still to play (scheduled, not played): no video is expected of them. */
+      upcoming?: boolean }
   /** A value over time (events or seasons, oldest first): drawn as a line. */
   | { kind: "series"; title: string; unit?: string; points: { x: string; y: number | null; href?: string; note?: string }[] }
   /** Values as horizontal bars (phase split, two teams side by side). */
