@@ -170,6 +170,10 @@ describe("the watcher's matcher", () => {
       ev("USTXNINLT", "FiT-North I&N Tournament", { ...day, type: "LeagueTournament", city: "Richardson" })];
     const v = matchVideo(vid("FIRST Tech Challenge- Into the Deep: Hill Country & North SA League Meet 2", { start: "2024-12-14T16:00:00Z" }), { region: "state=TX", words: "texas fit" }, events);
     expect(v).toMatchObject({ kind: "review", why: /fits both USTXCAM3 and USTXCAM4/ });
+    // Also when the channel's own words take the shared prefix away ("central") and "SA" leaves San Antonio half said.
+    const two = matchVideo(vid("FIRST Tech Challenge- Into the Deep: Hill Country & North SA League Meet 2", { start: "2024-12-14T16:00:00Z" }),
+      { region: "state=TX", words: "texas fit central ctx" }, events.slice(0, 2));
+    expect(two).toMatchObject({ kind: "review", why: /fits both/ });
   });
 
   it("sets aside a short video that names no event: an upload, a call, a team's reel", () => {
