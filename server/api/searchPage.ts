@@ -6,14 +6,9 @@
 // The event pack (server/packs/eventApi.ts) calls the same two for the queries people type at a meet, so a search
 // with no signal shows the server's own answer (docs/event-bundle.md).
 import type { SearchAnswer } from "../../src/shared/api.js";
-import { SEARCH_PAGE_LIMIT } from "../../src/shared/search.js";
-import { teamParts } from "../../src/shared/searchPage.js";
 import { pageAnswer } from "./answers/followUps.js";
 import { mineAnswer } from "./searchMine.js";
-import { loneTeamHit } from "./searchLayers.js";
-import { teamHighlights } from "./answers/highlights.js";
-import { withEventParents } from "./searchEvents.js";
-import { withTeamStats } from "./searchTeamStats.js";
+import { answerHits, withHighlights } from "./searchPageAnswer.js";
 import { answerVideo } from "./answers/video.js";
 import type { Viewer } from "../videos/contributors.js";
 
@@ -33,12 +28,11 @@ export async function typedPageAnswer(q: string, limit: number, prefer: Readonly
  * highlights. `contributor`: the answer carries such a video (never cached then).
  */
 export async function finishPageAnswer(ans: SearchAnswer, limit: number, viewer: Promise<Viewer>): Promise<{ body: SearchAnswer; contributor: boolean }> {
-  const lone = limit >= SEARCH_PAGE_LIMIT ? loneTeamHit(ans) : undefined;
-  const highlights = lone ? await teamHighlights({ number: Number(lone.ref), name: teamParts(lone.title)?.name ?? null }, lone.linkSeason).catch(() => null) : null;
-  const full = highlights ? { ...ans, stat: highlights } : ans;
+  // The highlights and the rows as Control Scout Lite's search page reads them too (./searchPageAnswer.ts).
+  const full = await withHighlights(ans, limit);
   // Its video (./answers/video.ts): one read for the whole answer, beside the team rows'.
   const who = await viewer;
-  const [hits, video] = await Promise.all([withEventParents(full.hits).then(withTeamStats), answerVideo(full, Date.now(), who).catch(() => undefined)]);
+  const [hits, video] = await Promise.all([answerHits(full.hits), answerVideo(full, Date.now(), who).catch(() => undefined)]);
   const contributor = !!video && (video.main?.kind === "contributor" || Object.values(video.rows ?? {}).some((x) => x.kind === "contributor"));
   return { body: { ...full, hits, ...(video ? { video } : {}) }, contributor };
 }

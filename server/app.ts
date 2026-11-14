@@ -13,23 +13,16 @@ import { CURRENT_SEASON, SEASONS, SEASON_NUMBERS, isLegacy, seasonInfo } from ".
 import { ensureSearchIndex, search } from "./api/search.js";
 import { MAX_QUERY, cleanQuery, learnQuery, searchAnswer } from "./api/searchAnswer.js";
 import { myTeamOf } from "../src/shared/searchMine.js";
+import { pickedQuery, pickedSeasonOf } from "./api/searchPageAnswer.js";
 import { keptFollowUps } from "./api/answers/followUps.js";
 import { finishPageAnswer, typedPageAnswer } from "./api/searchPage.js";
 import { relatedPage } from "./api/answers/relatedPage.js";
-import { withSeason } from "./api/answers/season.js";
 import { refine } from "./api/searchBruno.js";
 import { brunoAnswer } from "./api/searchBrunoAnswer.js";
 import { SEARCH_PAGE_LIMIT } from "../src/shared/search.js";
 import { searchTiming } from "./api/searchTiming.js";
 
 /** A search's preferred teams and events (?prefer=team:4215,event:2025:USNJCMP), the visitor's own: ranked first. */
-/** ?season=2024 (the answer's season picker): the query asked about that season instead, whatever season it names
- *  (server/api/answers/season.ts withSeason). A season search holds no data for is ignored. */
-const pickedSeasonOf = (raw: unknown): number | null => { const s = Number(raw); return SEASON_NUMBERS.includes(s) ? s : null; };
-const pickedQuery = async (rawQ: unknown, rawSeason: unknown): Promise<string> => {
-  const q = String(rawQ ?? ""), s = pickedSeasonOf(rawSeason);
-  return s != null && q.trim() ? withSeason(q.slice(0, MAX_QUERY), s) : q;
-};
 const preferOf = (raw: unknown) => new Set(String(raw ?? "").split(",").filter((k) => /^(team:\d{1,6}|event:\d{4}:[A-Z0-9_-]{2,24})$/i.test(k)).slice(0, 100));
 import { recordClick } from "./api/searchLearn.js";
 import { recordIntent } from "./api/searchIntents.js";
@@ -1010,6 +1003,9 @@ export function createApp(opts: { dist?: string; /** Tests only: a smaller searc
   app.get(/^\/search\/?$/i, searches);
   // Light pages for a weak signal (server/lite/, docs/lite.md): /lite/…, and ?lite=1 on a rich page's address.
   app.use(liteSwitch);
+  // Lite's search counts against the same search limit; its predictions, comparisons and rankings like the API's.
+  app.get(/^\/lite\/search\/?$/i, searches);
+  app.get(/^\/lite\/(predict|compare|rankings)\/?$/i, limiter(120));
   app.use("/lite", liteRouter());
   // The sitemap, from the database (server/sitemap.ts).
   app.get("/sitemap.xml", h(sitemapRoute));

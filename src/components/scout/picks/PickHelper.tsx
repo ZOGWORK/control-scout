@@ -7,6 +7,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { CalendarSearch, Check, Plus, Radar, RefreshCw, Undo2, X } from "lucide-react";
 import { useApi } from "../../../lib/api";
+import { OfflineNote } from "../../OfflineNote";
 import { EmptyState } from "../../page";
 import { LoadingBlock } from "../../states";
 import { Button } from "../../ui/button";
@@ -59,7 +60,9 @@ export function PickHelper({ season, eventCode, myTeam, onPickEvent }: {
     );
   }
   if (!data.data) return <LoadingBlock rows={3} label="Loading ratings" />;
-  return <PickBoard d={data.data} myTeam={myTeam} sp={sp} setSp={setSp} onRefresh={() => void data.reload()} />;
+  // No signal: the last ratings this device loaded (lib/offline/kept.ts), said with their time; the radar math is the
+  // same function online and offline (src/shared/pickRadar.ts runs here either way).
+  return <><OfflineNote data={data.data} /><PickBoard d={data.data} myTeam={myTeam} sp={sp} setSp={setSp} onRefresh={() => void data.reload()} /></>;
 }
 
 /** How often an open pick helper asks for the posted alliances again. */

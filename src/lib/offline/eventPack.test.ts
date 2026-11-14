@@ -6,6 +6,8 @@ import "fake-indexeddb/auto";
 import { gzipSync } from "node:zlib";
 import { createHash } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+// A download warms the scouting reads in the background (warm.ts, its own tests): kept out of these fetch counts.
+vi.mock("./warm", () => ({ warmScoutReads: async () => {} }));
 import { downloadBundle, fetchBundleManifest, removeBundle } from "./bundles";
 import { bundleCanAnswer, writeBundles } from "./bundleMeta";
 import { OfflineAnswerError, offlineAnswer } from "./answer";
