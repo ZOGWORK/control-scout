@@ -48,7 +48,7 @@ const tally = <T,>(xs: T[], k: (x: T) => string) => { const t = new Map<string, 
 const missing = matches.filter((x) => !x.m.clip);
 const byState = tally(events, (e) => e.c.state);
 const byReason = tally(missing, (x) => x.m.why!.replace(/ \(.*\)$/, "").replace(/^Video .* shorter than its broadcast.*$/, "Video shorter than its broadcast, missing time can't be placed").replace(/^No recording for \w+$/, "No recording for that day"));
-const byBasis = tally(matches.filter((x) => x.m.clip), (x) => (x.m.basis ?? "?").replace(/up to \d+ min early/, "up to 15 min early"));
+const byBasis = tally(matches.filter((x) => x.m.clip), (x) => (x.m.basis ?? "?").replace(/up to \d+ min early/, "up to 15 min early").replace(/its first .* cut off/, "its start cut off"));
 const oneSignal = matches.filter((x) => x.m.clip && /^clock only/.test(x.m.basis ?? ""));
 
 const teams = (m: CoverageMatch) => (m.teams?.length ? `${m.teams.slice(0, m.teams.length / 2).join(" ")} v ${m.teams.slice(m.teams.length / 2).join(" ")}` : "");
