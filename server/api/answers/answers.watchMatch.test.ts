@@ -282,8 +282,9 @@ describe("questions with video", () => {
     // An answer about an event in seasons with no clips: the latest seasons' best known events with clips instead.
     const away = { ...a, stat: { ...a.stat!, team: undefined, headline: { value: "40", label: "Q1", href: "/events/2024/USNJQ0?match=qual:0:1" }, blocks: [] } };
     expect(await videoCandidates(away, NOW)).toContain("Massachusetts Championship highlights 2025-26");
-    // And none at all when every event with clips reads like a typo: never an empty question, never a typo.
-    expect(await videoCandidates(away, NOW, async () => new Set(["massachusetts", "edison"]))).toEqual([]);
+    // Every event with clips reading like a typo, or the typos unknown: the general question, never a typo.
+    expect(await videoCandidates(away, NOW, async () => new Set(["massachusetts", "edison"]))).toEqual(["highest score with video"]);
+    expect(await videoCandidates(away, NOW, async () => { throw new Error("busy"); })).toEqual(["highest score with video"]);
     const none = { ...a, stat: { ...a.stat!, none: "No played matches with video" } };
     const out = await withVideoAlternatives("4215 matches with video", none, undefined, (q) => searchAnswer(q, { learn: false, limit: 25 }), (b) => answerVideo(b, NOW), 5000);
     const offered = out.stat?.blocks.find((b) => b.kind === "related" && b.title === "Questions with video");
