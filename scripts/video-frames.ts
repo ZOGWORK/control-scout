@@ -283,7 +283,8 @@ const report: string[] = [];
 /** Write the timings kept so far (after each event, so a run cut short keeps what it read). A file another program
  *  holds open for a moment (an editor, git, a test run reading it) only delays the write: it's tried again, and if it
  *  still can't be written the next event's save writes everything kept. */
-function save() {
+let unsaved = false;
+function save(): void {
   if (CHECK || DRY) return;
   const file = "server/data/frameTimings.ts";
   for (let tries = 1; ; tries++) {
@@ -292,9 +293,10 @@ function save() {
       const list = [...kept.values()].sort((a, b) => a.code.localeCompare(b.code) || a.videoId.localeCompare(b.videoId));
       const rows = list.map((f) => `  ${JSON.stringify(f)},`).join("\n");
       writeFileSync(file, `${head}// --- Data (scripts/video-frames.ts writes from here on) ---\nexport const FRAME_TIMINGS: FrameTiming[] = [\n${rows}\n];\n`);
+      unsaved = false;
       return;
     } catch (e) {
-      if (tries >= 5) { console.error(`couldn't write ${file} (${(e as Error).message.split("\n")[0]}): the next save tries again`); return; }
+      if (tries >= 5) { unsaved = true; console.error(`couldn't write ${file} (${(e as Error).message.split("\n")[0]}): the next save tries again`); return; }
       Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 500 * tries);
     }
   }
@@ -368,7 +370,11 @@ async function doCode(code: string): Promise<void> {
     // The matches this video holds: inside its broadcast, or, with no broadcast start (an upload), every match no other video holds.
     const mine = played.filter((x) => !held.has(x.label) && (from == null ? !videos.some((o) => o !== v && o.meta?.start && Date.parse(o.meta.start) / 1000 <= x.epoch && (!o.meta.end || x.epoch <= Date.parse(o.meta.end) / 1000))
       : from <= x.epoch && (!m.end || x.epoch <= Date.parse(m.end) / 1000)));
-    if (!mine.length) continue;
+    if (!mine.length) {
+      // Its matches are another video's (FIRST's link and an organiser's recording of the same day): read, with none.
+      if (!CHECK && !kept.has(`${v.videoId}|${code}`)) kept.set(`${v.videoId}|${code}`, { videoId: v.videoId, code, checked: today, starts: {} });
+      continue;
+    }
     // Made inside the try: a browser that can't open a page fails this video, not the run.
     let page: Page | null = null;
     try {
@@ -433,7 +439,12 @@ await Promise.all(Array.from({ length: count("lanes", 3) }, lane));
 await browser.close();
 await worker.terminate();
 await digits.terminate();
-if (!CHECK && !DRY) console.log(`wrote ${kept.size} videos to server/data/frameTimings.ts`);
+if (!CHECK && !DRY) {
+  // The last save may have failed with no save after it: the run then says so and fails.
+  if (unsaved) save();
+  if (unsaved) { console.error("server/data/frameTimings.ts could not be written: this run's timings are lost"); process.exitCode = 1; }
+  else console.log(`wrote ${kept.size} videos to server/data/frameTimings.ts`);
+}
 mkdirSync(".data", { recursive: true });
 writeFileSync(".data/video-frames-report.txt", report.join("\n"));
-process.exit(0);
+process.exit(process.exitCode ?? 0);
