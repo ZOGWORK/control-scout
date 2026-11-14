@@ -104,6 +104,21 @@ describe("clipCoverage", () => {
     expect(c3.matches[0]).toMatchObject({ clip: false, reason: "video-unread", why: "YouTube didn't give the video's length", videoId: "NOLENGTHv01" });
   });
 
+  it("counts a match with no real start in the part of its day whose broadcast holds its schedule", () => {
+    const p1 = meta("PARTONEvid1", "2026-03-07T09:00:00Z", "2026-03-07T12:00:00Z", 10_800), p2 = meta("PARTTWOvid1", "2026-03-07T13:00:00Z", "2026-03-07T18:00:00Z", 18_000);
+    const r: Recording = { videoId: p1.videoId, meta: p1, source: "official", daily: true, more: [{ videoId: p2.videoId, meta: p2, part: "Part 2" }] };
+    const late = { ...m("Q9", "2026-03-07T15:00:00"), time: "2026-03-07T15:00:00", startsAt: "2026-03-07T15:00:00Z" };
+    const c4 = clipCoverage([m("Q1", "2026-03-07T10:00:00"), late], r, r, "UTC", NOW);
+    expect(c4.matches[1]).toMatchObject({ reason: "no-start", videoId: "PARTTWOvid1" });
+    expect(c4.videos.map((v) => [v.videoId, v.matches, v.clipped])).toEqual([["PARTONEvid1", 1, 1], ["PARTTWOvid1", 1, 0]]);
+  });
+
+  it("never says a length matched when it couldn't be compared (still live, or no end)", () => {
+    const live = { ...meta("LIVEvideo01", "2026-03-06T13:00:00Z", "", 0), end: null, length: null, live: true };
+    const l = clipCoverage([m("Q1", "2026-03-06T14:00:00")], { videoId: live.videoId, meta: live, source: "first" }, null, "UTC", Date.parse("2026-03-06T16:00:00Z"));
+    expect(l.matches[0]).toMatchObject({ clip: true, basis: "clock, broadcast still live" });
+  });
+
   it("says spans in hours and minutes", () => {
     expect([span(900), span(4520), span(14_400)]).toEqual(["15 min", "1 h 15 min", "4 h"]);
   });
