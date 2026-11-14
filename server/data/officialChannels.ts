@@ -16,6 +16,11 @@ export const OFFICIAL_CHANNELS: OfficialChannelSeed[] = [
   { channelId: "UCLUm2x7V8sSX_A92rEMz64g", title: "FTC European Premier Event", region: "country=Netherlands", words: "european" },
   { channelId: "UCuKBMd9RaQ78QfdgBQor3nA", title: "FIRST Chesapeake", region: "state=VA,MD,DC", words: "chesapeake chs" },
   { channelId: "UCpQ3aglvLAj6m7j2eSnhJZg", title: "FTC Iowa", region: "state=IA", words: "iowa", titlePattern: "iowa" },
+  // FIRST in Missouri (the Missouri/Kansas partner) streams the St. Louis leagues, the Southeast and Southwest leagues and
+  // the championship; FIRST MOKS streams the Kansas City meets one session at a time ("8AM", "1030AM", "1PM", as
+  // Scout's meet names give them). Channel ids from the YouTube Data API (forHandle), 2026-11-14.
+  { channelId: "UCoo2NYUOcTUZB65dGMAp1vg", title: "FIRST in Missouri", region: "state=MO,KS", words: "missouri kansas fimo stl" },
+  { channelId: "UCy_GHfjX6LsALdrIceg8_pw", title: "FIRST MOKS (Missouri/Kansas)", region: "state=MO,KS", words: "missouri kansas moks" },
   { channelId: "UCFGmQAl2O4T-NmVh4kSDMlg", title: "Hawaii FIRST Robotics", region: "state=HI", words: "hawaii", titlePattern: "hawaii" },
   { channelId: "UCz3j-0bLZOevINcN3WMINDQ", title: "Pennsylvania FIRST Tech Challenge", region: "state=PA", words: "pennsylvania", titlePattern: "pennsylvania" },
   { channelId: "UCOX40xrRQno_zXF1_iUchfw", title: "Colorado FIRST", region: "state=CO", words: "colorado", titlePattern: "colorado" },
@@ -43,5 +48,13 @@ export const OFFICIAL_CHANNELS: OfficialChannelSeed[] = [
   // FRC 2583 (Westwood High School, Austin): the event stream of FiT-Central's GEMS league and Austin events, official
   // overlay on screen. Channel id from the YouTube Data API (forHandle @westwoodrobotics2583), 2026-11-14.
   { channelId: "UCyv6fRBcoK6mD6Br5M366yA", title: "Westwood Robotics (FiT-Central)", region: "state=TX;name=\\bCTX\\b|FiT-Central|GEMS", words: "texas fit central ctx" },
+  // The 2026-11-14 audited channels (ids from the YouTube Data API, forHandle): FIRST's delivery partners for
+  // Kazakhstan, France, Italy and Türkiye, and the Prince Royal's College channel that streamed Thailand's championship
+  // (its only event so far: the weakest watchlist entry, for the owner to drop if no second event comes).
+  { channelId: "UCBXqD1Kn2u3mFnjHsHMMTKQ", title: "USTEM Foundation (Kazakhstan)", region: "country=Kazakhstan", words: "kazakhstan central asia", titlePattern: "central asia (first )?championship" },
+  { channelId: "UCDNTYCoNjRd_98Jl1vAUZNQ", title: "Robotique FIRST France", region: "country=France", words: "france defi robotique regionale regions", titlePattern: "\\bfinale\\b" },
+  { channelId: "UC3GrZQP1avoMFojc2HeQdhw", title: "Associazione Artù APS (Italy)", region: "country=Italy", words: "italy italia", titlePattern: "\\bitaly\\b" },
+  { channelId: "UCq5bJjdyfAQYIs7yb_83vaA", title: "Fikret Yüksel Foundation (Türkiye)", region: "country=Türkiye", words: "turkiye turkey gun", titlePattern: "t[uü]rkiye [şs]ampiyonas[ıi]" },
+  { channelId: "UC7e1UfLTHCdAoF7VIay_IqA", title: "The PRC Channel (Thailand)", region: "country=Thailand", words: "thailand ftcthailand", titlePattern: "thailand" },
   { channelId: "UCal7624DPridi_9iKLrAbqw", title: "FIRST Australia", region: "country=Australia", words: "australia australian", titlePattern: "australian? (national )?championship|\\bAPOC\\b|asia pacific open" },
 ];
