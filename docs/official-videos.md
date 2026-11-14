@@ -36,9 +36,10 @@ broadcast is never used, even of the same event.
 Regional streamers from the owner's audited list (2026-11-14), each read through the YouTube Data API's uploads list
 and checked by hand: FIRST in Missouri (the Missouri/Kansas partner: St. Louis, Southeast and Southwest leagues, the
 championship), FIRST MOKS (Kansas City, one video per meet session), Tulsa Robotics Center (eastern Oklahoma's
-leagues, its scrimmages, the state championship), SeaCow Robotics and Shiloh Saints (Arkansas qualifiers and the
-Arkansas Championship, already played from FIRST's channel links) and FTC Louisiana (every Louisiana event, uploaded
-after it was streamed elsewhere).
+leagues, its scrimmages, the state championship), SeaCow Robotics (its Mountain Home, Benton and Bentonville
+qualifiers) and Shiloh Saints (the Arkansas Championship), both already played from FIRST's channel links, and FTC
+Louisiana (every Louisiana event, uploaded after it was streamed elsewhere; only its championship title counts as
+naming the region, so a qualifier stream needs its city).
 
 The owner's audited channel list (2026-11-14) adds four FIRST delivery partners: USTEM Foundation (Kazakhstan),
 Robotique FIRST France, Associazione Artù APS (Italy) and the Fikret Yüksel Foundation (Türkiye). It also adds The
