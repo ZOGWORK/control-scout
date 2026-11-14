@@ -32,14 +32,14 @@ A match's Watch button now plays just that match: the recording stops once its f
 The owner can now see how far new visitors get through the first-visit welcome, counted anonymously and only for visitors who allow usage statistics.
 
 ### Highlights
-- [report] Owner console › Usage shows how far new visitors get through the welcome
+- [report] Owner console › Usage shows how far new visitors get in the welcome
 - [report] Where people skip, how many finish, and how many pick a team
 - [fixes] The privacy page lists exactly what the welcome counts
 
 ### Added
 - `POST /api/collect/onboarding` (`server/onboardingStats.ts`): with consent to usage statistics only, the onboarding sends shown, each step reached (once, however often Back and Next go over it), and skipped on step N or finished (with whether a team was picked, never which). The server adds 1 to a daily total (`onboarding_daily`, migration 87): no IDs, address, user agent or cookie. Bots, Global Privacy Control and Do Not Track are accepted and not counted. Replays from Settings aren't counted.
 - Owner console › Usage › First-visit onboarding (`src/components/owner/OnboardingFunnel.tsx`): one zero-based bar per step, skips per step, finished and picked a team.
-- The privacy page's Usage statistics section names the welcome's counts.
+- The privacy page's Usage statistics section names the welcome's counts. (#1465)
 
 ## 6.0.5 — 2026-11-14
 
