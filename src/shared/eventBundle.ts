@@ -72,7 +72,7 @@ function unpool(api: PackApi, key: string, body: unknown): unknown {
 export interface PackCompareTeam {
   block: CompareTeam;
   latest: number | null;
-  /** Its columns for a season either side of the event's that any of the pack's teams last had results in (early in
+  /** Its columns for every other season any of the pack's teams last had results in (early in
    *  a season, last season: what Compare with no season asked shows), by season. */
   others?: Record<string, CompareTeam>;
 }
@@ -192,6 +192,8 @@ export interface EventBundle {
   api?: PackApi;
   /** Compare columns by team number (bundles built before the pack: absent). */
   compare?: Record<string, PackCompareTeam>;
+  /** The server's current season when the pack was built (what Compare shows for teams with no results at all). */
+  currentSeason?: number;
 }
 
 /** What the device keeps per bundle (the list in localStorage; the bytes in IndexedDB). */

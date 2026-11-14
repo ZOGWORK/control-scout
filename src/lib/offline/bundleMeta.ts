@@ -75,7 +75,9 @@ export function bundlesCompare(path: string): boolean {
   const teams = (url.searchParams.get("teams") ?? "").split(",").filter(Boolean).map(Number);
   const season = Number(url.searchParams.get("season")) || null;
   const packs = savedBundles().filter((b) => b.apiPaths?.length && (season == null || b.season === season));
-  return teams.length > 0 && teams.every((t) => packs.some((b) => b.teams?.includes(t)));
+  // A pack also holds its teams for another season they last played (its Compare `others`): their season matches
+  // for it are in its paths.
+  return teams.length > 0 && teams.every((t) => packs.some((b) => b.teams?.includes(t)) || (season != null && bundlesWith(`/api/teams/${t}/matches?season=${season}`).length > 0));
 }
 
 /** A comparison while some event pack is saved: even one with a team no pack holds goes to the saved data with no

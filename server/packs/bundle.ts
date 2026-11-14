@@ -16,7 +16,7 @@ import { gzipSync } from "node:zlib";
 import express, { type NextFunction, type Request, type Response, type Router } from "express";
 import { ENGINE_VERSION } from "@control-scout/predict-engine";
 import { kvGet } from "../db.js";
-import { SEASON_NUMBERS } from "../data/seasons.js";
+import { CURRENT_SEASON, SEASON_NUMBERS } from "../data/seasons.js";
 import { cachedEventDetail } from "../api/events.js";
 import { gatedEventDetail } from "../api/eventGates.js";
 import { matchReport } from "../api/matchReport.js";
@@ -152,7 +152,7 @@ export async function buildBundle(input: BuildInput): Promise<BuiltBundle | null
     format: BUNDLE_FORMAT, season, code: ev.event.code, name: ev.event.name, end: ev.event.end ?? ev.event.start, version, builtAt, dataAsOf,
     engineVersion: ENGINE_VERSION, team, workspace, sections, field: ev.field.map((f) => [f.team, f.name]), reportKeys: reports.map((r) => r.key), apiPaths,
   };
-  const body: EventBundle = { format: BUNDLE_FORMAT, manifest: head, event: ev, ratings, reports, picklist, rules, venue, api, compare };
+  const body: EventBundle = { format: BUNDLE_FORMAT, manifest: head, event: ev, ratings, reports, picklist, rules, venue, api, compare, currentSeason: CURRENT_SEASON };
   const gz = gzipSync(Buffer.from(JSON.stringify(body)), { level: 9 });
   const q = new URLSearchParams({ ...(team != null ? { team: String(team) } : {}), ...(workspace ? { workspace: workspace.id } : {}), v: version });
   const manifest: BundleManifest = { ...head, url: `/api/bundles/${season}/${encodeURIComponent(ev.event.code)}/file?${q}`, bytes: gz.length, sha256: sha(gz) };

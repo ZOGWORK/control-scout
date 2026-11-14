@@ -175,10 +175,11 @@ export async function offlineCompare(numbers: number[], season?: number): Promis
   const loaded = (await Promise.all(metas.map(async (meta) => ({ meta, bundle: await loadBundle(meta.season, meta.code) }))))
     .filter((x): x is { meta: SavedBundle; bundle: EventBundle } => !!x.bundle?.compare && !!x.bundle.api)
     .sort((a, b) => bundleTime(b.meta).localeCompare(bundleTime(a.meta)));
-  const got = compareFromPacks(numbers, season, loaded.map((x) => ({ season: x.meta.season, bundle: x.bundle })));
+  const packs = loaded.map((x) => ({ season: x.meta.season, bundle: x.bundle }));
+  const got = compareFromPacks(numbers, season, packs);
   if ("missing" in got) throw new OfflineAnswerError(0, got.missing);
-  const first = loaded.find((x) => x.meta.season === got.view.season && x.bundle.compare![String(numbers[0])]) ?? loaded[0];
-  return markOffline(got.view, bundleSource(first.meta));
+  // Marked with the pack the comparison's first team came from: its name and data time.
+  return markOffline(got.view, bundleSource(loaded[packs.findIndex((p) => p === got.from)].meta));
 }
 
 /** The offline answer for an API path, or null when the saved data can't answer it. Throws OfflineAnswerError

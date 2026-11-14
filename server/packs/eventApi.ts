@@ -180,11 +180,12 @@ export async function buildPackApi(season: number, ev: EventDetail, reads: Reads
   let detail: Promise<EventDetail | null> | undefined;
   const c: PackContext = { season, code, ev, teams: packTeams(ev), matches: ev.matches, detail: () => (detail ??= eventDetail(season, code)) };
   // Compare: each team's column for the event's season, and the latest season it has results in (what /api/compare
-  // picks with no season asked). Early in a season that's still last season for most teams: their columns and
-  // season matches for it go in too (a season either side of the event's), so Compare opened with no season works.
+  // picks with no season asked: the newest of the compared teams'). Early in a season that's still last season (or an
+  // older one, for a team that sat out) for most teams: every team's column and season matches for each such season go
+  // in too, so Compare opened with no season works for any of the pack's teams.
   const compare: Record<string, PackCompareTeam> = {};
   await inTurns(c.teams, 6, async (t) => { compare[String(t)] = { block: await compareBlockOf(t, season), latest: await latestResultsSeason(t) }; });
-  const others = [...new Set(Object.values(compare).map((x) => x.latest).filter((s): s is number => s != null && s !== season && Math.abs(s - season) <= 1))];
+  const others = [...new Set(Object.values(compare).map((x) => x.latest).filter((s): s is number => s != null && s !== season))].sort();
   for (const s of others) {
     await inTurns(c.teams, 6, async (t) => { (compare[String(t)].others ??= {})[String(s)] = await compareBlockOf(t, s); });
   }

@@ -63,7 +63,7 @@ export function compareFromParts(numbers: number[], season: number, blocks: Comp
 }
 
 /** One saved event pack, as compareFromPacks reads it. */
-export interface ComparePack { season: number; bundle: Pick<EventBundle, "api" | "compare"> }
+export interface ComparePack { season: number; bundle: Pick<EventBundle, "api" | "compare" | "currentSeason"> }
 
 /**
  * /api/compare answered from saved event packs (newest first): each team's Compare column and season matches as the
@@ -71,7 +71,7 @@ export interface ComparePack { season: number; bundle: Pick<EventBundle, "api" |
  * them has results in, the server's rule, from the packs' record of it. A team no pack holds: `missing` says so in
  * plain words, never a partial comparison. Copies: the packs' decoded data is never handed out to be changed.
  */
-export function compareFromPacks(numbers: number[], season: number | undefined, packs: ComparePack[]): { view: CompareView } | { missing: string } {
+export function compareFromPacks(numbers: number[], season: number | undefined, packs: ComparePack[]): { view: CompareView; from: ComparePack } | { missing: string } {
   /** A team's column for season `s` in a pack: its event season's, or another season the pack keeps for it. */
   const columnIn = (p: ComparePack, t: number, s?: number): CompareTeam | undefined => {
     const c = p.bundle.api ? p.bundle.compare?.[String(t)] : undefined;
@@ -86,7 +86,8 @@ export function compareFromPacks(numbers: number[], season: number | undefined, 
   let s = season;
   if (s == null) {
     const latest = numbers.map((t) => holding(t)!.bundle.compare![String(t)].latest).filter((x): x is number => x != null);
-    s = latest.length ? Math.max(...latest) : holding(numbers[0])!.season;
+    // None of them has results anywhere: the server's current season, as the pack recorded it.
+    s = latest.length ? Math.max(...latest) : holding(numbers[0])!.bundle.currentSeason ?? holding(numbers[0])!.season;
   }
   const blocks = numbers.map((t) => { const p = holding(t, s); return p && columnIn(p, t, s); });
   const absent = numbers.filter((_, i) => !blocks[i]);
@@ -95,5 +96,6 @@ export function compareFromPacks(numbers: number[], season: number | undefined, 
     const got = packLookup(holding(t, s)!.bundle.api, `/api/teams/${t}/matches?season=${s}`);
     return got && "body" in got ? ((got.body as { matches?: MatchView[] }).matches ?? []) : [];
   };
-  return { view: compareFromParts(numbers, s, structuredClone(blocks as CompareTeam[]), (t) => structuredClone(matchesOf(t))) };
+  // `from`: the pack the first team's column came from (whose name and time the answer is marked with).
+  return { view: compareFromParts(numbers, s, structuredClone(blocks as CompareTeam[]), (t) => structuredClone(matchesOf(t))), from: holding(numbers[0], s)! };
 }

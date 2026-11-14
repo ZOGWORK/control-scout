@@ -38,7 +38,8 @@ Two more sections make the whole event work with no signal, with the same number
   `compareTeams` calls too, from the pack's columns and the teams' season matches. A team in no saved pack: "Team X
   isn't in your downloaded event packs". Compare with no season asked shows the latest season any of the teams has
   results in; early in a season that's last season, so the pack also keeps each team's column and season matches for
-  a season either side of the event's that a team last played (`others`).
+  every other season one of the pack's teams last played (`others`). Measured: 2026 USMIMIQ1 (35 teams, no
+  matches yet, most teams' latest results 2025) is 91 KB with its teams' 2025 columns and matches.
 - A match two of the event's teams played is the same JSON in both teams' lists: each is stored once (`pool`), the
   lists holding indexes, and `packLookup` gives the lists back whole (`poolMatches`, about 20–25% smaller).
 - A pack is built once per data version (`packApi`, kept up to 10 minutes), not on every manifest look. After a sync,
@@ -54,8 +55,8 @@ Two more sections make the whole event work with no signal, with the same number
 - The manifest lists the paths (`apiPaths`), kept with the saved bundle, so `lib/api.ts` knows which reads a pack
   can answer (they get the offline timeout) without opening it.
 
-Measured on the local data (gzipped, 2025 season): USMIMIQ1, 34 teams and 54 matches, 22 KB before the pack, 168 KB
-with it (280 paths; 207 KB before the match pool); USCHSCMPRDCA, a 48-team division with 98 matches, 31 KB before,
+Measured on the local data (gzipped, 2025 season): USMIMIQ1, 34 teams and 54 matches, 22 KB before the pack, 170 KB
+with it (314 paths, its teams' 2026 Compare data included; 207 KB before the match pool); USCHSCMPRDCA, a 48-team division with 98 matches, 31 KB before,
 277 KB with it (438 paths; 369 KB before the pool). The event page offers it in one tap: "Download for offline · <size>".
 
 ## Endpoints

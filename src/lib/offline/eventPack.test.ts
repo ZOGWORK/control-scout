@@ -12,6 +12,7 @@ import { OfflineAnswerError, offlineAnswer } from "./answer";
 import { offlineSource } from "./saved";
 import { packPath, type BundleManifest, type EventBundle, type PackApi } from "../../shared/eventBundle";
 import type { CompareView, MatchView } from "../../shared/api";
+import { compareFromPacks } from "../../shared/compare";
 
 const S = 2025;
 const team = (n: number) => ({ number: n, name: `Team ${n}`, fullName: null, school: null, sponsors: [], city: null, state: null, country: null, rookieYear: null, website: null, homeRegion: null });
@@ -27,6 +28,7 @@ function pack(): EventBundle {
   api.same[packPath("/api/teams/11")!] = packPath(`/api/teams/11?season=${S}`)!;
   put(`/api/teams/11/matches?season=${S}`, { team: 11, season: S, matches: [view("qual:0:1", [11, 12], [13, 14]), view("qual:0:2", [11, 99], [98, 97])] });
   put(`/api/teams/12/matches?season=${S}`, { team: 12, season: S, matches: [view("qual:0:1", [11, 12], [13, 14])] });
+  put("/api/teams/11/matches?season=2024", { team: 11, season: 2024, matches: [] }); // a season it last played, kept for Compare
   put(`/api/events/${S}/USTXQ1/matches/qual:0:1`, { match: { ...view("qual:0:1", [11, 12], [13, 14]), clip: { videoId: "abc", t: 30, url: "https://youtu.be/abc?t=30" } } });
   api.errors[packPath(`/api/teams/7?season=${S}`)!] = { status: 404, error: "No FTC team 7 in our data" };
   const block = (n: number) => ({ team: team(n), stats: null, events: [], awards: [] });
@@ -117,11 +119,30 @@ describe("the event pack answers with no signal", () => {
     await expect(apiFetch(`/api/teams/7?season=${S}`)).rejects.toMatchObject({ status: 404, message: "No FTC team 7 in our data" });
   }, 15_000);
 
+  it("Compare picks the season as the server does when nobody has results (its current season), and says what's missing", () => {
+    const p = pack();
+    for (const k of Object.keys(p.compare!)) p.compare![k].latest = null;
+    const got = compareFromPacks([11, 12], undefined, [{ season: S, bundle: { ...p, currentSeason: 2026 } }]);
+    expect("missing" in got && got.missing).toMatch(/don't hold teams 11, 12 for 2026–27/);
+    const same = compareFromPacks([11, 12], undefined, [{ season: S, bundle: { ...p, currentSeason: S } }]);
+    expect("view" in same && same.view.season).toBe(S);
+  });
+
+  it("Compare names the pack the first team's column came from", () => {
+    const p = pack();
+    const other = { ...pack(), compare: { 99: p.compare!["11"] } };
+    const got = compareFromPacks([11, 12], S, [{ season: S, bundle: other }, { season: S, bundle: p }]);
+    expect("from" in got && got.from.bundle).toBe(p);
+  });
+
   it("lib/api.ts counts those reads as answerable offline (the 4 s fallback covers them)", () => {
     expect(bundleCanAnswer(`/api/teams/11?season=${S}`)).toBe(true);
     expect(bundleCanAnswer(`/api/events/${S}/ustxq1/matches/qual:0:1`)).toBe(true);
     expect(bundleCanAnswer(`/api/compare?teams=11,14&season=${S}`)).toBe(true);
     expect(bundleCanAnswer(`/api/compare?teams=11,4321`)).toBe(false);
     expect(bundleCanAnswer("/api/teams/4321")).toBe(false);
+    // Another season the pack keeps for its teams (Compare with no season asked, early in a season).
+    expect(bundleCanAnswer("/api/compare?teams=11&season=2024")).toBe(true);
+    expect(bundleCanAnswer("/api/compare?teams=11,12&season=2024")).toBe(false);
   });
 });
