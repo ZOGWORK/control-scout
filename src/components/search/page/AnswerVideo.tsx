@@ -158,7 +158,9 @@ export function RowPlay({ href, label, className }: { href: string; label: strin
   const { video, rowPlayed } = useContext(Video);
   const v = video?.rows?.[href];
   if (!v) {
-    if (!video?.rows || video.mainRow === href) return null;
+    // Another match plays (a row's clip, or the card's own match, never the event's recording from its start).
+    const others = !!(video?.rows && Object.keys(video.rows).length) || (!!video?.mainRow && video.main?.kind !== "stream");
+    if (!others || video?.mainRow === href) return null;
     return <span className={cn("shrink-0 whitespace-nowrap text-[11px] text-muted-foreground", className)} data-row-no-video>No video</span>;
   }
   return (
