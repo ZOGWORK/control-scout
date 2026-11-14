@@ -316,7 +316,7 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     if (id === "penalties" && (p.symbols.includes("agg:sum") || p.symbols.includes("agg:count")) && !p.symbols.includes("per:match") && !scope.at) return null;
     const team = p.teams[0];
     // "12345 at worlds in 2026": the championship held that year (2025–26), as the readers take a year there.
-    const held = id === "results" && scope.championship && scope.year && scope.season != null;
+    const held = (id === "results" || id === "match-lookup") && scope.championship && scope.year && scope.season != null;
     if (held) { scope.season! -= 1; scope.year = false; }
     // A season or a year with no events on record yet (a future year): said so, never the latest instead.
     const future = held ? null : await noEventsYet(p, team.number, id, opts);
@@ -532,6 +532,8 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   const scored = p.teams.length === 1 && p.scoreCond?.op === "=" && (intent === "season-matches" || intent === "top-matches");
   const teamFind = p.teams.length === 1 && (TEAM_FIND.has(FIND[intent]!) || scored);
   if ((!p.teams.length || teamFind) && (FIND[intent] || scored || (intent === "top-matches" && (p.level || p.finals || kind || p.scoreCond)))) {
+    // A match's number said to any other finder ("highest scoring M14 matches") is never dropped: left to search.
+    if (p.matchNumber != null && !labelled) return null;
     // An event named with a score to reach ("matches at <event> where both alliances scored over 250"): its matches,
     // its divisions' too. A calendar year said is the edition held that year; none said, its latest.
     const year = p.time?.kind === "season" && p.time.year != null && !p.time.relative ? p.time.year : null;
