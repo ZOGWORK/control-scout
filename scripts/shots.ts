@@ -20,6 +20,7 @@
 // first so the service worker caches the app, on a production build with --base);
 // selectors are Playwright's (role=button[name="Filters"], text=Apply, css).
 // --name <label> goes in the file name, to tell several states of one route apart.
+// --onboarding lets the first-visit onboarding show (a fresh visitor on Home): wait with --steps '[{"waitFor":"[data-onboarding]"}]'.
 // --install lets the add-to-home-screen nudge show, with a stand-in install offer.
 // --pull turns on the installed app's pull-to-refresh in the browser tab (cs-pull-demo), with --mobile.
 //
@@ -159,6 +160,9 @@ async function capture(browser: Browser, route: string, vp: keyof typeof SIZES, 
   // shots unless asked for (src/lib/installNudge.ts, cs-install-demo). An automated Chromium
   // never offers an install, so --install also hands the page a stand-in beforeinstallprompt once it has loaded;
   // the nudge opens a few seconds later: wait with --steps '[{"waitFor":"[data-install-nudge]"}]'.
+  // The first-visit onboarding never shows to a browser driven by automation either: --onboarding opts in
+  // (src/lib/onboarding.ts, cs-onboarding-demo). Each shot is a fresh visitor, so on Home it opens on step 1.
+  if (flag("onboarding")) await ctx.addInitScript(() => localStorage.setItem("cs-onboarding-demo", "1"));
   if (flag("install")) {
     // As a string: tsx would wrap the object's arrow functions in a __name() helper the page doesn't have.
     await ctx.addInitScript({

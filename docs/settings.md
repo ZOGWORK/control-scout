@@ -126,6 +126,8 @@ These keys never leave the device (`DEVICE_ONLY_KEYS`):
 | `cs-scout-dirty`, `cs-scout-ws-dirty:<workspace>` | Entries waiting to sync |
 | `cs-account-cache` | The signed-in account as `/api/auth/me` last answered (`src/lib/personal.tsx`). When the app opens offline it stands in for the account, so the scout space (and where new entries go) is the workspace it was. Removed on sign-out or when `/me` says signed out; used only for the device's own account |
 | `cs-scout-lost:<workspace>` | Edits this device lost to a newer one from someone else, kept so they can be compared and restored (`src/lib/lostEdits.ts`; at most 30 per workspace, 30 days). A restore sends the entry, as any edit; the list itself never leaves the device |
+| `cs-onboarding` | The first-visit onboarding on this device (`src/lib/onboarding.ts`): `{v: 1, status: "open" \| "finished" \| "skipped", step, at}`. Open while it runs (a reload brings it back on the same step); finished or skipped, it never starts by itself again here. See "First-visit onboarding" below |
+| `cs-onboarding-demo` | `"1"` lets a browser driven by automation see the onboarding (`npm run shots -- --onboarding`, the journeys script); real visitors never have it |
 | `cs-install` | The add-to-home-screen nudge on this device (`src/lib/installNudge.ts`): `{v, lastShown: "YYYY-MM-DD", dismissed?, installed?}`. See "Add-to-home-screen nudge" below |
 | `cs-install-demo` | `"1"` lets a browser driven by automation see the nudge (`npm run shots -- --install`); real visitors never have it |
 | `cs-recent-searches` | This device's recent searches (`src/components/search/discover.tsx`): up to 6 query strings, newest first, shown in an empty search box's list with one tap to run again. "Clear" removes them all |
@@ -147,10 +149,29 @@ itself, the space and the view are never sent: not in a personal sync
 | `cs-scout-lost:<workspace>` | 3 | No (a restore sends the entry) |
 | `cs-scout-ws-cursor:<workspace>` | sync bookkeeping | Only as the pull's `since=` cursor |
 | `cs-scout-tpl:<ws>:<season>`, `cs-scout-tplv:<ws>:<season>:<v>`, `cs-scout-wss:<ws>` | 2 (cache) | No |
-| `cs-scout-space`, `cs-shortlist-view`, `cs-account-cache`, `cs-install`, `cs-install-demo`, `cs-recent-searches` | 3 | No |
+| `cs-scout-space`, `cs-shortlist-view`, `cs-account-cache`, `cs-onboarding`, `cs-onboarding-demo`, `cs-install`, `cs-install-demo`, `cs-recent-searches` | 3 | No |
 | `cs-sidebar`, `cs-records-cols:<table>`, `cs-saved-filters:v1` | local UI state | No |
 | `cs-consent`, `cs-alerts-sent`, `cs-offline-seasons`, `cs-pack-meta`, `cs-seen` | device state | No |
 | sessionStorage `cs-session`, `cs-stats-session` | this tab only | `cs-stats-session` only as the analytics "new session" bit (no ID) |
+
+### First-visit onboarding
+
+Four short steps in a locked dialog (`src/components/onboarding/Onboarding.tsx`): what Control Scout is, pick
+your team (saved as My team, so Home leads with its next match), search answers plain questions, and where the
+main places are.
+
+- **Who:** someone new, on Home: nothing saved on the device or the account (no team, tracked teams or events,
+  shortlist or workspace; signed in, after the first sync has worked). It never starts on a team, event or other
+  page, so a visitor from a search engine gets the page they came for first.
+- **When:** after the privacy choice, once the page has painted and gone idle (then 0.6 s), holding the first-run
+  slot (`src/lib/firstRun.ts`), so the add-to-home-screen nudge waits for a later page view.
+- **Locked:** Skip, top right on every step, is the only way out besides the last step's button. Escape, the
+  backdrop, taps or clicks outside, focus leaving, Ctrl/⌘ K and "/", pull to refresh and route changes do nothing;
+  the page behind is `inert`. A reload brings it back on the same step.
+- **Once:** finished or skipped, it never starts by itself again on this device. Settings → About → Show the
+  welcome again opens it; Clear all local data forgets it.
+- **Device-only:** not synced. A team picked in step 2 is, and someone with a team never gets it started.
+- **Never to bots** or automated browsers (`isAutomated`); `cs-onboarding-demo` opts a driven browser in.
 
 ### Add-to-home-screen nudge
 
@@ -185,7 +206,7 @@ and its next match"). Home never redirects to My team. It sells speed, never off
   dialog (`installed`), or `navigator.getInstalledRelatedApps()` finding it
   (the manifest's `related_applications` names the app on controlscout.org).
 - **One first-run surface at a time.** It shares the first-run slot
-  (`src/lib/firstRun.ts`): in the page view where another first-run surface
+  (`src/lib/firstRun.ts`) with the onboarding: in the page view where another first-run surface
   held the slot it waits for the next page view or visit (coming back to the
   same page later counts).
 - **Never in front of anything:** after the privacy choice, once the page is
