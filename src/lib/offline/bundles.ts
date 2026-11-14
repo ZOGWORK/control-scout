@@ -3,7 +3,7 @@
 // manifest's SHA-256) in the same IndexedDB store as the packs; nothing is decoded until a page needs it with
 // no signal (lib/api.ts, lib/offline/answer.ts) or the bundle's own page opens.
 import { del, fetchVerified, getv, put, type PackFile } from "../packs";
-import { finishDownload, type DownloadOwner } from "./download";
+import { ChecksumError, finishDownload, type DownloadOwner } from "./download";
 import { FEATURE_DISABLED, featureOffMessage } from "../../shared/flags";
 import { BUNDLE_FORMAT, bundleFinished, bundleKey, type BundleManifest, type EventBundle, type SavedBundle } from "../../shared/eventBundle";
 import { allBundles, bundleFor, bundleVisible, savedBundles, writeBundles } from "./bundleMeta";
@@ -62,7 +62,10 @@ export async function downloadBundle(r: BundleRequest, onProgress?: (done: numbe
   let m = manifest ?? await fetchBundleManifest(r);
   let bytes: Uint8Array;
   try { bytes = await fetchVerified(asFile(m), onProgress, bundleOwner(r, m.name)); }
-  catch {
+  catch (e) {
+    // Only a file that didn't match its manifest means the data moved on; a dropped connection or a full device
+    // is said as it is, never answered with a second whole download.
+    if (!(e instanceof ChecksumError)) throw e;
     m = await fetchBundleManifest(r);
     bytes = await fetchVerified(asFile(m), onProgress, bundleOwner(r, m.name));
   }

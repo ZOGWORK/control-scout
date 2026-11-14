@@ -160,7 +160,11 @@ export function download(file: DownloadFile, opts: DownloadOptions): Promise<Uin
   const p = withPieces(file.sha256, () => run(file, opts))
     .catch(async (e) => {
       // An event pack is small and built per request: a failed one starts again, so its pieces aren't kept.
-      if (opts.owner.kind === "bundle") await finishDownload(file.sha256);
+      if (opts.owner.kind === "bundle") {
+        await finishDownload(file.sha256);
+        // Nothing of it is kept, so "picks up from there" would be wrong.
+        if (e instanceof DownloadPaused) throw new Error("The download stopped: the connection dropped. Try again when it's back (it's small, so it starts again).");
+      }
       throw e;
     })
     .finally(() => { inflight.delete(file.sha256); setActive(ownerKey(opts.owner), null); changed(); });
@@ -338,7 +342,13 @@ export async function finishDownload(...shas: (string | null | undefined)[]): Pr
 /** Half-finished downloads on this device (never a saved copy), oldest first. */
 export async function partialDownloads(): Promise<PartialDownload[]> {
   const list = await db().list().catch(() => [] as PartialDownload[]);
-  return list.sort((a, b) => a.startedAt - b.startedAt);
+  // An event pack never resumes: one left behind by a reload or a closed app (no tab on it now) is swept away.
+  const kept: PartialDownload[] = [];
+  for (const p of list) {
+    if (p.owner.kind === "bundle" && !inflight.has(p.sha256) && (await dropIfIdle(p.sha256).catch(() => false))) continue;
+    kept.push(p);
+  }
+  return kept.sort((a, b) => a.startedAt - b.startedAt);
 }
 
 /** Drop a half download (Delete on a paused row). */

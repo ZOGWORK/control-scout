@@ -217,8 +217,36 @@ describe("event packs", () => {
   it("a failed one keeps no pieces (it starts again, and nothing hides in storage)", async () => {
     const data = bytes(PIECE + 500);
     const file = { url: "/api/bundles/2026/X/file", bytes: data.length, sha256: sha(data) };
-    await expect(download(file, { owner: { kind: "bundle", id: "2026:X", label: "X" }, fetch: server(data, { cut: 1000 }).fn })).rejects.toBeInstanceOf(DownloadPaused);
+    const e = await download(file, { owner: { kind: "bundle", id: "2026:X", label: "X" }, fetch: server(data, { cut: 1000 }).fn }).catch((x) => x);
+    expect(e).not.toBeInstanceOf(DownloadPaused); // nothing is kept, so it never says "picks up from there"
+    expect(String(e.message)).toMatch(/connection dropped/);
     expect(await partialDownloads()).toEqual([]);
+  });
+  it("one left half-done by a tab that closed is swept away, while one a live tab is running stays", async () => {
+    vi.stubGlobal("navigator", Object.assign(Object.create(navigator), { locks: { request: lockRequest(new Map()) } }));
+    vi.resetModules();
+    const tabA = await import("./download");
+    vi.resetModules();
+    const tabB = await import("./download");
+    const data = bytes(PIECE * 2 + 5, 11);
+    let sent = 0;
+    const gate = new Promise<void>(() => {}); // the tab closes before the rest ever comes
+    const stalls = (async () => new Response(new ReadableStream({
+      async pull(c) {
+        if (sent >= PIECE) await gate;
+        c.enqueue(data.slice(sent, sent + PIECE));
+        sent += PIECE;
+      },
+    }))) as unknown as typeof fetch;
+    void tabA.download({ url: "/api/bundles/2026/Y/file", bytes: data.length, sha256: sha(data) }, { owner: { kind: "bundle", id: "2026:Y", label: "Y" }, fetch: stalls }).catch(() => {});
+    // Running in tab A: tab B leaves it alone.
+    await vi.waitFor(async () => expect((await tabB.partialDownloads()).some((p) => p.sha256 === sha(data) && p.have >= PIECE)).toBe(true));
+    // Tab A closes: the browser lets go of its locks. Nothing will ever resume an event pack, so it goes.
+    vi.stubGlobal("navigator", Object.assign(Object.create(navigator), { locks: { request: lockRequest(new Map()) } }));
+    expect(await tabB.partialDownloads()).toEqual([]);
+    vi.resetModules();
+    const tabC = await import("./download");
+    expect(await tabC.partialDownloads()).toEqual([]); // its pieces and row are gone for good
   });
 });
 
