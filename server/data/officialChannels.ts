@@ -40,5 +40,12 @@ export const OFFICIAL_CHANNELS: OfficialChannelSeed[] = [
   { channelId: "UCHVeR960xGMtQ2rHxYAebTw", title: "High Tech Kids (Minnesota)", region: "state=MN", words: "minnesota htk", titlePattern: "minnesota" },
   { channelId: "UCbppRk83Rf7nh_Zug261h7A", title: "FIRST in Vermont", region: "state=VT", words: "vermont", titlePattern: "vermont" },
   { channelId: "UCUpv6m5YLRZgqZQlasOjKVQ", title: "FIRST UK", region: "country=United Kingdom", words: "uk" },
+  // The owner's audited channels (2026-11-14), ids from the YouTube Data API (channels?forHandle). FIRST Nevada
+  // (@firstnevada1941) is Nevada's FIRST partner; its titles name the meet ("# 4S") and the half of the state.
+  { channelId: "UCqDnAXt0clPQww74v7bUVkQ", title: "FIRST Nevada", region: "state=NV", words: "nevada", titlePattern: "nevada state championship|state championship - nevada" },
+  // BCA Activities (@BCAActivities-sg6ef, Bismarck Career Academy): North Dakota's "Dakota FTC" events.
+  { channelId: "UCowF1UaXnuuFV_sNIvpX-zQ", title: "BCA Activities (Dakota FTC)", region: "state=ND", words: "dakota bca", titlePattern: "\\bstate\\b" },
+  // MT Robotics Alliance (@mtra-stream), Montana's FTC partner; FIRST's Montana event pages name the channel.
+  { channelId: "UCpPjg0KF7cwfbWoKAl0jiXQ", title: "MT Robotics Alliance (Montana)", region: "state=MT", words: "montana mt", titlePattern: "\\bstate\\b|championship" },
   { channelId: "UCal7624DPridi_9iKLrAbqw", title: "FIRST Australia", region: "country=Australia", words: "australia australian", titlePattern: "australian? (national )?championship|\\bAPOC\\b|asia pacific open" },
 ];
