@@ -36,7 +36,7 @@ The leaderboards work with no signal from a saved season: world rankings, record
 ### Changed
 - Match records mark a score that isn't an official record ("Not an official record", the reason on hover), on the table and the phone cards.
 - Season packs now include every rated team, so the ranking names them as online does.
-- A season pack is built in memory and written whole at the end: a build that fails leaves no file behind, and one whose data a sync moved mid-build is built again, so it never carries an older data time than its rows. (#1488)
+- A season pack is built in memory and written whole at the end: a build that fails leaves no file behind, and one whose data a sync moved mid-build is built again, so it never carries an older data time than its rows. The current season's reads hold the data lock, which the live lane respects across processes; past seasons take no lock. That span measured 3 to 16 s (warm to cold, on the local database), and the live lane skips a tick while the lock is held, so a try skips at most one 60 s tick (a daily build normally needs one try). The owner's Rebuild packs already holds the lock and tells the build so (`lockHeld`, `--lock-held` for the child process). Writes in progress are waited out for up to 10 minutes, each retry logged with its reason. (`server/packs/build.ts`, `server/data/writeGen.ts`) (#1488)
 
 ## 6.2.8 — 2026-11-14
 

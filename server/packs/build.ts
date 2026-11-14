@@ -27,6 +27,7 @@ import { packsDir } from "./routes.js";
 import { PACK_INDEXES, PACK_TABLES as FULL_TABLES, PACK_TEAMS_DDL, RANKING_PACK_WEEKS, RANKING_TABLES, SCHEDULE_TABLE } from "../../src/shared/packSchema.js";
 import { writeBoards } from "./boards.js";
 import { idle, writeState } from "../data/writeGen.js";
+import { withDataLock } from "../data/lock.js";
 import { SCHEDULE_COLUMNS, scheduleRows } from "../../src/shared/scheduleDifficulty.js";
 import { seasonScheduleDifficulty } from "../predict/scheduleDifficulty.js";
 import { place } from "../../src/shared/format.js";
@@ -87,19 +88,21 @@ export async function buildLite(version: string, dir: string, log: (m: string) =
     contents: `Every team's prediction rating for ${Object.keys(books).length} seasons plus team names — enough to predict any match on this device with no connection.` };
 }
 
-export async function buildFull(season: number, version: string, dir: string, log: (m: string) => void): Promise<BuiltFile | null> {
+export async function buildFull(season: number, version: string, dir: string, log: (m: string) => void, o: { lockHeld?: boolean } = {}): Promise<BuiltFile | null> {
   const n = await all<{ c: number }>("SELECT COUNT(*) c FROM matches WHERE season = ?", [season]);
   if (!Number(n[0]?.c)) return null;
   const name = `scout-pack-${version.replace(/\./g, "-")}-${season}.db`;
-  // The pack is labelled with the data version its rows are from (the ranking's asOf offline), and packs are read
-  // with no lock. The live lane and the stats job mark their write spans (server/data/writeGen.ts; the live lane
-  // stores rows BEFORE it moves data:version), and data:settled marks a version whose writes are all done. A build
-  // starts once nothing is being written (no span in flight, the data settled) and is kept only when, after its
-  // reads, still nothing is, with the same generation and version. Otherwise it's built again; past its time limit
+  // The pack is labelled with the data version its rows are from (the ranking's asOf offline). Writers move
+  // data:version BEFORE they write and data:settled once they're done, but the live lane stores rows before it moves
+  // the version. So the current season's reads (the only season the live lane writes) run holding the data lock,
+  // the cross-process writer lease (server/data/lock.ts): in production the cycle, and so this build, runs in a child
+  // process (DATA_CYCLE=child) and the lock is what keeps the server's live lane out. Measured, that span is 3 to
+  // 16 s (warm to cold), and the lane skips a tick while the lock is taken (at most one 60 s tick per daily build).
+  // Past seasons are read without it. `lockHeld`: the caller already holds the lock for the whole build (the owner's
+  // Rebuild packs, server/portal/ops.ts). In-process write spans (server/data/writeGen.ts) and the settled mark cover
+  // same-process writers and half-finished runs: a try is kept only when nothing was being written before and after
+  // its reads, with the same generation and version; otherwise it's built again, and past its time limit
   // (settleWait) the build fails rather than ship mixed rows (the next cycle builds it).
-  // Write spans are seen only within one process: where the cycle (and so this build) runs in its own process
-  // (DATA_CYCLE=child, or `npm run packs`), the server's live lane is another process and only the settled check
-  // applies to it.
   // The pack is built in memory, written out whole (VACUUM INTO) to a temp file, copied to a staging name and
   // renamed into place, so a build that fails at any step leaves no file behind.
   const final = join(dir, name), tmp = `${final}.tmp`, part = `${final}.part`;
@@ -111,11 +114,19 @@ export async function buildFull(season: number, version: string, dir: string, lo
     // Bounded by total time, not tries: on an event day the live lane writes about once a minute, and a try that
     // overlaps one waits for it to end and starts again at once (the read span is seconds).
     const until = Date.now() + settleWait.ms;
+    const guarded = season === CURRENT_SEASON && !o.lockHeld
+      ? <T,>(fn: () => Promise<T>) => withDataLock(`packs: ${season} reads`, fn, { ttlMs: 120_000, waitMs: Math.max(0, until - Date.now()), pollMs: 1000 })
+      : <T,>(fn: () => Promise<T>) => fn();
     for (let attempt = 1; ; attempt++) {
-      const before = await quiet(season, log, until);
-      ({ rows, teams } = await writeFullPack(out, season, version, log));
-      const after = await dataState();
-      if (after.quiet && after.version === before.version && after.gen === before.gen) {
+      // Wait for writes in progress without the lock (a half-finished run must not hold up the live lane).
+      await quiet(season, log, until);
+      const { before, after } = await guarded(async () => {
+        const before = await dataState();
+        if (!before.quiet) return { before, after: before };
+        ({ rows, teams } = await writeFullPack(out, season, version, log));
+        return { before, after: await dataState() };
+      });
+      if (before.quiet && after.quiet && after.version === before.version && after.gen === before.gen) {
         await out.execute({ sql: "INSERT INTO pack_info VALUES ('data_version', ?)", args: [before.version] });
         break;
       }
@@ -295,16 +306,17 @@ export async function withPackLock<T>(dir: string, fn: () => Promise<T>): Promis
   try { return await fn(); } finally { holding = false; rmSync(lock, { force: true }); }
 }
 
-export async function buildPacks(log: (m: string) => void = () => {}): Promise<Manifest> {
-  return withPackLock(packsDir(), () => buildPacksUnlocked(log));
+/** `lockHeld`: the caller holds the data lock for the whole build (buildFull). */
+export async function buildPacks(log: (m: string) => void = () => {}, o: { lockHeld?: boolean } = {}): Promise<Manifest> {
+  return withPackLock(packsDir(), () => buildPacksUnlocked(log, o));
 }
 
-async function buildPacksUnlocked(log: (m: string) => void): Promise<Manifest> {
+async function buildPacksUnlocked(log: (m: string) => void, o: { lockHeld?: boolean }): Promise<Manifest> {
   const dir = packsDir();
   const version = await nextVersion(dir);
   const lite = await buildLite(version, dir, log);
   const full: BuiltFile[] = [];
-  for (const s of [...SEASON_NUMBERS].sort((a, b) => b - a)) { const f = await buildFull(s, version, dir, log); if (f) full.push(f); }
+  for (const s of [...SEASON_NUMBERS].sort((a, b) => b - a)) { const f = await buildFull(s, version, dir, log, o); if (f) full.push(f); }
   const sync = await kvGet<{ at: string }>("sync:last");
   const manifest: Manifest = { format: PACK_FORMAT, version, builtAt: new Date().toISOString(), engineVersion: ENGINE_VERSION, dataAsOf: sync?.at ?? null, lite, full };
   writeFileSync(join(dir, "latest.json.tmp"), JSON.stringify(manifest, null, 2));

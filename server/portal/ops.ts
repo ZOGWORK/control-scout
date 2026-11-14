@@ -33,14 +33,15 @@ type Log = (m: string) => void;
 const runners: Record<OpName, (log: Log) => Promise<string>> = {
   resync: async (log) => { await runDataCycle("owner", log); return "Data updated."; },
   packs: async (log) => withDataLock("owner: rebuild packs", async () => {
+    // This holds the data lock for the whole build: the build is told (lockHeld), so it doesn't take it again (packs/build.ts).
     // Where the cycle runs in a child process (DATA_CYCLE=child), so does this build: its long synchronous
     // stretches would otherwise stall every request this server answers.
     let msg: string;
     if (childCycle()) {
       log("building in a child process");
-      await runPacksInChild();
+      await runPacksInChild(undefined, { lockHeld: true });
       msg = "Packs built.";
-    } else msg = `Packs ${(await buildPacks(log)).version} built.`;
+    } else msg = `Packs ${(await buildPacks(log, { lockHeld: true })).version} built.`;
     await kvSet("packs:last", new Date().toISOString());
     return msg;
   }, { ttlMs: 2 * 60_000, waitMs: 0 }),

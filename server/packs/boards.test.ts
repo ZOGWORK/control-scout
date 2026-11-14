@@ -17,6 +17,8 @@ import { setFlag } from "../flags";
 import { CURRENT_SEASON } from "../data/seasons";
 import { buildFull, settleWait } from "./build";
 import { idle, writeState, writing } from "../data/writeGen";
+import { lockHolder, withDataLock } from "../data/lock";
+import { liveIo, liveTick } from "../data/live";
 import { setBoardReads } from "./boards";
 import { buildPackApi, setPackReads, PACK_READS } from "./eventApi";
 import { eventDetail } from "../api/events";
@@ -377,5 +379,61 @@ describe("building a season pack", () => {
     mkdirSync(tmp); writeFileSync(join(tmp, "x"), "x");
     await expect(buildFull(S, "2026-11-14.13", d, () => {})).rejects.toThrow(`can't remove the stale ${tmp}`);
     expect(reads).toBe(0);
+  }, 120_000);
+});
+
+describe("the current season's reads hold the data lock", () => {
+  const V0 = "2026-11-14T01:09:00.000Z";
+  const holderDuring = (seen: (string | null)[]) => setBoardReads([async (s) => [{ path: `/api/records/${s}/high-score`, read: async () => {
+    seen.push((await lockHolder())?.what ?? null);
+    return { line: null };
+  } }]]);
+  beforeAll(async () => { await kvSet("data:version", V0); await kvSet("data:settled", V0); settleWait.ms = 20_000; settleWait.pollMs = 50; });
+  afterAll(() => { setBoardReads(null); settleWait.ms = 10 * 60_000; settleWait.pollMs = 2000; });
+
+  it("the current season's reads run under the lock, a past season's don't, and it's let go after", async () => {
+    const seen: (string | null)[] = [];
+    holderDuring(seen);
+    await buildFull(S, "2026-11-14.20", mkdtempSync(join(tmpdir(), "cs-lock-c-")), () => {});
+    await buildFull(PAST, "2026-11-14.20", mkdtempSync(join(tmpdir(), "cs-lock-p-")), () => {});
+    expect(seen).toEqual([`packs: ${S} reads`, null]);
+    expect(await lockHolder()).toBeNull();
+  }, 120_000);
+
+  it("a live tick during those reads skips quietly (the lane's busy-lock skip): nothing fetched", async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    await run("INSERT INTO events (season, code, name, type, start, end, timezone, remote, hybrid, source) VALUES (?, 'LOCKLIVE', 'Live Test', 'Qualifier', ?, ?, 'UTC', 0, 0, 'test')", [S, today, today]);
+    const real = { ...liveIo };
+    const fetched: string[] = [];
+    Object.assign(liveIo, { canProbe: () => false, fetch: async (e: { code: string }) => { fetched.push(e.code); } });
+    let tick: unknown = "not run";
+    setBoardReads([async (s) => [{ path: `/api/records/${s}/high-score`, read: async () => { tick = await liveTick(); return { line: null }; } }]]);
+    try {
+      await buildFull(S, "2026-11-14.21", mkdtempSync(join(tmpdir(), "cs-lock-l-")), () => {});
+      expect(tick).toBeNull();
+      expect(fetched).toEqual([]);
+      // Once the build has let go, the next tick runs.
+      expect((await liveTick())?.fetched).toEqual(["LOCKLIVE"]);
+    } finally {
+      Object.assign(liveIo, real);
+      await run("DELETE FROM events WHERE season = ? AND code = 'LOCKLIVE'", [S]);
+      await kvSet("data:version", V0); await kvSet("data:settled", V0);
+    }
+  }, 120_000);
+
+  it("the owner's Rebuild packs holds the lock for the whole build: told so (lockHeld), the build succeeds under it", async () => {
+    const seen: (string | null)[] = [];
+    holderDuring(seen);
+    const d = mkdtempSync(join(tmpdir(), "cs-lock-o-"));
+    const f = await withDataLock("owner: rebuild packs", () => buildFull(S, "2026-11-14.22", d, () => {}, { lockHeld: true }), { ttlMs: 60_000 });
+    expect(seen).toEqual(["owner: rebuild packs"]);
+    expect(readdirSync(d)).toEqual([f!.name]);
+    expect(await lockHolder()).toBeNull();
+  }, 120_000);
+
+  it("a read that throws: the build fails and the lock is let go", async () => {
+    setBoardReads([async (s) => [{ path: `/api/records/${s}/high-score`, read: async () => { throw new Error("boom"); } }]]);
+    await expect(buildFull(S, "2026-11-14.23", mkdtempSync(join(tmpdir(), "cs-lock-t-")), () => {})).rejects.toThrow(/boom/);
+    expect(await lockHolder()).toBeNull();
   }, 120_000);
 });

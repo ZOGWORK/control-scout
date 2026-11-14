@@ -1,7 +1,8 @@
-// In-process data writes, for readers that copy many tables without the data lock (the season packs, packs/build.ts):
-// the live lane and the stats job mark their write spans, so a reader can tell that nothing was written while it read.
-// The live lane writes rows BEFORE it moves data:version, so the version alone can't show that. Only this process's
-// writers are seen: a build in another process (DATA_CYCLE=child, `npm run packs`) relies on the data:settled check.
+// In-process data writes, for readers that copy many tables (the season packs, packs/build.ts): the live lane and the
+// stats job mark their write spans, so a reader can tell that nothing was written while it read (the live lane writes
+// rows BEFORE it moves data:version, so the version alone can't show that). This covers writers in the same process;
+// in production the build runs in a child process (DATA_CYCLE=child) and the data lock it holds for the current
+// season's reads is what keeps the server's live lane out.
 
 let inFlight = 0;
 let gen = 0;
