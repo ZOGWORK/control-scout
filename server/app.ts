@@ -447,6 +447,8 @@ export function createApp(opts: { dist?: string; /** Tests only: a smaller searc
       if (video && (video.main?.kind === "contributor" || Object.values(video.rows ?? {}).some((x) => x.kind === "contributor"))) res.setHeader("Cache-Control", "private, no-store");
       // Asked to watch and nothing plays (server/api/answers/videoSuggest.ts): questions that do, each checked.
       const offered = await withVideoAlternatives(q, full, video, (x) => pageAnswer(x, limit, prefer), (b) => answerVideo(b, Date.now(), viewer)).catch(() => full);
+      // Checked for this viewer (a video they added may be what plays): questions offered to one viewer are never cached.
+      if (viewer && offered !== full) res.setHeader("Cache-Control", "private, no-store");
       // This process's own time (searchTiming): the answer, then the rest (highlights, team numbers, video).
       res.setHeader("Server-Timing", searchTiming({ answer: answered - started, extras: performance.now() - answered }));
       return { ...offered, hits, ...(video ? { video } : {}) };
