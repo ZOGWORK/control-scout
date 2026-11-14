@@ -80,7 +80,7 @@ export async function videoCandidates(a: SearchAnswer, now = Date.now()): Promis
  */
 export async function withVideoAlternatives(q: string, a: SearchAnswer, v: SearchVideo | undefined,
   ask: (q: string) => Promise<SearchAnswer>, video: (a: SearchAnswer) => Promise<SearchVideo | undefined>, waitMs = WAIT_MS,
-  candidates: (a: SearchAnswer) => Promise<string[]> = videoCandidates): Promise<SearchAnswer> {
+  candidates: (a: SearchAnswer) => Promise<string[]> = videoCandidates, who = ""): Promise<SearchAnswer> {
   if (!a.stat || hasVideo(v) || !asksVideo(q, a)) return a;
   // Past the wait the answer goes as it is, and the checks still to come are never run.
   // The ones found by then are offered all the same.
@@ -91,12 +91,22 @@ export async function withVideoAlternatives(q: string, a: SearchAnswer, v: Searc
       if (offered.length >= OFFER_MAX || gaveUp) break;
       // Each check takes its turn in the process's one queue (./followUps.ts inTurns), so other requests and the
       // wait's own timer run between them.
-      const ok = await inTurns(async () => {
-        // Its turn may come after the wait: then it never runs.
-        if (gaveUp) return false;
-        const b = await ask(c).catch(() => null);
-        return !!b?.stat && !b.stat.none && hasVideo(await video(b).catch(() => undefined));
-      }).catch(() => false);
+      // One check per question and viewer (`who`) at a time, kept a minute: two searches asking at once share it.
+      const key = `${who}|${c}`, kept = checks.get(key);
+      let ok: boolean | null;
+      if (kept && Date.now() - kept.at < CHECK_TTL_MS) ok = await kept.v;
+      else {
+        const p = inTurns(async (): Promise<boolean | null> => {
+          // Its turn may come after the wait: then it never runs (and is never kept).
+          if (gaveUp) return null;
+          const b = await ask(c).catch(() => null);
+          return !!b?.stat && !b.stat.none && hasVideo(await video(b).catch(() => undefined));
+        }).catch(() => null);
+        if (checks.size >= CHECK_MAX) checks.clear();
+        checks.set(key, { at: Date.now(), v: p });
+        ok = await p;
+        if (ok === null) checks.delete(key);
+      }
       if (ok && !gaveUp) offered.push(c);
     }
     return offered;
@@ -108,6 +118,13 @@ export async function withVideoAlternatives(q: string, a: SearchAnswer, v: Searc
   const block: StatAnswer["blocks"][number] = { kind: "related", title: "Questions with video", queries: found };
   return { ...a, stat: { ...a.stat, blocks: [block, ...a.stat.blocks] } };
 }
+
+/** Questions checked lately (whether each plays, per viewer), shared by searches asking at once. */
+const checks = new Map<string, { at: number; v: Promise<boolean | null> }>();
+const CHECK_TTL_MS = 60_000;
+const CHECK_MAX = 500;
+/** Forgets the questions checked (tests). */
+export const forgetVideoChecks = () => checks.clear();
 
 /** Longest the answer waits for its questions with video. */
 const WAIT_MS = 2500;
