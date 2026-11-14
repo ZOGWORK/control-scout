@@ -37,7 +37,10 @@ vi.mock("../lib/consent", async (orig) => ({ ...(await orig<typeof import("../li
 const shortlisted = vi.hoisted(() => new Set<number>());
 vi.mock("../lib/personal", async (orig) => {
   const { useState } = await import("react");
+  // The phone's search bar is a real SearchBox, which ranks the visitor's own teams first: none here.
+  const none = { myTeam: null, tracked: { teams: [], events: [] }, bookmarks: [] };
   return { ...(await orig<typeof import("../lib/personal")>()),
+    usePersonal: () => ({ state: none }),
     useTeamFlags: (n: number) => {
       const [, bump] = useState(0);
       return { bookmarked: shortlisted.has(n), toggleBookmark: () => { if (shortlisted.has(n)) shortlisted.delete(n); else shortlisted.add(n); bump((x) => x + 1); } };
@@ -647,14 +650,22 @@ describe("search results page, phone (Part B 3b)", () => {
     detail: `${season} · Apr 19–23, 2022 · Houston, TX`, results: [`Ranked #${rank}`, "4-4-0 in quals", `OPR ${opr.toFixed(1)}`], href: `/events/${season.slice(0, 4)}/X?team=7149`,
   });
 
-  it("a search bar holding the query with a clear button, and a short Results header", () => {
+  it("a search bar that is the page's real field, holding the query, and a short Results header", () => {
     state.answer = answer([team(18061, "Simply Complex", "Plainsboro, NJ")]);
     const { container } = show("/search?q=how%20good%20is%20simply%20complex");
     const bar = container.querySelector("[data-phone-search]")!;
-    expect(bar.textContent).toContain("how good is simply complex");
+    // The field itself, not a button that opens another box over it: one tap edits it.
+    const field = within(bar as HTMLElement).getByRole("combobox", { name: "Search teams, events and matches" }) as HTMLInputElement;
+    expect(field.value).toBe("how good is simply complex");
+    expect(within(bar as HTMLElement).queryByRole("button", { name: /Change the search/ })).toBeNull();
+    expect(screen.getAllByRole("combobox")).toHaveLength(1);
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Results: Simply Complex (18061)");
-    fireEvent.click(screen.getByRole("button", { name: "Clear the search" }));
-    expect(loc).toBe("/search");
+    // × empties the field for a new search; typed and submitted, the new search's results page.
+    fireEvent.click(within(bar as HTMLElement).getByRole("button", { name: "Clear search" }));
+    expect(field.value).toBe("");
+    fireEvent.change(field, { target: { value: "simply complex in nj" } });
+    fireEvent.keyDown(field, { key: "Enter" });
+    expect(loc).toBe("/search?q=simply%20complex%20in%20nj");
   });
 
   it("every season as a chip; the team the answer is about gets no card of its own, its pages are in the summary", () => {
