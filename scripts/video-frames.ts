@@ -82,12 +82,20 @@ const ocr = async () => {
 };
 let [worker, digits] = await ocr();
 let renewing: Promise<void> | null = null;
+/** Set when hung workers couldn't be replaced: every later read then fails its video at once (written with the reason,
+ *  read again next run) instead of queueing behind the stuck job. */
+let ocrBroken: string | null = null;
 function renewOcr(): Promise<void> {
   renewing ??= (async () => {
     const old = [worker, digits];
-    [worker, digits] = await ocr();
+    try {
+      [worker, digits] = await ocr();
+      console.error("a frame read hung: the OCR workers were replaced");
+    } catch (e) {
+      ocrBroken = `the OCR workers hung and couldn't be replaced (${(e as Error).message.split("\n")[0]})`;
+      console.error(ocrBroken);
+    }
     await Promise.all(old.map((w) => w.terminate().catch(() => {})));
-    console.error("a frame read hung: the OCR workers were replaced");
   })().finally(() => { renewing = null; });
   return renewing;
 }
@@ -138,6 +146,7 @@ function readAt(page: Page, t: number): Promise<Read> {
 }
 
 async function readAtOnce(page: Page, t: number): Promise<Read> {
+  if (ocrBroken) throw new Error(ocrBroken);
   await seek(page, Math.max(0, t));
   const at = await now(page);
   const text = (await worker.recognize(await page.screenshot())).data.text as string;
@@ -413,6 +422,14 @@ async function doCode(code: string): Promise<void> {
     // The matches this video holds: inside its broadcast, or, with no broadcast start (an upload), every match no other video holds.
     const mine = played.filter((x) => !held.has(x.label) && (from == null ? !videos.some((o) => o !== v && o.meta?.start && Date.parse(o.meta.start) / 1000 <= x.epoch && (!o.meta.end || x.epoch <= Date.parse(o.meta.end) / 1000))
       : from <= x.epoch && (!m.end || x.epoch <= Date.parse(m.end) / 1000)));
+    // A video read well on an earlier run keeps its row: the event is back for another of its videos (a new link, one
+    // that couldn't be played), and a re-read now could place fewer of this one's matches. --all reads it again.
+    const prior = kept.get(`${v.videoId}|${code}`);
+    if (!CHECK && !ALL && prior && !Object.values(prior.missing ?? {}).some((w) => w.startsWith(PLAY_FAILED))) {
+      for (const l of Object.keys(prior.starts)) held.add(l);
+      log(`  ${v.videoId}: read on an earlier run, kept`);
+      continue;
+    }
     if (!mine.length) {
       // Its matches are another video's (FIRST's link and an organiser's recording of the same day): read, with none.
       if (!CHECK && !kept.has(`${v.videoId}|${code}`)) keep(`${v.videoId}|${code}`, { videoId: v.videoId, code, checked: today, starts: {} });
@@ -478,17 +495,26 @@ async function doCode(code: string): Promise<void> {
 
 // A few events at a time: most of a read is waiting for YouTube to seek.
 const queue = [...codes];
-const lane = async () => { while (queue.length && done < limit) await doCode(queue.shift()!); };
+// One event that fails (a database read before its videos) is reported and the lane goes on to the next.
+let failedEvents = 0;
+const lane = async () => {
+  while (queue.length && done < limit) {
+    const code = queue.shift()!;
+    try { await doCode(code); } catch (e) { failedEvents++; console.error(`${code}: ${(e as Error).message.split("\n")[0]} (not read)`); }
+  }
+};
 await Promise.all(Array.from({ length: count("lanes", 3) }, lane));
-await browser.close();
-await renewing;
-await worker.terminate();
-await digits.terminate();
+// The last save's retry comes before cleanup, and no cleanup step can skip what follows it.
+if (!CHECK && !DRY && unsaved) save();
+await browser.close().catch(() => {});
+await (renewing as Promise<void> | null)?.catch(() => {});
+await worker.terminate().catch(() => {});
+await digits.terminate().catch(() => {});
+if (failedEvents) { console.error(`${failedEvents} events failed before their videos were read`); process.exitCode = 1; }
 // Videos that couldn't be played are written as such and read again on the next run, but this run didn't finish them.
 if (failedVideos) { console.error(`${failedVideos} videos couldn't be played (written with the reason; the next run reads them again)`); process.exitCode = 1; }
 if (!CHECK && !DRY) {
-  // The last save may have failed with no save after it: the run then says so and fails.
-  if (unsaved) save();
+  // The last save may have failed with no save after it (retried above): the run then says so and fails.
   if (unsaved) { console.error("server/data/frameTimings.ts could not be written: this run's timings are lost"); process.exitCode = 1; }
   else console.log(`wrote ${kept.size} videos to server/data/frameTimings.ts`);
 }
