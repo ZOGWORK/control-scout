@@ -134,6 +134,13 @@ export function subscribeConnection(fn: () => void): () => void {
 }
 
 /** Called whenever `internet` changes (api.ts refreshes what's on screen from the packs when it turns "yes"). */
+const confirmedListeners = new Set<() => void>();
+/** Every check that finds internet, changed or not (onInternetChange only hears changes). */
+export function onInternetConfirmed(fn: () => void): () => void {
+  confirmedListeners.add(fn);
+  return () => { confirmedListeners.delete(fn); };
+}
+
 export function onInternetChange(fn: (now: Internet, before: Internet) => void): () => void {
   internetListeners.add(fn);
   return () => { internetListeners.delete(fn); };
@@ -178,9 +185,11 @@ export function checkInternet(): Promise<Internet> {
     }
   })().then((internet) => {
     if (inflight === run) inflight = null;
-    // The server answered another request while this check waited: that answer is the newer news.
-    if (internet === "no" && answeredAt >= since) return state.internet;
+    // The server answered another request while this check waited: that answer is the newer news (a late "no" or
+    // sign-in page answer never undoes it).
+    if (internet !== "yes" && answeredAt >= since) return state.internet;
     set({ internet, checkedAt: Date.now() });
+    if (internet === "yes") confirmedListeners.forEach((f) => f());
     return internet;
   });
   inflight = run;

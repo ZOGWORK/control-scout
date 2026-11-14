@@ -23,7 +23,7 @@ import { answerableOffline, keepable, keepAnswer, keptAt, keptOwner, keptPaths }
 import { packStatus } from "./packPolicy";
 import { FEATURE_DISABLED, featureOffMessage } from "../shared/flags";
 import { noteArrived, watchRequest } from "./liteSuggest";
-import { connection, freshInternet, noteRequestFailed, noteServerAnswer, offlineNow, onInternetChange } from "./connection";
+import { connection, freshInternet, noteRequestFailed, noteServerAnswer, offlineNow, onInternetChange, onInternetConfirmed } from "./connection";
 
 /**
  * A failed call. `code`: the answer's `error` when it's a machine code (`feature_disabled`), so callers can tell a
@@ -505,6 +505,9 @@ if (typeof window !== "undefined") {
 }
 // The connection check found the internet again (lib/connection.ts): the same, in the background (each entry keeps
 // its saved data on screen until the server's answer replaces it).
+// A check confirmed internet while the pill was on for a saved answer (a slow read answered from saved data while
+// the server was up): nothing changed for onInternetChange, so this clears it once nothing saved is on screen.
+onInternetConfirmed(() => { if (!offlineOnScreen().length) setUsingSaved(false); });
 onInternetChange((now) => {
   if (now !== "yes") return;
   if (offlineOnScreen().length) refetchOffline(); else setUsingSaved(false);
@@ -591,7 +594,12 @@ export function useApi<T>(path: string | null, valid?: (data: unknown) => data i
     if (!set) { set = new Set(); listeners.set(path, set); }
     set.add(fn);
     queueMicrotask(screenChanged);
-    return () => { set!.delete(fn); if (probe && !offlineOnScreen().length) stopProbe(); queueMicrotask(screenChanged); };
+    return () => {
+      set!.delete(fn);
+      // The last saved answer left the screen while there's internet: the pill goes with it.
+      if (!offlineOnScreen().length) { if (probe) stopProbe(); if (connection().internet === "yes") setUsingSaved(false); }
+      queueMicrotask(screenChanged);
+    };
   }, [path]);
   const read = () => (path ? (cache.get(path) as Entry<T> | undefined) : undefined);
   const e = useSyncExternalStore(subscribe, read, read);

@@ -83,6 +83,15 @@ describe("checkInternet", () => {
     await p;
     expect(connection().internet).toBe("yes");
   });
+  it("a sign-in page answer that lands after a server answer doesn't undo it (signed in meanwhile)", async () => {
+    let answer!: (r: Response) => void;
+    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>((r) => { answer = r; })));
+    const p = checkInternet();
+    noteServerAnswer(); // signed in to the Wi-Fi; a read got our own JSON
+    answer(new Response("<html>Sign in</html>", { status: 200, headers: { "Content-Type": "text/html" } }));
+    await p;
+    expect(connection().internet).toBe("yes");
+  });
 });
 
 describe("watching", () => {
