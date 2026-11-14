@@ -154,6 +154,9 @@ describe("a match number beside other words", () => {
   it("a bare year at Worlds is the championship held that year", async () => {
     const { a } = await ask("11148 M2 at worlds 2026");
     expect(a.stat?.headline?.href).toBe(edisonM2);
+    // No team said: the same championship.
+    const bare = await ask("m2 at worlds 2026");
+    expect(bare.a.stat?.headline?.href).toBe(edisonM2);
   });
   it("a superlative with a match number never answers for every match", async () => {
     const { a } = await ask("highest scoring m2 matches 2025-26");
