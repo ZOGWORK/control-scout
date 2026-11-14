@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.0.7 — 2026-11-14
+## 6.0.9 — 2026-11-14
 
 The slow-connection pop-up is clearer: it says what it saw, what Lite changes, and gives two big buttons.
 
@@ -26,6 +26,37 @@ The slow-connection pop-up is clearer: it says what it saw, what Lite changes, a
 
 ### Changed
 - Slow connection pop-up: it names the evidence ("This page has been loading for 11 s.", ticking, or "3 requests couldn't reach the server, the last one 4 s ago."; once a slow page arrives it stops counting and says "This page took 12 s to load."), says in three lines what Control Scout Lite changes, and offers "Keep waiting" and "Switch to Lite" as 44 px buttons with a 44 px close. Body text moved from 12 px to 14 px, the card got real padding and a gold edge, and on desktop it sits clear of the sidebar's account footer. `cs-lite-demo` shows it at once for screenshots. (`src/components/layout/LiteSuggest.tsx`, `src/lib/liteSuggest.ts`) (#1459)
+## 6.0.8 — 2026-11-14
+
+Control Scout Lite, the text-only version for a weak signal, has a new layout: room between everything, 44px buttons, the C-mark, and your own theme and text size. You can also keep Lite on.
+
+### Highlights
+- [appearance] Lite has room to breathe: cards, spacing and 44px buttons
+- [appearance] Lite follows your theme (all five) and your text size
+- [appearance] The C-mark and the name Control Scout Lite on every page
+- [speed] Always open Lite: team, event and match pages open in Lite
+- [speed] Turn off Lite from any Lite page, in one tap
+
+### Changed
+- Control Scout Lite: rebuilt layout, phone first. 16px side margins, 24px between sections, rounded cards, table cells padded 10 by 12 with numbers on the right, match lists as whole-row links, number tiles two a row, and every link or button at least 44px tall. The header shows the C-mark, "Control Scout Lite" and one gold Full version button. (`server/lite/render.ts`)
+- Lite pages draw in the theme you chose in the app (Light, Dim, Dark, Midnight or System) and at your text size. The app keeps both in cookies (`cs-theme`, `cs-text-size`) that Lite reads, and Lite's colours are the app's own, held equal by a test that also checks 4.5:1 contrast for every text colour. (`src/shared/themeTokens.ts`, `src/lib/liteCookies.ts`)
+- "Light version" is now "Control Scout Lite" in the footer link and the slow first paint's offer.
+
+### Added
+- Lite on: "Always open Lite" at the foot of a Lite page (or `/lite/on`) makes team, event and match pages you open go straight to Lite. While it's on, Full version opens the full page once, and "Turn off Lite" (`/lite/off`) switches it back. Pages with no Lite version open as usual. (`server/lite/routes.ts`, docs/lite.md) (#1463)
+
+## 6.0.7 — 2026-11-14
+
+A match's Watch button now plays just that match: the recording stops once its final score is up, before the next match starts.
+
+### Highlights
+- [fixes] Each match's clip stops at the end of that match
+- [fixes] The event page's player stops there too
+- [fixes] Search answers and the video window stop clips the same way
+
+### Fixed
+- Clips: a match's clip in an event's recording started at its match but then played on into the next one. Each recording clip now carries its end (`MatchClip.end`): the match's own second in the video (its clock second, less any start cut off the video, never moved earlier by an early start) + 2 min 40 s of play + 60 s for the live delay and the final score, stopping earlier only where the next match in the same video would show (never before this one's play is over), and never past the video's end. The 60 s was checked on APOC 2026's frames: the overlay's score stops changing 33 to 43 s after the buzzer. Every player honours it: the event page's recording (a match's Watch loads that clip, from its start to its end, in the open player; the picture and the day picker still play the recording on), the video window, search answers' players and play buttons, and the clip tiles. FIRST's own match videos and contributors' videos are the match alone and have no end. On the 2025 data: 5,044 recording clips, 4,940 stop at the full 220 s, the rest earlier for the next match or the video's end. (`src/shared/recording.ts`, `server/videos/recordings.ts`, `src/components/WatchLive.tsx`, `src/lib/ytBridge.ts`, `src/components/VideoDialog.tsx`, `src/components/search/page/AnswerVideo.tsx`) (#1460)
+
 ## 6.0.6 — 2026-11-14
 
 The owner can now see how far new visitors get through the first-visit welcome, counted anonymously and only for visitors who allow usage statistics.
@@ -38,7 +69,7 @@ The owner can now see how far new visitors get through the first-visit welcome, 
 ### Added
 - `POST /api/collect/onboarding` (`server/onboardingStats.ts`): with consent to usage statistics only, the onboarding sends shown, each step reached (once, however often Back and Next go over it), and skipped on step N or finished (with whether a team was picked, never which). The server adds 1 to a daily total (`onboarding_daily`, migration 87): no IDs, address, user agent or cookie. Bots, Global Privacy Control and Do Not Track are accepted and not counted. Replays from Settings aren't counted.
 - Owner console › Usage › First-visit onboarding (`src/components/owner/OnboardingFunnel.tsx`): one zero-based bar per step, skips per step, finished and picked a team.
-- The privacy page's Usage statistics section names the welcome's counts.
+- The privacy page's Usage statistics section names the welcome's counts. (#1465)
 
 ## 6.0.5 — 2026-11-14
 

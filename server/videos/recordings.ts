@@ -10,7 +10,7 @@ import { all, run } from "../db.js";
 import { registerCache } from "../caches.js";
 import { seasonStreams } from "../portal/streams.js";
 import { embedUrl, parseStreamUrl } from "../../src/shared/stream.js";
-import { CHAPTER_MIN_GAP_S, actualStart, chaptersConfirm, clearOfPrevious, clipSecond, gapSlack, timingTrusted, watchUrl, type Chapter } from "../../src/shared/recording.js";
+import { CHAPTER_MIN_GAP_S, actualStart, chaptersConfirm, clearOfPrevious, clipEnd, clipSecond, gapSlack, timingTrusted, watchUrl, type Chapter } from "../../src/shared/recording.js";
 import { localToUtcMs } from "../../src/shared/time.js";
 import type { EventStream, MatchView } from "../../src/shared/api.js";
 import { env } from "../env.js";
@@ -278,7 +278,8 @@ export function withClips<M extends Pick<MatchView, "label" | "time" | "startsAt
     for (const v of videos) {
       const t = clipSecond(x.startsAt, v.timing, now);
       if (t == null || !clearOfPrevious(x.startsAt, v.slack ? previousStart(v.starts, x.startsAt) : null, v.slack)) continue;
-      return { ...x, clip: { videoId: v.videoId, t, url: watchUrl(v.videoId, t), ...(v.slack ? { early: v.slack } : {}) } };
+      const end = clipEnd(x.startsAt, v.timing, nextStart(v.starts, x.startsAt), now);
+      return { ...x, clip: { videoId: v.videoId, t, url: watchUrl(v.videoId, t), ...(v.slack ? { early: v.slack } : {}), ...(end != null && end > t ? { end } : {}) } };
     }
     return x;
   });
@@ -297,6 +298,13 @@ function previousStart(starts: number[], startsAt: string | null | undefined): s
 export function recordingAt(r: Recording, startsAt: string | null | undefined, now = Date.now()): { videoId: string; meta: VideoMeta | null } {
   const all = [{ videoId: r.videoId, meta: r.meta }, ...(r.more ?? [])];
   return all.find((v) => v.meta?.status === "ok" && within(startsAt, v.meta, now)) ?? all[0];
+}
+
+/** The earliest of some match starts (ms, in order) after a match's start, as UTC ISO; null for none. */
+function nextStart(starts: number[], startsAt: string | null | undefined): string | null {
+  const at = startsAt ? Date.parse(startsAt) : NaN;
+  const next = starts.find((s) => s > at);
+  return next == null ? null : new Date(next).toISOString();
 }
 
 /** Whether a match start falls inside a broadcast (from its start to its end, or to now while it's live). */
