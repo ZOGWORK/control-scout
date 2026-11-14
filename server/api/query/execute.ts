@@ -23,7 +23,7 @@ import { teamHighlights, type TeamHighlightScope } from "../answers/highlights.j
 import { shortEvent } from "../answers/matchSet.js";
 import { CHAMPIONSHIP_TYPE, OFFICIAL_TYPES, STATES_TYPE } from "../answers/clauses.js";
 import { eventScoresAnswer, eventScoresTitle, type EventScoresQuestion } from "../answers/families/eventScores.js";
-import { FROM as FIND_FROM, eventKindOf, matchFindAnswer, where as findWhere, type MatchFind, type MatchMeasure } from "./matchFind.js";
+import { FROM as FIND_FROM, eventKindOf, labelText, matchFindAnswer, where as findWhere, type MatchFind, type MatchMeasure } from "./matchFind.js";
 import { seasonOfDate } from "./time.js";
 import { searchToday } from "../searchEvents.js";
 import { eventFor, forecastAt, teamEventOfType } from "./forecast.js";
@@ -582,8 +582,10 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     if (scope.window && scope.season != null && p.time?.year == null) return relaxed(a, windowSteps(scope.window, scope.season), (season) => card({ ...f, window: undefined, season }));
     // No season said, or "this season": the current one, then the one before when it has nothing yet.
     // Its note says what there's none of: matches, when nothing is played there yet; else the matches asked for.
-    const played = !/^From 0 /.test(a.stat?.source ?? "");
-    if (!events && (!p.time || (p.time.kind === "season" && p.time.relative === "this"))) return relaxed(a, defaultSteps(f.season, where, played ? MATCH_NOUN[f.measure] : "matches"), (season) => card({ ...f, season }));
+    // A match's number counts only matches with it: whether the season has any played is asked without it.
+    const unlabelled = f.label ? findWhere({ ...f, label: undefined }) : null;
+    const played = unlabelled ? !!(await get<{ n: number }>(`SELECT COUNT(*) n ${FIND_FROM} WHERE ${unlabelled.sql}`, unlabelled.args))?.n : !/^From 0 /.test(a.stat?.source ?? "");
+    if (!events && (!p.time || (p.time.kind === "season" && p.time.relative === "this"))) return relaxed(a, defaultSteps(f.season, where, played ? (f.label ? labelText(f.label) : MATCH_NOUN[f.measure]) : "matches"), (season) => card({ ...f, season }));
     return a;
   }
   // A count's board ("the most matches played", "most awards in nj"): answered as the leaderboard reader reads it, never
