@@ -35,6 +35,14 @@ export const OFFICIAL_CHANNELS: OfficialChannelSeed[] = [
   { channelId: "UCMkHRhdD35Jwg-rhbvspQEg", title: "FIRST in Alabama", region: "state=AL", words: "alabama", titlePattern: "alabama" },
   { channelId: "UCTaHVJzv8Hciyv6Sm8xGmiw", title: "FTC South Africa", region: "country=South Africa", words: "south african africa", titlePattern: "south africa" },
   { channelId: "UCuNd3shXL4BZsN7O7e3OPzQ", title: "Mississippi FIRST Tech Challenge", region: "state=MS", words: "mississippi", titlePattern: "mississippi" },
+  // The owner's audited list (2026-11-14); channel ids from the YouTube Data API (forHandle). Tulsa Robotics Center
+  // streams eastern Oklahoma's leagues, its own scrimmages and the state championship; SeaCow Robotics (FTC 21418) its
+  // Mountain Home, Benton and Bentonville qualifiers, and Shiloh Saints (Shiloh Christian School) the Arkansas
+  // Championship only, a school sports channel otherwise; FTC Louisiana every Louisiana event.
+  { channelId: "UC6y0o2J7b05YIL7w95cwg0w", title: "Tulsa Robotics Center (Oklahoma)", region: "state=OK;name=davinci|herrington|\\bmay\\b|morse|bishop kelley|pryor|scrimmage|oklahoma championship", words: "oklahoma tulsa trc" },
+  { channelId: "UClcqdD9sHnwtN7FCW6Vj1Ug", title: "SeaCow Robotics (Arkansas)", region: "state=AR;name=mountain home|benton", words: "arkansas seacow" },
+  { channelId: "UCvA42eBzkRpd-x23-AvOnvw", title: "Shiloh Saints (Arkansas Championship)", region: "state=AR;type=Championship", words: "arkansas shiloh", titlePattern: "arkansas" },
+  { channelId: "UCQYT4ZXN54khn_n7ebsRRtQ", title: "FTC Louisiana", region: "state=LA", words: "louisiana", titlePattern: "louisiana" },
   { channelId: "UCMQ-I5i7wiucrll3657GK4w", title: "FTC Utah", region: "state=UT", words: "utah", titlePattern: "utah" },
   { channelId: "UCyck0fFjiYFOz1S-TYCNiQA", title: "FIRST Illinois Robotics", region: "state=IL", words: "illinois", titlePattern: "illinois" },
   { channelId: "UCHVeR960xGMtQ2rHxYAebTw", title: "High Tech Kids (Minnesota)", region: "state=MN", words: "minnesota htk", titlePattern: "minnesota" },
