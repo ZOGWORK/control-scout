@@ -31,7 +31,7 @@ Control Scout Lite now covers the whole app: Home, Search, Predict, Compare, Ran
 - Every full page with a Lite page links to it from its footer, opens it with `?lite=1`, and goes there while Lite is on: Home, Search, Predict, Compare, Rankings, Scouting and Settings now too. The slow-connection offer is never made on scouting's forms (they keep working offline in the full app) or timed on a page with no data of its own (Settings).
 
 ### Changed
-- The factor sentence fix (`factorLabel`) and a factor's share of a call (`sharePct`) moved to `src/shared/`, so Lite prints them the same way as the app.
+- The factor sentence fix (`factorLabel`) and a factor's share of a call (`sharePct`) moved to `src/shared/`, so Lite prints them the same way as the app. (#1486)
 
 ## 6.1.5 — 2026-11-14
 
