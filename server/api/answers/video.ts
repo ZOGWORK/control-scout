@@ -50,7 +50,9 @@ const evKey = (r: VideoRef) => `${r.season}:${r.code}`;
  * a match, or an event the words name exactly. A set of events ("events in New Jersey") is about none.
  */
 export function mainRef(a: SearchAnswer): VideoRef | null {
-  const head = refOfHref(a.stat?.headline?.href);
+  // A headline's match still to play (a predicted score) is about its event, not a match with video.
+  const headHref = a.stat?.headline?.href;
+  const head = a.stat?.headline?.upcoming ? (() => { const r = refOfHref(headHref); return r ? { season: r.season, code: r.code } : null; })() : refOfHref(headHref);
   if (head) return head;
   if (a.card?.event) return { season: a.card.event.season, code: a.card.event.code };
   if (a.card) {
@@ -81,7 +83,8 @@ export function rowRefs(a: SearchAnswer): (VideoRef & { href: string })[] {
   for (const l of [...(a.card?.lines ?? []), ...(a.card?.closest ?? [])]) add(l.href);
   for (const b of a.stat?.blocks ?? []) {
     if (b.kind === "matches") for (const r of b.rows) add(r.href);
-    else if (b.kind === "table") for (const r of b.rows) add(r.href);
+    // A table of matches still to play is no one's video yet.
+    else if (b.kind === "table" && !b.upcoming) for (const r of b.rows) add(r.href);
     else if (b.kind === "videos") for (const t of b.tiles) add(t.href, MAX_TILES);
   }
   return [...out.values()];
