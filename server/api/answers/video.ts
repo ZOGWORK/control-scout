@@ -158,7 +158,7 @@ export async function answerVideo(a: SearchAnswer, now = Date.now(), viewer?: Vi
     for (const v of withClips(views, rec, now)) {
       const own = v.video ? youtubeId(v.video) : null;
       const item: SearchVideoItem | null = own ? { videoId: own, t: linkStart(v.video!), kind: "match", match: v.label }
-        : v.clip ? { videoId: v.clip.videoId, t: v.clip.t, kind: "recording", match: v.label, ...(rec?.meta?.live ? { live: true } : {}) } : null;
+        : v.clip ? { videoId: v.clip.videoId, t: v.clip.t, ...(v.clip.end != null ? { end: v.clip.end } : {}), kind: "recording", match: v.label, ...(rec?.meta?.live ? { live: true } : {}) } : null;
       if (item) items.set(`${k}:${v.key}`, item);
     }
   }
