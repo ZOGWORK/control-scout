@@ -687,6 +687,11 @@ async function namedUnofficialType(e: NonNullable<Scope["event"]>): Promise<stri
   return r ? (r.type ?? "") : null;
 }
 
+/** The note for a named event of this type that isn't official: an off-season event, a scrimmage, any other. */
+function unofficialNote(type: string | null): string {
+  return type === "OffSeason" ? NAMED_OFF_SEASON : /scrimmage/i.test(type ?? "") ? NAMED_SCRIMMAGE : NAMED_UNOFFICIAL;
+}
+
 /** A named event that isn't official counts its own matches (./clauses.ts officialClause), while every family's method
  *  note says official events only: the exception is said once, for whichever answered (one team's, two teams'), named
  *  as what the event is (an off-season event, a scrimmage). A headline saying "Official events only" says so too. */
@@ -695,7 +700,7 @@ async function noteNamedEvent(stat: StatAnswer, scope: Scope): Promise<void> {
   const type = await namedUnofficialType(scope.event);
   if (type == null) return;
   const off = type === "OffSeason", scrim = /scrimmage/i.test(type);
-  stat.definition = `${stat.definition} ${off ? NAMED_OFF_SEASON : scrim ? NAMED_SCRIMMAGE : NAMED_UNOFFICIAL}`;
+  stat.definition = `${stat.definition} ${unofficialNote(type)}`;
   if (stat.headline?.sub?.includes(OFFICIAL_ONLY)) stat.headline = { ...stat.headline, sub: stat.headline.sub.replace(OFFICIAL_ONLY, `${off ? "Off-season event" : scrim ? "Scrimmage" : "Not an official event"}, its own matches`) };
 }
 
@@ -1152,8 +1157,10 @@ async function compareAt(two: TwoTeamQuestion, a: AnswerTeam, b: AnswerTeam, sco
   // Their matches together at the event compared (by its own name, without the divisions note), not every event the
   // words named ("Lakeside League Meet": the AM meet both played, never the PM one too).
   const there = `${name.replace(/\s*\([^)]*\)$/, "").toLowerCase()} in ${S}-${String((S + 1) % 100).padStart(2, "0")}`;
+  // An event that isn't official (an off-season event named): its rows count here, said as every answer says it.
+  const unofficial = rows.find((e) => !isOfficialEvent(e.type));
   return {
-    ...base, title: `${a.number} vs ${b.number} at ${name}`, scope: [name, seasonLabel(S)],
+    ...base, title: `${a.number} vs ${b.number} at ${name}`, scope: [name, seasonLabel(S)], ...(unofficial ? { definition: `${AT_EVENT_RULE} ${unofficialNote(unofficial.type ?? null)}` } : {}),
     headline: crow[0] && rows.some((e) => e.opr != null) ? leadHeadline(teams, crow[0], [...ranks, decidedText(crow)], eventHref(S, rows[0].code)) : { value: ranks.join(" · "), label: `No OPR at ${name} on record` },
     blocks: [block, { kind: "links", title: "Try it", items: [{ label: `${a.number} and ${b.number} matches together there`, href: `/search?q=${encodeURIComponent(`${a.number} and ${b.number} matches together at ${there}`)}` }] }],
   };
