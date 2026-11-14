@@ -1,29 +1,29 @@
 # Clip coverage audit
 
-Run 2026-11-14T01:13:55.020Z on a copy of the live database (VACUUM INTO), with `scripts/clip-coverage.ts`. The full per-match list with teams is the CSV it writes (6 MB, not committed).
+Run 2026-11-14T03:53:24.115Z on a copy of the live database (VACUUM INTO), with `scripts/clip-coverage.ts`, after #1458 (cut-off starts) and #1460. The full per-match list with teams is the CSV it writes (6 MB, not committed).
 
 | | Count |
 |---|---:|
-| Events checked (a linked recording or FIRST match videos) | 1037 |
-| Recording videos checked | 1225 |
+| Events checked (a linked recording or FIRST match videos) | 1039 |
+| Recording videos checked | 1227 |
 | Played matches checked | 35897 |
-| With a clip | 24525 |
-| Without a clip | 11372 |
+| With a clip | 24600 |
+| Without a clip | 11297 |
 
 ## Events by coverage
 
 | State | Events |
 |---|---:|
-| full | 578 |
-| unplaced | 249 |
-| partial | 167 |
-| pending | 43 |
+| full | 581 |
+| unplaced | 247 |
+| partial | 166 |
+| pending | 45 |
 
 ## Why matches have no clip
 
 | Reason | Matches |
 |---|---:|
-| Video shorter than its broadcast, missing time can't be placed | 6468 |
+| Video shorter than its broadcast, missing time can't be placed | 6393 |
 | An early start would open on the match before | 1898 |
 | Video unavailable or private | 771 |
 | No recording for that day | 588 |
@@ -45,6 +45,9 @@ Run 2026-11-14T01:13:55.020Z on a copy of the live database (VACUUM INTO), with 
 | clock + YouTube chapters | 617 |
 | FIRST's match video | 476 |
 | clock + frames checked by eye | 55 |
+| clock + YouTube chapters (its first 1 h 24 min cut off) | 30 |
+| clock + YouTube chapters (its first 32 min cut off) | 24 |
+| clock + YouTube chapters (its first 4 h 17 min cut off) | 21 |
 
 ## Clips on one signal only (885)
 
@@ -55,7 +58,7 @@ Started early by the whole gap because the missing time can't be placed: nothing
 - 2026 USMISOQ · s47802Jj5uk (Southgate Qualifier): Q1–Q4, Q6–Q7, Q9–Q10, Q15–Q19, Q24, Q26–Q30, Q32, M1–M3, M7–M11
 - 2026 USPAKSN · qfOtpwmt9OY (Longhorn Roundup Scrimmage): Q1, Q5, Q7, Q9, Q21
 - 2025 AUSYQ2 · 55kdH9j4oKk (Sydney North Qualifier): Q2, Q5, Q12
-- 2025 CABCVIQ1 · 2LaRYh3rdo4 (Esquimalt Qualifier): Q1–Q11, Q13, Q16, M1, M3–M6, M6-2, M7
+- 2025 CABCVIQ1 · 2LaRYh3rdo4 (Esquimalt Qualifier): Q1–Q11, Q13, Q16, M1, M3–M7, M6-2
 - 2025 DESTQ · Cg6mn3kNrtE (Germany Championship): Q1, M1, M5, M9–M10
 - 2025 FPERR · 8OelOORV5oc (Run for the Robots Premier Event): F1–F3
 - 2025 FPEWE · mfEK4qhAC8c (Western Edge Premier Event): F1–F2
@@ -75,7 +78,7 @@ Started early by the whole gap because the missing time can't be placed: nothing
 - 2025 USIAMPM1 · jUmXfbtaokA (MachuPicchu Solon): Q1–Q18
 - 2025 USIAMPM5 · NBGA4UiNndk (MachuPicchu Williamburg): Q3–Q9, Q15, Q18–Q20
 - 2025 USIAPOMPM11 · ufVIXyeHAjk (Pompeii Regis): Q1, Q3
-- 2025 USIAWESTLT · 8kHuOPUmM2E (Easter Island & Chichen Itza): Q1, Q12, Q16, Q15, M1, M3, M9–M11
+- 2025 USIAWESTLT · 8kHuOPUmM2E (Easter Island & Chichen Itza): Q1, Q12, Q15–Q16, M1, M3, M9–M11
 - 2025 USILCCLT1 · PjwXTjGAkpo (Chicago League Tournament A): Q1–Q2, Q4, Q7, Q9, Q11, Q13–Q14, Q17, Q19–Q21, Q25, M1, M3–M10
 - 2025 USMABRQ1 · Oe-pETJ5zjI (Brookline Robo Rally 1): Q1–Q2, Q4, Q7–Q9, Q13–Q19, Q21–Q22, Q25, Q29, M1–M10
 - 2025 USMISCLT · LozxQh22O7A (South Central League Tournament): Q1, Q5, Q16, Q19, M1, M9–M10
@@ -112,7 +115,7 @@ Started early by the whole gap because the missing time can't be placed: nothing
 - 2024 USMOKSSLSQ · 6XmwpbY--0Y (Missouri Kansas East Super Qualifier): Q1, Q8, M1, M3, M9–M10
 - 2024 USMSMEQ · NXDKSE8IqlU (Meridian Qualifier): Q1, Q11, Q16, Q19, Q22, M1–M3, M5–M6
 - 2024 USMSTUQ · XUELHF0b_54 (Tupelo Qualifier): Q1–Q7, Q9–Q23, M1–M7
-- 2024 USNYEXCOQ · GToFNJ0Egac (Corning Qualifier): Q1, Q3, Q6–Q9, Q17, M1, M3–M4, M4-2, M5–M7
+- 2024 USNYEXCOQ · GToFNJ0Egac (Corning Qualifier): Q1, Q3, Q6–Q9, Q17, M1, M3–M7, M4-2
 - 2024 USOHNEOHLT · F2OE_HsHA1Q (NEOH Aurora League Tournament): Q1, Q9, Q11, M1, M3, M5–M6
 - 2024 USOHNEOHM3 · Q8cSB2k5g6M (NEOH Meet 3): Q1–Q12
 - 2024 USORSOM1 · iW3dh6qGaSE (SOAR League Meet 1): Q1–Q4, Q6, Q9–Q12, Q14–Q16, Q19–Q20, Q23
@@ -198,12 +201,6 @@ Per event, per video (day · part), per reason: the matches. Every match's teams
 ### 2026 USWARIM2 — Ritchie League Meet 2: 0 of 21 (unplaced)
 - Sunday `3BVN2x1HPK0`: 0 of 21 held — Video 1 h 41 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
   - Q1–Q21 · 3BVN2x1HPK0: Video 1 h 41 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
-### 2025 AUSYOS — APOC: 50 of 71 (partial)
-- Friday `7bTejVfIN2M`: 10 of 10 held
-- Saturday · Part 1 `fBZOzjZr-60`: 0 of 21 held — Video 4 h 17 min shorter than its broadcast (over the 15 min an early start covers), its chapters don't confirm the clock
-- Saturday · Part 2 `YhyTMxV91sc`: 5 of 5 held
-- Sunday `kR0hDZqlHM8`: 35 of 35 held
-  - Q11–Q31 · fBZOzjZr-60: Video 4 h 17 min shorter than its broadcast (over the 15 min an early start covers), its chapters don't confirm the clock
 ### 2025 AUSYQ1 — Sydney South Qualifier: 0 of 30 (unplaced)
 - Sunday `1NcywjWLfu8`: 0 of 30 held — Video 6 h 6 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
   - Q1–Q24, M1–M6 · 1NcywjWLfu8: Video 6 h 6 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
@@ -230,7 +227,7 @@ Per event, per video (day · part), per reason: the matches. Every match's teams
   - Q1–Q29, M1–M10 · Y0kALAfm3EM: Video 2 h 52 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
 ### 2025 CAONKAQ — Ottawa Qualifier: 0 of 40 (unplaced)
 - Saturday `1hPowweJI_g`: 0 of 40 held — Video 6 h 32 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
-  - Q1–Q29, M1–M4, M6, M5, M7–M11 · 1hPowweJI_g: Video 6 h 32 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
+  - Q1–Q29, M1–M11 · 1hPowweJI_g: Video 6 h 32 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
 ### 2025 CAONKIQ — Kingston Qualifier: 0 of 32 (unplaced)
 - Saturday `8BYKMDcW9gw`: 0 of 32 held — Video 27 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
   - Q1–Q26, M1–M6 · 8BYKMDcW9gw: Video 27 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
@@ -265,7 +262,7 @@ Per event, per video (day · part), per reason: the matches. Every match's teams
 ### 2025 FPEISTVDIV — İstanbul Premier Event - Valens Division: 0 of 84 (unplaced)
 - Sunday `cmh8-a6q1ck`: 0 of 33 held
 - Saturday 2026-06-27: no recording (51 played)
-  - Q1–Q8, Q10–Q26, Q9, Q27–Q51 · no video: No recording for Saturday
+  - Q1–Q51 · no video: No recording for Saturday
   - Q52–Q74, M1–M10 · cmh8-a6q1ck: Played before the broadcast started
 ### 2025 FPEROC — Canadian Rockies Premier Event @ KDays: 0 of 110 (unplaced)
 - Day `SXVDvK3XiOM`: 0 of 110 held — Video unavailable or private
@@ -304,7 +301,7 @@ Per event, per video (day · part), per reason: the matches. Every match's teams
 - Friday `pvmxbH8YW-k`: 5 of 18 held
 - Saturday `zG45zl5pcDw`: 53 of 54 held
 - Sunday `AMgGg3Hfzxs`: 15 of 15 held
-  - Q2, Q4, Q8–Q16, Q18, Q5 · pvmxbH8YW-k: An early start would open on the match before (starts up to 6 min early)
+  - Q2, Q4–Q5, Q8–Q16, Q18 · pvmxbH8YW-k: An early start would open on the match before (starts up to 6 min early)
   - Q19 · zG45zl5pcDw: Played before the broadcast started
 ### 2025 ROCMPVLC — Romania Championship - VLAICU Division: 61 of 86 (partial)
 - Friday `0FwLO2mIQCY`: 0 of 18 held — Video 15 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
@@ -330,7 +327,7 @@ Per event, per video (day · part), per reason: the matches. Every match's teams
   - Q1–Q30, M1–M10 · jOod-UoRGuE: Video 6 h 22 min shorter than its broadcast (over the 15 min an early start covers), its chapters don't confirm the clock
 ### 2025 USALHUQ1 — Qualifier #1: 0 of 17 (unplaced)
 - Saturday `naRG_0BOSUc`: 0 of 17 held — Video 6 h 26 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
-  - Q1–Q4, Q6–Q9, Q11–Q15, Q5, Q10, F1–F2 · naRG_0BOSUc: Video 6 h 26 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
+  - Q1–Q15, F1–F2 · naRG_0BOSUc: Video 6 h 26 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
 ### 2025 USARBEQ2 — Arkansas Battle at Benton: 26 of 30 (partial)
 - Saturday `1WingSKwfNs`: 18 of 22 held
 - Saturday `vTjVQKJ81Fs`: 4 of 4 held
@@ -380,10 +377,10 @@ Per event, per video (day · part), per reason: the matches. Every match's teams
   - Q1–Q18, M1–M6 · w36Zw_uqfms: Video 6 h 31 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
 ### 2025 USCOLIQ — SW Metro Qualifier: 14 of 35 (partial)
 - Saturday `W9fnbtAc6Z8`: 14 of 35 held
-  - Q16–Q29, Q13, M1–M6 · W9fnbtAc6Z8: Past the part of the video its chapters confirm (to 3 h 37 min into the broadcast)
+  - Q13, Q16–Q29, M1–M6 · W9fnbtAc6Z8: Past the part of the video its chapters confirm (to 3 h 37 min into the broadcast)
 ### 2025 USCOSEQ — Northern Qualifier: 0 of 43 (unplaced)
 - Saturday `pUraXxR5-fI`: 0 of 43 held — Video 1 h 47 min shorter than its broadcast (over the 15 min an early start covers), its chapters don't confirm the clock
-  - Q1–Q8, Q10–Q33, Q9, M1–M10 · pUraXxR5-fI: Video 1 h 47 min shorter than its broadcast (over the 15 min an early start covers), its chapters don't confirm the clock
+  - Q1–Q33, M1–M10 · pUraXxR5-fI: Video 1 h 47 min shorter than its broadcast (over the 15 min an early start covers), its chapters don't confirm the clock
 ### 2025 USFCTKAQ — Monument Valley - Kayenta Qualifier: 4 of 26 (partial)
 - Saturday `inTg2y3YymA`: 4 of 26 held
   - Q2–Q12, Q14–Q19, M2–M5, M7 · inTg2y3YymA: An early start would open on the match before (starts up to 13 min early)
@@ -393,7 +390,7 @@ Per event, per video (day · part), per reason: the matches. Every match's teams
   - Q1–Q3 · afaqqytUvDU: Played after the broadcast ended
 ### 2025 USFLORLT — Orlando Robotics League Tournament: 21 of 48 (partial)
 - Saturday `Ze9nb5PfHZE`: 21 of 48 held
-  - Q22–Q32, Q34–Q38, Q33, M1–M10 · Ze9nb5PfHZE: Past the part of the video its chapters confirm (to 3 h 43 min into the broadcast)
+  - Q22–Q38, M1–M10 · Ze9nb5PfHZE: Past the part of the video its chapters confirm (to 3 h 43 min into the broadcast)
 ### 2025 USFLORM2 — Orlando Robotics League Meet 2: 0 of 47 (unplaced)
 - Saturday `OBaOrZgzmI0`: 0 of 47 held — Video 4 h 57 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
   - Q1–Q47 · OBaOrZgzmI0: Video 4 h 57 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
@@ -435,7 +432,7 @@ Per event, per video (day · part), per reason: the matches. Every match's teams
   - Q1–Q11 · no video: No recording for Saturday
 ### 2025 USIAPOMPLT — Pompeii: 0 of 45 (unplaced)
 - Saturday `QyKaGG_E_po`: 0 of 45 held — Video 17 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
-  - Q1–Q34, M1–M2, M1-2, M4, M3, M6, M5, M7–M10 · QyKaGG_E_po: Video 17 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
+  - Q1–Q34, M1–M10, M1-2 · QyKaGG_E_po: Video 17 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
 ### 2025 USIAPOMPM11 — Pompeii Regis: 2 of 18 (partial)
 - Saturday `ufVIXyeHAjk`: 2 of 18 held
   - Q2, Q4–Q18 · ufVIXyeHAjk: An early start would open on the match before (starts up to 14 min early)
@@ -485,7 +482,7 @@ Per event, per video (day · part), per reason: the matches. Every match's teams
   - Q2–Q4, Q6–Q15, Q17–Q18, Q20–Q39, M2–M8 · LozxQh22O7A: An early start would open on the match before (starts up to 7 min early)
 ### 2025 USMNCMPGLXY — Minnesota FTC State Championship - Galaxy Division: 4 of 66 (partial)
 - Saturday `kzo5SBlOhVs`: 4 of 66 held
-  - Q2–Q18, Q20–Q33, Q19, Q35–Q56, M2–M9 · kzo5SBlOhVs: An early start would open on the match before (starts up to 14 min early)
+  - Q2–Q33, Q35–Q56, M2–M9 · kzo5SBlOhVs: An early start would open on the match before (starts up to 14 min early)
 ### 2025 USMNCMPNANO — Minnesota FTC State Championship - Nano Division: 0 of 66 (unplaced)
 - Saturday `w6wOm-lfJyM`: 0 of 66 held — Video 21 min shorter than its broadcast (over the 15 min an early start covers), its chapters don't confirm the clock
   - Q1–Q56, M1–M10 · w6wOm-lfJyM: Video 21 min shorter than its broadcast (over the 15 min an early start covers), its chapters don't confirm the clock
@@ -571,7 +568,7 @@ Per event, per video (day · part), per reason: the matches. Every match's teams
   - Q11–Q45, M2–M8 · cFia2BHJXZ4: An early start would open on the match before (starts up to 9 min early)
 ### 2025 USNHCMP — New Hampshire Championship: 0 of 45 (unplaced)
 - Saturday `Qu7DQwOx4Go`: 0 of 45 held — Video 6 h 13 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
-  - Q1–Q19, Q21–Q35, Q20, M1–M10 · Qu7DQwOx4Go: Video 6 h 13 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
+  - Q1–Q35, M1–M10 · Qu7DQwOx4Go: Video 6 h 13 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
 ### 2025 USNMCMP — New Mexico Championship: 5 of 29 (partial)
 - Saturday `awgTySwJx-Y`: 5 of 29 held
   - Q2–Q7, Q9, Q11–Q23, M2–M4, M6 · awgTySwJx-Y: An early start would open on the match before (starts up to 14 min early)
@@ -602,10 +599,10 @@ Per event, per video (day · part), per reason: the matches. Every match's teams
   - Q1–Q18, M1–M6 · YLbszDxtrAY: Video has no broadcast clock (an upload, not a live stream)
 ### 2025 USOHCLQ2 — CMSD Qualifier: 0 of 25 (unplaced)
 - Thursday `S6iU2gWkFZ8`: 0 of 25 held — Video 6 h 29 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
-  - Q1–Q10, Q12–Q18, Q11, M1–M7 · S6iU2gWkFZ8: Video 6 h 29 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
+  - Q1–Q18, M1–M7 · S6iU2gWkFZ8: Video 6 h 29 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
 ### 2025 USOHNEOHM3 — NEOH 3: 0 of 20 (unplaced)
 - Day `ixYvoqIRw0Q`: 0 of 20 held — Video unavailable or private
-  - Q1–Q2, Q4, Q3, Q5–Q20 · ixYvoqIRw0Q: Video unavailable or private
+  - Q1–Q20 · ixYvoqIRw0Q: Video unavailable or private
 ### 2025 USORCMPPUR1 — Oregon Championship - Purple Division: 34 of 52 (partial)
 - Saturday `-_vByPV-npI`: 7 of 12 held
 - Sunday `ki957nlxltA`: 27 of 40 held
@@ -628,10 +625,10 @@ Per event, per video (day · part), per reason: the matches. Every match's teams
   - Q2–Q8, Q10–Q12, Q14, Q16–Q17, Q19–Q21, Q23, Q25, Q27–Q28, Q30–Q32, Q34–Q45, M2–M4, M6, M8 · LNoHfnyab6s: An early start would open on the match before (starts up to 6 min early)
 ### 2025 USORRCLT — Rose City League Tournament: 19 of 28 (partial)
 - Saturday `vytSgpJsr1Q`: 19 of 28 held
-  - Q21–Q22, Q1, M1–M6 · vytSgpJsr1Q: Past the part of the video its chapters confirm (to 3 h 22 min into the broadcast)
+  - Q1, Q21–Q22, M1–M6 · vytSgpJsr1Q: Past the part of the video its chapters confirm (to 3 h 22 min into the broadcast)
 ### 2025 USORRCM1 — Rose City League Meet 1: 0 of 20 (unplaced)
 - Saturday `rv2i4S5eu_k`: 0 of 20 held
-  - Q1, Q3–Q20, Q2 · rv2i4S5eu_k: Played after the broadcast ended
+  - Q1–Q20 · rv2i4S5eu_k: Played after the broadcast ended
 ### 2025 USORRCM2 — Rose City League Meet 2: 0 of 20 (unplaced)
 - Monday `gPITsadBcwY`: 0 of 0 held
 - Saturday 2025-12-13: no recording (20 played)
@@ -644,7 +641,7 @@ Per event, per video (day · part), per reason: the matches. Every match's teams
   - Q1–Q33, M1–M10 · J7AGzW0ki1k: Video unavailable or private
 ### 2025 USTNCMP — Tennessee Championship: 5 of 45 (partial)
 - Saturday `UxEbw2_MSck`: 5 of 45 held
-  - Q3–Q8, Q1, Q10–Q11, Q13–Q35, Q12, M2–M8 · UxEbw2_MSck: An early start would open on the match before (starts up to 13 min early)
+  - Q1, Q3–Q8, Q10–Q35, M2–M8 · UxEbw2_MSck: An early start would open on the match before (starts up to 13 min early)
 ### 2025 USTXCHCM2 — FiT-Central NSAHC Hill Country League Meet 2: 8 of 22 (partial)
 - Saturday `oqY-OZ3-juk`: 8 of 22 held
   - Q9 · oqY-OZ3-juk: After the video ends (the video stops 0 min before it)
@@ -667,7 +664,7 @@ Per event, per video (day · part), per reason: the matches. Every match's teams
   - M9–M11 · TfCy8Ji0vuI: Past the part of the video its chapters confirm (to 4 h 34 min into the broadcast)
 ### 2025 USTXFMQ — FiT-North Last Call Qualifier: 0 of 55 (unplaced)
 - Saturday `3JIBUValRVM`: 0 of 55 held — Video 6 h 27 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
-  - Q1–Q41, Q43, Q42, Q45, Q44, M1–M10 · 3JIBUValRVM: Video 6 h 27 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
+  - Q1–Q45, M1–M10 · 3JIBUValRVM: Video 6 h 27 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
 ### 2025 USTXGRSQ — FiT-North Grapevine Semi-Regional: 9 of 48 (partial)
 - Saturday `p-1xMvJiTmc`: 9 of 48 held
   - Q10–Q38, M1–M10 · p-1xMvJiTmc: Past the part of the video its chapters confirm (to 1 h 18 min into the broadcast)
@@ -688,7 +685,7 @@ Per event, per video (day · part), per reason: the matches. Every match's teams
   - Q2–Q5, Q7–Q11, Q13–Q27 · eKFwME2gVAc: An early start would open on the match before (starts up to 10 min early)
 ### 2025 USTXNDM3 — FiT-North D-League Meet 3: 0 of 24 (unplaced)
 - Saturday `LSNWexDpHGs`: 0 of 24 held — Video 1 h 9 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
-  - Q2–Q24, Q1 · LSNWexDpHGs: Video 1 h 9 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
+  - Q1–Q24 · LSNWexDpHGs: Video 1 h 9 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
 ### 2025 USTXNELT — FiT-North E-League Tournament: 0 of 16 (unplaced)
 - Saturday `0NBABCtsPXE`: 0 of 16 held — Video 6 h 48 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
   - Q1–Q14, F1–F2 · 0NBABCtsPXE: Video 6 h 48 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
@@ -706,7 +703,7 @@ Per event, per video (day · part), per reason: the matches. Every match's teams
   - Q1–Q29 · 0ejYUiBPf9U: Video 1 h 50 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
 ### 2025 USTXNFTLT — FiT-North F&T League Tournament: 0 of 53 (unplaced)
 - Saturday `Zi42pCwE5P8`: 0 of 53 held — Video 6 h 26 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
-  - Q2–Q43, Q1, M1–M10 · Zi42pCwE5P8: Video 6 h 26 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
+  - Q1–Q43, M1–M10 · Zi42pCwE5P8: Video 6 h 26 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
 ### 2025 USTXNIM1 — FiT-North I-League Meet 1: 0 of 21 (unplaced)
 - Saturday `Cy-E303rn-0`: 0 of 21 held — Video 5 h 29 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
   - Q1–Q21 · Cy-E303rn-0: Video 5 h 29 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
@@ -718,7 +715,7 @@ Per event, per video (day · part), per reason: the matches. Every match's teams
   - Q10–Q21 · QhWzNB0MlLo: Past the part of the video its chapters confirm (to 2 h 12 min into the broadcast)
 ### 2025 USTXNISLT — FiT-North I&S League Tournament: 0 of 48 (unplaced)
 - Saturday `zA72xvqndKo`: 0 of 48 held — Video 6 h 22 min shorter than its broadcast (over the 15 min an early start covers), its chapters don't confirm the clock
-  - Q1–Q32, Q34, Q33, Q35–Q38, M1–M10 · zA72xvqndKo: Video 6 h 22 min shorter than its broadcast (over the 15 min an early start covers), its chapters don't confirm the clock
+  - Q1–Q38, M1–M10 · zA72xvqndKo: Video 6 h 22 min shorter than its broadcast (over the 15 min an early start covers), its chapters don't confirm the clock
 ### 2025 USTXNSM3 — FiT-North S-League Meet 3: 0 of 23 (unplaced)
 - Saturday `tX3_dIfE7Q4`: 0 of 23 held — Video 6 h 9 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
   - Q1–Q23 · tX3_dIfE7Q4: Video 6 h 9 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
@@ -755,7 +752,7 @@ Per event, per video (day · part), per reason: the matches. Every match's teams
   - Q1–Q19 · ug2uPuIxEPU: Video 7 h 53 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
 ### 2025 USTXSAOS1 — Queso Bowl: 0 of 39 (unplaced)
 - Saturday `tH7n5EtRpSo`: 0 of 39 held — Video 1 h 8 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
-  - Q1–Q28, M1–M9, M9-2, M10 · tH7n5EtRpSo: Video 1 h 8 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
+  - Q1–Q28, M1–M10, M9-2 · tH7n5EtRpSo: Video 1 h 8 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
 ### 2025 USTXSASQ — FiT-Central San Antonio Semi-Regional: 2 of 50 (partial)
 - Saturday `DgrBhJC2TIk`: 2 of 50 held
   - Q2–Q8, Q10–Q18 · DgrBhJC2TIk: An early start would open on the match before (starts up to 9 min early)
@@ -828,12 +825,12 @@ Per event, per video (day · part), per reason: the matches. Every match's teams
   - Q19, Q21–Q31, Q34–Q35, Q37–Q45, Q47–Q48, Q50–Q51, Q53–Q55, Q57, Q60–Q67, Q69, Q71 · Opr0k4kNnzs: An early start would open on the match before (starts up to 7 min early)
 ### 2024 TRCMP — Türkiye Championship: 0 of 31 (unplaced)
 - Saturday `pHpUCHs_aZc`: 0 of 31 held — Video 56 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
-  - Q1–Q24, M1–M4, M3-2, M5–M6 · pHpUCHs_aZc: Video 56 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
+  - Q1–Q24, M1–M6, M3-2 · pHpUCHs_aZc: Video 56 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
 ### 2024 TRISQ1 — Uluslararasi FIRST Tech Challenge 1. Uskudar Turnuvasi: 5 of 56 (partial)
 - Friday `Iah9yGJMsZA`: 5 of 37 held
 - Saturday 2024-11-30: no recording (19 played)
   - Q2–Q6, Q9–Q19, Q21–Q36 · Iah9yGJMsZA: An early start would open on the match before (starts up to 6 min early)
-  - Q38–Q45, M1–M4, M3-2, M5–M10 · no video: No recording for Saturday
+  - Q38–Q45, M1–M10, M3-2 · no video: No recording for Saturday
 ### 2024 TRISQ2 — Uluslararasi FIRST Tech Challenge 2. Uskudar Turnuvasi: 0 of 55 (unplaced)
 - Saturday `Q6p0L9fTfQk`: 0 of 0 held
 - Sunday 2024-12-01: no recording (55 played)
@@ -934,9 +931,6 @@ Per event, per video (day · part), per reason: the matches. Every match's teams
 ### 2024 USIABALLT — Baltic League Tournament: 0 of 44 (unplaced)
 - Saturday `FEoSIhRlU3g`: 0 of 44 held — Video 2 h 56 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
   - Q1–Q34, M1–M10 · FEoSIhRlU3g: Video 2 h 56 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
-### 2024 USIABALM6 — Baltic_2025-01-18: 0 of 30 (unplaced)
-- Saturday `nGgL5NFg4Ec`: 0 of 30 held — Video 1 h 24 min shorter than its broadcast (over the 15 min an early start covers), its chapters don't confirm the clock
-  - Q1–Q30 · nGgL5NFg4Ec: Video 1 h 24 min shorter than its broadcast (over the 15 min an early start covers), its chapters don't confirm the clock
 ### 2024 USIACASM5 — Caspian_2024-11-01: 1 of 15 (partial)
 - Friday `y-y14blHETg`: 1 of 15 held
   - Q2–Q15 · y-y14blHETg: An early start would open on the match before (starts up to 13 min early)
@@ -959,9 +953,6 @@ Per event, per video (day · part), per reason: the matches. Every match's teams
 ### 2024 USIATASM1 — Tasman_2024-12-21: 0 of 23 (unplaced)
 - Saturday `KM9d-jelHM4`: 0 of 23 held — Video 6 h 8 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
   - Q1–Q23 · KM9d-jelHM4: Video 6 h 8 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
-### 2024 USIATASM3 — Tasman_2024-11-23: 0 of 24 (unplaced)
-- Saturday `MZszQGMrQRQ`: 0 of 24 held — Video 32 min shorter than its broadcast (over the 15 min an early start covers), its chapters don't confirm the clock
-  - Q1–Q24 · MZszQGMrQRQ: Video 32 min shorter than its broadcast (over the 15 min an early start covers), its chapters don't confirm the clock
 ### 2024 USIATASM4 — Tasman_2024-11-09: 0 of 17 (unplaced)
 - Saturday `KWyukzbNNqA`: 0 of 17 held — Video 26 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
   - Q1–Q17 · KWyukzbNNqA: Video 26 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
@@ -1004,7 +995,7 @@ Per event, per video (day · part), per reason: the matches. Every match's teams
   - Q1–Q39, M1–M10 · PhI-OnEb7PY: Video 1 h 24 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
 ### 2024 USMSGUQ — Gulfport Qualifier: 0 of 23 (unplaced)
 - Saturday `JgDEQMy1koA`: 0 of 23 held — Video 6 h 13 min shorter than its broadcast (over the 15 min an early start covers), its chapters don't confirm the clock
-  - Q1–Q8, Q10–Q16, Q9, Q17, M1–M6 · JgDEQMy1koA: Video 6 h 13 min shorter than its broadcast (over the 15 min an early start covers), its chapters don't confirm the clock
+  - Q1–Q17, M1–M6 · JgDEQMy1koA: Video 6 h 13 min shorter than its broadcast (over the 15 min an early start covers), its chapters don't confirm the clock
 ### 2024 USMSMEQ — Meridian Qualifier: 10 of 32 (partial)
 - Saturday `NXDKSE8IqlU`: 10 of 32 held
   - Q2–Q10, Q12–Q15, Q17–Q18, Q20–Q21, Q23–Q26, M4 · NXDKSE8IqlU: An early start would open on the match before (starts up to 5 min early)
@@ -1067,12 +1058,12 @@ Per event, per video (day · part), per reason: the matches. Every match's teams
 - Sunday `Fyw1bFXtSLo`: 50 of 50 held
   - Q2, Q4, Q7–Q10 · Z5MjxPQa8gg: An early start would open on the match before (starts up to 3 min early)
 ### 2024 USPALAQ1 — Lancaster Area Qualifier: 44 of 50 (partial)
-- Saturday `J8NVkH2mYPM`: 44 of 49 held
+- Saturday `J8NVkH2mYPM`: 44 of 50 held
   - Q1–Q5 · J8NVkH2mYPM: Played before the broadcast started
-  - M2 · no video: No real start time from FIRST
+  - M2 · J8NVkH2mYPM: No real start time from FIRST
 ### 2024 USPAUCQ2 — Panther Power Qualifier: 0 of 50 (unplaced)
 - Sunday `PMWbWp99goY`: 0 of 50 held — Video 21 min shorter than its broadcast (over the 15 min an early start covers), its chapters don't confirm the clock
-  - Q1–Q38, M1–M7, M6-2, M8–M11 · PMWbWp99goY: Video 21 min shorter than its broadcast (over the 15 min an early start covers), its chapters don't confirm the clock
+  - Q1–Q38, M1–M11, M6-2 · PMWbWp99goY: Video 21 min shorter than its broadcast (over the 15 min an early start covers), its chapters don't confirm the clock
 ### 2024 USTXCALT1 — FiT-Central North San Antonio & Hill Country League Tournament: 1 of 52 (partial)
 - Saturday `qBEw661kTGw`: 1 of 52 held
   - Q2–Q12 · qBEw661kTGw: An early start would open on the match before (starts up to 13 min early)
@@ -1082,7 +1073,7 @@ Per event, per video (day · part), per reason: the matches. Every match's teams
   - Q1 · URvygjzZpY4: Played before the broadcast started
 ### 2024 USTXCCOS1 — FIRST in Texas Buc Days Robotics Rodeo: 0 of 59 (unplaced)
 - Saturday `vyDYFrqgMTU`: 0 of 59 held — Video 6 h 3 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
-  - Q1–Q9, Q11–Q49, Q10, M1–M10 · vyDYFrqgMTU: Video 6 h 3 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
+  - Q1–Q49, M1–M10 · vyDYFrqgMTU: Video 6 h 3 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
 ### 2024 USTXDAQ — FiT-North Semi-Area Championship Whiterock Waters: 0 of 49 (unplaced)
 - Saturday `SqUbpJvDmNE`: 0 of 49 held — Video 6 h 4 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
   - Q1–Q38, M1–M11 · SqUbpJvDmNE: Video 6 h 4 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
@@ -1130,7 +1121,7 @@ Per event, per video (day · part), per reason: the matches. Every match's teams
   - M3–M10 · hxWqkLAuVAY: Played after the broadcast ended
 ### 2024 USTXTBSQLM — FiT-Central Regional Championship - Lise Meitner Division: 0 of 42 (unplaced)
 - Saturday `ML6T8T1g_1s`: 0 of 42 held — Video 55 min shorter than its broadcast (over the 15 min an early start covers), its chapters don't confirm the clock
-  - Q1–Q30, M1–M7, M6-2, M8–M11 · ML6T8T1g_1s: Video 55 min shorter than its broadcast (over the 15 min an early start covers), its chapters don't confirm the clock
+  - Q1–Q30, M1–M11, M6-2 · ML6T8T1g_1s: Video 55 min shorter than its broadcast (over the 15 min an early start covers), its chapters don't confirm the clock
 ### 2024 USUTSAS — Beehive Academy Checkpoint Scrimmage: 12 of 13 (partial)
 - Saturday `YVhwlspNlK4`: 12 of 13 held
   - Q1 · YVhwlspNlK4: Played before the broadcast started
@@ -1139,7 +1130,7 @@ Per event, per video (day · part), per reason: the matches. Every match's teams
   - Q1–Q26, M1–M6 · BpHrIvG6UH4: Video 20 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
 ### 2024 USWIBRQ1 — Battle of Brookfield: 38 of 43 (partial)
 - Saturday `cKuToMM0USo`: 38 of 43 held
-  - M7–M8, M8-2, M9–M10 · cKuToMM0USo: Past the part of the video its chapters confirm (to 6 h 53 min into the broadcast)
+  - M7–M10, M8-2 · cKuToMM0USo: Past the part of the video its chapters confirm (to 6 h 53 min into the broadcast)
 ### 2024 USWIGRQ — Thumb Wars: 27 of 33 (partial)
 - Saturday `m5RXr-tw_ZE`: 27 of 33 held
   - M1–M6 · m5RXr-tw_ZE: Played after the broadcast ended
@@ -1189,11 +1180,11 @@ Per event, per video (day · part), per reason: the matches. Every match's teams
   - Q1–Q29, M1–M2, M1-2, M2-2, F1–F2 · hINDJv2q0Tg: Video 2 h 56 min shorter than its broadcast (over the 15 min an early start covers), its chapters don't confirm the clock
 ### 2023 USAZCMPGC1 — Arizona Championship - Grand Canyon Division: 0 of 45 (unplaced)
 - Saturday `VaNMEkolveQ`: 0 of 45 held — Video 6 h 14 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
-  - Q1–Q36, M1, M1-2, M2, M1-3, M2-2, M2-3, F1–F3 · VaNMEkolveQ: Video 6 h 14 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
+  - Q1–Q36, M1–M2, M1-2, M1-3, M2-2, M2-3, F1–F3 · VaNMEkolveQ: Video 6 h 14 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
 ### 2023 USAZCMPSG1 — Arizona Championship - Saguaro Division: 0 of 43 (unplaced)
-- Saturday `1y_yCO20m7s`: 0 of 42 held — Video 6 h 14 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
+- Saturday `1y_yCO20m7s`: 0 of 43 held — Video 6 h 14 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
   - Q1–Q9, Q11–Q36, M1–M2, M1-2, M2-2, M2-3, F1–F2 · 1y_yCO20m7s: Video 6 h 14 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
-  - Q10 · no video: No real start time from FIRST
+  - Q10 · 1y_yCO20m7s: No real start time from FIRST
 ### 2023 USAZFLQ — AZ High Country - Flagstaff Qualifier: 0 of 24 (unplaced)
 - Saturday `6yAwDyVNCSM`: 0 of 24 held — Video 6 h 2 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
   - Q1–Q17, M1–M2, M1-2, M2-2, F1–F3 · 6yAwDyVNCSM: Video 6 h 2 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
@@ -1215,7 +1206,7 @@ Per event, per video (day · part), per reason: the matches. Every match's teams
   - Q1–Q22, M1–M2, M1-2, M2-2, F1–F3 · v4D-KvNFLoY: Video 28 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
 ### 2023 USCODEQ — CO Central Qualifier: 0 of 34 (unplaced)
 - Saturday `GyPg5PsPUb0`: 0 of 34 held — Video 2 h 44 min shorter than its broadcast (over the 15 min an early start covers), its chapters don't confirm the clock
-  - Q1–Q21, Q23–Q27, Q22, M1–M2, M1-2, M2-2, M2-3, F1–F2 · GyPg5PsPUb0: Video 2 h 44 min shorter than its broadcast (over the 15 min an early start covers), its chapters don't confirm the clock
+  - Q1–Q27, M1–M2, M1-2, M2-2, M2-3, F1–F2 · GyPg5PsPUb0: Video 2 h 44 min shorter than its broadcast (over the 15 min an early start covers), its chapters don't confirm the clock
 ### 2023 USCOSEQ — CO Severance Qualifier: 0 of 41 (unplaced)
 - Saturday `Roz9dI31RQ4`: 0 of 41 held — Video 3 h 26 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
   - Q1–Q35, M1–M2, M1-2, M2-2, F1–F2 · Roz9dI31RQ4: Video 3 h 26 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
@@ -1382,7 +1373,7 @@ Per event, per video (day · part), per reason: the matches. Every match's teams
   - Q1–Q30, M1–M2, M1-2, M2-2, M1-3, F1–F2 · -ZumNQnxvnU: Video 6 h 9 min shorter than its broadcast (over the 15 min an early start covers), its chapters don't confirm the clock
 ### 2022 USAZCMPSG23 — Arizona FIRST Tech Challenge Championship - Saguaro Division: 0 of 37 (unplaced)
 - Saturday `iWoYX5kF9xo`: 0 of 37 held — Video 6 h 10 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
-  - Q1–Q2, Q4–Q15, Q3, Q16–Q30, M1–M2, M1-2, M2-2, F1–F3 · iWoYX5kF9xo: Video 6 h 10 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
+  - Q1–Q30, M1–M2, M1-2, M2-2, F1–F3 · iWoYX5kF9xo: Video 6 h 10 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
 ### 2022 USAZGLQ — AZ Cactus - Anthem Qualifier: 32 of 35 (partial)
 - Saturday `SIrsN45NDkg`: 29 of 32 held
 - Saturday `SYwaPaAbD3U`: 3 of 3 held
@@ -1407,7 +1398,7 @@ Per event, per video (day · part), per reason: the matches. Every match's teams
   - Q1–Q5 · YwMY0xTIdKk: Played before the broadcast started
 ### 2022 USMSGRQ3 — MS Grenada Qualifier: 6 of 21 (partial)
 - Saturday `zXX1AWhNKgo`: 6 of 21 held
-  - Q1–Q3, Q5–Q6, Q4, Q7–Q15 · zXX1AWhNKgo: Played before the broadcast started
+  - Q1–Q15 · zXX1AWhNKgo: Played before the broadcast started
 ### 2022 USMSLAQ6 — MS Laurel Qualifier: 21 of 29 (partial)
 - Saturday `m80Tbbf8Uqc`: 21 of 29 held
   - Q1–Q8 · m80Tbbf8Uqc: Played before the broadcast started
@@ -1456,7 +1447,7 @@ Per event, per video (day · part), per reason: the matches. Every match's teams
   - Q1–Q26 · Qy2x3LmYmhw: Video 3 h 34 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
 ### 2022 USTXSOBEOS — FIRST in Texas UIL State 5A: 0 of 41 (unplaced)
 - Friday `xIHItKTvwBQ`: 0 of 41 held — Video 6 h 9 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
-  - Q1–Q3, Q5, Q4, Q6–Q35, M1–M2, M1-2, M2-2, F1–F2 · xIHItKTvwBQ: Video 6 h 9 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
+  - Q1–Q35, M1–M2, M1-2, M2-2, F1–F2 · xIHItKTvwBQ: Video 6 h 9 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
 ### 2022 USTXSOBES — FIRST in Texas UIL State 6A: 0 of 41 (unplaced)
 - Friday `V_LkivEPLY8`: 0 of 41 held — Video 6 h 14 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
   - Q1–Q35, M1–M2, M1-2, M2-2, F1–F2 · V_LkivEPLY8: Video 6 h 14 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
@@ -1499,25 +1490,25 @@ Per event, per video (day · part), per reason: the matches. Every match's teams
   - Q1–Q38, M1–M2, M1-2, M2-2, M1-3, F1–F2 · zOHmGex79XE: Video 2 h 11 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
 ### 2021 USNYNYQUQ3 — NY-NYC Qualifier 3: 0 of 24 (unplaced)
 - Saturday `E9t_IZycxeQ`: 0 of 24 held — Video 29 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
-  - Q1–Q8, Q10–Q18, Q9, M1–M2, M1-2, M2-2, F1–F2 · E9t_IZycxeQ: Video 29 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
+  - Q1–Q18, M1–M2, M1-2, M2-2, F1–F2 · E9t_IZycxeQ: Video 29 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
 ### 2021 USNYNYQUQ4 — NY-NYC Qualifier 4: 0 of 29 (unplaced)
 - Sunday `u6Rhe9CIudo`: 0 of 29 held — Video 1 h 36 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
   - Q1–Q23, M1–M2, M1-2, M2-2, F1–F2 · u6Rhe9CIudo: Video 1 h 36 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
 ### 2019 2019IACMP1BLACK — Iowa Championship BLACK: 9 of 45 (partial)
-- Saturday `juDEJB2wENc`: 9 of 9 held
-  - Q1–Q36 · no video: No real start time from FIRST
+- Saturday `juDEJB2wENc`: 9 of 45 held
+  - Q1–Q36 · juDEJB2wENc: No real start time from FIRST
 ### 2019 2019IACMP1GOLD — Iowa Championship GOLD: 7 of 43 (partial)
-- Saturday `f0WTAt-jFDA`: 7 of 7 held
-  - Q1–Q36 · no video: No real start time from FIRST
+- Saturday `f0WTAt-jFDA`: 7 of 43 held
+  - Q1–Q36 · f0WTAt-jFDA: No real start time from FIRST
 ### 2019 2019IALT6 — League Tournament: Ottumwa: 0 of 40 (unplaced)
-- Saturday `mk1-wQ80_qI`: 0 of 23 held
-  - Q1, Q3, Q5, Q7, Q9, Q11, Q13, Q15, Q17, Q19, Q21, Q23, Q25, Q27, Q29, Q31, Q33 · no video: No real start time from FIRST
+- Saturday `mk1-wQ80_qI`: 0 of 40 held
+  - Q1, Q3, Q5, Q7, Q9, Q11, Q13, Q15, Q17, Q19, Q21, Q23, Q25, Q27, Q29, Q31, Q33 · mk1-wQ80_qI: No real start time from FIRST
   - Q2, Q4, Q6, Q8, Q10, Q12, Q14, Q16, Q18, Q20, Q22, Q24, Q26, Q28, Q30, Q32, M1–M2, M1-2, M2-2, M1-3, F1–F2 · mk1-wQ80_qI: Played before the broadcast started
 ### 2019 2019IASQ1 — Super Qualifier: Waverly: 0 of 42 (unplaced)
-- Saturday `kX5LTi80YSI`: 0 of 6 held
-  - Q1–Q36 · no video: No real start time from FIRST
+- Saturday `kX5LTi80YSI`: 0 of 42 held
+  - Q1–Q36 · kX5LTi80YSI: No real start time from FIRST
   - M1–M2, M1-2, M2-2, F1–F2 · kX5LTi80YSI: Played before the broadcast started
 ### 2019 2019IASQ2 — Super Qualifier: Johnston: 3 of 44 (partial)
-- Saturday `6penXtHBHpI`: 3 of 8 held
-  - Q1–Q36 · no video: No real start time from FIRST
+- Saturday `6penXtHBHpI`: 3 of 44 held
+  - Q1–Q36 · 6penXtHBHpI: No real start time from FIRST
   - M1–M2, M1-2, M2-2, M1-3 · 6penXtHBHpI: Played before the broadcast started
