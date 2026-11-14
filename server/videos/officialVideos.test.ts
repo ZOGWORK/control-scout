@@ -8,7 +8,7 @@ import { clearAllCaches } from "../caches";
 import { eventRecording, recordingStream } from "./recordings";
 import { eventHighlightVideos, localDate, seedOfficialVideos, type OfficialList } from "./officialVideos";
 import { eventView, withPageExtras } from "../api/eventView";
-import { parseRule } from "./officialMatch";
+import { matchVideo, parseRule } from "./officialMatch";
 import shipped from "../data/officialVideos.json" with { type: "json" };
 
 const S = 2025;
@@ -233,6 +233,12 @@ describe("the shipped list", () => {
     expect(rule("UCvA42eBzkRpd-x23-AvOnvw")({ ...ar, code: "USARBEQ", name: "Bentonville Bash" })).toBe(false);
     expect(rule(LA)({ ...ev, state: "LA", code: "USLANOQ", name: "New Orleans Qualifier" })).toBe(true);
     expect(rule(LA)({ ...ev, code: "USOKCMP", name: "Oklahoma Championship" })).toBe(false);
+    // Tulsa names the region in its championship title ("Oklahoma State Championship"): that counts, so next season's
+    // stream is added like a state partner's, not left for review.
+    const trc = OFFICIAL_CHANNELS.find((c) => c.channelId === TRC)!;
+    const cmp = { ...ev, season: 2025, code: "USOKCMP", name: "Oklahoma Championship", type: "Championship", start: "2026-02-14", end: "2026-02-14" };
+    const stream = { videoId: "2dfab82v9LI", title: "FIRST Oklahoma - Oklahoma State Championship - FTC Decode", start: "2026-02-14T15:00:00Z", durationS: 7 * 3600, privacy: "public", embeddable: true, blockedIn: 0 };
+    expect(matchVideo(stream, trc, [cmp]).kind).toBe("add");
   });
 
   it("puts FIRST in Missouri's and FIRST MOKS's recordings on the Missouri/Kansas meet each title names, one session each", async () => {
