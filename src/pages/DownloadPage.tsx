@@ -8,7 +8,8 @@
 //
 // The lite pack (every team's ratings) also downloads itself in the background for returning visitors
 // (LitePackSync, packPolicy.ts); opening this page fetches it at once. Updates to saved seasons are found in the
-// background (lib/offline/updateWatcher) and follow the two update settings below the list.
+// background (lib/offline/updateWatcher) and follow the two settings in Settings › Network & offline (linked below
+// the list, the only copy).
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { CalendarDays, CheckCircle2, Database, HardDriveDownload, Layers, Loader2, Pause, RefreshCw, Trash2, Trophy, WifiOff } from "lucide-react";
@@ -33,7 +34,7 @@ import { cn } from "../components/cn";
 import { useFlag } from "../lib/flags";
 import { netKind, updateStatus } from "../lib/offline/updatePolicy";
 import { EventBundles, useEventOptions } from "../components/offline/EventBundles";
-import { UpdateModeToggle, UpdateNetworkToggle, connectionNote, useConnection, useUpdatePrefs } from "../components/offline/UpdateSettings";
+import { useConnection, useUpdatePrefs } from "../components/offline/UpdateSettings";
 import { useMinuteNow } from "../components/offline/Snapshot";
 import { bundleFinished, type BundleManifest } from "../shared/eventBundle";
 
@@ -97,7 +98,7 @@ export default function DownloadPage() {
         </>
       )}
       <OnDevice m={m} local={local} />
-      {m && <UpdatePrefs />}
+      {m && <SettingsLink />}
       <section className="mt-8 max-sm:mt-5" aria-labelledby="how-title">
         <h2 id="how-title" className="font-display text-lg font-semibold">How offline works</h2>
         <ol className="mt-3 grid gap-3 text-sm text-muted-foreground sm:grid-cols-3">
@@ -521,23 +522,13 @@ function OnDevice({ m, local }: { m: PackManifest | null; local: PackMeta | null
   );
 }
 
-/** The two update settings (synced with your account): ask or download automatically, and on which connections. */
-function UpdatePrefs() {
-  const { mode, network, setMode, setNetwork } = useUpdatePrefs();
-  const connection = useConnection();
+/** The download and update settings live in one place, Settings › Network & offline: a link there, not a second copy. */
+function SettingsLink() {
   return (
-    <div className="mt-4 grid gap-4 rounded-2xl border border-border bg-card p-4 sm:grid-cols-2 sm:px-6" aria-label="Update settings" role="group">
-      <div className="min-w-0">
-        <p className="text-sm font-medium">When updates are out</p>
-        <p className="mt-0.5 mb-2 text-xs text-muted-foreground">Checked in the background. Ask me shows one pop-up per release, and a notification when you're signed in.</p>
-        <UpdateModeToggle value={mode} onChange={setMode} />
-      </div>
-      <div className="min-w-0">
-        <p className="text-sm font-medium">Download updates on</p>
-        <p className="mt-0.5 mb-2 text-xs text-muted-foreground">{connectionNote(connection)}</p>
-        <UpdateNetworkToggle value={network} onChange={setNetwork} />
-      </div>
-    </div>
+    <p className="mt-4 rounded-2xl border border-border bg-card px-4 py-3 text-sm text-muted-foreground sm:px-6" data-settings-link>
+      Which connections downloads use, and automatic updates:{" "}
+      <Link to="/settings#network" className="tap-44 font-medium text-foreground underline underline-offset-2">Network &amp; offline settings</Link>
+    </p>
   );
 }
 

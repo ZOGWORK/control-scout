@@ -21,7 +21,8 @@ import { compareFromPacks } from "../../shared/compare";
 import type { CompareView } from "../../shared/api";
 import { answerableOffline } from "./kept";
 import { scoutReadAnswer } from "./scoutReads";
-import { readEventDetail, readMatchViews, readProjections, readSearch, readTeamProfile, readTeamSchedule, type ReadOpts } from "./readers";
+import { readEventDetail, readMatchViews, readProjections, readSearch, readTeamProfile, readTeamSchedule, type ReadOpts, type SeasonDb } from "./readers";
+import { NotSaved, ranksAnyone, readBoard, readRankingPlaces, readRankings } from "./boards";
 
 let books: { pack: LitePack | null; bySeason: Map<number, RatingBook | null> } | null = null;
 
@@ -210,8 +211,75 @@ async function savedSeasonAnswer(path: string): Promise<unknown | null> {
   return fromSeason ?? packAnswer(path);
 }
 
+/** Leaderboard paths a saved season's boards answer (src/lib/offline/boards.ts). */
+const BOARD_PATH = /^\/api\/(records\/(\d{4})\/(high-score|regions|teams|matches)|leagues\/(\d{4})\/[^/]+\/[^/]+|events|power-rankings(\/[^/]+)?)$/;
+
+/** Read with a saved season's boards; what they can't answer is said in words (OfflineAnswerError), never a dead page. */
+async function fromBoards<T>(season: number, read: (db: SeasonDb["db"]) => Promise<T | null>): Promise<T | null> {
+  const src = source(season);
+  if (!src) return null;
+  try {
+    const got = await readSaved(season, ([sdb]) => (sdb ? read(sdb.db) : null));
+    return got && typeof got === "object" ? markOffline(got as object, src) as T : got;
+  } catch (e) {
+    if (e instanceof NotSaved) throw new OfflineAnswerError(0, e.message);
+    throw e;
+  }
+}
+
+/** The saved season that's the current one (its pack says so), for a path that names no season. */
+async function currentSaved(): Promise<number | null> {
+  for (const s of savedSeasons()) {
+    const cur = await readSaved(s.season, ([sdb]) => sdb?.db.all<{ value: string }>("SELECT value FROM pack_info WHERE key = 'current_season'")[0]?.value ?? null).catch(() => null);
+    if (cur && Number(cur) === s.season) return s.season;
+  }
+  return null;
+}
+
+/** /api/rankings and /api/rankings/places from a saved season (no ?season=: the newest saved one that ranks anyone,
+ *  as the server opens on the newest season with ratings). */
+async function offlineRankings(url: URL, season: number | undefined): Promise<unknown | null> {
+  let s = season;
+  if (s == null) {
+    for (const x of savedSeasons()) {
+      if (await readSaved(x.season, ([sdb]) => !!sdb && ranksAnyone(sdb.db, x.season)).catch(() => false)) { s = x.season; break; }
+    }
+  }
+  if (s == null) return null;
+  const at = s;
+  if (url.pathname === "/api/rankings/places") {
+    const team = int(url.searchParams.get("team"));
+    return fromBoards(at, (db) => readRankingPlaces(db, at, team ?? null));
+  }
+  return fromBoards(at, (db) => readRankings(db, at, url.searchParams));
+}
+
+/** A leaderboard from the boards of the season it names (power rankings: any saved season that holds them). */
+async function offlineBoard(path: string, m: RegExpExecArray, season: number | undefined): Promise<unknown | null> {
+  const named = Number(m[2] ?? m[4]) || season;
+  if (m[1].startsWith("power-rankings")) {
+    for (const s of savedSeasons()) {
+      const got = await fromBoards(s.season, (db) => readBoard(db, path));
+      if (got != null) return got;
+    }
+    return null;
+  }
+  if (m[1] === "events" && named == null) {
+    // No ?season=: the server's current season, if that's saved (its list is stored under ?season=).
+    const cur = await currentSaved();
+    if (cur == null) return null;
+    const u = new URL(path, "http://offline.invalid");
+    u.searchParams.set("season", String(cur));
+    return fromBoards(cur, (db) => readBoard(db, `${u.pathname}${u.search}`));
+  }
+  if (named == null) return null;
+  return fromBoards(named, (db) => readBoard(db, path));
+}
+
 async function seasonAnswer(path: string, url: URL, season: number | undefined): Promise<unknown | null> {
   let m: RegExpExecArray | null;
+  if (url.pathname === "/api/rankings" || url.pathname === "/api/rankings/places") return offlineRankings(url, season);
+  if ((m = BOARD_PATH.exec(url.pathname))) return offlineBoard(path, m, season);
   if ((m = /^\/api\/teams\/(\d{1,6})$/.exec(url.pathname))) return offlineTeamProfile(Number(m[1]), season);
   if ((m = /^\/api\/teams\/(\d{1,6})\/matches$/.exec(url.pathname))) return offlineTeamMatches(Number(m[1]), season);
   if ((m = /^\/api\/teams\/(\d{1,6})\/schedule$/.exec(url.pathname))) return offlineTeamSchedule(Number(m[1]), season);

@@ -18,16 +18,19 @@ import { closeSync, copyFileSync, existsSync, mkdirSync, linkSync, openSync, rea
 import { hostname } from "node:os";
 import { join } from "node:path";
 import { gzipSync } from "node:zlib";
-import { createClient } from "@libsql/client";
+import { createClient, type Client } from "@libsql/client";
 import { ENGINE_VERSION } from "@control-scout/predict-engine";
 import { all, kvGet } from "../db.js";
 import { CURRENT_SEASON, PREDICT_SEASONS, SEASON_NUMBERS, seasonInfo } from "../data/seasons.js";
-import { ScoutForecaster, forecasterFor } from "../predict/engine.js";
+import { ScoutForecaster, dataVersion, forecasterFor } from "../predict/engine.js";
 import { partnershipPrefix } from "../predict/partnerships.js";
 import { encodeLitePairs } from "../../src/shared/litePairs.js";
 import { LEARNED_DAYS, type LiteLearned } from "../../src/shared/liteLearned.js";
 import { packsDir } from "./routes.js";
-import { PACK_INDEXES, PACK_TABLES as FULL_TABLES, PACK_TEAMS_DDL, SCHEDULE_TABLE } from "../../src/shared/packSchema.js";
+import { PACK_INDEXES, PACK_TABLES as FULL_TABLES, PACK_TEAMS_DDL, RANKING_PACK_WEEKS, RANKING_TABLES, SCHEDULE_TABLE } from "../../src/shared/packSchema.js";
+import { writeBoards } from "./boards.js";
+import { idle, writeState } from "../data/writeGen.js";
+import { withDataLock } from "../data/lock.js";
 import { SCHEDULE_COLUMNS, scheduleRows } from "../../src/shared/scheduleDifficulty.js";
 import { seasonScheduleDifficulty } from "../predict/scheduleDifficulty.js";
 import { place } from "../../src/shared/format.js";
@@ -95,19 +98,124 @@ export async function buildLite(version: string, dir: string, log: (m: string) =
     contents: `Every team's prediction rating for ${Object.keys(books).length} seasons plus team names — enough to predict any match on this device with no connection.` };
 }
 
-export async function buildFull(season: number, version: string, dir: string, log: (m: string) => void): Promise<BuiltFile | null> {
+export async function buildFull(season: number, version: string, dir: string, log: (m: string) => void, o: { lockHeld?: boolean } = {}): Promise<BuiltFile | null> {
   const n = await all<{ c: number }>("SELECT COUNT(*) c FROM matches WHERE season = ?", [season]);
   if (!Number(n[0]?.c)) return null;
   const name = `scout-pack-${version.replace(/\./g, "-")}-${season}.db`;
-  const tmp = join(dir, `${name}.tmp`);
-  if (existsSync(tmp)) { try { rmSync(tmp); } catch { /* in use */ } }
-  const out = createClient({ url: `file:${tmp.replace(/\\/g, "/")}` });
-  await out.execute("PRAGMA journal_mode = OFF");
+  // The pack is labelled with the data version its rows are from (the ranking's asOf offline). Writers move
+  // data:version BEFORE they write and data:settled once they're done, but the live lane stores rows before it moves
+  // the version. So the current season's reads (the only season the live lane writes) run holding the data lock,
+  // the cross-process writer lease (server/data/lock.ts): in production the cycle, and so this build, runs in a child
+  // process (DATA_CYCLE=child) and the lock is what keeps the server's live lane out. Measured, that span is 3 to
+  // 16 s (warm to cold), and the lane skips a tick while the lock is taken (at most one 60 s tick per daily build).
+  // Past seasons are read without it. `lockHeld`: the caller already holds the lock for the whole build (the owner's
+  // Rebuild packs, server/portal/ops.ts). In-process write spans (server/data/writeGen.ts) and the settled mark cover
+  // same-process writers and half-finished runs: a try is kept only when nothing was being written before and after
+  // its reads, with the same generation and version; otherwise it's built again, and past its time limit
+  // (settleWait) the build fails rather than ship mixed rows (the next cycle builds it).
+  // The pack is built in memory, written out whole (VACUUM INTO) to a temp file, copied to a staging name and
+  // renamed into place, so a build that fails at any step leaves no file behind.
+  const final = join(dir, name), tmp = `${final}.tmp`, part = `${final}.part`;
+  for (const f of [tmp, part]) if (!(await dropFile(f))) throw new Error(`full ${season}: can't remove the stale ${f}`);
+  let rows = 0, teams = 0;
+  const out = createClient({ url: ":memory:" });
+  let ok = false;
+  try {
+    // Bounded by total time, not tries: on an event day the live lane writes about once a minute, and a try that
+    // overlaps one waits for it to end and starts again at once (the read span is seconds).
+    const until = Date.now() + settleWait.ms;
+    const guarded = season === CURRENT_SEASON && !o.lockHeld
+      ? <T,>(fn: () => Promise<T>) => withDataLock(`packs: ${season} reads`, fn, { ttlMs: 120_000, waitMs: Math.max(0, until - Date.now()), pollMs: 1000 })
+      : <T,>(fn: () => Promise<T>) => fn();
+    for (let attempt = 1; ; attempt++) {
+      // Wait for writes in progress without the lock (a half-finished run must not hold up the live lane).
+      await quiet(season, log, until);
+      const { before, after } = await guarded(async () => {
+        const before = await dataState();
+        if (!before.quiet) return { before, after: before };
+        ({ rows, teams } = await writeFullPack(out, season, version, log));
+        return { before, after: await dataState() };
+      });
+      if (before.quiet && after.quiet && after.version === before.version && after.gen === before.gen) {
+        await out.execute({ sql: "INSERT INTO pack_info VALUES ('data_version', ?)", args: [before.version] });
+        break;
+      }
+      const why = after.version !== before.version ? `data version moved (${before.version} → ${after.version})`
+        : after.inFlight ? "a write is still in flight" : after.gen !== before.gen ? "a write ran during the reads" : `data ${after.version} not settled`;
+      if (Date.now() >= until) throw new Error(`full ${season}: data kept changing while packing (${attempt} tries in ${settleWait.ms / 1000} s; last: ${why})`);
+      log(`full ${season}: try ${attempt}: ${why}, building again`);
+      // Start the file over: every table and index this try wrote goes.
+      for (const t of (await out.execute("SELECT name FROM sqlite_master WHERE type = 'table'")).rows) await out.execute(`DROP TABLE "${String(t.name)}"`);
+    }
+    await out.execute({ sql: "VACUUM INTO ?", args: [tmp] });
+    // Windows can hold the file briefly after it's written: copy (to a staging name), then rename into place.
+    copyFileSync(tmp, part);
+    renameSync(part, final);
+    ok = true;
+  } finally {
+    out.close();
+    await dropFile(tmp);
+    if (!ok) { await dropFile(part); await dropFile(final); }
+  }
+  const buf = readFileSync(final);
+  // Browsers ask for a resumed range with Accept-Encoding: identity, so the pack also ships pre-compressed
+  // (.db.gz): the app downloads that, resumably, and checks the .db's own SHA-256 after gunzip.
+  const gz = gzipSync(buf, { level: 9 });
+  writeFileSync(`${final}.gz.part`, gz);
+  renameSync(`${final}.gz.part`, `${final}.gz`);
+  const played = await all<{ m: number; e: number }>("SELECT COUNT(*) m, COUNT(DISTINCT code) e FROM matches WHERE season = ? AND played = 1", [season]);
+  log(`full ${season}: ${rows + teams} rows → ${(buf.length / 1e6).toFixed(1)} MB (${(gz.length / 1e6).toFixed(2)} MB gz)`);
+  return { name, url: `/packs/${name}`, bytes: buf.length, sha256: sha256(buf), seasons: [season], kind: "full",
+    gz: { name: `${name}.gz`, url: `/packs/${name}.gz`, bytes: gz.length, sha256: sha256(gz) },
+    stats: { matches: Number(played[0]?.m ?? 0), events: Number(played[0]?.e ?? 0) },
+    contents: `Every ${seasonInfo(season).label} ${seasonInfo(season).game} event, team, match (scores, breakdowns, penalties, lineups), ranking, alliance, award and computed stat — a plain SQLite file.` };
+}
+
+/** Remove a file, retrying briefly while Windows still holds it after its database closed. True once it's gone. */
+async function dropFile(f: string): Promise<boolean> {
+  for (let i = 0; i < 40 && existsSync(f); i++) {
+    try { rmSync(f); } catch { await new Promise((r) => setTimeout(r, 50)); }
+  }
+  return !existsSync(f);
+}
+
+/** The data version, this process's write generation, and whether nothing is being written: no write span in flight
+ *  and the version's writes all done (data:settled at or after it). A version with no settled mark yet is a first
+ *  stats run still writing; an empty database (neither) has nothing to wait for. */
+async function dataState(): Promise<{ version: string; gen: number; inFlight: number; quiet: boolean }> {
+  const version = await kvGet<string>("data:version"), settled = await kvGet<string>("data:settled");
+  const done = version == null || (settled != null && settled >= version);
+  const { inFlight, gen } = writeState();
+  return { version: version ?? (await dataVersion()), gen, inFlight, quiet: done && inFlight === 0 };
+}
+
+/** How long one season pack's build keeps trying while data is written (tests shorten it); between tries it polls the
+ *  settled mark this often, and goes again at once when this process's last write span ends (writeGen.idle). */
+export const settleWait = { ms: 10 * 60_000, pollMs: 2000 };
+
+/** The data state once nothing is being written, waiting (bounded) while a writer is mid-way. */
+async function quiet(season: number, log: (m: string) => void, until: number): Promise<{ version: string; gen: number }> {
+  for (;;) {
+    const s = await dataState();
+    if (s.quiet) return s;
+    if (Date.now() >= until) throw new Error(`full ${season}: data ${s.version} still being written after ${settleWait.ms / 1000} s`);
+    log(`full ${season}: data ${s.version} still being written (${s.inFlight ? `${s.inFlight} write${s.inFlight > 1 ? "s" : ""} in flight` : "not settled"}), waiting`);
+    const wait = Math.max(1, Math.min(settleWait.pollMs, until - Date.now()));
+    await Promise.race([...(s.inFlight ? [idle()] : []), new Promise((r) => setTimeout(r, wait))]);
+  }
+}
+
+
+/** A season pack's tables and rows (everything but its data version), written into `out`. */
+async function writeFullPack(out: Client, season: number, version: string, log: (m: string) => void): Promise<{ rows: number; teams: number }> {
   await out.execute("CREATE TABLE pack_info (key TEXT PRIMARY KEY, value TEXT)");
   await out.batch([
     { sql: "INSERT INTO pack_info VALUES ('format', ?)", args: [String(PACK_FORMAT)] },
     { sql: "INSERT INTO pack_info VALUES ('version', ?)", args: [version] },
     { sql: "INSERT INTO pack_info VALUES ('season', ?)", args: [String(season)] },
+    // For the world ranking offline (src/shared/rankingsBoard.ts): which season is current (a finished season's live
+    // list has no "last week"). Its data_version (the route's asOf) is written once every row is in (buildFull).
+    { sql: "INSERT INTO pack_info VALUES ('current_season', ?)", args: [String(CURRENT_SEASON)] },
     { sql: "INSERT INTO pack_info VALUES ('game', ?)", args: [seasonInfo(season).game] },
     { sql: "INSERT INTO pack_info VALUES ('built_at', ?)", args: [new Date().toISOString()] },
     { sql: "INSERT INTO pack_info VALUES ('source', 'FIRST Events API (primary), FTC Scout (fallback)')", args: [] },
@@ -135,25 +243,36 @@ export async function buildFull(season: number, version: string, dir: string, lo
     }
     rows += sched.length;
   }
-  const teams = await all<any>(`SELECT number, name, full_name, school, sponsors, city, state, country, rookie_year, website, home_region FROM teams WHERE number IN (SELECT team FROM team_seasons WHERE season = ? UNION SELECT team FROM event_teams WHERE season = ?)`, [season, season]);
+  // The world ranking's snapshot weeks (every week listed, the newest few weeks' rows), for /rankings offline.
+  rows += await copyRankingTables(out, season);
+  // The season's boards: records, league standings, the events list, power rankings (server/packs/boards.ts).
+  const boards = await writeBoards(out, season);
+  log(`boards ${season}: ${boards.boards} answers, ${(boards.bytes / 1e3).toFixed(0)} KB gzipped`);
+  // Everyone registered or at an event, and everyone rated or in a ranking snapshot (the world ranking reads their names
+  // and homes, as the server does).
+  const teams = await all<any>(`SELECT number, name, full_name, school, sponsors, city, state, country, rookie_year, website, home_region FROM teams WHERE number IN (SELECT team FROM team_seasons WHERE season = ? UNION SELECT team FROM event_teams WHERE season = ? UNION SELECT team FROM team_season_stats WHERE season = ? UNION SELECT team FROM ranking_snapshots WHERE season = ?)`, [season, season, season, season]);
   for (let i = 0; i < teams.length; i += 1000) {
     await out.batch(teams.slice(i, i + 1000).map((r) => ({ sql: "INSERT INTO teams VALUES (?,?,?,?,?,?,?,?,?,?,?)", args: [r.number, r.name, r.full_name, r.school, r.sponsors, r.city, r.state, r.country, r.rookie_year, r.website, r.home_region] })), "write");
   }
   for (const ix of PACK_INDEXES) await out.execute(ix);
-  await out.execute("VACUUM");
-  out.close();
-  // Windows can hold the file briefly after close: copy, then clean up the temp file.
-  copyFileSync(tmp, join(dir, name));
-  try { rmSync(tmp); } catch { /* removed on the next build */ }
-  const buf = readFileSync(join(dir, name));
-  const gz = gzipSync(buf, { level: 9 });
-  writeFileSync(join(dir, `${name}.gz`), gz);
-  const played = await all<{ m: number; e: number }>("SELECT COUNT(*) m, COUNT(DISTINCT code) e FROM matches WHERE season = ? AND played = 1", [season]);
-  log(`full ${season}: ${rows + teams.length} rows → ${(buf.length / 1e6).toFixed(1)} MB (${(gz.length / 1e6).toFixed(2)} MB gz)`);
-  return { name, url: `/packs/${name}`, bytes: buf.length, sha256: sha256(buf), seasons: [season], kind: "full",
-    gz: { name: `${name}.gz`, url: `/packs/${name}.gz`, bytes: gz.length, sha256: sha256(gz) },
-    stats: { matches: Number(played[0]?.m ?? 0), events: Number(played[0]?.e ?? 0) },
-    contents: `Every ${seasonInfo(season).label} ${seasonInfo(season).game} event, team, match (scores, breakdowns, penalties, lineups), ranking, alliance, award and computed stat — a plain SQLite file.` };
+  return { rows, teams: teams.length };
+}
+
+/** Copy the season's ranking weeks (all) and, for the current season, the newest RANKING_PACK_WEEKS weeks' rows plus the
+ *  week before them (the oldest one's movement) into a pack. */
+export async function copyRankingTables(out: Client, season: number): Promise<number> {
+  for (const t of RANKING_TABLES) await out.execute(t.ddl);
+  const weeks = (await all<{ week: string }>("SELECT week FROM ranking_weeks WHERE season = ? ORDER BY week DESC", [season])).map((r) => r.week);
+  // The current season only: a finished season's live ranking has no "last week", so its weeks' rows would only serve
+  // the week picker's past views (those need a connection).
+  // Plus one more week's rows: the oldest week shown offline is measured against the week before it, as online.
+  const kept = season === CURRENT_SEASON ? weeks.slice(0, RANKING_PACK_WEEKS + 1) : [];
+  const snaps = kept.length ? await all<any>(`SELECT season, week, team, rank, rating FROM ranking_snapshots WHERE season = ? AND week IN (${kept.map(() => "?").join(",")})`, [season, ...kept]) : [];
+  await out.batch(weeks.map((w) => ({ sql: "INSERT INTO ranking_weeks (season, week) VALUES (?, ?)", args: [season, w] })), "write");
+  for (let i = 0; i < snaps.length; i += 1000) {
+    await out.batch(snaps.slice(i, i + 1000).map((r) => ({ sql: "INSERT INTO ranking_snapshots (season, week, team, rank, rating) VALUES (?, ?, ?, ?, ?)", args: [r.season, r.week, r.team, r.rank, r.rating] })), "write");
+  }
+  return weeks.length + snaps.length;
 }
 
 /** Lock shared by every build path (the scheduler and `npm run packs`), so two
@@ -205,16 +324,17 @@ export async function withPackLock<T>(dir: string, fn: () => Promise<T>): Promis
   try { return await fn(); } finally { holding = false; rmSync(lock, { force: true }); }
 }
 
-export async function buildPacks(log: (m: string) => void = () => {}): Promise<Manifest> {
-  return withPackLock(packsDir(), () => buildPacksUnlocked(log));
+/** `lockHeld`: the caller holds the data lock for the whole build (buildFull). */
+export async function buildPacks(log: (m: string) => void = () => {}, o: { lockHeld?: boolean } = {}): Promise<Manifest> {
+  return withPackLock(packsDir(), () => buildPacksUnlocked(log, o));
 }
 
-async function buildPacksUnlocked(log: (m: string) => void): Promise<Manifest> {
+async function buildPacksUnlocked(log: (m: string) => void, o: { lockHeld?: boolean }): Promise<Manifest> {
   const dir = packsDir();
   const version = await nextVersion(dir);
   const lite = await buildLite(version, dir, log);
   const full: BuiltFile[] = [];
-  for (const s of [...SEASON_NUMBERS].sort((a, b) => b - a)) { const f = await buildFull(s, version, dir, log); if (f) full.push(f); }
+  for (const s of [...SEASON_NUMBERS].sort((a, b) => b - a)) { const f = await buildFull(s, version, dir, log, o); if (f) full.push(f); }
   const sync = await kvGet<{ at: string }>("sync:last");
   const manifest: Manifest = { format: PACK_FORMAT, version, builtAt: new Date().toISOString(), engineVersion: ENGINE_VERSION, dataAsOf: sync?.at ?? null, lite, full };
   writeFileSync(join(dir, "latest.json.tmp"), JSON.stringify(manifest, null, 2));

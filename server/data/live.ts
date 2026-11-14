@@ -29,6 +29,7 @@ import type { EventRow } from "./bundle.js";
 import { CURRENT_SEASON } from "./seasons.js";
 import { localDate, onEventDates } from "../../src/shared/eventDay.js";
 import { LockBusy, isBusy, withDataLock } from "./lock.js";
+import { writing } from "./writeGen.js";
 
 type Log = (m: string) => void;
 
@@ -168,7 +169,8 @@ export async function refreshEvents(events: EventRow[], o: { minFullMs?: number;
       }
       let fetched = false;
       if (changed || now() - st.fullAt >= minFull) {
-        await liveIo.fetch(e, log);
+        // A write span (writeGen.ts): readers copying tables without the lock (season packs) see it.
+        await writing(() => liveIo.fetch(e, log));
         st.fullAt = now();
         fetched = true;
         report.fetched.push(e.code);
@@ -185,7 +187,7 @@ export async function refreshEvents(events: EventRow[], o: { minFullMs?: number;
   // finished: kept until it does, so a tick cut short (e.g. the database busy past its timeout) is made
   // up on the next one even though FIRST then reports nothing new.
   for (const e of events) if (report.fetched.includes(e.code)) followUp.set(keyOf(e), { season: e.season, code: e.code });
-  if (followUp.size) {
+  if (followUp.size) await writing(async () => {
     const due = [...followUp.values()];
     // New data version first: the season rows read ratings, and the live calls must use the newest ones.
     await kvSet("data:version", new Date(now()).toISOString());
@@ -209,7 +211,7 @@ export async function refreshEvents(events: EventRow[], o: { minFullMs?: number;
     // The follow-up's writes are done (see runStats: caches keyed by the data version are keyed by this too).
     await kvSet("data:settled", new Date(now()).toISOString());
     for (const e of due) followUp.delete(keyOf(e));
-  }
+  });
   return report;
 }
 

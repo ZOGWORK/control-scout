@@ -8,6 +8,7 @@ import { useTitle } from "../lib/meta";
 import { ago } from "../lib/format";
 import { PageHeader, EmptyState } from "../components/page";
 import { Async } from "../components/states";
+import { OfflineNote } from "../components/OfflineNote";
 import { LeagueTable } from "../components/LeagueTable";
 import { dateRange, seasonLabel } from "../shared/format";
 import { leaguePageTitle, leagueTitle, type LeagueStandings } from "../shared/leagues";
@@ -33,6 +34,7 @@ export default function LeaguePage() {
               <PageHeader eyebrow={`${seasonLabel(d.season)} league standings`} title={`${leagueTitle(d.name, d.code)}${d.place ? ` · ${d.place}` : ""}`}
                 description={`FIRST's official league ranking: every team's matches across the league's ${played === 1 ? "first meet" : `${played} meets so far`}, ranked by ranking score.`}
                 phoneDescription={`FIRST's league ranking after ${played === 1 ? "1 meet" : `${played} meets`}.`} />
+              <OfflineNote data={d} what="League standings" at={d.readAt} />
               {d.rows.length ? (
                 <section aria-label="Standings" className="space-y-2">
                   <LeagueTable rows={d.rows} season={d.season} team={team} />

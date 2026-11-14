@@ -16,6 +16,7 @@ import { mineAnswer } from "./api/searchMine.js";
 import { myTeamOf } from "../src/shared/searchMine.js";
 import { answerHits, pickedQuery, pickedSeasonOf, withHighlights } from "./api/searchPageAnswer.js";
 import { keptFollowUps, pageAnswer } from "./api/answers/followUps.js";
+import { withVideoAlternatives } from "./api/answers/videoSuggest.js";
 import { relatedPage } from "./api/answers/relatedPage.js";
 import { refine } from "./api/searchBruno.js";
 import { brunoAnswer } from "./api/searchBrunoAnswer.js";
@@ -29,7 +30,7 @@ import { recordIntent } from "./api/searchIntents.js";
 import { rebuildSearch } from "./stats/job.js";
 import { teamProfile, compareAnswer, teamSummaries, shortlistTeams, reliabilityMany } from "./api/teams.js";
 import { teamRoadMap } from "./api/roadmap.js";
-import { cachedEventDetail, eventDetail, listEvents, toEventInput } from "./api/events.js";
+import { cachedEventDetail, eventDetail, toEventInput } from "./api/events.js";
 import { withBracketGate } from "./api/bracket.js";
 import { scheduleGate } from "./api/eventGates.js";
 import { eventView, withPageExtras, withStream } from "./api/eventView.js";
@@ -40,10 +41,11 @@ import { teamHighlightsPage } from "./teamHighlightsPage.js";
 import { teamRecordPage } from "./teamRecordPage.js";
 import { eventHighlightsPage } from "./eventHighlightsPage.js";
 import { perTeamOf, simulatedRankings } from "./projections/rankingSim.js";
-import { recordingStream, seasonRecordings, seasonVideoKinds } from "./videos/recordings.js";
+import { recordingStream } from "./videos/recordings.js";
+import { eventClipCoverage } from "./videos/coverage.js";
 import { answerVideo } from "./api/answers/video.js";
 import { matchViews } from "./api/matches.js";
-import { matchDetailAnswer, teamMatchesAnswer, teamReportCardAnswer, teamScheduleAnswer } from "./api/reads.js";
+import { eventListAnswer, matchDetailAnswer, teamMatchesAnswer, teamReportCardAnswer, teamScheduleAnswer } from "./api/reads.js";
 import { matchReport } from "./api/matchReport.js";
 import { resultChanges } from "./api/resultChanges.js";
 import { eventDisagreements } from "./api/disagreements.js";
@@ -130,7 +132,7 @@ import { liteRouter, liteSwitch, pageVary } from "./lite/routes.js";
 import { openSearchRoute } from "./openSearch.js";
 import { latestEventSeason, storedEventCode } from "./eventCodes.js";
 import { eventPath, isEventCodeParam } from "../src/shared/eventCode.js";
-import type { EventRefreshResult, ForecastView, MatchExplanationView, Meta, SearchHit, MatchView } from "../src/shared/api.js";
+import type { EventRefreshResult, ForecastView, MatchExplanationView, Meta, SearchHit, MatchView, ClipCoverage } from "../src/shared/api.js";
 
 export class HttpError extends Error { constructor(readonly status: number, message: string) { super(message); } }
 const bad = (msg: string) => new HttpError(400, msg);
@@ -442,11 +444,18 @@ export function createApp(opts: { dist?: string; /** Tests only: a smaller searc
       // Its video (server/api/answers/video.ts): one read for the whole answer, beside the team rows'.
       // Match videos people added are for the viewer asking (docs/contributors.md): an answer carrying one is never cached.
       const viewer = await asking;
-      const [hits, video] = await Promise.all([answerHits(full.hits), answerVideo(full, Date.now(), viewer).catch(() => undefined)]);
+      const [hits, video] = await Promise.all([answerHits(full.hits), answerVideo(full, Date.now(), viewer).then((v) => v ?? null, () => undefined)]);
       if (video && (video.main?.kind === "contributor" || Object.values(video.rows ?? {}).some((x) => x.kind === "contributor"))) res.setHeader("Cache-Control", "private, no-store");
+      // Asked to watch and nothing plays (server/api/answers/videoSuggest.ts): questions that do, each checked. Only
+      // when the video was read: a failed read says nothing either way.
+      const offered = video === undefined ? full : await withVideoAlternatives(q, full, video, (x) => pageAnswer(x, limit, prefer), (b) => answerVideo(b, Date.now(), viewer), undefined, undefined, viewer?.userId != null ? `u${viewer.userId}` : "").catch(() => full);
+      // Checked for this viewer (a video they added may be what plays): questions offered to one viewer are never cached.
+      if (viewer?.userId != null && offered !== full) res.setHeader("Cache-Control", "private, no-store");
       // This process's own time (searchTiming): the answer, then the rest (highlights, team numbers, video).
       res.setHeader("Server-Timing", searchTiming({ answer: answered - started, extras: performance.now() - answered }));
-      return { ...full, hits, ...(video ? { video } : {}) };
+      // null: read, and nothing plays (the page then says so); a read that failed sends none, as a first paint carries
+      // none (src/shared/api.ts): the page then says nothing about video.
+      return { ...offered, hits, ...(video !== undefined ? { video } : {}) };
     }
     return { q: String(req.query.q ?? ""), hits: await search(String(req.query.q ?? "").slice(0, MAX_QUERY), limit, prefer, kinds) };
   }));
@@ -615,21 +624,12 @@ export function createApp(opts: { dist?: string; /** Tests only: a smaller searc
   }));
 
   api.get("/events", h(async (req) => {
-    // Events with a recording (the owner's stream or FIRST's YouTube link): stream: true, for the LIVE dot; and
-    // what video there is to watch, for the list's video filter.
-    const [streams, videos] = await Promise.all([seasonRecordings(season(req.query.season)).catch(() => new Map()), seasonVideoKinds(season(req.query.season)).catch(() => new Map())]);
-    return {
-    // The list view's fields only (detail pages use /events/:season/:code):
-    // venue, division, region and remote aren't shown in lists.
-    events: (await listEvents({
+    // The list (server/api/reads.ts eventListAnswer; a season pack's boards carry the default one).
+    return eventListAnswer({
       season: season(req.query.season), from: req.query.from ? String(req.query.from) : undefined, to: req.query.to ? String(req.query.to) : undefined,
       q: req.query.q ? String(req.query.q).slice(0, 60) : undefined, type: req.query.type ? String(req.query.type) : undefined,
       region: req.query.region ? String(req.query.region) : undefined, hideNoMatch: req.query.all !== "1", limit: boundedCount(req.query.limit, "limit", 3000, 1, 3000),
-    })).map(({ venue: _v, divisionCode: _d, region: _r, remote: _m, ...e }) => {
-      const video = videos.get(e.code);
-      return { ...e, ...(streams.has(e.code) ? { stream: true as const } : {}), ...(video ? { video } : {}) };
-    }),
-    };
+    });
   }));
 
 
@@ -677,6 +677,14 @@ export function createApp(opts: { dist?: string; /** Tests only: a smaller searc
     const d = await matchDetailAnswer(season(req.params.season), code(req.params.code), key);
     if (!d) throw new HttpError(404, `No match ${key} at ${req.params.code}`);
     return d;
+  }));
+
+  // Clip coverage (server/videos/coverage.ts): which days and parts are recorded, and each played match without a clip
+  // with its reason, for the event page's "What's missing". Only the matches without one: the page has the rest.
+  api.get("/events/:season/:code/coverage", h(async (req): Promise<ClipCoverage> => {
+    const c = await eventClipCoverage(season(req.params.season), code(req.params.code));
+    if (!c) throw new HttpError(404, `No event ${req.params.code} in ${req.params.season}`);
+    return { ...c, matches: c.matches.filter((m) => !m.clip).map(({ teams: _t, ...m }) => m) };
   }));
 
   // Simulated rankings before quals start (projections/rankingSim.ts): run on a click, kept per data version.
@@ -1027,6 +1035,12 @@ export function createApp(opts: { dist?: string; /** Tests only: a smaller searc
   app.get("/support", (req, res) => {
     const q = req.originalUrl.indexOf("?");
     res.redirect(301, `/donate${q >= 0 ? req.originalUrl.slice(q) : ""}`);
+  });
+  // /network: the Network & offline settings (a section of Settings).
+  // 301 with the query kept, like /support: /network?lite=0 reaches the full screen while Lite is on.
+  app.get("/network", (req, res) => {
+    const q = req.originalUrl.indexOf("?");
+    res.redirect(301, `/settings${q >= 0 ? req.originalUrl.slice(q) : ""}#network`);
   });
   // An event's address without its season (/events/USNJNEM2): 301 to the newest season's page, query kept. An unknown
   // code goes on to the 404; /events/2026 (a season, no code) is never read as a code.

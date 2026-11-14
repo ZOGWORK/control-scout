@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.2.3 — 2026-11-14
+## 6.3.5 — 2026-11-14
 
 Offline downloads pick up where they stopped when the connection drops, show real MB progress, and never leave a half pack that looks saved. The Download page is now one Offline page: what to save at the top, everything on this device below.
 
@@ -33,6 +33,196 @@ Offline downloads pick up where they stopped when the connection drops, show rea
 
 ### Changed
 - Delete really deletes: the predictions pack's bytes are removed from IndexedDB (they were overwritten with null), and every delete says "Freed 6.9 MB". The browser is asked to keep this site's storage on the first download of any kind. Event-day bundles show real bytes while downloading. The menu calls the page Offline. (`src/lib/packs.ts`, `src/lib/offline/bundles.ts`, `src/components/offline/EventBundles.tsx`) (#1462)
+## 6.3.4 — 2026-11-14
+
+Match clips read off a recording's own frames now need two signals that agree before a match gets one: a frame read is checked before and after its start, and a lone read goes to the owner's review list instead of becoming a clip. Every match a recording holds without a clip now has a reason. Clips placed from frames stop once the match's final score is up.
+
+### Highlights
+- [history] Match clips need two signals that agree before they show
+- [history] Frame-read clips stop once the final score is up
+- [history] Finals and playoff matches now get clips from the frames too
+
+### Changed
+- The frame reader (`scripts/video-frames.ts`, `docs/frame-timings.md`) confirms each read: 70 to 140 s into the match the overlay must name the same match with the same start (within 6 s), past camera cutaways, and 25 s before the start that match mustn't be running yet. `judge` (`scripts/lib/videoFrames.ts`) keeps the clock as the anchor: two confirmed reads that agree on where the video sits place themselves (high) and the matches between them (medium); one read places a match only when the broadcast's own clock agrees, otherwise it goes to review, as does a start outside the video, out of order or overlapping the next match. Every other match gets a reason (in a gap, its read didn't confirm, nothing could be read). `server/data/frameTimings.ts` holds `medium`, `review` and `missing` per video, read with `frameReview`, `frameMissing` and `frameConfidence`; only placed starts become clips.
+- A video that reads nothing at all gets one more go in a fresh player; a frame read that hangs over 2 minutes fails its video with that reason.
+- The overlay's "Finals Match 2" is read as F2 and a bare "Match 7" (2025's playoff overlay) as M7.
+
+### Added
+- Clips placed from frames carry an `end` (`frameClipEnd`, `src/shared/recording.ts`): the timer's start plus 2:40 of play and 50 s for the final score, stopping at the next framed match's start in the same video, never before its own play is over or past the video's end. (#1490)
+
+## 6.3.3 — 2026-11-14
+
+A recorded event's page now says which days and parts its video covers and which it doesn't, and, one tap away, every played match without a clip and why. A partly recorded event never reads as fully recorded.
+
+### Highlights
+- [fixes] Event pages show each recorded day with its share of clips
+- [fixes] A day with no recording is named, not skipped
+- [fixes] "Matches have no clip — why" lists each gap in plain words
+
+### Added
+- Event page: under the coverage line, a chip for each day or part of a recorded event (its clips out of its played matches) and one for each day with no recording, then "N matches have no clip — why": the matches grouped by reason, such as "Video 4 h 17 min shorter than its broadcast", "No recording for Sunday" or "No real start time from FIRST". Only for an event with a recording (playable or not) where a played match has no video. (`src/components/contributors/RecordingGaps.tsx`, `server/videos/coverage.ts`, `/api/events/:season/:code/coverage`)
+- Owner console › Clip coverage: every recorded event with a played match missing a clip, with its days and parts, the video checked for each, the days with no recording and each match's reason, to mark reviewed, 50 at a time. It opens again on its own when the missing list changes. (`src/components/owner/ClipCoveragePanel.tsx`)
+- After every recordings pass and every official-channel watcher run that adds a video, each event whose recording or matches changed is checked again; a missing list goes to Owner › Clip coverage, never only to a log. (`server/videos/coverageCheck.ts`, migration 88)
+- `scripts/clip-coverage.ts`: the full coverage audit (every event, video and played match, every season) as Markdown, CSV and JSON. (#1457)
+
+## 6.3.2 — 2026-11-14
+
+When a search asks to watch and nothing has video, it offers questions that do.
+
+### Highlights
+- [teams] No video for a search? Tap a related question that has one
+- [teams] A team's seasons with clips are offered first, then nearby events
+- [teams] Every offered question is checked to play before it's shown
+
+### Changed
+- Search: an answer that asked to watch (highlights, video, clips, with video) and plays nothing adds "Questions with video": up to three searches that each play, the team's own seasons with a clip first, then events with clips (official ones, the same state or country first, the bigger events first, the nearest dates first). Each is asked before it's offered, within a 2.5-second wait. (`server/api/answers/videoSuggest.ts`, `server/app.ts`) (#1492)
+
+## 6.3.1 — 2026-11-14
+
+The leaderboards work with no signal from a saved season: world rankings, records, league standings, the events list and power rankings, with the same numbers as online and their time.
+
+### Highlights
+- [rankings] World rankings open offline, filters and pages too
+- [rankings] Records, league standings and power rankings offline
+- [offline] Each board shows its time: "as of Nov 13, 8:09 PM"
+- [rankings] Scores that aren't official records are marked in the table
+
+### Added
+- World rankings offline: the ranking's reads and its page moved to `src/shared/rankingsBoard.ts`; the server calls them, and a saved season pack runs the same SQL on its own tables, so every place filter, page and the latest weeks give the server's numbers. The pack now carries the season's ranking weeks and, for the current season, the newest 3 weeks' snapshot rows and the week before them (so each shown week moves against its last week, as online). An older week says it needs a connection.
+- Season boards (`server/packs/boards.ts`): each season pack holds the server's own answers, gzipped, for the season record line and regions, the first two pages of each records table as it opens (cut on the device to the columns a table asks for), every league's standings (a league with no standings yet too), the events list (a pack whose recordings can't be read fails to build rather than ship it without LIVE dots and videos) and, in the current season's pack, every power rankings week. A filter or another sort on a records table says filters need a connection.
+- The event pack of a league meet carries its league's standings.
+- An offline board says what it is and its data time ("Offline: Rankings as of Nov 13, 8:09 PM, from your saved 2026–27 data").
+- Parity tests (`server/packs/boards.test.ts`): a pack built by the real builder, opened as the app opens it, answers every board path exactly as the server does.
+- Measured: the 2026 season's boards are 114 answers, 185 KB gzipped (from today's live answers), plus 40 KB for its ranking weeks; a league meet's event pack gains about 1.2 KB.
+
+### Changed
+- Match records mark a score that isn't an official record ("Not an official record", the reason on hover), on the table and the phone cards.
+- Season packs now include every rated team, so the ranking names them as online does.
+- A season pack is built in memory and written whole at the end: a build that fails leaves no file behind, and one whose data a sync moved mid-build is built again, so it never carries an older data time than its rows. The current season's reads hold the data lock, which the live lane respects across processes; past seasons take no lock. That span measured 3 to 16 s (warm to cold, on the local database), and the live lane skips a tick while the lock is held, so a try skips at most one 60 s tick (a daily build normally needs one try). The owner's Rebuild packs already holds the lock and tells the build so (`lockHeld`, `--lock-held` for the child process). Writes in progress are waited out for up to 10 minutes, each retry logged with its reason. (`server/packs/build.ts`, `server/data/writeGen.ts`) (#1488)
+
+## 6.3.0 — 2026-11-14
+
+A search answer never says "no recording" before its video has loaded.
+
+### Highlights
+- [teams] "No recording" shows only once the video has been looked up
+- [teams] Answers with video no longer flash a "stats only" line first
+- [fixes] Search answers say "no video" only when it's true
+
+### Fixed
+- Search: a page's first paint carries its answer without the video, and the answer said "No recording for this event — stats only." until the video arrived. The API now sends `video: null` when it has read the video and found none, and the line shows only then. (`server/app.ts`, `src/shared/api.ts`, `src/components/search/page/AnswerVideo.tsx`) (#1497)
+
+## 6.2.9 — 2026-11-14
+
+One Network & offline screen in Settings answers it all in plain words: are you online, on Wi-Fi or mobile data, how much data this visit and each download uses, whether Lite would help right now, and what's downloaded. The download and update choices live only there now, each saying what it does before you pick it.
+
+### Highlights
+- [offline] Network & offline: online, offline or Wi-Fi sign-in, in one line
+- [offline] See this visit's data use and what each download costs
+- [offline] "Should I use Lite?" answered from your real connection
+- [offline] Clear cache says how much it frees; downloads stay put
+- [fixes] Download and update choices live in one place, not two
+
+### Added
+- Settings › Network & offline (`/settings#network`, also `/network`; `src/components/settings/NetworkSection.tsx`), replacing Settings › Offline data. Top to bottom: "You're online" / "You're offline" / "This Wi-Fi isn't giving internet (it may need a sign-in page)" from the internet check (`src/lib/connection.ts`), when it was checked and Check again; the connection (Wi-Fi, mobile data, none, or "Your browser doesn't say" where the browser doesn't tell, as on iPhones); the data this visit has used, summed from the browser's own `transferSize` for the page load and every request (`src/lib/dataUse.ts`, started in `main.tsx`; files the browser already had count as nothing); "Should I use Lite?" (`src/lib/networkAdvice.ts`: offline or a sign-in page say downloads work and Lite needs a connection; the browser's 2g/3g, Data Saver or slow pages this visit offer Lite with one tap; otherwise the full app is best, with Turn off Lite while it's on); what's downloaded (each event, season and the predictions pack, its size and data time, linked to the Download page); what a download costs, from the pack manifest (the current season, every season, offline predictions) and the saved events' own sizes.
+- Lite on or off on the same screen, through the server's `/lite/on` and `/lite/off`, coming back to the screen as the full app (`?lite=0`).
+- Clear cache measures what it frees first (older releases' caches and files the current release doesn't need, from the bodies kept) and says "Freed X MB" after. It only ever touches Cache Storage: the current release's own files stay, so the app still opens offline, and packs, saved seasons, recordings and scouting notes are never touched (`src/lib/offline/appCache.ts`; the service worker answers which files are its own, `cs-cache-keep`).
+- Ways in: the main menu's More (Network & offline), Home's footer links, the Offline pill's panel, and the inbox's update item (Update settings).
+
+### Changed
+- Downloads: "Wi-Fi only" / "Wi-Fi and mobile data", the second with the real sizes it may use. Updates: "Update packs automatically on Wi-Fi" / "Never update automatically (I'll tap Update)". Same stored settings as before (`offlineNetwork`, `offlineUpdates`), so nothing changes for anyone. On a browser that doesn't say Wi-Fi or mobile data (every iPhone), updates still count it as Wi-Fi, and the words say so: "This browser can't tell Wi-Fi from mobile data, so automatic updates may still use mobile data."
+- Download sizes say why they're missing to someone online: packs paused (the server's own words), none published yet, or the list couldn't be read. One Check again asks for the list once, a Check again while it's still loading waits for that same request, and a list that stalls is given up on after 10 s (the failure words show and it's asked again). Storage used is measured again whenever a download is added or removed; Clear cache stays usable for old files that measure 0 bytes ("Clear old files"). "Should I use Lite?" only shows while Lite is offered, and the settings say Lite is for this browser only. The Lite row says "Checking your connection…" during the first check. `/network` is a 301 that keeps its query (`/network?lite=0`).
+- The Download page no longer has its own copy of those two settings: it links to Network & offline. Old links to Settings › Offline data (`?section=offline`, `#offline`) open Network & offline. (#1491)
+
+## 6.2.8 — 2026-11-14
+
+With no internet, an event you downloaded now shows its Result changes too, and the home page's season totals show the last ones this device loaded instead of an error.
+
+### Highlights
+- [offline] Result changes work offline for downloaded events
+- [offline] Home season totals show your last loaded numbers offline
+- [fixes] No more "Season totals couldn't load" error with no internet
+
+### Fixed
+- The event pack now holds the event's result changes and each match's (`/api/events/:season/:code/result-changes` and `/matches/:key/result-changes`), read through the same `resultChanges()` the routes call, so with no signal the event page's Result changes section and each match's show the server's own answer instead of "You're offline. This page needs a connection". A real event's pack grows by 0.2–2.6 KB gzipped (measured locally on five 2026 events).
+- The home page's season totals (`/api/home/overview`) are kept on the device like the scouting reads (`lib/offline/kept.ts`). With no signal the strip shows the last totals this device loaded, with the offline note saying when; if none were ever loaded, the strip is left out instead of an error with Try again. No number is ever made up. (#1496)
+
+## 6.2.7 — 2026-11-14
+
+Search finds a match by its number and plays that exact match.
+
+### Highlights
+- [teams] Type a team and a match number (Q6, M3) to see and play that match
+- [teams] A match number with an event, Worlds or a season finds it too
+- [teams] Comparing teams lists the matches they played together, with Play
+
+### Changed
+- Search: a team and a match's number with no event ("<team> Q6") lists that number at each event of the season, latest first, and plays the latest; at Worlds or states ("<team> M14 at worlds") it is that match there. A number with no team ("M14 decode finals", "q6 at worlds") lists those matches highest-scoring first, the card playing the top one. An M number is a playoff match's. (`server/api/query/intents.ts`, `parse.ts`, `matchFind.ts`, `server/api/answers/families/eventScope.ts`) (#1484)
+- Search: comparing two or more teams adds "Their matches together", the matches all of them were on the field for, each with its own clip. (`server/api/answers/families/twoTeam.ts`, `src/components/search/page/CompareCard.tsx`)
+
+## 6.2.6 — 2026-11-14
+
+Georgia's Marietta-Wheeler league meets and the Northwest League Tournament now play their streams from CircuitRunners Robotics, the team channel that hosts them.
+
+### Highlights
+- [history] Marietta-Wheeler meets 2 to 4 play their streams
+- [history] Northwest League Tournament plays its stream, in two parts
+- [live] New Marietta-Wheeler meet streams are added once they air
+
+### Added
+- Official videos: CircuitRunners Robotics (`UCzxcU4h8qFiLWkdrmV9_TLw`) and Microchips & Queso (`UCLpE1wCLHdIMZ-cKpsVWsqQ`), read from the YouTube Data API, join the official channels and the auto-watcher's list: CircuitRunners for Marietta-Wheeler and Northwest League events in Georgia, Microchips & Queso for its Queso Bowl in Texas. Five CircuitRunners streams are checked against each event's name, date and meet number: Marietta-Wheeler League Meets 2, 3 and 4 and the Northwest League Tournament of 2026-02-07 in two parts (FIRST's link for it no longer plays). The Queso Bowls and Sharpe Pursuits' North Carolina Championship stream are FIRST's own links already, and Sharpe Pursuits, an event company with one FTC stream, isn't watched. Streams that can't be embedded and short fragments are left out. (`server/data/officialVideos.json`, `server/data/officialChannels.ts`, `docs/official-videos.md`) (#1482)
+
+### Fixed
+- Official videos: the auto-watcher now adds FIRST in Missouri's championship stream ("FTC Missouri/Kansas Championship", "FiMO FTC State Championship") to the Missouri/Kansas Championship instead of leaving it for review: those titles name only the region, so the channel now has a title pattern for them. League meets still need their own name. The watchlist already has that channel, so a seeded channel's title pattern now follows the shipped list on the next start (added, narrowed or dropped), unless the owner has saved or removed it. Only a pattern that differs is written, and the owner panel seeds under the data lock, so it still loads during a data sync. (`server/data/officialChannels.ts`, `server/videos/officialWatch.ts`)
+
+## 6.2.5 — 2026-11-14
+
+With no internet, pages you saved open straight away instead of after a wait, and one small pill in the top bar says you're offline and how fresh your data is. Wi-Fi that wants a sign-in page is spotted too.
+
+### Highlights
+- [offline] Saved pages open at once with no internet, no waiting first
+- [offline] One "Offline · updated 8:09 PM" pill in the top bar
+- [offline] Wi-Fi that needs a sign-in page says so plainly
+- [offline] Back online, pages refresh by themselves without reloading
+- [fixes] The "Slow connection?" offer stays away when there's no internet
+
+### Added
+- A real internet check (`src/lib/connection.ts`): asks `/api/health` (no cache, 2.5 s at most). Our own answer means internet; a sign-in page, a redirect or any other answer means a Wi-Fi that wants you to sign in; nothing means offline. It checks again when the browser says the network changed, when the tab comes back into view, soon after a request fails, every 30 s while offline and every 5 minutes otherwise. `useConnection()` gives online, internet (yes, no, portal, unknown), connection type and Data Saver for the rest of the app.
+- The Offline pill (`src/components/ConnectionStatus.tsx`), which replaces the old "Offline, showing saved data" badge: "Offline · updated <time>" (the time of the saved data on screen, else of the newest thing saved), or "No internet on this Wi-Fi". On a phone it takes the centred logo's place; on a wider screen it sits in the bar's spare space, so nothing moves. Tapping it lists what's on this device, with Try again and Downloads.
+- `npm run offline:check` (`scripts/offline-check.ts`): opens the offline journeys on a 390 px phone behind a local proxy that can drop the network (the service worker's own requests too), act as a Wi-Fi sign-in page (`--portal`) or slow everything to about 400 kbps (`--throttle`). `--prod` runs it against the local production build.
+
+### Changed
+- Known offline, reads that saved data can answer come from it with no network try and no 4 s wait. Other reads say they need a connection at once (after one quick check) instead of spinning. Writes still go to the network.
+- When the internet comes back, whatever is on screen from saved data refreshes in the background, keeping the page and anything typed.
+- A page that gets no answer in 3 s (Wi-Fi that carries nothing) opens from the app saved on the device instead of a blank screen. Light pages keep waiting.
+- Opening a page again soon after one found no internet starts from that answer (checked again at once), so every page after the first opens straight from saved data. A Wi-Fi sign-in page that answers where our data should be counts as no internet. A read still waiting when the check finds no internet is let go and answered from saved data at once.
+- The "needs a connection" message says "No internet on this Wi-Fi" when a sign-in page is in the way.
+- The "Slow connection?" offer only shows when there is internet: with none, the light version can't load either. (#1487)
+
+## 6.2.4 — 2026-11-14
+
+Oklahoma and Louisiana events now play their recordings: eastern Oklahoma's DaVinci, Herrington and May league meets, the Bishop Kelley league tournament and the state championship from Tulsa Robotics Center, and every Louisiana qualifier and championship since 2023 from FTC Louisiana.
+
+### Highlights
+- [history] Oklahoma league meets and the state championship play their video
+- [history] Louisiana qualifiers and championships play their recordings
+- [live] Tulsa Robotics Center's new streams are added once they air
+
+### Added
+- Official videos: Tulsa Robotics Center (`UC6y0o2J7b05YIL7w95cwg0w`) and FTC Louisiana (`UCQYT4ZXN54khn_n7ebsRRtQ`), both read from the YouTube Data API's uploads lists, join the official channels and the auto-watcher's list, with SeaCow Robotics (`UClcqdD9sHnwtN7FCW6Vj1Ug`, its Mountain Home, Benton and Bentonville qualifiers) and Shiloh Saints (`UCvA42eBzkRpd-x23-AvOnvw`, the Arkansas Championship only), whose streams FIRST's channel links already play. 27 recordings are checked against each event's name, city, date, league and meet number: 14 from Tulsa Robotics Center (2024 to 2026) and 13 from FTC Louisiana (2022 to 2025, each on the day its matches were played). Videos that can't be embedded, the 2026-10-24 Herrington Meet 1 (blocked in the US), one stream for two meets and a meet whose date isn't the event's are left out. (`server/data/officialVideos.json`, `server/data/officialChannels.ts`, `docs/official-videos.md`) (#1479)
+
+## 6.2.3 — 2026-11-14
+
+The official-channel video watcher now picks up event streams that were scheduled before it started watching a channel, so recordings from FTC Iowa, Pennsylvania, Arizona and others aren't missed once they air.
+
+### Highlights
+- [fixes] Event streams scheduled ahead of time are no longer missed
+- [fixes] More official recordings join their event without waiting
+- [fixes] Calls and team reels no longer wait in the owner's review
+
+### Fixed
+- Official videos watcher: it read only uploads published after a channel started being watched, but a stream is listed when it's scheduled, so every stream scheduled before that (55 found: FTC Iowa's league meets, Pennsylvania's championship and qualifiers, Arizona's qualifiers) would never be read once it aired. It now reads back to the earlier of that date and 180 days ago, up to 10 pages. A title naming the region ("FTC Iowa …") and one event's own word ("Iris") or designator (meet 1, not meet 1a) now fits that event instead of every event of the region that day, and a title naming one of two leagues on the same day ("CTX GEMS Diamond League Meet 2") fits that league, never the other (Emerald). A video under 45 minutes that fits no event is set aside with its reason instead of waiting in review. Duplicates name the event that already plays them, and an `onRecordingAdded` hook runs after each added recording so its event's clips can be checked again. (`server/videos/officialWatch.ts`, `server/videos/officialMatch.ts`, `docs/official-videos.md`) (#1456)
+
 ## 6.2.2 — 2026-11-14
 
 Search can find matches with video, and asking to watch a question shows its answer with the video.

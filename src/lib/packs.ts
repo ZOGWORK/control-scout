@@ -68,10 +68,11 @@ export class ManifestError extends Error {
   constructor(readonly reason: "none" | "unreachable" | "failed" | "paused", message: string) { super(message); }
 }
 
-export async function fetchManifest(): Promise<PackManifest> {
+/** `signal`: lets a caller give up (a timeout, a page that's gone); a request given up on counts as unreachable. */
+export async function fetchManifest(opts: { signal?: AbortSignal } = {}): Promise<PackManifest> {
   // Always asked: navigator.onLine can say offline while the phone is online (iOS), so it only picks the message.
   let r: Response;
-  try { r = await fetch("/packs/latest.json", { cache: "no-cache" }); }
+  try { r = await fetch("/packs/latest.json", { cache: "no-cache", signal: opts.signal }); }
   catch {
     throw new ManifestError("unreachable", navigator.onLine === false
       ? "You're offline — the pack list loads when you're back online."
@@ -86,7 +87,11 @@ export async function fetchManifest(): Promise<PackManifest> {
     if (body?.paused) throw new ManifestError("paused", body.error ?? featureOffMessage("offlinePacks"));
   }
   if (!r.ok) throw new ManifestError("failed", `Couldn't read the pack list (${r.status}).`);
-  return r.json();
+  try { return await r.json(); }
+  catch {
+    if (opts.signal?.aborted) throw new ManifestError("unreachable", "Can't reach the server right now — try again in a moment.");
+    throw new ManifestError("failed", "Couldn't read the pack list.");
+  }
 }
 
 /** What a download is for, as the Offline page lists a paused one. */

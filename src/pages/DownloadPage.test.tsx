@@ -274,3 +274,16 @@ describe("a season being stored", () => {
     expect(savingFrom(r, 50).done).toBe(5_000_000);
   });
 });
+
+describe("one place for the settings", () => {
+  it("has no second copy of the download and update settings: it links to Settings › Network & offline", async () => {
+    mount();
+    await screen.findByRole("list", { name: "Seasons" });
+    expect(screen.queryByRole("group", { name: "Update settings" })).toBeNull();
+    expect(screen.queryByRole("group", { name: "When updates are out" })).toBeNull();
+    expect(screen.queryByRole("group", { name: "Download updates on" })).toBeNull();
+    expect(screen.getAllByRole("radiogroup").map((g) => g.getAttribute("aria-label"))).toEqual(["What to save"]);
+    expect(screen.queryByText("Wi-Fi and mobile data")).toBeNull();
+    expect(screen.getByRole("link", { name: "Network & offline settings" }).getAttribute("href")).toBe("/settings#network");
+  });
+});

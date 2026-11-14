@@ -19,6 +19,15 @@ export async function storedLeague(season: number, region: string, code: string)
   return r ?? null;
 }
 
+/** Every league the route answers for a season (storedLeague's two sources: the leagues table and any event's league),
+ *  standings or not yet: a season pack's boards hold each one. */
+export async function seasonLeagues(season: number): Promise<{ region: string; code: string }[]> {
+  return all<{ region: string; code: string }>(
+    `SELECT region, code FROM leagues WHERE season = ?
+     UNION SELECT region, league code FROM events WHERE season = ? AND league IS NOT NULL AND league <> '' AND region IS NOT NULL AND region <> ''
+     ORDER BY region, code`, [season, season]);
+}
+
 /** One league's standings, or null when the season has no such league. */
 export async function leagueStandings(season: number, regionRaw: string, codeRaw: string): Promise<LeagueStandings | null> {
   const k = await storedLeague(season, regionRaw, codeRaw);
