@@ -528,7 +528,7 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   if (intent === "match-label" && p.event) return null;
   const labelled = intent === "match-label" && p.matchNumber != null;
   // A match's number at Worlds ("q6 at worlds"): Worlds' matches with it, its divisions' and finals'.
-  const kind = labelled && p.worlds ? WORLDS_KIND : p.event ? eventKindOf(normalise(p.event.words)) : p.eventKind ? eventKindOf(p.eventKind) : null;
+  const kind = labelled && p.worlds ? WORLDS_KIND : labelled && p.states ? STATES_KIND : p.event ? eventKindOf(normalise(p.event.words)) : p.eventKind ? eventKindOf(p.eventKind) : null;
   // One team's match by its score ("<team> 226 point match"): that team's matches with the score, found the same way.
   const scored = p.teams.length === 1 && p.scoreCond?.op === "=" && (intent === "season-matches" || intent === "top-matches");
   const teamFind = p.teams.length === 1 && (TEAM_FIND.has(FIND[intent]!) || scored);
@@ -541,7 +541,7 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     const named = p.event && !kind && (p.scoreCond || labelled) ? await eventsNamed(normalise(p.event.words), null, year != null ? (e) => (e.start ?? "").startsWith(String(year)) : undefined) : null;
     const events = named && year != null ? named.filter((e) => (e.start ?? "").startsWith(String(year))) : named;
     if (events && !events.length) return null;
-    if (((p.event || p.eventKind) && !kind && !events) || (p.worlds && !labelled) || p.states || p.alliance || scope.ever || (p.place && p.place.kind === "city")) return null;
+    if (((p.event || p.eventKind) && !kind && !events) || (p.worlds && !labelled) || (p.states && !labelled) || p.alliance || scope.ever || (p.place && p.place.kind === "city")) return null;
     // Its name as each season held it: the main event's, never a division's.
     const mainFirst = events ? [...events].sort((x, y) => Number(x.division != null) - Number(y.division != null)) : [];
     const eventKeys = events ? (await scopeEvents({ season: 0, region: null, level: null, finals: false, kind: null, events })) ?? [] : null;
@@ -582,10 +582,10 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     if (scope.window && scope.season != null && p.time?.year == null) return relaxed(a, windowSteps(scope.window, scope.season), (season) => card({ ...f, window: undefined, season }));
     // No season said, or "this season": the current one, then the one before when it has nothing yet.
     // Its note says what there's none of: matches, when nothing is played there yet; else the matches asked for.
-    // A match's number counts only matches with it: whether the season has any played is asked without it.
-    const unlabelled = f.label ? findWhere({ ...f, label: undefined }) : null;
-    const played = unlabelled ? !!(await get<{ n: number }>(`SELECT COUNT(*) n ${FIND_FROM} WHERE ${unlabelled.sql}`, unlabelled.args))?.n : !/^From 0 /.test(a.stat?.source ?? "");
-    if (!events && (!p.time || (p.time.kind === "season" && p.time.relative === "this"))) return relaxed(a, defaultSteps(f.season, where, played ? (f.label ? labelText(f.label) : MATCH_NOUN[f.measure]) : "matches"), (season) => card({ ...f, season }));
+    // A match's number: that match, where it was asked ("No 2026–27 Q6 at Worlds yet"), whatever else was played.
+    const played = !/^From 0 /.test(a.stat?.source ?? "");
+    const noun = f.label ? `${labelText(f.label)}${f.kind ? ` at ${f.kind === WORLDS_KIND ? "Worlds" : "states"}` : ""}` : played ? MATCH_NOUN[f.measure] : "matches";
+    if (!events && (!p.time || (p.time.kind === "season" && p.time.relative === "this"))) return relaxed(a, defaultSteps(f.season, where, noun), (season) => card({ ...f, season }));
     return a;
   }
   // A count's board ("the most matches played", "most awards in nj"): answered as the leaderboard reader reads it, never
