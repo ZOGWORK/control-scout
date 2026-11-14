@@ -96,6 +96,14 @@ describe("AnswerVideo", () => {
     expect(d.querySelector("[data-no-recording]")).toBeNull();
   });
 
+  it("a match still to play beside played ones gets no \"No video\"", () => {
+    const Q1 = "/events/2025/USMACMP?match=qual:0:1", Q2 = "/events/2025/USMACMP?match=qual:0:2";
+    const mixed: StatAnswer = { ...stat, headline: undefined, blocks: [{ kind: "table", title: "Before and after", columns: [{ key: "match", label: "Match" }, { key: "after", label: "After" }], rows: [{ cells: { match: "Q1", after: "W 120–90" }, href: Q1 }, { cells: { match: "Q2", after: "Not played yet" }, href: Q2, upcoming: true }] }] };
+    const c = render(<MemoryRouter><AnswerVideoProvider video={{ rows: { [Q1]: { videoId: "xnQFL9T27fY", t: 100, end: 300, kind: "recording", match: "Q1" } } }}><StatAnswerCard stat={mixed} /></AnswerVideoProvider></MemoryRouter>).container;
+    expect(c.querySelectorAll("[data-row-play]").length).toBeGreaterThan(0);
+    expect(c.querySelector("[data-row-no-video]")).toBeNull();
+  });
+
   it("an answer about no match says nothing about video", () => {
     const none: StatAnswer = { ...stat, headline: { value: "115.7", label: "OPR" }, blocks: [] };
     const c = render(<MemoryRouter><AnswerVideoProvider video={undefined}><StatAnswerCard stat={none} /></AnswerVideoProvider></MemoryRouter>).container;
