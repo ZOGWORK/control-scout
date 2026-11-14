@@ -102,8 +102,11 @@ describe("clip coverage check", () => {
     for (let i = 0; i < 3; i++) {
       await run("INSERT INTO clip_coverage (season, code, fingerprint, checked_at, state, played, with_clip, missing_key, detail) VALUES (?, ?, 'x', ?, 'unplaced', 2, 0, 'k', '{}')", [S, `PAGE${i}`, `2026-11-0${i + 1}T00:00:00Z`]);
     }
-    const one = await ownerClipCoverage({ limit: 2 }), two = await ownerClipCoverage({ limit: 2, offset: 2 });
+    const one = await ownerClipCoverage({ limit: 2 });
     expect(one.open).toBe(4);
+    // One of the first page leaves the list before the next is asked for: the page after the last shown still holds the rest.
+    await run("UPDATE clip_coverage SET with_clip = played WHERE code = ?", [one.events[0].code]);
+    const last = one.events[1], two = await ownerClipCoverage({ limit: 2, after: { season: last.season, code: last.code } });
     expect([...one.events, ...two.events].map((e) => e.code).sort()).toEqual(["PAGE0", "PAGE1", "PAGE2", "TWODAY"]);
     await run("DELETE FROM clip_coverage WHERE code LIKE 'PAGE%'");
   });
