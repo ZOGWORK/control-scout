@@ -14,6 +14,7 @@ import { withoutWatch } from "../searchAnswer.js";
 import { teamMatches } from "./matchSet.js";
 import { inTurns } from "./followUps.js";
 import { refOfHref, rowRefs } from "./video.js";
+import { spelledRight } from "../spelling.js";
 
 /** Most questions offered, and most tried to find them. */
 const OFFER_MAX = 3;
@@ -71,25 +72,36 @@ export async function videoCandidates(a: SearchAnswer, now = Date.now()): Promis
     for (const e of near) out.push(`${e.name} highlights ${seasonWords(s)}`);
     if (out.length >= TRY_MAX) break;
   }
-  return [...new Set(out)].slice(0, TRY_MAX);
+  return spelledOnly([...new Set(out)]);
+}
+
+/** The questions whose words all read as spelled right (../spelling.ts spelledRight), in order, at most TRY_MAX: a
+ *  name stored with a typo ("Wnterberry Waterloo") is never offered, and the next one takes its place. One whose check
+ *  fails is left out too. */
+export async function spelledOnly(qs: string[], spelled: (q: string) => Promise<boolean> = spelledRight): Promise<string[]> {
+  const ok = await Promise.all(qs.map((q) => spelled(q).catch(() => false)));
+  return qs.filter((_, i) => ok[i]).slice(0, TRY_MAX);
 }
 
 /**
  * The answer with questions that do play, when the search asked to watch and its answer has nothing to play: a
  * "related" block first among its blocks. Each question is asked (`ask`, the page's own kept answer) and its video read
  * (`video`); only those with video are offered, at most three. Unchanged when none of them plays. Past `waitMs` the answer
- * goes with the ones found by then (it never waits longer), and the checks still to come never run.
+ * goes with the ones found by then; with none found yet (the first search after the checks expire, each read cold) it
+ * waits up to `moreMs` longer, and goes as soon as one is. Then the checks still to come never run.
  */
 export async function withVideoAlternatives(q: string, a: SearchAnswer, v: SearchVideo | null | undefined,
   ask: (q: string) => Promise<SearchAnswer>, video: (a: SearchAnswer) => Promise<SearchVideo | undefined>, waitMs = WAIT_MS,
-  candidates: (a: SearchAnswer) => Promise<string[]> = videoCandidates, who = ""): Promise<SearchAnswer> {
+  candidates: (a: SearchAnswer) => Promise<string[]> = videoCandidates, who = "", moreMs = MORE_MS): Promise<SearchAnswer> {
   if (!a.stat || hasVideo(v) || !asksVideo(q, a)) return a;
-  // Past the wait the answer goes as it is, and the checks still to come are never run.
-  // The ones found by then are offered all the same.
+  // Past the wait (and, with none found by then, the longer one) the answer goes as it is, and the checks still to
+  // come are never run. The ones found by then are offered all the same.
   let gaveUp = false;
   const offered: string[] = [];
   // The check this search is waiting on now: past its own wait, it stops waiting on it.
   let mine: Check | null = null;
+  // Past `waitMs` with none found: the first one found ends the wait.
+  let past = false, onFound = () => {};
   const find = (async () => {
     for (const c of await candidates(a).catch(() => [])) {
       if (offered.length >= OFFER_MAX || gaveUp) break;
@@ -121,13 +133,17 @@ export async function withVideoAlternatives(q: string, a: SearchAnswer, v: Searc
       mine = check;
       const ok = await check.v;
       if (mine === check) { check.waiting--; mine = null; }
-      if (ok && !gaveUp) offered.push(c);
+      if (ok && !gaveUp) { offered.push(c); if (past) onFound(); }
     }
     return offered;
   })();
   find.catch(() => {});
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const found = await Promise.race([find, new Promise<string[]>((r) => { timer = setTimeout(() => { gaveUp = true; if (mine) { mine.waiting--; mine = null; } r([...offered]); }, waitMs); })]).finally(() => clearTimeout(timer));
+  const timers: ReturnType<typeof setTimeout>[] = [];
+  const found = await Promise.race([find, new Promise<string[]>((r) => {
+    const stop = () => { gaveUp = true; if (mine) { mine.waiting--; mine = null; } r([...offered]); };
+    onFound = stop;
+    timers.push(setTimeout(() => { past = true; if (offered.length || moreMs <= 0) stop(); else timers.push(setTimeout(stop, moreMs)); }, waitMs));
+  })]).finally(() => timers.forEach(clearTimeout));
   if (!found.length) return a;
   const block: StatAnswer["blocks"][number] = { kind: "related", title: "Questions with video", queries: found };
   return { ...a, stat: { ...a.stat, blocks: [block, ...a.stat.blocks] } };
@@ -148,5 +164,6 @@ const CHECK_MAX = 500;
 export const forgetVideoChecks = () => checks.clear();
 registerCache("Search answers: video questions", forgetVideoChecks);
 
-/** Longest the answer waits for its questions with video. */
+/** How long the answer waits for its questions with video, and how much longer when none is found by then. */
 const WAIT_MS = 2500;
+const MORE_MS = 3000;
