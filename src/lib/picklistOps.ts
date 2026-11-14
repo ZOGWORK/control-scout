@@ -40,6 +40,8 @@ export interface KeptPickOp {
   message?: string;
   /** Sent, and the answer was lost. */
   uncertain?: boolean;
+  /** It didn't go for want of a network (made with no signal): it goes up by itself once the signal is back. */
+  offline?: boolean;
 }
 
 const DB = "control-scout-picklist";
@@ -139,7 +141,8 @@ export function isKeptPickOp(x: unknown, now = Date.now()): x is KeptPickOp {
     && typeof x.at === "number" && Number.isFinite(x.at) && x.at > 0 && x.at <= now + KEPT_OP_MAX_AGE_MS
     && isOrder(x.base) && Number.isSafeInteger(x.baseVersion) && (x.baseVersion as number) >= 0
     && (x.state === "sending" || x.state === "kept")
-    && optional(x.tab, (v) => typeof v === "string") && optional(x.message, (v) => typeof v === "string") && optional(x.uncertain, (v) => typeof v === "boolean");
+    && optional(x.tab, (v) => typeof v === "string") && optional(x.message, (v) => typeof v === "string") && optional(x.uncertain, (v) => typeof v === "boolean")
+    && optional(x.offline, (v) => typeof v === "boolean");
 }
 
 /**

@@ -19,6 +19,8 @@ import { loadBundle } from "./bundles";
 import { bundleTime, packLookup, type EventBundle, type SavedBundle } from "../../shared/eventBundle";
 import { compareFromPacks } from "../../shared/compare";
 import type { CompareView } from "../../shared/api";
+import { answerableOffline } from "./kept";
+import { scoutReadAnswer } from "./scoutReads";
 import { readEventDetail, readMatchViews, readProjections, readSearch, readTeamProfile, readTeamSchedule, type ReadOpts } from "./readers";
 
 let books: { pack: LitePack | null; bySeason: Map<number, RatingBook | null> } | null = null;
@@ -182,9 +184,17 @@ export async function offlineCompare(numbers: number[], season?: number): Promis
   return markOffline(got.view, bundleSource(loaded[packs.findIndex((p) => p === got.from)].meta));
 }
 
-/** The offline answer for an API path, or null when the saved data can't answer it. Throws OfflineAnswerError
- *  when the saved data says the answer is an error (the server's 404, or a team not in the pack). */
+/** The offline answer for an API path: the saved seasons' and event packs' first, else the scouting pages' kept
+ *  answers and bundles (scoutReads.ts); null when this device holds none. Throws OfflineAnswerError when the saved
+ *  data says the answer is an error (the server's 404, or a team not in the pack). */
 export async function offlineAnswer(path: string): Promise<unknown | null> {
+  // The saved data's own error (OfflineAnswerError) stands; any other failure reading it falls through to the kept answers.
+  const saved = await savedSeasonAnswer(path).catch((e) => { if (e instanceof OfflineAnswerError) throw e; return null; });
+  if (saved != null) return saved;
+  return answerableOffline(path) ? scoutReadAnswer(path) : null;
+}
+
+async function savedSeasonAnswer(path: string): Promise<unknown | null> {
   const url = new URL(path, "http://offline.invalid");
   const season = int(url.searchParams.get("season"));
   if (url.pathname === "/api/compare") {
