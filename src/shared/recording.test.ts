@@ -314,6 +314,14 @@ describe("a recording cut short, its chapters checked", () => {
     // In order, each within its chapter's drift of its own chapter.
     placed.forEach((t, i) => { if (t != null) expect(Math.abs(t - chapterAt[i])).toBeLessThan(600); });
     expect(placed.filter((t): t is number => t != null)).toEqual([...placed.filter((t): t is number => t != null)].sort((a, b) => a - b));
+    // Each clip stops at its match's end in the video, the shift taken off too: its clip's start + the lead-in + 220 s.
+    // Checked by eye: Q11, Q20 and Q30 each show their own match at 0:00 with its final score at that second.
+    const shifted = { ...rec, confirmedTo: c.to, shift: c.shift };
+    const ends = qs.map((q, i) => clipEnd(q.startsAt, shifted, qs[i + 1]?.startsAt));
+    expect([ends[0], ends[9], ends[19]]).toEqual([375, 4822, 10512]);
+    ends.forEach((e, i) => expect(e).toBe(placed[i]! + CLIP_LEAD_S + 220));
+    // Never past the video (11,120 s).
+    expect(Math.max(...ends.map(Number))).toBeLessThanOrEqual(sat.length);
   });
   it("says nothing without enough chapters naming matches, or for a small shortfall", () => {
     expect(confirm(timing, chapters.slice(0, CHAPTER_MIN_ANCHORS + CHAPTER_TAIL - 1), quals)).toBeNull(); // one short
