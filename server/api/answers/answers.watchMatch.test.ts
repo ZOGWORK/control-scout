@@ -47,6 +47,15 @@ beforeAll(async () => {
   // 4215: its best Auto (88) is at a qualifier with no video at all.
   await match("USNJQ1", "qual", 1, "2026-01-10T10:00:00Z", null, [150, 88, 42, 20], [60, 10, 30, 20], [4215, 207], [6980, 9999]);
   await match("USMACMP", "qual", 30, "2026-03-15T15:04:12.812", null, [88, 20, 48, 20], [178, 40, 118, 20], [4215, 6980], [207, 9999]);
+  // 4215's Q1 in 2024–25 (for "ever"), and a played 2026–27 playoff match with no M10, team 5555's (for the season note).
+  await run("INSERT INTO teams (number, name, city, state, country, rookie_year) VALUES (5555, 'Note Bots', 'Edison', 'NJ', 'USA', 2020)");
+  for (const [season, code, n, team, level] of [[2024, "USNJQ0", 1, 4215, "qual"], [2026, "USNJQ9", 4, 5555, "playoff"]] as const) {
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, timezone, source) VALUES (?, ?, ?, 'Qualifier', 'Edison', 'NJ', 'USA', ?, ?, 'America/New_York', 't')", [season, code, `New Jersey Qualifier ${season}`, `${season + 1}-01-10`, `${season + 1}-01-10`]);
+    await run(`INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, red_auto, red_teleop, red_endgame, red_pen, blue_total, blue_np, blue_auto, blue_teleop, blue_endgame, blue_pen, breakdown, source)
+               VALUES (?, ?, ?, ?, ?, ?, ?, 1, 40, 40, 10, 20, 10, 0, 30, 30, 10, 10, 10, 0, 1, 't')`, [season, code, level, level === "qual" ? 0 : n, level === "qual" ? n : 1, `${level === "qual" ? "Q" : "M"}${n}`, `${season + 1}-01-10T10:00:00Z`]);
+    await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance) VALUES (?, ?, ?, ?, ?, ?, 'red')", [season, code, level, level === "qual" ? 0 : n, level === "qual" ? n : 1, team]);
+    await run("INSERT INTO team_seasons (season, team) VALUES (?, ?) ON CONFLICT DO NOTHING", [season, team]);
+  }
   await rebuildSearch();
   forgetRecordings();
 });
@@ -147,6 +156,19 @@ describe("a team's match by its number at Worlds", () => {
     const none = await ask("4215 M2 at worlds 2025-26");
     expect(none.a.stat?.headline).toBeUndefined();
     expect(none.video?.main).toBeUndefined();
+  });
+});
+
+describe("a match number across seasons", () => {
+  it("\"ever\" lists the team's match with that number in every season, the latest first", async () => {
+    const { a } = await ask("4215 q1 ever");
+    const hrefs = [a.stat?.headline?.href, ...(a.stat?.blocks ?? []).flatMap((b) => (b.kind === "matches" || b.kind === "table" ? b.rows.map((r) => r.href) : []))].filter(Boolean);
+    expect(hrefs).toEqual(expect.arrayContaining(["/events/2025/USNJQ1?match=qual:0:1", "/events/2024/USNJQ0?match=qual:0:1"]));
+  });
+  it("no season said, the current one played but with no such number: the note names the number, not matches", async () => {
+    const { a } = await ask("m10");
+    expect(a.stat?.headline?.href).toBe(maM10);
+    expect(a.stat?.scope[0]).toBe("No 2026–27 M10 yet; showing 2025–26");
   });
 });
 
