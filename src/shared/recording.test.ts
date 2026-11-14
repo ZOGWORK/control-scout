@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { actualStart, chapterLabel, chaptersConfirm, CHAPTER_MIN_ANCHORS, CHAPTER_MIN_GAP_S, CHAPTER_TAIL, CLIP_LEAD_S, clearOfPrevious, clipSecond, clipTime, gapSlack, GAP_SLACK_MAX_S, MATCH_PLAY_S, timingTrusted, watchUrl, type Chapter } from "./recording";
+import { actualStart, chapterLabel, chaptersConfirm, CHAPTER_MIN_ANCHORS, CHAPTER_MIN_GAP_S, CHAPTER_TAIL, CLIP_LEAD_S, clearOfPrevious, clipEnd, clipSecond, CLIP_TAIL_S, LIVE_DELAY_MAX_S, LIVE_DELAY_MIN_S, clipTime, gapSlack, GAP_SLACK_MAX_S, MATCH_PLAY_S, timingTrusted, watchUrl, type Chapter } from "./recording";
 
 const rec = { start: "2026-05-02T12:58:13Z", length: 4 * 3600, live: false };
 
@@ -25,6 +25,50 @@ describe("a match's second in the recording", () => {
     const now = Date.parse("2026-05-02T14:00:00Z");
     expect(clipSecond("2026-05-02T13:30:00Z", { ...rec, length: null, live: true }, now)).toBe(1907 - CLIP_LEAD_S);
     expect(clipSecond("2026-05-02T14:30:00Z", { ...rec, length: null, live: true }, now)).toBeNull();
+  });
+});
+
+describe("where a match's clip stops", () => {
+  // Edison M14 at 14,225 s into a 5 h video, on a trusted clock.
+  const M14 = "2026-05-02T16:55:18.162Z";
+  const long = { ...rec, length: 5 * 3600 };
+  it("at the match's own second, plus its play and the tail (the live delay and the final score)", () => {
+    expect(clipEnd(M14, long)).toBe(14225 + MATCH_PLAY_S + CLIP_TAIL_S);
+    expect(MATCH_PLAY_S + CLIP_TAIL_S).toBe(220);
+    // A clip that starts at 0 (a match right after the broadcast began) still ends from the match's own second.
+    expect(clipEnd("2026-05-02T12:58:23Z", rec)).toBe(10 + 220);
+  });
+  it("never past the video's end", () => {
+    expect(clipEnd(M14, rec)).toBe(4 * 3600); // in the 4 h video: 14,445 would be past 14,400
+  });
+  it("none where there's no clip: outside the video, no start, a gap it can't place", () => {
+    expect(clipEnd("2026-05-02T17:00:00Z", rec)).toBeNull();
+    expect(clipEnd(null, rec)).toBeNull();
+    expect(clipEnd("2026-05-02T13:00:13Z", { ...rec, start: null })).toBeNull();
+    const gapped = { start: "2026-05-30T15:02:06Z", end: "2026-05-31T01:14:37Z", length: 30807, live: false };
+    expect(clipEnd("2026-05-30T15:21:09Z", gapped)).toBeNull();
+  });
+  it("an early start (gapSlack) never moves it earlier: the match may sit before its clock second, never after", () => {
+    const short13 = { start: "2026-11-07T12:57:06Z", end: "2026-11-08T00:00:35Z", length: 39013, live: false, firstMatch: "2026-11-07T16:15:45Z", lastMatch: "2026-11-07T23:23:13Z" };
+    expect(clipSecond("2026-11-07T22:21:39Z", short13)).toBe(33873 - 796 - CLIP_LEAD_S);
+    expect(clipEnd("2026-11-07T22:21:39Z", short13)).toBe(33873 + 220);
+  });
+  it("a start cut off the video (shift): from the match's place in the video, as its clip's start", () => {
+    // AUSYOS Saturday part 1 kind: 15,445 s cut off the start, the chapters agreeing.
+    const cut = { ...long, confirmedTo: 6 * 3600, shift: 3600 };
+    expect(clipEnd(M14, cut)).toBe(14225 - 3600 + 220);
+  });
+  it("before the next match's timer shows, though never before its own play is over", () => {
+    // The next match 3 min on (two fields): the clip stops as that one's timer could first show.
+    expect(clipEnd(M14, long, "2026-05-02T16:58:30Z")).toBe(14225 + 192 + LIVE_DELAY_MIN_S);
+    // 1 min on: its own play first, at the latest it may show.
+    expect(clipEnd(M14, long, "2026-05-02T16:56:18Z")).toBe(14225 + MATCH_PLAY_S + LIVE_DELAY_MAX_S);
+    // Far off: the whole tail.
+    expect(clipEnd(M14, long, "2026-05-02T17:05:00Z")).toBe(14225 + 220);
+  });
+  it("while live, isn't held to a length", () => {
+    const now = Date.parse("2026-05-02T14:00:00Z");
+    expect(clipEnd("2026-05-02T13:30:00Z", { ...rec, length: null, live: true }, null, now)).toBe(1907 + 220);
   });
 });
 
