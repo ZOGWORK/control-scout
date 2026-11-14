@@ -77,7 +77,7 @@ export function designators(s: string): Designators {
   return d;
 }
 
-const COMP = /(champs|championship|campionat|qualif|tournament|turneu|regional|league|\bmeets?(?![a-z])|invitational|premier|scrimmage|state cup|uil|division|\bday\s*\d(?!\d)|super|showcase|\bcup\b|competi|ftc|tech challenge|rodeo|madness|roundup)/i;
+const COMP = /(champs|championship|campionat|qualif|tournament|turneu|regional|league|\bmeets?(?![a-z])|invitational|premier|scrimmage|state cup|uil|division|\bday\s*\d{1,2}(?!\d)|super|showcase|\bcup\b|competi|ftc|tech challenge|rodeo|madness|roundup)/i;
 const NOT = /(webinar|training|sesiune|workshop|kick ?off|q&a|interview|judg|referee|pregatire|informativ|\bfrc\b|first robotics competition|lego|\bfll\b|\bvex\b|banquet|town hall|info session|mentor|district event|\bweek \d|inspection status|opening ceremon|practice day|test stream|livestream test|pre-?show|first global|\bfgc\b|\bdrones?\b|\bdcl\b|simulator)/i;
 const PART = /(ceremon|award|premier[ei]|finala|finals?\b|alliance selection|playoff|elimination)/i;
 const PART_NAME: [RegExp, string][] = [[/alliance selection/i, "Alliance selection & finals"], [/finala/i, "Finals & awards"], [/ceremon|award|premier[ei]/i, "Awards"], [/finals?\b/i, "Finals"], [/playoff/i, "Playoffs"], [/elimination/i, "Eliminations"]];
