@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 6.0.9 — 2026-11-14
+
+West Michigan's league meets at GVSU now play their streams from the FIRST Alumni Network Grand Valley, and Saturday's Meet 5 shows its stream before, during and after it airs. Scout also watches the Central Ohio league's own streamer for its next meets.
+
+### Highlights
+- [live] West Michigan Meet 5 streams on its event page on Saturday
+- [history] West Michigan Meet 2 plays its recording
+- [live] Next Central Ohio and West Michigan meets join the auto-watcher
+
+### Added
+- Official videos: the FIRST Alumni Network Grand Valley (`UCaojFS3JFPWY9kaoW6bhvvQ`) and Stars of the Galaxy (FTC 12099, `UC576ZA1td9ZvsAUwPq1Ymaw`), both read from the YouTube Data API, join the official channels and the auto-watcher's list, for West Michigan and Central Ohio league events only. Two FANGV streams are checked against each event's name, city, date and meet number: West Michigan Meet 2 (Nov 7) and Meet 5 (Nov 14, listed before it airs). Every Stars of the Galaxy stream is already FIRST's own event link, so none is added twice, and FANGV's Robot in 3 Days streams (FRC) are left out. (`server/data/officialVideos.json`, `server/data/officialChannels.ts`, `docs/official-videos.md`) (#1469)
+
 ## 6.0.8 — 2026-11-14
 
 Control Scout Lite, the text-only version for a weak signal, has a new layout: room between everything, 44px buttons, the C-mark, and your own theme and text size. You can also keep Lite on.
