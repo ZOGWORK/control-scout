@@ -93,10 +93,7 @@ const afterIndex = () => indexed.catch(() => { /* its own step says it failed */
 // and only predictions need them; held for, every queued search would wait on them).
 // Then the season a search with none named reads (the latest completed one, server/api/answers/season.ts): its
 // predictions ("4215 vs 7149 who wins") otherwise built the whole season on a visitor's request, 10–20 s cold.
-// And the questions with video offered when nothing near a search's answer plays in time (server/api/answers/
-// videoSuggest.ts): a few searches, checked once the search index and the event-name typos are ready.
-const rated = warmUp([["ratings", () => forecasterFor(CURRENT_SEASON).then(() => refreshSearchSeason()).then((s) => (s !== CURRENT_SEASON ? forecasterFor(s) : null))],
-  ["search video questions", () => afterIndex().then(() => warmNameTypos()).then(() => warmVideoQuestions())]], log, Infinity, Date.now, "warm (background)");
+const rated = warmUp([["ratings", () => forecasterFor(CURRENT_SEASON).then(() => refreshSearchSeason()).then((s) => (s !== CURRENT_SEASON ? forecasterFor(s) : null))]], log, Infinity, Date.now, "warm (background)");
 const warming = await warmUp([
   // The track record (every scored prediction: about a second and a half cold), then the match report's flag
   // cutoffs (two scans of a season) for this season and last.
@@ -114,6 +111,10 @@ void Promise.all([warming.settled, rated.then((r) => r.settled)]).then(() => { w
 ready = true;
 if (socket) http = server.listen(socket, listening("the systemd socket"));
 log("ready");
+// The questions with video offered when nothing near a search's answer plays in time (server/api/answers/
+// videoSuggest.ts): a few searches, checked once the search index and the event-name typos are ready. Nothing waits
+// on them: neither `ready` nor `warm` (the deploy's check), and each check and the whole build are bounded.
+void afterIndex().then(() => warmNameTypos()).then(() => warmVideoQuestions()).catch(() => {});
 // After a sync (often in a child process) the data version moves: rebuild the
 // ratings in use and the track record right away, in the background, so no
 // visitor's request is the one that waits for them (pages keep the previous
