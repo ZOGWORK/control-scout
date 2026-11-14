@@ -68,7 +68,7 @@ export function CompareCard({ stat, b, extra }: { stat: StatAnswer; b: Compare; 
         // The matches they all played in, each with its clip (./AnswerVideo.tsx): one alone plays in the card.
         <section className="mt-5" data-block="together">
           <h3 className="mb-2 text-sm font-semibold text-foreground">{together.title}</h3>
-          <AnswerVideo />
+          <AnswerVideo only={together.rows.map((r) => r.href)} />
           <ul className="grid gap-3 sm:grid-cols-2">{together.rows.map((r) => <MatchBox key={`${r.href}|${r.alliance}`} r={r} team={teams[0]} />)}</ul>
         </section>
       )}
