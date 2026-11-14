@@ -9,10 +9,11 @@ import { useApi } from "../../lib/api";
 import { useContributorVideos } from "./EventClips";
 import { cn } from "../cn";
 
-/** Which played matches have no video, as a short hash: any change to that set (not only to how many) asks again. */
-export function missingSignature(played: Pick<MatchView, "key" | "clip" | "video">[]): string {
+/** Which played matches have no video, and their times, as a short hash: any change to that set (not only to how many),
+ *  or to one of their starts (FIRST posting a real one), asks again. */
+export function missingSignature(played: Pick<MatchView, "key" | "clip" | "video" | "time">[]): string {
   let h = 5381;
-  for (const m of played) if (!m.clip && !m.video) for (const ch of `${m.key};`) h = ((h * 33) ^ ch.charCodeAt(0)) >>> 0;
+  for (const m of played) if (!m.clip && !m.video) for (const ch of `${m.key}@${m.time ?? ""};`) h = ((h * 33) ^ ch.charCodeAt(0)) >>> 0;
   return `${played.length}-${h.toString(36)}`;
 }
 
