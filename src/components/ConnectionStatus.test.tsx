@@ -64,4 +64,13 @@ describe("the pill", () => {
     pill();
     expect(screen.getByRole("button").textContent).toBe("No internet on this Wi-Fi");
   });
+  it("below xl the wide pill is the icon alone, in the bar's own flow, so it never covers the search box", () => {
+    localStorage.setItem(DEMO_KEY, "portal");
+    pill();
+    const box = screen.getByRole("status");
+    expect(box.className).toMatch(/xl:absolute/);
+    expect(box.className.split(" ")).not.toContain("absolute"); // floating only from xl up
+    const words = screen.getByText("No internet on this Wi-Fi");
+    expect(words.className).toContain("max-xl:hidden");
+  });
 });
