@@ -552,7 +552,7 @@ export interface MatchView {
 export interface MatchClip { videoId: string; t: number; url: string; early?: number; end?: number }
 
 /** Why a played match has no clip (server/videos/coverage.ts), each said in plain words beside it (`why`). */
-export type CoverageReason = "no-start" | "no-recording-day" | "outside-span" | "before-broadcast" | "after-broadcast" | "video-unavailable"
+export type CoverageReason = "no-start" | "no-zone" | "no-recording-day" | "outside-span" | "before-broadcast" | "after-broadcast" | "video-unavailable"
   | "video-unread" | "no-clock" | "gap-unplaced" | "past-chapters" | "past-video-end" | "before-cut" | "before-chapters" | "overlaps-previous" | "no-first-video" | "unexplained";
 /** One played match's clip, or why it has none. `basis`: what a clip's place stands on (the clock, chapters, frames). */
 export interface CoverageMatch { key: string; label: string; date: string | null; teams?: number[]; clip: boolean; videoId: string | null; reason?: CoverageReason; why?: string; basis?: string }
