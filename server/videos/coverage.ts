@@ -55,6 +55,7 @@ const WHY: Record<CoverageReason, string> = {
   "past-chapters": "Past the part of the video its chapters confirm",
   "past-video-end": "After the video ends",
   "before-cut": "Before the video starts",
+  "before-chapters": "Before the part of the video its chapters confirm",
   "overlaps-previous": "An early start would open on the match before",
   "no-first-video": "FIRST posted no video for this match",
   unexplained: "No clip, reason not found",
@@ -106,7 +107,8 @@ function reasonFor(m: CoverageInput, videos: Judged[], now: number): { reason: C
   // Counted in its day's video (by the schedule's date), so that day never reads as fully clipped without it.
   if (!actualStart(m.time)) {
     const day = videos.filter((j) => j.date && j.date === date);
-    return { reason: "no-start", why: WHY["no-start"], videoId: (day[0] ?? (videos.length === 1 ? videos[0] : null))?.v.videoId ?? null };
+    // Never another day's: a lone video whose day can't be told is the only other one it may be.
+    return { reason: "no-start", why: WHY["no-start"], videoId: (day[0] ?? (videos.length === 1 && !videos[0].date ? videos[0] : null))?.v.videoId ?? null };
   }
   // The video that holds its start, else that day's.
   const holding = videos.find((j) => j.v.meta?.status === "ok" && j.v.meta.start && within(m.startsAt, j.v.meta, now));
@@ -131,7 +133,7 @@ function reasonFor(m: CoverageInput, videos: Judged[], now: number): { reason: C
   if (clipSecond(m.startsAt, t, now) == null) {
     if (clock < 0) return { reason: "before-broadcast", why: WHY["before-broadcast"], videoId: id };
     if (t.confirmedTo != null && clock > t.confirmedTo) return { reason: "past-chapters", why: `${WHY["past-chapters"]} (to ${span(t.confirmedTo)} into the broadcast)`, videoId: id };
-    if (shift && t.confirmedFrom != null && clock < t.confirmedFrom) return { reason: "past-chapters", why: `${WHY["past-chapters"]} (from ${span(t.confirmedFrom)} into the broadcast)`, videoId: id };
+    if (shift && t.confirmedFrom != null && clock < t.confirmedFrom) return { reason: "before-chapters", why: `${WHY["before-chapters"]} (from ${span(t.confirmedFrom)} into the broadcast)`, videoId: id };
     if (offset < 0) return { reason: "before-cut", why: `${WHY["before-cut"]} (its first ${span(shift)} were cut off)`, videoId: id };
     if (t.length != null && offset - slack > t.length) return { reason: "past-video-end", why: `${WHY["past-video-end"]} (the video stops ${span(offset - slack - t.length)} before it)`, videoId: id };
   } else if (!clearOfPrevious(m.startsAt, slack ? previousStart(j.starts!, m.startsAt) : null, slack)) {
@@ -173,9 +175,12 @@ export function clipCoverage(matches: CoverageInput[], rec: Recording | null, fu
     videoId: j.v.videoId, label: j.label, date: j.date, ...(counts.get(j.v.videoId) ?? { matches: 0, clipped: 0 }),
     ...(j.dead ? { why: j.dead.why } : {}), ...(j.basis ? { basis: j.basis } : {}),
   }));
-  // Days with played matches and no video of their own, for a recording that has days (a single video spanning them doesn't).
+  // Days with played matches and no video of their own, whatever each match's own reason (a day whose matches all lack
+  // a real start is still unrecorded): only when the videos' days are known, and never a day any of whose matches got a
+  // clip (a broadcast that ran past midnight holds it).
   const recordedDates = new Set(judged.map((j) => j.date).filter(Boolean));
-  const daysMissing = [...new Set(out.filter((m) => m.reason === "no-recording-day").map((m) => m.date!))].sort()
+  const daysMissing = [...new Set(out.map((m) => m.date).filter((d): d is string => !!d))]
+    .filter((d) => recordedDates.size && judged.every((j) => j.date) && !recordedDates.has(d) && !out.some((m) => m.date === d && m.clip)).sort()
     .map((date) => ({ date, label: weekday(date), matches: out.filter((m) => m.date === date && !m.clip).length }));
   const withClip = out.filter((m) => m.clip).length;
   const state: ClipCoverage["state"] = !judged.length && !firstVideos ? "none" : !out.length ? "pending" : withClip === out.length ? "full" : withClip ? "partial" : "unplaced";
