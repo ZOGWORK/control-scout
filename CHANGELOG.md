@@ -20,7 +20,7 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 Nevada, North Dakota and Montana events now play their recordings from the state's own channels: FIRST Nevada's league meets, tournaments and State Championships, Dakota FTC's qualifiers and State, and Montana's older State and Butte streams.
 
 ### Highlights
-- [history] Nevada league meets and State Championships play their recordings
+- [history] Nevada's league meets and State play their recordings
 - [history] Dakota FTC qualifiers and State play their full-day streams
 - [history] Montana's 2023 and 2024 State and Butte streams play
 
