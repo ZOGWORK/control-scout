@@ -135,9 +135,11 @@ interface StoredLite { gz: boolean; bytes: Uint8Array; version: string }
 
 /** Download with progress, verify the hash, keep it on the device. Stores the bytes only: nothing is
  *  decoded or run here (that happens offline, in loadLite). */
-export async function downloadLite(file: PackFile, manifest: PackManifest, onProgress?: (done: number, total: number) => void): Promise<PackMeta> {
+export async function downloadLite(file: PackFile, manifest: PackManifest, onProgress?: (done: number, total: number) => void, opts: { background?: boolean } = {}): Promise<PackMeta | null> {
   checkFormat(manifest);
   const bytes = await fetchVerified(file, onProgress);
+  // A background sync whose pack was deleted (maybe in another tab) while it downloaded: it never brings it back.
+  if (opts.background && liteDeleted()) { await finishFile(file); return null; }
   await put(LITE_KEY, { gz: file.name.endsWith(".gz"), bytes, version: manifest.version } satisfies StoredLite);
   const meta: PackMeta = { version: manifest.version, bytes: bytes.length, savedAt: Date.now(), builtAt: manifest.builtAt, engineVersion: manifest.engineVersion, seasons: file.seasons, dataAsOf: manifest.dataAsOf };
   localStorage.setItem(META, JSON.stringify(meta));
@@ -212,7 +214,7 @@ export function syncLite(opts: { allowed?: () => boolean } = {}): Promise<PackMe
       if (opts.allowed && !opts.allowed()) return have;
       // Deleted on purpose: only the person's own Download brings it back (an explicit request has no `allowed`).
       if (opts.allowed && liteDeleted()) return have;
-      return await downloadLite(m.lite, m);
+      return (await downloadLite(m.lite, m, undefined, { background: !!opts.allowed })) ?? packStatus();
     } catch { return packStatus(); }
     finally { syncing = null; }
   })();

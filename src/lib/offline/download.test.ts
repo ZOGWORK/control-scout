@@ -184,6 +184,20 @@ describe("the lite pack through the downloader", () => {
     expect(packStatus()).toBeNull();
   });
 
+  it("a Delete made while a background sync is downloading (another tab) isn't undone when it finishes", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+      if (String(url).endsWith("latest.json")) return new Response(JSON.stringify(manifest));
+      localStorage.setItem("cs-lite-deleted", "1"); // deleted in another tab while the bytes come
+      return new Response(gz);
+    }));
+    await syncLite({ allowed: () => true });
+    expect(packStatus()).toBeNull();
+    expect(await getv("lite-gz")).toBeUndefined();
+    expect(localStorage.getItem("cs-lite-deleted")).toBe("1");
+    expect(await partialDownloads()).toEqual([]); // its pieces went too
+    localStorage.removeItem("cs-lite-deleted");
+  });
+
   it("after a Delete, the background sync leaves it off; the person's own Download brings it back", async () => {
     vi.stubGlobal("fetch", server(gz).fn);
     await downloadLite(lite, manifest);

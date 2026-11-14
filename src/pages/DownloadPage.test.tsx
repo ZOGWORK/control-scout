@@ -37,7 +37,7 @@ vi.mock("../components/ui/sonner", () => ({ toast: Object.assign(vi.fn(), { succ
 vi.mock("../lib/personal", () => ({ usePersonal: () => ({ state: { settings: {} }, update: vi.fn() }) }));
 vi.mock("../lib/meta", async (orig) => ({ ...(await orig<typeof import("../lib/meta")>()), useTitle: () => {} }));
 
-const { default: DownloadPage, seasonSpan, getLite, releaseOrder } = await import("./DownloadPage");
+const { default: DownloadPage, seasonSpan, getLite, releaseOrder, savingFrom } = await import("./DownloadPage");
 const { resetSeasonBatch, runSeasonBatch } = await import("../lib/offline/seasonBatch");
 const { TooltipProvider } = await import("../components/ui/overlay");
 const mount = (url = "/download?pick=season") => render(<MemoryRouter initialEntries={[url]}><TooltipProvider><DownloadPage /></TooltipProvider></MemoryRouter>);
@@ -230,5 +230,13 @@ describe("sizes say what they are", () => {
     const row = (s: string) => rows.find((r) => r.textContent?.startsWith(s))!;
     expect(row("2026–27").textContent).toContain("Takes 10.0 MB on this device");
     expect(row("2025–26").textContent).toContain("Uses 10.0 MB on this device");
+  });
+});
+
+describe("a season being stored", () => {
+  it("keeps the save run's progress once the bytes are in (never back to 0 B)", () => {
+    const r = { file: file(2025, "b"), season: 2025, saved: null, state: "available" as const };
+    expect(savingFrom(r, 100)).toMatchObject({ done: 10_000_000, total: 10_000_000 });
+    expect(savingFrom(r, 50).done).toBe(5_000_000);
   });
 });

@@ -119,6 +119,11 @@ const transferBytes = (f: PackFile) => transferOf(f).bytes;
 const currentFile = (m: PackManifest, season: number) => m.full.find((f) => f.kind === "full" && f.seasons.length === 1 && f.seasons[0] === season)
   ?? [...m.full].filter((f) => f.kind === "full" && f.seasons.length === 1).sort((a, b) => b.seasons[0] - a.seasons[0])[0] ?? null;
 
+/** A season the save run is on with no download under way (it's being unzipped and stored, or about to start):
+ *  the run's own progress, so the row never drops back to 0 B after the bytes are in. */
+export const savingFrom = (r: SeasonRow, pct: number): ActiveDownload =>
+  ({ owner: { kind: "season", id: String(r.season), label: "" }, done: Math.round((pct / 100) * transferBytes(r.file)), total: transferBytes(r.file) });
+
 /** "12.4 MB of 44.4 MB" and a bar, for a download going now. */
 function Downloading({ a, label }: { a: ActiveDownload; label: string }) {
   return (
@@ -152,7 +157,7 @@ function Choices({ m, pick, onPick, local }: { m: PackManifest; pick: Choice; on
   const curSaved = !!cur && saved.some((s) => s.season === cur.seasons[0] && s.sha256 === cur.sha256);
   const whole = (cur && !curSaved ? transferBytes(cur) : 0) + (m.lite && local?.version !== m.version ? m.lite.bytes : 0);
   const choices: { id: Choice; icon: typeof Trophy; title: string; line: string; size: string }[] = [
-    { id: "event", icon: Trophy, title: "This event", line: first ? first.name : "Your team's next event", size: eventBytes?.key === eventKey ? fmtBytes(eventBytes.bytes) : first ? "…" : "" },
+    { id: "event", icon: Trophy, title: "This event", line: first ? first.name : "Your team's next event", size: eventBytes?.key === eventKey ? `from ${fmtBytes(eventBytes.bytes)}` : first ? "…" : "" },
     { id: "season", icon: CalendarDays, title: "A season", line: singles.length ? `${singles.length} seasons to pick from` : "None published", size: sizes.length ? (sizes.length === 1 ? fmtBytes(sizes[0]) : `${fmtBytes(Math.min(...sizes))} to ${fmtBytes(Math.max(...sizes))}`) : "" },
     { id: "whole", icon: Layers, title: "Whole current season", line: `${seasonLabel(cur?.seasons[0] ?? season)}: every event, team and prediction`, size: whole > 0 ? fmtBytes(whole) : "Saved" },
   ];
@@ -298,7 +303,7 @@ function SeasonsSection({ m }: { m: PackManifest }) {
         <ul className="divide-y divide-border" aria-label="Seasons">
           {plan.rows.map((r) => (
             <SeasonRowView key={r.file.name} r={r} version={m.version} dataAsOf={m.dataAsOf ?? m.builtAt} current={r.season === currentSeason}
-              active={busy?.season === r.season ? active[`season:${r.season}`] ?? { owner: { kind: "season", id: String(r.season), label: "" }, done: 0, total: transferBytes(r.file) } : null}
+              active={busy?.season === r.season ? active[`season:${r.season}`] ?? savingFrom(r, busy.pct) : null}
               queued={queue.includes(r.season)} disabled={working} onSave={() => void run([r], null)} />
           ))}
         </ul>
