@@ -3,9 +3,9 @@
 // answer already plays, and never holding the answer up.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SearchAnswer, SearchVideo } from "../../../src/shared/api";
-import { asksVideo, forgetVideoChecks, hasVideo, withVideoAlternatives } from "./videoSuggest";
+import { asksVideo, forgetVideoChecks, forgetVideoQuestions, hasVideo, warmVideoQuestions, withVideoAlternatives } from "./videoSuggest";
 
-beforeEach(() => forgetVideoChecks());
+beforeEach(() => { forgetVideoChecks(); forgetVideoQuestions(true); });
 
 const answer = (intent = "results", none?: string): SearchAnswer => ({
   q: "q", hits: [], pages: [], step: "deterministic", weak: false,
@@ -167,6 +167,45 @@ describe("withVideoAlternatives", () => {
     // Past the longer wait too: the answer as it is.
     const slow = async (q: string) => { await new Promise((r) => setTimeout(r, 300)); return askOf(q); };
     expect(await withVideoAlternatives("6980 at east bergen with video", a, undefined, slow, videoOf, 20, async () => ["e highlights"], "", 40)).toBe(a);
+  });
+
+  describe("the questions checked in the background", () => {
+    const warm = (version = "v1") => warmVideoQuestions({ ask: askOf, video: videoOf, version: async () => version, candidates: async () => ["a highlights", "b highlights", "d highlights"] });
+    const none = async () => undefined;
+    it("only those that play, the general question tried too", async () => {
+      const asked: string[] = [];
+      await warmVideoQuestions({ ask: async (q) => { asked.push(q); return askOf(q); }, video: videoOf, version: async () => "v1", candidates: async () => ["a highlights", "b highlights"] });
+      const out = await withVideoAlternatives("6980 at east bergen with video", answer(), undefined, askOf, none, 1000, cands);
+      expect(out.stat?.blocks[0]).toMatchObject({ kind: "related", queries: ["b highlights"] });
+      expect(asked).toEqual(["a highlights", "b highlights", "highest score with video"]);
+    });
+    it("none near plays in time: offered at once, without the longer wait", async () => {
+      await warm();
+      const slow = async (q: string) => { await new Promise((r) => setTimeout(r, 500)); return askOf(q); };
+      const t0 = Date.now();
+      const out = await withVideoAlternatives("6980 at east bergen with video", answer(), undefined, slow, videoOf, 20, async () => ["slow highlights"], "", 2000);
+      expect(out.stat?.blocks[0]).toMatchObject({ kind: "related", queries: ["b highlights", "d highlights"] });
+      expect(Date.now() - t0).toBeLessThan(400);
+    });
+    it("none near plays at all: offered all the same; never the search's own question", async () => {
+      await warm();
+      const out = await withVideoAlternatives("b  highlights", answer("team-highlights"), undefined, askOf, none, 1000, cands);
+      expect(out.stat?.blocks[0]).toMatchObject({ kind: "related", queries: ["d highlights"] });
+    });
+    it("Clear caches keeps the last set in use while the next search builds it again, off that search", async () => {
+      let asks = 0;
+      const o = { ask: async (q: string) => { asks++; return askOf(q); }, video: videoOf, version: async () => "v1", candidates: async () => ["b highlights", "d highlights"] };
+      await warmVideoQuestions(o);
+      const first = asks;
+      forgetVideoQuestions();
+      expect((await withVideoAlternatives("6980 at east bergen with video", answer(), undefined, askOf, none, 1000, cands)).stat?.blocks[0]).toMatchObject({ queries: ["b highlights", "d highlights"] });
+      await new Promise((r) => setTimeout(r, 50));
+      expect(asks).toBeGreaterThan(first);
+    });
+    it("never built (a process that never warmed it): nothing offered from it, nothing read", async () => {
+      const a = answer();
+      expect(await withVideoAlternatives("6980 at east bergen with video", a, undefined, askOf, none, 20, cands, "", 0)).toBe(a);
+    });
   });
 
   it("stray spaces around a query are no watch word", async () => {
