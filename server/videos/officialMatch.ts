@@ -118,7 +118,7 @@ export function matchVideo(v: WatchVideo, rule: ChannelRule, events: WatchEvent[
   const vt = toks(v.title, extra);
   const td = designators(v.title);
   const spelledOut = spelled(v.title);
-  const dn = /\bday\s*(\d)\b/i.exec(v.title)?.[1] ?? null;
+  const dn = /\bday\s*(\d{1,2})(?!\d)/i.exec(v.title)?.[1] ?? null;
   const dw = /\bday (one|two|three|four)\b/i.exec(v.title)?.[1]?.toLowerCase();
   const titleDay = dn ? Number(dn) : dw ? ({ one: 1, two: 2, three: 3, four: 4 } as Record<string, number>)[dw] : null;
   const wd = /\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/i.exec(v.title)?.[1]?.toLowerCase() ?? null;
