@@ -37,7 +37,7 @@ const CHECK = flag("check"), ALL = flag("all"), DRY = flag("dry");
 const { migrate, all } = await import("../server/db.js");
 await migrate();
 const R = await import("../server/videos/recordings.js");
-const { actualStart } = await import("../src/shared/recording.js");
+const { CLIP_LEAD_S, actualStart } = await import("../src/shared/recording.js");
 const { localToUtcMs } = await import("../src/shared/time.js");
 const { FRAME_TIMINGS } = await import("../server/data/frameTimings.js");
 type FrameTiming = (typeof FRAME_TIMINGS)[number];
@@ -292,7 +292,7 @@ async function doCode(code: string): Promise<void> {
   const rec = recs.get(code)!;
   const rows = await all<{ label: string; time: string; timezone: string | null; played: number }>(
     "SELECT m.label, m.time, e.timezone, m.played FROM matches m JOIN events e ON e.season = m.season AND e.code = m.code WHERE m.season = ? AND m.code = ? AND m.played = 1 AND m.time IS NOT NULL", [season, code]);
-  const played = rows.filter((r) => actualStart(r.time)).map((r) => ({ label: String(r.label), time: String(r.time), epoch: localToUtcMs(r.time, r.timezone)! / 1000 }))
+  const played = rows.filter((r) => actualStart(r.time)).map((r) => ({ label: String(r.label), time: String(r.time), epoch: (localToUtcMs(r.time, r.timezone) ?? NaN) / 1000 }))
     .filter((m) => Number.isFinite(m.epoch)).sort((a, b) => a.epoch - b.epoch);
   if (!played.length) return;
   const span = await R.eventMatchSpan(season, code);
@@ -303,7 +303,8 @@ async function doCode(code: string): Promise<void> {
   if (CHECK ? !placed.some((v) => v.clip) : !ALL && !missing.length) return;
   // Read on an earlier run (each event is written as it finishes): not again, unless --all.
   if (!CHECK && !ALL && [...kept.values()].some((f) => f.code === code)) return;
-  done++;
+  // Checked again once claimed: a lane that passed its check while another was still loading would read past --limit.
+  if (++done > limit) return;
   // An event's lines together (events run side by side).
   const lines: string[] = [];
   const log = (s: string) => { lines.push(s); };
@@ -336,7 +337,7 @@ async function doCode(code: string): Promise<void> {
       const out = new Map([...j.placed].map(([l, p]) => [l, p.t]));
       for (const l of out.keys()) held.add(l);
       if (CHECK) {
-        const clock = new Map(placed.filter((x) => x.clip?.videoId === v.videoId).map((x) => [x.label, x.clip!.t + 20]));
+        const clock = new Map(placed.filter((x) => x.clip?.videoId === v.videoId).map((x) => [x.label, x.clip!.t + CLIP_LEAD_S + (x.clip!.early ?? 0)]));
         const diffs = [...out].filter(([l]) => clock.has(l)).map(([l, s]) => s - clock.get(l)!);
         log(`    frames minus clock: ${diffs.length ? `median ${diffs.sort((a, b) => a - b)[diffs.length >> 1]} s, range ${diffs[0]} to ${diffs.at(-1)} s over ${diffs.length}` : "none to compare"}`);
       } else {
