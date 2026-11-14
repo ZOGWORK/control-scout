@@ -15,6 +15,23 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 6.4.0 — 2026-11-14
+
+Owner › Clip coverage now sorts itself: the server puts every event with a missing clip in a category, and only the Actionable ones ask for a look.
+
+### Highlights
+- [workspace] Clip coverage triaged by the server: To review is Actionable only
+- [workspace] Each event says its category and why in plain words
+- [workspace] Mark a whole category or season reviewed in one click, with the count first
+- [fixes] A reviewed event comes back only when its new gap is actionable
+
+### Changed
+- Owner › Clip coverage: every event with a played match missing a clip is triaged by the server as Actionable (a match the clock puts outside the broadcast, not yet checked against the video, or no reason found), No timing, Early start / unsafe, or Old season (before last season). To review counts Actionable only and is the default view; each category is a filter with its count, and each row says its category and why. "Played before the broadcast started" is never put anywhere but Actionable on that reason alone. (`server/videos/coverageTriage.ts`, `src/components/owner/ClipCoveragePanel.tsx`, migration 89) (#1509)
+- A reviewed event opens again only when its missing list changes to an actionable one; a deploy or refreshed facts alone never open one. (`server/videos/coverageCheck.ts`)
+
+### Added
+- Bulk Reviewed: "Mark all non-actionable as reviewed", a whole category, or a whole season. Each asks first with its count, marks only if that's still the count, and is in the audit log (`clipCoverage.bulkReviewed`, with category, season and count). Missing lists stay, and the 5-minute check keeps checking every event.
+
 ## 6.3.7 — 2026-11-14
 
 A recorded event with a day that has no recording now always reads "Partially recorded", and the coverage line no longer says "Full".
