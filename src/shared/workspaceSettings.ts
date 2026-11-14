@@ -128,6 +128,8 @@ export const DEVICE_ONLY_KEYS = [
   "cs-scout-ws-dirty:", // a workspace's entries waiting to sync
   "cs-account-cache", // the signed-in account as /api/auth/me last answered, for opening offline (src/lib/personal.tsx)
   "cs-scout-lost:", // edits this device lost to newer ones, kept to restore (src/lib/lostEdits.ts)
+  "cs-onboarding", // the first-visit onboarding: open at a step, finished or skipped (src/lib/onboarding.ts)
+  "cs-onboarding-demo", // automation opt-in that lets a driven browser see it (npm run shots -- --onboarding)
   "cs-install", // the add-to-home-screen nudge: last day shown, turned down, installed (src/lib/installNudge.ts)
   "cs-install-demo", // automation opt-in that lets a driven browser see the nudge (npm run shots -- --install)
   "cs-connection-demo", // shows the Offline pill as offline or a Wi-Fi sign-in page, for screenshots (src/lib/connection.ts)
