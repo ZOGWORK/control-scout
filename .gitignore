@@ -18,3 +18,4 @@ packs-out/
 !data/packs/*.db
 build/
 *.tsbuildinfo
+*.traineddata
