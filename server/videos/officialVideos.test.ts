@@ -282,6 +282,63 @@ describe("the shipped list", () => {
     }
   });
 
+  it("puts the audited Kazakhstan, France, Italy, Türkiye and Thailand streams on the event, division and day each title names", async () => {
+    const KZ = "UCBXqD1Kn2u3mFnjHsHMMTKQ", FR = "UCDNTYCoNjRd_98Jl1vAUZNQ", IT = "UC3GrZQP1avoMFojc2HeQdhw", TR = "UCq5bJjdyfAQYIs7yb_83vaA", TH = "UC7e1UfLTHCdAoF7VIay_IqA";
+    const rows = data.videos.filter((x) => [KZ, FR, IT, TR, TH].includes(x.channelId));
+    // Every row, as checked by hand against Scout's event (name, city, dates, division) and the broadcast's date at the venue.
+    const want: Record<string, [code: string, day: string, part: string | null, title: RegExp]> = {
+      "jZl2tIXY-o8": ["2025/KZCMPJNB2", "2026-02-11", null, /Janibek Division$/], _hcWJRmSqL4: ["2025/KZCMPJNB2", "2026-02-12", null, /Janibek Division \/ 2 day/],
+      "wbAPxGO-cYY": ["2025/KZCMPJNB2", "2026-02-13", null, /Janibek Division \/ Final/], "2V7r9Z5fyJU": ["2025/KZCMPKER1", "2026-02-11", null, /Kerei Division$/],
+      d011bENwH1E: ["2025/KZCMPKER1", "2026-02-12", null, /Kerei Division \/ 2 day/], LY5qYOH825M: ["2025/KZCMPKER1", "2026-02-13", null, /Kerei Division \/ 3 day/],
+      "1VAGi4X7hWA": ["2022/KZCMP", "2023-02-25", null, /Kazakhstan FTC Regional Championship \(day 1/], Qo6LAA4V17s: ["2022/KZASQ", "2023-01-21", null, /NURORDA/],
+      pElHMjz2KTI: ["2025/FRVAQ", "2026-01-17", null, /Valence/], C1MZppQZ_9A: ["2025/FRCFQ", "2026-01-24", null, /Clermont-Ferrand/],
+      u4xiGfaIJag: ["2025/FRMAQ", "2026-01-31", null, /Marnaz/], KvzkBaGxSKg: ["2025/FRBOQ", "2026-02-07", null, /Nantes/],
+      "iU6NmAg5n-Q": ["2025/FRLPQ", "2026-02-14", null, /Levallois-Perret/], Shc82PcKSYk: ["2025/FRNSQ", "2026-02-28", null, /Neuville Sur Saone/],
+      X71N6b7Fg5c: ["2022/FRLEOS", "2023-05-13", null, /Lyon - 13 mai 2023/],
+      t8sbmKwOgiQ: ["2025/ITCMP", "2026-03-06", null, /Italy Championship \| Matches Day 1/], Ur7GkxC9DHQ: ["2025/ITCMP", "2026-03-07", null, /Italy Championship \| Matches Day 2/],
+      "LCaHaXk-4b4": ["2024/ITCMP", "2025-02-21", null, /ITALY day 1/], mSpT17nesA4: ["2024/ITCMP", "2025-02-22", null, /ITALY day 2/],
+      M3VDSHGgvAU: ["2025/FPEISTRDIV", "2026-06-26", null, /RUMELİ DIVISION \| 1\. GÜN\/ DAY 1/], VLkKCpUWk60: ["2025/FPEISTRDIV", "2026-06-27", null, /RUMELİ DIVISION \| 2\. GÜN\/ DAY 2/],
+      rJ7F9FQRRiw: ["2025/FPEISTRDIV", "2026-06-28", "Matches", /RUMELİ DIVISION \| 3\. GÜN\/ DAY 3/], kLd93Xsg53I: ["2025/FPEISTVDIV", "2026-06-26", null, /VALENS DIVISION \| 1\. GÜN\/ DAY 1/],
+      w1CcVoFDMLs: ["2025/FPEISTVDIV", "2026-06-27", null, /VALENS DIVISION \| 2\. GÜN\/ DAY 2/], mq2FtxXkScQ: ["2025/FPEISTVDIV", "2026-06-28", "Matches", /VALENS DIVISION \| 3\. GÜN\/ DAY 3/],
+      Jpy3rpbwEjo: ["2025/TRCMP", "2025-12-13", null, /Türkiye Şampiyonası 1\. Gün/], aAvVvXYugZY: ["2025/TRCMP", "2025-12-14", null, /Türkiye Şampiyonası 2\. Gün/],
+      XLpFNSr8vCc: ["2024/TRISQ1", "2024-11-30", null, /1\. ÜSKÜDAR TURNUVASI 2\. GÜN/], D0GXMrOPKGQ: ["2024/TRISQ2", "2024-12-01", null, /2\. ÜSKÜDAR TURNUVASI 2\. GÜN/],
+      "sJuQqp-bDuc": ["2025/THCMP", "2025-12-10", "Part 1", /Qualification Rounds/], G_jbsYYqJSc: ["2025/THCMP", "2025-12-10", "Part 2", /Qualification Matches/],
+      "6xFBmEt2K1U": ["2025/THCMP", "2025-12-11", "Playoffs", /PLAY-OFF Rounds/], qpwV5uDTpZ4: ["2025/THCMP", "2025-12-11", "Awards", /Awards Presentation and Closing Ceremony/],
+    };
+    expect(rows.map((x) => x.videoId).sort()).toEqual(Object.keys(want).sort());
+    for (const x of rows) {
+      const [key, day, part, title] = want[x.videoId];
+      expect(`${x.season}/${x.code}`, x.videoId).toBe(key);
+      expect([x.kind, x.day, x.part ?? null], x.videoId).toEqual(["recording", day, part]);
+      expect(x.title, x.videoId).toMatch(title);
+      // A division's stream names that division and never the other one; no division stream sits on a parent event.
+      if (/Janibek|Kerei|RUMELİ|VALENS/.test(x.title)) expect(x.code, x.videoId).toMatch(/JNB2|KER1|RDIV|VDIV/);
+      if (/Janibek/.test(x.title)) expect(x.code).toBe("KZCMPJNB2");
+      if (/Kerei/.test(x.title)) expect(x.code).toBe("KZCMPKER1");
+      if (/RUMELİ/.test(x.title)) expect(x.code).toBe("FPEISTRDIV");
+      if (/VALENS/.test(x.title)) expect(x.code).toBe("FPEISTVDIV");
+    }
+    // Italy 2026: the two match days only (no Mar 5 opening ceremony, no Day 3).
+    expect(rows.filter((x) => x.season === 2025 && x.code === "ITCMP").map((x) => x.day).sort()).toEqual(["2026-03-06", "2026-03-07"]);
+    // Left out: the France Finale's full version (FIRST's own link already plays that day), the Italy opening ceremony,
+    // Istanbul's Finals & Closing (FIRST's own link on all three events), a 26-minute Janibek warm-up and a 9-minute
+    // Thailand fragment (same titles as a full day), kickoffs, the 41-minute Daryn stream, Almaty Tech Cup's
+    // multi-programme streams, and the 2023 Kazakhstan regional's second day (after Scout's dates).
+    const ids = new Set(data.videos.map((x) => x.videoId));
+    for (const no of ["GO9pF-txA7M", "-fyKHoLKOLs", "jNyGYYlRCX4", "cmh8-a6q1ck", "54kqOfIFa10", "W6YMkTyh6zI", "_tqPehio65E", "Vs5PyxLWPkg", "6d1BxiZJZXg",
+      "9ywna4SeDoI", "EAkHPgVm-Ow", "sMXxC3mRNWc", "tTFeXzvE4YE", "R6GCegE51So", "W_VOLo2hHds", "ZXdoZmDoHp0", "w0H2auno5c8", "nfpl8OMUD4w"]) expect(ids.has(no), no).toBe(false);
+    // The watcher reads the five channels, each for its own country only; the second Italy channel (@ftc-italy) isn't one.
+    const { OFFICIAL_CHANNELS } = await import("../data/officialChannels");
+    expect(OFFICIAL_CHANNELS.some((c) => c.channelId === "UCoRWIxQP8avk3wcmGEvnGMw")).toBe(false);
+    expect(data.channels["UCoRWIxQP8avk3wcmGEvnGMw"]).toBeUndefined();
+    const at = (country: string) => ({ season: 2026, code: "X", name: "x", type: "Qualifier", city: "c", state: null, country, start: "2026-12-05", end: "2026-12-05", timezone: "UTC", divisionCode: null, parent: false });
+    for (const [id, country] of [[KZ, "Kazakhstan"], [FR, "France"], [IT, "Italy"], [TR, "Türkiye"], [TH, "Thailand"]] as const) {
+      const rule = parseRule(OFFICIAL_CHANNELS.find((c) => c.channelId === id)!.region)!;
+      expect(rule(at(country)), country).toBe(true);
+      for (const other of ["USA", "Uzbekistan", "Belgium", "Romania", "Netherlands"]) expect(rule(at(other)), `${country} ${other}`).toBe(false);
+    }
+  });
+
   it("leaves out what the brief rules out", () => {
     const ids = new Set(data.videos.map((x) => x.videoId));
     // Ambiguous, unofficial, a different broadcaster, or blocked (docs/official-videos.md).

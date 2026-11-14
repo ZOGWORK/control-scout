@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.1.0 — 2026-11-14
+## 6.1.1 — 2026-11-14
 
 Missouri and Kansas events now play their recordings from the region's two streaming channels, FIRST in Missouri and FIRST MOKS: St. Louis, Kansas City, Southeast and Southwest league meets back to 2019, their league tournaments and the state championships. Saturday's St. Louis, Rolla, Camdenton and Jackson meets show their streams before, during and after they air.
 
@@ -26,6 +26,19 @@ Missouri and Kansas events now play their recordings from the region's two strea
 
 ### Added
 - Official videos: FIRST in Missouri (`UCoo2NYUOcTUZB65dGMAp1vg`) and FIRST MOKS (`UCy_GHfjX6LsALdrIceg8_pw`), both read from the YouTube Data API's uploads lists, join the official channels and the auto-watcher's list for Missouri and Kansas events. 103 of their recordings are checked against each event's name, venue, city, date, league and session ("FTC Meet @ Belton 8AM (2026-11-7)" is "Belton Meet @ 8 AM"): 14 from FIRST in Missouri (St. Louis North, Mid and South meets and tournaments since 2023, and the four meets of 2026-11-14, listed before they air) and 89 from FIRST MOKS (Kansas City meets, league tournaments, super qualifiers and championships since 2019). An alternate feed, a second upload of a day, a title fitting two meets, undated uploads, one video for two meets, a venue that isn't the event's, a video that can't be embedded and streams that never aired are left out. (`server/data/officialVideos.json`, `server/data/officialChannels.ts`, `docs/official-videos.md`)
+
+## 6.1.0 — 2026-11-14
+
+Five more official channels: Kazakhstan, France, Italy, Türkiye and Thailand. Their event streams now play on Scout's event pages, each on its own division and day, and the auto-watcher reads the five channels from now on.
+
+### Highlights
+- [history] Istanbul Premier Event: Rumeli and Valens, every day of each
+- [history] Italy and Central Asia Championships play their match days
+- [history] France's 2026 regionals and Thailand's championship play
+- [history] Türkiye Championship 2025 and both Üsküdar days now play
+
+### Added
+- Official videos: USTEM Foundation (Kazakhstan), Robotique FIRST France, Associazione Artù APS (Italy), the Fikret Yüksel Foundation (Türkiye) and The PRC Channel (Thailand) join the official channels and the auto-watcher, each for its own country only. Their ids come from the YouTube Data API. 33 recordings are checked against each event's name, city, dates, division and day: the 2026 Central Asia Championship (Janibek and Kerei, each on its own division), the Istanbul Premier Event (Rumeli and Valens, Days 1 to 3), the Italy Championships of 2025 and 2026 (match days only), France's six 2026 regionals and Lyon 2023, the 2025 Türkiye Championship and the second days of the Üsküdar tournaments, and Thailand's 2025 championship. The France Finale's full version, Istanbul's Finals & Closing (FIRST's own links already play those days), the Italy opening ceremony, short fragments, kickoffs and multi-programme festival streams are left out. (`server/data/officialVideos.json`, `server/data/officialChannels.ts`, `docs/official-videos.md`) (#1476)
 
 ## 6.0.9 — 2026-11-14
 

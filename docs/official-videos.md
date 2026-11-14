@@ -21,6 +21,12 @@ Regional streamers from the owner's audited list (2026-11-14), each read through
 and checked by hand: FIRST in Missouri (the Missouri/Kansas partner: St. Louis, Southeast and Southwest leagues, the
 championship) and FIRST MOKS (Kansas City, one video per meet session).
 
+The owner's audited channel list (2026-11-14) adds four FIRST delivery partners: USTEM Foundation (Kazakhstan),
+Robotique FIRST France, Associazione Artù APS (Italy) and the Fikret Yüksel Foundation (Türkiye). It also adds The
+PRC Channel, the school channel that streamed Thailand's 2025 championship. That's its only event so far, so it's the
+weakest entry on the watchlist, and the owner can remove it if no second event follows. The second Italy channel
+(@ftc-italy) is not added: it has only webinars so far.
+
 ## How a video is matched to an event
 
 A video is kept only when all of these hold (`server/data/officialVideos.json` was built this way, and the
