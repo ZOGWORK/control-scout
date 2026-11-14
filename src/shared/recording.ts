@@ -35,6 +35,36 @@ export function clearOfPrevious(startsAt: string | null | undefined, previous: s
   return (Date.parse(startsAt) - Date.parse(previous)) / 1000 >= slack + CLIP_LEAD_S + MATCH_PLAY_S;
 }
 
+/** The least and the most the recording runs behind FIRST's clock: a match's timer shows on screen 9 to 14 s after
+ *  its real start (YouTube's live delay, measured on AUSYOS 2025 and others' frames). */
+export const LIVE_DELAY_MIN_S = 9;
+export const LIVE_DELAY_MAX_S = 14;
+/** How long a clip runs on after its match's play (MATCH_PLAY_S from its start by the clock): the live delay and the
+ *  final score going up. Checked on APOC 2026's frames (Q1, Q32, Q37, M5, F1): the timer shows 7 to 8 s after the
+ *  clock, the buzzer at +166 to +172 s, and the overlay's score stops changing 33 to 43 s after it (+205 to +210 s);
+ *  "Under Review" and the results screen come minutes later, over the next match's setup. With the live delay up to
+ *  LIVE_DELAY_MAX_S, the score settles by +216 s: a clip stops at +220 s. See clipEnd. */
+export const CLIP_TAIL_S = 60;
+
+/**
+ * The second in the recording a match's clip stops at (YouTube's end=), or null when it has no clip (clipSecond).
+ * It's the match's own place in the video (its clock second, less any start cut off the video: `shift`), never moved
+ * earlier by an early start (gapSlack: the match may sit up to that much before its clock second, never after), plus
+ * MATCH_PLAY_S and CLIP_TAIL_S. `next`: the next match's start in the same video: the clip then stops before that
+ * match's timer shows (its clock second, at the earliest it may sit, plus LIVE_DELAY_MIN_S), though never before its
+ * own match's play has ended on screen at the latest it may show. Never past the video's end.
+ */
+export function clipEnd(startsAt: string | null | undefined, rec: RecordingTiming & { shift?: number | null }, next?: string | null, now = Date.now()): number | null {
+  if (clipSecond(startsAt, rec, now) == null) return null;
+  const slack = gapSlack(rec) ?? 0, from = Date.parse(rec.start!), shift = rec.shift ?? 0;
+  const at = (Date.parse(startsAt!) - from) / 1000 - shift;
+  let end = at + MATCH_PLAY_S + CLIP_TAIL_S;
+  const n = next ? (Date.parse(next) - from) / 1000 - shift - slack + LIVE_DELAY_MIN_S : NaN;
+  if (Number.isFinite(n)) end = Math.max(Math.min(end, n), at + MATCH_PLAY_S + LIVE_DELAY_MAX_S);
+  if (!rec.live && rec.length != null) end = Math.min(end, rec.length);
+  return Math.floor(end);
+}
+
 /** How soon after the last match's start a video trimmed at the event's end stops. */
 export const TAIL_TRIM_S = 900;
 
