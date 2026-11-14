@@ -220,6 +220,8 @@ const MEETINGS = new Set<TwoTeamId>(["head-to-head", "h2h-wins", "shared-matches
 const FIND: Partial<Record<PipelineIntent, MatchMeasure>> = {
   "low-matches": "low", "close-matches": "closest", "lopsided-matches": "lopsided", "penalty-matches": "penalties", "upset-matches": "upset", "comeback-matches": "comeback", "loss-matches": "loss-high",
   "miss-matches": "miss", "accurate-matches": "accurate",
+  // A match by its number, no team: those with it in the scope, the highest-scoring first.
+  "match-label": "high",
 };
 /** The match finder's measures one team's matches take ("<team>'s most unpredictable match"). */
 const TEAM_FIND = new Set<MatchMeasure>(["miss", "accurate"]);
@@ -521,7 +523,9 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   // ("matches at <event> where both alliances scored over 250"), listed best first; "matches" alone, a place's or a
   // match type's ("playoff matches in NJ") are left to search.
   if (intent === "top-matches" && !p.teams.length && !p.symbols.includes("agg:max") && !scope.window && !p.scoreCond) return null;
-  const kind = p.event ? eventKindOf(normalise(p.event.words)) : p.eventKind ? eventKindOf(p.eventKind) : null;
+  const labelled = intent === "match-label" && p.matchNumber != null;
+  // A match's number at Worlds ("q6 at worlds"): Worlds' matches with it, its divisions' and finals'.
+  const kind = labelled && p.worlds ? WORLDS_KIND : p.event ? eventKindOf(normalise(p.event.words)) : p.eventKind ? eventKindOf(p.eventKind) : null;
   // One team's match by its score ("<team> 226 point match"): that team's matches with the score, found the same way.
   const scored = p.teams.length === 1 && p.scoreCond?.op === "=" && (intent === "season-matches" || intent === "top-matches");
   const teamFind = p.teams.length === 1 && (TEAM_FIND.has(FIND[intent]!) || scored);
@@ -529,10 +533,10 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     // An event named with a score to reach ("matches at <event> where both alliances scored over 250"): its matches,
     // its divisions' too. A calendar year said is the edition held that year; none said, its latest.
     const year = p.time?.kind === "season" && p.time.year != null && !p.time.relative ? p.time.year : null;
-    const named = p.event && !kind && p.scoreCond ? await eventsNamed(normalise(p.event.words), null, year != null ? (e) => (e.start ?? "").startsWith(String(year)) : undefined) : null;
+    const named = p.event && !kind && (p.scoreCond || labelled) ? await eventsNamed(normalise(p.event.words), null, year != null ? (e) => (e.start ?? "").startsWith(String(year)) : undefined) : null;
     const events = named && year != null ? named.filter((e) => (e.start ?? "").startsWith(String(year))) : named;
     if (events && !events.length) return null;
-    if (((p.event || p.eventKind) && !kind && !events) || p.worlds || p.states || p.alliance || scope.ever || (p.place && p.place.kind === "city")) return null;
+    if (((p.event || p.eventKind) && !kind && !events) || (p.worlds && !labelled) || p.states || p.alliance || scope.ever || (p.place && p.place.kind === "city")) return null;
     // Its name as each season held it: the main event's, never a division's.
     const mainFirst = events ? [...events].sort((x, y) => Number(x.division != null) - Number(y.division != null)) : [];
     const eventKeys = events ? (await scopeEvents({ season: 0, region: null, level: null, finals: false, kind: null, events })) ?? [] : null;
@@ -547,7 +551,7 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
       ...(["metric:win", "metric:loss", "outcome:W", "outcome:L"].some((s) => p.symbols.includes(s)) ? { decided: true } : {}),
       ...(scope.window ? { window: scope.window } : {}), n: p.n ?? (plural ? 10 : 5), ...(plural || p.n != null ? { list: true } : {}),
       ...(teamFind ? { team: { number: p.teams[0].number, name: p.teams[0].name } } : {}), ...(p.over != null ? { over: p.over } : {}),
-      ...(p.scoreCond ? { cond: p.scoreCond } : {}), ...(events && eventKeys ? {
+      ...(p.scoreCond ? { cond: p.scoreCond } : {}), ...(labelled ? { label: { n: p.matchNumber!, level: p.level } } : {}), ...(events && eventKeys ? {
         events: eventKeys.map((k) => ({ ...k, name: mainFirst.find((e) => e.season === k.season)?.name })),
         // An off-season event named ("MTI") is its own matches, though the finder otherwise reads official events only.
         ...(events.some((e) => !(OFFICIAL_TYPES as readonly string[]).includes(e.type ?? "")) ? { named: true } : {}),
