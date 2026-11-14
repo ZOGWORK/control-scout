@@ -5,6 +5,8 @@ describe("labelRanges", () => {
   it("joins runs of one kind of match", () => {
     expect(labelRanges(["Q11", "Q12", "Q13", "Q15", "M1", "M2", "F1"])).toBe("Q11–Q13, Q15, M1–M2, F1");
     expect(labelRanges(["Q1"])).toBe("Q1");
+    // In play order (Q2 replayed before Q1, Q13 late): sorted first.
+    expect(labelRanges(["Q2", "Q1", "Q3", "M1", "Q13", "Q4"])).toBe("Q1–Q4, Q13, M1");
     expect(labelRanges([])).toBe("");
   });
 });
