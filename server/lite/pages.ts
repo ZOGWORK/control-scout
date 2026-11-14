@@ -182,7 +182,8 @@ export function searchPage(q: string, season: number | null, a: SearchAnswer | n
     body += section("Nothing matched", card(`<p>${esc(r.understood.length ? `Read as: ${r.understood.join(" · ")}` : `No match for "${query}".`)}</p>`)
       + (r.closest.length ? `<div class="sec">${list(r.closest.slice(0, SEARCH_ROWS).map(hitRow), "")}</div>` : "")
       + (r.browse.length ? `<div class="sec">${chips(r.browse.map((p) => ({ href: liteLink(p.href), text: p.title })))}</div>` : ""));
-  } else if (!hits.length && !a.stat && !a.card && !a.sorry && !a.verdict) {
+  } else if (!hits.length && !a.stat && !a.card && !a.sorry && !a.verdict && !a.pages.length) {
+    // (A search that names a page, "rankings", answers with that page alone: not "nothing matched".)
     body += section("Nothing matched", card(`<p>No match for "${esc(query)}". Try a team number, or fewer words.</p>`));
   }
   if (a.pages.length) body += section("Pages", chips(a.pages.map((p) => ({ href: liteLink(p.href), text: p.title }))));

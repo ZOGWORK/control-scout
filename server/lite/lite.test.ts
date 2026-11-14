@@ -21,7 +21,7 @@ import { sharePct } from "../../src/shared/factorSheet";
 import type { RankingsResponse } from "../../src/shared/rankings";
 import { liteEvent, nextMatches } from "./trim";
 import { LITE_STYLE, LITE_TAP_CLASSES, esc, eventPage } from "./render";
-import { textBar } from "./pages";
+import { searchPage, textBar } from "./pages";
 import { LITE_CSP, pageVary, safeNext } from "./routes";
 import type { CompareView, EventDetail, MatchExplanationView, MatchView, SearchAnswer } from "../../src/shared/api";
 
@@ -400,6 +400,11 @@ describe("the rest of Lite: the same answers as the API", () => {
     // Nothing asked yet: the box and a few searches to try.
     const empty = await lightPage("/lite/search", "/search");
     expect(empty.html).toContain(`href="/lite/search?q=4215"`);
+    // A search that names a page answers with the page alone: never "Nothing matched" above it.
+    const pageOnly = searchPage("rankings", null, { q: "rankings", hits: [], pages: [{ title: "World rankings", href: "/rankings" }], step: "deterministic", weak: false, understood: { kind: "names", label: "Rankings" } });
+    expect(pageOnly.body).not.toContain("Nothing matched");
+    expect(pageOnly.body).toContain(`<a class="chip" href="/lite/rankings">World rankings</a>`);
+    expect(searchPage("zzqxv", null, { q: "zzqxv", hits: [], pages: [], step: "deterministic", weak: false }).body).toContain("Nothing matched");
     // A search with no match says so, never an empty page.
     expect((await lightPage("/lite/search?q=zzqxv", "/search?q=zzqxv")).html).toMatch(/Nothing matched|Did you mean|can't answer/);
   });
