@@ -164,7 +164,7 @@ export function percentile(b: number[], q: number, max: number, bounds: readonly
 }
 
 /** The Usage panel's request numbers (it adds live connections, page views and web vitals). */
-export type UsageSummary = Omit<OwnerUsage, "live" | "pageViews" | "vitals">;
+export type UsageSummary = Omit<OwnerUsage, "live" | "pageViews" | "vitals" | "onboarding">;
 
 /** Requests per day, sync volume and per-route latency over the last `days` UTC days (today included). */
 export async function usageSummary(days = 14, now = Date.now()): Promise<UsageSummary> {

@@ -2,6 +2,7 @@
 import type { Flag, FlagGroup, FlagScope } from "./flags.js";
 import type { BlurbAuthor } from "./powerRankings.js";
 import type { TierCalibration } from "./ownerPredictions.js";
+import type { OnboardingSummary } from "./onboardingStats.js";
 import type { VitalsRow } from "./vitals.js";
 
 export interface OwnerOverview {
@@ -44,6 +45,8 @@ export interface OwnerUsage {
   pageViews: { day: string; views: number }[];
   /** Real-user web vitals from the same visitors (web_vitals_daily): all pages together, then the most-loaded pages. */
   vitals: { all: VitalsRow; pages: VitalsRow[] };
+  /** The first-visit onboarding's funnel from the same visitors (onboarding_daily). */
+  onboarding: OnboardingSummary;
 }
 
 export type LedgerKind = "live" | "backtest";
