@@ -1,8 +1,8 @@
 // /search while its answer loads (a search just submitted, or a new one run from the page itself): the shapes of what's
 // coming (title and badge, a grid of result cards, and on a desktop the panel at the right) with the site's shimmer,
 // still under reduced motion (src/index.css .skeleton), and one line saying what's happening. Older results are never
-// left on screen looking current while a new search loads. The query itself stays in the top bar.
-import type { ReactNode } from "react";
+// left on screen looking current while a new search loads. The query itself stays in the top bar (on a phone, in the
+// page's bar, which SearchPage keeps above this so it's the same field through the load).
 import { Loader2 } from "lucide-react";
 import { PeopleAlsoAskPending } from "./page/FollowUps";
 
@@ -15,12 +15,10 @@ const Card = () => (
   </div>
 );
 
-/** `top`: what the page keeps above it while loading (a phone's search bar holding the query). */
-export function SearchSkeleton({ query, top }: { query: string; top?: ReactNode }) {
+export function SearchSkeleton({ query }: { query: string }) {
   return (
     // At least a screen tall: the footer stays below, never shown under the loading shapes and then pushed away.
     <div className="min-h-[100dvh] w-full max-w-6xl pt-4 sm:pt-8" data-search-loading aria-busy="true">
-      {top}
       <p className="text-xs font-semibold text-accent-text max-md:hidden">FTC One Search</p>
       <h1 className="sr-only">Searching for “{query}”</h1>
       <div className="skeleton mt-2 h-7 w-3/4 max-w-lg md:h-8" aria-hidden />
