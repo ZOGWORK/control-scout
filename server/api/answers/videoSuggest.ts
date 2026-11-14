@@ -99,7 +99,7 @@ export async function withVideoAlternatives(q: string, a: SearchAnswer, v: Searc
       const key = `${who}|${c}`;
       let check = checks.get(key);
       if (!check || Date.now() - check.at >= CHECK_TTL_MS) {
-        const e: Check = { at: Date.now(), waiting: 0, v: Promise.resolve(null) };
+        const e: Check = { at: Date.now(), waiting: 0, done: false, v: Promise.resolve(null) };
         e.v = inTurns(async (): Promise<boolean | null> => {
           if (e.waiting === 0) return null;
           let b: SearchAnswer;
@@ -109,8 +109,8 @@ export async function withVideoAlternatives(q: string, a: SearchAnswer, v: Searc
           try { bv = await video(b); } catch { return null; }
           return hasVideo(bv);
         }).catch(() => null);
-        void e.v.then((r) => { if (r === null && checks.get(key) === e) checks.delete(key); });
-        if (checks.size >= CHECK_MAX) checks.clear();
+        void e.v.then((r) => { e.done = true; if (r === null && checks.get(key) === e) checks.delete(key); });
+        if (checks.size >= CHECK_MAX) prune(Date.now());
         checks.set(key, e);
         check = e;
       }
@@ -131,8 +131,14 @@ export async function withVideoAlternatives(q: string, a: SearchAnswer, v: Searc
 }
 
 /** Questions checked lately (whether each plays, per viewer), shared by searches asking at once. */
-interface Check { at: number; v: Promise<boolean | null>; waiting: number }
+interface Check { at: number; v: Promise<boolean | null>; waiting: number; done: boolean }
 const checks = new Map<string, Check>();
+/** Room for one more: the expired ones out, then the oldest done ones; a check still running is never dropped (the
+ *  searches waiting on it would start a second). */
+function prune(now: number) {
+  for (const [k, e] of checks) if (e.done && now - e.at >= CHECK_TTL_MS) checks.delete(k);
+  for (const [k, e] of checks) { if (checks.size < CHECK_MAX) break; if (e.done) checks.delete(k); }
+}
 const CHECK_TTL_MS = 60_000;
 const CHECK_MAX = 500;
 /** Forgets the questions checked (tests). */
