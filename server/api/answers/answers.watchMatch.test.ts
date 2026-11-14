@@ -178,6 +178,15 @@ describe("a match number across seasons", () => {
     const { a } = await ask("m10 at states 2025-26");
     expect(a.stat?.headline?.href).toBe(maM10);
     expect(a.stat?.title).toMatch(/^M10 at state championships/);
+    // A bare year is the championship held that year.
+    const held = await ask("m10 at states 2026");
+    expect(held.a.stat?.headline?.href).toBe(maM10);
+  });
+  it("an event kind's relaxed note names the kind, never states", async () => {
+    const { a } = await ask("q1 qualifier");
+    const chip = a.stat?.scope[0] ?? "";
+    expect(a.stat?.headline?.href).toBe("/events/2025/USNJQ1?match=qual:0:1");
+    expect(chip).toMatch(/^No 2026–27 Q1 at (?!states)/);
   });
 });
 
