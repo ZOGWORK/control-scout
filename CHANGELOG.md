@@ -32,7 +32,7 @@ One download now takes a whole event offline: every team page, every match page 
 - The event page's button is now "Download for offline · 207 KB" (its real size): one tap saves the event; once saved it says "Saved for offline" with its size.
 
 ### Changed
-- Match video buttons, with no connection or on a page from the saved pack, say "Needs a connection" (videos are never downloaded); the match's score and breakdown still show.
+- Match video buttons, with no connection or on a page from the saved pack, say "Needs a connection" (videos are never downloaded); the match's score and breakdown still show. (#1464)
 
 ## 6.0.4 — 2026-11-14
 
