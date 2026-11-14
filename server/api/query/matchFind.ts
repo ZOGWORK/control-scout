@@ -185,9 +185,14 @@ export function where(f: MatchScope, upTo = false) {
   return { sql: sql.join(" AND "), args };
 }
 
+/** The first season with match video on record (FIRST's per-match videos and event recordings start here). */
+const FIRST_VIDEO_SEASON = 2019;
+
 /** The keys of the matches with video in the scope's seasons: its own, a window's either side of it, its events'. */
-export async function videoKeys(f: Pick<MatchFind, "season" | "window" | "events">): Promise<string[]> {
+export async function videoKeys(f: Pick<MatchFind, "season" | "window" | "events">, upTo = false): Promise<string[]> {
   const seasons = new Set<number>([f.season, ...(f.events ?? []).map((e) => e.season)]);
+  // Every season up to the scope's (where's `upTo`): the seasons a search for the latest one with a match reaches.
+  if (upTo) for (let s = f.season - 1; s >= FIRST_VIDEO_SEASON; s--) seasons.add(s);
   if (f.window) for (const s of [f.season - 1, f.season + 1]) seasons.add(s);
   const sets = await Promise.all([...seasons].map(async (s) => [s, await seasonClipKeys(s)] as const));
   return sets.flatMap(([s, keys]) => [...keys].map((k) => `${s}|${k}`));
