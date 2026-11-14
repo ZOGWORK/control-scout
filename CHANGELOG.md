@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.1.0 — 2026-11-14
+## 6.1.1 — 2026-11-14
 
 Offline downloads pick up where they stopped when the connection drops, show real MB progress, and never leave a half pack that looks saved. The Download page is now one Offline page: what to save at the top, everything on this device below.
 
@@ -33,6 +33,19 @@ Offline downloads pick up where they stopped when the connection drops, show rea
 
 ### Changed
 - Delete really deletes: the predictions pack's bytes are removed from IndexedDB (they were overwritten with null), and every delete says "Freed 6.9 MB". The browser is asked to keep this site's storage on the first download of any kind. Event-day bundles show real bytes while downloading. The menu calls the page Offline. (`src/lib/packs.ts`, `src/lib/offline/bundles.ts`, `src/components/offline/EventBundles.tsx`) (#1462)
+## 6.1.0 — 2026-11-14
+
+Five more official channels: Kazakhstan, France, Italy, Türkiye and Thailand. Their event streams now play on Scout's event pages, each on its own division and day, and the auto-watcher reads the five channels from now on.
+
+### Highlights
+- [history] Istanbul Premier Event: Rumeli and Valens, every day of each
+- [history] Italy and Central Asia Championships play their match days
+- [history] France's 2026 regionals and Thailand's championship play
+- [history] Türkiye Championship 2025 and both Üsküdar days now play
+
+### Added
+- Official videos: USTEM Foundation (Kazakhstan), Robotique FIRST France, Associazione Artù APS (Italy), the Fikret Yüksel Foundation (Türkiye) and The PRC Channel (Thailand) join the official channels and the auto-watcher, each for its own country only. Their ids come from the YouTube Data API. 33 recordings are checked against each event's name, city, dates, division and day: the 2026 Central Asia Championship (Janibek and Kerei, each on its own division), the Istanbul Premier Event (Rumeli and Valens, Days 1 to 3), the Italy Championships of 2025 and 2026 (match days only), France's six 2026 regionals and Lyon 2023, the 2025 Türkiye Championship and the second days of the Üsküdar tournaments, and Thailand's 2025 championship. The France Finale's full version, Istanbul's Finals & Closing (FIRST's own links already play those days), the Italy opening ceremony, short fragments, kickoffs and multi-programme festival streams are left out. (`server/data/officialVideos.json`, `server/data/officialChannels.ts`, `docs/official-videos.md`) (#1476)
+
 ## 6.0.9 — 2026-11-14
 
 The slow-connection pop-up is clearer: it says what it saw, what Lite changes, and gives two big buttons.
