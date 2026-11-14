@@ -10,7 +10,7 @@ import { Link, NavLink, useLocation, useMatch } from "react-router-dom";
 import { MotionConfig } from "motion/react";
 import { m } from "../motion";
 import {
-  BookOpen, Bookmark, CalendarDays, ChevronDown, ClipboardList, DatabaseZap, Download, Ellipsis, Gavel, House, ListOrdered, PanelLeft, PanelLeftClose, PanelLeftOpen, Scale, Search, Sparkles, Star, Trophy, Users,
+  BookOpen, Bookmark, CalendarDays, ChevronDown, ClipboardList, DatabaseZap, Download, Ellipsis, Gavel, House, ListOrdered, PanelLeft, PanelLeftClose, PanelLeftOpen, Scale, Search, Sparkles, Star, Trophy, Users, Wifi,
 } from "lucide-react";
 import { cn } from "../cn";
 import { useMediaQuery, useMeta } from "../../lib/meta";
@@ -56,6 +56,7 @@ const SECTIONS: { title: string | null; items: NavItem[]; more?: boolean }[] = [
     { to: "/shortlist", label: "Shortlist", icon: Bookmark },
     { to: "/rules", label: "Rules", icon: Gavel },
     { to: "/download", label: "Download", icon: Download },
+    { to: "/network", label: "Network & offline", icon: Wifi },
     { to: "/methodology", label: "How it works", icon: BookOpen, children: [
       { to: "/methodology", label: "Predictions", icon: Sparkles },
       { to: "/how-it-works/search", label: "FTC One Search", icon: Search },
@@ -162,7 +163,7 @@ function ParentRow({ item, collapsed, dense, onNavigate }: RowOpts & { item: Nav
   );
 }
 
-/** The sidebar's "More" group: Power rankings, Compare, Shortlist, Rules, Download and How it works, folded away until asked for.
+/** The sidebar's "More" group: Power rankings, Compare, Shortlist, Rules, Download, Network & offline and How it works, folded away until asked for.
  *  It opens by itself on one of its own pages (so the lit row shows); opening or closing it by hand is remembered. */
 function MoreGroup({ items, collapsed }: { items: NavItem[]; collapsed?: boolean }) {
   const [open, setOpen] = useState(() => { try { return localStorage.getItem(MORE_KEY) === "1"; } catch { return false; } });
