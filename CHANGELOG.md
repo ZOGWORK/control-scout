@@ -26,7 +26,7 @@ A search asking for video with nothing to play now always gets its questions wit
 
 ### Fixed
 - Search: a watch search whose answer plays nothing waited 2.5 s for its "Questions with video", and the first one after the checks expired could find none in time, so it offered nothing. With none found by then it now waits up to 2 s more and answers as soon as one is found. (`server/api/answers/videoSuggest.ts`)
-- Search: "Questions with video" offered an event under its stored name even when that name has a typo. An event's name now reads as one only when a word no other event has is a letter dropped, doubled or swapped inside a word at least three other events spell in full; rare and accented names stay. The set is built per search index version at start and after a rebuild, never on a search. A skipped event is made up by the next one, and the latest seasons' best known events when none near is left. (`server/api/answers/nameTypos.ts`, `server/api/answers/videoSuggest.ts`, `server/index.ts`) (#1499)
+- Search: "Questions with video" offered an event under its stored name even when that name has a typo. An event's name now reads as one only when a word no other event has is a letter dropped, doubled or swapped inside a word at least three other events spell in full; rare and accented names stay. The set is built per search index version at start and after a rebuild, never on a search. A skipped event is made up by the next one, the latest seasons' best known events top up to three, and a general question with video stands in when no event's is left. (`server/api/answers/nameTypos.ts`, `server/api/answers/videoSuggest.ts`, `server/index.ts`) (#1499)
 
 ## 6.3.4 — 2026-11-14
 
