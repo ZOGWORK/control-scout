@@ -25,7 +25,7 @@
 //   TESSERACT_JS=<path to tesseract.js's entry>  where tesseract.js is, when it isn't in node_modules
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
-import { AUTO_S, SAME_S, SWITCH_S, TELEOP_S, TRIES, elapsed, judge, NOTHING_READ, overlayLabel, secondsOf, type Judged, type M } from "./lib/videoFrames";
+import { AUTO_S, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, elapsed, judge, NOTHING_READ, overlayLabel, secondsOf, type Judged, type M } from "./lib/videoFrames";
 
 const arg = (k: string) => { const i = process.argv.indexOf(`--${k}`); return i > 0 ? process.argv[i + 1] : undefined; };
 const flag = (k: string) => process.argv.includes(`--${k}`);
@@ -274,7 +274,15 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
 
 const recs = await R.seasonRecordings(season);
 const codes = [...recs.keys()].filter((c) => !only || only.includes(c)).sort();
+// A misspelt code (or a season with no recordings) mustn't look like a run that read and wrote: it stops here.
+const unknown = (only ?? []).filter((c) => !recs.has(c));
+if (unknown.length) { console.error(`--codes: no ${season} recording for ${unknown.join(", ")}`); process.exit(2); }
+if (!codes.length) { console.error(`no ${season} recordings to read`); process.exit(2); }
 const kept = new Map<string, FrameTiming>(FRAME_TIMINGS.map((f) => [`${f.videoId}|${f.code}`, { ...f, starts: { ...f.starts } }]));
+// The rows this run wrote. Every other row is taken from the file at each save, so rows written meanwhile (another
+// run with other --codes, a merge bringing a data PR) aren't overwritten by the start-of-run copy.
+const touched = new Set<string>();
+const keep = (key: string, row: FrameTiming) => { kept.set(key, row); touched.add(key); };
 const browser = await chromium.launch({ args: ["--autoplay-policy=no-user-gesture-required"] });
 const today = new Date().toISOString().slice(0, 10);
 let done = 0;
@@ -289,7 +297,9 @@ function save(): void {
   const file = "server/data/frameTimings.ts";
   for (let tries = 1; ; tries++) {
     try {
-      const head = readFileSync(file, "utf8").split("// --- Data")[0];
+      const text = readFileSync(file, "utf8");
+      const head = text.split("// --- Data")[0];
+      for (const f of dataRows<FrameTiming>(text)) { const key = `${f.videoId}|${f.code}`; if (!touched.has(key)) kept.set(key, f); }
       const list = [...kept.values()].sort((a, b) => a.code.localeCompare(b.code) || a.videoId.localeCompare(b.videoId));
       const rows = list.map((f) => `  ${JSON.stringify(f)},`).join("\n");
       writeFileSync(file, `${head}// --- Data (scripts/video-frames.ts writes from here on) ---\nexport const FRAME_TIMINGS: FrameTiming[] = [\n${rows}\n];\n`);
@@ -372,7 +382,7 @@ async function doCode(code: string): Promise<void> {
       : from <= x.epoch && (!m.end || x.epoch <= Date.parse(m.end) / 1000)));
     if (!mine.length) {
       // Its matches are another video's (FIRST's link and an organiser's recording of the same day): read, with none.
-      if (!CHECK && !kept.has(`${v.videoId}|${code}`)) kept.set(`${v.videoId}|${code}`, { videoId: v.videoId, code, checked: today, starts: {} });
+      if (!CHECK && !kept.has(`${v.videoId}|${code}`)) keep(`${v.videoId}|${code}`, { videoId: v.videoId, code, checked: today, starts: {} });
       continue;
     }
     // Made inside the try: a browser that can't open a page fails this video, not the run.
@@ -405,7 +415,7 @@ async function doCode(code: string): Promise<void> {
         const nothing = !j.placed.size && !j.review.size && [...j.missing.values()].every((w) => w === NOTHING_READ);
         // A re-read (--all) that read nothing at all (a player stuck on an interstitial) keeps what an earlier read placed.
         if (nothing && Object.keys(kept.get(key)?.starts ?? {}).length) log("    nothing read: the earlier read is kept");
-        else kept.set(key, {
+        else keep(key, {
           videoId: v.videoId, code, checked: today,
           starts: Object.fromEntries(sorted.map(([l, p]) => [l, p.t])),
           ...(sorted.some(([, p]) => p.confidence === "medium") ? { medium: sorted.filter(([, p]) => p.confidence === "medium").map(([l]) => l) } : {}),
@@ -419,7 +429,7 @@ async function doCode(code: string): Promise<void> {
       // Its matches get the reason; a row from an earlier read that worked is kept as it was.
       const key = `${v.videoId}|${code}`;
       if (!CHECK && !Object.keys(kept.get(key)?.starts ?? {}).length) {
-        kept.set(key, { videoId: v.videoId, code, checked: today, starts: {}, missing: Object.fromEntries(mine.map((x) => [x.label, `${PLAY_FAILED}: ${why}`])) });
+        keep(key, { videoId: v.videoId, code, checked: today, starts: {}, missing: Object.fromEntries(mine.map((x) => [x.label, `${PLAY_FAILED}: ${why}`])) });
       }
     } finally {
       await page?.context().close().catch(() => {});
