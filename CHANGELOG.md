@@ -15,6 +15,28 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 6.1.6 — 2026-11-14
+
+The leaderboards work with no signal from a saved season: world rankings, records, league standings, the events list and power rankings, with the same numbers as online and their time.
+
+### Highlights
+- [rankings] World rankings open offline, filters and pages too
+- [rankings] Records, league standings and power rankings offline
+- [offline] Each board shows its time: "as of Nov 13, 8:09 PM"
+- [rankings] Scores that aren't official records are marked in the table
+
+### Added
+- World rankings offline: the ranking's reads and its page moved to `src/shared/rankingsBoard.ts`; the server calls them, and a saved season pack runs the same SQL on its own tables, so every place filter, page and the latest weeks give the server's numbers. The pack now carries the season's ranking weeks and, for the current season, the newest 3 weeks' snapshot rows (movement against last week). An older week says it needs a connection.
+- Season boards (`server/packs/boards.ts`): each season pack holds the server's own answers, gzipped, for the season record line and regions, the first two pages of each records table as it opens (cut on the device to the columns a table asks for), every league's standings, the events list and, in the current season's pack, every power rankings week. A filter or another sort on a records table says filters need a connection.
+- The event pack of a league meet carries its league's standings.
+- An offline board says what it is and its data time ("Offline: Rankings as of Nov 13, 8:09 PM, from your saved 2026–27 data").
+- Parity tests (`server/packs/boards.test.ts`): a pack built by the real builder, opened as the app opens it, answers every board path exactly as the server does.
+- Measured: the 2026 season's boards are 114 answers, 185 KB gzipped (from today's live answers), plus 40 KB for its ranking weeks; a league meet's event pack gains about 1.2 KB.
+
+### Changed
+- Match records mark a score that isn't an official record ("Not an official record", the reason on hover), on the table and the phone cards.
+- Season packs now include every rated team, so the ranking names them as online does.
+
 ## 6.1.5 — 2026-11-14
 
 One download now takes a whole event offline: every team page, every match page and Compare for its teams work with no signal, with the same numbers as online.
