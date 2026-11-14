@@ -93,5 +93,10 @@ export const OFFICIAL_CHANNELS: OfficialChannelSeed[] = [
   // names (2025 on) "Meet 1" is no evidence, so each such video goes to the owner's review with its closest event.
   { channelId: "UCsWixqR83vr2poZHfU_FgcQ", title: "NorCal FIRST Tech Challenge", region: "state=CA;name=^NorCal\\b", words: "norcal california" },
   { channelId: "UCJAVhMsmeKHf7riEsPafi9w", title: "FTC SoCal League G", region: "state=CA;name=^SoCal(?: FTC)?(?: -| League| Group)? G\\b", words: "socal california" },
+  // The owner's audited channels (2026-11-14), ids from the YouTube Data API (channels?forHandle). Overcharged
+  // (@overcharged12599, FTC 12599) streams Oregon's Rose City League; Leo RHS Robotics (@leoRHSrobotics, Roseburg HS)
+  // streams the SOAR League. FIRST's own Oregon event pages link both channels' streams. Each for its league only.
+  { channelId: "UCT6yIFUf6Wr_klDFpdmLsGg", title: "Overcharged (Rose City League)", region: "state=OR;name=\\bRose City\\b", words: "oregon" },
+  { channelId: "UC2MP84F_QCCnbLqHBFBxxeQ", title: "Leo RHS Robotics (SOAR League)", region: "state=OR;name=\\bSOAR\\b", words: "oregon" },
   { channelId: "UCal7624DPridi_9iKLrAbqw", title: "FIRST Australia", region: "country=Australia", words: "australia australian", titlePattern: "australian? (national )?championship|\\bAPOC\\b|asia pacific open" },
 ];

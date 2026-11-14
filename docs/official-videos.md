@@ -23,8 +23,10 @@ A channel is official for an event when it is one of:
 - the event's own streamer, where FIRST's event pages or the host name it: Stars of the Galaxy (FTC 12099) for the
   Central Ohio league in Columbus, and the FIRST Alumni Network Grand Valley for the West Michigan league at GVSU in
   Grand Rapids (watched for those events only; FANGV's Robot in 3 Days streams are FRC and never used), FTC SoCal
-  League G for League G's meets in Carson, and 7419 Tech Support, which streamed NorCal East Bay Meet 1 of 2026 from
-  its own school (linked once, not watched),
+  League G for League G's meets in Carson, 7419 Tech Support, which streamed NorCal East Bay Meet 1 of 2026 from its
+  own school (linked once, not watched), and in Oregon Overcharged (FTC 12599) for the Rose City League and Leo RHS
+  Robotics (Roseburg HS) for the SOAR League, whose streams FIRST's own Oregon event pages link (each watched for its
+  own league only),
 - the region's delivery partner or its event streamer in Rhode Island (Rhode Island FTC), Ontario (FTC Ontario),
   Long Island (FIRST Long Island) and New York City (NYC FIRST, the channel FIRST's 2021-22 NYC pages link, under its
   current handle). Town of Penfield Television is watched for upstate NY Excelsior events only: its videos are

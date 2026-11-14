@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.1.9 — 2026-11-14
+## 6.2.0 — 2026-11-14
 
 Northern California's QTs, league meets and Regional Championship divisions now play their recordings from NorCal FTC's own channel, back to 2021; SoCal League G's meets and East Bay Meet 1 of 2026 play theirs too.
 
@@ -26,6 +26,18 @@ Northern California's QTs, league meets and Regional Championship divisions now 
 
 ### Added
 - Official videos: NorCal FIRST Tech Challenge (`UCsWixqR83vr2poZHfU_FgcQ`) and FTC SoCal League G (`UCJAVhMsmeKHf7riEsPafi9w`), ids read from the YouTube Data API, join the official channels and the auto-watcher's list, for events named "NorCal …" and League G's own meets only. 7419 Tech Support (`UCesNcwI6hz2m5T44R2_9rlA`) is linked once, not watched. 41 recordings are checked against each event's name, city, dates, division, QT number and meet: 33 from NorCal (Gold and Silicon each on its own division), 6 from League G, and East Bay Meet 1's two parts from 7419. Streams FIRST's pages already link, an undated upload, false starts and a scrimmage Scout has no event for are left out. (`server/data/officialVideos.json`, `server/data/officialChannels.ts`, `docs/official-videos.md`) (#1478)
+
+## 6.1.9 — 2026-11-14
+
+Oregon's Rose City and SOAR league meets now play their recordings from the channels that stream them, back to 2022, and Saturday's SOAR Meet 1 shows its stream before it airs.
+
+### Highlights
+- [live] SOAR League Meet 1 shows its stream on its event page
+- [history] Rose City League meets from 2022 on play their recordings
+- [history] SOAR scrimmages and meets play their recordings
+
+### Added
+- Official videos: Overcharged (`UCT6yIFUf6Wr_klDFpdmLsGg`, Rose City League) and Leo RHS Robotics (`UC2MP84F_QCCnbLqHBFBxxeQ`, SOAR League), ids read from the YouTube Data API, join the official channels and the auto-watcher's list, each for its own league's events only. 18 recordings are checked against each event's name, city, date and meet number: 12 Rose City, 6 SOAR. Streams FIRST's pages already link, second videos for a day FIRST already covers, and SOAR 2024 Meet 3 (FIRST's page links Meet 2's video, flagged for the owner) are left out. All Hands on Tech is not added: FIRST's pages already link its Iron Mountain streams. (`server/data/officialVideos.json`, `server/data/officialChannels.ts`, `docs/official-videos.md`) (#1480)
 
 ## 6.1.8 — 2026-11-14
 
