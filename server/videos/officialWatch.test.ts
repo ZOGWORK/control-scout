@@ -78,6 +78,11 @@ describe("the official-video watcher", () => {
     expect(await seedOfficialChannels(T0, true)).toBe(0);
     expect(await pattern(fimo.channelId)).toBe(fimo.titlePattern);
     expect(await pattern(iowa.channelId)).toBeNull();
+    // The save made the row the owner's in the same write, and the seed's own write rechecks it.
+    expect((await get<{ added_by: string | null }>("SELECT added_by FROM official_channels WHERE channel_id = ?", [iowa.channelId]))?.added_by).toBe("owner@example.test");
+    await run("UPDATE official_channels SET added_by = NULL WHERE channel_id = ?", [iowa.channelId]);
+    expect(await seedOfficialChannels(T0, true)).toBe(0);
+    expect(await pattern(iowa.channelId)).toBeNull();
   });
 
   it("reads each watched channel's new uploads once: adds the sure one, queues the rest, sets aside the rest", async () => {
