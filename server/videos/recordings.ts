@@ -15,6 +15,7 @@ import { localToUtcMs } from "../../src/shared/time.js";
 import type { EventStream, MatchView } from "../../src/shared/api.js";
 import { env } from "../env.js";
 import { fetchFromApi, fetchWatchPage, type WatchPageFacts } from "./youtube.js";
+import { youtubeId } from "../../src/shared/personal.js";
 import { officialRecordingIds, seasonOfficial } from "./officialVideos.js";
 import { checkedTo } from "../data/checkedTimings.js";
 
@@ -195,8 +196,52 @@ export function seasonVideoKinds(season: number, now = Date.now()): Promise<Map<
   return v;
 }
 
+let clipKeys = new Map<number, { at: number; v: Promise<Set<string>> }>();
+registerCache("Match clip keys", () => { clipKeys = new Map(); });
+
+/**
+ * Every played match of a season with video to play, as "code|level|series|number": FIRST's own video of it
+ * (matches.video), else its place in its event's recording, by the same check as the event page and an answer's video
+ * (withClips, each event's whole span). Search's "with video" filter reads it (server/api/query/matchFind.ts). A video
+ * someone added is the viewer's own (docs/contributors.md), never a filter's. Kept for 10 minutes.
+ */
+export function seasonClipKeys(season: number, now = Date.now()): Promise<Set<string>> {
+  const hit = clipKeys.get(season);
+  if (hit && now - hit.at < KINDS_TTL_MS) return hit.v;
+  const v = (async () => {
+    const out = new Set<string>();
+    const own = await all<{ code: string; level: string; series: number; number: number; video: string }>("SELECT code, level, series, number, video FROM matches WHERE season = ? AND played = 1 AND video IS NOT NULL AND video != ''", [season]);
+    // Only a video an answer can play (a YouTube link), as answerVideo and the event page read it.
+    for (const r of own) if (youtubeId(String(r.video))) out.add(`${r.code}|${r.level}|${Number(r.series)}|${Number(r.number)}`);
+    const recs = [...(await seasonRecordings(season))].filter(([, r]) => [r.meta, ...(r.more ?? []).map((d) => d.meta)].some((m) => m?.status === "ok" && m.start));
+    for (let i = 0; i < recs.length; i += 200) {
+      const part = recs.slice(i, i + 200);
+      const rows = await all<{ code: string; level: string; series: number; number: number; label: string; time: string; timezone: string | null }>(
+        `SELECT m.code, m.level, m.series, m.number, m.label, m.time, e.timezone FROM matches m JOIN events e ON e.season = m.season AND e.code = m.code
+         WHERE m.season = ? AND m.played = 1 AND m.time IS NOT NULL AND m.code IN (${part.map(() => "?").join(",")})`, [season, ...part.map(([c]) => c)]);
+      const byCode = new Map<string, (MatchStart & { time: string; key: string })[]>();
+      for (const r of rows) {
+        const ms = localToUtcMs(r.time, r.timezone);
+        const code = String(r.code);
+        (byCode.get(code) ?? byCode.set(code, []).get(code)!).push({ label: String(r.label), time: String(r.time), startsAt: ms == null ? null : new Date(ms).toISOString(), key: `${code}|${r.level}|${Number(r.series)}|${Number(r.number)}` });
+      }
+      for (const [code, rec] of part) {
+        const ms = byCode.get(code);
+        if (!ms) continue;
+        const span = eventSpan(ms.filter((x) => actualStart(x.time)).map(({ label, startsAt }) => ({ label, startsAt })));
+        const views = ms.map((x) => ({ label: x.label, time: x.time, startsAt: x.startsAt ?? null, played: true, clip: undefined, key: x.key }));
+        for (const x of withClips(views, rec, now, span)) if (x.clip) out.add(x.key);
+      }
+    }
+    return out;
+  })();
+  clipKeys.set(season, { at: now, v });
+  v.catch(() => { if (clipKeys.get(season)?.v === v) clipKeys.delete(season); });
+  return v;
+}
+
 /** Drop the season maps, after the links they're read from changed. */
-export function forgetRecordings() { cache = new Map(); kinds = new Map(); }
+export function forgetRecordings() { cache = new Map(); kinds = new Map(); clipKeys = new Map(); }
 
 /** The page's player for an event, or null. */
 export async function eventRecording(season: number, code: string): Promise<Recording | null> {

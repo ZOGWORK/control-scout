@@ -46,10 +46,12 @@ const evKey = (r: VideoRef) => `${r.season}:${r.code}`;
 
 /**
  * What the answer is about, when that's one match or one event: its headline's link; else a question card's event
- * (or its one match); else a stat answer whose matches are all at one event; else, for names, the top hit when it's
+ * (or its one match); else a stat answer's one listed match, or the event all its matches are at; else, for names, the top hit when it's
  * a match, or an event the words name exactly. A set of events ("events in New Jersey") is about none.
  */
 export function mainRef(a: SearchAnswer): VideoRef | null {
+  // A headline's match still to play (a predicted score) keeps its key: it plays nothing, never an earlier match's
+  // clip, and links to the event's recording.
   const head = refOfHref(a.stat?.headline?.href);
   if (head) return head;
   if (a.card?.event) return { season: a.card.event.season, code: a.card.event.code };
@@ -59,6 +61,8 @@ export function mainRef(a: SearchAnswer): VideoRef | null {
   }
   if (a.stat) {
     const rs = rowRefs(a);
+    // One match listed is the match the answer is about: its own clip or none, never the event's recording from its start.
+    if (rs.length === 1) return { season: rs[0].season, code: rs[0].code, key: rs[0].key };
     return rs.length && rs.every((r) => evKey(r) === evKey(rs[0])) ? { season: rs[0].season, code: rs[0].code } : null;
   }
   const top = a.hits[0];
@@ -79,7 +83,8 @@ export function rowRefs(a: SearchAnswer): (VideoRef & { href: string })[] {
   for (const l of [...(a.card?.lines ?? []), ...(a.card?.closest ?? [])]) add(l.href);
   for (const b of a.stat?.blocks ?? []) {
     if (b.kind === "matches") for (const r of b.rows) add(r.href);
-    else if (b.kind === "table") for (const r of b.rows) add(r.href);
+    // A table of matches still to play is no one's video yet.
+    else if (b.kind === "table" && !b.upcoming) { for (const r of b.rows) if (!r.upcoming) add(r.href); }
     else if (b.kind === "videos") for (const t of b.tiles) add(t.href, MAX_TILES);
   }
   return [...out.values()];
@@ -193,9 +198,10 @@ export async function answerVideo(a: SearchAnswer, now = Date.now(), viewer?: Vi
           ...(rec.more?.length && day.meta?.start ? { day: dayLabel(day.meta.start, m?.timezone) } : {}), ...(day.meta?.live ? { live: true } : {}) };
       }
     } else if (!out.main) {
-      if (aboutTeam(a)) {
-        // An answer about a team with no one match as its headline: its first listed match with a clip (a list of
-        // highlights: the first of those, never a video page's grid beside them).
+      if (aboutTeam(a) || rows.length) {
+        // An answer about a team with no one match as its headline, or a list of matches at one event ("matches with
+        // video at <event>"): its first listed match with a clip (a list of highlights: the first of those, never a
+        // video page's grid beside them). The recording from its start is the fallback only.
         const lead = highlightHrefs(a);
         const first = rows.find((r) => (!lead || lead.has(r.href)) && items.has(`${evKey(r)}:${r.key}`));
         if (first) { mainHref = `${evKey(first)}:${first.key}`; out.main = items.get(mainHref); }

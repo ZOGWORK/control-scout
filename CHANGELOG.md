@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.1.9 — 2026-11-14
+## 6.2.3 — 2026-11-14
 
 Search finds a match by its number and plays that exact match.
 
@@ -27,6 +27,57 @@ Search finds a match by its number and plays that exact match.
 ### Changed
 - Search: a team and a match's number with no event ("<team> Q6") lists that number at each event of the season, latest first, and plays the latest; at Worlds or states ("<team> M14 at worlds") it is that match there. A number with no team ("M14 decode finals", "q6 at worlds") lists those matches highest-scoring first, the card playing the top one. An M number is a playoff match's. (`server/api/query/intents.ts`, `parse.ts`, `matchFind.ts`, `server/api/answers/families/eventScope.ts`) (#1484)
 - Search: comparing two or more teams adds "Their matches together", the matches all of them were on the field for, each with its own clip. (`server/api/answers/families/twoTeam.ts`, `src/components/search/page/CompareCard.tsx`)
+
+## 6.2.2 — 2026-11-14
+
+Search can find matches with video, and asking to watch a question shows its answer with the video.
+
+### Highlights
+- [teams] Add "with video" to find only matches you can watch
+- [teams] "Who won … with video" answers the question and plays the match
+- [teams] Matches at one event play their first clip, not the stream's start
+
+### Changed
+- Search: "with video" (also "that have clips", "with a recording") is a filter: a team's matches, a place's or an event's best, closest or highest-scoring matches list only the ones with FIRST's own video or a clip in the event's recording, the card saying "With video". (`server/videos/recordings.ts` seasonClipKeys, `server/api/query/matchFind.ts`, `lexicon.ts`, `intents.ts`, `parse.ts`, `execute.ts`) (#1485)
+- Search: words asking to watch ("with video", "video", "highlights") beside a question whose answer didn't take them are dropped, so "who won decode with video" is the champions' card with their final playing. (`server/api/searchAnswer.ts`)
+- Search: a list of matches at one event plays its first match with a clip, from that match's start, rather than the event's recording from its start. (`server/api/answers/video.ts`)
+
+## 6.2.1 — 2026-11-14
+
+Search plays the matches an answer lists, and says so plainly when there is no video.
+
+### Highlights
+- [teams] A team at an off-season event it played lists its matches there
+- [teams] Each listed match without a clip says No video, never a dead Play
+- [teams] No video at all: one line says the event has no recording
+
+### Changed
+- Search: a question about a team at an event it names keeps that event's matches even when it is an off-season event (APOC): "26000 at AUSYOS" lists its 13 matches, the card plays one and every other row with a clip gets Play. Before, it said "No scored matches". (`server/api/answers/clauses.ts`) (#1481)
+- Search: an answer listing one match plays that match's own clip or links its recording, never the event's recording from its start (`server/api/answers/video.ts`). A listed match with no clip says "No video" when others in the answer play; an answer whose matches have none says "No recording for this event — stats only." (or "No video for these matches — stats only.") once. (`src/components/search/page/AnswerVideo.tsx`)
+
+## 6.2.0 — 2026-11-14
+
+Northern California's QTs, league meets and Regional Championship divisions now play their recordings from NorCal FTC's own channel, back to 2021; SoCal League G's meets and East Bay Meet 1 of 2026 play theirs too.
+
+### Highlights
+- [history] NorCal QTs and Regional Championships play their streams
+- [live] The NorCal BIOBUZZ Screamage plays its recording
+- [history] SoCal League G and East Bay Meet 1 play their recordings
+
+### Added
+- Official videos: NorCal FIRST Tech Challenge (`UCsWixqR83vr2poZHfU_FgcQ`) and FTC SoCal League G (`UCJAVhMsmeKHf7riEsPafi9w`), ids read from the YouTube Data API, join the official channels and the auto-watcher's list, for events named "NorCal …" and League G's own meets only. 7419 Tech Support (`UCesNcwI6hz2m5T44R2_9rlA`) is linked once, not watched. 41 recordings are checked against each event's name, city, dates, division, QT number and meet: 33 from NorCal (Gold and Silicon each on its own division), 6 from League G, and East Bay Meet 1's two parts from 7419. Streams FIRST's pages already link, an undated upload, false starts and a scrimmage Scout has no event for are left out. (`server/data/officialVideos.json`, `server/data/officialChannels.ts`, `docs/official-videos.md`) (#1478)
+
+## 6.1.9 — 2026-11-14
+
+Oregon's Rose City and SOAR league meets now play their recordings from the channels that stream them, back to 2022, and Saturday's SOAR Meet 1 shows its stream before it airs.
+
+### Highlights
+- [live] SOAR League Meet 1 shows its stream on its event page
+- [history] Rose City League meets from 2022 on play their recordings
+- [history] SOAR scrimmages and meets play their recordings
+
+### Added
+- Official videos: Overcharged (`UCT6yIFUf6Wr_klDFpdmLsGg`, Rose City League) and Leo RHS Robotics (`UC2MP84F_QCCnbLqHBFBxxeQ`, SOAR League), ids read from the YouTube Data API, join the official channels and the auto-watcher's list, each for its own league's events only. 18 recordings are checked against each event's name, city, date and meet number: 12 Rose City, 6 SOAR. Streams FIRST's pages already link, second videos for a day FIRST already covers, and SOAR 2024 Meet 3 (FIRST's page links Meet 2's video, flagged for the owner) are left out. All Hands on Tech is not added: FIRST's pages already link its Iron Mountain streams. (`server/data/officialVideos.json`, `server/data/officialChannels.ts`, `docs/official-videos.md`) (#1480)
 
 ## 6.1.8 — 2026-11-14
 
