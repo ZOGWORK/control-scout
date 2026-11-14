@@ -56,6 +56,7 @@ const WHY: Record<CoverageReason, string> = {
   "no-clock": "Video has no broadcast clock (an upload, not a live stream)",
   "gap-unplaced": "Video shorter than its broadcast, missing time can't be placed",
   "past-chapters": "Past the part of the video its chapters confirm",
+  "past-checked": "Past the part of the video checked frame by frame",
   "past-video-end": "After the video ends",
   "before-cut": "Before the video starts",
   "before-chapters": "Before the part of the video its chapters confirm",
@@ -144,7 +145,11 @@ function reasonFor(m: CoverageInput, videos: Judged[], now: number): { reason: C
   const from = Date.parse(t.start!), clock = Math.floor((Date.parse(m.startsAt!) - from) / 1000), offset = clock - shift;
   if (clipSecond(m.startsAt, t, now) == null) {
     if (clock < 0) return { reason: "before-broadcast", why: WHY["before-broadcast"], videoId: id };
-    if (t.confirmedTo != null && clock > t.confirmedTo) return { reason: "past-chapters", why: `${WHY["past-chapters"]} (to ${span(t.confirmedTo)} into the broadcast)`, videoId: id };
+    if (t.confirmedTo != null && clock > t.confirmedTo) {
+      // withConfirmed's confirmedTo is the chapters' (they set a shift) or else the frames checked by eye.
+      const reason = t.shift == null && checkedTo(id) === t.confirmedTo ? "past-checked" as const : "past-chapters" as const;
+      return { reason, why: `${WHY[reason]} (to ${span(t.confirmedTo)} into the broadcast)`, videoId: id };
+    }
     if (shift && t.confirmedFrom != null && clock < t.confirmedFrom) return { reason: "before-chapters", why: `${WHY["before-chapters"]} (from ${span(t.confirmedFrom)} into the broadcast)`, videoId: id };
     if (offset < 0) return { reason: "before-cut", why: `${WHY["before-cut"]} (its first ${span(shift)} were cut off)`, videoId: id };
     if (t.length != null && offset - slack > t.length) return { reason: "past-video-end", why: `${WHY["past-video-end"]} (the video stops ${span(offset - slack - t.length)} before it)`, videoId: id };
