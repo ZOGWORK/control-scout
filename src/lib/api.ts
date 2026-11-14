@@ -19,7 +19,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useSyncExternalStore } from "react";
 import { offlineSource, savedSeasons } from "./offline/saved";
 import { bundleFor, savedBundles } from "./offline/bundleMeta";
-import { keepable, keepAnswer, keptAt, keptPaths } from "./offline/kept";
+import { answerableOffline, keepable, keepAnswer, keptAt, keptOwner, keptPaths } from "./offline/kept";
 import { packStatus } from "./packPolicy";
 import { FEATURE_DISABLED, featureOffMessage } from "../shared/flags";
 import { noteArrived, watchRequest } from "./liteSuggest";
@@ -63,8 +63,8 @@ const REPORT_PATH = /^\/api\/events\/(\d{4})\/([^/?]+)\/matches\/([^/?]+)\/repor
 /** A kept read (lib/offline/kept.ts) this device could answer with no signal: its own last answer, another kept
  *  answer of the same kind (the event list, the shortlist rows), or an event-day bundle. */
 function keptReady(path: string): boolean {
-  if (!keepable(path)) return false;
-  if (keptAt(path) != null) return true;
+  if (!answerableOffline(path)) return false;
+  if (keepable(path) && keptAt(path) != null) return true;
   const route = path.split("?")[0];
   if (route === "/api/events" || route === "/api/shortlist" || /^\/api\/teams\/\d+\/matches$/.test(route)) {
     return savedBundles().length > 0 || keptPaths((p) => p.split("?")[0] === route).length > 0;
@@ -293,6 +293,8 @@ export async function apiFetch<T>(path: string, init?: RequestInit & { json?: un
   if (ctrl && outer) { if (outer.aborted) ctrl.abort(); else outer.addEventListener("abort", forward, { once: true }); }
   // Slow or failing requests while online offer the light version (src/lib/liteSuggest.ts).
   const watch = watchRequest(path, rest.method);
+  // Whose answer this is: a scouting read is kept for the account signed in when it was asked (lib/offline/kept.ts).
+  const asker = keepable(path, rest.method) ? keptOwner() : undefined;
   let res: Response;
   let answered = false;
   try {
@@ -354,7 +356,7 @@ export async function apiFetch<T>(path: string, init?: RequestInit & { json?: un
   // Only a good, readable answer is the page's data arriving.
   watch.done(res.ok && !unreadable);
   // A scouting page's read: kept on the device for when there's no signal (lib/offline/kept.ts).
-  if (res.ok && !unreadable && keepable(path, rest.method)) void keepAnswer(path, body);
+  if (res.ok && !unreadable && asker !== undefined) void keepAnswer(path, body, asker);
   if (!res.ok) {
     // Switched off by the owner: the server's own words, and the code that tells it from a lost membership.
     if (res.status === 403 && body?.error === FEATURE_DISABLED) throw new ApiError(403, typeof body.message === "string" ? body.message : featureOffMessage(String(body.feature ?? "")), false, FEATURE_DISABLED, typeof body.feature === "string" ? body.feature : undefined);

@@ -17,7 +17,7 @@ import { readSaved } from "./seasons";
 import { bundleFor } from "./bundleMeta";
 import { loadBundle } from "./bundles";
 import { bundleTime } from "../../shared/eventBundle";
-import { keepable } from "./kept";
+import { answerableOffline } from "./kept";
 import { scoutReadAnswer } from "./scoutReads";
 import { readEventDetail, readMatchViews, readProjections, readSearch, readTeamProfile, readTeamSchedule, type ReadOpts } from "./readers";
 
@@ -133,7 +133,7 @@ const int = (s: string | null) => (s && /^\d+$/.test(s) ? Number(s) : undefined)
 export async function offlineAnswer(path: string): Promise<unknown | null> {
   const saved = await savedSeasonAnswer(path).catch(() => null);
   if (saved != null) return saved;
-  return keepable(path) ? scoutReadAnswer(path) : null;
+  return answerableOffline(path) ? scoutReadAnswer(path) : null;
 }
 
 async function savedSeasonAnswer(path: string): Promise<unknown | null> {

@@ -28,6 +28,14 @@ const isPrivate = (path: string) => path.startsWith("/api/scout/");
 
 export const keepable = (path: string, method?: string): boolean => (method ?? "GET").toUpperCase() === "GET" && KEPT_PATHS.test(path);
 
+/** A typed event search (the Scout pickers' `q`): never kept itself, but answered offline from the season's kept list. */
+const EVENT_SEARCH = /^\/api\/events\?(?=.*\bseason=\d{4})(?=.*\bq=)/;
+/** A read the scouting pages' offline answers cover (scoutReads.ts): a kept one, or a typed event search. */
+export const answerableOffline = (path: string, method?: string): boolean => keepable(path, method) || ((method ?? "GET").toUpperCase() === "GET" && EVENT_SEARCH.test(path));
+
+/** The account this device's data belongs to now (captured when a request starts: see keepAnswer's `who`). */
+export const keptOwner = owner;
+
 type Index = [key: string, savedAt: number][];
 let raw: string | null | undefined;
 let index: Index = [];
@@ -85,10 +93,12 @@ async function tx<T>(mode: IDBTransactionMode, run: (s: IDBObjectStore) => IDBRe
 /** Writes in the order they were asked for: a slower older write never lands over a newer one. */
 let queue: Promise<unknown> = Promise.resolve();
 
-/** Keep the server's answer for a read (a 2xx GET of KEPT_PATHS). Never throws. */
-export function keepAnswer(path: string, data: unknown): Promise<void> {
+/** Keep the server's answer for a read (a 2xx GET of KEPT_PATHS). `asked`: the account signed in when the request
+ *  started; another one signed in meanwhile, the answer isn't theirs and isn't kept. Never throws. */
+export function keepAnswer(path: string, data: unknown, asked?: string): Promise<void> {
   if (!keepable(path) || data === null || typeof data !== "object") return Promise.resolve();
   const who = owner(), key = keyOf(path, who), at = Date.now();
+  if (asked !== undefined && asked !== who) return Promise.resolve();
   const run = queue.then(async () => {
     await tx("readwrite", (s) => s.put({ path, owner: who, savedAt: at, data }, key));
     // Newest first; another account's workspace answers go now; past MAX_KEPT the oldest go.

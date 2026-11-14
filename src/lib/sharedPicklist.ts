@@ -38,6 +38,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { apiFetch, ApiError, isFeatureDisabled } from "./api";
 import { offlineSource } from "./offline/saved";
+import { keepAnswer } from "./offline/kept";
 import type { LiveMode } from "./scoutLive";
 import { applyPickOp, cleanNote, isPickList, MAX_OP_QUERY, NOTE_CHANGED, WRONG_ACCOUNT, type Pick, type PickList, type PickOp, type PickPerson } from "../shared/picklist";
 import { deleteDamagedOp, deleteKeptOp, KEPT_OPS_CHANGED, keptOps, newPageForTests, putKeptOp, readKeptOps, TAB_ID, type DamagedPickOp, type KeptPickOp } from "./picklistOps";
@@ -388,7 +389,7 @@ export async function retryFailedChange(id: number, opts: { force?: boolean } = 
     const r = await inLine(f.space, () => apiFetch<{ list: unknown }>(url(f.space), {
       method: "POST", json: { season: f.season, ...op, ...(f.opId ? { opId: f.opId } : {}), ...(f.account != null ? { account: f.account } : {}) },
     }));
-    if (isPickList(r.list)) announcePicklist(r.list);
+    if (isPickList(r.list)) { announcePicklist(r.list); keepList(r.list); }
     settle(null, {}, true);
   } catch (e) {
     const err = e instanceof ApiError ? e : new ApiError(0, "Couldn't save the change.");
@@ -438,22 +439,46 @@ export async function retryKeptChanges(account: number | null, space: string, se
  * Only the signed-in account's own (retryKeptChanges never sends another account's).
  */
 let sendingOffline: Promise<void> | null = null;
-/** A pick list read found no network (or was answered from the kept copy) since the server last answered one. */
+/** A pick list read found no network (or was answered from the kept copy), or changes made with no signal came back
+ *  from the device's storage, since the server last answered a pick list read. */
 let listUnreachable = false;
 export function sendOfflineChanges(): Promise<void> {
   if (sendingOffline) return sendingOffline;
-  const scopes = new Map<string, { account: number | null; space: string; season: number }>();
+  const mine = (f: FailedChange) => signedInAccount === undefined || f.account === signedInAccount;
+  const scopes = new Map<string, FailedChange[]>();
   for (const f of failedChanges.values()) {
-    if (!f.offline || f.busy || f.blocked || f.conflict || (signedInAccount !== undefined && f.account !== signedInAccount)) continue;
-    scopes.set(`${f.account}\n${f.space}\n${f.season}`, { account: f.account, space: f.space, season: f.season });
+    if (!mine(f)) continue;
+    const k = `${f.account}\n${f.space}\n${f.season}`;
+    scopes.set(k, [...(scopes.get(k) ?? []), f]);
   }
-  if (!scopes.size) return Promise.resolve();
+  const work: number[][] = [];
+  for (const list of scopes.values()) {
+    const ordered = [...list].sort((a, b) => (a.at ?? 0) - (b.at ?? 0) || a.id - b.id);
+    const first = ordered.findIndex((f) => f.offline);
+    if (first < 0) continue;
+    // Only changes made with no signal, and only while nothing older in that list waits for the member (a refused or
+    // unconfirmed change, a conflict): sending a newer one past it would change the order they were made in.
+    if (ordered.slice(0, first).length) continue;
+    const run: number[] = [];
+    for (const f of ordered) { if (!f.offline || f.busy || f.blocked || f.conflict) break; run.push(f.id); }
+    if (run.length) work.push(run);
+  }
+  if (!work.length) return Promise.resolve();
   sendingOffline = (async () => {
-    for (const s of scopes.values()) await retryKeptChanges(s.account, s.space, s.season).catch(() => {});
+    for (const ids of work) {
+      for (const id of ids) {
+        await retryFailedChange(id).catch(() => {});
+        if (failedChanges.has(id)) break; // still not saved (a conflict, or no signal after all): the rest wait behind it
+      }
+    }
   })().finally(() => { sendingOffline = null; });
   return sendingOffline;
 }
 if (typeof window !== "undefined") window.addEventListener("online", () => { void sendOfflineChanges(); });
+
+/** A list the server sent back after a change: kept as the list's last answer (lib/offline/kept.ts), so a page opened
+ *  with no signal shows the order as saved, not the one read before the change. */
+const keepList = (l: PickList) => { void keepAnswer(url(l.workspaceId, l.season), { list: l }); };
 
 /** Let go of every kept change of one list (damaged ones of it included). */
 export function discardKeptChanges(account: number | null, space: string, season: number) {
@@ -497,6 +522,8 @@ async function syncKept(account: number, reconcile: boolean): Promise<void> {
       message: r.state === "kept" && r.message ? r.message : NOT_SENT_BEFORE_RELOAD, uncertain: !!r.uncertain, stored: true, restored: true,
       ...(r.state === "kept" && r.offline ? { offline: true } : {}), ...more,
     });
+    // Made with no signal before this page: it goes up by itself once the server answers a pick list read.
+    if (r.state === "kept" && r.offline) listUnreachable = true;
     dirty = true;
   };
   if (reconcile) {
@@ -732,7 +759,7 @@ export function usePickList(space: string | null, season: number, live: LiveMode
         try {
           const ids = p.opId ? { opId: p.opId, ...(p.account != null ? { account: p.account } : {}) } : {};
           const r = await inLine(p.space, () => apiFetch<{ list: unknown }>(url(p.space), { method: "POST", json: { season: p.season, ...op, ...ids } }), lineOwner.current);
-          if (isPickList(r.list)) accept(r.list);
+          if (isPickList(r.list)) { accept(r.list); keepList(r.list); }
           if (op.op === "note") noteConfirmed(p, op, r.list);
           else { forget(p.account, p.space, p.season, p.opId); if (keyRef.current === k) markSaved(`order:${k}`); }
         } catch (e) {

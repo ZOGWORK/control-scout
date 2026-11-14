@@ -9,7 +9,7 @@ import type { EventListItem, ShortlistTeam } from "../../shared/api";
 const bundles = vi.hoisted(() => new Map<string, unknown>());
 vi.mock("./bundles", () => ({ loadBundle: async (season: number, code: string) => bundles.get(`${season}:${code}`) ?? null }));
 
-import { clearKept, keepable, keepAnswer, keptAnswer, keptAt, MAX_KEPT } from "./kept";
+import { answerableOffline, clearKept, keepable, keepAnswer, keptAnswer, keptAt, MAX_KEPT } from "./kept";
 import { scoutReadAnswer } from "./scoutReads";
 import { offlineSource } from "./saved";
 import { writeBundles } from "./bundleMeta";
@@ -49,6 +49,20 @@ describe("kept answers", () => {
     signedIn("7");
     expect(keptAt("/api/scout/workspaces/41/alliances?season=2026")).toBeNull(); // dropped: account 8 wrote meanwhile
     expect((await keptAnswer("/api/events/2026/AUBRQ1/pick-ratings"))?.data).toEqual({ teams: [] });
+  });
+
+  it("an answer to a request another account asked for is never kept for this one", async () => {
+    signedIn("7");
+    await keepAnswer("/api/scout/workspaces/41/alliances?season=2026", { links: [1] }, "8");
+    expect(keptAt("/api/scout/workspaces/41/alliances?season=2026")).toBeNull();
+    await keepAnswer("/api/scout/workspaces/41/alliances?season=2026", { links: [1] }, "7");
+    expect(keptAt("/api/scout/workspaces/41/alliances?season=2026")).not.toBeNull();
+  });
+
+  it("a typed event search is answered offline (from the season's list) but never kept itself", () => {
+    expect(answerableOffline("/api/events?season=2026&q=AUBRQ1&all=1&limit=20")).toBe(true);
+    expect(keepable("/api/events?season=2026&q=AUBRQ1&all=1&limit=20")).toBe(false);
+    expect(answerableOffline("/api/search?q=1")).toBe(false);
   });
 
   it("keeps at most MAX_KEPT, the oldest going first", async () => {
@@ -92,6 +106,9 @@ describe("answers with no signal", () => {
     expect(got.teams.map((t) => [t.team, t.name, t.opr])).toEqual([[2, "T2", 20], [3, "Three", null], [4, null, null]]);
     expect(got.teams[1].place).toBe("Brisbane, QLD");
     expect(offlineSource(got)?.kept).toBe(true);
+    // Nothing known about a team and no bundle of the season: still listed, by number (added with no signal).
+    const none = await scoutReadAnswer("/api/shortlist?teams=9&season=2024") as { teams: ShortlistTeam[] };
+    expect(none.teams.map((t) => [t.team, t.name, t.opr])).toEqual([[9, null, null]]);
   });
 
   it("warms the reads Scout needs for a bundled event, in the pages' own path forms", () => {

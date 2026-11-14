@@ -3,7 +3,8 @@
 // list as the Scout event picker asks for it, the event's pick ratings and stored projections, and every one of its
 // teams' shortlist rows (a team added to the shortlist with no signal then shows its stats). Each answer is the
 // server's own, kept as it came. At most once per bundle every WARM_EVERY_MS; nothing at all with no network.
-import { apiFetch, qs } from "../api";
+import { ApiError, apiFetch, qs } from "../api";
+import { keptOwner } from "./kept";
 import { savedBundles } from "./bundleMeta";
 import { deviceOffline } from "./online";
 import type { SavedBundle } from "../../shared/eventBundle";
@@ -39,22 +40,33 @@ function stamps(): Record<string, number> {
 }
 
 let running: Promise<void> | null = null;
-/** Warm every bundled event not warmed in the last WARM_EVERY_MS (`force`: a bundle just downloaded or updated). */
+/** A forced pass asked for while one was running (a bundle downloaded meanwhile): run once that one ends. */
+let again = false;
+/** Warm every bundled event not warmed in the last WARM_EVERY_MS for this account (kept answers are per account);
+ *  `force`: a bundle just downloaded or updated. */
 export function warmScoutReads(force = false, now = Date.now()): Promise<void> {
   if (deviceOffline()) return Promise.resolve();
-  if (running) return running;
+  if (running) {
+    if (force) again = true;
+    return running;
+  }
   running = (async () => {
     const seen = stamps();
-    const due = savedBundles().filter((b) => force || now - (seen[`${b.season}:${b.code}:${b.version}`] ?? 0) > WARM_EVERY_MS);
+    const stamp = (b: SavedBundle) => `${keptOwner()}|${b.season}:${b.code}:${b.version}`;
+    const due = savedBundles().filter((b) => force || now - (seen[stamp(b)] ?? 0) > WARM_EVERY_MS);
     // One season's event list is the same for all its bundles: asked once.
     const asked = new Set<string>();
     for (const b of due) {
       const paths = warmPaths(b).filter((p) => !asked.has(p));
       paths.forEach((p) => asked.add(p));
-      const got = await Promise.all(paths.map((p) => apiFetch(p).then(() => true, () => false)));
-      if (got.every(Boolean)) seen[`${b.season}:${b.code}:${b.version}`] = now;
+      // Done unless a read found no network: an answer the server refused (a feature switched off) won't change by asking again.
+      const got = await Promise.all(paths.map((p) => apiFetch(p).then(() => true, (e) => !(e instanceof ApiError && e.offline))));
+      if (got.every(Boolean)) seen[stamp(b)] = now;
     }
     try { localStorage.setItem(STAMP, JSON.stringify(seen)); } catch { /* storage full: warmed again next time */ }
-  })().finally(() => { running = null; });
+  })().finally(() => {
+    running = null;
+    if (again) { again = false; void warmScoutReads(true); }
+  });
   return running;
 }
