@@ -100,8 +100,12 @@ function judge(v: RecordingVideo, r: Recording, whole: EventSpan, timezone: stri
 
 /** Why a played match judged against its videos gets no clip. */
 function reasonFor(m: CoverageInput, videos: Judged[], now: number): { reason: CoverageReason; why: string; videoId: string | null } {
-  if (!actualStart(m.time)) return { reason: "no-start", why: WHY["no-start"], videoId: null };
   const date = matchDate(m);
+  // Counted in its day's video (by the schedule's date), so that day never reads as fully clipped without it.
+  if (!actualStart(m.time)) {
+    const day = videos.filter((j) => j.date && j.date === date);
+    return { reason: "no-start", why: WHY["no-start"], videoId: (day[0] ?? (videos.length === 1 ? videos[0] : null))?.v.videoId ?? null };
+  }
   // The video that holds its start, else that day's.
   const holding = videos.find((j) => j.v.meta?.status === "ok" && j.v.meta.start && within(m.startsAt, j.v.meta, now));
   const sameDay = videos.filter((j) => j.date && j.date === date);
