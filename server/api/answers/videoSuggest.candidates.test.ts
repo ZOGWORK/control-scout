@@ -61,4 +61,20 @@ describe("videoCandidates", () => {
     expect(qs.some((q) => /wnterberry/i.test(q))).toBe(false);
     forgetVideoQuestions(true);
   });
+
+  it("typos built for another version: nothing chosen with them is published, the questions in use stay", async () => {
+    const { forgetVideoQuestions, warmVideoQuestions, withVideoAlternatives } = await import("./videoSuggest");
+    forgetVideoQuestions(true);
+    const said = (q: string): SearchAnswer => ({ q, hits: [], pages: [], step: "deterministic", weak: false, stat: { family: "event", intent: "results", title: q, scope: [], blocks: [], definition: "", source: "" } });
+    const plays = { main: { videoId: "v", t: 0, kind: "match" as const, match: "Q1" } };
+    // In use: the one general question that plays.
+    await warmVideoQuestions({ ask: async (q) => said(q), video: async (b) => (b.q === "highest score with video" ? plays : undefined) });
+    // The search version read is one the typos are never built for: every question would play, none is published.
+    await warmVideoQuestions({ ask: async (q) => said(q), video: async () => plays, version: async () => "v-other" });
+    const none = { ...said("x"), stat: { ...said("x").stat!, none: "None" } };
+    const out = await withVideoAlternatives("6980 at east bergen with video", none, undefined, async (q) => said(q), async () => undefined, 1000, async () => [], "", 0);
+    const offered = out.stat?.blocks.find((b) => b.kind === "related");
+    expect(offered && offered.kind === "related" ? offered.queries : []).toEqual(["highest score with video"]);
+    forgetVideoQuestions(true);
+  });
 });
