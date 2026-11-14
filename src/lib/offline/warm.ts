@@ -7,6 +7,7 @@ import { ApiError, apiFetch, qs } from "../api";
 import { keptOwner } from "./kept";
 import { savedBundles } from "./bundleMeta";
 import { deviceOffline } from "./online";
+import { offlineSource } from "./saved";
 import type { SavedBundle } from "../../shared/eventBundle";
 
 /** Enough for any season's every event (the list's own default is 2,000). */
@@ -52,7 +53,10 @@ export function warmScoutReads(force = false, now = Date.now()): Promise<void> {
   }
   running = (async () => {
     const seen = stamps();
-    const stamp = (b: SavedBundle) => `${keptOwner()}|${b.season}:${b.code}:${b.version}`;
+    // The account this pass warms for, read once: one signing in meanwhile isn't credited with it (its answers
+    // aren't kept for it: keepAnswer's asker check).
+    const owner = keptOwner();
+    const stamp = (b: SavedBundle) => `${owner}|${b.season}:${b.code}:${b.version}`;
     const due = savedBundles().filter((b) => force || now - (seen[stamp(b)] ?? 0) > WARM_EVERY_MS);
     // One season's event list is the same for all its bundles: asked once.
     const asked = new Set<string>();
@@ -62,7 +66,8 @@ export function warmScoutReads(force = false, now = Date.now()): Promise<void> {
       // Done when each read was kept, or refused for good (4xx: a feature switched off, no such event) since asking
       // again won't change it. No network, a server error, too many requests or a cut-short answer: due again.
       const settled = (e: unknown) => e instanceof ApiError && !e.offline && e.status >= 400 && e.status < 500 && e.status !== 429;
-      const got = await Promise.all(paths.map((p) => apiFetch(p).then(() => true, settled)));
+      // An answer made on this device (the server too slow: OFFLINE_TIMEOUT_MS) isn't the server's: due again.
+      const got = await Promise.all(paths.map((p) => apiFetch(p).then((d) => !offlineSource(d), settled)));
       if (got.every(Boolean)) seen[stamp(b)] = now;
     }
     try { localStorage.setItem(STAMP, JSON.stringify(seen)); } catch { /* storage full: warmed again next time */ }
