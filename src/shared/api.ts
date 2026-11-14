@@ -653,7 +653,7 @@ export interface EventStream {
 export interface OwnerStreamRow { season: number; code: string; name: string | null; start: string | null; end: string | null; url: string; videoId: string; updatedAt: string }
 
 export interface EventDetail {
-  event: EventSummary & { /** The venue's street address (FIRST's event list); absent from older servers and saved packs. */ address?: string | null; website: string | null; livestream: string | null; timezone: string | null; source: string; /** The Watch live section's stream; absent or null: no section. */ stream?: EventStream | null; /** A recording is linked but YouTube won't play it (private, removed): no stream, its reason on the page (server/videos/coverage.ts). */ recordingUnavailable?: true };
+  event: EventSummary & { /** The venue's street address (FIRST's event list); absent from older servers and saved packs. */ address?: string | null; website: string | null; livestream: string | null; timezone: string | null; source: string; /** The Watch live section's stream; absent or null: no section. */ stream?: EventStream | null; /** A recording is linked but YouTube won't play it (private, removed): its videos' ids, no stream; the page says why its matches have no clip (server/videos/coverage.ts). */ recordingUnavailable?: string[] };
   field: FieldRow[];
   matches: MatchView[];
   alliances: { number: number; name: string | null; captain: number | null; pick1: number | null; pick2: number | null; backup: number | null }[];
