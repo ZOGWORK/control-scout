@@ -70,7 +70,9 @@ the owner's review list; review starts are never shown as clips, and nothing is 
 
 A video where three matches in a row give no read, and nothing has been read yet, counts as one without the overlay
 and is left, after one more go in a fresh player (a player that never showed the stream looks the same). A frame read
-that hangs over 2 minutes fails its video with that reason. Any video gets at most 4 reads per match (40 at least), plus two to confirm each read.
+that hangs over 2 minutes fails its video with that reason. Any video gets a budget of 4 reads per match (40 at
+least), confirmations included: a confirmation spends up to seven of them (70 to 140 s in until one agrees, then
+one 25 s before the start).
 
 ## Where the timings live
 
