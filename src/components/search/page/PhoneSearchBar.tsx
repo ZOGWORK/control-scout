@@ -3,7 +3,8 @@
 // the caret in it, ready to edit. It claims the page's one search box (usePageSearch), so the top bar's field and its
 // search button step aside: there's never a second box opening over this one (it used to be a button that opened the
 // top bar's field, all selected, on top of it, and an iPhone tap on a selection only offers Cut/Copy/Paste).
-// Phones only (md:hidden): from md up the query sits in the top bar's own field.
+// Phones only (md:hidden): from md up the query sits in the top bar's own field. SearchPage puts it above the results
+// column (and the loading screen), with a negative bottom margin for the column's top padding.
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { usePageSearch, useSearch } from "../../layout/Search";
@@ -43,7 +44,7 @@ export function PhoneSearchBar({ query }: { query: string }) {
   const ref = usePhoneSearchHeight();
   return (
     <div ref={ref} data-phone-search={small ? "compact" : "full"}
-      className={cn("sticky top-(--header-h) z-20 -mx-4 -mt-4 mb-3 border-b bg-primary px-4 sm:-mx-6 sm:px-6 transition-[padding,border-color] duration-150 md:hidden", small ? "border-line py-1.5" : "border-transparent py-2")}>
+      className={cn("sticky top-(--header-h) z-20 -mx-4 -mb-1 border-b bg-primary px-4 sm:-mx-6 sm:-mb-5 sm:px-6 transition-[padding,border-color] duration-150 md:hidden", small ? "border-line py-1.5" : "border-transparent py-2")}>
       <SearchBox
         inputRef={pageRef}
         label="Search teams, events and matches"
