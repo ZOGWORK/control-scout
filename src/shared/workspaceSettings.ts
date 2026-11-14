@@ -130,6 +130,7 @@ export const DEVICE_ONLY_KEYS = [
   "cs-scout-lost:", // edits this device lost to newer ones, kept to restore (src/lib/lostEdits.ts)
   "cs-install", // the add-to-home-screen nudge: last day shown, turned down, installed (src/lib/installNudge.ts)
   "cs-install-demo", // automation opt-in that lets a driven browser see the nudge (npm run shots -- --install)
+  "cs-connection-demo", // shows the Offline pill as offline or a Wi-Fi sign-in page, for screenshots (src/lib/connection.ts)
   "cs-recent-searches", // this device's recent searches, newest first, clearable (src/components/search/discover.tsx)
   "cs-my-teams-collapsed", // the teams folded down on My teams (src/pages/MyTeamsPage.tsx)
 ] as const;

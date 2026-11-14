@@ -9,6 +9,7 @@
 import { useSyncExternalStore } from "react";
 import { LITE_FAILS, LITE_FAIL_WINDOW_MS, LITE_SLOW_MS } from "../shared/lite";
 import { normalMatchKey } from "../shared/matchReport";
+import { connection, shownOffline, subscribeConnection } from "./connection";
 
 /**
  * Is this request the main data of the page at `here` (a path, and its query `search`)? Only those count: a link
@@ -45,7 +46,13 @@ let slow = false;
 let fails: number[] = [];
 const listeners = new Set<() => void>();
 const emit = () => { for (const l of listeners) l(); };
-const online = () => typeof navigator === "undefined" || navigator.onLine !== false;
+/** Online with internet as far as anyone knows (src/lib/connection.ts): with none, or a Wi-Fi sign-in page in the
+ *  way, the light version can't load either, so it's never offered then. */
+const online = () => {
+  if (typeof navigator === "undefined") return true;
+  const c = connection();
+  return navigator.onLine !== false && !shownOffline(c);
+};
 
 function raise() {
   if (slow || !online()) return;
@@ -130,7 +137,9 @@ export function useLiteSuggested(): boolean {
       // Losing the signal altogether hides the offer at once (the offline pack's turn), and getting it back re-reads it.
       window.addEventListener("online", l);
       window.addEventListener("offline", l);
-      return () => { listeners.delete(l); window.removeEventListener("online", l); window.removeEventListener("offline", l); };
+      // The connection check finding no internet (or a sign-in page) hides it too.
+      const stop = subscribeConnection(l);
+      return () => { listeners.delete(l); stop(); window.removeEventListener("online", l); window.removeEventListener("offline", l); };
     },
     () => slow && !dismissed() && online(),
     () => false,
