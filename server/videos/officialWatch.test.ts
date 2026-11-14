@@ -114,6 +114,7 @@ describe("the official-video watcher", () => {
     expect(await pattern(moks.channelId)).toBeNull();
     // Seeded, a load doesn't ask for the lease: while a sync holds it, the load doesn't wait for it.
     const held = await tryAcquire("data sync", 60_000);
+    expect(held).toBeTruthy();
     const t = Date.now();
     try { await ownerOfficial(T0); } finally { await release(held!); }
     expect(Date.now() - t).toBeLessThan(1000);
