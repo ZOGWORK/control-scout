@@ -25,7 +25,7 @@ A search asking for video with nothing to play now offers questions with video r
 - [fixes] Events from last season get a turn when this season's have no clips
 
 ### Fixed
-- Search: "Questions with video" for an answer at an event this season could come out empty. Each nearby event was checked by a search of its own, in turn, and when this season's had no clips last season's never got a turn before the wait ran out. A few questions about the latest seasons' best known events with clips are now checked in the background at server start, and again once the data moves; they are offered when nothing nearby plays in time, without waiting longer. Each nearby season now gets at most half the turns. (`server/api/answers/videoSuggest.ts`, `server/index.ts`) (#1501)
+- Search: "Questions with video" for an answer at an event this season could come out empty. Each nearby event was checked by a search of its own, in turn, and when this season's had no clips last season's never got a turn before the wait ran out. A few questions about the latest seasons' best known events with clips are now checked in the background at server start, and again after each search index rebuild; they are offered when nothing nearby plays in time, without waiting longer. Each nearby season now gets at most half the turns. (`server/api/answers/videoSuggest.ts`, `server/index.ts`) (#1501)
 
 ## 6.3.6 — 2026-11-14
 
