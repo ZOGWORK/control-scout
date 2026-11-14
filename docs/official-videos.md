@@ -9,23 +9,52 @@ plays through the same YouTube embed as FIRST's own links.
 A channel is official for an event when it is one of:
 
 - the FIRST partner organisation for the country or region (Nație Prin Educație for Romania, NY Excelsior FIRST,
-  FIRST in Texas, FIRST Chesapeake, FTC Iowa, …),
+  FIRST in Texas, FIRST Chesapeake, FTC Iowa, FIRST Nevada, MT Robotics Alliance for Montana, BCA Activities for
+  North Dakota's "Dakota FTC", …). FIRST Nevada posts each meet as an upload a few days later, its title starting
+  with the meet's date ("2026-01-10 FTC League Meet # 4S - Southern Nevada"): the checked list takes that date as the
+  day, and the watcher, which needs a broadcast date, sends such uploads to the owner,
 - the event's own organiser or league (NTX FTC for FiT-North, GEARS for the Michiana Premier Event, …),
+- the event's own streamer: the channel that carries the event's broadcast with FIRST's official overlay (match
+  label, teams, scores and rankings on screen). Westwood Robotics (FRC 2583, Austin) streams FiT-Central's GEMS
+  league (Diamond and Emerald) and its Austin events. Its overlays-only test stream and the 2023 "Round Rock Gems"
+  titles (the events are listed in Austin) are left out,
+- the event's own streamer, where FIRST's event pages or the host name it: Stars of the Galaxy (FTC 12099) for the
+  Central Ohio league in Columbus, and the FIRST Alumni Network Grand Valley for the West Michigan league at GVSU in
+  Grand Rapids (watched for those events only; FANGV's Robot in 3 Days streams are FRC and never used),
+- the region's delivery partner or its event streamer in Rhode Island (Rhode Island FTC), Ontario (FTC Ontario),
+  Long Island (FIRST Long Island) and New York City (NYC FIRST, the channel FIRST's 2021-22 NYC pages link, under its
+  current handle). Town of Penfield Television is watched for upstate NY Excelsior events only: its videos are
+  edited uploads of days NY Excelsior FIRST's own recordings already cover, so none is linked. A title whose own
+  date or number disagrees with the broadcast is left out,
 - or the channel FIRST's event page names as the livestream (FIRST HQ's "FIRST Tech Challenge" channel carries the
   2026 Championship's division broadcasts, and FIRST's own event pages link its Day 4 videos).
 
-A team's channel, a spectator's upload, a re-upload or a local TV broadcast is never used, even of the same event.
+Any other team's channel (one that isn't the event's own streamer), a spectator's upload, a re-upload or a local TV
+broadcast is never used, even of the same event.
 `server/data/officialVideos.json` lists the channels each kept video came from.
+
+Regional streamers from the owner's audited list (2026-11-14), each read through the YouTube Data API's uploads list
+and checked by hand: FIRST in Missouri (the Missouri/Kansas partner: St. Louis, Southeast and Southwest leagues, the
+championship) and FIRST MOKS (Kansas City, one video per meet session).
+
+The owner's audited channel list (2026-11-14) adds four FIRST delivery partners: USTEM Foundation (Kazakhstan),
+Robotique FIRST France, Associazione Artù APS (Italy) and the Fikret Yüksel Foundation (Türkiye). It also adds The
+PRC Channel, the school channel that streamed Thailand's 2025 championship. That's its only event so far, so it's the
+weakest entry on the watchlist, and the owner can remove it if no second event follows. The second Italy channel
+(@ftc-italy) is not added: it has only webinars so far.
 
 ## How a video is matched to an event
 
-A video is kept only when all of these hold (`server/data/officialVideos.json` was built this way, and the
-auto-watcher uses the same rules):
+A video is kept only when all of these hold (`server/data/officialVideos.json` was built this way, with the two
+exceptions rules 2 and 7 name for the checked list only, and the auto-watcher uses the same rules):
 
 1. It's on an official channel, it exists, it's public, it can be embedded, and YouTube doesn't block it in most
    countries.
 2. It's a live broadcast whose start, at the venue, falls inside the event's dates in Scout. An upload has no
-   broadcast date, so it can't prove its day, and is left out.
+   broadcast date, so it can't prove its day, and is left out. The checked list makes one exception, by hand: an
+   upload whose title names its date (FIRST Nevada's "2026-01-10 FTC League Meet # 4S - Southern Nevada") and, where
+   a venue holds several meets that day, its session (FIRST MOKS's "FTC Meet @ Belton 8AM (2026-11-7)" is "Belton
+   Meet @ 8 AM"), or an upload of an event that played every match on one day (Scout's match times say which).
 3. Its title names the event: a distinctive word of the event's name or city (the league, the venue, "Mockingbird"),
    or the event's designators (an NTX league letter, a meet number, a UIL class, a stage). An event named by an
    acronym ("APOC") also fits a title spelling it out in words in a row ("Asia Pacific Open Championship"); a common
@@ -40,7 +69,13 @@ auto-watcher uses the same rules):
    one meet) mean the video is left out.
 7. The event doesn't already play a video for that day: FIRST's link, a short link's video, a channel's broadcasts, or
    the owner's stream. A day with two videos is kept only when the titles name the parts (the awards ceremony, the
-   eliminations, "Matches 1–5" and "Matches 6–14").
+   eliminations, "Matches 1–5" and "Matches 6–14"). The one exception, in the checked list only (the watcher never
+   does it): a broadcast restarted on the same channel that day, with identical titles, where the second broadcast
+   starts after the first one ends. Both are kept as Part 1 and Part 2 in broadcast order (NYC FIRST's 2025-26
+   Qualifiers 6 and 11 and Super Qualifier 2, its 2024-25 Super Qualifier 1 and its 2023-24 Qualifier 3). Titles that
+   differ count only when both name the same event and the second starts at most 30 minutes after the first ends
+   (Montana's 2023 State, "MT FTC Championship 2023" to 23:13:53Z, then "MT FTC State 2023" from 23:15:48Z). A second
+   broadcast that overlaps the first, or one the event's FIRST link already plays, is still left out.
 
 Per-match clips are never mapped from a title outside FIRST's own per-match videos (the Championship's are already
 FIRST's match videos, `matches.video`). A recording never hides FIRST's per-match video or a verified contributor's

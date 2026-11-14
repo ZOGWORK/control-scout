@@ -61,8 +61,36 @@ function hasSavedSeason() {
 }
 
 /** The full page a light one stands in for (fullHref in src/shared/lite.ts, kept in step: src/sw.lite.test.ts). */
+const SEASON_RE = /^\d{4}$/, TEAMS_RE = /^\d{1,6}(,\d{1,6}){0,3}$/;
+const CARRY = {
+  "/search": [["q", /^[^\u0000-\u001f]{1,200}$/], ["in", SEASON_RE]],
+  "/predict": [["season", SEASON_RE], ["red", TEAMS_RE], ["blue", TEAMS_RE]],
+  "/compare": [["teams", TEAMS_RE], ["season", SEASON_RE]],
+  "/rankings": [["season", SEASON_RE], ["region", /^[\p{L}\p{M}\d .'()&:,-]{1,200}$/u], ["page", /^\d{1,5}$/]],
+};
+function carried(page, params, first) {
+  const q = new URLSearchParams();
+  if (first) q.set(first[0], first[1]);
+  for (const [k, ok] of CARRY[page]) {
+    const v = params.getAll(k).map((x) => x.trim()).filter(Boolean).join(",");
+    if (v && ok.test(v)) q.set(k, v);
+  }
+  const s = q.toString().replace(/%2C/g, ",").replace(/%3A/g, ":");
+  return s ? `?${s}` : "";
+}
+
 function fullPage(url) {
   const rest = url.pathname.replace(/^\/lite/i, "") || "/";
+  const page = rest.replace(/(.)\/+$/, "$1").toLowerCase();
+  if (page === "/search" || page === "/compare" || page === "/rankings") return page + carried(page, url.searchParams);
+  if (page === "/predict") { const c = carried(page, url.searchParams, ["mode", "match"]); return c === "?mode=match" ? "/predict" : `/predict${c}`; }
+  if (page === "/settings") return "/settings";
+  if (page === "/scout") {
+    const q = new URLSearchParams();
+    for (const [k, v] of url.searchParams) if (k !== "lite" && /^[a-z]{1,20}$/i.test(k) && v.length <= 120 && !/[\u0000-\u001f]/.test(v)) q.append(k, v);
+    const s = q.toString();
+    return `/scout${s ? `?${s}` : ""}`;
+  }
   if (!/^\/picklist\/?$/i.test(rest)) return /^\/(events|teams)\//i.test(rest) ? rest + (/^\/teams\//i.test(rest) ? url.search : "") : "/";
   const q = new URLSearchParams();
   const space = url.searchParams.get("space");

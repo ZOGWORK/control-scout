@@ -4,7 +4,7 @@
 //   - the page's main data (an event, a team, a match, the pick list) still hasn't arrived LITE_SLOW_MS after the
 //     visitor got to the page (watchPage), or
 //   - LITE_FAILS requests failed to reach the server within LITE_FAIL_WINDOW_MS.
-// A request the page itself let go of (it navigated away) isn't a failure. "Not now" holds for the rest of the
+// A request the page itself let go of (it navigated away) isn't a failure. "Keep waiting" holds for the rest of the
 // browser session (sessionStorage), so the offer never nags.
 import { useSyncExternalStore } from "react";
 import { LITE_FAILS, LITE_FAIL_WINDOW_MS, LITE_SLOW_MS } from "../shared/lite";
@@ -37,19 +37,44 @@ export function isPageData(path: string, here = typeof location === "undefined" 
     const space = params.get("space"), season = params.get("season");
     return (!space || decodeURIComponent(m[1]) === space.toLowerCase()) && (!season || reqParams.get("season") === season);
   }
+  // Home's calendar; the search's answer; the matchup; the comparison; the ranking.
+  if (page === "" || page === "/") return req === "/api/events" && reqParams.has("from");
+  if (page === "/search") return req === "/api/search" && reqParams.get("answer") === "1";
+  if (page === "/predict") return req === "/api/predict/match";
+  if (page === "/compare") return req === "/api/compare";
+  if (page === "/rankings") return req === "/api/rankings";
+  return false;
+}
+
+/** Does the page at `here` load main data of its own, so a wait for it can be timed? Settings, scouting's forms, a
+ *  search or comparison not asked yet and Predict without a matchup have none: nothing to wait for. */
+export function hasPageData(here: string, search = ""): boolean {
+  const page = here.toLowerCase().replace(/\/+$/, "");
+  const params = new URLSearchParams(search);
+  if (/^\/events\/\d{4}\/[^/]+(\/match\/[^/]+)?$/.test(page) || /^\/teams\/\d+$/.test(page)) return true;
+  if (page === "/scout") return params.get("view") === "picklist" || (params.get("tab") === "planning" && !params.get("view"));
+  if (page === "" || page === "/rankings") return true;
+  if (page === "/search") return !!params.get("q")?.trim();
+  if (page === "/compare") return !!params.get("teams");
+  if (page === "/predict") return !!params.get("red") && !!params.get("blue");
   return false;
 }
 
 const DISMISS_KEY = "cs-lite-dismissed";
 let slow = false;
+/** Why the offer is up, for the card to say in plain words: the page waiting since `since`, or `count` requests that
+ *  couldn't reach the server within LITE_FAIL_WINDOW_MS. */
+export type LiteReason = { kind: "waiting"; since: number } | { kind: "loaded"; took: number } | { kind: "failing"; count: number; at: number };
+let reason: LiteReason | null = null;
 let fails: number[] = [];
 const listeners = new Set<() => void>();
 const emit = () => { for (const l of listeners) l(); };
 const online = () => typeof navigator === "undefined" || navigator.onLine !== false;
 
-function raise() {
+function raise(why: LiteReason) {
   if (slow || !online()) return;
   slow = true;
+  reason = why;
   emit();
 }
 
@@ -79,9 +104,11 @@ export function noteArrived(path: string) {
  */
 export function watchPage(here: string, search = ""): () => void {
   if (slow) { slow = false; emit(); }
+  // A page with no data of its own to wait for is never timed (requests failing can still offer Lite).
+  if (!hasPageData(here, search)) return () => {};
   const since = Date.now();
   const timer = setTimeout(() => {
-    if ((typeof location === "undefined" || (location.pathname === here && location.search === search)) && !hasArrived(here, search, since)) raise();
+    if ((typeof location === "undefined" || (location.pathname === here && location.search === search)) && !hasArrived(here, search, since)) raise({ kind: "waiting", since });
   }, LITE_SLOW_MS);
   return () => clearTimeout(timer);
 }
@@ -103,15 +130,26 @@ export function watchRequest(path: string, method = "GET"): { done: (usable?: bo
       noteArrived(path);
       // This page's data arriving quickly again: the connection recovered, so the offer goes.
       if (slow && isPageData(path) && Date.now() - at < LITE_SLOW_MS / 4) { slow = false; fails = []; emit(); }
+      // It came in slowly: the offer stays (the next page may be as slow), but the card stops counting and says how long it took.
+      else if (slow && reason?.kind === "waiting" && isPageData(path)) { reason = { kind: "loaded", took: Math.round((Date.now() - reason.since) / 1000) }; emit(); }
     },
     failed: () => {
       unreachable = true;
       if (!online()) return;
       const now = Date.now();
       fails = [...fails.filter((t) => now - t < LITE_FAIL_WINDOW_MS), now];
-      if (fails.length >= LITE_FAILS) raise();
+      if (fails.length < LITE_FAILS) return;
+      // Already up (waiting, or for failures): failures are the stronger evidence, kept current (the count in the
+      // window, the latest one's time).
+      if (slow) { reason = { kind: "failing", count: fails.length, at: now }; emit(); }
+      else raise({ kind: "failing", count: fails.length, at: now });
     },
   };
+}
+
+/** Why the offer is up (null when it isn't). */
+export function useLiteReason(): LiteReason | null {
+  return useSyncExternalStore((l) => { listeners.add(l); return () => { listeners.delete(l); }; }, () => (slow ? reason : null), () => null);
 }
 
 export function dismissLite() {
