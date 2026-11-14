@@ -6,7 +6,8 @@ import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { all, get, migrate, openDb, run, setDb } from "../db";
 import { OFFICIAL_CHANNELS } from "../data/officialChannels";
 import { STARTUP_CYCLE_MS } from "../warm";
-import { WATCH_CHECK_MS, WATCH_FIRST_MS, approveWatched, onRecordingAdded, type RecordingAdded, ownerOfficial, rejectWatched, removeChannel, removeOfficial, runOfficialWatch, saveChannel, seedOfficialChannels, watchIfDue } from "./officialWatch";
+import { release, tryAcquire } from "../data/lock";
+import { WATCH_CHECK_MS, WATCH_FIRST_MS, approveWatched, onRecordingAdded, type RecordingAdded, ownerOfficial, rejectWatched, removeChannel, removeOfficial, resetChannelsSeeded, runOfficialWatch, saveChannel, seedOfficialChannels, watchIfDue } from "./officialWatch";
 
 const TX = "UCKezDYNRPpAy2_1XRMBWKSw";
 const T0 = Date.parse("2026-01-10T00:00:00Z");
@@ -69,6 +70,54 @@ describe("the official-video watcher", () => {
     expect((await removeChannel(vt, "owner@example.test", T0)).ok).toBe(true);
     expect(await seedOfficialChannels(T0, true)).toBe(0);
     expect((await get<{ removed_at: string | null }>("SELECT removed_at FROM official_channels WHERE channel_id = ?", [vt]))?.removed_at).toBeTruthy();
+  });
+
+  it("keeps a seeded channel's title pattern the seed's (added, narrowed or dropped), never over the owner's edit", async () => {
+    const pattern = (id: string) => get<{ title_pattern: string | null }>("SELECT title_pattern FROM official_channels WHERE channel_id = ?", [id]).then((r) => r?.title_pattern ?? null);
+    const fimo = OFFICIAL_CHANNELS.find((c) => c.title === "FIRST in Missouri")!;
+    const iowa = OFFICIAL_CHANNELS.find((c) => c.title === "FTC Iowa")!;
+    // Both rows were seeded before their pattern shipped.
+    await run("UPDATE official_channels SET title_pattern = NULL WHERE channel_id IN (?, ?)", [fimo.channelId, iowa.channelId]);
+    // The owner saves Iowa with the same region and no pattern: theirs stands.
+    expect((await saveChannel({ channelId: iowa.channelId, title: iowa.title, region: iowa.region, words: iowa.words }, "owner@example.test", T0)).ok).toBe(true);
+    expect(await seedOfficialChannels(T0, true)).toBe(0);
+    expect(await pattern(fimo.channelId)).toBe(fimo.titlePattern);
+    expect(await pattern(iowa.channelId)).toBeNull();
+    // The save made the row the owner's in the same write (added_by); the seed's write alone decides, so each of its
+    // guards holds by itself: the owner's audit entry, and a region that isn't the seed's.
+    expect((await get<{ added_by: string | null }>("SELECT added_by FROM official_channels WHERE channel_id = ?", [iowa.channelId]))?.added_by).toBe("owner@example.test");
+    await run("UPDATE official_channels SET added_by = NULL WHERE channel_id = ?", [iowa.channelId]);
+    expect(await seedOfficialChannels(T0, true)).toBe(0);
+    expect(await pattern(iowa.channelId)).toBeNull();
+    const hawaii = OFFICIAL_CHANNELS.find((c) => c.title === "Hawaii FIRST Robotics")!;
+    await run("UPDATE official_channels SET title_pattern = NULL, region = 'state=HI;type=Championship' WHERE channel_id = ?", [hawaii.channelId]);
+    expect(await seedOfficialChannels(T0, true)).toBe(0);
+    expect(await pattern(hawaii.channelId)).toBeNull();
+    await run("UPDATE official_channels SET title_pattern = ?, region = ? WHERE channel_id = ?", [hawaii.titlePattern!, hawaii.region, hawaii.channelId]);
+    // A pattern the seed later narrows or drops follows it on a seed-owned row.
+    const moks = OFFICIAL_CHANNELS.find((c) => c.title.startsWith("FIRST MOKS"))!;
+    expect(moks.titlePattern).toBeUndefined();
+    await run("UPDATE official_channels SET title_pattern = 'missouri' WHERE channel_id = ?", [moks.channelId]);
+    await run("UPDATE official_channels SET title_pattern = 'missouri|kansas' WHERE channel_id = ?", [fimo.channelId]);
+    expect(await seedOfficialChannels(T0, true)).toBe(0);
+    expect(await pattern(moks.channelId)).toBeNull();
+    expect(await pattern(fimo.channelId)).toBe(fimo.titlePattern);
+    // While a data sync holds the writer lease, the owner panel still loads, and doesn't write.
+    await run("UPDATE official_channels SET title_pattern = 'missouri' WHERE channel_id = ?", [moks.channelId]);
+    resetChannelsSeeded();
+    const token = await tryAcquire("data sync", 60_000);
+    expect(token).toBeTruthy();
+    try { expect((await ownerOfficial(T0)).channels.length).toBeGreaterThan(0); } finally { await release(token!); }
+    expect(await pattern(moks.channelId)).toBe("missouri");
+    // Once the lease is free, the next load seeds.
+    await ownerOfficial(T0);
+    expect(await pattern(moks.channelId)).toBeNull();
+    // Seeded, a load doesn't ask for the lease: while a sync holds it, the load doesn't wait for it.
+    const held = await tryAcquire("data sync", 60_000);
+    expect(held).toBeTruthy();
+    const t = Date.now();
+    try { await ownerOfficial(T0); } finally { await release(held!); }
+    expect(Date.now() - t).toBeLessThan(1000);
   });
 
   it("reads each watched channel's new uploads once: adds the sure one, queues the rest, sets aside the rest", async () => {
