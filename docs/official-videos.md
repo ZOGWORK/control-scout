@@ -28,13 +28,15 @@ weakest entry on the watchlist, and the owner can remove it if no second event f
 
 ## How a video is matched to an event
 
-A video is kept only when all of these hold (`server/data/officialVideos.json` was built this way, and the
-auto-watcher uses the same rules):
+A video is kept only when all of these hold (`server/data/officialVideos.json` was built this way, with the two
+exceptions rules 2 and 7 name for the checked list only, and the auto-watcher uses the same rules):
 
 1. It's on an official channel, it exists, it's public, it can be embedded, and YouTube doesn't block it in most
    countries.
 2. It's a live broadcast whose start, at the venue, falls inside the event's dates in Scout. An upload has no
-   broadcast date, so it can't prove its day, and is left out.
+   broadcast date, so it can't prove its day, and is left out. The checked list's one exception: an upload whose title
+   starts with the meet's date (FIRST Nevada's "2026-01-10 FTC League Meet # 4S - Southern Nevada"), posted days
+   after it; that date is its day. The watcher still sends every upload to the owner.
 3. Its title names the event: a distinctive word of the event's name or city (the league, the venue, "Mockingbird"),
    or the event's designators (an NTX league letter, a meet number, a UIL class, a stage). An event named by an
    acronym ("APOC") also fits a title spelling it out in words in a row ("Asia Pacific Open Championship"); a common
@@ -49,7 +51,10 @@ auto-watcher uses the same rules):
    one meet) mean the video is left out.
 7. The event doesn't already play a video for that day: FIRST's link, a short link's video, a channel's broadcasts, or
    the owner's stream. A day with two videos is kept only when the titles name the parts (the awards ceremony, the
-   eliminations, "Matches 1–5" and "Matches 6–14").
+   eliminations, "Matches 1–5" and "Matches 6–14"), or, in the checked list only, when they are one day's broadcast
+   restarted on the same channel: the second starts at most 30 minutes after the first ends, they don't overlap, and
+   the rows say "Part 1" and "Part 2" in broadcast order (Montana's 2023 State, NorCal's 2022 Santa Clara QT, 7419's
+   East Bay Meet 1).
 
 Per-match clips are never mapped from a title outside FIRST's own per-match videos (the Championship's are already
 FIRST's match videos, `matches.video`). A recording never hides FIRST's per-match video or a verified contributor's
