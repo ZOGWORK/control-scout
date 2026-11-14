@@ -32,6 +32,11 @@ export const OFFICIAL_CHANNELS: OfficialChannelSeed[] = [
   { channelId: "UCN5qzssJPqSLLBgoXG0mO2g", title: "New England FIRST", region: "state=MA,NH,ME,VT,RI,CT", words: "england" },
   { channelId: "UCsWISiGfIiL5E-i9DPK2ftQ", title: "SoCal FTC", region: "state=CA", words: "california socal" },
   { channelId: "UCto1RvN3qyamf8GH7P7_abQ", title: "Georgia FIRST", region: "state=GA", words: "georgia", titlePattern: "\\bGA\\b|georgia" },
+  // The owner's audited list (2026-11-14); channel ids from the YouTube Data API (forHandle). CircuitRunners Robotics
+  // (FTC 1002, Marietta) streams the Marietta-Wheeler league and the Northwest League Tournament; Microchips & Queso
+  // (FTC 23350, San Antonio) its own off-season Queso Bowl, whose streams FIRST's event pages already link.
+  { channelId: "UCzxcU4h8qFiLWkdrmV9_TLw", title: "CircuitRunners Robotics (Georgia)", region: "state=GA;name=marietta|wheeler|northwest league", words: "georgia circuitrunners" },
+  { channelId: "UCLpE1wCLHdIMZ-cKpsVWsqQ", title: "Microchips & Queso (Texas)", region: "state=TX;name=queso", words: "texas queso microchips" },
   { channelId: "UCMkHRhdD35Jwg-rhbvspQEg", title: "FIRST in Alabama", region: "state=AL", words: "alabama", titlePattern: "alabama" },
   { channelId: "UCTaHVJzv8Hciyv6Sm8xGmiw", title: "FTC South Africa", region: "country=South Africa", words: "south african africa", titlePattern: "south africa" },
   { channelId: "UCuNd3shXL4BZsN7O7e3OPzQ", title: "Mississippi FIRST Tech Challenge", region: "state=MS", words: "mississippi", titlePattern: "mississippi" },
