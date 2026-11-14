@@ -17,7 +17,7 @@ import { completedSeason, currentSeason, defaultSeason, seasonWhy } from "./seas
 import { teamNameOf } from "../../../src/shared/teamTitle.js";
 import { teamPageSql } from "../../../src/shared/teamPages.js";
 import { all, get } from "../../db.js";
-import { isOfficialEvent } from "../../../src/shared/eventRecord.js";
+import { OFFICIAL_ONLY, isOfficialEvent } from "../../../src/shared/eventRecord.js";
 import { fuzzyScore } from "../fuzzy.js";
 import { search } from "../search.js";
 import { askSeason, eventWon, readAsk } from "../searchAsks.js";
@@ -585,7 +585,11 @@ export async function statAnswerOf(q: string, it0: StatQuestion, resolve: Resolv
   if (scope.seasonWhy) stat.definition = `${stat.definition} ${scope.seasonWhy}`;
   // An off-season event named counts its own matches (./clauses.ts officialClause): every family's method note says
   // official events only, so the exception is said once here, for whichever answered.
-  if (scope.event && !scope.event.absent && (await namedOffSeason(scope.event))) stat.definition = `${stat.definition} ${NAMED_OFF_SEASON}`;
+  if (scope.event && !scope.event.absent && (await namedOffSeason(scope.event))) {
+    stat.definition = `${stat.definition} ${NAMED_OFF_SEASON}`;
+    // A headline saying "Official events only" (a record, a win count) is the off-season event's own here.
+    if (stat.headline?.sub?.includes(OFFICIAL_ONLY)) stat.headline = { ...stat.headline, sub: stat.headline.sub.replace(OFFICIAL_ONLY, "Off-season event, its own matches") };
+  }
   // A state championship read as one season's: the team's other seasons there, each its own question (by the year held).
   if (it.scope.states && scope.event && !scope.event.absent) {
     const other = [...new Set((await teamEventSet(team.number)).events.filter((e) => e.type === STATES_TYPE && played(e) && e.season !== scope.event!.season).map((e) => e.season))].sort((x, y) => y - x);
