@@ -48,7 +48,7 @@ export function NetworkSection() {
   const why = advice.kind === "slow" ? slowReason({ effectiveType: net?.effectiveType, saveData: conn.saveData, slowSeen }) : null;
   const tone = conn.internet === "yes" ? "ok" : conn.internet === "unknown" ? "wait" : conn.internet === "portal" ? "warn" : "off";
   const connected = conn.internet === "yes";
-  const m = useManifest(connected);
+  const m = useManifest(connected, conn.checkedAt);
   return (
     <div data-network-section="">
       <section aria-labelledby="net-status" className="mb-8 max-sm:mb-5 rounded-xl border border-border bg-card p-4 sm:p-5" data-net-status={conn.internet}>
@@ -124,14 +124,24 @@ function Downloads({ m }: { m: PackManifest | null }) {
 }
 
 /** The pack manifest (sizes of every download), read once while there's internet. */
-function useManifest(connected: boolean): PackManifest | null {
+/** The pack list, for the real sizes. A failed load is asked again: after a short wait (a few times), and on every
+ *  Check again (`checkedAt` moves even when the answer stays "yes"). */
+export const MANIFEST_RETRY_MS = 15_000;
+const MANIFEST_TRIES = 4;
+function useManifest(connected: boolean, checkedAt: number | string | null | undefined): PackManifest | null {
   const [m, setM] = useState<PackManifest | null>(null);
+  const [failed, setFailed] = useState(0);
+  useEffect(() => { setFailed(0); }, [checkedAt]);
   useEffect(() => {
     if (!connected || m) return;
     let live = true;
-    fetchManifest().then((x) => { if (live) setM(x); }, () => { /* sizes say they need a connection */ });
-    return () => { live = false; };
-  }, [connected, m]);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    fetchManifest().then((x) => { if (live) setM(x); }, () => {
+      // Sizes say they need a connection meanwhile.
+      if (live && failed + 1 < MANIFEST_TRIES) timer = setTimeout(() => { if (live) setFailed((n) => n + 1); }, MANIFEST_RETRY_MS);
+    });
+    return () => { live = false; if (timer) clearTimeout(timer); };
+  }, [connected, m, failed, checkedAt]);
   return m;
 }
 

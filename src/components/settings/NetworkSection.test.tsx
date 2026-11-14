@@ -112,3 +112,24 @@ describe("Network & offline: downloads and controls", () => {
     expect(await screen.findByText(/Freed 2\.5 MB/)).toBeTruthy();
   });
 });
+
+describe("Network & offline: the real sizes", () => {
+  it("a pack list that failed to load is asked again on Check again", async () => {
+    let listAsks = 0;
+    const manifest = { format: 1, version: "v", builtAt: "", engineVersion: "x", dataAsOf: null, full: [],
+      lite: { name: "lite.json.gz", url: "/packs/lite.json.gz", bytes: 3_800_000, sha256: "a", seasons: [2025], kind: "lite", contents: "" } };
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+      if (url === "/api/health") return new Response(JSON.stringify({ ok: true }), { status: 200 });
+      if (url === "/packs/latest.json") { listAsks++; return listAsks === 1 ? new Response("busy", { status: 503 }) : new Response(JSON.stringify(manifest), { status: 200 }); }
+      return new Response("{}", { status: 404 });
+    }));
+    await act(async () => { await checkInternet(); });
+    show();
+    await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+    expect(listAsks).toBe(1);
+    expect(screen.queryByText(/Offline predictions use/)).toBeNull();
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: /Check again/ })); });
+    expect(await screen.findByText("Offline predictions use 3.8 MB.")).toBeTruthy();
+    expect(listAsks).toBe(2);
+  });
+});
