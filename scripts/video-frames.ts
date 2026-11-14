@@ -25,7 +25,7 @@
 //   TESSERACT_JS=<path to tesseract.js's entry>  where tesseract.js is, when it isn't in node_modules
 import { readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
-import { AUTO_S, SAME_S, SWITCH_S, TELEOP_S, TRIES, elapsed, overlayLabel, placed, secondsOf, type M } from "./lib/videoFrames";
+import { AUTO_S, SAME_S, SWITCH_S, TELEOP_S, TRIES, elapsed, judge, overlayLabel, secondsOf, type Judged, type M } from "./lib/videoFrames";
 
 const arg = (k: string) => { const i = process.argv.indexOf(`--${k}`); return i > 0 ? process.argv[i + 1] : undefined; };
 const flag = (k: string) => process.argv.includes(`--${k}`);
@@ -40,6 +40,7 @@ const R = await import("../server/videos/recordings.js");
 const { actualStart } = await import("../src/shared/recording.js");
 const { localToUtcMs } = await import("../src/shared/time.js");
 const { FRAME_TIMINGS } = await import("../server/data/frameTimings.js");
+type FrameTiming = (typeof FRAME_TIMINGS)[number];
 const T: any = await import(process.env.TESSERACT_JS ?? "tesseract.js");
 const createWorker = T.createWorker ?? T.default?.createWorker;
 
@@ -106,6 +107,16 @@ async function readAt(page: Page, t: number): Promise<Read> {
   return { label, start: e == null ? null : Math.round(atA - e), at, text };
 }
 
+/** A read stands only when frames before and after its start agree: 70 s on (TeleOp), the overlay names the same match
+ *  and its timer gives the same start; 25 s before, that match isn't running yet. One read alone is never a start
+ *  (a wrong match number on screen for a few seconds, a replay, a digit read wrong). */
+async function confirmed(page: Page, label: string, start: number): Promise<boolean> {
+  const at = await readAt(page, start + 70);
+  if (at.label !== label || at.start == null || Math.abs(at.start - start) > SAME_S) return false;
+  const before = await readAt(page, start - 25);
+  return !(before.label === label && before.start != null);
+}
+
 /** Matches in a row with no read before a video counts as one without the overlay. */
 const MISSES = 3;
 
@@ -113,24 +124,33 @@ const MISSES = 3;
 
 /** The second each of a video's matches starts at, as far as its frames show. `shift`: the video's second for a moment
  *  minus that moment (epoch seconds), when YouTube gives the broadcast's start (an upload has none). */
-async function placeVideo(page: Page, ms: M[], shift: number | null, length: number, log: (s: string) => void): Promise<Map<string, number>> {
+async function placeVideo(page: Page, ms: M[], shift: number | null, length: number, log: (s: string) => void): Promise<Judged> {
   const byLabel = new Map(ms.map((m, i) => [m.label, i]));
-  const seen = new Map<number, number>(); // index → start second
-  let reads = 0;
+  const seen = new Map<number, number>(); // index → confirmed start second
+  const tried = new Set<number>(); // matches a read named, confirmed or not
+  let reads = 0, unconfirmed = 0;
   const near = (i: number): number | null => {
     // The distance of the read nearest by order, else the broadcast's.
     let best: number | null = null, d = Infinity;
     for (const [k, s] of seen) if (Math.abs(k - i) < d) { d = Math.abs(k - i); best = s - ms[k].epoch; }
     return best ?? shift;
   };
-  const note = (r: Read) => { if (r.label && r.start != null && byLabel.has(r.label)) seen.set(byLabel.get(r.label)!, r.start); };
+  const note = async (r: Read) => {
+    if (!r.label || r.start == null || !byLabel.has(r.label)) return;
+    const i = byLabel.get(r.label)!;
+    tried.add(i);
+    if (seen.has(i)) return;
+    reads += 2;
+    if (await confirmed(page, r.label, r.start)) seen.set(i, r.start);
+    else unconfirmed++;
+  };
 
   // Any match at all, a frame every 10 minutes: where there's no clock to go by (an upload), or the clock's guesses read
   // nothing (a broadcast whose start YouTube has wrong).
-  const scan = async () => { for (let t = 300; t < length && !seen.size; t += 600) { note(await readAt(page, t)); reads++; } };
+  const scan = async () => { for (let t = 300; t < length && !seen.size; t += 600) { await note(await readAt(page, t)); reads++; } };
   if (shift == null) {
     await scan();
-    if (!seen.size) { log("    no match found in it"); return new Map(); }
+    if (!seen.size) { log("    no match found in it"); return judge(ms, seen, shift, length, tried); }
   }
 
   // A video without FTC Live's overlay (a camera-only stream) reads nothing: stop after a few matches in a row with no
@@ -148,7 +168,7 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
       if (t < 0 || t > length) continue;
       const r = await readAt(page, t);
       reads++;
-      note(r);
+      await note(r);
       if (seen.has(i)) { missed = 0; return seen.get(i)!; }
     }
     missed++;
@@ -173,8 +193,16 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
     if (seen.size) { log(`    the clock read nothing; found by scanning, ${reads} frames in`); missed = 0; await span(0, ms.length - 1); }
   }
   if (blind()) log(`    no overlay read in ${reads} frames`);
-  const out = placed(ms, seen);
-  log(`    ${out.size} of ${ms.length} placed, ${seen.size} read, ${reads} frames${out.size < ms.length ? `; not placed: ${ms.filter((m) => !out.has(m.label)).map((m) => m.label).join(" ")}` : ""}`);
+  const j = judge(ms, seen, shift, length, tried);
+  const out = new Map([...j.placed].map(([l, p]) => [l, p.t]));
+  const high = [...j.placed.values()].filter((p) => p.confidence === "high").length;
+  log(`    ${out.size} of ${ms.length} placed (${high} high, ${out.size - high} medium), ${seen.size} read, ${unconfirmed} reads not confirmed, ${reads} frames`);
+  if (j.review.size) log(`    for review: ${[...j.review].map(([l, r]) => `${l} (${r.why})`).join("; ")}`);
+  if (j.missing.size) {
+    const why = new Map<string, string[]>();
+    for (const [l, w] of j.missing) why.set(w, [...(why.get(w) ?? []), l]);
+    log(`    missing: ${[...why].map(([w, ls]) => `${ls.join(" ")} (${w})`).join("; ")}`);
+  }
   // Each stretch the video holds without a gap: its matches and how far the video sits from the clock there.
   const runs: string[] = [];
   let prev: number | null = null, first = "", last = "";
@@ -189,15 +217,14 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
   }
   if (first) runs.push(`${first}–${last} ${prev} s`);
   log(`    video minus clock${shift == null ? " (from the first read)" : ""}: ${runs.join(", ")}`);
-  return out;
+  return j;
 }
 
 // --- The recordings ------------------------------------------------------------------------------------------------
 
 const recs = await R.seasonRecordings(season);
 const codes = [...recs.keys()].filter((c) => !only || only.includes(c)).sort();
-const kept = new Map<string, { videoId: string; code: string; checked: string; starts: Record<string, number> }>(
-  FRAME_TIMINGS.map((f) => [`${f.videoId}|${f.code}`, { ...f, starts: { ...f.starts } }]));
+const kept = new Map<string, FrameTiming>(FRAME_TIMINGS.map((f) => [`${f.videoId}|${f.code}`, { ...f, starts: { ...f.starts } }]));
 const browser = await chromium.launch({ args: ["--autoplay-policy=no-user-gesture-required"] });
 const today = new Date().toISOString().slice(0, 10);
 let done = 0;
@@ -256,15 +283,24 @@ async function doCode(code: string): Promise<void> {
       await page.addStyleTag({ content: ".ytp-caption-window-container, .caption-window, .ytp-chrome-top, .ytp-pause-overlay, .ytp-show-cards-title, .ytp-ce-element, .ytp-player-content.ytp-iv-player-content, .ytp-large-play-button, .ytp-bezel, .ytp-chrome-bottom { display: none !important; }" });
       log(`  ${v.videoId}: ${mine.length} matches`);
       console.error(`${new Date().toISOString().slice(11, 19)} ${code} ${v.videoId}: ${mine.length} matches`);
-      const out = await placeVideo(page, mine, from == null ? null : -from, m.length!, log);
+      const j = await placeVideo(page, mine, from == null ? null : -from, m.length!, log);
+      const out = new Map([...j.placed].map(([l, p]) => [l, p.t]));
       for (const l of out.keys()) held.add(l);
       if (CHECK) {
         const clock = new Map(placed.filter((x) => x.clip?.videoId === v.videoId).map((x) => [x.label, x.clip!.t + 20]));
         const diffs = [...out].filter(([l]) => clock.has(l)).map(([l, s]) => s - clock.get(l)!);
         log(`    frames minus clock: ${diffs.length ? `median ${diffs.sort((a, b) => a - b)[diffs.length >> 1]} s, range ${diffs[0]} to ${diffs.at(-1)} s over ${diffs.length}` : "none to compare"}`);
-      } else if (out.size) {
+      } else {
+        // Every match the video holds is written: placed with its confidence, for review, or missing with the reason.
         const key = `${v.videoId}|${code}`;
-        kept.set(key, { videoId: v.videoId, code, checked: today, starts: Object.fromEntries([...out].sort((a, b) => a[1] - b[1])) });
+        const sorted = [...j.placed].sort((a, b) => a[1].t - b[1].t);
+        kept.set(key, {
+          videoId: v.videoId, code, checked: today,
+          starts: Object.fromEntries(sorted.map(([l, p]) => [l, p.t])),
+          ...(sorted.some(([, p]) => p.confidence === "medium") ? { medium: sorted.filter(([, p]) => p.confidence === "medium").map(([l]) => l) } : {}),
+          ...(j.review.size ? { review: Object.fromEntries(j.review) } : {}),
+          ...(j.missing.size ? { missing: Object.fromEntries(j.missing) } : {}),
+        });
       }
     } catch (e) {
       log(`    couldn't play: ${(e as Error).message.split("\n")[0]}`);
