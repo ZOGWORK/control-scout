@@ -178,8 +178,9 @@ export interface SearchAnswer {
   /** A team found but its question not answered directly: two or three questions search does answer about it, each
    *  from what its records hold ("4215 worlds appearances", "4215 record 2025–26"), shown as taps. */
   suggest?: string[];
-  /** The video the site has for what the answer is about (server/api/answers/video.ts); absent: none. */
-  video?: SearchVideo;
+  /** The video the site has for what the answer is about (server/api/answers/video.ts); null: read, and none; absent: not
+   *  read yet (a page's first paint carries the answer without it), so nothing may say there is none. */
+  video?: SearchVideo | null;
 }
 
 /**

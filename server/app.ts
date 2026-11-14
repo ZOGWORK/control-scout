@@ -442,11 +442,13 @@ export function createApp(opts: { dist?: string; /** Tests only: a smaller searc
       // Its video (server/api/answers/video.ts): one read for the whole answer, beside the team rows'.
       // Match videos people added are for the viewer asking (docs/contributors.md): an answer carrying one is never cached.
       const viewer = await asking;
-      const [hits, video] = await Promise.all([answerHits(full.hits), answerVideo(full, Date.now(), viewer).catch(() => undefined)]);
+      const [hits, video] = await Promise.all([answerHits(full.hits), answerVideo(full, Date.now(), viewer).then((v) => v ?? null, () => undefined)]);
       if (video && (video.main?.kind === "contributor" || Object.values(video.rows ?? {}).some((x) => x.kind === "contributor"))) res.setHeader("Cache-Control", "private, no-store");
       // This process's own time (searchTiming): the answer, then the rest (highlights, team numbers, video).
       res.setHeader("Server-Timing", searchTiming({ answer: answered - started, extras: performance.now() - answered }));
-      return { ...full, hits, ...(video ? { video } : {}) };
+      // null: read, and nothing plays (the page then says so); a read that failed sends none, as a first paint carries
+      // none (src/shared/api.ts): the page then says nothing about video.
+      return { ...full, hits, ...(video !== undefined ? { video } : {}) };
     }
     return { q: String(req.query.q ?? ""), hits: await search(String(req.query.q ?? "").slice(0, MAX_QUERY), limit, prefer, kinds) };
   }));
@@ -1018,6 +1020,12 @@ export function createApp(opts: { dist?: string; /** Tests only: a smaller searc
   app.get("/support", (req, res) => {
     const q = req.originalUrl.indexOf("?");
     res.redirect(301, `/donate${q >= 0 ? req.originalUrl.slice(q) : ""}`);
+  });
+  // /network: the Network & offline settings (a section of Settings).
+  // 301 with the query kept, like /support: /network?lite=0 reaches the full screen while Lite is on.
+  app.get("/network", (req, res) => {
+    const q = req.originalUrl.indexOf("?");
+    res.redirect(301, `/settings${q >= 0 ? req.originalUrl.slice(q) : ""}#network`);
   });
   // An event's address without its season (/events/USNJNEM2): 301 to the newest season's page, query kept. An unknown
   // code goes on to the 404; /events/2026 (a season, no code) is never read as a code.
