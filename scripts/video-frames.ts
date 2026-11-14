@@ -25,7 +25,7 @@
 //   TESSERACT_JS=<path to tesseract.js's entry>  where tesseract.js is, when it isn't in node_modules
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
-import { AUTO_S, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, elapsed, judge, NOTHING_READ, overlayLabel, secondsOf, type Judged, type M } from "./lib/videoFrames";
+import { AUTO_S, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, elapsed, leadIn, judge, NOTHING_READ, overlayLabel, secondsOf, type Judged, type M } from "./lib/videoFrames";
 
 // The command line: --name value or --name=value for the value flags, --name alone for the others. Anything else stops
 // the run before it reads: a misspelt flag mustn't quietly read (and write) every recording of the season.
@@ -281,6 +281,10 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
     await span(mid, j);
   }
   await span(0, ms.length - 1);
+  // The matches before the first read, each from the nearest read's distance now (the clock alone may put them before
+  // the video's start): the first that can't be read ends it.
+  const firstSeen = Math.min(...seen.keys());
+  for (let i = firstSeen - 1; i >= 0 && Number.isFinite(firstSeen) && !blind() && reads() < budget; i--) if ((await anchor(i)) == null) break;
   if (blind() && shift != null) {
     await scan();
     if (seen.size) { log(`    the clock read nothing; found by scanning, ${reads()} frames in`); missed = 0; await span(0, ms.length - 1); }
@@ -427,8 +431,11 @@ async function doCode(code: string): Promise<void> {
     const m = v.meta!;
     const from = m.start ? Date.parse(m.start) / 1000 : null;
     // The matches this video holds: inside its broadcast, or, with no broadcast start (an upload), every match no other video holds.
-    const mine = played.filter((x) => !held.has(x.label) && (from == null ? !videos.some((o) => o !== v && o.meta?.start && Date.parse(o.meta.start) / 1000 <= x.epoch && (!o.meta.end || x.epoch <= Date.parse(o.meta.end) / 1000))
-      : from <= x.epoch && (!m.end || x.epoch <= Date.parse(m.end) / 1000)));
+    const windows = videos.map((o) => ({ start: o.meta?.start ? Date.parse(o.meta.start) / 1000 : null, end: o.meta?.end ? Date.parse(o.meta.end) / 1000 : null }));
+    const inside = (o: (typeof videos)[number], at: number) => !!o.meta?.start && Date.parse(o.meta.start) / 1000 <= at && (!o.meta.end || at <= Date.parse(o.meta.end) / 1000);
+    const lead = (x: (typeof played)[number]) => leadIn(x.epoch, videos.indexOf(v), windows);
+    const mine = played.filter((x) => !held.has(x.label) && (from == null ? !videos.some((o) => o !== v && inside(o, x.epoch))
+      : (from <= x.epoch && (!m.end || x.epoch <= Date.parse(m.end) / 1000)) || lead(x)));
     // A video read well on an earlier run keeps its row: the event is back for another of its videos (a new link, one
     // that couldn't be played), and a re-read now could place fewer of this one's matches. --all reads it again.
     const prior = kept.get(`${v.videoId}|${code}`);
