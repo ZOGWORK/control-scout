@@ -1,53 +1,53 @@
 # Clip coverage audit
 
-Run 2026-11-14T04:39:50.681Z on a copy of the live database (VACUUM INTO), with `scripts/clip-coverage.ts`, after #1458 (cut-off starts) and #1460. The full per-match list with teams is the CSV it writes (6 MB, not committed).
+Run 2026-11-14T14:18:17.573Z on a copy of the live database (VACUUM INTO), with `scripts/clip-coverage.ts` at #1457's final code (no-start matches counted in their day's video, cut-off starts, frame-checked limits), after #1458 and #1460. Reasons with no match are left out of the table (none was unexplained). The full per-match list with teams is the CSV it writes (7 MB, not committed).
 
 | | Count |
 |---|---:|
-| Events checked (a linked recording or FIRST match videos) | 1039 |
-| Recording videos checked | 1227 |
-| Played matches checked | 35897 |
-| With a clip | 24600 |
-| Without a clip | 11297 |
+| Events checked (a linked recording or FIRST match videos) | 1300 |
+| Recording videos checked | 1521 |
+| Played matches checked | 42980 |
+| With a clip | 28051 |
+| Without a clip | 14929 |
 
 ## Events by coverage
 
 | State | Events |
 |---|---:|
-| full | 581 |
-| unplaced | 247 |
-| partial | 166 |
-| pending | 45 |
+| full | 662 |
+| unplaced | 393 |
+| partial | 186 |
+| pending | 59 |
 
 ## Why matches have no clip
 
 | Reason | Matches |
 |---|---:|
-| Video shorter than its broadcast, missing time can't be placed | 6393 |
-| An early start would open on the match before | 1898 |
-| Video unavailable or private | 771 |
-| No recording for that day | 588 |
-| Video has no broadcast clock | 497 |
+| Video shorter than its broadcast, missing time can't be placed | 7055 |
+| Video has no broadcast clock | 3300 |
+| An early start would open on the match before | 1937 |
+| Video unavailable or private | 732 |
+| No recording for that day | 428 |
 | Past the part of the video its chapters confirm | 424 |
-| Played before the broadcast started | 375 |
-| Played after the broadcast ended | 185 |
-| No real start time from FIRST | 163 |
-| After the video ends | 2 |
-| FIRST posted no video for this match | 1 |
+| Played before the broadcast started | 422 |
+| No real start time from FIRST | 400 |
+| Played after the broadcast ended | 226 |
+| After the video ends | 5 |
 
 ## What clips stand on
 
 | Basis | Clips |
 |---|---:|
-| clock, video length matches its broadcast | 21443 |
-| clock, tail of the stream cut after the event | 1049 |
-| clock only, started up to 15 min early (gap can't be placed) | 885 |
+| clock, video length matches its broadcast | 24942 |
+| clock, tail of the stream cut after the event | 1136 |
+| clock only, started up to 15 min early (gap can't be placed) | 929 |
 | clock + YouTube chapters | 617 |
-| FIRST's match video | 476 |
+| FIRST's match video | 292 |
 | clock + YouTube chapters (its start cut off) | 75 |
 | clock + frames checked by eye | 55 |
+| clock, broadcast still live | 5 |
 
-## Clips on one signal only (885)
+## Clips on one signal only (929)
 
 Started early by the whole gap because the missing time can't be placed: nothing but the clock places them. Withheld once Step 3's second-signal check lands.
 
@@ -61,6 +61,7 @@ Started early by the whole gap because the missing time can't be placed: nothing
 - 2025 FPERR · 8OelOORV5oc (Run for the Robots Premier Event): F1–F3
 - 2025 FPEWE · mfEK4qhAC8c (Western Edge Premier Event): F1–F2
 - 2025 KZCMP · wbAPxGO-cYY (Kazakhstan Central Asia Championship): F1–F2
+- 2025 KZCMPJNB2 · wbAPxGO-cYY (Kazakhstan Central Asia Championship - Janibek Division): M10–M11
 - 2025 ROCMPCND · pvmxbH8YW-k (Romania Championship - COANDA Division): Q1, Q3, Q6–Q7, Q17
 - 2025 ROCMPVLC · upv_j3SsqIc (Romania Championship - VLAICU Division): M1, M9–M14
 - 2025 TRTUQ2 · ISUifIkmsuw (2. Piri Reis Turnuvası): Q1, Q3–Q11, Q13, Q18–Q19, Q21–Q22, M1–M6
@@ -114,12 +115,14 @@ Started early by the whole gap because the missing time can't be placed: nothing
 - 2024 USMSMEQ · NXDKSE8IqlU (Meridian Qualifier): Q1, Q11, Q16, Q19, Q22, M1–M3, M5–M6
 - 2024 USMSTUQ · XUELHF0b_54 (Tupelo Qualifier): Q1–Q7, Q9–Q23, M1–M7
 - 2024 USNYEXCOQ · GToFNJ0Egac (Corning Qualifier): Q1, Q3, Q6–Q9, Q17, M1, M3–M4, M4-2, M5–M7
+- 2024 USNYNYNYQ · EX7pPUu4cPw (NYC QUALIFIER 1): Q1, Q16, M1, M5, M10
 - 2024 USOHNEOHLT · F2OE_HsHA1Q (NEOH Aurora League Tournament): Q1, Q9, Q11, M1, M3, M5–M6
 - 2024 USOHNEOHM3 · Q8cSB2k5g6M (NEOH Meet 3): Q1–Q12
 - 2024 USORSOM1 · iW3dh6qGaSE (SOAR League Meet 1): Q1–Q4, Q6, Q9–Q12, Q14–Q16, Q19–Q20, Q23
 - 2024 USORSOM2 · neHlobPVL6U (SOAR League Meet 2): Q1–Q2, Q5, Q7, Q9, Q11, Q14, Q16, Q18–Q19, Q22
 - 2024 USPACMP · Z5MjxPQa8gg (Pennsylvania Championship): Q1, Q3, Q5–Q6
 - 2024 USTXCALT1 · qBEw661kTGw (FiT-Central North San Antonio & Hill Country League Tournament): Q1
+- 2024 USTXCGM1 · _rS6lNOYJYs (FiT-Central GEMS Emerald League Meet 1): Q1–Q10, Q13
 - 2024 USTXNSM2 · zZ36AlutIyg (FiT-North S-League Meet 2): Q1–Q9, Q12–Q15, Q17–Q24
 - 2024 USTXTBSQJB · hxWqkLAuVAY (FiT-Central Regional Championship - Jocelyn Burnell Division): Q1, Q6, Q8, Q11, Q14, Q16, Q22, Q30, M1
 - 2023 CABCCMP · qKPNWgTD16E (British Columbia FTC Championships): Q1, Q11, Q23, M1, F1–F2
@@ -138,6 +141,7 @@ Started early by the whole gap because the missing time can't be placed: nothing
 - 2022 ROBUQ2 · DCr1GSWOzEI (RO BUCHAREST #2 - FTC ROMANIA QUALIFYING TOURNAMENT): Q104, M1, F1–F2
 - 2022 USIASOM2 · ym7HUlwd76k (IA Solar_Meet_2022-12-17): Q1–Q2, Q9, Q14–Q15
 - 2022 USIAWIM7 · 4DIpuVlm0hY (IA Wind_Meet_2022-11-19): Q1–Q11, Q14–Q18, Q20–Q24
+- 2022 USRIEGQ · Gt8cKxj0hCo (RI New England Tech Qualifier): Q1–Q18, M1, M1-2, M2, M2-2, M2-3, F1–F3
 - 2021 USNYNYBRQ1 · l7HXo2KWJ_4 (NY-NYC Qualifier 1): Q1, Q3, Q5, Q11, M1, F1–F2
 
 ## Every event with a match missing a clip
@@ -172,12 +176,33 @@ Per event, per video (day · part), per reason: the matches. Every match's teams
 ### 2026 USMISOQ — Southgate Qualifier: 28 of 48 (partial)
 - Saturday `s47802Jj5uk`: 28 of 48 held
   - Q5, Q8, Q11–Q14, Q20–Q23, Q25, Q31, Q33–Q37, M4–M6 · s47802Jj5uk: An early start would open on the match before (starts up to 4 min early)
+### 2026 USMIWMM2 — West Michigan Meet 2: 0 of 12 (unplaced)
+- Saturday `1K5DNOqzuIg`: 0 of 12 held — Video 15 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
+  - Q1–Q12 · 1K5DNOqzuIg: Video 15 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
 ### 2026 USMIWMM3 — West Michigan Meet 3: 0 of 8 (unplaced)
 - Saturday `8sBg4gdx62g`: 0 of 8 held — Video 34 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
   - Q1–Q8 · 8sBg4gdx62g: Video 34 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
 ### 2026 USMIWMM4 — West Michigan Meet 4: 14 of 15 (partial)
 - Friday `RG6gzxaC1OU`: 14 of 15 held
   - Q1 · RG6gzxaC1OU: Played before the broadcast started
+### 2026 USMOKSKCMM1 — Belton Meet @ 1 PM: 0 of 14 (unplaced)
+- Saturday `bR556QnpUdM`: 0 of 14 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q14 · bR556QnpUdM: Video has no broadcast clock (an upload, not a live stream)
+### 2026 USMOKSKCMM2 — Belton Meet @ 8 AM: 0 of 15 (unplaced)
+- Saturday `W4z7U4GojHs`: 0 of 15 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q15 · W4z7U4GojHs: Video has no broadcast clock (an upload, not a live stream)
+### 2026 USMOKSKCWM1 — Belton Meet @ 10:30 AM: 0 of 15 (unplaced)
+- Saturday `oBRIzLgPBPY`: 0 of 15 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q15 · oBRIzLgPBPY: Video has no broadcast clock (an upload, not a live stream)
+### 2026 USMOKSSTLSM1 — Collegiate Meet @ 9 AM: 13 of 15 (partial)
+- Saturday `OMN4AaLeIdc`: 13 of 15 held
+  - Q1–Q2 · OMN4AaLeIdc: Played before the broadcast started
+### 2026 USNVNNM1 — Northern League Meet # 1N: 0 of 15 (unplaced)
+- Saturday `pzLa5zR06tY`: 0 of 15 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q15 · pzLa5zR06tY: Video has no broadcast clock (an upload, not a live stream)
+### 2026 USNVRES — Northern Tinker & Play Scrimmage: 0 of 8 (unplaced)
+- Saturday `qMTvNu0RWiw`: 0 of 8 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q8 · qMTvNu0RWiw: Video has no broadcast clock (an upload, not a live stream)
 ### 2026 USOHCOHM1 — Central Ohio League Meet 1: 0 of 20 (unplaced)
 - Day `07z482i0RiM`: 0 of 20 held — Video has no broadcast clock (an upload, not a live stream)
   - Q1–Q20 · 07z482i0RiM: Video has no broadcast clock (an upload, not a live stream)
@@ -193,6 +218,9 @@ Per event, per video (day · part), per reason: the matches. Every match's teams
 ### 2026 USPAKSN — Longhorn Roundup Scrimmage: 5 of 26 (partial)
 - Saturday `qfOtpwmt9OY`: 5 of 26 held
   - Q2–Q4, Q6, Q8, Q10–Q20, Q22–Q26 · qfOtpwmt9OY: An early start would open on the match before (starts up to 9 min early)
+### 2026 USTXCEGEM1 — CTX GEMS Emerald League Meet 1: 19 of 20 (partial)
+- Saturday `1Gq5v8ZLZzo`: 19 of 20 held
+  - Q1 · 1Gq5v8ZLZzo: Played before the broadcast started
 ### 2026 USWALAM1 — Lamarr League Meet 1: 0 of 23 (unplaced)
 - Saturday `sTIfwAaLPzk`: 0 of 23 held — Video 24 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
   - Q1–Q23 · sTIfwAaLPzk: Video 24 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
@@ -223,6 +251,9 @@ Per event, per video (day · part), per reason: the matches. Every match's teams
 ### 2025 CAONBUQ — Burlington Qualifier: 0 of 39 (unplaced)
 - Saturday `Y0kALAfm3EM`: 0 of 39 held — Video 2 h 52 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
   - Q1–Q29, M1–M10 · Y0kALAfm3EM: Video 2 h 52 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
+### 2025 CAONCMP — FIRST Tech Challenge Ontario Provincial Championship: 0 of 74 (unplaced)
+- Sunday `fs6fgO9vxJI`: 0 of 74 held — Video 6 h 17 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
+  - Q1–Q63, M1–M11 · fs6fgO9vxJI: Video 6 h 17 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
 ### 2025 CAONKAQ — Ottawa Qualifier: 0 of 40 (unplaced)
 - Saturday `1hPowweJI_g`: 0 of 40 held — Video 6 h 32 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
   - Q1–Q29, M1–M11 · 1hPowweJI_g: Video 6 h 32 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
@@ -250,18 +281,6 @@ Per event, per video (day · part), per reason: the matches. Every match's teams
 ### 2025 FPECAR — Carolinas Premier Event: 115 of 116 (partial)
 - Day `QnGro_I1BG0`: 0 of 1 held — Video unavailable or private
   - M3 · QnGro_I1BG0: Video unavailable or private
-### 2025 FPECCNSCIE — Canada Cup - Niagara Premier Event - Science Division: 91 of 92 (partial)
-  - Q47 · no video: FIRST posted no video for this match
-### 2025 FPEISTRDIV — İstanbul Premier Event - Rumeli Division: 0 of 84 (unplaced)
-- Sunday `cmh8-a6q1ck`: 0 of 33 held
-- Saturday 2026-06-27: no recording (51 played)
-  - Q1–Q51 · no video: No recording for Saturday
-  - Q52–Q74, M1–M10 · cmh8-a6q1ck: Played before the broadcast started
-### 2025 FPEISTVDIV — İstanbul Premier Event - Valens Division: 0 of 84 (unplaced)
-- Sunday `cmh8-a6q1ck`: 0 of 33 held
-- Saturday 2026-06-27: no recording (51 played)
-  - Q1–Q51 · no video: No recording for Saturday
-  - Q52–Q74, M1–M10 · cmh8-a6q1ck: Played before the broadcast started
 ### 2025 FPEROC — Canadian Rockies Premier Event @ KDays: 0 of 110 (unplaced)
 - Day `SXVDvK3XiOM`: 0 of 110 held — Video unavailable or private
   - Q1–Q96, M1–M14 · SXVDvK3XiOM: Video unavailable or private
@@ -282,6 +301,17 @@ Per event, per video (day · part), per reason: the matches. Every match's teams
 ### 2025 FRCMP — France Championship: 0 of 55 (unplaced)
 - Saturday `-fyKHoLKOLs`: 0 of 55 held — Video 8 h 8 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
   - Q1–Q45, M1–M10 · -fyKHoLKOLs: Video 8 h 8 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
+### 2025 KZCMPJNB2 — Kazakhstan Central Asia Championship - Janibek Division: 44 of 87 (partial)
+- Wednesday `jZl2tIXY-o8`: 0 of 15 held — Video 17 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
+- Thursday `_hcWJRmSqL4`: 42 of 42 held
+- Friday `wbAPxGO-cYY`: 2 of 30 held
+  - Q1–Q15 · jZl2tIXY-o8: Video 17 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
+  - Q58–Q76, M1–M9 · wbAPxGO-cYY: Played before the broadcast started
+### 2025 KZCMPKER1 — Kazakhstan Central Asia Championship - Kerei Division: 73 of 90 (partial)
+- Wednesday `2V7r9Z5fyJU`: 0 of 17 held — Video 15 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
+- Thursday `d011bENwH1E`: 38 of 38 held
+- Friday `LY5qYOH825M`: 35 of 35 held
+  - Q1–Q17 · 2V7r9Z5fyJU: Video 15 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
 ### 2025 NLBRQ — Qualifier Breda: 0 of 26 (unplaced)
 - Saturday `99XH5iBAQXI`: 0 of 26 held — Video 6 h 8 min shorter than its broadcast (over the 15 min an early start covers), its chapters don't confirm the clock
   - Q1–Q20, M1–M6 · 99XH5iBAQXI: Video 6 h 8 min shorter than its broadcast (over the 15 min an early start covers), its chapters don't confirm the clock
@@ -314,6 +344,12 @@ Per event, per video (day · part), per reason: the matches. Every match's teams
 - Saturday `WPhnM2lDg3c`: 29 of 29 held
 - Sunday 2026-03-01: no recording (28 played)
   - Q30–Q47, M1–M10 · no video: No recording for Sunday
+### 2025 THCMP — Thailand Championship: 54 of 58 (partial)
+- Wednesday · Part 1 `sJuQqp-bDuc`: 4 of 8 held
+- Wednesday · Part 2 `G_jbsYYqJSc`: 40 of 40 held
+- Thursday · Playoffs `6xFBmEt2K1U`: 10 of 10 held
+- Thursday · Awards `qpwV5uDTpZ4`: 0 of 0 held
+  - Q1–Q4 · sJuQqp-bDuc: Played before the broadcast started
 ### 2025 TRTUQ2 — 2. Piri Reis Turnuvası: 21 of 28 (partial)
 - Sunday `ISUifIkmsuw`: 21 of 28 held
   - Q2, Q12, Q14–Q17, Q20 · ISUifIkmsuw: An early start would open on the match before (starts up to 4 min early)
@@ -488,6 +524,9 @@ Per event, per video (day · part), per reason: the matches. Every match's teams
 ### 2025 USMNOTQ2 — MN FTC Otsego Sunday: 38 of 48 (partial)
 - Sunday `Ri9iaQqYYmg`: 38 of 48 held
   - Q1–Q10 · Ri9iaQqYYmg: Played before the broadcast started
+### 2025 USMOKSKCELT1 — KC East League Tournament: 0 of 55 (unplaced)
+- Saturday `J4W8wcuvv90`: 0 of 55 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q45, M1–M10 · J4W8wcuvv90: Video has no broadcast clock (an upload, not a live stream)
 ### 2025 USMOKSKCEM1 — Lawson Meet @ 8 AM: 0 of 12 (unplaced)
 - Day `d7aikgA0fcA`: 0 of 12 held — Video has no broadcast clock (an upload, not a live stream)
   - Q1–Q12 · d7aikgA0fcA: Video has no broadcast clock (an upload, not a live stream)
@@ -512,6 +551,12 @@ Per event, per video (day · part), per reason: the matches. Every match's teams
 ### 2025 USMOKSKCEM8 — Holden Meet @ 1 PM: 0 of 18 (unplaced)
 - Day `JFYaccZibdY`: 0 of 18 held — Video has no broadcast clock (an upload, not a live stream)
   - Q1–Q18 · JFYaccZibdY: Video has no broadcast clock (an upload, not a live stream)
+### 2025 USMOKSKCEM9 — Raytown Meet @ 10:30 AM: 0 of 18 (unplaced)
+- Saturday `FejS0SMwcxw`: 0 of 18 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q18 · FejS0SMwcxw: Video has no broadcast clock (an upload, not a live stream)
+### 2025 USMOKSKCWLT1 — KC West League Tournament: 0 of 60 (unplaced)
+- Saturday `2uvgcUltkIA`: 0 of 60 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q50, M1–M10 · 2uvgcUltkIA: Video has no broadcast clock (an upload, not a live stream)
 ### 2025 USMOKSKCWM1 — F.L. Schlagle Meet @ 8 AM: 0 of 18 (unplaced)
 - Day `1jAcFtbdhoY`: 0 of 18 held — Video has no broadcast clock (an upload, not a live stream)
   - Q1–Q18 · 1jAcFtbdhoY: Video has no broadcast clock (an upload, not a live stream)
@@ -533,6 +578,15 @@ Per event, per video (day · part), per reason: the matches. Every match's teams
 ### 2025 USMOKSKCWM7 — Chisholm Trail Meet @ 10:30 AM: 0 of 18 (unplaced)
 - Day `uZSxJ3jMSgU`: 0 of 18 held — Video has no broadcast clock (an upload, not a live stream)
   - Q1–Q18 · uZSxJ3jMSgU: Video has no broadcast clock (an upload, not a live stream)
+### 2025 USMOKSKCWM8 — Raytown Meet @ 8 AM: 0 of 18 (unplaced)
+- Saturday `ZxHkaD8UoXk`: 0 of 18 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q18 · ZxHkaD8UoXk: Video has no broadcast clock (an upload, not a live stream)
+### 2025 USMOKSKCWM9 — Raytown Meet @ 1 PM: 0 of 18 (unplaced)
+- Saturday `hbWvrvJxyAY`: 0 of 18 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q18 · hbWvrvJxyAY: Video has no broadcast clock (an upload, not a live stream)
+### 2025 USMOKSLSSQ — West Super Qualifier: 0 of 64 (unplaced)
+- Saturday `WX4MWK_LwBI`: 0 of 64 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q54, M1–M10 · WX4MWK_LwBI: Video has no broadcast clock (an upload, not a live stream)
 ### 2025 USMOKSSTLMM2 — Lafayette Meet #1 @ 8 AM: 0 of 17 (unplaced)
 - Day `lvhcciim1Y4`: 0 of 17 held — Video has no broadcast clock (an upload, not a live stream)
   - Q1–Q17 · lvhcciim1Y4: Video has no broadcast clock (an upload, not a live stream)
@@ -554,6 +608,9 @@ Per event, per video (day · part), per reason: the matches. Every match's teams
 ### 2025 USMOKSSTLSM7 — South Tech Meet #2 @ 8 AM: 16 of 17 (partial)
 - Saturday `AG3p5DRVWdc`: 16 of 17 held
   - Q1 · AG3p5DRVWdc: Played before the broadcast started
+### 2025 USMOKSSWLT — SW League Tournament: 0 of 27 (unplaced)
+- Saturday `SV63XvPr7AE`: 0 of 27 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q21, M1–M6 · SV63XvPr7AE: Video has no broadcast clock (an upload, not a live stream)
 ### 2025 USMSCMP — Mississippi Championship: 36 of 46 (partial)
 - Saturday `Or98pKIIRjo`: 36 of 46 held
   - M1–M10 · Or98pKIIRjo: Played after the broadcast ended
@@ -565,12 +622,63 @@ Per event, per video (day · part), per reason: the matches. Every match's teams
 - Sunday `cFia2BHJXZ4`: 4 of 55 held
   - Q1–Q9 · cFia2BHJXZ4: Played before the broadcast started
   - Q11–Q45, M2–M8 · cFia2BHJXZ4: An early start would open on the match before (starts up to 9 min early)
+### 2025 USNDBIQ — Dakota FTC Bismarck Qualifier: 0 of 29 (unplaced)
+- Saturday `rLKw84eo9cQ`: 0 of 29 held — Video 3 h 42 min shorter than its broadcast (over the 15 min an early start covers), its chapters don't confirm the clock
+  - Q1–Q23, M1–M6 · rLKw84eo9cQ: Video 3 h 42 min shorter than its broadcast (over the 15 min an early start covers), its chapters don't confirm the clock
+### 2025 USNDCMP — North Dakota Championship: 0 of 28 (unplaced)
+- Saturday `5WEV3WXMpGA`: 0 of 28 held — Video 26 min shorter than its broadcast (over the 15 min an early start covers), its chapters don't confirm the clock
+  - Q1–Q22, M1–M6 · 5WEV3WXMpGA: Video 26 min shorter than its broadcast (over the 15 min an early start covers), its chapters don't confirm the clock
+### 2025 USNDMIQ — Dakota FTC Minot Qualifier: 0 of 28 (unplaced)
+- Saturday `U5Elx7Xurik`: 0 of 28 held — Video 26 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
+  - Q1–Q22, M1–M6 · U5Elx7Xurik: Video 26 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
 ### 2025 USNHCMP — New Hampshire Championship: 0 of 45 (unplaced)
 - Saturday `Qu7DQwOx4Go`: 0 of 45 held — Video 6 h 13 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
   - Q1–Q35, M1–M10 · Qu7DQwOx4Go: Video 6 h 13 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
 ### 2025 USNMCMP — New Mexico Championship: 5 of 29 (partial)
 - Saturday `awgTySwJx-Y`: 5 of 29 held
   - Q2–Q7, Q9, Q11–Q23, M2–M4, M6 · awgTySwJx-Y: An early start would open on the match before (starts up to 14 min early)
+### 2025 USNVCMP — Nevada Championship: 0 of 58 (unplaced)
+- Saturday `rPW61bXBHIM`: 0 of 58 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q48, M1–M10 · rPW61bXBHIM: Video has no broadcast clock (an upload, not a live stream)
+### 2025 USNVNNLT — NV Northern League Tournament: 0 of 27 (unplaced)
+- Saturday `GNU-OERFgFI`: 0 of 27 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q21, M1–M6 · GNU-OERFgFI: Video has no broadcast clock (an upload, not a live stream)
+### 2025 USNVNNM1 — NV Northern League Meet # 1N: 0 of 12 (unplaced)
+- Saturday `3abmvmzGb6E`: 0 of 12 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q12 · 3abmvmzGb6E: Video has no broadcast clock (an upload, not a live stream)
+### 2025 USNVNNM2 — NV Northern League Meet # 2N: 0 of 17 (unplaced)
+- Saturday `P8bpsYg7hco`: 0 of 17 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q17 · P8bpsYg7hco: Video has no broadcast clock (an upload, not a live stream)
+### 2025 USNVNNM3 — NV Northern League Meet # 3N: 0 of 17 (unplaced)
+- Saturday `B4FPQEPDEnI`: 0 of 17 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q17 · B4FPQEPDEnI: Video has no broadcast clock (an upload, not a live stream)
+### 2025 USNVNNM4 — NV Northern League Meet # 4N: 0 of 20 (unplaced)
+- Saturday `A64EVVtx5Dw`: 0 of 20 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q20 · A64EVVtx5Dw: Video has no broadcast clock (an upload, not a live stream)
+### 2025 USNVSNLT — NV Southern League Tournament: 0 of 45 (unplaced)
+- Saturday `_mm4KvzN6CI`: 0 of 45 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q35, M1–M10 · _mm4KvzN6CI: Video has no broadcast clock (an upload, not a live stream)
+### 2025 USNVSNM1 — NV Southern League Meet # 1S: 0 of 20 (unplaced)
+- Saturday `cZaU7YDrC_U`: 0 of 20 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q20 · cZaU7YDrC_U: Video has no broadcast clock (an upload, not a live stream)
+### 2025 USNVSNM2 — NV Southern League Meet # 2S: 0 of 20 (unplaced)
+- Saturday `erqmJUVBwBQ`: 0 of 20 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q20 · erqmJUVBwBQ: Video has no broadcast clock (an upload, not a live stream)
+### 2025 USNVSNM3 — NV Southern League Meet # 3S: 0 of 20 (unplaced)
+- Saturday `wkIkN9NaQ4A`: 0 of 20 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q20 · wkIkN9NaQ4A: Video has no broadcast clock (an upload, not a live stream)
+### 2025 USNVSNM4 — NV Southern League Meet # 4S: 0 of 23 (unplaced)
+- Saturday `wtJhldq5pQ8`: 0 of 23 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q23 · wtJhldq5pQ8: Video has no broadcast clock (an upload, not a live stream)
+### 2025 USNVSNM5 — NV Southern League Meet # 5S: 0 of 22 (unplaced)
+- Saturday `p2IXYxf9tf4`: 0 of 22 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q22 · p2IXYxf9tf4: Video has no broadcast clock (an upload, not a live stream)
+### 2025 USNVSNM6 — NV Southern League Meet # 6S: 0 of 22 (unplaced)
+- Saturday `lr470LdNTfw`: 0 of 22 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q22 · lr470LdNTfw: Video has no broadcast clock (an upload, not a live stream)
+### 2025 USNVZCS — NV Northern Scrimmage: 0 of 9 (unplaced)
+- Saturday `hlJIGdSRyJs`: 0 of 9 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q9 · hlJIGdSRyJs: Video has no broadcast clock (an upload, not a live stream)
 ### 2025 USNYEXCMP — MVCC New York - Excelsior Championship: 70 of 74 (partial)
 - Saturday `pCbOYH7Htf4`: 4 of 8 held
 - Sunday `A_LRxc_4wZk`: 66 of 66 held
@@ -587,6 +695,20 @@ Per event, per video (day · part), per reason: the matches. Every match's teams
 ### 2025 USNYEXPEQ2 — Finger Lakes Qualifier: 0 of 38 (unplaced)
 - Sunday `XSLYW_MySy8`: 0 of 38 held — Video 52 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
   - Q1–Q28, M1–M10 · XSLYW_MySy8: Video 52 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
+### 2025 USNYLICMP — New York - Long Island Championship: 0 of 41 (unplaced)
+- Sunday `l0BXMZiglD8`: 0 of 41 held — Video 1 h 11 min shorter than its broadcast (over the 15 min an early start covers), its chapters don't confirm the clock
+  - Q1–Q30, M1–M11 · l0BXMZiglD8: Video 1 h 11 min shorter than its broadcast (over the 15 min an early start covers), its chapters don't confirm the clock
+### 2025 USNYNYBRSQ1 — NYC Super Qualifier 1: 50 of 59 (partial)
+- Saturday `LSdO_WMsDps`: 50 of 59 held
+  - Q1–Q9 · LSdO_WMsDps: Played before the broadcast started
+### 2025 USNYNYNYQ1 — NYC Qualifier 1: 28 of 38 (partial)
+- Sunday `-IAzDKKLNuw`: 28 of 38 held
+  - Q1–Q10 · -IAzDKKLNuw: Played before the broadcast started
+### 2025 USNYNYNYQ2 — NYC Qualifier 11: 31 of 38 (partial)
+- Saturday · Part 1 `OpnhJC-vOTY`: 13 of 20 held
+- Saturday · Part 2 `QaoFkx2WSpo`: 18 of 18 held
+  - Q14 · OpnhJC-vOTY: After the video ends (the video stops 43 s before it)
+  - Q15–Q20 · OpnhJC-vOTY: Played after the broadcast ended
 ### 2025 USOHAUOS — KSS Turtle Friendly: 0 of 10 (unplaced)
 - Day `lG9PpwTA-P8`: 0 of 10 held — Video has no broadcast clock (an upload, not a live stream)
   - M1–M10 · lG9PpwTA-P8: Video has no broadcast clock (an upload, not a live stream)
@@ -638,6 +760,12 @@ Per event, per video (day · part), per reason: the matches. Every match's teams
 ### 2025 USPALAQ2 — Blue Streak Qualifier: 0 of 43 (unplaced)
 - Day `J7AGzW0ki1k`: 0 of 43 held — Video unavailable or private
   - Q1–Q33, M1–M10 · J7AGzW0ki1k: Video unavailable or private
+### 2025 USRICMP — Rhode Island Championship: 0 of 39 (unplaced)
+- Sunday `q0GOfMdya9Y`: 0 of 39 held — Video 6 h 58 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
+  - Q1–Q29, M1–M10 · q0GOfMdya9Y: Video 6 h 58 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
+### 2025 USRIWOQ — Rhode Island Second-Chance Qualifier: 0 of 16 (unplaced)
+- Saturday `wNIXavozWP8`: 0 of 16 held — Video 6 h 42 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
+  - Q1–Q12, F1–F4 · wNIXavozWP8: Video 6 h 42 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
 ### 2025 USTNCMP — Tennessee Championship: 5 of 45 (partial)
 - Saturday `UxEbw2_MSck`: 5 of 45 held
   - Q1, Q3–Q8, Q10–Q35, M2–M8 · UxEbw2_MSck: An early start would open on the match before (starts up to 13 min early)
@@ -651,6 +779,12 @@ Per event, per video (day · part), per reason: the matches. Every match's teams
 ### 2025 USTXCMP4T — FiT-Central Texas Regional Championship - Terra Division: 6 of 46 (partial)
 - Saturday `F8LTQSq1Lck`: 6 of 46 held
   - Q7–Q36, M1–M10 · F8LTQSq1Lck: Past the part of the video its chapters confirm (to 59 min into the broadcast)
+### 2025 USTXCREM3 — FiT-Central GEMS League Emerald Meet 3: 0 of 23 (unplaced)
+- Saturday `5Y2YTNUWlZs`: 0 of 23 held — Video 19 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
+  - Q1–Q23 · 5Y2YTNUWlZs: Video 19 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
+### 2025 USTXCRLT1 — FiT-Central GEMS League Tournament: 0 of 52 (unplaced)
+- Saturday `Dg2CCD_vqCo`: 0 of 52 held — Video 30 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
+  - Q1–Q42, M1–M10 · Dg2CCD_vqCo: Video 30 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
 ### 2025 USTXDAQ2 — FiT-North Winter Charger Qualifier: 6 of 49 (partial)
 - Saturday `Uk5UCkpzRTs`: 0 of 43 held — Video 13 h 37 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
 - Saturday `qmi1hWqYa4Q`: 0 of 0 held — Video 28 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
@@ -825,15 +959,10 @@ Per event, per video (day · part), per reason: the matches. Every match's teams
 ### 2024 TRCMP — Türkiye Championship: 0 of 31 (unplaced)
 - Saturday `pHpUCHs_aZc`: 0 of 31 held — Video 56 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
   - Q1–Q24, M1–M3, M3-2, M4–M6 · pHpUCHs_aZc: Video 56 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
-### 2024 TRISQ1 — Uluslararasi FIRST Tech Challenge 1. Uskudar Turnuvasi: 5 of 56 (partial)
+### 2024 TRISQ1 — Uluslararasi FIRST Tech Challenge 1. Uskudar Turnuvasi: 24 of 56 (partial)
 - Friday `Iah9yGJMsZA`: 5 of 37 held
-- Saturday 2024-11-30: no recording (19 played)
+- Saturday `XLpFNSr8vCc`: 19 of 19 held
   - Q2–Q6, Q9–Q19, Q21–Q36 · Iah9yGJMsZA: An early start would open on the match before (starts up to 6 min early)
-  - Q38–Q45, M1–M3, M3-2, M4–M10 · no video: No recording for Saturday
-### 2024 TRISQ2 — Uluslararasi FIRST Tech Challenge 2. Uskudar Turnuvasi: 0 of 55 (unplaced)
-- Saturday `Q6p0L9fTfQk`: 0 of 0 held
-- Sunday 2024-12-01: no recording (55 played)
-  - Q1–Q44, M1–M11 · no video: No recording for Sunday
 ### 2024 USALBIQ — UAB Qualifier: 0 of 11 (unplaced)
 - Saturday `XA_r9obB_1Y`: 0 of 11 held — Video 15 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
   - Q1–Q9, F1–F2 · XA_r9obB_1Y: Video 15 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
@@ -986,9 +1115,69 @@ Per event, per video (day · part), per reason: the matches. Every match's teams
 ### 2024 USMOKSCMP — Missouri Kansas Championship: 61 of 64 (partial)
 - Saturday `9KfDlu4CbkY`: 61 of 64 held
   - Q1–Q3 · 9KfDlu4CbkY: Played before the broadcast started
+### 2024 USMOKSKCEM1 — Park Hill Meet  @ 10:30 AM: 0 of 17 (unplaced)
+- Saturday `iCZ6M2KZbIk`: 0 of 17 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q17 · iCZ6M2KZbIk: Video has no broadcast clock (an upload, not a live stream)
+### 2024 USMOKSKCEM2 — Pembroke Meet @ 8 AM: 0 of 18 (unplaced)
+- Saturday `gdQKve7ft3s`: 0 of 18 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q18 · gdQKve7ft3s: Video has no broadcast clock (an upload, not a live stream)
+### 2024 USMOKSKCEM3 — Pembroke Meet @ 1 PM: 0 of 18 (unplaced)
+- Saturday `Pv6LWVPHRSI`: 0 of 18 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q18 · Pv6LWVPHRSI: Video has no broadcast clock (an upload, not a live stream)
+### 2024 USMOKSKCEM4 — Operation Breakthrough Meet @ 8 AM: 0 of 15 (unplaced)
+- Saturday `vtXR4XRrr00`: 0 of 15 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q15 · vtXR4XRrr00: Video has no broadcast clock (an upload, not a live stream)
+### 2024 USMOKSKCEM5 — Lawson Meet @ 1 PM: 0 of 14 (unplaced)
+- Saturday `j0CVFqC3i6g`: 0 of 14 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q14 · j0CVFqC3i6g: Video has no broadcast clock (an upload, not a live stream)
+### 2024 USMOKSKCEM6 — Lawson Meet @ 8 AM: 0 of 11 (unplaced)
+- Saturday `_GM2ehbkl2k`: 0 of 11 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q11 · _GM2ehbkl2k: Video has no broadcast clock (an upload, not a live stream)
+### 2024 USMOKSKCEM7 — F.L. Schlagle Meet @ 1 PM: 0 of 18 (unplaced)
+- Saturday `4_KPw2DqSiw`: 0 of 18 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q18 · 4_KPw2DqSiw: Video has no broadcast clock (an upload, not a live stream)
+### 2024 USMOKSKCEM8 — Ft. Osage Meet @ 1 PM: 0 of 15 (unplaced)
+- Saturday `6W3JTqRlzCg`: 0 of 15 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q15 · 6W3JTqRlzCg: Video has no broadcast clock (an upload, not a live stream)
+### 2024 USMOKSKCEM9 — Ft. Osage Meet @ 8 AM: 0 of 18 (unplaced)
+- Saturday `I3JYvCnPYn8`: 0 of 18 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q18 · I3JYvCnPYn8: Video has no broadcast clock (an upload, not a live stream)
+### 2024 USMOKSKCWLT — KC West League Tournament: 0 of 55 (unplaced)
+- Saturday `TjPs-8caGYk`: 0 of 55 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q45, M1–M10 · TjPs-8caGYk: Video has no broadcast clock (an upload, not a live stream)
+### 2024 USMOKSKCWM1 — Park Hill Meet  @ 1 PM: 0 of 17 (unplaced)
+- Saturday `Ew2P58HmP6o`: 0 of 17 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q17 · Ew2P58HmP6o: Video has no broadcast clock (an upload, not a live stream)
+### 2024 USMOKSKCWM2 — Park Hill Meet  @ 8 AM: 0 of 18 (unplaced)
+- Saturday `IjL0jtEWweU`: 0 of 18 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q18 · IjL0jtEWweU: Video has no broadcast clock (an upload, not a live stream)
+### 2024 USMOKSKCWM3 — Pembroke Meet @ 10:30 AM: 0 of 14 (unplaced)
+- Saturday `Aw-LD9hzBro`: 0 of 14 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q14 · Aw-LD9hzBro: Video has no broadcast clock (an upload, not a live stream)
+### 2024 USMOKSKCWM4 — Operation Breakthrough Meet @ 1 PM: 0 of 15 (unplaced)
+- Saturday `GbpsnJN-wgY`: 0 of 15 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q15 · GbpsnJN-wgY: Video has no broadcast clock (an upload, not a live stream)
+### 2024 USMOKSKCWM5 — Gardner Meet @ 8 AM: 0 of 15 (unplaced)
+- Saturday `x3ojlUMBULw`: 0 of 15 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q15 · x3ojlUMBULw: Video has no broadcast clock (an upload, not a live stream)
+### 2024 USMOKSKCWM6 — Gardner Meet @ 1 PM: 0 of 9 (unplaced)
+- Saturday `Sqw-27xckcA`: 0 of 9 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q9 · Sqw-27xckcA: Video has no broadcast clock (an upload, not a live stream)
+### 2024 USMOKSKCWM7 — F.L. Schlagle Meet @ 8 AM: 0 of 17 (unplaced)
+- Saturday `P6Xl3yl9vf0`: 0 of 17 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q17 · P6Xl3yl9vf0: Video has no broadcast clock (an upload, not a live stream)
+### 2024 USMOKSLSSQ — Missouri Kansas West Super Qualifier: 0 of 64 (unplaced)
+- Saturday `5W5V8DRNyHs`: 0 of 64 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q54, M1–M10 · 5W5V8DRNyHs: Video has no broadcast clock (an upload, not a live stream)
 ### 2024 USMOKSSLSQ — Missouri Kansas East Super Qualifier: 6 of 64 (partial)
 - Saturday `6XmwpbY--0Y`: 6 of 64 held
   - Q2–Q7, Q9–Q54, M2, M4–M8 · 6XmwpbY--0Y: An early start would open on the match before (starts up to 6 min early)
+### 2024 USMOKSSTLNM2 — Hazelwood East Meet @ 10 AM: 16 of 17 (partial)
+- Saturday `-c-27oGhTNc`: 16 of 17 held
+  - Q1 · -c-27oGhTNc: Played before the broadcast started
+### 2024 USMOKSSWLT — SW League Tournament: 0 of 43 (unplaced)
+- Saturday `ar6uGXrwgbI`: 0 of 43 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q33, M1–M10 · ar6uGXrwgbI: Video has no broadcast clock (an upload, not a live stream)
 ### 2024 USMSCMP — Mississippi Championship: 0 of 49 (unplaced)
 - Saturday `PhI-OnEb7PY`: 0 of 49 held — Video 1 h 24 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
   - Q1–Q39, M1–M10 · PhI-OnEb7PY: Video 1 h 24 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
@@ -1004,6 +1193,51 @@ Per event, per video (day · part), per reason: the matches. Every match's teams
 ### 2024 USNDCMP — North Dakota Championship: 0 of 26 (unplaced)
 - Saturday `85TQ8zDMYtk`: 0 of 26 held — Video 3 h 4 min shorter than its broadcast (over the 15 min an early start covers), its chapters don't confirm the clock
   - Q1–Q20, M1–M6 · 85TQ8zDMYtk: Video 3 h 4 min shorter than its broadcast (over the 15 min an early start covers), its chapters don't confirm the clock
+### 2024 USNVCMP — Nevada Championship: 0 of 57 (unplaced)
+- Saturday `ahZ6yk-5JVg`: 0 of 57 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q46, M1–M11 · ahZ6yk-5JVg: Video has no broadcast clock (an upload, not a live stream)
+### 2024 USNVNOLT — NV Northern League Tournament: 0 of 30 (unplaced)
+- Saturday `7xFRQCSw79I`: 0 of 30 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q24, M1–M6 · 7xFRQCSw79I: Video has no broadcast clock (an upload, not a live stream)
+### 2024 USNVNOM1 — NV Northern League Meet # 1N: 0 of 8 (unplaced)
+- Saturday `LFt5rPxxMRI`: 0 of 8 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q8 · LFt5rPxxMRI: Video has no broadcast clock (an upload, not a live stream)
+### 2024 USNVNOM3 — NV Northern League Meet # 3N: 0 of 10 (unplaced)
+- Saturday `Z-Glp7dLDec`: 0 of 10 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q10 · Z-Glp7dLDec: Video has no broadcast clock (an upload, not a live stream)
+### 2024 USNVNOM4 — NV Northern League Meet # 4N: 0 of 13 (unplaced)
+- Saturday `zfKMAwTtdCw`: 0 of 13 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q13 · zfKMAwTtdCw: Video has no broadcast clock (an upload, not a live stream)
+### 2024 USNVNOM5 — NV Northern League Meet # 5N: 0 of 17 (unplaced)
+- Saturday `npH_nab76Gs`: 0 of 17 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q17 · npH_nab76Gs: Video has no broadcast clock (an upload, not a live stream)
+### 2024 USNVNOM6 — NV Northern League Meet # 6N: 0 of 18 (unplaced)
+- Saturday `Tkewfc7qnRQ`: 0 of 18 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q18 · Tkewfc7qnRQ: Video has no broadcast clock (an upload, not a live stream)
+### 2024 USNVRES — NV Northern Scrimmage: 0 of 10 (unplaced)
+- Saturday `0WpY-dz8r7Y`: 0 of 10 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q10 · 0WpY-dz8r7Y: Video has no broadcast clock (an upload, not a live stream)
+### 2024 USNVSOLT — NV Southern League Tournament: 0 of 45 (unplaced)
+- Saturday `MuBSiwwsSkA`: 0 of 45 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q35, M1–M10 · MuBSiwwsSkA: Video has no broadcast clock (an upload, not a live stream)
+### 2024 USNVSOM1 — NV Southern League Meet # 2S: 0 of 13 (unplaced)
+- Saturday `UJoKy7byX9g`: 0 of 13 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q13 · UJoKy7byX9g: Video has no broadcast clock (an upload, not a live stream)
+### 2024 USNVSOM2 — NV Southern League Meet # 1S: 0 of 15 (unplaced)
+- Saturday `97ORh5DFgOQ`: 0 of 15 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q15 · 97ORh5DFgOQ: Video has no broadcast clock (an upload, not a live stream)
+### 2024 USNVSOM3 — NV Southern League Meet # 3S: 0 of 20 (unplaced)
+- Saturday `1RIcWubG0Ss`: 0 of 20 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q20 · 1RIcWubG0Ss: Video has no broadcast clock (an upload, not a live stream)
+### 2024 USNVSOM4 — NV Southern League Meet # 4S: 0 of 20 (unplaced)
+- Saturday `6iRnAG_AZ0k`: 0 of 20 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q20 · 6iRnAG_AZ0k: Video has no broadcast clock (an upload, not a live stream)
+### 2024 USNVSOM5 — NV Southern League Meet # 5S: 0 of 17 (unplaced)
+- Saturday `4WKizmxNcBE`: 0 of 17 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q17 · 4WKizmxNcBE: Video has no broadcast clock (an upload, not a live stream)
+### 2024 USNVSOM6 — NV Southern League Meet # 6S: 0 of 17 (unplaced)
+- Saturday `6aPdNWX4Y_A`: 0 of 17 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q17 · 6aPdNWX4Y_A: Video has no broadcast clock (an upload, not a live stream)
 ### 2024 USNYEXBRQ — Broadalbin-Perth Qualifier: 0 of 43 (unplaced)
 - Sunday `L4glnbm4VI0`: 0 of 43 held — Video 4 h 52 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
   - Q1–Q33, M1–M10 · L4glnbm4VI0: Video 4 h 52 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
@@ -1016,9 +1250,22 @@ Per event, per video (day · part), per reason: the matches. Every match's teams
 ### 2024 USNYEXPEQ2 — Finger Lakes Qualifier: 0 of 39 (unplaced)
 - Sunday `SydivuNBfoY`: 0 of 39 held — Video 2 h 30 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
   - Q1–Q29, M1–M10 · SydivuNBfoY: Video 2 h 30 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
-### 2024 USNYLILVQ4 — FIRST Long Island Qualifier #4: 0 of 39 (unplaced)
-- Day `8uHWjHocQWc`: 0 of 39 held — Video unavailable or private
-  - Q1–Q28, M1–M11 · 8uHWjHocQWc: Video unavailable or private
+### 2024 USNYNYBRQ1 — NYC QUALIFIER 2: 44 of 46 (partial)
+- Saturday `0NPcADwhNaU`: 44 of 46 held
+  - Q1–Q2 · 0NPcADwhNaU: Played before the broadcast started
+### 2024 USNYNYBRSQ1 — NYC SUPER QUALIFIER 1: 48 of 50 (partial)
+- Saturday · Part 1 `acLq5K2aYik`: 7 of 9 held
+- Saturday · Part 2 `uYhtaGBoPSE`: 41 of 41 held
+  - Q8 · acLq5K2aYik: After the video ends (the video stops 59 s before it)
+  - Q9 · acLq5K2aYik: Played after the broadcast ended
+### 2024 USNYNYCMP1 — NYC FTC CHAMPIONSHIP: 53 of 58 (partial)
+- Sunday · Part 1 `PrcJN6KO-jw`: 42 of 47 held
+- Sunday · Part 2 `pWqoUgYqdM0`: 11 of 11 held
+  - Q43 · PrcJN6KO-jw: After the video ends (the video stops 56 s before it)
+  - Q44–Q47 · PrcJN6KO-jw: Played after the broadcast ended
+### 2024 USNYNYNYQ — NYC QUALIFIER 1: 5 of 42 (partial)
+- Sunday `EX7pPUu4cPw`: 5 of 42 held
+  - Q2–Q15, Q17–Q32, M2–M4, M6–M9 · EX7pPUu4cPw: An early start would open on the match before (starts up to 11 min early)
 ### 2024 USOHHIQ — Hinckley Academy Qualifier: 0 of 45 (unplaced)
 - Day `GWVZydvh9co`: 0 of 45 held — Video has no broadcast clock (an upload, not a live stream)
   - Q1–Q35, M1–M10 · GWVZydvh9co: Video has no broadcast clock (an upload, not a live stream)
@@ -1063,6 +1310,18 @@ Per event, per video (day · part), per reason: the matches. Every match's teams
 ### 2024 USPAUCQ2 — Panther Power Qualifier: 0 of 50 (unplaced)
 - Sunday `PMWbWp99goY`: 0 of 50 held — Video 21 min shorter than its broadcast (over the 15 min an early start covers), its chapters don't confirm the clock
   - Q1–Q38, M1–M6, M6-2, M7–M11 · PMWbWp99goY: Video 21 min shorter than its broadcast (over the 15 min an early start covers), its chapters don't confirm the clock
+### 2024 USRINKQ — North Kingstown High School Qualifier: 0 of 27 (unplaced)
+- Saturday `lQhGe32YLF4`: 0 of 27 held — Video 6 h 18 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
+  - Q1–Q20, M1–M7 · lQhGe32YLF4: Video 6 h 18 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
+### 2024 USRINKS — NORTH Robotics Holiday Battle Scrimmage: 0 of 30 (unplaced)
+- Saturday `SENZnQoIOsc`: 0 of 30 held — Video 6 h 4 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
+  - Q1–Q24, M1–M6 · SENZnQoIOsc: Video 6 h 4 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
+### 2024 USRIWOQ — Mount Saint Charles Academy Qualifier: 0 of 31 (unplaced)
+- Saturday `tfadc2DvS4Q`: 0 of 31 held — Video 6 h 13 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
+  - Q1–Q25, M1–M6 · tfadc2DvS4Q: Video 6 h 13 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
+### 2024 USTXAUQ — FiT-Central Semi-Area Championship Austin: 40 of 51 (partial)
+- Saturday `pAjUrEwmdX4`: 40 of 51 held
+  - Q1–Q11 · pAjUrEwmdX4: Played before the broadcast started
 ### 2024 USTXCALT1 — FiT-Central North San Antonio & Hill Country League Tournament: 1 of 52 (partial)
 - Saturday `qBEw661kTGw`: 1 of 52 held
   - Q2–Q12 · qBEw661kTGw: An early start would open on the match before (starts up to 13 min early)
@@ -1073,6 +1332,12 @@ Per event, per video (day · part), per reason: the matches. Every match's teams
 ### 2024 USTXCCOS1 — FIRST in Texas Buc Days Robotics Rodeo: 0 of 59 (unplaced)
 - Saturday `vyDYFrqgMTU`: 0 of 59 held — Video 6 h 3 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
   - Q1–Q49, M1–M10 · vyDYFrqgMTU: Video 6 h 3 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
+### 2024 USTXCGM1 — FiT-Central GEMS Emerald League Meet 1: 11 of 13 (partial)
+- Saturday `_rS6lNOYJYs`: 11 of 13 held
+  - Q11–Q12 · _rS6lNOYJYs: An early start would open on the match before (starts up to 6 min early)
+### 2024 USTXCGM3 — FiT-Central GEMS Emerald League Meet 3: 0 of 14 (unplaced)
+- Saturday `7v8x7Vgdza0`: 0 of 14 held — Video 27 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
+  - Q1–Q14 · 7v8x7Vgdza0: Video 27 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
 ### 2024 USTXDAQ — FiT-North Semi-Area Championship Whiterock Waters: 0 of 49 (unplaced)
 - Saturday `SqUbpJvDmNE`: 0 of 49 held — Video 6 h 4 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
   - Q1–Q38, M1–M11 · SqUbpJvDmNE: Video 6 h 4 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
@@ -1248,6 +1513,60 @@ Per event, per video (day · part), per reason: the matches. Every match's teams
 ### 2023 USIAMCM4 — IA Cassatt_2023-11-18: 0 of 32 (unplaced)
 - Saturday `dDz1KsxcQ_I`: 0 of 32 held — Video 53 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
   - Q1–Q32 · dDz1KsxcQ_I: Video 53 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
+### 2023 USMOKSCMP — Missouri Kansas Regional Championship @ 7:30 AM: 0 of 61 (unplaced)
+- Saturday `IQAkzka8GzQ`: 0 of 61 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q54, M1, M1-2, M2, M2-2, M2-3, F1–F2 · IQAkzka8GzQ: Video has no broadcast clock (an upload, not a live stream)
+### 2023 USMOKSKCELT — MOKS-MO KC East League Tournament @ 7:30 AM: 0 of 49 (unplaced)
+- Saturday `YAXiWJuLBsk`: 0 of 49 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q41, M1, M1-2, M2, M2-2, M2-3, F1–F3 · YAXiWJuLBsk: Video has no broadcast clock (an upload, not a live stream)
+### 2023 USMOKSKCEM1 — MOKS-MO KC-EAST Lawson Meet @ 1 PM: 0 of 18 (unplaced)
+- Saturday `ECO-_TcPv78`: 0 of 18 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q18 · ECO-_TcPv78: Video has no broadcast clock (an upload, not a live stream)
+### 2023 USMOKSKCEM2 — MOKS-MO KC-EAST Lawson Meet @ 8 AM: 0 of 17 (unplaced)
+- Saturday `eAFclqqHNOM`: 0 of 17 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q17 · eAFclqqHNOM: Video has no broadcast clock (an upload, not a live stream)
+### 2023 USMOKSKCEM3 — MOKS-MO KC-EAST East Trails Middle School Meet @ 8 AM: 0 of 18 (unplaced)
+- Saturday `BXAmN5Bdk-c`: 0 of 18 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q18 · BXAmN5Bdk-c: Video has no broadcast clock (an upload, not a live stream)
+### 2023 USMOKSKCEM5 — MOKS-KS KC-EAST Blue Valley High School Meet @ 1 PM: 0 of 18 (unplaced)
+- Saturday `wmlCJmmd9H4`: 0 of 18 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q18 · wmlCJmmd9H4: Video has no broadcast clock (an upload, not a live stream)
+### 2023 USMOKSKCEM6 — MOKS-KS KC-EAST F. L. Schlagle High School Meet @ 1 PM: 0 of 15 (unplaced)
+- Saturday `rdPswRDxTh0`: 0 of 15 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q15 · rdPswRDxTh0: Video has no broadcast clock (an upload, not a live stream)
+### 2023 USMOKSKCWLT — MOKS-KS KC West League Tournament @ 7:30 AM: 0 of 54 (unplaced)
+- Saturday `dfhDnp7ESPc`: 0 of 54 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q47, M1, M1-2, M2, M2-2, F1–F3 · dfhDnp7ESPc: Video has no broadcast clock (an upload, not a live stream)
+### 2023 USMOKSKCWM1 — MOKS-MO KC-WEST East Trails Middle School Meet @ 1 PM: 0 of 18 (unplaced)
+- Saturday `_vYBQ5B1QAc`: 0 of 18 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q18 · _vYBQ5B1QAc: Video has no broadcast clock (an upload, not a live stream)
+### 2023 USMOKSKCWM2 — MOKS-MO KC-WEST Heritage Christian Academy Meet @ 1 PM: 0 of 15 (unplaced)
+- Saturday `UwDyv7mU4jc`: 0 of 15 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q15 · UwDyv7mU4jc: Video has no broadcast clock (an upload, not a live stream)
+### 2023 USMOKSKCWM3 — MOKS-MO KC-WEST Heritage Christian Academy Meet @ 8 AM: 0 of 18 (unplaced)
+- Saturday `DImrANzeIsQ`: 0 of 18 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q18 · DImrANzeIsQ: Video has no broadcast clock (an upload, not a live stream)
+### 2023 USMOKSKCWM4 — MOKS-KS KC-WEST Blue Valley High School Meet @ 8 AM: 0 of 18 (unplaced)
+- Saturday `uvFvN_EzI9Q`: 0 of 18 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q18 · uvFvN_EzI9Q: Video has no broadcast clock (an upload, not a live stream)
+### 2023 USMOKSKCWM5 — MOKS-KS KC-WEST F. L. Schlagle High School Meet @ 8 AM: 0 of 15 (unplaced)
+- Saturday `mnYjdKM1DVc`: 0 of 15 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q15 · mnYjdKM1DVc: Video has no broadcast clock (an upload, not a live stream)
+### 2023 USMOKSKCWM6 — MOKS-KS KC-WEST Gardner Edgerton High School Meet @ 1 PM: 0 of 17 (unplaced)
+- Saturday `egzqnqcbjJA`: 0 of 17 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q17 · egzqnqcbjJA: Video has no broadcast clock (an upload, not a live stream)
+### 2023 USMOKSKCWM7 — MOKS-KS KC-WEST Gardner Edgerton High School Meet @ 8 AM: 0 of 17 (unplaced)
+- Saturday `DiyUgUbb6xc`: 0 of 17 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q17 · DiyUgUbb6xc: Video has no broadcast clock (an upload, not a live stream)
+### 2023 USMOKSSTLNLT1 — MOKS-MO STL-North League Tournament @ 7:30 AM: 0 of 49 (unplaced)
+- Saturday `m1tp5Ji3ZfA`: 0 of 49 held — Video 6 h 8 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
+  - Q1–Q42, M1, M1-2, M1-3, M2, M2-2, F1–F2 · m1tp5Ji3ZfA: Video 6 h 8 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
+### 2023 USMOKSSTLNM9 — MOKS-MO STL-NORTH Duchesne High School Meet @ 1 PM: 0 of 17 (unplaced)
+- Saturday `prX-wkodWu4`: 0 of 17 held — Video 7 h 10 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
+  - Q1–Q17 · prX-wkodWu4: Video 7 h 10 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
+### 2023 USMOKSSWMILT — MOKS-MO SW/Mid MO League Tournament @ 7:30 AM: 0 of 50 (unplaced)
+- Saturday `uON4oUZ95qg`: 0 of 50 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q42, M1, M1-2, M1-3, M2, M2-2, F1–F3 · uON4oUZ95qg: Video has no broadcast clock (an upload, not a live stream)
 ### 2023 USMSBRQ — MS Brandon Qualifier: 0 of 21 (unplaced)
 - Saturday `XXhAvJFhmZQ`: 0 of 21 held — Video 6 h 12 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
   - Q1–Q15, M1, M1-2, M2, M2-2, F1–F2 · XXhAvJFhmZQ: Video 6 h 12 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
@@ -1269,6 +1588,57 @@ Per event, per video (day · part), per reason: the matches. Every match's teams
 ### 2023 USMSWVS — MS Water Valley Build-it Day/Scrimmage: 0 of 5 (unplaced)
 - Day `klh56VgKDmE`: 0 of 5 held — Video unavailable or private
   - Q1–Q5 · klh56VgKDmE: Video unavailable or private
+### 2023 USNDCMP — North Dakota FTC State Championships: 0 of 26 (unplaced)
+- Saturday `tjhNe5UdwY8`: 0 of 26 held — Video 8 h 27 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
+  - Q1–Q20, M1, M1-2, M2, M2-2, F1–F2 · tjhNe5UdwY8: Video 8 h 27 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
+### 2023 USNDMAQ — ND Western Dakota FTC Qualifier: 0 of 35 (unplaced)
+- Friday `wk_StZ7htuY`: 0 of 35 held — Video 6 h 27 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
+  - Q1–Q29, M1, M1-2, M2, M2-2, F1–F2 · wk_StZ7htuY: Video 6 h 27 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
+### 2023 USNVCMP — Nevada Championship: 0 of 35 (unplaced)
+- Saturday `mhepVCoyLMI`: 0 of 35 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q28, M1, M1-2, M1-3, M2, M2-2, F1–F2 · mhepVCoyLMI: Video has no broadcast clock (an upload, not a live stream)
+### 2023 USNVNOLT — NV League Tournament - Northern Nevada: 0 of 36 (unplaced)
+- Saturday `oPDLVKpjBLk`: 0 of 36 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q30, M1, M1-2, M2, M2-2, F1–F2 · oPDLVKpjBLk: Video has no broadcast clock (an upload, not a live stream)
+### 2023 USNVNOM1 — NV League Meet # 2N - Northern Nevada: 0 of 13 (unplaced)
+- Wednesday `WFbE9f9zjng`: 0 of 13 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q13 · WFbE9f9zjng: Video has no broadcast clock (an upload, not a live stream)
+### 2023 USNVNOM2 — NV League Meet # 6N - Northern Nevada: 0 of 17 (unplaced)
+- Saturday `f9qGAXu1TH0`: 0 of 17 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q17 · f9qGAXu1TH0: Video has no broadcast clock (an upload, not a live stream)
+### 2023 USNVNOM3 — NV League Meet # 5N - Northern Nevada: 0 of 14 (unplaced)
+- Saturday `S3_loOAfZrc`: 0 of 14 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q14 · S3_loOAfZrc: Video has no broadcast clock (an upload, not a live stream)
+### 2023 USNVNOM4 — NV League Meet # 4N - Northern Nevada: 0 of 12 (unplaced)
+- Saturday `ZmEpPQsi0F0`: 0 of 12 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q12 · ZmEpPQsi0F0: Video has no broadcast clock (an upload, not a live stream)
+### 2023 USNVNOM5 — NV League Meet # 3N - Northern Nevada: 0 of 15 (unplaced)
+- Saturday `mIFjL9ud6ic`: 0 of 15 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q15 · mIFjL9ud6ic: Video has no broadcast clock (an upload, not a live stream)
+### 2023 USNVNOM6 — NV League Meet # 1N - Northern Nevada: 0 of 12 (unplaced)
+- Saturday `Goia5UFbmzM`: 0 of 12 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q12 · Goia5UFbmzM: Video has no broadcast clock (an upload, not a live stream)
+### 2023 USNVRES — NV Scrimmage - Northern Nevada: 0 of 12 (unplaced)
+- Saturday `EfhrVTaIj8c`: 0 of 12 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q12 · EfhrVTaIj8c: Video has no broadcast clock (an upload, not a live stream)
+### 2023 USNVSOLT — NV League Tournament - Southern Nevada: 0 of 40 (unplaced)
+- Saturday `Gk_2uV03SM4`: 0 of 40 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q32, M1, M1-2, M2, M2-2, M2-3, F1–F3 · Gk_2uV03SM4: Video has no broadcast clock (an upload, not a live stream)
+### 2023 USNVSOM1 — NV League Meet # 2S - Southern Nevada: 0 of 15 (unplaced)
+- Wednesday `Q8B3vKt5cMI`: 0 of 15 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q15 · Q8B3vKt5cMI: Video has no broadcast clock (an upload, not a live stream)
+### 2023 USNVSOM2 — NV League Meet # 5S - Southern Nevada: 0 of 20 (unplaced)
+- Saturday `wZICl-oB7PY`: 0 of 20 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q20 · wZICl-oB7PY: Video has no broadcast clock (an upload, not a live stream)
+### 2023 USNVSOM3 — NV League Meet # 6S - Southern Nevada: 0 of 19 (unplaced)
+- Saturday `qOE5D_hI49s`: 0 of 19 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q19 · qOE5D_hI49s: Video has no broadcast clock (an upload, not a live stream)
+### 2023 USNVSOM4 — NV League Meet # 4S - Southern Nevada: 0 of 15 (unplaced)
+- Saturday `JutntyaJDpg`: 0 of 15 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q15 · JutntyaJDpg: Video has no broadcast clock (an upload, not a live stream)
+### 2023 USNVSOM5 — NV League Meet # 3S - Southern Nevada: 0 of 17 (unplaced)
+- Saturday `IlhkaxxIAtc`: 0 of 17 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q17 · IlhkaxxIAtc: Video has no broadcast clock (an upload, not a live stream)
 ### 2023 USNYEXCMP — New York-Excelsior MVCC Utica Championship: 15 of 41 (partial)
 - Sunday `6FYgFdWOp-I`: 15 of 41 held
   - Q4–Q5, Q7, Q10–Q14, Q17–Q18, Q22 · 6FYgFdWOp-I: An early start would open on the match before (starts up to 3 min early)
@@ -1276,6 +1646,20 @@ Per event, per video (day · part), per reason: the matches. Every match's teams
 ### 2023 USNYEXHJQ — NY-Excelsior John Jay Qualifier: 0 of 34 (unplaced)
 - Saturday `3j-cfbfsHts`: 0 of 34 held — Video 19 h 45 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
   - Q1–Q28, M1, M1-2, M2, M2-2, F1–F2 · 3j-cfbfsHts: Video 19 h 45 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
+### 2023 USNYLICMP — New York - Long Island FIRST Long Island Championship: 34 of 37 (partial)
+- Sunday `3Fx_9Vsp288`: 34 of 37 held
+  - Q1–Q3 · 3Fx_9Vsp288: Played before the broadcast started
+### 2023 USNYNYBRQ1 — NY-NYC Qualifier 3: 39 of 42 (partial)
+- Sunday · Part 1 `8WYcC7-irQw`: 2 of 5 held
+- Sunday · Part 2 `4f-1Pb6sKXY`: 37 of 37 held
+  - Q3–Q5 · 8WYcC7-irQw: Played after the broadcast ended
+### 2023 USNYNYQUQ4 — NY-NYC Qualifier 5: 34 of 47 (partial)
+- Sunday · Part 1 `ERObpss0too`: 17 of 30 held
+- Sunday · Part 2 `pJNqDE35UXs`: 17 of 17 held
+  - Q18–Q30 · ERObpss0too: Played after the broadcast ended
+### 2023 USRIWOQ — RI Mount Saint Charles Academy Qualifier: 0 of 28 (unplaced)
+- Saturday `Dh3gs0rYAxw`: 0 of 28 held — Video 6 h 11 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
+  - Q1–Q20, M1, M1-2, M2, M2-2, M2-3, F1–F3 · Dh3gs0rYAxw: Video 6 h 11 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
 ### 2023 USTXATQ — FiT-North Semi-Area Championship Stage Left: 0 of 46 (unplaced)
 - Saturday `PDweBtsQxLU`: 0 of 46 held — Video 40 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
   - Q1–Q39, M1, M1-2, M2, M2-2, F1–F3 · PDweBtsQxLU: Video 40 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
@@ -1351,6 +1735,11 @@ Per event, per video (day · part), per reason: the matches. Every match's teams
 - Saturday `Y0yrKRUpcJo`: 0 of 22 held — Video 20 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
 - Saturday `TUFDPEuJSpM`: 0 of 0 held — Video 6 h 16 min shorter than its broadcast (over the 15 min an early start covers), its chapters don't confirm the clock
   - Q1–Q15, M1, M1-2, M2, M2-2, F1–F3 · Y0yrKRUpcJo: Video 20 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
+### 2022 KZCMP — Kazakhstan Central Asia FTC Regional Championship: 0 of 47 (unplaced)
+- Saturday `1VAGi4X7hWA`: 0 of 31 held — Video 28 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
+- Sunday 2023-02-26: no recording (16 played)
+  - Q1–Q31 · 1VAGi4X7hWA: Video 28 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
+  - Q32–Q39, M1, M1-2, M1-3, M2, M2-2, M2-3, F1–F2 · no video: No recording for Sunday
 ### 2022 ROBUQ1 — RO BUCHAREST #1 - FTC Romania Qualifying Tournament: 19 of 130 (partial)
 - Monday `683mSjligL0`: 11 of 11 held
 - Tuesday `W9LsNYGAtPM`: 0 of 84 held — Video 24 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
@@ -1392,6 +1781,54 @@ Per event, per video (day · part), per reason: the matches. Every match's teams
 ### 2022 USIAWIM7 — IA Wind_Meet_2022-11-19: 21 of 24 (partial)
 - Saturday `4DIpuVlm0hY`: 21 of 24 held
   - Q12–Q13, Q19 · 4DIpuVlm0hY: An early start would open on the match before (starts up to 4 min early)
+### 2022 USMOKSCMP — Missouri Kansas Regional Championship: 0 of 62 (unplaced)
+- Saturday `7NvwszKfl7Y`: 0 of 62 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q54, M1, M1-2, M2, M2-2, M2-3, F1–F3 · 7NvwszKfl7Y: Video has no broadcast clock (an upload, not a live stream)
+### 2022 USMOKSKCELT — MOKS-MO KC East League Tournament: 0 of 47 (unplaced)
+- Saturday `K1aa9BGUDcc`: 0 of 47 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q39, M1, M1-2, M1-3, M2, M2-2, M2-3, F1–F2 · K1aa9BGUDcc: Video has no broadcast clock (an upload, not a live stream)
+### 2022 USMOKSKCEM1 — MOKS-MO Knob Noster AM: 0 of 18 (unplaced)
+- Saturday `evqDX3DFygE`: 0 of 18 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q18 · evqDX3DFygE: Video has no broadcast clock (an upload, not a live stream)
+### 2022 USMOKSKCEM2 — MOKS-MO Pleasant Lea AM: 0 of 18 (unplaced)
+- Saturday `vZm-zq02FNA`: 0 of 18 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q18 · vZm-zq02FNA: Video has no broadcast clock (an upload, not a live stream)
+### 2022 USMOKSKCEM3 — MOKS-KS Heritage Christian KC East PM: 0 of 17 (unplaced)
+- Saturday `pihIK2DiNtk`: 0 of 17 held
+  - Q1–Q17 · pihIK2DiNtk: Played before the broadcast started
+### 2022 USMOKSKCEM4 — MOKS-KS Schlagle KC East PM: 0 of 15 (unplaced)
+- Saturday `sDkc5p71S-Y`: 0 of 15 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q15 · sDkc5p71S-Y: Video has no broadcast clock (an upload, not a live stream)
+### 2022 USMOKSKCEM5 — MOKS-MO Belton KC East AM: 0 of 18 (unplaced)
+- Saturday `dI4I1AdBBfY`: 0 of 18 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q18 · dI4I1AdBBfY: Video has no broadcast clock (an upload, not a live stream)
+### 2022 USMOKSKCEM6 — MOKS-MO East Trails KC East PM: 0 of 17 (unplaced)
+- Saturday `RJ2iSF0j2hg`: 0 of 17 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q17 · RJ2iSF0j2hg: Video has no broadcast clock (an upload, not a live stream)
+### 2022 USMOKSKCWLT — MOKS-KS KC West League Tournament: 0 of 46 (unplaced)
+- Saturday `DfCFW_7uEYg`: 0 of 46 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q39, M1, M1-2, M1-3, M2, M2-2, F1–F2 · DfCFW_7uEYg: Video has no broadcast clock (an upload, not a live stream)
+### 2022 USMOKSKCWM1 — MOKS-MO Knob Noster PM: 0 of 11 (unplaced)
+- Saturday `cnONKk5zXGo`: 0 of 11 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q11 · cnONKk5zXGo: Video has no broadcast clock (an upload, not a live stream)
+### 2022 USMOKSKCWM2 — MOKS-MO Pleasant Lea PM: 0 of 17 (unplaced)
+- Saturday `2rISyTdmCag`: 0 of 17 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q17 · 2rISyTdmCag: Video has no broadcast clock (an upload, not a live stream)
+### 2022 USMOKSKCWM3 — MOKS-KS Schlagle KC West AM: 0 of 15 (unplaced)
+- Saturday `SNu-XRwDQFg`: 0 of 15 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q15 · SNu-XRwDQFg: Video has no broadcast clock (an upload, not a live stream)
+### 2022 USMOKSKCWM4 — MOKS-KS Heritage Christian KC West AM: 0 of 18 (unplaced)
+- Saturday `S7nzGdWDr4s`: 0 of 18 held
+  - Q1–Q18 · S7nzGdWDr4s: Played before the broadcast started
+### 2022 USMOKSKCWM5 — MOKS-MO Belton KC West PM: 0 of 18 (unplaced)
+- Saturday `GWKqJs9HCys`: 0 of 18 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q18 · GWKqJs9HCys: Video has no broadcast clock (an upload, not a live stream)
+### 2022 USMOKSKCWM6 — MOKS-MO East Trails KC West AM: 0 of 17 (unplaced)
+- Saturday `JhfnJAwaWfw`: 0 of 17 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q17 · JhfnJAwaWfw: Video has no broadcast clock (an upload, not a live stream)
+### 2022 USMOKSSWMILT1 — MOKS-MO SW Mid MO League Tournament: 0 of 48 (unplaced)
+- Saturday `i0x0XtAd1Is`: 0 of 48 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q42, M1, M1-2, M2, M2-2, F1–F2 · i0x0XtAd1Is: Video has no broadcast clock (an upload, not a live stream)
 ### 2022 USMSCMP — Mississippi Championship: 28 of 33 (partial)
 - Saturday `YwMY0xTIdKk`: 28 of 33 held
   - Q1–Q5 · YwMY0xTIdKk: Played before the broadcast started
@@ -1407,6 +1844,15 @@ Per event, per video (day · part), per reason: the matches. Every match's teams
 ### 2022 USNYEXCOQ — NY-Excelsior Corning Qualifier: 23 of 27 (partial)
 - Sunday `wEQxSGvIpJA`: 23 of 27 held
   - Q1–Q4 · wEQxSGvIpJA: Played before the broadcast started
+### 2022 USNYNYBRQ7 — NY-NYC Qualifier 7: 31 of 37 (partial)
+- Saturday `JQnHdd8lfb8`: 31 of 37 held
+  - Q1–Q6 · JQnHdd8lfb8: Played before the broadcast started
+### 2022 USNYNYCMP — New York-NYC CHAMPIONSHIP: 28 of 42 (partial)
+- Sunday `R_CFejqerGI`: 28 of 42 held
+  - Q29–Q36, M1, M1-2, M2, M2-2, F1–F2 · R_CFejqerGI: Played after the broadcast ended
+### 2022 USRIPRQ — RI Wheeler School Qualifier: 24 of 25 (partial)
+- Saturday `rYYSXefbrfs`: 24 of 25 held
+  - Q1 · rYYSXefbrfs: Played before the broadcast started
 ### 2022 USTXCECCS — TX-Central Buc Days 2023 Robot Rodeo: 0 of 55 (unplaced)
 - Saturday `r9D-jIh_tlY`: 0 of 55 held — Video 6 h 1 min shorter than its broadcast (over the 15 min an early start covers), its chapters don't confirm the clock
   - Q1–Q48, M1, M1-2, M2, M2-2, F1–F3 · r9D-jIh_tlY: Video 6 h 1 min shorter than its broadcast (over the 15 min an early start covers), its chapters don't confirm the clock
@@ -1475,6 +1921,46 @@ Per event, per video (day · part), per reason: the matches. Every match's teams
 ### 2021 USIAJOM2 — IA Green_2021_11_13: 0 of 21 (unplaced)
 - Saturday `PnYwXxwdOcY`: 0 of 21 held — Video 38 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
   - Q1–Q21 · PnYwXxwdOcY: Video 38 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
+### 2021 USMOKSBELT — MO KC East League Tournament: 0 of 36 (unplaced)
+- Saturday `VD84dv9h0JI`: 0 of 36 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q30, M1, M1-2, M2, M2-2, F1–F2 · VD84dv9h0JI: Video has no broadcast clock (an upload, not a live stream)
+### 2021 USMOKSCMP — Missouri Kansas Championship: 0 of 62 (unplaced)
+- Saturday `ZOmJ0CuLWHY`: 0 of 62 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q54, M1, M1-2, M2, M2-2, M2-3, F1–F3 · ZOmJ0CuLWHY: Video has no broadcast clock (an upload, not a live stream)
+### 2021 USMOKSKCM1 — MO Annunciation Greek Church Meet: 0 of 18 (unplaced)
+- Saturday `sYpBW9SFb04`: 0 of 18 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q18 · sYpBW9SFb04: Video has no broadcast clock (an upload, not a live stream)
+### 2021 USMOKSKCM2 — MO Pembroke Hill Meet AM: 0 of 23 (unplaced)
+- Saturday `ZzN574xEf48`: 0 of 23 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q23 · ZzN574xEf48: Video has no broadcast clock (an upload, not a live stream)
+### 2021 USMOKSKNM1 — MO Knob Noster High Meet PM: 0 of 9 (unplaced)
+- Saturday `dHjVrS2RUYY`: 0 of 9 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q9 · dHjVrS2RUYY: Video has no broadcast clock (an upload, not a live stream)
+### 2021 USMOKSKNM2 — MO Knob Noster High Meet AM: 0 of 9 (unplaced)
+- Saturday `kQLwiiIQX4k`: 0 of 9 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q9 · kQLwiiIQX4k: Video has no broadcast clock (an upload, not a live stream)
+### 2021 USMOKSLSM1 — MO Pleasant Lea Middle Meet 1 - AM: 0 of 15 (unplaced)
+- Saturday `bTnV8z3stTs`: 0 of 15 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q15 · bTnV8z3stTs: Video has no broadcast clock (an upload, not a live stream)
+### 2021 USMOKSLSM2 — MO Pleasant Lea Middle Meet 2 - PM: 0 of 15 (unplaced)
+- Saturday `YrZoAIriA3M`: 0 of 15 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q15 · YrZoAIriA3M: Video has no broadcast clock (an upload, not a live stream)
+### 2021 USMOKSLSM3 — MO Pleasant Lea Middle Meet 1 - PM: 0 of 18 (unplaced)
+- Saturday `bdZI8ZVBe34`: 0 of 18 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q18 · bdZI8ZVBe34: Video has no broadcast clock (an upload, not a live stream)
+### 2021 USMOKSLSM4 — MO Pleasant Lea Middle Meet 2 - AM: 0 of 18 (unplaced)
+- Saturday `YOmp83gRf14`: 0 of 18 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q18 · YOmp83gRf14: Video has no broadcast clock (an upload, not a live stream)
+### 2021 USMOKSOPM1 — KS Cobalt Colts Meet PM: 0 of 15 (unplaced)
+- Saturday `85SpiaRed18`: 0 of 15 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q15 · 85SpiaRed18: Video has no broadcast clock (an upload, not a live stream)
+### 2021 USMOKSOPM2 — KS Cobalt Colts Meet AM: 0 of 15 (unplaced)
+- Saturday `YX_m0H3MskY`: 0 of 15 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q15 · YX_m0H3MskY: Video has no broadcast clock (an upload, not a live stream)
+### 2021 USMOKSSPLT — MO Lake SW League Tournament: 0 of 46 (unplaced)
+- Saturday · Part 1 `KOzyNy7DVHc`: 0 of 46 held — Video has no broadcast clock (an upload, not a live stream)
+- Saturday · Part 2 `v3MwITl0Jmo`: 0 of 0 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q38, M1, M1-2, M2, M2-2, M2-3, F1–F3 · KOzyNy7DVHc: Video has no broadcast clock (an upload, not a live stream)
 ### 2021 USNYEXCMP — New York- Excelsior MVCC Regional Championship: 10 of 42 (partial)
 - Sunday `iOydsRR9pq0`: 10 of 42 held
   - Q1–Q32 · iOydsRR9pq0: Played before the broadcast started
@@ -1493,6 +1979,15 @@ Per event, per video (day · part), per reason: the matches. Every match's teams
 ### 2021 USNYNYQUQ4 — NY-NYC Qualifier 4: 0 of 29 (unplaced)
 - Sunday `u6Rhe9CIudo`: 0 of 29 held — Video 1 h 36 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
   - Q1–Q23, M1, M1-2, M2, M2-2, F1–F2 · u6Rhe9CIudo: Video 1 h 36 min shorter than its broadcast (over the 15 min an early start covers), no chapters to confirm the clock
+### 2019 19MOMT1 — Heritage Christian Meet: 0 of 14 (unplaced)
+- Saturday `wvUDXFu4qN4`: 0 of 14 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q14 · wvUDXFu4qN4: No real start time from FIRST
+### 2019 19MOMT16 — KCEZ Meet AM: 0 of 15 (unplaced)
+- Saturday `pAfNTwtGQz0`: 0 of 15 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q15 · pAfNTwtGQz0: No real start time from FIRST
+### 2019 19MOMT17 — KCEZ Meet PM: 0 of 15 (unplaced)
+- Saturday `3dr9bOM4tYg`: 0 of 15 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q15 · 3dr9bOM4tYg: No real start time from FIRST
 ### 2019 2019IACMP1BLACK — Iowa Championship BLACK: 9 of 45 (partial)
 - Saturday `juDEJB2wENc`: 9 of 45 held
   - Q1–Q36 · juDEJB2wENc: No real start time from FIRST
@@ -1511,3 +2006,30 @@ Per event, per video (day · part), per reason: the matches. Every match's teams
 - Saturday `6penXtHBHpI`: 3 of 44 held
   - Q1–Q36 · 6penXtHBHpI: No real start time from FIRST
   - M1, M1-2, M1-3, M2, M2-2 · 6penXtHBHpI: Played before the broadcast started
+### 2019 2019MOC1SDIVISION — Missouri State Championship SDIVISION: 0 of 36 (unplaced)
+- Saturday `VP3ypLKsC2s`: 0 of 36 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1, Q3, Q5, Q7, Q9, Q11, Q13, Q15, Q17, Q19, Q21, Q23, Q25, Q27, Q29 · VP3ypLKsC2s: No real start time from FIRST
+  - Q2, Q4, Q6, Q8, Q10, Q12, Q14, Q16, Q18, Q20, Q22, Q24, Q26, Q28, Q30, M1, M1-2, M2, M2-2, F1–F2 · VP3ypLKsC2s: Video has no broadcast clock (an upload, not a live stream)
+### 2019 2019MOC1TDIVISION — Missouri State Championship TDIVISION: 0 of 37 (unplaced)
+- Saturday `OhH_jZau2Uw`: 0 of 37 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q30 · OhH_jZau2Uw: No real start time from FIRST
+  - M1, M1-2, M2, M2-2, F1–F3 · OhH_jZau2Uw: Video has no broadcast clock (an upload, not a live stream)
+### 2019 2019MOQ2 — Knob Noster Qualifier: 0 of 35 (unplaced)
+- Saturday · Part 1 `06dqg4aHoII`: 0 of 35 held — Video has no broadcast clock (an upload, not a live stream)
+- Saturday · Part 2 `5I0FgkqcIwQ`: 0 of 0 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q29 · 06dqg4aHoII: No real start time from FIRST
+  - M1, M1-2, M2, M2-2, F1–F2 · 06dqg4aHoII: Video has no broadcast clock (an upload, not a live stream)
+### 2019 2019MOQ6 — Drury University Qualifier: 0 of 50 (unplaced)
+- Saturday `yguoRsl_AwY`: 0 of 50 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q44 · yguoRsl_AwY: No real start time from FIRST
+  - M1, M1-2, M2, M2-2, F1–F2 · yguoRsl_AwY: Video has no broadcast clock (an upload, not a live stream)
+### 2019 2019MOQ8 — Western Conference Qualifier: 0 of 52 (unplaced)
+- Saturday `4HDl8nB-pOw`: 0 of 52 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q45 · 4HDl8nB-pOw: No real start time from FIRST
+  - M1, M1-2, M2, M2-2, F1–F3 · 4HDl8nB-pOw: Video has no broadcast clock (an upload, not a live stream)
+### 2019 20MOMT10 — Lee's Summit Meet AM: 0 of 15 (unplaced)
+- Saturday `7eiJDvT42ik`: 0 of 15 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q15 · 7eiJDvT42ik: No real start time from FIRST
+### 2019 20MOMT12 — Lee's Summit Meet PM: 0 of 15 (unplaced)
+- Saturday `XZHamtehL_k`: 0 of 15 held — Video has no broadcast clock (an upload, not a live stream)
+  - Q1–Q15 · XZHamtehL_k: No real start time from FIRST
