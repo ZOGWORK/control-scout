@@ -39,6 +39,8 @@ export function condWords(c: ScoreCond): string {
 export interface MatchFind {
   measure: MatchMeasure;
   season: number;
+  /** Every season up to `season` ("ever", "of all time"): its matches all read as one. */
+  ever?: boolean;
   window?: { from: string; to: string; label: string };
   region: Region | null;
   level: "qual" | "playoff" | null;
@@ -147,7 +149,7 @@ interface Row { season: number; code: string; level: string; series: number; num
 
 /** The filters the match finder and a scope's highlights (./highlights.ts) take. `events`: these events only (a
  *  division is an event of its own: ./highlights.ts scopeEvents lists them). */
-export type MatchScope = Pick<MatchFind, "season" | "window" | "region" | "level" | "finals" | "decided" | "kind" | "cond" | "team" | "video" | "videoKeys"> & { events?: { season: number; code: string }[];
+export type MatchScope = Pick<MatchFind, "season" | "ever" | "window" | "region" | "level" | "finals" | "decided" | "kind" | "cond" | "team" | "video" | "videoKeys"> & { events?: { season: number; code: string }[];
   /** `events` were named by the query and one isn't official (an off-season event): theirs are the matches all the same. */
   named?: boolean };
 
@@ -155,7 +157,7 @@ export type MatchScope = Pick<MatchFind, "season" | "window" | "region" | "level
 export function where(f: MatchScope, upTo = false) {
   const types = f.kind?.types ?? (f.named && f.events ? null : [...OFFICIAL_TYPES]);
   // A date window is its own range: a week across the season's start (Aug 31 to Sep 6) holds both seasons' matches.
-  const sql = [`${f.window ? "" : `m.season ${upTo ? "<=" : "="} ? AND `}m.played = 1 AND m.red_np IS NOT NULL AND m.blue_np IS NOT NULL AND m.red_total IS NOT NULL AND m.blue_total IS NOT NULL
+  const sql = [`${f.window ? "" : `m.season ${upTo || f.ever ? "<=" : "="} ? AND `}m.played = 1 AND m.red_np IS NOT NULL AND m.blue_np IS NOT NULL AND m.red_total IS NOT NULL AND m.blue_total IS NOT NULL
     AND COALESCE(e.remote, 0) = 0${types ? ` AND e.type IN (${types.map(() => "?").join(", ")})` : ""}`];
   const args: (string | number)[] = [...(f.window ? [] : [f.season]), ...(types ?? [])];
   if (f.region) { sql.push(f.region.state ? "e.country = ? AND e.state = ?" : "e.country = ?"); args.push(f.region.country, ...(f.region.state ? [f.region.state] : [])); }
@@ -188,9 +190,10 @@ export function where(f: MatchScope, upTo = false) {
 /** The first season with match video on record (FIRST's per-match videos and event recordings start here). */
 const FIRST_VIDEO_SEASON = 2019;
 
-/** The keys of the matches with video in the scope's seasons: its own, a window's either side of it, its events'. */
+/** The keys of the matches with video in the scope's seasons: its own, a window's either side of it (its events' too),
+ *  every one before it for `upTo`. Without those the finder reads its own season alone, so only its keys are read. */
 export async function videoKeys(f: Pick<MatchFind, "season" | "window" | "events">, upTo = false): Promise<string[]> {
-  const seasons = new Set<number>([f.season, ...(f.events ?? []).map((e) => e.season)]);
+  const seasons = new Set<number>([f.season, ...(f.window || upTo ? (f.events ?? []).map((e) => e.season) : [])]);
   // Every season up to the scope's (where's `upTo`): the seasons a search for the latest one with a match reaches.
   if (upTo) for (let s = f.season - 1; s >= FIRST_VIDEO_SEASON; s--) seasons.add(s);
   if (f.window) for (const s of [f.season - 1, f.season + 1]) seasons.add(s);
@@ -202,7 +205,8 @@ export const FROM = "FROM matches m JOIN events e ON e.season = m.season AND e.c
 
 /** The answer: the first match by the measure, the next few under it, every filter on the card. */
 export async function matchFindAnswer(f: MatchFind): Promise<StatAnswer> {
-  if (f.video && !f.videoKeys) f = { ...f, videoKeys: await videoKeys(f) };
+  if (f.video && !f.videoKeys) f = { ...f, videoKeys: await videoKeys(f, !!f.ever) };
+  const seasonText = f.ever ? "all seasons" : seasonLabel(f.season);
   const ms = MEASURES[f.measure];
   const w = where(f);
   const ranked = async (value: string) => {
@@ -240,13 +244,13 @@ export async function matchFindAnswer(f: MatchFind): Promise<StatAnswer> {
   const typed = [who ? `for ${who}` : null, eventName ? `at ${eventName}` : null, f.kind ? `at ${f.kind.label.toLowerCase()}` : null, place ? `in ${place}` : null, f.window ? f.window.label : null, f.cond && exact == null ? `where ${condWords(f.cond)}` : null, f.video ? "with video" : null].filter(Boolean).join(" ");
   // A list asked for is titled as one ("Biggest upsets in California"), its table under no heading of its own.
   const head = exact != null ? `${exact}-point match${f.list || rows.length > 1 ? "es" : ""}` : over ? `Predictions ${over.toLowerCase()}` : f.list ? ms.plural : ms.title;
-  const title = `${(filters ? `${head.replace(/match/, `${filters} match`)}` : head)}${typed ? ` ${typed}` : ""}, ${seasonLabel(f.season)}`;
-  const scope = [seasonLabel(f.season), ...(place ? [place] : []), ...(f.window ? [f.window.label.replace(/^./, (c) => c.toUpperCase())] : []),
+  const title = `${(filters ? `${head.replace(/match/, `${filters} match`)}` : head)}${typed ? ` ${typed}` : ""}, ${seasonText}`;
+  const scope = [f.ever ? "All seasons" : seasonText, ...(place ? [place] : []), ...(f.window ? [f.window.label.replace(/^./, (c) => c.toUpperCase())] : []),
     ...(f.finals ? ["Finals"] : f.level === "qual" ? ["Qualification matches"] : f.level === "playoff" ? ["Playoff matches"] : []), ...(f.kind ? [f.kind.label] : []), ...(f.cond ? [condWords(f.cond).replace(/^./, (c) => c.toUpperCase())] : []), ...(f.decided ? ["No ties"] : []), ...(over ? [over] : []), ...(f.video ? ["With video"] : []), ...(f.named ? [] : ["Official events"])];
   // An off-season event named is its own matches: never called official.
   const at = f.named ? "at the event named" : "at official events";
   const definition = `${rule.replace(/^./, (c) => c.toUpperCase())} Only played matches ${at} held in person, with both alliances' points on record.${f.video ? " With video: FIRST's own video of the match, or its place in the event's recording (the same clip its Play button plays)." : ""}`;
-  const where2 = `${who ? ` with ${who}` : ""}${place ? ` in ${place}` : ""}${f.kind ? ` at ${f.kind.label.toLowerCase()}` : ""}${f.window ? ` ${f.window.label}` : ` in ${seasonLabel(f.season)}`}${f.cond ? ` where ${condWords(f.cond)}` : ""}${f.video ? " with video" : ""}`;
+  const where2 = `${who ? ` with ${who}` : ""}${place ? ` in ${place}` : ""}${f.kind ? ` at ${f.kind.label.toLowerCase()}` : ""}${f.window ? ` ${f.window.label}` : ` in ${seasonText}`}${f.cond ? ` where ${condWords(f.cond)}` : ""}${f.video ? " with video" : ""}`;
   const base = { family: "superlative" as const, intent: `find-${f.measure}`, title, scope, definition, ...(f.team ? { team: f.team } : {}), source: `From ${count.toLocaleString("en-US")} played match${count === 1 ? "" : "es"}${where2}` };
   if (!rows.length) {
     const none = count && over ? `No prediction for the ${count.toLocaleString("en-US")} played match${count === 1 ? "" : "es"}${where2} was off by ${f.over!.atLeast ? `${f.over!.n} points or more` : `more than ${f.over!.n} points`}.`
