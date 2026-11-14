@@ -86,6 +86,12 @@ describe("AnswerVideo", () => {
     expect(c.querySelector("[data-no-recording]")?.textContent).toBe("No video for these matches — stats only.");
   });
 
+  it("matches still to play say nothing about video", () => {
+    const ahead: StatAnswer = { ...stat, headline: undefined, blocks: [{ kind: "table", title: "Still to play", upcoming: true, columns: [{ key: "match", label: "Match" }], rows: [{ cells: { match: "Q3" }, href: "/events/2026/USMACMP?match=qual:0:3" }] }] };
+    const c = render(<MemoryRouter><AnswerVideoProvider video={undefined}><StatAnswerCard stat={ahead} /></AnswerVideoProvider></MemoryRouter>).container;
+    expect(c.querySelector("[data-no-recording]")).toBeNull();
+  });
+
   it("an answer about no match says nothing about video", () => {
     const none: StatAnswer = { ...stat, headline: { value: "115.7", label: "OPR" }, blocks: [] };
     const c = render(<MemoryRouter><AnswerVideoProvider video={undefined}><StatAnswerCard stat={none} /></AnswerVideoProvider></MemoryRouter>).container;
