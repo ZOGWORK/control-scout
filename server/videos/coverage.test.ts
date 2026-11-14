@@ -97,6 +97,13 @@ describe("clipCoverage", () => {
     expect(cut.matches[1].basis).toMatch(/^clock \+ YouTube chapters \(its first 4 h \d+ min cut off\)$/);
   });
 
+  it("says a finished video with no length from YouTube can't place a match", () => {
+    const noLength = { ...meta("NOLENGTHv01", "2026-03-06T13:00:00Z", "2026-03-06T18:00:00Z", 0), length: null };
+    const r: Recording = { videoId: noLength.videoId, meta: noLength, source: "first" };
+    const c3 = clipCoverage([m("Q1", "2026-03-06T14:00:00")], r, r, "UTC", NOW);
+    expect(c3.matches[0]).toMatchObject({ clip: false, reason: "video-unread", why: "YouTube didn't give the video's length", videoId: "NOLENGTHv01" });
+  });
+
   it("says spans in hours and minutes", () => {
     expect([span(900), span(4520), span(14_400)]).toEqual(["15 min", "1 h 15 min", "4 h"]);
   });
