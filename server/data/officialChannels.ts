@@ -44,9 +44,9 @@ export const OFFICIAL_CHANNELS: OfficialChannelSeed[] = [
   // streams eastern Oklahoma's leagues, its own scrimmages and the state championship; SeaCow Robotics (FTC 21418) its
   // Mountain Home, Benton and Bentonville qualifiers, and Shiloh Saints (Shiloh Christian School) the Arkansas
   // Championship only, a school sports channel otherwise; FTC Louisiana every Louisiana event.
-  { channelId: "UC6y0o2J7b05YIL7w95cwg0w", title: "Tulsa Robotics Center (Oklahoma)", region: "state=OK;name=davinci|herrington|\\bmay\\b|morse|bishop kelley|pryor|scrimmage|oklahoma championship", words: "oklahoma tulsa trc", titlePattern: "oklahoma" },
+  { channelId: "UC6y0o2J7b05YIL7w95cwg0w", title: "Tulsa Robotics Center (Oklahoma)", region: "state=OK", words: "oklahoma tulsa trc", titlePattern: "oklahoma (state )?championship" },
   { channelId: "UClcqdD9sHnwtN7FCW6Vj1Ug", title: "SeaCow Robotics (Arkansas)", region: "state=AR;name=mountain home|benton", words: "arkansas seacow" },
-  { channelId: "UCvA42eBzkRpd-x23-AvOnvw", title: "Shiloh Saints (Arkansas Championship)", region: "state=AR;type=Championship", words: "arkansas shiloh", titlePattern: "arkansas" },
+  { channelId: "UCvA42eBzkRpd-x23-AvOnvw", title: "Shiloh Saints (Arkansas Championship)", region: "state=AR;type=Championship", words: "arkansas shiloh", titlePattern: "\\bFTC\\b|first tech challenge" },
   { channelId: "UCQYT4ZXN54khn_n7ebsRRtQ", title: "FTC Louisiana", region: "state=LA", words: "louisiana", titlePattern: "louisiana" },
   { channelId: "UCMQ-I5i7wiucrll3657GK4w", title: "FTC Utah", region: "state=UT", words: "utah", titlePattern: "utah" },
   { channelId: "UCyck0fFjiYFOz1S-TYCNiQA", title: "FIRST Illinois Robotics", region: "state=IL", words: "illinois", titlePattern: "illinois" },
