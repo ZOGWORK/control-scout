@@ -75,7 +75,7 @@ export function homePage(season: number, events: EventListItem[], to: string): L
   const rows = shown.slice(0, HOME_EVENTS).map((e) => listRow(liteEventPath(e.season, e.code),
     `<span><b>${esc(e.name)}</b><small>${esc([dateRange(e.start, e.end), place(e.city, e.state, e.country)].filter(Boolean).join(" · "))}</small></span>`
     + `<span class="res${e.status === "live" ? " ok" : " m"}">${e.status === "live" ? "On now" : "Soon"}</span>`, true));
-  const more = shown.length > HOME_EVENTS ? note(`${shown.length - HOME_EVENTS} more this week on the full version's Events page.`) : "";
+  const more = (shown.length > HOME_EVENTS ? note(`${shown.length - HOME_EVENTS} more this week.`) : "") + `<p class="sec">${button("/events", "All events (full version)")}</p>`;
   const body = title("Control Scout Lite", "FTC teams, events, predictions and search, for a weak signal.")
     + `<div class="sec">${searchBox()}</div>`
     + section("On the calendar", list(rows, `No ${seasonLabel(season)} events on now or starting by ${to}.`) + more)
