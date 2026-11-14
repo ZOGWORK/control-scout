@@ -20,11 +20,13 @@ const BOOT = new Date().toISOString();
 
 const sha1 = (s: string) => createHash("sha1").update(s).digest("hex");
 
-/** What an event's coverage depends on: its videos and their YouTube facts (chapters whole), the event's time zone, and
- *  each of its matches (played, its time, FIRST's video): any of them moving checks the event again. */
-function fingerprint(r: Recording | null, timezone: string | null, matches: string): string {
+/** What an event's coverage depends on: its videos and their YouTube facts (chapters whole), whether it's broadcast a day
+ *  at a time (which matches each video holds), which of its videos the page plays, the event's time zone, and each of its
+ *  matches (played, its time, FIRST's video): any of them moving checks the event again. */
+function fingerprint(r: Recording | null, playable: Recording | null, timezone: string | null, matches: string): string {
   const videos = r ? [r, ...(r.more ?? [])].map((v) => [v.videoId, v.day ?? null, v.part ?? null, v.meta?.status ?? null, v.meta?.start ?? null, v.meta?.end ?? null, v.meta?.length ?? null, v.meta?.live ?? null, v.meta?.chapters ?? null, checkedTo(v.videoId)]) : [];
-  return sha1(JSON.stringify([BOOT, videos, timezone, matches]));
+  const plays = playable ? [playable, ...(playable.more ?? [])].map((v) => v.videoId) : [];
+  return sha1(JSON.stringify([BOOT, videos, r?.daily ?? false, playable?.daily ?? false, plays, timezone, matches]));
 }
 
 /** The missing matches and their reasons, as a hash: the same list, however often checked, is the same key. It's also the
@@ -43,8 +45,9 @@ export async function checkClipCoverage(log: (s: string) => void, now = Date.now
     const seasons = (await all<{ season: number }>("SELECT DISTINCT season FROM events ORDER BY season DESC")).map((r) => Number(r.season));
     let checked = 0, opened = 0;
     for (const season of seasons) {
-      const [full, firstVideo, known] = await Promise.all([
+      const [full, recs, firstVideo, known] = await Promise.all([
         seasonRecordings(season, true),
+        seasonRecordings(season),
         all<{ code: string }>("SELECT DISTINCT code FROM matches WHERE season = ? AND video IS NOT NULL AND video != ''", [season]),
         all<{ code: string; fingerprint: string; missing_key: string; reviewed_at: string | null }>("SELECT code, fingerprint, missing_key, reviewed_at FROM clip_coverage WHERE season = ?", [season]),
       ]);
@@ -63,9 +66,9 @@ export async function checkClipCoverage(log: (s: string) => void, now = Date.now
           if (e) e.matches = String(r.m ?? "");
         }
       }
-      const todo = codes.map((code) => ({ code, fp: fingerprint(full.get(code) ?? null, shape.get(code)?.tz ?? null, shape.get(code)?.matches ?? "") })).filter((x) => was.get(x.code)?.fingerprint !== x.fp);
+      const todo = codes.map((code) => ({ code, fp: fingerprint(full.get(code) ?? null, recs.get(code) ?? null, shape.get(code)?.tz ?? null, shape.get(code)?.matches ?? "") })).filter((x) => was.get(x.code)?.fingerprint !== x.fp);
       if (!todo.length) continue;
-      const [recs, rows] = await Promise.all([seasonRecordings(season), eventMatchRows(season, todo.map((t) => t.code))]);
+      const rows = await eventMatchRows(season, todo.map((t) => t.code));
       const writes: { sql: string; args: (string | number | null)[] }[] = [];
       for (const { code, fp } of todo) {
         const c = clipCoverage(rows.get(code) ?? [], recs.get(code) ?? null, full.get(code) ?? null, shape.get(code)?.tz, now);
