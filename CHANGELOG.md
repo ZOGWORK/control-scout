@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.0.3 — 2026-11-14
+## 6.0.4 — 2026-11-14
 
 A new first-visit onboarding: four short steps on Home that show what Control Scout does, set up your team, and point to search and the main places.
 
@@ -28,6 +28,18 @@ A new first-visit onboarding: four short steps on Home that show what Control Sc
 - The first-visit onboarding (`src/components/onboarding/Onboarding.tsx`, `src/lib/onboarding.ts`): a locked dialog with four steps (what Control Scout is; your team, saved as My team; search answers plain questions; where the main places are). It opens on Home for someone new (nothing saved on the device or account), after the privacy choice, holding the first-run slot. Skip, in the header on every step, is the only way out besides the last step's button: Escape, the backdrop, outside clicks or taps, focus leaving, Ctrl/⌘ K, "/" and route changes do nothing, and the page behind is inert. A reload brings it back on the same step; finished or skipped, it never starts by itself again (`cs-onboarding`, device-only). Never to crawlers or automated browsers (`cs-onboarding-demo` opts in).
 - Settings › About › Show the welcome again; Clear all local data forgets it.
 - `npm run shots -- --onboarding`, and `scripts/onboarding-journeys.ts`: the acceptance journeys against any running copy, in Chromium and WebKit, at 1440×900 and 390×844. (#1455)
+
+## 6.0.3 — 2026-11-13
+
+On a phone, the search bar on the results page is now the search box itself: one tap puts the caret in it, ready to change your search.
+
+### Highlights
+- [fixes] One tap on the phone results page's search bar lets you edit your search
+- [fixes] No second search box opens on top of it any more
+- [fixes] A second tap puts the caret where you tapped, not a Cut/Copy menu
+
+### Fixed
+- Search on phones: the bar holding your query on the results page was a button that opened the top bar's search box over it, with the whole query selected, and on an iPhone a tap on a selection only offers Cut/Copy/Paste, so the query couldn't be edited. The bar is now the page's own search field (the top bar's box and search button step aside on that page), and opening a search box from a button or shortcut on a touch screen puts the caret at the end instead of selecting everything. Desktop keeps select-all. (`src/components/search/page/PhoneSearchBar.tsx`, `src/components/layout/Search.tsx`, `src/lib/focusField.ts`) (#1454)
 
 ## 6.0.2 — 2026-11-13
 

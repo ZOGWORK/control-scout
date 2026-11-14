@@ -220,16 +220,20 @@ export default function SearchPage() {
   ) : null;
   // A search on its way (just submitted, or a new one run from here): its loading screen, never older results; and
   // while going on to the one page a submitted query names.
-  if (query && !error && ((busy && ((stale && !reseason) || !found)) || leaving)) return <SearchSkeleton query={query} top={phone ? <PhoneSearchBar query={query} /> : null} />;
+  // Phones: the query in a bar that stays under the top bar. The same bar heads the loading screen and the results,
+  // first in both, so it's the same field when one replaces the other: what's being typed in it (and the keyboard)
+  // stays put when a search's results arrive.
+  const bar = phone ? <PhoneSearchBar query={query} /> : null;
+  if (query && !error && ((busy && ((stale && !reseason) || !found)) || leaving)) return <>{bar}<SearchSkeleton query={query} /></>;
   return (
-    // One results column, 640–720px and centred (the search results guide's §9: a line the eye can follow across a
-    // card); a page with a side panel keeps that column and puts the panel beside it.
+    <>{bar}
+    {/* One results column, 640–720px and centred (the search results guide's §9: a line the eye can follow across a
+    // card); a page with a side panel keeps that column and puts the panel beside it. */}
     <SeasonPickContext.Provider value={seasonPick}>
     <div className={cn("w-full pt-4 sm:pt-8", side ? "max-w-6xl" : "mx-auto max-w-[720px]")} data-results-column={side ? "with-panel" : ""}>
       {/* The feature's name sits above the title; the title names what was found, the badge what the query was read as.
           The query itself lives in the top bar (refine there): the page never repeats it. */}
-      {/* Phones: the query in a bar that stays under the top bar, then a short header ("Results: …"), no eyebrow. */}
-      {phone && <PhoneSearchBar query={query} />}
+      {/* Phones: the bar (above the column), then a short header ("Results: …"), no eyebrow. */}
       {/* The accent is the selected control's alone on this page (the active time tab): the eyebrow is plain. */}
       <p className="text-xs font-semibold text-muted-foreground max-md:hidden" data-eyebrow>FTC One Search</p>
       <h1 className="mt-1 font-display text-xl font-semibold tracking-tight text-foreground max-md:mt-0 md:text-2xl lg:text-3xl">
@@ -363,6 +367,7 @@ export default function SearchPage() {
       </p>
     </div>
     </SeasonPickContext.Provider>
+    </>
   );
 }
 

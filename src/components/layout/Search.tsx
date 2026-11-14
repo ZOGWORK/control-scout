@@ -7,6 +7,7 @@
 // on phones the header's search button expands the top-bar field.
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { smoothBehavior } from "../../lib/pageScroll";
+import { focusForEditing } from "../../lib/focusField";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Search } from "lucide-react";
 import { SearchBox, hitHref } from "../search/SearchBox";
@@ -66,13 +67,12 @@ export function SearchProvider({ children }: { children: ReactNode }) {
     if (was !== inputRef.current && was !== pageRef.current) returnTo.current = was instanceof HTMLElement && was !== document.body ? was : null;
     if (pageClaimed && pageRef.current) {
       pageRef.current.scrollIntoView({ block: "center", behavior: smoothBehavior() });
-      pageRef.current.focus({ preventScroll: true });
-      pageRef.current.select();
+      focusForEditing(pageRef.current, { preventScroll: true });
       return;
     }
     setExpanded(true);
     // After the (phone) field has rendered.
-    requestAnimationFrame(() => { inputRef.current?.focus(); inputRef.current?.select(); });
+    requestAnimationFrame(() => focusForEditing(inputRef.current));
   }, [pageClaimed]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -94,7 +94,8 @@ export const SEARCH_HINT = isMac ? "⌘K" : "Ctrl K";
 export function GlobalSearch({ part }: { part?: "button" | "field" }) {
   const { open, inputRef, expanded, setExpanded, pageClaimed, restoreFocus } = useSearch();
   const nav = useNavigate();
-  // On the full results page the top bar holds its query: that's where it's refined (the page has no box of its own).
+  // On the full results page the top bar holds its query: that's where it's refined (on a phone the page's own bar,
+  // PhoneSearchBar, holds it instead and this field steps aside).
   const loc = useLocation();
   const syncQuery = /^\/search\/?$/i.test(loc.pathname) ? new URLSearchParams(loc.search).get("q") ?? "" : undefined;
   if (pageClaimed) return null;
