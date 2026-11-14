@@ -38,6 +38,16 @@ export function frameStart(videoId: string, code: string, label: string): number
   return byKey.get(`${videoId}|${code}`)?.[label] ?? null;
 }
 
+/** The first framed start in a video after a given second (any event the video carries), or null. */
+export function frameNextStart(videoId: string, after: number): number | null {
+  let next: number | null = null;
+  for (const f of FRAME_TIMINGS) {
+    if (f.videoId !== videoId) continue;
+    for (const s of Object.values(f.starts)) if (s > after && (next == null || s < next)) next = s;
+  }
+  return next;
+}
+
 /** Whether any of a video's matches for an event were placed from its frames (a video read with none placed, only
  *  review or missing ones, doesn't count). */
 export function hasFrames(videoId: string, code: string): boolean {
