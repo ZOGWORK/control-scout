@@ -47,7 +47,7 @@ export function updatedLabel(iso: string, now = new Date()): string {
 
 /** The pill's words: what it says, and the full sentence for screen readers. */
 export function pillText(conn: Pick<ConnectionState, "internet">, asOf: string | null, now = new Date()): { short: string; long: string; time: string | null } {
-  if (conn.internet === "portal") return { short: "No internet on this Wi-Fi", long: "No internet on this Wi-Fi. It may need you to sign in.", time: null };
+  if (conn.internet === "portal") return { short: "No internet on this Wi-Fi", long: "No internet on this Wi-Fi. It may need you to sign in", time: null };
   const time = asOf ? updatedLabel(asOf, now) || null : null;
   return { short: "Offline", long: time ? `Offline, data updated ${time}` : "Offline", time };
 }
