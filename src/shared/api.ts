@@ -573,10 +573,14 @@ export interface ClipCoverage {
 export interface OwnerCoverageEvent {
   season: number; code: string; name: string; state: ClipCoverage["state"]; played: number; withClip: number; checkedAt: string;
   reviewedAt: string | null; reviewedBy: string | null;
+  /** The missing list's version, sent back with Reviewed: a list that changed meanwhile isn't marked. */
+  version: string;
   videos: CoverageVideo[]; daysMissing: ClipCoverage["daysMissing"]; missing: CoverageMatch[];
 }
 /** Open (not yet reviewed) events first; totals over every recorded event checked. */
-export interface OwnerClipCoverage { open: OwnerCoverageEvent[]; reviewed: OwnerCoverageEvent[]; totals: { events: number; played: number; withClip: number; full: number } }
+/** One page (from `offset`) of the open or the reviewed list; `open`, `reviewed`: how many each holds; totals over every
+ *  recorded event checked. */
+export interface OwnerClipCoverage { events: OwnerCoverageEvent[]; offset: number; open: number; reviewed: number; totals: { events: number; played: number; withClip: number; full: number } }
 
 export interface EventSummary {
   season: number;
@@ -645,7 +649,7 @@ export interface EventStream {
 export interface OwnerStreamRow { season: number; code: string; name: string | null; start: string | null; end: string | null; url: string; videoId: string; updatedAt: string }
 
 export interface EventDetail {
-  event: EventSummary & { /** The venue's street address (FIRST's event list); absent from older servers and saved packs. */ address?: string | null; website: string | null; livestream: string | null; timezone: string | null; source: string; /** The Watch live section's stream; absent or null: no section. */ stream?: EventStream | null };
+  event: EventSummary & { /** The venue's street address (FIRST's event list); absent from older servers and saved packs. */ address?: string | null; website: string | null; livestream: string | null; timezone: string | null; source: string; /** The Watch live section's stream; absent or null: no section. */ stream?: EventStream | null; /** A recording is linked but YouTube won't play it (private, removed): no stream, its reason on the page (server/videos/coverage.ts). */ recordingUnavailable?: true };
   field: FieldRow[];
   matches: MatchView[];
   alliances: { number: number; name: string | null; captain: number | null; pick1: number | null; pick2: number | null; backup: number | null }[];
