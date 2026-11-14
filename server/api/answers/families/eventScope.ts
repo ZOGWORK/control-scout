@@ -121,8 +121,10 @@ export async function matchLabelAnswer(team: AnswerTeam, all: TeamMatch[], scope
   // An event with both (a qualification 6 and an M6): the qualification, as "match 6" reads at one event.
   const byEvent = new Map<string, TeamMatch>();
   for (const m of mine) { const k = `${m.season}|${m.code}`; const had = byEvent.get(k); if (!had || (had.level !== "qual" && m.level === "qual")) byEvent.set(k, m); }
-  const season = scope.season ?? Math.max(-1, ...[...byEvent.values()].map((m) => m.season));
-  const found = [...byEvent.values()].filter((m) => m.season === season).reverse();
+  // "Ever": every season's, the latest first; else the season asked, else the latest with one.
+  const ever = !!scope.ever && scope.season == null;
+  const season = ever ? -1 : scope.season ?? Math.max(-1, ...[...byEvent.values()].map((m) => m.season));
+  const found = [...byEvent.values()].filter((m) => ever || m.season === season).reverse();
   const who = whoOf(team);
   const at = scope.championship ? " at Worlds" : scope.states ? " at states" : "";
   const title = `${label}${at}${season >= 0 ? `, ${seasonLabel(season)}` : ""}`;
