@@ -101,7 +101,7 @@ export function NetworkSection() {
         </Row>}
       </Group>
 
-      <Downloads m={m} error={error} connected={connected} seasons={seasons} bundles={bundles} lite={lite} />
+      <Downloads m={m} error={error} internet={conn.internet} seasons={seasons} bundles={bundles} lite={lite} />
       <Controls m={m} liteFlag={liteFlag} liteOn={liteOn} internet={conn.internet} />
       <CleanUp seasons={seasons} bundles={bundles} lite={lite} />
     </div>
@@ -109,8 +109,8 @@ export function NetworkSection() {
 }
 
 /** What's downloaded (each pack, its size, its data time) and what a download costs, from the pack manifest. */
-function Downloads({ m, error, connected, seasons, bundles, lite }: {
-  m: PackManifest | null; error: ManifestError | null; connected: boolean; seasons: SavedSeason[]; bundles: SavedBundle[]; lite: PackMeta | null;
+function Downloads({ m, error, internet, seasons, bundles, lite }: {
+  m: PackManifest | null; error: ManifestError | null; internet: Internet; seasons: SavedSeason[]; bundles: SavedBundle[]; lite: PackMeta | null;
 }) {
   const items = [
     ...bundles.map((b) => ({ key: `b:${b.season}:${b.code}`, name: b.name, bytes: b.bytes, at: bundleTime(b) })),
@@ -135,7 +135,7 @@ function Downloads({ m, error, connected, seasons, bundles, lite }: {
       <div className="border-t border-border px-4 py-3">
         <Button variant="outline" className="h-11 w-full sm:h-9 sm:w-auto" asChild><Link to="/download"><HardDriveDownload /> Manage downloads</Link></Button>
       </div>
-      <Sizes m={m} error={error} connected={connected} bundles={bundles} />
+      <Sizes m={m} error={error} internet={internet} bundles={bundles} />
     </Group>
   );
 }
@@ -184,9 +184,11 @@ function useManifest(connected: boolean, checkedAt: number | string | null | und
 }
 
 /** Why the sizes aren't shown, in plain words (null: they are, or they're still loading). */
-export function sizesMissing(m: PackManifest | null, error: ManifestError | null, connected: boolean): string | null {
+export function sizesMissing(m: PackManifest | null, error: ManifestError | null, internet: Internet): string | null {
   if (m) return null;
-  if (!connected) return "The rest show when you're online.";
+  // Before the first check answers nobody knows yet: never "when you're online" to someone who may be.
+  if (internet === "unknown") return "Checking your connection…";
+  if (internet !== "yes") return "The rest show when you're online.";
   if (!error) return null;
   if (error.reason === "paused") return `Download sizes aren't available. ${error.message}`;
   if (error.reason === "none") return "No downloads have been published yet.";
@@ -204,10 +206,10 @@ export function sizeLines(m: PackManifest | null, season: number, events: { name
   return lines;
 }
 
-function Sizes({ m, error, connected, bundles }: { m: PackManifest | null; error: ManifestError | null; connected: boolean; bundles: SavedBundle[] }) {
+function Sizes({ m, error, internet, bundles }: { m: PackManifest | null; error: ManifestError | null; internet: Internet; bundles: SavedBundle[] }) {
   const season = useCurrentSeason();
   const lines = sizeLines(m, season, bundles);
-  const missing = sizesMissing(m, error, connected);
+  const missing = sizesMissing(m, error, internet);
   return (
     <div className="border-t border-border px-4 py-3 text-sm" data-net-sizes>
       <p className="font-medium text-foreground">How much a download uses</p>
@@ -290,7 +292,8 @@ function CleanUp({ seasons, bundles, lite }: { seasons: SavedSeason[]; bundles: 
   const [plan, setPlan] = useState<CachePlan | null | undefined | "failed">(undefined);
   const [busy, setBusy] = useState(false);
   const [freed, setFreed] = useState<number | null>(null);
-  const [est, setEst] = useState<{ usage?: number; quota?: number } | null>(null);
+  // null: measuring; "failed": the browser has the API but it refused just now (said apart from "doesn't say").
+  const [est, setEst] = useState<{ usage?: number; quota?: number } | null | "failed">(null);
   const planSeq = useRef(0);
   const estSeq = useRef(0);
   const measurePlan = () => {
@@ -300,7 +303,7 @@ function CleanUp({ seasons, bundles, lite }: { seasons: SavedSeason[]; bundles: 
   const measureStorage = () => {
     const n = ++estSeq.current;
     if (!navigator.storage?.estimate) { setEst({}); return; } // the browser doesn't say
-    navigator.storage.estimate().then((x) => { if (n === estSeq.current) setEst(x); }, () => { if (n === estSeq.current) setEst({}); });
+    navigator.storage.estimate().then((x) => { if (n === estSeq.current) setEst(x); }, () => { if (n === estSeq.current) setEst("failed"); });
   };
   const measure = () => { measurePlan(); measureStorage(); };
   useEffect(measurePlan, []);
@@ -338,7 +341,7 @@ function CleanUp({ seasons, bundles, lite }: { seasons: SavedSeason[]; bundles: 
         }}>Delete all recordings</Button>
       </Row>
       <Row label="Storage used by this site" description="Downloads, the app's files and recordings, all together.">
-        <span className="text-sm tabular-nums text-foreground">{est === null ? "Measuring…" : est.usage != null ? `${fmtBytes(est.usage)}${est.quota ? ` of ${fmtBytes(est.quota)}` : ""}` : "Your browser doesn't say"}</span>
+        <span className="text-sm tabular-nums text-foreground">{est === null ? "Measuring…" : est === "failed" ? "Couldn't measure just now" : est.usage != null ? `${fmtBytes(est.usage)}${est.quota ? ` of ${fmtBytes(est.quota)}` : ""}` : "Your browser doesn't say"}</span>
       </Row>
     </Group>
   );

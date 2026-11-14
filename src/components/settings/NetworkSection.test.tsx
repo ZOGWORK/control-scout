@@ -367,3 +367,18 @@ describe("Network & offline: figures follow their inputs", () => {
     } finally { cache.plan = before; }
   });
 });
+
+describe("Network & offline: before the first check, and a refused storage estimate", () => {
+  it("the sizes never say 'when you're online' while the first check hasn't answered", async () => {
+    const { sizesMissing } = await import("./NetworkSection");
+    expect(sizesMissing(null, null, "unknown")).toBe("Checking your connection…");
+    expect(sizesMissing(null, null, "no")).toBe("The rest show when you're online.");
+    expect(sizesMissing(null, null, "portal")).toBe("The rest show when you're online.");
+  });
+  it("a storage estimate that fails says it couldn't measure, not that the browser can't say", async () => {
+    vi.stubGlobal("navigator", Object.assign(Object.create(navigator), { storage: { estimate: async () => { throw new DOMException("blocked", "UnknownError"); } } }));
+    vi.stubGlobal("fetch", health({ ok: true }));
+    show();
+    expect(await screen.findByText("Couldn't measure just now")).toBeTruthy();
+  });
+});
