@@ -87,12 +87,9 @@ export async function downloadBundle(r: BundleRequest, onProgress?: (done: numbe
     throw new Error(`Couldn't save the bundle on this device (${(e as Error).message || "storage full"}). The copy already here is kept.`);
   }
   for (const k of memo.keys()) if (k.startsWith(`${bundleKey(m.season, m.code)}@`)) memo.delete(k);
-<<<<<<< HEAD
   await finishDownload(m.sha256);
-=======
   // The scouting pages' reads for this event, kept for when the signal goes (warm.ts).
   void import("./warm").then((w) => w.warmScoutReads(true)).catch(() => {});
->>>>>>> origin/main
   return saved;
 }
 
