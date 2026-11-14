@@ -22,6 +22,15 @@ and checked by hand: Tulsa Robotics Center (eastern Oklahoma's leagues, its scri
 SeaCow Robotics and Shiloh Saints (Arkansas qualifiers and the Arkansas Championship, already played from FIRST's
 channel links) and FTC Louisiana (every Louisiana event, uploaded after it was streamed elsewhere).
 
+and checked by hand: FIRST in Missouri (the Missouri/Kansas partner: St. Louis, Southeast and Southwest leagues, the
+championship) and FIRST MOKS (Kansas City, one video per meet session).
+
+The owner's audited channel list (2026-11-14) adds four FIRST delivery partners: USTEM Foundation (Kazakhstan),
+Robotique FIRST France, Associazione Artù APS (Italy) and the Fikret Yüksel Foundation (Türkiye). It also adds The
+PRC Channel, the school channel that streamed Thailand's 2025 championship. That's its only event so far, so it's the
+weakest entry on the watchlist, and the owner can remove it if no second event follows. The second Italy channel
+(@ftc-italy) is not added: it has only webinars so far.
+
 ## How a video is matched to an event
 
 A video is kept only when all of these hold (`server/data/officialVideos.json` was built this way, and the
@@ -33,6 +42,10 @@ auto-watcher uses the same rules):
    broadcast date, so it can't prove its day, and is left out. The checked list makes one exception, by hand: an
    upload of an event that played every match on one day (Scout's match times say which; FTC Louisiana's two-day
    qualifiers play on the Saturday), or of a one-day event its title names.
+
+   upload whose title names its date and, where a venue holds several meets that day, its session (FIRST MOKS's
+   "FTC Meet @ Belton 8AM (2026-11-7)" is "Belton Meet @ 8 AM"), or an upload of an event that played every match on
+   one day (Scout's match times say which).
 3. Its title names the event: a distinctive word of the event's name or city (the league, the venue, "Mockingbird"),
    or the event's designators (an NTX league letter, a meet number, a UIL class, a stage). An event named by an
    acronym ("APOC") also fits a title spelling it out in words in a row ("Asia Pacific Open Championship"); a common
