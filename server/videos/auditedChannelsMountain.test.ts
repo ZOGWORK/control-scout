@@ -2,7 +2,7 @@
 // Scout event its title names (name, city, dates, meet number, North or South), and the watcher's region rules take
 // only those states' events.
 import { describe, expect, it } from "vitest";
-import { parseRule, type WatchEvent } from "./officialMatch";
+import { matchVideo, parseRule, type WatchEvent, type WatchVideo } from "./officialMatch";
 import { OFFICIAL_CHANNELS } from "../data/officialChannels";
 import type { OfficialList } from "./officialVideos";
 import shipped from "../data/officialVideos.json" with { type: "json" };
@@ -150,5 +150,17 @@ describe("audited channels: Nevada, North Dakota, Montana", () => {
     expect(rule(ND)(ev("SD", "Dakota Qualifier"))).toBe(false);
     expect(rule(MT)(ev("MT", "Montana Qualifier - Butte MT-Tech"))).toBe(true);
     expect(rule(MT)(ev("ID", "Magic Valley Qualifying Event"))).toBe(false);
+  });
+
+  it("BCA Activities, a school activities channel: a place-named Dakota FTC qualifier is added, a State title goes to review", () => {
+    const seed = OFFICIAL_CHANNELS.find((c) => c.channelId === ND)!;
+    const cmp: WatchEvent = { season: 2026, code: "USNDCMP", name: "North Dakota Championship", type: "Championship", city: "Bismarck", state: "ND", country: "USA", start: "2027-02-13", end: "2027-02-13", timezone: "America/Chicago", divisionCode: null, parent: false };
+    const biq: WatchEvent = { ...cmp, code: "USNDBIQ", name: "Bismarck Qualifier", type: "Qualifier", start: "2027-01-09", end: "2027-01-09" };
+    const vid = (title: string, start: string): WatchVideo => ({ videoId: "xxxxxxxxxxx", title, start, durationS: 5 * 3600, privacy: "public", embeddable: true, blockedIn: 0 });
+    // Another activity's stream on the FTC championship's day shares only the state's words: never added.
+    expect(matchVideo(vid("North Dakota State Championship", "2027-02-13T15:00:00Z"), seed, [cmp, biq]).kind).toBe("review");
+    expect(matchVideo(vid("2027 Dakota FTC State Championship", "2027-02-13T15:00:00Z"), seed, [cmp, biq]).kind).toBe("review");
+    expect(matchVideo(vid("2027 Bismarck ND FLL Qualifier", "2027-01-09T15:00:00Z"), seed, [cmp, biq]).kind).toBe("ignore");
+    expect(matchVideo(vid("Dakota FTC Bismarck Qualifier", "2027-01-09T15:00:00Z"), seed, [cmp, biq])).toMatchObject({ kind: "add", event: { code: "USNDBIQ" } });
   });
 });
