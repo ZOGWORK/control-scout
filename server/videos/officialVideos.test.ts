@@ -8,7 +8,7 @@ import { clearAllCaches } from "../caches";
 import { eventRecording, recordingStream } from "./recordings";
 import { eventHighlightVideos, localDate, seedOfficialVideos, type OfficialList } from "./officialVideos";
 import { eventView, withPageExtras } from "../api/eventView";
-import { parseRule } from "./officialMatch";
+import { matchVideo, parseRule } from "./officialMatch";
 import shipped from "../data/officialVideos.json" with { type: "json" };
 
 const S = 2025;
@@ -410,6 +410,15 @@ describe("the shipped list", () => {
     expect(rule(CR)({ ...ga, code: "USGAMWM2", name: "Marietta-Wheeler Meet #2" })).toBe(true);
     expect(rule(CR)({ ...ga, code: "USGANWLT", name: "Northwest League Tournament", city: "Dallas" })).toBe(true);
     expect(rule(CR)({ ...ga, code: "USGAETOWM1", name: "Etowah-Paulding League meet #1", city: "Dallas" })).toBe(false);
+    // FIRST in Missouri's championship title names only the region ("Missouri/Kansas"), so its titlePattern counts it:
+    // next March's stream is added like a state partner's, not left for review. A league meet still needs its own name.
+    const fimo = OFFICIAL_CHANNELS.find((c) => c.channelId === "UCoo2NYUOcTUZB65dGMAp1vg")!;
+    const mo = { ...ga, season: 2025, state: "MO", city: "Rolla", timezone: "America/Chicago", start: "2026-03-07", end: "2026-03-07" };
+    const live = { videoId: "p_R6wJSYURg", start: "2026-03-07T17:38:00Z", durationS: 8 * 3600, privacy: "public", embeddable: true, blockedIn: 0 };
+    const cmpMo = { ...mo, type: "Championship", code: "USMOKSCMP", name: "Missouri Kansas Championship" };
+    expect(matchVideo({ ...live, title: "FTC Missouri/Kansas Championship - March 7, 2026 - DECODE" }, fimo, [cmpMo]).kind).toBe("add");
+    expect(matchVideo({ ...live, title: "FiMO FTC State Championship - March 7, 2026 - DECODE" }, fimo, [cmpMo]).kind).toBe("add");
+    expect(matchVideo({ ...live, title: "FTC Missouri/Kansas Championship - March 7, 2026 - DECODE" }, fimo, [{ ...mo, code: "USMOKSSTLMM9", name: "Rolla Meet @ 10 AM" }]).kind).not.toBe("add");
     const queso = rule("UCLpE1wCLHdIMZ-cKpsVWsqQ");
     expect(queso({ ...ga, state: "TX", city: "San Antonio", type: "OffSeason", code: "USTXSAOS1", name: "Queso Bowl" })).toBe(true);
     expect(queso({ ...ga, state: "TX", city: "San Antonio", code: "USTXSAQ", name: "FiT-Central Last Call Qualifier" })).toBe(false);
