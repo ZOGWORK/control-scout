@@ -196,8 +196,8 @@ describe("matches read off a recording's own frames", () => {
     setFrameTimingsForTests([
       { videoId: UPLOAD_ID, code: "UPLOAD", checked: "2026-11-13", starts: { Q1: 100 } },
       { videoId: GAPPED_ID, code: "GAPPED", checked: "2026-11-13", starts: { Q1: 1500 } },
-      // Another event's timings on the same video are never this event's.
-      { videoId: FIRST_ID, code: "ELSEWHEN", checked: "2026-11-13", starts: { Q9: 50 } },
+      // Another event's timings on the same video are never this event's: ELSEWHEN's Q1 never moves CLIPS's Q1.
+      { videoId: FIRST_ID, code: "ELSEWHEN", checked: "2026-11-13", starts: { Q1: 50 } },
     ]);
     try {
       clearAllCaches();
@@ -211,7 +211,7 @@ describe("matches read off a recording's own frames", () => {
       expect((await getJson(`/api/events/${S}/CLIPS`)).matches[0].clip.t).toBe(120 - 20);
       const { events } = await getJson(`/api/events?season=${S}`);
       const by = Object.fromEntries(events.map((e: any) => [e.code, e.video ?? null]));
-      expect(by).toMatchObject({ UPLOAD: "clips", GAPPED: "clips", ELSEWHEN: "recording" });
+      expect(by).toMatchObject({ UPLOAD: "clips", GAPPED: "clips", ELSEWHEN: "clips" });
     } finally {
       setFrameTimingsForTests([]);
       clearAllCaches();
