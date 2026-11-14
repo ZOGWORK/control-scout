@@ -8,7 +8,7 @@ import { clearAllCaches } from "../caches";
 import { eventRecording, recordingStream } from "./recordings";
 import { eventHighlightVideos, localDate, seedOfficialVideos, type OfficialList } from "./officialVideos";
 import { eventView, withPageExtras } from "../api/eventView";
-import { parseRule } from "./officialMatch";
+import { matchVideo, parseRule } from "./officialMatch";
 import shipped from "../data/officialVideos.json" with { type: "json" };
 
 const S = 2025;
@@ -382,6 +382,46 @@ describe("the shipped list", () => {
       expect(rule(at(country)), country).toBe(true);
       for (const other of ["USA", "Uzbekistan", "Belgium", "Romania", "Netherlands"]) expect(rule(at(other)), `${country} ${other}`).toBe(false);
     }
+  });
+
+  it("puts CircuitRunners' streams on the Marietta-Wheeler meet or Northwest tournament each title names; Sharpe and Queso add none", async () => {
+    const CR = "UCzxcU4h8qFiLWkdrmV9_TLw";
+    const cr = data.videos.filter((x) => x.channelId === CR);
+    // Every row, checked by hand against Scout's event (name, city, date, league, meet number).
+    expect(cr.map((x) => `${x.season}/${x.code} ${x.day} ${x.part ?? "-"} ${x.videoId}`).sort()).toEqual([
+      "2025/USGAMWM2 2025-11-15 - oRx_zqjtmko", "2025/USGAMWM3 2025-12-06 - PhvthlIrL1I", "2025/USGAMWM4 2026-01-10 - JUrTa0wzHIA",
+      "2025/USGANWLT 2026-02-07 Part 1 fEF8q9Basaw", "2025/USGANWLT 2026-02-07 Part 2 uYabNfVC-Aw",
+    ]);
+    for (const x of cr) {
+      expect(x.kind, x.videoId).toBe("recording");
+      expect(x.title, x.videoId).toMatch(/^FTC Decode /);
+      const meet = /^USGAMWM(\d)$/.exec(x.code)?.[1];
+      expect(x.title, x.videoId).toMatch(meet ? new RegExp(`Wheeler-Marietta League Meet ${meet}$`) : /Northwest League Tournament$/);
+    }
+    // Left out: Meet 1's two streams and 2024's Meet 3 can't be embedded, an untitled "Live Stream", the tournament's
+    // 9-minute and 33-second fragments. Sharpe Pursuits' NC Championship stream and both Queso Bowls are FIRST's own
+    // links already, so the list doesn't repeat them; Sharpe isn't watched (one FTC stream, an event company).
+    const ids = new Set(data.videos.map((x) => x.videoId));
+    for (const no of ["okj0JPCAbsY", "3Gz9ujzycMQ", "eBWwiuU9aqY", "H4Grgjbl150", "12kdHHG3omE", "SehF5AaVyLU", "cFia2BHJXZ4", "CPE96v-Phrc", "tH7n5EtRpSo"]) expect(ids.has(no), no).toBe(false);
+    const { OFFICIAL_CHANNELS } = await import("../data/officialChannels");
+    expect(OFFICIAL_CHANNELS.some((c) => c.channelId === "UCL0OSn9bKkRWOl-YQ1i--OA")).toBe(false);
+    const rule = (ch: string) => parseRule(OFFICIAL_CHANNELS.find((c) => c.channelId === ch)!.region)!;
+    const ga = { season: 2026, type: "LeagueMeet", city: "Marietta", state: "GA", country: "USA", start: "2026-11-14", end: "2026-11-14", timezone: "America/New_York", divisionCode: null, parent: false };
+    expect(rule(CR)({ ...ga, code: "USGAMWM2", name: "Marietta-Wheeler Meet #2" })).toBe(true);
+    expect(rule(CR)({ ...ga, code: "USGANWLT", name: "Northwest League Tournament", city: "Dallas" })).toBe(true);
+    expect(rule(CR)({ ...ga, code: "USGAETOWM1", name: "Etowah-Paulding League meet #1", city: "Dallas" })).toBe(false);
+    // FIRST in Missouri's championship title names only the region ("Missouri/Kansas"), so its titlePattern counts it:
+    // next March's stream is added like a state partner's, not left for review. A league meet still needs its own name.
+    const fimo = OFFICIAL_CHANNELS.find((c) => c.channelId === "UCoo2NYUOcTUZB65dGMAp1vg")!;
+    const mo = { ...ga, season: 2025, state: "MO", city: "Rolla", timezone: "America/Chicago", start: "2026-03-07", end: "2026-03-07" };
+    const live = { videoId: "p_R6wJSYURg", start: "2026-03-07T17:38:00Z", durationS: 8 * 3600, privacy: "public", embeddable: true, blockedIn: 0 };
+    const cmpMo = { ...mo, type: "Championship", code: "USMOKSCMP", name: "Missouri Kansas Championship" };
+    expect(matchVideo({ ...live, title: "FTC Missouri/Kansas Championship - March 7, 2026 - DECODE" }, fimo, [cmpMo]).kind).toBe("add");
+    expect(matchVideo({ ...live, title: "FiMO FTC State Championship - March 7, 2026 - DECODE" }, fimo, [cmpMo]).kind).toBe("add");
+    expect(matchVideo({ ...live, title: "FTC Missouri/Kansas Championship - March 7, 2026 - DECODE" }, fimo, [{ ...mo, code: "USMOKSSTLMM9", name: "Rolla Meet @ 10 AM" }]).kind).not.toBe("add");
+    const queso = rule("UCLpE1wCLHdIMZ-cKpsVWsqQ");
+    expect(queso({ ...ga, state: "TX", city: "San Antonio", type: "OffSeason", code: "USTXSAOS1", name: "Queso Bowl" })).toBe(true);
+    expect(queso({ ...ga, state: "TX", city: "San Antonio", code: "USTXSAQ", name: "FiT-Central Last Call Qualifier" })).toBe(false);
   });
 
   it("puts FANGV's West Michigan streams on the meet each title names, and watches Stars of the Galaxy for Central Ohio only", async () => {

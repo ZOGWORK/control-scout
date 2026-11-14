@@ -37,6 +37,12 @@ Regional streamers from the owner's audited list (2026-11-14), each read through
 and checked by hand: FIRST in Missouri (the Missouri/Kansas partner: St. Louis, Southeast and Southwest leagues, the
 championship) and FIRST MOKS (Kansas City, one video per meet session).
 
+From the same list, CircuitRunners Robotics (FTC 1002, a team channel that is the event's own streamer) streams Georgia's
+Marietta-Wheeler league and its Northwest League
+Tournament (that day is in two broadcasts, named Part 1 and Part 2 in broadcast order), and Microchips & Queso its
+own Queso Bowl in Texas (FTC 23350, the event's host). Sharpe Pursuits' one FTC stream, the 2026 North Carolina Championship, is FIRST's own link
+for that event, and the channel (an event company) isn't watched.
+
 The owner's audited channel list (2026-11-14) adds four FIRST delivery partners: USTEM Foundation (Kazakhstan),
 Robotique FIRST France, Associazione Artù APS (Italy) and the Fikret Yüksel Foundation (Türkiye). It also adds The
 PRC Channel, the school channel that streamed Thailand's 2025 championship. That's its only event so far, so it's the
@@ -114,7 +120,9 @@ minutes and starts a run only when the last one is 6 hours old, so a deploy does
   `country=USA;type=Premier,OffSeason`, `state=IN;name=michiana|gears`), the region's own words (too common in its
   titles to count as evidence) and, optionally, a pattern for titles that name the region itself. Only videos
   published after a channel started being watched are read; the older ones went through the checked list. The
-  owner adds, edits or removes channels in Owner › Official videos, and a removed channel is never seeded back.
+  owner adds, edits or removes channels in Owner › Official videos, and a removed channel is never seeded back. A seeded
+  channel that later gains a title pattern in that file gets it on the next start, unless the owner has saved or
+  removed that channel (their row stands).
 - **Each new video, once** (`official_watch`): it gets matched with the list's rules (`server/videos/officialMatch.ts`).
   A recording is **added** (`official_videos`, source `watcher`) only when all of these hold:
   - it is a finished live broadcast of at least 45 minutes, public and embeddable, and not blocked in 50 or more countries;
