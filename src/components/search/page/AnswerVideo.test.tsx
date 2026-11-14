@@ -90,6 +90,10 @@ describe("AnswerVideo", () => {
     const ahead: StatAnswer = { ...stat, headline: undefined, blocks: [{ kind: "table", title: "Still to play", upcoming: true, columns: [{ key: "match", label: "Match" }], rows: [{ cells: { match: "Q3" }, href: "/events/2026/USMACMP?match=qual:0:3" }] }] };
     const c = render(<MemoryRouter><AnswerVideoProvider video={undefined}><StatAnswerCard stat={ahead} /></AnswerVideoProvider></MemoryRouter>).container;
     expect(c.querySelector("[data-no-recording]")).toBeNull();
+    // A predicted score's match, still to play, too.
+    const next: StatAnswer = { ...stat, headline: { value: "120–90", label: "Q3", href: "/events/2026/USMACMP?match=qual:0:3", upcoming: true }, blocks: [] };
+    const d = render(<MemoryRouter><AnswerVideoProvider video={undefined}><StatAnswerCard stat={next} /></AnswerVideoProvider></MemoryRouter>).container;
+    expect(d.querySelector("[data-no-recording]")).toBeNull();
   });
 
   it("an answer about no match says nothing about video", () => {
