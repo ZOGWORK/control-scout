@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.2.7 — 2026-11-14
+## 6.2.8 — 2026-11-14
 
 With no internet, an event you downloaded now shows its Result changes too, and the home page's season totals show the last ones this device loaded instead of an error.
 
@@ -27,6 +27,19 @@ With no internet, an event you downloaded now shows its Result changes too, and 
 ### Fixed
 - The event pack now holds the event's result changes and each match's (`/api/events/:season/:code/result-changes` and `/matches/:key/result-changes`), read through the same `resultChanges()` the routes call, so with no signal the event page's Result changes section and each match's show the server's own answer instead of "You're offline. This page needs a connection". A real event's pack grows by 0.2–2.6 KB gzipped (measured locally on five 2026 events).
 - The home page's season totals (`/api/home/overview`) are kept on the device like the scouting reads (`lib/offline/kept.ts`). With no signal the strip shows the last totals this device loaded, with the offline note saying when; if none were ever loaded, the strip is left out instead of an error with Try again. No number is ever made up. (#1496)
+
+## 6.2.7 — 2026-11-14
+
+Search finds a match by its number and plays that exact match.
+
+### Highlights
+- [teams] Type a team and a match number (Q6, M3) to see and play that match
+- [teams] A match number with an event, Worlds or a season finds it too
+- [teams] Comparing teams lists the matches they played together, with Play
+
+### Changed
+- Search: a team and a match's number with no event ("<team> Q6") lists that number at each event of the season, latest first, and plays the latest; at Worlds or states ("<team> M14 at worlds") it is that match there. A number with no team ("M14 decode finals", "q6 at worlds") lists those matches highest-scoring first, the card playing the top one. An M number is a playoff match's. (`server/api/query/intents.ts`, `parse.ts`, `matchFind.ts`, `server/api/answers/families/eventScope.ts`) (#1484)
+- Search: comparing two or more teams adds "Their matches together", the matches all of them were on the field for, each with its own clip. (`server/api/answers/families/twoTeam.ts`, `src/components/search/page/CompareCard.tsx`)
 
 ## 6.2.6 — 2026-11-14
 
