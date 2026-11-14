@@ -168,8 +168,9 @@ minutes and starts a run only when the last one is 6 hours old, so a deploy does
   (read again next run).
 - **After a recording is added** (by the watcher, or by the owner's approval), every `onRecordingAdded` listener
   (`server/videos/officialWatch.ts`) gets each event, day, part and video, once per run. It's the hook for checking
-  the event's clip coverage again; nothing registers on it yet, so until the coverage check does, an add notifies no
-  one. A failing listener is logged and never undoes the add.
+  the event's clip coverage again: `server/index.ts` registers `checkClipCoverage` (`server/videos/coverageCheck.ts`)
+  at boot, so every played match of a new recording's day gets a clip or lands on the owner's missing list. A failing
+  listener is logged and never undoes the add.
 - **The owner's queue** (Owner › Official videos, with an "N to review" badge on the console's menu), oldest first. Each
   row shows the title, channel, video id, published and broadcast times, length, the best-guess event and why it
   wasn't added:
