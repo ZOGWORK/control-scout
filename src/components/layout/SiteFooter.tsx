@@ -30,7 +30,7 @@ export function SiteFooter({ discordInvite = discordInviteUrl(), release = curre
         ))}
         {/* The Discord bot's invite, once it has a client ID (src/shared/discord.ts). */}
         {discordInvite && <a href={discordInvite} target="_blank" rel="noreferrer noopener" className={LINK}>Discord bot</a>}
-        {lite && <a href={lite} className={LINK} data-lite-link="">Light version</a>}
+        {lite && <a href={lite} className={LINK} data-lite-link="">Control Scout Lite</a>}
       </nav>
       <p>
         © Control Scout ·{" "}
