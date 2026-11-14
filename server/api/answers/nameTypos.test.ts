@@ -2,7 +2,7 @@
 // one; rare real names, accented names and real words a letter apart stay.
 import { beforeAll, describe, expect, it } from "vitest";
 import { kvSet, migrate, openDb, run, setDb } from "../../db";
-import { nameTypos, slip, spelledBy, typoWords } from "./nameTypos";
+import { forgetNameTypos, nameTypos, slip, spelledBy, typoWords, warmNameTypos } from "./nameTypos";
 
 const WINTERBERRY = ["Arlington", "Waverly", "Denver", "Cedar Falls", "Valley", "Mall", "Tournament", "Square"].map((p) => `Winterberry ${p}`);
 const names = [
@@ -65,5 +65,18 @@ describe("nameTypos", () => {
     expect([...first]).toEqual(["wnterberry"]);
     await new Promise((r) => setTimeout(r, 50));
     expect((await nameTypos()).size).toBe(0);
+  });
+
+  it("Clear caches pressed while a build runs is never lost: the next use builds again", async () => {
+    forgetNameTypos();
+    const build = warmNameTypos();
+    // Pressed while that build reads the names.
+    forgetNameTypos();
+    await build;
+    // A new typo, the search version unmoved: only a build marked stale reads it.
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, source) VALUES (2026, 'USIAWZ', 'Wnterberry Cedar', 'LeagueMeet', 'Waterloo', 'IA', 'USA', '2026-12-01', 'test')");
+    await nameTypos();
+    await new Promise((r) => setTimeout(r, 50));
+    expect([...(await nameTypos())]).toEqual(["wnterberry"]);
   });
 });
