@@ -33,7 +33,7 @@ Scouting works with no signal: open Scout, pick your downloaded event, scout mat
 - `scripts/scout-offline-journey.ts`: journey 5 of the offline brief on a production build, through a local proxy that cuts the network for the service worker too (`scripts/lib/netSwitch.ts`).
 
 ### Changed
-- Scout's sync chip says "Saved on this device · N will sync" with no signal (it said "Offline — N pending" with a warning icon); signed out it says "Saved on this device". The shortlist says the same while it waits to sync.
+- Scout's sync chip says "Saved on this device · N will sync" with no signal (it said "Offline — N pending" with a warning icon); signed out it says "Saved on this device". The entry form's save bar (it said "Queued offline" in warning colour) and the shortlist say the same while they wait to sync.
 - Shared pick list order changes that didn't go for want of a network are sent again by themselves once the signal is back (they waited for Retry): each with its own op id, checked against the list first like a Retry, so none lands twice and a conflict still waits for you.
 
 ### Tests
