@@ -26,9 +26,11 @@ describe("missingGroups", () => {
 describe("missingSignature", () => {
   it("changes when which matches lack a video changes, not only how many", async () => {
     const { missingSignature } = await import("../components/contributors/RecordingGaps");
-    const a = [{ key: "q1", clip: undefined, video: null }, { key: "q2", clip: { videoId: "v", t: 1, url: "" }, video: null }];
-    const b = [{ key: "q1", clip: { videoId: "v", t: 1, url: "" }, video: null }, { key: "q2", clip: undefined, video: null }];
+    const a = [{ key: "q1", clip: undefined, video: null, time: null }, { key: "q2", clip: { videoId: "v", t: 1, url: "" }, video: null, time: null }];
+    const b = [{ key: "q1", clip: { videoId: "v", t: 1, url: "" }, video: null, time: null }, { key: "q2", clip: undefined, video: null, time: null }];
     expect(missingSignature(a)).not.toBe(missingSignature(b));
     expect(missingSignature(a)).toBe(missingSignature([...a]));
+    // The same match still missing, now with its real start: asks again.
+    expect(missingSignature([{ ...a[0], time: "2026-03-07T14:00:00" }, a[1]])).not.toBe(missingSignature([{ ...a[0], time: "2026-03-07T14:00:00.5" }, a[1]]));
   });
 });
