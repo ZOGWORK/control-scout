@@ -40,31 +40,6 @@ export function elapsed(t: { where: "bottom" | "top"; left: number; auto: boolea
   return t.left >= TELEOP_S ? null : AUTO_S + SWITCH_S + TELEOP_S - t.left;
 }
 
-/**
- * The matches placed by what was read (index → start second): a video loses time and never gains it, so how far it sits
- * from the clock only ever falls, match by match. A read that breaks that is a misread (a replay, an overlay left on the
- * last match, a digit read wrong): the most reads that keep to it are kept, the rest dropped. Each kept read places its
- * match; two kept reads the same distance from the clock place every match between them.
- */
-export function placed(ms: M[], seen: Map<number, number>): Map<string, number> {
-  const idx = [...seen.keys()].sort((a, b) => a - b);
-  const d = (i: number) => seen.get(i)! - ms[i].epoch;
-  // The longest run (in match order) never rising by more than a read's slack.
-  const len = idx.map(() => 1), from = idx.map(() => -1);
-  for (let b = 0; b < idx.length; b++) for (let a = 0; a < b; a++) {
-    if (d(idx[b]) <= d(idx[a]) + SAME_S && len[a] + 1 > len[b]) { len[b] = len[a] + 1; from[b] = a; }
-  }
-  const kept: number[] = [];
-  for (let k = len.indexOf(Math.max(0, ...len)); k >= 0; k = from[k]) kept.unshift(idx[k]);
-  const out = new Map<string, number>();
-  kept.forEach((i, n) => {
-    out.set(ms[i].label, seen.get(i)!);
-    const j = kept[n + 1];
-    if (j != null && Math.abs(d(i) - d(j)) <= SAME_S) for (let k = i + 1; k < j; k++) out.set(ms[k].label, Math.round(ms[k].epoch + d(i)));
-  });
-  return out;
-}
-
 /** A match's start in the video, and how sure: "high" (a confirmed read, with another read or the broadcast's own
  *  clock agreeing on how far the video sits from the clock), "medium" (between two reads that agree). */
 export type Placed = { t: number; confidence: "high" | "medium" };
@@ -81,8 +56,10 @@ export const MATCH_S = AUTO_S + SWITCH_S + TELEOP_S;
 
 /**
  * Judge a video's matches from its confirmed reads (index → start second). The clock (FIRST's actual start of each
- * match) is the anchor; the frames are the second signal. A read is kept only in the longest run that never rises (as
- * `placed`). Reads that agree on how far the video sits from the clock form stretches. A stretch of two or more reads
+ * match) is the anchor; the frames are the second signal. A video loses time and never gains it, so how far it sits
+ * from the clock only ever falls, match by match: a read that breaks that is a misread (a replay, an overlay left on the
+ * last match, a digit read wrong), and only the longest run of reads that never rises (by more than a read's slack) is
+ * kept. Reads that agree on how far the video sits from the clock form stretches. A stretch of two or more reads
  * places its reads ("high") and every match between them ("medium"). A stretch of one read places it only where the
  * broadcast's own clock (`shift`, the video's second minus the epoch, when YouTube gives the broadcast start and the
  * video kept it) agrees; otherwise that one read is all there is, and it goes to review. Placed starts must be in order,
