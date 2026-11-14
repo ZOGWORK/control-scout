@@ -50,9 +50,9 @@ const evKey = (r: VideoRef) => `${r.season}:${r.code}`;
  * a match, or an event the words name exactly. A set of events ("events in New Jersey") is about none.
  */
 export function mainRef(a: SearchAnswer): VideoRef | null {
-  // A headline's match still to play (a predicted score) is about its event, not a match with video.
-  const headHref = a.stat?.headline?.href;
-  const head = a.stat?.headline?.upcoming ? (() => { const r = refOfHref(headHref); return r ? { season: r.season, code: r.code } : null; })() : refOfHref(headHref);
+  // A headline's match still to play (a predicted score) keeps its key: it plays nothing, never an earlier match's
+  // clip, and links to the event's recording.
+  const head = refOfHref(a.stat?.headline?.href);
   if (head) return head;
   if (a.card?.event) return { season: a.card.event.season, code: a.card.event.code };
   if (a.card) {
