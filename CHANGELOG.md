@@ -20,7 +20,7 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 Northern California's QTs, league meets and Regional Championship divisions now play their recordings from NorCal FTC's own channel, back to 2021; SoCal League G's meets and East Bay Meet 1 of 2026 play theirs too.
 
 ### Highlights
-- [history] NorCal QTs and Regional Championship divisions play their streams
+- [history] NorCal QTs and Regional Championships play their streams
 - [live] The NorCal BIOBUZZ Screamage plays its recording
 - [history] SoCal League G and East Bay Meet 1 play their recordings
 
