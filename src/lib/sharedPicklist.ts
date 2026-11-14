@@ -472,7 +472,11 @@ export function sendOfflineChanges(): Promise<void> {
         if (failedChanges.has(id)) break; // still not saved (a conflict, or no signal after all): the rest wait behind it
       }
     }
-  })().finally(() => { sendingOffline = null; });
+  })().finally(() => {
+    sendingOffline = null;
+    // Still no signal for some: they go with the next server answer to a pick list read.
+    if ([...failedChanges.values()].some((f) => f.offline && !f.conflict && !f.blocked)) listUnreachable = true;
+  });
   return sendingOffline;
 }
 if (typeof window !== "undefined") window.addEventListener("online", () => { void sendOfflineChanges(); });
@@ -502,6 +506,9 @@ export async function loadKeptOrderChanges(account: number | null | undefined): 
   if (account == null || restoredFor.has(account)) return;
   restoredFor.add(account);
   await syncKept(account, true);
+  // Changes made with no signal before this page (closed offline, opened with a network): checked and sent now,
+  // whether or not a pick list is on screen. With no network still, they wait for the next server answer.
+  if (listUnreachable && !knownOffline()) { listUnreachable = false; void sendOfflineChanges(); }
 }
 
 /** Add kept changes this page doesn't hold yet (reconcile: check them with the server first); drop ones another tab let go of. */

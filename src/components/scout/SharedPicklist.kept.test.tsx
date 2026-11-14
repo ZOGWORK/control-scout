@@ -123,7 +123,8 @@ describe("a pick list order change kept through a reload", () => {
   it("survives the reload with its op id; the notice says how many, and Retry sends it once to its own list", async () => {
     show();
     await waitFor(() => expect(rows()).toEqual([101, 102, 103]));
-    dropPosts = 1;
+    // The server failed it (not a lost network: that one goes up by itself, below), so it waits for Retry.
+    failPosts = 1;
     fireEvent.keyDown(screen.getByRole("button", { name: /Reorder 103/ }), { key: "ArrowUp" });
     await waitFor(() => expect(notice()).toBeTruthy());
     await waitFor(async () => expect((await keptOps(1))[0]?.state).toBe("kept"));
@@ -144,6 +145,20 @@ describe("a pick list order change kept through a reload", () => {
     expect(moves()[1]).toMatchObject({ opId, account: 1, season: S, op: "move", team: 103, beforeTeam: 102 });
     expect(server.picks.map((p) => p.team)).toEqual([101, 103, 102]);
     expect(await keptOps(1)).toEqual([]);
+  });
+
+  it("made with no signal, then the page reloaded with a network: it goes up by itself, once, with its own op id", async () => {
+    show();
+    await waitFor(() => expect(rows()).toEqual([101, 102, 103]));
+    dropPosts = 1; // no network: the change can't go
+    fireEvent.keyDown(screen.getByRole("button", { name: /Reorder 103/ }), { key: "ArrowUp" });
+    await waitFor(async () => expect((await keptOps(1))[0]).toMatchObject({ state: "kept", offline: true }));
+    const opId = (await keptOps(1))[0].opId;
+    await reload();
+    await waitFor(() => expect(server.picks.map((p) => p.team)).toEqual([101, 103, 102]));
+    await waitFor(async () => expect(await keptOps(1)).toEqual([]));
+    expect(moves().every((m) => m.opId === opId)).toBe(true);
+    expect(applied).toBe(1);
   });
 
   it("one the server already took (its answer was lost, then the page reloaded) simply goes: no notice, nothing sent", async () => {
