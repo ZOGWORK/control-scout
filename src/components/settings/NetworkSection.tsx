@@ -2,7 +2,7 @@
 // online, on what, how much data this uses, should I use Lite, and what's downloaded; then the only copy of the
 // controls (Lite on or off, which connections downloads use, automatic updates, clear cache). Plain words; every
 // choice says what it does before it's picked. Pack management itself stays on the Download page (linked).
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { RadioGroup as RadioP } from "radix-ui";
 import { Check, CheckCircle2, HardDriveDownload, RefreshCw, Snail, Trash2, Wifi, WifiOff, Zap } from "lucide-react";
@@ -14,11 +14,11 @@ import { useFlag } from "../../lib/flags";
 import { useCurrentSeason } from "../../lib/meta";
 import { agoSeconds, seasonLabel } from "../../lib/format";
 import { clearRecordings, fmtBytes } from "../../lib/recordings";
-import { packStatus } from "../../lib/packPolicy";
-import { useSavedSeasons } from "../../lib/offline/saved";
+import { PACK_META_KEY, type PackMeta } from "../../lib/packPolicy";
+import { useSavedSeasons, type SavedSeason } from "../../lib/offline/saved";
 import { useSavedBundles } from "../../lib/offline/bundleMeta";
-import { bundleTime } from "../../shared/eventBundle";
-import { ManifestError, fetchManifest, type PackManifest } from "../../lib/packs";
+import { bundleTime, type SavedBundle } from "../../shared/eventBundle";
+import { ManifestError, PACK_EVENT, fetchManifest, type PackManifest } from "../../lib/packs";
 import { clearAppCache, planAppCache, type CachePlan } from "../../lib/offline/appCache";
 import { useConnection as useNetInfo, useUpdatePrefs } from "../offline/UpdateSettings";
 import { netKind, type UpdateMode, type UpdateNetwork } from "../../lib/offline/updatePolicy";
@@ -27,6 +27,19 @@ import { Group, Row } from "./rows";
 import { Button } from "../ui/button";
 import { toast } from "../ui/sonner";
 import { cn } from "../cn";
+
+/** The offline predictions pack on this device (its meta), kept current: a background download (PACK_EVENT) or
+ *  another tab (storage) changes it while the screen is open. */
+const subscribePack = (f: () => void) => {
+  window.addEventListener(PACK_EVENT, f);
+  window.addEventListener("storage", f);
+  return () => { window.removeEventListener(PACK_EVENT, f); window.removeEventListener("storage", f); };
+};
+const packRaw = () => { try { return localStorage.getItem(PACK_META_KEY); } catch { return null; } };
+export function usePackMeta(): PackMeta | null {
+  const raw = useSyncExternalStore(subscribePack, packRaw, () => null);
+  return useMemo(() => { try { return JSON.parse(raw ?? "null") as PackMeta | null; } catch { return null; } }, [raw]);
+}
 
 /** Re-render every `ms` (the "checked 2 min ago" line). */
 function useTick(ms: number) {
@@ -50,6 +63,9 @@ export function NetworkSection() {
   const tone = conn.internet === "yes" ? "ok" : conn.internet === "unknown" ? "wait" : conn.internet === "portal" ? "warn" : "off";
   const connected = conn.internet === "yes";
   const { m, error } = useManifest(connected, conn.checkedAt);
+  const seasons = useSavedSeasons();
+  const bundles = useSavedBundles();
+  const lite = usePackMeta();
   return (
     <div data-network-section="">
       <section aria-labelledby="net-status" className="mb-8 max-sm:mb-5 rounded-xl border border-border bg-card p-4 sm:p-5" data-net-status={conn.internet}>
@@ -60,7 +76,7 @@ export function NetworkSection() {
           </span>
           <div className="min-w-0 flex-1">
             <h2 id="net-status" aria-live="polite" className="font-display text-lg font-semibold leading-snug text-foreground">{statusSentence(conn.internet)}</h2>
-            <p className="mt-0.5 text-sm text-muted-foreground">{conn.checkedAt ? `Checked ${agoSeconds(new Date(conn.checkedAt).toISOString())}` : "Not checked yet"}</p>
+            <p className="mt-0.5 text-sm text-muted-foreground">{conn.checkedAt ? `Checked ${agoSeconds(new Date(conn.checkedAt).toISOString())}` : conn.internet === "unknown" ? "Not checked yet" : "From the last page you opened; checking again"}</p>
           </div>
         </div>
         <Button variant="secondary" className="mt-3 h-11 w-full sm:w-auto" onClick={check} disabled={checking}>
@@ -72,30 +88,30 @@ export function NetworkSection() {
         <Row label="Connection" description={conn.type === "unknown" ? "Some browsers (every iPhone) don't tell websites whether they're on Wi-Fi or mobile data." : conn.saveData ? "Data Saver is on in your browser." : undefined}>
           <span className="text-sm font-medium text-foreground" data-net-type={conn.type}>{connectionLabel(conn.type, net?.type)}</span>
         </Row>
-        <Row label="Data used" description="Measured by your browser since you opened Control Scout. Files it already had count as nothing.">
+        <Row label="Data used" description="Measured by your browser since this tab last loaded Control Scout (a reload starts again). Files it already had count as nothing.">
           <span className="text-sm tabular-nums text-foreground" data-net-used>{used == null ? "Your browser doesn't say" : `This visit has used ${fmtBytes(used)}`}</span>
         </Row>
-        <Row label="Should I use Lite?" description={<span data-net-advice={advice.kind}>{advice.text}{why ? ` ${why}` : ""}</span>}>
-          {liteFlag && advice.action && (
+        {/* Only while the owner offers Lite: with it switched off there's no Lite to recommend or switch. */}
+        {liteFlag && <Row label="Should I use Lite?" description={<span data-net-advice={advice.kind}>{advice.text}{why ? ` ${why}` : ""}</span>}>
+          {advice.action && (
             <Button variant={advice.action === "on" ? "default" : "outline"} className="h-11 sm:h-9" asChild>
               <a href={liteToggleHref(advice.action === "on")}>{advice.action === "on" ? <><Zap /> Turn on Lite</> : "Turn off Lite"}</a>
             </Button>
           )}
-        </Row>
+        </Row>}
       </Group>
 
-      <Downloads m={m} error={error} connected={connected} />
+      <Downloads m={m} error={error} connected={connected} seasons={seasons} bundles={bundles} lite={lite} />
       <Controls m={m} liteFlag={liteFlag} liteOn={liteOn} internet={conn.internet} />
-      <CleanUp />
+      <CleanUp seasons={seasons} bundles={bundles} lite={lite} />
     </div>
   );
 }
 
 /** What's downloaded (each pack, its size, its data time) and what a download costs, from the pack manifest. */
-function Downloads({ m, error, connected }: { m: PackManifest | null; error: ManifestError | null; connected: boolean }) {
-  const seasons = useSavedSeasons();
-  const bundles = useSavedBundles();
-  const lite = packStatus();
+function Downloads({ m, error, connected, seasons, bundles, lite }: {
+  m: PackManifest | null; error: ManifestError | null; connected: boolean; seasons: SavedSeason[]; bundles: SavedBundle[]; lite: PackMeta | null;
+}) {
   const items = [
     ...bundles.map((b) => ({ key: `b:${b.season}:${b.code}`, name: b.name, bytes: b.bytes, at: bundleTime(b) })),
     ...seasons.map((s) => ({ key: `s:${s.season}`, name: `${seasonLabel(s.season)} season`, bytes: s.bytes, at: s.dataAsOf ?? new Date(s.savedAt).toISOString() })),
@@ -119,7 +135,7 @@ function Downloads({ m, error, connected }: { m: PackManifest | null; error: Man
       <div className="border-t border-border px-4 py-3">
         <Button variant="outline" className="h-11 w-full sm:h-9 sm:w-auto" asChild><Link to="/download"><HardDriveDownload /> Manage downloads</Link></Button>
       </div>
-      <Sizes m={m} error={error} connected={connected} />
+      <Sizes m={m} error={error} connected={connected} bundles={bundles} />
     </Group>
   );
 }
@@ -130,17 +146,31 @@ function Downloads({ m, error, connected }: { m: PackManifest | null; error: Man
  *  second render asking again: one Check again, one request. "none" and "paused" are the server's answer, not a
  *  failure: no timed retries for those. */
 export const MANIFEST_RETRY_MS = 15_000;
+/** A pack list that hasn't come in this long is given up on (a stalled connection), so the failure words and the
+ *  retries run instead of "loading" forever. */
+export const MANIFEST_TIMEOUT_MS = 10_000;
 const MANIFEST_TRIES = 4;
 function useManifest(connected: boolean, checkedAt: number | string | null | undefined): { m: PackManifest | null; error: ManifestError | null } {
   const [m, setM] = useState<PackManifest | null>(null);
   const [error, setError] = useState<ManifestError | null>(null);
   const [retry, setRetry] = useState<{ at: typeof checkedAt; n: number }>({ at: checkedAt, n: 0 });
   const tries = retry.at === checkedAt ? retry.n : 0;
+  // The request in flight, shared: a Check again (or a retry) while it's still out waits for it instead of asking
+  // again. Given up on after MANIFEST_TIMEOUT_MS, and when the screen goes.
+  const inflight = useRef<{ p: Promise<PackManifest>; ctrl: AbortController } | null>(null);
+  useEffect(() => () => { inflight.current?.ctrl.abort(); inflight.current = null; }, []);
   useEffect(() => {
     if (!connected || m) return;
     let live = true;
     let timer: ReturnType<typeof setTimeout> | undefined;
-    fetchManifest().then((x) => { if (live) { setM(x); setError(null); } }, (e: unknown) => {
+    if (!inflight.current) {
+      const ctrl = new AbortController();
+      const stop = setTimeout(() => ctrl.abort(), MANIFEST_TIMEOUT_MS);
+      const p = fetchManifest({ signal: ctrl.signal }).finally(() => { clearTimeout(stop); if (inflight.current?.p === p) inflight.current = null; });
+      inflight.current = { p, ctrl };
+      setError(null); // a new attempt: the last one's failure no longer describes what's on screen
+    }
+    inflight.current.p.then((x) => { if (live) { setM(x); setError(null); } }, (e: unknown) => {
       if (!live) return;
       const err = e instanceof ManifestError ? e : new ManifestError("failed", e instanceof Error ? e.message : "Couldn't read the pack list.");
       setError(err);
@@ -174,9 +204,8 @@ export function sizeLines(m: PackManifest | null, season: number, events: { name
   return lines;
 }
 
-function Sizes({ m, error, connected }: { m: PackManifest | null; error: ManifestError | null; connected: boolean }) {
+function Sizes({ m, error, connected, bundles }: { m: PackManifest | null; error: ManifestError | null; connected: boolean; bundles: SavedBundle[] }) {
   const season = useCurrentSeason();
-  const bundles = useSavedBundles();
   const lines = sizeLines(m, season, bundles);
   const missing = sizesMissing(m, error, connected);
   return (
@@ -221,7 +250,7 @@ function Controls({ m, liteFlag, liteOn, internet }: { m: PackManifest | null; l
     ? `Mobile data counts against your plan: the whole ${seasonLabel(season)} season is ${fmtBytes(current.bytes)}${m?.lite ? `, offline predictions ${fmtBytes(m.lite.bytes)}` : ""}.`
     : "Mobile data counts against your plan: a season can be tens of MB.";
   return (
-    <Group title="Settings" description="Synced with your account when you're signed in.">
+    <Group title="Settings" description={liteFlag ? "Downloads and Updates sync with your account when you're signed in. Lite is for this browser only." : "Synced with your account when you're signed in."}>
       {liteFlag && (
         <Row label="Lite" stack description="Opens the text-only Lite version of pages that have one. Turn off any time.">
           <div className="flex flex-wrap items-center gap-3">
@@ -252,36 +281,53 @@ function Controls({ m, liteFlag, liteOn, internet }: { m: PackManifest | null; l
   );
 }
 
-/** Clear cache (how much it frees, measured first), recordings, and the site's whole share of storage. */
-function CleanUp() {
+/** Clear cache (how much it frees, measured first), recordings, and the site's whole share of storage. Storage is
+ *  measured again whenever what's downloaded changes (a season, an event, the predictions pack, here or in another
+ *  tab), and after Clear or deleting recordings. Each measurement only lands if it's the newest one asked for, so a
+ *  slow earlier one never overwrites a later figure. */
+function CleanUp({ seasons, bundles, lite }: { seasons: SavedSeason[]; bundles: SavedBundle[]; lite: PackMeta | null }) {
   // null: no Cache Storage here; "failed": it couldn't be measured (full or broken), which never hides Clear.
   const [plan, setPlan] = useState<CachePlan | null | undefined | "failed">(undefined);
   const [busy, setBusy] = useState(false);
   const [freed, setFreed] = useState<number | null>(null);
   const [est, setEst] = useState<{ usage?: number; quota?: number } | null>(null);
-  const measure = () => { planAppCache().then(setPlan, () => setPlan("failed")); navigator.storage?.estimate?.().then(setEst, () => setEst({})); };
-  useEffect(measure, []);
+  const planSeq = useRef(0);
+  const estSeq = useRef(0);
+  const measurePlan = () => {
+    const n = ++planSeq.current;
+    planAppCache().then((x) => { if (n === planSeq.current) setPlan(x); }, () => { if (n === planSeq.current) setPlan("failed"); });
+  };
+  const measureStorage = () => {
+    const n = ++estSeq.current;
+    if (!navigator.storage?.estimate) { setEst({}); return; } // the browser doesn't say
+    navigator.storage.estimate().then((x) => { if (n === estSeq.current) setEst(x); }, () => { if (n === estSeq.current) setEst({}); });
+  };
+  const measure = () => { measurePlan(); measureStorage(); };
+  useEffect(measurePlan, []);
+  useEffect(measureStorage, [seasons, bundles, lite]);
   const clear = async () => {
     setBusy(true);
     setFreed(null); // the line only ever describes the latest attempt
     try {
       const n = await clearAppCache();
       setFreed(n);
-      toast.success(`Freed ${fmtBytes(n)}`);
+      toast.success(n ? `Freed ${fmtBytes(n)}` : "Old files cleared");
     } catch (e) { toast.error(e instanceof Error ? e.message : "Couldn't clear the cache"); }
     finally { setBusy(false); measure(); }
   };
   const failed = plan === "failed";
   const bytes = plan && plan !== "failed" ? plan.bytes : 0;
+  // Something to clear even when it measures 0 bytes (an old release's empty cache, a body the browser won't size).
+  const items = plan && plan !== "failed" ? plan.items.length : 0;
   return (
     <Group title="Clean up">
       <Row label="Clear cache" description={<>
         Removes old copies of the app's files. Your downloads, scouting notes and settings stay, and the app still opens offline.
         {failed && <span role="status" className="mt-1 block text-warning">Couldn't measure the cache. Clear still works.</span>}
-        {freed != null && <span role="status" className="mt-1 flex items-center gap-1 text-success"><CheckCircle2 className="size-3.5" /> Freed {fmtBytes(freed)}</span>}
+        {freed != null && <span role="status" className="mt-1 flex items-center gap-1 text-success"><CheckCircle2 className="size-3.5" /> {freed ? `Freed ${fmtBytes(freed)}` : "Old files cleared"}</span>}
       </>}>
-        <Button variant="outline" className="h-11 sm:h-9" onClick={clear} disabled={busy || plan === undefined || (!bytes && !failed)} data-net-clear>
-          <Trash2 /> {plan === undefined ? "Measuring…" : failed ? "Clear cache" : plan === null ? "Nothing cached" : bytes ? `Clear ${fmtBytes(bytes)}` : "Nothing to clear"}
+        <Button variant="outline" className="h-11 sm:h-9" onClick={clear} disabled={busy || plan === undefined || (!items && !failed)} data-net-clear>
+          <Trash2 /> {plan === undefined ? "Measuring…" : failed ? "Clear cache" : plan === null ? "Nothing cached" : bytes ? `Clear ${fmtBytes(bytes)}` : items ? "Clear old files" : "Nothing to clear"}
         </Button>
       </Row>
       <Row label="Recordings" description="Match videos recorded in the app live only on this device.">
@@ -292,7 +338,7 @@ function CleanUp() {
         }}>Delete all recordings</Button>
       </Row>
       <Row label="Storage used by this site" description="Downloads, the app's files and recordings, all together.">
-        <span className="text-sm tabular-nums text-foreground">{est?.usage != null ? `${fmtBytes(est.usage)}${est.quota ? ` of ${fmtBytes(est.quota)}` : ""}` : "Your browser doesn't say"}</span>
+        <span className="text-sm tabular-nums text-foreground">{est === null ? "Measuring…" : est.usage != null ? `${fmtBytes(est.usage)}${est.quota ? ` of ${fmtBytes(est.quota)}` : ""}` : "Your browser doesn't say"}</span>
       </Row>
     </Group>
   );

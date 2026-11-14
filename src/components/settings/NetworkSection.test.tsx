@@ -12,7 +12,7 @@ import { TooltipProvider } from "../ui/overlay";
 
 const h = vi.hoisted(() => ({ personal: {} as Record<string, unknown>, settings: {} as Record<string, unknown> }));
 vi.mock("../../lib/personal", () => ({ usePersonal: () => h.personal }));
-const cache = vi.hoisted(() => ({ plan: async (): Promise<unknown> => ({ items: [], bytes: 2_500_000 }) }));
+const cache = vi.hoisted(() => ({ plan: async (): Promise<unknown> => ({ items: [{ cache: "cs-shell-old", url: null, bytes: 2_500_000 }], bytes: 2_500_000 }) }));
 vi.mock("../../lib/recordings", async (orig) => ({ ...(await orig<typeof import("../../lib/recordings")>()), clearRecordings: async () => {} }));
 const cleared = vi.hoisted(() => ({ next: async (): Promise<number> => 2_500_000 }));
 const flags = vi.hoisted(() => ({ lite: true }));
@@ -20,6 +20,7 @@ vi.mock("../../lib/flags", async (orig) => ({ ...(await orig<typeof import("../.
 vi.mock("../../lib/offline/appCache", () => ({ planAppCache: () => cache.plan(), clearAppCache: () => cleared.next() }));
 
 const { default: SettingsPage } = await import("../../pages/SettingsPage");
+const { MANIFEST_TIMEOUT_MS } = await import("./NetworkSection");
 
 const health = (body: unknown) => vi.fn(async (url: string) => url === "/api/health" ? new Response(JSON.stringify(body), { status: 200 }) : new Response("{}", { status: 404 }));
 
@@ -269,7 +270,100 @@ describe("Network & offline: follow-ups", () => {
       vi.stubGlobal("fetch", health({ ok: true }));
       await act(async () => { await checkInternet(); });
       show();
-      expect(document.querySelector("[data-net-advice]")!.textContent).not.toMatch(/Lite off|turn Lite/i);
+      // No Lite to recommend or switch: the question isn't asked, and nothing on the screen offers Lite.
+      expect(document.querySelector("[data-net-advice]")).toBeNull();
+      expect(screen.queryByText("Should I use Lite?")).toBeNull();
+      expect(document.querySelector("[data-network-section]")!.textContent).not.toMatch(/turn (on|off) Lite|Lite is for this browser/i);
     } finally { flags.lite = true; document.cookie = "cs-lite=; path=/; max-age=0"; }
+  });
+});
+
+describe("Network & offline: the pack list request", () => {
+  const manifest = { format: 1, version: "v", builtAt: "", engineVersion: "x", dataAsOf: null, full: [],
+    lite: { name: "lite.json.gz", url: "/packs/lite.json.gz", bytes: 3_800_000, sha256: "a", seasons: [2025], kind: "lite", contents: "" } };
+
+  it("Check again while the first request is still out shares it: one request", async () => {
+    let listAsks = 0;
+    let answer: (r: Response) => void = () => {};
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+      if (url === "/api/health") return new Response(JSON.stringify({ ok: true }), { status: 200 });
+      if (url === "/packs/latest.json") { listAsks++; return new Promise<Response>((r) => { answer = r; }); }
+      return new Response("{}", { status: 404 });
+    }));
+    await act(async () => { await checkInternet(); });
+    show();
+    await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+    expect(listAsks).toBe(1);
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: /Check again/ })); });
+    await act(async () => { await new Promise((r) => setTimeout(r, 20)); });
+    expect(listAsks).toBe(1);
+    await act(async () => { answer(new Response(JSON.stringify(manifest), { status: 200 })); });
+    expect(await screen.findByText("Offline predictions use 3.8 MB.")).toBeTruthy();
+  });
+
+  it("a pack list that never answers is given up on, so the failure words show (and a retry can run)", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      let aborted = false;
+      vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
+        if (url === "/api/health") return new Response(JSON.stringify({ ok: true }), { status: 200 });
+        if (url === "/packs/latest.json") return new Promise<Response>((_, reject) => {
+          init?.signal?.addEventListener("abort", () => { aborted = true; reject(new DOMException("aborted", "AbortError")); });
+        });
+        return new Response("{}", { status: 404 });
+      }));
+      await act(async () => { await checkInternet(); });
+      show();
+      expect(document.querySelector("[data-net-sizes-missing]")).toBeNull();
+      await act(async () => { vi.advanceTimersByTime(MANIFEST_TIMEOUT_MS + 10); });
+      expect(aborted).toBe(true);
+      expect(await screen.findByText("The list of downloads couldn't be read just now. Check again to try once more.")).toBeTruthy();
+    } finally { vi.useRealTimers(); }
+  });
+});
+
+describe("Network & offline: figures follow their inputs", () => {
+  it("storage is measured again when what's downloaded changes (a season saved, the predictions pack)", async () => {
+    const estimate = vi.fn(async () => ({ usage: 50_000_000, quota: 1_000_000_000 }));
+    vi.stubGlobal("navigator", Object.assign(Object.create(navigator), { storage: { estimate } }));
+    vi.stubGlobal("fetch", health({ ok: true }));
+    show();
+    await screen.findByText(/^50(\.0)? MB of/);
+    const before = estimate.mock.calls.length;
+    await act(async () => { writeSaved([{ season: 2025, version: "v", sha256: "s", bytes: 41_900_000, savedAt: Date.now(), dataAsOf: null, builtAt: "2026-11-12T21:00:00Z" }]); });
+    expect(estimate.mock.calls.length).toBe(before + 1);
+    await act(async () => {
+      localStorage.setItem("cs-pack-meta", JSON.stringify({ version: "p", bytes: 3_800_000, savedAt: Date.now(), builtAt: "2026-11-13T10:00:00Z", engineVersion: "x" }));
+      window.dispatchEvent(new Event("cs-pack-changed"));
+    });
+    expect(estimate.mock.calls.length).toBe(before + 2);
+    // The predictions pack shows in the list at once too.
+    expect(within(screen.getByRole("list", { name: "Downloads on this device" })).getByText("Offline predictions")).toBeTruthy();
+  });
+
+  it("stale caches that measure 0 bytes can still be cleared: \"Clear old files\"", async () => {
+    const before = cache.plan;
+    const beforeClear = cleared.next;
+    cache.plan = async () => ({ items: [{ cache: "cs-shell-old", url: null, bytes: 0 }], bytes: 0 });
+    cleared.next = async () => 0;
+    try {
+      vi.stubGlobal("fetch", health({ ok: true }));
+      show();
+      const button = await screen.findByRole("button", { name: "Clear old files" }) as HTMLButtonElement;
+      expect(button.disabled).toBe(false);
+      await act(async () => { fireEvent.click(button); });
+      expect(await screen.findByText("Old files cleared")).toBeTruthy();
+      expect(screen.queryByText(/Freed 0 KB/)).toBeNull();
+    } finally { cache.plan = before; cleared.next = beforeClear; }
+  });
+
+  it("nothing at all to clear: the button says so and is off", async () => {
+    const before = cache.plan;
+    cache.plan = async () => ({ items: [], bytes: 0 });
+    try {
+      vi.stubGlobal("fetch", health({ ok: true }));
+      show();
+      expect((await screen.findByRole("button", { name: "Nothing to clear" }) as HTMLButtonElement).disabled).toBe(true);
+    } finally { cache.plan = before; }
   });
 });
