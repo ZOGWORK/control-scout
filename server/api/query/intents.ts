@@ -71,6 +71,8 @@ export interface IntentRule {
 }
 
 const SCORE_LIKE = ["metric:score", "thing:match", "thing:event"];
+/** Asking to watch it: "highlights", "video". */
+const WATCH = ["highlights", "videos"];
 /** A win or a loss, as a filter on a team's matches. */
 const OUTCOMES = ["metric:win", "metric:loss", "outcome:W", "outcome:L"];
 /** The season numbers a leaderboard ranks teams by. */
@@ -83,19 +85,20 @@ const R = (id: PipelineIntent, teams: 0 | 1 | 2 | 3 | 4, all: string[], opt: str
 
 /** Every rule. Order breaks a tie between rules that explain the same symbols. */
 export const INTENTS: IntentRule[] = [
-  // One team: the best or worst of its matches.
-  R("highest-score", 1, ["agg:max", "metric:score"], ["thing:match", "thing:event"]),
+  // One team: the best or worst of its matches. Each is one match the answer plays (server/api/answers/video.ts), so
+  // "highlights" or "video" with it ("<team> best auto highlights") asks to watch that match: the same answer.
+  R("highest-score", 1, ["agg:max", "metric:score"], ["thing:match", "thing:event", ...WATCH]),
   // "<team> best match": its highest score, as "best match" with no team is the top matches (below).
-  R("highest-score", 1, ["agg:max", "thing:match"], ["metric:score", "thing:event"]),
-  R("lowest-score", 1, ["agg:min", "metric:score"], ["thing:match", "thing:event"]),
-  R("biggest-win", 1, ["agg:max", "metric:win"], ["metric:margin", "thing:match", "outcome:W"]),
-  R("biggest-win", 1, ["agg:max", "metric:margin"], ["outcome:W", "thing:match"]),
-  R("biggest-loss", 1, ["agg:max", "metric:loss"], ["metric:margin", "thing:match", "outcome:L"]),
-  R("closest-match", 1, ["agg:closest"], ["thing:match", "metric:win", "metric:loss", "metric:margin", "metric:score", "outcome:W", "outcome:L"]),
-  R("closest-match", 1, ["agg:min", "metric:margin"], ["thing:match", "metric:win", "metric:loss", "outcome:W", "outcome:L"]),
-  R("highest-auto", 1, ["agg:max", "metric:auto"], SCORE_LIKE),
-  R("highest-teleop", 1, ["agg:max", "metric:teleop"], SCORE_LIKE),
-  R("highest-endgame", 1, ["agg:max", "metric:endgame"], SCORE_LIKE),
+  R("highest-score", 1, ["agg:max", "thing:match"], ["metric:score", "thing:event", ...WATCH]),
+  R("lowest-score", 1, ["agg:min", "metric:score"], ["thing:match", "thing:event", ...WATCH]),
+  R("biggest-win", 1, ["agg:max", "metric:win"], ["metric:margin", "thing:match", "outcome:W", ...WATCH]),
+  R("biggest-win", 1, ["agg:max", "metric:margin"], ["outcome:W", "thing:match", ...WATCH]),
+  R("biggest-loss", 1, ["agg:max", "metric:loss"], ["metric:margin", "thing:match", "outcome:L", ...WATCH]),
+  R("closest-match", 1, ["agg:closest"], ["thing:match", "metric:win", "metric:loss", "metric:margin", "metric:score", "outcome:W", "outcome:L", ...WATCH]),
+  R("closest-match", 1, ["agg:min", "metric:margin"], ["thing:match", "metric:win", "metric:loss", "outcome:W", "outcome:L", ...WATCH]),
+  R("highest-auto", 1, ["agg:max", "metric:auto"], [...SCORE_LIKE, ...WATCH]),
+  R("highest-teleop", 1, ["agg:max", "metric:teleop"], [...SCORE_LIKE, ...WATCH]),
+  R("highest-endgame", 1, ["agg:max", "metric:endgame"], [...SCORE_LIKE, ...WATCH]),
   R("most-penalties", 1, ["agg:max", "metric:penalty"], SCORE_LIKE),
   // A win or a loss said with them is a filter: "first win", "when did they last lose a match", "last 5 losses".
   R("first-match", 1, ["agg:first", "thing:match"], ["agg:max", ...OUTCOMES]),
