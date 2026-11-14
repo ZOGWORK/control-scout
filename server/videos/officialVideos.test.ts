@@ -252,6 +252,17 @@ describe("the shipped list", () => {
     const at = { ...stream, start: "2026-02-28T14:54:00Z" };
     expect(matchVideo({ ...at, title: "Arkansas FTC State Championship" }, shiloh, [arCmp]).kind).toBe("add");
     expect(matchVideo({ ...at, title: "Arkansas State Championship" }, shiloh, [arCmp]).kind).not.toBe("add");
+    // FTC Louisiana starts every title with its own name, so only the championship title counts as naming the region:
+    // a Walker stream on the Hammond Qualifier's day is never added to Hammond.
+    const la = OFFICIAL_CHANNELS.find((c) => c.channelId === LA)!;
+    const laEv = { ...ev, state: "LA", start: "2026-01-17", end: "2026-01-17" };
+    const hammond = { ...laEv, code: "USLAHAQ", name: "Hammond Qualifier", type: "Qualifier", city: "Hammond" };
+    const laDay = { ...stream, start: "2026-01-17T15:00:00Z" };
+    expect(matchVideo({ ...laDay, title: "FTC Louisiana DECODE Walker Qualifier" }, la, [hammond]).kind).not.toBe("add");
+    expect(matchVideo({ ...laDay, title: "FTC Louisiana DECODE Hammond Qualifier" }, la, [hammond]).kind).toBe("add");
+    const laCmp = { ...laEv, code: "USLACMP", name: "Louisiana Championship", type: "Championship", city: "Lafayette", start: "2026-02-21", end: "2026-02-21" };
+    expect(matchVideo({ ...laDay, start: "2026-02-21T15:00:00Z", title: "FTC Louisiana DECODE Regional Championship" }, la, [laCmp]).kind).toBe("add");
+    expect(la.titlePattern).toBe("louisiana .*(regional|state) championship");
   });
 
   it("puts Westwood Robotics' streams on the GEMS league each title names: Diamond never on Emerald, Meet 1 never on Meet 2", async () => {
