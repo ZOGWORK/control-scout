@@ -20,3 +20,13 @@ describe("missingGroups", () => {
     ]);
   });
 });
+
+describe("missingSignature", () => {
+  it("changes when which matches lack a video changes, not only how many", async () => {
+    const { missingSignature } = await import("../components/contributors/RecordingGaps");
+    const a = [{ key: "q1", clip: undefined, video: null }, { key: "q2", clip: { videoId: "v", t: 1, url: "" }, video: null }];
+    const b = [{ key: "q1", clip: { videoId: "v", t: 1, url: "" }, video: null }, { key: "q2", clip: undefined, video: null }];
+    expect(missingSignature(a)).not.toBe(missingSignature(b));
+    expect(missingSignature(a)).toBe(missingSignature([...a]));
+  });
+});
