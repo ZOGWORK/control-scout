@@ -425,10 +425,11 @@ export async function compareAnswer(teams: AnswerTeam[], scope: Scope): Promise<
   const crow = block.kind === "compare" ? block.rows : [];
   const two = teams.length === 2;
   const who = (i: number) => (two ? "" : `${teams[i].number} `);
-  // The matches every one of them played in that season (on one alliance or against each other), latest first: each a
+  // The matches every one of them played in that season at official events (on one alliance or against each other;
+  // never a scrimmage or an off-season event, as head to head counts them), latest first: each a
   // match box the answer's video gives its own clip (../video.ts), one alone the match the card plays.
   const others = teams.slice(1).map((t) => t.number);
-  const together = (await teamMatches(teams[0].number)).filter((m) => m.season === season && m.onField && others.every((n) => m.partners.includes(n) || m.opponents.includes(n))).reverse().slice(0, TOGETHER_MAX);
+  const together = (await teamMatches(teams[0].number)).filter((m) => m.season === season && m.onField && (OFFICIAL_TYPES as readonly string[]).includes(m.type ?? "") && others.every((n) => m.partners.includes(n) || m.opponents.includes(n))).reverse().slice(0, TOGETHER_MAX);
   const togetherLinks = together.length ? await teamLinks(together.flatMap((m) => [...m.partners, ...m.opponents])) : null;
   const context = [...rows.map((r, i) => `${who(i)}${r.rank_np ? `#${r.rank_np.toLocaleString("en-US")} of ${(r.ranked_teams ?? 0).toLocaleString("en-US")}` : "unranked"} (${recText(rec(r))})`), decidedText(crow)];
   return {
