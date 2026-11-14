@@ -202,6 +202,41 @@ describe("withVideoAlternatives", () => {
       await new Promise((r) => setTimeout(r, 50));
       expect(asks).toBeGreaterThan(first);
     });
+    it("reads the event-name typos built for the data as it is before choosing its questions", async () => {
+      const order: string[] = [];
+      await warmVideoQuestions({ ask: askOf, video: videoOf, version: async () => "v1",
+        typosReady: async () => { await new Promise((r) => setTimeout(r, 20)); order.push("typos"); },
+        candidates: async () => { order.push("candidates"); return ["b highlights"]; } });
+      expect(order).toEqual(["typos", "candidates"]);
+    });
+    it("a check that never settles counts as not playing, and frees the queue", async () => {
+      const ask = (q: string) => (q === "a highlights" ? new Promise<SearchAnswer>(() => {}) : askOf(q));
+      await warmVideoQuestions({ ask, video: videoOf, version: async () => "v1", candidates: async () => ["a highlights", "b highlights"], checkMs: 30 });
+      expect((await withVideoAlternatives("6980 at east bergen with video", answer(), undefined, askOf, none, 1000, cands)).stat?.blocks[0]).toMatchObject({ queries: ["b highlights"] });
+    });
+    it("a build that never ends is dropped past its cap: it never writes, and the next warm builds", async () => {
+      let release!: (v: string[]) => void;
+      const stuck = new Promise<string[]>((r) => { release = r; });
+      await warmVideoQuestions({ ask: askOf, video: videoOf, version: async () => "v1", candidates: () => stuck, buildMs: 30 });
+      const a = answer();
+      expect(await withVideoAlternatives("6980 at east bergen with video", a, undefined, askOf, none, 20, cands, "", 0)).toBe(a);
+      await warm();
+      // The dropped one finishing late changes nothing.
+      release(["f highlights"]);
+      await new Promise((r) => setTimeout(r, 20));
+      expect((await withVideoAlternatives("6980 at east bergen with video", answer(), undefined, askOf, none, 1000, cands)).stat?.blocks[0]).toMatchObject({ queries: ["b highlights", "d highlights"] });
+    });
+    it("forgetting the set while a build runs: that build never writes it", async () => {
+      let release!: () => void;
+      const gate = new Promise<void>((r) => { release = r; });
+      const building = warmVideoQuestions({ ask: async (q) => { await gate; return askOf(q); }, video: videoOf, version: async () => "v1", candidates: async () => ["b highlights"] });
+      await new Promise((r) => setTimeout(r, 10));
+      forgetVideoQuestions(true);
+      release();
+      await building;
+      const a = answer();
+      expect(await withVideoAlternatives("6980 at east bergen with video", a, undefined, askOf, none, 20, cands, "", 0)).toBe(a);
+    });
     it("never built (a process that never warmed it): nothing offered from it, nothing read", async () => {
       const a = answer();
       expect(await withVideoAlternatives("6980 at east bergen with video", a, undefined, askOf, none, 20, cands, "", 0)).toBe(a);
