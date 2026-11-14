@@ -275,6 +275,10 @@ describe("questions with video", () => {
     expect(cs).toContain("Massachusetts Championship highlights 2025-26");
     // A qualifier with no video is never offered.
     expect(cs.some((c) => /New Jersey Qualifier/.test(c))).toBe(false);
+    // A question that reads like a typo is never tried: the rest still are.
+    const spelled = await videoCandidates(a, NOW, async (q) => !/Massachusetts/.test(q));
+    expect(spelled.some((c) => /Massachusetts/.test(c))).toBe(false);
+    expect(spelled).toContain("4215 highlights 2025-26");
     const none = { ...a, stat: { ...a.stat!, none: "No played matches with video" } };
     const out = await withVideoAlternatives("4215 matches with video", none, undefined, (q) => searchAnswer(q, { learn: false, limit: 25 }), (b) => answerVideo(b, NOW), 5000);
     const offered = out.stat?.blocks.find((b) => b.kind === "related" && b.title === "Questions with video");
