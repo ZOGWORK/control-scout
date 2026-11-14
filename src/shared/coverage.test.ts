@@ -8,6 +8,8 @@ describe("labelRanges", () => {
     // In play order (Q2 replayed before Q1, Q13 late): sorted first.
     expect(labelRanges(["Q2", "Q1", "Q3", "M1", "Q13", "Q4"])).toBe("Q1–Q4, Q13, M1");
     expect(labelRanges([])).toBe("");
+    // Replays sort right after their match and stand alone.
+    expect(labelRanges(["M2", "M1-2", "M1", "SF1-1", "M3"])).toBe("M1, M1-2, M2–M3, SF1-1");
   });
 });
 
