@@ -141,6 +141,7 @@ export async function downloadLite(file: PackFile, manifest: PackManifest, onPro
   await put(LITE_KEY, { gz: file.name.endsWith(".gz"), bytes, version: manifest.version } satisfies StoredLite);
   const meta: PackMeta = { version: manifest.version, bytes: bytes.length, savedAt: Date.now(), builtAt: manifest.builtAt, engineVersion: manifest.engineVersion, seasons: file.seasons, dataAsOf: manifest.dataAsOf };
   localStorage.setItem(META, JSON.stringify(meta));
+  localStorage.removeItem(LITE_DELETED_KEY);
   cached = null; // the next offline read decodes the new one
   await finishFile(file);
   window.dispatchEvent(new Event(PACK_EVENT));
@@ -173,12 +174,18 @@ export async function loadLite(): Promise<LitePack | null> {
   return null;
 }
 
+/** localStorage: the lite pack was deleted on purpose, so the background sync leaves it off this device until
+ *  the person downloads it again themselves. */
+export const LITE_DELETED_KEY = "cs-lite-deleted";
+const liteDeleted = () => { try { return localStorage.getItem(LITE_DELETED_KEY) === "1"; } catch { return false; } };
+
 /** Delete the lite pack from this device (the stored bytes too, not just the list). Returns the bytes freed. */
 export async function removeLite(): Promise<number> {
   const freed = packStatus()?.bytes ?? 0;
   await del(LITE_KEY);
   await del(OLD_LITE_KEY);
   localStorage.removeItem(META);
+  try { localStorage.setItem(LITE_DELETED_KEY, "1"); } catch { /* storage blocked */ }
   cached = null;
   window.dispatchEvent(new Event(PACK_EVENT));
   return freed;
@@ -203,6 +210,8 @@ export function syncLite(opts: { allowed?: () => boolean } = {}): Promise<PackMe
       const have = packStatus();
       if (!m.lite || (have && have.version === m.version)) return have;
       if (opts.allowed && !opts.allowed()) return have;
+      // Deleted on purpose: only the person's own Download brings it back (an explicit request has no `allowed`).
+      if (opts.allowed && liteDeleted()) return have;
       return await downloadLite(m.lite, m);
     } catch { return packStatus(); }
     finally { syncing = null; }

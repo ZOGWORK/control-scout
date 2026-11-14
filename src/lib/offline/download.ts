@@ -157,9 +157,25 @@ export interface DownloadOptions { owner: DownloadOwner; onProgress?: Progress; 
 export function download(file: DownloadFile, opts: DownloadOptions): Promise<Uint8Array> {
   const running = inflight.get(file.sha256);
   if (running) return running;
-  const p = run(file, opts).finally(() => { inflight.delete(file.sha256); setActive(ownerKey(opts.owner), null); changed(); });
+  const p = withPieces(file.sha256, () => run(file, opts))
+    .catch(async (e) => {
+      // An event pack is small and built per request: a failed one starts again, so its pieces aren't kept.
+      if (opts.owner.kind === "bundle") await finishDownload(file.sha256);
+      throw e;
+    })
+    .finally(() => { inflight.delete(file.sha256); setActive(ownerKey(opts.owner), null); changed(); });
   inflight.set(file.sha256, p);
   return p;
+}
+
+/** One tab at a time works on a file's pieces (downloading, reading them back, dropping them): two tabs saving the
+ *  same pack would otherwise delete pieces the other still reads. Web Locks span tabs; without them, this tab only. */
+const local = new Map<string, Promise<unknown>>();
+function withPieces<T>(sha: string, fn: () => Promise<T>): Promise<T> {
+  if (typeof navigator !== "undefined" && navigator.locks) return navigator.locks.request(`cs-download-${sha}`, fn) as Promise<T>;
+  const run = (local.get(sha) ?? Promise.resolve()).catch(() => {}).then(fn);
+  local.set(sha, run);
+  return run;
 }
 
 async function run(file: DownloadFile, opts: DownloadOptions): Promise<Uint8Array> {
@@ -300,7 +316,7 @@ async function receive(body: ReadableStream<Uint8Array>, start: PartialDownload,
 
 /** The file is kept (or given up on): drop its pieces. */
 export async function finishDownload(...shas: (string | null | undefined)[]): Promise<void> {
-  for (const sha of shas) if (sha) await db().drop(sha).catch(() => {});
+  for (const sha of shas) if (sha) await withPieces(sha, () => db().drop(sha)).catch(() => {});
   changed();
 }
 

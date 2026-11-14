@@ -13,7 +13,7 @@ const gz = new Uint8Array(gzipSync(JSON.stringify(pack)));
 const file: PackFile = { name: "scout-pack-v1-lite.json.gz", url: "/packs/lite.json.gz", bytes: gz.length, sha256: createHash("sha256").update(gz).digest("hex"), seasons: [2025], kind: "lite", contents: "" };
 const manifest = { format: 1, version: "v1", builtAt: pack.builtAt, engineVersion: pack.engineVersion, dataAsOf: null, lite: file, full: [] } as PackManifest;
 
-afterEach(async () => { vi.unstubAllGlobals(); vi.restoreAllMocks(); await removeLite(); });
+afterEach(async () => { vi.unstubAllGlobals(); vi.restoreAllMocks(); await removeLite(); localStorage.removeItem("cs-lite-deleted"); });
 
 describe("downloadLite", () => {
   it("stores the verified bytes without decoding them", async () => {

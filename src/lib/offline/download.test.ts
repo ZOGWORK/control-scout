@@ -10,7 +10,7 @@ import { gzipSync } from "node:zlib";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ChecksumError, DownloadPaused, PIECE, download, finishDownload, partialDownloads, resetDownloadStore, type DownloadOwner } from "./download";
 import { deviceItems, pausedItems, totalBytes, whatChanged } from "./storage";
-import { downloadLite, getv, packStatus, removeLite, type PackFile, type PackManifest } from "../packs";
+import { downloadLite, getv, packStatus, removeLite, syncLite, type PackFile, type PackManifest } from "../packs";
 
 const owner: DownloadOwner = { kind: "season", id: "2026", label: "2026–27 season" };
 const sha = (b: Uint8Array) => createHash("sha256").update(b).digest("hex");
@@ -182,6 +182,43 @@ describe("the lite pack through the downloader", () => {
     expect(await removeLite()).toBe(gz.length);
     expect(await getv("lite-gz")).toBeUndefined(); // deleted, not overwritten with null
     expect(packStatus()).toBeNull();
+  });
+
+  it("after a Delete, the background sync leaves it off; the person's own Download brings it back", async () => {
+    vi.stubGlobal("fetch", server(gz).fn);
+    await downloadLite(lite, manifest);
+    await removeLite();
+    const calls: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => { calls.push(String(url)); return String(url).endsWith("latest.json") ? new Response(JSON.stringify(manifest)) : new Response(gz); }));
+    expect(await syncLite({ allowed: () => true })).toBeNull();
+    expect(calls).toEqual(["/packs/latest.json"]); // the manifest only, never the pack
+    expect(await syncLite()).toMatchObject({ version: "v1" });
+    expect(packStatus()).toMatchObject({ version: "v1" });
+    await removeLite();
+    localStorage.removeItem("cs-lite-deleted");
+  });
+});
+
+describe("event packs", () => {
+  it("a failed one keeps no pieces (it starts again, and nothing hides in storage)", async () => {
+    const data = bytes(PIECE + 500);
+    const file = { url: "/api/bundles/2026/X/file", bytes: data.length, sha256: sha(data) };
+    await expect(download(file, { owner: { kind: "bundle", id: "2026:X", label: "X" }, fetch: server(data, { cut: 1000 }).fn })).rejects.toBeInstanceOf(DownloadPaused);
+    expect(await partialDownloads()).toEqual([]);
+  });
+});
+
+describe("two downloads of one file", () => {
+  it("take turns on its pieces: the second reads them back whole, and the first's cleanup waits for it", async () => {
+    const data = bytes(PIECE * 2 + 9);
+    const file = { url: "/packs/h", bytes: data.length, sha256: sha(data) };
+    const s = server(data);
+    const a = download(file, { owner, fetch: s.fn });
+    const done = a.then(() => finishDownload(file.sha256));
+    resetDownloadStore(); // as another tab: its own store over the same IndexedDB
+    expect(sha(await a)).toBe(file.sha256);
+    await done;
+    expect(await partialDownloads()).toEqual([]);
   });
 });
 

@@ -77,14 +77,16 @@ export default function DownloadPage() {
   return (
     <div>
       <PageHeader title="Offline" description="Save Control Scout's data on this device, and it works at a meet with no Wi-Fi and no signal." />
-      {err ? (
+      {err ? (<>
         <EmptyState
           icon={err.reason === "none" ? HardDriveDownload : WifiOff}
           title={err.reason === "none" ? "No packs yet" : err.reason === "paused" ? "Offline packs are paused" : "Couldn't check for packs"}
           description={err.message}
           action={err.reason !== "none" ? <Button variant="secondary" onClick={() => setAttempt((a) => a + 1)}><RefreshCw /> Try again</Button> : undefined}
         />
-      ) : !m ? <div className="skeleton h-48 rounded-2xl" /> : (
+        {/* Event packs are built on request (/api/bundles): they don't need the season packs' list. */}
+        <div className="mt-4"><EventBundles showSaved={false} /></div>
+      </>) : !m ? <div className="skeleton h-48 rounded-2xl" /> : (
         <>
           <Choices m={m} pick={pick} onPick={choose} local={local} />
           <div className="mt-3" data-pick-panel={pick}>
