@@ -136,8 +136,8 @@ minutes and starts a run only when the last one is 6 hours old, so a deploy does
   skipped every stream scheduled before it, for good, once it aired (the 2026-11-13 audit found 55: FTC Iowa's league
   meets, Pennsylvania's championship, Arizona's qualifiers). A video already read, or already an official video, isn't
   read again. The owner adds, edits or removes channels in Owner › Official videos, and a removed channel is never seeded back. A seeded
-  channel that later gains a title pattern in that file gets it on the next start, unless the owner has saved or
-  removed that channel (their row stands).
+  channel's title pattern follows that file on the next start (added, narrowed or dropped), unless the owner has
+  saved or removed that channel (their row stands).
 - **Each new video, once** (`official_watch`): it gets matched with the list's rules (`server/videos/officialMatch.ts`).
   A recording is **added** (`official_videos`, source `watcher`) only when all of these hold:
   - it is a finished live broadcast of at least 45 minutes, public and embeddable, and not blocked in 50 or more countries;
