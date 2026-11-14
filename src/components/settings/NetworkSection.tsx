@@ -40,7 +40,8 @@ export function NetworkSection() {
   const used = useDataUse();
   const liteFlag = useFlag("venueLightMode");
   const slowSeen = useLiteReason() != null;
-  const liteOn = liteCookieOn();
+  // Only while the owner offers Lite: with it switched off no Lite control shows, so the words never mention one.
+  const liteOn = liteCookieOn() && liteFlag;
   const [checking, setChecking] = useState(false);
   useTick(15_000);
   const check = async () => { setChecking(true); try { await checkInternet(); } finally { setChecking(false); } };
@@ -262,6 +263,7 @@ function CleanUp() {
   useEffect(measure, []);
   const clear = async () => {
     setBusy(true);
+    setFreed(null); // the line only ever describes the latest attempt
     try {
       const n = await clearAppCache();
       setFreed(n);

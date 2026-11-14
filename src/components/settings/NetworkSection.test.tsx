@@ -14,7 +14,10 @@ const h = vi.hoisted(() => ({ personal: {} as Record<string, unknown>, settings:
 vi.mock("../../lib/personal", () => ({ usePersonal: () => h.personal }));
 const cache = vi.hoisted(() => ({ plan: async (): Promise<unknown> => ({ items: [], bytes: 2_500_000 }) }));
 vi.mock("../../lib/recordings", async (orig) => ({ ...(await orig<typeof import("../../lib/recordings")>()), clearRecordings: async () => {} }));
-vi.mock("../../lib/offline/appCache", () => ({ planAppCache: () => cache.plan(), clearAppCache: async () => 2_500_000 }));
+const cleared = vi.hoisted(() => ({ next: async (): Promise<number> => 2_500_000 }));
+const flags = vi.hoisted(() => ({ lite: true }));
+vi.mock("../../lib/flags", async (orig) => ({ ...(await orig<typeof import("../../lib/flags")>()), useFlag: (k: string) => (k === "venueLightMode" ? flags.lite : true) }));
+vi.mock("../../lib/offline/appCache", () => ({ planAppCache: () => cache.plan(), clearAppCache: () => cleared.next() }));
 
 const { default: SettingsPage } = await import("../../pages/SettingsPage");
 
@@ -241,5 +244,32 @@ describe("Network & offline: deleting recordings asks first", () => {
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Delete all recordings" })); });
     expect(clear).toHaveBeenCalledTimes(1);
     ask.mockRestore(); clear.mockRestore();
+  });
+});
+
+describe("Network & offline: follow-ups", () => {
+  it("a second Clear that fails no longer shows the first one's freed amount", async () => {
+    vi.stubGlobal("fetch", health({ ok: true }));
+    show();
+    const button = await screen.findByRole("button", { name: /Clear 2\.5 MB/ });
+    await act(async () => { fireEvent.click(button); });
+    expect(await screen.findByText(/Freed 2\.5 MB/)).toBeTruthy();
+    const before = cleared.next;
+    cleared.next = async () => { throw new Error("Couldn't clear the cache"); };
+    try {
+      await act(async () => { fireEvent.click(await screen.findByRole("button", { name: /Clear 2\.5 MB/ })); });
+      expect(screen.queryByText(/Freed 2\.5 MB/)).toBeNull();
+    } finally { cleared.next = before; }
+  });
+
+  it("Lite switched off by the owner: the words never offer a Lite switch, even with the old Lite cookie", async () => {
+    flags.lite = false;
+    document.cookie = "cs-lite=1; path=/";
+    try {
+      vi.stubGlobal("fetch", health({ ok: true }));
+      await act(async () => { await checkInternet(); });
+      show();
+      expect(document.querySelector("[data-net-advice]")!.textContent).not.toMatch(/Lite off|turn Lite/i);
+    } finally { flags.lite = true; document.cookie = "cs-lite=; path=/; max-age=0"; }
   });
 });
