@@ -122,20 +122,21 @@ function seasonData(season: number, now = Date.now()) {
 /** When a recording's video was broadcast, for ordering its days: the broadcast's start, else the list's day. */
 const dayKey = (v: RecordingVideo) => v.meta?.start ?? (v.day ? `${v.day}T12:00:00Z` : "9999");
 
-/** Every event's recording in a season, by event code; a video YouTube says won't play is left out. */
-export async function seasonRecordings(season: number): Promise<Map<string, Recording>> {
+/** Every event's recording in a season, by event code; a video YouTube says won't play is left out (`keepUnavailable`:
+ *  kept, for the coverage check, server/videos/coverage.ts, which names it as the reason its day has no clips). */
+export async function seasonRecordings(season: number, keepUnavailable = false): Promise<Map<string, Recording>> {
   const [{ first, more, daily, meta, extra }, owner] = await Promise.all([seasonData(season), seasonStreams(season).catch(() => new Map<string, EventStream>())]);
   const out = new Map<string, Recording>();
   for (const [code, videoId] of first) {
     // Every day YouTube still plays, in order: the first of them is the event's video (a day made private leaves the others).
-    const all = [videoId, ...(more.get(code) ?? [])].map((id): RecordingVideo => ({ videoId: id, meta: meta.get(id) ?? null, ...(extra.get(id) ?? {}) })).filter((d) => d.meta?.status !== "unavailable");
+    const all = [videoId, ...(more.get(code) ?? [])].map((id): RecordingVideo => ({ videoId: id, meta: meta.get(id) ?? null, ...(extra.get(id) ?? {}) })).filter((d) => keepUnavailable || d.meta?.status !== "unavailable");
     // A day at a time: in the order they were broadcast (FIRST's link can be any of the days).
     if (all.length > 1) all.sort((a, b) => dayKey(a).localeCompare(dayKey(b)));
     const [main, ...days] = all;
     if (main) out.set(code, { ...main, source: extra.has(main.videoId) ? "official" : "first", ...(days.length ? { more: days } : {}), ...(daily.has(code) ? { daily: true as const } : {}) });
   }
   for (const [code, s] of owner) out.set(code, { videoId: s.videoId, source: "owner", meta: meta.get(s.videoId) ?? null });
-  for (const [code, r] of out) if (r.meta?.status === "unavailable") out.delete(code);
+  if (!keepUnavailable) for (const [code, r] of out) if (r.meta?.status === "unavailable") out.delete(code);
   return out;
 }
 
@@ -222,11 +223,11 @@ export interface MatchStart { label: string; startsAt: string | null | undefined
 /** An event's played matches with a real start: their span (timingTrusted), and each one, for its chapter (chaptersConfirm). */
 export interface EventSpan extends MatchSpan { starts: MatchStart[] }
 
-const eventSpan = (starts: MatchStart[]): EventSpan => ({ ...matchSpan(starts.map((s) => s.startsAt)), starts });
+export const eventSpan = (starts: MatchStart[]): EventSpan => ({ ...matchSpan(starts.map((s) => s.startsAt)), starts });
 
 /** A video's timing for an event: its span, and, when that alone can't be trusted, how far the video's chapters vouch
  *  for it, or else how far its frames were checked by eye (server/data/checkedTimings.ts). */
-function withConfirmed(videoId: string, meta: VideoMeta, span: EventSpan) {
+export function withConfirmed(videoId: string, meta: VideoMeta, span: EventSpan) {
   const { starts, ...rest } = span;
   const timing = { ...meta, ...rest };
   return timingTrusted(timing) ? timing : { ...timing, confirmedTo: chaptersConfirm(timing, meta.chapters, starts) ?? checkedTo(videoId) };
@@ -283,7 +284,7 @@ export function withClips<M extends Pick<MatchView, "label" | "time" | "startsAt
 }
 
 /** The latest of some match starts (ms, in order) before a match's start, as UTC ISO; null for none. */
-function previousStart(starts: number[], startsAt: string | null | undefined): string | null {
+export function previousStart(starts: number[], startsAt: string | null | undefined): string | null {
   const at = startsAt ? Date.parse(startsAt) : NaN;
   let prev: number | null = null;
   for (const s of starts) { if (s >= at) break; prev = s; }
@@ -298,7 +299,7 @@ export function recordingAt(r: Recording, startsAt: string | null | undefined, n
 }
 
 /** Whether a match start falls inside a broadcast (from its start to its end, or to now while it's live). */
-function within(startsAt: string | null | undefined, m: VideoMeta, now: number): boolean {
+export function within(startsAt: string | null | undefined, m: VideoMeta, now: number): boolean {
   const at = startsAt ? Date.parse(startsAt) : NaN, from = m.start ? Date.parse(m.start) : NaN;
   if (!Number.isFinite(at) || !Number.isFinite(from) || at < from) return false;
   const to = m.end ? Date.parse(m.end) : m.live ? now : m.length != null ? from + m.length * 1000 : Infinity;
