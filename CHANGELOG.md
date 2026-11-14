@@ -15,6 +15,27 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 6.1.9 — 2026-11-14
+
+One Network & offline screen in Settings answers it all in plain words: are you online, on Wi-Fi or mobile data, how much data this visit and each download uses, whether Lite would help right now, and what's downloaded. The download and update choices live only there now, each saying what it does before you pick it.
+
+### Highlights
+- [offline] Network & offline: online, offline or Wi-Fi sign-in, in one line
+- [offline] See this visit's data use and what each download costs
+- [offline] "Should I use Lite?" answered from your real connection
+- [offline] Clear cache says how much it frees; downloads stay put
+- [fixes] Download and update choices live in one place, not two
+
+### Added
+- Settings › Network & offline (`/settings#network`, also `/network`; `src/components/settings/NetworkSection.tsx`), replacing Settings › Offline data. Top to bottom: "You're online" / "You're offline" / "This Wi-Fi isn't giving internet (it may need a sign-in page)" from the internet check (`src/lib/connection.ts`), when it was checked and Check again; the connection (Wi-Fi, mobile data, none, or "Your browser doesn't say" where the browser doesn't tell, as on iPhones); the data this visit has used, summed from the browser's own `transferSize` for the page load and every request (`src/lib/dataUse.ts`, started in `main.tsx`; files the browser already had count as nothing); "Should I use Lite?" (`src/lib/networkAdvice.ts`: offline or a sign-in page say downloads work and Lite needs a connection; the browser's 2g/3g, Data Saver or slow pages this visit offer Lite with one tap; otherwise the full app is best, with Turn off Lite while it's on); what's downloaded (each event, season and the predictions pack, its size and data time, linked to the Download page); what a download costs, from the pack manifest (the current season, every season, offline predictions) and the saved events' own sizes.
+- Lite on or off on the same screen, through the server's `/lite/on` and `/lite/off`, coming back to the screen as the full app (`?lite=0`).
+- Clear cache measures what it frees first (older releases' caches and files the current release doesn't need, from the bodies kept) and says "Freed X MB" after. It only ever touches Cache Storage: the current release's own files stay, so the app still opens offline, and packs, saved seasons, recordings and scouting notes are never touched (`src/lib/offline/appCache.ts`; the service worker answers which files are its own, `cs-cache-keep`).
+- Ways in: the main menu's More (Network & offline), Home's footer links, the Offline pill's panel, and the inbox's update item (Update settings).
+
+### Changed
+- Downloads: "Wi-Fi only" / "Wi-Fi and mobile data", the second with the real sizes it may use. Updates: "Update packs automatically on Wi-Fi" / "Never update automatically (I'll tap Update)". Same stored settings as before (`offlineNetwork`, `offlineUpdates`), so nothing changes for anyone.
+- The Download page no longer has its own copy of those two settings: it links to Network & offline. Old links to Settings › Offline data (`?section=offline`, `#offline`) open Network & offline. (#1491)
+
 ## 6.1.8 — 2026-11-14
 
 Control Scout Lite now covers the whole app: Home, Search, Predict, Compare, Rankings, Scouting and Settings each have a light page, with the same answers and numbers as the full version.
