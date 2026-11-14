@@ -5,7 +5,7 @@
 import { sweepBugReports } from "./bugReports.js";
 import { startUptimeChecks } from "./uptime.js";
 import { backfillVideoMeta } from "./videos/recordings.js";
-import { checkClipCoverage } from "./videos/coverageCheck.js";
+import { checkClipCoverage, triageUntriaged } from "./videos/coverageCheck.js";
 import { resolveStreamLinks } from "./videos/streamLinks.js";
 import { resolveChannelStreams } from "./videos/channelStreams.js";
 import { seedOfficialVideos } from "./videos/officialVideos.js";
@@ -82,6 +82,8 @@ log(`data: ${await restoreSnapshotIfEmpty().catch((e) => `snapshot restore faile
 log(`packs: ${(() => { try { return installShippedPacks(packsDir()); } catch (e) { return `shipped packs failed: ${(e as Error).message}`; } })()}`);
 await openReplicaIfRemote(log);
 await migrate();
+// Clip coverage rows from before triage get their category from what they hold, in the background (a few hundred rows).
+void triageUntriaged(log).catch((e) => log(`clip coverage triage: ${(e as Error).message}`));
 
 // Warm before answering (server/warm.ts): built on a cold process while a deploy's queued requests poured in, these
 // held its event loop for minutes. Search's index first when the code that builds it changed (SEARCH_INDEX_SCHEMA):
