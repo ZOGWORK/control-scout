@@ -238,13 +238,16 @@ describe("the shipped list", () => {
     const cmp = { ...ev, season: 2025, code: "USOKCMP", name: "Oklahoma Championship", type: "Championship", start: "2026-02-14", end: "2026-02-14" };
     const stream = { videoId: "2dfab82v9LI", title: "FIRST Oklahoma - Oklahoma State Championship - FTC Decode", start: "2026-02-14T15:00:00Z", durationS: 7 * 3600, privacy: "public", embeddable: true, blockedIn: 0 };
     expect(matchVideo(stream, trc, [cmp]).kind).toBe("add");
-    // Every Oklahoma event is a candidate and only the championship title counts as naming the region: a Meet 2 stream
-    // on a day two leagues hold their Meet 2 fits both and goes to review, never onto the other league's meet.
+    // Every Oklahoma event is a candidate and only the championship title counts as naming the region: on a day two
+    // leagues hold their Meet 2, the title's league name picks its own meet, never the other league's.
     const meet2 = [{ ...ev, code: "USOKOKDVM2", name: "DaVinci League Meet 2" }, { ...ev, code: "USOKOKCRM2", name: "Carver League Meet 2", city: "Mustang" }];
     const day = { ...stream, start: "2026-11-14T15:00:00Z" };
-    expect(matchVideo({ ...day, title: "FIRST Oklahoma - Carver League Meet #2 - BIOBUZZ" }, trc, meet2).kind).toBe("review");
-    expect(matchVideo({ ...day, title: "FIRST Oklahoma - DaVinci League Meet #2 - BIOBUZZ" }, trc, meet2).kind).toBe("review");
-    expect(matchVideo({ ...day, title: "FIRST Oklahoma - DaVinci League Meet #2 - BIOBUZZ" }, trc, meet2.slice(0, 1)).kind).toBe("add");
+    const on = (title: string, evs: typeof meet2) => { const r = matchVideo({ ...day, title }, trc, evs); return r.kind === "add" ? r.event.code : r.kind; };
+    expect(on("FIRST Oklahoma - Carver League Meet #2 - BIOBUZZ", meet2)).toBe("USOKOKCRM2");
+    expect(on("FIRST Oklahoma - DaVinci League Meet #2 - BIOBUZZ", meet2)).toBe("USOKOKDVM2");
+    expect(on("FIRST Oklahoma - DaVinci League Meet #2 - BIOBUZZ", meet2.slice(0, 1))).toBe("USOKOKDVM2");
+    // A title naming neither league fits both: for the owner.
+    expect(on("FIRST Oklahoma - League Meet #2 - BIOBUZZ", meet2)).toBe("review");
     expect(trc.titlePattern).toBe("oklahoma (state )?championship");
     // Shiloh is a school sports channel: its FTC championship title counts, a sports state championship never does.
     const shiloh = OFFICIAL_CHANNELS.find((c) => c.channelId === "UCvA42eBzkRpd-x23-AvOnvw")!;
