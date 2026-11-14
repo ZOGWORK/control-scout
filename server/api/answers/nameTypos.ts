@@ -71,12 +71,15 @@ export const spelledBy = (text: string, typos: ReadonlySet<string>) => !words(te
 
 let built: { version: string; typos: Set<string> } | null = null;
 let building: Promise<void> | null = null;
+/** Clear caches pressed so far: a build one of them overlapped is kept as stale, so the next use builds again. */
+let clears = 0;
 /** Builds the set for the data as it is now, once at a time. */
 const refresh = (): Promise<void> => building ??= (async () => {
+  const at = clears;
   const version = await searchVersion();
   if (built?.version === version) return;
   const rows = await all<{ name: string }>("SELECT DISTINCT name FROM events WHERE name IS NOT NULL");
-  built = { version, typos: typoWords(rows.map((r) => r.name)) };
+  built = { version: at === clears ? version : "", typos: typoWords(rows.map((r) => r.name)) };
 })().finally(() => { building = null; });
 
 /** The event-name typos: the set built last, a newer one started when the data has moved. Only the very first build
@@ -93,4 +96,8 @@ export const warmNameTypos = (): Promise<void> => refresh();
 // The owner's Clear caches marks it stale: the next use, or server/index.ts's next warm, builds it again in the
 // background, and the last one is used until then. Never read here: a process with no database open (a test) would
 // open the default one.
-registerCache("Search answers: event-name typos", () => { if (built) built = { ...built, version: "" }; });
+export function forgetNameTypos() {
+  clears++;
+  if (built) built = { ...built, version: "" };
+}
+registerCache("Search answers: event-name typos", forgetNameTypos);
