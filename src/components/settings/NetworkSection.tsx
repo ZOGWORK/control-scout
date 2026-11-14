@@ -259,7 +259,7 @@ function CleanUp() {
         </Button>
       </Row>
       <Row label="Recordings" description="Match videos recorded in the app live only on this device.">
-        <Button variant="outline" className="h-11 sm:h-9" onClick={() => clearRecordings().then(() => toast.success("Recordings deleted from this device"), (e) => toast.error(e.message))}>Delete all recordings</Button>
+        <Button variant="outline" className="h-11 sm:h-9" onClick={() => clearRecordings().then(() => { toast.success("Recordings deleted from this device"); measure(); }, (e) => toast.error(e.message))}>Delete all recordings</Button>
       </Row>
       <Row label="Storage used by this site" description="Downloads, the app's files and recordings, all together.">
         <span className="text-sm tabular-nums text-foreground">{est?.usage != null ? `${fmtBytes(est.usage)}${est.quota ? ` of ${fmtBytes(est.quota)}` : ""}` : "Your browser doesn't say"}</span>

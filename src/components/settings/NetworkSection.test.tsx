@@ -13,6 +13,7 @@ import { TooltipProvider } from "../ui/overlay";
 const h = vi.hoisted(() => ({ personal: {} as Record<string, unknown>, settings: {} as Record<string, unknown> }));
 vi.mock("../../lib/personal", () => ({ usePersonal: () => h.personal }));
 const cache = vi.hoisted(() => ({ plan: async (): Promise<unknown> => ({ items: [], bytes: 2_500_000 }) }));
+vi.mock("../../lib/recordings", async (orig) => ({ ...(await orig<typeof import("../../lib/recordings")>()), clearRecordings: async () => {} }));
 vi.mock("../../lib/offline/appCache", () => ({ planAppCache: () => cache.plan(), clearAppCache: async () => 2_500_000 }));
 
 const { default: SettingsPage } = await import("../../pages/SettingsPage");
@@ -149,5 +150,19 @@ describe("Network & offline: clear cache when it can't be measured", () => {
       await act(async () => { fireEvent.click(button); });
       expect(await screen.findByText(/Freed 2\.5 MB/)).toBeTruthy();
     } finally { cache.plan = before; }
+  });
+});
+
+describe("Network & offline: deleting recordings", () => {
+  it("measures the site's storage again, so the figure below doesn't look stale", async () => {
+    let usage = 50_000_000;
+    const estimate = vi.fn(async () => ({ usage, quota: 1_000_000_000 }));
+    vi.stubGlobal("navigator", Object.assign(Object.create(navigator), { storage: { estimate } }));
+    vi.stubGlobal("fetch", health({ ok: true }));
+    show();
+    expect(await screen.findByText(/^50(\.0)? MB of/)).toBeTruthy();
+    usage = 10_000_000;
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Delete all recordings" })); });
+    expect(await screen.findByText(/^10(\.0)? MB of/)).toBeTruthy();
   });
 });
