@@ -6,12 +6,13 @@
 // Never wider than the results column (680px, the search display spec); a phone gets the card's full width at 16:9.
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { ExternalLink, Play, PlayCircle } from "lucide-react";
-import type { SearchVideo, SearchVideoItem } from "../../../shared/api";
+import type { SearchAnswer, SearchVideo, SearchVideoItem } from "../../../shared/api";
 import { embedUrl, thumbnailUrl } from "../../../shared/stream";
 import { clipTime, watchUrl } from "../../../shared/recording";
 import { playMatchVideo } from "../../../lib/streamSeek";
 import { cn } from "../../cn";
 import { VideoCredit } from "../../contributors/VideoCredit";
+import { Button } from "../../ui/button";
 
 /** The answer's video, and how many row clips were played: each one stops the card's player, so two never play at once. */
 const Video = createContext<{ video?: SearchVideo; rowPlays: number; rowPlayed: () => void }>({ rowPlays: 0, rowPlayed: () => {} });
@@ -80,6 +81,43 @@ function Player({ v, className }: { v: SearchVideoItem; className?: string }) {
         </a>
       </figcaption>
     </figure>
+  );
+}
+
+/** What a card or stat answer's "View clip" names, or null for none: the answer's headline ("Auto in M14 at Australia
+ *  Championship"), only when its video is a match's clip and that match is the headline's own (a highlights page's tiles
+ *  already play theirs). A search for a match or an event by name has no card: it already plays it (AnswerVideo). */
+export function clipLabel(a: Pick<SearchAnswer, "stat" | "card" | "video"> | null | undefined): string | null {
+  const v = a?.video;
+  if (!v?.main?.match || !v.mainRow) return null;
+  if (a?.stat) {
+    // A page of match videos (highlights) plays each of its own tiles: no second button for its top one.
+    if (a.stat.blocks?.some((b) => b.kind === "videos")) return null;
+    return a.stat.headline?.href === v.mainRow ? a.stat.headline.label || v.main.match : null;
+  }
+  return a?.card ? a.card.title : null;
+}
+
+/** The answer's own match, to watch: under People also ask, a "View clip" button for the one match a card or stat answer
+ *  is about ("<team> best auto in decode" → that match), when it has a clip. It plays the match's own clip as the event
+ *  page does (FIRST's match video, a contributor's, or the match's place in the event's recording, from its start), in
+ *  the app's video dialog: never a new cut of it, never the event's recording from its start in its place. `about`
+ *  names the match in the dialog ("Auto in M14 at Australia Championship"). */
+export function AnswerClip({ about, className }: { about?: string; className?: string }) {
+  const { video, rowPlayed } = useContext(Video);
+  const v = video?.main;
+  // Only a match's clip: an event's recording or live stream from its start isn't that match.
+  if (!v || !v.match || !video?.mainRow) return null;
+  const label = about || v.match;
+  return (
+    <section aria-label="Watch this match" className={cn("rounded-xl border border-border bg-card p-4", className)} data-answer-clip={v.kind}>
+      <h2 className="text-sm font-semibold text-foreground">Watch this match</h2>
+      <p className="mt-0.5 text-xs text-muted-foreground" data-video-caption>{videoCaption(v)}</p>
+      <Button type="button" className="mt-3 w-full" onClick={() => { rowPlayed(); playMatchVideo({ videoId: v.videoId, t: v.t, label }); }}
+        aria-label={`View clip: ${label}`} data-video-control>
+        <PlayCircle className="size-5" aria-hidden />View clip
+      </Button>
+    </section>
   );
 }
 
