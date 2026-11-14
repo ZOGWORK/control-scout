@@ -22,7 +22,7 @@ On a phone, the search bar on the results page is now the search box itself: one
 ### Highlights
 - [fixes] One tap on the phone results page's search bar lets you edit your search
 - [fixes] No second search box opens on top of it any more
-- [fixes] A second tap moves the caret where you tapped instead of showing Cut/Copy/Paste
+- [fixes] A second tap puts the caret where you tapped, not a Cut/Copy menu
 
 ### Fixed
 - Search on phones: the bar holding your query on the results page was a button that opened the top bar's search box over it, with the whole query selected, and on an iPhone a tap on a selection only offers Cut/Copy/Paste, so the query couldn't be edited. The bar is now the page's own search field (the top bar's box and search button step aside on that page), and opening a search box from a button or shortcut on a touch screen puts the caret at the end instead of selecting everything. Desktop keeps select-all. (`src/components/search/page/PhoneSearchBar.tsx`, `src/components/layout/Search.tsx`, `src/lib/focusField.ts`) (#1454)
