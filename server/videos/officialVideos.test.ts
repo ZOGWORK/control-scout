@@ -8,6 +8,7 @@ import { clearAllCaches } from "../caches";
 import { eventRecording, recordingStream } from "./recordings";
 import { eventHighlightVideos, localDate, seedOfficialVideos, type OfficialList } from "./officialVideos";
 import { eventView, withPageExtras } from "../api/eventView";
+import { parseRule } from "./officialMatch";
 import shipped from "../data/officialVideos.json" with { type: "json" };
 
 const S = 2025;
@@ -167,6 +168,120 @@ describe("the shipped list", () => {
     const apocSat = au.filter((x) => x.code === "AUSYOS" && x.day === "2026-07-04");
     expect(apocSat.map((x) => x.part).sort()).toEqual(["Part 1", "Part 2"]);
   });
+  it("puts FIRST in Missouri's and FIRST MOKS's recordings on the Missouri/Kansas meet each title names, one session each", async () => {
+    const FIMO = "UCoo2NYUOcTUZB65dGMAp1vg", MOKS = "UCy_GHfjX6LsALdrIceg8_pw";
+    const pin = (ch: string) => data.videos.filter((x) => x.channelId === ch).map((x) => `${x.season}/${x.code} ${x.day} ${x.videoId}`).sort();
+    // Every row, checked by hand against Scout's event (name, venue, city, date, league, session): season/code day video.
+    expect(pin(FIMO)).toEqual([
+      "2022/USMOKSSTLMM6 2023-01-06 lId9ThoQI70", "2023/USMOKSSTLNLT1 2024-02-10 m1tp5Ji3ZfA",
+      "2023/USMOKSSTLNM9 2024-01-20 prX-wkodWu4", "2024/USMOKSSTLMLT 2025-02-01 -RVQbm2QDwk",
+      "2024/USMOKSSTLNM2 2024-12-21 -c-27oGhTNc", "2024/USMOKSSTLNM3 2024-12-07 9i9krw6Filw",
+      "2024/USMOKSSTLNM4 2025-01-11 5v8TlEQlf4o", "2024/USMOKSSTLNM5 2025-01-04 654Sz2dZx8g",
+      "2024/USMOKSSTLSM7 2024-11-02 wYiPDWPXm94", "2026/USMOKSSEM2 2026-11-14 nR5wKpHZA8g",
+      "2026/USMOKSSTLMM1 2026-11-14 TOUW4KHaYNw", "2026/USMOKSSTLNM7 2026-11-14 EHLGE5Rl3qU",
+      "2026/USMOKSSTLSM1 2026-11-07 OMN4AaLeIdc", "2026/USMOKSSWM1 2026-11-14 qM3qo5rrmyc",
+    ]);
+    expect(pin(MOKS)).toEqual([
+      "2019/19MOMT1 2019-11-09 wvUDXFu4qN4", "2019/19MOMT16 2019-12-07 pAfNTwtGQz0",
+      "2019/19MOMT17 2019-12-07 3dr9bOM4tYg", "2019/19MOMT3 2019-11-16 rg1_UZgT6ZA",
+      "2019/19MOMT4 2019-11-16 801wnZZhyMc", "2019/2019MOC1SDIVISION 2020-03-07 VP3ypLKsC2s",
+      "2019/2019MOC1TDIVISION 2020-03-07 OhH_jZau2Uw", "2019/2019MOQ2 2019-12-14 06dqg4aHoII",
+      "2019/2019MOQ2 2019-12-14 5I0FgkqcIwQ", "2019/2019MOQ4 2020-02-01 m9KLRqFCMBQ",
+      "2019/2019MOQ6 2020-01-25 yguoRsl_AwY", "2019/2019MOQ8 2020-02-15 4HDl8nB-pOw",
+      "2019/20MOMT10 2020-01-25 7eiJDvT42ik", "2019/20MOMT12 2020-01-25 XZHamtehL_k",
+      "2021/USMOKSBELT 2022-01-29 VD84dv9h0JI", "2021/USMOKSCMP 2022-03-05 ZOmJ0CuLWHY",
+      "2021/USMOKSKCM1 2021-11-20 sYpBW9SFb04", "2021/USMOKSKCM2 2022-01-15 ZzN574xEf48",
+      "2021/USMOKSKNM1 2021-12-11 dHjVrS2RUYY", "2021/USMOKSKNM2 2021-12-11 kQLwiiIQX4k",
+      "2021/USMOKSLSM1 2021-12-04 bTnV8z3stTs", "2021/USMOKSLSM2 2021-12-18 YrZoAIriA3M",
+      "2021/USMOKSLSM3 2021-12-04 bdZI8ZVBe34", "2021/USMOKSLSM4 2021-12-18 YOmp83gRf14",
+      "2021/USMOKSOPM1 2022-01-22 85SpiaRed18", "2021/USMOKSOPM2 2022-01-22 YX_m0H3MskY",
+      "2021/USMOKSSPLT 2022-02-19 KOzyNy7DVHc", "2021/USMOKSSPLT 2022-02-19 v3MwITl0Jmo",
+      "2022/USMOKSCMP 2023-03-04 7NvwszKfl7Y", "2022/USMOKSKCELT 2023-02-04 K1aa9BGUDcc",
+      "2022/USMOKSKCEM1 2022-12-17 evqDX3DFygE", "2022/USMOKSKCEM2 2022-12-03 vZm-zq02FNA",
+      "2022/USMOKSKCEM3 2022-12-10 pihIK2DiNtk", "2022/USMOKSKCEM4 2022-11-19 sDkc5p71S-Y",
+      "2022/USMOKSKCEM5 2023-01-21 dI4I1AdBBfY", "2022/USMOKSKCEM6 2023-01-14 RJ2iSF0j2hg",
+      "2022/USMOKSKCWLT 2023-02-11 DfCFW_7uEYg", "2022/USMOKSKCWM1 2022-12-17 cnONKk5zXGo",
+      "2022/USMOKSKCWM2 2022-12-03 2rISyTdmCag", "2022/USMOKSKCWM3 2022-11-19 SNu-XRwDQFg",
+      "2022/USMOKSKCWM4 2022-12-10 S7nzGdWDr4s", "2022/USMOKSKCWM5 2023-01-21 GWKqJs9HCys",
+      "2022/USMOKSKCWM6 2023-01-14 JhfnJAwaWfw", "2022/USMOKSSWMILT1 2023-01-28 i0x0XtAd1Is",
+      "2023/USMOKSCMP 2024-03-02 IQAkzka8GzQ", "2023/USMOKSKCELT 2024-01-27 YAXiWJuLBsk",
+      "2023/USMOKSKCEM1 2023-12-16 ECO-_TcPv78", "2023/USMOKSKCEM2 2023-12-16 eAFclqqHNOM",
+      "2023/USMOKSKCEM3 2023-12-02 BXAmN5Bdk-c", "2023/USMOKSKCEM5 2024-01-20 wmlCJmmd9H4",
+      "2023/USMOKSKCEM6 2023-11-11 rdPswRDxTh0", "2023/USMOKSKCWLT 2024-02-10 dfhDnp7ESPc",
+      "2023/USMOKSKCWM1 2023-12-02 _vYBQ5B1QAc", "2023/USMOKSKCWM2 2023-12-09 UwDyv7mU4jc",
+      "2023/USMOKSKCWM3 2023-12-09 DImrANzeIsQ", "2023/USMOKSKCWM4 2024-01-20 uvFvN_EzI9Q",
+      "2023/USMOKSKCWM5 2023-11-11 mnYjdKM1DVc", "2023/USMOKSKCWM6 2023-11-18 egzqnqcbjJA",
+      "2023/USMOKSKCWM7 2023-11-18 DiyUgUbb6xc", "2023/USMOKSSWMILT 2024-02-03 uON4oUZ95qg",
+      "2024/USMOKSKCEM1 2024-12-14 iCZ6M2KZbIk", "2024/USMOKSKCEM2 2024-12-21 gdQKve7ft3s",
+      "2024/USMOKSKCEM3 2024-12-21 Pv6LWVPHRSI", "2024/USMOKSKCEM4 2025-01-11 vtXR4XRrr00",
+      "2024/USMOKSKCEM5 2024-11-02 j0CVFqC3i6g", "2024/USMOKSKCEM6 2024-11-02 _GM2ehbkl2k",
+      "2024/USMOKSKCEM7 2024-11-23 4_KPw2DqSiw", "2024/USMOKSKCEM8 2024-12-07 6W3JTqRlzCg",
+      "2024/USMOKSKCEM9 2024-12-07 I3JYvCnPYn8", "2024/USMOKSKCWLT 2025-01-18 TjPs-8caGYk",
+      "2024/USMOKSKCWM1 2024-12-14 Ew2P58HmP6o", "2024/USMOKSKCWM2 2024-12-14 IjL0jtEWweU",
+      "2024/USMOKSKCWM3 2024-12-21 Aw-LD9hzBro", "2024/USMOKSKCWM4 2025-01-11 GbpsnJN-wgY",
+      "2024/USMOKSKCWM5 2024-11-16 x3ojlUMBULw", "2024/USMOKSKCWM6 2024-11-16 Sqw-27xckcA",
+      "2024/USMOKSKCWM7 2024-11-23 P6Xl3yl9vf0", "2024/USMOKSLSSQ 2025-02-15 5W5V8DRNyHs",
+      "2024/USMOKSSWLT 2025-01-25 ar6uGXrwgbI", "2025/USMOKSKCELT1 2026-02-07 J4W8wcuvv90",
+      "2025/USMOKSKCEM9 2026-01-10 FejS0SMwcxw", "2025/USMOKSKCWLT1 2026-01-17 2uvgcUltkIA",
+      "2025/USMOKSKCWM8 2026-01-10 ZxHkaD8UoXk", "2025/USMOKSKCWM9 2026-01-10 hbWvrvJxyAY",
+      "2025/USMOKSLSSQ 2026-02-21 WX4MWK_LwBI", "2025/USMOKSSWLT 2026-01-31 SV63XvPr7AE",
+      "2026/USMOKSKCMM1 2026-11-07 bR556QnpUdM", "2026/USMOKSKCMM2 2026-11-07 W4z7U4GojHs",
+      "2026/USMOKSKCWM1 2026-11-07 oBRIzLgPBPY",
+    ]);
+    // Scout's session for each meet a title names a session of: "8AM" is "Belton Meet @ 8 AM", "AM" the morning meet.
+    const sessions: Record<string, string> = {
+      "2026/USMOKSKCMM2": "8AM", "2026/USMOKSKCWM1": "1030AM", "2026/USMOKSKCMM1": "1PM", "2025/USMOKSKCWM8": "8AM",
+      "2025/USMOKSKCEM9": "1030AM", "2025/USMOKSKCWM9": "1PM", "2024/USMOKSKCWM4": "1PM", "2024/USMOKSKCEM4": "8AM",
+      "2024/USMOKSKCEM2": "8AM", "2024/USMOKSKCWM3": "1030AM", "2024/USMOKSKCEM3": "1PM", "2024/USMOKSKCWM2": "8AM",
+      "2024/USMOKSKCEM1": "1030AM", "2024/USMOKSKCWM1": "1PM", "2024/USMOKSKCEM9": "8AM", "2024/USMOKSKCEM8": "1PM",
+      "2024/USMOKSKCWM7": "8AM", "2024/USMOKSKCEM7": "1PM", "2024/USMOKSKCWM5": "8AM", "2024/USMOKSKCWM6": "1PM",
+      "2024/USMOKSKCEM6": "8AM", "2024/USMOKSKCEM5": "1PM", "2023/USMOKSKCWM4": "8AM", "2023/USMOKSKCEM5": "1PM",
+      "2023/USMOKSKCEM2": "8AM", "2023/USMOKSKCEM1": "1PM", "2023/USMOKSKCWM3": "8AM", "2023/USMOKSKCWM2": "1PM",
+      "2023/USMOKSKCEM3": "8AM", "2023/USMOKSKCWM1": "1PM", "2023/USMOKSKCWM7": "8AM", "2023/USMOKSKCWM6": "1PM",
+      "2023/USMOKSKCWM5": "8AM", "2023/USMOKSKCEM6": "1PM", "2022/USMOKSKCEM5": "AM", "2022/USMOKSKCWM5": "PM",
+      "2022/USMOKSKCWM6": "AM", "2022/USMOKSKCEM6": "PM", "2022/USMOKSKCEM1": "AM", "2022/USMOKSKCWM1": "PM",
+      "2022/USMOKSKCWM4": "AM", "2022/USMOKSKCEM3": "PM", "2022/USMOKSKCEM2": "AM", "2022/USMOKSKCWM2": "PM",
+      "2022/USMOKSKCWM3": "AM", "2022/USMOKSKCEM4": "PM", "2021/USMOKSOPM2": "AM", "2021/USMOKSOPM1": "PM",
+      "2021/USMOKSLSM4": "AM", "2021/USMOKSLSM2": "PM", "2021/USMOKSKNM2": "AM", "2021/USMOKSKNM1": "PM",
+      "2021/USMOKSLSM1": "AM", "2021/USMOKSLSM3": "PM", "2019/20MOMT12": "PM", "2019/20MOMT10": "AM",
+      "2019/19MOMT16": "AM", "2019/19MOMT17": "PM", "2019/19MOMT3": "AM", "2019/19MOMT4": "PM",
+    };
+    const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    for (const x of data.videos.filter((y) => y.channelId === FIMO || y.channelId === MOKS)) {
+      expect(x.kind, x.videoId).toBe("recording");
+      expect(x.code, x.videoId).toMatch(/^(USMOKS|19MOMT|20MOMT|2019MO)/);
+      expect(x.day! >= `${x.season}-09-01` && x.day! <= `${x.season + 1}-08-31`, `${x.videoId} ${x.day}`).toBe(true);
+      // A title naming its date names this row's day: "(2026-11-7)" or "November 14, 2026" / "Nov 7, 2026".
+      const [y, m, d] = x.day!.split("-").map(Number);
+      const iso = /\((\d{4})-(\d{1,2})-(\d{1,2})\)/.exec(x.title);
+      if (iso) expect([+iso[1], +iso[2], +iso[3]], x.videoId).toEqual([y, m, d]);
+      const long = /\b([A-Z][a-z]{2})[a-z]*\.? (\d{1,2}),? (\d{4})\b/.exec(x.title);
+      if (long) expect([+long[3], MONTHS.findIndex((n) => n.startsWith(long[1])) + 1, +long[2]], x.videoId).toEqual([y, m, d]);
+      expect(iso || long || x.videoId === "lId9ThoQI70" || /Super Qualifier @ East Trails/.test(x.title), `${x.videoId} names no date`).toBeTruthy();
+      // A session in the title ("8AM", "1030AM", "1PM", "AM", "PM") is the meet's own.
+      const t = x.title.replace(/\(.*?\)/g, "");
+      const s = /\b(\d{1,4})(AM|PM)\b/.exec(t)?.slice(1).join("") ?? /\b(AM|PM)\b/.exec(t)?.[1];
+      if (s) expect(sessions[`${x.season}/${x.code}`] ?? "", `${x.videoId} ${s}`).toMatch(new RegExp(`${s}$`));
+    }
+    // A day in two parts says so, one row each.
+    for (const code of ["USMOKSSPLT", "2019MOQ2"]) expect(data.videos.filter((x) => x.code === code).map((x) => x.part).sort()).toEqual(["Part 1", "Part 2"]);
+    // Left out: an alternate feed and a second upload of a day that has one, a title fitting two STL North meets,
+    // uploads without a date, one video for an AM and a PM meet, a venue that isn't the event's, an awards stream of
+    // two leagues, a video that can't be embedded, a scheduled stream that never aired, and days with no FTC event.
+    const ids = new Set(data.videos.map((x) => x.videoId));
+    for (const no of ["EIqZXe2vG_Y", "lfWTpYkYFg8", "XDeeKNXKdFY", "Mt_K_svg814", "PuINSMGOvxY", "2saRgC8X-Yo", "HSsenMtQQEE", "vJBo3Zyn6qM",
+      "LlfD3kfTpY0", "LJH1QKK9Z28", "_tLUXAkOLuA", "PIKtUNsl5i8", "0SEUu04Q_B0", "D5Rc4neQkog", "uXUaw8601sM"]) expect(ids.has(no), no).toBe(false);
+    // The watcher reads both channels, for Missouri and Kansas events only.
+    const { OFFICIAL_CHANNELS } = await import("../data/officialChannels");
+    const ev = { season: 2026, type: "LeagueMeet", city: "Belton", state: "MO", country: "USA", start: "2026-11-07", end: "2026-11-07", timezone: "America/Chicago", divisionCode: null, parent: false, code: "USMOKSKCMM2", name: "Belton Meet @ 8 AM" };
+    for (const ch of [FIMO, MOKS]) {
+      const inRegion = parseRule(OFFICIAL_CHANNELS.find((c) => c.channelId === ch)!.region)!;
+      expect(inRegion(ev)).toBe(true);
+      expect(inRegion({ ...ev, city: "Olathe", state: "KS" })).toBe(true);
+      expect(inRegion({ ...ev, city: "Tulsa", state: "OK", code: "USOKOKDVM1", name: "DaVinci League Meet 1" })).toBe(false);
+    }
+  });
+
   it("leaves out what the brief rules out", () => {
     const ids = new Set(data.videos.map((x) => x.videoId));
     // Ambiguous, unofficial, a different broadcaster, or blocked (docs/official-videos.md).
