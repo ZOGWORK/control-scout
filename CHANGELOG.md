@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.1.4 — 2026-11-14
+## 6.1.5 — 2026-11-14
 
 One download now takes a whole event offline: every team page, every match page and Compare for its teams work with no signal, with the same numbers as online.
 
@@ -33,6 +33,8 @@ One download now takes a whole event offline: every team page, every match page 
 
 ### Changed
 - Match video buttons, with no connection or on a page from the saved pack, say "Needs a connection" (videos are never downloaded); the match's score and breakdown still show. (#1464)
+## 6.1.4 — 2026-11-14
+
 FiT-Central's GEMS league events in Austin now play their recordings from Westwood Robotics, the team channel that streams them with the official overlay: Diamond and Emerald League Meets back to 2024, the GEMS League Tournaments and the Austin semi-regionals. Saturday's Meet 2 shows its stream before, during and after it airs.
 
 ### Highlights
