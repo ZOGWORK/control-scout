@@ -229,7 +229,9 @@ const eventSpan = (starts: MatchStart[]): EventSpan => ({ ...matchSpan(starts.ma
 function withConfirmed(videoId: string, meta: VideoMeta, span: EventSpan) {
   const { starts, ...rest } = span;
   const timing = { ...meta, ...rest };
-  return timingTrusted(timing) ? timing : { ...timing, confirmedTo: chaptersConfirm(timing, meta.chapters, starts) ?? checkedTo(videoId) };
+  if (timingTrusted(timing)) return timing;
+  const ch = chaptersConfirm(timing, meta.chapters, starts);
+  return ch ? { ...timing, confirmedTo: ch.to, shift: ch.shift } : { ...timing, confirmedTo: checkedTo(videoId) };
 }
 
 /** The earliest and latest of some UTC ISO match starts. */
