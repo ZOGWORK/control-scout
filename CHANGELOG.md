@@ -31,7 +31,7 @@ FTC One Search works with no signal at the meet: search a team in the downloaded
 - Any other search with no signal is read by search's own parser, now in `src/shared/query/` (the server imports it from there), and answers "This needs data that isn't in your downloaded pack (it's about the 2025–26 season)", then the pack's event, teams, matches and data time, with links to the pack's pages it names. A saved season still answers plain results first, as before.
 
 ### Changed
-- With an event pack saved, search waits 4 seconds for the server before the pack answers (no answer, or no network at all: at once), never search's 10-second slow-search wait; a search the pack can't answer still waits for a server that's answering everything else.
+- With an event pack saved, search waits 4 seconds for the server before the pack answers (no answer, or no network at all: at once), never search's 10-second slow-search wait; a search the pack can't answer still waits for a server that's answering everything else. (#1489)
 
 ## 6.1.5 — 2026-11-14
 
