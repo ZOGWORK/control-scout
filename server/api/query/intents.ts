@@ -99,7 +99,7 @@ export const INTENTS: IntentRule[] = [
   R("highest-auto", 1, ["agg:max", "metric:auto"], [...SCORE_LIKE, ...WATCH]),
   R("highest-teleop", 1, ["agg:max", "metric:teleop"], [...SCORE_LIKE, ...WATCH]),
   R("highest-endgame", 1, ["agg:max", "metric:endgame"], [...SCORE_LIKE, ...WATCH]),
-  R("most-penalties", 1, ["agg:max", "metric:penalty"], SCORE_LIKE),
+  R("most-penalties", 1, ["agg:max", "metric:penalty"], [...SCORE_LIKE, ...WATCH]),
   // A win or a loss said with them is a filter: "first win", "when did they last lose a match", "last 5 losses".
   R("first-match", 1, ["agg:first", "thing:match"], ["agg:max", ...OUTCOMES]),
   R("last-matches", 1, ["agg:last", "thing:match"], ["metric:score", ...OUTCOMES], { n: true }),
