@@ -23,7 +23,7 @@ import { teamHighlights, type TeamHighlightScope } from "../answers/highlights.j
 import { shortEvent } from "../answers/matchSet.js";
 import { CHAMPIONSHIP_TYPE, OFFICIAL_TYPES, STATES_TYPE } from "../answers/clauses.js";
 import { eventScoresAnswer, eventScoresTitle, type EventScoresQuestion } from "../answers/families/eventScores.js";
-import { FROM as FIND_FROM, eventKindOf, matchFindAnswer, where as findWhere, type MatchFind, type MatchMeasure } from "./matchFind.js";
+import { FROM as FIND_FROM, eventKindOf, matchFindAnswer, videoKeys as findVideoKeys, where as findWhere, type MatchFind, type MatchMeasure } from "./matchFind.js";
 import { seasonOfDate } from "./time.js";
 import { searchToday } from "../searchEvents.js";
 import { eventFor, forecastAt, teamEventOfType } from "./forecast.js";
@@ -559,6 +559,8 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     // A team's match by its score, no season said: the latest season, up to the current one, holding one the finder
     // lists (its own filters: official events, the match type said, the place).
     if (scored && !p.time && !f.window) {
+      // With video: the keys of every season the search can reach, read first, so an older season's match counts.
+      if (f.video) f.videoKeys = await findVideoKeys(f, true);
       const w = findWhere(f, true);
       const latest = await get<{ s: number | null }>(`SELECT MAX(m.season) s ${FIND_FROM} WHERE ${w.sql}`, w.args);
       if (latest?.s != null) f.season = Number(latest.s);
