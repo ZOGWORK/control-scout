@@ -16,7 +16,7 @@ import { gzipSync } from "node:zlib";
 import express, { type NextFunction, type Request, type Response, type Router } from "express";
 import { ENGINE_VERSION } from "@control-scout/predict-engine";
 import { kvGet } from "../db.js";
-import { SEASON_NUMBERS } from "../data/seasons.js";
+import { CURRENT_SEASON, SEASON_NUMBERS } from "../data/seasons.js";
 import { cachedEventDetail } from "../api/events.js";
 import { gatedEventDetail } from "../api/eventGates.js";
 import { matchReport } from "../api/matchReport.js";
@@ -33,10 +33,18 @@ import { consensusFor } from "../scout/consensus.js";
 import { readPickList } from "../scout/picklist.js";
 import { matchReportHtml, picklistHtml, rulesHtml } from "./snapshotHtml.js";
 import { hasRuleReference, ruleReference } from "../../src/shared/rules/index.js";
+import { PackBroken, packApi, packApiPaths } from "./eventApi.js";
 
 /** A build answers the same asker this long (the manifest, then its file). */
 export const BUNDLE_TTL_MS = 5 * 60_000;
 const MAX_CACHED = 50;
+/** A manifest whose build takes longer answers 202 "preparing" (with when to ask again) instead of waiting. */
+export let PREPARE_MS = 2500;
+/** Tests: how long a manifest waits for its build before answering "preparing". */
+export function setPrepareMs(ms: number) { PREPARE_MS = ms; }
+export const PREPARE_RETRY_MS = 3000;
+/** A build this recent answers a manifest ask (the one a "preparing" answer was waiting for). */
+const JUST_BUILT_MS = 30_000;
 /** Your matches: every one at the event, but never more than this many reports in one bundle. */
 export const MAX_REPORTS = 24;
 
@@ -122,12 +130,17 @@ export async function buildBundle(input: BuildInput): Promise<BuiltBundle | null
     ? { key: "picklist", label: "Pick list", time: null, count: wsPart.picks.picks.length, teams: wsPart.picks.picks.map((p) => p.team), html: picklistHtml(wsPart.picks, ev, { asOf, workspaceName: workspace.name }) }
     : null;
   const rules = await rulesProvider(season, code).catch(() => null);
+  // The event pack: every team's and match's page as the server answers it, and each team's Compare column.
+  const { api, compare } = await packApi(season, ev);
+  const apiPaths = packApiPaths(api);
   const venue = venueOf(ev);
 
   const sections: BundleSection[] = [
     section("event", "Teams, schedule and rankings", ev, ev.field.length, ev.matches.length ? null : "No schedule published yet: it's in the bundle once FIRST posts it."),
     // The book's clock (`now`) moves with every build; the ratings themselves only with new results.
     section("ratings", "Ratings for offline predictions", ratings && { ...ratings, now: 0 }, ratings?.ratings.length ?? 0, ratings ? null : "No ratings for this season yet."),
+    section("api", "Team and match pages", api, apiPaths.length),
+    section("compare", "Compare for every team", compare, Object.keys(compare).length),
     section("reports", "Know your match reports", reportData, reports.length,
       team == null ? "Pick your team to include its matches." : !mine.length ? `Team ${team} has no matches scheduled here yet.` : null, reports),
     section("picklist", "Pick list", wsPart ? { picks: wsPart.picks, field: ev.field.map((f) => [f.team, f.name, f.rank, f.opr.np]) } : null, picklist?.count ?? 0, workspace ? null : "Sign in with a scouting workspace to include its pick list.", picklist),
@@ -137,9 +150,9 @@ export async function buildBundle(input: BuildInput): Promise<BuiltBundle | null
   const version = sha(sections.map((s) => `${s.id}:${s.version}`).join("|") + `|${team ?? ""}|${workspace?.id ?? ""}|${BUNDLE_FORMAT}`).slice(0, 12);
   const head: EventBundle["manifest"] = {
     format: BUNDLE_FORMAT, season, code: ev.event.code, name: ev.event.name, end: ev.event.end ?? ev.event.start, version, builtAt, dataAsOf,
-    engineVersion: ENGINE_VERSION, team, workspace, sections, field: ev.field.map((f) => [f.team, f.name]), reportKeys: reports.map((r) => r.key),
+    engineVersion: ENGINE_VERSION, team, workspace, sections, field: ev.field.map((f) => [f.team, f.name]), reportKeys: reports.map((r) => r.key), apiPaths,
   };
-  const body: EventBundle = { format: BUNDLE_FORMAT, manifest: head, event: ev, ratings, reports, picklist, rules, venue };
+  const body: EventBundle = { format: BUNDLE_FORMAT, manifest: head, event: ev, ratings, reports, picklist, rules, venue, api, compare, currentSeason: CURRENT_SEASON };
   const gz = gzipSync(Buffer.from(JSON.stringify(body)), { level: 9 });
   const q = new URLSearchParams({ ...(team != null ? { team: String(team) } : {}), ...(workspace ? { workspace: workspace.id } : {}), v: version });
   const manifest: BundleManifest = { ...head, url: `/api/bundles/${season}/${encodeURIComponent(ev.event.code)}/file?${q}`, bytes: gz.length, sha256: sha(gz) };
@@ -150,15 +163,26 @@ export async function buildBundle(input: BuildInput): Promise<BuiltBundle | null
 const built = new Map<string, BuiltBundle>();
 const building = new Map<string, Promise<BuiltBundle | null>>();
 /** Tests: forget every build. */
-export function clearBundleCache() { built.clear(); building.clear(); }
+export function clearBundleCache() { built.clear(); building.clear(); failed.clear(); }
+/** A build that failed (a broken event pack, say), kept FAILED_FOR_MS: the next asks get its error instead of
+ *  starting the same build again behind a "preparing" answer. */
+const failed = new Map<string, { at: number; error: Error }>();
+const FAILED_FOR_MS = 60_000;
 
-async function cachedBuild(key: string, input: BuildInput, fresh: boolean): Promise<BuiltBundle | null> {
+/** `maxAgeMs`: a build this recent is still the answer (0: always build afresh, unless one is under way). */
+async function cachedBuild(key: string, input: BuildInput, maxAgeMs: number): Promise<BuiltBundle | null> {
   const hit = built.get(key);
-  if (hit && !fresh && Date.now() - hit.at < BUNDLE_TTL_MS) return hit;
+  if (hit && Date.now() - hit.at < maxAgeMs) return hit;
   let p = building.get(key);
   if (!p) {
+    const f = failed.get(key);
+    if (f && Date.now() - f.at < FAILED_FOR_MS) throw f.error;
     p = buildBundle(input).finally(() => building.delete(key));
     building.set(key, p);
+    p.then(() => failed.delete(key), (e: Error) => {
+      failed.set(key, { at: Date.now(), error: e });
+      console.error(`[bundle] ${input.season} ${input.code}: ${e?.message ?? e}`);
+    });
   }
   const b = await p;
   if (b) {
@@ -210,17 +234,35 @@ export function bundleRouter(): Router {
   r.get("/:season/:code/manifest", h(async (req, res) => {
     const x = await inputs(req, res);
     if (!x) return;
-    // Asked fresh each time the Download page looks (that's how it finds an update); the file then reuses it.
-    const b = await cachedBuild(x.key, x.input, true);
+    // Asked fresh each time the Download page looks (that's how it finds an update); the file then reuses it. A
+    // build just finished (the one a "preparing" answer waited for) is fresh enough.
+    const build = cachedBuild(x.key, x.input, JUST_BUILT_MS);
+    // Venue wifi drops a request held open for long: a build that takes more than PREPARE_MS (the event pack after
+    // a sync) answers 202 "preparing" at once and goes on; the app asks again (lib/offline/bundles.ts).
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const slow = new Promise<"slow">((r) => { timer = setTimeout(() => r("slow"), PREPARE_MS); });
+    let b: Awaited<typeof build> | "slow";
+    try { b = await Promise.race([build, slow]).finally(() => clearTimeout(timer)); }
+    catch (e) {
+      // A pack missing a team or a match isn't shipped: said plainly (and the next asks get the same answer for a
+      // minute instead of building it again).
+      if (e instanceof PackBroken) { res.status(500).json({ error: `${e.message} Try again later.` }); return; }
+      throw e;
+    }
+    if (b === "slow") {
+      build.catch(() => {});
+      res.status(202).set("Retry-After", String(Math.ceil(PREPARE_RETRY_MS / 1000)));
+      return { preparing: true, retryAfterMs: PREPARE_RETRY_MS };
+    }
     if (!b) { res.status(404).json({ error: `No event ${x.input.code} in ${x.input.season}.` }); return; }
     return b.manifest;
   }));
   r.get("/:season/:code/file", h(async (req, res) => {
     const x = await inputs(req, res);
     if (!x) return;
-    let b = await cachedBuild(x.key, x.input, false);
+    let b = await cachedBuild(x.key, x.input, BUNDLE_TTL_MS);
     // The version asked for is gone (data moved on): the newest build answers, and says its version.
-    if (b && typeof req.query.v === "string" && req.query.v !== b.manifest.version) b = await cachedBuild(x.key, x.input, true);
+    if (b && typeof req.query.v === "string" && req.query.v !== b.manifest.version) b = await cachedBuild(x.key, x.input, 0);
     if (!b) { res.status(404).json({ error: `No event ${x.input.code} in ${x.input.season}.` }); return; }
     res.set("Content-Type", "application/gzip");
     res.set("X-Bundle-Version", b.manifest.version);

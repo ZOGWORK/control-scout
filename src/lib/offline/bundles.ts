@@ -19,11 +19,32 @@ const query = (r: Pick<BundleRequest, "team" | "workspace">) => {
 };
 
 /** What the bundle for this event would hold, and its size: asked fresh (this is how an update is found). */
-export async function fetchBundleManifest(r: BundleRequest): Promise<BundleManifest> {
+/** How long the app keeps asking while the server prepares a bundle (202 "preparing"). */
+export const PREPARE_GIVE_UP_MS = 90_000;
+const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** What the bundle for this event would hold, and its size: asked fresh (this is how an update is found). The
+ *  server answers 202 "preparing" while a slow build (an event pack after a sync) goes on: asked again until it's
+ *  ready, up to PREPARE_GIVE_UP_MS. */
+export async function fetchBundleManifest(r: BundleRequest, signal?: AbortSignal): Promise<BundleManifest> {
+  const until = Date.now() + PREPARE_GIVE_UP_MS;
+  for (;;) {
+    if (signal?.aborted) throw new DOMException("The page let it go", "AbortError");
+    const got = await askManifest(r, signal);
+    if ("format" in got) return got;
+    if (Date.now() + got.retryAfterMs > until) throw new Error("The bundle is taking longer than usual to prepare. Try again in a minute.");
+    await pause(got.retryAfterMs);
+  }
+}
+
+async function askManifest(r: BundleRequest, signal?: AbortSignal): Promise<BundleManifest | { retryAfterMs: number }> {
   let res: Response;
-  try { res = await fetch(`/api/bundles/${r.season}/${encodeURIComponent(r.code)}/manifest${query(r)}`, { credentials: "same-origin", cache: "no-store" }); }
+  try { res = await fetch(`/api/bundles/${r.season}/${encodeURIComponent(r.code)}/manifest${query(r)}`, { credentials: "same-origin", cache: "no-store", signal }); }
   catch { throw new Error(navigator.onLine === false ? "You're offline: bundles download when you're back online." : "Can't reach the server right now. Try again in a moment."); }
-  const body = await res.json().catch(() => null) as (BundleManifest & { error?: string; message?: string }) | null;
+  const body = await res.json().catch(() => null) as (BundleManifest & { error?: string; message?: string; preparing?: boolean; retryAfterMs?: number }) | null;
+  if (res.status === 202 && body?.preparing) return { retryAfterMs: Math.min(10_000, Math.max(500, Number(body.retryAfterMs) || 2000)) };
+  // Many phones on one venue wifi share an address and its request budget: wait as the server says, then ask again.
+  if (res.status === 429) return { retryAfterMs: Math.min(30_000, Math.max(1000, (Number(res.headers.get("Retry-After")) || 5) * 1000)) };
   if (res.status === 403 && body?.error === FEATURE_DISABLED) throw new Error(body.message ?? featureOffMessage("offlinePacks"));
   if (!res.ok || !body) throw new Error(body?.error ?? `Couldn't build the bundle (${res.status}).`);
   if (body.format !== BUNDLE_FORMAT) throw new Error("This bundle is from a newer version of Control Scout. Refresh the page.");
@@ -52,6 +73,7 @@ export async function downloadBundle(r: BundleRequest, onProgress?: (done: numbe
     savedAt: Date.now(), builtAt: m.builtAt, dataAsOf: m.dataAsOf, team: m.team, workspace: m.workspace, accountId: m.workspace ? r.account ?? null : null,
     // A workspace bundle always holds its pick list (empty or not); a public one never does.
     reports: m.sections.find((s) => s.id === "reports")?.items ?? 0, reportKeys: m.reportKeys ?? [], teams: m.field.map(([t]) => t), picklist: !!m.workspace,
+    ...(m.apiPaths ? { apiPaths: m.apiPaths } : {}),
   };
   try { writeBundles([...allBundles().filter((b) => !(b.season === m.season && b.code === m.code)), saved]); }
   catch (e) {
