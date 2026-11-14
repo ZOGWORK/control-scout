@@ -35,6 +35,8 @@ export const PRIVATE_TABLES = [
   "search_clicks", "search_intents",
   // Real-user web vitals (migration 69): site usage, like analytics_daily.
   "web_vitals_daily",
+  // The first-visit onboarding funnel (migration 87): site usage, like analytics_daily.
+  "onboarding_daily",
   // Owner-set event streams (migration 34): updated_by is the owner's email.
   "event_streams",
   // The Discord bot's follows and its post log (migration 35): Discord server, channel and user ids.
