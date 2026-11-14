@@ -135,7 +135,9 @@ export async function buildFull(season: number, version: string, dir: string, lo
   // The season's boards: records, league standings, the events list, power rankings (server/packs/boards.ts).
   const boards = await writeBoards(out, season);
   log(`boards ${season}: ${boards.boards} answers, ${(boards.bytes / 1e3).toFixed(0)} KB gzipped`);
-  const teams = await all<any>(`SELECT number, name, full_name, school, sponsors, city, state, country, rookie_year, website, home_region FROM teams WHERE number IN (SELECT team FROM team_seasons WHERE season = ? UNION SELECT team FROM event_teams WHERE season = ?)`, [season, season]);
+  // Everyone registered or at an event, and everyone rated or in a ranking snapshot (the world ranking reads their names
+  // and homes, as the server does).
+  const teams = await all<any>(`SELECT number, name, full_name, school, sponsors, city, state, country, rookie_year, website, home_region FROM teams WHERE number IN (SELECT team FROM team_seasons WHERE season = ? UNION SELECT team FROM event_teams WHERE season = ? UNION SELECT team FROM team_season_stats WHERE season = ? UNION SELECT team FROM ranking_snapshots WHERE season = ?)`, [season, season, season, season]);
   for (let i = 0; i < teams.length; i += 1000) {
     await out.batch(teams.slice(i, i + 1000).map((r) => ({ sql: "INSERT INTO teams VALUES (?,?,?,?,?,?,?,?,?,?,?)", args: [r.number, r.name, r.full_name, r.school, r.sponsors, r.city, r.state, r.country, r.rookie_year, r.website, r.home_region] })), "write");
   }
@@ -151,11 +153,13 @@ export async function buildFull(season: number, version: string, dir: string, lo
     contents: `Every ${seasonInfo(season).label} ${seasonInfo(season).game} event, team, match (scores, breakdowns, penalties, lineups), ranking, alliance, award and computed stat — a plain SQLite file.` };
 }
 
-/** Copy the season's ranking weeks (all) and the newest RANKING_PACK_WEEKS weeks' snapshot rows into a pack. */
+/** Copy the season's ranking weeks (all) and, for the current season, the newest RANKING_PACK_WEEKS weeks' rows into a pack. */
 export async function copyRankingTables(out: Client, season: number): Promise<number> {
   for (const t of RANKING_TABLES) await out.execute(t.ddl);
   const weeks = (await all<{ week: string }>("SELECT week FROM ranking_weeks WHERE season = ? ORDER BY week DESC", [season])).map((r) => r.week);
-  const kept = weeks.slice(0, RANKING_PACK_WEEKS);
+  // The current season only: a finished season's live ranking has no "last week", so its weeks' rows would only serve
+  // the week picker's past views (those need a connection).
+  const kept = season === CURRENT_SEASON ? weeks.slice(0, RANKING_PACK_WEEKS) : [];
   const snaps = kept.length ? await all<any>(`SELECT season, week, team, rank, rating FROM ranking_snapshots WHERE season = ? AND week IN (${kept.map(() => "?").join(",")})`, [season, ...kept]) : [];
   await out.batch(weeks.map((w) => ({ sql: "INSERT INTO ranking_weeks (season, week) VALUES (?, ?)", args: [season, w] })), "write");
   for (let i = 0; i < snaps.length; i += 1000) {

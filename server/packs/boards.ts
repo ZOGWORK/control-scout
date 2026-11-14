@@ -6,7 +6,7 @@
 //   records:  the season record line and region list, and the first pages of each records table's default view
 //             (src/shared/recordsBoard.ts cuts them to the columns a table asks for)
 //   leagues:  every league's standings
-//   events:   the events list (the Events page, the Scout event chooser)
+//   events:   the events list (the Events page)
 //   power rankings (the current season's pack): the latest week and each published week
 //
 // Adding a board: one entry in BOARD_READS.
@@ -23,7 +23,6 @@ import { BOARDS_TABLE } from "../../src/shared/packSchema.js";
 import { packPath } from "../../src/shared/eventBundle.js";
 import { SCHEDULE_STAT_KEYS, type RecordScope } from "../../src/shared/statCatalog.js";
 import { RECORDS_BOARD_PAGES, RECORDS_BOARD_PAGE_SIZE, RECORDS_PAGE_SORT, defaultRecordsDir, recordsBoardPath } from "../../src/shared/recordsBoard.js";
-import { EVENT_CHOOSER_LIMIT } from "../../src/shared/eventsBoard.js";
 
 /** One board: its path and the route's answer (null: the route answers 404, nothing stored). */
 export interface BoardRead { path: string; read: () => Promise<unknown | null> }
@@ -56,7 +55,6 @@ export const BOARD_READS: Reads[] = [
   async (s) => (await leaguesOf(s)).map((l) => ({ path: `/api/leagues/${s}/${l.region}/${l.code}`, read: () => leagueStandings(s, l.region, l.code) })),
   async (s) => [
     { path: `/api/events?season=${s}`, read: () => eventListAnswer({ season: s, hideNoMatch: true, limit: 3000 }) },
-    { path: `/api/events?season=${s}&all=1&limit=${EVENT_CHOOSER_LIMIT}`, read: () => eventListAnswer({ season: s, hideNoMatch: false, limit: EVENT_CHOOSER_LIMIT }) },
   ],
   async (s) => {
     if (s !== CURRENT_SEASON || !(await isEnabled("powerRankings"))) return [];

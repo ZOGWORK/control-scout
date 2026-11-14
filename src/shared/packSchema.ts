@@ -29,8 +29,8 @@ export const SCHEDULE_TABLE = {
 };
 
 /** The world ranking's weekly snapshots (server/stats/rankings.ts), for /rankings offline (src/shared/rankingsBoard.ts
- *  reads them with the server's own SQL). Every week is listed; only the newest RANKING_PACK_WEEKS weeks' rows ship
- *  (movement against last week and the latest weeks' views), so the pack stays small. Packs built before these
+ *  reads them with the server's own SQL). Every week is listed; only the current season's newest RANKING_PACK_WEEKS
+ *  weeks' rows ship (movement against last week and the latest weeks' views), so the pack stays small. Packs built before these
  *  existed don't have them: the rankings then say they need a connection. */
 export const RANKING_PACK_WEEKS = 3;
 export const RANKING_TABLES = [
