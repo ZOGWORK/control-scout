@@ -7,6 +7,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { ExternalLink, Play, PlayCircle } from "lucide-react";
 import type { SearchAnswer, SearchVideo, SearchVideoItem } from "../../../shared/api";
+import type { StatAnswer } from "../../../shared/searchStat";
 import { embedUrl, thumbnailUrl } from "../../../shared/stream";
 import { clipTime, watchUrl } from "../../../shared/recording";
 import { clipParams, playMatchVideo } from "../../../lib/streamSeek";
@@ -123,8 +124,10 @@ export function AnswerClip({ about, className }: { about?: string; className?: s
 
 /** Whether any of these rows has a clip (a table then gives its buttons a column). */
 export function useRowPlays(hrefs: (string | undefined)[]): boolean {
-  const rows = useContext(Video).video?.rows;
-  return !!rows && hrefs.some((h) => h && rows[h]);
+  const v = useContext(Video).video;
+  const rows = v?.rows;
+  // The card's own match among them plays too (not the event's recording): the others then say "No video".
+  return (!!rows && hrefs.some((h) => h && rows[h])) || (!!v?.mainRow && v.main?.kind !== "stream" && hrefs.includes(v.mainRow));
 }
 
 /** A listed match's clip, the card's own video's match included (a video grid draws a picture for each), and playing
@@ -150,16 +153,47 @@ export function useAnyVideo(): boolean {
   return !!v?.main || !!(v?.rows && Object.keys(v.rows).length);
 }
 
-/** A listed match's play button, when it has a clip: it plays in the app's video dialog. `label` names the match in it. */
+/** A listed match's play button, when it has a clip: it plays in the app's video dialog. `label` names the match in it.
+ *  A row with no clip in an answer that plays others says "No video" (never a button that goes nowhere); the match the
+ *  card already plays, and an answer with no video at all (its one line says so: NoVideoLine), say nothing. */
 export function RowPlay({ href, label, className }: { href: string; label: string; className?: string }) {
   const { video, rowPlayed } = useContext(Video);
   const v = video?.rows?.[href];
-  if (!v) return null;
+  if (!v) {
+    // Another match plays (a row's clip, or the card's own match, never the event's recording from its start).
+    const others = !!(video?.rows && Object.keys(video.rows).length) || (!!video?.mainRow && video.main?.kind !== "stream");
+    if (!others || video?.mainRow === href) return null;
+    return <span className={cn("shrink-0 whitespace-nowrap text-[11px] text-muted-foreground", className)} data-row-no-video>No video</span>;
+  }
   return (
     <button type="button" onClick={() => { rowPlayed(); playMatchVideo({ videoId: v.videoId, t: v.t, end: v.end, label }); }}
       className={cn("inline-flex size-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-text-base/[0.06] hover:text-foreground max-md:size-[44px] pointer-coarse:size-[44px]", className)}
       aria-label={`Play ${label}: ${v.kind === "match" ? "official match video" : v.kind === "contributor" ? `video by ${v.contributor?.name}` : `the event's recording from ${clipTime(v.t)}`}`} title={videoCaption(v)} data-row-play={v.kind} data-video-control>
       <PlayCircle className="size-5" aria-hidden />
     </button>
+  );
+}
+
+/** The links of the played matches an answer lists or is about (its headline's match, its match rows, a table's rows
+ *  that link to a match; never a table of matches still to play, which no one has filmed yet). */
+function matchLinks(stat: StatAnswer): string[] {
+  const isMatch = (h: string | undefined): h is string => !!h && /^\/events\/\d{4}\/[^/?#]+\?(?:[^#]*&)?match=/.test(h);
+  return [stat.headline?.upcoming ? undefined : stat.headline?.href, ...stat.blocks.flatMap((b) => (b.kind === "matches" || (b.kind === "table" && !b.upcoming) ? b.rows.filter((r) => !("upcoming" in r && r.upcoming)).map((r) => r.href) : []))].filter(isMatch);
+}
+
+/** One line when an answer lists matches and none of them has video: "No recording for this event — stats only." (all
+ *  at one event), else "No video for these matches — stats only.". A list of highlights or a video page says it in its
+ *  own grid; an answer linking to the recording its match is in (AnswerVideo's watch line) says that instead. */
+export function NoVideoLine({ stat, className }: { stat: StatAnswer; className?: string }) {
+  const video = useContext(Video).video;
+  if (video?.main || video?.watch || (video?.rows && Object.keys(video.rows).length)) return null;
+  if (stat.blocks.some((b) => b.kind === "videos" || (b.kind === "matches" && b.rows.length > 0 && b.rows.every((r) => r.note)))) return null;
+  const links = matchLinks(stat);
+  if (!links.length) return null;
+  const events = new Set(links.map((h) => h.split("?")[0]));
+  return (
+    <p className={cn("mt-3 text-sm font-medium text-foreground", className)} data-no-recording>
+      {events.size === 1 ? "No recording for this event — stats only." : "No video for these matches — stats only."}
+    </p>
   );
 }

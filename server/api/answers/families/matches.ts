@@ -25,7 +25,7 @@ import { eventHref, matchRow, teamLinks, upcomingMatches, type TeamMatch, type U
 /** Matches still to play, soonest first: each with its event, its time (else its event's day) and the team's alliance. */
 function upcomingBlock(xs: UpcomingMatch[], team: number): StatBlock {
   return {
-    kind: "table", title: "Still to play",
+    kind: "table", title: "Still to play", upcoming: true,
     columns: [{ key: "match", label: "Match" }, { key: "event", label: "Event" }, { key: "when", label: "When" }, { key: "alliance", label: "Alliance" }],
     rows: xs.slice(0, UPCOMING_CAP).map((m) => ({
       cells: { match: m.label, event: m.event, when: (m.date?.includes("T") ? matchDateTime(m.date) : dateRange(m.date, null)) || null, alliance: m.alliance === "red" ? "Red" : "Blue" },
