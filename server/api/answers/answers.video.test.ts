@@ -306,6 +306,10 @@ describe("refOfHref and mainRef", () => {
     expect(refOfHref("https://example.org/events/2025/X")).toBeNull();
   });
 
+  it("one listed match is the match the answer is about", () => {
+    expect(mainRef(stat({ blocks: [{ kind: "matches", title: "x", rows: [row("USMACMP", "qual:0:12", "Q12")] }] }))).toEqual({ season: 2025, code: "USMACMP", key: "qual:0:12" });
+  });
+
   it("matches at several events name none", () => {
     expect(mainRef(stat({ blocks: [{ kind: "matches", title: "x", rows: [row("USMACMP", "qual:0:1", "Q1"), row("USCHSCMP", "playoff:0:1", "F1")] }] }))).toBeNull();
   });
