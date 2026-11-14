@@ -7,7 +7,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { get, kvSet, migrate, openDb, run, setDb } from "../db";
 import { createApp } from "../app";
 import { clearAllCaches } from "../caches";
-import { backfillVideoMeta, due, firstVideoId, inOrder, seasonRecordings, withClips, type VideoMeta } from "./recordings";
+import { backfillVideoMeta, due, firstVideoId, inOrder, seasonClipKeys, seasonRecordings, withClips, type VideoMeta } from "./recordings";
 import { setFrameTimingsForTests } from "../data/frameTimings";
 import type { MatchView } from "../../src/shared/api";
 
@@ -230,6 +230,18 @@ describe("matches read off a recording's own frames", () => {
       expect(clips[0].clip?.end).toBe(1180);
     } finally {
       setFrameTimingsForTests([]);
+    }
+  });
+  it("count for search's With video, an upload's framed matches too", async () => {
+    clearAllCaches();
+    expect((await seasonClipKeys(S)).has("UPLOAD|qual|0|1")).toBe(false);
+    setFrameTimingsForTests([{ videoId: UPLOAD_ID, code: "UPLOAD", checked: "2026-11-14", starts: { Q1: 100 } }]);
+    try {
+      clearAllCaches();
+      expect((await seasonClipKeys(S)).has("UPLOAD|qual|0|1")).toBe(true);
+    } finally {
+      setFrameTimingsForTests([]);
+      clearAllCaches();
     }
   });
   it("keep the longest run of starts in played order", () => {
