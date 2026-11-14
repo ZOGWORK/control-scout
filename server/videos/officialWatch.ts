@@ -329,8 +329,11 @@ export async function pendingCount(): Promise<number> {
 export async function ownerOfficial(now = Date.now()) {
   // Under the data lock, like the watcher's seed; while a sync holds it the panel loads without seeding (the next
   // load or watcher run seeds), so it never waits out the database's busy timeout.
-  try { await withDataLock("official videos seed", () => seedOfficialChannels(now), { ttlMs: 60_000, waitMs: 2000, pollMs: 250 }); }
-  catch (e) { if (!(e instanceof LockBusy) && !isBusy(e)) throw e; }
+  // Once seeded, a load takes no lease (its two writes would also drop the kept search reads).
+  if (!channelsSeeded) {
+    try { await withDataLock("official videos seed", () => seedOfficialChannels(now), { ttlMs: 60_000, waitMs: 2000, pollMs: 250 }); }
+    catch (e) { if (!(e instanceof LockBusy) && !isBusy(e)) throw e; }
+  }
   const since = new Date(now).toISOString().slice(0, 10);
   const [pending, ignored, duplicates, decided, runs, channels, today, list] = await Promise.all([
     all<any>(`${WATCH_SELECT} WHERE w.status = 'pending' ORDER BY w.seen_at, COALESCE(w.start, w.published) LIMIT 200`),
