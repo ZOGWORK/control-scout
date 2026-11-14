@@ -16,7 +16,7 @@ import { createApp } from "../app";
 import { setFlag } from "../flags";
 import { CURRENT_SEASON } from "../data/seasons";
 import { buildFull, settleWait } from "./build";
-import { writeState, writing } from "../data/writeGen";
+import { idle, writeState, writing } from "../data/writeGen";
 import { setBoardReads } from "./boards";
 import { buildPackApi, setPackReads, PACK_READS } from "./eventApi";
 import { eventDetail } from "../api/events";
@@ -314,6 +314,31 @@ describe("building a season pack", () => {
     expect(logs.some((m) => m.includes("building again"))).toBe(true);
     expect(writeState().inFlight).toBe(0);
     expect(readdirSync(d)).toEqual([f!.name]);
+  }, 120_000);
+
+  it("live writes keep arriving at a fixed interval longer than the read span: the build fits between them and succeeds", async () => {
+    await kvSet("data:version", V0); await kvSet("data:settled", V0);
+    settleWait.ms = 20_000; settleWait.pollMs = 2000; // the poll is slow: a try restarts as soon as the write ends (idle)
+    let reads = 0;
+    let timer: ReturnType<typeof setInterval> | undefined;
+    const write = () => void writing(() => new Promise((r) => setTimeout(r, 40)));
+    // Every try's reads take ~60 ms; a 40 ms write every 250 ms (an event day's lane, scaled down), the first one
+    // landing inside the first try.
+    setBoardReads([async (s) => [{ path: `/api/records/${s}/high-score`, read: async () => {
+      if (++reads === 1) { write(); timer = setInterval(write, 250); }
+      await new Promise((r) => setTimeout(r, 60));
+      return { line: null };
+    } }]]);
+    const d = mkdtempSync(join(tmpdir(), "cs-boards-i-"));
+    const logs: string[] = [];
+    const t0 = Date.now();
+    try {
+      const f = await buildFull(S, "2026-11-14.17", d, (m) => logs.push(m));
+      expect(readdirSync(d)).toEqual([f!.name]);
+    } finally { clearInterval(timer); await idle(); }
+    expect(reads).toBeGreaterThanOrEqual(2);
+    expect(logs.some((m) => /try 1: a write (is still in flight|ran during the reads), building again/.test(m))).toBe(true);
+    expect(Date.now() - t0).toBeLessThan(2000); // never waited on the 2 s poll: restarted when the write ended
   }, 120_000);
 
   it("a write that starts and ends within the reads (the generation moves, the version doesn't): built again", async () => {
