@@ -1,17 +1,12 @@
-// Offline data in use, said where it's seen:
-// - OfflineNote, "Offline: from your saved 2025–26 data", above a page answered
-//   from a season saved on this device (lib/offline) instead of the server;
-// - OfflineStatus, a small "Offline, showing saved data" badge in the header
-//   while anything on screen comes from data saved on this device (a saved
-//   season, or the lite pack's prediction). It goes as soon as the server
-//   answers again (lib/api.ts decides; online, the packs never run).
+// Offline data in use, said where it's seen.
+// OfflineNote, "Offline: from your saved 2025–26 data", above a page answered
+// from a season saved on this device (lib/offline) instead of the server.
+// The top bar's one offline indicator ("Offline · updated 8:09 PM") is ConnectionPill in ConnectionStatus.tsx.
 import { WifiOff } from "lucide-react";
 import { Link } from "react-router-dom";
-import { useOfflineMode } from "../lib/api";
 import { offlineSource } from "../lib/offline/saved";
 import { ago, dayDate, seasonLabel } from "../lib/format";
 import { SnapshotBanner } from "./offline/Snapshot";
-import { Badge } from "./ui/basic";
 import { cn } from "./cn";
 
 export function OfflineNote({ data, className }: { data: unknown; className?: string }) {
@@ -34,23 +29,5 @@ export function OfflineNote({ data, className }: { data: unknown; className?: st
         <Link to="/download" className="underline">Saved seasons</Link>
       </span>
     </p>
-  );
-}
-
-export function OfflineStatus() {
-  const on = useOfflineMode();
-  // Always in the tree, so screen readers hear it appear and go.
-  return (
-    <span role="status" className="shrink-0 empty:hidden">
-      {on && (
-        <Link to="/download" title="No signal: this is the data saved on this device. It switches back when the server answers." className="rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-          {/* Phones: the icon alone, so the top bar's right side stays clear of the centred logo (Shell). */}
-          <Badge variant="info" className="gap-1.5 py-1 max-md:px-1.5">
-            <WifiOff aria-hidden="true" />
-            <span className="max-md:sr-only">Offline<span className="max-sm:sr-only">, showing saved data</span></span>
-          </Badge>
-        </Link>
-      )}
-    </span>
   );
 }

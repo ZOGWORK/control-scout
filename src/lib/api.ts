@@ -11,12 +11,18 @@
 // answered is never replaced. The first server answer afterwards (or the
 // browser coming back online) switches back. Downloading the pack in the
 // background (packSync.tsx) is separate: that only stores bytes for later.
+//
+// Once the connection check (lib/connection.ts) knows there's no internet (or a Wi-Fi sign-in page), nothing waits:
+// a read the saved data can answer is answered from it at once, with no network try and no timeout, and any other
+// read fails at once with "needs a connection" (after one fresh check, instant with the network off). When the
+// internet comes back, whatever is on screen from saved data is fetched again in the background.
 import { createContext, useCallback, useContext, useEffect, useRef, useSyncExternalStore } from "react";
 import { offlineSource, savedSeasons } from "./offline/saved";
 import { bundleCanAnswer, bundleFor, comparePacksSaved, savedBundles } from "./offline/bundleMeta";
 import { packStatus } from "./packPolicy";
 import { FEATURE_DISABLED, featureOffMessage } from "../shared/flags";
 import { noteArrived, watchRequest } from "./liteSuggest";
+import { connection, freshInternet, noteRequestFailed, noteServerAnswer, offlineNow, onInternetChange } from "./connection";
 
 /**
  * A failed call. `code`: the answer's `error` when it's a machine code (`feature_disabled`), so callers can tell a
@@ -85,7 +91,7 @@ function offlineKind(path: string, method: string | undefined): "saved" | "lite"
 }
 
 // "Offline mode": something on screen came from data saved on this device. The
-// header's indicator (OfflineStatus in components/OfflineNote) shows while it's on.
+// top bar's Offline pill (ConnectionPill in components/ConnectionStatus) shows while it's on.
 let usingSaved = false;
 const modeListeners = new Set<() => void>();
 let probe: ReturnType<typeof setInterval> | undefined;
@@ -100,6 +106,8 @@ function ensureProbe() {
   if (probe || typeof window === "undefined") return;
   probe = setInterval(() => {
     if (!offlineOnScreen().length) { stopProbe(); return; }
+    // Known to be offline: asking would only answer from saved data again. The connection check says when it's back.
+    if (offlineNow()) return;
     // Whatever navigator.onLine says (it can be wrong, see apiFetch): one request per entry on screen.
     refetchOffline();
   }, PROBE_MS);
@@ -148,7 +156,35 @@ async function offlineOr<T>(path: string, method: string | undefined, error: Api
   return data as T;
 }
 
-const unreachable = () => new ApiError(0, navigator.onLine === false ? "You're offline." : "Can't reach the server right now.", true);
+const unreachable = () => new ApiError(0,
+  connection().internet === "portal" ? "This Wi-Fi isn't giving internet."
+    : navigator.onLine === false || offlineNow() ? "You're offline." : "Can't reach the server right now.", true);
+
+/** Known offline: a read the saved data can't answer gets one check this fresh (instant with the network off, at
+ *  most CHECK_TIMEOUT_MS), then the server if it's back, else fails at once. */
+const RECHECK_MS = 3000;
+
+/**
+ * A GET while the connection check knows there's no internet: from saved data at once, never a network try.
+ * A prediction (the lite pack) or a frozen match report fails at once as no signal, which is the page's cue to
+ * use its own copy. Anything saved data can't answer: one fresh check; still offline, it fails at once.
+ */
+async function answerOffline<T>(path: string, init: (RequestInit & { json?: unknown; _tries?: number; _online?: boolean }) | undefined): Promise<T> {
+  const outer = init?.signal;
+  const kind = offlineKind(path, "GET");
+  const watch = watchRequest(path, "GET");
+  if (kind === "saved") {
+    const data = await savedAnswer(path);
+    if (outer?.aborted) { watch.done(false); throw callerAborted(); }
+    if (data != null) { watch.done(); setUsingSaved(true); return data as T; }
+  }
+  if (kind === "lite" || kind === "snapshot") { watch.done(false); throw unreachable(); }
+  const now = await freshInternet(RECHECK_MS);
+  watch.done(false);
+  if (outer?.aborted) throw callerAborted();
+  if (now === "no" || now === "portal") throw unreachable();
+  return apiFetch<T>(path, init);
+}
 const TIMED_OUT = Symbol("timed out");
 
 /**
@@ -162,6 +198,7 @@ async function respond<T>(request: Promise<Response>, kind: "saved" | "lite" | "
   const deadline = new Promise<typeof TIMED_OUT>((r) => { timer = setTimeout(() => r(TIMED_OUT), OFFLINE_TIMEOUT_MS); });
   const first = await Promise.race([request, deadline]).finally(() => clearTimeout(timer));
   if (first !== TIMED_OUT) return first;
+  noteRequestFailed(); // no answer in time: the connection check finds out whether there's any internet
   if (kind === "lite" || kind === "snapshot") { ctrl.abort(); throw unreachable(); }
   // A search asked before anything else answered (the page's first request), while the server has answered
   // something since: slow, not offline. It gets up to SEARCH_SLOW_MS in all, then one more try as any search while
@@ -239,6 +276,11 @@ async function searchOnline<T>(path: string, init: (RequestInit & { json?: unkno
 
 export async function apiFetch<T>(path: string, init?: RequestInit & { json?: unknown; _tries?: number; _online?: boolean }): Promise<T> {
   const { json, _tries = 0, _online = false, ...rest } = init ?? {};
+  // Known offline (lib/connection.ts): no network try, no timeout.
+  if (!_online && (rest.method ?? "GET").toUpperCase() === "GET" && offlineNow()) {
+    if (rest.signal?.aborted) throw callerAborted();
+    return answerOffline<T>(path, init);
+  }
   // A slow search while everything else answers isn't "offline" (searchOnline).
   if (!_online && (rest.method ?? "GET").toUpperCase() === "GET" && SEARCH_PATH.test(path) && serverUp()) return searchOnline<T>(path, init);
   // navigator.onLine is only a hint: iOS (above all a home-screen app back from the background) can report
@@ -278,6 +320,7 @@ export async function apiFetch<T>(path: string, init?: RequestInit & { json?: un
     // The page let the request go itself (it moved on): not unreachable, and no saved-data answer (or Offline badge).
     if (outer?.aborted) throw callerAborted();
     watch.failed();
+    noteRequestFailed();
     answeredSinceFail = false;
     if (_online) throw unreachable();
     return offlineOr<T>(path, rest.method, unreachable());
@@ -307,6 +350,8 @@ export async function apiFetch<T>(path: string, init?: RequestInit & { json?: un
   let body: any = null;
   let unreadable = false;
   try { body = text ? JSON.parse(text) : null; } catch { unreadable = true; }
+  // Our server's own JSON came back: there's internet (a Wi-Fi sign-in page answers with HTML).
+  if (!unreadable && text && res.status < 500) noteServerAnswer();
   // Only a good, readable answer is the page's data arriving.
   watch.done(res.ok && !unreadable);
   if (!res.ok) {
@@ -329,7 +374,9 @@ const cache = new Map<string, Entry<unknown>>();
 const listeners = new Map<string, Set<() => void>>();
 const FRESH_MS = 60_000;
 
-function notify(key: string) { listeners.get(key)?.forEach((f) => f()); }
+function notify(key: string) { listeners.get(key)?.forEach((f) => f()); screenChanged(); }
+/** What's on screen changed (an answer, or a page came or went): the pill's time re-reads (useOfflineAsOf). */
+function screenChanged() { screenListeners.forEach((f) => f()); }
 
 /** The reads this cache holds are all objects (or lists): a page that gets anything else (a 200 with a JSON null, a
  *  number, a string) would wait for its data forever. Such an answer is a failed one the page can try again
@@ -396,6 +443,31 @@ function refetchOffline() {
 if (typeof window !== "undefined") {
   window.addEventListener("online", () => { if (offlineOnScreen().length) refetchOffline(); else setUsingSaved(false); });
 }
+// The connection check found the internet again (lib/connection.ts): the same, in the background (each entry keeps
+// its saved data on screen until the server's answer replaces it).
+onInternetChange((now) => {
+  if (now !== "yes") return;
+  if (offlineOnScreen().length) refetchOffline(); else setUsingSaved(false);
+});
+
+/** When the data on screen from saved data is from: the oldest such answer's data time (else when it was saved), or
+ *  null when nothing on screen came from saved data. For the top bar's "Offline · updated …" pill. */
+export function offlineAsOf(): string | null {
+  let oldest: string | null = null;
+  for (const [path, e] of cache) {
+    if (!listeners.get(path)?.size) continue;
+    const src = offlineSource(e.data);
+    if (!src) continue;
+    const at = src.dataAsOf ?? (src.bundle?.builtAt ?? new Date(src.savedAt).toISOString());
+    if (!oldest || at < oldest) oldest = at;
+  }
+  return oldest;
+}
+const screenListeners = new Set<() => void>();
+/** offlineAsOf, kept current as answers arrive and pages come and go. */
+export function useOfflineAsOf(): string | null {
+  return useSyncExternalStore((fn) => { screenListeners.add(fn); return () => { screenListeners.delete(fn); }; }, offlineAsOf, () => null);
+}
 
 /** Mark cached data under a prefix as out of date without dropping it: what's on screen refetches now
  *  (keeping its data meanwhile), anything else refetches the next time it's shown. */
@@ -451,7 +523,8 @@ export function useApi<T>(path: string | null, valid?: (data: unknown) => data i
     let set = listeners.get(path);
     if (!set) { set = new Set(); listeners.set(path, set); }
     set.add(fn);
-    return () => { set!.delete(fn); if (probe && !offlineOnScreen().length) stopProbe(); };
+    queueMicrotask(screenChanged);
+    return () => { set!.delete(fn); if (probe && !offlineOnScreen().length) stopProbe(); queueMicrotask(screenChanged); };
   }, [path]);
   const read = () => (path ? (cache.get(path) as Entry<T> | undefined) : undefined);
   const e = useSyncExternalStore(subscribe, read, read);
