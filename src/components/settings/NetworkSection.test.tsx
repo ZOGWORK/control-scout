@@ -221,7 +221,25 @@ describe("Network & offline: deleting recordings", () => {
     show();
     expect(await screen.findByText(/^50(\.0)? MB of/)).toBeTruthy();
     usage = 10_000_000;
+    vi.spyOn(window, "confirm").mockReturnValue(true);
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Delete all recordings" })); });
     expect(await screen.findByText(/^10(\.0)? MB of/)).toBeTruthy();
+  });
+});
+
+describe("Network & offline: deleting recordings asks first", () => {
+  it("one tap only asks; Cancel deletes nothing", async () => {
+    const rec = await import("../../lib/recordings");
+    const clear = vi.spyOn(rec, "clearRecordings");
+    const ask = vi.spyOn(window, "confirm").mockReturnValue(false);
+    vi.stubGlobal("fetch", health({ ok: true }));
+    show();
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Delete all recordings" })); });
+    expect(ask).toHaveBeenCalledWith(expect.stringMatching(/can't be undone/));
+    expect(clear).not.toHaveBeenCalled();
+    ask.mockReturnValue(true);
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Delete all recordings" })); });
+    expect(clear).toHaveBeenCalledTimes(1);
+    ask.mockRestore(); clear.mockRestore();
   });
 });
