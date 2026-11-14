@@ -146,3 +146,11 @@ describe("with video, as a filter", () => {
     expect(video?.main?.t).toBeGreaterThan(0);
   });
 });
+
+describe("highlights with video", () => {
+  it("is the team's highlights card", async () => {
+    const { a, video } = await ask("11148 highlights with video 2025-26");
+    expect(a.stat?.blocks.some((b) => b.kind === "videos" || (b.kind === "matches" && b.rows.every((r) => r.note)))).toBe(true);
+    expect(video?.main).toBeDefined();
+  });
+});
