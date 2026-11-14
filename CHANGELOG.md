@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.2.6 — 2026-11-14
+## 6.2.8 — 2026-11-14
 
 The leaderboards work with no signal from a saved season: world rankings, records, league standings, the events list and power rankings, with the same numbers as online and their time.
 
@@ -37,6 +37,34 @@ The leaderboards work with no signal from a saved season: world rankings, record
 - Match records mark a score that isn't an official record ("Not an official record", the reason on hover), on the table and the phone cards.
 - Season packs now include every rated team, so the ranking names them as online does.
 - A season pack is built in memory and written whole at the end: a build that fails leaves no file behind, and one whose data a sync moved mid-build is built again, so it never carries an older data time than its rows. (#1488)
+
+## 6.2.7 — 2026-11-14
+
+Search finds a match by its number and plays that exact match.
+
+### Highlights
+- [teams] Type a team and a match number (Q6, M3) to see and play that match
+- [teams] A match number with an event, Worlds or a season finds it too
+- [teams] Comparing teams lists the matches they played together, with Play
+
+### Changed
+- Search: a team and a match's number with no event ("<team> Q6") lists that number at each event of the season, latest first, and plays the latest; at Worlds or states ("<team> M14 at worlds") it is that match there. A number with no team ("M14 decode finals", "q6 at worlds") lists those matches highest-scoring first, the card playing the top one. An M number is a playoff match's. (`server/api/query/intents.ts`, `parse.ts`, `matchFind.ts`, `server/api/answers/families/eventScope.ts`) (#1484)
+- Search: comparing two or more teams adds "Their matches together", the matches all of them were on the field for, each with its own clip. (`server/api/answers/families/twoTeam.ts`, `src/components/search/page/CompareCard.tsx`)
+
+## 6.2.6 — 2026-11-14
+
+Georgia's Marietta-Wheeler league meets and the Northwest League Tournament now play their streams from CircuitRunners Robotics, the team channel that hosts them.
+
+### Highlights
+- [history] Marietta-Wheeler meets 2 to 4 play their streams
+- [history] Northwest League Tournament plays its stream, in two parts
+- [live] New Marietta-Wheeler meet streams are added once they air
+
+### Added
+- Official videos: CircuitRunners Robotics (`UCzxcU4h8qFiLWkdrmV9_TLw`) and Microchips & Queso (`UCLpE1wCLHdIMZ-cKpsVWsqQ`), read from the YouTube Data API, join the official channels and the auto-watcher's list: CircuitRunners for Marietta-Wheeler and Northwest League events in Georgia, Microchips & Queso for its Queso Bowl in Texas. Five CircuitRunners streams are checked against each event's name, date and meet number: Marietta-Wheeler League Meets 2, 3 and 4 and the Northwest League Tournament of 2026-02-07 in two parts (FIRST's link for it no longer plays). The Queso Bowls and Sharpe Pursuits' North Carolina Championship stream are FIRST's own links already, and Sharpe Pursuits, an event company with one FTC stream, isn't watched. Streams that can't be embedded and short fragments are left out. (`server/data/officialVideos.json`, `server/data/officialChannels.ts`, `docs/official-videos.md`) (#1482)
+
+### Fixed
+- Official videos: the auto-watcher now adds FIRST in Missouri's championship stream ("FTC Missouri/Kansas Championship", "FiMO FTC State Championship") to the Missouri/Kansas Championship instead of leaving it for review: those titles name only the region, so the channel now has a title pattern for them. League meets still need their own name. The watchlist already has that channel, so a seeded channel's title pattern now follows the shipped list on the next start (added, narrowed or dropped), unless the owner has saved or removed it. Only a pattern that differs is written, and the owner panel seeds under the data lock, so it still loads during a data sync. (`server/data/officialChannels.ts`, `server/videos/officialWatch.ts`)
 
 ## 6.2.5 — 2026-11-14
 
