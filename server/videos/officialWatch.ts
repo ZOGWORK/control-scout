@@ -66,8 +66,10 @@ export async function seedOfficialChannels(now = Date.now(), again = false): Pro
       args: [c.channelId, c.title, c.region, c.words ?? null, c.titlePattern ?? null, at, at],
     })),
     ...patterns.map((c) => ({
-      sql: "UPDATE official_channels SET title_pattern = ? WHERE channel_id = ? AND title_pattern IS NULL AND removed_at IS NULL AND added_by IS NULL",
-      args: [c.titlePattern!, c.channelId],
+      // Every guard again in the write itself, so an owner save landing after the read above still stands.
+      sql: `UPDATE official_channels SET title_pattern = ? WHERE channel_id = ? AND region = ? AND title_pattern IS NULL AND removed_at IS NULL AND added_by IS NULL
+              AND NOT EXISTS (SELECT 1 FROM owner_audit a WHERE a.action LIKE 'officialChannel.%' AND instr(a.details, official_channels.channel_id) > 0)`,
+      args: [c.titlePattern!, c.channelId, c.region],
     })),
   ];
   if (writes.length) await db().batch(writes, "write");
@@ -408,9 +410,11 @@ export async function saveChannel(body: { channelId?: unknown; title?: unknown; 
   if (pattern) { try { new RegExp(pattern, "i"); } catch { return { ok: false, error: "The title pattern isn't a valid regular expression." }; } }
   const at = new Date(now).toISOString();
   const was = await get<any>("SELECT region, removed_at FROM official_channels WHERE channel_id = ?", [id]);
-  // Added (or brought back): watched from now on; edited: the rule changes, what was read stays read.
+  // Added (or brought back): watched from now on; edited: the rule changes, what was read stays read. A seeded row the
+  // owner saves becomes theirs (added_by), in the same write, so the seed never fills a pattern over it.
   await run(`INSERT INTO official_channels (channel_id, title, region, words, title_pattern, watch_from, added_at, added_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
              ON CONFLICT(channel_id) DO UPDATE SET title = excluded.title, region = excluded.region, words = excluded.words, title_pattern = excluded.title_pattern,
+               added_by = COALESCE(official_channels.added_by, excluded.added_by),
                watch_from = CASE WHEN official_channels.removed_at IS NULL THEN official_channels.watch_from ELSE excluded.watch_from END, removed_at = NULL`,
     [id, title, region, words, pattern, at, at, actor]);
   await recordAudit(actor, was && !was.removed_at ? "officialChannel.edit" : "officialChannel.add", { channelId: id, title, region, words, titlePattern: pattern }, null,
