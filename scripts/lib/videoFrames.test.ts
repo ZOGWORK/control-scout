@@ -1,7 +1,7 @@
 // The pure parts of the frame reader (scripts/video-frames.ts): the overlay's match, the timer's elapsed time, and
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
-import { dataRows, elapsed, judge, NOTHING_READ, overlayLabel, secondsOf, type M } from "./videoFrames";
+import { dataRows, elapsed, leadIn, LEAD_IN_S, judge, NOTHING_READ, overlayLabel, secondsOf, type M } from "./videoFrames";
 
 describe("the frame reader", () => {
   it("names the match the overlay shows, and nothing else", () => {
@@ -71,6 +71,18 @@ describe("the frame reader", () => {
     expect(j.missing.get("Q2")).toMatch(/didn't confirm/);
     expect(j.missing.get("Q1")).not.toBe(NOTHING_READ);
     expect(judge(ms, new Map(), null, 10_000).missing.get("Q1")).toBe(NOTHING_READ);
+  });
+
+  it("looks for a match the clock puts before a broadcast in the next broadcast only", () => {
+    // Saturday 10:00–18:00 and Sunday 09:00–17:00 (epoch seconds from an arbitrary 0).
+    const w = [{ start: 36_000, end: 64_800 }, { start: 118_800, end: 147_600 }];
+    expect(leadIn(35_000, 0, w)).toBe(true); // 17 min before Saturday's broadcast: Saturday's video
+    expect(leadIn(35_000, 1, w)).toBe(false); // ...never Sunday's
+    expect(leadIn(36_000 - LEAD_IN_S - 1, 0, w)).toBe(false); // more than 6 hours before
+    expect(leadIn(40_000, 0, w)).toBe(false); // inside Saturday's broadcast: already its
+    expect(leadIn(117_000, 1, w)).toBe(true); // Sunday morning before Sunday's broadcast
+    expect(leadIn(70_000, 1, w)).toBe(false); // Saturday evening, after Saturday's end: more than 6 h before Sunday's
+    expect(leadIn(35_000, 0, [{ start: null, end: null }])).toBe(false); // an upload has no broadcast to be before
   });
 
   it("reads the data file's rows", () => {
