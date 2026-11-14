@@ -164,6 +164,23 @@ describe("audited channels: Nevada, North Dakota, Montana", () => {
     expect(matchVideo(vid("Bismarck State Championship", "2027-02-13T15:00:00Z"), seed, [cmp, biq]).kind).toBe("review");
     expect(matchVideo(vid("Bismarck Qualifier", "2027-01-09T15:00:00Z"), seed, [cmp, biq]).kind).toBe("review");
     expect(matchVideo(vid("2027 Bismarck ND FLL Qualifier", "2027-01-09T15:00:00Z"), seed, [cmp, biq]).kind).toBe("ignore");
+    // Any title made of a real ND event's own name (Scout's competition events from 2020 on), on that event's day.
+    const ND_EVENTS: [name: string, type: string, city: string][] = [
+      ["ND FTC Bismarck State Qualifier HYBRID", "Qualifier", "Bismarck"], ["ND FTC Fargo State Qualifier HYBRID", "Qualifier", "Fargo"],
+      ["ND FTC Dakota Championships HYBRID", "Championship", "Bismarck"], ["ND Alexander Scrimmage", "Scrimmage", "Alexander"],
+      ["ND Fargo - NDSU State Qualifier", "Qualifier", "Fargo"], ["ND DAA -State Qualifier for ND State Championships", "Qualifier", "Bismarck"],
+      ["North Dakota State Championship", "Championship", "BISMARCK"], ["ND Scrimmage", "Scrimmage", "Bismarck"],
+      ["ND Dakota Alexander Comets Scrimmage", "Scrimmage", "Alexander"], ["ND Dakota State Qualifier at NDSU", "Qualifier", "Fargo"],
+      ["ND Dakota State Qualifier at The Dakota Adventist Academy", "Qualifier", "Bismarck"], ["North Dakota State Championships", "Championship", "Bismarck"],
+      ["ND Western Dakota FTC Qualifier", "Qualifier", "Bismarck"], ["ND Eastern Dakota FTC Qualifier", "Qualifier", "Fargo"],
+      ["North Dakota FTC State Championships", "Championship", "Bismarck"], ["Minot Qualifier", "Qualifier", "Minot"],
+      ["Fargo Qualifier", "Qualifier", "Fargo"], ["Bismarck Qualifier", "Qualifier", "Bismarck"], ["North Dakota Championship", "Championship", "Bismarck"],
+      ["Dakota FTC Bismarck Qualifier", "Qualifier", "Bismarck"], ["Dakota FTC Minot Qualifier", "Qualifier", "Minot"], ["DakotaFTC Fargo Qualifier", "Qualifier", "Fargo"],
+    ];
+    for (const [name, type, city] of ND_EVENTS) {
+      const e: WatchEvent = { ...cmp, code: "X", name, type, city, start: "2027-01-23", end: "2027-01-23" };
+      for (const title of [name, `${name} Basketball`]) expect(matchVideo(vid(title, "2027-01-23T15:00:00Z"), seed, [e]).kind, title).toBe("review");
+    }
     // Its own FTC streams too: the owner approves each from the queue.
     expect(matchVideo(vid("Dakota FTC Bismarck Qualifier", "2027-01-09T15:00:00Z"), seed, [cmp, biq]).kind).toBe("review");
     expect(matchVideo(vid("2027 Dakota FTC State Championship", "2027-02-13T15:00:00Z"), seed, [cmp, biq]).kind).toBe("review");
