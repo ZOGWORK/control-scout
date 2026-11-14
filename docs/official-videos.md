@@ -13,14 +13,20 @@ A channel is official for an event when it is one of:
   North Dakota's "Dakota FTC", …). FIRST Nevada posts each meet as an upload a few days later, its title starting
   with the meet's date ("2026-01-10 FTC League Meet # 4S - Southern Nevada"): the checked list takes that date as the
   day, and the watcher, which needs a broadcast date, sends such uploads to the owner,
-- the event's own organiser or league (NTX FTC for FiT-North, GEARS for the Michiana Premier Event, …),
+- the event's own organiser or league (NTX FTC for FiT-North, GEARS for the Michiana Premier Event, NorCal FIRST
+  Tech Challenge for Northern California's events (watched for those named "NorCal …", as every one is from 2026-27;
+  older ones were checked by hand), …),
 - the event's own streamer: the channel that carries the event's broadcast with FIRST's official overlay (match
   label, teams, scores and rankings on screen). Westwood Robotics (FRC 2583, Austin) streams FiT-Central's GEMS
   league (Diamond and Emerald) and its Austin events. Its overlays-only test stream and the 2023 "Round Rock Gems"
   titles (the events are listed in Austin) are left out,
 - the event's own streamer, where FIRST's event pages or the host name it: Stars of the Galaxy (FTC 12099) for the
   Central Ohio league in Columbus, and the FIRST Alumni Network Grand Valley for the West Michigan league at GVSU in
-  Grand Rapids (watched for those events only; FANGV's Robot in 3 Days streams are FRC and never used),
+  Grand Rapids (watched for those events only; FANGV's Robot in 3 Days streams are FRC and never used), FTC SoCal
+  League G for League G's meets in Carson, 7419 Tech Support, which streamed NorCal East Bay Meet 1 of 2026 from its
+  own school (linked once, not watched), and in Oregon Overcharged (FTC 12599) for the Rose City League and Leo RHS
+  Robotics (Roseburg HS) for the SOAR League, whose streams FIRST's own Oregon event pages link (each watched for its
+  own league only),
 - the region's delivery partner or its event streamer in Rhode Island (Rhode Island FTC), Ontario (FTC Ontario),
   Long Island (FIRST Long Island) and New York City (NYC FIRST, the channel FIRST's 2021-22 NYC pages link, under its
   current handle). Town of Penfield Television is watched for upstate NY Excelsior events only: its videos are
@@ -35,13 +41,17 @@ broadcast is never used, even of the same event.
 
 Regional streamers from the owner's audited list (2026-11-14), each read through the YouTube Data API's uploads list
 and checked by hand: FIRST in Missouri (the Missouri/Kansas partner: St. Louis, Southeast and Southwest leagues, the
-championship) and FIRST MOKS (Kansas City, one video per meet session).
+championship), FIRST MOKS (Kansas City, one video per meet session), Tulsa Robotics Center (eastern Oklahoma's
+leagues, its scrimmages, the state championship), SeaCow Robotics (its Mountain Home, Benton and Bentonville
+qualifiers) and Shiloh Saints (the Arkansas Championship), both already played from FIRST's channel links, and FTC
+Louisiana (every Louisiana event, uploaded after it was streamed elsewhere; only its championship title counts as
+naming the region, so a qualifier stream needs its city).
 
-From the same list, CircuitRunners Robotics (FTC 1002, a team channel that is the event's own streamer) streams Georgia's
-Marietta-Wheeler league and its Northwest League
-Tournament (that day is in two broadcasts, named Part 1 and Part 2 in broadcast order), and Microchips & Queso its
-own Queso Bowl in Texas (FTC 23350, the event's host). Sharpe Pursuits' one FTC stream, the 2026 North Carolina Championship, is FIRST's own link
-for that event, and the channel (an event company) isn't watched.
+From the same list, CircuitRunners Robotics (FTC 1002, a team channel that is the event's own streamer) streams
+Georgia's Marietta-Wheeler league and its Northwest League Tournament (that day is in two broadcasts, named Part 1 and
+Part 2 in broadcast order), and Microchips & Queso its own Queso Bowl in Texas (FTC 23350, the event's host). Sharpe
+Pursuits' one FTC stream, the 2026 North Carolina Championship, is FIRST's own link for that event, and the channel
+(an event company) isn't watched.
 
 The owner's audited channel list (2026-11-14) adds four FIRST delivery partners: USTEM Foundation (Kazakhstan),
 Robotique FIRST France, Associazione Artù APS (Italy) and the Fikret Yüksel Foundation (Türkiye). It also adds The
@@ -60,7 +70,8 @@ exceptions rules 2 and 7 name for the checked list only, and the auto-watcher us
    broadcast date, so it can't prove its day, and is left out. The checked list makes one exception, by hand: an
    upload whose title names its date (FIRST Nevada's "2026-01-10 FTC League Meet # 4S - Southern Nevada") and, where
    a venue holds several meets that day, its session (FIRST MOKS's "FTC Meet @ Belton 8AM (2026-11-7)" is "Belton
-   Meet @ 8 AM"), or an upload of an event that played every match on one day (Scout's match times say which).
+   Meet @ 8 AM"), an upload of a one-day event its title names, or an upload of an event that played every match on
+   one day (Scout's match times say which; FTC Louisiana's two-day qualifiers play on the Saturday).
 3. Its title names the event: a distinctive word of the event's name or city (the league, the venue, "Mockingbird"),
    or the event's designators (an NTX league letter, a meet number, a UIL class, a stage). An event named by an
    acronym ("APOC") also fits a title spelling it out in words in a row ("Asia Pacific Open Championship"); a common
@@ -78,10 +89,11 @@ exceptions rules 2 and 7 name for the checked list only, and the auto-watcher us
    eliminations, "Matches 1–5" and "Matches 6–14"). The one exception, in the checked list only (the watcher never
    does it): a broadcast restarted on the same channel that day, with identical titles, where the second broadcast
    starts after the first one ends. Both are kept as Part 1 and Part 2 in broadcast order (NYC FIRST's 2025-26
-   Qualifiers 6 and 11 and Super Qualifier 2, its 2024-25 Super Qualifier 1 and its 2023-24 Qualifier 3). Titles that
-   differ count only when both name the same event and the second starts at most 30 minutes after the first ends
-   (Montana's 2023 State, "MT FTC Championship 2023" to 23:13:53Z, then "MT FTC State 2023" from 23:15:48Z). A second
-   broadcast that overlaps the first, or one the event's FIRST link already plays, is still left out.
+   Qualifiers 6 and 11 and Super Qualifier 2, its 2024-25 Super Qualifier 1 and its 2023-24 Qualifier 3; NorCal's
+   2021-22 Santa Clara QT; 7419's East Bay Meet 1 of 2026). Titles that differ count only when both name the same
+   event and the second starts at most 30 minutes after the first ends (Montana's 2023 State, "MT FTC Championship
+   2023" to 23:13:53Z, then "MT FTC State 2023" from 23:15:48Z). A second broadcast that overlaps the first, or one
+   the event's FIRST link already plays, is still left out.
 
 Per-match clips are never mapped from a title outside FIRST's own per-match videos (the Championship's are already
 FIRST's match videos, `matches.video`). A recording never hides FIRST's per-match video or a verified contributor's
@@ -118,9 +130,12 @@ minutes and starts a run only when the last one is 6 hours old, so a deploy does
 - **Watchlist** (`official_channels`, migration 84): seeded once each from `server/data/officialChannels.ts` with the
   channels the checked list came from. Each channel has a region rule (`country=Romania`, `state=VA,MD,DC`,
   `country=USA;type=Premier,OffSeason`, `state=IN;name=michiana|gears`), the region's own words (too common in its
-  titles to count as evidence) and, optionally, a pattern for titles that name the region itself. Only videos
-  published after a channel started being watched are read; the older ones went through the checked list. The
-  owner adds, edits or removes channels in Owner › Official videos, and a removed channel is never seeded back. A seeded
+  titles to count as evidence) and, optionally, a pattern for titles that name the region itself. Each run reads a
+  channel's uploads back to the earlier of the date it started being watched and 180 days ago (`LOOKBACK_MS`), up to
+  10 pages of 50. A stream is listed when it's scheduled, often weeks before it airs, so a cut at the watch date alone
+  skipped every stream scheduled before it, for good, once it aired (the 2026-11-13 audit found 55: FTC Iowa's league
+  meets, Pennsylvania's championship, Arizona's qualifiers). A video already read, or already an official video, isn't
+  read again. The owner adds, edits or removes channels in Owner › Official videos, and a removed channel is never seeded back. A seeded
   channel that later gains a title pattern in that file gets it on the next start, unless the owner has saved or
   removed that channel (their row stands).
 - **Each new video, once** (`official_watch`): it gets matched with the list's rules (`server/videos/officialMatch.ts`).
@@ -135,8 +150,23 @@ minutes and starts a run only when the last one is 6 hours old, so a deploy does
   link, a channel broadcast, the owner's stream), is logged as a **duplicate** and never added or queued.
 
   Anything short of that goes **to review**, with the reason and the event it fits best. Titles that aren't
-  competition streams (webinars, kickoffs, FRC, …) are **set aside**. A video still live, or still to come, is read
-  again after it ends.
+  competition streams (webinars, kickoffs, FRC, …) are **set aside**, and so is a video under 45 minutes that fits no
+  event (an upload, a program call, a team's reel): it can't be a day's recording, and the owner can still add it as a
+  highlight from the set-aside list. A title naming the region itself ("FTC Iowa …") makes all its events that day
+  plausible, so when the title also names one event by its own word or designator ("Iris", "Waterloo", "Meet #1" and
+  not "Meet #1a"), the events it fits by the region's name alone drop out. Two events sharing a word ("CTX GEMS
+  Diamond League Meet 2" and "… Emerald …") are told apart the same way: an event whose name has a word the title
+  doesn't say ("Emerald"), while the title says a word of the other's name ("Diamond"), drops out when the event left
+  outscores it. A title naming two events (a joint meet) stays in review.
+
+  Every video read ends in exactly one state, its reason in `official_watch.why`: **added** (every check passed),
+  **pending** (the owner's review), or **set aside**, **duplicate** or **rejected**. The only videos not written yet are
+  ones still live or still to come (read again every run until they end) and ones YouTube returns no facts for yet
+  (read again next run).
+- **After a recording is added** (by the watcher, or by the owner's approval), every `onRecordingAdded` listener
+  (`server/videos/officialWatch.ts`) gets each event, day, part and video, once per run. It's the hook for checking
+  the event's clip coverage again; nothing registers on it yet, so until the coverage check does, an add notifies no
+  one. A failing listener is logged and never undoes the add.
 - **The owner's queue** (Owner › Official videos, with an "N to review" badge on the console's menu), oldest first. Each
   row shows the title, channel, video id, published and broadcast times, length, the best-guess event and why it
   wasn't added:

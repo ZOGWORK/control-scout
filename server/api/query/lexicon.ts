@@ -56,6 +56,8 @@ export type Sym =
   | { k: "list" }
   | { k: "per"; v: "match" | "event" | "rate" }
   | { k: "nopen" }
+  /** Only matches with video to play: "with video", "that have clips" (./matchFind.ts video). */
+  | { k: "withvideo" }
   /** No losses: "undefeated", "a perfect record". */
   | { k: "undefeated" }
   /** A scope's or a team's standout matches: "worlds highlights". */
@@ -224,6 +226,7 @@ const TABLE: [string, Sym | Sym[]][] = [
   ["fastest growing|gain|gained|gains|growth", { k: "gain" }],
   // Penalty points left out.
   ["without penalties|no penalties|excluding penalties|minus penalties|penalty free|np|non penalty", { k: "nopen" }],
+  ["with video|with videos|with a video|with match video|with match videos|with clips|with a clip|with clip|with recording|with recordings|with a recording|with footage|that have video|that have videos|that have a video|that has video|that has a video|that have clips|that have a clip|that has a clip|having video|on video", { k: "withvideo" }],
   // Prepositions that say which slot follows.
   ["in|inside|within|during", { k: "prep", v: "in" }],
   ["at", { k: "prep", v: "at" }],
