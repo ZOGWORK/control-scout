@@ -12,8 +12,7 @@ import { rebuildSearch } from "../stats/job";
 import { eventDetail } from "../api/events";
 import { buildPackApi, packSearchQueries, packTeamNames, packTeams } from "./eventApi";
 import { packLookup, searchPackPath, type EventBundle } from "../../src/shared/eventBundle";
-import { followFromPacks, searchFromPacks, teamSummariesFromPacks } from "../../src/shared/searchOffline";
-import { followApiPath } from "../../src/shared/search";
+import { searchFromPacks, teamSummariesFromPacks } from "../../src/shared/searchOffline";
 import { CURRENT_SEASON } from "../data/seasons";
 import { packParseContext } from "../../src/shared/query/packContext";
 import { parseQuery } from "../../src/shared/query/parse";
@@ -254,16 +253,6 @@ describe("the event pack's searches", () => {
       for (const s of cardSeasons) { has(`/api/teams/${t}?season=${s}`); has(`/api/teams/${t}/matches?season=${s}`); }
     }
     expect(missing).toEqual([]);
-  });
-
-  it("a kept search's follow-ups, as online: however it's typed, for the visitor's own teams too", async () => {
-    for (const path of [followApiPath("Gear Grinders"), followApiPath("gear grinders?", "team:1111"), followApiPath("1111"), followApiPath(EV, "team:2222")]) {
-      const on = await (await fetch(`${base}${path}`)).json();
-      expect(JSON.stringify((await followFromPacks(path, [pack]))!.body), path).toBe(JSON.stringify(on));
-    }
-    // A name the visitor's own team reads another way, or a picked season: not the kept ones.
-    expect(await followFromPacks(followApiPath("Iron Eagles", "team:7777"), [pack])).toBeNull();
-    expect(await followFromPacks(followApiPath("1111", "", 2024), [pack])).toBeNull();
   });
 
   it("anything else says what it needs that isn't in the pack, and what is", async () => {

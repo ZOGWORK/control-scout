@@ -2,9 +2,9 @@
 // (the server's own answers, a versus of the pack's teams built as the server builds it, or what the query needs that
 // the packs don't hold); this loads the packs and marks the answer with the pack it came from. Loaded only once a
 // search has failed for want of a network (lib/api.ts), like the rest of lib/offline.
-import type { SearchAnswer, SearchFollowUps, TeamSummary } from "../../shared/api";
+import type { SearchAnswer, TeamSummary } from "../../shared/api";
 import { bundleTime, type EventBundle, type SavedBundle } from "../../shared/eventBundle";
-import { followFromPacks, searchFromPacks, teamSummariesFromPacks, type FromPack } from "../../shared/searchOffline";
+import { searchFromPacks, teamSummariesFromPacks, type FromPack } from "../../shared/searchOffline";
 import { packParseContext } from "../../shared/query/packContext";
 import type { ParseContext } from "../../shared/query/parse";
 import { markOffline, type OfflineSource } from "./saved";
@@ -39,14 +39,6 @@ export async function packSearchAnswer(path: string, now = Date.now()): Promise<
   if (!packs.length) return null;
   const bundles = packs.map((p) => p.bundle);
   return marked(await searchFromPacks(path, bundles, now, contextFor(bundles, now)), packs);
-}
-
-/** /api/search/follow from the saved packs (null: none keeps that search's). */
-export async function packFollowUps(path: string, now = Date.now()): Promise<(SearchFollowUps & { q: string }) | null> {
-  const packs = await searchPacks();
-  if (!packs.length) return null;
-  const bundles = packs.map((p) => p.bundle);
-  return marked(await followFromPacks(path, bundles, now, contextFor(bundles, now)), packs);
 }
 
 /** /api/teams-summary from the saved packs (null: none holds any of the teams). */

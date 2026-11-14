@@ -20,8 +20,6 @@ import { teamFacts } from "../api/searchCompare.js";
 import { seasonScale } from "../api/answers/compareBlock.js";
 import { currentSeason } from "../api/answers/season.js";
 import { togetherMatches } from "../api/answers/families/twoTeam.js";
-import { keptFollowUps } from "../api/answers/followUps.js";
-import { followApiPath } from "../../src/shared/search.js";
 import { SIGNED_OUT } from "../videos/contributors.js";
 import { cleanTeamName } from "../../src/shared/teamTitle.js";
 import { SEARCH_PAGE_LIMIT } from "../../src/shared/search.js";
@@ -83,11 +81,9 @@ export const PACK_READS: Reads[] = [
   // FTC One Search for what people type at a meet (packSearchQueries): the whole answer as /search shows it, for anyone
   // (server/api/searchPage.ts), and the season numbers its team cards ask for (/api/teams-summary, one team a path:
   // lib/offline/search.ts puts a request for several together, in the order asked).
-  async (c) => packSearchQueries(c, await packTeamNames(c.teams)).flatMap((q) => [
-    { path: searchPackPath(q), read: () => packSearchAnswer(q) },
-    // Its follow-ups (People also ask, Related searches), as /api/search/follow gives them for anyone.
-    { path: followApiPath(q), read: async () => ({ q, ...(await keptFollowUps(q, new Set())) }) },
-  ]),
+  // Not their follow-ups (/api/search/follow): about 1.4 s a query to work out (100 s for a 72-search event), so with
+  // no signal People also ask and Related searches are left out.
+  async (c) => packSearchQueries(c, await packTeamNames(c.teams)).map((q) => ({ path: searchPackPath(q), read: () => packSearchAnswer(q) })),
   packCardReads,
   // A league meet or tournament: its league's standings (the event page links to them).
   (c) => (c.ev.event.league && c.ev.event.region

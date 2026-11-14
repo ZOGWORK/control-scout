@@ -71,6 +71,22 @@ export function clipEnd(startsAt: string | null | undefined, rec: RecordingTimin
   return Math.floor(end);
 }
 
+/** How long a frame-placed clip runs on past its match's play: the overlay's score settles 33 to 43 s after the buzzer
+ *  (APOC 2026's frames), and a frame-read start is already where the timer shows, live delay and all. */
+export const FRAME_TAIL_S = 50;
+
+/**
+ * The second a clip placed from the recording's frames stops at: its timer's start (`start`, read off the frames) plus
+ * MATCH_PLAY_S and FRAME_TAIL_S, so the final score is up. `next`: the next framed start in the same video: the clip
+ * stops when that match's timer starts, though never before its own play is over. Never past the video's end.
+ */
+export function frameClipEnd(start: number, next: number | null, length: number | null): number {
+  let end = start + MATCH_PLAY_S + FRAME_TAIL_S;
+  if (next != null && next > start) end = Math.max(Math.min(end, next), start + MATCH_PLAY_S);
+  if (length != null) end = Math.min(end, length);
+  return Math.floor(end);
+}
+
 /** How soon after the last match's start a video trimmed at the event's end stops. */
 export const TAIL_TRIM_S = 900;
 

@@ -9,10 +9,10 @@
 //      hold, with what the pack does hold (SearchAnswer.notInPack).
 // Pure (the packs are given, newest data first), so it's tested against the server's own answers. The app's side is
 // src/lib/offline/search.ts.
-import type { NotInPack, SearchAnswer, SearchFollowUps, TeamSummary } from "./api";
+import type { NotInPack, SearchAnswer, TeamSummary } from "./api";
 import { packLookup, searchPackPath, type EventBundle } from "./eventBundle";
 import { versusFromPack, versusNumbers } from "./searchVersus";
-import { cleanQuery, followApiPath, preferOf } from "./search";
+import { cleanQuery, preferOf } from "./search";
 import { describe, parseQuery, type ParseContext, type Parsed } from "./query/parse";
 import { packParseContext } from "./query/packContext";
 import { seasonLabel } from "./format";
@@ -64,23 +64,6 @@ export async function searchFromPacks(path: string, packs: SearchPack[], now = D
   // 3. What it needs that the packs don't hold.
   const p = await parseQuery(q, ctx).catch(() => null);
   return { body: notInPackAnswer(q, p, packs), from: 0 };
-}
-
-/** /api/search/follow from the packs: the follow-ups kept with a search the pack answers with the server's own
- *  answer (step 1 above, read the same way: cleaned, and only when the visitor's own teams read it no other way), the
- *  query echoed as asked. Null for a picked season (another answer than the pack's) or a search the packs don't keep. */
-export async function followFromPacks(path: string, packs: SearchPack[], now = Date.now(), ctx: ParseContext = packParseContext(packs, todayOf(now))): Promise<FromPack<SearchFollowUps & { q: string }> | null> {
-  const url = new URL(path, "http://offline.invalid");
-  const typed = url.searchParams.get("q") ?? "";
-  const q = cleanQuery(typed);
-  if (!q || url.searchParams.get("season") || !packs.length) return null;
-  const prefer = preferOf(url.searchParams.get("prefer"));
-  if (prefer.size && !(await sameTeams(q, ctx, { ...ctx, prefer }))) return null;
-  for (const [from, pack] of packs.entries()) {
-    const got = packLookup(pack.api, followApiPath(q));
-    if (got && "body" in got && got.body && typeof got.body === "object") return { body: { ...(structuredClone(got.body) as SearchFollowUps & { q: string }), q: typed }, from };
-  }
-  return null;
 }
 
 /** The query names the same teams read for no one in particular (`base`, as the pack's answers were) as for the

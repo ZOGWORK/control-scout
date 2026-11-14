@@ -252,11 +252,11 @@ async function respond<T>(request: Promise<Response>, kind: "saved" | "lite" | "
   if ("res" in won) return won.res;
   // The server's own error the pack recorded (a team with no page: 404) is its answer too. "Not in your pack" isn't:
   // the server may still answer, so it's waited for.
-  // Nothing saved answers it: a search, the team cards' numbers or the follow-ups (which only a saved pack makes "saved" reads) as
+  // Nothing saved answers it: a search or the team cards' numbers (which only a saved pack makes "saved" reads) as
   // before any pack was saved, never waited for without end; any other read keeps waiting for the server.
   const nothing = ("error" in won && !won.error.status) || (!("error" in won) && won.data == null);
   if (nothing && SEARCH_PATH.test(path)) return slowSearch();
-  if (nothing && (SUMMARY_PATH.test(path) || FOLLOW_PATH.test(path))) {
+  if (nothing && SUMMARY_PATH.test(path)) {
     const more = await slowRest();
     if (more !== TIMED_OUT) return more;
     ctrl.abort();
@@ -298,7 +298,6 @@ const SEARCH_RETRY = "search-slow-retry";
 export const SEARCH_SLOW = "Search is slow right now. Try again.";
 const SEARCH_PATH = /^\/api\/search(\?|$)/;
 const SUMMARY_PATH = /^\/api\/teams-summary(\?|$)/;
-const FOLLOW_PATH = /^\/api\/search\/follow(\?|$)/;
 /** A saved /api/teams-summary answer holds every team asked (lib/offline/search.ts leaves out the ones no pack holds). */
 function summaryWhole(path: string, data: unknown): boolean {
   const asked = (new URL(path, "http://offline.invalid").searchParams.get("teams") ?? "").split(",").filter((t) => /^\d{1,6}$/.test(t));
