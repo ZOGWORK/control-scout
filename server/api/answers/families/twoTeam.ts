@@ -397,13 +397,19 @@ export async function compareAnswer(teams: AnswerTeam[], scope: Scope): Promise<
   return compareStat(teams, scope, s, scale, isLegacy, togetherOf(together, others));
 }
 
+/** How many teams teamLinks names in one read (it reads no more). */
+const LINKS_AT_ONCE = 400;
+
 /** A team's matches at official events (never a scrimmage or an off-season event, as head to head counts them), on
  *  the field, latest first, with the teams on the field with it that `keep` takes, each as a comparison lists it (from
  *  its side): in `season`, else every season. The event pack keeps its teams' (server/packs/eventApi.ts). */
 export async function togetherMatches(team: number, keep: (others: number[]) => boolean, season?: number): Promise<(TogetherMatch & { season: number })[]> {
   const met = (await teamMatches(team)).filter((m) => (season == null || m.season === season) && m.onField && (OFFICIAL_TYPES as readonly string[]).includes(m.type ?? "") && keep([...m.partners, ...m.opponents])).reverse();
   if (!met.length) return [];
-  const links = await teamLinks(met.flatMap((m) => [...m.partners, ...m.opponents]));
+  // Every team on them named, however many (teamLinks reads 400 at a time): each row as a card showing it alone names
+  // its teams (compareAnswer lists ten at most), whichever season or set of teams it's shown for.
+  const all = [...new Set(met.flatMap((m) => [...m.partners, ...m.opponents]))];
+  const links = new Map((await Promise.all(Array.from({ length: Math.ceil(all.length / LINKS_AT_ONCE) }, (_, i) => teamLinks(all.slice(i * LINKS_AT_ONCE, (i + 1) * LINKS_AT_ONCE))))).flatMap((m) => [...m]));
   return met.map((m) => ({ season: m.season, with: [...m.partners, ...m.opponents], row: matchRow(m, links, team) }));
 }
 

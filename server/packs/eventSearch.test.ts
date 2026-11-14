@@ -58,6 +58,21 @@ async function seed() {
     await stat(S - 1, n, 60 - rank, rank);
     await run("INSERT INTO team_event_stats (season, code, team, opr_np, matches) VALUES (?, ?, ?, 40, 2)", [S, EV, n]);
   }
+  // Last season, an event where 1111 and 3333 met over 400 other teams, and where 1111 played with 2222 once, first:
+  // the matches together of "1111 vs 2222 2024-25" name teams past the 400 one read of names takes.
+  const OLD = "USMIOLD";
+  await run("INSERT INTO events (season, code, name, type, region, city, state, country, start, end, remote, hybrid, source) VALUES (?, ?, 'Lakeside League Qualifier', 'Qualifier', 'USMI', 'Bay City', 'MI', 'USA', '2024-11-02', '2024-11-03', 0, 0, 'test')", [S - 1, OLD]);
+  const oldMatch = async (num: number, red: number[], blue: number[]) => {
+    await run(`INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, red_auto, red_teleop, red_endgame, red_pen,
+      blue_total, blue_np, blue_auto, blue_teleop, blue_endgame, blue_pen, source) VALUES (?, ?, 'qual', 0, ?, ?, ?, 1, 80, 80, 20, 40, 20, 0, 50, 50, 10, 30, 10, 0, 'test')`,
+      [S - 1, OLD, num, `Q${num}`, new Date(Date.UTC(2024, 10, 2, 8) + num * 60_000).toISOString().slice(0, 19)]);
+    for (const [alliance, ts] of [["red", red], ["blue", blue]] as const)
+      for (const [i, team] of ts.entries())
+        await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, station, surrogate, on_field) VALUES (?, ?, 'qual', 0, ?, ?, ?, ?, 0, 1)", [S - 1, OLD, num, team, alliance, i + 1]);
+  };
+  for (const n of [29000, 29001, ...Array.from({ length: 420 }, (_, i) => 20000 + i)]) await run("INSERT INTO teams (number, name, city, state, country) VALUES (?, ?, 'Bay City', 'MI', 'USA')", [n, `Squad${n}`]);
+  await oldMatch(1, [1111, 2222], [29000, 29001]);
+  for (let k = 0; k < 210; k++) await oldMatch(k + 2, [1111, 3333], [20000 + 2 * k, 20001 + 2 * k]);
   await rebuildSearch();
 }
 
@@ -157,6 +172,16 @@ describe("the event pack's searches", () => {
     expect(card?.links).toEqual([{ label: "7777 Iron Eagles", href: `/teams/7777?season=${S}` }]);
   });
 
+  it("a name the pack's answer reads as another team than the visitor's own: not that answer", async () => {
+    const ask = (prefer: string) => searchFromPacks(`/api/search?q=${encodeURIComponent("Iron Eagles")}&limit=25&answer=1${prefer}`, [pack]).then((r) => r!.body);
+    // For no one in particular (or a visitor whose team isn't one of them): the server's own answer, kept in the pack.
+    const kept = packLookup(pack.api, searchPackPath("Iron Eagles")) as { body: SearchAnswer };
+    for (const prefer of ["", "&prefer=team:1111", "&prefer=team:6666"]) expect(JSON.stringify(await ask(prefer)), prefer).toBe(JSON.stringify(kept.body));
+    // The visitor's own is 7777, the weaker: the kept answer is about 6666, so it says what it needs instead, with theirs.
+    const mine = await ask("&prefer=team:7777");
+    expect(mine.notInPack?.links).toEqual([{ label: "7777 Iron Eagles", href: `/teams/7777?season=${S}` }]);
+  });
+
   it("a word of a named team's own event is read as that event, offline as online", async () => {
     const ctx = packParseContext([pack], new Date().toISOString().slice(0, 10));
     const server = await parseContext();
@@ -167,6 +192,15 @@ describe("the event pack's searches", () => {
     // "tundra": only the event's name says it. In 2024-25 the team had no event of that name.
     expect((await parseQuery("1111 tundra opr", ctx)).event).toEqual({ words: "midland tundra qualifier", typed: "tundra", latest: true });
     expect((await parseQuery("1111 tundra 2024-25", ctx)).event).toBeNull();
+  });
+
+  it("a season-named versus names every team on its matches together, however many teams the pack's team met", async () => {
+    for (const q of ["1111 vs 2222 2024-25", "1111 vs 3333 2024-25"]) {
+      const on = await online(q);
+      expect(JSON.stringify(await offline(q)), q).toBe(JSON.stringify(on));
+    }
+    const rows = (await offline("1111 vs 2222 2024-25")).stat?.blocks.find((b) => b.kind === "matches");
+    expect(rows).toMatchObject({ rows: [{ label: "Q1", opponents: [{ label: "29000 Squad29000" }, { label: "29001 Squad29001" }] }] });
   });
 
   it("anything else says what it needs that isn't in the pack, and what is", async () => {

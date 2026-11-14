@@ -34,10 +34,13 @@ export async function searchFromPacks(path: string, packs: SearchPack[], now = D
   const limit = Number(url.searchParams.get("limit")) || 0;
   // The visitor's own teams, first when several share a name (?prefer=, read as the route reads it).
   const prefer = preferOf(url.searchParams.get("prefer"));
+  const base = ctx;
   if (prefer.size) ctx = { ...ctx, prefer };
   // The season picker and "my team" ask the server for another answer than the pack's: those say what's missing.
   const asked = !url.searchParams.get("season") && !url.searchParams.get("my");
-  if (asked) {
+  // The pack's answers were worked out for no one in particular: one the visitor's own teams read another way (a
+  // name two teams share, theirs the one meant) isn't theirs.
+  if (asked && (!prefer.size || await sameTeams(q, base, ctx))) {
     // 1. The server's own answer, kept in the pack.
     for (const [from, pack] of packs.entries()) {
       const got = packLookup(pack.api, searchPackPath(q));
@@ -61,6 +64,13 @@ export async function searchFromPacks(path: string, packs: SearchPack[], now = D
   // 3. What it needs that the packs don't hold.
   const p = await parseQuery(q, ctx).catch(() => null);
   return { body: notInPackAnswer(q, p, packs), from: 0 };
+}
+
+/** The query names the same teams read for no one in particular (`base`, as the pack's answers were) as for the
+ *  visitor (`mine`, their teams preferred). */
+async function sameTeams(q: string, base: ParseContext, mine: ParseContext): Promise<boolean> {
+  const teams = async (c: ParseContext) => JSON.stringify((await parseQuery(q, c).catch(() => null))?.teams.map((t) => t.number) ?? null);
+  return (await teams(base)) === (await teams(mine));
 }
 
 /** How search's parser reads "A vs B" (its describe, the answer's "read as" line), when it reads a comparison of two
