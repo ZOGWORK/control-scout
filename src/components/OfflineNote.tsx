@@ -14,6 +14,13 @@ import { SnapshotBanner } from "./offline/Snapshot";
 import { Badge } from "./ui/basic";
 import { cn } from "./cn";
 
+/** When a kept answer was loaded: the time today, else the day and time. */
+export function keptClock(ms: number, now = new Date()): string {
+  const d = new Date(ms);
+  const today = d.toDateString() === now.toDateString();
+  return d.toLocaleString(undefined, today ? { hour: "numeric", minute: "2-digit" } : { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
+
 export function OfflineNote({ data, className }: { data: unknown; className?: string }) {
   const src = offlineSource(data);
   if (!src) return null;
@@ -23,6 +30,24 @@ export function OfflineNote({ data, className }: { data: unknown; className?: st
       <SnapshotBanner at={src.dataAsOf ?? src.bundle.builtAt} className={className}>
         No signal, so this is your event-day bundle; live data takes over as soon as it loads. <Link to="/download" className="underline">Bundles</Link>
       </SnapshotBanner>
+    );
+  }
+  if (src.kept && !src.savedAt) {
+    // Nothing loaded for it on this device (a team added with no signal): who it is, no stats yet.
+    return (
+      <p role="status" data-offline-kept className={cn("mb-4 flex items-start gap-2 rounded-lg border border-info/30 bg-info/[0.06] px-3 py-2 text-xs", className)}>
+        <WifiOff className="mt-px size-3.5 shrink-0 text-info" />
+        <span>Offline: stats for these teams need a connection. They load when you're back online.</span>
+      </p>
+    );
+  }
+  if (src.kept) {
+    // The last answer this device loaded (lib/offline/kept.ts): when, and that it refreshes.
+    return (
+      <p role="status" data-offline-kept className={cn("mb-4 flex items-start gap-2 rounded-lg border border-info/30 bg-info/[0.06] px-3 py-2 text-xs", className)}>
+        <WifiOff className="mt-px size-3.5 shrink-0 text-info" />
+        <span>Offline: last loaded on this device at {keptClock(src.savedAt)} ({ago(new Date(src.savedAt).toISOString())}). It refreshes when you're back online.</span>
+      </p>
     );
   }
   return (

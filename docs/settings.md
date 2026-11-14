@@ -130,6 +130,7 @@ These keys never leave the device (`DEVICE_ONLY_KEYS`):
 | `cs-onboarding-demo` | `"1"` lets a browser driven by automation see the onboarding (`npm run shots -- --onboarding`, the journeys script); real visitors never have it |
 | `cs-install` | The add-to-home-screen nudge on this device (`src/lib/installNudge.ts`): `{v, lastShown: "YYYY-MM-DD", dismissed?, installed?}`. See "Add-to-home-screen nudge" below |
 | `cs-install-demo` | `"1"` lets a browser driven by automation see the nudge (`npm run shots -- --install`); real visitors never have it |
+| `cs-lite-demo` | `"1"` shows the slow-connection card at once, as if the page had waited 9 s (`npm run shots -- --storage lite-demo.json /teams/4215`, where `lite-demo.json` holds `{"cs-lite-demo":"1"}`); real visitors never have it |
 | `cs-recent-searches` | This device's recent searches (`src/components/search/discover.tsx`): up to 6 query strings, newest first, shown in an empty search box's list with one tap to run again. "Clear" removes them all |
 
 The queue's entries go up as entries (that is the queue's job). The queue key
@@ -149,7 +150,7 @@ itself, the space and the view are never sent: not in a personal sync
 | `cs-scout-lost:<workspace>` | 3 | No (a restore sends the entry) |
 | `cs-scout-ws-cursor:<workspace>` | sync bookkeeping | Only as the pull's `since=` cursor |
 | `cs-scout-tpl:<ws>:<season>`, `cs-scout-tplv:<ws>:<season>:<v>`, `cs-scout-wss:<ws>` | 2 (cache) | No |
-| `cs-scout-space`, `cs-shortlist-view`, `cs-account-cache`, `cs-onboarding`, `cs-onboarding-demo`, `cs-install`, `cs-install-demo`, `cs-recent-searches` | 3 | No |
+| `cs-scout-space`, `cs-shortlist-view`, `cs-account-cache`, `cs-onboarding`, `cs-onboarding-demo`, `cs-install`, `cs-install-demo`, `cs-lite-demo`, `cs-recent-searches` | 3 | No |
 | `cs-sidebar`, `cs-records-cols:<table>`, `cs-saved-filters:v1` | local UI state | No |
 | `cs-consent`, `cs-alerts-sent`, `cs-offline-seasons`, `cs-pack-meta`, `cs-seen` | device state | No |
 | sessionStorage `cs-session`, `cs-stats-session` | this tab only | `cs-stats-session` only as the analytics "new session" bit (no ID) |

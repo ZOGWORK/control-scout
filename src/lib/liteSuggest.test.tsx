@@ -4,7 +4,7 @@
 // online.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, renderHook } from "@testing-library/react";
-import { dismissLite, isPageData, noteArrived, resetLiteSuggest, useLiteSuggested, watchPage, watchRequest } from "./liteSuggest";
+import { dismissLite, hasPageData, isPageData, noteArrived, resetLiteSuggest, useLiteReason, useLiteSuggested, watchPage, watchRequest } from "./liteSuggest";
 import { load, prime } from "./api";
 import { LITE_FAILS, LITE_SLOW_MS } from "../shared/lite";
 import { matchReportPath } from "./matchReport";
@@ -37,11 +37,31 @@ describe("light version offer", () => {
       ["/teams/18360", "/api/teams/18360?season=2024", false],
       ["/scout?space=7&view=picklist", "/api/scout/workspaces/8/picklist?season=2025", false],
       ["/predict", "/api/events/2025/USNJQ1", false],
+      // The pages Lite added: Home's calendar, the search's answer, the matchup, the comparison, the ranking.
+      ["/", "/api/events?season=2025&from=2025-11-01&to=2025-11-10", true],
+      ["/", "/api/events/2025/USNJQ1", false],
+      ["/search?q=4215", "/api/search?q=4215&answer=1", true],
+      ["/search?q=4215", "/api/search?q=4215&limit=8", false],
+      ["/predict?mode=match&red=1,2&blue=3,4", "/api/predict/match?season=2025&red=1,2&blue=3,4", true],
+      ["/compare?teams=1,2", "/api/compare?teams=1,2", true],
+      ["/rankings", "/api/rankings?season=2025", true],
     ];
     for (const [at_, req, want] of at) {
       const u = new URL(at_, "http://x");
       expect(isPageData(req, u.pathname, u.search), `${at_} ← ${req}`).toBe(want);
     }
+  });
+
+  it("never times a page with no data of its own (Settings, a search not asked yet, scouting's forms)", () => {
+    const { result } = renderHook(() => useLiteSuggested());
+    for (const [here, search] of [["/settings", ""], ["/search", ""], ["/predict", ""], ["/scout", "?tab=match"], ["/compare", ""]]) {
+      expect(hasPageData(here, search), here + search).toBe(false);
+      const stop = watchPage(here, search);
+      act(() => { vi.advanceTimersByTime(LITE_SLOW_MS + 1); });
+      stop();
+    }
+    expect(result.current).toBe(false);
+    for (const [here, search] of [["/", ""], ["/search", "?q=4215"], ["/rankings", ""], ["/scout", "?view=picklist"], ["/teams/1", ""]]) expect(hasPageData(here, search), here + search).toBe(true);
   });
 
   it("offers it when the page's data is still missing after the wait, and not before", () => {
@@ -173,7 +193,7 @@ describe("light version offer", () => {
     expect(result.current).toBe(true);
   });
 
-  it("goes away when the page's data comes back quickly, or on the next page; Not now holds for the session", () => {
+  it("goes away when the page's data comes back quickly, or on the next page; Keep waiting holds for the session", () => {
     const { result } = renderHook(() => useLiteSuggested());
     act(() => { arrive("/teams/1"); vi.advanceTimersByTime(LITE_SLOW_MS); });
     expect(result.current).toBe(true);
@@ -191,5 +211,33 @@ describe("light version offer", () => {
     expect(result.current).toBe(false);
     act(() => { arrive("/teams/4"); vi.advanceTimersByTime(LITE_SLOW_MS); });
     expect(result.current).toBe(false);
+  });
+
+  it("a page that loads slowly stops the count: the card says how long it took", () => {
+    const { result } = renderHook(() => useLiteReason());
+    arrive("/teams/1");
+    const w = watchRequest("/api/teams/1");
+    act(() => { vi.advanceTimersByTime(LITE_SLOW_MS); });
+    expect(result.current?.kind).toBe("waiting");
+    act(() => { vi.advanceTimersByTime(4000); w.done(); });
+    expect(result.current).toEqual({ kind: "loaded", took: 12 });
+  });
+
+  it("keeps the failure evidence current while requests keep failing", () => {
+    const { result } = renderHook(() => useLiteReason());
+    arrive("/teams/1");
+    act(() => { for (let i = 0; i < LITE_FAILS; i++) watchRequest("/api/teams/2").failed(); });
+    expect(result.current).toMatchObject({ kind: "failing", count: LITE_FAILS });
+    act(() => { vi.advanceTimersByTime(5000); watchRequest("/api/teams/2").failed(); });
+    expect(result.current).toMatchObject({ kind: "failing", count: LITE_FAILS + 1, at: Date.now() });
+  });
+
+  it("failures replace a waiting card's evidence", () => {
+    const { result } = renderHook(() => useLiteReason());
+    arrive("/teams/1");
+    act(() => { vi.advanceTimersByTime(LITE_SLOW_MS); });
+    expect(result.current?.kind).toBe("waiting");
+    act(() => { for (let i = 0; i < LITE_FAILS; i++) watchRequest("/api/teams/2").failed(); });
+    expect(result.current).toMatchObject({ kind: "failing", count: LITE_FAILS });
   });
 });

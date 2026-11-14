@@ -43,13 +43,16 @@ const opt = (f: string) => { const i = args.indexOf(`--${f}`); return i >= 0 ? a
 const VALUE_FLAGS = new Set(["--out", "--base", "--search", "--video", "--storage", "--steps", "--name", "--cookie-file", "--clock", "--theme"]);
 // --cookie-file <file>: a "name=value" cookie (e.g. cs_session=<a local test account's session>) for pages
 // that need a signed-in account, such as /owner. Read from a file so the value never lands in shell history
-// or the output; only sent to a localhost base.
-const COOKIE = (() => {
+// or the output; only sent to a localhost base. One cookie a line (e.g. cs-theme=dim and cs-lite=1 for
+// Control Scout Lite, which reads the app's settings from cookies: docs/lite.md).
+const COOKIES = (() => {
   const f = opt("cookie-file");
-  if (!f) return null;
-  const [name, ...rest] = readFileSync(f, "utf8").trim().split("=");
-  if (!name || !rest.length) { console.error("--cookie-file: the file must hold name=value"); process.exit(1); }
-  return { name, value: rest.join("=") };
+  if (!f) return [];
+  return readFileSync(f, "utf8").split(/\r?\n/).map((l) => l.trim()).filter(Boolean).map((line) => {
+    const [name, ...rest] = line.split("=");
+    if (!name || !rest.length) { console.error("--cookie-file: each line must hold name=value"); process.exit(1); }
+    return { name, value: rest.join("=") };
+  });
 })();
 type Step = { pull?: number; release?: boolean; click?: string; hold?: string; ms?: number; fill?: string; value?: string; type?: string; press?: string; wait?: number; waitFor?: string; reload?: boolean; upload?: string; files?: string[]; goto?: string; scrollTo?: string; hover?: string; offline?: boolean };
 const STEPS: Step[] = (() => {
@@ -140,11 +143,14 @@ async function capture(browser: Browser, route: string, vp: keyof typeof SIZES, 
     reducedMotion: motion ? "no-preference" : "reduce",
     ...(videoSecs ? { recordVideo: { dir: out, size: SIZES[vp] } } : {}),
   });
-  if (COOKIE) {
+  if (COOKIES.length) {
     const host = new URL(BASE).hostname;
     if (!["localhost", "127.0.0.1"].includes(host)) { console.error("--cookie-file only works against a localhost base"); process.exit(1); }
-    await ctx.addCookies([{ name: COOKIE.name, value: COOKIE.value, domain: host, path: "/", httpOnly: true, sameSite: "Lax" }]);
+    await ctx.addCookies(COOKIES.map((c) => ({ name: c.name, value: c.value, domain: host, path: "/", httpOnly: true, sameSite: "Lax" as const })));
   }
+  // The theme as the app keeps it for Control Scout Lite's server-drawn pages (src/lib/liteCookies.ts), unless the
+  // cookie file names one.
+  if (!COOKIES.some((c) => c.name === "cs-theme")) await ctx.addCookies([{ name: "cs-theme", value: theme, domain: new URL(BASE).hostname, path: "/", sameSite: "Lax" }]);
   // --clock <ISO time>: the page's clock reads that moment (timers still run), for anything picked by the hour
   // (Home's headline and suggestion chips).
   const clock = opt("clock");

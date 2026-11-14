@@ -4,6 +4,7 @@
 // each device picks Smaller, Default, Larger or Largest in Settings › Appearance. Kept on this device
 // (a phone and a laptop want different sizes), applied before first paint by index.html's head script.
 import { useSyncExternalStore } from "react";
+import { takeLitePick, writeTextSizeCookie } from "./liteCookies";
 
 export type TextSize = "s" | "m" | "l" | "xl";
 export const TEXT_SIZES: { id: TextSize; label: string }[] = [
@@ -38,11 +39,12 @@ export function setTextSize(size: TextSize): void {
     visitOnly = null;
   } catch { /* storage blocked or full: this visit only */ visitOnly = size; }
   applyTextSize(size);
+  writeTextSizeCookie(size);
   window.dispatchEvent(new Event(CHANGED));
 }
 
 function subscribe(fn: () => void): () => void {
-  const onStorage = (e: StorageEvent) => { if (e.key === TEXT_SIZE_KEY || e.key === null) { visitOnly = null; applyTextSize(read()); fn(); } };
+  const onStorage = (e: StorageEvent) => { if (e.key === TEXT_SIZE_KEY || e.key === null) { visitOnly = null; applyTextSize(read()); writeTextSizeCookie(read()); fn(); } };
   window.addEventListener(CHANGED, fn);
   window.addEventListener("storage", onStorage);
   return () => { window.removeEventListener(CHANGED, fn); window.removeEventListener("storage", onStorage); };
@@ -55,6 +57,10 @@ export function useTextSize(): TextSize {
 /** Keep the page's size in step with this device's choice for as long as the app runs (Shell mounts it): applies
  *  it now, and again whenever another tab changes it, whichever page this tab is on. Returns the cleanup. */
 export function watchTextSize(): () => void {
+  // A size picked on Lite's Settings page (no script there: only its cookie) is this device's choice now.
+  const fromLite = takeLitePick("size");
+  if (fromLite && fromLite !== read()) setTextSize(fromLite);
   applyTextSize(read());
+  writeTextSizeCookie(read()); // Control Scout Lite reads it from the cookie (src/lib/liteCookies.ts)
   return subscribe(() => {});
 }

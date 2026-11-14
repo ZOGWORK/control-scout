@@ -184,7 +184,7 @@ export function bootShell(path: string, meta: PageMeta, hero: HeroLinesResponse 
   const lines = hero.lines.length ? hero.lines : DEFAULT_HERO_LINES;
   const line = homeHeadlineAt(Date.now(), lines.length);
   // A page with no title of its own (not found) gets the shell alone.
-  const liteLink = lite ? `<p class="csb-lite" data-nosnippet>Slow connection? <a href="${esc(lite)}">Open the light version</a>: text only, a fraction of the data.</p>` : "";
+  const liteLink = lite ? `<p class="csb-lite" data-nosnippet>Slow connection? <a href="${esc(lite)}">Open Control Scout Lite</a>: text only, a fraction of the data.</p>` : "";
   const page = home
     ? `<div class="csb-page csb-home" id="cs-boot-page" data-path="/"><div class="csb-hl">${lines.map(([a, b]) => `<i aria-hidden="true">${esc(a)} <b>${esc(b)}</b></i>`).join("")}<h1 data-line="${line}">${esc(lines[line][0])} <span>${esc(lines[line][1])}</span></h1></div><p>${esc(HOME_LEAD)}</p><div></div><p class="csb-about">${esc(HOME_ABOUT)}</p></div>`
     // A page the server drew whole (a team or event page: server/firstPaint.ts): the app's own markup, in the app's page

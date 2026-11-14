@@ -479,11 +479,11 @@ describe("light pick list", () => {
     expect(r.status).toBe(200);
     expect(r.cache).toBe("private, no-store");
     expect(r.html).toContain("Gearheads");
-    const [a, b] = [`<a href="/lite/teams/101?season=${S}">101</a>`, `<a href="/lite/teams/102?season=${S}">102</a>`].map((x) => r.html.indexOf(x));
+    const [a, b] = [`<a class="cell" href="/lite/teams/101?season=${S}"><b>101</b>`, `<a class="cell" href="/lite/teams/102?season=${S}"><b>102</b>`].map((x) => r.html.indexOf(x));
     expect(a).toBeGreaterThan(-1);
     expect(b).toBeGreaterThan(a);
-    expect(r.html).toContain("Fast &lt;auto&gt; <span class=\"m s\">· Marcus</span>");
-    expect(r.html).toContain(`<a class="full" href="/scout?space=1190&amp;tab=planning&amp;view=picklist&amp;season=${S}">Full version</a>`);
+    expect(r.html).toContain("Fast &lt;auto&gt; · Marcus");
+    expect(r.html).toContain(`<a class="btn p full" href="/scout?space=1190&amp;tab=planning&amp;view=picklist&amp;season=${S}">Full version</a>`);
     expect(r.html).not.toMatch(/<script|<img/);
     const out = await page(olly, `/lite/picklist?space=1190&season=${S}`);
     expect(out.status).toBe(403);
@@ -508,9 +508,9 @@ describe("light pick list", () => {
     expect((await coach("PUT", "/api/scout/workspaces/1193/settings", { defaults: { season: S - 1 }, baseVersion: 0 })).status).toBe(200);
     const r = await page(priya, "/lite/picklist?space=1193");
     expect(r.status).toBe(200);
-    expect(r.html).toContain(`<a href="/lite/teams/103?season=${S - 1}">103</a>`);
+    expect(r.html).toContain(`<a class="cell" href="/lite/teams/103?season=${S - 1}"><b>103</b>`);
     expect(r.html).not.toContain(`/lite/teams/101`);
-    expect((await page(priya, `/lite/picklist?space=1193&season=${S}`)).html).toContain(`<a href="/lite/teams/101?season=${S}">101</a>`);
+    expect((await page(priya, `/lite/picklist?space=1193&season=${S}`)).html).toContain(`<a class="cell" href="/lite/teams/101?season=${S}"><b>101</b>`);
   });
 
   it("the workspace choice lists what the account reads, as the app does", async () => {

@@ -33,14 +33,17 @@ describe("SiteFooter", () => {
   it("links a page's light version (a full page load), unless the owner switched it off", () => {
     const at = (path: string) => render(<MemoryRouter initialEntries={[path]}><SiteFooter discordInvite={null} release={null} /></MemoryRouter>);
     at("/teams/18360?season=2024");
-    expect(screen.getByRole("link", { name: "Light version" }).getAttribute("href")).toBe("/lite/teams/18360?season=2024");
+    expect(screen.getByRole("link", { name: "Control Scout Lite" }).getAttribute("href")).toBe("/lite/teams/18360?season=2024");
     cleanup();
-    at("/predict");
-    expect(screen.queryByRole("link", { name: "Light version" })).toBeNull();
+    at("/predict?mode=match&red=1,2&blue=3,4");
+    expect(screen.getByRole("link", { name: "Control Scout Lite" }).getAttribute("href")).toBe("/lite/predict?red=1,2&blue=3,4");
+    cleanup();
+    at("/events");
+    expect(screen.queryByRole("link", { name: "Control Scout Lite" })).toBeNull();
     cleanup();
     resetFlags({ ...DEFAULT_FLAGS, venueLightMode: false }, true);
     at("/teams/18360");
-    expect(screen.queryByRole("link", { name: "Light version" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Control Scout Lite" })).toBeNull();
   });
 
   it("links Rules only while the owner has the rules reference on", () => {

@@ -40,7 +40,8 @@ describe("service worker: light pages", () => {
   it("agrees with the shared address rule", () => {
     const w = worker(true);
     for (const p of ["/lite/events/2025/USNJQ1", "/lite/events/2025/USNJQ1/match/qual:0:12", "/lite/teams/18360", "/lite/teams/18360?season=2024",
-      "/lite/picklist?space=7&season=2025", "/lite/picklist", "/lite", "/lite/nope"]) {
+      "/lite/picklist?space=7&season=2025", "/lite/picklist", "/lite", "/lite/nope", "/lite/search?q=4215&in=2024", "/lite/search", "/lite/predict?red=1&red=2&blue=3,4&season=2025",
+      "/lite/predict", "/lite/compare?teams=1&teams=2&season=2025", "/lite/rankings?season=2025&region=USA:TX&page=2", "/lite/scout?space=7&tab=match&lite=0", "/lite/settings"]) {
       const [path, search = ""] = p.split("?");
       expect(w.fullPage(p), p).toBe(fullHref(path, search ? `?${search}` : ""));
     }
