@@ -337,7 +337,7 @@ function SeasonRowView({ r, version, dataAsOf, current, active, queued, disabled
         )}
       </div>
       <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-        {r.state !== "saved" && <Button className="max-sm:h-11" variant={r.state === "update" ? "secondary" : "default"} onClick={onSave} disabled={disabled}><HardDriveDownload /> {r.state === "update" ? "Update" : "Download"} · {fmtBytes(transferBytes(r.file))}</Button>}
+        {r.state !== "saved" && !active && !queued && <Button className="max-sm:h-11" variant={r.state === "update" ? "secondary" : "default"} onClick={onSave} disabled={disabled}><HardDriveDownload /> {r.state === "update" ? "Update" : "Download"} · {fmtBytes(transferBytes(r.file))}</Button>}
         <a href={r.file.url} download className="tap-44 inline-flex min-h-8 items-center gap-1 text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline" title="The raw SQLite file, for your own analysis">
           <Database className="size-3.5" />SQLite
         </a>
