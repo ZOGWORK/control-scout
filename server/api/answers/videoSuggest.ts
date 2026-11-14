@@ -16,7 +16,7 @@ import { inTurns, pageAnswer } from "./followUps.js";
 import { answerVideo, refOfHref, rowRefs } from "./video.js";
 import { searchVersion } from "../searchReads.js";
 import { SEARCH_PAGE_LIMIT } from "../../../src/shared/search.js";
-import { nameTypos, spelledBy, warmNameTypos } from "./nameTypos.js";
+import { nameTypos, nameTyposVersion, spelledBy, warmNameTypos } from "./nameTypos.js";
 
 /** Most questions offered, and most tried to find them. */
 const OFFER_MAX = 3;
@@ -163,7 +163,7 @@ export async function withVideoAlternatives(q: string, a: SearchAnswer, v: Searc
   })]).finally(() => timers.forEach(clearTimeout));
   // The background set kept up with the data: built again, off this search, when it has moved, with the reads it was
   // built with. Never before it was built (server start): a process that never warmed it (a test) reads nothing here.
-  if (known) { const o = known.o; void (o.version ?? searchVersion)().then((v) => { if (known && known.version !== v) return warmVideoQuestions(o); }).catch(() => {}); }
+  if (known) { const o = known.o; void (o.version ?? searchVersion)().then((v) => { if (known && !fresh(v, o)) return warmVideoQuestions(o); }).catch(() => {}); }
   if (!found.length) found.push(...fallback(q));
   if (!found.length) return a;
   const block: StatAnswer["blocks"][number] = { kind: "related", title: "Questions with video", queries: found };
@@ -174,7 +174,7 @@ export async function withVideoAlternatives(q: string, a: SearchAnswer, v: Searc
  *  with clips, then the general ones. Offered when none near an answer's own plays in time. Built per search index
  *  version, at server start (server/index.ts) and once the data moves; the last one is used until then. Checked as a
  *  visitor signed out sees them, so they play for everyone. */
-let known: { version: string; qs: string[]; o: WarmReads } | null = null;
+let known: { version: string; at: number; qs: string[]; o: WarmReads } | null = null;
 let knowing: Promise<void> | null = null;
 /** Clear caches pressed so far: a build one overlapped is kept as stale (as ./nameTypos.ts). */
 let knownClears = 0;
@@ -187,44 +187,68 @@ interface WarmReads {
   candidates?: () => Promise<string[]>; version?: () => Promise<string>;
   /** The event-name typos built for the data as it is (tests give their own). */
   typosReady?: () => Promise<void>;
-  checkMs?: number; buildMs?: number;
+  checkMs?: number; buildMs?: number; ttlMs?: number; now?: () => number;
 }
-/** Longest one question's check takes in the background (past it, the question doesn't play), and the whole build
- *  (past it, the build is dropped and the next warm starts again): a check that never settles never holds it. */
+/** Longest one question's check takes in the background (past it, whether it plays is unknown), and the whole build
+ *  (past it, the build is dropped): a check that never settles never holds it. */
 const CHECK_MS = 5000;
 const BUILD_MS = 60_000;
+/** Oldest the set is used before it is built again: a clip taken down between index rebuilds (about a day apart off
+ *  event days) stops being offered. */
+const KNOWN_TTL_MS = 30 * 60_000;
+/** After a build that was dropped or unsure (a check timed out or failed, or the typos were another version's), the
+ *  next waits: two minutes, doubling up to thirty. A clean build ends the wait. */
+const BACKOFF_MIN_MS = 2 * 60_000;
+const BACKOFF_MAX_MS = 30 * 60_000;
+let backoff = { until: 0, ms: 0 };
 /** A promise, or `or` once `ms` have passed. */
 const within = <T,>(p: Promise<T>, ms: number, or: T): Promise<T> => {
   let t: ReturnType<typeof setTimeout> | undefined;
   return Promise.race([p, new Promise<T>((r) => { t = setTimeout(() => r(or), ms); })]).finally(() => clearTimeout(t));
 };
+/** Whether the set in use was built, surely, for this version and lately. */
+const fresh = (version: string, o: WarmReads) => !!known && known.version === version && (o.now ?? Date.now)() - known.at < (o.ttlMs ?? KNOWN_TTL_MS);
 export function warmVideoQuestions(o: WarmReads = {}): Promise<void> {
   const ask = o.ask ?? ((x: string) => pageAnswer(x, SEARCH_PAGE_LIMIT, new Set()));
   const video = o.video ?? ((b: SearchAnswer) => answerVideo(b, Date.now()));
-  return knowing ??= (async () => {
+  const now = o.now ?? Date.now;
+  if (knowing) return knowing;
+  if (now() < backoff.until) return Promise.resolve();
+  const settle = (sure: boolean) => {
+    backoff = sure ? { until: 0, ms: 0 } : (() => { const ms = backoff.ms ? Math.min(backoff.ms * 2, BACKOFF_MAX_MS) : BACKOFF_MIN_MS; return { until: now() + ms, ms }; })();
+  };
+  const mine: Promise<void> = (async () => {
     const gen = knownGen, at = knownClears;
+    let sure = true;
     const build = (async () => {
       const version = await (o.version ?? searchVersion)();
-      if (known?.version === version) return;
+      if (fresh(version, o)) return;
       // The event-name typos for the data as it is now: the set in use may be the last version's, without a typo
-      // this one added (./nameTypos.ts keeps serving it while it builds the next).
-      if (o.typosReady) await o.typosReady(); else if (!o.candidates) await warmNameTypos();
+      // this one added (./nameTypos.ts keeps serving it while it builds the next). A build that hands back another
+      // version's set leaves this one unsure.
+      if (o.typosReady) await o.typosReady();
+      else if (!o.candidates) { await warmNameTypos(); if (nameTyposVersion() !== version) sure = false; }
       const qs: string[] = [];
       for (const c of [...new Set([...await (o.candidates ?? (() => videoCandidates(NO_ANSWER)))(), ...GENERAL])]) {
         if (qs.length >= OFFER_MAX || gen !== knownGen) break;
         // In the process's one queue, as a search's own checks are: other requests run between them. Bounded inside
-        // its turn, so one that never settles frees the queue too.
-        const ok = await inTurns(() => within((async () => {
-          try { const b = await ask(c); return !!b?.stat && !b.stat.none && hasVideo(await video(b)); } catch { return false; }
-        })(), o.checkMs ?? CHECK_MS, false)).catch(() => false);
-        if (ok) qs.push(c);
+        // its turn, so one that never settles frees the queue too. A check that timed out or failed is unknown, never
+        // "doesn't play": the set is then kept unsure, and built again after the wait.
+        const ok = await inTurns(() => within((async (): Promise<boolean | null> => {
+          try { const b = await ask(c); if (!b?.stat || b.stat.none) return false; return hasVideo(await video(b)); } catch { return null; }
+        })(), o.checkMs ?? CHECK_MS, null)).catch(() => null);
+        if (ok === null) sure = false; else if (ok) qs.push(c);
       }
-      if (gen === knownGen) known = { version: at === knownClears ? version : "", qs, o };
+      if (gen !== knownGen) return;
+      known = { version: at === knownClears && sure ? version : "", at: now(), qs, o };
+      settle(sure);
     })();
     build.catch(() => {});
-    // Past the cap the build is dropped: it never writes, and the next warm starts a new one.
-    if (!(await within(build.then(() => true), o.buildMs ?? BUILD_MS, false))) knownGen++;
-  })().finally(() => { knowing = null; });
+    // Past the cap the build is dropped: it never writes, and the next waits.
+    if (!(await within(build.then(() => true), o.buildMs ?? BUILD_MS, false))) { knownGen++; settle(false); }
+  })().finally(() => { if (knowing === mine) knowing = null; });
+  knowing = mine;
+  return mine;
 }
 /** The background set's questions, never the search's own. */
 const fallback = (q: string) => (known?.qs ?? []).filter((x) => x.toLowerCase() !== q.replace(/\s+/g, " ").trim().toLowerCase()).slice(0, OFFER_MAX);
@@ -232,7 +256,7 @@ const fallback = (q: string) => (known?.qs ?? []).filter((x) => x.toLowerCase() 
  *  database open opens none. */
 export function forgetVideoQuestions(drop = false) {
   knownClears++;
-  if (drop) { knownGen++; known = null; } else if (known) known = { ...known, version: "" };
+  if (drop) { knownGen++; known = null; knowing = null; backoff = { until: 0, ms: 0 }; } else if (known) known = { ...known, version: "" };
 }
 registerCache("Search answers: questions with video, checked in the background", () => forgetVideoQuestions());
 
