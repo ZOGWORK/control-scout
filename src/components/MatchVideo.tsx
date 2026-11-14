@@ -128,7 +128,7 @@ function Recorder({ matchRef, label }: { matchRef: string; label: string }) {
         await saveRecording({ matchRef, label, blob, mime: blob.type, durationMs: Date.now() - started.current });
         toast.success(`Saved on this device (${fmtBytes(blob.size)}) — not uploaded`);
       } catch (e: any) {
-        setError(e?.name === "QuotaExceededError" ? "This device is out of space for recordings. Delete some in Settings → Offline & data." : "Couldn't save the recording on this device.");
+        setError(e?.name === "QuotaExceededError" ? "This device is out of space for recordings. Delete some in Settings › Network & offline." : "Couldn't save the recording on this device.");
       }
       setState("preview");
     };
@@ -152,7 +152,7 @@ function Recorder({ matchRef, label }: { matchRef: string; label: string }) {
       await saveRecording({ matchRef, label, blob: f, mime, durationMs: await videoLength(f) });
       toast.success(`Saved on this device (${fmtBytes(f.size)}) — not uploaded`);
     } catch (e: any) {
-      setError(e?.name === "QuotaExceededError" ? "This device is out of space for recordings. Delete some in Settings → Offline & data." : "Couldn't save the video on this device.");
+      setError(e?.name === "QuotaExceededError" ? "This device is out of space for recordings. Delete some in Settings › Network & offline." : "Couldn't save the video on this device.");
     } finally {
       setAdding(false);
       if (file.current) file.current.value = "";

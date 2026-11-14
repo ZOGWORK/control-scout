@@ -443,15 +443,18 @@ export function createApp(opts: { dist?: string; /** Tests only: a smaller searc
       // Its video (server/api/answers/video.ts): one read for the whole answer, beside the team rows'.
       // Match videos people added are for the viewer asking (docs/contributors.md): an answer carrying one is never cached.
       const viewer = await asking;
-      const [hits, video] = await Promise.all([answerHits(full.hits), answerVideo(full, Date.now(), viewer).catch(() => undefined)]);
+      const [hits, video] = await Promise.all([answerHits(full.hits), answerVideo(full, Date.now(), viewer).then((v) => v ?? null, () => undefined)]);
       if (video && (video.main?.kind === "contributor" || Object.values(video.rows ?? {}).some((x) => x.kind === "contributor"))) res.setHeader("Cache-Control", "private, no-store");
-      // Asked to watch and nothing plays (server/api/answers/videoSuggest.ts): questions that do, each checked.
-      const offered = await withVideoAlternatives(q, full, video, (x) => pageAnswer(x, limit, prefer), (b) => answerVideo(b, Date.now(), viewer), undefined, undefined, viewer?.userId != null ? `u${viewer.userId}` : "").catch(() => full);
+      // Asked to watch and nothing plays (server/api/answers/videoSuggest.ts): questions that do, each checked. Only
+      // when the video was read: a failed read says nothing either way.
+      const offered = video === undefined ? full : await withVideoAlternatives(q, full, video, (x) => pageAnswer(x, limit, prefer), (b) => answerVideo(b, Date.now(), viewer), undefined, undefined, viewer?.userId != null ? `u${viewer.userId}` : "").catch(() => full);
       // Checked for this viewer (a video they added may be what plays): questions offered to one viewer are never cached.
       if (viewer?.userId != null && offered !== full) res.setHeader("Cache-Control", "private, no-store");
       // This process's own time (searchTiming): the answer, then the rest (highlights, team numbers, video).
       res.setHeader("Server-Timing", searchTiming({ answer: answered - started, extras: performance.now() - answered }));
-      return { ...offered, hits, ...(video ? { video } : {}) };
+      // null: read, and nothing plays (the page then says so); a read that failed sends none, as a first paint carries
+      // none (src/shared/api.ts): the page then says nothing about video.
+      return { ...offered, hits, ...(video !== undefined ? { video } : {}) };
     }
     return { q: String(req.query.q ?? ""), hits: await search(String(req.query.q ?? "").slice(0, MAX_QUERY), limit, prefer, kinds) };
   }));
@@ -1032,6 +1035,12 @@ export function createApp(opts: { dist?: string; /** Tests only: a smaller searc
   app.get("/support", (req, res) => {
     const q = req.originalUrl.indexOf("?");
     res.redirect(301, `/donate${q >= 0 ? req.originalUrl.slice(q) : ""}`);
+  });
+  // /network: the Network & offline settings (a section of Settings).
+  // 301 with the query kept, like /support: /network?lite=0 reaches the full screen while Lite is on.
+  app.get("/network", (req, res) => {
+    const q = req.originalUrl.indexOf("?");
+    res.redirect(301, `/settings${q >= 0 ? req.originalUrl.slice(q) : ""}#network`);
   });
   // An event's address without its season (/events/USNJNEM2): 301 to the newest season's page, query kept. An unknown
   // code goes on to the 404; /events/2026 (a season, no code) is never read as a code.

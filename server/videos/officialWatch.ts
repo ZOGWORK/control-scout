@@ -29,8 +29,13 @@ const BUSY_STOP = "database busy (the data sync was writing): stopped, tried aga
 const LAST_RUN = `SELECT started_at FROM official_watch_runs WHERE finished_at IS NOT NULL AND COALESCE(error, '') NOT LIKE 'database busy%' ORDER BY id DESC LIMIT 1`;
 /** Units one run may use at most (YouTube gives 10,000 a day, shared with the timing backfill). */
 const MAX_UNITS = 1500;
-/** Pages of a channel's uploads read in one run (50 a page, newest first). */
-const MAX_PAGES = 3;
+/** Pages of a channel's uploads read in one run (50 a page, newest first): enough for a season's uploads of the
+ * busiest channel (New England FIRST posts ~200 by November), so none falls off the end unread. */
+const MAX_PAGES = 10;
+/** How far back a channel's uploads are read, however recently it started being watched. A stream is listed when it's
+ * scheduled, often a week or more before it airs: from the date it was watched alone, every stream scheduled before
+ * that would be skipped for good once it aired (FTC Iowa's league meets, Pennsylvania's championship). */
+export const LOOKBACK_MS = 180 * 864e5;
 const API = "https://www.googleapis.com/youtube/v3";
 const CHANNEL_ID = /^UC[A-Za-z0-9_-]{22}$/;
 const VIDEO_ID = /^[A-Za-z0-9_-]{11}$/;
@@ -43,16 +48,33 @@ const channelOf = (r: any): ChannelRow => ({
 });
 
 let channelsSeeded = false;
+/** The next seed call runs again, as after a restart. */
+export const resetChannelsSeeded = () => { channelsSeeded = false; };
 /** The shipped watchlist (server/data/officialChannels.ts), each channel once: a removed one is never written back. */
 export async function seedOfficialChannels(now = Date.now(), again = false): Promise<number> {
   if (channelsSeeded && !again) return 0;
   const at = new Date(now).toISOString();
-  const known = new Set((await all<{ channel_id: string }>("SELECT channel_id FROM official_channels")).map((r) => String(r.channel_id)));
+  const rows = await all<{ channel_id: string; title_pattern: string | null }>("SELECT channel_id, title_pattern FROM official_channels");
+  const known = new Set(rows.map((r) => String(r.channel_id)));
+  const current = new Map(rows.map((r) => [String(r.channel_id), r.title_pattern ?? null]));
   const todo = OFFICIAL_CHANNELS.filter((c) => !known.has(c.channelId));
-  if (todo.length) await db().batch(todo.map((c) => ({
-    sql: "INSERT INTO official_channels (channel_id, title, region, words, title_pattern, watch_from, added_at, added_by) VALUES (?, ?, ?, ?, ?, ?, ?, NULL) ON CONFLICT(channel_id) DO NOTHING",
-    args: [c.channelId, c.title, c.region, c.words ?? null, c.titlePattern ?? null, at, at],
-  })), "write");
+  // A seeded channel's title pattern follows the seed's current one (a new, narrowed or dropped pattern), as long as the
+  // row is still the seed's: watched, same region, never saved or removed by the owner (added_by, or an
+  // officialChannel.* audit entry). The write itself decides, so an owner save landing after the read above still stands.
+  // Only rows whose pattern differs are written (none, once in step), so a start with nothing to change writes nothing.
+  const patterns = OFFICIAL_CHANNELS.filter((c) => known.has(c.channelId) && current.get(c.channelId) !== (c.titlePattern ?? null));
+  const writes = [
+    ...todo.map((c) => ({
+      sql: "INSERT INTO official_channels (channel_id, title, region, words, title_pattern, watch_from, added_at, added_by) VALUES (?, ?, ?, ?, ?, ?, ?, NULL) ON CONFLICT(channel_id) DO NOTHING",
+      args: [c.channelId, c.title, c.region, c.words ?? null, c.titlePattern ?? null, at, at],
+    })),
+    ...patterns.map((c) => ({
+      sql: `UPDATE official_channels SET title_pattern = ? WHERE channel_id = ? AND region = ? AND title_pattern IS NOT ? AND removed_at IS NULL AND added_by IS NULL
+              AND NOT EXISTS (SELECT 1 FROM owner_audit a WHERE a.action LIKE 'officialChannel.%' AND instr(a.details, official_channels.channel_id) > 0)`,
+      args: [c.titlePattern ?? null, c.channelId, c.region, c.titlePattern ?? null],
+    })),
+  ];
+  if (writes.length) await db().batch(writes, "write");
   channelsSeeded = true;
   return todo.length;
 }
@@ -85,7 +107,25 @@ async function eventsAround(day: string): Promise<WatchEvent[]> {
 }
 
 /** A watcher's verdict: the match's, or a duplicate of a video an event already plays (logged, never added or queued). */
-export type WatchVerdict = Verdict | { kind: "duplicate"; why: string; event?: WatchEvent; day?: string; part?: string | null };
+export type WatchVerdict = Verdict | { kind: "duplicate"; why: string; event?: Pick<WatchEvent, "season" | "code">; day?: string; part?: string | null };
+
+/** A recording that just joined an event: by the watcher (every check passed) or by the owner's approval. */
+export interface RecordingAdded { season: number; code: string; day: string | null; part: string | null; videoId: string; by: "watcher" | "owner" }
+type AfterAdd = (added: RecordingAdded[]) => unknown;
+const afterAdd = new Set<AfterAdd>();
+/** The hook for what must follow a new recording: the event's clip coverage is checked again (every played match of
+ * that day gets a clip or lands on the missing list for the owner). Called once per watcher run with everything it
+ * added, and once per owner approval; a failing listener is logged, never undoes the add. Returns the unsubscribe. */
+export function onRecordingAdded(fn: AfterAdd): () => void {
+  afterAdd.add(fn);
+  return () => { afterAdd.delete(fn); };
+}
+async function recordingsAdded(added: RecordingAdded[], log: (s: string) => void): Promise<void> {
+  if (!added.length) return;
+  for (const fn of afterAdd) {
+    try { await fn(added); } catch (e) { log(`official videos: the check after ${added.map((a) => `${a.season} ${a.code}`).join(", ")} was added failed: ${String((e as Error)?.message ?? e).slice(0, 200)}`); }
+  }
+}
 
 /** An "add" checked against what the event already plays: a day it has a video for is a duplicate; one whose day
  *  isn't known yet sends it to review. */
@@ -118,6 +158,7 @@ export async function runOfficialWatch(log: (s: string) => void, opts: { apiKey?
   const fetchImpl = opts.fetchImpl ?? fetch;
   const maxUnits = opts.maxUnits ?? MAX_UNITS;
   const out: WatchRun = { units: 0, channels: 0, seen: 0, added: 0, queued: 0, duplicates: 0, error: null };
+  const added: RecordingAdded[] = [];
   // A failed start (a busy database) must not leave the watcher latched off for the rest of the process.
   let runId = 0;
   // The run's claim, under the lease, so it holds across processes too. Not while another run is going: one unfinished
@@ -147,7 +188,7 @@ export async function runOfficialWatch(log: (s: string) => void, opts: { apiKey?
     for (const ch of channels) {
       if (out.units >= maxUnits) { out.error = `stopped at the run's ${maxUnits} units; the rest next run`; break; }
       try {
-        const fresh = await newUploads(ch, key, fetchImpl, out, maxUnits);
+        const fresh = await newUploads(ch, key, fetchImpl, out, maxUnits, now());
         out.channels++;
         for (let i = 0; i < fresh.length; i += 50) {
           if (out.units >= maxUnits) break;
@@ -172,7 +213,7 @@ export async function runOfficialWatch(log: (s: string) => void, opts: { apiKey?
               const verdict = await decide(v, ch);
               const published = part.find((p) => p.id === v.videoId)?.published ?? null;
               await record(v, ch, verdict, published, now());
-              if (verdict.kind === "add") out.added++;
+              if (verdict.kind === "add") { out.added++; added.push({ season: verdict.event.season, code: verdict.event.code, day: verdict.day, part: verdict.part, videoId: v.videoId, by: "watcher" }); }
               else if (verdict.kind === "review") out.queued++;
               else if (verdict.kind === "duplicate") out.duplicates++;
             }
@@ -194,6 +235,7 @@ export async function runOfficialWatch(log: (s: string) => void, opts: { apiKey?
   }
   // The event pages read it within a minute (the recordings cache).
   if (out.added) forgetOfficial();
+  await recordingsAdded(added, log);
   if (out.seen || out.error) log(`official videos: watched ${out.channels} channels (${out.units} units): ${out.seen} new, ${out.added} added, ${out.queued} to review, ${out.duplicates} duplicates${out.error ? `; ${out.error}` : ""}`);
   return out;
 }
@@ -207,9 +249,12 @@ export async function watchIfDue(log: (s: string) => void, now = Date.now(), opt
   return runOfficialWatch(log, { apiKey: key, fetchImpl: opts.fetchImpl, now: opts.clock, lockWaitMs: opts.lockWaitMs, scheduled: true });
 }
 
-/** A channel's uploads published since it's been watched and not read before, newest first (one unit a page). */
-async function newUploads(ch: ChannelRow, key: string, fetchImpl: Fetch, out: WatchRun, maxUnits: number): Promise<{ id: string; published: string }[]> {
+/** A channel's uploads not read before, newest first (one unit a page), back to the earlier of the date it started
+ * being watched and LOOKBACK_MS ago. */
+async function newUploads(ch: ChannelRow, key: string, fetchImpl: Fetch, out: WatchRun, maxUnits: number, now: number): Promise<{ id: string; published: string }[]> {
   const fresh: { id: string; published: string }[] = [];
+  const back = new Date(now - LOOKBACK_MS).toISOString();
+  const floor = ch.watchFrom < back ? ch.watchFrom : back;
   let token = "";
   for (let page = 0; page < MAX_PAGES && out.units < maxUnits; page++) {
     out.units++;
@@ -224,7 +269,7 @@ async function newUploads(ch: ChannelRow, key: string, fetchImpl: Fetch, out: Wa
     }
     let older = false;
     for (const i of items) {
-      if (i.published < ch.watchFrom) { older = true; continue; }
+      if (i.published < floor) { older = true; continue; }
       if (!known.has(i.id)) fresh.push(i);
     }
     token = String(body?.nextPageToken ?? "");
@@ -241,7 +286,7 @@ export async function decide(v: WatchVideo, ch: Pick<ChannelRow, "region" | "wor
      UNION ALL SELECT season, code, 'its stream link' FROM event_stream_links WHERE video_id = ?1
      UNION ALL SELECT season, code, 'the owner''s stream' FROM event_streams WHERE video_id = ?1
      UNION ALL SELECT season, code, 'FIRST''s event link' FROM events WHERE livestream LIKE '%' || ?1 || '%' LIMIT 1`, [v.videoId]);
-  if (played) return { kind: "duplicate", why: `duplicate: already ${played.season} ${played.code}'s video (${played.via})` };
+  if (played) return { kind: "duplicate", why: `duplicate: already ${played.season} ${played.code}'s video (${played.via})`, event: { season: Number(played.season), code: String(played.code) } };
   const rule: ChannelRule = { region: ch.region, words: ch.words, titlePattern: ch.titlePattern };
   const events = v.start ? await eventsAround(v.start.slice(0, 10)) : [];
   const verdict = matchVideo(v, rule, events);
@@ -282,7 +327,13 @@ export async function pendingCount(): Promise<number> {
 }
 
 export async function ownerOfficial(now = Date.now()) {
-  await seedOfficialChannels(now);
+  // Under the data lock, like the watcher's seed; while a sync holds it the panel loads without seeding (the next
+  // load or watcher run seeds), so it never waits out the database's busy timeout.
+  // Once seeded, a load takes no lease (its two writes would also drop the kept search reads).
+  if (!channelsSeeded) {
+    try { await withDataLock("official videos seed", () => seedOfficialChannels(now), { ttlMs: 60_000, waitMs: 2000, pollMs: 250 }); }
+    catch (e) { if (!(e instanceof LockBusy) && !isBusy(e)) throw e; }
+  }
   const since = new Date(now).toISOString().slice(0, 10);
   const [pending, ignored, duplicates, decided, runs, channels, today, list] = await Promise.all([
     all<any>(`${WATCH_SELECT} WHERE w.status = 'pending' ORDER BY w.seen_at, COALESCE(w.start, w.published) LIMIT 200`),
@@ -310,7 +361,7 @@ export async function ownerOfficial(now = Date.now()) {
 type Result<T = object> = ({ ok: true } & T) | { ok: false; error: string };
 
 /** The owner adds a video from the queue (or the set-aside list) to an event: as a day's recording or a highlight. */
-export async function approveWatched(videoId: string, body: { season?: unknown; code?: unknown; day?: unknown; part?: unknown; kind?: unknown }, actor: string, now = Date.now()): Promise<Result> {
+export async function approveWatched(videoId: string, body: { season?: unknown; code?: unknown; day?: unknown; part?: unknown; kind?: unknown }, actor: string, now = Date.now(), log: (s: string) => void = console.warn): Promise<Result> {
   const w = await get<any>("SELECT channel_id, title, status, why FROM official_watch WHERE video_id = ?", [videoId]);
   if (!w) return { ok: false, error: "That video isn't in the review queue." };
   if (!["pending", "ignored"].includes(String(w.status))) return { ok: false, error: `Already ${w.status}.` };
@@ -349,6 +400,7 @@ export async function approveWatched(videoId: string, body: { season?: unknown; 
   }
   forgetOfficial();
   await recordAudit(actor, "officialVideo.approve", { videoId, season: Number(ev.season), code: String(ev.code), kind, day, part, was: String(w.status) });
+  if (kind === "recording") await recordingsAdded([{ season: Number(ev.season), code: String(ev.code), day, part, videoId, by: "owner" }], log);
   return { ok: true };
 }
 
@@ -390,9 +442,11 @@ export async function saveChannel(body: { channelId?: unknown; title?: unknown; 
   if (pattern) { try { new RegExp(pattern, "i"); } catch { return { ok: false, error: "The title pattern isn't a valid regular expression." }; } }
   const at = new Date(now).toISOString();
   const was = await get<any>("SELECT region, removed_at FROM official_channels WHERE channel_id = ?", [id]);
-  // Added (or brought back): watched from now on; edited: the rule changes, what was read stays read.
+  // Added (or brought back): watched from now on; edited: the rule changes, what was read stays read. A seeded row the
+  // owner saves becomes theirs (added_by), in the same write, so the seed never fills a pattern over it.
   await run(`INSERT INTO official_channels (channel_id, title, region, words, title_pattern, watch_from, added_at, added_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
              ON CONFLICT(channel_id) DO UPDATE SET title = excluded.title, region = excluded.region, words = excluded.words, title_pattern = excluded.title_pattern,
+               added_by = COALESCE(official_channels.added_by, excluded.added_by),
                watch_from = CASE WHEN official_channels.removed_at IS NULL THEN official_channels.watch_from ELSE excluded.watch_from END, removed_at = NULL`,
     [id, title, region, words, pattern, at, at, actor]);
   await recordAudit(actor, was && !was.removed_at ? "officialChannel.edit" : "officialChannel.add", { channelId: id, title, region, words, titlePattern: pattern }, null,

@@ -25,7 +25,7 @@ const video: SearchVideo = {
   main: { videoId: "abcdefghijk", t: 0, kind: "match", match: "Q12" }, mainRow: rows[0].href,
   rows: { [rows[1].href]: { videoId: "recordingid", t: 5000, kind: "recording", match: "Q30" } },
 };
-const draw = (v?: SearchVideo, s: StatAnswer = stat) => render(<MemoryRouter><AnswerVideoProvider video={v}><StatAnswerCard stat={s} /></AnswerVideoProvider></MemoryRouter>).container;
+const draw = (v?: SearchVideo | null, s: StatAnswer = stat) => render(<MemoryRouter><AnswerVideoProvider video={v}><StatAnswerCard stat={s} /></AnswerVideoProvider></MemoryRouter>).container;
 
 describe("HighlightGrid", () => {
   it("a tile per match, its reason the label; the best one's tile plays the card's own clip", () => {
@@ -59,7 +59,7 @@ describe("HighlightGrid", () => {
   });
 
   it("no video for any of them: the same tiles, stat-led, and one line once", () => {
-    const c = draw(undefined);
+    const c = draw(null);
     expect(c.querySelectorAll("[data-video-tile]")).toHaveLength(3);
     expect(c.querySelectorAll("[data-no-recording]")).toHaveLength(1);
     expect(c.querySelector("[data-no-video]")).toBeNull();
@@ -69,7 +69,13 @@ describe("HighlightGrid", () => {
 
   it("matches at several events with no video: said of the matches, not of an event", () => {
     const two = { ...stat, blocks: [{ kind: "matches" as const, title: "2 standout matches", rows: [rows[0], { ...rows[1], event: { label: "Garden Qualifier", href: "/events/2025/USNJQ1" }, href: "/events/2025/USNJQ1?match=qual:0:1" }] }] };
-    expect(draw(undefined, two).querySelector("[data-no-recording]")?.textContent).toBe("No video for these matches — stats only.");
+    expect(draw(null, two).querySelector("[data-no-recording]")?.textContent).toBe("No video for these matches — stats only.");
+  });
+
+  it("video not read yet (a first paint): the tiles, and nothing saying there is no video", () => {
+    const c = draw(undefined);
+    expect(c.querySelectorAll("[data-video-tile]")).toHaveLength(3);
+    expect(c.querySelector("[data-no-recording], [data-no-video]")).toBeNull();
   });
 
   it("a list without reasons stays a list of match boxes", () => {
