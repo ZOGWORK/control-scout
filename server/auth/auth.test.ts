@@ -129,6 +129,13 @@ describe("accounts", () => {
     const back = (await mine("GET", "/api/me/scout")).json.entries;
     expect(back.map((e: any) => e.uuid)).toContain(entry.uuid);
     expect((await other("GET", "/api/me/scout")).json.entries).toEqual([]);
+    // Offline replay (the answer was lost, so the device sends the same batch again after reconnecting): a no-op,
+    // the entry is stored once. An older copy of it sent late never replaces the newer one.
+    expect((await mine("POST", "/api/me/scout/sync", { entries: [entry] })).status).toBe(200);
+    expect((await mine("POST", "/api/me/scout/sync", { entries: [{ ...entry, notes: "older", updatedAt: 500 }] })).status).toBe(200);
+    const again = (await mine("GET", "/api/me/scout")).json.entries.filter((e: any) => e.uuid === entry.uuid);
+    expect(again).toHaveLength(1);
+    expect(again[0].notes).toBe("fast");
   });
 
   it("logout ends the session", async () => {
