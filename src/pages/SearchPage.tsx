@@ -24,7 +24,7 @@ import { SeasonPickContext, pickedSeason, type SeasonPick } from "../components/
 import { CompareCard, EventCard, HeadToHead, ResultRow, TeamCard, teamSeasons, type SeasonSummary } from "../components/search/page/ResultCards";
 import { NoResults, SorryNote } from "../components/search/page/NoResults";
 import { StatAnswerCard } from "../components/search/page/StatAnswer";
-import { AnswerVideo, AnswerVideoProvider } from "../components/search/page/AnswerVideo";
+import { AnswerClip, AnswerVideo, AnswerVideoProvider, clipLabel } from "../components/search/page/AnswerVideo";
 import { comparisonOf } from "../components/search/page/CompareCard";
 import { FactCard } from "../components/search/page/FactCard";
 import { RelatedQuestions } from "../components/search/page/TeamAnswer";
@@ -200,6 +200,8 @@ export default function SearchPage() {
   // Any search does (answered or not): the loading screen has the same two columns, so the answer replacing it moves
   // nothing either.
   const askAside = wide && (follow.ask.length > 0 || (follow.pending && !!query && !error));
+  // A card or stat answer's one match, to watch under People also ask (./search/page/AnswerVideo.tsx clipLabel).
+  const clipFor = clipLabel(answer);
   const side = !!panel || askAside;
   // The right-hand column: the panel, kept in view while scrolling (beside the results, or beside "nothing found").
   const sideColumn = side ? (
@@ -212,6 +214,8 @@ export default function SearchPage() {
       )}
       {panel === "versus" && shownH2h && <aside aria-label="Head-to-head" className="max-lg:hidden" data-panel="versus"><HeadToHead h={shownH2h} now={now.data?.teams} before={asked == null ? before.data?.teams : undefined} season={base} /></aside>}
       {askAside && (follow.ask.length ? <PeopleAlsoAsk ask={follow.ask} /> : follow.pending ? <PeopleAlsoAskPending /> : null)}
+      {/* The match a card or stat answer is about, to watch: under People also ask (./search/page/AnswerVideo.tsx). */}
+      {wide && clipFor && <AnswerClip about={clipFor} />}
     </div>
   ) : null;
   // A search on its way (just submitted, or a new one run from here): its loading screen, never older results; and
@@ -332,6 +336,8 @@ export default function SearchPage() {
                   {panel === "versus" && summary}
                   {/* The next questions search answers directly: after the results here, in the right column when wide. */}
                   {!wide && <PeopleAlsoAsk ask={follow.ask} className="mt-5" />}
+                  {/* Under People also ask here too: on a phone, or a wide page with no side column. */}
+                  {(!wide || !side) && clipFor && <AnswerClip about={clipFor} className="mt-5" />}
                   {/* The team's highlights and the related searches, after the results. */}
                   <TeamHighlights h={follow.highlights} className="mt-5" />
                   <RelatedSearches related={follow.related} seeAll={follow.asked ?? query} className="mt-5" />
