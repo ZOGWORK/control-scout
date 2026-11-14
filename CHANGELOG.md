@@ -37,7 +37,7 @@ With no internet, pages you saved open straight away instead of after a wait, an
 - A page that gets no answer in 3 s (Wi-Fi that carries nothing) opens from the app saved on the device instead of a blank screen. Light pages keep waiting.
 - Opening a page again soon after one found no internet starts from that answer (checked again at once), so every page after the first opens straight from saved data. A Wi-Fi sign-in page that answers where our data should be counts as no internet. A read still waiting when the check finds no internet is let go and answered from saved data at once.
 - The "needs a connection" message says "No internet on this Wi-Fi" when a sign-in page is in the way.
-- The "Slow connection?" offer only shows when there is internet: with none, the light version can't load either.
+- The "Slow connection?" offer only shows when there is internet: with none, the light version can't load either. (#1487)
 
 ## 6.1.5 — 2026-11-14
 
