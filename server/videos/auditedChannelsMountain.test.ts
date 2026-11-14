@@ -130,6 +130,9 @@ describe("audited channels: Nevada, North Dakota, Montana", () => {
       else { expect(x.title, x.videoId).toMatch(/state|championship/i); expect(name, x.videoId).toMatch(/championship/i); }
     }
     expect(mt.filter((x) => x.code === "USMTCMP" && x.season === 2022).map((x) => `${x.part} ${x.videoId}`)).toEqual(["Part 1 07rq8bjW4WQ", "Part 2 FNGBYCP5oHs"]);
+    // One day's broadcast restarted (docs rule 7): YouTube's times, Part 1 17:01:33-23:13:53Z, Part 2 from 23:15:48Z.
+    const [p1End, p2Start] = [Date.parse("2023-02-03T23:13:53Z"), Date.parse("2023-02-03T23:15:48Z")];
+    expect(p2Start >= p1End && p2Start - p1End <= 30 * 60_000).toBe(true);
   });
 
   it("leaves out what was checked and failed", () => {
