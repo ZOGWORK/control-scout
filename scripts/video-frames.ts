@@ -118,8 +118,10 @@ async function readAtOnce(page: Page, t: number): Promise<Read> {
   return { label, start: e == null ? null : Math.round(atA - e), at, text, ...(e == null ? { why: `timer ${a.left} isn't a running match's` } : {}) };
 }
 
-/** Seconds into a match the confirming read is tried at, in turn (all TeleOp, well clear of its last 8 s). */
-const CONFIRM_AFTER = [70, 80, 95];
+/** Seconds into a match the confirming read is tried at, in turn (all TeleOp, well clear of its last 8 s). Spread
+ *  over most of TeleOp: a stream may cut away to a camera without the overlay for a minute or more (Romania's
+ *  championship cuts to the floor cameras mid-match). */
+const CONFIRM_AFTER = [70, 80, 95, 110, 125, 140];
 
 /** A read stands only when frames before and after its start agree: 70 s on (TeleOp), the overlay names the same match
  *  and its timer gives the same start; 25 s before, that match isn't running yet. One read alone is never a start
