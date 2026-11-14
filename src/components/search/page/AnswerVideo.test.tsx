@@ -104,6 +104,13 @@ describe("AnswerVideo", () => {
     expect(c.querySelector("[data-row-no-video]")).toBeNull();
   });
 
+  it("a table whose only clip is the card's own match: the other rows say No video", () => {
+    const Q1 = "/events/2025/USMACMP?match=qual:0:1", Q2 = "/events/2025/USMACMP?match=qual:0:2";
+    const t: StatAnswer = { ...stat, headline: undefined, blocks: [{ kind: "table", title: "Matches", columns: [{ key: "match", label: "Match" }], rows: [{ cells: { match: "Q1" }, href: Q1 }, { cells: { match: "Q2" }, href: Q2 }] }] };
+    const c = render(<MemoryRouter><AnswerVideoProvider video={{ main: { videoId: "xnQFL9T27fY", t: 100, end: 300, kind: "recording", match: "Q1" }, mainRow: Q1 }}><StatAnswerCard stat={t} /></AnswerVideoProvider></MemoryRouter>).container;
+    expect(c.querySelectorAll("[data-row-no-video]")).toHaveLength(1);
+  });
+
   it("an answer about no match says nothing about video", () => {
     const none: StatAnswer = { ...stat, headline: { value: "115.7", label: "OPR" }, blocks: [] };
     const c = render(<MemoryRouter><AnswerVideoProvider video={undefined}><StatAnswerCard stat={none} /></AnswerVideoProvider></MemoryRouter>).container;
