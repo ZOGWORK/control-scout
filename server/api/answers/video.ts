@@ -46,7 +46,7 @@ const evKey = (r: VideoRef) => `${r.season}:${r.code}`;
 
 /**
  * What the answer is about, when that's one match or one event: its headline's link; else a question card's event
- * (or its one match); else a stat answer whose matches are all at one event; else, for names, the top hit when it's
+ * (or its one match); else a stat answer's one listed match, or the event all its matches are at; else, for names, the top hit when it's
  * a match, or an event the words name exactly. A set of events ("events in New Jersey") is about none.
  */
 export function mainRef(a: SearchAnswer): VideoRef | null {
@@ -59,6 +59,8 @@ export function mainRef(a: SearchAnswer): VideoRef | null {
   }
   if (a.stat) {
     const rs = rowRefs(a);
+    // One match listed is the match the answer is about: its own clip or none, never the event's recording from its start.
+    if (rs.length === 1) return { season: rs[0].season, code: rs[0].code, key: rs[0].key };
     return rs.length && rs.every((r) => evKey(r) === evKey(rs[0])) ? { season: rs[0].season, code: rs[0].code } : null;
   }
   const top = a.hits[0];
