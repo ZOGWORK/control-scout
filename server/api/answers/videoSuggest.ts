@@ -34,7 +34,7 @@ export function asksVideo(q: string, a: SearchAnswer): boolean {
 }
 
 /** Whether an answer has anything to play. */
-export const hasVideo = (v: SearchVideo | undefined) => !!(v?.main || v?.watch || (v?.rows && Object.keys(v.rows).length));
+export const hasVideo = (v: SearchVideo | null | undefined) => !!(v?.main || v?.watch || (v?.rows && Object.keys(v.rows).length));
 
 /** The questions to try, best first: the team's own highlights in its latest seasons with a clip, then the events
  *  with clips nearest the answer's own (its place, then its season's), then the latest season's. */
@@ -79,7 +79,7 @@ export async function videoCandidates(a: SearchAnswer, now = Date.now()): Promis
  * (`video`); only those with video are offered, at most three. Unchanged when none of them plays. Past `waitMs` the answer
  * goes with the ones found by then (it never waits longer), and the checks still to come never run.
  */
-export async function withVideoAlternatives(q: string, a: SearchAnswer, v: SearchVideo | undefined,
+export async function withVideoAlternatives(q: string, a: SearchAnswer, v: SearchVideo | null | undefined,
   ask: (q: string) => Promise<SearchAnswer>, video: (a: SearchAnswer) => Promise<SearchVideo | undefined>, waitMs = WAIT_MS,
   candidates: (a: SearchAnswer) => Promise<string[]> = videoCandidates, who = ""): Promise<SearchAnswer> {
   if (!a.stat || hasVideo(v) || !asksVideo(q, a)) return a;
