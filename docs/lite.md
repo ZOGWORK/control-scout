@@ -75,7 +75,7 @@ least 44 px tall; `lite.test.ts` checks the stylesheet and every link on every p
    `LITE_BOOT_S` (10 s), by CSS alone. The app's first render removes it.
 4. In the app (`liteSuggest.ts`), while `navigator.onLine` is true: the page's own data (event, team, match,
    pick list) still missing after `LITE_SLOW_MS` (8 s), or `LITE_FAILS` (3) requests that couldn't reach the
-   server within a minute. A page's data arriving quickly again withdraws the offer; "Not now" holds for the
+   server within a minute. A page's data arriving quickly again withdraws the offer; "Keep waiting" holds for the
    browser session.
 5. Lite on (below).
 

@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.0.9 — 2026-11-14
+## 6.1.0 — 2026-11-14
 
 West Michigan's league meets at GVSU now play their streams from the FIRST Alumni Network Grand Valley, and Saturday's Meet 5 shows its stream before, during and after it airs. Scout also watches the Central Ohio league's own streamer for its next meets.
 
@@ -26,6 +26,18 @@ West Michigan's league meets at GVSU now play their streams from the FIRST Alumn
 
 ### Added
 - Official videos: the FIRST Alumni Network Grand Valley (`UCaojFS3JFPWY9kaoW6bhvvQ`) and Stars of the Galaxy (FTC 12099, `UC576ZA1td9ZvsAUwPq1Ymaw`), both read from the YouTube Data API, join the official channels and the auto-watcher's list, for West Michigan and Central Ohio league events only. Two FANGV streams are checked against each event's name, city, date and meet number: West Michigan Meet 2 (Nov 7) and Meet 5 (Nov 14, listed before it airs). Every Stars of the Galaxy stream is already FIRST's own event link, so none is added twice, and FANGV's Robot in 3 Days streams (FRC) are left out. (`server/data/officialVideos.json`, `server/data/officialChannels.ts`, `docs/official-videos.md`) (#1469)
+
+## 6.0.9 — 2026-11-14
+
+The slow-connection pop-up is clearer: it says what it saw, what Lite changes, and gives two big buttons.
+
+### Highlights
+- [speed] The slow-connection pop-up says how long the page has waited
+- [speed] Three plain lines say what Lite changes, and how to come back
+- [appearance] Bigger buttons (44 px) and readable text on phones
+
+### Changed
+- Slow connection pop-up: it names the evidence ("This page has been loading for 11 s.", ticking, or "3 requests couldn't reach the server, the last one 4 s ago."; once a slow page arrives it stops counting and says "This page took 12 s to load."), says in three lines what Control Scout Lite changes, and offers "Keep waiting" and "Switch to Lite" as 44 px buttons with a 44 px close. Body text moved from 12 px to 14 px, the card got real padding and a gold edge, and on desktop it sits clear of the sidebar's account footer. `cs-lite-demo` shows it at once for screenshots. (`src/components/layout/LiteSuggest.tsx`, `src/lib/liteSuggest.ts`) (#1459)
 
 ## 6.0.8 — 2026-11-14
 
