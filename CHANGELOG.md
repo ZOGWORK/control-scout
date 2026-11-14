@@ -25,7 +25,7 @@ Search can find matches with video, and asking to watch a question shows its ans
 - [teams] Matches at one event play their first clip, not the stream's start
 
 ### Changed
-- Search: "with video" (also "that have clips", "with a recording") is a filter: a team's matches, a place's or an event's best, closest or highest-scoring matches list only the ones with FIRST's own video or a clip in the event's recording, the card saying "With video". (`server/videos/recordings.ts` seasonClipKeys, `server/api/query/matchFind.ts`, `lexicon.ts`, `intents.ts`, `parse.ts`, `execute.ts`) (#PRNUM)
+- Search: "with video" (also "that have clips", "with a recording") is a filter: a team's matches, a place's or an event's best, closest or highest-scoring matches list only the ones with FIRST's own video or a clip in the event's recording, the card saying "With video". (`server/videos/recordings.ts` seasonClipKeys, `server/api/query/matchFind.ts`, `lexicon.ts`, `intents.ts`, `parse.ts`, `execute.ts`) (#1485)
 - Search: words asking to watch ("with video", "video", "highlights") beside a question whose answer didn't take them are dropped, so "who won decode with video" is the champions' card with their final playing. (`server/api/searchAnswer.ts`)
 - Search: a list of matches at one event plays its first match with a clip, from that match's start, rather than the event's recording from its start. (`server/api/answers/video.ts`)
 
