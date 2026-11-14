@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.1.1 — 2026-11-14
+## 6.1.2 — 2026-11-14
 
 Nevada, North Dakota and Montana events now play their recordings from the state's own channels: FIRST Nevada's league meets, tournaments and State Championships, Dakota FTC's qualifiers and State, and Montana's older State and Butte streams.
 
@@ -26,6 +26,18 @@ Nevada, North Dakota and Montana events now play their recordings from the state
 
 ### Added
 - Official videos: FIRST Nevada (`UCqDnAXt0clPQww74v7bUVkQ`), BCA Activities for Dakota FTC (`UCowF1UaXnuuFV_sNIvpX-zQ`) and MT Robotics Alliance (`UCpPjg0KF7cwfbWoKAl0jiXQ`), ids read from the YouTube Data API, join the official channels and the auto-watcher's list, each for its own state only. 57 recordings are checked against each event's name, city, dates, meet number and North or South: 46 from Nevada (2023-24 on), 7 from North Dakota, 4 from Montana. A Nevada video blocked in nearly every country, an empty stream, an opening-ceremony clip, undated uploads and the streams FIRST's own pages already link are left out. (`server/data/officialVideos.json`, `server/data/officialChannels.ts`, `docs/official-videos.md`) (#1475)
+
+## 6.1.1 — 2026-11-14
+
+Missouri and Kansas events now play their recordings from the region's two streaming channels, FIRST in Missouri and FIRST MOKS: St. Louis, Kansas City, Southeast and Southwest league meets back to 2019, their league tournaments and the state championships. Saturday's St. Louis, Rolla, Camdenton and Jackson meets show their streams before, during and after they air.
+
+### Highlights
+- [history] Kansas City meets back to 2019 play each session's video
+- [history] St. Louis league meets and tournaments play their recordings
+- [live] Saturday's Missouri meets show their FIRST in Missouri stream
+
+### Added
+- Official videos: FIRST in Missouri (`UCoo2NYUOcTUZB65dGMAp1vg`) and FIRST MOKS (`UCy_GHfjX6LsALdrIceg8_pw`), both read from the YouTube Data API's uploads lists, join the official channels and the auto-watcher's list for Missouri and Kansas events. 103 of their recordings are checked against each event's name, venue, city, date, league and session ("FTC Meet @ Belton 8AM (2026-11-7)" is "Belton Meet @ 8 AM"): 14 from FIRST in Missouri (St. Louis North, Mid and South meets and tournaments since 2023, and the four meets of 2026-11-14, listed before they air) and 89 from FIRST MOKS (Kansas City meets, league tournaments, super qualifiers and championships since 2019). An alternate feed, a second upload of a day, a title fitting two meets, undated uploads, one video for two meets, a venue that isn't the event's, a video that can't be embedded and streams that never aired are left out. (`server/data/officialVideos.json`, `server/data/officialChannels.ts`, `docs/official-videos.md`) (#1477)
 
 ## 6.1.0 — 2026-11-14
 
