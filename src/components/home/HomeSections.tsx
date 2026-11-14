@@ -19,7 +19,6 @@ import { headlineRule, LEDGER_MODE, liveCallsLine } from "../../shared/ledger";
 import { CURRENT_ENGINE, CURRENT_ENGINE_ROWS } from "../howitworks/currentEngine";
 import { OfflineNote } from "../OfflineNote";
 import { shownOffline, useConnection } from "../../lib/connection";
-import { useOnline } from "../../lib/offline/online";
 
 const fmt = (n: number) => n.toLocaleString();
 
@@ -34,7 +33,8 @@ export function SeasonCoverage({ state }: { state: ApiState<HomeOverview> }) {
   const o = state.data;
   // No signal: the last totals this device loaded answer (lib/offline/kept.ts), with the offline note. None loaded
   // yet: the strip stays out of the way instead of an error a retry can't fix (never a made-up number).
-  const offline = shownOffline(useConnection()) || !useOnline();
+  // The connection check decides (navigator.onLine can say offline while online, iOS above all).
+  const offline = shownOffline(useConnection());
   if (!o && state.error?.offline && offline) return null;
   const items = [
     { n: o?.coverage.teamListings, label: "team listings this season", hint: "Teams registered for the season, each counted once", tone: "text-accent-text" },
