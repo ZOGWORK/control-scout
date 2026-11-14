@@ -14,6 +14,9 @@ A channel is official for an event when it is one of:
   with the meet's date ("2026-01-10 FTC League Meet # 4S - Southern Nevada"): the checked list takes that date as the
   day, and the watcher, which needs a broadcast date, sends such uploads to the owner,
 - the event's own organiser or league (NTX FTC for FiT-North, GEARS for the Michiana Premier Event, …),
+- the event's own streamer, where FIRST's event pages or the host name it: Stars of the Galaxy (FTC 12099) for the
+  Central Ohio league in Columbus, and the FIRST Alumni Network Grand Valley for the West Michigan league at GVSU in
+  Grand Rapids (watched for those events only; FANGV's Robot in 3 Days streams are FRC and never used),
 - or the channel FIRST's event page names as the livestream (FIRST HQ's "FIRST Tech Challenge" channel carries the
   2026 Championship's division broadcasts, and FIRST's own event pages link its Day 4 videos).
 
