@@ -160,8 +160,12 @@ export async function classify(res: Response): Promise<Internet> {
   if (res.status === 511) return "portal";
   // Our own server (or the CDN in front of it) erroring: the internet works, the site is having trouble.
   if (res.status >= 500) return "yes";
+  // A body that never arrives (the check's own timeout, a stalled link) is no answer: "no". Only one that arrives and
+  // isn't our JSON is a sign-in page.
+  let text: string;
+  try { text = await res.text(); } catch { return "no"; }
   let body: unknown = null;
-  try { body = JSON.parse(await res.text()); } catch { return "portal"; }
+  try { body = JSON.parse(text); } catch { return "portal"; }
   return body && typeof body === "object" && (body as { ok?: unknown }).ok === true ? "yes" : "portal";
 }
 
@@ -187,7 +191,8 @@ export function checkInternet(): Promise<Internet> {
     if (inflight === run) inflight = null;
     // The server answered another request while this check waited: that answer is the newer news (a late "no" or
     // sign-in page answer never undoes it).
-    if (internet !== "yes" && answeredAt >= since) return state.internet;
+    // set() re-arms the periodic check; this path skips it, so it re-arms here.
+    if (internet !== "yes" && answeredAt >= since) { schedule(); return state.internet; }
     set({ internet, checkedAt: Date.now() });
     if (internet === "yes") confirmedListeners.forEach((f) => f());
     return internet;

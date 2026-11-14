@@ -71,6 +71,8 @@ async function onRequest(req: IncomingMessage, res: ServerResponse) {
     res.writeHead(r.statusCode ?? 502, r.headers);
     r.pipe(pace()).pipe(res);
   });
+  // Its upstream socket too, so switching the network off cuts a download already streaming.
+  up.on("socket", track);
   up.on("error", () => req.socket.destroy());
   req.pipe(up);
 }
@@ -185,6 +187,7 @@ async function main() {
   const played = (ev.matches ?? []).filter((m) => m.played);
   const match = played[Math.floor(played.length / 2)] ?? ev.matches?.[0];
   const four = match ? [...match.red.teams, ...match.blue.teams].map((t) => t.number).slice(0, 4) : teams.slice(0, 4);
+  if (four.length < 4) throw new Error(`Event ${SEASON}:${CODE} came back with ${teams.length} teams and ${ev.matches?.length ?? 0} matches: check --event (season:CODE). No journeys measured.`);
   console.log(`Event ${SEASON}:${CODE}: ${teams.length} teams, ${ev.matches?.length ?? 0} matches; match ${match?.key}; teams ${four.join(", ")}`);
 
   // Download what the app offers for this event.
