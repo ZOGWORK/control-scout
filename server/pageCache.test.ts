@@ -62,6 +62,13 @@ describe("the HTML route", () => {
     expect(keptCounts().pages).toBe(before + 1);
   });
 
+  it("varies a page with a Lite twin by cookie, kept or drawn (Lite on redirects its page loads)", async () => {
+    expect((await fetch(`${base}/teams/4215`)).headers.get("vary")).toBe("Accept-Encoding, Cookie");
+    // A match page isn't kept: drawn each time, and still per cookie.
+    expect((await fetch(`${base}/events/2025/USNJQ1/match/qual:0:1`)).headers.get("vary")).toMatch(/Cookie/);
+    expect((await fetch(`${base}/predict`)).headers.get("vary") ?? "").not.toMatch(/Cookie/);
+  });
+
   const raw = (path: string, enc: string, more: Record<string, string> = {}) => new Promise<{ status: number; etag: string | undefined; encoding: string | undefined; body: Buffer }>((resolve, reject) => {
     request(`${base}${path}`, { headers: { "Accept-Encoding": enc, ...more } }, (res) => {
       const chunks: Buffer[] = [];

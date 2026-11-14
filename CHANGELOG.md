@@ -15,6 +15,25 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 6.0.8 — 2026-11-14
+
+Control Scout Lite, the text-only version for a weak signal, has a new layout: room between everything, 44px buttons, the C-mark, and your own theme and text size. You can also keep Lite on.
+
+### Highlights
+- [appearance] Lite has room to breathe: cards, spacing and 44px buttons
+- [appearance] Lite follows your theme (all five) and your text size
+- [appearance] The C-mark and the name Control Scout Lite on every page
+- [speed] Always open Lite: team, event and match pages open in Lite
+- [speed] Turn off Lite from any Lite page, in one tap
+
+### Changed
+- Control Scout Lite: rebuilt layout, phone first. 16px side margins, 24px between sections, rounded cards, table cells padded 10 by 12 with numbers on the right, match lists as whole-row links, number tiles two a row, and every link or button at least 44px tall. The header shows the C-mark, "Control Scout Lite" and one gold Full version button. (`server/lite/render.ts`)
+- Lite pages draw in the theme you chose in the app (Light, Dim, Dark, Midnight or System) and at your text size. The app keeps both in cookies (`cs-theme`, `cs-text-size`) that Lite reads, and Lite's colours are the app's own, held equal by a test that also checks 4.5:1 contrast for every text colour. (`src/shared/themeTokens.ts`, `src/lib/liteCookies.ts`)
+- "Light version" is now "Control Scout Lite" in the footer link and the slow first paint's offer.
+
+### Added
+- Lite on: "Always open Lite" at the foot of a Lite page (or `/lite/on`) makes team, event and match pages you open go straight to Lite. While it's on, Full version opens the full page once, and "Turn off Lite" (`/lite/off`) switches it back. Pages with no Lite version open as usual. (`server/lite/routes.ts`, docs/lite.md) (#1463)
+
 ## 6.0.7 — 2026-11-14
 
 A match's Watch button now plays just that match: the recording stops once its final score is up, before the next match starts.
