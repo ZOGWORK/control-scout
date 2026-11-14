@@ -43,6 +43,8 @@ export const OFFICIAL_CHANNELS: OfficialChannelSeed[] = [
   // The owner's audited channels (2026-11-14), ids from the YouTube Data API (channels?forHandle). NorCal FIRST Tech
   // Challenge (@norcalfirsttechchallenge, Playing at Learning): Northern California's own events, all named "NorCal …"
   // from 2026-27. FTC SoCal League G (@ftc_socal_league_g): League G's meets in Carson, and no other SoCal league's.
+  // Its titles say "Meet 1" where Scout says "Scrimmage 1", so the watcher can't be sure and each new League G video
+  // goes to the owner's review queue with its closest event; it never auto-adds.
   { channelId: "UCsWixqR83vr2poZHfU_FgcQ", title: "NorCal FIRST Tech Challenge", region: "state=CA;name=^NorCal\\b", words: "norcal california" },
   { channelId: "UCJAVhMsmeKHf7riEsPafi9w", title: "FTC SoCal League G", region: "state=CA;name=^SoCal(?: FTC)?(?: -| League| Group)? G\\b", words: "socal california" },
   { channelId: "UCal7624DPridi_9iKLrAbqw", title: "FIRST Australia", region: "country=Australia", words: "australia australian", titlePattern: "australian? (national )?championship|\\bAPOC\\b|asia pacific open" },
