@@ -34,6 +34,8 @@ let applied: number;
 let dropPosts: number;
 /** The next N posts answer 500 without being applied. */
 let failPosts: number;
+/** Reads of the list fail (no network). */
+let getsFail = false;
 /** The next N posts are applied, then their answer is lost. */
 let loseAnswers: number;
 /** Every request for workspace 901's list answers this status (403: removed from the workspace; 423: read-only). */
@@ -70,7 +72,7 @@ beforeEach(async () => {
   localStorage.clear();
   await resetKeptOps();
   resetFailedChanges();
-  posts = []; appliedIds = new Set(); applied = 0; dropPosts = 0; failPosts = 0; loseAnswers = 0; denied = null; signedIn = 1;
+  posts = []; appliedIds = new Set(); applied = 0; dropPosts = 0; failPosts = 0; getsFail = false; loseAnswers = 0; denied = null; signedIn = 1;
   server = listOf([101, 102, 103], 3);
   vi.stubGlobal("fetch", async (path: string, init?: RequestInit) => {
     if (path.startsWith("/api/scout/workspaces/901/picklist")) {
@@ -88,6 +90,7 @@ beforeEach(async () => {
         if (loseAnswers > 0) { loseAnswers--; throw new TypeError("Failed to fetch"); }
         return res;
       }
+      if (getsFail) throw new TypeError("Failed to fetch");
       const asked = new URLSearchParams(path.split("?")[1] ?? "").get("ops");
       return json(200, asked ? { list: server, appliedOps: asked.split(",").filter((x) => appliedIds.has(x)) } : { list: server });
     }
@@ -150,10 +153,11 @@ describe("a pick list order change kept through a reload", () => {
   it("made with no signal, then the page reloaded with a network: it goes up by itself, once, with its own op id", async () => {
     show();
     await waitFor(() => expect(rows()).toEqual([101, 102, 103]));
-    dropPosts = 1; // no network: the change can't go
+    dropPosts = 1; getsFail = true; // no network: the change can't go, nor can the list be read
     fireEvent.keyDown(screen.getByRole("button", { name: /Reorder 103/ }), { key: "ArrowUp" });
     await waitFor(async () => expect((await keptOps(1))[0]).toMatchObject({ state: "kept", offline: true }));
     const opId = (await keptOps(1))[0].opId;
+    getsFail = false;
     await reload();
     await waitFor(() => expect(server.picks.map((p) => p.team)).toEqual([101, 103, 102]));
     await waitFor(async () => expect(await keptOps(1)).toEqual([]));

@@ -4,7 +4,7 @@
 // teams' shortlist rows (a team added to the shortlist with no signal then shows its stats). Each answer is the
 // server's own, kept as it came. At most once per bundle every WARM_EVERY_MS; nothing at all with no network.
 import { ApiError, apiFetch, qs } from "../api";
-import { keptOwner } from "./kept";
+import { keptAt, keptOwner, keptSettled } from "./kept";
 import { savedBundles } from "./bundleMeta";
 import { deviceOffline } from "./online";
 import { offlineSource } from "./saved";
@@ -56,6 +56,7 @@ export function warmScoutReads(force = false, now = Date.now()): Promise<void> {
     // The account this pass warms for, read once: one signing in meanwhile isn't credited with it (its answers
     // aren't kept for it: keepAnswer's asker check).
     const owner = keptOwner();
+    const started = Date.now();
     const stamp = (b: SavedBundle) => `${owner}|${b.season}:${b.code}:${b.version}`;
     const due = savedBundles().filter((b) => force || now - (seen[stamp(b)] ?? 0) > WARM_EVERY_MS);
     // One season's event list is the same for all its bundles: asked once.
@@ -67,8 +68,12 @@ export function warmScoutReads(force = false, now = Date.now()): Promise<void> {
       // again won't change it. No network, a server error, too many requests or a cut-short answer: due again.
       const settled = (e: unknown) => e instanceof ApiError && !e.offline && e.status >= 400 && e.status < 500 && e.status !== 429;
       // An answer made on this device (the server too slow: OFFLINE_TIMEOUT_MS) isn't the server's: due again.
-      const got = await Promise.all(paths.map((p) => apiFetch(p).then((d) => !offlineSource(d), settled)));
-      if (got.every(Boolean)) seen[stamp(b)] = now;
+      const got = await Promise.all(paths.map((p) => apiFetch(p).then((d) => (offlineSource(d) ? false : "server" as const), settled)));
+      // A server answer counts once it's kept for this account in this pass (not dropped: another account signed in
+      // meanwhile, or storage failed).
+      await keptSettled();
+      const done = got.every((g, i) => g === true || (g === "server" && (keptAt(paths[i], owner) ?? 0) >= started));
+      if (done) seen[stamp(b)] = now;
     }
     try { localStorage.setItem(STAMP, JSON.stringify(seen)); } catch { /* storage full: warmed again next time */ }
   })().finally(() => {

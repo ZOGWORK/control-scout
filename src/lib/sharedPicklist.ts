@@ -283,6 +283,8 @@ function keepFailed(f: Omit<FailedChange, "id">) {
   const id = ++failedSeq;
   failedChanges.set(id, { ...f, id });
   failedChanged();
+  // No network for it: the next server answer to a pick list read (the refetch right after, say) sends it.
+  if (f.offline) listUnreachable = true;
   const { account, opId } = f;
   if (account != null && opId) {
     void persist(opId, () => putKeptOp(recordOf({ ...f, account, opId }, "kept"))).then((ok) => {

@@ -53,8 +53,8 @@ function writeIndex(next: Index) {
 }
 
 /** When this account's kept answer for a path was loaded (ms), or null: none kept. */
-export function keptAt(path: string): number | null {
-  const k = keyOf(path);
+export function keptAt(path: string, who = owner()): number | null {
+  const k = keyOf(path, who);
   return readIndex().find(([x]) => x === k)?.[1] ?? null;
 }
 
@@ -122,6 +122,9 @@ export async function keptAnswer<T = unknown>(path: string): Promise<{ data: T; 
     return v && v.data != null ? { data: v.data, savedAt: v.savedAt } : null;
   } catch { return null; }
 }
+
+/** Once every answer handed to keepAnswer so far is stored (or dropped). */
+export const keptSettled = (): Promise<void> => queue.then(() => {}, () => {});
 
 /** Forget every kept answer (tests; a sign-out could too). */
 export async function clearKept(): Promise<void> {
