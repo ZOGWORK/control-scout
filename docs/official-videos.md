@@ -9,7 +9,10 @@ plays through the same YouTube embed as FIRST's own links.
 A channel is official for an event when it is one of:
 
 - the FIRST partner organisation for the country or region (Nație Prin Educație for Romania, NY Excelsior FIRST,
-  FIRST in Texas, FIRST Chesapeake, FTC Iowa, …),
+  FIRST in Texas, FIRST Chesapeake, FTC Iowa, FIRST Nevada, MT Robotics Alliance for Montana, BCA Activities for
+  North Dakota's "Dakota FTC", …). FIRST Nevada posts each meet as an upload a few days later, its title starting
+  with the meet's date ("2026-01-10 FTC League Meet # 4S - Southern Nevada"): the checked list takes that date as the
+  day, and the watcher, which needs a broadcast date, sends such uploads to the owner,
 - the event's own organiser or league (NTX FTC for FiT-North, GEARS for the Michiana Premier Event, …),
 - or the channel FIRST's event page names as the livestream (FIRST HQ's "FIRST Tech Challenge" channel carries the
   2026 Championship's division broadcasts, and FIRST's own event pages link its Day 4 videos).
