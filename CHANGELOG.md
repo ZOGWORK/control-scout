@@ -33,6 +33,16 @@ One download now takes a whole event offline: every team page, every match page 
 
 ### Changed
 - Match video buttons, with no connection or on a page from the saved pack, say "Needs a connection" (videos are never downloaded); the match's score and breakdown still show. (#1464)
+FiT-Central's GEMS league events in Austin now play their recordings from Westwood Robotics, the team channel that streams them with the official overlay: Diamond and Emerald League Meets back to 2024, the GEMS League Tournaments and the Austin semi-regionals. Saturday's Meet 2 shows its stream before, during and after it airs.
+
+### Highlights
+- [live] GEMS Diamond and Emerald League Meet 2 stream on their event pages
+- [history] GEMS league meets from 2024 on play their recordings
+- [history] Austin Semi-Regional and GEMS League Tournament recordings
+
+### Added
+- Official videos: Westwood Robotics (`UCyv6fRBcoK6mD6Br5M366yA`, read from the YouTube Data API) joins the official channels and the auto-watcher's list, for FiT-Central, CTX and GEMS events in Texas only. 21 of its recordings are checked against each event's name, city, dates, league (Diamond or Emerald) and meet number: the 2026 Diamond and Emerald League Meets 1 and 2 (Meet 2 listed before it airs, like FIRST's own livestream link), the 2025 and 2024 Meets 1 to 3, both GEMS League Tournaments, and the Austin semi-regionals. The overlays-only test stream, a scheduled stream that never aired, and the 2023 "Round Rock Gems" titles (whose city doesn't match the events) are left out. (`server/data/officialVideos.json`, `server/data/officialChannels.ts`, `docs/official-videos.md`) (#1468)
+
 ## 6.1.3 — 2026-11-14
 
 Rhode Island, New York City, Long Island and Ontario events now play their recordings from the region's own channels, back to 2022: 76 checked recordings, with restarted broadcasts as Part 1 and Part 2.
