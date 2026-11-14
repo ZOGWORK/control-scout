@@ -25,7 +25,7 @@
 //   TESSERACT_JS=<path to tesseract.js's entry>  where tesseract.js is, when it isn't in node_modules
 import { readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
-import { AUTO_S, SAME_S, SWITCH_S, TELEOP_S, TRIES, elapsed, judge, overlayLabel, secondsOf, type Judged, type M } from "./lib/videoFrames";
+import { AUTO_S, SAME_S, SWITCH_S, TELEOP_S, TRIES, elapsed, judge, NOTHING_READ, overlayLabel, secondsOf, type Judged, type M } from "./lib/videoFrames";
 
 const arg = (k: string) => { const i = process.argv.indexOf(`--${k}`); return i > 0 ? process.argv[i + 1] : undefined; };
 const flag = (k: string) => process.argv.includes(`--${k}`);
@@ -251,6 +251,24 @@ function save() {
   writeFileSync(file, `${head}// --- Data (scripts/video-frames.ts writes from here on) ---\nexport const FRAME_TIMINGS: FrameTiming[] = [\n${rows}\n];\n`);
 }
 
+/** A fresh player page (its own browser context). */
+async function player(): Promise<Page> {
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 720 } });
+  // tsx names the functions it hands the page with a helper of its own: the page gets one that does nothing.
+  await ctx.addInitScript({ content: "window.__name = (f) => f;" });
+  return ctx.newPage();
+}
+
+/** Load a video in the privacy-enhanced embed, playing, with nothing drawn over the overlay. */
+async function open(page: Page, videoId: string): Promise<void> {
+  await page.goto(`https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&mute=1&controls=0&rel=0&iv_load_policy=3&cc_load_policy=0`, { referer: "https://controlscout.org/" });
+  await page.waitForFunction(() => (document.querySelector("video")?.readyState ?? 0) >= 2, null, { timeout: 30000 });
+  // No captions over the overlay.
+  await page.evaluate(() => { try { (document.querySelector("#movie_player") as any)?.unloadModule?.("captions"); } catch { /* none */ } });
+  // Auto-captions sit right over the bottom bar's timer, and the embed's own bars over the top: hidden.
+  await page.addStyleTag({ content: ".ytp-caption-window-container, .caption-window, .ytp-chrome-top, .ytp-pause-overlay, .ytp-show-cards-title, .ytp-ce-element, .ytp-player-content.ytp-iv-player-content, .ytp-large-play-button, .ytp-bezel, .ytp-chrome-bottom { display: none !important; }" });
+}
+
 async function doCode(code: string): Promise<void> {
   const rec = recs.get(code)!;
   const rows = await all<{ label: string; time: string; timezone: string | null; played: number }>(
@@ -281,20 +299,21 @@ async function doCode(code: string): Promise<void> {
     const mine = played.filter((x) => !held.has(x.label) && (from == null ? !videos.some((o) => o !== v && o.meta?.start && Date.parse(o.meta.start) / 1000 <= x.epoch && (!o.meta.end || x.epoch <= Date.parse(o.meta.end) / 1000))
       : from <= x.epoch && (!m.end || x.epoch <= Date.parse(m.end) / 1000)));
     if (!mine.length) continue;
-    const ctx = await browser.newContext({ viewport: { width: 1280, height: 720 } });
-    // tsx names the functions it hands the page with a helper of its own: the page gets one that does nothing.
-    await ctx.addInitScript({ content: "window.__name = (f) => f;" });
-    const page = await ctx.newPage();
+    let page = await player();
     try {
-      await page.goto(`https://www.youtube-nocookie.com/embed/${v.videoId}?autoplay=1&mute=1&controls=0&rel=0&iv_load_policy=3&cc_load_policy=0`, { referer: "https://controlscout.org/" });
-      await page.waitForFunction(() => (document.querySelector("video")?.readyState ?? 0) >= 2, null, { timeout: 30000 });
-      // No captions over the overlay.
-      await page.evaluate(() => { try { (document.querySelector("#movie_player") as any)?.unloadModule?.("captions"); } catch { /* none */ } });
-      // Auto-captions sit right over the bottom bar's timer, and the embed's own bars over the top: hidden.
-      await page.addStyleTag({ content: ".ytp-caption-window-container, .caption-window, .ytp-chrome-top, .ytp-pause-overlay, .ytp-show-cards-title, .ytp-ce-element, .ytp-player-content.ytp-iv-player-content, .ytp-large-play-button, .ytp-bezel, .ytp-chrome-bottom { display: none !important; }" });
+      await open(page, v.videoId);
       log(`  ${v.videoId}: ${mine.length} matches`);
       console.error(`${new Date().toISOString().slice(11, 19)} ${code} ${v.videoId}: ${mine.length} matches`);
-      const j = await placeVideo(page, mine, from == null ? null : -from, m.length!, log);
+      let j = await placeVideo(page, mine, from == null ? null : -from, m.length!, log);
+      // Nothing read at all: a player that never showed the stream (an interstitial, a stalled load) looks the same as a
+      // video without the overlay, so it gets one more go in a fresh player before its matches count as missing.
+      if (!j.placed.size && !j.review.size && [...j.missing.values()].every((w) => w === NOTHING_READ)) {
+        log("    nothing read: again in a fresh player");
+        await page.context().close();
+        page = await player();
+        await open(page, v.videoId);
+        j = await placeVideo(page, mine, from == null ? null : -from, m.length!, log);
+      }
       const out = new Map([...j.placed].map(([l, p]) => [l, p.t]));
       for (const l of out.keys()) held.add(l);
       if (CHECK) {
