@@ -71,7 +71,7 @@ describe("the official-video watcher", () => {
     expect((await get<{ removed_at: string | null }>("SELECT removed_at FROM official_channels WHERE channel_id = ?", [vt]))?.removed_at).toBeTruthy();
   });
 
-  it("gives a seeded channel its later title pattern, never over the owner's edit", async () => {
+  it("keeps a seeded channel's title pattern the seed's (added, narrowed or dropped), never over the owner's edit", async () => {
     const pattern = (id: string) => get<{ title_pattern: string | null }>("SELECT title_pattern FROM official_channels WHERE channel_id = ?", [id]).then((r) => r?.title_pattern ?? null);
     const fimo = OFFICIAL_CHANNELS.find((c) => c.title === "FIRST in Missouri")!;
     const iowa = OFFICIAL_CHANNELS.find((c) => c.title === "FTC Iowa")!;
@@ -93,6 +93,14 @@ describe("the official-video watcher", () => {
     expect(await seedOfficialChannels(T0, true)).toBe(0);
     expect(await pattern(hawaii.channelId)).toBeNull();
     await run("UPDATE official_channels SET title_pattern = ?, region = ? WHERE channel_id = ?", [hawaii.titlePattern!, hawaii.region, hawaii.channelId]);
+    // A pattern the seed later narrows or drops follows it on a seed-owned row.
+    const moks = OFFICIAL_CHANNELS.find((c) => c.title.startsWith("FIRST MOKS"))!;
+    expect(moks.titlePattern).toBeUndefined();
+    await run("UPDATE official_channels SET title_pattern = 'missouri' WHERE channel_id = ?", [moks.channelId]);
+    await run("UPDATE official_channels SET title_pattern = 'missouri|kansas' WHERE channel_id = ?", [fimo.channelId]);
+    expect(await seedOfficialChannels(T0, true)).toBe(0);
+    expect(await pattern(moks.channelId)).toBeNull();
+    expect(await pattern(fimo.channelId)).toBe(fimo.titlePattern);
   });
 
   it("reads each watched channel's new uploads once: adds the sure one, queues the rest, sets aside the rest", async () => {
