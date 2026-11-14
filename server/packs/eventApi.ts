@@ -13,12 +13,13 @@ import { CURRENT_SEASON, isLegacy } from "../data/seasons.js";
 import { isEnabled } from "../flags.js";
 import { compareBlockOf, latestResultsSeason, teamProfile } from "../api/teams.js";
 import { matchDetailAnswer, teamMatchesAnswer, teamReportCardAnswer, teamScheduleAnswer } from "../api/reads.js";
-import { eventDetail } from "../api/events.js";
+import { cachedEventDetail, eventDetail } from "../api/events.js";
+import { gatedEventDetail } from "../api/eventGates.js";
 import { matchReport } from "../api/matchReport.js";
 import { pickRatings } from "../api/pickRatings.js";
 import { readProjections } from "../projections/store.js";
 import { hasTeamPage } from "../../src/shared/teamPages.js";
-import { packPath, stableJson, type PackApi, type PackCompareTeam } from "../../src/shared/eventBundle.js";
+import { packPath, poolMatches, stableJson, type PackApi, type PackCompareTeam } from "../../src/shared/eventBundle.js";
 import type { EventDetail, MatchView } from "../../src/shared/api.js";
 
 /** What every entry of PACK_READS is given: the event as the bundle holds it, and who and what is in it. */
@@ -115,6 +116,7 @@ export function clearPackCache() { packs.clear(); }
 /** The event pack's `api` and `compare` sections for an event (its detail as the bundle holds it): kept per data
  *  version, the event's own data and the owner switches that gate its paths. */
 export async function packApi(season: number, ev: EventDetail): Promise<PackParts> {
+  noteAsked(season, ev.event.code);
   const switches = await Promise.all(["scheduleDifficulty", "advancementOdds"].map((f) => isEnabled(f as "scheduleDifficulty").catch(() => false)));
   const key = [await dataVersion(), (await kvGet<string>("data:settled")) ?? "", await liveVersion(season), season, ev.event.code,
     createHash("sha256").update(stableJson(ev)).digest("hex").slice(0, 16), switches.join(",")].join("|");
@@ -126,6 +128,47 @@ export async function packApi(season: number, ev: EventDetail): Promise<PackPart
   value.catch(() => { if (packs.get(key)?.value === value) packs.delete(key); });
   while (packs.size > MAX_PACKS) packs.delete(packs.keys().next().value!);
   return value;
+}
+
+// --- Kept warm after a sync ------------------------------------------------------------------------------
+/** Events whose pack someone asked for lately (season|code → when), so a sync's new data is packed before the
+ *  next ask (the Download page's update check, the event page's size) instead of during it. */
+const asked = new Map<string, number>();
+const ASKED_FOR_MS = 48 * 3600_000;
+const MAX_ASKED = MAX_PACKS;
+function noteAsked(season: number, code: string) {
+  const k = `${season}|${code}`;
+  asked.delete(k);
+  asked.set(k, Date.now());
+  while (asked.size > MAX_ASKED) asked.delete(asked.keys().next().value!);
+}
+let warmedFor: string | null = null;
+let warming = false;
+/**
+ * After the data moved on (a sync), build the packs of the events asked for in the last two days again, one at
+ * a time, in the background (server/index.ts calls this on its 15-second tick). Never throws.
+ */
+export async function rewarmPacks(): Promise<number> {
+  if (warming) return 0;
+  const version = await dataVersion().catch(() => null);
+  if (version == null || version === warmedFor) return 0;
+  warming = true;
+  let n = 0;
+  try {
+    // The first look at this version only notes it: nothing was asked under an older one in this process yet.
+    if (warmedFor != null) {
+      for (const [k, at] of [...asked]) {
+        if (Date.now() - at > ASKED_FOR_MS) { asked.delete(k); continue; }
+        const [s, code] = k.split("|");
+        try {
+          const ev = await cachedEventDetail(Number(s), code);
+          if (ev) { await packApi(Number(s), await gatedEventDetail(ev)); asked.set(k, at); n++; }
+        } catch { /* the next ask builds it */ }
+      }
+    }
+    warmedFor = version;
+  } finally { warming = false; }
+  return n;
 }
 
 /** Build the event pack's `api` and `compare` sections for an event (its detail as the bundle holds it). */
@@ -156,7 +199,7 @@ export async function buildPackApi(season: number, ev: EventDetail, reads: Reads
   const compare: Record<string, PackCompareTeam> = {};
   await inTurns(c.teams, 6, async (t) => { compare[String(t)] = { block: await compareBlockOf(t, season), latest: await latestResultsSeason(t) }; });
   assertComplete(c, api, compare);
-  return { api, compare };
+  return { api: poolMatches(api), compare };
 }
 
 /** Every path the pack answers (answers, aliases, errors), for the manifest. */

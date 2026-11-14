@@ -37,15 +37,22 @@ Two more sections make the whole event work with no signal, with the same number
 - Compare offline is assembled by `compareFromParts` (`src/shared/compare.ts`), the function the server's
   `compareTeams` calls too, from the pack's columns and the teams' season matches. A team in no saved pack: "Team X
   isn't in your downloaded event packs".
-- A pack is built once per data version (`packApi`, kept up to 10 minutes), not on every manifest look.
+- A match two of the event's teams played is the same JSON in both teams' lists: each is stored once (`pool`), the
+  lists holding indexes, and `packLookup` gives the lists back whole (`poolMatches`, about 20–25% smaller).
+- A pack is built once per data version (`packApi`, kept up to 10 minutes), not on every manifest look. After a sync,
+  the packs of events asked for in the last two days are built again in the background (`rewarmPacks`, on the
+  server's 15-second tick), so the next look doesn't wait for one.
+- A manifest whose build takes longer than `PREPARE_MS` (2.5 s; a cold pack after a sync takes 5–15 s on a warm
+  server) answers `202 {preparing: true, retryAfterMs}` at once and the build goes on; the app asks again every few
+  seconds, up to 90 s (`fetchBundleManifest`). No request is held open on venue wifi.
 - Match videos are never in the pack: with the page from the pack (or the browser offline) the match's video buttons
   say "Needs a connection" (`components/MatchClip.tsx`).
 - The manifest lists the paths (`apiPaths`), kept with the saved bundle, so `lib/api.ts` knows which reads a pack
   can answer (they get the offline timeout) without opening it.
 
-Measured on the local data (gzipped, 2025 season): USMIMIQ1, 34 teams and 54 matches, 22 KB before the pack, 207 KB
-with it (280 paths); USCHSCMPRDCA, a 48-team division with 98 matches, 31 KB before, 369 KB with it (438 paths).
-The event page offers it in one tap: "Download for offline · 207 KB".
+Measured on the local data (gzipped, 2025 season): USMIMIQ1, 34 teams and 54 matches, 22 KB before the pack, 168 KB
+with it (280 paths; 207 KB before the match pool); USCHSCMPRDCA, a 48-team division with 98 matches, 31 KB before,
+277 KB with it (438 paths; 369 KB before the pool). The event page offers it in one tap: "Download for offline · <size>".
 
 ## Endpoints
 

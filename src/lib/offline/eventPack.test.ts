@@ -6,7 +6,7 @@ import "fake-indexeddb/auto";
 import { gzipSync } from "node:zlib";
 import { createHash } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { downloadBundle, removeBundle } from "./bundles";
+import { downloadBundle, fetchBundleManifest, removeBundle } from "./bundles";
 import { bundleCanAnswer, writeBundles } from "./bundleMeta";
 import { OfflineAnswerError, offlineAnswer } from "./answer";
 import { offlineSource } from "./saved";
@@ -79,9 +79,24 @@ describe("the event pack answers with no signal", () => {
     const noSeason = await offlineAnswer("/api/compare?teams=11,12") as CompareView;
     expect(noSeason.season).toBe(S);
     expect(noSeason.meetings.map((m) => m.relation)).toEqual(["partners"]);
-    const miss = await offlineAnswer(`/api/compare?teams=11,4321&season=${S}`).catch((e) => e);
+    const miss = await offlineAnswer(`/api/compare?teams=11,4321&season=${S}`).catch((e: Error) => e) as Error;
     expect(miss).toBeInstanceOf(OfflineAnswerError);
     expect(miss.message).toMatch(/Team 4321 isn't in your downloaded event packs/);
+  });
+
+  it("a manifest still being prepared (202) is asked again until it's ready", async () => {
+    vi.useFakeTimers();
+    try {
+      let asks = 0;
+      const ready = { ...pack().manifest, url: "/x", bytes: 1, sha256: "s" };
+      vi.stubGlobal("fetch", vi.fn(async () => (++asks < 3
+        ? new Response(JSON.stringify({ preparing: true, retryAfterMs: 2000 }), { status: 202 })
+        : new Response(JSON.stringify(ready)))));
+      const got = fetchBundleManifest({ season: S, code: "USTXQ1", team: null, workspace: null });
+      await vi.advanceTimersByTimeAsync(4100);
+      expect((await got).version).toBe("p1");
+      expect(asks).toBe(3);
+    } finally { vi.useRealTimers(); }
   });
 
   it("lib/api.ts counts those reads as answerable offline (the 4 s fallback covers them)", () => {

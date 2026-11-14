@@ -34,6 +34,37 @@ export interface PackApi {
   answers: Record<string, unknown>;
   same: Record<string, string>;
   errors: Record<string, { status: number; error: string }>;
+  /** Matches shared between team match lists, stored once: a list answer (`{ matches: [...] }` on a
+   *  `/matches` path) holds indexes into this pool instead of the matches; packLookup puts them back. */
+  pool?: unknown[];
+}
+
+/** A team match list answer holds pool indexes (the pack stores each match once). */
+const POOLED = /\/matches(\?|$)/;
+
+/** Store each match of the pack's team match lists once (`api.pool`), the lists holding indexes. A match two
+ *  teams of the event played is the same JSON in both lists, so the pack is ~20–25% smaller gzipped. */
+export function poolMatches(api: PackApi): PackApi {
+  const pool: unknown[] = [];
+  const at = new Map<string, number>();
+  const answers: Record<string, unknown> = {};
+  for (const [path, body] of Object.entries(api.answers)) {
+    const list = POOLED.test(path) ? (body as { matches?: unknown })?.matches : undefined;
+    if (!Array.isArray(list)) { answers[path] = body; continue; }
+    answers[path] = { ...(body as object), matches: list.map((m) => {
+      const text = JSON.stringify(m);
+      let i = at.get(text);
+      if (i == null) { i = pool.length; pool.push(m); at.set(text, i); }
+      return i;
+    }) };
+  }
+  return { ...api, answers, pool };
+}
+
+/** A stored answer as the server gave it: a pooled match list's indexes put back to its matches. */
+function unpool(api: PackApi, key: string, body: unknown): unknown {
+  const list = api.pool && POOLED.test(key) ? (body as { matches?: unknown })?.matches : undefined;
+  return Array.isArray(list) ? { ...(body as object), matches: list.map((i) => api.pool![i as number]) } : body;
 }
 
 /** The pack's `compare` section, per team number: its Compare column for the event's season (the server's
@@ -62,7 +93,7 @@ export function packLookup(api: PackApi | null | undefined, path: string): PackL
   const key = packPath(path);
   if (!api || key == null) return null;
   const k = api.same[key] ?? key;
-  if (Object.prototype.hasOwnProperty.call(api.answers, k)) return { body: api.answers[k] };
+  if (Object.prototype.hasOwnProperty.call(api.answers, k)) return { body: unpool(api, k, api.answers[k]) };
   const e = api.errors[key];
   return e ? { status: e.status, error: e.error } : null;
 }

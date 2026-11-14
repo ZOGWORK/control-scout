@@ -13,6 +13,7 @@ import "./env.js";
 import { env } from "./env.js";
 import { migrate, all, openReplicaIfRemote } from "./db.js";
 import { packsDir } from "./packs/routes.js";
+import { rewarmPacks } from "./packs/eventApi.js";
 import { backfillDue } from "./data/cycle.js";
 import { childCycle, cycleRunning, runDataCycle } from "./data/jobs.js";
 import { flushMetrics } from "./metrics.js";
@@ -111,7 +112,8 @@ log("ready");
 // ratings in use and the track record right away, in the background, so no
 // visitor's request is the one that waits for them (pages keep the previous
 // ones until they're done).
-setInterval(() => { refreshForecasters().catch(() => {}).then(() => warmTrackRecord()).catch(() => {}); }, 15_000).unref();
+// Then the event packs asked for lately (server/packs/eventApi.ts), so the next look at one isn't the one that builds it.
+setInterval(() => { refreshForecasters().catch(() => {}).then(() => warmTrackRecord()).catch(() => {}).then(() => rewarmPacks()).catch(() => {}); }, 15_000).unref();
 
 // One cycle at a time in this process, whether the schedule or the owner portal started it (data/jobs.ts).
 async function cycle(reason: string) {

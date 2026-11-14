@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.0.8 — 2026-11-14
+## 6.0.7 — 2026-11-14
 
 One download now takes a whole event offline: every team page, every match page and Compare for its teams work with no signal, with the same numbers as online.
 
@@ -26,10 +26,10 @@ One download now takes a whole event offline: every team page, every match page 
 - [offline] Match videos say they need a connection instead of breaking
 
 ### Added
-- The event pack (docs/event-bundle.md, "The event pack"): the event-day bundle now carries the server's own JSON for every team in the event (profile, season matches, report cards, schedule difficulty), every match (its detail and Know your match report), the event's advancement odds and pick ratings, and each team's Compare column. Every path is read through the function its route calls (`server/packs/eventApi.ts` `PACK_READS`, one list), identical answers are stored once, and a pack missing a team or a match fails to build instead of shipping. Built once per data version. Measured on local data: a 34-team event 22 KB → 207 KB, a 48-team division 31 KB → 369 KB (gzipped).
+- The event pack (docs/event-bundle.md, "The event pack"): the event-day bundle now carries the server's own JSON for every team in the event (profile, season matches, report cards, schedule difficulty), every match (its detail and Know your match report), the event's advancement odds and pick ratings, and each team's Compare column. Every path is read through the function its route calls (`server/packs/eventApi.ts` `PACK_READS`, one list), identical answers and matches shared between team lists are stored once, and a pack missing a team or a match fails to build instead of shipping. Built once per data version, and built again in the background after a sync for events asked for in the last two days; a manifest whose build is still running answers "preparing" at once and the app asks again, so no request is held open on venue wifi. Measured on local data: a 34-team event 22 KB → 168 KB, a 48-team division 31 KB → 277 KB (gzipped).
 - With no signal, any read a saved pack holds is answered from it (`lib/offline/answer.ts`), however the app spells the path, and gets the 4-second offline fallback (`lib/api.ts`). A team the server doesn't have stays "not found" offline too.
 - Compare offline: assembled by `compareFromParts` (`src/shared/compare.ts`), the same function the server's comparison now uses, so the numbers match byte for byte. A team in no saved pack: "Team X isn't in your downloaded event packs".
-- The event page's button is now "Download for offline · 207 KB" (its real size): one tap saves the event; once saved it says "Saved for offline" with its size.
+- The event page's button is now "Download for offline · <size>" (its real size): one tap saves the event; once saved it says "Saved for offline" with its size.
 
 ### Changed
 - Match video buttons, with no connection or on a page from the saved pack, say "Needs a connection" (videos are never downloaded); the match's score and breakdown still show. (#1464)
@@ -38,7 +38,7 @@ One download now takes a whole event offline: every team page, every match page 
 The owner can now see how far new visitors get through the first-visit welcome, counted anonymously and only for visitors who allow usage statistics.
 
 ### Highlights
-- [report] Owner console › Usage shows how far first-time visitors get through the welcome
+- [report] Owner console › Usage shows how far new visitors get through the welcome
 - [report] Where people skip, how many finish, and how many pick a team
 - [fixes] The privacy page lists exactly what the welcome counts
 

@@ -16,11 +16,11 @@ import { clearInfoCache } from "../auth/controlPoint";
 import { closeAllStreams } from "../scout/stream";
 import { clearConsensusCache } from "../scout/consensus";
 import { clearCutoffCache } from "../api/matchReport";
-import { clearBundleCache, defaultRulesProvider, setRulesProvider } from "./bundle";
+import { clearBundleCache, defaultRulesProvider, setPrepareMs, setRulesProvider } from "./bundle";
 import { setFlag } from "../flags";
 import { packLookup, packPath, type BundleManifest, type EventBundle, type PackApi, type PackCompareTeam } from "../../src/shared/eventBundle";
 import { compareFromPacks } from "../../src/shared/compare";
-import { assertComplete } from "./eventApi";
+import { assertComplete, clearPackCache } from "./eventApi";
 import type { CompareView, EventDetail } from "../../src/shared/api";
 
 const KEY = "k".repeat(40);
@@ -279,12 +279,14 @@ describe("the workspace parts", () => {
 // event, and Compare assembled offline by the server's own function: the same JSON as online, byte for byte.
 describe("the event pack", () => {
   const anon = client();
-  const pack = async () => (await file((await manifest(anon, "?team=13")).json)).body;
+  let once: Promise<{ m: BundleManifest; body: EventBundle }> | undefined;
+  const loaded = () => (once ??= manifest(anon, "?team=13").then(async (r) => ({ m: r.json, body: (await file(r.json)).body })));
+  const pack = async () => (await loaded()).body;
 
   it("holds every team and every match of the event, each answer exactly what the API serves", async () => {
     const body = await pack();
     const api = body.api!;
-    const m = (await manifest(anon, "?team=13")).json;
+    const { m } = await loaded();
     expect(m.apiPaths!.length).toBe(Object.keys(api.answers).length + Object.keys(api.same).length + Object.keys(api.errors).length);
     for (const t of [11, 12, 13, 14]) {
       for (const p of [`/api/teams/${t}?season=${S}`, `/api/teams/${t}`, `/api/teams/${t}/matches?season=${S}`, `/api/teams/${t}/report-card?season=${S}`]) {
@@ -323,6 +325,36 @@ describe("the event pack", () => {
     const four = compareFromPacks([11, 12, 13, 14], S, packs) as { view: CompareView };
     expect(four.view.meetings.map((x) => x.key)).toEqual(["qual:0:1"]);
     expect((compareFromPacks([11, 4321], S, packs) as { missing: string }).missing).toMatch(/Team 4321 isn't in your downloaded event packs/);
+  });
+
+  it("stores each match of the team lists once (a pool), and gives the lists back whole", async () => {
+    const body = await pack();
+    const api = body.api!;
+    const stored = api.answers[packPath(`/api/teams/11/matches?season=${S}`)!] as { matches: unknown[] };
+    expect(stored.matches.every((i) => typeof i === "number")).toBe(true);
+    // Q1 is in all four teams' lists, stored once.
+    const q1 = api.pool!.filter((m) => (m as { key: string }).key === "qual:0:1");
+    expect(q1).toHaveLength(1);
+    const back = packLookup(api, `/api/teams/11/matches?season=${S}`) as { body: { matches: { key: string }[] } };
+    expect(back.body.matches.map((m) => m.key)).toEqual((await anon("GET", `/api/teams/11/matches?season=${S}`)).json.matches.map((m: { key: string }) => m.key));
+  });
+
+  it("a slow build answers 202 preparing at once, and the next ask gets the finished manifest", async () => {
+    await kvSet("data:version", `slow${Date.now()}`); // a sync: the pack is built again
+    clearBundleCache(); clearPackCache();
+    setPrepareMs(20);
+    // A build slower than that (the rules reference stands in for a big event pack).
+    setRulesProvider(async () => { await new Promise((r) => setTimeout(r, 300)); return null; });
+    try {
+      const r = await manifest(anon, "?team=12");
+      expect(r.status).toBe(202);
+      expect(r.json).toMatchObject({ preparing: true, retryAfterMs: expect.any(Number) });
+      expect(r.headers.get("retry-after")).toBeTruthy();
+      setPrepareMs(60_000);
+      const again = await manifest(anon, "?team=12");
+      expect(again.status).toBe(200);
+      expect(again.json.apiPaths!.length).toBeGreaterThan(0);
+    } finally { setPrepareMs(2500); setRulesProvider(defaultRulesProvider); }
   });
 
   it("a team or match missing from the pack fails the build loudly", () => {

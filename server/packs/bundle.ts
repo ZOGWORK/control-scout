@@ -38,6 +38,13 @@ import { packApi, packApiPaths } from "./eventApi.js";
 /** A build answers the same asker this long (the manifest, then its file). */
 export const BUNDLE_TTL_MS = 5 * 60_000;
 const MAX_CACHED = 50;
+/** A manifest whose build takes longer answers 202 "preparing" (with when to ask again) instead of waiting. */
+export let PREPARE_MS = 2500;
+/** Tests: how long a manifest waits for its build before answering "preparing". */
+export function setPrepareMs(ms: number) { PREPARE_MS = ms; }
+export const PREPARE_RETRY_MS = 3000;
+/** A build this recent answers a manifest ask (the one a "preparing" answer was waiting for). */
+const JUST_BUILT_MS = 30_000;
 /** Your matches: every one at the event, but never more than this many reports in one bundle. */
 export const MAX_REPORTS = 24;
 
@@ -158,9 +165,10 @@ const building = new Map<string, Promise<BuiltBundle | null>>();
 /** Tests: forget every build. */
 export function clearBundleCache() { built.clear(); building.clear(); }
 
-async function cachedBuild(key: string, input: BuildInput, fresh: boolean): Promise<BuiltBundle | null> {
+/** `maxAgeMs`: a build this recent is still the answer (0: always build afresh, unless one is under way). */
+async function cachedBuild(key: string, input: BuildInput, maxAgeMs: number): Promise<BuiltBundle | null> {
   const hit = built.get(key);
-  if (hit && !fresh && Date.now() - hit.at < BUNDLE_TTL_MS) return hit;
+  if (hit && Date.now() - hit.at < maxAgeMs) return hit;
   let p = building.get(key);
   if (!p) {
     p = buildBundle(input).finally(() => building.delete(key));
@@ -216,17 +224,28 @@ export function bundleRouter(): Router {
   r.get("/:season/:code/manifest", h(async (req, res) => {
     const x = await inputs(req, res);
     if (!x) return;
-    // Asked fresh each time the Download page looks (that's how it finds an update); the file then reuses it.
-    const b = await cachedBuild(x.key, x.input, true);
+    // Asked fresh each time the Download page looks (that's how it finds an update); the file then reuses it. A
+    // build just finished (the one a "preparing" answer waited for) is fresh enough.
+    const build = cachedBuild(x.key, x.input, JUST_BUILT_MS);
+    // Venue wifi drops a request held open for long: a build that takes more than PREPARE_MS (the event pack after
+    // a sync) answers 202 "preparing" at once and goes on; the app asks again (lib/offline/bundles.ts).
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const slow = new Promise<"slow">((r) => { timer = setTimeout(() => r("slow"), PREPARE_MS); });
+    const b = await Promise.race([build, slow]).finally(() => clearTimeout(timer));
+    if (b === "slow") {
+      build.catch(() => {});
+      res.status(202).set("Retry-After", String(Math.ceil(PREPARE_RETRY_MS / 1000)));
+      return { preparing: true, retryAfterMs: PREPARE_RETRY_MS };
+    }
     if (!b) { res.status(404).json({ error: `No event ${x.input.code} in ${x.input.season}.` }); return; }
     return b.manifest;
   }));
   r.get("/:season/:code/file", h(async (req, res) => {
     const x = await inputs(req, res);
     if (!x) return;
-    let b = await cachedBuild(x.key, x.input, false);
+    let b = await cachedBuild(x.key, x.input, BUNDLE_TTL_MS);
     // The version asked for is gone (data moved on): the newest build answers, and says its version.
-    if (b && typeof req.query.v === "string" && req.query.v !== b.manifest.version) b = await cachedBuild(x.key, x.input, true);
+    if (b && typeof req.query.v === "string" && req.query.v !== b.manifest.version) b = await cachedBuild(x.key, x.input, 0);
     if (!b) { res.status(404).json({ error: `No event ${x.input.code} in ${x.input.season}.` }); return; }
     res.set("Content-Type", "application/gzip");
     res.set("X-Bundle-Version", b.manifest.version);
