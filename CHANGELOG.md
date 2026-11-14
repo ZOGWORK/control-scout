@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.1.4 — 2026-11-14
+## 6.1.9 — 2026-11-14
 
 Search finds a match by its number and plays that exact match.
 
@@ -27,6 +27,92 @@ Search finds a match by its number and plays that exact match.
 ### Changed
 - Search: a team and a match's number with no event ("<team> Q6") lists that number at each event of the season, latest first, and plays the latest; at Worlds or states ("<team> M14 at worlds") it is that match there. A number with no team ("M14 decode finals", "q6 at worlds") lists those matches highest-scoring first, the card playing the top one. An M number is a playoff match's. (`server/api/query/intents.ts`, `parse.ts`, `matchFind.ts`, `server/api/answers/families/eventScope.ts`) (#1484)
 - Search: comparing two or more teams adds "Their matches together", the matches all of them were on the field for, each with its own clip. (`server/api/answers/families/twoTeam.ts`, `src/components/search/page/CompareCard.tsx`)
+
+## 6.1.8 — 2026-11-14
+
+Control Scout Lite now covers the whole app: Home, Search, Predict, Compare, Rankings, Scouting and Settings each have a light page, with the same answers and numbers as the full version.
+
+### Highlights
+- [speed] Lite Home: search and this week's events, for a weak signal
+- [predict] Lite Predict: the odds, score and full why breakdown
+- [rankings] Lite Search, Compare and Rankings with the same answers
+- [appearance] Lite Settings: theme, text size and Lite on or off
+
+### Added
+- Seven Lite pages (docs/lite.md), each drawing the answer its API route sends, from the same function: Home (`/lite`: a search box and the events on now or starting within a week, as Home's calendar lists them), Search (`/lite/search?q=`: the answer `/api/search?answer=1` sends, as cards and lists linked to Lite pages; the two routes now share `server/api/searchPageAnswer.ts`), Predict (`/lite/predict`: four number boxes, then the win odds, predicted score, confidence, top reasons and the full why breakdown as a table, from `matchExplanation`), Compare (`/lite/compare`: up to four teams, OPR, phases, rating and record as a table, a text bar for OPR, and the head-to-head matches), Rankings (`/lite/rankings`: the world ranking, 50 a page, with a next page link), Scouting (`/lite/scout`: scouting's forms need the full app, one button there, and the pick list when signed in) and Settings (`/lite/settings`).
+- Lite Settings sets the theme and text size with plain links (`/lite/theme`, `/lite/size`), and the full app takes that choice the next time it opens instead of writing its older one back: one setting, whichever page changed it. It also turns Lite on or off and links to the full version's network and offline settings.
+- Every full page with a Lite page links to it from its footer, opens it with `?lite=1`, and goes there while Lite is on: Home, Search, Predict, Compare, Rankings, Scouting and Settings now too. The slow-connection offer is never made on scouting's forms (they keep working offline in the full app) or timed on a page with no data of its own (Settings).
+
+### Changed
+- The factor sentence fix (`factorLabel`) and a factor's share of a call (`sharePct`) moved to `src/shared/`, so Lite prints them the same way as the app. (#1486)
+
+## 6.1.7 — 2026-11-14
+
+Nevada, North Dakota and Montana events now play their recordings from the state's own channels: FIRST Nevada's league meets, tournaments and State Championships, Dakota FTC's qualifiers and State, and Montana's older State and Butte streams.
+
+### Highlights
+- [history] Nevada's league meets and State play their recordings
+- [history] Dakota FTC qualifiers and State play their full-day streams
+- [history] Montana's 2023 and 2024 State and Butte streams play
+
+### Added
+- Official videos: FIRST Nevada (`UCqDnAXt0clPQww74v7bUVkQ`), BCA Activities for Dakota FTC (`UCowF1UaXnuuFV_sNIvpX-zQ`) and MT Robotics Alliance (`UCpPjg0KF7cwfbWoKAl0jiXQ`), ids read from the YouTube Data API, join the official channels and the auto-watcher's list, each for its own state only. 57 recordings are checked against each event's name, city, dates, meet number and North or South: 46 from Nevada (2023-24 on), 7 from North Dakota, 4 from Montana. A Nevada video blocked in nearly every country, an empty stream, an opening-ceremony clip, undated uploads and the streams FIRST's own pages already link are left out. (`server/data/officialVideos.json`, `server/data/officialChannels.ts`, `docs/official-videos.md`) (#1475)
+
+## 6.1.6 — 2026-11-14
+
+Scouting works with no signal: open Scout, pick your downloaded event, scout matches, build your shortlist and use the pick helper offline. Everything is saved on the phone and syncs once when you're back online.
+
+### Highlights
+- [offline] Scout opens with no signal and lists the events on your phone
+- [offline] Shortlist and pick helper work offline, showing when loaded
+- [scout] Saved on this device · will sync, instead of an offline warning
+- [picklist] Pick list changes made offline sync by themselves, once each
+
+### Added
+- The last answer to each read the scouting pages need is kept on the device (`src/lib/offline/kept.ts`): the season's event list, an event's pick ratings and projections, shortlist rows, team profiles and matches, the scouting alliance views and the workspace pick list. Per account; at most 150; the server's own JSON, never recomputed. With no signal (or no answer in 4 s) the kept answer is shown with "Offline: last loaded on this device at …", and the page asks the server again once it's back (`src/lib/offline/scoutReads.ts`).
+- Scout's event picker lists the events downloaded to this device under "Saved on this device", one tap to scout, signal or not; with no signal the event list is the last one loaded plus every downloaded event.
+- When an event bundle downloads (and each time Scout or the shortlist opens with signal, at most every 30 minutes), the reads Scout needs at that event are fetched and kept: the event list, pick ratings, projections and every team's shortlist row (`src/lib/offline/warm.ts`). A team added to the shortlist with no signal shows its stats; one never loaded shows its name and place, with no made-up numbers.
+- The pick helper offline uses the last pick ratings loaded (the server's own answer); the radar math is the same function online and offline (`src/shared/pickRadar.ts`).
+- `scripts/scout-offline-journey.ts`: journey 5 of the offline brief on a production build, through a local proxy that cuts the network for the service worker too (`scripts/lib/netSwitch.ts`).
+
+### Changed
+- Scout's sync chip says "Saved on this device · N will sync" with no signal (it said "Offline — N pending" with a warning icon); signed out it says "Saved on this device". The entry form's save bar (it said "Queued offline" in warning colour) and the shortlist say the same while they wait to sync.
+- Shared pick list order changes that didn't go for want of a network are sent again by themselves once the signal is back (they waited for Retry): each with its own op id, checked against the list first like a Retry, so none lands twice and a conflict still waits for you.
+
+### Tests
+- An entry pushed twice (an offline replay) is stored once, and an older copy sent late never replaces the newer one (server).
+- Entries saved offline survive a reload and go up once each, under the ids they were made with; a lost answer retries the same ids.
+- Kept answers: per account, capped, marked offline; the event list gains bundled events; the shortlist lists every team asked for. (#1466)
+
+## 6.1.5 — 2026-11-14
+
+One download now takes a whole event offline: every team page, every match page and Compare for its teams work with no signal, with the same numbers as online.
+
+### Highlights
+- [offline] Download for offline on the event page, with its real size
+- [offline] Every team and match page of the event opens with no signal
+- [offline] Compare the event's teams offline, same numbers as online
+- [offline] Match videos say they need a connection instead of breaking
+
+### Added
+- The event pack (docs/event-bundle.md, "The event pack"): the event-day bundle now carries the server's own JSON for every team in the event (profile, season matches, report cards, schedule difficulty), every match (its detail and Know your match report), the event's advancement odds and pick ratings, and each team's Compare column. Every path is read through the function its route calls (`server/packs/eventApi.ts` `PACK_READS`, one list), identical answers and matches shared between team lists are stored once, and a pack missing a team or a match fails to build instead of shipping. Built once per data version, and built again in the background after a sync for events asked for in the last two days; a manifest whose build is still running answers "preparing" at once and the app asks again, so no request is held open on venue wifi. Measured on local data: a 34-team event 22 KB → 170 KB, a 48-team division 31 KB → 277 KB (gzipped).
+- With no signal, any read a saved pack holds is answered from it (`lib/offline/answer.ts`), however the app spells the path, and gets the 4-second offline fallback (`lib/api.ts`). A team the server doesn't have stays "not found" offline too.
+- Compare offline: assembled by `compareFromParts` (`src/shared/compare.ts`), the same function the server's comparison now uses, so the numbers match byte for byte. A team in no saved pack: "Team X isn't in your downloaded event packs".
+- The event page's button is now "Download for offline · <size>" (its real size): one tap saves the event; once saved it says "Saved for offline" with its size.
+
+### Changed
+- Match video buttons, with no connection or on a page from the saved pack, say "Needs a connection" (videos are never downloaded); the match's score and breakdown still show. (#1464)
+## 6.1.4 — 2026-11-14
+
+FiT-Central's GEMS league events in Austin now play their recordings from Westwood Robotics, the team channel that streams them with the official overlay: Diamond and Emerald League Meets back to 2024, the GEMS League Tournaments and the Austin semi-regionals. Saturday's Meet 2 shows its stream before, during and after it airs.
+
+### Highlights
+- [live] GEMS Diamond and Emerald League Meet 2 stream on their event pages
+- [history] GEMS league meets from 2024 on play their recordings
+- [history] Austin Semi-Regional and GEMS League Tournament recordings
+
+### Added
+- Official videos: Westwood Robotics (`UCyv6fRBcoK6mD6Br5M366yA`, read from the YouTube Data API) joins the official channels and the auto-watcher's list, for FiT-Central, CTX and GEMS events in Texas only. 21 of its recordings are checked against each event's name, city, dates, league (Diamond or Emerald) and meet number: the 2026 Diamond and Emerald League Meets 1 and 2 (Meet 2 listed before it airs, like FIRST's own livestream link), the 2025 and 2024 Meets 1 to 3, both GEMS League Tournaments, and the Austin semi-regionals. The overlays-only test stream, a scheduled stream that never aired, and the 2023 "Round Rock Gems" titles (whose city doesn't match the events) are left out. (`server/data/officialVideos.json`, `server/data/officialChannels.ts`, `docs/official-videos.md`) (#1468)
 
 ## 6.1.3 — 2026-11-14
 
