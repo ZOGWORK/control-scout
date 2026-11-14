@@ -128,7 +128,7 @@ These keys never leave the device (`DEVICE_ONLY_KEYS`):
 | `cs-scout-lost:<workspace>` | Edits this device lost to a newer one from someone else, kept so they can be compared and restored (`src/lib/lostEdits.ts`; at most 30 per workspace, 30 days). A restore sends the entry, as any edit; the list itself never leaves the device |
 | `cs-install` | The add-to-home-screen nudge on this device (`src/lib/installNudge.ts`): `{v, lastShown: "YYYY-MM-DD", dismissed?, installed?}`. See "Add-to-home-screen nudge" below |
 | `cs-install-demo` | `"1"` lets a browser driven by automation see the nudge (`npm run shots -- --install`); real visitors never have it |
-| `cs-lite-demo` | `"1"` shows the slow-connection card at once, as if the page had waited 9 s (`npm run shots -- --storage`); real visitors never have it |
+| `cs-lite-demo` | `"1"` shows the slow-connection card at once, as if the page had waited 9 s (`npm run shots -- --storage lite-demo.json /teams/4215`, where `lite-demo.json` holds `{"cs-lite-demo":"1"}`); real visitors never have it |
 | `cs-recent-searches` | This device's recent searches (`src/components/search/discover.tsx`): up to 6 query strings, newest first, shown in an empty search box's list with one tap to run again. "Clear" removes them all |
 
 The queue's entries go up as entries (that is the queue's job). The queue key

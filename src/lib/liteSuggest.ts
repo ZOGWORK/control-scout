@@ -116,7 +116,10 @@ export function watchRequest(path: string, method = "GET"): { done: (usable?: bo
       if (!online()) return;
       const now = Date.now();
       fails = [...fails.filter((t) => now - t < LITE_FAIL_WINDOW_MS), now];
-      if (fails.length >= LITE_FAILS) raise({ kind: "failing", count: fails.length, at: now });
+      if (fails.length < LITE_FAILS) return;
+      // Already up for failures: keep the evidence current (the count in the window, the latest one's time).
+      if (slow && reason?.kind === "failing") { reason = { kind: "failing", count: fails.length, at: now }; emit(); }
+      else raise({ kind: "failing", count: fails.length, at: now });
     },
   };
 }

@@ -202,4 +202,13 @@ describe("light version offer", () => {
     act(() => { vi.advanceTimersByTime(4000); w.done(); });
     expect(result.current).toEqual({ kind: "loaded", took: 12 });
   });
+
+  it("keeps the failure evidence current while requests keep failing", () => {
+    const { result } = renderHook(() => useLiteReason());
+    arrive("/teams/1");
+    act(() => { for (let i = 0; i < LITE_FAILS; i++) watchRequest("/api/teams/2").failed(); });
+    expect(result.current).toMatchObject({ kind: "failing", count: LITE_FAILS });
+    act(() => { vi.advanceTimersByTime(5000); watchRequest("/api/teams/2").failed(); });
+    expect(result.current).toMatchObject({ kind: "failing", count: LITE_FAILS + 1, at: Date.now() });
+  });
 });
