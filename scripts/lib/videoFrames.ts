@@ -68,6 +68,9 @@ export type Placed = { t: number; confidence: "high" | "medium" };
  *  missing with the reason. */
 export type Judged = { placed: Map<string, Placed>; review: Map<string, { t: number; why: string }>; missing: Map<string, string> };
 
+/** Why a match is missing when no frame of its video could be read at all. */
+export const NOTHING_READ = "no frame of the video could be read";
+
 /** The least a match can take in a video: 30 s Auto, 8 s switch, 2:00 TeleOp. Two placed starts closer than this
  *  overlap. */
 export const MATCH_S = AUTO_S + SWITCH_S + TELEOP_S;
@@ -134,7 +137,7 @@ export function judge(ms: M[], seen: Map<number, number>, shift: number | null, 
       dropped.has(i) ? "its frame read disagrees with the matches around it"
       : read.has(i) ? "its frames didn't confirm a start"
       : before != null && after != null ? "in a gap: the reads either side disagree where the video sits, so it may not be in the video"
-      : !kept.length ? "no frame of the video could be read"
+      : !kept.length ? NOTHING_READ
       : "no frame read of it, and no agreeing reads on both sides");
   });
   return { placed: placedAt, review, missing };
