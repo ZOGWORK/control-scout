@@ -81,7 +81,18 @@ async function seek(page: Page, t: number) {
 
 /** What the frame at second t shows: the match its overlay names and, while that match is being played, the second it
  *  started at (its timer read twice, 1.5 s apart, must run). */
-async function readAt(page: Page, t: number): Promise<Read> {
+/** The most a frame read may take (seconds): a page that stops answering (a frozen player, OCR that never returns)
+ *  fails its video with that reason instead of holding the run forever. */
+const READ_LIMIT_S = 120;
+function readAt(page: Page, t: number): Promise<Read> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  return Promise.race([
+    readAtOnce(page, t).finally(() => clearTimeout(timer)),
+    new Promise<never>((_, no) => { timer = setTimeout(() => no(new Error(`a frame read at ${Math.round(t)} s hung over ${READ_LIMIT_S} s`)), READ_LIMIT_S * 1000); }),
+  ]);
+}
+
+async function readAtOnce(page: Page, t: number): Promise<Read> {
   await seek(page, Math.max(0, t));
   const at = await now(page);
   const text = (await worker.recognize(await page.screenshot())).data.text as string;
