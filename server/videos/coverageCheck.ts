@@ -58,7 +58,7 @@ export async function checkClipCoverage(log: (s: string) => void, now = Date.now
         for (const e of await all<{ code: string; timezone: string | null }>(`SELECT code, timezone FROM events WHERE season = ? AND code IN (${q})`, [season, ...part])) shape.set(String(e.code), { tz: e.timezone, matches: "" });
         for (const r of await all<{ code: string; m: string }>(
           `SELECT code, group_concat(played || level || series || ':' || number || '@' || COALESCE(time, '') || '#' || COALESCE(video, ''), ',') AS m
-           FROM (SELECT * FROM matches WHERE season = ? AND code IN (${q}) ORDER BY code, level, series, number) GROUP BY code`, [season, ...part])) {
+           FROM (SELECT code, played, level, series, number, time, video FROM matches WHERE season = ? AND code IN (${q}) ORDER BY code, level, series, number) GROUP BY code`, [season, ...part])) {
           const e = shape.get(String(r.code));
           if (e) e.matches = String(r.m ?? "");
         }
