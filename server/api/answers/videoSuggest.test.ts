@@ -60,11 +60,11 @@ describe("withVideoAlternatives", () => {
   it("never holds the answer up: past the wait, the answer as it is", async () => {
     const a = answer();
     const slow = () => new Promise<string[]>((r) => setTimeout(() => r(["b highlights"]), 200));
-    expect(await withVideoAlternatives("6980 at east bergen with video", a, undefined, askOf, videoOf, 20, slow)).toBe(a);
+    expect(await withVideoAlternatives("6980 at east bergen with video", a, undefined, askOf, videoOf, 20, slow, "", 0)).toBe(a);
     // And the checks still to come are never run.
     const run: string[] = [];
     const late = () => new Promise<string[]>((r) => setTimeout(() => r(["b highlights", "c highlights"]), 60));
-    await withVideoAlternatives("6980 at east bergen with video", a, undefined, async (q) => { run.push(q); return askOf(q); }, videoOf, 20, late);
+    await withVideoAlternatives("6980 at east bergen with video", a, undefined, async (q) => { run.push(q); return askOf(q); }, videoOf, 20, late, "", 0);
     await new Promise((r) => setTimeout(r, 150));
     expect(run).toEqual([]);
   });
@@ -100,7 +100,7 @@ describe("withVideoAlternatives", () => {
     const ask = async (q: string) => { asks++; await new Promise((r) => setTimeout(r, 60)); return askOf(q); };
     const one = async () => ["b highlights"];
     const [short, long] = await Promise.all([
-      withVideoAlternatives("6980 at east bergen with video", answer(), undefined, ask, videoOf, 10, one),
+      withVideoAlternatives("6980 at east bergen with video", answer(), undefined, ask, videoOf, 10, one, "", 0),
       withVideoAlternatives("6980 at east bergen with video", answer(), undefined, ask, videoOf, 1000, one),
     ]);
     expect(short.stat?.blocks.some((x) => x.kind === "related")).toBe(false);
@@ -154,6 +154,19 @@ describe("withVideoAlternatives", () => {
       await Promise.all([first, second]);
     } finally { now.mockRestore(); }
     expect(asks).toBe(1);
+  });
+
+  it("none found by the wait: it waits a little longer, and goes as soon as one is found", async () => {
+    const a = answer();
+    // The first check, cold, takes past the wait: its question is offered all the same, without waiting the rest out.
+    const ask = async (q: string) => { if (q === "b highlights") await new Promise((r) => setTimeout(r, 60)); return askOf(q); };
+    const t0 = Date.now();
+    const out = await withVideoAlternatives("6980 at east bergen with video", a, undefined, ask, videoOf, 20, async () => ["b highlights", "c highlights", "d highlights"], "", 2000);
+    expect(out.stat?.blocks[0]).toMatchObject({ kind: "related", queries: ["b highlights"] });
+    expect(Date.now() - t0).toBeLessThan(1000);
+    // Past the longer wait too: the answer as it is.
+    const slow = async (q: string) => { await new Promise((r) => setTimeout(r, 300)); return askOf(q); };
+    expect(await withVideoAlternatives("6980 at east bergen with video", a, undefined, slow, videoOf, 20, async () => ["e highlights"], "", 40)).toBe(a);
   });
 
   it("stray spaces around a query are no watch word", async () => {

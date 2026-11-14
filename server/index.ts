@@ -28,6 +28,7 @@ import { forecasterFor, refreshForecasters } from "./predict/engine.js";
 import { CURRENT_SEASON } from "./data/seasons.js";
 import { warmTrackRecord } from "./api/accuracy.js";
 import { warmSpelling } from "./api/spelling.js";
+import { warmNameTypos } from "./api/answers/nameTypos.js";
 import { ensureSearchIndex, warmTypoIndex } from "./api/search.js";
 import { rebuildSearch } from "./stats/job.js";
 import { scheduleCycles, warmUp } from "./warm.js";
@@ -98,8 +99,9 @@ const warming = await warmUp([
   ["track record and report cutoffs", () => warmTrackRecord().then(() => seasonCutoffs(CURRENT_SEASON)).then(() => seasonCutoffs(CURRENT_SEASON - 1))],
   ["search index", () => indexed],
   // Search's spelling vocabulary (every team, event and place word: about a second cold), then its typo index (every
-  // name's words, numbered: about a second cold), and the names it reads queries with.
-  ["spelling and typo index", () => afterIndex().then(() => warmSpelling()).then(() => warmTypoIndex())],
+  // name's words, numbered: about a second cold), and the names it reads queries with. Then the event names stored
+  // with a typo, never offered as a question with video (a tenth of a second).
+  ["spelling and typo index", () => afterIndex().then(() => warmSpelling()).then(() => warmTypoIndex()).then(() => warmNameTypos())],
   ["search names", () => afterIndex().then(() => warmNames())],
   // The server-side page render (server/firstPaint.ts): its bundle compiled before the first team or event page asks.
   ["page renderer", () => warmPageRenderer()],
@@ -113,7 +115,8 @@ log("ready");
 // visitor's request is the one that waits for them (pages keep the previous
 // ones until they're done).
 // Then the event packs asked for lately (server/packs/eventApi.ts), so the next look at one isn't the one that builds it.
-setInterval(() => { refreshForecasters().catch(() => {}).then(() => warmTrackRecord()).catch(() => {}).then(() => import("./packs/eventApi.js")).then((m) => m.rewarmPacks()).catch(() => {}); }, 15_000).unref();
+// Then the event names stored with a typo, built again once a search index rebuild moves its version.
+setInterval(() => { refreshForecasters().catch(() => {}).then(() => warmTrackRecord()).catch(() => {}).then(() => import("./packs/eventApi.js")).then((m) => m.rewarmPacks()).catch(() => {}).then(() => warmNameTypos()).catch(() => {}); }, 15_000).unref();
 
 // One cycle at a time in this process, whether the schedule or the owner portal started it (data/jobs.ts).
 async function cycle(reason: string) {
