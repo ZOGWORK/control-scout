@@ -1,9 +1,11 @@
 // No dead ends for video (./videoSuggest.ts, search video brief point 7): a search asking to watch whose answer plays
 // nothing gets questions that do play, each checked by asking it; never one whose answer has no video, never when the
 // answer already plays, and never holding the answer up.
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import type { SearchAnswer, SearchVideo } from "../../../src/shared/api";
-import { asksVideo, hasVideo, withVideoAlternatives } from "./videoSuggest";
+import { asksVideo, forgetVideoChecks, hasVideo, withVideoAlternatives } from "./videoSuggest";
+
+beforeEach(() => forgetVideoChecks());
 
 const answer = (intent = "results", none?: string): SearchAnswer => ({
   q: "q", hits: [], pages: [], step: "deterministic", weak: false,
@@ -80,6 +82,17 @@ describe("withVideoAlternatives", () => {
     expect(offered && offered.kind === "related" ? offered.queries : []).toEqual(["b highlights"]);
     await new Promise((r) => setTimeout(r, 300));
     expect(run).not.toContain("d highlights");
+  });
+
+  it("two searches asking at once share each question's check", async () => {
+    let asks = 0;
+    const ask = async (q: string) => { asks++; return askOf(q); };
+    const two = ["b highlights"];
+    await Promise.all([1, 2].map(() => withVideoAlternatives("6980 at east bergen with video", answer(), undefined, ask, videoOf, 1000, async () => two)));
+    expect(asks).toBe(1);
+    // Another viewer's check is its own.
+    await withVideoAlternatives("6980 at east bergen with video", answer(), undefined, ask, videoOf, 1000, async () => two, "u7");
+    expect(asks).toBe(2);
   });
 
   it("stray spaces around a query are no watch word", async () => {
