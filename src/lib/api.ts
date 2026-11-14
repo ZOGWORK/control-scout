@@ -160,6 +160,13 @@ const unreachable = () => new ApiError(0,
   connection().internet === "portal" ? "This Wi-Fi isn't giving internet."
     : navigator.onLine === false || offlineNow() ? "You're offline." : "Can't reach the server right now.", true);
 
+/** The server sent this answer within the last few seconds (its Date header), so it came over the network now, not
+ *  from the browser's HTTP cache. A device clock far off just means answers don't count: the checks still do. */
+export function answeredNow(res: Response, now = Date.now()): boolean {
+  const at = Date.parse(res.headers.get("Date") ?? "");
+  return Number.isFinite(at) && Math.abs(now - at) < 10_000;
+}
+
 /** Known offline: a read the saved data can't answer gets one check this fresh (instant with the network off, at
  *  most CHECK_TIMEOUT_MS), then the server if it's back, else fails at once. */
 const RECHECK_MS = 3000;
@@ -360,8 +367,9 @@ export async function apiFetch<T>(path: string, init?: RequestInit & { json?: un
   let body: any = null;
   let unreadable = false;
   try { body = text ? JSON.parse(text) : null; } catch { unreadable = true; }
-  // Our server's own JSON came back: there's internet (a Wi-Fi sign-in page answers with HTML).
-  if (!unreadable && text && res.status < 500) noteServerAnswer();
+  // Our server's own JSON came back just now: there's internet (a Wi-Fi sign-in page answers with HTML). Only a fresh
+  // answer counts: the browser's HTTP cache answers some reads with no network at all, keeping the server's Date.
+  if (!unreadable && text && res.status < 500 && answeredNow(res)) noteServerAnswer();
   // A web page where our JSON should be: a Wi-Fi sign-in page answered, not our server. That's no signal: the
   // connection check finds out, and saved data answers a read it can.
   if (unreadable && /text\/html/i.test(res.headers.get("Content-Type") ?? "") && (rest.method ?? "GET").toUpperCase() === "GET" && !_online) {

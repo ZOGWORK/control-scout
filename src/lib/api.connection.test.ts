@@ -86,6 +86,17 @@ describe("known offline: no network try, no wait", () => {
   });
 });
 
+describe("what counts as the server answering", () => {
+  it("a fresh answer counts as internet; one from the browser's cache (an old Date) doesn't", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ a: 1 }), { status: 200, headers: { Date: new Date(Date.now() - 60_000).toUTCString() } })));
+    await apiFetch("/api/meta");
+    expect(connection().internet).toBe("unknown");
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ a: 1 }), { status: 200, headers: { Date: new Date().toUTCString() } })));
+    await apiFetch("/api/meta");
+    expect(connection().internet).toBe("yes");
+  });
+});
+
 describe("a Wi-Fi that carries nothing", () => {
   it("a read still waiting when the check finds no internet is let go and answered the offline way at once", async () => {
     writeSaved([saved]);
