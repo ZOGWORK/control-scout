@@ -15,6 +15,20 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 6.0.6 — 2026-11-14
+
+The owner can now see how far new visitors get through the first-visit welcome, counted anonymously and only for visitors who allow usage statistics.
+
+### Highlights
+- [report] Owner console › Usage shows how far first-time visitors get through the welcome
+- [report] Where people skip, how many finish, and how many pick a team
+- [fixes] The privacy page lists exactly what the welcome counts
+
+### Added
+- `POST /api/collect/onboarding` (`server/onboardingStats.ts`): with consent to usage statistics only, the onboarding sends shown, each step reached (once, however often Back and Next go over it), and skipped on step N or finished (with whether a team was picked, never which). The server adds 1 to a daily total (`onboarding_daily`, migration 87): no IDs, address, user agent or cookie. Bots, Global Privacy Control and Do Not Track are accepted and not counted. Replays from Settings aren't counted.
+- Owner console › Usage › First-visit onboarding (`src/components/owner/OnboardingFunnel.tsx`): one zero-based bar per step, skips per step, finished and picked a team.
+- The privacy page's Usage statistics section names the welcome's counts.
+
 ## 6.0.5 — 2026-11-14
 
 A recording whose start was cut off now gets its match clips. APOC 2026's Saturday part 1 had none; Q11 to Q31 all play now.
