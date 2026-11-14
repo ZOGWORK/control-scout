@@ -5,7 +5,7 @@ import { cachedEventDetail } from "./events.js";
 import { withBracketGate } from "./bracket.js";
 import { scheduleGate } from "./eventGates.js";
 import { hasEventHighlights } from "../eventHighlightsPage.js";
-import { eventRecording, recordingStream, withClips } from "../videos/recordings.js";
+import { eventRecording, recordingStream, seasonRecordings, withClips } from "../videos/recordings.js";
 import { eventHighlightVideos } from "../videos/officialVideos.js";
 
 /** An event's detail with its recording (server/videos/recordings.ts: the owner's stream, else FIRST's YouTube link)
@@ -14,7 +14,10 @@ import { eventHighlightVideos } from "../videos/officialVideos.js";
  *  data version); the shared objects are never changed. */
 export async function withStream<T extends { event: { season: number; code: string; timezone?: string | null }; matches: MatchView[] }>(d: T): Promise<T> {
   const rec = await eventRecording(d.event.season, d.event.code).catch(() => null);
-  return rec ? { ...d, event: { ...d.event, stream: recordingStream(rec, d.event.timezone) }, matches: withClips(d.matches, rec) } : d;
+  if (rec) return { ...d, event: { ...d.event, stream: recordingStream(rec, d.event.timezone) }, matches: withClips(d.matches, rec) };
+  // Linked, but YouTube won't play it (private, removed): the page still says why its matches have no clip (RecordingGaps).
+  const gone = (await seasonRecordings(d.event.season, true).catch(() => null))?.get(d.event.code);
+  return gone ? { ...d, event: { ...d.event, recordingUnavailable: [gone, ...(gone.more ?? [])].map((v) => v.videoId) } } : d;
 }
 
 /** What the event page shows beside the detail, for every route that answers with one (the page and "Refresh

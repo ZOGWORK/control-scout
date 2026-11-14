@@ -32,6 +32,21 @@ Match clips read off a recording's own frames now need two signals that agree be
 ### Added
 - Clips placed from frames carry an `end` (`frameClipEnd`, `src/shared/recording.ts`): the timer's start plus 2:40 of play and 50 s for the final score, stopping at the next framed match's start in the same video, never before its own play is over or past the video's end. (#1490)
 
+## 6.3.3 — 2026-11-14
+
+A recorded event's page now says which days and parts its video covers and which it doesn't, and, one tap away, every played match without a clip and why. A partly recorded event never reads as fully recorded.
+
+### Highlights
+- [fixes] Event pages show each recorded day with its share of clips
+- [fixes] A day with no recording is named, not skipped
+- [fixes] "Matches have no clip — why" lists each gap in plain words
+
+### Added
+- Event page: under the coverage line, a chip for each day or part of a recorded event (its clips out of its played matches) and one for each day with no recording, then "N matches have no clip — why": the matches grouped by reason, such as "Video 4 h 17 min shorter than its broadcast", "No recording for Sunday" or "No real start time from FIRST". Only for an event with a recording (playable or not) where a played match has no video. (`src/components/contributors/RecordingGaps.tsx`, `server/videos/coverage.ts`, `/api/events/:season/:code/coverage`)
+- Owner console › Clip coverage: every recorded event with a played match missing a clip, with its days and parts, the video checked for each, the days with no recording and each match's reason, to mark reviewed, 50 at a time. It opens again on its own when the missing list changes. (`src/components/owner/ClipCoveragePanel.tsx`)
+- After every recordings pass and every official-channel watcher run that adds a video, each event whose recording or matches changed is checked again; a missing list goes to Owner › Clip coverage, never only to a log. (`server/videos/coverageCheck.ts`, migration 88)
+- `scripts/clip-coverage.ts`: the full coverage audit (every event, video and played match, every season) as Markdown, CSV and JSON. (#1457)
+
 ## 6.3.2 — 2026-11-14
 
 When a search asks to watch and nothing has video, it offers questions that do.

@@ -58,11 +58,14 @@ export const tierLabel = (v: Pick<ContributorVideo, "tier" | "team">, teamName?:
 /** Said of an event with a recording to watch but no match placed in it (its timing can't be checked yet). */
 export const RECORDING_ONLY_TEXT = "Full recording only — no match clips in it yet";
 
+/** Said of an event whose linked recording YouTube won't play (private, removed): there is one, it just can't be watched. */
+export const UNPLAYABLE_TEXT = "This event's recording won't play (private or removed) — stats only";
+
 /** The event page's coverage line ("No recording …" is the same words the search page uses for an event with none).
  *  `recorded`: the event has a recording to watch (the page's player), so none of its matches having a clip never reads
  *  as no recording at all. */
-export function coverageText(c: EventCoverage, recorded = false): string {
-  if (!c.played || !c.withVideo) return recorded && c.played ? RECORDING_ONLY_TEXT : "No recording for this event — stats only.";
+export function coverageText(c: EventCoverage, recorded = false, unplayable = false): string {
+  if (!c.played || !c.withVideo) return recorded && c.played ? RECORDING_ONLY_TEXT : unplayable ? UNPLAYABLE_TEXT : "No recording for this event — stats only.";
   if (c.withVideo >= c.played) return "Every match has video";
   return `Partially recorded — ${c.withVideo} of ${c.played} matches have video`;
 }
