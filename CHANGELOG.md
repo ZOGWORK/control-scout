@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 6.0.3 — 2026-11-13
+
+On a phone, the search bar on the results page is now the search box itself: one tap puts the caret in it, ready to change your search.
+
+### Highlights
+- [fixes] One tap on the phone results page's search bar lets you edit your search
+- [fixes] No second search box opens on top of it any more
+- [fixes] A second tap puts the caret where you tapped, not a Cut/Copy menu
+
+### Fixed
+- Search on phones: the bar holding your query on the results page was a button that opened the top bar's search box over it, with the whole query selected, and on an iPhone a tap on a selection only offers Cut/Copy/Paste, so the query couldn't be edited. The bar is now the page's own search field (the top bar's box and search button step aside on that page), and opening a search box from a button or shortcut on a touch screen puts the caret at the end instead of selecting everything. Desktop keeps select-all. (`src/components/search/page/PhoneSearchBar.tsx`, `src/components/layout/Search.tsx`, `src/lib/focusField.ts`) (#1454)
+
 ## 6.0.2 — 2026-11-13
 
 Searching for one match, such as a team's best Auto or highest score, now shows a View clip button under People also ask. It plays that match's own video, the whole match.
