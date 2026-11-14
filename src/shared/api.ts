@@ -574,6 +574,9 @@ export interface ClipCoverage {
   matches: CoverageMatch[];
 }
 
+/** An event's triage category (server/videos/coverageTriage.ts): only actionable events are the owner's "To review". */
+export type CoverageTriage = "actionable" | "no-timing" | "early-start" | "old-season";
+
 /** Owner > Clip coverage (server/videos/coverageCheck.ts): one event with a played match missing a clip, as last checked. */
 export interface OwnerCoverageEvent {
   season: number; code: string; name: string; state: ClipCoverage["state"]; played: number; withClip: number; checkedAt: string;
@@ -581,11 +584,17 @@ export interface OwnerCoverageEvent {
   /** The missing list's version, sent back with Reviewed: a list that changed meanwhile isn't marked. */
   version: string;
   videos: CoverageVideo[]; daysMissing: ClipCoverage["daysMissing"]; missing: CoverageMatch[];
+  /** Its category and why, in plain words. */
+  triage: CoverageTriage; triageWhy: string;
 }
-/** Open (not yet reviewed) events first; totals over every recorded event checked. */
-/** One page (after a given event) of the open or the reviewed list; `open`, `reviewed`: how many each holds; totals over every
- *  recorded event checked. */
-export interface OwnerClipCoverage { events: OwnerCoverageEvent[]; open: number; reviewed: number; totals: { events: number; played: number; withClip: number; full: number } }
+/** One page (after a given event) of one list: a category's events not yet reviewed, or the reviewed. `open`: actionable
+ *  events not yet reviewed (the "To review" count); `categories`: every category's events not yet reviewed; `seasons`:
+ *  events not yet reviewed by season; totals over every recorded event checked. */
+export interface OwnerClipCoverage {
+  events: OwnerCoverageEvent[]; list: CoverageTriage | "reviewed"; open: number; reviewed: number;
+  categories: Record<CoverageTriage, number>; seasons: { season: number; open: number }[];
+  totals: { events: number; played: number; withClip: number; full: number };
+}
 
 export interface EventSummary {
   season: number;
