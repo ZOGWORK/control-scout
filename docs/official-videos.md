@@ -11,6 +11,10 @@ A channel is official for an event when it is one of:
 - the FIRST partner organisation for the country or region (Nație Prin Educație for Romania, NY Excelsior FIRST,
   FIRST in Texas, FIRST Chesapeake, FTC Iowa, …),
 - the event's own organiser or league (NTX FTC for FiT-North, GEARS for the Michiana Premier Event, …),
+- the event's own streamer: the channel that carries the event's broadcast with FIRST's official overlay (match
+  label, teams, scores and rankings on screen). Westwood Robotics (FRC 2583, Austin) streams FiT-Central's GEMS
+  league (Diamond and Emerald) and its Austin events. Its overlays-only test stream and the 2023 "Round Rock Gems"
+  titles (the events are listed in Austin) are left out, and a team's channel is otherwise never used,
 - or the channel FIRST's event page names as the livestream (FIRST HQ's "FIRST Tech Challenge" channel carries the
   2026 Championship's division broadcasts, and FIRST's own event pages link its Day 4 videos).
 
