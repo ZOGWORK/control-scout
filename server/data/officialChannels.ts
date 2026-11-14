@@ -53,5 +53,12 @@ export const OFFICIAL_CHANNELS: OfficialChannelSeed[] = [
   { channelId: "UC3GrZQP1avoMFojc2HeQdhw", title: "Associazione Artù APS (Italy)", region: "country=Italy", words: "italy italia", titlePattern: "\\bitaly\\b" },
   { channelId: "UCq5bJjdyfAQYIs7yb_83vaA", title: "Fikret Yüksel Foundation (Türkiye)", region: "country=Türkiye", words: "turkiye turkey gun", titlePattern: "t[uü]rkiye [şs]ampiyonas[ıi]" },
   { channelId: "UC7e1UfLTHCdAoF7VIay_IqA", title: "The PRC Channel (Thailand)", region: "country=Thailand", words: "thailand ftcthailand", titlePattern: "thailand" },
+  // Team 12099 (Centennial HS, Columbus): FIRST's event pages name its streams for the Central Ohio league (scrimmage,
+  // meets, league tournament) in 2025 and 2026. Channel id from the YouTube Data API (forHandle @StarsoftheGalaxy12099), 2026-11-14.
+  { channelId: "UC576ZA1td9ZvsAUwPq1Ymaw", title: "Stars of the Galaxy (Central Ohio)", region: "state=OH;name=^Central Ohio ", words: "ohio central columbus" },
+  // FIRST Alumni Network Grand Valley: streams the West Michigan league meets at GVSU's Shape Corp. IDC, Grand Rapids
+  // (GVSU Padnos's own page says so; FIRST's event pages link its Meet 1, 3 and 4 streams). Channel id from the
+  // YouTube Data API (forHandle @firstalumninetworkgrandvalley), 2026-11-14. Its Robot in 3 Days streams are FRC.
+  { channelId: "UCaojFS3JFPWY9kaoW6bhvvQ", title: "FIRST Alumni Network Grand Valley (West Michigan)", region: "state=MI;name=^West Michigan ", words: "michigan west grand valley rapids gvsu" },
   { channelId: "UCal7624DPridi_9iKLrAbqw", title: "FIRST Australia", region: "country=Australia", words: "australia australian", titlePattern: "australian? (national )?championship|\\bAPOC\\b|asia pacific open" },
 ];
