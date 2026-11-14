@@ -48,16 +48,21 @@ const channelOf = (r: any): ChannelRow => ({
 });
 
 let channelsSeeded = false;
+/** The next seed call runs again, as after a restart. */
+export const resetChannelsSeeded = () => { channelsSeeded = false; };
 /** The shipped watchlist (server/data/officialChannels.ts), each channel once: a removed one is never written back. */
 export async function seedOfficialChannels(now = Date.now(), again = false): Promise<number> {
   if (channelsSeeded && !again) return 0;
   const at = new Date(now).toISOString();
-  const known = new Set((await all<{ channel_id: string }>("SELECT channel_id FROM official_channels")).map((r) => String(r.channel_id)));
+  const rows = await all<{ channel_id: string; title_pattern: string | null }>("SELECT channel_id, title_pattern FROM official_channels");
+  const known = new Set(rows.map((r) => String(r.channel_id)));
+  const current = new Map(rows.map((r) => [String(r.channel_id), r.title_pattern ?? null]));
   const todo = OFFICIAL_CHANNELS.filter((c) => !known.has(c.channelId));
   // A seeded channel's title pattern follows the seed's current one (a new, narrowed or dropped pattern), as long as the
   // row is still the seed's: watched, same region, never saved or removed by the owner (added_by, or an
   // officialChannel.* audit entry). The write itself decides, so an owner save landing after the read above still stands.
-  const patterns = OFFICIAL_CHANNELS.filter((c) => known.has(c.channelId));
+  // Only rows whose pattern differs are written (none, once in step), so a start with nothing to change writes nothing.
+  const patterns = OFFICIAL_CHANNELS.filter((c) => known.has(c.channelId) && current.get(c.channelId) !== (c.titlePattern ?? null));
   const writes = [
     ...todo.map((c) => ({
       sql: "INSERT INTO official_channels (channel_id, title, region, words, title_pattern, watch_from, added_at, added_by) VALUES (?, ?, ?, ?, ?, ?, ?, NULL) ON CONFLICT(channel_id) DO NOTHING",
@@ -322,7 +327,10 @@ export async function pendingCount(): Promise<number> {
 }
 
 export async function ownerOfficial(now = Date.now()) {
-  await seedOfficialChannels(now);
+  // Under the data lock, like the watcher's seed; while a sync holds it the panel loads without seeding (the next
+  // load or watcher run seeds), so it never waits out the database's busy timeout.
+  try { await withDataLock("official videos seed", () => seedOfficialChannels(now), { ttlMs: 60_000, waitMs: 2000, pollMs: 250 }); }
+  catch (e) { if (!(e instanceof LockBusy) && !isBusy(e)) throw e; }
   const since = new Date(now).toISOString().slice(0, 10);
   const [pending, ignored, duplicates, decided, runs, channels, today, list] = await Promise.all([
     all<any>(`${WATCH_SELECT} WHERE w.status = 'pending' ORDER BY w.seen_at, COALESCE(w.start, w.published) LIMIT 200`),
