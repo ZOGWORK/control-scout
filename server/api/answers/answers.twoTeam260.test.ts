@@ -184,7 +184,7 @@ describe("the answers", () => {
     const a = await ask("4215 versus 6980 compare");
     const m = a.stat!.blocks.find((b) => b.kind === "matches");
     expect(m && m.kind === "matches" ? m.rows.map((r) => r.label) : []).toEqual(["Q4", "Q3", "Q2", "Q1"]);
-    // Three teams: only the match all three were on the field for (Q2: 4215 and 207 against 6980).
+    // Three teams: the qualifications all three were on the field for (Q1–Q3), latest first.
     const b = await ask("4215 207 6980 compare");
     const mb = b.stat!.blocks.find((x) => x.kind === "matches");
     expect(mb && mb.kind === "matches" ? mb.rows.map((r) => r.label) : []).toEqual(["Q3", "Q2", "Q1"]);
