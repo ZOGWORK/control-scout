@@ -233,6 +233,26 @@ describe("sizes say what they are", () => {
   });
 });
 
+describe("a season the save run is on", () => {
+  it("isn't a paused row with a Delete while the run downloads or stores it", async () => {
+    const { download, finishDownload, sha256Of } = await import("../lib/offline/download");
+    const data = new Uint8Array(2000).fill(6);
+    const sha = await sha256Of(data);
+    // Its pieces are whole and checked: the run is storing them.
+    await download({ url: "/packs/s.db.gz", bytes: 2000, sha256: sha }, { owner: { kind: "season", id: "2026", label: "2026–27 season" }, fetch: (async () => new Response(data)) as unknown as typeof fetch });
+    let open!: () => void;
+    gate = new Promise((r) => { open = r; });
+    mount();
+    fireEvent.click((await screen.findAllByRole("button", { name: /^Download · / }))[0]); // 2026–27, the first row
+    await waitFor(() => expect(order).toEqual([2026]));
+    expect(screen.queryByText(/Downloaded and checked/)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Delete the paused 2026–27 season download" })).toBeNull();
+    open();
+    await waitFor(() => expect(toastOk).toHaveBeenCalled());
+    await finishDownload(sha);
+  });
+});
+
 describe("a season being stored", () => {
   it("keeps the save run's progress once the bytes are in (never back to 0 B)", () => {
     const r = { file: file(2025, "b"), season: 2025, saved: null, state: "available" as const };

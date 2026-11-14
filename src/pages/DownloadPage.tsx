@@ -385,7 +385,8 @@ function OnDevice({ m, local }: { m: PackManifest | null; local: PackMeta | null
   const packsOn = useFlag("offlinePacks");
   const bundlesOn = useFlag("eventBundle") && packsOn;
   const items = useMemo(() => deviceItems(local, saved, savedBundles), [local, saved, savedBundles]);
-  const paused = pausedItems(partials, new Set(Object.keys(active)));
+  // A season the save run is on (downloading, unzipping or storing it) is the run's, never a paused row.
+  const paused = pausedItems(partials, new Set([...Object.keys(active), ...(busy ? [`season:${busy.season}`] : [])]));
   const total = totalBytes(items, paused);
   const [est, setEst] = useState<{ usage?: number; quota?: number } | null>(null);
   useEffect(() => { navigator.storage?.estimate?.().then(setEst, () => setEst({})); }, [total]);
@@ -480,7 +481,7 @@ function OnDevice({ m, local }: { m: PackManifest | null; local: PackMeta | null
               </div>
               <div className="flex gap-2">
                 <Button className="h-11 sm:h-10" variant="secondary" onClick={() => void resume(p)} disabled={working != null || (p.kind === "season" && seasonRun) || !m}><HardDriveDownload /> {p.verified ? "Save" : "Resume"}</Button>
-                <Button className="h-11 sm:h-10" variant="outline" onClick={() => void drop(p)} disabled={working != null} aria-label={`Delete the paused ${p.label} download`}><Trash2 /> Delete</Button>
+                <Button className="h-11 sm:h-10" variant="outline" onClick={() => void drop(p)} disabled={working != null || (p.kind === "season" && seasonRun)} aria-label={`Delete the paused ${p.label} download`}><Trash2 /> Delete</Button>
               </div>
             </li>
           ))}
