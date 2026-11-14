@@ -264,7 +264,7 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
           <TabsTrigger value="awards"><AwardsTabIcon />Awards</TabsTrigger>
           {predictable && <TabsTrigger value="odds"><OddsTabIcon />Odds</TabsTrigger>}
         </TabsList>
-        <TabsContent value="matches" className="mt-5 max-sm:mt-4" data-tour="event-matches">
+        <TabsContent value="matches" className="mt-5 max-sm:mt-4">
           <Matches d={d} team={teamParam} live={liveMode ? nextMatch(d.matches, null)?.key ?? null : null} />
           {/* Official results first posted, corrected or rescheduled (self-contained: its own route). */}
           <ResultChanges season={e.season} code={e.code} refreshKey={recordsKey} />

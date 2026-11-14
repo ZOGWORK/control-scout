@@ -139,7 +139,7 @@ export function HeroSearch({ inputRef, onEscape, hint, initialQuery }: { inputRe
     <section aria-label="Search" className="mt-6 max-sm:mt-4 max-w-[38rem]">
       <div onFocus={() => setFocused(true)} onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocused(false); }}>
         <SearchBox
-          size="lg" inputRef={inputRef} onEscape={onEscape} hint={hint} tour="search" initialQuery={initialQuery} discover
+          size="lg" inputRef={inputRef} onEscape={onEscape} hint={hint} initialQuery={initialQuery} discover
           label="Search teams, events and matches"
           placeholder={heroPlaceholder(shown)}
           onPick={(h: SearchHit) => nav(hitHref(h))}
