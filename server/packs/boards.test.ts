@@ -6,7 +6,7 @@
 // the pack doesn't hold says so, unofficial records stay marked, and the event pack carries its league's standings.
 import type { AddressInfo } from "node:net";
 import { get as httpGet, type Server } from "node:http";
-import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import initSqlJs from "sql.js";
@@ -15,7 +15,7 @@ import { kvSet, migrate, openDb, run, setDb } from "../db";
 import { createApp } from "../app";
 import { setFlag } from "../flags";
 import { CURRENT_SEASON } from "../data/seasons";
-import { buildFull } from "./build";
+import { buildFull, settleWait } from "./build";
 import { setBoardReads } from "./boards";
 import { buildPackApi, setPackReads, PACK_READS } from "./eventApi";
 import { eventDetail } from "../api/events";
@@ -228,7 +228,7 @@ describe("event pack", () => {
 
 describe("building a season pack", () => {
   const V0 = "2026-11-14T01:09:00.000Z", V1 = "2026-11-14T09:30:00.000Z";
-  afterAll(async () => { setBoardReads(null); await kvSet("data:version", V0); });
+  afterAll(async () => { setBoardReads(null); await kvSet("data:version", V0); await run("DELETE FROM kv WHERE key = 'data:settled'"); settleWait.ms = 5 * 60_000; settleWait.pollMs = 2000; });
 
   it("a sync during the build: the pack is built again and labelled with the data its rows are from, never an older version", async () => {
     let reads = 0;
@@ -251,5 +251,61 @@ describe("building a season pack", () => {
     const d = mkdtempSync(join(tmpdir(), "cs-boards-f-"));
     await expect(buildFull(S, "2026-11-14.9", d, () => {})).rejects.toThrow(/boom/);
     expect(readdirSync(d)).toEqual([]);
+  }, 120_000);
+
+  it("writes still in progress (version moved, not settled yet): waits until they're done, then labels the pack with that version", async () => {
+    const V2 = "2026-11-14T10:00:00.000Z";
+    await kvSet("data:version", V0); await kvSet("data:settled", V0);
+    settleWait.ms = 10_000; settleWait.pollMs = 50;
+    let reads = 0;
+    // A writer bumps the version mid-build (job.ts/live.ts bump it first), and settles a moment later.
+    setBoardReads([async (s) => [{ path: `/api/records/${s}/high-score`, read: async () => {
+      if (++reads === 1) { await kvSet("data:version", V2); setTimeout(() => void kvSet("data:settled", "2026-11-14T10:00:05.000Z"), 300); }
+      return { line: null };
+    } }]]);
+    const d = mkdtempSync(join(tmpdir(), "cs-boards-s-"));
+    const logs: string[] = [];
+    const f = await buildFull(S, "2026-11-14.10", d, (m) => logs.push(m));
+    expect(reads).toBe(2);
+    expect(logs.some((m) => m.includes("still being written"))).toBe(true);
+    const SQL = await initSqlJs();
+    const db = wrap(new SQL.Database(readFileSync(join(d, f!.name))));
+    expect(db.all("SELECT value FROM pack_info WHERE key = 'data_version'")).toEqual([{ value: V2 }]);
+    expect(readdirSync(d)).toEqual([f!.name]);
+  }, 120_000);
+
+  it("data that never settles: the build fails (no mixed pack) and leaves nothing behind", async () => {
+    await kvSet("data:version", "2026-11-14T11:00:00.000Z");
+    await kvSet("data:settled", "2026-11-14T10:59:00.000Z");
+    settleWait.ms = 300; settleWait.pollMs = 50;
+    let reads = 0;
+    setBoardReads([async (s) => [{ path: `/api/records/${s}/high-score`, read: async () => { reads++; return { line: null }; } }]]);
+    const d = mkdtempSync(join(tmpdir(), "cs-boards-n-"));
+    await expect(buildFull(S, "2026-11-14.11", d, () => {})).rejects.toThrow(/still being written/);
+    expect(reads).toBe(0);
+    expect(readdirSync(d)).toEqual([]);
+  }, 120_000);
+
+  it("a copy into place that fails: the build rejects and leaves no temp or staging file", async () => {
+    await run("DELETE FROM kv WHERE key = 'data:settled'");
+    let reads = 0;
+    setBoardReads([async (s) => [{ path: `/api/records/${s}/high-score`, read: async () => { reads++; return { line: null }; } }]]);
+    const d = mkdtempSync(join(tmpdir(), "cs-boards-c-"));
+    // The final name is taken by a folder that can't be replaced: the rename into place fails.
+    const final = join(d, `scout-pack-2026-11-14-12-${S}.db`);
+    mkdirSync(final); writeFileSync(join(final, "x"), "x");
+    await expect(buildFull(S, "2026-11-14.12", d, () => {})).rejects.toThrow();
+    expect(reads).toBe(1);
+    expect(readdirSync(d)).toEqual([`scout-pack-2026-11-14-12-${S}.db`]);
+  }, 120_000);
+
+  it("a stale temp file that can't be removed: fails at once, naming it, before any of the build", async () => {
+    let reads = 0;
+    setBoardReads([async (s) => [{ path: `/api/records/${s}/high-score`, read: async () => { reads++; return { line: null }; } }]]);
+    const d = mkdtempSync(join(tmpdir(), "cs-boards-t-"));
+    const tmp = join(d, `scout-pack-2026-11-14-13-${S}.db.tmp`);
+    mkdirSync(tmp); writeFileSync(join(tmp, "x"), "x");
+    await expect(buildFull(S, "2026-11-14.13", d, () => {})).rejects.toThrow(`can't remove the stale ${tmp}`);
+    expect(reads).toBe(0);
   }, 120_000);
 });

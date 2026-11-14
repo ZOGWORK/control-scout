@@ -90,53 +90,79 @@ export async function buildFull(season: number, version: string, dir: string, lo
   const n = await all<{ c: number }>("SELECT COUNT(*) c FROM matches WHERE season = ?", [season]);
   if (!Number(n[0]?.c)) return null;
   const name = `scout-pack-${version.replace(/\./g, "-")}-${season}.db`;
-  // The pack is labelled with the data version its rows are from (the ranking's asOf offline). A sync can land while
-  // the rows are copied, with no lock across the copy: the version is read before and after, and a pack whose data
-  // moved underneath it is built again in the same file (after the last try it carries the newer version, never an
-  // older one). The pack is built in memory and written out whole at the end (VACUUM INTO), so a build that fails
-  // part-way leaves no file behind, and the database is always closed.
-  const tmp = join(dir, `${name}.tmp`);
-  await dropFile(tmp);
+  // The pack is labelled with the data version its rows are from (the ranking's asOf offline). Writers move
+  // data:version BEFORE they write (server/stats/job.ts runStats, server/data/live.ts) and data:settled once every
+  // write is done, and packs are read with no lock (holding the data lock for a whole pack would stall the live
+  // lane). So a build starts only once the data is settled (settled at or after the version) and is kept only when
+  // the version didn't move and the data is still settled afterwards: no writer started or was mid-way during the
+  // reads. Otherwise it's built again; after the last try the build fails rather than ship mixed rows (the next
+  // cycle builds it). The pack is built in memory, written out whole (VACUUM INTO) to a temp file, copied to a
+  // staging name and renamed into place, so a build that fails at any step leaves no file behind.
+  const final = join(dir, name), tmp = `${final}.tmp`, part = `${final}.part`;
+  for (const f of [tmp, part]) if (!(await dropFile(f))) throw new Error(`full ${season}: can't remove the stale ${f}`);
   let rows = 0, teams = 0;
   const out = createClient({ url: ":memory:" });
   let ok = false;
   try {
     for (let attempt = 1; ; attempt++) {
-      const before = await dataVersion();
+      const before = await settledVersion(season, log);
       ({ rows, teams } = await writeFullPack(out, season, version, log));
-      const after = await dataVersion();
-      if (after === before || attempt >= VERSION_TRIES) {
-        await out.execute({ sql: "INSERT INTO pack_info VALUES ('data_version', ?)", args: [after] });
+      const after = await dataState();
+      if (after.version === before && after.settled) {
+        await out.execute({ sql: "INSERT INTO pack_info VALUES ('data_version', ?)", args: [before] });
         break;
       }
-      log(`full ${season}: data changed while packing (${before} → ${after}), building again`);
+      if (attempt >= VERSION_TRIES) throw new Error(`full ${season}: data kept changing while packing (${VERSION_TRIES} tries)`);
+      log(`full ${season}: data changed while packing (${before} → ${after.version}), building again`);
       // Start the file over: every table and index this try wrote goes.
       for (const t of (await out.execute("SELECT name FROM sqlite_master WHERE type = 'table'")).rows) await out.execute(`DROP TABLE "${String(t.name)}"`);
     }
     await out.execute({ sql: "VACUUM INTO ?", args: [tmp] });
+    // Windows can hold the file briefly after it's written: copy (to a staging name), then rename into place.
+    copyFileSync(tmp, part);
+    renameSync(part, final);
     ok = true;
   } finally {
     out.close();
-    if (!ok) await dropFile(tmp);
+    await dropFile(tmp);
+    if (!ok) { await dropFile(part); await dropFile(final); }
   }
-  // Windows can hold the file briefly after it's written: copy, then clean up the temp file.
-  copyFileSync(tmp, join(dir, name));
-  await dropFile(tmp);
-  const buf = readFileSync(join(dir, name));
+  const buf = readFileSync(final);
   log(`full ${season}: ${rows + teams} rows → ${(buf.length / 1e6).toFixed(1)} MB`);
   return { name, url: `/packs/${name}`, bytes: buf.length, sha256: sha256(buf), seasons: [season], kind: "full",
     contents: `Every ${seasonInfo(season).label} ${seasonInfo(season).game} event, team, match (scores, breakdowns, penalties, lineups), ranking, alliance, award and computed stat — a plain SQLite file.` };
 }
 
-/** Remove a file, retrying briefly while Windows still holds it after its database closed (best effort: a leftover
- *  temp file is removed by the next build's sweep, buildPacksUnlocked). */
-async function dropFile(f: string): Promise<void> {
+/** Remove a file, retrying briefly while Windows still holds it after its database closed. True once it's gone. */
+async function dropFile(f: string): Promise<boolean> {
   for (let i = 0; i < 40 && existsSync(f); i++) {
-    try { rmSync(f); return; } catch { await new Promise((r) => setTimeout(r, 50)); }
+    try { rmSync(f); } catch { await new Promise((r) => setTimeout(r, 50)); }
+  }
+  return !existsSync(f);
+}
+
+/** The data version and whether its writes are all done (data:settled at or after it; no settled mark yet means
+ *  no writer has run the settle protocol, so there's nothing to wait for). */
+async function dataState(): Promise<{ version: string; settled: boolean }> {
+  const version = await dataVersion(), settled = await kvGet<string>("data:settled");
+  return { version, settled: settled == null || settled >= version };
+}
+
+/** How long a pack build waits for writes in progress to finish (tests shorten it). */
+export const settleWait = { ms: 5 * 60_000, pollMs: 2000 };
+
+/** The data version once its writes are done, waiting (bounded) while a writer is mid-way. */
+async function settledVersion(season: number, log: (m: string) => void): Promise<string> {
+  for (const until = Date.now() + settleWait.ms; ;) {
+    const s = await dataState();
+    if (s.settled) return s.version;
+    if (Date.now() >= until) throw new Error(`full ${season}: data ${s.version} still being written after ${settleWait.ms / 1000} s`);
+    log(`full ${season}: data ${s.version} still being written, waiting`);
+    await new Promise((r) => setTimeout(r, settleWait.pollMs));
   }
 }
 
-/** Builds of one season pack before it ships with the newer data version anyway. */
+/** Builds of one season pack before it gives up (the next cycle builds it). */
 const VERSION_TRIES = 3;
 
 /** A season pack's tables and rows (everything but its data version), written into `out`. */
