@@ -19,11 +19,11 @@ import { finishPageAnswer, typedPageAnswer } from "./api/searchPage.js";
 import { relatedPage } from "./api/answers/relatedPage.js";
 import { refine } from "./api/searchBruno.js";
 import { brunoAnswer } from "./api/searchBrunoAnswer.js";
-import { SEARCH_PAGE_LIMIT } from "../src/shared/search.js";
+import { SEARCH_PAGE_LIMIT, preferOf } from "../src/shared/search.js";
 import { searchTiming } from "./api/searchTiming.js";
 
 /** A search's preferred teams and events (?prefer=team:4215,event:2025:USNJCMP), the visitor's own: ranked first. */
-const preferOf = (raw: unknown) => new Set(String(raw ?? "").split(",").filter((k) => /^(team:\d{1,6}|event:\d{4}:[A-Z0-9_-]{2,24})$/i.test(k)).slice(0, 100));
+// ?prefer= (src/shared/search.ts preferOf): read the same way by the event pack with no signal.
 import { recordClick } from "./api/searchLearn.js";
 import { recordIntent } from "./api/searchIntents.js";
 import { rebuildSearch } from "./stats/job.js";

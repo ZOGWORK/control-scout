@@ -17,6 +17,8 @@ export const SEARCH_PAGE_LIMIT = 25;
 /** The longest query read: a full question ("did the prediction for 12345 at the state championship get it right, or
  *  was it way off") fits. Longer is cut at a word, never inside one. */
 export const SEARCH_MAX_QUERY = 160;
+/** ?prefer=team:12345,event:2025:USNJCMP: the visitor's own teams and events, first when several share a name. */
+export const preferOf = (raw: unknown): Set<string> => new Set(String(raw ?? "").split(",").filter((k) => /^(team:\d{1,6}|event:\d{4}:[A-Z0-9_-]{2,24})$/i.test(k)).slice(0, 100));
 
 /** The query as search reads it (server/api/searchAnswer.ts, and the event pack with no signal): punctuation that
  *  never means anything dropped, spaces folded, at most SEARCH_MAX_QUERY (cut at the last whole word: a word cut in

@@ -28,7 +28,7 @@ async function seed() {
   for (const [n, name, city] of TEAMS) await run("INSERT INTO teams (number, name, city, state, country) VALUES (?, ?, ?, 'MI', 'USA')", [n, name, city]);
   // A team the event doesn't hold, for "not in your pack".
   await run("INSERT INTO teams (number, name, city, state, country) VALUES (9999, 'Far Away', 'Oradell', 'NJ', 'USA')");
-  await run("INSERT INTO events (season, code, name, type, region, city, state, country, start, end, remote, hybrid, source) VALUES (?, ?, 'Midland Robot Qualifier', 'Qualifier', 'USMI', 'Midland', 'MI', 'USA', '2025-11-08', '2025-11-08', 0, 0, 'test')", [S, EV]);
+  await run("INSERT INTO events (season, code, name, type, region, city, state, country, start, end, remote, hybrid, source) VALUES (?, ?, 'Midland Tundra Qualifier', 'Qualifier', 'USMI', 'Midland', 'MI', 'USA', '2025-11-08', '2025-11-08', 0, 0, 'test')", [S, EV]);
   for (const [i, [n]] of TEAMS.entries()) await run("INSERT INTO event_teams (season, code, team, rank, wins, losses, ties, qual_played) VALUES (?, ?, ?, ?, 1, 1, 0, 2)", [S, EV, n, i + 1]);
   const match = async (num: number, red: number[], blue: number[]) => {
     await run(`INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, red_auto, red_teleop, red_endgame, red_pen,
@@ -87,12 +87,12 @@ afterAll(() => { app?.close(); });
 describe("the event pack's searches", () => {
   it("are every team by number and name, the event by code and name, and each match as search reads one", () => {
     const qs = packSearchQueries({ code: EV, ev: pack.event, teams: packTeams(pack.event), matches: pack.event.matches });
-    expect(qs).toEqual(["1111", "2222", "3333", "4444", "5555", "6666", "7777", "Gear Grinders", "Bolt Brigade", "Circuit Owls", "Torque Turtles", "Pixel Pirates", "Iron Eagles", EV, "Midland Robot Qualifier", `${EV} Q1`, `${EV} Q2`]);
+    expect(qs).toEqual(["1111", "2222", "3333", "4444", "5555", "6666", "7777", "Gear Grinders", "Bolt Brigade", "Circuit Owls", "Torque Turtles", "Pixel Pirates", "Iron Eagles", EV, "Midland Tundra Qualifier", `${EV} Q1`, `${EV} Q2`]);
     for (const q of qs) expect(packLookup(pack.api, searchPackPath(q)), q).toMatchObject({ body: { q } });
   });
 
   it("answer with no signal exactly as online: team, name, event and match queries", async () => {
-    for (const q of ["1111", "Circuit Owls", EV, "Midland Robot Qualifier", `${EV} Q2`]) expect(JSON.stringify(await offline(q)), q).toBe(JSON.stringify(await online(q)));
+    for (const q of ["1111", "Circuit Owls", EV, "Midland Tundra Qualifier", `${EV} Q2`]) expect(JSON.stringify(await offline(q)), q).toBe(JSON.stringify(await online(q)));
     // However it's typed: case and spacing.
     expect(JSON.stringify(await offline("  circuit   OWLS "))).toBe(JSON.stringify(await online("  circuit   OWLS ")));
     expect((await online(`${EV} Q2`)).hits[0]).toMatchObject({ kind: "match" });
@@ -139,13 +139,39 @@ describe("the event pack's searches", () => {
     expect(card?.links).toEqual([{ label: "6666 Iron Eagles", href: `/teams/6666?season=${S}` }]);
   });
 
+  it("two teams of one name, the visitor's own the weaker: theirs, read offline as online (?prefer=)", async () => {
+    const prefer = new Set(["team:7777"]);
+    const ctx = { ...packParseContext([pack], new Date().toISOString().slice(0, 10)), prefer };
+    const server = await parseContext(Date.now(), prefer);
+    for (const q of ["iron eagles opr", "1111 vs iron eagles"]) {
+      const off = await parseQuery(q, ctx);
+      expect(off.teams.some((t) => t.number === 7777), q).toBe(true);
+      expect(JSON.stringify(off), q).toBe(JSON.stringify(await parseQuery(q, server)));
+    }
+    // Asked as the /search page asks, the visitor's team on the URL: the card names theirs.
+    const card = (await searchFromPacks(`/api/search?q=${encodeURIComponent("iron eagles opr")}&limit=25&answer=1&prefer=team:7777`, [pack]))!.body.notInPack;
+    expect(card?.links).toEqual([{ label: "7777 Iron Eagles", href: `/teams/7777?season=${S}` }]);
+  });
+
+  it("a word of a named team's own event is read as that event, offline as online", async () => {
+    const ctx = packParseContext([pack], new Date().toISOString().slice(0, 10));
+    const server = await parseContext();
+    for (const q of ["1111 tundra", "1111 tundra opr", "1111 rank at tundra", "1111 midland", "1111 tundra 2025-26", "1111 tundra 2024-25"]) {
+      const off = await parseQuery(q, ctx);
+      expect(JSON.stringify(off), q).toBe(JSON.stringify(await parseQuery(q, server)));
+    }
+    // "tundra": only the event's name says it. In 2024-25 the team had no event of that name.
+    expect((await parseQuery("1111 tundra opr", ctx)).event).toEqual({ words: "midland tundra qualifier", typed: "tundra", latest: true });
+    expect((await parseQuery("1111 tundra 2024-25", ctx)).event).toBeNull();
+  });
+
   it("anything else says what it needs that isn't in the pack, and what is", async () => {
     const far = await offline("9999");
-    expect(far.notInPack).toEqual({ about: ["team 9999"], packs: [{ season: S, code: EV, name: "Midland Robot Qualifier", teams: 7, matches: 2, dataAsOf: "2025-11-08T20:09:00Z" }], links: [] });
+    expect(far.notInPack).toEqual({ about: ["team 9999"], packs: [{ season: S, code: EV, name: "Midland Tundra Qualifier", teams: 7, matches: 2, dataAsOf: "2025-11-08T20:09:00Z" }], links: [] });
     expect((await offline("who won decode")).notInPack?.about).toEqual(["the 2025–26 season"]);
     expect((await offline("1111 vs 9999")).notInPack?.about).toEqual(["team 9999"]);
     // A match of the pack named alone ("Q2" is no match online): its page, to open.
-    expect((await offline("Q2")).notInPack?.links).toEqual([{ label: "Q2 at Midland Robot Qualifier", href: `/events/${S}/${EV}?match=qual:0:2` }]);
+    expect((await offline("Q2")).notInPack?.links).toEqual([{ label: "Q2 at Midland Tundra Qualifier", href: `/events/${S}/${EV}?match=qual:0:2` }]);
     // The season picker's search isn't the pack's.
     expect((await searchFromPacks(`/api/search?q=1111&answer=1&season=2024`, [pack]))!.body.notInPack).toBeTruthy();
   });

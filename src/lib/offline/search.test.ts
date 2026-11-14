@@ -165,4 +165,21 @@ describe("search with no signal, from a saved event pack", () => {
     expect(await apiFetch(`/api/teams-summary?season=${S}&teams=12,4215`)).toEqual(server);
     expect(decode.during).toBeNull();
   }, 30_000);
+
+  it("lib/api.ts: team cards the pack holds only some of wait SEARCH_SLOW_MS at most for a hung server, then show the pack's", async () => {
+    const { apiFetch, SEARCH_SLOW_MS } = await import("../api");
+    const aborted: string[] = [];
+    vi.stubGlobal("fetch", vi.fn((url: string, init?: RequestInit) => {
+      if (!String(url).startsWith("/api/teams-summary")) return Promise.resolve(new Response("{}"));
+      // Never answers.
+      return new Promise<Response>((_, reject) => init?.signal?.addEventListener("abort", () => { aborted.push(String(url)); reject(new DOMException("aborted", "AbortError")); }));
+    }));
+    await apiFetch("/api/health");
+    const t0 = performance.now();
+    expect(await apiFetch(`/api/teams-summary?season=${S}&teams=12,4215`)).toEqual({ season: S, teams: [summary(12)] });
+    const took = performance.now() - t0;
+    expect(took).toBeGreaterThanOrEqual(SEARCH_SLOW_MS - 50);
+    expect(took).toBeLessThan(SEARCH_SLOW_MS + 3000);
+    expect(aborted).toEqual([`/api/teams-summary?season=${S}&teams=12,4215`]);
+  }, 30_000);
 });

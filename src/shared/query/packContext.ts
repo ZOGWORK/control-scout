@@ -30,5 +30,24 @@ export function packParseContext(packs: ParsePack[], today: string): ParseContex
   const places = packs.map((p) => ({ city: p.event.event.city ?? null, state: p.event.event.state ?? null, country: p.event.event.country ?? null, name: p.event.event.name, code: p.event.event.code }));
   const names = buildNames(rows, places);
   const events = new Set(packs.flatMap((p) => [fold(p.event.event.name), fold(p.event.event.code)]));
-  return { names, today, isEvent: async (words) => events.has(fold(words)), nearTeam: async (words) => names.nearTeam(words) };
+  return {
+    names,
+    today,
+    // One word an event's initialism is, when no team is named so (as the server's context), or an event's whole
+    // name or code. The server also finds events by search's index; a pack knows only its own.
+    isEvent: async (words) => (!words.includes(" ") && names.initialism(words).length > 0 && !names.teamsNamed(words).length) || events.has(fold(words)),
+    nearTeam: async (words) => names.nearTeam(words),
+    teamEvent: async (word, teams, when) => teamEventOf(packs, word, teams, when),
+  };
+}
+
+/** ParseContext.teamEvent from the packs, as the server reads it from its rosters (server/api/query/context.ts): the
+ *  name (folded) of the latest of the teams' events (in the season or year given, held in the window given) with
+ *  `word` in its name as a whole word. */
+function teamEventOf(packs: ParsePack[], word: string, teams: number[], { season, year, from, to }: { season: number | null; year: number | null; from?: string; to?: string }): string | null {
+  const evs = packs.map((p) => ({ e: p.event.event, field: p.event.field })).filter(({ e, field }) =>
+    field.some((f) => teams.includes(f.team)) && (season == null || e.season === season) && (year == null || (e.start ?? "").startsWith(String(year)))
+    && (!(from && to) || (e.start != null && (e.end ?? e.start).slice(0, 10) >= from && e.start.slice(0, 10) <= to)))
+    .map(({ e }) => e).sort((a, b) => (b.start ?? "").localeCompare(a.start ?? ""));
+  return evs.map((e) => fold(e.name ?? "")).find((n) => n.split(" ").includes(word)) ?? null;
 }

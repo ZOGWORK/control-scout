@@ -12,7 +12,7 @@
 import type { NotInPack, SearchAnswer, TeamSummary } from "./api";
 import { packLookup, searchPackPath, type EventBundle } from "./eventBundle";
 import { versusFromPack, versusNumbers } from "./searchVersus";
-import { cleanQuery } from "./search";
+import { cleanQuery, preferOf } from "./search";
 import { describe, parseQuery, type ParseContext, type Parsed } from "./query/parse";
 import { packParseContext } from "./query/packContext";
 import { seasonLabel } from "./format";
@@ -32,6 +32,9 @@ export async function searchFromPacks(path: string, packs: SearchPack[], now = D
   const q = cleanQuery(url.searchParams.get("q") ?? "");
   if (url.searchParams.get("answer") !== "1" || url.searchParams.get("kinds") || !q || !packs.length) return null;
   const limit = Number(url.searchParams.get("limit")) || 0;
+  // The visitor's own teams, first when several share a name (?prefer=, read as the route reads it).
+  const prefer = preferOf(url.searchParams.get("prefer"));
+  if (prefer.size) ctx = { ...ctx, prefer };
   // The season picker and "my team" ask the server for another answer than the pack's: those say what's missing.
   const asked = !url.searchParams.get("season") && !url.searchParams.get("my");
   if (asked) {

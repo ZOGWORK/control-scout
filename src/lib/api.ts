@@ -263,8 +263,11 @@ async function respond<T>(request: Promise<Response>, kind: "saved" | "lite" | "
   }
   // The team cards' numbers when the packs hold only some of the teams asked, while the server answers other
   // requests: the server's answer, which has them all, is waited for (with no network the pack's part still answers,
-  // offlineOr).
-  if (SUMMARY_PATH.test(path) && up && !summaryWhole(path, won.data)) return request;
+  // offlineOr). Waited for as long as a slow search; past that, the cards the pack holds.
+  if (SUMMARY_PATH.test(path) && up && !summaryWhole(path, won.data)) {
+    const more = await Promise.race([request, new Promise<typeof TIMED_OUT>((r) => { timer = setTimeout(() => r(TIMED_OUT), SEARCH_SLOW_MS - OFFLINE_TIMEOUT_MS); })]).finally(() => clearTimeout(timer));
+    if (more !== TIMED_OUT) return more;
+  }
   ctrl.abort();
   return { saved: won.data as T };
 }
