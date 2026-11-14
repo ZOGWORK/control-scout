@@ -223,7 +223,6 @@ describe("the shipped list", () => {
     const ev = { season: 2026, type: "LeagueMeet", city: "Tulsa", state: "OK", country: "USA", start: "2026-11-14", end: "2026-11-14", timezone: "America/Chicago", divisionCode: null, parent: false };
     expect(rule(TRC)({ ...ev, code: "USOKOKHGM2", name: "Herrington League Meet 2" })).toBe(true);
     expect(rule(TRC)({ ...ev, code: "USOKCMP", name: "Oklahoma Championship", type: "Championship" })).toBe(true);
-    expect(rule(TRC)({ ...ev, code: "USOKOKCRM2", name: "Carver League Meet 2" })).toBe(false);
     expect(rule(TRC)({ ...ev, code: "USARBEQ", name: "Bentonville Bash", state: "AR" })).toBe(false);
     const ar = { ...ev, state: "AR", type: "Qualifier", city: "Benton" };
     expect(rule("UClcqdD9sHnwtN7FCW6Vj1Ug")({ ...ar, code: "USARBEQ2", name: "Battle at Benton" })).toBe(true);
@@ -239,6 +238,20 @@ describe("the shipped list", () => {
     const cmp = { ...ev, season: 2025, code: "USOKCMP", name: "Oklahoma Championship", type: "Championship", start: "2026-02-14", end: "2026-02-14" };
     const stream = { videoId: "2dfab82v9LI", title: "FIRST Oklahoma - Oklahoma State Championship - FTC Decode", start: "2026-02-14T15:00:00Z", durationS: 7 * 3600, privacy: "public", embeddable: true, blockedIn: 0 };
     expect(matchVideo(stream, trc, [cmp]).kind).toBe("add");
+    // Every Oklahoma event is a candidate and only the championship title counts as naming the region: a Meet 2 stream
+    // on a day two leagues hold their Meet 2 fits both and goes to review, never onto the other league's meet.
+    const meet2 = [{ ...ev, code: "USOKOKDVM2", name: "DaVinci League Meet 2" }, { ...ev, code: "USOKOKCRM2", name: "Carver League Meet 2", city: "Mustang" }];
+    const day = { ...stream, start: "2026-11-14T15:00:00Z" };
+    expect(matchVideo({ ...day, title: "FIRST Oklahoma - Carver League Meet #2 - BIOBUZZ" }, trc, meet2).kind).toBe("review");
+    expect(matchVideo({ ...day, title: "FIRST Oklahoma - DaVinci League Meet #2 - BIOBUZZ" }, trc, meet2).kind).toBe("review");
+    expect(matchVideo({ ...day, title: "FIRST Oklahoma - DaVinci League Meet #2 - BIOBUZZ" }, trc, meet2.slice(0, 1)).kind).toBe("add");
+    expect(trc.titlePattern).toBe("oklahoma (state )?championship");
+    // Shiloh is a school sports channel: its FTC championship title counts, a sports state championship never does.
+    const shiloh = OFFICIAL_CHANNELS.find((c) => c.channelId === "UCvA42eBzkRpd-x23-AvOnvw")!;
+    const arCmp = { ...ar, season: 2025, code: "USARCMP", name: "Arkansas Championship", type: "Championship", city: "Springdale", start: "2026-02-27", end: "2026-02-28" };
+    const at = { ...stream, start: "2026-02-28T14:54:00Z" };
+    expect(matchVideo({ ...at, title: "Arkansas FTC State Championship" }, shiloh, [arCmp]).kind).toBe("add");
+    expect(matchVideo({ ...at, title: "Arkansas State Championship" }, shiloh, [arCmp]).kind).not.toBe("add");
   });
 
   it("puts FIRST in Missouri's and FIRST MOKS's recordings on the Missouri/Kansas meet each title names, one session each", async () => {
