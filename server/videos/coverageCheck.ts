@@ -11,7 +11,7 @@ import { all, get, run, writeBatch } from "../db.js";
 import { withDataLock, LockBusy } from "../data/lock.js";
 import { recordAudit } from "../portal/audit.js";
 import { checkedTo } from "../data/checkedTimings.js";
-import { seasonRecordings, type Recording } from "./recordings.js";
+import { seasonRecordings, type Recording, isPartial } from "./recordings.js";
 import { clipCoverage, eventMatchRows } from "./coverage.js";
 import type { ClipCoverage, OwnerClipCoverage, OwnerCoverageEvent } from "../../src/shared/api.js";
 
@@ -51,6 +51,9 @@ export async function checkClipCoverage(log: (s: string) => void, now = Date.now
         all<{ code: string }>("SELECT DISTINCT code FROM matches WHERE season = ? AND video IS NOT NULL AND video != ''", [season]),
         all<{ code: string; fingerprint: string; missing_key: string; reviewed_at: string | null }>("SELECT code, fingerprint, missing_key, reviewed_at FROM clip_coverage WHERE season = ?", [season]),
       ]);
+      // A read that failed part way (recordings.ts soft): checking on it would mark recorded events stats only and drop
+      // them from review; the next pass checks them.
+      if (isPartial(full) || isPartial(recs)) { log(`clip coverage: ${season} skipped, recordings read only in part`); continue; }
       const was = new Map(known.map((k) => [String(k.code), k]));
       const codes = [...new Set([...full.keys(), ...firstVideo.map((r) => String(r.code)), ...was.keys()])];
       if (!codes.length) continue;
