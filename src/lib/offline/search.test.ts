@@ -25,7 +25,7 @@ import type { PackSearch, SeasonRow } from "../../shared/searchVersus";
 const S = 2025;
 const hit = (n: number, name: string): SearchHit => ({ kind: "team", ref: String(n), title: `${n} | ${name}`, subtitle: "Midland, MI, USA", season: S, team: { season: S, opr: 40, record: { w: 3, l: 1, t: 0 }, rank: { n: n - 10, of: 40 } } } as SearchHit);
 const row = (team: number, opr: number): SeasonRow => ({ team, season: S, opr_np: opr, opr_auto: opr / 4, opr_teleop: opr / 2, opr_endgame: opr / 4, rank_np: team - 10, rank_auto: null, rank_teleop: null, rank_endgame: null, ranked_teams: 40, rating_np: opr, rating_auto: null, rating_teleop: null, rating_endgame: null, rating_sd: 4, rating_rank: 1, matches: 4, wins: 3, losses: 1, ties: 0 });
-const NAMES: Record<number, string> = { 11: "Gear Grinders", 12: "Bolt Brigade", 13: "Circuit Owls", 4215: "Terabridges" };
+const NAMES: Record<number, string> = { 11: "Gear Grinders", 12: "Bolt Brigade", 13: "Circuit Owls", 4215: "Terabridges", 1111: "Thousand Gears" };
 /** A team card's numbers, in /api/teams-summary's own shape (TeamSummary). `opr` tells the pack's from the server's. */
 const summary = (team: number, opr = 40): TeamSummary => ({ team, name: NAMES[team], place: "Midland, MI, USA", opr, oprRank: 3, of: 40, rating: opr, ratingSd: 4, record: "3-1-0", lastEvent: null, nextEvent: null });
 
@@ -34,6 +34,8 @@ function pack(): EventBundle {
   const lone: SearchAnswer = { q: "11", hits: [hit(11, NAMES[11])], pages: [], step: "deterministic", weak: false, understood: { kind: "team", label: "Gear Grinders (11)" } };
   api.answers[packPath(searchPackPath("11"))!] = lone;
   api.answers[packPath(searchPackPath("Gear Grinders"))!] = { ...lone, q: "Gear Grinders" };
+  // A four-digit team, for a number typed with a thousands comma ("1,111").
+  api.answers[packPath(searchPackPath("1111"))!] = { ...lone, q: "1111", hits: [hit(1111, NAMES[1111])], understood: { kind: "team", label: "Thousand Gears (1111)" } };
   api.answers[packPath(`/api/teams-summary?season=${S}&teams=12`)!] = { season: S, teams: [summary(12)] };
   api.answers[packPath(`/api/teams-summary?season=${S}&teams=11`)!] = { season: S, teams: [summary(11)] };
   const search: PackSearch = {
@@ -102,6 +104,14 @@ describe("search with no signal, from a saved event pack", () => {
       const a = await offlineAnswer(`/api/search?q=${q}&limit=25&answer=1`) as SearchAnswer;
       expect(a.notInPack, q).toBeUndefined();
       expect(a.hits.map((h) => h.ref), q).toEqual(["11"]);
+    }
+    // "1,111" is 1111, as the route reads it (cleanQuery's joinThousands): the pack's own answer for it, echoing the query.
+    for (const q of ["1%2C111", "1%2C111%3F"]) {
+      const a = await offlineAnswer(`/api/search?q=${q}&limit=25&answer=1`) as SearchAnswer;
+      expect(a.notInPack, q).toBeUndefined();
+      expect(a.hits.map((h) => h.ref), q).toEqual(["1111"]);
+      expect(a.understood?.label, q).toBe("Thousand Gears (1111)");
+      expect(offlineSource(a)?.bundle?.name, q).toBe("Midland Robot Qualifier");
     }
   });
 

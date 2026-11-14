@@ -84,7 +84,7 @@ export function bundlesCompare(path: string): boolean {
  *  signal, which says which team is missing (it doesn't get the offline timeout: only bundleCanAnswer reads do). */
 export const comparePacksSaved = (path: string): boolean => COMPARE_PATH.test(path) && savedBundles().some((b) => b.apiPaths?.length);
 
-const SEARCH_PATH = /^\/api\/search(\?|$)/, SUMMARY_PATH = /^\/api\/teams-summary(\?|$)/;
+const SEARCH_PATH = /^\/api\/search(\?|$)/, SUMMARY_PATH = /^\/api\/teams-summary(\?|$)/, FOLLOW_PATH = /^\/api\/search\/follow(\?|$)/;
 /** A whole search answer (/api/search?answer=1, not one limited to some kinds) or the team cards' season numbers,
  *  while an event pack with search in it is saved: with no signal the pack answers it, or says what it needs that the
  *  pack doesn't hold (lib/offline/search.ts), so it gets the offline timeout and never search's 10-second wait. */
@@ -92,7 +92,7 @@ export function packSearchSaved(path: string): boolean {
   if (SEARCH_PATH.test(path)) {
     const url = new URL(path, "http://offline.invalid");
     if (url.searchParams.get("answer") !== "1" || url.searchParams.get("kinds")) return false;
-  } else if (!SUMMARY_PATH.test(path)) return false;
+  } else if (!SUMMARY_PATH.test(path) && !FOLLOW_PATH.test(path)) return false;
   return savedBundles().some((b) => b.apiPaths?.some((p) => p.startsWith("/api/search?")));
 }
 

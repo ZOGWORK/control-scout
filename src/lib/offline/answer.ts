@@ -21,7 +21,7 @@ import { compareFromPacks } from "../../shared/compare";
 import type { CompareView } from "../../shared/api";
 import { answerableOffline } from "./kept";
 import { scoutReadAnswer } from "./scoutReads";
-import { packSearchAnswer, packTeamSummaries } from "./search";
+import { packFollowUps, packSearchAnswer, packTeamSummaries } from "./search";
 import { readEventDetail, readMatchViews, readProjections, readSearch, readTeamProfile, readTeamSchedule, type ReadOpts, type SeasonDb } from "./readers";
 import { NotSaved, ranksAnyone, readBoard, readRankingPlaces, readRankings } from "./boards";
 
@@ -207,6 +207,7 @@ async function savedSeasonAnswer(path: string): Promise<unknown | null> {
   // A whole search answer: the packs' own (or a versus of their teams) first; else a saved season's plain hits, as
   // before; else what it needs that the packs don't hold (lib/offline/search.ts). The team cards' season numbers too.
   if (url.pathname === "/api/teams-summary") return packTeamSummaries(path);
+  if (url.pathname === "/api/search/follow") return packFollowUps(path);
   if (url.pathname === "/api/search" && url.searchParams.get("answer") === "1" && !url.searchParams.get("kinds")) {
     const fromPacks = await packSearchAnswer(path);
     if (fromPacks && !fromPacks.notInPack) return fromPacks;

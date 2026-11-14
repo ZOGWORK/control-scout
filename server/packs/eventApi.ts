@@ -20,6 +20,8 @@ import { teamFacts } from "../api/searchCompare.js";
 import { seasonScale } from "../api/answers/compareBlock.js";
 import { currentSeason } from "../api/answers/season.js";
 import { togetherMatches } from "../api/answers/families/twoTeam.js";
+import { keptFollowUps } from "../api/answers/followUps.js";
+import { followApiPath } from "../../src/shared/search.js";
 import { SIGNED_OUT } from "../videos/contributors.js";
 import { cleanTeamName } from "../../src/shared/teamTitle.js";
 import { SEARCH_PAGE_LIMIT } from "../../src/shared/search.js";
@@ -81,8 +83,12 @@ export const PACK_READS: Reads[] = [
   // FTC One Search for what people type at a meet (packSearchQueries): the whole answer as /search shows it, for anyone
   // (server/api/searchPage.ts), and the season numbers its team cards ask for (/api/teams-summary, one team a path:
   // lib/offline/search.ts puts a request for several together, in the order asked).
-  async (c) => packSearchQueries(c, await packTeamNames(c.teams)).map((q) => ({ path: searchPackPath(q), read: () => packSearchAnswer(q) })),
-  (c) => summarySeasons(c.season).flatMap((s) => c.teams.map((t) => ({ path: `/api/teams-summary?season=${s}&teams=${t}`, read: async () => ({ season: s, teams: await teamSummaries([t], s) }) }))),
+  async (c) => packSearchQueries(c, await packTeamNames(c.teams)).flatMap((q) => [
+    { path: searchPackPath(q), read: () => packSearchAnswer(q) },
+    // Its follow-ups (People also ask, Related searches), as /api/search/follow gives them for anyone.
+    { path: followApiPath(q), read: async () => ({ q, ...(await keptFollowUps(q, new Set())) }) },
+  ]),
+  packCardReads,
   // A league meet or tournament: its league's standings (the event page links to them).
   (c) => (c.ev.event.league && c.ev.event.region
     ? [{ path: `/api/leagues/${c.season}/${c.ev.event.region}/${c.ev.event.league}`, read: () => leagueStandings(c.season, c.ev.event.region!, c.ev.event.league!) }] : []),
@@ -114,9 +120,29 @@ export async function packTeamNames(teams: number[]): Promise<Map<number, string
   return new Map([...(await teamFacts(teams))].map(([n, f]) => [n, f.name]));
 }
 
-/** The seasons /search asks team numbers for: the event's and the one before (early in a season, last season's numbers
- *  show), and the current season and the one before (the page's default). */
+/** The seasons /search asks team numbers for with none named: the event's and the one before (early in a season, last
+ *  season's numbers show), and the current season and the one before (the page's default). */
 const summarySeasons = (season: number): number[] => [...new Set([season, season - 1, CURRENT_SEASON, CURRENT_SEASON - 1])].sort((a, b) => b - a);
+
+/** What /search's cards ask for about the pack's teams, for every season a search of the pack can be about:
+ *  - the team cards' numbers (/api/teams-summary, one team a path) in every season the teams' season rows hold (a
+ *    season named, "1111 vs 3333 2023-24") and the page's own seasons (summarySeasons);
+ *  - a one-team card's profile (/api/teams/<n>?season=) and its phone match list (/api/teams/<n>/matches?season=) in
+ *    the season the card is about: the team's latest with matches (its highlights'), and the one before the current
+ *    (an answer stating none); the event's season is in the pack already. */
+async function packCardReads(c: PackContext): Promise<PackRead[]> {
+  const rows = c.teams.length ? await all<{ team: number; season: number }>(`SELECT team, season FROM team_season_stats WHERE team IN (${c.teams.map(() => "?").join(",")}) AND matches > 0`, c.teams) : [];
+  const seasons = [...new Set([...summarySeasons(c.season), ...rows.map((r) => Number(r.season))])].sort((a, b) => b - a);
+  const latest = new Map<number, number>();
+  for (const r of rows) latest.set(Number(r.team), Math.max(latest.get(Number(r.team)) ?? 0, Number(r.season)));
+  return [
+    ...seasons.flatMap((s) => c.teams.map((t) => ({ path: `/api/teams-summary?season=${s}&teams=${t}`, read: async () => ({ season: s, teams: await teamSummaries([t], s) }) }))),
+    ...c.teams.flatMap((t) => [...new Set([latest.get(t), CURRENT_SEASON - 1])].filter((s): s is number => s != null && s !== c.season).flatMap((s): PackRead[] => [
+      { path: `/api/teams/${t}?season=${s}`, read: () => teamProfile(t, s), notFound: `No FTC team ${t} in our data` },
+      { path: `/api/teams/${t}/matches?season=${s}`, read: () => teamMatchesAnswer(t, s) },
+    ])),
+  ];
+}
 
 /** /api/search?answer=1 at the page's limit, for anyone (no preferred teams, signed out): the route's own answer. */
 async function packSearchAnswer(q: string): Promise<SearchAnswer> {

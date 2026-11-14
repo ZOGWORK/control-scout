@@ -12,7 +12,9 @@ import { rebuildSearch } from "../stats/job";
 import { eventDetail } from "../api/events";
 import { buildPackApi, packSearchQueries, packTeamNames, packTeams } from "./eventApi";
 import { packLookup, searchPackPath, type EventBundle } from "../../src/shared/eventBundle";
-import { searchFromPacks, teamSummariesFromPacks } from "../../src/shared/searchOffline";
+import { followFromPacks, searchFromPacks, teamSummariesFromPacks } from "../../src/shared/searchOffline";
+import { followApiPath } from "../../src/shared/search";
+import { CURRENT_SEASON } from "../data/seasons";
 import { packParseContext } from "../../src/shared/query/packContext";
 import { parseQuery } from "../../src/shared/query/parse";
 import { parseContext } from "../api/query/context";
@@ -52,6 +54,10 @@ async function seed() {
     if (n !== 5555) await stat(S - 1, n, 50 - i * 5, i + 3);
     await run("INSERT INTO team_event_stats (season, code, team, opr_np, matches) VALUES (?, ?, ?, 50, 2)", [S, EV, n]);
   }
+  // An older season two of them played: a season a search can name ("1111 vs 3333 2022-23") that the page's own
+  // seasons (this one and the one before) aren't.
+  await stat(S - 3, 1111, 30, 9);
+  await stat(S - 3, 3333, 28, 11);
   // Two teams of one name at the event, one far stronger: search's parser picks the stronger one (shared.ts
   // pickShared), offline as online.
   for (const [n, city, rank] of [[6666, "Flint", 2], [7777, "Saginaw", 36]] as const) {
@@ -221,6 +227,43 @@ describe("the event pack's searches", () => {
       expect(off.notInPack, q).toBeUndefined();
       expect(JSON.stringify(off), q).toBe(JSON.stringify(await online(q)));
     }
+  });
+
+  it("a versus naming an older season: its card and its team cards' numbers, as online", async () => {
+    const q = "1111 vs 3333 2022-23";
+    deviceBuilt(await offline(q), await online(q), q);
+    const path = `/api/teams-summary?season=${S - 3}&teams=1111,3333`;
+    const on = await (await fetch(`${base}${path}`)).json();
+    expect(on.teams.map((t: { team: number }) => t.team)).toEqual([1111, 3333]);
+    expect(JSON.stringify(teamSummariesFromPacks(path, [pack])!.body)).toBe(JSON.stringify(on));
+  });
+
+  it("holds every path /search asks about the pack's teams, for every season the pack holds", async () => {
+    const seasons = new Set<number>([S, S - 1, CURRENT_SEASON, CURRENT_SEASON - 1]);
+    for (const part of Object.values(pack.search!.teams)) for (const r of part.rows) seasons.add(Number(r.season));
+    expect(seasons.has(S - 3)).toBe(true);
+    const missing: string[] = [];
+    const has = (p: string) => { if (!packLookup(pack.api, p)) missing.push(p); };
+    for (const t of packTeams(pack.event)) {
+      // The team cards' numbers, each season.
+      for (const s of seasons) has(`/api/teams-summary?season=${s}&teams=${t}`);
+      // A one-team card's profile and phone match list: the event's season, the team's latest with matches (its
+      // highlights' season), and the one before the current (an answer stating none).
+      const rows = pack.search!.teams[String(t)]?.rows ?? [];
+      const cardSeasons = new Set([S, CURRENT_SEASON - 1, ...(rows.length ? [Math.max(...rows.map((r) => Number(r.season)))] : [])]);
+      for (const s of cardSeasons) { has(`/api/teams/${t}?season=${s}`); has(`/api/teams/${t}/matches?season=${s}`); }
+    }
+    expect(missing).toEqual([]);
+  });
+
+  it("a kept search's follow-ups, as online: however it's typed, for the visitor's own teams too", async () => {
+    for (const path of [followApiPath("Gear Grinders"), followApiPath("gear grinders?", "team:1111"), followApiPath("1111"), followApiPath(EV, "team:2222")]) {
+      const on = await (await fetch(`${base}${path}`)).json();
+      expect(JSON.stringify((await followFromPacks(path, [pack]))!.body), path).toBe(JSON.stringify(on));
+    }
+    // A name the visitor's own team reads another way, or a picked season: not the kept ones.
+    expect(await followFromPacks(followApiPath("Iron Eagles", "team:7777"), [pack])).toBeNull();
+    expect(await followFromPacks(followApiPath("1111", "", 2024), [pack])).toBeNull();
   });
 
   it("anything else says what it needs that isn't in the pack, and what is", async () => {
