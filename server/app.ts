@@ -14,32 +14,20 @@ import { ensureSearchIndex, search } from "./api/search.js";
 import { MAX_QUERY, cleanQuery, learnQuery, searchAnswer } from "./api/searchAnswer.js";
 import { mineAnswer } from "./api/searchMine.js";
 import { myTeamOf } from "../src/shared/searchMine.js";
-import { withTeamStats } from "./api/searchTeamStats.js";
-import { withEventParents } from "./api/searchEvents.js";
-import { teamHighlights } from "./api/answers/highlights.js";
+import { answerHits, pickedQuery, pickedSeasonOf, withHighlights } from "./api/searchPageAnswer.js";
 import { keptFollowUps, pageAnswer } from "./api/answers/followUps.js";
 import { relatedPage } from "./api/answers/relatedPage.js";
-import { withSeason } from "./api/answers/season.js";
 import { refine } from "./api/searchBruno.js";
 import { brunoAnswer } from "./api/searchBrunoAnswer.js";
 import { SEARCH_PAGE_LIMIT } from "../src/shared/search.js";
-import { teamParts } from "../src/shared/searchPage.js";
-import { loneTeamHit } from "./api/searchLayers.js";
 import { searchTiming } from "./api/searchTiming.js";
 
 /** A search's preferred teams and events (?prefer=team:4215,event:2025:USNJCMP), the visitor's own: ranked first. */
-/** ?season=2024 (the answer's season picker): the query asked about that season instead, whatever season it names
- *  (server/api/answers/season.ts withSeason). A season search holds no data for is ignored. */
-const pickedSeasonOf = (raw: unknown): number | null => { const s = Number(raw); return SEASON_NUMBERS.includes(s) ? s : null; };
-const pickedQuery = async (rawQ: unknown, rawSeason: unknown): Promise<string> => {
-  const q = String(rawQ ?? ""), s = pickedSeasonOf(rawSeason);
-  return s != null && q.trim() ? withSeason(q.slice(0, MAX_QUERY), s) : q;
-};
 const preferOf = (raw: unknown) => new Set(String(raw ?? "").split(",").filter((k) => /^(team:\d{1,6}|event:\d{4}:[A-Z0-9_-]{2,24})$/i.test(k)).slice(0, 100));
 import { recordClick } from "./api/searchLearn.js";
 import { recordIntent } from "./api/searchIntents.js";
 import { rebuildSearch } from "./stats/job.js";
-import { teamProfile, compareAnswer, teamSummaries, shortlistTeams, reliabilityMany, teamReportCards, teamSchedule } from "./api/teams.js";
+import { teamProfile, compareAnswer, teamSummaries, shortlistTeams, reliabilityMany } from "./api/teams.js";
 import { teamRoadMap } from "./api/roadmap.js";
 import { cachedEventDetail, eventDetail, listEvents, toEventInput } from "./api/events.js";
 import { withBracketGate } from "./api/bracket.js";
@@ -52,9 +40,10 @@ import { teamHighlightsPage } from "./teamHighlightsPage.js";
 import { teamRecordPage } from "./teamRecordPage.js";
 import { eventHighlightsPage } from "./eventHighlightsPage.js";
 import { perTeamOf, simulatedRankings } from "./projections/rankingSim.js";
-import { eventRecording, recordingStream, seasonRecordings, seasonVideoKinds, withClips, eventMatchSpan } from "./videos/recordings.js";
+import { recordingStream, seasonRecordings, seasonVideoKinds } from "./videos/recordings.js";
 import { answerVideo } from "./api/answers/video.js";
-import { matchDetail, matchViews } from "./api/matches.js";
+import { matchViews } from "./api/matches.js";
+import { matchDetailAnswer, teamMatchesAnswer, teamReportCardAnswer, teamScheduleAnswer } from "./api/reads.js";
 import { matchReport } from "./api/matchReport.js";
 import { resultChanges } from "./api/resultChanges.js";
 import { eventDisagreements } from "./api/disagreements.js";
@@ -222,7 +211,12 @@ function limiter(perMinute: number) {
     const b = buckets.get(ip) ?? { tokens: perMinute, at: now };
     b.tokens = Math.min(perMinute, b.tokens + ((now - b.at) / 60000) * perMinute);
     b.at = now;
-    if (b.tokens < 1) { res.status(429).json({ error: "Too many requests — try again in a minute." }); return; }
+    if (b.tokens < 1) {
+      // When the next request will get through, so a client that waits (an event pack being prepared) can.
+      res.setHeader("Retry-After", String(Math.max(1, Math.ceil(((1 - b.tokens) / perMinute) * 60))));
+      res.status(429).json({ error: "Too many requests — try again in a minute." });
+      return;
+    }
     b.tokens -= 1;
     buckets.set(ip, b);
     if (buckets.size > 10000) buckets.clear();
@@ -439,20 +433,16 @@ export function createApp(opts: { dist?: string; /** Tests only: a smaller searc
         const p = failureOf(q, ans, trace) ? await patternFor(q) : null;
         noteSearch(q, ans, req.ip ?? "?", trace, at, p?.key ?? (await keyFor(q)), p?.missed);
       }).catch(() => {});
-      // A search for one team alone ("4215") on the results page: the team's highlights as its answer
-      // (server/api/answers/highlights.ts), its matches' videos with it. Never in the header's short list, and never for
-      // a topic about the team (a section, facts, an event pick). A season asked for ("4215 2024-25") is the one shown.
-      // Nor for a question about the team search couldn't answer ("will 4215 win …", "how many teams named …").
+      // A search for one team alone ("4215") on the results page: the team's highlights as its answer, its matches'
+      // videos with it (server/api/searchPageAnswer.ts, which Control Scout Lite's search page reads too).
       // Who's asking (for the videos below) is read beside the highlights, not after them.
       const asking = currentUser(req).catch(() => null).then(viewerOf);
       asking.catch(() => {}); // awaited below; never an unhandled rejection meanwhile
-      const lone = limit >= SEARCH_PAGE_LIMIT ? loneTeamHit(ans) : undefined;
-      const highlights = lone ? await teamHighlights({ number: Number(lone.ref), name: teamParts(lone.title)?.name ?? null }, lone.linkSeason).catch(() => null) : null;
-      const full = highlights ? { ...ans, stat: highlights } : ans;
+      const full = await withHighlights(ans, limit);
       // Its video (server/api/answers/video.ts): one read for the whole answer, beside the team rows'.
       // Match videos people added are for the viewer asking (docs/contributors.md): an answer carrying one is never cached.
       const viewer = await asking;
-      const [hits, video] = await Promise.all([withEventParents(full.hits).then(withTeamStats), answerVideo(full, Date.now(), viewer).catch(() => undefined)]);
+      const [hits, video] = await Promise.all([answerHits(full.hits), answerVideo(full, Date.now(), viewer).catch(() => undefined)]);
       if (video && (video.main?.kind === "contributor" || Object.values(video.rows ?? {}).some((x) => x.kind === "contributor"))) res.setHeader("Cache-Control", "private, no-store");
       // This process's own time (searchTiming): the answer, then the rest (highlights, team numbers, video).
       res.setHeader("Server-Timing", searchTiming({ answer: answered - started, extras: performance.now() - answered }));
@@ -580,20 +570,17 @@ export function createApp(opts: { dist?: string; /** Tests only: a smaller searc
 
   // The team page's collapsed sections, each asked for when first opened: report cards and schedule difficulty.
   api.get("/teams/:number/report-card", h(async (req) => {
-    const team = int(req.params.number, "team", { min: 1, max: 999999 }), s = season(req.query.season);
-    return { team, season: s, reportCards: await teamReportCards(s, team) };
+    return teamReportCardAnswer(int(req.params.number, "team", { min: 1, max: 999999 }), season(req.query.season));
   }));
   api.get("/teams/:number/schedule", requireFeature("scheduleDifficulty"), h(async (req) => {
-    const team = int(req.params.number, "team", { min: 1, max: 999999 }), s = season(req.query.season);
-    return { team, season: s, schedule: await teamSchedule(s, team) };
+    return teamScheduleAnswer(int(req.params.number, "team", { min: 1, max: 999999 }), season(req.query.season));
   }));
 
   // The team page's season road map (server/api/roadmap.ts).
   api.get("/teams/:number/roadmap", requireFeature("seasonRoadMap"), h(async (req) => teamRoadMap(season(req.query.season), int(req.params.number, "team", { min: 1, max: 999999 }))));
 
   api.get("/teams/:number/matches", h(async (req) => {
-    const team = int(req.params.number, "team", { min: 1, max: 999999 });
-    return { team, season: season(req.query.season), matches: await matchViews({ season: season(req.query.season), team }, { predictUnplayed: true }) };
+    return teamMatchesAnswer(int(req.params.number, "team", { min: 1, max: 999999 }), season(req.query.season));
   }));
 
   /**
@@ -687,11 +674,9 @@ export function createApp(opts: { dist?: string; /** Tests only: a smaller searc
   api.get("/events/:season/:code/matches/:key", h(async (req) => {
     const key = String(req.params.key);
     if (!/^(qual|playoff):\d{1,3}:\d{1,4}$/.test(key)) throw new HttpError(400, "Match key looks like qual:0:12");
-    const d = await matchDetail(season(req.params.season), code(req.params.code), key);
+    const d = await matchDetailAnswer(season(req.params.season), code(req.params.code), key);
     if (!d) throw new HttpError(404, `No match ${key} at ${req.params.code}`);
-    const rec = await eventRecording(d.event.season, d.event.code).catch(() => null);
-    // The event's own first and last matches, so this match gets the clip it has on the event page.
-    return rec ? { ...d, match: withClips([d.match], rec, Date.now(), await eventMatchSpan(d.event.season, d.event.code))[0] } : d;
+    return d;
   }));
 
   // Simulated rankings before quals start (projections/rankingSim.ts): run on a click, kept per data version.
@@ -1024,6 +1009,9 @@ export function createApp(opts: { dist?: string; /** Tests only: a smaller searc
   app.get(/^\/search\/?$/i, searches);
   // Light pages for a weak signal (server/lite/, docs/lite.md): /lite/…, and ?lite=1 on a rich page's address.
   app.use(liteSwitch);
+  // Lite's search counts against the same search limit; its predictions, comparisons and rankings like the API's.
+  app.get(/^\/lite\/search\/?$/i, searches);
+  app.get(/^\/lite\/(predict|compare|rankings)\/?$/i, limiter(120));
   app.use("/lite", liteRouter());
   // The sitemap, from the database (server/sitemap.ts).
   app.get("/sitemap.xml", h(sitemapRoute));

@@ -45,6 +45,9 @@ export const OFFICIAL_CHANNELS: OfficialChannelSeed[] = [
   { channelId: "UCHVeR960xGMtQ2rHxYAebTw", title: "High Tech Kids (Minnesota)", region: "state=MN", words: "minnesota htk", titlePattern: "minnesota" },
   { channelId: "UCbppRk83Rf7nh_Zug261h7A", title: "FIRST in Vermont", region: "state=VT", words: "vermont", titlePattern: "vermont" },
   { channelId: "UCUpv6m5YLRZgqZQlasOjKVQ", title: "FIRST UK", region: "country=United Kingdom", words: "uk" },
+  // FRC 2583 (Westwood High School, Austin): the event stream of FiT-Central's GEMS league and Austin events, official
+  // overlay on screen. Channel id from the YouTube Data API (forHandle @westwoodrobotics2583), 2026-11-14.
+  { channelId: "UCyv6fRBcoK6mD6Br5M366yA", title: "Westwood Robotics (FiT-Central)", region: "state=TX;name=\\bCTX\\b|FiT-Central|GEMS", words: "texas fit central ctx" },
   // The 2026-11-14 audited channels (ids from the YouTube Data API, forHandle): FIRST's delivery partners for
   // Kazakhstan, France, Italy and Türkiye, and the Prince Royal's College channel that streamed Thailand's championship
   // (its only event so far: the weakest watchlist entry, for the owner to drop if no second event comes).
@@ -53,5 +56,35 @@ export const OFFICIAL_CHANNELS: OfficialChannelSeed[] = [
   { channelId: "UC3GrZQP1avoMFojc2HeQdhw", title: "Associazione Artù APS (Italy)", region: "country=Italy", words: "italy italia", titlePattern: "\\bitaly\\b" },
   { channelId: "UCq5bJjdyfAQYIs7yb_83vaA", title: "Fikret Yüksel Foundation (Türkiye)", region: "country=Türkiye", words: "turkiye turkey gun", titlePattern: "t[uü]rkiye [şs]ampiyonas[ıi]" },
   { channelId: "UC7e1UfLTHCdAoF7VIay_IqA", title: "The PRC Channel (Thailand)", region: "country=Thailand", words: "thailand ftcthailand", titlePattern: "thailand" },
+  // The owner's audited channels (2026-11-14), ids from the YouTube Data API (channels?forHandle). FIRST Nevada
+  // (@firstnevada1941) is Nevada's FIRST partner; its titles name the meet ("# 4S") and the half of the state.
+  { channelId: "UCqDnAXt0clPQww74v7bUVkQ", title: "FIRST Nevada", region: "state=NV", words: "nevada", titlePattern: "nevada state championship|state championship - nevada" },
+  // BCA Activities (@BCAActivities-sg6ef, Bismarck Career Academy): North Dakota's "Dakota FTC" events. A school
+  // channel that streams other activities too, so no word of North Dakota's FTC event names or cities counts as
+  // evidence (every one Scout has from 2020 on: places, halves, venues, and "scrimmage") and there's no title
+  // pattern: every new video goes to the owner's review, never auto-adds. A new ND event naming a new word needs that
+  // word added here.
+  { channelId: "UCowF1UaXnuuFV_sNIvpX-zQ", title: "BCA Activities (Dakota FTC)", region: "state=ND", words: "north dakota dakotaftc bca bismarck minot fargo alexander comets western eastern ndsu daa adventist scrimmage" },
+  // MT Robotics Alliance (@mtra-stream), Montana's FTC partner; FIRST's Montana event pages name the channel.
+  { channelId: "UCpPjg0KF7cwfbWoKAl0jiXQ", title: "MT Robotics Alliance (Montana)", region: "state=MT", words: "montana mt", titlePattern: "\\bstate\\b|championship" },
+  // Team 12099 (Centennial HS, Columbus): FIRST's event pages name its streams for the Central Ohio league (scrimmage,
+  // meets, league tournament) in 2025 and 2026. Channel id from the YouTube Data API (forHandle @StarsoftheGalaxy12099), 2026-11-14.
+  { channelId: "UC576ZA1td9ZvsAUwPq1Ymaw", title: "Stars of the Galaxy (Central Ohio)", region: "state=OH;name=^Central Ohio ", words: "ohio central columbus" },
+  // FIRST Alumni Network Grand Valley: streams the West Michigan league meets at GVSU's Shape Corp. IDC, Grand Rapids
+  // (GVSU Padnos's own page says so; FIRST's event pages link its Meet 1, 3 and 4 streams). Channel id from the
+  // YouTube Data API (forHandle @firstalumninetworkgrandvalley), 2026-11-14. Its Robot in 3 Days streams are FRC.
+  { channelId: "UCaojFS3JFPWY9kaoW6bhvvQ", title: "FIRST Alumni Network Grand Valley (West Michigan)", region: "state=MI;name=^West Michigan ", words: "michigan west grand valley rapids gvsu" },
+  // The 2026-11-14 audited channels for Rhode Island, Ontario and New York (ids from the YouTube Data API, forHandle).
+  // Rhode Island FTC (@riftc): FIRST's event pages name it for all three 2026-27 Rhode Island events.
+  { channelId: "UCHgwJxb_Y5SRtrAGCzk73MQ", title: "Rhode Island FIRST Tech Challenge", region: "state=RI", words: "rhode island", titlePattern: "rhode island" },
+  // FTC Ontario (@ftcontario): every Ontario qualifier, the Provincial Championship and the Canada Cup.
+  { channelId: "UCUXJ0amrR15tPMgXvhDLJQw", title: "FTC Ontario", region: "country=Canada;state=ON", words: "ontario canada", titlePattern: "ontario provincial" },
+  // FIRST Long Island (@FIRSTLongIsland), Long Island's delivery partner. Its 2026-27 events are listed as "Qualifier N".
+  { channelId: "UCe22ftqf7OwtH40JBuP-anA", title: "FIRST Long Island", region: "state=NY;name=Long Island|^Qualifier [0-9]+$", words: "long island" },
+  // NYC FIRST (@newyorkcityfirst), New York City's delivery partner: the same channel FIRST's 2021-22 event pages link.
+  { channelId: "UCibawtHwGEggHlSiBOSPVtw", title: "NYC FIRST", region: "state=NY;name=NYC", words: "nyc york city" },
+  // Town of Penfield Television (@PenfieldTV): a town channel that broadcasts NY Excelsior qualifiers with Penfield
+  // Robotics. Upstate Excelsior events only; its uploads carry no broadcast date, so the watcher sends them to review.
+  { channelId: "UCLctix0o61bACiWd6Oa-S5Q", title: "Town of Penfield Television (NY Excelsior)", region: "state=NY;name=Excelsior|Finger Lakes|Penfield|Corning|Peekskill|Clarkson|Albany|Buffalo|Utica|Syracuse|Ravena|Broadalbin|John Jay", words: "york excelsior penfield" },
   { channelId: "UCal7624DPridi_9iKLrAbqw", title: "FIRST Australia", region: "country=Australia", words: "australia australian", titlePattern: "australian? (national )?championship|\\bAPOC\\b|asia pacific open" },
 ];

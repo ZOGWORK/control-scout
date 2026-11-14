@@ -11,14 +11,14 @@ import {
   Bot, CalendarRange, ChartBarBig, ChartPie, Check, ChevronDown, Flag, Gamepad2, Gauge, Hourglass, Scale, ShieldAlert, Swords,
   TrendingUp, Users, Wrench, X, Zap, type LucideIcon,
 } from "lucide-react";
-import { pointedRight, sheetReview, type FactorSheet, type SheetFactor } from "../shared/factorSheet";
+import { pointedRight, sharePct, sheetReview, type FactorSheet, type SheetFactor } from "../shared/factorSheet";
 import { factorLabel } from "../lib/factorLabel";
 import { useFlag } from "../lib/flags";
 import { matchBasis } from "../shared/predictionBasis";
 import { PredictionBasis } from "./PredictionBasis";
 import { cn } from "./cn";
 
-const pctOf = (w: number) => (w <= 0 ? "0%" : w < 0.005 ? "<1%" : `${Math.round(w * 100)}%`);
+const pctOf = sharePct;
 
 /** Below this many log-odds (about 52.5% either way) the whole call is a near coin flip. */
 const COIN_FLIP = 0.1;

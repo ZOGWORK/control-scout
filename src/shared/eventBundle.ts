@@ -17,11 +17,92 @@
 // Freshness: the bundle says what time its data is from, everywhere it renders. Live data always takes over the
 // moment it loads; the bundle answers only with no signal (lib/api.ts), the shipped rule for packs.
 import type { RatingBookData } from "@control-scout/predict-engine";
-import type { EventDetail } from "./api";
+import type { CompareTeam, EventDetail } from "./api";
 
 export const BUNDLE_FORMAT = 1;
 
-export type BundleSectionId = "event" | "ratings" | "reports" | "picklist" | "rules" | "venue";
+export type BundleSectionId = "event" | "ratings" | "api" | "compare" | "reports" | "picklist" | "rules" | "venue";
+
+/**
+ * The event pack's `api` section: the server's own JSON for API GET paths (every team in the field: profile,
+ * season matches, report cards, schedule difficulty; every match: its detail and Know your match report; the
+ * event's projections and pick ratings; the list is server/packs/eventApi.ts PACK_READS). Keys are packPath()s.
+ * `same`: a path whose answer is byte for byte another's (a team's profile with and without ?season=), stored once.
+ * `errors`: what the server answers instead of JSON (a 404 for a team with no page), so offline says the same.
+ */
+export interface PackApi {
+  answers: Record<string, unknown>;
+  same: Record<string, string>;
+  errors: Record<string, { status: number; error: string }>;
+  /** Matches shared between team match lists, stored once: a list answer (`{ matches: [...] }` on a
+   *  `/matches` path) holds indexes into this pool instead of the matches; packLookup puts them back. */
+  pool?: unknown[];
+}
+
+/** A team match list answer holds pool indexes (the pack stores each match once). */
+const POOLED = /\/matches(\?|$)/;
+
+/** Store each match of the pack's team match lists once (`api.pool`), the lists holding indexes. A match two
+ *  teams of the event played is the same JSON in both lists, so the pack is ~20–25% smaller gzipped. */
+export function poolMatches(api: PackApi): PackApi {
+  const pool: unknown[] = [];
+  const at = new Map<string, number>();
+  const answers: Record<string, unknown> = {};
+  for (const [path, body] of Object.entries(api.answers)) {
+    const list = POOLED.test(path) ? (body as { matches?: unknown })?.matches : undefined;
+    if (!Array.isArray(list)) { answers[path] = body; continue; }
+    answers[path] = { ...(body as object), matches: list.map((m) => {
+      const text = JSON.stringify(m);
+      let i = at.get(text);
+      if (i == null) { i = pool.length; pool.push(m); at.set(text, i); }
+      return i;
+    }) };
+  }
+  return { ...api, answers, pool };
+}
+
+/** A stored answer as the server gave it: a pooled match list's indexes put back to its matches. */
+function unpool(api: PackApi, key: string, body: unknown): unknown {
+  const list = api.pool && POOLED.test(key) ? (body as { matches?: unknown })?.matches : undefined;
+  return Array.isArray(list) ? { ...(body as object), matches: list.map((i) => api.pool![i as number]) } : body;
+}
+
+/** The pack's `compare` section, per team number: its Compare column for the event's season (the server's
+ *  compareBlockOf) and the latest season it has results in (what /api/compare picks with no season asked). */
+export interface PackCompareTeam {
+  block: CompareTeam;
+  latest: number | null;
+  /** Its columns for every other season any of the pack's teams last had results in (early in
+   *  a season, last season: what Compare with no season asked shows), by season. */
+  others?: Record<string, CompareTeam>;
+}
+
+/**
+ * An API path the way the pack keys it, so the app's request finds its answer however it spelled it: the path
+ * decoded and lower-cased (event codes come in any case), no trailing slash, the query's empty values dropped and
+ * the rest sorted by name. Null for a path that can't be read.
+ */
+export function packPath(path: string): string | null {
+  let url: URL;
+  try { url = new URL(path, "http://pack.invalid"); } catch { return null; }
+  let p: string;
+  try { p = decodeURIComponent(url.pathname); } catch { return null; }
+  p = p.toLowerCase().replace(/\/+$/, "");
+  const q = [...url.searchParams].filter(([, v]) => v !== "").map(([k, v]) => [k.toLowerCase(), v.toLowerCase()] as [string, string])
+    .sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : 0));
+  return q.length ? `${p}?${new URLSearchParams(q).toString()}` : p;
+}
+
+/** What the pack says for a path: its answer, the server's error, or nothing (the pack doesn't hold it). */
+export type PackLookup = { body: unknown } | { status: number; error: string } | null;
+export function packLookup(api: PackApi | null | undefined, path: string): PackLookup {
+  const key = packPath(path);
+  if (!api || key == null) return null;
+  const k = api.same[key] ?? key;
+  if (Object.prototype.hasOwnProperty.call(api.answers, k)) return { body: unpool(api, k, api.answers[k]) };
+  const e = api.errors[key];
+  return e ? { status: e.status, error: e.error } : null;
+}
 
 /** One section of a bundle, as the manifest lists it. */
 export interface BundleSection {
@@ -63,6 +144,9 @@ export interface BundleManifest {
   field: [number, string | null][];
   /** Match keys of the frozen reports inside (qual:0:12 …). */
   reportKeys: string[];
+  /** Every API path the pack answers (packPath()s: its `api` answers, aliases and errors), so the app knows which
+   *  requests it can answer with no signal without opening the pack. Absent on bundles built before the pack. */
+  apiPaths?: string[];
 }
 
 /** One frozen report: static HTML, readable with zero JS data fetches. */
@@ -104,6 +188,12 @@ export interface EventBundle {
   picklist: (HtmlSnapshot & { count: number; teams?: number[] }) | null;
   rules: RulesSection | null;
   venue: VenueCard;
+  /** The event pack (bundles built before it: absent). */
+  api?: PackApi;
+  /** Compare columns by team number (bundles built before the pack: absent). */
+  compare?: Record<string, PackCompareTeam>;
+  /** The server's current season when the pack was built (what Compare shows for teams with no results at all). */
+  currentSeason?: number;
 }
 
 /** What the device keeps per bundle (the list in localStorage; the bytes in IndexedDB). */
@@ -128,6 +218,8 @@ export interface SavedBundle {
   /** The event's teams (the ratings inside cover them; bundles saved before this was noted: absent). */
   teams?: number[];
   picklist: boolean;
+  /** The API paths its event pack answers (packPath()s; bundles saved before the pack: absent). */
+  apiPaths?: string[];
 }
 
 /** IndexedDB key of an event's bundle: one per event, a new download replaces it. */
