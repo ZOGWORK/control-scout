@@ -20,7 +20,9 @@ point, and reads two things with tesseract.js:
    "Playoff Match 10" or a bare "Match 10" (2025's playoff overlay) into M10.
 2. **The timer**, in one of three places: the bar along the bottom (FTC Live's default), a box over the field under
    a bar across the top (FTC Ontario), or the bar along the top (FIRST in Texas). Each counts Auto down from 0:30,
-   then 8 s to pick up the controllers ("0:05" under a hand), then TeleOp from 2:00. A reading of 0:30 or less is
+   then 8 s to pick up the controllers ("0:05" under a hand), then TeleOp from 2:00. Some bottom bars instead
+   count the whole match down from 2:30: Auto reads 2:30 to 2:00 there, so a bottom-bar reading above 2:00 is that
+   bar's Auto (2:30 less the reading is the time since the start), and a reading of 2:00 or less is TeleOp on either kind. A reading of 0:30 or less is
    Auto or the end of TeleOp, so it's read again 45 s on: still the same match with well over 30 s left means Auto.
    A reading of 8 s or less (the switch, or TeleOp's last seconds) is never used. Taking an Auto "0:20" for TeleOp's
    would put a match 2 minutes early, the mistake a frame-by-frame check of Western Edge Sand's Q53 caught.
