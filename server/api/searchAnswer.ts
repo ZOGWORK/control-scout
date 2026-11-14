@@ -43,7 +43,7 @@ import { searchToday } from "./searchEvents.js";
 import { placeAwardsSearch, readPlaceAwards } from "./answers/families/placeAwards.js";
 import { refreshSearchSeason } from "./answers/season.js";
 import { FALLBACK_NOTE, carryOutcome, layeredAnswer, nameKey, teamNames } from "./searchLayers.js";
-import { INFORMAL, LEXICON, informalQuery, spelledNumbers } from "./query/lexicon.js";
+import { INFORMAL, informalQuery, spelledNumbers } from "./query/lexicon.js";
 import { numberQuery, spelled, strength } from "./spelling.js";
 import { booleanAnswer } from "./searchBoolean.js";
 import { asksOfTeams, pipelineAnswer, pipelineReads } from "./query/execute.js";
