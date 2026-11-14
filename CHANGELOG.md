@@ -21,9 +21,11 @@ A recorded event with a day that has no recording now always reads "Partially re
 
 ### Highlights
 - [fixes] A partly recorded event never reads as fully recorded
+- [fixes] Event pages name a day with no recording in the coverage line
+- [fixes] The coverage line waits for the check instead of guessing
 
 ### Fixed
-- Event page coverage line: an event whose coverage check finds a day with no recording (FPEWESEA 2025: Friday and Sunday) said "Full recording only — no match clips in it yet"; it now says "Partially recorded — 0 of 124 matches have video". A recording with no clip placed reads "Recording only — no match clips in it yet", never "Full". The line and the day chips read the same coverage request. (`src/components/contributors/RecordingGaps.tsx`, `src/shared/contributors.ts`)
+- Event page coverage line: an event whose coverage check finds a day with no recording (FPEWESEA 2025: Friday and Sunday) said "Full recording only — no match clips in it yet"; it now says "Partially recorded — 0 of 124 matches have video". A recording with no clip placed reads "Recording only — no match clips in it yet", never "Full". The line and the day chips read the same coverage request. While the check is out, a line with no clip waits instead of saying "Recording only" first; a recording that won't play keeps saying so. (`src/components/contributors/RecordingGaps.tsx`, `src/shared/contributors.ts`) (#1500)
 
 ## 6.3.4 — 2026-11-14
 
