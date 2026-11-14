@@ -35,7 +35,10 @@ broadcast is never used, even of the same event.
 
 Regional streamers from the owner's audited list (2026-11-14), each read through the YouTube Data API's uploads list
 and checked by hand: FIRST in Missouri (the Missouri/Kansas partner: St. Louis, Southeast and Southwest leagues, the
-championship) and FIRST MOKS (Kansas City, one video per meet session).
+championship), FIRST MOKS (Kansas City, one video per meet session), Tulsa Robotics Center (eastern Oklahoma's
+leagues, its scrimmages, the state championship), SeaCow Robotics and Shiloh Saints (Arkansas qualifiers and the
+Arkansas Championship, already played from FIRST's channel links) and FTC Louisiana (every Louisiana event, uploaded
+after it was streamed elsewhere).
 
 The owner's audited channel list (2026-11-14) adds four FIRST delivery partners: USTEM Foundation (Kazakhstan),
 Robotique FIRST France, Associazione Artù APS (Italy) and the Fikret Yüksel Foundation (Türkiye). It also adds The
@@ -54,7 +57,8 @@ exceptions rules 2 and 7 name for the checked list only, and the auto-watcher us
    broadcast date, so it can't prove its day, and is left out. The checked list makes one exception, by hand: an
    upload whose title names its date (FIRST Nevada's "2026-01-10 FTC League Meet # 4S - Southern Nevada") and, where
    a venue holds several meets that day, its session (FIRST MOKS's "FTC Meet @ Belton 8AM (2026-11-7)" is "Belton
-   Meet @ 8 AM"), or an upload of an event that played every match on one day (Scout's match times say which).
+   Meet @ 8 AM"), an upload of a one-day event its title names, or an upload of an event that played every match on
+   one day (Scout's match times say which; FTC Louisiana's two-day qualifiers play on the Saturday).
 3. Its title names the event: a distinctive word of the event's name or city (the league, the venue, "Mockingbird"),
    or the event's designators (an NTX league letter, a meet number, a UIL class, a stage). An event named by an
    acronym ("APOC") also fits a title spelling it out in words in a row ("Asia Pacific Open Championship"); a common

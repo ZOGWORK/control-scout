@@ -8,7 +8,7 @@ import { clearAllCaches } from "../caches";
 import { eventRecording, recordingStream } from "./recordings";
 import { eventHighlightVideos, localDate, seedOfficialVideos, type OfficialList } from "./officialVideos";
 import { eventView, withPageExtras } from "../api/eventView";
-import { parseRule } from "./officialMatch";
+import { matchVideo, parseRule } from "./officialMatch";
 import shipped from "../data/officialVideos.json" with { type: "json" };
 
 const S = 2025;
@@ -168,6 +168,92 @@ describe("the shipped list", () => {
     const apocSat = au.filter((x) => x.code === "AUSYOS" && x.day === "2026-07-04");
     expect(apocSat.map((x) => x.part).sort()).toEqual(["Part 1", "Part 2"]);
   });
+  it("puts Tulsa Robotics Center's and FTC Louisiana's recordings on the event each title names, in its season", async () => {
+    const TRC = "UC6y0o2J7b05YIL7w95cwg0w", LA = "UCQYT4ZXN54khn_n7ebsRRtQ";
+    const pin = (ch: string) => data.videos.filter((x) => x.channelId === ch).map((x) => `${x.season}/${x.code} ${x.day} ${x.videoId}`).sort();
+    // Every row, checked by hand against Scout's event (name, city, date, league, meet number): season/code day video.
+    expect(pin(TRC)).toEqual([
+      "2024/USOKOKDVM2 2024-11-16 HedOy2nlu8Y", "2024/USOKOKMYM4 2024-12-14 jNQS-ds27_A", "2025/USOKCMP 2026-02-14 2dfab82v9LI",
+      "2025/USOKOKBKLT 2026-02-07 RqS999RYvr4", "2025/USOKOKDVM1 2025-11-01 58jTgjgNnVM", "2025/USOKOKDVM2 2025-11-22 N826JxMkOJw",
+      "2025/USOKOKDVM4 2026-01-16 IxTxYxnwb-o", "2025/USOKOKHRM1 2025-11-22 iWor_qAwe3w", "2025/USOKOKHRM2 2025-12-13 CEk_HdaWCbk",
+      "2025/USOKOKHRM3 2026-01-17 a-hJWs1qdPk", "2025/USOKOKMYM3 2025-12-06 G-ci5QKhIHk", "2025/USOKTUS 2025-11-28 Dolp4XFMw8o",
+      "2025/USOKTUS3 2026-04-18 pjlm3mw8GLY", "2026/USOKOKDVM1 2026-10-24 gBloQhx9MTo",
+    ]);
+    expect(pin(LA)).toEqual([
+      "2022/USLACMP 2023-03-04 _7HGgO9UXKY", "2023/USLACMP 2024-03-02 SneU-PEazzo", "2023/USLATBQ3 2024-02-03 czERhRmqsHY",
+      "2024/USLAALQ 2025-02-08 S3Gjrsx6NQI", "2024/USLACMP 2025-02-22 CLKCw6Ze4t0", "2024/USLAHAQ 2024-12-07 tjqt_qQ1okQ",
+      "2024/USLANOQ 2025-01-18 b7XSFe4M11c", "2024/USLAWAQ 2025-01-11 Kdg5JfNBPkE", "2025/USLABRQ 2026-01-31 xjqDJX7x5bE",
+      "2025/USLABRS 2025-11-16 jNe8zTc_FSU", "2025/USLACMP 2026-02-28 -0YyERucycY", "2025/USLAGEQ 2026-02-07 yBzQFVpiaCM",
+      "2025/USLAHAQ 2026-01-17 horCKP6Ya6I",
+    ]);
+    // Each event as Scout names it: the league and meet number, or the event's own words. DaVinci never on Herrington,
+    // Meet 2 never on Meet 3, Hammond never on Walker.
+    const names: Record<string, RegExp> = {
+      "2024/USOKOKDVM2": /DaVinci League Meet #2$/, "2024/USOKOKMYM4": /May League Meet #4$/, "2025/USOKCMP": /Oklahoma State Championship/,
+      "2025/USOKOKBKLT": /Bishop Kelley League Tournament/, "2025/USOKOKDVM1": /DaVinci League Meet #1 /, "2025/USOKOKDVM2": /DaVinci League Meet #2 /,
+      "2025/USOKOKDVM4": /DaVinci League Meet #4$/, "2025/USOKOKHRM1": /Herrington League Meet +#1 /, "2025/USOKOKHRM2": /Herrington League Meet +#2 /,
+      "2025/USOKOKHRM3": /Herrington League Meet +#3 /, "2025/USOKOKMYM3": /May League Meet #3 /, "2025/USOKTUS": /Black Friday FTC Scrimmage 2025/,
+      "2025/USOKTUS3": /Pre-Worlds FTC Scrimmage/, "2026/USOKOKDVM1": /DaVinci League Meet #1 - BIOBUZZ/,
+      "2022/USLACMP": /Regional Championship/, "2023/USLACMP": /Regional Championship/, "2023/USLATBQ3": /Lafayette Qualifier/,
+      "2024/USLAALQ": /Alexandria Qualifier/, "2024/USLACMP": /Regional Championship/, "2024/USLAHAQ": /Hammond Qualifier/,
+      "2024/USLANOQ": /New Orleans Qualifier/, "2024/USLAWAQ": /Walker Qualifier/, "2025/USLABRQ": /Baton Rouge Qualifier/,
+      "2025/USLABRS": /LSU Scrimmage/, "2025/USLACMP": /Regional Championship/, "2025/USLAGEQ": /Geismar Qualifier/, "2025/USLAHAQ": /Hammond Qualifier/,
+    };
+    // A title naming its game names the event's season.
+    const games: [RegExp, number][] = [[/BIOBUZZ/i, 2026], [/DECODE/i, 2025], [/INTO THE DEEP/i, 2024], [/CENTERSTAGE/i, 2023], [/POWERPLAY/i, 2022]];
+    for (const x of data.videos.filter((y) => y.channelId === TRC || y.channelId === LA)) {
+      const key = `${x.season}/${x.code}`;
+      expect(x.kind, x.videoId).toBe("recording");
+      expect(names[key], key).toBeTruthy();
+      expect(x.title, x.videoId).toMatch(names[key]);
+      const game = games.find(([re]) => re.test(x.title));
+      if (game) expect(x.season, x.videoId).toBe(game[1]);
+      expect(x.channelId === LA ? !!game : true, `${x.videoId} names its game`).toBe(true);
+      expect(x.day! >= `${x.season}-09-01` && x.day! <= `${x.season + 1}-08-31`, `${x.videoId} ${x.day}`).toBe(true);
+    }
+    // Left out: videos that can't be embedded (most of Tulsa's 2024 season), the Herrington Meet 1 of 2026-10-24 that
+    // YouTube blocks in 247 countries (the US among them), one stream for two meets (DaVinci #3 / May #4), a DaVinci
+    // Meet #4 whose date isn't the event's, an off-season invitational Scout lists twice, and a summit with no event.
+    const ids = new Set(data.videos.map((x) => x.videoId));
+    for (const no of ["rbPPJ3YonGM", "PRUrAecDmyU", "CDZvEuYkmg0", "IxU-PzxWU8g", "Fb6hDpb-MwQ", "Lxg-sZQadBE", "aXqVxd9iZI8", "ipIeH72xkRg",
+      "Pz-o9l1MU5M", "bPRhM5FKsEM", "Og4Ser-WdSI", "j-L5Wrj5gKc", "9DE-ivNDi10"]) expect(ids.has(no), no).toBe(false);
+    // The watcher reads the four channels for their own events only.
+    const { OFFICIAL_CHANNELS } = await import("../data/officialChannels");
+    const rule = (ch: string) => parseRule(OFFICIAL_CHANNELS.find((c) => c.channelId === ch)!.region)!;
+    const ev = { season: 2026, type: "LeagueMeet", city: "Tulsa", state: "OK", country: "USA", start: "2026-11-14", end: "2026-11-14", timezone: "America/Chicago", divisionCode: null, parent: false };
+    expect(rule(TRC)({ ...ev, code: "USOKOKHGM2", name: "Herrington League Meet 2" })).toBe(true);
+    expect(rule(TRC)({ ...ev, code: "USOKCMP", name: "Oklahoma Championship", type: "Championship" })).toBe(true);
+    expect(rule(TRC)({ ...ev, code: "USARBEQ", name: "Bentonville Bash", state: "AR" })).toBe(false);
+    const ar = { ...ev, state: "AR", type: "Qualifier", city: "Benton" };
+    expect(rule("UClcqdD9sHnwtN7FCW6Vj1Ug")({ ...ar, code: "USARBEQ2", name: "Battle at Benton" })).toBe(true);
+    expect(rule("UClcqdD9sHnwtN7FCW6Vj1Ug")({ ...ar, code: "USARMHQ", name: "Mountain Home Mayhem" })).toBe(true);
+    expect(rule("UClcqdD9sHnwtN7FCW6Vj1Ug")({ ...ar, code: "USARFSQ", name: "Fort Smith Frenzy" })).toBe(false);
+    expect(rule("UCvA42eBzkRpd-x23-AvOnvw")({ ...ar, code: "USARCMP", name: "Arkansas Championship", type: "Championship" })).toBe(true);
+    expect(rule("UCvA42eBzkRpd-x23-AvOnvw")({ ...ar, code: "USARBEQ", name: "Bentonville Bash" })).toBe(false);
+    expect(rule(LA)({ ...ev, state: "LA", code: "USLANOQ", name: "New Orleans Qualifier" })).toBe(true);
+    expect(rule(LA)({ ...ev, code: "USOKCMP", name: "Oklahoma Championship" })).toBe(false);
+    // Tulsa names the region in its championship title ("Oklahoma State Championship"): that counts, so next season's
+    // stream is added like a state partner's, not left for review.
+    const trc = OFFICIAL_CHANNELS.find((c) => c.channelId === TRC)!;
+    const cmp = { ...ev, season: 2025, code: "USOKCMP", name: "Oklahoma Championship", type: "Championship", start: "2026-02-14", end: "2026-02-14" };
+    const stream = { videoId: "2dfab82v9LI", title: "FIRST Oklahoma - Oklahoma State Championship - FTC Decode", start: "2026-02-14T15:00:00Z", durationS: 7 * 3600, privacy: "public", embeddable: true, blockedIn: 0 };
+    expect(matchVideo(stream, trc, [cmp]).kind).toBe("add");
+    // Every Oklahoma event is a candidate and only the championship title counts as naming the region: a Meet 2 stream
+    // on a day two leagues hold their Meet 2 fits both and goes to review, never onto the other league's meet.
+    const meet2 = [{ ...ev, code: "USOKOKDVM2", name: "DaVinci League Meet 2" }, { ...ev, code: "USOKOKCRM2", name: "Carver League Meet 2", city: "Mustang" }];
+    const day = { ...stream, start: "2026-11-14T15:00:00Z" };
+    expect(matchVideo({ ...day, title: "FIRST Oklahoma - Carver League Meet #2 - BIOBUZZ" }, trc, meet2).kind).toBe("review");
+    expect(matchVideo({ ...day, title: "FIRST Oklahoma - DaVinci League Meet #2 - BIOBUZZ" }, trc, meet2).kind).toBe("review");
+    expect(matchVideo({ ...day, title: "FIRST Oklahoma - DaVinci League Meet #2 - BIOBUZZ" }, trc, meet2.slice(0, 1)).kind).toBe("add");
+    expect(trc.titlePattern).toBe("oklahoma (state )?championship");
+    // Shiloh is a school sports channel: its FTC championship title counts, a sports state championship never does.
+    const shiloh = OFFICIAL_CHANNELS.find((c) => c.channelId === "UCvA42eBzkRpd-x23-AvOnvw")!;
+    const arCmp = { ...ar, season: 2025, code: "USARCMP", name: "Arkansas Championship", type: "Championship", city: "Springdale", start: "2026-02-27", end: "2026-02-28" };
+    const at = { ...stream, start: "2026-02-28T14:54:00Z" };
+    expect(matchVideo({ ...at, title: "Arkansas FTC State Championship" }, shiloh, [arCmp]).kind).toBe("add");
+    expect(matchVideo({ ...at, title: "Arkansas State Championship" }, shiloh, [arCmp]).kind).not.toBe("add");
+  });
+
   it("puts Westwood Robotics' streams on the GEMS league each title names: Diamond never on Emerald, Meet 1 never on Meet 2", async () => {
     const WW = "UCyv6fRBcoK6mD6Br5M366yA";
     const ww = data.videos.filter((x) => x.channelId === WW);

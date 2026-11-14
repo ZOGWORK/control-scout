@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 6.2.1 — 2026-11-14
+
+Oklahoma and Louisiana events now play their recordings: eastern Oklahoma's DaVinci, Herrington and May league meets, the Bishop Kelley league tournament and the state championship from Tulsa Robotics Center, and every Louisiana qualifier and championship since 2023 from FTC Louisiana.
+
+### Highlights
+- [history] Oklahoma league meets and the state championship play their video
+- [history] Louisiana qualifiers and championships play their recordings
+- [live] Tulsa Robotics Center's new streams are added once they air
+
+### Added
+- Official videos: Tulsa Robotics Center (`UC6y0o2J7b05YIL7w95cwg0w`) and FTC Louisiana (`UCQYT4ZXN54khn_n7ebsRRtQ`), both read from the YouTube Data API's uploads lists, join the official channels and the auto-watcher's list, with SeaCow Robotics (`UClcqdD9sHnwtN7FCW6Vj1Ug`, its Mountain Home, Benton and Bentonville qualifiers) and Shiloh Saints (`UCvA42eBzkRpd-x23-AvOnvw`, the Arkansas Championship only), whose streams FIRST's channel links already play. 27 recordings are checked against each event's name, city, date, league and meet number: 14 from Tulsa Robotics Center (2024 to 2026) and 13 from FTC Louisiana (2022 to 2025, each on the day its matches were played). Videos that can't be embedded, the 2026-10-24 Herrington Meet 1 (blocked in the US), one stream for two meets and a meet whose date isn't the event's are left out. (`server/data/officialVideos.json`, `server/data/officialChannels.ts`, `docs/official-videos.md`) (#1479)
+
 ## 6.1.8 — 2026-11-14
 
 Control Scout Lite now covers the whole app: Home, Search, Predict, Compare, Rankings, Scouting and Settings each have a light page, with the same answers and numbers as the full version.
