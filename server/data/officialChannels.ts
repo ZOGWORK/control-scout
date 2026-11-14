@@ -40,5 +40,12 @@ export const OFFICIAL_CHANNELS: OfficialChannelSeed[] = [
   { channelId: "UCHVeR960xGMtQ2rHxYAebTw", title: "High Tech Kids (Minnesota)", region: "state=MN", words: "minnesota htk", titlePattern: "minnesota" },
   { channelId: "UCbppRk83Rf7nh_Zug261h7A", title: "FIRST in Vermont", region: "state=VT", words: "vermont", titlePattern: "vermont" },
   { channelId: "UCUpv6m5YLRZgqZQlasOjKVQ", title: "FIRST UK", region: "country=United Kingdom", words: "uk" },
+  // Team 12099 (Centennial HS, Columbus): FIRST's event pages name its streams for the Central Ohio league (scrimmage,
+  // meets, league tournament) in 2025 and 2026. Channel id from the YouTube Data API (forHandle @StarsoftheGalaxy12099), 2026-11-14.
+  { channelId: "UC576ZA1td9ZvsAUwPq1Ymaw", title: "Stars of the Galaxy (Central Ohio)", region: "state=OH;name=\bCentral Ohio\b", words: "ohio central columbus" },
+  // FIRST Alumni Network Grand Valley: streams the West Michigan league meets at GVSU's Shape Corp. IDC, Grand Rapids
+  // (GVSU Padnos's own page says so; FIRST's event pages link its Meet 1, 3 and 4 streams). Channel id from the
+  // YouTube Data API (forHandle @firstalumninetworkgrandvalley), 2026-11-14. Its Robot in 3 Days streams are FRC.
+  { channelId: "UCaojFS3JFPWY9kaoW6bhvvQ", title: "FIRST Alumni Network Grand Valley (West Michigan)", region: "state=MI;name=\bWest Michigan\b", words: "michigan west grand valley rapids gvsu" },
   { channelId: "UCal7624DPridi_9iKLrAbqw", title: "FIRST Australia", region: "country=Australia", words: "australia australian", titlePattern: "australian? (national )?championship|\\bAPOC\\b|asia pacific open" },
 ];
