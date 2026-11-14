@@ -41,12 +41,13 @@ export const hasVideo = (v: SearchVideo | undefined) => !!(v?.main || v?.watch |
 export async function videoCandidates(a: SearchAnswer, now = Date.now()): Promise<string[]> {
   const out: string[] = [];
   const team = a.stat?.team?.number ?? null;
+  // Each read on its own: one that fails drops its own questions, never the others'.
+  const ms = team != null ? await teamMatches(team).catch(() => []) : [];
   if (team != null) {
-    const ms = await teamMatches(team);
     for (let s = CURRENT_SEASON; s > CURRENT_SEASON - SEASONS_BACK && out.length < 2; s--) {
       const theirs = ms.filter((m) => m.season === s);
       if (!theirs.length) continue;
-      const keys = await seasonClipKeys(s, now);
+      const keys = await seasonClipKeys(s, now).catch(() => new Set<string>());
       if (theirs.some((m) => keys.has(`${m.code}|${m.level}|${m.series}|${m.number}`))) out.push(`${team} highlights ${seasonWords(s)}`);
     }
   }
@@ -55,7 +56,7 @@ export async function videoCandidates(a: SearchAnswer, now = Date.now()): Promis
   const at = refs[0] ?? null;
   const season = at?.season ?? CURRENT_SEASON;
   for (const s of [season, season - 1]) {
-    const kinds = await seasonVideoKinds(s, now);
+    const kinds = await seasonVideoKinds(s, now).catch(() => new Map<string, string>());
     const filmed = [...kinds].filter(([, k]) => k === "clips").map(([c]) => c);
     if (!filmed.length) continue;
     const near = at ? await all<{ name: string }>(
@@ -63,9 +64,9 @@ export async function videoCandidates(a: SearchAnswer, now = Date.now()): Promis
        WHERE e.season = ? AND e.code IN (${filmed.map(() => "?").join(",")}) AND e.division_code IS NULL AND e.type IN (${OFFICIAL_TYPES.map(() => "?").join(",")})
        ORDER BY COALESCE(e.state, '') = COALESCE(x.state, '') AND COALESCE(e.country, '') = COALESCE(x.country, '') DESC, COALESCE(e.country, '') = COALESCE(x.country, '') DESC,
          e.type IN (${BIG.map(() => "?").join(",")}) DESC, e.start IS NULL, ABS(julianday(e.start) - julianday(x.start)) LIMIT ?`,
-      [at.season, at.code, s, ...filmed, ...OFFICIAL_TYPES, ...BIG, TRY_MAX]) : await all<{ name: string }>(
+      [at.season, at.code, s, ...filmed, ...OFFICIAL_TYPES, ...BIG, TRY_MAX]).catch(() => []) : await all<{ name: string }>(
       `SELECT name FROM events WHERE season = ? AND code IN (${filmed.map(() => "?").join(",")}) AND division_code IS NULL AND type IN (${OFFICIAL_TYPES.map(() => "?").join(",")})
-       ORDER BY type IN (${BIG.map(() => "?").join(",")}) DESC, start DESC LIMIT ?`, [s, ...filmed, ...OFFICIAL_TYPES, ...BIG, TRY_MAX]);
+       ORDER BY type IN (${BIG.map(() => "?").join(",")}) DESC, start DESC LIMIT ?`, [s, ...filmed, ...OFFICIAL_TYPES, ...BIG, TRY_MAX]).catch(() => []);
     for (const e of near) out.push(`${e.name} highlights ${seasonWords(s)}`);
     if (out.length >= TRY_MAX) break;
   }
@@ -98,7 +99,8 @@ export async function withVideoAlternatives(q: string, a: SearchAnswer, v: Searc
       // still waits on it. A check that never ran, or whose reads failed, is never kept.
       const key = `${who}|${c}`;
       let check = checks.get(key);
-      if (!check || Date.now() - check.at >= CHECK_TTL_MS) {
+      // Only a check that's done expires: one still running is shared however long it takes.
+      if (!check || (check.done && Date.now() - check.at >= CHECK_TTL_MS)) {
         const e: Check = { at: Date.now(), waiting: 0, done: false, v: Promise.resolve(null) };
         e.v = inTurns(async (): Promise<boolean | null> => {
           if (e.waiting === 0) return null;
