@@ -121,6 +121,10 @@ async function settle(page: Page, timeout = 15_000): Promise<{ ms: number; state
   try {
     await page.waitForFunction(() => {
       const main = document.querySelector("main") ?? document.body;
+      // A static first paint of another page (the service worker's cached Home, opened in this page's place) isn't
+      // this page: wait for the app to draw it.
+      const boot = document.getElementById("cs-boot-page");
+      if (boot && boot.getAttribute("data-path") !== location.pathname) return false;
       const busy = document.querySelector(".skeleton, [data-slot=skeleton], [aria-busy=true]");
       // The page's own words, not the site footer's (always there).
       const footer = main.querySelector("footer")?.textContent ?? "";
