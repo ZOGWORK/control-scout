@@ -180,10 +180,12 @@ async function answerOffline<T>(path: string, init: (RequestInit & { json?: unkn
   const outer = init?.signal;
   const kind = offlineKind(path, "GET");
   const watch = watchRequest(path, "GET");
-  if (kind === "saved") {
-    const data = await savedAnswer(path);
+  if (kind === "saved" || comparePacksSaved(path)) {
+    const got = await savedAnswerOrError(path);
     if (outer?.aborted) { watch.done(false); throw callerAborted(); }
-    if (data != null) { watch.done(); setUsingSaved(true); return data as T; }
+    // What the saved data says instead (the server's own 404 it recorded, or "team X isn't in your pack"): shown now.
+    if ("error" in got) { watch.done(false); throw got.error; }
+    if (got.data != null) { watch.done(); setUsingSaved(true); return got.data as T; }
   }
   if (kind === "lite" || kind === "snapshot") { watch.done(false); throw unreachable(); }
   const now = await freshInternet(RECHECK_MS);
