@@ -112,6 +112,11 @@ describe("the official-video watcher", () => {
     // Once the lease is free, the next load seeds.
     await ownerOfficial(T0);
     expect(await pattern(moks.channelId)).toBeNull();
+    // Seeded, a load doesn't ask for the lease: while a sync holds it, the load doesn't wait for it.
+    const held = await tryAcquire("data sync", 60_000);
+    const t = Date.now();
+    try { await ownerOfficial(T0); } finally { await release(held!); }
+    expect(Date.now() - t).toBeLessThan(1000);
   });
 
   it("reads each watched channel's new uploads once: adds the sure one, queues the rest, sets aside the rest", async () => {
