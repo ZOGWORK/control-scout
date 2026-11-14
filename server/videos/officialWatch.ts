@@ -29,8 +29,13 @@ const BUSY_STOP = "database busy (the data sync was writing): stopped, tried aga
 const LAST_RUN = `SELECT started_at FROM official_watch_runs WHERE finished_at IS NOT NULL AND COALESCE(error, '') NOT LIKE 'database busy%' ORDER BY id DESC LIMIT 1`;
 /** Units one run may use at most (YouTube gives 10,000 a day, shared with the timing backfill). */
 const MAX_UNITS = 1500;
-/** Pages of a channel's uploads read in one run (50 a page, newest first). */
-const MAX_PAGES = 3;
+/** Pages of a channel's uploads read in one run (50 a page, newest first): enough for a season's uploads of the
+ * busiest channel (New England FIRST posts ~200 by November), so none falls off the end unread. */
+const MAX_PAGES = 10;
+/** How far back a channel's uploads are read, however recently it started being watched. A stream is listed when it's
+ * scheduled, often a week or more before it airs: from the date it was watched alone, every stream scheduled before
+ * that would be skipped for good once it aired (FTC Iowa's league meets, Pennsylvania's championship). */
+export const LOOKBACK_MS = 180 * 864e5;
 const API = "https://www.googleapis.com/youtube/v3";
 const CHANNEL_ID = /^UC[A-Za-z0-9_-]{22}$/;
 const VIDEO_ID = /^[A-Za-z0-9_-]{11}$/;
@@ -85,7 +90,25 @@ async function eventsAround(day: string): Promise<WatchEvent[]> {
 }
 
 /** A watcher's verdict: the match's, or a duplicate of a video an event already plays (logged, never added or queued). */
-export type WatchVerdict = Verdict | { kind: "duplicate"; why: string; event?: WatchEvent; day?: string; part?: string | null };
+export type WatchVerdict = Verdict | { kind: "duplicate"; why: string; event?: Pick<WatchEvent, "season" | "code">; day?: string; part?: string | null };
+
+/** A recording that just joined an event: by the watcher (every check passed) or by the owner's approval. */
+export interface RecordingAdded { season: number; code: string; day: string | null; part: string | null; videoId: string; by: "watcher" | "owner" }
+type AfterAdd = (added: RecordingAdded[]) => unknown;
+const afterAdd = new Set<AfterAdd>();
+/** The hook for what must follow a new recording: the event's clip coverage is checked again (every played match of
+ * that day gets a clip or lands on the missing list for the owner). Called once per watcher run with everything it
+ * added, and once per owner approval; a failing listener is logged, never undoes the add. Returns the unsubscribe. */
+export function onRecordingAdded(fn: AfterAdd): () => void {
+  afterAdd.add(fn);
+  return () => { afterAdd.delete(fn); };
+}
+async function recordingsAdded(added: RecordingAdded[], log: (s: string) => void): Promise<void> {
+  if (!added.length) return;
+  for (const fn of afterAdd) {
+    try { await fn(added); } catch (e) { log(`official videos: the check after ${added.map((a) => `${a.season} ${a.code}`).join(", ")} was added failed: ${String((e as Error)?.message ?? e).slice(0, 200)}`); }
+  }
+}
 
 /** An "add" checked against what the event already plays: a day it has a video for is a duplicate; one whose day
  *  isn't known yet sends it to review. */
@@ -118,6 +141,7 @@ export async function runOfficialWatch(log: (s: string) => void, opts: { apiKey?
   const fetchImpl = opts.fetchImpl ?? fetch;
   const maxUnits = opts.maxUnits ?? MAX_UNITS;
   const out: WatchRun = { units: 0, channels: 0, seen: 0, added: 0, queued: 0, duplicates: 0, error: null };
+  const added: RecordingAdded[] = [];
   // A failed start (a busy database) must not leave the watcher latched off for the rest of the process.
   let runId = 0;
   // The run's claim, under the lease, so it holds across processes too. Not while another run is going: one unfinished
@@ -147,7 +171,7 @@ export async function runOfficialWatch(log: (s: string) => void, opts: { apiKey?
     for (const ch of channels) {
       if (out.units >= maxUnits) { out.error = `stopped at the run's ${maxUnits} units; the rest next run`; break; }
       try {
-        const fresh = await newUploads(ch, key, fetchImpl, out, maxUnits);
+        const fresh = await newUploads(ch, key, fetchImpl, out, maxUnits, now());
         out.channels++;
         for (let i = 0; i < fresh.length; i += 50) {
           if (out.units >= maxUnits) break;
@@ -172,7 +196,7 @@ export async function runOfficialWatch(log: (s: string) => void, opts: { apiKey?
               const verdict = await decide(v, ch);
               const published = part.find((p) => p.id === v.videoId)?.published ?? null;
               await record(v, ch, verdict, published, now());
-              if (verdict.kind === "add") out.added++;
+              if (verdict.kind === "add") { out.added++; added.push({ season: verdict.event.season, code: verdict.event.code, day: verdict.day, part: verdict.part, videoId: v.videoId, by: "watcher" }); }
               else if (verdict.kind === "review") out.queued++;
               else if (verdict.kind === "duplicate") out.duplicates++;
             }
@@ -194,6 +218,7 @@ export async function runOfficialWatch(log: (s: string) => void, opts: { apiKey?
   }
   // The event pages read it within a minute (the recordings cache).
   if (out.added) forgetOfficial();
+  await recordingsAdded(added, log);
   if (out.seen || out.error) log(`official videos: watched ${out.channels} channels (${out.units} units): ${out.seen} new, ${out.added} added, ${out.queued} to review, ${out.duplicates} duplicates${out.error ? `; ${out.error}` : ""}`);
   return out;
 }
@@ -207,9 +232,12 @@ export async function watchIfDue(log: (s: string) => void, now = Date.now(), opt
   return runOfficialWatch(log, { apiKey: key, fetchImpl: opts.fetchImpl, now: opts.clock, lockWaitMs: opts.lockWaitMs, scheduled: true });
 }
 
-/** A channel's uploads published since it's been watched and not read before, newest first (one unit a page). */
-async function newUploads(ch: ChannelRow, key: string, fetchImpl: Fetch, out: WatchRun, maxUnits: number): Promise<{ id: string; published: string }[]> {
+/** A channel's uploads not read before, newest first (one unit a page), back to the earlier of the date it started
+ * being watched and LOOKBACK_MS ago. */
+async function newUploads(ch: ChannelRow, key: string, fetchImpl: Fetch, out: WatchRun, maxUnits: number, now: number): Promise<{ id: string; published: string }[]> {
   const fresh: { id: string; published: string }[] = [];
+  const back = new Date(now - LOOKBACK_MS).toISOString();
+  const floor = ch.watchFrom < back ? ch.watchFrom : back;
   let token = "";
   for (let page = 0; page < MAX_PAGES && out.units < maxUnits; page++) {
     out.units++;
@@ -224,7 +252,7 @@ async function newUploads(ch: ChannelRow, key: string, fetchImpl: Fetch, out: Wa
     }
     let older = false;
     for (const i of items) {
-      if (i.published < ch.watchFrom) { older = true; continue; }
+      if (i.published < floor) { older = true; continue; }
       if (!known.has(i.id)) fresh.push(i);
     }
     token = String(body?.nextPageToken ?? "");
@@ -241,7 +269,7 @@ export async function decide(v: WatchVideo, ch: Pick<ChannelRow, "region" | "wor
      UNION ALL SELECT season, code, 'its stream link' FROM event_stream_links WHERE video_id = ?1
      UNION ALL SELECT season, code, 'the owner''s stream' FROM event_streams WHERE video_id = ?1
      UNION ALL SELECT season, code, 'FIRST''s event link' FROM events WHERE livestream LIKE '%' || ?1 || '%' LIMIT 1`, [v.videoId]);
-  if (played) return { kind: "duplicate", why: `duplicate: already ${played.season} ${played.code}'s video (${played.via})` };
+  if (played) return { kind: "duplicate", why: `duplicate: already ${played.season} ${played.code}'s video (${played.via})`, event: { season: Number(played.season), code: String(played.code) } };
   const rule: ChannelRule = { region: ch.region, words: ch.words, titlePattern: ch.titlePattern };
   const events = v.start ? await eventsAround(v.start.slice(0, 10)) : [];
   const verdict = matchVideo(v, rule, events);
@@ -310,7 +338,7 @@ export async function ownerOfficial(now = Date.now()) {
 type Result<T = object> = ({ ok: true } & T) | { ok: false; error: string };
 
 /** The owner adds a video from the queue (or the set-aside list) to an event: as a day's recording or a highlight. */
-export async function approveWatched(videoId: string, body: { season?: unknown; code?: unknown; day?: unknown; part?: unknown; kind?: unknown }, actor: string, now = Date.now()): Promise<Result> {
+export async function approveWatched(videoId: string, body: { season?: unknown; code?: unknown; day?: unknown; part?: unknown; kind?: unknown }, actor: string, now = Date.now(), log: (s: string) => void = console.warn): Promise<Result> {
   const w = await get<any>("SELECT channel_id, title, status, why FROM official_watch WHERE video_id = ?", [videoId]);
   if (!w) return { ok: false, error: "That video isn't in the review queue." };
   if (!["pending", "ignored"].includes(String(w.status))) return { ok: false, error: `Already ${w.status}.` };
@@ -349,6 +377,7 @@ export async function approveWatched(videoId: string, body: { season?: unknown; 
   }
   forgetOfficial();
   await recordAudit(actor, "officialVideo.approve", { videoId, season: Number(ev.season), code: String(ev.code), kind, day, part, was: String(w.status) });
+  if (kind === "recording") await recordingsAdded([{ season: Number(ev.season), code: String(ev.code), day, part, videoId, by: "owner" }], log);
   return { ok: true };
 }
 

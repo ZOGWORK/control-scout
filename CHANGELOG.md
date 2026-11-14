@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.2.4 — 2026-11-14
+## 6.2.6 — 2026-11-14
 
 FTC One Search works with no signal at the meet: search a team in the downloaded event by number or name, the event, a match, or set its teams side by side, and get the same answer as online. Anything else says plainly that it needs data the pack doesn't hold, and shows what the pack does hold.
 
@@ -32,6 +32,42 @@ FTC One Search works with no signal at the meet: search a team in the downloaded
 
 ### Changed
 - With an event pack saved, search waits 4 seconds for the server before the pack answers (no answer, or no network at all: at once), never search's 10-second slow-search wait; a search the pack can't answer still waits for a server that's answering everything else. (#1489)
+
+## 6.2.5 — 2026-11-14
+
+With no internet, pages you saved open straight away instead of after a wait, and one small pill in the top bar says you're offline and how fresh your data is. Wi-Fi that wants a sign-in page is spotted too.
+
+### Highlights
+- [offline] Saved pages open at once with no internet, no waiting first
+- [offline] One "Offline · updated 8:09 PM" pill in the top bar
+- [offline] Wi-Fi that needs a sign-in page says so plainly
+- [offline] Back online, pages refresh by themselves without reloading
+- [fixes] The "Slow connection?" offer stays away when there's no internet
+
+### Added
+- A real internet check (`src/lib/connection.ts`): asks `/api/health` (no cache, 2.5 s at most). Our own answer means internet; a sign-in page, a redirect or any other answer means a Wi-Fi that wants you to sign in; nothing means offline. It checks again when the browser says the network changed, when the tab comes back into view, soon after a request fails, every 30 s while offline and every 5 minutes otherwise. `useConnection()` gives online, internet (yes, no, portal, unknown), connection type and Data Saver for the rest of the app.
+- The Offline pill (`src/components/ConnectionStatus.tsx`), which replaces the old "Offline, showing saved data" badge: "Offline · updated <time>" (the time of the saved data on screen, else of the newest thing saved), or "No internet on this Wi-Fi". On a phone it takes the centred logo's place; on a wider screen it sits in the bar's spare space, so nothing moves. Tapping it lists what's on this device, with Try again and Downloads.
+- `npm run offline:check` (`scripts/offline-check.ts`): opens the offline journeys on a 390 px phone behind a local proxy that can drop the network (the service worker's own requests too), act as a Wi-Fi sign-in page (`--portal`) or slow everything to about 400 kbps (`--throttle`). `--prod` runs it against the local production build.
+
+### Changed
+- Known offline, reads that saved data can answer come from it with no network try and no 4 s wait. Other reads say they need a connection at once (after one quick check) instead of spinning. Writes still go to the network.
+- When the internet comes back, whatever is on screen from saved data refreshes in the background, keeping the page and anything typed.
+- A page that gets no answer in 3 s (Wi-Fi that carries nothing) opens from the app saved on the device instead of a blank screen. Light pages keep waiting.
+- Opening a page again soon after one found no internet starts from that answer (checked again at once), so every page after the first opens straight from saved data. A Wi-Fi sign-in page that answers where our data should be counts as no internet. A read still waiting when the check finds no internet is let go and answered from saved data at once.
+- The "needs a connection" message says "No internet on this Wi-Fi" when a sign-in page is in the way.
+- The "Slow connection?" offer only shows when there is internet: with none, the light version can't load either. (#1487)
+
+## 6.2.4 — 2026-11-14
+
+Oklahoma and Louisiana events now play their recordings: eastern Oklahoma's DaVinci, Herrington and May league meets, the Bishop Kelley league tournament and the state championship from Tulsa Robotics Center, and every Louisiana qualifier and championship since 2023 from FTC Louisiana.
+
+### Highlights
+- [history] Oklahoma league meets and the state championship play their video
+- [history] Louisiana qualifiers and championships play their recordings
+- [live] Tulsa Robotics Center's new streams are added once they air
+
+### Added
+- Official videos: Tulsa Robotics Center (`UC6y0o2J7b05YIL7w95cwg0w`) and FTC Louisiana (`UCQYT4ZXN54khn_n7ebsRRtQ`), both read from the YouTube Data API's uploads lists, join the official channels and the auto-watcher's list, with SeaCow Robotics (`UClcqdD9sHnwtN7FCW6Vj1Ug`, its Mountain Home, Benton and Bentonville qualifiers) and Shiloh Saints (`UCvA42eBzkRpd-x23-AvOnvw`, the Arkansas Championship only), whose streams FIRST's channel links already play. 27 recordings are checked against each event's name, city, date, league and meet number: 14 from Tulsa Robotics Center (2024 to 2026) and 13 from FTC Louisiana (2022 to 2025, each on the day its matches were played). Videos that can't be embedded, the 2026-10-24 Herrington Meet 1 (blocked in the US), one stream for two meets and a meet whose date isn't the event's are left out. (`server/data/officialVideos.json`, `server/data/officialChannels.ts`, `docs/official-videos.md`) (#1479)
 
 ## 6.2.3 — 2026-11-14
 
