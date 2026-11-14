@@ -36,7 +36,7 @@ export function ClipLink({ clip, label = "this match", matchKey, className, chil
   const online = useOnline();
   if (offline || !online) return <NeedsConnection label={label} kind="clip" className={className}>{children}</NeedsConnection>;
   return (
-    <a href={clip.url} target="_blank" rel="noreferrer noopener" onClick={inApp({ videoId: clip.videoId, t: clip.t, label, matchKey })} className={cn("inline-flex items-center gap-1", className)}
+    <a href={clip.url} target="_blank" rel="noreferrer noopener" onClick={inApp({ videoId: clip.videoId, t: clip.t, end: clip.end, label, matchKey })} className={cn("inline-flex items-center gap-1", className)}
       aria-label={`Watch ${label} in the recording, from ${clipTime(clip.t)}`} title={`Watch in the recording from ${clipTime(clip.t)}`} data-clip={clip.t}>
       <MonitorPlay className="size-3.5 shrink-0" aria-hidden />{children}
     </a>

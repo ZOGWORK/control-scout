@@ -28,11 +28,16 @@ export function readDelivery(data: unknown, prev: VideoClock | null): VideoClock
   return t == null ? null : { t, playing };
 }
 
+/** A match's clip within the video the player holds: loaded afresh from `t` to `end` (YouTube's loadVideoById), which
+ *  also drops an end= the embed was loaded with (a seekTo leaves it, and a later clip would stop at the earlier one's end). */
+export interface ClipLoad { videoId: string; end?: number }
+
 /**
  * The player's clock while `frame` holds a bridged embed: null until it first reports. `seek` moves the playing
- * video (true when the player is listening; false means reload it at that second instead).
+ * video (true when the player is listening; false means reload it at that second instead); with `clip`, it plays
+ * that clip, stopping at its end.
  */
-export function useVideoClock(frame: RefObject<HTMLIFrameElement | null>, key: unknown): { clock: VideoClock | null; seek: (t: number) => boolean } {
+export function useVideoClock(frame: RefObject<HTMLIFrameElement | null>, key: unknown): { clock: VideoClock | null; seek: (t: number, clip?: ClipLoad) => boolean } {
   const [clock, setClock] = useState<VideoClock | null>(null);
   const live = useRef(false);
   useEffect(() => {
@@ -59,9 +64,14 @@ export function useVideoClock(frame: RefObject<HTMLIFrameElement | null>, key: u
     hello();
     return () => { window.removeEventListener("message", onMessage); f.removeEventListener("load", hello); clearInterval(timer); };
   }, [frame, key]);
-  const seek = (t: number) => {
+  const seek = (t: number, clip?: ClipLoad) => {
     const w = frame.current?.contentWindow;
     if (!live.current || !w) return false;
+    if (clip) {
+      const load = { videoId: clip.videoId, startSeconds: t, ...(clip.end != null && clip.end > t ? { endSeconds: clip.end } : {}) };
+      w.postMessage(JSON.stringify({ event: "command", func: "loadVideoById", args: [load], id: 1, channel: "widget" }), YT_ORIGIN);
+      return true;
+    }
     w.postMessage(JSON.stringify({ event: "command", func: "seekTo", args: [t, true], id: 1, channel: "widget" }), YT_ORIGIN);
     w.postMessage(JSON.stringify({ event: "command", func: "playVideo", args: [], id: 1, channel: "widget" }), YT_ORIGIN);
     return true;

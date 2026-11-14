@@ -4,23 +4,25 @@
 import type { OnboardingSummary } from "../../shared/onboardingStats";
 
 const STEPS = ["Welcome", "Your team", "Search", "Find your way"] as const;
-const pct = (n: number, of: number) => (of > 0 ? `${Math.round((n / of) * 100)}%` : "–");
+// Clamped at 100%: a visitor who opened it before the period can reach a step or finish inside it.
+const pct = (n: number, of: number) => (of > 0 ? `${Math.round(Math.min(1, n / of) * 100)}%` : "–");
 
 export function OnboardingFunnel({ s }: { s: OnboardingSummary }) {
-  if (s.shown === 0) {
+  const skippedTotal = s.skipped.reduce((a, b) => a + b, 0);
+  // Empty only when nothing at all was counted: a visitor can open it before the period and skip or finish inside it.
+  if (s.shown === 0 && skippedTotal === 0 && s.finished === 0 && s.reached.every((n) => n === 0)) {
     return <p className="text-sm text-text-muted" data-onboarding-funnel="">No first visits counted in the last {s.days} days yet.</p>;
   }
-  const skippedTotal = s.skipped.reduce((a, b) => a + b, 0);
   return (
     <div data-onboarding-funnel="">
       <ol className="grid gap-2.5">
         {STEPS.map((name, i) => {
           const n = s.reached[i]!;
-          const share = Math.min(1, n / s.shown);
+          const share = s.shown > 0 ? Math.min(1, n / s.shown) : 0;
           return (
             <li key={name} className="grid grid-cols-[7.5rem_1fr_auto] items-center gap-3 max-sm:grid-cols-[6rem_1fr_auto]">
               <span className="truncate text-sm text-text-base">{i + 1}. {name}</span>
-              <span className="h-3 overflow-hidden rounded-full bg-text-base/10" role="img" aria-label={`${pct(n, s.shown)} reached step ${i + 1}`}>
+              <span className="h-3 overflow-hidden rounded-full bg-text-base/10" role="img" aria-label={s.shown > 0 ? `${pct(n, s.shown)} reached step ${i + 1}` : `${n} reached step ${i + 1}`}>
                 <span className="block h-full rounded-full bg-accent" style={{ width: `${share * 100}%` }} />
               </span>
               <span className="text-right font-mono text-sm tabular-nums text-text-base">
