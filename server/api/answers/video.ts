@@ -193,9 +193,10 @@ export async function answerVideo(a: SearchAnswer, now = Date.now(), viewer?: Vi
           ...(rec.more?.length && day.meta?.start ? { day: dayLabel(day.meta.start, m?.timezone) } : {}), ...(day.meta?.live ? { live: true } : {}) };
       }
     } else if (!out.main) {
-      if (aboutTeam(a)) {
-        // An answer about a team with no one match as its headline: its first listed match with a clip (a list of
-        // highlights: the first of those, never a video page's grid beside them).
+      if (aboutTeam(a) || rows.length) {
+        // An answer about a team with no one match as its headline, or a list of matches at one event ("matches with
+        // video at <event>"): its first listed match with a clip (a list of highlights: the first of those, never a
+        // video page's grid beside them). The recording from its start is the fallback only.
         const lead = highlightHrefs(a);
         const first = rows.find((r) => (!lead || lead.has(r.href)) && items.has(`${evKey(r)}:${r.key}`));
         if (first) { mainHref = `${evKey(first)}:${first.key}`; out.main = items.get(mainHref); }

@@ -39,6 +39,7 @@ import { highScoreAnswer, parseHighScore } from "./searchHighScores.js";
 import { eventVersusSearch, leagueSearch, statAnswer } from "./answers/index.js";
 import { divisionFieldAnswer, oprPhaseOf, readDivisionField, type EventRow } from "./answers/families/eventVersus.js";
 import { seasonOfDate } from "./query/time.js";
+import { WATCH_TAKERS } from "./query/intents.js";
 import { searchToday } from "./searchEvents.js";
 import { placeAwardsSearch, readPlaceAwards } from "./answers/families/placeAwards.js";
 import { refreshSearchSeason } from "./answers/season.js";
@@ -274,6 +275,15 @@ export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promi
     return carryOutcome(b, { ...b, q: cleanQuery(raw) });
   }
   const a = await numberedAnswer(raw, opts);
+  // Asked to watch it ("who won decode with video", "… highlights"): every answer plays its matches' video
+  // (./answers/video.ts), so words asking to watch beside a question whose answer didn't take them are dropped and
+  // the question answered as asked. Never when the answer took them (a team's or a scope's highlights, a video page,
+  // a match finder's "with video"), nor when nothing but them would be left.
+  const unwatched = withoutWatch(said);
+  if (unwatched !== said && !tookWatch(a)) {
+    const b = await searchAnswer(unwatched, opts);
+    if (b.stat || b.card) return carryOutcome(b, { ...b, q: cleanQuery(raw) });
+  }
   // A season said by its game ("how many teams in nj decode year", "…, centerstage") and not answered as said: the
   // same ask with the season's years, the way every reader reads a season. Only when the words as said found no
   // answer, so a team or event named like a game keeps its own.
@@ -289,6 +299,25 @@ export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promi
   if (opts.spell === false || String(raw ?? "").includes('"')) return onPage(raw, a, opts);
   const asked = /\?\s*$/.test(String(raw ?? ""));
   return onPage(raw, await spelled(cleanQuery(raw), a, (q) => searchAnswer(asked ? `${q}?` : q, { ...opts, spell: false })), opts);
+}
+
+/** The lexicon's phrases that ask to watch: "with video" (the match finder's filter), "video", "clips", and
+ *  "highlights" itself (never its other phrases, "best matches", which ask for matches). */
+const WATCH_PHRASES = LEXICON.filter((e) => e.syms.length === 1 && (e.syms[0].k === "withvideo" || e.syms[0].k === "videos" || (e.syms[0].k === "highlights" && e.words[0].startsWith("highlight")))).map((e) => e.words);
+const escRe = (w: string) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const WATCH_RE = new RegExp(`(?:^|\\s)(?:${WATCH_PHRASES.map((ws) => ws.map(escRe).join("\\s+")).join("|")})(?=\\s|[?!.,]|$)`, "gi");
+
+/** `q` without its words asking to watch; `q` itself when it has none, or when fewer than two words would be left. */
+export function withoutWatch(q: string): string {
+  const out = q.replace(WATCH_RE, " ").replace(/\s+/g, " ").trim();
+  return out === q.trim() || out.split(" ").length < 2 ? q : out;
+}
+
+/** Whether an answer is one that watching asks for: highlights, a page of match videos, or matches found with video. */
+export function tookWatch(a: SearchAnswer): boolean {
+  const s = a.stat;
+  if (!s) return false;
+  return /highlights|video/.test(s.intent) || WATCH_TAKERS.has(s.intent) || s.scope.includes("With video") || s.blocks.some((b) => b.kind === "videos" || (b.kind === "matches" && b.rows.length > 0 && b.rows.every((r) => r.note)));
 }
 
 /** `q` with a game's name (and a "year" or "season" after it, an "in" or a comma before it) said as its season's years

@@ -23,7 +23,7 @@ import { teamHighlights, type TeamHighlightScope } from "../answers/highlights.j
 import { shortEvent } from "../answers/matchSet.js";
 import { CHAMPIONSHIP_TYPE, OFFICIAL_TYPES, STATES_TYPE } from "../answers/clauses.js";
 import { eventScoresAnswer, eventScoresTitle, type EventScoresQuestion } from "../answers/families/eventScores.js";
-import { FROM as FIND_FROM, eventKindOf, matchFindAnswer, where as findWhere, type MatchFind, type MatchMeasure } from "./matchFind.js";
+import { FROM as FIND_FROM, eventKindOf, matchFindAnswer, videoKeys as findVideoKeys, where as findWhere, type MatchFind, type MatchMeasure } from "./matchFind.js";
 import { seasonOfDate } from "./time.js";
 import { searchToday } from "../searchEvents.js";
 import { eventFor, forecastAt, teamEventOfType } from "./forecast.js";
@@ -299,7 +299,8 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   // OPR there), which search's event readers give: the plain list is for a season, a window or a place.
   if (intent === "season-matches" && (p.worlds || p.states)) return null;
   // A team's match by its score ("<team> 226 point match") is the match finder's, below.
-  if (p.teams.length === 1 && TEAM_INTENTS.has(intent) && !(intent === "season-matches" && p.scoreCond)) {
+  // With video, a team's matches or its best are the match finder's, below (it holds the filter).
+  if (p.teams.length === 1 && TEAM_INTENTS.has(intent) && !(intent === "season-matches" && p.scoreCond) && !p.withVideo) {
     // An award with an answer of its own: Inspire (its places) and Finalist finishes. The first or latest Finalist
     // award is the award list's, filtered to Finalist, which takes the pick (Finalist finishes only counts them).
     const pickSaid = p.agg === "first" || p.agg === "last";
@@ -520,19 +521,21 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   // Matches with no measure said are a window's only ("matches from yesterday"), or those with a score to reach
   // ("matches at <event> where both alliances scored over 250"), listed best first; "matches" alone, a place's or a
   // match type's ("playoff matches in NJ") are left to search.
-  if (intent === "top-matches" && !p.teams.length && !p.symbols.includes("agg:max") && !scope.window && !p.scoreCond) return null;
+  if (intent === "top-matches" && !p.teams.length && !p.symbols.includes("agg:max") && !scope.window && !p.scoreCond && !p.withVideo) return null;
   const kind = p.event ? eventKindOf(normalise(p.event.words)) : p.eventKind ? eventKindOf(p.eventKind) : null;
   // One team's match by its score ("<team> 226 point match"): that team's matches with the score, found the same way.
   const scored = p.teams.length === 1 && p.scoreCond?.op === "=" && (intent === "season-matches" || intent === "top-matches");
-  const teamFind = p.teams.length === 1 && (TEAM_FIND.has(FIND[intent]!) || scored);
-  if ((!p.teams.length || teamFind) && (FIND[intent] || scored || (intent === "top-matches" && (p.level || p.finals || kind || p.scoreCond)))) {
+  // One team's matches with video ("<team> matches with video", "<team> best match with video"): found the same way.
+  const teamVideo = p.teams.length === 1 && !!p.withVideo && (intent === "season-matches" || intent === "highest-score");
+  const teamFind = p.teams.length === 1 && (TEAM_FIND.has(FIND[intent]!) || scored || teamVideo);
+  if ((!p.teams.length || teamFind) && (FIND[intent] || scored || teamVideo || (intent === "top-matches" && (p.level || p.finals || kind || p.scoreCond || p.withVideo)))) {
     // An event named with a score to reach ("matches at <event> where both alliances scored over 250"): its matches,
     // its divisions' too. A calendar year said is the edition held that year; none said, its latest.
     const year = p.time?.kind === "season" && p.time.year != null && !p.time.relative ? p.time.year : null;
-    const named = p.event && !kind && p.scoreCond ? await eventsNamed(normalise(p.event.words), null, year != null ? (e) => (e.start ?? "").startsWith(String(year)) : undefined) : null;
+    const named = p.event && !kind && (p.scoreCond || p.withVideo) ? await eventsNamed(normalise(p.event.words), null, year != null ? (e) => (e.start ?? "").startsWith(String(year)) : undefined) : null;
     const events = named && year != null ? named.filter((e) => (e.start ?? "").startsWith(String(year))) : named;
     if (events && !events.length) return null;
-    if (((p.event || p.eventKind) && !kind && !events) || p.worlds || p.states || p.alliance || scope.ever || (p.place && p.place.kind === "city")) return null;
+    if (((p.event || p.eventKind) && !kind && !events) || p.worlds || p.states || p.alliance || (scope.ever && !p.withVideo) || (p.place && p.place.kind === "city")) return null;
     // Its name as each season held it: the main event's, never a division's.
     const mainFirst = events ? [...events].sort((x, y) => Number(x.division != null) - Number(y.division != null)) : [];
     const eventKeys = events ? (await scopeEvents({ season: 0, region: null, level: null, finals: false, kind: null, events })) ?? [] : null;
@@ -545,9 +548,11 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
       // The current season is the one today is in.
       measure: FIND[intent] ?? "high", season: eventSeason ?? placeSeason(p, scope.season, opts), region: regionOf(p), level: p.level, finals: p.finals, kind,
       ...(["metric:win", "metric:loss", "outcome:W", "outcome:L"].some((s) => p.symbols.includes(s)) ? { decided: true } : {}),
+      // "Ever" with video ("highest score ever with video"): every season's matches with video, read as one.
+      ...(scope.ever && p.withVideo ? { ever: true } : {}),
       ...(scope.window ? { window: scope.window } : {}), n: p.n ?? (plural ? 10 : 5), ...(plural || p.n != null ? { list: true } : {}),
       ...(teamFind ? { team: { number: p.teams[0].number, name: p.teams[0].name } } : {}), ...(p.over != null ? { over: p.over } : {}),
-      ...(p.scoreCond ? { cond: p.scoreCond } : {}), ...(events && eventKeys ? {
+      ...(p.scoreCond ? { cond: p.scoreCond } : {}), ...(p.withVideo ? { video: true } : {}), ...(events && eventKeys ? {
         events: eventKeys.map((k) => ({ ...k, name: mainFirst.find((e) => e.season === k.season)?.name })),
         // An off-season event named ("MTI") is its own matches, though the finder otherwise reads official events only.
         ...(events.some((e) => !(OFFICIAL_TYPES as readonly string[]).includes(e.type ?? "")) ? { named: true } : {}),
@@ -556,6 +561,8 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     // A team's match by its score, no season said: the latest season, up to the current one, holding one the finder
     // lists (its own filters: official events, the match type said, the place).
     if (scored && !p.time && !f.window) {
+      // With video: the keys of every season the search can reach, read first, so an older season's match counts.
+      if (f.video) f.videoKeys = await findVideoKeys(f, true);
       const w = findWhere(f, true);
       const latest = await get<{ s: number | null }>(`SELECT MAX(m.season) s ${FIND_FROM} WHERE ${w.sql}`, w.args);
       if (latest?.s != null) f.season = Number(latest.s);
@@ -573,7 +580,7 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     // No season said, or "this season": the current one, then the one before when it has nothing yet.
     // Its note says what there's none of: matches, when nothing is played there yet; else the matches asked for.
     const played = !/^From 0 /.test(a.stat?.source ?? "");
-    if (!events && (!p.time || (p.time.kind === "season" && p.time.relative === "this"))) return relaxed(a, defaultSteps(f.season, where, played ? MATCH_NOUN[f.measure] : "matches"), (season) => card({ ...f, season }));
+    if (!events && !f.ever && (!p.time || (p.time.kind === "season" && p.time.relative === "this"))) return relaxed(a, defaultSteps(f.season, where, played ? MATCH_NOUN[f.measure] : "matches"), (season) => card({ ...f, season }));
     return a;
   }
   // A count's board ("the most matches played", "most awards in nj"): answered as the leaderboard reader reads it, never
@@ -583,7 +590,8 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     if (counted && BOARD_STATS[counted.stat]?.count) return boardSearch(p.q, counted, opts);
   }
   if (!p.teams.length && intent === "top-matches") {
-    if (p.worlds || p.states || p.level || p.alliance || (p.place && p.place.kind === "city")) return null;
+    // "With video" the finder didn't answer ("highest score ever with video"): never the best without it.
+    if (p.withVideo || p.worlds || p.states || p.level || p.alliance || (p.place && p.place.kind === "city")) return null;
     // An event named by its name ("best match in <event>"): that event's matches, its divisions' too, in the season said,
     // else its latest edition with a match played (the reader finds it). A place or a window beside it is left to search.
     if (p.event && (p.place || scope.window)) return null;
