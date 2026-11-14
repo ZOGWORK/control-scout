@@ -16,7 +16,8 @@ match ("Qualification 21 of 36", "Playoff Match 7") and runs its timer.
 `scripts/video-frames.ts` plays a recording in a headless browser (YouTube's privacy-enhanced embed), seeks to a
 point, and reads two things with tesseract.js:
 
-1. **The overlay's match**: `overlayLabel` turns "Qualification 21 of 36" into Q21 and "Playoff Match 10" into M10.
+1. **The overlay's match**: `overlayLabel` turns "Qualification 21 of 36" into Q21, "Finals Match 2" into F2, and
+   "Playoff Match 10" or a bare "Match 10" (2025's playoff overlay) into M10.
 2. **The timer**, in one of three places: the bar along the bottom (FTC Live's default), a box over the field under
    a bar across the top (FTC Ontario), or the bar along the top (FIRST in Texas). Each counts Auto down from 0:30,
    then 8 s to pick up the controllers ("0:05" under a hand), then TeleOp from 2:00. A reading of 0:30 or less is
@@ -41,10 +42,12 @@ or an overlay left on the previous match) and fills each stretch between two rea
 
 No match is placed on one signal alone.
 
-1. **Each read is checked before and after its start.** A read gives a match and its start. 70 s later (TeleOp) the
+1. **Each read is checked before and after its start.** A read gives a match and its start. Later in TeleOp the
    overlay must name the same match and its timer give the same start, within 6 s; 25 s before the start, that match
    mustn't be running yet. A read that fails either is dropped. This catches a wrong match number on screen for a few
-   seconds, a replay, or a digit read wrong.
+   seconds, a replay, or a digit read wrong. The later read is tried 70, 80, 95, 110, 125 and 140 s in until one shows
+   the overlay: a frame that reads nothing (the player still buffering after a long seek, a camera cutaway without the
+   overlay, as Romania's championship does mid-match) says nothing either way.
 2. **The clock is the anchor, the frames must agree with it.** `judge` keeps the longest run of reads that never rise
    (as above), then groups them into stretches that agree on how far the video sits from the clock:
    - a stretch of two or more reads places its reads (**high** confidence) and every match between them (**medium**:
@@ -63,7 +66,8 @@ Only `starts` become clips. `review` (with the start found and why) and `missing
 the owner's review list; review starts are never shown as clips, and nothing is dropped without a reason.
 
 A video where three matches in a row give no read, and nothing has been read yet, counts as one without the overlay
-and is left. Any video gets at most 4 reads per match (40 at least), plus two to confirm each read.
+and is left, after one more go in a fresh player (a player that never showed the stream looks the same). A frame read
+that hangs over 2 minutes fails its video with that reason. Any video gets at most 4 reads per match (40 at least), plus two to confirm each read.
 
 ## Where the timings live
 
@@ -72,6 +76,10 @@ timer starts in the video; `medium` the placed matches filled rather than read; 
 (`frameReview`, `frameMissing`, `frameConfidence` read them). The server checks it before the clock model: a framed match gets its clip at that second
 less the usual lead-in. An event with any framed played match counts as having clips in the events list, and so does
 its parent championship.
+
+A framed clip stops at `frameClipEnd` (`src/shared/recording.ts`): the timer's start plus 2:40 of play and 50 s for
+the overlay's final score to settle (33 to 43 s after the buzzer on APOC 2026's frames), cut at the next framed
+match's start in the same video but never before its own play is over, and never past the video's end.
 
 ## Running it
 
@@ -98,6 +106,10 @@ clock (median 10 s): YouTube's live delay. That's within the 20 s lead-in each c
 layout (Sudbury, Bolton), frames land 6 to 8 s after the clock where the video kept its broadcast whole.
 
 ## Not covered
+
+- POWERPLAY's overlay (2022) keeps its timer inside the centre graphic, where the reader doesn't look: those
+  recordings give no reads.
+- A video whose owner turned off embedding (USIANON's) can't be played in the reader.
 
 - A recording whose overlay is hidden or missing (a camera-only stream) gives no reads, and its matches stay unplaced.
 - A video that doesn't hold the matches at all (FRCMP's linked video is 2:31 long; FPEISTRDIV's starts after the last
