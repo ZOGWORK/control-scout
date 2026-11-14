@@ -1,7 +1,7 @@
 // What a recorded event's video doesn't cover, under the coverage line (server/videos/coverage.ts): each day or part
 // with its share of clips, a day with no recording, and, one tap away, the matches without a clip and why. Only for an
 // event with a recording where some played match has no video at all: a fully covered one shows nothing more.
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import { Check, CircleSlash, TriangleAlert } from "lucide-react";
 import type { ClipCoverage, MatchView } from "../../shared/api";
 import { labelRanges, missingGroups } from "../../shared/coverage";
@@ -45,7 +45,13 @@ function useRecordingCoverage({ season, code, recorded, matches, videos = [] }: 
 export function RecordingCoverageLine({ reserve, playable, unplayable, ...rec }: RecordingProps & { reserve?: boolean; playable: boolean; unplayable: boolean }) {
   const { gap, s } = useRecordingCoverage(rec);
   const asks = playable && gap;
-  return <CoverageLine reserve={reserve} recorded={playable} unplayable={unplayable} partial={asks && !!s.data?.daysMissing.length} hold={asks && !s.data && !s.error} />;
+  // A live event asks again on every new result (the path carries the matches): the last answer for this event stands
+  // until the new one lands, so the line waits only before the first.
+  const last = useRef<{ event: string; c: ClipCoverage } | null>(null);
+  const event = `${rec.season}/${rec.code}`;
+  if (s.data) last.current = { event, c: s.data };
+  const known = s.data ?? (last.current?.event === event ? last.current.c : undefined);
+  return <CoverageLine reserve={reserve} recorded={playable} unplayable={unplayable} partial={asks && !!known?.daysMissing.length} hold={asks && !known && !s.error} />;
 }
 
 export function RecordingGaps(rec: RecordingProps) {
