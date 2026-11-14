@@ -32,6 +32,7 @@ describe("the watcher's matcher", () => {
     expect(matchVideo(vid("Mockingbird Qualifier", { durationS: 180 }), TX, one)).toMatchObject({ kind: "review", why: /clip or highlight/ });
     expect(matchVideo(vid("Mockingbird Qualifier", { durationS: null }), TX, one)).toMatchObject({ kind: "review", why: /no length/ });
     expect(matchVideo(vid("Mockingbird Qualifier Day 2"), TX, one)).toMatchObject({ kind: "review", why: /day 2/ });
+    expect(matchVideo(vid("Mockingbird Qualifier Day 10"), TX, one)).toMatchObject({ kind: "review", why: /says day 10,/ });
     expect(matchVideo(vid("Mockingbird Qualifier - Sunday"), TX, one)).toMatchObject({ kind: "review", why: /says sunday/ });
     expect(matchVideo(vid("Mockingbird Qualifier 1/18/2026"), TX, one)).toMatchObject({ kind: "review", why: /date/ });
     // The year counts too.
@@ -188,6 +189,18 @@ describe("the watcher's matcher", () => {
   });
 
   it("sets aside what isn't a competition stream", () => {
+    // Another program at the same venue, and words that only look like a meet or a day (the 2026-11-14 live run).
+    const KZ = [ev("KZALOS1", "Almaty Tech Cup XII", { country: "Kazakhstan", state: null, city: "Almaty", type: "OffSeason", start: "2026-06-30", end: "2026-07-01", timezone: "Asia/Almaty" })];
+    expect(matchVideo(vid("Прямая трансляция соревнований DCL Simulator в рамках Almaty Tech Cup 2026", { start: "2026-06-30T04:00:00Z" }), { region: "country=Kazakhstan" }, KZ)).toMatchObject({ kind: "ignore" });
+    expect(matchVideo(vid("Прямая трансляция Almaty Tech Cup 2026", { start: "2026-07-01T04:00:00Z" }), { region: "country=Kazakhstan" }, KZ).kind).toBe("add");
+    expect(matchVideo(vid("Central Asia FIRST Global Challenge 2026 - Day 2"), TX, [])).toMatchObject({ kind: "ignore" });
+    expect(matchVideo(vid("Monroe County (NYS) Legislature -- Regular Meeting: 09.08.2026", { start: null }), TX, [])).toMatchObject({ kind: "ignore" });
+    expect(matchVideo(vid("LIVE PRC Sports Day 2026"), TX, [])).toMatchObject({ kind: "ignore" });
+    // The real words still count.
+    expect(matchVideo(vid("Mockingbird League Meet 3", { start: null }), TX, []).kind).not.toBe("ignore");
+    expect(matchVideo(vid("Mockingbird Day 2", { start: null }), TX, []).kind).not.toBe("ignore");
+    expect(matchVideo(vid("Mockingbird Day 10", { start: null }), TX, []).kind).not.toBe("ignore");
+    expect(matchVideo(vid("Mockingbird Day 2026", { start: null }), TX, [])).toMatchObject({ kind: "ignore" });
     expect(matchVideo(vid("Kickoff 2026: DECODE reveal"), TX, [])).toMatchObject({ kind: "ignore" });
     expect(matchVideo(vid("FRC District Event - Austin"), TX, [])).toMatchObject({ kind: "ignore" });
     expect(matchVideo(vid("Coach webinar"), TX, [])).toMatchObject({ kind: "ignore" });
