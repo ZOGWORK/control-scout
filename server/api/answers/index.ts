@@ -17,6 +17,7 @@ import { completedSeason, currentSeason, defaultSeason, seasonWhy } from "./seas
 import { teamNameOf } from "../../../src/shared/teamTitle.js";
 import { teamPageSql } from "../../../src/shared/teamPages.js";
 import { all, get } from "../../db.js";
+import { isOfficialEvent } from "../../../src/shared/eventRecord.js";
 import { fuzzyScore } from "../fuzzy.js";
 import { search } from "../search.js";
 import { askSeason, eventWon, readAsk } from "../searchAsks.js";
@@ -582,6 +583,9 @@ export async function statAnswerOf(q: string, it0: StatQuestion, resolve: Resolv
   const stat = scope.event?.absent ? await absentAnswer(q, it, team, scope, title) : await build(it, team, scope);
   if (!stat) return null;
   if (scope.seasonWhy) stat.definition = `${stat.definition} ${scope.seasonWhy}`;
+  // An off-season event named counts its own matches (./clauses.ts officialClause): every family's method note says
+  // official events only, so the exception is said once here, for whichever answered.
+  if (scope.event && !scope.event.absent && (await namedOffSeason(scope.event))) stat.definition = `${stat.definition} ${NAMED_OFF_SEASON}`;
   // A state championship read as one season's: the team's other seasons there, each its own question (by the year held).
   if (it.scope.states && scope.event && !scope.event.absent) {
     const other = [...new Set((await teamEventSet(team.number)).events.filter((e) => e.type === STATES_TYPE && played(e) && e.season !== scope.event!.season).map((e) => e.season))].sort((x, y) => y - x);
@@ -669,6 +673,16 @@ async function absentAnswer(q: string, it: StatQuestion, team: AnswerTeam, scope
     source: `${who}'s ${S} events checked`,
     none: `${ev.absent === "never" ? `${who} has no ${ev.name.replace(/^an?s+/, "")} on record` : `${who} didn't play at ${ev.name} in ${S}`}, so it has no matches, rank or awards there.${why}${below}`,
   };
+}
+
+/** The note an answer about a named off-season event adds to its method. */
+export const NAMED_OFF_SEASON = "The event asked about is an off-season event: its own matches count here, though season records count official events only.";
+
+/** Whether an event the question names (any of its codes) is an off-season one, not official. */
+async function namedOffSeason(e: NonNullable<Scope["event"]>): Promise<boolean> {
+  const codes = e.codes ?? [e.code];
+  const rows = await all<{ type: string | null }>(`SELECT type FROM events WHERE season = ? AND code IN (${codes.map(() => "?").join(", ")})`, [e.season, ...codes]);
+  return rows.some((r) => !isOfficialEvent(r.type));
 }
 
 /** The season a Worlds answer is about: its headline's (the match or event it names), else the latest in the data. */
