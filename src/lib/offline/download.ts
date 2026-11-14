@@ -180,13 +180,17 @@ function withPieces<T>(sha: string, fn: () => Promise<T>): Promise<T> {
 
 /** Drop a file's pieces only if nothing is working on them right now (another tab may still be downloading
  *  that release): never waits, and leaves them for a later tidy-up when they're busy. */
-async function dropIfIdle(sha: string): Promise<void> {
+async function dropIfIdle(sha: string): Promise<boolean> {
   if (typeof navigator !== "undefined" && navigator.locks) {
-    await navigator.locks.request(`cs-download-${sha}`, { ifAvailable: true }, async (lock) => { if (lock) await db().drop(sha); });
-    return;
+    return navigator.locks.request(`cs-download-${sha}`, { ifAvailable: true }, async (lock) => {
+      if (!lock) return false;
+      await db().drop(sha);
+      return true;
+    }) as Promise<boolean>;
   }
-  if (inflight.has(sha)) return;
+  if (inflight.has(sha)) return false;
   await db().drop(sha);
+  return true;
 }
 
 async function run(file: DownloadFile, opts: DownloadOptions): Promise<Uint8Array> {
@@ -338,4 +342,10 @@ export async function partialDownloads(): Promise<PartialDownload[]> {
 }
 
 /** Drop a half download (Delete on a paused row). */
-export const dropPartial = (sha: string) => finishDownload(sha);
+/** Drop a half download (Delete on a paused row), only if no tab is working on it right now: false when one is
+ *  (it may be downloading or saving it), so nothing in use is pulled away and no space is claimed as freed. */
+export async function dropPartial(sha: string): Promise<boolean> {
+  const dropped = await dropIfIdle(sha).catch(() => false);
+  changed();
+  return dropped;
+}

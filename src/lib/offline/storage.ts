@@ -31,6 +31,8 @@ export interface PausedItem {
   have: number;
   total: number;
   pct: number;
+  /** The whole file is here and checked; only saving it is left (a save that failed, or one under way). */
+  verified: boolean;
   partial: PartialDownload;
 }
 
@@ -49,7 +51,7 @@ export function deviceItems(lite: PackMeta | null, seasons: SavedSeason[], bundl
 export function pausedItems(partials: PartialDownload[], activeKeys: Set<string> = new Set()): PausedItem[] {
   return partials
     .filter((p) => (p.owner.kind === "season" || p.owner.kind === "lite") && !activeKeys.has(`${p.owner.kind}:${p.owner.id}`))
-    .map((p) => ({ key: `${p.owner.kind}:${p.owner.id}`, kind: p.owner.kind, label: p.owner.label, have: p.have, total: p.bytes, pct: Math.floor((p.have / Math.max(1, p.bytes)) * 100), partial: p }));
+    .map((p) => ({ key: `${p.owner.kind}:${p.owner.id}`, kind: p.owner.kind, label: p.owner.label, have: p.have, total: p.bytes, pct: Math.floor((p.have / Math.max(1, p.bytes)) * 100), verified: !!p.verified, partial: p }));
 }
 
 /** Bytes on the device for these packs and half downloads. */

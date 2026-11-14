@@ -144,6 +144,19 @@ describe("the Offline page's layout", () => {
     expect(await screen.findByRole("list", { name: "Seasons" })).toBeTruthy();
   });
 
+  it("a download that's whole and checked but not saved yet says so (not 'Paused'), and offers Save", async () => {
+    const { download, finishDownload, sha256Of } = await import("../lib/offline/download");
+    const data = new Uint8Array(3000).fill(4);
+    const sha = await sha256Of(data);
+    await download({ url: "/packs/v.db.gz", bytes: 3000, sha256: sha }, { owner: { kind: "season", id: "2026", label: "2026–27 season" }, fetch: (async () => new Response(data)) as unknown as typeof fetch });
+    mount("/download");
+    const row = await screen.findByText(/Downloaded and checked/);
+    expect(row.textContent).toContain("not saved yet");
+    expect(screen.queryByText(/Paused at/)).toBeNull();
+    expect(screen.getByRole("button", { name: /^Save$/ })).toBeTruthy();
+    await finishDownload(sha);
+  });
+
   it("Whole current season counts only what this device still lacks", async () => {
     saved = [sv(2026, "a")];
     mount("/download");

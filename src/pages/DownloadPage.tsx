@@ -439,7 +439,10 @@ function OnDevice({ m, local }: { m: PackManifest | null; local: PackMeta | null
     if (r?.failed[0]) throw r.failed[0].error;
     if (r?.saved.length) toast.success(`${p.label} saved on this device`);
   });
-  const drop = (p: PausedItem) => act(p.key, async () => { await dropPartial(p.partial.sha256); freed(`The paused ${p.label} download`, p.have); });
+  const drop = (p: PausedItem) => act(p.key, async () => {
+    if (!(await dropPartial(p.partial.sha256))) throw new Error(`The ${p.label} download is running in another tab. Delete it there, or try again when it stops.`);
+    freed(`The paused ${p.label} download`, p.have);
+  });
 
   /** Plain words for a newer release of this pack, or null when it's current (or nothing says). */
   const newer = (it: DeviceItem): string | null => {
@@ -468,10 +471,10 @@ function OnDevice({ m, local }: { m: PackManifest | null; local: PackMeta | null
             <li key={`paused:${p.key}`} className="grid gap-2 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-6" data-paused>
               <div className="min-w-0">
                 <p className="font-medium">{p.label}</p>
-                <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-warning"><Pause className="size-3.5" />Paused at {p.pct}% · <span className="tabular-nums">{fmtBytes(p.have)} of {fmtBytes(p.total)}</span> · not saved yet</p>
+                <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-warning"><Pause className="size-3.5" />{p.verified ? <>Downloaded and checked · <span className="tabular-nums">{fmtBytes(p.total)}</span> · not saved yet</> : <>Paused at {p.pct}% · <span className="tabular-nums">{fmtBytes(p.have)} of {fmtBytes(p.total)}</span> · not saved yet</>}</p>
               </div>
               <div className="flex gap-2">
-                <Button className="h-11 sm:h-10" variant="secondary" onClick={() => void resume(p)} disabled={working != null || (p.kind === "season" && seasonRun) || !m}><HardDriveDownload /> Resume</Button>
+                <Button className="h-11 sm:h-10" variant="secondary" onClick={() => void resume(p)} disabled={working != null || (p.kind === "season" && seasonRun) || !m}><HardDriveDownload /> {p.verified ? "Save" : "Resume"}</Button>
                 <Button className="h-11 sm:h-10" variant="outline" onClick={() => void drop(p)} disabled={working != null} aria-label={`Delete the paused ${p.label} download`}><Trash2 /> Delete</Button>
               </div>
             </li>

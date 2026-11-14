@@ -247,6 +247,33 @@ describe("two downloads of one file", () => {
     await tabB.finishDownload(file.sha256);
     expect(await tabA.partialDownloads()).toEqual([]);
   });
+  it("Delete on a paused row in another tab never waits for, or pulls away, a download that's running", async () => {
+    vi.stubGlobal("navigator", Object.assign(Object.create(navigator), { locks: { request: lockRequest(new Map()) } }));
+    vi.resetModules();
+    const tabA = await import("./download");
+    vi.resetModules();
+    const tabB = await import("./download");
+    const data = bytes(PIECE * 2 + 3, 7);
+    let go!: () => void;
+    const gate = new Promise<void>((r) => { go = r; });
+    let sent = 0;
+    const slow = vi.fn(async () => new Response(new ReadableStream({
+      async pull(c) {
+        if (sent >= data.length) { c.close(); return; }
+        if (sent >= PIECE) await gate;
+        const n = Math.min(PIECE, data.length - sent);
+        c.enqueue(data.slice(sent, sent + n));
+        sent += n;
+      },
+    }))) as unknown as typeof fetch;
+    const a = tabA.download({ url: "/packs/busy", bytes: data.length, sha256: sha(data) }, { owner, fetch: slow });
+    await vi.waitFor(async () => expect((await tabB.partialDownloads()).some((p) => p.sha256 === sha(data) && p.have >= PIECE)).toBe(true));
+    expect(await tabB.dropPartial(sha(data))).toBe(false); // answered at once: A holds it
+    go();
+    expect(sha(await a)).toBe(sha(data)); // A's pieces were all still there
+    expect(await tabB.dropPartial(sha(data))).toBe(true); // idle now: Delete works
+  });
+
   it("a tab saving a newer release leaves another tab's older download alone while it runs", async () => {
     vi.stubGlobal("navigator", Object.assign(Object.create(navigator), { locks: { request: lockRequest(new Map()) } }));
     vi.resetModules();
