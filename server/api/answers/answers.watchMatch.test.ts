@@ -114,3 +114,52 @@ describe("asking to watch one match: the same answer, and that match's clip", ()
     for (const q of ["11148 highlights", "11148 best matches", "11148 best highlights", "barker greybacks highlights"]) expect((await ask(q)).a.stat?.intent, q).toBe("team-highlights");
   });
 });
+
+// "With video" as a filter (search video brief, point 5): only matches with a clip to play, FIRST's own video or a
+// second in the event's recording; a match with none is never listed.
+describe("with video, ever", () => {
+  it("\"lowest score ever with video\" reads every season's matches with video, never the lowest without", async () => {
+    const { a } = await ask("lowest score ever with video");
+    expect(a.stat?.scope).toEqual(expect.arrayContaining(["All seasons", "With video"]));
+    // The qualifier's match has no video: never the answer.
+    expect(a.stat?.headline?.href ?? "").not.toContain("USNJQ1");
+  });
+});
+
+describe("with video, as a filter", () => {
+  const listed = (a: Awaited<ReturnType<typeof ask>>["a"]) => [a.stat?.headline?.href, ...(a.stat?.blocks ?? []).flatMap((b) => (b.kind === "table" ? b.rows.map((r) => r.href) : []))].filter(Boolean);
+
+  it("a team's matches with video leave out the ones with none", async () => {
+    const { a } = await ask("4215 matches with video 2025-26");
+    expect(a.stat?.scope).toContain("With video");
+    expect(listed(a)).toEqual(["/events/2025/USMACMP?match=qual:0:30"]);
+  });
+
+  it("a team's match by its score with video, no season said: the latest season holding one with video", async () => {
+    const { a } = await ask("4215 88 point match with video");
+    expect(listed(a)).toEqual(["/events/2025/USMACMP?match=qual:0:30"]);
+  });
+
+  it("a scope's best match with video skips a better one with none, and every listed one plays", async () => {
+    const { a, video } = await ask("lowest score with video 2025-26");
+    expect(listed(a)).not.toContain("/events/2025/USNJQ1?match=qual:0:1");
+    // The headline's match is the card's own video; each row after it has its own.
+    expect(video?.main?.kind).not.toBe("stream");
+    for (const h of listed(a).slice(1)) expect(!!video?.rows?.[h!], h).toBe(true);
+  });
+
+  it("an event's matches with video play the first one's own clip, never the recording from its start", async () => {
+    const { a, video } = await ask("matches with video at massachusetts championship 2025-26");
+    expect(listed(a).length).toBeGreaterThan(1);
+    expect(video?.main).toMatchObject({ kind: "recording" });
+    expect(video?.main?.t).toBeGreaterThan(0);
+  });
+});
+
+describe("highlights with video", () => {
+  it("is the team's highlights card", async () => {
+    const { a, video } = await ask("11148 highlights with video 2025-26");
+    expect(a.stat?.blocks.some((b) => b.kind === "videos" || (b.kind === "matches" && b.rows.every((r) => r.note)))).toBe(true);
+    expect(video?.main).toBeDefined();
+  });
+});
