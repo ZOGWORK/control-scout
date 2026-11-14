@@ -15,6 +15,58 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 6.0.6 — 2026-11-14
+
+The owner can now see how far new visitors get through the first-visit welcome, counted anonymously and only for visitors who allow usage statistics.
+
+### Highlights
+- [report] Owner console › Usage shows how far new visitors get in the welcome
+- [report] Where people skip, how many finish, and how many pick a team
+- [fixes] The privacy page lists exactly what the welcome counts
+
+### Added
+- `POST /api/collect/onboarding` (`server/onboardingStats.ts`): with consent to usage statistics only, the onboarding sends shown, each step reached (once, however often Back and Next go over it), and skipped on step N or finished (with whether a team was picked, never which). The server adds 1 to a daily total (`onboarding_daily`, migration 87): no IDs, address, user agent or cookie. Bots, Global Privacy Control and Do Not Track are accepted and not counted. Replays from Settings aren't counted.
+- Owner console › Usage › First-visit onboarding (`src/components/owner/OnboardingFunnel.tsx`): one zero-based bar per step, skips per step, finished and picked a team.
+- The privacy page's Usage statistics section names the welcome's counts. (#1465)
+
+## 6.0.5 — 2026-11-14
+
+A recording whose start was cut off now gets its match clips. APOC 2026's Saturday part 1 had none; Q11 to Q31 all play now.
+
+### Highlights
+- [fixes] Every match on APOC 2026's Saturday part 1 now has its clip
+- [fixes] Recordings that lost their start now get match clips
+- [fixes] Each new clip was checked on the video: it opens on its own match
+
+### Fixed
+- A recording whose start was cut off (the stream ran for hours before play began, and the archive kept only the part with matches) had no clips at all: its chapters sat far from the clock, so the check threw the whole video away. When every chapter-named match sits the same distance from its clock time, and that distance is all the time the video is missing, each match is placed at its clock time less it. A video that lost time after play began still gets none (a drop-out could put a match on the one before it). On the live data: 75 more clips in 3 events (APOC 2026 Saturday part 1 Q11 to Q31, Baltic 2025-01-18, Tasman 2024-11-23), none changed elsewhere, all 75 checked frame by frame. (`src/shared/recording.ts`, `docs/match-clips.md`) (#1458)
+
+## 6.0.4 — 2026-11-14
+
+A new first-visit onboarding: four short steps on Home that show what Control Scout does, set up your team, and point to search and the main places.
+
+### Highlights
+- [home] First visit: a four-step welcome to what's here, with Skip on every step
+- [home] Pick your team in step 2 and My team shows its next match and odds
+- [home] Settings › About › Show the welcome again brings it back any time
+
+### Added
+- The first-visit onboarding (`src/components/onboarding/Onboarding.tsx`, `src/lib/onboarding.ts`): a locked dialog with four steps (what Control Scout is; your team, saved as My team; search answers plain questions; where the main places are). It opens on Home for someone new (nothing saved on the device or account), after the privacy choice, holding the first-run slot. Skip, in the header on every step, is the only way out besides the last step's button: Escape, the backdrop, outside clicks or taps, focus leaving, Ctrl/⌘ K, "/" and route changes do nothing, and the page behind is inert. A reload brings it back on the same step; finished or skipped, it never starts by itself again (`cs-onboarding`, device-only). Never to crawlers or automated browsers (`cs-onboarding-demo` opts in).
+- Settings › About › Show the welcome again; Clear all local data forgets it.
+- `npm run shots -- --onboarding` for its screenshots, and `scripts/onboarding-journeys.ts`: the acceptance journeys (checks only) against any running copy, in Chromium and WebKit, at 1440×900 and 390×844. (#1455)
+
+## 6.0.3 — 2026-11-13
+
+On a phone, the search bar on the results page is now the search box itself: one tap puts the caret in it, ready to change your search.
+
+### Highlights
+- [fixes] One tap on the phone results page's search bar lets you edit your search
+- [fixes] No second search box opens on top of it any more
+- [fixes] A second tap puts the caret where you tapped, not a Cut/Copy menu
+
+### Fixed
+- Search on phones: the bar holding your query on the results page was a button that opened the top bar's search box over it, with the whole query selected, and on an iPhone a tap on a selection only offers Cut/Copy/Paste, so the query couldn't be edited. The bar is now the page's own search field (the top bar's box and search button step aside on that page), and opening a search box from a button or shortcut on a touch screen puts the caret at the end instead of selecting everything. Desktop keeps select-all. (`src/components/search/page/PhoneSearchBar.tsx`, `src/components/layout/Search.tsx`, `src/lib/focusField.ts`) (#1454)
+
 ## 6.0.2 — 2026-11-13
 
 Searching for one match, such as a team's best Auto or highest score, now shows a View clip button under People also ask. It plays that match's own video, the whole match.
