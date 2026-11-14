@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 6.0.4 — 2026-11-13
+
+A recording whose start was cut off now gets its match clips. APOC 2026's Saturday part 1 had none; Q11 to Q31 all play now.
+
+### Highlights
+- [fixes] Every match on APOC 2026's Saturday part 1 now has its clip
+- [fixes] Recordings that lost their start now get match clips
+- [fixes] Each new clip was checked on the video: it opens on its own match
+
+### Fixed
+- A recording whose start was cut off (the stream ran for hours before play began, and the archive kept only the part with matches) had no clips at all: its chapters sat far from the clock, so the check threw the whole video away. When every chapter-named match sits the same distance from its clock time, and that distance is all the time the video is missing, each match is placed at its clock time less it. A video that lost time after play began still gets none (a drop-out could put a match on the one before it). On the live data: 75 more clips in 3 events (APOC 2026 Saturday part 1 Q11 to Q31, Baltic 2025-01-18, Tasman 2024-11-23), none changed elsewhere, all 75 checked frame by frame. (`src/shared/recording.ts`, `docs/match-clips.md`) (#1458)
+
 ## 6.0.3 — 2026-11-13
 
 On a phone, the search bar on the results page is now the search box itself: one tap puts the caret in it, ready to change your search.
