@@ -22,7 +22,7 @@ Owner › Clip coverage now sorts itself: the server puts every event with a mis
 ### Highlights
 - [workspace] Clip coverage triaged by the server: To review is Actionable only
 - [workspace] Each event says its category and why in plain words
-- [workspace] Mark a whole category or season reviewed in one click, with the count first
+- [workspace] Mark a whole category or season reviewed, count shown first
 - [fixes] A reviewed event comes back only when its new gap is actionable
 
 ### Changed
