@@ -171,7 +171,7 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
         {rulesOn && hasRuleReference(e.season) && <Button variant="outline" size="sm" asChild><Link to={`/rules?season=${e.season}`} data-rules-link><Gavel /> Rules</Link></Button>}
       </HeaderActions>
       {/* How much of the event this viewer can watch (docs/contributors.md), seen before the match list. */}
-      <CoverageLine reserve={d.matches.some((m) => m.played)} recorded={!!e.stream} />
+      <CoverageLine reserve={d.matches.some((m) => m.played)} recorded={!!e.stream} unplayable={!e.stream && !!e.recordingUnavailable?.length} />
       {/* A recorded event's days and parts, and the matches its video doesn't place, each with why (server/videos/coverage.ts). */}
       <RecordingGaps season={e.season} code={e.code} recorded={!!e.stream || !!e.recordingUnavailable?.length} matches={d.matches} videos={e.stream?.days?.map((x) => x.videoId) ?? (e.stream ? [e.stream.videoId] : e.recordingUnavailable ?? [])} />
       {/* Before FIRST posts the event: the regional site's hosts, times and format, labelled provisional. */}
