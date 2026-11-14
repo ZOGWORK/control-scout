@@ -11,6 +11,7 @@ import { CURRENT_SEASON } from "../../data/seasons.js";
 import { seasonClipKeys, seasonVideoKinds } from "../../videos/recordings.js";
 import { withoutWatch } from "../searchAnswer.js";
 import { teamMatches } from "./matchSet.js";
+import { inTurns } from "./followUps.js";
 import { refOfHref, rowRefs } from "./video.js";
 
 /** Most questions offered, and most tried to find them. */
@@ -27,7 +28,8 @@ const seasonWords = (s: number) => `${s}-${String((s + 1) % 100).padStart(2, "0"
 
 /** Whether the search asked to watch: its words ("with video", "highlights", "video") or an answer of highlights. */
 export function asksVideo(q: string, a: SearchAnswer): boolean {
-  return withoutWatch(q) !== q || /highlights|video/.test(a.stat?.intent ?? "") || !!a.stat?.scope.includes("With video");
+  // Compared with the query's own spacing evened out, as withoutWatch returns it: only a watch word dropped counts.
+  return withoutWatch(q) !== q.replace(/\s+/g, " ").trim() || /highlights|video/.test(a.stat?.intent ?? "") || !!a.stat?.scope.includes("With video");
 }
 
 /** Whether an answer has anything to play. */
@@ -83,8 +85,13 @@ export async function withVideoAlternatives(q: string, a: SearchAnswer, v: Searc
     const offered: string[] = [];
     for (const c of await candidates(a).catch(() => [])) {
       if (offered.length >= OFFER_MAX) break;
-      const b = await ask(c).catch(() => null);
-      if (b?.stat && !b.stat.none && hasVideo(await video(b).catch(() => undefined))) offered.push(c);
+      // Each check takes its turn in the process's one queue (./followUps.ts inTurns), so other requests and the
+      // wait's own timer run between them.
+      const ok = await inTurns(async () => {
+        const b = await ask(c).catch(() => null);
+        return !!b?.stat && !b.stat.none && hasVideo(await video(b).catch(() => undefined));
+      }).catch(() => false);
+      if (ok) offered.push(c);
     }
     return offered;
   })();
