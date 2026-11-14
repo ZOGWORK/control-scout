@@ -95,6 +95,14 @@ describe("asking to watch one match: the same answer, and that match's clip", ()
     }
   });
 
+  it("most penalties with a watch word: that match's answer, not an unexplained word", async () => {
+    for (const q of ["11148 most penalties highlights", "11148 most penalties video"]) {
+      const { a } = await ask(q);
+      expect(a.stat?.intent, q).toBe("most-penalties");
+      expect(a.sorry, q).toBeUndefined();
+    }
+  });
+
   it("a best match with no clip anywhere: no video for it, so no View clip (never another match's)", async () => {
     const { a, video } = await ask("4215 best auto highlights");
     expect(a.stat?.intent).toBe("highest-auto");
