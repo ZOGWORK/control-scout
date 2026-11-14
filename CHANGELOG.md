@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 6.3.3 — 2026-11-14
+
+The official-video watcher no longer adds a second stream to a day that already has one, and sets aside drone and simulator contests, FIRST Global, council meetings and school sports days.
+
+### Highlights
+- [fixes] A day's recording is no longer doubled by a second full-day stream
+- [fixes] Drone and simulator contests stay off FTC event pages
+- [fixes] Council meetings and sports days stay out of the review queue
+
+### Fixed
+- Official videos watcher: another video of a day an event already plays now goes to the owner's review unless both name their parts. Before, a full Saturday stream was added beside that Saturday's "matches only" video. FIRST Global, drone, DCL and simulator titles are set aside like FRC, FLL and VEX. "Meeting" no longer reads as a meet, and "Sports Day 2026" no longer reads as a day number. (`server/videos/officialWatch.ts`, `server/videos/officialMatch.ts`, `docs/official-videos.md`) (#1498)
+
 ## 6.3.2 — 2026-11-14
 
 When a search asks to watch and nothing has video, it offers questions that do.
