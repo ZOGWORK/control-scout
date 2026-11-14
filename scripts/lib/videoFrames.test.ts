@@ -7,6 +7,7 @@ describe("the frame reader", () => {
   it("names the match the overlay shows, and nothing else", () => {
     expect(overlayLabel("FIRST AGE  Qualification 21 of 36  2:05")).toBe("Q21");
     expect(overlayLabel("Playoff Match 10")).toBe("M10");
+    expect(overlayLabel("APOC Decode 2026  Finals Match 2")).toBe("F2");
     expect(overlayLabel("Match 7")).toBeNull();
     expect(overlayLabel("Upcoming matches")).toBeNull();
   });
