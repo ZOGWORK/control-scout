@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 6.1.0 — 2026-11-14
+
+Search plays the matches an answer lists, and says so plainly when there is no video.
+
+### Highlights
+- [teams] A team at an off-season event it played lists its matches there
+- [teams] Each listed match without a clip says No video, never a dead Play
+- [teams] No video at all: one line says the event has no recording
+
+### Changed
+- Search: a question about a team at an event it names keeps that event's matches even when it is an off-season event (APOC): "26000 at AUSYOS" lists its 13 matches, the card plays one and every other row with a clip gets Play. Before, it said "No scored matches". (`server/api/answers/clauses.ts`) (#1481)
+- Search: an answer listing one match plays that match's own clip or links its recording, never the event's recording from its start (`server/api/answers/video.ts`). A listed match with no clip says "No video" when others in the answer play; an answer whose matches have none says "No recording for this event — stats only." (or "No video for these matches — stats only.") once. (`src/components/search/page/AnswerVideo.tsx`)
 ## 6.0.9 — 2026-11-14
 
 The slow-connection pop-up is clearer: it says what it saw, what Lite changes, and gives two big buttons.
