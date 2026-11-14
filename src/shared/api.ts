@@ -180,6 +180,20 @@ export interface SearchAnswer {
   suggest?: string[];
   /** The video the site has for what the answer is about (server/api/answers/video.ts); absent: none. */
   video?: SearchVideo;
+  /** Made on the device with no signal (src/lib/offline/search.ts), never by the server: the query needs data the
+   *  downloaded event packs don't hold. The page says so, with what is in them. */
+  notInPack?: NotInPack;
+}
+
+/** Why a search can't be answered with no signal, and what the device does hold (SearchAnswer.notInPack). */
+export interface NotInPack {
+  /** What the query is about that the packs don't hold ("the 2025–26 season", "team 4215"), as search's parser read
+   *  it (src/shared/query/parse.ts); empty when it read nothing a pack could hold. */
+  about: string[];
+  /** The packs on this device: the event, its teams and matches, and when its data is from. */
+  packs: { season: number; code: string; name: string; teams: number; matches: number; dataAsOf: string }[];
+  /** Pages of the packs the query names (a team, a match), to open instead. */
+  links: { label: string; href: string }[];
 }
 
 /**

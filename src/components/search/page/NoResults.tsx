@@ -12,8 +12,8 @@ import { SEARCH_PALETTE } from "../../../lib/textTones";
 import { cn } from "../../cn";
 
 /** No answer is the answer "no" (search's palette): No's slate as a thick bar on its wash, a filled chip, the words bold. */
-const NO_BOX = cn("flex items-start gap-3 rounded-xl border border-l-[6px] border-border px-4 py-3", SEARCH_PALETTE.no.edge, SEARCH_PALETTE.no.tint);
-const NO_CHIP = cn("grid size-8 shrink-0 place-items-center rounded-lg", SEARCH_PALETTE.no.fill);
+export const NO_BOX = cn("flex items-start gap-3 rounded-xl border border-l-[6px] border-border px-4 py-3", SEARCH_PALETTE.no.edge, SEARCH_PALETTE.no.tint);
+export const NO_CHIP = cn("grid size-8 shrink-0 place-items-center rounded-lg", SEARCH_PALETTE.no.fill);
 
 /** Searches that answer about the closest results: a team's record and OPR, an event's winners in the card's own
  *  season (an event's name is reused year to year). At most four. */

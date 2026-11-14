@@ -13,7 +13,7 @@
 // background (packSync.tsx) is separate: that only stores bytes for later.
 import { createContext, useCallback, useContext, useEffect, useRef, useSyncExternalStore } from "react";
 import { offlineSource, savedSeasons } from "./offline/saved";
-import { bundleCanAnswer, bundleFor, comparePacksSaved, savedBundles } from "./offline/bundleMeta";
+import { bundleCanAnswer, bundleFor, comparePacksSaved, packSearchSaved, savedBundles } from "./offline/bundleMeta";
 import { packStatus } from "./packPolicy";
 import { FEATURE_DISABLED, featureOffMessage } from "../shared/flags";
 import { noteArrived, watchRequest } from "./liteSuggest";
@@ -55,8 +55,9 @@ const REPORT_PATH = /^\/api\/events\/(\d{4})\/([^/?]+)\/matches\/([^/?]+)\/repor
 
 function offlineKind(path: string, method: string | undefined): "saved" | "lite" | "snapshot" | null {
   if ((method ?? "GET").toUpperCase() !== "GET") return null;
-  // A saved event pack holds the server's own answer for this read (team and match pages, Compare of its teams).
-  if (bundleCanAnswer(path)) return "saved";
+  // A saved event pack holds the server's own answer for this read (team and match pages, Compare of its teams), or
+  // answers a search from it (lib/offline/search.ts).
+  if (bundleCanAnswer(path) || packSearchSaved(path)) return "saved";
   const url = new URL(path, "http://offline.invalid");
   const asked = Number(url.searchParams.get("season")) || null;
   if (OFFLINE_PATHS.test(path)) {
@@ -139,7 +140,7 @@ function savedAnswerOrError(path: string): Promise<{ data: unknown } | { error: 
  *  server's answer stands. */
 async function offlineOr<T>(path: string, method: string | undefined, error: ApiError): Promise<T> {
   // A comparison with a team no saved pack holds still reaches the saved data, which says which team is missing.
-  if ((method ?? "GET").toUpperCase() !== "GET" || !(OFFLINE_PATHS.test(path) || bundleCanAnswer(path) || comparePacksSaved(path)) || (!savedSeasons().length && !savedBundles().length)) throw error;
+  if ((method ?? "GET").toUpperCase() !== "GET" || !(OFFLINE_PATHS.test(path) || bundleCanAnswer(path) || comparePacksSaved(path) || packSearchSaved(path)) || (!savedSeasons().length && !savedBundles().length)) throw error;
   const got = await savedAnswerOrError(path);
   if ("error" in got) throw got.error;
   const data = got.data;
@@ -166,7 +167,8 @@ async function respond<T>(request: Promise<Response>, kind: "saved" | "lite" | "
   // A search asked before anything else answered (the page's first request), while the server has answered
   // something since: slow, not offline. It gets up to SEARCH_SLOW_MS in all, then one more try as any search while
   // the server is up (apiFetch, searchOnline); saved data never answers.
-  if (SEARCH_PATH.test(path) && serverUp()) {
+  // Not when a saved event pack answers searches: no answer in OFFLINE_TIMEOUT_MS is no signal for it, as for any read.
+  if (SEARCH_PATH.test(path) && serverUp() && !packSearchSaved(path)) {
     const more = await Promise.race([request, new Promise<typeof TIMED_OUT>((r) => { timer = setTimeout(() => r(TIMED_OUT), SEARCH_SLOW_MS - OFFLINE_TIMEOUT_MS); })]).finally(() => clearTimeout(timer));
     if (more !== TIMED_OUT) return more;
     ctrl.abort();
@@ -182,6 +184,8 @@ async function respond<T>(request: Promise<Response>, kind: "saved" | "lite" | "
     throw won.error;
   }
   if (won.data == null) return request;
+  // A search the packs can't answer while the server answers other requests: slow, not offline. It's waited for.
+  if (SEARCH_PATH.test(path) && serverUp() && (won.data as { notInPack?: unknown }).notInPack) return request;
   ctrl.abort();
   return { saved: won.data as T };
 }
@@ -240,7 +244,8 @@ async function searchOnline<T>(path: string, init: (RequestInit & { json?: unkno
 export async function apiFetch<T>(path: string, init?: RequestInit & { json?: unknown; _tries?: number; _online?: boolean }): Promise<T> {
   const { json, _tries = 0, _online = false, ...rest } = init ?? {};
   // A slow search while everything else answers isn't "offline" (searchOnline).
-  if (!_online && (rest.method ?? "GET").toUpperCase() === "GET" && SEARCH_PATH.test(path) && serverUp()) return searchOnline<T>(path, init);
+  // A search a saved event pack answers isn't: no answer in OFFLINE_TIMEOUT_MS falls back to the pack (offlineKind).
+  if (!_online && (rest.method ?? "GET").toUpperCase() === "GET" && SEARCH_PATH.test(path) && serverUp() && !packSearchSaved(path)) return searchOnline<T>(path, init);
   // navigator.onLine is only a hint: iOS (above all a home-screen app back from the background) can report
   // false while the phone is online, and never send the "online" event. Skipping the request on it left the
   // whole app stuck on saved data. Always ask: with truly no signal the request fails at once anyway, and

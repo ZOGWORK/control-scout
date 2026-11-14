@@ -20,6 +20,7 @@ import { bundleTime, packLookup, type EventBundle, type SavedBundle } from "../.
 import { compareFromPacks } from "../../shared/compare";
 import type { CompareView } from "../../shared/api";
 import { readEventDetail, readMatchViews, readProjections, readSearch, readTeamProfile, readTeamSchedule, type ReadOpts } from "./readers";
+import { packSearchAnswer, packTeamSummaries } from "./search";
 
 let books: { pack: LitePack | null; bySeason: Map<number, RatingBook | null> } | null = null;
 
@@ -191,6 +192,16 @@ export async function offlineAnswer(path: string): Promise<unknown | null> {
     const teams = (url.searchParams.get("teams") ?? "").split(",").map((t) => t.trim()).filter(Boolean);
     if (!teams.length || teams.length > 4 || teams.some((t) => !/^\d{1,6}$/.test(t)) || new Set(teams).size !== teams.length) return null;
     return offlineCompare(teams.map(Number), season);
+  }
+  // A whole search answer: the packs' own (or a versus of their teams) first; else a saved season's plain hits, as
+  // before; else what it needs that the packs don't hold (lib/offline/search.ts). The team cards' season numbers too.
+  if (url.pathname === "/api/teams-summary") return packTeamSummaries(path);
+  if (url.pathname === "/api/search" && url.searchParams.get("answer") === "1" && !url.searchParams.get("kinds")) {
+    const fromPacks = await packSearchAnswer(path);
+    if (fromPacks && !fromPacks.notInPack) return fromPacks;
+    const hits = savedSeasons().length ? await seasonAnswer(path, url, season) as { hits?: unknown[] } | null : null;
+    if (hits?.hits?.length) return hits;
+    return fromPacks ?? hits;
   }
   // An event pack holds the server's own answer: it answers first, unless a saved season's data is newer (then it's
   // the fallback when the season can't answer).

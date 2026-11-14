@@ -153,7 +153,7 @@ describe("a public bundle", () => {
     expect(r.headers.get("cache-control")).toMatch(/private/);
     const m = r.json;
     expect(m).toMatchObject({ format: 1, season: S, code: EV, name: "Report Qualifier", team: 13, workspace: null });
-    expect(m.sections.map((s) => s.id)).toEqual(["event", "ratings", "api", "compare", "reports", "picklist", "rules", "venue"]);
+    expect(m.sections.map((s) => s.id)).toEqual(["event", "ratings", "api", "compare", "search", "reports", "picklist", "rules", "venue"]);
     expect(m.sections.find((s) => s.id === "reports")!.items).toBe(3); // 13 plays Q1, Q2 and Q3
     expect(m.sections.find((s) => s.id === "picklist")!.note).toMatch(/workspace/);
     expect(m.field.map(([t]) => t).sort()).toEqual([11, 12, 13, 14]);

@@ -352,8 +352,9 @@ export function versusNumbers(q: string): number[] | null {
 }
 
 /** The answer for a versus of the pack's teams, built as the server builds it (above), or null when the query isn't
- *  one or names a team the pack doesn't hold. `read`: the parser's reading of a two-team query (its describe). */
-export function versusFromPack(q: string, pack: PackSearch, read: (q: string) => string[] | null): SearchAnswer | null {
+ *  one or names a team the pack doesn't hold. `read`: the parser's reading of a two-team query (its describe; null:
+ *  not read as a comparison, so not answered here). */
+export function versusFromPack(q: string, pack: PackSearch, read: string[] | null): SearchAnswer | null {
   const nums = versusNumbers(q);
   if (!nums) return null;
   const parts = nums.map((n) => pack.teams[String(n)]);
@@ -363,12 +364,20 @@ export function versusFromPack(q: string, pack: PackSearch, read: (q: string) =>
   const picked = pickSeasonRows(nums, all, null, pack.current);
   const teams = parts.map((p) => ({ number: Number(p.hit.ref), name: teamNameOf(p.hit.title) || null }));
   const stat = compareStat(teams, { season: null }, picked, picked.season != null ? pack.scales[String(picked.season)] ?? {} : {}, (s) => pack.legacy.includes(s));
+  // The rows as search finds them, before the route puts each team's season numbers on (`team`, last: withNumbers).
+  const rows = parts.map(({ hit: { team: _numbers, ...h } }) => h as SearchHit);
   if (nums.length === 2) {
-    const how = read(query);
-    if (!how) return null;
+    if (!read) return null;
     const lead = compareHit(parts.map((p) => p.facts), `${nums[0]} vs ${nums[1]}`, picked.season, []);
-    return twoTeamCompareAnswer(query, parts[0].hit, parts[1].hit, lead, { season: null }, pagesFor(query), how, stat);
+    return withNumbers(twoTeamCompareAnswer(query, rows[0], rows[1], lead, { season: null }, pagesFor(query), read, stat), parts);
   }
   const top = compareHit(parts.map((p) => p.facts), nums.join(" vs "), null, []);
-  return teamSetAnswer(query, parts.map((p) => p.hit), top, picked.season, null, pagesFor(query), stat);
+  return withNumbers(teamSetAnswer(query, rows, top, picked.season, null, pagesFor(query), stat), parts);
+}
+
+/** Each team row with its season numbers put on as the search route does (server/api/searchTeamStats.ts: the row,
+ *  then `team`), from the pack's own row for it. */
+function withNumbers(a: SearchAnswer, parts: VersusPart[]): SearchAnswer {
+  const numbers = new Map(parts.map((p) => [p.hit.ref, p.hit.team]));
+  return { ...a, hits: a.hits.map((h) => (h.kind === "team" && numbers.get(h.ref) ? { ...h, team: numbers.get(h.ref) } : h)) };
 }
