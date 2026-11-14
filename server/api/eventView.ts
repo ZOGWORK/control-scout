@@ -17,7 +17,7 @@ export async function withStream<T extends { event: { season: number; code: stri
   if (rec) return { ...d, event: { ...d.event, stream: recordingStream(rec, d.event.timezone) }, matches: withClips(d.matches, rec) };
   // Linked, but YouTube won't play it (private, removed): the page still says why its matches have no clip (RecordingGaps).
   const gone = (await seasonRecordings(d.event.season, true).catch(() => null))?.get(d.event.code);
-  return gone ? { ...d, event: { ...d.event, recordingUnavailable: true as const } } : d;
+  return gone ? { ...d, event: { ...d.event, recordingUnavailable: [gone, ...(gone.more ?? [])].map((v) => v.videoId) } } : d;
 }
 
 /** What the event page shows beside the detail, for every route that answers with one (the page and "Refresh
