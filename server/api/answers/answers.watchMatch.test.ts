@@ -169,6 +169,15 @@ describe("a match number across seasons", () => {
     const { a } = await ask("m10");
     expect(a.stat?.headline?.href).toBe(maM10);
     expect(a.stat?.scope[0]).toBe("No 2026–27 M10 yet; showing 2025–26");
+    // At Worlds: that match there, never "no matches" while others were played.
+    const worlds = await ask("m2 at worlds");
+    expect(worlds.a.stat?.headline?.href).toBe(edisonM2);
+    expect(worlds.a.stat?.scope[0]).toBe("No 2026–27 M2 at Worlds yet; showing 2025–26");
+  });
+  it("a match's number at states, no team: that match at state championships", async () => {
+    const { a } = await ask("m10 at states 2025-26");
+    expect(a.stat?.headline?.href).toBe(maM10);
+    expect(a.stat?.title).toMatch(/^M10 at state championships/);
   });
 });
 
