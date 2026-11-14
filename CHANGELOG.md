@@ -25,7 +25,7 @@ Search finds a match by its number and plays that exact match.
 - [teams] Comparing teams lists the matches they played together, with Play
 
 ### Changed
-- Search: a team and a match's number with no event ("<team> Q6") lists that number at each event of the season, latest first, and plays the latest; a number with no team ("M14 decode finals", "q6 at worlds"); a team's number at Worlds is its match there lists those matches highest-scoring first, the card playing the top one. An M number is a playoff match's. (`server/api/query/intents.ts`, `parse.ts`, `matchFind.ts`, `server/api/answers/families/eventScope.ts`) (#1484)
+- Search: a team and a match's number with no event ("<team> Q6") lists that number at each event of the season, latest first, and plays the latest; at Worlds or states ("<team> M14 at worlds") it is that match there. A number with no team ("M14 decode finals", "q6 at worlds") lists those matches highest-scoring first, the card playing the top one. An M number is a playoff match's. (`server/api/query/intents.ts`, `parse.ts`, `matchFind.ts`, `server/api/answers/families/eventScope.ts`) (#1484)
 - Search: comparing two or more teams adds "Their matches together", the matches all of them were on the field for, each with its own clip. (`server/api/answers/families/twoTeam.ts`, `src/components/search/page/CompareCard.tsx`)
 
 ## 6.1.3 — 2026-11-14
