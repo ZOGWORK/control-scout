@@ -93,13 +93,15 @@ function judge(v: RecordingVideo, r: Recording, whole: EventSpan, timezone: stri
       : WHY["gap-unplaced"];
     return { v, date, label, timing, dead: { reason: "gap-unplaced", why } };
   }
-  const missing = missingOf(timing) ?? 0;
+  const missing = missingOf(timing);
   const basis = timing.confirmedTo != null
     ? (checkedTo(v.videoId) === timing.confirmedTo ? "clock + frames checked by eye"
       : timing.shift ? `clock + YouTube chapters (its first ${span(timing.shift)} cut off)` : "clock + YouTube chapters")
     : slack ? `clock only, started up to ${span(slack)} early (gap can't be placed)`
-      : missing > 180 ? "clock, tail of the stream cut after the event"
-        : "clock, video length matches its broadcast";
+      : meta.live ? "clock, broadcast still live"
+        : missing == null ? "clock, broadcast's end not known (length not compared)"
+          : missing > 180 ? "clock, tail of the stream cut after the event"
+            : "clock, video length matches its broadcast";
   return { v, date, label, timing, slack, starts, basis };
 }
 
@@ -109,8 +111,10 @@ function reasonFor(m: CoverageInput, videos: Judged[], now: number): { reason: C
   // Counted in its day's video (by the schedule's date), so that day never reads as fully clipped without it.
   if (!actualStart(m.time)) {
     const day = videos.filter((j) => j.date && j.date === date);
-    // Never another day's: a lone video whose day can't be told is the only other one it may be.
-    return { reason: "no-start", why: WHY["no-start"], videoId: (day[0] ?? (videos.length === 1 && !videos[0].date ? videos[0] : null))?.v.videoId ?? null };
+    // The part of that day whose broadcast holds its scheduled time, else the day's first. Never another day's: a lone
+    // video whose day can't be told is the only other one it may be.
+    const part = day.find((j) => j.v.meta?.status === "ok" && j.v.meta.start && within(m.startsAt, j.v.meta, now)) ?? day[0];
+    return { reason: "no-start", why: WHY["no-start"], videoId: (part ?? (videos.length === 1 && !videos[0].date ? videos[0] : null))?.v.videoId ?? null };
   }
   // The video that holds its start, else that day's.
   const holding = videos.find((j) => j.v.meta?.status === "ok" && j.v.meta.start && within(m.startsAt, j.v.meta, now));
