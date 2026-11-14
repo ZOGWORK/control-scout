@@ -42,7 +42,7 @@ export function PacksPanel() {
                   <StatTile tone="accent" icon={Cpu} label="Engine" value={p.manifest.engineVersion} hint={`${fmtBytes(p.totalBytes)} in ${p.files.length} files`} />
                 </div>
               ) : (
-                <EmptyState icon={PackageOpen} title="No offline packs on this server yet" description={p.unavailable ?? "Rebuild below to build the first set. Until then the Download page says packs aren't ready."} />
+                <EmptyState icon={PackageOpen} title="No offline packs on this server yet" description={p.unavailable ?? "Rebuild below to build the first set. Until then the Offline page says packs aren't ready."} />
               )}
               {p.versionsOnDisk.length > 0 && (
                 <p className="mt-3 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">

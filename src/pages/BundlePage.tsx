@@ -30,7 +30,7 @@ export default function BundlePage() {
   useTitle(meta ? `${meta.name} · event-day bundle` : "Event-day bundle");
   if (!meta) return <Page><NoBundle season={s} code={code ?? ""} /></Page>;
   if (loading) return <Page><div className="skeleton h-40 rounded-2xl" /><div className="skeleton mt-4 h-72 rounded-2xl" /></Page>;
-  if (!bundle) return <Page><EmptyState icon={HardDriveDownload} title="This bundle can't be read" description="It may be from a newer version of Control Scout. Download it again from the Download page." action={<Button asChild variant="secondary"><Link to="/download">Download page</Link></Button>} /></Page>;
+  if (!bundle) return <Page><EmptyState icon={HardDriveDownload} title="This bundle can't be read" description="It may be from a newer version of Control Scout. Download it again from the Offline page." action={<Button asChild variant="secondary"><Link to="/download">Offline page</Link></Button>} /></Page>;
   return <Page><BundleView meta={meta} b={bundle} /></Page>;
 }
 

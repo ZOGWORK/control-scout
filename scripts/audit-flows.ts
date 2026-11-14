@@ -636,7 +636,7 @@ const flows: Flow[] = [
       // Opening the page saves the lite pack: it shows up under On this device.
       await page.locator("[data-device-item=lite]").waitFor({ timeout: 60_000 });
       const body = await page.locator("main").innerText();
-      assert(body.includes(m.version) && /SHA-256/.test(body), "Download page doesn't show version + sha256");
+      assert(body.includes(m.version) && /SHA-256/.test(body), "Offline page doesn't show version + sha256");
       assert(!(await page.getByRole("button", { name: /Save to this device/ }).count()), "lite pack still offered as a manual download");
       const links = await page.locator("main a[download]").count();
       assert(links === m.full.length, `${links} download links, expected ${m.full.length} (full packs only)`);

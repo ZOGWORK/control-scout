@@ -221,7 +221,7 @@ export const FLAG_INFO: Record<Flag, { label: string; on: string; off: string; p
   },
   eventBundle: {
     label: "Event-day bundles",
-    on: "The Download page and upcoming event pages offer a one-tap bundle of an event (its data, ratings, the visitor's match reports, their workspace's pick list and a venue card) for the venue with no signal.",
+    on: "The Offline page and upcoming event pages offer a one-tap bundle of an event (its data, ratings, the visitor's match reports, their workspace's pick list and a venue card) for the venue with no signal.",
     off: "The bundle builder and the event pages' bundle button disappear, and new bundles are refused. Bundles already on a phone keep working until they're removed. Pausing offline packs pauses bundles too.",
   },
   discordBot: {
