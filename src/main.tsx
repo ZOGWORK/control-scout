@@ -21,7 +21,6 @@ import { onFlags, startFlags } from "./lib/flags";
 import { RouteErrorBoundary } from "./components/RouteErrorBoundary";
 import { OptionalParts } from "./components/OptionalParts";
 import { captureInstallPrompt } from "./lib/installNudge";
-import { startConnectionWatch } from "./lib/connection";
 // The landing page is part of the main bundle, not lazy: its API calls then start in
 // the same render as the app's own (/api/meta, /api/auth/me), with no second round.
 import Home from "./pages/Home";
@@ -116,10 +115,6 @@ installPrefetch((m) => { PAGES[m].preload().catch(() => { /* the page's own lazy
 
 // The browser's install offer can come before the app has mounted: hold it for the nudge (src/lib/installNudge.ts).
 captureInstallPrompt();
-
-// Is there internet (not just Wi-Fi)? Checked now and whenever it may have changed (src/lib/connection.ts): with none,
-// saved data answers at once instead of after a timeout.
-startConnectionWatch();
 
 // Uncaught errors and unhandled rejections offer a report (src/lib/errorReporting.ts), from the very start.
 installErrorReporting();
