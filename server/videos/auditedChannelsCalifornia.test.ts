@@ -2,7 +2,7 @@
 // Support. Every checked recording sits on the Scout event its title names (place, QT number, division, meet), and the
 // watcher's region rules take only NorCal's events and League G's.
 import { describe, expect, it } from "vitest";
-import { parseRule, type WatchEvent } from "./officialMatch";
+import { matchVideo, parseRule, type WatchEvent, type WatchVideo } from "./officialMatch";
 import { OFFICIAL_CHANNELS } from "../data/officialChannels";
 import type { OfficialList } from "./officialVideos";
 import shipped from "../data/officialVideos.json" with { type: "json" };
@@ -130,5 +130,13 @@ describe("audited channels: California", () => {
     for (const n of ["SoCal - G - Scrimmage 2", "SoCal FTC Group G - Scrimmage 3", "SoCal FTC League G - Meet 3"]) expect(rule(G)(ev(n)), n).toBe(true);
     for (const n of ["SoCal - GE - Scrimmage 1", "SoCal FTC Group B - Scrimmage 2", "SoCal FTC League A1 - Meet 2", "NorCal EB Meet 1"]) expect(rule(G)(ev(n)), n).toBe(false);
     expect(OFFICIAL_CHANNELS.some((c) => c.channelId === T7419)).toBe(false);
+  });
+
+  it("the watcher sends League G's new videos to the owner, never auto-adds them: 'Meet 1' isn't Scout's 'Scrimmage 1'", () => {
+    const seed = OFFICIAL_CHANNELS.find((c) => c.channelId === G)!;
+    const e = (code: string, name: string, day: string): WatchEvent => ({ season: 2026, code, name, type: "Scrimmage", city: "Carson", state: "CA", country: "USA", start: day, end: day, timezone: "America/Los_Angeles", divisionCode: null, parent: false });
+    const events = [e("USCALACAS4", "SoCal - G - Scrimmage 2", "2026-12-12"), e("USCALAA1S2", "SoCal - A1 - Scrimmage 2", "2026-12-12")];
+    const v: WatchVideo = { videoId: "xxxxxxxxxxx", title: "2026 SoCal FTC League G: Meet 2", start: "2026-12-12T17:00:00Z", durationS: 3 * 3600, privacy: "public", embeddable: true, blockedIn: 0 };
+    expect(matchVideo(v, seed, events).kind).toBe("review");
   });
 });
