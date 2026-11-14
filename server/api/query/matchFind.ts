@@ -248,7 +248,7 @@ export async function matchFindAnswer(f: MatchFind): Promise<StatAnswer> {
   if (!rows.length) {
     const none = count && over ? `No prediction for the ${count.toLocaleString("en-US")} played match${count === 1 ? "" : "es"}${where2} was off by ${f.over!.atLeast ? `${f.over!.n} points or more` : `more than ${f.over!.n} points`}.`
       // A number with no match: that match is missing, never the season's matches ("No M30 played at worlds in 2025–26 yet.").
-      : lbl && !count ? `No ${lbl} played${eventName ? ` at ${eventName}` : ""}${where2} yet.`
+      : lbl && !count ? `No ${lbl} played${f.finals ? " in the finals" : ""}${eventName ? ` at ${eventName}` : ""}${where2} yet.`
       : count ? `None of the ${count.toLocaleString("en-US")} played match${count === 1 ? "" : "es"}${where2} is one: ${rule.replace(/;.*$/, "")}.` : `No played matches${f.named ? "" : " at official events"}${filters ? ` (${filters})` : ""}${where2} yet.`;
     return { ...base, blocks: [], none };
   }
