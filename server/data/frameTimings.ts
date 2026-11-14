@@ -85,7 +85,7 @@ export function frameMissing(videoId: string, code: string): Record<string, stri
 /** How sure a framed start is: "high" read off its own frames, "medium" filled between two agreeing reads. */
 export function frameConfidence(videoId: string, code: string, label: string): "high" | "medium" | null {
   const f = FRAME_TIMINGS.find((x) => x.videoId === videoId && x.code === code);
-  if (!f || f.starts[label] == null) return null;
+  if (!f || plausibleStarts(f.starts)[label] == null) return null;
   return f.medium?.includes(label) ? "medium" : "high";
 }
 
