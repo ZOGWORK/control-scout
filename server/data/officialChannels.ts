@@ -52,9 +52,9 @@ export const OFFICIAL_CHANNELS: OfficialChannelSeed[] = [
   // (@firstnevada1941) is Nevada's FIRST partner; its titles name the meet ("# 4S") and the half of the state.
   { channelId: "UCqDnAXt0clPQww74v7bUVkQ", title: "FIRST Nevada", region: "state=NV", words: "nevada", titlePattern: "nevada state championship|state championship - nevada" },
   // BCA Activities (@BCAActivities-sg6ef, Bismarck Career Academy): North Dakota's "Dakota FTC" events. A school
-  // activities channel, so the state's own words are no evidence and no title pattern stands in for one: a title must
-  // name the event's place (Bismarck, Minot, Fargo) to be added; its State streams go to the owner's review.
-  { channelId: "UCowF1UaXnuuFV_sNIvpX-zQ", title: "BCA Activities (Dakota FTC)", region: "state=ND", words: "north dakota bca" },
+  // channel that streams other activities too, so neither the state's words nor its event places (Bismarck, Minot,
+  // Fargo) count as evidence and there's no title pattern: every new video goes to the owner's review, never auto-adds.
+  { channelId: "UCowF1UaXnuuFV_sNIvpX-zQ", title: "BCA Activities (Dakota FTC)", region: "state=ND", words: "north dakota bca bismarck minot fargo" },
   // MT Robotics Alliance (@mtra-stream), Montana's FTC partner; FIRST's Montana event pages name the channel.
   { channelId: "UCpPjg0KF7cwfbWoKAl0jiXQ", title: "MT Robotics Alliance (Montana)", region: "state=MT", words: "montana mt", titlePattern: "\\bstate\\b|championship" },
   { channelId: "UCal7624DPridi_9iKLrAbqw", title: "FIRST Australia", region: "country=Australia", words: "australia australian", titlePattern: "australian? (national )?championship|\\bAPOC\\b|asia pacific open" },
