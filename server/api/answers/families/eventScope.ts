@@ -124,10 +124,11 @@ export async function matchLabelAnswer(team: AnswerTeam, all: TeamMatch[], scope
   const season = scope.season ?? Math.max(-1, ...[...byEvent.values()].map((m) => m.season));
   const found = [...byEvent.values()].filter((m) => m.season === season).reverse();
   const who = whoOf(team);
-  const title = `${label}${season >= 0 ? `, ${seasonLabel(season)}` : ""}`;
+  const at = scope.championship ? " at Worlds" : scope.states ? " at states" : "";
+  const title = `${label}${at}${season >= 0 ? `, ${seasonLabel(season)}` : ""}`;
   const definition = `${level === null ? "A match's number: a qualification match by its number, else a playoff match by its M label. " : ""}Scores are the official result, penalties included. ${RECORD_RULE}`;
   const base = { team, scope: scopeChips({ ...scope, season: season >= 0 ? season : scope.season }), family: "event" as const, intent: "match-lookup", title, definition };
-  if (!found.length) return { ...base, source: `${who}'s matches checked`, blocks: [], none: `${who} has no ${label}${scope.season != null ? ` in ${seasonLabel(scope.season)}` : " on record"}.` };
+  if (!found.length) return { ...base, source: `${who}'s matches checked`, blocks: [], none: `${who} has no ${label}${at}${scope.season != null ? ` in ${seasonLabel(scope.season)}` : " on record"}.` };
   const links = await teamLinks(found.flatMap((m) => [...m.partners, ...m.opponents]));
   const row = (m: TeamMatch) => matchRow(m, links, team.number);
   const m = found[0];
