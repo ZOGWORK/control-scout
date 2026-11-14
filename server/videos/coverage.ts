@@ -46,6 +46,7 @@ function missingOf(meta: RecordingTiming): number | null {
 
 const WHY: Record<CoverageReason, string> = {
   "no-start": "No real start time from FIRST",
+  "no-zone": "The event's time zone isn't known, so its start can't be placed",
   "no-recording-day": "No recording for that day",
   "outside-span": "Outside every recording's time",
   "before-broadcast": "Played before the broadcast started",
@@ -111,12 +112,15 @@ function judge(v: RecordingVideo, r: Recording, whole: EventSpan, timezone: stri
 function reasonFor(m: CoverageInput, videos: Judged[], now: number): { reason: CoverageReason; why: string; videoId: string | null } {
   const date = matchDate(m);
   // Counted in its day's video (by the schedule's date), so that day never reads as fully clipped without it.
-  if (!actualStart(m.time)) {
+  // A real start the event's time zone can't place (none known): no clock to judge it by.
+  const noZone = actualStart(m.time) && !Number.isFinite(m.startsAt ? Date.parse(m.startsAt) : NaN);
+  if (!actualStart(m.time) || noZone) {
     const day = videos.filter((j) => j.date && j.date === date);
     // The part of that day whose broadcast holds its scheduled time, else the day's first. Never another day's: a lone
     // video whose day can't be told is the only other one it may be.
     const part = day.find((j) => j.v.meta?.status === "ok" && j.v.meta.start && within(m.startsAt, j.v.meta, now)) ?? day[0];
-    return { reason: "no-start", why: WHY["no-start"], videoId: (part ?? (videos.length === 1 && !videos[0].date ? videos[0] : null))?.v.videoId ?? null };
+    const reason = noZone ? "no-zone" as const : "no-start" as const;
+    return { reason, why: WHY[reason], videoId: (part ?? (videos.length === 1 && !videos[0].date ? videos[0] : null))?.v.videoId ?? null };
   }
   // The video that holds its start, else that day's.
   const holding = videos.find((j) => j.v.meta?.status === "ok" && j.v.meta.start && within(m.startsAt, j.v.meta, now));
