@@ -42,14 +42,19 @@ export function isPageData(path: string, here = typeof location === "undefined" 
 
 const DISMISS_KEY = "cs-lite-dismissed";
 let slow = false;
+/** Why the offer is up, for the card to say in plain words: the page waiting since `since`, or `count` requests that
+ *  couldn't reach the server within LITE_FAIL_WINDOW_MS. */
+export type LiteReason = { kind: "waiting"; since: number } | { kind: "failing"; count: number };
+let reason: LiteReason | null = null;
 let fails: number[] = [];
 const listeners = new Set<() => void>();
 const emit = () => { for (const l of listeners) l(); };
 const online = () => typeof navigator === "undefined" || navigator.onLine !== false;
 
-function raise() {
+function raise(why: LiteReason) {
   if (slow || !online()) return;
   slow = true;
+  reason = why;
   emit();
 }
 
@@ -81,7 +86,7 @@ export function watchPage(here: string, search = ""): () => void {
   if (slow) { slow = false; emit(); }
   const since = Date.now();
   const timer = setTimeout(() => {
-    if ((typeof location === "undefined" || (location.pathname === here && location.search === search)) && !hasArrived(here, search, since)) raise();
+    if ((typeof location === "undefined" || (location.pathname === here && location.search === search)) && !hasArrived(here, search, since)) raise({ kind: "waiting", since });
   }, LITE_SLOW_MS);
   return () => clearTimeout(timer);
 }
@@ -109,9 +114,14 @@ export function watchRequest(path: string, method = "GET"): { done: (usable?: bo
       if (!online()) return;
       const now = Date.now();
       fails = [...fails.filter((t) => now - t < LITE_FAIL_WINDOW_MS), now];
-      if (fails.length >= LITE_FAILS) raise();
+      if (fails.length >= LITE_FAILS) raise({ kind: "failing", count: fails.length });
     },
   };
+}
+
+/** Why the offer is up (null when it isn't). */
+export function useLiteReason(): LiteReason | null {
+  return useSyncExternalStore((l) => { listeners.add(l); return () => { listeners.delete(l); }; }, () => (slow ? reason : null), () => null);
 }
 
 export function dismissLite() {

@@ -129,6 +129,7 @@ export const DEVICE_ONLY_KEYS = [
   "cs-account-cache", // the signed-in account as /api/auth/me last answered, for opening offline (src/lib/personal.tsx)
   "cs-scout-lost:", // edits this device lost to newer ones, kept to restore (src/lib/lostEdits.ts)
   "cs-install", // the add-to-home-screen nudge: last day shown, turned down, installed (src/lib/installNudge.ts)
+  "cs-lite-demo", // automation opt-in that shows the slow-connection card at once (npm run shots -- --storage)
   "cs-install-demo", // automation opt-in that lets a driven browser see the nudge (npm run shots -- --install)
   "cs-recent-searches", // this device's recent searches, newest first, clearable (src/components/search/discover.tsx)
   "cs-my-teams-collapsed", // the teams folded down on My teams (src/pages/MyTeamsPage.tsx)

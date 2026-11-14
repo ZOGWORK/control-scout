@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 6.0.4 — 2026-11-13
+
+The slow-connection pop-up is clearer: it says what it saw, what Lite changes, and gives two big buttons.
+
+### Highlights
+- [speed] The slow-connection pop-up says how long the page has waited
+- [speed] Three plain lines on what Lite changes: text only, same numbers, one tap back
+- [appearance] Bigger buttons (44 px) and readable text on phones
+
+### Changed
+- Slow connection pop-up: it names the evidence ("This page has been loading for 11 s.", ticking, or "3 requests couldn't reach the server in the last minute."), says in three lines what Control Scout Lite changes, and offers "Keep waiting" and "Switch to Lite" as 44 px buttons with a 44 px close. Body text moved from 12 px to 14 px, the card got real padding and a gold edge, and on desktop it sits clear of the sidebar's account footer. `cs-lite-demo` shows it at once for screenshots. (`src/components/layout/LiteSuggest.tsx`, `src/lib/liteSuggest.ts`)
+
 ## 6.0.3 — 2026-11-13
 
 On a phone, the search bar on the results page is now the search box itself: one tap puts the caret in it, ready to change your search.
