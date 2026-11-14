@@ -120,6 +120,6 @@ describe("clipCoverage", () => {
   });
 
   it("says spans in hours and minutes", () => {
-    expect([span(900), span(4520), span(14_400)]).toEqual(["15 min", "1 h 15 min", "4 h"]);
+    expect([span(900), span(4520), span(14_400), span(25), span(0.4)]).toEqual(["15 min", "1 h 15 min", "4 h", "25 s", "1 s"]);
   });
 });
