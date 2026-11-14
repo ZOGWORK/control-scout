@@ -62,13 +62,13 @@ function spelled(title: string): Set<string> {
 
 const ROMAN: Record<string, number> = { i: 1, ii: 2, iii: 3, iv: 4, v: 5 };
 const num = (s: string) => ROMAN[s.toLowerCase()] ?? Number(s);
-type Designators = { letter?: string; meet?: number; n?: number; uil?: string; stage?: string; ampm?: string };
+type Designators = { letter?: string; /** "1", or "1a" for a meet split in two ("NTX I-League Meet #1a"). */ meet?: string; n?: number; uil?: string; stage?: string; ampm?: string };
 /** The parts of a name or title that tell like events apart: an NTX league letter, a meet or qualifier number, a UIL class, a stage, AM/PM. */
 export function designators(s: string): Designators {
   const d: Designators = {};
   let m: RegExpExecArray | null;
   if ((m = /\b([A-Z])[- ]League\b/.exec(s))) d.letter = m[1];
-  if ((m = /\bmeet\s*#?\s*(\d+)/i.exec(s))) d.meet = Number(m[1]);
+  if ((m = /\bmeet\s*#?\s*(\d+)([a-z])?\b/i.exec(s))) d.meet = `${Number(m[1])}${(m[2] ?? "").toLowerCase()}`;
   if ((m = /(?:qualifier|scrimmage|tournament|regional|qt)\s*#\s*(\d+)|#\s*(\d+)\s*(?:[-\w ]{0,20})?(?:qualifier|tournament|regional|turneu)/i.exec(s))) d.n = Number(m[1] ?? m[2]);
   else if ((m = /\b(\d|I{1,3}|IV)\s+(?:qualifier|scrimmage)\b|\b(?:qualifier|scrimmage)\s+(\d|I{1,3}|IV)\b/i.exec(s))) d.n = num(m[1] ?? m[2]);
   if ((m = /\b(1A-4A|5A|6A)\b/i.exec(s))) d.uil = m[1].toUpperCase();
@@ -106,9 +106,14 @@ export function matchVideo(v: WatchVideo, rule: ChannelRule, events: WatchEvent[
   if (!COMP.test(v.title) || NOT.test(v.title)) return { kind: "ignore", why: "not a competition stream (title)" };
   const inRegion = parseRule(rule.region);
   if (!inRegion) return { kind: "review", why: `the channel's region rule "${rule.region}" can't be read` };
-  if (!v.start) return { kind: "review", why: "an upload, not a live broadcast: no broadcast date confirms its day" };
+  const short = v.durationS != null && v.durationS < MIN_RECORDING_S;
+  const mins = Math.round((v.durationS ?? 0) / 60);
+  // A short upload can't be a day's recording and has no broadcast date to tie it to an event: set aside with why (the
+  // owner can still add it as a highlight from the set-aside list). A full-length upload might be a re-uploaded day.
+  if (!v.start) return short
+    ? { kind: "ignore", why: `a ${mins}-minute upload, not a broadcast: too short for a day's recording (set aside; add it as a highlight if it is one)` }
+    : { kind: "review", why: "an upload, not a live broadcast: no broadcast date confirms its day" };
   if (v.durationS == null) return { kind: "review", why: "YouTube gave no length for it, so it can't be told from a clip" };
-  if (v.durationS < MIN_RECORDING_S) return { kind: "review", why: `${Math.round(v.durationS / 60)} minutes long: a clip or highlight, not a day's recording` };
   const extra = new Set(norm(rule.words).split(" ").filter(Boolean));
   const vt = toks(v.title, extra);
   const td = designators(v.title);
@@ -126,7 +131,8 @@ export function matchVideo(v: WatchVideo, rule: ChannelRule, events: WatchEvent[
     : dm[4] ? [iso(yr(dm[6]), Number(dm[4]), Number(dm[5]))]
     : [iso(yr(dm[9]), Number(dm[8]), Number(dm[7])), iso(yr(dm[7]), Number(dm[8]), Number(dm[9]))];
   const idHit = (() => { if (!rule.titlePattern) return false; try { return new RegExp(rule.titlePattern, "i").test(v.title); } catch { return false; } })();
-  type Cand = { e: WatchEvent; d: string; score: number; real: boolean; why: string[] };
+  /** strong: evidence of its own (a designator, a word of its name or city, its acronym), not only the region's name. */
+  type Cand = { e: WatchEvent; d: string; score: number; real: boolean; strong: boolean; /** Its name's distinctive words. */ words: Set<string>; why: string[] };
   const cands: Cand[] = [];
   for (const e of events) {
     if (NOT_EVENTS.has(e.type) || !inRegion(e)) continue;
@@ -152,17 +158,37 @@ export function matchVideo(v: WatchVideo, rule: ChannelRule, events: WatchEvent[
     for (const t of vt) if (et.has(t)) { score++; real = true; }
     // An event named by its acronym, and a title spelling it out: "APOC" and "Asia Pacific Open Championship".
     for (const a of acronyms(e.name, extra)) if (!vt.has(a) && spelledOut.has(a)) { score++; real = true; }
+    const strong = real;
     if (!real && idHit && score > 0) real = true;
-    cands.push({ e, d, score, real, why });
+    cands.push({ e, d, score, real, strong, words: toks(e.name, extra), why });
   }
-  if (!cands.length) return { kind: "review", why: "no Scout event in the channel's region on the broadcast date" };
-  const ok = cands.filter((c) => !c.why.length && c.score > 0 && c.real).sort((a, b) => b.score - a.score);
+  if (!cands.length) return short
+    ? { kind: "ignore", why: `${mins} minutes long, and no Scout event in the channel's region on the broadcast date: not a day's recording` }
+    : { kind: "review", why: "no Scout event in the channel's region on the broadcast date" };
+  const fits = cands.filter((c) => !c.why.length && c.score > 0 && c.real);
+  // A title naming the region itself ("FTC Iowa …") makes every one of its events that day plausible, but an event the
+  // title names by its own word ("Iris", "Waterloo") or designator is the one it's about: region-name-only fits drop out.
+  const own = fits.some((c) => c.strong) ? fits.filter((c) => c.strong) : fits;
+  // Two events sharing a word ("CTX GEMS Diamond League Meet 2" and "… Emerald …", "Austin Semi-Regional" and "San
+  // Antonio Semi-Regional"): one is contradicted when the title says a word of the other's name that it lacks
+  // ("Diamond") and its own name has a word the title doesn't say ("Emerald"), and the title says no word of its own
+  // name that other lacks. Named that way both ways (a joint meet: "Hill Country & North SA") nothing drops out, and
+  // it drops out only when what's left outscores it: otherwise every fit stays and the owner decides.
+  const said = (t: string) => vt.has(t) || spelledOut.has(t);
+  const namedOver = (c: Cand, o: Cand) => [...c.words].some((t) => said(t) && !o.words.has(t));
+  const contradicted = (c: Cand) => [...c.words].some((t) => !said(t))
+    && own.some((o) => o !== c && namedOver(o, c) && !namedOver(c, o));
+  const keep = own.filter((c) => !contradicted(c));
+  const top = Math.max(0, ...keep.map((c) => c.score));
+  const ok = (keep.length && own.every((c) => keep.includes(c) || c.score < top) ? keep : own).sort((a, b) => b.score - a.score);
   const [a, b] = ok;
   if (!a) {
     const best = [...cands].sort((x, y) => y.score - x.score)[0];
+    if (short) return { kind: "ignore", why: `${mins} minutes long, and its title fits no event that day: not a day's recording` };
     return { kind: "review", why: `no event on that date fits the title${best ? ` (closest: ${best.e.code}${best.why.length ? `, differs on ${best.why.join(", ")}` : ""})` : ""}`, ...(best ? { event: best.e, day: best.d } : {}) };
   }
   const at = { event: a.e, day: a.d, part: partOf(v.title) };
+  if (short) return { kind: "review", why: `${mins} minutes long: a clip or highlight, not a day's recording`, ...at };
   // Two events that both fit, whatever their scores, are for the owner to tell apart.
   if (b) return { kind: "review", why: `the title fits both ${a.e.code} and ${b.e.code}`, ...at };
   if (titleDates && !titleDates.includes(a.d)) return { kind: "review", why: `the title's date ${titleDates[0]} isn't the broadcast's (${a.d})`, ...at };

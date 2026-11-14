@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.1.9 — 2026-11-14
+## 6.2.6 — 2026-11-14
 
 One Network & offline screen in Settings answers it all in plain words: are you online, on Wi-Fi or mobile data, how much data this visit and each download uses, whether Lite would help right now, and what's downloaded. The download and update choices live only there now, each saying what it does before you pick it.
 
@@ -35,6 +35,105 @@ One Network & offline screen in Settings answers it all in plain words: are you 
 ### Changed
 - Downloads: "Wi-Fi only" / "Wi-Fi and mobile data", the second with the real sizes it may use. Updates: "Update packs automatically on Wi-Fi" / "Never update automatically (I'll tap Update)". Same stored settings as before (`offlineNetwork`, `offlineUpdates`), so nothing changes for anyone.
 - The Download page no longer has its own copy of those two settings: it links to Network & offline. Old links to Settings › Offline data (`?section=offline`, `#offline`) open Network & offline. (#1491)
+
+## 6.2.5 — 2026-11-14
+
+With no internet, pages you saved open straight away instead of after a wait, and one small pill in the top bar says you're offline and how fresh your data is. Wi-Fi that wants a sign-in page is spotted too.
+
+### Highlights
+- [offline] Saved pages open at once with no internet, no waiting first
+- [offline] One "Offline · updated 8:09 PM" pill in the top bar
+- [offline] Wi-Fi that needs a sign-in page says so plainly
+- [offline] Back online, pages refresh by themselves without reloading
+- [fixes] The "Slow connection?" offer stays away when there's no internet
+
+### Added
+- A real internet check (`src/lib/connection.ts`): asks `/api/health` (no cache, 2.5 s at most). Our own answer means internet; a sign-in page, a redirect or any other answer means a Wi-Fi that wants you to sign in; nothing means offline. It checks again when the browser says the network changed, when the tab comes back into view, soon after a request fails, every 30 s while offline and every 5 minutes otherwise. `useConnection()` gives online, internet (yes, no, portal, unknown), connection type and Data Saver for the rest of the app.
+- The Offline pill (`src/components/ConnectionStatus.tsx`), which replaces the old "Offline, showing saved data" badge: "Offline · updated <time>" (the time of the saved data on screen, else of the newest thing saved), or "No internet on this Wi-Fi". On a phone it takes the centred logo's place; on a wider screen it sits in the bar's spare space, so nothing moves. Tapping it lists what's on this device, with Try again and Downloads.
+- `npm run offline:check` (`scripts/offline-check.ts`): opens the offline journeys on a 390 px phone behind a local proxy that can drop the network (the service worker's own requests too), act as a Wi-Fi sign-in page (`--portal`) or slow everything to about 400 kbps (`--throttle`). `--prod` runs it against the local production build.
+
+### Changed
+- Known offline, reads that saved data can answer come from it with no network try and no 4 s wait. Other reads say they need a connection at once (after one quick check) instead of spinning. Writes still go to the network.
+- When the internet comes back, whatever is on screen from saved data refreshes in the background, keeping the page and anything typed.
+- A page that gets no answer in 3 s (Wi-Fi that carries nothing) opens from the app saved on the device instead of a blank screen. Light pages keep waiting.
+- Opening a page again soon after one found no internet starts from that answer (checked again at once), so every page after the first opens straight from saved data. A Wi-Fi sign-in page that answers where our data should be counts as no internet. A read still waiting when the check finds no internet is let go and answered from saved data at once.
+- The "needs a connection" message says "No internet on this Wi-Fi" when a sign-in page is in the way.
+- The "Slow connection?" offer only shows when there is internet: with none, the light version can't load either. (#1487)
+
+## 6.2.4 — 2026-11-14
+
+Oklahoma and Louisiana events now play their recordings: eastern Oklahoma's DaVinci, Herrington and May league meets, the Bishop Kelley league tournament and the state championship from Tulsa Robotics Center, and every Louisiana qualifier and championship since 2023 from FTC Louisiana.
+
+### Highlights
+- [history] Oklahoma league meets and the state championship play their video
+- [history] Louisiana qualifiers and championships play their recordings
+- [live] Tulsa Robotics Center's new streams are added once they air
+
+### Added
+- Official videos: Tulsa Robotics Center (`UC6y0o2J7b05YIL7w95cwg0w`) and FTC Louisiana (`UCQYT4ZXN54khn_n7ebsRRtQ`), both read from the YouTube Data API's uploads lists, join the official channels and the auto-watcher's list, with SeaCow Robotics (`UClcqdD9sHnwtN7FCW6Vj1Ug`, its Mountain Home, Benton and Bentonville qualifiers) and Shiloh Saints (`UCvA42eBzkRpd-x23-AvOnvw`, the Arkansas Championship only), whose streams FIRST's channel links already play. 27 recordings are checked against each event's name, city, date, league and meet number: 14 from Tulsa Robotics Center (2024 to 2026) and 13 from FTC Louisiana (2022 to 2025, each on the day its matches were played). Videos that can't be embedded, the 2026-10-24 Herrington Meet 1 (blocked in the US), one stream for two meets and a meet whose date isn't the event's are left out. (`server/data/officialVideos.json`, `server/data/officialChannels.ts`, `docs/official-videos.md`) (#1479)
+
+## 6.2.3 — 2026-11-14
+
+The official-channel video watcher now picks up event streams that were scheduled before it started watching a channel, so recordings from FTC Iowa, Pennsylvania, Arizona and others aren't missed once they air.
+
+### Highlights
+- [fixes] Event streams scheduled ahead of time are no longer missed
+- [fixes] More official recordings join their event without waiting
+- [fixes] Calls and team reels no longer wait in the owner's review
+
+### Fixed
+- Official videos watcher: it read only uploads published after a channel started being watched, but a stream is listed when it's scheduled, so every stream scheduled before that (55 found: FTC Iowa's league meets, Pennsylvania's championship and qualifiers, Arizona's qualifiers) would never be read once it aired. It now reads back to the earlier of that date and 180 days ago, up to 10 pages. A title naming the region ("FTC Iowa …") and one event's own word ("Iris") or designator (meet 1, not meet 1a) now fits that event instead of every event of the region that day, and a title naming one of two leagues on the same day ("CTX GEMS Diamond League Meet 2") fits that league, never the other (Emerald). A video under 45 minutes that fits no event is set aside with its reason instead of waiting in review. Duplicates name the event that already plays them, and an `onRecordingAdded` hook runs after each added recording so its event's clips can be checked again. (`server/videos/officialWatch.ts`, `server/videos/officialMatch.ts`, `docs/official-videos.md`) (#1456)
+
+## 6.2.2 — 2026-11-14
+
+Search can find matches with video, and asking to watch a question shows its answer with the video.
+
+### Highlights
+- [teams] Add "with video" to find only matches you can watch
+- [teams] "Who won … with video" answers the question and plays the match
+- [teams] Matches at one event play their first clip, not the stream's start
+
+### Changed
+- Search: "with video" (also "that have clips", "with a recording") is a filter: a team's matches, a place's or an event's best, closest or highest-scoring matches list only the ones with FIRST's own video or a clip in the event's recording, the card saying "With video". (`server/videos/recordings.ts` seasonClipKeys, `server/api/query/matchFind.ts`, `lexicon.ts`, `intents.ts`, `parse.ts`, `execute.ts`) (#1485)
+- Search: words asking to watch ("with video", "video", "highlights") beside a question whose answer didn't take them are dropped, so "who won decode with video" is the champions' card with their final playing. (`server/api/searchAnswer.ts`)
+- Search: a list of matches at one event plays its first match with a clip, from that match's start, rather than the event's recording from its start. (`server/api/answers/video.ts`)
+
+## 6.2.1 — 2026-11-14
+
+Search plays the matches an answer lists, and says so plainly when there is no video.
+
+### Highlights
+- [teams] A team at an off-season event it played lists its matches there
+- [teams] Each listed match without a clip says No video, never a dead Play
+- [teams] No video at all: one line says the event has no recording
+
+### Changed
+- Search: a question about a team at an event it names keeps that event's matches even when it is an off-season event (APOC): "26000 at AUSYOS" lists its 13 matches, the card plays one and every other row with a clip gets Play. Before, it said "No scored matches". (`server/api/answers/clauses.ts`) (#1481)
+- Search: an answer listing one match plays that match's own clip or links its recording, never the event's recording from its start (`server/api/answers/video.ts`). A listed match with no clip says "No video" when others in the answer play; an answer whose matches have none says "No recording for this event — stats only." (or "No video for these matches — stats only.") once. (`src/components/search/page/AnswerVideo.tsx`)
+
+## 6.2.0 — 2026-11-14
+
+Northern California's QTs, league meets and Regional Championship divisions now play their recordings from NorCal FTC's own channel, back to 2021; SoCal League G's meets and East Bay Meet 1 of 2026 play theirs too.
+
+### Highlights
+- [history] NorCal QTs and Regional Championships play their streams
+- [live] The NorCal BIOBUZZ Screamage plays its recording
+- [history] SoCal League G and East Bay Meet 1 play their recordings
+
+### Added
+- Official videos: NorCal FIRST Tech Challenge (`UCsWixqR83vr2poZHfU_FgcQ`) and FTC SoCal League G (`UCJAVhMsmeKHf7riEsPafi9w`), ids read from the YouTube Data API, join the official channels and the auto-watcher's list, for events named "NorCal …" and League G's own meets only. 7419 Tech Support (`UCesNcwI6hz2m5T44R2_9rlA`) is linked once, not watched. 41 recordings are checked against each event's name, city, dates, division, QT number and meet: 33 from NorCal (Gold and Silicon each on its own division), 6 from League G, and East Bay Meet 1's two parts from 7419. Streams FIRST's pages already link, an undated upload, false starts and a scrimmage Scout has no event for are left out. (`server/data/officialVideos.json`, `server/data/officialChannels.ts`, `docs/official-videos.md`) (#1478)
+
+## 6.1.9 — 2026-11-14
+
+Oregon's Rose City and SOAR league meets now play their recordings from the channels that stream them, back to 2022, and Saturday's SOAR Meet 1 shows its stream before it airs.
+
+### Highlights
+- [live] SOAR League Meet 1 shows its stream on its event page
+- [history] Rose City League meets from 2022 on play their recordings
+- [history] SOAR scrimmages and meets play their recordings
+
+### Added
+- Official videos: Overcharged (`UCT6yIFUf6Wr_klDFpdmLsGg`, Rose City League) and Leo RHS Robotics (`UC2MP84F_QCCnbLqHBFBxxeQ`, SOAR League), ids read from the YouTube Data API, join the official channels and the auto-watcher's list, each for its own league's events only. 18 recordings are checked against each event's name, city, date and meet number: 12 Rose City, 6 SOAR. Streams FIRST's pages already link, second videos for a day FIRST already covers, and SOAR 2024 Meet 3 (FIRST's page links Meet 2's video, flagged for the owner) are left out. All Hands on Tech is not added: FIRST's pages already link its Iron Mountain streams. (`server/data/officialVideos.json`, `server/data/officialChannels.ts`, `docs/official-videos.md`) (#1480)
 
 ## 6.1.8 — 2026-11-14
 

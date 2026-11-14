@@ -134,6 +134,13 @@ export function subscribeConnection(fn: () => void): () => void {
 }
 
 /** Called whenever `internet` changes (api.ts refreshes what's on screen from the packs when it turns "yes"). */
+const confirmedListeners = new Set<() => void>();
+/** Every check that finds internet, changed or not (onInternetChange only hears changes). */
+export function onInternetConfirmed(fn: () => void): () => void {
+  confirmedListeners.add(fn);
+  return () => { confirmedListeners.delete(fn); };
+}
+
 export function onInternetChange(fn: (now: Internet, before: Internet) => void): () => void {
   internetListeners.add(fn);
   return () => { internetListeners.delete(fn); };
@@ -153,8 +160,12 @@ export async function classify(res: Response): Promise<Internet> {
   if (res.status === 511) return "portal";
   // Our own server (or the CDN in front of it) erroring: the internet works, the site is having trouble.
   if (res.status >= 500) return "yes";
+  // A body that never arrives (the check's own timeout, a stalled link) is no answer: "no". Only one that arrives and
+  // isn't our JSON is a sign-in page.
+  let text: string;
+  try { text = await res.text(); } catch { return "no"; }
   let body: unknown = null;
-  try { body = JSON.parse(await res.text()); } catch { return "portal"; }
+  try { body = JSON.parse(text); } catch { return "portal"; }
   return body && typeof body === "object" && (body as { ok?: unknown }).ok === true ? "yes" : "portal";
 }
 
@@ -178,9 +189,12 @@ export function checkInternet(): Promise<Internet> {
     }
   })().then((internet) => {
     if (inflight === run) inflight = null;
-    // The server answered another request while this check waited: that answer is the newer news.
-    if (internet === "no" && answeredAt >= since) return state.internet;
+    // The server answered another request while this check waited: that answer is the newer news (a late "no" or
+    // sign-in page answer never undoes it).
+    // set() re-arms the periodic check; this path skips it, so it re-arms here.
+    if (internet !== "yes" && answeredAt >= since) { schedule(); return state.internet; }
     set({ internet, checkedAt: Date.now() });
+    if (internet === "yes") confirmedListeners.forEach((f) => f());
     return internet;
   });
   inflight = run;

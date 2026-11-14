@@ -4,7 +4,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, renderHook } from "@testing-library/react";
 import {
-  CARRY_MS, CHECK_TIMEOUT_MS, DEMO_KEY, FAIL_DEBOUNCE_MS, LAST_KEY, RETRY_MS, checkInternet, classify, connection, noteRequestFailed, noteServerAnswer,
+  CARRY_MS, CHECK_TIMEOUT_MS, DEMO_KEY, FAIL_DEBOUNCE_MS, IDLE_MS, LAST_KEY, RETRY_MS, checkInternet, classify, connection, noteRequestFailed, noteServerAnswer,
   offlineNow, resetConnection, shownOffline, startConnectionWatch, useConnection,
 } from "./connection";
 
@@ -18,6 +18,10 @@ beforeEach(() => { resetConnection(); localStorage.clear(); });
 afterEach(() => { stop(); stop = () => {}; resetConnection(); vi.unstubAllGlobals(); vi.useRealTimers(); });
 
 describe("classify: what answered the check", () => {
+  it("headers in but the body never arrives (timed out, stalled) is no answer, not a sign-in page", async () => {
+    const stalled = new Response(new ReadableStream({ start(c) { c.error(new DOMException("aborted", "AbortError")); } }), { status: 200, headers: { "Content-Type": "application/json" } });
+    expect(await classify(stalled)).toBe("no");
+  });
   it("our own health answer is internet", async () => {
     expect(await classify(json({ ok: true, engine: "3.4.0", release: "abc" }))).toBe("yes");
   });
@@ -83,9 +87,37 @@ describe("checkInternet", () => {
     await p;
     expect(connection().internet).toBe("yes");
   });
+  it("a sign-in page answer that lands after a server answer doesn't undo it (signed in meanwhile)", async () => {
+    let answer!: (r: Response) => void;
+    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>((r) => { answer = r; })));
+    const p = checkInternet();
+    noteServerAnswer(); // signed in to the Wi-Fi; a read got our own JSON
+    answer(new Response("<html>Sign in</html>", { status: 200, headers: { "Content-Type": "text/html" } }));
+    await p;
+    expect(connection().internet).toBe("yes");
+  });
 });
 
 describe("watching", () => {
+  it("a check whose answer is set aside (a server answer came first) still keeps the clock checking", async () => {
+    vi.useFakeTimers();
+    let answer: ((r: Response) => void) | null = null;
+    let calls = 0;
+    vi.stubGlobal("fetch", vi.fn(() => { calls++; return calls === 2 ? new Promise<Response>((r) => { answer = r; }) : Promise.resolve(json({ ok: true })); }));
+    stop = startConnectionWatch();
+    await vi.advanceTimersByTimeAsync(2000); // the first check: internet
+    expect(connection().internet).toBe("yes");
+    expect(calls).toBe(1);
+    await vi.advanceTimersByTimeAsync(IDLE_MS); // the clock's check starts and waits
+    expect(calls).toBe(2);
+    noteServerAnswer(); // already "yes": nothing changes, nothing re-armed there
+    answer!(html()); // lands late: set aside
+    await vi.advanceTimersByTimeAsync(0);
+    expect(connection().internet).toBe("yes");
+    await vi.advanceTimersByTimeAsync(IDLE_MS + 1000);
+    expect(calls).toBe(3);
+  });
+
   it("a failed request checks once, soon (a burst of failures is one check)", async () => {
     vi.useFakeTimers();
     const fetch = vi.fn(async () => { throw new TypeError("Failed to fetch"); });

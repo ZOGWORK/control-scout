@@ -6,6 +6,7 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom";
 import { ConnectionPill, newestSaved, pillText, updatedLabel } from "./ConnectionStatus";
 import { DEMO_KEY, checkInternet, resetConnection } from "../lib/connection";
+import { savedDataTime } from "../lib/api";
 import { writeSaved } from "../lib/offline/saved";
 
 const pill = () => render(<MemoryRouter><ConnectionPill place="wide" /></MemoryRouter>);
@@ -24,6 +25,11 @@ describe("words", () => {
     expect(pillText({ internet: "no" }, new Date(2026, 10, 13, 20, 9).toISOString(), now)).toMatchObject({ short: "Offline", time: expect.stringMatching(/8:09/) });
     expect(pillText({ internet: "no" }, null, now)).toEqual({ short: "Offline", long: "Offline", time: null });
     expect(pillText({ internet: "portal" }, null, now).short).toBe("No internet on this Wi-Fi");
+  });
+  it("a kept row loaded at no time (savedAt 0) has no time, never 1970", () => {
+    expect(savedDataTime({ dataAsOf: null, savedAt: 0 })).toBeNull();
+    expect(savedDataTime({ dataAsOf: null, savedAt: Date.UTC(2026, 10, 13) })).toBe("2026-11-13T00:00:00.000Z");
+    expect(savedDataTime({ dataAsOf: "2026-11-12T00:00:00.000Z", savedAt: 0 })).toBe("2026-11-12T00:00:00.000Z");
   });
   it("the newest saved thing's data time", () => {
     expect(newestSaved(
@@ -59,9 +65,33 @@ describe("the pill", () => {
     expect(await screen.findByText("Still no internet.")).toBeTruthy();
   });
 
+  it("the panel left open when the internet came back starts closed the next time it's offline", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("Failed to fetch"); }));
+    await act(async () => { await checkInternet(); });
+    pill();
+    fireEvent.click(screen.getByRole("button"));
+    expect(screen.getByText("You're offline")).toBeTruthy();
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ ok: true }), { headers: { "content-type": "application/json", date: new Date().toUTCString() } })));
+    await act(async () => { await checkInternet(); });
+    expect(screen.queryByRole("button")).toBeNull();
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("Failed to fetch"); }));
+    await act(async () => { await checkInternet(); });
+    expect(screen.getByRole("button")).toBeTruthy();
+    expect(screen.queryByText("You're offline")).toBeNull();
+  });
+
   it("a Wi-Fi sign-in page (the screenshot setting too) says there's no internet on this Wi-Fi", () => {
     localStorage.setItem(DEMO_KEY, "portal");
     pill();
     expect(screen.getByRole("button").textContent).toBe("No internet on this Wi-Fi");
+  });
+  it("below xl the wide pill is the icon alone, in the bar's own flow, so it never covers the search box", () => {
+    localStorage.setItem(DEMO_KEY, "portal");
+    pill();
+    const box = screen.getByRole("status");
+    expect(box.className).toMatch(/xl:absolute/);
+    expect(box.className.split(" ")).not.toContain("absolute"); // floating only from xl up
+    const words = screen.getByText("No internet on this Wi-Fi");
+    expect(words.className).toContain("max-xl:hidden");
   });
 });

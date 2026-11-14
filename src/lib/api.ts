@@ -23,7 +23,7 @@ import { answerableOffline, keepable, keepAnswer, keptAt, keptOwner, keptPaths }
 import { packStatus } from "./packPolicy";
 import { FEATURE_DISABLED, featureOffMessage } from "../shared/flags";
 import { noteArrived, watchRequest } from "./liteSuggest";
-import { connection, freshInternet, noteRequestFailed, noteServerAnswer, offlineNow, onInternetChange } from "./connection";
+import { connection, freshInternet, noteRequestFailed, noteServerAnswer, offlineNow, onInternetChange, onInternetConfirmed } from "./connection";
 
 /**
  * A failed call. `code`: the answer's `error` when it's a machine code (`feature_disabled`), so callers can tell a
@@ -326,6 +326,8 @@ export async function apiFetch<T>(path: string, init?: RequestInit & { json?: un
     : () => {};
   const outer = rest.signal;
   const forward = () => ctrl?.abort();
+  // Kept through the body read too: a Wi-Fi that dies after the headers (body hung) is let go the same way.
+  const release = () => { stopWatching(); outer?.removeEventListener("abort", forward); };
   if (ctrl && outer) { if (outer.aborted) ctrl.abort(); else outer.addEventListener("abort", forward, { once: true }); }
   // Slow or failing requests while online offer the light version (src/lib/liteSuggest.ts).
   const watch = watchRequest(path, rest.method);
@@ -365,15 +367,14 @@ export async function apiFetch<T>(path: string, init?: RequestInit & { json?: un
     return offlineOr<T>(path, rest.method, unreachable());
   } finally {
     // Answered from saved data, or failed: settled. A server answer settles once its body is in (below).
-    if (!answered) watch.done();
-    stopWatching();
-    outer?.removeEventListener("abort", forward);
+    if (!answered) { watch.done(); release(); }
   }
   // Server still starting (it opens its port before its data is ready): wait
   // as asked and try again, so a cold start reads as a slow load, not an error.
   // It answered, so this isn't "no signal"; each try gets its own timeout.
   if (res.status === 503 && res.headers.has("Retry-After") && _tries < 8) {
     watch.done(false); // the retry is watched on its own
+    release();
     // The caller letting go (a newer search, or searchOnline's deadline) ends the wait too.
     await new Promise<void>((done, fail) => {
       if (outer?.aborted) { fail(callerAborted()); return; }
@@ -386,7 +387,16 @@ export async function apiFetch<T>(path: string, init?: RequestInit & { json?: un
   // The server answered: whatever came from saved data goes back to the server's.
   if (res.status < 500) setUsingSaved(false);
   let text: string;
-  try { text = await res.text(); } catch (e) { watch.done(false); throw e; }
+  try { text = await res.text(); }
+  catch (e) {
+    watch.done(false);
+    release();
+    // Headers in, body hung, and the connection check found no internet: the offline answer, not the browser's abort text.
+    if (flipped && !outer?.aborted) { noteRequestFailed(); return answerOffline<T>(path, init); }
+    if (outer?.aborted) throw callerAborted();
+    throw e;
+  }
+  release();
   let body: any = null;
   let unreadable = false;
   try { body = text ? JSON.parse(text) : null; } catch { unreadable = true; }
@@ -495,10 +505,19 @@ if (typeof window !== "undefined") {
 }
 // The connection check found the internet again (lib/connection.ts): the same, in the background (each entry keeps
 // its saved data on screen until the server's answer replaces it).
+// A check confirmed internet while the pill was on for a saved answer (a slow read answered from saved data while
+// the server was up): nothing changed for onInternetChange, so this clears it once nothing saved is on screen.
+onInternetConfirmed(() => { if (!offlineOnScreen().length) setUsingSaved(false); });
 onInternetChange((now) => {
   if (now !== "yes") return;
   if (offlineOnScreen().length) refetchOffline(); else setUsingSaved(false);
 });
+
+/** One saved answer's data time: its data's own time, else its bundle's build, else when it was saved. Null for
+ *  savedAt 0 (a kept row known only by its number, loaded at no time; OfflineNote skips it too), never "1970". */
+export function savedDataTime(src: { dataAsOf: string | null; savedAt: number; bundle?: { builtAt: string } }): string | null {
+  return src.dataAsOf ?? src.bundle?.builtAt ?? (src.savedAt > 0 ? new Date(src.savedAt).toISOString() : null);
+}
 
 /** When the data on screen from saved data is from: the oldest such answer's data time (else when it was saved), or
  *  null when nothing on screen came from saved data. For the top bar's "Offline · updated …" pill. */
@@ -508,7 +527,8 @@ export function offlineAsOf(): string | null {
     if (!listeners.get(path)?.size) continue;
     const src = offlineSource(e.data);
     if (!src) continue;
-    const at = src.dataAsOf ?? (src.bundle?.builtAt ?? new Date(src.savedAt).toISOString());
+    const at = savedDataTime(src);
+    if (!at) continue;
     if (!oldest || at < oldest) oldest = at;
   }
   return oldest;
@@ -574,7 +594,12 @@ export function useApi<T>(path: string | null, valid?: (data: unknown) => data i
     if (!set) { set = new Set(); listeners.set(path, set); }
     set.add(fn);
     queueMicrotask(screenChanged);
-    return () => { set!.delete(fn); if (probe && !offlineOnScreen().length) stopProbe(); queueMicrotask(screenChanged); };
+    return () => {
+      set!.delete(fn);
+      // The last saved answer left the screen while there's internet: the pill goes with it.
+      if (!offlineOnScreen().length) { if (probe) stopProbe(); if (connection().internet === "yes") setUsingSaved(false); }
+      queueMicrotask(screenChanged);
+    };
   }, [path]);
   const read = () => (path ? (cache.get(path) as Entry<T> | undefined) : undefined);
   const e = useSyncExternalStore(subscribe, read, read);

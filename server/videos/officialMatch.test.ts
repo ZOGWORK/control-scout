@@ -119,6 +119,74 @@ describe("the watcher's matcher", () => {
     expect(designators("Qualifier #3")).toMatchObject({ n: 3 });
   });
 
+  // The watcher audit of 2026-11-13 (docs/official-videos.md, "The auto-watcher"): real titles of the live channels.
+  it("a title naming the region and one event's own word fits that event, not every event of the region that day", () => {
+    const IA = { region: "state=IA", words: "iowa", titlePattern: "iowa" };
+    const day = { state: "IA", type: "LeagueMeet", start: "2026-11-07", end: "2026-11-07", timezone: "America/Chicago" } as const;
+    const events = [ev("USIAIRISM3", "Iris Manson", { ...day, city: "Manson" }), ev("USIADAIM1", "Daisy Martensdale", { ...day, city: "Martensdale" }),
+      ev("USIAWINBM4", "Wnterberry Waterloo", { ...day, city: "Waterloo" })];
+    const at = { start: "2026-11-07T15:00:00Z" };
+    const iris = matchVideo(vid("FTC Iowa Iris League Meet: 2026-11-07", at), IA, events);
+    expect(iris.kind === "add" && iris.event.code).toBe("USIAIRISM3");
+    const wb = matchVideo(vid("FTC Iowa Winterberry League Meet: Waterloo", at), IA, events);
+    expect(wb.kind === "add" && wb.event.code).toBe("USIAWINBM4");
+    // The region's name alone still can't choose between its events.
+    expect(matchVideo(vid("FTC Iowa League Meet", at), IA, events)).toMatchObject({ kind: "review", why: /fits both/ });
+  });
+
+  it("a meet split in two keeps its letter: Meet #1 is not Meet #1a", () => {
+    const day = { city: "Plano", type: "LeagueMeet", start: "2026-10-31", end: "2026-10-31" } as const;
+    const events = [ev("USTXNONIM1", "NTX I-League Meet #1", day), ev("USTXNONIM2", "NTX I-League Meet #1a", day)];
+    const NTX = { region: "state=TX", words: "texas ntx fit north" };
+    const v = matchVideo(vid("NTX FTC I-League Meet #1 (26.10.31)", { start: "2026-10-31T14:00:00Z" }), NTX, events);
+    expect(v.kind === "add" && v.event.code).toBe("USTXNONIM1");
+    const a = matchVideo(vid("NTX FTC I-League Meet #1a", { start: "2026-10-31T14:00:00Z" }), NTX, events);
+    expect(a.kind === "add" && a.event.code).toBe("USTXNONIM2");
+    expect(designators("Meet 1 - 11-07-26")).toMatchObject({ meet: "1" });
+  });
+
+  it("tells two leagues of one meet day apart by the word the title says: Diamond is never Emerald", () => {
+    const day = { city: "Austin", type: "LeagueMeet", start: "2026-11-14", end: "2026-11-14" } as const;
+    const events = [ev("USTXCEGDM2", "CTX GEMS Diamond League Meet 2", day), ev("USTXCEGEM2", "CTX GEMS Emerald League Meet 2", day),
+      ev("USTXCEXAM1", "CTX X-Stream A League Meet 1", day)];
+    const WW = { region: "state=TX;name=\\bCTX\\b|FiT-Central|GEMS", words: "texas fit central ctx" };
+    const at = { start: "2026-11-14T17:00:00Z" };
+    const d = matchVideo(vid("CTX GEMS Diamond League Meet 2 | FTC® BIOBUZZ™", at), WW, events);
+    expect(d.kind === "add" && d.event.code).toBe("USTXCEGDM2");
+    const e = matchVideo(vid("CTX GEMS Emerald League Meet 2 | FTC® BIOBUZZ™", at), WW, events);
+    expect(e.kind === "add" && e.event.code).toBe("USTXCEGEM2");
+    // Naming neither league: still the owner's.
+    expect(matchVideo(vid("CTX GEMS League Meet 2", at), WW, events)).toMatchObject({ kind: "review", why: /fits both/ });
+    // A city too: Austin's semi-regional isn't San Antonio's.
+    const sr = { type: "SuperQualifier", start: "2026-02-14", end: "2026-02-14" } as const;
+    const semis = [ev("USTXAUSQ", "FiT-Central Austin Semi-Regional", { ...sr, city: "Austin" }), ev("USTXSASQ", "FiT-Central San Antonio Semi-Regional", { ...sr, city: "San Antonio" })];
+    const a = matchVideo(vid("FiT-Central Austin Semi-Regional | FTC® DECODE™", { start: "2026-02-14T17:21:17Z" }), WW, semis);
+    expect(a.kind === "add" && a.event.code).toBe("USTXAUSQ");
+  });
+
+  it("a title naming two events (a joint meet) stays the owner's, never a third event that shares one word", () => {
+    const day = { city: "San Antonio", type: "LeagueMeet", start: "2024-12-14", end: "2024-12-14" } as const;
+    const events = [ev("USTXCAM3", "FiT-Central Hill Country League Meet 2", day), ev("USTXCAM4", "FiT-Central North San Antonio League Meet 2", day),
+      ev("USTXNINLT", "FiT-North I&N Tournament", { ...day, type: "LeagueTournament", city: "Richardson" })];
+    const v = matchVideo(vid("FIRST Tech Challenge- Into the Deep: Hill Country & North SA League Meet 2", { start: "2024-12-14T16:00:00Z" }), { region: "state=TX", words: "texas fit" }, events);
+    expect(v).toMatchObject({ kind: "review", why: /fits both USTXCAM3 and USTXCAM4/ });
+    // Also when the channel's own words take the shared prefix away ("central") and "SA" leaves San Antonio half said.
+    const two = matchVideo(vid("FIRST Tech Challenge- Into the Deep: Hill Country & North SA League Meet 2", { start: "2024-12-14T16:00:00Z" }),
+      { region: "state=TX", words: "texas fit central ctx" }, events.slice(0, 2));
+    expect(two).toMatchObject({ kind: "review", why: /fits both/ });
+  });
+
+  it("sets aside a short video that names no event: an upload, a call, a team's reel", () => {
+    const one = [ev("USTXMOQ", "TX Mockingbird Qualifier")];
+    expect(matchVideo(vid("Compact Differential Swerve Drive | 23334 Axiom | FTC BIOBUZZ Snapshot", { start: null, durationS: 79 }), TX, one)).toMatchObject({ kind: "ignore", why: /1-minute upload/ });
+    expect(matchVideo(vid("FTC Program Call Nov 12, 2026 Recording", { durationS: 22 * 60 }), TX, one)).toMatchObject({ kind: "ignore", why: /22 minutes long, and its title fits no event/ });
+    expect(matchVideo(vid("FTC Program Call", { durationS: 22 * 60 }), { region: "state=WI" }, one)).toMatchObject({ kind: "ignore", why: /no Scout event/ });
+    // Short and about one event: the owner decides (a highlight, or a clip of the day).
+    expect(matchVideo(vid("Mockingbird Qualifier", { durationS: 180 }), TX, one)).toMatchObject({ kind: "review", why: /clip or highlight/, event: { code: "USTXMOQ" } });
+    // A full-length upload might be a re-uploaded day: the owner decides.
+    expect(matchVideo(vid("Mockingbird Qualifier", { start: null }), TX, one)).toMatchObject({ kind: "review", why: /upload/ });
+  });
+
   it("sets aside what isn't a competition stream", () => {
     expect(matchVideo(vid("Kickoff 2026: DECODE reveal"), TX, [])).toMatchObject({ kind: "ignore" });
     expect(matchVideo(vid("FRC District Event - Austin"), TX, [])).toMatchObject({ kind: "ignore" });

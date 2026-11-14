@@ -8,7 +8,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 const offlineAnswer = vi.fn();
 vi.mock("./offline/answer", () => ({ offlineAnswer: (path: string) => offlineAnswer(path) }));
 
-import { apiFetch, useApi, useOfflineAsOf, useOfflineMode } from "./api";
+import { apiFetch, noteOfflineAnswer, useApi, useOfflineAsOf, useOfflineMode } from "./api";
 import { checkInternet, connection, resetConnection, startConnectionWatch } from "./connection";
 import { markOffline, offlineSource, writeSaved, type SavedSeason } from "./offline/saved";
 import { PACK_META_KEY } from "./packPolicy";
@@ -111,6 +111,36 @@ describe("a Wi-Fi that carries nothing", () => {
     await checkInternet();
     await expect(records).rejects.toMatchObject({ offline: true, message: "You're offline." });
     expect(offlineSource(await team)).toEqual(src);
+  });
+  it("headers in, body hung: when the check finds no internet the read is answered the offline way, not with the browser's abort text", async () => {
+    writeSaved([saved]);
+    // The server's headers arrive, then its body never does (the Wi-Fi died mid-answer).
+    const hungBody = (_p: string, init?: RequestInit) => Promise.resolve(new Response(new ReadableStream({
+      start(c) { init?.signal?.addEventListener("abort", () => c.error(new DOMException("The operation was aborted.", "AbortError"))); },
+    }), { status: 200, headers: { "Content-Type": "application/json" } }));
+    vi.stubGlobal("fetch", vi.fn(hungBody));
+    const team = apiFetch("/api/teams/7?season=2025");
+    await new Promise((r) => setTimeout(r, 0)); // headers in; the body read is waiting
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("Failed to fetch"); }));
+    await checkInternet();
+    expect(offlineSource(await team)).toEqual(src);
+  });
+});
+
+describe("a saved answer while the internet works", () => {
+  it("the Offline mode ends once a check confirms internet and nothing saved is left on screen", async () => {
+    writeSaved([saved]);
+    vi.stubGlobal("fetch", vi.fn(async () => ok({ ok: true })));
+    await checkInternet();
+    expect(connection().internet).toBe("yes");
+    const mode = renderHook(() => useOfflineMode());
+    // A slow read answered from saved data (the Predict page's lite-pack fallback says so this way).
+    act(() => { noteOfflineAnswer(); });
+    expect(mode.result.current).toBe(true);
+    // The check that the slow read set off finds internet again: no change for onInternetChange, but it's confirmed.
+    await act(async () => { await checkInternet(); });
+    expect(mode.result.current).toBe(false);
+    mode.unmount();
   });
 });
 

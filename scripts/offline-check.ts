@@ -71,6 +71,8 @@ async function onRequest(req: IncomingMessage, res: ServerResponse) {
     res.writeHead(r.statusCode ?? 502, r.headers);
     r.pipe(pace()).pipe(res);
   });
+  // Its upstream socket too, so switching the network off cuts a download already streaming.
+  up.on("socket", track);
   up.on("error", () => req.socket.destroy());
   req.pipe(up);
 }
@@ -176,13 +178,16 @@ async function main() {
 
   // Online: install the service worker, and learn the event's teams and a match.
   await page.goto(BASE + "/", { waitUntil: "load" });
-  await page.evaluate(() => navigator.serviceWorker?.ready.then(() => true));
+  // `ready` never settles without a worker (the dev server registers none): a clear failure, not a hang.
+  const swOk = await page.evaluate(() => Promise.race([navigator.serviceWorker?.ready.then(() => true) ?? Promise.resolve(false), new Promise<boolean>((r) => setTimeout(() => r(false), 60_000))]));
+  if (!swOk) throw new Error("The service worker never became ready. Offline journeys need a production build: npm run build, then --prod (or the live --base).");
   await page.reload({ waitUntil: "load" });
   const ev = await page.evaluate(async ([s, c]) => (await fetch(`/api/events/${s}/${c}`)).json(), [SEASON, CODE]) as { field?: { team?: number; number?: number }[]; matches?: { key: string; played: boolean; red: { teams: { number: number }[] }; blue: { teams: { number: number }[] } }[] };
   const teams = (ev.field ?? []).map((t) => (t.team ?? t.number) as number).filter(Boolean);
   const played = (ev.matches ?? []).filter((m) => m.played);
   const match = played[Math.floor(played.length / 2)] ?? ev.matches?.[0];
   const four = match ? [...match.red.teams, ...match.blue.teams].map((t) => t.number).slice(0, 4) : teams.slice(0, 4);
+  if (four.length < 4) throw new Error(`Event ${SEASON}:${CODE} came back with ${teams.length} teams and ${ev.matches?.length ?? 0} matches: check --event (season:CODE). No journeys measured.`);
   console.log(`Event ${SEASON}:${CODE}: ${teams.length} teams, ${ev.matches?.length ?? 0} matches; match ${match?.key}; teams ${four.join(", ")}`);
 
   // Download what the app offers for this event.

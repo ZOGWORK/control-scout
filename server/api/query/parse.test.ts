@@ -608,3 +608,18 @@ describe("two teams and a place to compare them", () => {
     expect((await parse("4215 6980")).complete).toBe(false);
   });
 });
+
+describe("with video (search video brief, point 5)", () => {
+  it("is a filter the match finder's intents take, in any phrasing", async () => {
+    for (const q of ["6980 matches with video", "6980 matches that have video", "highest score in new jersey with video", "closest match with clips", "matches with video at east bergen conference"]) {
+      const p = await parse(q);
+      expect(p, q).toMatchObject({ withVideo: true, complete: true });
+    }
+  });
+  it("highlights take it: they are the matches' videos already", async () => {
+    expect(await parse("6980 highlights with video")).toMatchObject({ intent: "highlights", withVideo: true, complete: true });
+  });
+  it("any other intent leaves the parse to search's other readers, never answered without it", async () => {
+    expect(await parse("6980 opr with video")).toMatchObject({ withVideo: true, complete: false });
+  });
+});
