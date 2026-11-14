@@ -80,6 +80,24 @@ describe("text size", () => {
     expect(root().getAttribute("data-text-size")).toBe("xl");
   });
 
+  it("a size picked on Lite's Settings page (its cookie only) is taken once when the app starts", () => {
+    localStorage.setItem(TEXT_SIZE_KEY, "s");
+    document.cookie = "cs-text-size=xl; path=/";
+    document.cookie = "cs-lite-picked=size.theme; path=/";
+    const stop = watchTextSize();
+    expect(localStorage.getItem(TEXT_SIZE_KEY)).toBe("xl");
+    expect(root().getAttribute("data-text-size")).toBe("xl");
+    // The theme's note stays for the theme to take; the size's is gone.
+    expect(document.cookie).toContain("cs-lite-picked=theme");
+    stop();
+    // Default picked there: the cookie is gone, and Default is this device's choice.
+    document.cookie = "cs-text-size=; path=/; max-age=0";
+    document.cookie = "cs-lite-picked=size; path=/";
+    watchTextSize()();
+    expect(localStorage.getItem(TEXT_SIZE_KEY)).toBeNull();
+    expect(document.cookie).not.toContain("cs-lite-picked");
+  });
+
   it("with storage blocked, still holds the choice for this visit", () => {
     vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => { throw new Error("blocked"); });
     vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("blocked"); });
