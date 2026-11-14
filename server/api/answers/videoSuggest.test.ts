@@ -119,16 +119,22 @@ describe("withVideoAlternatives", () => {
   });
 
   it("a full list of checks never drops one still running", async () => {
-    const many = Array.from({ length: 499 }, (_, i) => `n${i} highlights`);
-    await withVideoAlternatives("6980 at east bergen with video", answer(), undefined, askOf, async () => undefined, 5000, async () => many);
-    let slowAsks = 0;
-    const ask = async (q: string) => { if (q === "b highlights") { slowAsks++; await new Promise((r) => setTimeout(r, 80)); } return askOf(q); };
+    // The running check goes in first, so it is the oldest entry a prune must skip; the fillers queue behind it.
+    let slowAsks = 0, release!: () => void;
+    const gate = new Promise<void>((r) => { release = r; });
+    const ask = async (q: string) => { if (q === "b highlights") { slowAsks++; await gate; } return askOf(q); };
     const one = (c: string) => async () => [c];
-    const first = withVideoAlternatives("6980 at east bergen with video", answer(), undefined, ask, videoOf, 1000, one("b highlights"));
+    const q = "6980 at east bergen with video";
+    const first = withVideoAlternatives(q, answer(), undefined, ask, videoOf, 5000, one("b highlights"));
     await new Promise((r) => setTimeout(r, 10));
-    await withVideoAlternatives("6980 at east bergen with video", answer(), undefined, ask, videoOf, 1000, one("x highlights"));
-    const second = withVideoAlternatives("6980 at east bergen with video", answer(), undefined, ask, videoOf, 1000, one("b highlights"));
-    await Promise.all([first, second]);
+    const fillers = Array.from({ length: 499 }, (_, i) => withVideoAlternatives(q, answer(), undefined, ask, async () => undefined, 5000, one(`n${i} highlights`)));
+    await new Promise((r) => setTimeout(r, 10));
+    // The list is full: this one's check makes room, never by dropping the running one.
+    const extra = withVideoAlternatives(q, answer(), undefined, ask, videoOf, 5000, one("x highlights"));
+    await new Promise((r) => setTimeout(r, 10));
+    const second = withVideoAlternatives(q, answer(), undefined, ask, videoOf, 5000, one("b highlights"));
+    release();
+    await Promise.all([first, second, extra, ...fillers]);
     expect(slowAsks).toBe(1);
   });
 
