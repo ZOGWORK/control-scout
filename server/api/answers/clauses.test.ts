@@ -64,5 +64,9 @@ describe("an answer about a named off-season event", () => {
     const { NAMED_OFF_SEASON } = await import("./index");
     const a = await searchAnswer("26000 vs 26001 head to head at asia pacific open championship 2025-26", { learn: false, limit: 25 });
     expect(a.stat?.definition).toContain(NAMED_OFF_SEASON);
+    // Compared side by side there, too.
+    const c = await searchAnswer("26000 vs 26001 at asia pacific open championship 2025-26", { learn: false, limit: 25 });
+    expect(c.stat?.intent).toBe("compare");
+    expect(c.stat?.definition).toContain(NAMED_OFF_SEASON);
   });
 });
