@@ -51,14 +51,15 @@ describe("clip coverage check", () => {
   it("lists a recorded event whose video isn't read yet for review, with the reason, never as covered", async () => {
     expect(await checkClipCoverage(() => {})).toBe(1);
     const o = await ownerClipCoverage();
-    expect(o.open.map((e) => [e.code, e.withClip, e.played])).toEqual([["TWODAY", 0, 3]]);
-    expect(o.open[0].missing.map((m) => m.reason)).toEqual(["video-unread", "video-unread", "video-unread"]);
+    expect(o.open).toBe(1);
+    expect(o.events.map((e) => [e.code, e.withClip, e.played])).toEqual([["TWODAY", 0, 3]]);
+    expect(o.events[0].missing.map((m) => m.reason)).toEqual(["video-unread", "video-unread", "video-unread"]);
   });
 
   it("checks again once the video's facts are read: Saturday clipped, Sunday named as unrecorded", async () => {
     await meta(`${SAT}T13:00:00Z`, `${SAT}T18:00:00Z`, 18_000);
     expect(await checkClipCoverage(() => {})).toBe(1);
-    const e = (await ownerClipCoverage()).open[0];
+    const e = (await ownerClipCoverage()).events[0];
     expect([e.withClip, e.played, e.state]).toEqual([2, 3, "partial"]);
     expect(e.missing).toEqual([expect.objectContaining({ label: "Q3", reason: "no-recording-day", why: "No recording for Sunday" })]);
     expect(e.daysMissing).toEqual([{ date: SUN, label: "Sunday", matches: 1 }]);
@@ -67,7 +68,13 @@ describe("clip coverage check", () => {
 
   it("leaves an unchanged event be, and keeps a reviewed one reviewed until its missing list changes", async () => {
     expect(await checkClipCoverage(() => {})).toBe(0);
-    expect(await markCoverageReviewed(S, "TWODAY", "owner@test")).toBe(true);
+    // Reviewed on a list the owner saw before it changed: not marked.
+    expect(await markCoverageReviewed(S, "TWODAY", "an-older-list", "owner@test")).toBe("changed");
+    const shown = (await ownerClipCoverage()).events[0].version;
+    // Any case of the code, as the route gets it.
+    expect(await markCoverageReviewed(S, "twoday", shown, "owner@test")).toBe("ok");
+    expect(await markCoverageReviewed(S, "TWODAY", shown, "owner@test")).toBe("none");
+    expect((await ownerClipCoverage({ reviewed: true })).events.map((e) => e.code)).toEqual(["TWODAY"]);
     expect(await openCoverageCount()).toBe(0);
     // Refreshed facts, same outcome: still reviewed.
     await run("UPDATE video_meta SET checked_at = ? WHERE video_id = ?", [new Date().toISOString(), VID]);
@@ -79,6 +86,26 @@ describe("clip coverage check", () => {
     await checkClipCoverage(() => {});
     expect(await openCoverageCount()).toBe(1);
     expect((await get<any>("SELECT with_clip, reviewed_at FROM clip_coverage WHERE code = 'TWODAY'"))).toEqual({ with_clip: 0, reviewed_at: null });
+  });
+
+  it("checks again when an earlier match gets its real start, the latest unchanged", async () => {
+    // Q1 posted without its start (on the minute: the schedule), then FIRST gives the real one.
+    await run("UPDATE matches SET time = ? WHERE code = 'TWODAY' AND number = 1", [`${SAT}T14:00:00`]);
+    expect(await checkClipCoverage(() => {})).toBe(1);
+    expect(JSON.parse(String((await get<any>("SELECT detail FROM clip_coverage WHERE code = 'TWODAY'")).detail)).missing[0]).toMatchObject({ label: "Q1", reason: "no-start" });
+    await run("UPDATE matches SET time = ? WHERE code = 'TWODAY' AND number = 1", [`${SAT}T14:00:00.5`]);
+    expect(await checkClipCoverage(() => {})).toBe(1);
+    expect(JSON.parse(String((await get<any>("SELECT detail FROM clip_coverage WHERE code = 'TWODAY'")).detail)).missing[0]).toMatchObject({ label: "Q1", reason: "gap-unplaced" });
+  });
+
+  it("pages the owner's list, every event reachable", async () => {
+    for (let i = 0; i < 3; i++) {
+      await run("INSERT INTO clip_coverage (season, code, fingerprint, checked_at, state, played, with_clip, missing_key, detail) VALUES (?, ?, 'x', ?, 'unplaced', 2, 0, 'k', '{}')", [S, `PAGE${i}`, `2026-11-0${i + 1}T00:00:00Z`]);
+    }
+    const one = await ownerClipCoverage({ limit: 2 }), two = await ownerClipCoverage({ limit: 2, offset: 2 });
+    expect(one.open).toBe(4);
+    expect([...one.events, ...two.events].map((e) => e.code).sort()).toEqual(["PAGE0", "PAGE1", "PAGE2", "TWODAY"]);
+    await run("DELETE FROM clip_coverage WHERE code LIKE 'PAGE%'");
   });
 
   it("the event page's endpoint names each day and each missing match in plain words", async () => {
