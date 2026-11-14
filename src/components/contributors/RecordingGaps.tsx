@@ -11,11 +11,14 @@ import { cn } from "../cn";
 
 export const coveragePath = (season: number, code: string) => `/api/events/${season}/${encodeURIComponent(code)}/coverage`;
 
+/** `recorded`: the event has a recording linked, playable or not (a private one still says why). */
 export function RecordingGaps({ season, code, recorded, matches }: { season: number; code: string; recorded: boolean; matches: MatchView[] }) {
   const byKey = useContributorVideos();
-  // Asked only when a played match has neither a clip nor FIRST's video.
-  const gap = recorded && matches.some((m) => m.played && !m.clip && !m.video);
-  const s = useApi<ClipCoverage>(gap ? coveragePath(season, code) : null);
+  // Asked only when a played match has neither a clip nor FIRST's video; asked again when the matches move (a live
+  // event's new results, Refresh results, a clip placed): the path carries what the page has.
+  const played = matches.filter((m) => m.played);
+  const gap = recorded && played.some((m) => !m.clip && !m.video);
+  const s = useApi<ClipCoverage>(gap ? `${coveragePath(season, code)}?m=${played.length}-${played.filter((m) => m.clip || m.video).length}` : null);
   // A match someone added a video for has one: not missing here.
   const missing = useMemo(() => (s.data?.matches ?? []).filter((m) => !m.clip && !byKey[m.key]), [s.data, byKey]);
   const c = s.data;
