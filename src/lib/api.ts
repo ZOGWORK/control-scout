@@ -288,7 +288,14 @@ export async function apiFetch<T>(path: string, init?: RequestInit & { json?: un
   // whole app stuck on saved data. Always ask: with truly no signal the request fails at once anyway, and
   // that failure falls back to saved data the same way.
   const kind = _online ? null : offlineKind(path, rest.method);
-  const ctrl = kind ? new AbortController() : null;
+  const get = (rest.method ?? "GET").toUpperCase() === "GET";
+  // A read still waiting when the connection check finds no internet (a Wi-Fi that carries nothing never errors) is
+  // let go, and answered the offline way at once (answerOffline) instead of waiting for the browser to give up.
+  const ctrl = kind || (get && !_online) ? new AbortController() : null;
+  let flipped = false;
+  const stopWatching = ctrl && !_online && get
+    ? onInternetChange((now) => { if (now === "no" || now === "portal") { flipped = true; ctrl.abort(); } })
+    : () => {};
   const outer = rest.signal;
   const forward = () => ctrl?.abort();
   if (ctrl && outer) { if (outer.aborted) ctrl.abort(); else outer.addEventListener("abort", forward, { once: true }); }
@@ -314,6 +321,8 @@ export async function apiFetch<T>(path: string, init?: RequestInit & { json?: un
     lastAnswerAt = Date.now();
     answeredSinceFail = true;
   } catch (e) {
+    // Let go because the connection check found no internet: the offline answer, now.
+    if (flipped && !outer?.aborted) { stopWatching(); watch.failed(); return answerOffline<T>(path, init); }
     // The page's first search ran out its first try while the server answered other requests: one more try.
     if (e instanceof ApiError && e.code === SEARCH_RETRY) return searchOnline<T>(path, init, 1, true);
     if (e instanceof ApiError) throw e;
@@ -327,6 +336,7 @@ export async function apiFetch<T>(path: string, init?: RequestInit & { json?: un
   } finally {
     // Answered from saved data, or failed: settled. A server answer settles once its body is in (below).
     if (!answered) watch.done();
+    stopWatching();
     outer?.removeEventListener("abort", forward);
   }
   // Server still starting (it opens its port before its data is ready): wait

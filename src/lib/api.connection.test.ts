@@ -86,6 +86,23 @@ describe("known offline: no network try, no wait", () => {
   });
 });
 
+describe("a Wi-Fi that carries nothing", () => {
+  it("a read still waiting when the check finds no internet is let go and answered the offline way at once", async () => {
+    writeSaved([saved]);
+    const hang = (_p: string, init?: RequestInit) => new Promise<Response>((_r, rej) => {
+      init?.signal?.addEventListener("abort", () => rej(new DOMException("aborted", "AbortError")));
+    });
+    vi.stubGlobal("fetch", vi.fn(hang));
+    const records = apiFetch("/api/records");
+    const team = apiFetch("/api/teams/7?season=2025");
+    // The check: the health request errors (the Wi-Fi drops it), so there's no internet.
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("Failed to fetch"); }));
+    await checkInternet();
+    await expect(records).rejects.toMatchObject({ offline: true, message: "You're offline." });
+    expect(offlineSource(await team)).toEqual(src);
+  });
+});
+
 describe("a Wi-Fi sign-in page", () => {
   it("a web page where our JSON should be is no signal: saved data answers, and the check runs", async () => {
     writeSaved([saved]);
