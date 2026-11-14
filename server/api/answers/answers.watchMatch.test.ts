@@ -154,6 +154,9 @@ describe("a match number beside other words", () => {
   it("a bare year at Worlds is the championship held that year", async () => {
     const { a } = await ask("11148 M2 at worlds 2026");
     expect(a.stat?.headline?.href).toBe(edisonM2);
+    // A number with no match there says that match is missing, never that nothing was played.
+    const missing = await ask("m30 at worlds 2025-26");
+    expect(missing.a.stat?.none).toBe("No M30 played at worlds in 2025–26 yet.");
     // No team said: the same championship.
     const bare = await ask("m2 at worlds 2026");
     expect(bare.a.stat?.headline?.href).toBe(edisonM2);
