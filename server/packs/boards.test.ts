@@ -304,9 +304,10 @@ describe("building a season pack", () => {
     await kvSet("data:version", V0); await kvSet("data:settled", V0);
     settleWait.ms = 10_000; settleWait.pollMs = 50;
     let reads = 0;
+    let span: Promise<unknown> | null = null;
     // The live lane's fetch starts during the first build's reads and is still writing when they end; version untouched.
     setBoardReads([async (s) => [{ path: `/api/records/${s}/high-score`, read: async () => {
-      if (++reads === 1) void writing(() => new Promise((r) => setTimeout(r, 300)));
+      if (++reads === 1) span = writing(() => new Promise((r) => setTimeout(r, 300)));
       return { line: null };
     } }]]);
     const d = mkdtempSync(join(tmpdir(), "cs-boards-w-"));
@@ -314,6 +315,7 @@ describe("building a season pack", () => {
     const f = await buildFull(S, "2026-11-14.15", d, (m) => logs.push(m));
     expect(reads).toBe(2);
     expect(logs.some((m) => m.includes("building again"))).toBe(true);
+    await span; // the write's own timer, never raced
     expect(writeState().inFlight).toBe(0);
     expect(readdirSync(d)).toEqual([f!.name]);
   }, 120_000);
