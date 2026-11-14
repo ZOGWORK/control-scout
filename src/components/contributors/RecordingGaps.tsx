@@ -9,6 +9,13 @@ import { useApi } from "../../lib/api";
 import { useContributorVideos } from "./EventClips";
 import { cn } from "../cn";
 
+/** Which played matches have no video, as a short hash: any change to that set (not only to how many) asks again. */
+export function missingSignature(played: Pick<MatchView, "key" | "clip" | "video">[]): string {
+  let h = 5381;
+  for (const m of played) if (!m.clip && !m.video) for (const ch of `${m.key};`) h = ((h * 33) ^ ch.charCodeAt(0)) >>> 0;
+  return `${played.length}-${h.toString(36)}`;
+}
+
 export const coveragePath = (season: number, code: string) => `/api/events/${season}/${encodeURIComponent(code)}/coverage`;
 
 /** `recorded`: the event has a recording linked, playable or not (a private one still says why). */
@@ -18,7 +25,7 @@ export function RecordingGaps({ season, code, recorded, matches }: { season: num
   // event's new results, Refresh results, a clip placed): the path carries what the page has.
   const played = matches.filter((m) => m.played);
   const gap = recorded && played.some((m) => !m.clip && !m.video);
-  const s = useApi<ClipCoverage>(gap ? `${coveragePath(season, code)}?m=${played.length}-${played.filter((m) => m.clip || m.video).length}` : null);
+  const s = useApi<ClipCoverage>(gap ? `${coveragePath(season, code)}?m=${missingSignature(played)}` : null);
   // A match someone added a video for has one: not missing here.
   const missing = useMemo(() => (s.data?.matches ?? []).filter((m) => !m.clip && !byKey[m.key]), [s.data, byKey]);
   const c = s.data;
