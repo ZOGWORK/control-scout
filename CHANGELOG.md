@@ -22,7 +22,7 @@ Oklahoma and Louisiana events now play their recordings: eastern Oklahoma's DaVi
 ### Highlights
 - [history] Oklahoma league meets and the state championship play their video
 - [history] Louisiana qualifiers and championships play their recordings
-- [live] New Oklahoma and Louisiana streams are picked up as they air
+- [live] Tulsa Robotics Center's new streams are added once they air
 
 ### Added
 - Official videos: Tulsa Robotics Center (`UC6y0o2J7b05YIL7w95cwg0w`) and FTC Louisiana (`UCQYT4ZXN54khn_n7ebsRRtQ`), both read from the YouTube Data API's uploads lists, join the official channels and the auto-watcher's list, with SeaCow Robotics (`UClcqdD9sHnwtN7FCW6Vj1Ug`, its Mountain Home, Benton and Bentonville qualifiers) and Shiloh Saints (`UCvA42eBzkRpd-x23-AvOnvw`, the Arkansas Championship only), whose streams FIRST's channel links already play. 27 recordings are checked against each event's name, city, date, league and meet number: 14 from Tulsa Robotics Center (2024 to 2026) and 13 from FTC Louisiana (2022 to 2025, each on the day its matches were played). Videos that can't be embedded, the 2026-10-24 Herrington Meet 1 (blocked in the US), one stream for two meets and a meet whose date isn't the event's are left out. (`server/data/officialVideos.json`, `server/data/officialChannels.ts`, `docs/official-videos.md`)
