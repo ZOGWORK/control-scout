@@ -14,6 +14,7 @@ import { ago } from "../../lib/format";
 import { watchUrl } from "../../shared/recording";
 import { labelRanges, missingGroups } from "../../shared/coverage";
 import type { OwnerClipCoverage, OwnerCoverageEvent } from "../../shared/api";
+import { chipTone } from "../contributors/RecordingGaps";
 import { cn } from "../cn";
 
 const PATH = "/api/owner/clip-coverage";
@@ -96,12 +97,12 @@ function EventGaps({ e, onDone }: { e: OwnerCoverageEvent; onDone: () => void })
       </div>
       <ul className="mt-2 flex flex-wrap gap-1.5">
         {e.videos.map((v) => {
-          const full = v.matches > 0 && v.clipped >= v.matches;
+          const tone = chipTone(v);
           return (
             <li key={v.videoId}>
               <a href={watchUrl(v.videoId)} target="_blank" rel="noreferrer noopener" title={v.why ?? v.basis}
-                className={cn("inline-flex min-h-7 items-center gap-1 rounded-full border px-2.5 text-xs hover:underline", full ? "border-line" : "border-warning/50 bg-warning/[0.07]")}>
-                {full ? <Check className="size-3.5 text-success" aria-hidden /> : <TriangleAlert className="size-3.5 text-warning" aria-hidden />}
+                className={cn("inline-flex min-h-7 items-center gap-1 rounded-full border px-2.5 text-xs hover:underline", tone === "short" ? "border-warning/50 bg-warning/[0.07]" : "border-line")}>
+                {tone === "done" ? <Check className="size-3.5 text-success" aria-hidden /> : tone === "short" ? <TriangleAlert className="size-3.5 text-warning" aria-hidden /> : null}
                 {v.label} <span className="tabular-nums">{v.clipped}/{v.matches}</span> <code className="text-[11px] text-muted-foreground">{v.videoId}</code><ExternalLink className="size-3" aria-hidden />
               </a>
             </li>
