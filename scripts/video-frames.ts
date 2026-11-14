@@ -56,9 +56,25 @@ type Read = { label: string | null; start: number | null; at: number; text: stri
 
 // --- Reading a frame -----------------------------------------------------------------------------------------------
 
-const worker = await createWorker("eng");
-const digits = await createWorker("eng");
-await digits.setParameters({ tessedit_char_whitelist: "0123456789:", tessedit_pageseg_mode: "7" });
+// Two OCR workers shared by every lane (a tesseract.js worker does one job at a time). One that hangs is replaced, or
+// every later read would queue behind its stuck job and time out too.
+const ocr = async () => {
+  const w = await createWorker("eng"), d = await createWorker("eng");
+  await d.setParameters({ tessedit_char_whitelist: "0123456789:", tessedit_pageseg_mode: "7" });
+  return [w, d] as const;
+};
+let [worker, digits] = await ocr();
+let renewing: Promise<void> | null = null;
+function renewOcr(): Promise<void> {
+  renewing ??= (async () => {
+    const old = [worker, digits];
+    [worker, digits] = await ocr();
+    await Promise.all(old.map((w) => w.terminate().catch(() => {})));
+    console.error("a frame read hung: the OCR workers were replaced");
+  })().finally(() => { renewing = null; });
+  return renewing;
+}
+let failedVideos = 0;
 
 /** The timer's places: FTC Live's bar along the bottom, or its box over the field under a bar across the top (FTC
  *  Ontario's layout) ("bottom"); or a bar along the top (FIRST Texas's layout, "top"). Each counts a 0:30 Auto, then a
@@ -100,7 +116,7 @@ function readAt(page: Page, t: number): Promise<Read> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   return Promise.race([
     readAtOnce(page, t).finally(() => clearTimeout(timer)),
-    new Promise<never>((_, no) => { timer = setTimeout(() => no(new Error(`a frame read at ${Math.round(t)} s hung over ${READ_LIMIT_S} s`)), READ_LIMIT_S * 1000); }),
+    new Promise<never>((_, no) => { timer = setTimeout(() => { void renewOcr(); no(new Error(`a frame read at ${Math.round(t)} s hung over ${READ_LIMIT_S} s`)); }, READ_LIMIT_S * 1000); }),
   ]);
 }
 
@@ -426,6 +442,7 @@ async function doCode(code: string): Promise<void> {
     } catch (e) {
       const why = (e as Error).message.split("\n")[0];
       log(`    couldn't play: ${why}`);
+      failedVideos++;
       // Its matches get the reason; a row from an earlier read that worked is kept as it was.
       const key = `${v.videoId}|${code}`;
       if (!CHECK && !Object.keys(kept.get(key)?.starts ?? {}).length) {
@@ -447,8 +464,11 @@ const queue = [...codes];
 const lane = async () => { while (queue.length && done < limit) await doCode(queue.shift()!); };
 await Promise.all(Array.from({ length: count("lanes", 3) }, lane));
 await browser.close();
+await renewing;
 await worker.terminate();
 await digits.terminate();
+// Videos that couldn't be played are written as such and read again on the next run, but this run didn't finish them.
+if (failedVideos) { console.error(`${failedVideos} videos couldn't be played (written with the reason; the next run reads them again)`); process.exitCode = 1; }
 if (!CHECK && !DRY) {
   // The last save may have failed with no save after it: the run then says so and fails.
   if (unsaved) save();
