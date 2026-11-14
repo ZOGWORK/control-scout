@@ -86,5 +86,12 @@ export const OFFICIAL_CHANNELS: OfficialChannelSeed[] = [
   // Town of Penfield Television (@PenfieldTV): a town channel that broadcasts NY Excelsior qualifiers with Penfield
   // Robotics. Upstate Excelsior events only; its uploads carry no broadcast date, so the watcher sends them to review.
   { channelId: "UCLctix0o61bACiWd6Oa-S5Q", title: "Town of Penfield Television (NY Excelsior)", region: "state=NY;name=Excelsior|Finger Lakes|Penfield|Corning|Peekskill|Clarkson|Albany|Buffalo|Utica|Syracuse|Ravena|Broadalbin|John Jay", words: "york excelsior penfield" },
+  // The owner's audited channels (2026-11-14), ids from the YouTube Data API (channels?forHandle). NorCal FIRST Tech
+  // Challenge (@norcalfirsttechchallenge, Playing at Learning): Northern California's own events, all named "NorCal …"
+  // from 2026-27. FTC SoCal League G (@ftc_socal_league_g): League G's meets in Carson, and no other SoCal league's.
+  // A title auto-adds only when its meet number fits an event named "Meet N" (2024's names); with Scout's "Scrimmage N"
+  // names (2025 on) "Meet 1" is no evidence, so each such video goes to the owner's review with its closest event.
+  { channelId: "UCsWixqR83vr2poZHfU_FgcQ", title: "NorCal FIRST Tech Challenge", region: "state=CA;name=^NorCal\\b", words: "norcal california" },
+  { channelId: "UCJAVhMsmeKHf7riEsPafi9w", title: "FTC SoCal League G", region: "state=CA;name=^SoCal(?: FTC)?(?: -| League| Group)? G\\b", words: "socal california" },
   { channelId: "UCal7624DPridi_9iKLrAbqw", title: "FIRST Australia", region: "country=Australia", words: "australia australian", titlePattern: "australian? (national )?championship|\\bAPOC\\b|asia pacific open" },
 ];

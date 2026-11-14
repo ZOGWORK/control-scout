@@ -13,14 +13,18 @@ A channel is official for an event when it is one of:
   North Dakota's "Dakota FTC", …). FIRST Nevada posts each meet as an upload a few days later, its title starting
   with the meet's date ("2026-01-10 FTC League Meet # 4S - Southern Nevada"): the checked list takes that date as the
   day, and the watcher, which needs a broadcast date, sends such uploads to the owner,
-- the event's own organiser or league (NTX FTC for FiT-North, GEARS for the Michiana Premier Event, …),
+- the event's own organiser or league (NTX FTC for FiT-North, GEARS for the Michiana Premier Event, NorCal FIRST
+  Tech Challenge for Northern California's events (watched for those named "NorCal …", as every one is from 2026-27;
+  older ones were checked by hand), …),
 - the event's own streamer: the channel that carries the event's broadcast with FIRST's official overlay (match
   label, teams, scores and rankings on screen). Westwood Robotics (FRC 2583, Austin) streams FiT-Central's GEMS
   league (Diamond and Emerald) and its Austin events. Its overlays-only test stream and the 2023 "Round Rock Gems"
   titles (the events are listed in Austin) are left out,
 - the event's own streamer, where FIRST's event pages or the host name it: Stars of the Galaxy (FTC 12099) for the
   Central Ohio league in Columbus, and the FIRST Alumni Network Grand Valley for the West Michigan league at GVSU in
-  Grand Rapids (watched for those events only; FANGV's Robot in 3 Days streams are FRC and never used),
+  Grand Rapids (watched for those events only; FANGV's Robot in 3 Days streams are FRC and never used), FTC SoCal
+  League G for League G's meets in Carson, and 7419 Tech Support, which streamed NorCal East Bay Meet 1 of 2026 from
+  its own school (linked once, not watched),
 - the region's delivery partner or its event streamer in Rhode Island (Rhode Island FTC), Ontario (FTC Ontario),
   Long Island (FIRST Long Island) and New York City (NYC FIRST, the channel FIRST's 2021-22 NYC pages link, under its
   current handle). Town of Penfield Television is watched for upstate NY Excelsior events only: its videos are
@@ -72,10 +76,11 @@ exceptions rules 2 and 7 name for the checked list only, and the auto-watcher us
    eliminations, "Matches 1–5" and "Matches 6–14"). The one exception, in the checked list only (the watcher never
    does it): a broadcast restarted on the same channel that day, with identical titles, where the second broadcast
    starts after the first one ends. Both are kept as Part 1 and Part 2 in broadcast order (NYC FIRST's 2025-26
-   Qualifiers 6 and 11 and Super Qualifier 2, its 2024-25 Super Qualifier 1 and its 2023-24 Qualifier 3). Titles that
-   differ count only when both name the same event and the second starts at most 30 minutes after the first ends
-   (Montana's 2023 State, "MT FTC Championship 2023" to 23:13:53Z, then "MT FTC State 2023" from 23:15:48Z). A second
-   broadcast that overlaps the first, or one the event's FIRST link already plays, is still left out.
+   Qualifiers 6 and 11 and Super Qualifier 2, its 2024-25 Super Qualifier 1 and its 2023-24 Qualifier 3; NorCal's
+   2021-22 Santa Clara QT; 7419's East Bay Meet 1 of 2026). Titles that differ count only when both name the same
+   event and the second starts at most 30 minutes after the first ends (Montana's 2023 State, "MT FTC Championship
+   2023" to 23:13:53Z, then "MT FTC State 2023" from 23:15:48Z). A second broadcast that overlaps the first, or one
+   the event's FIRST link already plays, is still left out.
 
 Per-match clips are never mapped from a title outside FIRST's own per-match videos (the Championship's are already
 FIRST's match videos, `matches.video`). A recording never hides FIRST's per-match video or a verified contributor's
