@@ -20,6 +20,7 @@ import { isTeamNumber, placeholderNameSql, teamPageSql } from "../../src/shared/
 import { HEAT_MIN, heatable, heatBand, TONE_HEX, toneOf, type Tone } from "../../src/shared/statTones.js";
 import { excelDate, Gone, Styles, writeWorkbook, ZipStream, type Cell, type CellStyle } from "../xlsx.js";
 import { isEventCodeParam } from "../../src/shared/eventCode.js";
+import { unofficialLine } from "../data/unofficialRecords.js";
 
 
 /** A request the client got wrong (→ 400). */
@@ -383,11 +384,14 @@ function rowsOf(scope: RecordScope, raw: any[], fields: string[], tiers: Map<str
   return raw.map((r): MatchRecordRow => {
     const red = teamsOf(r._red), blue = teamsOf(r._blue);
     const unlinked = noPage?.size ? [...red, ...blue].filter((t) => noPage.has(t)) : [];
+    // A score that isn't an official record (the owner's list) is marked wherever it's listed by score.
+    const unofficial = unofficialLine({ season: Number(r._season), code: r._eventCode, level: r._level, series: Number(r._series), number: Number(r._number) });
     return {
     season: Number(r._season), eventCode: r._eventCode, eventName: r._eventName, eventType: r._eventType ?? null, eventStart: r._eventStart ?? null,
     key: `${r._level}:${r._series}:${r._number}`, level: r._level, label: r._label, time: r._time ?? null, red, blue, stats: statsOf(r, fields),
     ...(tiers && { predictionTier: tiers.get(matchKeyOf(r)) ?? null }),
     ...(unlinked.length && { noPage: unlinked }),
+    ...(unofficial ? { unofficial } : {}),
     };
   });
 }

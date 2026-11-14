@@ -96,9 +96,10 @@ export function runCycleInChild(timeoutMs = 2 * 3600_000): Promise<void> {
   return runScriptInChild(SCRIPT, "data cycle", timeoutMs);
 }
 
-/** Build the offline packs in a child Node process (the owner portal's "Rebuild offline packs" where the cycle runs in one). */
-export function runPacksInChild(timeoutMs = 3600_000): Promise<void> {
-  return runScriptInChild(PACKS_SCRIPT, "pack build", timeoutMs);
+/** Build the offline packs in a child Node process (the owner portal's "Rebuild offline packs" where the cycle runs in one).
+ *  `lockHeld`: the caller holds the data lock for the whole build; the child is told (--lock-held) so it doesn't take it. */
+export function runPacksInChild(timeoutMs = 3600_000, o: { lockHeld?: boolean } = {}): Promise<void> {
+  return runScriptInChild(PACKS_SCRIPT, "pack build", timeoutMs, process.execArgv, o.lockHeld ? ["--lock-held"] : []);
 }
 
 /**
@@ -111,9 +112,9 @@ export function childArgs(execArgv: readonly string[], script: string): string[]
 }
 
 /** Run a TypeScript script in a child Node process from the app's folder (exported for its test). */
-export function runScriptInChild(script: string, what: string, timeoutMs: number, execArgv: readonly string[] = process.execArgv): Promise<void> {
+export function runScriptInChild(script: string, what: string, timeoutMs: number, execArgv: readonly string[] = process.execArgv, args: readonly string[] = []): Promise<void> {
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, childArgs(execArgv, script), { cwd: APP_ROOT, env: process.env, stdio: ["ignore", "inherit", "inherit"] });
+    const child = spawn(process.execPath, [...childArgs(execArgv, script), ...args], { cwd: APP_ROOT, env: process.env, stdio: ["ignore", "inherit", "inherit"] });
     const timer = setTimeout(() => child.kill("SIGKILL"), timeoutMs);
     child.once("error", (e) => { clearTimeout(timer); reject(e); });
     child.once("exit", (code, signal) => {

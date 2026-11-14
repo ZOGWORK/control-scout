@@ -29,6 +29,7 @@ import { cachedEventDetail, eventDetail } from "../api/events.js";
 import { gatedEventDetail } from "../api/eventGates.js";
 import { matchReport } from "../api/matchReport.js";
 import { pickRatings } from "../api/pickRatings.js";
+import { leagueStandings } from "../api/leagues.js";
 import { resultChanges } from "../api/resultChanges.js";
 import { readProjections } from "../projections/store.js";
 import { hasTeamPage } from "../../src/shared/teamPages.js";
@@ -82,6 +83,9 @@ export const PACK_READS: Reads[] = [
   // lib/offline/search.ts puts a request for several together, in the order asked).
   (c) => packSearchQueries(c).map((q) => ({ path: searchPackPath(q), read: () => packSearchAnswer(q) })),
   (c) => summarySeasons(c.season).flatMap((s) => c.teams.map((t) => ({ path: `/api/teams-summary?season=${s}&teams=${t}`, read: async () => ({ season: s, teams: await teamSummaries([t], s) }) }))),
+  // A league meet or tournament: its league's standings (the event page links to them).
+  (c) => (c.ev.event.league && c.ev.event.region
+    ? [{ path: `/api/leagues/${c.season}/${c.ev.event.region}/${c.ev.event.league}`, read: () => leagueStandings(c.season, c.ev.event.region!, c.ev.event.league!) }] : []),
   // Result changes: the event page's section and each match's (server/app.ts's two result-changes routes).
   (c) => [
     { path: `${ev(c)}/result-changes`, read: () => resultChanges(c.season, c.code), notFound: `No event ${c.code} in ${c.season}` },

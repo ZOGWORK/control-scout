@@ -31,6 +31,7 @@ import { SEARCH_INDEX_SCHEMA } from "../api/search.js";
 import { eventInitialisms } from "../api/query/initialisms.js";
 import { joinDotted } from "../api/query/names.js";
 import { place } from "../../src/shared/format.js";
+import { writing } from "../data/writeGen.js";
 
 type Log = (m: string) => void;
 const r1 = (x: number | null | undefined) => (x == null || !Number.isFinite(x) ? null : Math.round(x * 100) / 100);
@@ -493,46 +494,49 @@ export async function runStats(o: StatsOptions = {}): Promise<void> {
   await partnershipPrefix(PREDICT_SEASONS.filter((s) => s >= CURRENT_SEASON - 2)[0] ?? CURRENT_SEASON, { wait: true }).catch((e) => log(`pair history failed: ${(e as Error).message}`));
   // New data → new version: forecasters rebuild (they're keyed by it). No reset: pages keep the
   // last finished ratings until the new ones are built, and frozen seasons stay read (engine.ts).
-  await kvSet("data:version", new Date().toISOString());
   const seasons = o.seasons ?? SEASON_NUMBERS;
-  const withData: number[] = [];
-  for (const s of seasons) {
-    const events = await loadSeason(s);
-    if (!events.length) { log(`${s}: no data`); continue; }
-    await computeSeasonStats(s, events, log);
-    await computeRecords(s, events, log);
-    // After the event OPRs (just written); reads the report cards as the last run left them.
-    await computeReliability(s, events, log);
-    withData.push(s);
-  }
-  // Every season when the ledger is empty or holds another engine version's calls.
-  const doBacktest = o.backtest ?? (!(await get("SELECT 1 FROM predictions WHERE kind = 'backtest' LIMIT 1"))
-    || !!(await get("SELECT 1 FROM predictions WHERE kind = 'backtest' AND engine_version <> ? LIMIT 1", [ENGINE_VERSION])));
-  // Every season once; after that the current season on every run, so matches played since get their replayed call.
-  if (doBacktest) await backtest(PREDICT_SEASONS, log);
-  else if (seasons.includes(CURRENT_SEASON)) await backtest(PREDICT_SEASONS, log, { write: [CURRENT_SEASON] });
-  // Records' exclusives need the ledger (above) and the ratings: 2023+ only (older seasons are history).
-  for (const s of withData) {
-    if (isLegacy(s)) continue;
-    await fillRecordPredictions(s, log);
-    await fillAdvancementOdds(s, log);
-    await fillScheduleDifficulty(s, log);
-  }
-  await scoreLivePredictions(log);
-  // Report cards read the scored live calls: right after they're scored. Every season whose scored live
-  // calls changed since its cards were built, not just the seasons this run covered.
-  await refreshReportCards(log);
-  await logLivePredictions(log);
-  // Today's coin flips on the home page, from the schedules and calls just written (never fails the stats).
-  await (await import("../api/coinFlips.js")).refreshCoinFlips(log);
-  // Weekly world-rankings snapshots (/rankings movement): any Monday not written yet. A failure here
-  // never fails the stats; the next run writes the week.
-  await snapshotRankings({ log }).catch((e) => log(`rankings snapshots failed: ${(e as Error).message}`));
-  await rebuildSearch(log);
-  await kvSet("stats:last", { at: new Date().toISOString(), seasons, engine: ENGINE_VERSION });
-  // Every table this run writes is written: caches built in between (under the new data version, from
-  // half-written stats) are keyed by this too, so they're built again (server/api/events.ts cachedEventDetail).
-  await kvSet("data:settled", new Date().toISOString());
+  // One write span from the version move to settled (data/writeGen.ts): season packs read without the lock.
+  await writing(async () => {
+    await kvSet("data:version", new Date().toISOString());
+    const withData: number[] = [];
+    for (const s of seasons) {
+      const events = await loadSeason(s);
+      if (!events.length) { log(`${s}: no data`); continue; }
+      await computeSeasonStats(s, events, log);
+      await computeRecords(s, events, log);
+      // After the event OPRs (just written); reads the report cards as the last run left them.
+      await computeReliability(s, events, log);
+      withData.push(s);
+    }
+    // Every season when the ledger is empty or holds another engine version's calls.
+    const doBacktest = o.backtest ?? (!(await get("SELECT 1 FROM predictions WHERE kind = 'backtest' LIMIT 1"))
+      || !!(await get("SELECT 1 FROM predictions WHERE kind = 'backtest' AND engine_version <> ? LIMIT 1", [ENGINE_VERSION])));
+    // Every season once; after that the current season on every run, so matches played since get their replayed call.
+    if (doBacktest) await backtest(PREDICT_SEASONS, log);
+    else if (seasons.includes(CURRENT_SEASON)) await backtest(PREDICT_SEASONS, log, { write: [CURRENT_SEASON] });
+    // Records' exclusives need the ledger (above) and the ratings: 2023+ only (older seasons are history).
+    for (const s of withData) {
+      if (isLegacy(s)) continue;
+      await fillRecordPredictions(s, log);
+      await fillAdvancementOdds(s, log);
+      await fillScheduleDifficulty(s, log);
+    }
+    await scoreLivePredictions(log);
+    // Report cards read the scored live calls: right after they're scored. Every season whose scored live
+    // calls changed since its cards were built, not just the seasons this run covered.
+    await refreshReportCards(log);
+    await logLivePredictions(log);
+    // Today's coin flips on the home page, from the schedules and calls just written (never fails the stats).
+    await (await import("../api/coinFlips.js")).refreshCoinFlips(log);
+    // Weekly world-rankings snapshots (/rankings movement): any Monday not written yet. A failure here
+    // never fails the stats; the next run writes the week.
+    await snapshotRankings({ log }).catch((e) => log(`rankings snapshots failed: ${(e as Error).message}`));
+    await rebuildSearch(log);
+    await kvSet("stats:last", { at: new Date().toISOString(), seasons, engine: ENGINE_VERSION });
+    // Every table this run writes is written: caches built in between (under the new data version, from
+    // half-written stats) are keyed by this too, so they're built again (server/api/events.ts cachedEventDetail).
+    await kvSet("data:settled", new Date().toISOString());
+  });
   if (seasons.length === SEASON_NUMBERS.length) { await kvSet("stats:rules", STATS_RULES); await kvSet("stats:engine", ENGINE_VERSION); }
   const prev = await kvGet<string>("data:version");
   log(`stats done (data version ${prev})`);
