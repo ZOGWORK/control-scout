@@ -113,9 +113,9 @@ export type WatchVerdict = Verdict | { kind: "duplicate"; why: string; event?: P
 export interface RecordingAdded { season: number; code: string; day: string | null; part: string | null; videoId: string; by: "watcher" | "owner" }
 type AfterAdd = (added: RecordingAdded[]) => unknown;
 const afterAdd = new Set<AfterAdd>();
-/** The hook for what must follow a new recording: the event's clip coverage is checked again (every played match of
- * that day gets a clip or lands on the missing list for the owner). Called once per watcher run with everything it
- * added, and once per owner approval; a failing listener is logged, never undoes the add. Returns the unsubscribe. */
+/** A hook for what must follow a new recording. Nothing registers on it today: clip coverage is checked by the
+ * 5-minute recordings pass once the video's facts are read. Called once per watcher run with everything it added,
+ * and once per owner approval; a failing listener is logged, never undoes the add. Returns the unsubscribe. */
 export function onRecordingAdded(fn: AfterAdd): () => void {
   afterAdd.add(fn);
   return () => { afterAdd.delete(fn); };
@@ -127,13 +127,17 @@ async function recordingsAdded(added: RecordingAdded[], log: (s: string) => void
   }
 }
 
-/** An "add" checked against what the event already plays: a day it has a video for is a duplicate; one whose day
- *  isn't known yet sends it to review. */
+/** An "add" checked against what the event already plays: the same video or day and part is a duplicate; another
+ *  video of a day it already plays, unless both name their parts, or one whose day isn't known yet, sends it to review. */
 async function settle(v: Verdict & { kind: "add" }): Promise<WatchVerdict> {
   const has = await eventVideosByDay(v.event.season, v.event.code);
   const at = { event: v.event, day: v.day, part: v.part };
   const same = has.find((h) => h.day === v.day && (h.part ?? null) === (v.part ?? null));
   if (same) return { kind: "duplicate", why: `duplicate: ${v.event.code} already plays ${same.videoId} for ${v.day}${v.part ? ` (${v.part})` : ""}`, ...at };
+  // A second video of a day the event already plays is kept only when both name their parts ("Matches" and
+  // "Awards"): a full day's stream beside that day's "matches only" one would play the same matches twice.
+  const sameDay = has.find((h) => h.day === v.day && (v.part == null || h.part == null));
+  if (sameDay) return { kind: "review", why: `${v.event.code} already plays ${sameDay.videoId} for ${v.day}${sameDay.part ? ` (${sameDay.part})` : ""}: a second video of that day must name its part`, ...at };
   const unknown = has.find((h) => !h.timed);
   if (unknown) return { kind: "review", why: `${v.event.code} plays ${unknown.videoId}, whose day isn't known yet`, ...at };
   return v;

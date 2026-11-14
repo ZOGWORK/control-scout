@@ -27,6 +27,31 @@ A recorded event with a day that has no recording now always reads "Partially re
 ### Fixed
 - Event page coverage line: an event whose coverage check finds a day with no recording (FPEWESEA 2025: Friday and Sunday) said "Full recording only — no match clips in it yet"; it now says "Partially recorded — 0 of 124 matches have video". A recording with no clip placed reads "Recording only — no match clips in it yet", never "Full". The line and the day chips read the same coverage request. While the check is out, a line with no clip waits instead of saying "Recording only" first; a recording that won't play keeps saying so. (`src/components/contributors/RecordingGaps.tsx`, `src/shared/contributors.ts`) (#1500)
 
+## 6.3.6 — 2026-11-14
+
+A search asking for video with nothing to play now always gets its questions with video, and none of them reads like a typo.
+
+### Highlights
+- [fixes] The first video search after a quiet spell still offers questions
+- [fixes] Questions with video never show an event name that reads like a typo
+- [fixes] A misspelled name is skipped and the next question takes its place
+
+### Fixed
+- Search: a watch search whose answer plays nothing waited 2.5 s for its "Questions with video", and the first one after the checks expired could find none in time, so it offered nothing. With none found by then it now waits up to 2 s more and answers as soon as one is found. (`server/api/answers/videoSuggest.ts`)
+- Search: "Questions with video" offered an event under its stored name even when that name has a typo. An event's name now reads as one only when a word no other event has is a letter dropped, doubled or swapped inside a word at least three other events spell in full; rare and accented names stay. The set is built per search index version at start and after a rebuild, never on a search. A skipped event is made up by the next one, the latest seasons' best known events top up to three, and a general question with video stands in when no event's is left. (`server/api/answers/nameTypos.ts`, `server/api/answers/videoSuggest.ts`, `server/index.ts`) (#1499)
+
+## 6.3.5 — 2026-11-14
+
+The official-video watcher no longer adds a second stream to a day that already has one, and sets aside drone and simulator contests, FIRST Global, council meetings and school sports days.
+
+### Highlights
+- [fixes] A day's recording is no longer doubled by a second full-day stream
+- [fixes] Drone and simulator contests stay off FTC event pages
+- [fixes] Council meetings and sports days stay out of the review queue
+
+### Fixed
+- Official videos watcher: another video of a day an event already plays now goes to the owner's review unless both name their parts. Before, a full Saturday stream was added beside that Saturday's "matches only" video. FIRST Global, drone, DCL and simulator titles are set aside like FRC, FLL and VEX. "Meeting" no longer reads as a meet, and "Sports Day 2026" no longer reads as a day number. (`server/videos/officialWatch.ts`, `server/videos/officialMatch.ts`, `docs/official-videos.md`) (#1498)
+
 ## 6.3.4 — 2026-11-14
 
 Match clips read off a recording's own frames now need two signals that agree before a match gets one: a frame read is checked before and after its start, and a lone read goes to the owner's review list instead of becoming a clip. Every match a recording holds without a clip now has a reason. Clips placed from frames stop once the match's final score is up.
