@@ -60,7 +60,7 @@ export const CLIP_TAIL_S = 60;
  * match's timer shows (its clock second, at the earliest it may sit, plus LIVE_DELAY_MIN_S), though never before its
  * own match's play has ended on screen at the latest it may show. Never past the video's end.
  */
-export function clipEnd(startsAt: string | null | undefined, rec: RecordingTiming & { shift?: number | null }, next?: string | null, now = Date.now()): number | null {
+export function clipEnd(startsAt: string | null | undefined, rec: RecordingTiming, next?: string | null, now = Date.now()): number | null {
   if (clipSecond(startsAt, rec, now) == null) return null;
   const slack = gapSlack(rec) ?? 0, from = Date.parse(rec.start!), shift = rec.shift ?? 0;
   const at = (Date.parse(startsAt!) - from) / 1000 - shift;
