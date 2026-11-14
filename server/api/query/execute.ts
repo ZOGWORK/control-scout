@@ -315,8 +315,9 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     // A season's penalty total is its own reader's ("12345 total penalties"); here only an event's.
     if (id === "penalties" && (p.symbols.includes("agg:sum") || p.symbols.includes("agg:count")) && !p.symbols.includes("per:match") && !scope.at) return null;
     const team = p.teams[0];
-    // "12345 at worlds in 2026": the championship held that year (2025–26), as the readers take a year there.
-    const held = (id === "results" || id === "match-lookup") && scope.championship && scope.year && scope.season != null;
+    // "12345 at worlds in 2026", "12345 q6 at states 2026": the championship held that year (2025–26), as the readers
+    // take a year there.
+    const held = (id === "results" || id === "match-lookup") && (scope.championship || scope.states) && scope.year && scope.season != null;
     if (held) { scope.season! -= 1; scope.year = false; }
     // A season or a year with no events on record yet (a future year): said so, never the latest instead.
     const future = held ? null : await noEventsYet(p, team.number, id, opts);
@@ -551,7 +552,8 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     const plural = /\b(?:matches|games|scores|upsets|comebacks|blowouts|routs|mismatches|underdogs|wins|losses|predictions|misses)\b/.test(said);
     const f: MatchFind = {
       // The current season is the one today is in.
-      measure: FIND[intent] ?? "high", season: eventSeason ?? placeSeason(p, scope.season, opts), region: regionOf(p), level: p.level, finals: p.finals, kind,
+      // A match's number at Worlds in a year ("q6 at worlds 2026") is the championship held that year (2025–26).
+      measure: FIND[intent] ?? "high", season: eventSeason ?? (labelled && p.worlds && year != null ? year - 1 : placeSeason(p, scope.season, opts)), region: regionOf(p), level: p.level, finals: p.finals, kind,
       ...(["metric:win", "metric:loss", "outcome:W", "outcome:L"].some((s) => p.symbols.includes(s)) ? { decided: true } : {}),
       ...(scope.window ? { window: scope.window } : {}), n: p.n ?? (plural ? 10 : 5), ...(plural || p.n != null ? { list: true } : {}),
       ...(teamFind ? { team: { number: p.teams[0].number, name: p.teams[0].name } } : {}), ...(p.over != null ? { over: p.over } : {}),
