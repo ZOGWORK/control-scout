@@ -83,26 +83,29 @@ export async function withVideoAlternatives(q: string, a: SearchAnswer, v: Searc
   candidates: (a: SearchAnswer) => Promise<string[]> = videoCandidates): Promise<SearchAnswer> {
   if (!a.stat || hasVideo(v) || !asksVideo(q, a)) return a;
   // Past the wait the answer goes as it is, and the checks still to come are never run.
+  // The ones found by then are offered all the same.
   let gaveUp = false;
+  const offered: string[] = [];
   const find = (async () => {
-    const offered: string[] = [];
     for (const c of await candidates(a).catch(() => [])) {
       if (offered.length >= OFFER_MAX || gaveUp) break;
       // Each check takes its turn in the process's one queue (./followUps.ts inTurns), so other requests and the
       // wait's own timer run between them.
       const ok = await inTurns(async () => {
+        // Its turn may come after the wait: then it never runs.
+        if (gaveUp) return false;
         const b = await ask(c).catch(() => null);
         return !!b?.stat && !b.stat.none && hasVideo(await video(b).catch(() => undefined));
       }).catch(() => false);
-      if (ok) offered.push(c);
+      if (ok && !gaveUp) offered.push(c);
     }
     return offered;
   })();
   find.catch(() => {});
   let timer: ReturnType<typeof setTimeout> | undefined;
-  const offered = await Promise.race([find, new Promise<string[]>((r) => { timer = setTimeout(() => { gaveUp = true; r([]); }, waitMs); })]).finally(() => clearTimeout(timer));
-  if (!offered.length) return a;
-  const block: StatAnswer["blocks"][number] = { kind: "related", title: "Questions with video", queries: offered };
+  const found = await Promise.race([find, new Promise<string[]>((r) => { timer = setTimeout(() => { gaveUp = true; r([...offered]); }, waitMs); })]).finally(() => clearTimeout(timer));
+  if (!found.length) return a;
+  const block: StatAnswer["blocks"][number] = { kind: "related", title: "Questions with video", queries: found };
   return { ...a, stat: { ...a.stat, blocks: [block, ...a.stat.blocks] } };
 }
 
