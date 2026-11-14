@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.1.2 — 2026-11-14
+## 6.1.4 — 2026-11-14
 
 FiT-Central's GEMS league events in Austin now play their recordings from Westwood Robotics, the team channel that streams them with the official overlay: Diamond and Emerald League Meets back to 2024, the GEMS League Tournaments and the Austin semi-regionals. Saturday's Meet 2 shows its stream before, during and after it airs.
 
@@ -26,6 +26,31 @@ FiT-Central's GEMS league events in Austin now play their recordings from Westwo
 
 ### Added
 - Official videos: Westwood Robotics (`UCyv6fRBcoK6mD6Br5M366yA`, read from the YouTube Data API) joins the official channels and the auto-watcher's list, for FiT-Central, CTX and GEMS events in Texas only. 21 of its recordings are checked against each event's name, city, dates, league (Diamond or Emerald) and meet number: the 2026 Diamond and Emerald League Meets 1 and 2 (Meet 2 listed before it airs, like FIRST's own livestream link), the 2025 and 2024 Meets 1 to 3, both GEMS League Tournaments, and the Austin semi-regionals. The overlays-only test stream, a scheduled stream that never aired, and the 2023 "Round Rock Gems" titles (whose city doesn't match the events) are left out. (`server/data/officialVideos.json`, `server/data/officialChannels.ts`, `docs/official-videos.md`) (#1468)
+
+## 6.1.3 — 2026-11-14
+
+Rhode Island, New York City, Long Island and Ontario events now play their recordings from the region's own channels, back to 2022: 76 checked recordings, with restarted broadcasts as Part 1 and Part 2.
+
+### Highlights
+- [history] NYC qualifiers and championships play recordings from 2022
+- [history] Rhode Island qualifiers and championships back to 2023
+- [history] Long Island and Ontario events gain their missing recordings
+- [live] Five more channels join the auto-watcher for their next events
+
+### Added
+- Official videos: Rhode Island FTC, NYC FIRST, FIRST Long Island, FTC Ontario and Town of Penfield Television (ids read from the YouTube Data API) join the official channels and the auto-watcher's list, each for its own region's events only (Penfield for upstate NY Excelsior events). 76 recordings are checked against each event's name, number, city, date and division: 45 NYC, 15 Rhode Island, 10 Long Island and 6 Ontario (Ottawa 2024, the 2026 Provincial Championship and the Canada Cup's two divisions, both days). Videos FIRST's event pages already link, titles whose date or number disagrees with the broadcast, uploads with no broadcast date and Penfield's edits of days NY Excelsior already covers are left out. (`server/data/officialVideos.json`, `server/data/officialChannels.ts`, `docs/official-videos.md`) (#1483)
+
+## 6.1.2 — 2026-11-14
+
+West Michigan's league meets at GVSU now play their streams from the FIRST Alumni Network Grand Valley, and Saturday's Meet 5 shows its stream before, during and after it airs. Scout also watches the Central Ohio league's own streamer for its next meets.
+
+### Highlights
+- [live] West Michigan Meet 5 streams on its event page on Saturday
+- [history] West Michigan Meet 2 plays its recording
+- [live] Next Central Ohio and West Michigan meets join the auto-watcher
+
+### Added
+- Official videos: the FIRST Alumni Network Grand Valley (`UCaojFS3JFPWY9kaoW6bhvvQ`) and Stars of the Galaxy (FTC 12099, `UC576ZA1td9ZvsAUwPq1Ymaw`), both read from the YouTube Data API, join the official channels and the auto-watcher's list, for West Michigan and Central Ohio league events only. Two FANGV streams are checked against each event's name, city, date and meet number: West Michigan Meet 2 (Nov 7) and Meet 5 (Nov 14, listed before it airs). Every Stars of the Galaxy stream is already FIRST's own event link, so none is added twice, and FANGV's Robot in 3 Days streams (FRC) are left out. (`server/data/officialVideos.json`, `server/data/officialChannels.ts`, `docs/official-videos.md`) (#1469)
 
 ## 6.1.1 — 2026-11-14
 
@@ -52,6 +77,7 @@ Five more official channels: Kazakhstan, France, Italy, Türkiye and Thailand. T
 ### Added
 - Official videos: USTEM Foundation (Kazakhstan), Robotique FIRST France, Associazione Artù APS (Italy), the Fikret Yüksel Foundation (Türkiye) and The PRC Channel (Thailand) join the official channels and the auto-watcher, each for its own country only. Their ids come from the YouTube Data API. 33 recordings are checked against each event's name, city, dates, division and day: the 2026 Central Asia Championship (Janibek and Kerei, each on its own division), the Istanbul Premier Event (Rumeli and Valens, Days 1 to 3), the Italy Championships of 2025 and 2026 (match days only), France's six 2026 regionals and Lyon 2023, the 2025 Türkiye Championship and the second days of the Üsküdar tournaments, and Thailand's 2025 championship. The France Finale's full version, Istanbul's Finals & Closing (FIRST's own links already play those days), the Italy opening ceremony, short fragments, kickoffs and multi-programme festival streams are left out. (`server/data/officialVideos.json`, `server/data/officialChannels.ts`, `docs/official-videos.md`) (#1476)
 
+
 ## 6.0.9 — 2026-11-14
 
 The slow-connection pop-up is clearer: it says what it saw, what Lite changes, and gives two big buttons.
@@ -63,6 +89,7 @@ The slow-connection pop-up is clearer: it says what it saw, what Lite changes, a
 
 ### Changed
 - Slow connection pop-up: it names the evidence ("This page has been loading for 11 s.", ticking, or "3 requests couldn't reach the server, the last one 4 s ago."; once a slow page arrives it stops counting and says "This page took 12 s to load."), says in three lines what Control Scout Lite changes, and offers "Keep waiting" and "Switch to Lite" as 44 px buttons with a 44 px close. Body text moved from 12 px to 14 px, the card got real padding and a gold edge, and on desktop it sits clear of the sidebar's account footer. `cs-lite-demo` shows it at once for screenshots. (`src/components/layout/LiteSuggest.tsx`, `src/lib/liteSuggest.ts`) (#1459)
+
 ## 6.0.8 — 2026-11-14
 
 Control Scout Lite, the text-only version for a weak signal, has a new layout: room between everything, 44px buttons, the C-mark, and your own theme and text size. You can also keep Lite on.

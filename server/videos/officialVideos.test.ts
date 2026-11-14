@@ -384,6 +384,179 @@ describe("the shipped list", () => {
     }
   });
 
+  it("puts FANGV's West Michigan streams on the meet each title names, and watches Stars of the Galaxy for Central Ohio only", async () => {
+    const FANGV = "UCaojFS3JFPWY9kaoW6bhvvQ", SOTG = "UC576ZA1td9ZvsAUwPq1Ymaw";
+    const rows = data.videos.filter((x) => x.channelId === FANGV).map((x) => `${x.season}/${x.code} ${x.day} ${x.videoId} ${x.kind}`).sort();
+    // Meet 1, 3 and 4 already play FIRST's own link to the same streams; Meet 2 (Sat 08:45 EST) and Meet 5 (Sat 11-14, listed before it airs) don't.
+    expect(rows).toEqual(["2026/USMIWMM2 2026-11-07 1K5DNOqzuIg recording", "2026/USMIWMM5 2026-11-14 6lcZz9UrOdE recording"]);
+    // Each title's meet number is the event's ("West Michigan Meet 2" is USMIWMM2 in Scout).
+    const meet: Record<string, number> = { USMIWMM2: 2, USMIWMM5: 5 };
+    for (const x of data.videos.filter((v) => v.channelId === FANGV)) expect(x.title, x.videoId).toBe(`West Michigan FTC League Meet ${meet[x.code]} - BIOBUZZ`);
+    // Stars of the Galaxy's streams are all FIRST's own links already (Central Ohio 2025 and 2026): nothing added twice.
+    expect(data.videos.some((x) => x.channelId === SOTG)).toBe(false);
+    // Never FANGV's Robot in 3 Days (FRC) streams.
+    const ids = new Set(data.videos.map((x) => x.videoId));
+    for (const no of ["39f7WaZNFxw", "8oSb8QlFMKg", "QyzpYTuXL1o", "Chmx9cPSsg8", "ek8azJdipFE", "Xtf13QgWN9w"]) expect(ids.has(no), no).toBe(false);
+    const { OFFICIAL_CHANNELS } = await import("../data/officialChannels");
+    const rule = (id: string) => parseRule(OFFICIAL_CHANNELS.find((c) => c.channelId === id)!.region)!;
+    const base = { season: 2026, type: "LeagueMeet", country: "USA", start: "2026-11-14", end: "2026-11-14", timezone: "America/New_York", divisionCode: null, parent: false };
+    const mi = { ...base, city: "Grand Rapids", state: "MI" }, oh = { ...base, city: "Columbus", state: "OH" };
+    expect(rule(FANGV)({ ...mi, code: "USMIWMM6", name: "West Michigan Meet 6" })).toBe(true);
+    expect(rule(FANGV)({ ...mi, code: "USMIWMLT", name: "West Michigan League Tournament" })).toBe(true);
+    expect(rule(FANGV)({ ...mi, code: "USMISAM1", name: "MSCRL Saline Meet 1", city: "Saline" })).toBe(false);
+    expect(rule(FANGV)({ ...oh, code: "USOHWEM1", name: "West Michigan Meet 1" })).toBe(false);
+    expect(rule(SOTG)({ ...oh, code: "USOHCOHM3", name: "Central Ohio League Meet 3" })).toBe(true);
+    expect(rule(SOTG)({ ...oh, code: "USOHCOHLT", name: "Central Ohio League Tournament" })).toBe(true);
+    expect(rule(SOTG)({ ...oh, code: "USOHNEQ", name: "Ohio Qualifier", city: "Newark" })).toBe(false);
+    expect(rule(SOTG)({ ...mi, code: "USMIWMM6", name: "West Michigan Meet 6" })).toBe(false);
+    // The watcher puts FANGV's next stream on its own meet, never on the other meet that day.
+    const { matchVideo } = await import("./officialMatch");
+    const seed = OFFICIAL_CHANNELS.find((c) => c.channelId === FANGV)!;
+    const day = [5, 6].map((n) => ({ ...mi, code: `USMIWMM${n}`, name: `West Michigan Meet ${n}` }));
+    const v = { videoId: "x", title: "West Michigan FTC League Meet 6 - BIOBUZZ", start: "2026-11-14T18:00:00Z", durationS: 7200, privacy: "public", embeddable: true, blockedIn: 0 };
+    const got = matchVideo(v, seed, day);
+    expect(got.kind === "add" && got.event.code).toBe("USMIWMM6");
+  });
+
+  it("puts the audited Rhode Island, NYC, Long Island and Ontario streams on the event and day each title names", async () => {
+    const RI = "UCHgwJxb_Y5SRtrAGCzk73MQ", ON = "UCUXJ0amrR15tPMgXvhDLJQw", LI = "UCe22ftqf7OwtH40JBuP-anA", NYC = "UCibawtHwGEggHlSiBOSPVtw", PEN = "UCLctix0o61bACiWd6Oa-S5Q";
+    const rows = data.videos.filter((x) => [RI, ON, LI, NYC, PEN].includes(x.channelId));
+    // Every row, as checked against Scout's event (name, city, dates, division) and the broadcast's date at the venue:
+    // channel, event, day, part (consecutive broadcasts of one day, in broadcast order), and the qualifier number in Scout's name.
+    const want: Record<string, [channel: string, key: string, day: string, part: string | null, n: number | null]> = {
+      "q0GOfMdya9Y": [RI, "2025/USRICMP", "2026-02-08", null, null],
+      "vFssfVAOVY8": [RI, "2025/USRILCQ", "2026-01-17", null, 2],
+      "wNIXavozWP8": [RI, "2025/USRIWOQ", "2026-01-31", null, null],
+      "SENZnQoIOsc": [RI, "2024/USRINKS", "2024-11-23", null, null],
+      "lQhGe32YLF4": [RI, "2024/USRINKQ", "2025-01-04", null, null],
+      "tfadc2DvS4Q": [RI, "2024/USRIWOQ", "2025-01-11", null, null],
+      "xOrM2oUfKDY": [RI, "2024/USRIPRQ", "2025-01-18", null, null],
+      "p178qoPWNw4": [RI, "2024/USRICMP", "2025-02-08", null, null],
+      "zHUlOizdf-U": [RI, "2023/USRINKQ", "2024-01-20", null, null],
+      "Dh3gs0rYAxw": [RI, "2023/USRIWOQ", "2024-01-27", null, null],
+      "oiugk0ztCdc": [RI, "2023/USRICMP", "2024-02-10", null, null],
+      "rYYSXefbrfs": [RI, "2022/USRIPRQ", "2023-01-07", null, null],
+      "Gt8cKxj0hCo": [RI, "2022/USRIEGQ", "2023-01-14", null, null],
+      "n3NY8-UinQk": [RI, "2022/USRIWOQ", "2023-01-21", null, null],
+      "-pf6meP7LDM": [RI, "2022/USRICMP", "2023-03-04", null, null],
+      "-IAzDKKLNuw": [NYC, "2025/USNYNYNYQ1", "2025-11-16", null, 1],
+      "G55bnpcodlw": [NYC, "2025/USNYNYBRQ1", "2025-12-06", null, 2],
+      "CoS0qLUPftA": [NYC, "2025/USNYNYBRQ3", "2025-12-20", null, 4],
+      "Qy3WtzBQErs": [NYC, "2025/USNYNYBRQ4", "2025-12-21", null, 5],
+      "JRzsvPM5lqo": [NYC, "2025/USNYNYOPQ1", "2026-01-03", "Part 1", 6],
+      "tUudcW8havo": [NYC, "2025/USNYNYOPQ1", "2026-01-03", "Part 2", 6],
+      "SmQVlTgs2pk": [NYC, "2025/USNYNYOPQ2", "2026-01-04", null, 7],
+      "tFTQ-4jSPpE": [NYC, "2025/USNYNYFMQ1", "2026-01-17", null, 8],
+      "whQHG4hKk_E": [NYC, "2025/USNYNYFMQ2", "2026-01-18", null, 9],
+      "vAb0jDv4wp0": [NYC, "2025/USNYNYSIQ", "2026-02-07", null, 10],
+      "OpnhJC-vOTY": [NYC, "2025/USNYNYNYQ2", "2026-02-14", "Part 1", 11],
+      "QaoFkx2WSpo": [NYC, "2025/USNYNYNYQ2", "2026-02-14", "Part 2", 11],
+      "uZ7GTFhUuCM": [NYC, "2025/USNYNYNYQ3", "2026-02-15", null, 12],
+      "LSdO_WMsDps": [NYC, "2025/USNYNYBRSQ1", "2026-02-28", null, 1],
+      "U48OrXvSQ1g": [NYC, "2025/USNYNYBRSQ2", "2026-03-01", "Part 1", 2],
+      "7qaN4KDIo-0": [NYC, "2025/USNYNYBRSQ2", "2026-03-01", "Part 2", 2],
+      "JPtpfMJDVc4": [NYC, "2025/USNYNYCMP", "2026-03-08", null, null],
+      "EX7pPUu4cPw": [NYC, "2024/USNYNYNYQ", "2024-11-17", null, 1],
+      "0NPcADwhNaU": [NYC, "2024/USNYNYBRQ1", "2024-12-07", null, 2],
+      "yF-rG4-79K4": [NYC, "2024/USNYNYBRQ2", "2024-12-08", null, 3],
+      "bhqGvlo8iD8": [NYC, "2024/USNYNYQUQ1", "2025-01-18", null, 4],
+      "kZ0bNKld2nI": [NYC, "2024/USNYNYQUQ3", "2025-01-25", null, 6],
+      "k6Fc0ugxs8Y": [NYC, "2024/USNYNYQUQ4", "2025-01-26", null, 7],
+      "kQX_8NNSd74": [NYC, "2024/USNYNYBRQ3", "2025-02-01", null, 8],
+      "acLq5K2aYik": [NYC, "2024/USNYNYBRSQ1", "2025-02-08", "Part 1", 1],
+      "uYhtaGBoPSE": [NYC, "2024/USNYNYBRSQ1", "2025-02-08", "Part 2", 1],
+      "x37u8TMx80M": [NYC, "2024/USNYNYBRSQ2", "2025-02-09", null, 2],
+      "PrcJN6KO-jw": [NYC, "2024/USNYNYCMP1", "2025-03-02", "Part 1", null],
+      "pWqoUgYqdM0": [NYC, "2024/USNYNYCMP1", "2025-03-02", "Part 2", null],
+      "uWu3CvfZ8kM": [NYC, "2023/USNYNYBRQ2", "2023-12-09", null, 2],
+      "8WYcC7-irQw": [NYC, "2023/USNYNYBRQ1", "2023-12-10", "Part 1", 3],
+      "4f-1Pb6sKXY": [NYC, "2023/USNYNYBRQ1", "2023-12-10", "Part 2", 3],
+      "ERObpss0too": [NYC, "2023/USNYNYQUQ4", "2024-01-14", "Part 1", 5],
+      "pJNqDE35UXs": [NYC, "2023/USNYNYQUQ4", "2024-01-14", "Part 2", 5],
+      "B-f697Ai05s": [NYC, "2023/USNYNYQUQ3", "2024-01-27", null, 6],
+      "cyda6s2qfCU": [NYC, "2023/USNYNYQUQ2", "2024-01-28", null, 7],
+      "qUp9Tt1fchY": [NYC, "2023/USNYNYBRSQ2", "2024-02-04", null, null],
+      "pi7404qoAww": [NYC, "2022/USNYNYQUQ1", "2022-11-05", null, 1],
+      "sM21G_St-nE": [NYC, "2022/USNYNYOPQ", "2022-11-06", null, 2],
+      "VaCRr5f4sP0": [NYC, "2022/USNYNYQUQ6", "2023-01-15", null, 6],
+      "JQnHdd8lfb8": [NYC, "2022/USNYNYBRQ7", "2023-02-04", null, 7],
+      "fNaOqiBGbII": [NYC, "2022/USNYNYBRQ8", "2023-02-05", null, 8],
+      "P34D_YVFs-Y": [NYC, "2022/USNYNYNYSQ", "2023-02-11", null, 1],
+      "Az6YSXVJ710": [NYC, "2022/USNYNYNYSQ2", "2023-02-12", null, 2],
+      "R_CFejqerGI": [NYC, "2022/USNYNYCMP", "2023-03-05", null, null],
+      "S-zsWzkH9KI": [LI, "2025/USNYLIBAQ", "2025-12-07", null, 1],
+      "dtQqffR7rr8": [LI, "2025/USNYLILVQ4", "2026-01-31", null, 4],
+      "F7XYVwiMp-o": [LI, "2025/USNYLILVQ5", "2026-02-01", null, 5],
+      "l0BXMZiglD8": [LI, "2025/USNYLICMP", "2026-03-01", null, null],
+      "we8IuWzo61s": [LI, "2024/USNYLILVQ3", "2025-02-01", null, 3],
+      "WmiSa9j0Lfg": [LI, "2024/USNYLILVQ4", "2025-02-02", null, 4],
+      "VtaAXQ2SWlg": [LI, "2024/USNYLICMP", "2025-03-16", null, null],
+      "Df8xuBU8pXk": [LI, "2023/USNYLILVQ4", "2024-02-03", null, 4],
+      "ujPky20sJy0": [LI, "2023/USNYLILVQ5", "2024-02-04", null, 5],
+      "3Fx_9Vsp288": [LI, "2023/USNYLICMP", "2024-03-03", null, null],
+      "Jh8OJMFh3lU": [ON, "2024/CAONOTQ", "2024-12-07", null, null],
+      "fs6fgO9vxJI": [ON, "2025/CAONCMP", "2026-02-22", null, null],
+      "xQewZrzObUc": [ON, "2025/FPECCNSCIE", "2026-06-15", null, null],
+      "IiSNRPTeu44": [ON, "2025/FPECCNSCIE", "2026-06-16", null, null],
+      "Rj6gfqq23Zs": [ON, "2025/FPECCNTECH", "2026-06-15", null, null],
+      "3m1Cv3ZMYXk": [ON, "2025/FPECCNTECH", "2026-06-16", null, null],
+    };
+    expect(rows.map((x) => x.videoId).sort()).toEqual(Object.keys(want).sort());
+    for (const x of rows) {
+      const [channel, key, day, part, n] = want[x.videoId];
+      expect([x.channelId, `${x.season}/${x.code}`, x.kind, x.day, x.part ?? null], x.videoId).toEqual([channel, key, "recording", day, part]);
+      // A numbered qualifier's title names that number: Qualifier 5 never goes to Qualifier 4.
+      const t = /(?:Qualif\w*|Qualfier|Tournament|Tournement)[\s#-]*(\d+)/i.exec(x.title);
+      if (n != null) expect(Number(t?.[1]), x.videoId).toBe(n);
+      // A Canada Cup division stream names its own division.
+      if (x.code === "FPECCNSCIE") expect(x.title).toMatch(/Science Division - Day [12]$/);
+      if (x.code === "FPECCNTECH") expect(x.title).toMatch(/Technology Division - Day [12]$/);
+      // A title's own date, where it has one, is the broadcast's.
+      const d = /\b(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})\b/.exec(x.title);
+      if (d) expect(`${d[3].length === 2 ? "20" + d[3] : d[3]}-${d[1].padStart(2, "0")}-${d[2].padStart(2, "0")}`, x.videoId).toBe(x.day);
+    }
+    // Penfield TV's FTC videos are uploads of NY Excelsior events that NY Excelsior FIRST's own recordings already cover.
+    expect(rows.some((x) => x.channelId === PEN)).toBe(false);
+    // Left out: FIRST's own links to the same videos; titles whose date or number disagrees with the broadcast
+    // (NYC 2025 Qualifier 3 dated 12/6, 2024 Qualifier 5 dated 12/19/2025, 2024 "Super Qualifier-2" aired 2/3, 2024
+    // Championship dated 2/3); North York 2025's unnamed morning half (FIRST links the afternoon); Ontario's "Full
+    // Field" second camera; short fragments; uploads without a broadcast date; and the 2026-27 streams not yet aired.
+    const ids = new Set(data.videos.map((x) => x.videoId));
+    for (const no of ["bjwZWaiMwnc", "7aom0H3ZfWI", "H0i2yhkxMCM", "wDcRnpNlqMc", "ov23pPcnYyI", "hRn_bOe1UtE", "uUZ03ZjR1WM", "WiN8BWcsN_0",
+      "Rq_wGsWqnGo", "HFMdGKV4kNQ", "SQSPbhc3Kic", "LEv6I6K7DH8", "b_yw_UJAlL0", "iVjjczvTYNo", "XEKw5t0quig", "7VMoBFfo5CE", "ki9Nud5FGJk",
+      "-BTNpJ2X1nE", "_HSS2tVlaew", "a1Mhn922of0", "ynP0JWj1gos", "a3BaTdugU5E", "gF8G9Vb-GHY"]) expect(ids.has(no), no).toBe(false);
+    // The watcher: each channel only for its own events, and each next-season title on its own event.
+    const { OFFICIAL_CHANNELS } = await import("../data/officialChannels");
+    const { matchVideo } = await import("./officialMatch");
+    const seed = (id: string) => OFFICIAL_CHANNELS.find((c) => c.channelId === id)!;
+    const ev = (code: string, name: string, state: string, start: string, country = "USA") => ({ season: 2026, code, name, type: "Qualifier", city: "c", state, country, start, end: start, timezone: "America/New_York", divisionCode: null, parent: false });
+    const all = [
+      ev("USRIWAQ", "Rhode Island Qualifier 1", "RI", "2027-01-09"), ev("USRICMP", "Rhode Island Championship", "RI", "2027-02-28"),
+      ev("CAONMIQ", "Mississauga Qualifier", "ON", "2026-11-21", "Canada"), ev("CAONNYQ", "North York Qualifier", "ON", "2026-11-21", "Canada"),
+      ev("USNYLIBEQ1", "Qualifier 1", "NY", "2026-12-19"), ev("USNYNYBRQ5", "NYC Qualifier 5", "NY", "2026-12-19"),
+      ev("USNYNYBRQ1", "NYC Qualifier 3", "NY", "2026-12-05"), ev("USNYEXHJQ", "John Jay Qualifier", "NY", "2026-12-05"),
+    ];
+    const v = (title: string, start: string) => ({ videoId: "x", title, start, durationS: 20000, privacy: "public", embeddable: true, blockedIn: 0 });
+    const to = (id: string, title: string, start: string) => { const r = matchVideo(v(title, start), seed(id), all); return r.kind === "add" ? r.event.code : r.kind; };
+    expect(to(RI, "2026-2027 Rhode Island FTC Qualifier 1", "2027-01-09T15:00:00Z")).toBe("USRIWAQ");
+    // Its championship stream is scheduled for Feb 27, a day before Scout's date: the owner decides.
+    expect(to(RI, "2026-2027 Rhode Island FTC Championship", "2027-02-27T15:00:00Z")).toBe("review");
+    expect(to(ON, "2026 FTC Mississauga Qualifier", "2026-11-21T15:00:00Z")).toBe("CAONMIQ");
+    expect(to(ON, "2026 FTC North York Qualifier", "2026-11-21T15:00:00Z")).toBe("CAONNYQ");
+    expect(to(LI, "[FTC] FIRST Long Island Qualifier 1 - Bethpage (USNYLIBEQ1)", "2026-12-19T15:00:00Z")).toBe("USNYLIBEQ1");
+    expect(to(NYC, "FTC NYC Qualifier 5 | 12/19/2026 | FTC BioBuzz", "2026-12-19T15:00:00Z")).toBe("USNYNYBRQ5");
+    expect(to(NYC, "FTC NYC Qualifier 3 | 12/5/2026 | FTC BioBuzz", "2026-12-05T15:00:00Z")).toBe("USNYNYBRQ1");
+    expect(to(PEN, "FTC Robotics Qualifier | John Jay | Dec. 2026", "2026-12-05T15:00:00Z")).toBe("USNYEXHJQ");
+    const rule = (id: string) => parseRule(seed(id).region)!;
+    expect(all.filter(rule(LI)).map((e) => e.code)).toEqual(["USNYLIBEQ1"]);
+    expect(all.filter(rule(NYC)).map((e) => e.code)).toEqual(["USNYNYBRQ5", "USNYNYBRQ1"]);
+    expect(all.filter(rule(PEN)).map((e) => e.code)).toEqual(["USNYEXHJQ"]);
+    expect(all.filter(rule(ON)).map((e) => e.code)).toEqual(["CAONMIQ", "CAONNYQ"]);
+    expect(all.filter(rule(RI)).map((e) => e.code)).toEqual(["USRIWAQ", "USRICMP"]);
+    // MSC Robotics (one confirmed MSCRL video, nothing else closes it) is neither watched nor linked.
+    expect(OFFICIAL_CHANNELS.some((c) => c.channelId === "UCqo3u6lcGkpPoqjrtn0zvdw")).toBe(false);
+  });
+
   it("leaves out what the brief rules out", () => {
     const ids = new Set(data.videos.map((x) => x.videoId));
     // Ambiguous, unofficial, a different broadcaster, or blocked (docs/official-videos.md).
