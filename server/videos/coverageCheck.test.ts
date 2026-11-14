@@ -98,6 +98,16 @@ describe("clip coverage check", () => {
     expect(JSON.parse(String((await get<any>("SELECT detail FROM clip_coverage WHERE code = 'TWODAY'")).detail)).missing[0]).toMatchObject({ label: "Q1", reason: "gap-unplaced" });
   });
 
+  it("checks again when the recording becomes a day-at-a-time one, the same video and matches", async () => {
+    expect(await checkClipCoverage(() => {})).toBe(0);
+    await run("INSERT INTO event_broadcasts (season, code, video_id, url, start) VALUES (?, 'TWODAY', ?, ?, ?)", [S, VID, `https://www.youtube.com/watch?v=${VID}`, `${SAT}T13:00:00Z`]);
+    forgetRecordings();
+    expect(await checkClipCoverage(() => {})).toBe(1);
+    await run("DELETE FROM event_broadcasts WHERE code = 'TWODAY'");
+    forgetRecordings();
+    await checkClipCoverage(() => {});
+  });
+
   it("pages the owner's list, every event reachable", async () => {
     for (let i = 0; i < 3; i++) {
       await run("INSERT INTO clip_coverage (season, code, fingerprint, checked_at, state, played, with_clip, missing_key, detail) VALUES (?, ?, 'x', ?, 'unplaced', 2, 0, 'k', '{}')", [S, `PAGE${i}`, `2026-11-0${i + 1}T00:00:00Z`]);
