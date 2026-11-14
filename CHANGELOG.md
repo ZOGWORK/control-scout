@@ -32,7 +32,7 @@ A match's Watch button now plays just that match: the recording stops once its f
 The owner can now see how far new visitors get through the first-visit welcome, counted anonymously and only for visitors who allow usage statistics.
 
 ### Highlights
-- [report] Owner console › Usage shows how far first-time visitors get through the welcome
+- [report] Owner console › Usage shows how far new visitors get through the welcome
 - [report] Where people skip, how many finish, and how many pick a team
 - [fixes] The privacy page lists exactly what the welcome counts
 
