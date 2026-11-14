@@ -17,7 +17,7 @@ import { env } from "../env.js";
 import { fetchFromApi, fetchWatchPage, type WatchPageFacts } from "./youtube.js";
 import { officialRecordingIds, seasonOfficial } from "./officialVideos.js";
 import { checkedTo } from "../data/checkedTimings.js";
-import { frameNextStart, frameStart, hasFrames } from "../data/frameTimings.js";
+import { frameStart, hasFrames } from "../data/frameTimings.js";
 
 export interface VideoMeta extends WatchPageFacts { videoId: string; checkedAt: string }
 /** One of a recording's videos. day: its broadcast's date at the venue, when an official list gave it; part: a named
@@ -276,18 +276,23 @@ export function withClips<M extends Pick<MatchView, "label" | "time" | "startsAt
   if (!r) return matches;
   // The recording's videos YouTube still plays, for their frame-read starts.
   const framed = opts.frames === false || !r.code ? [] : [{ videoId: r.videoId, meta: r.meta }, ...(r.more ?? [])].filter((v) => v.meta?.status !== "unavailable" && hasFrames(v.videoId, r.code!));
+  const whole = span ?? eventSpan(matches.filter((x) => x.played && actualStart(x.time)).map((x) => ({ label: x.label, startsAt: x.startsAt })));
+  // Each framed video's starts that can play: in the order the event's matches were played (inOrder).
+  const framedStarts = new Map(framed.map((v) => [v.videoId, inOrder(whole.starts.map((s) => ({ label: s.label, at: s.startsAt ? Date.parse(s.startsAt) : NaN, t: frameStart(v.videoId, r.code!, s.label) })))]));
   const fromFrames = (label: string) => {
     for (const v of framed) {
-      const s = frameStart(v.videoId, r.code!, label);
+      const starts = framedStarts.get(v.videoId)!;
+      const s = starts.get(label);
       if (s != null) {
         const t = Math.max(0, s - CLIP_LEAD_S);
-        const end = frameClipEnd(s, frameNextStart(v.videoId, s), v.meta?.length ?? null);
+        let next: number | null = null;
+        for (const o of starts.values()) if (o > s && (next == null || o < next)) next = o;
+        const end = frameClipEnd(s, next, v.meta?.length ?? null);
         return { videoId: v.videoId, t, url: watchUrl(v.videoId, t), ...(end > t ? { end } : {}) };
       }
     }
     return null;
   };
-  const whole = span ?? eventSpan(matches.filter((x) => x.played && actualStart(x.time)).map((x) => ({ label: x.label, startsAt: x.startsAt })));
   // Each video with its timing, judged on the matches it holds: the event's all for one video, a day's for a day's video.
   const videos = [{ videoId: r.videoId, meta: r.meta }, ...(r.more ?? [])].flatMap((v) => {
     const meta = v.meta;
@@ -314,6 +319,23 @@ export function withClips<M extends Pick<MatchView, "label" | "time" | "startsAt
     }
     return x;
   });
+}
+
+/**
+ * A video's frame-read starts that can play (label → second): a video loses time and never gains it, so its matches sit
+ * in the order they were played (`at`, their real starts). A start that breaks that order (a replay shown in a break, an
+ * older misread) is left out: the longest run in played order is kept. A match without a real start or a frame-read
+ * start has none.
+ */
+export function inOrder(list: { label: string; at: number; t: number | null }[]): Map<string, number> {
+  const xs = list.filter((x): x is { label: string; at: number; t: number } => Number.isFinite(x.at) && x.t != null).sort((a, b) => a.at - b.at);
+  const len = xs.map(() => 1), from = xs.map(() => -1);
+  for (let b = 0; b < xs.length; b++) for (let a = 0; a < b; a++) {
+    if (xs[a].t < xs[b].t && len[a] + 1 > len[b]) { len[b] = len[a] + 1; from[b] = a; }
+  }
+  const out = new Map<string, number>();
+  for (let k = len.indexOf(Math.max(0, ...len)); k >= 0; k = from[k]) out.set(xs[k].label, xs[k].t);
+  return out;
 }
 
 /** The latest of some match starts (ms, in order) before a match's start, as UTC ISO; null for none. */
