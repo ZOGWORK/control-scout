@@ -29,7 +29,7 @@ export const LITE_STYLE = `:root{color-scheme:dark;${vars("dark")}}`
   + `html.sys{color-scheme:dark light}@media(prefers-color-scheme:light){html.sys{${vars("light")}}}`
   + `html{--b:1;--s:1;font-size:calc(100% * var(--b) * var(--s))}@media(max-width:767px){html{--b:.875}}`
   + `html[data-text-size=s]{--s:.9}html[data-text-size=l]{--s:1.125}html[data-text-size=xl]{--s:1.25}`
-  + `*{box-sizing:border-box}`
+  + `*{box-sizing:border-box}.vh{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}`
   + `body{margin:0;background:var(--bg);color:var(--fg);font:1rem/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-text-size-adjust:100%;overflow-wrap:break-word}`
   + `.in{max-width:52rem;margin:0 auto;padding:0 16px}main.in{padding-bottom:24px}`
   + `.top{border-bottom:1px solid var(--line);background:var(--card)}.top .in{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:64px;padding-top:10px;padding-bottom:10px}`
@@ -171,9 +171,9 @@ function result(m: LiteMatchRow): string {
   return m.call ? callText(m.call) : `<span class="m">—</span>`;
 }
 
-/** An alliance's teams; one listed but not on the field (a playoff alliance's fourth robot) in brackets, muted. */
+/** An alliance's teams, named for screen readers (the colour alone doesn't say which); one listed but not on the field (a playoff alliance's fourth robot) in brackets, muted. */
 const teamsLine = (teams: number[], off: number[], cls: string) =>
-  `<span class="${cls}">${teams.map((t) => (off.includes(t) ? `<span class="m">(${t})</span>` : String(t))).join(" ")}</span>`;
+  `<span class="${cls}"><span class="vh">${cls === "r" ? "Red" : "Blue"}: </span>${teams.map((t) => (off.includes(t) ? `<span class="m">(${t})</span>` : String(t))).join(" ")}</span>`;
 
 /** Matches as a list: each row opens the match. Label and time, both alliances, then the score or the call. */
 function matchList(matches: (LiteMatchRow & { code?: string })[], season: number, code: string | null, empty: string, withEvent = false): string {

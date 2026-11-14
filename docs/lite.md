@@ -28,7 +28,8 @@ app writing them), `src/lib/liteSuggest.ts` and `src/components/layout/LiteSugge
   app's `src/lib/format.ts` re-exports, so the two renderings can't drift. Calls show their confidence word.
 - **Caching.** Public pages: `public, max-age=60, stale-while-revalidate=300` with an ETag, like the API;
   `no-cache` on an event day (the event is live, or the team has unplayed matches). Every Lite page sends
-  `Vary: Cookie` (it follows the theme, text size and Lite cookies). The pick list is `private, no-store` and
+  `Vary: Cookie` (it follows the theme, text size and Lite cookies), and so does a full page that has a Lite twin
+  (`pageVary`: with Lite on, its page load is a redirect). The pick list is `private, no-store` and
   needs the same gate as its API: signed in (401), the workspace's scouting switched on (403), a member (403).
 - **Search engines** get a canonical link to the full page.
 - **Budget:** under 30 KB gzipped per page (the test holds an 80-match event to it).

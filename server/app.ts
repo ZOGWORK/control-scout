@@ -137,7 +137,7 @@ import { MATCH_KEY, ShareError, cachedCard, cardKey, matchCard } from "./share/m
 import { env } from "./env.js";
 import { r2 } from "./scout/r2.js";
 import { fakeR2Router } from "./scout/fakeR2.js";
-import { liteRouter, liteSwitch } from "./lite/routes.js";
+import { liteRouter, liteSwitch, pageVary } from "./lite/routes.js";
 import { openSearchRoute } from "./openSearch.js";
 import { latestEventSeason, storedEventCode } from "./eventCodes.js";
 import { eventPath, isEventCodeParam } from "../src/shared/eventCode.js";
@@ -1080,7 +1080,8 @@ export function createApp(opts: { dist?: string; /** Tests only: a smaller searc
         // A search is counted on every visit, the kept page's too (server/api/searchIntents.ts: what people ask for).
         void recordIntent(page.intent).catch(() => {});
         res.setHeader(cspHeaderName(), page.csp);
-        res.setHeader("Vary", "Accept-Encoding");
+        // Per cookie too on a page with a Lite twin: with Lite on, a page load goes to the twin (server/lite/routes.ts).
+        res.setHeader("Vary", pageVary(req.path, req.originalUrl.includes("?") ? req.originalUrl.slice(req.originalUrl.indexOf("?")) : ""));
         // The same for everyone (no personal data in these pages): a browser revalidates every time (the ETag makes it
         // a cheap 304), and a shared cache such as Cloudflare's may keep a found page for as long as this server does.
         // Never a search page: each of its visits reaches this server, so it is counted.

@@ -38,7 +38,7 @@ Control Scout Lite, the text-only version for a weak signal, has a new layout: r
 The owner can now see how far new visitors get through the first-visit welcome, counted anonymously and only for visitors who allow usage statistics.
 
 ### Highlights
-- [report] Owner console › Usage shows how far first-time visitors get through the welcome
+- [report] Owner console › Usage: how far new visitors get in the welcome
 - [report] Where people skip, how many finish, and how many pick a team
 - [fixes] The privacy page lists exactly what the welcome counts
 

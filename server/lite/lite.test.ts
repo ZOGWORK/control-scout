@@ -17,7 +17,7 @@ import { CURRENT_SEASON } from "../data/seasons";
 import { fullHref, liteHref } from "../../src/shared/lite";
 import { liteEvent, nextMatches } from "./trim";
 import { LITE_STYLE, LITE_TAP_CLASSES, eventPage } from "./render";
-import { LITE_CSP, safeNext } from "./routes";
+import { LITE_CSP, pageVary, safeNext } from "./routes";
 import type { EventDetail, MatchView } from "../../src/shared/api";
 
 let server: Server;
@@ -94,6 +94,8 @@ describe("light pages", () => {
     expect(html).toContain("Robo &lt;Team&gt; 10000");
     expect(html).toContain(`href="/lite/events/${S}/NJQ1/match/qual:0:80"`);
     expect(html).toMatch(/<span class="r w">115<\/span>–<span class="b">90<\/span>/);
+    // Each alliance is named, not told by colour alone.
+    expect(html).toMatch(/<span class="r"><span class="vh">Red: <\/span>\d+ \d+<\/span><br><span class="b"><span class="vh">Blue: <\/span>/);
     // On today: revalidated every time (results move), like the API on an event day.
     expect(r.headers.get("cache-control")).toBe("no-cache");
     expect(html).toContain(`<link rel="canonical" href="https://controlscout.org/events/${S}/NJQ1">`);
@@ -224,8 +226,18 @@ describe("Lite on (sticky)", () => {
     expect((await get("/lite/off?next=/events")).headers.get("location")).toBe("/events");
   });
   it("never sends anyone to another site", () => {
-    for (const bad of ["https://evil.example", "//evil.example", "/\\evil.example", "\\\\evil", "", undefined, "/a\nb", ["/x"]]) expect(safeNext(bad), String(bad)).toBe("/");
+    for (const bad of ["https://evil.example", "//evil.example", "/\\evil.example", "\\\\evil", "", undefined, "/a\nb", ["/x"], "/a/..//evil.example", "/a/../\\evil.example", "/./%2e%2e//evil.example"]) expect(safeNext(bad), String(bad)).toBe("/");
     expect(safeNext("/teams/1?season=2025")).toBe("/teams/1?season=2025");
+    expect(safeNext("/a/../teams/1")).toBe("/teams/1");
+  });
+  it("a next that normalizes to another site goes home, from both endpoints", async () => {
+    for (const ep of ["on", "off"]) expect((await get(`/lite/${ep}?next=${encodeURIComponent("/a/..//evil.example")}`)).headers.get("location"), ep).toBe("/");
+  });
+  it("app pages with a Lite twin are kept per cookie by caches (with Lite on they answer with a redirect)", () => {
+    expect(pageVary("/teams/10005", "?season=2025")).toBe("Accept-Encoding, Cookie");
+    expect(pageVary(`/events/${S}/NJQ1`)).toBe("Accept-Encoding, Cookie");
+    expect(pageVary("/predict")).toBe("Accept-Encoding");
+    expect(pageVary("/")).toBe("Accept-Encoding");
   });
   /** A request as a browser sends it (fetch puts its own "cors" in Sec-Fetch-Mode). */
   const raw = (path: string, headers: Record<string, string>) => new Promise<{ status: number; headers: Record<string, string | string[] | undefined> }>((ok, fail) => {

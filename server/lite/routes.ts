@@ -106,8 +106,17 @@ export const liteSwitch = h(async (req, res, next) => {
 export function safeNext(raw: unknown): string {
   const s = typeof raw === "string" ? raw : "";
   if (!/^\/(?![/\\])/.test(s) || /[\u0000-\u001f\\]/.test(s)) return "/";
-  try { const u = new URL(s, "http://x"); return u.host === "x" ? `${u.pathname}${u.search}` : "/"; } catch { return "/"; }
+  try {
+    const u = new URL(s, "http://x");
+    const out = `${u.pathname}${u.search}`;
+    // Checked again once normalized: "/a/..//evil.example" becomes "//evil.example", another site.
+    return u.host === "x" && /^\/(?![/\\])/.test(out) ? out : "/";
+  } catch { return "/"; }
 }
+
+/** The Vary header for an app page: one with a Lite twin is answered differently with Lite on (liteSwitch sends a
+ *  page load there), so a cache must keep it per cookie; any other page only per encoding. */
+export const pageVary = (path: string, search = "") => (liteHref(path, search) ? "Accept-Encoding, Cookie" : "Accept-Encoding");
 
 const YEAR_MS = 31536000 * 1000;
 /** Turn Lite on or off for this browser (docs/lite.md): a cookie, then on to `next`. Plain links, no script needed,
