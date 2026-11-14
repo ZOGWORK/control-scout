@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.0.3 — 2026-11-13
+## 6.0.4 — 2026-11-13
 
 A recorded event's page now says which days and parts its video covers and which it doesn't, and, one tap away, every played match without a clip and why. A partly recorded event never reads as fully recorded.
 
@@ -29,6 +29,9 @@ A recorded event's page now says which days and parts its video covers and which
 - Owner console › Clip coverage: every recorded event with a played match missing a clip, with its days and parts, the video checked for each, the days with no recording and each match's reason, to mark reviewed. It opens again on its own when the missing list changes. (`src/components/owner/ClipCoveragePanel.tsx`)
 - After every recordings pass and every official-channel watcher run that adds a video, each event whose recording or played matches changed is checked again; a missing list goes to Owner › Clip coverage, never only to a log. (`server/videos/coverageCheck.ts`, migration 87)
 - `scripts/clip-coverage.ts`: the full coverage audit (every event, video and played match, every season) as Markdown, CSV and JSON. (#1457)
+
+## 6.0.3 — 2026-11-13
+
 On a phone, the search bar on the results page is now the search box itself: one tap puts the caret in it, ready to change your search.
 
 ### Highlights
