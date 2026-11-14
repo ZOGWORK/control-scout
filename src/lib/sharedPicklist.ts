@@ -38,7 +38,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { apiFetch, ApiError, isFeatureDisabled } from "./api";
 import { offlineSource } from "./offline/saved";
-import { keepAnswer } from "./offline/kept";
+import { keepAnswer, keptOwner } from "./offline/kept";
 import type { LiveMode } from "./scoutLive";
 import { applyPickOp, cleanNote, isPickList, MAX_OP_QUERY, NOTE_CHANGED, WRONG_ACCOUNT, type Pick, type PickList, type PickOp, type PickPerson } from "../shared/picklist";
 import { deleteDamagedOp, deleteKeptOp, KEPT_OPS_CHANGED, keptOps, newPageForTests, putKeptOp, readKeptOps, TAB_ID, type DamagedPickOp, type KeptPickOp } from "./picklistOps";
@@ -373,6 +373,7 @@ export async function retryFailedChange(id: number, opts: { force?: boolean } = 
     return !!b;
   };
   let op = f.op;
+  const asker = keptOwner();
   // What the list is now, and whether this change already went (an earlier send whose answer was lost, or another tab).
   const check = await checkList(f.space, f.season, f.opId ? [f.opId] : []);
   if ("error" in check) {
@@ -389,7 +390,7 @@ export async function retryFailedChange(id: number, opts: { force?: boolean } = 
     const r = await inLine(f.space, () => apiFetch<{ list: unknown }>(url(f.space), {
       method: "POST", json: { season: f.season, ...op, ...(f.opId ? { opId: f.opId } : {}), ...(f.account != null ? { account: f.account } : {}) },
     }));
-    if (isPickList(r.list)) { announcePicklist(r.list); keepList(r.list); }
+    if (isPickList(r.list)) { announcePicklist(r.list); keepList(r.list, asker); }
     settle(null, {}, true);
   } catch (e) {
     const err = e instanceof ApiError ? e : new ApiError(0, "Couldn't save the change.");
@@ -477,8 +478,10 @@ export function sendOfflineChanges(): Promise<void> {
 if (typeof window !== "undefined") window.addEventListener("online", () => { void sendOfflineChanges(); });
 
 /** A list the server sent back after a change: kept as the list's last answer (lib/offline/kept.ts), so a page opened
- *  with no signal shows the order as saved, not the one read before the change. */
-const keepList = (l: PickList) => { void keepAnswer(url(l.workspaceId, l.season), { list: l }); };
+ *  with no signal shows the order as saved, not the one read before the change.
+ *  `asked`: the account signed in on this device when the change was sent (lib/offline/kept.ts's owner): another one
+ *  signed in meanwhile, it isn't kept for them. */
+const keepList = (l: PickList, asked: string) => { void keepAnswer(url(l.workspaceId, l.season), { list: l }, asked); };
 
 /** Let go of every kept change of one list (damaged ones of it included). */
 export function discardKeptChanges(account: number | null, space: string, season: number) {
@@ -591,7 +594,8 @@ const CHANGE_UNCONFIRMED = "Couldn't confirm this change: the connection dropped
  */
 export async function sendKeptNote(account: number, space: string, season: number, d: NoteDraft): Promise<"saved" | "conflict" | "gone" | "failed"> {
   const offlineBefore = knownOffline();
-  const done = (l: unknown) => { if (readNoteDraft(account, space, season, d.team)?.at === d.at) clearNoteDraft(account, space, season, d.team); if (isPickList(l)) announcePicklist(l); };
+  const asker = keptOwner();
+  const done = (l: unknown) => { if (readNoteDraft(account, space, season, d.team)?.at === d.at) clearNoteDraft(account, space, season, d.team); if (isPickList(l)) { announcePicklist(l); keepList(l, asker); } };
   try {
     const r = await apiFetch<{ list: unknown }>(url(space), { method: "POST", json: { season, op: "note", team: d.team, note: cleanNote(d.note), base: d.base } });
     done(r.list);
@@ -758,8 +762,9 @@ export function usePickList(space: string | null, season: number, live: LiveMode
         if (p.wid) inflight.add(p.wid);
         try {
           const ids = p.opId ? { opId: p.opId, ...(p.account != null ? { account: p.account } : {}) } : {};
+          const asker = keptOwner();
           const r = await inLine(p.space, () => apiFetch<{ list: unknown }>(url(p.space), { method: "POST", json: { season: p.season, ...op, ...ids } }), lineOwner.current);
-          if (isPickList(r.list)) { accept(r.list); keepList(r.list); }
+          if (isPickList(r.list)) { accept(r.list); keepList(r.list, asker); }
           if (op.op === "note") noteConfirmed(p, op, r.list);
           else { forget(p.account, p.space, p.season, p.opId); if (keyRef.current === k) markSaved(`order:${k}`); }
         } catch (e) {

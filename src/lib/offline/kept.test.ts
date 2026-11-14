@@ -109,6 +109,7 @@ describe("answers with no signal", () => {
     // Nothing known about a team and no bundle of the season: still listed, by number (added with no signal).
     const none = await scoutReadAnswer("/api/shortlist?teams=9&season=2024") as { teams: ShortlistTeam[] };
     expect(none.teams.map((t) => [t.team, t.name, t.opr])).toEqual([[9, null, null]]);
+    expect(offlineSource(none)).toMatchObject({ kept: true, savedAt: 0 }); // never "loaded just now"
   });
 
   it("warms the reads Scout needs for a bundled event, in the pages' own path forms", () => {

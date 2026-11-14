@@ -97,8 +97,9 @@ async function offlineShortlist(path: string): Promise<{ season: number; teams: 
   for (const { bundle } of bundles) for (const f of bundle.event.field) {
     if (!field.has(f.team)) field.set(f.team, { name: f.name, place: [f.city, f.state].filter(Boolean).join(", ") });
   }
-  // Nothing known about any of them: still listed (a team added with no signal must not vanish), by number only.
-  if (!Number.isFinite(oldest)) oldest = bundles.length ? Math.max(...bundles.map((b) => b.meta.savedAt)) : Date.now();
+  // Nothing known about any of them: still listed (a team added with no signal must not vanish), by number only,
+  // marked as loaded at no time (OfflineNote says the stats need a connection, never "just now").
+  if (!Number.isFinite(oldest)) oldest = bundles.length ? Math.max(...bundles.map((b) => b.meta.savedAt)) : 0;
   const out = teams.map((t) => rows.get(t) ?? bareRow(t, field.get(t)?.name ?? null, field.get(t)?.place ?? ""));
   return markOffline({ season, teams: out }, kept(season, oldest));
 }

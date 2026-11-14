@@ -59,8 +59,10 @@ export function warmScoutReads(force = false, now = Date.now()): Promise<void> {
     for (const b of due) {
       const paths = warmPaths(b).filter((p) => !asked.has(p));
       paths.forEach((p) => asked.add(p));
-      // Done unless a read found no network: an answer the server refused (a feature switched off) won't change by asking again.
-      const got = await Promise.all(paths.map((p) => apiFetch(p).then(() => true, (e) => !(e instanceof ApiError && e.offline))));
+      // Done when each read was kept, or refused for good (4xx: a feature switched off, no such event) since asking
+      // again won't change it. No network, a server error, too many requests or a cut-short answer: due again.
+      const settled = (e: unknown) => e instanceof ApiError && !e.offline && e.status >= 400 && e.status < 500 && e.status !== 429;
+      const got = await Promise.all(paths.map((p) => apiFetch(p).then(() => true, settled)));
       if (got.every(Boolean)) seen[stamp(b)] = now;
     }
     try { localStorage.setItem(STAMP, JSON.stringify(seen)); } catch { /* storage full: warmed again next time */ }

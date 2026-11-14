@@ -27,6 +27,15 @@ export function OfflineNote({ data, className }: { data: unknown; className?: st
       </SnapshotBanner>
     );
   }
+  if (src.kept && !src.savedAt) {
+    // Nothing loaded for it on this device (a team added with no signal): who it is, no stats yet.
+    return (
+      <p role="status" data-offline-kept className={cn("mb-4 flex items-start gap-2 rounded-lg border border-info/30 bg-info/[0.06] px-3 py-2 text-xs", className)}>
+        <WifiOff className="mt-px size-3.5 shrink-0 text-info" />
+        <span>Offline: stats for these teams need a connection. They load when you're back online.</span>
+      </p>
+    );
+  }
   if (src.kept) {
     // The last answer this device loaded (lib/offline/kept.ts): when, and that it refreshes.
     return (
