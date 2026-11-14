@@ -95,6 +95,29 @@ describe("withVideoAlternatives", () => {
     expect(asks).toBe(2);
   });
 
+  it("one search's wait never cancels a check another search still waits on", async () => {
+    let asks = 0;
+    const ask = async (q: string) => { asks++; await new Promise((r) => setTimeout(r, 60)); return askOf(q); };
+    const one = async () => ["b highlights"];
+    const [short, long] = await Promise.all([
+      withVideoAlternatives("6980 at east bergen with video", answer(), undefined, ask, videoOf, 10, one),
+      withVideoAlternatives("6980 at east bergen with video", answer(), undefined, ask, videoOf, 1000, one),
+    ]);
+    expect(short.stat?.blocks.some((x) => x.kind === "related")).toBe(false);
+    expect(long.stat?.blocks[0]).toMatchObject({ kind: "related", queries: ["b highlights"] });
+    expect(asks).toBe(1);
+  });
+
+  it("a failed read is never kept as no video", async () => {
+    let fail = true;
+    const ask = async (q: string) => { if (fail) throw new Error("busy"); return askOf(q); };
+    const one = async () => ["b highlights"];
+    expect((await withVideoAlternatives("6980 at east bergen with video", answer(), undefined, ask, videoOf, 1000, one)).stat?.blocks.some((x) => x.kind === "related")).toBe(false);
+    fail = false;
+    await new Promise((r) => setTimeout(r, 0));
+    expect((await withVideoAlternatives("6980 at east bergen with video", answer(), undefined, ask, videoOf, 1000, one)).stat?.blocks[0]).toMatchObject({ kind: "related" });
+  });
+
   it("stray spaces around a query are no watch word", async () => {
     const a = answer();
     expect(await withVideoAlternatives(" 4215 matches ", a, undefined, askOf, videoOf, 1000, cands)).toBe(a);
