@@ -79,13 +79,22 @@ describe("answerVideo: the one match or event an answer is about", () => {
     expect(v?.watch).toEqual({ videoId: "Z2ArRHRiwh0", t: 0, kind: "stream", match: "F1" });
   });
 
-  it("an event answer plays the event's stream: a headline's event, a card's event, matches all at one event", async () => {
+  it("an event answer plays the event's stream: a headline's event, a card's event", async () => {
     const stream = { videoId: "xnQFL9T27fY", t: 0, kind: "stream" };
     expect((await answerVideo(stat({ headline: { value: "#3", label: "x", href: "/events/2025/USMACMP?team=4215" } }), NOW))?.main).toEqual(stream);
     const card: SearchAnswer = { q: "q", hits: [], pages: [], step: "deterministic", weak: false, card: { kind: "event-awards", title: "Awards", lines: [], event: { season: 2025, code: "USCHSCMP", name: "Chesapeake Championship" } } };
     expect((await answerVideo(card, NOW))?.main).toEqual({ videoId: "Z2ArRHRiwh0", t: 0, kind: "stream" });
+  });
+
+  it("matches all at one event play the first listed one with a clip, from its own second; the stream only when none has one", async () => {
     const there = stat({ blocks: [{ kind: "matches", title: "Matches there", rows: [row("USMACMP", "qual:0:1", "Q1"), row("USMACMP", "qual:0:30", "Q30")] }] });
-    expect((await answerVideo(there, NOW))?.main).toEqual(stream);
+    const v = await answerVideo(there, NOW);
+    expect(v?.main).toMatchObject({ videoId: "xnQFL9T27fY", kind: "recording", match: "Q1" });
+    expect(v?.main?.t).toBeGreaterThan(0);
+    expect(v?.mainRow).toBe("/events/2025/USMACMP?match=qual:0:1");
+    // Chesapeake's Sunday finals have no second in its Saturday recording: the event's stream.
+    const sunday = stat({ blocks: [{ kind: "matches", title: "Finals", rows: [row("USCHSCMP", "playoff:0:1", "F1"), row("USCHSCMP", "playoff:0:2", "F2")] }] });
+    expect((await answerVideo(sunday, NOW))?.main).toEqual({ videoId: "Z2ArRHRiwh0", t: 0, kind: "stream" });
   });
 
   it("names: a match hit, or an event the words name exactly; never a set of events", async () => {
