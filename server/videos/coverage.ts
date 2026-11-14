@@ -79,6 +79,8 @@ function judge(v: RecordingVideo, r: Recording, whole: EventSpan, timezone: stri
   if (meta.status === "unavailable") return { v, date, label, dead: { reason: "video-unavailable", why: WHY["video-unavailable"] } };
   if (meta.status !== "ok") return { v, date, label, dead: { reason: "video-unread", why: "YouTube's facts couldn't be read" } };
   if (!meta.start) return { v, date, label, dead: { reason: "no-clock", why: WHY["no-clock"] } };
+  // A finished broadcast whose length YouTube didn't give: clipSecond has no end to place a match against.
+  if (meta.length == null && !meta.live) return { v, date, label, dead: { reason: "video-unread", why: "YouTube didn't give the video's length" } };
   const held = r.daily || r.more?.length ? eventSpan(whole.starts.filter((s) => within(s.startsAt, meta, now))) : whole;
   const timing: RecordingTiming = withConfirmed(v.videoId, meta, held);
   const slack = gapSlack(timing);
