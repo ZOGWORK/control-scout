@@ -128,7 +128,10 @@ function setActive(key: string, v: ActiveDownload | null) {
 export const activeDownloads = () => active;
 export function subscribeDownloads(fn: () => void) { subs.add(fn); return () => { subs.delete(fn); }; }
 export const activeFor = (o: Pick<DownloadOwner, "kind" | "id">): ActiveDownload | null => active[ownerKey(o)] ?? null;
-const changed = () => { if (typeof window !== "undefined") window.dispatchEvent(new Event(PARTIALS_EVENT)); };
+/** Other tabs hear of a change too (a download one tab finishes is no longer paused in another). */
+const channel = typeof BroadcastChannel !== "undefined" ? new BroadcastChannel(PARTIALS_EVENT) : null;
+channel?.addEventListener("message", () => { if (typeof window !== "undefined") window.dispatchEvent(new Event(PARTIALS_EVENT)); });
+const changed = () => { if (typeof window !== "undefined") window.dispatchEvent(new Event(PARTIALS_EVENT)); channel?.postMessage(1); };
 export { PARTIALS_EVENT };
 
 // --- The download -----------------------------------------------------------------------------------------

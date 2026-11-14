@@ -143,7 +143,10 @@ export async function downloadLite(file: PackFile, manifest: PackManifest, onPro
   await put(LITE_KEY, { gz: file.name.endsWith(".gz"), bytes, version: manifest.version } satisfies StoredLite);
   const meta: PackMeta = { version: manifest.version, bytes: bytes.length, savedAt: Date.now(), builtAt: manifest.builtAt, engineVersion: manifest.engineVersion, seasons: file.seasons, dataAsOf: manifest.dataAsOf };
   localStorage.setItem(META, JSON.stringify(meta));
-  localStorage.removeItem(LITE_DELETED_KEY);
+  // Deleted in another tab while this one saved: a background sync takes back what it just wrote (bytes and list
+  // entry), so a Delete always holds. Only a download the visitor asked for clears the deleted mark.
+  if (opts.background && liteDeleted()) { await del(LITE_KEY); localStorage.removeItem(META); cached = null; await finishFile(file); return null; }
+  if (!opts.background) localStorage.removeItem(LITE_DELETED_KEY);
   cached = null; // the next offline read decodes the new one
   await finishFile(file);
   window.dispatchEvent(new Event(PACK_EVENT));

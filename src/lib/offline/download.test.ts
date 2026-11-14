@@ -198,6 +198,21 @@ describe("the lite pack through the downloader", () => {
     localStorage.removeItem("cs-lite-deleted");
   });
 
+  it("a Delete made in another tab while a background sync saves (after the bytes came) isn't undone either", async () => {
+    vi.stubGlobal("fetch", server(gz).fn);
+    const set = localStorage.setItem.bind(localStorage);
+    const spy = vi.spyOn(Storage.prototype, "setItem").mockImplementation(function (this: Storage, k: string, v: string) {
+      set(k, v);
+      if (k === "cs-pack-meta") set("cs-lite-deleted", "1"); // the other tab's Delete lands during the save
+    });
+    expect(await downloadLite(lite, manifest, undefined, { background: true })).toBeNull();
+    spy.mockRestore();
+    expect(packStatus()).toBeNull();
+    expect(await getv("lite-gz")).toBeUndefined();
+    expect(localStorage.getItem("cs-lite-deleted")).toBe("1");
+    localStorage.removeItem("cs-lite-deleted");
+  });
+
   it("after a Delete, the background sync leaves it off; the person's own Download brings it back", async () => {
     vi.stubGlobal("fetch", server(gz).fn);
     await downloadLite(lite, manifest);

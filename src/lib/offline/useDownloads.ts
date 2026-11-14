@@ -14,8 +14,11 @@ export function usePartials(): PartialDownload[] {
     let live = true;
     const read = () => { void partialDownloads().then((l) => { if (live) setList(l); }); };
     read();
+    // Also when the page comes back into view: another tab may have finished or dropped one meanwhile.
+    const onShow = () => { if (document.visibilityState === "visible") read(); };
     window.addEventListener(PARTIALS_EVENT, read);
-    return () => { live = false; window.removeEventListener(PARTIALS_EVENT, read); };
+    document.addEventListener("visibilitychange", onShow);
+    return () => { live = false; window.removeEventListener(PARTIALS_EVENT, read); document.removeEventListener("visibilitychange", onShow); };
   }, []);
   return list;
 }
