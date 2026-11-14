@@ -15,6 +15,30 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 6.1.9 — 2026-11-14
+
+With no internet, pages you saved open straight away instead of after a wait, and one small pill in the top bar says you're offline and how fresh your data is. Wi-Fi that wants a sign-in page is spotted too.
+
+### Highlights
+- [offline] Saved pages open at once with no internet, no waiting first
+- [offline] One "Offline · updated 8:09 PM" pill in the top bar
+- [offline] Wi-Fi that needs a sign-in page says so plainly
+- [offline] Back online, pages refresh by themselves without reloading
+- [fixes] The "Slow connection?" offer stays away when there's no internet
+
+### Added
+- A real internet check (`src/lib/connection.ts`): asks `/api/health` (no cache, 2.5 s at most). Our own answer means internet; a sign-in page, a redirect or any other answer means a Wi-Fi that wants you to sign in; nothing means offline. It checks again when the browser says the network changed, when the tab comes back into view, soon after a request fails, every 30 s while offline and every 5 minutes otherwise. `useConnection()` gives online, internet (yes, no, portal, unknown), connection type and Data Saver for the rest of the app.
+- The Offline pill (`src/components/ConnectionStatus.tsx`), which replaces the old "Offline, showing saved data" badge: "Offline · updated <time>" (the time of the saved data on screen, else of the newest thing saved), or "No internet on this Wi-Fi". On a phone it takes the centred logo's place; on a wider screen it sits in the bar's spare space, so nothing moves. Tapping it lists what's on this device, with Try again and Downloads.
+- `npm run offline:check` (`scripts/offline-check.ts`): opens the offline journeys on a 390 px phone behind a local proxy that can drop the network (the service worker's own requests too), act as a Wi-Fi sign-in page (`--portal`) or slow everything to about 400 kbps (`--throttle`). `--prod` runs it against the local production build.
+
+### Changed
+- Known offline, reads saved data can answer come from it with no network try and no 4 s wait. Other reads say they need a connection at once (after one quick check) instead of spinning. Writes still go to the network.
+- When the internet comes back, whatever is on screen from saved data refreshes in the background, keeping the page and anything typed.
+- A page that gets no answer in 3 s (Wi-Fi that carries nothing) opens from the app saved on the device instead of a blank screen. Light pages keep waiting.
+- Opening a page again soon after one found no internet starts from that answer (checked again at once), so every page after the first opens straight from saved data. A Wi-Fi sign-in page that answers where our data should be counts as no internet. A read still waiting when the check finds no internet is let go and answered from saved data at once.
+- The "needs a connection" message says "No internet on this Wi-Fi" when a sign-in page is in the way.
+- The "Slow connection?" offer only shows when there is internet: with none, the light version can't load either. (#1487)
+
 ## 6.1.8 — 2026-11-14
 
 Control Scout Lite now covers the whole app: Home, Search, Predict, Compare, Rankings, Scouting and Settings each have a light page, with the same answers and numbers as the full version.
