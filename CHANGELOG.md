@@ -30,7 +30,7 @@ Match clips read off a recording's own frames now need two signals that agree be
 - The overlay's "Finals Match 2" is read as F2 and a bare "Match 7" (2025's playoff overlay) as M7.
 
 ### Added
-- Clips placed from frames carry an `end` (`frameClipEnd`, `src/shared/recording.ts`): the timer's start plus 2:40 of play and 50 s for the final score, stopping at the next framed match's start in the same video, never before its own play is over or past the video's end.
+- Clips placed from frames carry an `end` (`frameClipEnd`, `src/shared/recording.ts`): the timer's start plus 2:40 of play and 50 s for the final score, stopping at the next framed match's start in the same video, never before its own play is over or past the video's end. (#1490)
 
 ## 6.1.8 — 2026-11-14
 
