@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.3.2 — 2026-11-14
+## 6.3.4 — 2026-11-14
 
 FTC One Search works with no signal at the meet: search a team in the downloaded event by number or name, the event, a match, or set its teams side by side, and get the same answer as online. Anything else says plainly that it needs data the pack doesn't hold, and shows what the pack does hold.
 
@@ -32,6 +32,33 @@ FTC One Search works with no signal at the meet: search a team in the downloaded
 
 ### Changed
 - With an event pack saved, search waits 4 seconds for the server before the pack answers (no answer, or no network at all: at once), never search's 10-second slow-search wait; a search the pack can't answer still waits for a server that's answering everything else. (#1489)
+
+## 6.3.3 — 2026-11-14
+
+A recorded event's page now says which days and parts its video covers and which it doesn't, and, one tap away, every played match without a clip and why. A partly recorded event never reads as fully recorded.
+
+### Highlights
+- [fixes] Event pages show each recorded day with its share of clips
+- [fixes] A day with no recording is named, not skipped
+- [fixes] "Matches have no clip — why" lists each gap in plain words
+
+### Added
+- Event page: under the coverage line, a chip for each day or part of a recorded event (its clips out of its played matches) and one for each day with no recording, then "N matches have no clip — why": the matches grouped by reason, such as "Video 4 h 17 min shorter than its broadcast", "No recording for Sunday" or "No real start time from FIRST". Only for an event with a recording (playable or not) where a played match has no video. (`src/components/contributors/RecordingGaps.tsx`, `server/videos/coverage.ts`, `/api/events/:season/:code/coverage`)
+- Owner console › Clip coverage: every recorded event with a played match missing a clip, with its days and parts, the video checked for each, the days with no recording and each match's reason, to mark reviewed, 50 at a time. It opens again on its own when the missing list changes. (`src/components/owner/ClipCoveragePanel.tsx`)
+- After every recordings pass and every official-channel watcher run that adds a video, each event whose recording or matches changed is checked again; a missing list goes to Owner › Clip coverage, never only to a log. (`server/videos/coverageCheck.ts`, migration 88)
+- `scripts/clip-coverage.ts`: the full coverage audit (every event, video and played match, every season) as Markdown, CSV and JSON. (#1457)
+
+## 6.3.2 — 2026-11-14
+
+When a search asks to watch and nothing has video, it offers questions that do.
+
+### Highlights
+- [teams] No video for a search? Tap a related question that has one
+- [teams] A team's seasons with clips are offered first, then nearby events
+- [teams] Every offered question is checked to play before it's shown
+
+### Changed
+- Search: an answer that asked to watch (highlights, video, clips, with video) and plays nothing adds "Questions with video": up to three searches that each play, the team's own seasons with a clip first, then events with clips (official ones, the same state or country first, the bigger events first, the nearest dates first). Each is asked before it's offered, within a 2.5-second wait. (`server/api/answers/videoSuggest.ts`, `server/app.ts`) (#1492)
 
 ## 6.3.1 — 2026-11-14
 

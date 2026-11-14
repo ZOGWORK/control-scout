@@ -14,8 +14,9 @@ import { ensureSearchIndex, search } from "./api/search.js";
 import { MAX_QUERY, cleanQuery, learnQuery, searchAnswer } from "./api/searchAnswer.js";
 import { myTeamOf } from "../src/shared/searchMine.js";
 import { pickedQuery, pickedSeasonOf } from "./api/searchPageAnswer.js";
-import { keptFollowUps } from "./api/answers/followUps.js";
+import { keptFollowUps, pageAnswer } from "./api/answers/followUps.js";
 import { finishPageAnswer, typedPageAnswer } from "./api/searchPage.js";
+import { withVideoAlternatives } from "./api/answers/videoSuggest.js";
 import { relatedPage } from "./api/answers/relatedPage.js";
 import { refine } from "./api/searchBruno.js";
 import { brunoAnswer } from "./api/searchBrunoAnswer.js";
@@ -41,6 +42,8 @@ import { teamRecordPage } from "./teamRecordPage.js";
 import { eventHighlightsPage } from "./eventHighlightsPage.js";
 import { perTeamOf, simulatedRankings } from "./projections/rankingSim.js";
 import { recordingStream, seasonRecordings, seasonVideoKinds } from "./videos/recordings.js";
+import { eventClipCoverage } from "./videos/coverage.js";
+import { answerVideo } from "./api/answers/video.js";
 import { matchViews } from "./api/matches.js";
 import { eventListAnswer, matchDetailAnswer, teamMatchesAnswer, teamReportCardAnswer, teamScheduleAnswer } from "./api/reads.js";
 import { matchReport } from "./api/matchReport.js";
@@ -129,7 +132,7 @@ import { liteRouter, liteSwitch, pageVary } from "./lite/routes.js";
 import { openSearchRoute } from "./openSearch.js";
 import { latestEventSeason, storedEventCode } from "./eventCodes.js";
 import { eventPath, isEventCodeParam } from "../src/shared/eventCode.js";
-import type { EventRefreshResult, ForecastView, MatchExplanationView, Meta, SearchHit, MatchView } from "../src/shared/api.js";
+import type { EventRefreshResult, ForecastView, MatchExplanationView, Meta, SearchHit, MatchView, ClipCoverage } from "../src/shared/api.js";
 
 export class HttpError extends Error { constructor(readonly status: number, message: string) { super(message); } }
 const bad = (msg: string) => new HttpError(400, msg);
@@ -438,9 +441,17 @@ export function createApp(opts: { dist?: string; /** Tests only: a smaller searc
       const { body, contributor } = await finishPageAnswer(ans, limit, asking);
       // Match videos people added are for the viewer asking (docs/contributors.md): an answer carrying one is never cached.
       if (contributor) res.setHeader("Cache-Control", "private, no-store");
+      // Asked to watch and nothing plays (server/api/answers/videoSuggest.ts): questions that do, each checked. Only
+      // when the video was read: a failed read says nothing either way.
+      const viewer = await asking;
+      const offered = body.video === undefined ? body : await withVideoAlternatives(q, body, body.video, (x) => pageAnswer(x, limit, prefer), (b) => answerVideo(b, Date.now(), viewer), undefined, undefined, viewer?.userId != null ? `u${viewer.userId}` : "").catch(() => body);
+      // Checked for this viewer (a video they added may be what plays): questions offered to one viewer are never cached.
+      if (viewer?.userId != null && offered !== body) res.setHeader("Cache-Control", "private, no-store");
       // This process's own time (searchTiming): the answer, then the rest (highlights, team numbers, video).
       res.setHeader("Server-Timing", searchTiming({ answer: answered - started, extras: performance.now() - answered }));
-      return body;
+      // null: read, and nothing plays (the page then says so); a read that failed sends none, as a first paint carries
+      // none (src/shared/api.ts): the page then says nothing about video.
+      return { ...offered, hits: body.hits, ...(body.video !== undefined ? { video: body.video } : {}) };
     }
     return { q: String(req.query.q ?? ""), hits: await search(String(req.query.q ?? "").slice(0, MAX_QUERY), limit, prefer, kinds) };
   }));
@@ -662,6 +673,14 @@ export function createApp(opts: { dist?: string; /** Tests only: a smaller searc
     const d = await matchDetailAnswer(season(req.params.season), code(req.params.code), key);
     if (!d) throw new HttpError(404, `No match ${key} at ${req.params.code}`);
     return d;
+  }));
+
+  // Clip coverage (server/videos/coverage.ts): which days and parts are recorded, and each played match without a clip
+  // with its reason, for the event page's "What's missing". Only the matches without one: the page has the rest.
+  api.get("/events/:season/:code/coverage", h(async (req): Promise<ClipCoverage> => {
+    const c = await eventClipCoverage(season(req.params.season), code(req.params.code));
+    if (!c) throw new HttpError(404, `No event ${req.params.code} in ${req.params.season}`);
+    return { ...c, matches: c.matches.filter((m) => !m.clip).map(({ teams: _t, ...m }) => m) };
   }));
 
   // Simulated rankings before quals start (projections/rankingSim.ts): run on a click, kept per data version.
