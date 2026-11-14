@@ -18,6 +18,15 @@ describe("the owner's onboarding funnel", () => {
     expect(text).toContain("Picked a team4 (67% of finished)");
   });
 
+  it("a period with finishes or skips but no openings still shows them, with no percentages", () => {
+    render(<OnboardingFunnel s={{ days: 1, shown: 0, reached: [0, 0, 0, 2], skipped: [0, 1, 0, 0], finished: 2, withTeam: 1 }} />);
+    const text = document.body.textContent!;
+    expect(text).not.toContain("No first visits");
+    expect(text).toContain("Finished2 (–)");
+    expect(text).toContain("Skipped1 (–)");
+    expect(screen.getByRole("img", { name: "2 reached step 4" })).toBeTruthy();
+  });
+
   it("says so when nothing has been counted yet", () => {
     render(<OnboardingFunnel s={{ days: 14, shown: 0, reached: [0, 0, 0, 0], skipped: [0, 0, 0, 0], finished: 0, withTeam: 0 }} />);
     expect(document.body.textContent).toContain("No first visits counted in the last 14 days yet.");
