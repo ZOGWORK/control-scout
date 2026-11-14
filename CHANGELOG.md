@@ -15,6 +15,16 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 6.3.5 — 2026-11-14
+
+A recorded event with a day that has no recording now always reads "Partially recorded", and the coverage line no longer says "Full".
+
+### Highlights
+- [fixes] A partly recorded event never reads as fully recorded
+
+### Fixed
+- Event page coverage line: an event whose coverage check finds a day with no recording (FPEWESEA 2025: Friday and Sunday) said "Full recording only — no match clips in it yet"; it now says "Partially recorded — 0 of 124 matches have video". A recording with no clip placed reads "Recording only — no match clips in it yet", never "Full". The line and the day chips read the same coverage request. (`src/components/contributors/RecordingGaps.tsx`, `src/shared/contributors.ts`)
+
 ## 6.3.4 — 2026-11-14
 
 Match clips read off a recording's own frames now need two signals that agree before a match gets one: a frame read is checked before and after its start, and a lone read goes to the owner's review list instead of becoming a clip. Every match a recording holds without a clip now has a reason. Clips placed from frames stop once the match's final score is up.
