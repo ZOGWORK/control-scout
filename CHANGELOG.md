@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 6.1.2 — 2026-11-14
+
+Search finds a match by its number and plays that exact match.
+
+### Highlights
+- [teams] Type a team and a match number (Q6, M3) to see and play that match
+- [teams] A match number with an event, Worlds or a season finds it too
+- [teams] Comparing teams lists the matches they played together, with Play
+
+### Changed
+- Search: a team and a match's number with no event ("<team> Q6") lists that number at each event of the season, latest first, and plays the latest; a number with no team ("M14 decode finals", "q6 at worlds", "M14 at <event>") lists those matches highest-scoring first, the card playing the top one. An M number is a playoff match's. (`server/api/query/intents.ts`, `parse.ts`, `matchFind.ts`, `server/api/answers/families/eventScope.ts`) (#1484)
+- Search: comparing two or more teams adds "Their matches together", the matches all of them were on the field for, each with its own clip. (`server/api/answers/families/twoTeam.ts`, `src/components/search/page/CompareCard.tsx`)
 ## 6.1.0 — 2026-11-14
 
 Five more official channels: Kazakhstan, France, Italy, Türkiye and Thailand. Their event streams now play on Scout's event pages, each on its own division and day, and the auto-watcher reads the five channels from now on.
