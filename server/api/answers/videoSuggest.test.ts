@@ -59,5 +59,16 @@ describe("withVideoAlternatives", () => {
     const a = answer();
     const slow = () => new Promise<string[]>((r) => setTimeout(() => r(["b highlights"]), 200));
     expect(await withVideoAlternatives("6980 at east bergen with video", a, undefined, askOf, videoOf, 20, slow)).toBe(a);
+    // And the checks still to come are never run.
+    const run: string[] = [];
+    const late = () => new Promise<string[]>((r) => setTimeout(() => r(["b highlights", "c highlights"]), 60));
+    await withVideoAlternatives("6980 at east bergen with video", a, undefined, async (q) => { run.push(q); return askOf(q); }, videoOf, 20, late);
+    await new Promise((r) => setTimeout(r, 150));
+    expect(run).toEqual([]);
+  });
+
+  it("stray spaces around a query are no watch word", async () => {
+    const a = answer();
+    expect(await withVideoAlternatives(" 4215 matches ", a, undefined, askOf, videoOf, 1000, cands)).toBe(a);
   });
 });
