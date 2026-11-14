@@ -39,7 +39,7 @@ Scouting works with no signal: open Scout, pick your downloaded event, scout mat
 ### Tests
 - An entry pushed twice (an offline replay) is stored once, and an older copy sent late never replaces the newer one (server).
 - Entries saved offline survive a reload and go up once each, under the ids they were made with; a lost answer retries the same ids.
-- Kept answers: per account, capped, marked offline; the event list gains bundled events; the shortlist lists every team asked for.
+- Kept answers: per account, capped, marked offline; the event list gains bundled events; the shortlist lists every team asked for. (#1466)
 
 ## 6.0.4 — 2026-11-14
 
