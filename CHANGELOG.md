@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.3.6 — 2026-11-14
+## 6.3.7 — 2026-11-14
 
 FTC One Search works with no signal at the meet: search a team in the downloaded event by number or name, the event, a match, or set its teams side by side, and get the same answer as online. Anything else says plainly that it needs data the pack doesn't hold, and shows what the pack does hold.
 
@@ -32,6 +32,19 @@ FTC One Search works with no signal at the meet: search a team in the downloaded
 
 ### Changed
 - With an event pack saved, search waits 4 seconds for the server before the pack answers (no answer, or no network at all: at once), never search's 10-second slow-search wait; a search the pack can't answer still waits for a server that's answering everything else. (#1489)
+
+## 6.3.6 — 2026-11-14
+
+A search asking for video with nothing to play now always gets its questions with video, and none of them reads like a typo.
+
+### Highlights
+- [fixes] The first video search after a quiet spell still offers questions
+- [fixes] Questions with video never show an event name that reads like a typo
+- [fixes] A misspelled name is skipped and the next question takes its place
+
+### Fixed
+- Search: a watch search whose answer plays nothing waited 2.5 s for its "Questions with video", and the first one after the checks expired could find none in time, so it offered nothing. With none found by then it now waits up to 2 s more and answers as soon as one is found. (`server/api/answers/videoSuggest.ts`)
+- Search: "Questions with video" offered an event under its stored name even when that name has a typo. An event's name now reads as one only when a word no other event has is a letter dropped, doubled or swapped inside a word at least three other events spell in full; rare and accented names stay. The set is built per search index version at start and after a rebuild, never on a search. A skipped event is made up by the next one, the latest seasons' best known events top up to three, and a general question with video stands in when no event's is left. (`server/api/answers/nameTypos.ts`, `server/api/answers/videoSuggest.ts`, `server/index.ts`) (#1499)
 
 ## 6.3.5 — 2026-11-14
 
