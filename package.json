@@ -1,7 +1,7 @@
 {
   "name": "control-scout",
   "private": true,
-  "version": "6.0.4",
+  "version": "6.0.5",
   "description": "FTC Control Scout — free FTC scouting and prediction for every team.",
   "license": "GPL-3.0-only",
   "type": "module",
@@ -47,7 +47,6 @@
     "audit:flows": "tsx scripts/audit-flows.ts",
     "a11y": "tsx scripts/a11y.ts",
     "perf": "tsx scripts/perf.ts",
-    "offline:check": "tsx scripts/offline-check.ts",
     "query-profile": "tsx scripts/query-profile.ts",
     "power-rankings:new": "tsx scripts/power-rankings-new.ts",
     "power-rankings:check": "tsx scripts/power-rankings-check.ts",
