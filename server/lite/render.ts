@@ -36,7 +36,12 @@ export const LITE_STYLE = `:root{color-scheme:dark;${vars("dark")}}`
   + `.brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:1.0625rem;line-height:1.2}.brand svg{width:32px;height:32px;flex:none}.brand i{font-style:normal;color:var(--at)}`
   + `a{color:inherit}`
   + `.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:44px;padding:0 16px;border:1px solid var(--line);border-radius:10px;background:var(--mu);color:var(--fg);font-weight:600;text-decoration:none;white-space:nowrap;text-align:center}`
-  + `.btn.p{border-color:var(--acc);background:var(--acc);color:var(--ink)}`
+  + `.btn.p{border-color:var(--acc);background:var(--acc);color:var(--ink)}button.btn{font:inherit;cursor:pointer}.btn.wide{width:100%}`
+  // Forms (a plain GET to a Lite page: no script). Boxes as tall as a tap target, on the page colour inside a card.
+  + `label{display:block;font-size:.875rem;font-weight:600}input{display:block;width:100%;min-height:44px;margin-top:6px;padding:0 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--fg);font:inherit;font-size:max(1rem,16px)}`
+  + `input:focus,.btn:focus-visible,.chip:focus-visible,.cell:focus-visible,.row:focus-visible{outline:2px solid var(--acc);outline-offset:2px}`
+  + `.pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.srch{display:flex;gap:8px;align-items:flex-end}.srch label{flex:1;min-width:0}`
+  + `.chip.cur{border-color:var(--acc);background:var(--acc);color:var(--ink)}.bar{font-family:ui-monospace,Menlo,Consolas,monospace;color:var(--at);white-space:nowrap}`
   + `.chips{display:flex;flex-wrap:wrap;gap:8px;margin:0;padding:0;list-style:none}`
   + `.chip{display:inline-flex;align-items:center;min-height:44px;min-width:44px;padding:0 14px;border:1px solid var(--line);border-radius:10px;background:var(--mu);color:var(--fg);font-weight:600;text-decoration:none;font-variant-numeric:tabular-nums}`
   + `.on{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin-top:16px}.on p{margin:0;flex:1 1 14rem}`
@@ -102,7 +107,7 @@ export function header(full: string, view: LiteView): string {
 
 /** While Lite is on: what that means, and the way to turn it off (back to this page's full version). */
 export const stickyNote = (full: string) =>
-  `<div class="on card"><p>Lite is on: team, event and match pages open here until you turn it off.</p>${button(`/lite/off?next=${encodeURIComponent(full)}`, "Turn off Lite")}</div>`;
+  `<div class="on card"><p>Lite is on: pages with a Lite version open here until you turn it off.</p>${button(`/lite/off?next=${encodeURIComponent(full)}`, "Turn off Lite")}</div>`;
 
 /** The whole document. `canonical`: the full page's absolute URL (search engines index that one, not this). */
 export function liteDocument(p: LitePage, canonical: string | null, view: LiteView = DEFAULT_VIEW): string {
@@ -112,7 +117,7 @@ export function liteDocument(p: LitePage, canonical: string | null, view: LiteVi
     ? `<meta name="theme-color" content="${THEME_COLOR.dark}" media="(prefers-color-scheme: dark)"><meta name="theme-color" content="${THEME_COLOR.light}" media="(prefers-color-scheme: light)">`
     : `<meta name="theme-color" content="${THEME_COLOR[view.theme]}">`;
   const keep = view.sticky ? ""
-    : `<p>${button(`/lite/on?next=${encodeURIComponent(view.here)}`, "Always open Lite")}</p><p>Team, event and match pages then open in Lite every time, until you turn it off.</p>`;
+    : `<p>${button(`/lite/on?next=${encodeURIComponent(view.here)}`, "Always open Lite")}</p><p>Pages with a Lite version then open in Lite every time, until you turn it off.</p>`;
   return `<!doctype html><html lang="en"${cls ? ` class="${cls}"` : ""}${view.textSize ? ` data-text-size="${view.textSize}"` : ""}><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">`
     + `<title>${esc(p.title)} · Control Scout Lite</title>${canonical ? `<link rel="canonical" href="${esc(canonical)}">` : ""}`
     + `<meta name="color-scheme" content="${scheme}">${color}<style>${LITE_STYLE}</style></head><body>`
@@ -176,7 +181,7 @@ const teamsLine = (teams: number[], off: number[], cls: string) =>
   `<span class="${cls}"><span class="vh">${cls === "r" ? "Red" : "Blue"}: </span>${teams.map((t) => (off.includes(t) ? `<span class="m">(${t})</span>` : String(t))).join(" ")}</span>`;
 
 /** Matches as a list: each row opens the match. Label and time, both alliances, then the score or the call. */
-function matchList(matches: (LiteMatchRow & { code?: string })[], season: number, code: string | null, empty: string, withEvent = false): string {
+export function matchList(matches: (LiteMatchRow & { code?: string })[], season: number, code: string | null, empty: string, withEvent = false): string {
   return list(matches.map((m) => {
     const c = m.code ?? code!;
     return listRow(liteMatchPath(season, c, m.key),
@@ -186,7 +191,7 @@ function matchList(matches: (LiteMatchRow & { code?: string })[], season: number
   }), empty);
 }
 /** The key to bracketed teams, under a list that has any. */
-const offNote = (rows: LiteMatchRow[]) => (rows.some((m) => m.off.length) ? note("In brackets: on the alliance but not on the field.") : "");
+export const offNote = (rows: LiteMatchRow[]) => (rows.some((m) => m.off.length) ? note("In brackets: on the alliance but not on the field.") : "");
 
 // ── Pages ──────────────────────────────────────────────────────────────────────────────────────────────────
 
