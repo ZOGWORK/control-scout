@@ -6,6 +6,7 @@
 import type { SearchAnswer, SearchVideo } from "../../../src/shared/api.js";
 import type { StatAnswer } from "../../../src/shared/searchStat.js";
 import { all } from "../../db.js";
+import { registerCache } from "../../caches.js";
 import { OFFICIAL_TYPES } from "./clauses.js";
 import { CURRENT_SEASON } from "../../data/seasons.js";
 import { seasonClipKeys, seasonVideoKinds } from "../../videos/recordings.js";
@@ -143,8 +144,9 @@ function prune(now: number) {
 }
 const CHECK_TTL_MS = 60_000;
 const CHECK_MAX = 500;
-/** Forgets the questions checked (tests). */
+/** Forgets the questions checked (the owner's Clear caches, and tests). */
 export const forgetVideoChecks = () => checks.clear();
+registerCache("Search answers: video questions", forgetVideoChecks);
 
 /** Longest the answer waits for its questions with video. */
 const WAIT_MS = 2500;
