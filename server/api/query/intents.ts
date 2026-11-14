@@ -341,7 +341,7 @@ export const WATCH_TAKERS = new Set<string>(INTENTS.filter((r) => r.opt?.include
 /** The intents "with video" filters (./execute.ts, the match finder): a scope's matches by a measure, a match's number,
  *  one team's matches or its best; and highlights, which are the matches' videos already ("<team> highlights with
  *  video"). Any other leaves the parse incomplete, never answered without the filter. */
-export const WITH_VIDEO = new Set<PipelineIntent>(["highlights", "top-matches", "low-matches", "close-matches", "lopsided-matches", "penalty-matches", "loss-matches", "upset-matches", "comeback-matches", "miss-matches", "accurate-matches", "season-matches", "highest-score"]);
+export const WITH_VIDEO = new Set<PipelineIntent>(["highlights", "top-matches", "match-label", "low-matches", "close-matches", "lopsided-matches", "penalty-matches", "loss-matches", "upset-matches", "comeback-matches", "miss-matches", "accurate-matches", "season-matches", "highest-score"]);
 
 export interface IntentPick { rule: IntentRule; unexplained: string[] }
 
