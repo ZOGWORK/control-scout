@@ -37,7 +37,7 @@ function pack(): EventBundle {
   api.answers[packPath(`/api/teams-summary?season=${S}&teams=12`)!] = { season: S, teams: [summary(12)] };
   api.answers[packPath(`/api/teams-summary?season=${S}&teams=11`)!] = { season: S, teams: [summary(11)] };
   const search: PackSearch = {
-    teams: Object.fromEntries([11, 12, 13].map((n, i) => [String(n), { facts: { number: n, name: NAMES[n], city: "Midland", state: "MI", country: "USA" }, hit: hit(n, NAMES[n]), rows: [row(n, 60 - i * 10)] }])),
+    teams: Object.fromEntries([11, 12, 13].map((n, i) => [String(n), { facts: { number: n, name: NAMES[n], city: "Midland", state: "MI", country: "USA" }, hit: hit(n, NAMES[n]), rows: [row(n, 60 - i * 10)], together: {} }])),
     scales: { [S]: { opr_np: 100, opr_auto: 30, opr_teleop: 60, opr_endgame: 30, rating_np: 100 } }, current: S, legacy: [2019, 2020, 2021, 2022],
   };
   return {

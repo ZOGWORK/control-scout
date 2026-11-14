@@ -4,7 +4,7 @@
 // app with no signal (src/lib/offline/search.ts, from the event pack's `search` section) build the very same answer
 // through the same functions: never a second copy of the rules.
 import type { SearchAnswer, SearchCompareSide, SearchHit, SearchPageLink } from "./api";
-import type { CompareRow, StatAnswer, StatBlock } from "./searchStat";
+import type { CompareRow, StatAnswer, StatBlock, StatMatchRow } from "./searchStat";
 import { seasonLabel, place } from "./format";
 import { cleanTeamName, searchTeamTitle, teamNameOf, teamWords } from "./teamTitle";
 import { predictHref } from "./predictUrl";
@@ -252,10 +252,23 @@ export const COMPARE_SCALE_COLS: StatColumn[] = ["opr_np", "opr_auto", "opr_tele
 
 const COMPARE_RULE = "Each team's stored season numbers, as their team pages show them: OPR (the points a team adds to its alliance without penalties) and its rank among every team with an OPR that season, OPR by phase, the prediction rating (points per match ± its uncertainty) and the season's record.";
 
+/** Most matches together a comparison lists. */
+export const TOGETHER_MAX = 10;
+/** One of a team's matches as a comparison lists it (from its side: server/api/answers/matchSet.ts matchRow), with
+ *  every other team on the field (`with`). */
+export interface TogetherMatch { with: number[]; row: StatMatchRow }
+/** The matches every one of `others` played in too, of the first team's in the season (official events, on the field,
+ *  latest first): the first TOGETHER_MAX of them, and how many there are in all. */
+export function togetherOf(matches: TogetherMatch[], others: number[]): { rows: StatMatchRow[]; total: number } {
+  const met = matches.filter((m) => others.every((n) => m.with.includes(n)));
+  return { rows: met.slice(0, TOGETHER_MAX).map((m) => m.row), total: met.length };
+}
+
 /** "12345 vs 67890 compare", "12345 67890 33950 compare": the teams' season numbers in one card, from the season
  *  picked (pickSeasonRows) and that season's scales (`scale`: COMPARE_SCALE_COLS, read only when a season was
- *  picked). `legacy`: the season predates Predict (an older season is Compare only). */
-export function compareStat(teams: AnswerTeam[], scope: Scope, s: PickedSeason, scale: Record<string, number | null>, legacy: (season: number) => boolean): StatAnswer {
+ *  picked). `legacy`: the season predates Predict (an older season is Compare only). `together`: the matches every
+ *  one of them played in that season (togetherOf), read only when every team has a row for it. */
+export function compareStat(teams: AnswerTeam[], scope: Scope, s: PickedSeason, scale: Record<string, number | null>, legacy: (season: number) => boolean, together: { rows: StatMatchRow[]; total: number } = { rows: [], total: 0 }): StatAnswer {
   const phrase = s.season != null ? `, ${seasonLabel(s.season)}` : "";
   const base = { family: "two-team" as const, intent: "compare", title: `${teams.map((t) => t.number).join(" vs ")}${phrase}`, team: teams[0], teams, scope: scopeChips({ ...scope, season: s.season }), definition: `${COMPARE_RULE}${s.why ? ` ${s.why}` : ""}`, source: s.season != null ? `From the teams' ${seasonLabel(s.season)} season numbers` : "No season every team played" };
   if (s.season == null) return { ...base, blocks: [], none: `${teams.map(whoOf).join(", ")} have no season they all played.` };
@@ -280,11 +293,17 @@ export function compareStat(teams: AnswerTeam[], scope: Scope, s: PickedSeason, 
   const two = teams.length === 2;
   const who = (i: number) => (two ? "" : `${teams[i].number} `);
   const context = [...rows.map((r, i) => `${who(i)}${r.rank_np ? `#${r.rank_np.toLocaleString("en-US")} of ${(r.ranked_teams ?? 0).toLocaleString("en-US")}` : "unranked"} (${recText(rec(r))})`), decidedText(crow)];
+  // The matches every one of them played in that season at official events (on one alliance or against each other;
+  // never a scrimmage or an off-season event, as head to head counts them), latest first: each a match box the
+  // answer's video gives its own clip, one alone the match the card plays. Past the cap the card says how many it
+  // shows of them all.
+  const togetherMore = together.total > TOGETHER_MAX ? `Showing the latest ${TOGETHER_MAX} of ${together.total}` : undefined;
   return {
     ...base,
     headline: noOpr ? { value: "No OPR", label: `No ${seasonLabel(season)} OPR on record for these teams`, href: compareHref } : leadHeadline(teams, crow[0], context, teamHref(lead.number, season)),
     blocks: [
       block,
+      ...(together.rows.length ? [{ kind: "matches" as const, title: `Their matches together in ${seasonLabel(season)}`, rows: together.rows, ...(togetherMore ? { more: togetherMore } : {}) }] : []),
       { kind: "links", title: "Try it", items: [...(two && !legacy(season) ? [{ label: "Open in Predict", href: predictHref({ mode: "match", season, red: [teams[0].number], blue: [teams[1].number] }) }] : []), { label: "Compare side by side", href: compareHref }] },
     ],
   };
@@ -333,6 +352,9 @@ export interface VersusPart {
   hit: SearchHit;
   /** Its season rows with matches, newest first. */
   rows: SeasonRow[];
+  /** By season: its matches at official events, on the field, with another of the pack's teams on it, latest first
+   *  (what a comparison of the pack's teams lists as their matches together). */
+  together?: Record<string, TogetherMatch[]>;
 }
 /** The event pack's `search` section: the parts above per team number, each season's compare scales, the server's
  *  current season and the seasons older than Predict. */
@@ -374,7 +396,11 @@ export function versusFromPack(q: string, pack: PackSearch, read: string[] | nul
   const teams = parts.map((p) => ({ number: Number(p.hit.ref), name: teamNameOf(p.hit.title) || null }));
   // The scales are read only for a season every team played (the server's compareAnswer).
   const scale = picked.season != null && !picked.rows.some((r) => !r) ? pack.scales[String(picked.season)] ?? {} : {};
-  const stat = compareStat(teams, scope, picked, scale, (s) => pack.legacy.includes(s));
+  // Their matches together that season, from the first team's (a pack built before it held them: not answered here).
+  const whole = picked.season != null && !picked.rows.some((r) => !r);
+  const mine = whole ? parts[0].together?.[String(picked.season)] : [];
+  if (!mine && !parts[0].together) return null;
+  const stat = compareStat(teams, scope, picked, scale, (s) => pack.legacy.includes(s), togetherOf(mine ?? [], nums.slice(1)));
   // The rows as search finds them, before the route puts each team's season numbers on (`team`, last: withNumbers).
   const rows = parts.map(({ hit: { team: _numbers, ...h } }) => h as SearchHit);
   if (nums.length === 2) {

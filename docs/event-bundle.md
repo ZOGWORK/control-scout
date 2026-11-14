@@ -23,7 +23,7 @@ Two more sections make the whole event work with no signal, with the same number
 
 | Section | What | Where it's used with no signal |
 | --- | --- | --- |
-| `api` | The server's own JSON for API GET paths (`PackApi`): for every team in the field and every lineup, `/api/teams/N` (with and without `?season=`), its season matches, report cards and schedule difficulty; for every match, its detail and its Know your match report; the event's projections and pick ratings | Team pages, match pages, the opened match on the event page, the pick helper (`lib/offline/answer.ts` `packAnswer`) |
+| `api` | The server's own JSON for API GET paths (`PackApi`): for every team in the field and every lineup, `/api/teams/N` (with and without `?season=`), its season matches, report cards and schedule difficulty; for every match, its detail, its Know your match report and its result changes; the event's projections, pick ratings and result changes | Team pages, match pages, the opened match on the event page, the pick helper, Result changes (`lib/offline/answer.ts` `packAnswer`) |
 | `compare` | Each team's Compare column for the season (`compareBlockOf`) and the latest season it has results in | `/api/compare` for any of the pack's teams (`compareFromPacks`) |
 
 - The list of paths is one array, `PACK_READS` in `server/packs/eventApi.ts`. Each path is read through the function its
@@ -71,7 +71,7 @@ reads a query), from the saved packs (`src/shared/searchOffline.ts`, loaded by `
    and spacing finds it; the header's short list gets the first rows. The result cards' season numbers come with it
    (`/api/teams-summary`, one team a path, put together in the order asked).
 2. **A versus of the pack's teams** ("12722 vs 17064", up to 4): built on the phone from the pack's `search` section
-   (`PackSearch`: each team's Compare facts, its search row and season rows; each season's compare scales) by the
+   (`PackSearch`: each team's Compare facts, its search row and season rows, its official matches with another of the pack's teams (the card's matches together); each season's compare scales) by the
    functions the server builds it with (`src/shared/searchVersus.ts`), the two-team "read as" line by search's own
    parser. Byte for byte the server's JSON (`server/packs/eventSearch.test.ts`).
 3. **Anything else**: the parser (`src/shared/query/parse.ts`, with the packs' teams and events as its names:

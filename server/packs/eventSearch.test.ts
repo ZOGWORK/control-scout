@@ -105,6 +105,10 @@ describe("the event pack's searches", () => {
       expect(on.stat?.intent, q).toBe("compare");
       expect(JSON.stringify(await offline(q)), q).toBe(JSON.stringify(on));
     }
+    // Their matches together (both of Q1 and Q2 for 1111 and 3333; Q1 alone for all four), latest first.
+    const together = (a: SearchAnswer) => a.stat?.blocks.find((b) => b.kind === "matches");
+    expect(together(await offline("1111 vs 3333"))).toMatchObject({ title: "Their matches together in 2025–26", rows: [{ label: "Q2" }, { label: "Q1" }] });
+    expect(together(await offline("1111 vs 2222 vs 3333 vs 4444"))).toMatchObject({ rows: [{ label: "Q1" }] });
   });
 
   it("reads the query as the route does: punctuation and thousands commas still find the pack's answer", async () => {

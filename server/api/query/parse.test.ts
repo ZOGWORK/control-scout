@@ -609,6 +609,18 @@ describe("two teams and a place to compare them", () => {
   });
 });
 
+describe("a match by its number, with no event named (search video brief, point 4)", () => {
+  it("a team and a match's number is that team's match lookup, in any word order, asked to watch or not", async () => {
+    for (const q of ["6980 Q7", "q7 6980", "6980 match 7", "6980 q7 video", "bad wolf qual 7"]) expect(await parse(q), q).toMatchObject({ intent: "match-lookup", complete: true, teams: [{ number: 6980 }], matchNumber: 7 });
+    expect((await parse("6980 Q7")).level).toBe("qual");
+  });
+  it("an M number is a playoff match's; with no team, the match's number in a scope", async () => {
+    expect(await parse("6980 m3")).toMatchObject({ intent: "match-lookup", level: "playoff", matchNumber: 3 });
+    expect(await parse("m11 into the deep finals")).toMatchObject({ intent: "match-label", complete: true, teams: [], level: "playoff", finals: true, matchNumber: 11 });
+    expect(await parse("q9 at worlds")).toMatchObject({ intent: "match-label", complete: true, worlds: true, matchNumber: 9, level: "qual" });
+  });
+});
+
 describe("with video (search video brief, point 5)", () => {
   it("is a filter the match finder's intents take, in any phrasing", async () => {
     for (const q of ["6980 matches with video", "6980 matches that have video", "highest score in new jersey with video", "closest match with clips", "matches with video at east bergen conference"]) {

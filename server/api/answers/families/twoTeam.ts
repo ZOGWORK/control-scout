@@ -16,13 +16,13 @@ import { predictHref } from "../../../../src/shared/predictUrl.js";
 import { isLegacy } from "../../../data/seasons.js";
 import { all, get } from "../../../db.js";
 import { OFFICIAL_TYPES, inScope, scopeChips, scopePhrase, type Scope } from "../clauses.js";
-import { matchHref, matchRow, teamHref, teamLinks, type TeamMatch } from "../matchSet.js";
+import { matchHref, matchRow, teamHref, teamLinks, teamMatches, type TeamMatch } from "../matchSet.js";
 import type { TwoTeamId, IntentId } from "../read.js";
 import { teamReliability } from "../../teams.js";
 import { currentSeason, seasonWhy } from "../season.js";
 import { sourceOf, whoOf, type AnswerTeam } from "./matches.js";
 import { awardScale, compareBlock, decidedText, leadHeadline, seasonScale, winShare, type CompareInput, type StatColumn } from "../compareBlock.js";
-import { COMPARE_SCALE_COLS, SEASON_COLS, compareStat, pickSeasonRows, type PickedSeason, type SeasonRow } from "../../../../src/shared/searchVersus.js";
+import { COMPARE_SCALE_COLS, SEASON_COLS, compareStat, pickSeasonRows, togetherOf, type PickedSeason, type SeasonRow, type TogetherMatch } from "../../../../src/shared/searchVersus.js";
 
 const LIST_CAP = 25, TOP = 10;
 /** Meetings an opponent (or matches a partner) needs before "toughest" or "best" ranks it. */
@@ -389,8 +389,22 @@ export async function awardsSideBySide(a: AnswerTeam, b: AnswerTeam, season: num
  *  compareStat, which the event pack runs with no signal too), from their stored season rows and the season's scales. */
 export async function compareAnswer(teams: AnswerTeam[], scope: Scope): Promise<StatAnswer> {
   const s = await seasonRows(teams.map((t) => t.number), scope.season);
-  const scale = s.season != null && !teams.some((_, i) => !s.rows[i]) ? await seasonScale(s.season, COMPARE_SCALE_COLS) : {};
-  return compareStat(teams, scope, s, scale, isLegacy);
+  const whole = s.season != null && !teams.some((_, i) => !s.rows[i]);
+  const others = teams.slice(1).map((t) => t.number);
+  const [scale, together] = whole
+    ? await Promise.all([seasonScale(s.season!, COMPARE_SCALE_COLS), togetherMatches(teams[0].number, (w) => others.every((n) => w.includes(n)), s.season!)])
+    : [{}, []];
+  return compareStat(teams, scope, s, scale, isLegacy, togetherOf(together, others));
+}
+
+/** A team's matches at official events (never a scrimmage or an off-season event, as head to head counts them), on
+ *  the field, latest first, with the teams on the field with it that `keep` takes, each as a comparison lists it (from
+ *  its side): in `season`, else every season. The event pack keeps its teams' (server/packs/eventApi.ts). */
+export async function togetherMatches(team: number, keep: (others: number[]) => boolean, season?: number): Promise<(TogetherMatch & { season: number })[]> {
+  const met = (await teamMatches(team)).filter((m) => (season == null || m.season === season) && m.onField && (OFFICIAL_TYPES as readonly string[]).includes(m.type ?? "") && keep([...m.partners, ...m.opponents])).reverse();
+  if (!met.length) return [];
+  const links = await teamLinks(met.flatMap((m) => [...m.partners, ...m.opponents]));
+  return met.map((m) => ({ season: m.season, with: [...m.partners, ...m.opponents], row: matchRow(m, links, team) }));
 }
 
 const PARTNER_IDS = new Set<IntentId>(["worst-partner", "partners", "partner-top-opr", "partner-win-rate", "pick-partner"]);

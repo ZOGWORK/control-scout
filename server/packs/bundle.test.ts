@@ -54,6 +54,10 @@ async function seedFtc() {
   await match(1, [11, 12], [13, 14], true);
   await match(2, [11, 13], [12, 14], false);
   await match(3, [11], [13], false); // short-handed: one robot each
+  // Q1's score was corrected once (the event page's Result changes, and Q1's own).
+  await run("INSERT INTO result_watch (season, code, since) VALUES (?, ?, '2025-10-31T12:00:00Z')", [S, EV]);
+  await run(`INSERT INTO result_changes (season, code, level, series, number, label, kind, fields, before, after, source, prev_source, checked_at, diff_key)
+    VALUES (?, ?, 'qual', 0, 1, 'Q1', 'revised', '["red.total"]', '{"red":{"total":85}}', '{"red":{"total":90}}', 'first', 'first', '2025-11-01T11:00:00Z', 'q1-fix')`, [S, EV]);
   // The season: 30 ordinary teams (penalties 0..2.9, spread 0.2..0.49) and our four.
   for (let i = 0; i < 30; i++) {
     await run("INSERT INTO team_season_stats (season, team, opr_np, opr_pen, matches, wins, losses, ties) VALUES (?, ?, 40, ?, 10, 5, 5, 0)", [S, 1000 + i, i / 10]);
@@ -308,6 +312,22 @@ describe("the event pack", () => {
     // The app asks in any case and order: the same answer.
     expect(packLookup(api, `/api/events/${S}/${EV.toLowerCase()}/matches/qual:0:1`)).toEqual(packLookup(api, `/api/events/${S}/${EV}/matches/qual:0:1`));
     expect(packLookup(api, `/api/teams/99999?season=${S}`)).toBeNull();
+  });
+
+  it("Result changes from the pack are the API's, byte for byte: the event's and every match's", async () => {
+    const api = (await pack()).api!;
+    const paths = [`/api/events/${S}/${EV}/result-changes`, ...(await pack()).event.matches.map((x) => `/api/events/${S}/${EV}/matches/${x.key}/result-changes`)];
+    for (const p of paths) {
+      const live = await anon("GET", p);
+      expect(live.status, p).toBe(200);
+      const got = packLookup(api, p);
+      expect(got && "body" in got, p).toBe(true);
+      expect(JSON.stringify((got as { body: unknown }).body), p).toBe(JSON.stringify(live.json));
+    }
+    // The correction is in both: the event's list and Q1's own.
+    const one = (packLookup(api, `/api/events/${S}/${EV}/matches/qual:0:1/result-changes`) as { body: { changes: { kind: string }[] } }).body;
+    expect(one.changes.map((x) => x.kind)).toEqual(["revised"]);
+    expect((packLookup(api, `/api/events/${S}/${EV.toLowerCase()}/result-changes`) as { body: { changes: unknown[] } }).body.changes).toHaveLength(1);
   });
 
   it("Compare from the pack is the API's comparison, byte for byte (with and without a season asked)", async () => {

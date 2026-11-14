@@ -19,15 +19,17 @@ import { finishPageAnswer, typedPageAnswer } from "../api/searchPage.js";
 import { teamFacts } from "../api/searchCompare.js";
 import { seasonScale } from "../api/answers/compareBlock.js";
 import { currentSeason } from "../api/answers/season.js";
+import { togetherMatches } from "../api/answers/families/twoTeam.js";
 import { SIGNED_OUT } from "../videos/contributors.js";
 import { cleanTeamName } from "../../src/shared/teamTitle.js";
 import { SEARCH_PAGE_LIMIT } from "../../src/shared/search.js";
-import { COMPARE_SCALE_COLS, SEASON_COLS, type PackSearch, type SeasonRow } from "../../src/shared/searchVersus.js";
+import { COMPARE_SCALE_COLS, SEASON_COLS, type PackSearch, type SeasonRow, type TogetherMatch } from "../../src/shared/searchVersus.js";
 import { matchDetailAnswer, teamMatchesAnswer, teamReportCardAnswer, teamScheduleAnswer } from "../api/reads.js";
 import { cachedEventDetail, eventDetail } from "../api/events.js";
 import { gatedEventDetail } from "../api/eventGates.js";
 import { matchReport } from "../api/matchReport.js";
 import { pickRatings } from "../api/pickRatings.js";
+import { resultChanges } from "../api/resultChanges.js";
 import { readProjections } from "../projections/store.js";
 import { hasTeamPage } from "../../src/shared/teamPages.js";
 import { packLookup, packPath, poolMatches, searchPackPath, stableJson, type PackApi, type PackCompareTeam } from "../../src/shared/eventBundle.js";
@@ -49,6 +51,9 @@ export interface PackContext {
 /** One path the pack answers. `read` gives the route's answer, null where the route answers 404. `needed`: what a
  *  page can't do without it ("team 4215"), so a pack without its answer is broken and the build fails. */
 export interface PackRead { path: string; read: () => Promise<unknown | null>; needed?: string; notFound?: string }
+
+/** The match keys the match result-changes route accepts (server/app.ts). */
+const RESULT_CHANGES_KEY = /^(qual|playoff):\d{1,3}:\d{1,4}$/;
 
 type Reads = (c: PackContext) => PackRead[] | Promise<PackRead[]>;
 const ev = (c: PackContext) => `/api/events/${c.season}/${encodeURIComponent(c.code)}`;
@@ -77,6 +82,12 @@ export const PACK_READS: Reads[] = [
   // lib/offline/search.ts puts a request for several together, in the order asked).
   (c) => packSearchQueries(c).map((q) => ({ path: searchPackPath(q), read: () => packSearchAnswer(q) })),
   (c) => summarySeasons(c.season).flatMap((s) => c.teams.map((t) => ({ path: `/api/teams-summary?season=${s}&teams=${t}`, read: async () => ({ season: s, teams: await teamSummaries([t], s) }) }))),
+  // Result changes: the event page's section and each match's (server/app.ts's two result-changes routes).
+  (c) => [
+    { path: `${ev(c)}/result-changes`, read: () => resultChanges(c.season, c.code), notFound: `No event ${c.code} in ${c.season}` },
+    // Only keys the route accepts (it answers 400 to any other).
+    ...c.matches.filter((m) => RESULT_CHANGES_KEY.test(m.key)).map((m) => ({ path: `${ev(c)}/matches/${m.key}/result-changes`, read: () => resultChanges(c.season, c.code, m.key), notFound: `No match ${m.key} at ${c.code}` })),
+  ],
 ];
 
 /** The searches the pack answers: every team in it by number and by name, the event by code and by name, and each
@@ -119,7 +130,10 @@ export async function packSearch(teams: number[], api: PackApi): Promise<PackSea
     const got = packLookup(api, searchPackPath(String(t)));
     const hit = got && "body" in got ? (got.body as SearchAnswer).hits?.find((h) => h.kind === "team" && h.ref === String(t) && !h.href) : undefined;
     if (!f || !hit) continue;
-    out.teams[String(t)] = { facts: { number: f.number, name: f.name, city: f.city, state: f.state, country: f.country }, hit, rows: rows.filter((r) => Number(r.team) === t) };
+    // Its matches with another of the pack's teams on the field, by season: a comparison's matches together.
+    const together: Record<string, TogetherMatch[]> = {};
+    for (const { season, ...m } of await togetherMatches(t, (w) => w.some((n) => n !== t && teams.includes(n)))) (together[String(season)] ??= []).push(m);
+    out.teams[String(t)] = { facts: { number: f.number, name: f.name, city: f.city, state: f.state, country: f.country }, hit, rows: rows.filter((r) => Number(r.team) === t), together };
   }
   for (const s of [...new Set(rows.map((r) => Number(r.season)))]) out.scales[String(s)] = await seasonScale(s, COMPARE_SCALE_COLS);
   return out;
