@@ -159,7 +159,8 @@ function Choices({ m, pick, onPick, local }: { m: PackManifest; pick: Choice; on
   const choices: { id: Choice; icon: typeof Trophy; title: string; line: string; size: string }[] = [
     { id: "event", icon: Trophy, title: "This event", line: first ? first.name : "Your team's next event", size: eventBytes?.key === eventKey ? `from ${fmtBytes(eventBytes.bytes)}` : first ? "…" : "" },
     { id: "season", icon: CalendarDays, title: "A season", line: singles.length ? `${singles.length} seasons to pick from` : "None published", size: sizes.length ? (sizes.length === 1 ? fmtBytes(sizes[0]) : `${fmtBytes(Math.min(...sizes))} to ${fmtBytes(Math.max(...sizes))}`) : "" },
-    { id: "whole", icon: Layers, title: "Whole current season", line: `${seasonLabel(cur?.seasons[0] ?? season)}: every event, team and prediction`, size: whole > 0 ? fmtBytes(whole) : "Saved" },
+    // No season pack in this release: nothing to call saved (the byte total is 0 for that reason too).
+    { id: "whole", icon: Layers, title: "Whole current season", line: cur ? `${seasonLabel(cur.seasons[0])}: every event, team and prediction` : "No season pack in this release", size: !cur ? "" : whole > 0 ? fmtBytes(whole) : "Saved" },
   ];
   return (
     <div role="radiogroup" aria-label="What to save" className="grid gap-2 sm:grid-cols-3">
@@ -235,7 +236,9 @@ function WholeSeason({ m, local }: { m: PackManifest; local: PackMeta | null }) 
           ? <Button size="lg" className="w-full sm:w-auto" onClick={() => void go()} disabled={running || busy != null || queue.length > 0} data-whole-download>
               {running ? <Loader2 className="animate-spin" /> : <HardDriveDownload />} Download · {fmtBytes(total)}
             </Button>
-          : <p className="inline-flex items-center gap-1.5 text-sm text-success"><CheckCircle2 className="size-4" />All of {label} is on this device and current.</p>}
+          : file
+            ? <p className="inline-flex items-center gap-1.5 text-sm text-success"><CheckCircle2 className="size-4" />All of {label} is on this device and current.</p>
+            : <p className="text-sm text-muted-foreground">No season pack in this release yet, so there's nothing to save for {label}.</p>}
       </div>
     </section>
   );

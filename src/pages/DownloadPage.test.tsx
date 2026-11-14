@@ -165,6 +165,20 @@ describe("the Offline page's layout", () => {
     expect(await screen.findByText(/is on this device and current/)).toBeTruthy(); // the panel below agrees
   });
 
+  it("a release with no season pack never says Saved or 'on this device and current'", async () => {
+    saved = [];
+    const full = MANIFEST.full;
+    MANIFEST.full = [];
+    try {
+      mount("/download");
+      const radios = within(await screen.findByRole("radiogroup", { name: "What to save" })).getAllByRole("radio");
+      expect(radios[2].textContent).toContain("No season pack in this release");
+      expect(radios[2].textContent).not.toMatch(/Saved/);
+      expect(await screen.findByText(/No season pack in this release yet/)).toBeTruthy();
+      expect(screen.queryByText(/is on this device and current/)).toBeNull();
+    } finally { MANIFEST.full = full; }
+  });
+
   it("lists a half download as paused (never as saved), and Delete frees it", async () => {
     const { download, partialDownloads } = await import("../lib/offline/download");
     const data = new Uint8Array(4000).fill(7);
