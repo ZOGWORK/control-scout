@@ -18,7 +18,7 @@ import { liveHeroLines } from "./heroLines.js";
 import { isBareRoute, pageModule } from "../src/shared/routes.js";
 import { APP_CSS_ID } from "../src/shared/boot.js";
 import { COIN_FLIPS_META, hasFlips } from "../src/shared/coinFlips.js";
-import { liteHref } from "../src/shared/lite.js";
+import { liteOffer } from "../src/shared/lite.js";
 import { footerFlagOn } from "../src/shared/footer.js";
 import { isEnabled } from "./flags.js";
 import type { SearchIntentNote } from "../src/shared/api.js";
@@ -192,7 +192,7 @@ export async function renderPage(file: string, path: string, query: Record<strin
   let html = (deferred ? afterFirstPaint(deferred.html, { css: deferred.href, fonts: FIRST_PAINT_FONT_LOADS }) : afterFirstPaint(nonBlockingCss(shell)))
     // The privacy banner goes after #root, not in it: React's first render replaces #root, and the app's banner takes over from this one.
     // Not on a bare page (the pit display): nobody answers it on a pit TV, and the app shows no banner there to take it over.
-    .replace(/<div id="root">(?:<!--cs-boot-->)?<\/div>/, () => `<div id="root">${bootShell(path, meta, hero, meta.notFound || !lite ? null : liteHref(path, queryString(query)), footerFlagOn({ rulesReference: rules, statusPage: status }))}</div>${isBareRoute(path) ? "" : bootConsent()}`);
+    .replace(/<div id="root">(?:<!--cs-boot-->)?<\/div>/, () => `<div id="root">${bootShell(path, meta, hero, meta.notFound || !lite ? null : liteOffer(path, queryString(query)), footerFlagOn({ rulesReference: rules, statusPage: status }))}</div>${isBareRoute(path) ? "" : bootConsent()}`);
   if (deferred) html = inlineCriticalCss(html, [join(dirname(file), deferred.href), ...pageStylesheets(file, path)]);
   // A search's intent goes out with the page, for the route to count per visit (PageMeta.intent).
   return { status: meta.notFound ? 404 : 200, html, ...(meta.intent ? { intent: meta.intent } : {}) };
