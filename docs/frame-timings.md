@@ -56,7 +56,8 @@ No match is placed on one signal alone.
      filled, not read);
    - a stretch of one read is placed only when the broadcast's own clock (YouTube's start, where the video kept it)
      agrees with it (high). Otherwise it is one signal only, and goes to **review**.
-3. **Plausible or review.** Placed starts must be inside the video, in match order, and at least a match (2:38) apart.
+3. **Plausible or review.** Placed starts must be inside the video, in match order, and at least 2:32 apart (a
+   match's 2:38 less a read's 6 s slack).
    Any that aren't go to review.
 4. **Missing, with the reason.** Every other match of the video gets a reason: its read disagreed with the matches
    around it, its frames didn't confirm a start, it sits in a gap whose two sides disagree (the stream may have been
@@ -87,6 +88,16 @@ match's start in the same video but never before its own play is over, and never
 
 YouTube refuses data-centre addresses (the "confirm you're not a bot" wall), so run it on a computer that can play
 YouTube, against a copy of the live database:
+
+It reads text with tesseract.js, which isn't one of the app's dependencies (the server never needs it). Install it
+once outside the repository and point the script at it:
+
+```bash
+npm install --prefix ~/frame-ocr tesseract.js
+export TESSERACT_JS=file://$HOME/frame-ocr/node_modules/tesseract.js/src/index.js
+```
+
+Playwright's Chromium (`npx playwright install chromium`) plays the video.
 
 ```bash
 DATABASE_URL=file:/path/to/copy.db npx tsx scripts/video-frames.ts --season 2025
