@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 // An answer's video on /search: the card's player is a picture until clicked (no player loads, nothing plays on its
-// own), a listed match with a clip gets a play button that opens the app's video dialog, and no video draws nothing.
+// own), a listed match with a clip gets a play button that opens the app's video dialog, one without says "No video", and
+// an answer listing matches with no video at all says so in one line.
 import { cleanup, fireEvent, render } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it } from "vitest";
@@ -23,7 +24,7 @@ const stat: StatAnswer = {
   definition: "", source: "",
 };
 const video: SearchVideo = {
-  main: { videoId: "xnQFL9T27fY", t: 33152, kind: "recording", match: "M10" },
+  main: { videoId: "xnQFL9T27fY", t: 33152, kind: "recording", match: "M10" }, mainRow: M10,
   rows: { [Q12]: { videoId: "xnQFL9T27fY", t: 9991, kind: "recording", match: "Q12" } },
 };
 const draw = (v?: SearchVideo) => render(<MemoryRouter><AnswerVideoProvider video={v}><StatAnswerCard stat={stat} /></AnswerVideoProvider></MemoryRouter>).container;
@@ -71,10 +72,35 @@ describe("AnswerVideo", () => {
     } finally { off(); }
   });
 
-  it("no video: no player, no button, no empty box or words about it", () => {
+  it("no video: no player, no button; one line says the event has no recording", () => {
     const c = draw(undefined);
-    expect(c.querySelector("[data-answer-video], [data-row-play], iframe")).toBeNull();
-    expect(c.textContent).not.toMatch(/video/i);
+    expect(c.querySelector("[data-answer-video], [data-row-play], [data-row-no-video], iframe")).toBeNull();
+    expect(c.querySelectorAll("[data-no-recording]")).toHaveLength(1);
+    expect(c.querySelector("[data-no-recording]")?.textContent).toBe("No recording for this event — stats only.");
+  });
+
+  it("matches at several events with no video: one line for them all", () => {
+    const at = (code: string, key: string, label: string) => ({ label, href: `/events/2025/${code}?match=${key}`, event: { label: code, href: `/events/2025/${code}` }, season: "2025–26", date: null, alliance: "red" as const, own: 1, opp: 0, result: "W" as const });
+    const two: StatAnswer = { ...stat, headline: undefined, blocks: [{ kind: "matches", title: "x", rows: [at("USMACMP", "qual:0:1", "Q1"), at("USNJCMP", "qual:0:2", "Q2")] }] };
+    const c = render(<MemoryRouter><AnswerVideoProvider video={undefined}><StatAnswerCard stat={two} /></AnswerVideoProvider></MemoryRouter>).container;
+    expect(c.querySelector("[data-no-recording]")?.textContent).toBe("No video for these matches — stats only.");
+  });
+
+  it("an answer about no match says nothing about video", () => {
+    const none: StatAnswer = { ...stat, headline: { value: "115.7", label: "OPR" }, blocks: [] };
+    const c = render(<MemoryRouter><AnswerVideoProvider video={undefined}><StatAnswerCard stat={none} /></AnswerVideoProvider></MemoryRouter>).container;
+    expect(c.textContent).not.toMatch(/video|recording/i);
+  });
+
+  it("a listed match with no clip says No video, never a Play that goes nowhere; the card's own match says nothing", () => {
+    const Q1 = "/events/2025/USMACMP?match=qual:0:1";
+    const three: StatAnswer = { ...stat, blocks: [{ kind: "matches", title: "x", rows: [M10, Q12, Q1].map((href, i) => ({ ...(stat.blocks[0] as Extract<StatAnswer["blocks"][number], { kind: "matches" }>).rows[0], label: ["M10", "Q12", "Q1"][i], href })) }] };
+    const c = render(<MemoryRouter><AnswerVideoProvider video={video}><StatAnswerCard stat={three} /></AnswerVideoProvider></MemoryRouter>).container;
+    expect(c.querySelectorAll("[data-row-play]")).toHaveLength(1);
+    const none = c.querySelectorAll("[data-row-no-video]");
+    expect(none).toHaveLength(1);
+    expect(none[0].closest("[data-match-box]")?.getAttribute("data-match-box")).toBe("Q1");
+    expect(c.querySelector("[data-no-recording]")).toBeNull();
   });
 
   it("captions name the match once, or the event's stream", () => {
