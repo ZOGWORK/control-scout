@@ -62,12 +62,6 @@ const eventOf = (x: OfficialList["videos"][number]) => {
   return e[0];
 };
 const first = (re: RegExp, s: string) => re.exec(s)?.[1]?.toLowerCase() ?? null;
-// One day's broadcast restarted on one channel (docs rule 7): Part 2 starts after Part 1 ends, at most 30 minutes later.
-// The times are YouTube's (liveStreamingDetails), read 2026-11-14.
-const restarted = (p1End: string, p2Start: string) => {
-  const gap = Date.parse(p2Start) - Date.parse(p1End);
-  expect(gap >= 0 && gap <= 30 * 60_000, `${p1End} → ${p2Start}`).toBe(true);
-};
 
 describe("audited channels: California", () => {
   it("NorCal FIRST Tech Challenge: place, QT number, division and meet are the event's; Gold never on Silicon", () => {
@@ -89,7 +83,8 @@ describe("audited channels: California", () => {
     expect(nc.filter((x) => x.season === 2025 && /Play Space|Mountain View/.test(x.title))).toHaveLength(7);
     // The one split day names its parts, in broadcast order.
     expect(nc.filter((x) => x.code === "USCANOSCQ").map((x) => `${x.part} ${x.videoId}`)).toEqual(["Part 1 tfCClIb8AnU", "Part 2 eXfH6cxEfwE"]);
-    restarted("2022-01-15T20:23:35Z", "2022-01-15T20:32:35Z");
+    // One broadcast restarted (docs rule 7), hand-checked against YouTube's liveStreamingDetails on 2026-11-14:
+    // Part 1 ended 20:23:35Z, Part 2 began 20:32:35Z.
   });
 
   it("FTC SoCal League G: each meet on League G's event with the same number, never another league's", () => {
@@ -108,7 +103,7 @@ describe("audited channels: California", () => {
     const t = rowsOf(T7419);
     expect(t.map((x) => `${x.season}/${x.code} ${x.day} ${x.part} ${x.videoId}`)).toEqual([
       "2026/USCANOEBM1 2026-11-01 Part 1 fdvPInsQ2mY", "2026/USCANOEBM1 2026-11-01 Part 2 44mne4zzkPU"]);
-    restarted("2026-11-01T19:08:49Z", "2026-11-01T19:26:05Z");
+    // Hand-checked the same way: Part 1 ended 19:08:49Z, Part 2 began 19:26:05Z.
     for (const x of t) eventOf(x);
   });
 
