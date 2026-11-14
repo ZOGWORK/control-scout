@@ -8,6 +8,7 @@ import { clearAllCaches } from "../caches";
 import { eventRecording, recordingStream } from "./recordings";
 import { eventHighlightVideos, localDate, seedOfficialVideos, type OfficialList } from "./officialVideos";
 import { eventView, withPageExtras } from "../api/eventView";
+import { parseRule } from "./officialMatch";
 import shipped from "../data/officialVideos.json" with { type: "json" };
 
 const S = 2025;
@@ -167,6 +168,38 @@ describe("the shipped list", () => {
     const apocSat = au.filter((x) => x.code === "AUSYOS" && x.day === "2026-07-04");
     expect(apocSat.map((x) => x.part).sort()).toEqual(["Part 1", "Part 2"]);
   });
+  it("puts FANGV's West Michigan streams on the meet each title names, and watches Stars of the Galaxy for Central Ohio only", async () => {
+    const FANGV = "UCaojFS3JFPWY9kaoW6bhvvQ", SOTG = "UC576ZA1td9ZvsAUwPq1Ymaw";
+    const rows = data.videos.filter((x) => x.channelId === FANGV).map((x) => `${x.season}/${x.code} ${x.day} ${x.videoId} ${x.kind}`).sort();
+    // Meet 1, 3 and 4 already play FIRST's own link to the same streams; Meet 2 (Sat 08:45 EST) and Meet 5 (Sat 11-14, listed before it airs) don't.
+    expect(rows).toEqual(["2026/USMIWMM2 2026-11-07 1K5DNOqzuIg recording", "2026/USMIWMM5 2026-11-14 6lcZz9UrOdE recording"]);
+    for (const x of data.videos.filter((v) => v.channelId === FANGV)) expect(x.title, x.videoId).toMatch(new RegExp(`^West Michigan FTC League Meet ${x.code.slice(-1)} - BIOBUZZ$`));
+    // Stars of the Galaxy's streams are all FIRST's own links already (Central Ohio 2025 and 2026): nothing added twice.
+    expect(data.videos.some((x) => x.channelId === SOTG)).toBe(false);
+    // Never FANGV's Robot in 3 Days (FRC) streams.
+    const ids = new Set(data.videos.map((x) => x.videoId));
+    for (const no of ["39f7WaZNFxw", "8oSb8QlFMKg", "QyzpYTuXL1o", "Chmx9cPSsg8", "ek8azJdipFE", "Xtf13QgWN9w"]) expect(ids.has(no), no).toBe(false);
+    const { OFFICIAL_CHANNELS } = await import("../data/officialChannels");
+    const rule = (id: string) => parseRule(OFFICIAL_CHANNELS.find((c) => c.channelId === id)!.region)!;
+    const base = { season: 2026, type: "LeagueMeet", country: "USA", start: "2026-11-14", end: "2026-11-14", timezone: "America/New_York", divisionCode: null, parent: false };
+    const mi = { ...base, city: "Grand Rapids", state: "MI" }, oh = { ...base, city: "Columbus", state: "OH" };
+    expect(rule(FANGV)({ ...mi, code: "USMIWMM6", name: "West Michigan Meet 6" })).toBe(true);
+    expect(rule(FANGV)({ ...mi, code: "USMIWMLT", name: "West Michigan League Tournament" })).toBe(true);
+    expect(rule(FANGV)({ ...mi, code: "USMISAM1", name: "MSCRL Saline Meet 1", city: "Saline" })).toBe(false);
+    expect(rule(FANGV)({ ...oh, code: "USOHWEM1", name: "West Michigan Meet 1" })).toBe(false);
+    expect(rule(SOTG)({ ...oh, code: "USOHCOHM3", name: "Central Ohio League Meet 3" })).toBe(true);
+    expect(rule(SOTG)({ ...oh, code: "USOHCOHLT", name: "Central Ohio League Tournament" })).toBe(true);
+    expect(rule(SOTG)({ ...oh, code: "USOHNEQ", name: "Ohio Qualifier", city: "Newark" })).toBe(false);
+    expect(rule(SOTG)({ ...mi, code: "USMIWMM6", name: "West Michigan Meet 6" })).toBe(false);
+    // The watcher puts FANGV's next stream on its own meet, never on the other meet that day.
+    const { matchVideo } = await import("./officialMatch");
+    const seed = OFFICIAL_CHANNELS.find((c) => c.channelId === FANGV)!;
+    const day = [5, 6].map((n) => ({ ...mi, code: `USMIWMM${n}`, name: `West Michigan Meet ${n}` }));
+    const v = { videoId: "x", title: "West Michigan FTC League Meet 6 - BIOBUZZ", start: "2026-11-14T18:00:00Z", durationS: 7200, privacy: "public", embeddable: true, blockedIn: 0 };
+    const got = matchVideo(v, seed, day);
+    expect(got.kind === "add" && got.event.code).toBe("USMIWMM6");
+  });
+
   it("leaves out what the brief rules out", () => {
     const ids = new Set(data.videos.map((x) => x.videoId));
     // Ambiguous, unofficial, a different broadcaster, or blocked (docs/official-videos.md).
