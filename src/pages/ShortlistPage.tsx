@@ -6,7 +6,7 @@
 // Teams join from any team page's Shortlist button, or from the search box here.
 // A returning scout's candidates come first; the instructions show in full on an
 // empty list and wait behind "How it works" once there are picks.
-import { useCallback, useRef, useState, type RefObject } from "react";
+import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { ArrowDownWideNarrow, Bookmark, CalendarDays, Download, LayoutGrid, List, Scale } from "lucide-react";
 import { useApi, qs } from "../lib/api";
@@ -29,12 +29,16 @@ import { NoteField } from "../components/shortlist/NoteField";
 import { TeamDetail } from "../components/shortlist/TeamDetail";
 import { HowItWorks, HowItWorksToggle } from "../components/shortlist/HowItWorks";
 import { AddTeamBox } from "../components/shortlist/AddTeamBox";
+import { OfflineNote } from "../components/OfflineNote";
+import { warmScoutReads } from "../lib/offline/warm";
 
 const MAX_SHOWN = 100;
 const isPhone = () => typeof window !== "undefined" && !!window.matchMedia?.("(max-width: 639px)").matches;
 
 export default function ShortlistPage() {
   useTitle("Shortlist");
+  // While there's signal: the shortlist rows of every team at the events downloaded here, kept for the venue.
+  useEffect(() => { void warmScoutReads(); }, []);
   const { state, update, stored, user } = usePersonal();
   const current = useCurrentSeason();
   const [sp, setSp] = useSearchParams();
@@ -168,6 +172,7 @@ export default function ShortlistPage() {
         </div>
       </header>
       <p className="sr-only" aria-live="polite" aria-atomic="true">{reorder.message}</p>
+      <OfflineNote data={data.data} />
       <Async state={data}>{(d) => {
         const rows = rowsFor(d);
         return (

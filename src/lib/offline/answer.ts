@@ -17,6 +17,8 @@ import { readSaved } from "./seasons";
 import { bundleFor } from "./bundleMeta";
 import { loadBundle } from "./bundles";
 import { bundleTime } from "../../shared/eventBundle";
+import { keepable } from "./kept";
+import { scoutReadAnswer } from "./scoutReads";
 import { readEventDetail, readMatchViews, readProjections, readSearch, readTeamProfile, readTeamSchedule, type ReadOpts } from "./readers";
 
 let books: { pack: LitePack | null; bySeason: Map<number, RatingBook | null> } | null = null;
@@ -126,8 +128,15 @@ export async function offlineSearch(q: string, limit = 15, prefer: ReadonlySet<s
 
 const int = (s: string | null) => (s && /^\d+$/.test(s) ? Number(s) : undefined);
 
-/** The offline answer for an API path, or null when the saved seasons can't answer it. */
+/** The offline answer for an API path: the saved seasons' first, else the scouting pages' kept answers and
+ *  bundles (scoutReads.ts); null when this device holds none. */
 export async function offlineAnswer(path: string): Promise<unknown | null> {
+  const saved = await savedSeasonAnswer(path).catch(() => null);
+  if (saved != null) return saved;
+  return keepable(path) ? scoutReadAnswer(path) : null;
+}
+
+async function savedSeasonAnswer(path: string): Promise<unknown | null> {
   const url = new URL(path, "http://offline.invalid");
   const season = int(url.searchParams.get("season"));
   let m: RegExpExecArray | null;
