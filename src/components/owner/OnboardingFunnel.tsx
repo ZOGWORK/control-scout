@@ -4,7 +4,8 @@
 import type { OnboardingSummary } from "../../shared/onboardingStats";
 
 const STEPS = ["Welcome", "Your team", "Search", "Find your way"] as const;
-const pct = (n: number, of: number) => (of > 0 ? `${Math.round((n / of) * 100)}%` : "–");
+// Clamped at 100%: a visitor who opened it before the period can reach a step or finish inside it.
+const pct = (n: number, of: number) => (of > 0 ? `${Math.round(Math.min(1, n / of) * 100)}%` : "–");
 
 export function OnboardingFunnel({ s }: { s: OnboardingSummary }) {
   const skippedTotal = s.skipped.reduce((a, b) => a + b, 0);
