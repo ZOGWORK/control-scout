@@ -14,11 +14,12 @@ A channel is official for an event when it is one of:
 - the event's own streamer: the channel that carries the event's broadcast with FIRST's official overlay (match
   label, teams, scores and rankings on screen). Westwood Robotics (FRC 2583, Austin) streams FiT-Central's GEMS
   league (Diamond and Emerald) and its Austin events. Its overlays-only test stream and the 2023 "Round Rock Gems"
-  titles (the events are listed in Austin) are left out, and a team's channel is otherwise never used,
+  titles (the events are listed in Austin) are left out.
 - or the channel FIRST's event page names as the livestream (FIRST HQ's "FIRST Tech Challenge" channel carries the
   2026 Championship's division broadcasts, and FIRST's own event pages link its Day 4 videos).
 
-A team's channel, a spectator's upload, a re-upload or a local TV broadcast is never used, even of the same event.
+Any other team's channel (one that isn't the event's own streamer), a spectator's upload, a re-upload or a local TV
+broadcast is never used, even of the same event.
 `server/data/officialVideos.json` lists the channels each kept video came from.
 
 Regional streamers from the owner's audited list (2026-11-14), each read through the YouTube Data API's uploads list
