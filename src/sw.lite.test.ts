@@ -3,18 +3,22 @@
 // and the worker's own copy of the address rule agrees with src/shared/lite.ts.
 import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { fullHref } from "./shared/lite";
 
-function worker(online: boolean) {
+function worker(online: boolean | "hang") {
   const listeners = new Map<string, (e: any) => void>();
   const self = { location: { origin: "https://controlscout.org" }, addEventListener: (type: string, fn: (e: any) => void) => listeners.set(type, fn) };
   const shell = new Response("<html>shell</html>");
   const caches = { keys: async () => ["cs-shell-test"], open: async () => ({ match: async (r: string) => (r === "/" ? shell : undefined) }) };
-  const fetch = async () => { if (!online) throw new TypeError("Failed to fetch"); return new Response("<html>light</html>"); };
+  const fetch = async () => {
+    if (online === "hang") return new Promise<Response>(() => {});
+    if (!online) throw new TypeError("Failed to fetch");
+    return new Response("<html>light</html>");
+  };
   const src = readFileSync(new URL("./sw.template.js", import.meta.url), "utf8")
     .replace("__VERSION__", "test").replace("__FILES__", "[]").replace("__OFFLINE_FILES__", "[]");
-  const ctx: Record<string, any> = { self, URL, URLSearchParams, caches, indexedDB: {}, fetch, Response, console };
+  const ctx: Record<string, any> = { self, URL, URLSearchParams, caches, indexedDB: {}, fetch, Response, console, setTimeout, clearTimeout };
   runInNewContext(src, ctx);
   const navigate = async (path: string): Promise<Response> => {
     let answer: Promise<Response> | undefined;
@@ -35,6 +39,20 @@ describe("service worker: light pages", () => {
     expect(r.headers.get("Location")).toBe("https://controlscout.org/teams/18360?season=2024");
     // Rich pages still get the cached shell.
     expect(await (await worker(false).navigate("/events/2025/USNJQ1")).text()).toBe("<html>shell</html>");
+  });
+
+  it("a Wi-Fi that answers nothing: a page opens from the cached shell after 3 s; a light page keeps waiting", async () => {
+    vi.useFakeTimers();
+    try {
+      const w = worker("hang");
+      const page = w.navigate("/events/2025/USNJQ1");
+      let lite: Response | undefined;
+      void w.navigate("/lite/events/2025/USNJQ1").then((r) => { lite = r; });
+      await vi.advanceTimersByTimeAsync(3000);
+      expect(await (await page).text()).toBe("<html>shell</html>");
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(lite).toBeUndefined();
+    } finally { vi.useRealTimers(); }
   });
 
   it("agrees with the shared address rule", () => {

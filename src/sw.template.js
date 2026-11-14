@@ -6,7 +6,8 @@
 //
 // Install: precache the app shell, every built chunk and the fonts. Hashed
 // assets and fonts: cache first (they never change), saved as they're fetched.
-// Pages: network first, falling back to the cached shell. /api and /packs are
+// Pages: network first, falling back to the cached shell (also after 3 s with no
+// answer, a Wi-Fi that carries nothing; light pages keep waiting). /api and /packs are
 // never cached here: live data comes from the server, offline predictions from
 // the lite pack the app keeps in IndexedDB.
 //
@@ -22,6 +23,8 @@ const BRAND = new Set(["/logo-56.webp", "/mark.webp", "/wordmark.webp", "/logo.p
 const PREFIX = "cs-shell-";
 const CACHE = `${PREFIX}${VERSION}`;
 const KEEP = 2;
+/** A page (not a light one) with no answer in this long opens from the cached shell instead. */
+const NAVIGATE_TIMEOUT_MS = 3000;
 
 self.addEventListener("install", (event) => {
   event.waitUntil((async () => {
@@ -94,7 +97,27 @@ self.addEventListener("fetch", (event) => {
     // src/shared/lite.ts) is for a weak signal; with none at all, its full page opens instead, from the shell and
     // the offline pack.
     const lite = /^\/lite(\/|$)/i.test(url.pathname);
-    event.respondWith(fetch(req).catch(async () => (lite ? Response.redirect(new URL(fullPage(url), url).href, 302) : (await fromCache("/")) ?? Response.error())));
+    const page = fetch(req);
+    if (lite) {
+      // A light page is for a weak signal: it waits for the network as long as the browser does.
+      event.respondWith(page.catch(() => Response.redirect(new URL(fullPage(url), url).href, 302)));
+      return;
+    }
+    // A Wi-Fi that answers nothing (no error, no page) would leave the screen blank until the browser gives up: after
+    // NAVIGATE_TIMEOUT_MS the cached shell opens instead (the app then reads saved data, or the server once it answers).
+    event.respondWith((async () => {
+      let timer;
+      const late = new Promise((resolve) => { timer = setTimeout(() => resolve(null), NAVIGATE_TIMEOUT_MS); });
+      try {
+        const res = await Promise.race([page, late]);
+        if (res) return res;
+        return (await fromCache("/")) ?? (await page);
+      } catch {
+        return (await fromCache("/")) ?? Response.error();
+      } finally {
+        clearTimeout(timer);
+      }
+    })());
     return;
   }
   if (BRAND.has(url.pathname)) {
