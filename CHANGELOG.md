@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 6.1.1 — 2026-11-14
+
+Rhode Island, New York City, Long Island and Ontario events now play their recordings from the region's own channels, back to 2022: 76 checked days, with restarted broadcasts as Part 1 and Part 2.
+
+### Highlights
+- [history] NYC qualifiers and championships play recordings from 2022
+- [history] Rhode Island qualifiers and championships back to 2023
+- [history] Long Island and Ontario events gain their missing recordings
+- [live] Five more channels join the auto-watcher for their next events
+
+### Added
+- Official videos: Rhode Island FTC, NYC FIRST, FIRST Long Island, FTC Ontario and Town of Penfield Television (ids read from the YouTube Data API) join the official channels and the auto-watcher's list, each for its own region's events only (Penfield for upstate NY Excelsior events). 76 recordings are checked against each event's name, number, city, date and division: 45 NYC, 15 Rhode Island, 10 Long Island and 6 Ontario (Ottawa 2024, the 2026 Provincial Championship and the Canada Cup's two divisions, both days). Videos FIRST's event pages already link, titles whose date or number disagrees with the broadcast, uploads with no broadcast date and Penfield's edits of days NY Excelsior already covers are left out. (`server/data/officialVideos.json`, `server/data/officialChannels.ts`, `docs/official-videos.md`) (#1483)
+
 ## 6.1.0 — 2026-11-14
 
 Five more official channels: Kazakhstan, France, Italy, Türkiye and Thailand. Their event streams now play on Scout's event pages, each on its own division and day, and the auto-watcher reads the five channels from now on.
