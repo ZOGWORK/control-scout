@@ -547,6 +547,37 @@ export interface MatchView {
  *  many seconds (plus the lead-in) before the match, so nothing times the match from it (lib/videoMoment.ts). */
 export interface MatchClip { videoId: string; t: number; url: string; early?: number }
 
+/** Why a played match has no clip (server/videos/coverage.ts), each said in plain words beside it (`why`). */
+export type CoverageReason = "no-start" | "no-recording-day" | "outside-span" | "before-broadcast" | "after-broadcast" | "video-unavailable"
+  | "video-unread" | "no-clock" | "gap-unplaced" | "past-chapters" | "past-video-end" | "overlaps-previous" | "no-first-video" | "unexplained";
+/** One played match's clip, or why it has none. `basis`: what a clip's place stands on (the clock, chapters, frames). */
+export interface CoverageMatch { key: string; label: string; date: string | null; teams?: number[]; clip: boolean; videoId: string | null; reason?: CoverageReason; why?: string; basis?: string }
+/** One video of an event's recording: its day (and part), how many played matches it holds and how many got a clip;
+ *  `why`: why it gives no clips at all. */
+export interface CoverageVideo { videoId: string; label: string; date: string | null; matches: number; clipped: number; why?: string; basis?: string }
+/**
+ * An event's clip coverage (/api/events/:season/:code/coverage). state: none — no recording, no match video (stats
+ * only); full — every played match has a clip; partial — some do; unplaced — a recording, no clip in it; pending —
+ * nothing played yet. daysMissing: days with played matches and no video of their own.
+ */
+export interface ClipCoverage {
+  state: "none" | "full" | "partial" | "unplaced" | "pending";
+  played: number; withClip: number;
+  videos: CoverageVideo[];
+  recordedDays: string[];
+  daysMissing: { date: string; label: string; matches: number }[];
+  matches: CoverageMatch[];
+}
+
+/** Owner > Clip coverage (server/videos/coverageCheck.ts): one event with a played match missing a clip, as last checked. */
+export interface OwnerCoverageEvent {
+  season: number; code: string; name: string; state: ClipCoverage["state"]; played: number; withClip: number; checkedAt: string;
+  reviewedAt: string | null; reviewedBy: string | null;
+  videos: CoverageVideo[]; daysMissing: ClipCoverage["daysMissing"]; missing: CoverageMatch[];
+}
+/** Open (not yet reviewed) events first; totals over every recorded event checked. */
+export interface OwnerClipCoverage { open: OwnerCoverageEvent[]; reviewed: OwnerCoverageEvent[]; totals: { events: number; played: number; withClip: number; full: number } }
+
 export interface EventSummary {
   season: number;
   code: string;
