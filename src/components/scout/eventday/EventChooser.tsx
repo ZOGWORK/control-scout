@@ -16,6 +16,7 @@ import { CurrentlyTracking } from "../../CurrentlyTracking";
 import { EventFilterBar, EventWeeks, type TileAction } from "../../EventBrowse";
 import { readFilters } from "../../../pages/eventsList";
 import { isNoMatchType } from "../../../shared/labels";
+import { EVENT_CHOOSER_LIMIT } from "../../../shared/eventsBoard";
 import { cn } from "../../cn";
 
 /** Today's date on this device, as event dates are written (YYYY-MM-DD, event-local). */
@@ -33,8 +34,8 @@ export function ourUpcoming(events: readonly EventListItem[], ours: ReadonlyMap<
     .sort((a, b) => (a.start ?? "9").localeCompare(b.start ?? "9") || a.name.localeCompare(b.name));
 }
 
-/** Enough for any season's every event (the list's own default is 2,000). */
-const ALL_EVENTS = 3000;
+/** Every event of the season (the same list a saved season pack holds: src/shared/eventsBoard.ts). */
+const ALL_EVENTS = EVENT_CHOOSER_LIMIT;
 
 type Entry = Parameters<typeof pitProgress>[0][number];
 

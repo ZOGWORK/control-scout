@@ -14,6 +14,7 @@ import { trendLabel } from "../shared/trend";
 import { parsePlaces, placeKey, type RankingPlaces, type RankingRow, type RankingsResponse } from "../shared/rankings";
 import { PageHeader, EmptyState } from "../components/page";
 import { ErrorState } from "../components/states";
+import { OfflineNote } from "../components/OfflineNote";
 import { Badge, Input } from "../components/ui/basic";
 import { Button } from "../components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/overlay";
@@ -148,6 +149,7 @@ export default function RankingsPage() {
 
       {res.error && !data ? <ErrorState error={res.error} onRetry={res.reload} /> : !data ? <TableSkeleton /> : (
         <div className={cn("transition-opacity", res.loading && "opacity-60")} aria-busy={res.loading}>
+          <OfflineNote data={data} what="Rankings" at={data.week ? null : data.asOf} />
           <Summary data={data} />
           {data.total === 0 ? (
             <EmptyState icon={ListOrdered}

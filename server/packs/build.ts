@@ -15,16 +15,17 @@ import { closeSync, copyFileSync, existsSync, mkdirSync, linkSync, openSync, rea
 import { hostname } from "node:os";
 import { join } from "node:path";
 import { gzipSync } from "node:zlib";
-import { createClient } from "@libsql/client";
+import { createClient, type Client } from "@libsql/client";
 import { ENGINE_VERSION } from "@control-scout/predict-engine";
 import { all, kvGet } from "../db.js";
 import { CURRENT_SEASON, PREDICT_SEASONS, SEASON_NUMBERS, seasonInfo } from "../data/seasons.js";
-import { ScoutForecaster, forecasterFor } from "../predict/engine.js";
+import { ScoutForecaster, dataVersion, forecasterFor } from "../predict/engine.js";
 import { partnershipPrefix } from "../predict/partnerships.js";
 import { encodeLitePairs } from "../../src/shared/litePairs.js";
 import { LEARNED_DAYS, type LiteLearned } from "../../src/shared/liteLearned.js";
 import { packsDir } from "./routes.js";
-import { PACK_INDEXES, PACK_TABLES as FULL_TABLES, PACK_TEAMS_DDL, SCHEDULE_TABLE } from "../../src/shared/packSchema.js";
+import { PACK_INDEXES, PACK_TABLES as FULL_TABLES, PACK_TEAMS_DDL, RANKING_PACK_WEEKS, RANKING_TABLES, SCHEDULE_TABLE } from "../../src/shared/packSchema.js";
+import { writeBoards } from "./boards.js";
 import { SCHEDULE_COLUMNS, scheduleRows } from "../../src/shared/scheduleDifficulty.js";
 import { seasonScheduleDifficulty } from "../predict/scheduleDifficulty.js";
 import { place } from "../../src/shared/format.js";
@@ -98,6 +99,10 @@ export async function buildFull(season: number, version: string, dir: string, lo
     { sql: "INSERT INTO pack_info VALUES ('format', ?)", args: [String(PACK_FORMAT)] },
     { sql: "INSERT INTO pack_info VALUES ('version', ?)", args: [version] },
     { sql: "INSERT INTO pack_info VALUES ('season', ?)", args: [String(season)] },
+    // For the world ranking offline (src/shared/rankingsBoard.ts): the live list's data time (the route's asOf) and
+    // which season is current (a finished season's live list has no "last week").
+    { sql: "INSERT INTO pack_info VALUES ('data_version', ?)", args: [await dataVersion()] },
+    { sql: "INSERT INTO pack_info VALUES ('current_season', ?)", args: [String(CURRENT_SEASON)] },
     { sql: "INSERT INTO pack_info VALUES ('game', ?)", args: [seasonInfo(season).game] },
     { sql: "INSERT INTO pack_info VALUES ('built_at', ?)", args: [new Date().toISOString()] },
     { sql: "INSERT INTO pack_info VALUES ('source', 'FIRST Events API (primary), FTC Scout (fallback)')", args: [] },
@@ -125,6 +130,11 @@ export async function buildFull(season: number, version: string, dir: string, lo
     }
     rows += sched.length;
   }
+  // The world ranking's snapshot weeks (every week listed, the newest few weeks' rows), for /rankings offline.
+  rows += await copyRankingTables(out, season);
+  // The season's boards: records, league standings, the events list, power rankings (server/packs/boards.ts).
+  const boards = await writeBoards(out, season);
+  log(`boards ${season}: ${boards.boards} answers, ${(boards.bytes / 1e3).toFixed(0)} KB gzipped`);
   const teams = await all<any>(`SELECT number, name, full_name, school, sponsors, city, state, country, rookie_year, website, home_region FROM teams WHERE number IN (SELECT team FROM team_seasons WHERE season = ? UNION SELECT team FROM event_teams WHERE season = ?)`, [season, season]);
   for (let i = 0; i < teams.length; i += 1000) {
     await out.batch(teams.slice(i, i + 1000).map((r) => ({ sql: "INSERT INTO teams VALUES (?,?,?,?,?,?,?,?,?,?,?)", args: [r.number, r.name, r.full_name, r.school, r.sponsors, r.city, r.state, r.country, r.rookie_year, r.website, r.home_region] })), "write");
@@ -139,6 +149,19 @@ export async function buildFull(season: number, version: string, dir: string, lo
   log(`full ${season}: ${rows + teams.length} rows → ${(buf.length / 1e6).toFixed(1)} MB`);
   return { name, url: `/packs/${name}`, bytes: buf.length, sha256: sha256(buf), seasons: [season], kind: "full",
     contents: `Every ${seasonInfo(season).label} ${seasonInfo(season).game} event, team, match (scores, breakdowns, penalties, lineups), ranking, alliance, award and computed stat — a plain SQLite file.` };
+}
+
+/** Copy the season's ranking weeks (all) and the newest RANKING_PACK_WEEKS weeks' snapshot rows into a pack. */
+export async function copyRankingTables(out: Client, season: number): Promise<number> {
+  for (const t of RANKING_TABLES) await out.execute(t.ddl);
+  const weeks = (await all<{ week: string }>("SELECT week FROM ranking_weeks WHERE season = ? ORDER BY week DESC", [season])).map((r) => r.week);
+  const kept = weeks.slice(0, RANKING_PACK_WEEKS);
+  const snaps = kept.length ? await all<any>(`SELECT season, week, team, rank, rating FROM ranking_snapshots WHERE season = ? AND week IN (${kept.map(() => "?").join(",")})`, [season, ...kept]) : [];
+  await out.batch(weeks.map((w) => ({ sql: "INSERT INTO ranking_weeks (season, week) VALUES (?, ?)", args: [season, w] })), "write");
+  for (let i = 0; i < snaps.length; i += 1000) {
+    await out.batch(snaps.slice(i, i + 1000).map((r) => ({ sql: "INSERT INTO ranking_snapshots (season, week, team, rank, rating) VALUES (?, ?, ?, ?, ?)", args: [r.season, r.week, r.team, r.rank, r.rating] })), "write");
+  }
+  return weeks.length + snaps.length;
 }
 
 /** Lock shared by every build path (the scheduler and `npm run packs`), so two

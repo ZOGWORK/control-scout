@@ -28,6 +28,20 @@ export const SCHEDULE_TABLE = {
   ddl: `CREATE TABLE team_schedule_difficulty (season INTEGER, code TEXT, team INTEGER, ${SCHEDULE_COLUMNS.map((c) => `${c} REAL`).join(", ")}, PRIMARY KEY (season, code, team))`,
 };
 
+/** The world ranking's weekly snapshots (server/stats/rankings.ts), for /rankings offline (src/shared/rankingsBoard.ts
+ *  reads them with the server's own SQL). Every week is listed; only the newest RANKING_PACK_WEEKS weeks' rows ship
+ *  (movement against last week and the latest weeks' views), so the pack stays small. Packs built before these
+ *  existed don't have them: the rankings then say they need a connection. */
+export const RANKING_PACK_WEEKS = 3;
+export const RANKING_TABLES = [
+  { name: "ranking_weeks", ddl: "CREATE TABLE ranking_weeks (season INTEGER, week TEXT, PRIMARY KEY (season, week))" },
+  { name: "ranking_snapshots", ddl: "CREATE TABLE ranking_snapshots (season INTEGER, week TEXT, team INTEGER, rank INTEGER, rating REAL, PRIMARY KEY (season, week, team))" },
+];
+
+/** The season's boards (server/packs/boards.ts): API path (packPath form) → the server's own answer, gzipped JSON.
+ *  Records, league standings, the events list, power rankings: answered offline exactly as the server gave them. */
+export const BOARDS_TABLE = { name: "pack_boards", ddl: "CREATE TABLE pack_boards (path TEXT PRIMARY KEY, body BLOB)" };
+
 export const PACK_TEAMS_DDL = "CREATE TABLE teams (number INTEGER PRIMARY KEY, name TEXT, full_name TEXT, school TEXT, sponsors TEXT, city TEXT, state TEXT, country TEXT, rookie_year INTEGER, website TEXT, home_region TEXT)";
 
 export const PACK_INDEXES = [

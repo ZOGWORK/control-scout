@@ -22,6 +22,8 @@ import { Button } from "../ui/button";
 import { Popover, PopoverContent, PopoverTrigger, Tooltip, TooltipContent, TooltipTrigger } from "../ui/overlay";
 import { toast } from "../ui/sonner";
 import { ErrorState } from "../states";
+import { OfflineNote } from "../OfflineNote";
+import { UNOFFICIAL_NOTE } from "../../shared/searchStat";
 import { cn } from "../cn";
 import { FilterBuilder, useSavedFilters } from "./FilterBuilder";
 import { Panel } from "./Panel";
@@ -443,7 +445,9 @@ export function RecordsTable(p: RecordsTableProps) {
             <div className="flex justify-end"><Button variant="outline" size="sm" onClick={api.reload}><RefreshCw /> Try again</Button></div>
             {p.offlineFallback}
           </div>
-        ) : (api.error as ApiError).status === 400
+        ) : (api.error as ApiError).offline && filtered
+          ? <Problem title="Filters need a connection" detail={api.error.message} onClear={() => setState(clearFilters(state))} />
+          : (api.error as ApiError).status === 400
           ? <Problem title="That filter doesn't work here" detail={api.error.message} onClear={() => setState(clearFilters(state))} />
           : <ErrorState error={api.error} onRetry={api.reload} />
       ) : !data || (!data.rows.length && data.total > 0 && state.page > 1) ? (
@@ -461,6 +465,7 @@ export function RecordsTable(p: RecordsTableProps) {
       ) : (
         <div className={cn("relative transition-opacity", refreshing && "opacity-60")}>
           {refreshing && <div className="absolute inset-x-0 top-0 z-20 h-0.5 overflow-hidden rounded-full bg-accent/20"><div className="h-full w-1/3 cs-progress bg-accent" /></div>}
+          <OfflineNote data={data} what="Records" />
           {p.aboveRows}
           {phoneSummary && !compact && (
             <div className="mb-3 space-y-2">
@@ -739,6 +744,7 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, schedule
                         <span className="shrink-0 font-semibold">{r.label}</span>
                         <span className="block truncate text-xs text-text-muted" title={r.eventName}>{r.eventName}</span>
                       </Link>
+                      {r.unofficial && <span className="block text-xs text-warning" title={r.unofficial} data-unofficial>{UNOFFICIAL_NOTE}</span>}
                     </td>
                     <td className={cn(td, "whitespace-nowrap")}><Alliance teams={r.red} season={r.season} side="red" noPage={r.noPage} /></td>
                     <td className={cn(td, "whitespace-nowrap")}><Alliance teams={r.blue} season={r.season} side="blue" noPage={r.noPage} /></td>

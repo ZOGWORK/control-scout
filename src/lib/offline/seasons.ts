@@ -213,7 +213,8 @@ export async function readSaved<T>(only: number | undefined, read: (dbs: SeasonD
       if (!wrapped.has(db)) wrapped.set(db, wrap(db));
       return { season, db: wrapped.get(db)! };
     }));
-    return read(dbs.filter((x): x is SeasonDb => !!x));
+    // Awaited here, so a read that runs async (the world ranking's shared reads) keeps its databases open until done.
+    return await read(dbs.filter((x): x is SeasonDb => !!x));
   } finally {
     for (const { e } of got) if (--e.pins === 0 && e.dead) shut(e);
     trim();

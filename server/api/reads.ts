@@ -4,7 +4,26 @@
 import { matchDetail, matchViews } from "./matches.js";
 import { teamReportCards, teamSchedule } from "./teams.js";
 import { eventMatchSpan, eventRecording, withClips } from "../videos/recordings.js";
-import type { EventDetail, MatchDetail,MatchView, TeamReportCardAnswer, TeamScheduleAnswer } from "../../src/shared/api.js";
+import { seasonRecordings, seasonVideoKinds } from "../videos/recordings.js";
+import { listEvents } from "./events.js";
+import type { EventDetail, EventListItem, MatchDetail,MatchView, TeamReportCardAnswer, TeamScheduleAnswer } from "../../src/shared/api.js";
+
+export interface EventListQuery { season: number; from?: string; to?: string; q?: string; type?: string; region?: string; hideNoMatch: boolean; limit: number }
+
+/** GET /api/events?season=S (…): the list view's fields only (detail pages use /events/:season/:code: venue,
+ *  division, region and remote aren't shown in lists), with what there is to watch. The season pack's boards carry
+ *  this answer too (server/packs/boards.ts). */
+export async function eventListAnswer(q: EventListQuery): Promise<{ events: EventListItem[] }> {
+  // Events with a recording (the owner's stream or FIRST's YouTube link): stream: true, for the LIVE dot; and
+  // what video there is to watch, for the list's video filter.
+  const [streams, videos] = await Promise.all([seasonRecordings(q.season).catch(() => new Map()), seasonVideoKinds(q.season).catch(() => new Map())]);
+  return {
+    events: (await listEvents(q)).map(({ venue: _v, divisionCode: _d, region: _r, remote: _m, ...e }) => {
+      const video = videos.get(e.code);
+      return { ...e, ...(streams.has(e.code) ? { stream: true as const } : {}), ...(video ? { video } : {}) } as EventListItem;
+    }),
+  };
+}
 
 /** GET /api/teams/:number/matches?season=S: the team's season matches, unplayed ones with today's call. */
 export async function teamMatchesAnswer(team: number, season: number): Promise<{ team: number; season: number; matches: MatchView[] }> {
