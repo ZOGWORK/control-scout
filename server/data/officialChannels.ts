@@ -48,5 +48,17 @@ export const OFFICIAL_CHANNELS: OfficialChannelSeed[] = [
   { channelId: "UC3GrZQP1avoMFojc2HeQdhw", title: "Associazione Artù APS (Italy)", region: "country=Italy", words: "italy italia", titlePattern: "\\bitaly\\b" },
   { channelId: "UCq5bJjdyfAQYIs7yb_83vaA", title: "Fikret Yüksel Foundation (Türkiye)", region: "country=Türkiye", words: "turkiye turkey gun", titlePattern: "t[uü]rkiye [şs]ampiyonas[ıi]" },
   { channelId: "UC7e1UfLTHCdAoF7VIay_IqA", title: "The PRC Channel (Thailand)", region: "country=Thailand", words: "thailand ftcthailand", titlePattern: "thailand" },
+  // The 2026-11-14 audited channels for Rhode Island, Ontario and New York (ids from the YouTube Data API, forHandle).
+  // Rhode Island FTC (@riftc): FIRST's event pages name it for all three 2026-27 Rhode Island events.
+  { channelId: "UCHgwJxb_Y5SRtrAGCzk73MQ", title: "Rhode Island FIRST Tech Challenge", region: "state=RI", words: "rhode island", titlePattern: "rhode island" },
+  // FTC Ontario (@ftcontario): every Ontario qualifier, the Provincial Championship and the Canada Cup.
+  { channelId: "UCUXJ0amrR15tPMgXvhDLJQw", title: "FTC Ontario", region: "country=Canada;state=ON", words: "ontario canada", titlePattern: "ontario provincial" },
+  // FIRST Long Island (@FIRSTLongIsland), Long Island's delivery partner. Its 2026-27 events are listed as "Qualifier N".
+  { channelId: "UCe22ftqf7OwtH40JBuP-anA", title: "FIRST Long Island", region: "state=NY;name=Long Island|^Qualifier [0-9]+$", words: "long island" },
+  // NYC FIRST (@newyorkcityfirst), New York City's delivery partner: the same channel FIRST's 2021-22 event pages link.
+  { channelId: "UCibawtHwGEggHlSiBOSPVtw", title: "NYC FIRST", region: "state=NY;name=NYC", words: "nyc york city" },
+  // Town of Penfield Television (@PenfieldTV): a town channel that broadcasts NY Excelsior qualifiers with Penfield
+  // Robotics. Upstate Excelsior events only; its uploads carry no broadcast date, so the watcher sends them to review.
+  { channelId: "UCLctix0o61bACiWd6Oa-S5Q", title: "Town of Penfield Television (NY Excelsior)", region: "state=NY;name=Excelsior|Finger Lakes|Penfield|Corning|Peekskill|Clarkson|Albany|Buffalo|Utica|Syracuse|Ravena|Broadalbin|John Jay", words: "york excelsior penfield" },
   { channelId: "UCal7624DPridi_9iKLrAbqw", title: "FIRST Australia", region: "country=Australia", words: "australia australian", titlePattern: "australian? (national )?championship|\\bAPOC\\b|asia pacific open" },
 ];
