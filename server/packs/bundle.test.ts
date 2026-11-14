@@ -414,5 +414,12 @@ describe("the event pack", () => {
     delete noMatch.answers[packPath(`/api/events/${S}/${EV}/matches/qual:0:1`)!];
     expect(() => assertComplete(c, noMatch, compare)).toThrow(/missing match Q1/);
     expect(() => assertComplete(c, full, { 11: compare[11] })).toThrow(/team 12's Compare column/);
+    // A lineup team the field doesn't list, with no team page: the route's 404 kept in the pack counts as its answer.
+    const lineupOnly = structuredClone(full);
+    const c13 = { ...c, teams: [11, 12, 13] };
+    lineupOnly.errors[packPath(`/api/teams/13?season=${S}`)!] = { status: 404, error: "Team not found" };
+    lineupOnly.answers[packPath(`/api/teams/13/matches?season=${S}`)!] = {};
+    const compare13 = { ...compare, 13: { block: {}, latest: S } } as unknown as Record<string, PackCompareTeam>;
+    expect(() => assertComplete(c13, lineupOnly, compare13)).not.toThrow();
   });
 });

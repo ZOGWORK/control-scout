@@ -89,11 +89,15 @@ export class PackBroken extends Error {}
  */
 export function assertComplete(c: Pick<PackContext, "season" | "code" | "ev" | "teams" | "matches">, api: PackApi, compare: Record<string, PackCompareTeam>): void {
   const has = (p: string) => { const k = packPath(p)!; return Object.prototype.hasOwnProperty.call(api.answers, api.same[k] ?? k); };
+  // The route's own 404, kept in the pack: offline gives the same "no team page" answer as online (a team in a match
+  // lineup the field doesn't list, with no row of its own or a placeholder name).
+  const notFound = (p: string) => api.errors[packPath(p)!]?.status === 404;
   const name = new Map(c.ev.field.map((f) => [f.team, f.name]));
   const missing: string[] = [];
   for (const t of c.teams) {
     const pageless = !hasTeamPage(t, name.get(t));
-    if (!pageless && !has(`/api/teams/${t}?season=${c.season}`)) missing.push(`team ${t}`);
+    const page = `/api/teams/${t}?season=${c.season}`;
+    if (!pageless && !has(page) && !notFound(page)) missing.push(`team ${t}`);
     if (!has(`/api/teams/${t}/matches?season=${c.season}`)) missing.push(`team ${t}'s matches`);
     if (!compare[String(t)]) missing.push(`team ${t}'s Compare column`);
   }
