@@ -583,13 +583,7 @@ export async function statAnswerOf(q: string, it0: StatQuestion, resolve: Resolv
   const stat = scope.event?.absent ? await absentAnswer(q, it, team, scope, title) : await build(it, team, scope);
   if (!stat) return null;
   if (scope.seasonWhy) stat.definition = `${stat.definition} ${scope.seasonWhy}`;
-  // An off-season event named counts its own matches (./clauses.ts officialClause): every family's method note says
-  // official events only, so the exception is said once here, for whichever answered.
-  if (scope.event && !scope.event.absent && (await namedOffSeason(scope.event))) {
-    stat.definition = `${stat.definition} ${NAMED_OFF_SEASON}`;
-    // A headline saying "Official events only" (a record, a win count) is the off-season event's own here.
-    if (stat.headline?.sub?.includes(OFFICIAL_ONLY)) stat.headline = { ...stat.headline, sub: stat.headline.sub.replace(OFFICIAL_ONLY, "Off-season event, its own matches") };
-  }
+  await noteNamedEvent(stat, scope);
   // A state championship read as one season's: the team's other seasons there, each its own question (by the year held).
   if (it.scope.states && scope.event && !scope.event.absent) {
     const other = [...new Set((await teamEventSet(team.number)).events.filter((e) => e.type === STATES_TYPE && played(e) && e.season !== scope.event!.season).map((e) => e.season))].sort((x, y) => y - x);
@@ -681,12 +675,28 @@ async function absentAnswer(q: string, it: StatQuestion, team: AnswerTeam, scope
 
 /** The note an answer about a named off-season event adds to its method. */
 export const NAMED_OFF_SEASON = "The event asked about is an off-season event: its own matches count here, though season records count official events only.";
+/** The same note for a scrimmage, and for any other event that isn't official. */
+export const NAMED_SCRIMMAGE = "The event asked about is a scrimmage: its own matches count here, though season records count official events only.";
+const NAMED_UNOFFICIAL = "The event asked about is not an official event: its own matches count here, though season records count official events only.";
 
-/** Whether an event the question names (any of its codes) is an off-season one, not official. */
-async function namedOffSeason(e: NonNullable<Scope["event"]>): Promise<boolean> {
+/** The type of an event the question names (any of its codes) when it isn't official, else null. */
+async function namedUnofficialType(e: NonNullable<Scope["event"]>): Promise<string | null> {
   const codes = e.codes ?? [e.code];
   const rows = await all<{ type: string | null }>(`SELECT type FROM events WHERE season = ? AND code IN (${codes.map(() => "?").join(", ")})`, [e.season, ...codes]);
-  return rows.some((r) => !isOfficialEvent(r.type));
+  const r = rows.find((x) => !isOfficialEvent(x.type));
+  return r ? (r.type ?? "") : null;
+}
+
+/** A named event that isn't official counts its own matches (./clauses.ts officialClause), while every family's method
+ *  note says official events only: the exception is said once, for whichever answered (one team's, two teams'), named
+ *  as what the event is (an off-season event, a scrimmage). A headline saying "Official events only" says so too. */
+async function noteNamedEvent(stat: StatAnswer, scope: Scope): Promise<void> {
+  if (!scope.event || scope.event.absent) return;
+  const type = await namedUnofficialType(scope.event);
+  if (type == null) return;
+  const off = type === "OffSeason", scrim = /scrimmage/i.test(type);
+  stat.definition = `${stat.definition} ${off ? NAMED_OFF_SEASON : scrim ? NAMED_SCRIMMAGE : NAMED_UNOFFICIAL}`;
+  if (stat.headline?.sub?.includes(OFFICIAL_ONLY)) stat.headline = { ...stat.headline, sub: stat.headline.sub.replace(OFFICIAL_ONLY, `${off ? "Off-season event" : scrim ? "Scrimmage" : "Not an official event"}, its own matches`) };
 }
 
 /** The season a Worlds answer is about: its headline's (the match or event it names), else the latest in the data. */
@@ -997,6 +1007,7 @@ export async function twoTeamSearch(q: string, two: TwoTeamQuestion, resolve: Re
   const scoped = at ? at.scope : scope;
   const stat = await twoTeamStat(two, a, b, scoped);
   if (scoped.seasonWhy) stat.definition = `${stat.definition} ${scoped.seasonWhy}`;
+  await noteNamedEvent(stat, scoped);
   if (stat.none) await missingSide(stat, a, b, scoped, s.at);
   return { ...answer, understood: { kind: "question", label: `${TWO_TEAM_TITLES[two.id]}${scopePhrase(scoped)}: ${whoOf(a)} vs ${whoOf(b)}`, ...(scoped.season != null ? { season: scoped.season } : {}) }, stat };
 }
