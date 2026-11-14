@@ -4,7 +4,7 @@
 //   - the page's main data (an event, a team, a match, the pick list) still hasn't arrived LITE_SLOW_MS after the
 //     visitor got to the page (watchPage), or
 //   - LITE_FAILS requests failed to reach the server within LITE_FAIL_WINDOW_MS.
-// A request the page itself let go of (it navigated away) isn't a failure. "Not now" holds for the rest of the
+// A request the page itself let go of (it navigated away) isn't a failure. "Keep waiting" holds for the rest of the
 // browser session (sessionStorage), so the offer never nags.
 import { useSyncExternalStore } from "react";
 import { LITE_FAILS, LITE_FAIL_WINDOW_MS, LITE_SLOW_MS } from "../shared/lite";
@@ -44,7 +44,7 @@ const DISMISS_KEY = "cs-lite-dismissed";
 let slow = false;
 /** Why the offer is up, for the card to say in plain words: the page waiting since `since`, or `count` requests that
  *  couldn't reach the server within LITE_FAIL_WINDOW_MS. */
-export type LiteReason = { kind: "waiting"; since: number } | { kind: "failing"; count: number };
+export type LiteReason = { kind: "waiting"; since: number } | { kind: "loaded"; took: number } | { kind: "failing"; count: number; at: number };
 let reason: LiteReason | null = null;
 let fails: number[] = [];
 const listeners = new Set<() => void>();
@@ -108,13 +108,15 @@ export function watchRequest(path: string, method = "GET"): { done: (usable?: bo
       noteArrived(path);
       // This page's data arriving quickly again: the connection recovered, so the offer goes.
       if (slow && isPageData(path) && Date.now() - at < LITE_SLOW_MS / 4) { slow = false; fails = []; emit(); }
+      // It came in slowly: the offer stays (the next page may be as slow), but the card stops counting and says how long it took.
+      else if (slow && reason?.kind === "waiting" && isPageData(path)) { reason = { kind: "loaded", took: Math.round((Date.now() - reason.since) / 1000) }; emit(); }
     },
     failed: () => {
       unreachable = true;
       if (!online()) return;
       const now = Date.now();
       fails = [...fails.filter((t) => now - t < LITE_FAIL_WINDOW_MS), now];
-      if (fails.length >= LITE_FAILS) raise({ kind: "failing", count: fails.length });
+      if (fails.length >= LITE_FAILS) raise({ kind: "failing", count: fails.length, at: now });
     },
   };
 }

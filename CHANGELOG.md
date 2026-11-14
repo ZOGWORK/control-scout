@@ -21,7 +21,7 @@ The slow-connection pop-up is clearer: it says what it saw, what Lite changes, a
 
 ### Highlights
 - [speed] The slow-connection pop-up says how long the page has waited
-- [speed] Three plain lines on what Lite changes: text only, same numbers, one tap back
+- [speed] Three plain lines say what Lite changes, and how to come back
 - [appearance] Bigger buttons (44 px) and readable text on phones
 
 ### Changed

@@ -4,7 +4,7 @@
 // online.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, renderHook } from "@testing-library/react";
-import { dismissLite, isPageData, noteArrived, resetLiteSuggest, useLiteSuggested, watchPage, watchRequest } from "./liteSuggest";
+import { dismissLite, isPageData, noteArrived, resetLiteSuggest, useLiteReason, useLiteSuggested, watchPage, watchRequest } from "./liteSuggest";
 import { load, prime } from "./api";
 import { LITE_FAILS, LITE_SLOW_MS } from "../shared/lite";
 import { matchReportPath } from "./matchReport";
@@ -173,7 +173,7 @@ describe("light version offer", () => {
     expect(result.current).toBe(true);
   });
 
-  it("goes away when the page's data comes back quickly, or on the next page; Not now holds for the session", () => {
+  it("goes away when the page's data comes back quickly, or on the next page; Keep waiting holds for the session", () => {
     const { result } = renderHook(() => useLiteSuggested());
     act(() => { arrive("/teams/1"); vi.advanceTimersByTime(LITE_SLOW_MS); });
     expect(result.current).toBe(true);
@@ -191,5 +191,15 @@ describe("light version offer", () => {
     expect(result.current).toBe(false);
     act(() => { arrive("/teams/4"); vi.advanceTimersByTime(LITE_SLOW_MS); });
     expect(result.current).toBe(false);
+  });
+
+  it("a page that loads slowly stops the count: the card says how long it took", () => {
+    const { result } = renderHook(() => useLiteReason());
+    arrive("/teams/1");
+    const w = watchRequest("/api/teams/1");
+    act(() => { vi.advanceTimersByTime(LITE_SLOW_MS); });
+    expect(result.current?.kind).toBe("waiting");
+    act(() => { vi.advanceTimersByTime(4000); w.done(); });
+    expect(result.current).toEqual({ kind: "loaded", took: 12 });
   });
 });

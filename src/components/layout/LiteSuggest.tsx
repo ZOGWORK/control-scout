@@ -48,7 +48,8 @@ function useWaited(since: number | null): number | null {
 
 /** What the app saw, in plain words: the evidence behind the offer, never a guess at the connection's speed. */
 export function reasonText(reason: LiteReason | null, waited: number | null): string {
-  if (reason?.kind === "failing") return `${reason.count} requests couldn't reach the server in the last minute.`;
+  if (reason?.kind === "failing") return `${reason.count} requests couldn't reach the server, the last one ${waited ?? 0} s ago.`;
+  if (reason?.kind === "loaded") return `This page took ${reason.took} s to load.`;
   if (waited != null) return `This page has been loading for ${waited} s.`;
   return "This page is taking a while to load.";
 }
@@ -58,7 +59,7 @@ const POINTS = ["Text only: no images, charts or animations", "Same numbers and 
 export function LiteCard({ href, onDismiss, reason = null }: { href: string; onDismiss: () => void; reason?: LiteReason | null }) {
   const titleId = useId();
   const bodyId = useId();
-  const waited = useWaited(reason?.kind === "waiting" ? reason.since : null);
+  const waited = useWaited(reason?.kind === "waiting" ? reason.since : reason?.kind === "failing" ? reason.at : null);
   return (
     <m.section
       role="region" aria-labelledby={titleId} aria-describedby={bodyId} data-lite-suggest=""
@@ -69,28 +70,28 @@ export function LiteCard({ href, onDismiss, reason = null }: { href: string; onD
       <div className="flex items-start gap-3">
         <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-accent/15 text-accent"><Snail className="size-5" aria-hidden /></span>
         <div className="min-w-0 flex-1 pt-0.5">
-          <h2 id={titleId} className="font-display text-base font-semibold leading-tight text-foreground">Slow connection</h2>
-          <p className="mt-1 text-sm text-muted-foreground" data-lite-reason>{reasonText(reason, waited)}</p>
+          <h2 id={titleId} className="font-display text-lg font-semibold leading-tight text-foreground md:text-base">Slow connection</h2>
+          <p className="mt-1 text-base text-muted-foreground md:text-sm" data-lite-reason>{reasonText(reason, waited)}</p>
         </div>
         <Button variant="ghost" size="icon" className="-mr-2 -mt-2 size-11 shrink-0" aria-label="Dismiss" onClick={onDismiss}><X /></Button>
       </div>
       <div id={bodyId} className="mt-4">
-        <p className="text-sm leading-relaxed text-foreground">Switch this page to <strong className="font-semibold">Control Scout Lite</strong>. It loads a fraction of the data.</p>
+        <p className="text-base leading-relaxed text-foreground md:text-sm">Switch this page to <strong className="font-semibold">Control Scout Lite</strong>. It loads a fraction of the data.</p>
         <ul className="mt-3 space-y-2">
           {POINTS.map((p) => (
-            <li key={p} className="flex items-start gap-2 text-sm text-muted-foreground">
-              <Check className="mt-0.5 size-4 shrink-0 text-accent" aria-hidden />
+            <li key={p} className="flex items-start gap-2 text-base text-muted-foreground md:text-sm">
+              <Check className="mt-1 size-4 shrink-0 text-accent" aria-hidden />
               <span>{p}</span>
             </li>
           ))}
         </ul>
       </div>
       <div className="mt-5 grid grid-cols-[1fr_1.35fr] gap-3">
-        <Button variant="secondary" className="h-11 text-sm" onClick={onDismiss}>Keep waiting</Button>
+        <Button variant="secondary" className="h-11 text-base md:text-sm" onClick={onDismiss}>Keep waiting</Button>
         {/* A full page load: the Lite page is the server's own HTML, not a route of this app. */}
-        <Button className="h-11 text-sm font-semibold" asChild><a href={href}><Zap aria-hidden /> Switch to Lite</a></Button>
+        <Button className="h-11 text-base font-semibold md:text-sm" asChild><a href={href}><Zap aria-hidden /> Switch to Lite</a></Button>
       </div>
-      <p className="mt-3 text-center text-xs text-muted-foreground">Keep waiting hides this until you close the tab.</p>
+      <p className="mt-3 text-center text-sm text-muted-foreground md:text-xs">Keep waiting hides this until you close the tab.</p>
     </m.section>
   );
 }

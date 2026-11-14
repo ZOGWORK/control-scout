@@ -10,7 +10,8 @@ afterEach(() => { cleanup(); vi.useRealTimers(); });
 
 describe("slow-connection card", () => {
   it("says the evidence in plain words", () => {
-    expect(reasonText({ kind: "failing", count: 3 }, null)).toBe("3 requests couldn't reach the server in the last minute.");
+    expect(reasonText({ kind: "failing", count: 3, at: 0 }, 4)).toBe("3 requests couldn't reach the server, the last one 4 s ago.");
+    expect(reasonText({ kind: "loaded", took: 12 }, null)).toBe("This page took 12 s to load.");
     expect(reasonText({ kind: "waiting", since: 0 }, 9)).toBe("This page has been loading for 9 s.");
     expect(reasonText(null, null)).toBe("This page is taking a while to load.");
   });
