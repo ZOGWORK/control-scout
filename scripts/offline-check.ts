@@ -122,13 +122,15 @@ async function settle(page: Page, timeout = 15_000): Promise<{ ms: number; state
     await page.waitForFunction(() => {
       const main = document.querySelector("main") ?? document.body;
       const busy = document.querySelector(".skeleton, [data-slot=skeleton], [aria-busy=true]");
-      return !busy && (main.textContent ?? "").trim().length > 60;
+      // The page's own words, not the site footer's (always there).
+      const footer = main.querySelector("footer")?.textContent ?? "";
+      return !busy && ((main.textContent ?? "").length - footer.length) > 60;
     }, null, { timeout, polling: 16 });
   } catch {
     return { ms: Date.now() - t0, state: "timeout", note: ((await page.locator("main").textContent().catch(() => "")) ?? "").trim().slice(0, 120) };
   }
-  const text = ((await page.locator("main").textContent().catch(() => "")) ?? "").replace(/\s+/g, " ");
-  const bad = /needs a connection|can't reach|couldn't load|you're offline\b|no internet on this wi-fi|something went wrong|not available offline/i.exec(text);
+  const text = ((await page.locator("main").textContent().catch(() => "")) ?? "").replace(/\s+/g, " ").replace(/’/g, "'");
+  const bad = /needs a connection|can't reach|couldn't load|you're offline|no internet on this wi-fi|something went wrong|not available offline/i.exec(text);
   return { ms: Date.now() - t0, state: bad ? "error" : "ok", ...(bad ? { note: text.slice(Math.max(0, bad.index - 40), bad.index + 100) } : {}) };
 }
 
