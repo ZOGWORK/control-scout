@@ -70,6 +70,7 @@ export function CompareCard({ stat, b, extra }: { stat: StatAnswer; b: Compare; 
           <h3 className="mb-2 text-sm font-semibold text-foreground">{together.title}</h3>
           <AnswerVideo only={together.rows.map((r) => r.href)} />
           <ul className="grid gap-3 sm:grid-cols-2">{together.rows.map((r) => <MatchBox key={`${r.href}|${r.alliance}`} r={r} team={teams[0]} />)}</ul>
+          {together.more && <p className="mt-2 text-xs text-muted-foreground" data-more>{together.more}</p>}
         </section>
       )}
       {extra}
