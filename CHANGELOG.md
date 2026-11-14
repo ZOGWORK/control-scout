@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 6.2.3 — 2026-11-14
+
+When a search asks to watch and nothing has video, it offers questions that do.
+
+### Highlights
+- [teams] No video for a search? Tap a related question that has one
+- [teams] A team's seasons with clips are offered first, then nearby events
+- [teams] Every offered question is checked to play before it's shown
+
+### Changed
+- Search: an answer that asked to watch (highlights, video, clips, with video) and plays nothing adds "Questions with video": up to three searches that each play, the team's own seasons with a clip first, then events with clips (official ones, the same state or country first, the bigger events first, the nearest dates first). Each is asked before it's offered, within a 2.5-second wait. (`server/api/answers/videoSuggest.ts`, `server/app.ts`) (#PRNUM)
+
 ## 6.2.2 — 2026-11-14
 
 Search can find matches with video, and asking to watch a question shows its answer with the video.
