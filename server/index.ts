@@ -9,7 +9,7 @@ import { checkClipCoverage } from "./videos/coverageCheck.js";
 import { resolveStreamLinks } from "./videos/streamLinks.js";
 import { resolveChannelStreams } from "./videos/channelStreams.js";
 import { seedOfficialVideos } from "./videos/officialVideos.js";
-import { WATCH_CHECK_MS, WATCH_FIRST_MS, onRecordingAdded, watchIfDue } from "./videos/officialWatch.js";
+import { WATCH_CHECK_MS, WATCH_FIRST_MS, watchIfDue } from "./videos/officialWatch.js";
 import "./env.js";
 import { env } from "./env.js";
 import { migrate, all, openReplicaIfRemote } from "./db.js";
@@ -240,11 +240,10 @@ if (!process.env.CS_NO_SCHEDULER) {
   // channel's new uploads, every 6 hours with the YouTube Data API (never a search). Checked every 30 minutes, from
   // 17.5 minutes after boot (midway between the sync's ticks, WATCH_FIRST_MS): a deploy doesn't start a run of its own
   // when the last one is less than 6 hours old.
-  // A recording added by the watcher (once per run) or by the owner's approval has its event's coverage checked at once
-  // (server/videos/coverageCheck.ts), through the watcher's onRecordingAdded hook.
-  onRecordingAdded(() => checkClipCoverage(log));
+  // A run that added a recording has its event's coverage checked at once (server/videos/coverageCheck.ts).
   const watch = () => {
-    watchIfDue(log).catch((e) => log(`official videos: watcher: ${(e as Error).message}`));
+    watchIfDue(log).then((r) => (r?.added ? checkClipCoverage(log) : 0))
+      .catch((e) => log(`official videos: watcher: ${(e as Error).message}`));
   };
   setTimeout(() => { watch(); setInterval(watch, WATCH_CHECK_MS).unref(); }, WATCH_FIRST_MS).unref();
 }
