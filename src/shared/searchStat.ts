@@ -180,7 +180,9 @@ export interface StatAnswer {
   /** The one number the question asks for, read first. */
   /** `type`: the headline is one event, of FIRST's event type (null when FIRST lists none): drawn with its type chip. */
   /** `teams` and `alliance`: the headline is one alliance's score, its teams drawn as chips in its colour. */
-  headline?: { value: string; label: string; sub?: string; href?: string; type?: string | null; teams?: StatLink[]; alliance?: "red" | "blue" };
+  headline?: { value: string; label: string; sub?: string; href?: string; type?: string | null; teams?: StatLink[]; alliance?: "red" | "blue";
+    /** Its match is still to play (a predicted score): no video is expected of it. */
+    upcoming?: boolean };
   /** A list of teams (an event's teams): how many it holds in all, its table showing the first of them. */
   listed?: number;
   blocks: StatBlock[];
