@@ -150,10 +150,10 @@ export function useClips(): { clip: (href: string) => SearchVideoItem | undefine
   };
 }
 
-/** Whether the answer has any video at all (its own, or a listed match's clip). */
 /** Whether the answer's video has been read (false on a first paint, before it arrives): only then may a card say none. */
 export const useVideoKnown = (): boolean => useContext(Video).known;
 
+/** Whether the answer has any video at all (its own, or a listed match's clip). */
 export function useAnyVideo(): boolean {
   const v = useContext(Video).video;
   return !!v?.main || !!(v?.rows && Object.keys(v.rows).length);
