@@ -60,7 +60,9 @@ function keptReady(path: string): boolean {
   if (!answerableOffline(path)) return false;
   if (keepable(path) && keptAt(path) != null) return true;
   const route = path.split("?")[0];
-  if (route === "/api/events" || route === "/api/shortlist" || /^\/api\/teams\/\d+\/matches$/.test(route)) {
+  // The shortlist always answers: a team with nothing kept is still listed, by number (scoutReads.offlineShortlist).
+  if (route === "/api/shortlist") return true;
+  if (route === "/api/events" || /^\/api\/teams\/\d+\/matches$/.test(route)) {
     return savedBundles().length > 0 || keptPaths((p) => p.split("?")[0] === route).length > 0;
   }
   return false;

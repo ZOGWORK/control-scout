@@ -13,6 +13,7 @@
 // - Any other kept path (pick ratings, an event forecast, a profile, the scouting alliance views): the kept copy.
 import type { EventListItem, EventSummary, MatchView, ShortlistTeam } from "../../shared/api";
 import type { EventBundle, SavedBundle } from "../../shared/eventBundle";
+import { isNoMatchType } from "../../shared/labels";
 import { savedBundles } from "./bundleMeta";
 import { loadBundle } from "./bundles";
 import { keptAnswer, keptPaths } from "./kept";
@@ -59,7 +60,10 @@ async function offlineEventList(path: string): Promise<{ events: EventListItem[]
   const events = [...(got?.data.events ?? [])];
   const have = new Set(events.map((e) => e.code.toUpperCase()));
   for (const { bundle } of bundles) if (!have.has(bundle.event.event.code.toUpperCase())) events.push(listItemOf(bundle.event.event));
-  const shown = (q ? events.filter((e) => matchesQ(e, q)) : events)
+  // The server leaves out kickoffs, workshops and other no-match events unless the request asks all=1 (its
+  // hideNoMatch); a kept all=1 list answering a plain request is narrowed the same way.
+  const all = url.searchParams.get("all") === "1";
+  const shown = events.filter((e) => (all || !isNoMatchType(e.type)) && (!q || matchesQ(e, q)))
     .sort((a, b) => (a.start ?? "").localeCompare(b.start ?? "") || a.name.localeCompare(b.name)).slice(0, limit);
   const savedAt = got?.savedAt ?? Math.max(...bundles.map((b) => b.meta.savedAt));
   return markOffline({ ...(got?.data ?? {}), events: shown }, kept(season ?? 0, savedAt));

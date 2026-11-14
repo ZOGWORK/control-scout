@@ -39,4 +39,11 @@ describe("kept reads", () => {
     vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("Failed to fetch"); }));
     await expect(apiFetch("/api/events/2026/OTHER/pick-ratings")).rejects.toBeInstanceOf(ApiError);
   });
+
+  it("a shortlist made entirely offline (nothing kept, no bundle) still lists its teams, by number", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("Failed to fetch"); }));
+    const got = await apiFetch<{ teams: { team: number; opr: number | null }[] }>("/api/shortlist?teams=18439%2C23332&season=2026");
+    expect(got.teams.map((t) => [t.team, t.opr])).toEqual([[18439, null], [23332, null]]);
+    expect(offlineSource(got)?.savedAt).toBe(0);
+  });
 });

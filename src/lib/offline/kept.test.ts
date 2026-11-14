@@ -97,6 +97,14 @@ describe("answers with no signal", () => {
     expect(await scoutReadAnswer("/api/events?season=2025")).toBeNull();
   });
 
+  it("a plain event list answered from the kept all=1 list leaves out no-match events, as the server does", async () => {
+    await keepAnswer("/api/events?season=2026&all=1&limit=3000", { events: [ev("AUQ1", "Qualifier", "2026-11-01"), { ...ev("AUKO", "Kickoff", "2026-09-01"), type: "Kickoff" }] });
+    const plain = await scoutReadAnswer("/api/events?season=2026") as { events: EventListItem[] };
+    expect(plain.events.map((e) => e.code)).toEqual(["AUQ1"]);
+    const all = await scoutReadAnswer("/api/events?season=2026&all=1&limit=3000") as { events: EventListItem[] };
+    expect(all.events.map((e) => e.code)).toEqual(["AUKO", "AUQ1"]);
+  });
+
   it("the shortlist: every team asked for, from any kept answer of the season, else who it is with no stats", async () => {
     await keepAnswer("/api/shortlist?teams=1%2C2&season=2026", { season: 2026, teams: [row(1, 10), row(2, 20)] });
     await keepAnswer("/api/shortlist?teams=3&season=2025", { season: 2025, teams: [row(3, 30)] });
