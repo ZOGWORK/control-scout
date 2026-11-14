@@ -40,6 +40,14 @@ export const OFFICIAL_CHANNELS: OfficialChannelSeed[] = [
   { channelId: "UCHVeR960xGMtQ2rHxYAebTw", title: "High Tech Kids (Minnesota)", region: "state=MN", words: "minnesota htk", titlePattern: "minnesota" },
   { channelId: "UCbppRk83Rf7nh_Zug261h7A", title: "FIRST in Vermont", region: "state=VT", words: "vermont", titlePattern: "vermont" },
   { channelId: "UCUpv6m5YLRZgqZQlasOjKVQ", title: "FIRST UK", region: "country=United Kingdom", words: "uk" },
+  // The 2026-11-14 audited channels (ids from the YouTube Data API, forHandle): FIRST's delivery partners for
+  // Kazakhstan, France, Italy and Türkiye, and the Prince Royal's College channel that streamed Thailand's championship
+  // (its only event so far: the weakest watchlist entry, for the owner to drop if no second event comes).
+  { channelId: "UCBXqD1Kn2u3mFnjHsHMMTKQ", title: "USTEM Foundation (Kazakhstan)", region: "country=Kazakhstan", words: "kazakhstan central asia", titlePattern: "central asia (first )?championship" },
+  { channelId: "UCDNTYCoNjRd_98Jl1vAUZNQ", title: "Robotique FIRST France", region: "country=France", words: "france defi robotique regionale regions", titlePattern: "\\bfinale\\b" },
+  { channelId: "UC3GrZQP1avoMFojc2HeQdhw", title: "Associazione Artù APS (Italy)", region: "country=Italy", words: "italy italia", titlePattern: "\\bitaly\\b" },
+  { channelId: "UCq5bJjdyfAQYIs7yb_83vaA", title: "Fikret Yüksel Foundation (Türkiye)", region: "country=Türkiye", words: "turkiye turkey gun", titlePattern: "t[uü]rkiye [şs]ampiyonas[ıi]" },
+  { channelId: "UC7e1UfLTHCdAoF7VIay_IqA", title: "The PRC Channel (Thailand)", region: "country=Thailand", words: "thailand ftcthailand", titlePattern: "thailand" },
   // The owner's audited channels (2026-11-14), ids from the YouTube Data API (channels?forHandle). FIRST Nevada
   // (@firstnevada1941) is Nevada's FIRST partner; its titles name the meet ("# 4S") and the half of the state.
   { channelId: "UCqDnAXt0clPQww74v7bUVkQ", title: "FIRST Nevada", region: "state=NV", words: "nevada", titlePattern: "nevada state championship|state championship - nevada" },
