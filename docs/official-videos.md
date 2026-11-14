@@ -99,7 +99,10 @@ minutes and starts a run only when the last one is 6 hours old, so a deploy does
   event (an upload, a program call, a team's reel): it can't be a day's recording, and the owner can still add it as a
   highlight from the set-aside list. A title naming the region itself ("FTC Iowa …") makes all its events that day
   plausible, so when the title also names one event by its own word or designator ("Iris", "Waterloo", "Meet #1" and
-  not "Meet #1a"), the events it fits by the region's name alone drop out.
+  not "Meet #1a"), the events it fits by the region's name alone drop out. Two events sharing a word ("CTX GEMS
+  Diamond League Meet 2" and "… Emerald …") are told apart the same way: an event whose name has a word the title
+  doesn't say ("Emerald"), while the title says a word of the other's name ("Diamond"), drops out when the event left
+  outscores it. A title naming two events (a joint meet) stays in review.
 
   Every video read ends in exactly one state, its reason in `official_watch.why`: **added** (every check passed),
   **pending** (the owner's review), or **set aside**, **duplicate** or **rejected**. The only videos not written yet are
