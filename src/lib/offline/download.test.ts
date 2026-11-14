@@ -209,16 +209,34 @@ describe("event packs", () => {
 });
 
 describe("two downloads of one file", () => {
-  it("take turns on its pieces: the second reads them back whole, and the first's cleanup waits for it", async () => {
+  it("in two tabs, take turns on its pieces: the first tab's cleanup waits until the second has read them back", async () => {
+    // Web Locks as a browser gives them: one holder per name, across every tab (here: two module instances).
+    const held = new Map<string, Promise<unknown>>();
+    vi.stubGlobal("navigator", Object.assign(Object.create(navigator), { locks: {
+      request: (name: string, fn: () => Promise<unknown>) => {
+        const run = (held.get(name) ?? Promise.resolve()).catch(() => {}).then(fn);
+        held.set(name, run);
+        return run;
+      },
+    } }));
+    vi.resetModules();
+    const tabA = await import("./download");
+    vi.resetModules();
+    const tabB = await import("./download");
     const data = bytes(PIECE * 2 + 9);
     const file = { url: "/packs/h", bytes: data.length, sha256: sha(data) };
-    const s = server(data);
-    const a = download(file, { owner, fetch: s.fn });
-    const done = a.then(() => finishDownload(file.sha256));
-    resetDownloadStore(); // as another tab: its own store over the same IndexedDB
+    const fetchA = server(data).fn;
+    const fetchB = vi.fn(server(data).fn as unknown as (...a: unknown[]) => Promise<Response>);
+    const a = tabA.download(file, { owner, fetch: fetchA });
+    const b = tabB.download(file, { owner, fetch: fetchB as unknown as typeof fetch });
+    // Tab A saves its copy and drops the pieces as soon as it has them.
+    const aDone = a.then(() => tabA.finishDownload(file.sha256));
     expect(sha(await a)).toBe(file.sha256);
-    await done;
-    expect(await partialDownloads()).toEqual([]);
+    expect(sha(await b)).toBe(file.sha256); // not a checksum failure: B read the pieces before A's cleanup
+    expect(fetchB).not.toHaveBeenCalled(); // B found the whole verified file already on the device
+    await aDone;
+    await tabB.finishDownload(file.sha256);
+    expect(await tabA.partialDownloads()).toEqual([]);
   });
 });
 
