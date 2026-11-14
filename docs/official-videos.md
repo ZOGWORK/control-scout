@@ -17,6 +17,11 @@ A channel is official for an event when it is one of:
 A team's channel, a spectator's upload, a re-upload or a local TV broadcast is never used, even of the same event.
 `server/data/officialVideos.json` lists the channels each kept video came from.
 
+Regional streamers from the owner's audited list (2026-11-14), each read through the YouTube Data API's uploads list
+and checked by hand: Tulsa Robotics Center (eastern Oklahoma's leagues, its scrimmages, the state championship),
+SeaCow Robotics and Shiloh Saints (Arkansas qualifiers and the Arkansas Championship, already played from FIRST's
+channel links) and FTC Louisiana (every Louisiana event, uploaded after it was streamed elsewhere).
+
 ## How a video is matched to an event
 
 A video is kept only when all of these hold (`server/data/officialVideos.json` was built this way, and the
@@ -25,7 +30,9 @@ auto-watcher uses the same rules):
 1. It's on an official channel, it exists, it's public, it can be embedded, and YouTube doesn't block it in most
    countries.
 2. It's a live broadcast whose start, at the venue, falls inside the event's dates in Scout. An upload has no
-   broadcast date, so it can't prove its day, and is left out.
+   broadcast date, so it can't prove its day, and is left out. The checked list makes one exception, by hand: an
+   upload of an event that played every match on one day (Scout's match times say which; FTC Louisiana's two-day
+   qualifiers play on the Saturday), or of a one-day event its title names.
 3. Its title names the event: a distinctive word of the event's name or city (the league, the venue, "Mockingbird"),
    or the event's designators (an NTX league letter, a meet number, a UIL class, a stage). An event named by an
    acronym ("APOC") also fits a title spelling it out in words in a row ("Asia Pacific Open Championship"); a common
