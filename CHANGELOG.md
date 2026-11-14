@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 6.3.4 — 2026-11-14
+
+A search asking for video with nothing to play now always gets its questions with video, and none of them reads like a typo.
+
+### Highlights
+- [fixes] The first video search after a quiet spell still offers questions
+- [fixes] Questions with video never show an event name that reads like a typo
+- [fixes] A misspelled name is skipped and the next question takes its place
+
+### Fixed
+- Search: a watch search whose answer plays nothing waited 2.5 s for its "Questions with video", and the first one after the checks expired could find none in time, so it offered nothing. With none found by then it now waits up to 3 s more and answers as soon as one is found. (`server/api/answers/videoSuggest.ts`) (#PRNUM)
+- Search: "Questions with video" offered an event under its stored name even when that name reads like a typo ("Wnterberry Waterloo", beside "Winterberry" at eight events). A question now goes only when every word passes search's own spelling check, and the next one takes its place. (`server/api/spelling.ts`, `server/api/answers/videoSuggest.ts`) (#PRNUM)
+
 ## 6.3.3 — 2026-11-14
 
 A recorded event's page now says which days and parts its video covers and which it doesn't, and, one tap away, every played match without a clip and why. A partly recorded event never reads as fully recorded.
