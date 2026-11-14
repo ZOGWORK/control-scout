@@ -29,6 +29,7 @@ import { CURRENT_SEASON } from "./data/seasons.js";
 import { warmTrackRecord } from "./api/accuracy.js";
 import { warmSpelling } from "./api/spelling.js";
 import { warmNameTypos } from "./api/answers/nameTypos.js";
+import { warmVideoQuestions } from "./api/answers/videoSuggest.js";
 import { ensureSearchIndex, warmTypoIndex } from "./api/search.js";
 import { rebuildSearch } from "./stats/job.js";
 import { scheduleCycles, warmUp } from "./warm.js";
@@ -92,7 +93,10 @@ const afterIndex = () => indexed.catch(() => { /* its own step says it failed */
 // and only predictions need them; held for, every queued search would wait on them).
 // Then the season a search with none named reads (the latest completed one, server/api/answers/season.ts): its
 // predictions ("4215 vs 7149 who wins") otherwise built the whole season on a visitor's request, 10–20 s cold.
-const rated = warmUp([["ratings", () => forecasterFor(CURRENT_SEASON).then(() => refreshSearchSeason()).then((s) => (s !== CURRENT_SEASON ? forecasterFor(s) : null))]], log, Infinity, Date.now, "warm (background)");
+// And the questions with video offered when nothing near a search's answer plays in time (server/api/answers/
+// videoSuggest.ts): a few searches, checked once the search index and the event-name typos are ready.
+const rated = warmUp([["ratings", () => forecasterFor(CURRENT_SEASON).then(() => refreshSearchSeason()).then((s) => (s !== CURRENT_SEASON ? forecasterFor(s) : null))],
+  ["search video questions", () => afterIndex().then(() => warmNameTypos()).then(() => warmVideoQuestions())]], log, Infinity, Date.now, "warm (background)");
 const warming = await warmUp([
   // The track record (every scored prediction: about a second and a half cold), then the match report's flag
   // cutoffs (two scans of a season) for this season and last.
@@ -115,8 +119,9 @@ log("ready");
 // visitor's request is the one that waits for them (pages keep the previous
 // ones until they're done).
 // Then the event packs asked for lately (server/packs/eventApi.ts), so the next look at one isn't the one that builds it.
-// Then the event names stored with a typo, built again once a search index rebuild moves its version.
-setInterval(() => { refreshForecasters().catch(() => {}).then(() => warmTrackRecord()).catch(() => {}).then(() => import("./packs/eventApi.js")).then((m) => m.rewarmPacks()).catch(() => {}).then(() => warmNameTypos()).catch(() => {}); }, 15_000).unref();
+// Then the event names stored with a typo, and the questions with video checked in the background, built again once a
+// search index rebuild moves its version.
+setInterval(() => { refreshForecasters().catch(() => {}).then(() => warmTrackRecord()).catch(() => {}).then(() => import("./packs/eventApi.js")).then((m) => m.rewarmPacks()).catch(() => {}).then(() => warmNameTypos()).catch(() => {}).then(() => warmVideoQuestions()).catch(() => {}); }, 15_000).unref();
 
 // One cycle at a time in this process, whether the schedule or the owner portal started it (data/jobs.ts).
 async function cycle(reason: string) {
