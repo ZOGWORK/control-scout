@@ -231,7 +231,7 @@ function withConfirmed(videoId: string, meta: VideoMeta, span: EventSpan) {
   const timing = { ...meta, ...rest };
   if (timingTrusted(timing)) return timing;
   const ch = chaptersConfirm(timing, meta.chapters, starts);
-  return ch ? { ...timing, confirmedTo: ch.to, shift: ch.shift } : { ...timing, confirmedTo: checkedTo(videoId) };
+  return ch ? { ...timing, confirmedTo: ch.to, shift: ch.shift, confirmedFrom: ch.from ?? null } : { ...timing, confirmedTo: checkedTo(videoId) };
 }
 
 /** The earliest and latest of some UTC ISO match starts. */
