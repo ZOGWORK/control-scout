@@ -207,6 +207,8 @@ export interface MatchRecordRow {
    * stat was asked for; null when the ledger has no tier for the call, and then the percentage isn't shown.
    */
   predictionTier?: ConfidenceTier | null;
+  /** "Not an official record: …" (server/data/unofficialRecords.ts): its score is not an official record. Sent only then. */
+  unofficial?: string;
   /** Teams in this match with no public page (src/shared/teamPages.ts: an off-season placeholder): shown, not linked. Sent only when there are any. */
   noPage?: number[];
 }

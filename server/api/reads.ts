@@ -3,8 +3,35 @@
 // never a re-implementation. Null: the route answers 404.
 import { matchDetail, matchViews } from "./matches.js";
 import { teamReportCards, teamSchedule } from "./teams.js";
-import { eventMatchSpan, eventRecording, withClips } from "../videos/recordings.js";
-import type { EventDetail, MatchDetail,MatchView, TeamReportCardAnswer, TeamScheduleAnswer } from "../../src/shared/api.js";
+import { eventMatchSpan, eventRecording, isPartial, seasonRecordings, seasonVideoKinds, withClips } from "../videos/recordings.js";
+import { listEvents } from "./events.js";
+import type { EventDetail, EventListItem, MatchDetail,MatchView, TeamReportCardAnswer, TeamScheduleAnswer } from "../../src/shared/api.js";
+
+export interface EventListQuery { season: number; from?: string; to?: string; q?: string; type?: string; region?: string; hideNoMatch: boolean; limit: number }
+
+/** GET /api/events?season=S (…): the list view's fields only (detail pages use /events/:season/:code: venue,
+ *  division, region and remote aren't shown in lists), with what there is to watch. The season pack's boards carry
+ *  this answer too (server/packs/boards.ts).
+ *  `strict` (the pack builder): a failed recordings read fails the answer, so a pack never ships a list without its
+ *  LIVE dots and videos for a whole version. Online, one request degrades to no dots (and logs why). */
+export async function eventListAnswer(q: EventListQuery, opts: { strict?: boolean } = {}): Promise<{ events: EventListItem[] }> {
+  // Events with a recording (the owner's stream or FIRST's YouTube link): stream: true, for the LIVE dot; and
+  // what video there is to watch, for the list's video filter.
+  const soft = <T,>(what: string, p: Promise<Map<string, T>>): Promise<Map<string, T>> => (opts.strict ? p : p.catch((e) => {
+    console.warn(`[events list] ${what} for ${q.season} failed, listing without them: ${(e as Error)?.message ?? e}`);
+    return new Map<string, T>();
+  }));
+  const [streams, videos] = await Promise.all([soft("recordings", seasonRecordings(q.season)), soft("video kinds", seasonVideoKinds(q.season))]);
+  // A source under them (the owner's streams, the official recordings) failed: online they show as read (logged in
+  // recordings.ts); a pack refuses them.
+  if (opts.strict && (isPartial(streams) || isPartial(videos))) throw new Error(`recordings for ${q.season} were read without one of their sources`);
+  return {
+    events: (await listEvents(q)).map(({ venue: _v, divisionCode: _d, region: _r, remote: _m, ...e }) => {
+      const video = videos.get(e.code);
+      return { ...e, ...(streams.has(e.code) ? { stream: true as const } : {}), ...(video ? { video } : {}) } as EventListItem;
+    }),
+  };
+}
 
 /** GET /api/teams/:number/matches?season=S: the team's season matches, unplayed ones with today's call. */
 export async function teamMatchesAnswer(team: number, season: number): Promise<{ team: number; season: number; matches: MatchView[] }> {

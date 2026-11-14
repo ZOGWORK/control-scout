@@ -17,6 +17,7 @@ import { cachedEventDetail, eventDetail } from "../api/events.js";
 import { gatedEventDetail } from "../api/eventGates.js";
 import { matchReport } from "../api/matchReport.js";
 import { pickRatings } from "../api/pickRatings.js";
+import { leagueStandings } from "../api/leagues.js";
 import { resultChanges } from "../api/resultChanges.js";
 import { readProjections } from "../projections/store.js";
 import { hasTeamPage } from "../../src/shared/teamPages.js";
@@ -65,6 +66,9 @@ export const PACK_READS: Reads[] = [
   // The event page's advancement odds and the pick helper.
   async (c) => (!isLegacy(c.season) && (await isEnabled("advancementOdds")) ? [{ path: `/api/projections/${c.season}/${encodeURIComponent(c.code)}`, read: () => readProjections(c.season, c.code) }] : []),
   (c) => [{ path: `${ev(c)}/pick-ratings`, read: () => pickRatings(c.season, c.code) }],
+  // A league meet or tournament: its league's standings (the event page links to them).
+  (c) => (c.ev.event.league && c.ev.event.region
+    ? [{ path: `/api/leagues/${c.season}/${c.ev.event.region}/${c.ev.event.league}`, read: () => leagueStandings(c.season, c.ev.event.region!, c.ev.event.league!) }] : []),
   // Result changes: the event page's section and each match's (server/app.ts's two result-changes routes).
   (c) => [
     { path: `${ev(c)}/result-changes`, read: () => resultChanges(c.season, c.code), notFound: `No event ${c.code} in ${c.season}` },

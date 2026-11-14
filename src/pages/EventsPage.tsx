@@ -10,6 +10,7 @@ import { useCurrentSeason, useTitle } from "../lib/meta";
 import type { EventListItem } from "../shared/api";
 import { PageHeader, EmptyState } from "../components/page";
 import { Async, LoadingBlock } from "../components/states";
+import { OfflineNote } from "../components/OfflineNote";
 import { Button } from "../components/ui/button";
 import { SearchBox, hitHref } from "../components/search/SearchBox";
 import { CoinFlipRadarSection } from "../components/home/CoinFlipRadar";
@@ -69,7 +70,7 @@ export default function EventsPage() {
       {/* The placeholder is a screen tall, so the footer starts below the fold: the list arriving pushes nothing
           a reader can see (it used to shove a footer in view down the screen, the page's layout shift on a phone). */}
       <Async state={state} loading={<div className="min-h-[100svh]"><LoadingBlock rows={8} label="Loading events" /></div>} empty={(d) => !d.events.length && <EmptyState icon={CalendarDays} title={`No events listed for ${seasonLabel(season)} yet`} />}>
-        {(d) => <EventWeeks events={d.events} {...{ region, type, status, from, to, video }} q={listQ} onClear={clear} />}
+        {(d) => <><OfflineNote data={d} what="Events list" /><EventWeeks events={d.events} {...{ region, type, status, from, to, video }} q={listQ} onClear={clear} /></>}
       </Async>
     </div>
   );
