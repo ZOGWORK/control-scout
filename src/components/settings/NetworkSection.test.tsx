@@ -134,6 +134,65 @@ describe("Network & offline: the real sizes", () => {
     expect(await screen.findByText("Offline predictions use 3.8 MB.")).toBeTruthy();
     expect(listAsks).toBe(2);
   });
+
+  it("one Check again after a failure asks for the pack list once", async () => {
+    let listAsks = 0;
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+      if (url === "/api/health") return new Response(JSON.stringify({ ok: true }), { status: 200 });
+      if (url === "/packs/latest.json") { listAsks++; return new Response("busy", { status: 500 }); }
+      return new Response("{}", { status: 404 });
+    }));
+    await act(async () => { await checkInternet(); });
+    show();
+    await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+    expect(listAsks).toBe(1);
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: /Check again/ })); });
+    await act(async () => { await new Promise((r) => setTimeout(r, 20)); });
+    expect(listAsks).toBe(2);
+  });
+
+  it("packs switched off, or none published: says so to someone online, never \"when you're online\"", async () => {
+    for (const [res, words] of [
+      [() => new Response(JSON.stringify({ error: "feature_disabled", feature: "offlinePacks", message: "Offline packs are paused right now. Packs already on this device keep working." }), { status: 403 }), "Download sizes aren't available. Offline packs are paused right now. Packs already on this device keep working."],
+      [() => new Response("", { status: 404 }), "No downloads have been published yet."],
+      [() => new Response("busy", { status: 500 }), "The list of downloads couldn't be read just now. Check again to try once more."],
+    ] as [() => Response, string][]) {
+      resetConnection();
+      vi.stubGlobal("fetch", vi.fn(async (url: string) => url === "/api/health" ? new Response(JSON.stringify({ ok: true }), { status: 200 }) : url === "/packs/latest.json" ? res() : new Response("{}", { status: 404 })));
+      await act(async () => { await checkInternet(); });
+      show();
+      expect((await screen.findByText(words)).hasAttribute("data-net-sizes-missing")).toBe(true);
+      expect(screen.queryByText(/when you're online/)).toBeNull();
+      cleanup();
+    }
+  });
+});
+
+describe("Network & offline: honest words", () => {
+  it("while the first check runs, the Lite row says it's checking; with none, that it needs a connection", () => {
+    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>(() => {})));
+    show();
+    expect(document.querySelector("[data-net-lite-wait]")!.textContent).toBe("Checking your connection…");
+    cleanup();
+    localStorage.setItem(DEMO_KEY, "portal");
+    show();
+    expect(document.querySelector("[data-net-lite-wait]")!.textContent).toBe("Needs a connection to switch.");
+  });
+
+  it("a browser that can't tell Wi-Fi from mobile data (every iPhone) says so instead of promising Wi-Fi only", () => {
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("Failed to fetch"); }));
+    show(); // jsdom has no navigator.connection, like Safari
+    const wifi = within(screen.getByRole("radiogroup", { name: "Downloads" })).getByRole("radio", { name: /Wi-Fi only/ });
+    expect(wifi.textContent).toMatch(/This browser can't tell Wi-Fi from mobile data/);
+    expect(wifi.textContent).not.toMatch(/Nothing downloads on mobile data/);
+    const auto = within(screen.getByRole("radiogroup", { name: "Updates" })).getByRole("radio", { name: /Update packs automatically/ });
+    expect(auto.textContent).toMatch(/may include mobile data/);
+    cleanup();
+    vi.stubGlobal("navigator", Object.assign(Object.create(navigator), { connection: { type: "wifi" } }));
+    show();
+    const known = within(screen.getByRole("radiogroup", { name: "Downloads" })).getByRole("radio", { name: /Wi-Fi only/ });
+    expect(known.textContent).toMatch(/Nothing downloads on mobile data unless you tap Download yourself/);
+  });
 });
 
 describe("Network & offline: clear cache when it can't be measured", () => {

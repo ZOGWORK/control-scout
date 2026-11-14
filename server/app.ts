@@ -1029,7 +1029,11 @@ export function createApp(opts: { dist?: string; /** Tests only: a smaller searc
     res.redirect(301, `/donate${q >= 0 ? req.originalUrl.slice(q) : ""}`);
   });
   // /network: the Network & offline settings (a section of Settings).
-  app.get("/network", (_req, res) => { res.redirect(302, "/settings#network"); });
+  // 301 with the query kept, like /support: /network?lite=0 reaches the full screen while Lite is on.
+  app.get("/network", (req, res) => {
+    const q = req.originalUrl.indexOf("?");
+    res.redirect(301, `/settings${q >= 0 ? req.originalUrl.slice(q) : ""}#network`);
+  });
   // An event's address without its season (/events/USNJNEM2): 301 to the newest season's page, query kept. An unknown
   // code goes on to the 404; /events/2026 (a season, no code) is never read as a code.
   app.get("/events/:code", (req, res, next) => {

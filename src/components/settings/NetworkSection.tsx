@@ -6,7 +6,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { RadioGroup as RadioP } from "radix-ui";
 import { Check, CheckCircle2, HardDriveDownload, RefreshCw, Snail, Trash2, Wifi, WifiOff, Zap } from "lucide-react";
-import { checkInternet, useConnection } from "../../lib/connection";
+import { checkInternet, useConnection, type Internet } from "../../lib/connection";
 import { adviseLite, connectionLabel, liteCookieOn, liteToggleHref, slowReason, statusSentence } from "../../lib/networkAdvice";
 import { useDataUse } from "../../lib/dataUse";
 import { useLiteReason } from "../../lib/liteSuggest";
@@ -18,10 +18,10 @@ import { packStatus } from "../../lib/packPolicy";
 import { useSavedSeasons } from "../../lib/offline/saved";
 import { useSavedBundles } from "../../lib/offline/bundleMeta";
 import { bundleTime } from "../../shared/eventBundle";
-import { fetchManifest, type PackManifest } from "../../lib/packs";
+import { ManifestError, fetchManifest, type PackManifest } from "../../lib/packs";
 import { clearAppCache, planAppCache, type CachePlan } from "../../lib/offline/appCache";
 import { useConnection as useNetInfo, useUpdatePrefs } from "../offline/UpdateSettings";
-import type { UpdateMode, UpdateNetwork } from "../../lib/offline/updatePolicy";
+import { netKind, type UpdateMode, type UpdateNetwork } from "../../lib/offline/updatePolicy";
 import { updatedLabel } from "../ConnectionStatus";
 import { Group, Row } from "./rows";
 import { Button } from "../ui/button";
@@ -48,7 +48,7 @@ export function NetworkSection() {
   const why = advice.kind === "slow" ? slowReason({ effectiveType: net?.effectiveType, saveData: conn.saveData, slowSeen }) : null;
   const tone = conn.internet === "yes" ? "ok" : conn.internet === "unknown" ? "wait" : conn.internet === "portal" ? "warn" : "off";
   const connected = conn.internet === "yes";
-  const m = useManifest(connected, conn.checkedAt);
+  const { m, error } = useManifest(connected, conn.checkedAt);
   return (
     <div data-network-section="">
       <section aria-labelledby="net-status" className="mb-8 max-sm:mb-5 rounded-xl border border-border bg-card p-4 sm:p-5" data-net-status={conn.internet}>
@@ -83,15 +83,15 @@ export function NetworkSection() {
         </Row>
       </Group>
 
-      <Downloads m={m} />
-      <Controls m={m} liteFlag={liteFlag} liteOn={liteOn} connected={connected} />
+      <Downloads m={m} error={error} connected={connected} />
+      <Controls m={m} liteFlag={liteFlag} liteOn={liteOn} internet={conn.internet} />
       <CleanUp />
     </div>
   );
 }
 
 /** What's downloaded (each pack, its size, its data time) and what a download costs, from the pack manifest. */
-function Downloads({ m }: { m: PackManifest | null }) {
+function Downloads({ m, error, connected }: { m: PackManifest | null; error: ManifestError | null; connected: boolean }) {
   const seasons = useSavedSeasons();
   const bundles = useSavedBundles();
   const lite = packStatus();
@@ -118,31 +118,48 @@ function Downloads({ m }: { m: PackManifest | null }) {
       <div className="border-t border-border px-4 py-3">
         <Button variant="outline" className="h-11 w-full sm:h-9 sm:w-auto" asChild><Link to="/download"><HardDriveDownload /> Manage downloads</Link></Button>
       </div>
-      <Sizes m={m} />
+      <Sizes m={m} error={error} connected={connected} />
     </Group>
   );
 }
 
-/** The pack manifest (sizes of every download), read once while there's internet. */
-/** The pack list, for the real sizes. A failed load is asked again: after a short wait (a few times), and on every
- *  Check again (`checkedAt` moves even when the answer stays "yes"). */
+/** The pack list, for the real sizes, and why it couldn't be read (null while it's loading or read). A failure the
+ *  network caused is asked again after a short wait (a few times); every Check again (`checkedAt` moves even when the
+ *  answer stays "yes") asks once more. The retry count belongs to one check, so a new check starts from 0 without a
+ *  second render asking again: one Check again, one request. "none" and "paused" are the server's answer, not a
+ *  failure: no timed retries for those. */
 export const MANIFEST_RETRY_MS = 15_000;
 const MANIFEST_TRIES = 4;
-function useManifest(connected: boolean, checkedAt: number | string | null | undefined): PackManifest | null {
+function useManifest(connected: boolean, checkedAt: number | string | null | undefined): { m: PackManifest | null; error: ManifestError | null } {
   const [m, setM] = useState<PackManifest | null>(null);
-  const [failed, setFailed] = useState(0);
-  useEffect(() => { setFailed(0); }, [checkedAt]);
+  const [error, setError] = useState<ManifestError | null>(null);
+  const [retry, setRetry] = useState<{ at: typeof checkedAt; n: number }>({ at: checkedAt, n: 0 });
+  const tries = retry.at === checkedAt ? retry.n : 0;
   useEffect(() => {
     if (!connected || m) return;
     let live = true;
     let timer: ReturnType<typeof setTimeout> | undefined;
-    fetchManifest().then((x) => { if (live) setM(x); }, () => {
-      // Sizes say they need a connection meanwhile.
-      if (live && failed + 1 < MANIFEST_TRIES) timer = setTimeout(() => { if (live) setFailed((n) => n + 1); }, MANIFEST_RETRY_MS);
+    fetchManifest().then((x) => { if (live) { setM(x); setError(null); } }, (e: unknown) => {
+      if (!live) return;
+      const err = e instanceof ManifestError ? e : new ManifestError("failed", e instanceof Error ? e.message : "Couldn't read the pack list.");
+      setError(err);
+      if (err.reason !== "none" && err.reason !== "paused" && tries + 1 < MANIFEST_TRIES) {
+        timer = setTimeout(() => { if (live) setRetry({ at: checkedAt, n: tries + 1 }); }, MANIFEST_RETRY_MS);
+      }
     });
     return () => { live = false; if (timer) clearTimeout(timer); };
-  }, [connected, m, failed, checkedAt]);
-  return m;
+  }, [connected, m, tries, checkedAt]);
+  return { m, error };
+}
+
+/** Why the sizes aren't shown, in plain words (null: they are, or they're still loading). */
+export function sizesMissing(m: PackManifest | null, error: ManifestError | null, connected: boolean): string | null {
+  if (m) return null;
+  if (!connected) return "The rest show when you're online.";
+  if (!error) return null;
+  if (error.reason === "paused") return `Download sizes aren't available. ${error.message}`;
+  if (error.reason === "none") return "No downloads have been published yet.";
+  return "The list of downloads couldn't be read just now. Check again to try once more.";
 }
 
 export function sizeLines(m: PackManifest | null, season: number, events: { name: string; bytes: number }[]): string[] {
@@ -156,16 +173,18 @@ export function sizeLines(m: PackManifest | null, season: number, events: { name
   return lines;
 }
 
-function Sizes({ m }: { m: PackManifest | null }) {
+function Sizes({ m, error, connected }: { m: PackManifest | null; error: ManifestError | null; connected: boolean }) {
   const season = useCurrentSeason();
   const bundles = useSavedBundles();
   const lines = sizeLines(m, season, bundles);
+  const missing = sizesMissing(m, error, connected);
   return (
     <div className="border-t border-border px-4 py-3 text-sm" data-net-sizes>
       <p className="font-medium text-foreground">How much a download uses</p>
       <ul className="mt-1 space-y-0.5 text-muted-foreground">
         {lines.map((l) => <li key={l}>{l}</li>)}
-        <li>Each event's size shows before you download it{m ? "" : "; the rest show when you're online"}.</li>
+        <li>Each event's size shows before you download it.</li>
+        {missing && <li data-net-sizes-missing>{missing}</li>}
       </ul>
     </div>
   );
@@ -190,8 +209,11 @@ function Choice<T extends string>({ label, value, onChange, options }: { label: 
   );
 }
 
-function Controls({ m, liteFlag, liteOn, connected }: { m: PackManifest | null; liteFlag: boolean; liteOn: boolean; connected: boolean }) {
+function Controls({ m, liteFlag, liteOn, internet }: { m: PackManifest | null; liteFlag: boolean; liteOn: boolean; internet: Internet }) {
   const { mode, network, setMode, setNetwork } = useUpdatePrefs();
+  // Browsers that don't say Wi-Fi or mobile data (every iPhone): the update policy counts them as Wi-Fi
+  // (lib/offline/updatePolicy.ts), so the words say plainly that this browser can't tell the two apart.
+  const unknownNet = netKind(useNetInfo()) === "unknown";
   const season = useCurrentSeason();
   const current = m?.full.find((f) => f.seasons.includes(season));
   const warning = current
@@ -203,23 +225,25 @@ function Controls({ m, liteFlag, liteOn, connected }: { m: PackManifest | null; 
         <Row label="Lite" stack description="Opens the text-only Lite version of pages that have one. Turn off any time.">
           <div className="flex flex-wrap items-center gap-3">
             <span className="text-sm text-foreground" data-net-lite={liteOn ? "on" : "off"}>{liteOn ? "Lite is on" : "Lite is off"}</span>
-            {connected ? (
+            {internet === "yes" ? (
               <Button variant={liteOn ? "outline" : "secondary"} className="h-11 sm:h-9" asChild>
                 <a href={liteToggleHref(!liteOn)}>{liteOn ? "Turn off Lite" : <><Snail /> Turn on Lite</>}</a>
               </Button>
-            ) : <span className="text-xs text-muted-foreground">Needs a connection to switch.</span>}
+            ) : <span className="text-xs text-muted-foreground" data-net-lite-wait>{internet === "unknown" ? "Checking your connection…" : "Needs a connection to switch."}</span>}
           </div>
         </Row>
       )}
       <Row label="Downloads" stack description="Which connections downloads and updates may use.">
         <Choice<UpdateNetwork> label="Downloads" value={network} onChange={setNetwork} options={[
-          { value: "wifi", name: "Wi-Fi only", line: "Nothing downloads on mobile data unless you tap Download yourself." },
+          { value: "wifi", name: "Wi-Fi only", line: unknownNet
+            ? "This browser can't tell Wi-Fi from mobile data, so automatic updates may still use mobile data. To be sure, choose Never update automatically."
+            : "Nothing downloads on mobile data unless you tap Download yourself." },
           { value: "any", name: "Wi-Fi and mobile data", line: warning },
         ]} />
       </Row>
       <Row label="Updates" stack description="When a newer copy of something you downloaded is out.">
         <Choice<UpdateMode> label="Updates" value={mode} onChange={setMode} options={[
-          { value: "auto", name: network === "any" ? "Update packs automatically" : "Update packs automatically on Wi-Fi", line: network === "any" ? "Updates download by themselves, on Wi-Fi or mobile data." : "Updates download by themselves when you're on Wi-Fi." },
+          { value: "auto", name: network === "any" ? "Update packs automatically" : "Update packs automatically on Wi-Fi", line: network === "any" ? "Updates download by themselves, on Wi-Fi or mobile data." : unknownNet ? "Updates download by themselves. This browser can't tell Wi-Fi from mobile data, so that may include mobile data." : "Updates download by themselves when you're on Wi-Fi." },
           { value: "ask", name: "Never update automatically (I'll tap Update)", line: "You get a note when an update is out; nothing downloads until you tap Update." },
         ]} />
       </Row>
