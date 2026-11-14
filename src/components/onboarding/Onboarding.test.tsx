@@ -311,6 +311,45 @@ describe("the steps", () => {
     expect(set).not.toHaveBeenCalled();
   });
 
+  it("Change on a team already saved opens the search, and keeps that team until another is picked", async () => {
+    const set = vi.fn(() => true);
+    personal.current = { ...personal.current, state: { ...EMPTY_STATE, myTeam: 7149 }, set };
+    localStorage.setItem(ONBOARDING_KEY, JSON.stringify({ v: 1, status: "open", step: 1, at: "x" }));
+    mount("/");
+    await settle();
+    expect(dialog()!.querySelector('[data-onboarding-team="7149"]')).not.toBeNull();
+    fireEvent.click(dialog()!.querySelector("[data-onboarding-change]")!);
+    await act(async () => { await vi.advanceTimersByTimeAsync(20); });
+    expect(dialog()!.querySelector("input")).not.toBeNull();
+    expect(set).not.toHaveBeenCalled();
+    fireEvent.click(next()); // nothing new picked: moves on, the saved team stays
+    await act(async () => { await vi.advanceTimersByTimeAsync(50); });
+    expect(step()).toBe(3);
+    expect(set).not.toHaveBeenCalled();
+  });
+
+  it("Enter picks only a result for exactly what's typed: never an older query's, never moves on while searching", async () => {
+    let answer: (v: unknown) => void = () => {};
+    api.fetch.mockImplementation(() => new Promise((r) => { answer = r; }));
+    localStorage.setItem(ONBOARDING_KEY, JSON.stringify({ v: 1, status: "open", step: 1, at: "x" }));
+    mount("/");
+    await settle();
+    const input = dialog()!.querySelector("input")!;
+    fireEvent.change(input, { target: { value: "hypno" } });
+    await act(async () => { await vi.advanceTimersByTimeAsync(300); });
+    await act(async () => { answer({ hits: [{ kind: "team", ref: "4215", title: "4215 | Hypnotic Robotics" }] }); });
+    // A new query: the old results are gone at once, and Enter while it searches does nothing.
+    fireEvent.change(input, { target: { value: "enforcers" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(dialog()!.querySelector('[data-onboarding-team="4215"]')).toBeNull();
+    expect(step()).toBe(2);
+    await act(async () => { await vi.advanceTimersByTimeAsync(300); });
+    await act(async () => { answer({ hits: [{ kind: "team", ref: "7149", title: "7149 | ENFORCERS" }] }); });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(dialog()!.querySelector('[data-onboarding-team="7149"]')).not.toBeNull();
+    expect(step()).toBe(2);
+  });
+
   it("Back goes to the step before; there's no Back on step 1", async () => {
     mount("/");
     await settle();

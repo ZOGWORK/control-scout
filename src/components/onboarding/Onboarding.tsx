@@ -283,26 +283,31 @@ function StepTeam({ inputRef, picked, savedTeam, onPick, onNone, onEnter }: {
   onPick: (t: TeamHit | null) => void; onNone: () => void; onEnter: () => void;
 }) {
   const [q, setQ] = useState("");
-  const [hits, setHits] = useState<TeamHit[]>([]);
-  const [busy, setBusy] = useState(false);
+  /** Results, with the query they answer: a new query hides the old ones at once (Enter never picks a stale one). */
+  const [results, setResults] = useState<{ for: string; hits: TeamHit[] }>({ for: "", hits: [] });
   const [failed, setFailed] = useState(false);
+  /** "Change" on a team already saved: show the search, keep the saved team until another is picked. */
+  const [changing, setChanging] = useState(false);
   const listId = useId();
+  const query = q.trim();
+  const hits = results.for === query ? results.hits : [];
+  const busy = query !== "" && results.for !== query && !failed;
 
   useEffect(() => {
-    const query = q.trim();
-    if (!query) { setHits([]); setBusy(false); setFailed(false); return; }
+    setFailed(false);
+    if (!query) return;
     const ctrl = new AbortController();
-    setBusy(true);
     const t = window.setTimeout(() => {
       apiFetch<{ hits: { kind: string; ref: string; title: string; subtitle?: string }[] }>(`/api/search?q=${encodeURIComponent(query)}&kinds=team&limit=5`, { signal: ctrl.signal })
-        .then((r) => { setHits(r.hits.filter((h) => h.kind === "team").map(toTeam).filter((x): x is TeamHit => x !== null)); setFailed(false); })
-        .catch(() => { if (!ctrl.signal.aborted) { setHits([]); setFailed(true); } })
-        .finally(() => { if (!ctrl.signal.aborted) setBusy(false); });
+        .then((r) => setResults({ for: query, hits: r.hits.filter((h) => h.kind === "team").map(toTeam).filter((x): x is TeamHit => x !== null) }))
+        .catch(() => { if (!ctrl.signal.aborted) setFailed(true); });
     }, 200);
     return () => { ctrl.abort(); window.clearTimeout(t); };
-  }, [q]);
+  }, [query]);
 
-  const chosen = picked ?? (savedTeam != null ? { number: savedTeam, name: `Team ${savedTeam}`, place: "" } : null);
+  const chosen = picked ?? (savedTeam != null && !changing ? { number: savedTeam, name: `Team ${savedTeam}`, place: "" } : null);
+  // Enter: the first result for exactly what's typed; while it's still searching, wait; an empty box moves on.
+  const enter = () => { if (hits[0]) onPick(hits[0]); else if (!query) onEnter(); };
 
   return (
     <div>
@@ -314,7 +319,7 @@ function StepTeam({ inputRef, picked, savedTeam, onPick, onNone, onEnter }: {
             <span className="block truncate text-[15px] font-semibold text-text-base">{chosen.number} · {chosen.name}</span>
             {chosen.place && <span className="block truncate text-[13px] text-text-muted">{chosen.place}</span>}
           </span>
-          <Button variant="ghost" size="sm" className="h-[44px] shrink-0 text-[15px] md:h-9" onClick={() => { onPick(null); setQ(""); window.setTimeout(() => inputRef.current?.focus(), 0); }}>Change</Button>
+          <Button variant="ghost" size="sm" className="h-[44px] shrink-0 text-[15px] md:h-9" onClick={() => { onPick(null); setChanging(true); setQ(""); window.setTimeout(() => inputRef.current?.focus(), 0); }} data-onboarding-change="">Change</Button>
         </div>
       ) : (
         <>
@@ -323,7 +328,7 @@ function StepTeam({ inputRef, picked, savedTeam, onPick, onNone, onEnter }: {
             <span className="sr-only">Team number or name</span>
             <input
               ref={inputRef} value={q} onChange={(e) => setQ(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); if (hits[0]) onPick(hits[0]); else onEnter(); } }}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); enter(); } }}
               inputMode="search" autoComplete="off" enterKeyHint="search" placeholder="Team number or name"
               role="combobox" aria-expanded={hits.length > 0} aria-controls={listId} aria-autocomplete="list"
               className="h-[48px] min-w-0 flex-1 bg-transparent text-[16px] outline-none placeholder:text-text-muted md:h-11 md:text-[15px]"
@@ -344,7 +349,7 @@ function StepTeam({ inputRef, picked, savedTeam, onPick, onNone, onEnter }: {
             ))}
           </ul>
           {failed && <p className="mt-2 text-[15px] text-text-muted" role="status">Search isn't answering right now. You can pick your team later on My team.</p>}
-          {!busy && !failed && q.trim() !== "" && hits.length === 0 && <p className="mt-2 text-[15px] text-text-muted" role="status">No team matches that yet.</p>}
+          {!busy && !failed && query !== "" && hits.length === 0 && <p className="mt-2 text-[15px] text-text-muted" role="status">No team matches that yet.</p>}
         </>
       )}
       <button type="button" onClick={onNone} className="mt-4 inline-flex min-h-[44px] items-center text-[15px] font-medium text-text-muted underline underline-offset-4 hover:text-text-base" data-onboarding-no-team="">
