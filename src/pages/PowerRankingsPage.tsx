@@ -12,6 +12,7 @@ import { copyLink } from "../lib/clipboard";
 import { num, seasonLabel } from "../lib/format";
 import { EmptyState, Page, PageHeader, Section } from "../components/page";
 import { Async, FeatureOffState } from "../components/states";
+import { OfflineNote } from "../components/OfflineNote";
 import { useFlag } from "../lib/flags";
 import { NotFoundView } from "../components/NotFoundView";
 import { Button } from "../components/ui/button";
@@ -222,7 +223,7 @@ export default function PowerRankingsPage() {
           </>
         )}
       >
-        {(d) => <Week w={d.week!} archive={d.archive} onLink={onLink} />}
+        {(d) => <><OfflineNote data={d} what="Power rankings" /><Week w={d.week!} archive={d.archive} onLink={onLink} /></>}
       </Async>
     </Page>
   );

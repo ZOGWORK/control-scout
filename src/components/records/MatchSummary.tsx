@@ -16,6 +16,7 @@ import { Button } from "../ui/button";
 import { TierMark } from "../predict";
 import { cn } from "../cn";
 import { PredictionValue } from "./PredictionValue";
+import { UNOFFICIAL_NOTE } from "../../shared/searchStat";
 
 /** Phones (below Tailwind's sm): where the summary replaces the table. */
 export const PHONE_QUERY = "(max-width: 639px)";
@@ -156,6 +157,7 @@ function MatchCard({ r, cols, open, onToggle }: { r: MatchRecordRow; cols: strin
             {r.label}<span className="sr-only">, {r.eventName}</span>
           </h3>
           <p aria-hidden className="line-clamp-2 text-xs text-text-muted">{r.eventName}</p>
+          {r.unofficial && <p className="text-xs text-warning" title={r.unofficial} data-unofficial>{UNOFFICIAL_NOTE}</p>}
         </div>
         <p className={cn("shrink-0 rounded-full px-2.5 py-1 text-xs font-bold",
           o.winner === "red" ? cn("bg-red-alliance/15", RED_INK) : o.winner === "blue" ? "bg-blue-alliance/15 text-blue-alliance" : o.played ? "bg-violet-500/15 text-violet-600 dark:text-violet-400" : "bg-text-base/[0.07] text-text-muted")}>

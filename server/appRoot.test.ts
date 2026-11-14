@@ -52,4 +52,13 @@ describe("background jobs from the bundle", () => {
       expect(readFileSync(out, "utf8")).toBe(APP_ROOT);
     } finally { rmSync(dir, { recursive: true, force: true }); }
   }, 60_000);
+  it("the script is given its arguments (the owner's pack build tells its child --lock-held)", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "cs-child-"));
+    const out = join(dir, "out.txt"), script = join(dir, "job.ts");
+    writeFileSync(script, `import { writeFileSync } from "node:fs";\nwriteFileSync(${JSON.stringify(out)}, JSON.stringify(process.argv.slice(2)));\n`);
+    try {
+      await runScriptInChild(script, "test job", 60_000, [], ["--lock-held"]);
+      expect(JSON.parse(readFileSync(out, "utf8"))).toEqual(["--lock-held"]);
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  }, 60_000);
 });

@@ -17,6 +17,8 @@ import { cachedEventDetail, eventDetail } from "../api/events.js";
 import { gatedEventDetail } from "../api/eventGates.js";
 import { matchReport } from "../api/matchReport.js";
 import { pickRatings } from "../api/pickRatings.js";
+import { leagueStandings } from "../api/leagues.js";
+import { resultChanges } from "../api/resultChanges.js";
 import { readProjections } from "../projections/store.js";
 import { hasTeamPage } from "../../src/shared/teamPages.js";
 import { packPath, poolMatches, stableJson, type PackApi, type PackCompareTeam } from "../../src/shared/eventBundle.js";
@@ -38,6 +40,9 @@ export interface PackContext {
 /** One path the pack answers. `read` gives the route's answer, null where the route answers 404. `needed`: what a
  *  page can't do without it ("team 4215"), so a pack without its answer is broken and the build fails. */
 export interface PackRead { path: string; read: () => Promise<unknown | null>; needed?: string; notFound?: string }
+
+/** The match keys the match result-changes route accepts (server/app.ts). */
+const RESULT_CHANGES_KEY = /^(qual|playoff):\d{1,3}:\d{1,4}$/;
 
 type Reads = (c: PackContext) => PackRead[] | Promise<PackRead[]>;
 const ev = (c: PackContext) => `/api/events/${c.season}/${encodeURIComponent(c.code)}`;
@@ -61,6 +66,15 @@ export const PACK_READS: Reads[] = [
   // The event page's advancement odds and the pick helper.
   async (c) => (!isLegacy(c.season) && (await isEnabled("advancementOdds")) ? [{ path: `/api/projections/${c.season}/${encodeURIComponent(c.code)}`, read: () => readProjections(c.season, c.code) }] : []),
   (c) => [{ path: `${ev(c)}/pick-ratings`, read: () => pickRatings(c.season, c.code) }],
+  // A league meet or tournament: its league's standings (the event page links to them).
+  (c) => (c.ev.event.league && c.ev.event.region
+    ? [{ path: `/api/leagues/${c.season}/${c.ev.event.region}/${c.ev.event.league}`, read: () => leagueStandings(c.season, c.ev.event.region!, c.ev.event.league!) }] : []),
+  // Result changes: the event page's section and each match's (server/app.ts's two result-changes routes).
+  (c) => [
+    { path: `${ev(c)}/result-changes`, read: () => resultChanges(c.season, c.code), notFound: `No event ${c.code} in ${c.season}` },
+    // Only keys the route accepts (it answers 400 to any other).
+    ...c.matches.filter((m) => RESULT_CHANGES_KEY.test(m.key)).map((m) => ({ path: `${ev(c)}/matches/${m.key}/result-changes`, read: () => resultChanges(c.season, c.code, m.key), notFound: `No match ${m.key} at ${c.code}` })),
+  ],
 ];
 
 /** Everyone the pack must hold: the field, and anyone in a lineup on the schedule. */
