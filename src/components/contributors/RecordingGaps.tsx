@@ -9,24 +9,32 @@ import { useApi } from "../../lib/api";
 import { useContributorVideos } from "./EventClips";
 import { cn } from "../cn";
 
-/** Which played matches have no video, and their times, as a short hash: any change to that set (not only to how many),
- *  or to one of their starts (FIRST posting a real one), asks again. */
-export function missingSignature(played: Pick<MatchView, "key" | "clip" | "video" | "time">[]): string {
+/** What the page's coverage depends on, as a short hash: which played matches have no video and their times (FIRST
+ *  posting a real start), each clip's video, and the recording's own videos (one swapped for another). Any change asks
+ *  again, not only a change in how many. */
+export function missingSignature(played: Pick<MatchView, "key" | "clip" | "video" | "time">[], videos: string[] = []): string {
   let h = 5381;
-  for (const m of played) if (!m.clip && !m.video) for (const ch of `${m.key}@${m.time ?? ""};`) h = ((h * 33) ^ ch.charCodeAt(0)) >>> 0;
+  const add = (s: string) => { for (const ch of s) h = ((h * 33) ^ ch.charCodeAt(0)) >>> 0; };
+  for (const m of played) add(!m.clip && !m.video ? `${m.key}@${m.time ?? ""};` : m.clip ? `${m.key}=${m.clip.videoId};` : "");
+  for (const v of videos) add(`v:${v};`);
   return `${played.length}-${h.toString(36)}`;
+}
+
+/** A day or part's chip: done (every match it holds clipped), short of clips, or holding no played match at all. */
+export function chipTone(v: { matches: number; clipped: number }): "done" | "short" | "none" {
+  return v.matches === 0 ? "none" : v.clipped >= v.matches ? "done" : "short";
 }
 
 export const coveragePath = (season: number, code: string) => `/api/events/${season}/${encodeURIComponent(code)}/coverage`;
 
-/** `recorded`: the event has a recording linked, playable or not (a private one still says why). */
-export function RecordingGaps({ season, code, recorded, matches }: { season: number; code: string; recorded: boolean; matches: MatchView[] }) {
+/** `recorded`: the event has a recording linked, playable or not (a private one still says why); `videos`: its videos' ids. */
+export function RecordingGaps({ season, code, recorded, matches, videos = [] }: { season: number; code: string; recorded: boolean; matches: MatchView[]; videos?: string[] }) {
   const byKey = useContributorVideos();
   // Asked only when a played match has neither a clip nor FIRST's video; asked again when the matches move (a live
   // event's new results, Refresh results, a clip placed): the path carries what the page has.
   const played = matches.filter((m) => m.played);
   const gap = recorded && played.some((m) => !m.clip && !m.video);
-  const s = useApi<ClipCoverage>(gap ? `${coveragePath(season, code)}?m=${missingSignature(played)}` : null);
+  const s = useApi<ClipCoverage>(gap ? `${coveragePath(season, code)}?m=${missingSignature(played, videos)}` : null);
   // A match someone added a video for has one: not missing here.
   const missing = useMemo(() => (s.data?.matches ?? []).filter((m) => !m.clip && !byKey[m.key]), [s.data, byKey]);
   const c = s.data;
@@ -36,10 +44,10 @@ export function RecordingGaps({ season, code, recorded, matches }: { season: num
     <div className="mt-2 text-sm" data-recording-gaps={c.state}>
       <ul className="flex flex-wrap gap-1.5" aria-label="Recorded days">
         {c.videos.map((v) => {
-          const full = v.matches > 0 && v.clipped >= v.matches;
+          const tone = chipTone(v);
           return (
-            <li key={v.videoId} className={cn("inline-flex min-h-7 items-center gap-1 rounded-full border px-2.5 text-xs", full ? "border-line text-text-muted" : "border-warning/50 bg-warning/[0.07]")} data-day-video={v.videoId}>
-              {full ? <Check className="size-3.5 text-success" aria-hidden /> : <TriangleAlert className="size-3.5 text-warning" aria-hidden />}
+            <li key={v.videoId} className={cn("inline-flex min-h-7 items-center gap-1 rounded-full border px-2.5 text-xs", tone === "short" ? "border-warning/50 bg-warning/[0.07]" : "border-line text-text-muted")} data-day-video={v.videoId} data-tone={tone}>
+              {tone === "done" ? <Check className="size-3.5 text-success" aria-hidden /> : tone === "short" ? <TriangleAlert className="size-3.5 text-warning" aria-hidden /> : null}
               {v.label} <span className="tabular-nums">{v.matches ? `${v.clipped}/${v.matches}` : "no matches"}</span>
             </li>
           );
