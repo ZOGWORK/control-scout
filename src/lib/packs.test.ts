@@ -35,7 +35,7 @@ describe("downloadLite", () => {
   });
 
   it("refuses bytes that don't match the published checksum", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => new Response(new Uint8Array([1, 2, 3]))));
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(new Uint8Array(gz.length))));
     await expect(downloadLite(file, manifest)).rejects.toThrow(/checksum/);
     expect(packStatus()).toBeNull();
   });

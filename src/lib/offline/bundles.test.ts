@@ -66,7 +66,7 @@ describe("event-day bundles on the device", () => {
 
   it("refuses bytes that don't match the manifest", async () => {
     const m = serve("v1");
-    vi.stubGlobal("fetch", vi.fn(async (url: string) => (String(url).includes("/manifest") ? new Response(JSON.stringify(m)) : new Response(new Uint8Array([1, 2])))));
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => (String(url).includes("/manifest") ? new Response(JSON.stringify(m)) : new Response(new Uint8Array(m.bytes)))));
     await expect(downloadBundle({ season: 2025, code: "USTXQ1", team: 13, workspace: null }, undefined, m)).rejects.toThrow(/checksum/);
     expect(bundleFor(2025, "USTXQ1")).toBeNull();
   });

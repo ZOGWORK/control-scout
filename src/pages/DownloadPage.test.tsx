@@ -38,7 +38,7 @@ vi.mock("../lib/meta", async (orig) => ({ ...(await orig<typeof import("../lib/m
 const { default: DownloadPage, seasonSpan } = await import("./DownloadPage");
 const { resetSeasonBatch, runSeasonBatch } = await import("../lib/offline/seasonBatch");
 const { TooltipProvider } = await import("../components/ui/overlay");
-const mount = () => render(<MemoryRouter><TooltipProvider><DownloadPage /></TooltipProvider></MemoryRouter>);
+const mount = (url = "/download?pick=season") => render(<MemoryRouter initialEntries={[url]}><TooltipProvider><DownloadPage /></TooltipProvider></MemoryRouter>);
 const sv = (season: number, sha: string) => ({ season, sha256: sha, version: "2026-09-01.1", bytes: 9_000_000, savedAt: 1 }) as unknown as SavedSeason;
 
 beforeEach(() => { saved = []; order.length = 0; failSeason = null; gate = null; resetSeasonBatch(); toastErr.mockClear(); toastOk.mockClear(); });
@@ -91,14 +91,14 @@ describe("Download page seasons", () => {
     await act(async () => {});
   });
 
-  it("keeps Remove off while a run is saving, so a waiting season can't be removed and then saved again", async () => {
+  it("keeps Delete off while a run is saving, so a waiting season can't be removed and then saved again", async () => {
     saved = [sv(2026, "old"), sv(2025, "old")];
     let open!: () => void;
     gate = new Promise((r) => { open = r; });
     mount();
     fireEvent.click(await screen.findByRole("button", { name: /Update all \(2\)/ }));
     await waitFor(() => expect(screen.getByText("Waiting to save…")).toBeTruthy());
-    for (const b of screen.getAllByRole("button", { name: /Remove/ })) expect((b as HTMLButtonElement).disabled).toBe(true);
+    for (const b of screen.getAllByRole("button", { name: /^Delete/ })) expect((b as HTMLButtonElement).disabled).toBe(true);
     open();
     await waitFor(() => expect(toastOk).toHaveBeenCalled());
   });
@@ -112,7 +112,7 @@ describe("Download page seasons", () => {
     await waitFor(() => expect(screen.getByRole("status", { name: "" })).toBeTruthy());
     first.unmount();
     mount();
-    expect(await screen.findByText(/Saving…/)).toBeTruthy();
+    expect(await screen.findByText(/Saving 2026–27…/)).toBeTruthy();
     expect((screen.getByRole("button", { name: /Download all/ }) as HTMLButtonElement).disabled).toBe(true);
     expect(await runSeasonBatch(MANIFEST.full, MANIFEST)).toBeNull();
     open();
@@ -126,5 +126,45 @@ describe("the lite pack's seasons", () => {
     expect(seasonSpan([2023, 2026, 2024])).toBe(", 2023–24 to 2026–27");
     expect(seasonSpan([2025])).toBe(", 2025–26");
     expect(seasonSpan([])).toBe("");
+  });
+});
+
+describe("the Offline page's layout", () => {
+  it("offers three choices, each with its download size", async () => {
+    mount("/download");
+    const group = await screen.findByRole("radiogroup", { name: "What to save" });
+    const radios = within(group).getAllByRole("radio");
+    expect(radios[0].textContent).toContain("This event");
+    expect(radios[1].textContent).toMatch(/A season.*10\.0 MB/);
+    expect(radios[2].textContent).toMatch(/Whole current season.*10\.0 MB/);
+    expect(radios[2].getAttribute("aria-checked")).toBe("true");
+    fireEvent.click(radios[1]);
+    expect(await screen.findByRole("list", { name: "Seasons" })).toBeTruthy();
+  });
+
+  it("lists a half download as paused (never as saved), and Delete frees it", async () => {
+    const { download, partialDownloads } = await import("../lib/offline/download");
+    const data = new Uint8Array(4000).fill(7);
+    const dying = vi.fn(async () => new Response(new ReadableStream({ n: 0, pull(c) { if ((this as { n: number }).n++) c.error(new TypeError("network")); else c.enqueue(data.slice(0, 1000)); } } as UnderlyingDefaultSource<Uint8Array>)));
+    await download({ url: "/packs/x.db.gz", bytes: 4000, sha256: "f".repeat(64) }, { owner: { kind: "season", id: "2026", label: "2026–27 season" }, fetch: dying as unknown as typeof fetch }).catch(() => {});
+    mount("/download");
+    const row = await screen.findByText(/Paused at 25%/);
+    expect(row.textContent).toContain("not saved yet");
+    expect(screen.queryByRole("button", { name: "Delete 2026–27 season" })).toBeNull(); // not listed as a saved pack
+    fireEvent.click(screen.getByRole("button", { name: "Delete the paused 2026–27 season download" }));
+    await waitFor(() => expect(toastOk).toHaveBeenCalledWith("Freed 1 KB", expect.anything()));
+    expect(await partialDownloads()).toEqual([]);
+  });
+
+  it("every saved pack shows its size and one total; Delete says how much it freed", async () => {
+    saved = [sv(2025, "b"), sv(2024, "old")];
+    mount("/download");
+    const list = await screen.findByRole("list", { name: "Saved on this device" });
+    const rows = within(list).getAllByRole("listitem");
+    expect(rows.map((li) => li.textContent?.slice(0, 14))).toEqual(["2025–26 season", "2024–25 season"]);
+    for (const r of rows) expect(r.textContent).toContain("9.0 MB");
+    expect(screen.getByText(/Packs use/).textContent).toBe("Packs use 18.0 MB");
+    fireEvent.click(screen.getByRole("button", { name: "Delete 2025–26 season" }));
+    await waitFor(() => expect(toastOk).toHaveBeenCalledWith("Freed 9.0 MB", { description: "2025–26 season deleted from this device." }));
   });
 });
