@@ -11,14 +11,16 @@ export const TRIES = 7;
 /** A DECODE match: 30 s of Auto, 8 s to switch, 2:00 of TeleOp (FTC Live's timer stops between them). */
 export const AUTO_S = 30, SWITCH_S = 8, TELEOP_S = 120;
 
-/** The match an overlay names: "Qualification 21 of 36" → Q21, "Playoff Match 7" → M7, "Finals Match 2" → F2;
- *  anything else (a bracket screen's "Match 7", a schedule) none. */
+/** The match an overlay names: "Qualification 21 of 36" → Q21, "Finals Match 2" → F2, "Playoff Match 7" or just
+ *  "Match 7" (a playoff on 2025's overlay) → M7; anything else none. A frame's label only counts with its timer seen
+ *  running and confirmed a minute on (scripts/video-frames.ts), so a bracket screen or schedule naming a match, with no
+ *  timer running, gives no start. */
 export function overlayLabel(text: string): string | null {
   const q = /Qualification\s+(\d{1,3})\s+of\s+\d{1,3}/i.exec(text);
   if (q) return `Q${Number(q[1])}`;
   const f = /Finals?\s+Match\s+(\d)\b/i.exec(text);
   if (f) return `F${Number(f[1])}`;
-  const p = /Playoff\s+Match\s+(\d{1,2})\b/i.exec(text);
+  const p = /\bMatch\s+(\d{1,2})\b/i.exec(text);
   return p ? `M${Number(p[1])}` : null;
 }
 
