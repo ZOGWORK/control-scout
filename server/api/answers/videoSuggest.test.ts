@@ -230,6 +230,22 @@ describe("withVideoAlternatives", () => {
       await warmVideoQuestions(o);
       expect(asks).toBeGreaterThan(second);
     });
+    it("a set twice its age to rebuild (builds failing that long) is never offered", async () => {
+      let t = Date.now();
+      await warmVideoQuestions({ ask: askOf, video: videoOf, version: async () => "v1", now: () => t, candidates: async () => ["b highlights"] });
+      t += 59 * 60_000;
+      expect((await withVideoAlternatives("6980 at east bergen with video", answer(), undefined, askOf, none, 1000, cands)).stat?.blocks[0]).toMatchObject({ queries: ["b highlights"] });
+      t += 2 * 60_000;
+      const a = answer();
+      expect(await withVideoAlternatives("6980 at east bergen with video", a, undefined, askOf, none, 20, cands, "", 0)).toBe(a);
+    });
+    it("a build that fails waits before the next, as a dropped one does", async () => {
+      let reads = 0;
+      const o = { ask: askOf, video: videoOf, version: async () => { reads++; throw new Error("busy"); }, candidates: async () => ["b highlights"] };
+      await warmVideoQuestions(o);
+      await warmVideoQuestions(o);
+      expect(reads).toBe(1);
+    });
     it("a sure set is built again once it is half an hour old, never before", async () => {
       let asks = 0, t = Date.now();
       const o = { ask: async (q: string) => { asks++; return askOf(q); }, video: videoOf, version: async () => "v1", now: () => t, candidates: async () => ["b highlights"] };
