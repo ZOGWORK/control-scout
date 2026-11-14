@@ -15,6 +15,24 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 6.1.6 — 2026-11-14
+
+Control Scout Lite now covers the whole app: Home, Search, Predict, Compare, Rankings, Scouting and Settings each have a light page, with the same answers and numbers as the full version.
+
+### Highlights
+- [speed] Lite Home: search and this week's events, for a weak signal
+- [predict] Lite Predict: the odds, score and full why breakdown
+- [rankings] Lite Search, Compare and Rankings with the same answers
+- [appearance] Lite Settings: theme, text size and Lite on or off
+
+### Added
+- Seven Lite pages (docs/lite.md), each drawing the answer its API route sends, from the same function: Home (`/lite`: a search box and the events on now or starting within a week, as Home's calendar lists them), Search (`/lite/search?q=`: the answer `/api/search?answer=1` sends, as cards and lists linked to Lite pages; the two routes now share `server/api/searchPageAnswer.ts`), Predict (`/lite/predict`: four number boxes, then the win odds, predicted score, confidence, top reasons and the full why breakdown as a table, from `matchExplanation`), Compare (`/lite/compare`: up to four teams, OPR, phases, rating and record as a table, a text bar for OPR, and the head-to-head matches), Rankings (`/lite/rankings`: the world ranking, 50 a page, with a next page link), Scouting (`/lite/scout`: scouting's forms need the full app, one button there, and the pick list when signed in) and Settings (`/lite/settings`).
+- Lite Settings sets the theme and text size with plain links (`/lite/theme`, `/lite/size`), and the full app takes that choice the next time it opens instead of writing its older one back: one setting, whichever page changed it. It also turns Lite on or off and links to the full version's network and offline settings.
+- Every full page with a Lite page links to it from its footer, opens it with `?lite=1`, and goes there while Lite is on: Home, Search, Predict, Compare, Rankings, Scouting and Settings now too. The slow-connection offer is never made on scouting's forms (they keep working offline in the full app) or timed on a page with no data of its own (Settings).
+
+### Changed
+- The factor sentence fix (`factorLabel`) and a factor's share of a call (`sharePct`) moved to `src/shared/`, so Lite prints them the same way as the app.
+
 ## 6.1.5 — 2026-11-14
 
 One download now takes a whole event offline: every team page, every match page and Compare for its teams work with no signal, with the same numbers as online.
