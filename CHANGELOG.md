@@ -27,6 +27,17 @@ Search plays the matches an answer lists, and says so plainly when there is no v
 ### Changed
 - Search: a question about a team at an event it names keeps that event's matches even when it is an off-season event (APOC): "26000 at AUSYOS" lists its 13 matches, the card plays one and every other row with a clip gets Play. Before, it said "No scored matches". (`server/api/answers/clauses.ts`) (#1481)
 - Search: an answer listing one match plays that match's own clip or links its recording, never the event's recording from its start (`server/api/answers/video.ts`). A listed match with no clip says "No video" when others in the answer play; an answer whose matches have none says "No recording for this event — stats only." (or "No video for these matches — stats only.") once. (`src/components/search/page/AnswerVideo.tsx`)
+Five more official channels: Kazakhstan, France, Italy, Türkiye and Thailand. Their event streams now play on Scout's event pages, each on its own division and day, and the auto-watcher reads the five channels from now on.
+
+### Highlights
+- [history] Istanbul Premier Event: Rumeli and Valens, every day of each
+- [history] Italy and Central Asia Championships play their match days
+- [history] France's 2026 regionals and Thailand's championship play
+- [history] Türkiye Championship 2025 and both Üsküdar days now play
+
+### Added
+- Official videos: USTEM Foundation (Kazakhstan), Robotique FIRST France, Associazione Artù APS (Italy), the Fikret Yüksel Foundation (Türkiye) and The PRC Channel (Thailand) join the official channels and the auto-watcher, each for its own country only. Their ids come from the YouTube Data API. 33 recordings are checked against each event's name, city, dates, division and day: the 2026 Central Asia Championship (Janibek and Kerei, each on its own division), the Istanbul Premier Event (Rumeli and Valens, Days 1 to 3), the Italy Championships of 2025 and 2026 (match days only), France's six 2026 regionals and Lyon 2023, the 2025 Türkiye Championship and the second days of the Üsküdar tournaments, and Thailand's 2025 championship. The France Finale's full version, Istanbul's Finals & Closing (FIRST's own links already play those days), the Italy opening ceremony, short fragments, kickoffs and multi-programme festival streams are left out. (`server/data/officialVideos.json`, `server/data/officialChannels.ts`, `docs/official-videos.md`) (#1476)
+
 ## 6.0.9 — 2026-11-14
 
 The slow-connection pop-up is clearer: it says what it saw, what Lite changes, and gives two big buttons.
