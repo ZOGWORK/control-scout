@@ -227,6 +227,16 @@ describe("a recording cut short, its chapters checked", () => {
     const gapAfterQ1 = chapters.map(([t, x], i): Chapter => [i >= 2 && i <= 30 ? t - 2400 : t, x]);
     expect(chaptersConfirm(cutRec, gapAfterQ1, quals)).toBeNull();
   });
+  it("a cut, then a gap under the chapters' drift: none (the matches before the gap would open early)", () => {
+    // 2400 s cut off, then 500 s lost after Q6: Q4 to Q6 sit 2400 s from their chapters, the rest 2900, and the video
+    // is missing 2900. The median says 2900, which would put Q4 to Q6 500 s early.
+    const gapRec = { ...timing, end: at(29449 + 2900) };
+    const cutThenGap = chapters.filter(([t], i) => i === 0 || t - 2400 >= 0).map(([t, x], i): Chapter => {
+      const n = /^Match (four|five|six)$/.test(x) ? 2400 : 2900;
+      return [i === 0 ? 0 : Math.max(0, t - n), x];
+    });
+    expect(chaptersConfirm(gapRec, cutThenGap, quals)).toBeNull();
+  });
   it("matches before the first chapter-named one get no shifted clip: a gap after them looks like a cut", () => {
     // Q1 to Q4 in place with no chapters, then 40 min lost: the later chapters all agree on the shift, but Q1 to Q4
     // shifted would land 40 min early, on other matches. Only from Q5, the first a chapter names.
