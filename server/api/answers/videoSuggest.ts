@@ -24,6 +24,9 @@ const READ_MAX = 3 * TRY_MAX;
 /** The events offered first: a region's championship, Worlds and premier events (their names are FIRST's own, the
  *  ones visitors know); then any official event. Never a scrimmage or an off-season event. */
 const BIG = ["Championship", "FIRSTChampionship", "Premier", "SuperQualifier"];
+/** Asked last when no event's question is left (each typo-like, or the typos unknown): one about no event, whose
+ *  answer is the season's best match with video. */
+const GENERAL = ["highest score with video"];
 /** Seasons back a team's own video is looked for. */
 const SEASONS_BACK = 4;
 
@@ -42,8 +45,9 @@ export const hasVideo = (v: SearchVideo | null | undefined) => !!(v?.main || v?.
 
 /** The questions to try, best first: the team's own highlights in its latest seasons with a clip, then the events
  *  with clips nearest the answer's own (its place, its season then the one before); none of those, the latest
- *  seasons' best known. An event whose stored name reads like a typo (./nameTypos.ts) is skipped, before the cap, so
- *  the next one takes its place; with the typos unknown, no event is offered. */
+ *  seasons' best known, to make three. An event whose stored name reads like a typo (./nameTypos.ts) is skipped,
+ *  before the cap, so the next one takes its place; with the typos unknown, no event is offered. With no event's
+ *  question left, the general ones (GENERAL). */
 export async function videoCandidates(a: SearchAnswer, now = Date.now(), typosOf: () => Promise<ReadonlySet<string>> = nameTypos): Promise<string[]> {
   const out: string[] = [];
   const team = a.stat?.team?.number ?? null;
@@ -57,21 +61,23 @@ export async function videoCandidates(a: SearchAnswer, now = Date.now(), typosOf
       if (theirs.some((m) => keys.has(`${m.code}|${m.level}|${m.series}|${m.number}`))) out.push(`${team} highlights ${seasonWords(s)}`);
     }
   }
-  const typos = await typosOf().catch(() => null);
-  if (!typos) return out;
   const own = out.length;
+  const typos = await typosOf().catch(() => null);
+  if (!typos) return [...out, ...GENERAL];
   // The answer's events (its headline's and its rows').
   const refs = [refOfHref(a.stat?.headline?.href), ...rowRefs(a)].filter((r): r is NonNullable<typeof r> => !!r);
   const at = refs[0] ?? null;
-  const tries: [number, typeof at][] = [...(at ? [[at.season, at], [at.season - 1, at]] as [number, typeof at][] : []), [CURRENT_SEASON, null], [CURRENT_SEASON - 1, null]];
+  type Ref = NonNullable<typeof at>;
+  const near: [number, Ref][] = at ? [[at.season, at], [at.season - 1, at]] : [];
+  const tries: [number, Ref | null][] = [...near, [CURRENT_SEASON, null], [CURRENT_SEASON - 1, null]];
   for (const [s, from] of tries) {
-    // The latest seasons' only when none near the answer's own was found.
-    if (out.length >= TRY_MAX || (!from && at && out.length > own)) break;
+    // The latest seasons' only to make three when fewer were found near the answer's own.
+    if (out.length >= TRY_MAX || (!from && at && out.length >= own + OFFER_MAX)) break;
     const kinds = await seasonVideoKinds(s, now).catch(() => new Map<string, string>());
     const filmed = [...kinds].filter(([, k]) => k === "clips").map(([c]) => c);
     if (!filmed.length) continue;
     // More than needed are read, so the ones skipped are made up.
-    const near = from ? await all<{ name: string }>(
+    const rows = from ? await all<{ name: string }>(
       `SELECT e.name FROM events e, (SELECT country, state, start FROM events WHERE season = ? AND code = ?) x
        WHERE e.season = ? AND e.code IN (${filmed.map(() => "?").join(",")}) AND e.division_code IS NULL AND e.type IN (${OFFICIAL_TYPES.map(() => "?").join(",")})
        ORDER BY COALESCE(e.state, '') = COALESCE(x.state, '') AND COALESCE(e.country, '') = COALESCE(x.country, '') DESC, COALESCE(e.country, '') = COALESCE(x.country, '') DESC,
@@ -79,13 +85,13 @@ export async function videoCandidates(a: SearchAnswer, now = Date.now(), typosOf
       [from.season, from.code, s, ...filmed, ...OFFICIAL_TYPES, ...BIG, READ_MAX]).catch(() => []) : await all<{ name: string }>(
       `SELECT name FROM events WHERE season = ? AND code IN (${filmed.map(() => "?").join(",")}) AND division_code IS NULL AND type IN (${OFFICIAL_TYPES.map(() => "?").join(",")})
        ORDER BY type IN (${BIG.map(() => "?").join(",")}) DESC, start DESC LIMIT ?`, [s, ...filmed, ...OFFICIAL_TYPES, ...BIG, READ_MAX]).catch(() => []);
-    for (const e of near) {
+    for (const e of rows) {
       if (out.length >= TRY_MAX) break;
       const q = `${e.name} highlights ${seasonWords(s)}`;
       if (spelledBy(e.name, typos) && !out.includes(q)) out.push(q);
     }
   }
-  return out;
+  return out.length > own ? out : [...out, ...GENERAL];
 }
 
 /**
