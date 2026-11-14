@@ -121,11 +121,14 @@ async function readAtOnce(page: Page, t: number): Promise<Read> {
 /** A read stands only when frames before and after its start agree: 70 s on (TeleOp), the overlay names the same match
  *  and its timer gives the same start; 25 s before, that match isn't running yet. One read alone is never a start
  *  (a wrong match number on screen for a few seconds, a replay, a digit read wrong). */
-async function confirmed(page: Page, label: string, start: number): Promise<boolean> {
+async function confirmed(page: Page, label: string, start: number): Promise<string | null> {
   const at = await readAt(page, start + 70);
-  if (at.label !== label || at.start == null || Math.abs(at.start - start) > SAME_S) return false;
+  if (at.label !== label) return `70 s on the overlay read ${at.label ?? "nothing"}`;
+  if (at.start == null) return "70 s on its timer wasn't read running";
+  if (Math.abs(at.start - start) > SAME_S) return `70 s on its timer gave a start ${Math.round(at.start - start)} s off`;
   const before = await readAt(page, start - 25);
-  return !(before.label === label && before.start != null);
+  if (before.label === label && before.start != null) return `25 s before it was already running (start ${Math.round(before.start - start)} s off)`;
+  return null;
 }
 
 /** Matches in a row with no read before a video counts as one without the overlay. */
@@ -152,8 +155,9 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
     tried.add(i);
     if (seen.has(i)) return;
     reads += 2;
-    if (await confirmed(page, r.label, r.start)) seen.set(i, r.start);
-    else unconfirmed++;
+    const no = await confirmed(page, r.label, r.start);
+    if (no == null) seen.set(i, r.start);
+    else { unconfirmed++; log(`    ${r.label} at ${r.start} s not confirmed: ${no}`); }
   };
 
   // Any match at all, a frame every 10 minutes: where there's no clock to go by (an upload), or the clock's guesses read
