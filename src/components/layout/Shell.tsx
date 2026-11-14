@@ -19,7 +19,7 @@ import { WhatsNewHost, WhatsNewRow } from "../WhatsNew";
 import { GlobalSearch } from "./Search";
 import { AccountFooter, AccountProvider, useAccountPanel } from "./AccountMenu";
 import { ClockWeather, showsClockWeather } from "./TopBarExtras";
-import { ConnectionPill, useShowOffline } from "../ConnectionStatus";
+import { OfflineStatus } from "../OfflineNote";
 import { InboxBell } from "./InboxBell";
 import { AccountSetupProvider } from "../AccountSetup";
 import { BugReportButton } from "./BugReport";
@@ -293,8 +293,6 @@ export function Shell({ children }: { children: ReactNode }) {
   // On desktop the wheel and trackpad ease the page along instead of stepping it (src/lib/smoothWheel.ts).
   useSmoothWheel();
   const loc = useLocation();
-  // No internet: the Offline pill takes the centred logo's place on a phone (src/components/ConnectionStatus.tsx).
-  const offline = useShowOffline();
   const { user } = usePersonal();
   const sections = useSections();
   // /owner is a not-found page in the route table (the server can't tell owners apart); for the owner it's the portal.
@@ -330,13 +328,13 @@ export function Shell({ children }: { children: ReactNode }) {
                 </button>
                 <GlobalSearch part="button" />
               </div>
-              {offline ? <ConnectionPill place="phone" /> : <Link to="/" className="tap-44 absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring/60 md:hidden" aria-label="Control Scout home"><BrandMark /></Link>}
+              <Link to="/" className="tap-44 absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring/60 md:hidden" aria-label="Control Scout home"><BrandMark /></Link>
               <p className="hidden truncate text-sm text-text-muted md:block"><span>Control Scout / </span><span className="text-text-base">{title}</span></p>
               <div className="flex flex-1 justify-end md:justify-center"><GlobalSearch part="field" /></div>
               {/* Far right, against the bar's edge: connection, clock · weather, Report a bug, and the notification inbox
                   (header only, never the sidebar). */}
-              <div className="relative -mr-1.5 flex shrink-0 items-center gap-1 md:-mr-3 md:gap-2 lg:-mr-5">
-                <ConnectionPill place="wide" />
+              <div className="-mr-1.5 flex shrink-0 items-center gap-1 md:-mr-3 md:gap-2 lg:-mr-5">
+                <OfflineStatus />
                 {showsClockWeather(loc.pathname) && <ClockWeather />}
                 <BugReportButton />
                 <InboxBell />

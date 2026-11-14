@@ -683,7 +683,7 @@ function About() {
     <div>
       <Group title="This app">
         <Row label="Show the welcome again" description="The four short steps a first visit gets: what's here, your team, search and where things are.">
-          <Button variant="outline" size="sm" className="max-sm:h-[44px]" onClick={() => { openOnboarding(); navigate("/"); }} data-onboarding-replay="">Show it</Button>
+          <Button variant="outline" size="sm" className="max-sm:h-[44px]" onClick={() => { openOnboarding(true); navigate("/"); }} data-onboarding-replay="">Show it</Button>
         </Row>
         <Row label="What's new" description={`Every release of Control Scout, newest first.${APP_RELEASE ? ` This is v${APP_RELEASE}.` : ""}`}>
           <Button variant="outline" size="sm" onClick={() => openWhatsNew()}><Megaphone /> What's new</Button>
