@@ -91,6 +91,9 @@ describe("answers with no signal", () => {
     expect(all.events[1]).not.toHaveProperty("venue");
     const q = await scoutReadAnswer("/api/events?season=2026&q=bris&all=1&limit=20") as { events: EventListItem[] };
     expect(q.events.map((e) => e.code)).toEqual(["AUBRQ1"]);
+    // Filters only the server applies (type, region, dates): no answer from here.
+    expect(await scoutReadAnswer("/api/events?season=2026&q=bris&type=Qualifier&all=1&limit=20")).toBeNull();
+    expect(await scoutReadAnswer("/api/events?season=2026&q=bris&from=2026-01-01&all=1&limit=20")).toBeNull();
     // Nothing kept for the season at all: still the bundled events.
     await clearKept();
     expect(((await scoutReadAnswer("/api/events?season=2026")) as { events: EventListItem[] }).events.map((e) => e.code)).toEqual(["AUBRQ1"]);

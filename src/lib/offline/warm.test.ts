@@ -48,6 +48,18 @@ describe("warmScoutReads", () => {
     expect(stamped()).toEqual([]);
   });
 
+  it("two bundles of one season: the shared event list failing leaves both due", async () => {
+    writeBundles([
+      { season: 2026, code: "AUBRQ1", name: "Brisbane", end: "2026-11-08", version: "v", sha256: "x", bytes: 1, savedAt: 1, builtAt: "b", dataAsOf: null, team: null, workspace: null, reports: 0, picklist: false, teams: [1, 2] },
+      { season: 2026, code: "AUSYQ1", name: "Sydney", end: "2026-11-15", version: "v", sha256: "y", bytes: 1, savedAt: 1, builtAt: "b", dataAsOf: null, team: null, workspace: null, reports: 0, picklist: false, teams: [3] },
+    ]);
+    let lists = 0;
+    fetches.answer = (p) => (p.startsWith("/api/events?") && ++lists ? markOffline({ events: [] }, { season: 2026, savedAt: 0, dataAsOf: null, kept: true }) : {});
+    await warmScoutReads(true);
+    expect(lists).toBe(1); // asked once
+    expect(stamped()).toEqual([]);
+  });
+
   it("another account signing in mid-pass: nothing was kept for the first, so neither is stamped", async () => {
     fetches.onFetch = () => localStorage.setItem("cs-personal-owner", "b");
     await warmScoutReads(true);

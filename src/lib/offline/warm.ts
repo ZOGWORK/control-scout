@@ -59,16 +59,18 @@ export function warmScoutReads(force = false, now = Date.now()): Promise<void> {
     const started = Date.now();
     const stamp = (b: SavedBundle) => `${owner}|${b.season}:${b.code}:${b.version}`;
     const due = savedBundles().filter((b) => force || now - (seen[stamp(b)] ?? 0) > WARM_EVERY_MS);
-    // One season's event list is the same for all its bundles: asked once.
-    const asked = new Set<string>();
+    // One season's event list is the same for all its bundles: asked once, and its result counts for each of them.
+    const asked = new Map<string, Promise<boolean | "server">>();
     for (const b of due) {
-      const paths = warmPaths(b).filter((p) => !asked.has(p));
-      paths.forEach((p) => asked.add(p));
+      const paths = warmPaths(b);
       // Done when each read was kept, or refused for good (4xx: a feature switched off, no such event) since asking
       // again won't change it. No network, a server error, too many requests or a cut-short answer: due again.
       const settled = (e: unknown) => e instanceof ApiError && !e.offline && e.status >= 400 && e.status < 500 && e.status !== 429;
       // An answer made on this device (the server too slow: OFFLINE_TIMEOUT_MS) isn't the server's: due again.
-      const got = await Promise.all(paths.map((p) => apiFetch(p).then((d) => (offlineSource(d) ? false : "server" as const), settled)));
+      for (const p of paths) {
+        if (!asked.has(p)) asked.set(p, apiFetch(p).then((d) => (offlineSource(d) ? false : "server" as const), settled));
+      }
+      const got = await Promise.all(paths.map((p) => asked.get(p)!));
       // A server answer counts once it's kept for this account in this pass (not dropped: another account signed in
       // meanwhile, or storage failed).
       await keptSettled();

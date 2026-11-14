@@ -46,6 +46,8 @@ async function offlineEventList(path: string): Promise<{ events: EventListItem[]
   const q = (url.searchParams.get("q") ?? "").trim().toLowerCase();
   const limit = Math.min(3000, int(url.searchParams.get("limit")) ?? 2000);
   let got = await keptAnswer<{ events: EventListItem[] }>(path);
+  // Only `q` (and all=1) is narrowed here: a list filtered by type, region or dates waits for the server.
+  if (!got && ["type", "region", "from", "to"].some((k) => url.searchParams.get(k))) return null;
   if (!got) {
     // The season's whole list (the event picker's), narrowed below.
     for (const k of keptPaths((p) => p.startsWith("/api/events?"))) {
