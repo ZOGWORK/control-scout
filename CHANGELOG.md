@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 6.3.0 — 2026-11-14
+
+A search answer never says "no recording" before its video has loaded.
+
+### Highlights
+- [teams] "No recording" shows only once the video has been looked up
+- [teams] Answers with video no longer flash a "stats only" line first
+- [fixes] Search answers say "no video" only when it's true
+
+### Fixed
+- Search: a page's first paint carries its answer without the video, and the answer said "No recording for this event — stats only." until the video arrived. The API now sends `video: null` when it has read the video and found none, and the line shows only then. (`server/app.ts`, `src/shared/api.ts`, `src/components/search/page/AnswerVideo.tsx`) (#1497)
+
 ## 6.2.9 — 2026-11-14
 
 One Network & offline screen in Settings answers it all in plain words: are you online, on Wi-Fi or mobile data, how much data this visit and each download uses, whether Lite would help right now, and what's downloaded. The download and update choices live only there now, each saying what it does before you pick it.

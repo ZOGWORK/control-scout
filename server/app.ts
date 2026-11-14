@@ -442,11 +442,13 @@ export function createApp(opts: { dist?: string; /** Tests only: a smaller searc
       // Its video (server/api/answers/video.ts): one read for the whole answer, beside the team rows'.
       // Match videos people added are for the viewer asking (docs/contributors.md): an answer carrying one is never cached.
       const viewer = await asking;
-      const [hits, video] = await Promise.all([answerHits(full.hits), answerVideo(full, Date.now(), viewer).catch(() => undefined)]);
+      const [hits, video] = await Promise.all([answerHits(full.hits), answerVideo(full, Date.now(), viewer).then((v) => v ?? null, () => undefined)]);
       if (video && (video.main?.kind === "contributor" || Object.values(video.rows ?? {}).some((x) => x.kind === "contributor"))) res.setHeader("Cache-Control", "private, no-store");
       // This process's own time (searchTiming): the answer, then the rest (highlights, team numbers, video).
       res.setHeader("Server-Timing", searchTiming({ answer: answered - started, extras: performance.now() - answered }));
-      return { ...full, hits, ...(video ? { video } : {}) };
+      // null: read, and nothing plays (the page then says so); a read that failed sends none, as a first paint carries
+      // none (src/shared/api.ts): the page then says nothing about video.
+      return { ...full, hits, ...(video !== undefined ? { video } : {}) };
     }
     return { q: String(req.query.q ?? ""), hits: await search(String(req.query.q ?? "").slice(0, MAX_QUERY), limit, prefer, kinds) };
   }));

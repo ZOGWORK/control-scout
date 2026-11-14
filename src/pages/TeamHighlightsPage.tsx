@@ -40,7 +40,7 @@ export default function TeamHighlightsPage() {
             <PageHeader title={`${teamHeading(d.team.number, d.team.name)} highlights`}
               description="Its standout matches of the season: best score, biggest win, latest playoff win, best Auto and closest win, each with its video when there is one."
               phoneDescription="Its standout matches of the season." />
-            <AnswerVideoProvider video={d.video}>
+            <AnswerVideoProvider video={d.video ?? null}>
               <StatAnswerCard stat={d.stat} />
             </AnswerVideoProvider>
           </>

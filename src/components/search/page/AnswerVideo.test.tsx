@@ -27,7 +27,7 @@ const video: SearchVideo = {
   main: { videoId: "xnQFL9T27fY", t: 33152, kind: "recording", match: "M10" }, mainRow: M10,
   rows: { [Q12]: { videoId: "xnQFL9T27fY", t: 9991, kind: "recording", match: "Q12" } },
 };
-const draw = (v?: SearchVideo) => render(<MemoryRouter><AnswerVideoProvider video={v}><StatAnswerCard stat={stat} /></AnswerVideoProvider></MemoryRouter>).container;
+const draw = (v?: SearchVideo | null) => render(<MemoryRouter><AnswerVideoProvider video={v}><StatAnswerCard stat={stat} /></AnswerVideoProvider></MemoryRouter>).container;
 
 describe("AnswerVideo", () => {
   it("is a play button until clicked; the click loads the player at the match's second", () => {
@@ -73,26 +73,30 @@ describe("AnswerVideo", () => {
   });
 
   it("no video: no player, no button; one line says the event has no recording", () => {
-    const c = draw(undefined);
+    const c = draw(null);
     expect(c.querySelector("[data-answer-video], [data-row-play], [data-row-no-video], iframe")).toBeNull();
     expect(c.querySelectorAll("[data-no-recording]")).toHaveLength(1);
     expect(c.querySelector("[data-no-recording]")?.textContent).toBe("No recording for this event — stats only.");
   });
 
+  it("video not read yet (the page's first paint): no line saying there is none", () => {
+    expect(draw(undefined).querySelector("[data-no-recording]")).toBeNull();
+  });
+
   it("matches at several events with no video: one line for them all", () => {
     const at = (code: string, key: string, label: string) => ({ label, href: `/events/2025/${code}?match=${key}`, event: { label: code, href: `/events/2025/${code}` }, season: "2025–26", date: null, alliance: "red" as const, own: 1, opp: 0, result: "W" as const });
     const two: StatAnswer = { ...stat, headline: undefined, blocks: [{ kind: "matches", title: "x", rows: [at("USMACMP", "qual:0:1", "Q1"), at("USNJCMP", "qual:0:2", "Q2")] }] };
-    const c = render(<MemoryRouter><AnswerVideoProvider video={undefined}><StatAnswerCard stat={two} /></AnswerVideoProvider></MemoryRouter>).container;
+    const c = render(<MemoryRouter><AnswerVideoProvider video={null}><StatAnswerCard stat={two} /></AnswerVideoProvider></MemoryRouter>).container;
     expect(c.querySelector("[data-no-recording]")?.textContent).toBe("No video for these matches — stats only.");
   });
 
   it("matches still to play say nothing about video", () => {
     const ahead: StatAnswer = { ...stat, headline: undefined, blocks: [{ kind: "table", title: "Still to play", upcoming: true, columns: [{ key: "match", label: "Match" }], rows: [{ cells: { match: "Q3" }, href: "/events/2026/USMACMP?match=qual:0:3" }] }] };
-    const c = render(<MemoryRouter><AnswerVideoProvider video={undefined}><StatAnswerCard stat={ahead} /></AnswerVideoProvider></MemoryRouter>).container;
+    const c = render(<MemoryRouter><AnswerVideoProvider video={null}><StatAnswerCard stat={ahead} /></AnswerVideoProvider></MemoryRouter>).container;
     expect(c.querySelector("[data-no-recording]")).toBeNull();
     // A predicted score's match, still to play, too.
     const next: StatAnswer = { ...stat, headline: { value: "120–90", label: "Q3", href: "/events/2026/USMACMP?match=qual:0:3", upcoming: true }, blocks: [] };
-    const d = render(<MemoryRouter><AnswerVideoProvider video={undefined}><StatAnswerCard stat={next} /></AnswerVideoProvider></MemoryRouter>).container;
+    const d = render(<MemoryRouter><AnswerVideoProvider video={null}><StatAnswerCard stat={next} /></AnswerVideoProvider></MemoryRouter>).container;
     expect(d.querySelector("[data-no-recording]")).toBeNull();
   });
 
@@ -113,7 +117,7 @@ describe("AnswerVideo", () => {
 
   it("an answer about no match says nothing about video", () => {
     const none: StatAnswer = { ...stat, headline: { value: "115.7", label: "OPR" }, blocks: [] };
-    const c = render(<MemoryRouter><AnswerVideoProvider video={undefined}><StatAnswerCard stat={none} /></AnswerVideoProvider></MemoryRouter>).container;
+    const c = render(<MemoryRouter><AnswerVideoProvider video={null}><StatAnswerCard stat={none} /></AnswerVideoProvider></MemoryRouter>).container;
     expect(c.textContent).not.toMatch(/video|recording/i);
   });
 

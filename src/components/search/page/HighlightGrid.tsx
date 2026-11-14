@@ -8,7 +8,7 @@ import type { SearchVideoItem } from "../../../shared/api";
 import type { StatAnswer, StatBlock } from "../../../shared/searchStat";
 import { thumbnailUrl } from "../../../shared/stream";
 import { clipTime } from "../../../shared/recording";
-import { useAnyVideo, useClip } from "./AnswerVideo";
+import { useAnyVideo, useVideoKnown, useClip } from "./AnswerVideo";
 import { VideoCredit } from "../../contributors/VideoCredit";
 import { MatchBox } from "./MatchBox";
 import { cn } from "../../cn";
@@ -23,11 +23,11 @@ export const isHighlights = (b: Matches) => b.rows.length > 0 && b.rows.every((r
  *  other ("Best score", "Closest win") in the team's hue (never grey). `atEvent`: every match is at one event, named
  *  once over the grid. */
 export function HighlightGrid({ b, team, atEvent }: { b: Matches; team?: StatAnswer["team"]; atEvent: boolean }) {
-  const any = useAnyVideo();
+  const any = useAnyVideo(), known = useVideoKnown();
   const oneEvent = b.rows.every((r) => r.event.href === b.rows[0].event.href && r.season === b.rows[0].season);
   return (
     <>
-      {!any && (
+      {known && !any && (
         <p className="mb-3 text-sm font-medium text-foreground" data-no-recording>
           {oneEvent ? "No recording for this event — stats only." : "No video for these matches — stats only."}
         </p>
