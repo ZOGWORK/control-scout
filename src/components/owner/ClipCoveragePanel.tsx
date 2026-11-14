@@ -45,8 +45,7 @@ export function ClipCoveragePanel() {
             {d.open ? <Pages key={`open-${round}`} first={d} reviewed={false} onDone={() => setRound((n) => n + 1)} />
               : <EmptyState icon={Film} title="Nothing to review" description="Every played match of every recorded event has a clip, or its gap was reviewed." />}
           </Section>
-          <Section title={`Reviewed (${d.reviewed})`} collapsible summary="Seen already: back under To review if the missing list changes."
-            description="Seen already: back under To review if the missing list changes.">
+          <Section title={`Reviewed (${d.reviewed})`} collapsible summary="Seen already: back under To review if the missing list changes.">
             {d.reviewed ? <ReviewedList key={`reviewed-${round}`} /> : <p className="text-sm text-muted-foreground">None.</p>}
           </Section>
         </div>
