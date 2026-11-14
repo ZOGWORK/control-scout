@@ -28,7 +28,7 @@ Searching for one match, such as a team's best Auto or highest score, now shows 
 - Search: a "Watch this match" box with a View clip button under People also ask (the side column when wide, right after it on a phone) for a card or stat answer about one match that has a clip. It plays the clip the answer already has (FIRST's match video from its start, a contributor's, or the match's second in the event's recording) in the app's video dialog, and stops the card's player first. There is no box when the match has no clip, and none on a highlights page, whose tiles already play their own. (`src/components/search/page/AnswerVideo.tsx`, `src/pages/SearchPage.tsx`) (#1453)
 
 ### Fixed
-- "<team> best auto highlights", "<team> highest score video" and the other one-match questions (lowest score, best TeleOp/Endgame, biggest win/loss, closest match) with "highlights" or "video" no longer say Sorry: they ask to watch that match and get its answer. "<team> highlights" alone stays the team's highlights page. (`server/api/query/intents.ts`)
+- "<team> best auto highlights", "<team> highest score video" and the other one-match questions (lowest score, best TeleOp/Endgame, biggest win/loss, closest match, most penalties) with "highlights" or "video" no longer say Sorry: they ask to watch that match and get its answer. "<team> highlights" alone stays the team's highlights page. (`server/api/query/intents.ts`)
 
 ## 6.0.1 — 2026-11-13
 
