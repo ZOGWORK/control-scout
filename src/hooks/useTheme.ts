@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { usePersonal } from "../lib/personal";
 import type { ThemeChoice } from "../shared/personal";
 import { useFlag } from "../lib/flags";
+import { writeThemeCookie } from "../lib/liteCookies";
 
 const prefersLight = () => typeof window !== "undefined" && window.matchMedia?.("(prefers-color-scheme: light)").matches;
 
@@ -32,7 +33,7 @@ export function useTheme() {
 
 /** Applies theme + density classes to <html> (mounted once at the root). */
 export function ThemeSync() {
-  const { palette } = useTheme();
+  const { palette, theme } = useTheme();
   const { state } = usePersonal();
   const dog = useFlag("dogTheme");
   useEffect(() => {
@@ -41,6 +42,8 @@ export function ThemeSync() {
     root.toggle("dog", dog);
     document.querySelector('meta[name="theme-color"]')?.setAttribute("content", (dog ? DOG_THEME_COLOR : THEME_COLOR)[palette]);
   }, [palette, dog]);
+  // Control Scout Lite draws on the server with no script: it reads the choice from a cookie (src/lib/liteCookies.ts).
+  useEffect(() => { writeThemeCookie(theme); }, [theme]);
   useEffect(() => { document.documentElement.classList.toggle("compact", state.settings.density === "compact"); }, [state.settings.density]);
   useEffect(() => { document.documentElement.classList.toggle("ambient-off", state.settings.ambient === false); }, [state.settings.ambient]);
   return null;

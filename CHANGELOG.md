@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.0.8 — 2026-11-14
+## 6.1.5 — 2026-11-14
 
 Scouting works with no signal: open Scout, pick your downloaded event, scout matches, build your shortlist and use the pick helper offline. Everything is saved on the phone and syncs once when you're back online.
 
@@ -40,6 +40,100 @@ Scouting works with no signal: open Scout, pick your downloaded event, scout mat
 - An entry pushed twice (an offline replay) is stored once, and an older copy sent late never replaces the newer one (server).
 - Entries saved offline survive a reload and go up once each, under the ids they were made with; a lost answer retries the same ids.
 - Kept answers: per account, capped, marked offline; the event list gains bundled events; the shortlist lists every team asked for. (#1466)
+
+## 6.1.4 — 2026-11-14
+
+FiT-Central's GEMS league events in Austin now play their recordings from Westwood Robotics, the team channel that streams them with the official overlay: Diamond and Emerald League Meets back to 2024, the GEMS League Tournaments and the Austin semi-regionals. Saturday's Meet 2 shows its stream before, during and after it airs.
+
+### Highlights
+- [live] GEMS Diamond and Emerald League Meet 2 stream on their event pages
+- [history] GEMS league meets from 2024 on play their recordings
+- [history] Austin Semi-Regional and GEMS League Tournament recordings
+
+### Added
+- Official videos: Westwood Robotics (`UCyv6fRBcoK6mD6Br5M366yA`, read from the YouTube Data API) joins the official channels and the auto-watcher's list, for FiT-Central, CTX and GEMS events in Texas only. 21 of its recordings are checked against each event's name, city, dates, league (Diamond or Emerald) and meet number: the 2026 Diamond and Emerald League Meets 1 and 2 (Meet 2 listed before it airs, like FIRST's own livestream link), the 2025 and 2024 Meets 1 to 3, both GEMS League Tournaments, and the Austin semi-regionals. The overlays-only test stream, a scheduled stream that never aired, and the 2023 "Round Rock Gems" titles (whose city doesn't match the events) are left out. (`server/data/officialVideos.json`, `server/data/officialChannels.ts`, `docs/official-videos.md`) (#1468)
+
+## 6.1.3 — 2026-11-14
+
+Rhode Island, New York City, Long Island and Ontario events now play their recordings from the region's own channels, back to 2022: 76 checked recordings, with restarted broadcasts as Part 1 and Part 2.
+
+### Highlights
+- [history] NYC qualifiers and championships play recordings from 2022
+- [history] Rhode Island qualifiers and championships back to 2023
+- [history] Long Island and Ontario events gain their missing recordings
+- [live] Five more channels join the auto-watcher for their next events
+
+### Added
+- Official videos: Rhode Island FTC, NYC FIRST, FIRST Long Island, FTC Ontario and Town of Penfield Television (ids read from the YouTube Data API) join the official channels and the auto-watcher's list, each for its own region's events only (Penfield for upstate NY Excelsior events). 76 recordings are checked against each event's name, number, city, date and division: 45 NYC, 15 Rhode Island, 10 Long Island and 6 Ontario (Ottawa 2024, the 2026 Provincial Championship and the Canada Cup's two divisions, both days). Videos FIRST's event pages already link, titles whose date or number disagrees with the broadcast, uploads with no broadcast date and Penfield's edits of days NY Excelsior already covers are left out. (`server/data/officialVideos.json`, `server/data/officialChannels.ts`, `docs/official-videos.md`) (#1483)
+
+## 6.1.2 — 2026-11-14
+
+West Michigan's league meets at GVSU now play their streams from the FIRST Alumni Network Grand Valley, and Saturday's Meet 5 shows its stream before, during and after it airs. Scout also watches the Central Ohio league's own streamer for its next meets.
+
+### Highlights
+- [live] West Michigan Meet 5 streams on its event page on Saturday
+- [history] West Michigan Meet 2 plays its recording
+- [live] Next Central Ohio and West Michigan meets join the auto-watcher
+
+### Added
+- Official videos: the FIRST Alumni Network Grand Valley (`UCaojFS3JFPWY9kaoW6bhvvQ`) and Stars of the Galaxy (FTC 12099, `UC576ZA1td9ZvsAUwPq1Ymaw`), both read from the YouTube Data API, join the official channels and the auto-watcher's list, for West Michigan and Central Ohio league events only. Two FANGV streams are checked against each event's name, city, date and meet number: West Michigan Meet 2 (Nov 7) and Meet 5 (Nov 14, listed before it airs). Every Stars of the Galaxy stream is already FIRST's own event link, so none is added twice, and FANGV's Robot in 3 Days streams (FRC) are left out. (`server/data/officialVideos.json`, `server/data/officialChannels.ts`, `docs/official-videos.md`) (#1469)
+
+## 6.1.1 — 2026-11-14
+
+Missouri and Kansas events now play their recordings from the region's two streaming channels, FIRST in Missouri and FIRST MOKS: St. Louis, Kansas City, Southeast and Southwest league meets back to 2019, their league tournaments and the state championships. Saturday's St. Louis, Rolla, Camdenton and Jackson meets show their streams before, during and after they air.
+
+### Highlights
+- [history] Kansas City meets back to 2019 play each session's video
+- [history] St. Louis league meets and tournaments play their recordings
+- [live] Saturday's Missouri meets show their FIRST in Missouri stream
+
+### Added
+- Official videos: FIRST in Missouri (`UCoo2NYUOcTUZB65dGMAp1vg`) and FIRST MOKS (`UCy_GHfjX6LsALdrIceg8_pw`), both read from the YouTube Data API's uploads lists, join the official channels and the auto-watcher's list for Missouri and Kansas events. 103 of their recordings are checked against each event's name, venue, city, date, league and session ("FTC Meet @ Belton 8AM (2026-11-7)" is "Belton Meet @ 8 AM"): 14 from FIRST in Missouri (St. Louis North, Mid and South meets and tournaments since 2023, and the four meets of 2026-11-14, listed before they air) and 89 from FIRST MOKS (Kansas City meets, league tournaments, super qualifiers and championships since 2019). An alternate feed, a second upload of a day, a title fitting two meets, undated uploads, one video for two meets, a venue that isn't the event's, a video that can't be embedded and streams that never aired are left out. (`server/data/officialVideos.json`, `server/data/officialChannels.ts`, `docs/official-videos.md`) (#1477)
+
+## 6.1.0 — 2026-11-14
+
+Five more official channels: Kazakhstan, France, Italy, Türkiye and Thailand. Their event streams now play on Scout's event pages, each on its own division and day, and the auto-watcher reads the five channels from now on.
+
+### Highlights
+- [history] Istanbul Premier Event: Rumeli and Valens, every day of each
+- [history] Italy and Central Asia Championships play their match days
+- [history] France's 2026 regionals and Thailand's championship play
+- [history] Türkiye Championship 2025 and both Üsküdar days now play
+
+### Added
+- Official videos: USTEM Foundation (Kazakhstan), Robotique FIRST France, Associazione Artù APS (Italy), the Fikret Yüksel Foundation (Türkiye) and The PRC Channel (Thailand) join the official channels and the auto-watcher, each for its own country only. Their ids come from the YouTube Data API. 33 recordings are checked against each event's name, city, dates, division and day: the 2026 Central Asia Championship (Janibek and Kerei, each on its own division), the Istanbul Premier Event (Rumeli and Valens, Days 1 to 3), the Italy Championships of 2025 and 2026 (match days only), France's six 2026 regionals and Lyon 2023, the 2025 Türkiye Championship and the second days of the Üsküdar tournaments, and Thailand's 2025 championship. The France Finale's full version, Istanbul's Finals & Closing (FIRST's own links already play those days), the Italy opening ceremony, short fragments, kickoffs and multi-programme festival streams are left out. (`server/data/officialVideos.json`, `server/data/officialChannels.ts`, `docs/official-videos.md`) (#1476)
+
+
+## 6.0.9 — 2026-11-14
+
+The slow-connection pop-up is clearer: it says what it saw, what Lite changes, and gives two big buttons.
+
+### Highlights
+- [speed] The slow-connection pop-up says how long the page has waited
+- [speed] Three plain lines say what Lite changes, and how to come back
+- [appearance] Bigger buttons (44 px) and readable text on phones
+
+### Changed
+- Slow connection pop-up: it names the evidence ("This page has been loading for 11 s.", ticking, or "3 requests couldn't reach the server, the last one 4 s ago."; once a slow page arrives it stops counting and says "This page took 12 s to load."), says in three lines what Control Scout Lite changes, and offers "Keep waiting" and "Switch to Lite" as 44 px buttons with a 44 px close. Body text moved from 12 px to 14 px, the card got real padding and a gold edge, and on desktop it sits clear of the sidebar's account footer. `cs-lite-demo` shows it at once for screenshots. (`src/components/layout/LiteSuggest.tsx`, `src/lib/liteSuggest.ts`) (#1459)
+
+## 6.0.8 — 2026-11-14
+
+Control Scout Lite, the text-only version for a weak signal, has a new layout: room between everything, 44px buttons, the C-mark, and your own theme and text size. You can also keep Lite on.
+
+### Highlights
+- [appearance] Lite has room to breathe: cards, spacing and 44px buttons
+- [appearance] Lite follows your theme (all five) and your text size
+- [appearance] The C-mark and the name Control Scout Lite on every page
+- [speed] Always open Lite: team, event and match pages open in Lite
+- [speed] Turn off Lite from any Lite page, in one tap
+
+### Changed
+- Control Scout Lite: rebuilt layout, phone first. 16px side margins, 24px between sections, rounded cards, table cells padded 10 by 12 with numbers on the right, match lists as whole-row links, number tiles two a row, and every link or button at least 44px tall. The header shows the C-mark, "Control Scout Lite" and one gold Full version button. (`server/lite/render.ts`)
+- Lite pages draw in the theme you chose in the app (Light, Dim, Dark, Midnight or System) and at your text size. The app keeps both in cookies (`cs-theme`, `cs-text-size`) that Lite reads, and Lite's colours are the app's own, held equal by a test that also checks 4.5:1 contrast for every text colour. (`src/shared/themeTokens.ts`, `src/lib/liteCookies.ts`)
+- "Light version" is now "Control Scout Lite" in the footer link and the slow first paint's offer.
+
+### Added
+- Lite on: "Always open Lite" at the foot of a Lite page (or `/lite/on`) makes team, event and match pages you open go straight to Lite. While it's on, Full version opens the full page once, and "Turn off Lite" (`/lite/off`) switches it back. Pages with no Lite version open as usual. (`server/lite/routes.ts`, docs/lite.md) (#1463)
 
 ## 6.0.7 — 2026-11-14
 
