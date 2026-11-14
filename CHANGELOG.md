@@ -25,8 +25,8 @@ A search asking for video with nothing to play now always gets its questions wit
 - [fixes] A misspelled name is skipped and the next question takes its place
 
 ### Fixed
-- Search: a watch search whose answer plays nothing waited 2.5 s for its "Questions with video", and the first one after the checks expired could find none in time, so it offered nothing. With none found by then it now waits up to 3 s more and answers as soon as one is found. (`server/api/answers/videoSuggest.ts`) (#PRNUM)
-- Search: "Questions with video" offered an event under its stored name even when that name reads like a typo ("Wnterberry Waterloo", beside "Winterberry" at eight events). A question now goes only when every word passes search's own spelling check, and the next one takes its place. (`server/api/spelling.ts`, `server/api/answers/videoSuggest.ts`) (#PRNUM)
+- Search: a watch search whose answer plays nothing waited 2.5 s for its "Questions with video", and the first one after the checks expired could find none in time, so it offered nothing. With none found by then it now waits up to 3 s more and answers as soon as one is found. (`server/api/answers/videoSuggest.ts`) (#1499)
+- Search: "Questions with video" offered an event under its stored name even when that name reads like a typo ("Wnterberry Waterloo", beside "Winterberry" at eight events). A question now goes only when every word passes search's own spelling check, and the next one takes its place. (`server/api/spelling.ts`, `server/api/answers/videoSuggest.ts`) (#1499)
 
 ## 6.3.3 — 2026-11-14
 
