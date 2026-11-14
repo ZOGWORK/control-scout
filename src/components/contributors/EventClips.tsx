@@ -33,6 +33,8 @@ export function EventClipsProvider({ season, code, children }: { season: number;
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 export const useContributorVideo = (key: string): ContributorVideo | undefined => useContext(Ctx).byKey[key];
+/** Every match's contributor video this viewer can see, by match key. */
+export const useContributorVideos = (): Record<string, ContributorVideo> => useContext(Ctx).byKey;
 
 type Item = { m: MatchView; play: { videoId: string; t: number }; kind: "first" | "contributor" | "recording"; c?: ContributorVideo };
 
