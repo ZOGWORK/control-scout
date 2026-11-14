@@ -1,7 +1,7 @@
 // The pure parts of the frame reader (scripts/video-frames.ts): the overlay's match, the timer's elapsed time, and
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
-import { elapsed, judge, overlayLabel, secondsOf, type M } from "./videoFrames";
+import { dataRows, elapsed, judge, NOTHING_READ, overlayLabel, secondsOf, type M } from "./videoFrames";
 
 describe("the frame reader", () => {
   it("names the match the overlay shows, and nothing else", () => {
@@ -48,6 +48,27 @@ describe("the frame reader", () => {
     expect([...j.placed.keys()]).toEqual(["Q1", "Q2", "Q3", "Q4", "Q6", "Q7", "Q8", "Q9", "Q10"]);
     expect(j.placed.get("Q3")).toEqual({ t: 1800 - 29, confidence: "medium" });
     expect(j.placed.get("Q8")).toEqual({ t: 3800 - 107, confidence: "medium" });
+  });
+
+  it("keeps the two reads that agree over a misread between them", () => {
+    const ms: M[] = Array.from({ length: 3 }, (_, i) => ({ label: `Q${i + 1}`, epoch: 1000 + i * 400 }));
+    const j = judge(ms, new Map([[0, 1000], [1, 1400 - 120], [2, 1800]]), null, 10_000);
+    // Q2's misread is set aside; it sits between two agreeing reads, so it's placed from them.
+    expect([...j.placed]).toEqual([["Q1", { t: 1000, confidence: "high" }], ["Q2", { t: 1400, confidence: "medium" }], ["Q3", { t: 1800, confidence: "high" }]]);
+  });
+
+  it("says nothing was read only when no frame named a match", () => {
+    const ms: M[] = Array.from({ length: 3 }, (_, i) => ({ label: `Q${i + 1}`, epoch: i * 400 }));
+    const j = judge(ms, new Map(), null, 10_000, new Set([1]));
+    expect(j.missing.get("Q2")).toMatch(/didn't confirm/);
+    expect(j.missing.get("Q1")).not.toBe(NOTHING_READ);
+    expect(judge(ms, new Map(), null, 10_000).missing.get("Q1")).toBe(NOTHING_READ);
+  });
+
+  it("reads the data file's rows", () => {
+    const text = 'export interface X {}\n// --- Data (scripts/video-frames.ts writes from here on) ---\nexport const FRAME_TIMINGS = [\n  {"videoId":"a","code":"X","starts":{"Q1":5}},\n  {"videoId":"b","code":"Y","starts":{}},\n];\n';
+    expect(dataRows<{ videoId: string }>(text).map((r) => r.videoId)).toEqual(["a", "b"]);
+    expect(dataRows("no marker")).toEqual([]);
   });
 
   it("never places a match on one read alone: two reads that disagree each go to review", () => {
@@ -113,7 +134,8 @@ describe("the frame reader", () => {
       expect(j.placed.size).toBe(10);
       const k = judge(ms, new Map(), null, 8000, new Set([2]));
       expect(k.missing.get("Q3")).toMatch(/didn't confirm/);
-      expect(k.missing.get("Q4")).toMatch(/no frame of the video/);
+      // A frame of the video was read (it named Q3), so the others aren't "nothing read".
+      expect(k.missing.get("Q4")).toMatch(/no agreeing reads/);
     });
   });
 });
