@@ -84,10 +84,11 @@ async function seek(page: Page, t: number) {
 /** The most a frame read may take (seconds): a page that stops answering (a frozen player, OCR that never returns)
  *  fails its video with that reason instead of holding the run forever. */
 const READ_LIMIT_S = 120;
-/** Frames read so far (each point a read looks at, confirming reads included): what a video's budget counts. */
-let framesRead = 0;
+/** Frames read on each player page (each point a read looks at, confirming reads included): what a video's budget
+ *  counts. Per page, so lanes reading side by side never spend each other's budget. */
+const pageReads = new WeakMap<Page, number>();
 function readAt(page: Page, t: number): Promise<Read> {
-  framesRead++;
+  pageReads.set(page, (pageReads.get(page) ?? 0) + 1);
   let timer: ReturnType<typeof setTimeout> | undefined;
   return Promise.race([
     readAtOnce(page, t).finally(() => clearTimeout(timer)),
@@ -160,7 +161,7 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
   const byLabel = new Map(ms.map((m, i) => [m.label, i]));
   const seen = new Map<number, number>(); // index → confirmed start second
   const tried = new Set<number>(); // matches a read named, confirmed or not
-  const from = framesRead, reads = () => framesRead - from;
+  const from = pageReads.get(page) ?? 0, reads = () => (pageReads.get(page) ?? 0) - from;
   let unconfirmed = 0;
   const near = (i: number): number | null => {
     // The distance of the read nearest by order, else the broadcast's.
@@ -272,6 +273,10 @@ function save() {
   writeFileSync(file, `${head}// --- Data (scripts/video-frames.ts writes from here on) ---\nexport const FRAME_TIMINGS: FrameTiming[] = [\n${rows}\n];\n`);
 }
 
+/** The start of the reason a match is missing when its video couldn't be played at all: such a video is tried again
+ *  on the next run. */
+const PLAY_FAILED = "the video couldn't be played";
+
 /** A fresh player page (its own browser context). */
 async function player(): Promise<Page> {
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 720 } });
@@ -304,7 +309,8 @@ async function doCode(code: string): Promise<void> {
   const missing = placed.filter((v) => !v.clip).map((v) => v.label);
   if (CHECK ? !placed.some((v) => v.clip) : !ALL && !missing.length) return;
   // Read on an earlier run (each event is written as it finishes): not again, unless --all.
-  if (!CHECK && !ALL && [...kept.values()].some((f) => f.code === code)) return;
+  // A video that couldn't be played at all doesn't count as read.
+  if (!CHECK && !ALL && [...kept.values()].some((f) => f.code === code && !Object.values(f.missing ?? {}).some((w) => w.startsWith(PLAY_FAILED)))) return;
   // Checked again once claimed: a lane that passed its check while another was still loading would read past --limit.
   if (++done > limit) return;
   // An event's lines together (events run side by side).
@@ -346,7 +352,10 @@ async function doCode(code: string): Promise<void> {
         // Every match the video holds is written: placed with its confidence, for review, or missing with the reason.
         const key = `${v.videoId}|${code}`;
         const sorted = [...j.placed].sort((a, b) => a[1].t - b[1].t);
-        kept.set(key, {
+        const nothing = !j.placed.size && !j.review.size && [...j.missing.values()].every((w) => w === NOTHING_READ);
+        // A re-read (--all) that read nothing at all (a player stuck on an interstitial) keeps what an earlier read placed.
+        if (nothing && Object.keys(kept.get(key)?.starts ?? {}).length) log("    nothing read: the earlier read is kept");
+        else kept.set(key, {
           videoId: v.videoId, code, checked: today,
           starts: Object.fromEntries(sorted.map(([l, p]) => [l, p.t])),
           ...(sorted.some(([, p]) => p.confidence === "medium") ? { medium: sorted.filter(([, p]) => p.confidence === "medium").map(([l]) => l) } : {}),
@@ -355,7 +364,13 @@ async function doCode(code: string): Promise<void> {
         });
       }
     } catch (e) {
-      log(`    couldn't play: ${(e as Error).message.split("\n")[0]}`);
+      const why = (e as Error).message.split("\n")[0];
+      log(`    couldn't play: ${why}`);
+      // Its matches get the reason; a row from an earlier read that worked is kept as it was.
+      const key = `${v.videoId}|${code}`;
+      if (!CHECK && !Object.keys(kept.get(key)?.starts ?? {}).length) {
+        kept.set(key, { videoId: v.videoId, code, checked: today, starts: {}, missing: Object.fromEntries(mine.map((x) => [x.label, `${PLAY_FAILED}: ${why}`])) });
+      }
     } finally {
       await page.context().close();
     }
