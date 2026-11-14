@@ -39,8 +39,9 @@ export function asksVideo(q: string, a: SearchAnswer): boolean {
 export const hasVideo = (v: SearchVideo | null | undefined) => !!(v?.main || v?.watch || (v?.rows && Object.keys(v.rows).length));
 
 /** The questions to try, best first: the team's own highlights in its latest seasons with a clip, then the events
- *  with clips nearest the answer's own (its place, then its season's), then the latest season's. */
-export async function videoCandidates(a: SearchAnswer, now = Date.now()): Promise<string[]> {
+ *  with clips nearest the answer's own (its place, then its season's), then the latest season's. Only those that read
+ *  as spelled right (`spelled`). */
+export async function videoCandidates(a: SearchAnswer, now = Date.now(), spelled: (q: string) => Promise<boolean> = spelledRight): Promise<string[]> {
   const out: string[] = [];
   const team = a.stat?.team?.number ?? null;
   // Each read on its own: one that fails drops its own questions, never the others'.
@@ -72,7 +73,7 @@ export async function videoCandidates(a: SearchAnswer, now = Date.now()): Promis
     for (const e of near) out.push(`${e.name} highlights ${seasonWords(s)}`);
     if (out.length >= TRY_MAX) break;
   }
-  return spelledOnly([...new Set(out)]);
+  return spelledOnly([...new Set(out)], spelled);
 }
 
 /** The questions whose words all read as spelled right (../spelling.ts spelledRight), in order, at most TRY_MAX: a
