@@ -144,7 +144,10 @@ minutes and starts a run only when the last one is 6 hours old, so a deploy does
   - it fits exactly one event of the channel's region on its broadcast date at the venue;
   - the title agrees on the division, designators, date, weekday and day number. Taken one at a time, a title's
     "Day N" must be the event's own day N;
-  - the event has no video for that day yet, and none whose day isn't known yet.
+  - the event has no video for that day yet (a second video of a day is kept only when both name their parts, such
+    as "Matches" and "Awards"), and none whose day isn't known yet. Another programme's stream at the same venue (FIRST
+    Global, a drone or simulator contest) is set aside, and "Meeting" or "Sports Day 2026" no longer reads as a meet or a
+    day number.
 
   A video the event already plays for that day, or one that is already some event's video (FIRST's link, a short
   link, a channel broadcast, the owner's stream), is logged as a **duplicate** and never added or queued.
