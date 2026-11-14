@@ -5,7 +5,7 @@
 import { useEffect, useId, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { AnimatePresence } from "motion/react";
-import { Check, WifiLow, X, Zap } from "lucide-react";
+import { Check, Snail, X, Zap } from "lucide-react";
 import { m } from "../motion";
 import { Button } from "../ui/button";
 import { liteHref } from "../../shared/lite";
@@ -67,7 +67,7 @@ export function LiteCard({ href, onDismiss, reason = null }: { href: string; onD
       className="fixed inset-x-4 bottom-[calc(var(--tabbar-h)+env(safe-area-inset-bottom)+0.75rem)] z-[46] max-h-[calc(100dvh-var(--tabbar-h)-6rem)] overflow-y-auto rounded-2xl border border-accent/35 bg-popover p-4 text-popover-foreground shadow-[0_18px_40px_-16px_rgba(0,0,0,.55)] max-md:[[data-sticky-actions]_&]:bottom-[calc(var(--tabbar-h)+4rem+env(safe-area-inset-bottom)+0.75rem)] md:inset-x-auto md:bottom-28 md:left-4 md:w-[24rem] md:p-5"
     >
       <div className="flex items-start gap-3">
-        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-accent/15 text-accent"><WifiLow className="size-5" aria-hidden /></span>
+        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-accent/15 text-accent"><Snail className="size-5" aria-hidden /></span>
         <div className="min-w-0 flex-1 pt-0.5">
           <h2 id={titleId} className="font-display text-base font-semibold leading-tight text-foreground">Slow connection</h2>
           <p className="mt-1 text-sm text-muted-foreground" data-lite-reason>{reasonText(reason, waited)}</p>
