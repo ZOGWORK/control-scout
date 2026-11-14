@@ -7,7 +7,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { get, kvSet, migrate, openDb, run, setDb } from "../db";
 import { createApp } from "../app";
 import { clearAllCaches } from "../caches";
-import { backfillVideoMeta, due, firstVideoId, seasonRecordings, withClips, type VideoMeta } from "./recordings";
+import { backfillVideoMeta, due, firstVideoId, inOrder, seasonRecordings, withClips, type VideoMeta } from "./recordings";
 import { setFrameTimingsForTests } from "../data/frameTimings";
 import type { MatchView } from "../../src/shared/api";
 
@@ -67,7 +67,7 @@ beforeAll(async () => {
   await event("UPLOAD", `youtube.com/live/${UPLOAD_ID}?feature=share`);
   await match("UPLOAD", 1, `${DAY}T13:00:13`);
   await event("GAPPED", `https://www.youtube.com/watch?v=${GAPPED_ID}`); // dropped out: the video is 1 h 41 min short
-  await match("GAPPED", 1, `${DAY}T10:30:00`);
+  await match("GAPPED", 1, `${DAY}T10:30:13`);
   await event("SHORT", `https://www.youtube.com/watch?v=${SHORT_ID}`);
   await match("SHORT", 1, `${DAY}T11:00:00.5`);         // 1 h in
   await match("SHORT", 2, `${DAY}T17:55:00.5`);         // 7 h 55 min in: past the video's length, inside its last 10 min
@@ -216,6 +216,25 @@ describe("matches read off a recording's own frames", () => {
       setFrameTimingsForTests([]);
       clearAllCaches();
     }
+  });
+  it("leave out a start that breaks the order the matches were played in (a replay in a break, an older misread)", async () => {
+    // USMNCMPGLXY's older read: Q19 at the lunch break, after Q20 and Q21.
+    setFrameTimingsForTests([{ videoId: UPLOAD_ID, code: "UPLOAD", checked: "2026-11-14", starts: { Q1: 100, Q2: 5000, Q3: 400, Q4: 700 } }]);
+    try {
+      const rec = (await seasonRecordings(S)).get("UPLOAD")!;
+      const m: Pick<MatchView, "label" | "time" | "startsAt" | "played" | "clip">[] = [1, 2, 3, 4].map((n) => ({ label: `Q${n}`, time: `${DAY}T13:0${n}:13`, startsAt: `${DAY}T13:0${n}:13.000Z`, played: true, clip: undefined }));
+      const clips = withClips(m, rec).map((x) => x.clip?.t ?? null);
+      expect(clips).toEqual([80, null, 380, 680]);
+      // Q1's clip stops at the next start that plays (Q3's, 400), not at the left-out one; the video is 213 s long.
+      expect(withClips(m, rec)[0].clip?.end).toBe(213);
+    } finally {
+      setFrameTimingsForTests([]);
+    }
+  });
+  it("keep the longest run of starts in played order", () => {
+    const at = (n: number) => Date.parse(`${DAY}T13:0${n}:00Z`);
+    expect(Object.fromEntries(inOrder([{ label: "Q1", at: at(1), t: 100 }, { label: "Q2", at: at(2), t: 5000 }, { label: "Q3", at: at(3), t: 400 }, { label: "Q4", at: at(4), t: 700 }, { label: "Q5", at: NaN, t: 900 }, { label: "Q6", at: at(6), t: null }])))
+      .toEqual({ Q1: 100, Q3: 400, Q4: 700 });
   });
   it("leave a match out when they weren't read for it, and are left out on request (what YouTube's facts alone give)", async () => {
     setFrameTimingsForTests([{ videoId: UPLOAD_ID, code: "UPLOAD", checked: "2026-11-13", starts: { Q7: 100 } }]);
