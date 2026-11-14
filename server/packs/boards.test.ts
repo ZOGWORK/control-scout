@@ -16,6 +16,7 @@ import { createApp } from "../app";
 import { setFlag } from "../flags";
 import { CURRENT_SEASON } from "../data/seasons";
 import { buildFull, settleWait } from "./build";
+import { writeState, writing } from "../data/writeGen";
 import { setBoardReads } from "./boards";
 import { buildPackApi, setPackReads, PACK_READS } from "./eventApi";
 import { eventDetail } from "../api/events";
@@ -97,7 +98,7 @@ beforeAll(async () => {
   const c = openDb(":memory:");
   setDb(c);
   await migrate(c);
-  await kvSet("data:version", "2026-11-14T01:09:00.000Z");
+  await kvSet("data:version", "2026-11-14T01:09:00.000Z"); await kvSet("data:settled", "2026-11-14T01:09:00.000Z");
   await setFlag("powerRankings", true, "test");
   await seed();
   server = createApp().listen(0);
@@ -228,12 +229,12 @@ describe("event pack", () => {
 
 describe("building a season pack", () => {
   const V0 = "2026-11-14T01:09:00.000Z", V1 = "2026-11-14T09:30:00.000Z";
-  afterAll(async () => { setBoardReads(null); await kvSet("data:version", V0); await run("DELETE FROM kv WHERE key = 'data:settled'"); settleWait.ms = 5 * 60_000; settleWait.pollMs = 2000; });
+  afterAll(async () => { setBoardReads(null); await kvSet("data:version", V0); await kvSet("data:settled", V0); settleWait.ms = 5 * 60_000; settleWait.pollMs = 2000; });
 
   it("a sync during the build: the pack is built again and labelled with the data its rows are from, never an older version", async () => {
     let reads = 0;
     // The first build's boards land while a sync moves the data on.
-    setBoardReads([async (s) => [{ path: `/api/records/${s}/high-score`, read: async () => { if (++reads === 1) await kvSet("data:version", V1); return { line: null }; } }]]);
+    setBoardReads([async (s) => [{ path: `/api/records/${s}/high-score`, read: async () => { if (++reads === 1) { await kvSet("data:version", V1); await kvSet("data:settled", V1); } return { line: null }; } }]]);
     const d = mkdtempSync(join(tmpdir(), "cs-boards-v-"));
     const logs: string[] = [];
     const f = await buildFull(S, "2026-11-14.8", d, (m) => logs.push(m));
@@ -286,8 +287,52 @@ describe("building a season pack", () => {
     expect(readdirSync(d)).toEqual([]);
   }, 120_000);
 
+  it("a version with no settled mark yet (a first stats run writing): the build waits and fails, never reads", async () => {
+    await kvSet("data:version", V0); await run("DELETE FROM kv WHERE key = 'data:settled'");
+    settleWait.ms = 300; settleWait.pollMs = 50;
+    let reads = 0;
+    setBoardReads([async (s) => [{ path: `/api/records/${s}/high-score`, read: async () => { reads++; return { line: null }; } }]]);
+    const d = mkdtempSync(join(tmpdir(), "cs-boards-u-"));
+    await expect(buildFull(S, "2026-11-14.14", d, () => {})).rejects.toThrow(/still being written/);
+    expect(reads).toBe(0);
+    expect(readdirSync(d)).toEqual([]);
+  }, 120_000);
+
+  it("a live write in flight across the reads (rows stored before the version moves): built again once it ends", async () => {
+    await kvSet("data:version", V0); await kvSet("data:settled", V0);
+    settleWait.ms = 10_000; settleWait.pollMs = 50;
+    let reads = 0;
+    // The live lane's fetch starts during the first build's reads and is still writing when they end; version untouched.
+    setBoardReads([async (s) => [{ path: `/api/records/${s}/high-score`, read: async () => {
+      if (++reads === 1) void writing(() => new Promise((r) => setTimeout(r, 300)));
+      return { line: null };
+    } }]]);
+    const d = mkdtempSync(join(tmpdir(), "cs-boards-w-"));
+    const logs: string[] = [];
+    const f = await buildFull(S, "2026-11-14.15", d, (m) => logs.push(m));
+    expect(reads).toBe(2);
+    expect(logs.some((m) => m.includes("building again"))).toBe(true);
+    expect(writeState().inFlight).toBe(0);
+    expect(readdirSync(d)).toEqual([f!.name]);
+  }, 120_000);
+
+  it("a write that starts and ends within the reads (the generation moves, the version doesn't): built again", async () => {
+    await kvSet("data:version", V0); await kvSet("data:settled", V0);
+    let reads = 0;
+    setBoardReads([async (s) => [{ path: `/api/records/${s}/high-score`, read: async () => {
+      if (++reads === 1) await writing(async () => {});
+      return { line: null };
+    } }]]);
+    const d = mkdtempSync(join(tmpdir(), "cs-boards-g-"));
+    const logs: string[] = [];
+    const f = await buildFull(S, "2026-11-14.16", d, (m) => logs.push(m));
+    expect(reads).toBe(2);
+    expect(logs.some((m) => m.includes("building again"))).toBe(true);
+    expect(readdirSync(d)).toEqual([f!.name]);
+  }, 120_000);
+
   it("a copy into place that fails: the build rejects and leaves no temp or staging file", async () => {
-    await run("DELETE FROM kv WHERE key = 'data:settled'");
+    await kvSet("data:version", V0); await kvSet("data:settled", V0);
     let reads = 0;
     setBoardReads([async (s) => [{ path: `/api/records/${s}/high-score`, read: async () => { reads++; return { line: null }; } }]]);
     const d = mkdtempSync(join(tmpdir(), "cs-boards-c-"));

@@ -3,8 +3,7 @@
 // never a re-implementation. Null: the route answers 404.
 import { matchDetail, matchViews } from "./matches.js";
 import { teamReportCards, teamSchedule } from "./teams.js";
-import { eventMatchSpan, eventRecording, withClips } from "../videos/recordings.js";
-import { seasonRecordings, seasonVideoKinds } from "../videos/recordings.js";
+import { eventMatchSpan, eventRecording, isPartial, seasonRecordings, seasonVideoKinds, withClips } from "../videos/recordings.js";
 import { listEvents } from "./events.js";
 import type { EventDetail, EventListItem, MatchDetail,MatchView, TeamReportCardAnswer, TeamScheduleAnswer } from "../../src/shared/api.js";
 
@@ -23,6 +22,9 @@ export async function eventListAnswer(q: EventListQuery, opts: { strict?: boolea
     return new Map<string, T>();
   }));
   const [streams, videos] = await Promise.all([soft("recordings", seasonRecordings(q.season)), soft("video kinds", seasonVideoKinds(q.season))]);
+  // A source under them (the owner's streams, the official recordings) failed: online they show as read (logged in
+  // recordings.ts); a pack refuses them.
+  if (opts.strict && (isPartial(streams) || isPartial(videos))) throw new Error(`recordings for ${q.season} were read without one of their sources`);
   return {
     events: (await listEvents(q)).map(({ venue: _v, divisionCode: _d, region: _r, remote: _m, ...e }) => {
       const video = videos.get(e.code);

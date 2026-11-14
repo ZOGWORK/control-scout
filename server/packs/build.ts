@@ -26,6 +26,7 @@ import { LEARNED_DAYS, type LiteLearned } from "../../src/shared/liteLearned.js"
 import { packsDir } from "./routes.js";
 import { PACK_INDEXES, PACK_TABLES as FULL_TABLES, PACK_TEAMS_DDL, RANKING_PACK_WEEKS, RANKING_TABLES, SCHEDULE_TABLE } from "../../src/shared/packSchema.js";
 import { writeBoards } from "./boards.js";
+import { writeState } from "../data/writeGen.js";
 import { SCHEDULE_COLUMNS, scheduleRows } from "../../src/shared/scheduleDifficulty.js";
 import { seasonScheduleDifficulty } from "../predict/scheduleDifficulty.js";
 import { place } from "../../src/shared/format.js";
@@ -90,13 +91,13 @@ export async function buildFull(season: number, version: string, dir: string, lo
   const n = await all<{ c: number }>("SELECT COUNT(*) c FROM matches WHERE season = ?", [season]);
   if (!Number(n[0]?.c)) return null;
   const name = `scout-pack-${version.replace(/\./g, "-")}-${season}.db`;
-  // The pack is labelled with the data version its rows are from (the ranking's asOf offline). Writers move
-  // data:version BEFORE they write (server/stats/job.ts runStats, server/data/live.ts) and data:settled once every
-  // write is done, and packs are read with no lock (holding the data lock for a whole pack would stall the live
-  // lane). So a build starts only once the data is settled (settled at or after the version) and is kept only when
-  // the version didn't move and the data is still settled afterwards: no writer started or was mid-way during the
-  // reads. Otherwise it's built again; after the last try the build fails rather than ship mixed rows (the next
-  // cycle builds it). The pack is built in memory, written out whole (VACUUM INTO) to a temp file, copied to a
+  // The pack is labelled with the data version its rows are from (the ranking's asOf offline), and packs are read
+  // with no lock (holding the data lock for a whole pack would stall the live lane). The live lane and the stats job
+  // mark their write spans (server/data/writeGen.ts; the live lane stores rows BEFORE it moves data:version), and
+  // data:settled marks a version whose writes are all done. A build starts once nothing is being written (no span in
+  // flight, the data settled) and is kept only when, after its reads, still nothing is, with the same generation and
+  // version. Otherwise it's built again; after the last try the build fails rather than ship mixed rows (the next
+  // cycle builds it). A separate process (`npm run packs`) doesn't see this process's spans: it has the settled check. The pack is built in memory, written out whole (VACUUM INTO) to a temp file, copied to a
   // staging name and renamed into place, so a build that fails at any step leaves no file behind.
   const final = join(dir, name), tmp = `${final}.tmp`, part = `${final}.part`;
   for (const f of [tmp, part]) if (!(await dropFile(f))) throw new Error(`full ${season}: can't remove the stale ${f}`);
@@ -105,15 +106,15 @@ export async function buildFull(season: number, version: string, dir: string, lo
   let ok = false;
   try {
     for (let attempt = 1; ; attempt++) {
-      const before = await settledVersion(season, log);
+      const before = await quiet(season, log);
       ({ rows, teams } = await writeFullPack(out, season, version, log));
       const after = await dataState();
-      if (after.version === before && after.settled) {
-        await out.execute({ sql: "INSERT INTO pack_info VALUES ('data_version', ?)", args: [before] });
+      if (after.quiet && after.version === before.version && after.gen === before.gen) {
+        await out.execute({ sql: "INSERT INTO pack_info VALUES ('data_version', ?)", args: [before.version] });
         break;
       }
       if (attempt >= VERSION_TRIES) throw new Error(`full ${season}: data kept changing while packing (${VERSION_TRIES} tries)`);
-      log(`full ${season}: data changed while packing (${before} → ${after.version}), building again`);
+      log(`full ${season}: data changed while packing (${before.version} → ${after.version}), building again`);
       // Start the file over: every table and index this try wrote goes.
       for (const t of (await out.execute("SELECT name FROM sqlite_master WHERE type = 'table'")).rows) await out.execute(`DROP TABLE "${String(t.name)}"`);
     }
@@ -141,21 +142,24 @@ async function dropFile(f: string): Promise<boolean> {
   return !existsSync(f);
 }
 
-/** The data version and whether its writes are all done (data:settled at or after it; no settled mark yet means
- *  no writer has run the settle protocol, so there's nothing to wait for). */
-async function dataState(): Promise<{ version: string; settled: boolean }> {
-  const version = await dataVersion(), settled = await kvGet<string>("data:settled");
-  return { version, settled: settled == null || settled >= version };
+/** The data version, this process's write generation, and whether nothing is being written: no write span in flight
+ *  and the version's writes all done (data:settled at or after it). A version with no settled mark yet is a first
+ *  stats run still writing; an empty database (neither) has nothing to wait for. */
+async function dataState(): Promise<{ version: string; gen: number; quiet: boolean }> {
+  const { inFlight, gen } = writeState();
+  const version = await kvGet<string>("data:version"), settled = await kvGet<string>("data:settled");
+  const done = version == null || (settled != null && settled >= version);
+  return { version: version ?? (await dataVersion()), gen, quiet: done && inFlight === 0 };
 }
 
 /** How long a pack build waits for writes in progress to finish (tests shorten it). */
 export const settleWait = { ms: 5 * 60_000, pollMs: 2000 };
 
-/** The data version once its writes are done, waiting (bounded) while a writer is mid-way. */
-async function settledVersion(season: number, log: (m: string) => void): Promise<string> {
+/** The data state once nothing is being written, waiting (bounded) while a writer is mid-way. */
+async function quiet(season: number, log: (m: string) => void): Promise<{ version: string; gen: number }> {
   for (const until = Date.now() + settleWait.ms; ;) {
     const s = await dataState();
-    if (s.settled) return s.version;
+    if (s.quiet) return s;
     if (Date.now() >= until) throw new Error(`full ${season}: data ${s.version} still being written after ${settleWait.ms / 1000} s`);
     log(`full ${season}: data ${s.version} still being written, waiting`);
     await new Promise((r) => setTimeout(r, settleWait.pollMs));
