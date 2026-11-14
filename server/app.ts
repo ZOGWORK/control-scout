@@ -138,7 +138,7 @@ import { MATCH_KEY, ShareError, cachedCard, cardKey, matchCard } from "./share/m
 import { env } from "./env.js";
 import { r2 } from "./scout/r2.js";
 import { fakeR2Router } from "./scout/fakeR2.js";
-import { liteRouter, liteSwitch } from "./lite/routes.js";
+import { liteRouter, liteSwitch, pageVary } from "./lite/routes.js";
 import { openSearchRoute } from "./openSearch.js";
 import { latestEventSeason, storedEventCode } from "./eventCodes.js";
 import { eventPath, isEventCodeParam } from "../src/shared/eventCode.js";
@@ -1084,12 +1084,14 @@ export function createApp(opts: { dist?: string; /** Tests only: a smaller searc
       // asked again is the bytes already drawn, gzipped once. The ETag res.send makes keeps a repeat visit a 304.
       // Before the data can be read (a start, before its migrations: the cache's version check reads kv), the page
       // is drawn as it always was and nothing is kept.
+      // Per cookie too on a page with a Lite twin, kept or drawn: with Lite on, a page load goes to the twin (server/lite/routes.ts).
+      const vary = pageVary(req.path, req.originalUrl.includes("?") ? req.originalUrl.slice(req.originalUrl.indexOf("?")) : "");
       const page = req.method === "GET" && CACHED_PAGE.test(req.path) ? await keptPage(pageKey(req.path, query), () => drawPage(file, req.path, query)).catch(() => null) : null;
       if (page) {
         // A search is counted on every visit, the kept page's too (server/api/searchIntents.ts: what people ask for).
         void recordIntent(page.intent).catch(() => {});
         res.setHeader(cspHeaderName(), page.csp);
-        res.setHeader("Vary", "Accept-Encoding");
+        res.setHeader("Vary", vary);
         // The same for everyone (no personal data in these pages): a browser revalidates every time (the ETag makes it
         // a cheap 304), and a shared cache such as Cloudflare's may keep a found page for as long as this server does.
         // Never a search page: each of its visits reaches this server, so it is counted.
@@ -1104,6 +1106,7 @@ export function createApp(opts: { dist?: string; /** Tests only: a smaller searc
       const drawn = await renderPage(file, req.path, query);
       void recordIntent(drawn.intent).catch(() => {});
       setPageCsp(res, drawn.html);
+      res.setHeader("Vary", vary);
       res.status(drawn.status).type("html").send(drawn.html);
     }));
   }

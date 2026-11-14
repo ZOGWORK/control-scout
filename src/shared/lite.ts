@@ -1,6 +1,6 @@
 // Light pages (docs/lite.md): a text-only, server-rendered twin of the few pages people open at a venue on one
 // bar of signal: an event, a team, a match and a workspace's pick list. One address scheme, shared by the server
-// (server/lite/), the app (its "Light version" link and the slow-connection prompt) and the service worker:
+// (server/lite/), the app (its "Control Scout Lite" footer link and the slow-connection prompt) and the service worker:
 //
 //   /events/2025/USNJQ1                    ⇄ /lite/events/2025/USNJQ1
 //   /events/2025/USNJQ1/match/qual:0:12    ⇄ /lite/events/2025/USNJQ1/match/qual:0:12

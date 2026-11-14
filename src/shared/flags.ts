@@ -92,7 +92,7 @@ export const FEATURE_OFF_MESSAGE: Partial<Record<Flag, string>> = {
   workspaceScouting: "Workspace scouting is paused by the owner right now. Your entries stay on this device and sync once it's back; personal scouting still syncs.",
   scoutingAlliances: "Scouting alliances are switched off for now. Each workspace sees only its own scouting; links and their entries are kept and come back when they do.",
   scoutingCommons: "The scouting commons is switched off for now. Your workspace's own scouting carries on as normal.",
-  venueLightMode: "The light version is switched off for now. Here's the full page.",
+  venueLightMode: "Control Scout Lite is switched off for now. Here's the full page.",
   statusPage: "The status page is switched off for now.",
   scheduleDifficulty: "Schedule difficulty is switched off for now. The rest of this page still works.",
 };
@@ -185,8 +185,8 @@ export const FLAG_INFO: Record<Flag, { label: string; on: string; off: string; p
     off: "/status says it's switched off and the footer link is hidden. Checks keep running and are kept, so switching back on shows the full history.",
   },
   venueLightMode: {
-    label: "Light version (venue mode)",
-    on: "Event, team, match and pick list pages have a text-only light version for a weak signal (/lite/…): linked from their footer, offered when a page crawls, and reachable with ?lite=1.",
+    label: "Control Scout Lite (venue mode)",
+    on: "Event, team, match and pick list pages have a text-only Lite version (Control Scout Lite) for a weak signal (/lite/…): linked from their footer, offered when a page crawls, and reachable with ?lite=1.",
     off: "Light pages send visitors to the full page, ?lite=1 is ignored, and the footer link and the slow-connection offers are hidden. The offline pack works as before.",
   },
   scoutingCommons: {
