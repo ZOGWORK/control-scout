@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.2.2 — 2026-11-14
+## 6.2.4 — 2026-11-14
 
 Oklahoma and Louisiana events now play their recordings: eastern Oklahoma's DaVinci, Herrington and May league meets, the Bishop Kelley league tournament and the state championship from Tulsa Robotics Center, and every Louisiana qualifier and championship since 2023 from FTC Louisiana.
 
@@ -26,6 +26,32 @@ Oklahoma and Louisiana events now play their recordings: eastern Oklahoma's DaVi
 
 ### Added
 - Official videos: Tulsa Robotics Center (`UC6y0o2J7b05YIL7w95cwg0w`) and FTC Louisiana (`UCQYT4ZXN54khn_n7ebsRRtQ`), both read from the YouTube Data API's uploads lists, join the official channels and the auto-watcher's list, with SeaCow Robotics (`UClcqdD9sHnwtN7FCW6Vj1Ug`, its Mountain Home, Benton and Bentonville qualifiers) and Shiloh Saints (`UCvA42eBzkRpd-x23-AvOnvw`, the Arkansas Championship only), whose streams FIRST's channel links already play. 27 recordings are checked against each event's name, city, date, league and meet number: 14 from Tulsa Robotics Center (2024 to 2026) and 13 from FTC Louisiana (2022 to 2025, each on the day its matches were played). Videos that can't be embedded, the 2026-10-24 Herrington Meet 1 (blocked in the US), one stream for two meets and a meet whose date isn't the event's are left out. (`server/data/officialVideos.json`, `server/data/officialChannels.ts`, `docs/official-videos.md`) (#1479)
+
+## 6.2.3 — 2026-11-14
+
+The official-channel video watcher now picks up event streams that were scheduled before it started watching a channel, so recordings from FTC Iowa, Pennsylvania, Arizona and others aren't missed once they air.
+
+### Highlights
+- [fixes] Event streams scheduled ahead of time are no longer missed
+- [fixes] More official recordings join their event without waiting
+- [fixes] Calls and team reels no longer wait in the owner's review
+
+### Fixed
+- Official videos watcher: it read only uploads published after a channel started being watched, but a stream is listed when it's scheduled, so every stream scheduled before that (55 found: FTC Iowa's league meets, Pennsylvania's championship and qualifiers, Arizona's qualifiers) would never be read once it aired. It now reads back to the earlier of that date and 180 days ago, up to 10 pages. A title naming the region ("FTC Iowa …") and one event's own word ("Iris") or designator (meet 1, not meet 1a) now fits that event instead of every event of the region that day, and a title naming one of two leagues on the same day ("CTX GEMS Diamond League Meet 2") fits that league, never the other (Emerald). A video under 45 minutes that fits no event is set aside with its reason instead of waiting in review. Duplicates name the event that already plays them, and an `onRecordingAdded` hook runs after each added recording so its event's clips can be checked again. (`server/videos/officialWatch.ts`, `server/videos/officialMatch.ts`, `docs/official-videos.md`) (#1456)
+
+## 6.2.2 — 2026-11-14
+
+Search can find matches with video, and asking to watch a question shows its answer with the video.
+
+### Highlights
+- [teams] Add "with video" to find only matches you can watch
+- [teams] "Who won … with video" answers the question and plays the match
+- [teams] Matches at one event play their first clip, not the stream's start
+
+### Changed
+- Search: "with video" (also "that have clips", "with a recording") is a filter: a team's matches, a place's or an event's best, closest or highest-scoring matches list only the ones with FIRST's own video or a clip in the event's recording, the card saying "With video". (`server/videos/recordings.ts` seasonClipKeys, `server/api/query/matchFind.ts`, `lexicon.ts`, `intents.ts`, `parse.ts`, `execute.ts`) (#1485)
+- Search: words asking to watch ("with video", "video", "highlights") beside a question whose answer didn't take them are dropped, so "who won decode with video" is the champions' card with their final playing. (`server/api/searchAnswer.ts`)
+- Search: a list of matches at one event plays its first match with a clip, from that match's start, rather than the event's recording from its start. (`server/api/answers/video.ts`)
 
 ## 6.2.1 — 2026-11-14
 
