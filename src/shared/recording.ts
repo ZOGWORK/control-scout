@@ -83,6 +83,9 @@ export const CHAPTER_MIN_ANCHORS = 6;
 /** How far the matches' distance from their chapters (typically: the median) may move before that's a gap: generated
  *  chapters start a minute or two early, and their numbering drifts by up to 13 min and back (USTXFMS1). */
 export const CHAPTER_DRIFT_S = 600;
+/** In a cut, how much later than the shift a chapter may sit. Chapters run early (a match is at or after its chapter),
+ *  so a chapter well after where the shift puts its match means time lost after it: a gap the median would hide. */
+export const CHAPTER_LATE_S = 120;
 /** How many matches after a point judge whether the video jumps there: the last few chapters on their own say nothing. */
 export const CHAPTER_TAIL = 4;
 
@@ -195,6 +198,10 @@ export function chaptersConfirm(rec: RecordingTiming, chapters: Chapter[] | null
   // A cut moves every match: one at its own clock time (a video that began with its broadcast and lost time later,
   // Qualifier Hasselt 2026's Q1 then a drop-out over lunch) is a gap after it, not a cut before it.
   if (offs.some((o) => Math.abs(o - shift) > CHAPTER_DRIFT_S)) return null;
+  // Chapters only run early, so none may sit later than the shift puts its match: one that does is a match from before
+  // a gap (a cut, then 500 s lost after a few matches: those few 500 s early on the shift). The three cuts on the live
+  // data sit at most 1 s later.
+  if (offs.some((o) => o < shift - CHAPTER_LATE_S)) return null;
   // A cut is taken only when it's all the time missing: none left for a gap anywhere after it, so the whole video
   // follows the clock that far behind, its last few matches too. With time still unaccounted for, a drop-out under
   // CHAPTER_DRIFT_S can hide between chapters and put a match on the one before it: frames showed it (Qualifier
