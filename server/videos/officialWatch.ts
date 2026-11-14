@@ -113,9 +113,9 @@ export type WatchVerdict = Verdict | { kind: "duplicate"; why: string; event?: P
 export interface RecordingAdded { season: number; code: string; day: string | null; part: string | null; videoId: string; by: "watcher" | "owner" }
 type AfterAdd = (added: RecordingAdded[]) => unknown;
 const afterAdd = new Set<AfterAdd>();
-/** The hook for what must follow a new recording: the event's clip coverage is checked again (every played match of
- * that day gets a clip or lands on the missing list for the owner). Called once per watcher run with everything it
- * added, and once per owner approval; a failing listener is logged, never undoes the add. Returns the unsubscribe. */
+/** A hook for what must follow a new recording. Nothing registers on it today: clip coverage is checked by the
+ * 5-minute recordings pass once the video's facts are read. Called once per watcher run with everything it added,
+ * and once per owner approval; a failing listener is logged, never undoes the add. Returns the unsubscribe. */
 export function onRecordingAdded(fn: AfterAdd): () => void {
   afterAdd.add(fn);
   return () => { afterAdd.delete(fn); };
