@@ -124,6 +124,7 @@ function ConnectionPanel({ portal, seasons, bundles, lite, onDone }: { portal: b
         </Button>
         <Button size="sm" className="max-sm:h-11" asChild><Link to="/download" onClick={onDone}>Downloads</Link></Button>
       </div>
+      <Link to="/settings#network" onClick={onDone} className="tap-44 inline-flex min-h-8 items-center text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground">Network &amp; offline settings</Link>
     </>
   );
 }

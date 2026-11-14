@@ -34,6 +34,7 @@ const ROUTES: [RegExp, PageModule | null][] = [
   [/^\/download\/?$/i, "DownloadPage"],
   [/^\/bundle\/[^/]+\/[^/]+(\/picklist)?\/?$/i, "BundlePage"],
   [/^\/settings\/?$/i, "SettingsPage"],
+  [/^\/network\/?$/i, null], // a redirect to /settings#network (Network & offline)
   [/^\/methodology\/?$/i, "MethodologyPage"],
   [/^\/how-it-works\/search\/?$/i, "SearchDocsPage"],
   [/^\/predict\/how-it-works\/?$/i, null], // a redirect to /methodology
@@ -71,7 +72,7 @@ const TITLES: [RegExp, string][] = [
   [/^\/teams\/[^/]+\/highlights$/, "Team highlights"], [/^\/teams\/[^/]+\/record-split$/, "Team record"], [/^\/teams\/[^/]+$/, "Team"], [/^\/teams$/, "Teams"], [/^\/rankings$/, "Rankings"], [/^\/matches$/, "Match records"], [/^\/events\/[^/]+\/[^/]+$/, "Event"], [/^\/events$/, "Events"], [/^\/predict(\/accuracy)?$/, "Predict"],
   [/^\/compare$/, "Compare"], [/^\/my-team$/, "My team"], [/^\/my-teams$/, "My teams"], [/^\/shortlist$/, "Shortlist"], [/^\/scout$/, "Scout"], [/^\/download$/, "Download"],
   [/^\/bundle\/[^/]+\/[^/]+$/, "Event-day bundle"], [/^\/bundle\/[^/]+\/[^/]+\/picklist$/, "Pick list snapshot"],
-  [/^\/settings$/, "Settings"], [/^\/(methodology|predict\/how-it-works|how-it-works)$/, "How it works"], [/^\/how-it-works\/search$/, "How FTC One Search works"], [/^\/privacy$/, "Privacy"], [/^\/terms$/, "Terms"], [/^\/contact$/, "Contact"], [/^\/(donate|support)$/, "Donate"], [/^\/supporters$/, "Supporters"], [/^\/status$/, "Status"], [/^\/faq$/, "FAQ"], [/^\/rules$/, "Rules"],
+  [/^\/(settings|network)$/, "Settings"], [/^\/(methodology|predict\/how-it-works|how-it-works)$/, "How it works"], [/^\/how-it-works\/search$/, "How FTC One Search works"], [/^\/privacy$/, "Privacy"], [/^\/terms$/, "Terms"], [/^\/contact$/, "Contact"], [/^\/(donate|support)$/, "Donate"], [/^\/supporters$/, "Supporters"], [/^\/status$/, "Status"], [/^\/faq$/, "FAQ"], [/^\/rules$/, "Rules"],
   [/^\/power-rankings(\/[^/]+)?$/, "Power rankings"], [/^\/digest\/unsubscribed$/, "Email digest"], [/^\/search$/, "Search"], [/^\/related-searches$/, "Related searches"],
   [/^\/leagues\/[^/]+\/[^/]+\/[^/]+$/, "League"],
   [/^\/contributors\/[^/]+$/, "Contributor"], [/^\/get-verified$/, "Get Verified"], [/^\/verify-video$/, "Contributor invite"],

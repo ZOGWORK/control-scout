@@ -1,11 +1,10 @@
-// The two offline-update settings (personal, so they sync for signed-in accounts): "When updates are out" and
-// "Download updates on". Shown on the Download page and in Settings › Offline data; lib/offline/updatePolicy.ts
-// says what they do.
+// The two offline-update settings (personal, so they sync for signed-in accounts): automatic updates or not, and Wi-Fi
+// only or mobile data too. Shown in one place, Settings › Network & offline (components/settings/NetworkSection.tsx);
+// lib/offline/updatePolicy.ts says what they do.
 import { useSyncExternalStore } from "react";
 import { usePersonal } from "../../lib/personal";
 import type { ConnectionInfo } from "../../lib/packPolicy";
-import { netKind, updatePrefs, type UpdateMode, type UpdateNetwork } from "../../lib/offline/updatePolicy";
-import { ToggleGroup, ToggleGroupItem } from "../ui/controls";
+import { updatePrefs, type UpdateMode, type UpdateNetwork } from "../../lib/offline/updatePolicy";
 
 export function useUpdatePrefs() {
   const { state, update } = usePersonal();
@@ -35,29 +34,3 @@ function subscribe(f: () => void) {
 }
 /** navigator.connection as it is now (null where the browser has none), updated when it changes. */
 export function useConnection(): ConnectionInfo | null { return useSyncExternalStore(subscribe, snapshot, () => null); }
-
-export function UpdateModeToggle({ value, onChange }: { value: UpdateMode; onChange: (v: UpdateMode) => void }) {
-  return (
-    <ToggleGroup type="single" value={value} onValueChange={(v) => { if (v) onChange(v as UpdateMode); }} aria-label="When updates are out">
-      <ToggleGroupItem value="ask">Ask me</ToggleGroupItem>
-      <ToggleGroupItem value="auto">Download automatically</ToggleGroupItem>
-    </ToggleGroup>
-  );
-}
-
-export function UpdateNetworkToggle({ value, onChange }: { value: UpdateNetwork; onChange: (v: UpdateNetwork) => void }) {
-  return (
-    <ToggleGroup type="single" value={value} onValueChange={(v) => { if (v) onChange(v as UpdateNetwork); }} aria-label="Download updates on">
-      <ToggleGroupItem value="wifi">Wi-Fi only</ToggleGroupItem>
-      <ToggleGroupItem value="any">Wi-Fi and mobile data</ToggleGroupItem>
-    </ToggleGroup>
-  );
-}
-
-/** What this browser says about the connection, for the network setting's description. */
-export function connectionNote(c: ConnectionInfo | null): string {
-  const kind = netKind(c);
-  if (kind === "wifi") return "This device is on Wi-Fi now.";
-  if (kind === "cellular") return "This device is on mobile data now.";
-  return "This browser doesn't tell sites whether it's on Wi-Fi or mobile data, so updates download as if it's on Wi-Fi. Offline predictions (a small pack) save themselves too.";
-}

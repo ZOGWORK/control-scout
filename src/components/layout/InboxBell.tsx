@@ -313,7 +313,7 @@ function DeviceUpdate({ update, onClose }: { update: UpdateSnapshot; onClose: ()
           <div className="mt-2 flex flex-wrap gap-2">
             <Button size="sm" onClick={() => { onClose(); void updateNow(update); }}><HardDriveDownload /> Update now</Button>
             <Button size="sm" variant="outline" onClick={() => markLater(ids)}>Later</Button>
-            <Link to="/download" onClick={onClose} className="inline-flex min-h-8 items-center px-1 text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">Update settings</Link>
+            <Link to="/settings#network" onClick={onClose} className="inline-flex min-h-8 items-center px-1 text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">Update settings</Link>
           </div>
         </div>
       </div>

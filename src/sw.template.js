@@ -137,7 +137,15 @@ self.addEventListener("fetch", (event) => {
   }
 });
 
-// --- Web push (docs/push.md) ------------------------------------------------------------------
+// Clear cache (src/lib/offline/appCache.ts) asks which cache and files this release needs to open offline, so it
+// keeps those and frees the rest.
+self.addEventListener("message", (event) => {
+  const port = event.ports && event.ports[0];
+  if (!port || !event.data || event.data.type !== "cs-cache-keep") return;
+  port.postMessage({ cache: CACHE, files: [...FILES, ...OFFLINE_FILES, ...BRAND] });
+});
+
+// --- Web push (docs/push.md)------------------------------------------------------------------
 // The server sends { title, body, url, tag } (src/shared/push.ts). A tap focuses an open Control Scout tab
 // and takes it to the url (a path in this app, never another site), or opens a new window there.
 const pushPath = (u) => (typeof u === "string" && /^\/(?!\/)[^\s\\]*$/.test(u) ? u : "/");

@@ -5,8 +5,8 @@
 // offered here: it downloads itself in the background for returning visitors
 // (LitePackSync, packPolicy.ts), and opening this page fetches it at once; this
 // page only shows its status. Updates to saved seasons are found in the background (lib/offline/updateWatcher)
-// and follow the two settings at the bottom of the seasons list: ask or download automatically, Wi-Fi only or
-// any connection.
+// and follow the two settings in Settings › Network & offline (linked at the bottom of the seasons list, the only copy): ask or
+// download automatically, Wi-Fi only or any connection.
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { BellRing, CheckCircle2, Database, HardDriveDownload, Loader2, RefreshCw, Trash2, WifiOff } from "lucide-react";
@@ -27,7 +27,7 @@ import { cn } from "../components/cn";
 import { useFlag } from "../lib/flags";
 import { netKind, updateStatus } from "../lib/offline/updatePolicy";
 import { EventBundles } from "../components/offline/EventBundles";
-import { UpdateModeToggle, UpdateNetworkToggle, connectionNote, useConnection, useUpdatePrefs } from "../components/offline/UpdateSettings";
+import { useConnection, useUpdatePrefs } from "../components/offline/UpdateSettings";
 
 export default function DownloadPage() {
   useTitle("Download");
@@ -85,7 +85,7 @@ export default function DownloadPage() {
             <ol className="grid gap-3 text-sm text-muted-foreground sm:grid-cols-3">
               <li className="rounded-xl border border-border bg-card p-4"><HardDriveDownload className="mb-2 size-5 text-accent" /><span className="text-foreground">Before the event</span>, on wifi, save the season above. It's checked against its published SHA-256 and kept in this browser. Predictions need nothing: a small lite pack of every team's ratings saves itself whenever you're online.</li>
               <li className="rounded-xl border border-border bg-card p-4"><WifiOff className="mb-2 size-5 text-accent" /><span className="text-foreground">At the venue</span>, with no connection, team pages, event pages (rankings, matches, alliances, awards) and search answer from the saved season, marked "Offline" with the date the data is from. Upcoming matches and the <Link to="/predict?mode=match" className="underline">custom matchups</Link> get win odds from the lite pack: same engine, ratings as of the pack's date.</li>
-              <li className="rounded-xl border border-border bg-card p-4"><CheckCircle2 className="mb-2 size-5 text-accent" /><span className="text-foreground">Updates</span>: the lite pack updates on its own. Saved seasons are checked for a newer release in the background and update by themselves, on Wi-Fi only unless you say otherwise (or you're asked first, if you choose Ask me). Until the new copy is verified, the saved one keeps working. Remove seasons here or in Settings › Offline data. Scouting notes keep working offline too and sync when you're back online{rulesOn ? <>, and the <Link to="/rules" className="underline">rules quick reference</Link> is built into the app, search included</> : null}.</li>
+              <li className="rounded-xl border border-border bg-card p-4"><CheckCircle2 className="mb-2 size-5 text-accent" /><span className="text-foreground">Updates</span>: the lite pack updates on its own. Saved seasons are checked for a newer release in the background and update by themselves, on Wi-Fi only unless you say otherwise (or you're asked first, if you choose Ask me). Until the new copy is verified, the saved one keeps working. Remove seasons here; choose Wi-Fi only or mobile data too in Settings › Network &amp; offline. Scouting notes keep working offline too and sync when you're back online{rulesOn ? <>, and the <Link to="/rules" className="underline">rules quick reference</Link> is built into the app, search included</> : null}.</li>
             </ol>
           </Section>
           <p className="mt-4 font-mono text-[11px] text-muted-foreground">Manifest: <a href="/packs/latest.json" className="underline">/packs/latest.json</a> · engine v{m.engineVersion} · data as of {m.dataAsOf ? new Date(m.dataAsOf).toLocaleString() : "—"}</p>
@@ -189,7 +189,7 @@ function SeasonsSection({ m, saved }: { m: PackManifest; saved: SavedSeason[] })
           ))}
         </ul>
       )}
-      <UpdatePrefs />
+      <SettingsLink />
       <div className="border-t border-border px-4 py-3 sm:px-6"><StorageLine saved={saved} /></div>
     </section>
   );
@@ -257,22 +257,12 @@ function StorageLine({ saved }: { saved: SavedSeason[] }) {
   );
 }
 
-/** The two update settings (synced with your account): ask or download automatically, and on which connections. */
-function UpdatePrefs() {
-  const { mode, network, setMode, setNetwork } = useUpdatePrefs();
-  const connection = useConnection();
+/** The download and update settings live in one place, Settings › Network & offline: a link there, not a second copy. */
+function SettingsLink() {
   return (
-    <div className="grid gap-4 border-t border-border px-4 py-4 sm:grid-cols-2 sm:px-6" aria-label="Update settings" role="group">
-      <div className="min-w-0">
-        <p className="text-sm font-medium">When updates are out</p>
-        <p className="mt-0.5 mb-2 text-xs text-muted-foreground">Checked in the background. Ask me shows one pop-up per release, and a notification when you're signed in.</p>
-        <UpdateModeToggle value={mode} onChange={setMode} />
-      </div>
-      <div className="min-w-0">
-        <p className="text-sm font-medium">Download updates on</p>
-        <p className="mt-0.5 mb-2 text-xs text-muted-foreground">{connectionNote(connection)}</p>
-        <UpdateNetworkToggle value={network} onChange={setNetwork} />
-      </div>
-    </div>
+    <p className="border-t border-border px-4 py-3 text-sm text-muted-foreground sm:px-6" data-settings-link>
+      Which connections downloads use, and automatic updates:{" "}
+      <Link to="/settings#network" className="tap-44 font-medium text-foreground underline underline-offset-2">Network &amp; offline settings</Link>
+    </p>
   );
 }
