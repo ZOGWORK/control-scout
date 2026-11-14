@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.1.6 — 2026-11-14
+## 6.2.1 — 2026-11-14
 
 Oklahoma and Louisiana events now play their recordings: eastern Oklahoma's DaVinci, Herrington and May league meets, the Bishop Kelley league tournament and the state championship from Tulsa Robotics Center, and every Louisiana qualifier and championship since 2023 from FTC Louisiana.
 
@@ -26,6 +26,62 @@ Oklahoma and Louisiana events now play their recordings: eastern Oklahoma's DaVi
 
 ### Added
 - Official videos: Tulsa Robotics Center (`UC6y0o2J7b05YIL7w95cwg0w`) and FTC Louisiana (`UCQYT4ZXN54khn_n7ebsRRtQ`), both read from the YouTube Data API's uploads lists, join the official channels and the auto-watcher's list, with SeaCow Robotics (`UClcqdD9sHnwtN7FCW6Vj1Ug`, its Mountain Home, Benton and Bentonville qualifiers) and Shiloh Saints (`UCvA42eBzkRpd-x23-AvOnvw`, the Arkansas Championship only), whose streams FIRST's channel links already play. 27 recordings are checked against each event's name, city, date, league and meet number: 14 from Tulsa Robotics Center (2024 to 2026) and 13 from FTC Louisiana (2022 to 2025, each on the day its matches were played). Videos that can't be embedded, the 2026-10-24 Herrington Meet 1 (blocked in the US), one stream for two meets and a meet whose date isn't the event's are left out. (`server/data/officialVideos.json`, `server/data/officialChannels.ts`, `docs/official-videos.md`) (#1479)
+
+## 6.1.8 — 2026-11-14
+
+Control Scout Lite now covers the whole app: Home, Search, Predict, Compare, Rankings, Scouting and Settings each have a light page, with the same answers and numbers as the full version.
+
+### Highlights
+- [speed] Lite Home: search and this week's events, for a weak signal
+- [predict] Lite Predict: the odds, score and full why breakdown
+- [rankings] Lite Search, Compare and Rankings with the same answers
+- [appearance] Lite Settings: theme, text size and Lite on or off
+
+### Added
+- Seven Lite pages (docs/lite.md), each drawing the answer its API route sends, from the same function: Home (`/lite`: a search box and the events on now or starting within a week, as Home's calendar lists them), Search (`/lite/search?q=`: the answer `/api/search?answer=1` sends, as cards and lists linked to Lite pages; the two routes now share `server/api/searchPageAnswer.ts`), Predict (`/lite/predict`: four number boxes, then the win odds, predicted score, confidence, top reasons and the full why breakdown as a table, from `matchExplanation`), Compare (`/lite/compare`: up to four teams, OPR, phases, rating and record as a table, a text bar for OPR, and the head-to-head matches), Rankings (`/lite/rankings`: the world ranking, 50 a page, with a next page link), Scouting (`/lite/scout`: scouting's forms need the full app, one button there, and the pick list when signed in) and Settings (`/lite/settings`).
+- Lite Settings sets the theme and text size with plain links (`/lite/theme`, `/lite/size`), and the full app takes that choice the next time it opens instead of writing its older one back: one setting, whichever page changed it. It also turns Lite on or off and links to the full version's network and offline settings.
+- Every full page with a Lite page links to it from its footer, opens it with `?lite=1`, and goes there while Lite is on: Home, Search, Predict, Compare, Rankings, Scouting and Settings now too. The slow-connection offer is never made on scouting's forms (they keep working offline in the full app) or timed on a page with no data of its own (Settings).
+
+### Changed
+- The factor sentence fix (`factorLabel`) and a factor's share of a call (`sharePct`) moved to `src/shared/`, so Lite prints them the same way as the app. (#1486)
+
+## 6.1.7 — 2026-11-14
+
+Nevada, North Dakota and Montana events now play their recordings from the state's own channels: FIRST Nevada's league meets, tournaments and State Championships, Dakota FTC's qualifiers and State, and Montana's older State and Butte streams.
+
+### Highlights
+- [history] Nevada's league meets and State play their recordings
+- [history] Dakota FTC qualifiers and State play their full-day streams
+- [history] Montana's 2023 and 2024 State and Butte streams play
+
+### Added
+- Official videos: FIRST Nevada (`UCqDnAXt0clPQww74v7bUVkQ`), BCA Activities for Dakota FTC (`UCowF1UaXnuuFV_sNIvpX-zQ`) and MT Robotics Alliance (`UCpPjg0KF7cwfbWoKAl0jiXQ`), ids read from the YouTube Data API, join the official channels and the auto-watcher's list, each for its own state only. 57 recordings are checked against each event's name, city, dates, meet number and North or South: 46 from Nevada (2023-24 on), 7 from North Dakota, 4 from Montana. A Nevada video blocked in nearly every country, an empty stream, an opening-ceremony clip, undated uploads and the streams FIRST's own pages already link are left out. (`server/data/officialVideos.json`, `server/data/officialChannels.ts`, `docs/official-videos.md`) (#1475)
+
+## 6.1.6 — 2026-11-14
+
+Scouting works with no signal: open Scout, pick your downloaded event, scout matches, build your shortlist and use the pick helper offline. Everything is saved on the phone and syncs once when you're back online.
+
+### Highlights
+- [offline] Scout opens with no signal and lists the events on your phone
+- [offline] Shortlist and pick helper work offline, showing when loaded
+- [scout] Saved on this device · will sync, instead of an offline warning
+- [picklist] Pick list changes made offline sync by themselves, once each
+
+### Added
+- The last answer to each read the scouting pages need is kept on the device (`src/lib/offline/kept.ts`): the season's event list, an event's pick ratings and projections, shortlist rows, team profiles and matches, the scouting alliance views and the workspace pick list. Per account; at most 150; the server's own JSON, never recomputed. With no signal (or no answer in 4 s) the kept answer is shown with "Offline: last loaded on this device at …", and the page asks the server again once it's back (`src/lib/offline/scoutReads.ts`).
+- Scout's event picker lists the events downloaded to this device under "Saved on this device", one tap to scout, signal or not; with no signal the event list is the last one loaded plus every downloaded event.
+- When an event bundle downloads (and each time Scout or the shortlist opens with signal, at most every 30 minutes), the reads Scout needs at that event are fetched and kept: the event list, pick ratings, projections and every team's shortlist row (`src/lib/offline/warm.ts`). A team added to the shortlist with no signal shows its stats; one never loaded shows its name and place, with no made-up numbers.
+- The pick helper offline uses the last pick ratings loaded (the server's own answer); the radar math is the same function online and offline (`src/shared/pickRadar.ts`).
+- `scripts/scout-offline-journey.ts`: journey 5 of the offline brief on a production build, through a local proxy that cuts the network for the service worker too (`scripts/lib/netSwitch.ts`).
+
+### Changed
+- Scout's sync chip says "Saved on this device · N will sync" with no signal (it said "Offline — N pending" with a warning icon); signed out it says "Saved on this device". The entry form's save bar (it said "Queued offline" in warning colour) and the shortlist say the same while they wait to sync.
+- Shared pick list order changes that didn't go for want of a network are sent again by themselves once the signal is back (they waited for Retry): each with its own op id, checked against the list first like a Retry, so none lands twice and a conflict still waits for you.
+
+### Tests
+- An entry pushed twice (an offline replay) is stored once, and an older copy sent late never replaces the newer one (server).
+- Entries saved offline survive a reload and go up once each, under the ids they were made with; a lost answer retries the same ids.
+- Kept answers: per account, capped, marked offline; the event list gains bundled events; the shortlist lists every team asked for. (#1466)
 
 ## 6.1.5 — 2026-11-14
 

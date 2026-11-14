@@ -64,6 +64,17 @@ export const OFFICIAL_CHANNELS: OfficialChannelSeed[] = [
   { channelId: "UC3GrZQP1avoMFojc2HeQdhw", title: "Associazione Artù APS (Italy)", region: "country=Italy", words: "italy italia", titlePattern: "\\bitaly\\b" },
   { channelId: "UCq5bJjdyfAQYIs7yb_83vaA", title: "Fikret Yüksel Foundation (Türkiye)", region: "country=Türkiye", words: "turkiye turkey gun", titlePattern: "t[uü]rkiye [şs]ampiyonas[ıi]" },
   { channelId: "UC7e1UfLTHCdAoF7VIay_IqA", title: "The PRC Channel (Thailand)", region: "country=Thailand", words: "thailand ftcthailand", titlePattern: "thailand" },
+  // The owner's audited channels (2026-11-14), ids from the YouTube Data API (channels?forHandle). FIRST Nevada
+  // (@firstnevada1941) is Nevada's FIRST partner; its titles name the meet ("# 4S") and the half of the state.
+  { channelId: "UCqDnAXt0clPQww74v7bUVkQ", title: "FIRST Nevada", region: "state=NV", words: "nevada", titlePattern: "nevada state championship|state championship - nevada" },
+  // BCA Activities (@BCAActivities-sg6ef, Bismarck Career Academy): North Dakota's "Dakota FTC" events. A school
+  // channel that streams other activities too, so no word of North Dakota's FTC event names or cities counts as
+  // evidence (every one Scout has from 2020 on: places, halves, venues, and "scrimmage") and there's no title
+  // pattern: every new video goes to the owner's review, never auto-adds. A new ND event naming a new word needs that
+  // word added here.
+  { channelId: "UCowF1UaXnuuFV_sNIvpX-zQ", title: "BCA Activities (Dakota FTC)", region: "state=ND", words: "north dakota dakotaftc bca bismarck minot fargo alexander comets western eastern ndsu daa adventist scrimmage" },
+  // MT Robotics Alliance (@mtra-stream), Montana's FTC partner; FIRST's Montana event pages name the channel.
+  { channelId: "UCpPjg0KF7cwfbWoKAl0jiXQ", title: "MT Robotics Alliance (Montana)", region: "state=MT", words: "montana mt", titlePattern: "\\bstate\\b|championship" },
   // Team 12099 (Centennial HS, Columbus): FIRST's event pages name its streams for the Central Ohio league (scrimmage,
   // meets, league tournament) in 2025 and 2026. Channel id from the YouTube Data API (forHandle @StarsoftheGalaxy12099), 2026-11-14.
   { channelId: "UC576ZA1td9ZvsAUwPq1Ymaw", title: "Stars of the Galaxy (Central Ohio)", region: "state=OH;name=^Central Ohio ", words: "ohio central columbus" },
