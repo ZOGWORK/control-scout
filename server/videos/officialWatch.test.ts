@@ -18,6 +18,8 @@ let uploads: Item[] = [];
 let calls: string[] = [];
 let playlists: string[] = [];
 let quota = false;
+/** Uploads per playlistItems page (YouTube's is 50); a test lowers it to read past the first page. */
+let pageSize = 50;
 const fakeFetch = (async (url: string) => {
   const u = new URL(url);
   calls.push(u.pathname.split("/").pop()!);
@@ -27,7 +29,9 @@ const fakeFetch = (async (url: string) => {
   if (u.pathname.endsWith("/playlistItems")) {
     playlists.push(u.searchParams.get("playlistId")!);
     if (u.searchParams.get("playlistId") !== `UU${TX.slice(2)}`) return json({ items: [] });
-    return json({ items: uploads.map((i) => ({ contentDetails: { videoId: i.id, videoPublishedAt: i.published } })) });
+    const page = Number(u.searchParams.get("pageToken") || 0);
+    const items = uploads.slice(page * pageSize, (page + 1) * pageSize);
+    return json({ items: items.map((i) => ({ contentDetails: { videoId: i.id, videoPublishedAt: i.published } })), ...(uploads.length > (page + 1) * pageSize ? { nextPageToken: String(page + 1) } : {}) });
   }
   const ids = (u.searchParams.get("id") ?? "").split(",");
   return json({ items: uploads.filter((i) => ids.includes(i.id)).map((i) => ({
@@ -48,7 +52,7 @@ beforeAll(async () => {
   await run("INSERT INTO video_meta (video_id, status, start, end, duration, live, checked_at) VALUES ('firstlinkxx', 'ok', '2026-01-17T14:00:00Z', '2026-01-17T22:00:00Z', 28800, 0, 'x')");
   await seedOfficialChannels(T0, true);
 });
-beforeEach(() => { calls = []; playlists = []; quota = false; });
+beforeEach(() => { calls = []; playlists = []; quota = false; pageSize = 50; });
 
 describe("the official-video watcher", () => {
   it("checks midway between the sync's ticks, never as an event day's sync starts", () => {
@@ -256,5 +260,24 @@ describe("the official-video watcher", () => {
     expect((await saveChannel({ channelId: "UCaaaaaaaaaaaaaaaaaaaaaa", title: "Test FTC", region: "state=TX" }, "o", NOW)).ok).toBe(true);
     expect((await saveChannel({ channelId: "UCaaaaaaaaaaaaaaaaaaaaaa", title: "Test FTC", region: "state=OK" }, "o", NOW + 5)).ok).toBe(true);
     expect(await get<any>("SELECT region, watch_from FROM official_channels WHERE channel_id = 'UCaaaaaaaaaaaaaaaaaaaaaa'")).toMatchObject({ region: "state=OK", watch_from: new Date(NOW).toISOString() });
+  });
+
+  it("pages back through a channel's uploads to a stream scheduled before the watch, and stops at the lookback", async () => {
+    const LATER = NOW + 30 * 864e5;
+    pageSize = 2;
+    uploads = [
+      { id: "pageonepg1a", title: "Coach webinar A", published: new Date(LATER - 864e5).toISOString() },
+      { id: "pageonepg1b", title: "Coach webinar B", published: new Date(LATER - 2 * 864e5).toISOString() },
+      // Page 2: listed before the channel was watched (T0) but within the lookback, then one older than it.
+      { id: "pagetwopg2a", title: "Coach webinar C", published: "2025-12-01T00:00:00Z" },
+      { id: "pagetwopg2b", title: "Coach webinar D", published: "2025-01-01T00:00:00Z" },
+      // Page 3 is never asked for: page 2 already reached the lookback.
+      { id: "pagethreep3", title: "Coach webinar E", published: "2024-12-01T00:00:00Z" },
+    ];
+    const out = await runOfficialWatch(() => {}, { apiKey: "k", fetchImpl: fakeFetch, now: () => LATER });
+    expect(out).toMatchObject({ seen: 3, error: null });
+    expect(playlists.filter((p) => p === `UU${TX.slice(2)}`)).toHaveLength(2);
+    const seen = new Set((await all<{ video_id: string }>("SELECT video_id FROM official_watch WHERE video_id LIKE 'page%'")).map((r) => r.video_id));
+    expect([...seen].sort()).toEqual(["pageonepg1a", "pageonepg1b", "pagetwopg2a"]);
   });
 });
