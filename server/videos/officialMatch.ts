@@ -132,7 +132,7 @@ export function matchVideo(v: WatchVideo, rule: ChannelRule, events: WatchEvent[
     : [iso(yr(dm[9]), Number(dm[8]), Number(dm[7])), iso(yr(dm[7]), Number(dm[8]), Number(dm[9]))];
   const idHit = (() => { if (!rule.titlePattern) return false; try { return new RegExp(rule.titlePattern, "i").test(v.title); } catch { return false; } })();
   /** strong: evidence of its own (a designator, a word of its name or city, its acronym), not only the region's name. */
-  type Cand = { e: WatchEvent; d: string; score: number; real: boolean; strong: boolean; why: string[] };
+  type Cand = { e: WatchEvent; d: string; score: number; real: boolean; strong: boolean; /** Its name's distinctive words. */ words: Set<string>; why: string[] };
   const cands: Cand[] = [];
   for (const e of events) {
     if (NOT_EVENTS.has(e.type) || !inRegion(e)) continue;
@@ -160,7 +160,7 @@ export function matchVideo(v: WatchVideo, rule: ChannelRule, events: WatchEvent[
     for (const a of acronyms(e.name, extra)) if (!vt.has(a) && spelledOut.has(a)) { score++; real = true; }
     const strong = real;
     if (!real && idHit && score > 0) real = true;
-    cands.push({ e, d, score, real, strong, why });
+    cands.push({ e, d, score, real, strong, words: toks(e.name, extra), why });
   }
   if (!cands.length) return short
     ? { kind: "ignore", why: `${mins} minutes long, and no Scout event in the channel's region on the broadcast date: not a day's recording` }
@@ -168,7 +168,17 @@ export function matchVideo(v: WatchVideo, rule: ChannelRule, events: WatchEvent[
   const fits = cands.filter((c) => !c.why.length && c.score > 0 && c.real);
   // A title naming the region itself ("FTC Iowa …") makes every one of its events that day plausible, but an event the
   // title names by its own word ("Iris", "Waterloo") or designator is the one it's about: region-name-only fits drop out.
-  const ok = (fits.some((c) => c.strong) ? fits.filter((c) => c.strong) : fits).sort((a, b) => b.score - a.score);
+  const own = fits.some((c) => c.strong) ? fits.filter((c) => c.strong) : fits;
+  // Two events sharing a word ("CTX GEMS Diamond League Meet 2" and "… Emerald …", "Austin Semi-Regional" and "San
+  // Antonio Semi-Regional"): one is contradicted when the title says a word of the other's name that it lacks
+  // ("Diamond") and its own name has a word the title doesn't say ("Emerald"). It drops out only when what's left
+  // outscores it; otherwise (a title naming two events, a joint meet) every fit stays and the owner decides.
+  const said = (t: string) => vt.has(t) || spelledOut.has(t);
+  const contradicted = (c: Cand) => [...c.words].some((t) => !said(t))
+    && own.some((o) => o !== c && [...o.words].some((t) => said(t) && !c.words.has(t)));
+  const keep = own.filter((c) => !contradicted(c));
+  const top = Math.max(0, ...keep.map((c) => c.score));
+  const ok = (keep.length && own.every((c) => keep.includes(c) || c.score < top) ? keep : own).sort((a, b) => b.score - a.score);
   const [a, b] = ok;
   if (!a) {
     const best = [...cands].sort((x, y) => y.score - x.score)[0];
