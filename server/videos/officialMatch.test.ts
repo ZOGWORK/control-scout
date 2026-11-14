@@ -198,6 +198,8 @@ describe("the watcher's matcher", () => {
     // The real words still count.
     expect(matchVideo(vid("Mockingbird League Meet 3", { start: null }), TX, []).kind).not.toBe("ignore");
     expect(matchVideo(vid("Mockingbird Day 2", { start: null }), TX, []).kind).not.toBe("ignore");
+    expect(matchVideo(vid("Mockingbird Day 10", { start: null }), TX, []).kind).not.toBe("ignore");
+    expect(matchVideo(vid("Mockingbird Day 2026", { start: null }), TX, [])).toMatchObject({ kind: "ignore" });
     expect(matchVideo(vid("Kickoff 2026: DECODE reveal"), TX, [])).toMatchObject({ kind: "ignore" });
     expect(matchVideo(vid("FRC District Event - Austin"), TX, [])).toMatchObject({ kind: "ignore" });
     expect(matchVideo(vid("Coach webinar"), TX, [])).toMatchObject({ kind: "ignore" });
