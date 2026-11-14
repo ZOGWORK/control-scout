@@ -46,7 +46,7 @@ export default function EventHighlightsPage() {
               description="Its standout matches: best score, biggest margin, latest playoff match, best Auto, closest finish and biggest upset, each with its video when there is one."
               phoneDescription="Its standout matches."
               actions={<Link to={`/events/${d.event.season}/${encodeURIComponent(d.event.code)}`} className={linkClass} data-event-link>Event page</Link>} />
-            <AnswerVideoProvider video={d.video}>
+            <AnswerVideoProvider video={d.video ?? null}>
               <StatAnswerCard stat={d.stat} />
             </AnswerVideoProvider>
           </>

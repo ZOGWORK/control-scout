@@ -32,7 +32,9 @@ export async function finishPageAnswer(ans: SearchAnswer, limit: number, viewer:
   const full = await withHighlights(ans, limit);
   // Its video (./answers/video.ts): one read for the whole answer, beside the team rows'.
   const who = await viewer;
-  const [hits, video] = await Promise.all([answerHits(full.hits), answerVideo(full, Date.now(), who).catch(() => undefined)]);
+  const [hits, video] = await Promise.all([answerHits(full.hits), answerVideo(full, Date.now(), who).then((v) => v ?? null, () => undefined)]);
   const contributor = !!video && (video.main?.kind === "contributor" || Object.values(video.rows ?? {}).some((x) => x.kind === "contributor"));
-  return { body: { ...full, hits, ...(video ? { video } : {}) }, contributor };
+  // null: read, and nothing plays (the page then says so); a read that failed sends none, as a first paint carries
+  // none (src/shared/api.ts): the page then says nothing about video.
+  return { body: { ...full, hits, ...(video !== undefined ? { video } : {}) }, contributor };
 }

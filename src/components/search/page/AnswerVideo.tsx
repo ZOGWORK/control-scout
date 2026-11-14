@@ -16,12 +16,13 @@ import { VideoCredit } from "../../contributors/VideoCredit";
 import { Button } from "../../ui/button";
 
 /** The answer's video, and how many row clips were played: each one stops the card's player, so two never play at once. */
-const Video = createContext<{ video?: SearchVideo; rowPlays: number; rowPlayed: () => void }>({ rowPlays: 0, rowPlayed: () => {} });
+const Video = createContext<{ video?: SearchVideo; known: boolean; rowPlays: number; rowPlayed: () => void }>({ known: false, rowPlays: 0, rowPlayed: () => {} });
 
 /** The answer's video, for the card's player and the rows' buttons under it. */
-export function AnswerVideoProvider({ video, children }: { video: SearchVideo | undefined; children: ReactNode }) {
+/** `video`: null when read and there is none; undefined before it's read (a first paint), when nothing says "no video". */
+export function AnswerVideoProvider({ video, children }: { video: SearchVideo | null | undefined; children: ReactNode }) {
   const [rowPlays, setRowPlays] = useState(0);
-  return <Video.Provider value={{ video, rowPlays, rowPlayed: () => setRowPlays((n) => n + 1) }}>{children}</Video.Provider>;
+  return <Video.Provider value={{ video: video ?? undefined, known: video !== undefined, rowPlays, rowPlayed: () => setRowPlays((n) => n + 1) }}>{children}</Video.Provider>;
 }
 
 /** What the video is, in words: the match once, or the event's stream (the card's title already names the event). */
@@ -149,6 +150,9 @@ export function useClips(): { clip: (href: string) => SearchVideoItem | undefine
   };
 }
 
+/** Whether the answer's video has been read (false on a first paint, before it arrives): only then may a card say none. */
+export const useVideoKnown = (): boolean => useContext(Video).known;
+
 /** Whether the answer has any video at all (its own, or a listed match's clip). */
 export function useAnyVideo(): boolean {
   const v = useContext(Video).video;
@@ -187,7 +191,9 @@ function matchLinks(stat: StatAnswer): string[] {
  *  at one event), else "No video for these matches — stats only.". A list of highlights or a video page says it in its
  *  own grid; an answer linking to the recording its match is in (AnswerVideo's watch line) says that instead. */
 export function NoVideoLine({ stat, className }: { stat: StatAnswer; className?: string }) {
-  const video = useContext(Video).video;
+  const { video, known } = useContext(Video);
+  // Not read yet (the page's first paint): never "no recording" ahead of a video that's on its way.
+  if (!known) return null;
   if (video?.main || video?.watch || (video?.rows && Object.keys(video.rows).length)) return null;
   if (stat.blocks.some((b) => b.kind === "videos" || (b.kind === "matches" && b.rows.length > 0 && b.rows.every((r) => r.note)))) return null;
   const links = matchLinks(stat);

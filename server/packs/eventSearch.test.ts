@@ -81,6 +81,13 @@ const online = async (q: string): Promise<SearchAnswer> => {
   expect(r.status, q).toBe(200);
   return r.json();
 };
+/** A versus the device builds itself (shared compareStat): the server's answer minus `video`, which the device can't
+ *  read with no signal. Absent there means "not read", so the page says nothing about video rather than "none". */
+const builtOnDevice = (on: SearchAnswer) => { const { video: _video, ...rest } = on; return rest; };
+const deviceBuilt = (off: SearchAnswer, on: SearchAnswer, q: string) => {
+  expect("video" in off, q).toBe(false);
+  expect(JSON.stringify(off), q).toBe(JSON.stringify(builtOnDevice(on)));
+};
 /** The answer the device gives with no signal, asked as the /search page asks (its preferred teams too). */
 const offline = async (q: string) => (await searchFromPacks(`/api/search?q=${encodeURIComponent(q)}&limit=25&answer=1&prefer=team:1111`, [pack]))!.body;
 
@@ -118,7 +125,7 @@ describe("the event pack's searches", () => {
       const on = await online(q);
       expect(on.hits[0], q).toMatchObject({ kind: "compare" });
       expect(on.stat?.intent, q).toBe("compare");
-      expect(JSON.stringify(await offline(q)), q).toBe(JSON.stringify(on));
+      deviceBuilt(await offline(q), on, q);
     }
     // Their matches together (both of Q1 and Q2 for 1111 and 3333; Q1 alone for all four), latest first.
     const together = (a: SearchAnswer) => a.stat?.blocks.find((b) => b.kind === "matches");
@@ -138,7 +145,7 @@ describe("the event pack's searches", () => {
     for (const q of ["1111 vs 3333 2024-25", "2222 vs 4444 vs 1111 2024-25", "1111 vs 3333 2025-26", "2222 vs 5555 2024-25"]) {
       const on = await online(q);
       expect(on.stat?.intent, q).toBe("compare");
-      expect(JSON.stringify(await offline(q)), q).toBe(JSON.stringify(on));
+      deviceBuilt(await offline(q), on, q);
     }
     expect((await offline("1111 vs 3333 2024-25")).stat?.title).toBe("1111 vs 3333, 2024–25");
   });
@@ -197,7 +204,7 @@ describe("the event pack's searches", () => {
   it("a season-named versus names every team on its matches together, however many teams the pack's team met", async () => {
     for (const q of ["1111 vs 2222 2024-25", "1111 vs 3333 2024-25"]) {
       const on = await online(q);
-      expect(JSON.stringify(await offline(q)), q).toBe(JSON.stringify(on));
+      deviceBuilt(await offline(q), on, q);
     }
     const rows = (await offline("1111 vs 2222 2024-25")).stat?.blocks.find((b) => b.kind === "matches");
     expect(rows).toMatchObject({ rows: [{ label: "Q1", opponents: [{ label: "29000 Squad29000" }, { label: "29001 Squad29001" }] }] });
