@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.2.2 — 2026-11-14
+## 6.2.3 — 2026-11-14
 
 Offline downloads pick up where they stopped when the connection drops, show real MB progress, and never leave a half pack that looks saved. The Download page is now one Offline page: what to save at the top, everything on this device below.
 
@@ -33,6 +33,20 @@ Offline downloads pick up where they stopped when the connection drops, show rea
 
 ### Changed
 - Delete really deletes: the predictions pack's bytes are removed from IndexedDB (they were overwritten with null), and every delete says "Freed 6.9 MB". The browser is asked to keep this site's storage on the first download of any kind. Event-day bundles show real bytes while downloading. The menu calls the page Offline. (`src/lib/packs.ts`, `src/lib/offline/bundles.ts`, `src/components/offline/EventBundles.tsx`) (#1462)
+## 6.2.2 — 2026-11-14
+
+Search can find matches with video, and asking to watch a question shows its answer with the video.
+
+### Highlights
+- [teams] Add "with video" to find only matches you can watch
+- [teams] "Who won … with video" answers the question and plays the match
+- [teams] Matches at one event play their first clip, not the stream's start
+
+### Changed
+- Search: "with video" (also "that have clips", "with a recording") is a filter: a team's matches, a place's or an event's best, closest or highest-scoring matches list only the ones with FIRST's own video or a clip in the event's recording, the card saying "With video". (`server/videos/recordings.ts` seasonClipKeys, `server/api/query/matchFind.ts`, `lexicon.ts`, `intents.ts`, `parse.ts`, `execute.ts`) (#1485)
+- Search: words asking to watch ("with video", "video", "highlights") beside a question whose answer didn't take them are dropped, so "who won decode with video" is the champions' card with their final playing. (`server/api/searchAnswer.ts`)
+- Search: a list of matches at one event plays its first match with a clip, from that match's start, rather than the event's recording from its start. (`server/api/answers/video.ts`)
+
 ## 6.2.1 — 2026-11-14
 
 Search plays the matches an answer lists, and says so plainly when there is no video.
