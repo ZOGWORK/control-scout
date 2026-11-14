@@ -14,7 +14,8 @@ A channel is official for an event when it is one of:
   with the meet's date ("2026-01-10 FTC League Meet # 4S - Southern Nevada"): the checked list takes that date as the
   day, and the watcher, which needs a broadcast date, sends such uploads to the owner,
 - the event's own organiser or league (NTX FTC for FiT-North, GEARS for the Michiana Premier Event, NorCal FIRST
-  Tech Challenge for Northern California's events, all named "NorCal …", …),
+  Tech Challenge for Northern California's events (watched for those named "NorCal …", as every one is from 2026-27;
+  older ones were checked by hand), …),
 - the event's own streamer: the channel that carries the event's broadcast with FIRST's official overlay (match
   label, teams, scores and rankings on screen). Westwood Robotics (FRC 2583, Austin) streams FiT-Central's GEMS
   league (Diamond and Emerald) and its Austin events. Its overlays-only test stream and the 2023 "Round Rock Gems"
