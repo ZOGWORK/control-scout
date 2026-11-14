@@ -104,7 +104,7 @@ export function ClipCoveragePanel() {
               <Section title="By season" description="Mark every event of one season not reviewed yet, whatever its category." collapsible summary="Mark a whole season reviewed.">
                 <div className="flex flex-wrap items-center gap-2">
                   <label className="text-sm" htmlFor="coverage-season">Season</label>
-                  <select id="coverage-season" className="min-h-9 rounded-md border border-line bg-background px-2 text-sm pointer-coarse:min-h-11"
+                  <select id="coverage-season" className="min-h-9 rounded-lg border border-line bg-card px-2 text-sm text-text-base outline-none focus-visible:ring-2 focus-visible:ring-ring/60 pointer-coarse:min-h-11"
                     value={seasonOpen.season} onChange={(e) => setSeason(Number(e.target.value))} data-coverage-season>
                     {d.seasons.map((s) => <option key={s.season} value={s.season}>{seasonLabel(s.season)} ({n(s.open)})</option>)}
                   </select>
