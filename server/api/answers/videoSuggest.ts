@@ -75,8 +75,8 @@ export async function videoCandidates(a: SearchAnswer, now = Date.now()): Promis
 /**
  * The answer with questions that do play, when the search asked to watch and its answer has nothing to play: a
  * "related" block first among its blocks. Each question is asked (`ask`, the page's own kept answer) and its video read
- * (`video`); only those with video are offered, at most three. Unchanged otherwise, when none plays, or when finding
- * them takes longer than `waitMs` (the answer never waits on them: the reads go on, so the next asking has them kept).
+ * (`video`); only those with video are offered, at most three. Unchanged when none of them plays. Past `waitMs` the answer
+ * goes with the ones found by then (it never waits longer), and the checks still to come never run.
  */
 export async function withVideoAlternatives(q: string, a: SearchAnswer, v: SearchVideo | undefined,
   ask: (q: string) => Promise<SearchAnswer>, video: (a: SearchAnswer) => Promise<SearchVideo | undefined>, waitMs = WAIT_MS,
