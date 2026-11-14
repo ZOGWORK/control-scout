@@ -1,21 +1,21 @@
 // The first-visit onboarding's acceptance journeys, against any running copy of the app:
 //
 //   npx tsx scripts/onboarding-journeys.ts                       (https://controlscout.org)
-//   npx tsx scripts/onboarding-journeys.ts --base http://localhost:5173 --out C:/tmp/onboarding
+//   npx tsx scripts/onboarding-journeys.ts --base http://localhost:5173
 //
 // Every journey starts from a fresh browser context (a clean profile: no storage, no cookies). In Chromium the
 // automation fingerprint is switched off (navigator.webdriver false, an ordinary user agent), so the site treats it
 // as a person and nothing is seeded. WebKit (the iPhone engine) can't hide that it's automated, so there the
 // automation opt-in `cs-onboarding-demo` is set, and nothing else.
 //
-// Desktop is 1440×900; phone is 390×844 with touch and a mobile user agent. Each step is screenshotted at both.
+// Desktop is 1440×900; phone is 390×844 with touch and a mobile user agent. It checks, it doesn't take pictures:
+// screenshots come from `npm run shots -- --onboarding` (AGENTS.md).
 // Prints PASS/FAIL per check and exits 1 on any failure.
 import { chromium, webkit, type Browser, type BrowserContext, type Page } from "playwright";
 
 const args = process.argv.slice(2);
 const opt = (name: string) => { const i = args.indexOf(`--${name}`); return i >= 0 ? args[i + 1] : undefined; };
 const BASE = (opt("base") ?? "https://controlscout.org").replace(/\/+$/, "");
-const OUT = opt("out");
 const ENGINES = (opt("engines") ?? "chromium,webkit").split(",");
 
 const UA_DESKTOP = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
@@ -59,7 +59,6 @@ async function answerPrivacy(page: Page) {
 const open = (page: Page) => page.locator(DIALOG).isVisible();
 const stepNow = async (page: Page) => Number(await page.locator(DIALOG).getAttribute("data-onboarding-step").catch(() => "0"));
 async function waitOpen(page: Page, ms = 15000) { await page.locator(DIALOG).waitFor({ state: "visible", timeout: ms }); }
-async function shot(page: Page, name: string) { if (OUT) await page.screenshot({ path: `${OUT}/${name}.png` }); }
 
 /** Everything that must NOT close it, tried on the step it's on. Returns the ways that did. */
 async function tryToEscape(page: Page, size: Size): Promise<string[]> {
@@ -115,7 +114,6 @@ async function runEngine(engine: string) {
         const skipBoxes: string[] = [];
         for (let s = 1; s <= STEPS; s++) {
           check((await stepNow(page)) === s, `${tag(size)} · on step ${s}`);
-          await shot(page, `${engine}-${size}-step${s}`);
           const leaks = await tryToEscape(page, size);
           check(leaks.length === 0, `${tag(size)} · J2 step ${s}: Escape, backdrop, outside ${size === "390" ? "taps" : "clicks"}, Ctrl K and "/" leave it open${leaks.length ? ` (closed by: ${leaks.join(", ")})` : ""}`);
           // Journey 6 (and desktop alike): readable and reachable, Skip in the same place on every step.
@@ -180,10 +178,8 @@ async function runEngine(engine: string) {
         await page.locator(`${DIALOG} [data-onboarding-next]`).click();
         await page.locator(`${DIALOG} input`).fill("4215");
         await page.locator(`${DIALOG} [data-onboarding-team-option="4215"]`).click({ timeout: 10000 });
-        await shot(page, `${engine}-${size}-step2-picked`);
         await page.locator(`${DIALOG} [data-onboarding-next]`).click();
         check((await page.locator(DIALOG).innerText()).includes("4215 next match"), `${tag(size)} · J4 step 3 uses the team just picked`);
-        await shot(page, `${engine}-${size}-step3-team`);
         await page.locator(`${DIALOG} [data-onboarding-next]`).click();
         const label = await page.locator(`${DIALOG} [data-onboarding-next]`).innerText();
         await page.locator(`${DIALOG} [data-onboarding-next]`).click();
@@ -192,7 +188,6 @@ async function runEngine(engine: string) {
         const mine = await page.evaluate(() => localStorage.getItem("cs-personal:myTeam"));
         check(!!mine && mine.includes("4215"), `${tag(size)} · J4 the picked team is now My team`);
         check(new URL(page.url()).pathname === "/my-team", `${tag(size)} · J4 with a team, it ends on My team (${new URL(page.url()).pathname})`);
-        await shot(page, `${engine}-${size}-after-finish`);
         await page.reload({ waitUntil: "domcontentloaded" }); await page.waitForTimeout(QUIET_MS);
         check(!(await open(page)), `${tag(size)} · J4 not back after a reload`);
         const rec = await page.evaluate(() => localStorage.getItem("cs-onboarding"));

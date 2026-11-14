@@ -74,7 +74,7 @@ export function Onboarding() {
   useEffect(() => () => releaseFirstRun(SLOT), []);
 
   if (!show || !rec) return null;
-  return <OnboardingDialog step={rec.step} />;
+  return <OnboardingDialog step={rec.step} savedHere={rec.team} />;
 }
 
 /** Where the dialog sits on a phone: the visible part of the screen, so the keyboard never pushes Skip off it. */
@@ -95,7 +95,7 @@ function useVisibleViewport(): { top: number; height: number } | null {
 const editable = (t: EventTarget | null) => t instanceof Element && !!t.closest("input, textarea, select, [contenteditable=true]");
 
 /** The locked dialog and its four steps. */
-export function OnboardingDialog({ step }: { step: number }) {
+export function OnboardingDialog({ step, savedHere }: { step: number; savedHere: number | null }) {
   const navigate = useNavigate();
   const { state, set } = usePersonal();
   const vv = useVisibleViewport();
@@ -107,8 +107,6 @@ export function OnboardingDialog({ step }: { step: number }) {
   const [team, setTeam] = useState<TeamHit | null>(null);
   // Came back to step 2 with a team already saved: show it picked.
   const savedTeam = state.myTeam;
-  /** The team this onboarding saved (not one the person already had): "I'm not on a team" takes back only this. */
-  const savedHere = useRef<number | null>(null);
 
   // The page behind can't be reached at all: no clicks, taps, focus or screen reader (Radix also hides it).
   useEffect(() => {
@@ -153,7 +151,9 @@ export function OnboardingDialog({ step }: { step: number }) {
     }
   };
   const saveTeamAndGo = () => {
-    if (team && team.number !== savedTeam) { set("myTeam", team.number); savedHere.current = team.number; }
+    // The team this onboarding saved (not one the person already had) goes in its record: "I'm not on a team"
+    // takes back only that one, even after a reload.
+    if (team && team.number !== savedTeam) { set("myTeam", team.number); moveOnboarding(2, team.number); return; }
     go(2);
   };
 
@@ -168,7 +168,7 @@ export function OnboardingDialog({ step }: { step: number }) {
     primary = { label: "Next", run: () => go(1) };
   } else if (step === 1) {
     title = "Which team are you on?";
-    body = <StepTeam inputRef={teamInputRef} picked={team} savedTeam={savedTeam} onPick={setTeam} onNone={() => { setTeam(null); if (savedHere.current != null && savedTeam === savedHere.current) { set("myTeam", null); savedHere.current = null; } go(2); }} onEnter={saveTeamAndGo} />;
+    body = <StepTeam inputRef={teamInputRef} picked={team} savedTeam={savedTeam} onPick={setTeam} onNone={() => { setTeam(null); if (savedHere != null && savedTeam === savedHere) { set("myTeam", null); moveOnboarding(2, null); return; } go(2); }} onEnter={saveTeamAndGo} />;
     primary = { label: team ? `Save ${team.number} and continue` : "Next", run: saveTeamAndGo };
   } else if (step === 2) {
     title = "Ask anything";
@@ -330,14 +330,15 @@ function StepTeam({ inputRef, picked, savedTeam, onPick, onNone, onEnter }: {
               ref={inputRef} value={q} onChange={(e) => setQ(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); enter(); } }}
               inputMode="search" autoComplete="off" enterKeyHint="search" placeholder="Team number or name"
-              role="combobox" aria-expanded={hits.length > 0} aria-controls={listId} aria-autocomplete="list"
+              aria-describedby={listId}
               className="h-[48px] min-w-0 flex-1 bg-transparent text-[16px] outline-none placeholder:text-text-muted md:h-11 md:text-[15px]"
             />
             {busy && <Loader2 className="size-4 shrink-0 animate-spin text-text-muted" aria-hidden />}
           </label>
-          <ul id={listId} role="listbox" aria-label="Teams" className="mt-2 grid gap-1">
+          <p id={listId} className="sr-only" aria-live="polite">{query && !busy && !failed ? `${hits.length} ${hits.length === 1 ? "team" : "teams"} found` : ""}</p>
+          <ul aria-label="Matching teams" className="mt-2 grid gap-1">
             {hits.map((h) => (
-              <li key={h.number} role="option" aria-selected={false}>
+              <li key={h.number}>
                 <button type="button" onClick={() => onPick(h)} className="flex min-h-[48px] w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors hover:bg-text-base/[0.06] focus-visible:bg-text-base/[0.06] focus-visible:outline-none" data-onboarding-team-option={h.number}>
                   <span className="w-14 shrink-0 font-mono text-[15px] font-semibold text-accent-text">{h.number}</span>
                   <span className="min-w-0 flex-1">

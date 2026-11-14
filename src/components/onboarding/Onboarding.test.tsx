@@ -311,6 +311,19 @@ describe("the steps", () => {
     expect(set).not.toHaveBeenCalled();
   });
 
+  it("after a reload, \"I'm not on a team\" still takes back the team this onboarding saved", async () => {
+    const set = vi.fn(() => true);
+    personal.current = { ...personal.current, state: { ...EMPTY_STATE, myTeam: 4215 }, set };
+    // Saved in step 2 earlier, then a reload and Back to step 2.
+    localStorage.setItem(ONBOARDING_KEY, JSON.stringify({ v: 1, status: "open", step: 1, team: 4215, at: "x" }));
+    mount("/");
+    await settle();
+    fireEvent.click(dialog()!.querySelector("[data-onboarding-no-team]")!);
+    await act(async () => { await vi.advanceTimersByTimeAsync(50); });
+    expect(set).toHaveBeenCalledWith("myTeam", null);
+    expect(readOnboarding()).toMatchObject({ step: 2, team: null });
+  });
+
   it("Change on a team already saved opens the search, and keeps that team until another is picked", async () => {
     const set = vi.fn(() => true);
     personal.current = { ...personal.current, state: { ...EMPTY_STATE, myTeam: 7149 }, set };

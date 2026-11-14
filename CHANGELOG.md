@@ -27,7 +27,7 @@ A new first-visit onboarding: four short steps on Home that show what Control Sc
 ### Added
 - The first-visit onboarding (`src/components/onboarding/Onboarding.tsx`, `src/lib/onboarding.ts`): a locked dialog with four steps (what Control Scout is; your team, saved as My team; search answers plain questions; where the main places are). It opens on Home for someone new (nothing saved on the device or account), after the privacy choice, holding the first-run slot. Skip, in the header on every step, is the only way out besides the last step's button: Escape, the backdrop, outside clicks or taps, focus leaving, Ctrl/⌘ K, "/" and route changes do nothing, and the page behind is inert. A reload brings it back on the same step; finished or skipped, it never starts by itself again (`cs-onboarding`, device-only). Never to crawlers or automated browsers (`cs-onboarding-demo` opts in).
 - Settings › About › Show the welcome again; Clear all local data forgets it.
-- `npm run shots -- --onboarding`, and `scripts/onboarding-journeys.ts`: the acceptance journeys against any running copy, in Chromium and WebKit, at 1440×900 and 390×844. (#1455)
+- `npm run shots -- --onboarding` for its screenshots, and `scripts/onboarding-journeys.ts`: the acceptance journeys (checks only) against any running copy, in Chromium and WebKit, at 1440×900 and 390×844. (#1455)
 
 ## 6.0.3 — 2026-11-13
 
