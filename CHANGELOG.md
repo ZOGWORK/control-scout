@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.0.5 — 2026-11-14
+## 6.0.7 — 2026-11-14
 
 The slow-connection pop-up is clearer: it says what it saw, what Lite changes, and gives two big buttons.
 
@@ -26,6 +26,32 @@ The slow-connection pop-up is clearer: it says what it saw, what Lite changes, a
 
 ### Changed
 - Slow connection pop-up: it names the evidence ("This page has been loading for 11 s.", ticking, or "3 requests couldn't reach the server, the last one 4 s ago."; once a slow page arrives it stops counting and says "This page took 12 s to load."), says in three lines what Control Scout Lite changes, and offers "Keep waiting" and "Switch to Lite" as 44 px buttons with a 44 px close. Body text moved from 12 px to 14 px, the card got real padding and a gold edge, and on desktop it sits clear of the sidebar's account footer. `cs-lite-demo` shows it at once for screenshots. (`src/components/layout/LiteSuggest.tsx`, `src/lib/liteSuggest.ts`) (#1459)
+## 6.0.6 — 2026-11-14
+
+The owner can now see how far new visitors get through the first-visit welcome, counted anonymously and only for visitors who allow usage statistics.
+
+### Highlights
+- [report] Owner console › Usage shows how far first-time visitors get through the welcome
+- [report] Where people skip, how many finish, and how many pick a team
+- [fixes] The privacy page lists exactly what the welcome counts
+
+### Added
+- `POST /api/collect/onboarding` (`server/onboardingStats.ts`): with consent to usage statistics only, the onboarding sends shown, each step reached (once, however often Back and Next go over it), and skipped on step N or finished (with whether a team was picked, never which). The server adds 1 to a daily total (`onboarding_daily`, migration 87): no IDs, address, user agent or cookie. Bots, Global Privacy Control and Do Not Track are accepted and not counted. Replays from Settings aren't counted.
+- Owner console › Usage › First-visit onboarding (`src/components/owner/OnboardingFunnel.tsx`): one zero-based bar per step, skips per step, finished and picked a team.
+- The privacy page's Usage statistics section names the welcome's counts.
+
+## 6.0.5 — 2026-11-14
+
+A recording whose start was cut off now gets its match clips. APOC 2026's Saturday part 1 had none; Q11 to Q31 all play now.
+
+### Highlights
+- [fixes] Every match on APOC 2026's Saturday part 1 now has its clip
+- [fixes] Recordings that lost their start now get match clips
+- [fixes] Each new clip was checked on the video: it opens on its own match
+
+### Fixed
+- A recording whose start was cut off (the stream ran for hours before play began, and the archive kept only the part with matches) had no clips at all: its chapters sat far from the clock, so the check threw the whole video away. When every chapter-named match sits the same distance from its clock time, and that distance is all the time the video is missing, each match is placed at its clock time less it. A video that lost time after play began still gets none (a drop-out could put a match on the one before it). On the live data: 75 more clips in 3 events (APOC 2026 Saturday part 1 Q11 to Q31, Baltic 2025-01-18, Tasman 2024-11-23), none changed elsewhere, all 75 checked frame by frame. (`src/shared/recording.ts`, `docs/match-clips.md`) (#1458)
+
 ## 6.0.4 — 2026-11-14
 
 A new first-visit onboarding: four short steps on Home that show what Control Scout does, set up your team, and point to search and the main places.

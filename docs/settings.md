@@ -173,6 +173,10 @@ main places are.
   welcome again opens it; Clear all local data forgets it.
 - **Device-only:** not synced. A team picked in step 2 is, and someone with a team never gets it started.
 - **Never to bots** or automated browsers (`isAutomated`); `cs-onboarding-demo` opts a driven browser in.
+- **Counted, anonymously:** with consent to usage statistics only, each first-time run sends shown, each step
+  reached (once), and skipped on step N or finished (with whether a team was picked, never which) to
+  `POST /api/collect/onboarding`, which adds 1 to a daily total (`onboarding_daily`, migration 87; no IDs). Replays
+  from Settings aren't counted. The owner console's Usage panel shows the funnel (`src/components/owner/OnboardingFunnel.tsx`).
 
 ### Add-to-home-screen nudge
 
