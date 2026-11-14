@@ -54,19 +54,19 @@ export async function seedOfficialChannels(now = Date.now(), again = false): Pro
   const at = new Date(now).toISOString();
   const known = new Set((await all<{ channel_id: string }>("SELECT channel_id FROM official_channels")).map((r) => String(r.channel_id)));
   const todo = OFFICIAL_CHANNELS.filter((c) => !known.has(c.channelId));
-  // A seeded channel that later gained a title pattern gets it, as long as the row is still the seed's: watched, same
-  // region, no pattern, never saved or removed by the owner (added_by, or an officialChannel.* audit entry). The write
-  // itself decides, so an owner save landing after the read above still stands.
-  const patterns = OFFICIAL_CHANNELS.filter((c) => c.titlePattern && known.has(c.channelId));
+  // A seeded channel's title pattern follows the seed's current one (a new, narrowed or dropped pattern), as long as the
+  // row is still the seed's: watched, same region, never saved or removed by the owner (added_by, or an
+  // officialChannel.* audit entry). The write itself decides, so an owner save landing after the read above still stands.
+  const patterns = OFFICIAL_CHANNELS.filter((c) => known.has(c.channelId));
   const writes = [
     ...todo.map((c) => ({
       sql: "INSERT INTO official_channels (channel_id, title, region, words, title_pattern, watch_from, added_at, added_by) VALUES (?, ?, ?, ?, ?, ?, ?, NULL) ON CONFLICT(channel_id) DO NOTHING",
       args: [c.channelId, c.title, c.region, c.words ?? null, c.titlePattern ?? null, at, at],
     })),
     ...patterns.map((c) => ({
-      sql: `UPDATE official_channels SET title_pattern = ? WHERE channel_id = ? AND region = ? AND title_pattern IS NULL AND removed_at IS NULL AND added_by IS NULL
+      sql: `UPDATE official_channels SET title_pattern = ? WHERE channel_id = ? AND region = ? AND title_pattern IS NOT ? AND removed_at IS NULL AND added_by IS NULL
               AND NOT EXISTS (SELECT 1 FROM owner_audit a WHERE a.action LIKE 'officialChannel.%' AND instr(a.details, official_channels.channel_id) > 0)`,
-      args: [c.titlePattern!, c.channelId, c.region],
+      args: [c.titlePattern ?? null, c.channelId, c.region, c.titlePattern ?? null],
     })),
   ];
   if (writes.length) await db().batch(writes, "write");
