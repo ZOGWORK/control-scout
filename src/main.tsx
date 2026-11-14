@@ -21,6 +21,7 @@ import { onFlags, startFlags } from "./lib/flags";
 import { RouteErrorBoundary } from "./components/RouteErrorBoundary";
 import { OptionalParts } from "./components/OptionalParts";
 import { captureInstallPrompt } from "./lib/installNudge";
+import { startConnectionWatch } from "./lib/connection";
 // The landing page is part of the main bundle, not lazy: its API calls then start in
 // the same render as the app's own (/api/meta, /api/auth/me), with no second round.
 import Home from "./pages/Home";
@@ -53,6 +54,7 @@ const ScoutQueueSync = named(() => import("./lib/scoutSpace"), "ScoutQueueSync")
 const OwnerRoute = named(() => import("./pages/OwnerRoute"), "OwnerRoute");
 const ErrorReportPrompt = named(() => import("./components/layout/ErrorReportPrompt"), "ErrorReportPrompt");
 const InstallNudge = named(() => import("./components/layout/InstallNudge"), "InstallNudge");
+const Onboarding = named(() => import("./components/onboarding/Onboarding"), "Onboarding");
 const PullToRefresh = named(() => import("./components/layout/PullToRefresh"), "PullToRefresh");
 
 const PAGES = {
@@ -115,6 +117,10 @@ installPrefetch((m) => { PAGES[m].preload().catch(() => { /* the page's own lazy
 
 // The browser's install offer can come before the app has mounted: hold it for the nudge (src/lib/installNudge.ts).
 captureInstallPrompt();
+
+// Is there internet (not just Wi-Fi)? Checked now and whenever it may have changed (src/lib/connection.ts): with none,
+// saved data answers at once instead of after a timeout.
+startConnectionWatch();
 
 // Uncaught errors and unhandled rejections offer a report (src/lib/errorReporting.ts), from the very start.
 installErrorReporting();
@@ -226,7 +232,7 @@ void ready.catch(() => { /* a failed load is retried (and shown) by the page's o
             <CanonicalSync />
             <SearchRobotsSync />
             <NoDataRobotsSync />
-            {/* The pit display (a TV nobody touches) gets no prompts over it: no privacy banner (unanswered, so no analytics), nudge or alerts. */}
+            {/* The pit display (a TV nobody touches) gets no prompts over it: no privacy banner (unanswered, so no analytics), onboarding, nudge or alerts. */}
             <NotOnBareRoute><ConsentBanner /></NotOnBareRoute>
             {/* In the main bundle, not a chunk of its own: it's for when chunks are crawling (src/lib/liteSuggest.ts). */}
             <NotOnBareRoute><LiteSuggest /></NotOnBareRoute>
@@ -238,6 +244,7 @@ void ready.catch(() => { /* a failed load is retried (and shown) by the page's o
               <LitePackSync />
               <NotOnBareRoute><SeasonUpdateWatcher /></NotOnBareRoute>
               <ScoutQueueSync />
+              <NotOnBareRoute><Onboarding /></NotOnBareRoute>
               <NotOnBareRoute><InstallNudge /></NotOnBareRoute>
               <NotOnBareRoute><PullToRefresh /></NotOnBareRoute>
             </OptionalParts>

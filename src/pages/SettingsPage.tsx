@@ -23,6 +23,7 @@ import { useMeta, useTitle } from "../lib/meta";
 import { usePersonal, type AccountUser, type AuthProviders } from "../lib/personal";
 import { resetConsent, useConsent } from "../lib/consent";
 import { resetInstall } from "../lib/installNudge";
+import { openOnboarding, resetOnboarding } from "../lib/onboarding";
 import { clearLocalScouting, localScoutEntries, SCOUT_CHANGED } from "../lib/scouting";
 import { clearRecentSearches } from "../components/search/discover";
 import { applyScoutImport, downloadJson, importMessage, importRows, planKey, previewScoutImport, scoutExportJson, type DuplicatePolicy, type ImportPreview } from "../lib/scoutImport";
@@ -621,7 +622,7 @@ function Privacy({ onOpen }: { onOpen: (id: SectionId) => void }) {
       </Group>
       <Group title="Remove data">
         <Row label="Clear all local data" description={user ? "Wipes this device. Your account data is untouched." : "Wipes everything Control Scout stored on this device."}>
-          <Button variant="outline" size="sm" onClick={() => { clearLocal(); clearLocalScouting(); try { localStorage.clear(); } catch { /* storage unavailable */ } resetConsent(); resetInstall(); clearRecentSearches(); toast.success("Local data cleared"); }}>Clear</Button>
+          <Button variant="outline" size="sm" onClick={() => { clearLocal(); clearLocalScouting(); try { localStorage.clear(); } catch { /* storage unavailable */ } resetConsent(); resetOnboarding(); resetInstall(); clearRecentSearches(); toast.success("Local data cleared"); }}>Clear</Button>
         </Row>
         {user ? (
           <Row label="Delete account" description="Removes your account and everything synced to it: tracking, shortlist, scouting notes, video links. Recordings on this device are separate (Offline data).">
@@ -675,11 +676,15 @@ const APP_RELEASE = currentRelease();
 
 function About() {
   const meta = useMeta();
+  const navigate = useNavigate();
   // Error reports switched off by the owner: no bug report box (the contact form below still works).
   const reportsOn = useFlag("errorReporting");
   return (
     <div>
       <Group title="This app">
+        <Row label="Show the welcome again" description="The four short steps a first visit gets: what's here, your team, search and where things are.">
+          <Button variant="outline" size="sm" className="max-sm:h-[44px]" onClick={() => { openOnboarding(); navigate("/"); }} data-onboarding-replay="">Show it</Button>
+        </Row>
         <Row label="What's new" description={`Every release of Control Scout, newest first.${APP_RELEASE ? ` This is v${APP_RELEASE}.` : ""}`}>
           <Button variant="outline" size="sm" onClick={() => openWhatsNew()}><Megaphone /> What's new</Button>
         </Row>
