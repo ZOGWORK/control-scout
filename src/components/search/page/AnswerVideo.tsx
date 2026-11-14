@@ -176,7 +176,7 @@ export function RowPlay({ href, label, className }: { href: string; label: strin
  *  that link to a match; never a table of matches still to play, which no one has filmed yet). */
 function matchLinks(stat: StatAnswer): string[] {
   const isMatch = (h: string | undefined): h is string => !!h && /^\/events\/\d{4}\/[^/?#]+\?(?:[^#]*&)?match=/.test(h);
-  return [stat.headline?.href, ...stat.blocks.flatMap((b) => (b.kind === "matches" || (b.kind === "table" && !b.upcoming) ? b.rows.map((r) => r.href) : []))].filter(isMatch);
+  return [stat.headline?.upcoming ? undefined : stat.headline?.href, ...stat.blocks.flatMap((b) => (b.kind === "matches" || (b.kind === "table" && !b.upcoming) ? b.rows.map((r) => r.href) : []))].filter(isMatch);
 }
 
 /** One line when an answer lists matches and none of them has video: "No recording for this event — stats only." (all
