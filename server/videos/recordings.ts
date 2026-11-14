@@ -226,7 +226,9 @@ export function seasonClipKeys(season: number, now = Date.now()): Promise<Set<st
     const own = await all<{ code: string; level: string; series: number; number: number; video: string }>("SELECT code, level, series, number, video FROM matches WHERE season = ? AND played = 1 AND video IS NOT NULL AND video != ''", [season]);
     // Only a video an answer can play (a YouTube link), as answerVideo and the event page read it.
     for (const r of own) if (youtubeId(String(r.video))) out.add(`${r.code}|${r.level}|${Number(r.series)}|${Number(r.number)}`);
-    const recs = [...(await seasonRecordings(season))].filter(([, r]) => [r.meta, ...(r.more ?? []).map((d) => d.meta)].some((m) => m?.status === "ok" && m.start));
+    // A recording with a broadcast start, or one with matches read off its own frames (an upload, a cut-short video).
+    const recs = [...(await seasonRecordings(season))].filter(([code, r]) => [r.meta, ...(r.more ?? []).map((d) => d.meta)].some((m) => m?.status === "ok" && m.start)
+      || [r, ...(r.more ?? [])].some((d) => hasFrames(d.videoId, code)));
     for (let i = 0; i < recs.length; i += 200) {
       const part = recs.slice(i, i + 200);
       const rows = await all<{ code: string; level: string; series: number; number: number; label: string; time: string; timezone: string | null }>(
