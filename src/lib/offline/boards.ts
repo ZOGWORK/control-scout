@@ -8,7 +8,7 @@ import type { Db } from "./readers";
 import { BOARDS_TABLE } from "../../shared/packSchema";
 import { packPath } from "../../shared/eventBundle";
 import { parsePlaces, isWeek, RANKED_MIN_MATCHES, type RankingPlaces, type RankingsResponse } from "../../shared/rankings";
-import { rankingCountries, rankingsFrom, readLiveList, readMine, readSnapshot, readSwing, readWeekList, readWeeks, type RankingRows } from "../../shared/rankingsBoard";
+import { baselineWeek, rankingCountries, rankingsFrom, readLiveList, readMine, readSnapshot, readSwing, readWeekList, readWeeks, type RankingRows } from "../../shared/rankingsBoard";
 import { projectRecords, recordsBoardAsk } from "../../shared/recordsBoard";
 import type { RecordsResponse } from "../../shared/statCatalog";
 
@@ -76,7 +76,13 @@ export async function readRankings(db: Db, season: number, search: URLSearchPara
   const weeks = await readWeeks(all, season);
   const held = new Set(db.all<{ week: string }>("SELECT DISTINCT week FROM ranking_snapshots WHERE season = ?", [season]).map((r) => r.week));
   if (week && !weeks.includes(week)) return null;
-  if (week && !held.has(week)) throw new NotSaved(`The ranking for the week of ${week} isn't saved on this device (the latest weeks are). It needs a connection.`);
+  const current = Number(info(db, "current_season")) || season;
+  // A past week is shown only with the week it's measured against (its movement), exactly as online; the pack keeps
+  // that one extra week's rows for its oldest shown week.
+  const base = week ? baselineWeek(weeks, season, week, now, current) : null;
+  if (week && (!held.has(week) || (base != null && !held.has(base)))) {
+    throw new NotSaved(`The ranking for the week of ${week} isn't saved on this device (the latest weeks are). It needs a connection.`);
+  }
   const version = info(db, "data_version");
   return rankingsFrom({ season, week, places, page }, {
     weeks,
@@ -84,7 +90,7 @@ export async function readRankings(db: Db, season: number, search: URLSearchPara
     snapshot: async (w) => (held.has(w) ? readSnapshot(all, season, w) : null),
     swing: (teams) => readSwing(all, season, teams),
     asOf: version && version !== "0" ? version : null,
-    currentSeason: Number(info(db, "current_season")) || season,
+    currentSeason: current,
   }, now);
 }
 

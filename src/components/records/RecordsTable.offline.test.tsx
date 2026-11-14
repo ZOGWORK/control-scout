@@ -6,6 +6,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, useLocation } from "react-router-dom";
 
 const REFUSED = "Saved for offline: the first pages of this table as it opens. Filters and other sorts need a connection.";
+// The saved answer: one row, so a test can see it's what the table shows.
+const SAVED = vi.hoisted(() => ({ season: 2025, scope: "teamSeason", filter: null, sort: "totalPointsNpOpr", dir: "desc", page: 1, pageSize: 50, total: 1,
+  columns: ["teamName", "totalPointsNpOpr"], rows: [{ season: 2025, team: 4215, stats: { teamName: "Saved Row Robotics", totalPointsNpOpr: 99.5 } }] }));
 vi.mock("../../lib/api", async (orig) => {
   const real = await orig<typeof import("../../lib/api")>();
   return {
@@ -14,8 +17,9 @@ vi.mock("../../lib/api", async (orig) => {
       const records = !!path && /^\/api\/records\/\d+\/teams\?/.test(path);
       if (!records) return { data: undefined, error: undefined, loading: false, reload: () => {} };
       const sp = new URL(path!, "http://x").searchParams;
-      const saved = (sp.get("sort") ?? "totalPointsNpOpr") === "totalPointsNpOpr" && !sp.get("dir") && Number(sp.get("page") ?? 1) === 1;
-      if (saved) return { data: { rows: [], total: 0, page: 1, pageSize: 50 }, error: undefined, loading: false, reload: () => {} };
+      // The saved view: the default sort in its default direction (recordsUrl always sends dir), page 1.
+      const saved = (sp.get("sort") ?? "totalPointsNpOpr") === "totalPointsNpOpr" && (sp.get("dir") ?? "desc") === "desc" && Number(sp.get("page") ?? 1) === 1;
+      if (saved) return { data: SAVED, error: undefined, loading: false, reload: () => {} };
       const error = Object.assign(new Error(REFUSED), { offline: true, status: 0 });
       return { data: undefined, error, loading: false, reload: () => {} };
     },
@@ -34,7 +38,13 @@ const mount = (url: string) => render(
   </TooltipProvider></MemoryRouter>,
 );
 
-beforeEach(() => { vi.stubGlobal("matchMedia", (query: string) => ({ matches: false, media: query, addEventListener() {}, removeEventListener() {} })); });
+class NoObserver { observe() {} unobserve() {} disconnect() {} }
+beforeEach(() => {
+  vi.stubGlobal("matchMedia", (query: string) => ({ matches: false, media: query, addEventListener() {}, removeEventListener() {} }));
+  // The saved rows render a table (it measures itself).
+  vi.stubGlobal("ResizeObserver", NoObserver);
+  vi.stubGlobal("IntersectionObserver", NoObserver);
+});
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 describe("records table offline, no filters", () => {
@@ -46,11 +56,20 @@ describe("records table offline, no filters", () => {
     fireEvent.click(screen.getByRole("button", { name: /Back to the saved view/ }));
     expect(search).not.toContain("sort=");
     expect(screen.queryByText("This view needs a connection")).toBeNull();
+    // The saved answer is what shows now.
+    expect(screen.getAllByText("Saved Row Robotics").length).toBeGreaterThan(0);
   });
   it("a page past the saved ones says so too", () => {
     mount("/teams?view=season&season=2025&page=3");
     expect(screen.getByText("This view needs a connection")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /Back to the saved view/ }));
     expect(search).not.toContain("page=");
+    expect(screen.queryByText("This view needs a connection")).toBeNull();
+    expect(screen.getAllByText("Saved Row Robotics").length).toBeGreaterThan(0);
+  });
+  it("the saved view itself (dir=desc, as recordsUrl sends it) shows its rows", () => {
+    mount("/teams?view=season&season=2025");
+    expect(screen.queryByText("This view needs a connection")).toBeNull();
+    expect(screen.getAllByText("Saved Row Robotics").length).toBeGreaterThan(0);
   });
 });

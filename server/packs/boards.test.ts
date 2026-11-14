@@ -29,6 +29,7 @@ import type { RecordScope } from "../../src/shared/statCatalog";
 
 const S = CURRENT_SEASON, PAST = 2025;
 const W0 = weekOf(Date.now()), W1 = weekOf(Date.now() - WEEK_MS), W2 = weekOf(Date.now() - 2 * WEEK_MS), W3 = weekOf(Date.now() - 3 * WEEK_MS);
+const W4 = weekOf(Date.now() - 4 * WEEK_MS);
 let server: Server;
 let base = "";
 let dir = "";
@@ -59,6 +60,7 @@ async function seed() {
     for (const [t, rank, rating] of rows) await run("INSERT INTO ranking_snapshots (season, week, team, rank, rating) VALUES (?, ?, ?, ?, ?)", [S, week, t, rank, rating]);
     await run("INSERT INTO ranking_weeks (season, week, teams, taken_at) VALUES (?, ?, ?, ?)", [S, week, rows.length, new Date().toISOString()]);
   };
+  await snap(W4, [[104, 1, 3], [101, 2, 2]]);
   await snap(W3, [[101, 1, 5], [104, 2, 4]]);
   await snap(W2, [[101, 1, 10], [102, 2, 9], [103, 3, 8], [104, 4, 7]]);
   await snap(W1, [[104, 1, 75], [101, 2, 70], [9999, 3, 68], [103, 4, 65], [102, 5, 60]]);
@@ -113,7 +115,7 @@ afterAll(() => { server?.close(); try { rmSync(dir, { recursive: true, force: tr
 const plain = (x: unknown) => JSON.parse(JSON.stringify(x));
 
 describe("world ranking offline = the server's", () => {
-  const paths = ["", "?region=USA:TX", "?region=USA,Canada", "?page=2", `?week=${W0}`, `?week=${W1}`];
+  const paths = ["", "?region=USA:TX", "?region=USA,Canada", "?page=2", `?week=${W0}`, `?week=${W1}`, `?week=${W2}`];
   for (const q of paths) {
     it(`/api/rankings${q || " (live)"}`, async () => {
       const online = await get(`/api/rankings?season=${S}${q ? `&${q.slice(1)}` : ""}`);
@@ -134,9 +136,18 @@ describe("world ranking offline = the server's", () => {
       expect(plain(await readRankingPlaces(packs.get(S)!, S, team))).toEqual(online.body);
     }
   });
-  it(`keeps only the newest ${RANKING_PACK_WEEKS} weeks' rows; an older week says it needs a connection`, async () => {
-    expect((await readRankings(packs.get(S)!, S, new URLSearchParams()))!.weeks).toEqual([W0, W1, W2, W3]);
-    await expect(readRankings(packs.get(S)!, S, new URLSearchParams(`week=${W3}`))).rejects.toThrow(NotSaved);
+  it(`shows the newest ${RANKING_PACK_WEEKS} weeks (the oldest with its movement, as online); older ones say they need a connection`, async () => {
+    const db = packs.get(S)!;
+    expect((await readRankings(db, S, new URLSearchParams()))!.weeks).toEqual([W0, W1, W2, W3, W4]);
+    // W2, the oldest shown, has real movement against W3 (the extra week's rows), the server's own.
+    const w2 = await readRankings(db, S, new URLSearchParams(`week=${W2}`));
+    expect(w2!.baseline).toBe(W3);
+    expect(w2!.rows.find((r) => r.team === 102)).toMatchObject({ move: "new" });
+    expect(w2!.rows.find((r) => r.team === 101)).toMatchObject({ move: 0, dRating: 5 });
+    // W3's rows are there only as W2's baseline: shown, it would lack its own movement (W4), so it isn't.
+    await expect(readRankings(db, S, new URLSearchParams(`week=${W3}`))).rejects.toThrow(NotSaved);
+    await expect(readRankings(db, S, new URLSearchParams(`week=${W4}`))).rejects.toThrow(NotSaved);
+    expect(db.all("SELECT DISTINCT week FROM ranking_snapshots ORDER BY week DESC").map((r: any) => r.week)).toEqual([W0, W1, W2, W3]);
   });
 });
 

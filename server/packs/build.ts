@@ -153,13 +153,15 @@ export async function buildFull(season: number, version: string, dir: string, lo
     contents: `Every ${seasonInfo(season).label} ${seasonInfo(season).game} event, team, match (scores, breakdowns, penalties, lineups), ranking, alliance, award and computed stat — a plain SQLite file.` };
 }
 
-/** Copy the season's ranking weeks (all) and, for the current season, the newest RANKING_PACK_WEEKS weeks' rows into a pack. */
+/** Copy the season's ranking weeks (all) and, for the current season, the newest RANKING_PACK_WEEKS weeks' rows plus the
+ *  week before them (the oldest one's movement) into a pack. */
 export async function copyRankingTables(out: Client, season: number): Promise<number> {
   for (const t of RANKING_TABLES) await out.execute(t.ddl);
   const weeks = (await all<{ week: string }>("SELECT week FROM ranking_weeks WHERE season = ? ORDER BY week DESC", [season])).map((r) => r.week);
   // The current season only: a finished season's live ranking has no "last week", so its weeks' rows would only serve
   // the week picker's past views (those need a connection).
-  const kept = season === CURRENT_SEASON ? weeks.slice(0, RANKING_PACK_WEEKS) : [];
+  // Plus one more week's rows: the oldest week shown offline is measured against the week before it, as online.
+  const kept = season === CURRENT_SEASON ? weeks.slice(0, RANKING_PACK_WEEKS + 1) : [];
   const snaps = kept.length ? await all<any>(`SELECT season, week, team, rank, rating FROM ranking_snapshots WHERE season = ? AND week IN (${kept.map(() => "?").join(",")})`, [season, ...kept]) : [];
   await out.batch(weeks.map((w) => ({ sql: "INSERT INTO ranking_weeks (season, week) VALUES (?, ?)", args: [season, w] })), "write");
   for (let i = 0; i < snaps.length; i += 1000) {
