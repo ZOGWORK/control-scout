@@ -17,6 +17,12 @@ A channel is official for an event when it is one of:
 A team's channel, a spectator's upload, a re-upload or a local TV broadcast is never used, even of the same event.
 `server/data/officialVideos.json` lists the channels each kept video came from.
 
+Regional streamers from the owner's audited list (2026-11-14), each read through the YouTube Data API's uploads list
+and checked by hand: CircuitRunners Robotics (Georgia's Marietta-Wheeler league and Northwest League Tournament, whose
+day is in two broadcasts, named Part 1 and Part 2 in broadcast order) and Microchips & Queso (Texas's Queso Bowl).
+Sharpe Pursuits' one FTC stream, the 2026 North Carolina Championship, is FIRST's own link for that event, and the
+channel (an event company) isn't watched.
+
 The owner's audited channel list (2026-11-14) adds four FIRST delivery partners: USTEM Foundation (Kazakhstan),
 Robotique FIRST France, Associazione Artù APS (Italy) and the Fikret Yüksel Foundation (Türkiye). It also adds The
 PRC Channel, the school channel that streamed Thailand's 2025 championship. That's its only event so far, so it's the
