@@ -25,7 +25,7 @@ A search answer never says "no recording" before its video has loaded.
 - [fixes] Search answers say "no video" only when it's true
 
 ### Fixed
-- Search: a page's first paint carries its answer without the video, and the answer said "No recording for this event — stats only." until the video arrived. The API now sends `video: null` when it has read the video and found none, and the line shows only then. (`server/app.ts`, `src/shared/api.ts`, `src/components/search/page/AnswerVideo.tsx`) (#PRNUM)
+- Search: a page's first paint carries its answer without the video, and the answer said "No recording for this event — stats only." until the video arrived. The API now sends `video: null` when it has read the video and found none, and the line shows only then. (`server/app.ts`, `src/shared/api.ts`, `src/components/search/page/AnswerVideo.tsx`) (#1497)
 
 ## 6.2.8 — 2026-11-14
 
