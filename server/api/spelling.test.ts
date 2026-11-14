@@ -5,7 +5,7 @@ import { migrate, openDb, run, setDb } from "../db";
 import { rebuildSearch } from "../stats/job";
 import { CURRENT_SEASON } from "../data/seasons";
 import { searchAnswer } from "./searchAnswer";
-import { buildVocab, correctQuery, correctWord, looseWord, splitWord, strength } from "./spelling";
+import { buildVocab, correctQuery, correctWord, looseWord, spelledWith, splitWord, strength } from "./spelling";
 import type { SearchAnswer } from "../../src/shared/api";
 
 const S = CURRENT_SEASON;
@@ -190,5 +190,18 @@ describe("searchAnswer with spelling", () => {
   });
   it("a quoted phrase asks for exactly those words", async () => {
     expect((await searchAnswer('"hypnotc robotics"', { learn: false })).didYouMean).not.toBe("hypnotic robotics");
+  });
+});
+
+describe("spelledWith", () => {
+  // Eight events spell "Winterberry"; one stored name drops its "i".
+  const v = buildVocab([], [
+    ...["Arlington", "Waverly", "Denver", "Cedar Falls", "Valley", "Mall", "Tournament", "Square"].map((p, i) => ({ code: `USIAW${i}`, name: `Winterberry ${p}`, city: "Waterloo", state: "IA" })),
+    { code: "USIAWX", name: "Wnterberry Waterloo", city: "Waterloo", state: "IA" },
+  ]);
+  it("a name's one-off spelling beside the usual one reads as a typo; the usual one reads right", () => {
+    expect(spelledWith("Wnterberry Waterloo highlights 2026-27", v)).toBe(false);
+    expect(spelledWith("Winterberry Waverly highlights 2026-27", v)).toBe(true);
+    expect(spelledWith("4215 highlights 2025-26", v)).toBe(true);
   });
 });
