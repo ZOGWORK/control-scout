@@ -32,5 +32,12 @@ describe("missingSignature", () => {
     expect(missingSignature(a)).toBe(missingSignature([...a]));
     // The same match still missing, now with its real start: asks again.
     expect(missingSignature([{ ...a[0], time: "2026-03-07T14:00:00" }, a[1]])).not.toBe(missingSignature([{ ...a[0], time: "2026-03-07T14:00:00.5" }, a[1]]));
+    // The same matches missing, the recording swapped for another video: asks again.
+    expect(missingSignature(a, ["videoAAAAAA"])).not.toBe(missingSignature(a, ["videoBBBBBB"]));
+  });
+
+  it("a video holding no played match is neutral, never a gap", async () => {
+    const { chipTone } = await import("../components/contributors/RecordingGaps");
+    expect([chipTone({ matches: 0, clipped: 0 }), chipTone({ matches: 5, clipped: 5 }), chipTone({ matches: 5, clipped: 3 })]).toEqual(["none", "done", "short"]);
   });
 });
