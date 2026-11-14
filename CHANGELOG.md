@@ -25,7 +25,7 @@ When a search asks to watch and nothing has video, it offers questions that do.
 - [teams] Every offered question is checked to play before it's shown
 
 ### Changed
-- Search: an answer that asked to watch (highlights, video, clips, with video) and plays nothing adds "Questions with video": up to three searches that each play, the team's own seasons with a clip first, then events with clips (official ones, the same state or country first, the bigger events first, the nearest dates first). Each is asked before it's offered, within a 2.5-second wait. (`server/api/answers/videoSuggest.ts`, `server/app.ts`) (#PRNUM)
+- Search: an answer that asked to watch (highlights, video, clips, with video) and plays nothing adds "Questions with video": up to three searches that each play, the team's own seasons with a clip first, then events with clips (official ones, the same state or country first, the bigger events first, the nearest dates first). Each is asked before it's offered, within a 2.5-second wait. (`server/api/answers/videoSuggest.ts`, `server/app.ts`) (#1492)
 
 ## 6.2.2 — 2026-11-14
 
