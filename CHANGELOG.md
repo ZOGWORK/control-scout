@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.1.4 — 2026-11-14
+## 6.1.6 — 2026-11-14
 
 Search can find matches with video, and asking to watch a question shows its answer with the video.
 
@@ -25,9 +25,39 @@ Search can find matches with video, and asking to watch a question shows its ans
 - [teams] Matches at one event play their first clip, not the stream's start
 
 ### Changed
-- Search: "with video" (also "that have clips", "with a recording") is a filter: a team's matches, a place's or an event's best, closest or highest-scoring matches list only the ones with FIRST's own video or a clip in the event's recording, the card saying "With video". (`server/videos/recordings.ts` seasonClipKeys, `server/api/query/matchFind.ts`, `lexicon.ts`, `intents.ts`, `parse.ts`, `execute.ts`) (#1485)
+- Search: "with video" (also "that have clips", "with a recording") is a filter: a team's matches, a place's or an event's best, closest or highest-scoring matches list only the ones with FIRST's own video or a clip in the event's recording, the card saying "With video". (`server/videos/recordings.ts` seasonClipKeys, `server/api/query/matchFind.ts`, `lexicon.ts`, `intents.ts`, `parse.ts`, `execute.ts`) (#PRNUM)
 - Search: words asking to watch ("with video", "video", "highlights") beside a question whose answer didn't take them are dropped, so "who won decode with video" is the champions' card with their final playing. (`server/api/searchAnswer.ts`)
 - Search: a list of matches at one event plays its first match with a clip, from that match's start, rather than the event's recording from its start. (`server/api/answers/video.ts`)
+
+## 6.1.5 — 2026-11-14
+
+One download now takes a whole event offline: every team page, every match page and Compare for its teams work with no signal, with the same numbers as online.
+
+### Highlights
+- [offline] Download for offline on the event page, with its real size
+- [offline] Every team and match page of the event opens with no signal
+- [offline] Compare the event's teams offline, same numbers as online
+- [offline] Match videos say they need a connection instead of breaking
+
+### Added
+- The event pack (docs/event-bundle.md, "The event pack"): the event-day bundle now carries the server's own JSON for every team in the event (profile, season matches, report cards, schedule difficulty), every match (its detail and Know your match report), the event's advancement odds and pick ratings, and each team's Compare column. Every path is read through the function its route calls (`server/packs/eventApi.ts` `PACK_READS`, one list), identical answers and matches shared between team lists are stored once, and a pack missing a team or a match fails to build instead of shipping. Built once per data version, and built again in the background after a sync for events asked for in the last two days; a manifest whose build is still running answers "preparing" at once and the app asks again, so no request is held open on venue wifi. Measured on local data: a 34-team event 22 KB → 170 KB, a 48-team division 31 KB → 277 KB (gzipped).
+- With no signal, any read a saved pack holds is answered from it (`lib/offline/answer.ts`), however the app spells the path, and gets the 4-second offline fallback (`lib/api.ts`). A team the server doesn't have stays "not found" offline too.
+- Compare offline: assembled by `compareFromParts` (`src/shared/compare.ts`), the same function the server's comparison now uses, so the numbers match byte for byte. A team in no saved pack: "Team X isn't in your downloaded event packs".
+- The event page's button is now "Download for offline · <size>" (its real size): one tap saves the event; once saved it says "Saved for offline" with its size.
+
+### Changed
+- Match video buttons, with no connection or on a page from the saved pack, say "Needs a connection" (videos are never downloaded); the match's score and breakdown still show. (#1464)
+## 6.1.4 — 2026-11-14
+
+FiT-Central's GEMS league events in Austin now play their recordings from Westwood Robotics, the team channel that streams them with the official overlay: Diamond and Emerald League Meets back to 2024, the GEMS League Tournaments and the Austin semi-regionals. Saturday's Meet 2 shows its stream before, during and after it airs.
+
+### Highlights
+- [live] GEMS Diamond and Emerald League Meet 2 stream on their event pages
+- [history] GEMS league meets from 2024 on play their recordings
+- [history] Austin Semi-Regional and GEMS League Tournament recordings
+
+### Added
+- Official videos: Westwood Robotics (`UCyv6fRBcoK6mD6Br5M366yA`, read from the YouTube Data API) joins the official channels and the auto-watcher's list, for FiT-Central, CTX and GEMS events in Texas only. 21 of its recordings are checked against each event's name, city, dates, league (Diamond or Emerald) and meet number: the 2026 Diamond and Emerald League Meets 1 and 2 (Meet 2 listed before it airs, like FIRST's own livestream link), the 2025 and 2024 Meets 1 to 3, both GEMS League Tournaments, and the Austin semi-regionals. The overlays-only test stream, a scheduled stream that never aired, and the 2023 "Round Rock Gems" titles (whose city doesn't match the events) are left out. (`server/data/officialVideos.json`, `server/data/officialChannels.ts`, `docs/official-videos.md`) (#1468)
 
 ## 6.1.3 — 2026-11-14
 
