@@ -59,6 +59,32 @@ Measured on the local data (gzipped, 2025 season): USMIMIQ1, 34 teams and 54 mat
 with it (314 paths, its teams' 2026 Compare data included; 207 KB before the match pool); USCHSCMPRDCA, a 48-team division with 98 matches, 31 KB before,
 277 KB with it (438 paths; 369 KB before the pool). The event page offers it in one tap: "Download for offline · <size>".
 
+## Search
+
+FTC One Search works with no signal for what people type at a meet, by the same deterministic rules as online (no AI
+reads a query), from the saved packs (`src/shared/searchOffline.ts`, loaded by `lib/offline/search.ts`):
+
+1. **The server's own answer.** The pack holds `/api/search?answer=1` at the page's limit, for anyone (no preferred
+   teams, signed out), for every team by number and by name, the event by code and by name, and each match as search
+   reads one ("USMIMIQ1 Q12"; "Q12" alone is no match online either): `packSearchQueries` in `server/packs/eventApi.ts`,
+   each read through the route's own functions (`server/api/searchPage.ts`). Keys are `searchPackPath(q)`, so any case
+   and spacing finds it; the header's short list gets the first rows. The result cards' season numbers come with it
+   (`/api/teams-summary`, one team a path, put together in the order asked).
+2. **A versus of the pack's teams** ("12722 vs 17064", up to 4): built on the phone from the pack's `search` section
+   (`PackSearch`: each team's Compare facts, its search row and season rows; each season's compare scales) by the
+   functions the server builds it with (`src/shared/searchVersus.ts`), the two-team "read as" line by search's own
+   parser. Byte for byte the server's JSON (`server/packs/eventSearch.test.ts`).
+3. **Anything else**: the parser (`src/shared/query/parse.ts`, with the packs' teams and events as its names:
+   `src/shared/query/packContext.ts`) reads what it asks about, and the page says "This needs data that isn't in your
+   downloaded pack (it's about the 2025–26 season)", then each pack's event, teams, matches and data time, with links to
+   the pack's pages the query names (`SearchAnswer.notInPack`, `components/search/page/NotInPack.tsx`). A saved season
+   pack still answers plain results first.
+
+With a pack saved, `lib/api.ts` gives searches the 4-second offline fallback (with no network, the pack answers at
+once) instead of search's 10-second slow-search wait; a search the pack can't answer still waits for a server that is
+answering other requests. Measured for 2026 USMIMIQ1 (35 teams, no matches synced locally yet): 72 searches and 70
+card summaries, the pack 97 KB → 129 KB gzipped; the offline answer takes 2–45 ms to work out (Node, local data).
+
 ## Endpoints
 
 - `GET /api/bundles/:season/:code/manifest?team=N&workspace=ID`: the manifest (`BundleManifest`): contents, each
