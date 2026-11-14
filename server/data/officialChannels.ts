@@ -86,5 +86,10 @@ export const OFFICIAL_CHANNELS: OfficialChannelSeed[] = [
   // Town of Penfield Television (@PenfieldTV): a town channel that broadcasts NY Excelsior qualifiers with Penfield
   // Robotics. Upstate Excelsior events only; its uploads carry no broadcast date, so the watcher sends them to review.
   { channelId: "UCLctix0o61bACiWd6Oa-S5Q", title: "Town of Penfield Television (NY Excelsior)", region: "state=NY;name=Excelsior|Finger Lakes|Penfield|Corning|Peekskill|Clarkson|Albany|Buffalo|Utica|Syracuse|Ravena|Broadalbin|John Jay", words: "york excelsior penfield" },
+  // The owner's audited channels (2026-11-14), ids from the YouTube Data API (channels?forHandle). Overcharged
+  // (@overcharged12599, FTC 12599) streams Oregon's Rose City League; Leo RHS Robotics (@leoRHSrobotics, Roseburg HS)
+  // streams the SOAR League. FIRST's own Oregon event pages link both channels' streams. Each for its league only.
+  { channelId: "UCT6yIFUf6Wr_klDFpdmLsGg", title: "Overcharged (Rose City League)", region: "state=OR;name=\\bRose City\\b", words: "oregon" },
+  { channelId: "UC2MP84F_QCCnbLqHBFBxxeQ", title: "Leo RHS Robotics (SOAR League)", region: "state=OR;name=\\bSOAR\\b", words: "oregon" },
   { channelId: "UCal7624DPridi_9iKLrAbqw", title: "FIRST Australia", region: "country=Australia", words: "australia australian", titlePattern: "australian? (national )?championship|\\bAPOC\\b|asia pacific open" },
 ];
