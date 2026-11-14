@@ -84,7 +84,7 @@ export function rowRefs(a: SearchAnswer): (VideoRef & { href: string })[] {
   for (const b of a.stat?.blocks ?? []) {
     if (b.kind === "matches") for (const r of b.rows) add(r.href);
     // A table of matches still to play is no one's video yet.
-    else if (b.kind === "table" && !b.upcoming) for (const r of b.rows) add(r.href);
+    else if (b.kind === "table" && !b.upcoming) { for (const r of b.rows) if (!r.upcoming) add(r.href); }
     else if (b.kind === "videos") for (const t of b.tiles) add(t.href, MAX_TILES);
   }
   return [...out.values()];
