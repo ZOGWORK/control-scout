@@ -12,7 +12,9 @@ A channel is official for an event when it is one of:
   FIRST in Texas, FIRST Chesapeake, FTC Iowa, …),
 - the event's own organiser or league (NTX FTC for FiT-North, GEARS for the Michiana Premier Event, …),
 - or the channel FIRST's event page names as the livestream (FIRST HQ's "FIRST Tech Challenge" channel carries the
-  2026 Championship's division broadcasts, and FIRST's own event pages link its Day 4 videos).
+  2026 Championship's division broadcasts, and FIRST's own event pages link its Day 4 videos; FIRST's Oregon pages
+  link Overcharged's Rose City League streams and Leo RHS Robotics' SOAR League streams, so each is read for its
+  own league's other meets).
 
 A team's channel, a spectator's upload, a re-upload or a local TV broadcast is never used, even of the same event.
 `server/data/officialVideos.json` lists the channels each kept video came from.
