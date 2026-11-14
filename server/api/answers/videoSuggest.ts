@@ -224,10 +224,18 @@ export function warmVideoQuestions(o: WarmReads = {}): Promise<void> {
       const version = await (o.version ?? searchVersion)();
       if (fresh(version, o)) return;
       // The event-name typos for the data as it is now: the set in use may be the last version's, without a typo
-      // this one added (./nameTypos.ts keeps serving it while it builds the next). A build that hands back another
-      // version's set leaves this one unsure.
+      // this one added (./nameTypos.ts keeps serving it while it builds the next). Its build may be one started for the
+      // version before, so it is asked once more; still another version's, nothing chosen with it is published: the
+      // questions in use stay, unsure, and the next build waits.
       if (o.typosReady) await o.typosReady();
-      else if (!o.candidates) { await warmNameTypos(); if (nameTyposVersion() !== version) sure = false; }
+      else if (!o.candidates) {
+        await warmNameTypos();
+        if (nameTyposVersion() !== version) await warmNameTypos();
+        if (nameTyposVersion() !== version) {
+          if (gen === knownGen) { if (known) known = { ...known, version: "" }; settle(false); }
+          return;
+        }
+      }
       const qs: string[] = [];
       for (const c of [...new Set([...await (o.candidates ?? (() => videoCandidates(NO_ANSWER)))(), ...GENERAL])]) {
         if (qs.length >= OFFER_MAX || gen !== knownGen) break;
@@ -243,15 +251,21 @@ export function warmVideoQuestions(o: WarmReads = {}): Promise<void> {
       known = { version: at === knownClears && sure ? version : "", at: now(), qs, o };
       settle(sure);
     })();
-    build.catch(() => {});
-    // Past the cap the build is dropped: it never writes, and the next waits.
-    if (!(await within(build.then(() => true), o.buildMs ?? BUILD_MS, false))) { knownGen++; settle(false); }
+    // Past the cap the build is dropped: it never writes, and the next waits; one that failed (its version or typos
+    // read) waits the same. Only the build still current does either: a dropped one never touches a newer build or a
+    // wait since cleared.
+    const end = await within(build.then(() => "done" as const, () => "failed" as const), o.buildMs ?? BUILD_MS, "capped" as const);
+    if (end !== "done" && gen === knownGen) { if (end === "capped") knownGen++; settle(false); }
   })().finally(() => { if (knowing === mine) knowing = null; });
   knowing = mine;
   return mine;
 }
-/** The background set's questions, never the search's own. */
-const fallback = (q: string) => (known?.qs ?? []).filter((x) => x.toLowerCase() !== q.replace(/\s+/g, " ").trim().toLowerCase()).slice(0, OFFER_MAX);
+/** The background set's questions, never the search's own; none once the set is twice its age to rebuild (builds
+ *  failing that long): an old set is never offered for hours. */
+const fallback = (q: string) => {
+  if (!known || (known.o.now ?? Date.now)() - known.at > 2 * (known.o.ttlMs ?? KNOWN_TTL_MS)) return [];
+  return known.qs.filter((x) => x.toLowerCase() !== q.replace(/\s+/g, " ").trim().toLowerCase()).slice(0, OFFER_MAX);
+};
 /** Marks the background set stale (the owner's Clear caches, and tests): never read here, so a process with no
  *  database open opens none. */
 export function forgetVideoQuestions(drop = false) {
