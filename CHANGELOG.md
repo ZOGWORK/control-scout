@@ -24,7 +24,7 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 - [history] 1,538 clips now start where the video shows the match start
 
 ### Changed
-- `server/data/frameTimings.ts` holds the two-signal reader's starts for all 128 framed 2025 events (165 videos), in place of the 7 events shipped with 6.3.4. Against what's live: 30,273 of 34,423 played matches keep their clip as it is, 2,612 get a clip (456 read and confirmed, 2,156 between two agreeing reads), 1,538 move to the frames' second (1,256 by 30 s or less; 282 by more, all earlier in the video, across 23 events) and none lose a clip. 35 of them, one for every event with a move over 30 s plus 12 new ones, were checked by eye 30 s into the match: each shows that match running. (#PR)
+- `server/data/frameTimings.ts` holds the two-signal reader's starts for all 128 framed 2025 events (165 videos), in place of the 7 events shipped with 6.3.4. Against what's live: 30,273 of 34,423 played matches keep their clip as it is, 2,612 get a clip (456 read and confirmed, 2,156 between two agreeing reads), 1,538 move to the frames' second (1,256 by 30 s or less; 282 by more, all earlier in the video, across 23 events) and none lose a clip. 35 of them, one for every event with a move over 30 s plus 12 new ones, were checked by eye 30 s into the match: each shows that match running. (#1502)
 
 ## 6.3.6 — 2026-11-14
 
