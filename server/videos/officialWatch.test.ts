@@ -322,6 +322,19 @@ describe("the official-video watcher", () => {
     expect(out).toMatchObject({ seen: 1, added: 0, queued: 1 });
     expect(await get<any>("SELECT status, why FROM official_watch WHERE video_id = 'secondday01'")).toMatchObject({ status: "pending", why: expect.stringMatching(/USTXWAQ already plays matchesonly for 2026-01-24 \(Matches\): a second video of that day must name its part/) });
     expect(await get<any>("SELECT 1 FROM official_videos WHERE video_id = 'secondday01'")).toBeUndefined();
+
+    // Both name their parts: the day's "Awards" joins its "Matches".
+    uploads = [{ id: "wacoawards1", title: "FiT Waco Qualifier - Saturday Awards", published: "2026-01-25T04:00:00Z", start: "2026-01-24T22:30:00Z", minutes: 60 }];
+    expect(await runOfficialWatch(() => {}, { apiKey: "k", fetchImpl: fakeFetch, now: () => LATER + 864e5 })).toMatchObject({ seen: 1, added: 1, queued: 0 });
+    expect(await get<any>("SELECT code, day, part FROM official_videos WHERE video_id = 'wacoawards1'")).toMatchObject({ code: "USTXWAQ", day: "2026-01-24", part: "Awards" });
+
+    // The day's video names no part (a full day's stream): its "Awards" goes to review.
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, timezone, remote, hybrid, livestream, source) VALUES (2025, 'USTXBRQ', 'TX Brazos Qualifier', 'Qualifier', 'Bryan', 'TX', 'USA', '2026-01-31', '2026-01-31', 'America/Chicago', 0, 0, NULL, 'test')");
+    await run("INSERT INTO official_videos (video_id, season, code, kind, day, part, channel_id, title, source, added_at) VALUES ('brazosfull1', 2025, 'USTXBRQ', 'recording', '2026-01-31', NULL, ?, 'TX Brazos Qualifier - Saturday', 'list', 'x')", [TX]);
+    await run("INSERT INTO video_meta (video_id, status, start, end, duration, live, checked_at) VALUES ('brazosfull1', 'ok', '2026-01-31T15:00:00Z', '2026-01-31T23:00:00Z', 28800, 0, 'x')");
+    uploads = [{ id: "brazosaward", title: "FiT Brazos Qualifier - Awards", published: "2026-02-01T04:00:00Z", start: "2026-01-31T22:30:00Z", minutes: 60 }];
+    expect(await runOfficialWatch(() => {}, { apiKey: "k", fetchImpl: fakeFetch, now: () => LATER + 10 * 864e5 })).toMatchObject({ seen: 1, added: 0, queued: 1 });
+    expect(await get<any>("SELECT status, why FROM official_watch WHERE video_id = 'brazosaward'")).toMatchObject({ status: "pending", why: expect.stringMatching(/USTXBRQ already plays brazosfull1 for 2026-01-31: a second video of that day must name its part/) });
   });
 
   it("pages back through a channel's uploads to a stream scheduled before the watch, and stops at the lookback", async () => {
