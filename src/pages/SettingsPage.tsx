@@ -469,7 +469,7 @@ function OfflineData() {
         )}
       </Group>
       <OfflineUpdates />
-      <Group title="Offline pack" description={<>Packs let predictions run on this device with no connection, e.g. at a venue with no signal. <Link to="/download" className="underline">Download page</Link></>}>
+      <Group title="Offline pack" description={<>Packs let predictions run on this device with no connection, e.g. at a venue with no signal. <Link to="/download" className="underline">Offline page</Link></>}>
         <Row label="Offline predictions on this device" description={pack ? `Pack ${pack.version} · ${fmtBytes(pack.bytes)} · saved ${ago(new Date(pack.savedAt).toISOString())}` : "None saved yet."}>
           <Button variant="outline" size="sm" asChild><Link to="/download"><Download /> {pack ? "Open Download" : "Get the pack"}</Link></Button>
         </Row>

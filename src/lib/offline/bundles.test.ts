@@ -64,9 +64,21 @@ describe("event-day bundles on the device", () => {
     expect((await loadBundle(2025, "USTXQ1"))?.manifest.version).toBe("v1");
   });
 
+  it("a dropped connection is said as it is, never answered with a second whole download", async () => {
+    const m = serve("v1");
+    const calls: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+      calls.push(String(url));
+      if (String(url).includes("/manifest")) return new Response(JSON.stringify(m));
+      return new Response(new ReadableStream({ pull(c) { c.error(new TypeError("network error")); } }));
+    }));
+    await expect(downloadBundle({ season: 2025, code: "USTXQ1", team: 13, workspace: null }, undefined, m)).rejects.toThrow(/connection dropped/);
+    expect(calls).toEqual(["/api/bundles/2025/USTXQ1/file"]); // no fresh manifest, no second file request
+    expect(bundleFor(2025, "USTXQ1")).toBeNull();
+  });
   it("refuses bytes that don't match the manifest", async () => {
     const m = serve("v1");
-    vi.stubGlobal("fetch", vi.fn(async (url: string) => (String(url).includes("/manifest") ? new Response(JSON.stringify(m)) : new Response(new Uint8Array([1, 2])))));
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => (String(url).includes("/manifest") ? new Response(JSON.stringify(m)) : new Response(new Uint8Array(m.bytes)))));
     await expect(downloadBundle({ season: 2025, code: "USTXQ1", team: 13, workspace: null }, undefined, m)).rejects.toThrow(/checksum/);
     expect(bundleFor(2025, "USTXQ1")).toBeNull();
   });

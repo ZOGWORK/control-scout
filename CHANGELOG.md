@@ -15,6 +15,24 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 6.1.9 — 2026-11-14
+
+Offline downloads pick up where they stopped when the connection drops, show real MB progress, and never leave a half pack that looks saved. The Download page is now one Offline page: what to save at the top, everything on this device below.
+
+### Highlights
+- [offline] Downloads pick up where they stopped, even after a restart
+- [offline] Real progress, "5.7 MB of 45.3 MB", or "Paused at 24%"
+- [offline] Each pack shows its size; Delete says how much it freed
+- [offline] Save this event, a season, or the whole current season
+- [offline] Updates say what they bring and when the data is from
+
+### Added
+- One downloader for every offline file (season packs, the predictions pack, event packs): it keeps what it has received in IndexedDB in 512 KB pieces as they arrive, and after a dropped connection (or closing the app) asks only for the rest with `Range: bytes=<have>-` (If-Range with a strong ETag). A server that ignores the range, a range of a different file, or a file that changed starts again cleanly from the first byte. The bytes become a saved copy only once the whole file matches its published SHA-256; the pieces are deleted after the saved copy is swapped in. (`src/lib/offline/download.ts`, `src/lib/offline/useDownloads.ts`)
+- Season packs are also published gzipped (`.db.gz`, with its own size and SHA-256 in the manifest), and that is what the app downloads: browsers ask for a resumed range uncompressed, so resuming the plain `.db` would cost its raw size. The unzipped file is checked against the pack's own SHA-256 too. The plain `.db` stays for analysts. Each season pack also carries its played-match and event counts. (`server/packs/build.ts`)
+- Offline page (`/download`, "Offline" in the menu): This event / A season / Whole current season at the top, each with its download size; On this device below with every pack's size here, when its data is from ("Data from Nov 13, 8:09 PM"), what a newer release brings ("Newer data from Nov 14, 9:02 AM · 214 new matches from 3 more events"), Update and Delete; half downloads as "Paused at 24% · not saved yet" with Resume and Delete; one total and the browser's own storage estimate. (`src/pages/DownloadPage.tsx`, `src/lib/offline/storage.ts`)
+
+### Changed
+- Delete really deletes: the predictions pack's bytes are removed from IndexedDB (they were overwritten with null), and every delete says "Freed 6.9 MB". The browser is asked to keep this site's storage on the first download of any kind. Event-day bundles show real bytes while downloading. The menu calls the page Offline. (`src/lib/packs.ts`, `src/lib/offline/bundles.ts`, `src/components/offline/EventBundles.tsx`) (#1462)
 ## 6.1.8 — 2026-11-14
 
 Control Scout Lite now covers the whole app: Home, Search, Predict, Compare, Rankings, Scouting and Settings each have a light page, with the same answers and numbers as the full version.

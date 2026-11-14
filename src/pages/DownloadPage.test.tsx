@@ -16,7 +16,9 @@ let failSeason: number | null = null;
 let gate: Promise<void> | null = null;
 const toastErr = vi.fn(), toastOk = vi.fn();
 
-vi.mock("../lib/packs", async (orig) => ({ ...(await orig<typeof import("../lib/packs")>()), fetchManifest: async () => MANIFEST, packStatus: () => null, syncLite: async () => null }));
+// The predictions pack syncLite would leave (null: none); packStatus reads the same.
+const lite = vi.hoisted(() => ({ saved: null as null | { version: string; bytes: number; savedAt: number; builtAt: string; engineVersion: string } }));
+vi.mock("../lib/packs", async (orig) => ({ ...(await orig<typeof import("../lib/packs")>()), fetchManifest: async () => MANIFEST, packStatus: () => lite.saved, syncLite: async () => lite.saved }));
 vi.mock("../lib/offline/seasons", () => ({
   useSavedSeasons: () => saved,
   saveSeason: async (f: PackFile, _m: PackManifest, onProgress?: (d: number, t: number) => void) => {
@@ -35,13 +37,13 @@ vi.mock("../components/ui/sonner", () => ({ toast: Object.assign(vi.fn(), { succ
 vi.mock("../lib/personal", () => ({ usePersonal: () => ({ state: { settings: {} }, update: vi.fn() }) }));
 vi.mock("../lib/meta", async (orig) => ({ ...(await orig<typeof import("../lib/meta")>()), useTitle: () => {} }));
 
-const { default: DownloadPage, seasonSpan } = await import("./DownloadPage");
+const { default: DownloadPage, seasonSpan, getLite, releaseOrder, savingFrom } = await import("./DownloadPage");
 const { resetSeasonBatch, runSeasonBatch } = await import("../lib/offline/seasonBatch");
 const { TooltipProvider } = await import("../components/ui/overlay");
-const mount = () => render(<MemoryRouter><TooltipProvider><DownloadPage /></TooltipProvider></MemoryRouter>);
+const mount = (url = "/download?pick=season") => render(<MemoryRouter initialEntries={[url]}><TooltipProvider><DownloadPage /></TooltipProvider></MemoryRouter>);
 const sv = (season: number, sha: string) => ({ season, sha256: sha, version: "2026-09-01.1", bytes: 9_000_000, savedAt: 1 }) as unknown as SavedSeason;
 
-beforeEach(() => { saved = []; order.length = 0; failSeason = null; gate = null; resetSeasonBatch(); toastErr.mockClear(); toastOk.mockClear(); });
+beforeEach(() => { lite.saved = null; saved = []; order.length = 0; failSeason = null; gate = null; resetSeasonBatch(); toastErr.mockClear(); toastOk.mockClear(); });
 afterEach(cleanup);
 
 describe("Download page seasons", () => {
@@ -91,14 +93,14 @@ describe("Download page seasons", () => {
     await act(async () => {});
   });
 
-  it("keeps Remove off while a run is saving, so a waiting season can't be removed and then saved again", async () => {
+  it("keeps Delete off while a run is saving, so a waiting season can't be removed and then saved again", async () => {
     saved = [sv(2026, "old"), sv(2025, "old")];
     let open!: () => void;
     gate = new Promise((r) => { open = r; });
     mount();
     fireEvent.click(await screen.findByRole("button", { name: /Update all \(2\)/ }));
     await waitFor(() => expect(screen.getByText("Waiting to save…")).toBeTruthy());
-    for (const b of screen.getAllByRole("button", { name: /Remove/ })) expect((b as HTMLButtonElement).disabled).toBe(true);
+    for (const b of screen.getAllByRole("button", { name: /^Delete/ })) expect((b as HTMLButtonElement).disabled).toBe(true);
     open();
     await waitFor(() => expect(toastOk).toHaveBeenCalled());
   });
@@ -112,7 +114,7 @@ describe("Download page seasons", () => {
     await waitFor(() => expect(screen.getByRole("status", { name: "" })).toBeTruthy());
     first.unmount();
     mount();
-    expect(await screen.findByText(/Saving…/)).toBeTruthy();
+    expect(await screen.findByText(/Saving 2026–27…/)).toBeTruthy();
     expect((screen.getByRole("button", { name: /Download all/ }) as HTMLButtonElement).disabled).toBe(true);
     expect(await runSeasonBatch(MANIFEST.full, MANIFEST)).toBeNull();
     open();
@@ -126,5 +128,135 @@ describe("the lite pack's seasons", () => {
     expect(seasonSpan([2023, 2026, 2024])).toBe(", 2023–24 to 2026–27");
     expect(seasonSpan([2025])).toBe(", 2025–26");
     expect(seasonSpan([])).toBe("");
+  });
+});
+
+describe("the Offline page's layout", () => {
+  it("offers three choices, each with its download size", async () => {
+    mount("/download");
+    const group = await screen.findByRole("radiogroup", { name: "What to save" });
+    const radios = within(group).getAllByRole("radio");
+    expect(radios[0].textContent).toContain("This event");
+    expect(radios[1].textContent).toMatch(/A season.*10\.0 MB/);
+    expect(radios[2].textContent).toMatch(/Whole current season.*10\.0 MB/);
+    expect(radios[2].getAttribute("aria-checked")).toBe("true");
+    fireEvent.click(radios[1]);
+    expect(await screen.findByRole("list", { name: "Seasons" })).toBeTruthy();
+  });
+
+  it("a download that's whole and checked but not saved yet says so (not 'Paused'), and offers Save", async () => {
+    const { download, finishDownload, sha256Of } = await import("../lib/offline/download");
+    const data = new Uint8Array(3000).fill(4);
+    const sha = await sha256Of(data);
+    await download({ url: "/packs/v.db.gz", bytes: 3000, sha256: sha }, { owner: { kind: "season", id: "2026", label: "2026–27 season" }, fetch: (async () => new Response(data)) as unknown as typeof fetch });
+    mount("/download");
+    const row = await screen.findByText(/Downloaded and checked/);
+    expect(row.textContent).toContain("not saved yet");
+    expect(screen.queryByText(/Paused at/)).toBeNull();
+    expect(screen.getByRole("button", { name: /^Save$/ })).toBeTruthy();
+    await finishDownload(sha);
+  });
+
+  it("Whole current season counts only what this device still lacks", async () => {
+    saved = [sv(2026, "a")];
+    mount("/download");
+    const radios = within(await screen.findByRole("radiogroup", { name: "What to save" })).getAllByRole("radio");
+    expect(radios[2].textContent).toMatch(/Whole current season.*Saved$/);
+    expect(await screen.findByText(/is on this device and current/)).toBeTruthy(); // the panel below agrees
+  });
+
+  it("lists a half download as paused (never as saved), and Delete frees it", async () => {
+    const { download, partialDownloads } = await import("../lib/offline/download");
+    const data = new Uint8Array(4000).fill(7);
+    const dying = vi.fn(async () => new Response(new ReadableStream({ n: 0, pull(c) { if ((this as { n: number }).n++) c.error(new TypeError("network")); else c.enqueue(data.slice(0, 1000)); } } as UnderlyingDefaultSource<Uint8Array>)));
+    await download({ url: "/packs/x.db.gz", bytes: 4000, sha256: "f".repeat(64) }, { owner: { kind: "season", id: "2026", label: "2026–27 season" }, fetch: dying as unknown as typeof fetch }).catch(() => {});
+    mount("/download");
+    const row = await screen.findByText(/Paused at 25%/);
+    expect(row.textContent).toContain("not saved yet");
+    expect(screen.queryByRole("button", { name: "Delete 2026–27 season" })).toBeNull(); // not listed as a saved pack
+    fireEvent.click(screen.getByRole("button", { name: "Delete the paused 2026–27 season download" }));
+    await waitFor(() => expect(toastOk).toHaveBeenCalledWith("Freed 1 KB", expect.anything()));
+    expect(await partialDownloads()).toEqual([]);
+  });
+
+  it("Resume on a paused predictions pack that still can't finish says so (syncLite itself stays quiet)", async () => {
+    const { download, finishDownload } = await import("../lib/offline/download");
+    const data = new Uint8Array(4000).fill(9);
+    const dying = vi.fn(async () => new Response(new ReadableStream({ n: 0, pull(c) { if ((this as { n: number }).n++) c.error(new TypeError("network")); else c.enqueue(data.slice(0, 2000)); } } as UnderlyingDefaultSource<Uint8Array>)));
+    await download({ url: "/packs/lite.json.gz", bytes: 4000, sha256: "e".repeat(64) }, { owner: { kind: "lite", id: "lite", label: "Predictions for every team" }, fetch: dying as unknown as typeof fetch }).catch(() => {});
+    mount("/download");
+    await screen.findByText(/Paused at 50%/);
+    fireEvent.click(screen.getByRole("button", { name: /Resume/ }));
+    await waitFor(() => expect(toastErr).toHaveBeenCalledWith("Couldn't finish downloading the predictions pack. Try again in a moment."));
+    await finishDownload("e".repeat(64));
+  });
+
+  it("every saved pack shows its size and one total; Delete says how much it freed", async () => {
+    saved = [sv(2025, "b"), sv(2024, "old")];
+    mount("/download");
+    const list = await screen.findByRole("list", { name: "Saved on this device" });
+    const rows = within(list).getAllByRole("listitem");
+    expect(rows.map((li) => li.textContent?.slice(0, 14))).toEqual(["2025–26 season", "2024–25 season"]);
+    for (const r of rows) expect(r.textContent).toContain("9.0 MB");
+    expect(screen.getByText(/Packs use/).textContent).toBe("Packs use 18.0 MB");
+    fireEvent.click(screen.getByRole("button", { name: "Delete 2025–26 season" }));
+    await waitFor(() => expect(toastOk).toHaveBeenCalledWith("Freed 9.0 MB", { description: "2025–26 season deleted from this device." }));
+  });
+});
+
+describe("getting the predictions pack", () => {
+  it("a newer release saved meanwhile counts as done; an older one or none is an error", async () => {
+    lite.saved = { version: "2026-11-14.2", bytes: 1, savedAt: 1, builtAt: "b", engineVersion: "e" };
+    await expect(getLite("2026-11-14.1")).resolves.toBeUndefined();
+    await expect(getLite("2026-11-14.2")).resolves.toBeUndefined();
+    lite.saved = { version: "2026-11-13.9", bytes: 1, savedAt: 1, builtAt: "b", engineVersion: "e" };
+    await expect(getLite("2026-11-14.1")).rejects.toThrow(/Couldn't finish/);
+    lite.saved = null;
+    await expect(getLite("2026-11-14.1")).rejects.toThrow(/Couldn't finish/);
+  });
+
+  it("orders releases by day, then by the build that day", () => {
+    expect(releaseOrder("2026-11-14.10", "2026-11-14.9")).toBeGreaterThan(0);
+    expect(releaseOrder("2026-11-13.9", "2026-11-14.1")).toBeLessThan(0);
+    expect(releaseOrder("2026-11-14.1", "2026-11-14.1")).toBe(0);
+  });
+});
+
+describe("sizes say what they are", () => {
+  it("a season not saved says what it would take, never that it's on the device", async () => {
+    saved = [sv(2025, "b")];
+    mount();
+    const rows = within(await screen.findByRole("list", { name: "Seasons" })).getAllByRole("listitem");
+    const row = (s: string) => rows.find((r) => r.textContent?.startsWith(s))!;
+    expect(row("2026–27").textContent).toContain("Takes 10.0 MB on this device");
+    expect(row("2025–26").textContent).toContain("Uses 10.0 MB on this device");
+  });
+});
+
+describe("a season the save run is on", () => {
+  it("isn't a paused row with a Delete while the run downloads or stores it", async () => {
+    const { download, finishDownload, sha256Of } = await import("../lib/offline/download");
+    const data = new Uint8Array(2000).fill(6);
+    const sha = await sha256Of(data);
+    // Its pieces are whole and checked: the run is storing them.
+    await download({ url: "/packs/s.db.gz", bytes: 2000, sha256: sha }, { owner: { kind: "season", id: "2026", label: "2026–27 season" }, fetch: (async () => new Response(data)) as unknown as typeof fetch });
+    let open!: () => void;
+    gate = new Promise((r) => { open = r; });
+    mount();
+    fireEvent.click((await screen.findAllByRole("button", { name: /^Download · / }))[0]); // 2026–27, the first row
+    await waitFor(() => expect(order).toEqual([2026]));
+    expect(screen.queryByText(/Downloaded and checked/)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Delete the paused 2026–27 season download" })).toBeNull();
+    open();
+    await waitFor(() => expect(toastOk).toHaveBeenCalled());
+    await finishDownload(sha);
+  });
+});
+
+describe("a season being stored", () => {
+  it("keeps the save run's progress once the bytes are in (never back to 0 B)", () => {
+    const r = { file: file(2025, "b"), season: 2025, saved: null, state: "available" as const };
+    expect(savingFrom(r, 100)).toMatchObject({ done: 10_000_000, total: 10_000_000 });
+    expect(savingFrom(r, 50).done).toBe(5_000_000);
   });
 });

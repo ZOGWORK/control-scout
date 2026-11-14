@@ -13,10 +13,17 @@ import type { LitePairs } from "../shared/litePairs";
 import type { LiteLearned } from "../shared/liteLearned";
 import { PACK_META_KEY, packStatus, type PackMeta } from "./packPolicy";
 import { FEATURE_DISABLED, featureOffMessage } from "../shared/flags";
+import { ChecksumError, download, finishDownload, sha256Of, type DownloadOwner } from "./offline/download";
+import { seasonLabel } from "../shared/format";
 
 export { packStatus, type PackMeta } from "./packPolicy";
 
-export interface PackFile { name: string; url: string; bytes: number; sha256: string; seasons: number[]; kind: "lite" | "full"; contents: string }
+/** The same file gzipped (season packs from 6.0.5 on): what the app downloads, since a resumed range of it is
+ *  small (browsers ask for ranges uncompressed). `bytes`/`sha256` are the .gz file's own. */
+export interface PackGz { name: string; url: string; bytes: number; sha256: string }
+/** Counts in a season pack, for "214 new matches" when a newer release is out (packs from 6.0.5 on). */
+export interface PackStats { matches: number; events: number }
+export interface PackFile { name: string; url: string; bytes: number; sha256: string; seasons: number[]; kind: "lite" | "full"; contents: string; gz?: PackGz; stats?: PackStats }
 export interface PackManifest { format: number; version: string; builtAt: string; engineVersion: string; dataAsOf: string | null; lite: PackFile | null; full: PackFile[] }
 
 export interface LitePack {
@@ -82,29 +89,34 @@ export async function fetchManifest(): Promise<PackManifest> {
   return r.json();
 }
 
-const hex = (buf: ArrayBuffer) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
-
-/** Download a pack file with progress and check it against its published SHA-256. */
-export async function fetchVerified(file: PackFile, onProgress?: (done: number, total: number) => void): Promise<Uint8Array> {
-  const res = await fetch(file.url);
-  if (!res.ok || !res.body) throw new Error(`Download failed (${res.status}).`);
-  const reader = res.body.getReader();
-  const parts: Uint8Array[] = [];
-  let done = 0;
-  for (;;) {
-    const { value, done: end } = await reader.read();
-    if (end) break;
-    parts.push(value);
-    done += value.length;
-    onProgress?.(done, file.bytes);
-  }
-  const bytes = new Uint8Array(done);
-  let o = 0;
-  for (const p of parts) { bytes.set(p, o); o += p.length; }
-  const digest = hex(await crypto.subtle.digest("SHA-256", bytes));
-  if (digest !== file.sha256) throw new Error("The download didn't match its published checksum — not saved. Try again.");
-  return bytes;
+/** What a download is for, as the Offline page lists a paused one. */
+export function ownerOf(file: Pick<PackFile, "kind" | "seasons">): DownloadOwner {
+  return file.kind === "full" ? { kind: "season", id: String(file.seasons[0]), label: `${seasonLabel(file.seasons[0])} season` } : { kind: "lite", id: "lite", label: "Predictions for every team" };
 }
+
+/** The file a pack downloads as: its .gz twin when the manifest offers one and this browser can unzip it. */
+export const transferOf = (file: PackFile): PackGz | PackFile => (file.gz && typeof DecompressionStream !== "undefined" ? file.gz : file);
+
+async function gunzip(bytes: Uint8Array): Promise<Uint8Array> {
+  return new Uint8Array(await new Response(new Response(bytes as Uint8Array<ArrayBuffer>).body!.pipeThrough(new DecompressionStream("gzip"))).arrayBuffer());
+}
+
+/**
+ * Download a pack file with progress (resuming a half download: lib/offline/download.ts) and check it against
+ * its published SHA-256 (and the unzipped file against the pack's own, when it came as .gz). The pieces stay on
+ * the device until the caller has kept the bytes and calls finishFile.
+ */
+export async function fetchVerified(file: PackFile, onProgress?: (done: number, total: number) => void, owner: DownloadOwner = ownerOf(file)): Promise<Uint8Array> {
+  const src = transferOf(file);
+  const bytes = await download({ url: src.url, bytes: src.bytes, sha256: src.sha256 }, { owner, onProgress });
+  if (src === file) return bytes;
+  const raw = await gunzip(bytes).catch(() => null);
+  if (!raw || (await sha256Of(raw)) !== file.sha256) { await finishDownload(src.sha256); throw new ChecksumError(); }
+  return raw;
+}
+
+/** The pack's bytes are kept: drop its download pieces. */
+export const finishFile = (file: Pick<PackFile, "sha256" | "gz">) => finishDownload(file.sha256, file.gz?.sha256);
 
 /** The pack format this app reads (server/packs/build.ts PACK_FORMAT; the manifest says it too). */
 export const PACK_FORMAT = 1;
@@ -123,13 +135,21 @@ interface StoredLite { gz: boolean; bytes: Uint8Array; version: string }
 
 /** Download with progress, verify the hash, keep it on the device. Stores the bytes only: nothing is
  *  decoded or run here (that happens offline, in loadLite). */
-export async function downloadLite(file: PackFile, manifest: PackManifest, onProgress?: (done: number, total: number) => void): Promise<PackMeta> {
+export async function downloadLite(file: PackFile, manifest: PackManifest, onProgress?: (done: number, total: number) => void, opts: { background?: boolean } = {}): Promise<PackMeta | null> {
   checkFormat(manifest);
   const bytes = await fetchVerified(file, onProgress);
+  // A background sync whose pack was deleted (maybe in another tab) while it downloaded: it never brings it back.
+  if (opts.background && liteDeleted()) { await finishFile(file); return null; }
   await put(LITE_KEY, { gz: file.name.endsWith(".gz"), bytes, version: manifest.version } satisfies StoredLite);
-  const meta: PackMeta = { version: manifest.version, bytes: bytes.length, savedAt: Date.now(), builtAt: manifest.builtAt, engineVersion: manifest.engineVersion, seasons: file.seasons };
+  const meta: PackMeta = { version: manifest.version, bytes: bytes.length, savedAt: Date.now(), builtAt: manifest.builtAt, engineVersion: manifest.engineVersion, seasons: file.seasons, dataAsOf: manifest.dataAsOf };
   localStorage.setItem(META, JSON.stringify(meta));
+  // Deleted in another tab while this one saved: a background sync takes back what it just wrote (bytes and list
+  // entry), so a Delete always holds. Only a download the visitor asked for clears the deleted mark.
+  if (opts.background && liteDeleted()) { await del(LITE_KEY); localStorage.removeItem(META); cached = null; await finishFile(file); return null; }
+  if (!opts.background) localStorage.removeItem(LITE_DELETED_KEY);
   cached = null; // the next offline read decodes the new one
+  await finishFile(file);
+  window.dispatchEvent(new Event(PACK_EVENT));
   return meta;
 }
 
@@ -159,11 +179,21 @@ export async function loadLite(): Promise<LitePack | null> {
   return null;
 }
 
-export async function removeLite(): Promise<void> {
-  await put(LITE_KEY, null);
-  await put(OLD_LITE_KEY, null);
+/** localStorage: the lite pack was deleted on purpose, so the background sync leaves it off this device until
+ *  the person downloads it again themselves. */
+export const LITE_DELETED_KEY = "cs-lite-deleted";
+const liteDeleted = () => { try { return localStorage.getItem(LITE_DELETED_KEY) === "1"; } catch { return false; } };
+
+/** Delete the lite pack from this device (the stored bytes too, not just the list). Returns the bytes freed. */
+export async function removeLite(): Promise<number> {
+  const freed = packStatus()?.bytes ?? 0;
+  await del(LITE_KEY);
+  await del(OLD_LITE_KEY);
   localStorage.removeItem(META);
+  try { localStorage.setItem(LITE_DELETED_KEY, "1"); } catch { /* storage blocked */ }
   cached = null;
+  window.dispatchEvent(new Event(PACK_EVENT));
+  return freed;
 }
 
 /** Fired on window when the background sync saves a new lite pack. */
@@ -185,9 +215,9 @@ export function syncLite(opts: { allowed?: () => boolean } = {}): Promise<PackMe
       const have = packStatus();
       if (!m.lite || (have && have.version === m.version)) return have;
       if (opts.allowed && !opts.allowed()) return have;
-      const meta = await downloadLite(m.lite, m);
-      window.dispatchEvent(new Event(PACK_EVENT));
-      return meta;
+      // Deleted on purpose: only the person's own Download brings it back (an explicit request has no `allowed`).
+      if (opts.allowed && liteDeleted()) return have;
+      return (await downloadLite(m.lite, m, undefined, { background: !!opts.allowed })) ?? packStatus();
     } catch { return packStatus(); }
     finally { syncing = null; }
   })();
