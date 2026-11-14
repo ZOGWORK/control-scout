@@ -29,6 +29,15 @@ A recorded event's page now says which days and parts its video covers and which
 - Owner console › Clip coverage: every recorded event with a played match missing a clip, with its days and parts, the video checked for each, the days with no recording and each match's reason, to mark reviewed. It opens again on its own when the missing list changes. (`src/components/owner/ClipCoveragePanel.tsx`)
 - After every recordings pass and every official-channel watcher run that adds a video, each event whose recording or played matches changed is checked again; a missing list goes to Owner › Clip coverage, never only to a log. (`server/videos/coverageCheck.ts`, migration 87)
 - `scripts/clip-coverage.ts`: the full coverage audit (every event, video and played match, every season) as Markdown, CSV and JSON. (#1457)
+On a phone, the search bar on the results page is now the search box itself: one tap puts the caret in it, ready to change your search.
+
+### Highlights
+- [fixes] One tap on the phone results page's search bar lets you edit your search
+- [fixes] No second search box opens on top of it any more
+- [fixes] A second tap puts the caret where you tapped, not a Cut/Copy menu
+
+### Fixed
+- Search on phones: the bar holding your query on the results page was a button that opened the top bar's search box over it, with the whole query selected, and on an iPhone a tap on a selection only offers Cut/Copy/Paste, so the query couldn't be edited. The bar is now the page's own search field (the top bar's box and search button step aside on that page), and opening a search box from a button or shortcut on a touch screen puts the caret at the end instead of selecting everything. Desktop keeps select-all. (`src/components/search/page/PhoneSearchBar.tsx`, `src/components/layout/Search.tsx`, `src/lib/focusField.ts`) (#1454)
 
 ## 6.0.2 — 2026-11-13
 
