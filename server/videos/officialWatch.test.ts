@@ -311,6 +311,19 @@ describe("the official-video watcher", () => {
     expect(await get<any>("SELECT region, watch_from FROM official_channels WHERE channel_id = 'UCaaaaaaaaaaaaaaaaaaaaaa'")).toMatchObject({ region: "state=OK", watch_from: new Date(NOW).toISOString() });
   });
 
+  it("sends a second video of a day the event already plays to review, unless both name their parts", async () => {
+    const LATER = NOW + 40 * 864e5;
+    // The Waco Qualifier plays a "matches only" video for its Saturday (Chicago Robotics Invitational 2026's shape).
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, timezone, remote, hybrid, livestream, source) VALUES (2025, 'USTXWAQ', 'TX Waco Qualifier', 'Qualifier', 'Waco', 'TX', 'USA', '2026-01-24', '2026-01-24', 'America/Chicago', 0, 0, NULL, 'test')");
+    await run("INSERT INTO official_videos (video_id, season, code, kind, day, part, channel_id, title, source, added_at) VALUES ('matchesonly', 2025, 'USTXWAQ', 'recording', '2026-01-24', 'Matches', ?, 'TX Waco Qualifier (matches only) - Saturday', 'list', 'x')", [TX]);
+    await run("INSERT INTO video_meta (video_id, status, start, end, duration, live, checked_at) VALUES ('matchesonly', 'ok', '2026-01-24T15:00:00Z', '2026-01-24T22:00:00Z', 25200, 0, 'x')");
+    uploads = [{ id: "secondday01", title: "FiT Waco Qualifier - Saturday", published: "2026-01-25T03:00:00Z", start: "2026-01-24T14:30:00Z" }];
+    const out = await runOfficialWatch(() => {}, { apiKey: "k", fetchImpl: fakeFetch, now: () => LATER });
+    expect(out).toMatchObject({ seen: 1, added: 0, queued: 1 });
+    expect(await get<any>("SELECT status, why FROM official_watch WHERE video_id = 'secondday01'")).toMatchObject({ status: "pending", why: expect.stringMatching(/USTXWAQ already plays matchesonly for 2026-01-24 \(Matches\): a second video of that day must name its part/) });
+    expect(await get<any>("SELECT 1 FROM official_videos WHERE video_id = 'secondday01'")).toBeUndefined();
+  });
+
   it("pages back through a channel's uploads to a stream scheduled before the watch, and stops at the lookback", async () => {
     const LATER = NOW + 30 * 864e5;
     pageSize = 2;
