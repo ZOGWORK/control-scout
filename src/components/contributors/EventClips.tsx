@@ -52,12 +52,13 @@ export function useClipItems(matches: MatchView[]): Item[] {
 }
 
 /** The coverage line, as this viewer can watch it. Nothing until it's known (no flash of "no recording"). `recorded`: the
- *  page plays the event's recording, so it never says there's none. */
-/** `partial`: a day of the event has no recording (RecordingCoverageLine reads it from the coverage check). */
-export function CoverageLine({ className, reserve, recorded, unplayable, partial }: { className?: string; reserve?: boolean; recorded?: boolean; unplayable?: boolean; partial?: boolean }) {
+ *  page plays the event's recording, so it never says there's none. `partial`: a day of the event has no recording
+ *  (RecordingCoverageLine reads it from the coverage check); `hold`: that isn't known yet, so a line with no clip waits
+ *  rather than say "Recording only" first. */
+export function CoverageLine({ className, reserve, recorded, unplayable, partial, hold }: { className?: string; reserve?: boolean; recorded?: boolean; unplayable?: boolean; partial?: boolean; hold?: boolean }) {
   const { coverage } = useContext(Ctx);
   // Until it's known, an event with played matches keeps the line's room (it's read after the first paint).
-  if (!coverage) return reserve ? <p aria-hidden className={cn("mt-3 h-5", className)} /> : null;
+  if (!coverage || (hold && coverage.played && !coverage.withVideo)) return reserve ? <p aria-hidden className={cn("mt-3 h-5", className)} /> : null;
   if (!coverage.played) return null;
   return <p className={cn("mt-3 flex h-5 items-center gap-1.5 text-sm text-text-muted", className)} data-coverage={coverage.withVideo >= coverage.played ? "full" : coverage.withVideo || partial ? "partial" : recorded ? "recording" : unplayable ? "unplayable" : "none"}><Clapperboard className="size-4 shrink-0" aria-hidden />{coverageText(coverage, recorded, unplayable, partial)}</p>;
 }
