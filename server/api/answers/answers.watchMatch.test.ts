@@ -81,10 +81,10 @@ describe("asking to watch one match: the same answer, and that match's clip", ()
   it("each one-match question with a watch word: its match, and that match's clip in the event's recording", async () => {
     // Massachusetts' recording began 13:34:16Z; M10 at 18:47:08 EDT (22:47:08Z) is 33,172 s in, less the 20 s lead-in.
     const cases: [string, string, string, { videoId: string; t: number; kind: string; match: string }][] = [
-      ["11148 highest score highlights", "highest-score", maM10, { videoId: "xnQFL9T27fY", t: 33152, kind: "recording", match: "M10" }],
-      ["11148 biggest win highlights", "biggest-win", maM10, { videoId: "xnQFL9T27fY", t: 33152, kind: "recording", match: "M10" }],
-      ["11148 closest match highlights", "closest-match", maQ12, { videoId: "xnQFL9T27fY", t: 9991, kind: "recording", match: "Q12" }],
-      ["11148 best teleop highlights", "highest-teleop", maM10, { videoId: "xnQFL9T27fY", t: 33152, kind: "recording", match: "M10" }],
+      ["11148 highest score highlights", "highest-score", maM10, { videoId: "xnQFL9T27fY", t: 33152, end: 33392, kind: "recording", match: "M10" }],
+      ["11148 biggest win highlights", "biggest-win", maM10, { videoId: "xnQFL9T27fY", t: 33152, end: 33392, kind: "recording", match: "M10" }],
+      ["11148 closest match highlights", "closest-match", maQ12, { videoId: "xnQFL9T27fY", t: 9991, end: 10231, kind: "recording", match: "Q12" }],
+      ["11148 best teleop highlights", "highest-teleop", maM10, { videoId: "xnQFL9T27fY", t: 33152, end: 33392, kind: "recording", match: "M10" }],
     ];
     for (const [q, intent, headline, main] of cases) {
       const { a, video } = await ask(q);
