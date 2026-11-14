@@ -2,11 +2,25 @@
 // auto-watcher's review queue, its runs and quota, and the watched channels. Every decision is audited where it's
 // made (./officialWatch.ts).
 import type { NextFunction, Request, Response, Router } from "express";
+import { markCoverageReviewed, openCoverageCount, ownerClipCoverage } from "./coverageCheck.js";
 import { approveWatched, ownerOfficial, pendingCount, rejectWatched, removeChannel, removeOfficial, runNow, saveChannel } from "./officialWatch.js";
 
 type H = (fn: (req: Request, res: Response) => Promise<unknown>) => (req: Request, res: Response, next: NextFunction) => void;
 const str = (v: unknown, max = 300) => (typeof v === "string" ? v.trim().slice(0, max) : "");
 const VIDEO_ID = /^[A-Za-z0-9_-]{11}$/;
+
+/** /api/owner/clip-coverage: Owner > Clip coverage (server/videos/coverageCheck.ts): every event with a played match
+ *  missing a clip, its days and videos checked and each match's reason; marking one reviewed is audited. */
+export function clipCoverageOwnerRoutes(r: Router, h: H, actor: (req: Request) => string): void {
+  r.get("/clip-coverage", h(async () => ownerClipCoverage()));
+  r.get("/clip-coverage/counts", h(async () => ({ open: await openCoverageCount() })));
+  r.post("/clip-coverage/:season/:code/reviewed", h(async (req, res) => {
+    const season = Number(req.params.season), code = String(req.params.code).toUpperCase();
+    if (!Number.isInteger(season) || !/^[A-Z0-9]{2,20}$/.test(code)) { res.status(400).json({ error: "Not an event." }); return; }
+    if (!await markCoverageReviewed(season, code, actor(req))) { res.status(404).json({ error: "Not waiting for review." }); return; }
+    return ownerClipCoverage();
+  }));
+}
 
 export function officialVideoOwnerRoutes(r: Router, h: H, actor: (req: Request) => string, log: (s: string) => void = () => {}): void {
   r.get("/official-videos", h(async () => ownerOfficial()));
