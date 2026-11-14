@@ -16,6 +16,9 @@ export interface RecordingTiming {
   /** Seconds cut off the video's start (chaptersConfirm): a match `shift` seconds into the broadcast by the clock is
    *  at the video's start. 0 or absent for a video that begins with its broadcast. */
   shift?: number | null;
+  /** With a shift: the clock's second of the first match the chapters name. A match before it has no chapter to say
+   *  it was cut off rather than in place before a gap, so it gets no clip. */
+  confirmedFrom?: number | null;
 }
 
 /** How far the video's length may fall short of the broadcast's start-to-end time before its times can't be trusted. */
@@ -137,7 +140,7 @@ const median = (xs: number[]) => { const s = [...xs].sort((a, b) => a - b); retu
 
 /** What a video's chapters vouch for (chaptersConfirm): the clock up to `to` (seconds into the broadcast), its seconds
  *  `shift` behind it (a start cut off the video). */
-export interface ChapterTiming { to: number; shift: number }
+export interface ChapterTiming { to: number; shift: number; from?: number }
 
 /**
  * How far into the broadcast (seconds, by the clock) the video's chapters say its seconds still follow the clock,
@@ -196,7 +199,9 @@ export function chaptersConfirm(rec: RecordingTiming, chapters: Chapter[] | null
   // follows the clock that far behind, its last few matches too. With time still unaccounted for, a drop-out under
   // CHAPTER_DRIFT_S can hide between chapters and put a match on the one before it: frames showed it (Qualifier
   // Hasselt 2026, NLHAQ: Q5 placed on Q1; Northern Qualifier, USCOSEQ: Q6 on Q5), so those get none.
-  return missing - shift <= GAP_TOLERANCE_S ? { to: rec.length + shift, shift } : null;
+  // Only from the first match a chapter names: one before it, with no chapter, may sit in place before a gap the
+  // chapters can't see, so a shift there would put its clip on another match.
+  return missing - shift <= GAP_TOLERANCE_S ? { to: rec.length + shift, shift, from: Math.floor(anchors[0].clock) } : null;
 }
 
 /**
@@ -214,6 +219,7 @@ export function clipSecond(startsAt: string | null | undefined, rec: RecordingTi
   const clock = Math.floor((at - from) / 1000);
   // Trusted on the chapters' word: only as far as they vouch for (by the clock).
   if (rec.confirmedTo != null && clock > rec.confirmedTo) return null;
+  if (rec.shift && rec.confirmedFrom != null && clock < rec.confirmedFrom) return null;
   // A start cut off the video: its seconds that far behind the clock, and a match before the cut isn't in it.
   const offset = clock - (rec.shift ?? 0);
   if (offset < 0) return null;
