@@ -341,6 +341,7 @@ describe("clip coverage check and triage", () => {
     const logged: string[] = [];
     expect(await checkClipCoverage((l) => logged.push(l))).toBeGreaterThan(0);
     expect(logged[0]).toMatch(/^clip coverage: checked /);
+    expect(logged[0]).not.toMatch(/  /);
     expect((await ownerClipCoverage()).lastPass).toMatchObject({ pending: expect.any(Number) });
   });
 

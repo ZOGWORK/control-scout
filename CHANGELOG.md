@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.6.8 — 2026-11-15
+## 6.7.2 — 2026-11-15
 
 Search › "Where does 4215 rank in New Jersey" answers with the region page's own numbers (rank in New Jersey, rating, record, OPR) and opens that page with the team's row marked.
 
@@ -27,6 +27,66 @@ Search › "Where does 4215 rank in New Jersey" answers with the region page's o
 ### Changed
 - "Where does {team} rank in {region}": the answer adds the team's season record, shows its rating to one decimal as the region page does, and links to the region page on the team's page with its row marked. A team from there with fewer than 3 rated matches is "Not ranked yet — N of 3 rated matches" (or "No rated matches yet"), never ranked by its OPR instead. (`server/api/answers/families/oprRating.ts`)
 - "Top teams in New Jersey", "best team in New Jersey", "New Jersey rankings": the region page's rows (rank in the region, rating, OPR, record) and a link to it; a region with no rated team says "No rated teams yet". (`server/api/searchAsks.ts`, `server/api/answers/families/leaderboard.ts`, `server/api/searchIntents.ts`) (#1544)
+
+## 6.7.1 — 2026-11-15
+
+Owner › Official videos › Channel audit: after every watcher run, each watched channel's whole uploads list is compared, video by video, with what Scout has. Misses, wrong adds and possible recordings are owner findings.
+
+### Highlights
+- [workspace] Every watched channel's uploads checked against Scout
+- [workspace] The watcher's own adds are checked again after each run
+- [fixes] A drone or FRC stream added before the rules caught it comes off
+- [workspace] Each video in review or set aside has a best-guess event
+
+### Added
+- The channel audit (`server/videos/officialAudit.ts`, migration 91). It runs after every watcher run, scheduled or Run now. It reads each watched channel's uploads list with the YouTube Data API, never a search: the newest page every run, and the whole list once a week. It stores each upload with where Scout has it: the checked list, the watcher, FIRST's link, a short link, the channel's broadcasts, or the owner's stream.
+  - An upload Scout has nothing for gets the watcher's rules and a best guess. It's set aside with the reason, left for the watcher's next run, or a finding.
+  - A watcher miss goes to review if a later watcher run still misses it. The audit never adds a video.
+  - An older video that can't fill a day Scout has no video for is set aside with why: a broadcast on a day with no Scout event in the region, or one whose event already plays a video every day.
+  - The audit uses at most 800 units a run, and under 600 a day in steady running. (`docs/official-videos.md`)
+- The watcher's own adds are checked again every run: still playable, an FTC competition, the right day and event, and not a second video of the day. Owner › Official videos shows the result over the watcher's last 10 runs and its last 100 videos read.
+- Owner › Official videos › Channel audit shows each channel's uploads, those with a Scout record, those that play on an event (every season, and 2026-27), the findings (send to review, or say why it isn't a recording), and the set-aside reasons.
+
+### Changed
+- A video set aside by its title now says what in the title set it aside (`the title says "FRC"`, or that it names no competition). Every video in review or set aside whose verdict named no event gets a best-guess event, with what that guess rests on (`server/videos/officialMatch.ts`, `server/videos/officialWatch.ts`).
+
+### Fixed
+- An add the watcher's title rules set aside today now comes off its event: a rule tightened since, such as a drone contest's stream on Almaty Tech Cup, added before #1498. It still counts as a wrong add.
+
+## 6.7.0 — 2026-11-15
+
+Search reads a year after an award's winners: "inspire award winners 2024" lists that season's Inspire Award winners.
+
+### Highlights
+- [fixes] "inspire award winners 2024" lists the 2024–25 winners
+- [fixes] "think award winners 2025" lists the 2025–26 winners
+- [fixes] A team numbered like a year is still read as that team
+
+### Fixed
+- Search: one award's winners with a bare year ("inspire award winners 2024", "think award winners 2025") said no team, event or match matched, since the year was taken for a team number. A year ending the question is now its season, as search reads a year everywhere (2024 is 2024–25; at Worlds, the Championship held that year). A number before the ask, or after "team" or "#", is still a team's. Failed search #1434. (`server/api/answers/families/placeAwards.ts`) (#1533)
+## 6.6.9 — 2026-11-15
+
+Owner › Clip coverage: the check pass's log line has no stray double space before its pending count.
+
+### Highlights
+- [fixes] The clip coverage pass log reads cleanly
+- [workspace] Its pending count follows one spacer, like every part before it
+- [workspace] A test keeps the line free of double spaces
+
+### Fixed
+- The clip coverage pass log line had two spaces before "· N matches not yet checked against the video". (`server/videos/coverageCheck.ts`) (#1552)
+
+## 6.6.8 — 2026-11-15
+
+Events › The Chicago Robotics Invitational shows its full results: teams, matches, standings, alliances and awards for 2025–26 and 2024–25, from the event's own results site.
+
+### Highlights
+- [history] Chicago Robotics Invitational: matches, rankings and awards
+- [history] Its matches play from the event's recordings
+- [fixes] The page says plainly where the results came from
+
+### Added
+- CRI results: FIRST lists the Chicago Robotics Invitational (FPECRI) with no teams or matches. Its results now come from chicagoroboticsinvitational.com as the event's ordinary results, for 2025–26 (38 teams, 62 matches) and 2024–25 (38 teams, 67 matches). That covers each match's auto / TeleOp / endgame / penalty split, standings, alliances and awards. The event page says "Results from chicagoroboticsinvitational.com" and links there. The results are read weekly and cached, and they never replace FIRST's: if FIRST posts the event, its results win. (`server/sources/cri.ts`, `server/data/criResults.ts`, `docs/cri-results.md`) (#1537)
 
 ## 6.6.7 — 2026-11-15
 
