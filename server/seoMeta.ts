@@ -9,7 +9,7 @@ import { all, get } from "./db.js";
 import { ROSTER } from "./data/registrations.js";
 import { CURRENT_SEASON, PREDICT_SEASONS, SEASON_NUMBERS, isLegacy, seasonInfo } from "./data/seasons.js";
 import { defaultRankingsSeason, rankings, snapshotWeeks } from "./api/rankings.js";
-import { regionRankings, regionsList } from "./api/regionRankings.js";
+import { regionRankings, regionsList, seasonLeagueList } from "./api/regionRankings.js";
 import { regionHref } from "../src/shared/regionRankings.js";
 import { isWeek, parsePlaces, placeKey } from "../src/shared/rankings.js";
 import { regionLabel } from "../src/shared/regions.js";
@@ -532,6 +532,19 @@ async function rankingsMeta(query: Record<string, unknown>): Promise<PageMeta> {
 /** A path segment as text; a malformed escape reads as nothing (the not-found page). */
 const decodePart = (x: string) => { try { return decodeURIComponent(x); } catch { return ""; } };
 
+/** /leagues: every league of the season, by where it plays. */
+async function leaguesListMeta(query: Record<string, unknown>): Promise<PageMeta> {
+  const seasonRaw = Number(qstr(query.season));
+  const explicit = SEASON_NUMBERS.includes(seasonRaw);
+  const season = explicit ? seasonRaw : CURRENT_SEASON;
+  const n = (await seasonLeagueList(season)).length;
+  const label = seasonInfo(season).label;
+  return {
+    title: `FTC leagues ${label}`, type: "website", path: `/leagues${explicit ? `?season=${season}` : ""}`,
+    description: fitDescription(`${n ? `All ${n} FTC leagues` : "FTC leagues"} of ${label}, by where they play: meets played, teams and each league's leader by ranking score, with links to every league's standings.`),
+  };
+}
+
 /** /rankings/regions: the regions list, its largest regions named. */
 async function regionsListMeta(query: Record<string, unknown>): Promise<PageMeta> {
   const seasonRaw = Number(qstr(query.season));
@@ -875,6 +888,7 @@ export async function pageMeta(path: string, query: Record<string, unknown> = {}
     if (/^\/leagues\/[^/]+\/[^/]+\/[^/]+$/i.test(p)) return NOT_FOUND;
     if (/^\/rankings$/i.test(p)) return await rankingsMeta(query);
     if (/^\/rankings\/regions$/i.test(p)) return await regionsListMeta(query);
+    if (/^\/leagues$/i.test(p)) return await leaguesListMeta(query);
     if ((m = p.match(/^\/rankings\/regions\/([^/]+)(?:\/([^/]+))?$/i))) return await regionMeta(decodePart(m[1]), m[2] ? decodePart(m[2]) : null, query);
     if (p === "/events") return await eventsListMeta();
     if (p === "/teams") return await teamsTableMeta(query);
