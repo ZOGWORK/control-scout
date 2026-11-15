@@ -6,11 +6,13 @@ import { Link } from "react-router-dom";
 import { cn } from "./cn";
 import { TeamNumber } from "./records/RecordsTable";
 import { leagueRecord, rankingScore, type LeagueStandingRow } from "../shared/leagues";
+import { regionHref } from "../shared/regionRankings";
 
 const TH = "h-9 whitespace-nowrap px-2.5 text-[10px] font-bold uppercase tracking-wider text-text-muted max-sm:px-1.5";
 const TD = "whitespace-nowrap px-2.5 py-1.5 max-sm:px-1.5";
 
-export function LeagueTable({ rows, season, team, maxRows }: { rows: LeagueStandingRow[]; season: number; team?: number | null; maxRows?: number }) {
+/** `scout`: Scout's columns after FIRST's (rating, OPR, rank in the team's region, linked), on the league's own page. */
+export function LeagueTable({ rows, season, team, maxRows, scout }: { rows: LeagueStandingRow[]; season: number; team?: number | null; maxRows?: number; scout?: boolean }) {
   const box = useRef<HTMLDivElement>(null);
   // The marked row in view inside the box (never the page: that stays where the reader is).
   useEffect(() => {
@@ -30,6 +32,9 @@ export function LeagueTable({ rows, season, team, maxRows }: { rows: LeagueStand
             <th scope="col" className={cn(TH, "text-right")}>W-L-T</th>
             <th scope="col" className={cn(TH, "text-right")} title="Qualification matches played across the league's meets">Matches</th>
             <th scope="col" className={cn(TH, "text-right")} title="League meets played">Meets</th>
+            {scout && <th scope="col" className={cn(TH, "border-l border-border text-right")} title="Control Scout's prediction rating this season (the number /rankings shows); not FIRST's">Scout rating</th>}
+            {scout && <th scope="col" className={cn(TH, "text-right")} title="Season OPR, penalties left out">OPR</th>}
+            {scout && <th scope="col" className={cn(TH, "text-right")} title="The team's rank in its home region's Scout rankings">Region rank</th>}
           </tr>
         </thead>
         <tbody>
@@ -48,6 +53,13 @@ export function LeagueTable({ rows, season, team, maxRows }: { rows: LeagueStand
                 <td className={cn(TD, "text-right tabular-nums")}>{leagueRecord(r) ?? "—"}</td>
                 <td className={cn(TD, "text-right tabular-nums")}>{r.played ?? "—"}</td>
                 <td className={cn(TD, "text-right tabular-nums")}>{r.meets}</td>
+                {scout && <td className={cn(TD, "border-l border-border text-right tabular-nums")} data-scout-rating>{r.scout?.rating != null ? r.scout.rating.toFixed(1) : <span className="text-muted-foreground">Not rated yet</span>}</td>}
+                {scout && <td className={cn(TD, "text-right tabular-nums")}>{r.scout?.opr != null ? r.scout.opr.toFixed(1) : "—"}</td>}
+                {scout && <td className={cn(TD, "text-right tabular-nums")}>
+                  {r.scout?.region && r.scout.regionRank != null
+                    ? <Link to={regionHref(r.scout.region, { season, team: r.team })} className="text-accent-text hover:underline" data-region-rank title={`${r.team} in ${r.scout.regionName}'s rankings`}>#{r.scout.regionRank} {r.scout.region.split(":")[1] ?? r.scout.regionName}</Link>
+                    : <span className="text-muted-foreground">—</span>}
+                </td>}
               </tr>
             );
           })}
