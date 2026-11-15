@@ -22,6 +22,7 @@ This weekend › a team page names the event the team is registered for next, an
 ### Highlights
 - [teams] A team's next registered event shows on its page
 - [fixes] "What's happening in FTC this weekend" lists the weekend's events
+- [live] The team page and This weekend name the same next event
 
 ### Fixed
 - Team page Upcoming: an event the team is registered for but hasn't played yet is named and linked as the This weekend page names it ("No matches this weekend — next event is …"), never "no upcoming event". (`src/pages/TeamPage.tsx`)
