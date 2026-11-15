@@ -164,7 +164,9 @@ interface Row { season: number; code: string; level: string; series: number; num
  *  division is an event of its own: ./highlights.ts scopeEvents lists them). */
 export type MatchScope = Pick<MatchFind, "season" | "ever" | "window" | "region" | "level" | "finals" | "decided" | "kind" | "cond" | "team" | "label" | "video" | "videoKeys"> & { events?: { season: number; code: string }[];
   /** `events` were named by the query and one isn't official (an off-season event): theirs are the matches all the same. */
-  named?: boolean };
+  named?: boolean;
+  /** A town said ("highlights in Grand Rapids"): events held there only, in `region` (the town's own state or country). */
+  city?: string };
 
 /** The matches' filters as SQL over m and e; `upTo`, every season up to the scope's (its latest with matches). */
 export function where(f: MatchScope, upTo = false) {
@@ -174,6 +176,7 @@ export function where(f: MatchScope, upTo = false) {
     AND COALESCE(e.remote, 0) = 0${types ? ` AND e.type IN (${types.map(() => "?").join(", ")})` : ""}`];
   const args: (string | number)[] = [...(f.window ? [] : [f.season]), ...(types ?? [])];
   if (f.region) { sql.push(f.region.state ? "e.country = ? AND e.state = ?" : "e.country = ?"); args.push(f.region.country, ...(f.region.state ? [f.region.state] : [])); }
+  if (f.city) { sql.push("LOWER(e.city) = LOWER(?)"); args.push(f.city); }
   if (f.window) { sql.push("substr(COALESCE(m.time, e.start), 1, 10) BETWEEN ? AND ?"); args.push(f.window.from, f.window.to); }
   if (f.level) { sql.push("m.level = ?"); args.push(f.level); }
   if (f.finals) sql.push(FINAL);
