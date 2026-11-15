@@ -24,8 +24,8 @@ import { cn } from "../components/cn";
 import { Move, Pager, SeasonPick, TrendBadge, WeekPick, weekLabel } from "./RankingsPage";
 
 const SORT_LABEL: Record<RegionSort, string> = { rank: "Rank", rating: "Rating", opr: "OPR", record: "Record", events: "Events played", move: "Move" };
-const th = "h-11 whitespace-nowrap bg-card px-2 align-bottom pb-2 text-[11px] font-bold uppercase tracking-wider text-text-muted shadow-[inset_0_-2px_0_color-mix(in_srgb,var(--color-text-base)_20%,transparent)] sm:px-3";
-const td = "px-2 py-2.5 sm:px-3";
+const th = "h-11 whitespace-nowrap bg-card px-2 align-bottom pb-2 text-[11px] font-bold uppercase tracking-wider text-text-muted shadow-[inset_0_-2px_0_color-mix(in_srgb,var(--color-text-base)_20%,transparent)] max-sm:px-1.5 sm:px-3";
+const td = "px-2 py-2.5 max-sm:px-1.5 sm:px-3";
 const record = (r: Pick<RegionRow, "wins" | "losses" | "ties">) => (r.wins == null || r.losses == null ? "—" : `${r.wins}-${r.losses}-${r.ties ?? 0}`);
 const one = (v: number | null) => (v == null ? "—" : v.toFixed(1));
 
@@ -208,7 +208,7 @@ function RegionTable({ data, team, myTeam, sort, onSort }: { data: RegionRanking
             {moves && <H s="move" label="Move" title={`Places moved in ${name} since last week`} className="text-left" />}
             <th scope="col" className={cn(th, "text-left")}>Team</th>
             <H s="rating" label="Rating" title="Expected points added to an alliance per match (auto + TeleOp + endgame)" className="text-right" />
-            {stats && <H s="opr" label="OPR" title="Season OPR, penalties left out" className="text-right" />}
+            {stats && <H s="opr" label="OPR" title="Season OPR, penalties left out" className={cn("text-right", sort === "events" && "max-sm:hidden")} />}
             {stats && <H s="record" label={<>Record<span className="font-normal normal-case max-sm:hidden"> (season)</span></>} title="Wins-losses-ties: every official match this season, at every event" className="text-right" />}
             {stats && <H s="events" label="Events" title="Events played this season" className={cn("text-right", sort !== "events" && "max-sm:hidden")} />}
             {stats && <th scope="col" className={cn(th, "text-right max-sm:hidden")} title="Rated matches the rating is based on: the sample size">Matches</th>}
@@ -228,7 +228,7 @@ function RegionTable({ data, team, myTeam, sort, onSort }: { data: RegionRanking
                   <span className="block text-[11px] text-text-muted" title="World rank">W{r.world.toLocaleString()}</span>
                 </td>
                 {moves && <td className={td}><Move row={r} /></td>}
-                <td className={cn(td, "max-w-[16rem] min-w-[6rem]")}>
+                <td className={cn(td, "max-w-[16rem] sm:min-w-[6rem]")}>
                   <span className="sm:hidden"><TeamNumber team={r.team} name={r.name ?? ""} href={href} /></span>
                   <Link to={href} className="group block min-w-0 max-sm:hidden">
                     <span className="flex items-baseline gap-2">
@@ -241,12 +241,13 @@ function RegionTable({ data, team, myTeam, sort, onSort }: { data: RegionRanking
                   <span className="font-semibold">{r.rating.toFixed(1)}</span>
                   {r.dRating != null && r.dRating !== 0 && <span className={cn("block text-[11px]", r.dRating > 0 ? "text-success" : "text-danger")}>{r.dRating > 0 ? "+" : ""}{r.dRating.toFixed(1)}</span>}
                 </td>
-                {stats && <td className={cn(td, "text-right tabular-nums")}>{one(r.opr)}</td>}
+                {stats && <td className={cn(td, "text-right tabular-nums", sort === "events" && "max-sm:hidden")}>{one(r.opr)}</td>}
                 {stats && <td className={cn(td, "whitespace-nowrap text-right tabular-nums")}>
                   {record(r)}
                   {/* Phones: the sample size sits under the record instead of in its own column. */}
                   <span className="block text-[11px] text-text-muted sm:hidden" data-phone-matches>{r.ratedMatches ?? 0} matches</span>
                 </td>}
+                {/* Phones show Events only when sorted by it, in OPR's place, so the table still fits 390px. */}
                 {stats && <td className={cn(td, "text-right tabular-nums", sort !== "events" && "max-sm:hidden")}>{r.events ?? "—"}</td>}
                 {stats && <td className={cn(td, "whitespace-nowrap text-right tabular-nums max-sm:hidden")} title={`${r.ratedMatches ?? 0} rated matches`}>{r.ratedMatches ?? "—"}<span className="text-text-muted"> matches</span></td>}
                 {swing && <td className={cn(td, "text-right tabular-nums max-sm:hidden")} title={swingTitle(r.swing)}>{swingText(r.swing)}</td>}

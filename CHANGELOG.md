@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 6.8.3 — 2026-11-15
+
+Region rankings › the table fits a phone screen in every sort.
+
+### Highlights
+- [rankings] Region rankings fit a phone screen in every sort
+- [rankings] Sorted by Events on a phone, Events shows in OPR's place
+- [rankings] Team numbers sit closer to the scores on a phone
+
+### Changed
+- Region rankings on phones: cells are a little tighter and the team column sizes to its number, so the table fits 390px; sorted by Events, Events shows in OPR's place. (`src/pages/RegionRankingsPage.tsx`) (#1578)
+
 ## 6.8.2 — 2026-11-15
 
 Region and league rankings › the tables fit a phone screen without scrolling sideways.
