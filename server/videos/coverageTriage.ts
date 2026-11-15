@@ -3,12 +3,17 @@
 // (CoverageMatch.video, read off its frames) and its season, never chosen by the owner. Only Actionable events are the
 // owner's "To review"; the rest are kept with their category and reason, one click from view.
 //
-//   actionable   a match left out by the clock alone (coverage.ts CLOCK_ONLY: an early start, or a time before or
+//   actionable   a match checked against the video (its frames read) and still without a clip, or a match with no
+//                reason found, or no list at all; its other unsettled matches, not yet checked, are counted beside it.
+//                Before the video check, a match left out by the clock alone (coverage.ts CLOCK_ONLY: an early start, or a time before or
 //                after the broadcast, the cut start, the video's end, what its chapters confirm, every recording),
 //                unless its video's frames show it starting inside the match before; or no reason found, or no list
 //                at all. §6/§7: the stream is the truth, the clock isn't, so an early start or a time outside the video
 //                is never a reason on its own. Its "why" says what was checked in the video and what was missing
 //                there, never what the clock said.
+//   unchecked    left out by the clock alone and not yet checked against the video (no frame read of it): a pending
+//                check, not a reason. Its own count, in any season; never "To review", never marked reviewed (zero-error
+//                brief 2026-11-15, journey 5: To review holds only matches the video itself was checked for).
 //   early-start  most missing matches are ones the video's frames show starting while the match before is still on:
 //                a clip would open on the wrong match.
 //   no-timing    everything else: no clock, video unavailable or not read, shorter than its broadcast with nothing to
@@ -57,6 +62,9 @@ function lead(reasons: [CoverageReason, number][], total: number): string {
   return `${matchesWord(n)}: ${WHY[r]}${n < total ? `, and ${total - n} more for other reasons` : ""}`;
 }
 
+/** Checked against the video (its frames read), or with no reason found: what To review is for. */
+const videoChecked = (m: Missing) => (m.reason ?? "unexplained") === "unexplained" || !!m.video?.checked;
+
 /** An unsettled list in plain words: what was checked in the video and what was missing there, never the clock. */
 function openWhy(open: Missing[]): string {
   const none = (m: Missing) => (m.reason ?? "unexplained") === "unexplained";
@@ -74,9 +82,14 @@ export function baseTriage(missing: Missing[]): { triage: BaseTriage; why: strin
   // Nothing to judge from (a list lost or not written): it can't be settled, so it's looked at.
   if (!missing.length) return { triage: "actionable", why: "No missing list to judge from: look at the event" };
   const open = missing.filter(unsettled);
-  if (open.length) {
-    return { triage: "actionable", why: openWhy(open) + (open.length < missing.length ? ` (${missing.length - open.length} more held back for other reasons)` : "") };
+  const held = (n: number) => (n < missing.length ? ` (${missing.length - n} more held back for other reasons)` : "");
+  const checked = open.filter(videoChecked);
+  if (checked.length) {
+    // To review: what the video showed; the matches still waiting for their video check are counted beside it.
+    const pending = open.filter((m) => !videoChecked(m));
+    return { triage: "actionable", why: openWhy(checked) + (pending.length ? `; ${openWhy(pending)}` : "") + held(open.length) };
   }
+  if (open.length) return { triage: "unchecked", why: openWhy(open) + held(open.length) };
   const early = missing.filter(earlyInVideo);
   if (early.length * 2 >= missing.length) {
     return { triage: "early-start", why: `${matchesWord(early.length)} checked in the video: each starts while the match before is still on, so a clip would open on the wrong match${labels(early)}${early.length < missing.length ? `, and ${missing.length - early.length} more for other reasons` : ""}` };
@@ -84,9 +97,11 @@ export function baseTriage(missing: Missing[]): { triage: BaseTriage; why: strin
   return { triage: "no-timing", why: lead(byReason(missing.filter((m) => !earlyInVideo(m))), missing.length) };
 }
 
-/** The category shown: a stored one, made Old season when it isn't actionable and is older than last season. */
+/** The category shown: a stored one, made Old season when it's settled (not actionable, not waiting for its video
+ *  check) and older than last season. */
 export function seasonTriage(stored: { triage: BaseTriage; why: string }, season: number, current: number): { triage: CoverageTriage; why: string } {
-  return stored.triage !== "actionable" && season < current - 1 ? { triage: "old-season", why: `${seasonLabel(season)} season. ${stored.why}` } : stored;
+  // A pending video check stays one in any season: nothing waiting for a check is folded away.
+  return stored.triage !== "actionable" && stored.triage !== "unchecked" && season < current - 1 ? { triage: "old-season", why: `${seasonLabel(season)} season. ${stored.why}` } : stored;
 }
 
 /** Both at once: the category an event shows now. */
