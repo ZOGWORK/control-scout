@@ -118,6 +118,23 @@ describe("the watcher's matcher", () => {
     expect(v.kind === "add" && v.event.code).toBe("USTXNTBM1");
     expect(designators("FiT UIL State Championship 5A")).toMatchObject({ uil: "5A" });
     expect(designators("Qualifier #3")).toMatchObject({ n: 3 });
+    expect(designators("SoCal FTC ILT #6 - Leagues E & W")).toMatchObject({ n: 6 });
+    expect(designators("SoCal ILT3 - Perris Saturday")).toMatchObject({ n: 3 });
+  });
+
+  it("SoCal's ILT number is its qualifier's: ILT #6 is Qualifier 6, never Qualifier 7 that day", async () => {
+    const { OFFICIAL_CHANNELS } = await import("../data/officialChannels");
+    const live = OFFICIAL_CHANNELS.find((c) => c.channelId === "UCjXduKUa9FVXO7L-wz5sjOg")!;
+    const ca = { state: "CA", city: "Palmdale", start: "2026-02-15", end: "2026-02-15", timezone: "America/Los_Angeles" };
+    const events = [ev("USCALAPAQ2", "SoCal FTC Qualifier 6 - TPPA Sun", ca), ev("USCALASOQ", "SoCal FTC Qualifier 7 - NDHS Sun", { ...ca, city: "Sherman Oaks" }),
+      ev("USCALACAS9", "SoCal FTC Group G - Scrimmage 6", { ...ca, type: "Scrimmage", city: "Carson" })];
+    const v = matchVideo(vid("SoCal FTC ILT #6 - Leagues E & W", { start: "2026-02-15T17:33:00Z", durationS: 419 * 60 }), live, events);
+    expect(v.kind === "add" && v.event.code).toBe("USCALAPAQ2");
+    const cmp = matchVideo(vid("SoCal FTC Regional Championships | Monrovia High School", { start: "2026-03-07T19:20:00Z", durationS: 471 * 60 }), live, [
+      ev("USCALACMP", "California - Los Angeles Championship", { ...ca, type: "Championship", city: "Monrovia", start: "2026-03-07", end: "2026-03-07" }),
+      ev("USCALSCMP", "Los Angeles Unified School District Championship", { ...ca, type: "Championship", city: "Los Angeles", start: "2026-03-07", end: "2026-03-07" }),
+    ]);
+    expect(cmp.kind === "add" && cmp.event.code).toBe("USCALACMP");
   });
 
   // The watcher audit of 2026-11-13 (docs/official-videos.md, "The auto-watcher"): real titles of the live channels.
