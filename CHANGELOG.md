@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.5.0 — 2026-11-15
+## 6.5.2 — 2026-11-15
 
 Owner › Clip coverage takes the stream as the truth: a match the clock alone left without a clip says what its video showed, and an early start is only "unsafe" once the video shows it.
 
@@ -29,6 +29,31 @@ Owner › Clip coverage takes the stream as the truth: a match the clock alone l
 - Clip coverage: a played match left without a clip by the clock alone (an early start, or a time before or after the broadcast, the cut start, the video's end, what its chapters confirm, every recording) now says what its video's own frames showed: "Not yet checked against the video", "Checked in the video (date): no start found for it", or "seen at h:mm:ss, not yet confirmed", with the video's timestamps of the matches around it. The clock's reading is kept apart and is never a reason on its own. (`server/videos/coverage.ts`) (#1520)
 - Triage: Early start / unsafe only once the frames show a match starting while the one before is still on (`earlyStart` in `server/data/frameTimings.ts`); until then it's Actionable, and the event's reason says how many matches weren't checked against the video, or were checked with no start found there. (`server/videos/coverageTriage.ts`)
 - A match played between two of a day's recordings (after one ended, before the next started) says so with both times, "Played between the recordings (after afaqqytUvDU ended at 9:45 AM, before nm-LnMVtCJM started at 11:12 AM)", and counts against neither video; it's Actionable until both videos' frames are read, then settled (USFLFNLT 2025 Q1–Q3, owner-checked). "Starts up to N min early" is never a reason on its own any more.
+
+## 6.5.1 — 2026-11-15
+
+Turn Wi-Fi off and on again and the Offline pill goes as soon as the line answers, not on the next back-off step.
+
+### Highlights
+- [offline] Wi-Fi back on: the Offline pill goes as soon as the line answers
+- [offline] Back online always checks at once, however recent the last check
+- [offline] A slow line after reconnecting is tried every 0.5 s for 30 s
+
+### Fixed
+- The browser's online event now checks at once every time. When a check that started while offline is still running, another runs right after it ends instead of sharing its failure. For 30 s after the online event, a check that fails or gets no answer in 2.5 s is tried again after 0.5 s; then the 3 s, 5 s, 10 s back-off takes over as before. Measured live with the browser's network switched off and on (20 rounds each), the first requests after a reconnect sometimes hung for up to about half a minute, and each one waited for the next back-off step, so the pill stayed up for up to 48 s; it now goes within about 3 s of the line answering. A line that stays silent keeps the back-off. (`src/lib/connection.ts`) (#1515)
+
+## 6.5.0 — 2026-11-15
+
+With no signal, Predict now gives the server's own call for the same snapshot: the same scores and ranges, bonus RP odds, why factors and reasons, and the teams' names. A saved event pack newer than the lite pack predicts for its teams.
+
+### Highlights
+- [offline] Offline Predict shows the same numbers as online for the same data
+- [offline] A newer saved event pack predicts its teams, not the older lite pack
+- [offline] Team names show in offline predictions instead of "…"
+- [offline] Offline calls say which pack they came from and its data time
+
+### Fixed
+- Offline Predict (`/predict` with no signal): the lite pack is rebuilt about once a day, and it answered even when a newer event pack held the lineup, so its season averages (the "×" in the why factors), score ranges and bonus RP odds were the morning's while the server's had moved on with the day's results. Now the newer of the two snapshots that holds the lineup answers, and every number comes from that one snapshot. Event packs now also carry the rest of what the server's prediction reads (the season's bonus RP model, the pair history among the event's teams, recent no-show records and the server's team names), and the lite pack carries the recent records that make a reason, so an offline call is the server's call at that snapshot's time. The server and the device build the call through one shared function, so they can't drift apart. The offline note names the pack and shows its data time, not its build time. The lite pack's pair-history line stays a small cut (same-alliance pairs with 3+ matches, newest season), so that one line can still differ. (`src/shared/predictView.ts`, `src/lib/offline/predict.ts`, `src/lib/offline/predictCall.ts`, `server/packs/bundle.ts`, `server/packs/build.ts`, `src/pages/PredictPage.tsx`) (#1518)
 
 ## 6.4.9 — 2026-11-15
 
