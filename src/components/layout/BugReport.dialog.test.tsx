@@ -81,9 +81,31 @@ describe("Report a bug dialog", () => {
     fireEvent.click(screen.getByRole("button", { name: /Go back/ }));
     expect(screen.queryByTestId("bug-confirm")).toBeNull();
     expect(posted).toBeNull();
+    // Focus goes back to Send report, not to the page.
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("button", { name: /Send report/ })));
     fireEvent.click(screen.getByRole("button", { name: /Send report/ }));
     fireEvent.click(await screen.findByRole("button", { name: "Yes, post it publicly" }));
     await waitFor(() => expect(posted).not.toBeNull());
+  });
+
+  it("only Yes sends: submitting the form again while asked just asks, and an edit asks again", async () => {
+    render(<MemoryRouter><BugReportButton /></MemoryRouter>);
+    fireEvent.click(screen.getByTestId("bug-report-button"));
+    fireEvent.click(await screen.findByText("Something broken"));
+    fireEvent.change(screen.getByLabelText(/What happened/), { target: { value: "The rankings table jumps when I scroll." } });
+    fireEvent.change(screen.getByLabelText(/Email/), { target: { value: "coach@example.test" } });
+    fireEvent.click(screen.getByRole("button", { name: /Send report/ }));
+    // A typed email is public too, and the question says so.
+    expect((await screen.findByTestId("bug-confirm")).textContent).toContain("Anyone can read it, including your email.");
+    // Enter in a field submits the form: that must not send.
+    fireEvent.submit(screen.getByTestId("bug-report-form"));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(posted).toBeNull();
+    expect(screen.getByTestId("bug-confirm")).toBeTruthy();
+    // Changing what was asked about closes the question.
+    fireEvent.change(screen.getByLabelText(/Email/), { target: { value: "" } });
+    await waitFor(() => expect(screen.queryByTestId("bug-confirm")).toBeNull());
+    expect(posted).toBeNull();
   });
 
   it("sends the message sanitized", async () => {
