@@ -108,13 +108,15 @@ function renewOcr(): Promise<void> {
 }
 let failedVideos = 0;
 
-/** The timer's places: FTC Live's bar along the bottom, or its box over the field under a bar across the top (FTC
- *  Ontario's layout) ("bottom"); or a bar along the top (FIRST Texas's layout, "top"). Each counts a 0:30 Auto, then a
+/** The timer's places: FTC Live's bar along the bottom (also shrunk inside side bars), or its box over the field under a bar
+ *  across the top (FTC Ontario's layout) ("bottom"); or a bar along the top (FIRST Texas's layout, "top"). Each counts a 0:30 Auto, then a
  *  2:00 TeleOp (elapsed, scripts/lib/videoFrames.ts). */
 const TIMERS = [
   { where: "bottom" as const, clip: { x: 565, y: 618, width: 150, height: 86 } },
   { where: "top" as const, clip: { x: 603, y: 101, width: 74, height: 38 } },
   { where: "bottom" as const, clip: { x: 565, y: 175, width: 150, height: 68 } },
+  // The bottom bar shrunk to 90% inside black side bars, raised off the bottom edge (ROCMPCND's Friday stream at Q2).
+  { where: "bottom" as const, clip: { x: 580, y: 606, width: 120, height: 52 } },
 ];
 
 /** The timer's reading. `auto`: whether a reading of 0:30 or less is Auto, told by readAt. */
