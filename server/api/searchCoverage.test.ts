@@ -275,6 +275,9 @@ describe("answers on their own", () => {
     const a = (await placeTeamsAnswer("teams in", new Set()))!;
     expect(a.card?.title).toMatch(/^Teams worldwide · best by OPR/);
     expect(a.understood?.label).toMatch(/no place named after "in"/);
+    // The word quoted is the one typed after "teams", however the list is asked for.
+    expect((await placeTeamsAnswer("all teams in", new Set()))!.understood?.label).toMatch(/no place named after "in"\)/);
+    expect((await placeTeamsAnswer("teams based in", new Set()))!.understood?.label).toMatch(/no place named after "based in"\)/);
   });
 });
 
