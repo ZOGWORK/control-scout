@@ -1,8 +1,10 @@
 // The first-visit onboarding: four short steps in a locked dialog. 1 what Control Scout is, 2 pick your team (it
-// becomes My team: its next match and odds), 3 search answers plain questions, 4 where the main places are.
+// becomes My team: its next match and odds), 3 search answers plain questions (examples about that team, a large OR,
+// then wider ones: each runs on tap), 4 where the main places are.
 // Who gets it and its record: src/lib/onboarding.ts.
 //
-// Locked: while it shows, Skip (top right, the same place on every step) is the only way out besides finishing.
+// Locked: while it shows, Skip (top right, the same place on every step) is the only way out besides finishing (the
+// last step, or running one of step 3's example searches).
 // Escape, clicks or taps on the backdrop or anywhere outside, focus leaving, the page's shortcuts (Ctrl/⌘ K, "/"),
 // pull to refresh and a route change all leave it where it is. The page behind is inert; there's no close button
 // and no swipe to close. A reload brings it back on the same step.
@@ -12,7 +14,7 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Dialog as D } from "radix-ui";
-import { ArrowLeft, ArrowRight, CalendarDays, Check, ClipboardList, ListOrdered, Loader2, Search, Sparkles, Star, Trophy, Users, Zap, type LucideIcon } from "lucide-react";
+import { ArrowLeft, ArrowRight, CalendarDays, Check, ClipboardList, ListOrdered, Loader2, MapPin, Search, Sparkles, Star, TrendingUp, Trophy, Users, Zap, type LucideIcon } from "lucide-react";
 import { Button } from "../ui/button";
 import { cn } from "../cn";
 import { BrandMark } from "../layout/Shell";
@@ -150,6 +152,12 @@ export function OnboardingDialog({ step, savedHere }: { step: number; savedHere:
       }, 60);
     }
   };
+  // An example tapped on step 3: that search, run as written on the results page. It ends the welcome (as finishing does).
+  const runSearch = (q: string) => {
+    endOnboarding("finished");
+    navigate(`/search?q=${encodeURIComponent(q)}`);
+    window.scrollTo({ top: 0 });
+  };
   const saveTeamAndGo = () => {
     // The team this onboarding saved (not one the person already had) goes in its record: "I'm not on a team"
     // takes back only that one, even after a reload.
@@ -172,7 +180,7 @@ export function OnboardingDialog({ step, savedHere }: { step: number; savedHere:
     primary = { label: team ? `Save ${team.number} and continue` : "Next", run: saveTeamAndGo };
   } else if (step === 2) {
     title = "Ask anything";
-    body = <StepSearch team={savedTeam} />;
+    body = <StepSearch team={savedTeam} onRun={runSearch} />;
     primary = { label: "Next", run: () => go(3) };
   } else {
     title = "Find your way";
@@ -360,34 +368,97 @@ function StepTeam({ inputRef, picked, savedTeam, onPick, onNone, onEnter }: {
   );
 }
 
-/** Step 3: search answers plain questions. Examples are shown, not run, so they can't leave the dialog. */
-function StepSearch({ team }: { team: number | null }) {
-  const examples: { icon: LucideIcon; text: string; tone: string }[] = team != null
+/** An example search: tapped, it runs exactly as written. */
+interface Example { icon: LucideIcon; text: string; tone: string; tag?: string }
+/** The team's own searches, built from its history and each one checked (server/api/onboardingExamples.ts). */
+interface TeamExample { q: string; kind: "compare" | "season" | "worlds-season" | "place" }
+
+/** The fixed examples under the OR: Worlds' winning alliance compared, and one country's TeleOp leaderboard. */
+export const WIDER_EXAMPLES: Example[] = [
+  { icon: Users, text: "30030 vs 21087 vs 11228", tone: "text-info-text", tag: "Worlds winners" },
+  { icon: ListOrdered, text: "best teleop opr in Romania in 2025-26", tone: "text-rose-500 dark:text-rose-300" },
+];
+
+/** The team's two searches; null while they're being worked out, [] when they couldn't be read. */
+function useTeamExamples(team: number | null): TeamExample[] | null {
+  const [got, setGot] = useState<{ team: number; examples: TeamExample[] } | null>(null);
+  useEffect(() => {
+    if (team == null) return;
+    const ctrl = new AbortController();
+    apiFetch<{ examples: TeamExample[] }>(`/api/onboarding/examples?team=${team}`, { signal: ctrl.signal })
+      .then((r) => setGot({ team, examples: Array.isArray(r?.examples) ? r.examples.slice(0, 2) : [] }))
+      .catch(() => { if (!ctrl.signal.aborted) setGot({ team, examples: [] }); });
+    return () => ctrl.abort();
+  }, [team]);
+  return team == null ? [] : got?.team === team ? got.examples : null;
+}
+
+const TEAM_ICON: Record<TeamExample["kind"], { icon: LucideIcon; tone: string }> = {
+  compare: { icon: TrendingUp, tone: "text-violet-500 dark:text-violet-300" },
+  season: { icon: Zap, tone: "text-accent-text" },
+  "worlds-season": { icon: Zap, tone: "text-accent-text" },
+  place: { icon: MapPin, tone: "text-info-text" },
+};
+
+/** Step 3: search answers plain questions. Each example is a button: it runs that search on the results page. */
+function StepSearch({ team, onRun }: { team: number | null; onRun: (q: string) => void }) {
+  const own = useTeamExamples(team);
+  const first: Example[] = team != null
     ? [
       { icon: CalendarDays, text: `${team} next match`, tone: "text-info-text" },
       { icon: Trophy, text: `${team} awards`, tone: "text-success-text" },
-      { icon: Zap, text: "Best auto OPR", tone: "text-accent-text" },
     ]
     : [
       { icon: Trophy, text: "Who won Worlds", tone: "text-success-text" },
       { icon: Zap, text: "Best auto OPR", tone: "text-accent-text" },
-      { icon: Users, text: "Top teams in California", tone: "text-info-text" },
     ];
+  const history: Example[] = (own ?? []).map((x) => ({ ...TEAM_ICON[x.kind], text: x.q, ...(x.kind === "worlds-season" ? { tag: "Worlds season" } : {}) }));
   const mac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
   return (
     <div>
-      <p className="text-[15px] leading-relaxed text-text-muted">Search answers FTC questions in plain words, with the numbers right there. For example:</p>
-      <ul className="mt-4 grid gap-2" aria-label="Example searches">
-        {examples.map((x) => (
-          <li key={x.text} className="flex items-center gap-3 rounded-full border border-line bg-text-base/[0.03] py-2 pl-3 pr-4 text-[15px] font-medium text-text-base">
-            <x.icon className={cn("size-4 shrink-0", x.tone)} aria-hidden /> <span className="truncate">“{x.text}”</span>
-          </li>
-        ))}
+      <p className="text-[15px] leading-relaxed text-text-muted">Search answers FTC questions in plain words. Tap one to try it:</p>
+      <ul className="mt-3 grid gap-2 md:gap-1.5" aria-label="Example searches">
+        {first.map((x) => <ExamplePill key={x.text} x={x} onRun={onRun} />)}
       </ul>
-      <p className="mt-4 hidden text-[15px] text-text-muted md:block">
+      <OrDivider />
+      <ul className="grid gap-2 md:gap-1.5" aria-label="More example searches" aria-busy={own === null}>
+        {own === null && team != null && [0, 1].map((i) => (
+          <li key={`wait-${i}`} aria-hidden className="h-[48px] animate-pulse rounded-full md:h-[44px] border border-line bg-text-base/[0.05]" data-onboarding-example-wait="" />
+        ))}
+        {history.map((x) => <ExamplePill key={x.text} x={x} onRun={onRun} />)}
+        {WIDER_EXAMPLES.map((x) => <ExamplePill key={x.text} x={x} onRun={onRun} />)}
+      </ul>
+      <p className="mt-3 hidden text-[15px] text-text-muted md:block">
         Press <kbd className="rounded border border-line bg-text-base/[0.05] px-1.5 py-0.5 font-mono text-[13px] text-text-base">{mac ? "⌘" : "Ctrl"} K</kbd> on any page to search.
       </p>
       <p className="mt-4 text-[15px] text-text-muted md:hidden">The search box is at the top of every page.</p>
+    </div>
+  );
+}
+
+function ExamplePill({ x, onRun }: { x: Example; onRun: (q: string) => void }) {
+  return (
+    <li>
+      <button
+        type="button" onClick={() => onRun(x.text)} data-onboarding-example={x.text}
+        className="flex min-h-[48px] w-full items-center gap-3 rounded-full border border-line bg-text-base/[0.03] py-2 pl-3 md:min-h-[44px] md:py-1.5 pr-4 text-left text-[15px] font-medium text-text-base transition-colors hover:border-accent/60 hover:bg-accent/10 focus-visible:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+      >
+        <x.icon className={cn("size-4 shrink-0", x.tone)} aria-hidden />
+        <span className="min-w-0 flex-1 break-words">“{x.text}”</span>
+        {x.tag && <span className="shrink-0 rounded-full bg-accent/15 px-2 py-0.5 text-[12px] font-semibold text-accent-text">{x.tag}</span>}
+        <ArrowRight className="size-4 shrink-0 text-text-muted" aria-hidden />
+      </button>
+    </li>
+  );
+}
+
+/** The large OR between the team's own searches and the rest: thick rules and a big word, in every theme. */
+function OrDivider() {
+  return (
+    <div className="my-4 flex items-center gap-4 md:my-3" role="separator" aria-label="or" data-onboarding-or="">
+      <span className="h-[3px] flex-1 rounded-full bg-text-base/25" aria-hidden />
+      <span className="font-display text-[30px] leading-none font-extrabold tracking-[0.12em] text-text-base" aria-hidden>OR</span>
+      <span className="h-[3px] flex-1 rounded-full bg-text-base/25" aria-hidden />
     </div>
   );
 }

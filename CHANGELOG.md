@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.6.1 — 2026-11-15
+## 6.6.2 — 2026-11-15
 
 Search › "Where does 4215 rank in New Jersey" answers with the region page's own numbers (rank in New Jersey, rating, record, OPR) and opens that page with the team's row marked.
 
@@ -25,8 +25,20 @@ Search › "Where does 4215 rank in New Jersey" answers with the region page's o
 - [rankings] Not ranked yet says how many rated matches a team has
 
 ### Changed
-- "Where does {team} rank in {region}": the answer adds the team's season record, shows its rating to one decimal as the region page does, and links to the region page on the team's page with its row marked. A team from there with fewer than 3 rated matches is "Not ranked yet — N of 3 rated matches" (or "No rated matches yet"), never ranked by its OPR instead. (`server/api/answers/families/oprRating.ts`)
-- "Top teams in New Jersey", "best team in New Jersey", "New Jersey rankings": the region page's rows (rank in the region, rating, OPR, record) and a link to it; a region with no rated team says "No rated teams yet". (`server/api/searchAsks.ts`, `server/api/answers/families/leaderboard.ts`, `server/api/searchIntents.ts`)
+- "Where does {team} rank in {region}": the answer adds the team's season record, shows its rating to one decimal as the region page does, and links to the region page on the team's page with its row marked. A team from there with fewer than 3 rated matches is "Not ranked yet — N of 3 rated matches" (or "No rated matches yet"), never ranked by its OPR instead. (`server/api/answers/families/oprRating.ts`) (#1544)
+- "Top teams in New Jersey", "best team in New Jersey", "New Jersey rankings": the region page's rows (rank in the region, rating, OPR, record) and a link to it; a region with no rated team says "No rated teams yet". (`server/api/searchAsks.ts`, `server/api/answers/families/leaderboard.ts`, `server/api/searchIntents.ts`) (#1544)
+
+## 6.6.1 — 2026-11-15
+
+Welcome › Step 3 "Ask anything" is now six searches you can tap: your team's next match and awards, a large OR, then two built from your team's own history and two wider ones.
+
+### Highlights
+- [home] Tap any welcome step 3 example to run that exact search
+- [home] Two examples are built from your team's own seasons
+- [home] A large OR splits your team's searches from the wider ones
+
+### Changed
+- Welcome, step 3: the examples are buttons. Each one ends the welcome and opens that search, as written, on the results page. With a team picked: "<team> next match", "<team> awards", a large OR, then the team's compare (its sister team at the same school and town, else the team it met most, over its last finished season) and its auto OPR in the season it played at Worlds (else its best season by OPR rank), then "30030 vs 21087 vs 11228" (Worlds' winning alliance) and "best teleop opr in Romania in 2025-26". A team with no season played yet gets its town's teams and its region's best rookies instead. Every team example is run on the server first, and one that doesn't answer is replaced by the next, or left out: never made up. (`src/components/onboarding/Onboarding.tsx`, `server/api/onboardingExamples.ts`, `GET /api/onboarding/examples`) (#1540)
 
 ## 6.6.0 — 2026-11-15
 
@@ -38,8 +50,8 @@ Rankings › Leagues have a list of their own, and a league's standings show eac
 - [rankings] From a league to its region's rankings and back
 
 ### Added
-- Leagues (`/leagues`): every league of the season grouped by where its meets are, with meets played, teams and FIRST's #1 by ranking score, searchable, season switch; each place links to its region rankings. In the navigation (Leagues) and on every region page. (`src/pages/LeaguesPage.tsx`, `server/api/leagues.ts`)
-- League standings: links to the league's region rankings and to the leagues list; after FIRST's columns (unchanged), Scout rating ("Not rated yet" under 3 rated matches, never a made-up number), OPR (— when none) and the team's rank in its home region, linked to its row on that region's page. (`src/pages/LeaguePage.tsx`, `src/components/LeagueTable.tsx`)
+- Leagues (`/leagues`): every league of the season grouped by where its meets are, with meets played, teams and FIRST's #1 by ranking score, searchable, season switch; each place links to its region rankings. In the navigation (Leagues) and on every region page. (`src/pages/LeaguesPage.tsx`, `server/api/leagues.ts`) (#1543)
+- League standings: links to the league's region rankings and to the leagues list; after FIRST's columns (unchanged), Scout rating ("Not rated yet" under 3 rated matches, never a made-up number), OPR (— when none) and the team's rank in its home region, linked to its row on that region's page. (`src/pages/LeaguePage.tsx`, `src/components/LeagueTable.tsx`) (#1543)
 
 ## 6.5.9 — 2026-11-15
 
@@ -69,7 +81,7 @@ Rankings › Every region has its own rankings page: New Jersey's teams ranked i
 - Rankings by region (`/rankings/regions`): every country and named state or province with rated teams, most teams first, its #1 team and its leagues, searchable, with a season switch. Linked from Rankings, the navigation (Region rankings) and Home's footer. (`src/pages/RegionsPage.tsx`)
 - A region's rankings (`/rankings/regions/USA/NJ`): rank in the region (world rank beside it), rating, season record, OPR, events, rated matches, move in the region since last week and the trend, sortable by rank, rating, OPR, record, events and move without renumbering. The week's top three climbers and fallers and the teams new to the table sit above it; teams with fewer than three rated matches are listed apart and labeled ("Not ranked yet — 2 of 3 rated matches", "No rated matches yet"), never ranked; a region with no rated team says so. Its leagues link to their standings. Season and week switches keep the region; `?team=` opens the page that team's row is on, marked. Ratings are labeled comparable inside one season only. (`src/pages/RegionRankingsPage.tsx`, `server/api/regionRankings.ts`)
 - Team page: its place in its home region and "Rank in New Jersey →" (or its own region) opens the region's table on the team's page with its row marked. (`src/pages/TeamPage.tsx`)
-- `/rankings` with one place picked links to that place's page; every view links to the regions list. (`src/pages/RankingsPage.tsx`)
+- `/rankings` with one place picked links to that place's page; every view links to the regions list. (`src/pages/RankingsPage.tsx`) (#1541)
 
 ## 6.5.7 — 2026-11-15
 
