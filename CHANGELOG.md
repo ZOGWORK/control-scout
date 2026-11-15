@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 6.6.0 — 2026-11-15
+
+Search › "Where does 4215 rank in New Jersey" answers with the region page's own numbers (rank in New Jersey, rating, record, OPR) and opens that page with the team's row marked.
+
+### Highlights
+- [rankings] Ask where a team ranks in its state: rank, rating, record, OPR
+- [rankings] Top teams in a state answer from its rankings page
+- [rankings] Not ranked yet says how many rated matches a team has
+
+### Changed
+- "Where does {team} rank in {region}": the answer adds the team's season record, shows its rating to one decimal as the region page does, and links to the region page on the team's page with its row marked. A team from there with fewer than 3 rated matches is "Not ranked yet — N of 3 rated matches" (or "No rated matches yet"), never ranked by its OPR instead. (`server/api/answers/families/oprRating.ts`)
+- "Top teams in New Jersey", "best team in New Jersey", "New Jersey rankings": the region page's rows (rank in the region, rating, OPR, record) and a link to it; a region with no rated team says "No rated teams yet". (`server/api/searchAsks.ts`, `server/api/answers/families/leaderboard.ts`, `server/api/searchIntents.ts`)
+
 ## 6.5.8 — 2026-11-15
 
 Rankings › Every region has its own rankings page: New Jersey's teams ranked in New Jersey, with their record, OPR, events and the matches each rating rests on, and who climbed, fell or is new this week.
