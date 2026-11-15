@@ -10,9 +10,9 @@
 // question for each, and no Compare until they're picked.
 // Trailing words never break the versus: topic words ("history", "record", "stats") are dropped, and when a side
 // still names no team, its last words are dropped one at a time until it does ("67890 please" → 67890).
-import type { SearchAnswer, SearchCompareSide, SearchHit } from "../../src/shared/api.js";
+import type { SearchAnswer, SearchHit } from "../../src/shared/api.js";
 import { SEARCH_BROWSE, VERSUS, pagesFor } from "../../src/shared/search.js";
-import { cleanTeamName, searchTeamTitle, teamWords } from "../../src/shared/teamTitle.js";
+import { cleanTeamName, searchTeamTitle } from "../../src/shared/teamTitle.js";
 import { hasTeamPage, teamPageSql } from "../../src/shared/teamPages.js";
 import { seasonLabel } from "../../src/shared/format.js";
 import { all, get } from "../db.js";
@@ -21,10 +21,11 @@ import { search, searchIntent } from "./search.js";
 import { pickShared, whichLine } from "./query/shared.js";
 import { onlyOrdinary } from "./query/ordinary.js";
 import { place } from "../../src/shared/format.js";
+import { compareHit, comparePlace } from "../../src/shared/searchVersus.js";
 
 interface TeamFacts { number: number; name: string; city: string | null; state: string | null; country: string | null; lastPlayed: number | null; strength: number | null }
 
-async function teamFacts(nums: number[]): Promise<Map<number, TeamFacts>> {
+export async function teamFacts(nums: number[]): Promise<Map<number, TeamFacts>> {
   if (!nums.length) return new Map();
   const rows = await all<any>(`SELECT t.number, t.name, t.city, t.state, t.country,
       (SELECT MAX(s.season) FROM team_event_stats s WHERE s.team = t.number AND s.matches > 0) lastPlayed,
@@ -34,8 +35,7 @@ async function teamFacts(nums: number[]): Promise<Map<number, TeamFacts>> {
   return new Map(rows.map((r) => [Number(r.number), { number: Number(r.number), name: r.name ?? "", city: r.city, state: r.state, country: r.country, lastPlayed: r.lastPlayed == null ? null : Number(r.lastPlayed), strength: r.strength == null ? null : Number(r.strength) }]));
 }
 
-const placeOf = (t: TeamFacts) => place(t.city, t.state) || t.country || "";
-const sideOf = (t: TeamFacts): SearchCompareSide => ({ number: t.number, name: cleanTeamName(t.number, t.name) ?? "", place: placeOf(t) });
+const placeOf = comparePlace;
 
 /** What one side of a versus names: a team, several equally (a shared name), or nothing. `pool`: a shared name's
  *  teams, read again once the other sides are (./query/shared.ts: another side's state comes before the name's own). */
@@ -119,20 +119,6 @@ export async function namedTeam(typed: string, prefer: ReadonlySet<string>): Pro
   return side.tied.length ? { tied: side.tied.map((t) => t.number), question: whichOf(side) } : null;
 }
 
-/** Compare's hit for these teams (number order). */
-function compareHit(teams: TeamFacts[], q: string, season: number | null, resolved: { typed: string; number: number; rule: string; candidates: number[] }[], extra = ""): SearchHit {
-  const sorted = [...teams].sort((a, b) => a.number - b.number);
-  const nums = sorted.map((t) => t.number);
-  // "… awards": Compare opened on its events-and-awards section.
-  const awards = /\bawards?\b/i.test(q);
-  return {
-    kind: "compare", ref: nums.join(","), season,
-    href: `/compare?teams=${nums.join(",")}${season != null ? `&season=${season}` : ""}${awards ? "#awards" : ""}`,
-    title: sorted.map((t) => teamWords(searchTeamTitle(t.number, t.name))).join(" vs "),
-    subtitle: `${awards ? "Compare their events and awards side by side" : "Compare side by side: records, OPR and event history"}${extra}`,
-    compare: { teams: sorted.map(sideOf), ...(resolved.length ? { resolved } : {}) },
-  };
-}
 
 const uniqTeams = (ts: TeamFacts[]) => [...new Map(ts.map((t) => [t.number, t])).values()];
 

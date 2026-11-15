@@ -29,7 +29,7 @@ import { cleanTeamName, searchTeamTitle, teamNameOf, teamWords } from "../../src
 import { teamPageSql } from "../../src/shared/teamPages.js";
 import { CURRENT_SEASON, SEASONS } from "../data/seasons.js";
 import { all, get } from "../db.js";
-import { fuzzyScore, joinThousands, normalize, wordScore, words } from "./fuzzy.js";
+import { fuzzyScore, normalize, wordScore, words } from "./fuzzy.js";
 import { ftsQuery, search, searchIntent, teamAtEventAnswer } from "./search.js";
 import { rerank } from "./searchLearn.js";
 import { intentAnswer, parseIntent } from "./searchIntents.js";
@@ -57,11 +57,12 @@ import { pickShared, whichLine } from "./query/shared.js";
 import { withPage } from "./answers/teamsNamed.js";
 import { asideWord, asksWhich, onlyOrdinary } from "./query/ordinary.js";
 import { LEXICON } from "./query/lexicon.js";
+import { SEARCH_MAX_QUERY as MAX_QUERY, cleanQuery } from "../../src/shared/search.js";
 import { awardQuery, bottomAnswer, calledTeams, countAnswer, eventCodeAnswer, eventPageAnswer, explainAnswer, explainTeamAnswer, monthAnswer, nearMeAnswer, namedParts, placeTeamsAnswer, rewriteQuery, teamFactAnswer, teamFallback, teamListAnswer, worldsAnswer } from "./searchCoverage.js";
 
-/** The longest query read: a full question ("did the prediction for 12345 at the state championship get it right, or
- *  was it way off") fits. Longer is cut at a word, never inside one. */
-export const MAX_QUERY = 160;
+/** The longest query read, and the query as search reads it (src/shared/search.ts: the event pack reads a query the
+ *  same way with no signal). */
+export { SEARCH_MAX_QUERY as MAX_QUERY, cleanQuery } from "../../src/shared/search.js";
 /** A top result scoring under this against what was typed is a correction ("did you mean"), not a match. */
 export const WEAK_SCORE = 0.9;
 
@@ -90,17 +91,6 @@ export interface AnswerOptions {
   sorry?: boolean;
 }
 
-/** The query as search reads it: punctuation that never means anything dropped, spaces folded, at most MAX_QUERY
- *  (cut at the last whole word: a word cut in two, "2025-2", would be read as another). */
-export function cleanQuery(raw: string): string {
-  // "1,000" is one number before its comma could be dropped as punctuation; a stored name written that way is indexed
-  // as one number too (SEARCH_INDEX_SCHEMA 6). "40+ teams" is "40 or more teams" (a size, as the events-over-a-size
-  // answer reads it), kept before "+" is cleaned.
-  const q = joinThousands(String(raw ?? "")).replace(/(\d)\s*\+\s*(?=teams?\b)/gi, "$1 or more ").replace(/[!?,;"<>(){}[\]|\\^*`~=+]/g, " ").replace(/\s+/g, " ").trim();
-  if (q.length <= MAX_QUERY) return q;
-  const cut = q.slice(0, MAX_QUERY);
-  return (q[MAX_QUERY] === " " ? cut : cut.replace(/\s+\S*$/, "")).trim() || cut;
-}
 
 /** `q` without a comma clause that only says what isn't asked: a clause taken back by a lone "no", "not just …"/"not only …" (more than that is wanted), or
  *  "not" and a season ("not 2025", "not this season": the season said beside it is the one). Any other "not" clause

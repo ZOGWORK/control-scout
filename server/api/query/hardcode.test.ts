@@ -5,13 +5,19 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const DIR = join(__dirname);
+// The parser itself lives in src/shared/query (it runs on the device too, with no signal); the files here re-export it.
+const SHARED = join(__dirname, "../../../src/shared/query");
+const ROOT = join(__dirname, "../../..");
 const files = (d: string): string[] => readdirSync(d).flatMap((f) => { const p = join(d, f); return statSync(p).isDirectory() ? files(p) : /\.ts$/.test(f) && !/\.test\.ts$/.test(f) ? [p] : []; });
 // The teams, events and places the brief named.
 const NAMED = /\b(?:4215|6980|7149|23268|17713|24033)\b|parkway|turnpike/i;
 
 describe("the pipeline's code", () => {
   it("names no team, event or place", () => {
-    const hits = files(DIR).flatMap((f) => readFileSync(f, "utf8").split("\n").map((l, i) => [f, i + 1, l] as const).filter(([, , l]) => NAMED.test(l)));
-    expect(hits.map(([f, n, l]) => `${f.slice(DIR.length + 1)}:${n}: ${l.trim()}`)).toEqual([]);
+    const all = [...files(DIR), ...files(SHARED)];
+    // Every moved module is scanned (parse, lexicon, intents, names, time, ordinary, shared, …).
+    for (const m of ["parse", "lexicon", "intents", "names", "time", "ordinary", "shared"]) expect(all.some((f) => f.startsWith(SHARED) && f.endsWith(`${m}.ts`)), m).toBe(true);
+    const hits = all.flatMap((f) => readFileSync(f, "utf8").split("\n").map((l, i) => [f, i + 1, l] as const).filter(([, , l]) => NAMED.test(l)));
+    expect(hits.map(([f, n, l]) => `${f.slice(ROOT.length + 1)}:${n}: ${l.trim()}`)).toEqual([]);
   });
 });

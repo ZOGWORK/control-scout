@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.3.9 — 2026-11-14
+## 6.4.0 — 2026-11-14
 
 2025's events and 2024's APOC get match clips read off their recordings' frames: 2,612 more matches now open on their match, and 1,538 move to the second the frames show.
 
@@ -26,6 +26,24 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 
 ### Changed
 - `server/data/frameTimings.ts` holds the two-signal reader's starts for 128 framed events (165 videos: 2025's events, and two 2024-season APOC videos under AUSYOS), in place of the 7 events shipped with 6.3.4. Against what's live: 30,273 of 34,423 played matches keep their clip as it is, 2,612 get a clip (456 read and confirmed, 2,156 between two agreeing reads), 1,538 move to the frames' second (1,256 by 30 s or less; 282 by more, all earlier in the video, across 23 events) and none lose a clip. 35 of them, one for every event with a move over 30 s plus 12 new ones, were checked by eye 30 s into the match: each shows that match running. (#1502)
+
+## 6.3.9 — 2026-11-14
+
+FTC One Search works with no signal at the meet: search a team in the downloaded event by number or name, the event, a match, or set its teams side by side, and get the same answer as online. Anything else says plainly that it needs data the pack doesn't hold, and shows what the pack does hold.
+
+### Highlights
+- [offline] Search the event's teams, the event and its matches offline
+- [offline] "12722 vs 17064 vs 27851" compares pack teams with no signal
+- [offline] Searches the pack can't answer say what's missing, not an error
+- [speed] Offline search answers at once, with no network wait
+
+### Added
+- The event pack holds FTC One Search's whole answer (`/api/search?answer=1`, as the /search page shows it, for anyone) for every team in the event by number and by name, the event by code and by name, and each match as search reads one ("USMIMIQ1 Q12"), read through the route's own functions (`server/api/searchPage.ts`, which the route now calls too), and each team's season numbers for the result cards (`/api/teams-summary`). Measured for the real 2026 USMIMIQ1 (34 teams): the pack's answers, Compare and search parts about 178 KB gzipped. With no signal, "Questions with video", People also ask and Related searches are left out (nothing plays offline, and they're read live).
+- Two to four of the pack's teams set against each other ("A vs B", "A vs B vs C") are built on the phone by the same functions the server builds them with (`src/shared/searchVersus.ts`: Compare's hit, the team rows, the season-numbers card; the server's `searchCompare.ts`, `twoTeam.ts` and `answers/index.ts` now call them), from the pack's new `search` section. Checked byte for byte against the server's own JSON (10 of 10 queries on 2026 USMIMIQ1, and in `server/packs/eventSearch.test.ts`).
+- Any other search with no signal is read by search's own parser, now in `src/shared/query/` (the server imports it from there), and answers "This needs data that isn't in your downloaded pack (it's about the 2025–26 season)", then the pack's event, teams, matches and data time, with links to the pack's pages it names. A saved season still answers plain results first, as before.
+
+### Changed
+- With an event pack saved, search waits 4 seconds for the server before the pack answers (no answer, or no network at all: at once), never search's 10-second slow-search wait; a search the pack can't answer still waits for a server that's answering everything else. (#1489)
 
 ## 6.3.8 — 2026-11-14
 
