@@ -22,6 +22,7 @@
 //   --all     every recording, not only those with a match the server can't place now (and again those read on an earlier run)
 //   --check   recordings the server already places, to compare: prints how far the frames are from the clock
 //   --dry     print, don't write
+//   --trace   print every frame read (where, what it named, the start it gave) to stderr
 //   TESSERACT_JS=<path to tesseract.js's entry>  where tesseract.js is, when it isn't in node_modules
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
@@ -29,7 +30,7 @@ import { AUTO_S, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, elapse
 
 // The command line: --name value or --name=value for the value flags, --name alone for the others. Anything else stops
 // the run before it reads: a misspelt flag mustn't quietly read (and write) every recording of the season.
-const VALUE_FLAGS = new Set(["season", "codes", "limit", "lanes"]), BOOL_FLAGS = new Set(["all", "check", "dry"]);
+const VALUE_FLAGS = new Set(["season", "codes", "limit", "lanes"]), BOOL_FLAGS = new Set(["all", "check", "dry", "trace"]);
 const args = new Map<string, string | true>();
 {
   const argv = process.argv.slice(2);
@@ -41,7 +42,7 @@ const args = new Map<string, string | true>();
       if (v == null || v === "" || v.startsWith("--")) { console.error(`--${name}: give it a value`); process.exit(2); }
       args.set(name, v);
     } else if (m && BOOL_FLAGS.has(name) && m[2] == null) args.set(name, true);
-    else { console.error(`${argv[i]}: not a flag this script takes (--season, --codes, --limit, --lanes, --all, --check, --dry)`); process.exit(2); }
+    else { console.error(`${argv[i]}: not a flag this script takes (--season, --codes, --limit, --lanes, --all, --check, --dry, --trace)`); process.exit(2); }
   }
 }
 const arg = (k: string) => { const v = args.get(k); return typeof v === "string" ? v : undefined; };
@@ -58,7 +59,7 @@ const season = count("season", 2025);
 const only = arg("codes")?.split(",").map((c) => c.trim().toUpperCase()).filter(Boolean);
 const limit = arg("limit") == null ? Infinity : count("limit", 1);
 const lanes = count("lanes", 3);
-const CHECK = flag("check"), ALL = flag("all"), DRY = flag("dry");
+const CHECK = flag("check"), ALL = flag("all"), DRY = flag("dry"), TRACE = flag("trace");
 
 const { migrate, all } = await import("../server/db.js");
 await migrate();
@@ -146,7 +147,10 @@ function readAt(page: Page, t: number): Promise<Read> {
   pageReads.set(page, (pageReads.get(page) ?? 0) + 1);
   let timer: ReturnType<typeof setTimeout> | undefined;
   return Promise.race([
-    readAtOnce(page, t).finally(() => clearTimeout(timer)),
+    readAtOnce(page, t).finally(() => clearTimeout(timer)).then((r) => {
+      if (TRACE) console.error(`    read ${Math.round(t)} s: ${r.label ?? "-"}${r.start != null ? ` from ${r.start}` : ""}${r.division ? ` (${r.division} division)` : ""}${r.why ? `: ${r.why}` : ""}`);
+      return r;
+    }),
     new Promise<never>((_, no) => { timer = setTimeout(() => { void renewOcr(); no(new Error(`a frame read at ${Math.round(t)} s hung over ${READ_LIMIT_S} s`)); }, READ_LIMIT_S * 1000); }),
   ]);
 }
