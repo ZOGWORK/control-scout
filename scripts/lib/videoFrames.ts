@@ -59,6 +59,26 @@ export const NOTHING_READ = "no frame of the video could be read";
  *  overlap. */
 export const MATCH_S = AUTO_S + SWITCH_S + TELEOP_S;
 
+/** A division's own name from its event's ("Romania Championship - COANDA Division" → "COANDA"), or null. */
+export function divisionOf(name: string): string | null {
+  const m = /\s[-–]\s*(.+?)\s+Division\s*$/i.exec(name.trim());
+  return m ? m[1] : null;
+}
+
+const plain = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase();
+const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/**
+ * Whose division an overlay names, when an event's divisions share a stream (one feed cutting between fields): "own",
+ * "other" (a sibling division's name is on it), or null (no division name read: the ticker scrolled it off).
+ */
+export function overlayDivision(text: string, own: string, others: string[]): "own" | "other" | null {
+  const t = plain(text);
+  const has = (d: string) => new RegExp(`(^|[^A-Z])${escape(plain(d)).replace(/\s+/g, "\\s+")}([^A-Z]|$)`).test(t);
+  if (others.some(has)) return "other";
+  return has(own) ? "own" : null;
+}
+
 /** How long before a broadcast's start a match no broadcast holds is still looked for in it (seconds). */
 export const LEAD_IN_S = 6 * 3600;
 
