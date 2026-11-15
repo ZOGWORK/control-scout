@@ -2,13 +2,19 @@
 // form's error for it (aria-invalid, described by the message) when it has one.
 import { useEffect, useId, useState, type Ref } from "react";
 import { Input } from "./ui/basic";
-import { apiFetch, peek } from "../lib/api";
+import { ApiError, apiFetch, peek } from "../lib/api";
 import { offlineSource } from "../lib/offline/saved";
+import { offlineNow } from "../lib/connection";
 import type { SearchHit, TeamProfile } from "../shared/api";
 import { teamNameOf } from "../shared/teamTitle";
 import { cn } from "./cn";
 
 const nameCache = new Map<number, string | null>();
+
+/** The name a pack saved on this device holds (lib/offline/names.ts, loaded only once the server can't be reached),
+ *  or undefined. Never cached: the server's answer wins once it's back. */
+const savedName = (n: number): Promise<string | undefined> =>
+  import("../lib/offline/names").then((m) => m.savedTeamName(n)).catch(() => undefined);
 
 /** How long a form waits for the name check before letting the number through (a slow venue network must not block saving). */
 const LOOKUP_DEADLINE_MS = 4000;
@@ -16,17 +22,20 @@ const LOOKUP_DEADLINE_MS = 4000;
 /**
  * The team's name ("" when it has none), null when the server says there's no such team, undefined when
  * we can't tell: the lookup failed, ran past `deadlineMs`, or was answered from seasons saved on this
- * device (a team missing from those may still exist). Only the server's answer is cached.
+ * device (a team missing from those may still exist). With no signal, a pack saved on this device names the team
+ * when it holds it (the same names the offline prediction shows). Only the server's answer is cached.
  */
 export async function lookupTeamName(n: number, deadlineMs = LOOKUP_DEADLINE_MS): Promise<string | null | undefined> {
   if (nameCache.has(n)) return nameCache.get(n);
-  const lookup = apiFetch<{ hits: SearchHit[] }>(`/api/search?q=${n}&limit=3`).then((r) => {
+  const ask = () => apiFetch<{ hits: SearchHit[] }>(`/api/search?q=${n}&limit=3`).then((r) => {
     const hit = r.hits.find((h) => h.kind === "team" && h.ref === String(n));
     const v = hit ? teamNameOf(hit.title) || "" : null;
-    if (offlineSource(r)) return v ?? undefined;
+    if (offlineSource(r)) return v ?? savedName(n);
     nameCache.set(n, v);
     return v;
-  }).catch(() => undefined);
+  }).catch((e) => (e instanceof ApiError && e.offline ? savedName(n) : undefined));
+  // Known to be offline: the saved packs' name at once (no wait for a search that can't reach the server).
+  const lookup = offlineNow() ? savedName(n).then((v) => (v !== undefined ? v : ask())) : ask();
   let timer: ReturnType<typeof setTimeout> | undefined;
   const deadline = new Promise<undefined>((resolve) => { timer = setTimeout(() => resolve(undefined), deadlineMs); });
   try { return await Promise.race([lookup, deadline]); } finally { clearTimeout(timer); }
