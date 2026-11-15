@@ -66,6 +66,9 @@ export async function pipelineAnswer(q: string, opts: PipelineOptions): Promise<
     const n = String(p.teams[0].number);
     return selfMatchAnswer(p, (await opts.resolve(n)).hits.find((h) => h.kind === "team" && h.ref === n), opts.pages, opts.full);
   }
+  // An event's matches and nothing else asked ("<event> matches", "matches at <event>"): its matches in the order played,
+  // each row playing its clip, as a team's matches do.
+  if (!p.intent && asksEventMatches(p)) return eventMatchesAnswer(p, opts);
   // One team's question in two time windows set against each other ("12345 record this month, versus last month"):
   // asked in each, exactly as said, side by side.
   if (!p.complete) {
@@ -228,7 +231,7 @@ const TEAM_FIND = new Set<MatchMeasure>(["miss", "accurate"]);
 /** The matches a measure finds, in a sentence ("no 2026–27 upsets yet"). */
 const MATCH_NOUN: Record<MatchMeasure, string> = {
   high: "scored matches", low: "scored matches", closest: "decided matches", lopsided: "decided matches", penalties: "matches with penalty points",
-  upset: "upsets", comeback: "comebacks", "loss-high": "decided matches", miss: "matches with a saved prediction", accurate: "matches with a saved prediction",
+  upset: "upsets", comeback: "comebacks", "loss-high": "decided matches", miss: "matches with a saved prediction", accurate: "matches with a saved prediction", order: "matches",
 };
 /** A time's label that already reads alone ("in March 2026", "this week", "on Mar 15, 2026", "today"). */
 const WHEN_WORD = /^(?:in|on|during|this|last|next|from|between|today|tonight|yesterday|tomorrow)\b/i;
@@ -270,6 +273,42 @@ async function advancementResult(p: Parsed, stat: StatAnswer, opts: PipelineOpti
 
 /** Whether `p` names a stat other than OPR (auto, record, penalties …): an answer counted by OPR only isn't it. */
 export const saysOtherStat = (p: Pick<Parsed, "symbols">) => p.symbols.some((s) => BOARD_STAT[s] && BOARD_STAT[s] !== "opr");
+
+/** The words only name an event and its matches ("<event> matches", "matches at <event>", a year or a match type
+ *  beside it): no team, measure, place, window or other ask. */
+export function asksEventMatches(p: Parsed): boolean {
+  if (!p.event || p.teams.length || p.eventKind || p.worlds || p.states || p.place || p.alliance || p.scoreCond || p.withVideo || p.matchNumber != null || p.leftover.length) return false;
+  if (p.time && !(p.time.kind === "season" && p.time.year != null && !p.time.relative)) return false;
+  return p.symbols.includes("thing:match") && p.symbols.every((s) => s === "thing:match" || s.startsWith("prep:") || s.startsWith("level:"));
+}
+
+/** Most matches an event's list shows (a championship's qualification and playoff matches fit). */
+export const EVENT_MATCHES_MAX = 200;
+
+/** The event's matches in the order played (qualification, then playoffs), its divisions' too: the edition held in the
+ *  year said, else its latest with a match played. Null when no event goes by the name (search lists names then). */
+async function eventMatchesAnswer(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer | null> {
+  if (!opts.full) return null;
+  const year = p.time?.kind === "season" ? p.time.year ?? null : null;
+  const held = year != null ? (e: { start: string | null }) => (e.start ?? "").startsWith(String(year)) : undefined;
+  const named = await eventsNamed(normalise(p.event!.words), null, held);
+  const events = held ? named.filter(held) : named;
+  if (!events.length) return null;
+  const keys = (await scopeEvents({ season: 0, region: null, level: null, finals: false, kind: null, events })) ?? [];
+  if (!keys.length) return null;
+  const played = await get<{ s: number | null }>(
+    `SELECT MAX(m.season) s FROM matches m WHERE m.played = 1 AND (${keys.map(() => "(m.season = ? AND m.code = ?)").join(" OR ")})`, keys.flatMap((k) => [k.season, k.code]));
+  const season = played?.s != null ? Number(played.s) : Math.max(...events.map((e) => e.season));
+  const mainFirst = [...events].sort((x, y) => Number(x.division != null) - Number(y.division != null));
+  const f: MatchFind = {
+    measure: "order", season, region: null, level: p.level, finals: p.finals, kind: null, n: EVENT_MATCHES_MAX, list: true,
+    events: keys.map((k) => ({ ...k, name: mainFirst.find((e) => e.season === k.season)?.name })),
+    named: true,
+  };
+  const stat = await matchFindAnswer(f);
+  return { q: p.q, hits: [], pages: opts.pages, step: "deterministic", weak: false, understood: { kind: "question", label: stat.title, season }, stat,
+    intent: { kind: `stat-${stat.intent}`, pattern: "event-matches", met: true, understood: describe(p) } };
+}
 
 async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer | null> {
   const intent = p.intent!;
