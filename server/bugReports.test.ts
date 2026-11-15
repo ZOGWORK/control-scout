@@ -506,6 +506,20 @@ describe("filing on GitHub", () => {
     expect(issues).toHaveLength(1);
   });
 
+  it("an email retried after filing links the attachments on GitHub instead of losing them", async () => {
+    failSend = true;
+    const r = await send(good, [[PNG, "image/png"]]);
+    expect(mails).toEqual([]);
+    expect(existsSync(join(bugDir(), `${r.id}-0.png`))).toBe(false);
+    failSend = false;
+    await sweepBugReports();
+    expect(mails).toHaveLength(1);
+    expect(mails[0].opts?.attachments ?? []).toEqual([]);
+    const url = /!\[[^\]]+\]\(([^)]+)\)/.exec(issues[0].body)![1];
+    expect(mails[0].text).toContain(`GitHub issue: https://github.com/ZOGWORK/control-scout/issues/${issues[0].number}`);
+    expect(mails[0].text).toContain(`png on GitHub: ${url}`);
+  });
+
   it("still limits each IP to a few reports an hour", async () => {
     for (let i = 0; i < BUG_RATE.max; i++) expect((await create(good)).status).toBe(200);
     expect((await create(good)).status).toBe(429);
