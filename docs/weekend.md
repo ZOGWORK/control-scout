@@ -40,6 +40,7 @@ list different events, a different match, a different time or a different call.
 |-|-|
 | No events | "No FTC events this weekend." / "… next weekend in Romania." |
 | An event this weekend, no match list yet | "{event} is this weekend: its match list isn't posted yet." |
+| Its matches there all played, or the next one over half an hour late | "No more matches listed for {team} at {event} yet." |
 | No match this weekend | "No matches this weekend — next event is {event} on {dates}." with the event linked |
 | No upcoming event | "No matches this weekend — {team} has no upcoming event in {season}." |
 
