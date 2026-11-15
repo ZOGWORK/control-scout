@@ -52,6 +52,7 @@ const SECTIONS: { title: string | null; items: NavItem[]; more?: boolean }[] = [
   ] },
   { title: "More", more: true, items: [
     { to: "/rankings/regions", label: "Region rankings", icon: MapPin },
+    { to: "/leagues", label: "Leagues", icon: CalendarDays },
     { to: "/power-rankings", label: "Power rankings", icon: Trophy },
     { to: "/compare", label: "Compare", icon: Scale },
     { to: "/shortlist", label: "Shortlist", icon: Bookmark },

@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 6.6.0 — 2026-11-15
+
+Rankings › Leagues have a list of their own, and a league's standings show each team's Control Scout rating, OPR and place in its region beside FIRST's ranking.
+
+### Highlights
+- [rankings] Every league in one list, by where it plays
+- [rankings] League standings show Scout rating, OPR and region rank
+- [rankings] From a league to its region's rankings and back
+
+### Added
+- Leagues (`/leagues`): every league of the season grouped by where its meets are, with meets played, teams and FIRST's #1 by ranking score, searchable, season switch; each place links to its region rankings. In the navigation (Leagues) and on every region page. (`src/pages/LeaguesPage.tsx`, `server/api/leagues.ts`)
+- League standings: links to the league's region rankings and to the leagues list; after FIRST's columns (unchanged), Scout rating ("Not rated yet" under 3 rated matches, never a made-up number), OPR (— when none) and the team's rank in its home region, linked to its row on that region's page. (`src/pages/LeaguePage.tsx`, `src/components/LeagueTable.tsx`)
+
 ## 6.5.9 — 2026-11-15
 
 Report a bug now files a public GitHub Issue on ZOGWORK/control-scout for you, with your screenshot or video in it, and shows you the issue's number and link right after you send.
