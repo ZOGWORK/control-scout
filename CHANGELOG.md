@@ -15,6 +15,16 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 6.6.1 — 2026-11-15
+
+Search answers a top-scores question about an event named without "at": "best auto match in romania champs" lists the Romania Championship's best auto scores.
+
+### Highlights
+- [fixes] "best auto match in romania champs" lists that championship's top auto scores
+
+### Fixed
+- Search: a top-scores question naming an event after "in", or with no word before it ("best auto match in romania champs", "best auto match romania champs"), said no team, event or match matched. The words left are now the event's name when they aren't a place, end the question and hold an event's own word (championship, qualifier, league, meet …); "4215 highest score in …" stays the team's question. Answer: *Highest auto scores in DECODE (2025–26) at Romania Championship*. Failed search #1435. (`server/api/answers/families/topMatches.ts`) (#1532)
+
 ## 6.5.1 — 2026-11-15
 
 Turn Wi-Fi off and on again and the Offline pill goes as soon as the line answers, not on the next back-off step.
