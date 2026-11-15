@@ -14,6 +14,7 @@ import { seasonLabel } from "../../src/shared/format.js";
 import { CURRENT_SEASON, PREDICT_SEASONS, SEASONS } from "../data/seasons.js";
 import { all, run } from "../db.js";
 import { defaultRankingsSeason, regionPlace } from "./rankings.js";
+import { regionHref } from "../../src/shared/regionRankings.js";
 import { teamSeason } from "./searchFacts.js";
 import { teamWords } from "../../src/shared/teamTitle.js";
 import { inRegion, namedTeamHit, teamsByName } from "./teamsByName.js";
@@ -184,7 +185,7 @@ export async function intentAnswer(q: string, it: ParsedIntent, base: SearchAnsw
     const s = season ?? (team ? (await teamSeason(Number(team.ref))).season : null) ?? (await defaultRankingsSeason());
     const key = it.region.key;
     const view: SearchHit = {
-      kind: "place", ref: key, season: s, href: `/rankings?season=${s}&region=${encodeURIComponent(key)}`,
+      kind: "place", ref: key, season: s, href: regionHref(key, { season: s, team: team ? Number(team.ref) : null }),
       title: `${it.region.name} rankings, ${seasonLabel(s)}`, subtitle: `Every ranked team in ${it.region.name}`,
     };
     if (!PREDICT_SEASONS.includes(s)) {
