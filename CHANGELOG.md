@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.5.9 — 2026-11-15
+## 6.5.6 — 2026-11-15
 
 Search answers four more questions it used to miss: three team numbers side by side, a team's Auto OPR at Worlds, what a tiebreaker is, and "teams in" with nothing after it.
 
@@ -30,6 +30,18 @@ Search answers four more questions it used to miss: three team numbers side by s
 - A team's Auto OPR at Worlds ("what was hypnotic robotics auto opr at worlds in centerstage", and the same without "opr") showed the team card and "can't answer that yet". It's now that phase's OPR in the team's Worlds division (47.3 at Edison, 2023–24), with its OPR and the other phases beside it, as "auto" alone already reads a team's season Auto OPR. A phase next to another stat word ("highest auto at worlds") stays with the match answers. (`server/api/answers/families/oprRating.ts`) (#1493, #1494)
 - "What is a tie breaker point" found nothing. A new explainer says how teams level on ranking score are ordered (average non-penalty score first, as the methodology page says), and a typo of "breaker" is now corrected to it. (`server/api/searchCoverage.ts`, `server/api/spelling.ts`) (#1430, #1429)
 - "teams in" with nothing after it found nothing. It now lists every team, best by OPR this season, with how many are registered and how to add a place. (`server/api/searchCoverage.ts`) (#1421)
+
+## 6.5.5 — 2026-11-15
+
+Videos › A clip whose first frame shows another match is never played: the clips placed from the clock are checked frame by frame, and a wrong one is pulled.
+
+### Highlights
+- [fixes] A clip that opens on another match is pulled
+- [workspace] Each pulled clip is an owner finding with what it showed
+- [fixes] A blank first frame keeps its clip and is read again
+
+### Changed
+- Clock-placed clips are checked by the overlay at their first frame (`server/data/clipChecks.ts`). One that names a different match is never served (`withClips`), and is listed with its start and what it showed for the owner console. One that names nothing (a blank or a transition) stays and is read again; a video with no readable overlay is counted, never pulled. The sweep's data follows season by season. (`server/videos/recordings.ts`, `docs/frame-timings.md`) (#1529)
 
 ## 6.5.4 — 2026-11-15
 
