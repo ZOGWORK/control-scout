@@ -25,6 +25,7 @@ import { ruleAnswer } from "./searchRules.js";
 import { askAnswer, readAsk } from "./searchAsks.js";
 import { readRuleQuery } from "../../src/shared/searchRuleQuery.js";
 import { seasonLabel } from "../../src/shared/format.js";
+import { teamHighlights } from "./answers/highlights.js";
 import { cleanTeamName, searchTeamTitle, teamNameOf, teamWords } from "../../src/shared/teamTitle.js";
 import { teamPageSql } from "../../src/shared/teamPages.js";
 import { CURRENT_SEASON, SEASONS } from "../data/seasons.js";
@@ -269,6 +270,12 @@ export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promi
     return carryOutcome(b, { ...b, q: cleanQuery(raw) });
   }
   const a = await numberedAnswer(raw, opts);
+  // Teams compared with "highlights" said ("4215 vs 6980 highlights"): the side by side, then each team's own
+  // highlights of the season compared, the same standout matches its highlights page lists.
+  const shown = !!(opts.full ?? (opts.limit ?? 12) >= SEARCH_PAGE_LIMIT);
+  const asksHighlights = shown && HIGHLIGHT_SAID.test(said);
+  const compared = async (x: SearchAnswer) => (asksHighlights && x.stat?.intent === "compare" ? withTeamHighlights(x) : x);
+  if (asksHighlights && a.stat?.intent === "compare") return compared(a);
   // Asked to watch it ("who won decode with video", "… highlights"): every answer plays its matches' video
   // (./answers/video.ts), so words asking to watch beside a question whose answer didn't take them are dropped and
   // the question answered as asked. Never when the answer took them (a team's or a scope's highlights, a video page,
@@ -276,7 +283,14 @@ export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promi
   const unwatched = withoutWatch(said);
   if (unwatched !== said && !tookWatch(a)) {
     const b = await searchAnswer(unwatched, opts);
-    if (b.stat || b.card) return carryOutcome(b, { ...b, q: cleanQuery(raw) });
+    if (b.stat || b.card) return carryOutcome(b, { ...(await compared(b)), q: cleanQuery(raw) });
+  }
+  // Highlights said in other words ("4215 versus 6980 best moments") beside teams compared, unanswered as said: the
+  // comparison, each team's highlights after it. Kept only when the words left are a comparison.
+  if (asksHighlights && !a.stat && !a.card) {
+    const plain = said.replace(new RegExp(HIGHLIGHT_SAID.source, "gi"), " ").replace(/\s+/g, " ").trim();
+    const b = plain && plain !== said ? await searchAnswer(plain, opts) : null;
+    if (b?.stat?.intent === "compare") return carryOutcome(b, { ...(await compared(b)), q: cleanQuery(raw) });
   }
   // An event's initialism beside other words ("cri matches", "mti 2025") that the words as said didn't read as that
   // event (a team whose name starts the same way can outrank it): the same ask with the event's name, kept when it
@@ -340,17 +354,40 @@ const WATCH_PHRASES = LEXICON.filter((e) => e.syms.length === 1 && (e.syms[0].k 
 const escRe = (w: string) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const WATCH_RE = new RegExp(`(?:^|\\s)(?:${WATCH_PHRASES.map((ws) => ws.map(escRe).join("\\s+")).join("|")})(?=\\s|[?!.,]|$)`, "gi");
 
+/** "Highlights" (or its phrases) said: src/shared/query/lexicon.ts's highlights words. */
+const HIGHLIGHT_SAID = /\b(?:highlights?|highlight reels?|best moments|top moments|best plays|top plays|standout (?:matches|moments))\b/i;
+
+/** A comparison with each team's highlights after it: the season it compares (its first chip), else each team's latest
+ *  with matches. A team with none that season adds nothing; the comparison stands as it was. */
+async function withTeamHighlights(a: SearchAnswer): Promise<SearchAnswer> {
+  const s = a.stat!;
+  const teams = s.teams ?? (s.team ? [s.team] : []);
+  const season = SEASONS.find((x) => seasonLabel(x.season) === s.scope[0])?.season;
+  const each = await Promise.all(teams.map((t) => teamHighlights(t, season).catch(() => null)));
+  const blocks = each.flatMap((h, i) => {
+    const b = h?.blocks.find((x) => x.kind === "matches");
+    return b ? [{ ...b, title: `${teams[i].number}${teams[i].name ? ` ${teams[i].name}` : ""}: ${b.title}` }] : [];
+  });
+  if (!blocks.length) return a;
+  // Before the questions to try next, after the comparison itself.
+  const at = s.blocks.findIndex((b) => b.kind === "links");
+  const kept = at < 0 ? [...s.blocks, ...blocks] : [...s.blocks.slice(0, at), ...blocks, ...s.blocks.slice(at)];
+  return { ...a, stat: { ...s, blocks: kept, definition: `${s.definition} Each team's highlights are its standout matches of the season: its best score, biggest win, latest playoff win, best Auto and closest win.` } };
+}
+
 /** `q` without its words asking to watch; `q` itself when it has none, or when fewer than two words would be left. */
 export function withoutWatch(q: string): string {
   const out = q.replace(WATCH_RE, " ").replace(/\s+/g, " ").trim();
   return out === q.trim() || out.split(" ").length < 2 ? q : out;
 }
 
-/** Whether an answer is one that watching asks for: highlights, a page of match videos, or matches found with video. */
+/** Whether an answer is one that watching asks for: highlights, a page of match videos, a season's top matches, or
+ *  matches found with video. */
 export function tookWatch(a: SearchAnswer): boolean {
   const s = a.stat;
   if (!s) return false;
-  return /highlights|video/.test(s.intent) || WATCH_TAKERS.has(s.intent) || s.scope.includes("With video") || s.blocks.some((b) => b.kind === "videos" || (b.kind === "matches" && b.rows.length > 0 && b.rows.every((r) => r.note)));
+  // A season's top matches ("best teleop videos in romania") list matches, each playing its clip: watching took them.
+  return /highlights|video|top-matches/.test(s.intent) || WATCH_TAKERS.has(s.intent) || s.scope.includes("With video") || s.blocks.some((b) => b.kind === "videos" || (b.kind === "matches" && b.rows.length > 0 && b.rows.every((r) => r.note)));
 }
 
 /** `q` with a game's name (and a "year" or "season" after it, an "in" or a comma before it) said as its season's years
