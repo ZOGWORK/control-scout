@@ -53,8 +53,8 @@ import { HeaderActions } from "../components/EventActions";
 import { EventStatusChip, EventTypeChip, LiveDot } from "../components/EventChips";
 import { WatchLive } from "../components/WatchLive";
 import { HighlightVideos } from "../components/HighlightVideos";
-import { ClipsGallery, CoverageLine, EventClipsProvider, WatchClipsButton } from "../components/contributors/EventClips";
-import { RecordingGaps } from "../components/contributors/RecordingGaps";
+import { ClipsGallery, EventClipsProvider, WatchClipsButton } from "../components/contributors/EventClips";
+import { RecordingCoverageLine, RecordingGaps } from "../components/contributors/RecordingGaps";
 import { isLiveMode, nextMatch, useEventPoll } from "../lib/liveMode";
 import { TeamsSource } from "../components/TeamsSource";
 import { ago, agoSeconds, awardLabel, dateRange, num, place, seasonLabel } from "../lib/format";
@@ -87,6 +87,8 @@ export default function EventPage() {
 function Event({ d, path }: { d: EventDetail; path: string }) {
   const [sp, setSp] = useSearchParams();
   const e = d.event;
+  // The recording the coverage line and gaps read: linked, playable or not (a private one still says why), and its videos.
+  const rec = { season: e.season, code: e.code, recorded: !!e.stream || !!e.recordingUnavailable?.length, matches: d.matches, videos: e.stream?.days?.map((x) => x.videoId) ?? (e.stream ? [e.stream.videoId] : e.recordingUnavailable ?? []) };
   const { state: personal, update } = usePersonal();
   const ref = `${e.season}:${e.code}`;
   const tracked = personal.tracked.events.includes(ref);
@@ -171,9 +173,9 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
         {rulesOn && hasRuleReference(e.season) && <Button variant="outline" size="sm" asChild><Link to={`/rules?season=${e.season}`} data-rules-link><Gavel /> Rules</Link></Button>}
       </HeaderActions>
       {/* How much of the event this viewer can watch (docs/contributors.md), seen before the match list. */}
-      <CoverageLine reserve={d.matches.some((m) => m.played)} recorded={!!e.stream} unplayable={!e.stream && !!e.recordingUnavailable?.length} />
+      <RecordingCoverageLine {...rec} reserve={d.matches.some((m) => m.played)} playable={!!e.stream} unplayable={!e.stream && !!e.recordingUnavailable?.length} />
       {/* A recorded event's days and parts, and the matches its video doesn't place, each with why (server/videos/coverage.ts). */}
-      <RecordingGaps season={e.season} code={e.code} recorded={!!e.stream || !!e.recordingUnavailable?.length} matches={d.matches} videos={e.stream?.days?.map((x) => x.videoId) ?? (e.stream ? [e.stream.videoId] : e.recordingUnavailable ?? [])} />
+      <RecordingGaps {...rec} />
       {/* Before FIRST posts the event: the regional site's hosts, times and format, labelled provisional. */}
       {d.provisional && <ProvisionalDetails p={d.provisional} />}
       {!predictable && <p className="mt-3 text-xs text-muted-foreground">{seasonLabel(e.season)} is shown for history: results, rankings and awards, no predictions (those start with 2023–24).</p>}

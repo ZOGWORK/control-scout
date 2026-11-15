@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.3.5 — 2026-11-14
+## 6.4.0 — 2026-11-14
 
 Offline downloads pick up where they stopped when the connection drops, show real MB progress, and never leave a half pack that looks saved. The Download page is now one Offline page: what to save at the top, everything on this device below.
 
@@ -33,6 +33,73 @@ Offline downloads pick up where they stopped when the connection drops, show rea
 
 ### Changed
 - Delete really deletes: the predictions pack's bytes are removed from IndexedDB (they were overwritten with null), and every delete says "Freed 6.9 MB". The browser is asked to keep this site's storage on the first download of any kind. Event-day bundles show real bytes while downloading. The menu calls the page Offline. (`src/lib/packs.ts`, `src/lib/offline/bundles.ts`, `src/components/offline/EventBundles.tsx`) (#1462)
+## 6.3.9 — 2026-11-14
+
+FTC One Search works with no signal at the meet: search a team in the downloaded event by number or name, the event, a match, or set its teams side by side, and get the same answer as online. Anything else says plainly that it needs data the pack doesn't hold, and shows what the pack does hold.
+
+### Highlights
+- [offline] Search the event's teams, the event and its matches offline
+- [offline] "12722 vs 17064 vs 27851" compares pack teams with no signal
+- [offline] Searches the pack can't answer say what's missing, not an error
+- [speed] Offline search answers at once, with no network wait
+
+### Added
+- The event pack holds FTC One Search's whole answer (`/api/search?answer=1`, as the /search page shows it, for anyone) for every team in the event by number and by name, the event by code and by name, and each match as search reads one ("USMIMIQ1 Q12"), read through the route's own functions (`server/api/searchPage.ts`, which the route now calls too), and each team's season numbers for the result cards (`/api/teams-summary`). Measured for the real 2026 USMIMIQ1 (34 teams): the pack's answers, Compare and search parts about 178 KB gzipped. With no signal, "Questions with video", People also ask and Related searches are left out (nothing plays offline, and they're read live).
+- Two to four of the pack's teams set against each other ("A vs B", "A vs B vs C") are built on the phone by the same functions the server builds them with (`src/shared/searchVersus.ts`: Compare's hit, the team rows, the season-numbers card; the server's `searchCompare.ts`, `twoTeam.ts` and `answers/index.ts` now call them), from the pack's new `search` section. Checked byte for byte against the server's own JSON (10 of 10 queries on 2026 USMIMIQ1, and in `server/packs/eventSearch.test.ts`).
+- Any other search with no signal is read by search's own parser, now in `src/shared/query/` (the server imports it from there), and answers "This needs data that isn't in your downloaded pack (it's about the 2025–26 season)", then the pack's event, teams, matches and data time, with links to the pack's pages it names. A saved season still answers plain results first, as before.
+
+### Changed
+- With an event pack saved, search waits 4 seconds for the server before the pack answers (no answer, or no network at all: at once), never search's 10-second slow-search wait; a search the pack can't answer still waits for a server that's answering everything else. (#1489)
+
+## 6.3.8 — 2026-11-14
+
+A search asking for video with nothing to play now offers questions with video right away, even the first one after a restart.
+
+### Highlights
+- [fixes] Video searches with nothing to play always offer questions that play
+- [fixes] Questions with video show sooner: no extra wait when some are ready
+- [fixes] Events from last season get a turn when this season's have no clips
+
+### Fixed
+- Search: "Questions with video" for an answer at an event this season could come out empty. Each nearby event was checked by a search of its own, in turn, and when this season's had no clips last season's never got a turn before the wait ran out. A few questions about the latest seasons' best known events with clips are now checked in the background at server start, and again after each search index rebuild and every half hour; they are offered when nothing nearby plays in time, without waiting longer. Each nearby season now gets at most half the turns. (`server/api/answers/videoSuggest.ts`, `server/index.ts`) (#1501)
+
+## 6.3.7 — 2026-11-14
+
+A recorded event with a day that has no recording now always reads "Partially recorded", and the coverage line no longer says "Full".
+
+### Highlights
+- [fixes] A partly recorded event never reads as fully recorded
+- [fixes] Event pages name a day with no recording in the coverage line
+- [fixes] The coverage line waits for the check instead of guessing
+
+### Fixed
+- Event page coverage line: an event whose coverage check finds a day with no recording (FPEWESEA 2025: Friday and Sunday) said "Full recording only — no match clips in it yet"; it now says "Partially recorded — 0 of 124 matches have video". A recording with no clip placed reads "Recording only — no match clips in it yet", never "Full". The line and the day chips read the same coverage request. While the check is out, a line with no clip waits instead of saying "Recording only" first; a recording that won't play keeps saying so. (`src/components/contributors/RecordingGaps.tsx`, `src/shared/contributors.ts`) (#1500)
+
+## 6.3.6 — 2026-11-14
+
+A search asking for video with nothing to play now always gets its questions with video, and none of them reads like a typo.
+
+### Highlights
+- [fixes] The first video search after a quiet spell still offers questions
+- [fixes] Questions with video never show an event name that reads like a typo
+- [fixes] A misspelled name is skipped and the next question takes its place
+
+### Fixed
+- Search: a watch search whose answer plays nothing waited 2.5 s for its "Questions with video", and the first one after the checks expired could find none in time, so it offered nothing. With none found by then it now waits up to 2 s more and answers as soon as one is found. (`server/api/answers/videoSuggest.ts`)
+- Search: "Questions with video" offered an event under its stored name even when that name has a typo. An event's name now reads as one only when a word no other event has is a letter dropped, doubled or swapped inside a word at least three other events spell in full; rare and accented names stay. The set is built per search index version at start and after a rebuild, never on a search. A skipped event is made up by the next one, the latest seasons' best known events top up to three, and a general question with video stands in when no event's is left. (`server/api/answers/nameTypos.ts`, `server/api/answers/videoSuggest.ts`, `server/index.ts`) (#1499)
+
+## 6.3.5 — 2026-11-14
+
+The official-video watcher no longer adds a second stream to a day that already has one, and sets aside drone and simulator contests, FIRST Global, council meetings and school sports days.
+
+### Highlights
+- [fixes] A day's recording is no longer doubled by a second full-day stream
+- [fixes] Drone and simulator contests stay off FTC event pages
+- [fixes] Council meetings and sports days stay out of the review queue
+
+### Fixed
+- Official videos watcher: another video of a day an event already plays now goes to the owner's review unless both name their parts. Before, a full Saturday stream was added beside that Saturday's "matches only" video. FIRST Global, drone, DCL and simulator titles are set aside like FRC, FLL and VEX. "Meeting" no longer reads as a meet, and "Sports Day 2026" no longer reads as a day number. (`server/videos/officialWatch.ts`, `server/videos/officialMatch.ts`, `docs/official-videos.md`) (#1498)
+
 ## 6.3.4 — 2026-11-14
 
 Match clips read off a recording's own frames now need two signals that agree before a match gets one: a frame read is checked before and after its start, and a lone read goes to the owner's review list instead of becoming a clip. Every match a recording holds without a clip now has a reason. Clips placed from frames stop once the match's final score is up.
