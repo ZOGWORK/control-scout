@@ -9,6 +9,7 @@ import { all, writeBatch } from "../db.js";
 import { env } from "../env.js";
 import { onEventDates } from "../../src/shared/eventDay.js";
 import { isYouTubeHost, parseStreamUrl } from "../../src/shared/stream.js";
+import { designators } from "./officialMatch.js";
 import { forgetRecordings } from "./recordings.js";
 import { fetchFromApi, fetchWatchPage, type WatchPageFacts } from "./youtube.js";
 
@@ -42,8 +43,8 @@ export function channelRef(link: string): ChannelRef | null {
 /** A channel's page address, for the streams page read without the key. */
 const channelPage = (c: ChannelRef) => `https://www.youtube.com/${c.kind === "handle" ? c.value : `${c.kind === "id" ? "channel" : c.kind === "custom" ? "c" : c.kind}/${c.value}`}/streams`;
 
-/** A broadcast on a channel: its video and when it started (UTC ISO). */
-export interface Broadcast { videoId: string; start: string }
+/** A broadcast on a channel: its video, when it started (UTC ISO) and, read with the key, its title. */
+export interface Broadcast { videoId: string; start: string; title?: string }
 
 /** Reads a channel's broadcasts back to a date: "error" when YouTube couldn't be read (tried again later). */
 export type ChannelReader = (c: ChannelRef, since: number) => Promise<Broadcast[] | "error">;
@@ -73,11 +74,17 @@ export function apiReader(key: string, fetchImpl: typeof fetch = fetch): Channel
       }
       if (!id || !/^UC[\w-]{22}$/.test(id)) return [];
       const ids: string[] = [];
+      const titles = new Map<string, string>();
       let page: string | undefined;
       for (let n = 0; n < MAX_PAGES; n++) {
-        const body = await get("playlistItems", { part: "contentDetails", playlistId: `UU${id.slice(2)}`, maxResults: "50", ...(page ? { pageToken: page } : {}) });
+        // The snippet (each upload's title) costs no more units than the ids alone.
+        const body = await get("playlistItems", { part: "snippet,contentDetails", playlistId: `UU${id.slice(2)}`, maxResults: "50", ...(page ? { pageToken: page } : {}) });
         const items: any[] = Array.isArray(body?.items) ? body.items : [];
-        for (const it of items) if (it?.contentDetails?.videoId) ids.push(String(it.contentDetails.videoId));
+        for (const it of items) {
+          if (!it?.contentDetails?.videoId) continue;
+          ids.push(String(it.contentDetails.videoId));
+          if (typeof it.snippet?.title === "string") titles.set(String(it.contentDetails.videoId), it.snippet.title);
+        }
         const oldest = items.at(-1)?.contentDetails?.videoPublishedAt;
         page = body?.nextPageToken;
         if (!page || !items.length || (oldest && Date.parse(oldest) < since)) break;
@@ -86,7 +93,7 @@ export function apiReader(key: string, fetchImpl: typeof fetch = fetch): Channel
       for (let i = 0; i < ids.length; i += 50) {
         const facts = await fetchFromApi(ids.slice(i, i + 50), key, fetchImpl);
         if ([...facts.values()].every((f) => f.status === "error")) return "error";
-        for (const [videoId, f] of facts) if (f.status === "ok" && f.start) out.push({ videoId, start: f.start });
+        for (const [videoId, f] of facts) if (f.status === "ok" && f.start) out.push({ videoId, start: f.start, ...(titles.has(videoId) ? { title: titles.get(videoId) } : {}) });
       }
       return out;
     } catch {
@@ -131,6 +138,25 @@ export function onDates(list: Broadcast[], e: { start: string; end: string | nul
     .sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
 }
 
+const DESIGNATORS = ["letter", "meet", "n", "uil", "stage", "ampm"] as const;
+
+/**
+ * The broadcasts that are this event's, when other events on its dates give FIRST the same channel link (a league's
+ * two meets in one day, West Michigan's Meet 5 and Meet 6): one whose title names another of them by its designator
+ * ("Meet 6"), where this event's own name says otherwise ("Meet 5"), is that other's. A title naming none of them, or
+ * none read, stays with every one of them, as before.
+ */
+export function ownBroadcasts(list: Broadcast[], e: { name: string }, siblings: { name: string; start: string; end: string | null; timezone: string | null }[]): Broadcast[] {
+  if (!siblings.length) return list;
+  const mine = designators(e.name);
+  return list.filter((b) => {
+    if (!b.title) return true;
+    const said = designators(b.title);
+    const others = siblings.filter((s) => onDates([b], s).length).map((s) => designators(s.name));
+    return !DESIGNATORS.some((k) => said[k] != null && mine[k] != null && said[k] !== mine[k] && others.some((o) => o[k] === said[k]));
+  });
+}
+
 /**
  * When an event's channel link is due a look. Never tried, or the link changed: now. On its dates: every 15 minutes
  * (the day's broadcast starts, or the next day's). Otherwise a try that failed (no answered read since) waits 2 hours
@@ -162,8 +188,8 @@ export async function resolveChannelStreams(log: (s: string) => void, opts: { ma
     const key = env.youtubeApiKey;
     const withKey = opts.withKey ?? !!key;
     const reader = opts.reader ?? (key ? apiReader(key) : pageReader());
-    const rows = await all<{ season: number; code: string; start: string; end: string | null; timezone: string | null; livestream: string; url: string | null; video_id: string | null; checked_at: string | null; read_at: string | null }>(
-      `SELECT e.season, e.code, e.start, e.end, e.timezone, e.livestream, l.url, l.video_id, l.checked_at, l.read_at FROM events e
+    const rows = await all<{ season: number; code: string; name: string | null; start: string; end: string | null; timezone: string | null; livestream: string; url: string | null; video_id: string | null; checked_at: string | null; read_at: string | null }>(
+      `SELECT e.season, e.code, e.name, e.start, e.end, e.timezone, e.livestream, l.url, l.video_id, l.checked_at, l.read_at FROM events e
        LEFT JOIN event_stream_links l ON l.season = e.season AND l.code = e.code
        WHERE e.livestream LIKE '%youtu%' AND e.start IS NOT NULL AND substr(e.start, 1, 10) <= ?
        ORDER BY e.start DESC`, [new Date(now + DAY_MS).toISOString().slice(0, 10)]);
@@ -203,7 +229,10 @@ export async function resolveChannelStreams(log: (s: string) => void, opts: { ma
       // Only those still on the event's dates (FIRST can correct them).
       const merged = new Map<string, Broadcast>(onDates(before.map((b) => ({ videoId: String(b.video_id), start: String(b.start) })), r).map((b) => [b.videoId, b]));
       for (const b of onDates(got, r)) merged.set(b.videoId, b);
-      const keep = [...merged.values()].sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
+      // Another event on these dates with the same link (the same season's league meets): a broadcast its title gives
+      // to that other event leaves this one, the ones found before included (their titles are in this read).
+      const siblings = rows.filter((o) => o.season === r.season && o.code !== r.code && o.livestream === r.livestream).map((o) => ({ name: String(o.name ?? ""), start: o.start, end: o.end, timezone: o.timezone }));
+      const keep = ownBroadcasts([...merged.values()], { name: String(r.name ?? "") }, siblings).sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
       const was = before.map((b) => String(b.video_id)).sort().join();
       if (!sameLink || keep.map((b) => b.videoId).sort().join() !== was || (keep[0]?.videoId ?? null) !== r.video_id) changed++;
       // One transaction: an interrupted save keeps the previous set.

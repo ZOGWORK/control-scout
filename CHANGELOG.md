@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.6.6 — 2026-11-15
+## 6.6.7 — 2026-11-15
 
 Owner › Official videos › Channel audit: after every watcher run, each watched channel's whole uploads list is compared, video by video, with what Scout has. Misses, wrong adds and possible recordings are owner findings.
 
@@ -39,6 +39,25 @@ Owner › Official videos › Channel audit: after every watcher run, each watch
 
 ### Fixed
 - An add the watcher's title rules set aside today now comes off its event: a rule tightened since, such as a drone contest's stream on Almaty Tech Cup, added before #1498. It still counts as a wrong add.
+
+## 6.6.6 — 2026-11-15
+
+35 more official event recordings play: 25 of FIRST Indiana's events, SoCal's ILTs and championship, and Kansas City's Piper meets. West Michigan's Meet 5 and Meet 6 each play their own stream.
+
+### Highlights
+- [fixes] West Michigan Meet 5 and Meet 6 each play only their own stream
+- [live] 25 FIRST Indiana events now have their full recording, 2021 to 2026
+- [live] SoCal's ILTs and LA championship play from SoCal FTC's live channel
+- [live] Chicago Robotics Invitational 2026: Matches and Full stream each day
+
+### Fixed
+- West Michigan's Meet 5 and Meet 6 (Nov 14) were held the same day, and FIRST's event pages give both the same channel link. Each page played both meets' streams, and Meet 6's page opened on Meet 5's. When two events that day share a channel link, a broadcast whose title names one of them ("Meet 6") is now that event's only; a title naming neither stays with both. (`server/videos/channelStreams.ts`)
+- Chicago Robotics Invitational 2026 showed "Saturday · Matches", "Saturday" and "Sunday": Saturday's full stream had no part, and Sunday's "matches only" stream wasn't listed. Each day now has "Matches" and "Full stream". Sunday's full stream is FIRST's own link, so the checked list names its part, and a listed part now also names a day's video that the event already plays without one. (`server/videos/officialVideos.ts`, `server/videos/recordings.ts`)
+
+### Added
+- FIRST Indiana Robotics' event recordings: 25 Twitch broadcasts it uploads a few days later, each titled with its event and date, from the 2021 State Championship to the 2026 one. None of these events had a video before. (`server/data/officialVideos.json`)
+- SoCal FTC's own live channel (@FIRSTsocalftclive) is now watched: ILT #3, #5 and #6 of 2025-26 and the Los Angeles championship at Monrovia play. "ILT #6" is read as "SoCal FTC Qualifier 6". (`server/data/officialChannels.ts`, `server/videos/officialMatch.ts`)
+- League G's 2025-26 Meet 3, and FIRST MOKS's three Piper meets of Nov 14 (8 AM, 10:30 AM, 1 PM).
 
 ## 6.6.5 — 2026-11-15
 

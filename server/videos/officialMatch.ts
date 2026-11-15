@@ -72,6 +72,8 @@ export function designators(s: string): Designators {
   if ((m = /\bmeet\s*#?\s*(\d+)([a-z])?\b/i.exec(s))) d.meet = `${Number(m[1])}${(m[2] ?? "").toLowerCase()}`;
   if ((m = /(?:qualifier|scrimmage|tournament|regional|qt)\s*#\s*(\d+)|#\s*(\d+)\s*(?:[-\w ]{0,20})?(?:qualifier|tournament|regional|turneu)/i.exec(s))) d.n = Number(m[1] ?? m[2]);
   else if ((m = /\b(\d|I{1,3}|IV)\s+(?:qualifier|scrimmage)\b|\b(?:qualifier|scrimmage)\s+(\d|I{1,3}|IV)\b/i.exec(s))) d.n = num(m[1] ?? m[2]);
+  // SoCal's inter-league tournaments (its qualifiers): "SoCal FTC ILT #6" streams "SoCal FTC Qualifier 6", "SoCal ILT3".
+  else if ((m = /\bILT\s*#?\s*(\d+)\b/i.exec(s))) d.n = Number(m[1]);
   if ((m = /\b(1A-4A|5A|6A)\b/i.exec(s))) d.uil = m[1].toUpperCase();
   if ((m = /\b(stage (?:left|right))\b/i.exec(s))) d.stage = m[1].toLowerCase();
   if ((m = /\b(AM|PM)\b/.exec(s))) d.ampm = m[1];
