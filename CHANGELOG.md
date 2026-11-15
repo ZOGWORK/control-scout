@@ -25,7 +25,7 @@ Videos › A clip whose first frame shows another match is never played: the cli
 - [fixes] A blank first frame keeps its clip and is read again
 
 ### Changed
-- Clock-placed clips are checked by the overlay at their first frame (`server/data/clipChecks.ts`). One that names a different match is never served (`withClips`), and is listed with its start and what it showed for the owner console. One that names nothing (a blank or a transition) stays and is read again; a video with no readable overlay is counted, never pulled. The sweep's data follows season by season. (`server/videos/recordings.ts`, `docs/frame-timings.md`)
+- Clock-placed clips are checked by the overlay at their first frame (`server/data/clipChecks.ts`). One that names a different match is never served (`withClips`), and is listed with its start and what it showed for the owner console. One that names nothing (a blank or a transition) stays and is read again; a video with no readable overlay is counted, never pulled. The sweep's data follows season by season. (`server/videos/recordings.ts`, `docs/frame-timings.md`) (#1529)
 
 ## 6.5.3 — 2026-11-15
 
