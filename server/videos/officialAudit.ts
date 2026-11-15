@@ -20,7 +20,7 @@ import { recordAudit } from "../portal/audit.js";
 import { withDataLock } from "../data/lock.js";
 import { isoDuration } from "./youtube.js";
 import { eventVideosByDay, forgetOfficial, localDate } from "./officialVideos.js";
-import { LOOKBACK_MS } from "./officialWatch.js";
+import { LOOKBACK_MS, settle, type WatchVerdict } from "./officialWatch.js";
 import { NOT_EVENTS, bestGuess, matchVideo, notCompetition, type ChannelRule, type WatchEvent, type WatchVideo } from "./officialMatch.js";
 
 const API = "https://www.googleapis.com/youtube/v3";
@@ -173,15 +173,34 @@ export async function runChannelAudit(log: (s: string) => void, opts: { apiKey?:
       // Listed but not answered for: private or deleted since.
       for (const vid of ids) if (!got.has(vid)) facts.set(vid, { start: null, duration: null, privacy: "unavailable", embeddable: 0, blocked_in: 0, live: "none" });
     }
-    // 3. Each upload against Scout, the watcher's rules on what Scout has nothing for, and the findings.
+    // Each upload against Scout, the watcher's rules on what Scout has nothing for, and the findings.
     const events = await eventIndex();
     const rules = new Map<string, ChannelRule & { floor: string; title: string }>(channels.map((c) => {
       const back = new Date(now() - LOOKBACK_MS).toISOString();
       return [String(c.channel_id), { region: String(c.region), words: c.words ?? null, titlePattern: c.title_pattern ?? null, floor: String(c.watch_from) < back ? String(c.watch_from) : back, title: String(c.title) }];
     }));
-    const writes: { sql: string; args: (string | number | null)[] }[] = [];
     const queue: { v: WatchVideo; ch: string; status: string; why: string; season: number | null; code: string | null; day: string | null; part: string | null; guessWhy: string | null }[] = [];
     const at = new Date(now()).toISOString();
+    const writes: { sql: string; args: (string | number | null)[] }[] = [];
+    // 3. The watcher's own adds, each checked again first: one taken off its event here isn't what its event plays
+    //    when the uploads are weighed against it below.
+    const checks = await checkAdds(rows, facts, rules, events, at);
+    out.addsChecked = checks.length;
+    out.addsWrong = checks.filter((c) => !c.ok).length;
+    if (checks.length) await locked(() => db().batch(checks.map((c) => ({ sql: "INSERT INTO official_audit_adds (video_id, ok, why, checked_at) VALUES (?, ?, ?, ?) ON CONFLICT(video_id) DO UPDATE SET ok = excluded.ok, why = excluded.why, checked_at = excluded.checked_at", args: [c.videoId, c.ok ? 1 : 0, c.why, at] })), "write"));
+    // An add the watcher's own title rules set aside today (a rule tightened since: a drone or FRC stream) comes off
+    // its event, as the watcher would have left it; it still counts as a wrong add. Any other wrong add waits for the
+    // owner's Remove.
+    const off = checks.filter((c) => c.setAside);
+    if (off.length) {
+      await locked(() => db().batch(off.flatMap((c) => [
+        { sql: "UPDATE official_videos SET removed_at = ? WHERE video_id = ? AND removed_at IS NULL", args: [at, c.videoId] },
+        { sql: "UPDATE official_watch SET status = 'rejected', decided_at = ?, decided_by = 'channel audit', why = ? WHERE video_id = ?", args: [at, `taken off its event by the channel audit: ${c.setAside} (was: added by the watcher)`.slice(0, 500), c.videoId] },
+      ]), "write"));
+      forgetOfficial();
+      for (const c of off) { const rec = records.get(c.videoId); if (rec) records.set(c.videoId, { ...rec, record: "taken off its event by the channel audit", plays: false }); }
+      for (const c of off) await recordAudit("channel audit", "officialVideo.remove", { videoId: c.videoId, why: c.setAside });
+    }
     for (let i = 0; i < rows.length; i++) {
       if (i % 500 === 499) await new Promise((r) => setImmediate(r));
       const r = rows[i];
@@ -203,11 +222,13 @@ export async function runChannelAudit(log: (s: string) => void, opts: { apiKey?:
         const v: WatchVideo = { videoId: vid, title: String(row.title), start: row.start ?? null, published: row.published ?? null, durationS: row.duration == null ? null : Number(row.duration), privacy: String(row.privacy ?? "public"), embeddable: Number(row.embeddable ?? 1) !== 0, blockedIn: Number(row.blocked_in ?? 0) };
         const title = notCompetition(v.title);
         const live = f?.live === "live" || f?.live === "upcoming";
-        const m = title ? { kind: "ignore" as const, why: title }
+        let m: WatchVerdict = title ? { kind: "ignore" as const, why: title }
           : !row.facts_at ? { kind: "review" as const, why: "its facts weren't read yet (the audit's units ran out): read next run" }
           : live ? { kind: "review" as const, why: "live now or still to come: the watcher reads it once it's over" }
           : v.privacy === "unavailable" ? { kind: "ignore" as const, why: "listed on the channel but private or deleted: YouTube gives nothing for it" }
           : matchVideo(v, rule, v.start ? events(shift(v.start.slice(0, 10), -1), shift(v.start.slice(0, 10), 1)) : []);
+        // As the watcher would: against what the event already plays that day (a duplicate, or a second video of it).
+        if (m.kind === "add") m = await settle(m);
         const anchor = (v.start ?? v.published ?? "").slice(0, 10);
         const g = m.kind !== "ignore" && "event" in m && m.event ? { event: m.event, day: m.day ?? null, why: null as string | null }
           : /^\d{4}-\d{2}-\d{2}$/.test(anchor) ? bestGuess(v, rule, events(shift(anchor, -21), shift(anchor, 1))) : bestGuess(v, rule, []);
@@ -218,7 +239,8 @@ export async function runChannelAudit(log: (s: string) => void, opts: { apiKey?:
         const ended = f?.end ?? (Number.isFinite(startMs) && v.durationS != null ? new Date(startMs + v.durationS * 1000).toISOString() : null);
         const last = [v.published, ended].filter(Boolean).sort().pop() ?? null;
         const unread = inWindow && (!watchedAt || !last || last >= watchedAt);
-        if (m.kind === "ignore") { out.setAside++; if (finding === "open") finding = null; }
+        // Set aside by its title or facts, or a duplicate of what its event plays that day: the watcher would log it, not queue it.
+        if (m.kind === "ignore" || m.kind === "duplicate") { out.setAside++; if (finding === "open") finding = null; }
         else if (unread || live) {
           // In the watcher's window but newer than its last run, or live then: its next run reads it.
           why = `not read by the watcher yet (it went up or ended after the watcher's last run): ${why}`;
@@ -256,27 +278,9 @@ export async function runChannelAudit(log: (s: string) => void, opts: { apiKey?:
       })), "write"));
       out.queued = queue.length;
     }
-    // 4. The watcher's own adds, each checked again.
-    const checks = await checkAdds(rows, facts, rules, events, at);
-    out.addsChecked = checks.length;
-    out.addsWrong = checks.filter((c) => !c.ok).length;
-    if (checks.length) await locked(() => db().batch(checks.map((c) => ({ sql: "INSERT INTO official_audit_adds (video_id, ok, why, checked_at) VALUES (?, ?, ?, ?) ON CONFLICT(video_id) DO UPDATE SET ok = excluded.ok, why = excluded.why, checked_at = excluded.checked_at", args: [c.videoId, c.ok ? 1 : 0, c.why, at] })), "write"));
-    // An add the watcher's own title rules set aside today (a rule tightened since: a drone or FRC stream) comes off
-    // its event, as the watcher would have left it; it still counts as a wrong add. Any other wrong add waits for the
-    // owner's Remove.
-    const off = checks.filter((c) => c.setAside);
-    if (off.length) {
-      await locked(() => db().batch(off.flatMap((c) => [
-        { sql: "UPDATE official_videos SET removed_at = ? WHERE video_id = ? AND removed_at IS NULL", args: [at, c.videoId] },
-        { sql: "UPDATE official_watch SET status = 'rejected', decided_at = ?, decided_by = 'channel audit', why = ? WHERE video_id = ?", args: [at, `taken off its event by the channel audit: ${c.setAside} (was: added by the watcher)`.slice(0, 500), c.videoId] },
-      ]), "write"));
-      forgetOfficial();
-      for (const c of off) { const rec = records.get(c.videoId); if (rec) records.set(c.videoId, { ...rec, record: "taken off its event by the channel audit", plays: false }); }
-      for (const c of off) await recordAudit("channel audit", "officialVideo.remove", { videoId: c.videoId, why: c.setAside });
-    }
-    // 5. A best guess for every row in review or set aside whose verdict named no event (rows from before guesses).
+    // 4. A best guess for every row in review or set aside whose verdict named no event (rows from before guesses).
     await backfillGuesses(rules, events, locked);
-    // 6. Each channel's counts.
+    // 5. Each channel's counts.
     const counts = await all<any>(`SELECT v.channel_id, COUNT(*) AS uploads, SUM(v.record IS NOT NULL) AS recorded, SUM(v.record IS NULL) AS unrecorded,
         SUM(v.finding = 'open') AS open FROM official_audit_videos v WHERE v.gone_at IS NULL GROUP BY v.channel_id`);
     const byCh = new Map(counts.map((c) => [String(c.channel_id), c]));
