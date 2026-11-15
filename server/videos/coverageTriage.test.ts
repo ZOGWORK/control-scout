@@ -3,7 +3,7 @@
 // on that reason alone (brief §6).
 import { describe, expect, it } from "vitest";
 import type { CoverageReason } from "../../src/shared/api";
-import { triageCoverage } from "./coverageTriage";
+import { baseTriage, seasonTriage, triageCoverage } from "./coverageTriage";
 
 const CURRENT = 2026;
 const many = (reason: CoverageReason, n: number) => Array.from({ length: n }, () => ({ reason }));
@@ -49,5 +49,43 @@ describe("clip coverage triage", () => {
 
   it("a match with no reason found stays Actionable", () => {
     expect(triageCoverage(2026, [{}], CURRENT).triage).toBe("actionable");
+  });
+
+  it("every reason that rests on the clock alone is Actionable, in any season, with wording that says so", () => {
+    // Placed outside the video by comparing times only, never by looking at the video (brief §6): the same naive clock
+    // comparison as before-broadcast, so the same category.
+    const clock: [CoverageReason, string][] = [
+      ["before-cut", "played before the video's first second, by the clock and its cut start: not yet checked against the video"],
+      ["past-video-end", "played after the video's last second, by the clock: not yet checked against the video"],
+      ["before-chapters", "played before the part its chapters confirm, by the clock: not yet checked against the video"],
+      ["past-chapters", "played after the part its chapters confirm, by the clock: not yet checked against the video"],
+      ["outside-span", "played outside every recording's time, by the clock: not yet checked against the video"],
+    ];
+    for (const [reason, words] of clock) {
+      for (const season of [2026, 2025, 2021]) {
+        const t = triageCoverage(season, [...many(reason, 2), ...many("video-unavailable", 30)], CURRENT);
+        expect(t).toEqual({ triage: "actionable", why: `2 matches ${words} (30 more held back for other reasons)` });
+      }
+    }
+  });
+
+  it("what the video itself shows isn't Actionable: past the frames checked, an early start, no video", () => {
+    for (const r of ["past-checked", "overlaps-previous", "video-unavailable", "no-recording-day"] as CoverageReason[]) {
+      expect(triageCoverage(2026, many(r, 3), CURRENT).triage).not.toBe("actionable");
+    }
+  });
+
+  it("an empty or missing list is Actionable: nothing says it's settled", () => {
+    expect(triageCoverage(2026, [], CURRENT)).toEqual({ triage: "actionable", why: "No missing list to judge from: look at the event" });
+    expect(triageCoverage(2021, [], CURRENT).triage).toBe("actionable");
+  });
+
+  it("Old season is decided when read, so it moves with the current season, and never hides Actionable", () => {
+    const stored = baseTriage(many("gap-unplaced", 84));
+    expect(stored.triage).toBe("no-timing");
+    // 2024 is last season until the 2026 season starts: then it's Old season, without a recheck.
+    expect(seasonTriage(stored, 2024, 2025).triage).toBe("no-timing");
+    expect(seasonTriage(stored, 2024, 2026)).toEqual({ triage: "old-season", why: `2024–25 season. ${stored.why}` });
+    expect(seasonTriage(baseTriage(many("before-broadcast", 1)), 2019, 2026).triage).toBe("actionable");
   });
 });
