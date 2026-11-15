@@ -9,6 +9,8 @@ import { all, get } from "./db.js";
 import { ROSTER } from "./data/registrations.js";
 import { CURRENT_SEASON, PREDICT_SEASONS, SEASON_NUMBERS, isLegacy, seasonInfo } from "./data/seasons.js";
 import { defaultRankingsSeason, rankings, snapshotWeeks } from "./api/rankings.js";
+import { regionRankings, regionsList } from "./api/regionRankings.js";
+import { regionHref } from "../src/shared/regionRankings.js";
 import { isWeek, parsePlaces, placeKey } from "../src/shared/rankings.js";
 import { regionLabel } from "../src/shared/regions.js";
 import { eventTypeLabel } from "../src/shared/labels.js";
@@ -527,6 +529,40 @@ async function rankingsMeta(query: Record<string, unknown>): Promise<PageMeta> {
   return { title, description, type: "website", path, bodyHtml, ...(list ? { jsonLd: list } : {}) };
 }
 
+/** A path segment as text; a malformed escape reads as nothing (the not-found page). */
+const decodePart = (x: string) => { try { return decodeURIComponent(x); } catch { return ""; } };
+
+/** /rankings/regions: the regions list, its largest regions named. */
+async function regionsListMeta(query: Record<string, unknown>): Promise<PageMeta> {
+  const seasonRaw = Number(qstr(query.season));
+  const explicit = PREDICT_SEASONS.includes(seasonRaw);
+  const season = explicit ? seasonRaw : await defaultRankingsSeason();
+  const r = await regionsList(season);
+  const label = seasonInfo(season).label;
+  const named = r.regions.filter((x) => x.state).slice(0, 3).map((x) => x.name);
+  const description = bestFit([
+    `FTC rankings by region for ${label}: every country, state and province with rated teams${named.length ? `, from ${named.join(", ")} on` : ""}, each with its table of rank, record, OPR and weekly moves.`,
+    `FTC rankings by region for ${label}: every country, state and province with rated teams.`,
+  ]);
+  return { title: `FTC rankings by region ${label}`, description, type: "website", path: `/rankings/regions${explicit ? `?season=${season}` : ""}` };
+}
+
+/** /rankings/regions/<country>/<state>: one region's rankings, its #1 named. A place we can't read is the not-found page. */
+async function regionMeta(country: string, state: string | null, query: Record<string, unknown>): Promise<PageMeta> {
+  const place = parsePlaces(state ? `${country}:${state}` : country)?.[0];
+  if (!place) return NOT_FOUND;
+  const seasonRaw = Number(qstr(query.season));
+  const explicit = PREDICT_SEASONS.includes(seasonRaw);
+  const season = explicit ? seasonRaw : await defaultRankingsSeason();
+  const key = placeKey(place);
+  const r = await regionRankings({ season, week: null, place, page: 1, sort: "rank", team: null });
+  const label = seasonInfo(season).label, name = r.region.name;
+  const top = r.rows[0];
+  const lead = `FTC rankings for ${name}, ${label}: ${r.total ? `${r.total.toLocaleString("en-US")} rated teams` : "no rated team yet"}, with each team's record, OPR, events and this week's climbers and fallers.`;
+  const first = top ? ` #1: ${top.team}${top.name ? ` ${top.name}` : ""} (${top.rating.toFixed(1)}).` : "";
+  return { title: `FTC rankings: ${name} ${label}`, description: bestFit([`${lead}${first}`, lead]), type: "website", path: `${regionHref(key)}${explicit ? `?season=${season}` : ""}` };
+}
+
 /** How many rows the record tables (/teams, /matches) put in their first HTML. */
 const RECORD_ROWS = 100;
 /** The season a records page opens on: its ?season= when it's one we hold, else the current season (src/pages/RecordsPage.tsx). */
@@ -838,6 +874,8 @@ export async function pageMeta(path: string, query: Record<string, unknown> = {}
     // Any other league-shaped address (a code that can't be one) is no league.
     if (/^\/leagues\/[^/]+\/[^/]+\/[^/]+$/i.test(p)) return NOT_FOUND;
     if (/^\/rankings$/i.test(p)) return await rankingsMeta(query);
+    if (/^\/rankings\/regions$/i.test(p)) return await regionsListMeta(query);
+    if ((m = p.match(/^\/rankings\/regions\/([^/]+)(?:\/([^/]+))?$/i))) return await regionMeta(decodePart(m[1]), m[2] ? decodePart(m[2]) : null, query);
     if (p === "/events") return await eventsListMeta();
     if (p === "/teams") return await teamsTableMeta(query);
     if (p === "/matches") return await matchesTableMeta(query);
