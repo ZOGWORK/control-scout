@@ -21,6 +21,8 @@ Search answers a top-scores question about an event named without "at": "best au
 
 ### Highlights
 - [fixes] "best auto match in romania champs" lists that championship's top auto scores
+- [fixes] An event named after "in" is read as the event, not as a place
+- [fixes] "4215 highest score in …" still answers about the team
 
 ### Fixed
 - Search: a top-scores question naming an event after "in", or with no word before it ("best auto match in romania champs", "best auto match romania champs"), said no team, event or match matched. The words left are now the event's name when they aren't a place, end the question and hold an event's own word (championship, qualifier, league, meet …); "4215 highest score in …" stays the team's question. Answer: *Highest auto scores in DECODE (2025–26) at Romania Championship*. Failed search #1435. (`server/api/answers/families/topMatches.ts`) (#1532)
