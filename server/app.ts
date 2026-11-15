@@ -46,6 +46,7 @@ import { recordingStream, seasonRecordings, seasonVideoKinds } from "./videos/re
 import { eventClipCoverage } from "./videos/coverage.js";
 import { answerVideo } from "./api/answers/video.js";
 import { matchViews } from "./api/matches.js";
+import { teamNextMatch, weekendEvents } from "./api/weekend.js";
 import { eventListAnswer, matchDetailAnswer, teamMatchesAnswer, teamReportCardAnswer, teamScheduleAnswer } from "./api/reads.js";
 import { matchReport } from "./api/matchReport.js";
 import { resultChanges } from "./api/resultChanges.js";
@@ -594,6 +595,18 @@ export function createApp(opts: { dist?: string; /** Tests only: a smaller searc
 
   // The team page's season road map (server/api/roadmap.ts).
   api.get("/teams/:number/roadmap", requireFeature("seasonRoadMap"), h(async (req) => teamRoadMap(season(req.query.season), int(req.params.number, "team", { min: 1, max: 999999 }))));
+
+  // This weekend's FTC events (server/api/weekend.ts): ?which=this|next|last, ?region= a state ("USA:NJ") or a country,
+  // ?today= the viewer's date for the heading (each event is placed on its own calendar whatever it is).
+  api.get("/weekend", h(async (req) => {
+    const w = String(req.query.which ?? "this");
+    if (w !== "this" && w !== "next" && w !== "last") throw new HttpError(400, "which must be this, next or last");
+    return weekendEvents({ which: w, region: typeof req.query.region === "string" ? req.query.region.slice(0, 80) : null, today: typeof req.query.today === "string" ? req.query.today : null });
+  }));
+
+  // A team's next match this weekend, or what it has instead (server/api/weekend.ts): the team page's Upcoming, the
+  // "This weekend" page and search read the same answer.
+  api.get("/teams/:number/next", h(async (req) => teamNextMatch(int(req.params.number, "team", { min: 1, max: 999999 }))));
 
   api.get("/teams/:number/matches", h(async (req) => {
     return teamMatchesAnswer(int(req.params.number, "team", { min: 1, max: 999999 }), season(req.query.season));

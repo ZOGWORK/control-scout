@@ -891,7 +891,7 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
     const base = await resolveCore(question.core, opts);
     const team = base.step !== "recovery" && base.hits[0]?.kind === "team" && !base.hits[0].href ? base.hits[0] : null;
     if (team) {
-      const ans = await questionAnswer(q, question, team, base.hits.slice(1), pagesFor(q));
+      const ans = await questionAnswer(q, question, team, base.hits.slice(1), pagesFor(q), opts.now);
       // The team found by a near spelling of its name ("hypnotik robotics upcoming events"): said as a correction, only
       // when the team's own search says so (its name close to what was typed, no other name as close). Words found in
       // a school, city or venue ("river dell robotics") are the team as typed, never "corrected" to its name.

@@ -24,12 +24,12 @@ import { SWING_LINE, swingText, swingTitle } from "../shared/reliability";
 import { cn } from "../components/cn";
 import { CompactFilters, FilterSection, useCompactFilters, type FilterChip } from "../components/CompactFilters";
 
-const trigger = "inline-flex h-9 max-w-full items-center gap-2 rounded-lg border px-3 text-sm font-medium transition-colors max-sm:h-10";
-const idle = "border-line bg-card text-text-base hover:border-text-base/25";
-const active = "border-accent/60 bg-accent/[0.08] text-text-base";
+export const trigger = "inline-flex h-9 max-w-full items-center gap-2 rounded-lg border px-3 text-sm font-medium transition-colors max-sm:h-10";
+export const idle = "border-line bg-card text-text-base hover:border-text-base/25";
+export const active = "border-accent/60 bg-accent/[0.08] text-text-base";
 
 /** "USA:TX" → "Texas", "Canada" → "Canada". */
-const placeName = (key: string) => (key.includes(":") ? regionLabel(key) : key);
+export const placeName = (key: string) => (key.includes(":") ? regionLabel(key) : key);
 /** A state or province's name ("Texas"), or null where we only have FIRST's code (most countries outside North America). */
 const stateName = (country: string, state: string) => { const n = regionLabel(`${country}:${state.toUpperCase()}`); return n && n !== state.toUpperCase() ? n : null; };
 /** A team's home in a few words: "Texas, USA", "Ontario, Canada", "Romania". */
@@ -219,8 +219,9 @@ export function WeekPick({ weeks, value, liveLabel, onChange }: { weeks: string[
   );
 }
 
-/** Country / state filter: searchable, several at once; a country opens to its states. */
-function PlacePicker({ info, loading, value, onChange }: { info: RankingPlaces | undefined; loading: boolean; value: string[]; onChange: (keys: string[]) => void }) {
+/** Country / state filter: searchable, several at once; a country opens to its states. Used by the "This weekend"
+ *  page too (src/pages/WeekendPage.tsx). */
+export function PlacePicker({ info, loading, value, onChange }: { info: RankingPlaces | undefined; loading: boolean; value: string[]; onChange: (keys: string[]) => void }) {
   const [q, setQ] = useState("");
   const [open, setOpen] = useState<string | null>(null);
   const f = q.trim().toLowerCase();

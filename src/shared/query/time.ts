@@ -70,6 +70,14 @@ function windowOf(w: (typeof WINDOWS)[number][1], today: string): { from: string
   return { from: r.from ?? today, to: r.to ?? today };
 }
 
+/** Which weekend the "This weekend" page shows (src/pages/WeekendPage.tsx), as search says it. */
+export type Weekend = "this" | "next" | "last";
+/** A weekend's Saturday and Sunday from `today`: the same windows search reads "this weekend", "next weekend" and
+ *  "last weekend" as, never another definition. */
+export const weekendWindow = (which: Weekend, today: string): { from: string; to: string } => windowOf(`${which}-weekend` as const, today);
+/** The weekend a window phrase names ("this-weekend"), or null for any other window. */
+export const weekendOf = (time: string | null | undefined): Weekend | null => (time === "this-weekend" ? "this" : time === "next-weekend" ? "next" : time === "last-weekend" ? "last" : null);
+
 /** `unread`: a date that doesn't exist ("february 30, 2026"), taken out of `rest` so no other reader takes its words,
  *  and left unexplained. */
 export interface TimeRead { time: TimeSlot | null; rest: string; unread?: string }
