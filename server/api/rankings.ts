@@ -18,7 +18,7 @@ import {
 export type { RankingsQuery };
 
 /** Short-lived memo (the stats job can rewrite a season's rows under a version it already set). */
-function memo<T>(ttlMs: number, max = 200) {
+export function memo<T>(ttlMs: number, max = 200) {
   const m = new Map<string, { at: number; v: Promise<T> }>();
   const fn = (key: string, make: () => Promise<T>): Promise<T> => {
     const hit = m.get(key);
@@ -38,10 +38,10 @@ const pageMemo = memo<{ body: string; etag: string }>(120_000, 500);
 const placesMemo = memo<Omit<RankingPlaces, "mine" | "weeks">>(600_000, 20);
 registerCache("World rankings", () => { listMemo.clear(); snapMemo.clear(); pageMemo.clear(); placesMemo.clear(); });
 
-const rows: RankingRows = (sql, args) => all(sql, args);
+export const rows: RankingRows = (sql, args) => all(sql, args);
 
 /** The live ranking: every team with a rating from 3+ rated matches this season (team_season_stats). */
-async function liveList(season: number): Promise<RankingTeamRow[]> {
+export async function liveList(season: number): Promise<RankingTeamRow[]> {
   return listMemo(`${await dataVersion()}|live|${season}`, () => readLiveList(rows, season));
 }
 
@@ -55,7 +55,7 @@ export async function regionPlace(season: number, team: number, place: PlaceFilt
 }
 
 /** A snapshot week's ranking, with team names (as stored then: order and rating; names as now). */
-async function weekList(season: number, week: string): Promise<RankingTeamRow[]> {
+export async function weekList(season: number, week: string): Promise<RankingTeamRow[]> {
   return listMemo(`${await dataVersion()}|week|${season}|${week}`, () => readWeekList(rows, season, week));
 }
 
