@@ -25,7 +25,7 @@ Report a bug › the public notice is larger, offers a private email instead, an
 - [report] Send asks a second time: "Yes, post it publicly" or Go back
 
 ### Changed
-- Report a bug: the public GitHub Issue notice is a boxed, full-size line with a private-email way out (a mailto link), on the form and on the sent screen. The first Send asks "Send this as a public issue?"; only "Yes, post it publicly" sends, and Go back returns to the form with nothing sent. On phones the sheet scrolls so both answers are in view, and it has bottom padding again. (`src/components/layout/BugReport.tsx`)
+- Report a bug: the public GitHub Issue notice is a boxed, full-size line with a private-email way out (a mailto link), on the form and on the sent screen. The first Send asks "Send this as a public issue?"; only "Yes, post it publicly" sends, and Go back returns to the form with nothing sent. On phones the sheet scrolls so both answers are in view, and it has bottom padding again. (`src/components/layout/BugReport.tsx`) (#1562)
 
 ## 6.7.2 — 2026-11-15
 
