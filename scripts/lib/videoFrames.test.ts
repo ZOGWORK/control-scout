@@ -168,6 +168,18 @@ describe("the frame reader", () => {
       expect([...k.earlyStart]).toEqual([["Q2", { t: 160, previousEnds: 258 }]]);
     });
 
+    it("keeps two read starts a cut brought within a match of each other, but never filled ones", () => {
+      // USTXSASQ 2025 (DgrBhJC2TIk): Q14 read at 7838, Q15 at 7989; the stream cut from Q14 at 1:07 to Q13's results.
+      const sasq: M[] = [{ label: "Q14", epoch: 0 }, { label: "Q15", epoch: 400 }];
+      const j = judge(sasq, new Map([[0, 7838], [1, 7989]]), null, 20000);
+      expect([...j.placed.keys()]).toEqual(["Q14", "Q15"]);
+      expect(j.review.size + j.earlyStart.size).toBe(0);
+      // A start filled between reads (medium) that overlaps the next still goes to review.
+      const fill: M[] = [{ label: "Q1", epoch: 0 }, { label: "Q2", epoch: 100 }, { label: "Q3", epoch: 140 }, { label: "Q4", epoch: 1000 }];
+      const k = judge(fill, new Map([[0, 1000], [2, 1140], [3, 2000]]), null, 20000);
+      expect(k.review.has("Q2")).toBe(true);
+    });
+
     it("tells a match whose frames were read but never confirmed from one never read", () => {
       const j = judge(ms, new Map([at(0, -9000), at(9, -9000)]), null, 8000, new Set([0, 9]));
       expect(j.placed.size).toBe(10);
