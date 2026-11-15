@@ -14,6 +14,8 @@ export interface SavedSeason {
   /** When the server last synced before the pack was built: the data is "as of" this. */
   dataAsOf: string | null;
   builtAt: string;
+  /** The pack's counts (packs from 6.0.5 on), to say what a newer release adds. */
+  stats?: { matches: number; events: number };
 }
 
 const KEY = "cs-offline-seasons";

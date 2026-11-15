@@ -113,7 +113,7 @@ describe("static first paint", () => {
     const meta = { title: "T", description: "D", type: "website" } as const;
     const labels = (html: string) => [...html.matchAll(/<span>([^<]+)<\/span>/g)].map((m) => m[1]);
     const side = (path: string) => bootShell(path, meta).match(/<aside class="csb-side">.*?<\/aside>/)![0];
-    expect(labels(side("/"))).toEqual(["Control Scout", "Home", "Events", "Teams", "Rankings", "Predict", "My team", "Scout", "More", "Power rankings", "Compare", "Shortlist", "Download", "How it works", "Predictions", "FTC One Search"]);
+    expect(labels(side("/"))).toEqual(["Control Scout", "Home", "Events", "Teams", "Rankings", "Predict", "My team", "Scout", "More", "Power rankings", "Compare", "Shortlist", "Offline", "How it works", "Predictions", "FTC One Search"]);
     // How it works folds open to its two pages, as in the app: open on either of them.
     expect(side("/how-it-works/search")).toContain('<details class="csb-more csb-sub" open><summary><i class="csb-ico"></i><span>How it works</span>');
     expect(side("/")).toContain('<details class="csb-more csb-sub"><summary>');

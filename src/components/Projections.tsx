@@ -58,7 +58,7 @@ function LocalUnavailable({ reason, offline }: { reason: string; offline: boolea
   return (
     <EmptyState icon={HardDrive} title="No local estimate on this device"
       description={<>{reason} {offline ? "The server's projection shows here once you're back online." : "The server's projection shows here as soon as it's made."}</>}
-      action={<Button asChild variant="secondary" size="sm"><Link to="/download"><HardDriveDownload /> Update your offline packs on Download</Link></Button>} />
+      action={<Button asChild variant="secondary" size="sm"><Link to="/download"><HardDriveDownload /> Update your offline packs</Link></Button>} />
   );
 }
 
