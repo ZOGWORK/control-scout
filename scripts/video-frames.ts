@@ -146,11 +146,11 @@ const READ_LIMIT_S = 120;
 /** Frames read on each player page (each point a read looks at, confirming reads included): what a video's budget
  *  counts. Per page, so lanes reading side by side never spend each other's budget. */
 const pageReads = new WeakMap<Page, number>();
-function readAt(page: Page, t: number): Promise<Read> {
+function readAt(page: Page, t: number, labelOnly = false): Promise<Read> {
   pageReads.set(page, (pageReads.get(page) ?? 0) + 1);
   let timer: ReturnType<typeof setTimeout> | undefined;
   return Promise.race([
-    readAtOnce(page, t).finally(() => clearTimeout(timer)).then((r) => {
+    readAtOnce(page, t, labelOnly).finally(() => clearTimeout(timer)).then((r) => {
       if (TRACE) console.error(`    read ${Math.round(t)} s: ${r.label ?? "-"}${r.start != null ? ` from ${r.start}` : ""}${r.division ? ` (${r.division} division)` : ""}${r.why ? `: ${r.why}` : ""}`);
       return r;
     }),
@@ -158,7 +158,8 @@ function readAt(page: Page, t: number): Promise<Read> {
   ]);
 }
 
-async function readAtOnce(page: Page, t: number): Promise<Read> {
+/** labelOnly: the overlay's match alone, not its timer (a clip opening's check). */
+async function readAtOnce(page: Page, t: number, labelOnly = false): Promise<Read> {
   if (ocrBroken) throw new Error(ocrBroken);
   await seek(page, Math.max(0, t));
   const at = await now(page);
@@ -168,7 +169,7 @@ async function readAtOnce(page: Page, t: number): Promise<Read> {
   // Another division's match on the shared stream: not this event's, whatever its number.
   if (division === "other") return { label: null, start: null, at, text, why: "another division's overlay", division };
   const label = overlayLabel(text);
-  if (!label) return { label, start: null, at, text, division };
+  if (!label || labelOnly) return { label, start: null, at, text, division };
   const a = await timer(page);
   const atA = await now(page);
   await page.waitForTimeout(1500);
@@ -232,25 +233,29 @@ const MISSES = 3;
  * clip can't open on it goes to review, and one whose overlay can't be read there at all is missing with
  * OVERLAY_UNREAD. Nothing is a clip unchecked.
  */
-async function checkOpenings(page: Page, j: Judged, log: (s: string) => void): Promise<void> {
+async function checkOpenings(page: Page, j: Judged, log: (s: string) => void, unread?: Set<string>): Promise<void> {
   const failed: string[] = [];
   for (const [label, p] of [...j.placed]) {
+    if (j.opens.has(label)) continue; // checked on an earlier --verify
     let named: string | null = null, at: number | null = null;
     for (const lead of OPEN_LEADS) {
       const t = p.t - lead;
       if (t < 0) continue;
-      const r = await readAt(page, t);
+      const r = await readAt(page, t, true);
       if (r.division === "other") { named = "another division's match"; continue; }
       if (r.label === label) { at = t; break; }
       if (r.label) named = r.label;
     }
     if (at != null) { j.opens.set(label, at); continue; }
+    // A clip already live (--verify) whose opening frame named nothing (blank, a transition, a cutaway) stays, to be
+    // read again: only an overlay naming another match pulls it.
+    if (unread && !named) { unread.add(label); continue; }
     j.placed.delete(label);
     failed.push(label);
     if (named) j.review.set(label, { t: p.t, why: `its clip's first frame shows ${named}, not ${label}` });
     else j.missing.set(label, OVERLAY_UNREAD);
   }
-  log(`    clip openings: ${j.opens.size} name their match${failed.length ? `; not placed: ${failed.join(" ")}` : ""}`);
+  log(`    clip openings: ${j.opens.size} name their match${unread?.size ? `; ${unread.size} unconfirmed, to read again: ${[...unread].join(" ")}` : ""}${failed.length ? `; ${unread ? "pulled" : "not placed"}: ${failed.join(" ")}` : ""}`);
 }
 
 /** --verify: a row read before clip openings were checked gets them checked, its starts as they were read. */
@@ -265,9 +270,10 @@ async function verifyRow(row: FrameTiming, division: { own: string; others: stri
     const j: Judged = {
       placed: new Map(Object.entries(row.starts).map(([l, t]) => [l, { t, confidence: medium.has(l) ? "medium" as const : "high" as const }])),
       review: new Map(Object.entries(row.review ?? {})), missing: new Map(Object.entries(row.missing ?? {})),
-      earlyStart: new Map(Object.entries(row.earlyStart ?? {})), opens: new Map(),
+      earlyStart: new Map(Object.entries(row.earlyStart ?? {})), opens: new Map(Object.entries(row.opens ?? {})),
     };
-    await checkOpenings(page, j, log);
+    const unread = new Set<string>();
+    await checkOpenings(page, j, log, unread);
     const starts = Object.fromEntries([...j.placed].sort((a, b) => a[1].t - b[1].t).map(([l, p]) => [l, p.t]));
     const med = (row.medium ?? []).filter((l) => l in starts);
     keep(`${row.videoId}|${row.code}`, {
@@ -277,6 +283,7 @@ async function verifyRow(row: FrameTiming, division: { own: string; others: stri
       ...(j.missing.size ? { missing: Object.fromEntries(j.missing) } : {}),
       ...(j.earlyStart.size ? { earlyStart: Object.fromEntries(j.earlyStart) } : {}),
       opens: Object.fromEntries(j.opens),
+      ...(unread.size ? { unconfirmed: [...unread] } : {}),
     });
   } catch (e) {
     log(`    couldn't check: ${(e as Error).message.split("\n")[0]} (the row is kept unchecked; the next --verify tries it again)`);
@@ -529,7 +536,7 @@ async function doCode(code: string): Promise<void> {
     const prior = kept.get(`${v.videoId}|${code}`);
     if (VERIFY) {
       // Only where each clip opens, for a row read before that was checked: its starts stay as read.
-      if (prior && !prior.opens && Object.keys(prior.starts).length) await verifyRow(prior, division, log);
+      if (prior && (!prior.opens || prior.unconfirmed?.length) && Object.keys(prior.starts).length) await verifyRow(prior, division, log);
       continue;
     }
     if (!CHECK && !ALL && prior && !Object.values(prior.missing ?? {}).some((w) => w.startsWith(PLAY_FAILED))) {
