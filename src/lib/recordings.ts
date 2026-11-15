@@ -75,4 +75,5 @@ export function pickMime(): string {
   return prefs.find((m) => typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported?.(m)) ?? "";
 }
 
-export const fmtBytes = (b: number) => (b < 1e6 ? `${Math.round(b / 1e3)} KB` : b < 1e9 ? `${(b / 1e6).toFixed(1)} MB` : `${(b / 1e9).toFixed(2)} GB`);
+/** Bytes as people read them (one helper, shared with the server's Lite pages). */
+export { fmtBytes } from "../shared/networkStatus";
