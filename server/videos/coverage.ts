@@ -160,7 +160,7 @@ function judge(v: RecordingVideo, r: Recording, whole: EventSpan, timezone: stri
     const missing = missingOf(timing);
     const chapters = meta.chapters?.length ? "its chapters don't confirm the clock" : "no chapters to confirm the clock";
     const why = missing != null
-      ? `Video ${span(missing)} shorter than its broadcast (over the ${mins(GAP_SLACK_MAX_S)} min an early start covers), ${chapters}`
+      ? `Video ${span(missing)} shorter than its broadcast (more than the ${mins(GAP_SLACK_MAX_S)} min the clock allows for), ${chapters}`
       : WHY["gap-unplaced"];
     return { v, date, label, timing, dead: { reason: "gap-unplaced", why } };
   }

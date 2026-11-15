@@ -35,6 +35,8 @@ describe("clipCoverage", () => {
     expect(by.Q1.clip && by.Q2.clip).toBe(true);
     expect(by.Q3).toMatchObject({ clip: false, reason: "gap-unplaced", videoId: "SATURDAYv01" });
     expect(by.Q3.why).toContain("4 h shorter than its broadcast");
+    // Said as the video's shortfall, never as an early start (addendum §7: never a reason, even in passing).
+    expect(by.Q3.why).toMatch(/^Video 4 h shorter than its broadcast \(more than the \d+ min the clock allows for\), no chapters to confirm the clock$/);
     expect(by.Q5).toMatchObject({ clip: false, reason: "no-recording-day", why: "No recording for Sunday" });
     // Counted in its day: Friday is 2 of 3, never shown as fully clipped.
     expect(by.Q6).toMatchObject({ clip: false, reason: "no-start", videoId: "FRIDAYvid01" });
