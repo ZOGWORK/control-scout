@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.5.5 — 2026-11-15
+## 6.5.6 — 2026-11-15
 
 Clip coverage's To review now holds only matches checked against the video itself; the rest wait under their own count, and every match the video showed without a clip is a finding.
 
@@ -30,6 +30,18 @@ Clip coverage's To review now holds only matches checked against the video itsel
 
 ### Added
 - Each clip coverage check pass logs events checked, fully clipped, matches clipped and missing, and the missing by what their video check found (not yet checked, checked with no start found, seen in the video with no clip, or the video's own reason); the console shows the last pass. Every match the video's frames saw with no clip is a finding in the console, with its video, the second it was seen at, its event and why, whatever its review.
+
+## 6.5.5 — 2026-11-15
+
+Videos › A clip whose first frame shows another match is never played: the clips placed from the clock are checked frame by frame, and a wrong one is pulled.
+
+### Highlights
+- [fixes] A clip that opens on another match is pulled
+- [workspace] Each pulled clip is an owner finding with what it showed
+- [fixes] A blank first frame keeps its clip and is read again
+
+### Changed
+- Clock-placed clips are checked by the overlay at their first frame (`server/data/clipChecks.ts`). One that names a different match is never served (`withClips`), and is listed with its start and what it showed for the owner console. One that names nothing (a blank or a transition) stays and is read again; a video with no readable overlay is counted, never pulled. The sweep's data follows season by season. (`server/videos/recordings.ts`, `docs/frame-timings.md`) (#1529)
 
 ## 6.5.4 — 2026-11-15
 
