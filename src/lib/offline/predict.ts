@@ -29,12 +29,26 @@ const liteTime = (p: Pick<LitePack, "builtAt">): string => packStatus()?.dataAsO
 
 const bundleSource = (m: SavedBundle): OfflineSource => ({ kind: "bundle", season: m.season, code: m.code, name: m.name });
 
+/** The call from this one snapshot only (a what-if's swap is predicted from the same snapshot as the match it's
+ *  compared with, never a newer or older one): null when it doesn't hold the lineup. */
+async function fromSnapshot(from: OfflineSource, season: number, red: number[], blue: number[], level: "qual" | "playoff"): Promise<OfflineCall | null> {
+  if (from.kind === "lite") {
+    const pack = await loadLite();
+    return pack?.books[String(season)] ? { view: liteCall(pack, season, red, blue, level), asOf: liteTime(pack), source: from } : null;
+  }
+  const meta = savedBundles().find((b) => b.season === from.season && b.code === from.code);
+  const b = meta && from.season === season ? await loadBundle(meta.season, meta.code) : null;
+  return meta && b && bundleHolds(b, [...red, ...blue]) ? { view: bundleCall(b, season, red, blue, level), asOf: bundleTime(meta), source: bundleSource(meta) } : null;
+}
+
 /**
  * Predict a match on this device. Null when nothing saved holds the season (or, for a bundle, the lineup).
  * `level`: the page's what-ifs are qualification matches (as the server's GET /api/predict/match by default).
+ * `from`: only this snapshot answers (null when it doesn't hold the lineup).
  */
-export async function offlineExplain(season: number, red: number[], blue: number[], level: "qual" | "playoff" = "qual"): Promise<OfflineCall | null> {
+export async function offlineExplain(season: number, red: number[], blue: number[], level: "qual" | "playoff" = "qual", from?: OfflineSource): Promise<OfflineCall | null> {
   const lineup = [...red, ...blue];
+  if (from) return fromSnapshot(from, season, red, blue, level);
   const metas = savedBundles().filter((b) => b.season === season && (!b.teams || lineup.every((t) => b.teams!.includes(t))))
     .sort((a, b) => bundleTime(b).localeCompare(bundleTime(a)));
   // The lite pack's time from its saved meta, so a newer bundle answers without the pack being decoded.

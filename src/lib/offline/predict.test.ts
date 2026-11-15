@@ -88,4 +88,18 @@ describe("offlineExplain", () => {
     expect(q.view.teamsBlue.map((t) => t.name)).toEqual(["Field 3", "Field 4"]);
     expect(q.view.bonus).toBeNull();
   });
+
+  it("with `from`, only that snapshot answers (a what-if's swap), and none when it doesn't hold the lineup", async () => {
+    pack = lite(); meta = liteMeta("2026-10-21T00:00:00Z");
+    // The newer bundle would answer on its own; the lite pack was asked for.
+    bundles = [saved("NEW", "2026-10-21T08:00:00Z")]; stored = { NEW: bundle(true) };
+    expect((await offlineExplain(2025, [1, 2], [3, 4]))!.source.kind).toBe("bundle");
+    expect((await offlineExplain(2025, [1, 2], [3, 4], "qual", { kind: "lite" }))!.source).toEqual({ kind: "lite" });
+    const from = { kind: "bundle" as const, season: 2025, code: "NEW", name: "Meet NEW" };
+    expect((await offlineExplain(2025, [1, 3], [2, 4], "qual", from))!.source).toEqual(from);
+    // Team 9 isn't at the bundle's event: no call from it, never the lite pack's instead.
+    expect(await offlineExplain(2025, [1, 9], [3, 4], "qual", from)).toBeNull();
+    pack = null;
+    expect(await offlineExplain(2025, [1, 2], [3, 4], "qual", { kind: "lite" })).toBeNull();
+  });
 });
