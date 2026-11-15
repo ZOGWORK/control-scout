@@ -9,6 +9,8 @@ import type { LeagueMeet, LeagueStandingRow, LeagueStandings } from "../../src/s
 const PLAYED = `EXISTS (SELECT 1 FROM match_teams x JOIN matches m ON m.season = x.season AND m.code = x.code AND m.level = x.level AND m.series = x.series AND m.number = x.number
   WHERE x.season = et.season AND x.code = et.code AND x.team = et.team AND x.on_field = 1 AND m.played = 1)`;
 import { placeName } from "../../src/shared/regions.js";
+import { homeRegion, regionName, type LeagueListItem } from "../../src/shared/regionRankings.js";
+import { placeKey, type PlaceFilter } from "../../src/shared/rankings.js";
 
 /** A league's region and code as stored ("usnj" → "USNJ"), or null when the season has no such league. */
 export async function storedLeague(season: number, region: string, code: string): Promise<{ region: string; code: string } | null> {
@@ -70,3 +72,49 @@ export async function leaguesOf(season: number, region?: string): Promise<{ regi
     `SELECT r.region, r.league code, l.name, COUNT(*) teams FROM league_rankings r LEFT JOIN leagues l ON l.season = r.season AND l.region = r.region AND l.code = r.league
      WHERE r.season = ?${region ? " AND r.region = ?" : ""} GROUP BY r.region, r.league ORDER BY COALESCE(l.name, r.league)`, region ? [season, region] : [season]);
 }
+
+/** Every league of a season with where its meets are, how many have been played, its team count and FIRST's #1 by
+ *  ranking score (the leagues list, and a region page's leagues). A league with no standings yet has 0 teams and no top. */
+export async function leagueList(season: number): Promise<LeagueListItem[]> {
+  const [leagues, places, tops] = await Promise.all([
+    all<{ region: string; code: string; name: string | null; meets: number; played: number; teams: number }>(
+      `WITH k AS (SELECT region, code FROM leagues WHERE season = ?
+         UNION SELECT region, league FROM events WHERE season = ? AND league IS NOT NULL AND league <> '' AND region IS NOT NULL AND region <> '')
+       SELECT k.region, k.code, l.name,
+         (SELECT COUNT(*) FROM events e WHERE e.season = ? AND e.region = k.region AND e.league = k.code AND e.type = 'LeagueMeet') meets,
+         (SELECT COUNT(*) FROM events e WHERE e.season = ? AND e.region = k.region AND e.league = k.code AND e.type = 'LeagueMeet'
+            AND EXISTS (SELECT 1 FROM matches m WHERE m.season = e.season AND m.code = e.code AND m.played = 1)) played,
+         (SELECT COUNT(*) FROM league_rankings r WHERE r.season = ? AND r.region = k.region AND r.league = k.code) teams
+       FROM k LEFT JOIN leagues l ON l.season = ? AND l.region = k.region AND l.code = k.code`, [season, season, season, season, season, season]),
+    all<{ region: string; league: string; country: string | null; state: string | null; n: number }>(
+      `SELECT region, league, country, state, COUNT(*) n FROM events WHERE season = ? AND league IS NOT NULL AND league <> '' AND (country IS NOT NULL OR state IS NOT NULL)
+       GROUP BY region, league, country, state`, [season]),
+    all<{ region: string; league: string; team: number; name: string | null; rs: number | null }>(
+      `SELECT r.region, r.league, r.team, t.name, r.rs FROM league_rankings r LEFT JOIN teams t ON t.number = r.team
+       WHERE r.season = ? AND r.rank = 1 ORDER BY r.team`, [season]),
+  ]);
+  // Where a league plays: the place most of its meets are in.
+  const where = new Map<string, { country: string | null; state: string | null; n: number }>();
+  for (const p of places) {
+    const k = `${p.region}|${p.league}`, n = Number(p.n);
+    if (!where.has(k) || where.get(k)!.n < n) where.set(k, { country: p.country, state: p.state, n });
+  }
+  const top = new Map<string, { team: number; name: string | null; rs: number | null }>();
+  for (const t of tops) { const k = `${t.region}|${t.league}`; if (!top.has(k)) top.set(k, { team: Number(t.team), name: t.name ?? null, rs: t.rs == null ? null : Number(t.rs) }); }
+  return leagues.map((l) => {
+    const k = `${l.region}|${l.code}`, w = where.get(k);
+    const home = w ? homeRegion(w.country, w.state) : null;
+    const key = home ? placeKey(home) : null;
+    return {
+      season, region: l.region, code: l.code, name: l.name?.trim() || null, place: key, placeName: key ? regionName(key) : null,
+      meetsPlayed: Number(l.played), meets: Number(l.meets), teams: Number(l.teams), top: top.get(k) ?? null,
+    };
+  }).sort((a, b) => (a.placeName ?? "~").localeCompare(b.placeName ?? "~") || (a.name ?? a.code).localeCompare(b.name ?? b.code) || a.region.localeCompare(b.region));
+}
+
+/** Whether a league plays in a region (a country's page holds its states' leagues too). */
+export const leagueIn = (l: Pick<LeagueListItem, "place">, p: PlaceFilter) => {
+  if (!l.place) return false;
+  const [country, state] = l.place.split(":");
+  return country === p.country && (!p.state || state === p.state);
+};
