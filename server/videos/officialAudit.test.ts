@@ -12,7 +12,7 @@ import { FULL_EVERY_MS, dismissFinding, measureAdds, ownerAudit, queueFinding, r
 const TX = "UCKezDYNRPpAy2_1XRMBWKSw";
 const NOW = Date.parse("2026-01-20T00:00:00Z");
 type Item = { id: string; title: string; published: string; start?: string | null; minutes?: number; privacy?: string };
-const FIRSTS = "firstlinkxx", LISTED = "listedlisto", WEB = "webinarwebi", OLDUP = "oldupload01", MISS = "missmissmis", GOOD = "goodaddgood", BAD = "badaddbadad", LATE = "latelatelat", DRONE = "dronedronex", COPY = "pecancopyxx";
+const FIRSTS = "firstlinkxx", LISTED = "listedlisto", WEB = "webinarwebi", OLDUP = "oldupload01", MISS = "missmissmis", GOOD = "goodaddgood", BAD = "badaddbadad", LATE = "latelatelat", DRONE = "dronedronex", COPY = "pecancopyxx", OLDCOV = "oldcovered1", OLDNONE = "oldnoevent1";
 let uploads: Item[] = [];
 let calls: string[] = [];
 let pageSize = 50;
@@ -56,6 +56,8 @@ beforeAll(async () => {
   await run(ov, [LISTED, "USTXPEQ", "2026-01-18", TX, "Pecan Sunday", "list", "2026-01-01T00:00:00Z"]);
   await run(ov, [GOOD, "USTXMOQ", "2026-01-17", TX, "FTC Texas Mockingbird Qualifier", "watcher", "2026-01-18T06:00:00Z"]);
   await run(ov, [BAD, "USTXHOQ", "2026-01-11", TX, "FTC Texas Houston Qualifier", "watcher", "2026-01-18T06:00:00Z"]);
+  // Bluebonnet 2024 already plays a video for its one day.
+  await run("INSERT INTO official_videos (video_id, season, code, kind, day, part, channel_id, title, source, why, added_at, added_by) VALUES ('bluebonnet1', 2024, 'USTXBLQ', 'recording', '2025-01-12', NULL, ?, 'Bluebonnet', 'list', 'x', '2025-01-01T00:00:00Z', NULL)", [TX]);
   await run(ov, [DRONE, "USTXMOQ", "2026-01-18", TX, "FTC Texas Mockingbird Qualifier drone race", "watcher", "2026-01-18T06:00:00Z"]);
   await run("INSERT INTO official_watch (video_id, channel_id, title, status, season, code, day, why, seen_at, decided_at, decided_by) VALUES (?, ?, ?, 'added', 2025, ?, ?, 'x', ?, ?, 'watcher')", [GOOD, TX, "FTC Texas Mockingbird Qualifier", "USTXMOQ", "2026-01-17", "2026-01-18T06:00:00Z", "2026-01-18T06:00:00Z"]);
   await run("INSERT INTO official_watch (video_id, channel_id, title, status, season, code, day, why, seen_at, decided_at, decided_by) VALUES (?, ?, ?, 'added', 2025, ?, ?, 'x', ?, ?, 'watcher')", [BAD, TX, "FTC Texas Houston Qualifier", "USTXHOQ", "2026-01-11", "2026-01-18T06:00:00Z", "2026-01-18T06:00:00Z"]);
@@ -74,6 +76,9 @@ beforeAll(async () => {
     { id: DRONE, title: "FTC Texas Mockingbird Qualifier drone race", published: "2026-01-18T03:00:00Z", start: "2026-01-18T02:00:00Z", minutes: 60 },
     // The channel's own copy of a day FIRST's link already plays: a duplicate, as the watcher would log it.
     { id: COPY, title: "FTC Texas Pecan Qualifier (channel copy)", published: "2026-01-17T23:30:00Z", start: "2026-01-17T14:05:00Z" },
+    // Older than the window: an upload of an event that already plays every day, and a broadcast on a day with no event.
+    { id: OLDCOV, title: "FTC Texas Bluebonnet Qualifier 2025", published: "2025-01-15T22:00:00Z", start: null },
+    { id: OLDNONE, title: "FTC Texas Scrimmage", published: "2025-03-01T22:00:00Z", start: "2025-03-01T15:00:00Z" },
   ];
 });
 beforeEach(() => { calls = []; pageSize = 50; });
@@ -81,7 +86,7 @@ beforeEach(() => { calls = []; pageSize = 50; });
 describe("the channel audit", () => {
   it("reads the whole uploads list and records where Scout has each video", async () => {
     const out = await audit();
-    expect(out).toMatchObject({ channels: 1, fullChannels: 1, uploads: 10, setAside: 2, missed: 1, queued: 0, findings: 2, addsChecked: 3, addsWrong: 2, error: null });
+    expect(out).toMatchObject({ channels: 1, fullChannels: 1, uploads: 12, setAside: 4, missed: 1, queued: 0, findings: 2, addsChecked: 3, addsWrong: 2, error: null });
     // One uploads page, one facts read (what may be a competition and isn't recorded, and the watcher's adds); no search.
     expect(calls).toEqual(["playlistItems", "videos"]);
     expect(out!.units).toBe(2);
@@ -89,13 +94,20 @@ describe("the channel audit", () => {
     expect((await row(LISTED)).record).toBe("the checked list");
     const ch = await get<any>("SELECT * FROM official_audit_channels WHERE channel_id = ?", [TX]);
     // Playing on an event: FIRST's link, the list's, the two adds still on their events (the drone stream came off).
-    expect(ch).toMatchObject({ uploads: 10, linked: 4, linked_current: 0, open_findings: 2 });
+    expect(ch).toMatchObject({ uploads: 12, linked: 4, linked_current: 0, open_findings: 2 });
   });
 
   it("sets aside a copy of a day its event already plays, as the watcher's duplicate", async () => {
     const c = await row(COPY);
     expect(c).toMatchObject({ record: null, verdict: "duplicate", finding: null, guess_code: "USTXPEQ" });
     expect(c.why).toBe("duplicate: USTXPEQ already plays firstlinkxx for 2026-01-17");
+  });
+
+  it("sets aside an old video that can't fill a day Scout has no video for, saying why", async () => {
+    expect(await row(OLDCOV)).toMatchObject({ finding: null, verdict: "ignore",
+      why: "set aside by the audit: its event 2024 USTXBLQ (TX Bluebonnet Qualifier) already plays a video for its one day (bluebonnet1)" });
+    expect(await row(OLDNONE)).toMatchObject({ finding: null, verdict: "ignore",
+      why: "set aside by the audit: no Scout event in the channel's region on the broadcast date: nothing to put it on" });
   });
 
   it("leaves what went up or ended after the watcher's last run to its next run: not a miss", async () => {
@@ -156,7 +168,7 @@ describe("the channel audit", () => {
     const out = await audit(NOW + 3600_000);
     // Nothing new on the first page: one page, and the adds' facts.
     expect(calls).toEqual(["playlistItems", "videos"]);
-    expect(out).toMatchObject({ fullChannels: 0, uploads: 10 });
+    expect(out).toMatchObject({ fullChannels: 0, uploads: 12 });
   });
 
   it("reads the whole list again after a week, and marks what left the channel", async () => {
@@ -165,8 +177,8 @@ describe("the channel audit", () => {
     uploads = uploads.filter((u) => u.id !== WEB);
     try {
       const out = await audit(NOW + FULL_EVERY_MS + 3600_000);
-      expect(calls.filter((c) => c === "playlistItems")).toHaveLength(3);
-      expect(out).toMatchObject({ fullChannels: 1, uploads: 9 });
+      expect(calls.filter((c) => c === "playlistItems")).toHaveLength(4);
+      expect(out).toMatchObject({ fullChannels: 1, uploads: 11 });
       expect((await row(WEB)).gone_at).toBeTruthy();
     } finally { uploads = was; }
   });
@@ -181,7 +193,7 @@ describe("the channel audit", () => {
     expect(a.findings.map((f) => f.videoId)).toEqual([LATE]);
     expect(a.wrongAdds.map((w) => w.videoId).sort()).toEqual([BAD, DRONE].sort());
     expect(a.wrongAdds.find((w) => w.videoId === DRONE)?.removed).toBe(true);
-    expect(a.channels.find((c) => c.channelId === TX)).toMatchObject({ uploads: 9 });
+    expect(a.channels.find((c) => c.channelId === TX)).toMatchObject({ uploads: 11 });
   });
 
   it("gives a watcher verdict that names no event a best guess", async () => {
