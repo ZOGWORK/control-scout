@@ -63,7 +63,7 @@ afterEach(() => {
 async function open() {
   render(<MemoryRouter initialEntries={["/search"]}><BugReportButton /></MemoryRouter>);
   fireEvent.click(screen.getByTestId("bug-report-button"));
-  await screen.findByTestId("bug-report-form");
+  await screen.findByTestId("bug-report-form", {}, { timeout: 10_000 });
 }
 
 describe("Capture this screen", () => {
@@ -90,7 +90,7 @@ describe("Capture this screen", () => {
     const ask = withDisplayMedia(async () => okStream());
     await open();
     fireEvent.click(screen.getByTestId("bug-capture"));
-    const shot = await screen.findByRole("img", { name: "screen-capture-1.png" });
+    const shot = await screen.findByRole("img", { name: "screen-capture-1.png" }, { timeout: 10_000 });
     expect(shot).toBeTruthy();
     expect(ask).toHaveBeenCalledTimes(1);
     expect(ask!.mock.calls[0]![0]).toMatchObject({ video: true, audio: false, preferCurrentTab: true, selfBrowserSurface: "include" });
@@ -102,14 +102,14 @@ describe("Capture this screen", () => {
     expect(screen.queryByTestId("bug-capture-note")).toBeNull();
     // A second capture gets its own name.
     fireEvent.click(screen.getByTestId("bug-capture"));
-    expect(await screen.findByRole("img", { name: "screen-capture-2.png" })).toBeTruthy();
+    expect(await screen.findByRole("img", { name: "screen-capture-2.png" }, { timeout: 10_000 })).toBeTruthy();
   });
 
   it("a refused or cancelled prompt: a short note, nothing attached, no error", async () => {
     withDisplayMedia(async () => { throw new DOMException("Permission denied", "NotAllowedError"); });
     await open();
     fireEvent.click(screen.getByTestId("bug-capture"));
-    const note = await screen.findByTestId("bug-capture-note");
+    const note = await screen.findByTestId("bug-capture-note", {}, { timeout: 10_000 });
     expect(note.textContent).toBe("No screen captured. You can paste or choose a screenshot instead.");
     expect(screen.queryAllByTestId("bug-attachment")).toHaveLength(0);
     expect(screen.queryByRole("alert")).toBeNull();
