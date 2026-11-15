@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 6.4.7 — 2026-11-15
+
+Settings › Network & offline now says whether the Wi-Fi is actually giving internet: a Wi-Fi whose sign-in page answers reads "Connected to Wi-Fi, but no internet" and says to open any website to sign in, instead of "You're offline".
+
+### Highlights
+- [offline] A Wi-Fi sign-in page reads "Connected to Wi-Fi, but no internet"
+- [offline] It says how to get online: open any website to sign in
+- [offline] On a network that lets nothing through, it says so, not "offline"
+
+### Changed
+- Network & offline status (`/settings#network`): when the connection check gets a page that isn't ours (a sign-in page), the heading says the device is connected (to Wi-Fi when the browser says Wi-Fi, else to a network) but gets no internet, and a line under it says it's likely waiting at a sign-in page: open any website to sign in. When the check gets no answer while the browser says it's online, it reads "Connected, but nothing is getting through"; "You're offline" stays for when the browser itself says there's no network. (`src/lib/networkAdvice.ts`, `src/components/settings/NetworkSection.tsx`) (#1513)
+
 ## 6.4.6 — 2026-11-15
 
 Turn Wi-Fi back on and the Offline pill goes within seconds, in the background, without a tap or a reload.
