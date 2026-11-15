@@ -13,6 +13,8 @@ import type { SearchAnswer, SearchCard, SearchCardLine, SearchHit } from "../../
 import { awardLabel, dateRange, matchTime, place, possessive, seasonLabel } from "../../src/shared/format.js";
 import { eventToday } from "../../src/shared/eventDay.js";
 import { all } from "../db.js";
+import { teamNextMatch } from "./weekend.js";
+import { nextMatchCard } from "./answers/weekend.js";
 import { ROSTER } from "../data/registrations.js";
 import { gameOf } from "../data/seasons.js";
 import { ATTENDED } from "./teams.js";
@@ -145,7 +147,7 @@ const eventLine = (team: number, e: EvRow, awards: string[] = []): SearchCardLin
 });
 
 /** The card for a question about `team` (its number and name). */
-export async function questionCard(it: ParsedQuestion, team: { number: number; name: string | null }): Promise<SearchCard> {
+export async function questionCard(it: ParsedQuestion, team: { number: number; name: string | null }, opts: { weekend?: boolean } = {}): Promise<SearchCard> {
   const n = team.number, who = team.name?.trim() || `Team ${n}`;
   const card: SearchCard = { kind: it.kind, title: TITLE[it.kind], team, lines: [] };
 
@@ -220,6 +222,14 @@ export async function questionCard(it: ParsedQuestion, team: { number: number; n
     return card;
   }
 
+  // The next match ("4215 next match", "what's 4215's next match this weekend"): a match this weekend is the one the
+  // team page and the "This weekend" page show (./weekend.ts teamNextMatch), with its time, partners, opponents and
+  // call. Asked of this weekend with none, what the team has this weekend, or its next event, as those pages say it;
+  // asked plainly, a match scheduled later still answers (below).
+  if (it.kind === "next-match" && !it.many) {
+    const w = await teamNextMatch(n);
+    if (w.kind === "match" || opts.weekend) return nextMatchCard(w, card);
+  }
   if (it.kind === "next-match") {
     // A match FIRST has scheduled and not yet played, at an event that hasn't ended.
     const m = (await all<{ season: number; code: string; level: string; series: number; number: number; label: string; time: string | null; name: string; alliance: string; start: string | null; end: string | null; timezone: string | null }>(
@@ -257,7 +267,7 @@ async function nextEvents(n: number, most = 3): Promise<SearchCardLine[]> {
 /** The answer for a question: the team found for its core (`team`, from search), the card, and the rest of search's hits. */
 export async function questionAnswer(q: string, it: ParsedQuestion, team: SearchHit, rest: SearchHit[], pages: SearchAnswer["pages"]): Promise<SearchAnswer> {
   const name = teamNameOf(team.title) || null;
-  const card = await questionCard(it, { number: Number(team.ref), name });
+  const card = await questionCard(it, { number: Number(team.ref), name }, { weekend: /\bth(?:is|e)\s+weekend\b/i.test(q) });
   const top: SearchHit = { ...team, section: SECTION[it.kind], facts: undefined, events: undefined };
   return {
     q, hits: [top, ...rest.filter((h) => !(h.kind === "team" && h.ref === team.ref))], pages, step: "deterministic", weak: false, card,
