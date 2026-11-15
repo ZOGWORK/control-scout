@@ -25,7 +25,13 @@ import { matchViews } from "./matches.js";
 import { eventRecording } from "../videos/recordings.js";
 import { regionLabel } from "../../src/shared/regions.js";
 
-const addDays = (d: string, n: number) => new Date(Date.parse(`${d}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
+/** A date as given ("2026-11-14") when it is a real day; null otherwise ("2026-13-45"). */
+const realDate = (d: string | null | undefined): string | null => {
+  if (!d || !/^\d{4}-\d{2}-\d{2}$/.test(d)) return null;
+  const t = Date.parse(`${d}T00:00:00Z`);
+  return Number.isNaN(t) || new Date(t).toISOString().slice(0, 10) !== d ? null : d;
+};
+const addDays =(d: string, n: number) => new Date(Date.parse(`${d}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
 
 /** A place as Rankings takes it ("USA:NJ", "Romania"), or null. */
 export function weekendPlace(key: string | null | undefined): { key: string; country: string; state: string | null; name: string } | null {
@@ -70,7 +76,7 @@ export async function eventCards(rows: WeekendRow[], now = Date.now()): Promise<
  *  viewer's own; UTC's when not given). In date order, then by name; an event's divisions are under it, not apart. */
 export async function weekendEvents(opts: { which?: Weekend; region?: string | null; types?: readonly string[] | null; now?: number; today?: string | null } = {}): Promise<WeekendAnswer> {
   const which = opts.which ?? "this", now = opts.now ?? Date.now();
-  const today = opts.today && /^\d{4}-\d\d-\d\d$/.test(opts.today) ? opts.today : new Date(now).toISOString().slice(0, 10);
+  const today = realDate(opts.today) ?? new Date(now).toISOString().slice(0, 10);
   const shown = weekendWindow(which, today);
   const region = weekendPlace(opts.region);
   // Read wide (a week either side: a calendar a day off UTC's can move "this weekend" a whole week), then each event
@@ -107,9 +113,10 @@ export async function teamNextMatch(team: number, now = Date.now()): Promise<Nex
   const next = events.find((e) => !eventEnded(e, now) && !weekend.some((w) => w.code === e.code)) ?? null;
   const base = { team, name, season, seasonLabel: seasonLabel(season), played };
   if (pick && weekend.some((e) => e.code === pick.code)) return { ...base, kind: "match", match: matchLine(pick, team, events) };
-  // An event this weekend with no match of the team's listed yet: said so, the event linked.
+  // An event this weekend with no next match of the team's: said so, the event linked. Its matches there all played,
+  // or the next one running late, is "no more listed", never "not posted".
   const here = weekend.find((e) => !eventEnded(e, now));
-  if (here) return { ...base, kind: "no-schedule", event: eventLine(here, team), line: `${here.name} is this weekend: its match list isn't posted yet.` };
+  if (here) return { ...base, kind: "no-schedule", event: eventLine(here, team), line: matches.some((m) => m.code === here.code) ? `No more matches listed for ${team} at ${here.name} yet.` : `${here.name} is this weekend: its match list isn't posted yet.` };
   if (next) return { ...base, kind: "next-event", event: eventLine(next, team), line: `No matches this weekend — next event is ${next.name} on ${dateRange(next.start, next.end)}.` };
   return { ...base, kind: "none", line: `No matches this weekend — ${team} has no upcoming event in ${seasonLabel(season)}.` };
 }
