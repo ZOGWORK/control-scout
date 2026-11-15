@@ -10,7 +10,7 @@ import { Link, NavLink, useLocation, useMatch } from "react-router-dom";
 import { MotionConfig } from "motion/react";
 import { m } from "../motion";
 import {
-  BookOpen, Bookmark, CalendarDays, ChevronDown, ClipboardList, DatabaseZap, Download, Ellipsis, Gavel, House, ListOrdered, PanelLeft, PanelLeftClose, PanelLeftOpen, Scale, Search, Sparkles, Star, Trophy, Users, Wifi,
+  BookOpen, Bookmark, CalendarDays, ChevronDown, ClipboardList, DatabaseZap, Download, Ellipsis, Gavel, House, ListOrdered, MapPin, PanelLeft, PanelLeftClose, PanelLeftOpen, Scale, Search, Sparkles, Star, Trophy, Users, Wifi,
 } from "lucide-react";
 import { cn } from "../cn";
 import { useMediaQuery, useMeta } from "../../lib/meta";
@@ -44,13 +44,15 @@ const SECTIONS: { title: string | null; items: NavItem[]; more?: boolean }[] = [
     { to: "/", label: "Home", icon: House, end: true },
     { to: "/events", label: "Events", icon: CalendarDays },
     { to: "/teams", label: "Teams", icon: Users },
-    { to: "/rankings", label: "Rankings", icon: ListOrdered },
+    { to: "/rankings", label: "Rankings", icon: ListOrdered, end: true },
     { to: "/predict", label: "Predict", icon: Sparkles, end: true },
     // The YOURS row: "My team" / "My teams" (YoursNavRow decides what it opens).
     { to: FOLLOWED_TEAM_PATH, label: "My team", icon: Star },
     { to: "/scout", label: "Scout", icon: ClipboardList },
   ] },
   { title: "More", more: true, items: [
+    { to: "/rankings/regions", label: "Region rankings", icon: MapPin },
+    { to: "/leagues", label: "Leagues", icon: CalendarDays },
     { to: "/power-rankings", label: "Power rankings", icon: Trophy },
     { to: "/compare", label: "Compare", icon: Scale },
     { to: "/shortlist", label: "Shortlist", icon: Bookmark },

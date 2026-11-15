@@ -16,6 +16,10 @@ export interface LeagueStandingRow {
   played: number | null;
   /** League meets the team played in. */
   meets: number;
+  /** Scout's numbers beside FIRST's: the team's rating (null: not rated yet, fewer than 3 rated matches), season OPR
+   *  (null: none), its home region (src/shared/regionRankings.ts) and its rank there (null: not ranked). Absent: an
+   *  older server or pack. */
+  scout?: { rating: number | null; opr: number | null; ratedMatches: number; region: string | null; regionName: string | null; regionRank: number | null };
 }
 
 export interface LeagueMeet { code: string; name: string; start: string | null; type: string | null; /** A match there has a result. */ played: boolean }
@@ -29,6 +33,8 @@ export interface LeagueStandings {
   location: string | null;
   /** Where its meets are ("New Jersey"), from the events. */
   place: string | null;
+  /** That place as a region key ("USA:NJ": its region rankings page), null when no meet says. Absent: older server. */
+  placeKey?: string | null;
   /** When the standings were read from FIRST (null: not yet). */
   readAt: string | null;
   rows: LeagueStandingRow[];

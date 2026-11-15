@@ -1,6 +1,6 @@
 // Team profile + compare.
 import { all, get, kvGet } from "../db.js";
-import { CURRENT_SEASON } from "../data/seasons.js";
+import { CURRENT_SEASON, PREDICT_SEASONS } from "../data/seasons.js";
 import type { CompareTeam, CompareView, MatchView, ReportCard, ReportCardField, ShortlistTeam, TeamReportCards, TeamEventRow, TeamInfo, TeamProfile, TeamSchedule, TeamSeasonStats, TeamSummary } from "../../src/shared/api.js";
 import { matchViews } from "./matches.js";
 import { REPORT_PRIOR } from "../stats/reportCards.js";
@@ -11,6 +11,7 @@ import { hasTeamPage } from "../../src/shared/teamPages.js";
 import { compareBlock, compareFromParts } from "../../src/shared/compare.js";
 import { eventSchedule } from "../predict/scheduleDifficulty.js";
 import { teamLeagueStanding } from "./leagues.js";
+import { teamRegionRank } from "./regionRankings.js";
 import { hasHighlightsSql, teamIndexableSql } from "../indexable.js";
 import { hasRecordSplit } from "../teamRecordPage.js";
 
@@ -173,7 +174,7 @@ export async function teamProfile(number: number, season?: number): Promise<Team
   }
   // Report cards and schedule difficulty are their own requests (teamReportCards, teamSchedule), asked for when
   // the team page's collapsed sections are first opened.
-  const [stats, events, awardsAllTime, league, highlights, recordSplit] = await Promise.all([
+  const [stats, events, awardsAllTime, league, highlights, recordSplit, region] = await Promise.all([
     seasonStats(s, number),
     s === CURRENT_SEASON && current ? current : teamEvents(s, number),
     all<any>("SELECT a.season, a.code, e.name event, a.type, a.placement, a.name FROM awards a JOIN events e ON e.season = a.season AND e.code = a.code WHERE a.team = ? ORDER BY a.season DESC, e.start DESC", [number]),
@@ -182,12 +183,16 @@ export async function teamProfile(number: number, season?: number): Promise<Team
     get(`SELECT 1 FROM teams t WHERE t.number = ? AND ${teamIndexableSql("t.number", "t.name")} AND ${hasHighlightsSql("t.number")}`, [number]),
     // Whether its record-split page exists (server/teamRecordPage.ts), for the page's Quals vs playoffs link.
     hasRecordSplit(number),
+    // Its place in its home region's rankings (server/api/regionRankings.ts), for the "Rank in <region>" link: ratings
+    // (and so rankings) start with the prediction seasons.
+    PREDICT_SEASONS.includes(s) ? teamRegionRank(s, number, team?.country ?? null, team?.state ?? null) : Promise.resolve(null),
   ]);
   return {
     team: team ?? { number, name: null, fullName: null, school: null, sponsors: [], city: null, state: null, country: null, rookieYear: null, website: null, homeRegion: null },
     season: s, seasons, stats, events,
     awardsAllTime: awardsAllTime.map((a) => ({ season: a.season, code: a.code, event: a.event, type: a.type, placement: a.placement, name: a.name })),
     league,
+    region,
     highlights: !!highlights,
     recordSplit,
   };

@@ -9,6 +9,7 @@ import { createApp } from "../app";
 import { clearAllCaches } from "../caches";
 import { backfillVideoMeta, due, firstVideoId, inOrder, seasonClipKeys, seasonRecordings, withClips, type VideoMeta } from "./recordings";
 import { setFrameTimingsForTests } from "../data/frameTimings";
+import { setClipChecksForTests } from "../data/clipChecks";
 import type { MatchView } from "../../src/shared/api";
 
 let server: Server;
@@ -233,6 +234,22 @@ describe("matches read off a recording's own frames", () => {
       expect(clips[0].clip?.end).toBe(1180);
     } finally {
       setFrameTimingsForTests([]);
+    }
+  });
+  it("never serve a clock clip whose first frame names another match; one that named nothing stays", async () => {
+    setClipChecksForTests([{ videoId: FIRST_ID, code: "CLIPS", season: S, checked: "2026-11-15", pulled: { Q1: { t: 100, showed: "Q7" } }, unconfirmed: { Q2: { t: 14205, why: "no overlay at its first frame" } } }]);
+    try {
+      clearAllCaches();
+      const ms = (await getJson(`/api/events/${S}/CLIPS`)).matches;
+      expect(ms.find((m: any) => m.label === "Q1").clip).toBeUndefined();
+      expect(ms.find((m: any) => m.label === "Q2").clip?.videoId).toBe(FIRST_ID);
+      // Another event's check on the same video never pulls this event's clip.
+      setClipChecksForTests([{ videoId: FIRST_ID, code: "ELSEWHEN", season: S, checked: "2026-11-15", pulled: { Q1: { t: 100, showed: "Q7" } } }]);
+      clearAllCaches();
+      expect((await getJson(`/api/events/${S}/CLIPS`)).matches[0].clip.t).toBe(100);
+    } finally {
+      setClipChecksForTests([]);
+      clearAllCaches();
     }
   });
   it("count for search's With video, an upload's framed matches too", async () => {
