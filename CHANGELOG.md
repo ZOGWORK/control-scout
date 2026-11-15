@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 6.4.1 — 2026-11-14
+
+A search naming an event by its whole name now gets that event, even when the name ends in a number or holds a town.
+
+### Highlights
+- [fixes] An event named in full is that event, never its number as a team
+- [fixes] A town or region inside an event's name no longer becomes the place
+- [fixes] More "<event> highlights" searches play the event's clips
+
+### Fixed
+- Search: a league meet's own number was read as a team ("Ritchie League Meet 1" became team 1), and a town or region inside an event's name became the place with the rest left unread. An event's whole stored name is now read first, before its words are teams, numbers or places; a name made only of kind words and a number, a team's whole name, and a place with only event words beside it read as before. (`server/api/query/names.ts`, `server/api/query/parse.ts`) (#1510)
+
 ## 6.3.8 — 2026-11-14
 
 A search asking for video with nothing to play now offers questions with video right away, even the first one after a restart.
