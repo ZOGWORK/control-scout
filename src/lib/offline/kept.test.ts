@@ -130,6 +130,7 @@ describe("answers with no signal", () => {
       "/api/projections/2026/AUBRQ1",
       "/api/shortlist?teams=1%2C2%2C3&season=2026",
       "/api/predict/accuracy",
+      "/api/predict/ranges",
     ]);
     for (const p of warmPaths({ season: 2026, code: "AUBRQ1", teams: [1] })) expect(keepable(p)).toBe(true);
   });
