@@ -192,7 +192,10 @@ minutes and starts a run only when the last one is 6 hours old, so a deploy does
   found; the console shows the last pass (kv `clip-coverage:last-pass`). Every missing match the frames saw in the video
   (`video.seenAt`) is a finding in the console, with its video, second, event and why, whatever its review; so is every
   clock-placed clip pulled because its first frame showed another match (`clipCheckFindings`, server/data/clipChecks.ts),
-  with the frame checks' totals beside the last pass.
+  with the frame checks' totals beside the last pass. A finding stays until a pass clears it (its clip placed, or a
+  re-read shows the match isn't there); there's no Reviewed for it. The pending checks read as work in progress: after
+  each pass, the matches still waiting for their video check across every stored event (`CoveragePass.pending`) are
+  counted, with the pass before's count (`pendingBefore`), and the console says how many fewer.
 - **The owner's queue** (Owner › Official videos, with an "N to review" badge on the console's menu), oldest first. Each
   row shows the title, channel, video id, published and broadcast times, length, the best-guess event and why it
   wasn't added:
