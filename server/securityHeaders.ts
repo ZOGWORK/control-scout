@@ -4,7 +4,8 @@
 //   - Strict-Transport-Security on HTTPS requests (a year, subdomains too; no preload: that list is hard to leave).
 //   - X-Frame-Options SAMEORIGIN and CSP frame-ancestors 'self': nothing embeds Control Scout's pages (Control
 //     Point links to them, the retired stream overlay was an OBS browser source, not a frame).
-//   - Permissions-Policy: camera and microphone for this site only (recording a match, MatchVideo.tsx); every
+//   - Permissions-Policy: camera and microphone for this site only (recording a match, MatchVideo.tsx), and screen
+//     capture for this site only (the bug report's "Capture this screen", captureScreen.ts); every
 //     powerful feature the app never uses is off. Fullscreen, picture-in-picture and the rest stay at the browser's
 //     default, so the YouTube player's own `allow` list still works.
 //   - Content-Security-Policy on the app's HTML: enforced in production (launch re-audit, 2026-11-01: a headless
@@ -20,7 +21,7 @@ export const HSTS = "max-age=31536000; includeSubDomains";
 export const PERMISSIONS_POLICY = [
   "camera=(self)", "microphone=(self)",
   "geolocation=()", "payment=()", "usb=()", "serial=()", "bluetooth=()", "hid=()", "midi=()",
-  "display-capture=()", "browsing-topics=()",
+  "display-capture=(self)", "browsing-topics=()",
 ].join(", ");
 
 /** The one inline event handler the HTML carries: the app stylesheet's switch from print to all (server/seo.ts nonBlockingCss). */
