@@ -601,8 +601,14 @@ export interface ClipCoverage {
   matches: CoverageMatch[];
 }
 
+/** A match the video's frames saw (a read put it at `at` seconds into `videoId`) with no clip: an owner-console finding. */
+export interface CoverageFinding { season: number; code: string; name: string; label: string; videoId: string; at: number; why: string }
+/** One clip coverage check pass (server/videos/coverageCheck.ts): events it checked (`events` of them recorded), how
+ *  many are fully clipped, matches clipped and missing, and the missing by what their video check found (`why`). */
+export interface CoveragePass { at: string; checked: number; events: number; full: number; clipped: number; missing: number; why: Record<string, number>; opened: number }
+
 /** An event's triage category (server/videos/coverageTriage.ts): only actionable events are the owner's "To review". */
-export type CoverageTriage = "actionable" | "no-timing" | "early-start" | "old-season";
+export type CoverageTriage = "actionable" | "unchecked" | "no-timing" | "early-start" | "old-season";
 
 /** Owner > Clip coverage (server/videos/coverageCheck.ts): one event with a played match missing a clip, as last checked. */
 export interface OwnerCoverageEvent {
@@ -620,6 +626,8 @@ export interface OwnerCoverageEvent {
 export interface OwnerClipCoverage {
   events: OwnerCoverageEvent[]; list: CoverageTriage | "reviewed"; open: number; reviewed: number;
   categories: Record<CoverageTriage, number>; seasons: { season: number; open: number; actionable: number }[];
+  /** Matches the video showed with no clip (always shown, whatever their review), and the last check pass. */
+  findings: CoverageFinding[]; lastPass: CoveragePass | null;
   totals: { events: number; played: number; withClip: number; full: number };
 }
 
