@@ -40,7 +40,7 @@ import { direction, trendLabel } from "../shared/trend";
 import { teamTitle } from "../shared/teamTitle";
 import { eventOver, onEventDates, type EventCalendar } from "../shared/eventDay";
 import { nextMatchOf } from "../shared/nextMatch";
-import { inWeekend } from "../shared/weekend";
+import { inWeekend, viewerToday } from "../shared/weekend";
 import { OFFICIAL_ONLY, OFFICIAL_RULE, RECORD_RULE, offSeasonRecord, wltText } from "../shared/eventRecord";
 import { OfflineNote } from "../components/OfflineNote";
 import { offlineSource } from "../lib/offline/saved";
@@ -658,7 +658,7 @@ function Upcoming({ p, next: first, last: before }: { p: TeamProfile; next: Team
   const predictable = usePredictable(p.season);
   // This season's team with no match this weekend: its next event is said as the "This weekend" page says it.
   const current = useCurrentSeason();
-  const away = !!next && !m && p.season === current && !inWeekend(next, "this", now);
+  const away = !!next && !m && p.season === current && !inWeekend(next, "this", now, viewerToday(new Date(now)));
   const row = ROW;
   return (
     <section aria-labelledby={`upcoming-${n}`} className="mt-5 max-sm:mt-4 space-y-2 text-sm" data-upcoming>
