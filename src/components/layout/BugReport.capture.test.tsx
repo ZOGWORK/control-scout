@@ -80,6 +80,14 @@ describe("Capture this screen", () => {
     expect(screen.getByRole("button", { name: /Capture this screen/ })).toBeTruthy();
   });
 
+  it("is not offered in the phone's sheet, even where the browser has the call", async () => {
+    withDisplayMedia(async () => okStream());
+    vi.stubGlobal("matchMedia", (q: string) => ({ matches: true, media: q, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} }));
+    await open();
+    expect(document.querySelector('[data-slot="sheet-content"]')).toBeTruthy();
+    expect(screen.queryByTestId("bug-capture")).toBeNull();
+  });
+
   it("is not offered when the page's permissions policy turns screen capture off", () => {
     withDisplayMedia(async () => okStream());
     Object.defineProperty(document, "featurePolicy", { configurable: true, value: { allowsFeature: (f: string) => f !== "display-capture" } });
