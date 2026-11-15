@@ -1,6 +1,7 @@
 // What if: one robot of a predicted match swapped for another (a different partner, a different opponent), and the
 // call and margin before and after, side by side. The swap is in the address (?whatif=OLD:NEW), so a what-if can be
 // shared and Back undoes it. Both calls come from the same /api/predict/match the lab uses: nothing is estimated here.
+// With no signal, the swap is predicted on this device from the same saved snapshot as the match (lib/offline/predict).
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { ArrowRight, FlaskConical, Undo2 } from "lucide-react";
@@ -14,6 +15,7 @@ import { cn } from "../cn";
 import { marginWords } from "../../shared/predictionBasis";
 import { predictHref } from "../../shared/predictUrl";
 import type { MatchExplanationView } from "../../shared/api";
+import type { OfflineSource } from "../../lib/offline/predict";
 
 /** ?whatif=OLD:NEW, when OLD is in the line-up and NEW isn't. */
 export function readWhatIf(v: string | null, lineUp: number[]): { out: number; in: number } | null {
@@ -32,7 +34,28 @@ const shownPct = (p: number) => Math.min(99, Math.max(1, Math.round(100 * p)));
 /** Red's predicted margin in points (negative: Blue ahead), from the shown scores. */
 const margin = (x: MatchExplanationView) => Math.round(x.predictedRed) - Math.round(x.predictedBlue);
 
-export function WhatIf({ base }: { base: MatchExplanationView }) {
+/** The swap predicted on this device from `from`, the snapshot the offline match came from (no signal: there's no
+ *  server to ask). The pack code loads lazily, only on an offline page. */
+function useOfflineSwap(q: { season: number; red: number[]; blue: number[]; level: "qual" | "playoff"; from: OfflineSource; newTeam: number } | null): { data?: MatchExplanationView; error?: { message: string } } {
+  const [out, setOut] = useState<{ key: string; data?: MatchExplanationView; error?: { message: string } }>({ key: "" });
+  const key = q ? `${q.season}|${q.red}|${q.blue}|${q.level}|${JSON.stringify(q.from)}` : "";
+  useEffect(() => {
+    if (!q) return;
+    let live = true;
+    const where = q.from.kind === "bundle" ? `your ${q.from.name} pack` : "your lite pack";
+    const missing = { message: `${q.newTeam} isn't in ${where}, so this swap can't be predicted offline.` };
+    import("../../lib/offline/predict").then((p) => p.offlineExplain(q.season, q.red, q.blue, q.level, q.from)).then(
+      (x) => { if (live) setOut(x ? { key, data: x.view } : { key, error: missing }); },
+      () => { if (live) setOut({ key, error: { message: "Couldn't predict this swap on this device." } }); },
+    );
+    return () => { live = false; };
+  }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
+  return out.key === key ? out : {};
+}
+
+export function WhatIf({ base, offline }: { base: MatchExplanationView;
+  /** The snapshot an offline match was predicted from: the swap is predicted from it too, on this device. */
+  offline?: OfflineSource | null }) {
   const [sp, setSp] = useSearchParams();
   const lineUp = [...base.red, ...base.blue];
   // The matchup this panel is about: its season and line-up. A pending check for another one is dropped.
@@ -45,7 +68,9 @@ export function WhatIf({ base }: { base: MatchExplanationView }) {
   // A new base matchup (or Back) moves the picker to the swap in the address, or to the first robot.
   useEffect(() => { setOut(swap?.out ?? lineUp[0]); setInto(swap ? String(swap.in) : ""); setError(null); }, [key, swap?.out, swap?.in]); // eslint-disable-line react-hooks/exhaustive-deps
   const red = swap ? swapped(base.red, swap.out, swap.in) : base.red, blue = swap ? swapped(base.blue, swap.out, swap.in) : base.blue;
-  const after = useApi<MatchExplanationView>(swap ? `/api/predict/match${qs({ season: base.season, red: red.join(","), blue: blue.join(","), ...(base.level === "playoff" ? { level: "playoff" } : {}) })}` : null);
+  const online = useApi<MatchExplanationView>(swap && !offline ? `/api/predict/match${qs({ season: base.season, red: red.join(","), blue: blue.join(","), ...(base.level === "playoff" ? { level: "playoff" } : {}) })}` : null);
+  const onDevice = useOfflineSwap(swap && offline ? { season: base.season, red, blue, level: base.level === "playoff" ? "playoff" : "qual", from: offline, newTeam: swap.in } : null);
+  const after = offline ? onDevice : online;
   const set = (v: string | null) => setSp((x) => { if (v) x.set("whatif", v); else x.delete("whatif"); return x; });
   // The check in flight: any edit, pick, Undo, new matchup or leaving the page clears it, and a check that finishes
   // after that is dropped (never writes an old swap over a newer choice).
