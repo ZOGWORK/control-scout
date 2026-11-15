@@ -17,6 +17,7 @@ import { buildPacks } from "../packs/build.js";
 import { ENGINE_VERSION } from "@control-scout/predict-engine";
 import { packsEngine, packsPresent } from "../packs/routes.js";
 import { syncAll } from "../sync.js";
+import { syncCriResults } from "./criResults.js";
 import { runStats, statsRulesStale } from "../stats/job.js";
 import { CURRENT_SEASON, isLegacy } from "./seasons.js";
 import { withDataLock } from "./lock.js";
@@ -41,6 +42,14 @@ export async function runCycle(log: Log) {
       await kvSet(STATS_PENDING, [...new Set([...(await statsPending()), backfill])]);
       await syncAll({ seasons: [backfill], log: (m) => log(`  ${m}`) });
     }
+    // The Chicago Robotics Invitational's results from its own site (data/criResults.ts): read weekly; a season it
+    // wrote gets its stats rebuilt below. It runs with the sync (FIRST credentials: the real data host, never a
+    // test). Its own failure never fails the cycle.
+    if (hasFirst()) try {
+      const cri = await syncCriResults({ log: (m) => log(`  ${m}`) });
+      const wrote = [...new Set(cri.written.map((w) => w.season))];
+      if (wrote.length) await kvSet(STATS_PENDING, [...new Set([...(await statsPending()), ...wrote])]);
+    } catch (e) { log(`  CRI results failed: ${(e as Error).message.slice(0, 120)}`); }
     const pending = await statsPending();
     // A past season whose records carry no build time reads as catching up (api/readiness.ts) until it's
     // rebuilt: one per cycle, in the quiet hours (a past season's stats hold the lease for a while).

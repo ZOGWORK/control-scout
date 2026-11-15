@@ -17,7 +17,7 @@ import { cn } from "./cn";
 /** Event view: this many first, the rest behind "Show all". */
 const FIRST_SHOWN = 8;
 
-const SOURCE: Record<string, string> = { first: "FIRST Events API", "ftc-scout": "FTC Scout (fallback)" };
+const SOURCE: Record<string, string> = { first: "FIRST Events API", "ftc-scout": "FTC Scout (fallback)", cri: "chicagoroboticsinvitational.com" };
 const KIND: Record<ResultChange["kind"], { label: string; variant: "success" | "info" | "secondary" }> = {
   posted: { label: "Result posted", variant: "success" },
   revised: { label: "Score revised", variant: "info" },
