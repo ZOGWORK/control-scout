@@ -168,5 +168,5 @@ two people reporting the same bug are two issues (close one as a duplicate on Gi
 - **When:** after `POST /api/bug-reports/:id/done` has answered (and after the owner email). The dialog polls
   `GET /api/bug-reports/:id/status` (upload token) for 20 seconds: `filed` with the real number and URL, `failed`, or
   `pending`. No token, GitHub down or a refusal: kept, shown as "Not filed yet" with the reason, and filed by the
-  10-minute sweep. Reports sent before 6.5.8 (`to_github = 0`) were never told they'd be public and are never filed.
+  10-minute sweep. Reports sent before 6.5.9 (`to_github = 0`) were never told they'd be public and are never filed.
 - **Sanitized** with `sanitizeText` in the browser and again on the server, before it's stored.
