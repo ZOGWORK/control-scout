@@ -21,6 +21,8 @@ Search reads a question that calls Bruno by name: "bruno, whats the best team in
 
 ### Highlights
 - [fixes] A question that starts "bruno bruno …" gets its answer, not "no match"
+- [fixes] "bruno, whats the best team in nj" lists New Jersey's top teams
+- [offline] Offline search reads Bruno's name the same way
 
 ### Fixed
 - Search: Bruno called by name ("bruno bruno whats the best team in nj rn") left "bruno" unread and the search found nothing. The name is now read like "hey": the question gets *Best team in New Jersey by prediction rating · 2026–27*, online and offline. Failed search #1428. (`src/shared/query/lexicon.ts`) (#1534)
