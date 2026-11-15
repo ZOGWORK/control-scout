@@ -49,7 +49,8 @@ import { callRecord } from "../lib/eventGlance";
 import { NotFoundView } from "../components/NotFoundView";
 import { hasRuleReference } from "../shared/rules/seasons";
 import { LiveCountdownChip, LivePanel, useLiveTarget } from "../components/LivePanel";
-import { HeaderActions } from "../components/EventActions";
+import { HeaderActions, OfflineVideoNote } from "../components/EventActions";
+import { offlineSource } from "../lib/offline/saved";
 import { EventStatusChip, EventTypeChip, LiveDot } from "../components/EventChips";
 import { WatchLive } from "../components/WatchLive";
 import { HighlightVideos } from "../components/HighlightVideos";
@@ -87,6 +88,8 @@ export default function EventPage() {
 function Event({ d, path }: { d: EventDetail; path: string }) {
   const [sp, setSp] = useSearchParams();
   const e = d.event;
+  // From what's saved on this device (no connection): its videos can't play (components/EventActions.tsx).
+  const saved = !!offlineSource(d);
   // The recording the coverage line and gaps read: linked, playable or not (a private one still says why), and its videos.
   const rec = { season: e.season, code: e.code, recorded: !!e.stream || !!e.recordingUnavailable?.length, matches: d.matches, videos: e.stream?.days?.map((x) => x.videoId) ?? (e.stream ? [e.stream.videoId] : e.recordingUnavailable ?? []) };
   const { state: personal, update } = usePersonal();
@@ -160,7 +163,7 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
         {e.website && <a href={e.website} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 hover:text-foreground pointer-coarse:min-h-[44px]">Website <ExternalLink className="size-3" /></a>}
       </div>
       {d.live && !liveMode && <LiveBar live={d.live} r={refresh} />}
-      <HeaderActions liveMode={liveMode} watch={{ url: e.livestream, stream: !!e.stream, finished: e.status === "finished" }} track={track}
+      <HeaderActions liveMode={liveMode} watch={{ url: e.livestream, stream: !!e.stream, finished: e.status === "finished" }} track={track} offline={saved}
         clips={<WatchClipsButton matches={d.matches} primary={e.status === "finished"} />} clipsFirst={e.status === "finished"}>
         {predictable && <Button variant="outline" size="sm" asChild><Link to={labHref}>Open in what-if lab</Link></Button>}
         {/* Its standout matches, Search's "<event> highlights" card at its own address (pages/EventHighlightsPage.tsx). */}
@@ -172,6 +175,8 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
         {/* The question-box quick reference for this season, where one exists (pages/RulesPage.tsx; built in, so it opens offline). */}
         {rulesOn && hasRuleReference(e.season) && <Button variant="outline" size="sm" asChild><Link to={`/rules?season=${e.season}`} data-rules-link><Gavel /> Rules</Link></Button>}
       </HeaderActions>
+      {/* No connection: the event's videos and stream can't play, said once instead of their buttons going quiet. */}
+      <OfflineVideoNote d={d} offline={saved} />
       {/* How much of the event this viewer can watch (docs/contributors.md), seen before the match list. */}
       <RecordingCoverageLine {...rec} reserve={d.matches.some((m) => m.played)} playable={!!e.stream} unplayable={!e.stream && !!e.recordingUnavailable?.length} />
       {/* A recorded event's days and parts, and the matches its video doesn't place, each with why (server/videos/coverage.ts). */}

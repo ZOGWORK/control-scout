@@ -19,6 +19,7 @@ import { TierMark, WinBar } from "./predict";
 import { cn } from "./cn";
 import { PredictedPair } from "./ScoreRange";
 import { LivestreamButton, TrackEventButton, type TrackControl } from "./EventActions";
+import { offlineSource } from "../lib/offline/saved";
 
 export interface RefreshControl { busy: boolean; note: string | null; at: number; run: () => Promise<unknown> }
 
@@ -163,7 +164,7 @@ export function LivePanel({ d, target, refresh, track }: { d: EventDetail; targe
               <Link to={matchReportHref(any)} data-live-report><ClipboardList /> Know your match</Link>
             </Button>
           )}
-          <LivestreamButton watch={{ url: e.livestream, stream: !!e.stream, finished: e.status === "finished" }} className="max-sm:h-10 max-sm:flex-1" />
+          <LivestreamButton watch={{ url: e.livestream, stream: !!e.stream, finished: e.status === "finished" }} offline={!!offlineSource(d)} className="max-sm:h-10 max-sm:flex-1" />
           {track && <TrackEventButton track={track} className="max-sm:h-10 max-sm:flex-1" />}
         </div>
         {!opener && !mine && done.length > 0 && (

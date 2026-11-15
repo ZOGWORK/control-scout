@@ -4,6 +4,7 @@
 import type { MouseEvent, ReactNode } from "react";
 import { MonitorPlay, PlayCircle, WifiOff } from "lucide-react";
 import { useOnline } from "../lib/offline/online";
+import { shownOffline, useConnection } from "../lib/connection";
 import type { MatchClip } from "../shared/api";
 import { clipTime, linkStart } from "../shared/recording";
 import { youtubeId } from "../shared/personal";
@@ -31,9 +32,17 @@ function NeedsConnection({ label, kind, className, children }: { label: string; 
   );
 }
 
+/** Can a video play now: the browser has a network and the connection check hasn't found it carries nothing (a Wi-Fi
+ *  with no internet, a sign-in page: lib/connection.ts). */
+function useVideoOnline(): boolean {
+  const online = useOnline();
+  const conn = useConnection();
+  return online && !shownOffline(conn);
+}
+
 /** `offline`: the page's data came from the saved pack (no connection, whatever the browser says). */
 export function ClipLink({ clip, label = "this match", matchKey, className, children, offline }: { clip: MatchClip; label?: string; matchKey?: string; className?: string; children?: ReactNode; offline?: boolean }) {
-  const online = useOnline();
+  const online = useVideoOnline();
   if (offline || !online) return <NeedsConnection label={label} kind="clip" className={className}>{children}</NeedsConnection>;
   return (
     <a href={clip.url} target="_blank" rel="noreferrer noopener" onClick={inApp({ videoId: clip.videoId, t: clip.t, end: clip.end, label, matchKey })} className={cn("inline-flex items-center gap-1", className)}
@@ -45,7 +54,7 @@ export function ClipLink({ clip, label = "this match", matchKey, className, chil
 
 /** FIRST's own video of a match, from the second its link names. A link that isn't a YouTube video stays a plain link out. */
 export function MatchVideoLink({ url, label, matchKey, className, children, offline }: { url: string; label: string; matchKey?: string; className?: string; children?: ReactNode; offline?: boolean }) {
-  const online = useOnline();
+  const online = useVideoOnline();
   const videoId = youtubeId(url);
   if (offline || !online) return <NeedsConnection label={label} kind="video" className={className}>{children}</NeedsConnection>;
   return (
