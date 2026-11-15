@@ -522,6 +522,21 @@ describe("filing on GitHub", () => {
     expect(mails[0].text).toContain(`png on GitHub: ${url}`);
   });
 
+  it("keeps the local copies while the owner email is still being sent, and clears them after", async () => {
+    const r = (await create({ ...good, files: [{ type: "image/png", bytes: PNG.length }] })).json as { id: number; token: string };
+    expect((await upload(r.id, 0, r.token, PNG)).status).toBe(200);
+    // An email send in flight (claimed just now) when the filing finishes.
+    await run("UPDATE bug_reports SET emailed = 2, email_claimed_at = ?, email_attempts = 1 WHERE id = ?", [new Date().toISOString(), r.id]);
+    await done(r.id, r.token);
+    expect(issues).toHaveLength(1);
+    expect(existsSync(join(bugDir(), `${r.id}-0.png`))).toBe(true);
+    expect((await listBugReports()).reports[0].files[0].url).toBe(`/api/owner/bug-reports/${r.id}/files/0`);
+    // The email went out: the next sweep clears the copy (GitHub has it).
+    await run("UPDATE bug_reports SET emailed = 1 WHERE id = ?", [r.id]);
+    await sweepBugReports();
+    expect(existsSync(join(bugDir(), `${r.id}-0.png`))).toBe(false);
+  });
+
   it("the issue made but not recorded here: the claim is kept, so a retry adopts it instead of filing twice", async () => {
     const r = (await create(good)).json as { id: number; token: string };
     // The write that records the issue fails once (as a busy database would), after GitHub made it.
