@@ -20,8 +20,8 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 Search › "CRI" finds the Chicago Robotics Invitational: an event's short form now leaves out the "Premier Event" FIRST adds to its name, and works beside other words.
 
 ### Highlights
-- [fixes] "CRI highlights", "who won CRI" and "CRI matches" find the Chicago Robotics Invitational
-- [fixes] A short form beside "matches", "results" or a year finds the event, not a team whose name starts alike
+- [fixes] "CRI" finds the Chicago Robotics Invitational
+- [fixes] A short form beside "matches" or a year finds the event
 
 ### Fixed
 - An event's initialism also leaves out a trailing event type FIRST appends ("Premier Event", "Off-Season Event"), so "Chicago Robotics Invitational Premier Event" is CRI as well as CRIPE. (`src/shared/query/initialisms.ts`)
