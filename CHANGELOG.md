@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 6.7.4 — 2026-11-15
+
+Search reads a period's OPR said after a place: "Romania teleop opr" lists Romania's teams by TeleOp OPR.
+
+### Highlights
+- [fixes] "Romania teleop opr" lists Romania's teams by TeleOp OPR
+- [fixes] "nj auto opr" and "nj endgame opr" read the same way
+- [rankings] A place's board by one period's OPR needs no "best" or "top"
+
+### Fixed
+- Search: a place followed by a period's OPR ("Romania teleop opr") read as two stats at once, TeleOp and OPR, so nothing answered. "TeleOp OPR", "Auto OPR" and "Endgame OPR" are each one stat now, as they already were after "best" or "top": *Top 10 teams by TeleOp OPR in Romania · 2025–26*. Failed search #1526. (`src/shared/query/intents.ts`)
+
 ## 6.7.2 — 2026-11-15
 
 Search › "Where does 4215 rank in New Jersey" answers with the region page's own numbers (rank in New Jersey, rating, record, OPR) and opens that page with the team's row marked.
