@@ -12,6 +12,7 @@ import { OfflineNote } from "../components/OfflineNote";
 import { LeagueTable } from "../components/LeagueTable";
 import { dateRange, seasonLabel } from "../shared/format";
 import { leaguePageTitle, leagueTitle, type LeagueStandings } from "../shared/leagues";
+import { regionHref, regionName } from "../shared/regionRankings";
 
 
 export default function LeaguePage() {
@@ -35,11 +36,15 @@ export default function LeaguePage() {
                 description={`FIRST's official league ranking: every team's matches across the league's ${played === 1 ? "first meet" : `${played} meets so far`}, ranked by ranking score.`}
                 phoneDescription={`FIRST's league ranking after ${played === 1 ? "1 meet" : `${played} meets`}.`} />
               <OfflineNote data={d} what="League standings" at={d.readAt} />
+              <nav className="flex flex-wrap gap-x-4 gap-y-1 text-sm" aria-label="League links" data-league-links>
+                {d.placeKey && <Link to={regionHref(d.placeKey, { season: d.season })} className="text-accent-text hover:underline">{regionName(d.placeKey)} rankings</Link>}
+                <Link to={`/leagues?season=${d.season}`} className="text-accent-text hover:underline">All leagues</Link>
+              </nav>
               {d.rows.length ? (
                 <section aria-label="Standings" className="space-y-2">
-                  <LeagueTable rows={d.rows} season={d.season} team={team} />
+                  <LeagueTable rows={d.rows} season={d.season} team={team} scout />
                   <p className="text-xs text-muted-foreground" data-league-note>
-                    RS is the ranking score, FIRST's first sort key: average ranking points per match.{waiting ? ` ${waiting === 1 ? "1 team hasn't" : `${waiting} teams haven't`} played a league meet yet.` : ""}{d.readAt ? ` Read from FIRST ${ago(d.readAt)}.` : ""}
+                    RS is the ranking score, FIRST's first sort key: average ranking points per match. Scout rating, OPR and region rank are Control Scout's, beside FIRST's standing, never part of it.{waiting ? ` ${waiting === 1 ? "1 team hasn't" : `${waiting} teams haven't`} played a league meet yet.` : ""}{d.readAt ? ` Read from FIRST ${ago(d.readAt)}.` : ""}
                   </p>
                 </section>
               ) : <EmptyState icon={ListOrdered} title="No standings yet" description="FIRST publishes a league's standings once its first meet has scores. They show here within a few hours of that." />}

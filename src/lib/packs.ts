@@ -224,6 +224,8 @@ export async function removeLite(): Promise<number> {
 /** Fired on window when the background sync saves a new lite pack. */
 export const PACK_EVENT = "cs-pack-changed";
 
+/** syncLite's pack-list request is given up on after this long (a slow line reads the small list well inside it). */
+export const SYNC_MANIFEST_TIMEOUT_MS = 8000;
 let syncing: Promise<PackMeta | null> | null = null;
 let syncError: unknown = null;
 /** Why the last syncLite run failed (it stays quiet itself), or null: lets the person's own Get it tell a dropped
@@ -240,8 +242,12 @@ export function syncLite(opts: { allowed?: () => boolean } = {}): Promise<PackMe
   if (syncing) return opts.allowed ? syncing : syncing.then(() => syncLite(opts));
   syncing = (async () => {
     syncError = null;
+    // The pack list is small: one with no answer in this long hung (a line that just came back) and counts as
+    // unreachable, so a pick-up waiting on it tries again instead of waiting for the browser to give up.
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), SYNC_MANIFEST_TIMEOUT_MS);
     try {
-      const m = await fetchManifest();
+      const m = await fetchManifest({ signal: ctrl.signal }).finally(() => clearTimeout(timer));
       const have = packStatus();
       if (!m.lite || (have && have.version === m.version)) return have;
       if (opts.allowed && !opts.allowed()) return have;

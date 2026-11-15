@@ -12,6 +12,7 @@ import { ago, seasonLabel } from "../lib/format";
 import { regionLabel } from "../shared/regions";
 import { trendLabel } from "../shared/trend";
 import { parsePlaces, placeKey, type RankingPlaces, type RankingRow, type RankingsResponse } from "../shared/rankings";
+import { regionHref } from "../shared/regionRankings";
 import { PageHeader, EmptyState } from "../components/page";
 import { ErrorState } from "../components/states";
 import { OfflineNote } from "../components/OfflineNote";
@@ -37,7 +38,7 @@ const homeOf = (r: Pick<RankingRow, "state" | "country">) => {
   const st = r.state ? stateName(r.country, r.state) : null;
   return st ? `${st}, ${r.country}` : r.country;
 };
-const weekLabel = (w: string, year = true) => new Date(`${w}T12:00:00Z`).toLocaleDateString(undefined, { month: "short", day: "numeric", ...(year ? { year: "numeric" } : {}), timeZone: "UTC" });
+export const weekLabel = (w: string, year = true) => new Date(`${w}T12:00:00Z`).toLocaleDateString(undefined, { month: "short", day: "numeric", ...(year ? { year: "numeric" } : {}), timeZone: "UTC" });
 
 export default function RankingsPage() {
   const [sp, setSp] = useSearchParams();
@@ -151,6 +152,7 @@ export default function RankingsPage() {
         <div className={cn("transition-opacity", res.loading && "opacity-60")} aria-busy={res.loading}>
           <OfflineNote data={data} what="Rankings" at={data.week ? null : data.asOf} />
           <Summary data={data} />
+          <RegionLinks data={data} />
           {data.total === 0 ? (
             <EmptyState icon={ListOrdered}
               title={data.ranked === 0 ? `No team is rated yet in ${seasonLabel(data.season)}` : "No ranked team from there"}
@@ -180,7 +182,18 @@ function Summary({ data }: { data: RankingsResponse }) {
   return <p className="mb-3 text-sm text-text-muted">{parts.join(" · ")}</p>;
 }
 
-function SeasonPick({ value, onChange }: { value: number; onChange: (s: number) => void }) {
+/** The way to the region pages: the one place filtered on (its own table: record, OPR, movers), and the regions list. */
+function RegionLinks({ data }: { data: RankingsResponse }) {
+  const one = data.places.length === 1 ? data.places[0] : null;
+  return (
+    <p className="-mt-1 mb-3 flex flex-wrap gap-x-4 gap-y-1 text-sm" data-region-links>
+      {one && <Link to={regionHref(one, { season: data.season })} className="font-medium text-accent-text hover:underline">{placeName(one)} page: record, OPR and this week's movers →</Link>}
+      <Link to={`/rankings/regions?season=${data.season}`} className="text-accent-text hover:underline">Rankings by region</Link>
+    </p>
+  );
+}
+
+export function SeasonPick({ value, onChange }: { value: number; onChange: (s: number) => void }) {
   const meta = useMeta();
   const seasons = (meta?.seasons ?? []).filter((s) => s.predictable);
   const list = seasons.some((s) => s.season === value) ? seasons : [{ season: value, game: "" }, ...seasons];
@@ -194,7 +207,7 @@ function SeasonPick({ value, onChange }: { value: number; onChange: (s: number) 
   );
 }
 
-function WeekPick({ weeks, value, liveLabel, onChange }: { weeks: string[]; value: string | null; liveLabel: string; onChange: (w: string | null) => void }) {
+export function WeekPick({ weeks, value, liveLabel, onChange }: { weeks: string[]; value: string | null; liveLabel: string; onChange: (w: string | null) => void }) {
   return (
     <Select value={value ?? "live"} onValueChange={(v) => onChange(v === "live" ? null : v)}>
       <SelectTrigger className={cn(trigger, value ? active : idle, "w-auto")} aria-label="Week"><SelectValue /></SelectTrigger>
@@ -322,7 +335,7 @@ function RankTable({ data, myTeam }: { data: RankingsResponse; myTeam: number | 
   );
 }
 
-function Move({ row }: { row: RankingRow }) {
+export function Move({ row }: { row: Pick<RankingRow, "move"> }) {
   if (row.move === "new") return <Badge variant="beta" title="Not ranked last week">New</Badge>;
   if (row.move == null) return null;
   if (row.move === 0) return <span className="inline-flex items-center text-text-muted" title="Same place as last week"><Minus className="size-3.5" /><span className="sr-only">No change</span></span>;
@@ -335,7 +348,7 @@ function Move({ row }: { row: RankingRow }) {
   );
 }
 
-function TrendBadge({ row }: { row: RankingRow }) {
+export function TrendBadge({ row }: { row: Pick<RankingRow, "trend"> }) {
   if (!row.trend) return null;
   return (
     <Badge variant={row.trend === "flat" ? "secondary" : row.trend === "up" ? "success" : "destructive"}>
@@ -344,7 +357,7 @@ function TrendBadge({ row }: { row: RankingRow }) {
   );
 }
 
-function Pager({ data, sp }: { data: RankingsResponse; sp: URLSearchParams }) {
+export function Pager({ data, sp }: { data: Pick<RankingsResponse, "total" | "page" | "pages" | "pageSize">; sp: URLSearchParams }) {
   if (data.pages <= 1) return null;
   const href = (p: number) => { const q = new URLSearchParams(sp); if (p > 1) q.set("page", String(p)); else q.delete("page"); const s = q.toString(); return s ? `?${s}` : "?"; };
   const from = (data.page - 1) * data.pageSize + 1, to = Math.min(data.total, data.page * data.pageSize);

@@ -10,7 +10,8 @@ const PLAYED = `EXISTS (SELECT 1 FROM match_teams x JOIN matches m ON m.season =
   WHERE x.season = et.season AND x.code = et.code AND x.team = et.team AND x.on_field = 1 AND m.played = 1)`;
 import { placeName } from "../../src/shared/regions.js";
 import { homeRegion, regionName, type LeagueListItem } from "../../src/shared/regionRankings.js";
-import { placeKey, type PlaceFilter } from "../../src/shared/rankings.js";
+import { inPlaces, placeKey, type PlaceFilter } from "../../src/shared/rankings.js";
+import { liveList } from "./rankings.js";
 
 /** A league's region and code as stored ("usnj" → "USNJ"), or null when the season has no such league. */
 export async function storedLeague(season: number, region: string, code: string): Promise<{ region: string; code: string } | null> {
@@ -35,22 +36,41 @@ export async function leagueStandings(season: number, regionRaw: string, codeRaw
   const k = await storedLeague(season, regionRaw, codeRaw);
   if (!k) return null;
   const { region, code } = k;
-  const [info, rows, meets] = await Promise.all([
+  const [info, rows, meets, ranked] = await Promise.all([
     get<{ name: string | null; location: string | null; ranked_at: string | null }>("SELECT name, location, ranked_at FROM leagues WHERE season = ? AND region = ? AND code = ?", [season, region, code]),
-    all<Omit<LeagueStandingRow, "meets"> & { meets: number | null }>(
-      `SELECT r.rank, r.team, t.name, r.wins, r.losses, r.ties, r.rs, r.tbp, r.played,
+    all<Omit<LeagueStandingRow, "meets" | "scout"> & { meets: number | null; state: string | null; country: string | null; opr: number | null; rated: number | null }>(
+      `SELECT r.rank, r.team, t.name, r.wins, r.losses, r.ties, r.rs, r.tbp, r.played, t.state, t.country, s.opr_np opr, s.rating_matches rated,
          (SELECT COUNT(*) FROM event_teams et JOIN events e ON e.season = et.season AND e.code = et.code
            WHERE et.season = r.season AND et.team = r.team AND e.type = 'LeagueMeet' AND e.region = r.region AND e.league = r.league AND ${PLAYED}) meets
-       FROM league_rankings r LEFT JOIN teams t ON t.number = r.team
+       FROM league_rankings r LEFT JOIN teams t ON t.number = r.team LEFT JOIN team_season_stats s ON s.season = r.season AND s.team = r.team
        WHERE r.season = ? AND r.region = ? AND r.league = ? ORDER BY r.rank, r.team`, [season, region, code]),
     all<Omit<LeagueMeet, "played"> & { played: number; state: string | null; country: string | null }>("SELECT e.code, e.name, e.start, e.type, e.state, e.country, EXISTS (SELECT 1 FROM matches m WHERE m.season = e.season AND m.code = e.code AND m.played = 1) played FROM events e WHERE e.season = ? AND e.region = ? AND e.league = ? ORDER BY e.start, e.code", [season, region, code]),
+    liveList(season),
   ]);
   // Where the league plays: its meets' state (or country).
   const at = meets.find((m) => m.state || m.country);
   const place = at ? placeName(at.state, at.country) : null;
+  const home = at ? homeRegion(at.country, at.state) : null;
+  // Scout's numbers beside FIRST's (never instead of them): the team's rating and its rank in its home region, read
+  // from the same live ranking /rankings shows (src/shared/regionRankings.ts), and its season OPR.
+  const rating = new Map(ranked.map((t) => [Number(t.team), t.rating]));
+  const regionRanks = new Map<string, Map<number, number>>();
+  const rankIn = (key: string, p: PlaceFilter, team: number) => {
+    let m = regionRanks.get(key);
+    if (!m) { m = new Map(ranked.filter((t) => inPlaces(t, [p])).map((t, i) => [Number(t.team), i + 1])); regionRanks.set(key, m); }
+    return m.get(team) ?? null;
+  };
+  const scout = (r: (typeof rows)[number]): LeagueStandingRow["scout"] => {
+    const h = homeRegion(r.country, r.state), key = h ? placeKey(h) : null;
+    return {
+      rating: rating.get(Number(r.team)) ?? null, opr: r.opr == null ? null : Math.round(Number(r.opr) * 100) / 100, ratedMatches: Number(r.rated ?? 0),
+      region: key, regionName: key ? regionName(key) : null, regionRank: key && h ? rankIn(key, h, Number(r.team)) : null,
+    };
+  };
   return {
     season, region, code, name: info?.name?.trim() || null, location: info?.location ?? null, place, readAt: info?.ranked_at ?? null,
-    rows: rows.map((r) => ({ ...r, meets: r.meets ?? 0 })), meets: meets.map(({ code, name, start, type, played }) => ({ code, name, start, type, played: !!played })),
+    placeKey: home ? placeKey(home) : null,
+    rows: rows.map(({ state: _s, country: _c, opr: _o, rated: _r, ...r }, i) => ({ ...r, meets: r.meets ?? 0, scout: scout(rows[i]) })), meets: meets.map(({ code, name, start, type, played }) => ({ code, name, start, type, played: !!played })),
   };
 }
 

@@ -48,7 +48,7 @@ beforeAll(async () => {
   await run("INSERT INTO events (season, code, name, type, state, country, region, league, source) VALUES (?, 'NJM1', 'NJ Meet 1', 'LeagueMeet', 'NJ', 'USA', 'USNJ', 'NE', 'first')", [S]);
   await run("INSERT INTO event_teams (season, code, team) VALUES (?, 'NJM1', 9002)", [S]);
   await run("INSERT INTO leagues (season, region, code, name) VALUES (?, 'USNJ', 'NE', 'Northeast')", [S]);
-  await run("INSERT INTO league_rankings (season, region, league, team, rank, wins, losses, ties, rs, played) VALUES (?, 'USNJ', 'NE', 5003, 1, 5, 0, 0, 2.4, 5), (?, 'USNJ', 'NE', 4215, 2, 4, 1, 0, 2.0, 5)", [S, S]);
+  await run("INSERT INTO league_rankings (season, region, league, team, rank, wins, losses, ties, rs, played) VALUES (?, 'USNJ', 'NE', 5003, 1, 5, 0, 0, 2.4, 5), (?, 'USNJ', 'NE', 4215, 2, 4, 1, 0, 2.0, 5), (?, 'USNJ', 'NE', 9001, 3, 1, 1, 0, 1.0, 2)", [S, S, S]);
   // Last week, in New Jersey: 4215 led, then 5003, 5001, 5004. 5002 wasn't ranked.
   // World ranks then: 4215 1, 7001 2, 5003 3, 5001 4, 5004 5.
   for (const [t, rank, rating] of [[4215, 1, 82], [7001, 2, 80], [5003, 3, 70], [5001, 4, 65], [5004, 5, 49]])
@@ -163,7 +163,7 @@ describe("the region table", () => {
 
   it("lists the region's leagues", async () => {
     const r = await region(`season=${S}&region=USA:NJ`);
-    expect(r.leagues).toEqual([expect.objectContaining({ region: "USNJ", code: "NE", name: "Northeast", place: "USA:NJ", placeName: "New Jersey", meets: 1, meetsPlayed: 0, teams: 2, top: { team: 5003, name: "Jersey C", rs: 2.4 } })]);
+    expect(r.leagues).toEqual([expect.objectContaining({ region: "USNJ", code: "NE", name: "Northeast", place: "USA:NJ", placeName: "New Jersey", meets: 1, meetsPlayed: 0, teams: 3, top: { team: 5003, name: "Jersey C", rs: 2.4 } })]);
     expect((await region(`season=${S}&region=USA:TX`)).leagues).toEqual([]);
   });
 
@@ -184,7 +184,47 @@ describe("the regions list", () => {
 describe("the leagues list", () => {
   it("lists the season's leagues with where they play and FIRST's #1", async () => {
     const r = await get<LeaguesResponse>(`/api/leagues?season=${S}`);
-    expect(r.leagues).toEqual([expect.objectContaining({ code: "NE", placeName: "New Jersey", teams: 2, top: { team: 5003, name: "Jersey C", rs: 2.4 } })]);
+    expect(r.leagues).toEqual([expect.objectContaining({ code: "NE", placeName: "New Jersey", teams: 3, top: { team: 5003, name: "Jersey C", rs: 2.4 } })]);
     expect((await get<LeaguesResponse>(`/api/leagues?season=${PAST}`)).leagues).toEqual([]);
+  });
+});
+
+describe("links in", () => {
+  it("the team page carries the team's place in its home region, and the link opens its page with its row", async () => {
+    const t = await get<{ region: { key: string; name: string; rank: number | null; of: number } | null }>(`/api/teams/4215?season=${S}`);
+    expect(t.region).toEqual({ key: "USA:NJ", name: "New Jersey", rank: 2, of: 135 });
+    expect((await get<{ region: unknown }>(`/api/teams/9001?season=${S}`)).region).toEqual({ key: "USA:NJ", name: "New Jersey", rank: null, of: 135 });
+    const r = await region(`season=${S}&region=USA:NJ&team=4215`);
+    expect(r.page).toBe(1);
+    expect(r.rows.some((x) => x.team === 4215)).toBe(true);
+  });
+
+  it("titles the region pages for previews and search engines, and a bad place is not found", async () => {
+    const { pageMeta } = await import("../seoMeta");
+    const m = await pageMeta("/rankings/regions/USA/NJ", { season: String(S) });
+    expect(m.title).toMatch(/^FTC rankings: New Jersey /);
+    expect(m.description).toContain("#1: 5001 Jersey A (90.0)");
+    expect(m.path).toBe(`/rankings/regions/USA/NJ?season=${S}`);
+    expect((await pageMeta("/rankings/regions", {})).title).toMatch(/^FTC rankings by region /);
+    expect((await pageMeta("/rankings/regions/USA/N!J", {})).notFound).toBe(true);
+    expect((await pageMeta("/rankings/regions/%E0", {})).notFound).toBe(true);
+  });
+});
+
+describe("a league's standings", () => {
+  it("carry Scout's rating, OPR and region rank beside FIRST's, and where the league plays", async () => {
+    const d = await get<{ placeKey: string; rows: { team: number; rank: number; rs: number; scout: unknown }[] }>(`/api/leagues/${S}/USNJ/NE`);
+    expect(d.placeKey).toBe("USA:NJ");
+    // FIRST's rank and RS as they were; Scout's numbers the region page's.
+    expect(d.rows.map((r) => [r.team, r.rank, r.rs])).toEqual([[5003, 1, 2.4], [4215, 2, 2], [9001, 3, 1]]);
+    expect(d.rows[0].scout).toEqual({ rating: 60, opr: 50, ratedMatches: 20, region: "USA:NJ", regionName: "New Jersey", regionRank: 4 });
+    expect(d.rows[1].scout).toMatchObject({ rating: 80, opr: 95.25, regionRank: 2 });
+    // Two rated matches: not rated yet, no region rank (its OPR is its own, shown).
+    expect(d.rows[2].scout).toEqual({ rating: null, opr: 30, ratedMatches: 2, region: "USA:NJ", regionName: "New Jersey", regionRank: null });
+  });
+
+  it("the leagues list page has its title", async () => {
+    const { pageMeta } = await import("../seoMeta");
+    expect((await pageMeta("/leagues", { season: String(S) })).title).toMatch(/^FTC leagues /);
   });
 });

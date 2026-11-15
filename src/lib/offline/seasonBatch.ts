@@ -5,7 +5,7 @@ import type { PackFile, PackManifest } from "../packs";
 import { SeasonGone, saveSeason } from "./seasons";
 import { byConnection } from "./download";
 import { clearResume, markKey, wantResume } from "./resumeMarks";
-import { noteRequestFailed } from "../connection";
+import { noteDownloadWaiting } from "../connection";
 
 export interface BatchState {
   /** The season saving now and its progress (0–100). */
@@ -61,8 +61,9 @@ export async function runSeasonBatch(files: PackFile[], manifest: PackManifest, 
       if (opts.person) clearResume(markKey("season", String(season)));
     } catch (e) {
       const paused = byConnection(e);
-      // Stopped by the connection: the mark stays, and the connection is checked now so its return is seen soon.
-      if (opts.person) { if (paused) noteRequestFailed(); else clearResume(markKey("season", String(season))); }
+      // Stopped by the connection: the mark stays, and the connection is checked now and every couple of seconds, so
+      // its return is seen (and the download picks up) within seconds.
+      if (opts.person) { if (paused) noteDownloadWaiting(); else clearResume(markKey("season", String(season))); }
       if (e instanceof SeasonGone) { out.skipped.push(season); continue; }
       out.failed.push({ season, error: e instanceof Error ? e : new Error(String(e)) });
       // The rest would only fail the same way: they wait (still marked) and pick up with it.
