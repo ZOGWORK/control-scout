@@ -24,14 +24,18 @@
 //   --dry     print, don't write
 //   --trace   print every frame read (where, what it named, the start it gave) to stderr
 //   --verify  read no starts: check where each placed match's clip opens, for rows not yet checked (opens)
+//   --clock   read no starts: check the first frame of each clip placed from YouTube's facts (the clock), and write
+//             what it showed to server/data/clipChecks.ts (only an overlay naming another match pulls a clip; a video
+//             checked before reads only its unconfirmed clips again, unless --all)
 //   TESSERACT_JS=<path to tesseract.js's entry>  where tesseract.js is, when it isn't in node_modules
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
+import { FIRST_FRAME_AT, noOverlay, openingVerdict, type OpeningVerdict } from "./lib/clipChecks";
 import { AUTO_S, OPEN_LEADS, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, elapsed, overlayDivision, leadIn, judge, NOTHING_READ, overlayLabel, secondsOf, type Judged, type M } from "./lib/videoFrames";
 
 // The command line: --name value or --name=value for the value flags, --name alone for the others. Anything else stops
 // the run before it reads: a misspelt flag mustn't quietly read (and write) every recording of the season.
-const VALUE_FLAGS = new Set(["season", "codes", "limit", "lanes"]), BOOL_FLAGS = new Set(["all", "check", "dry", "trace", "verify"]);
+const VALUE_FLAGS = new Set(["season", "codes", "limit", "lanes"]), BOOL_FLAGS = new Set(["all", "check", "clock", "dry", "trace", "verify"]);
 const args = new Map<string, string | true>();
 {
   const argv = process.argv.slice(2);
@@ -60,14 +64,16 @@ const season = count("season", 2025);
 const only = arg("codes")?.split(",").map((c) => c.trim().toUpperCase()).filter(Boolean);
 const limit = arg("limit") == null ? Infinity : count("limit", 1);
 const lanes = count("lanes", 3);
-const CHECK = flag("check"), ALL = flag("all"), DRY = flag("dry"), TRACE = flag("trace"), VERIFY = flag("verify");
+const CHECK = flag("check"), ALL = flag("all"), DRY = flag("dry"), TRACE = flag("trace"), VERIFY = flag("verify"), CLOCK = flag("clock");
 
 const { migrate, all } = await import("../server/db.js");
 await migrate();
 const R = await import("../server/videos/recordings.js");
 const { CLIP_LEAD_S, actualStart } = await import("../src/shared/recording.js");
 const { localToUtcMs } = await import("../src/shared/time.js");
-const { FRAME_TIMINGS } = await import("../server/data/frameTimings.js");
+const { FRAME_TIMINGS, frameStart } = await import("../server/data/frameTimings.js");
+const { CLIP_CHECKS } = await import("../server/data/clipChecks.js");
+type ClipCheck = (typeof CLIP_CHECKS)[number];
 type FrameTiming = (typeof FRAME_TIMINGS)[number];
 const T: any = await import(process.env.TESSERACT_JS ?? "tesseract.js");
 const createWorker = T.createWorker ?? T.default?.createWorker;
@@ -430,6 +436,7 @@ const report: string[] = [];
  *  still can't be written the next event's save writes everything kept. */
 let unsaved = false;
 function save(): void {
+  if (CLOCK) return saveChecks();
   if (CHECK || DRY) return;
   const file = "server/data/frameTimings.ts";
   for (let tries = 1; ; tries++) {
@@ -448,6 +455,99 @@ function save(): void {
     } catch (e) {
       if (tries >= 5) { unsaved = true; console.error(`couldn't write ${file} (${(e as Error).message.split("\n")[0]}): the next save tries again`); return; }
       Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 500 * tries);
+    }
+  }
+}
+
+// --- Clock clips' first frames (--clock) -------------------------------------------------------------------------
+
+const checks = new Map<string, ClipCheck>(CLIP_CHECKS.map((c) => [`${c.videoId}|${c.code}`, c]));
+const checked = new Set<string>();
+/** Write the clip checks kept so far, the same way as the timings: rows this run didn't write are the file's. */
+function saveChecks(): void {
+  if (DRY) return;
+  const file = "server/data/clipChecks.ts";
+  for (let tries = 1; ; tries++) {
+    try {
+      const text = readFileSync(file, "utf8");
+      const head = text.split("// --- Data")[0];
+      const onDisk = new Map(dataRows<ClipCheck>(text).map((c) => [`${c.videoId}|${c.code}`, c]));
+      for (const key of [...checks.keys()]) if (!checked.has(key) && !onDisk.has(key)) checks.delete(key);
+      for (const [key, c] of onDisk) if (!checked.has(key)) checks.set(key, c);
+      const list = [...checks.values()].sort((a, b) => b.season - a.season || a.code.localeCompare(b.code) || a.videoId.localeCompare(b.videoId));
+      writeFileSync(file, `${head}// --- Data (scripts/video-frames.ts --clock writes from here on) ---\nexport const CLIP_CHECKS: ClipCheck[] = [\n${list.map((c) => `  ${JSON.stringify(c)},`).join("\n")}\n];\n`);
+      unsaved = false;
+      return;
+    } catch (e) {
+      if (tries >= 5) { unsaved = true; console.error(`couldn't write ${file} (${(e as Error).message.split("\n")[0]}): the next save tries again`); return; }
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 500 * tries);
+    }
+  }
+}
+
+/** Measured over this run: first frames read, and what they showed. */
+const clockTally = { read: 0, ok: 0, pulled: 0, unconfirmed: 0, noOverlayVideos: 0 };
+
+/** --clock: every clip of the event's played matches the clock places (no frame start of its own), by its first frame.
+ *  A clip pulled on an earlier run isn't served, so isn't read again; one confirmed isn't either; one unconfirmed is. */
+async function clockCode(code: string, served: { label: string; clip?: { videoId: string; t: number } }[], division: { own: string; others: string[] } | null, log: (s: string) => void): Promise<void> {
+  const byVideo = new Map<string, { label: string; t: number }[]>();
+  for (const x of served) {
+    if (!x.clip || frameStart(x.clip.videoId, code, x.label) != null) continue;
+    byVideo.set(x.clip.videoId, [...(byVideo.get(x.clip.videoId) ?? []), { label: x.label, t: x.clip.t }]);
+  }
+  log(`${code}: ${[...byVideo.values()].reduce((n, l) => n + l.length, 0)} clock clips in ${byVideo.size} videos`);
+  for (const [videoId, clips] of byVideo) {
+    const key = `${videoId}|${code}`;
+    const prior = checks.get(key);
+    if (prior?.noOverlay && !ALL) { log(`  ${videoId}: no readable overlay on an earlier run, not read again`); continue; }
+    const settled = new Set([...(ALL ? [] : prior?.ok ?? []), ...Object.keys(prior?.pulled ?? {})]);
+    const todo = clips.filter((c) => !settled.has(c.label));
+    if (!todo.length) { log(`  ${videoId}: every clip checked on an earlier run`); continue; }
+    let page: Page | null = null;
+    try {
+      page = await player();
+      if (division) divisions.set(page, division);
+      await open(page, videoId);
+      console.error(`${new Date().toISOString().slice(11, 19)} ${code} ${videoId}: ${todo.length} clock clips`);
+      const verdicts = new Map<string, { t: number; v: OpeningVerdict }>();
+      for (const c of todo) {
+        const reads: Read[] = [];
+        for (const after of FIRST_FRAME_AT) {
+          const r = await readAt(page, c.t + after, true);
+          reads.push(r);
+          if (r.label || r.division === "other") break;
+        }
+        verdicts.set(c.label, { t: c.t, v: openingVerdict(c.label, reads) });
+      }
+      const ok = new Set(ALL ? [] : prior?.ok ?? []);
+      const pulled: Record<string, { t: number; showed: string }> = { ...(prior?.pulled ?? {}) };
+      const unconfirmed: Record<string, { t: number; why: string }> = {};
+      const pulledNow: string[] = [];
+      let okNow = 0;
+      for (const [label, { t, v }] of verdicts) {
+        if (v.state === "ok") { ok.add(label); okNow++; }
+        else if (v.state === "pulled") { pulled[label] = { t, showed: v.showed }; pulledNow.push(`${label} at ${t} s showed ${v.showed}`); }
+        else unconfirmed[label] = { t, why: v.why };
+      }
+      const blind = !ok.size && !Object.keys(pulled).length && noOverlay([...verdicts.values()].map((x) => x.v));
+      clockTally.read += verdicts.size; clockTally.ok += okNow; clockTally.pulled += pulledNow.length;
+      if (blind) clockTally.noOverlayVideos++; else clockTally.unconfirmed += Object.keys(unconfirmed).length;
+      log(`  ${videoId}: ${verdicts.size} first frames read: ${okNow} name their match, ${pulledNow.length} pulled${pulledNow.length ? ` (${pulledNow.join("; ")})` : ""}, ${blind ? "no readable overlay: can't be checked by frame" : `${Object.keys(unconfirmed).length} unconfirmed`}`);
+      checks.set(key, {
+        videoId, code, season, checked: today,
+        ...(blind ? { noOverlay: true as const } : {
+          ...(ok.size ? { ok: [...ok] } : {}),
+          ...(Object.keys(pulled).length ? { pulled } : {}),
+          ...(Object.keys(unconfirmed).length ? { unconfirmed } : {}),
+        }),
+      });
+      checked.add(key);
+    } catch (e) {
+      log(`    couldn't play: ${(e as Error).message.split("\n")[0]} (not written; the next run reads it again)`);
+      failedVideos++;
+    } finally {
+      await page?.context().close().catch(() => {});
     }
   }
 }
@@ -494,6 +594,16 @@ async function doCode(code: string): Promise<void> {
   // Without this script's own timings: what YouTube's facts alone give.
   const placed = R.withClips(views, rec, Date.now(), span, { frames: false });
   const missing = placed.filter((v) => !v.clip).map((v) => v.label);
+  if (CLOCK) {
+    if (++done > limit) return;
+    const lines: string[] = [];
+    try { await clockCode(code, R.withClips(views, rec, Date.now(), span), division, (s) => lines.push(s)); } finally {
+      console.log(lines.join("\n"));
+      report.push(...lines);
+      save();
+    }
+    return;
+  }
   if (CHECK ? !placed.some((v) => v.clip) : !ALL && !VERIFY && !missing.length) return;
   // Read on an earlier run (each event is written as it finishes): not again, unless --all.
   // Any of its videos that couldn't be played at all keeps the event unread, so the next run tries it again. (An event's
@@ -624,6 +734,7 @@ const lane = async () => {
 await Promise.all(Array.from({ length: lanes }, lane));
 // The last save's retry comes before cleanup, and no cleanup step can skip what follows it.
 if (!CHECK && !DRY && unsaved) save();
+if (CLOCK) console.log(`clock clips: ${clockTally.read} first frames read, ${clockTally.ok} name their match, ${clockTally.pulled} pulled, ${clockTally.unconfirmed} unconfirmed; ${clockTally.noOverlayVideos} videos with no readable overlay`);
 await browser.close().catch(() => {});
 await (renewing as Promise<void> | null)?.catch(() => {});
 await worker.terminate().catch(() => {});
@@ -633,8 +744,9 @@ if (failedEvents) { console.error(`${failedEvents} events failed before their vi
 if (failedVideos) { console.error(`${failedVideos} videos couldn't be played (written with the reason; the next run reads them again)`); process.exitCode = 1; }
 if (!CHECK && !DRY) {
   // The last save may have failed with no save after it (retried above): the run then says so and fails.
-  if (unsaved) { console.error("server/data/frameTimings.ts could not be written: this run's timings are lost"); process.exitCode = 1; }
-  else console.log(`wrote ${kept.size} videos to server/data/frameTimings.ts`);
+  const file = CLOCK ? "server/data/clipChecks.ts" : "server/data/frameTimings.ts";
+  if (unsaved) { console.error(`${file} could not be written: this run's results are lost`); process.exitCode = 1; }
+  else console.log(`wrote ${CLOCK ? checks.size : kept.size} videos to ${file}`);
 }
 mkdirSync(".data", { recursive: true });
 writeFileSync(".data/video-frames-report.txt", report.join("\n"));
