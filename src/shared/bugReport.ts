@@ -112,8 +112,14 @@ export interface BugReportCreate {
  *  BUG_LIMITS.chunkBytes from the start of the file), then POST …/:id/done. */
 export interface BugReportCreated { id: number; token: string }
 
-/** The owner console's list (GET /api/owner/bug-reports). */
-export interface BugReportFile { n: number; type: string; bytes: number; url: string }
+/** GET /api/bug-reports/:id/status (header X-Bug-Token): whether the report is a GitHub issue yet. "filed": the issue
+ *  exists (its real number and address); "failed": a try at filing failed and it will be tried again; "pending": not
+ *  filed yet (being filed, or GitHub filing isn't set up). Only "filed" ever carries an issue. */
+export type BugFiling = { state: "filed"; number: number; url: string } | { state: "pending" } | { state: "failed" };
+
+/** The owner console's list (GET /api/owner/bug-reports). `url`: the local copy behind the owner gate while it's kept,
+ *  else null; `githubUrl`: the attachment on GitHub once uploaded; `uploadError`: why its upload failed. */
+export interface BugReportFile { n: number; type: string; bytes: number; url: string | null; githubUrl: string | null; uploadError: string | null }
 export interface BugReportItem {
   id: number;
   createdAt: string;
@@ -126,6 +132,10 @@ export interface BugReportItem {
   /** Attachments declared but never uploaded (the sender left mid-upload). */
   missing: number;
   files: BugReportFile[];
+  /** Its GitHub issue, once filed. */
+  issue: { number: number; url: string } | null;
+  /** When there's no issue yet: why, in plain words. */
+  notFiled: string | null;
 }
 export interface BugReportList { reports: BugReportItem[]; open: number; closed: number; more: boolean; storedBytes: number; capBytes: number }
 
