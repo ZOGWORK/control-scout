@@ -273,7 +273,7 @@ export function startConnectionWatch(): () => void {
   if (started || typeof window === "undefined") return () => {};
   started = true;
   // The browser saying it's offline is believed at once (and checked, since iOS can say so wrongly).
-  const onOffline = () => { set({ internet: "no", checkedAt: Date.now() }); void checkInternet(); };
+  const onOffline = () => { onlineRetries = 0; set({ internet: "no", checkedAt: Date.now() }); void checkInternet(); };
   // The browser saying it's back online checks at once, every time, however recent the last check. A check already
   // running started before the line came back and will likely fail, so another runs right after it (unless it found
   // internet). Checks that still don't find it are tried again every ONLINE_RETRY_MS a few times, then the back-off.

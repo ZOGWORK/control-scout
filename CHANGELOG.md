@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 6.4.8 — 2026-11-15
+
+Turn Wi-Fi off and on again and the Offline pill goes as soon as the line answers, not on the next back-off step.
+
+### Highlights
+- [offline] Wi-Fi back on: the Offline pill goes as soon as the line answers
+- [offline] Back online always checks at once, however recent the last check
+- [offline] A slow first answer after reconnecting is tried again in 0.5 s
+
+### Fixed
+- The browser's online event now checks at once every time, and when a check that started while offline is still running, another runs right after it ends instead of sharing its failure. A check after the online event that fails or gets no answer in 2.5 s (the first requests after a reconnect often do) is tried again every 0.5 s up to 4 times before the 3 s, 5 s, 10 s back-off takes over; measured live with the browser switched off and on, the pill took up to 25.8 s to go, as each slow first answer waited for the next back-off step. A line that stays silent keeps the back-off as before. (`src/lib/connection.ts`) (#1515)
+
 ## 6.4.7 — 2026-11-15
 
 Settings › Network & offline now says whether the Wi-Fi is actually giving internet: a Wi-Fi whose sign-in page answers reads "Connected to Wi-Fi, but no internet" and says to open any website to sign in, instead of "You're offline".
