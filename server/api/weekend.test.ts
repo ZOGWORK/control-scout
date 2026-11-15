@@ -175,8 +175,7 @@ describe("search answers from the same readings", () => {
     expect(a.stat?.none ?? a.understood?.label).toMatch(/^No FTC events this weekend in Massachusetts\.$/);
   });
   it("a team's next match is the page's: the same match, time and call", async () => {
-    vi.useFakeTimers({ toFake: ["Date"] });
-    vi.setSystemTime(NOW);
+    // Search's own moment (`now`), never the clock it runs at (Loopy, #1581).
     const page = await teamNextMatch(4215, NOW);
     for (const q of ["what's 4215's next match this weekend", "4215 next match", "hypnotic robotics next match", "when is 4215's next match"]) {
       const card = (await ask(q)).card!;
@@ -188,8 +187,6 @@ describe("search answers from the same readings", () => {
     }
   });
   it("asked of this weekend with no match: the pages' line, the next event linked", async () => {
-    vi.useFakeTimers({ toFake: ["Date"] });
-    vi.setSystemTime(NOW);
     const card = (await ask("what's 7000's next match this weekend")).card!;
     expect(card.none).toBe((await teamNextMatch(7000, NOW)).line);
     expect(card.closest?.[0]).toMatchObject({ text: "Dumont League Meet", href: `/events/${S}/USNJNW?team=7000` });
