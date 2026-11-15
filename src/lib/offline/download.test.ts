@@ -8,7 +8,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { gzipSync } from "node:zlib";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ChecksumError, DownloadPaused, PIECE, StorageError, StorageFull, download, txError, finishDownload, partialDownloads, resetDownloadStore, type DownloadOwner } from "./download";
+import { resumeMarks, wantResume } from "./resumeMarks";
+import { ChecksumError, DownloadPaused, NoConnection, PIECE, StorageError, StorageFull, download, txError, finishDownload, partialDownloads, resetDownloadStore, type DownloadOwner } from "./download";
 import { deviceItems, pausedItems, totalBytes, whatChanged } from "./storage";
 import { downloadLite, getv, packStatus, removeLite, syncLite, type PackFile, type PackManifest } from "../packs";
 
@@ -194,6 +195,23 @@ describe("the lite pack through the downloader", () => {
     expect(await removeLite()).toBe(gz.length);
     expect(await getv("lite-gz")).toBeUndefined(); // deleted, not overwritten with null
     expect(packStatus()).toBeNull();
+  });
+
+  it("Delete also drops a paused download of a newer release and its pick-up mark, and counts it as freed", async () => {
+    vi.stubGlobal("fetch", server(gz).fn);
+    await downloadLite(lite, manifest);
+    const big = new Uint8Array(PIECE + 200); big.set(gz);
+    const next = { ...lite, url: "/packs/lite-v2.json.gz", bytes: big.length, sha256: sha(big) };
+    vi.stubGlobal("fetch", server(big, { cut: 700 }).fn);
+    wantResume("lite", "lite");
+    await expect(downloadLite(next, { ...manifest, version: "v2" })).rejects.toBeInstanceOf(DownloadPaused);
+    expect(await partialDownloads()).toHaveLength(1);
+
+    expect(await removeLite()).toBe(gz.length + 700);
+    expect(await getv("lite-gz")).toBeUndefined();
+    expect(await partialDownloads()).toEqual([]);
+    expect(resumeMarks()).toEqual([]);
+    localStorage.removeItem("cs-lite-deleted");
   });
 
   it("a Delete made while a background sync is downloading (another tab) isn't undone when it finishes", async () => {
@@ -389,6 +407,7 @@ describe("a connection that drops before anything came", () => {
     const file = { url: "/packs/nothing", bytes: data.length, sha256: sha(data) };
     const e = await download(file, { owner, fetch: server(data, { cut: 0 }).fn }).catch((x) => x);
     expect(e).not.toBeInstanceOf(DownloadPaused);
+    expect(e).toBeInstanceOf(NoConnection); // the connection's doing: a download the person started picks up once it's back
     expect(String(e.message)).toMatch(/Try again|offline/);
     expect(String(e.message)).not.toMatch(/kept/);
     expect(await partialDownloads()).toEqual([]);
