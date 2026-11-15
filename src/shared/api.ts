@@ -467,6 +467,10 @@ export interface TeamProfile {
   /** The team's place in its league's standings that season (FIRST's league rankings, server/api/leagues.ts): its rank
    *  out of the teams that have played. Absent: no league standing (or an older server). */
   league?: { region: string; code: string; name: string | null; rank: number; of: number; played: boolean } | null;
+  /** The team's place in its home region's rankings that season (src/shared/regionRankings.ts): the region (its state
+   *  or province where named, else its country), its rank there (null: not ranked yet) out of `of` ranked teams.
+   *  Null before ratings (2023–24) or without a known home; absent from an older server. */
+  region?: { key: string; name: string; rank: number | null; of: number } | null;
   /** The team has a highlights page (/teams/<number>/highlights: server/teamHighlightsPage.ts). Absent: an older server. */
   highlights?: boolean;
   /** The team has a record-split page (/teams/<number>/record-split: server/teamRecordPage.ts). Absent: an older server. */
