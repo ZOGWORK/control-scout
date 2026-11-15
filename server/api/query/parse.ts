@@ -150,8 +150,6 @@ const REACH_BETWEEN = new Set([
 ]);
 /** The kind words an event's name can end with. */
 const KIND_WORDS = new Set(["meet", "meets", "tournament", "tournaments", "event", "events", "competition", "competitions"]);
-/** Every word of search's own phrases (./lexicon.ts): no event's own word. */
-const SEARCH_WORDS = new Set(LEXICON.flatMap((e) => e.words));
 /** The words before a number that make it a count ("top 5", "last 10") or a match's number ("match 3"). */
 const COUNT_BEFORE = /^(?:top|last|first|best|latest|past|recent|bottom|worst|highest|lowest)$/;
 const MATCH_BEFORE = /^(?:match|qual|q|game|qualification)$/;
@@ -363,7 +361,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       const span = toks.slice(i, i + len);
       const said = span.map((t) => t.w).join(" ");
       if (span.some((t) => t.used) || !ctx.names.eventNamed(said) || ctx.names.teamsNamed(said).length) continue;
-      const own = span.filter((t) => !EVENT_NAME_WORDS.has(t.w) && !KIND_WORDS.has(t.w) && !SEARCH_WORDS.has(t.w) && !/^\d+$/.test(t.w));
+      const own = span.filter((t) => !EVENT_NAME_WORDS.has(t.w) && !KIND_WORDS.has(t.w) && !LEX_WORDS.has(t.w) && !/^\d+$/.test(t.w));
       if (!own.length) continue;
       const numbered = span.some((t) => /^\d+$/.test(t.w));
       if (!numbered && ctx.names.place(own.map((t) => t.w).join(" "), own.map((t) => t.typed).join(" "))) continue;
