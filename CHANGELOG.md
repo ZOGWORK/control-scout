@@ -29,6 +29,7 @@ Owner › Official videos › Channel audit: after every watcher run, each watch
 - The channel audit (`server/videos/officialAudit.ts`, migration 90). It runs after every watcher run, scheduled or Run now. It reads each watched channel's uploads list with the YouTube Data API, never a search: the newest page every run, and the whole list once a week. It stores each upload with where Scout has it: the checked list, the watcher, FIRST's link, a short link, the channel's broadcasts, or the owner's stream.
   - An upload Scout has nothing for gets the watcher's rules and a best guess. It's set aside with the reason, left for the watcher's next run, or a finding.
   - A watcher miss goes to review if a later watcher run still misses it. The audit never adds a video.
+  - An older video that can't fill a day Scout has no video for is set aside with why: a broadcast on a day with no Scout event in the region, or one whose event already plays a video every day.
   - The audit uses at most 800 units a run, and under 600 a day in steady running. (`docs/official-videos.md`)
 - The watcher's own adds are checked again every run: still playable, an FTC competition, the right day and event, and not a second video of the day. Owner › Official videos shows the result over the watcher's last 10 runs and its last 100 videos read.
 - Owner › Official videos › Channel audit shows each channel's uploads, those with a Scout record, those that play on an event (every season, and 2026-27), the findings (send to review, or say why it isn't a recording), and the set-aside reasons.
