@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.6.4 — 2026-11-15
+## 6.6.5 — 2026-11-15
 
 35 more official event recordings play: 25 of FIRST Indiana's events, SoCal's ILTs and championship, and Kansas City's Piper meets. West Michigan's Meet 5 and Meet 6 each play their own stream.
 
@@ -33,6 +33,18 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 - FIRST Indiana Robotics' event recordings: 25 Twitch broadcasts it uploads a few days later, each titled with its event and date, from the 2021 State Championship to the 2026 one. None of these events had a video before. (`server/data/officialVideos.json`)
 - SoCal FTC's own live channel (@FIRSTsocalftclive) is now watched: ILT #3, #5 and #6 of 2025-26 and the Los Angeles championship at Monrovia play. "ILT #6" is read as "SoCal FTC Qualifier 6". (`server/data/officialChannels.ts`, `server/videos/officialMatch.ts`)
 - League G's 2025-26 Meet 3, and FIRST MOKS's three Piper meets of Nov 14 (8 AM, 10:30 AM, 1 PM).
+
+## 6.6.4 — 2026-11-15
+
+A bug report's screenshot or video is cleared from the server minutes after its GitHub issue is filed, instead of waiting for a quiet stretch with no deploys.
+
+### Highlights
+- [report] Attachments leave the server minutes after the issue is filed
+- [report] Reports waiting on GitHub are tried again a minute after each restart
+- [fixes] Busy deploy days no longer hold up bug report filing
+
+### Fixed
+- Report a bug: GitHub takes a few seconds to open a new issue's attachments to everyone, so the first check right after filing usually finds them closed. The server now checks again after 15 s, 1 min and 3 min and deletes the local copy once each opens, instead of waiting for the 10-minute sweep. The sweep also runs one minute after each start: deploys restarted the server every few minutes on 2026-11-15 and each restart put it off again, so neither the clean-up nor "file it later" ran. (`server/bugReports.ts`, `server/index.ts`) (#1551)
 
 ## 6.6.3 — 2026-11-15
 
