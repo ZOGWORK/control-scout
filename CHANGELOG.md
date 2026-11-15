@@ -22,10 +22,10 @@ Turn Wi-Fi off and on again and the Offline pill goes as soon as the line answer
 ### Highlights
 - [offline] Wi-Fi back on: the Offline pill goes as soon as the line answers
 - [offline] Back online always checks at once, however recent the last check
-- [offline] A slow first answer after reconnecting is tried again in 0.5 s
+- [offline] A slow line after reconnecting is tried every 0.5 s for 30 s
 
 ### Fixed
-- The browser's online event now checks at once every time, and when a check that started while offline is still running, another runs right after it ends instead of sharing its failure. A check after the online event that fails or gets no answer in 2.5 s (the first requests after a reconnect often do) is tried again every 0.5 s up to 4 times before the 3 s, 5 s, 10 s back-off takes over; measured live with the browser switched off and on, the pill took up to 25.8 s to go, as each slow first answer waited for the next back-off step. A line that stays silent keeps the back-off as before. (`src/lib/connection.ts`) (#1515)
+- The browser's online event now checks at once every time. When a check that started while offline is still running, another runs right after it ends instead of sharing its failure. For 30 s after the online event, a check that fails or gets no answer in 2.5 s is tried again after 0.5 s; then the 3 s, 5 s, 10 s back-off takes over as before. Measured live with the browser's network switched off and on (20 rounds each), the first requests after a reconnect sometimes hung for up to about half a minute, and each one waited for the next back-off step, so the pill stayed up for up to 48 s; it now goes within about 3 s of the line answering. A line that stays silent keeps the back-off. (`src/lib/connection.ts`) (#1515)
 
 ## 6.4.7 — 2026-11-15
 

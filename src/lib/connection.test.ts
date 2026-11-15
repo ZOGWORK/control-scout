@@ -4,7 +4,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, renderHook } from "@testing-library/react";
 import {
-  CARRY_MS, CHECK_TIMEOUT_MS, DEMO_KEY, EVENT_GAP_MS, FAIL_DEBOUNCE_MS, IDLE_MS, LAST_KEY, ONLINE_RETRIES, ONLINE_RETRY_MS, RETRY_MS, RETRY_STEPS_MS, checkInternet, classify, connection, noteRequestFailed, noteServerAnswer,
+  CARRY_MS, CHECK_TIMEOUT_MS, DEMO_KEY, EVENT_GAP_MS, FAIL_DEBOUNCE_MS, IDLE_MS, LAST_KEY, ONLINE_RETRY_MS, ONLINE_WINDOW_MS, RETRY_MS, RETRY_STEPS_MS, checkInternet, classify, connection, noteRequestFailed, noteServerAnswer,
   offlineNow, resetConnection, shownOffline, startConnectionWatch, useConnection,
 } from "./connection";
 
@@ -232,20 +232,25 @@ describe("watching", () => {
     expect(fetch).toHaveBeenCalledTimes(before + 2); // then 3 s, not 30 s
   });
 
-  it("the online event while offline checks at once, then every ONLINE_RETRY_MS a few times, then the back-off from 3 s", async () => {
+  it("the online event while offline checks at once, then every ONLINE_RETRY_MS for ONLINE_WINDOW_MS, then the back-off from 3 s", async () => {
     const fetch = await offlineOnSlowCadence(() => false);
     const before = fetch.mock.calls.length;
     window.dispatchEvent(new Event("online"));
     await vi.advanceTimersByTimeAsync(0);
     expect(fetch).toHaveBeenCalledTimes(before + 1); // at once
-    for (let i = 1; i <= ONLINE_RETRIES; i++) {
+    const quick = ONLINE_WINDOW_MS / ONLINE_RETRY_MS; // the quick tries armed inside the window
+    for (let i = 1; i <= quick; i++) {
       await vi.advanceTimersByTimeAsync(ONLINE_RETRY_MS);
       expect(fetch).toHaveBeenCalledTimes(before + 1 + i);
     }
+    // The window is over: 3 s, then 5 s, as after any other outage.
     await vi.advanceTimersByTimeAsync(RETRY_STEPS_MS[0] - 1);
-    expect(fetch).toHaveBeenCalledTimes(before + 1 + ONLINE_RETRIES); // the quick tries are used up: 3 s, not sooner
+    expect(fetch).toHaveBeenCalledTimes(before + 1 + quick);
     await vi.advanceTimersByTimeAsync(1);
-    expect(fetch).toHaveBeenCalledTimes(before + 2 + ONLINE_RETRIES);
+    expect(fetch).toHaveBeenCalledTimes(before + 2 + quick);
+    await vi.advanceTimersByTimeAsync(RETRY_STEPS_MS[1]);
+    expect(fetch).toHaveBeenCalledTimes(before + 3 + quick);
+    expect(connection().internet).toBe("no");
   });
 
   describe("the line coming back (the browser's offline, then online event)", () => {
@@ -316,6 +321,23 @@ describe("watching", () => {
       net.last().ok(json({ ok: true }));
       await vi.advanceTimersByTimeAsync(0);
       expect(connection().internet).toBe("yes");
+    });
+
+    it("an offline event during the quick tries cancels the rest: back to the 3 s step", async () => {
+      vi.useFakeTimers();
+      const fetch = vi.fn(async () => { throw new TypeError("Failed to fetch"); });
+      vi.stubGlobal("fetch", fetch);
+      stop = startConnectionWatch();
+      window.dispatchEvent(new Event("online"));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(fetch).toHaveBeenCalledTimes(1);
+      window.dispatchEvent(new Event("offline")); // gone again before the quick tries ran
+      await vi.advanceTimersByTimeAsync(0);
+      expect(fetch).toHaveBeenCalledTimes(2);
+      await vi.advanceTimersByTimeAsync(RETRY_STEPS_MS[0] - 1);
+      expect(fetch).toHaveBeenCalledTimes(2); // no 500 ms tries
+      await vi.advanceTimersByTimeAsync(1);
+      expect(fetch).toHaveBeenCalledTimes(3);
     });
 
     it("every online event checks at once, however recent the last check", async () => {
