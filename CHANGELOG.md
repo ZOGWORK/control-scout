@@ -25,7 +25,7 @@ A search naming an event by its whole name now gets that event, even when the na
 - [fixes] More "<event> highlights" searches play the event's clips
 
 ### Fixed
-- Search: a league meet's own number was read as a team ("Ritchie League Meet 1" became team 1), and a town or region inside an event's name became the place with the rest left unread. An event's whole stored name is now read first, before its words are teams, numbers or places; a name made only of kind words and a number, a team's whole name, and a place with only event words beside it read as before. (`server/api/query/names.ts`, `server/api/query/parse.ts`) (#1510)
+- Search: a league meet's own number was read as a team ("Ritchie League Meet 1" became team 1), and a town or region inside an event's name became the place with the rest left unread. An event's whole stored name is now read first, before its words are teams, numbers or places; a name made only of kind words and a number, a team's whole name, and a place with only event words beside it read as before. (`src/shared/query/names.ts`, `src/shared/query/parse.ts`) (#1510)
 
 ## 6.4.3 — 2026-11-15
 
