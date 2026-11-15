@@ -22,7 +22,7 @@ import type { CoverageMatch, CoverageReason, CoverageTriage } from "../../src/sh
 import { CLOCK_ONLY, WHY } from "./coverage.js";
 
 /** Reasons that leave a match unsettled: the clock's alone (the video may still hold it), or none found. */
-export const ACTIONABLE_REASONS: ReadonlySet<CoverageReason> = new Set<CoverageReason>([...CLOCK_ONLY, "unexplained"]);
+export const ACTIONABLE_REASONS: ReadonlySet<CoverageReason> = new Set<CoverageReason>([...CLOCK_ONLY, "between-recordings", "unexplained"]);
 
 /** What's stored: the category from the missing list alone (old season is decided when read). */
 export type BaseTriage = Exclude<CoverageTriage, "old-season">;
@@ -40,7 +40,9 @@ function labels(ms: Missing[]): string {
 /** The video's frames show it starting while the match before is still on. */
 const earlyInVideo = (m: Missing) => m.reason === "overlaps-previous" && !!m.video?.earlyStart;
 /** Unsettled: left out by the clock alone and not shown by the video to start inside the match before, or no reason. */
-const unsettled = (m: Missing) => ACTIONABLE_REASONS.has(m.reason ?? "unexplained") && !earlyInVideo(m);
+const unsettled = (m: Missing) => ACTIONABLE_REASONS.has(m.reason ?? "unexplained") && !earlyInVideo(m) && !betweenSettled(m);
+/** Played between two recordings, and both videos' frames were read with it in neither: settled, nothing to place. */
+const betweenSettled = (m: Missing) => m.reason === "between-recordings" && !!m.video?.checked && m.video.seenAt == null;
 
 /** The reasons of the missing matches, most common first. */
 function byReason(missing: Missing[]): [CoverageReason, number][] {
