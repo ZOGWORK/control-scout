@@ -6,18 +6,23 @@ import type { StatAnswer } from "../../../src/shared/searchStat.js";
 import { eventClock, weekendEventLine, type NextMatchAnswer, type WeekendEvent } from "../../../src/shared/weekend.js";
 import { oddsPct, seasonLabel } from "../../../src/shared/format.js";
 
+/** Most events the card names (the rest are listed under it, and on the This weekend page). */
+export const CARD_EVENTS = 12;
+
 /** A window's events as a direct answer: each event with its kind, place, dates and teams, linked to its page ("Live
  *  now" while it's under way there), and the recordings on record. None: said plainly, never an empty list. */
 export function eventsStat(o: { title: string; label: string; season: number; region: string | null; events: WeekendEvent[]; none: string; page?: { title: string; href: string } }): StatAnswer {
   const recorded = o.events.filter((e) => e.recording);
+  // The card names the first few, live ones first; every one is in the list under it and on the page.
+  const shown = [...o.events.filter((e) => e.status === "live"), ...o.events.filter((e) => e.status !== "live")].slice(0, CARD_EVENTS);
   const live = o.events.filter((e) => e.status === "live").length;
   return {
     family: "event", intent: "weekend-events", title: o.title, scope: [seasonLabel(o.season), o.label, ...(o.region ? [o.region] : [])],
     ...(o.events.length ? { headline: { value: `${o.events.length} event${o.events.length === 1 ? "" : "s"}`, label: o.label, ...(live ? { sub: `${live} live now` } : {}) } } : {}),
     blocks: [
-      ...(o.events.length ? [{ kind: "links" as const, title: "Events", items: o.events.map((e) => ({ label: e.name, sub: weekendEventLine(e), href: e.href })) }] : []),
-      ...(recorded.length ? [{ kind: "links" as const, title: "Recordings", items: recorded.map((e) => ({ label: e.name, sub: e.dates ?? undefined, href: e.recording! })) }] : []),
-      ...(o.page ? [{ kind: "links" as const, title: "More", items: [{ label: o.page.title, href: o.page.href }] }] : []),
+      ...(o.events.length ? [{ kind: "links" as const, title: shown.length < o.events.length ? `Events · ${shown.length} of ${o.events.length}` : "Events", items: shown.map((e) => ({ label: e.name, sub: weekendEventLine(e), href: e.href })) }] : []),
+      ...(recorded.length ? [{ kind: "links" as const, title: "Recordings", items: recorded.slice(0, CARD_EVENTS).map((e) => ({ label: e.name, sub: e.dates ?? undefined, href: e.recording! })) }] : []),
+      ...(o.page ? [{ kind: "links" as const, title: "More", items: [{ label: shown.length < o.events.length ? `All ${o.events.length}: ${o.page.title}` : o.page.title, href: o.page.href }] }] : []),
     ],
     ...(o.events.length ? {} : { none: o.none }),
     definition: `FTC events of the ${seasonLabel(o.season)} season with a day in the window, each read on its own calendar (its time zone), so an event under way where it is counts. Volunteer sign-ups aren't events.`,
