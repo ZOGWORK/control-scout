@@ -25,7 +25,7 @@ const page = (list: string): OwnerClipCoverage => ({
   clipChecks: { checked: 120, ok: 117, pulled: 1, unconfirmed: 2, noOverlayVideos: 3 },
   findings: [{ kind: "pulled", season: 2026, code: "USAZFLQ", name: "Flagstaff", label: "Q7", videoId: "flagVideo01", at: 3600, why: "Clip pulled: its first frame shows Q6, not Q7" },
     { kind: "seen", season: 2025, code: "ROCMPCND", name: "Romania COANDA", label: "Q2", videoId: "pvmxbH8YW-k", at: 9952, why: "Checked in the video (2026-11-15): seen at 2:45:52, not yet confirmed" }],
-  lastPass: { at: new Date().toISOString(), checked: 1397, events: 1397, full: 770, clipped: 31981, missing: 13947, why: { "not yet checked against the video": 2400, "video-unavailable": 900 }, opened: 0 },
+  lastPass: { at: new Date().toISOString(), checked: 1397, events: 1397, full: 770, clipped: 31981, missing: 13947, why: { "not yet checked against the video": 2400, "video-unavailable": 900 }, opened: 0, pending: 2323, pendingBefore: 2400 },
   seasons: [{ season: 2026, open: 2, actionable: 0 }, { season: 2025, open: 3, actionable: 1 }],
   totals: { events: 1392, played: 45695, withClip: 29333, full: 708 },
 });
@@ -132,6 +132,7 @@ describe("ClipCoveragePanel, triaged", () => {
     const f = document.querySelector('[data-coverage-finding="2025/ROCMPCND/Q2"]')!;
     expect(f.textContent).toBe("In the video, no clip:2025 ROCMPCND Q2 · pvmxbH8YW-k at 2:45:52 · Checked in the video (2026-11-15): seen at 2:45:52, not yet confirmed");
     expect(document.querySelector('[data-coverage-finding="2026/USAZFLQ/Q7"]')?.textContent).toBe("Clip pulled:2026 USAZFLQ Q7 · flagVideo01 at 1:00:00 · Clip pulled: its first frame shows Q6, not Q7");
+    expect(document.querySelector("[data-coverage-pending]")?.textContent).toMatch(/^Waiting for their video check: 2,323 matches, 77 fewer than the pass before\. /);
     expect(document.querySelector("[data-coverage-clip-checks]")?.textContent).toBe("Clips checked by their first frame: 120 · 117 confirmed · 1 pulled · 2 to read again · 3 videos with no overlay to read.");
     expect(f.querySelector("a[href^='https://www.youtube.com']")?.getAttribute("href")).toBe("https://www.youtube.com/watch?v=pvmxbH8YW-k&t=9952s");
     expect(document.querySelector("[data-coverage-pass]")?.textContent).toMatch(/^Last check .+: 1,397 events checked · 770 fully clipped · 31,981 matches clipped · 13,947 missing \(not yet checked against the video 2,400, video-unavailable 900\)\.$/);
