@@ -440,7 +440,7 @@ function MatchLab() {
         </form>
       </div>
       {submitted && (state.error
-        ? (offline.data ? <MatchResult x={offline.data} offlineAsOf={offline.asOf} offlineFrom={offline.from} onSwap={swapResult} /> : offline.loading ? <div className="skeleton h-72 rounded-2xl" /> : <ErrorState error={state.error} onRetry={state.reload} />)
+        ? (offline.data ? <><MatchResult x={offline.data} offlineAsOf={offline.asOf} offlineFrom={offline.from} onSwap={swapResult} /><WhatIf base={offline.data} offline={offline.from} /></> : offline.loading ? <div className="skeleton h-72 rounded-2xl" /> : <ErrorState error={state.error} onRetry={state.reload} />)
         : !state.data ? <div className="skeleton h-72 rounded-2xl" /> : <><MatchResult x={state.data} onSwap={swapResult} /><WhatIf base={state.data} /></>)}
       {!submitted && <EmptyState icon={Swords} title="Pick the teams" description="One or two a side, any teams, any season. You'll get win odds, predicted scores with ranges, the three biggest reasons, and how confident the call is." />}
       <SavedPredictions />
