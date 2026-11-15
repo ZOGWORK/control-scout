@@ -220,7 +220,8 @@ export const BUG_ISSUE_LABELS = ["bug", "user-reported"];
 export const UPLOAD_ROUTE = "uploads.github.com/user-attachments/assets (the gh --attach request)";
 /** What the owner console says when there's no token to file with. */
 export const NO_TOKEN = "GitHub filing isn't set up (no GITHUB_REPORT_TOKEN).";
-const LEGACY = "Sent before reports were filed on GitHub, so it stays private.";
+/** What the owner console says about a report sent before the dialog said it would be public: never filed. */
+export const PRIVATE_REPORT = "Private: sent before reports were filed on GitHub, so it's never filed.";
 /** A claim this old belongs to a filer that died part-way (or whose reply was lost): another may take over. */
 const FILE_CLAIM_STALE_MS = 10 * 60_000;
 /** After a rate limit: no filing until GitHub allows it again. */
@@ -328,6 +329,9 @@ export async function fileBugReport(id: number, now = new Date()): Promise<BugFi
   const row = claimed;
   const attempt = Number(row.file_attempts);
   const release = () => run("UPDATE bug_reports SET filing_at = NULL WHERE id = ? AND filing_at = ?", [id, at]).catch(() => {});
+  // Set once GitHub has made the issue: from then on a failure must not free the claim (a retry before GitHub's
+  // search has the issue would file a second one); the claim goes stale and the next try adopts it.
+  let created = false;
   const pause = (e: unknown) => { if (e instanceof GithubError && e.retryAt) githubPausedUntil = Math.max(githubPausedUntil, e.retryAt); };
   try {
     // An earlier try may have opened the issue without hearing back: adopt it rather than file a second one.
@@ -366,6 +370,7 @@ export async function fileBugReport(id: number, now = new Date()): Promise<BugFi
         await noteFailure(id, row.file_error, refused(e) ? `GitHub refused the issue: ${why(e)}` : `${why(e)}; will check before trying again`, attempt);
         return "failed";
       }
+      created = true;
       number = Number(issue.number);
       const got = new Set((issue.labels ?? []).map((l) => l.name));
       labelsMissing = BUG_ISSUE_LABELS.filter((l) => !got.has(l));
@@ -381,10 +386,10 @@ export async function fileBugReport(id: number, now = new Date()): Promise<BugFi
     await clearUploaded(id);
     return earlier ? "adopted" : "filed";
   } catch (e) {
-    // The search (before anything was written) or our own database: free the claim, try again later.
+    // The search or our own database. Before the issue exists: free the claim, try again later. After: keep it.
     pause(e);
-    await release();
-    await noteFailure(id, row.file_error, why(e), attempt).catch(() => {});
+    if (!created) await release();
+    await noteFailure(id, row.file_error, created ? "Filed, but couldn't record the issue here; will find it again" : why(e), attempt).catch(() => {});
     return "failed";
   }
 }
@@ -611,7 +616,7 @@ export function bugReportsRouter(): Router {
     // Answered at once: the email (with attachments) and the GitHub issue happen after; the sweep retries a failure.
     // The email goes first: it reads the local copies, which filing deletes once they're on GitHub.
     emailing = emailReport(open.row.id);
-    filing = emailing.then(() => fileBugReport(Number(open.row.id)));
+    filing = emailing.catch(() => {}).then(() => fileBugReport(Number(open.row.id)));
     return { ok: true };
   }));
 
@@ -650,7 +655,7 @@ export async function listBugReports(status: "open" | "done" = "open", before: n
     const own = files.filter((f) => Number(f.report_id) === Number(r.id));
     const issue = r.issue_number != null && r.issue_url ? { number: Number(r.issue_number), url: r.issue_url } : null;
     const notFiled = issue ? null
-      : Number(r.to_github) === 0 ? LEGACY
+      : Number(r.to_github) === 0 ? PRIVATE_REPORT
       : r.file_error ?? (env.githubReportToken ? "Being filed." : NO_TOKEN);
     return {
       id: Number(r.id), createdAt: r.created_at, category: r.category as BugCategory, message: r.message, email: r.email,
