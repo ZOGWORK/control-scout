@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.4.9 — 2026-11-15
+## 6.5.5 — 2026-11-15
 
 Report a bug now files a public GitHub Issue on ZOGWORK/control-scout for you, with your screenshot or video in it, and shows you the issue's number and link right after you send.
 
@@ -28,6 +28,89 @@ Report a bug now files a public GitHub Issue on ZOGWORK/control-scout for you, w
 ### Changed
 - Report a bug (top bar): each report becomes one GitHub Issue, `[user] <first line>`, labels `bug` + `user-reported`, with the message in a code fence, the category, the page, release, screen, device and theme, the email only if you typed one, and the attachments: screenshots inline, a video as GitHub's player. Attachments upload to GitHub first (the request `gh issue create --attach` makes), then the issue is opened; one that fails to upload is named as failed in the issue and kept for the owner. Filing happens after Send has answered; the dialog then shows "Thanks — filed as #N" with the link, "Thanks — saved, we'll file it on GitHub", or "Something went wrong — your report is saved, we'll try again", never a made-up link. No token, GitHub down or a refusal: the report is kept and a later sweep files it; a try whose reply was lost adopts its issue instead of filing twice. The message is sanitized in the browser and again on the server; the page goes to GitHub as a bare path. The email box is no longer filled in for signed-in people, since it shows on the public issue. Reports sent before this release stay private and are never filed. (`server/bugReports.ts`, `server/errorReports.ts`, `src/components/layout/BugReport.tsx`, migration 90)
 - Owner console › Bug reports: each report shows its GitHub issue (one click to open it) or "Not filed yet" and why; attachments link to GitHub once the local copy is deleted (after the issue is filed and the URL opens); only local copies count against the disk cap. Closing or deleting a report here never touches its issue. The audit log records each filing (issue number, upload route) and each failure. (`src/components/owner/BugReportsPanel.tsx`) (#1535)
+
+## 6.5.4 — 2026-11-15
+
+Clip coverage never names an early start as a reason, not even in passing.
+
+### Highlights
+- [fixes] A short video's reason says what the clock allows, not "early start"
+- [fixes] To review never mentions an early start in any match's reason
+- [workspace] Six To review events now read as the video's own shortfall
+
+### Fixed
+- Clip coverage: a video shorter than its broadcast, with nothing to place the gap, read "(over the 15 min an early start covers)"; it now reads "(more than the 15 min the clock allows for)". Six To-review events carried it beside other reasons (ROBUQ1, RONR1LT, USTXCMPJOHN, LTCMP, KZALOS1, KZCMPJNB2), so "early start" still appeared in To review. (`server/videos/coverage.ts`) (#1522)
+
+## 6.5.3 — 2026-11-15
+
+Offline, Predict's team boxes name each team from your saved packs, and the What if box and the track record line are back.
+
+### Highlights
+- [offline] Offline Predict names each team under its box from your packs
+- [offline] What if works offline, from the same pack as the match
+- [offline] The track record line shows offline once a pack is downloaded
+
+### Fixed
+- Offline, the four team boxes on Predict showed "…" instead of the names, even with the event's pack saved. The name under each box came from a team search, which no saved pack answers when only an event pack is on the device. With no signal, the name now comes from the newest saved event pack holding the team (the same names its offline prediction shows), else from the lite pack's team list. A team no pack holds still shows "…", never "Not a team we know". The server's answer still wins once it's back, and nothing from a pack is cached. Measured live on 6.5.1 (phone, signed out, the USMIMIQ1 pack, Wi-Fi off): "…" four times; now Dragatrons, Bionic Brood, Fabricators and Northeast Viking Vortex. (`src/components/TeamInput.tsx`, `src/lib/offline/names.ts`) (#1521)
+- The offline Predict page dropped the What if box. It's back, and a swap is predicted on this device from the same snapshot as the match above it (the event pack or the lite pack, never a mix of the two). A robot that snapshot doesn't hold gets "isn't in your … pack, so this swap can't be predicted offline" rather than a call. (`src/components/predict/WhatIf.tsx`, `src/lib/offline/predict.ts`)
+- The calibration line ("When we say about 91%, the favourite wins …") was missing offline after a fresh pack download, since the track record it reads was never kept. Downloading an event pack now also keeps the server's track record, as it keeps the event's other reads, so the line shows offline with the server's own numbers. (`src/lib/offline/warm.ts`)
+
+## 6.5.2 — 2026-11-15
+
+Owner › Clip coverage takes the stream as the truth: a match the clock alone left without a clip says what its video showed, and an early start is only "unsafe" once the video shows it.
+
+### Highlights
+- [workspace] Clip coverage says what each match's video showed, not the clock
+- [workspace] An early start goes to To review until its video confirms it
+- [workspace] Each match left out shows the video's own timestamps nearby
+- [fixes] A match between two of a day's recordings names that gap
+
+### Changed
+- Clip coverage: a played match left without a clip by the clock alone (an early start, or a time before or after the broadcast, the cut start, the video's end, what its chapters confirm, every recording) now says what its video's own frames showed: "Not yet checked against the video", "Checked in the video (date): no start found for it", or "seen at h:mm:ss, not yet confirmed", with the video's timestamps of the matches around it. The clock's reading is kept apart and is never a reason on its own. (`server/videos/coverage.ts`) (#1520)
+- Triage: Early start / unsafe only once the frames show a match starting while the one before is still on (`earlyStart` in `server/data/frameTimings.ts`); until then it's Actionable, and the event's reason says how many matches weren't checked against the video, or were checked with no start found there. (`server/videos/coverageTriage.ts`)
+- A match played between two of a day's recordings (after one ended, before the next started) says so with both times, "Played between the recordings (after afaqqytUvDU ended at 9:45 AM, before nm-LnMVtCJM started at 11:12 AM)", and counts against neither video; it's Actionable until both videos' frames are read, then settled (USFLFNLT 2025 Q1–Q3, owner-checked). "Starts up to N min early" is never a reason on its own any more.
+
+## 6.5.1 — 2026-11-15
+
+Turn Wi-Fi off and on again and the Offline pill goes as soon as the line answers, not on the next back-off step.
+
+### Highlights
+- [offline] Wi-Fi back on: the Offline pill goes as soon as the line answers
+- [offline] Back online always checks at once, however recent the last check
+- [offline] A slow line after reconnecting is tried every 0.5 s for 30 s
+
+### Fixed
+- The browser's online event now checks at once every time. When a check that started while offline is still running, another runs right after it ends instead of sharing its failure. For 30 s after the online event, a check that fails or gets no answer in 2.5 s is tried again after 0.5 s; then the 3 s, 5 s, 10 s back-off takes over as before. Measured live with the browser's network switched off and on (20 rounds each), the first requests after a reconnect sometimes hung for up to about half a minute, and each one waited for the next back-off step, so the pill stayed up for up to 48 s; it now goes within about 3 s of the line answering. A line that stays silent keeps the back-off. (`src/lib/connection.ts`) (#1515)
+
+## 6.5.0 — 2026-11-15
+
+With no signal, Predict now gives the server's own call for the same snapshot: the same scores and ranges, bonus RP odds, why factors and reasons, and the teams' names. A saved event pack newer than the lite pack predicts for its teams.
+
+### Highlights
+- [offline] Offline Predict shows the same numbers as online for the same data
+- [offline] A newer saved event pack predicts its teams, not the older lite pack
+- [offline] Team names show in offline predictions instead of "…"
+- [offline] Offline calls say which pack they came from and its data time
+
+### Fixed
+- Offline Predict (`/predict` with no signal): the lite pack is rebuilt about once a day, and it answered even when a newer event pack held the lineup, so its season averages (the "×" in the why factors), score ranges and bonus RP odds were the morning's while the server's had moved on with the day's results. Now the newer of the two snapshots that holds the lineup answers, and every number comes from that one snapshot. Event packs now also carry the rest of what the server's prediction reads (the season's bonus RP model, the pair history among the event's teams, recent no-show records and the server's team names), and the lite pack carries the recent records that make a reason, so an offline call is the server's call at that snapshot's time. The server and the device build the call through one shared function, so they can't drift apart. The offline note names the pack and shows its data time, not its build time. The lite pack's pair-history line stays a small cut (same-alliance pairs with 3+ matches, newest season), so that one line can still differ. (`src/shared/predictView.ts`, `src/lib/offline/predict.ts`, `src/lib/offline/predictCall.ts`, `server/packs/bundle.ts`, `server/packs/build.ts`, `src/pages/PredictPage.tsx`) (#1518)
+
+## 6.4.9 — 2026-11-15
+
+Lite has its own Network & offline screen: on one bar of signal it says whether you're online, on Wi-Fi, mobile data or nothing, whether that's actually giving internet, how much a download uses, and what's downloaded on this phone and how big it is.
+
+### Highlights
+- [offline] Lite's Settings opens its own Network & offline screen
+- [offline] It says if the Wi-Fi gives internet, or waits at a sign-in page
+- [offline] It lists what's downloaded on this phone, and how big each is
+- [fixes] Network & offline no longer says "offline" under "Connected"
+
+### Added
+- Lite Network & offline (`/lite/network`, the twin of `/network`): the status heading and the line under it, the connection (Wi-Fi, mobile data, cable or none) and whether it gives internet, the download sizes from the pack list, each pack downloaded on this device with its size and data time and the total, and the switches (Lite on or off, which connections downloads use, automatic updates), each with the line saying what it does. Server-rendered in Lite's style (44 px targets, the five themes); one small fixed inline script, allowed by its hash, reads what only the device knows: the connection, a fresh check of `/api/health`, and this browser's downloads. Every sentence comes from the full screen's own functions, now shared (`src/shared/networkStatus.ts`). Lite's Settings links here instead of the full version. (`server/lite/network.ts`, `server/lite/routes.ts`) (#1517)
+
+### Fixed
+- Network & offline (`/settings#network`): "Should I use Lite?" opens with the heading's own words, so a network that carries nothing reads "Connected, but nothing is getting through" in both places, never "You're offline" under it. (`src/lib/networkAdvice.ts`)
+- The offline check's sign-in-page mode (`scripts/offline-check.ts --portal`) answers the app's own requests with a sign-in page over HTTPS too (it failed the tunnel before, so the app read "no answer"), and now checks what Network & offline says on one.
 
 ## 6.4.8 — 2026-11-15
 

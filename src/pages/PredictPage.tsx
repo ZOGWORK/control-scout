@@ -6,7 +6,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { ArrowLeftRight, ArrowRight, BookmarkPlus, CalendarDays, ChevronDown, FlaskConical, Link2, MapPin, Search, Sparkles, Star, Swords, Trophy, Users, WifiOff, X } from "lucide-react";
-import { ENGINE_VERSION } from "@control-scout/predict-engine";
 import { noteOfflineAnswer, useApi, qs, type ApiError } from "../lib/api";
 import { useCurrentSeason, useMeta, useTitle } from "../lib/meta";
 import { useEventCheck } from "../lib/eventSeason";
@@ -15,8 +14,6 @@ import { callTally } from "../lib/seasonSoFar";
 import { usePersonal } from "../lib/personal";
 import { dedupePredictions } from "../shared/personal";
 import type { EventDetail, EventSummary, EventListItem, MatchExplanationView, MatchView, TeamProfile } from "../shared/api";
-import { pairHistory } from "../shared/pairHistory";
-import { compactSheet } from "../shared/factorSheet";
 import { FactorSheetPanel } from "../components/FactorSheet";
 import { EventSearchPicker } from "../components/predict/EventSearchPicker";
 import { WeekEvents } from "../components/predict/WeekEvents";
@@ -39,13 +36,14 @@ import { canonicalPredict, matchApiPath, matchupOf, parsePick, predictHref, pred
 import { cn } from "../components/cn";
 import { PredictionBasis } from "../components/PredictionBasis";
 import { WhatIf } from "../components/predict/WhatIf";
-import { marginCalibration, marginText, matchBasis, overlapTotal, scoreSum, scoreTotal } from "../shared/predictionBasis";
+import { marginCalibration, marginText, matchBasis, scoreSum, scoreTotal } from "../shared/predictionBasis";
+import { snapshotClock } from "../shared/eventBundle";
+import type { OfflineSource } from "../lib/offline/predict";
 import { Reveal, m } from "../components/motion";
 import { dateRange, dayDate, num, oddsPct, place, seasonLabel } from "../lib/format";
 import { copyLink } from "../lib/clipboard";
 import { ShareMatch } from "../components/ShareMatch";
 import { BonusOdds } from "../components/BonusOdds";
-import { bonusView } from "../shared/bonusOdds";
 import { ScoreRange } from "../components/ScoreRange";
 import { levelPct, rangeCoverageLine } from "../shared/scoreRange";
 import { useRangeCoverage } from "../lib/rangeCoverage";
@@ -442,7 +440,7 @@ function MatchLab() {
         </form>
       </div>
       {submitted && (state.error
-        ? (offline.data ? <MatchResult x={offline.data} offlineAsOf={offline.asOf} onSwap={swapResult} /> : offline.loading ? <div className="skeleton h-72 rounded-2xl" /> : <ErrorState error={state.error} onRetry={state.reload} />)
+        ? (offline.data ? <><MatchResult x={offline.data} offlineAsOf={offline.asOf} offlineFrom={offline.from} onSwap={swapResult} /><WhatIf base={offline.data} offline={offline.from} /></> : offline.loading ? <div className="skeleton h-72 rounded-2xl" /> : <ErrorState error={state.error} onRetry={state.reload} />)
         : !state.data ? <div className="skeleton h-72 rounded-2xl" /> : <><MatchResult x={state.data} onSwap={swapResult} /><WhatIf base={state.data} /></>)}
       {!submitted && <EmptyState icon={Swords} title="Pick the teams" description="One or two a side, any teams, any season. You'll get win odds, predicted scores with ranges, the three biggest reasons, and how confident the call is." />}
       <SavedPredictions />
@@ -453,26 +451,19 @@ function MatchLab() {
 /** No connection: predict from the lite pack saved on this device (same engine). Only ever runs once the
  *  server couldn't be reached (an offline error): the pack code loads lazily then, never on an online visit. */
 function useOfflineFallback(q: { season: number; red: number[]; blue: number[] } | null) {
-  const [out, setOut] = useState<{ data: MatchExplanationView | null; asOf: string | null; loading: boolean }>({ data: null, asOf: null, loading: false });
+  const [out, setOut] = useState<{ data: MatchExplanationView | null; asOf: string | null; from: OfflineSource | null; loading: boolean }>({ data: null, asOf: null, from: null, loading: false });
   const key = q ? `${q.season}|${q.red}|${q.blue}` : "";
   useEffect(() => {
-    if (!q) { setOut({ data: null, asOf: null, loading: false }); return; }
+    if (!q) { setOut({ data: null, asOf: null, from: null, loading: false }); return; }
     let live = true;
     setOut((o) => ({ ...o, loading: true }));
+    // The view is built as the server builds it (src/shared/predictView.ts), from one saved snapshot.
     import("../lib/offline/predict").then((p) => p.offlineExplain(q.season, q.red, q.blue)).then((x) => {
       if (!live) return;
-      if (!x) { setOut({ data: null, asOf: null, loading: false }); return; }
+      if (!x) { setOut({ data: null, asOf: null, from: null, loading: false }); return; }
       noteOfflineAnswer();
-      setOut({
-        loading: false, asOf: x.asOf,
-        data: {
-          season: q.season, red: q.red, blue: q.blue, winProbRed: x.winProbA, winProbBlue: x.winProbB, predictedRed: x.predictedScoreA, predictedBlue: x.predictedScoreB,
-          rangeRed: x.scoreRangeA, rangeBlue: x.scoreRangeB, rangeLevel: x.scoreBandA.level, factors: x.factors, factorSheet: compactSheet(x.factorSheet), history: x.partnership ? pairHistory(x.partnership) : null, confidence: x.confidence,
-          teamsRed: x.teamsA.map((t) => ({ ...t, name: null })), teamsBlue: x.teamsB.map((t) => ({ ...t, name: null })),
-          overlapRed: overlapTotal(x.overlapA), overlapBlue: overlapTotal(x.overlapB), marginScale: x.marginScale, bonus: bonusView(q.season, x) ?? null, engineVersion: ENGINE_VERSION,
-        },
-      });
-    }, () => live && setOut({ data: null, asOf: null, loading: false }));
+      setOut({ loading: false, asOf: x.asOf, from: x.source, data: x.view });
+    }, () => live && setOut({ data: null, asOf: null, from: null, loading: false }));
     return () => { live = false; };
   }, [key]);
   return out;
@@ -501,7 +492,7 @@ function ScoreSumLines({ x, overlapRed, overlapBlue }: { x: MatchExplanationView
   );
 }
 
-function MatchResult({ x, offlineAsOf, onSwap }: { x: MatchExplanationView; offlineAsOf?: string | null; onSwap?: () => void }) {
+function MatchResult({ x, offlineAsOf, offlineFrom, onSwap }: { x: MatchExplanationView; offlineAsOf?: string | null; offlineFrom?: OfflineSource | null; onSwap?: () => void }) {
   const { update } = usePersonal();
   const cov = useRangeCoverage();
   const fav = x.winProbRed >= 0.5 ? "Red" : "Blue";
@@ -513,7 +504,7 @@ function MatchResult({ x, offlineAsOf, onSwap }: { x: MatchExplanationView; offl
   return (
     <div className="space-y-4">
       <div className="relative overflow-hidden rounded-2xl border border-border bg-card p-6 max-sm:p-4">
-        {offlineAsOf && <p className="mb-3 flex items-center gap-2 rounded-lg border border-info/30 bg-info/[0.06] px-3 py-2 text-xs"><WifiOff className="size-3.5 text-info" />Offline — predicted on this device from your lite pack (ratings as of {dayDate(offlineAsOf)}).</p>}
+        {offlineAsOf && <p className="mb-3 flex items-center gap-2 rounded-lg border border-info/30 bg-info/[0.06] px-3 py-2 text-xs"><WifiOff className="size-3.5 text-info" />Offline — predicted on this device from {offlineFrom?.kind === "bundle" ? `your ${offlineFrom.name} pack` : "your lite pack"} (data as of {snapshotClock(offlineAsOf)}).</p>}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <ConfidenceBadge tier={x.confidence.tier} reason={x.confidence.reason} />
           <div className="flex flex-wrap gap-2">

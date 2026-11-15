@@ -1,43 +1,20 @@
 // The words of the Network & offline screen (src/components/settings/NetworkSection.tsx), from the facts
 // connection.ts and liteSuggest.ts have: am I online, on what, and should I use Lite. Pure, unit tested.
-import type { ConnectionType, Internet } from "./connection";
+import { statusSentence, type ConnectionType, type Internet } from "../shared/networkStatus";
 
-/** The status at the top: a heading, and a line under it when the heading alone doesn't say what to do. */
-export interface Status { title: string; detail: string | null }
-
-/** Is the Wi-Fi actually giving internet? From connection.ts's facts: `internet` (the real check), `online`
- *  (navigator.onLine), `type`, and `raw` (navigator.connection.type, which tells a cable apart from Wi-Fi). */
-export function statusSentence(s: { internet: Internet; online: boolean; type: ConnectionType }, raw?: string | null): Status {
-  if (s.internet === "yes") return { title: "You're online", detail: null };
-  if (s.internet === "portal") {
-    // Something other than our server answered: the device has a network, but it's a sign-in page, not the internet.
-    const wifi = s.type === "wifi" && raw !== "ethernet";
-    return {
-      title: wifi ? "Connected to Wi-Fi, but no internet" : "Connected to a network, but no internet",
-      detail: `${wifi ? "This Wi-Fi" : "This network"} isn't giving internet. It's likely waiting at a sign-in page: open any website to sign in.`,
-    };
-  }
-  if (s.internet === "no") {
-    // The browser says it's on a network, yet nothing answered the check.
-    if (s.online) return { title: "Connected, but nothing is getting through", detail: "Your device says it's on a network, but nothing answered. Your downloads still work." };
-    return { title: "You're offline", detail: null };
-  }
-  return { title: "Checking your connection…", detail: null };
-}
-
-/** The connection in plain words. `raw` is navigator.connection.type, which tells a cable apart from Wi-Fi. */
-export function connectionLabel(type: ConnectionType, raw?: string | null): string {
-  if (type === "none") return "None";
-  if (type === "cellular") return "Mobile data";
-  if (type === "wifi") return raw === "ethernet" ? "Cable" : "Wi-Fi";
-  return "Your browser doesn't say";
-}
+// The status sentence and the connection's name: shared with Lite's network screen (server/lite/network.ts).
+export { connectionLabel, statusSentence, type Status } from "../shared/networkStatus";
 
 /** The browser's own guess at the link's speed (navigator.connection.effectiveType): these are slow. */
 const SLOW = new Set(["slow-2g", "2g", "3g"]);
 
 export interface AdviceInput {
   internet: Internet;
+  /** navigator.onLine and the connection's type (navigator.connection.type as `raw`): with no internet the advice
+   *  opens with the status heading's own words (statusSentence), so the two never disagree. */
+  online: boolean;
+  type: ConnectionType;
+  raw?: string | null;
   /** navigator.connection.effectiveType, where the browser has it (Chrome, Android). */
   effectiveType?: string | null;
   /** The browser's Data Saver. */
@@ -54,9 +31,12 @@ export interface Advice { kind: AdviceKind; text: string; action: "on" | "off" |
 
 /** Should I use Lite right now? Only from what the browser and this visit have shown, never a guess. */
 export function adviseLite(i: AdviceInput): Advice {
-  if (i.internet === "no") return { kind: "offline", text: "You're offline: your downloaded packs work; Lite needs a connection.", action: null };
+  // No internet: in the heading's own words ("You're offline", "Connected, but nothing is getting through", "Connected
+  // to Wi-Fi, but no internet"), then what still works.
+  const said = () => statusSentence(i, i.raw).title;
+  if (i.internet === "no") return { kind: "offline", text: `${said()}: your downloaded packs work; Lite needs a connection.`, action: null };
   // A Wi-Fi sign-in page answers Lite's pages too, so Lite can't help until the Wi-Fi gives internet.
-  if (i.internet === "portal") return { kind: "portal", text: "This Wi-Fi isn't giving internet: your downloaded packs work; Lite needs a working connection.", action: null };
+  if (i.internet === "portal") return { kind: "portal", text: `${said()}: your downloaded packs work; Lite needs a working connection.`, action: null };
   if (i.internet === "unknown") return { kind: "checking", text: "Checking your connection…", action: null };
   const slow = i.slowSeen || i.saveData || (!!i.effectiveType && SLOW.has(i.effectiveType));
   if (slow) {

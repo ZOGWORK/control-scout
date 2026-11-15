@@ -40,6 +40,9 @@ import {
   LITE_COOKIE, LITE_PICKED_COOKIE, TEXT_SIZE_COOKIE, TEXT_SIZE_COOKIES, THEME_COOKIE, THEME_COOKIES, cookieValue, pickedOnLite, textSizeFromCookie, themeFromCookie, type LitePick,
 } from "../../src/shared/themeTokens.js";
 import { storedEventCode } from "../eventCodes.js";
+import { presentManifest } from "../packs/routes.js";
+import { featureOffMessage } from "../../src/shared/flags.js";
+import { NET_SCRIPT_HASH, networkPage, type PackList } from "./network.js";
 import { eventPath, isEventCodeParam } from "../../src/shared/eventCode.js";
 
 /**
@@ -59,7 +62,10 @@ async function savedWorkspaces(account: number): Promise<{ id: string; name: str
 
 /** No scripts, no images, no frames: a light page loads its HTML and nothing else. */
 export const LITE_CSP = "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'self'";
-export const PUBLIC_CACHE = "public, max-age=60, stale-while-revalidate=300";
+/** The network screen (server/lite/network.ts): Lite's CSP plus its one fixed script, by hash, and the connection
+ *  check that script makes (this site only). */
+export const LITE_NET_CSP = LITE_CSP.replace("default-src 'none';", `default-src 'none'; script-src ${NET_SCRIPT_HASH}; connect-src 'self';`);
+export const PUBLIC_CACHE ="public, max-age=60, stale-while-revalidate=300";
 
 /** Lite is on (sticky): the cs-lite cookie. */
 const isSticky = (req: Request) => cookieValue(req.headers.cookie, LITE_COOKIE) === "1";
@@ -74,13 +80,13 @@ export const viewOf = (req: Request): LiteView => ({
 });
 
 type Cache = "public" | "revalidate" | "private";
-function send(req: Request, res: Response, page: LitePage, opts: { status?: number; cache?: Cache } = {}) {
+function send(req: Request, res: Response, page: LitePage, opts: { status?: number; cache?: Cache; csp?: string } = {}) {
   const status = opts.status ?? 200;
   const cache = status >= 400 ? "no-store" : opts.cache === "private" ? "private, no-store" : opts.cache === "revalidate" ? "no-cache" : PUBLIC_CACHE;
   res.setHeader("Cache-Control", cache);
   // The page follows the visitor's theme, text size and Lite setting (cookies): a cache keeps one copy per set.
   res.setHeader("Vary", "Cookie");
-  res.setHeader(cspHeaderName(), LITE_CSP);
+  res.setHeader(cspHeaderName(), opts.csp ?? LITE_CSP);
   // The rich page is the one to index; this is a lighter copy of it.
   const canonical = status === 200 && opts.cache !== "private" ? canonicalUrl(page.full.split("?")[0]) : null;
   res.status(status).type("html").send(liteDocument(page, canonical, viewOf(req)));
@@ -268,6 +274,16 @@ export function liteRouter(): Router {
 
   // Settings: this device's theme, text size and Lite, as links (no script); never cached (it shows the cookies).
   r.get("/settings", (req, res) => send(req, res, settingsPage(viewOf(req)), { cache: "private" }));
+
+  // Network & offline: the connection, download sizes from the pack list /download offers, what's downloaded here
+  // (the page's one small script reads this device's storage), and Lite on or off. Never cached (it shows the cookies
+  // and checks the connection as it loads).
+  r.get("/network", h(async (req, res) => {
+    const on = await isEnabled("offlinePacks").catch(() => false);
+    const m = on ? presentManifest() : null;
+    const packs: PackList = !on ? { paused: featureOffMessage("offlinePacks") } : m ? { m } : { none: true };
+    send(req, res, networkPage(viewOf(req), CURRENT_SEASON, packs), { cache: "private", csp: LITE_NET_CSP });
+  }));
 
   r.get("/events/:season/:code", h(async (req, res) => {
     const season = seasonOf(req.params.season), raw = String(req.params.code);

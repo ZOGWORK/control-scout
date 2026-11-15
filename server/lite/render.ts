@@ -1,5 +1,6 @@
 // Control Scout Lite pages (docs/lite.md): plain HTML for one bar of signal. No images, no charts (tables instead),
-// no scripts, system fonts, one small inline stylesheet. Numbers, dates and odds go through the same helpers as the
+// no scripts (one exception: the network screen's small fixed one, server/lite/network.ts), system fonts, one small
+// inline stylesheet. Numbers, dates and odds go through the same helpers as the
 // rich pages (src/shared/format.ts), so the two versions of a page always read the same.
 //
 // Layout primitives (documented in docs/lite.md, reused by every Lite page): header, stickyNote, section, card,
@@ -29,7 +30,7 @@ export const LITE_STYLE = `:root{color-scheme:dark;${vars("dark")}}`
   + `html.sys{color-scheme:dark light}@media(prefers-color-scheme:light){html.sys{${vars("light")}}}`
   + `html{--b:1;--s:1;font-size:calc(100% * var(--b) * var(--s))}@media(max-width:767px){html{--b:.875}}`
   + `html[data-text-size=s]{--s:.9}html[data-text-size=l]{--s:1.125}html[data-text-size=xl]{--s:1.25}`
-  + `*{box-sizing:border-box}.vh{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}`
+  + `*{box-sizing:border-box}[hidden]{display:none!important}.stack>*+*{margin-top:12px}.vh{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}`
   + `body{margin:0;background:var(--bg);color:var(--fg);font:1rem/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-text-size-adjust:100%;overflow-wrap:break-word}`
   + `.in{max-width:52rem;margin:0 auto;padding:0 16px}main.in{padding-bottom:24px}`
   + `.top{border-bottom:1px solid var(--line);background:var(--card)}.top .in{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:64px;padding-top:10px;padding-bottom:10px}`
