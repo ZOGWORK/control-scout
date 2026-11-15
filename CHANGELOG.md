@@ -26,11 +26,23 @@ Owner › Clip coverage now sorts itself: the server puts every event with a mis
 - [fixes] A reviewed event comes back only when its new gap is actionable
 
 ### Changed
-- Owner › Clip coverage: every event with a played match missing a clip is triaged by the server as Actionable (a match the clock puts outside the broadcast, not yet checked against the video, or no reason found), No timing, Early start / unsafe, or Old season (before last season). To review counts Actionable only and is the default view; each category is a filter with its count, and each row says its category and why. "Played before the broadcast started" is never put anywhere but Actionable on that reason alone. (`server/videos/coverageTriage.ts`, `src/components/owner/ClipCoveragePanel.tsx`, migration 89) (#1509)
+- Owner › Clip coverage: every event with a played match missing a clip is triaged by the server as Actionable (a match the clock alone puts outside the video: before or after the broadcast, before its cut start or after its end, outside what its chapters confirm, never checked against the video itself; or no reason found), No timing, Early start / unsafe, or Old season (before last season, decided when read so it follows the season rollover). To review counts Actionable only and is the default view; each category is a filter with its count, and each row says its category and why. "Played before the broadcast started" is never put anywhere but Actionable on that reason alone. (`server/videos/coverageTriage.ts`, `src/components/owner/ClipCoveragePanel.tsx`, migration 89) (#1509)
 - A reviewed event opens again only when its missing list changes to an actionable one; a deploy or refreshed facts alone never open one. (`server/videos/coverageCheck.ts`)
 
 ### Added
-- Bulk Reviewed: "Mark all non-actionable as reviewed", a whole category, or a whole season. Each asks first with its count, marks only if that's still the count, and is in the audit log (`clipCoverage.bulkReviewed`, with category, season and count). Missing lists stay, and the 5-minute check keeps checking every event.
+- Bulk Reviewed: "Mark all non-actionable as reviewed", a whole category, or a whole season (its non-actionable events, its Actionable ones only when ticked). Each asks first with its count, marks only if that's still the count, and is in the audit log (`clipCoverage.bulkReviewed`, with category, season and count). Missing lists stay, and the 5-minute check keeps checking every event.
+
+## 6.3.8 — 2026-11-14
+
+A search asking for video with nothing to play now offers questions with video right away, even the first one after a restart.
+
+### Highlights
+- [fixes] Video searches with nothing to play always offer questions that play
+- [fixes] Questions with video show sooner: no extra wait when some are ready
+- [fixes] Events from last season get a turn when this season's have no clips
+
+### Fixed
+- Search: "Questions with video" for an answer at an event this season could come out empty. Each nearby event was checked by a search of its own, in turn, and when this season's had no clips last season's never got a turn before the wait ran out. A few questions about the latest seasons' best known events with clips are now checked in the background at server start, and again after each search index rebuild and every half hour; they are offered when nothing nearby plays in time, without waiting longer. Each nearby season now gets at most half the turns. (`server/api/answers/videoSuggest.ts`, `server/index.ts`) (#1501)
 
 ## 6.3.7 — 2026-11-14
 

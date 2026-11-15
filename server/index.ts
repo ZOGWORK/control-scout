@@ -29,6 +29,7 @@ import { CURRENT_SEASON } from "./data/seasons.js";
 import { warmTrackRecord } from "./api/accuracy.js";
 import { warmSpelling } from "./api/spelling.js";
 import { warmNameTypos } from "./api/answers/nameTypos.js";
+import { warmVideoQuestions } from "./api/answers/videoSuggest.js";
 import { ensureSearchIndex, warmTypoIndex } from "./api/search.js";
 import { rebuildSearch } from "./stats/job.js";
 import { scheduleCycles, warmUp } from "./warm.js";
@@ -112,13 +113,18 @@ void Promise.all([warming.settled, rated.then((r) => r.settled)]).then(() => { w
 ready = true;
 if (socket) http = server.listen(socket, listening("the systemd socket"));
 log("ready");
+// The questions with video offered when nothing near a search's answer plays in time (server/api/answers/
+// videoSuggest.ts): a few searches, checked once the search index and the event-name typos are ready. Nothing waits
+// on them: neither `ready` nor `warm` (the deploy's check), and each check and the whole build are bounded.
+void afterIndex().then(() => warmNameTypos()).then(() => warmVideoQuestions()).catch(() => {});
 // After a sync (often in a child process) the data version moves: rebuild the
 // ratings in use and the track record right away, in the background, so no
 // visitor's request is the one that waits for them (pages keep the previous
 // ones until they're done).
 // Then the event packs asked for lately (server/packs/eventApi.ts), so the next look at one isn't the one that builds it.
-// Then the event names stored with a typo, built again once a search index rebuild moves its version.
-setInterval(() => { refreshForecasters().catch(() => {}).then(() => warmTrackRecord()).catch(() => {}).then(() => import("./packs/eventApi.js")).then((m) => m.rewarmPacks()).catch(() => {}).then(() => warmNameTypos()).catch(() => {}); }, 15_000).unref();
+// Then the event names stored with a typo, and the questions with video checked in the background, built again once a
+// search index rebuild moves its version.
+setInterval(() => { refreshForecasters().catch(() => {}).then(() => warmTrackRecord()).catch(() => {}).then(() => import("./packs/eventApi.js")).then((m) => m.rewarmPacks()).catch(() => {}).then(() => warmNameTypos()).catch(() => {}).then(() => warmVideoQuestions()).catch(() => {}); }, 15_000).unref();
 
 // One cycle at a time in this process, whether the schedule or the owner portal started it (data/jobs.ts).
 async function cycle(reason: string) {
