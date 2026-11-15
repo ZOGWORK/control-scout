@@ -3,6 +3,7 @@
 // sanitized, and after sending shows only the truth: "filed as #N" with the real link, "something went wrong" when a
 // try failed, and "saved, we'll file it" (no link) when there's no issue yet. A link to anything but this
 // repository's issue with that number is never shown.
+import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
@@ -29,7 +30,8 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 async function sendReport(message = "The rankings table jumps when I scroll.") {
-  render(<MemoryRouter initialEntries={["/teams/4215"]}><BugReportButton /></MemoryRouter>);
+  // StrictMode, as in development: effects mount, unmount and mount again, and the wait must still report back.
+  render(<StrictMode><MemoryRouter initialEntries={["/teams/4215"]}><BugReportButton /></MemoryRouter></StrictMode>);
   fireEvent.click(screen.getByTestId("bug-report-button"));
   fireEvent.click(await screen.findByText("Something broken"));
   fireEvent.change(screen.getByLabelText(/What happened/), { target: { value: message } });
