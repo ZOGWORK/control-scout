@@ -144,4 +144,10 @@ describe("an event with nothing played yet", () => {
       expect(a.stat?.none, q).toBe(NO_EVENT_HIGHLIGHTS);
     }
   });
+  it("an event with matches played, its playoffs not yet: never \"no matches played\" (Loopy, #1579)", async () => {
+    for (const q of ["Oradell Qualifier playoff highlights 2025-26", "Oradell Qualifier finals highlights 2025-26"]) {
+      const a = await ask(q);
+      expect(a.stat?.none ?? "", q).not.toBe(NO_EVENT_HIGHLIGHTS);
+    }
+  });
 });
