@@ -195,7 +195,11 @@ export function judge(ms: M[], seen: Map<number, number>, shift: number | null, 
     const t = placedAt.get(l)!.t;
     if (t < 0 || t + MATCH_S > length + SAME_S) bad.add(l);
     const next = order[n + 1];
-    if (next != null && placedAt.get(next)!.t - t < MATCH_S - SAME_S) {
+    // Two starts each read off its own frames, closer than a match by no more than a cut loses (LOSS_S): the recording
+    // skipped the end of the first (USTXSASQ 2025 cuts from Q14 at 1:07 to Q13's results, then Q15). Both stand; each
+    // clip is still checked to open on its match (checkOpenings).
+    const cut = next != null && placedAt.get(l)!.confidence === "high" && placedAt.get(next)!.confidence === "high" && t + MATCH_S - placedAt.get(next)!.t <= LOSS_S;
+    if (next != null && !cut && placedAt.get(next)!.t - t < MATCH_S - SAME_S) {
       bad.add(l); bad.add(next);
       earlyStart.set(next, { t: placedAt.get(next)!.t, previousEnds: t + MATCH_S });
     }
