@@ -13,7 +13,7 @@ import { createApp } from "./app";
 import { setMailer, type MailOptions } from "./auth/email";
 import { randomUUID } from "node:crypto";
 import {
-  BUG_RATE, bugDir, bugIssueTitle, deleteBugReport, emailing, filing, listBugReports, NO_TOKEN, PRIVATE_REPORT, resetBugFilingPause, resetBugLimits,
+  BUG_RATE, bugDir, bugIssueTitle, clearing, clearRetries, deleteBugReport, emailing, filing, listBugReports, NO_TOKEN, PRIVATE_REPORT, resetBugFilingPause, resetBugLimits,
   STORAGE_CAP_BYTES, sweepBugReports, UPLOAD_ROUTE, UPLOAD_WINDOW_MS, validateBugReport,
 } from "./bugReports";
 import { resetRepositoryId, setGithubFetch } from "./errorReports";
@@ -30,7 +30,7 @@ const saved = { to: process.env.CONTACT_TO, dir: process.env.DATA_DIR, token: pr
 type Call = { method: string; url: string; body?: unknown };
 let calls: Call[] = [];
 let issues: { number: number; title: string; body: string; labels: string[] }[] = [];
-let gitHub = { upload: 201, issue: 201, dropLabel: "", loseReply: false, searchLags: false };
+let gitHub = { upload: 201, issue: 201, dropLabel: "", loseReply: false, searchLags: false, assetsOpenAfter: 0 };
 const fakeGithub = (async (input: string | URL | Request, init?: RequestInit) => {
   const url = new URL(String(input));
   const method = init?.method ?? "GET";
@@ -40,7 +40,11 @@ const fakeGithub = (async (input: string | URL | Request, init?: RequestInit) =>
     if (gitHub.upload !== 201) return new Response("{}", { status: gitHub.upload });
     return Response.json({ url: `https://github.com/user-attachments/assets/${randomUUID()}` }, { status: 201 });
   }
-  if (url.host === "github.com" && method === "HEAD") return new Response(null, { status: issues.some((i) => i.body.includes(url.toString())) ? 302 : 404 });
+  // assetsOpenAfter: GitHub answers 404 for that many checks after the issue is made (it takes a few seconds live).
+  if (url.host === "github.com" && method === "HEAD") {
+    if (gitHub.assetsOpenAfter > 0) { gitHub.assetsOpenAfter--; return new Response(null, { status: 404 }); }
+    return new Response(null, { status: issues.some((i) => i.body.includes(url.toString())) ? 302 : 404 });
+  }
   const path = url.pathname.replace("/repos/ZOGWORK/control-scout", "");
   if (method === "GET" && path === "") return Response.json({ id: 1416291522 });
   if (method === "POST" && path === "/issues") {
@@ -88,7 +92,7 @@ beforeEach(async () => {
   delete process.env.GITHUB_REPORT_TOKEN;
   calls = [];
   issues = [];
-  gitHub = { upload: 201, issue: 201, dropLabel: "", loseReply: false, searchLags: false };
+  gitHub = { upload: 201, issue: 201, dropLabel: "", loseReply: false, searchLags: false, assetsOpenAfter: 0 };
   resetBugFilingPause();
   resetRepositoryId();
   resetBugLimits();
@@ -555,6 +559,18 @@ describe("filing on GitHub", () => {
     await sweepBugReports(Date.now() + 11 * 60_000);
     expect(issues).toHaveLength(1);
     expect(await status(r.id, r.token)).toMatchObject({ state: "filed", number: issues[0].number });
+  });
+
+  it("an attachment that doesn't open yet right after filing is checked again soon, without waiting for the sweep", async () => {
+    const saved = clearRetries.ms;
+    clearRetries.ms = [5, 5, 5];
+    try {
+      gitHub.assetsOpenAfter = 2;
+      const r = await send(good, [[PNG, "image/png"]]);
+      await clearing;
+      expect(existsSync(join(bugDir(), `${r.id}-0.png`))).toBe(false);
+      expect((await listBugReports()).reports[0].files[0].url).toBeNull();
+    } finally { clearRetries.ms = saved; }
   });
 
   it("still limits each IP to a few reports an hour", async () => {
