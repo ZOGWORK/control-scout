@@ -74,11 +74,11 @@ export default function WeekendPage() {
             <ul aria-busy="true" className="divide-y divide-line border-y border-line">{[0, 1, 2, 3].map((i) => <li key={i} className="h-[4.5rem]" />)}</ul>
           ) : !d.events.length ? (
             <p className="rounded-xl border border-dashed border-line px-4 py-6 text-sm" data-no-events>
-              {noEventsLine(which, d.region)} <Link to="/events" className="font-medium text-accent-text underline">Browse the season calendar</Link>.
+              {noEventsLine(which, d.region)} <span className="text-text-muted">({d.window.label}, {d.seasonLabel} season.)</span> <Link to="/events" className="font-medium text-accent-text underline">Browse the season calendar</Link>.
             </p>
           ) : (
             <>
-              <p className="mb-2 text-sm text-text-muted">{d.events.length} event{d.events.length === 1 ? "" : "s"}{d.events.some((e) => e.status === "live") ? ` · ${d.events.filter((e) => e.status === "live").length} live now` : ""}</p>
+              <p className="mb-2 text-sm text-text-muted" data-weekend-count>{d.events.length} event{d.events.length === 1 ? "" : "s"}{d.events.some((e) => e.status === "live") ? ` · ${d.events.filter((e) => e.status === "live").length} live now` : ""}<span className="sm:hidden"> · {d.window.label} · {d.seasonLabel} season</span></p>
               <ul className="divide-y divide-line border-y border-line" data-weekend-list>{d.events.map((e) => <EventRow key={e.code} e={e} />)}</ul>
             </>
           )}
