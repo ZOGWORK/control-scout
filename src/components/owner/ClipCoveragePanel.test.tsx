@@ -21,7 +21,7 @@ const h = vi.hoisted(() => ({ actionable: 1, paths: [] as string[], sent: [] as 
 const page = (list: string): OwnerClipCoverage => ({
   events: list === "actionable" && !h.actionable ? [] : EVENTS[list] ?? [], list: list as OwnerClipCoverage["list"], open: h.actionable, reviewed: 0,
   categories: { actionable: h.actionable, "no-timing": 1, "early-start": 1, "old-season": 0 },
-  seasons: [{ season: 2026, open: 2 }, { season: 2025, open: 1 }],
+  seasons: [{ season: 2026, open: 2, actionable: 0 }, { season: 2025, open: 3, actionable: 1 }],
   totals: { events: 1392, played: 45695, withClip: 29333, full: 708 },
 });
 vi.mock("../../lib/api", async (orig) => ({
@@ -90,10 +90,22 @@ describe("ClipCoveragePanel, triaged", () => {
     // By season is folded until opened.
     fireEvent.click(screen.getByRole("button", { name: /By season/ }));
     fireEvent.change(document.querySelector("[data-coverage-season]")!, { target: { value: "2025" } });
+    // By default a season marks only its non-actionable events, and the confirm says how many Actionable it leaves.
     fireEvent.click(document.querySelector('[data-coverage-bulk="season"]')!);
-    expect(within(await screen.findByRole("dialog")).getByRole("heading", { name: "Mark 1 event reviewed?" })).toBeTruthy();
-    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: /Mark 1 event reviewed/ }));
-    await waitFor(() => expect(h.sent.at(-1)?.json).toEqual({ category: undefined, season: 2025, expected: 1 }));
+    let dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByRole("heading", { name: "Mark 2 events reviewed?" })).toBeTruthy();
+    expect(dialog.textContent).toMatch(/that isn't Actionable \(1 Actionable event stays under To review\)/);
+    fireEvent.click(within(dialog).getByRole("button", { name: /Mark 2 events reviewed/ }));
+    await waitFor(() => expect(h.sent.at(-1)?.json).toEqual({ category: "non-actionable", season: 2025, expected: 2 }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    // Ticked, its Actionable ones go too, and the confirm says so.
+    fireEvent.click(document.querySelector("[data-coverage-season-actionable]")!);
+    fireEvent.click(document.querySelector('[data-coverage-bulk="season"]')!);
+    dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByRole("heading", { name: "Mark 3 events reviewed?" })).toBeTruthy();
+    expect(dialog.textContent).toMatch(/including its 1 Actionable/);
+    fireEvent.click(within(dialog).getByRole("button", { name: /Mark 3 events reviewed/ }));
+    await waitFor(() => expect(h.sent.at(-1)?.json).toEqual({ category: undefined, season: 2025, expected: 3 }));
   });
 
   it("says 0 to review plainly when nothing is actionable", () => {
