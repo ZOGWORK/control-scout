@@ -17,15 +17,15 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 
 ## 6.6.1 — 2026-11-15
 
-Search answers a top-scores question about an event named without "at": "best auto match in romania champs" lists the Romania Championship's best auto scores.
+Welcome › Step 3 "Ask anything" is now six searches you can tap: your team's next match and awards, a large OR, then two built from your team's own history and two wider ones.
 
 ### Highlights
-- [fixes] "best auto match in romania champs" lists its top auto scores
-- [fixes] An event named after "in" is read as the event, not as a place
-- [fixes] "4215 highest score in …" still answers about the team
+- [home] Tap any welcome step 3 example to run that exact search
+- [home] Two examples are built from your team's own seasons
+- [home] A large OR splits your team's searches from the wider ones
 
-### Fixed
-- Search: a top-scores question naming an event after "in", or with no word before it ("best auto match in romania champs", "best auto match romania champs"), said no team, event or match matched. The words left are now the event's name when they aren't a place, end the question and hold an event's own word (championship, qualifier, league, meet …); "4215 highest score in …" stays the team's question. Answer: *Highest auto scores in DECODE (2025–26) at Romania Championship*. Failed search #1435. (`server/api/answers/families/topMatches.ts`) (#1532)
+### Changed
+- Welcome, step 3: the examples are buttons. Each one ends the welcome and opens that search, as written, on the results page. With a team picked: "<team> next match", "<team> awards", a large OR, then the team's compare (its sister team at the same school and town, else the team it met most, over its last finished season) and its auto OPR in the season it played at Worlds (else its best season by OPR rank), then "30030 vs 21087 vs 11228" (Worlds' winning alliance) and "best teleop opr in Romania in 2025-26". A team with no season played yet gets its town's teams and its region's best rookies instead. Every team example is run on the server first, and one that doesn't answer is replaced by the next, or left out: never made up. (`src/components/onboarding/Onboarding.tsx`, `server/api/onboardingExamples.ts`, `GET /api/onboarding/examples`) (#1540)
 
 ## 6.6.0 — 2026-11-15
 
