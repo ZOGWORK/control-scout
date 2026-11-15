@@ -149,6 +149,10 @@ export function readEventQuery(raw: string): EventQuery | null {
   if (time) q = q.replace(/\s+(?:that|which)(?:\s+(?:are|is|were|was))?(?:\s+(happened|happening|finished|ended|completed|started|took\s+place|taking\s+place|held|running|going\s+on))?$/i, (_m, verb?: string) => { ended = !!verb && /^(?:finished|ended|completed)$/i.test(verb); return ""; }).trim();
   // "Upcoming" beside a window still to come ("upcoming events this weekend") says nothing more: the window is it.
   if (time && time !== "upcoming" && time !== "past") q = q.replace(/(?:^|\s)(?:upcoming|coming up)(?=\s|$)/gi, " ").replace(/\s+/g, " ").trim();
+  // The program's own name after "in"/"at" ("what's happening in ftc this weekend", "events of the FIRST Tech
+  // Challenge today") is the program, never a place or venue: dropped when it ends the request or a place follows.
+  // A name going on ("at FTC San Luis Potosi") stays the venue's.
+  q = q.replace(/(?:^|\s)(?:in|at|for|of|from)\s+(?:the\s+)?(?:first\s+)?(?:ftc|first\s+tech\s+challenge)(?=\s+(?:in|at|near|around)\s|$)/i, "").replace(/\s+/g, " ").trim();
   let year: number | null = null, season: number | null = null;
   const y = /(?:^|\s)(20\d\d)(?:\s*[-–/]\s*(\d\d(?:\d\d)?))?(?=\s|$)/.exec(q);
   if (y) {
