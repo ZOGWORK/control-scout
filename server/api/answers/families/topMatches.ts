@@ -13,6 +13,7 @@ import { searchGet as get, searchRead as all } from "../../searchReads.js";
 import { SEASONS, gameOf as gameOfSeason, ownScorePenalties, reportedTeleopIncludesEndgame } from "../../../data/seasons.js";
 import { parseHighScore } from "../../searchHighScores.js";
 import { OFFICIAL_TYPES } from "../clauses.js";
+import { EVENT_NAME_WORDS } from "../../../../src/shared/query/lexicon.js";
 import { markedLabel, officialOnlySql, unofficialLine, unofficialWhy } from "../../../data/unofficialRecords.js";
 import { eventHref, matchHref, shortEvent, teamLinks } from "../matchSet.js";
 
@@ -99,7 +100,12 @@ export function readTopMatches(raw: string): TopMatchesQuestion | null {
   const placeWords = named ? named[1].split(" ").filter(Boolean) : [];
   const whole = placeWords.length && words.split(" ").every((w) => placeWords.includes(w)) ? regionOf(placeWords.map((w) => asTyped.find((x) => x.toLowerCase() === w) ?? w)) : null;
   const region = words ? whole ?? regionOf(typed) : null;
-  if (words && !region) return null;
+  // Words that are no place but name an event without "at" ("best auto match in romania champs", "… romania
+  // championship"): one run of words ending the question, one of them an event's own word (src/shared/query/lexicon.ts
+  // EVENT_NAME_WORDS). The event search then finds it, or the question gets no answer here. A team said before the ask
+  // ("4215 highest score in …") splits the run: the team's question.
+  if (words && !region && !event && q.trimEnd().endsWith(` ${words}`) && words.split(" ").some((w) => EVENT_NAME_WORDS.has(w))) event = words;
+  else if (words && !region) return null;
   return { season, game: hs.game, ever: ever && season == null, region, event: event || null, phase: ph ? phaseOf(ph[1]) : null, noPenalties: !!noPen, ...(n != null ? { n } : {}), ...(hs.official ? { official: true as const } : {}) };
 }
 

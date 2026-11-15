@@ -14,7 +14,8 @@
 // browser's online/offline events (online: at once, every time, then every ONLINE_RETRY_MS for a while), when the
 // tab comes back into view or the window gets focus while there's no internet, soon after any request fails for want
 // of a network (api.ts noteRequestFailed), after RETRY_STEPS_MS one after another (3 s, 5 s, 10 s, 20 s) and then every
-// RETRY_MS while there's no internet, and every IDLE_MS (tab in view) while there is. A server answer anywhere in
+// RETRY_MS while there's no internet (every WAITING_RETRY_MS while a paused download waits for the line), and every
+// IDLE_MS (tab in view) while there is. A server answer anywhere in
 // the app counts as "yes" at once (noteServerAnswer), so coming back never waits for the next check.
 //
 // For screenshots, localStorage `cs-connection-demo` = "offline" | "portal" shows that state (the pill, and the
@@ -53,6 +54,12 @@ export const EVENT_GAP_MS = 5000;
  *  after each of those kept the Offline pill up for up to 48 s after the line answered again. */
 export const ONLINE_RETRY_MS = 500;
 export const ONLINE_WINDOW_MS = 30_000;
+/** A download the person started is waiting for the line (paused by it: noteDownloadWaiting): while there's no
+ *  internet, check this often instead of the back-off, for WAITING_WINDOW_MS, so the download picks up within a
+ *  couple of seconds of the line answering again. With the back-off alone a 45 s outage was seen 18–28 s late
+ *  (the 20 s and 30 s steps), measured live. The check is one tiny request. */
+export const WAITING_RETRY_MS = 2000;
+export const WAITING_WINDOW_MS = 10 * 60_000;
 /** While there is: check again this often (only with the tab in view). Failures check sooner on their own. */
 export const IDLE_MS = 5 * 60_000;
 /** A request failure checks after this long, so a burst of failures (a page's requests) costs one check. */
@@ -100,6 +107,10 @@ const initial = (): ConnectionState => {
   return { online, internet: online ? carried() ?? "unknown" : "no", type: typeNow(online), saveData: info()?.saveData === true, checkedAt: 0 };
 };
 let state: ConnectionState = initial();
+/** Until when a paused download waits for the line (checks every WAITING_RETRY_MS while there's no internet). Over
+ *  once there's internet: a try that fails again marks it afresh. */
+let waitingUntil = 0;
+const waiting = () => Date.now() < waitingUntil;
 const listeners = new Set<() => void>();
 const internetListeners = new Set<(now: Internet, before: Internet) => void>();
 
@@ -109,7 +120,7 @@ function set(next: Partial<ConnectionState>) {
   const changed = merged.online !== state.online || merged.internet !== state.internet || merged.type !== state.type || merged.saveData !== state.saveData;
   const prev = state.internet;
   if (changed || merged.checkedAt !== state.checkedAt) state = merged;
-  if (state.internet === "yes") { retryStep = 0; onlineUntil = 0; }
+  if (state.internet === "yes") { retryStep = 0; onlineUntil = 0; waitingUntil = 0; }
   if (merged.checkedAt && merged.internet !== "unknown") {
     try { sessionStorage.setItem(LAST_KEY, JSON.stringify({ internet: merged.internet, at: merged.checkedAt })); } catch { /* storage blocked */ }
   }
@@ -224,6 +235,14 @@ export function freshInternet(maxAgeMs: number): Promise<Internet> {
   return checkInternet();
 }
 
+/** A download the person started was paused by the connection and picks up once it's back (resumeWatcher.tsx):
+ *  check soon, then every WAITING_RETRY_MS while there's no internet (for WAITING_WINDOW_MS). */
+export function noteDownloadWaiting() {
+  waitingUntil = Date.now() + WAITING_WINDOW_MS;
+  noteRequestFailed();
+  schedule();
+}
+
 let failTimer: ReturnType<typeof setTimeout> | undefined;
 /** A request couldn't reach the server (api.ts): check soon, so the next tap knows. */
 export function noteRequestFailed() {
@@ -245,7 +264,7 @@ let retryStep = 0;
 /** Until when checks that find no internet are tried again every ONLINE_RETRY_MS (the online event + ONLINE_WINDOW_MS). */
 let onlineUntil = 0;
 const quickTries = () => Date.now() < onlineUntil;
-const retryDelay = () => RETRY_STEPS_MS[retryStep] ?? RETRY_MS;
+const retryDelay = () => Math.min(RETRY_STEPS_MS[retryStep] ?? RETRY_MS, waiting() ? WAITING_RETRY_MS : Infinity);
 /** The next periodic check: soon while there's no internet (sooner at first), rarely (tab in view only) while there is. */
 function schedule() {
   if (!started) return;
@@ -325,6 +344,7 @@ export function resetConnection() {
   started = false;
   retryStep = 0;
   onlineUntil = 0;
+  waitingUntil = 0;
   inflight = null;
   shown = null;
   answeredAt = 0;

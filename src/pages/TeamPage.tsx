@@ -5,6 +5,7 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import { recordWords } from "../shared/format";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { leagueHref, leagueTitle } from "../shared/leagues";
+import { regionHref } from "../shared/regionRankings";
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 import {
   Award, Bookmark, BookmarkCheck, CalendarDays, ChevronDown, ClipboardList, ExternalLink, Eye, GraduationCap, Info, Link2, MapPin, Scale, Sparkles, Star, TrendingDown, TrendingUp, Trophy,
@@ -279,6 +280,7 @@ function Hero({ p, onSeason, fellBackFrom, asked = false }: { p: TeamProfile; on
           {/* What's next: on the team's own page (its newest season, or the current one); a past season asked for shows only its last event. */}
           {!asked || p.season >= current ? <Upcoming p={p} next={next} last={last} /> : last && <LastEvent last={last} team={t.number} className="mt-5 max-sm:mt-4" />}
           {p.league && <LeagueStanding league={p.league} season={p.season} team={t.number} />}
+          {p.region && <RegionStanding region={p.region} season={p.season} team={t.number} />}
           {predictable ? (
             <div className="mt-5 max-sm:mt-4 flex flex-wrap gap-2">
               <Button size="sm" asChild><Link to={matchHref}><Sparkles /> Predict a match with {t.number}</Link></Button>
@@ -569,6 +571,17 @@ function LeagueStanding({ league, season, team }: { league: NonNullable<TeamProf
     <Link to={`${leagueHref(season, league.region, league.code)}?team=${team}`} data-league-standing className={cn(ROW, "mt-2 border-border bg-card text-sm")}>
       <span className="min-w-0 truncate"><span className="font-semibold tabular-nums">{league.played ? `#${league.rank} of ${league.of}` : "Not ranked yet"}</span> <span className="text-muted-foreground">in the {leagueTitle(league.name, league.code)}</span></span>
       <span className="shrink-0 text-muted-foreground">Standings →</span>
+    </Link>
+  );
+}
+
+/** The team's place in its home region's rankings (src/shared/regionRankings.ts), linking to that region's table on the
+ *  page its row is on, the row marked. A team not ranked yet says so, never a rank. */
+function RegionStanding({ region, season, team }: { region: NonNullable<TeamProfile["region"]>; season: number; team: number }) {
+  return (
+    <Link to={regionHref(region.key, { season, team })} data-region-standing className={cn(ROW, "mt-2 border-border bg-card text-sm")}>
+      <span className="min-w-0 truncate"><span className="font-semibold tabular-nums">{region.rank != null ? `#${region.rank} of ${region.of}` : "Not ranked yet"}</span> <span className="text-muted-foreground">in {region.name}</span></span>
+      <span className="shrink-0 text-muted-foreground">Rank in {region.name} →</span>
     </Link>
   );
 }

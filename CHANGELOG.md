@@ -17,15 +17,126 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 
 ## 6.6.3 — 2026-11-15
 
-Search reads a year after an award's winners: "inspire award winners 2024" lists that season's Inspire Award winners.
+Search reads a question that calls Bruno by name: "bruno, whats the best team in nj" gets New Jersey's top teams.
 
 ### Highlights
-- [fixes] "inspire award winners 2024" lists the 2024–25 winners
-- [fixes] "think award winners 2025" lists the 2025–26 winners
-- [fixes] A team numbered like a year is still read as that team
+- [fixes] A question that starts "bruno bruno …" gets its answer, not "no match"
+- [fixes] "bruno, whats the best team in nj" lists New Jersey's top teams
+- [offline] Offline search reads Bruno's name the same way
 
 ### Fixed
-- Search: one award's winners with a bare year ("inspire award winners 2024", "think award winners 2025") said no team, event or match matched, since the year was taken for a team number. A year ending the question is now its season, as search reads a year everywhere (2024 is 2024–25; at Worlds, the Championship held that year). A number before the ask, or after "team" or "#", is still a team's. Failed search #1434. (`server/api/answers/families/placeAwards.ts`) (#1533)
+- Search: Bruno called by name ("bruno bruno whats the best team in nj rn") left "bruno" unread and the search found nothing. The name is now read like "hey": the question gets *Best team in New Jersey by prediction rating · 2026–27*, online and offline. Failed search #1428. (`src/shared/query/lexicon.ts`) (#1534)
+
+## 6.6.2 — 2026-11-15
+
+Search answers a top-scores question about an event named without "at": "best auto match in romania champs" lists the Romania Championship's best auto scores.
+
+### Highlights
+- [fixes] "best auto match in romania champs" lists its top auto scores
+- [fixes] An event named after "in" is read as the event, not as a place
+- [fixes] "4215 highest score in …" still answers about the team
+
+### Fixed
+- Search: a top-scores question naming an event after "in", or with no word before it ("best auto match in romania champs", "best auto match romania champs"), said no team, event or match matched. The words left are now the event's name when they aren't a place, end the question and hold an event's own word (championship, qualifier, league, meet …); "4215 highest score in …" stays the team's question. Answer: *Highest auto scores in DECODE (2025–26) at Romania Championship*. Failed search #1435. (`server/api/answers/families/topMatches.ts`) (#1532)
+
+## 6.6.1 — 2026-11-15
+
+Welcome › Step 3 "Ask anything" is now six searches you can tap: your team's next match and awards, a large OR, then two built from your team's own history and two wider ones.
+
+### Highlights
+- [home] Tap any welcome step 3 example to run that exact search
+- [home] Two examples are built from your team's own seasons
+- [home] A large OR splits your team's searches from the wider ones
+
+### Changed
+- Welcome, step 3: the examples are buttons. Each one ends the welcome and opens that search, as written, on the results page. With a team picked: "<team> next match", "<team> awards", a large OR, then the team's compare (its sister team at the same school and town, else the team it met most, over its last finished season) and its auto OPR in the season it played at Worlds (else its best season by OPR rank), then "30030 vs 21087 vs 11228" (Worlds' winning alliance) and "best teleop opr in Romania in 2025-26". A team with no season played yet gets its town's teams and its region's best rookies instead. Every team example is run on the server first, and one that doesn't answer is replaced by the next, or left out: never made up. (`src/components/onboarding/Onboarding.tsx`, `server/api/onboardingExamples.ts`, `GET /api/onboarding/examples`) (#1540)
+
+## 6.6.0 — 2026-11-15
+
+Rankings › Leagues have a list of their own, and a league's standings show each team's Control Scout rating, OPR and place in its region beside FIRST's ranking.
+
+### Highlights
+- [rankings] Every league in one list, by where it plays
+- [rankings] League standings show Scout rating, OPR and region rank
+- [rankings] From a league to its region's rankings and back
+
+### Added
+- Leagues (`/leagues`): every league of the season grouped by where its meets are, with meets played, teams and FIRST's #1 by ranking score, searchable, season switch; each place links to its region rankings. In the navigation (Leagues) and on every region page. (`src/pages/LeaguesPage.tsx`, `server/api/leagues.ts`)
+- League standings: links to the league's region rankings and to the leagues list; after FIRST's columns (unchanged), Scout rating ("Not rated yet" under 3 rated matches, never a made-up number), OPR (— when none) and the team's rank in its home region, linked to its row on that region's page. (`src/pages/LeaguePage.tsx`, `src/components/LeagueTable.tsx`)
+
+## 6.5.9 — 2026-11-15
+
+Report a bug now files a public GitHub Issue on ZOGWORK/control-scout for you, with your screenshot or video in it, and shows you the issue's number and link right after you send.
+
+### Highlights
+- [report] Report a bug files a GitHub Issue for you, no GitHub account needed
+- [report] Your screenshot shows in the issue, your video plays in it
+- [report] You get the issue number and link the moment it's filed
+- [report] The dialog says plainly the issue is public
+
+### Changed
+- Report a bug (top bar): each report becomes one GitHub Issue, `[user] <first line>`, labels `bug` + `user-reported`, with the message in a code fence, the category, the page, release, screen, device and theme, the email only if you typed one, and the attachments: screenshots inline, a video as GitHub's player. Attachments upload to GitHub first (the request `gh issue create --attach` makes), then the issue is opened; one that fails to upload is named as failed in the issue and kept for the owner. Filing happens after Send has answered; the dialog then shows "Thanks — filed as #N" with the link, "Thanks — saved, we'll file it on GitHub", or "Something went wrong — your report is saved, we'll try again", never a made-up link. No token, GitHub down or a refusal: the report is kept and a later sweep files it; a try whose reply was lost adopts its issue instead of filing twice. The message is sanitized in the browser and again on the server; the page goes to GitHub as a bare path. The email box is no longer filled in for signed-in people, since it shows on the public issue. Reports sent before this release stay private and are never filed. (`server/bugReports.ts`, `server/errorReports.ts`, `src/components/layout/BugReport.tsx`, migration 90)
+- Owner console › Bug reports: each report shows its GitHub issue (one click to open it) or "Not filed yet" and why; attachments link to GitHub once the local copy is deleted (after the issue is filed and the URL opens); only local copies count against the disk cap. Closing or deleting a report here never touches its issue. The audit log records each filing (issue number, upload route) and each failure. (`src/components/owner/BugReportsPanel.tsx`) (#1535)
+
+## 6.5.8 — 2026-11-15
+
+Rankings › Every region has its own rankings page: New Jersey's teams ranked in New Jersey, with their record, OPR, events and the matches each rating rests on, and who climbed, fell or is new this week.
+
+### Highlights
+- [rankings] A rankings page for every country, state and province
+- [rankings] This week's biggest climbers, fallers and new teams at the top
+- [rankings] Record, OPR, events and rated matches beside each rating
+- [teams] Rank in New Jersey (or your region) from the team page
+
+### Added
+- Rankings by region (`/rankings/regions`): every country and named state or province with rated teams, most teams first, its #1 team and its leagues, searchable, with a season switch. Linked from Rankings, the navigation (Region rankings) and Home's footer. (`src/pages/RegionsPage.tsx`)
+- A region's rankings (`/rankings/regions/USA/NJ`): rank in the region (world rank beside it), rating, season record, OPR, events, rated matches, move in the region since last week and the trend, sortable by rank, rating, OPR, record, events and move without renumbering. The week's top three climbers and fallers and the teams new to the table sit above it; teams with fewer than three rated matches are listed apart and labeled ("Not ranked yet — 2 of 3 rated matches", "No rated matches yet"), never ranked; a region with no rated team says so. Its leagues link to their standings. Season and week switches keep the region; `?team=` opens the page that team's row is on, marked. Ratings are labeled comparable inside one season only. (`src/pages/RegionRankingsPage.tsx`, `server/api/regionRankings.ts`)
+- Team page: its place in its home region and "Rank in New Jersey →" (or its own region) opens the region's table on the team's page with its row marked. (`src/pages/TeamPage.tsx`)
+- `/rankings` with one place picked links to that place's page; every view links to the regions list. (`src/pages/RankingsPage.tsx`)
+
+## 6.5.7 — 2026-11-15
+
+A paused download picks up within seconds of the line coming back, Delete acts at once, and Delete only says "Freed" for space the browser really gave back.
+
+### Highlights
+- [offline] A paused download picks up within seconds of the line coming back
+- [offline] A download request that hangs is dropped after 6 s and tried again
+- [offline] Delete on a saved season acts at once
+- [offline] Delete says "Freed" only for space the browser gave back
+
+### Fixed
+- Auto-resume waited on the connection check's back-off. Measured live (9.0 MB current season, cut at 50%, line back after 20 s), the save finished 53 s after the line came back: checks at 5 s, 10 s, 20 s and 30 s steps found it late, and one hung. While a download the person started waits for the line, the check now runs every 2 s (for up to 10 minutes). A download try with no answer for 6 s (headers or the next chunk) is dropped and tried again at once, from the bytes kept, up to 3 times before it pauses; the pack list gives up after 5 s and is asked again. One paused again is tried once its 10 s gap is over, not at the next check minutes later. (`src/lib/connection.ts`, `src/lib/offline/download.ts`, `src/lib/offline/resume.ts`, `src/lib/offline/resumeWatcher.tsx`) (#1536)
+- Delete on a saved season no longer reads the whole file back into memory first, and a save never holds the season for more than 3 s while the SQLite engine caches (its request can hang on a line that just came back, and the save run keeps Delete greyed out). Clearing the download pieces and dropping the engine happen outside the season's lock. (`src/lib/offline/seasons.ts`)
+- "Freed 9.0 MB" claimed the pack's own size. Measured on Chromium, nothing of the season stays behind (IndexedDB, Cache Storage and OPFS listed before the save, after it and after Delete), but the browser keeps IndexedDB data compressed, so the 9.0 MB season took 3.6 MB and freed that (4.3 MB with the engine); a private window keeps storage in memory and its figure doesn't drop at all. Delete now reads the browser's figure just before and after: "Freed" is only what it dropped by, otherwise it says what was deleted and that the browser gives the space back on its own, and the line under the list follows the figure as it catches up. (`src/pages/DownloadPage.tsx`)
+- `npm run offline:check -- --season` taps the Whole current season choice and its Download button (the old Save offline row is gone). (`scripts/offline-check.ts`)
+
+## 6.5.6 — 2026-11-15
+
+Highlights searches typed in the header's search box now show the question and a link to its answer, and three more highlights searches play.
+
+### Highlights
+- [fixes] The search box reads highlights searches and links to their answer
+- [fixes] FiT-Central Texas Regional Championship highlights now play
+- [fixes] A division typed nearly right after its event plays it
+- [fixes] "usa champs highlights" plays the US championships' best
+
+### Fixed
+- Highlights searches typed in the header's search box ("worlds highlights", "decode highlights", an event's or a team's highlights) showed "No team, event or match matched", though pressing Enter opened the answer. The box asks for a shorter answer than the results page, and the highlights reader answered only the page's. In the box it now shows the question as read ("Highlights at West Michigan Meet 6, 2026–27") with a link to its answer page, without reading any matches while you type; a team's highlights keep the team's row too. (`server/api/query/execute.ts`)
+- "FiT-Central Texas Regional Championship highlights" found no event. Search reads an event's whole stored name first, but it counted "fit" as one of its own words (from phrases like "best fit"), so only "Central Texas" was left as the name's own words, and that read as the state. Only words search reads on their own now count; a word it reads only inside a longer phrase can be part of a name. (`src/shared/query/parse.ts`)
+- A Romania championships highlights search with the VLAICU Division's name typed with two letters swapped found nothing: the event was read, the division's name was not. A word left over after an event is read that is, or nearly spells, a word of that event's own stored names (one letter off, a swap counts as one, five letters or more, one such word only) is now read into the event, so it plays Romania Championship - VLAICU Division and the card names it as stored. (`src/shared/query/names.ts`, `src/shared/query/parse.ts`)
+- "usa champs highlights" found nothing. A state with only a championship word after it ("texas champs") is its state championship; a country is now read the same way, as its championships, unless an event is named that way ("romania champs" stays Romania Championship). (`src/shared/query/parse.ts`) (#1528)
+## 6.5.5 — 2026-11-15
+
+Videos › A clip whose first frame shows another match is never played: the clips placed from the clock are checked frame by frame, and a wrong one is pulled.
+
+### Highlights
+- [fixes] A clip that opens on another match is pulled
+- [workspace] Each pulled clip is an owner finding with what it showed
+- [fixes] A blank first frame keeps its clip and is read again
+
+### Changed
+- Clock-placed clips are checked by the overlay at their first frame (`server/data/clipChecks.ts`). One that names a different match is never served (`withClips`), and is listed with its start and what it showed for the owner console. One that names nothing (a blank or a transition) stays and is read again; a video with no readable overlay is counted, never pulled. The sweep's data follows season by season. (`server/videos/recordings.ts`, `docs/frame-timings.md`) (#1529)
+
 ## 6.5.4 — 2026-11-15
 
 Clip coverage never names an early start as a reason, not even in passing.

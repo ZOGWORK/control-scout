@@ -22,21 +22,22 @@ const engineStarts = vi.hoisted(() => ({ n: 0 }));
 vi.mock("sql.js/dist/sql-wasm-browser.js", () => ({ default: () => { engineStarts.n++; return initSqlJs(); } }));
 vi.mock("sql.js/dist/sql-wasm-browser.wasm?url", () => ({ default: "/assets/sql-wasm-browser-abc.wasm" }));
 
-import { readSaved, removeSeason, saveSeason, savedSeasons, SEASONS_EVENT, SeasonGone } from "./seasons";
+import { ENGINE_WAIT_MS, readSaved, removeSeason, saveSeason, savedSeasons, SEASONS_EVENT, SeasonGone } from "./seasons";
 import { runSeasonBatch } from "./seasonBatch";
 import { DownloadPaused, PIECE, download, partialDownloads } from "./download";
 import { resumeMarks, wantResume } from "./resumeMarks";
 
 // Cache Storage, as the service worker leaves it.
 const caches = new Map<string, Set<string>>();
-vi.stubGlobal("caches", {
+const cacheStub = {
   keys: async () => [...caches.keys()],
   open: async (n: string) => {
     if (!caches.has(n)) caches.set(n, new Set());
     const c = caches.get(n)!;
     return { match: async (u: string) => (c.has(u) ? {} : undefined), add: async (u: string) => { c.add(u); }, delete: async (u: string) => c.delete(u) };
   },
-});
+};
+vi.stubGlobal("caches", cacheStub);
 vi.stubEnv("DEV", false);
 
 const manifest = { format: 1, version: "v1", builtAt: "b", dataAsOf: null } as unknown as PackManifest;
@@ -183,6 +184,34 @@ describe("Delete removes every copy", () => {
     expect(caches.get("cs-shell-20261001-aa")!.has(ENGINE)).toBe(false);
   });
 
+  it("acts at once: never reads the file back first, and never waits for a save still caching the engine", async () => {
+    await saveSeason(file(2024, "a"), manifest);
+    gets.length = 0;
+    await removeSeason(2024);
+    expect(gets).toEqual([]); // tens of MB were read back into memory before every Delete
+
+    // The engine's request hangs (a line that just came back): the save waits for it ENGINE_WAIT_MS at most (the
+    // save run keeps the season's Delete greyed out meanwhile), and a Delete then is done at once.
+    let release: () => void = () => {};
+    vi.stubGlobal("caches", {
+      keys: async () => ["cs-shell-1"],
+      open: async () => ({ match: async () => undefined, add: () => new Promise<void>((r) => { release = r; }), delete: async () => true }),
+    });
+    try {
+      let t0 = Date.now();
+      await saveSeason(file(2025, "a"), manifest);
+      expect(Date.now() - t0).toBeLessThan(ENGINE_WAIT_MS + 1000);
+      expect(savedSeasons().map((s) => s.season)).toEqual([2025]);
+      t0 = Date.now();
+      expect(await removeSeason(2025)).toBeGreaterThan(0);
+      expect(Date.now() - t0).toBeLessThan(1000);
+      expect(savedSeasons()).toEqual([]);
+    } finally {
+      release();
+      vi.stubGlobal("caches", cacheStub);
+    }
+  });
+
   it("keeps the engine (and another season's half download) while another season is saved", async () => {
     caches.set("cs-shell-20261001-aa", new Set([ENGINE])); // as the worker or the save left it
     await saveSeason(file(2024, "a"), manifest);
@@ -217,6 +246,7 @@ describe("updates never bring back a removed season (replaceOnly)", () => {
     await saveSeason(file(2025, "a"), manifest);
     // The download finishes only after the person pressed Remove.
     const p = saveSeason(file(2025, "b"), manifest, () => {}, { replaceOnly: true });
+    p.catch(() => {}); // it fails while the removal is still tidying up; checked below
     await removeSeason(2025);
     await expect(p).rejects.toBeInstanceOf(SeasonGone);
     expect(savedSeasons()).toEqual([]);
