@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.7.6 — 2026-11-15
+## 6.7.7 — 2026-11-15
 
 Search › An event's matches ("CRI matches", "matches at the NJ championship") list every match in the order played, with each clip playing inline.
 
@@ -26,6 +26,18 @@ Search › An event's matches ("CRI matches", "matches at the NJ championship") 
 
 ### Changed
 - "<event> matches" — by the event's name, code or initialism, "<place> states matches" too — answers with the event's played matches, qualification first and the playoffs after, each row playing its clip. A year picks that edition and a match type narrows it; a team, a measure or a time window still goes to its own answer. Clips are read for up to 200 rows (was 60), and a list cut at 200 says so. (`server/api/query/execute.ts`, `server/api/query/matchFind.ts`, `server/api/answers/video.ts`) (#1556)
+
+## 6.7.6 — 2026-11-15
+
+Search reads a period's OPR said after a place: "Romania teleop opr" lists Romania's teams by TeleOp OPR.
+
+### Highlights
+- [fixes] "Romania teleop opr" lists Romania's teams by TeleOp OPR
+- [fixes] "nj auto opr" and "nj endgame opr" read the same way
+- [rankings] A place's board by one period's OPR needs no "best" or "top"
+
+### Fixed
+- Search: a place followed by a period's OPR ("Romania teleop opr") read as two stats at once, TeleOp and OPR, so nothing answered. "TeleOp OPR", "Auto OPR" and "Endgame OPR" are each one stat now, as they already were after "best" or "top": *Top 10 teams by TeleOp OPR in Romania · 2025–26*. Failed search #1526. (`src/shared/query/intents.ts`) (#1555)
 
 ## 6.7.5 — 2026-11-15
 
