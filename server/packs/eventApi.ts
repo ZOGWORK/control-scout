@@ -9,9 +9,21 @@ import { createHash } from "node:crypto";
 import { kvGet } from "../db.js";
 import { registerCache } from "../caches.js";
 import { dataVersion, liveVersion } from "../predict/engine.js";
-import { CURRENT_SEASON, isLegacy } from "../data/seasons.js";
+import { CURRENT_SEASON, SEASONS, isLegacy } from "../data/seasons.js";
+import { all } from "../db.js";
 import { isEnabled } from "../flags.js";
-import { compareBlockOf, latestResultsSeason, teamProfile } from "../api/teams.js";
+import { compareBlockOf, latestResultsSeason, teamProfile, teamSummaries } from "../api/teams.js";
+import { ensureSearchIndex } from "../api/search.js";
+import { rebuildSearch } from "../stats/job.js";
+import { finishPageAnswer, typedPageAnswer } from "../api/searchPage.js";
+import { teamFacts } from "../api/searchCompare.js";
+import { seasonScale } from "../api/answers/compareBlock.js";
+import { currentSeason } from "../api/answers/season.js";
+import { togetherMatches } from "../api/answers/families/twoTeam.js";
+import { SIGNED_OUT } from "../videos/contributors.js";
+import { cleanTeamName } from "../../src/shared/teamTitle.js";
+import { SEARCH_PAGE_LIMIT } from "../../src/shared/search.js";
+import { COMPARE_SCALE_COLS, SEASON_COLS, type PackSearch, type SeasonRow, type TogetherMatch } from "../../src/shared/searchVersus.js";
 import { matchDetailAnswer, teamMatchesAnswer, teamReportCardAnswer, teamScheduleAnswer } from "../api/reads.js";
 import { cachedEventDetail, eventDetail } from "../api/events.js";
 import { gatedEventDetail } from "../api/eventGates.js";
@@ -21,8 +33,8 @@ import { leagueStandings } from "../api/leagues.js";
 import { resultChanges } from "../api/resultChanges.js";
 import { readProjections } from "../projections/store.js";
 import { hasTeamPage } from "../../src/shared/teamPages.js";
-import { packPath, poolMatches, stableJson, type PackApi, type PackCompareTeam } from "../../src/shared/eventBundle.js";
-import type { EventDetail, MatchView } from "../../src/shared/api.js";
+import { packLookup, packPath, poolMatches, searchPackPath, stableJson, type PackApi, type PackCompareTeam } from "../../src/shared/eventBundle.js";
+import type { EventDetail, MatchView, SearchAnswer } from "../../src/shared/api.js";
 
 /** What every entry of PACK_READS is given: the event as the bundle holds it, and who and what is in it. */
 export interface PackContext {
@@ -66,6 +78,13 @@ export const PACK_READS: Reads[] = [
   // The event page's advancement odds and the pick helper.
   async (c) => (!isLegacy(c.season) && (await isEnabled("advancementOdds")) ? [{ path: `/api/projections/${c.season}/${encodeURIComponent(c.code)}`, read: () => readProjections(c.season, c.code) }] : []),
   (c) => [{ path: `${ev(c)}/pick-ratings`, read: () => pickRatings(c.season, c.code) }],
+  // FTC One Search for what people type at a meet (packSearchQueries): the whole answer as /search shows it, for anyone
+  // (server/api/searchPage.ts), and the season numbers its team cards ask for (/api/teams-summary, one team a path:
+  // lib/offline/search.ts puts a request for several together, in the order asked).
+  // Not their follow-ups (/api/search/follow): about 1.4 s a query to work out (100 s for a 72-search event), so with
+  // no signal People also ask and Related searches are left out.
+  async (c) => packSearchQueries(c, await packTeamNames(c.teams)).map((q) => ({ path: searchPackPath(q), read: () => packSearchAnswer(q) })),
+  packCardReads,
   // A league meet or tournament: its league's standings (the event page links to them).
   (c) => (c.ev.event.league && c.ev.event.region
     ? [{ path: `/api/leagues/${c.season}/${c.ev.event.region}/${c.ev.event.league}`, read: () => leagueStandings(c.season, c.ev.event.region!, c.ev.event.league!) }] : []),
@@ -76,6 +95,82 @@ export const PACK_READS: Reads[] = [
     ...c.matches.filter((m) => RESULT_CHANGES_KEY.test(m.key)).map((m) => ({ path: `${ev(c)}/matches/${m.key}/result-changes`, read: () => resultChanges(c.season, c.code, m.key), notFound: `No match ${m.key} at ${c.code}` })),
   ],
 ];
+
+/** The searches the pack answers: every team in it by number and by name, the event by code and by name, and each
+ *  match as search reads one ("USMIMIQ1 Q12": the code and the match's label; "Q12" alone is no match online). */
+export function packSearchQueries(c: Pick<PackContext, "code" | "ev" | "teams" | "matches">, names: ReadonlyMap<number, string | null>): string[] {
+  const qs = [
+    ...c.teams.map(String),
+    ...c.teams.map((t) => cleanTeamName(t, names.get(t)) ?? "").filter((n) => n && !/^\d+$/.test(n)),
+    c.code, c.ev.event.name,
+    ...c.matches.map((m) => `${c.code} ${m.label}`),
+  ];
+  // Once each, however it's spelled (two teams sharing a name, an event named like a team).
+  const seen = new Set<string>();
+  return qs.map((q) => q.trim().replace(/\s+/g, " ")).filter((q) => { const k = q.toLowerCase(); if (!q || seen.has(k)) return false; seen.add(k); return true; });
+}
+
+/** Every pack team's stored name, the field's and the lineups' alike (packTeams), read as packSearch reads its teams'
+ *  facts: the names their searches are asked by. */
+export async function packTeamNames(teams: number[]): Promise<Map<number, string | null>> {
+  return new Map([...(await teamFacts(teams))].map(([n, f]) => [n, f.name]));
+}
+
+/** The seasons /search asks team numbers for with none named: the event's and the one before (early in a season, last
+ *  season's numbers show), and the current season and the one before (the page's default). */
+const summarySeasons = (season: number): number[] => [...new Set([season, season - 1, CURRENT_SEASON, CURRENT_SEASON - 1])].sort((a, b) => b - a);
+
+/** What /search's cards ask for about the pack's teams, for every season a search of the pack can be about:
+ *  - the team cards' numbers (/api/teams-summary, one team a path) in every season the teams' season rows hold (a
+ *    season named, "1111 vs 3333 2023-24") and the page's own seasons (summarySeasons);
+ *  - a one-team card's profile (/api/teams/<n>?season=) and its phone match list (/api/teams/<n>/matches?season=) in
+ *    the season the card is about: the team's latest with matches (its highlights'), and the one before the current
+ *    (an answer stating none); the event's season is in the pack already. */
+async function packCardReads(c: PackContext): Promise<PackRead[]> {
+  const rows = c.teams.length ? await all<{ team: number; season: number }>(`SELECT team, season FROM team_season_stats WHERE team IN (${c.teams.map(() => "?").join(",")}) AND matches > 0`, c.teams) : [];
+  const seasons = [...new Set([...summarySeasons(c.season), ...rows.map((r) => Number(r.season))])].sort((a, b) => b - a);
+  const latest = new Map<number, number>();
+  for (const r of rows) latest.set(Number(r.team), Math.max(latest.get(Number(r.team)) ?? 0, Number(r.season)));
+  return [
+    ...seasons.flatMap((s) => c.teams.map((t) => ({ path: `/api/teams-summary?season=${s}&teams=${t}`, read: async () => ({ season: s, teams: await teamSummaries([t], s) }) }))),
+    ...c.teams.flatMap((t) => [...new Set([latest.get(t), CURRENT_SEASON - 1])].filter((s): s is number => s != null && s !== c.season).flatMap((s): PackRead[] => [
+      { path: `/api/teams/${t}?season=${s}`, read: () => teamProfile(t, s), notFound: `No FTC team ${t} in our data` },
+      { path: `/api/teams/${t}/matches?season=${s}`, read: () => teamMatchesAnswer(t, s) },
+    ])),
+  ];
+}
+
+/** /api/search?answer=1 at the page's limit, for anyone (no preferred teams, signed out): the route's own answer.
+ *  Without its video parts: the route's "Questions with video" block (withVideoAlternatives) and the video itself are
+ *  left out, as nothing plays with no signal (server/packs/eventSearch.test.ts compares a versus built on the phone the same way). */
+async function packSearchAnswer(q: string): Promise<SearchAnswer> {
+  await ensureSearchIndex(rebuildSearch);
+  return (await finishPageAnswer(await typedPageAnswer(q, SEARCH_PAGE_LIMIT, new Set(), null), SEARCH_PAGE_LIMIT, Promise.resolve(SIGNED_OUT))).body;
+}
+
+/**
+ * The pack's `search` section (src/shared/searchVersus.ts PackSearch): per team, what Compare's hit says about it, its
+ * row as the pack's own search for its number shows it, and its season rows; each of those seasons' compare scales;
+ * the current season and the seasons older than Predict. A versus of the pack's teams is built from these by the same
+ * functions the server uses. A team whose number search doesn't find as a team (a placeholder) has no part.
+ */
+export async function packSearch(teams: number[], api: PackApi): Promise<PackSearch> {
+  const facts = await teamFacts(teams);
+  const rows = teams.length ? await all<SeasonRow>(`SELECT ${SEASON_COLS} FROM team_season_stats WHERE team IN (${teams.map(() => "?").join(",")}) AND matches > 0 ORDER BY season DESC, team`, teams) : [];
+  const out: PackSearch = { teams: {}, scales: {}, current: currentSeason(), legacy: SEASONS.map((s) => s.season).filter(isLegacy) };
+  for (const t of teams) {
+    const f = facts.get(t);
+    const got = packLookup(api, searchPackPath(String(t)));
+    const hit = got && "body" in got ? (got.body as SearchAnswer).hits?.find((h) => h.kind === "team" && h.ref === String(t) && !h.href) : undefined;
+    if (!f || !hit) continue;
+    // Its matches with another of the pack's teams on the field, by season: a comparison's matches together.
+    const together: Record<string, TogetherMatch[]> = {};
+    for (const { season, ...m } of await togetherMatches(t, (w) => w.some((n) => n !== t && teams.includes(n)))) (together[String(season)] ??= []).push(m);
+    out.teams[String(t)] = { facts: { number: f.number, name: f.name, city: f.city, state: f.state, country: f.country }, hit, rows: rows.filter((r) => Number(r.team) === t), together };
+  }
+  for (const s of [...new Set(rows.map((r) => Number(r.season)))]) out.scales[String(s)] = await seasonScale(s, COMPARE_SCALE_COLS);
+  return out;
+}
 
 /** Everyone the pack must hold: the field, and anyone in a lineup on the schedule. */
 export function packTeams(ev: EventDetail): number[] {
@@ -120,7 +215,7 @@ export function assertComplete(c: Pick<PackContext, "season" | "code" | "ev" | "
   if (missing.length) throw new PackBroken(`The event pack for ${c.season} ${c.code} is broken: it's missing ${missing.slice(0, 8).join(", ")}${missing.length > 8 ? ` and ${missing.length - 8} more` : ""}.`);
 }
 
-export interface PackParts { api: PackApi; compare: Record<string, PackCompareTeam> }
+export interface PackParts { api: PackApi; compare: Record<string, PackCompareTeam>; search: PackSearch }
 
 /** Packs kept per event and data (a build reads a few hundred answers: seconds, so it's made once per data version,
  *  not on every manifest look). Kept PACK_TTL_MS at most: a clip's timing is judged against the clock. */
@@ -208,7 +303,16 @@ export async function buildPackApi(season: number, ev: EventDetail, reads: Reads
     await inTurns(c.teams, 6, async (t) => { (compare[String(t)].others ??= {})[String(s)] = await compareBlockOf(t, s); });
   }
   const extra = (cx: PackContext): PackRead[] => others.flatMap((s) => cx.teams.map((t) => ({ path: `/api/teams/${t}/matches?season=${s}`, read: () => teamMatchesAnswer(t, s), needed: `team ${t}'s ${s} matches` })));
-  const list = (await Promise.all([...reads, extra].map((r) => r(c)))).flat();
+  // One read a path: two lists can ask for the same one (a card's latest-season match list and Compare's), and the
+  // first keeps what a later one says it's needed for.
+  const unique = new Map<string, PackRead>();
+  for (const r of (await Promise.all([...reads, extra].map((r) => r(c)))).flat()) {
+    const key = packPath(r.path) ?? r.path;
+    const prev = unique.get(key);
+    if (!prev) unique.set(key, r);
+    else if (!prev.needed && r.needed) unique.set(key, { ...prev, needed: r.needed });
+  }
+  const list = [...unique.values()];
   const api: PackApi = { answers: {}, same: {}, errors: {} };
   // The same answer twice (a profile with and without ?season=) is stored once.
   const byText = new Map<string, string>();
@@ -229,7 +333,9 @@ export async function buildPackApi(season: number, ev: EventDetail, reads: Reads
     api.answers[key] = body;
   });
   assertComplete(c, api, compare);
-  return { api: poolMatches(api), compare };
+  // Search's versus parts, from the answers just read (before the match lists are pooled).
+  const search = await packSearch(c.teams, api);
+  return { api: poolMatches(api), compare, search };
 }
 
 /** Every path the pack answers (answers, aliases, errors), for the manifest. */

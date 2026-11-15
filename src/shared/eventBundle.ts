@@ -18,10 +18,17 @@
 // moment it loads; the bundle answers only with no signal (lib/api.ts), the shipped rule for packs.
 import type { RatingBookData } from "@control-scout/predict-engine";
 import type { CompareTeam, EventDetail } from "./api";
+import type { PackSearch } from "./searchVersus";
+import { SEARCH_PAGE_LIMIT, cleanQuery } from "./search";
 
 export const BUNDLE_FORMAT = 1;
 
-export type BundleSectionId = "event" | "ratings" | "api" | "compare" | "reports" | "picklist" | "rules" | "venue";
+export type BundleSectionId = "event" | "ratings" | "api" | "compare" | "search" | "reports" | "picklist" | "rules" | "venue";
+
+/** The search a query is kept under in the pack: the whole answer (/api/search?answer=1) at the page's limit, for the
+ *  query as search reads it (cleanQuery: "gear grinders?" and "1,000" are "gear grinders" and "1000"; the pack's keys are
+ *  lower case, so any case finds it). Who asks (?prefer=, ?my=) is left out: the pack holds the answer for anyone. */
+export const searchPackPath = (q: string): string => `/api/search?answer=1&limit=${SEARCH_PAGE_LIMIT}&q=${encodeURIComponent(cleanQuery(q))}`;
 
 /**
  * The event pack's `api` section: the server's own JSON for API GET paths (every team in the field: profile,
@@ -192,6 +199,9 @@ export interface EventBundle {
   api?: PackApi;
   /** Compare columns by team number (bundles built before the pack: absent). */
   compare?: Record<string, PackCompareTeam>;
+  /** What search needs to set the pack's teams side by side ("12722 vs 17064 vs 27851"), and the event's own facts
+   *  for the "not in your pack" card (bundles built before it: absent). */
+  search?: PackSearch;
   /** The server's current season when the pack was built (what Compare shows for teams with no results at all). */
   currentSeason?: number;
 }
