@@ -601,8 +601,12 @@ export interface ClipCoverage {
   matches: CoverageMatch[];
 }
 
-/** A match the video's frames saw (a read put it at `at` seconds into `videoId`) with no clip: an owner-console finding. */
-export interface CoverageFinding { season: number; code: string; name: string; label: string; videoId: string; at: number; why: string }
+/** An owner-console finding at `at` seconds into `videoId`: "seen", a match the video's frames saw with no clip; "pulled",
+ *  a clip whose first frame showed another match (server/data/clipChecks.ts), so it no longer plays. */
+export interface CoverageFinding { kind: "seen" | "pulled"; season: number; code: string; name: string; label: string; videoId: string; at: number; why: string }
+/** The frame checks of clips placed from the clock (server/data/clipChecks.ts): clips checked, confirmed, pulled, read
+ *  again later (a blank or transition frame), and videos whose overlay can't be read anywhere (never pulled). */
+export interface ClipCheckTotals { checked: number; ok: number; pulled: number; unconfirmed: number; noOverlayVideos: number }
 /** One clip coverage check pass (server/videos/coverageCheck.ts): events it checked (`events` of them recorded), how
  *  many are fully clipped, matches clipped and missing, and the missing by what their video check found (`why`). */
 export interface CoveragePass { at: string; checked: number; events: number; full: number; clipped: number; missing: number; why: Record<string, number>; opened: number }
@@ -627,7 +631,7 @@ export interface OwnerClipCoverage {
   events: OwnerCoverageEvent[]; list: CoverageTriage | "reviewed"; open: number; reviewed: number;
   categories: Record<CoverageTriage, number>; seasons: { season: number; open: number; actionable: number }[];
   /** Matches the video showed with no clip (always shown, whatever their review), and the last check pass. */
-  findings: CoverageFinding[]; lastPass: CoveragePass | null;
+  findings: CoverageFinding[]; lastPass: CoveragePass | null; clipChecks: ClipCheckTotals;
   totals: { events: number; played: number; withClip: number; full: number };
 }
 
