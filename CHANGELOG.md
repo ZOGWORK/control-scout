@@ -22,6 +22,7 @@ Search › "CRI" finds the Chicago Robotics Invitational: an event's short form 
 ### Highlights
 - [fixes] "CRI" finds the Chicago Robotics Invitational
 - [fixes] A short form beside "matches" or a year finds the event
+- [fixes] A team whose name starts the same way no longer takes its place
 
 ### Fixed
 - An event's initialism also leaves out a trailing event type FIRST appends ("Premier Event", "Off-Season Event"), so "Chicago Robotics Invitational Premier Event" is CRI as well as CRIPE. (`src/shared/query/initialisms.ts`)
