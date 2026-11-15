@@ -452,13 +452,13 @@ function ExamplePill({ x, onRun }: { x: Example; onRun: (q: string) => void }) {
   );
 }
 
-/** The large OR between the team's own searches and the rest: thick rules and a big word, in every theme. */
+/** The OR between the team's own searches and the rest: thin rules and a small word, in every theme. */
 function OrDivider() {
   return (
-    <div className="my-4 flex items-center gap-4 md:my-3" role="separator" aria-label="or" data-onboarding-or="">
-      <span className="h-[3px] flex-1 rounded-full bg-text-base/25" aria-hidden />
-      <span className="font-display text-[30px] leading-none font-extrabold tracking-[0.12em] text-text-base" aria-hidden>OR</span>
-      <span className="h-[3px] flex-1 rounded-full bg-text-base/25" aria-hidden />
+    <div className="my-2.5 flex items-center gap-3" role="separator" aria-label="or" data-onboarding-or="">
+      <span className="h-[2px] flex-1 rounded-full bg-text-base/20" aria-hidden />
+      <span className="font-display text-[14px] leading-none font-bold tracking-[0.12em] text-text-muted" aria-hidden>OR</span>
+      <span className="h-[2px] flex-1 rounded-full bg-text-base/20" aria-hidden />
     </div>
   );
 }

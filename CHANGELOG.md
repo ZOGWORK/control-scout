@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.8.0 — 2026-11-15
+## 6.8.1 — 2026-11-15
 
 Report a bug › capture the page behind the dialog without closing it, and a thin scrollbar that matches the theme.
 
@@ -29,6 +29,18 @@ Report a bug › capture the page behind the dialog without closing it, and a th
 
 ### Changed
 - Dialogs and sheets that scroll use the app's own thin scrollbar in the theme's colours (Light, Dim, Dark, Midnight) instead of the system's wide one, still scrollable by wheel, touch and keyboard. (`src/components/ui/overlay.tsx`)
+
+## 6.8.0 — 2026-11-15
+
+Welcome, step 3: the OR between your team's searches and the wider ones is smaller.
+
+### Highlights
+- [home] The welcome's OR is smaller, so the searches stand out
+- [home] Thin lines and a quiet OR, on phones and desktop
+- [appearance] Matches every theme
+
+### Changed
+- Welcome, step 3: the OR divider is 14px bold in the muted text colour with 2px rules (was 30px extra-bold with 3px rules). (`src/components/onboarding/Onboarding.tsx`) (#1571)
 
 ## 6.7.9 — 2026-11-15
 
