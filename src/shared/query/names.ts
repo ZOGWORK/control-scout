@@ -8,6 +8,10 @@ import { edits, nearRegion } from "../regions.js";
 import { eventInitialisms } from "./initialisms.js";
 import { LEXICON } from "./lexicon.js";
 
+/** How many times the teams and events a shared town name has in one region must outnumber the rest for it to be
+ *  that region's town. */
+export const TOWN_LEAD = 5;
+
 export interface TeamName { number: number; name: string | null; country: string | null; state: string | null; city: string | null; lastPlayed: number | null;
   /** Its best OPR percentile (0–1) in its last two ranked seasons: how a name several teams share is told apart (./shared.ts). */
   strength?: number | null }
@@ -109,14 +113,24 @@ export function buildNames(teams: NameRow[], places: { city: string | null; stat
       if (core) put(byJoined, core.replace(/ /g, ""), t);
     }
   }
-  // A town is known with the region (or country) it's in; the same town name in two regions stays ambiguous.
-  const towns = new Map<string, Map<string, { country: string; state: string | null; city: string }>>();
+  // A town is known with the region (or country) it's in, counted by its teams and events there; the same town name in
+  // two regions is the one that holds at least TOWN_LEAD times the others' teams and events ("Grand Rapids": Michigan's
+  // 31 to Minnesota's 1), else it stays ambiguous.
+  const towns = new Map<string, Map<string, { country: string; state: string | null; city: string; n: number }>>();
   for (const p of [...teams, ...places]) {
     const k = fold(p.city ?? "");
     if (!k || !p.country) continue;
     const where = `${p.country}:${p.state ?? ""}`;
-    (towns.get(k) ?? towns.set(k, new Map()).get(k)!).set(where, { country: p.country, state: p.state, city: p.city! });
+    const at = towns.get(k) ?? towns.set(k, new Map()).get(k)!;
+    const had = at.get(where);
+    if (had) had.n++; else at.set(where, { country: p.country, state: p.state, city: p.city!, n: 1 });
   }
+  const townOf = (k: string) => {
+    const at = towns.get(k);
+    if (!at) return null;
+    const [first, second] = [...at.values()].sort((a, b) => b.n - a.n);
+    return !second || first.n >= TOWN_LEAD * second.n ? first : null;
+  };
   const stems = new Set<string>();
   // An event's initialisms too ("mti"), which the search index holds with its name (./initialisms.ts).
   const initials = new Map<string, Set<string>>();
@@ -207,9 +221,8 @@ export function buildNames(teams: NameRow[], places: { city: string | null; stat
       const said = countryOf(w);
       const stored = countries.get(f) ?? storedCountries.find(({ c }) => c === said || (!!people && c === people))?.label;
       if (stored && f.length >= 3) return { kind: "country", country: stored, state: null, city: null, name: countryOf(stored)?.name ?? stored };
-      const town = towns.get(f);
-      if (town && town.size === 1 && f.length >= 3) {
-        const t = [...town.values()][0];
+      const t = townOf(f);
+      if (t && f.length >= 3) {
         return { kind: "city", country: t.country, state: t.state, city: t.city, name: t.city };
       }
       // A part of a region ("north jersey", "northern IN"), as typed so a code in capitals still reads: after a stored

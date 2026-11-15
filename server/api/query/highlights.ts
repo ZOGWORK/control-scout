@@ -70,6 +70,8 @@ const REASONS: { note: string; value: (r: Scored) => number | null; side: (r: Ro
   { note: "Closest finish", value: (r) => (decided(r) ? -margin(r) : null), side: winnerOf, sql: { side: WINNER, order: `${MARGIN} ASC`, only: "m.red_total <> m.blue_total" } },
   { note: "Biggest upset", value: upsetOf, side: winnerOf },
 ];
+/** What an event's highlights say before any match is played there. */
+export const NO_EVENT_HIGHLIGHTS = "No highlights yet — no matches played at this event.";
 /** Most matches read whole (the highlights picked here); a bigger scope is asked each reason's best of. */
 const READ_WHOLE = 4000;
 
@@ -125,6 +127,7 @@ export async function scopeEvents(f: MatchScope, upTo = false): Promise<{ season
   const sql = [`${f.window && !upTo ? "e.season BETWEEN ? AND ?" : `e.season ${upTo ? "<=" : "="} ?`} AND COALESCE(e.remote, 0) = 0 AND e.type IN (${types.map(() => "?").join(", ")})`];
   const args: (string | number)[] = [...(f.window && !upTo ? [f.season - 1, f.season + 1] : [f.season]), ...types];
   if (f.region) { sql.push(f.region.state ? "e.country = ? AND e.state = ?" : "e.country = ?"); args.push(f.region.country, ...(f.region.state ? [f.region.state] : [])); }
+  if (f.city) { sql.push("LOWER(e.city) = LOWER(?)"); args.push(f.city); }
   const rows = await all<{ season: number; code: string }>(`SELECT e.season, e.code FROM events e WHERE ${sql.join(" AND ")}`, args);
   return rows.map((r) => ({ season: Number(r.season), code: r.code }));
 }
@@ -214,6 +217,14 @@ export function highlightsAnswer(f: HighlightFind): Promise<StatAnswer> {
   return page;
 }
 
+/** Played matches at the events, with no filter of the question's. */
+async function playedAt(season: number, events: { season: number; code: string }[]): Promise<number> {
+  const keys = events.filter((e) => e.season === season);
+  if (!keys.length) return 0;
+  const row = await get<{ n: number }>(`SELECT COUNT(*) n FROM matches m WHERE m.played = 1 AND m.season = ? AND m.code IN (${keys.map(() => "?").join(", ")})`, [season, ...keys.map((e) => e.code)]);
+  return Number(row?.n ?? 0);
+}
+
 async function workOut(f0: HighlightFind): Promise<StatAnswer> {
   const events = await scopeEvents(f0);
   const f: HighlightFind = { ...f0, ...(events ? { events } : {}) };
@@ -246,7 +257,12 @@ async function workOut(f0: HighlightFind): Promise<StatAnswer> {
     definition: DEFINITION(at, S, whole, !!f.named),
     source: `From ${count.toLocaleString("en-US")} played match${count === 1 ? "" : "es"}${where2}`,
   };
-  if (!picks.length) return { ...base, blocks: [], none: `No played matches${f.named ? "" : " at official events"}${where2} yet.` };
+  // An event named with nothing played there yet says so plainly (its matches counted with no filter: "playoff
+  // highlights at <event>" mid-qualifications has matches played); a wider or narrower scope says where it looked.
+  if (!picks.length) {
+    const unplayed = !!ev && !f.window && !!events?.length && await playedAt(f.season, events) === 0;
+    return { ...base, blocks: [], none: unplayed ? NO_EVENT_HIGHLIGHTS : `No played matches${f.named ? "" : " at official events"}${where2} yet.` };
+  }
   const gallery = await galleryOf(whole ? scored : null, events, f.videos ? (f.named && ev ? "No recording for this event — stats only." : `No match videos${where2} yet.`) : null, ev ? f.eventName : undefined);
   // A video page leads with the scope's latest playoff match (a recap ends on the final, whatever reason it was
   // listed under), highlights with the best score.
