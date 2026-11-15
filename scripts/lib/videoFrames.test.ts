@@ -103,12 +103,18 @@ describe("the frame reader", () => {
     expect(dataRows("no marker")).toEqual([]);
   });
 
-  it("never places a match on one read alone: two reads that disagree each go to review", () => {
+  it("places a lone confirmed read where the frames show it, unless it's far from where the rest of the video sits", () => {
     const ms: M[] = Array.from({ length: 4 }, (_, i) => ({ label: `M${i + 1}`, epoch: i * 500 }));
+    // M1 and M4 disagree by 5 min (the stream lost time between them): each is in the video where its frames say.
     const j = judge(ms, new Map([[0, 10], [3, 1500 - 300]]), null, 10_000);
-    expect(j.placed.size).toBe(0);
-    expect([...j.review.keys()]).toEqual(["M1", "M4"]);
+    expect([...j.placed]).toEqual([["M1", { t: 10, confidence: "high" }], ["M4", { t: 1200, confidence: "high" }]]);
     expect(j.missing.get("M2")).toMatch(/in a gap/);
+    // A read 3 hours from the rest: nothing says it's this part of the stream (another day, another event).
+    const k = judge(ms, new Map([[0, 10], [3, 1500 + 3 * 3600]]), null, 20_000);
+    expect(k.placed.size).toBe(0);
+    expect(k.review.get("M4")).toMatchObject({ why: /180 min from where the rest/ });
+    // One read, and no clock or other read to tell where it is.
+    expect(judge(ms, new Map([[1, 600]]), null, 10_000).review.get("M2")).toMatchObject({ why: /no clock or other read/ });
   });
 
   describe("judging a video's matches (clock first, frames must agree)", () => {
@@ -124,12 +130,11 @@ describe("the frame reader", () => {
       expect(j.review.size + j.missing.size).toBe(0);
     });
 
-    it("never places a match on one signal alone: a lone read goes to review unless the broadcast's clock agrees", () => {
+    it("places a lone confirmed read after a gap where its frames show it (the stream is the truth)", () => {
       // Q1–Q5 agree at -9000; Q9 alone at -9300 (a gap: the stream stopped for 5 minutes).
       const seen = new Map([at(0, -9000), at(4, -9000), at(8, -9300)]);
       const j = judge(ms, seen, null, 8000);
-      expect(j.review.get("Q9")).toMatchObject({ t: ms[8].epoch - 9300, why: /one frame read/ });
-      expect(j.placed.has("Q9")).toBe(false);
+      expect(j.placed.get("Q9")).toEqual({ t: ms[8].epoch - 9300, confidence: "high" });
       // Q6–Q8 sit in the gap: missing, with the reason, never silently skipped.
       expect(j.missing.get("Q7")).toMatch(/in a gap/);
       expect(j.missing.get("Q10")).toMatch(/no frame read/);
