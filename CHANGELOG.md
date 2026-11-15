@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.4.4 — 2026-11-15
+## 6.4.5 — 2026-11-15
 
 Offline downloads pick up where they stopped when the connection drops, show real MB progress, and never leave a half pack that looks saved. The Download page is now one Offline page: what to save at the top, everything on this device below.
 
@@ -33,6 +33,18 @@ Offline downloads pick up where they stopped when the connection drops, show rea
 
 ### Changed
 - Delete really deletes: the predictions pack's bytes are removed from IndexedDB (they were overwritten with null), and every delete says "Freed 6.9 MB". The browser is asked to keep this site's storage on the first download of any kind. Event-day bundles show real bytes while downloading. The menu calls the page Offline. (`src/lib/packs.ts`, `src/lib/offline/bundles.ts`, `src/components/offline/EventBundles.tsx`) (#1462)
+## 6.4.4 — 2026-11-15
+
+A search naming an event by its whole name now gets that event, even when the name ends in a number or holds a town.
+
+### Highlights
+- [fixes] An event named in full is that event, never its number as a team
+- [fixes] A town or region inside an event's name no longer becomes the place
+- [fixes] More "<event> highlights" searches play the event's clips
+
+### Fixed
+- Search: a league meet's own number was read as a team ("Ritchie League Meet 1" became team 1), and a town or region inside an event's name became the place with the rest left unread. An event's whole stored name is now read first, before its words are teams, numbers or places; a name made only of kind words and a number, a team's whole name, and a place with only event words beside it read as before. (`src/shared/query/names.ts`, `src/shared/query/parse.ts`) (#1510)
+
 ## 6.4.3 — 2026-11-15
 
 Owner › Clip coverage now sorts itself: the server puts every event with a missing clip in a category, and only the Actionable ones ask for a look.
