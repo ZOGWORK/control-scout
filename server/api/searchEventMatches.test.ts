@@ -6,6 +6,7 @@ import { rebuildSearch } from "../stats/job";
 import { CURRENT_SEASON } from "../data/seasons";
 import { searchAnswer } from "./searchAnswer";
 import { rowRefs } from "./answers/video";
+import { matchFindAnswer } from "./query/matchFind";
 import type { SearchAnswer } from "../../src/shared/api";
 
 const S = CURRENT_SEASON - 1;
@@ -61,5 +62,24 @@ describe("an event's matches by its name", () => {
     expect((await ask("4215 matches")).stat?.title ?? "").not.toMatch(/^Matches at /);
     expect((await ask("CRI highest scoring match")).stat?.title).toMatch(/^Highest-scoring match at /);
     expect((await ask("matches")).stat?.title ?? "").not.toMatch(/^Matches at /);
+  });
+});
+
+describe("the play-order list itself", () => {
+  const order = (n: number, events: { season: number; code: string }[]) => matchFindAnswer({ measure: "order", season: S, region: null, level: null, finals: false, kind: null, n, list: true, events, named: true });
+  it("two events together: each match number in event order, never by score, and the event said per row", async () => {
+    // The earlier edition (code shared) stands in for a second division: both listed, Q1s first, by code.
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (?, 'FPECRI2', 'Chicago Robotics Invitational Premier Event Division 2', 'Premier', 'Chicago', 'IL', 'USA', ?, ?, 'cri')", [S, `${S + 1}-07-24`, `${S + 1}-07-24`]);
+    await run(`INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, blue_total, blue_np, red_auto, blue_auto, source)
+               VALUES (?, 'FPECRI2', 'qual', 0, 1, 'Q1', ?, 1, 300, 300, 100, 100, 20, 10, 'cri')`, [S, `${S + 1}-07-24T10:00:00`]);
+    const a = await order(3, [{ season: S, code: "FPECRI" }, { season: S, code: "FPECRI2" }]);
+    const t = a.blocks.find((b) => b.kind === "table") as unknown as { rows: { href?: string }[]; columns: { key: string }[] };
+    expect(t.rows.map((r) => r.href)).toEqual([`/events/${S}/FPECRI?match=qual:0:1`, `/events/${S}/FPECRI2?match=qual:0:1`, `/events/${S}/FPECRI?match=qual:0:2`]);
+    expect(t.columns.map((c) => c.key)).toEqual(["match", "score", "event", "date"]);
+  });
+  it("a list cut short says how much of it is shown", async () => {
+    const a = await order(5, [{ season: S, code: "FPECRI" }]);
+    expect(a.definition).toMatch(/^The first 5 of the 72 played matches, in the order played/);
+    expect((await order(200, [{ season: S, code: "FPECRI" }])).definition).toMatch(/^Every played match, in the order played/);
   });
 });
