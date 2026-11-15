@@ -117,7 +117,7 @@ export async function buildFull(season: number, version: string, dir: string, lo
   // renamed into place, so a build that fails at any step leaves no file behind.
   const final = join(dir, name), tmp = `${final}.tmp`, part = `${final}.part`;
   for (const f of [tmp, part]) if (!(await dropFile(f))) throw new Error(`full ${season}: can't remove the stale ${f}`);
-  let rows = 0, teams = 0;
+  let rows = 0, teams = 0, played = { matches: 0, events: 0 };
   const out = createClient({ url: ":memory:" });
   let ok = false;
   try {
@@ -138,6 +138,10 @@ export async function buildFull(season: number, version: string, dir: string, lo
       });
       if (before.quiet && after.quiet && after.version === before.version && after.gen === before.gen) {
         await out.execute({ sql: "INSERT INTO pack_info VALUES ('data_version', ?)", args: [before.version] });
+        // What the release adds is counted from the pack's own rows: the live lane can write matches once the reads
+        // are done, and those aren't in this file.
+        const c = (await out.execute({ sql: "SELECT COUNT(*) m, COUNT(DISTINCT code) e FROM matches WHERE season = ? AND played = 1", args: [season] })).rows[0];
+        played = { matches: Number(c?.m ?? 0), events: Number(c?.e ?? 0) };
         break;
       }
       const why = after.version !== before.version ? `data version moved (${before.version} → ${after.version})`
@@ -163,11 +167,10 @@ export async function buildFull(season: number, version: string, dir: string, lo
   const gz = gzipSync(buf, { level: 9 });
   writeFileSync(`${final}.gz.part`, gz);
   renameSync(`${final}.gz.part`, `${final}.gz`);
-  const played = await all<{ m: number; e: number }>("SELECT COUNT(*) m, COUNT(DISTINCT code) e FROM matches WHERE season = ? AND played = 1", [season]);
   log(`full ${season}: ${rows + teams} rows → ${(buf.length / 1e6).toFixed(1)} MB (${(gz.length / 1e6).toFixed(2)} MB gz)`);
   return { name, url: `/packs/${name}`, bytes: buf.length, sha256: sha256(buf), seasons: [season], kind: "full",
     gz: { name: `${name}.gz`, url: `/packs/${name}.gz`, bytes: gz.length, sha256: sha256(gz) },
-    stats: { matches: Number(played[0]?.m ?? 0), events: Number(played[0]?.e ?? 0) },
+    stats: played,
     contents: `Every ${seasonInfo(season).label} ${seasonInfo(season).game} event, team, match (scores, breakdowns, penalties, lineups), ranking, alliance, award and computed stat — a plain SQLite file.` };
 }
 

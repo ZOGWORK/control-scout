@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import initSqlJs from "sql.js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { kvSet, migrate, openDb, run, setDb } from "../db";
+import { all, kvSet, migrate, openDb, run, setDb } from "../db";
 import { createApp } from "../app";
 import { setFlag } from "../flags";
 import { CURRENT_SEASON } from "../data/seasons";
@@ -247,6 +247,24 @@ describe("building a season pack", () => {
     expect(db.all("SELECT value FROM pack_info WHERE key = 'data_version'")).toEqual([{ value: V1 }]);
     expect((await readRankings(db, S, new URLSearchParams()))!.asOf).toBe(V1);
     expect(readdirSync(d).filter((x) => x.endsWith(".tmp"))).toEqual([]);
+  }, 120_000);
+
+  it("the release's match counts are the pack's own rows, not matches the live lane wrote after the reads", async () => {
+    // A played match lands once the tables are read (the boards come after them), with no write span: the try stands.
+    setBoardReads([async (s) => [{ path: `/api/records/${s}/high-score`, read: async () => {
+      await run(`INSERT OR IGNORE INTO matches (season, code, level, series, number, label, time, played, red_total, blue_total, source) VALUES (?, 'USTXQ1', 'qual', 0, 99, 'Q99', '2026-10-10T12:00:00', 1, 50, 40, 'test')`, [s]);
+      return { line: null };
+    } }]]);
+    const d = mkdtempSync(join(tmpdir(), "cs-boards-stats-"));
+    const f = await buildFull(S, "2026-11-15.1", d, () => {});
+    const SQL = await initSqlJs();
+    const db = wrap(new SQL.Database(readFileSync(join(d, f!.name))));
+    const [inPack] = db.all<{ m: number; e: number }>("SELECT COUNT(*) m, COUNT(DISTINCT code) e FROM matches WHERE season = ? AND played = 1", [S]);
+    expect(f!.stats).toEqual({ matches: Number(inPack.m), events: Number(inPack.e) });
+    // The live database has the late match the pack doesn't: counting there (as before) said one more.
+    const [live] = await all<{ m: number }>("SELECT COUNT(*) m FROM matches WHERE season = ? AND played = 1", [S]);
+    expect(Number(live.m)).toBe(Number(inPack.m) + 1);
+    await run("DELETE FROM matches WHERE season = ? AND code = 'USTXQ1' AND number = 99", [S]);
   }, 120_000);
 
   it("a build that fails part-way closes its file and leaves no temp file behind", async () => {
