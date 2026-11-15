@@ -358,11 +358,11 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
   // Ames, "West Michigan Meet 4" never Michigan). The longest such run first. Only a name with a word of its own,
   // never one of search's own words and numbers only ("League Meet 1" is a kind of event and a number), never a team's
   // whole name, and never a place with only event words beside it ("Texas Championship" is the state's, read below).
-  for (let len = Math.min(ctx.names.eventLongest ?? 0, toks.length); len >= 2 && !p.event; len--) {
+  for (let len = Math.min(ctx.names.eventLongest, toks.length); len >= 2 && !p.event; len--) {
     for (let i = 0; i + len <= toks.length && !p.event; i++) {
       const span = toks.slice(i, i + len);
       const said = span.map((t) => t.w).join(" ");
-      if (span.some((t) => t.used) || !ctx.names.eventNamed?.(said) || ctx.names.teamsNamed(said).length) continue;
+      if (span.some((t) => t.used) || !ctx.names.eventNamed(said) || ctx.names.teamsNamed(said).length) continue;
       const own = span.filter((t) => !EVENT_NAME_WORDS.has(t.w) && !KIND_WORDS.has(t.w) && !SEARCH_WORDS.has(t.w) && !/^\d+$/.test(t.w));
       if (!own.length) continue;
       const numbered = span.some((t) => /^\d+$/.test(t.w));
