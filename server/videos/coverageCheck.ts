@@ -53,6 +53,15 @@ export function videoState(m: CoverageMatch): string {
 /** The last check pass, as the owner console shows it (kv). */
 const LAST_PASS = "clip-coverage:last-pass";
 
+/** Every stored event's missing matches with a video that its frames haven't been read for yet ("not yet checked against
+ *  the video", videoState), all seasons: the pending work, counted after each pass so the console shows it shrinking. */
+async function pendingMatches(): Promise<number> {
+  const r = await get<{ n: number }>(
+    `SELECT COUNT(*) AS n FROM clip_coverage c, json_each(c.detail, '$.missing') j
+     WHERE json_type(j.value, '$.video') = 'object' AND json_extract(j.value, '$.video.checked') IS NULL AND json_extract(j.value, '$.video.earlyStart') IS NULL`);
+  return Number(r?.n ?? 0);
+}
+
 let busy = false;
 /** Check every event whose recording or played matches changed since its last check. Returns how many were checked. */
 export async function checkClipCoverage(log: (s: string) => void, now = Date.now()): Promise<number> {
@@ -122,8 +131,10 @@ export async function checkClipCoverage(log: (s: string) => void, now = Date.now
     }
     if (checked) {
       const why = Object.entries(pass.why).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} ${n}`).join(", ");
-      log(`clip coverage: checked ${checked} event${checked === 1 ? "" : "s"} (${pass.events} recorded) · ${pass.full} fully clipped · ${pass.clipped} matches clipped · ${pass.missing} missing${why ? ` (${why})` : ""}${opened ? ` · ${opened} actionable for owner review` : ""}`);
-      const last: CoveragePass = { at: new Date(now).toISOString(), checked, ...pass, opened };
+      const [pending, before] = await Promise.all([pendingMatches(), kvGet<CoveragePass>(LAST_PASS).catch(() => null)]);
+      const pendingBefore = before?.pending ?? null;
+      log(`clip coverage: checked ${checked} event${checked === 1 ? "" : "s"} (${pass.events} recorded) · ${pass.full} fully clipped · ${pass.clipped} matches clipped · ${pass.missing} missing${why ? ` (${why})` : ""}${opened ? ` · ${opened} actionable for owner review` : ""} · ${pending} matches not yet checked against the video${pendingBefore != null ? ` (was ${pendingBefore})` : ""}`);
+      const last: CoveragePass = { at: new Date(now).toISOString(), checked, ...pass, opened, pending, pendingBefore };
       await kvSet(LAST_PASS, last).catch(() => {});
     }
     return checked;
