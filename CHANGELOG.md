@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.4.2 — 2026-11-14
+## 6.4.4 — 2026-11-14
 
 Settings › Network & offline now says whether the Wi-Fi is actually giving internet: a Wi-Fi whose sign-in page answers reads "Connected to Wi-Fi, but no internet" and says to open any website to sign in, instead of "You're offline".
 
@@ -26,6 +26,36 @@ Settings › Network & offline now says whether the Wi-Fi is actually giving int
 
 ### Changed
 - Network & offline status (`/settings#network`): when the connection check gets a page that isn't ours (a sign-in page), the heading says the device is connected (to Wi-Fi when the browser says Wi-Fi, else to a network) but gets no internet, and a line under it says it's likely waiting at a sign-in page: open any website to sign in. When the check gets no answer while the browser says it's online, it reads "Connected, but nothing is getting through"; "You're offline" stays for when the browser itself says there's no network. (`src/lib/networkAdvice.ts`, `src/components/settings/NetworkSection.tsx`) (#1513)
+
+## 6.4.3 — 2026-11-15
+
+Owner › Clip coverage now sorts itself: the server puts every event with a missing clip in a category, and only the Actionable ones ask for a look.
+
+### Highlights
+- [workspace] Clip coverage triaged by the server: To review is Actionable only
+- [workspace] Each event says its category and why in plain words
+- [workspace] Mark a whole category or season reviewed, count shown first
+- [fixes] A reviewed event comes back only when its new gap is actionable
+
+### Changed
+- Owner › Clip coverage: every event with a played match missing a clip is triaged by the server as Actionable (a match the clock alone puts outside the video: before or after the broadcast, before its cut start or after its end, outside what its chapters confirm, never checked against the video itself; or no reason found), No timing, Early start / unsafe, or Old season (before last season, decided when read so it follows the season rollover). To review counts Actionable only and is the default view; each category is a filter with its count, and each row says its category and why. "Played before the broadcast started" is never put anywhere but Actionable on that reason alone. (`server/videos/coverageTriage.ts`, `src/components/owner/ClipCoveragePanel.tsx`, migration 89) (#1509)
+- A reviewed event opens again only when its missing list changes to an actionable one; a deploy or refreshed facts alone never open one. (`server/videos/coverageCheck.ts`)
+
+### Added
+- Bulk Reviewed: "Mark all non-actionable as reviewed", a whole category, or a whole season (its non-actionable events, its Actionable ones only when ticked). Each asks first with its count, marks only if that's still the count, and is in the audit log (`clipCoverage.bulkReviewed`, with category, season and count). Missing lists stay, and the 5-minute check keeps checking every event.
+
+## 6.4.2 — 2026-11-14
+
+World rankings and the home page's prediction record open cleanly with no signal.
+
+### Highlights
+- [offline] Home's prediction record shows its last numbers with no signal
+- [fixes] World rankings with no season saved no longer looks stuck loading
+- [rankings] Its season picker shows next to the "needs a connection" note
+
+### Fixed
+- World rankings, opened with no signal and no season saved: the season picker now shows next to the page's "needs a connection" note, instead of a loading placeholder that never went away. (`src/pages/RankingsPage.tsx`)
+- The home page's prediction record (`/api/predict/accuracy`) is kept on the device like the season totals, so with no signal it shows the last numbers it loaded, marked with their time, instead of "needs a connection". (`src/lib/offline/kept.ts`) (#1511)
 
 ## 6.4.1 — 2026-11-14
 

@@ -44,7 +44,7 @@ function missingOf(meta: RecordingTiming): number | null {
   return Number.isFinite(v) ? v : null;
 }
 
-const WHY: Record<CoverageReason, string> = {
+export const WHY: Record<CoverageReason, string> = {
   "no-start": "No real start time from FIRST",
   "no-zone": "The event's time zone isn't known, so its start can't be placed",
   "no-recording-day": "No recording for that day",
