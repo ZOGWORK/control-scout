@@ -12,6 +12,7 @@ import { forgetRecordings } from "./recordings";
 import { currentSeason } from "../api/answers/season";
 import { seasonLabel } from "../../src/shared/format";
 import { FRAME_TIMINGS, setFrameTimingsForTests } from "../data/frameTimings";
+import { CLIP_CHECKS, setClipChecksForTests } from "../data/clipChecks";
 import { checkClipCoverage, markCoverageBulkReviewed, markCoverageReviewed, openCoverageCount, ownerClipCoverage, triageUntriaged } from "./coverageCheck";
 
 const S = currentSeason();
@@ -260,6 +261,31 @@ describe("clip coverage check and triage", () => {
     await run("DELETE FROM event_broadcasts WHERE code = 'TWODAY'");
     forgetRecordings();
     expect(await checkClipCoverage(() => {})).toBe(1);
+  });
+
+  it("lists findings: a match the frames saw with no clip, and a clip pulled by its first frame, with the last pass", async () => {
+    const keptChecks = [...CLIP_CHECKS];
+    // Q1 seen in the video by one read (not confirmed): no clip, a finding.
+    setFrameTimingsForTests([{ videoId: "SATURDAYv01", code: "TWODAY", checked: "2026-11-15", starts: {}, review: { Q1: { t: 1800, why: "one signal only" } } }]);
+    setClipChecksForTests([{ videoId: "SATURDAYv01", code: "TWODAY", season: S, checked: "2026-11-15", pulled: { Q2: { t: 3600, showed: "Q1" } } }]);
+    try {
+      await run("UPDATE clip_coverage SET fingerprint = 'x' WHERE code = 'TWODAY'");
+      const logged: string[] = [];
+      expect(await checkClipCoverage((l) => logged.push(l))).toBe(1);
+      expect(logged[0]).toMatch(/^clip coverage: checked 1 event \(1 recorded\) · 0 fully clipped · \d+ matches clipped · \d+ missing \(.*seen in the video, no clip \(a finding\) 1/);
+      const o = await ownerClipCoverage();
+      expect(o.findings).toEqual(expect.arrayContaining([
+        { kind: "seen", season: S, code: "TWODAY", name: "Two Day Qualifier", label: "Q1", videoId: "SATURDAYv01", at: 1800, why: "Checked in the video (2026-11-15): seen at 0:30:00, not yet confirmed (one signal only)" },
+        { kind: "pulled", season: S, code: "TWODAY", name: "Two Day Qualifier", label: "Q2", videoId: "SATURDAYv01", at: 3600, why: "Clip pulled: its first frame shows Q1, not Q2" },
+      ]));
+      expect(o.clipChecks).toMatchObject({ pulled: 1 });
+      expect(o.lastPass).toMatchObject({ checked: 1, events: 1, why: expect.objectContaining({ "seen in the video, no clip (a finding)": 1 }) });
+    } finally {
+      setClipChecksForTests(keptChecks);
+      setFrameTimingsForTests([{ videoId: "SATURDAYv01", code: "TWODAY", checked: "2026-11-15", starts: {}, missing: { Q1: "no frame read of it" } }]);
+      await run("UPDATE clip_coverage SET fingerprint = 'x' WHERE code = 'TWODAY'");
+      await checkClipCoverage(() => {});
+    }
   });
 
   it("drops an event from every list once it has no recording left (stats only)", async () => {
