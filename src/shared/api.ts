@@ -592,7 +592,7 @@ export interface OwnerCoverageEvent {
  *  events not yet reviewed by season; totals over every recorded event checked. */
 export interface OwnerClipCoverage {
   events: OwnerCoverageEvent[]; list: CoverageTriage | "reviewed"; open: number; reviewed: number;
-  categories: Record<CoverageTriage, number>; seasons: { season: number; open: number }[];
+  categories: Record<CoverageTriage, number>; seasons: { season: number; open: number; actionable: number }[];
   totals: { events: number; played: number; withClip: number; full: number };
 }
 
