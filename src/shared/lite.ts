@@ -13,6 +13,7 @@
 //   /scout?space=7&tab=planning&view=picklist&season=…  ⇄ /lite/picklist?space=7&season=…
 //   /scout?… (any other view)              ⇄ /lite/scout?… (scouting itself needs the full app: its forms run scripts)
 //   /settings                              ⇄ /lite/settings
+//   /network (Settings › Network & offline) ⇄ /lite/network
 //
 // Any rich page can also be asked for as ?lite=1 (the server redirects to its twin). A light page always links
 // back to its full version: light mode is never somewhere a good connection gets stuck.
@@ -97,6 +98,7 @@ export function liteHref(path: string, search = ""): string | null {
   // Scouting's other views: Lite's page says scouting needs the full app, and takes this same view back there.
   if (page === "/scout") { const rest = scoutQuery(params); return `${LITE_PREFIX}/scout${rest}`; }
   if (page === "/settings") return `${LITE_PREFIX}/settings`;
+  if (page === "/network") return `${LITE_PREFIX}/network`;
   return null;
 }
 
@@ -134,5 +136,6 @@ export function fullHref(path: string, search = ""): string {
   if (page === "/predict") { const c = carried("predict", params, ["mode", "match"]); return c === "?mode=match" ? "/predict" : `/predict${c}`; }
   if (page === "/scout") return `/scout${scoutQuery(params)}`;
   if (page === "/settings") return "/settings";
+  if (page === "/network") return "/network";
   return "/";
 }

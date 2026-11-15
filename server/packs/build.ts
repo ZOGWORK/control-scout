@@ -19,7 +19,8 @@ import { hostname } from "node:os";
 import { join } from "node:path";
 import { gzipSync } from "node:zlib";
 import { createClient, type Client } from "@libsql/client";
-import { ENGINE_VERSION } from "@control-scout/predict-engine";
+import { ENGINE_VERSION, REASON_RULE } from "@control-scout/predict-engine";
+import type { RecentRow } from "../../src/shared/predictView.js";
 import { all, kvGet } from "../db.js";
 import { CURRENT_SEASON, PREDICT_SEASONS, SEASON_NUMBERS, seasonInfo } from "../data/seasons.js";
 import { ScoutForecaster, dataVersion, forecasterFor } from "../predict/engine.js";
@@ -64,10 +65,20 @@ export function learnedEvents(f: Pick<ScoutForecaster, "seasonEvents" | "storedP
   return out;
 }
 
+/** A season's recent records that make a reason ([team, matches, no-shows, near-zero]; the rest make none, so they
+ *  stay out of the pack): the rows the server's prediction reads (recentRecords), filtered by the engine's own rule. */
+export async function notableRecent(season: number): Promise<RecentRow[]> {
+  const rows = await all<any>("SELECT team, recent_matches, recent_no_shows, recent_near_zero FROM team_reliability WHERE season = ? AND code = '' AND (recent_no_shows >= ? OR recent_near_zero >= ?) ORDER BY team",
+    [season, REASON_RULE.noShows, REASON_RULE.nearZero]);
+  return rows.map((r) => [Number(r.team), Number(r.recent_matches), Number(r.recent_no_shows), Number(r.recent_near_zero)]);
+}
+
 export async function buildLite(version: string, dir: string, log: (m: string) => void): Promise<BuiltFile> {
   const books: Record<string, unknown> = {};
   // Each season's bonus-RP model as the server serves it, so offline qualification predictions show the same bonus odds.
   const bonus: Record<string, unknown> = {};
+  // Each season's recent records that make a reason (no-shows, near-zero matches), as the server's prediction reads them.
+  const recentRows: Record<string, RecentRow[]> = {};
   // Which results those ratings learned, per recent event (src/shared/liteLearned.ts): the device's local
   // estimate folds in exactly the others, as the server's forecaster does.
   const builtAt = new Date();
@@ -80,6 +91,8 @@ export async function buildLite(version: string, dir: string, log: (m: string) =
     if (Object.keys(recent).length) learned.events[String(s)] = recent;
     const bm = f.bonusModel(s);
     if (bm) bonus[String(s)] = bm;
+    const rows = await notableRecent(s);
+    if (rows.length) recentRows[String(s)] = rows;
   }
   // Pair history (engine 2.4) through the newest season, the finished seasons' part included.
   let pf = await forecasterFor(CURRENT_SEASON);
@@ -88,7 +101,7 @@ export async function buildLite(version: string, dir: string, log: (m: string) =
   const pairs = pf.partnershipData ? encodeLitePairs(pf.partnershipData) : null;
   const teams = (await all<any>("SELECT number, name, city, state, country FROM teams ORDER BY number"))
     .map((t) => [Number(t.number), t.name ?? null, place(t.city, t.state, t.country) || null]);
-  const json = JSON.stringify({ format: PACK_FORMAT, version, builtAt: builtAt.toISOString(), engineVersion: ENGINE_VERSION, books, bonus, teams, pairs, learned });
+  const json = JSON.stringify({ format: PACK_FORMAT, version, builtAt: builtAt.toISOString(), engineVersion: ENGINE_VERSION, books, bonus, recent: recentRows, teams, pairs, learned });
   const gz = gzipSync(Buffer.from(json), { level: 9 });
   const name = `scout-pack-${version.replace(/\./g, "-")}-lite.json.gz`;
   writeFileSync(join(dir, name), gz);

@@ -1,46 +1,75 @@
-// A match prediction on this device from the lite pack, for the Predict page
-// with no signal. The page imports this lazily, and only after the server
-// couldn't be reached (lib/api.ts): an online visit never loads the engine
-// code here, nor opens the pack.
-import { RatingBook, explainMatch, FITTED_MODEL, type MatchExplanation } from "@control-scout/predict-engine";
-import { partnershipFor } from "./partnerships";
-import { loadLite } from "../packs";
+// A match prediction on this device, for the Predict page with no signal. The page imports this lazily, and only
+// after the server couldn't be reached (lib/api.ts): an online visit never loads the engine code here, nor opens
+// a pack.
+//
+// Two snapshots can answer: the lite pack (every team, rebuilt about daily) and an event bundle (the event's
+// teams, as of its download). Each is a whole snapshot of what the server's prediction reads (ratings, bonus
+// model, pair history, recent records, names), so the call is the one the server made at that snapshot's time,
+// through the same options and view (src/shared/predictView.ts). The newer snapshot holding the lineup answers,
+// and every number comes from that one snapshot: never ratings from one and bonus odds from the other.
+import type { MatchExplanationView } from "../../shared/api";
+import { loadLite, packStatus, type LitePack } from "../packs";
 import { savedBundles } from "./bundleMeta";
 import { loadBundle } from "./bundles";
-import { bundleTime } from "../../shared/eventBundle";
+import { bundleTime, type SavedBundle } from "../../shared/eventBundle";
+import { bundleCall, bundleHolds, liteCall } from "./predictCall";
 
-/**
- * Predict a match on this device from the lite pack (same engine as the
- * server). A pack built before engine 2.0 has no reliability state, so its
- * odds come from the legacy probability model until the next pack arrives.
- */
-export async function offlineExplain(season: number, red: number[], blue: number[], level: "qual" | "playoff" = "qual"): Promise<(MatchExplanation & { asOf: string }) | null> {
-  const p = await loadLite();
-  const data = p?.books[String(season)];
-  if (!p || !data) return bundleExplain(season, red, blue, level);
-  const book = RatingBook.fromData(data);
-  book.setTime(Date.now());
-  // Bonus RPs count in qualification matches only; packs built before engine 2.3 carry no bonus model.
-  const bonus = level === "qual" ? p.bonus?.[String(season)] : undefined;
-  return {
-    ...explainMatch(book, red, blue, { noise: FITTED_MODEL.noise, calibration: FITTED_MODEL.calibration, contextual: FITTED_MODEL.contextual, context: { level }, band: FITTED_MODEL.band, partnership: partnershipFor(p, season), ...(bonus ? { bonus: { season, model: bonus } } : {}) }),
-    asOf: p.builtAt,
-  };
+export type OfflineSource = { kind: "lite" } | { kind: "bundle"; season: number; code: string; name: string };
+
+export interface OfflineCall {
+  view: MatchExplanationView;
+  /** When the snapshot's data is from (the server's last sync before it was built). */
+  asOf: string;
+  /** Which snapshot answered: the lite pack, or the named event's bundle. */
+  source: OfflineSource;
 }
 
-/** No lite pack for the season: an event-day bundle holding every one of these teams predicts instead (its
- *  ratings are the event's teams', as of the bundle). The newest such bundle wins. */
-async function bundleExplain(season: number, red: number[], blue: number[], level: "qual" | "playoff"): Promise<(MatchExplanation & { asOf: string }) | null> {
-  const want = [...red, ...blue];
-  const metas = savedBundles().filter((b) => b.season === season).sort((a, b) => bundleTime(b).localeCompare(bundleTime(a)));
+/** The lite pack's data time: the server's last sync before its build (as the manifest said), else its build. */
+const liteTime = (p: Pick<LitePack, "builtAt">): string => packStatus()?.dataAsOf ?? p.builtAt;
+
+const bundleSource = (m: SavedBundle): OfflineSource => ({ kind: "bundle", season: m.season, code: m.code, name: m.name });
+
+/** The call from this one snapshot only (a what-if's swap is predicted from the same snapshot as the match it's
+ *  compared with, never a newer or older one): null when it doesn't hold the lineup. */
+async function fromSnapshot(from: OfflineSource, season: number, red: number[], blue: number[], level: "qual" | "playoff"): Promise<OfflineCall | null> {
+  if (from.kind === "lite") {
+    const pack = await loadLite();
+    return pack?.books[String(season)] ? { view: liteCall(pack, season, red, blue, level), asOf: liteTime(pack), source: from } : null;
+  }
+  const meta = savedBundles().find((b) => b.season === from.season && b.code === from.code);
+  const b = meta && from.season === season ? await loadBundle(meta.season, meta.code) : null;
+  return meta && b && bundleHolds(b, [...red, ...blue]) ? { view: bundleCall(b, season, red, blue, level), asOf: bundleTime(meta), source: bundleSource(meta) } : null;
+}
+
+/**
+ * Predict a match on this device. Null when nothing saved holds the season (or, for a bundle, the lineup).
+ * `level`: the page's what-ifs are qualification matches (as the server's GET /api/predict/match by default).
+ * `from`: only this snapshot answers (null when it doesn't hold the lineup).
+ */
+export async function offlineExplain(season: number, red: number[], blue: number[], level: "qual" | "playoff" = "qual", from?: OfflineSource): Promise<OfflineCall | null> {
+  const lineup = [...red, ...blue];
+  if (from) return fromSnapshot(from, season, red, blue, level);
+  const metas = savedBundles().filter((b) => b.season === season && (!b.teams || lineup.every((t) => b.teams!.includes(t))))
+    .sort((a, b) => bundleTime(b).localeCompare(bundleTime(a)));
+  // The lite pack's time from its saved meta, so a newer bundle answers without the pack being decoded.
+  const lm = packStatus();
+  const liteAt = lm && (!lm.seasons || lm.seasons.includes(season)) ? (lm.dataAsOf ?? lm.builtAt) : null;
+  for (const meta of metas) {
+    // A newer lite pack answers instead (it's the whole season, a bundle only its event's teams).
+    if (liteAt != null && bundleTime(meta) < liteAt) break;
+    const b = await loadBundle(meta.season, meta.code);
+    if (!b || !bundleHolds(b, lineup)) continue;
+    // A bundle from before it carried the rest of the server's inputs (bonus model, pair history, recent records)
+    // answers only when no lite pack covers the season (below).
+    if (!b.predict && liteAt != null) continue;
+    return { view: bundleCall(b, season, red, blue, level), asOf: bundleTime(meta), source: bundleSource(meta) };
+  }
+  const pack = await loadLite();
+  if (pack?.books[String(season)]) return { view: liteCall(pack, season, red, blue, level), asOf: liteTime(pack), source: { kind: "lite" } };
+  // No lite pack for the season: any bundle holding the lineup, newest first, even one without the rest.
   for (const meta of metas) {
     const b = await loadBundle(meta.season, meta.code);
-    if (!b?.ratings) continue;
-    const have = new Set(b.ratings.ratings.map(([t]) => t));
-    if (!want.every((t) => have.has(t))) continue;
-    const book = RatingBook.fromData(b.ratings);
-    book.setTime(Date.now());
-    return { ...explainMatch(book, red, blue, { noise: FITTED_MODEL.noise, calibration: FITTED_MODEL.calibration, contextual: FITTED_MODEL.contextual, context: { level }, band: FITTED_MODEL.band }), asOf: bundleTime(meta) };
+    if (b && bundleHolds(b, lineup)) return { view: bundleCall(b, season, red, blue, level), asOf: bundleTime(meta), source: bundleSource(meta) };
   }
   return null;
 }

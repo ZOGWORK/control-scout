@@ -24,6 +24,8 @@ vi.mock("sql.js/dist/sql-wasm-browser.wasm?url", () => ({ default: "/assets/sql-
 
 import { readSaved, removeSeason, saveSeason, savedSeasons, SEASONS_EVENT, SeasonGone } from "./seasons";
 import { runSeasonBatch } from "./seasonBatch";
+import { DownloadPaused, PIECE, download, partialDownloads } from "./download";
+import { resumeMarks, wantResume } from "./resumeMarks";
 
 // Cache Storage, as the service worker leaves it.
 const caches = new Map<string, Set<string>>();
@@ -32,7 +34,7 @@ vi.stubGlobal("caches", {
   open: async (n: string) => {
     if (!caches.has(n)) caches.set(n, new Set());
     const c = caches.get(n)!;
-    return { match: async (u: string) => (c.has(u) ? {} : undefined), add: async (u: string) => { c.add(u); } };
+    return { match: async (u: string) => (c.has(u) ? {} : undefined), add: async (u: string) => { c.add(u); }, delete: async (u: string) => c.delete(u) };
   },
 });
 vi.stubEnv("DEV", false);
@@ -150,6 +152,47 @@ describe("saveSeason", () => {
     await saveSeason(file(2025, "b"), manifest);
     expect([...store.keys()]).toEqual(["season:2025:b"]);
     expect(await names(2025)).toEqual(["2025:Newer"]);
+  });
+});
+
+describe("Delete removes every copy", () => {
+  /** A newer release of the season, paused by a dropped connection after `cut` bytes (kept as a half download). */
+  async function pausedUpdate(season: number, cut: number) {
+    const data = new Uint8Array(PIECE * 2).fill(9);
+    let sent = 0;
+    const body = new ReadableStream<Uint8Array>({ pull(c) { if (sent >= cut) { c.error(new TypeError("network error")); return; } c.enqueue(data.slice(sent, cut)); sent = cut; } });
+    const fetch = (async () => new Response(body, { status: 200 })) as unknown as typeof globalThis.fetch;
+    const owner = { kind: "season" as const, id: String(season), label: "" };
+    await expect(download({ url: `/packs/${season}-next.db.gz`, bytes: data.length, sha256: "next".padEnd(64, "0") }, { owner, fetch })).rejects.toBeInstanceOf(DownloadPaused);
+  }
+
+  it("the saved file, a paused update of it, its pick-up mark, and the SQLite engine once no season is left", async () => {
+    caches.set("cs-shell-20261001-aa", new Set([ENGINE])); // as the worker or the save left it
+    await saveSeason(file(2025, "a"), manifest);
+    expect(caches.get("cs-shell-20261001-aa")!.has(ENGINE)).toBe(true);
+    await pausedUpdate(2025, 1000);
+    wantResume("season", "2025");
+    expect(await partialDownloads()).toHaveLength(1);
+
+    const saved = savedSeasons()[0].bytes;
+    // What it says it freed counts the half download too.
+    expect(await removeSeason(2025)).toBe(saved + 1000);
+    expect([...store.keys()]).toEqual([]);
+    expect(await partialDownloads()).toEqual([]);
+    expect(resumeMarks()).toEqual([]);
+    expect(caches.get("cs-shell-20261001-aa")!.has(ENGINE)).toBe(false);
+  });
+
+  it("keeps the engine (and another season's half download) while another season is saved", async () => {
+    caches.set("cs-shell-20261001-aa", new Set([ENGINE])); // as the worker or the save left it
+    await saveSeason(file(2024, "a"), manifest);
+    await saveSeason(file(2025, "a"), manifest);
+    await pausedUpdate(2024, 500);
+    await removeSeason(2025);
+    expect(caches.get("cs-shell-20261001-aa")!.has(ENGINE)).toBe(true);
+    expect((await partialDownloads()).map((p) => p.owner.id)).toEqual(["2024"]);
+    await removeSeason(2024);
+    expect(await partialDownloads()).toEqual([]);
   });
 });
 

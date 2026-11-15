@@ -37,7 +37,7 @@ export function liteLink(href: string): string {
 /** A Lite search for `q`. */
 export const liteSearch = (q: string) => `/lite/search?q=${encodeURIComponent(q)}`;
 
-/** A full page Lite sends someone to on purpose (scouting, the network settings): while Lite is on, asked for this
+/** A full page Lite sends someone to on purpose (scouting, downloads): while Lite is on, asked for this
  *  once (?lite=0), or the server would bring them straight back here. */
 export const fullOnce = (href: string, view: LiteView) => {
   if (!view.sticky) return href;
@@ -351,7 +351,7 @@ export function settingsPage(view: LiteView): LitePage {
     + section("Control Scout Lite", card(view.sticky
       ? `<p>Lite is on: pages with a Lite version open in Lite, on this device, until you turn it off.</p><p>${button(`/lite/off?next=${encodeURIComponent("/settings")}`, "Turn off Lite")}</p>`
       : `<p>Lite is off: Lite pages open only when you ask for them. Turn it on to open them every time on this device.</p><p>${button(`/lite/on?next=${back}`, "Always open Lite")}</p>`))
-    + section("Network and offline", card(`<p>Your connection, downloaded event packs and how much data they use are in the full version's settings.</p>`
-      + `<p>${button(fullOnce("/settings#network", view), "Network & offline settings")}</p>`));
+    + section("Network and offline", card(`<p>Your connection, what's downloaded on this device, and how much data a download uses.</p>`
+      + `<p>${button("/lite/network", "Network & offline")}</p>`));
   return { title: "Settings", full: "/settings", body };
 }

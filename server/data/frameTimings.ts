@@ -28,8 +28,9 @@ export interface FrameTiming {
   review?: Record<string, { t: number; why: string }>;
   /** Matches the frames gave no start for, and why. */
   missing?: Record<string, string>;
-  /** Matches whose frame start lands inside the previous match's play, read off the video: the start and when the
-   *  previous match's play ends. Each is in `review` too, never a clip. */
+  /** Matches the frames show starting while the match before is still being played: `t`, the second it starts at in
+   *  the video, `previousEnds`, the second the one before ends. Only these are "Early start / unsafe" in Owner › Clip
+   *  coverage (server/videos/coverageTriage.ts); an early start by the clock alone is never one. */
   earlyStart?: Record<string, { t: number; previousEnds: number }>;
   /** Where each placed match's clip opens: the first second before its start whose overlay names it. A row that has
    *  it was checked clip by clip, and only the starts in it are clips (scripts/video-frames.ts, checkOpenings). */
@@ -92,6 +93,16 @@ export function frameReview(videoId: string, code: string): Record<string, { t: 
 /** A video's matches for an event the frames gave no start for, with why. */
 export function frameMissing(videoId: string, code: string): Record<string, string> {
   return FRAME_TIMINGS.find((f) => f.videoId === videoId && f.code === code)?.missing ?? {};
+}
+
+/** A video's frame read for an event (the day it was read, and everything it found), or null when it wasn't read. */
+export function frameRow(videoId: string, code: string): FrameTiming | null {
+  return FRAME_TIMINGS.find((f) => f.videoId === videoId && f.code === code) ?? null;
+}
+
+/** The frames' word that a match starts while the one before is still on (its second, and when that one ends), or null. */
+export function frameEarlyStart(videoId: string, code: string, label: string): { t: number; previousEnds: number } | null {
+  return frameRow(videoId, code)?.earlyStart?.[label] ?? null;
 }
 
 /** How sure a framed start is: "high" read off its own frames, "medium" filled between two agreeing reads. */

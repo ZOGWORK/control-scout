@@ -10,7 +10,8 @@
 //   - type: Wi-Fi, mobile data, none (the browser says it's offline) or unknown (most browsers don't say: iPhones,
 //     desktop Chrome). saveData: the browser's Data Saver.
 //
-// When it checks: shortly after start unless a request settled it first (startConnectionWatch, main.tsx), on the browser's online/offline events, when the
+// When it checks: shortly after start unless a request settled it first (startConnectionWatch, main.tsx), on the
+// browser's online/offline events (online: at once, every time, then every ONLINE_RETRY_MS for a while), when the
 // tab comes back into view or the window gets focus while there's no internet, soon after any request fails for want
 // of a network (api.ts noteRequestFailed), after RETRY_STEPS_MS one after another (3 s, 5 s, 10 s, 20 s) and then every
 // RETRY_MS while there's no internet, and every IDLE_MS (tab in view) while there is. A server answer anywhere in
@@ -22,8 +23,8 @@ import { useSyncExternalStore } from "react";
 import type { ConnectionInfo } from "./packPolicy";
 import { netKind } from "./offline/updatePolicy";
 
-export type Internet = "yes" | "no" | "portal" | "unknown";
-export type ConnectionType = "wifi" | "cellular" | "none" | "unknown";
+import type { ConnectionType, Internet } from "../shared/networkStatus";
+export type { ConnectionType, Internet } from "../shared/networkStatus";
 
 export interface ConnectionState {
   /** navigator.onLine (a hint only). */
@@ -43,8 +44,15 @@ export const RETRY_MS = 30_000;
  *  back is seen in seconds; then every RETRY_MS. Starts over when there's internet again, and on the browser's online
  *  event, the tab coming back into view, or the window getting focus. */
 export const RETRY_STEPS_MS: readonly number[] = [3000, 5000, 10_000, 20_000];
-/** Visibility and focus check at once only when the last check is older than this (else soon, by the first step). */
+/** Visibility and focus check at once only when the last check is older than this (else soon, by the first step).
+ *  The browser's online event always checks at once. */
 export const EVENT_GAP_MS = 5000;
+/** For ONLINE_WINDOW_MS after the browser's online event, a check that doesn't find internet is tried again after
+ *  ONLINE_RETRY_MS, before the back-off (RETRY_STEPS_MS) takes over. Right after a reconnect the first requests can
+ *  fail, or hang past CHECK_TIMEOUT_MS, for up to about half a minute (measured live). Waiting 3 s, then 5 s, then 10 s
+ *  after each of those kept the Offline pill up for up to 48 s after the line answered again. */
+export const ONLINE_RETRY_MS = 500;
+export const ONLINE_WINDOW_MS = 30_000;
 /** While there is: check again this often (only with the tab in view). Failures check sooner on their own. */
 export const IDLE_MS = 5 * 60_000;
 /** A request failure checks after this long, so a burst of failures (a page's requests) costs one check. */
@@ -101,7 +109,7 @@ function set(next: Partial<ConnectionState>) {
   const changed = merged.online !== state.online || merged.internet !== state.internet || merged.type !== state.type || merged.saveData !== state.saveData;
   const prev = state.internet;
   if (changed || merged.checkedAt !== state.checkedAt) state = merged;
-  if (state.internet === "yes") retryStep = 0;
+  if (state.internet === "yes") { retryStep = 0; onlineUntil = 0; }
   if (merged.checkedAt && merged.internet !== "unknown") {
     try { sessionStorage.setItem(LAST_KEY, JSON.stringify({ internet: merged.internet, at: merged.checkedAt })); } catch { /* storage blocked */ }
   }
@@ -234,17 +242,24 @@ export function noteServerAnswer() {
 let next: ReturnType<typeof setTimeout> | undefined;
 /** Which of RETRY_STEPS_MS the next check while there's no internet waits (past the end: RETRY_MS). */
 let retryStep = 0;
+/** Until when checks that find no internet are tried again every ONLINE_RETRY_MS (the online event + ONLINE_WINDOW_MS). */
+let onlineUntil = 0;
+const quickTries = () => Date.now() < onlineUntil;
 const retryDelay = () => RETRY_STEPS_MS[retryStep] ?? RETRY_MS;
 /** The next periodic check: soon while there's no internet (sooner at first), rarely (tab in view only) while there is. */
 function schedule() {
   if (!started) return;
   clearTimeout(next);
   const ok = state.internet === "yes";
+  // A quick try (just after the online event) uses no back-off step: the steps start from 3 s once the window is over.
+  const quick = !ok && quickTries();
   next = setTimeout(() => {
     if (ok && typeof document !== "undefined" && document.visibilityState === "hidden") { schedule(); return; }
-    if (!ok && retryStep < RETRY_STEPS_MS.length) retryStep++;
+    // A check is running: its end re-arms this (set() or the set-aside path), so no step is spent sharing it.
+    if (inflight) return;
+    if (!ok && !quick && retryStep < RETRY_STEPS_MS.length) retryStep++;
     void checkInternet();
-  }, ok ? IDLE_MS : retryDelay());
+  }, ok ? IDLE_MS : quick ? ONLINE_RETRY_MS : retryDelay());
 }
 
 /** Something says the line may be back (the tab in view, the window focused, the online event) while there's no
@@ -260,8 +275,17 @@ export function startConnectionWatch(): () => void {
   if (started || typeof window === "undefined") return () => {};
   started = true;
   // The browser saying it's offline is believed at once (and checked, since iOS can say so wrongly).
-  const onOffline = () => { set({ internet: "no", checkedAt: Date.now() }); void checkInternet(); };
-  const onOnline = () => { retryStep = 0; set({}); void checkInternet(); };
+  const onOffline = () => { onlineUntil = 0; set({ internet: "no", checkedAt: Date.now() }); void checkInternet(); };
+  // The browser saying it's back online checks at once, every time, however recent the last check. A check already
+  // running started before the line came back and will likely fail, so another runs right after it (unless it found
+  // internet). Checks that still don't find it are tried again every ONLINE_RETRY_MS for ONLINE_WINDOW_MS, then the
+  // back-off.
+  const onOnline = () => {
+    retryStep = 0;
+    onlineUntil = Date.now() + ONLINE_WINDOW_MS;
+    set({});
+    void (inflight ? inflight.then((r) => (r === "yes" ? r : checkInternet())) : checkInternet());
+  };
   const onVisible = () => {
     if (document.visibilityState !== "visible") return;
     if (state.internet !== "yes") recheckSoon();
@@ -300,6 +324,7 @@ export function resetConnection() {
   clearTimeout(next); clearTimeout(failTimer); failTimer = undefined;
   started = false;
   retryStep = 0;
+  onlineUntil = 0;
   inflight = null;
   shown = null;
   answeredAt = 0;
