@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 6.8.7 — 2026-11-15
+
+This weekend › a team page names the event the team is registered for next, and "in FTC" is never read as a place.
+
+### Highlights
+- [teams] A team's next registered event shows on its page
+- [fixes] "What's happening in FTC this weekend" lists the weekend's events
+
+### Fixed
+- Team page Upcoming: an event the team is registered for but hasn't played yet is named and linked as the This weekend page names it ("No matches this weekend — next event is …"), never "no upcoming event". (`src/pages/TeamPage.tsx`)
+- Search: the program's own name after "in" or "at" ("what's happening in ftc this weekend") is the program, never a venue; a venue named "FTC …" stays the venue. (`src/shared/searchEventQuery.ts`) (#1582)
+
 ## 6.8.6 — 2026-11-15
 
 This weekend › the weekend's FTC events on one page, a team's next match with its time and call, and search answers both.
