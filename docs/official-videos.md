@@ -203,3 +203,55 @@ minutes and starts a run only when the last one is 6 hours old, so a deploy does
   and the live lane share; YouTube's reads happen outside it. When the sync holds it for 3 minutes or more the run
   doesn't start, or stops as "database busy", and that run doesn't count toward the 6-hour wait, so the next
   half-hourly check runs it again. The checks start 17.5 minutes after boot, midway between the sync's 5-minute ticks.
+
+## The channel audit
+
+`server/videos/officialAudit.ts` runs after every watcher run (scheduled, or Run now). It compares each watched
+channel's whole uploads list, video by video, with Scout's records. It reads only the channel's uploads list
+(`playlistItems` on its `UU…` playlist, `snippet,contentDetails` for the titles, then `videos` for the facts). It
+**never searches YouTube**.
+
+- **What it reads.** Each upload is stored once in `official_audit_videos` (migration 90).
+  - Every run reads each channel's newest page, and keeps reading only while a page is all new.
+  - Each channel's whole list is read once a week, the channel read longest ago first. A video no longer on the list
+    at a full read is marked gone (`gone_at`).
+  - Facts are read once per video, and only for one that may be a competition and that Scout has no record of. The
+    watcher's own adds have their facts read every run.
+- **Quota.** About 1 unit per channel a run (63 units), plus 1 per 50 new uploads that need facts. The weekly full
+  reads add about 700 units a week: 34,447 uploads on 63 channels, measured 2026-11-15. That comes to under 600 units
+  a day. An audit uses at most 800 units (`AUDIT_MAX_UNITS`), and what it doesn't reach waits for the next run.
+- **What Scout has for each upload** (`record`): the checked list, the watcher's add, the owner's add, FIRST's event
+  link, the event's short stream link, the channel's broadcasts, or the owner's stream (each of these plays on an
+  event); or the watcher's row (in review, set aside, a duplicate, rejected), or removed by the owner.
+- **An upload Scout has nothing for.** The watcher's rules run on it (`matchVideo`), with its best-guess event and what
+  that guess rests on (`bestGuess`: among the region's competitions from 21 days before its date to the day after,
+  the one whose name, city and designators the title shares most, nearest the date on a tie). Then it is one of:
+  - **Set aside, with the reason.** The title says it isn't a competition ("the title says "FRC""), or the title names
+    no competition. A short upload can't be a day's recording. A private or deleted video gives no facts.
+  - **Not read by the watcher yet.** It's in the watcher's window but went up or ended after the watcher's last run,
+    or it's live. The watcher's next run reads it.
+  - **A watcher miss.** It's in the window, older than the watcher's last run, and the watcher has no row for it. It
+    counts in the run's `missed` and becomes a finding at once. If a watcher run after that still has no row for it,
+    it goes to the review queue with why. The audit never adds a video.
+  - **A finding.** It's older than the window and may be a recording (an "add" or "review" verdict). It shows in
+    Owner › Official videos with its verdict, why and best guess. The owner sends it to review (`officialVideo.auditQueue`)
+    or says why it isn't a recording (`officialVideo.auditDismiss`, reason required), and it's never opened again.
+- **The watcher's own adds**, checked every run (`official_audit_adds`). Each is checked for these:
+  - it's still on its event, public, embeddable, and blocked in fewer than 50 countries;
+  - its title is an FTC competition stream's;
+  - it was broadcast on the day it's on, at the venue, and that day is one of the event's;
+  - the rules still pick only that event;
+  - no second video plays that day unless both name their parts.
+
+  A wrong add is listed with what's wrong. One that the watcher's title rules set aside today (a rule tightened since,
+  such as drone or FRC streams) is taken off its event by the audit, as the watcher would have left it. It's logged as
+  `officialVideo.remove` by "channel audit" and still counts as a wrong add. The owner removes any other wrong add.
+- **Best guesses in review.** Every video in review or set aside whose verdict names no event gets a best guess
+  (`official_watch.guess_why`). New rows get it when the watcher reads them; older rows get it at the next audit.
+- **Runs** (`official_audit_runs`): units, channels read and read in full, uploads, those with a Scout record, set
+  aside, open findings, watcher misses, queued, and the adds checked and wrong. Each channel's counts are in
+  `official_audit_channels`: uploads, with a record, without one, playing on an event (every season, and 2026-27
+  alone), and open findings.
+- **Owner › Official videos › Channel audit** shows the last audit and its error, the uploads with a Scout record,
+  the watcher misses, and the watcher's own adds over its last 10 runs and its last 100 videos read (added, wrong, not
+  checked yet). It also lists the wrong adds, the findings, each channel's counts and the set-aside reasons.
