@@ -28,7 +28,7 @@ Report a bug › capture the page behind the dialog without closing it, and a th
 - Report a bug: a "Capture this screen" button beside the drop zone, in browsers that can share a tab (not phones). The browser asks first, this tab offered first; the dialog and its backdrop step aside for one frame, sharing stops at once, and the picture is added as a screenshot under the usual limits (six, 5 MB each; full means no prompt at all). A refused or cancelled prompt adds nothing and leaves a short note. The site's Permissions-Policy now allows screen capture for this site only. (`src/components/layout/BugReport.tsx`, `src/components/layout/captureScreen.ts`, `server/securityHeaders.ts`) (#1570)
 
 ### Changed
-- Dialogs and sheets that scroll use the app's own thin scrollbar in the theme's colours (Light, Dim, Dark, Midnight) instead of the system's wide one, still scrollable by wheel, touch and keyboard. (`src/components/ui/overlay.tsx`) (#1570)
+- Dialogs and sheets that scroll use the app's own thin scrollbar in the theme's colours (Light, Dim, Dark, Midnight) instead of the system's wide one, still scrollable by wheel, touch and keyboard. (`src/components/ui/overlay.tsx`)
 
 ## 6.7.9 — 2026-11-15
 
