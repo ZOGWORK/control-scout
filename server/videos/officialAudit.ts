@@ -470,15 +470,17 @@ const findingOf = (r: any): AuditFinding => ({
 /** The audit for the owner console: its last runs, each channel's counts, the open findings and the wrong adds, and
  *  the measure of the watcher's adds over its last 10 runs and its last 100 videos read. */
 export async function ownerAudit() {
+  // A channel the owner stopped watching isn't audited any more: its rows are left as they were, out of these lists and counts.
+  const watched = "channel_id IN (SELECT channel_id FROM official_channels WHERE removed_at IS NULL)";
   const [runs, channels, findings, wrong, reasons, open] = await Promise.all([
     all<any>("SELECT id, started_at, finished_at, units, channels, full_channels, uploads, recorded, set_aside, findings, missed, queued, adds_checked, adds_wrong, error FROM official_audit_runs ORDER BY id DESC LIMIT 10"),
     all<any>(`SELECT c.channel_id, c.title, a.uploads, a.recorded, a.unrecorded, a.linked, a.linked_current, a.open_findings, a.full_at, a.checked_at, a.last_error
       FROM official_channels c LEFT JOIN official_audit_channels a ON a.channel_id = c.channel_id WHERE c.removed_at IS NULL ORDER BY COALESCE(a.open_findings, 0) DESC, c.title`),
     all<any>(`SELECT v.video_id, v.channel_id, v.title, v.published, v.start, v.duration, v.verdict, v.why, v.guess_season, v.guess_code, v.guess_day, v.guess_why, v.in_window, c.title AS channel FROM official_audit_videos v LEFT JOIN official_channels c ON c.channel_id = v.channel_id
-      WHERE v.finding = 'open' AND v.gone_at IS NULL ORDER BY v.verdict = 'add' DESC, v.in_window DESC, v.published DESC LIMIT 200`),
+      WHERE v.finding = 'open' AND v.gone_at IS NULL AND v.${watched} ORDER BY v.verdict = 'add' DESC, v.in_window DESC, v.published DESC LIMIT 200`),
     all<any>(`SELECT a.video_id, a.why, a.checked_at, o.season, o.code, o.day, o.title, o.removed_at FROM official_audit_adds a JOIN official_videos o ON o.video_id = a.video_id WHERE a.ok = 0 ORDER BY a.checked_at DESC`),
-    all<any>("SELECT why, COUNT(*) AS n FROM official_audit_videos WHERE gone_at IS NULL AND record IS NULL AND verdict = 'ignore' GROUP BY why"),
-    get<{ n: number }>("SELECT COUNT(*) AS n FROM official_audit_videos WHERE finding = 'open' AND gone_at IS NULL"),
+    all<any>(`SELECT why, COUNT(*) AS n FROM official_audit_videos WHERE gone_at IS NULL AND record IS NULL AND verdict = 'ignore' AND ${watched} GROUP BY why`),
+    get<{ n: number }>(`SELECT COUNT(*) AS n FROM official_audit_videos WHERE finding = 'open' AND gone_at IS NULL AND ${watched}`),
   ]);
   return {
     runs: runs.map((r) => ({ id: Number(r.id), startedAt: String(r.started_at), finishedAt: r.finished_at ?? null, units: Number(r.units), channels: Number(r.channels), fullChannels: Number(r.full_channels),
