@@ -244,6 +244,8 @@ export async function runChannelAudit(log: (s: string) => void, opts: { apiKey?:
           : live ? { kind: "review" as const, why: "live now or still to come: the watcher reads it once it's over" }
           : !row.facts_at ? { kind: "review" as const, why: "its facts weren't read yet (the audit's units ran out): read next run" }
           : v.privacy === "unavailable" ? { kind: "ignore" as const, why: "listed on the channel but private or deleted: YouTube gives nothing for it" }
+          // Hidden since it was listed (a channel's spare copy, often): off its public list, which is all the watcher reads.
+          : v.privacy === "unlisted" || v.privacy === "private" ? { kind: "ignore" as const, why: `${v.privacy} now: the channel took it off its public list, so it isn't for Scout` }
           : matchVideo(v, rule, v.start ? events(shift(v.start.slice(0, 10), -1), shift(v.start.slice(0, 10), 1)) : []);
         // As the watcher would: against what the event already plays that day (a duplicate, or a second video of it).
         if (m.kind === "add") m = await settle(m);

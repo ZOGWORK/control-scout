@@ -252,7 +252,9 @@ channel's whole uploads list, video by video, with Scout's records. It reads onl
   that guess rests on (`bestGuess`: among the region's competitions from 21 days before its date to the day after,
   the one whose name, city and designators the title shares most, nearest the date on a tie). Then it is one of:
   - **Set aside, with the reason.** The title says it isn't a competition ("the title says "FRC""), or the title names
-    no competition. A short upload can't be a day's recording. A private or deleted video gives no facts.
+    no competition. A short upload can't be a day's recording. A private or deleted video gives no facts. One the
+    channel has made unlisted since it was listed is off its public list, which is all the watcher reads: set aside,
+    not a miss.
   - **Not read by the watcher yet.** It's in the watcher's window but went up or ended after the watcher's last run,
     or it's live. The watcher's next run reads it.
   - **A watcher miss.** It's in the window, older than the watcher's last run, and the watcher has no row for it. It
