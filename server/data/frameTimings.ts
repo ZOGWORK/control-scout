@@ -34,6 +34,9 @@ export interface FrameTiming {
   /** Where each placed match's clip opens: the first second before its start whose overlay names it. A row that has
    *  it was checked clip by clip, and only the starts in it are clips (scripts/video-frames.ts, checkOpenings). */
   opens?: Record<string, number>;
+  /** Starts already live before openings were checked whose opening frame named nothing (blank, a transition): they
+   *  keep playing at the usual lead-in until a re-read confirms or pulls them. Never set on a new placement. */
+  unconfirmed?: string[];
 }
 
 let byKey: Map<string, Record<string, number>> | null = null;
@@ -56,7 +59,7 @@ export function plausibleStarts(starts: Record<string, number>): Record<string, 
  *  their match. */
 const playable = (f: FrameTiming) => {
   const s = plausibleStarts(f.starts);
-  return f.opens ? Object.fromEntries(Object.entries(s).filter(([l]) => f.opens![l] != null)) : s;
+  return f.opens ? Object.fromEntries(Object.entries(s).filter(([l]) => f.opens![l] != null || f.unconfirmed?.includes(l))) : s;
 };
 const keyed = () => new Map(FRAME_TIMINGS.map((f) => [`${f.videoId}|${f.code}`, playable(f)]));
 let opensByKey: Map<string, Record<string, number>> | null = null;
