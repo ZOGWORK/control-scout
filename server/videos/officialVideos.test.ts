@@ -81,6 +81,42 @@ describe("official videos", () => {
     expect((await all<{ video_id: string }>("SELECT video_id FROM official_videos WHERE code = 'ROWAIT'")).map((r) => r.video_id)).toEqual([SUN]);
   });
 
+  it("names the part of a day's video the event already plays without one, when the list gives it", async () => {
+    // Chicago Robotics Invitational 2026: each day has a "matches only" stream and a full one. Saturday's full stream was
+    // the watcher's add (no part); Sunday's is FIRST's own link. The list names both "Full stream" beside "Matches".
+    const FL = "ggggggggggg", SATM = "hhhhhhhhhhh", SATF = "iiiiiiiiiii", SUNM = "jjjjjjjjjjj";
+    await run("INSERT INTO events (season, code, name, type, city, start, end, timezone, remote, hybrid, livestream, source) VALUES (?, 'CRI', 'Chicago Robotics Invitational', 'Premier', 'Chicago', '2026-07-24', '2026-07-26', 'America/Chicago', 0, 0, ?, 'test')", [S, `https://www.youtube.com/watch?v=${FL}`]);
+    const meta = "INSERT INTO video_meta (video_id, status, start, end, duration, live, checked_at) VALUES (?, 'ok', ?, ?, ?, 0, '2026-11-12T00:00:00Z')";
+    await run(meta, [FL, "2026-07-26T12:57:00Z", "2026-07-26T21:11:00Z", 29_646]);
+    await run(meta, [SATM, "2026-07-25T15:00:00Z", "2026-07-25T22:55:00Z", 28_540]);
+    await run(meta, [SATF, "2026-07-25T15:25:00Z", "2026-07-25T22:55:00Z", 27_031]);
+    await run(meta, [SUNM, "2026-07-26T12:57:00Z", "2026-07-26T21:11:00Z", 29_640]);
+    await run("INSERT INTO official_videos (video_id, season, code, kind, day, part, channel_id, title, source, added_at) VALUES (?, ?, 'CRI', 'recording', '2026-07-25', 'Matches', ?, 'x', 'list', 'a')", [SATM, S, CH]);
+    await run("INSERT INTO official_videos (video_id, season, code, kind, day, part, channel_id, title, source, added_at) VALUES (?, ?, 'CRI', 'recording', '2026-07-25', NULL, ?, 'x', 'watcher', 'a')", [SATF, S, CH]);
+    const cri: OfficialList = { channels: list.channels, videos: [
+      v("CRI", SATM, "2026-07-25", { part: "Matches" }), v("CRI", SATF, "2026-07-25", { part: "Full stream" }),
+      v("CRI", SUNM, "2026-07-26", { part: "Matches" }), v("CRI", FL, "2026-07-26", { part: "Full stream" }),
+    ] };
+    // Saturday's row named, Sunday's two written (FIRST's link with its part).
+    expect(await seedOfficialVideos(() => {}, cri, Date.now(), true)).toBe(3);
+    expect(await all("SELECT video_id, day, part FROM official_videos WHERE code = 'CRI' ORDER BY day, part")).toEqual([
+      { video_id: SATF, day: "2026-07-25", part: "Full stream" }, { video_id: SATM, day: "2026-07-25", part: "Matches" },
+      { video_id: FL, day: "2026-07-26", part: "Full stream" }, { video_id: SUNM, day: "2026-07-26", part: "Matches" },
+    ]);
+    // Once named, again is nothing; a part another video of that day already has is never given twice.
+    expect(await seedOfficialVideos(() => {}, cri, Date.now(), true)).toBe(0);
+    await run("UPDATE official_videos SET part = NULL WHERE video_id = ?", [SATF]);
+    expect(await seedOfficialVideos(() => {}, { ...cri, videos: [v("CRI", SATF, "2026-07-25", { part: "Matches" })] }, Date.now(), true)).toBe(0);
+    await run("UPDATE official_videos SET part = 'Full stream' WHERE video_id = ?", [SATF]);
+    clearAllCaches();
+    const r = (await eventRecording(S, "CRI"))!;
+    expect(recordingStream(r, "America/Chicago").days?.map((d) => d.label).sort()).toEqual(["Saturday · Full stream", "Saturday · Matches", "Sunday · Full stream", "Sunday · Matches"]);
+    // FIRST's link with a part from the list is still FIRST's link when it leads.
+    await run("UPDATE official_videos SET removed_at = 'x' WHERE code = 'CRI' AND video_id != ?", [FL]);
+    clearAllCaches();
+    expect((await eventRecording(S, "CRI"))?.source).toBe("first");
+  });
+
   it("plays an event's official days a day at a time, in broadcast order", async () => {
     clearAllCaches();
     const r = await eventRecording(S, "ROCMPCND");
@@ -371,10 +407,13 @@ describe("the shipped list", () => {
       "2025/USMOKSKCWM8 2026-01-10 ZxHkaD8UoXk", "2025/USMOKSKCWM9 2026-01-10 hbWvrvJxyAY",
       "2025/USMOKSLSSQ 2026-02-21 WX4MWK_LwBI", "2025/USMOKSSWLT 2026-01-31 SV63XvPr7AE",
       "2026/USMOKSKCMM1 2026-11-07 bR556QnpUdM", "2026/USMOKSKCMM2 2026-11-07 W4z7U4GojHs",
-      "2026/USMOKSKCWM1 2026-11-07 oBRIzLgPBPY",
+      // Piper, 2026-11-14 (uploaded 2026-11-15): one upload a session, each named by its date and session.
+      "2026/USMOKSKCMM6 2026-11-14 pRatXhMJJgg", "2026/USMOKSKCWM1 2026-11-07 oBRIzLgPBPY",
+      "2026/USMOKSKCWM6 2026-11-14 icxx5j0InOw", "2026/USMOKSKCWM7 2026-11-14 hcTmfdHpmnY",
     ]);
     // Scout's session for each meet a title names a session of: "8AM" is "Belton Meet @ 8 AM", "AM" the morning meet.
     const sessions: Record<string, string> = {
+      "2026/USMOKSKCWM6": "8AM", "2026/USMOKSKCMM6": "1030AM", "2026/USMOKSKCWM7": "1PM",
       "2026/USMOKSKCMM2": "8AM", "2026/USMOKSKCWM1": "1030AM", "2026/USMOKSKCMM1": "1PM", "2025/USMOKSKCWM8": "8AM",
       "2025/USMOKSKCEM9": "1030AM", "2025/USMOKSKCWM9": "1PM", "2024/USMOKSKCWM4": "1PM", "2024/USMOKSKCEM4": "8AM",
       "2024/USMOKSKCEM2": "8AM", "2024/USMOKSKCWM3": "1030AM", "2024/USMOKSKCEM3": "1PM", "2024/USMOKSKCWM2": "8AM",
@@ -695,6 +734,48 @@ describe("the shipped list", () => {
     expect(all.filter(rule(RI)).map((e) => e.code)).toEqual(["USRIWAQ", "USRICMP"]);
     // MSC Robotics (one confirmed MSCRL video, nothing else closes it) is neither watched nor linked.
     expect(OFFICIAL_CHANNELS.some((c) => c.channelId === "UCqo3u6lcGkpPoqjrtn0zvdw")).toBe(false);
+  });
+
+  it("puts FIRST Indiana Robotics' uploads on the Indiana event each title names, on the date it names", () => {
+    const IN = "UCy2Lh8b-y0r-35LlcjOPPzw";
+    const rows = data.videos.filter((x) => x.channelId === IN);
+    // Every row, checked by hand against Scout's event (name, venue, city, the one date): its Twitch broadcasts, uploaded
+    // a few days later (YouTube Data API uploads list, 2026-11-15). Each is that one-day event's whole day.
+    expect(rows.map((x) => `${x.season}/${x.code} ${x.day} ${x.part ?? "-"} ${x.videoId}`).sort()).toEqual([
+      "2020/USINCRCT1 2021-05-15 - 5ngJysffMTc", "2022/USINCMP 2023-02-25 - ymZ7FaV7Shc", "2022/USINISLT 2023-01-21 - 2GgY1gd0_wA",
+      "2022/USINNCLT 2023-02-04 - kw4g5Rns_bU", "2022/USINNWLT 2023-01-28 - o-8BNnYY7Qw", "2022/USINSLLT 2023-02-11 - IZZ7fagwgsY",
+      "2023/USINCMP 2024-03-09 - IDtLLmPD8-U", "2024/USINAVQ 2025-02-22 - LEa14sraN3Y", "2024/USINCMP 2025-03-08 - pFwlWy4wVAU",
+      "2024/USINELQ 2025-02-08 - g457cpEZOOU", "2024/USINGRQ 2025-02-01 - eBPrQWHhujM", "2024/USININQ 2024-12-07 - XjfXNVVBBf8",
+      "2024/USINSHQ 2025-02-15 - C-bpdpHGL1o", "2024/USINWLQ1 2025-01-25 - kzQ4K5_M7aQ", "2024/USINWLQ2 2025-01-26 - ulbnGWKaYnM",
+      "2025/USINCMP 2026-03-14 - fvq4Nsd-hvY", "2025/USINGRQ 2026-02-21 Part 1 zD202E0B5P0", "2025/USINGRQ 2026-02-21 Part 2 xV4Tkm4fukY",
+      "2025/USINSBQ 2026-02-14 - OXVphmaiYDo", "2025/USINSHQ 2026-02-07 Part 1 UmbWvI9fHaw", "2025/USINSHQ 2026-02-07 Part 2 4lLPpexLAAs",
+      "2025/USINWEQ 2025-12-06 - D8in_VvbBkI", "2025/USINWLQ1 2026-01-31 - AxqyOvite20", "2025/USINWLQ2 2026-02-01 - VQcMN3rqir4",
+    ]);
+    for (const x of rows) {
+      expect(x.kind, x.videoId).toBe("recording");
+      expect(x.title, x.videoId).toMatch(/\bFTC\b|FIRST Tech Challenge/);
+      // A title's date ("(03.14.26)", "(12-06-25)", "(1-25-2025)") is the row's day; "Part N" is its part.
+      const m = /\((\d{1,2})[.-](\d{1,2})[.-](\d{2}|\d{4})\)/.exec(x.title);
+      if (m) expect(`${m[3].length === 2 ? `20${m[3]}` : m[3]}-${m[1].padStart(2, "0")}-${m[2].padStart(2, "0")}`, x.videoId).toBe(x.day);
+      else expect(x.title, x.videoId).toMatch(/State Championship/);
+      expect(x.part ?? null, x.videoId).toBe(/Part (\d)$/.exec(x.title) ? `Part ${/Part (\d)$/.exec(x.title)![1]}` : null);
+    }
+    // Left out: the "State Championship Day 1/Day 2" uploads (FIRST Indiana's two-day FRC championship; FTC's is one
+    // day), FRC's Boiler Bot Battle, Monster Match and Indiana Robotics Invitational, FLL's championship, 2-minute recaps.
+    const ids = new Set(data.videos.map((x) => x.videoId));
+    for (const no of ["TKQj_KcLbQM", "AF_QZxdcwuA", "EjRQ8C2sHOc", "iZo72vwoAuU", "1Wy7nDBCBgU", "UvuMpHg7Qbk", "mARoQyLyTJA", "ruaVPDkZEBY",
+      "2H4ATE6jwyw", "Io1l_2SGnEg", "22gOLfHhXo4", "EpTzZxVQL5k", "smwXdMyFR_8", "ekOMQZCt1-o"]) expect(ids.has(no), no).toBe(false);
+  });
+
+  it("names both parts of each Chicago Robotics Invitational 2026 day: Matches and the full stream", () => {
+    const cri = data.videos.filter((x) => x.code === "FPECRI").map((x) => `${x.season} ${x.day} ${x.part ?? "-"} ${x.videoId}`).sort();
+    // Sunday's full stream is FIRST's own link for the event; the list names its part so the day shows both.
+    expect(cri).toEqual([
+      "2024 2025-07-19 - -zaWigr8KFE", "2024 2025-07-20 - RdxQOO0RU5k",
+      "2025 2026-07-25 Full stream fYAXU74vxkc", "2025 2026-07-25 Matches oDuYMzBQrCA",
+      "2025 2026-07-26 Full stream kPnP5kUIyAI", "2025 2026-07-26 Matches btn1nSQyA0Q",
+    ]);
+    for (const x of data.videos.filter((y) => y.code === "FPECRI" && y.season === 2025)) expect(/matches only/.test(x.title), x.videoId).toBe(x.part === "Matches");
   });
 
   it("leaves out what the brief rules out", () => {

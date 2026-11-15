@@ -17,15 +17,23 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 
 ## 6.6.6 — 2026-11-15
 
-Search reads a year after an award's winners: "inspire award winners 2024" lists that season's Inspire Award winners.
+35 more official event recordings play: 25 of FIRST Indiana's events, SoCal's ILTs and championship, and Kansas City's Piper meets. West Michigan's Meet 5 and Meet 6 each play their own stream.
 
 ### Highlights
-- [fixes] "inspire award winners 2024" lists the 2024–25 winners
-- [fixes] "think award winners 2025" lists the 2025–26 winners
-- [fixes] A team numbered like a year is still read as that team
+- [fixes] West Michigan Meet 5 and Meet 6 each play only their own stream
+- [live] 25 FIRST Indiana events now have their full recording, 2021 to 2026
+- [live] SoCal's ILTs and LA championship play from SoCal FTC's live channel
+- [live] Chicago Robotics Invitational 2026: Matches and Full stream each day
 
 ### Fixed
-- Search: one award's winners with a bare year ("inspire award winners 2024", "think award winners 2025") said no team, event or match matched, since the year was taken for a team number. A year ending the question is now its season, as search reads a year everywhere (2024 is 2024–25; at Worlds, the Championship held that year). A number before the ask, or after "team" or "#", is still a team's. Failed search #1434. (`server/api/answers/families/placeAwards.ts`) (#1533)
+- West Michigan's Meet 5 and Meet 6 (Nov 14) were held the same day, and FIRST's event pages give both the same channel link. Each page played both meets' streams, and Meet 6's page opened on Meet 5's. When two events that day share a channel link, a broadcast whose title names one of them ("Meet 6") is now that event's only; a title naming neither stays with both. (`server/videos/channelStreams.ts`)
+- Chicago Robotics Invitational 2026 showed "Saturday · Matches", "Saturday" and "Sunday": Saturday's full stream had no part, and Sunday's "matches only" stream wasn't listed. Each day now has "Matches" and "Full stream". Sunday's full stream is FIRST's own link, so the checked list names its part, and a listed part now also names a day's video that the event already plays without one. (`server/videos/officialVideos.ts`, `server/videos/recordings.ts`)
+
+### Added
+- FIRST Indiana Robotics' event recordings: 25 Twitch broadcasts it uploads a few days later, each titled with its event and date, from the 2021 State Championship to the 2026 one. None of these events had a video before. (`server/data/officialVideos.json`)
+- SoCal FTC's own live channel (@FIRSTsocalftclive) is now watched: ILT #3, #5 and #6 of 2025-26 and the Los Angeles championship at Monrovia play. "ILT #6" is read as "SoCal FTC Qualifier 6". (`server/data/officialChannels.ts`, `server/videos/officialMatch.ts`)
+- League G's 2025-26 Meet 3, and FIRST MOKS's three Piper meets of Nov 14 (8 AM, 10:30 AM, 1 PM).
+
 ## 6.6.5 — 2026-11-15
 
 Search › "CRI" finds the Chicago Robotics Invitational: an event's short form now leaves out the "Premier Event" FIRST adds to its name, and works beside other words.
