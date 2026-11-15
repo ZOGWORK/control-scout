@@ -10,6 +10,7 @@ import { all, get, kvSet, migrate, openDb, run, setDb } from "../db";
 import { createApp } from "../app";
 import { forgetRecordings } from "./recordings";
 import { currentSeason } from "../api/answers/season";
+import { seasonLabel } from "../../src/shared/format";
 import { checkClipCoverage, markCoverageBulkReviewed, markCoverageReviewed, openCoverageCount, ownerClipCoverage, triageUntriaged } from "./coverageCheck";
 
 const S = currentSeason();
@@ -67,7 +68,10 @@ describe("clip coverage check and triage", () => {
     expect(n.events.map((e) => [e.code, e.withClip, e.played, e.triage])).toEqual([["TWODAY", 0, 3, "no-timing"]]);
     expect(n.events[0].triageWhy).toBe("3 matches: Video's facts not read from YouTube yet");
     expect(n.events[0].missing.map((m) => m.reason)).toEqual(["video-unread", "video-unread", "video-unread"]);
-    expect((await ownerClipCoverage({ list: "old-season" })).events.map((e) => [e.code, e.triage])).toEqual([["OLDMEET", "old-season"]]);
+    const old = (await ownerClipCoverage({ list: "old-season" })).events;
+    expect(old.map((e) => [e.code, e.triage, e.triageWhy])).toEqual([["OLDMEET", "old-season", `${seasonLabel(OLD)} season. 1 match: Video's facts not read from YouTube yet`]]);
+    // Stored by its reasons alone: Old season is applied when read, from the current season then.
+    expect(await row("OLDMEET")).toMatchObject({ triage: "no-timing", triage_why: "1 match: Video's facts not read from YouTube yet" });
     expect(await openCoverageCount()).toBe(0);
   });
 
@@ -106,12 +110,28 @@ describe("clip coverage check and triage", () => {
     expect(e.missing.map((m) => [m.label, m.reason])).toEqual([["Q1", "before-broadcast"], ["Q3", "no-recording-day"]]);
   });
 
-  it("a deploy (every fingerprint new, nothing else) re-opens nothing", async () => {
+  it("a deploy (every fingerprint new, nothing else) re-opens nothing, nor a non-actionable change after it", async () => {
     expect(await markCoverageReviewed(S, "TWODAY", await version("TWODAY"), "owner@test")).toBe("ok");
+    const seen = await row("TWODAY");
     await run("UPDATE clip_coverage SET fingerprint = 'from-the-last-process'");
     expect(await checkClipCoverage(() => {})).toBe(2);
-    expect(await row("TWODAY")).toMatchObject({ triage: "actionable", reviewed_at: expect.any(String) });
+    expect(await row("TWODAY")).toMatchObject({ triage: "actionable", reviewed_at: seen.reviewed_at, missing_key: seen.missing_key });
     expect(await openCoverageCount()).toBe(0);
+    // After that boot recheck, the list changes to a non-actionable one (Q1 back in the video, the video 4 h short):
+    // a new missing key, still reviewed.
+    await run("UPDATE matches SET time = ? WHERE code = 'TWODAY' AND number = 1", [`${SAT}T14:00:00.5`]);
+    await meta(VID, `${SAT}T13:00:00Z`, `${SAT}T22:00:00Z`, 18_000);
+    expect(await checkClipCoverage(() => {})).toBe(1);
+    const changed = await row("TWODAY");
+    expect(changed).toMatchObject({ triage: "no-timing", reviewed_at: seen.reviewed_at });
+    expect(changed.missing_key).not.toBe(seen.missing_key);
+    expect(await openCoverageCount()).toBe(0);
+    // Back to the actionable list: one the owner hasn't marked since, so To review again; then marked again.
+    await meta(VID, `${SAT}T13:00:00Z`, `${SAT}T18:00:00Z`, 18_000);
+    await run("UPDATE matches SET time = ? WHERE code = 'TWODAY' AND number = 1", [`${SAT}T12:00:00.5`]);
+    expect(await checkClipCoverage(() => {})).toBe(1);
+    expect(await row("TWODAY")).toMatchObject({ triage: "actionable", reviewed_at: null });
+    expect(await markCoverageReviewed(S, "TWODAY", await version("TWODAY"), "owner@test")).toBe("ok");
   });
 
   it("an old season's reviewed event stays reviewed when its list changes", async () => {
@@ -120,8 +140,9 @@ describe("clip coverage check and triage", () => {
     await meta(OLD_VID, `${SAT}T13:00:00Z`, `${SAT}T22:00:00Z`, 18_000);
     expect(await checkClipCoverage(() => {})).toBe(1);
     const r = await row("OLDMEET");
-    expect(r).toMatchObject({ triage: "old-season", reviewed_at: expect.any(String) });
+    expect(r).toMatchObject({ triage: "no-timing", reviewed_at: expect.any(String) });
     expect(JSON.parse(r.detail).missing[0].reason).toBe("gap-unplaced");
+    expect((await ownerClipCoverage({ list: "reviewed" })).events.find((e) => e.code === "OLDMEET")?.triage).toBe("old-season");
   });
 
   it("bulk Reviewed marks a whole category or season as confirmed, leaves the rest, and is audited", async () => {
@@ -132,18 +153,25 @@ describe("clip coverage check and triage", () => {
     await add("BULKES", "early-start");
     await add("BULKAC", "actionable");
     await add("BULKOLD", "actionable", OLD);
-    expect((await ownerClipCoverage()).categories).toEqual({ actionable: 2, "no-timing": 1, "early-start": 1, "old-season": 0 });
+    await add("BULKOLDNT", "no-timing", OLD);
+    const before = await ownerClipCoverage();
+    expect(before.categories).toEqual({ actionable: 2, "no-timing": 1, "early-start": 1, "old-season": 1 });
+    expect(before.seasons).toEqual([{ season: S, open: 3, actionable: 1 }, { season: OLD, open: 2, actionable: 1 }]);
+    // A season's non-actionable ones only (the panel's default): its Actionable one stays To review.
+    expect(await markCoverageBulkReviewed({ category: "non-actionable", season: OLD }, 1, "owner@test")).toEqual({ status: "ok", count: 1 });
+    expect((await ownerClipCoverage()).seasons).toEqual([{ season: S, open: 3, actionable: 1 }, { season: OLD, open: 1, actionable: 1 }]);
     // Confirmed on a count that moved: nothing marked.
     expect(await markCoverageBulkReviewed({ category: "non-actionable" }, 5, "owner@test")).toEqual({ status: "changed", count: 2 });
     expect(await markCoverageBulkReviewed({ category: "non-actionable" }, 2, "owner@test")).toEqual({ status: "ok", count: 2 });
     expect((await ownerClipCoverage()).categories).toEqual({ actionable: 2, "no-timing": 0, "early-start": 0, "old-season": 0 });
-    // A season: only that season's.
+    // A season with "include Actionable": every one of that season's.
     expect(await markCoverageBulkReviewed({ season: OLD }, 1, "owner@test")).toEqual({ status: "ok", count: 1 });
     expect((await ownerClipCoverage()).events.map((e) => e.code)).toEqual(["BULKAC"]);
     // Marking keeps the rows (and their missing lists): Reviewed holds them, nothing deleted.
-    expect((await all<any>("SELECT code FROM clip_coverage WHERE code LIKE 'BULK%' AND reviewed_at IS NOT NULL ORDER BY code")).map((r) => r.code)).toEqual(["BULKES", "BULKNT", "BULKOLD"]);
+    expect((await all<any>("SELECT code FROM clip_coverage WHERE code LIKE 'BULK%' AND reviewed_at IS NOT NULL ORDER BY code")).map((r) => r.code)).toEqual(["BULKES", "BULKNT", "BULKOLD", "BULKOLDNT"]);
     const audit = await all<any>("SELECT actor, details FROM owner_audit WHERE action = 'clipCoverage.bulkReviewed' ORDER BY id");
     expect(audit.map((a) => [a.actor, JSON.parse(a.details)])).toEqual([
+      ["owner@test", { category: "non-actionable", season: OLD, count: 1 }],
       ["owner@test", { category: "non-actionable", season: null, count: 2 }],
       ["owner@test", { category: null, season: OLD, count: 1 }],
     ]);
@@ -156,9 +184,13 @@ describe("clip coverage check and triage", () => {
     await run("INSERT INTO clip_coverage (season, code, fingerprint, checked_at, state, played, with_clip, missing_key, detail, reviewed_at, reviewed_by) VALUES (?, 'PRE2', 'x', '2026-11-01T00:00:00Z', 'partial', 3, 2, 'k', ?, '2026-11-02T00:00:00Z', 'owner@test')", [S, detail(["before-broadcast"])]);
     // Untriaged, a row reads as actionable: PRE1 would be To review until triaged.
     expect((await ownerClipCoverage()).events.map((e) => e.code)).toContain("PRE1");
-    expect(await triageUntriaged(() => {})).toBe(2);
+    // One whose detail can't be read: Actionable (nothing says it's settled), and it doesn't stop the others.
+    await run("INSERT INTO clip_coverage (season, code, fingerprint, checked_at, state, played, with_clip, missing_key, detail) VALUES (?, 'PRE3', 'x', '2026-11-01T00:00:00Z', 'unplaced', 2, 0, 'k', '{not json')", [S]);
+    expect(await triageUntriaged(() => {})).toBe(3);
     expect(await row("PRE1")).toMatchObject({ triage: "no-timing", triage_why: "2 matches: Video unavailable or private", reviewed_at: null });
     expect(await row("PRE2")).toMatchObject({ triage: "actionable", reviewed_at: "2026-11-02T00:00:00Z" });
+    expect(await row("PRE3")).toMatchObject({ triage: "actionable", triage_why: "No missing list to judge from: look at the event" });
+    expect((await ownerClipCoverage()).events.find((e) => e.code === "PRE3")).toMatchObject({ missing: [], videos: [] });
     expect((await ownerClipCoverage()).events.map((e) => e.code)).not.toContain("PRE1");
     expect(await triageUntriaged(() => {})).toBe(0);
     await run("DELETE FROM clip_coverage WHERE code LIKE 'PRE%'");
@@ -188,6 +220,28 @@ describe("clip coverage check and triage", () => {
     const n = await (await fetch(`${base}/api/events/${S}/NOREC/coverage`)).json() as any;
     expect(n).toMatchObject({ state: "none", played: 1, withClip: 0 });
     expect((await fetch(`${base}/api/events/${S}/NOPE/coverage`)).status).toBe(404);
+  });
+
+  it("checks again when an earlier match gets its real start, the latest unchanged", async () => {
+    // Q1 posted without its start (on the minute: the schedule), then FIRST gives the real one.
+    await run("UPDATE matches SET time = ? WHERE code = 'TWODAY' AND number = 1", [`${SAT}T14:00:00`]);
+    expect(await checkClipCoverage(() => {})).toBe(1);
+    expect(JSON.parse(String((await row("TWODAY")).detail)).missing[0]).toMatchObject({ label: "Q1", reason: "no-start" });
+    expect(await row("TWODAY")).toMatchObject({ triage: "no-timing" });
+    await run("UPDATE matches SET time = ? WHERE code = 'TWODAY' AND number = 1", [`${SAT}T12:00:00.5`]);
+    expect(await checkClipCoverage(() => {})).toBe(1);
+    expect(JSON.parse(String((await row("TWODAY")).detail)).missing[0]).toMatchObject({ label: "Q1", reason: "before-broadcast" });
+    expect(await row("TWODAY")).toMatchObject({ triage: "actionable" });
+  });
+
+  it("checks again when the recording becomes a day-at-a-time one, the same video and matches", async () => {
+    expect(await checkClipCoverage(() => {})).toBe(0);
+    await run("INSERT INTO event_broadcasts (season, code, video_id, url, start) VALUES (?, 'TWODAY', ?, ?, ?)", [S, VID, `https://www.youtube.com/watch?v=${VID}`, `${SAT}T13:00:00Z`]);
+    forgetRecordings();
+    expect(await checkClipCoverage(() => {})).toBe(1);
+    await run("DELETE FROM event_broadcasts WHERE code = 'TWODAY'");
+    forgetRecordings();
+    expect(await checkClipCoverage(() => {})).toBe(1);
   });
 
   it("drops an event from every list once it has no recording left (stats only)", async () => {
