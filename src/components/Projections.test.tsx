@@ -110,7 +110,7 @@ describe("Projections (local estimate)", () => {
     expect(await screen.findByText("No local estimate on this device")).toBeTruthy();
     expect(screen.getByText(/different releases/)).toBeTruthy();
     expect(screen.getByText(/once you're back online/)).toBeTruthy();
-    expect(screen.getByRole("link", { name: /Update your offline packs on Download/ }).getAttribute("href")).toBe("/download");
+    expect(screen.getByRole("link", { name: /Update your offline packs/ }).getAttribute("href")).toBe("/download");
     expect(screen.queryByText(/within a minute or two/)).toBeNull();
     expect(screen.queryByText("The first projection is on its way")).toBeNull();
   });
@@ -121,7 +121,7 @@ describe("Projections (local estimate)", () => {
     view = offlineView();
     mount(detail("live"));
     expect(await screen.findByText(/The estimate on this device failed: Worker crashed/)).toBeTruthy();
-    expect(screen.getByRole("link", { name: /Update your offline packs on Download/ })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /Update your offline packs/ })).toBeTruthy();
     expect(screen.queryByText(/within a minute or two/)).toBeNull();
   });
 

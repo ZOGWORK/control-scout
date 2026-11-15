@@ -3,6 +3,7 @@
 // manifest's SHA-256) in the same IndexedDB store as the packs; nothing is decoded until a page needs it with
 // no signal (lib/api.ts, lib/offline/answer.ts) or the bundle's own page opens.
 import { del, fetchVerified, getv, put, type PackFile } from "../packs";
+import { ChecksumError, finishDownload, type DownloadOwner } from "./download";
 import { FEATURE_DISABLED, featureOffMessage } from "../../shared/flags";
 import { BUNDLE_FORMAT, bundleFinished, bundleKey, type BundleManifest, type EventBundle, type SavedBundle } from "../../shared/eventBundle";
 import { allBundles, bundleFor, bundleVisible, savedBundles, writeBundles } from "./bundleMeta";
@@ -52,16 +53,21 @@ async function askManifest(r: BundleRequest, signal?: AbortSignal): Promise<Bund
 }
 
 const asFile = (m: BundleManifest): PackFile => ({ name: `${m.code}-bundle.json.gz`, url: m.url, bytes: m.bytes, sha256: m.sha256, seasons: [m.season], kind: "lite", contents: "" });
+/** Bundles share the downloader (lib/offline/download.ts); one event's is one download. */
+export const bundleOwner = (r: Pick<BundleRequest, "season" | "code">, name?: string): DownloadOwner => ({ kind: "bundle", id: `${r.season}:${r.code.toUpperCase()}`, label: name ?? r.code });
 
 /** Download, check against the manifest, keep (replacing this event's bundle). The data moved on between the
  *  manifest and the file (a new result): the manifest is asked again once, and that one is downloaded. */
 export async function downloadBundle(r: BundleRequest, onProgress?: (done: number, total: number) => void, manifest?: BundleManifest): Promise<SavedBundle> {
   let m = manifest ?? await fetchBundleManifest(r);
   let bytes: Uint8Array;
-  try { bytes = await fetchVerified(asFile(m), onProgress); }
-  catch {
+  try { bytes = await fetchVerified(asFile(m), onProgress, bundleOwner(r, m.name)); }
+  catch (e) {
+    // Only a file that didn't match its manifest means the data moved on; a dropped connection or a full device
+    // is said as it is, never answered with a second whole download.
+    if (!(e instanceof ChecksumError)) throw e;
     m = await fetchBundleManifest(r);
-    bytes = await fetchVerified(asFile(m), onProgress);
+    bytes = await fetchVerified(asFile(m), onProgress, bundleOwner(r, m.name));
   }
   // The previous copy is put back if the list can't be written (storage full): a failed update never loses the
   // bundle already here.
@@ -81,6 +87,7 @@ export async function downloadBundle(r: BundleRequest, onProgress?: (done: numbe
     throw new Error(`Couldn't save the bundle on this device (${(e as Error).message || "storage full"}). The copy already here is kept.`);
   }
   for (const k of memo.keys()) if (k.startsWith(`${bundleKey(m.season, m.code)}@`)) memo.delete(k);
+  await finishDownload(m.sha256);
   // The scouting pages' reads for this event, kept for when the signal goes (warm.ts).
   void import("./warm").then((w) => w.warmScoutReads(true)).catch(() => {});
   return saved;
@@ -110,13 +117,15 @@ export function loadBundle(season: number, code: string): Promise<EventBundle | 
   return p;
 }
 
-export async function removeBundle(season: number, code: string): Promise<void> {
+/** Delete an event's bundle from this device. Returns the bytes freed. */
+export async function removeBundle(season: number, code: string): Promise<number> {
   const meta = bundleFor(season, code);
-  if (!meta) return;
+  if (!meta) return 0;
   const key = bundleKey(meta.season, meta.code);
   await del(key);
   for (const k of memo.keys()) if (k.startsWith(`${key}@`)) memo.delete(k);
   writeBundles(allBundles().filter((b) => !(b.season === meta.season && b.code === meta.code)));
+  return meta.bytes;
 }
 
 /** Remove every bundle whose event is over. Returns how many went. */
