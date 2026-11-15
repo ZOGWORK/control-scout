@@ -1,7 +1,7 @@
 // The pure parts of the frame reader (scripts/video-frames.ts): the overlay's match, the timer's elapsed time, and
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
-import { dataRows, elapsed, leadIn, LEAD_IN_S, judge, NOTHING_READ, overlayLabel, secondsOf, type M } from "./videoFrames";
+import { dataRows, divisionOf, elapsed, overlayDivision, leadIn, LEAD_IN_S, judge, NOTHING_READ, overlayLabel, secondsOf, type M } from "./videoFrames";
 
 describe("the frame reader", () => {
   it("names the match the overlay shows, and nothing else", () => {
@@ -83,6 +83,18 @@ describe("the frame reader", () => {
     expect(leadIn(117_000, 1, w)).toBe(true); // Sunday morning before Sunday's broadcast
     expect(leadIn(70_000, 1, w)).toBe(false); // Saturday evening, after Saturday's end: more than 6 h before Sunday's
     expect(leadIn(35_000, 0, [{ start: null, end: null }])).toBe(false); // an upload has no broadcast to be before
+  });
+
+  it("tells a division's overlay from its sibling's on a shared stream", () => {
+    expect(divisionOf("Romania Championship - COANDA Division")).toBe("COANDA");
+    expect(divisionOf("Chesapeake Championship - Blue Crab Division")).toBe("Blue Crab");
+    expect(divisionOf("Brookline Robo Rally 1")).toBeNull();
+    // Read off ROCMPCND's Friday stream (pvmxbH8YW-k): VLAICU's overlay at 9761 s, COANDA's at 10000 s.
+    expect(overlayDivision("Romania Championship - VLAICU Divis  Qualification 1 of 72  2:23", "COANDA", ["VLAICU"])).toBe("other");
+    expect(overlayDivision("Romania Championship - COANDĂ Divisi  Qualification 2 of 72", "COANDA", ["VLAICU"])).toBe("own");
+    expect(overlayDivision("a Division  Romania Championship - (  Qualification 2 of 72", "COANDA", ["VLAICU"])).toBeNull();
+    expect(overlayDivision("Western Edge Premier Event - Sea Division", "Sand", ["Sea"])).toBe("other");
+    expect(overlayDivision("Seattle Qualifier", "Sand", ["Sea"])).toBeNull();
   });
 
   it("reads the data file's rows", () => {
