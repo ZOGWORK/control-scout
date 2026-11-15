@@ -58,6 +58,17 @@ describe("Network & offline: the status", () => {
     expect(screen.getByText("Needs a connection to switch.")).toBeTruthy();
   });
 
+  it("on a network that carries nothing: the heading and the Lite advice say the same thing", async () => {
+    // Measured live (6.4.7): "Connected, but nothing is getting through" above, "You're offline" in the advice below.
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("Failed to fetch"); }));
+    await act(async () => { await checkInternet(); });
+    show();
+    expect(screen.getByRole("heading", { name: "Connected, but nothing is getting through" })).toBeTruthy();
+    const advice = document.querySelector("[data-net-advice]")!.textContent!;
+    expect(advice).toBe("Connected, but nothing is getting through: your downloaded packs work; Lite needs a connection.");
+    expect(advice).not.toMatch(/offline/i);
+  });
+
   it("a Wi-Fi sign-in page: says the Wi-Fi isn't giving internet", () => {
     vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("Failed to fetch"); }));
     localStorage.setItem(DEMO_KEY, "portal");

@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.4.9 — 2026-11-15
+## 6.5.0 — 2026-11-15
 
 Turn Wi-Fi off and on again and the Offline pill goes as soon as the line answers, not on the next back-off step.
 
@@ -26,6 +26,23 @@ Turn Wi-Fi off and on again and the Offline pill goes as soon as the line answer
 
 ### Fixed
 - The browser's online event now checks at once every time. When a check that started while offline is still running, another runs right after it ends instead of sharing its failure. For 30 s after the online event, a check that fails or gets no answer in 2.5 s is tried again after 0.5 s; then the 3 s, 5 s, 10 s back-off takes over as before. Measured live with the browser's network switched off and on (20 rounds each), the first requests after a reconnect sometimes hung for up to about half a minute, and each one waited for the next back-off step, so the pill stayed up for up to 48 s; it now goes within about 3 s of the line answering. A line that stays silent keeps the back-off. (`src/lib/connection.ts`) (#1515)
+
+## 6.4.9 — 2026-11-15
+
+Lite has its own Network & offline screen: on one bar of signal it says whether you're online, on Wi-Fi, mobile data or nothing, whether that's actually giving internet, how much a download uses, and what's downloaded on this phone and how big it is.
+
+### Highlights
+- [offline] Lite's Settings opens its own Network & offline screen
+- [offline] It says if the Wi-Fi gives internet, or waits at a sign-in page
+- [offline] It lists what's downloaded on this phone, and how big each is
+- [fixes] Network & offline no longer says "offline" under "Connected"
+
+### Added
+- Lite Network & offline (`/lite/network`, the twin of `/network`): the status heading and the line under it, the connection (Wi-Fi, mobile data, cable or none) and whether it gives internet, the download sizes from the pack list, each pack downloaded on this device with its size and data time and the total, and the switches (Lite on or off, which connections downloads use, automatic updates), each with the line saying what it does. Server-rendered in Lite's style (44 px targets, the five themes); one small fixed inline script, allowed by its hash, reads what only the device knows: the connection, a fresh check of `/api/health`, and this browser's downloads. Every sentence comes from the full screen's own functions, now shared (`src/shared/networkStatus.ts`). Lite's Settings links here instead of the full version. (`server/lite/network.ts`, `server/lite/routes.ts`) (#1517)
+
+### Fixed
+- Network & offline (`/settings#network`): "Should I use Lite?" opens with the heading's own words, so a network that carries nothing reads "Connected, but nothing is getting through" in both places, never "You're offline" under it. (`src/lib/networkAdvice.ts`)
+- The offline check's sign-in-page mode (`scripts/offline-check.ts --portal`) answers the app's own requests with a sign-in page over HTTPS too (it failed the tunnel before, so the app read "no answer"), and now checks what Network & offline says on one.
 
 ## 6.4.8 — 2026-11-15
 

@@ -23,8 +23,8 @@ import { useSyncExternalStore } from "react";
 import type { ConnectionInfo } from "./packPolicy";
 import { netKind } from "./offline/updatePolicy";
 
-export type Internet = "yes" | "no" | "portal" | "unknown";
-export type ConnectionType = "wifi" | "cellular" | "none" | "unknown";
+import type { ConnectionType, Internet } from "../shared/networkStatus";
+export type { ConnectionType, Internet } from "../shared/networkStatus";
 
 export interface ConnectionState {
   /** navigator.onLine (a hint only). */

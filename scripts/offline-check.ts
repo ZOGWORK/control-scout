@@ -17,7 +17,7 @@
 //
 // --prod starts the production server on AUDIT_PROD_PORT (scripts/lib/servers.ts, default 3299) like audit:flows'
 // venue check, from the build in dist/ and the local data in .data/.
-import { chromium, type Page } from "playwright";
+import { chromium, type BrowserContext, type Page } from "playwright";
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { writeFileSync } from "node:fs";
 import { createServer, request as httpRequest, type IncomingMessage, type ServerResponse } from "node:http";
@@ -31,9 +31,13 @@ import { PROD_PORT, waitUp } from "./lib/servers.js";
  *   online:   passes everything through.
  *   offline:  drops each connection at once (Wi-Fi and data off).
  *   dead:     accepts each connection and never answers (a Wi-Fi that connects but carries nothing).
- *   portal:   a Wi-Fi that wants a sign-in first. Plain-HTTP API and pack requests get the sign-in page (HTML, 200);
- *             anything else is dropped (an HTTPS site can't be answered by a portal without a certificate, so its
- *             requests fail, and so does a page load here: the service worker then opens the app from its cache).
+ *   portal:   a Wi-Fi that wants a sign-in first, as a hotel's does: the app's requests to its own server (/api/…,
+ *             /packs/…, the connection check among them) are answered with the sign-in page (HTML, 200), over HTTP
+ *             and HTTPS alike; page loads fail (a portal can't answer an HTTPS page without a certificate), so the
+ *             service worker opens the app from its cache. A proxy can't answer inside an HTTPS tunnel without its own
+ *             certificate, so the sign-in answers come from Playwright's routing (portalRoute), in front of the proxy,
+ *             for the live site and the local build alike; the proxy itself answers plain-HTTP ones the same way and
+ *             refuses tunnels (a CONNECT gets a redirect, which fails it).
  *   throttle: passes everything through at ~THROTTLE_KBPS, each request or tunnel waiting THROTTLE_RTT_MS first.
  */
 type Mode = "online" | "offline" | "dead" | "portal" | "throttle";
@@ -56,6 +60,36 @@ function pace(): Transform {
 }
 
 function track(s: Socket) { live.add(s); s.on("close", () => live.delete(s)); }
+
+/** A request a Wi-Fi sign-in page answers in portal mode: the app's own calls to its server (data, packs, the
+ *  connection check), not page loads. */
+const portalAnswers = (url: string, base: string): boolean => {
+  const u = new URL(url), b = new URL(base);
+  return u.origin === b.origin && /^\/(api|packs)\//.test(u.pathname);
+};
+
+/** Portal mode for HTTPS too: while the network is "portal", the app's calls to its server get the sign-in page
+ *  (200 text/html, as a hotel's Wi-Fi answers them), before they ever reach the proxy. Everything else goes on to the
+ *  proxy, which fails it. */
+async function portalRoute(ctx: BrowserContext, base: string) {
+  await ctx.route("**/*", (route) => {
+    if (mode !== "portal" || !portalAnswers(route.request().url(), base)) return route.fallback();
+    return route.fulfill({ status: 200, headers: { "Content-Type": "text/html", "Cache-Control": "no-store" }, body: PORTAL_PAGE });
+  });
+}
+
+/** What Settings › Network & offline says (journey 10): its heading, the line under it, and the Lite advice. */
+async function networkScreen(page: Page): Promise<{ state: string | null; title: string; detail: string; advice: string }> {
+  await page.goto(BASE + "/settings#network", { waitUntil: "domcontentloaded", timeout: 20_000 }).catch(() => {});
+  // The service worker's cached app opens it; the check then answers (portal or not) within a few seconds.
+  await page.waitForFunction(() => { const s = document.querySelector("[data-net-status]")?.getAttribute("data-net-status"); return s && s !== "unknown"; }, null, { timeout: 30_000 }).catch(() => {});
+  // Plain expressions only in the page (tsx names inner functions with a helper the page doesn't have).
+  const [state, title, detail, advice] = await page.evaluate(() => [
+    document.querySelector("[data-net-status]")?.getAttribute("data-net-status") ?? null,
+    ...["#net-status", "[data-net-detail]", "[data-net-advice]"].map((sel) => (document.querySelector(sel)?.textContent ?? "").replace(/’/g, "'").trim()),
+  ]);
+  return { state, title: title ?? "", detail: detail ?? "", advice: advice ?? "" };
+}
 
 async function onRequest(req: IncomingMessage, res: ServerResponse) {
   track(req.socket);
@@ -174,6 +208,7 @@ async function main() {
   const browser = await chromium.launch({ proxy: { server: `http://127.0.0.1:${port}`, bypass: "<-loopback>" } });
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true, serviceWorkers: "allow" });
   await ctx.addInitScript(() => localStorage.setItem("cs-consent", JSON.stringify({ analytics: false, at: "2026-01-01T00:00:00.000Z", v: 1 })));
+  if (AFTER === "portal") await portalRoute(ctx, BASE);
   let page = await ctx.newPage();
 
   // Online: install the service worker, and learn the event's teams and a match.
@@ -244,6 +279,24 @@ async function main() {
     console.log(`${name.padEnd(12)} ${String(r.ms).padStart(6)} ms  ${r.state}${r.note ? `  — ${r.note}` : ""}${lite ? "  [Lite offer shown]" : ""}${pill ? `  pill: ${pill}` : ""}`);
   }
 
+  // A sign-in page (journey 10): Settings › Network & offline says so in plain words, the heading and the Lite advice
+  // alike. A wrong answer fails the run.
+  let portalFail: string | null = null;
+  if (AFTER === "portal") {
+    if (page.isClosed()) page = await ctx.newPage();
+    const n = await networkScreen(page);
+    if (SHOTS) await page.screenshot({ path: `${SHOTS}/network-portal.png`, scale: "css" }).catch(() => {});
+    console.log(`Network screen: [${n.state}] ${n.title}${n.detail ? ` / ${n.detail}` : ""}${n.advice ? ` / Lite: ${n.advice}` : ""}`);
+    const problems = [
+      n.state !== "portal" && `the check read "${n.state}", not a sign-in page`,
+      !/but no internet$/.test(n.title) && `the heading says "${n.title}"`,
+      !/likely waiting at a sign-in page: open any website to sign in\.$/.test(n.detail) && `the line under it says "${n.detail}"`,
+      n.advice && !n.advice.startsWith(`${n.title}: `) && `the Lite advice disagrees: "${n.advice}"`,
+    ].filter(Boolean);
+    if (problems.length) portalFail = `Network screen on a sign-in page: ${problems.join("; ")}`;
+    rows.push({ page: "Network", url: "/settings#network", ms: 0, state: portalFail ? "error" : "ok", note: `${n.title}${n.detail ? ` ${n.detail}` : ""}` });
+  }
+
   // Back online: the pages refresh by themselves (journey 11).
   if (AFTER !== "throttle") {
     if (page.isClosed()) page = await ctx.newPage();
@@ -255,6 +308,7 @@ async function main() {
   }
   await browser.close();
   if (OUT) writeFileSync(OUT, JSON.stringify({ base: BASE, event: `${SEASON}:${CODE}`, network: AFTER, at: new Date().toISOString(), sizes, rows }, null, 2));
+  if (portalFail) throw new Error(portalFail);
 }
 
 main().then(() => { stopServer(); process.exit(0); }, (e) => { console.error(e); stopServer(); process.exit(1); });
