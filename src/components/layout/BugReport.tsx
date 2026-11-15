@@ -8,7 +8,7 @@
 // The message is sanitized here and again on the server (src/shared/errorReport.ts sanitizeText).
 import { useCallback, useEffect, useId, useRef, useState, type ClipboardEvent, type DragEvent, type FormEvent } from "react";
 import { useLocation } from "react-router-dom";
-import { AlertCircle, Bug, CheckCircle2, Clapperboard, ExternalLink, Gauge, ImagePlus, LayoutTemplate, Loader2, MessageCircle, Send, DatabaseZap, Wrench, X } from "lucide-react";
+import { AlertCircle, ArrowLeft, Bug, CheckCircle2, Clapperboard, ExternalLink, Globe, Gauge, ImagePlus, LayoutTemplate, Loader2, MessageCircle, Send, DatabaseZap, Wrench, X } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "../ui/overlay";
 import { Button } from "../ui/button";
 import { Input, Label, RequiredMark, Textarea } from "../ui/basic";
@@ -32,6 +32,24 @@ const HINTS: Record<BugCategory, string> = {
 };
 /** Said plainly before and after sending: the repository is public, so the issue is too. */
 export const PUBLIC_NOTE = "This files a public GitHub Issue on ZOGWORK/control-scout. Anyone can see it.";
+/** Where a report goes that shouldn't be public. */
+export const PRIVATE_EMAIL = "sushil.m@icloud.com";
+
+/** The public notice, large enough to be read, with the private way out. */
+function PublicNotice() {
+  return (
+    <div className="flex items-start gap-2.5 rounded-xl border border-warning/40 bg-warning/10 px-3.5 py-3 text-left" data-testid="bug-public-note">
+      <Globe className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
+      <div className="space-y-1 text-sm">
+        <p className="font-medium text-foreground">{PUBLIC_NOTE}</p>
+        <p className="text-text-muted" data-testid="bug-private-note">
+          Want it private? Email <a href={`mailto:${PRIVATE_EMAIL}?subject=${encodeURIComponent("Control Scout bug report")}`}
+            className="font-medium text-accent-text underline underline-offset-4 outline-none focus-visible:ring-2 focus-visible:ring-ring/60">{PRIVATE_EMAIL}</a> instead.
+        </p>
+      </div>
+    </div>
+  );
+}
 const PALETTE_NAME = { light: "Light", dim: "Dim", dark: "Dark", midnight: "Midnight" } as const;
 const ACCEPT = [...IMAGE_TYPES, ...VIDEO_TYPES].join(",");
 /** ⌘V on Apple keyboards, Ctrl+V elsewhere. */
@@ -137,7 +155,7 @@ export function BugReportButton() {
   return (
     <>
       {button}
-      {open === "sheet" && <Sheet open onOpenChange={close}><SheetContent side="bottom" className="gap-3 px-4 pt-5" returnFocus={back}><BugReportForm phone onDone={() => close(false)} /></SheetContent></Sheet>}
+      {open === "sheet" && <Sheet open onOpenChange={close}><SheetContent side="bottom" className="gap-3 px-4 pt-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]" returnFocus={back}><BugReportForm phone onDone={() => close(false)} /></SheetContent></Sheet>}
       {open === "dialog" && <Dialog open onOpenChange={close}><DialogContent className="max-w-xl" returnFocus={back}><BugReportForm onDone={() => close(false)} /></DialogContent></Dialog>}
     </>
   );
@@ -179,6 +197,26 @@ function BugReportForm({ phone = false, onDone }: { phone?: boolean; onDone: () 
   sending.current = status === "sending";
   const [progress, setProgress] = useState("");
   const [failure, setFailure] = useState<string | null>(null);
+  // The second confirmation: the first Send asks "public, sure?", only the second one sends.
+  const [confirming, setConfirming] = useState(false);
+  const confirmRef = useRef<HTMLButtonElement>(null);
+  const confirmBox = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!confirming) return;
+    confirmRef.current?.focus({ preventScroll: true });
+    // The whole question and both answers in view, on a phone too: the sheet (or dialog) scrolls to its end, and
+    // stays there while the box settles (it grows a little after its first frame).
+    const box = confirmBox.current;
+    const scroller = box?.closest<HTMLElement>("[data-slot=sheet-content], [data-slot=dialog-content]");
+    if (!box || !scroller) { box?.scrollIntoView?.({ block: "end" }); return; }
+    const toEnd = () => { scroller.scrollTop = scroller.scrollHeight; };
+    toEnd();
+    if (typeof ResizeObserver === "undefined") return;
+    const watch = new ResizeObserver(toEnd);
+    watch.observe(box);
+    const stop = setTimeout(() => watch.disconnect(), 800);
+    return () => { clearTimeout(stop); watch.disconnect(); };
+  }, [confirming]);
   const [filed, setFiled] = useState<Filed>({ state: "asking" });
   const gone = useRef(false);
   // Set on every mount (StrictMode mounts, unmounts and mounts again), cleared when the dialog closes.
@@ -240,6 +278,8 @@ function BugReportForm({ phone = false, onDone }: { phone?: boolean; onDone: () 
       else document.getElementById(first === "message" ? ids.msg : ids.email)?.focus();
       return;
     }
+    if (!confirming) { setConfirming(true); return; }
+    setConfirming(false);
     setStatus("sending");
     try {
       setProgress("Sending your report…");
@@ -293,7 +333,7 @@ function BugReportForm({ phone = false, onDone }: { phone?: boolean; onDone: () 
           </a>
         )}
         <p className="mt-1 max-w-sm text-sm text-text-muted">{email.trim() ? <>If we need more, we'll write to <strong className="text-foreground">{email.trim()}</strong>.</> : "We'll look into it."}</p>
-        <p className="mt-2 max-w-sm text-xs text-text-muted">{PUBLIC_NOTE}</p>
+        <div className="mt-3 max-w-md"><PublicNotice /></div>
         {failure && <p className="mt-3 max-w-sm text-xs text-warning">{failure}</p>}
         <Button className="mt-5" onClick={onDone}>Done</Button>
       </div>
@@ -401,13 +441,26 @@ function BugReportForm({ phone = false, onDone }: { phone?: boolean; onDone: () 
         </div>
       )}
 
-      <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-xs text-text-muted" aria-live="polite">{progress || "No account needed."}</p>
-        <Button type="submit" disabled={status === "sending"} className="w-full sm:w-auto">
-          {status === "sending" ? <><Loader2 className="animate-spin" /> Sending…</> : <><Send /> Send report</>}
-        </Button>
-      </div>
-      <p className="text-xs text-text-muted" data-testid="bug-public-note">{PUBLIC_NOTE}</p>
+      <PublicNotice />
+
+      {confirming ? (
+        <div ref={confirmBox} role="alertdialog" aria-labelledby={`${ids.msg}-confirm`} className="space-y-3 rounded-xl border border-warning/60 bg-warning/10 px-3.5 py-3" data-testid="bug-confirm">
+          <p id={`${ids.msg}-confirm`} className="text-sm font-semibold text-foreground">
+            Send this as a public issue? Anyone can read it{files.length ? ", and see what you attached" : ""}.
+          </p>
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button type="button" variant="outline" className="w-full sm:w-auto" onClick={() => setConfirming(false)}><ArrowLeft /> Go back</Button>
+            <Button ref={confirmRef} type="submit" className="w-full sm:w-auto" data-testid="bug-confirm-send"><Send /> Yes, post it publicly</Button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs text-text-muted" aria-live="polite">{progress || "No account needed."}</p>
+          <Button type="submit" disabled={status === "sending"} className="w-full sm:w-auto">
+            {status === "sending" ? <><Loader2 className="animate-spin" /> Sending…</> : <><Send /> Send report</>}
+          </Button>
+        </div>
+      )}
     </form>
   );
 }
