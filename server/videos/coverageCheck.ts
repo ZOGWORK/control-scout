@@ -119,7 +119,8 @@ export async function checkClipCoverage(log: (s: string) => void, now = Date.now
         // Reviewed stays reviewed while the same matches are missing for the same reasons, and when a new list isn't
         // actionable; only a new actionable list opens it again (and only an actionable one asks the owner at all).
         // A list that was a pending check ("unchecked") and now has its video checked is new to the owner even with the
-        // same missing key: a review given to its clock-only list doesn't carry over (the upsert clears it too).
+        // same missing key: a review given to its clock-only list doesn't carry over, whatever it becomes (the upsert
+        // clears any review on a list that was a pending check).
         if (t?.triage === "actionable" && (prev?.missing_key !== key || prev?.triage === "unchecked")) opened++;
         const detail = { videos: c.videos, daysMissing: c.daysMissing, missing };
         writes.push({
@@ -127,8 +128,8 @@ export async function checkClipCoverage(log: (s: string) => void, now = Date.now
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL)
                 ON CONFLICT(season, code) DO UPDATE SET fingerprint = excluded.fingerprint, checked_at = excluded.checked_at, state = excluded.state,
                   played = excluded.played, with_clip = excluded.with_clip, detail = excluded.detail, triage = excluded.triage, triage_why = excluded.triage_why,
-                  reviewed_at = CASE WHEN (clip_coverage.missing_key = excluded.missing_key AND COALESCE(clip_coverage.triage, '') != 'unchecked') OR COALESCE(excluded.triage, '') != 'actionable' THEN clip_coverage.reviewed_at END,
-                  reviewed_by = CASE WHEN (clip_coverage.missing_key = excluded.missing_key AND COALESCE(clip_coverage.triage, '') != 'unchecked') OR COALESCE(excluded.triage, '') != 'actionable' THEN clip_coverage.reviewed_by END,
+                  reviewed_at = CASE WHEN COALESCE(clip_coverage.triage, '') != 'unchecked' AND (clip_coverage.missing_key = excluded.missing_key OR COALESCE(excluded.triage, '') != 'actionable') THEN clip_coverage.reviewed_at END,
+                  reviewed_by = CASE WHEN COALESCE(clip_coverage.triage, '') != 'unchecked' AND (clip_coverage.missing_key = excluded.missing_key OR COALESCE(excluded.triage, '') != 'actionable') THEN clip_coverage.reviewed_by END,
                   missing_key = excluded.missing_key`,
           args: [season, code, fp, new Date(now).toISOString(), c.state, c.played, c.withClip, key, JSON.stringify(detail), t?.triage ?? null, t?.why ?? null],
         });
