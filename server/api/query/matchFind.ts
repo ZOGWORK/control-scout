@@ -16,7 +16,7 @@ import { matchHref, shortEvent, teamLinks } from "../answers/matchSet.js";
 import { markedLabel, unofficialLine } from "../../data/unofficialRecords.js";
 import { seasonClipKeys } from "../../videos/recordings.js";
 
-export type MatchMeasure = "high" | "low" | "closest" | "lopsided" | "penalties" | "upset" | "comeback" | "miss" | "accurate" | "loss-high";
+export type MatchMeasure = "high" | "low" | "closest" | "lopsided" | "penalties" | "upset" | "comeback" | "miss" | "accurate" | "loss-high" | "order";
 
 /** A score an alliance had to reach ("where the losing alliance scored over 200", "both alliances scored over 250"):
  *  `side` is whose final score (penalties included, as the result was decided) is held to it. The losing or winning
@@ -116,7 +116,11 @@ const MISS_RULE = "a prediction's miss is how far the engine's predicted margin 
 /** An alliance's summed season prediction ratings (the upset rule's fallback when no call was saved). */
 const RATING = (side: "red" | "blue") => `(SELECT SUM(s.rating_np) FROM match_teams x JOIN team_season_stats s ON s.season = x.season AND s.team = x.team
   WHERE x.season = m.season AND x.code = m.code AND x.level = m.level AND x.series = m.series AND x.number = m.number AND x.alliance = '${side}' AND x.on_field = 1)`;
+/** The order matches were played in: qualification matches by number, then playoff series and their matches. */
+const PLAY_ORDER = "((CASE m.level WHEN 'qual' THEN 0 ELSE 1 END) * 1000000 + m.series * 1000 + m.number)";
 const MEASURES: Record<MatchMeasure, Measure> = {
+  order: { value: PLAY_ORDER, order: "ASC", title: "Match", plural: "Matches", column: "",
+    rule: "every played match, in the order played: qualification matches, then the playoffs.", show: () => "" },
   high: { value: NP, order: "DESC", title: "Highest-scoring match", plural: "Highest-scoring matches", column: "Score",
     rule: "a match's score is its higher alliance's points without penalties; the highest first.", show: (v) => `${v} points` },
   low: { value: NP, order: "ASC", title: "Lowest-scoring match", plural: "Lowest-scoring matches", column: "Score",
@@ -227,13 +231,15 @@ export async function matchFindAnswer(f: MatchFind): Promise<StatAnswer> {
   const ranked = async (value: string) => {
     const [rows, count] = await Promise.all([
       all<Row>(`SELECT m.season, m.code, m.level, m.series, m.number, m.label, m.time, e.name, e.type, e.start, m.red_total, m.blue_total, ${value} v
-        ${FROM} WHERE ${w.sql} AND ${value} IS NOT NULL${f.over ? ` AND ${value} ${f.over.atLeast ? ">=" : ">"} ?` : ""} ORDER BY v ${ms.order}, ${NP} DESC, e.start, m.code, m.label LIMIT ?`, [...w.args, ...(f.over ? [f.over.n] : []), f.n]),
+        ${FROM} WHERE ${w.sql} AND ${value} IS NOT NULL${f.over ? ` AND ${value} ${f.over.atLeast ? ">=" : ">"} ?` : ""} ORDER BY v ${ms.order}, ${f.measure === "order" ? "m.code" : `${NP} DESC`}, e.start, m.code, m.label LIMIT ?`, [...w.args, ...(f.over ? [f.over.n] : []), f.n]),
       get<{ n: number }>(`SELECT COUNT(*) n ${FROM} WHERE ${w.sql}`, w.args),
     ]);
     return { rows, count: Number(count?.n ?? 0) };
   };
   let { rows, count } = await ranked(ms.value);
   let rule = ms.rule, show = ms.show, column = ms.column;
+  // A list cut short (an event's divisions together, past EVENT_MATCHES_MAX) says how much of it is shown.
+  if (f.measure === "order" && count > rows.length) rule = `the first ${rows.length} of the ${count.toLocaleString("en-US")} played matches, in the order played: qualification matches, then the playoffs.`;
   // No saved call for any of these matches: the upset is the largest rating gap that lost, said so. Calls saved
   // with none of them an upset is no upsets, never a guess from the ratings.
   const called = f.measure === "upset" && !rows.length && count ? Number((await get<{ n: number }>(`SELECT COUNT(*) n ${FROM} WHERE ${w.sql} AND ${CHANCE("red")} IS NOT NULL`, w.args))?.n ?? 0) : 0;
@@ -266,7 +272,7 @@ export async function matchFindAnswer(f: MatchFind): Promise<StatAnswer> {
   // A match by its number: "M14 in the finals, 2025–26", "Q12 at Massachusetts Championship, 2025–26"; several,
   // "highest-scoring first" said (the order they're listed in). A qualification number says no match type again.
   const title = lbl ? `${lbl}${f.finals ? " in the finals" : ""}${typed ? ` ${typed}` : ""}, ${seasonText}${rows.length > 1 ? ", highest-scoring first" : ""}`
-    : `${(filters ? `${head.replace(/match/, `${filters} match`)}` : head)}${typed ? ` ${typed}` : ""}, ${seasonText}`;
+    : `${(filters ? (f.measure === "order" ? `${filters.replace(/^./, (c) => c.toUpperCase())} matches` : head.replace(/match/, `${filters} match`)) : head)}${typed ? ` ${typed}` : ""}, ${seasonText}`;
   const scope = [f.ever ? "All seasons" : seasonText, ...(place ? [place] : []), ...(f.window ? [f.window.label.replace(/^./, (c) => c.toUpperCase())] : []),
     ...(f.finals ? ["Finals"] : f.level === "qual" ? ["Qualification matches"] : f.level === "playoff" ? ["Playoff matches"] : []), ...(f.kind ? [f.kind.label] : []), ...(f.cond ? [condWords(f.cond).replace(/^./, (c) => c.toUpperCase())] : []), ...(f.decided ? ["No ties"] : []), ...(over ? [over] : []), ...(f.video ? ["With video"] : []), ...(f.named ? [] : ["Official events"])];
   // An off-season event named is its own matches: never called official.
@@ -291,7 +297,10 @@ export async function matchFindAnswer(f: MatchFind): Promise<StatAnswer> {
   // headline and the ones after it a table, ranked from 2.
   const table = (rs: Row[], from: number, title: string): StatBlock => ({
     kind: "table", title,
-    columns: [{ key: "rank", label: "#", num: true }, { key: "value", label: column }, { key: "score", label: "Red–Blue" }, { key: "match", label: "Match" }, { key: "event", label: "Event" }, { key: "date", label: "Date" }],
+    // In play order (an event's matches) there is no rank or value: the match, its score, its day.
+    // The event is said once, in the title, unless its divisions are listed together.
+    columns: f.measure === "order" ? [{ key: "match", label: "Match" }, { key: "score", label: "Red–Blue" }, ...(new Set(rs.map((r) => r.code)).size > 1 ? [{ key: "event", label: "Event" }] : []), { key: "date", label: "Date" }]
+      : [{ key: "rank", label: "#", num: true }, { key: "value", label: column }, { key: "score", label: "Red–Blue" }, { key: "match", label: "Match" }, { key: "event", label: "Event" }, { key: "date", label: "Date" }],
     rows: rs.map((r, i) => ({ cells: { rank: from + i, value: show(Number(r.v)), score: `${r.red_total}–${r.blue_total}`, match: markedLabel(r), event: shortEvent(r.name, r.type), date: dateRange((r.time ?? r.start)?.slice(0, 10) ?? null) }, href: matchHref(r) })),
   });
   if (f.list) return { ...base, blocks: [table(rows, 1, "")] };

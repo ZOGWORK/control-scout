@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 6.7.7 — 2026-11-15
+
+Search › An event's matches ("CRI matches", "matches at the NJ championship") list every match in the order played, with each clip playing inline.
+
+### Highlights
+- [history] An event's matches list every match, in the order played
+- [history] Each match's clip plays right in the answer
+- [history] Add a year or "playoff" to narrow the list
+
+### Changed
+- "<event> matches" — by the event's name, code or initialism, "<place> states matches" too — answers with the event's played matches, qualification first and the playoffs after, each row playing its clip. A year picks that edition and a match type narrows it; a team, a measure or a time window still goes to its own answer. Clips are read for up to 200 rows (was 60), and a list cut at 200 says so. (`server/api/query/execute.ts`, `server/api/query/matchFind.ts`, `server/api/answers/video.ts`) (#1556)
+
 ## 6.7.6 — 2026-11-15
 
 Search reads a period's OPR said after a place: "Romania teleop opr" lists Romania's teams by TeleOp OPR.
