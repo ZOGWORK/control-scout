@@ -79,7 +79,7 @@ export async function weekendEvents(opts: { which?: Weekend; region?: string | n
   const args: (string | number)[] = [CURRENT_SEASON, addDays(shown.from, -8), addDays(shown.to, 8)];
   if (region) { sql.push(region.state ? "country = ? AND state = ?" : "country = ?"); args.push(region.country, ...(region.state ? [region.state] : [])); }
   const rows = await all<WeekendRow>(`SELECT season, code, name, type, division_code, city, state, country, start, end, timezone FROM events WHERE ${sql.join(" AND ")}`, args);
-  const kept = rows.filter((r) => inWeekend(r, which, now) && (!opts.types || opts.types.includes(r.type ?? "")))
+  const kept = rows.filter((r) => inWeekend(r, which, now, today) && (!opts.types || opts.types.includes(r.type ?? "")))
     .sort((a, b) => (a.start ?? "").localeCompare(b.start ?? "") || a.name.localeCompare(b.name) || a.code.localeCompare(b.code));
   return { which, season: CURRENT_SEASON, seasonLabel: seasonLabel(CURRENT_SEASON), window: { ...shown, label: dateRange(shown.from, shown.to) || shown.from }, region: region ? { key: region.key, name: region.name } : null, events: await eventCards(kept, now) };
 }
