@@ -18,6 +18,7 @@ import { teamPageSql } from "../../../../src/shared/teamPages.js";
 import { OFFICIAL_ONLY, recordSql } from "../../../../src/shared/eventRecord.js";
 import { countryOf } from "../../../../src/shared/countries.js";
 import type { Region } from "../../../../src/shared/regions.js";
+import { regionHref } from "../../../../src/shared/regionRankings.js";
 // Every read here is a whole season's (or every season's) board: kept as search's own reads are (searchReads.ts, until
 // the data moves), so the next board question over the same rows ("best opr in texas", then "top teams in texas")
 // reads no SQL. A gain or a growth board walks every team's events: 100–300 ms a read (measured 2026-11-13).
@@ -131,7 +132,8 @@ export function teamsHref(season: number, st: BoardStat, region: Region | null, 
   return `/teams?${p}`;
 }
 // A whole country's key ends in ":" ("Romania:"); Rankings reads a country alone without it.
-const rankingsHref = (season: number, region: Region | null) => `/rankings?season=${season}${region ? `&region=${encodeURIComponent(region.key.replace(/:$/, ""))}` : ""}`;
+/** The rating list's page: a place's region rankings page (src/shared/regionRankings.ts), else the world ranking. */
+const rankingsHref = (season: number, region: Region | null) => (region ? regionHref(region.key.replace(/:$/, ""), { season }) : `/rankings?season=${season}`);
 
 const RANKED = `A team is ranked once it has played ${RANKED_MIN_MATCHES} matches that season, as on Rankings, from the season numbers each team page shows (OPR and averages without penalties).`;
 const record = (r: { wins: number; losses: number; ties: number }) => `${r.wins}-${r.losses}-${r.ties}`;
@@ -188,7 +190,8 @@ export async function leaderboardAnswer(b: BoardQuestion): Promise<StatAnswer> {
   const unranked = b.teams?.filter((t) => !rows.some((r) => Number(r.team) === t)) ?? [];
   const base = { family: "leaderboard" as const, intent: rookie ? "best-rookie" : `top-${st.id}`, title: `${titled} · ${seasonLabel(season)}`, scope: chips, definition, source: `From the ${seasonLabel(season)} season numbers of ${total.toLocaleString("en-US")} ranked ${rookie ? "rookie " : ""}team${total === 1 ? "" : "s"}${where}${filters ? ` (${filters})` : ""}${unranked.length ? ` · Not ranked (under ${RANKED_MIN_MATCHES} matches or no ${statWords(st)}): ${unranked.join(", ")}` : ""}` };
   if (!rows.length && filters) return { ...base, blocks: [], none: `No ranked team${where} in ${seasonLabel(season)} (${RANKED_MIN_MATCHES}+ matches) fits: ${filters}.` };
-  if (!rows.length) return { ...base, blocks: [], none: b.teams ? `None of the ${b.teams.length} teams named has a ${seasonLabel(season)} ${statWords(st)} yet: a team is ranked once it has played ${RANKED_MIN_MATCHES} matches.` : b.undefeated ? `No team${where} with ${RANKED_MIN_MATCHES}+ matches is undefeated in ${seasonLabel(season)}.` : `No ${rookie ? "rookie " : ""}team${where} has played ${RANKED_MIN_MATCHES}+ matches in ${seasonLabel(season)} yet.` };
+  if (!rows.length) return { ...base, blocks: [], none: b.teams ? `None of the ${b.teams.length} teams named has a ${seasonLabel(season)} ${statWords(st)} yet: a team is ranked once it has played ${RANKED_MIN_MATCHES} matches.` : b.undefeated ? `No team${where} with ${RANKED_MIN_MATCHES}+ matches is undefeated in ${seasonLabel(season)}.` : st.id === "rating" && !rookie && b.region ? `No rated teams yet${where} for ${seasonLabel(season)}: a team is ranked after its ${RANKED_MIN_MATCHES}rd rated match.`
+    : `No ${rookie ? "rookie " : ""}team${where} has played ${RANKED_MIN_MATCHES}+ matches in ${seasonLabel(season)} yet.` };
   const top = rows[0];
   const num = (v: number | null) => (v == null ? null : Number(v));
   const shown = (r: (typeof rows)[number]) => (st.id === "record" ? record(r) : fmt(r.v, st));
