@@ -25,7 +25,7 @@
 //   TESSERACT_JS=<path to tesseract.js's entry>  where tesseract.js is, when it isn't in node_modules
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
-import { AUTO_S, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, elapsed, leadIn, judge, NOTHING_READ, overlayLabel, secondsOf, type Judged, type M } from "./lib/videoFrames";
+import { AUTO_S, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, elapsed, overlayDivision, leadIn, judge, NOTHING_READ, overlayLabel, secondsOf, type Judged, type M } from "./lib/videoFrames";
 
 // The command line: --name value or --name=value for the value flags, --name alone for the others. Anything else stops
 // the run before it reads: a misspelt flag mustn't quietly read (and write) every recording of the season.
@@ -70,7 +70,12 @@ type FrameTiming = (typeof FRAME_TIMINGS)[number];
 const T: any = await import(process.env.TESSERACT_JS ?? "tesseract.js");
 const createWorker = T.createWorker ?? T.default?.createWorker;
 
-type Read = { label: string | null; start: number | null; at: number; text: string; why?: string };
+type Read = { label: string | null; start: number | null; at: number; text: string; why?: string; division?: "own" | "other" | null };
+
+/** The video's event, when its divisions share a stream: its division's name and its siblings'. Each read says whose
+ *  overlay it saw; a sibling's is never this event's match, and a start stands only when a read of it showed this
+ *  division's name. */
+const divisions = new WeakMap<Page, { own: string; others: string[] }>();
 
 // --- Reading a frame -----------------------------------------------------------------------------------------------
 
@@ -151,8 +156,12 @@ async function readAtOnce(page: Page, t: number): Promise<Read> {
   await seek(page, Math.max(0, t));
   const at = await now(page);
   const text = (await worker.recognize(await page.screenshot())).data.text as string;
+  const ctx = divisions.get(page);
+  const division = ctx ? overlayDivision(text, ctx.own, ctx.others) : undefined;
+  // Another division's match on the shared stream: not this event's, whatever its number.
+  if (division === "other") return { label: null, start: null, at, text, why: "another division's overlay", division };
   const label = overlayLabel(text);
-  if (!label) return { label, start: null, at, text };
+  if (!label) return { label, start: null, at, text, division };
   const a = await timer(page);
   const atA = await now(page);
   await page.waitForTimeout(1500);
@@ -170,7 +179,7 @@ async function readAtOnce(page: Page, t: number): Promise<Read> {
     a.auto = !!c && c.where === a.where && c.left > AUTO_S && overlayLabel((await worker.recognize(await page.screenshot())).data.text) === label;
   }
   const e = elapsed(a);
-  return { label, start: e == null ? null : Math.round(atA - e), at, text, ...(e == null ? { why: `timer ${a.left} isn't a running match's` } : {}) };
+  return { label, start: e == null ? null : Math.round(atA - e), at, text, division, ...(e == null ? { why: `timer ${a.left} isn't a running match's` } : {}) };
 }
 
 /** Seconds into a match the confirming read is tried at, in turn (all TeleOp, well clear of its last 8 s). Spread
@@ -181,12 +190,14 @@ const CONFIRM_AFTER = [70, 80, 95, 110, 125, 140];
 /** A read stands only when frames before and after its start agree: 70 s on (TeleOp), the overlay names the same match
  *  and its timer gives the same start; 25 s before, that match isn't running yet. One read alone is never a start
  *  (a wrong match number on screen for a few seconds, a replay, a digit read wrong). */
-async function confirmed(page: Page, label: string, start: number): Promise<string | null> {
+async function confirmed(page: Page, label: string, start: number, own = false): Promise<string | null> {
   // A frame that reads nothing (the player still buffering after a long seek, the timer not caught running) says
   // nothing either way, so a later point of TeleOp is tried; a frame that reads another match or start disagrees.
   let why = "";
   for (const after of CONFIRM_AFTER) {
     const at = await readAt(page, start + after);
+    if (at.division === "other") return `${after} s on the overlay named another division`;
+    own ||= at.division === "own";
     if (at.label && at.label !== label) return `${after} s on the overlay read ${at.label}`;
     if (at.label && at.start != null) {
       if (Math.abs(at.start - start) > SAME_S) return `${after} s on its timer gave a start ${Math.round(at.start - start)} s off`;
@@ -198,6 +209,7 @@ async function confirmed(page: Page, label: string, start: number): Promise<stri
   if (why) return why;
   const before = await readAt(page, start - 25);
   if (before.label === label && before.start != null) return `25 s before it was already running (start ${Math.round(before.start - start)} s off)`;
+  if (divisions.has(page) && !own) return "no read of it showed its division's name (the stream carries another division too)";
   return null;
 }
 
@@ -235,7 +247,7 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
     const i = named.reduce((a, b) => (off(b) < off(a) ? b : a));
     tried.add(i);
     if (seen.has(i) || reads() >= budget) return;
-    const no = await confirmed(page, r.label!, r.start);
+    const no = await confirmed(page, r.label!, r.start, r.division === "own");
     if (no == null) seen.set(i, r.start);
     else { unconfirmed++; log(`    ${r.label} at ${r.start} s not confirmed: ${no}`); }
   };
@@ -394,6 +406,11 @@ async function doCode(code: string): Promise<void> {
   const timeless = rows.filter((r) => actualStart(r.time)).length - played.length;
   if (timeless) report.push(`${code}: ${timeless} played matches not read: no timezone for the event, so their start can't be placed`);
   if (!played.length) return;
+  // Divisions of one event can share a stream: each read must be this division's overlay (divisionOf, overlayDivision).
+  const [ev] = await all<{ name: string; division_code: string | null }>("SELECT name, division_code FROM events WHERE season = ? AND code = ?", [season, code]);
+  const siblings = ev?.division_code ? await all<{ name: string }>("SELECT name FROM events WHERE season = ? AND division_code = ? AND code != ?", [season, ev.division_code, code]) : [];
+  const ownDiv = ev ? divisionOf(ev.name) : null, others = siblings.map((x) => divisionOf(x.name));
+  const division = ownDiv && others.length && others.every((x): x is string => x != null) ? { own: ownDiv, others: others as string[] } : null;
   const span = await R.eventMatchSpan(season, code);
   const views = played.map((m) => ({ label: m.label, time: m.time, played: true, startsAt: new Date(m.epoch * 1000).toISOString(), clip: undefined as any }));
   // Without this script's own timings: what YouTube's facts alone give.
@@ -453,6 +470,7 @@ async function doCode(code: string): Promise<void> {
     let page: Page | null = null;
     try {
       page = await player();
+      if (division) divisions.set(page, division);
       await open(page, v.videoId);
       log(`  ${v.videoId}: ${mine.length} matches`);
       console.error(`${new Date().toISOString().slice(11, 19)} ${code} ${v.videoId}: ${mine.length} matches`);
@@ -463,6 +481,7 @@ async function doCode(code: string): Promise<void> {
         log("    nothing read: again in a fresh player");
         await page.context().close();
         page = await player();
+        if (division) divisions.set(page, division);
         await open(page, v.videoId);
         j = await placeVideo(page, mine, from == null ? null : -from, m.length!, log);
       }
