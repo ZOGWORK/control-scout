@@ -18,6 +18,7 @@ export function TeamsSource({ d, provisional, now = Date.now() }: { d: EventDeta
   const stale = known && e.status !== "finished" && (!at || now - Date.parse(at) > STALE_SYNC_MS);
   // FIRST's registrations are FIRST's list whatever the event's last full fetch came from.
   const source = provisional ? "FTC New Jersey · provisional, FIRST has not published teams yet"
+    : e.source === "cri" ? `${d.resultsSource?.site ?? "the event's own results site"} · FIRST has not published this event's results`
     : e.source === "ftc-scout" && d.field.length && !d.registered ? "FTC Scout (FIRST couldn't serve this event)"
     : d.field.length || d.sharedSessions ? "FIRST Events API" : "FIRST Events API · no teams published yet";
   return (
