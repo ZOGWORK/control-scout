@@ -44,6 +44,10 @@ async function keepEngine(): Promise<void> {
     if (!(await cache.match(url))) await cache.add(url);
   } catch { /* offline reads then need the engine fetched once online */ }
 }
+/** A save waits at most this long for the engine to be cached: its request can hang on a line that just came back,
+ *  and the save run (which keeps the season's Delete greyed out) would wait with it. Caching carries on in the
+ *  background; the worker's install fetches it too. */
+export const ENGINE_WAIT_MS = 3000;
 
 /** Does it start with SQLite's file header? */
 const SQLITE_MAGIC = "SQLite format 3\0";
@@ -110,10 +114,14 @@ export async function saveSeason(file: PackFile, manifest: PackManifest, onProgr
   if (!isSqlite(bytes)) throw new Error("That file isn't a Control Scout season pack — not saved.");
   // One save per season at a time, across tabs: two releases saved at once would otherwise both
   // replace the same previous copy and leave one download stored but unlisted.
-  return oneAtATime(season, () => {
+  const meta = await oneAtATime(season, () => {
     if (opts.replaceOnly && !listed(season)) throw new SeasonGone(season);
     return store(season, file, manifest, bytes);
   });
+  // After the season lock, so it never holds up a Delete tapped the moment the season shows as saved (the pieces'
+  // lock can be another tab's).
+  await finishDownload(file.sha256, file.gz?.sha256); // the downloaded pieces: the saved copy stands now
+  return meta;
 }
 
 // Web Locks cover every tab; without them (old browsers, tests) this tab's own saves still queue.
@@ -143,7 +151,8 @@ async function store(season: number, file: PackFile, manifest: PackManifest, byt
   catch (e) {
     throw (e as DOMException)?.name === "QuotaExceededError" ? new Error("Not enough storage on this device to save this season. Remove another saved season, or free some space.") : e;
   }
-  await keepEngine();
+  // Before the season shows as saved (it opens offline only with the engine there), but never for long.
+  await Promise.race([keepEngine(), new Promise((r) => setTimeout(r, ENGINE_WAIT_MS))]);
   const meta: SavedSeason = { season, version: manifest.version, sha256: file.sha256, bytes: bytes.length, savedAt: Date.now(), dataAsOf: manifest.dataAsOf, builtAt: manifest.builtAt, ...(file.stats ? { stats: file.stats } : {}) };
   try { writeSaved([...savedSeasons().filter((s) => s.season !== season), meta]); }
   catch (e) {
@@ -156,22 +165,27 @@ async function store(season: number, file: PackFile, manifest: PackManifest, byt
   if (was && was.sha256 !== file.sha256) close(season);
   if (prev && prev.sha256 !== file.sha256) await del(key(season, prev.sha256)).catch(() => {});
   await sweep(season).catch(() => {}); // tidying only: the save itself succeeded
-  await finishDownload(file.sha256, file.gz?.sha256); // the downloaded pieces: the saved copy stands now
   return meta;
 }
 
-/** Delete a saved season (its bytes and its place in the list). Returns the bytes freed. */
+/** Delete a saved season (its bytes and its place in the list). Returns the bytes deleted. */
 export async function removeSeason(season: number): Promise<number> {
-  return oneAtATime(season, async () => {
+  const deleted = await oneAtATime(season, async () => {
     const meta = savedSeasons().find((s) => s.season === season);
     close(season);
-    // The list and the file change together: if either step fails, the season stays listed with its
-    // file in place (restored if it was already deleted), so Remove can be tried again.
+    // The list and the file change together: if either step fails, the season stays listed with its file in
+    // place, so Remove can be tried again. The list goes first, so the file is never read back into memory to put
+    // back (tens of MB, read before every Delete); a file delete that fails lists the season again.
     const k = meta ? key(season, meta.sha256) : null;
-    const bytes = k ? await getv<Uint8Array>(k) : undefined;
-    if (k) await del(k);
-    try { writeSaved(savedSeasons().filter((s) => s.season !== season)); }
-    catch (e) { if (k && bytes) await put(k, bytes).catch(() => {}); throw e; }
+    writeSaved(savedSeasons().filter((s) => s.season !== season));
+    if (k && meta) {
+      try { await del(k); }
+      catch (e) {
+        // Listed again as it was (another tab's change to another season meanwhile stays).
+        try { writeSaved([...savedSeasons().filter((s) => s.season !== season), meta]); } catch { /* the next sweep takes the unlisted file */ }
+        throw e;
+      }
+    }
     await sweep(season).catch(() => {}); // leftovers of interrupted saves; the season itself is gone
     // Nothing of the season stays behind: a half download of it (a paused update) goes too, and it no longer
     // picks up by itself.
@@ -183,9 +197,11 @@ export async function removeSeason(season: number): Promise<number> {
         if (p.owner.kind === "season" && p.owner.id === String(season) && (await dropPartial(p.sha256))) partial += p.have;
       }
     } catch { /* left for the paused row's own Delete */ }
-    if (!savedSeasons().length) await dropEngine();
     return (meta?.bytes ?? 0) + partial;
   });
+  // Outside the season lock: a save of the season never waits on it.
+  if (!savedSeasons().length) await dropEngine();
+  return deleted;
 }
 
 /** The last saved season went: the SQLite engine kept for reading seasons offline goes from the worker's caches

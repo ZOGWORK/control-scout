@@ -828,12 +828,18 @@ const STATES_KIND = { types: ["Championship"], label: "State championships" };
  *  said in the chip. The search box keeps a link to the answer page. */
 async function highlights(p: Parsed, scope: ReadScope, opts: PipelineOptions): Promise<SearchAnswer | null> {
   // A count of none ("top 0 highlights") lists nothing to show.
-  if (!opts.full || p.alliance || scope.ever || p.place?.kind === "city" || (p.n != null && p.n < 1)) return null;
+  if (p.alliance || scope.ever || p.place?.kind === "city" || (p.n != null && p.n < 1)) return null;
   // "Recent highlights": a scope's latest week of play, when no team, event or time says which matches already.
   const recent = p.symbols.includes("agg:last") && !(p.teams.length || p.event || p.worlds || p.states || p.time);
   const answer = (stat: StatAnswer, season: number, hits: SearchAnswer["hits"] = []): SearchAnswer => ({
     q: p.q, hits, pages: opts.pages, step: "deterministic", weak: false, understood: { kind: "question", label: stat.title, season }, stat,
-    intent: { kind: `stat-${stat.intent}`, pattern: `${p.teams.length ? "[team] " : ""}highlights${p.event ? " [event]" : p.worlds ? " [worlds]" : p.states ? " [states]" : ""}${p.place ? " [place]" : ""}${scope.window ? " [window]" : ""}`, met: true, understood: [] },
+    intent: { kind: `stat-${stat.intent}`, pattern, met: true, understood: [] },
+  });
+  const pattern = `${p.teams.length ? "[team] " : ""}highlights${p.event ? " [event]" : p.worlds ? " [worlds]" : p.states ? " [states]" : ""}${p.place ? " [place]" : ""}${scope.window ? " [window]" : ""}`;
+  // The search box: the question as read and a link to its answer page, no match read while typing.
+  const box = (label: string, intent: string, hits: SearchAnswer["hits"] = []): SearchAnswer => ({
+    q: p.q, hits, pages: [{ title: label, href: `/search?q=${encodeURIComponent(p.q)}` }, ...opts.pages], step: "deterministic", weak: false,
+    understood: { kind: "question", label }, intent: { kind: `stat-${intent}`, pattern, met: true, understood: [label] },
   });
   // Video words alone ("recap", "videos", "watch"): a video page; "highlights", "best" or "what happened": the
   // standout matches first.
@@ -867,6 +873,11 @@ async function highlights(p: Parsed, scope: ReadScope, opts: PipelineOptions): P
     // A time said ("in December", "this week"): its matches played on those days, in an event named too when one is.
     const w = scope.window;
     const when: TeamHighlightScope | undefined = w ? { has: (m) => { const d = (m.date ?? "").slice(0, 10); return d >= w.from && d <= w.to && (!place || place.has(m)); }, label: place?.label ?? w.label, phrase: `${place ? `at ${place.label} ` : ""}${WHEN_WORD.test(w.label) ? w.label : `in ${w.label}`}`, ...(said != null ? { season: said } : {}) } : place;
+    if (!opts.full) {
+      const hit = (await opts.resolve(String(t.number))).hits.find((h) => h.kind === "team" && h.ref === String(t.number));
+      const where = when ? ` ${when.phrase ?? `at ${when.label}`}` : "";
+      return box(`${t.name ?? `Team ${t.number}`} (${t.number}) highlights${where}${said != null && !w ? `, ${seasonLabel(said)}` : ""}`, "team-highlights", hit ? [{ ...hit, facts: undefined, events: undefined }] : []);
+    }
     // A window is kept by its dates alone, never its first day's season: a week across the season's start (Aug 31 to
     // Sep 6) has matches of both, and the latest season with any is shown (each season's highlights stay apart).
     const stat = await teamHighlights({ number: t.number, name: t.name }, w ? undefined : said ?? undefined, when, p.n ?? undefined, videos ? "videos" : "highlights");
@@ -902,6 +913,11 @@ async function highlights(p: Parsed, scope: ReadScope, opts: PipelineOptions): P
     chips: [...(region ? [region.name] : []), ...(scope.window ? [scope.window.label.replace(/^./, (c) => c.toUpperCase())] : []),
       ...(p.finals ? ["Finals"] : p.level === "qual" ? ["Qualification matches"] : p.level === "playoff" ? ["Playoff matches"] : []), ...(kind && !evs ? [kind.label] : [])],
   };
+  if (!opts.full) {
+    const name = f.eventName?.get(f.season)?.name ?? (f.eventName ? [...f.eventName.values()].pop()?.name : undefined);
+    const S = p.time ? `, ${seasonLabel(f.season)}` : "";
+    return box(`${recent ? "Recent highlights" : "Highlights"}${name ? ` at ${name}` : f.at ? ` ${f.at}` : ""}${scope.window ? ` ${WHEN_WORD.test(scope.window.label) ? scope.window.label : `in ${scope.window.label}`}` : ""}${S}`, "scope-highlights");
+  }
   const card = async (season: number, g: HighlightFind = f) => answer(await highlightsAnswer({ ...g, season }), season);
   if (recent) {
     const r = await recentWindow(f);
