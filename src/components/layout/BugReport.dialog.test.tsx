@@ -36,13 +36,18 @@ async function sendReport(message = "The rankings table jumps when I scroll.") {
   fireEvent.click(await screen.findByText("Something broken"));
   fireEvent.change(screen.getByLabelText(/What happened/), { target: { value: message } });
   fireEvent.click(screen.getByRole("button", { name: /Send report/ }));
+  // The second confirmation.
+  fireEvent.click(await screen.findByRole("button", { name: "Yes, post it publicly" }));
 }
 
 describe("Report a bug dialog", () => {
   it("says plainly that it files a public GitHub issue, and never fills in the email itself", async () => {
     render(<MemoryRouter><BugReportButton /></MemoryRouter>);
     fireEvent.click(screen.getByTestId("bug-report-button"));
-    expect((await screen.findByTestId("bug-public-note")).textContent).toBe("This files a public GitHub Issue on ZOGWORK/control-scout. Anyone can see it.");
+    const note = await screen.findByTestId("bug-public-note");
+    expect(note.textContent).toContain("This files a public GitHub Issue on ZOGWORK/control-scout. Anyone can see it.");
+    expect(note.textContent).toContain("Want it private? Email sushil.m@icloud.com instead.");
+    expect((screen.getByRole("link", { name: "sushil.m@icloud.com" }) as HTMLAnchorElement).href).toMatch(/^mailto:sushil\.m@icloud\.com\?subject=/);
     expect((screen.getByLabelText(/^Email/) as HTMLInputElement).value).toBe("");
     expect(screen.getByText(/shown on the public issue/)).toBeTruthy();
   });
@@ -55,6 +60,7 @@ describe("Report a bug dialog", () => {
     expect(link.href).toBe("https://github.com/ZOGWORK/control-scout/issues/1520");
     expect(link.textContent).toContain("#1520 — https://github.com/ZOGWORK/control-scout/issues/1520");
     expect(screen.getByText(PUBLIC_NOTE)).toBeTruthy();
+    expect(screen.getByTestId("bug-private-note")).toBeTruthy();
   });
 
   it("a failed try: says something went wrong and the report is saved, with no link", async () => {
@@ -62,6 +68,22 @@ describe("Report a bug dialog", () => {
     await sendReport();
     expect(await screen.findByText("Something went wrong — your report is saved, we'll try again")).toBeTruthy();
     expect(screen.queryByTestId("bug-issue-link")).toBeNull();
+  });
+
+  it("asks a second time before sending, and Go back sends nothing", async () => {
+    render(<MemoryRouter><BugReportButton /></MemoryRouter>);
+    fireEvent.click(screen.getByTestId("bug-report-button"));
+    fireEvent.click(await screen.findByText("Something broken"));
+    fireEvent.change(screen.getByLabelText(/What happened/), { target: { value: "The rankings table jumps when I scroll." } });
+    fireEvent.click(screen.getByRole("button", { name: /Send report/ }));
+    expect((await screen.findByTestId("bug-confirm")).textContent).toContain("Send this as a public issue?");
+    expect(posted).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /Go back/ }));
+    expect(screen.queryByTestId("bug-confirm")).toBeNull();
+    expect(posted).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /Send report/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "Yes, post it publicly" }));
+    await waitFor(() => expect(posted).not.toBeNull());
   });
 
   it("sends the message sanitized", async () => {
