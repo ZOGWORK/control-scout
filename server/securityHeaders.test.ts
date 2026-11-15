@@ -88,10 +88,12 @@ describe("every response", () => {
       expect(r.headers.get("permissions-policy"), p).toBe(PERMISSIONS_POLICY);
     }
   });
-  it("lets this site use the camera and microphone (match recordings) and nothing else powerful", () => {
+  it("lets this site use the camera, microphone (match recordings) and screen capture (bug reports), nothing else powerful", () => {
     expect(PERMISSIONS_POLICY).toContain("camera=(self)");
     expect(PERMISSIONS_POLICY).toContain("microphone=(self)");
     expect(PERMISSIONS_POLICY).toContain("geolocation=()");
+    // The bug report's "Capture this screen" (one frame of this tab), for this site only.
+    expect(PERMISSIONS_POLICY).toContain("display-capture=(self)");
     // Left at the browser default so the YouTube player's allow list still works.
     expect(PERMISSIONS_POLICY).not.toMatch(/fullscreen|picture-in-picture|encrypted-media/);
   });
