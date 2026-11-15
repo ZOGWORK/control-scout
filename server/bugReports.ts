@@ -384,6 +384,7 @@ export async function fileBugReport(id: number, now = new Date()): Promise<BugFi
     }).catch(() => {});
     if (labelsMissing.length) console.warn(`[bug-reports] report #${id} filed as #${number} without label(s) ${labelsMissing.join(", ")} (create them on GitHub)`);
     await clearUploaded(id);
+    if (await keptCopies(id)) clearSoon(id);
     return earlier ? "adopted" : "filed";
   } catch (e) {
     // The search or our own database. Before the issue exists: free the claim, try again later. After: keep it.
@@ -415,6 +416,25 @@ export async function clearUploaded(id: number, now = Date.now()): Promise<numbe
     cleared++;
   }
   return cleared;
+}
+
+/** Right after an issue is made, GitHub can take a few seconds to open its attachments to everyone: check again
+ *  after these waits rather than leave it to the sweep, which every restart (deploys can come every few minutes) puts
+ *  off by another 10 minutes. */
+export const clearRetries = { ms: [15_000, 60_000, 180_000] as number[] };
+/** How many of a report's uploaded attachments still have a local copy. */
+const keptCopies = async (id: number) => Number((await get<{ n: number }>(
+  "SELECT COUNT(*) AS n FROM bug_report_files WHERE report_id = ? AND github_url IS NOT NULL AND on_disk = 1", [id]).catch(() => undefined))?.n ?? 0);
+/** The last re-check started (tests wait on it). */
+export let clearing: Promise<void> = Promise.resolve();
+function clearSoon(id: number) {
+  clearing = (async () => {
+    for (const ms of clearRetries.ms) {
+      await new Promise<void>((done) => { setTimeout(done, ms).unref?.(); });
+      await clearUploaded(id).catch(() => 0);
+      if (!(await keptCopies(id))) return;
+    }
+  })();
 }
 
 /** The last filing started (tests wait on it). */
