@@ -22,7 +22,7 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 ### Highlights
 - [fixes] West Michigan Meet 5 and Meet 6 each play only their own stream
 - [live] 25 FIRST Indiana events now have their full recording, 2021 to 2026
-- [live] SoCal's ILTs and its Los Angeles championship play from SoCal FTC's live channel
+- [live] SoCal's ILTs and LA championship play from SoCal FTC's live channel
 - [live] Chicago Robotics Invitational 2026 shows Matches and Full stream for each day
 
 ### Fixed
