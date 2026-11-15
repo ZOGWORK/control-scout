@@ -1,6 +1,7 @@
 // The top bar's "Report a bug" button (far right, next to the clock and the bell) and its dialog (a bottom sheet on
 // phones). No account needed. The person picks what kind of problem, describes it, and can attach screenshots
-// (pasted with Ctrl+V / ⌘V anywhere in the dialog, picked from disk, or dropped on it) and one short video under 5 MB.
+// (pasted with Ctrl+V / ⌘V anywhere in the dialog, picked from disk, dropped on it, or taken of the page behind the
+// dialog with "Capture this screen" where the browser can share a tab: captureScreen.ts) and one short video under 5 MB.
 // The page, version, screen, device and theme go with it and are listed in the dialog, so nothing is hidden.
 // Sending: POST /api/bug-reports, one PUT per attachment, then POST …/done (server/bugReports.ts), which emails it and
 // files it as a public GitHub issue in the background. The dialog then asks GET …/status for a few seconds and shows
@@ -8,7 +9,7 @@
 // The message is sanitized here and again on the server (src/shared/errorReport.ts sanitizeText).
 import { useCallback, useEffect, useId, useRef, useState, type ClipboardEvent, type DragEvent, type FormEvent } from "react";
 import { useLocation } from "react-router-dom";
-import { AlertCircle, ArrowLeft, Bug, CheckCircle2, Clapperboard, ExternalLink, Globe, Gauge, ImagePlus, LayoutTemplate, Loader2, MessageCircle, Send, DatabaseZap, Wrench, X } from "lucide-react";
+import { AlertCircle, ArrowLeft, Bug, Camera, CheckCircle2, Clapperboard, ExternalLink, Globe, Gauge, ImagePlus, LayoutTemplate, Loader2, MessageCircle, Send, DatabaseZap, Wrench, X } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "../ui/overlay";
 import { Button } from "../ui/button";
 import { Input, Label, RequiredMark, Textarea } from "../ui/basic";
@@ -17,6 +18,7 @@ import { apiFetch, ApiError } from "../../lib/api";
 import { useTheme } from "../../hooks/useTheme";
 import { APP_VERSION } from "../../lib/errorReporting";
 import { sanitizeText } from "../../shared/errorReport";
+import { canCaptureScreen, captureScreen } from "./captureScreen";
 import {
   attachmentProblem, attachmentsProblem, BUG_CATEGORIES, BUG_LIMITS, formatBytes, IMAGE_TYPES, isImageType, isVideoType, VIDEO_TYPES,
   type BugCategory, type BugContext, type BugFiling, type BugReportCreated,
@@ -237,6 +239,12 @@ function BugReportForm({ phone = false, onDone }: { phone?: boolean; onDone: () 
   const pick = useRef<HTMLInputElement>(null);
   const ids = { cat: useId(), msg: useId(), email: useId(), files: useId() };
   const pasted = useRef(0);
+  // "Capture this screen": only where the browser can share a tab (not phones), checked once per dialog.
+  const [canCapture] = useState(() => !phone && canCaptureScreen());
+  const [capturing, setCapturing] = useState(false);
+  const [captureNote, setCaptureNote] = useState<string | null>(null);
+  const captured = useRef(0);
+  const captureRef = useRef<HTMLButtonElement>(null);
   // Thumbnails are object URLs: let them go when the dialog closes.
   const filesRef = useRef(files);
   filesRef.current = files;
@@ -253,6 +261,23 @@ function BugReportForm({ phone = false, onDone }: { phone?: boolean; onDone: () 
     filesRef.current = next;
     setFiles(next);
   }, []);
+  /** One picture of the page behind the dialog, added like any other screenshot. A refused prompt only leaves a note. */
+  const capture = async () => {
+    if (capturing || sending.current) return;
+    setCaptureNote(null);
+    // Already full: say so without asking the browser for anything.
+    const full = attachmentsProblem([...filesRef.current.map((a) => ({ type: a.file.type, bytes: a.file.size })), { type: "image/png", bytes: 1 }]);
+    if (full) { setFileProblem(full); return; }
+    setCapturing(true);
+    try {
+      const got = await captureScreen(captured.current + 1, BUG_LIMITS.imageBytes);
+      if (gone.current) return;
+      if (got.ok) { captured.current += 1; attach([got.file]); }
+      else setCaptureNote(got.reason === "declined" ? "No screen captured. You can paste or choose a screenshot instead." : "Couldn't capture the screen. Paste or choose a screenshot instead.");
+    } finally {
+      if (!gone.current) { setCapturing(false); requestAnimationFrame(() => captureRef.current?.focus({ preventScroll: true })); }
+    }
+  };
   const remove = (id: number) => {
     if (sending.current) return;
     const cur = filesRef.current;
@@ -403,13 +428,24 @@ function BugReportForm({ phone = false, onDone }: { phone?: boolean; onDone: () 
           <span className="text-sm font-medium text-foreground" id={ids.files}>Screenshots or a video <span className="font-normal text-text-muted">(optional)</span></span>
           <span className="text-xs tabular-nums text-text-muted">{shots}/{BUG_LIMITS.images} images · {videos}/{BUG_LIMITS.videos} video</span>
         </div>
+        <div className="flex gap-2">
         <button type="button" onClick={() => pick.current?.click()} aria-describedby={ids.files} disabled={status === "sending"}
-          className={cn("flex w-full flex-col items-center justify-center gap-1 rounded-xl border border-dashed px-3 py-4 disabled:opacity-50 text-center text-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+          className={cn("flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-xl border border-dashed px-3 py-4 disabled:opacity-50 text-center text-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
             dragging ? "border-accent bg-accent-soft text-foreground" : "border-line text-text-muted hover:border-text-muted/50 hover:text-foreground")}
           data-testid="bug-attach">
           <span className="flex items-center gap-2 font-medium"><ImagePlus className="size-4" aria-hidden /> {phone ? "Add screenshots or a video" : "Paste, drop or choose files"}</span>
           <span className="text-xs text-text-muted">Images up to {formatBytes(BUG_LIMITS.imageBytes)} each · one video under {formatBytes(BUG_LIMITS.videoBytes)}</span>
         </button>
+        {canCapture && (
+          <Button ref={captureRef} type="button" variant="outline" onClick={() => void capture()} disabled={status === "sending" || capturing}
+            className="h-auto w-32 shrink-0 flex-col gap-1 whitespace-normal px-3 py-3 text-center leading-tight" data-testid="bug-capture"
+            title="Takes a picture of the page behind this dialog. Your browser asks first.">
+            {capturing ? <Loader2 className="animate-spin" aria-hidden /> : <Camera aria-hidden />}
+            <span>{capturing ? "Capturing…" : "Capture this screen"}</span>
+          </Button>
+        )}
+        </div>
+        {captureNote && <p className="text-xs text-text-muted" data-testid="bug-capture-note">{captureNote}</p>}
         <input ref={pick} type="file" accept={ACCEPT} multiple className="hidden" tabIndex={-1} aria-hidden
           onChange={(e) => { attach(Array.from(e.target.files ?? [])); e.target.value = ""; }} />
         {fileProblem && <p role="alert" className="flex items-start gap-1.5 text-xs text-danger"><AlertCircle className="mt-px size-3.5 shrink-0" aria-hidden />{fileProblem}</p>}

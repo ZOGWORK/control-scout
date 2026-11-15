@@ -64,6 +64,17 @@ describe("kept reads", () => {
     expect(offlineSource(got)?.kept).toBe(true);
   });
 
+  it("the score ranges' record is kept, so \"80% ranges have held …\" shows with no network", async () => {
+    const path = "/api/predict/ranges";
+    vi.stubGlobal("fetch", vi.fn(async () => ok({ level: 0.8, label: "2026–27", live: { coverage: 0.909, n: 8966 } })));
+    await apiFetch(path);
+    await vi.waitFor(() => expect(keptAt(path)).not.toBeNull());
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("Failed to fetch"); }));
+    const got = await apiFetch<{ live: { n: number } }>(path);
+    expect(got.live.n).toBe(8966);
+    expect(offlineSource(got)?.kept).toBe(true);
+  });
+
   it("a shortlist made entirely offline (nothing kept, no bundle) still lists its teams, by number", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("Failed to fetch"); }));
     const got = await apiFetch<{ teams: { team: number; opr: number | null }[] }>("/api/shortlist?teams=18439%2C23332&season=2026");
