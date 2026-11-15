@@ -138,6 +138,25 @@ describe("our own server busy, not the line gone (issue #1557)", () => {
     expect(await p).toBe("no");
   });
 
+  it("the browser going offline while a check waits on a busy server ends the wait at once", async () => {
+    vi.useFakeTimers();
+    stop = startConnectionWatch();
+    noteServerAnswer();
+    await vi.advanceTimersByTimeAsync(1000);
+    const net = hanging();
+    const p = checkInternet();
+    await vi.advanceTimersByTimeAsync(CHECK_TIMEOUT_MS + 1000); // waiting on the busy server
+    expect(connection().internet).toBe("yes");
+    window.dispatchEvent(new Event("offline"));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(await p).toBe("no");
+    expect(connection().internet).toBe("no");
+    // The back-off runs from now: the next check comes by the first step, not after BUSY_TIMEOUT_MS.
+    const before = net.fetch.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(RETRY_STEPS_MS[0]);
+    expect(net.fetch.mock.calls.length).toBeGreaterThan(before);
+  });
+
   it("the server last heard from over HEARD_MS ago: no answer in CHECK_TIMEOUT_MS is no internet, as before", async () => {
     vi.useFakeTimers();
     noteServerAnswer();
