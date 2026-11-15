@@ -20,9 +20,9 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 Highlights searches that named an event's full name, a division nearly right, or a country's championships now play them.
 
 ### Highlights
-- [fixes] "FiT-Central Texas Regional Championship highlights" plays that championship
-- [fixes] A division's name typed nearly right after its event plays that division
-- [fixes] "usa champs highlights" plays the best matches of the country's championships
+- [fixes] FiT-Central Texas Regional Championship highlights now play
+- [fixes] A division typed nearly right after its event plays it
+- [fixes] "usa champs highlights" plays the US championships' best
 
 ### Fixed
 - "FiT-Central Texas Regional Championship highlights" found no event. Search reads an event's whole stored name first, but it counted "fit" as one of its own words (from phrases like "best fit"), so only "Central Texas" was left as the name's own words, and that read as the state. Only words search reads on their own now count; a word it reads only inside a longer phrase can be part of a name. (`src/shared/query/parse.ts`)
