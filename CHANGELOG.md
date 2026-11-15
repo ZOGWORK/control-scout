@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 6.7.8 — 2026-11-15
+
+Report a bug › the public notice is larger, offers a private email instead, and Send asks once more before anything is posted.
+
+### Highlights
+- [report] The "this is public" notice is larger and easier to read
+- [report] Want it private? Email sushil.m@icloud.com instead
+- [report] Send asks a second time: only "Yes, post it publicly" sends
+
+### Changed
+- Report a bug: the public GitHub Issue notice is a boxed, full-size line with a private-email way out (a mailto link), on the form and on the sent screen. The first Send asks "Send this as a public issue?"; only "Yes, post it publicly" sends (Enter in a field never does), the question says when a typed email will be public too, any edit asks again, and Go back returns to the form, focus on Send report, with nothing sent. On phones the sheet scrolls so both answers are in view (stopping as soon as you scroll yourself), and it has bottom padding again. (`src/components/layout/BugReport.tsx`) (#1562)
+
 ## 6.7.7 — 2026-11-15
 
 Search › An event's matches ("CRI matches", "matches at the NJ championship") list every match in the order played, with each clip playing inline.
