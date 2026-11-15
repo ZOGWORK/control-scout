@@ -260,4 +260,16 @@ describe("the channel audit", () => {
       expect((await row(id)).facts_at).toBe("2026-02-23T12:00:00.000Z");
     } finally { uploads.shift(); failVideos = false; }
   });
+
+  it("keeps an add found unplayable as wrong when its facts can't be read next run", async () => {
+    const it0 = uploads.find((u) => u.id === GOOD)!;
+    it0.privacy = "private";
+    try {
+      await audit(Date.parse("2026-02-24T06:00:00Z"));
+      expect(await get<any>("SELECT ok, why FROM official_audit_adds WHERE video_id = ?", [GOOD])).toMatchObject({ ok: 0, why: expect.stringMatching(/it is private now/) });
+      failVideos = true;
+      await audit(Date.parse("2026-02-24T12:00:00Z"));
+      expect(await get<any>("SELECT ok, why FROM official_audit_adds WHERE video_id = ?", [GOOD])).toMatchObject({ ok: 0, why: expect.stringMatching(/it is private now/) });
+    } finally { delete it0.privacy; failVideos = false; }
+  });
 });
