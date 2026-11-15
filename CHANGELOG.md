@@ -15,17 +15,46 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.7.4 — 2026-11-15
+## 6.7.5 — 2026-11-15
 
-Search reads a period's OPR said after a place: "Romania teleop opr" lists Romania's teams by TeleOp OPR.
+Search answers four more questions it used to miss: three team numbers side by side, a team's Auto OPR at Worlds, what a tiebreaker is, and "teams in" with nothing after it.
 
 ### Highlights
-- [fixes] "Romania teleop opr" lists Romania's teams by TeleOp OPR
-- [fixes] "nj auto opr" and "nj endgame opr" read the same way
-- [rankings] A place's board by one period's OPR needs no "best" or "top"
+- [fixes] Three or four team numbers typed with spaces compare those teams
+- [fixes] A team's Auto, TeleOp or Endgame OPR at Worlds answers in its division
+- [fixes] "What is a tiebreaker" explains how tied teams are ordered
+- [fixes] "teams in" with no place lists every team, best by OPR
 
 ### Fixed
-- Search: a place followed by a period's OPR ("Romania teleop opr") read as two stats at once, TeleOp and OPR, so nothing answered. "TeleOp OPR", "Auto OPR" and "Endgame OPR" are each one stat now, as they already were after "best" or "top": *Top 10 teams by TeleOp OPR in Romania · 2025–26*. Failed search #1526. (`src/shared/query/intents.ts`) (#1555)
+- Three or four team numbers with only spaces or commas between them ("16461 19460 23314") found nothing. Two numbers already opened the comparison. Now two to four numbers compare that many teams; a year among them still reads as a season, never a team. (`server/api/searchCoverage.ts`) (#1495)
+- A team's Auto OPR at Worlds ("what was hypnotic robotics auto opr at worlds in centerstage", and the same without "opr") showed the team card and "can't answer that yet". It's now that phase's OPR in the team's Worlds division (47.3 at Edison, 2023–24), with its OPR and the other phases beside it, as "auto" alone already reads a team's season Auto OPR. A phase next to another stat word ("highest auto at worlds") stays with the match answers. (`server/api/answers/families/oprRating.ts`) (#1493, #1494, #1530)
+- "What is a tie breaker point" found nothing. A new explainer says how teams level on ranking score are ordered, season by season (from 2025–26 on, average non-penalty score first; in 2024–25, average auto then endgame), and a typo of "breaker" is now corrected to it. (`server/api/searchCoverage.ts`, `server/api/spelling.ts`) (#1430, #1429)
+- "teams in" with nothing after it found nothing. It now lists every team, best by OPR this season, with how many are registered and how to add a place. (`server/api/searchCoverage.ts`) (#1421)
+
+## 6.7.4 — 2026-11-15
+
+Official videos › The channel audit no longer counts a channel's hidden spare copy of a stream as a video the watcher missed.
+
+### Highlights
+- [fixes] A copy a channel made unlisted isn't a missed video
+- [fixes] Its set-aside reason says the channel unlisted it
+- [fixes] Watcher misses now count only public uploads
+
+### Fixed
+- A video a channel made unlisted or private after it was listed is off its public uploads list, which is all the watcher reads: the audit sets it aside ("unlisted now: the channel took it off its public list, so it isn't for Scout") instead of counting a watcher miss and opening a finding. The audit's second live run counted one, a Kazakhstan regional's spare copy of a stream the watcher already has in review. (`server/videos/officialAudit.ts`) (#1554)
+
+## 6.7.3 — 2026-11-15
+
+A slow search no longer reads as "You're offline". While a long search keeps the server busy, the connection check waits for it instead of deciding there's no internet, and a search that did fail for want of a connection is asked again once the internet is back.
+
+### Highlights
+- [fixes] A slow search no longer says you're offline
+- [fixes] Reloading during a slow search waits for it, not "offline"
+- [offline] A search that failed offline runs again once you're back
+
+### Fixed
+- The connection check: no answer from `/api/health` within 2.5 s just after the server answered this tab (in the last minute, carried over a reload) now waits up to 20 s before it means no internet. A long search holds the server, and the check waited behind it (measured live: 11.8 s behind a 12 s search); it then said "no internet", the search was let go as "You're offline", and a reload started from that. With no recent answer, or once a check has found no internet, 2.5 s still means no internet. (`src/lib/connection.ts`)
+- Search results: "You're offline" (or "Can't reach the server") is asked again by itself when the connection check finds internet, instead of staying until Try again. (`src/components/search/SearchBox.tsx`) (#1561)
 
 ## 6.7.2 — 2026-11-15
 

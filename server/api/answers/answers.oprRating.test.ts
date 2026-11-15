@@ -87,6 +87,9 @@ describe("reading", () => {
     expect(readOprRating("4215 opr at worlds")).toMatchObject({ id: "opr-worlds", core: "4215" });
     expect(readOprRating("4215 opr at worlds this season")).toMatchObject({ id: "opr-worlds", core: "4215", latest: true });
     expect(readOprRating("4215 rating at first championship")).toMatchObject({ id: "rating-worlds", core: "4215" });
+    // One phase at Worlds, "opr" said or not (#1493, #1494); beside another stat word it's the match answers'.
+    for (const q of ["what was 4215 auto opr at worlds", "what was 4215 auto at worlds"]) expect(readOprRating(q), q).toMatchObject({ id: "opr-worlds", core: "4215", phase: "auto" });
+    for (const q of ["4215 highest auto at worlds", "4215 auto score at worlds", "4215 auto vs teleop at worlds"]) expect(readOprRating(q)?.phase, q).toBeUndefined();
     expect(readOprRating("4215 highest opr ever")).toMatchObject({ id: "opr-high", ever: true });
     // Left to the answers that already read them: the plain OPR and rating, a phase's rank, an event's OPR, two
     // teams, a season named after "rating in", league and average rank, a leaderboard.
@@ -202,6 +205,11 @@ describe("answers", () => {
     const o = await ask("4215 opr at worlds");
     expect(o.headline).toMatchObject({ value: "141.4", label: "at Worlds · Edison Division, 2023–24" });
     expect(o.definition).toContain("didn't play the FIRST Championship in 2025–26");
+    const auto = await ask("4215 auto opr at worlds");
+    expect(auto.title).toBe("Auto OPR at the FIRST Championship");
+    expect(auto.headline?.label).toBe("Auto OPR at Worlds · Edison Division, 2023–24");
+    // The team named, as logged in #1530.
+    expect((await ask("hypnotic robotics auto opr at worlds")).headline?.label).toBe("Auto OPR at Worlds · Edison Division, 2023–24");
     const r = await ask("4215 rating at worlds");
     expect(r.headline).toMatchObject({ value: "139.2 ± 3.2", label: "after Worlds · Edison Division, 2023–24", sub: expect.stringContaining("#84 worldwide that season") });
     // "this season" is the latest season only: no older Worlds stands in for it.
