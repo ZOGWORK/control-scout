@@ -28,7 +28,7 @@ export const PRIVATE_TABLES = [
   "commons_reports", "commons_mutes", "commons_entries", "commons_workspaces", "commons_events",
   "workspaces",
   // The official-video watcher (migration 84): the owner's watchlist, review decisions (their email) and runs; clip coverage (88): who reviewed it;
-  // the channel audit (90): its findings' decisions (their email), runs and checks.
+  // the channel audit (91): its findings' decisions (their email), runs and checks.
   "official_watch", "official_watch_runs", "official_channels", "clip_coverage", "official_audit_videos", "official_audit_channels", "official_audit_runs", "official_audit_adds",
   "owner_audit", "feature_flags", "request_metrics_daily", "uptime_checks", "service_heartbeats", "owner_alerts", "workspace_activity", "inbox_items", "workspace_entry_comments",
   "workspace_picklist", "workspace_picklist_versions", "workspace_picklist_ops", "workspace_entry_versions", "push_subscriptions", "push_sent",
