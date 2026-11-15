@@ -41,6 +41,7 @@ const ROUTES: { path: string; note: string; expect404?: RegExp; noApi?: boolean 
   { path: "/events/2025/AUBRQ2?tab=odds", note: "advancement odds" },
   { path: "/events/2026/USALATQ", note: "upcoming event, no data yet (empty)" },
   { path: "/rankings/regions", note: "rankings by region" },
+  { path: "/leagues", note: "leagues list" },
   { path: "/rankings/regions/USA/NJ", note: "one region's rankings" },
   { path: "/rankings/regions/USA/WY?season=2026", note: "a region with no rated team yet (empty)" },
   { path: "/predict", note: "prediction lab (empty builder)" , noApi: true },

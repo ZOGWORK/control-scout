@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.5.9 — 2026-11-15
+## 6.6.1 — 2026-11-15
 
 Welcome › Step 3 "Ask anything" is now six searches you can tap: your team's next match and awards, a large OR, then two built from your team's own history and two wider ones.
 
@@ -26,6 +26,33 @@ Welcome › Step 3 "Ask anything" is now six searches you can tap: your team's n
 
 ### Changed
 - Welcome, step 3: the examples are buttons. Each one ends the welcome and opens that search, as written, on the results page. With a team picked: "<team> next match", "<team> awards", a large OR, then the team's compare (its sister team at the same school and town, else the team it met most, over its last finished season) and its auto OPR in the season it played at Worlds (else its best season by OPR rank), then "30030 vs 21087 vs 11228" (Worlds' winning alliance) and "best teleop opr in Romania in 2025-26". A team with no season played yet gets its town's teams and its region's best rookies instead. Every team example is run on the server first, and one that doesn't answer is replaced by the next, or left out: never made up. (`src/components/onboarding/Onboarding.tsx`, `server/api/onboardingExamples.ts`, `GET /api/onboarding/examples`) (#1540)
+
+## 6.6.0 — 2026-11-15
+
+Rankings › Leagues have a list of their own, and a league's standings show each team's Control Scout rating, OPR and place in its region beside FIRST's ranking.
+
+### Highlights
+- [rankings] Every league in one list, by where it plays
+- [rankings] League standings show Scout rating, OPR and region rank
+- [rankings] From a league to its region's rankings and back
+
+### Added
+- Leagues (`/leagues`): every league of the season grouped by where its meets are, with meets played, teams and FIRST's #1 by ranking score, searchable, season switch; each place links to its region rankings. In the navigation (Leagues) and on every region page. (`src/pages/LeaguesPage.tsx`, `server/api/leagues.ts`)
+- League standings: links to the league's region rankings and to the leagues list; after FIRST's columns (unchanged), Scout rating ("Not rated yet" under 3 rated matches, never a made-up number), OPR (— when none) and the team's rank in its home region, linked to its row on that region's page. (`src/pages/LeaguePage.tsx`, `src/components/LeagueTable.tsx`)
+
+## 6.5.9 — 2026-11-15
+
+Report a bug now files a public GitHub Issue on ZOGWORK/control-scout for you, with your screenshot or video in it, and shows you the issue's number and link right after you send.
+
+### Highlights
+- [report] Report a bug files a GitHub Issue for you, no GitHub account needed
+- [report] Your screenshot shows in the issue, your video plays in it
+- [report] You get the issue number and link the moment it's filed
+- [report] The dialog says plainly the issue is public
+
+### Changed
+- Report a bug (top bar): each report becomes one GitHub Issue, `[user] <first line>`, labels `bug` + `user-reported`, with the message in a code fence, the category, the page, release, screen, device and theme, the email only if you typed one, and the attachments: screenshots inline, a video as GitHub's player. Attachments upload to GitHub first (the request `gh issue create --attach` makes), then the issue is opened; one that fails to upload is named as failed in the issue and kept for the owner. Filing happens after Send has answered; the dialog then shows "Thanks — filed as #N" with the link, "Thanks — saved, we'll file it on GitHub", or "Something went wrong — your report is saved, we'll try again", never a made-up link. No token, GitHub down or a refusal: the report is kept and a later sweep files it; a try whose reply was lost adopts its issue instead of filing twice. The message is sanitized in the browser and again on the server; the page goes to GitHub as a bare path. The email box is no longer filled in for signed-in people, since it shows on the public issue. Reports sent before this release stay private and are never filed. (`server/bugReports.ts`, `server/errorReports.ts`, `src/components/layout/BugReport.tsx`, migration 90)
+- Owner console › Bug reports: each report shows its GitHub issue (one click to open it) or "Not filed yet" and why; attachments link to GitHub once the local copy is deleted (after the issue is filed and the URL opens); only local copies count against the disk cap. Closing or deleting a report here never touches its issue. The audit log records each filing (issue number, upload route) and each failure. (`src/components/owner/BugReportsPanel.tsx`) (#1535)
 
 ## 6.5.8 — 2026-11-15
 
