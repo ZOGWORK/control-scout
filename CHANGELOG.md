@@ -26,7 +26,7 @@ Turn Wi-Fi back on and the Offline pill goes within seconds, in the background, 
 - [speed] Back online, checks stay as rare as before
 
 ### Changed
-- With no internet (or a Wi-Fi sign-in page), the connection check now comes 3 s, 5 s, 10 s and 20 s after the last one, then every 30 s as before, instead of every 30 s from the start; measured live, the Offline pill took 29 to 62 s to go after the line came back. The steps start over once there's internet again, and on the browser's online event, the tab coming into view, or the window getting focus, each of which also checks at once when the last check is over 5 s old. With internet, checks are as before (every 5 minutes, tab in view). (`src/lib/connection.ts`) (#PR)
+- With no internet (or a Wi-Fi sign-in page), the connection check now comes 3 s, 5 s, 10 s and 20 s after the last one, then every 30 s as before, instead of every 30 s from the start; measured live, the Offline pill took 29 to 62 s to go after the line came back. The steps start over once there's internet again, and on the browser's online event, the tab coming into view, or the window getting focus, each of which also checks at once when the last check is over 5 s old. With internet, checks are as before (every 5 minutes, tab in view). (`src/lib/connection.ts`) (#1512)
 
 ## 6.3.9 — 2026-11-14
 
