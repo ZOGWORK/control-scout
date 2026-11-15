@@ -195,8 +195,14 @@ export async function removeLite(): Promise<number> {
   // The mark first: a background sync saving in another tab right now checks it after its write, so it takes
   // back whatever it wrote whether its write lands before or after the del below.
   try { localStorage.setItem(LITE_DELETED_KEY, "1"); } catch { /* storage blocked */ }
-  await del(LITE_KEY);
-  await del(OLD_LITE_KEY);
+  try {
+    await del(LITE_KEY);
+    await del(OLD_LITE_KEY);
+  } catch (e) {
+    // The pack is still here: without the mark gone, the background sync would never update it again.
+    try { localStorage.removeItem(LITE_DELETED_KEY); } catch { /* storage blocked */ }
+    throw e;
+  }
   localStorage.removeItem(META);
   cached = null;
   window.dispatchEvent(new Event(PACK_EVENT));

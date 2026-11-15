@@ -82,6 +82,16 @@ describe("syncLite", () => {
     expect(await explicit).toMatchObject({ version: "v1" });
   });
 
+  it("a Delete that storage refuses leaves the pack updating in the background (no deleted mark left behind)", async () => {
+    vi.stubGlobal("fetch", server());
+    expect(await syncLite({ allowed: () => true })).toMatchObject({ version: "v1" });
+    const spy = vi.spyOn(IDBObjectStore.prototype, "delete").mockImplementation(() => { throw new DOMException("refused", "UnknownError"); });
+    await expect(removeLite()).rejects.toBeTruthy();
+    spy.mockRestore();
+    expect(localStorage.getItem("cs-lite-deleted")).toBeNull();
+    expect(packStatus()).not.toBeNull();
+  });
+
   it("downloads when allowed (or with no check: Get it now)", async () => {
     vi.stubGlobal("fetch", server());
     expect(await syncLite({ allowed: () => true })).toMatchObject({ version: "v1" });
