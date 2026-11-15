@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 6.4.0 — 2026-11-15
+
+World rankings and the home page's prediction record open cleanly with no signal.
+
+### Highlights
+- [offline] Home's prediction record shows its last numbers with no signal
+- [fixes] World rankings with no season saved no longer looks like it's still loading
+
+### Fixed
+- World rankings, opened with no signal and no season saved: the season picker now shows next to the page's "needs a connection" note, instead of a loading placeholder that never went away.
+- The home page's prediction record (`/api/predict/accuracy`) is kept on the device like the season totals, so with no signal it shows the last numbers it loaded, marked with their time, instead of "needs a connection".
+
 ## 6.3.9 — 2026-11-14
 
 FTC One Search works with no signal at the meet: search a team in the downloaded event by number or name, the event, a match, or set its teams side by side, and get the same answer as online. Anything else says plainly that it needs data the pack doesn't hold, and shows what the pack does hold.

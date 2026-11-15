@@ -53,6 +53,17 @@ describe("kept reads", () => {
     await expect(apiFetch("/api/home/overview?season=2025")).rejects.toBeInstanceOf(ApiError);
   });
 
+  it("the home page's prediction record is kept, and answers with no network", async () => {
+    const path = "/api/predict/accuracy";
+    vi.stubGlobal("fetch", vi.fn(async () => ok({ matches: 1234, brier: 0.151 })));
+    await apiFetch(path);
+    await vi.waitFor(() => expect(keptAt(path)).not.toBeNull());
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("Failed to fetch"); }));
+    const got = await apiFetch<{ matches: number }>(path);
+    expect(got.matches).toBe(1234);
+    expect(offlineSource(got)?.kept).toBe(true);
+  });
+
   it("a shortlist made entirely offline (nothing kept, no bundle) still lists its teams, by number", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("Failed to fetch"); }));
     const got = await apiFetch<{ teams: { team: number; opr: number | null }[] }>("/api/shortlist?teams=18439%2C23332&season=2026");
