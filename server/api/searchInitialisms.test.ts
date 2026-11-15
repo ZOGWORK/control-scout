@@ -83,10 +83,12 @@ describe("an event by its initialism", () => {
     expect((await ask("CRI results")).hits.map((h) => h.ref)).toContain(`${S}:FPECRI`);
     expect(await (await parseContext()).isEvent("cri")).toBe(true);
     // Beside words a team's name could also take ("matches", a year), it is still the event, never Critical Mass.
-    for (const q of ["CRI matches", "cri results", "CRI"]) {
+    for (const q of ["cri results", "CRI"]) {
       const a = await ask(q);
       expect(a.hits[0]?.ref, q).toBe(`${S}:FPECRI`);
     }
+    // Its matches are the event's match list (searchEventMatches.test.ts), never the team Critical Mass's.
+    expect((await ask("CRI matches")).stat?.title).toMatch(/^Matches at Chicago Robotics Invitational Premier Event, /);
     expect((await ask(`CRI ${S + 1}`)).hits.map((h) => h.ref), `CRI ${S + 1}`).toContain(`${S}:FPECRI`);
     expect((await ask(`CRI ${S}`)).hits.map((h) => h.ref), `CRI ${S}`).toContain(`${S - 1}:FPECRI`);
     // The team by its own name stays the team's.

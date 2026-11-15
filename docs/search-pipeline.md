@@ -135,6 +135,13 @@ The finals are a classic bracket's "F" series, or a double-elimination bracket's
 replay (the event's bracket by its alliance count, from the engine's `BRACKETS`). Only the finder applies the finals:
 any other answer said with them is left to the readers after it, never answered for every playoff match.
 
+An event named with nothing asked of it but its matches ("CRI matches", "matches at the NJ championship", "CRI
+playoff matches", "CRI 2025 matches") is the finder's plain list (`asksEventMatches` in `execute.ts`, measure
+`order`): every played match in the order played, qualification first, the playoffs after, each row linking its match so
+the answer plays its clip inline, the way a team's "matches with video" does (`answers/video.ts` reads up to 200 rows,
+an event's whole list). No year said reads the event's latest edition with a played match; a year reads the edition
+held then. A team, a measure, a place or a window leaves the query to the readers that own it.
+
 No season said (or "this season") reads the season today is in; when it has none of the matches asked for yet it
 reads the season before and says so: "No 2026–27 matches yet in California; showing 2025–26", "No 2026–27
 comebacks yet…". The plain highest score (no measure, no match type) follows the same rule. "Last season" is the

@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.7.5 — 2026-11-15
+## 6.7.8 — 2026-11-15
 
 Report a bug › the public notice is larger, offers a private email instead, and Send asks once more before anything is posted.
 
@@ -26,6 +26,46 @@ Report a bug › the public notice is larger, offers a private email instead, an
 
 ### Changed
 - Report a bug: the public GitHub Issue notice is a boxed, full-size line with a private-email way out (a mailto link), on the form and on the sent screen. The first Send asks "Send this as a public issue?"; only "Yes, post it publicly" sends (Enter in a field never does), the question says when a typed email will be public too, any edit asks again, and Go back returns to the form, focus on Send report, with nothing sent. On phones the sheet scrolls so both answers are in view (stopping as soon as you scroll yourself), and it has bottom padding again. (`src/components/layout/BugReport.tsx`) (#1562)
+
+## 6.7.7 — 2026-11-15
+
+Search › An event's matches ("CRI matches", "matches at the NJ championship") list every match in the order played, with each clip playing inline.
+
+### Highlights
+- [history] An event's matches list every match, in the order played
+- [history] Each match's clip plays right in the answer
+- [history] Add a year or "playoff" to narrow the list
+
+### Changed
+- "<event> matches" — by the event's name, code or initialism, "<place> states matches" too — answers with the event's played matches, qualification first and the playoffs after, each row playing its clip. A year picks that edition and a match type narrows it; a team, a measure or a time window still goes to its own answer. Clips are read for up to 200 rows (was 60), and a list cut at 200 says so. (`server/api/query/execute.ts`, `server/api/query/matchFind.ts`, `server/api/answers/video.ts`) (#1556)
+
+## 6.7.6 — 2026-11-15
+
+Search reads a period's OPR said after a place: "Romania teleop opr" lists Romania's teams by TeleOp OPR.
+
+### Highlights
+- [fixes] "Romania teleop opr" lists Romania's teams by TeleOp OPR
+- [fixes] "nj auto opr" and "nj endgame opr" read the same way
+- [rankings] A place's board by one period's OPR needs no "best" or "top"
+
+### Fixed
+- Search: a place followed by a period's OPR ("Romania teleop opr") read as two stats at once, TeleOp and OPR, so nothing answered. "TeleOp OPR", "Auto OPR" and "Endgame OPR" are each one stat now, as they already were after "best" or "top": *Top 10 teams by TeleOp OPR in Romania · 2025–26*. Failed search #1526. (`src/shared/query/intents.ts`) (#1555)
+
+## 6.7.5 — 2026-11-15
+
+Search answers four more questions it used to miss: three team numbers side by side, a team's Auto OPR at Worlds, what a tiebreaker is, and "teams in" with nothing after it.
+
+### Highlights
+- [fixes] Three or four team numbers typed with spaces compare those teams
+- [fixes] A team's Auto, TeleOp or Endgame OPR at Worlds answers in its division
+- [fixes] "What is a tiebreaker" explains how tied teams are ordered
+- [fixes] "teams in" with no place lists every team, best by OPR
+
+### Fixed
+- Three or four team numbers with only spaces or commas between them ("16461 19460 23314") found nothing. Two numbers already opened the comparison. Now two to four numbers compare that many teams; a year among them still reads as a season, never a team. (`server/api/searchCoverage.ts`) (#1495)
+- A team's Auto OPR at Worlds ("what was hypnotic robotics auto opr at worlds in centerstage", and the same without "opr") showed the team card and "can't answer that yet". It's now that phase's OPR in the team's Worlds division (47.3 at Edison, 2023–24), with its OPR and the other phases beside it, as "auto" alone already reads a team's season Auto OPR. A phase next to another stat word ("highest auto at worlds") stays with the match answers. (`server/api/answers/families/oprRating.ts`) (#1493, #1494, #1530)
+- "What is a tie breaker point" found nothing. A new explainer says how teams level on ranking score are ordered, season by season (from 2025–26 on, average non-penalty score first; in 2024–25, average auto then endgame), and a typo of "breaker" is now corrected to it. (`server/api/searchCoverage.ts`, `server/api/spelling.ts`) (#1430, #1429)
+- "teams in" with nothing after it found nothing. It now lists every team, best by OPR this season, with how many are registered and how to add a place. (`server/api/searchCoverage.ts`) (#1421)
 
 ## 6.7.4 — 2026-11-15
 
