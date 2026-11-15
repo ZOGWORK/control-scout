@@ -21,6 +21,8 @@ Search reads a year after an award's winners: "inspire award winners 2024" lists
 
 ### Highlights
 - [fixes] "inspire award winners 2024" lists the 2024–25 winners
+- [fixes] "think award winners 2025" lists the 2025–26 winners
+- [fixes] A team numbered like a year is still read as that team
 
 ### Fixed
 - Search: one award's winners with a bare year ("inspire award winners 2024", "think award winners 2025") said no team, event or match matched, since the year was taken for a team number. A year ending the question is now its season, as search reads a year everywhere (2024 is 2024–25; at Worlds, the Championship held that year). A number before the ask, or after "team" or "#", is still a team's. Failed search #1434. (`server/api/answers/families/placeAwards.ts`) (#1533)
