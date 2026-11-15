@@ -24,6 +24,7 @@ import { LEAGUE_TYPES, recordAddsUp } from "../../shared/eventStanding";
 import { searchTeamTitle } from "../../shared/teamTitle";
 import { nameWords } from "../../shared/searchQuery";
 import { place } from "../../shared/format";
+import { measured, now } from "./timing";
 
 /** Rows as plain objects (column → value), like the server's `all`. */
 export interface Db { all<T = any>(sql: string, params?: SqlValue[]): T[] }
@@ -37,7 +38,16 @@ export function wrap(db: Database): Db {
       try {
         st.bind(params);
         const out: T[] = [];
-        while (st.step()) out.push(st.getAsObject() as T);
+        // What getAsObject gives, with the column names read once rather than for every row (a season's whole
+        // team list is ~15,000 rows).
+        let names: string[] | null = null;
+        while (st.step()) {
+          const cols = (names ??= st.getColumnNames());
+          const values = st.get();
+          const row: Record<string, unknown> = {};
+          for (let i = 0; i < cols.length; i++) row[cols[i]] = values[i];
+          out.push(row as T);
+        }
         return out;
       } finally { st.free(); }
     },
@@ -338,21 +348,67 @@ function matchHit(saved: SeasonDb[], q: string): SearchHit | null {
 }
 
 /** words: everything searchable (prefixes); typo/bigrams: the names typos may match; shown: title + subtitle. */
-interface Row { kind: "team" | "event"; ref: string; season: number; weight: number; title: string; subtitle: string; words: string[]; typo: string[]; bigrams: Set<string>; shown: string[] }
 
 const bigrams = (s: string) => { const out = new Set<string>(); for (const w of s.split(" ")) for (let i = 0; i + 2 <= w.length; i++) out.add(w.slice(i, i + 2)); return out; };
+/** One searchable row. Only its normalised text is made up front; its words, typo index and shown words are made the
+ *  first time a search needs them (a number search like "4215" needs none but a match's), so the first search after
+ *  a season opens doesn't build them for every team and event. */
+class Row {
+  #words: string[] | null = null;
+  #typo: { words: string[]; bigrams: Set<string> } | null = null;
+  #shown: string[] | null = null;
+  /** `text`: its words (title, subtitle and terms) normalised, joined by single spaces; `typoText`: the names a typo
+   *  may match, as written. */
+  constructor(readonly kind: "team" | "event", readonly ref: string, readonly season: number, readonly weight: number, readonly title: string, readonly subtitle: string, readonly text: string, readonly typoText: string) {}
+  get words(): string[] { return (this.#words ??= this.text.split(" ").filter(Boolean)); }
+  /** Some word starts with `q` (one word, no spaces): what words.some((w) => w.startsWith(q)) says, without the words. */
+  hasPrefix(q: string): boolean { return this.text.startsWith(q) || this.text.includes(` ${q}`); }
+  #typoIndex() {
+    if (!this.#typo) {
+      const n = normalize(this.typoText);
+      this.#typo = { words: n.split(" ").filter(Boolean), bigrams: bigrams(n) };
+    }
+    return this.#typo;
+  }
+  get typo(): string[] { return this.#typoIndex().words; }
+  get bigrams(): Set<string> { return this.#typoIndex().bigrams; }
+  get shown(): string[] { return (this.#shown ??= words(`${this.title} ${this.subtitle}`)); }
+}
 const rowsCache = new WeakMap<Db, { newest: number; rows: Row[] }>();
 
-/** One pack's searchable rows, built once per opened pack (the newest saved season weighs more), like rebuildSearch (server/stats/job.ts). */
+/** A pack's search index as kept on the device (seasons.ts keeps it per pack file and app release): each row's kind
+ *  (0 team, 1 event), ref, title, subtitle, text and typoText. Rebuilt from the pack whenever it isn't there. */
+type StoredRow = [0 | 1, string, string, string, string, string];
+const INDEX_FORMAT = 1;
+const storedIndex = new WeakMap<Db, StoredRow[]>();
+
+/** Hand a pack the search index kept for it (indexJson's output). False for anything else: the index is built. */
+export function primeIndex(db: Db, json: unknown): boolean {
+  if (typeof json !== "string") return false;
+  try {
+    const v = JSON.parse(json) as { format?: number; rows?: unknown };
+    if (v?.format !== INDEX_FORMAT || !Array.isArray(v.rows)) return false;
+    storedIndex.set(db, v.rows as StoredRow[]);
+    return true;
+  } catch { return false; } // not ours: built afresh
+}
+
+/** A pack's built search index, to keep (null until a search or warmSearch built it). */
+export function indexJson(db: Db): string | null {
+  const rows = rowsCache.get(db)?.rows;
+  return rows ? JSON.stringify({ format: INDEX_FORMAT, rows: rows.map((r): StoredRow => [r.kind === "event" ? 1 : 0, r.ref, r.title, r.subtitle, r.text, r.typoText]) }) : null;
+}
+
+/** One pack's searchable rows, built once per opened pack (the newest saved season weighs more), like rebuildSearch (server/stats/job.ts).
+ *  A kept index (primeIndex) stands in for reading and normalising every team and event: the same rows. */
 function rowsOf({ season, db }: SeasonDb, newest: number): Row[] {
   const hit = rowsCache.get(db);
   if (hit?.newest === newest) return hit.rows;
+  const t0 = now();
   const weight = season === newest ? 2 : 1;
-  const row = (kind: Row["kind"], ref: string, title: string, subtitle: string, terms: string, name: string): Row => ({
-    kind, ref, season, weight, title, subtitle, words: words(`${title} ${subtitle} ${terms}`),
-    typo: words(`${title} ${name}`), bigrams: bigrams(normalize(`${title} ${name}`)), shown: words(`${title} ${subtitle}`),
-  });
-  const rows = [
+  const kept = storedIndex.get(db);
+  const row = (kind: Row["kind"], ref: string, title: string, subtitle: string, terms: string, name: string) => new Row(kind, ref, season, weight, title, subtitle, normalize(`${title} ${subtitle} ${terms}`), `${title} ${name}`);
+  const rows = kept ? kept.map((r) => new Row(r[0] ? "event" : "team", r[1], season, weight, r[2], r[3], r[4], r[5])) : [
     ...db.all("SELECT number, name, school, city, state, country FROM teams").map((t) => {
       const where = place(t.city, t.state, t.country);
       const title = searchTeamTitle(t.number, t.name);
@@ -363,8 +419,17 @@ function rowsOf({ season, db }: SeasonDb, newest: number): Row[] {
       return row("event", `${season}:${e.code}`, e.name, [e.code, e.start, where].filter(Boolean).join(" · "), `${e.code} ${e.name} ${where} ${regionNames(e.state, e.country)}`, `${e.name} ${e.city ?? ""}`);
     }),
   ];
+  storedIndex.delete(db);
   rowsCache.set(db, { newest, rows });
+  measured(`index ${season}${kept ? " (kept)" : ""}`, t0);
   return rows;
+}
+
+/** Build the saved seasons' search index ahead of a search (answer.ts warmOffline: idle time with no signal), as the
+ *  first readSearch over the same seasons would. */
+export function warmSearch(dbs: SeasonDb[]): void {
+  const newest = Math.max(...dbs.map((d) => d.season));
+  for (const sdb of dbs) rowsOf(sdb, newest);
 }
 
 /** Search the saved seasons: a match ("USNJQ1 Q12"), team numbers, then names. `kinds` (like the server's): only those, before the limit. */
@@ -418,7 +483,7 @@ export function readSearch(dbs: SeasonDb[], q: string, limit = 15, prefer: Reado
     for (const r of rowsOf(sdb, newest)) {
       if (!allow(r.kind)) continue;
       // The word index: every query word starts a word of the row (a city, a year, a state's name…).
-      const prefix = qs.every((q) => r.words.some((w) => w.startsWith(q)));
+      const prefix = qs.every((q) => r.hasPrefix(q));
       // The typo index, with a cheap prefilter: a typo of a word still shares a 2-letter chunk with it.
       let typo = false;
       if (!prefix && typos) for (const b of qb) if (r.bigrams.has(b)) { typo = true; break; }
