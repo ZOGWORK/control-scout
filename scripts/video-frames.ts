@@ -27,7 +27,7 @@
 //   TESSERACT_JS=<path to tesseract.js's entry>  where tesseract.js is, when it isn't in node_modules
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
-import { AUTO_S, OPEN_LEADS, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, elapsed, overlayDivision, leadIn, judge, NOTHING_READ, overlayLabel, secondsOf, type Judged, type M } from "./lib/videoFrames";
+import { AUTO_S, OPEN_LEADS, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, elapsed, overlayDivision, leadIn, judge, NOTHING_READ, overlayLabel, secondsOf, type Judged, type M } from "./lib/videoFrames";
 
 // The command line: --name value or --name=value for the value flags, --name alone for the others. Anything else stops
 // the run before it reads: a misspelt flag mustn't quietly read (and write) every recording of the season.
@@ -194,11 +194,15 @@ async function readAtOnce(page: Page, t: number, labelOnly = false): Promise<Rea
  *  over most of TeleOp: a stream may cut away to a camera without the overlay for a minute or more (Romania's
  *  championship cuts to the floor cameras mid-match). */
 const CONFIRM_AFTER = [70, 80, 95, 110, 125, 140];
+/** Seconds into a match an Auto read confirms its start at, in turn, where a later read disagrees by time the video
+ *  lost (confirmed). Early: before most of the match, where a cut in the recording is least likely to fall. */
+const AUTO_CONFIRM = [12, 20];
+
 
 /** A read stands only when frames before and after its start agree: 70 s on (TeleOp), the overlay names the same match
  *  and its timer gives the same start; 25 s before, that match isn't running yet. One read alone is never a start
  *  (a wrong match number on screen for a few seconds, a replay, a digit read wrong). */
-async function confirmed(page: Page, label: string, start: number, own = false): Promise<string | null> {
+async function confirmed(page: Page, label: string, start: number, own = false, other?: { start?: number }): Promise<string | null> {
   // A frame that reads nothing (the player still buffering after a long seek, the timer not caught running) says
   // nothing either way, so a later point of TeleOp is tried; a frame that reads another match or start disagrees.
   let why = "";
@@ -208,7 +212,14 @@ async function confirmed(page: Page, label: string, start: number, own = false):
     own ||= at.division === "own";
     if (at.label && at.label !== label) return `${after} s on the overlay read ${at.label}`;
     if (at.label && at.start != null) {
-      if (Math.abs(at.start - start) > SAME_S) return `${after} s on its timer gave a start ${Math.round(at.start - start)} s off`;
+      if (Math.abs(at.start - start) > SAME_S) {
+        const off = startOffset(start, at.start);
+        // A recording cut mid-match: the start stands if an Auto read, early in the same match, agrees with it.
+        if (off === "lost" && (await autoAgrees(page, label, start))) { why = ""; break; }
+        // The first read came after a cut: the other start may be the real one (checked by the caller).
+        if (off === "gained" && other) other.start = at.start;
+        return `${after} s on its timer gave a start ${Math.round(at.start - start)} s off`;
+      }
       why = "";
       break;
     }
@@ -219,6 +230,16 @@ async function confirmed(page: Page, label: string, start: number, own = false):
   if (before.label === label && before.start != null) return `25 s before it was already running (start ${Math.round(before.start - start)} s off)`;
   if (divisions.has(page) && !own) return "no read of it showed its division's name (the stream carries another division too)";
   return null;
+}
+
+/** An Auto read early in the match (AUTO_CONFIRM) gives the same start: the frames right after it agree with it. */
+async function autoAgrees(page: Page, label: string, start: number): Promise<boolean> {
+  for (const after of AUTO_CONFIRM) {
+    const at = await readAt(page, start + after);
+    if (at.division === "other" || (at.label && at.label !== label)) return false;
+    if (at.label && at.start != null) return Math.abs(at.start - start) <= SAME_S;
+  }
+  return false;
 }
 
 /** Matches in a row with no read before a video counts as one without the overlay. */
@@ -305,7 +326,9 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
   const tried = new Set<number>(); // matches a read named, confirmed or not
   const from = pageReads.get(page) ?? 0, reads = () => (pageReads.get(page) ?? 0) - from;
   // At most a few reads per match, every read counted (confirming ones too): checked before each read or confirmation.
-  const budget = Math.max(40, 4 * ms.length);
+  // A recording cut mid-match costs extra confirming reads (confirmed, autoAgrees): 4 a match left a cut stream's later
+  // matches unread (USIAPOMPM11 2025, 81 frames of 72).
+  const budget = Math.max(60, 8 * ms.length);
   let unconfirmed = 0;
   const near = (i: number): number | null => {
     // The distance of the read nearest by order, else the broadcast's.
@@ -324,9 +347,17 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
     const i = named.reduce((a, b) => (off(b) < off(a) ? b : a));
     tried.add(i);
     if (seen.has(i) || reads() >= budget) return;
-    const no = await confirmed(page, r.label!, r.start, r.division === "own");
-    if (no == null) seen.set(i, r.start);
-    else { unconfirmed++; log(`    ${r.label} at ${r.start} s not confirmed: ${no}`); }
+    const other: { start?: number } = {};
+    const no = await confirmed(page, r.label!, r.start, r.division === "own", other);
+    if (no == null) { seen.set(i, r.start); return; }
+    // The read came after a cut in the recording (a later read gives a later start): the later start, checked the same way.
+    if (other.start != null && reads() < budget && (await confirmed(page, r.label!, other.start, r.division === "own")) == null) {
+      seen.set(i, other.start);
+      log(`    ${r.label} at ${r.start} s read after a cut in the video; its start is ${other.start} s`);
+      return;
+    }
+    unconfirmed++;
+    log(`    ${r.label} at ${r.start} s not confirmed: ${no}`);
   };
 
   // Any match at all, a frame every 10 minutes: where there's no clock to go by (an upload), or the clock's guesses read
