@@ -1,15 +1,16 @@
-// Clip coverage triage (owner brief 2026-11-14, "auto-triage"): each event with played matches missing a clip gets one
-// category, computed here from its missing matches' reasons and its season, never chosen by the owner. Only Actionable
-// events are the owner's "To review"; the rest are kept with their category and reason, one click from view.
+// Clip coverage triage (owner brief 2026-11-14, "auto-triage", and its 2026-11-15 addendum §7): each event with played
+// matches missing a clip gets one category, computed here from its missing matches' reasons, what their video showed
+// (CoverageMatch.video, read off its frames) and its season, never chosen by the owner. Only Actionable events are the
+// owner's "To review"; the rest are kept with their category and reason, one click from view.
 //
-//   actionable   a match placed outside its video by the clock alone, never checked against the video itself: before
-//                the broadcast started or after it ended, before the video's first second or after its last, before
-//                or after the part its chapters confirm, outside every recording's time; or no reason found, or no
-//                list at all.
-//                Brief §6: the clock comparison is often wrong (a timezone, a stream that started early), so these are
-//                never put anywhere else on that reason alone.
-//   early-start  most missing matches are held back because an early start would open on the match before: the
-//                system already refused to guess.
+//   actionable   a match left out by the clock alone (coverage.ts CLOCK_ONLY: an early start, or a time before or
+//                after the broadcast, the cut start, the video's end, what its chapters confirm, every recording),
+//                unless its video's frames show it starting inside the match before; or no reason found, or no list
+//                at all. §6/§7: the stream is the truth, the clock isn't, so an early start or a time outside the video
+//                is never a reason on its own. Its "why" says what was checked in the video and what was missing
+//                there, never what the clock said.
+//   early-start  most missing matches are ones the video's frames show starting while the match before is still on:
+//                a clip would open on the wrong match.
 //   no-timing    everything else: no clock, video unavailable or not read, shorter than its broadcast with nothing to
 //                place the gap, past the frames checked by eye, no real start from FIRST, no recording that day.
 //   old-season   older than last season and not actionable: applied when read (seasonTriage), never stored, so it
@@ -18,28 +19,31 @@
 // Nothing here places or removes a clip: it only decides what the owner is asked to look at.
 import { seasonLabel } from "../../src/shared/format.js";
 import type { CoverageMatch, CoverageReason, CoverageTriage } from "../../src/shared/api.js";
-import { WHY } from "./coverage.js";
+import { CLOCK_ONLY, WHY } from "./coverage.js";
 
-/** Reasons that rest on the clock alone, never on the video: the video itself may still hold the match. */
-const UNCHECKED: Partial<Record<CoverageReason, string>> = {
-  "before-broadcast": "played before the broadcast started, by the clock: not yet checked against the video",
-  "after-broadcast": "played after the broadcast ended, by the clock: not yet checked against the video",
-  "before-cut": "played before the video's first second, by the clock and its cut start: not yet checked against the video",
-  "past-video-end": "played after the video's last second, by the clock: not yet checked against the video",
-  "before-chapters": "played before the part its chapters confirm, by the clock: not yet checked against the video",
-  "past-chapters": "played after the part its chapters confirm, by the clock: not yet checked against the video",
-  "outside-span": "played outside every recording's time, by the clock: not yet checked against the video",
-  unexplained: "no clip and no reason found",
-};
-export const ACTIONABLE_REASONS: ReadonlySet<CoverageReason> = new Set(Object.keys(UNCHECKED) as CoverageReason[]);
+/** Reasons that leave a match unsettled: the clock's alone (the video may still hold it), or none found. */
+export const ACTIONABLE_REASONS: ReadonlySet<CoverageReason> = new Set<CoverageReason>([...CLOCK_ONLY, "unexplained"]);
 
-/** What's stored: the category from the reasons alone (old season is decided when read). */
+/** What's stored: the category from the missing list alone (old season is decided when read). */
 export type BaseTriage = Exclude<CoverageTriage, "old-season">;
 
+type Missing = Pick<CoverageMatch, "reason"> & Partial<Pick<CoverageMatch, "label" | "video">>;
+
 const matchesWord = (n: number) => `${n} ${n === 1 ? "match" : "matches"}`;
+/** " (Q2, Q19)", the first few labels then how many more; nothing when the list has none. */
+function labels(ms: Missing[]): string {
+  const ls = ms.map((m) => m.label).filter((l): l is string => !!l);
+  if (!ls.length) return "";
+  return ` (${ls.slice(0, 5).join(", ")}${ls.length > 5 ? `, ${ls.length - 5} more` : ""})`;
+}
+
+/** The video's frames show it starting while the match before is still on. */
+const earlyInVideo = (m: Missing) => m.reason === "overlaps-previous" && !!m.video?.earlyStart;
+/** Unsettled: left out by the clock alone and not shown by the video to start inside the match before, or no reason. */
+const unsettled = (m: Missing) => ACTIONABLE_REASONS.has(m.reason ?? "unexplained") && !earlyInVideo(m);
 
 /** The reasons of the missing matches, most common first. */
-function byReason(missing: Pick<CoverageMatch, "reason">[]): [CoverageReason, number][] {
+function byReason(missing: Missing[]): [CoverageReason, number][] {
   const n = new Map<CoverageReason, number>();
   for (const m of missing) { const r = m.reason ?? "unexplained"; n.set(r, (n.get(r) ?? 0) + 1); }
   return [...n].sort((a, b) => b[1] - a[1]);
@@ -51,19 +55,31 @@ function lead(reasons: [CoverageReason, number][], total: number): string {
   return `${matchesWord(n)}: ${WHY[r]}${n < total ? `, and ${total - n} more for other reasons` : ""}`;
 }
 
-/** The category of one event's missing list from its reasons alone. `missing`: its played matches without a clip. */
-export function baseTriage(missing: Pick<CoverageMatch, "reason">[]): { triage: BaseTriage; why: string } {
-  const reasons = byReason(missing);
+/** An unsettled list in plain words: what was checked in the video and what was missing there, never the clock. */
+function openWhy(open: Missing[]): string {
+  const none = (m: Missing) => (m.reason ?? "unexplained") === "unexplained";
+  const groups: [string, Missing[]][] = [
+    ["not yet checked against the video", open.filter((m) => !none(m) && !m.video?.checked)],
+    ["seen in the video, not yet confirmed", open.filter((m) => !none(m) && m.video?.checked && m.video.seenAt != null)],
+    ["checked in the video, no start found for them there", open.filter((m) => !none(m) && m.video?.checked && m.video.seenAt == null)],
+    ["with no clip and no reason found", open.filter(none)],
+  ];
+  return groups.filter(([, ms]) => ms.length).map(([what, ms]) => `${matchesWord(ms.length)} ${what}${labels(ms)}`).join("; ");
+}
+
+/** The category of one event's missing list. `missing`: its played matches without a clip. */
+export function baseTriage(missing: Missing[]): { triage: BaseTriage; why: string } {
   // Nothing to judge from (a list lost or not written): it can't be settled, so it's looked at.
-  if (!reasons.length) return { triage: "actionable", why: "No missing list to judge from: look at the event" };
-  const open = reasons.filter(([r]) => ACTIONABLE_REASONS.has(r));
+  if (!missing.length) return { triage: "actionable", why: "No missing list to judge from: look at the event" };
+  const open = missing.filter(unsettled);
   if (open.length) {
-    const n = open.reduce((s, [, k]) => s + k, 0);
-    return { triage: "actionable", why: open.map(([r, k]) => `${matchesWord(k)} ${UNCHECKED[r]}`).join("; ") + (n < missing.length ? ` (${missing.length - n} more held back for other reasons)` : "") };
+    return { triage: "actionable", why: openWhy(open) + (open.length < missing.length ? ` (${missing.length - open.length} more held back for other reasons)` : "") };
   }
-  const early = reasons.find(([r]) => r === "overlaps-previous")?.[1] ?? 0;
-  if (early * 2 >= missing.length) return { triage: "early-start", why: `${lead([["overlaps-previous", early]], missing.length)}: not guessed, so no clip opens on the wrong match` };
-  return { triage: "no-timing", why: lead(reasons, missing.length) };
+  const early = missing.filter(earlyInVideo);
+  if (early.length * 2 >= missing.length) {
+    return { triage: "early-start", why: `${matchesWord(early.length)} checked in the video: each starts while the match before is still on, so a clip would open on the wrong match${labels(early)}${early.length < missing.length ? `, and ${missing.length - early.length} more for other reasons` : ""}` };
+  }
+  return { triage: "no-timing", why: lead(byReason(missing.filter((m) => !earlyInVideo(m))), missing.length) };
 }
 
 /** The category shown: a stored one, made Old season when it isn't actionable and is older than last season. */
@@ -72,4 +88,4 @@ export function seasonTriage(stored: { triage: BaseTriage; why: string }, season
 }
 
 /** Both at once: the category an event shows now. */
-export const triageCoverage = (season: number, missing: Pick<CoverageMatch, "reason">[], current: number) => seasonTriage(baseTriage(missing), season, current);
+export const triageCoverage = (season: number, missing: Missing[], current: number) => seasonTriage(baseTriage(missing), season, current);
