@@ -190,7 +190,9 @@ minutes and starts a run only when the last one is 6 hours old, so a deploy does
   any season; it's never in To review, never marked reviewed (one or bulk), and moves on once its frames are read. Each
   check pass logs events checked, fully clipped, matches clipped and missing, and the missing by what their video check
   found; the console shows the last pass (kv `clip-coverage:last-pass`). Every missing match the frames saw in the video
-  (`video.seenAt`) is a finding in the console, with its video, second, event and why, whatever its review.
+  (`video.seenAt`) is a finding in the console, with its video, second, event and why, whatever its review; so is every
+  clock-placed clip pulled because its first frame showed another match (`clipCheckFindings`, server/data/clipChecks.ts),
+  with the frame checks' totals beside the last pass.
 - **The owner's queue** (Owner › Official videos, with an "N to review" badge on the console's menu), oldest first. Each
   row shows the title, channel, video id, published and broadcast times, length, the best-guess event and why it
   wasn't added:
