@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 6.8.4 — 2026-11-15
+
+Offline search › a saved season answers a search in about a third of a second.
+
+### Highlights
+- [offline] Offline search from a saved season answers in about 0.3 s
+- [speed] A saved season's search index is kept, not rebuilt each page
+- [offline] With no signal, saved seasons get ready while the app is idle
+
+### Changed
+- Offline search with a season saved: the season's search index (every team and event, normalised) is kept on the device once built, per file and release, and read back with the file, instead of being rebuilt on each page; plain-ASCII names skip the Unicode passes (same result); rows come out of SQLite without re-reading column names; and with no signal the saved seasons and event packs open once the page has settled and is idle. /search?q=4215 offline with the season saved: about 1 s before, about 0.3 s after. (`src/lib/offline/readers.ts`, `src/lib/offline/seasons.ts`, `src/lib/offline/answer.ts`, `src/lib/api.ts`, `src/shared/fuzzy.ts`) (#PR)
+
 ## 6.8.3 — 2026-11-15
 
 Region rankings › the table fits a phone screen in every sort.

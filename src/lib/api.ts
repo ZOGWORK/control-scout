@@ -548,9 +548,31 @@ if (typeof window !== "undefined") {
 // the server was up): nothing changed for onInternetChange, so this clears it once nothing saved is on screen.
 onInternetConfirmed(() => { if (!offlineOnScreen().length) setUsingSaved(false); });
 onInternetChange((now) => {
+  if (now === "no" || now === "portal") warmOffline();
   if (now !== "yes") return;
   if (offlineOnScreen().length) refetchOffline(); else setUsingSaved(false);
 });
+
+type IdleWindow = Window & { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number };
+/** How long after the network goes (or a page opens with none) the saved data gets ready: past the page's own
+ *  first reads, which it would otherwise slow down. */
+export const WARM_AFTER_MS = 500;
+let warmTimer: ReturnType<typeof setTimeout> | undefined;
+/** No signal, with a season or a searchable event pack saved: once the page has settled and is idle, the saved data
+ *  opens and its search index is built and kept (lib/offline/answer.ts warmOffline), so the next search doesn't wait
+ *  for the SQLite engine, the season's file and the index one after another. The answers are the same; only sooner. */
+function warmOffline() {
+  if (typeof window === "undefined" || !offlineNow() || warmTimer) return;
+  if (!savedSeasons().length && !savedBundles().some((b) => b.apiPaths?.length)) return;
+  const go = () => { if (offlineNow()) import("./offline/answer").then((m) => m.warmOffline()).catch(() => {}); };
+  warmTimer = setTimeout(() => {
+    warmTimer = undefined;
+    const w = window as IdleWindow;
+    if (w.requestIdleCallback) w.requestIdleCallback(go, { timeout: 3000 }); else go();
+  }, WARM_AFTER_MS);
+}
+// A page opened with no signal (the last check's "no" carried over, or the browser offline): warmed from the start.
+warmOffline();
 
 /** One saved answer's data time: its data's own time, else its bundle's build, else when it was saved. Null for
  *  savedAt 0 (a kept row known only by its number, loaded at no time; OfflineNote skips it too), never "1970". */

@@ -22,7 +22,8 @@ const engineStarts = vi.hoisted(() => ({ n: 0 }));
 vi.mock("sql.js/dist/sql-wasm-browser.js", () => ({ default: () => { engineStarts.n++; return initSqlJs(); } }));
 vi.mock("sql.js/dist/sql-wasm-browser.wasm?url", () => ({ default: "/assets/sql-wasm-browser-abc.wasm" }));
 
-import { ENGINE_WAIT_MS, readSaved, removeSeason, saveSeason, savedSeasons, SEASONS_EVENT, SeasonGone } from "./seasons";
+import { ENGINE_WAIT_MS, keepSearchIndexes, readSaved, removeSeason, saveSeason, savedSeasons, SEASONS_EVENT, SeasonGone } from "./seasons";
+import { readSearch } from "./readers";
 import { runSeasonBatch } from "./seasonBatch";
 import { DownloadPaused, PIECE, download, partialDownloads } from "./download";
 import { resumeMarks, wantResume } from "./resumeMarks";
@@ -56,6 +57,8 @@ beforeEach(async () => {
 });
 afterEach(() => vi.restoreAllMocks());
 
+/** The season files read back (a kept search index is read alongside each: search-index:…). */
+const fileGets = () => gets.filter((k) => k.startsWith("season:"));
 const names = (only?: number) => readSaved(only, (dbs) => dbs.map((d) => `${d.season}:${d.db.all("SELECT name FROM teams")[0].name}`));
 
 describe("saving never runs the pack", () => {
@@ -230,14 +233,30 @@ describe("readSaved", () => {
     for (const s of [2023, 2024, 2025]) await saveSeason(file(s, "a"), manifest);
     gets.length = 0;
     expect(await names()).toEqual(["2025:New", "2024:Mid", "2023:Old"]);
-    expect(gets).toEqual(["season:2023:a", "season:2024:a", "season:2025:a"]); // saving opened none of them
+    expect(fileGets()).toEqual(["season:2023:a", "season:2024:a", "season:2025:a"]); // saving opened none of them
     gets.length = 0;
     expect(await names(2025)).toEqual(["2025:New"]);
     expect(await names(2024)).toEqual(["2024:Mid"]);
     expect(gets).toEqual([]); // the newest two stayed open after reading all three
     expect(await names(2023)).toEqual(["2023:Old"]);
     expect(await names(2025)).toEqual(["2025:New"]);
-    expect(gets).toEqual(["season:2023:a", "season:2025:a"]); // opening 2023 let go of 2025, the least recently read
+    expect(fileGets()).toEqual(["season:2023:a", "season:2025:a"]); // opening 2023 let go of 2025, the least recently read
+  });
+
+  it("keeps a season's built search index, reads it back with the file once reopened, and drops it with the season", async () => {
+    for (const s of [2023, 2024, 2025]) await saveSeason(file(s, "a"), manifest);
+    const want = await readSaved(2025, (dbs) => readSearch(dbs, "new"));
+    await keepSearchIndexes();
+    const kept = () => [...store.keys()].filter((k) => k.startsWith("search-index:"));
+    expect(kept()).toHaveLength(1);
+    expect(kept()[0]).toMatch(/^search-index:2025:a:/);
+    // Reopened (the two others read since let it go): the kept index is read alongside the file, and answers the same.
+    await names(2023); await names(2024);
+    gets.length = 0;
+    expect(await readSaved(2025, (dbs) => readSearch(dbs, "new"))).toEqual(want);
+    expect(gets).toEqual(["season:2025:a", kept()[0]]);
+    await removeSeason(2025);
+    expect(kept()).toEqual([]);
   });
 });
 
