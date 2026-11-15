@@ -1,7 +1,7 @@
 // The pure parts of the frame reader (scripts/video-frames.ts): the overlay's match, the timer's elapsed time, and
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
-import { dataRows, divisionOf, elapsed, overlayDivision, leadIn, LEAD_IN_S, judge, NOTHING_READ, overlayLabel, secondsOf, type M } from "./videoFrames";
+import { dataRows, divisionOf, elapsed, overlayDivision, leadIn, LEAD_IN_S, judge, NOTHING_READ, overlayLabel, secondsOf, startOffset, type M } from "./videoFrames";
 
 describe("the frame reader", () => {
   it("names the match the overlay shows, and nothing else", () => {
@@ -176,5 +176,17 @@ describe("the frame reader", () => {
       // A frame of the video was read (it named Q3), so the others aren't "nothing read".
       expect(k.missing.get("Q4")).toMatch(/no agreeing reads/);
     });
+  });
+});
+
+describe("a recording cut mid-match", () => {
+  // USIAPOMPM11 2025 (ufVIXyeHAjk) loses 19 s inside Q8: the timer reads 1:10 at 3936 s and 0:50 at 3937 s.
+  it("takes a later read's earlier start as time the video lost, a later one as a first read made after a cut", () => {
+    expect(startOffset(3848, 3829)).toBe("lost");
+    expect(startOffset(3829, 3848)).toBe("gained");
+    expect(startOffset(3848, 3852)).toBe("same");
+    // Further off than a cut loses: another start, never explained away.
+    expect(startOffset(3848, 3700)).toBe("other");
+    expect(startOffset(3848, 3990)).toBe("other");
   });
 });
