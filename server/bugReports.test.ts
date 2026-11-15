@@ -1,6 +1,7 @@
 // The bug report path against the real app on an in-memory database: validation, the three steps (report, uploads,
 // done), size and type checks on the bytes themselves, the honeypot, the per-IP limit, the email to CONTACT_TO, and
-// the owner endpoints behind the owner gate.
+// the owner endpoints behind the owner gate, and filing each report as a GitHub issue against a fake GitHub (uploads
+// first, then the issue; failures, no token, a lost reply, sanitizing; the local copy deleted once its URL opens).
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
@@ -10,14 +11,51 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { all, migrate, openDb, run, setDb } from "./db";
 import { createApp } from "./app";
 import { setMailer, type MailOptions } from "./auth/email";
-import { BUG_RATE, bugDir, deleteBugReport, emailing, listBugReports, resetBugLimits, STORAGE_CAP_BYTES, sweepBugReports, UPLOAD_WINDOW_MS, validateBugReport } from "./bugReports";
+import { randomUUID } from "node:crypto";
+import {
+  BUG_RATE, bugDir, bugIssueTitle, deleteBugReport, emailing, filing, listBugReports, NO_TOKEN, resetBugFilingPause, resetBugLimits,
+  STORAGE_CAP_BYTES, sweepBugReports, UPLOAD_ROUTE, UPLOAD_WINDOW_MS, validateBugReport,
+} from "./bugReports";
+import { resetRepositoryId, setGithubFetch } from "./errorReports";
 import { BUG_LIMITS, isSitePath, sniffType } from "../src/shared/bugReport";
 
 let server: Server;
 let base = "";
 let mails: { to: string; subject: string; text: string; opts?: MailOptions }[] = [];
 let failSend = false;
-const saved = { to: process.env.CONTACT_TO, dir: process.env.DATA_DIR };
+const saved = { to: process.env.CONTACT_TO, dir: process.env.DATA_DIR, token: process.env.GITHUB_REPORT_TOKEN };
+
+// A fake GitHub: the repository, attachment uploads, issues, issue search, and asset URLs (which open only once an
+// issue uses them, as on GitHub).
+type Call = { method: string; url: string; body?: unknown };
+let calls: Call[] = [];
+let issues: { number: number; title: string; body: string; labels: string[] }[] = [];
+let gitHub = { upload: 201, issue: 201, dropLabel: "", loseReply: false };
+const fakeGithub = (async (input: string | URL | Request, init?: RequestInit) => {
+  const url = new URL(String(input));
+  const method = init?.method ?? "GET";
+  const body = typeof init?.body === "string" ? JSON.parse(init.body) : undefined;
+  calls.push({ method, url: url.toString(), body });
+  if (url.host === "uploads.github.com") {
+    if (gitHub.upload !== 201) return new Response("{}", { status: gitHub.upload });
+    return Response.json({ url: `https://github.com/user-attachments/assets/${randomUUID()}` }, { status: 201 });
+  }
+  if (url.host === "github.com" && method === "HEAD") return new Response(null, { status: issues.some((i) => i.body.includes(url.toString())) ? 302 : 404 });
+  const path = url.pathname.replace("/repos/ZOGWORK/control-scout", "");
+  if (method === "GET" && path === "") return Response.json({ id: 1416291522 });
+  if (method === "POST" && path === "/issues") {
+    if (gitHub.issue !== 201) return new Response("{}", { status: gitHub.issue });
+    const issue = { number: 1520 + issues.length, title: body.title, body: body.body, labels: (body.labels as string[]).filter((l) => l !== gitHub.dropLabel) };
+    issues.push(issue);
+    if (gitHub.loseReply) return new Response("{}", { status: 502 });
+    return Response.json({ number: issue.number, labels: issue.labels.map((name) => ({ name })) }, { status: 201 });
+  }
+  if (method === "GET" && url.pathname === "/search/issues") {
+    const marker = /"([0-9a-f]{24})"/.exec(url.searchParams.get("q") ?? "")?.[1] ?? "-";
+    return Response.json({ items: issues.filter((i) => i.body.includes(marker)).map((i) => ({ number: i.number, body: i.body })) });
+  }
+  return new Response("{}", { status: 404 });
+}) as typeof fetch;
 const dir = mkdtempSync(join(tmpdir(), "cs-bugs-"));
 
 beforeAll(async () => {
@@ -29,20 +67,28 @@ beforeAll(async () => {
     if (failSend) throw new Error("email provider error 500");
     mails.push({ to, subject, text, opts });
   });
+  setGithubFetch(fakeGithub);
   server = createApp().listen(0);
   await new Promise((r) => server.once("listening", r));
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 });
 afterAll(() => {
   setMailer(null);
+  setGithubFetch(null);
   server?.close();
-  for (const [k, v] of [["CONTACT_TO", saved.to], ["DATA_DIR", saved.dir]] as const) if (v === undefined) delete process.env[k]; else process.env[k] = v;
+  for (const [k, v] of [["CONTACT_TO", saved.to], ["DATA_DIR", saved.dir], ["GITHUB_REPORT_TOKEN", saved.token]] as const) if (v === undefined) delete process.env[k]; else process.env[k] = v;
   rmSync(dir, { recursive: true, force: true });
 });
 beforeEach(async () => {
   process.env.CONTACT_TO = "team@controlscout.test";
   mails = [];
   failSend = false;
+  delete process.env.GITHUB_REPORT_TOKEN;
+  calls = [];
+  issues = [];
+  gitHub = { upload: 201, issue: 201, dropLabel: "", loseReply: false };
+  resetBugFilingPause();
+  resetRepositoryId();
   resetBugLimits();
   await run("DELETE FROM bug_report_files");
   await run("DELETE FROM bug_reports");
@@ -74,8 +120,21 @@ const upload = async (id: number, n: number, token: string, body: Buffer, type =
 const done = async (id: number, token: string) => {
   const res = await fetch(`${base}/api/bug-reports/${id}/done`, { method: "POST", headers: { "Content-Type": "application/json", "X-Bug-Token": token }, body: "{}" });
   await emailing;
+  await filing;
   return res.status;
 };
+const status = async (id: number, token: string) => (await fetch(`${base}/api/bug-reports/${id}/status`, { headers: { "X-Bug-Token": token } })).json();
+const TOKEN = "github_pat_TEST_ONLY_not_a_real_token";
+/** A report sent the way the dialog sends it: created, its files uploaded, then done. */
+const send = async (body: unknown, files: [Buffer, string][] = []) => {
+  const r = (await create({ ...(body as object), files: files.map(([b, type]) => ({ type, bytes: b.length })) })).json as { id: number; token: string };
+  for (const [n, [b, type]] of files.entries()) expect((await upload(r.id, n, r.token, b, type)).status).toBe(200);
+  await done(r.id, r.token);
+  return r;
+};
+/** The audit log is append-only: each test reads only what was added after it started. */
+let auditFrom = 0;
+const audits = async (action: string) => (await all<{ details: string }>("SELECT details FROM owner_audit WHERE action = ? AND id > ? ORDER BY id", [action, auditFrom])).map((a) => JSON.parse(a.details));
 
 describe("validateBugReport", () => {
   it("cleans a good report and keeps only a path on this site", () => {
@@ -298,5 +357,165 @@ describe("owner endpoints", () => {
     expect(first.reports.map((r) => r.id)).toEqual([ids[2]]);
     expect((await listBugReports("open", ids[2], 1)).reports.map((r) => r.id)).toEqual([ids[1]]);
     expect((await listBugReports("done")).reports.map((r) => r.id)).toEqual([ids[0]]);
+  });
+});
+
+describe("filing on GitHub", () => {
+  beforeEach(async () => {
+    process.env.GITHUB_REPORT_TOKEN = TOKEN;
+    auditFrom = Number((await all<{ m: number | null }>("SELECT MAX(id) AS m FROM owner_audit"))[0]?.m ?? 0);
+  });
+
+  it("files a report with no attachments: [user] title, bug + user-reported, the message in a code fence", async () => {
+    const r = await send({ ...good, message: "Rankings jump when I scroll\nOn the event page, every time." });
+    expect(issues).toHaveLength(1);
+    const [issue] = issues;
+    expect(issue.title).toBe("[user] Rankings jump when I scroll");
+    expect(issue.labels).toEqual(["bug", "user-reported"]);
+    expect(issue.body).toContain("### What happened\n```text\nRankings jump when I scroll\nOn the event page, every time.\n```");
+    expect(issue.body).toContain("**Category:** Something broken");
+    expect(issue.body).toMatch(/Page: {5}\/teams\/4215\nRelease: {2}4\.8\.1\nScreen: {3}1440×900 @2x\nDevice: {3}Chrome on Windows\nTheme: {4}Dark/);
+    expect(issue.body).toContain("**Email:** `coach@example.com`");
+    expect(issue.body.trimEnd().endsWith("Filed from the in-app Report a bug button.")).toBe(true);
+    expect(issue.body).not.toContain("### Attachments");
+    // The dialog gets the real issue; so does the owner console, with nothing left saying it isn't filed.
+    expect(await status(r.id, r.token)).toEqual({ state: "filed", number: issue.number, url: `https://github.com/ZOGWORK/control-scout/issues/${issue.number}` });
+    const [item] = (await listBugReports()).reports;
+    expect(item).toMatchObject({ issue: { number: issue.number, url: `https://github.com/ZOGWORK/control-scout/issues/${issue.number}` }, notFiled: null });
+    expect(await audits("bugReport.filed")).toEqual([{ id: r.id, issue: issue.number, route: UPLOAD_ROUTE }]);
+  });
+
+  it("uploads a screenshot first, embeds it inline, then deletes the local copy once its URL opens", async () => {
+    const r = await send(good, [[PNG, "image/png"]]);
+    const uploadAt = calls.findIndex((c) => c.url.startsWith("https://uploads.github.com/user-attachments/assets?"));
+    const issueAt = calls.findIndex((c) => c.method === "POST" && c.url.endsWith("/issues"));
+    expect(uploadAt).toBeGreaterThanOrEqual(0);
+    expect(uploadAt).toBeLessThan(issueAt);
+    const up = new URL(calls[uploadAt].url);
+    expect(Object.fromEntries(up.searchParams)).toEqual({ name: `bug-${r.id}-1.png`, content_type: "image/png", repository_id: "1416291522" });
+    const [{ body }] = issues;
+    const img = new RegExp(`!\\[bug-${r.id}-1\\.png\\]\\((https://github\\.com/user-attachments/assets/[0-9a-f-]{36})\\)`).exec(body);
+    expect(img).not.toBeNull();
+    // Nothing points anywhere but GitHub: no disk path, no site URL, no other host.
+    expect(body).not.toMatch(/\/api\/|\.data|bug-reports\/|r2\.|cloudflarestorage|file:/);
+    expect(existsSync(join(bugDir(), `${r.id}-0.png`))).toBe(false);
+    const list = await listBugReports();
+    expect(list.reports[0].files).toEqual([{ n: 0, type: "image/png", bytes: PNG.length, url: null, githubUrl: img![1], uploadError: null }]);
+    expect(list.storedBytes).toBe(0);
+  });
+
+  it("embeds a video as a bare URL on its own line (GitHub's player)", async () => {
+    const r = await send(good, [[MP4(2048), "video/mp4"]]);
+    const [{ body }] = issues;
+    expect(body).toMatch(/\n\nhttps:\/\/github\.com\/user-attachments\/assets\/[0-9a-f-]{36}\n\n/);
+    expect(body).not.toContain("![");
+    expect(new URL(calls.find((c) => c.url.startsWith("https://uploads."))!.url).searchParams.get("content_type")).toBe("video/mp4");
+    expect(existsSync(join(bugDir(), `${r.id}-0.mp4`))).toBe(false);
+  });
+
+  it("an upload that fails: the issue has the text, says the attachment failed, and the local copy stays", async () => {
+    gitHub.upload = 422;
+    const r = await send(good, [[PNG, "image/png"]]);
+    const [{ body }] = issues;
+    expect(body).toContain(`- bug-${r.id}-1.png (screenshot, 1 KB) failed to upload to GitHub; it's kept with the report.`);
+    expect(body).not.toContain("user-attachments");
+    expect(existsSync(join(bugDir(), `${r.id}-0.png`))).toBe(true);
+    const [item] = (await listBugReports()).reports;
+    expect(item.files[0]).toMatchObject({ url: `/api/owner/bug-reports/${r.id}/files/0`, githubUrl: null, uploadError: "GitHub answered 422" });
+    expect(item.issue?.number).toBe(issues[0].number);
+    expect(await audits("bugReport.filed")).toEqual([{ id: r.id, issue: issues[0].number, route: UPLOAD_ROUTE, uploadFailed: [1] }]);
+  });
+
+  it("no token: stored and shown as not filed yet, no fake issue, filed by the sweep once the token is there", async () => {
+    delete process.env.GITHUB_REPORT_TOKEN;
+    const r = await send(good, [[PNG, "image/png"]]);
+    expect(calls).toEqual([]);
+    expect(await status(r.id, r.token)).toEqual({ state: "pending" });
+    expect((await listBugReports()).reports[0]).toMatchObject({ issue: null, notFiled: NO_TOKEN });
+    expect(existsSync(join(bugDir(), `${r.id}-0.png`))).toBe(true);
+    process.env.GITHUB_REPORT_TOKEN = TOKEN;
+    await sweepBugReports();
+    expect(issues).toHaveLength(1);
+    expect((await status(r.id, r.token)).state).toBe("filed");
+    expect(issues[0].body).toContain("![bug-");
+  });
+
+  it("GitHub refusing: says it failed (no issue shown), and a later sweep files it once", async () => {
+    gitHub.issue = 401;
+    const r = await send(good);
+    expect(issues).toEqual([]);
+    expect(await status(r.id, r.token)).toEqual({ state: "failed" });
+    expect((await listBugReports()).reports[0]).toMatchObject({ issue: null, notFiled: "GitHub refused the issue: GitHub answered 401" });
+    expect(await audits("bugReport.fileFailed")).toEqual([{ id: r.id, reason: "GitHub refused the issue: GitHub answered 401", attempt: 1 }]);
+    gitHub.issue = 201;
+    await sweepBugReports();
+    expect(issues).toHaveLength(1);
+    await sweepBugReports();
+    expect(issues).toHaveLength(1);
+  });
+
+  it("a lost reply: the claim waits until stale, then the next try adopts the issue instead of filing twice", async () => {
+    gitHub.loseReply = true;
+    const r = await send(good);
+    expect(issues).toHaveLength(1);
+    expect(await status(r.id, r.token)).toEqual({ state: "failed" });
+    gitHub.loseReply = false;
+    await sweepBugReports();
+    expect(issues).toHaveLength(1);
+    expect((await status(r.id, r.token)).state).toBe("failed");
+    await sweepBugReports(Date.now() + 11 * 60_000);
+    expect(issues).toHaveLength(1);
+    expect(await status(r.id, r.token)).toMatchObject({ state: "filed", number: issues[0].number });
+    expect((await audits("bugReport.filed"))[0]).toMatchObject({ id: r.id, issue: issues[0].number, adopted: true });
+  });
+
+  it("files without user-reported when GitHub drops the label, and records it", async () => {
+    gitHub.dropLabel = "user-reported";
+    const r = await send(good);
+    expect(issues[0].labels).toEqual(["bug"]);
+    expect((await status(r.id, r.token)).state).toBe("filed");
+    expect((await audits("bugReport.filed"))[0]).toMatchObject({ labelsMissing: ["user-reported"] });
+  });
+
+  it("sanitizes a token, an email and a URL's query before anything reaches GitHub", async () => {
+    const secret = "github_pat_11ABCDEFG0123456789_abcdefghijklmnopqrstuvwxyz";
+    await send({ ...good, email: "", message: `Login broke for parent@family.example with ${secret} at https://controlscout.example/login?code=abc123#frag`,
+      context: { ...context, page: "/login?token=abc123" } });
+    const sent = JSON.stringify(calls.map((c) => c.body ?? c.url));
+    for (const leak of ["parent@family.example", secret, "code=abc123", "#frag", "token=abc123"]) expect(sent).not.toContain(leak);
+    expect(issues[0].body).toContain("Login broke for [redacted] with [redacted] at https://controlscout.example/login");
+    expect(issues[0].body).toContain("Page:     /login\n");
+    expect(issues[0].body).not.toContain("**Email:**");
+  });
+
+  it("never files a report sent before the dialog said it would be public", async () => {
+    const r = (await create(good)).json as { id: number; token: string };
+    await run("UPDATE bug_reports SET to_github = 0, done_at = ? WHERE id = ?", [new Date().toISOString(), r.id]);
+    await sweepBugReports();
+    expect(issues).toEqual([]);
+    expect((await listBugReports()).reports[0].notFiled).toMatch(/stays private/);
+  });
+
+  it("closing or deleting the local report never touches GitHub", async () => {
+    const r = await send(good);
+    const before = calls.length;
+    await run("UPDATE bug_reports SET status = 'done' WHERE id = ?", [r.id]);
+    expect(await deleteBugReport(r.id)).toBe(true);
+    await sweepBugReports();
+    expect(calls.length).toBe(before);
+    expect(issues).toHaveLength(1);
+  });
+
+  it("still limits each IP to a few reports an hour", async () => {
+    for (let i = 0; i < BUG_RATE.max; i++) expect((await create(good)).status).toBe(200);
+    expect((await create(good)).status).toBe(429);
+  });
+});
+
+describe("bugIssueTitle", () => {
+  it("uses the first line, cut to length, or the category when that line says nothing", () => {
+    expect(bugIssueTitle("  The bracket is wrong  \nmore", "data")).toBe("[user] The bracket is wrong");
+    expect(bugIssueTitle("[redacted] !!\nthe rest", "layout")).toBe("[user] Bug report: Looks wrong / layout");
+    expect(bugIssueTitle("x".repeat(200), "other")).toHaveLength(7 + 110);
   });
 });
