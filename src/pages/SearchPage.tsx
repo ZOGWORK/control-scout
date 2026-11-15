@@ -23,6 +23,7 @@ import { AnswerNotesView, useSearchHits, useSections } from "../components/searc
 import { SeasonPickContext, pickedSeason, type SeasonPick } from "../components/search/page/SeasonPick";
 import { CompareCard, EventCard, HeadToHead, ResultRow, TeamCard, teamSeasons, type SeasonSummary } from "../components/search/page/ResultCards";
 import { NoResults, SorryNote } from "../components/search/page/NoResults";
+import { NotInPackCard } from "../components/search/page/NotInPack";
 import { StatAnswerCard } from "../components/search/page/StatAnswer";
 import { AnswerClip, AnswerVideo, AnswerVideoProvider, clipLabel } from "../components/search/page/AnswerVideo";
 import { comparisonOf } from "../components/search/page/CompareCard";
@@ -238,7 +239,7 @@ export default function SearchPage() {
       <p className="text-xs font-semibold text-muted-foreground max-md:hidden" data-eyebrow>FTC One Search</p>
       <h1 className="mt-1 font-display text-xl font-semibold tracking-tight text-foreground max-md:mt-0 md:text-2xl lg:text-3xl">
         {/* Nothing answered (a question search can't answer yet, or nothing found): the page says sorry, once, here. */}
-        {!query ? "Search" : ax?.sorry && !busy && !error ? SORRY_SENTENCE : found ? <>{phone && "Results: "}{shownTitle}</> : busy || error ? "Search results" : SORRY_SENTENCE}
+        {!query ? "Search" : ax?.notInPack && !busy && !error ? "Not in your downloaded pack" : ax?.sorry && !busy && !error ? SORRY_SENTENCE : found ? <>{phone && "Results: "}{shownTitle}</> : busy || error ? "Search results" : SORRY_SENTENCE}
       </h1>
       {badge && (
         <p className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-full border border-border bg-muted/50 px-2.5 py-1 text-xs font-medium text-foreground" data-context-badge>
@@ -259,6 +260,8 @@ export default function SearchPage() {
           )
           : !found ? (
             busy ? <p className="text-sm text-muted-foreground">Searching…</p>
+              // No signal, and nothing in the downloaded packs answers it: what's missing, and what's on the phone.
+              : ax?.notInPack ? <NotInPackCard notInPack={ax.notInPack} />
               : meta && !meta.dataLoaded ? <p className="text-sm text-muted-foreground">No FTC data has been loaded on this server yet, so there's nothing to search.</p>
               : (
                 <>
