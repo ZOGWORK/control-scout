@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.6.0 — 2026-11-15
+## 6.6.1 — 2026-11-15
 
 Clip coverage's To review now holds only matches checked against the video itself; the rest wait under their own count, and every match the video showed without a clip is a finding.
 
@@ -27,10 +27,23 @@ Clip coverage's To review now holds only matches checked against the video itsel
 - [workspace] The pending video checks count down pass by pass
 
 ### Changed
-- Owner › Clip coverage: an event is To review only for a match its video's frames were read for and that still has no clip (or a match with no reason found), and its reason says what was checked in the video and what was missing there; matches still waiting for their check are counted beside it. An event whose missing matches were left out by the clock alone and not yet checked against the video is "Not yet checked against the video": a pending check with its own count and list, in any season, never in To review, never marked reviewed (one or in any bulk), moving on once its frames are read. (`server/videos/coverageTriage.ts`, `server/videos/coverageCheck.ts`, `src/components/owner/ClipCoveragePanel.tsx`) (#1539)
+- Owner › Clip coverage: an event is To review only for a match its video's frames were read for and that still has no clip (or a match with no reason found), and its reason says what was checked in the video and what was missing there; matches still waiting for their check are counted beside it. An event whose missing matches were left out by the clock alone and not yet checked against the video is "Not yet checked against the video": a pending check with its own count and list, in any season, never in To review, never marked reviewed (one or in any bulk), moving on once its frames are read; a review given to it while it waited doesn't carry over, so its video-checked list comes back To review. (`server/videos/coverageTriage.ts`, `server/videos/coverageCheck.ts`, `src/components/owner/ClipCoveragePanel.tsx`) (#1539)
 
 ### Added
 - Each clip coverage check pass logs events checked, fully clipped, matches clipped and missing, and the missing by what their video check found (not yet checked, checked with no start found, seen in the video with no clip, or the video's own reason); the console shows the last pass. Every match the video's frames saw with no clip is a finding in the console, with its video, the second it was seen at, its event and why, whatever its review; so is every clip pulled because its first frame showed another match, with the frame checks' totals (checked, confirmed, pulled, to read again, videos with no overlay). A finding stays until a pass clears it (its clip placed, or a re-read shows the match isn't there) and is never marked reviewed. The console counts the matches still waiting for their video check after each pass and how many fewer than the pass before, and the pass log line ends with it.
+
+## 6.6.0 — 2026-11-15
+
+Rankings › Leagues have a list of their own, and a league's standings show each team's Control Scout rating, OPR and place in its region beside FIRST's ranking.
+
+### Highlights
+- [rankings] Every league in one list, by where it plays
+- [rankings] League standings show Scout rating, OPR and region rank
+- [rankings] From a league to its region's rankings and back
+
+### Added
+- Leagues (`/leagues`): every league of the season grouped by where its meets are, with meets played, teams and FIRST's #1 by ranking score, searchable, season switch; each place links to its region rankings. In the navigation (Leagues) and on every region page. (`src/pages/LeaguesPage.tsx`, `server/api/leagues.ts`)
+- League standings: links to the league's region rankings and to the leagues list; after FIRST's columns (unchanged), Scout rating ("Not rated yet" under 3 rated matches, never a made-up number), OPR (— when none) and the team's rank in its home region, linked to its row on that region's page. (`src/pages/LeaguePage.tsx`, `src/components/LeagueTable.tsx`)
 
 ## 6.5.9 — 2026-11-15
 
