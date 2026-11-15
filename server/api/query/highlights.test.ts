@@ -325,3 +325,32 @@ describe("a team's highlights", () => {
     expect(a.hits.map((h) => h.ref)).toEqual(["10809"]);
   });
 });
+
+describe("highlights in the search box", () => {
+  // The header's search box asks for fewer rows than the page (limit 15): the question read, with a link to its page,
+  // never a no-match (failed-search #1020, #1438, #1505, #1507).
+  const box = (q: string) => searchAnswer(q, { limit: 15, now: NOW });
+
+  it("a scope's highlights: the question as read and a link to its page, no card or match read", async () => {
+    for (const [q, label] of [
+      ["worlds highlights", "Highlights at Worlds"],
+      ["new jersey championship highlights", "Highlights at New Jersey Championship"],
+      ["highlights 2024-25", "Highlights, 2024–25"],
+    ] as const) {
+      const a = await box(q);
+      expect(a.step, q).toBe("deterministic");
+      expect(a.stat, q).toBeUndefined();
+      expect(a.understood, q).toEqual({ kind: "question", label });
+      expect(a.pages[0], q).toEqual({ title: label, href: `/search?q=${encodeURIComponent(q)}` });
+      expect(a.intent?.met, q).toBe(true);
+    }
+  });
+
+  it("a team's highlights: the team's row with the question and a link to its page", async () => {
+    const a = await box("4215 highlights at worlds");
+    expect(a.stat).toBeUndefined();
+    expect(a.understood?.label).toBe("Hypnotic Robotics (4215) highlights at the FIRST Championship");
+    expect(a.hits.map((h) => h.ref)).toEqual(["4215"]);
+    expect(a.pages[0].href).toBe("/search?q=4215%20highlights%20at%20worlds");
+  });
+});

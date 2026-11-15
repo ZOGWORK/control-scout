@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.5.6 — 2026-11-15
+## 6.5.7 — 2026-11-15
 
 Report a bug now files a public GitHub Issue on ZOGWORK/control-scout for you, with your screenshot or video in it, and shows you the issue's number and link right after you send.
 
@@ -29,6 +29,21 @@ Report a bug now files a public GitHub Issue on ZOGWORK/control-scout for you, w
 - Report a bug (top bar): each report becomes one GitHub Issue, `[user] <first line>`, labels `bug` + `user-reported`, with the message in a code fence, the category, the page, release, screen, device and theme, the email only if you typed one, and the attachments: screenshots inline, a video as GitHub's player. Attachments upload to GitHub first (the request `gh issue create --attach` makes), then the issue is opened; one that fails to upload is named as failed in the issue and kept for the owner. Filing happens after Send has answered; the dialog then shows "Thanks — filed as #N" with the link, "Thanks — saved, we'll file it on GitHub", or "Something went wrong — your report is saved, we'll try again", never a made-up link. No token, GitHub down or a refusal: the report is kept and a later sweep files it; a try whose reply was lost adopts its issue instead of filing twice. The message is sanitized in the browser and again on the server; the page goes to GitHub as a bare path. The email box is no longer filled in for signed-in people, since it shows on the public issue. Reports sent before this release stay private and are never filed. (`server/bugReports.ts`, `server/errorReports.ts`, `src/components/layout/BugReport.tsx`, migration 90)
 - Owner console › Bug reports: each report shows its GitHub issue (one click to open it) or "Not filed yet" and why; attachments link to GitHub once the local copy is deleted (after the issue is filed and the URL opens); only local copies count against the disk cap. Closing or deleting a report here never touches its issue. The audit log records each filing (issue number, upload route) and each failure. (`src/components/owner/BugReportsPanel.tsx`) (#1535)
 
+## 6.5.6 — 2026-11-15
+
+Highlights searches typed in the header's search box now show the question and a link to its answer, and three more highlights searches play.
+
+### Highlights
+- [fixes] The search box reads highlights searches and links to their answer
+- [fixes] FiT-Central Texas Regional Championship highlights now play
+- [fixes] A division typed nearly right after its event plays it
+- [fixes] "usa champs highlights" plays the US championships' best
+
+### Fixed
+- Highlights searches typed in the header's search box ("worlds highlights", "decode highlights", an event's or a team's highlights) showed "No team, event or match matched", though pressing Enter opened the answer. The box asks for a shorter answer than the results page, and the highlights reader answered only the page's. In the box it now shows the question as read ("Highlights at West Michigan Meet 6, 2026–27") with a link to its answer page, without reading any matches while you type; a team's highlights keep the team's row too. (`server/api/query/execute.ts`)
+- "FiT-Central Texas Regional Championship highlights" found no event. Search reads an event's whole stored name first, but it counted "fit" as one of its own words (from phrases like "best fit"), so only "Central Texas" was left as the name's own words, and that read as the state. Only words search reads on their own now count; a word it reads only inside a longer phrase can be part of a name. (`src/shared/query/parse.ts`)
+- A Romania championships highlights search with the VLAICU Division's name typed with two letters swapped found nothing: the event was read, the division's name was not. A word left over after an event is read that is, or nearly spells, a word of that event's own stored names (one letter off, a swap counts as one, five letters or more, one such word only) is now read into the event, so it plays Romania Championship - VLAICU Division and the card names it as stored. (`src/shared/query/names.ts`, `src/shared/query/parse.ts`)
+- "usa champs highlights" found nothing. A state with only a championship word after it ("texas champs") is its state championship; a country is now read the same way, as its championships, unless an event is named that way ("romania champs" stays Romania Championship). (`src/shared/query/parse.ts`) (#1528)
 ## 6.5.5 — 2026-11-15
 
 Videos › A clip whose first frame shows another match is never played: the clips placed from the clock are checked frame by frame, and a wrong one is pulled.

@@ -1,7 +1,7 @@
 // What search's parser (./parse.ts) knows about names, as types, and how names are compared (fold). The server's index
 // of them is server/api/query/names.ts (from the data); the app's with no signal is the event pack's
 // (src/lib/offline/search.ts).
-import { joinThousands } from "../fuzzy.js";
+import { allowedEdits, editDistance, joinThousands } from "../fuzzy.js";
 import { countryOf, countryOfDemonym } from "../countries.js";
 import { regionOf, regionPartOf } from "../searchEventQuery.js";
 import { edits, nearRegion } from "../regions.js";
@@ -43,6 +43,10 @@ export interface Names {
   eventNamed(words: string): boolean;
   /** The longest event name, in words (the parser looks no further). */
   eventLongest: number;
+  /** The one word of a stored event's name that this word is or nearly spells ("vlaciu": "vlaicu"): five letters or
+   *  more, the same first letter, within the edits allowed for its length (a swap of two letters is one), and no other
+   *  such word as close. Null when none is, or two are. */
+  nearEventWord?(word: string): string | null;
 }
 
 /** Lower case, accents and punctuation dropped, single spaces: how names are compared. */
@@ -118,10 +122,13 @@ export function buildNames(teams: NameRow[], places: { city: string | null; stat
   const initials = new Map<string, Set<string>>();
   // Every event's whole name, folded.
   const eventNames = new Set<string>();
+  // The words of every event's name (five letters or more), by length: what a near miss of one is checked against.
+  const eventWords = new Map<number, Set<string>>();
   let eventLongest = 0;
   for (const p of places) {
     const whole = fold(p.name ?? "");
     if (whole) { eventNames.add(whole); eventLongest = Math.max(eventLongest, whole.split(" ").length); }
+    for (const w of whole.split(" ")) if (w.length >= 5 && !/\d/.test(w)) (eventWords.get(w.length) ?? eventWords.set(w.length, new Set()).get(w.length)!).add(w);
     for (const w of [...fold(`${p.name ?? ""} ${p.code ?? ""}`).split(" "), ...eventInitialisms(p.name ?? "")]) if (w.length >= 3) stems.add(w.slice(0, 3));
     if (p.code) for (const i of eventInitialisms(p.name ?? "")) (initials.get(i) ?? initials.set(i, new Set()).get(i)!).add(p.code);
   }
@@ -172,6 +179,22 @@ export function buildNames(teams: NameRow[], places: { city: string | null; stat
     initialism: (w) => [...(initials.get(fold(w)) ?? [])],
     eventNamed: (w) => eventNames.has(fold(w)),
     eventLongest,
+    nearEventWord(w) {
+      const f = fold(w);
+      if (f.length < 5 || /[^a-z]/.test(f)) return null;
+      if (eventWords.get(f.length)?.has(f)) return f;
+      const most = allowedEdits(f.length);
+      let best = most + 1, found: string[] = [];
+      for (let len = f.length - most; len <= f.length + most; len++) {
+        for (const k of eventWords.get(len) ?? []) {
+          if (k[0] !== f[0]) continue;
+          const d = editDistance(f, k, most);
+          if (d > most) continue;
+          if (d < best) { best = d; found = [k]; } else if (d === best) found.push(k);
+        }
+      }
+      return found.length === 1 ? found[0] : null;
+    },
     place(w, typed) {
       const f = fold(w);
       if (!f) return null;
