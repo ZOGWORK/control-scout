@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.5.4 — 2026-11-15
+## 6.5.6 — 2026-11-15
 
 Highlights searches typed in the header's search box now show the question and a link to its answer, and three more highlights searches play.
 
@@ -30,6 +30,29 @@ Highlights searches typed in the header's search box now show the question and a
 - "FiT-Central Texas Regional Championship highlights" found no event. Search reads an event's whole stored name first, but it counted "fit" as one of its own words (from phrases like "best fit"), so only "Central Texas" was left as the name's own words, and that read as the state. Only words search reads on their own now count; a word it reads only inside a longer phrase can be part of a name. (`src/shared/query/parse.ts`)
 - A Romania championships highlights search with the VLAICU Division's name typed with two letters swapped found nothing: the event was read, the division's name was not. A word left over after an event is read that is, or nearly spells, a word of that event's own stored names (one letter off, a swap counts as one, five letters or more, one such word only) is now read into the event, so it plays Romania Championship - VLAICU Division and the card names it as stored. (`src/shared/query/names.ts`, `src/shared/query/parse.ts`)
 - "usa champs highlights" found nothing. A state with only a championship word after it ("texas champs") is its state championship; a country is now read the same way, as its championships, unless an event is named that way ("romania champs" stays Romania Championship). (`src/shared/query/parse.ts`) (#1528)
+## 6.5.5 — 2026-11-15
+
+Videos › A clip whose first frame shows another match is never played: the clips placed from the clock are checked frame by frame, and a wrong one is pulled.
+
+### Highlights
+- [fixes] A clip that opens on another match is pulled
+- [workspace] Each pulled clip is an owner finding with what it showed
+- [fixes] A blank first frame keeps its clip and is read again
+
+### Changed
+- Clock-placed clips are checked by the overlay at their first frame (`server/data/clipChecks.ts`). One that names a different match is never served (`withClips`), and is listed with its start and what it showed for the owner console. One that names nothing (a blank or a transition) stays and is read again; a video with no readable overlay is counted, never pulled. The sweep's data follows season by season. (`server/videos/recordings.ts`, `docs/frame-timings.md`) (#1529)
+
+## 6.5.4 — 2026-11-15
+
+Clip coverage never names an early start as a reason, not even in passing.
+
+### Highlights
+- [fixes] A short video's reason says what the clock allows, not "early start"
+- [fixes] To review never mentions an early start in any match's reason
+- [workspace] Six To review events now read as the video's own shortfall
+
+### Fixed
+- Clip coverage: a video shorter than its broadcast, with nothing to place the gap, read "(over the 15 min an early start covers)"; it now reads "(more than the 15 min the clock allows for)". Six To-review events carried it beside other reasons (ROBUQ1, RONR1LT, USTXCMPJOHN, LTCMP, KZALOS1, KZCMPJNB2), so "early start" still appeared in To review. (`server/videos/coverage.ts`) (#1522)
 
 ## 6.5.3 — 2026-11-15
 
