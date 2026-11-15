@@ -107,7 +107,7 @@ describe("the region page", () => {
   it("lists its leagues, each to its standings, and links back to world rankings and the regions list", () => {
     mount("/rankings/regions/USA/NJ?season=2026");
     const leagues = document.querySelector<HTMLElement>("[data-region-leagues]")!;
-    expect(within(leagues).getByRole("link").getAttribute("href")).toBe("/leagues/2026/USNJ/NE");
+    expect(within(leagues).getAllByRole("link").map((a) => a.getAttribute("href"))).toEqual(["/leagues?season=2026", "/leagues/2026/USNJ/NE"]);
     expect(leagues.textContent).toContain("2 of 4 meets played · 18 teams");
     const nav = screen.getByRole("navigation", { name: "More rankings" });
     expect(within(nav).getAllByRole("link").map((a) => a.getAttribute("href"))).toEqual(["/rankings?season=2026&region=USA%3ANJ", "/rankings?season=2026", "/rankings/regions?season=2026"]);
