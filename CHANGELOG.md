@@ -15,6 +15,21 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 6.7.9 — 2026-11-15
+
+Report a bug › capture the page behind the dialog without closing it, and a thin scrollbar that matches the theme.
+
+### Highlights
+- [report] "Capture this screen" adds a picture of the page behind the dialog
+- [report] Your browser asks first; saying no just leaves a short note
+- [appearance] Dialogs and sheets scroll with a thin, theme-coloured scrollbar
+
+### Added
+- Report a bug: a "Capture this screen" button beside the drop zone, in browsers that can share a tab (not phones). The browser asks first, this tab offered first; the dialog and its backdrop step aside for one frame, sharing stops at once, and the picture is added as a screenshot under the usual limits (six, 5 MB each; full means no prompt at all). A refused or cancelled prompt adds nothing and leaves a short note. The site's Permissions-Policy now allows screen capture for this site only. (`src/components/layout/BugReport.tsx`, `src/components/layout/captureScreen.ts`, `server/securityHeaders.ts`) (#1570)
+
+### Changed
+- Dialogs and sheets that scroll use the app's own thin scrollbar in the theme's colours (Light, Dim, Dark, Midnight) instead of the system's wide one, still scrollable by wheel, touch and keyboard. (`src/components/ui/overlay.tsx`) (#1570)
+
 ## 6.7.8 — 2026-11-15
 
 Report a bug › the public notice is larger, offers a private email instead, and Send asks once more before anything is posted.
