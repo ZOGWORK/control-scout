@@ -510,6 +510,10 @@ describe("a name said as words", () => {
 describe("leaderboards said other ways", () => {
   it("a place's leaderboard, the highest rated, a stat not to go by, records beside", async () => {
     expect(await parse("Romania leaderboard 2025-26")).toMatchObject({ intent: "leaderboard", place: { kind: "country" }, complete: true });
+    // A period's OPR said in full is one stat, never two (failed search #1526 "Romania teleop opr").
+    for (const q of ["Romania teleop opr", "Romania auto opr", "Romania endgame opr"]) {
+      expect(await parse(q), q).toMatchObject({ intent: "leaderboard", place: { kind: "country" }, complete: true, leftover: [] });
+    }
     expect(await parse("highest rated teams in Romania in 2025-26")).toMatchObject({ intent: "leaderboard", complete: true });
     // Bruno (the site's assistant) called by name, as "hey" is (failed search #1428): nothing to read.
     expect(await parse("bruno bruno whats the best team in nj rn")).toMatchObject({ intent: "leaderboard", complete: true, leftover: [], place: { state: "NJ" } });
