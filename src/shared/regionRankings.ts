@@ -106,6 +106,9 @@ export interface LeaguesResponse { season: number; leagues: LeagueListItem[] }
 export type AskedTeam =
   | { team: number; name: string | null; status: "ranked"; rank: number; page: number }
   | { team: number; name: string | null; status: "unranked"; ratedMatches: number }
+  /** A past week's view: the team is from the region but wasn't in that week's saved ranking (its status then isn't
+   *  stored, so none is guessed from today's). */
+  | { team: number; name: string | null; status: "notInWeek"; week: string }
   | { team: number; name: string | null; status: "elsewhere"; region: string | null }
   | { team: number; name: null; status: "unknown" };
 
