@@ -272,4 +272,15 @@ describe("the channel audit", () => {
       expect(await get<any>("SELECT ok, why FROM official_audit_adds WHERE video_id = ?", [GOOD])).toMatchObject({ ok: 0, why: expect.stringMatching(/it is private now/) });
     } finally { delete it0.privacy; failVideos = false; }
   });
+
+  it("leaves a channel the owner stopped watching out of the findings and their count", async () => {
+    expect((await ownerAudit()).openFindings).toBeGreaterThan(0);
+    await run("UPDATE official_channels SET removed_at = 'x' WHERE channel_id = ?", [TX]);
+    try {
+      const a = await ownerAudit();
+      expect(a.openFindings).toBe(0);
+      expect(a.findings).toEqual([]);
+      expect(a.channels.find((c) => c.channelId === TX)).toBeUndefined();
+    } finally { await run("UPDATE official_channels SET removed_at = NULL WHERE channel_id = ?", [TX]); }
+  });
 });
