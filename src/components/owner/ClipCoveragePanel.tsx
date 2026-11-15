@@ -52,6 +52,19 @@ function LastPass({ p }: { p: CoveragePass | null }) {
   );
 }
 
+/** The pending video checks as work in progress: how many matches still wait, and how that moved since the pass before. */
+function Pending({ p }: { p: CoveragePass | null }) {
+  if (p?.pending == null) return null;
+  const d = p.pendingBefore == null ? null : p.pendingBefore - p.pending;
+  return (
+    <p className="text-xs text-muted-foreground" data-coverage-pending>
+      Waiting for their video check: {n(p.pending)} {p.pending === 1 ? "match" : "matches"}
+      {d == null ? " (the first pass that counted them)" : d > 0 ? `, ${n(d)} fewer than the pass before` : d < 0 ? `, ${n(-d)} more than the pass before (new matches)` : ", the same as the pass before"}.
+      {" "}Each frame read of a video takes its matches off this count; none is ever marked reviewed to do it.
+    </p>
+  );
+}
+
 /** After a change: every list and the menu's count are asked again. */
 function changed(r: OwnerClipCoverage) {
   prime(`${PATH}/counts`, { open: r.open });
@@ -95,6 +108,7 @@ export function ClipCoveragePanel() {
               {n(d.totals.events)} recorded events checked · {n(d.totals.full)} fully clipped · {n(d.totals.withClip)} of {n(d.totals.played)} played matches have a clip
             </p>
             <LastPass p={d.lastPass} />
+            <Pending p={d.lastPass} />
             <ClipChecks c={d.clipChecks} />
             <Section title={`Findings (${n(d.findings.length)})`} description="Matches the video's own frames showed with no clip, and clips pulled because their first frame showed another match. Each with its video, the second, and why. Never marked reviewed." >
               {d.findings.length ? (
