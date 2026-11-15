@@ -34,7 +34,7 @@ const ALLIANCE = new Set(["Winner", "Finalist"]);
 /** A bare year said for the season ("inspire award winners 2024"): a season FTC has played, ending the question after
  *  the award asked. Teams are numbered like seasons too (2019–2026): a number before the ask ("did 2025 win think
  *  award", "2024 inspire awards") or after "team" or "#" ("inspire awards team 2024") stays a team's. */
-const BARE_YEAR = new RegExp(String.raw`(?<!\b(?:team|#)\s*)\b(${SEASON_NUMBERS.join("|")})\s*$`);
+const BARE_YEAR = new RegExp(String.raw`(?<!(?:\bteam|#)\s*)\b(${SEASON_NUMBERS.join("|")})\s*$`);
 // FIRST's Leadership Award is stored as a Winner: read as its own award ("Leadership"), never a Winning Alliance,
 // and won whatever place it's stored at.
 const TYPE_SQL = "CASE WHEN a.type = 'Winner' AND COALESCE(a.name, '') LIKE '%Leadership%' THEN 'Leadership' ELSE a.type END";
