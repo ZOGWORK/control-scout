@@ -4,14 +4,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PackFile, PackManifest } from "../packs";
 
-const noteRequestFailed = vi.hoisted(() => vi.fn());
-vi.mock("../connection", () => ({ noteRequestFailed }));
+const noteDownloadWaiting = vi.hoisted(() => vi.fn());
+vi.mock("../connection", () => ({ noteDownloadWaiting }));
 const saveSeason = vi.hoisted(() => vi.fn());
 vi.mock("./seasons", () => ({ saveSeason, SeasonGone: class SeasonGone extends Error {} }));
 
 const { DownloadPaused, ChecksumError, NoConnection } = await import("./download");
 const { runSeasonBatch, resetSeasonBatch } = await import("./seasonBatch");
-const { MAX_STALLED, MIN_GAP_MS, resetResume, resumeAllowed, resumePaused } = await import("./resume");
+const { MANIFEST_TRIES, MAX_STALLED, MIN_GAP_MS, nextTryIn, resetResume, resumeAllowed, resumePaused } = await import("./resume");
 const { RESUME_KEY, RESUME_MAX_AGE_MS, clearResume, resumeMarks, wantResume } = await import("./resumeMarks");
 type Deps = Parameters<typeof resumePaused>[1] & object;
 
@@ -32,7 +32,7 @@ function deps(over: Partial<Deps> = {}): Deps & { now: () => number } {
   };
 }
 
-beforeEach(() => { localStorage.clear(); resetResume(); resetSeasonBatch(); saveSeason.mockReset(); noteRequestFailed.mockClear(); });
+beforeEach(() => { localStorage.clear(); resetResume(); resetSeasonBatch(); saveSeason.mockReset(); noteDownloadWaiting.mockClear(); });
 afterEach(() => vi.restoreAllMocks());
 
 describe("marks: set by the person's own download, kept only while the connection is to blame", () => {
@@ -42,7 +42,7 @@ describe("marks: set by the person's own download, kept only while the connectio
     expect(r?.held).toEqual([2025]);
     expect(saveSeason).toHaveBeenCalledTimes(1);
     expect(resumeMarks().map((m) => m.key)).toEqual(["season:2026", "season:2025"]);
-    expect(noteRequestFailed).toHaveBeenCalled();
+    expect(noteDownloadWaiting).toHaveBeenCalled();
   });
 
   it("no connection before a byte came counts as the connection too", async () => {
@@ -55,7 +55,7 @@ describe("marks: set by the person's own download, kept only while the connectio
     saveSeason.mockResolvedValueOnce({}).mockRejectedValueOnce(new ChecksumError());
     await runSeasonBatch([file(2026), file(2025)], manifest(), { person: true });
     expect(resumeMarks()).toEqual([]);
-    expect(noteRequestFailed).not.toHaveBeenCalled();
+    expect(noteDownloadWaiting).not.toHaveBeenCalled();
   });
 
   it("an automatic update (not the person's) is never marked", async () => {
@@ -144,5 +144,28 @@ describe("picking up", () => {
     await resumePaused(() => true, d);
     await resumePaused(() => true, d);
     expect(paused).toHaveBeenCalledTimes(1);
+  });
+
+  it("a pack-list request given up on (hung just after the line came back) is asked again, and the download goes on", async () => {
+    wantResume("season", "2026");
+    let n = 0;
+    const d = deps({ fetchManifest: vi.fn(async () => { if (n++ < MANIFEST_TRIES - 1) throw new Error("timed out"); return manifest(); }) });
+    expect(await resumePaused(() => true, d)).toEqual([{ key: "season:2026", saved: true }]);
+    expect(d.fetchManifest).toHaveBeenCalledTimes(MANIFEST_TRIES);
+  });
+
+  it("says when one tried moments ago may be tried again (the watcher waits that long, not for the next check)", async () => {
+    wantResume("season", "2026");
+    let t = Date.now();
+    const paused = vi.fn(async () => ({ saved: [], failed: [{ season: 2026, error: new DownloadPaused(50, 100) }], skipped: [], held: [] }));
+    const d = deps({ runSeasonBatch: paused, now: () => t });
+    expect(nextTryIn(t)).toBeNull(); // never tried
+    await resumePaused(() => true, d);
+    t += 4000;
+    expect(nextTryIn(t)).toBe(MIN_GAP_MS - 4000);
+    t += MIN_GAP_MS;
+    expect(nextTryIn(t)).toBe(0);
+    clearResume("season:2026");
+    expect(nextTryIn(t)).toBeNull(); // deleted: nothing waits
   });
 });
