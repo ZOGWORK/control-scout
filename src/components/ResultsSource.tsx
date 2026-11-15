@@ -6,15 +6,15 @@ import type { EventDetail } from "../shared/api";
 export function ResultsSource({ d }: { d: Pick<EventDetail, "event" | "resultsSource"> }) {
   if (d.event.source !== "cri") return null;
   const s = d.resultsSource;
+  // One row, the link centred in its own tap target; the source line below says FIRST hasn't published them.
   return (
-    <p className="mt-3 text-sm text-muted-foreground" data-results-source>
-      Results from{" "}
+    <p className="mt-3 flex flex-wrap items-center gap-x-1 text-sm text-muted-foreground" data-results-source>
+      Results from
       {s ? (
         <a href={s.url} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 font-medium text-foreground underline-offset-2 hover:underline pointer-coarse:min-h-[44px]">
           {s.site} <ExternalLink className="size-3" />
         </a>
       ) : <span className="font-medium text-foreground">the event's own results site</span>}
-      {" "}· FIRST has not published them.
     </p>
   );
 }
