@@ -13,7 +13,8 @@ import type { LitePairs } from "../shared/litePairs";
 import type { LiteLearned } from "../shared/liteLearned";
 import { PACK_META_KEY, packStatus, type PackMeta } from "./packPolicy";
 import { FEATURE_DISABLED, featureOffMessage } from "../shared/flags";
-import { ChecksumError, download, finishDownload, sha256Of, type DownloadOwner } from "./offline/download";
+import { ChecksumError, download, dropPartial, finishDownload, partialDownloads, sha256Of, type DownloadOwner } from "./offline/download";
+import { clearResume, markKey } from "./offline/resumeMarks";
 import { seasonLabel } from "../shared/format";
 
 export { packStatus, type PackMeta } from "./packPolicy";
@@ -206,8 +207,12 @@ export async function removeLite(): Promise<number> {
   }
   localStorage.removeItem(META);
   cached = null;
+  // A half download of a newer release goes too, and nothing picks it up by itself any more.
+  clearResume(markKey("lite", "lite"));
+  let partial = 0;
+  for (const p of await partialDownloads()) if (p.owner.kind === "lite" && (await dropPartial(p.sha256))) partial += p.have;
   window.dispatchEvent(new Event(PACK_EVENT));
-  return freed;
+  return freed + partial;
 }
 
 /** Fired on window when the background sync saves a new lite pack. */

@@ -3,6 +3,9 @@
 import { useSyncExternalStore } from "react";
 import type { PackFile, PackManifest } from "../packs";
 import { SeasonGone, saveSeason } from "./seasons";
+import { byConnection } from "./download";
+import { clearResume, markKey, wantResume } from "./resumeMarks";
+import { noteRequestFailed } from "../connection";
 
 export interface BatchState {
   /** The season saving now and its progress (0–100). */
@@ -39,10 +42,14 @@ export function whenIdle(): Promise<void> {
  * Save these files in order (each verified by saveSeason). Null when a run is already going: nothing starts
  * twice. A failure is kept and the rest still run. replaceOnly: updates, which never bring back a season
  * removed meanwhile (they're skipped). go: asked before each file; false holds that file and the rest.
+ * person: the person asked for these (not an automatic update): one a dropped connection pauses picks up by
+ * itself once the connection is back (resumeMarks.ts, resumeWatcher.tsx).
  */
-export async function runSeasonBatch(files: PackFile[], manifest: PackManifest, opts: { replaceOnly?: boolean; go?: () => boolean } = {}): Promise<BatchResult | null> {
+export async function runSeasonBatch(files: PackFile[], manifest: PackManifest, opts: { replaceOnly?: boolean; go?: () => boolean; person?: boolean } = {}): Promise<BatchResult | null> {
   if (batchRunning() || !files.length) return null;
   const out: BatchResult = { saved: [], failed: [], skipped: [], held: [] };
+  // Every season asked for is marked first: one waiting behind a paused one is picked up too.
+  if (opts.person) for (const f of files) wantResume("season", String(f.seasons[0]), { replaceOnly: opts.replaceOnly });
   set({ busy: null, queue: files.map((f) => f.seasons[0]) });
   for (const [i, f] of files.entries()) {
     const season = f.seasons[0];
@@ -51,9 +58,15 @@ export async function runSeasonBatch(files: PackFile[], manifest: PackManifest, 
     try {
       await saveSeason(f, manifest, (got, total) => set({ ...state, busy: { season, pct: total ? Math.min(100, (got / total) * 100) : 0 } }), opts);
       out.saved.push(season);
+      if (opts.person) clearResume(markKey("season", String(season)));
     } catch (e) {
+      const paused = byConnection(e);
+      // Stopped by the connection: the mark stays, and the connection is checked now so its return is seen soon.
+      if (opts.person) { if (paused) noteRequestFailed(); else clearResume(markKey("season", String(season))); }
       if (e instanceof SeasonGone) { out.skipped.push(season); continue; }
       out.failed.push({ season, error: e instanceof Error ? e : new Error(String(e)) });
+      // The rest would only fail the same way: they wait (still marked) and pick up with it.
+      if (opts.person && paused) { out.held = files.slice(i + 1).map((x) => x.seasons[0]); break; }
     }
   }
   set({ busy: null, queue: [] });

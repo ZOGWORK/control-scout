@@ -51,6 +51,7 @@ const named = <K extends string>(load: () => Promise<Record<K, ComponentType<any
 const AlertsRunner = named(() => import("./lib/alerts"), "AlertsRunner");
 const LitePackSync = named(() => import("./lib/packSync"), "LitePackSync");
 const SeasonUpdateWatcher = named(() => import("./lib/offline/updateWatcher"), "SeasonUpdateWatcher");
+const DownloadResumer = named(() => import("./lib/offline/resumeWatcher"), "DownloadResumer");
 const ScoutQueueSync = named(() => import("./lib/scoutSpace"), "ScoutQueueSync");
 const OwnerRoute = named(() => import("./pages/OwnerRoute"), "OwnerRoute");
 const ErrorReportPrompt = named(() => import("./components/layout/ErrorReportPrompt"), "ErrorReportPrompt");
@@ -247,6 +248,7 @@ void ready.catch(() => { /* a failed load is retried (and shown) by the page's o
               <NotOnBareRoute><AlertsRunner /></NotOnBareRoute>
               <LitePackSync />
               <NotOnBareRoute><SeasonUpdateWatcher /></NotOnBareRoute>
+              <NotOnBareRoute><DownloadResumer /></NotOnBareRoute>
               <ScoutQueueSync />
               <NotOnBareRoute><Onboarding /></NotOnBareRoute>
               <NotOnBareRoute><InstallNudge /></NotOnBareRoute>
