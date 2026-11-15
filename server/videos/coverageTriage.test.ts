@@ -39,6 +39,15 @@ describe("clip coverage triage", () => {
       .toBe("1 match seen in the video, not yet confirmed (Q2)");
   });
 
+  it("USFLFNLT Q1–Q3, between two of Saturday's recordings: Actionable until both videos are checked, then settled", () => {
+    const gap = (video: CoverageVideoCheck) => many("between-recordings", 3, video);
+    expect(triageCoverage(2025, gap(UNREAD), CURRENT)).toEqual({ triage: "actionable", why: "3 matches not yet checked against the video (Q1, Q2, Q3)" });
+    expect(triageCoverage(2025, gap({ checked: "2026-11-15", found: "in neither video" }), CURRENT))
+      .toEqual({ triage: "no-timing", why: "3 matches: Played between two of the day's recordings, in neither" });
+    // Seen in one of them by a frame read: still To review.
+    expect(triageCoverage(2025, gap({ checked: "2026-11-15", seenAt: 120 }), CURRENT).triage).toBe("actionable");
+  });
+
   it("Glendale 2026 USAZGLQ1, 0 of 42 (its video unavailable): No timing, not To review", () => {
     const t = triageCoverage(2026, many("video-unavailable", 42), CURRENT);
     expect(t).toEqual({ triage: "no-timing", why: "42 matches: Video unavailable or private" });
