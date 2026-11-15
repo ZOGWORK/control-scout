@@ -25,7 +25,7 @@ Offline search › a saved season answers a search in about a third of a second.
 - [offline] With no signal, saved seasons get ready while the app is idle
 
 ### Changed
-- Offline search with a season saved: the season's search index (every team and event, normalised) is kept on the device once built, per file and release, and read back with the file, instead of being rebuilt on each page; plain-ASCII names skip the Unicode passes (same result); rows come out of SQLite without re-reading column names; and with no signal the saved seasons and event packs open once the page has settled and is idle. /search?q=4215 offline with the season saved: about 1 s before, about 0.3 s after. (`src/lib/offline/readers.ts`, `src/lib/offline/seasons.ts`, `src/lib/offline/answer.ts`, `src/lib/api.ts`, `src/shared/fuzzy.ts`) (#PR)
+- Offline search with a season saved: the season's search index (every team and event, normalised) is kept on the device once built, per file and release, and read back with the file, instead of being rebuilt on each page; plain-ASCII names skip the Unicode passes (same result); rows come out of SQLite without re-reading column names; and with no signal the saved seasons and event packs open once the page has settled and is idle. /search?q=4215 offline with the season saved: about 1 s before, about 0.3 s after. (`src/lib/offline/readers.ts`, `src/lib/offline/seasons.ts`, `src/lib/offline/answer.ts`, `src/lib/api.ts`, `src/shared/fuzzy.ts`) (#1580)
 
 ## 6.8.3 — 2026-11-15
 
