@@ -22,7 +22,7 @@ Search answers four more questions it used to miss: three team numbers side by s
 ### Highlights
 - [fixes] Three or four team numbers typed with spaces compare those teams
 - [fixes] A team's Auto, TeleOp or Endgame OPR at Worlds answers in its division
-- [fixes] "What is a tiebreaker" explains how teams level on ranking score are ordered
+- [fixes] "What is a tiebreaker" explains how tied teams are ordered
 - [fixes] "teams in" with no place lists every team, best by OPR
 
 ### Fixed
