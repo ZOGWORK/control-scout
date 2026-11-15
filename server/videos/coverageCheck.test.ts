@@ -279,7 +279,17 @@ describe("clip coverage check and triage", () => {
         { kind: "pulled", season: S, code: "TWODAY", name: "Two Day Qualifier", label: "Q2", videoId: "SATURDAYv01", at: 3600, why: "Clip pulled: its first frame shows Q1, not Q2" },
       ]));
       expect(o.clipChecks).toMatchObject({ pulled: 1 });
-      expect(o.lastPass).toMatchObject({ checked: 1, events: 1, why: expect.objectContaining({ "seen in the video, no clip (a finding)": 1 }) });
+      expect(o.lastPass).toMatchObject({ checked: 1, events: 1, why: expect.objectContaining({ "seen in the video, no clip (a finding)": 1 }), pending: expect.any(Number) });
+      expect(o.lastPass!.pendingBefore === null || typeof o.lastPass!.pendingBefore === "number").toBe(true);
+      // A finding stays until a pass clears it: here a re-read shows Q1 isn't in the video and the pulled clip's check is
+      // gone, so the next pass drops both (never by marking reviewed). The pass before's pending count is kept beside it.
+      setClipChecksForTests(keptChecks);
+      setFrameTimingsForTests([{ videoId: "SATURDAYv01", code: "TWODAY", checked: "2026-11-15", starts: {}, missing: { Q1: "no frame read of it" } }]);
+      await run("UPDATE clip_coverage SET fingerprint = 'x' WHERE code = 'TWODAY'");
+      expect(await checkClipCoverage(() => {})).toBe(1);
+      const after = await ownerClipCoverage();
+      expect(after.findings.filter((f) => f.code === "TWODAY")).toEqual([]);
+      expect(after.lastPass!.pendingBefore).toBe(o.lastPass!.pending);
     } finally {
       setClipChecksForTests(keptChecks);
       setFrameTimingsForTests([{ videoId: "SATURDAYv01", code: "TWODAY", checked: "2026-11-15", starts: {}, missing: { Q1: "no frame read of it" } }]);
