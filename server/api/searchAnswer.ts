@@ -91,6 +91,8 @@ export interface AnswerOptions {
   full?: boolean;
   /** False: the page's answer without its sorry note or verdict, for checking a sorry suggestion (never in a loop). */
   sorry?: boolean;
+  /** False: an event's initialism isn't read again as its name (the search for the name itself: never in a loop). */
+  initialisms?: boolean;
 }
 
 
@@ -279,9 +281,9 @@ export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promi
   // An event's initialism beside other words ("cri matches", "mti 2025") that the words as said didn't read as that
   // event (a team whose name starts the same way can outrank it): the same ask with the event's name, kept when it
   // answers about that event.
-  const named = await initialismInFull(said);
+  const named = opts.initialisms === false ? null : await initialismInFull(said);
   if (named && !aboutEvent(a, named)) {
-    const b = await searchAnswer(named.q, opts);
+    const b = await searchAnswer(named.q, { ...opts, initialisms: false });
     if (aboutEvent(b, named)) return carryOutcome(b, { ...b, q: cleanQuery(raw) });
   }
   // A season said by its game ("how many teams in nj decode year", "…, centerstage") and not answered as said: the
