@@ -15,6 +15,25 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 6.8.6 — 2026-11-15
+
+This weekend › the weekend's FTC events on one page, a team's next match with its time and call, and search answers both.
+
+### Highlights
+- [live] This weekend: every FTC event this weekend, live ones marked
+- [live] Last, this and next weekend, in a state or a country
+- [teams] A team's next match: its time, partners, opponents and call
+- [live] Search answers "events this weekend" and "4215 next match"
+
+### Added
+- This weekend (`/weekend`), linked from Home's On the calendar. Each event shows its kind, place, dates and teams, and links to its page, with "Live now" while it's under way and its recording where one is on record. Last, this and next weekend use the windows search reads those words as; a state or country can be picked as on Rankings, with My region. The current season only, said on the page; "No FTC events this weekend." when there are none. (`src/pages/WeekendPage.tsx`, `server/api/weekend.ts`, `src/shared/weekend.ts`, `src/shared/query/time.ts`, `src/components/home/HomeSections.tsx`)
+- A team's next match this weekend, on the page and in search: the event, the match, its time on the event's clock (and yours where it differs), alliance, partners, opponents and the match list's call; played matches show their score and clip. With no match this weekend: "No matches this weekend — next event is …", linked. (`src/components/NextMatchPanel.tsx`, `src/shared/nextMatch.ts`, `server/api/searchQuestions.ts`, `server/api/answers/weekend.ts`)
+- Search: "what FTC events are happening this weekend", "meets this weekend in New Jersey", "what's on this weekend", "next weekend", "events today" and "tomorrow" answer directly with the page's events. (`server/api/searchEvents.ts`, `src/shared/searchEventQuery.ts`)
+
+### Changed
+- Team page Upcoming: with no match this weekend it names the team's next event. (`src/pages/TeamPage.tsx`)
+- Search's bounded windows ("this weekend", "today") read search's own day; an event whose calendar is still behind (Los Angeles on Sunday evening) keeps its window, one ahead (Sydney's Monday) waits. (`server/api/searchEvents.ts`) (#1581)
+
 ## 6.8.5 — 2026-11-15
 
 Search › highlights questions people asked that came back empty now answer: a town's highlights, the best TeleOp or Auto videos in a country, and teams compared with "highlights".
