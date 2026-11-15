@@ -131,10 +131,13 @@ export async function runChannelAudit(log: (s: string) => void, opts: { apiKey?:
       ORDER BY a.full_at IS NOT NULL, a.full_at, c.channel_id`);
     const errors = new Map<string, string>();
     const fullRead = new Set<string>();
+    // The channels this run got to (read, or failed with its error): one the units ran out before keeps its last check.
+    const reached = new Set<string>();
     // 1. The uploads lists: each channel's newest page every run; its whole list once a week, while the units last.
     for (const ch of channels) {
       if (out.units >= maxUnits) { out.error = `stopped at the audit's ${maxUnits} units; the rest next run`; break; }
       const id = String(ch.channel_id);
+      reached.add(id);
       const due = !ch.full_at || now() - Date.parse(String(ch.full_at)) >= FULL_EVERY_MS;
       const pages = Math.ceil(Number(ch.uploads ?? 500) / 50) + 1;
       const full = due && out.units + pages <= maxUnits;
@@ -318,8 +321,9 @@ export async function runChannelAudit(log: (s: string) => void, opts: { apiKey?:
         sql: `INSERT INTO official_audit_channels (channel_id, uploads, recorded, unrecorded, linked, linked_current, open_findings, full_at, checked_at, last_error) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
               ON CONFLICT(channel_id) DO UPDATE SET uploads = excluded.uploads, recorded = excluded.recorded, unrecorded = excluded.unrecorded, linked = excluded.linked,
                 linked_current = excluded.linked_current, open_findings = excluded.open_findings, full_at = COALESCE(excluded.full_at, official_audit_channels.full_at),
-                checked_at = excluded.checked_at, last_error = excluded.last_error`,
-        args: [id, Number(n?.uploads ?? 0), Number(n?.recorded ?? 0), Number(n?.unrecorded ?? 0), l.all, l.current, Number(n?.open ?? 0), fullRead.has(id) ? at : null, at, errors.get(id) ?? null],
+                checked_at = COALESCE(excluded.checked_at, official_audit_channels.checked_at), last_error = excluded.last_error`,
+        args: [id, Number(n?.uploads ?? 0), Number(n?.recorded ?? 0), Number(n?.unrecorded ?? 0), l.all, l.current, Number(n?.open ?? 0), fullRead.has(id) ? at : null,
+          reached.has(id) ? at : null, reached.has(id) ? errors.get(id) ?? null : `not read this run: the audit stopped at its ${maxUnits} units`],
       };
     }), "write"));
     if (errors.size && !out.error) out.error = `${errors.size} channel${errors.size === 1 ? "" : "s"} couldn't be read: ${[...errors.values()][0]}`;
