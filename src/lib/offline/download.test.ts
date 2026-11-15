@@ -8,7 +8,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { gzipSync } from "node:zlib";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ChecksumError, DownloadPaused, PIECE, StorageError, download, txError, finishDownload, partialDownloads, resetDownloadStore, type DownloadOwner } from "./download";
+import { ChecksumError, DownloadPaused, PIECE, StorageError, StorageFull, download, txError, finishDownload, partialDownloads, resetDownloadStore, type DownloadOwner } from "./download";
 import { deviceItems, pausedItems, totalBytes, whatChanged } from "./storage";
 import { downloadLite, getv, packStatus, removeLite, syncLite, type PackFile, type PackManifest } from "../packs";
 
@@ -414,6 +414,28 @@ describe("storage failures", () => {
     expect(e).toBeInstanceOf(StorageError);
     expect(e).not.toBeInstanceOf(DownloadPaused);
     expect(String(e.message)).toMatch(/storage/);
+    await finishDownload(file.sha256);
+  });
+});
+
+describe("a device that runs out of room mid-download", () => {
+  it("lets the connection go at once (the body is cancelled), and says it's full", async () => {
+    const data = bytes(PIECE * 3, 13);
+    const file = { url: "/packs/full", bytes: data.length, sha256: sha(data) };
+    let cancelled = false, sent = 0;
+    const fetchFull = (async () => new Response(new ReadableStream<Uint8Array>({
+      pull(c) { if (sent >= data.length) { c.close(); return; } const n = Math.min(PIECE, data.length - sent); c.enqueue(data.slice(sent, sent + n)); sent += n; },
+      cancel() { cancelled = true; },
+    }))) as unknown as typeof fetch;
+    const put = IDBObjectStore.prototype.put;
+    const spy = vi.spyOn(IDBObjectStore.prototype, "put").mockImplementation(function (this: IDBObjectStore, ...a: Parameters<IDBObjectStore["put"]>) {
+      if (this.name === "pieces") throw new DOMException("The quota has been exceeded.", "QuotaExceededError");
+      return put.apply(this, a);
+    });
+    const e = await download(file, { owner, fetch: fetchFull }).catch((x) => x);
+    spy.mockRestore();
+    expect(e).toBeInstanceOf(StorageFull);
+    expect(cancelled).toBe(true);
     await finishDownload(file.sha256);
   });
 });

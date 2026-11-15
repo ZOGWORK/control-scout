@@ -382,7 +382,12 @@ async function receive(body: ReadableStream<Uint8Array>, start: PartialDownload,
     }
     await flush();
   } catch (e) {
-    if (e instanceof ChecksumError || e instanceof StorageFull || e instanceof StorageError) throw e;
+    if (e instanceof StorageFull || e instanceof StorageError) {
+      // Nowhere to put the rest: let the connection go now (best effort), not when the body is collected.
+      await reader.cancel().catch(() => {});
+      throw e;
+    }
+    if (e instanceof ChecksumError) throw e;
     // Keep what came (a storage failure here is the error to show), else it's the connection.
     await flush();
     changed();
