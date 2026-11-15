@@ -36,6 +36,10 @@ export const OFFICIAL_CHANNELS: OfficialChannelSeed[] = [
   { channelId: "UC19n0fKHs3DfOTy4RLo1OXw", title: "FIRST California", region: "state=CA;name=western edge", words: "california" },
   { channelId: "UCN5qzssJPqSLLBgoXG0mO2g", title: "New England FIRST", region: "state=MA,NH,ME,VT,RI,CT", words: "england" },
   { channelId: "UCsWISiGfIiL5E-i9DPK2ftQ", title: "SoCal FTC", region: "state=CA", words: "california socal" },
+  // SoCal FTC's own live channel (@FIRSTsocalftclive, a separate channel id): its inter-league tournaments ("ILT #6",
+  // Scout's "SoCal FTC Qualifier 6") and the Los Angeles championship at Monrovia. Its league meets aren't its: League
+  // G has its own channel. Channel id from the YouTube Data API (forHandle), 2026-11-15.
+  { channelId: "UCjXduKUa9FVXO7L-wz5sjOg", title: "SoCal FTC live", region: "state=CA;name=^SoCal (FTC )?(Qualifier|ILT)|^California - Los Angeles Championship", words: "socal california" },
   { channelId: "UCto1RvN3qyamf8GH7P7_abQ", title: "Georgia FIRST", region: "state=GA", words: "georgia", titlePattern: "\\bGA\\b|georgia" },
   // The owner's audited list (2026-11-14); channel ids from the YouTube Data API (forHandle). CircuitRunners Robotics
   // (FTC 1002, Marietta) streams the Marietta-Wheeler league and the Northwest League Tournament; Microchips & Queso

@@ -96,16 +96,20 @@ export async function eventVideosByDay(season: number, code: string): Promise<{ 
 /**
  * Write the checked list's videos that aren't in the table yet. A video is skipped when its event isn't in this
  * database (a data copy without that season), when it's already the event's video some other way, or when the event
- * already plays another video for the same day and part (the one there stays). Returns how many it wrote.
+ * already plays another video for the same day and part (the one there stays). The one exception names a part: a
+ * listed part for a video the event already plays that day without one (FIRST's link, or the watcher's add) is
+ * written for it, so a day with a "Matches" video and a full stream names both (Chicago Robotics Invitational 2026).
+ * Returns how many it wrote.
  */
 let seeded = false;
 let waitingWas = -1;
 export async function seedOfficialVideos(log: (s: string) => void, data: OfficialList = list as OfficialList, now = Date.now(), again = false): Promise<number> {
   // Once a process: the list only changes with a deploy, which starts a new one.
   if (seeded && !again) return 0;
+  const named = await nameListedParts(data);
   const known = new Set((await all<{ video_id: string }>("SELECT video_id FROM official_videos")).map((r) => String(r.video_id)));
   const todo = data.videos.filter((v) => isId(v.videoId) && !known.has(v.videoId));
-  if (!todo.length) { seeded = true; return 0; }
+  if (!todo.length) { seeded = true; if (named) forgetOfficial(); return named; }
   const keys = [...new Set(todo.map((v) => `${v.season}/${v.code}`))];
   const events = new Set<string>();
   for (let i = 0; i < keys.length; i += 200) {
@@ -125,7 +129,10 @@ export async function seedOfficialVideos(log: (s: string) => void, data: Officia
     const unknown = has.some((h) => !h.timed);
     for (const v of vs) {
       if (v.kind === "recording" && unknown && !has.some((h) => h.videoId === v.videoId)) { waiting++; continue; }
-      if (v.kind === "recording" && has.some((h) => h.videoId === v.videoId || (h.day && h.day === v.day && (h.part ?? null) === (v.part ?? null)))) { skipped++; continue; }
+      // The event's own video for that day without a part, listed with one: written, to name its part.
+      const names = v.kind === "recording" && !!v.part && has.some((h) => h.videoId === v.videoId && h.day === v.day && h.part == null)
+        && !has.some((h) => h.videoId !== v.videoId && h.day === v.day && h.part === v.part);
+      if (v.kind === "recording" && !names && has.some((h) => h.videoId === v.videoId || (h.day && h.day === v.day && (h.part ?? null) === (v.part ?? null)))) { skipped++; continue; }
       writes.push({
         sql: `INSERT INTO official_videos (video_id, season, code, kind, day, part, channel_id, title, source, why, added_at, added_by)
               VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'list', ?, ?, NULL) ON CONFLICT(video_id) DO NOTHING`,
@@ -134,10 +141,28 @@ export async function seedOfficialVideos(log: (s: string) => void, data: Officia
     }
   }
   for (let i = 0; i < writes.length; i += 100) await db().batch(writes.slice(i, i + 100), "write");
-  if (writes.length) forgetOfficial();
+  if (writes.length || named) forgetOfficial();
   // Done for this process unless some wait on a video's timing: then again on the next run, after the backfill.
   seeded = waiting === 0;
   if (writes.length || waiting !== waitingWas) log(`official videos: ${writes.length} added from the checked list${skipped ? `, ${skipped} skipped (event not here or already has that day)` : ""}${waiting ? `, ${waiting} waiting for a video's timing` : ""}`);
   waitingWas = waiting;
-  return writes.length;
+  return writes.length + named;
+}
+
+/** A listed recording's part, for its row already in the table on the same event and day with none (the watcher's
+ *  add of a day's second video, before the list named it): written, unless another video of that day has that part. */
+async function nameListedParts(data: OfficialList): Promise<number> {
+  const listed = data.videos.filter((v) => v.kind === "recording" && v.part && v.day && isId(v.videoId));
+  if (!listed.length) return 0;
+  const rows = new Map((await all<{ video_id: string; season: number; code: string; day: string | null }>(
+    "SELECT video_id, season, code, day FROM official_videos WHERE kind = 'recording' AND part IS NULL AND removed_at IS NULL")).map((r) => [String(r.video_id), r]));
+  const writes = listed.filter((v) => { const r = rows.get(v.videoId); return r && Number(r.season) === v.season && String(r.code) === v.code && r.day === v.day; }).map((v) => ({
+    sql: `UPDATE official_videos SET part = ? WHERE video_id = ? AND part IS NULL AND removed_at IS NULL
+          AND NOT EXISTS (SELECT 1 FROM official_videos o WHERE o.season = official_videos.season AND o.code = official_videos.code AND o.day = official_videos.day
+            AND o.part = ? AND o.kind = 'recording' AND o.removed_at IS NULL)`,
+    args: [v.part!, v.videoId, v.part!],
+  }));
+  if (!writes.length) return 0;
+  const done = await db().batch(writes, "write");
+  return done.reduce((n, r) => n + Number(r.rowsAffected ?? 0), 0);
 }
