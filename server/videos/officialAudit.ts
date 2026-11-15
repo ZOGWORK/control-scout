@@ -141,7 +141,11 @@ export async function runChannelAudit(log: (s: string) => void, opts: { apiKey?:
       try {
         const whole = await readUploads(id, full, key, fetchImpl, out, maxUnits, startedAt, locked);
         out.channels++;
-        if (whole) { fullRead.add(id); out.fullChannels++; }
+        if (whole) {
+          fullRead.add(id); out.fullChannels++;
+          // Saved now: a failure later in the run (the quota, a busy database) mustn't spend this read again next run.
+          await locked(() => run("INSERT INTO official_audit_channels (channel_id, full_at) VALUES (?, ?) ON CONFLICT(channel_id) DO UPDATE SET full_at = excluded.full_at", [id, startedAt]));
+        }
       } catch (e) {
         if (e instanceof QuotaError) throw e;
         errors.set(id, String((e as Error).message ?? e).slice(0, 300));
@@ -206,7 +210,9 @@ export async function runChannelAudit(log: (s: string) => void, opts: { apiKey?:
       const r = rows[i];
       const vid = String(r.video_id);
       const f = facts.get(vid);
-      const row = { ...r, ...(f ? { start: f.start, duration: f.duration, privacy: f.privacy, embeddable: f.embeddable, blocked_in: f.blocked_in, facts_at: at } : {}) };
+      // Facts read while it's live or still to come aren't final: not marked read, so the next audit reads them again.
+      const fLive = f?.live === "live" || f?.live === "upcoming";
+      const row = { ...r, ...(f ? { start: f.start, duration: f.duration, privacy: f.privacy, embeddable: f.embeddable, blocked_in: f.blocked_in, facts_at: fLive ? null : at } : {}) };
       const rule = rules.get(String(r.channel_id));
       if (!rule) continue;
       const rec = records.get(vid);
@@ -223,8 +229,8 @@ export async function runChannelAudit(log: (s: string) => void, opts: { apiKey?:
         const title = notCompetition(v.title);
         const live = f?.live === "live" || f?.live === "upcoming";
         let m: WatchVerdict = title ? { kind: "ignore" as const, why: title }
-          : !row.facts_at ? { kind: "review" as const, why: "its facts weren't read yet (the audit's units ran out): read next run" }
           : live ? { kind: "review" as const, why: "live now or still to come: the watcher reads it once it's over" }
+          : !row.facts_at ? { kind: "review" as const, why: "its facts weren't read yet (the audit's units ran out): read next run" }
           : v.privacy === "unavailable" ? { kind: "ignore" as const, why: "listed on the channel but private or deleted: YouTube gives nothing for it" }
           : matchVideo(v, rule, v.start ? events(shift(v.start.slice(0, 10), -1), shift(v.start.slice(0, 10), 1)) : []);
         // As the watcher would: against what the event already plays that day (a duplicate, or a second video of it).
@@ -274,13 +280,14 @@ export async function runChannelAudit(log: (s: string) => void, opts: { apiKey?:
       if (finding === "open") out.findings++;
       writes.push({
         sql: `UPDATE official_audit_videos SET start = ?, duration = ?, privacy = ?, embeddable = ?, blocked_in = ?, facts_at = ?, record = ?, season = ?, code = ?, verdict = ?, why = ?,
-                guess_season = ?, guess_code = ?, guess_day = ?, guess_why = ?, in_window = ?, finding = ?, found_at = ? WHERE video_id = ?`,
+                guess_season = ?, guess_code = ?, guess_day = ?, guess_why = ?, in_window = ?, finding = ?, found_at = ?
+              WHERE video_id = ? AND COALESCE(finding, '') = COALESCE(?, '')`,
         args: [row.start ?? null, row.duration ?? null, row.privacy ?? null, row.embeddable ?? null, row.blocked_in ?? null, row.facts_at ?? null, rec?.record ?? null, rec?.season ?? null, rec?.code ?? null,
-          verdict, why, guess.season, guess.code, guess.day, guess.why, inWindow, finding, finding ? foundAt : null, vid],
+          verdict, why, guess.season, guess.code, guess.day, guess.why, inWindow, finding, finding ? foundAt : null, vid, r.finding ?? null],
       });
     }
     out.uploads = rows.length;
-    for (let i = 0; i < writes.length; i += 300) { const part = writes.slice(i, i + 300); await locked(() => db().batch(part, "write")); }
+    // The review rows first: a miss is marked queued only once its row in the review queue is written.
     if (queue.length) {
       await locked(() => db().batch(queue.map((q) => ({
         sql: `INSERT INTO official_watch (video_id, channel_id, title, start, published, duration, status, season, code, day, part, why, guess_why, seen_at)
@@ -289,6 +296,7 @@ export async function runChannelAudit(log: (s: string) => void, opts: { apiKey?:
       })), "write"));
       out.queued = queue.length;
     }
+    for (let i = 0; i < writes.length; i += 300) { const part = writes.slice(i, i + 300); await locked(() => db().batch(part, "write")); }
     // 4. A best guess for every row in review or set aside whose verdict named no event (rows from before guesses).
     await backfillGuesses(rules, events, locked);
     // 5. Each channel's counts.
