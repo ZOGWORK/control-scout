@@ -188,3 +188,25 @@ describe("the leagues list", () => {
     expect((await get<LeaguesResponse>(`/api/leagues?season=${PAST}`)).leagues).toEqual([]);
   });
 });
+
+describe("links in", () => {
+  it("the team page carries the team's place in its home region, and the link opens its page with its row", async () => {
+    const t = await get<{ region: { key: string; name: string; rank: number | null; of: number } | null }>(`/api/teams/4215?season=${S}`);
+    expect(t.region).toEqual({ key: "USA:NJ", name: "New Jersey", rank: 2, of: 135 });
+    expect((await get<{ region: unknown }>(`/api/teams/9001?season=${S}`)).region).toEqual({ key: "USA:NJ", name: "New Jersey", rank: null, of: 135 });
+    const r = await region(`season=${S}&region=USA:NJ&team=4215`);
+    expect(r.page).toBe(1);
+    expect(r.rows.some((x) => x.team === 4215)).toBe(true);
+  });
+
+  it("titles the region pages for previews and search engines, and a bad place is not found", async () => {
+    const { pageMeta } = await import("../seoMeta");
+    const m = await pageMeta("/rankings/regions/USA/NJ", { season: String(S) });
+    expect(m.title).toMatch(/^FTC rankings: New Jersey /);
+    expect(m.description).toContain("#1: 5001 Jersey A (90.0)");
+    expect(m.path).toBe(`/rankings/regions/USA/NJ?season=${S}`);
+    expect((await pageMeta("/rankings/regions", {})).title).toMatch(/^FTC rankings by region /);
+    expect((await pageMeta("/rankings/regions/USA/N!J", {})).notFound).toBe(true);
+    expect((await pageMeta("/rankings/regions/%E0", {})).notFound).toBe(true);
+  });
+});

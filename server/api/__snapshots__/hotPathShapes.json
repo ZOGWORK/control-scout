@@ -1723,7 +1723,7 @@
  },
  "/api/teams/101?season=2026": {
   "status": 200,
-  "bytes": 2103,
+  "bytes": 2168,
   "body": {
    "team": {
     "number": 101,
@@ -1915,6 +1915,12 @@
     }
    ],
    "league": null,
+   "region": {
+    "key": "USA:NJ",
+    "name": "New Jersey",
+    "rank": null,
+    "of": 0
+   },
    "highlights": true,
    "recordSplit": false
   }
