@@ -18,6 +18,7 @@ its text size.
 | `/lite/picklist?space=&season=` | `/scout?space=&tab=data&view=picklist&season=` | `readPickList` + `teamSummaries` → `litePicks` |
 | `/lite/scout?…` | `/scout?…` (any other view) | none: scouting's forms need scripts; one button to the full app's same view |
 | `/lite/settings` | `/settings` | the cookies below |
+| `/lite/network` | `/network` (Settings › Network & offline) | the pack list `/download` offers (`presentManifest`), the `cs-lite` cookie; the device's half from its one small script (below) |
 
 Code: `src/shared/lite.ts` (the address rule, both ways, and the thresholds; `src/sw.template.js` keeps a copy,
 held to it by `src/sw.lite.test.ts`), `server/lite/trim.ts` (trimming), `server/lite/render.ts` (stylesheet,
@@ -36,6 +37,13 @@ two boxes arrive as `?red=1&red=2`, read the same as a link's `?red=1,2`. Inputs
 - **No images, no charts, no scripts.** Tables instead of charts, system fonts, one inline stylesheet, and one
   inline SVG (the C-mark, markup in the page). The page's CSP is `default-src 'none'; style-src 'unsafe-inline'`,
   so nothing else can load.
+- **One exception: the network screen.** `/lite/network` answers what only the device knows (the connection's
+  type, a fresh check of `/api/health`, the downloads in this browser's storage, the download choices saved with the
+  account) with one fixed inline script (`NET_SCRIPT`, `server/lite/network.ts`), allowed by its hash alone, plus
+  `connect-src 'self'` for the check (`LITE_NET_CSP`). Every sentence it shows is drawn by the server with the full
+  screen's own functions (`src/shared/networkStatus.ts`: `statusSentence`, `connectionLabel`, `sizeLines`, the
+  choices' lines) and handed to it as data, so the two screens never word the same connection differently. Without
+  the script the page still says the server answered and lists the download sizes.
 - **Never a trap.** Every Lite page has a gold "Full version" button at the top right, including 404s and errors.
 - **Shared formatting.** Numbers, dates, win odds and award names come from `src/shared/format.ts`, which the
   app's `src/lib/format.ts` re-exports, so the two renderings can't drift. Calls show their confidence word.

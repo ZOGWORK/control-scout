@@ -88,6 +88,7 @@ function fullPage(url) {
   if (page === "/search" || page === "/compare" || page === "/rankings") return page + carried(page, url.searchParams);
   if (page === "/predict") { const c = carried(page, url.searchParams, ["mode", "match"]); return c === "?mode=match" ? "/predict" : `/predict${c}`; }
   if (page === "/settings") return "/settings";
+  if (page === "/network") return "/network";
   if (page === "/scout") {
     const q = new URLSearchParams();
     for (const [k, v] of url.searchParams) if (k !== "lite" && /^[a-z]{1,20}$/i.test(k) && v.length <= 120 && !/[\u0000-\u001f]/.test(v)) q.append(k, v);

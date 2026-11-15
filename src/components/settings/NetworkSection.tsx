@@ -19,6 +19,7 @@ import { useSavedSeasons, type SavedSeason } from "../../lib/offline/saved";
 import { useSavedBundles } from "../../lib/offline/bundleMeta";
 import { bundleTime, type SavedBundle } from "../../shared/eventBundle";
 import { ManifestError, PACK_EVENT, fetchManifest, type PackManifest } from "../../lib/packs";
+import { LITE_LINE, downloadChoices, mobileWarning, sizeLines, updateChoices } from "../../shared/networkStatus";
 import { clearAppCache, planAppCache, type CachePlan } from "../../lib/offline/appCache";
 import { useConnection as useNetInfo, useUpdatePrefs } from "../offline/UpdateSettings";
 import { netKind, type UpdateMode, type UpdateNetwork } from "../../lib/offline/updatePolicy";
@@ -58,7 +59,7 @@ export function NetworkSection() {
   const [checking, setChecking] = useState(false);
   useTick(15_000);
   const check = async () => { setChecking(true); try { await checkInternet(); } finally { setChecking(false); } };
-  const advice = adviseLite({ internet: conn.internet, effectiveType: net?.effectiveType, saveData: conn.saveData, slowSeen, liteOn });
+  const advice = adviseLite({ internet: conn.internet, online: conn.online, type: conn.type, raw: net?.type, effectiveType: net?.effectiveType, saveData: conn.saveData, slowSeen, liteOn });
   const why = advice.kind === "slow" ? slowReason({ effectiveType: net?.effectiveType, saveData: conn.saveData, slowSeen }) : null;
   const tone = conn.internet === "yes" ? "ok" : conn.internet === "unknown" ? "wait" : conn.internet === "portal" ? "warn" : "off";
   const connected = conn.internet === "yes";
@@ -197,16 +198,8 @@ export function sizesMissing(m: PackManifest | null, error: ManifestError | null
   return "The list of downloads couldn't be read just now. Check again to try once more.";
 }
 
-export function sizeLines(m: PackManifest | null, season: number, events: { name: string; bytes: number }[]): string[] {
-  const lines: string[] = [];
-  for (const e of events.slice(0, 2)) lines.push(`Downloading ${e.name} used ${fmtBytes(e.bytes)}.`);
-  if (!m) return lines;
-  const current = m.full.find((f) => f.seasons.includes(season));
-  if (current) lines.push(`The whole ${seasonLabel(season)} season uses ${fmtBytes(current.bytes)}.`);
-  if (m.full.length > 1) lines.push(`Every season (${m.full.length}) uses ${fmtBytes(m.full.reduce((n, f) => n + f.bytes, 0))}.`);
-  if (m.lite) lines.push(`Offline predictions use ${fmtBytes(m.lite.bytes)}.`);
-  return lines;
-}
+// The lines are shared with Lite's network screen (server/lite/network.ts).
+export { sizeLines } from "../../shared/networkStatus";
 
 function Sizes({ m, error, internet, bundles }: { m: PackManifest | null; error: ManifestError | null; internet: Internet; bundles: SavedBundle[] }) {
   const season = useCurrentSeason();
@@ -249,14 +242,11 @@ function Controls({ m, liteFlag, liteOn, internet }: { m: PackManifest | null; l
   // (lib/offline/updatePolicy.ts), so the words say plainly that this browser can't tell the two apart.
   const unknownNet = netKind(useNetInfo()) === "unknown";
   const season = useCurrentSeason();
-  const current = m?.full.find((f) => f.seasons.includes(season));
-  const warning = current
-    ? `Mobile data counts against your plan: the whole ${seasonLabel(season)} season is ${fmtBytes(current.bytes)}${m?.lite ? `, offline predictions ${fmtBytes(m.lite.bytes)}` : ""}.`
-    : "Mobile data counts against your plan: a season can be tens of MB.";
+  const warning = mobileWarning(m, season);
   return (
     <Group title="Settings" description={liteFlag ? "Downloads and Updates sync with your account when you're signed in. Lite is for this browser only." : "Synced with your account when you're signed in."}>
       {liteFlag && (
-        <Row label="Lite" stack description="Opens the text-only Lite version of pages that have one. Turn off any time.">
+        <Row label="Lite" stack description={LITE_LINE}>
           <div className="flex flex-wrap items-center gap-3">
             <span className="text-sm text-foreground" data-net-lite={liteOn ? "on" : "off"}>{liteOn ? "Lite is on" : "Lite is off"}</span>
             {internet === "yes" ? (
@@ -268,18 +258,10 @@ function Controls({ m, liteFlag, liteOn, internet }: { m: PackManifest | null; l
         </Row>
       )}
       <Row label="Downloads" stack description="Which connections downloads and updates may use.">
-        <Choice<UpdateNetwork> label="Downloads" value={network} onChange={setNetwork} options={[
-          { value: "wifi", name: "Wi-Fi only", line: unknownNet
-            ? "This browser can't tell Wi-Fi from mobile data, so automatic updates may still use mobile data. To be sure, choose Never update automatically."
-            : "Nothing downloads on mobile data unless you tap Download yourself." },
-          { value: "any", name: "Wi-Fi and mobile data", line: warning },
-        ]} />
+        <Choice<UpdateNetwork> label="Downloads" value={network} onChange={setNetwork} options={downloadChoices(unknownNet, warning)} />
       </Row>
       <Row label="Updates" stack description="When a newer copy of something you downloaded is out.">
-        <Choice<UpdateMode> label="Updates" value={mode} onChange={setMode} options={[
-          { value: "auto", name: network === "any" || unknownNet ? "Update packs automatically" : "Update packs automatically on Wi-Fi", line: network === "any" ? "Updates download by themselves, on Wi-Fi or mobile data." : unknownNet ? "Updates download by themselves. This browser can't tell Wi-Fi from mobile data, so that may include mobile data." : "Updates download by themselves when you're on Wi-Fi." },
-          { value: "ask", name: "Never update automatically (I'll tap Update)", line: "You get a note when an update is out; nothing downloads until you tap Update." },
-        ]} />
+        <Choice<UpdateMode> label="Updates" value={mode} onChange={setMode} options={updateChoices(network, unknownNet)} />
       </Row>
     </Group>
   );
