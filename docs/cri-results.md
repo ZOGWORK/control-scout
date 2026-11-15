@@ -48,6 +48,6 @@ Code: `server/sources/cri.ts` (read + parse), `server/data/criResults.ts` (when 
 
 ## On the page
 
-The event page says "Results from chicagoroboticsinvitational.com · FIRST has not published them", linked to the
-event's page on the site, and the source line under the summary names the site. Stats for a season the importer
-wrote are rebuilt in the same cycle.
+The event page says "Results from chicagoroboticsinvitational.com", linked to the event's page on the site, and the
+source line under the summary names the site and says FIRST has not published the results. Stats for a season the
+importer wrote are rebuilt in the same cycle.
