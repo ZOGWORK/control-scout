@@ -112,6 +112,8 @@ import { FilterError } from "../src/shared/filterDsl.js";
 import { RECORDS_EXPORT_MAX, RECORDS_MAX_PAGE_SIZE, SCHEDULE_STAT_KEYS } from "../src/shared/statCatalog.js";
 import { manualRefresh, type ManualOutcome } from "./data/live.js";
 import { defaultRankingsSeason, rankingPlaces, rankingsPage, snapshotWeeks, type RankingsQuery } from "./api/rankings.js";
+import { regionRankings, regionsList, seasonLeagueList } from "./api/regionRankings.js";
+import { REGION_SORTS, isRegionSort, type LeaguesResponse } from "../src/shared/regionRankings.js";
 import { MAX_REGIONS, isWeek, parsePlaces } from "../src/shared/rankings.js";
 import { registerCache } from "./caches.js";
 import { requestMetrics } from "./metrics.js";
@@ -646,6 +648,11 @@ export function createApp(opts: { dist?: string; /** Tests only: a smaller searc
     return p;
   }));
 
+  // Every league of a season (the leagues list): where it plays, meets played, teams and FIRST's #1.
+  api.get("/leagues", h(async (req): Promise<LeaguesResponse> => {
+    const s = season(req.query.season);
+    return { season: s, leagues: await seasonLeagueList(s) };
+  }));
   // A league's standings (api/leagues.ts): FIRST's league rankings, as the sync last read them.
   api.get("/leagues/:season/:region/:code", h(async (req) => {
     const r = String(req.params.region), c = String(req.params.code);
@@ -834,6 +841,21 @@ export function createApp(opts: { dist?: string; /** Tests only: a smaller searc
     const s = req.query.season == null || req.query.season === "" ? await defaultRankingsSeason() : predictSeason(req.query.season);
     const team = req.query.team == null || req.query.team === "" ? null : int(req.query.team, "team", { min: 1, max: 999999 });
     return rankingPlaces(s, team);
+  }));
+  /** Every region with ranked teams this season, its top team and its leagues (the regions list). */
+  api.get("/rankings/regions", rankingsLimit, h(async (req) => {
+    const s = req.query.season == null || req.query.season === "" ? await defaultRankingsSeason() : predictSeason(req.query.season);
+    return regionsList(s);
+  }));
+  /** One region's table (src/shared/regionRankings.ts): ?region=USA:NJ, &week=, &sort=, &page=, &team= (that team's page). */
+  api.get("/rankings/region", rankingsLimit, h(async (req) => {
+    const { season: s, week, places } = await rankingsQuery(req);
+    if (places.length !== 1) throw bad("region: one place, a country as FIRST names it (USA) or a country and state code (USA:NJ)");
+    const sortRaw = req.query.sort == null || req.query.sort === "" ? "rank" : String(req.query.sort);
+    if (!isRegionSort(sortRaw)) throw bad(`sort: one of ${REGION_SORTS.join(", ")}`);
+    const page = req.query.page == null || req.query.page === "" ? null : int(req.query.page, "page", { min: 1, max: 10_000 });
+    const team = req.query.team == null || req.query.team === "" ? null : int(req.query.team, "team", { min: 1, max: 999999 });
+    return regionRankings({ season: s, week, place: places[0], page, sort: sortRaw, team });
   }));
 
   // --- Predictions ---------------------------------------------------------
