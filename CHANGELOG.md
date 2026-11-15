@@ -21,6 +21,8 @@ Region rankings › the table fits a phone screen in every sort.
 
 ### Highlights
 - [rankings] Region rankings fit a phone screen in every sort
+- [rankings] Sorted by Events on a phone, Events shows in OPR's place
+- [rankings] Team numbers sit closer to the scores on a phone
 
 ### Changed
 - Region rankings on phones: cells are a little tighter and the team column sizes to its number, so the table fits 390px; sorted by Events, Events shows in OPR's place. (`src/pages/RegionRankingsPage.tsx`) (#1578)
