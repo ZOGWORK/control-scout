@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.3.7 — 2026-11-14
+## 6.3.9 — 2026-11-14
 
 FTC One Search works with no signal at the meet: search a team in the downloaded event by number or name, the event, a match, or set its teams side by side, and get the same answer as online. Anything else says plainly that it needs data the pack doesn't hold, and shows what the pack does hold.
 
@@ -32,6 +32,30 @@ FTC One Search works with no signal at the meet: search a team in the downloaded
 
 ### Changed
 - With an event pack saved, search waits 4 seconds for the server before the pack answers (no answer, or no network at all: at once), never search's 10-second slow-search wait; a search the pack can't answer still waits for a server that's answering everything else. (#1489)
+
+## 6.3.8 — 2026-11-14
+
+A search asking for video with nothing to play now offers questions with video right away, even the first one after a restart.
+
+### Highlights
+- [fixes] Video searches with nothing to play always offer questions that play
+- [fixes] Questions with video show sooner: no extra wait when some are ready
+- [fixes] Events from last season get a turn when this season's have no clips
+
+### Fixed
+- Search: "Questions with video" for an answer at an event this season could come out empty. Each nearby event was checked by a search of its own, in turn, and when this season's had no clips last season's never got a turn before the wait ran out. A few questions about the latest seasons' best known events with clips are now checked in the background at server start, and again after each search index rebuild and every half hour; they are offered when nothing nearby plays in time, without waiting longer. Each nearby season now gets at most half the turns. (`server/api/answers/videoSuggest.ts`, `server/index.ts`) (#1501)
+
+## 6.3.7 — 2026-11-14
+
+A recorded event with a day that has no recording now always reads "Partially recorded", and the coverage line no longer says "Full".
+
+### Highlights
+- [fixes] A partly recorded event never reads as fully recorded
+- [fixes] Event pages name a day with no recording in the coverage line
+- [fixes] The coverage line waits for the check instead of guessing
+
+### Fixed
+- Event page coverage line: an event whose coverage check finds a day with no recording (FPEWESEA 2025: Friday and Sunday) said "Full recording only — no match clips in it yet"; it now says "Partially recorded — 0 of 124 matches have video". A recording with no clip placed reads "Recording only — no match clips in it yet", never "Full". The line and the day chips read the same coverage request. While the check is out, a line with no clip waits instead of saying "Recording only" first; a recording that won't play keeps saying so. (`src/components/contributors/RecordingGaps.tsx`, `src/shared/contributors.ts`) (#1500)
 
 ## 6.3.6 — 2026-11-14
 

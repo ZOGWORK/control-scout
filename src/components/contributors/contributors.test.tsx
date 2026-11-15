@@ -100,8 +100,17 @@ describe("the event page's clips", () => {
     h.event = { matches: {}, coverage: { played: 2, withVideo: 0 } };
     render(<MemoryRouter><EventClipsProvider season={2025} code="USTXCMP4T"><CoverageLine recorded /></EventClipsProvider></MemoryRouter>);
     expect(screen.queryByText(/No recording/)).toBeNull();
-    expect(screen.getByText("Full recording only — no match clips in it yet")).toBeTruthy();
+    expect(screen.getByText("Recording only — no match clips in it yet")).toBeTruthy();
     expect(document.querySelector("[data-coverage]")?.getAttribute("data-coverage")).toBe("recording");
+  });
+
+  it("a recorded event with a day that has no recording reads partly recorded, never just 'recording' or 'Full'", () => {
+    // FPEWESEA 2025: Saturday's video places no match, Friday and Sunday have no recording at all.
+    h.event = { matches: {}, coverage: { played: 124, withVideo: 0 } };
+    render(<MemoryRouter><EventClipsProvider season={2025} code="FPEWESEA"><CoverageLine recorded partial /></EventClipsProvider></MemoryRouter>);
+    expect(screen.getByText("Partially recorded — 0 of 124 matches have video")).toBeTruthy();
+    expect(document.body.textContent).not.toMatch(/Full/);
+    expect(document.querySelector("[data-coverage]")?.getAttribute("data-coverage")).toBe("partial");
   });
 
   it("an event whose linked recording won't play says so, never that there's none", () => {

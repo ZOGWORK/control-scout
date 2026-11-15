@@ -91,6 +91,9 @@ export async function nameTypos(): Promise<ReadonlySet<string>> {
   return built.typos;
 }
 
+/** The search index version the set in use was built for, or null before the first build. */
+export const nameTyposVersion = (): string | null => built?.version ?? null;
+
 /** Builds the set ahead of a search (server start, and after the data moves). */
 export const warmNameTypos = (): Promise<void> => refresh();
 // The owner's Clear caches marks it stale: the next use, or server/index.ts's next warm, builds it again in the
