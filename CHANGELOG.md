@@ -20,8 +20,8 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 Events › The Chicago Robotics Invitational shows its full results: teams, matches, standings, alliances and awards for 2025–26 and 2024–25, from the event's own results site.
 
 ### Highlights
-- [history] Chicago Robotics Invitational 2025–26 and 2024–25 have their matches, rankings and awards
-- [history] Their matches play from the event's recordings
+- [history] Chicago Robotics Invitational: matches, rankings and awards
+- [history] Its matches play from the event's recordings
 - [fixes] The page says plainly where the results came from
 
 ### Added
