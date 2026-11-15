@@ -46,7 +46,7 @@ export function netWords(season: number, packs: PackList) {
  *  this browser's storage (as src/lib/offline/storage.ts and NetworkSection list them), and the saved choices. ES5-ish
  *  and small (it travels with every load of this page). */
 export const NET_SCRIPT = `(function(){var d=document,$=function(i){return d.getElementById(i)},R=$("n-status");if(!R)return;
-var W=JSON.parse(R.getAttribute("data-words")),N=navigator,C=N.connection||null,st={internet:"yes",at:0},busy=false;
+var W=JSON.parse(R.getAttribute("data-words")),N=navigator,C=N.connection||null,st={internet:"yes",at:0},busy=false,again=false;
 function ls(k){try{return JSON.parse(localStorage.getItem(k)||"null")}catch(e){return null}}
 function e(s){return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;")}
 function txt(i,s){var x=$(i);if(x)x.textContent=s}
@@ -67,10 +67,10 @@ function cls(r){if(r.type==="opaqueredirect"||(r.status>=300&&r.status<400))retu
 if(r.redirected&&r.url&&new URL(r.url,location.href).origin!==location.origin)return"portal";
 if(r.status===511)return"portal";if(r.status>=500)return"yes";
 return r.text().then(function(x){var b;try{b=JSON.parse(x)}catch(e){return"portal"}return b&&typeof b==="object"&&b.ok===true?"yes":"portal"},function(){return"no"})}
-function check(){if(busy)return;busy=true;var b=$("n-check");b.disabled=true;b.textContent="Checking";
+function check(){if(busy){again=true;return}busy=true;again=false;var b=$("n-check");b.disabled=true;b.textContent="Checking";
 var c=typeof AbortController!=="undefined"?new AbortController():null,tm=setTimeout(function(){if(c)c.abort()},2500);
 fetch("/api/health",{cache:"no-store",redirect:"manual",credentials:"omit",signal:c?c.signal:undefined,headers:{Accept:"application/json"}})
-.then(cls)["catch"](function(){return"no"}).then(function(i){clearTimeout(tm);st={internet:i,at:Date.now()};busy=false;b.disabled=false;b.textContent="Check again";draw()})}
+.then(cls)["catch"](function(){return"no"}).then(function(i){clearTimeout(tm);st={internet:i,at:Date.now()};busy=false;b.disabled=false;b.textContent="Check again";draw();if(again)check()})}
 function packs(){var o=String(localStorage.getItem("cs-personal-owner")||""),L=[],ev=[];
 (ls("cs-event-bundles")||[]).forEach(function(x){if(!x.workspace||(x.accountId!=null&&String(x.accountId)===o)){L.push([x.name,x.bytes,x.dataAsOf||x.builtAt]);ev.push(x)}});
 (ls("cs-offline-seasons")||[]).slice().sort(function(a,b){return b.season-a.season}).forEach(function(x){L.push([sl(x.season)+" season",x.bytes,x.dataAsOf||new Date(x.savedAt).toISOString()])});

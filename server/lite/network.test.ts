@@ -33,6 +33,25 @@ const html = async () => new Response("<!doctype html><title>Venue Wi-Fi</title>
 beforeEach(() => { localStorage.clear(); setConnection(undefined); });
 afterEach(() => { vi.unstubAllGlobals(); document.body.innerHTML = ""; });
 
+// First in the file: no earlier page's script is still listening for the online event.
+describe("the line coming back mid-check", () => {
+  it("an online event during a check that then finds nothing checks again, so the screen ends on the newer answer", async () => {
+    setConnection("wifi");
+    let fail!: (e: Error) => void;
+    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>((_, rej) => { fail = rej; })));
+    document.body.innerHTML = networkPage(DEFAULT_VIEW, S, PACKS).body;
+    new Function(NET_SCRIPT)();
+    expect(text("n-check")).toBe("Checking");
+    // The Wi-Fi comes back while the first check (on the dead line) is still out.
+    vi.stubGlobal("fetch", vi.fn(json({ ok: true })));
+    window.dispatchEvent(new Event("online"));
+    fail(new TypeError("Failed to fetch"));
+    // The newer check ran after the first one let go, and the screen ends on its answer.
+    await vi.waitFor(() => { expect(text("n-check")).toBe("Check again"); expect(text("n-when")).toMatch(/^Checked at /); expect(text("n-net")).toBe("Working"); });
+    expect(text("n-title")).toBe("You're online");
+  });
+});
+
 describe("the status, from a real check", () => {
   it("our server's answer: online, and the internet works", async () => {
     setConnection("wifi");
