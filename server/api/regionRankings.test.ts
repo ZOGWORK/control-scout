@@ -156,6 +156,9 @@ describe("the region table", () => {
     expect(r.stats).toBe(false);
     expect(r.rows.map((x) => [x.rank, x.team, x.rating, x.opr])).toEqual([[1, 4215, 82, null], [2, 5003, 70, null], [3, 5001, 65, null], [4, 5004, 49, null]]);
     expect(r.unranked).toEqual([]);
+    // 5002 is from New Jersey but wasn't in that week's ranking: said so, not labeled by today's rated matches.
+    expect((await region(`season=${S}&region=USA:NJ&week=${W1}&team=5002`)).asked).toEqual({ team: 5002, name: "Jersey B", status: "notInWeek", week: W1 });
+    expect((await region(`season=${S}&region=USA:NJ&week=${W1}&team=9001`)).asked).toEqual({ team: 9001, name: "Two Matches", status: "notInWeek", week: W1 });
   });
 
   it("lists the region's leagues", async () => {
