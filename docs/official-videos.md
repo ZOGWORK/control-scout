@@ -233,7 +233,11 @@ channel's whole uploads list, video by video, with Scout's records. It reads onl
   - **A watcher miss.** It's in the window, older than the watcher's last run, and the watcher has no row for it. It
     counts in the run's `missed` and becomes a finding at once. If a watcher run after that still has no row for it,
     it goes to the review queue with why. The audit never adds a video.
-  - **A finding.** It's older than the window and may be a recording (an "add" or "review" verdict). It shows in
+  - **Set aside by the audit.** It's older than the window, but it can't fill a day Scout has no video for. That's
+    a broadcast on a day with no Scout event in the region, an upload with no event to put it on, or one whose event
+    (its own, or its best guess) already plays a video for each of its days (`everyDayPlays`). The reason says which.
+  - **A finding.** It's older than the window and may be a recording Scout lacks: an "add" or "review" verdict whose
+    event has a day with no video. It shows in
     Owner › Official videos with its verdict, why and best guess. The owner sends it to review (`officialVideo.auditQueue`)
     or says why it isn't a recording (`officialVideo.auditDismiss`, reason required), and it's never opened again.
 - **The watcher's own adds**, checked every run (`official_audit_adds`). Each is checked for these:
