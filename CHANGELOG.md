@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.8.3 — 2026-11-15
+## 6.8.5 — 2026-11-15
 
 Search › highlights questions people asked that came back empty now answer: a town's highlights, the best TeleOp or Auto videos in a country, and teams compared with "highlights".
 
@@ -30,6 +30,30 @@ Search › highlights questions people asked that came back empty now answer: a 
 - Search: one period's best said of matches with no team or OPR ("best teleop videos in romania decode", "highest teleop score in romania", "best auto videos in michigan") is the season's best matches by that period's points in that place, a state or a whole country, each playing its clip, never a board of teams. "Best teleop OPR in Romania" stays the board. (`server/api/query/execute.ts`, `server/api/answers/read.ts`, `server/api/answers/index.ts`, `server/api/searchAnswer.ts`)
 - Search: teams compared with "highlights" ("4215 vs 6980 highlights", "… best moments") show the side by side and then each team's standout matches of that season, the same ones its highlights page lists. (`server/api/searchAnswer.ts`) (#1579)
 - Search: an event's highlights before any match is played say "No highlights yet — no matches played at this event." (`server/api/query/highlights.ts`) (#1579)
+
+## 6.8.4 — 2026-11-15
+
+Offline search › a saved season answers a search in about a third of a second.
+
+### Highlights
+- [offline] Offline search from a saved season answers in about 0.3 s
+- [speed] A saved season's search index is kept, not rebuilt each page
+- [offline] With no signal, saved seasons get ready while the app is idle
+
+### Changed
+- Offline search with a season saved: the season's search index (every team and event, normalised) is kept on the device once built, per file and release, and read back with the file, instead of being rebuilt on each page; plain-ASCII names skip the Unicode passes (same result); rows come out of SQLite without re-reading column names; and with no signal the saved seasons and event packs open once the page has settled and is idle. /search?q=4215 offline with the season saved: about 1 s before, about 0.3 s after. (`src/lib/offline/readers.ts`, `src/lib/offline/seasons.ts`, `src/lib/offline/answer.ts`, `src/lib/api.ts`, `src/shared/fuzzy.ts`) (#1580)
+
+## 6.8.3 — 2026-11-15
+
+Region rankings › the table fits a phone screen in every sort.
+
+### Highlights
+- [rankings] Region rankings fit a phone screen in every sort
+- [rankings] Sorted by Events on a phone, Events shows in OPR's place
+- [rankings] Team numbers sit closer to the scores on a phone
+
+### Changed
+- Region rankings on phones: cells are a little tighter and the team column sizes to its number, so the table fits 390px; sorted by Events, Events shows in OPR's place. (`src/pages/RegionRankingsPage.tsx`) (#1578)
 
 ## 6.8.2 — 2026-11-15
 
