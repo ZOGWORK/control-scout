@@ -50,6 +50,9 @@ export type Judged = {
   /** A match whose frame start lands inside the previous match's play (both read off the video): when it starts, and
    *  when the previous one's play ends. */
   earlyStart: Map<string, { t: number; previousEnds: number }>;
+  /** Each placed match's clip start: the first second, of those tried before its start, whose overlay names it
+   *  (filled by the reader's opening check, never by judge). */
+  opens: Map<string, number>;
 };
 
 /** Why a match is missing when no frame of its video could be read at all. */
@@ -58,6 +61,12 @@ export const NOTHING_READ = "no frame of the video could be read";
 /** The least a match can take in a video: 30 s Auto, 8 s switch, 2:00 TeleOp. Two placed starts closer than this
  *  overlap. */
 export const MATCH_S = AUTO_S + SWITCH_S + TELEOP_S;
+/** Where a clip may open, seconds before its match's start, earliest first: the first whose frame names the match. */
+export const OPEN_LEADS = [20, 12, 5];
+
+/** The reason a placed match whose clip opening couldn't be checked gets: never a clip, never a clock reason. */
+export const OVERLAY_UNREAD = "overlay could not be read at its clip's start";
+
 /** How far (seconds) a lone confirmed read may sit from where the rest of its video sits and still place its match. */
 export const LONE_S = 30 * 60;
 
@@ -187,6 +196,6 @@ export function judge(ms: M[], seen: Map<number, number>, shift: number | null, 
       : !kept.length && !read.size ? NOTHING_READ
       : "no frame read of it, and no agreeing reads on both sides");
   });
-  return { placed: placedAt, review, missing, earlyStart };
+  return { placed: placedAt, review, missing, earlyStart, opens: new Map() };
 }
 
