@@ -20,7 +20,7 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 Search answers a top-scores question about an event named without "at": "best auto match in romania champs" lists the Romania Championship's best auto scores.
 
 ### Highlights
-- [fixes] "best auto match in romania champs" lists that championship's top auto scores
+- [fixes] "best auto match in romania champs" lists its top auto scores
 - [fixes] An event named after "in" is read as the event, not as a place
 - [fixes] "4215 highest score in …" still answers about the team
 
