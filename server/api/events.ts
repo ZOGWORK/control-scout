@@ -1,4 +1,6 @@
 // Event list + event detail + the engine's EventInput for forecasting.
+import { CRI_SOURCE } from "../sources/cri.js";
+import { criLinkFor } from "../data/criResults.js";
 import type { EventInput } from "@control-scout/predict-engine";
 import { all, get, kvGet } from "../db.js";
 import { eventTypeLabel, isLegacy } from "../data/seasons.js";
@@ -162,6 +164,8 @@ export async function eventDetail(season: number, code: string): Promise<EventDe
     // read (data/registrations.ts); a fetch whose list read failed doesn't count, the list shown is older. FTC Scout's
     // (FIRST couldn't serve the event): its last successful fetch, which brings the whole list.
     teamsSyncedAt: (r.source === "first" ? r.teams_checked_at : r.detail_synced_at) ?? null,
+    // Results the event posted on its own site (FIRST published none: data/criResults.ts): named and linked on the page.
+    ...(r.source === CRI_SOURCE ? { resultsSource: await criLinkFor(season, code) } : {}),
     // Ratings read as the forecast and the projections read them; the qualification draw as posted (no-shows included).
     scheduleDifficulty: f ? eventScheduleDifficulty(f, input, { posted: postedQuals(matches), over: eventOver(r) }) : null,
   };
