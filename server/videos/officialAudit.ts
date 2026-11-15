@@ -235,6 +235,17 @@ export async function runChannelAudit(log: (s: string) => void, opts: { apiKey?:
         guess = { season: g.event?.season ?? null, code: g.event?.code ?? null, day: g.day ?? null, why: g.why ?? null };
         verdict = m.kind;
         why = m.kind === "add" ? `every check of the watcher's passes (${m.why}), but the audit never adds: for the owner to decide` : m.why;
+        // Older than the watcher's window, a video that can't fill a day Scout has no video for isn't a missed
+        // recording: set aside, with why (a broadcast on a day the region has no Scout event; an upload with no event to
+        // put it on; one whose event already plays a video for each of its days). What's left may be one.
+        if (!inWindow && !live && row.facts_at && (m.kind === "review" || m.kind === "add")) {
+          // A broadcast fits only an event on its own day: the best guess's 3 weeks are for an upload.
+          const ev = ("event" in m && m.event ? m.event : v.start ? undefined : g.event) as WatchEvent | undefined;
+          const gap = v.start && !ev ? `${m.why}: nothing to put it on`
+            : !ev ? `an upload with no Scout event to put it on (${g.why})`
+            : await everyDayPlays(ev);
+          if (gap) { m = { kind: "ignore", why: gap }; verdict = "ignore"; why = `set aside by the audit: ${gap}`; }
+        }
         const startMs = v.start ? Date.parse(v.start) : NaN;
         const ended = f?.end ?? (Number.isFinite(startMs) && v.durationS != null ? new Date(startMs + v.durationS * 1000).toISOString() : null);
         const last = [v.published, ended].filter(Boolean).sort().pop() ?? null;
@@ -345,6 +356,18 @@ async function readUploads(channelId: string, full: boolean, key: string, fetchI
     if (!full && fresh < items.length) return false;
   }
   return false;
+}
+
+/** Why an event can't take another day's recording: each of its days already plays a video (a one-day event: any
+ *  video, its day read or not). Null when a day has none, or the event plays nothing. */
+export async function everyDayPlays(e: WatchEvent): Promise<string | null> {
+  const has = await eventVideosByDay(e.season, e.code);
+  if (!has.length) return null;
+  const days: string[] = [];
+  for (let d = e.start; d <= (e.end ?? e.start) && days.length < 14; d = shift(d, 1)) days.push(d);
+  const covered = new Set(has.map((h) => h.day).filter(Boolean));
+  const all = days.every((d) => covered.has(d)) || (days.length === 1 && has.some((h) => !h.day));
+  return all ? `its event ${e.season} ${e.code} (${e.name}) already plays a video for ${days.length === 1 ? "its one day" : `each of its ${days.length} days`} (${has.map((h) => h.videoId).join(", ")})` : null;
 }
 
 /** Each video the watcher added on its own, checked again: still on its event, playable, an FTC competition stream,
