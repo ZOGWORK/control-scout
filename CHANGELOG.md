@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 6.7.3 — 2026-11-15
+
+Report a bug › the public notice is larger, offers a private email instead, and Send asks once more before anything is posted.
+
+### Highlights
+- [report] The "this is public" notice is larger and easier to read
+- [report] Want it private? Email sushil.m@icloud.com instead
+- [report] Send asks a second time: "Yes, post it publicly" or Go back
+
+### Changed
+- Report a bug: the public GitHub Issue notice is a boxed, full-size line with a private-email way out (a mailto link), on the form and on the sent screen. The first Send asks "Send this as a public issue?"; only "Yes, post it publicly" sends, and Go back returns to the form with nothing sent. On phones the sheet scrolls so both answers are in view, and it has bottom padding again. (`src/components/layout/BugReport.tsx`)
+
 ## 6.7.2 — 2026-11-15
 
 Search › "Where does 4215 rank in New Jersey" answers with the region page's own numbers (rank in New Jersey, rating, record, OPR) and opens that page with the team's row marked.
