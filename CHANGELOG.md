@@ -17,15 +17,16 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 
 ## 6.6.4 — 2026-11-15
 
-Search reads a year after an award's winners: "inspire award winners 2024" lists that season's Inspire Award winners.
+A bug report's screenshot or video is cleared from the server minutes after its GitHub issue is filed, instead of waiting for a quiet stretch with no deploys.
 
 ### Highlights
-- [fixes] "inspire award winners 2024" lists the 2024–25 winners
-- [fixes] "think award winners 2025" lists the 2025–26 winners
-- [fixes] A team numbered like a year is still read as that team
+- [report] Attachments leave the server minutes after the issue is filed
+- [report] Reports waiting on GitHub are tried again a minute after each restart
+- [fixes] Busy deploy days no longer hold up bug report filing
 
 ### Fixed
-- Search: one award's winners with a bare year ("inspire award winners 2024", "think award winners 2025") said no team, event or match matched, since the year was taken for a team number. A year ending the question is now its season, as search reads a year everywhere (2024 is 2024–25; at Worlds, the Championship held that year). A number before the ask, or after "team" or "#", is still a team's. Failed search #1434. (`server/api/answers/families/placeAwards.ts`) (#1533)
+- Report a bug: GitHub takes a few seconds to open a new issue's attachments to everyone, so the first check right after filing usually finds them closed. The server now checks again after 15 s, 1 min and 3 min and deletes the local copy once each opens, instead of waiting for the 10-minute sweep. The sweep also runs one minute after each start: deploys restarted the server every few minutes on 2026-11-15 and each restart put it off again, so neither the clean-up nor "file it later" ran. (`server/bugReports.ts`, `server/index.ts`) (#1551)
+
 ## 6.6.3 — 2026-11-15
 
 Search reads a question that calls Bruno by name: "bruno, whats the best team in nj" gets New Jersey's top teams.

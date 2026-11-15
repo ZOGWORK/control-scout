@@ -174,7 +174,10 @@ scheduleCycles({ cycle, eventDay, backfillDue, eventDayMinutes });
 // check the free-tier guardrails. Nothing without R2 configured; off with the rest of the schedule.
 if (!process.env.CS_NO_SCHEDULER) {
   // Bug reports: email what's due and unsent (a failed or interrupted send), clear abandoned uploads, every 10 minutes (server/bugReports.ts).
-  setInterval(() => { sweepBugReports().catch((e) => log(`bug reports: sweep failed: ${(e as Error)?.message ?? e}`)); }, 10 * 60_000).unref();
+  // Also once a minute after boot: deploys restart the server often, and each restart would put the sweep off again.
+  const sweepBugs = () => { sweepBugReports().catch((e) => log(`bug reports: sweep failed: ${(e as Error)?.message ?? e}`)); };
+  setTimeout(sweepBugs, 60_000).unref();
+  setInterval(sweepBugs, 10 * 60_000).unref();
   // Failed searches → GitHub issues, every 10 minutes (server/searchFailures.ts).
   startSearchFailureJobs(log);
   // The public /status page's checks, every 2 minutes (server/uptime.ts). No alerts.
