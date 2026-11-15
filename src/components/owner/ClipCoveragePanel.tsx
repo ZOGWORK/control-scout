@@ -19,7 +19,7 @@ import { apiFetch, ApiError, markStale, prime, useApi } from "../../lib/api";
 import { ago, seasonLabel } from "../../lib/format";
 import { watchUrl } from "../../shared/recording";
 import { labelRanges, missingGroups, TRIAGE_ABOUT, TRIAGE_LABEL, TRIAGE_ORDER } from "../../shared/coverage";
-import type { CoveragePass, CoverageTriage, OwnerClipCoverage, OwnerCoverageEvent } from "../../shared/api";
+import type { ClipCheckTotals, CoveragePass, CoverageTriage, OwnerClipCoverage, OwnerCoverageEvent } from "../../shared/api";
 import { chipTone } from "../contributors/RecordingGaps";
 import { cn } from "../cn";
 
@@ -30,6 +30,15 @@ const n = (x: number) => x.toLocaleString();
 const events = (x: number) => `${n(x)} ${x === 1 ? "event" : "events"}`;
 /** A second in a video: "2:54:00". */
 const hms = (s: number) => { const t = Math.max(0, Math.round(s)); return `${Math.floor(t / 3600)}:${String(Math.floor(t / 60) % 60).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`; };
+
+/** The frame checks of clips placed from the clock, in numbers (videos with no readable overlay counted, never pulled). */
+function ClipChecks({ c }: { c: ClipCheckTotals }) {
+  return (
+    <p className="text-xs text-muted-foreground" data-coverage-clip-checks>
+      Clips checked by their first frame: {n(c.checked)} · {n(c.ok)} confirmed · {n(c.pulled)} pulled · {n(c.unconfirmed)} to read again · {n(c.noOverlayVideos)} {c.noOverlayVideos === 1 ? "video" : "videos"} with no overlay to read.
+    </p>
+  );
+}
 
 /** The last check pass in numbers: what it checked, and why each missing match is missing, by its video check. */
 function LastPass({ p }: { p: CoveragePass | null }) {
@@ -86,18 +95,20 @@ export function ClipCoveragePanel() {
               {n(d.totals.events)} recorded events checked · {n(d.totals.full)} fully clipped · {n(d.totals.withClip)} of {n(d.totals.played)} played matches have a clip
             </p>
             <LastPass p={d.lastPass} />
-            <Section title={`In the video, no clip (${n(d.findings.length)})`} description="Findings: matches the video's own frames showed, with no clip. Each with its video, the second it was seen at, and why it has no clip. Never marked reviewed." >
+            <ClipChecks c={d.clipChecks} />
+            <Section title={`Findings (${n(d.findings.length)})`} description="Matches the video's own frames showed with no clip, and clips pulled because their first frame showed another match. Each with its video, the second, and why. Never marked reviewed." >
               {d.findings.length ? (
                 <ul className="grid gap-1.5 text-xs" data-coverage-findings>
                   {d.findings.map((f) => (
-                    <li key={`${f.season}/${f.code}/${f.label}`} className="rounded-lg border border-warning/50 bg-warning/[0.07] px-2.5 py-1.5" data-coverage-finding={`${f.season}/${f.code}/${f.label}`}>
+                    <li key={`${f.kind}/${f.season}/${f.code}/${f.label}`} className="rounded-lg border border-warning/50 bg-warning/[0.07] px-2.5 py-1.5" data-coverage-finding={`${f.season}/${f.code}/${f.label}`} data-finding-kind={f.kind}>
+                      <span className="mr-1.5 font-medium">{f.kind === "pulled" ? "Clip pulled" : "In the video, no clip"}:</span>
                       <Link to={`/events/${f.season}/${encodeURIComponent(f.code)}`} className="font-medium hover:underline">{f.season} {f.code} {f.label}</Link>
                       {" · "}<a href={watchUrl(f.videoId, f.at)} target="_blank" rel="noreferrer noopener" className="font-mono hover:underline">{f.videoId} at {hms(f.at)}</a>
                       <span className="text-muted-foreground"> · {f.why}</span>
                     </li>
                   ))}
                 </ul>
-              ) : <p className="text-sm text-muted-foreground" data-coverage-findings>None: every match the video showed has its clip.</p>}
+              ) : <p className="text-sm text-muted-foreground" data-coverage-findings>None: every match the video showed has its clip, and no clip was pulled.</p>}
             </Section>
             <div className="grid gap-3" data-coverage-triage>
               <p className="text-sm">
