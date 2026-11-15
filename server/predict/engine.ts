@@ -15,6 +15,8 @@ import { CURRENT_SEASON, PREDICT_SEASONS } from "../data/seasons.js";
 import { loadSeason, toEventRecord } from "../stats/load.js";
 import { registerCache } from "../caches.js";
 import { onPartnershipPrefixReady, partnershipPrefix } from "./partnerships.js";
+import { callOptions } from "../../src/shared/predictView.js";
+import { pairsAmong } from "../../src/shared/eventBundle.js";
 
 const yieldLoop = () => new Promise<void>((r) => setImmediate(r));
 
@@ -348,14 +350,20 @@ export class ScoutForecaster extends Forecaster {
     const b = this.book(season);
     if (!b) return null;
     const table = this.partnerships(season);
-    const partnership = table ? { table, season } : undefined;
     // Bonus ranking points count in qualification matches only.
     const bonus = level === "qual" ? this.bonusModel(season) : null;
-    return explainMatch(b, red, blue, {
-      noise: FITTED_MODEL.noise, calibration: FITTED_MODEL.calibration, contextual: FITTED_MODEL.contextual, context: { level, event, ...(event && this.regionOf(event) ? { region: this.regionOf(event)! } : {}) }, shadow: FITTED_MODEL.contextual?.fallback, band: FITTED_MODEL.band, partnership,
+    return explainMatch(b, red, blue, callOptions({
+      level, event, region: event ? this.regionOf(event) : null, partnership: table ? { table, season } : undefined,
       ...(recent ? { recent: (t: number) => recent.get(t) ?? null } : {}),
-      ...(bonus ? { bonus: { season, model: bonus } } : {}),
-    });
+      bonus: bonus ? { season, model: bonus } : null,
+    }));
+  }
+
+  /** What an offline copy of this season's calls needs besides the ratings (an event bundle, server/packs/bundle.ts):
+   *  the bonus model and the pair history `explain` reads, the latter cut to `teams`. Null pairs: none for the season. */
+  callInputs(season: number, teams: Iterable<number>): { bonus: BonusModelSource | null; pairs: PartnershipData | null } {
+    const table = this.partnerships(season);
+    return { bonus: this.bonusModel(season), pairs: table ? pairsAmong(table, season, teams) : null };
   }
 
   private bonusModels = new Map<number, BonusModelSource | null>();

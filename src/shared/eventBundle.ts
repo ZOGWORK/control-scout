@@ -16,7 +16,8 @@
 //
 // Freshness: the bundle says what time its data is from, everywhere it renders. Live data always takes over the
 // moment it loads; the bundle answers only with no signal (lib/api.ts), the shipped rule for packs.
-import type { RatingBookData } from "@control-scout/predict-engine";
+import type { BonusModelSource, PairLookup, PartnershipData, RatingBookData } from "@control-scout/predict-engine";
+import type { RecentRow } from "./predictView";
 import type { CompareTeam, EventDetail } from "./api";
 import type { PackSearch } from "./searchVersus";
 import { SEARCH_PAGE_LIMIT, cleanQuery } from "./search";
@@ -190,6 +191,9 @@ export interface EventBundle {
   manifest: Omit<BundleManifest, "url" | "bytes" | "sha256">;
   event: EventDetail;
   ratings: RatingBookData | null;
+  /** The rest of what the server's prediction reads, taken from the same ratings build (bundles built before it:
+   *  absent, and their offline calls have no bonus odds, pair history or recent-record reasons). */
+  predict?: BundlePredict;
   reports: HtmlSnapshot[];
   /** `teams`: the list's teams in order (bundles saved before it was added: absent). */
   picklist: (HtmlSnapshot & { count: number; teams?: number[] }) | null;
@@ -204,6 +208,18 @@ export interface EventBundle {
   search?: PackSearch;
   /** The server's current season when the pack was built (what Compare shows for teams with no results at all). */
   currentSeason?: number;
+}
+
+/** With `ratings`, everything GET /api/predict/match reads for a lineup of the event's teams, as of the build. */
+export interface BundlePredict {
+  /** The season's bonus-RP model (null: none for the season). */
+  bonus: BonusModelSource | null;
+  /** The pair history among the event's teams (null: none for the season). */
+  pairs: PartnershipData | null;
+  /** The event's teams' recent records [team, matches, no-shows, near-zero] (reasons only). */
+  recent: RecentRow[];
+  /** The event's teams' names as the server's team list has them. */
+  names: [number, string | null][];
 }
 
 /** What the device keeps per bundle (the list in localStorage; the bytes in IndexedDB). */
@@ -248,6 +264,30 @@ export function sliceBook(data: RatingBookData, teams: Iterable<number>): Rating
     ...(data.events ? { events: mine(data.events) } : {}),
     ...(data.regions ? { regions: { lift: data.regions.lift, pending: data.regions.pending.filter(([t]) => keep.has(t)) } } : {}),
   };
+}
+
+/** The pair history among these teams, read from the table a call reads (every pair of them it holds, as it holds
+ *  it, and the names of the events their best scores came at), as data PartnershipTable.fromData loads back: a
+ *  call about these teams reads the same from either. */
+export function pairsAmong(table: PairLookup, season: number, teams: Iterable<number>): PartnershipData {
+  const ts = [...new Set(teams)].sort((a, b) => a - b);
+  const events: PartnershipData["events"] = [];
+  const index = new Map<string, number>();
+  const together: number[][] = [], against: number[][] = [];
+  for (let i = 0; i < ts.length; i++) for (let j = i + 1; j < ts.length; j++) {
+    const a = ts[i], b = ts[j];
+    const t = table.together(a, b);
+    if (t) {
+      const k = `${t.bestSeason}|${t.bestEvent}`;
+      let e = index.get(k);
+      // An unknown name loads back as unknown (null), as the table had it.
+      if (e == null) { e = events.length; index.set(k, e); events.push([t.bestSeason, t.bestEvent, table.eventName(t.bestSeason, t.bestEvent) as string]); }
+      together.push([a, b, t.n, t.wins, t.losses, t.ties, t.w, t.z, t.season, t.best, t.bestSeason, e]);
+    }
+    const g = table.against(a, b);
+    if (g) against.push([a, b, g.n, g.wins, g.losses, g.ties, g.w, g.z, g.season]);
+  }
+  return { version: 1, season, together, against, events };
 }
 
 /** A stable JSON text for hashing: keys that only say when something was computed (not what) are left out, so the
