@@ -13,7 +13,7 @@ import { createApp } from "./app";
 import { setMailer, type MailOptions } from "./auth/email";
 import { randomUUID } from "node:crypto";
 import {
-  BUG_RATE, bugDir, bugIssueTitle, deleteBugReport, emailing, filing, listBugReports, NO_TOKEN, resetBugFilingPause, resetBugLimits,
+  BUG_RATE, bugDir, bugIssueTitle, deleteBugReport, emailing, filing, listBugReports, NO_TOKEN, PRIVATE_REPORT, resetBugFilingPause, resetBugLimits,
   STORAGE_CAP_BYTES, sweepBugReports, UPLOAD_ROUTE, UPLOAD_WINDOW_MS, validateBugReport,
 } from "./bugReports";
 import { resetRepositoryId, setGithubFetch } from "./errorReports";
@@ -30,7 +30,7 @@ const saved = { to: process.env.CONTACT_TO, dir: process.env.DATA_DIR, token: pr
 type Call = { method: string; url: string; body?: unknown };
 let calls: Call[] = [];
 let issues: { number: number; title: string; body: string; labels: string[] }[] = [];
-let gitHub = { upload: 201, issue: 201, dropLabel: "", loseReply: false };
+let gitHub = { upload: 201, issue: 201, dropLabel: "", loseReply: false, searchLags: false };
 const fakeGithub = (async (input: string | URL | Request, init?: RequestInit) => {
   const url = new URL(String(input));
   const method = init?.method ?? "GET";
@@ -51,6 +51,8 @@ const fakeGithub = (async (input: string | URL | Request, init?: RequestInit) =>
     return Response.json({ number: issue.number, labels: issue.labels.map((name) => ({ name })) }, { status: 201 });
   }
   if (method === "GET" && url.pathname === "/search/issues") {
+    // searchLags: GitHub's search hasn't indexed the new issues yet.
+    if (gitHub.searchLags) return Response.json({ items: [] });
     const marker = /"([0-9a-f]{24})"/.exec(url.searchParams.get("q") ?? "")?.[1] ?? "-";
     return Response.json({ items: issues.filter((i) => i.body.includes(marker)).map((i) => ({ number: i.number, body: i.body })) });
   }
@@ -86,7 +88,7 @@ beforeEach(async () => {
   delete process.env.GITHUB_REPORT_TOKEN;
   calls = [];
   issues = [];
-  gitHub = { upload: 201, issue: 201, dropLabel: "", loseReply: false };
+  gitHub = { upload: 201, issue: 201, dropLabel: "", loseReply: false, searchLags: false };
   resetBugFilingPause();
   resetRepositoryId();
   resetBugLimits();
@@ -493,7 +495,7 @@ describe("filing on GitHub", () => {
     await run("UPDATE bug_reports SET to_github = 0, done_at = ? WHERE id = ?", [new Date().toISOString(), r.id]);
     await sweepBugReports();
     expect(issues).toEqual([]);
-    expect((await listBugReports()).reports[0].notFiled).toMatch(/stays private/);
+    expect((await listBugReports()).reports[0].notFiled).toBe(PRIVATE_REPORT);
   });
 
   it("closing or deleting the local report never touches GitHub", async () => {
@@ -518,6 +520,26 @@ describe("filing on GitHub", () => {
     const url = /!\[[^\]]+\]\(([^)]+)\)/.exec(issues[0].body)![1];
     expect(mails[0].text).toContain(`GitHub issue: https://github.com/ZOGWORK/control-scout/issues/${issues[0].number}`);
     expect(mails[0].text).toContain(`png on GitHub: ${url}`);
+  });
+
+  it("the issue made but not recorded here: the claim is kept, so a retry adopts it instead of filing twice", async () => {
+    const r = (await create(good)).json as { id: number; token: string };
+    // The write that records the issue fails once (as a busy database would), after GitHub made it.
+    await run(`CREATE TRIGGER fail_record BEFORE UPDATE OF issue_number ON bug_reports WHEN NEW.issue_number IS NOT NULL
+      BEGIN SELECT RAISE(ABORT, 'database is busy'); END`);
+    await done(r.id, r.token);
+    await run("DROP TRIGGER fail_record");
+    expect(issues).toHaveLength(1);
+    expect(await status(r.id, r.token)).toEqual({ state: "failed" });
+    // Sent again and swept at once, while GitHub's search can't see the issue yet: nothing new is filed.
+    gitHub.searchLags = true;
+    await done(r.id, r.token);
+    await sweepBugReports();
+    expect(issues).toHaveLength(1);
+    gitHub.searchLags = false;
+    await sweepBugReports(Date.now() + 11 * 60_000);
+    expect(issues).toHaveLength(1);
+    expect(await status(r.id, r.token)).toMatchObject({ state: "filed", number: issues[0].number });
   });
 
   it("still limits each IP to a few reports an hour", async () => {
