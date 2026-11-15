@@ -28,8 +28,8 @@ Search › highlights questions people asked that came back empty now answer: a 
 ### Fixed
 - Search: highlights in a town ("highlights in Grand Rapids", "best moments in Oradell") are the matches at events held there, named as the town, in its own state. A town name two regions share is the region with five times the other's teams and events ("Grand Rapids" is Michigan's, never team Rapid Robots); closer counts stay unread. (`server/api/query/execute.ts`, `server/api/query/highlights.ts`, `server/api/query/matchFind.ts`, `src/shared/query/names.ts`)
 - Search: one period's best said of matches with no team or OPR ("best teleop videos in romania decode", "highest teleop score in romania", "best auto videos in michigan") is the season's best matches by that period's points in that place, a state or a whole country, each playing its clip, never a board of teams. "Best teleop OPR in Romania" stays the board. (`server/api/query/execute.ts`, `server/api/answers/read.ts`, `server/api/answers/index.ts`, `server/api/searchAnswer.ts`)
-- Search: teams compared with "highlights" ("4215 vs 6980 highlights", "… best moments") show the side by side and then each team's standout matches of that season, the same ones its highlights page lists. (`server/api/searchAnswer.ts`)
-- Search: an event's highlights before any match is played say "No highlights yet — no matches played at this event." (`server/api/query/highlights.ts`)
+- Search: teams compared with "highlights" ("4215 vs 6980 highlights", "… best moments") show the side by side and then each team's standout matches of that season, the same ones its highlights page lists. (`server/api/searchAnswer.ts`) (#1579)
+- Search: an event's highlights before any match is played say "No highlights yet — no matches played at this event." (`server/api/query/highlights.ts`) (#1579)
 
 ## 6.8.2 — 2026-11-15
 
