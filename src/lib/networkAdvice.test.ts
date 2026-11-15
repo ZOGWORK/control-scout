@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { adviseLite, connectionLabel, liteCookieOn, liteToggleHref, slowReason, statusSentence } from "./networkAdvice";
 
-const base = { internet: "yes" as const, effectiveType: "4g", saveData: false, slowSeen: false, liteOn: false };
+const base = { internet: "yes" as const, online: true, type: "unknown" as const, effectiveType: "4g", saveData: false, slowSeen: false, liteOn: false };
 
 describe("status sentence", () => {
   const at = (internet: "yes" | "no" | "portal" | "unknown", online = true, type: "wifi" | "cellular" | "none" | "unknown" = "unknown") => ({ internet, online, type });
@@ -38,7 +38,23 @@ describe("connection", () => {
 
 describe("should I use Lite?", () => {
   it("offline: downloads work, Lite needs a connection; no button", () => {
-    expect(adviseLite({ ...base, internet: "no" })).toEqual({ kind: "offline", text: "You're offline: your downloaded packs work; Lite needs a connection.", action: null });
+    expect(adviseLite({ ...base, internet: "no", online: false, type: "none" })).toEqual({ kind: "offline", text: "You're offline: your downloaded packs work; Lite needs a connection.", action: null });
+  });
+  it("with no internet, opens with the status heading's own words: never 'offline' under 'Connected, but…'", () => {
+    // Measured live (6.4.7): the heading said "Connected, but nothing is getting through" while this said "You're offline".
+    expect(adviseLite({ ...base, internet: "no", online: true, type: "wifi" }).text)
+      .toBe("Connected, but nothing is getting through: your downloaded packs work; Lite needs a connection.");
+    expect(adviseLite({ ...base, internet: "portal", type: "wifi" }).text)
+      .toBe("Connected to Wi-Fi, but no internet: your downloaded packs work; Lite needs a working connection.");
+    expect(adviseLite({ ...base, internet: "portal", type: "wifi", raw: "ethernet" }).text).toMatch(/^Connected to a network, but no internet: /);
+    for (const internet of ["no", "portal"] as const) {
+      for (const online of [true, false]) {
+        for (const type of ["wifi", "cellular", "none", "unknown"] as const) {
+          const s = { ...base, internet, online, type };
+          expect(adviseLite(s).text.startsWith(`${statusSentence(s).title}: `), JSON.stringify(s)).toBe(true);
+        }
+      }
+    }
   });
   it("a Wi-Fi sign-in page: Lite can't load either, so it isn't offered", () => {
     const a = adviseLite({ ...base, internet: "portal", effectiveType: "2g" });

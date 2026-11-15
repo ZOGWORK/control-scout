@@ -4,7 +4,8 @@
 import type { AddressInfo } from "node:net";
 import { request, type Server } from "node:http";
 import { gzipSync } from "node:zlib";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -22,7 +23,10 @@ import type { RankingsResponse } from "../../src/shared/rankings";
 import { liteEvent, nextMatches } from "./trim";
 import { LITE_STYLE, LITE_TAP_CLASSES, esc, eventPage } from "./render";
 import { searchPage, textBar } from "./pages";
-import { LITE_CSP, pageVary, safeNext } from "./routes";
+import { LITE_CSP, LITE_NET_CSP, pageVary, safeNext } from "./routes";
+import { NET_SCRIPT } from "./network";
+import { LITE_LINE } from "../../src/shared/networkStatus";
+import { seasonLabel } from "../../src/shared/format";
 import type { CompareView, EventDetail, MatchExplanationView, MatchView, SearchAnswer } from "../../src/shared/api";
 
 let server: Server;
@@ -473,11 +477,11 @@ describe("the rest of Lite: the same answers as the API", () => {
     for (const t of ["light", "dim", "dark", "midnight", "system"]) expect(html).toContain(`href="/lite/theme?set=${t}&amp;next=%2Flite%2Fsettings"`);
     expect(html).toContain(`<a class="chip cur" href="/lite/theme?set=dark&amp;next=%2Flite%2Fsettings" aria-current="true">Dark</a>`);
     expect(html).toContain(`<a class="chip cur" href="/lite/size?set=m&amp;next=%2Flite%2Fsettings" aria-current="true">Default</a>`);
-    expect(html).toContain(`href="/settings#network">Network &amp; offline settings</a>`);
+    expect(html).toContain(`<a class="btn" href="/lite/network">Network &amp; offline</a>`);
     const lit = await (await get("/lite/settings", { headers: { cookie: "cs-theme=midnight; cs-text-size=xl; cs-lite=1" } })).text();
     expect(lit).toContain(`<a class="chip cur" href="/lite/theme?set=midnight&amp;next=%2Flite%2Fsettings" aria-current="true">Midnight</a>`);
     expect(lit).toContain(`aria-current="true">Largest</a>`);
-    expect(lit).toContain(`href="/settings?lite=0#network"`);
+    expect(lit).toContain(`href="/lite/network"`);
     const t = await get("/lite/theme?set=light&next=%2Flite%2Fsettings");
     expect(t.status).toBe(302);
     expect(t.headers.get("location")).toBe("/lite/settings");
@@ -504,6 +508,7 @@ describe("the rest of Lite: the same answers as the API", () => {
       ["/rankings", "?season=2025&region=USA:TX&page=2&week=2025-11-03", "/lite/rankings?season=2025&region=USA:TX&page=2"],
       ["/scout", "?space=7&tab=match", "/lite/scout?space=7&tab=match"],
       ["/settings", "", "/lite/settings"],
+      ["/network", "", "/lite/network"],
     ];
     for (const [path, search, lite] of pairs) expect(liteHref(path, search), path + search).toBe(lite);
     expect(fullHref("/lite")).toBe("/");
@@ -514,6 +519,7 @@ describe("the rest of Lite: the same answers as the API", () => {
     expect(fullHref("/lite/rankings", "?season=2025&page=3")).toBe("/rankings?season=2025&page=3");
     expect(fullHref("/lite/scout", "?space=7&tab=match&lite=0")).toBe("/scout?space=7&tab=match");
     expect(fullHref("/lite/settings")).toBe("/settings");
+    expect(fullHref("/lite/network")).toBe("/network");
     // Scouting's forms keep working offline in the full app: the app never offers Lite there.
     expect(liteOffer("/scout", "?space=7&tab=match")).toBeNull();
     expect(liteOffer("/scout", "?space=7&view=picklist")).toBe("/lite/picklist?space=7");
@@ -523,5 +529,80 @@ describe("the rest of Lite: the same answers as the API", () => {
       expect(r.status, path).toBe(302);
       expect(r.headers.get("location")).toBe(lite);
     }
+  });
+});
+
+describe("network & offline (journey 10)", () => {
+  /** The pack list /download offers, written where the server reads it (DATA_DIR/packs), its files on disk. */
+  function withPacks(full: { season: number; bytes: number }[], lite: number | null) {
+    const dir = mkdtempSync(join(tmpdir(), "cs-lite-packs-"));
+    const packs = join(dir, "packs");
+    mkdirSync(packs);
+    const file = (name: string, bytes: number, seasons: number[], kind: string) => { writeFileSync(join(packs, name), ""); return { name, url: `/packs/${name}`, bytes, sha256: "x", seasons, kind, contents: "" }; };
+    writeFileSync(join(packs, "latest.json"), JSON.stringify({ format: 1, version: "t", builtAt: "2026-11-14T00:00:00Z", engineVersion: "x", dataAsOf: null,
+      lite: lite == null ? null : file("scout-pack-lite.json", lite, full.map((f) => f.season), "lite"),
+      full: full.map((f) => file(`scout-pack-${f.season}.db`, f.bytes, [f.season], "full")) }));
+    const was = process.env.DATA_DIR;
+    process.env.DATA_DIR = dir;
+    return () => { if (was == null) delete process.env.DATA_DIR; else process.env.DATA_DIR = was; };
+  }
+
+  it("one screen: the status, the connection, the download sizes, what's downloaded, and the switches with their lines", async () => {
+    const restore = withPacks([{ season: S, bytes: 23_400_000 }, { season: S - 1, bytes: 18_000_000 }], 640_000);
+    try {
+      const r = await get("/lite/network");
+      expect(r.status).toBe(200);
+      const html = await r.text();
+      // The way back, and every link a tap target, as on every Lite page.
+      expect(html).toContain(`<a class="btn p full" href="/network">Full version</a>`);
+      for (const [a] of html.matchAll(/<a\b[^>]*>/g)) expect(LITE_TAP_CLASSES.some((c) => new RegExp(`class="(?:[^"]* )?${c}(?: [^"]*)?"`).test(a)), a).toBe(true);
+      expect(gzipSync(html).length).toBeLessThan(BUDGET_GZIP);
+      expect(r.headers.get("cache-control")).toBe("private, no-store");
+      // The server answered, so the first paint already says so; the script checks again at once.
+      expect(html).toContain(`<h2 id="n-title" aria-live="polite">You're online</h2>`);
+      expect(html).toContain(`<td class="n" id="n-net">Working</td>`);
+      // Sizes from the pack list, in the full screen's words.
+      expect(html).toContain(`<li>The whole ${seasonLabel(S)} season uses 23.4 MB.</li>`);
+      expect(html).toContain("<li>Every season (2) uses 41.4 MB.</li>");
+      expect(html).toContain("<li>Offline predictions use 640 KB.</li>");
+      // The switches, each with the line saying what it does.
+      expect(html).toContain(`<b id="n-lite">Lite is off</b></p><p class="m s" id="n-lite-line">${LITE_LINE}</p>`);
+      expect(html).toContain(`<a class="btn" href="/lite/on?next=%2Flite%2Fnetwork">Turn on Lite</a>`);
+      expect(html).toContain(`<b id="n-dn">Wi-Fi only</b></p><p class="m s" id="n-dn-line">Nothing downloads on mobile data unless you tap Download yourself.</p>`);
+      expect(html).toContain(`id="n-up-line">Updates download by themselves when you're on Wi-Fi.</p>`);
+    } finally { restore(); }
+  });
+
+  it("runs one script, the fixed one its CSP allows by hash, and may only ask this site", async () => {
+    const r = await get("/lite/network");
+    const html = await r.text();
+    const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
+    expect(scripts).toEqual([NET_SCRIPT]);
+    expect(html.match(/<script/g)).toHaveLength(1);
+    expect(html).not.toMatch(/<img|<iframe|<link rel="stylesheet"/);
+    const csp = r.headers.get("content-security-policy") ?? r.headers.get("content-security-policy-report-only");
+    expect(csp).toBe(LITE_NET_CSP);
+    expect(csp).toBe(`default-src 'none'; script-src 'sha256-${createHash("sha256").update(NET_SCRIPT).digest("base64")}'; connect-src 'self'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'self'`);
+  });
+
+  it("no packs published, or packs switched off: says which", async () => {
+    const restore = withPacks([], null);
+    try {
+      // A manifest with no files is no pack list.
+      expect(await (await get("/lite/network")).text()).toContain("<li>No downloads have been published yet.</li>");
+      await setFlag("offlinePacks", false, "owner@example.com");
+      expect(await (await get("/lite/network")).text()).toContain("<li>Download sizes aren't available. Offline packs are paused right now. Packs already on this device keep working.</li>");
+    } finally { await setFlag("offlinePacks", true, "owner@example.com"); restore(); }
+  });
+
+  it("Lite on: its switch turns it off, back to the full screen; Settings links here", async () => {
+    const html = await (await get("/lite/network", { headers: { cookie: "cs-lite=1; cs-theme=light" } })).text();
+    expect(html).toContain(`<b id="n-lite">Lite is on</b>`);
+    expect(html).toContain(`<a class="btn" href="/lite/off?next=%2Flite%2Fnetwork">Turn off Lite</a>`);
+    // The full pages it links open this once (Lite would bring them straight back).
+    expect(html).toContain(`href="/download?lite=0"`);
+    expect(html).toContain(`<html lang="en" class="light">`);
+    const off = await get("/lite/off?next=%2Flite%2Fnetwork");
+    expect(off.headers.get("location")).toBe("/network");
   });
 });

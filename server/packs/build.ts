@@ -69,7 +69,7 @@ export function learnedEvents(f: Pick<ScoutForecaster, "seasonEvents" | "storedP
  *  stay out of the pack): the rows the server's prediction reads (recentRecords), filtered by the engine's own rule. */
 export async function notableRecent(season: number): Promise<RecentRow[]> {
   const rows = await all<any>("SELECT team, recent_matches, recent_no_shows, recent_near_zero FROM team_reliability WHERE season = ? AND code = '' AND (recent_no_shows >= ? OR recent_near_zero >= ?) ORDER BY team",
-    [season, REASON_RULE.noShows, REASON_RULE.nearZero]).catch(() => []);
+    [season, REASON_RULE.noShows, REASON_RULE.nearZero]);
   return rows.map((r) => [Number(r.team), Number(r.recent_matches), Number(r.recent_no_shows), Number(r.recent_near_zero)]);
 }
 

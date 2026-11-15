@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.4.8 — 2026-11-15
+## 6.5.0 — 2026-11-15
 
 With no signal, Predict now gives the server's own call for the same snapshot: the same scores and ranges, bonus RP odds, why factors and reasons, and the teams' names. A saved event pack newer than the lite pack predicts for its teams.
 
@@ -27,6 +27,37 @@ With no signal, Predict now gives the server's own call for the same snapshot: t
 
 ### Fixed
 - Offline Predict (`/predict` with no signal): the lite pack is rebuilt about once a day, and it answered even when a newer event pack held the lineup, so its season averages (the "×" in the why factors), score ranges and bonus RP odds were the morning's while the server's had moved on with the day's results. Now the newer of the two snapshots that holds the lineup answers, and every number comes from that one snapshot. Event packs now also carry the rest of what the server's prediction reads (the season's bonus RP model, the pair history among the event's teams, recent no-show records and the server's team names), and the lite pack carries the recent records that make a reason, so an offline call is the server's call at that snapshot's time. The server and the device build the call through one shared function, so they can't drift apart. The offline note names the pack and shows its data time, not its build time. The lite pack's pair-history line stays a small cut (same-alliance pairs with 3+ matches, newest season), so that one line can still differ. (`src/shared/predictView.ts`, `src/lib/offline/predict.ts`, `src/lib/offline/predictCall.ts`, `server/packs/bundle.ts`, `server/packs/build.ts`, `src/pages/PredictPage.tsx`) (#1518)
+
+## 6.4.9 — 2026-11-15
+
+Lite has its own Network & offline screen: on one bar of signal it says whether you're online, on Wi-Fi, mobile data or nothing, whether that's actually giving internet, how much a download uses, and what's downloaded on this phone and how big it is.
+
+### Highlights
+- [offline] Lite's Settings opens its own Network & offline screen
+- [offline] It says if the Wi-Fi gives internet, or waits at a sign-in page
+- [offline] It lists what's downloaded on this phone, and how big each is
+- [fixes] Network & offline no longer says "offline" under "Connected"
+
+### Added
+- Lite Network & offline (`/lite/network`, the twin of `/network`): the status heading and the line under it, the connection (Wi-Fi, mobile data, cable or none) and whether it gives internet, the download sizes from the pack list, each pack downloaded on this device with its size and data time and the total, and the switches (Lite on or off, which connections downloads use, automatic updates), each with the line saying what it does. Server-rendered in Lite's style (44 px targets, the five themes); one small fixed inline script, allowed by its hash, reads what only the device knows: the connection, a fresh check of `/api/health`, and this browser's downloads. Every sentence comes from the full screen's own functions, now shared (`src/shared/networkStatus.ts`). Lite's Settings links here instead of the full version. (`server/lite/network.ts`, `server/lite/routes.ts`) (#1517)
+
+### Fixed
+- Network & offline (`/settings#network`): "Should I use Lite?" opens with the heading's own words, so a network that carries nothing reads "Connected, but nothing is getting through" in both places, never "You're offline" under it. (`src/lib/networkAdvice.ts`)
+- The offline check's sign-in-page mode (`scripts/offline-check.ts --portal`) answers the app's own requests with a sign-in page over HTTPS too (it failed the tunnel before, so the app read "no answer"), and now checks what Network & offline says on one.
+
+## 6.4.8 — 2026-11-15
+
+A download you started that a dropped connection paused now picks up by itself as soon as the connection check finds internet again, fetching only the missing part. Delete on a saved season now takes every copy with it and says how much it freed.
+
+### Highlights
+- [offline] A paused download picks up by itself once you're back online
+- [offline] Wi-Fi only stays Wi-Fi only: a paused download waits for Wi-Fi
+- [offline] Deleting a season also deletes its half-finished update
+- [offline] "Freed 9.0 MB" stays under the list after a Delete
+
+### Changed
+- Offline downloads (`/download`): a season or the predictions pack you asked for (Download, Resume, Update, the whole current season) that a dropped connection pauses is marked, and picks up by itself the moment the connection check finds internet again (`onInternetChange` / `onInternetConfirmed`), asking only for the missing bytes. Only downloads you started; one you deleted never comes back; automatic updates keep their own schedule. The network setting holds: on Wi-Fi only it waits for Wi-Fi, and moving onto Wi-Fi picks it up then. A line that keeps dropping is tried at most every 10 s, and after 4 tries with no progress it waits for your Resume. (`src/lib/offline/resumeMarks.ts`, `src/lib/offline/resume.ts`, `src/lib/offline/resumeWatcher.tsx`, `src/lib/offline/seasonBatch.ts`)
+- Delete (`/download`, On this device): deleting a season also deletes a paused download of a newer release of it, and the SQLite engine kept in the app's cache once no season is left; deleting the predictions pack also deletes its paused download. The freed total counts them. A "Freed 9.0 MB: … deleted from this device" line stays under the list, and the browser's storage figure is read again 1, 3 and 10 s later, since the browser frees deleted files a moment after the delete. (`src/lib/offline/seasons.ts`, `src/lib/packs.ts`, `src/pages/DownloadPage.tsx`) (#1516)
 
 ## 6.4.7 — 2026-11-15
 
