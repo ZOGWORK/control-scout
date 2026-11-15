@@ -71,7 +71,7 @@ function openWhy(open: Missing[]): string {
   const groups: [string, Missing[]][] = [
     ["not yet checked against the video", open.filter((m) => !none(m) && !m.video?.checked)],
     ["seen in the video, not yet confirmed", open.filter((m) => !none(m) && m.video?.checked && m.video.seenAt != null)],
-    ["checked in the video, no start found for them there", open.filter((m) => !none(m) && m.video?.checked && m.video.seenAt == null)],
+    ["checked in the video, no start found there", open.filter((m) => !none(m) && m.video?.checked && m.video.seenAt == null)],
     ["with no clip and no reason found", open.filter(none)],
   ];
   return groups.filter(([, ms]) => ms.length).map(([what, ms]) => `${matchesWord(ms.length)} ${what}${labels(ms)}`).join("; ");
