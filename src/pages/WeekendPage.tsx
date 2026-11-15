@@ -17,13 +17,10 @@ import { cn } from "../components/cn";
 import { NextMatchPanel } from "../components/NextMatchPanel";
 import { PlacePicker, active, idle, placeName, trigger } from "./RankingsPage";
 import type { RankingPlaces } from "../shared/rankings";
-import { eventKindLabel, noEventsLine, type NextMatchAnswer, type WeekendAnswer, type WeekendEvent } from "../shared/weekend";
+import { eventKindLabel, noEventsLine, type NextMatchAnswer, type WeekendAnswer, type WeekendEvent, viewerToday } from "../shared/weekend";
 import type { Weekend } from "../shared/query/time";
 
 const WHICH: { id: Weekend; label: string }[] = [{ id: "last", label: "Last weekend" }, { id: "this", label: "This weekend" }, { id: "next", label: "Next weekend" }];
-
-/** The viewer's own date: the heading's weekend is read from it (each event is placed on its own calendar). */
-const localToday = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
 
 export default function WeekendPage() {
   const [sp, setSp] = useSearchParams();
@@ -32,7 +29,7 @@ export default function WeekendPage() {
   const region = sp.get("region") || null;
   const { state: personal } = usePersonal();
   const myTeam = personal.myTeam;
-  const [today] = useState(localToday);
+  const [today] = useState(() => viewerToday());
   const res = useApi<WeekendAnswer>(`/api/weekend${qs({ which: which === "this" ? null : which, region, today })}`);
   const places = useApi<RankingPlaces>(res.data ? `/api/rankings/places${qs({ season: res.data.season, team: myTeam })}` : null);
   const go = (patch: Record<string, string | null>) => {
