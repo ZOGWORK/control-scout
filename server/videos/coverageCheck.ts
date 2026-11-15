@@ -15,7 +15,7 @@ import { recordAudit } from "../portal/audit.js";
 import { checkedTo } from "../data/checkedTimings.js";
 import { seasonRecordings, type Recording, isPartial } from "./recordings.js";
 import { clipCoverage, eventMatchRows } from "./coverage.js";
-import { triageCoverage } from "./coverageTriage.js";
+import { baseTriage, seasonTriage, type BaseTriage } from "./coverageTriage.js";
 import { currentSeason } from "../api/answers/season.js";
 import type { ClipCoverage, CoverageTriage, OwnerClipCoverage, OwnerCoverageEvent } from "../../src/shared/api.js";
 
@@ -48,7 +48,6 @@ export async function checkClipCoverage(log: (s: string) => void, now = Date.now
   try {
     const seasons = (await all<{ season: number }>("SELECT DISTINCT season FROM events ORDER BY season DESC")).map((r) => Number(r.season));
     let checked = 0, opened = 0;
-    const current = currentSeason();
     for (const season of seasons) {
       const [full, recs, firstVideo, known] = await Promise.all([
         seasonRecordings(season, true),
@@ -82,7 +81,7 @@ export async function checkClipCoverage(log: (s: string) => void, now = Date.now
         const c = clipCoverage(rows.get(code) ?? [], recs.get(code) ?? null, full.get(code) ?? null, shape.get(code)?.tz, now);
         const key = missingKey(c), prev = was.get(code);
         const missing = c.matches.filter((m) => !m.clip);
-        const t = key ? triageCoverage(season, missing, current) : null;
+        const t = key ? baseTriage(missing) : null;
         // Reviewed stays reviewed while the same matches are missing for the same reasons, and when a new list isn't
         // actionable; only a new actionable list opens it again (and only an actionable one asks the owner at all).
         if (t?.triage === "actionable" && prev?.missing_key !== key) opened++;
@@ -116,9 +115,9 @@ export async function checkClipCoverage(log: (s: string) => void, now = Date.now
 export async function triageUntriaged(log: (s: string) => void): Promise<number> {
   const rows = await all<{ season: number; code: string; detail: string }>("SELECT season, code, detail FROM clip_coverage WHERE triage IS NULL AND with_clip < played AND state != 'none'");
   if (!rows.length) return 0;
-  const current = currentSeason();
   const writes = rows.map((r) => {
-    const t = triageCoverage(Number(r.season), JSON.parse(String(r.detail)).missing ?? [], current);
+    // A detail that can't be read gives no list: actionable, so one bad row neither stops the rest nor hides itself.
+    const t = baseTriage(readDetail(r.detail).missing ?? []);
     return { sql: "UPDATE clip_coverage SET triage = ?, triage_why = ? WHERE season = ? AND code = ? AND triage IS NULL", args: [t.triage, t.why, r.season, r.code] };
   });
   try {
@@ -132,17 +131,28 @@ export async function triageUntriaged(log: (s: string) => void): Promise<number>
   return rows.length;
 }
 
+/** A stored missing list, or none when it can't be read. */
+function readDetail(detail: unknown): { videos?: OwnerCoverageEvent["videos"]; daysMissing?: OwnerCoverageEvent["daysMissing"]; missing?: OwnerCoverageEvent["missing"] } {
+  try { return JSON.parse(String(detail)) ?? {}; } catch { return {}; }
+}
+
 export const TRIAGES: readonly CoverageTriage[] = ["actionable", "no-timing", "early-start", "old-season"];
-/** An event missing a clip (in the owner's lists at all), and one not reviewed yet. A row checked before triage existed
- *  (NULL until its next check) reads as actionable. */
+/** An event missing a clip (in the owner's lists at all), and one not reviewed yet. */
 const MISSING = "c.with_clip < c.played AND c.state != 'none'";
-const TRIAGE = "COALESCE(c.triage, 'actionable')";
+/** An event's category now: the stored one (from its reasons; NULL, a row not triaged yet, reads as actionable), made
+ *  old-season when it isn't actionable and is older than last season, from the current season at read time, so the
+ *  September rollover moves it without a recheck (seasonTriage, in SQL). */
+const triageSql = (current = currentSeason()) => {
+  const last = Math.trunc(current) - 1;
+  return `(CASE WHEN COALESCE(c.triage, 'actionable') = 'actionable' THEN 'actionable' WHEN c.season < ${last} THEN 'old-season' ELSE c.triage END)`;
+};
 
 /** Events with a played match missing a clip, a page at a time: one category's events not reviewed yet (actionable by
  *  default, the "To review"), or the reviewed, newest season first, then by code. That order doesn't move when the
  *  5-minute check rewrites a row, so paging never shows one twice or skips one. */
 export async function ownerClipCoverage(o: { list?: CoverageTriage | "reviewed"; after?: { season: number; code: string } | null; limit?: number } = {}): Promise<OwnerClipCoverage> {
   const limit = Math.min(Math.max(o.limit ?? PAGE, 1), 200), list = o.list ?? "actionable";
+  const current = currentSeason(), TRIAGE = triageSql(current);
   // The next page starts after the last event shown (season, then code), not at a count: rows leaving or joining the
   // list meanwhile (clips placed, a review elsewhere) can't make it skip one.
   const after = o.after ? " AND (c.season < ? OR (c.season = ? AND c.code > ?))" : "";
@@ -155,7 +165,8 @@ export async function ownerClipCoverage(o: { list?: CoverageTriage | "reviewed";
     get<any>(`SELECT COUNT(*) AS events, COALESCE(SUM(played), 0) AS played, COALESCE(SUM(with_clip), 0) AS with_clip,
               SUM(CASE WHEN played > 0 AND with_clip >= played THEN 1 ELSE 0 END) AS full FROM clip_coverage WHERE state != 'none'`),
     all<{ t: string; reviewed: number; n: number }>(`SELECT ${TRIAGE} AS t, c.reviewed_at IS NOT NULL AS reviewed, COUNT(*) AS n FROM clip_coverage c WHERE ${MISSING} GROUP BY 1, 2`),
-    all<{ season: number; n: number }>(`SELECT c.season, COUNT(*) AS n FROM clip_coverage c WHERE ${MISSING} AND c.reviewed_at IS NULL GROUP BY c.season ORDER BY c.season DESC`),
+    all<{ season: number; n: number; a: number }>(`SELECT c.season, COUNT(*) AS n, SUM(CASE WHEN ${TRIAGE} = 'actionable' THEN 1 ELSE 0 END) AS a
+              FROM clip_coverage c WHERE ${MISSING} AND c.reviewed_at IS NULL GROUP BY c.season ORDER BY c.season DESC`),
   ]);
   const categories = Object.fromEntries(TRIAGES.map((k) => [k, 0])) as Record<CoverageTriage, number>;
   let reviewed = 0;
@@ -164,17 +175,19 @@ export async function ownerClipCoverage(o: { list?: CoverageTriage | "reviewed";
     else if ((TRIAGES as string[]).includes(String(r.t))) categories[r.t as CoverageTriage] += Number(r.n);
   }
   const events = rows.map((r): OwnerCoverageEvent => {
-    const d = JSON.parse(String(r.detail));
+    const d = readDetail(r.detail);
+    const t = r.triage ? seasonTriage({ triage: String(r.triage) as BaseTriage, why: String(r.triage_why ?? "") }, Number(r.season), current)
+      : { triage: "actionable" as const, why: "Not triaged yet: checked again within minutes" };
     return {
       season: Number(r.season), code: String(r.code), name: String(r.name ?? r.code), state: r.state, played: Number(r.played), withClip: Number(r.with_clip),
       checkedAt: String(r.checked_at), reviewedAt: r.reviewed_at ?? null, reviewedBy: r.reviewed_by ?? null, version: String(r.missing_key),
       videos: d.videos ?? [], daysMissing: d.daysMissing ?? [], missing: d.missing ?? [],
-      triage: (r.triage ?? "actionable") as CoverageTriage, triageWhy: r.triage_why ? String(r.triage_why) : "Not triaged yet: checked again within minutes",
+      triage: t.triage, triageWhy: t.why,
     };
   });
   return {
     events, list, open: categories.actionable, reviewed, categories,
-    seasons: seasons.map((x) => ({ season: Number(x.season), open: Number(x.n) })),
+    seasons: seasons.map((x) => ({ season: Number(x.season), open: Number(x.n), actionable: Number(x.a ?? 0) })),
     totals: { events: Number(t?.events ?? 0), played: Number(t?.played ?? 0), withClip: Number(t?.with_clip ?? 0), full: Number(t?.full ?? 0) },
   };
 }
@@ -182,7 +195,7 @@ const PAGE = 50;
 
 /** How many events wait for the owner's review: actionable ones not reviewed yet (the console's badge). */
 export async function openCoverageCount(): Promise<number> {
-  return Number((await get<{ n: number }>(`SELECT COUNT(*) AS n FROM clip_coverage c WHERE ${MISSING} AND c.reviewed_at IS NULL AND ${TRIAGE} = 'actionable'`))?.n ?? 0);
+  return Number((await get<{ n: number }>(`SELECT COUNT(*) AS n FROM clip_coverage c WHERE ${MISSING} AND c.reviewed_at IS NULL AND COALESCE(c.triage, 'actionable') = 'actionable'`))?.n ?? 0);
 }
 
 /** Bulk Reviewed: every event not reviewed yet in a category ("non-actionable": all but actionable), in a season, or
@@ -190,7 +203,7 @@ export async function openCoverageCount(): Promise<number> {
  *  count now). Marks only: the missing list stays, and the 5-minute check keeps checking these events. */
 export async function markCoverageBulkReviewed(f: { category?: CoverageTriage | "non-actionable"; season?: number }, expected: number, actor: string, now = Date.now()):
   Promise<{ status: "ok" | "changed"; count: number }> {
-  const conds = [MISSING, "c.reviewed_at IS NULL"], args: (string | number)[] = [];
+  const conds = [MISSING, "c.reviewed_at IS NULL"], args: (string | number)[] = [], TRIAGE = triageSql();
   if (f.category === "non-actionable") conds.push(`${TRIAGE} != 'actionable'`);
   else if (f.category) { conds.push(`${TRIAGE} = ?`); args.push(f.category); }
   if (f.season != null) { conds.push("c.season = ?"); args.push(f.season); }
