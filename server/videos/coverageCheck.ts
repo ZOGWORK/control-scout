@@ -13,6 +13,7 @@ import { all, get, kvGet, kvSet, run, writeBatch } from "../db.js";
 import { withDataLock, LockBusy } from "../data/lock.js";
 import { recordAudit } from "../portal/audit.js";
 import { checkedTo } from "../data/checkedTimings.js";
+import { clipCheckFindings, clipCheckTotals } from "../data/clipChecks.js";
 import { seasonRecordings, type Recording, isPartial } from "./recordings.js";
 import { clipCoverage, eventMatchRows } from "./coverage.js";
 import { baseTriage, seasonTriage, type BaseTriage } from "./coverageTriage.js";
@@ -174,8 +175,9 @@ const triageSql = (current = currentSeason()) => {
  *  (one or bulk) marks it. */
 const REVIEWED = (T: string) => `(c.reviewed_at IS NOT NULL AND ${T} != 'unchecked')`;
 
-/** Every missing match the video's frames saw (a read put it at a second in the video) that has no clip: an owner-console
- *  finding, whatever its event's category or review. */
+/** The owner console's findings, whatever an event's category or review: every missing match the video's frames saw (a
+ *  read put it at a second in the video) that has no clip, and every clock-placed clip pulled because its first frame
+ *  showed another match (server/data/clipChecks.ts). */
 export async function coverageFindings(): Promise<CoverageFinding[]> {
   const rows = await all<{ season: number; code: string; name: string | null; detail: string }>(
     `SELECT c.season, c.code, e.name, c.detail FROM clip_coverage c LEFT JOIN events e ON e.season = c.season AND e.code = c.code
@@ -184,7 +186,17 @@ export async function coverageFindings(): Promise<CoverageFinding[]> {
   for (const r of rows) {
     for (const m of readDetail(r.detail).missing ?? []) {
       if (m.video?.seenAt == null || !m.videoId) continue;
-      out.push({ season: Number(r.season), code: String(r.code), name: String(r.name ?? r.code), label: m.label, videoId: m.videoId, at: m.video.seenAt, why: m.why ?? "" });
+      out.push({ kind: "seen", season: Number(r.season), code: String(r.code), name: String(r.name ?? r.code), label: m.label, videoId: m.videoId, at: m.video.seenAt, why: m.why ?? "" });
+    }
+  }
+  const pulled = clipCheckFindings();
+  if (pulled.length) {
+    const names = new Map((await all<{ season: number; code: string; name: string }>(
+      `SELECT season, code, name FROM events WHERE (season, code) IN (${pulled.map(() => "(?, ?)").join(", ")})`, pulled.flatMap((p) => [p.season, p.code])))
+      .map((e) => [`${e.season}/${e.code}`, String(e.name)]));
+    for (const p of pulled) {
+      out.push({ kind: "pulled", season: p.season, code: p.code, name: names.get(`${p.season}/${p.code}`) ?? p.code, label: p.label, videoId: p.videoId, at: p.t,
+        why: `Clip pulled: its first frame shows ${p.showed}, not ${p.label}` });
     }
   }
   return out;
@@ -231,7 +243,7 @@ export async function ownerClipCoverage(o: { list?: CoverageTriage | "reviewed";
     };
   });
   return {
-    events, list, open: categories.actionable, reviewed, categories, findings, lastPass: lastPass ?? null,
+    events, list, open: categories.actionable, reviewed, categories, findings, lastPass: lastPass ?? null, clipChecks: clipCheckTotals(),
     seasons: seasons.map((x) => ({ season: Number(x.season), open: Number(x.n), actionable: Number(x.a ?? 0) })),
     totals: { events: Number(t?.events ?? 0), played: Number(t?.played ?? 0), withClip: Number(t?.with_clip ?? 0), full: Number(t?.full ?? 0) },
   };
