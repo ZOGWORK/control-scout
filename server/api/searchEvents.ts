@@ -26,6 +26,7 @@ import { edits, type Region } from "../../src/shared/regions.js";
 import { dateRange, place } from "../../src/shared/format.js";
 import { weekendOf } from "../../src/shared/query/time.js";
 import { eventCards, noEventsLine, weekendEvents } from "./weekend.js";
+import { inWindow } from "../../src/shared/weekend.js";
 import { eventsStat } from "./answers/weekend.js";
 
 interface Row { season: number; code: string; name: string; type: string | null; division_code?: string | null; venue: string | null; city: string | null; state: string | null; country: string | null; start: string | null; end: string | null; timezone: string | null }
@@ -203,10 +204,9 @@ async function rowsFor(e: EventQuery, now: number, drop: { where?: boolean; time
   }
   // A copy: the rows read are shared (./searchReads.ts), and an every-season list is sorted in place below.
   let rows = [...(await searchRead<Row>(`SELECT season, code, name, type, division_code, venue, city, state, country, start, end, timezone FROM events WHERE ${where.join(" AND ")}`, args))];
-  if (bounded) rows = rows.filter((r) => {
-    const w = timeWindow(e.time!, dayAt(r.timezone));
-    return (!w.from || (r.end ?? r.start ?? "") >= w.from) && (!w.to || ((e.ended ? r.end ?? r.start : r.start) ?? "") <= w.to);
-  });
+  // Search's own day's window, or the event's while its calendar is behind (src/shared/weekend.ts inWindow); "that
+  // ended" reads its last day.
+  if (bounded) rows = rows.filter((r) => inWindow(e.ended ? { ...r, start: r.end ?? r.start } : r, (d) => timeWindow(e.time!, d), now, today));
   if (e.time === "upcoming" && !drop.time) rows = rows.filter((r) => (r.end ?? r.start ?? "") >= dayAt(r.timezone));
   if (e.time === "past" && !drop.time) rows = rows.filter((r) => (r.end ?? r.start ?? "") < dayAt(r.timezone));
   // The kind of event: its type, or (no type stored) the word in its name ("… League Meet"). The most specific word
