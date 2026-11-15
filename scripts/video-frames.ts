@@ -23,14 +23,15 @@
 //   --check   recordings the server already places, to compare: prints how far the frames are from the clock
 //   --dry     print, don't write
 //   --trace   print every frame read (where, what it named, the start it gave) to stderr
+//   --verify  read no starts: check where each placed match's clip opens, for rows not yet checked (opens)
 //   TESSERACT_JS=<path to tesseract.js's entry>  where tesseract.js is, when it isn't in node_modules
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
-import { AUTO_S, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, elapsed, overlayDivision, leadIn, judge, NOTHING_READ, overlayLabel, secondsOf, type Judged, type M } from "./lib/videoFrames";
+import { AUTO_S, OPEN_LEADS, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, elapsed, overlayDivision, leadIn, judge, NOTHING_READ, overlayLabel, secondsOf, type Judged, type M } from "./lib/videoFrames";
 
 // The command line: --name value or --name=value for the value flags, --name alone for the others. Anything else stops
 // the run before it reads: a misspelt flag mustn't quietly read (and write) every recording of the season.
-const VALUE_FLAGS = new Set(["season", "codes", "limit", "lanes"]), BOOL_FLAGS = new Set(["all", "check", "dry", "trace"]);
+const VALUE_FLAGS = new Set(["season", "codes", "limit", "lanes"]), BOOL_FLAGS = new Set(["all", "check", "dry", "trace", "verify"]);
 const args = new Map<string, string | true>();
 {
   const argv = process.argv.slice(2);
@@ -42,7 +43,7 @@ const args = new Map<string, string | true>();
       if (v == null || v === "" || v.startsWith("--")) { console.error(`--${name}: give it a value`); process.exit(2); }
       args.set(name, v);
     } else if (m && BOOL_FLAGS.has(name) && m[2] == null) args.set(name, true);
-    else { console.error(`${argv[i]}: not a flag this script takes (--season, --codes, --limit, --lanes, --all, --check, --dry, --trace)`); process.exit(2); }
+    else { console.error(`${argv[i]}: not a flag this script takes (--season, --codes, --limit, --lanes, --all, --check, --dry, --trace, --verify)`); process.exit(2); }
   }
 }
 const arg = (k: string) => { const v = args.get(k); return typeof v === "string" ? v : undefined; };
@@ -59,7 +60,7 @@ const season = count("season", 2025);
 const only = arg("codes")?.split(",").map((c) => c.trim().toUpperCase()).filter(Boolean);
 const limit = arg("limit") == null ? Infinity : count("limit", 1);
 const lanes = count("lanes", 3);
-const CHECK = flag("check"), ALL = flag("all"), DRY = flag("dry"), TRACE = flag("trace");
+const CHECK = flag("check"), ALL = flag("all"), DRY = flag("dry"), TRACE = flag("trace"), VERIFY = flag("verify");
 
 const { migrate, all } = await import("../server/db.js");
 await migrate();
@@ -222,6 +223,69 @@ async function confirmed(page: Page, label: string, start: number, own = false):
 /** Matches in a row with no read before a video counts as one without the overlay. */
 const MISSES = 3;
 
+// --- Where each clip opens ---------------------------------------------------------------------------------------
+
+/**
+ * Every placed match's clip must open on that match: its first frame's overlay names it (and, on a stream divisions
+ * share, not a sibling division's). Tried 20, 12 and 5 s before its start; the first that names it is where the clip
+ * opens. One that names another match there (the previous match's result still up) is tried closer in; a match whose
+ * clip can't open on it goes to review, and one whose overlay can't be read there at all is missing with
+ * OVERLAY_UNREAD. Nothing is a clip unchecked.
+ */
+async function checkOpenings(page: Page, j: Judged, log: (s: string) => void): Promise<void> {
+  const failed: string[] = [];
+  for (const [label, p] of [...j.placed]) {
+    let named: string | null = null, at: number | null = null;
+    for (const lead of OPEN_LEADS) {
+      const t = p.t - lead;
+      if (t < 0) continue;
+      const r = await readAt(page, t);
+      if (r.division === "other") { named = "another division's match"; continue; }
+      if (r.label === label) { at = t; break; }
+      if (r.label) named = r.label;
+    }
+    if (at != null) { j.opens.set(label, at); continue; }
+    j.placed.delete(label);
+    failed.push(label);
+    if (named) j.review.set(label, { t: p.t, why: `its clip's first frame shows ${named}, not ${label}` });
+    else j.missing.set(label, OVERLAY_UNREAD);
+  }
+  log(`    clip openings: ${j.opens.size} name their match${failed.length ? `; not placed: ${failed.join(" ")}` : ""}`);
+}
+
+/** --verify: a row read before clip openings were checked gets them checked, its starts as they were read. */
+async function verifyRow(row: FrameTiming, division: { own: string; others: string[] } | null, log: (s: string) => void): Promise<void> {
+  let page: Page | null = null;
+  try {
+    page = await player();
+    if (division) divisions.set(page, division);
+    await open(page, row.videoId);
+    log(`  ${row.videoId}: checking ${Object.keys(row.starts).length} clip openings`);
+    const medium = new Set(row.medium ?? []);
+    const j: Judged = {
+      placed: new Map(Object.entries(row.starts).map(([l, t]) => [l, { t, confidence: medium.has(l) ? "medium" as const : "high" as const }])),
+      review: new Map(Object.entries(row.review ?? {})), missing: new Map(Object.entries(row.missing ?? {})),
+      earlyStart: new Map(Object.entries(row.earlyStart ?? {})), opens: new Map(),
+    };
+    await checkOpenings(page, j, log);
+    const starts = Object.fromEntries([...j.placed].sort((a, b) => a[1].t - b[1].t).map(([l, p]) => [l, p.t]));
+    const med = (row.medium ?? []).filter((l) => l in starts);
+    keep(`${row.videoId}|${row.code}`, {
+      videoId: row.videoId, code: row.code, checked: row.checked, starts,
+      ...(med.length ? { medium: med } : {}),
+      ...(j.review.size ? { review: Object.fromEntries(j.review) } : {}),
+      ...(j.missing.size ? { missing: Object.fromEntries(j.missing) } : {}),
+      ...(j.earlyStart.size ? { earlyStart: Object.fromEntries(j.earlyStart) } : {}),
+      opens: Object.fromEntries(j.opens),
+    });
+  } catch (e) {
+    log(`    couldn't check: ${(e as Error).message.split("\n")[0]} (the row is kept unchecked; the next --verify tries it again)`);
+    failedVideos++;
+  } finally {
+    await page?.context().close().catch(() => {});
+  }
+}
+
 // --- Finding each match --------------------------------------------------------------------------------------------
 
 /** The second each of a video's matches starts at, as far as its frames show. `shift`: the video's second for a moment
@@ -309,6 +373,7 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
   }
   if (blind()) log(`    no overlay read in ${reads()} frames`);
   const j = judge(ms, seen, shift, length, tried);
+  await checkOpenings(page, j, log);
   const out = new Map([...j.placed].map(([l, p]) => [l, p.t]));
   const high = [...j.placed.values()].filter((p) => p.confidence === "high").length;
   log(`    ${out.size} of ${ms.length} placed (${high} high, ${out.size - high} medium), ${seen.size} read, ${unconfirmed} reads not confirmed, ${reads()} frames`);
@@ -422,7 +487,7 @@ async function doCode(code: string): Promise<void> {
   // Without this script's own timings: what YouTube's facts alone give.
   const placed = R.withClips(views, rec, Date.now(), span, { frames: false });
   const missing = placed.filter((v) => !v.clip).map((v) => v.label);
-  if (CHECK ? !placed.some((v) => v.clip) : !ALL && !missing.length) return;
+  if (CHECK ? !placed.some((v) => v.clip) : !ALL && !VERIFY && !missing.length) return;
   // Read on an earlier run (each event is written as it finishes): not again, unless --all.
   // Any of its videos that couldn't be played at all keeps the event unread, so the next run tries it again. (An event's
   // rows are saved once all its videos are read, so a run cut short leaves none of them.)
@@ -440,7 +505,7 @@ async function doCode(code: string): Promise<void> {
   };
   const rowOf = (v: (typeof own)[number]) => kept.get(`${v.videoId}|${code}`);
   const read = own.filter(holds).every((v) => { const f = rowOf(v); return f && !Object.values(f.missing ?? {}).some((w) => w.startsWith(PLAY_FAILED)); });
-  if (!CHECK && !ALL && !waiting && own.some(holds) && read) return;
+  if (!CHECK && !ALL && !VERIFY && !waiting && own.some(holds) && read) return;
   // Checked again once claimed: a lane that passed its check while another was still loading would read past --limit.
   if (++done > limit) return;
   // An event's lines together (events run side by side).
@@ -462,6 +527,11 @@ async function doCode(code: string): Promise<void> {
     // A video read well on an earlier run keeps its row: the event is back for another of its videos (a new link, one
     // that couldn't be played), and a re-read now could place fewer of this one's matches. --all reads it again.
     const prior = kept.get(`${v.videoId}|${code}`);
+    if (VERIFY) {
+      // Only where each clip opens, for a row read before that was checked: its starts stay as read.
+      if (prior && !prior.opens && Object.keys(prior.starts).length) await verifyRow(prior, division, log);
+      continue;
+    }
     if (!CHECK && !ALL && prior && !Object.values(prior.missing ?? {}).some((w) => w.startsWith(PLAY_FAILED))) {
       for (const l of Object.keys(prior.starts)) held.add(l);
       log(`  ${v.videoId}: read on an earlier run, kept`);
@@ -511,6 +581,7 @@ async function doCode(code: string): Promise<void> {
           ...(j.review.size ? { review: Object.fromEntries(j.review) } : {}),
           ...(j.missing.size ? { missing: Object.fromEntries(j.missing) } : {}),
           ...(j.earlyStart.size ? { earlyStart: Object.fromEntries(j.earlyStart) } : {}),
+          opens: Object.fromEntries(j.opens),
         });
       }
     } catch (e) {
