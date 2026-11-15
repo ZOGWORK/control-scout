@@ -53,6 +53,8 @@ export function ClipCoveragePanel() {
   const [round, setRound] = useState(0);
   const [bulk, setBulk] = useState<Bulk | null>(null);
   const [season, setSeason] = useState<number | null>(null);
+  // A season's Actionable events are marked with it only when the owner ticks this.
+  const [withActionable, setWithActionable] = useState(false);
   const done = () => setRound((x) => x + 1);
   return (
     <Async state={state}>
@@ -60,6 +62,7 @@ export function ClipCoveragePanel() {
         const other = d.categories["no-timing"] + d.categories["early-start"] + d.categories["old-season"];
         const seasonOpen = d.seasons.find((s) => s.season === season) ?? d.seasons[0];
         const shown = list === "reviewed" ? d.reviewed : d.categories[list];
+        const seasonCount = seasonOpen ? (withActionable ? seasonOpen.open : seasonOpen.open - seasonOpen.actionable) : 0;
         return (
           <div className="grid gap-6">
             <p className="text-sm text-muted-foreground" data-coverage-totals>
@@ -72,7 +75,7 @@ export function ClipCoveragePanel() {
               </p>
               {other > 0 && (
                 <div>
-                  <Button onClick={() => setBulk({ category: "non-actionable", count: other, what: "every event that isn't Actionable (No timing, Early start / unsafe, Old season)" })} data-coverage-bulk="non-actionable">
+                  <Button size="sm" className="h-auto min-h-9 whitespace-normal py-1.5 text-left" onClick={() => setBulk({ category: "non-actionable", count: other, what: "every event that isn't Actionable (No timing, Early start / unsafe, Old season)" })} data-coverage-bulk="non-actionable">
                     <Check /> Mark all non-actionable as reviewed ({n(other)})
                   </Button>
                 </div>
@@ -101,15 +104,24 @@ export function ClipCoveragePanel() {
                   : <p className="text-sm text-muted-foreground">None.</p>}
             </Section>
             {d.seasons.length > 0 && seasonOpen && (
-              <Section title="By season" description="Mark every event of one season not reviewed yet, whatever its category." collapsible summary="Mark a whole season reviewed.">
+              <Section title="By season" description="Mark one season's events not reviewed yet: the non-actionable ones, and its Actionable ones too only when ticked." collapsible summary="Mark a whole season reviewed.">
                 <div className="flex flex-wrap items-center gap-2">
                   <label className="text-sm" htmlFor="coverage-season">Season</label>
                   <select id="coverage-season" className="min-h-9 rounded-lg border border-line bg-card px-2 text-sm text-text-base outline-none focus-visible:ring-2 focus-visible:ring-ring/60 pointer-coarse:min-h-11"
                     value={seasonOpen.season} onChange={(e) => setSeason(Number(e.target.value))} data-coverage-season>
-                    {d.seasons.map((s) => <option key={s.season} value={s.season}>{seasonLabel(s.season)} ({n(s.open)})</option>)}
+                    {d.seasons.map((s) => <option key={s.season} value={s.season}>{seasonLabel(s.season)} ({n(s.open)}, {n(s.actionable)} Actionable)</option>)}
                   </select>
-                  <Button size="sm" variant="outline" onClick={() => setBulk({ season: seasonOpen.season, count: seasonOpen.open, what: `every ${seasonLabel(seasonOpen.season)} event not reviewed yet` })} data-coverage-bulk="season">
-                    <Check /> Mark {seasonLabel(seasonOpen.season)} reviewed ({n(seasonOpen.open)})
+                  <label className="inline-flex min-h-9 cursor-pointer items-center gap-2 text-sm pointer-coarse:min-h-11">
+                    <input type="checkbox" checked={withActionable} onChange={(e) => setWithActionable(e.target.checked)} className="size-4 shrink-0 cursor-pointer accent-[var(--color-accent)]" data-coverage-season-actionable />
+                    Include Actionable ({n(seasonOpen.actionable)})
+                  </label>
+                  <Button size="sm" variant="outline" disabled={!seasonCount} onClick={() => setBulk({
+                    category: withActionable ? undefined : "non-actionable", season: seasonOpen.season, count: seasonCount,
+                    what: withActionable
+                      ? `every ${seasonLabel(seasonOpen.season)} event not reviewed yet, including its ${n(seasonOpen.actionable)} Actionable`
+                      : `every ${seasonLabel(seasonOpen.season)} event not reviewed yet that isn't Actionable (${n(seasonOpen.actionable)} Actionable ${seasonOpen.actionable === 1 ? "event stays" : "events stay"} under To review)`,
+                  })} data-coverage-bulk="season">
+                    <Check /> Mark {seasonLabel(seasonOpen.season)} reviewed ({n(seasonCount)})
                   </Button>
                 </div>
               </Section>
