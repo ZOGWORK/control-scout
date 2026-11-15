@@ -28,6 +28,10 @@ export interface FrameTiming {
   review?: Record<string, { t: number; why: string }>;
   /** Matches the frames gave no start for, and why. */
   missing?: Record<string, string>;
+  /** Matches the frames show starting while the match before is still being played: `t`, the second it starts at in
+   *  the video, `previousEnds`, the second the one before ends. Only these are "Early start / unsafe" in Owner › Clip
+   *  coverage (server/videos/coverageTriage.ts); an early start by the clock alone is never one. */
+  earlyStart?: Record<string, { t: number; previousEnds: number }>;
 }
 
 let byKey: Map<string, Record<string, number>> | null = null;
@@ -70,6 +74,11 @@ export function frameReview(videoId: string, code: string): Record<string, { t: 
 /** A video's matches for an event the frames gave no start for, with why. */
 export function frameMissing(videoId: string, code: string): Record<string, string> {
   return FRAME_TIMINGS.find((f) => f.videoId === videoId && f.code === code)?.missing ?? {};
+}
+
+/** A video's frame read for an event (the day it was read, and everything it found), or null when it wasn't read. */
+export function frameRow(videoId: string, code: string): FrameTiming | null {
+  return FRAME_TIMINGS.find((f) => f.videoId === videoId && f.code === code) ?? null;
 }
 
 /** How sure a framed start is: "high" read off its own frames, "medium" filled between two agreeing reads. */
