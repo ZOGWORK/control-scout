@@ -181,7 +181,8 @@ function BugReportForm({ phone = false, onDone }: { phone?: boolean; onDone: () 
   const [failure, setFailure] = useState<string | null>(null);
   const [filed, setFiled] = useState<Filed>({ state: "asking" });
   const gone = useRef(false);
-  useEffect(() => () => { gone.current = true; }, []);
+  // Set on every mount (StrictMode mounts, unmounts and mounts again), cleared when the dialog closes.
+  useEffect(() => { gone.current = false; return () => { gone.current = true; }; }, []);
   const [dragging, setDragging] = useState(false);
   const pick = useRef<HTMLInputElement>(null);
   const ids = { cat: useId(), msg: useId(), email: useId(), files: useId() };
