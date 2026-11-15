@@ -15,17 +15,17 @@ import { createHash } from "node:crypto";
 import { gzipSync } from "node:zlib";
 import express, { type NextFunction, type Request, type Response, type Router } from "express";
 import { ENGINE_VERSION } from "@control-scout/predict-engine";
-import { kvGet } from "../db.js";
+import { all, kvGet } from "../db.js";
 import { CURRENT_SEASON, SEASON_NUMBERS } from "../data/seasons.js";
 import { cachedEventDetail } from "../api/events.js";
 import { gatedEventDetail } from "../api/eventGates.js";
 import { matchReport } from "../api/matchReport.js";
-import { liveForecaster } from "../predict/engine.js";
+import { liveForecaster, recentRecords, type ScoutForecaster } from "../predict/engine.js";
 import { isWorkspaceId } from "../auth/controlPoint.js";
 import { currentUser } from "../auth/session.js";
 import { featureDisabled, isEnabled, requireFeature } from "../flags.js";
 import { normalEventCode } from "../../src/shared/assignments.js";
-import { BUNDLE_FORMAT, sliceBook, stableJson, type BundleManifest, type BundleSection, type BundleSectionId, type EventBundle, type HtmlSnapshot, type RulesSection, type VenueCard } from "../../src/shared/eventBundle.js";
+import { BUNDLE_FORMAT, sliceBook, stableJson, type BundleManifest, type BundlePredict, type BundleSection, type BundleSectionId, type EventBundle, type HtmlSnapshot, type RulesSection, type VenueCard } from "../../src/shared/eventBundle.js";
 import type { EventDetail, MatchView } from "../../src/shared/api.js";
 import type { MatchReportWorkspace } from "../../src/shared/matchReport.js";
 import { accessError, workspaceAccess, workspacePaused } from "../scout/entries.js";
@@ -81,6 +81,20 @@ function section(id: BundleSectionId, label: string, value: unknown, items: numb
   return { id, label, version: sha(text).slice(0, 10), bytes: Buffer.byteLength(JSON.stringify(stored ?? null)), items, note };
 }
 
+/** What the server's prediction reads besides the ratings, for the event's teams (recentRecords and the names are
+ *  what /api/predict/match reads, server/api/predictMatch.ts). */
+async function bundlePredict(f: ScoutForecaster, season: number, teams: number[]): Promise<BundlePredict> {
+  const { bonus, pairs } = f.callInputs(season, teams);
+  const recent = await recentRecords(season, teams);
+  const names = teams.length ? await all<{ number: number; name: string | null }>(`SELECT number, name FROM teams WHERE number IN (${teams.map(() => "?").join(",")})`, teams) : [];
+  const byTeam = new Map(names.map((r) => [Number(r.number), r.name ?? null]));
+  return {
+    bonus, pairs,
+    recent: [...recent].sort((a, b) => a[0] - b[0]).map(([t, r]) => [t, r.matches, r.noShows, r.nearZero]),
+    names: [...new Set(teams)].sort((a, b) => a - b).map((t) => [t, byTeam.get(t) ?? null]),
+  };
+}
+
 /** Build one bundle (access to the workspace already checked). Null: no such event. */
 export async function buildBundle(input: BuildInput): Promise<BuiltBundle | null> {
   const { season, code, team, workspace } = input;
@@ -97,8 +111,12 @@ export async function buildBundle(input: BuildInput): Promise<BuiltBundle | null
   const fieldTeams = ev.field.map((f) => f.team);
 
   // The event teams' ratings for the in-browser engine (the lite pack's book, cut to this event).
-  const book = (await liveForecaster(season)).book(season);
+  const f = await liveForecaster(season);
+  const book = f.book(season);
   const ratings = book ? sliceBook(book.toData(), fieldTeams) : null;
+  // And the rest of what the server's prediction reads (GET /api/predict/match), from the same build, so an offline
+  // call on this bundle is the server's call: bonus odds, pair history, recent-record reasons and the teams' names.
+  const predict: BundlePredict | undefined = ratings ? await bundlePredict(f, season, fieldTeams) : undefined;
 
   // The workspace's half: consensus on the event's teams and the pick list, read once for every report.
   let wsPart: { consensus: Awaited<ReturnType<typeof consensusFor>>; picks: Awaited<ReturnType<typeof readPickList>> } | null = null;
@@ -138,7 +156,7 @@ export async function buildBundle(input: BuildInput): Promise<BuiltBundle | null
   const sections: BundleSection[] = [
     section("event", "Teams, schedule and rankings", ev, ev.field.length, ev.matches.length ? null : "No schedule published yet: it's in the bundle once FIRST posts it."),
     // The book's clock (`now`) moves with every build; the ratings themselves only with new results.
-    section("ratings", "Ratings for offline predictions", ratings && { ...ratings, now: 0 }, ratings?.ratings.length ?? 0, ratings ? null : "No ratings for this season yet."),
+    section("ratings", "Ratings for offline predictions", ratings && { ...ratings, now: 0, predict }, ratings?.ratings.length ?? 0, ratings ? null : "No ratings for this season yet.", ratings && { ...ratings, predict }),
     section("api", "Team and match pages", api, apiPaths.length),
     section("compare", "Compare for every team", compare, Object.keys(compare).length),
     section("search", "Search for its teams", search, Object.keys(search.teams).length),
@@ -153,7 +171,7 @@ export async function buildBundle(input: BuildInput): Promise<BuiltBundle | null
     format: BUNDLE_FORMAT, season, code: ev.event.code, name: ev.event.name, end: ev.event.end ?? ev.event.start, version, builtAt, dataAsOf,
     engineVersion: ENGINE_VERSION, team, workspace, sections, field: ev.field.map((f) => [f.team, f.name]), reportKeys: reports.map((r) => r.key), apiPaths,
   };
-  const body: EventBundle = { format: BUNDLE_FORMAT, manifest: head, event: ev, ratings, reports, picklist, rules, venue, api, compare, search, currentSeason: CURRENT_SEASON };
+  const body: EventBundle = { format: BUNDLE_FORMAT, manifest: head, event: ev, ratings, ...(predict ? { predict } : {}), reports, picklist, rules, venue, api, compare, search, currentSeason: CURRENT_SEASON };
   const gz = gzipSync(Buffer.from(JSON.stringify(body)), { level: 9 });
   const q = new URLSearchParams({ ...(team != null ? { team: String(team) } : {}), ...(workspace ? { workspace: workspace.id } : {}), v: version });
   const manifest: BundleManifest = { ...head, url: `/api/bundles/${season}/${encodeURIComponent(ev.event.code)}/file?${q}`, bytes: gz.length, sha256: sha(gz) };

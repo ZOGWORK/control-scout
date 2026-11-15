@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 6.4.8 — 2026-11-15
+
+With no signal, Predict now gives the server's own call for the same snapshot: the same scores and ranges, bonus RP odds, why factors and reasons, and the teams' names. A saved event pack newer than the lite pack predicts for its teams.
+
+### Highlights
+- [offline] Offline Predict shows the same numbers as online for the same data
+- [offline] A newer saved event pack predicts its teams, not the older lite pack
+- [offline] Team names show in offline predictions instead of "…"
+- [offline] Offline calls say which pack they came from and its data time
+
+### Fixed
+- Offline Predict (`/predict` with no signal): the lite pack is rebuilt about once a day, and it answered even when a newer event pack held the lineup, so its season averages (the "×" in the why factors), score ranges and bonus RP odds were the morning's while the server's had moved on with the day's results. Now the newer of the two snapshots that holds the lineup answers, and every number comes from that one snapshot. Event packs now also carry the rest of what the server's prediction reads (the season's bonus RP model, the pair history among the event's teams, recent no-show records and the server's team names), and the lite pack carries the recent records that make a reason, so an offline call is the server's call at that snapshot's time. The server and the device build the call through one shared function, so they can't drift apart. The offline note names the pack and shows its data time, not its build time. The lite pack's pair-history line stays a small cut (same-alliance pairs with 3+ matches, newest season), so that one line can still differ. (`src/shared/predictView.ts`, `src/lib/offline/predict.ts`, `src/lib/offline/predictCall.ts`, `server/packs/bundle.ts`, `server/packs/build.ts`, `src/pages/PredictPage.tsx`) (#PRNUM)
+
 ## 6.4.7 — 2026-11-15
 
 Settings › Network & offline now says whether the Wi-Fi is actually giving internet: a Wi-Fi whose sign-in page answers reads "Connected to Wi-Fi, but no internet" and says to open any website to sign in, instead of "You're offline".

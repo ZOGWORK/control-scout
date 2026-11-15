@@ -10,6 +10,7 @@
 // answer.ts), loaded lazily with no signal.
 import type { BonusModelSource, RatingBookData } from "@control-scout/predict-engine";
 import type { LitePairs } from "../shared/litePairs";
+import type { RecentRow } from "../shared/predictView";
 import type { LiteLearned } from "../shared/liteLearned";
 import { PACK_META_KEY, packStatus, type PackMeta } from "./packPolicy";
 import { FEATURE_DISABLED, featureOffMessage } from "../shared/flags";
@@ -35,6 +36,8 @@ export interface LitePack {
   books: Record<string, RatingBookData>;
   /** Season → bonus-RP model as the server serves it (packs from engine 2.3 on; older packs have none). */
   bonus?: Record<string, BonusModelSource>;
+  /** Season → the recent records that make a reason, [team, matches, no-shows, near-zero] (packs from 6.4.8 on). */
+  recent?: Record<string, RecentRow[]>;
   /** [number, name, city/state/country] */
   teams: [number, string | null, string | null][];
   /** Pair history for the newest season, cut down for the device (src/shared/litePairs.ts; absent in older packs). */
