@@ -258,6 +258,14 @@ describe("readSaved", () => {
     await removeSeason(2025);
     expect(kept()).toEqual([]);
   });
+
+  it("keeps every saved season's index after a search over all of them, though only two stay open", async () => {
+    for (const s of [2023, 2024, 2025]) await saveSeason(file(s, "a"), manifest);
+    // A search reads all three; the least recent one (2023) is let go once it ends.
+    await readSaved(undefined, (dbs) => readSearch(dbs, "new"));
+    await keepSearchIndexes();
+    expect([...store.keys()].filter((k) => k.startsWith("search-index:")).map((k) => k.split(":")[1]).sort()).toEqual(["2023", "2024", "2025"]);
+  });
 });
 
 describe("updates never bring back a removed season (replaceOnly)", () => {

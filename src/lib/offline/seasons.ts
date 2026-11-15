@@ -86,7 +86,7 @@ async function openPack(bytes: Uint8Array, season: number): Promise<Database> {
 // Open databases stay in memory (opening a season again on every page would be
 // slow), but a season is tens of MB: only the KEEP_OPEN most recently read
 // stay. Keyed by checksum, so an update reopens. Map order = least recent first.
-interface Entry { sha256: string; db: Promise<Database>; pins: number; dead?: boolean; indexKept?: boolean }
+interface Entry { season: number; sha256: string; db: Promise<Database>; pins: number; dead?: boolean; indexKept?: boolean }
 const open = new Map<number, Entry>();
 const KEEP_OPEN = 2;
 
@@ -236,7 +236,7 @@ function entry(season: number): Entry | null {
   if (o?.sha256 === meta.sha256) { open.delete(season); open.set(season, o); return o; }
   close(season);
   // Its db is set just below (the read marks it only after its first await).
-  const e = { sha256: meta.sha256, pins: 0 } as Entry;
+  const e = { season, sha256: meta.sha256, pins: 0 } as Entry;
   const db = (async () => {
     const t0 = now();
     // The kept search index is read alongside the file; without one (or unreadable), the first search builds it.
@@ -250,6 +250,7 @@ function entry(season: number): Entry | null {
   })();
   e.db = db;
   open.set(season, e);
+  unkept.add(e);
   db.catch(() => { if (open.get(season) === e) open.delete(season); }); // retry next time
   return e;
 }
@@ -262,21 +263,34 @@ function wrapOf(db: Database): Db {
   return w;
 }
 
-/** Keep the search index of every open season that built one and hasn't kept it yet (answer.ts warmOffline, in
- *  idle time), replacing any older one kept for that season. Best effort: storage full just means it's built again. */
+/** Seasons opened on this page whose search index isn't kept yet, open or not: a search over three or more saved
+ *  seasons builds every one's index but keeps only KEEP_OPEN open, and a closed one's built index (it lives in the
+ *  readers' cache, not in the closed file) is still kept. */
+const unkept = new Set<Entry>();
+
+/** Keep the search index of every season opened on this page that built one and hasn't kept it yet (after a search,
+ *  or answer.ts warmOffline, in idle time), replacing any older one kept for that season. Best effort: storage full
+ *  just means it's built again. */
 export async function keepSearchIndexes(): Promise<void> {
-  for (const [season, e] of [...open]) {
-    if (e.indexKept || e.dead) continue;
+  for (const e of [...unkept]) {
+    if (e.indexKept) { unkept.delete(e); continue; }
     const db = await e.db.catch(() => null);
-    const json = db && indexJson(wrapOf(db));
-    if (!json || e.indexKept || open.get(season) !== e) continue;
+    if (!db) { unkept.delete(e); continue; }
+    const json = indexJson(wrapOf(db));
+    const isOpen = open.get(e.season) === e;
+    // Not built yet: a later search may build it while the season is open; closed, it never will.
+    if (!json) { if (!isOpen) unkept.delete(e); continue; }
+    // The season removed or updated since it opened: its index is for a file no longer listed.
+    if (savedSeasons().find((s) => s.season === e.season)?.sha256 !== e.sha256) { unkept.delete(e); continue; }
+    if (e.indexKept) continue;
     e.indexKept = true;
     try {
-      const k = indexKey(season, e.sha256);
+      const k = indexKey(e.season, e.sha256);
       await put(k, json);
-      // The season removed or updated meanwhile: this index is for a file no longer listed, so it goes too.
-      const current = savedSeasons().find((s) => s.season === season)?.sha256 === e.sha256;
-      for (const old of await keys(INDEX_PREFIX(season))) if (old !== k || !current) await del(old);
+      // Removed or updated while it was written: this index goes too.
+      const current = savedSeasons().find((s) => s.season === e.season)?.sha256 === e.sha256;
+      for (const old of await keys(INDEX_PREFIX(e.season))) if (old !== k || !current) await del(old);
+      unkept.delete(e);
     } catch { e.indexKept = false; }
   }
 }
