@@ -12,8 +12,8 @@ const ev = (code: string, triage: CoverageTriage, triageWhy: string, o: Partial<
   version: `v-${code}`, videos: [], daysMissing: [], missing: [], triage, triageWhy, ...o,
 });
 const EVENTS: Record<string, OwnerCoverageEvent[]> = {
-  actionable: [ev("AUSYQ2", "actionable", "1 match played before the broadcast started, by the clock: not yet checked against the video (10 more held back for other reasons)", { season: 2025 })],
-  "early-start": [ev("USAZFLQ", "early-start", "11 matches: An early start would open on the match before: not guessed, so no clip opens on the wrong match")],
+  actionable: [ev("AUSYQ2", "actionable", "1 match not yet checked against the video (Q1) (10 more held back for other reasons)", { season: 2025 })],
+  "early-start": [ev("USAZFLQ", "early-start", "11 matches checked in the video: each starts while the match before is still on, so a clip would open on the wrong match")],
   "no-timing": [ev("USAZGLQ1", "no-timing", "42 matches: Video unavailable or private", { withClip: 0, played: 42, state: "unplaced" })],
   "old-season": [], reviewed: [],
 };
@@ -48,7 +48,8 @@ describe("ClipCoveragePanel, triaged", () => {
     expect(rows()).toEqual([["2025/AUSYQ2", "actionable"]]);
     const why = document.querySelector("[data-triage-why]")!;
     expect(within(why as HTMLElement).getByText("Actionable")).toBeTruthy();
-    expect(why.textContent).toMatch(/played before the broadcast started, by the clock: not yet checked against the video/);
+    expect(why.textContent).toMatch(/1 match not yet checked against the video \(Q1\)/);
+    expect(why.textContent).not.toMatch(/early|by the clock/i);
     expect(document.querySelector("[data-coverage-triage]")?.textContent).toMatch(/To review: 1 event \(Actionable only\)\. Not to review: No timing 1 · Early start \/ unsafe 1 · Old season 0 · Reviewed 0\./);
   });
 
@@ -57,7 +58,7 @@ describe("ClipCoveragePanel, triaged", () => {
     fireEvent.click(document.querySelector('[data-coverage-list="early-start"]')!);
     expect(h.paths.at(-1)).toBe("/api/owner/clip-coverage?list=early-start");
     expect(rows()).toEqual([["2026/USAZFLQ", "early-start"]]);
-    expect(screen.getByText(/11 matches: An early start would open on the match before/)).toBeTruthy();
+    expect(screen.getByText(/11 matches checked in the video: each starts while the match before is still on/)).toBeTruthy();
     fireEvent.click(document.querySelector('[data-coverage-list="no-timing"]')!);
     expect(rows()).toEqual([["2026/USAZGLQ1", "no-timing"]]);
     expect(document.querySelector('[data-coverage-list="no-timing"]')?.getAttribute("aria-pressed")).toBe("true");
