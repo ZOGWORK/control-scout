@@ -63,7 +63,8 @@ describe("the region page", () => {
     expect(within(movers).getByText("Biggest fallers")).toBeTruthy();
     expect(movers.textContent).toMatch(/New to the table \(1\)/);
     // Rank 2 in New Jersey (world 20), move down 1, rating, OPR, record, events, rated matches.
-    expect(cells(4215)).toEqual(["2W20", "1 down", expect.stringContaining("4215"), "28.3", "16.0", "2-3-1", "1", "6 matches", "Steady"]);
+    expect(cells(4215)).toEqual(["2W20", "1 down", expect.stringContaining("4215"), "28.3", "16.0", "2-3-16 matches", "1", "6 matches", "Steady"]); // the record cell carries the phone-only sample size line
+    expect(document.querySelector(`tr[data-team="4215"] [data-phone-matches]`)?.textContent).toBe("6 matches");
     expect(rowOf(23314).textContent).toContain("New");
   });
 

@@ -30,11 +30,11 @@ export function LeagueTable({ rows, season, team, maxRows, scout }: { rows: Leag
             <th scope="col" className={cn(TH, "text-left")}>Team</th>
             <th scope="col" className={cn(TH, "text-right")} title="Ranking score: FIRST's first sort key, average ranking points per match over the league's meets">RS</th>
             <th scope="col" className={cn(TH, "text-right")}>W-L-T</th>
-            <th scope="col" className={cn(TH, "text-right")} title="Qualification matches played across the league's meets">Matches</th>
-            <th scope="col" className={cn(TH, "text-right")} title="League meets played">Meets</th>
-            {scout && <th scope="col" className={cn(TH, "border-l border-border text-right")} title="Control Scout's prediction rating this season (the number /rankings shows); not FIRST's">Scout rating</th>}
+            <th scope="col" className={cn(TH, "text-right", scout && "max-sm:hidden")} title="Qualification matches played across the league's meets">Matches</th>
+            <th scope="col" className={cn(TH, "text-right", scout && "max-sm:hidden")} title="League meets played">Meets</th>
+            {scout && <th scope="col" className={cn(TH, "border-l border-border text-right")} title="Control Scout's prediction rating this season (the number /rankings shows); not FIRST's">Scout<span className="max-sm:hidden"> rating</span></th>}
             {scout && <th scope="col" className={cn(TH, "text-right")} title="Season OPR, penalties left out">OPR</th>}
-            {scout && <th scope="col" className={cn(TH, "text-right")} title="The team's rank in its home region's Scout rankings">Region rank</th>}
+            {scout && <th scope="col" className={cn(TH, "text-right")} title="The team's rank in its home region's Scout rankings"><span className="max-sm:hidden">Region rank</span><span className="sm:hidden">Region</span></th>}
           </tr>
         </thead>
         <tbody>
@@ -51,9 +51,9 @@ export function LeagueTable({ rows, season, team, maxRows, scout }: { rows: Leag
                 </td>
                 <td className={cn(TD, "text-right tabular-nums")}>{rankingScore(r.rs) ?? "—"}</td>
                 <td className={cn(TD, "text-right tabular-nums")}>{leagueRecord(r) ?? "—"}</td>
-                <td className={cn(TD, "text-right tabular-nums")}>{r.played ?? "—"}</td>
-                <td className={cn(TD, "text-right tabular-nums")}>{r.meets}</td>
-                {scout && <td className={cn(TD, "border-l border-border text-right tabular-nums")} data-scout-rating>{r.scout?.rating != null ? r.scout.rating.toFixed(1) : <span className="text-muted-foreground">Not rated yet</span>}</td>}
+                <td className={cn(TD, "text-right tabular-nums", scout && "max-sm:hidden")}>{r.played ?? "—"}</td>
+                <td className={cn(TD, "text-right tabular-nums", scout && "max-sm:hidden")}>{r.meets}</td>
+                {scout && <td className={cn(TD, "border-l border-border text-right tabular-nums")} data-scout-rating>{r.scout?.rating != null ? r.scout.rating.toFixed(1) : <span className="text-muted-foreground">Not rated<span className="max-sm:hidden"> yet</span></span>}</td>}
                 {scout && <td className={cn(TD, "text-right tabular-nums")}>{r.scout?.opr != null ? r.scout.opr.toFixed(1) : "—"}</td>}
                 {scout && <td className={cn(TD, "text-right tabular-nums")}>
                   {r.scout?.region && r.scout.regionRank != null

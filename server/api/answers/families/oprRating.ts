@@ -423,7 +423,8 @@ function rankKpis(st: NonNullable<Awaited<ReturnType<typeof seasonStats>>>, pop:
       { label: "Record", value: `${st.record.wins}-${st.record.losses}-${st.record.ties}`, sub: "Every official match this season" },
     ] : []),
     ...(region && place && by !== "rating" ? [
-      { label: `${region.name} by OPR`, value: place.opr ? `#${n(place.opr.rank)} of ${n(place.opr.of)}` : "Not ranked", sub: `OPR ${num(o.value)}`, ...(by === "opr" ? { tone: "accent" as const } : {}) },
+      // OPR to one decimal too, as the region's rankings table shows it.
+      { label: `${region.name} by OPR`, value: place.opr ? `#${n(place.opr.rank)} of ${n(place.opr.of)}` : "Not ranked", sub: `OPR ${o.value != null ? o.value.toFixed(1) : num(o.value)}`, ...(by === "opr" ? { tone: "accent" as const } : {}) },
     ] : []),
     { label: "Worldwide by OPR", value: o.rank && o.of ? `#${n(o.rank)} of ${n(o.of)}` : "Not ranked", sub: o.rank && o.of ? `OPR ${num(o.value)} · top ${topPct(o.rank, o.of)}%` : `OPR ${num(o.value)}` },
     { label: "Worldwide by rating", value: r?.rank ? `#${n(r.rank)}${pop ? ` of ${n(pop)}` : ""}` : "Not ranked", sub: r ? `${num(r.np)} ± ${num(r.sd)}` : undefined },
