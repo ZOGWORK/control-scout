@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.4.0 — 2026-11-14
+## 6.4.1 — 2026-11-14
 
 Offline downloads pick up where they stopped when the connection drops, show real MB progress, and never leave a half pack that looks saved. The Download page is now one Offline page: what to save at the top, everything on this device below.
 
@@ -33,6 +33,18 @@ Offline downloads pick up where they stopped when the connection drops, show rea
 
 ### Changed
 - Delete really deletes: the predictions pack's bytes are removed from IndexedDB (they were overwritten with null), and every delete says "Freed 6.9 MB". The browser is asked to keep this site's storage on the first download of any kind. Event-day bundles show real bytes while downloading. The menu calls the page Offline. (`src/lib/packs.ts`, `src/lib/offline/bundles.ts`, `src/components/offline/EventBundles.tsx`) (#1462)
+## 6.4.0 — 2026-11-14
+
+2025's events and 2024's APOC get match clips read off their recordings' frames: 2,612 more matches now open on their match, and 1,538 move to the second the frames show.
+
+### Highlights
+- [history] 2,612 more matches open on their match in the recording
+- [history] 1,538 clips now start where the video shows the match start
+- [history] Frame clips for every framed 2025 event and 2024's APOC
+
+### Changed
+- `server/data/frameTimings.ts` holds the two-signal reader's starts for 128 framed events (165 videos: 2025's events, and two 2024-season APOC videos under AUSYOS), in place of the 7 events shipped with 6.3.4. Against what's live: 30,273 of 34,423 played matches keep their clip as it is, 2,612 get a clip (456 read and confirmed, 2,156 between two agreeing reads), 1,538 move to the frames' second (1,256 by 30 s or less; 282 by more, all earlier in the video, across 23 events) and none lose a clip. 35 of them, one for every event with a move over 30 s plus 12 new ones, were checked by eye 30 s into the match: each shows that match running. (#1502)
+
 ## 6.3.9 — 2026-11-14
 
 FTC One Search works with no signal at the meet: search a team in the downloaded event by number or name, the event, a match, or set its teams side by side, and get the same answer as online. Anything else says plainly that it needs data the pack doesn't hold, and shows what the pack does hold.
