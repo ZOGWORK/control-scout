@@ -123,6 +123,12 @@ describe("a team's next match", () => {
   it("an event this weekend with no match list posted says so", async () => {
     expect(await teamNextMatch(9000, NOW)).toMatchObject({ kind: "no-schedule", event: { code: "USTXAUS" }, line: "Austin League Meet is this weekend: its match list isn't posted yet." });
   });
+  it("its matches there played or the next one late: no more listed, never \"not posted\" (Loopy, #1581)", async () => {
+    // 17:00 in New Jersey: Q5 (15:30) is over half an hour late with no result.
+    const a = await teamNextMatch(4215, Date.parse("2026-11-14T22:00:00Z"));
+    expect(a).toMatchObject({ kind: "no-schedule", event: { code: "USNJWM1" }, line: "No more matches listed for 4215 at Westfield League Meet yet." });
+    expect(a.played.map((m) => m.label)).toEqual(["Q1"]);
+  });
   it("no match this weekend: its next event, linked", async () => {
     const a = await teamNextMatch(7000, NOW);
     expect(a).toMatchObject({ kind: "next-event", event: { code: "USNJNW", href: `/events/${S}/USNJNW?team=7000` } });
@@ -207,5 +213,9 @@ describe("the routes the page reads", () => {
     const n = (await (await fetch(`${base}/api/teams/4215/next`)).json()) as NextMatchAnswer;
     expect(n.match?.label).toBe("Q5");
     expect((await fetch(`${base}/api/weekend?which=someday`)).status).toBe(400);
+    // An impossible date is no reader's date: UTC's is used (Loopy, #1581).
+    const odd = await fetch(`${base}/api/weekend?today=2026-13-45`);
+    expect(odd.status).toBe(200);
+    expect(((await odd.json()) as WeekendAnswer).window).toMatchObject(weekendWindow("this", "2026-11-14"));
   });
 });
