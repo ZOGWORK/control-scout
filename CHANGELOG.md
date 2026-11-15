@@ -21,9 +21,11 @@ Owner › Clip coverage: the check pass's log line has no stray double space bef
 
 ### Highlights
 - [fixes] The clip coverage pass log reads cleanly
+- [workspace] Its pending count follows one spacer, like every part before it
+- [workspace] A test keeps the line free of double spaces
 
 ### Fixed
-- The clip coverage pass log line had two spaces before "· N matches not yet checked against the video". (`server/videos/coverageCheck.ts`)
+- The clip coverage pass log line had two spaces before "· N matches not yet checked against the video". (`server/videos/coverageCheck.ts`) (#1552)
 
 ## 6.6.7 — 2026-11-15
 
