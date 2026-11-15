@@ -27,7 +27,7 @@ Highlights searches that named an event's full name, a division nearly right, or
 ### Fixed
 - "FiT-Central Texas Regional Championship highlights" found no event. Search reads an event's whole stored name first, but it counted "fit" as one of its own words (from phrases like "best fit"), so only "Central Texas" was left as the name's own words, and that read as the state. Only words search reads on their own now count; a word it reads only inside a longer phrase can be part of a name. (`src/shared/query/parse.ts`)
 - A Romania championships highlights search with the VLAICU Division's name typed with two letters swapped found nothing: the event was read, the division's name was not. A word left over after an event is read that is, or nearly spells, a word of that event's own stored names (one letter off, a swap counts as one, five letters or more, one such word only) is now read into the event, so it plays Romania Championship - VLAICU Division and the card names it as stored. (`src/shared/query/names.ts`, `src/shared/query/parse.ts`)
-- "usa champs highlights" found nothing. A state with only a championship word after it ("texas champs") is its state championship; a country is now read the same way, as its championships, unless an event is named that way ("romania champs" stays Romania Championship). (`src/shared/query/parse.ts`)
+- "usa champs highlights" found nothing. A state with only a championship word after it ("texas champs") is its state championship; a country is now read the same way, as its championships, unless an event is named that way ("romania champs" stays Romania Championship). (`src/shared/query/parse.ts`) (#1528)
 
 ## 6.5.3 — 2026-11-15
 
