@@ -401,7 +401,9 @@ async function checkAdds(rows: any[], facts: Map<string, any>, rules: Map<string
   const byId = new Map(rows.map((r) => [String(r.video_id), r]));
   const out: { videoId: string; ok: boolean; why: string; setAside: string | null }[] = [];
   for (const a of adds) {
-    const vid = String(a.video_id), r = byId.get(vid), f = facts.get(vid);
+    const vid = String(a.video_id), r = byId.get(vid);
+    // Facts not read this run (a failed call): the last ones read stand, so an add found unplayable isn't cleared by a failure.
+    const f = facts.get(vid) ?? (r?.privacy != null ? { privacy: String(r.privacy), embeddable: r.embeddable, blocked_in: Number(r.blocked_in ?? 0), start: r.start ?? null, duration: r.duration ?? null } : undefined);
     const wrong: string[] = [];
     if (a.removed_at) wrong.push("the owner removed it from its event");
     if (!a.e_start) wrong.push(`its event ${a.season} ${a.code} isn't in Scout`);
@@ -433,6 +435,8 @@ async function checkAdds(rows: any[], facts: Map<string, any>, rules: Map<string
       const others = (await eventVideosByDay(Number(a.season), String(a.code))).filter((h) => h.videoId !== vid && h.day === a.day && (h.part == null || a.part == null));
       if (others.length) wrong.push(`a second video of ${a.day} (${others[0].videoId} plays it too) and not both name their part`);
     }
+    // Nothing known of its playability and no other fault: no verdict this run, its last check stands.
+    if (!f && !wrong.length) continue;
     out.push({ videoId: vid, ok: !wrong.length, why: wrong.length ? wrong.join("; ") : `checked ${at.slice(0, 10)}: playable, on ${a.season} ${a.code} ${a.day}, the only event the rules fit`, setAside: !a.removed_at && !!nc ? nc : null });
   }
   return out;
