@@ -86,6 +86,15 @@ describe("the weekend's events", () => {
     expect(inWeekend({ start: "2026-11-15", end: "2026-11-15", timezone: "America/Los_Angeles" }, "this", late)).toBe(true);
     expect(inWeekend({ start: "2026-11-15", end: "2026-11-15", timezone: null }, "this", late)).toBe(false);
   });
+  it("a calendar ahead waits: Monday in Sydney doesn't move its next meet into this weekend", () => {
+    // 23:00 UTC Sunday is 10:00 Monday in Sydney.
+    const sun = Date.parse("2026-11-15T23:00:00Z");
+    const sydney = { start: "2026-11-21", end: "2026-11-22", timezone: "Australia/Sydney" };
+    expect(inWeekend(sydney, "this", sun)).toBe(false);
+    expect(inWeekend(sydney, "next", sun)).toBe(true);
+    // The reader's own date decides the weekend shown: a reader already on Monday has next weekend's events as this.
+    expect(inWeekend(sydney, "this", sun, "2026-11-16")).toBe(true);
+  });
   it("none said plainly, the place named", async () => {
     expect(noEventsLine("this", null)).toBe("No FTC events this weekend.");
     expect(noEventsLine("next", { name: "Romania" })).toBe("No FTC events next weekend in Romania.");
