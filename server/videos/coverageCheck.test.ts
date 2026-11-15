@@ -106,8 +106,10 @@ describe("clip coverage check and triage", () => {
     expect(await openCoverageCount()).toBe(1);
     const e = (await ownerClipCoverage()).events[0];
     expect([e.code, e.triage]).toEqual(["TWODAY", "actionable"]);
-    expect(e.triageWhy).toBe("1 match played before the broadcast started, by the clock: not yet checked against the video (1 more held back for other reasons)");
+    // Said as what the video showed (no frames read of it yet), never what the clock said; the clock's kept apart.
+    expect(e.triageWhy).toBe("1 match not yet checked against the video (Q1) (1 more held back for other reasons)");
     expect(e.missing.map((m) => [m.label, m.reason])).toEqual([["Q1", "before-broadcast"], ["Q3", "no-recording-day"]]);
+    expect(e.missing[0]).toMatchObject({ why: "Not yet checked against the video", clock: "Played before the broadcast started", video: { checked: null } });
   });
 
   it("a deploy (every fingerprint new, nothing else) re-opens nothing, nor a non-actionable change after it", async () => {

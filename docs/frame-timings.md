@@ -67,6 +67,9 @@ A gap in one stretch doesn't stop the day: the next read that agrees with anothe
 
 Only `starts` become clips. `review` (with the start found and why) and `missing` (with why) are written per video for
 the owner's review list; review starts are never shown as clips, and nothing is dropped without a reason.
+`earlyStart` (`{ label: { t, previousEnds } }`) marks a match the frames show starting while the one before is still on:
+only those are "Early start / unsafe" in Owner › Clip coverage. A row's existence is what marks its video as checked
+against the frames; a match in none of `starts`, `review`, `missing` or `earlyStart` reads "no start found for it".
 
 A video where three matches in a row give no read, and nothing has been read yet, counts as one without the overlay
 and is left, after one more go in a fresh player (a player that never showed the stream looks the same). A frame read
