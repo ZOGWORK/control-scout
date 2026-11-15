@@ -570,7 +570,20 @@ export interface MatchClip { videoId: string; t: number; url: string; early?: nu
 export type CoverageReason = "no-start" | "no-zone" | "no-recording-day" | "outside-span" | "before-broadcast" | "after-broadcast" | "video-unavailable"
   | "video-unread" | "no-clock" | "gap-unplaced" | "past-chapters" | "past-checked" | "past-video-end" | "before-cut" | "before-chapters" | "overlaps-previous" | "no-first-video" | "unexplained";
 /** One played match's clip, or why it has none. `basis`: what a clip's place stands on (the clock, chapters, frames). */
-export interface CoverageMatch { key: string; label: string; date: string | null; teams?: number[]; clip: boolean; videoId: string | null; reason?: CoverageReason; why?: string; basis?: string }
+/**
+ * What the video itself showed of a match the clock alone left without a clip (server/data/frameTimings.ts, read off
+ * the video's frames). `checked`: the day its frames were read, null when they weren't yet; `seenAt`: the second a
+ * read put it at, not yet confirmed; `found`: what the read said of it; `earlyStart`: the frames show it starting at
+ * `t` while the match before runs to `previousEnds`; `before`/`after`: the nearest matches the frames placed in it.
+ */
+export interface CoverageVideoCheck {
+  checked: string | null; seenAt?: number; found?: string;
+  earlyStart?: { t: number; previousEnds: number };
+  before?: { label: string; at: number }; after?: { label: string; at: number };
+}
+/** `why`: in plain words; for a match the clock alone left without a clip, what the video showed (`video`), with the
+ *  clock's own reading kept in `clock`. */
+export interface CoverageMatch { key: string; label: string; date: string | null; teams?: number[]; clip: boolean; videoId: string | null; reason?: CoverageReason; why?: string; clock?: string; video?: CoverageVideoCheck; basis?: string }
 /** One video of an event's recording: its day (and part), how many played matches it holds and how many got a clip;
  *  `why`: why it gives no clips at all. */
 export interface CoverageVideo { videoId: string; label: string; date: string | null; matches: number; clipped: number; why?: string; basis?: string }
