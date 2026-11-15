@@ -84,7 +84,7 @@ describe("saving never runs the pack", () => {
 
 describe("saveSeason", () => {
   it("puts the SQLite engine in the worker's newest cache before the season shows as saved", async () => {
-    caches.set("cs-shell-20261001-aa", new Set([ENGINE])); // as the worker or the save left it caches.set("cs-shell-20261010-bb", new Set());
+    caches.set("cs-shell-20261001-aa", new Set()); caches.set("cs-shell-20261010-bb", new Set());
     let atSave = false;
     const on = () => { atSave = caches.get("cs-shell-20261010-bb")!.has(ENGINE); };
     window.addEventListener(SEASONS_EVENT, on);

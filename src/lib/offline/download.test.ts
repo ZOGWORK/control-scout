@@ -214,6 +214,29 @@ describe("the lite pack through the downloader", () => {
     localStorage.removeItem("cs-lite-deleted");
   });
 
+  it("Get it: a connection that drops before a byte came keeps it marked to pick up; a bad file doesn't", async () => {
+    const { getLite } = await import("./resume");
+    const respond = (lite: (url: string) => Response | Promise<Response>) => vi.stubGlobal("fetch", vi.fn(async (url: string) => (String(url).endsWith("latest.json") ? new Response(JSON.stringify(manifest)) : lite(String(url)))));
+    respond(() => { throw new TypeError("Failed to fetch"); });
+    await expect(getLite("v1")).rejects.toThrow(/Couldn't finish/);
+    expect(await partialDownloads()).toEqual([]); // nothing came
+    expect(resumeMarks().map((m) => m.key)).toEqual(["lite:lite"]);
+
+    respond(() => new Response(bytes(gz.length)));
+    await expect(getLite("v1")).rejects.toThrow(/Couldn't finish/);
+    expect(resumeMarks()).toEqual([]);
+  });
+
+  it("a Delete whose half-download tidy-up fails still counts as done", async () => {
+    vi.stubGlobal("fetch", server(gz).fn);
+    await downloadLite(lite, manifest);
+    const store = await import("./download");
+    vi.spyOn(store, "partialDownloads").mockRejectedValueOnce(new Error("idb broke"));
+    expect(await removeLite()).toBe(gz.length);
+    expect(packStatus()).toBeNull();
+    localStorage.removeItem("cs-lite-deleted");
+  });
+
   it("a Delete made while a background sync is downloading (another tab) isn't undone when it finishes", async () => {
     vi.stubGlobal("fetch", vi.fn(async (url: string) => {
       if (String(url).endsWith("latest.json")) return new Response(JSON.stringify(manifest));

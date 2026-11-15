@@ -176,10 +176,13 @@ export async function removeSeason(season: number): Promise<number> {
     // Nothing of the season stays behind: a half download of it (a paused update) goes too, and it no longer
     // picks up by itself.
     clearResume(markKey("season", String(season)));
+    // Tidying only, like the sweep: a storage error here never turns a done Delete into a failed one.
     let partial = 0;
-    for (const p of await partialDownloads()) {
-      if (p.owner.kind === "season" && p.owner.id === String(season) && (await dropPartial(p.sha256))) partial += p.have;
-    }
+    try {
+      for (const p of await partialDownloads()) {
+        if (p.owner.kind === "season" && p.owner.id === String(season) && (await dropPartial(p.sha256))) partial += p.have;
+      }
+    } catch { /* left for the paused row's own Delete */ }
     if (!savedSeasons().length) await dropEngine();
     return (meta?.bytes ?? 0) + partial;
   });

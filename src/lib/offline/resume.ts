@@ -1,9 +1,9 @@
 // Picking up the downloads a dropped connection paused (resumeMarks.ts), and getting the predictions pack for
 // the person (Update, Resume, the whole-season download). Loaded only when there's something to pick up
 // (resumeWatcher.tsx) or from the Download page.
-import { fetchManifest, packStatus, syncLite, type PackFile, type PackManifest } from "../packs";
+import { ManifestError, fetchManifest, lastSyncError, packStatus, syncLite, type PackFile, type PackManifest } from "../packs";
 import { noteRequestFailed } from "../connection";
-import { activeDownloads, partialDownloads, type PartialDownload } from "./download";
+import { activeDownloads, byConnection, partialDownloads, type PartialDownload } from "./download";
 import { batchRunning, runSeasonBatch, type BatchResult } from "./seasonBatch";
 import { savedSeasons } from "./saved";
 import { clearResume, markKey, resumeMarks, wantResume } from "./resumeMarks";
@@ -26,8 +26,11 @@ export async function getLite(version: string | undefined): Promise<void> {
   const have = packStatus();
   // syncLite reads the manifest again, so a release published meanwhile is a success too: at least the one asked for.
   if (!meta || !have || (version && releaseOrder(have.version, version) < 0)) {
-    // What came is kept (a pause): it waits for the connection. Anything else isn't picked up by itself.
-    if (litePaused(await partialDownloads())) noteRequestFailed(); else clearResume(LITE);
+    // Stopped by the connection (what came is kept, nothing came at all, or the pack list didn't load): it waits for
+    // the connection. Anything else isn't picked up by itself.
+    const e = lastSyncError();
+    const connection = byConnection(e) || (e instanceof ManifestError && e.reason === "unreachable") || litePaused(await partialDownloads().catch(() => []));
+    if (connection) noteRequestFailed(); else clearResume(LITE);
     throw new Error("Couldn't finish downloading the predictions pack. Try again in a moment.");
   }
   clearResume(LITE);

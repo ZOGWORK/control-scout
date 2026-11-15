@@ -209,8 +209,11 @@ export async function removeLite(): Promise<number> {
   cached = null;
   // A half download of a newer release goes too, and nothing picks it up by itself any more.
   clearResume(markKey("lite", "lite"));
+  // Tidying only (the pack itself is gone): a storage error here never turns a done Delete into a failed one.
   let partial = 0;
-  for (const p of await partialDownloads()) if (p.owner.kind === "lite" && (await dropPartial(p.sha256))) partial += p.have;
+  try {
+    for (const p of await partialDownloads()) if (p.owner.kind === "lite" && (await dropPartial(p.sha256))) partial += p.have;
+  } catch { /* left for the paused row's own Delete */ }
   window.dispatchEvent(new Event(PACK_EVENT));
   return freed + partial;
 }
@@ -219,6 +222,10 @@ export async function removeLite(): Promise<number> {
 export const PACK_EVENT = "cs-pack-changed";
 
 let syncing: Promise<PackMeta | null> | null = null;
+let syncError: unknown = null;
+/** Why the last syncLite run failed (it stays quiet itself), or null: lets the person's own Get it tell a dropped
+ *  connection from anything else. */
+export const lastSyncError = () => syncError;
 /** Keep the lite pack current in the background: download it when it's
  *  missing or older than the published one. Quiet on failure (offline, no
  *  packs, bad checksum); the next visit tries again. `allowed` is asked again
@@ -229,6 +236,7 @@ export function syncLite(opts: { allowed?: () => boolean } = {}): Promise<PackMe
   // download: it waits for that one, then runs its own (a quick no-op if that one already saved the pack).
   if (syncing) return opts.allowed ? syncing : syncing.then(() => syncLite(opts));
   syncing = (async () => {
+    syncError = null;
     try {
       const m = await fetchManifest();
       const have = packStatus();
@@ -237,7 +245,7 @@ export function syncLite(opts: { allowed?: () => boolean } = {}): Promise<PackMe
       // Deleted on purpose: only the person's own Download brings it back (an explicit request has no `allowed`).
       if (opts.allowed && liteDeleted()) return have;
       return (await downloadLite(m.lite, m, undefined, { background: !!opts.allowed })) ?? packStatus();
-    } catch { return packStatus(); }
+    } catch (e) { syncError = e; return packStatus(); }
     finally { syncing = null; }
   })();
   return syncing;
