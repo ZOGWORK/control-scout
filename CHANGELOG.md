@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.6.4 — 2026-11-15
+## 6.6.5 — 2026-11-15
 
 Search answers four more questions it used to miss: three team numbers side by side, a team's Auto OPR at Worlds, what a tiebreaker is, and "teams in" with nothing after it.
 
@@ -30,6 +30,18 @@ Search answers four more questions it used to miss: three team numbers side by s
 - A team's Auto OPR at Worlds ("what was hypnotic robotics auto opr at worlds in centerstage", and the same without "opr") showed the team card and "can't answer that yet". It's now that phase's OPR in the team's Worlds division (47.3 at Edison, 2023–24), with its OPR and the other phases beside it, as "auto" alone already reads a team's season Auto OPR. A phase next to another stat word ("highest auto at worlds") stays with the match answers. (`server/api/answers/families/oprRating.ts`) (#1493, #1494)
 - "What is a tie breaker point" found nothing. A new explainer says how teams level on ranking score are ordered (average non-penalty score first, as the methodology page says), and a typo of "breaker" is now corrected to it. (`server/api/searchCoverage.ts`, `server/api/spelling.ts`) (#1430, #1429)
 - "teams in" with nothing after it found nothing. It now lists every team, best by OPR this season, with how many are registered and how to add a place. (`server/api/searchCoverage.ts`) (#1421)
+
+## 6.6.4 — 2026-11-15
+
+A bug report's screenshot or video is cleared from the server minutes after its GitHub issue is filed, instead of waiting for a quiet stretch with no deploys.
+
+### Highlights
+- [report] Attachments leave the server minutes after the issue is filed
+- [report] Reports waiting on GitHub are tried again a minute after each restart
+- [fixes] Busy deploy days no longer hold up bug report filing
+
+### Fixed
+- Report a bug: GitHub takes a few seconds to open a new issue's attachments to everyone, so the first check right after filing usually finds them closed. The server now checks again after 15 s, 1 min and 3 min and deletes the local copy once each opens, instead of waiting for the 10-minute sweep. The sweep also runs one minute after each start: deploys restarted the server every few minutes on 2026-11-15 and each restart put it off again, so neither the clean-up nor "file it later" ran. (`server/bugReports.ts`, `server/index.ts`) (#1551)
 
 ## 6.6.3 — 2026-11-15
 
