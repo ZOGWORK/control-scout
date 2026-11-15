@@ -41,8 +41,10 @@ export function DownloadResumer(): null {
         }
         // One still marked that was tried moments ago (paused again, or a check found internet during the gap):
         // tried again once the gap is over, rather than at the next check, minutes away while there's internet.
+        // Only while a gap is still running (wait > 0): once it's over and the pass still didn't try it (another
+        // download running, the pack list unreachable), the next connection check does, never a timer loop.
         const wait = r.nextTryIn();
-        if (!stopped && wait != null && resumeMarks().length) { clearTimeout(again); again = setTimeout(kick, wait + 100); }
+        if (!stopped && wait != null && wait > 0 && resumeMarks().length) { clearTimeout(again); again = setTimeout(kick, wait + 100); }
       }).catch(() => { /* the person's own Resume still works */ });
     };
     kickRef.current = kick;

@@ -101,6 +101,25 @@ describe("DownloadResumer", () => {
     await vi.waitFor(() => expect(toast.success).toHaveBeenCalledWith("2026–27 season saved on this device", expect.anything()));
   });
 
+  it("a gap that's over with nothing tried (another download running, no pack list) waits for the next check, never loops", async () => {
+    wantResume("season", "2026");
+    resumePaused.mockResolvedValue([]);
+    nextTryIn.mockReturnValue(0);
+    conn.internet = "yes";
+    try {
+      render(<DownloadResumer />);
+      await vi.waitFor(() => expect(resumePaused).toHaveBeenCalled(), { timeout: 5000 });
+      const n = resumePaused.mock.calls.length;
+      await act(async () => { await new Promise((r) => setTimeout(r, 600)); });
+      expect(resumePaused).toHaveBeenCalledTimes(n);
+    } finally {
+      resumePaused.mockReset();
+      resumePaused.mockImplementation(async () => [{ key: "season:2026", saved: true }]);
+      nextTryIn.mockReset();
+      nextTryIn.mockImplementation(() => null);
+    }
+  });
+
   it("Wi-Fi and mobile data: picks up on mobile data too", async () => {
     settings.current = { offlineNetwork: "any" };
     netConn.type = "cellular";
