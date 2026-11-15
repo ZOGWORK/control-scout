@@ -19,6 +19,8 @@ beforeAll(async () => {
   await migrate(c);
   for (const n of [4215, 6980, 23268, 7149, 5000, 5001]) await run("INSERT INTO teams (number, name, city, state, country) VALUES (?, ?, 'Laurel', 'MD', 'USA')", [n, `Team ${n}`]);
   await run("INSERT INTO teams (number, name, city, state, country) VALUES (9999, 'BOB', 'Laurel', 'MD', 'USA')");
+  // A team whose name starts like the initialism (live: "CRI matches" opened Critical Mass's matches).
+  await run("INSERT INTO teams (number, name, city, state, country) VALUES (207, 'Critical Mass', 'Englewood', 'NJ', 'USA')");
   // One event code, renamed between seasons (both are "MTI"); another event sharing the initialism, an older one.
   // [season, code, name, teams, held (month-day of the year after the season starts)]
   const events: [number, string, string, number[], string?][] = [
@@ -29,6 +31,9 @@ beforeAll(async () => {
     // The same initialism in the same season, bigger but held earlier: the later one is "the latest held".
     [S, "USMWMTI", "Midwest Tech Invitational", [4215, 6980, 23268, 7149, 5000, 5001], "03-01"],
     [S, "USMDFR", "Festival of the Robots", [5000, 5001, 4215, 6980]],
+    // FIRST's own names for the Chicago Robotics Invitational, both editions (owner: "CRI highlights" found nothing).
+    [S - 1, "FPECRI", "Chicago Robotics Invitational Premier Event", [4215, 6980, 23268, 7149], "07-19"],
+    [S, "FPECRI", "Chicago Robotics Invitational Premier Event", [5000, 5001, 23268, 207], "07-24"],
   ];
   for (const [season, code, name, teams, held = "06-27"] of events) {
     await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (?, ?, ?, 'OffSeason', 'Laurel', 'MD', 'USA', ?, ?, 't')", [season, code, name, `${season + 1}-${held}`, `${season + 1}-${held}`]);
@@ -48,6 +53,10 @@ describe("an event by its initialism", () => {
     expect(eventInitialisms("Festival of the Robots")).toEqual(["fr"]);
     expect(eventInitialisms("Battle of the Bay (BOB)")).toEqual(["bob", "bb"]);
     expect(eventInitialisms("Michigan State Championship")).toEqual(["msc"]);
+    // A trailing event type FIRST appends is left out too: people say CRI, not CRIPE.
+    expect(eventInitialisms("Chicago Robotics Invitational Premier Event")).toEqual(["cripe", "cri"]);
+    expect(eventInitialisms("Buckeye Robotics Off-Season Event")).toEqual(["brose", "br"]);
+    expect(eventInitialisms("Premier Event")).toEqual(["pe"]);
     expect(eventInitialisms("FIRST Tech Challenge Silicon Valley Kickoff Scrimmage Event")).toEqual([]);
     // A dated meet's name has no initialism: its words are a date and a place.
     expect(eventInitialisms("NJ 1/11/2025 P3 NE Edge League Meet")).toEqual([]);
@@ -62,6 +71,31 @@ describe("an event by its initialism", () => {
     }
     expect((await ask("MTI highlights")).stat?.title).toMatch(/^Highlights at Multinational Tech Invitational, /);
     expect((await ask("MTI results")).hits.map((h) => h.ref)).toContain(`${S}:USMDMTI`);
+  });
+  it("an event FIRST names \"… Premier Event\" by its initialism without the type (CRI)", async () => {
+    for (const q of ["CRI highlights", "cri highlights", "CRI matches", "who won CRI", "CRI results", "CRI recap"]) {
+      const a = await ask(q);
+      expect(a.step, q).not.toBe("recovery");
+      expect(a.sorry, q).toBeUndefined();
+      expect(JSON.stringify(a), q).toContain("Chicago Robotics Invitational");
+    }
+    expect((await ask("CRI highlights")).stat?.title).toMatch(/^Highlights at Chicago Robotics Invitational Premier Event, /);
+    expect((await ask("CRI results")).hits.map((h) => h.ref)).toContain(`${S}:FPECRI`);
+    expect(await (await parseContext()).isEvent("cri")).toBe(true);
+    // Beside words a team's name could also take ("matches", a year), it is still the event, never Critical Mass.
+    for (const q of ["CRI matches", "cri results", "CRI"]) {
+      const a = await ask(q);
+      expect(a.hits[0]?.ref, q).toBe(`${S}:FPECRI`);
+    }
+    expect((await ask(`CRI ${S + 1}`)).hits.map((h) => h.ref), `CRI ${S + 1}`).toContain(`${S}:FPECRI`);
+    expect((await ask(`CRI ${S}`)).hits.map((h) => h.ref), `CRI ${S}`).toContain(`${S - 1}:FPECRI`);
+    // The team by its own name stays the team's.
+    expect((await ask("critical mass matches")).understood?.label).toContain("Critical Mass (207)");
+    // A year asked: the edition held that year (July ${S + 1} is the ${S}–${S + 1} season's).
+    const y = await ask(`CRI ${S + 1}`);
+    expect(y.step).not.toBe("recovery");
+    expect(JSON.stringify(y)).toContain("Chicago Robotics Invitational");
+    expect((await ask(`CRI highlights ${S}`)).stat?.title).toMatch(/^Highlights at Chicago Robotics Invitational Premier Event, /);
   });
   it("several events sharing it: the latest held (its season, then its date), said by name", async () => {
     const a = await ask("mti highlights");
