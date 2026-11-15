@@ -2,21 +2,24 @@
 // phones). No account needed. The person picks what kind of problem, describes it, and can attach screenshots
 // (pasted with Ctrl+V / ⌘V anywhere in the dialog, picked from disk, or dropped on it) and one short video under 5 MB.
 // The page, version, screen, device and theme go with it and are listed in the dialog, so nothing is hidden.
-// Sending: POST /api/bug-reports, one PUT per attachment, then POST …/done (server/bugReports.ts), which emails it.
+// Sending: POST /api/bug-reports, one PUT per attachment, then POST …/done (server/bugReports.ts), which emails it and
+// files it as a public GitHub issue in the background. The dialog then asks GET …/status for a few seconds and shows
+// the issue's real number and link once it exists, or says it's saved and will be filed: never a made-up link.
+// The message is sanitized here and again on the server (src/shared/errorReport.ts sanitizeText).
 import { useCallback, useEffect, useId, useRef, useState, type ClipboardEvent, type DragEvent, type FormEvent } from "react";
 import { useLocation } from "react-router-dom";
-import { AlertCircle, Bug, CheckCircle2, Clapperboard, Gauge, ImagePlus, LayoutTemplate, Loader2, MessageCircle, Send, DatabaseZap, Wrench, X } from "lucide-react";
+import { AlertCircle, Bug, CheckCircle2, Clapperboard, ExternalLink, Gauge, ImagePlus, LayoutTemplate, Loader2, MessageCircle, Send, DatabaseZap, Wrench, X } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "../ui/overlay";
 import { Button } from "../ui/button";
 import { Input, Label, RequiredMark, Textarea } from "../ui/basic";
 import { cn } from "../cn";
 import { apiFetch, ApiError } from "../../lib/api";
-import { usePersonal } from "../../lib/personal";
 import { useTheme } from "../../hooks/useTheme";
 import { APP_VERSION } from "../../lib/errorReporting";
+import { sanitizeText } from "../../shared/errorReport";
 import {
   attachmentProblem, attachmentsProblem, BUG_CATEGORIES, BUG_LIMITS, formatBytes, IMAGE_TYPES, isImageType, isVideoType, VIDEO_TYPES,
-  type BugCategory, type BugContext, type BugReportCreated,
+  type BugCategory, type BugContext, type BugFiling, type BugReportCreated,
 } from "../../shared/bugReport";
 
 const ICONS: Record<BugCategory, typeof Bug> = { data: DatabaseZap, broken: Wrench, layout: LayoutTemplate, slow: Gauge, other: MessageCircle };
@@ -27,11 +30,19 @@ const HINTS: Record<BugCategory, string> = {
   slow: "Which page, and roughly how long it took.",
   other: "Anything else that isn't working the way it should.",
 };
+/** Said plainly before and after sending: the repository is public, so the issue is too. */
+export const PUBLIC_NOTE = "This files a public GitHub Issue on ZOGWORK/control-scout. Anyone can see it.";
 const PALETTE_NAME = { light: "Light", dim: "Dim", dark: "Dark", midnight: "Midnight" } as const;
 const ACCEPT = [...IMAGE_TYPES, ...VIDEO_TYPES].join(",");
 /** ⌘V on Apple keyboards, Ctrl+V elsewhere. */
 const pasteKeys = () => (/Mac|iPhone|iPad/.test(typeof navigator !== "undefined" ? navigator.platform || navigator.userAgent : "") ? "⌘V" : "Ctrl+V");
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+/** The only issue address the dialog will link to: this repository's issue with exactly that number. */
+export const issueLinkOk = (f: BugFiling): f is Extract<BugFiling, { state: "filed" }> =>
+  f.state === "filed" && Number.isInteger(f.number) && f.number > 0 && f.url === `https://github.com/ZOGWORK/control-scout/issues/${f.number}`;
+/** How long the dialog waits for the issue after sending, and how often it asks. */
+const FILING_WAIT_MS = 20_000;
+const FILING_EVERY_MS = 1_500;
 
 export interface Attachment { id: number; file: File; url: string }
 
@@ -133,13 +144,31 @@ export function BugReportButton() {
 }
 
 type Status = "idle" | "sending" | "sent";
+/** After sending: still asking, filed (a real issue), saved (not filed yet) or failed (a try failed, it'll retry). */
+type Filed = { state: "asking" } | Extract<BugFiling, { state: "filed" }> | { state: "saved" } | { state: "failed" };
+
+/** Asks the server whether the report is an issue yet, until it is, a try failed, or the wait is over. */
+export async function waitForIssue(id: number, token: string, stop: () => boolean, waitMs = FILING_WAIT_MS, everyMs = FILING_EVERY_MS): Promise<Filed> {
+  const until = Date.now() + waitMs;
+  let last: BugFiling = { state: "pending" };
+  while (!stop()) {
+    try {
+      last = await apiFetch<BugFiling>(`/api/bug-reports/${id}/status`, { headers: { "X-Bug-Token": token }, _online: true });
+      if (issueLinkOk(last)) return last;
+      if (last.state === "failed") return { state: "failed" };
+    } catch { /* not answered: keep asking until the wait is over */ }
+    if (Date.now() + everyMs > until) break;
+    await new Promise((r) => setTimeout(r, everyMs));
+  }
+  return { state: "saved" };
+}
 
 function BugReportForm({ phone = false, onDone }: { phone?: boolean; onDone: () => void }) {
-  const { user } = usePersonal();
   const context = useContextDetails();
   const [category, setCategory] = useState<BugCategory | null>(null);
   const [message, setMessage] = useState("");
-  const [email, setEmail] = useState(user?.email ?? "");
+  // Never filled in for them: whatever is typed here shows on the public issue.
+  const [email, setEmail] = useState("");
   const [website, setWebsite] = useState(""); // honeypot: hidden from people
   const [files, setFiles] = useState<Attachment[]>([]);
   const [fileProblem, setFileProblem] = useState<string | null>(null);
@@ -150,11 +179,13 @@ function BugReportForm({ phone = false, onDone }: { phone?: boolean; onDone: () 
   sending.current = status === "sending";
   const [progress, setProgress] = useState("");
   const [failure, setFailure] = useState<string | null>(null);
+  const [filed, setFiled] = useState<Filed>({ state: "asking" });
+  const gone = useRef(false);
+  useEffect(() => () => { gone.current = true; }, []);
   const [dragging, setDragging] = useState(false);
   const pick = useRef<HTMLInputElement>(null);
   const ids = { cat: useId(), msg: useId(), email: useId(), files: useId() };
   const pasted = useRef(0);
-  useEffect(() => { if (user?.email) setEmail((e) => e || user.email!); }, [user?.email]);
   // Thumbnails are object URLs: let them go when the dialog closes.
   const filesRef = useRef(files);
   filesRef.current = files;
@@ -213,7 +244,7 @@ function BugReportForm({ phone = false, onDone }: { phone?: boolean; onDone: () 
       setProgress("Sending your report…");
       const created = await apiFetch<BugReportCreated>("/api/bug-reports", {
         method: "POST", _online: true,
-        json: { category, message: message.trim(), email: email.trim() || undefined, context, website, files: files.map((a) => ({ type: a.file.type, bytes: a.file.size })) },
+        json: { category, message: sanitizeText(message.trim(), BUG_LIMITS.messageMax), email: email.trim() || undefined, context, website, files: files.map((a) => ({ type: a.file.type, bytes: a.file.size })) },
       });
       const headers = { "X-Bug-Token": created.token };
       const skipped: string[] = [];
@@ -230,6 +261,7 @@ function BugReportForm({ phone = false, onDone }: { phone?: boolean; onDone: () 
       }
       await apiFetch(`/api/bug-reports/${created.id}/done`, { method: "POST", json: {}, headers, _online: true });
       setStatus("sent");
+      void waitForIssue(created.id, created.token, () => gone.current).then((f) => { if (!gone.current) setFiled(f); });
       if (skipped.length) setFailure(`Your report was sent, but ${skipped.length === 1 ? "one attachment" : `${skipped.length} attachments`} didn't upload. ${skipped.join(" ")}`);
     } catch (err) {
       setStatus("idle");
@@ -242,12 +274,25 @@ function BugReportForm({ phone = false, onDone }: { phone?: boolean; onDone: () 
   const Header = phone ? SheetHeader : DialogHeader;
 
   if (status === "sent") {
+    const heading = filed.state === "filed" ? `Thanks — filed as #${filed.number}`
+      : filed.state === "failed" ? "Something went wrong — your report is saved, we'll try again"
+      : filed.state === "saved" ? "Thanks — saved, we'll file it on GitHub"
+      : "Thanks! Filing it on GitHub…";
     return (
-      <div role="status" className="flex flex-col items-center py-6 text-center">
+      <div role="status" className="flex flex-col items-center py-6 text-center" data-testid="bug-report-sent" data-filed={filed.state}>
         <Header className="sr-only"><Title>Bug report sent</Title><Desc>Thanks for the report.</Desc></Header>
-        <span className="mb-3 flex size-12 items-center justify-center rounded-full bg-success/12 text-success"><CheckCircle2 className="size-6" aria-hidden /></span>
-        <p className="font-display text-lg font-semibold text-foreground">Thanks! We've got your report.</p>
+        <span className={cn("mb-3 flex size-12 items-center justify-center rounded-full", filed.state === "failed" ? "bg-warning/12 text-warning" : "bg-success/12 text-success")}>
+          {filed.state === "asking" ? <Loader2 className="size-6 animate-spin" aria-hidden /> : filed.state === "failed" ? <AlertCircle className="size-6" aria-hidden /> : <CheckCircle2 className="size-6" aria-hidden />}
+        </span>
+        <p className="font-display text-lg font-semibold text-foreground">{heading}</p>
+        {filed.state === "filed" && (
+          <a href={filed.url} target="_blank" rel="noopener noreferrer" data-testid="bug-issue-link"
+            className="mt-2 inline-flex min-h-11 max-w-full items-center gap-1.5 break-all px-2 text-sm font-medium text-accent-text underline underline-offset-4 outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
+            #{filed.number} — {filed.url}<ExternalLink className="size-3.5 shrink-0" aria-hidden />
+          </a>
+        )}
         <p className="mt-1 max-w-sm text-sm text-text-muted">{email.trim() ? <>If we need more, we'll write to <strong className="text-foreground">{email.trim()}</strong>.</> : "We'll look into it."}</p>
+        <p className="mt-2 max-w-sm text-xs text-text-muted">{PUBLIC_NOTE}</p>
         {failure && <p className="mt-3 max-w-sm text-xs text-warning">{failure}</p>}
         <Button className="mt-5" onClick={onDone}>Done</Button>
       </div>
@@ -328,7 +373,7 @@ function BugReportForm({ phone = false, onDone }: { phone?: boolean; onDone: () 
       </div>
 
       <div className="space-y-1.5">
-        <Label htmlFor={ids.email}>Email <span className="font-normal text-text-muted">(optional, only to reply to you)</span></Label>
+        <Label htmlFor={ids.email}>Email <span className="font-normal text-text-muted">(optional, shown on the public issue so we can reply)</span></Label>
         <Input id={ids.email} type="email" inputMode="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)}
           aria-invalid={tried && !!errors.email} />
         {tried && errors.email && <p className="text-xs text-danger">{errors.email}</p>}
@@ -361,6 +406,7 @@ function BugReportForm({ phone = false, onDone }: { phone?: boolean; onDone: () 
           {status === "sending" ? <><Loader2 className="animate-spin" /> Sending…</> : <><Send /> Send report</>}
         </Button>
       </div>
+      <p className="text-xs text-text-muted" data-testid="bug-public-note">{PUBLIC_NOTE}</p>
     </form>
   );
 }
