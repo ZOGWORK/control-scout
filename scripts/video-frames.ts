@@ -485,6 +485,7 @@ async function doCode(code: string): Promise<void> {
           ...(sorted.some(([, p]) => p.confidence === "medium") ? { medium: sorted.filter(([, p]) => p.confidence === "medium").map(([l]) => l) } : {}),
           ...(j.review.size ? { review: Object.fromEntries(j.review) } : {}),
           ...(j.missing.size ? { missing: Object.fromEntries(j.missing) } : {}),
+          ...(j.earlyStart.size ? { earlyStart: Object.fromEntries(j.earlyStart) } : {}),
         });
       }
     } catch (e) {
