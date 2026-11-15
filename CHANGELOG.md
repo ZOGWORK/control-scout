@@ -23,11 +23,12 @@ Owner › Clip coverage takes the stream as the truth: a match the clock alone l
 - [workspace] Clip coverage says what each match's video showed, not the clock
 - [workspace] An early start goes to To review until its video confirms it
 - [workspace] Each match left out shows the video's own timestamps nearby
-- [fixes] "Starts up to N min early" is never a reason on its own any more
+- [fixes] A match between two of a day's recordings names that gap
 
 ### Changed
 - Clip coverage: a played match left without a clip by the clock alone (an early start, or a time before or after the broadcast, the cut start, the video's end, what its chapters confirm, every recording) now says what its video's own frames showed: "Not yet checked against the video", "Checked in the video (date): no start found for it", or "seen at h:mm:ss, not yet confirmed", with the video's timestamps of the matches around it. The clock's reading is kept apart and is never a reason on its own. (`server/videos/coverage.ts`) (#1520)
 - Triage: Early start / unsafe only once the frames show a match starting while the one before is still on (`earlyStart` in `server/data/frameTimings.ts`); until then it's Actionable, and the event's reason says how many matches weren't checked against the video, or were checked with no start found there. (`server/videos/coverageTriage.ts`)
+- A match played between two of a day's recordings (after one ended, before the next started) says so with both times, "Played between the recordings (after afaqqytUvDU ended at 9:45 AM, before nm-LnMVtCJM started at 11:12 AM)", and counts against neither video; it's Actionable until both videos' frames are read, then settled (USFLFNLT 2025 Q1–Q3, owner-checked). "Starts up to N min early" is never a reason on its own any more.
 
 ## 6.4.9 — 2026-11-15
 
