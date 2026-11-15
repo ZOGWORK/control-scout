@@ -185,3 +185,48 @@ describe("clipCoverage, what the video showed (Romania COANDA 2025 ROCMPCND)", (
     expect([hms(10440), hms(209), hms(0), hms(-3)]).toEqual(["2:54:00", "0:03:29", "0:00:00", "0:00:00"]);
   });
 });
+
+// FUN League Tournament 2025 USFLFNLT, 41 of 44 (owner-checked): Q1–Q3 played after Saturday's first recording ended
+// and before its second started. They're in neither, so the reason names that gap, with both times, and neither
+// video's count holds them.
+describe("clipCoverage, a match between two of a day's recordings (USFLFNLT)", () => {
+  const kept: FrameTiming[] = [...FRAME_TIMINGS];
+  afterAll(() => setFrameTimingsForTests(kept));
+  const first = meta("afaqqytUvDU", "2026-01-31T14:06:36Z", "2026-01-31T14:45:26Z", 2329);
+  const second = meta("nm-LnMVtCJM", "2026-01-31T16:12:47Z", "2026-01-31T23:45:05Z", 27_130);
+  const rec: Recording = { videoId: first.videoId, meta: first, source: "first", code: "USFLFNLT", daily: true, more: [{ videoId: second.videoId, meta: second }] };
+  // FIRST's times are the venue's (New York, UTC−5 in January).
+  const ny = (label: string, local: string): CoverageInput => {
+    const z = new Date(Date.parse(`${local}Z`) + 5 * 3600_000).toISOString();
+    return { key: `qual:0:${label.slice(1)}`, label, time: `${local}.475`, startsAt: z, played: true, video: null };
+  };
+  const ms = [ny("Q1", "2026-01-31T10:56:12"), ny("Q2", "2026-01-31T11:03:20"), ny("Q3", "2026-01-31T11:12:15"), ny("Q4", "2026-01-31T11:18:00")];
+  const GAP = "Played between the recordings (after afaqqytUvDU ended at 9:45 AM, before nm-LnMVtCJM started at 11:12 AM)";
+
+  it("names the gap with both times, pins it to neither video, and says neither was checked yet", () => {
+    setFrameTimingsForTests([]);
+    const c = clipCoverage(ms, rec, rec, "America/New_York", NOW);
+    expect(c.matches.slice(0, 3).map((x) => [x.label, x.reason, x.videoId])).toEqual([["Q1", "between-recordings", null], ["Q2", "between-recordings", null], ["Q3", "between-recordings", null]]);
+    expect(c.matches[0].why).toBe(`${GAP}; not yet checked against either video`);
+    expect(c.matches.some((x) => /after the broadcast ended/i.test(x.why ?? ""))).toBe(false);
+    // Neither video's count holds them: no "Saturday 0/3".
+    expect(c.videos.map((v) => [v.videoId, v.matches, v.clipped])).toEqual([["afaqqytUvDU", 0, 0], ["nm-LnMVtCJM", 1, 1]]);
+  });
+
+  it("checked in both videos and in neither: said so (settled)", () => {
+    setFrameTimingsForTests([
+      { videoId: "afaqqytUvDU", code: "USFLFNLT", checked: "2026-11-15", starts: {} },
+      { videoId: "nm-LnMVtCJM", code: "USFLFNLT", checked: "2026-11-15", starts: { Q4: 330 } },
+    ]);
+    const c = clipCoverage(ms, rec, rec, "America/New_York", NOW);
+    expect(c.matches[0]).toMatchObject({ reason: "between-recordings", why: `${GAP}; checked in both videos (2026-11-15): in neither`, video: { checked: "2026-11-15", found: "in neither video" } });
+  });
+
+  it("a video its frame read couldn't play isn't checked yet", () => {
+    setFrameTimingsForTests([
+      { videoId: "afaqqytUvDU", code: "USFLFNLT", checked: "2026-11-15", starts: {}, missing: { Q1: "the video couldn't be played (HTTP 403)" } },
+      { videoId: "nm-LnMVtCJM", code: "USFLFNLT", checked: "2026-11-15", starts: { Q4: 330 } },
+    ]);
+    expect(clipCoverage(ms, rec, rec, "America/New_York", NOW).matches[0].why).toBe(`${GAP}; not yet checked against either video`);
+  });
+});
