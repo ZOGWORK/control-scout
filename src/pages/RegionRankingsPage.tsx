@@ -283,7 +283,7 @@ function Unranked({ data, team }: { data: RegionRankingsResponse; team: number |
 function Leagues({ leagues, name, season }: { leagues: LeagueListItem[]; name: string; season: number }) {
   return (
     <section aria-labelledby="region-leagues" className="space-y-2" data-region-leagues>
-      <h2 id="region-leagues" className="font-display text-lg font-semibold">Leagues in {name}</h2>
+      <h2 id="region-leagues" className="flex flex-wrap items-baseline gap-x-3 font-display text-lg font-semibold">Leagues in {name}<Link to={`/leagues?season=${season}`} className="text-sm font-normal text-accent-text hover:underline">All leagues →</Link></h2>
       {leagues.length === 0 ? <p className="text-sm text-text-muted">No league plays in {name} in {seasonLabel(season)}.</p> : (
         <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {leagues.map((l) => (

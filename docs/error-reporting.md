@@ -145,3 +145,28 @@ second after loading, so the prompt appears. Production builds don't contain thi
 
 Server code can call `listErrorReports(limit)` from `server/errorReports.ts` directly, and `ownerOf(req)` /
 `isOwnerEmail(email)` from `server/owner.ts` gate any other owner-only route the same way.
+
+## Manual reports: the top bar's "Report a bug"
+
+A second, separate path (`server/bugReports.ts`, `src/components/layout/BugReport.tsx`). It reuses the token, the
+GitHub client and the claim + adopt thinking above, but **not** the fingerprints: one manual report is one issue, and
+two people reporting the same bug are two issues (close one as a duplicate on GitHub).
+
+- **Title** `[user] <first line of the message>` (or `[user] Bug report: <category>` when that line says nothing).
+  **Labels** `bug` + `user-reported`. Create `user-reported` by hand, like `auto-reported` (done 2026-11-14). If
+  GitHub drops it, the issue is filed with `bug` only and the audit log says `labelsMissing`.
+- **Body:** the message in a code fence, the category, page (path only), release, screen, device, theme, the email
+  only if the person typed one, the attachments, a `Report ID`, and "Filed from the in-app Report a bug button."
+- **Attachments** upload first, to `https://uploads.github.com/user-attachments/assets?name=…&content_type=…&repository_id=…`,
+  the request GitHub CLI's supported `gh issue create --attach` sends (cli/cli `internal/attachments/client.go`).
+  It answers `{ "url": "https://github.com/user-attachments/assets/<uuid>" }`; an image is embedded as `![name](url)`, a
+  video as the bare URL on its own line (GitHub's player). Tested live with `GITHUB_REPORT_TOKEN` on 2026-11-14 (test
+  issue #1519). The token needs Issues write only. The endpoint answers 404 when the token can't write. An upload that
+  fails is named as failed in the issue; its file stays on disk for the owner console.
+- **Local copies** in `DATA_DIR/bug-reports` are deleted once the issue exists and each URL opens signed out (a URL
+  opens only once an issue uses it). The owner console then links to GitHub.
+- **When:** after `POST /api/bug-reports/:id/done` has answered (and after the owner email). The dialog polls
+  `GET /api/bug-reports/:id/status` (upload token) for 20 seconds: `filed` with the real number and URL, `failed`, or
+  `pending`. No token, GitHub down or a refusal: kept, shown as "Not filed yet" with the reason, and filed by the
+  10-minute sweep. Reports sent before 6.5.9 (`to_github = 0`) were never told they'd be public and are never filed.
+- **Sanitized** with `sanitizeText` in the browser and again on the server, before it's stored.
