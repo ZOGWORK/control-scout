@@ -81,6 +81,11 @@ export function frameRow(videoId: string, code: string): FrameTiming | null {
   return FRAME_TIMINGS.find((f) => f.videoId === videoId && f.code === code) ?? null;
 }
 
+/** The frames' word that a match starts while the one before is still on (its second, and when that one ends), or null. */
+export function frameEarlyStart(videoId: string, code: string, label: string): { t: number; previousEnds: number } | null {
+  return frameRow(videoId, code)?.earlyStart?.[label] ?? null;
+}
+
 /** How sure a framed start is: "high" read off its own frames, "medium" filled between two agreeing reads. */
 export function frameConfidence(videoId: string, code: string, label: string): "high" | "medium" | null {
   const f = FRAME_TIMINGS.find((x) => x.videoId === videoId && x.code === code);
