@@ -5,11 +5,24 @@ import { adviseLite, connectionLabel, liteCookieOn, liteToggleHref, slowReason, 
 const base = { internet: "yes" as const, effectiveType: "4g", saveData: false, slowSeen: false, liteOn: false };
 
 describe("status sentence", () => {
-  it("online, offline, a Wi-Fi sign-in page, and not checked yet", () => {
-    expect(statusSentence("yes")).toBe("You're online");
-    expect(statusSentence("no")).toBe("You're offline");
-    expect(statusSentence("portal")).toBe("This Wi-Fi isn't giving internet (it may need a sign-in page)");
-    expect(statusSentence("unknown")).toBe("Checking your connection…");
+  const at = (internet: "yes" | "no" | "portal" | "unknown", online = true, type: "wifi" | "cellular" | "none" | "unknown" = "unknown") => ({ internet, online, type });
+  it("online, offline, and not checked yet", () => {
+    expect(statusSentence(at("yes"))).toEqual({ title: "You're online", detail: null });
+    expect(statusSentence(at("no", false, "none"))).toEqual({ title: "You're offline", detail: null });
+    expect(statusSentence(at("unknown"))).toEqual({ title: "Checking your connection…", detail: null });
+  });
+  it("a sign-in page: connected to Wi-Fi when the browser says Wi-Fi, else to a network, and how to sign in", () => {
+    expect(statusSentence(at("portal", true, "wifi"))).toEqual({
+      title: "Connected to Wi-Fi, but no internet",
+      detail: "This Wi-Fi isn't giving internet. It's likely waiting at a sign-in page: open any website to sign in.",
+    });
+    for (const s of [statusSentence(at("portal", true, "unknown")), statusSentence(at("portal", true, "wifi"), "ethernet"), statusSentence(at("portal", true, "cellular"))]) {
+      expect(s.title).toBe("Connected to a network, but no internet");
+      expect(s.detail).toBe("This network isn't giving internet. It's likely waiting at a sign-in page: open any website to sign in.");
+    }
+  });
+  it("no answer while the browser says it's online: connected, but nothing is getting through", () => {
+    expect(statusSentence(at("no", true, "wifi"))).toEqual({ title: "Connected, but nothing is getting through", detail: "Your device says it's on a network, but nothing answered. Your downloads still work." });
   });
 });
 

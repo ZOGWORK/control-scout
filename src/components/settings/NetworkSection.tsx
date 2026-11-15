@@ -62,6 +62,7 @@ export function NetworkSection() {
   const why = advice.kind === "slow" ? slowReason({ effectiveType: net?.effectiveType, saveData: conn.saveData, slowSeen }) : null;
   const tone = conn.internet === "yes" ? "ok" : conn.internet === "unknown" ? "wait" : conn.internet === "portal" ? "warn" : "off";
   const connected = conn.internet === "yes";
+  const said = statusSentence(conn, net?.type);
   const { m, error } = useManifest(connected, conn.checkedAt);
   const seasons = useSavedSeasons();
   const bundles = useSavedBundles();
@@ -75,7 +76,8 @@ export function NetworkSection() {
             {tone === "ok" ? <Wifi className="size-5" /> : <WifiOff className="size-5" />}
           </span>
           <div className="min-w-0 flex-1">
-            <h2 id="net-status" aria-live="polite" className="font-display text-lg font-semibold leading-snug text-foreground">{statusSentence(conn.internet)}</h2>
+            <h2 id="net-status" aria-live="polite" className="font-display text-lg font-semibold leading-snug text-foreground">{said.title}</h2>
+            {said.detail && <p className="mt-1 text-sm text-foreground" data-net-detail>{said.detail}</p>}
             <p className="mt-0.5 text-sm text-muted-foreground">{conn.checkedAt ? `Checked ${agoSeconds(new Date(conn.checkedAt).toISOString())}` : conn.internet === "unknown" ? "Not checked yet" : "From the last page you opened; checking again"}</p>
           </div>
         </div>

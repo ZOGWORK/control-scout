@@ -2,12 +2,27 @@
 // connection.ts and liteSuggest.ts have: am I online, on what, and should I use Lite. Pure, unit tested.
 import type { ConnectionType, Internet } from "./connection";
 
-/** The one sentence at the top: online, offline, or a Wi-Fi that isn't giving internet. */
-export function statusSentence(internet: Internet): string {
-  if (internet === "yes") return "You're online";
-  if (internet === "no") return "You're offline";
-  if (internet === "portal") return "This Wi-Fi isn't giving internet (it may need a sign-in page)";
-  return "Checking your connection…";
+/** The status at the top: a heading, and a line under it when the heading alone doesn't say what to do. */
+export interface Status { title: string; detail: string | null }
+
+/** Is the Wi-Fi actually giving internet? From connection.ts's facts: `internet` (the real check), `online`
+ *  (navigator.onLine), `type`, and `raw` (navigator.connection.type, which tells a cable apart from Wi-Fi). */
+export function statusSentence(s: { internet: Internet; online: boolean; type: ConnectionType }, raw?: string | null): Status {
+  if (s.internet === "yes") return { title: "You're online", detail: null };
+  if (s.internet === "portal") {
+    // Something other than our server answered: the device has a network, but it's a sign-in page, not the internet.
+    const wifi = s.type === "wifi" && raw !== "ethernet";
+    return {
+      title: wifi ? "Connected to Wi-Fi, but no internet" : "Connected to a network, but no internet",
+      detail: `${wifi ? "This Wi-Fi" : "This network"} isn't giving internet. It's likely waiting at a sign-in page: open any website to sign in.`,
+    };
+  }
+  if (s.internet === "no") {
+    // The browser says it's on a network, yet nothing answered the check.
+    if (s.online) return { title: "Connected, but nothing is getting through", detail: "Your device says it's on a network, but nothing answered. Your downloads still work." };
+    return { title: "You're offline", detail: null };
+  }
+  return { title: "Checking your connection…", detail: null };
 }
 
 /** The connection in plain words. `raw` is navigator.connection.type, which tells a cable apart from Wi-Fi. */
