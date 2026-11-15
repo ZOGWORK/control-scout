@@ -1,7 +1,8 @@
 // Clip coverage: every played match gets a clip or a reason in plain words, read off withClips' own decisions; a day
 // with no video is named; an event with no recording at all is "none" (stats only).
-import { describe, expect, it } from "vitest";
-import { clipCoverage, span, type CoverageInput } from "./coverage";
+import { afterAll, describe, expect, it } from "vitest";
+import { clipCoverage, hms, span, type CoverageInput } from "./coverage";
+import { FRAME_TIMINGS, setFrameTimingsForTests, type FrameTiming } from "../data/frameTimings";
 import type { Recording, VideoMeta } from "./recordings";
 
 const meta = (videoId: string, start: string, end: string, length: number, o: Partial<VideoMeta> = {}): VideoMeta =>
@@ -136,5 +137,51 @@ describe("clipCoverage", () => {
 
   it("says spans in hours and minutes", () => {
     expect([span(900), span(4520), span(14_400), span(25), span(0.4)]).toEqual(["15 min", "1 h 15 min", "4 h", "25 s", "1 s"]);
+  });
+});
+
+// Addendum §7 (2026-11-15): the stream is the truth. A match left out by the clock alone (an early start, a time before
+// the broadcast) says what its video's frames showed, never "starts up to N min early" or what the clock said; the
+// clock's reading is kept apart (`clock`).
+describe("clipCoverage, what the video showed (Romania COANDA 2025 ROCMPCND)", () => {
+  const kept: FrameTiming[] = [...FRAME_TIMINGS];
+  afterAll(() => setFrameTimingsForTests(kept));
+  // Friday's video 10 min short with no chapters: clips may start 10 min early, so Q2, 5 min after Q1, is held back.
+  const fri = meta("pvmxbH8YW-k", "2026-03-13T07:00:00Z", "2026-03-13T12:00:00Z", 17_400);
+  const rec: Recording = { videoId: fri.videoId, meta: fri, source: "official", code: "ROCMPCND" };
+  const ms = [m("Q1", "2026-03-13T08:00:00"), m("Q2", "2026-03-13T08:05:00"), m("Q3", "2026-03-13T09:00:00")];
+  const q2 = () => clipCoverage(ms, rec, rec, "UTC", NOW).matches.find((x) => x.label === "Q2")!;
+
+  it("not read yet: 'Not yet checked against the video', never 'An early start would open on the match before'", () => {
+    setFrameTimingsForTests([]);
+    const q = q2();
+    expect(q).toMatchObject({ clip: false, reason: "overlaps-previous", why: "Not yet checked against the video", video: { checked: null } });
+    expect(q.why).not.toMatch(/early/i);
+    expect(q.clock).toMatch(/^An early start would open on the match before \(starts up to 10 min early\)$/);
+  });
+
+  it("read, no start found for it: says so with the video's own timestamps of the matches around it", () => {
+    setFrameTimingsForTests([{ videoId: fri.videoId, code: "ROCMPCND", checked: "2026-11-14", starts: { Q3: 10440 }, missing: { Q2: "no frame read of it, and no agreeing reads on both sides" } }]);
+    const q = q2();
+    expect(q.why).toBe("Checked in the video (2026-11-14): no start found for it (no frame read of it, and no agreeing reads on both sides); in the video, Q3 at 2:54:00");
+    expect(q.video).toEqual({ checked: "2026-11-14", found: "no frame read of it, and no agreeing reads on both sides", after: { label: "Q3", at: 10440 } });
+  });
+
+  it("Early start only when the frames show it starting inside the match before, with both timestamps", () => {
+    setFrameTimingsForTests([{ videoId: fri.videoId, code: "ROCMPCND", checked: "2026-11-14", starts: { Q3: 10440 }, earlyStart: { Q2: { t: 3900, previousEnds: 3960 } } }]);
+    expect(q2().why).toBe("Checked in the video: it starts at 1:05:00 while the match before runs to 1:06:00, so a clip would open on that one");
+  });
+
+  it("Q19, played before Saturday's broadcast started: said as what the video showed (its first match read, Q20 at 0:03:29)", () => {
+    const sat = meta("zG45zl5pcDw", "2026-03-14T07:00:00Z", "2026-03-14T15:00:00Z", 28_800);
+    const r: Recording = { videoId: sat.videoId, meta: sat, source: "official", code: "ROCMPCND" };
+    setFrameTimingsForTests([{ videoId: sat.videoId, code: "ROCMPCND", checked: "2026-11-14", starts: { Q20: 209 } }]);
+    const c = clipCoverage([m("Q19", "2026-03-14T06:50:00"), m("Q20", "2026-03-14T07:04:00")], r, r, "UTC", NOW);
+    expect(c.matches[0]).toMatchObject({ label: "Q19", reason: "before-broadcast", clock: "Played before the broadcast started",
+      why: "Checked in the video (2026-11-14): no start found for it; in the video, Q20 at 0:03:29" });
+  });
+
+  it("writes a second in a video as h:mm:ss", () => {
+    expect([hms(10440), hms(209), hms(0), hms(-3)]).toEqual(["2:54:00", "0:03:29", "0:00:00", "0:00:00"]);
   });
 });
