@@ -81,6 +81,14 @@ function memoryStore(): Store {
   };
 }
 
+
+/** Why a write failed: the failing request's own error (a full device's QuotaExceededError). The transaction's error
+ *  is still null while a request's error bubbles to it (it's set only once the transaction aborts). */
+export function txError(ev: Event | { target?: unknown }, t: { error: DOMException | null }): unknown {
+  const req = ev?.target as { error?: DOMException | null } | null | undefined;
+  return req?.error ?? t.error ?? new Error("Storage write failed.");
+}
+
 function idbStore(): Store {
   const open = () => new Promise<IDBDatabase>((res, rej) => {
     const r = indexedDB.open(DB, 1);
@@ -94,7 +102,7 @@ function idbStore(): Store {
       const t = db.transaction(stores, mode);
       const req = fn(t);
       t.oncomplete = () => { db.close(); res(req ? req.result : (undefined as T)); };
-      t.onerror = () => { db.close(); rej(t.error); };
+      t.onerror = (ev) => { db.close(); rej(txError(ev, t)); };
       t.onabort = () => { db.close(); rej(t.error ?? new Error("Storage write was stopped.")); };
     });
   };

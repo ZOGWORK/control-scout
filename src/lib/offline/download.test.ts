@@ -8,7 +8,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { gzipSync } from "node:zlib";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ChecksumError, DownloadPaused, PIECE, StorageError, download, finishDownload, partialDownloads, resetDownloadStore, type DownloadOwner } from "./download";
+import { ChecksumError, DownloadPaused, PIECE, StorageError, download, txError, finishDownload, partialDownloads, resetDownloadStore, type DownloadOwner } from "./download";
 import { deviceItems, pausedItems, totalBytes, whatChanged } from "./storage";
 import { downloadLite, getv, packStatus, removeLite, syncLite, type PackFile, type PackManifest } from "../packs";
 
@@ -528,5 +528,13 @@ describe("app updates keep the packs", () => {
     const sw = readFileSync(join(process.cwd(), "src", "sw.template.js"), "utf8");
     expect(sw).not.toMatch(/deleteDatabase|\.clear\(\)|objectStore\([^)]*\)\.delete/);
     expect(sw).toMatch(/caches\.delete\(old\)/);
+  });
+});
+
+describe("a write that fails", () => {
+  it("says the request's own error (a full device), not the transaction's empty one", () => {
+    const full = new DOMException("The quota has been exceeded.", "QuotaExceededError");
+    expect(txError({ target: { error: full } }, { error: null })).toBe(full);
+    expect((txError({ target: null }, { error: null }) as Error).message).toBe("Storage write failed.");
   });
 });
