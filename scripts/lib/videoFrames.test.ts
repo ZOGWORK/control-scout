@@ -147,6 +147,8 @@ describe("the frame reader", () => {
       // Q3, a match on, still stands.
       expect(k.placed.get("Q3")).toEqual({ t: 500, confidence: "high" });
       expect(k.review.size + k.placed.size + k.missing.size).toBe(3);
+      // Q2's start (160) is inside Q1's play (100 + 158): written as an early start, read off the video.
+      expect([...k.earlyStart]).toEqual([["Q2", { t: 160, previousEnds: 258 }]]);
     });
 
     it("tells a match whose frames were read but never confirmed from one never read", () => {
