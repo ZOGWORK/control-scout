@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 6.5.3 — 2026-11-15
+
+Clip coverage never names an early start as a reason, not even in passing.
+
+### Highlights
+- [fixes] A short video's reason says what the clock allows, not "early start"
+- [fixes] To review never mentions an early start in any match's reason
+- [workspace] Six To review events now read as the video's own shortfall
+
+### Fixed
+- Clip coverage: a video shorter than its broadcast, with nothing to place the gap, read "(over the 15 min an early start covers)"; it now reads "(more than the 15 min the clock allows for)". Six To-review events carried it beside other reasons (ROBUQ1, RONR1LT, USTXCMPJOHN, LTCMP, KZALOS1, KZCMPJNB2), so "early start" still appeared in To review. (`server/videos/coverage.ts`) (#PR)
+
 ## 6.5.2 — 2026-11-15
 
 Owner › Clip coverage takes the stream as the truth: a match the clock alone left without a clip says what its video showed, and an early start is only "unsafe" once the video shows it.
