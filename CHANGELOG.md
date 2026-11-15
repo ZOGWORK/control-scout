@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.4.1 — 2026-11-14
+## 6.4.2 — 2026-11-14
 
 Settings › Network & offline now says whether the Wi-Fi is actually giving internet: a Wi-Fi whose sign-in page answers reads "Connected to Wi-Fi, but no internet" and says to open any website to sign in, instead of "You're offline".
 
@@ -26,6 +26,20 @@ Settings › Network & offline now says whether the Wi-Fi is actually giving int
 
 ### Changed
 - Network & offline status (`/settings#network`): when the connection check gets a page that isn't ours (a sign-in page), the heading says the device is connected (to Wi-Fi when the browser says Wi-Fi, else to a network) but gets no internet, and a line under it says it's likely waiting at a sign-in page: open any website to sign in. When the check gets no answer while the browser says it's online, it reads "Connected, but nothing is getting through"; "You're offline" stays for when the browser itself says there's no network. (`src/lib/networkAdvice.ts`, `src/components/settings/NetworkSection.tsx`) (#1513)
+
+## 6.4.1 — 2026-11-14
+
+With no signal, the event page says its videos need a connection instead of its Watch buttons quietly going away, and the livestream button no longer opens a tab that can't load.
+
+### Highlights
+- [offline] Offline, the event page says its video needs a connection
+- [offline] The livestream button offline says it needs a connection
+- [offline] A Watch on Wi-Fi with no internet says so instead of failing
+
+### Changed
+- An event with something to watch (its stream, a livestream link, or a match with a clip or FIRST's video), opened from what's saved on this device or with no internet, shows one line under its actions: "Video needs a connection. Scores, stats and calls here work offline." A saved season doesn't know each match's clip, so its rows have no Watch button to say it themselves.
+- The livestream button, in the header and the LIVE panel, is a disabled "Livestream needs a connection" button then (44 px tall on phones), instead of a link to a tab that can't load or a jump to a player that can't play.
+- A match's Watch and official-video buttons follow the app's connection check too, not only the browser's word: on a Wi-Fi with no internet or a sign-in page they say they need a connection. (#1514)
 
 ## 6.4.0 — 2026-11-14
 
