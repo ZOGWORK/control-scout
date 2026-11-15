@@ -15,6 +15,30 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 6.5.7 — 2026-11-15
+
+Owner › Official videos › Channel audit: after every watcher run, each watched channel's whole uploads list is compared, video by video, with what Scout has. Misses, wrong adds and possible recordings are owner findings.
+
+### Highlights
+- [workspace] Every watched channel's uploads checked against Scout
+- [workspace] The watcher's own adds are checked again after each run
+- [fixes] A drone or FRC stream added before the rules caught it comes off
+- [workspace] Each video in review or set aside has a best-guess event
+
+### Added
+- The channel audit (`server/videos/officialAudit.ts`, migration 90). It runs after every watcher run, scheduled or Run now. It reads each watched channel's uploads list with the YouTube Data API, never a search: the newest page every run, and the whole list once a week. It stores each upload with where Scout has it: the checked list, the watcher, FIRST's link, a short link, the channel's broadcasts, or the owner's stream.
+  - An upload Scout has nothing for gets the watcher's rules and a best guess. It's set aside with the reason, left for the watcher's next run, or a finding.
+  - A watcher miss goes to review if a later watcher run still misses it. The audit never adds a video.
+  - The audit uses at most 800 units a run, and under 600 a day in steady running. (`docs/official-videos.md`)
+- The watcher's own adds are checked again every run: still playable, an FTC competition, the right day and event, and not a second video of the day. Owner › Official videos shows the result over the watcher's last 10 runs and its last 100 videos read.
+- Owner › Official videos › Channel audit shows each channel's uploads, those with a Scout record, those that play on an event (every season, and 2026-27), the findings (send to review, or say why it isn't a recording), and the set-aside reasons.
+
+### Changed
+- A video set aside by its title now says what in the title set it aside (`the title says "FRC"`, or that it names no competition). Every video in review or set aside whose verdict named no event gets a best-guess event, with what that guess rests on (`server/videos/officialMatch.ts`, `server/videos/officialWatch.ts`).
+
+### Fixed
+- An add the watcher's title rules set aside today now comes off its event: a rule tightened since, such as a drone contest's stream on Almaty Tech Cup, added before #1498. It still counts as a wrong add.
+
 ## 6.5.5 — 2026-11-15
 
 Videos › A clip whose first frame shows another match is never played: the clips placed from the clock are checked frame by frame, and a wrong one is pulled.
