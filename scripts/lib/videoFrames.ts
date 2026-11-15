@@ -45,7 +45,12 @@ export function elapsed(t: { where: "bottom" | "top"; left: number; auto: boolea
 export type Placed = { t: number; confidence: "high" | "medium" };
 /** What a video's frames say about each of its matches: placed, for review (one signal only, or implausible), or
  *  missing with the reason. */
-export type Judged = { placed: Map<string, Placed>; review: Map<string, { t: number; why: string }>; missing: Map<string, string> };
+export type Judged = {
+  placed: Map<string, Placed>; review: Map<string, { t: number; why: string }>; missing: Map<string, string>;
+  /** A match whose frame start lands inside the previous match's play (both read off the video): when it starts, and
+   *  when the previous one's play ends. */
+  earlyStart: Map<string, { t: number; previousEnds: number }>;
+};
 
 /** Why a match is missing when no frame of its video could be read at all. */
 export const NOTHING_READ = "no frame of the video could be read";
@@ -132,11 +137,15 @@ export function judge(ms: M[], seen: Map<number, number>, shift: number | null, 
   // Plausible: inside the video, in order, a match apart.
   const order = ms.map((m) => m.label).filter((l) => placedAt.has(l));
   const bad = new Set<string>();
+  const earlyStart = new Map<string, { t: number; previousEnds: number }>();
   order.forEach((l, n) => {
     const t = placedAt.get(l)!.t;
     if (t < 0 || t + MATCH_S > length + SAME_S) bad.add(l);
     const next = order[n + 1];
-    if (next != null && placedAt.get(next)!.t - t < MATCH_S - SAME_S) { bad.add(l); bad.add(next); }
+    if (next != null && placedAt.get(next)!.t - t < MATCH_S - SAME_S) {
+      bad.add(l); bad.add(next);
+      earlyStart.set(next, { t: placedAt.get(next)!.t, previousEnds: t + MATCH_S });
+    }
   });
   for (const l of bad) { review.set(l, { t: placedAt.get(l)!.t, why: "placed outside the video, out of order, or overlapping the next match" }); placedAt.delete(l); }
 
@@ -151,6 +160,6 @@ export function judge(ms: M[], seen: Map<number, number>, shift: number | null, 
       : !kept.length && !read.size ? NOTHING_READ
       : "no frame read of it, and no agreeing reads on both sides");
   });
-  return { placed: placedAt, review, missing };
+  return { placed: placedAt, review, missing, earlyStart };
 }
 
