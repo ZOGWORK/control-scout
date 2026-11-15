@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 6.6.8 — 2026-11-15
+
+Events › The Chicago Robotics Invitational shows its full results: teams, matches, standings, alliances and awards for 2025–26 and 2024–25, from the event's own results site.
+
+### Highlights
+- [history] Chicago Robotics Invitational: matches, rankings and awards
+- [history] Its matches play from the event's recordings
+- [fixes] The page says plainly where the results came from
+
+### Added
+- CRI results: FIRST lists the Chicago Robotics Invitational (FPECRI) with no teams or matches. Its results now come from chicagoroboticsinvitational.com as the event's ordinary results, for 2025–26 (38 teams, 62 matches) and 2024–25 (38 teams, 67 matches). That covers each match's auto / TeleOp / endgame / penalty split, standings, alliances and awards. The event page says "Results from chicagoroboticsinvitational.com" and links there. The results are read weekly and cached, and they never replace FIRST's: if FIRST posts the event, its results win. (`server/sources/cri.ts`, `server/data/criResults.ts`, `docs/cri-results.md`) (#1537)
+
 ## 6.6.7 — 2026-11-15
 
 Clip coverage's To review now holds only matches checked against the video itself; the rest wait under their own count, and every match the video showed without a clip is a finding.

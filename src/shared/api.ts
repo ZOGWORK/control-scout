@@ -734,6 +734,9 @@ export interface EventDetail {
   /** When this server last read the event's team list from FIRST without error (its full fetch, or its registrations):
    *  the event page's "last synced" time. Null: never read. Absent (time unknown) from older servers and saved packs. */
   teamsSyncedAt?: string | null;
+  /** The event's results came from its own results site, not FIRST (FIRST published none: server/data/criResults.ts):
+   *  the site's name and the event's page there. Absent: FIRST's results (or an older server). */
+  resultsSource?: { site: string; url: string } | null;
   /** The event has a highlights page (/events/<season>/<code>/highlights: server/eventHighlightsPage.ts). Absent: an
    *  older server or a saved pack. */
   highlights?: boolean;
@@ -1066,8 +1069,8 @@ interface ResultChangeBase {
   /** Changed values: "red.total", "blue.bonus.goal", "dq", "time", "field", "red", "blue" (labels has their names). */
   fields: string[];
   /** The feed the new value came from, and the one the stored value came from. */
-  source: "first" | "ftc-scout";
-  prevSource: "first" | "ftc-scout" | null;
+  source: "first" | "ftc-scout" | "cri";
+  prevSource: "first" | "ftc-scout" | "cri" | null;
   /** When the sync saw the change (not when FIRST made it). */
   checkedAt: string;
 }

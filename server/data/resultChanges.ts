@@ -31,7 +31,7 @@ import type { ResultChangeKind, ResultScoreSide, ResultSnapshot, ScheduleSnapsho
 /** Changes kept per event (an event has up to ~150 matches; a few corrections each is plenty). */
 export const RESULT_CHANGES_PER_EVENT = 500;
 
-type Source = "first" | "ftc-scout";
+type Source = "first" | "ftc-scout" | "cri";
 
 /** A stored match as the diff needs it. */
 export interface StoredMatch {
