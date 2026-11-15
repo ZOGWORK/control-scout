@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { frameConfidence, frameStart, hasFrames, plausibleStarts, setFrameTimingsForTests } from "./frameTimings";
+import { frameConfidence, frameOpen, frameStart, hasFrames, plausibleStarts, setFrameTimingsForTests } from "./frameTimings";
 
 afterEach(() => setFrameTimingsForTests([]));
 
@@ -18,5 +18,17 @@ describe("frame timings the server plays from", () => {
   it("counts a video as framed only with a start it can play", () => {
     setFrameTimingsForTests([{ videoId: "v", code: "E", checked: "2026-11-14", starts: {}, missing: { Q1: "no frame of the video could be read" } }]);
     expect(hasFrames("v", "E")).toBe(false);
+  });
+  it("plays a checked row's starts only where the clip's opening frame names the match, and opens there", () => {
+    // Q1 opened on its own overlay 12 s before its start; Q2's opening couldn't be checked: not a clip.
+    setFrameTimingsForTests([{ videoId: "v", code: "E", checked: "2026-11-15", starts: { Q1: 1000, Q2: 1500 }, opens: { Q1: 988 } }]);
+    expect(frameStart("v", "E", "Q1")).toBe(1000);
+    expect(frameOpen("v", "E", "Q1")).toBe(988);
+    expect(frameStart("v", "E", "Q2")).toBeNull();
+    expect(frameConfidence("v", "E", "Q2")).toBeNull();
+    // A row from before the opening check (no opens) plays as it did.
+    setFrameTimingsForTests([{ videoId: "v", code: "E", checked: "2026-11-14", starts: { Q1: 1000 } }]);
+    expect(frameStart("v", "E", "Q1")).toBe(1000);
+    expect(frameOpen("v", "E", "Q1")).toBeNull();
   });
 });
