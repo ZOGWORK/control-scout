@@ -13,6 +13,7 @@ export interface WatchEvent {
 }
 export interface WatchVideo {
   videoId: string; title: string; /** liveStreamingDetails.actualStartTime: null for an upload. */ start: string | null;
+  /** When it went up on the channel (the uploads list's videoPublishedAt): an upload's only date. */ published?: string | null;
   durationS: number | null; privacy: string; embeddable: boolean; /** Countries YouTube blocks it in. */ blockedIn: number;
 }
 export type Verdict =
@@ -91,6 +92,14 @@ const daysBetween = (a: string, b: string) => Math.round((Date.parse(b) - Date.p
 function weekday(iso: string, tz: string | null): string {
   try { return new Intl.DateTimeFormat("en-US", { timeZone: tz || "UTC", weekday: "long" }).format(new Date(iso)).toLowerCase(); } catch { return ""; }
 }
+/** Why a title isn't a competition stream, naming what in it says so; null when it may be one. */
+export function notCompetition(title: string): string | null {
+  const not = NOT.exec(title);
+  if (not) return `not a competition stream: the title says "${not[0].trim()}"`;
+  if (!COMP.test(title)) return "not a competition stream: the title names no competition (no qualifier, meet, league, tournament, championship or FTC)";
+  return null;
+}
+
 export function partOf(title: string): string | null {
   const r = /matches\s*(\d+)\s*[-–]\s*(\d+)/i.exec(title);
   if (r) return `Matches ${r[1]}–${r[2]}`;
@@ -103,7 +112,8 @@ export function partOf(title: string): string | null {
  * rule's region is applied here). An added video is still checked against the event's own videos by the caller.
  */
 export function matchVideo(v: WatchVideo, rule: ChannelRule, events: WatchEvent[]): Verdict {
-  if (!COMP.test(v.title) || NOT.test(v.title)) return { kind: "ignore", why: "not a competition stream (title)" };
+  const notComp = notCompetition(v.title);
+  if (notComp) return { kind: "ignore", why: notComp };
   const inRegion = parseRule(rule.region);
   if (!inRegion) return { kind: "review", why: `the channel's region rule "${rule.region}" can't be read` };
   const short = v.durationS != null && v.durationS < MIN_RECORDING_S;
@@ -199,4 +209,37 @@ export function matchVideo(v: WatchVideo, rule: ChannelRule, events: WatchEvent[
   if (titleDay != null && titleDay !== eventDay) return { kind: "review", why: `the title says day ${titleDay}, the broadcast was the event's day ${eventDay}`, ...at };
   if (FIELD.test(v.title) && !(a.e.divisionCode && a.e.divisionCode !== a.e.code)) return { kind: "review", why: "one field's stream of a one-event meet", ...at };
   return { kind: "add", ...at, why: `${a.e.code}, ${a.d}: title and broadcast date fit only this event` };
+}
+
+/** The event a video most likely is, when its verdict names none: for the owner's review and the channel audit, never
+ *  for an add. Among the competitions in the channel's region from 21 days before the video's date (its broadcast, or
+ *  for an upload the day it was published: an upload follows its event) to the day after, the one whose name, city
+ *  and designators share most with the title, nearest the date on a tie; with what that guess rests on. */
+export function bestGuess(v: Pick<WatchVideo, "title" | "start"> & { published?: string | null }, rule: ChannelRule, events: WatchEvent[]): { event: WatchEvent; day: string; why: string } | { event?: undefined; day?: undefined; why: string } {
+  const anchor = (v.start ?? v.published ?? "").slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(anchor)) return { why: "no best guess: YouTube gave no date for it" };
+  const inRegion = parseRule(rule.region);
+  if (!inRegion) return { why: `no best guess: the channel's region rule "${rule.region}" can't be read` };
+  const extra = new Set(norm(rule.words).split(" ").filter(Boolean));
+  const vt = toks(v.title, extra);
+  const td = designators(v.title);
+  const lo = new Date(Date.parse(anchor) - 21 * 864e5).toISOString().slice(0, 10), hi = new Date(Date.parse(anchor) + 864e5).toISOString().slice(0, 10);
+  let best: { e: WatchEvent; score: number; gap: number; said: string[] } | null = null;
+  for (const e of events) {
+    if (NOT_EVENTS.has(e.type) || !inRegion(e)) continue;
+    const end = e.end || e.start;
+    if (e.start > hi || end < lo) continue;
+    const ed = designators(e.name);
+    if ((["letter", "meet", "n", "uil", "stage", "ampm"] as const).some((k) => td[k] != null && ed[k] != null && td[k] !== ed[k])) continue;
+    const said = [...toks(`${e.name} ${e.city ?? ""}`, extra)].filter((t) => vt.has(t));
+    for (const k of ["letter", "meet", "n", "uil", "stage", "ampm"] as const) if (td[k] != null && td[k] === ed[k]) said.push(`${k === "n" ? "number" : k} ${td[k]}`);
+    const gap = Math.abs(daysBetween(end < anchor ? end : e.start > anchor ? e.start : anchor, anchor));
+    const score = said.length;
+    if (!best || score > best.score || (score === best.score && gap < best.gap)) best = { e, score, gap, said };
+  }
+  const when = v.start ? "broadcast" : "published";
+  if (!best) return { why: `no best guess: no Scout competition in the channel's region from 21 days before it was ${when} (${anchor}) to the day after` };
+  const day = best.e.start <= anchor && anchor <= (best.e.end || best.e.start) ? anchor : best.e.end && best.e.end < anchor ? best.e.end : best.e.start;
+  const basis = best.said.length ? `the title shares ${best.said.map((t) => `"${t}"`).join(", ")} with it` : "nothing in the title names it: only the nearest event by date";
+  return { event: best.e, day, why: `best guess ${best.e.code} (${best.e.name}), ${best.gap ? `${best.gap} day${best.gap === 1 ? "" : "s"} from` : "on"} the day it was ${when}: ${basis}` };
 }
