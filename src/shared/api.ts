@@ -609,7 +609,10 @@ export interface CoverageFinding { kind: "seen" | "pulled"; season: number; code
 export interface ClipCheckTotals { checked: number; ok: number; pulled: number; unconfirmed: number; noOverlayVideos: number }
 /** One clip coverage check pass (server/videos/coverageCheck.ts): events it checked (`events` of them recorded), how
  *  many are fully clipped, matches clipped and missing, and the missing by what their video check found (`why`). */
-export interface CoveragePass { at: string; checked: number; events: number; full: number; clipped: number; missing: number; why: Record<string, number>; opened: number }
+export interface CoveragePass { at: string; checked: number; events: number; full: number; clipped: number; missing: number; why: Record<string, number>; opened: number;
+  /** Every stored event's matches still waiting for their video check after this pass, and after the pass before (null: none
+   *  recorded): how the pending work shrinks. */
+  pending?: number; pendingBefore?: number | null }
 
 /** An event's triage category (server/videos/coverageTriage.ts): only actionable events are the owner's "To review". */
 export type CoverageTriage = "actionable" | "unchecked" | "no-timing" | "early-start" | "old-season";
