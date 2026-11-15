@@ -295,8 +295,57 @@ describe("the steps", () => {
     mount("/");
     await settle();
     expect(dialog()!.textContent).toContain("4215 next match");
-    // Shown, not run: nothing in the list is a button or a link that could leave the dialog.
-    expect(dialog()!.querySelectorAll('[aria-label="Example searches"] button, [aria-label="Example searches"] a').length).toBe(0);
+  });
+
+  it("step 3 with a team: its two pills, a large OR, its own two searches from the server, then the two wider ones", async () => {
+    api.fetch.mockImplementation(async (path: string) => (path.startsWith("/api/onboarding/examples?team=4215")
+      ? { team: 4215, examples: [{ q: "6980 opr vs 4215 opr over time in 2025-26", kind: "compare" }, { q: "what was hypnotic robotics auto opr in centerstage", kind: "worlds-season" }] }
+      : { hits: [] }));
+    personal.current = { ...personal.current, state: { ...EMPTY_STATE, myTeam: 4215 } };
+    localStorage.setItem(ONBOARDING_KEY, JSON.stringify({ v: 1, status: "open", step: 2, at: "x" }));
+    mount("/");
+    await settle();
+    const pills = () => [...dialog()!.querySelectorAll<HTMLButtonElement>("button[data-onboarding-example]")].map((b) => b.dataset.onboardingExample);
+    await waitFor(() => expect(pills()).toHaveLength(6));
+    expect(pills()).toEqual(["4215 next match", "4215 awards", "6980 opr vs 4215 opr over time in 2025-26", "what was hypnotic robotics auto opr in centerstage", "30030 vs 21087 vs 11228", "best teleop opr in Romania in 2025-26"]);
+    // The OR sits between the team's pills and the rest.
+    const or = dialog()!.querySelector("[data-onboarding-or]")!;
+    expect(or.textContent).toBe("OR");
+    const after = (q: string) => !!(or.compareDocumentPosition(dialog()!.querySelector(`[data-onboarding-example="${q}"]`)!) & Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(after("4215 awards")).toBe(false);
+    expect(after("6980 opr vs 4215 opr over time in 2025-26")).toBe(true);
+    expect(dialog()!.textContent).toContain("Worlds season");
+  });
+
+  it("tapping a pill runs exactly that search and ends the welcome", async () => {
+    let at = "";
+    personal.current = { ...personal.current, state: { ...EMPTY_STATE, myTeam: 4215 } };
+    api.fetch.mockImplementation(async () => ({ team: 4215, examples: [] }));
+    localStorage.setItem(ONBOARDING_KEY, JSON.stringify({ v: 1, status: "open", step: 2, at: "x" }));
+    const root = document.createElement("div");
+    root.id = "root";
+    document.body.append(root);
+    const { MemoryRouter: R, Routes, Route, useLocation } = await import("react-router-dom");
+    function Loc() { const l = useLocation(); at = `${l.pathname}${l.search}`; return null; }
+    render(<R initialEntries={["/"]}><Loc /><Routes><Route path="*" element={<Onboarding />} /></Routes></R>, { container: root });
+    await settle();
+    await waitFor(() => expect(dialog()!.querySelector('[data-onboarding-example="best teleop opr in Romania in 2025-26"]')).not.toBeNull());
+    fireEvent.click(dialog()!.querySelector<HTMLButtonElement>('[data-onboarding-example="best teleop opr in Romania in 2025-26"]')!);
+    await settle();
+    expect(at).toBe(`/search?q=${encodeURIComponent("best teleop opr in Romania in 2025-26")}`);
+    expect(dialog()).toBeNull();
+    expect(readOnboarding()).toMatchObject({ status: "finished" });
+  });
+
+  it("step 3: the team's own searches that can't be read are left out, never made up", async () => {
+    api.fetch.mockImplementation(async (path: string) => { if (path.startsWith("/api/onboarding/examples")) throw new Error("offline"); return { hits: [] }; });
+    personal.current = { ...personal.current, state: { ...EMPTY_STATE, myTeam: 4215 } };
+    localStorage.setItem(ONBOARDING_KEY, JSON.stringify({ v: 1, status: "open", step: 2, at: "x" }));
+    mount("/");
+    await settle();
+    await waitFor(() => expect(dialog()!.querySelector("[data-onboarding-example-wait]")).toBeNull());
+    expect([...dialog()!.querySelectorAll<HTMLButtonElement>("button[data-onboarding-example]")].map((b) => b.dataset.onboardingExample))
+      .toEqual(["4215 next match", "4215 awards", "30030 vs 21087 vs 11228", "best teleop opr in Romania in 2025-26"]);
   });
 
   it("\"I'm not on a team\" moves on without saving one, and never clears a team the person already had", async () => {

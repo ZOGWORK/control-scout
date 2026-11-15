@@ -29,6 +29,7 @@ import { recordClick } from "./api/searchLearn.js";
 import { recordIntent } from "./api/searchIntents.js";
 import { rebuildSearch } from "./stats/job.js";
 import { teamProfile, compareAnswer, teamSummaries, shortlistTeams, reliabilityMany } from "./api/teams.js";
+import { onboardingExamples } from "./api/onboardingExamples.js";
 import { teamRoadMap } from "./api/roadmap.js";
 import { cachedEventDetail, eventDetail, toEventInput } from "./api/events.js";
 import { withBracketGate } from "./api/bracket.js";
@@ -552,6 +553,14 @@ export function createApp(opts: { dist?: string; /** Tests only: a smaller searc
     const r = isWeekId(id) ? await rankingsWeek(id) : null;
     if (!r) throw new HttpError(404, `No power rankings published for ${id.slice(0, 20)}`);
     return r;
+  }));
+
+  // The onboarding's step 3 searches for the team picked in step 2 (server/api/onboardingExamples.ts), each one checked.
+  api.get("/onboarding/examples", searches, h(async (req, res) => {
+    const ex = await onboardingExamples(int(req.query.team, "team", { min: 1, max: 999999 }));
+    if (!ex) throw new HttpError(404, `No FTC team ${req.query.team} in our data`);
+    res.setHeader("Cache-Control", "public, max-age=600");
+    return ex;
   }));
 
   api.get("/teams/:number", h(async (req) => {
