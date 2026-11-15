@@ -73,7 +73,7 @@ export async function pipelineAnswer(q: string, opts: PipelineOptions): Promise<
   // Read as a place's top matches (a place the parser doesn't know, "nyc", left over): only when the words are the
   // place, "states" and matches; read again, the championship's name must be all that's left.
   if (p.states && (p.place || p.leftover.length) && !p.event && !p.teams.length && p.symbols.every((s) => s === "states" || s === "thing:match" || s.startsWith("prep:") || s.startsWith("level:"))
-    && STATES_WORD.test(q) && !/bunited statesb/i.test(q)) {
+    && STATES_WORD.test(q) && !/\bunited states\b/i.test(q)) {
     const champ = await parseQuery(q.replace(new RegExp(STATES_WORD.source, "gi"), "$1championship"), ctx);
     if (!champ.intent && asksEventMatches(champ)) return eventMatchesAnswer({ ...champ, q }, opts);
   }
