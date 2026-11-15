@@ -201,8 +201,14 @@ function BugReportForm({ phone = false, onDone }: { phone?: boolean; onDone: () 
   const [confirming, setConfirming] = useState(false);
   const confirmRef = useRef<HTMLButtonElement>(null);
   const confirmBox = useRef<HTMLDivElement>(null);
+  const sendRef = useRef<HTMLButtonElement>(null);
+  // Go back hands focus back to Send report (the button it was on is gone).
+  const refocusSend = useRef(false);
   useEffect(() => {
-    if (!confirming) return;
+    if (!confirming) {
+      if (refocusSend.current) { refocusSend.current = false; sendRef.current?.focus(); }
+      return;
+    }
     confirmRef.current?.focus({ preventScroll: true });
     // The whole question and both answers in view, on a phone too: the sheet (or dialog) scrolls to its end, and
     // stays there while the box settles (it grows a little after its first frame).
@@ -214,9 +220,15 @@ function BugReportForm({ phone = false, onDone }: { phone?: boolean; onDone: () 
     if (typeof ResizeObserver === "undefined") return;
     const watch = new ResizeObserver(toEnd);
     watch.observe(box);
-    const stop = setTimeout(() => watch.disconnect(), 800);
-    return () => { clearTimeout(stop); watch.disconnect(); };
+    // Never against the person: the first scroll of their own ends it.
+    const done = () => { clearTimeout(stop); watch.disconnect(); scroller.removeEventListener("wheel", done); scroller.removeEventListener("touchstart", done); };
+    const stop = setTimeout(done, 800);
+    scroller.addEventListener("wheel", done, { passive: true });
+    scroller.addEventListener("touchstart", done, { passive: true });
+    return done;
   }, [confirming]);
+  // Anything changed after the question was asked is asked about again.
+  useEffect(() => { setConfirming(false); }, [category, message, email, files]);
   const [filed, setFiled] = useState<Filed>({ state: "asking" });
   const gone = useRef(false);
   // Set on every mount (StrictMode mounts, unmounts and mounts again), cleared when the dialog closes.
@@ -268,8 +280,9 @@ function BugReportForm({ phone = false, onDone }: { phone?: boolean; onDone: () 
     email: email.trim() && !EMAIL.test(email.trim()) ? "That doesn't look like an email address." : null,
   };
 
-  const submit = async (e: FormEvent) => {
-    e.preventDefault();
+  /** The form's own submit (Send report, or Enter in a field) only ever asks; "Yes, post it publicly" sends. */
+  const submit = async (e?: FormEvent, confirmed = false) => {
+    e?.preventDefault();
     setTried(true);
     setFailure(null);
     const first = (["category", "message", "email"] as const).find((k) => errors[k]);
@@ -278,7 +291,11 @@ function BugReportForm({ phone = false, onDone }: { phone?: boolean; onDone: () 
       else document.getElementById(first === "message" ? ids.msg : ids.email)?.focus();
       return;
     }
-    if (!confirming) { setConfirming(true); return; }
+    if (!confirmed) {
+      if (confirming) confirmRef.current?.focus();
+      else setConfirming(true);
+      return;
+    }
     setConfirming(false);
     setStatus("sending");
     try {
@@ -446,17 +463,17 @@ function BugReportForm({ phone = false, onDone }: { phone?: boolean; onDone: () 
       {confirming ? (
         <div ref={confirmBox} role="alertdialog" aria-labelledby={`${ids.msg}-confirm`} className="space-y-3 rounded-xl border border-warning/60 bg-warning/10 px-3.5 py-3" data-testid="bug-confirm">
           <p id={`${ids.msg}-confirm`} className="text-sm font-semibold text-foreground">
-            Send this as a public issue? Anyone can read it{files.length ? ", and see what you attached" : ""}.
+            Send this as a public issue? Anyone can read it{email.trim() ? ", including your email" : ""}{files.length ? ", and see what you attached" : ""}.
           </p>
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            <Button type="button" variant="outline" className="w-full sm:w-auto" onClick={() => setConfirming(false)}><ArrowLeft /> Go back</Button>
-            <Button ref={confirmRef} type="submit" className="w-full sm:w-auto" data-testid="bug-confirm-send"><Send /> Yes, post it publicly</Button>
+            <Button type="button" variant="outline" className="w-full sm:w-auto" onClick={() => { refocusSend.current = true; setConfirming(false); }}><ArrowLeft /> Go back</Button>
+            <Button ref={confirmRef} type="button" onClick={() => void submit(undefined, true)} className="w-full sm:w-auto" data-testid="bug-confirm-send"><Send /> Yes, post it publicly</Button>
           </div>
         </div>
       ) : (
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs text-text-muted" aria-live="polite">{progress || "No account needed."}</p>
-          <Button type="submit" disabled={status === "sending"} className="w-full sm:w-auto">
+          <Button ref={sendRef} type="submit" disabled={status === "sending"} className="w-full sm:w-auto">
             {status === "sending" ? <><Loader2 className="animate-spin" /> Sending…</> : <><Send /> Send report</>}
           </Button>
         </div>
