@@ -44,6 +44,10 @@ or an overlay left on the previous match) and fills each stretch between two rea
 
 No match is placed on one signal alone.
 
+On a stream an event's divisions share (one feed cutting between fields, as Romania's championship does), every read
+also checks whose division the overlay names: a sibling division's overlay is never this event's match, and a start
+stands only when one of its reads showed this division's own name (`divisionOf`, `overlayDivision`).
+
 1. **Each read is checked before and after its start.** A read gives a match and its start. Later in TeleOp the
    overlay must name the same match and its timer give the same start, within 6 s; 25 s before the start, that match
    mustn't be running yet. A read that fails either is dropped. This catches a wrong match number on screen for a few
@@ -54,11 +58,16 @@ No match is placed on one signal alone.
    (as above), then groups them into stretches that agree on how far the video sits from the clock:
    - a stretch of two or more reads places its reads (**high** confidence) and every match between them (**medium**:
      filled, not read);
-   - a stretch of one read is placed only when the broadcast's own clock (YouTube's start, where the video kept it)
-     agrees with it (high). Otherwise it is one signal only, and goes to **review**.
+   - a stretch of one read is still a confirmed read (step 1: its overlay and timer agree at two points, and the match
+     wasn't running 25 s before), so the video places it where its frames show it (high), however far that is from
+     FIRST's schedule: the stream is the truth (owner, 2026-11-15). It goes to **review** only when it sits more than
+     30 minutes from where the reads beside it, or else the broadcast's own clock, put the video (it may be another
+     day's or event's), or when there's neither to compare with.
 3. **Plausible or review.** Placed starts must be inside the video, in match order, and at least 2:32 apart (a
    match's 2:38 less a read's 6 s slack).
-   Any that aren't go to review.
+   Any that aren't go to review. Where a start lands inside the previous match's play, both read off the video, the
+   later one is also written to `earlyStart` (its start and when the previous match's play ends): the only early start
+   that keeps a match from a clip.
 4. **Missing, with the reason.** Every other match of the video gets a reason: its read disagreed with the matches
    around it, its frames didn't confirm a start, it sits in a gap whose two sides disagree (the stream may have been
    off), no frame of the video could be read, or no read near it.
