@@ -6,7 +6,7 @@
 //   (FIRST's event named "Chicago Robotics Invitational…" in that season). Editions without one are reported.
 // - Never over FIRST: an event whose stored results came from anywhere else (FIRST posted it) is left alone, and
 //   sync.ts keeps these results when FIRST's own read of the event comes back empty.
-// - Politely: read at most weekly (CRI_EVERY_MS), one request at a time with a pause; the lists are cached and
+// - Politely: read at most weekly (CRI_EVERY_MS; an unfinished read again after CRI_RETRY_MS), one request at a time with a pause; the lists are cached and
 //   each match's page is read only when its result is new or changed, so an unchanged site costs the lists alone.
 import { all, kvGet, kvSet } from "../db.js";
 import type { EventRow } from "./bundle.js";
@@ -19,7 +19,11 @@ import {
 
 /** The site's results are final weeks after the event: once a week is plenty. */
 export const CRI_EVERY_MS = 7 * 24 * 3600_000;
+/** A read that didn't finish (a failed request, or the cycle stopped by a deploy midway) is tried again after this. */
+export const CRI_RETRY_MS = 6 * 3600_000;
+/** When a read last finished with nothing failed (the week counts from it), and when one last started. */
 const LAST_KEY = `sync:${CRI_SOURCE}`;
+const TRY_KEY = `sync:${CRI_SOURCE}:try`;
 const rawKey = (season: number, code: string) => `cri:raw:${season}:${code}`;
 /** The event's results page on the site, for the page's source line (api/events.ts). */
 export const criLinkKey = (season: number, code: string) => `cri:link:${season}:${code}`;
@@ -66,10 +70,12 @@ const liveIo: CriIo = {
 export async function syncCriResults(o: { force?: boolean; now?: Date; io?: CriIo; log?: (m: string) => void } = {}): Promise<CriReport> {
   const report: CriReport = { written: [], unchanged: [], skipped: [], failed: [] };
   const now = o.now ?? new Date();
-  const last = await kvGet<string>(LAST_KEY);
-  if (!o.force && last && now.getTime() - Date.parse(last) < CRI_EVERY_MS) return { ...report, note: "read recently" };
-  // Marked before the read: a failed read waits the same week as a good one.
-  await kvSet(LAST_KEY, now.toISOString());
+  const [last, tried] = await Promise.all([kvGet<string>(LAST_KEY), kvGet<string>(TRY_KEY)]);
+  const within = (at: string | null, ms: number) => !!at && now.getTime() - Date.parse(at) < ms;
+  if (!o.force && (within(last, CRI_EVERY_MS) || within(tried, CRI_RETRY_MS))) return { ...report, note: "read recently" };
+  // The attempt is marked before the read, so a site that keeps failing is asked again only every few hours; the week
+  // starts once a read finishes with nothing failed (a read the cycle never finished is tried again, not a week later).
+  await kvSet(TRY_KEY, now.toISOString());
   const io = o.io ?? liveIo;
   const covered = new Set(SEASON_NUMBERS);
   for (const s of await io.seasons()) {
@@ -102,6 +108,7 @@ export async function syncCriResults(o: { force?: boolean; now?: Date; io?: CriI
       report.failed.push(`${s.year}: ${(err as Error).message.slice(0, 160)}`);
     }
   }
+  if (!report.failed.length) await kvSet(LAST_KEY, now.toISOString());
   o.log?.(`CRI results: ${report.written.map((w) => `${w.season} ${w.code} (${w.matches} matches)`).join(", ") || "nothing new"}`
     + `${report.unchanged.length ? `; unchanged ${report.unchanged.join(", ")}` : ""}${report.skipped.length ? `; skipped ${report.skipped.join("; ")}` : ""}${report.failed.length ? `; failed ${report.failed.join("; ")}` : ""}`);
   return report;
