@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.4.2 — 2026-11-14
+## 6.4.3 — 2026-11-14
 
 Offline downloads pick up where they stopped when the connection drops, show real MB progress, and never leave a half pack that looks saved. The Download page is now one Offline page: what to save at the top, everything on this device below.
 
@@ -33,6 +33,19 @@ Offline downloads pick up where they stopped when the connection drops, show rea
 
 ### Changed
 - Delete really deletes: the predictions pack's bytes are removed from IndexedDB (they were overwritten with null), and every delete says "Freed 6.9 MB". The browser is asked to keep this site's storage on the first download of any kind. Event-day bundles show real bytes while downloading. The menu calls the page Offline. (`src/lib/packs.ts`, `src/lib/offline/bundles.ts`, `src/components/offline/EventBundles.tsx`) (#1462)
+## 6.4.2 — 2026-11-14
+
+World rankings and the home page's prediction record open cleanly with no signal.
+
+### Highlights
+- [offline] Home's prediction record shows its last numbers with no signal
+- [fixes] World rankings with no season saved no longer looks stuck loading
+- [rankings] Its season picker shows next to the "needs a connection" note
+
+### Fixed
+- World rankings, opened with no signal and no season saved: the season picker now shows next to the page's "needs a connection" note, instead of a loading placeholder that never went away. (`src/pages/RankingsPage.tsx`)
+- The home page's prediction record (`/api/predict/accuracy`) is kept on the device like the season totals, so with no signal it shows the last numbers it loaded, marked with their time, instead of "needs a connection". (`src/lib/offline/kept.ts`) (#1511)
+
 ## 6.4.1 — 2026-11-14
 
 With no signal, the event page says its videos need a connection instead of its Watch buttons quietly going away, and the livestream button no longer opens a tab that can't load.

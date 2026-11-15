@@ -102,7 +102,7 @@ export default function RankingsPage() {
   const mine = !mineRaw ? null : mineState && !stateName(mineCountry, mineState) ? mineCountry : mineRaw;
   const mineOn = !!mine && places.length === 1 && placeKey(places[0]) === mine;
   const compact = useCompactFilters();
-  const seasonPick = data || seasonParam ? <SeasonPick value={season} onChange={(s) => go({ season: String(s), week: null })} /> : <div className="skeleton h-9 w-36 rounded-lg max-sm:h-10" aria-hidden />;
+  const seasonPick = data || seasonParam || res.error ? <SeasonPick value={season} onChange={(s) => go({ season: String(s), week: null })} /> : <div className="skeleton h-9 w-36 rounded-lg max-sm:h-10" aria-hidden />;
   const placePick = <PlacePicker info={placesInfo.data} loading={placesInfo.loading} value={places.map(placeKey)} onChange={setPlaces} />;
   const mineButton = mine && (
     <button type="button" onClick={() => setPlaces(mineOn ? [] : [mine])} aria-pressed={mineOn}
