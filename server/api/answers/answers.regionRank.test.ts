@@ -48,7 +48,7 @@ describe("where does a team rank in a region", () => {
       const k = kpis(s);
       expect(k.find((i) => i.label === "New Jersey by rating"), q).toMatchObject({ value: `#${row.rank} of ${page.total}`, sub: expect.stringMatching(new RegExp(`^${row.rating.toFixed(1)} ±`)) });
       expect(k.find((i) => i.label === "Record")?.value, q).toBe(`${row.wins}-${row.losses}-${row.ties}`);
-      expect(k.find((i) => i.label === "New Jersey by OPR")?.sub, q).toBe(`OPR ${Number(row.opr!.toFixed(1))}`);
+      expect(k.find((i) => i.label === "New Jersey by OPR")?.sub, q).toBe(`OPR ${row.opr!.toFixed(1)}`);
       expect(s.more?.href, q).toBe(`/rankings/regions/USA/NJ?season=${S}&team=4215`);
     }
     // The page that link opens has 4215's row, marked (asked).
