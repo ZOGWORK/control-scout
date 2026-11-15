@@ -13,7 +13,7 @@ describe("ResultsSource", () => {
     render(<ResultsSource d={{ event: ev("cri"), resultsSource: { site: "chicagoroboticsinvitational.com", url: "https://results.chicagoroboticsinvitational.com/2025-2026-cri/events/cri/quals" } }} />);
     const a = screen.getByRole("link", { name: /chicagoroboticsinvitational\.com/ });
     expect(a.getAttribute("href")).toBe("https://results.chicagoroboticsinvitational.com/2025-2026-cri/events/cri/quals");
-    expect(document.querySelector("[data-results-source]")?.textContent).toContain("Results from chicagoroboticsinvitational.com");
+    expect(document.querySelector("[data-results-source]")?.textContent).toMatch(/^Results from\s*chicagoroboticsinvitational\.com/);
   });
 
   it("says nothing for FIRST's results", () => {
