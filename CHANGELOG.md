@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.6.2 — 2026-11-15
+## 6.6.3 — 2026-11-15
 
 Search answers four more questions it used to miss: three team numbers side by side, a team's Auto OPR at Worlds, what a tiebreaker is, and "teams in" with nothing after it.
 
@@ -30,6 +30,18 @@ Search answers four more questions it used to miss: three team numbers side by s
 - A team's Auto OPR at Worlds ("what was hypnotic robotics auto opr at worlds in centerstage", and the same without "opr") showed the team card and "can't answer that yet". It's now that phase's OPR in the team's Worlds division (47.3 at Edison, 2023–24), with its OPR and the other phases beside it, as "auto" alone already reads a team's season Auto OPR. A phase next to another stat word ("highest auto at worlds") stays with the match answers. (`server/api/answers/families/oprRating.ts`) (#1493, #1494)
 - "What is a tie breaker point" found nothing. A new explainer says how teams level on ranking score are ordered (average non-penalty score first, as the methodology page says), and a typo of "breaker" is now corrected to it. (`server/api/searchCoverage.ts`, `server/api/spelling.ts`) (#1430, #1429)
 - "teams in" with nothing after it found nothing. It now lists every team, best by OPR this season, with how many are registered and how to add a place. (`server/api/searchCoverage.ts`) (#1421)
+
+## 6.6.2 — 2026-11-15
+
+Search answers a top-scores question about an event named without "at": "best auto match in romania champs" lists the Romania Championship's best auto scores.
+
+### Highlights
+- [fixes] "best auto match in romania champs" lists its top auto scores
+- [fixes] An event named after "in" is read as the event, not as a place
+- [fixes] "4215 highest score in …" still answers about the team
+
+### Fixed
+- Search: a top-scores question naming an event after "in", or with no word before it ("best auto match in romania champs", "best auto match romania champs"), said no team, event or match matched. The words left are now the event's name when they aren't a place, end the question and hold an event's own word (championship, qualifier, league, meet …); "4215 highest score in …" stays the team's question. Answer: *Highest auto scores in DECODE (2025–26) at Romania Championship*. Failed search #1435. (`server/api/answers/families/topMatches.ts`) (#1532)
 
 ## 6.6.1 — 2026-11-15
 
