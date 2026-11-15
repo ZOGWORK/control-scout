@@ -49,7 +49,7 @@ export const TRIAGE_LABEL: Record<CoverageTriage, string> = {
   "old-season": "Old season",
 };
 export const TRIAGE_ABOUT: Record<CoverageTriage, string> = {
-  actionable: "A clip may still be placeable: a match the clock puts outside the broadcast, not yet checked against the video, or no reason found.",
+  actionable: "A clip may still be placeable: a match the clock alone puts outside the video, not yet checked against the video itself, or no reason found.",
   "no-timing": "Nothing to place a clip from: no clock, video unavailable, shorter than its broadcast with nothing to place the gap, no real start from FIRST, or no recording that day.",
   "early-start": "Placing a clip would open on the match before: the system didn't guess.",
   "old-season": "Older than last season, and nothing actionable.",
