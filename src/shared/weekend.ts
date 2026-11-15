@@ -6,12 +6,23 @@ import { localDate } from "./eventDay";
 /** Today's date on an event's own calendar: UTC's when its time zone is unknown. */
 export const dayAt = (now: number, tz: string | null | undefined): string => (tz ? localDate(now, tz) : null) ?? new Date(now).toISOString().slice(0, 10);
 
-/** Whether the event (its first to last day) meets `which` weekend, read on its own calendar: a meet under way in Los
- *  Angeles at 02:00 UTC on Sunday is still this weekend's there. */
-export function inWeekend(e: { start: string | null; end: string | null; timezone?: string | null }, which: Weekend, now: number): boolean {
+/** Whether the event (its first to last day) meets `which` weekend: the reader's (`today`, UTC's when not given), or
+ *  its own when its calendar is still behind the reader's (a meet in Los Angeles on Sunday evening, when UTC's Monday
+ *  has begun, is still this weekend's). A calendar ahead waits: Monday in Sydney doesn't move its next meet into the
+ *  reader's "this weekend". */
+export function inWeekend(e: { start: string | null; end: string | null; timezone?: string | null }, which: Weekend, now: number, today?: string | null): boolean {
+  return inWindow(e, (d) => weekendWindow(which, d), now, today);
+}
+
+/** The same rule for any window read from a date (`windowAt`, "today", "this week"): the reader's window, or the
+ *  event's own while its calendar is behind. */
+export function inWindow(e: { start: string | null; end: string | null; timezone?: string | null }, windowAt: (today: string) => { from?: string | null; to?: string | null }, now: number, today?: string | null): boolean {
   if (!e.start) return false;
-  const w = weekendWindow(which, dayAt(now, e.timezone));
-  return e.start <= w.to && (e.end ?? e.start) >= w.from;
+  const meets = (w: { from?: string | null; to?: string | null }) => (!w.to || e.start! <= w.to) && (!w.from || (e.end ?? e.start!) >= w.from);
+  const ref = windowAt(today ?? new Date(now).toISOString().slice(0, 10));
+  if (meets(ref)) return true;
+  const own = windowAt(dayAt(now, e.timezone));
+  return !!own.from && !!ref.from && own.from < ref.from && meets(own);
 }
 
 /** What the page and search say when a weekend has no event. */
@@ -97,3 +108,6 @@ export interface NextMatchAnswer {
   /** This weekend's matches already played (the latest few): scores, never times. */
   played: NonNullable<NextMatchAnswer["match"]>[];
 }
+
+/** The reader's own date ("2026-11-14"), in the browser: the weekend the pages show is read from it. */
+export const viewerToday = (d = new Date()): string => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
