@@ -40,8 +40,9 @@ Code: `server/sources/cri.ts` (read + parse), `server/data/criResults.ts` (when 
 
 ## Politeness
 
-- Read from the data cycle at most once a week (`CRI_EVERY_MS`), marked before the read so a failure waits too, and
-  only on the data host (FIRST credentials set).
+- Read from the data cycle at most once a week (`CRI_EVERY_MS`), only on the data host (FIRST credentials set). The
+  week counts from a read that finished with nothing failed. Each attempt is marked before it starts, so a read that
+  failed, or that a deploy stopped midway, is tried again after `CRI_RETRY_MS` (6 hours), never sooner.
 - One request at a time with a pause (1.5 s; 0.6 s for the small per-match pages). The lists and match pages are
   cached in `kv` (`cri:raw:<season>:<code>`); an unchanged site costs the lists alone, and a match page is read again
   only when that match's totals change. The first read is about 140 requests (~2 minutes); later weeks ~15.
