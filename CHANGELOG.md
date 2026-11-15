@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.6.7 — 2026-11-15
+## 6.6.8 — 2026-11-15
 
 Events › The Chicago Robotics Invitational shows its full results: teams, matches, standings, alliances and awards for 2025–26 and 2024–25, from the event's own results site.
 
@@ -26,6 +26,23 @@ Events › The Chicago Robotics Invitational shows its full results: teams, matc
 
 ### Added
 - CRI results: FIRST lists the Chicago Robotics Invitational (FPECRI) with no teams or matches. Its results now come from chicagoroboticsinvitational.com as the event's ordinary results, for 2025–26 (38 teams, 62 matches) and 2024–25 (38 teams, 67 matches). That covers each match's auto / TeleOp / endgame / penalty split, standings, alliances and awards. The event page says "Results from chicagoroboticsinvitational.com" and links there. The results are read weekly and cached, and they never replace FIRST's: if FIRST posts the event, its results win. (`server/sources/cri.ts`, `server/data/criResults.ts`, `docs/cri-results.md`) (#1537)
+
+## 6.6.7 — 2026-11-15
+
+Clip coverage's To review now holds only matches checked against the video itself; the rest wait under their own count, and every match the video showed without a clip is a finding.
+
+### Highlights
+- [workspace] To review holds only matches checked against the video itself
+- [workspace] "Not yet checked against the video" gets its own count, never hidden
+- [workspace] Each match the video showed with no clip is listed as a finding
+- [workspace] Each check pass is logged and shown: clipped, missing and why
+- [workspace] The pending video checks count down pass by pass
+
+### Changed
+- Owner › Clip coverage: an event is To review only for a match its video's frames were read for and that still has no clip (or a match with no reason found), and its reason says what was checked in the video and what was missing there; matches still waiting for their check are counted beside it. An event whose missing matches were left out by the clock alone and not yet checked against the video is "Not yet checked against the video": a pending check with its own count and list, in any season, never in To review, never marked reviewed (one or in any bulk), moving on once its frames are read; a review given to it while it waited doesn't carry over, so its video-checked list comes back To review. (`server/videos/coverageTriage.ts`, `server/videos/coverageCheck.ts`, `src/components/owner/ClipCoveragePanel.tsx`) (#1539)
+
+### Added
+- Each clip coverage check pass logs events checked, fully clipped, matches clipped and missing, and the missing by what their video check found (not yet checked, checked with no start found, seen in the video with no clip, or the video's own reason); the console shows the last pass. Every match the video's frames saw with no clip is a finding in the console, with its video, the second it was seen at, its event and why, whatever its review; so is every clip pulled because its first frame showed another match, with the frame checks' totals (checked, confirmed, pulled, to read again, videos with no overlay). A finding stays until a pass clears it (its clip placed, or a re-read shows the match isn't there) and is never marked reviewed. The console counts the matches still waiting for their video check after each pass and how many fewer than the pass before, and the pass log line ends with it.
 
 ## 6.6.6 — 2026-11-15
 
