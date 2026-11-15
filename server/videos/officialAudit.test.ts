@@ -11,11 +11,13 @@ import { FULL_EVERY_MS, dismissFinding, measureAdds, ownerAudit, queueFinding, r
 
 const TX = "UCKezDYNRPpAy2_1XRMBWKSw";
 const NOW = Date.parse("2026-01-20T00:00:00Z");
-type Item = { id: string; title: string; published: string; start?: string | null; minutes?: number; privacy?: string };
+type Item = { id: string; title: string; published: string; start?: string | null; minutes?: number; privacy?: string; live?: string };
 const FIRSTS = "firstlinkxx", LISTED = "listedlisto", WEB = "webinarwebi", OLDUP = "oldupload01", MISS = "missmissmis", GOOD = "goodaddgood", BAD = "badaddbadad", LATE = "latelatelat", DRONE = "dronedronex", COPY = "pecancopyxx", OLDCOV = "oldcovered1", OLDNONE = "oldnoevent1";
 let uploads: Item[] = [];
 let calls: string[] = [];
 let pageSize = 50;
+/** The videos call answers that the day's quota is spent. */
+let quotaOnVideos = false;
 const fakeFetch = (async (url: string) => {
   const u = new URL(url);
   calls.push(u.pathname.split("/").pop()!);
@@ -28,9 +30,10 @@ const fakeFetch = (async (url: string) => {
     const items = uploads.slice(page * pageSize, (page + 1) * pageSize);
     return json({ items: items.map((i) => ({ snippet: { title: i.title }, contentDetails: { videoId: i.id, videoPublishedAt: i.published } })), ...(uploads.length > (page + 1) * pageSize ? { nextPageToken: String(page + 1) } : {}) });
   }
+  if (quotaOnVideos) return { ok: false, status: 403, json: async () => ({ error: { errors: [{ reason: "quotaExceeded" }] } }) } as Response;
   const ids = (u.searchParams.get("id") ?? "").split(",");
   return json({ items: uploads.filter((i) => ids.includes(i.id)).map((i) => ({
-    id: i.id, snippet: { title: i.title, liveBroadcastContent: "none" },
+    id: i.id, snippet: { title: i.title, liveBroadcastContent: i.live ?? "none" },
     contentDetails: { duration: `PT${i.minutes ?? 360}M` }, status: { privacyStatus: i.privacy ?? "public", embeddable: true },
     ...(i.start === null ? {} : { liveStreamingDetails: { actualStartTime: i.start ?? i.published } }),
   })) });
@@ -81,7 +84,7 @@ beforeAll(async () => {
     { id: OLDNONE, title: "FTC Texas Scrimmage", published: "2025-03-01T22:00:00Z", start: "2025-03-01T15:00:00Z" },
   ];
 });
-beforeEach(() => { calls = []; pageSize = 50; });
+beforeEach(() => { calls = []; pageSize = 50; quotaOnVideos = false; });
 
 describe("the channel audit", () => {
   it("reads the whole uploads list and records where Scout has each video", async () => {
@@ -201,5 +204,31 @@ describe("the channel audit", () => {
       { region: "state=TX", words: "texas", titlePattern: null });
     expect(v.kind).toBe("review");
     expect(v.guess).toMatchObject({ event: { season: 2024, code: "USTXBLQ" }, day: "2025-01-12" });
+  });
+
+  it("keeps a channel's whole-list read when the run fails after it, so the next run doesn't spend it again", async () => {
+    await run("UPDATE official_audit_channels SET full_at = NULL WHERE channel_id = ?", [TX]);
+    uploads.push({ id: "quotanewxxx", title: "FTC Texas Mockingbird Qualifier stream 2", published: "2025-02-01T22:00:00Z", start: "2025-02-01T15:00:00Z" });
+    quotaOnVideos = true;
+    try {
+      const out = await audit(NOW + 2 * FULL_EVERY_MS);
+      expect(out?.error).toMatch(/quota/);
+      expect((await get<any>("SELECT full_at FROM official_audit_channels WHERE channel_id = ?", [TX])).full_at).toBe(new Date(NOW + 2 * FULL_EVERY_MS).toISOString());
+    } finally { uploads.pop(); }
+  });
+
+  it("reads a video's facts again once it's no longer live", async () => {
+    const id = "livenowxxxx";
+    uploads.unshift({ id, title: "FTC Texas Mockingbird Qualifier Day 3", published: "2026-02-20T14:00:00Z", start: "2026-02-20T14:00:00Z", live: "live" });
+    try {
+      await audit(Date.parse("2026-02-20T18:00:00Z"));
+      expect(await row(id)).toMatchObject({ facts_at: null, finding: null });
+      expect((await row(id)).why).toMatch(/live now or still to come/);
+      uploads[0] = { ...uploads[0], live: "none" };
+      calls = [];
+      await audit(Date.parse("2026-02-21T06:00:00Z"));
+      expect(calls).toContain("videos");
+      expect((await row(id)).facts_at).toBe("2026-02-21T06:00:00.000Z");
+    } finally { uploads.shift(); }
   });
 });
