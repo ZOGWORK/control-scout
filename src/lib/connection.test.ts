@@ -4,7 +4,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, renderHook } from "@testing-library/react";
 import {
-  CARRY_MS, CHECK_TIMEOUT_MS, DEMO_KEY, FAIL_DEBOUNCE_MS, IDLE_MS, LAST_KEY, RETRY_MS, checkInternet, classify, connection, noteRequestFailed, noteServerAnswer,
+  CARRY_MS, CHECK_TIMEOUT_MS, DEMO_KEY, EVENT_GAP_MS, FAIL_DEBOUNCE_MS, IDLE_MS, LAST_KEY, RETRY_MS, RETRY_STEPS_MS, checkInternet, classify, connection, noteRequestFailed, noteServerAnswer,
   offlineNow, resetConnection, shownOffline, startConnectionWatch, useConnection,
 } from "./connection";
 
@@ -141,6 +141,124 @@ describe("watching", () => {
     up = true;
     await vi.advanceTimersByTimeAsync(RETRY_MS);
     expect(connection().internet).toBe("yes");
+  });
+
+  it("while offline, checks after 3 s, 5 s, 10 s, 20 s, then every 30 s", async () => {
+    vi.useFakeTimers();
+    const fetch = vi.fn(async () => { throw new TypeError("Failed to fetch"); });
+    vi.stubGlobal("fetch", fetch);
+    stop = startConnectionWatch();
+    noteRequestFailed();
+    await vi.advanceTimersByTimeAsync(0); // the first failure, before any answer: checked at once
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(RETRY_STEPS_MS).toEqual([3000, 5000, 10_000, 20_000]);
+    let calls = 1;
+    for (const wait of [...RETRY_STEPS_MS, RETRY_MS, RETRY_MS]) {
+      await vi.advanceTimersByTimeAsync(wait - 1);
+      expect(fetch).toHaveBeenCalledTimes(calls); // not a moment early
+      await vi.advanceTimersByTimeAsync(1);
+      expect(fetch).toHaveBeenCalledTimes(++calls);
+    }
+    expect(connection().internet).toBe("no");
+  });
+
+  it("the back-off starts over once there's internet again", async () => {
+    vi.useFakeTimers();
+    let up = false;
+    const fetch = vi.fn(async () => { if (!up) throw new TypeError("Failed to fetch"); return json({ ok: true }); });
+    vi.stubGlobal("fetch", fetch);
+    stop = startConnectionWatch();
+    noteRequestFailed();
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(RETRY_STEPS_MS.reduce((a, b) => a + b, 0)); // down to the 30 s cadence
+    expect(fetch).toHaveBeenCalledTimes(1 + RETRY_STEPS_MS.length);
+    up = true;
+    await vi.advanceTimersByTimeAsync(RETRY_MS);
+    expect(connection().internet).toBe("yes");
+    // Online again: the IDLE_MS cadence is untouched.
+    const atYes = fetch.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(IDLE_MS - 1);
+    expect(fetch).toHaveBeenCalledTimes(atYes);
+    // A new outage: back to 3 s first.
+    up = false;
+    noteRequestFailed();
+    await vi.advanceTimersByTimeAsync(FAIL_DEBOUNCE_MS);
+    expect(connection().internet).toBe("no");
+    const atNo = fetch.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(RETRY_STEPS_MS[0]);
+    expect(fetch).toHaveBeenCalledTimes(atNo + 1);
+  });
+
+  it("a server answer while offline also starts the back-off over", async () => {
+    vi.useFakeTimers();
+    const fetch = vi.fn(async () => { throw new TypeError("Failed to fetch"); });
+    vi.stubGlobal("fetch", fetch);
+    stop = startConnectionWatch();
+    noteRequestFailed();
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(RETRY_STEPS_MS.reduce((a, b) => a + b, 0));
+    noteServerAnswer();
+    expect(connection().internet).toBe("yes");
+    noteRequestFailed();
+    await vi.advanceTimersByTimeAsync(FAIL_DEBOUNCE_MS);
+    const atNo = fetch.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(RETRY_STEPS_MS[0]);
+    expect(fetch).toHaveBeenCalledTimes(atNo + 1);
+  });
+
+  /** Offline long enough to be on the RETRY_MS cadence, with the last check more than EVENT_GAP_MS ago. */
+  async function offlineOnSlowCadence(isUp: () => boolean) {
+    vi.useFakeTimers();
+    const fetch = vi.fn(async () => { if (!isUp()) throw new TypeError("Failed to fetch"); return json({ ok: true }); });
+    vi.stubGlobal("fetch", fetch);
+    stop = startConnectionWatch();
+    noteRequestFailed();
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(RETRY_STEPS_MS.reduce((a, b) => a + b, 0) + EVENT_GAP_MS + 1);
+    expect(fetch).toHaveBeenCalledTimes(1 + RETRY_STEPS_MS.length);
+    return fetch;
+  }
+
+  it.each([
+    ["focus", () => window.dispatchEvent(new Event("focus"))],
+    ["the tab coming into view", () => document.dispatchEvent(new Event("visibilitychange"))],
+    ["the online event", () => window.dispatchEvent(new Event("online"))],
+  ])("%s while offline checks at once and starts the back-off over", async (_name, fire) => {
+    const fetch = await offlineOnSlowCadence(() => false);
+    const before = fetch.mock.calls.length;
+    fire();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetch).toHaveBeenCalledTimes(before + 1); // at once
+    await vi.advanceTimersByTimeAsync(RETRY_STEPS_MS[0]);
+    expect(fetch).toHaveBeenCalledTimes(before + 2); // then 3 s, not 30 s
+  });
+
+  it("focus moments after a check doesn't check again then, but the next check comes by the first step", async () => {
+    let up = false;
+    const fetch = await offlineOnSlowCadence(() => up);
+    window.dispatchEvent(new Event("focus")); // checks: the last was over EVENT_GAP_MS ago
+    await vi.advanceTimersByTimeAsync(0);
+    const settled = fetch.mock.calls.length;
+    up = true;
+    window.dispatchEvent(new Event("focus")); // moments later: no check now
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetch).toHaveBeenCalledTimes(settled);
+    await vi.advanceTimersByTimeAsync(RETRY_STEPS_MS[0]);
+    expect(fetch).toHaveBeenCalledTimes(settled + 1);
+    expect(connection().internet).toBe("yes");
+  });
+
+  it("focus with internet doesn't check (the IDLE_MS cadence stays as it was)", async () => {
+    vi.useFakeTimers();
+    const fetch = vi.fn(async () => json({ ok: true }));
+    vi.stubGlobal("fetch", fetch);
+    stop = startConnectionWatch();
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(connection().internet).toBe("yes");
+    await vi.advanceTimersByTimeAsync(EVENT_GAP_MS + 1);
+    window.dispatchEvent(new Event("focus"));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
 
   it("the browser's offline event is believed at once, then checked", async () => {

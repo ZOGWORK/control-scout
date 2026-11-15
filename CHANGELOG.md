@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 6.4.0 — 2026-11-14
+
+Turn Wi-Fi back on and the Offline pill goes within seconds, in the background, without a tap or a reload.
+
+### Highlights
+- [offline] The Offline pill goes within seconds of the Wi-Fi coming back
+- [offline] With no signal, checks come after 3, 5, 10, 20 s, then every 30 s
+- [offline] Coming back to the app with no signal checks again at once
+- [speed] Back online, checks stay as rare as before
+
+### Changed
+- With no internet (or a Wi-Fi sign-in page), the connection check now comes 3 s, 5 s, 10 s and 20 s after the last one, then every 30 s as before, instead of every 30 s from the start; measured live, the Offline pill took 29 to 62 s to go after the line came back. The steps start over once there's internet again, and on the browser's online event, the tab coming into view, or the window getting focus, each of which also checks at once when the last check is over 5 s old. With internet, checks are as before (every 5 minutes, tab in view). (`src/lib/connection.ts`) (#PR)
+
 ## 6.3.9 — 2026-11-14
 
 FTC One Search works with no signal at the meet: search a team in the downloaded event by number or name, the event, a match, or set its teams side by side, and get the same answer as online. Anything else says plainly that it needs data the pack doesn't hold, and shows what the pack does hold.
