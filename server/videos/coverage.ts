@@ -62,6 +62,7 @@ export const WHY: Record<CoverageReason, string> = {
   "before-cut": "Before the video starts",
   "before-chapters": "Before the part of the video its chapters confirm",
   "overlaps-previous": "An early start would open on the match before",
+  "between-recordings": "Played between two of the day's recordings, in neither",
   "no-first-video": "FIRST posted no video for this match",
   unexplained: "No clip, reason not found",
 };
@@ -82,7 +83,8 @@ export function hms(s: number): string {
  *  the frames placed in it). Unread: `checked` null. */
 export function videoCheck(videoId: string, code: string, label: string, order: string[]): CoverageVideoCheck {
   const row = frameRow(videoId, code);
-  if (!row) return { checked: null };
+  // Not read, or the video couldn't be played (read again on the next run): not checked yet.
+  if (!row || row.missing?.[label]?.startsWith(PLAY_FAILED)) return { checked: null };
   const starts = plausibleStarts(row.starts);
   const i = order.indexOf(label);
   const near = (step: number) => {
@@ -97,7 +99,27 @@ export function videoCheck(videoId: string, code: string, label: string, order: 
   if (seen) return { ...out, seenAt: seen.t, found: seen.why };
   // A read the plausibility check left out (it overlaps another): seen, never placed.
   if (row.starts[label] != null) return { ...out, seenAt: row.starts[label], found: "its read overlaps another match's" };
-  return row.missing?.[label] ? { ...out, found: row.missing[label] } : out;
+  if (row.missing?.[label]) return { ...out, found: row.missing[label] };
+  // Read, and none of the event's matches are in it (they're all another of its videos').
+  return !Object.keys(row.starts).length && !row.missing ? { ...out, found: "none of this event's matches are in it" } : out;
+}
+
+/** A video's frame read that couldn't play it (scripts/video-frames.ts): read again on the next run. */
+const PLAY_FAILED = "the video couldn't be played";
+
+/** A match played between two of a day's recordings (after `before` ended, before `after` started): checked once both
+ *  videos' frames were read and neither holds it (seen in one: said so). */
+function betweenCheck(ids: [string, string], code: string, label: string, order: string[]): CoverageVideoCheck {
+  const checks = ids.map((id) => videoCheck(id, code, label, order));
+  if (checks.some((c) => !c.checked)) return { checked: null };
+  const seen = checks.find((c) => c.seenAt != null);
+  if (seen) return seen;
+  return { checked: checks.map((c) => c.checked!).sort().at(-1)!, found: "in neither video" };
+}
+
+/** A clock time at the venue: "9:45 AM". */
+function venueTime(iso: string, timezone: string | null | undefined): string {
+  try { return new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", timeZone: timezone ?? "UTC" }).format(Date.parse(iso)); } catch { return iso.slice(11, 16); }
 }
 
 /** A match's video check in plain words: what the video showed, never what the clock said. */
@@ -155,7 +177,7 @@ function judge(v: RecordingVideo, r: Recording, whole: EventSpan, timezone: stri
 }
 
 /** Why a played match judged against its videos gets no clip. */
-function reasonFor(m: CoverageInput, videos: Judged[], now: number): { reason: CoverageReason; why: string; videoId: string | null } {
+function reasonFor(m: CoverageInput, videos: Judged[], now: number, timezone?: string | null): { reason: CoverageReason; why: string; videoId: string | null; between?: [string, string] } {
   const date = matchDate(m);
   // Counted in its day's video (by the schedule's date), so that day never reads as fully clipped without it.
   // A real start the event's time zone can't place (none known): no clock to judge it by.
@@ -182,7 +204,19 @@ function reasonFor(m: CoverageInput, videos: Judged[], now: number): { reason: C
   const id = j.v.videoId;
   if (j.dead) return { ...j.dead, videoId: id };
   if (!holding) {
-    const at = m.startsAt ? Date.parse(m.startsAt) : NaN, from = j.v.meta?.start ? Date.parse(j.v.meta.start) : NaN;
+    // Between two of its day's recordings (one ended before it, the next started after): in neither, so never counted
+    // against either video, and named as the gap, with both times.
+    const at = m.startsAt ? Date.parse(m.startsAt) : NaN;
+    const clocked = (sameDay.length ? sameDay : videos).filter((x) => x.v.meta?.status === "ok" && x.v.meta.start && x.v.meta.end);
+    const ended = clocked.filter((x) => Date.parse(x.v.meta!.end!) <= at).sort((a, b) => Date.parse(b.v.meta!.end!) - Date.parse(a.v.meta!.end!))[0];
+    const next = clocked.filter((x) => Date.parse(x.v.meta!.start!) > at).sort((a, b) => Date.parse(a.v.meta!.start!) - Date.parse(b.v.meta!.start!))[0];
+    if (ended && next && ended !== next) {
+      return {
+        reason: "between-recordings", videoId: null, between: [ended.v.videoId, next.v.videoId],
+        why: `Played between the recordings (after ${ended.v.videoId} ended at ${venueTime(ended.v.meta!.end!, timezone)}, before ${next.v.videoId} started at ${venueTime(next.v.meta!.start!, timezone)})`,
+      };
+    }
+    const from = j.v.meta?.start ? Date.parse(j.v.meta.start) : NaN;
     return at < from ? { reason: "before-broadcast", why: WHY["before-broadcast"], videoId: id } : { reason: "after-broadcast", why: WHY["after-broadcast"], videoId: id };
   }
   const t = j.timing!, slack = j.slack!, shift = t.shift ?? 0;
@@ -230,8 +264,15 @@ export function clipCoverage(matches: CoverageInput[], rec: Recording | null, fu
       out.push({ ...base, clip: true, videoId: vid, basis: m.video && !clip ? "FIRST's match video" : judged.find((j) => j.v.videoId === vid)?.basis ?? "clock" });
       continue;
     }
-    const why = judged.length ? reasonFor(m, judged, now) : { reason: "no-first-video" as const, why: WHY["no-first-video"], videoId: null };
+    const why: ReturnType<typeof reasonFor> = judged.length ? reasonFor(m, judged, now, timezone) : { reason: "no-first-video" as const, why: WHY["no-first-video"], videoId: null };
     if (why.videoId) { const c = counts.get(why.videoId) ?? { matches: 0, clipped: 0 }; c.matches++; counts.set(why.videoId, c); }
+    // Between two recordings: the gap is the reason, with whether both videos were checked for it.
+    if (why.between && r?.code) {
+      const video = betweenCheck(why.between, r.code, m.label, order);
+      const said = video.seenAt != null ? `; ${videoWhy(video)}` : video.checked ? `; checked in both videos (${video.checked}): in neither` : "; not yet checked against either video";
+      out.push({ ...base, clip: false, videoId: null, reason: why.reason, why: why.why + said, video });
+      continue;
+    }
     // Left out by the clock alone: what the video's own frames showed of it is the reason (the clock's kept apart).
     if (why.videoId && r?.code && CLOCK_ONLY.has(why.reason)) {
       const video = videoCheck(why.videoId, r.code, m.label, order);
