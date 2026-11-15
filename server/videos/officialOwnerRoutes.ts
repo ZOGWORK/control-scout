@@ -3,7 +3,8 @@
 // made (./officialWatch.ts).
 import type { NextFunction, Request, Response, Router } from "express";
 import { isEventCodeParam } from "../../src/shared/eventCode.js";
-import { markCoverageReviewed, openCoverageCount, ownerClipCoverage } from "./coverageCheck.js";
+import { markCoverageBulkReviewed, markCoverageReviewed, openCoverageCount, ownerClipCoverage, TRIAGES } from "./coverageCheck.js";
+import type { CoverageTriage } from "../../src/shared/api.js";
 import { approveWatched, ownerOfficial, pendingCount, rejectWatched, removeChannel, removeOfficial, runNow, saveChannel } from "./officialWatch.js";
 
 type H = (fn: (req: Request, res: Response) => Promise<unknown>) => (req: Request, res: Response, next: NextFunction) => void;
@@ -11,12 +12,27 @@ const str = (v: unknown, max = 300) => (typeof v === "string" ? v.trim().slice(0
 const VIDEO_ID = /^[A-Za-z0-9_-]{11}$/;
 
 /** /api/owner/clip-coverage: Owner > Clip coverage (server/videos/coverageCheck.ts): every event with a played match
- *  missing a clip, its days and videos checked and each match's reason; marking one reviewed is audited. */
+ *  missing a clip, triaged (actionable is the "To review"), its days and videos checked and each match's reason;
+ *  marking one or a whole category or season reviewed is audited. */
 export function clipCoverageOwnerRoutes(r: Router, h: H, actor: (req: Request) => string): void {
   r.get("/clip-coverage", h(async (req) => {
-    // ?after=<season>/<code>: the page after that event.
+    // ?list=<category>|reviewed (actionable by default: the "To review"); ?after=<season>/<code>: the page after that event.
     const m = /^(\d{4})\/(.{1,40})$/.exec(String(req.query.after ?? ""));
-    return ownerClipCoverage({ reviewed: req.query.list === "reviewed", after: m ? { season: Number(m[1]), code: m[2] } : null });
+    const l = String(req.query.list ?? "");
+    const list = l === "reviewed" || (TRIAGES as string[]).includes(l) ? l as CoverageTriage | "reviewed" : "actionable";
+    return ownerClipCoverage({ list, after: m ? { season: Number(m[1]), code: m[2] } : null });
+  }));
+  // Bulk Reviewed: { category?: a category or "non-actionable", season?, expected: the count the owner confirmed }.
+  r.post("/clip-coverage/bulk-reviewed", h(async (req, res) => {
+    const c = req.body?.category, s = req.body?.season, expected = Number(req.body?.expected);
+    const category = c == null ? undefined : c === "non-actionable" || (TRIAGES as unknown[]).includes(c) ? c as CoverageTriage | "non-actionable" : null;
+    const season = s == null ? undefined : Number.isInteger(s) && s >= 2000 && s <= 2100 ? Number(s) : null;
+    if (category === null || season === null || (category === undefined && season === undefined) || !Number.isInteger(expected) || expected < 1) {
+      res.status(400).json({ error: "Pick a category or a season, and confirm how many." }); return;
+    }
+    const out = await markCoverageBulkReviewed({ category, season }, expected, actor(req));
+    if (out.status === "changed") { res.status(409).json({ error: `The list changed since you confirmed: ${out.count} now. Look again.`, count: out.count }); return; }
+    return { marked: out.count, ...(await ownerClipCoverage()) };
   }));
   r.get("/clip-coverage/counts", h(async () => ({ open: await openCoverageCount() })));
   r.post("/clip-coverage/:season/:code/reviewed", h(async (req, res) => {

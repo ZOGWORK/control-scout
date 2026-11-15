@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.4.3 — 2026-11-14
+## 6.4.4 — 2026-11-14
 
 Turn Wi-Fi back on and the Offline pill goes within seconds, in the background, without a tap or a reload.
 
@@ -27,6 +27,23 @@ Turn Wi-Fi back on and the Offline pill goes within seconds, in the background, 
 
 ### Changed
 - With no internet (or a Wi-Fi sign-in page), the connection check now comes 3 s, 5 s, 10 s and 20 s after the last one, then every 30 s as before, instead of every 30 s from the start; measured live, the Offline pill took 29 to 62 s to go after the line came back. The steps start over once there's internet again, and on the browser's online event, the tab coming into view, or the window getting focus, each of which also checks at once when the last check is over 5 s old. With internet, checks are as before (every 5 minutes, tab in view). (`src/lib/connection.ts`) (#1512)
+
+## 6.4.3 — 2026-11-15
+
+Owner › Clip coverage now sorts itself: the server puts every event with a missing clip in a category, and only the Actionable ones ask for a look.
+
+### Highlights
+- [workspace] Clip coverage triaged by the server: To review is Actionable only
+- [workspace] Each event says its category and why in plain words
+- [workspace] Mark a whole category or season reviewed, count shown first
+- [fixes] A reviewed event comes back only when its new gap is actionable
+
+### Changed
+- Owner › Clip coverage: every event with a played match missing a clip is triaged by the server as Actionable (a match the clock alone puts outside the video: before or after the broadcast, before its cut start or after its end, outside what its chapters confirm, never checked against the video itself; or no reason found), No timing, Early start / unsafe, or Old season (before last season, decided when read so it follows the season rollover). To review counts Actionable only and is the default view; each category is a filter with its count, and each row says its category and why. "Played before the broadcast started" is never put anywhere but Actionable on that reason alone. (`server/videos/coverageTriage.ts`, `src/components/owner/ClipCoveragePanel.tsx`, migration 89) (#1509)
+- A reviewed event opens again only when its missing list changes to an actionable one; a deploy or refreshed facts alone never open one. (`server/videos/coverageCheck.ts`)
+
+### Added
+- Bulk Reviewed: "Mark all non-actionable as reviewed", a whole category, or a whole season (its non-actionable events, its Actionable ones only when ticked). Each asks first with its count, marks only if that's still the count, and is in the audit log (`clipCoverage.bulkReviewed`, with category, season and count). Missing lists stay, and the 5-minute check keeps checking every event.
 
 ## 6.4.2 — 2026-11-14
 

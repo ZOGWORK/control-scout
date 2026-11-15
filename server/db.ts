@@ -2355,6 +2355,19 @@ CREATE TABLE clip_coverage (
 CREATE INDEX clip_coverage_open ON clip_coverage (reviewed_at, season);
 `,
   },
+  {
+    version: 89,
+    name: "clip coverage triage",
+    sql: `
+-- Each event's triage category (server/videos/coverageTriage.ts), computed by the coverage check, never chosen by the
+-- owner: actionable, no-timing, early-start or old-season, with its reason in plain words. Only actionable events are
+-- the owner's "To review"; a reviewed event opens again only when its missing list changes AND the new list is
+-- actionable. NULL until the event's next check (the first pass after a deploy checks every event): read as actionable.
+ALTER TABLE clip_coverage ADD COLUMN triage TEXT;
+ALTER TABLE clip_coverage ADD COLUMN triage_why TEXT;
+CREATE INDEX clip_coverage_triage ON clip_coverage (reviewed_at, triage, season);
+`,
+  },
 ];
 
 export type Db = Client;
