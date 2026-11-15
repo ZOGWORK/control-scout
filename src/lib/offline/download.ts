@@ -165,7 +165,11 @@ export interface DownloadOptions { owner: DownloadOwner; onProgress?: Progress; 
  * ChecksumError when the whole file doesn't match (nothing kept).
  */
 export function download(file: DownloadFile, opts: DownloadOptions): Promise<Uint8Array> {
-  return join(inflight.get(file.sha256) ?? start(file, opts), opts);
+  const cur = inflight.get(file.sha256);
+  // A run every caller stopped is still letting go (its pieces' lock can wait on another tab): a new Download waits
+  // for it to end and starts afresh, rather than joining it and failing as "stopped".
+  if (cur?.ctrl.signal.aborted) return cur.p.then(() => {}, () => {}).then(() => download(file, opts));
+  return join(cur ?? start(file, opts), opts);
 }
 
 function start(file: DownloadFile, opts: DownloadOptions): Shared {

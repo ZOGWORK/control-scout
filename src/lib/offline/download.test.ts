@@ -349,6 +349,38 @@ describe("callers sharing one download", () => {
     s.go();
     await finishDownload(file.sha256); // waits for the stopped run to let go of its pieces
   });
+
+  it("Download again right after Stop starts afresh once the stopped run lets go, never fails as stopped", async () => {
+    const data = bytes(PIECE * 2 + 9, 11);
+    const file = { url: "/packs/restart", bytes: data.length, sha256: sha(data) };
+    // A fetch whose body, once stopped, ends with an AbortError, but only when let go (the run is slow to end).
+    let go!: () => void;
+    const gate = new Promise<void>((r) => { go = r; });
+    const slow = vi.fn(async (_u: string, init?: RequestInit) => {
+      let sent = 0;
+      return new Response(new ReadableStream({
+        async pull(c) {
+          if (sent >= PIECE) { await gate; if (init?.signal?.aborted) { c.error(new DOMException("stopped", "AbortError")); return; } }
+          if (sent >= data.length) { c.close(); return; }
+          const n = Math.min(PIECE, data.length - sent);
+          c.enqueue(data.slice(sent, sent + n));
+          sent += n;
+        },
+      }));
+    }) as unknown as typeof fetch;
+    const stop = new AbortController();
+    const a = download(file, { owner, fetch: slow, signal: stop.signal });
+    await vi.waitFor(() => expect((slow as unknown as { mock: { calls: unknown[] } }).mock.calls).toHaveLength(1));
+    stop.abort();
+    await expect(a).rejects.toMatchObject({ name: "AbortError" });
+    // The stopped run hasn't ended yet: Download again now, then let the old run go.
+    const again = server(data);
+    const b = download(file, { owner, fetch: again.fn });
+    go();
+    expect(sha(await b)).toBe(file.sha256);
+    expect(again.calls.length).toBeGreaterThan(0);
+    await finishDownload(file.sha256);
+  });
 });
 
 describe("a connection that drops before anything came", () => {
