@@ -214,6 +214,16 @@ describe("match video links", () => {
     expect(play).not.toHaveBeenCalled();
     off();
   });
+
+  it("with no internet (the connection check, whatever the browser says), a Watch says it needs a connection", () => {
+    localStorage.setItem("cs-connection-demo", "offline");
+    try {
+      render(<><ClipLink clip={clip} label="Q5">Watch</ClipLink><MatchVideoLink url="https://youtu.be/Ve9_fshsUec" label="Q5" /></>);
+      expect(screen.queryByRole("link", { name: /Watch Q5 in the recording/ })).toBeNull();
+      expect(document.querySelector('[data-needs-connection="clip"]')?.getAttribute("aria-disabled")).toBe("true");
+      expect(document.querySelector('[data-needs-connection="video"]')).not.toBeNull();
+    } finally { localStorage.removeItem("cs-connection-demo"); }
+  });
 });
 
 describe("a match's own video, with the call over it", () => {
