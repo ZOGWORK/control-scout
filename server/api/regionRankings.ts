@@ -55,14 +55,18 @@ async function unrankedTeams(season: number, p: PlaceFilter): Promise<UnrankedTe
     .map((r) => ({ team: Number(r.team), name: r.name ?? null, ratedMatches: Number(r.rm) })));
 }
 
-/** Where an asked team is when it isn't in the region's ranked list: unranked here, from elsewhere, or not a team. */
-async function askedElsewhere(season: number, team: number, p: PlaceFilter, unranked: UnrankedTeam[]): Promise<AskedTeam> {
+/** Where an asked team is when it isn't in the region's ranked list: unranked here, from elsewhere, or not a team. On a
+ *  past week's view (`week`) a team from the region is "not in that week's ranking": today's rated matches say nothing
+ *  about then. */
+async function askedElsewhere(season: number, team: number, p: PlaceFilter, unranked: UnrankedTeam[], week: string | null): Promise<AskedTeam> {
   const u = unranked.find((x) => x.team === team);
   if (u) return { team, name: u.name, status: "unranked", ratedMatches: u.ratedMatches };
   const t = (await all<{ name: string | null; country: string | null; state: string | null; rm: number | null }>(
     "SELECT t.name, t.country, t.state, s.rating_matches rm FROM teams t LEFT JOIN team_season_stats s ON s.season = ? AND s.team = t.number WHERE t.number = ?", [season, team]))[0];
   if (!t) return { team, name: null, status: "unknown" };
-  if (inPlaces(t, [p])) return { team, name: t.name ?? null, status: "unranked", ratedMatches: Math.min(Number(t.rm ?? 0), RANKED_MIN_MATCHES - 1) };
+  if (inPlaces(t, [p])) {
+    return week ? { team, name: t.name ?? null, status: "notInWeek", week } : { team, name: t.name ?? null, status: "unranked", ratedMatches: Math.min(Number(t.rm ?? 0), RANKED_MIN_MATCHES - 1) };
+  }
   const home = homeRegion(t.country, t.state);
   return { team, name: t.name ?? null, status: "elsewhere", region: home ? placeKey(home) : null };
 }
@@ -96,7 +100,7 @@ export async function regionRankings(q: RegionQuery, now = Date.now()): Promise<
     let asked: AskedTeam | undefined;
     if (q.team != null) {
       const r = at >= 0 ? sorted[at] : null;
-      asked = r ? { team: r.team, name: r.name, status: "ranked", rank: r.rank, page: Math.floor(at / REGION_PAGE_SIZE) + 1 } : await askedElsewhere(q.season, q.team, q.place, unranked);
+      asked = r ? { team: r.team, name: r.name, status: "ranked", rank: r.rank, page: Math.floor(at / REGION_PAGE_SIZE) + 1 } : await askedElsewhere(q.season, q.team, q.place, unranked, q.week);
     }
     const regionKey = placeKey(q.place);
     return {
