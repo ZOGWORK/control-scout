@@ -2368,6 +2368,95 @@ ALTER TABLE clip_coverage ADD COLUMN triage_why TEXT;
 CREATE INDEX clip_coverage_triage ON clip_coverage (reviewed_at, triage, season);
 `,
   },
+  {
+    version: 90,
+    name: "official channel audit",
+    sql: `
+-- The channel audit (server/videos/officialAudit.ts), after every watcher run: every upload of every watched channel,
+-- read from its uploads list (never a search), and what Scout has for it. record: where Scout has it (the checked
+-- list, the watcher, FIRST's link, a short link, the channel's broadcasts, the owner's stream), NULL for none. For a
+-- video with none: verdict/why, the watcher's rules on it (add, review, ignore) and why; guess_*, the event it fits
+-- best and what that guess rests on; in_window, published inside the watcher's window. finding: open (the owner's to
+-- decide; in the window, a watcher miss waiting for one more watcher run), queued (sent to the review queue),
+-- dismissed (the owner said it isn't a recording, finding_why), or NULL (recorded, or set aside by the rules with its
+-- reason); found_at, when it was first found. gone_at: off the channel's uploads list at its last full read.
+CREATE TABLE official_audit_videos (
+  video_id TEXT PRIMARY KEY,
+  channel_id TEXT NOT NULL,
+  title TEXT NOT NULL,
+  published TEXT,
+  start TEXT,
+  duration INTEGER,
+  privacy TEXT,
+  embeddable INTEGER,
+  blocked_in INTEGER,
+  facts_at TEXT,
+  record TEXT,
+  season INTEGER,
+  code TEXT,
+  verdict TEXT,
+  why TEXT,
+  guess_season INTEGER,
+  guess_code TEXT,
+  guess_day TEXT,
+  guess_why TEXT,
+  in_window INTEGER NOT NULL DEFAULT 0,
+  finding TEXT,
+  finding_why TEXT,
+  finding_by TEXT,
+  found_at TEXT,
+  first_seen TEXT NOT NULL,
+  last_seen TEXT NOT NULL,
+  gone_at TEXT
+);
+CREATE INDEX official_audit_videos_channel ON official_audit_videos (channel_id, gone_at);
+CREATE INDEX official_audit_videos_finding ON official_audit_videos (finding, in_window);
+-- Each channel at its last audit: its uploads-list count, how many of those Scout has a record of, how many play on an
+-- event (every season, and 2026-27 alone), its open findings, and when its whole list was last read (weekly; its new
+-- uploads every run).
+CREATE TABLE official_audit_channels (
+  channel_id TEXT PRIMARY KEY,
+  uploads INTEGER NOT NULL DEFAULT 0,
+  recorded INTEGER NOT NULL DEFAULT 0,
+  unrecorded INTEGER NOT NULL DEFAULT 0,
+  linked INTEGER NOT NULL DEFAULT 0,
+  linked_current INTEGER NOT NULL DEFAULT 0,
+  open_findings INTEGER NOT NULL DEFAULT 0,
+  full_at TEXT,
+  checked_at TEXT,
+  last_error TEXT
+);
+-- One row an audit: units used, what it read, the counts over every channel, and the check of the watcher's own adds
+-- (each re-checked against its video's facts and its event; adds_wrong must be 0).
+CREATE TABLE official_audit_runs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  watch_run INTEGER,
+  started_at TEXT NOT NULL,
+  finished_at TEXT,
+  units INTEGER NOT NULL DEFAULT 0,
+  channels INTEGER NOT NULL DEFAULT 0,
+  full_channels INTEGER NOT NULL DEFAULT 0,
+  uploads INTEGER NOT NULL DEFAULT 0,
+  recorded INTEGER NOT NULL DEFAULT 0,
+  set_aside INTEGER NOT NULL DEFAULT 0,
+  findings INTEGER NOT NULL DEFAULT 0,
+  missed INTEGER NOT NULL DEFAULT 0,
+  queued INTEGER NOT NULL DEFAULT 0,
+  adds_checked INTEGER NOT NULL DEFAULT 0,
+  adds_wrong INTEGER NOT NULL DEFAULT 0,
+  error TEXT
+);
+-- The audit's check of each video the watcher added on its own: ok, or what's wrong with it.
+CREATE TABLE official_audit_adds (
+  video_id TEXT PRIMARY KEY,
+  ok INTEGER NOT NULL,
+  why TEXT NOT NULL,
+  checked_at TEXT NOT NULL
+);
+-- What the event named for a video in review or set aside rests on, when its verdict named none itself.
+ALTER TABLE official_watch ADD COLUMN guess_why TEXT;
+`,
+  },
 ];
 
 export type Db = Client;
