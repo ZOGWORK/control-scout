@@ -161,10 +161,19 @@ export async function runChannelAudit(log: (s: string) => void, opts: { apiKey?:
     const adds = new Set((await all<{ video_id: string }>("SELECT video_id FROM official_videos WHERE source = 'watcher'")).map((r) => String(r.video_id)));
     const needFacts = rows.filter((r) => (!records.has(String(r.video_id)) && !r.facts_at && !notCompetition(String(r.title))) || adds.has(String(r.video_id))).map((r) => String(r.video_id));
     const facts = new Map<string, any>();
+    let factsError: string | null = null;
     for (let i = 0; i < needFacts.length && out.units < maxUnits; i += 50) {
       const ids = needFacts.slice(i, i + 50);
       out.units++;
-      const body = await api("videos", { part: "snippet,contentDetails,status,liveStreamingDetails", id: ids.join(","), maxResults: "50" }, key, fetchImpl);
+      let body: any;
+      try {
+        body = await api("videos", { part: "snippet,contentDetails,status,liveStreamingDetails", id: ids.join(","), maxResults: "50" }, key, fetchImpl);
+      } catch (e) {
+        // One failed call (a 5xx, a timeout) leaves these without facts, read again next run; the rest of the audit goes on.
+        if (e instanceof QuotaError) throw e;
+        factsError ??= `facts of ${ids.length} videos couldn't be read: ${String((e as Error).message ?? e).slice(0, 200)}`;
+        continue;
+      }
       const got = new Set<string>();
       for (const item of Array.isArray(body?.items) ? body.items : []) {
         const vid = String(item?.id ?? "");
@@ -326,6 +335,7 @@ export async function runChannelAudit(log: (s: string) => void, opts: { apiKey?:
           reached.has(id) ? at : null, reached.has(id) ? errors.get(id) ?? null : `not read this run: the audit stopped at its ${maxUnits} units`],
       };
     }), "write"));
+    if (factsError && !out.error) out.error = factsError;
     if (errors.size && !out.error) out.error = `${errors.size} channel${errors.size === 1 ? "" : "s"} couldn't be read: ${[...errors.values()][0]}`;
   } catch (e) {
     out.error = String((e as Error).message ?? e).slice(0, 300);
