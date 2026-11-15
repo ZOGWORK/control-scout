@@ -19,6 +19,7 @@ import { youtubeId } from "../../src/shared/personal.js";
 import { officialRecordingIds, seasonOfficial } from "./officialVideos.js";
 import { checkedTo } from "../data/checkedTimings.js";
 import { frameStart, hasFrames } from "../data/frameTimings.js";
+import { clipPulled } from "../data/clipChecks.js";
 
 export interface VideoMeta extends WatchPageFacts { videoId: string; checkedAt: string }
 /** One of a recording's videos. day: its broadcast's date at the venue, when an official list gave it; part: a named
@@ -381,6 +382,8 @@ export function withClips<M extends Pick<MatchView, "label" | "time" | "startsAt
     for (const v of videos) {
       const t = clipSecond(x.startsAt, v.timing, now);
       if (t == null || !clearOfPrevious(x.startsAt, v.slack ? previousStart(v.starts, x.startsAt) : null, v.slack)) continue;
+      // Its first frame was read and names another match (scripts/clip-checks.ts): never served.
+      if (r.code && clipPulled(v.videoId, r.code, x.label)) continue;
       const end = clipEnd(x.startsAt, v.timing, nextStart(v.starts, x.startsAt), now);
       return { ...x, clip: { videoId: v.videoId, t, url: watchUrl(v.videoId, t), ...(v.slack ? { early: v.slack } : {}), ...(end != null && end > t ? { end } : {}) } };
     }

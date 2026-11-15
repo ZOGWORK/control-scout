@@ -123,6 +123,22 @@ On GATOR (USOHSHOS, a full recording the server already places from the clock), 
 clock (median 10 s): YouTube's live delay. That's within the 20 s lead-in each clip starts with. On FTC Ontario's
 layout (Sudbury, Bolton), frames land 6 to 8 s after the clock where the video kept its broadcast whole.
 
+## Clock clips checked by their first frame
+
+Owner decision (2026-11-15, "New clips + verify old"): a new clip is only placed once the overlay at its first frame
+names its match. The clips already placed from YouTube's facts (the clock, about 27,000) stay live while a background
+sweep reads the overlay at each one's first frame, recorded in `server/data/clipChecks.ts`:
+
+- **ok**: the first frame names the match. The clip stays.
+- **pulled**: the first frame names a different match. The clip is never served (`clipPulled`, checked in
+  `withClips`), and it's a finding on the owner console (`clipCheckFindings`) with the clip's start and what it showed.
+- **unconfirmed**: the first frame names nothing (blank, a transition, a cutaway). The clip stays and is read again on
+  the next sweep. A frame that shows nothing is never a reason to pull.
+- **noOverlay**: no frame of the video showed a readable overlay (older seasons' layouts). Its clips can't be checked
+  by frame; they're counted and never pulled.
+
+The sweep runs season by season, newest first, and each data PR reports its measured counts (`clipCheckTotals`).
+
 ## Not covered
 
 - POWERPLAY's overlay (2022) keeps its timer inside the centre graphic, where the reader doesn't look: those
