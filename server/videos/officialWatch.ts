@@ -134,7 +134,7 @@ async function recordingsAdded(added: RecordingAdded[], log: (s: string) => void
 
 /** An "add" checked against what the event already plays: the same video or day and part is a duplicate; another
  *  video of a day it already plays, unless both name their parts, or one whose day isn't known yet, sends it to review. */
-async function settle(v: Verdict & { kind: "add" }): Promise<WatchVerdict> {
+export async function settle(v: Verdict & { kind: "add" }): Promise<WatchVerdict> {
   const has = await eventVideosByDay(v.event.season, v.event.code);
   const at = { event: v.event, day: v.day, part: v.part };
   const same = has.find((h) => h.day === v.day && (h.part ?? null) === (v.part ?? null));
