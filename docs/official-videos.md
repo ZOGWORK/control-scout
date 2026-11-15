@@ -184,14 +184,19 @@ minutes and starts a run only when the last one is 6 hours old, so a deploy does
   follow-up work. Clip coverage (`checkClipCoverage`, `server/videos/coverageCheck.ts`) is checked by the 5-minute
   recordings pass once the new video's facts are read (and after a watcher run that added one), not inside the add or
   the owner's approval: the clips need those facts first. A failing listener is logged and never undoes the add.
-  Each event left with a gap is triaged by the server (`server/videos/coverageTriage.ts`): Actionable (a match the clock
-  alone puts outside the video: before or after the broadcast, before the cut start or after the video's end, outside
-  what its chapters confirm, outside every recording; or no reason found, or no list), No timing, Early start / unsafe,
-  or Old season (applied when read, from the current season, so it follows the September rollover). Only Actionable
+  Each event left with a gap is triaged by the server (`server/videos/coverageTriage.ts`): Actionable (a match left out
+  by the clock alone: an early start, or a time before or after the broadcast, the cut start, the video's end, what its
+  chapters confirm, every recording; or no reason found, or no list), No timing, Early start / unsafe (only once the
+  video's frames show the match starting while the one before is still on: `earlyStart` in
+  `server/data/frameTimings.ts`), or Old season (applied when read, from the current season, so it follows the September rollover). Only Actionable
   events are Owner › Clip coverage's "To review"; a reviewed event opens again only when its missing list changes to an
   actionable one, never on a deploy or refreshed facts alone. Bulk Reviewed (a category, "all non-actionable", or a
   season: its non-actionable events unless "Include Actionable" is ticked) asks first with the count and is audited
   (`clipCoverage.bulkReviewed`).
+  The stream is the truth, not the clock: a match left out by the clock alone is said as what its video showed, read off
+  its frames (`CoverageMatch.video`): "Not yet checked against the video", "Checked in the video (date): no start found
+  for it", "seen at h:mm:ss, not yet confirmed", with the video's own timestamps of the matches around it. The clock's
+  reading is kept apart (`CoverageMatch.clock`) and is never a reason on its own.
 - **The owner's queue** (Owner › Official videos, with an "N to review" badge on the console's menu), oldest first. Each
   row shows the title, channel, video id, published and broadcast times, length, the best-guess event and why it
   wasn't added:

@@ -1,7 +1,8 @@
 // Ask, while there's signal, for the reads the scouting pages will need at each event this device has a bundle for
 // (the offline + Lite brief, Phase 3), so they're kept (kept.ts) before the venue's wifi goes: the season's event
 // list as the Scout event picker asks for it, the event's pick ratings and stored projections, and every one of its
-// teams' shortlist rows (a team added to the shortlist with no signal then shows its stats). Each answer is the
+// teams' shortlist rows (a team added to the shortlist with no signal then shows its stats), and the prediction track
+// record (the Predict page's "when we say about N%" line reads it). Each answer is the
 // server's own, kept as it came. At most once per bundle every WARM_EVERY_MS; nothing at all with no network.
 import { ApiError, apiFetch, qs } from "../api";
 import { keptAt, keptOwner, keptSettled } from "./kept";
@@ -19,6 +20,9 @@ export const shortlistPath = (teams: readonly number[], season: number) => `/api
 /** The server takes up to this many teams in one shortlist read. */
 const SHORTLIST_MAX = 100;
 
+/** The track record, as the Predict page's calibration line asks for it (lib/calibration.ts). */
+export const TRACK_RECORD_PATH = "/api/predict/accuracy";
+
 export const WARM_EVERY_MS = 30 * 60_000;
 const STAMP = "cs-kept-warm";
 
@@ -33,6 +37,7 @@ export function warmPaths(b: Pick<SavedBundle, "season" | "code" | "teams">): st
     `/api/events/${b.season}/${code}/pick-ratings`,
     `/api/projections/${b.season}/${code}`,
     ...chunks.map((c) => shortlistPath(c, b.season)),
+    TRACK_RECORD_PATH,
   ];
 }
 
