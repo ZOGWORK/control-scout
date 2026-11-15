@@ -21,7 +21,7 @@ Official videos › The channel audit no longer counts a channel's hidden spare 
 
 ### Highlights
 - [fixes] A copy a channel made unlisted isn't a missed video
-- [fixes] A video made private after it was listed is set aside too
+- [fixes] Its set-aside reason says the channel unlisted it
 - [fixes] Watcher misses now count only public uploads
 
 ### Fixed
