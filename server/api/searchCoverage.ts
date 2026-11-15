@@ -1403,7 +1403,8 @@ export async function monthAnswer(q: string, now?: number): Promise<SearchAnswer
 export async function placeTeamsAnswer(q: string, prefer: ReadonlySet<string>): Promise<SearchAnswer | null> {
   const t = squash(q.toLowerCase().replace(/[?]/g, "").replace(/\bftc\b/g, " "));
   // "teams in" with no place after it: every team, as the Teams list ranks them, and the way to name a place.
-  if (/^(?:all\s+)?(?:the\s+)?teams?\s+(?:in|from|based in)$/.test(t)) {
+  const bare = /^(?:all\s+)?(?:the\s+)?teams?\s+(in|from|based in)$/.exec(t);
+  if (bare) {
     const season = defaultSeason();
     const rows = await all<any>(`SELECT s.team, t.name, t.city, t.state, t.country, s.opr_np, ${PHASE_COLS}, s.wins, s.losses, s.ties FROM team_season_stats s JOIN teams t ON t.number = s.team WHERE s.season = ? AND s.matches >= ${RANKED_MIN_MATCHES} AND ${teamPageSql("s.team", "t.name")} ORDER BY s.opr_np DESC, s.team LIMIT 25`, [season]);
     const n = await get<{ n: number }>("SELECT COUNT(*) n FROM team_seasons WHERE season = ?", [CURRENT_SEASON]);
@@ -1411,7 +1412,7 @@ export async function placeTeamsAnswer(q: string, prefer: ReadonlySet<string>): 
     return answer(q, {
       hits: [], pages: [{ title: "Teams", href: "/teams" }, { title: "Rankings", href: `/rankings?season=${season}` }],
       card: { kind: "leaderboard", title: `Teams worldwide · best by OPR, ${seasonLabel(season)}`, lines, ...(lines.length ? { table: tableOf(rows, season) } : { none: `No team has ${RANKED_MIN_MATCHES}+ matches in ${seasonLabel(season)} yet.` }) },
-      understood: { kind: "question", label: `Teams worldwide (no place named after "${t.split(" ").slice(1).join(" ")}"): ${Number(n?.n ?? 0).toLocaleString("en-US")} registered for ${seasonLabel(CURRENT_SEASON)}, best by OPR first. Add a place: "teams in Texas"` },
+      understood: { kind: "question", label: `Teams worldwide (no place named after "${bare[1]}"): ${Number(n?.n ?? 0).toLocaleString("en-US")} registered for ${seasonLabel(CURRENT_SEASON)}, best by OPR first. Add a place: "teams in Texas"` },
     });
   }
   const m = /^(?:all\s+)?(?:the\s+)?teams?\s+(?:in|from|based in)\s+(.+)$/.exec(t) ?? /^(.+?)\s+teams?$/.exec(t); // "teams" as search singularizes it too
