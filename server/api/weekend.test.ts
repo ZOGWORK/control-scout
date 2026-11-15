@@ -22,7 +22,7 @@ const S = CURRENT_SEASON;
 const NOW = Date.parse("2026-11-14T18:00:00Z");
 const ask = (q: string, now = NOW) => searchAnswer(q, { limit: 25, full: true, learn: false, now });
 const codes = (w: WeekendAnswer) => w.events.map((e) => e.code);
-const statCodes = (s: StatAnswer | undefined) => (s?.blocks ?? []).flatMap((b) => (b.kind === "links" && b.title === "Events" ? b.items : [])).map((l) => /\/events\/\d{4}\/([^?/#]+)/.exec(l.href)?.[1]).filter(Boolean);
+const statCodes = (s: StatAnswer | undefined) => (s?.blocks ?? []).flatMap((b) => (b.kind === "links" && b.title?.startsWith("Events") ? b.items : [])).map((l) => /\/events\/\d{4}\/([^?/#]+)/.exec(l.href)?.[1]).filter(Boolean);
 
 beforeAll(async () => {
   const c = openDb(":memory:");
