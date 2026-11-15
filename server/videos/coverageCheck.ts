@@ -55,11 +55,16 @@ const LAST_PASS = "clip-coverage:last-pass";
 
 /** Every stored event's missing matches with a video that its frames haven't been read for yet ("not yet checked against
  *  the video", videoState), all seasons: the pending work, counted after each pass so the console shows it shrinking. */
-async function pendingMatches(): Promise<number> {
-  const r = await get<{ n: number }>(
-    `SELECT COUNT(*) AS n FROM clip_coverage c, json_each(c.detail, '$.missing') j
-     WHERE json_type(j.value, '$.video') = 'object' AND json_extract(j.value, '$.video.checked') IS NULL AND json_extract(j.value, '$.video.earlyStart') IS NULL`);
-  return Number(r?.n ?? 0);
+async function pendingMatches(): Promise<number | undefined> {
+  try {
+    // An unreadable detail (readDetail tolerates them) is skipped, never a reason to lose the pass's record.
+    const r = await get<{ n: number }>(
+      `SELECT COUNT(*) AS n FROM (SELECT detail FROM clip_coverage WHERE json_valid(detail)) c, json_each(c.detail, '$.missing') j
+       WHERE json_type(j.value, '$.video') = 'object' AND json_extract(j.value, '$.video.checked') IS NULL AND json_extract(j.value, '$.video.earlyStart') IS NULL`);
+    return Number(r?.n ?? 0);
+  } catch {
+    return undefined;
+  }
 }
 
 let busy = false;
@@ -77,7 +82,7 @@ export async function checkClipCoverage(log: (s: string) => void, now = Date.now
         seasonRecordings(season, true),
         seasonRecordings(season),
         all<{ code: string }>("SELECT DISTINCT code FROM matches WHERE season = ? AND video IS NOT NULL AND video != ''", [season]),
-        all<{ code: string; fingerprint: string; missing_key: string; reviewed_at: string | null }>("SELECT code, fingerprint, missing_key, reviewed_at FROM clip_coverage WHERE season = ?", [season]),
+        all<{ code: string; fingerprint: string; missing_key: string; reviewed_at: string | null; triage: string | null }>("SELECT code, fingerprint, missing_key, reviewed_at, triage FROM clip_coverage WHERE season = ?", [season]),
       ]);
       // A read that failed part way (recordings.ts soft): checking on it would mark recorded events stats only and drop
       // them from review; the next pass checks them.
@@ -113,15 +118,17 @@ export async function checkClipCoverage(log: (s: string) => void, now = Date.now
         }
         // Reviewed stays reviewed while the same matches are missing for the same reasons, and when a new list isn't
         // actionable; only a new actionable list opens it again (and only an actionable one asks the owner at all).
-        if (t?.triage === "actionable" && prev?.missing_key !== key) opened++;
+        // A list that was a pending check ("unchecked") and now has its video checked is new to the owner even with the
+        // same missing key: a review given to its clock-only list doesn't carry over (the upsert clears it too).
+        if (t?.triage === "actionable" && (prev?.missing_key !== key || prev?.triage === "unchecked")) opened++;
         const detail = { videos: c.videos, daysMissing: c.daysMissing, missing };
         writes.push({
           sql: `INSERT INTO clip_coverage (season, code, fingerprint, checked_at, state, played, with_clip, missing_key, detail, triage, triage_why, reviewed_at, reviewed_by)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL)
                 ON CONFLICT(season, code) DO UPDATE SET fingerprint = excluded.fingerprint, checked_at = excluded.checked_at, state = excluded.state,
                   played = excluded.played, with_clip = excluded.with_clip, detail = excluded.detail, triage = excluded.triage, triage_why = excluded.triage_why,
-                  reviewed_at = CASE WHEN clip_coverage.missing_key = excluded.missing_key OR COALESCE(excluded.triage, '') != 'actionable' THEN clip_coverage.reviewed_at END,
-                  reviewed_by = CASE WHEN clip_coverage.missing_key = excluded.missing_key OR COALESCE(excluded.triage, '') != 'actionable' THEN clip_coverage.reviewed_by END,
+                  reviewed_at = CASE WHEN (clip_coverage.missing_key = excluded.missing_key AND COALESCE(clip_coverage.triage, '') != 'unchecked') OR COALESCE(excluded.triage, '') != 'actionable' THEN clip_coverage.reviewed_at END,
+                  reviewed_by = CASE WHEN (clip_coverage.missing_key = excluded.missing_key AND COALESCE(clip_coverage.triage, '') != 'unchecked') OR COALESCE(excluded.triage, '') != 'actionable' THEN clip_coverage.reviewed_by END,
                   missing_key = excluded.missing_key`,
           args: [season, code, fp, new Date(now).toISOString(), c.state, c.played, c.withClip, key, JSON.stringify(detail), t?.triage ?? null, t?.why ?? null],
         });
@@ -133,7 +140,7 @@ export async function checkClipCoverage(log: (s: string) => void, now = Date.now
       const why = Object.entries(pass.why).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} ${n}`).join(", ");
       const [pending, before] = await Promise.all([pendingMatches(), kvGet<CoveragePass>(LAST_PASS).catch(() => null)]);
       const pendingBefore = before?.pending ?? null;
-      log(`clip coverage: checked ${checked} event${checked === 1 ? "" : "s"} (${pass.events} recorded) · ${pass.full} fully clipped · ${pass.clipped} matches clipped · ${pass.missing} missing${why ? ` (${why})` : ""}${opened ? ` · ${opened} actionable for owner review` : ""} · ${pending} matches not yet checked against the video${pendingBefore != null ? ` (was ${pendingBefore})` : ""}`);
+      log(`clip coverage: checked ${checked} event${checked === 1 ? "" : "s"} (${pass.events} recorded) · ${pass.full} fully clipped · ${pass.clipped} matches clipped · ${pass.missing} missing${why ? ` (${why})` : ""}${opened ? ` · ${opened} actionable for owner review` : ""} ${pending != null ? ` · ${pending} matches not yet checked against the video${pendingBefore != null ? ` (was ${pendingBefore})` : ""}` : ""}`);
       const last: CoveragePass = { at: new Date(now).toISOString(), checked, ...pass, opened, pending, pendingBefore };
       await kvSet(LAST_PASS, last).catch(() => {});
     }
