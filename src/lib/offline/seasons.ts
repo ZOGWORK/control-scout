@@ -10,7 +10,8 @@
 import type { Database, SqlJsStatic } from "sql.js";
 import { checkFormat, del, fetchVerified, getv, keys, put, type PackFile, type PackManifest } from "../packs";
 import { savedSeasons, writeSaved, type SavedSeason } from "./saved";
-import { finishDownload } from "./download";
+import { dropPartial, finishDownload, partialDownloads } from "./download";
+import { clearResume, markKey } from "./resumeMarks";
 import { wrap, type Db, type SeasonDb } from "./readers";
 
 export { savedSeasons, useSavedSeasons, SEASONS_EVENT, type SavedSeason } from "./saved";
@@ -172,8 +173,30 @@ export async function removeSeason(season: number): Promise<number> {
     try { writeSaved(savedSeasons().filter((s) => s.season !== season)); }
     catch (e) { if (k && bytes) await put(k, bytes).catch(() => {}); throw e; }
     await sweep(season).catch(() => {}); // leftovers of interrupted saves; the season itself is gone
-    return meta?.bytes ?? 0;
+    // Nothing of the season stays behind: a half download of it (a paused update) goes too, and it no longer
+    // picks up by itself.
+    clearResume(markKey("season", String(season)));
+    // Tidying only, like the sweep: a storage error here never turns a done Delete into a failed one.
+    let partial = 0;
+    try {
+      for (const p of await partialDownloads()) {
+        if (p.owner.kind === "season" && p.owner.id === String(season) && (await dropPartial(p.sha256))) partial += p.have;
+      }
+    } catch { /* left for the paused row's own Delete */ }
+    if (!savedSeasons().length) await dropEngine();
+    return (meta?.bytes ?? 0) + partial;
   });
+}
+
+/** The last saved season went: the SQLite engine kept for reading seasons offline goes from the worker's caches
+ *  too (the worker only precaches it while a season is saved). A season saved meanwhile in another tab keeps it. */
+async function dropEngine(): Promise<void> {
+  if (import.meta.env.DEV || typeof caches === "undefined") return;
+  try {
+    const url = await engineUrl();
+    for (const name of (await caches.keys()).filter((k) => k.startsWith("cs-shell-"))) await (await caches.open(name)).delete(url);
+    if (savedSeasons().length) await keepEngine();
+  } catch { /* best effort: it's small, and Clear cache frees it too */ }
 }
 
 /** A saved season's open entry (null when it isn't saved), now the most recently used. */

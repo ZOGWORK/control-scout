@@ -86,6 +86,13 @@ export function liteAllowed(network: UpdateNetwork, c: ConnectionInfo | null | u
   return !(network === "wifi" && netKind(c) === "cellular");
 }
 
+/** May a download the person started, paused by a dropped connection, pick up by itself on this connection?
+ *  The network setting decides: never on mobile data when Wi-Fi only (where the browser doesn't say, it counts
+ *  as Wi-Fi, as for updates). */
+export function resumeAllowed(network: UpdateNetwork, c: ConnectionInfo | null | undefined): boolean {
+  return !(network === "wifi" && netKind(c) === "cellular");
+}
+
 /** "2025–26", "2025–26 and 2024–25", "2025–26, 2024–25 and 2023–24". */
 export const seasonList = (u: Pick<SeasonUpdate, "season">[]) => {
   const names = u.map((x) => seasonLabel(x.season));

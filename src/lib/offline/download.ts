@@ -54,6 +54,11 @@ export class DownloadPaused extends Error {
   }
 }
 
+/** The connection was down before a byte came: nothing kept, the download simply starts again once it's back. */
+export class NoConnection extends Error {}
+/** Stopped by the connection (paused with bytes kept, or nothing came at all), not by the file or the device. */
+export const byConnection = (e: unknown) => e instanceof DownloadPaused || e instanceof NoConnection;
+
 // --- Storage: IndexedDB, or memory where there is none (old browsers, some tests) -----------------------
 
 interface Store {
@@ -275,7 +280,7 @@ const RANGE = /^bytes (\d+)-(\d+)\/(\d+|\*)$/;
 /** The connection dropped: a pause when something is kept to pick up from, else a plain "try again" (nothing came). */
 function stoppedAt(have: number, total: number): Error {
   if (have > 0) return new DownloadPaused(have, total);
-  return new Error(typeof navigator !== "undefined" && navigator.onLine === false ? "You're offline: the download starts when you're back online." : "Can't reach the server right now. Try again in a moment.");
+  return new NoConnection(typeof navigator !== "undefined" && navigator.onLine === false ? "You're offline: the download starts when you're back online." : "Can't reach the server right now. Try again in a moment.");
 }
 
 async function attempt(file: DownloadFile, prev: PartialDownload | undefined, opts: DownloadOptions): Promise<Uint8Array> {
