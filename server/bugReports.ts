@@ -142,8 +142,9 @@ const REPORT_COLS = "id, created_at, category, message, email, page, release, vi
 /** Only finished uploads count as attachments. */
 const DONE_FILES = "SELECT report_id, n, type, bytes FROM bug_report_files WHERE received = bytes";
 
-/** The email to the owner: subject, plain text and HTML. `attached`: how many files ride along. */
-export function bugEmail(r: ReportRow, files: FileRow[], attached: number) {
+/** The email to the owner: subject, plain text and HTML. `attached`: how many files ride along. A file whose local
+ *  copy was deleted after it went to GitHub (`github_url`) is linked there instead. */
+export function bugEmail(r: ReportRow & { issue_url?: string | null }, files: (FileRow & { github_url?: string | null })[], attached: number) {
   const label = categoryLabel(r.category);
   const first = r.message.replace(/\s+/g, " ").slice(0, 60);
   const subject = `[Control Scout bug] ${label}: ${first}${r.message.length > 60 ? "…" : ""}`;
@@ -159,12 +160,15 @@ export function bugEmail(r: ReportRow, files: FileRow[], attached: number) {
       + (attached < files.length ? `; ${attached ? `${attached} attached here, ` : ""}see all in the owner console` : ", attached")
     : "No attachments";
   const missing = r.files_expected - files.length;
+  const onGithub = files.filter((f) => f.github_url).map((f) => `${EXTENSION[f.type as AttachmentType] ?? f.type} on GitHub: ${f.github_url}`);
+  if (r.issue_url) onGithub.unshift(`GitHub issue: ${r.issue_url}`);
   const textBody = `${label}: bug report #${r.id}\n\n${r.message}\n\n${details.map(([k, v]) => `${k}: ${v}`).join("\n")}\n${fileLine}`
-    + `${missing > 0 ? `\n${missing} attachment${missing === 1 ? " was" : "s were"} never uploaded.` : ""}\n\nOpen it: ${link}`
+    + `${missing > 0 ? `\n${missing} attachment${missing === 1 ? " was" : "s were"} never uploaded.` : ""}`
+    + `${onGithub.length ? `\n${onGithub.join("\n")}` : ""}\n\nOpen it: ${link}`
     + `${r.email ? "\nReply to this email to answer them." : ""}`;
   const html = `<p><strong>${esc(label)}</strong>: bug report #${r.id}</p><p style="white-space:pre-wrap">${esc(r.message)}</p>`
     + `<table style="font-size:13px;color:#3f3f46">${details.map(([k, v]) => `<tr><td style="padding-right:12px;color:#71717a">${esc(k)}</td><td>${esc(v)}</td></tr>`).join("")}</table>`
-    + `<p style="font-size:13px">${esc(fileLine)}${missing > 0 ? `<br>${missing} never uploaded.` : ""}</p>`
+    + `<p style="font-size:13px">${esc(fileLine)}${missing > 0 ? `<br>${missing} never uploaded.` : ""}${onGithub.map((l) => `<br>${esc(l)}`).join("")}</p>`
     + `<p><a href="${esc(link)}">Open bug reports in the owner console</a></p>`;
   return { subject, text: textBody, html };
 }
@@ -186,18 +190,21 @@ async function emailReport(id: number): Promise<void> {
     [new Date(now).toISOString(), id, MAX_EMAIL_ATTEMPTS, new Date(now - STALE_CLAIM_MS).toISOString()]);
   if (!claimed) return;
   try {
-    const r = (await get<ReportRow>(`SELECT ${REPORT_COLS} FROM bug_reports WHERE id = ?`, [id]))!;
-    const files = await all<FileRow>(`${DONE_FILES} AND report_id = ? ORDER BY n`, [id]);
+    const r = (await get<ReportRow & { issue_url: string | null }>(`SELECT ${REPORT_COLS}, issue_url FROM bug_reports WHERE id = ?`, [id]))!;
+    const files = await all<FileRow & { github_url: string | null; on_disk: number }>(
+      "SELECT report_id, n, type, bytes, github_url, on_disk FROM bug_report_files WHERE received = bytes AND report_id = ? ORDER BY n", [id]);
     const attachments: { filename: string; content: Buffer }[] = [];
     let total = 0;
     for (const f of files) {
+      // A retry after filing: the local copy is gone and GitHub has it (linked in the email instead).
+      if (!Number(f.on_disk)) continue;
       if (total + Number(f.bytes) > EMAIL_ATTACH_BYTES) continue;
       const content = await readFile(filePath(id, Number(f.n), f.type as AttachmentType)).catch(() => null);
       if (!content) continue;
       total += content.length;
       attachments.push({ filename: `bug-${id}-${Number(f.n) + 1}.${EXTENSION[f.type as AttachmentType]}`, content });
     }
-    const { subject, text: body, html } = bugEmail(r, files, attachments.length);
+    const { subject, text: body, html } = bugEmail(r, files.map((f) => ({ ...f, github_url: Number(f.on_disk) ? null : f.github_url })), attachments.length);
     await sendEmail(to, subject, body, html, { ...(r.email ? { replyTo: r.email } : {}), attachments });
     await run("UPDATE bug_reports SET emailed = 1 WHERE id = ?", [id]);
   } catch (e) {
