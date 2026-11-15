@@ -25,7 +25,7 @@ Search › "Where does 4215 rank in New Jersey" answers with the region page's o
 - [rankings] Not ranked yet says how many rated matches a team has
 
 ### Changed
-- "Where does {team} rank in {region}": the answer adds the team's season record, shows its rating to one decimal as the region page does, and links to the region page on the team's page with its row marked. A team from there with fewer than 3 rated matches is "Not ranked yet — N of 3 rated matches" (or "No rated matches yet"), never ranked by its OPR instead. (`server/api/answers/families/oprRating.ts`) (#1544)
+- "Where does {team} rank in {region}": the answer adds the team's season record, shows its rating to one decimal as the region page does, and links to the region page on the team's page with its row marked. A team from there with fewer than 3 rated matches is "Not ranked yet — N of 3 rated matches" (or "No rated matches yet"), never ranked by its OPR instead. (`server/api/answers/families/oprRating.ts`)
 - "Top teams in New Jersey", "best team in New Jersey", "New Jersey rankings": the region page's rows (rank in the region, rating, OPR, record) and a link to it; a region with no rated team says "No rated teams yet". (`server/api/searchAsks.ts`, `server/api/answers/families/leaderboard.ts`, `server/api/searchIntents.ts`) (#1544)
 
 ## 6.6.1 — 2026-11-15
