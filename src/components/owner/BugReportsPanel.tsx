@@ -68,7 +68,7 @@ function Issue({ r }: { r: BugReportItem }) {
   }
   return (
     <span className="inline-flex items-center gap-1.5 text-muted-foreground" data-testid="bug-report-not-filed">
-      <CircleDashed className="size-3.5" aria-hidden />Not filed yet{r.notFiled ? `: ${r.notFiled}` : ""}
+      <CircleDashed className="size-3.5" aria-hidden />{r.notFiled?.startsWith("Private:") ? r.notFiled : `Not filed yet${r.notFiled ? `: ${r.notFiled}` : ""}`}
     </span>
   );
 }
