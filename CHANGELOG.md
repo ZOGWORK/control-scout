@@ -20,8 +20,8 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 Welcome › Step 3 "Ask anything" is now six searches you can tap: your team's next match and awards, a large OR, then two built from your team's own history and two wider ones.
 
 ### Highlights
-- [home] Tap any example on the welcome's step 3 and it runs that exact search
-- [home] Two examples come from your team's own seasons: its sister team or most-met rival, and its Worlds or best season
+- [home] Tap any welcome step 3 example to run that exact search
+- [home] Two examples are built from your team's own seasons
 - [home] A large OR splits your team's searches from the wider ones
 
 ### Changed
