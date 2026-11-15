@@ -15,17 +15,42 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.7.3 — 2026-11-15
+## 6.7.5 — 2026-11-15
 
 Report a bug › the public notice is larger, offers a private email instead, and Send asks once more before anything is posted.
 
 ### Highlights
 - [report] The "this is public" notice is larger and easier to read
 - [report] Want it private? Email sushil.m@icloud.com instead
-- [report] Send asks a second time: "Yes, post it publicly" or Go back
+- [report] Send asks a second time: only "Yes, post it publicly" sends
 
 ### Changed
-- Report a bug: the public GitHub Issue notice is a boxed, full-size line with a private-email way out (a mailto link), on the form and on the sent screen. The first Send asks "Send this as a public issue?"; only "Yes, post it publicly" sends, and Go back returns to the form with nothing sent. On phones the sheet scrolls so both answers are in view, and it has bottom padding again. (`src/components/layout/BugReport.tsx`) (#1562)
+- Report a bug: the public GitHub Issue notice is a boxed, full-size line with a private-email way out (a mailto link), on the form and on the sent screen. The first Send asks "Send this as a public issue?"; only "Yes, post it publicly" sends (Enter in a field never does), the question says when a typed email will be public too, any edit asks again, and Go back returns to the form, focus on Send report, with nothing sent. On phones the sheet scrolls so both answers are in view (stopping as soon as you scroll yourself), and it has bottom padding again. (`src/components/layout/BugReport.tsx`) (#1562)
+
+## 6.7.4 — 2026-11-15
+
+Official videos › The channel audit no longer counts a channel's hidden spare copy of a stream as a video the watcher missed.
+
+### Highlights
+- [fixes] A copy a channel made unlisted isn't a missed video
+- [fixes] Its set-aside reason says the channel unlisted it
+- [fixes] Watcher misses now count only public uploads
+
+### Fixed
+- A video a channel made unlisted or private after it was listed is off its public uploads list, which is all the watcher reads: the audit sets it aside ("unlisted now: the channel took it off its public list, so it isn't for Scout") instead of counting a watcher miss and opening a finding. The audit's second live run counted one, a Kazakhstan regional's spare copy of a stream the watcher already has in review. (`server/videos/officialAudit.ts`) (#1554)
+
+## 6.7.3 — 2026-11-15
+
+A slow search no longer reads as "You're offline". While a long search keeps the server busy, the connection check waits for it instead of deciding there's no internet, and a search that did fail for want of a connection is asked again once the internet is back.
+
+### Highlights
+- [fixes] A slow search no longer says you're offline
+- [fixes] Reloading during a slow search waits for it, not "offline"
+- [offline] A search that failed offline runs again once you're back
+
+### Fixed
+- The connection check: no answer from `/api/health` within 2.5 s just after the server answered this tab (in the last minute, carried over a reload) now waits up to 20 s before it means no internet. A long search holds the server, and the check waited behind it (measured live: 11.8 s behind a 12 s search); it then said "no internet", the search was let go as "You're offline", and a reload started from that. With no recent answer, or once a check has found no internet, 2.5 s still means no internet. (`src/lib/connection.ts`)
+- Search results: "You're offline" (or "Can't reach the server") is asked again by itself when the connection check finds internet, instead of staying until Try again. (`src/components/search/SearchBox.tsx`) (#1561)
 
 ## 6.7.2 — 2026-11-15
 

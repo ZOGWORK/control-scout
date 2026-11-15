@@ -4,7 +4,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, renderHook } from "@testing-library/react";
 import {
-  CARRY_MS, CHECK_TIMEOUT_MS, DEMO_KEY, EVENT_GAP_MS, FAIL_DEBOUNCE_MS, IDLE_MS, LAST_KEY, ONLINE_RETRY_MS, ONLINE_WINDOW_MS, RETRY_MS, RETRY_STEPS_MS, WAITING_RETRY_MS, WAITING_WINDOW_MS, checkInternet, classify, connection, noteDownloadWaiting, noteRequestFailed, noteServerAnswer,
+  BUSY_TIMEOUT_MS, CARRY_MS, CHECK_TIMEOUT_MS, HEARD_MS, DEMO_KEY, EVENT_GAP_MS, FAIL_DEBOUNCE_MS, IDLE_MS, LAST_KEY, ONLINE_RETRY_MS, ONLINE_WINDOW_MS, RETRY_MS, RETRY_STEPS_MS, WAITING_RETRY_MS, WAITING_WINDOW_MS, checkInternet, classify, connection, noteDownloadWaiting, noteRequestFailed, noteServerAnswer,
   offlineNow, resetConnection, shownOffline, startConnectionWatch, useConnection,
 } from "./connection";
 
@@ -95,6 +95,108 @@ describe("checkInternet", () => {
     answer(new Response("<html>Sign in</html>", { status: 200, headers: { "Content-Type": "text/html" } }));
     await p;
     expect(connection().internet).toBe("yes");
+  });
+});
+
+describe("our own server busy, not the line gone (issue #1557)", () => {
+  /** A health check that hangs until answered (or aborted). */
+  const hanging = () => {
+    let answer!: (r: Response) => void;
+    const fetch = vi.fn((_p: string, init?: RequestInit) => new Promise<Response>((r, rej) => {
+      answer = r;
+      init?.signal?.addEventListener("abort", () => rej(new DOMException("aborted", "AbortError")));
+    }));
+    vi.stubGlobal("fetch", fetch);
+    return { fetch, answer: (r: Response) => answer(r) };
+  };
+
+  // Measured live: /api/health waited 11.8 s behind a 12 s search. The check called that "no internet", the search
+  // was let go as "You're offline", and a reload started from that "no".
+  it("no answer in CHECK_TIMEOUT_MS just after the server answered keeps waiting: its late answer is internet", async () => {
+    vi.useFakeTimers();
+    noteServerAnswer();
+    await vi.advanceTimersByTimeAsync(1000); // the search goes out; nothing answers while it runs
+    const net = hanging();
+    const p = checkInternet();
+    await vi.advanceTimersByTimeAsync(CHECK_TIMEOUT_MS + 9000);
+    expect(connection().internet).toBe("yes");
+    expect(offlineNow()).toBe(false);
+    net.answer(json({ ok: true }));
+    expect(await p).toBe("yes");
+    expect(connection().internet).toBe("yes");
+  });
+
+  it("still no answer at BUSY_TIMEOUT_MS is no internet", async () => {
+    vi.useFakeTimers();
+    noteServerAnswer();
+    await vi.advanceTimersByTimeAsync(1000);
+    hanging();
+    const p = checkInternet();
+    await vi.advanceTimersByTimeAsync(BUSY_TIMEOUT_MS - 1);
+    expect(connection().internet).toBe("yes");
+    await vi.advanceTimersByTimeAsync(1);
+    expect(await p).toBe("no");
+  });
+
+  it("the browser going offline while a check waits on a busy server ends the wait at once", async () => {
+    vi.useFakeTimers();
+    stop = startConnectionWatch();
+    noteServerAnswer();
+    await vi.advanceTimersByTimeAsync(1000);
+    const net = hanging();
+    const p = checkInternet();
+    await vi.advanceTimersByTimeAsync(CHECK_TIMEOUT_MS + 1000); // waiting on the busy server
+    expect(connection().internet).toBe("yes");
+    window.dispatchEvent(new Event("offline"));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(await p).toBe("no");
+    expect(connection().internet).toBe("no");
+    // The back-off runs from now: the next check comes by the first step, not after BUSY_TIMEOUT_MS.
+    const before = net.fetch.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(RETRY_STEPS_MS[0]);
+    expect(net.fetch.mock.calls.length).toBeGreaterThan(before);
+  });
+
+  it("the server last heard from over HEARD_MS ago: no answer in CHECK_TIMEOUT_MS is no internet, as before", async () => {
+    vi.useFakeTimers();
+    noteServerAnswer();
+    await vi.advanceTimersByTimeAsync(HEARD_MS);
+    hanging();
+    const p = checkInternet();
+    await vi.advanceTimersByTimeAsync(CHECK_TIMEOUT_MS);
+    expect(await p).toBe("no");
+  });
+
+  it("while there's no internet, a check that hangs is still no at CHECK_TIMEOUT_MS (a line coming back is seen fast)", async () => {
+    vi.useFakeTimers();
+    noteServerAnswer();
+    await vi.advanceTimersByTimeAsync(1000);
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("Failed to fetch"); }));
+    await checkInternet();
+    expect(connection().internet).toBe("no");
+    hanging();
+    const p = checkInternet();
+    await vi.advanceTimersByTimeAsync(CHECK_TIMEOUT_MS);
+    expect(await p).toBe("no");
+  });
+
+  it("a reload moments after the server answered waits for it the same way", async () => {
+    vi.useFakeTimers();
+    noteServerAnswer();
+    const raw = sessionStorage.getItem(LAST_KEY);
+    expect(JSON.parse(raw!)).toMatchObject({ internet: "yes" });
+    resetConnection();
+    sessionStorage.setItem(LAST_KEY, raw!);
+    vi.resetModules();
+    const again = await import("./connection");
+    expect(again.connection().internet).toBe("unknown");
+    const net = hanging();
+    const p = again.checkInternet();
+    await vi.advanceTimersByTimeAsync(CHECK_TIMEOUT_MS + 5000);
+    expect(again.offlineNow()).toBe(false);
+    net.answer(json({ ok: true }));
+    expect(await p).toBe("yes");
+    again.resetConnection();
   });
 });
 

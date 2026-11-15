@@ -283,4 +283,13 @@ describe("the channel audit", () => {
       expect(a.channels.find((c) => c.channelId === TX)).toBeUndefined();
     } finally { await run("UPDATE official_channels SET removed_at = NULL WHERE channel_id = ?", [TX]); }
   });
+
+  it("sets aside a video the channel has made unlisted since, not a watcher miss", async () => {
+    const id = "hiddencopyx";
+    uploads.unshift({ id, title: "FTC Texas Houston Qualifier", published: "2026-01-10T23:30:00Z", start: "2026-01-10T15:05:00Z", privacy: "unlisted" });
+    try {
+      await audit(Date.parse("2026-02-25T06:00:00Z"));
+      expect(await row(id)).toMatchObject({ verdict: "ignore", finding: null, why: "unlisted now: the channel took it off its public list, so it isn't for Scout" });
+    } finally { uploads.shift(); }
+  });
 });
