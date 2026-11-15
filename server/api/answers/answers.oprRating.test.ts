@@ -208,6 +208,8 @@ describe("answers", () => {
     const auto = await ask("4215 auto opr at worlds");
     expect(auto.title).toBe("Auto OPR at the FIRST Championship");
     expect(auto.headline?.label).toBe("Auto OPR at Worlds · Edison Division, 2023–24");
+    // The team named, as logged in #1530.
+    expect((await ask("hypnotic robotics auto opr at worlds")).headline?.label).toBe("Auto OPR at Worlds · Edison Division, 2023–24");
     const r = await ask("4215 rating at worlds");
     expect(r.headline).toMatchObject({ value: "139.2 ± 3.2", label: "after Worlds · Edison Division, 2023–24", sub: expect.stringContaining("#84 worldwide that season") });
     // "this season" is the latest season only: no older Worlds stands in for it.
