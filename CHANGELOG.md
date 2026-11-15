@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.6.1 — 2026-11-15
+## 6.6.2 — 2026-11-15
 
 Search answers four more questions it used to miss: three team numbers side by side, a team's Auto OPR at Worlds, what a tiebreaker is, and "teams in" with nothing after it.
 
@@ -30,6 +30,18 @@ Search answers four more questions it used to miss: three team numbers side by s
 - A team's Auto OPR at Worlds ("what was hypnotic robotics auto opr at worlds in centerstage", and the same without "opr") showed the team card and "can't answer that yet". It's now that phase's OPR in the team's Worlds division (47.3 at Edison, 2023–24), with its OPR and the other phases beside it, as "auto" alone already reads a team's season Auto OPR. A phase next to another stat word ("highest auto at worlds") stays with the match answers. (`server/api/answers/families/oprRating.ts`) (#1493, #1494)
 - "What is a tie breaker point" found nothing. A new explainer says how teams level on ranking score are ordered (average non-penalty score first, as the methodology page says), and a typo of "breaker" is now corrected to it. (`server/api/searchCoverage.ts`, `server/api/spelling.ts`) (#1430, #1429)
 - "teams in" with nothing after it found nothing. It now lists every team, best by OPR this season, with how many are registered and how to add a place. (`server/api/searchCoverage.ts`) (#1421)
+
+## 6.6.1 — 2026-11-15
+
+Welcome › Step 3 "Ask anything" is now six searches you can tap: your team's next match and awards, a large OR, then two built from your team's own history and two wider ones.
+
+### Highlights
+- [home] Tap any welcome step 3 example to run that exact search
+- [home] Two examples are built from your team's own seasons
+- [home] A large OR splits your team's searches from the wider ones
+
+### Changed
+- Welcome, step 3: the examples are buttons. Each one ends the welcome and opens that search, as written, on the results page. With a team picked: "<team> next match", "<team> awards", a large OR, then the team's compare (its sister team at the same school and town, else the team it met most, over its last finished season) and its auto OPR in the season it played at Worlds (else its best season by OPR rank), then "30030 vs 21087 vs 11228" (Worlds' winning alliance) and "best teleop opr in Romania in 2025-26". A team with no season played yet gets its town's teams and its region's best rookies instead. Every team example is run on the server first, and one that doesn't answer is replaced by the next, or left out: never made up. (`src/components/onboarding/Onboarding.tsx`, `server/api/onboardingExamples.ts`, `GET /api/onboarding/examples`) (#1540)
 
 ## 6.6.0 — 2026-11-15
 
