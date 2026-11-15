@@ -123,6 +123,27 @@ export const seasonSpan = (seasons: number[]) => !seasons.length ? "" : seasons.
 const transferBytes = (f: PackFile) => transferOf(f).bytes;
 /** After a Delete, the browser's storage figure is read again at these times (it can lag the delete). */
 export const ESTIMATE_AGAIN_MS = [1000, 3000, 10_000];
+/** A drop in the browser's figure smaller than this is no drop (it moves by a few KB on its own). */
+const NO_DROP = 16 * 1024;
+async function estimateNow(): Promise<{ usage?: number; quota?: number } | null> {
+  try { return (await navigator.storage?.estimate?.()) ?? null; } catch { return null; }
+}
+
+/**
+ * What a Delete says, by the browser's own storage figure (read just before and just after): "Freed" only what that
+ * figure dropped by, never the pack's own size. The two differ: Chromium keeps IndexedDB data compressed on disk (a
+ * 9.0 MB season took 3.6 MB there and freed that, measured), and a private window's storage, kept in memory, isn't
+ * counted down at all until it closes. With no figure (or no drop yet) it says what was deleted, not what was freed.
+ */
+export function freedWords(what: string, bytes: number, drop: number | null): { title: string; line: string } {
+  const What = `${what.charAt(0).toUpperCase()}${what.slice(1)}`;
+  if (drop != null && drop >= NO_DROP) return { title: `Freed ${fmtBytes(drop)}`, line: `${What} deleted from this device (${fmtBytes(bytes)} of data; the browser's storage figure dropped by ${fmtBytes(drop)}).` };
+  return {
+    title: `${What} deleted`,
+    line: drop == null ? `${What} deleted from this device (${fmtBytes(bytes)} of data).`
+      : `${What} deleted from this device (${fmtBytes(bytes)} of data). The browser's storage figure hasn't dropped yet: it gives the space back on its own.`,
+  };
+}
 const currentFile = (m: PackManifest, season: number) => m.full.find((f) => f.kind === "full" && f.seasons.length === 1 && f.seasons[0] === season)
   ?? [...m.full].filter((f) => f.kind === "full" && f.seasons.length === 1).sort((a, b) => b.seasons[0] - a.seasons[0])[0] ?? null;
 
@@ -392,7 +413,7 @@ function OnDevice({ m, local }: { m: PackManifest | null; local: PackMeta | null
   const [est, setEst] = useState<{ usage?: number; quota?: number } | null>(null);
   // After a Delete, read again for a while: the browser frees a deleted file's space a little later (Chromium
   // updates its IndexedDB figure once the files are gone), so one read at once can still show the old number.
-  const [freedNote, setFreedNote] = useState<{ what: string; bytes: number; at: number } | null>(null);
+  const [freedNote, setFreedNote] = useState<{ what: string; bytes: number; at: number; before: number | null } | null>(null);
   useEffect(() => {
     let live = true;
     const read = () => navigator.storage?.estimate?.().then((e) => { if (live) setEst(e); }, () => { if (live) setEst({}); });
@@ -419,11 +440,19 @@ function OnDevice({ m, local }: { m: PackManifest | null; local: PackMeta | null
     return () => { live = false; };
   }, [bundleKey, bundlesOn]);
 
-  // The toast, and a line under the list that stays (a toast is gone in seconds).
-  const freed = (what: string, bytes: number) => {
-    toast.success(`Freed ${fmtBytes(bytes)}`, { description: `${what.charAt(0).toUpperCase()}${what.slice(1)} deleted from this device.` });
-    setFreedNote({ what, bytes, at: Date.now() });
+  // A Delete, with the browser's storage figure read just before and just after it: the toast, and a line under the
+  // list that stays (a toast is gone in seconds) and follows the figure as it catches up.
+  const deleting = async (what: () => string, fn: () => Promise<number>) => {
+    const before = (await estimateNow())?.usage ?? null;
+    const bytes = await fn();
+    const after = await estimateNow();
+    if (after) setEst(after);
+    const drop = before != null && after?.usage != null ? Math.max(0, before - after.usage) : null;
+    const w = freedWords(what(), bytes, drop);
+    toast.success(w.title, { description: w.line });
+    setFreedNote({ what: what(), bytes, at: Date.now(), before });
   };
+  const noteDrop = freedNote && freedNote.before != null && est?.usage != null ? Math.max(0, freedNote.before - est.usage) : null;
   const act = async (key: string, fn: () => Promise<void>) => {
     setWorking(key);
     try { await fn(); } catch (e) { toast.error((e as Error).message); } finally { setWorking(null); }
@@ -445,12 +474,12 @@ function OnDevice({ m, local }: { m: PackManifest | null; local: PackMeta | null
       toast.success(`${it.label} updated`);
     }
   });
-  const remove = (it: DeviceItem) => act(it.key, async () => {
+  const remove = (it: DeviceItem) => act(it.key, () => deleting(() => it.label, async () => {
     const n = it.kind === "lite" ? await (await import("../lib/packs")).removeLite()
       : it.kind === "season" ? await removeSeason(it.season!)
       : await (await bundles()).removeBundle(it.bundle!.season, it.bundle!.code);
-    freed(it.label, n || it.bytes);
-  });
+    return n || it.bytes;
+  }));
   const resume = (p: PausedItem) => act(p.key, async () => {
     if (p.kind === "lite") { await getLite(m?.version); return; }
     const f = m && currentFile(m, Number(p.partial.owner.id));
@@ -459,12 +488,12 @@ function OnDevice({ m, local }: { m: PackManifest | null; local: PackMeta | null
     if (r?.failed[0]) throw r.failed[0].error;
     if (r?.saved.length) toast.success(`${p.label} saved on this device`);
   });
-  const drop = (p: PausedItem) => act(p.key, async () => {
+  const drop = (p: PausedItem) => act(p.key, () => deleting(() => `the paused ${p.label} download`, async () => {
     if (!(await dropPartial(p.partial.sha256))) throw new Error(`The ${p.label} download is running in another tab. Delete it there, or try again when it stops.`);
     // Deleted on purpose: it never picks up by itself when the connection is back.
     clearResume(p.key);
-    freed(`the paused ${p.label} download`, p.have);
-  });
+    return p.have;
+  }));
 
   /** Plain words for a newer release of this pack, or null when it's current (or nothing says). */
   const newer = (it: DeviceItem): string | null => {
@@ -529,7 +558,7 @@ function OnDevice({ m, local }: { m: PackManifest | null; local: PackMeta | null
       )}
       {freedNote && (
         <p role="status" className="flex items-center gap-1.5 border-t border-border px-4 py-3 text-sm text-success sm:px-6" data-freed>
-          <CheckCircle2 className="size-4 shrink-0" /><span>Freed <span className="font-semibold tabular-nums">{fmtBytes(freedNote.bytes)}</span>: {freedNote.what} deleted from this device.</span>
+          <CheckCircle2 className="size-4 shrink-0" /><span>{freedWords(freedNote.what, freedNote.bytes, noteDrop).line}</span>
         </p>
       )}
       <p className="border-t border-border px-4 py-3 text-xs text-muted-foreground sm:px-6" data-storage-estimate>

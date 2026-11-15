@@ -32,12 +32,17 @@ export function DownloadResumer(): null {
     let stopped = false;
     // Asked before loading anything, and again before each download: the phone may have moved off Wi-Fi meanwhile.
     const allowed = () => !stopped && live.current.packsOn && resumeAllowed(live.current.network, conn());
+    let again: ReturnType<typeof setTimeout> | undefined;
     const kick = () => {
       if (!live.current.settled || connection().internet !== "yes" || !allowed() || !resumeMarks().length) return;
       void import("./resume").then(async (r) => {
         for (const t of await r.resumePaused(allowed)) {
           if (t.saved) toast.success(`${labelOf(t.key)} saved on this device`, { description: "The download picked up where it stopped once the connection was back." });
         }
+        // One still marked that was tried moments ago (paused again, or a check found internet during the gap):
+        // tried again once the gap is over, rather than at the next check, minutes away while there's internet.
+        const wait = r.nextTryIn();
+        if (!stopped && wait != null && resumeMarks().length) { clearTimeout(again); again = setTimeout(kick, wait + 100); }
       }).catch(() => { /* the person's own Resume still works */ });
     };
     kickRef.current = kick;
@@ -47,7 +52,7 @@ export function DownloadResumer(): null {
     const c = conn();
     c?.addEventListener?.("change", kick);
     kick();
-    return () => { stopped = true; kickRef.current = () => {}; offChange(); offConfirmed(); c?.removeEventListener?.("change", kick); };
+    return () => { stopped = true; clearTimeout(again); kickRef.current = () => {}; offChange(); offConfirmed(); c?.removeEventListener?.("change", kick); };
   }, []);
 
   // The setting arriving (a signed-in account's), or offline packs switched back on.

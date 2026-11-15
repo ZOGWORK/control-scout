@@ -32,6 +32,12 @@ export interface PartialDownload {
 }
 export type Progress = (done: number, total: number) => void;
 
+/** A try that gets no answer (headers, or the body's next chunk) for `ms` is abandoned and tried again at once (up
+ *  to `retries` times), resuming from what's kept. Right after a line comes back the first request can hang for
+ *  10–30 s (lib/connection.ts); without this a hung try waited for the browser to give up, and while it hung nothing
+ *  else could pick the download up. A slow line still sends a chunk every second or two. Tests change these. */
+export const STALL = { ms: 6000, retries: 3, pauseMs: 300 };
+
 /** Received bytes are written to the device in pieces this big: a cut-off loses at most this much. */
 export const PIECE = 512 * 1024;
 const DB = "control-scout-downloads";
@@ -47,6 +53,9 @@ export class StorageFull extends Error {
 export class StorageError extends Error {
   constructor(cause?: unknown) { super("This device's storage wouldn't keep the download. Reload the page and try again; if it keeps happening, check the browser's site storage settings.", { cause }); }
 }
+/** One try got no answer for STALL.ms: abandoned (what came is kept) and tried again. */
+class Stalled extends Error {}
+
 /** The connection dropped: what came is kept, and the next try picks up from there. */
 export class DownloadPaused extends Error {
   constructor(readonly have: number, readonly total: number) {
@@ -266,13 +275,45 @@ async function run(file: DownloadFile, opts: DownloadOptions): Promise<Uint8Arra
   }
   let p = await s.get(file.sha256).catch(() => undefined);
   const resumed = !!p && p.have > 0;
-  try { return await attempt(file, p, opts); }
+  try { return await retryingStalls(file, p, opts); }
   catch (e) {
     // A resumed file that came out wrong: the pieces from before may be from a different file. Once more, from scratch.
     if (!(e instanceof ChecksumError) || !resumed) throw e;
     p = undefined;
-    return attempt(file, p, opts);
+    return retryingStalls(file, p, opts);
   }
+}
+
+/** A hung try is abandoned and tried again at once, from what's kept now; once STALL.retries are used up it pauses
+ *  as a dropped connection does (what came is kept). */
+async function retryingStalls(file: DownloadFile, prev: PartialDownload | undefined, opts: DownloadOptions): Promise<Uint8Array> {
+  for (let i = 0; ; i++) {
+    try { return await attempt(file, prev, opts); }
+    catch (e) {
+      if (!(e instanceof Stalled)) throw e;
+      prev = await db().get(file.sha256).catch(() => undefined);
+      if (i >= STALL.retries) throw stoppedAt(prev?.have ?? 0, file.bytes);
+      await new Promise((r) => setTimeout(r, STALL.pauseMs));
+      if (opts.signal?.aborted) throw stopped();
+    }
+  }
+}
+
+/** One try's watchdog: `tick` on every answer (the headers, each chunk); none for STALL.ms aborts `signal` with
+ *  `stalled` set. The caller's Stop aborts it too (`stalled` stays false). */
+function watchdog(outer: AbortSignal | undefined) {
+  const ctrl = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const onOuter = () => { clearTimeout(timer); ctrl.abort(); };
+  const w = {
+    signal: ctrl.signal,
+    stalled: false,
+    tick() { if (ctrl.signal.aborted) return; clearTimeout(timer); timer = setTimeout(() => { w.stalled = true; ctrl.abort(); }, STALL.ms); },
+    done() { clearTimeout(timer); outer?.removeEventListener("abort", onOuter); },
+  };
+  if (outer?.aborted) ctrl.abort(); else outer?.addEventListener("abort", onOuter, { once: true });
+  w.tick();
+  return w;
 }
 
 const RANGE = /^bytes (\d+)-(\d+)\/(\d+|\*)$/;
@@ -300,22 +341,28 @@ async function attempt(file: DownloadFile, prev: PartialDownload | undefined, op
       // A weak ETag can't vouch for a byte range (RFC 9110); the checksum at the end still does.
       if (p.etag && !p.etag.startsWith("W/")) headers["If-Range"] = p.etag;
     }
+    const dog = watchdog(opts.signal);
     let res: Response;
-    try { res = await (opts.fetch ?? fetch)(file.url, { headers, signal: opts.signal }); }
+    try { res = await (opts.fetch ?? fetch)(file.url, { headers, signal: dog.signal }); }
     catch (e) {
+      dog.done();
+      if (dog.stalled) throw new Stalled();
       if ((e as Error)?.name === "AbortError") throw e;
       throw stoppedAt(p.have, file.bytes);
     }
+    dog.tick();
     if (res.status === 416 && p.have > 0) {
+      dog.done();
       await res.body?.cancel().catch(() => {});
       // Nothing left to send, or a different file now: start over unless the bytes are all here.
       p = await restart(p);
       return attempt(file, p, opts);
     }
-    if (!res.ok || !res.body) throw new Error(`Download failed (${res.status}).`);
+    if (!res.ok || !res.body) { dog.done(); throw new Error(`Download failed (${res.status}).`); }
     if (res.status === 206) {
       const m = RANGE.exec(res.headers.get("Content-Range") ?? "");
       if (!m || Number(m[1]) !== p.have || (m[3] !== "*" && Number(m[3]) !== file.bytes)) {
+        dog.done();
         await res.body.cancel().catch(() => {});
         if (p.have === 0) throw new Error("The server sent part of a different file. Try again in a moment.");
         // Not the bytes asked for: drop what's here and fetch the whole file.
@@ -328,7 +375,12 @@ async function attempt(file: DownloadFile, prev: PartialDownload | undefined, op
     }
     p.etag = res.headers.get("ETag") ?? p.etag;
     report(p.have);
-    p = await receive(res.body, p, file, report);
+    try { p = await receive(res.body, p, file, report, dog.tick); }
+    catch (e) {
+      // Abandoned for want of an answer (what came is kept): tried again, never shown as a dropped connection yet.
+      if (dog.stalled && (e as Error)?.name === "AbortError") throw new Stalled();
+      throw e;
+    } finally { dog.done(); }
   }
 
   const parts = await s.pieces(file.sha256, p.pieces);
@@ -355,7 +407,7 @@ async function restart(p: PartialDownload): Promise<PartialDownload> {
 }
 
 /** Read the body, writing it to the device a piece at a time. Throws DownloadPaused if it stops early. */
-async function receive(body: ReadableStream<Uint8Array>, start: PartialDownload, file: DownloadFile, report: (done: number) => void): Promise<PartialDownload> {
+async function receive(body: ReadableStream<Uint8Array>, start: PartialDownload, file: DownloadFile, report: (done: number) => void, tick: () => void): Promise<PartialDownload> {
   const s = db();
   let p = start;
   let buf: Uint8Array[] = [];
@@ -379,6 +431,7 @@ async function receive(body: ReadableStream<Uint8Array>, start: PartialDownload,
     for (;;) {
       const { value, done } = await reader.read();
       if (done) break;
+      tick();
       if (p.have + buffered + value.length > file.bytes) { await reader.cancel().catch(() => {}); await s.drop(file.sha256).catch(() => {}); throw new ChecksumError(); }
       buf.push(value);
       buffered += value.length;
