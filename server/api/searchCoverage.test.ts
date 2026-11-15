@@ -134,6 +134,10 @@ describe("answers on their own", () => {
   });
   it("tiebreakers explained (#1430, #1429)", async () => {
     for (const q of ["what is a tie breaker point", "what is a tiebreaker", "tiebreakers"]) expect(explainAnswer(q)?.understood?.label, q).toMatch(/^Tiebreakers:/);
+    // Season by season: 2025–26 on and 2024–25 each say their own first tiebreaker.
+    const lines = explainAnswer("what is a tie breaker point")!.card!.lines.map((l) => l.text);
+    expect(lines).toContain("From 2025–26 on, average non-penalty score comes first");
+    expect(lines).toContain("In 2024–25, average auto points came first, then average endgame points");
     // A typo of it is corrected to search's own word, then explained.
     expect((await ask("what is a tie breker")).understood?.label).toMatch(/^Tiebreakers:/);
   });
@@ -275,6 +279,8 @@ describe("answers on their own", () => {
     const a = (await placeTeamsAnswer("teams in", new Set()))!;
     expect(a.card?.title).toMatch(/^Teams worldwide · best by OPR/);
     expect(a.understood?.label).toMatch(/no place named after "in"/);
+    // The search itself reaches it, not only the answer called directly.
+    expect((await ask("teams in")).card?.title).toMatch(/^Teams worldwide/);
     // The word quoted is the one typed after "teams", however the list is asked for.
     expect((await placeTeamsAnswer("all teams in", new Set()))!.understood?.label).toMatch(/no place named after "in"\)/);
     expect((await placeTeamsAnswer("teams based in", new Set()))!.understood?.label).toMatch(/no place named after "based in"\)/);
