@@ -37,7 +37,7 @@ export interface Recording extends RecordingVideo {
 }
 
 const TTL_MS = 60_000;
-type SeasonData = { first: Map<string, string>; more: Map<string, string[]>; daily: Set<string>; official: Set<string>; meta: Map<string, VideoMeta>; extra: Map<string, { day: string | null; part: string | null }>; failed: string[] };
+type SeasonData = { first: Map<string, string>; /** FIRST's own link (or its short link's video), by event. */ link: Map<string, string>; more: Map<string, string[]>; daily: Set<string>; official: Set<string>; meta: Map<string, VideoMeta>; extra: Map<string, { day: string | null; part: string | null }>; failed: string[] };
 
 /** Maps read without one of their sources (the owner's streams, the official recordings): online they're shown as
  *  they are (and the failure is logged); the season pack's events board refuses them (isPartial, api/reads.ts). */
@@ -103,6 +103,7 @@ function seasonData(season: number, now = Date.now()) {
     const first = new Map<string, string>();
     for (const l of links) { const id = firstVideoId(l.livestream); if (id) first.set(String(l.code), id); }
     for (const l of short) first.set(String(l.code), String(l.video_id));
+    const link = new Map(first);
     // The other days' broadcasts of an event whose first one is its video.
     const more = new Map<string, string[]>();
     const daily = new Set(days.map((d) => String(d.code)));
@@ -127,7 +128,7 @@ function seasonData(season: number, now = Date.now()) {
       const part = ids.slice(i, i + 200);
       for (const r of await all<any>(`SELECT ${META_COLUMNS} FROM video_meta WHERE video_id IN (${part.map(() => "?").join(",")})`, part)) meta.set(String(r.video_id), metaOf(r));
     }
-    return { first, more, daily, official: new Set(official.map((o) => String(o.code))), meta, extra, failed };
+    return { first, link, more, daily, official: new Set(official.map((o) => String(o.code))), meta, extra, failed };
   })();
   // A map read before keeps being given while its next read runs (search reads these on its answer path: a read
   // costs a season's matches); forgetRecordings drops it at once when the links change.
@@ -145,7 +146,7 @@ const dayKey = (v: RecordingVideo) => v.meta?.start ?? (v.day ? `${v.day}T12:00:
  *  kept, for the coverage check, server/videos/coverage.ts, which names it as the reason its day has no clips). */
 export async function seasonRecordings(season: number, keepUnavailable = false): Promise<Map<string, Recording>> {
   const failed: string[] = [];
-  const [{ first, more, daily, meta, extra, failed: dataFailed }, owner] = await Promise.all([seasonData(season), soft("owner streams", season, failed, seasonStreams(season), () => new Map<string, EventStream>())]);
+  const [{ first, link, more, daily, meta, extra, failed: dataFailed }, owner] = await Promise.all([seasonData(season), soft("owner streams", season, failed, seasonStreams(season), () => new Map<string, EventStream>())]);
   const out = new Map<string, Recording>();
   if (failed.length || dataFailed.length) partial.add(out);
   for (const [code, videoId] of first) {
@@ -154,7 +155,7 @@ export async function seasonRecordings(season: number, keepUnavailable = false):
     // A day at a time: in the order they were broadcast (FIRST's link can be any of the days).
     if (all.length > 1) all.sort((a, b) => dayKey(a).localeCompare(dayKey(b)));
     const [main, ...days] = all;
-    if (main) out.set(code, { ...main, code, source: extra.has(main.videoId) ? "official" : "first", ...(days.length ? { more: days } : {}), ...(daily.has(code) ? { daily: true as const } : {}) });
+    if (main) out.set(code, { ...main, code, source: extra.has(main.videoId) && link.get(code) !== main.videoId ? "official" : "first", ...(days.length ? { more: days } : {}), ...(daily.has(code) ? { daily: true as const } : {}) });
   }
   for (const [code, s] of owner) out.set(code, { videoId: s.videoId, code, source: "owner", meta: meta.get(s.videoId) ?? null });
   if (!keepUnavailable) for (const [code, r] of out) if (r.meta?.status === "unavailable") out.delete(code);
