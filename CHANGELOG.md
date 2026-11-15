@@ -25,7 +25,7 @@ Welcome, step 3: the OR between your team's searches and the wider ones is small
 - [appearance] Matches every theme
 
 ### Changed
-- Welcome, step 3: the OR divider is 14px bold in the muted text colour with 2px rules (was 30px extra-bold with 3px rules). (`src/components/onboarding/Onboarding.tsx`) (#PRNUM)
+- Welcome, step 3: the OR divider is 14px bold in the muted text colour with 2px rules (was 30px extra-bold with 3px rules). (`src/components/onboarding/Onboarding.tsx`) (#1571)
 
 ## 6.7.9 — 2026-11-15
 
