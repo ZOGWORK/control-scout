@@ -12,7 +12,11 @@ A channel is official for an event when it is one of:
   FIRST in Texas, FIRST Chesapeake, FTC Iowa, FIRST Nevada, MT Robotics Alliance for Montana, BCA Activities for
   North Dakota's "Dakota FTC", …). FIRST Nevada posts each meet as an upload a few days later, its title starting
   with the meet's date ("2026-01-10 FTC League Meet # 4S - Southern Nevada"): the checked list takes that date as the
-  day, and the watcher, which needs a broadcast date, sends such uploads to the owner,
+  day, and the watcher, which needs a broadcast date, sends such uploads to the owner. FIRST Indiana Robotics streams
+  its events on Twitch and uploads each a few days later, its title naming the event and its date ("2026 FTC Greenwood
+  QT (02.21.26) - Part 1"): the checked list takes them the same way (2020-21 to 2025-26, 25 uploads, checked
+  2026-11-15), leaving out its two-day "State Championship Day 1/Day 2" uploads (the FRC championship; FTC's is one
+  day) and its FRC off-season events (Boiler Bot Battle, Monster Match),
 - the event's own organiser or league (NTX FTC for FiT-North, GEARS for the Michiana Premier Event, NorCal FIRST
   Tech Challenge for Northern California's events (watched for those named "NorCal …", as every one is from 2026-27;
   older ones were checked by hand), …),
@@ -23,7 +27,9 @@ A channel is official for an event when it is one of:
 - the event's own streamer, where FIRST's event pages or the host name it: Stars of the Galaxy (FTC 12099) for the
   Central Ohio league in Columbus, and the FIRST Alumni Network Grand Valley for the West Michigan league at GVSU in
   Grand Rapids (watched for those events only; FANGV's Robot in 3 Days streams are FRC and never used), FTC SoCal
-  League G for League G's meets in Carson, 7419 Tech Support, which streamed NorCal East Bay Meet 1 of 2026 from its
+  League G for League G's meets in Carson, SoCal FTC's own live channel (@FIRSTsocalftclive, a channel of its own,
+  watched separately from @Socalftc) for its inter-league tournaments ("ILT #6" is Scout's "SoCal FTC Qualifier 6")
+  and the Los Angeles championship at Monrovia, 7419 Tech Support, which streamed NorCal East Bay Meet 1 of 2026 from its
   own school (linked once, not watched), and in Oregon Overcharged (FTC 12599) for the Rose City League and Leo RHS
   Robotics (Roseburg HS) for the SOAR League, whose streams FIRST's own Oregon event pages link (each watched for its
   own league only),
@@ -73,7 +79,7 @@ exceptions rules 2 and 7 name for the checked list only, and the auto-watcher us
    Meet @ 8 AM"), an upload of a one-day event its title names, or an upload of an event that played every match on
    one day (Scout's match times say which; FTC Louisiana's two-day qualifiers play on the Saturday).
 3. Its title names the event: a distinctive word of the event's name or city (the league, the venue, "Mockingbird"),
-   or the event's designators (an NTX league letter, a meet number, a UIL class, a stage). An event named by an
+   or the event's designators (an NTX league letter, a meet number, a qualifier or ILT number, a UIL class, a stage). An event named by an
    acronym ("APOC") also fits a title spelling it out in words in a row ("Asia Pacific Open Championship"); a common
    one ("FTC") never counts. A state or region name alone counts only for that region's one championship on that date.
 4. Where the event has divisions, the title names the division ("COANDĂ", "Franklin", "Black"), and a division video
@@ -93,7 +99,10 @@ exceptions rules 2 and 7 name for the checked list only, and the auto-watcher us
    2021-22 Santa Clara QT; 7419's East Bay Meet 1 of 2026). Titles that differ count only when both name the same
    event and the second starts at most 30 minutes after the first ends (Montana's 2023 State, "MT FTC Championship
    2023" to 23:13:53Z, then "MT FTC State 2023" from 23:15:48Z). A second broadcast that overlaps the first, or one
-   the event's FIRST link already plays, is still left out.
+   the event's FIRST link already plays, is still left out. A day whose video the event already plays without a part
+   (FIRST's link, or the watcher's add) and a second video of it naming one ("matches only") gets the part from the
+   list: Chicago Robotics Invitational 2026 has a "Matches" video and a "Full stream" each day, Sunday's full stream
+   being FIRST's own link.
 
 Per-match clips are never mapped from a title outside FIRST's own per-match videos (the Championship's are already
 FIRST's match videos, `matches.video`). A recording never hides FIRST's per-match video or a verified contributor's
@@ -106,6 +115,10 @@ recording path (`server/videos/recordings.ts`) treats each kept recording as one
 without FIRST's link gets its first day as its video; every other day joins it, in broadcast order, and the event
 page's Watch section shows a button per day ("Friday", "Saturday", "Sunday · Awards"). Each match links to its second
 in its own day's video when YouTube's timing for that video holds (the same checks as FIRST's links).
+
+When FIRST's link is a channel's page (`server/videos/channelStreams.ts`) and two events that day give the same one
+(West Michigan's Meet 5 and Meet 6, both "@firstalumninetworkgrandvalley/streams"), a broadcast whose title names one
+of them by its designator ("Meet 6") is that event's only. A title naming neither stays with both.
 
 A removed row (`removed_at`) is never written again, so taking a video out sticks.
 
@@ -184,6 +197,18 @@ minutes and starts a run only when the last one is 6 hours old, so a deploy does
   its frames (`CoverageMatch.video`): "Not yet checked against the video", "Checked in the video (date): no start found
   for it", "seen at h:mm:ss, not yet confirmed", with the video's own timestamps of the matches around it. The clock's
   reading is kept apart (`CoverageMatch.clock`) and is never a reason on its own.
+  Zero-error brief (2026-11-15), journey 5 and the coverage half of 7: "To review" holds only matches checked against
+  the video itself (its frames read), each saying what was checked there and what was missing. A match left out by the
+  clock alone whose video isn't read yet is a pending check, "Not yet checked against the video", with its own count in
+  any season; it's never in To review, never marked reviewed (one or bulk), and moves on once its frames are read. Each
+  check pass logs events checked, fully clipped, matches clipped and missing, and the missing by what their video check
+  found; the console shows the last pass (kv `clip-coverage:last-pass`). Every missing match the frames saw in the video
+  (`video.seenAt`) is a finding in the console, with its video, second, event and why, whatever its review; so is every
+  clock-placed clip pulled because its first frame showed another match (`clipCheckFindings`, server/data/clipChecks.ts),
+  with the frame checks' totals beside the last pass. A finding stays until a pass clears it (its clip placed, or a
+  re-read shows the match isn't there); there's no Reviewed for it. The pending checks read as work in progress: after
+  each pass, the matches still waiting for their video check across every stored event (`CoveragePass.pending`) are
+  counted, with the pass before's count (`pendingBefore`), and the console says how many fewer.
 - **The owner's queue** (Owner › Official videos, with an "N to review" badge on the console's menu), oldest first. Each
   row shows the title, channel, video id, published and broadcast times, length, the best-guess event and why it
   wasn't added:

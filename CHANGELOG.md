@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.6.2 — 2026-11-15
+## 6.6.8 — 2026-11-15
 
 Search › "Where does 4215 rank in New Jersey" answers with the region page's own numbers (rank in New Jersey, rating, record, OPR) and opens that page with the team's row marked.
 
@@ -27,6 +27,91 @@ Search › "Where does 4215 rank in New Jersey" answers with the region page's o
 ### Changed
 - "Where does {team} rank in {region}": the answer adds the team's season record, shows its rating to one decimal as the region page does, and links to the region page on the team's page with its row marked. A team from there with fewer than 3 rated matches is "Not ranked yet — N of 3 rated matches" (or "No rated matches yet"), never ranked by its OPR instead. (`server/api/answers/families/oprRating.ts`)
 - "Top teams in New Jersey", "best team in New Jersey", "New Jersey rankings": the region page's rows (rank in the region, rating, OPR, record) and a link to it; a region with no rated team says "No rated teams yet". (`server/api/searchAsks.ts`, `server/api/answers/families/leaderboard.ts`, `server/api/searchIntents.ts`) (#1544)
+
+## 6.6.7 — 2026-11-15
+
+Clip coverage's To review now holds only matches checked against the video itself; the rest wait under their own count, and every match the video showed without a clip is a finding.
+
+### Highlights
+- [workspace] To review holds only matches checked against the video itself
+- [workspace] "Not yet checked against the video" gets its own count, never hidden
+- [workspace] Each match the video showed with no clip is listed as a finding
+- [workspace] Each check pass is logged and shown: clipped, missing and why
+- [workspace] The pending video checks count down pass by pass
+
+### Changed
+- Owner › Clip coverage: an event is To review only for a match its video's frames were read for and that still has no clip (or a match with no reason found), and its reason says what was checked in the video and what was missing there; matches still waiting for their check are counted beside it. An event whose missing matches were left out by the clock alone and not yet checked against the video is "Not yet checked against the video": a pending check with its own count and list, in any season, never in To review, never marked reviewed (one or in any bulk), moving on once its frames are read; a review given to it while it waited doesn't carry over, so its video-checked list comes back To review. (`server/videos/coverageTriage.ts`, `server/videos/coverageCheck.ts`, `src/components/owner/ClipCoveragePanel.tsx`) (#1539)
+
+### Added
+- Each clip coverage check pass logs events checked, fully clipped, matches clipped and missing, and the missing by what their video check found (not yet checked, checked with no start found, seen in the video with no clip, or the video's own reason); the console shows the last pass. Every match the video's frames saw with no clip is a finding in the console, with its video, the second it was seen at, its event and why, whatever its review; so is every clip pulled because its first frame showed another match, with the frame checks' totals (checked, confirmed, pulled, to read again, videos with no overlay). A finding stays until a pass clears it (its clip placed, or a re-read shows the match isn't there) and is never marked reviewed. The console counts the matches still waiting for their video check after each pass and how many fewer than the pass before, and the pass log line ends with it.
+
+## 6.6.6 — 2026-11-15
+
+35 more official event recordings play: 25 of FIRST Indiana's events, SoCal's ILTs and championship, and Kansas City's Piper meets. West Michigan's Meet 5 and Meet 6 each play their own stream.
+
+### Highlights
+- [fixes] West Michigan Meet 5 and Meet 6 each play only their own stream
+- [live] 25 FIRST Indiana events now have their full recording, 2021 to 2026
+- [live] SoCal's ILTs and LA championship play from SoCal FTC's live channel
+- [live] Chicago Robotics Invitational 2026: Matches and Full stream each day
+
+### Fixed
+- West Michigan's Meet 5 and Meet 6 (Nov 14) were held the same day, and FIRST's event pages give both the same channel link. Each page played both meets' streams, and Meet 6's page opened on Meet 5's. When two events that day share a channel link, a broadcast whose title names one of them ("Meet 6") is now that event's only; a title naming neither stays with both. (`server/videos/channelStreams.ts`)
+- Chicago Robotics Invitational 2026 showed "Saturday · Matches", "Saturday" and "Sunday": Saturday's full stream had no part, and Sunday's "matches only" stream wasn't listed. Each day now has "Matches" and "Full stream". Sunday's full stream is FIRST's own link, so the checked list names its part, and a listed part now also names a day's video that the event already plays without one. (`server/videos/officialVideos.ts`, `server/videos/recordings.ts`)
+
+### Added
+- FIRST Indiana Robotics' event recordings: 25 Twitch broadcasts it uploads a few days later, each titled with its event and date, from the 2021 State Championship to the 2026 one. None of these events had a video before. (`server/data/officialVideos.json`)
+- SoCal FTC's own live channel (@FIRSTsocalftclive) is now watched: ILT #3, #5 and #6 of 2025-26 and the Los Angeles championship at Monrovia play. "ILT #6" is read as "SoCal FTC Qualifier 6". (`server/data/officialChannels.ts`, `server/videos/officialMatch.ts`)
+- League G's 2025-26 Meet 3, and FIRST MOKS's three Piper meets of Nov 14 (8 AM, 10:30 AM, 1 PM).
+
+## 6.6.5 — 2026-11-15
+
+Search › "CRI" finds the Chicago Robotics Invitational: an event's short form now leaves out the "Premier Event" FIRST adds to its name, and works beside other words.
+
+### Highlights
+- [fixes] "CRI" finds the Chicago Robotics Invitational
+- [fixes] A short form beside "matches" or a year finds the event
+- [fixes] A team whose name starts the same way no longer takes its place
+
+### Fixed
+- An event's initialism also leaves out a trailing event type FIRST appends ("Premier Event", "Off-Season Event"), so "Chicago Robotics Invitational Premier Event" is CRI as well as CRIPE. (`src/shared/query/initialisms.ts`)
+- An initialism beside other words ("cri matches", "cri results", "cri 2025") is read as the event's name when the words as typed found something else first: "CRI matches" opened Critical Mass's matches. A team named so, an ordinary word, or a two-letter word is never read this way. (`server/api/searchAnswer.ts`, `docs/search-pipeline.md`) (#1542)
+
+## 6.6.4 — 2026-11-15
+
+A bug report's screenshot or video is cleared from the server minutes after its GitHub issue is filed, instead of waiting for a quiet stretch with no deploys.
+
+### Highlights
+- [report] Attachments leave the server minutes after the issue is filed
+- [report] Reports waiting on GitHub are tried again a minute after each restart
+- [fixes] Busy deploy days no longer hold up bug report filing
+
+### Fixed
+- Report a bug: GitHub takes a few seconds to open a new issue's attachments to everyone, so the first check right after filing usually finds them closed. The server now checks again after 15 s, 1 min and 3 min and deletes the local copy once each opens, instead of waiting for the 10-minute sweep. The sweep also runs one minute after each start: deploys restarted the server every few minutes on 2026-11-15 and each restart put it off again, so neither the clean-up nor "file it later" ran. (`server/bugReports.ts`, `server/index.ts`) (#1551)
+
+## 6.6.3 — 2026-11-15
+
+Search reads a question that calls Bruno by name: "bruno, whats the best team in nj" gets New Jersey's top teams.
+
+### Highlights
+- [fixes] A question that starts "bruno bruno …" gets its answer, not "no match"
+- [fixes] "bruno, whats the best team in nj" lists New Jersey's top teams
+- [offline] Offline search reads Bruno's name the same way
+
+### Fixed
+- Search: Bruno called by name ("bruno bruno whats the best team in nj rn") left "bruno" unread and the search found nothing. The name is now read like "hey": the question gets *Best team in New Jersey by prediction rating · 2026–27*, online and offline. Failed search #1428. (`src/shared/query/lexicon.ts`) (#1534)
+
+## 6.6.2 — 2026-11-15
+
+Search answers a top-scores question about an event named without "at": "best auto match in romania champs" lists the Romania Championship's best auto scores.
+
+### Highlights
+- [fixes] "best auto match in romania champs" lists its top auto scores
+- [fixes] An event named after "in" is read as the event, not as a place
+- [fixes] "4215 highest score in …" still answers about the team
+
+### Fixed
+- Search: a top-scores question naming an event after "in", or with no word before it ("best auto match in romania champs", "best auto match romania champs"), said no team, event or match matched. The words left are now the event's name when they aren't a place, end the question and hold an event's own word (championship, qualifier, league, meet …); "4215 highest score in …" stays the team's question. Answer: *Highest auto scores in DECODE (2025–26) at Romania Championship*. Failed search #1435. (`server/api/answers/families/topMatches.ts`) (#1532)
 
 ## 6.6.1 — 2026-11-15
 
@@ -50,8 +135,8 @@ Rankings › Leagues have a list of their own, and a league's standings show eac
 - [rankings] From a league to its region's rankings and back
 
 ### Added
-- Leagues (`/leagues`): every league of the season grouped by where its meets are, with meets played, teams and FIRST's #1 by ranking score, searchable, season switch; each place links to its region rankings. In the navigation (Leagues) and on every region page. (`src/pages/LeaguesPage.tsx`, `server/api/leagues.ts`) (#1543)
-- League standings: links to the league's region rankings and to the leagues list; after FIRST's columns (unchanged), Scout rating ("Not rated yet" under 3 rated matches, never a made-up number), OPR (— when none) and the team's rank in its home region, linked to its row on that region's page. (`src/pages/LeaguePage.tsx`, `src/components/LeagueTable.tsx`) (#1543)
+- Leagues (`/leagues`): every league of the season grouped by where its meets are, with meets played, teams and FIRST's #1 by ranking score, searchable, season switch; each place links to its region rankings. In the navigation (Leagues) and on every region page. (`src/pages/LeaguesPage.tsx`, `server/api/leagues.ts`)
+- League standings: links to the league's region rankings and to the leagues list; after FIRST's columns (unchanged), Scout rating ("Not rated yet" under 3 rated matches, never a made-up number), OPR (— when none) and the team's rank in its home region, linked to its row on that region's page. (`src/pages/LeaguePage.tsx`, `src/components/LeagueTable.tsx`)
 
 ## 6.5.9 — 2026-11-15
 
@@ -81,7 +166,7 @@ Rankings › Every region has its own rankings page: New Jersey's teams ranked i
 - Rankings by region (`/rankings/regions`): every country and named state or province with rated teams, most teams first, its #1 team and its leagues, searchable, with a season switch. Linked from Rankings, the navigation (Region rankings) and Home's footer. (`src/pages/RegionsPage.tsx`)
 - A region's rankings (`/rankings/regions/USA/NJ`): rank in the region (world rank beside it), rating, season record, OPR, events, rated matches, move in the region since last week and the trend, sortable by rank, rating, OPR, record, events and move without renumbering. The week's top three climbers and fallers and the teams new to the table sit above it; teams with fewer than three rated matches are listed apart and labeled ("Not ranked yet — 2 of 3 rated matches", "No rated matches yet"), never ranked; a region with no rated team says so. Its leagues link to their standings. Season and week switches keep the region; `?team=` opens the page that team's row is on, marked. Ratings are labeled comparable inside one season only. (`src/pages/RegionRankingsPage.tsx`, `server/api/regionRankings.ts`)
 - Team page: its place in its home region and "Rank in New Jersey →" (or its own region) opens the region's table on the team's page with its row marked. (`src/pages/TeamPage.tsx`)
-- `/rankings` with one place picked links to that place's page; every view links to the regions list. (`src/pages/RankingsPage.tsx`) (#1541)
+- `/rankings` with one place picked links to that place's page; every view links to the regions list. (`src/pages/RankingsPage.tsx`)
 
 ## 6.5.7 — 2026-11-15
 
