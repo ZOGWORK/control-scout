@@ -70,6 +70,23 @@ export const OVERLAY_UNREAD = "overlay could not be read at its clip's start";
 /** How far (seconds) a lone confirmed read may sit from where the rest of its video sits and still place its match. */
 export const LONE_S = 30 * 60;
 
+/** The most a recording loses in one cut, as a confirming read can explain it (USIAPOMPM11 2025 loses 19 s mid-match). */
+export const LOSS_S = 60;
+
+/**
+ * How a confirming read's start compares with the start it checks, the confirming read being later in the match. A
+ * recording can be cut mid-match (a stream that dropped a few seconds): the video loses time, never gains it, so a read
+ * after the cut gives an earlier start by the time lost ("lost"), and a start that a later read puts later came from a
+ * read after a cut itself ("gained": the later start is the one to check). Further off, it's another start ("other").
+ */
+export function startOffset(start: number, later: number): "same" | "lost" | "gained" | "other" {
+  const off = later - start;
+  if (Math.abs(off) <= SAME_S) return "same";
+  if (off < 0 && -off <= LOSS_S) return "lost";
+  if (off > 0 && off <= LOSS_S) return "gained";
+  return "other";
+}
+
 /** A division's own name from its event's ("Romania Championship - COANDA Division" → "COANDA"), or null. */
 export function divisionOf(name: string): string | null {
   const m = /\s[-–]\s*(.+?)\s+Division\s*$/i.exec(name.trim());
