@@ -16,10 +16,12 @@ import { CalendarDays, CheckCircle2, Database, HardDriveDownload, Layers, Loader
 import { ManifestError, PACK_EVENT, fetchManifest, packStatus, syncLite, transferOf, type PackFile, type PackManifest, type PackMeta } from "../lib/packs";
 import type { ConnectionInfo } from "../lib/packPolicy";
 import { removeSeason, useSavedSeasons, type SavedSeason } from "../lib/offline/seasons";
-import { runSeasonBatch, useSeasonBatch } from "../lib/offline/seasonBatch";
+import { batchRunning, runSeasonBatch, useSeasonBatch } from "../lib/offline/seasonBatch";
 import { planSeasons, type SeasonRow } from "../lib/offline/seasonPlan";
 import { useSavedBundles } from "../lib/offline/bundleMeta";
-import { dropPartial, type ActiveDownload } from "../lib/offline/download";
+import { byConnection, dropPartial, type ActiveDownload } from "../lib/offline/download";
+import { getLite, releaseOrder } from "../lib/offline/resume";
+import { clearResume, markKey, wantResume } from "../lib/offline/resumeMarks";
 import { useActiveDownloads, usePartials } from "../lib/offline/useDownloads";
 import { dataFrom, deviceItems, pausedItems, totalBytes, whatChanged, type DeviceItem, type PausedItem } from "../lib/offline/storage";
 import { fmtBytes } from "../lib/recordings";
@@ -37,6 +39,8 @@ import { EventBundles, useEventOptions } from "../components/offline/EventBundle
 import { useConnection, useUpdatePrefs } from "../components/offline/UpdateSettings";
 import { useMinuteNow } from "../components/offline/Snapshot";
 import { bundleFinished, type BundleManifest } from "../shared/eventBundle";
+
+export { getLite, releaseOrder };
 
 const bundles = () => import("../lib/offline/bundles");
 type Choice = "event" | "season" | "whole";
@@ -117,6 +121,8 @@ export const seasonSpan = (seasons: number[]) => !seasons.length ? "" : seasons.
 
 /** What a pack costs to download (the .gz twin when there is one). */
 const transferBytes = (f: PackFile) => transferOf(f).bytes;
+/** After a Delete, the browser's storage figure is read again at these times (it can lag the delete). */
+export const ESTIMATE_AGAIN_MS = [1000, 3000, 10_000];
 const currentFile = (m: PackManifest, season: number) => m.full.find((f) => f.kind === "full" && f.seasons.length === 1 && f.seasons[0] === season)
   ?? [...m.full].filter((f) => f.kind === "full" && f.seasons.length === 1).sort((a, b) => b.seasons[0] - a.seasons[0])[0] ?? null;
 
@@ -198,9 +204,15 @@ function WholeSeason({ m, local }: { m: PackManifest; local: PackMeta | null }) 
     setRunning(true);
     try {
       if (seasonNeeded && file) {
-        const r = await runSeasonBatch([file], m);
+        // The predictions come after the season: marked now, so a season a dropped connection pauses brings them along when it picks up.
+        if (liteNeeded && !batchRunning()) wantResume("lite", "lite");
+        const r = await runSeasonBatch([file], m, { person: true });
         if (!r) { toast.error("Another download is running. Try again when it's done."); return; }
-        if (r.failed[0]) { toast.error(r.failed[0].error.message); return; }
+        if (r.failed[0]) {
+          if (!byConnection(r.failed[0].error)) clearResume(markKey("lite", "lite"));
+          toast.error(r.failed[0].error.message);
+          return;
+        }
       }
       if (liteNeeded) {
         try { await getLite(m.version); } catch (e) { toast.error((e as Error).message); return; }
@@ -261,7 +273,7 @@ function SeasonsSection({ m }: { m: PackManifest }) {
   const { busy, queue } = useSeasonBatch();
 
   const run = async (rows: SeasonRow[], bulk: string | null) => {
-    const r = await runSeasonBatch(rows.map((x) => x.file), m);
+    const r = await runSeasonBatch(rows.map((x) => x.file), m, { person: true });
     if (!r) return; // already saving
     if (!bulk) {
       if (r.saved.length) toast.success(`${seasonLabel(r.saved[0])} saved on this device`, { description: "Its team and event pages now work with no connection." });
@@ -364,21 +376,6 @@ function SeasonRowView({ r, version, dataAsOf, current, active, queued, disabled
  * here, when its data is from, what a newer release brings, Update and Delete. One total, and the browser's
  * own figure for the whole site.
  */
-/** Get the predictions pack (Update, Resume). syncLite stays quiet on failure (it also runs in the background), so
- *  this checks what it left: no pack, or not the release asked for, is an error the person sees. */
-export async function getLite(version: string | undefined): Promise<void> {
-  const meta = await syncLite();
-  const have = packStatus();
-  // syncLite reads the manifest again, so a release published meanwhile is a success too: at least the one asked for.
-  if (!meta || !have || (version && releaseOrder(have.version, version) < 0)) throw new Error("Couldn't finish downloading the predictions pack. Try again in a moment.");
-}
-
-/** Pack releases ("2026-11-13.1": the day, then the build that day) in order: negative when `a` is older than `b`. */
-export function releaseOrder(a: string, b: string): number {
-  const [da, na] = a.split("."), [db, nb] = b.split(".");
-  return da !== db ? (da < db ? -1 : 1) : Number(na ?? 0) - Number(nb ?? 0);
-}
-
 function OnDevice({ m, local }: { m: PackManifest | null; local: PackMeta | null }) {
   const saved = useSavedSeasons();
   const savedBundles = useSavedBundles();
@@ -393,7 +390,16 @@ function OnDevice({ m, local }: { m: PackManifest | null; local: PackMeta | null
   const paused = pausedItems(partials, new Set([...Object.keys(active), ...(busy ? [`season:${busy.season}`] : [])]));
   const total = totalBytes(items, paused);
   const [est, setEst] = useState<{ usage?: number; quota?: number } | null>(null);
-  useEffect(() => { navigator.storage?.estimate?.().then(setEst, () => setEst({})); }, [total]);
+  // After a Delete, read again for a while: the browser frees a deleted file's space a little later (Chromium
+  // updates its IndexedDB figure once the files are gone), so one read at once can still show the old number.
+  const [freedNote, setFreedNote] = useState<{ what: string; bytes: number; at: number } | null>(null);
+  useEffect(() => {
+    let live = true;
+    const read = () => navigator.storage?.estimate?.().then((e) => { if (live) setEst(e); }, () => { if (live) setEst({}); });
+    void read();
+    const timers = freedNote ? ESTIMATE_AGAIN_MS.map((ms) => setTimeout(() => void read(), ms)) : [];
+    return () => { live = false; timers.forEach(clearTimeout); };
+  }, [total, freedNote]);
   const [working, setWorking] = useState<string | null>(null);
   const seasonRun = busy != null || queue.length > 0;
 
@@ -413,7 +419,11 @@ function OnDevice({ m, local }: { m: PackManifest | null; local: PackMeta | null
     return () => { live = false; };
   }, [bundleKey, bundlesOn]);
 
-  const freed = (what: string, bytes: number) => toast.success(`Freed ${fmtBytes(bytes)}`, { description: `${what} deleted from this device.` });
+  // The toast, and a line under the list that stays (a toast is gone in seconds).
+  const freed = (what: string, bytes: number) => {
+    toast.success(`Freed ${fmtBytes(bytes)}`, { description: `${what.charAt(0).toUpperCase()}${what.slice(1)} deleted from this device.` });
+    setFreedNote({ what, bytes, at: Date.now() });
+  };
   const act = async (key: string, fn: () => Promise<void>) => {
     setWorking(key);
     try { await fn(); } catch (e) { toast.error((e as Error).message); } finally { setWorking(null); }
@@ -424,7 +434,7 @@ function OnDevice({ m, local }: { m: PackManifest | null; local: PackMeta | null
     if (it.kind === "season" && m) {
       const f = currentFile(m, it.season!);
       if (!f || f.seasons[0] !== it.season) return;
-      const r = await runSeasonBatch([f], m, { replaceOnly: true });
+      const r = await runSeasonBatch([f], m, { replaceOnly: true, person: true });
       if (r?.failed[0]) throw r.failed[0].error;
       if (r?.saved.length) toast.success(`${it.label} updated`);
       return;
@@ -445,13 +455,15 @@ function OnDevice({ m, local }: { m: PackManifest | null; local: PackMeta | null
     if (p.kind === "lite") { await getLite(m?.version); return; }
     const f = m && currentFile(m, Number(p.partial.owner.id));
     if (!m || !f || f.seasons[0] !== Number(p.partial.owner.id)) throw new Error("This season isn't offered any more. Delete the paused download.");
-    const r = await runSeasonBatch([f], m);
+    const r = await runSeasonBatch([f], m, { person: true });
     if (r?.failed[0]) throw r.failed[0].error;
     if (r?.saved.length) toast.success(`${p.label} saved on this device`);
   });
   const drop = (p: PausedItem) => act(p.key, async () => {
     if (!(await dropPartial(p.partial.sha256))) throw new Error(`The ${p.label} download is running in another tab. Delete it there, or try again when it stops.`);
-    freed(`The paused ${p.label} download`, p.have);
+    // Deleted on purpose: it never picks up by itself when the connection is back.
+    clearResume(p.key);
+    freed(`the paused ${p.label} download`, p.have);
   });
 
   /** Plain words for a newer release of this pack, or null when it's current (or nothing says). */
@@ -514,6 +526,11 @@ function OnDevice({ m, local }: { m: PackManifest | null; local: PackMeta | null
             );
           })}
         </ul>
+      )}
+      {freedNote && (
+        <p role="status" className="flex items-center gap-1.5 border-t border-border px-4 py-3 text-sm text-success sm:px-6" data-freed>
+          <CheckCircle2 className="size-4 shrink-0" /><span>Freed <span className="font-semibold tabular-nums">{fmtBytes(freedNote.bytes)}</span>: {freedNote.what} deleted from this device.</span>
+        </p>
       )}
       <p className="border-t border-border px-4 py-3 text-xs text-muted-foreground sm:px-6" data-storage-estimate>
         {est?.usage != null ? `This site uses ${fmtBytes(est.usage)} on this device in all${est.quota ? `, of ${fmtBytes(est.quota)} the browser allows` : ""} (the browser's estimate).` : "The browser doesn't say how much storage this site uses."}

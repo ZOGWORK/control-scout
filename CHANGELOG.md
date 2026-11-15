@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.4.8 — 2026-11-15
+## 6.4.9 — 2026-11-15
 
 Lite has its own Network & offline screen: on one bar of signal it says whether you're online, on Wi-Fi, mobile data or nothing, whether that's actually giving internet, how much a download uses, and what's downloaded on this phone and how big it is.
 
@@ -31,6 +31,20 @@ Lite has its own Network & offline screen: on one bar of signal it says whether 
 ### Fixed
 - Network & offline (`/settings#network`): "Should I use Lite?" opens with the heading's own words, so a network that carries nothing reads "Connected, but nothing is getting through" in both places, never "You're offline" under it. (`src/lib/networkAdvice.ts`)
 - The offline check's sign-in-page mode (`scripts/offline-check.ts --portal`) answers the app's own requests with a sign-in page over HTTPS too (it failed the tunnel before, so the app read "no answer"), and now checks what Network & offline says on one.
+
+## 6.4.8 — 2026-11-15
+
+A download you started that a dropped connection paused now picks up by itself as soon as the connection check finds internet again, fetching only the missing part. Delete on a saved season now takes every copy with it and says how much it freed.
+
+### Highlights
+- [offline] A paused download picks up by itself once you're back online
+- [offline] Wi-Fi only stays Wi-Fi only: a paused download waits for Wi-Fi
+- [offline] Deleting a season also deletes its half-finished update
+- [offline] "Freed 9.0 MB" stays under the list after a Delete
+
+### Changed
+- Offline downloads (`/download`): a season or the predictions pack you asked for (Download, Resume, Update, the whole current season) that a dropped connection pauses is marked, and picks up by itself the moment the connection check finds internet again (`onInternetChange` / `onInternetConfirmed`), asking only for the missing bytes. Only downloads you started; one you deleted never comes back; automatic updates keep their own schedule. The network setting holds: on Wi-Fi only it waits for Wi-Fi, and moving onto Wi-Fi picks it up then. A line that keeps dropping is tried at most every 10 s, and after 4 tries with no progress it waits for your Resume. (`src/lib/offline/resumeMarks.ts`, `src/lib/offline/resume.ts`, `src/lib/offline/resumeWatcher.tsx`, `src/lib/offline/seasonBatch.ts`)
+- Delete (`/download`, On this device): deleting a season also deletes a paused download of a newer release of it, and the SQLite engine kept in the app's cache once no season is left; deleting the predictions pack also deletes its paused download. The freed total counts them. A "Freed 9.0 MB: … deleted from this device" line stays under the list, and the browser's storage figure is read again 1, 3 and 10 s later, since the browser frees deleted files a moment after the delete. (`src/lib/offline/seasons.ts`, `src/lib/packs.ts`, `src/pages/DownloadPage.tsx`) (#1516)
 
 ## 6.4.7 — 2026-11-15
 
