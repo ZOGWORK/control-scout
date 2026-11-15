@@ -210,9 +210,9 @@ function RegionTable({ data, team, myTeam, sort, onSort }: { data: RegionRanking
             <H s="rating" label="Rating" title="Expected points added to an alliance per match (auto + TeleOp + endgame)" className="text-right" />
             {stats && <H s="opr" label="OPR" title="Season OPR, penalties left out" className="text-right" />}
             {stats && <H s="record" label={<>Record<span className="font-normal normal-case max-sm:hidden"> (season)</span></>} title="Wins-losses-ties: every official match this season, at every event" className="text-right" />}
-            {stats && <H s="events" label="Events" title="Events played this season" className="text-right" />}
-            {stats && <th scope="col" className={cn(th, "text-right")} title="Rated matches the rating is based on: the sample size">Matches</th>}
-            {swing && <th scope="col" className={cn(th, "text-right")} title={SWING_LINE}>Swing</th>}
+            {stats && <H s="events" label="Events" title="Events played this season" className={cn("text-right", sort !== "events" && "max-sm:hidden")} />}
+            {stats && <th scope="col" className={cn(th, "text-right max-sm:hidden")} title="Rated matches the rating is based on: the sample size">Matches</th>}
+            {swing && <th scope="col" className={cn(th, "text-right max-sm:hidden")} title={SWING_LINE}>Swing</th>}
             {moves && <th scope="col" className={cn(th, "text-left max-sm:hidden")}>Trend</th>}
           </tr>
         </thead>
@@ -242,10 +242,14 @@ function RegionTable({ data, team, myTeam, sort, onSort }: { data: RegionRanking
                   {r.dRating != null && r.dRating !== 0 && <span className={cn("block text-[11px]", r.dRating > 0 ? "text-success" : "text-danger")}>{r.dRating > 0 ? "+" : ""}{r.dRating.toFixed(1)}</span>}
                 </td>
                 {stats && <td className={cn(td, "text-right tabular-nums")}>{one(r.opr)}</td>}
-                {stats && <td className={cn(td, "whitespace-nowrap text-right tabular-nums")}>{record(r)}</td>}
-                {stats && <td className={cn(td, "text-right tabular-nums")}>{r.events ?? "—"}</td>}
-                {stats && <td className={cn(td, "whitespace-nowrap text-right tabular-nums")} title={`${r.ratedMatches ?? 0} rated matches`}>{r.ratedMatches ?? "—"}<span className="text-text-muted max-sm:hidden"> matches</span></td>}
-                {swing && <td className={cn(td, "text-right tabular-nums")} title={swingTitle(r.swing)}>{swingText(r.swing)}</td>}
+                {stats && <td className={cn(td, "whitespace-nowrap text-right tabular-nums")}>
+                  {record(r)}
+                  {/* Phones: the sample size sits under the record instead of in its own column. */}
+                  <span className="block text-[11px] text-text-muted sm:hidden" data-phone-matches>{r.ratedMatches ?? 0} matches</span>
+                </td>}
+                {stats && <td className={cn(td, "text-right tabular-nums", sort !== "events" && "max-sm:hidden")}>{r.events ?? "—"}</td>}
+                {stats && <td className={cn(td, "whitespace-nowrap text-right tabular-nums max-sm:hidden")} title={`${r.ratedMatches ?? 0} rated matches`}>{r.ratedMatches ?? "—"}<span className="text-text-muted"> matches</span></td>}
+                {swing && <td className={cn(td, "text-right tabular-nums max-sm:hidden")} title={swingTitle(r.swing)}>{swingText(r.swing)}</td>}
                 {moves && <td className={cn(td, "max-sm:hidden")}><TrendBadge row={r} /></td>}
               </tr>
             );
