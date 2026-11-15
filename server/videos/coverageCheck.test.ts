@@ -316,6 +316,25 @@ describe("clip coverage check and triage", () => {
     expect((await ownerClipCoverage()).events.map((e) => e.code)).toContain("TWODAY");
   });
 
+  it("doesn't carry a review given to a pending check over when the checked list isn't actionable either", async () => {
+    setFrameTimingsForTests([]);
+    await run("UPDATE clip_coverage SET fingerprint = 'x' WHERE code = 'TWODAY'");
+    await checkClipCoverage(() => {});
+    expect(await row("TWODAY")).toMatchObject({ triage: "unchecked" });
+    await run("UPDATE clip_coverage SET reviewed_at = '2026-11-14T00:00:00Z', reviewed_by = 'owner@test' WHERE code = 'TWODAY'");
+    // Its frames are read and Q1 is placed from them: only Q3 is missing (no recording that day), not actionable.
+    setFrameTimingsForTests([{ videoId: "SATURDAYv01", code: "TWODAY", checked: "2026-11-15", starts: { Q1: 1800 } }]);
+    await run("UPDATE clip_coverage SET fingerprint = 'x' WHERE code = 'TWODAY'");
+    await checkClipCoverage(() => {});
+    const r = await row("TWODAY");
+    expect(r.triage).not.toBe("actionable");
+    expect(r.triage).not.toBe("unchecked");
+    expect(r.reviewed_at).toBeNull();
+    setFrameTimingsForTests([{ videoId: "SATURDAYv01", code: "TWODAY", checked: "2026-11-15", starts: {}, missing: { Q1: "no frame read of it" } }]);
+    await run("UPDATE clip_coverage SET fingerprint = 'x' WHERE code = 'TWODAY'");
+    await checkClipCoverage(() => {});
+  });
+
   it("still records the pass when a stored detail is unreadable", async () => {
     await run("UPDATE clip_coverage SET detail = '{not json' WHERE code = 'PRE3'");
     await run("UPDATE clip_coverage SET fingerprint = 'x' WHERE code = 'TWODAY'");
