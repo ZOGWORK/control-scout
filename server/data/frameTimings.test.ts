@@ -26,6 +26,10 @@ describe("frame timings the server plays from", () => {
     expect(frameOpen("v", "E", "Q1")).toBe(988);
     expect(frameStart("v", "E", "Q2")).toBeNull();
     expect(frameConfidence("v", "E", "Q2")).toBeNull();
+    // A live start whose opening frame named nothing (--verify) keeps playing until it's read again.
+    setFrameTimingsForTests([{ videoId: "v", code: "E", checked: "2026-11-14", starts: { Q1: 1000, Q2: 1500 }, opens: { Q1: 988 }, unconfirmed: ["Q2"] }]);
+    expect(frameStart("v", "E", "Q2")).toBe(1500);
+    expect(frameOpen("v", "E", "Q2")).toBeNull();
     // A row from before the opening check (no opens) plays as it did.
     setFrameTimingsForTests([{ videoId: "v", code: "E", checked: "2026-11-14", starts: { Q1: 1000 } }]);
     expect(frameStart("v", "E", "Q1")).toBe(1000);
