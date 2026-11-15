@@ -271,9 +271,13 @@ export function rewriteQuery(q: string, named: ReadonlySet<string> = new Set()):
   if ((m = new RegExp(`^(?:who|which(?: team)?)\\s+(?:is|s|'s)\\s+(?:better|stronger)\\s*:?\\s+${TEAM}\\s+(?:or|and|vs\\.?)\\s+${TEAM}$`).exec(t))) return { q: `${m[1]} vs ${m[2]}` };
   if ((m = new RegExp(`^who\\s+(?:would|will|is going to|wins)\\s*(?:win)?\\s+(?:between\\s+)?${TEAM}\\s+(?:or|and)\\s+${TEAM}$`).exec(t))) return { q: `${m[1]} vs ${m[2]} who wins` };
   if ((m = new RegExp(`^${TEAM}\\s+(?:or|and)\\s+${TEAM}\\s+(?:who wins|who would win|who will win|which is better|who is better)$`).exec(t))) return { q: `${m[1]} vs ${m[2]}${/win/.test(t) ? " who wins" : ""}` };
-  // Two numbers are two teams, unless one is a year ("12345 2024" and "2024 12345" are 12345's 2024 season).
+  // Two to four numbers are that many teams, side by side (Compare holds four), unless one is a year ("12345 2024" and
+  // "2024 12345" are 12345's 2024 season; two years are two teams as before). Each number once.
   const year = (n: string) => /^(?:19|20)\d\d$/.test(n);
-  if ((m = /^(\d{1,6})(?:\s*[,&]\s*|\s+(?:and\s+|or\s+)?)(\d{1,6})$/.exec(t)) && m[1] !== m[2] && year(m[1]) === year(m[2])) return { q: `${m[1]} vs ${m[2]}` };
+  if (/^\d{1,6}(?:(?:\s*[,&]\s*|\s+(?:and\s+|or\s+)?)\d{1,6}){1,3}$/.test(t)) {
+    const list = t.split(/[^\d]+/).filter(Boolean);
+    if (new Set(list).size === list.length && (list.length === 2 ? year(list[0]) === year(list[1]) : !list.some(year))) return { q: list.join(" vs ") };
+  }
   // A team's quality, asked the short way.
   if ((m = /^(?:is|are)\s+(.+?)\s+(?:any\s+|really\s+|actually\s+)?(?:good|strong|decent|competitive|any good)$/.exec(t))) return { q: `how good is ${m[1]}` };
   // A team's next match, asked as a prediction.
@@ -501,6 +505,20 @@ const EXPLAINS: Explainer[] = [
     label: "Ranking points: how they work",
     term: /\b(?:ranking (?:score|points?)|rps?)\b/, stat: "rank",
     lines: [{ text: "Ranking points follow each season's real rules", detail: "2025–26 gives 3 for a win and 1 for a tie, plus bonus RPs; the tiebreaker is average non-penalty score", href: "/methodology#advancement" }],
+    pages: [{ title: "How ranking points and advancement work", href: "/methodology#advancement" }, { title: "Rankings", href: "/rankings" }],
+  },
+  {
+    // "what is a tie breaker point", "tiebreakers": what orders teams level on ranking score, season by season, as the
+    // methodology page says it (#advancement) and the engine's rules hold it (packages/predict-engine/src/rules.ts
+    // tiebreakKeys: 2025–26 on, average non-penalty score first; 2024–25, average auto then endgame).
+    words: /^(?:what(?:'s| is| are| does)?|whats|how (?:do|does|is|are))?\s*(?:an?\s+|the\s+)?(?:tie[\s-]?breakers?|tie[\s-]?breaks?|tbps?)(?:\s+(?:points?|scores?))?\s*(?:mean|means|work|works|decided|calculated)?$/,
+    label: "Tiebreakers: how teams level on ranking score are ordered",
+    lines: [
+      { text: "Teams with the same ranking score are put in order by tiebreakers", detail: "Each season's Competition Manual sets the order, so it changes with the game", href: OFFICIAL.manual },
+      { text: "From 2025–26 on, average non-penalty score comes first", detail: "Then the season's other averages, average auto points among them, and last a random draw", href: "/methodology#advancement" },
+      { text: "In 2024–25, average auto points came first, then average endgame points", detail: "Older seasons used their own rules, \"tiebreaker points\" among them: that season's manual has them", href: OFFICIAL.manual },
+      { text: "Simulated rankings use the season's own tiebreakers", detail: "Each run of an event seeds teams with the official tiebreakers", href: "/methodology#advancement" },
+    ],
     pages: [{ title: "How ranking points and advancement work", href: "/methodology#advancement" }, { title: "Rankings", href: "/rankings" }],
   },
   {
@@ -1386,6 +1404,19 @@ export async function monthAnswer(q: string, now?: number): Promise<SearchAnswer
 /** "teams in New Jersey", "nj teams", "teams in Oradell", "texas ftc teams": a place's teams, best first. */
 export async function placeTeamsAnswer(q: string, prefer: ReadonlySet<string>): Promise<SearchAnswer | null> {
   const t = squash(q.toLowerCase().replace(/[?]/g, "").replace(/\bftc\b/g, " "));
+  // "teams in" with no place after it: every team, as the Teams list ranks them, and the way to name a place.
+  const bare = /^(?:all\s+)?(?:the\s+)?teams?\s+(in|from|based in)$/.exec(t);
+  if (bare) {
+    const season = defaultSeason();
+    const rows = await all<any>(`SELECT s.team, t.name, t.city, t.state, t.country, s.opr_np, ${PHASE_COLS}, s.wins, s.losses, s.ties FROM team_season_stats s JOIN teams t ON t.number = s.team WHERE s.season = ? AND s.matches >= ${RANKED_MIN_MATCHES} AND ${teamPageSql("s.team", "t.name")} ORDER BY s.opr_np DESC, s.team LIMIT 25`, [season]);
+    const n = await get<{ n: number }>("SELECT COUNT(*) n FROM team_seasons WHERE season = ?", [CURRENT_SEASON]);
+    const lines = rows.map((r, i) => lineOf(r, [`#${i + 1}`, `OPR ${fmt1(r.opr_np)}`, `${r.wins}-${r.losses}-${r.ties}`], season));
+    return answer(q, {
+      hits: [], pages: [{ title: "Teams", href: "/teams" }, { title: "Rankings", href: `/rankings?season=${season}` }],
+      card: { kind: "leaderboard", title: `Teams worldwide · best by OPR, ${seasonLabel(season)}`, lines, ...(lines.length ? { table: tableOf(rows, season) } : { none: `No team has ${RANKED_MIN_MATCHES}+ matches in ${seasonLabel(season)} yet.` }) },
+      understood: { kind: "question", label: `Teams worldwide (no place named after "${bare[1]}"): ${Number(n?.n ?? 0).toLocaleString("en-US")} registered for ${seasonLabel(CURRENT_SEASON)}, best by OPR first. Add a place: "teams in Texas"` },
+    });
+  }
   const m = /^(?:all\s+)?(?:the\s+)?teams?\s+(?:in|from|based in)\s+(.+)$/.exec(t) ?? /^(.+?)\s+teams?$/.exec(t); // "teams" as search singularizes it too
   if (!m) return null;
   // "best team", "top teams" (place-first only): the leaderboards' (./searchAsks.ts), never a place called "best".
