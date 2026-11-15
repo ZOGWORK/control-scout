@@ -33,7 +33,7 @@ describe("clip coverage triage", () => {
     const q2 = { reason: "overlaps-previous" as const, label: "Q2", video: { checked: "2026-11-14", found: "no frame read of it, and no agreeing reads on both sides", after: { label: "Q3", at: 10440 } } };
     const q19 = { reason: "before-broadcast" as const, label: "Q19", video: { checked: "2026-11-14", after: { label: "Q20", at: 209 } } };
     const t = triageCoverage(2025, [q2, q19], CURRENT);
-    expect(t).toEqual({ triage: "actionable", why: "2 matches checked in the video, no start found for them there (Q2, Q19)" });
+    expect(t).toEqual({ triage: "actionable", why: "2 matches checked in the video, no start found there (Q2, Q19)" });
     expect(t.why).not.toMatch(/early|by the clock|broadcast started/i);
     // Seen by one frame read: said so, with the second.
     expect(triageCoverage(2025, [{ ...q2, video: { checked: "2026-11-14", seenAt: 10140, found: "one signal only" } }], CURRENT).why)
@@ -54,7 +54,7 @@ describe("clip coverage triage", () => {
       { reason: "before-broadcast", label: "Q19", video: { checked: "2026-11-14", after: { label: "Q20", at: 209 } } },
       ...many("overlaps-previous", 2, UNREAD, 40),
     ], CURRENT);
-    expect(t).toEqual({ triage: "actionable", why: "1 match checked in the video, no start found for them there (Q19); 2 matches not yet checked against the video (Q40, Q41)" });
+    expect(t).toEqual({ triage: "actionable", why: "1 match checked in the video, no start found there (Q19); 2 matches not yet checked against the video (Q40, Q41)" });
   });
 
   it("Glendale 2026 USAZGLQ1, 0 of 42 (its video unavailable): No timing, not To review", () => {
