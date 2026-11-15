@@ -231,13 +231,15 @@ export async function matchFindAnswer(f: MatchFind): Promise<StatAnswer> {
   const ranked = async (value: string) => {
     const [rows, count] = await Promise.all([
       all<Row>(`SELECT m.season, m.code, m.level, m.series, m.number, m.label, m.time, e.name, e.type, e.start, m.red_total, m.blue_total, ${value} v
-        ${FROM} WHERE ${w.sql} AND ${value} IS NOT NULL${f.over ? ` AND ${value} ${f.over.atLeast ? ">=" : ">"} ?` : ""} ORDER BY v ${ms.order}, ${NP} DESC, e.start, m.code, m.label LIMIT ?`, [...w.args, ...(f.over ? [f.over.n] : []), f.n]),
+        ${FROM} WHERE ${w.sql} AND ${value} IS NOT NULL${f.over ? ` AND ${value} ${f.over.atLeast ? ">=" : ">"} ?` : ""} ORDER BY v ${ms.order}, ${f.measure === "order" ? "m.code" : `${NP} DESC`}, e.start, m.code, m.label LIMIT ?`, [...w.args, ...(f.over ? [f.over.n] : []), f.n]),
       get<{ n: number }>(`SELECT COUNT(*) n ${FROM} WHERE ${w.sql}`, w.args),
     ]);
     return { rows, count: Number(count?.n ?? 0) };
   };
   let { rows, count } = await ranked(ms.value);
   let rule = ms.rule, show = ms.show, column = ms.column;
+  // A list cut short (an event's divisions together, past EVENT_MATCHES_MAX) says how much of it is shown.
+  if (f.measure === "order" && count > rows.length) rule = `the first ${rows.length} of the ${count.toLocaleString("en-US")} played matches, in the order played: qualification matches, then the playoffs.`;
   // No saved call for any of these matches: the upset is the largest rating gap that lost, said so. Calls saved
   // with none of them an upset is no upsets, never a guess from the ratings.
   const called = f.measure === "upset" && !rows.length && count ? Number((await get<{ n: number }>(`SELECT COUNT(*) n ${FROM} WHERE ${w.sql} AND ${CHANCE("red")} IS NOT NULL`, w.args))?.n ?? 0) : 0;
