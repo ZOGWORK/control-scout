@@ -15,6 +15,22 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 6.5.8 — 2026-11-15
+
+Rankings › Every region has its own rankings page: New Jersey's teams ranked in New Jersey, with their record, OPR, events and the matches each rating rests on, and who climbed, fell or is new this week.
+
+### Highlights
+- [rankings] A rankings page for every country, state and province
+- [rankings] This week's biggest climbers, fallers and new teams at the top
+- [rankings] Record, OPR, events and rated matches beside each rating
+- [teams] Rank in New Jersey (or your region) from the team page
+
+### Added
+- Rankings by region (`/rankings/regions`): every country and named state or province with rated teams, most teams first, its #1 team and its leagues, searchable, with a season switch. Linked from Rankings, the navigation (Region rankings) and Home's footer. (`src/pages/RegionsPage.tsx`)
+- A region's rankings (`/rankings/regions/USA/NJ`): rank in the region (world rank beside it), rating, season record, OPR, events, rated matches, move in the region since last week and the trend, sortable by rank, rating, OPR, record, events and move without renumbering. The week's top three climbers and fallers and the teams new to the table sit above it; teams with fewer than three rated matches are listed apart and labeled ("Not ranked yet — 2 of 3 rated matches", "No rated matches yet"), never ranked; a region with no rated team says so. Its leagues link to their standings. Season and week switches keep the region; `?team=` opens the page that team's row is on, marked. Ratings are labeled comparable inside one season only. (`src/pages/RegionRankingsPage.tsx`, `server/api/regionRankings.ts`)
+- Team page: its place in its home region and "Rank in New Jersey →" (or its own region) opens the region's table on the team's page with its row marked. (`src/pages/TeamPage.tsx`)
+- `/rankings` with one place picked links to that place's page; every view links to the regions list. (`src/pages/RankingsPage.tsx`)
+
 ## 6.5.7 — 2026-11-15
 
 A paused download picks up within seconds of the line coming back, Delete acts at once, and Delete only says "Freed" for space the browser really gave back.

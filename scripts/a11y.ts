@@ -76,6 +76,8 @@ const ROUTES: Route[] = [
   // The brief open: its sentences and source links.
   { path: "/compare?teams=18360,24089&season=2025&brief=1", ready: "[data-kind]" },
   { path: "/rankings", ready: "tbody tr" },
+  { path: "/rankings/regions", ready: "[data-region]" },
+  { path: "/rankings/regions/USA/NJ", ready: "[data-region-table] tbody tr" },
   { path: "/power-rankings" },
 ];
 const VIEWPORTS = { desktop: { width: 1440, height: 1000 }, phone: { width: 390, height: 844 } } as const;
