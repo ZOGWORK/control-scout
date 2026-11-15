@@ -2,7 +2,7 @@
 //
 //   npm run offline:check -- --base https://controlscout.org --event 2026:USMIMIQ1
 //   npm run offline:check -- --prod --event 2025:USMIMIQ1          # the local production build (npm run build first)
-//   npm run offline:check -- … --season        # also save the season pack
+//   npm run offline:check -- … --season        # also save the whole current season (Download page, one button)
 //   npm run offline:check -- … --dead          # a Wi-Fi that connects but carries nothing
 //   npm run offline:check -- … --portal        # a Wi-Fi sign-in page instead of no network
 //   npm run offline:check -- … --throttle      # a slow connection (~400 kbps, 400 ms round trip) instead
@@ -236,9 +236,16 @@ async function main() {
     await page.getByText("On this device and current").waitFor({ timeout: 60_000 }).catch(() => { bundleNote += " (did not finish)"; });
   }
   if (flag("season")) {
-    const row = page.locator("li").filter({ hasText: "This season" }).first();
-    await row.getByRole("button", { name: /Save offline/ }).click({ timeout: 30_000 }).catch(() => console.log("  ! no Save offline button for the season"));
-    await row.getByRole("button", { name: /Remove/ }).waitFor({ timeout: 300_000 }).catch(() => console.log("  ! season save did not finish"));
+    // The "Whole current season" choice, then its one Download button (the season and every team's predictions).
+    // Once both are saved the button goes and the section says so.
+    await page.locator("[data-choice=whole]").click({ timeout: 30_000 }).catch(() => console.log("  ! no Whole current season choice on /download"));
+    const whole = page.locator("[data-whole-download]");
+    if (await whole.waitFor({ timeout: 30_000 }).then(() => true, () => false)) {
+      console.log(`  Whole current season: ${((await whole.textContent()) ?? "").trim()}`);
+      await whole.click();
+      await page.getByText(/is on this device and current\./).waitFor({ timeout: 300_000 }).catch(() => console.log("  ! season save did not finish"));
+    } else if (await page.getByText(/is on this device and current\./).isVisible().catch(() => false)) console.log("  Whole current season: already saved");
+    else console.log("  ! no Whole current season Download button");
   }
   const getLite = page.getByRole("button", { name: /Get it now/ });
   if (await getLite.isVisible().catch(() => false)) { await getLite.click(); await page.waitForTimeout(8000); }
