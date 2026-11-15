@@ -396,15 +396,21 @@ export async function fileBugReport(id: number, now = new Date()): Promise<BugFi
 
 /**
  * Deletes the local copy of each attachment of a filed report whose GitHub URL opens (an attachment's URL opens only
- * once an issue uses it). One that doesn't open yet keeps its copy; the sweep checks again.
+ * once an issue uses it). One that doesn't open yet keeps its copy; the sweep checks again. Never while the owner
+ * email is being sent (its claim is fresh): that send reads the copies. The check and the mark are one statement, so
+ * an email claimed after it sees the copy gone and links GitHub instead.
  */
-export async function clearUploaded(id: number): Promise<number> {
+export async function clearUploaded(id: number, now = Date.now()): Promise<number> {
   const files = await all<FilingFile>(`SELECT f.report_id, f.n, f.type, f.bytes, f.github_url, f.upload_error, f.on_disk FROM bug_report_files f
     JOIN bug_reports r ON r.id = f.report_id WHERE f.report_id = ? AND r.issue_number IS NOT NULL AND f.github_url IS NOT NULL AND f.on_disk = 1`, [id]);
   let cleared = 0;
   for (const f of files) {
     if (!(await assetOpens(f.github_url!).catch(() => false))) continue;
-    await run("UPDATE bug_report_files SET on_disk = 0 WHERE report_id = ? AND n = ?", [id, Number(f.n)]);
+    const marked = await get<{ n: number }>(
+      `UPDATE bug_report_files SET on_disk = 0 WHERE report_id = ? AND n = ? AND on_disk = 1
+         AND NOT EXISTS (SELECT 1 FROM bug_reports WHERE id = ? AND emailed = 2 AND email_claimed_at > ?) RETURNING n`,
+      [id, Number(f.n), id, new Date(now - STALE_CLAIM_MS).toISOString()]);
+    if (!marked) continue;
     await rm(filePath(id, Number(f.n), f.type as AttachmentType), { force: true });
     cleared++;
   }
@@ -444,7 +450,7 @@ export async function sweepBugReports(now = Date.now()): Promise<{ emailed: numb
     const kept = await all<{ report_id: number }>(
       `SELECT DISTINCT f.report_id FROM bug_report_files f JOIN bug_reports r ON r.id = f.report_id
        WHERE r.issue_number IS NOT NULL AND f.github_url IS NOT NULL AND f.on_disk = 1 LIMIT 20`);
-    for (const { report_id } of kept) await clearUploaded(Number(report_id)).catch(() => 0);
+    for (const { report_id } of kept) await clearUploaded(Number(report_id), now).catch(() => 0);
   }
   // Uploads stop at the window's end; clearing waits a second window, skips a file still being written, and removes
   // files only for a row it actually deleted (a piece finishing meanwhile keeps its row, so its file stays).
