@@ -81,6 +81,42 @@ describe("official videos", () => {
     expect((await all<{ video_id: string }>("SELECT video_id FROM official_videos WHERE code = 'ROWAIT'")).map((r) => r.video_id)).toEqual([SUN]);
   });
 
+  it("names the part of a day's video the event already plays without one, when the list gives it", async () => {
+    // Chicago Robotics Invitational 2026: each day has a "matches only" stream and a full one. Saturday's full stream was
+    // the watcher's add (no part); Sunday's is FIRST's own link. The list names both "Full stream" beside "Matches".
+    const FL = "ggggggggggg", SATM = "hhhhhhhhhhh", SATF = "iiiiiiiiiii", SUNM = "jjjjjjjjjjj";
+    await run("INSERT INTO events (season, code, name, type, city, start, end, timezone, remote, hybrid, livestream, source) VALUES (?, 'CRI', 'Chicago Robotics Invitational', 'Premier', 'Chicago', '2026-07-24', '2026-07-26', 'America/Chicago', 0, 0, ?, 'test')", [S, `https://www.youtube.com/watch?v=${FL}`]);
+    const meta = "INSERT INTO video_meta (video_id, status, start, end, duration, live, checked_at) VALUES (?, 'ok', ?, ?, ?, 0, '2026-11-12T00:00:00Z')";
+    await run(meta, [FL, "2026-07-26T12:57:00Z", "2026-07-26T21:11:00Z", 29_646]);
+    await run(meta, [SATM, "2026-07-25T15:00:00Z", "2026-07-25T22:55:00Z", 28_540]);
+    await run(meta, [SATF, "2026-07-25T15:25:00Z", "2026-07-25T22:55:00Z", 27_031]);
+    await run(meta, [SUNM, "2026-07-26T12:57:00Z", "2026-07-26T21:11:00Z", 29_640]);
+    await run("INSERT INTO official_videos (video_id, season, code, kind, day, part, channel_id, title, source, added_at) VALUES (?, ?, 'CRI', 'recording', '2026-07-25', 'Matches', ?, 'x', 'list', 'a')", [SATM, S, CH]);
+    await run("INSERT INTO official_videos (video_id, season, code, kind, day, part, channel_id, title, source, added_at) VALUES (?, ?, 'CRI', 'recording', '2026-07-25', NULL, ?, 'x', 'watcher', 'a')", [SATF, S, CH]);
+    const cri: OfficialList = { channels: list.channels, videos: [
+      v("CRI", SATM, "2026-07-25", { part: "Matches" }), v("CRI", SATF, "2026-07-25", { part: "Full stream" }),
+      v("CRI", SUNM, "2026-07-26", { part: "Matches" }), v("CRI", FL, "2026-07-26", { part: "Full stream" }),
+    ] };
+    // Saturday's row named, Sunday's two written (FIRST's link with its part).
+    expect(await seedOfficialVideos(() => {}, cri, Date.now(), true)).toBe(3);
+    expect(await all("SELECT video_id, day, part FROM official_videos WHERE code = 'CRI' ORDER BY day, part")).toEqual([
+      { video_id: SATF, day: "2026-07-25", part: "Full stream" }, { video_id: SATM, day: "2026-07-25", part: "Matches" },
+      { video_id: FL, day: "2026-07-26", part: "Full stream" }, { video_id: SUNM, day: "2026-07-26", part: "Matches" },
+    ]);
+    // Once named, again is nothing; a part another video of that day already has is never given twice.
+    expect(await seedOfficialVideos(() => {}, cri, Date.now(), true)).toBe(0);
+    await run("UPDATE official_videos SET part = NULL WHERE video_id = ?", [SATF]);
+    expect(await seedOfficialVideos(() => {}, { ...cri, videos: [v("CRI", SATF, "2026-07-25", { part: "Matches" })] }, Date.now(), true)).toBe(0);
+    await run("UPDATE official_videos SET part = 'Full stream' WHERE video_id = ?", [SATF]);
+    clearAllCaches();
+    const r = (await eventRecording(S, "CRI"))!;
+    expect(recordingStream(r, "America/Chicago").days?.map((d) => d.label).sort()).toEqual(["Saturday · Full stream", "Saturday · Matches", "Sunday · Full stream", "Sunday · Matches"]);
+    // FIRST's link with a part from the list is still FIRST's link when it leads.
+    await run("UPDATE official_videos SET removed_at = 'x' WHERE code = 'CRI' AND video_id != ?", [FL]);
+    clearAllCaches();
+    expect((await eventRecording(S, "CRI"))?.source).toBe("first");
+  });
+
   it("plays an event's official days a day at a time, in broadcast order", async () => {
     clearAllCaches();
     const r = await eventRecording(S, "ROCMPCND");
