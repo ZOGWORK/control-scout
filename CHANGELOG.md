@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 6.5.6 — 2026-11-15
+
+Search › "CRI" finds the Chicago Robotics Invitational: an event's short form now leaves out the "Premier Event" FIRST adds to its name, and works beside other words.
+
+### Highlights
+- [fixes] "CRI highlights", "who won CRI" and "CRI matches" find the Chicago Robotics Invitational
+- [fixes] A short form beside "matches", "results" or a year finds the event, not a team whose name starts alike
+
+### Fixed
+- An event's initialism also leaves out a trailing event type FIRST appends ("Premier Event", "Off-Season Event"), so "Chicago Robotics Invitational Premier Event" is CRI as well as CRIPE. (`src/shared/query/initialisms.ts`)
+- An initialism beside other words ("cri matches", "cri results", "cri 2025") is read as the event's name when the words as typed found something else first: "CRI matches" opened Critical Mass's matches. A team named so, an ordinary word, or a two-letter word is never read this way. (`server/api/searchAnswer.ts`, `docs/search-pipeline.md`)
+
 ## 6.5.5 — 2026-11-15
 
 Videos › A clip whose first frame shows another match is never played: the clips placed from the clock are checked frame by frame, and a wrong one is pulled.
