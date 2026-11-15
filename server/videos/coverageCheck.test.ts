@@ -112,7 +112,7 @@ describe("clip coverage check and triage", () => {
     const e = (await ownerClipCoverage()).events[0];
     expect([e.code, e.triage]).toEqual(["TWODAY", "actionable"]);
     // Said as what the video showed (its frames read, Q1 not found), never what the clock said; the clock's kept apart.
-    expect(e.triageWhy).toBe("1 match checked in the video, no start found for them there (Q1) (1 more held back for other reasons)");
+    expect(e.triageWhy).toBe("1 match checked in the video, no start found there (Q1) (1 more held back for other reasons)");
     expect(e.missing.map((m) => [m.label, m.reason])).toEqual([["Q1", "before-broadcast"], ["Q3", "no-recording-day"]]);
     expect(e.missing[0]).toMatchObject({ why: "Checked in the video (2026-11-15): no start found for it (no frame read of it)", clock: "Played before the broadcast started", video: { checked: "2026-11-15" } });
   });
