@@ -28,6 +28,9 @@ export interface FrameTiming {
   review?: Record<string, { t: number; why: string }>;
   /** Matches the frames gave no start for, and why. */
   missing?: Record<string, string>;
+  /** Matches whose frame start lands inside the previous match's play, read off the video: the start and when the
+   *  previous match's play ends. Each is in `review` too, never a clip. */
+  earlyStart?: Record<string, { t: number; previousEnds: number }>;
 }
 
 let byKey: Map<string, Record<string, number>> | null = null;
