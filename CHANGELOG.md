@@ -26,7 +26,7 @@ A slow search no longer reads as "You're offline". While a long search keeps the
 
 ### Fixed
 - The connection check: no answer from `/api/health` within 2.5 s just after the server answered this tab (in the last minute, carried over a reload) now waits up to 20 s before it means no internet. A long search holds the server, and the check waited behind it (measured live: 11.8 s behind a 12 s search); it then said "no internet", the search was let go as "You're offline", and a reload started from that. With no recent answer, or once a check has found no internet, 2.5 s still means no internet. (`src/lib/connection.ts`)
-- Search results: "You're offline" (or "Can't reach the server") is asked again by itself when the connection check finds internet, instead of staying until Try again. (`src/components/search/SearchBox.tsx`)
+- Search results: "You're offline" (or "Can't reach the server") is asked again by itself when the connection check finds internet, instead of staying until Try again. (`src/components/search/SearchBox.tsx`) (#1561)
 
 ## 6.7.2 — 2026-11-15
 
