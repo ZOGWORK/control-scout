@@ -17,15 +17,17 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 
 ## 6.6.5 — 2026-11-15
 
-Search reads a year after an award's winners: "inspire award winners 2024" lists that season's Inspire Award winners.
+Search › "CRI" finds the Chicago Robotics Invitational: an event's short form now leaves out the "Premier Event" FIRST adds to its name, and works beside other words.
 
 ### Highlights
-- [fixes] "inspire award winners 2024" lists the 2024–25 winners
-- [fixes] "think award winners 2025" lists the 2025–26 winners
-- [fixes] A team numbered like a year is still read as that team
+- [fixes] "CRI" finds the Chicago Robotics Invitational
+- [fixes] A short form beside "matches" or a year finds the event
+- [fixes] A team whose name starts the same way no longer takes its place
 
 ### Fixed
-- Search: one award's winners with a bare year ("inspire award winners 2024", "think award winners 2025") said no team, event or match matched, since the year was taken for a team number. A year ending the question is now its season, as search reads a year everywhere (2024 is 2024–25; at Worlds, the Championship held that year). A number before the ask, or after "team" or "#", is still a team's. Failed search #1434. (`server/api/answers/families/placeAwards.ts`) (#1533)
+- An event's initialism also leaves out a trailing event type FIRST appends ("Premier Event", "Off-Season Event"), so "Chicago Robotics Invitational Premier Event" is CRI as well as CRIPE. (`src/shared/query/initialisms.ts`)
+- An initialism beside other words ("cri matches", "cri results", "cri 2025") is read as the event's name when the words as typed found something else first: "CRI matches" opened Critical Mass's matches. A team named so, an ordinary word, or a two-letter word is never read this way. (`server/api/searchAnswer.ts`, `docs/search-pipeline.md`) (#1542)
+
 ## 6.6.4 — 2026-11-15
 
 A bug report's screenshot or video is cleared from the server minutes after its GitHub issue is filed, instead of waiting for a quiet stretch with no deploys.

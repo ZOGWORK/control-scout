@@ -8,12 +8,19 @@ const SMALL = new Set(["of", "the", "and", "for", "at", "in", "a", "an", "on", "
 /** The lowest and highest length an initialism has: a 2-word name's to a 6-word one's. */
 export const INITIALISM_LETTERS = [2, 6] as const;
 
+/** Event-type words FIRST appends to an event's own name ("Chicago Robotics Invitational Premier Event"): people
+ *  leave them out when they shorten it (CRI, not CRIPE), so the initialism is also made without them. */
+const TYPE_TAIL = /(?:^| )(?:premier event|off ?season event)$/;
+
 /** `name`'s initialisms, lower case: what it states in parentheses, then its significant words' first letters (only
- *  for a name of 2 to 6 such words, none of them a number or a date). */
+ *  for a name of 2 to 6 such words, none of them a number or a date), and the same without a trailing event type. */
 export function eventInitialisms(name: string): string[] {
   const out = new Set<string>();
   for (const m of String(name ?? "").matchAll(/\(([A-Za-z]{2,6})\)/g)) out.add(m[1].toLowerCase());
-  const ws = fold(String(name ?? "").replace(/\([^)]*\)/g, " ")).split(" ").filter((w) => w && !SMALL.has(w));
-  if (ws.length >= INITIALISM_LETTERS[0] && ws.length <= INITIALISM_LETTERS[1] && ws.every((w) => /^[a-z]/.test(w))) out.add(ws.map((w) => w[0]).join(""));
+  const folded = fold(String(name ?? "").replace(/\([^)]*\)/g, " "));
+  for (const words of [folded, folded.replace(TYPE_TAIL, "")]) {
+    const ws = words.split(" ").filter((w) => w && !SMALL.has(w));
+    if (ws.length >= INITIALISM_LETTERS[0] && ws.length <= INITIALISM_LETTERS[1] && ws.every((w) => /^[a-z]/.test(w))) out.add(ws.map((w) => w[0]).join(""));
+  }
   return [...out];
 }
