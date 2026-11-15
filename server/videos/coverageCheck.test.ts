@@ -298,6 +298,33 @@ describe("clip coverage check and triage", () => {
     }
   });
 
+  it("doesn't carry a review given to a pending check over to the list once its video is checked", async () => {
+    // Q1 waits for its video check (no frame row): a pending check; say a review was stored on it.
+    setFrameTimingsForTests([]);
+    await run("UPDATE clip_coverage SET fingerprint = 'x' WHERE code = 'TWODAY'");
+    await checkClipCoverage(() => {});
+    expect(await row("TWODAY")).toMatchObject({ triage: "unchecked" });
+    await run("UPDATE clip_coverage SET reviewed_at = '2026-11-14T00:00:00Z', reviewed_by = 'owner@test' WHERE code = 'TWODAY'");
+    const key = (await row("TWODAY")).missing_key;
+    // Its frames are read, Q1 not found: the same matches missing, now checked against the video, so To review again.
+    setFrameTimingsForTests([{ videoId: "SATURDAYv01", code: "TWODAY", checked: "2026-11-15", starts: {}, missing: { Q1: "no frame read of it" } }]);
+    await run("UPDATE clip_coverage SET fingerprint = 'x' WHERE code = 'TWODAY'");
+    const logged: string[] = [];
+    await checkClipCoverage((l) => logged.push(l));
+    expect(await row("TWODAY")).toMatchObject({ triage: "actionable", missing_key: key, reviewed_at: null });
+    expect(logged[0]).toMatch(/ · 1 actionable for owner review/);
+    expect((await ownerClipCoverage()).events.map((e) => e.code)).toContain("TWODAY");
+  });
+
+  it("still records the pass when a stored detail is unreadable", async () => {
+    await run("UPDATE clip_coverage SET detail = '{not json' WHERE code = 'PRE3'");
+    await run("UPDATE clip_coverage SET fingerprint = 'x' WHERE code = 'TWODAY'");
+    const logged: string[] = [];
+    expect(await checkClipCoverage((l) => logged.push(l))).toBeGreaterThan(0);
+    expect(logged[0]).toMatch(/^clip coverage: checked /);
+    expect((await ownerClipCoverage()).lastPass).toMatchObject({ pending: expect.any(Number) });
+  });
+
   it("drops an event from every list once it has no recording left (stats only)", async () => {
     await run("UPDATE events SET livestream = NULL WHERE code = 'TWODAY'");
     forgetRecordings();
