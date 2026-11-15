@@ -101,7 +101,7 @@ describe("Capture this screen", () => {
     const shot = await screen.findByRole("img", { name: "screen-capture-1.png" }, { timeout: 10_000 });
     expect(shot).toBeTruthy();
     expect(ask).toHaveBeenCalledTimes(1);
-    expect(ask!.mock.calls[0]![0]).toMatchObject({ video: true, audio: false, preferCurrentTab: true, selfBrowserSurface: "include" });
+    expect((ask!.mock.calls[0] as unknown[])[0]).toMatchObject({ video: true, audio: false, preferCurrentTab: true, selfBrowserSurface: "include" });
     // Drawn while the dialog and its backdrop were out of the way, and back afterwards.
     expect(hiddenWhileDrawn).toBe(true);
     expect(document.documentElement.hasAttribute(CAPTURING_ATTR)).toBe(false);
