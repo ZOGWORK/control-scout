@@ -1,7 +1,7 @@
 // The last good answer to each read the scouting pages need (the offline + Lite brief, Phase 3), kept on this device
 // so Scout, the shortlist, the pick list and the pick helper open with no signal: the event list, an event's pick
 // ratings, the shortlist rows, an event forecast, a team's profile and matches, the scouting alliance views; and the
-// home page's season totals.
+// home page's season totals and its prediction record.
 //
 // - Online, every such GET that answers 2xx is kept as it came (lib/api.ts calls keepAnswer): the server's own JSON,
 //   never something computed here. No signal (or no answer within OFFLINE_TIMEOUT_MS), the kept copy answers
@@ -14,7 +14,7 @@ import { deviceOffline } from "./online";
 
 /** The reads kept (GET paths, query included). Event lists: a season's whole list only (`?season=`, and the event
  *  picker's `all=1` one), never a search as it's typed (offline, the whole list is narrowed instead). */
-export const KEPT_PATHS = /^\/api\/(events\?season=\d{4}(&all=1&limit=\d+)?$|events\/\d{4}\/[^/?]+\/pick-ratings$|shortlist\?|predict\/event\?|projections\/\d{4}\/[^/?]+(\?|$)|teams\/\d+(\/matches)?(\?|$)|scout\/workspaces\/[^/?]+\/alliances([/?]|$)|scout\/workspaces\/[^/?]+\/picklist\?season=\d+$|home\/overview(\?season=\d{4})?$)/;
+export const KEPT_PATHS = /^\/api\/(events\?season=\d{4}(&all=1&limit=\d+)?$|events\/\d{4}\/[^/?]+\/pick-ratings$|shortlist\?|predict\/event\?|projections\/\d{4}\/[^/?]+(\?|$)|teams\/\d+(\/matches)?(\?|$)|scout\/workspaces\/[^/?]+\/alliances([/?]|$)|scout\/workspaces\/[^/?]+\/picklist\?season=\d+$|home\/overview(\?season=\d{4})?$|predict\/accuracy$)/;
 export const MAX_KEPT = 150;
 
 const INDEX = "cs-kept-answers";
