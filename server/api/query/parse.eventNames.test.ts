@@ -1,4 +1,4 @@
-// An event's whole stored name is the event (./parse.ts, step 0c), read before any of its words is a team, a number
+// An event's whole stored name is the event (src/shared/query/parse.ts, step 0c), read before any of its words is a team, a number
 // or a place: a league meet's own number, a town or a region in its name. Names stored with no other reading of them
 // stay as they were.
 import { describe, expect, it } from "vitest";
