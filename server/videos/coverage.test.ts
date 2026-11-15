@@ -1,7 +1,8 @@
 // Clip coverage: every played match gets a clip or a reason in plain words, read off withClips' own decisions; a day
 // with no video is named; an event with no recording at all is "none" (stats only).
-import { describe, expect, it } from "vitest";
-import { clipCoverage, span, type CoverageInput } from "./coverage";
+import { afterAll, describe, expect, it } from "vitest";
+import { clipCoverage, hms, span, type CoverageInput } from "./coverage";
+import { FRAME_TIMINGS, setFrameTimingsForTests, type FrameTiming } from "../data/frameTimings";
 import type { Recording, VideoMeta } from "./recordings";
 
 const meta = (videoId: string, start: string, end: string, length: number, o: Partial<VideoMeta> = {}): VideoMeta =>
@@ -34,6 +35,8 @@ describe("clipCoverage", () => {
     expect(by.Q1.clip && by.Q2.clip).toBe(true);
     expect(by.Q3).toMatchObject({ clip: false, reason: "gap-unplaced", videoId: "SATURDAYv01" });
     expect(by.Q3.why).toContain("4 h shorter than its broadcast");
+    // Said as the video's shortfall, never as an early start (addendum §7: never a reason, even in passing).
+    expect(by.Q3.why).toMatch(/^Video 4 h shorter than its broadcast \(more than the \d+ min the clock allows for\), no chapters to confirm the clock$/);
     expect(by.Q5).toMatchObject({ clip: false, reason: "no-recording-day", why: "No recording for Sunday" });
     // Counted in its day: Friday is 2 of 3, never shown as fully clipped.
     expect(by.Q6).toMatchObject({ clip: false, reason: "no-start", videoId: "FRIDAYvid01" });
@@ -136,5 +139,96 @@ describe("clipCoverage", () => {
 
   it("says spans in hours and minutes", () => {
     expect([span(900), span(4520), span(14_400), span(25), span(0.4)]).toEqual(["15 min", "1 h 15 min", "4 h", "25 s", "1 s"]);
+  });
+});
+
+// Addendum §7 (2026-11-15): the stream is the truth. A match left out by the clock alone (an early start, a time before
+// the broadcast) says what its video's frames showed, never "starts up to N min early" or what the clock said; the
+// clock's reading is kept apart (`clock`).
+describe("clipCoverage, what the video showed (Romania COANDA 2025 ROCMPCND)", () => {
+  const kept: FrameTiming[] = [...FRAME_TIMINGS];
+  afterAll(() => setFrameTimingsForTests(kept));
+  // Friday's video 10 min short with no chapters: clips may start 10 min early, so Q2, 5 min after Q1, is held back.
+  const fri = meta("pvmxbH8YW-k", "2026-03-13T07:00:00Z", "2026-03-13T12:00:00Z", 17_400);
+  const rec: Recording = { videoId: fri.videoId, meta: fri, source: "official", code: "ROCMPCND" };
+  const ms = [m("Q1", "2026-03-13T08:00:00"), m("Q2", "2026-03-13T08:05:00"), m("Q3", "2026-03-13T09:00:00")];
+  const q2 = () => clipCoverage(ms, rec, rec, "UTC", NOW).matches.find((x) => x.label === "Q2")!;
+
+  it("not read yet: 'Not yet checked against the video', never 'An early start would open on the match before'", () => {
+    setFrameTimingsForTests([]);
+    const q = q2();
+    expect(q).toMatchObject({ clip: false, reason: "overlaps-previous", why: "Not yet checked against the video", video: { checked: null } });
+    expect(q.why).not.toMatch(/early/i);
+    expect(q.clock).toMatch(/^An early start would open on the match before \(starts up to 10 min early\)$/);
+  });
+
+  it("read, no start found for it: says so with the video's own timestamps of the matches around it", () => {
+    setFrameTimingsForTests([{ videoId: fri.videoId, code: "ROCMPCND", checked: "2026-11-14", starts: { Q3: 10440 }, missing: { Q2: "no frame read of it, and no agreeing reads on both sides" } }]);
+    const q = q2();
+    expect(q.why).toBe("Checked in the video (2026-11-14): no start found for it (no frame read of it, and no agreeing reads on both sides); in the video, Q3 at 2:54:00");
+    expect(q.video).toEqual({ checked: "2026-11-14", found: "no frame read of it, and no agreeing reads on both sides", after: { label: "Q3", at: 10440 } });
+  });
+
+  it("Early start only when the frames show it starting inside the match before, with both timestamps", () => {
+    setFrameTimingsForTests([{ videoId: fri.videoId, code: "ROCMPCND", checked: "2026-11-14", starts: { Q3: 10440 }, earlyStart: { Q2: { t: 3900, previousEnds: 3960 } } }]);
+    expect(q2().why).toBe("Checked in the video: it starts at 1:05:00 while the match before runs to 1:06:00, so a clip would open on that one");
+  });
+
+  it("Q19, played before Saturday's broadcast started: said as what the video showed (its first match read, Q20 at 0:03:29)", () => {
+    const sat = meta("zG45zl5pcDw", "2026-03-14T07:00:00Z", "2026-03-14T15:00:00Z", 28_800);
+    const r: Recording = { videoId: sat.videoId, meta: sat, source: "official", code: "ROCMPCND" };
+    setFrameTimingsForTests([{ videoId: sat.videoId, code: "ROCMPCND", checked: "2026-11-14", starts: { Q20: 209 } }]);
+    const c = clipCoverage([m("Q19", "2026-03-14T06:50:00"), m("Q20", "2026-03-14T07:04:00")], r, r, "UTC", NOW);
+    expect(c.matches[0]).toMatchObject({ label: "Q19", reason: "before-broadcast", clock: "Played before the broadcast started",
+      why: "Checked in the video (2026-11-14): no start found for it; in the video, Q20 at 0:03:29" });
+  });
+
+  it("writes a second in a video as h:mm:ss", () => {
+    expect([hms(10440), hms(209), hms(0), hms(-3)]).toEqual(["2:54:00", "0:03:29", "0:00:00", "0:00:00"]);
+  });
+});
+
+// FUN League Tournament 2025 USFLFNLT, 41 of 44 (owner-checked): Q1–Q3 played after Saturday's first recording ended
+// and before its second started. They're in neither, so the reason names that gap, with both times, and neither
+// video's count holds them.
+describe("clipCoverage, a match between two of a day's recordings (USFLFNLT)", () => {
+  const kept: FrameTiming[] = [...FRAME_TIMINGS];
+  afterAll(() => setFrameTimingsForTests(kept));
+  const first = meta("afaqqytUvDU", "2026-01-31T14:06:36Z", "2026-01-31T14:45:26Z", 2329);
+  const second = meta("nm-LnMVtCJM", "2026-01-31T16:12:47Z", "2026-01-31T23:45:05Z", 27_130);
+  const rec: Recording = { videoId: first.videoId, meta: first, source: "first", code: "USFLFNLT", daily: true, more: [{ videoId: second.videoId, meta: second }] };
+  // FIRST's times are the venue's (New York, UTC−5 in January).
+  const ny = (label: string, local: string): CoverageInput => {
+    const z = new Date(Date.parse(`${local}Z`) + 5 * 3600_000).toISOString();
+    return { key: `qual:0:${label.slice(1)}`, label, time: `${local}.475`, startsAt: z, played: true, video: null };
+  };
+  const ms = [ny("Q1", "2026-01-31T10:56:12"), ny("Q2", "2026-01-31T11:03:20"), ny("Q3", "2026-01-31T11:12:15"), ny("Q4", "2026-01-31T11:18:00")];
+  const GAP = "Played between the recordings (after afaqqytUvDU ended at 9:45 AM, before nm-LnMVtCJM started at 11:12 AM)";
+
+  it("names the gap with both times, pins it to neither video, and says neither was checked yet", () => {
+    setFrameTimingsForTests([]);
+    const c = clipCoverage(ms, rec, rec, "America/New_York", NOW);
+    expect(c.matches.slice(0, 3).map((x) => [x.label, x.reason, x.videoId])).toEqual([["Q1", "between-recordings", null], ["Q2", "between-recordings", null], ["Q3", "between-recordings", null]]);
+    expect(c.matches[0].why).toBe(`${GAP}; not yet checked against either video`);
+    expect(c.matches.some((x) => /after the broadcast ended/i.test(x.why ?? ""))).toBe(false);
+    // Neither video's count holds them: no "Saturday 0/3".
+    expect(c.videos.map((v) => [v.videoId, v.matches, v.clipped])).toEqual([["afaqqytUvDU", 0, 0], ["nm-LnMVtCJM", 1, 1]]);
+  });
+
+  it("checked in both videos and in neither: said so (settled)", () => {
+    setFrameTimingsForTests([
+      { videoId: "afaqqytUvDU", code: "USFLFNLT", checked: "2026-11-15", starts: {} },
+      { videoId: "nm-LnMVtCJM", code: "USFLFNLT", checked: "2026-11-15", starts: { Q4: 330 } },
+    ]);
+    const c = clipCoverage(ms, rec, rec, "America/New_York", NOW);
+    expect(c.matches[0]).toMatchObject({ reason: "between-recordings", why: `${GAP}; checked in both videos (2026-11-15): in neither`, video: { checked: "2026-11-15", found: "in neither video" } });
+  });
+
+  it("a video its frame read couldn't play isn't checked yet", () => {
+    setFrameTimingsForTests([
+      { videoId: "afaqqytUvDU", code: "USFLFNLT", checked: "2026-11-15", starts: {}, missing: { Q1: "the video couldn't be played (HTTP 403)" } },
+      { videoId: "nm-LnMVtCJM", code: "USFLFNLT", checked: "2026-11-15", starts: { Q4: 330 } },
+    ]);
+    expect(clipCoverage(ms, rec, rec, "America/New_York", NOW).matches[0].why).toBe(`${GAP}; not yet checked against either video`);
   });
 });

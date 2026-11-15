@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.5.2 — 2026-11-15
+## 6.5.5 — 2026-11-15
 
 A paused download picks up within seconds of the line coming back, Delete acts at once, and Delete only says "Freed" for space the browser really gave back.
 
@@ -30,6 +30,47 @@ A paused download picks up within seconds of the line coming back, Delete acts a
 - Delete on a saved season no longer reads the whole file back into memory first, and a save never holds the season for more than 3 s while the SQLite engine caches (its request can hang on a line that just came back, and the save run keeps Delete greyed out). Clearing the download pieces and dropping the engine happen outside the season's lock. (`src/lib/offline/seasons.ts`)
 - "Freed 9.0 MB" claimed the pack's own size. Measured on Chromium, nothing of the season stays behind (IndexedDB, Cache Storage and OPFS listed before the save, after it and after Delete), but the browser keeps IndexedDB data compressed, so the 9.0 MB season took 3.6 MB and freed that (4.3 MB with the engine); a private window keeps storage in memory and its figure doesn't drop at all. Delete now reads the browser's figure just before and after: "Freed" is only what it dropped by, otherwise it says what was deleted and that the browser gives the space back on its own, and the line under the list follows the figure as it catches up. (`src/pages/DownloadPage.tsx`)
 - `npm run offline:check -- --season` taps the Whole current season choice and its Download button (the old Save offline row is gone). (`scripts/offline-check.ts`)
+
+## 6.5.4 — 2026-11-15
+
+Clip coverage never names an early start as a reason, not even in passing.
+
+### Highlights
+- [fixes] A short video's reason says what the clock allows, not "early start"
+- [fixes] To review never mentions an early start in any match's reason
+- [workspace] Six To review events now read as the video's own shortfall
+
+### Fixed
+- Clip coverage: a video shorter than its broadcast, with nothing to place the gap, read "(over the 15 min an early start covers)"; it now reads "(more than the 15 min the clock allows for)". Six To-review events carried it beside other reasons (ROBUQ1, RONR1LT, USTXCMPJOHN, LTCMP, KZALOS1, KZCMPJNB2), so "early start" still appeared in To review. (`server/videos/coverage.ts`) (#1522)
+
+## 6.5.3 — 2026-11-15
+
+Offline, Predict's team boxes name each team from your saved packs, and the What if box and the track record line are back.
+
+### Highlights
+- [offline] Offline Predict names each team under its box from your packs
+- [offline] What if works offline, from the same pack as the match
+- [offline] The track record line shows offline once a pack is downloaded
+
+### Fixed
+- Offline, the four team boxes on Predict showed "…" instead of the names, even with the event's pack saved. The name under each box came from a team search, which no saved pack answers when only an event pack is on the device. With no signal, the name now comes from the newest saved event pack holding the team (the same names its offline prediction shows), else from the lite pack's team list. A team no pack holds still shows "…", never "Not a team we know". The server's answer still wins once it's back, and nothing from a pack is cached. Measured live on 6.5.1 (phone, signed out, the USMIMIQ1 pack, Wi-Fi off): "…" four times; now Dragatrons, Bionic Brood, Fabricators and Northeast Viking Vortex. (`src/components/TeamInput.tsx`, `src/lib/offline/names.ts`) (#1521)
+- The offline Predict page dropped the What if box. It's back, and a swap is predicted on this device from the same snapshot as the match above it (the event pack or the lite pack, never a mix of the two). A robot that snapshot doesn't hold gets "isn't in your … pack, so this swap can't be predicted offline" rather than a call. (`src/components/predict/WhatIf.tsx`, `src/lib/offline/predict.ts`)
+- The calibration line ("When we say about 91%, the favourite wins …") was missing offline after a fresh pack download, since the track record it reads was never kept. Downloading an event pack now also keeps the server's track record, as it keeps the event's other reads, so the line shows offline with the server's own numbers. (`src/lib/offline/warm.ts`)
+
+## 6.5.2 — 2026-11-15
+
+Owner › Clip coverage takes the stream as the truth: a match the clock alone left without a clip says what its video showed, and an early start is only "unsafe" once the video shows it.
+
+### Highlights
+- [workspace] Clip coverage says what each match's video showed, not the clock
+- [workspace] An early start goes to To review until its video confirms it
+- [workspace] Each match left out shows the video's own timestamps nearby
+- [fixes] A match between two of a day's recordings names that gap
+
+### Changed
+- Clip coverage: a played match left without a clip by the clock alone (an early start, or a time before or after the broadcast, the cut start, the video's end, what its chapters confirm, every recording) now says what its video's own frames showed: "Not yet checked against the video", "Checked in the video (date): no start found for it", or "seen at h:mm:ss, not yet confirmed", with the video's timestamps of the matches around it. The clock's reading is kept apart and is never a reason on its own. (`server/videos/coverage.ts`) (#1520)
+- Triage: Early start / unsafe only once the frames show a match starting while the one before is still on (`earlyStart` in `server/data/frameTimings.ts`); until then it's Actionable, and the event's reason says how many matches weren't checked against the video, or were checked with no start found there. (`server/videos/coverageTriage.ts`)
+- A match played between two of a day's recordings (after one ended, before the next started) says so with both times, "Played between the recordings (after afaqqytUvDU ended at 9:45 AM, before nm-LnMVtCJM started at 11:12 AM)", and counts against neither video; it's Actionable until both videos' frames are read, then settled (USFLFNLT 2025 Q1–Q3, owner-checked). "Starts up to N min early" is never a reason on its own any more.
 
 ## 6.5.1 — 2026-11-15
 
