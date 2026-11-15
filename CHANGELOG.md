@@ -25,7 +25,7 @@ Search reads a period's OPR said after a place: "Romania teleop opr" lists Roman
 - [rankings] A place's board by one period's OPR needs no "best" or "top"
 
 ### Fixed
-- Search: a place followed by a period's OPR ("Romania teleop opr") read as two stats at once, TeleOp and OPR, so nothing answered. "TeleOp OPR", "Auto OPR" and "Endgame OPR" are each one stat now, as they already were after "best" or "top": *Top 10 teams by TeleOp OPR in Romania · 2025–26*. Failed search #1526. (`src/shared/query/intents.ts`)
+- Search: a place followed by a period's OPR ("Romania teleop opr") read as two stats at once, TeleOp and OPR, so nothing answered. "TeleOp OPR", "Auto OPR" and "Endgame OPR" are each one stat now, as they already were after "best" or "top": *Top 10 teams by TeleOp OPR in Romania · 2025–26*. Failed search #1526. (`src/shared/query/intents.ts`) (#1555)
 
 ## 6.7.2 — 2026-11-15
 
