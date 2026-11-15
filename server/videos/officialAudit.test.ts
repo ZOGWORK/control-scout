@@ -18,6 +18,8 @@ let calls: string[] = [];
 let pageSize = 50;
 /** The videos call answers that the day's quota is spent. */
 let quotaOnVideos = false;
+/** The videos call fails with a server error. */
+let failVideos = false;
 const fakeFetch = (async (url: string) => {
   const u = new URL(url);
   calls.push(u.pathname.split("/").pop()!);
@@ -30,6 +32,7 @@ const fakeFetch = (async (url: string) => {
     const items = uploads.slice(page * pageSize, (page + 1) * pageSize);
     return json({ items: items.map((i) => ({ snippet: { title: i.title }, contentDetails: { videoId: i.id, videoPublishedAt: i.published } })), ...(uploads.length > (page + 1) * pageSize ? { nextPageToken: String(page + 1) } : {}) });
   }
+  if (failVideos) return { ok: false, status: 503, json: async () => ({}) } as Response;
   if (quotaOnVideos) return { ok: false, status: 403, json: async () => ({ error: { errors: [{ reason: "quotaExceeded" }] } }) } as Response;
   const ids = (u.searchParams.get("id") ?? "").split(",");
   return json({ items: uploads.filter((i) => ids.includes(i.id)).map((i) => ({
@@ -84,7 +87,7 @@ beforeAll(async () => {
     { id: OLDNONE, title: "FTC Texas Scrimmage", published: "2025-03-01T22:00:00Z", start: "2025-03-01T15:00:00Z" },
   ];
 });
-beforeEach(() => { calls = []; pageSize = 50; quotaOnVideos = false; });
+beforeEach(() => { calls = []; pageSize = 50; quotaOnVideos = false; failVideos = false; });
 
 describe("the channel audit", () => {
   it("reads the whole uploads list and records where Scout has each video", async () => {
@@ -240,5 +243,21 @@ describe("the channel audit", () => {
     const after = await get<any>("SELECT checked_at, last_error FROM official_audit_channels WHERE channel_id = ?", [TX]);
     expect(after.checked_at).toBe(before.checked_at);
     expect(after.last_error).toMatch(/not read this run: the audit stopped at its 0 units/);
+  });
+
+  it("goes on with the run when a facts call fails, and reads those facts next run", async () => {
+    const id = "fail503xxxx";
+    uploads.unshift({ id, title: "FTC Texas Mockingbird Qualifier Day 4", published: "2026-02-22T14:00:00Z", start: "2026-02-22T14:00:00Z" });
+    failVideos = true;
+    try {
+      const out = await audit(Date.parse("2026-02-23T06:00:00Z"));
+      expect(out?.error).toMatch(/facts of \d+ videos couldn't be read: YouTube videos answered 503/);
+      expect((await row(id)).facts_at).toBeNull();
+      expect((await row(id)).why).toMatch(/facts weren't read yet/);
+      expect((await get<any>("SELECT checked_at FROM official_audit_channels WHERE channel_id = ?", [TX])).checked_at).toBe("2026-02-23T06:00:00.000Z");
+      failVideos = false;
+      await audit(Date.parse("2026-02-23T12:00:00Z"));
+      expect((await row(id)).facts_at).toBe("2026-02-23T12:00:00.000Z");
+    } finally { uploads.shift(); failVideos = false; }
   });
 });
