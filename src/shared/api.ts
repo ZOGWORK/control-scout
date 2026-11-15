@@ -181,6 +181,20 @@ export interface SearchAnswer {
   /** The video the site has for what the answer is about (server/api/answers/video.ts); null: read, and none; absent: not
    *  read yet (a page's first paint carries the answer without it), so nothing may say there is none. */
   video?: SearchVideo | null;
+  /** Made on the device with no signal (src/lib/offline/search.ts), never by the server: the query needs data the
+   *  downloaded event packs don't hold. The page says so, with what is in them. */
+  notInPack?: NotInPack;
+}
+
+/** Why a search can't be answered with no signal, and what the device does hold (SearchAnswer.notInPack). */
+export interface NotInPack {
+  /** What the query is about that the packs don't hold ("the 2025–26 season", "team 4215"), as search's parser read
+   *  it (src/shared/query/parse.ts); empty when it read nothing a pack could hold. */
+  about: string[];
+  /** The packs on this device: the event, its teams and matches, and when its data is from. */
+  packs: { season: number; code: string; name: string; teams: number; matches: number; dataAsOf: string }[];
+  /** Pages of the packs the query names (a team, a match), to open instead. */
+  links: { label: string; href: string }[];
 }
 
 /**
@@ -574,6 +588,9 @@ export interface ClipCoverage {
   matches: CoverageMatch[];
 }
 
+/** An event's triage category (server/videos/coverageTriage.ts): only actionable events are the owner's "To review". */
+export type CoverageTriage = "actionable" | "no-timing" | "early-start" | "old-season";
+
 /** Owner > Clip coverage (server/videos/coverageCheck.ts): one event with a played match missing a clip, as last checked. */
 export interface OwnerCoverageEvent {
   season: number; code: string; name: string; state: ClipCoverage["state"]; played: number; withClip: number; checkedAt: string;
@@ -581,11 +598,17 @@ export interface OwnerCoverageEvent {
   /** The missing list's version, sent back with Reviewed: a list that changed meanwhile isn't marked. */
   version: string;
   videos: CoverageVideo[]; daysMissing: ClipCoverage["daysMissing"]; missing: CoverageMatch[];
+  /** Its category and why, in plain words. */
+  triage: CoverageTriage; triageWhy: string;
 }
-/** Open (not yet reviewed) events first; totals over every recorded event checked. */
-/** One page (after a given event) of the open or the reviewed list; `open`, `reviewed`: how many each holds; totals over every
- *  recorded event checked. */
-export interface OwnerClipCoverage { events: OwnerCoverageEvent[]; open: number; reviewed: number; totals: { events: number; played: number; withClip: number; full: number } }
+/** One page (after a given event) of one list: a category's events not yet reviewed, or the reviewed. `open`: actionable
+ *  events not yet reviewed (the "To review" count); `categories`: every category's events not yet reviewed; `seasons`:
+ *  events not yet reviewed by season; totals over every recorded event checked. */
+export interface OwnerClipCoverage {
+  events: OwnerCoverageEvent[]; list: CoverageTriage | "reviewed"; open: number; reviewed: number;
+  categories: Record<CoverageTriage, number>; seasons: { season: number; open: number; actionable: number }[];
+  totals: { events: number; played: number; withClip: number; full: number };
+}
 
 export interface EventSummary {
   season: number;

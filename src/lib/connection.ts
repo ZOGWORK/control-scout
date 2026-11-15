@@ -11,7 +11,8 @@
 //     desktop Chrome). saveData: the browser's Data Saver.
 //
 // When it checks: shortly after start unless a request settled it first (startConnectionWatch, main.tsx), on the browser's online/offline events, when the
-// tab comes back into view, soon after any request fails for want of a network (api.ts noteRequestFailed), every
+// tab comes back into view or the window gets focus while there's no internet, soon after any request fails for want
+// of a network (api.ts noteRequestFailed), after RETRY_STEPS_MS one after another (3 s, 5 s, 10 s, 20 s) and then every
 // RETRY_MS while there's no internet, and every IDLE_MS (tab in view) while there is. A server answer anywhere in
 // the app counts as "yes" at once (noteServerAnswer), so coming back never waits for the next check.
 //
@@ -36,8 +37,14 @@ export interface ConnectionState {
 
 /** No answer to the check in this long: no internet. */
 export const CHECK_TIMEOUT_MS = 2500;
-/** While there's no internet (or a portal): check again this often. */
+/** While there's no internet (or a portal): check again this often, once RETRY_STEPS_MS are used up. */
 export const RETRY_MS = 30_000;
+/** While there's no internet (or a portal): the first checks come after these, one after another, so the line coming
+ *  back is seen in seconds; then every RETRY_MS. Starts over when there's internet again, and on the browser's online
+ *  event, the tab coming back into view, or the window getting focus. */
+export const RETRY_STEPS_MS: readonly number[] = [3000, 5000, 10_000, 20_000];
+/** Visibility and focus check at once only when the last check is older than this (else soon, by the first step). */
+export const EVENT_GAP_MS = 5000;
 /** While there is: check again this often (only with the tab in view). Failures check sooner on their own. */
 export const IDLE_MS = 5 * 60_000;
 /** A request failure checks after this long, so a burst of failures (a page's requests) costs one check. */
@@ -94,6 +101,7 @@ function set(next: Partial<ConnectionState>) {
   const changed = merged.online !== state.online || merged.internet !== state.internet || merged.type !== state.type || merged.saveData !== state.saveData;
   const prev = state.internet;
   if (changed || merged.checkedAt !== state.checkedAt) state = merged;
+  if (state.internet === "yes") retryStep = 0;
   if (merged.checkedAt && merged.internet !== "unknown") {
     try { sessionStorage.setItem(LAST_KEY, JSON.stringify({ internet: merged.internet, at: merged.checkedAt })); } catch { /* storage blocked */ }
   }
@@ -224,15 +232,27 @@ export function noteServerAnswer() {
 }
 
 let next: ReturnType<typeof setTimeout> | undefined;
-/** The next periodic check: soon while there's no internet, rarely (tab in view only) while there is. */
+/** Which of RETRY_STEPS_MS the next check while there's no internet waits (past the end: RETRY_MS). */
+let retryStep = 0;
+const retryDelay = () => RETRY_STEPS_MS[retryStep] ?? RETRY_MS;
+/** The next periodic check: soon while there's no internet (sooner at first), rarely (tab in view only) while there is. */
 function schedule() {
   if (!started) return;
   clearTimeout(next);
   const ok = state.internet === "yes";
   next = setTimeout(() => {
     if (ok && typeof document !== "undefined" && document.visibilityState === "hidden") { schedule(); return; }
+    if (!ok && retryStep < RETRY_STEPS_MS.length) retryStep++;
     void checkInternet();
-  }, ok ? IDLE_MS : RETRY_MS);
+  }, ok ? IDLE_MS : retryDelay());
+}
+
+/** Something says the line may be back (the tab in view, the window focused, the online event) while there's no
+ *  internet: the back-off starts over, and it checks now (or by the first step, when it checked moments ago). */
+function recheckSoon() {
+  retryStep = 0;
+  if (Date.now() - state.checkedAt > EVENT_GAP_MS) void checkInternet();
+  else schedule();
 }
 
 /** Start watching (main.tsx, once). Returns a stop function (tests). */
@@ -241,13 +261,20 @@ export function startConnectionWatch(): () => void {
   started = true;
   // The browser saying it's offline is believed at once (and checked, since iOS can say so wrongly).
   const onOffline = () => { set({ internet: "no", checkedAt: Date.now() }); void checkInternet(); };
-  const onOnline = () => { set({}); void checkInternet(); };
-  const onVisible = () => { if (document.visibilityState === "visible" && Date.now() - state.checkedAt > 5000) void checkInternet(); };
+  const onOnline = () => { retryStep = 0; set({}); void checkInternet(); };
+  const onVisible = () => {
+    if (document.visibilityState !== "visible") return;
+    if (state.internet !== "yes") recheckSoon();
+    else if (Date.now() - state.checkedAt > EVENT_GAP_MS) void checkInternet();
+  };
+  // Focus only matters while there's no internet (with internet, the tab coming into view already checks).
+  const onFocus = () => { if (state.internet !== "yes") recheckSoon(); };
   const onConn = () => set({});
   const onStorage = (e: StorageEvent) => { if (e.key === DEMO_KEY) listeners.forEach((f) => f()); };
   window.addEventListener("offline", onOffline);
   window.addEventListener("online", onOnline);
   window.addEventListener("storage", onStorage);
+  window.addEventListener("focus", onFocus);
   document.addEventListener("visibilitychange", onVisible);
   const c = info() as (ConnectionInfo & Partial<EventTarget>) | null;
   c?.addEventListener?.("change", onConn);
@@ -262,6 +289,7 @@ export function startConnectionWatch(): () => void {
     window.removeEventListener("offline", onOffline);
     window.removeEventListener("online", onOnline);
     window.removeEventListener("storage", onStorage);
+    window.removeEventListener("focus", onFocus);
     document.removeEventListener("visibilitychange", onVisible);
     c?.removeEventListener?.("change", onConn);
   };
@@ -271,6 +299,7 @@ export function startConnectionWatch(): () => void {
 export function resetConnection() {
   clearTimeout(next); clearTimeout(failTimer); failTimer = undefined;
   started = false;
+  retryStep = 0;
   inflight = null;
   shown = null;
   answeredAt = 0;

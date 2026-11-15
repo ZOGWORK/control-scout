@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import initSqlJs from "sql.js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { kvSet, migrate, openDb, run, setDb } from "../db";
+import { all, kvSet, migrate, openDb, run, setDb } from "../db";
 import { createApp } from "../app";
 import { setFlag } from "../flags";
 import { CURRENT_SEASON } from "../data/seasons";
@@ -249,6 +249,24 @@ describe("building a season pack", () => {
     expect(readdirSync(d).filter((x) => x.endsWith(".tmp"))).toEqual([]);
   }, 120_000);
 
+  it("the release's match counts are the pack's own rows, not matches the live lane wrote after the reads", async () => {
+    // A played match lands once the tables are read (the boards come after them), with no write span: the try stands.
+    setBoardReads([async (s) => [{ path: `/api/records/${s}/high-score`, read: async () => {
+      await run(`INSERT OR IGNORE INTO matches (season, code, level, series, number, label, time, played, red_total, blue_total, source) VALUES (?, 'USTXQ1', 'qual', 0, 99, 'Q99', '2026-10-10T12:00:00', 1, 50, 40, 'test')`, [s]);
+      return { line: null };
+    } }]]);
+    const d = mkdtempSync(join(tmpdir(), "cs-boards-stats-"));
+    const f = await buildFull(S, "2026-11-15.1", d, () => {});
+    const SQL = await initSqlJs();
+    const db = wrap(new SQL.Database(readFileSync(join(d, f!.name))));
+    const [inPack] = db.all<{ m: number; e: number }>("SELECT COUNT(*) m, COUNT(DISTINCT code) e FROM matches WHERE season = ? AND played = 1", [S]);
+    expect(f!.stats).toEqual({ matches: Number(inPack.m), events: Number(inPack.e) });
+    // The live database has the late match the pack doesn't: counting there (as before) said one more.
+    const [live] = await all<{ m: number }>("SELECT COUNT(*) m FROM matches WHERE season = ? AND played = 1", [S]);
+    expect(Number(live.m)).toBe(Number(inPack.m) + 1);
+    await run("DELETE FROM matches WHERE season = ? AND code = 'USTXQ1' AND number = 99", [S]);
+  }, 120_000);
+
   it("a build that fails part-way closes its file and leaves no temp file behind", async () => {
     setBoardReads([async (s) => [{ path: `/api/records/${s}/high-score`, read: async () => { throw new Error("boom"); } }]]);
     const d = mkdtempSync(join(tmpdir(), "cs-boards-f-"));
@@ -274,7 +292,7 @@ describe("building a season pack", () => {
     const SQL = await initSqlJs();
     const db = wrap(new SQL.Database(readFileSync(join(d, f!.name))));
     expect(db.all("SELECT value FROM pack_info WHERE key = 'data_version'")).toEqual([{ value: V2 }]);
-    expect(readdirSync(d)).toEqual([f!.name]);
+    expect(readdirSync(d)).toEqual([f!.name, `${f!.name}.gz`]); // and its pre-compressed copy, for resumable downloads
   }, 120_000);
 
   it("data that never settles: the build fails (no mixed pack) and leaves nothing behind", async () => {
@@ -317,7 +335,7 @@ describe("building a season pack", () => {
     expect(logs.some((m) => m.includes("building again"))).toBe(true);
     await span; // the write's own timer, never raced
     expect(writeState().inFlight).toBe(0);
-    expect(readdirSync(d)).toEqual([f!.name]);
+    expect(readdirSync(d)).toEqual([f!.name, `${f!.name}.gz`]); // and its pre-compressed copy, for resumable downloads
   }, 120_000);
 
   it("live writes keep arriving try after try: the build restarts once each ends, and succeeds when a try fits", async () => {
@@ -333,7 +351,7 @@ describe("building a season pack", () => {
     const logs: string[] = [];
     try {
       const f = await buildFull(S, "2026-11-14.17", d, (m) => logs.push(m));
-      expect(readdirSync(d)).toEqual([f!.name]);
+      expect(readdirSync(d)).toEqual([f!.name, `${f!.name}.gz`]); // and its pre-compressed copy, for resumable downloads
     } finally { await idle(); }
     expect(reads).toBe(4); // three overlapped tries, then the one that fit
     expect(logs.filter((m) => /a write (is still in flight|ran during the reads), building again/.test(m))).toHaveLength(3);
@@ -351,7 +369,7 @@ describe("building a season pack", () => {
     const f = await buildFull(S, "2026-11-14.16", d, (m) => logs.push(m));
     expect(reads).toBe(2);
     expect(logs.some((m) => m.includes("building again"))).toBe(true);
-    expect(readdirSync(d)).toEqual([f!.name]);
+    expect(readdirSync(d)).toEqual([f!.name, `${f!.name}.gz`]); // and its pre-compressed copy, for resumable downloads
   }, 120_000);
 
   it("a copy into place that fails: the build rejects and leaves no temp or staging file", async () => {
@@ -424,7 +442,7 @@ describe("the current season's reads hold the data lock", () => {
     const d = mkdtempSync(join(tmpdir(), "cs-lock-o-"));
     const f = await withDataLock("owner: rebuild packs", () => buildFull(S, "2026-11-14.22", d, () => {}, { lockHeld: true }), { ttlMs: 60_000 });
     expect(seen).toEqual(["owner: rebuild packs"]);
-    expect(readdirSync(d)).toEqual([f!.name]);
+    expect(readdirSync(d)).toEqual([f!.name, `${f!.name}.gz`]); // and its pre-compressed copy, for resumable downloads
     expect(await lockHolder()).toBeNull();
   }, 120_000);
 

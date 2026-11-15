@@ -55,7 +55,7 @@ const SECTIONS: { title: string | null; items: NavItem[]; more?: boolean }[] = [
     { to: "/compare", label: "Compare", icon: Scale },
     { to: "/shortlist", label: "Shortlist", icon: Bookmark },
     { to: "/rules", label: "Rules", icon: Gavel },
-    { to: "/download", label: "Download", icon: Download },
+    { to: "/download", label: "Offline", icon: Download },
     { to: "/network", label: "Network & offline", icon: Wifi },
     { to: "/methodology", label: "How it works", icon: BookOpen, children: [
       { to: "/methodology", label: "Predictions", icon: Sparkles },

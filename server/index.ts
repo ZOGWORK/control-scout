@@ -5,7 +5,7 @@
 import { sweepBugReports } from "./bugReports.js";
 import { startUptimeChecks } from "./uptime.js";
 import { backfillVideoMeta } from "./videos/recordings.js";
-import { checkClipCoverage } from "./videos/coverageCheck.js";
+import { checkClipCoverage, triageUntriaged } from "./videos/coverageCheck.js";
 import { resolveStreamLinks } from "./videos/streamLinks.js";
 import { resolveChannelStreams } from "./videos/channelStreams.js";
 import { seedOfficialVideos } from "./videos/officialVideos.js";
@@ -28,6 +28,8 @@ import { forecasterFor, refreshForecasters } from "./predict/engine.js";
 import { CURRENT_SEASON } from "./data/seasons.js";
 import { warmTrackRecord } from "./api/accuracy.js";
 import { warmSpelling } from "./api/spelling.js";
+import { warmNameTypos } from "./api/answers/nameTypos.js";
+import { warmVideoQuestions } from "./api/answers/videoSuggest.js";
 import { ensureSearchIndex, warmTypoIndex } from "./api/search.js";
 import { rebuildSearch } from "./stats/job.js";
 import { scheduleCycles, warmUp } from "./warm.js";
@@ -81,6 +83,8 @@ log(`data: ${await restoreSnapshotIfEmpty().catch((e) => `snapshot restore faile
 log(`packs: ${(() => { try { return installShippedPacks(packsDir()); } catch (e) { return `shipped packs failed: ${(e as Error).message}`; } })()}`);
 await openReplicaIfRemote(log);
 await migrate();
+// Clip coverage rows from before triage get their category from what they hold, in the background (a few hundred rows).
+void triageUntriaged(log).catch((e) => log(`clip coverage triage: ${(e as Error).message}`));
 
 // Warm before answering (server/warm.ts): built on a cold process while a deploy's queued requests poured in, these
 // held its event loop for minutes. Search's index first when the code that builds it changed (SEARCH_INDEX_SCHEMA):
@@ -98,8 +102,9 @@ const warming = await warmUp([
   ["track record and report cutoffs", () => warmTrackRecord().then(() => seasonCutoffs(CURRENT_SEASON)).then(() => seasonCutoffs(CURRENT_SEASON - 1))],
   ["search index", () => indexed],
   // Search's spelling vocabulary (every team, event and place word: about a second cold), then its typo index (every
-  // name's words, numbered: about a second cold), and the names it reads queries with.
-  ["spelling and typo index", () => afterIndex().then(() => warmSpelling()).then(() => warmTypoIndex())],
+  // name's words, numbered: about a second cold), and the names it reads queries with. Then the event names stored
+  // with a typo, never offered as a question with video (a tenth of a second).
+  ["spelling and typo index", () => afterIndex().then(() => warmSpelling()).then(() => warmTypoIndex()).then(() => warmNameTypos())],
   ["search names", () => afterIndex().then(() => warmNames())],
   // The server-side page render (server/firstPaint.ts): its bundle compiled before the first team or event page asks.
   ["page renderer", () => warmPageRenderer()],
@@ -108,12 +113,18 @@ void Promise.all([warming.settled, rated.then((r) => r.settled)]).then(() => { w
 ready = true;
 if (socket) http = server.listen(socket, listening("the systemd socket"));
 log("ready");
+// The questions with video offered when nothing near a search's answer plays in time (server/api/answers/
+// videoSuggest.ts): a few searches, checked once the search index and the event-name typos are ready. Nothing waits
+// on them: neither `ready` nor `warm` (the deploy's check), and each check and the whole build are bounded.
+void afterIndex().then(() => warmNameTypos()).then(() => warmVideoQuestions()).catch(() => {});
 // After a sync (often in a child process) the data version moves: rebuild the
 // ratings in use and the track record right away, in the background, so no
 // visitor's request is the one that waits for them (pages keep the previous
 // ones until they're done).
 // Then the event packs asked for lately (server/packs/eventApi.ts), so the next look at one isn't the one that builds it.
-setInterval(() => { refreshForecasters().catch(() => {}).then(() => warmTrackRecord()).catch(() => {}).then(() => import("./packs/eventApi.js")).then((m) => m.rewarmPacks()).catch(() => {}); }, 15_000).unref();
+// Then the event names stored with a typo, and the questions with video checked in the background, built again once a
+// search index rebuild moves its version.
+setInterval(() => { refreshForecasters().catch(() => {}).then(() => warmTrackRecord()).catch(() => {}).then(() => import("./packs/eventApi.js")).then((m) => m.rewarmPacks()).catch(() => {}).then(() => warmNameTypos()).catch(() => {}).then(() => warmVideoQuestions()).catch(() => {}); }, 15_000).unref();
 
 // One cycle at a time in this process, whether the schedule or the owner portal started it (data/jobs.ts).
 async function cycle(reason: string) {

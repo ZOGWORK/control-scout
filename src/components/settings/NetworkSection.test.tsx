@@ -52,6 +52,7 @@ describe("Network & offline: the status", () => {
     localStorage.setItem(DEMO_KEY, "offline");
     show();
     expect(screen.getByRole("heading", { name: "You're offline" })).toBeTruthy();
+    expect(document.querySelector("[data-net-detail]")).toBeNull();
     expect(document.querySelector("[data-net-type]")!.textContent).toBe("None");
     expect(document.querySelector("[data-net-advice]")!.textContent).toBe("You're offline: your downloaded packs work; Lite needs a connection.");
     expect(screen.getByText("Needs a connection to switch.")).toBeTruthy();
@@ -61,14 +62,25 @@ describe("Network & offline: the status", () => {
     vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("Failed to fetch"); }));
     localStorage.setItem(DEMO_KEY, "portal");
     show();
-    expect(screen.getByRole("heading", { name: "This Wi-Fi isn't giving internet (it may need a sign-in page)" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Connected to Wi-Fi, but no internet" })).toBeTruthy();
+    expect(document.querySelector("[data-net-detail]")!.textContent).toBe("This Wi-Fi isn't giving internet. It's likely waiting at a sign-in page: open any website to sign in.");
+  });
+
+  it("a sign-in page on a cable: connected to a network, not to Wi-Fi", () => {
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("Failed to fetch"); }));
+    vi.stubGlobal("navigator", Object.assign(Object.create(navigator), { connection: { type: "ethernet" } }));
+    localStorage.setItem(DEMO_KEY, "portal");
+    show();
+    expect(screen.getByRole("heading", { name: "Connected to a network, but no internet" })).toBeTruthy();
   });
 
   it("Check again asks the server, and the sentence follows the answer", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("Failed to fetch"); }));
     await act(async () => { await checkInternet(); });
     show();
-    expect(screen.getByRole("heading", { name: "You're offline" })).toBeTruthy();
+    // The browser says it's online (jsdom), but nothing answered the check.
+    expect(screen.getByRole("heading", { name: "Connected, but nothing is getting through" })).toBeTruthy();
+    expect(document.querySelector("[data-net-detail]")!.textContent).toBe("Your device says it's on a network, but nothing answered. Your downloads still work.");
     vi.stubGlobal("fetch", health({ ok: true }));
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: /Check again/ })); });
     expect(await screen.findByRole("heading", { name: "You're online" })).toBeTruthy();

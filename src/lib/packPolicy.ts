@@ -16,6 +16,8 @@ export interface PackMeta {
   version: string; bytes: number; savedAt: number; builtAt: string; engineVersion: string;
   /** Seasons it holds (packs saved before this was noted don't say). */
   seasons?: number[];
+  /** When the server last synced before the pack was built (packs saved from 6.0.5 on). */
+  dataAsOf?: string | null;
 }
 /** The lite pack saved on this device: its meta only (reading it opens nothing). */
 export function packStatus(): PackMeta | null { try { return JSON.parse(localStorage.getItem(PACK_META_KEY) ?? "null"); } catch { return null; } }

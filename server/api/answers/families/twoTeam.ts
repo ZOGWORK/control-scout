@@ -22,6 +22,7 @@ import { teamReliability } from "../../teams.js";
 import { currentSeason, seasonWhy } from "../season.js";
 import { sourceOf, whoOf, type AnswerTeam } from "./matches.js";
 import { awardScale, compareBlock, decidedText, leadHeadline, seasonScale, winShare, type CompareInput, type StatColumn } from "../compareBlock.js";
+import { COMPARE_SCALE_COLS, SEASON_COLS, compareStat, pickSeasonRows, togetherOf, type PickedSeason, type SeasonRow, type TogetherMatch } from "../../../../src/shared/searchVersus.js";
 
 const LIST_CAP = 25, TOP = 10;
 /** Meetings an opponent (or matches a partner) needs before "toughest" or "best" ranks it. */
@@ -78,9 +79,7 @@ export async function headToHead(a: AnswerTeam, b: AnswerTeam, msA: TeamMatch[],
   };
 }
 
-interface SeasonRow { team: number; season: number; opr_np: number | null; opr_auto: number | null; opr_teleop: number | null; opr_endgame: number | null; rank_np: number | null; rank_auto: number | null; rank_teleop: number | null; rank_endgame: number | null; ranked_teams: number | null; rating_np: number | null; rating_auto: number | null; rating_teleop: number | null; rating_endgame: number | null; rating_sd: number | null; rating_rank: number | null; matches: number; wins: number; losses: number; ties: number }
 
-const SEASON_COLS = "team, season, opr_np, opr_auto, opr_teleop, opr_endgame, rank_np, rank_auto, rank_teleop, rank_endgame, ranked_teams, rating_np, rating_auto, rating_teleop, rating_endgame, rating_sd, rating_rank, matches, wins, losses, ties";
 
 /** The season a compare card reads when none is named (seasonRows' choice). */
 export async function compareSeason(teams: number[]): Promise<number | null> {
@@ -89,17 +88,9 @@ export async function compareSeason(teams: number[]): Promise<number | null> {
 
 /** Every team's row for the season named, else for the latest completed season (../season.ts) when all of them played
  *  it, else the latest season all of them played (said so). */
-async function seasonRows(teams: number[], season: number | null): Promise<{ season: number | null; why?: string; rows: (SeasonRow | undefined)[] }> {
+async function seasonRows(teams: number[], season: number | null): Promise<PickedSeason> {
   const rows = await all<SeasonRow>(`SELECT ${SEASON_COLS} FROM team_season_stats WHERE team IN (${teams.map(() => "?").join(",")}) AND matches > 0${season != null ? " AND season = ?" : ""} ORDER BY season DESC`, season != null ? [...teams, season] : teams);
-  const of = (t: number, s: number) => rows.find((r) => Number(r.team) === t && Number(r.season) === s);
-  const allOf = (s: number) => teams.map((t) => of(t, s));
-  if (season != null) return { season, rows: allOf(season) };
-  // The one season rule (../season.ts): the current season when every team has played it, else the latest they all have.
-  const def = currentSeason();
-  if (teams.every((t) => of(t, def))) return { season: def, why: seasonWhy("teams", def), rows: allOf(def) };
-  const s = rows.map((r) => Number(r.season)).find((x) => teams.every((t) => of(t, x)));
-  if (s == null) return { season: null, rows: [] };
-  return { season: s, why: `The season is ${seasonLabel(s)}, the latest season ${teams.length === 2 ? "both" : "all the"} teams played.`, rows: allOf(s) };
+  return pickSeasonRows(teams, rows, season, currentSeason());
 }
 
 /** Both teams' rows (seasonRows for two). */
@@ -394,56 +385,32 @@ export async function awardsSideBySide(a: AnswerTeam, b: AnswerTeam, season: num
   };
 }
 
-/** Most matches together a comparison lists. */
-const TOGETHER_MAX = 10;
-const COMPARE_RULE = "Each team's stored season numbers, as their team pages show them: OPR (the points a team adds to its alliance without penalties) and its rank among every team with an OPR that season, OPR by phase, the prediction rating (points per match ± its uncertainty) and the season's record.";
-
-/** "12345 vs 67890 compare", "12345 67890 33950 compare": the teams' season numbers in one card. */
+/** "12345 vs 67890 compare", "12345 67890 33950 compare": the teams' season numbers in one card (src/shared/searchVersus.ts
+ *  compareStat, which the event pack runs with no signal too), from their stored season rows and the season's scales. */
 export async function compareAnswer(teams: AnswerTeam[], scope: Scope): Promise<StatAnswer> {
   const s = await seasonRows(teams.map((t) => t.number), scope.season);
-  const phrase = s.season != null ? `, ${seasonLabel(s.season)}` : "";
-  const base = { family: "two-team" as const, intent: "compare", title: `${teams.map((t) => t.number).join(" vs ")}${phrase}`, team: teams[0], teams, scope: scopeChips({ ...scope, season: s.season }), definition: `${COMPARE_RULE}${s.why ? ` ${s.why}` : ""}`, source: s.season != null ? `From the teams' ${seasonLabel(s.season)} season numbers` : "No season every team played" };
-  if (s.season == null) return { ...base, blocks: [], none: `${teams.map(whoOf).join(", ")} have no season they all played.` };
-  const missing = teams.filter((_, i) => !s.rows[i]);
-  if (missing.length) return { ...base, blocks: [], none: `No ${seasonLabel(s.season)} matches on record for ${missing.map(whoOf).join(" and ")}.` };
-  const season = s.season;
-  const rows = s.rows as SeasonRow[];
-  const best = rows.reduce((x, r) => ((r.opr_np ?? -Infinity) > (x.opr_np ?? -Infinity) ? r : x));
-  const lead = teams.find((t) => t.number === Number(best.team))!;
-  // No OPR for any of them (counted matches can all be no-shows): the table, with no leader named.
-  const noOpr = rows.every((r) => r?.opr_np == null);
-  const rec = (r: SeasonRow): Rec => ({ wins: r.wins, losses: r.losses, ties: r.ties });
-  const compareHref = `/compare?teams=${teams.map((t) => t.number).sort((x, y) => x - y).join(",")}&season=${season}`;
-  const phases = ["np", "auto", "teleop", "endgame"] as const;
-  // OPR and its phases, then the rating, each on the season's own scale (five rows); the ranks and records are the
-  // context line, said once.
-  const scale = await seasonScale(season, ["opr_np", "opr_auto", "opr_teleop", "opr_endgame", "rating_np"]);
-  const block = compareBlock("Season numbers", teams, [
-    ...phases.map((k) => ({ label: k === "np" ? "OPR" : PHASE_NAME[k], total: k === "np", values: rows.map((r) => r[`opr_${k}`]), max: scale[`opr_${k}`], better: "higher" as const })),
-    { label: "Rating", values: rows.map((r) => r.rating_np), max: scale.rating_np, better: "higher" },
-  ], season, `the ${seasonLabel(season)} high, rounded up`);
-  const crow = block.kind === "compare" ? block.rows : [];
-  const two = teams.length === 2;
-  const who = (i: number) => (two ? "" : `${teams[i].number} `);
-  // The matches every one of them played in that season at official events (on one alliance or against each other;
-  // never a scrimmage or an off-season event, as head to head counts them), latest first: each a
-  // match box the answer's video gives its own clip (../video.ts), one alone the match the card plays.
+  const whole = s.season != null && !teams.some((_, i) => !s.rows[i]);
   const others = teams.slice(1).map((t) => t.number);
-  const met = (await teamMatches(teams[0].number)).filter((m) => m.season === season && m.onField && (OFFICIAL_TYPES as readonly string[]).includes(m.type ?? "") && others.every((n) => m.partners.includes(n) || m.opponents.includes(n))).reverse();
-  // Past the cap the card says how many it shows of them all.
-  const togetherMore = met.length > TOGETHER_MAX ? `Showing the latest ${TOGETHER_MAX} of ${met.length}` : undefined;
-  const together = met.slice(0, TOGETHER_MAX);
-  const togetherLinks = together.length ? await teamLinks(together.flatMap((m) => [...m.partners, ...m.opponents])) : null;
-  const context = [...rows.map((r, i) => `${who(i)}${r.rank_np ? `#${r.rank_np.toLocaleString("en-US")} of ${(r.ranked_teams ?? 0).toLocaleString("en-US")}` : "unranked"} (${recText(rec(r))})`), decidedText(crow)];
-  return {
-    ...base,
-    headline: noOpr ? { value: "No OPR", label: `No ${seasonLabel(season)} OPR on record for these teams`, href: compareHref } : leadHeadline(teams, crow[0], context, teamHref(lead.number, season)),
-    blocks: [
-      block,
-      ...(together.length ? [{ kind: "matches" as const, title: `Their matches together in ${seasonLabel(season)}`, rows: together.map((m) => matchRow(m, togetherLinks!, teams[0].number)), ...(togetherMore ? { more: togetherMore } : {}) }] : []),
-      { kind: "links", title: "Try it", items: [...(two && !isLegacy(season) ? [{ label: "Open in Predict", href: predictHref({ mode: "match", season, red: [teams[0].number], blue: [teams[1].number] }) }] : []), { label: "Compare side by side", href: compareHref }] },
-    ],
-  };
+  const [scale, together] = whole
+    ? await Promise.all([seasonScale(s.season!, COMPARE_SCALE_COLS), togetherMatches(teams[0].number, (w) => others.every((n) => w.includes(n)), s.season!)])
+    : [{}, []];
+  return compareStat(teams, scope, s, scale, isLegacy, togetherOf(together, others));
+}
+
+/** How many teams teamLinks names in one read (it reads no more). */
+const LINKS_AT_ONCE = 400;
+
+/** A team's matches at official events (never a scrimmage or an off-season event, as head to head counts them), on
+ *  the field, latest first, with the teams on the field with it that `keep` takes, each as a comparison lists it (from
+ *  its side): in `season`, else every season. The event pack keeps its teams' (server/packs/eventApi.ts). */
+export async function togetherMatches(team: number, keep: (others: number[]) => boolean, season?: number): Promise<(TogetherMatch & { season: number })[]> {
+  const met = (await teamMatches(team)).filter((m) => (season == null || m.season === season) && m.onField && (OFFICIAL_TYPES as readonly string[]).includes(m.type ?? "") && keep([...m.partners, ...m.opponents])).reverse();
+  if (!met.length) return [];
+  // Every team on them named, however many (teamLinks reads 400 at a time): each row as a card showing it alone names
+  // its teams (compareAnswer lists ten at most), whichever season or set of teams it's shown for.
+  const all = [...new Set(met.flatMap((m) => [...m.partners, ...m.opponents]))];
+  const links = new Map((await Promise.all(Array.from({ length: Math.ceil(all.length / LINKS_AT_ONCE) }, (_, i) => teamLinks(all.slice(i * LINKS_AT_ONCE, (i + 1) * LINKS_AT_ONCE))))).flatMap((m) => [...m]));
+  return met.map((m) => ({ season: m.season, with: [...m.partners, ...m.opponents], row: matchRow(m, links, team) }));
 }
 
 const PARTNER_IDS = new Set<IntentId>(["worst-partner", "partners", "partner-top-opr", "partner-win-rate", "pick-partner"]);

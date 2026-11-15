@@ -15,6 +15,172 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 6.4.7 — 2026-11-15
+
+Settings › Network & offline now says whether the Wi-Fi is actually giving internet: a Wi-Fi whose sign-in page answers reads "Connected to Wi-Fi, but no internet" and says to open any website to sign in, instead of "You're offline".
+
+### Highlights
+- [offline] A Wi-Fi sign-in page reads "Connected to Wi-Fi, but no internet"
+- [offline] It says how to get online: open any website to sign in
+- [offline] On a network that lets nothing through, it says so, not "offline"
+
+### Changed
+- Network & offline status (`/settings#network`): when the connection check gets a page that isn't ours (a sign-in page), the heading says the device is connected (to Wi-Fi when the browser says Wi-Fi, else to a network) but gets no internet, and a line under it says it's likely waiting at a sign-in page: open any website to sign in. When the check gets no answer while the browser says it's online, it reads "Connected, but nothing is getting through"; "You're offline" stays for when the browser itself says there's no network. (`src/lib/networkAdvice.ts`, `src/components/settings/NetworkSection.tsx`) (#1513)
+
+## 6.4.6 — 2026-11-15
+
+Turn Wi-Fi back on and the Offline pill goes within seconds, in the background, without a tap or a reload.
+
+### Highlights
+- [offline] The Offline pill goes within seconds of the Wi-Fi coming back
+- [offline] With no signal, checks come after 3, 5, 10, 20 s, then every 30 s
+- [offline] Coming back to the app with no signal checks again at once
+- [speed] Back online, checks stay as rare as before
+
+### Changed
+- With no internet (or a Wi-Fi sign-in page), the connection check now comes 3 s, 5 s, 10 s and 20 s after the last one, then every 30 s as before, instead of every 30 s from the start; measured live, the Offline pill took 29 to 62 s to go after the line came back. The steps start over once there's internet again, and on the browser's online event, the tab coming into view, or the window getting focus, each of which also checks at once when the last check is over 5 s old. With internet, checks are as before (every 5 minutes, tab in view). (`src/lib/connection.ts`) (#1512)
+
+## 6.4.5 — 2026-11-15
+
+Offline downloads pick up where they stopped when the connection drops, show real MB progress, and never leave a half pack that looks saved. The Download page is now one Offline page: what to save at the top, everything on this device below.
+
+### Highlights
+- [offline] Downloads pick up where they stopped, even after a restart
+- [offline] Real progress, "5.7 MB of 45.3 MB", or "Paused at 24%"
+- [offline] Each pack shows its size; Delete says how much it freed
+- [offline] Save this event, a season, or the whole current season
+- [offline] Updates say what they bring and when the data is from
+
+### Added
+- One downloader for every offline file (season packs, the predictions pack, event packs): it keeps what it has received in IndexedDB in 512 KB pieces as they arrive, and after a dropped connection (or closing the app) asks only for the rest with `Range: bytes=<have>-` (If-Range with a strong ETag). A server that ignores the range, a range of a different file, or a file that changed starts again cleanly from the first byte. The bytes become a saved copy only once the whole file matches its published SHA-256; the pieces are deleted after the saved copy is swapped in. (`src/lib/offline/download.ts`, `src/lib/offline/useDownloads.ts`)
+- Season packs are also published gzipped (`.db.gz`, with its own size and SHA-256 in the manifest), and that is what the app downloads: browsers ask for a resumed range uncompressed, so resuming the plain `.db` would cost its raw size. The unzipped file is checked against the pack's own SHA-256 too. The plain `.db` stays for analysts. Each season pack also carries its played-match and event counts. (`server/packs/build.ts`)
+- Offline page (`/download`, "Offline" in the menu): This event / A season / Whole current season at the top, each with its download size; On this device below with every pack's size here, when its data is from ("Data from Nov 13, 8:09 PM"), what a newer release brings ("Newer data from Nov 14, 9:02 AM · 214 new matches from 3 more events"), Update and Delete; half downloads as "Paused at 24% · not saved yet" with Resume and Delete; one total and the browser's own storage estimate. (`src/pages/DownloadPage.tsx`, `src/lib/offline/storage.ts`)
+
+### Changed
+- Delete really deletes: the predictions pack's bytes are removed from IndexedDB (they were overwritten with null), and every delete says "Freed 6.9 MB". The browser is asked to keep this site's storage on the first download of any kind. Event-day bundles show real bytes while downloading. The menu calls the page Offline. (`src/lib/packs.ts`, `src/lib/offline/bundles.ts`, `src/components/offline/EventBundles.tsx`) (#1462)
+## 6.4.4 — 2026-11-15
+
+A search naming an event by its whole name now gets that event, even when the name ends in a number or holds a town.
+
+### Highlights
+- [fixes] An event named in full is that event, never its number as a team
+- [fixes] A town or region inside an event's name no longer becomes the place
+- [fixes] More "<event> highlights" searches play the event's clips
+
+### Fixed
+- Search: a league meet's own number was read as a team ("Ritchie League Meet 1" became team 1), and a town or region inside an event's name became the place with the rest left unread. An event's whole stored name is now read first, before its words are teams, numbers or places; a name made only of kind words and a number, a team's whole name, and a place with only event words beside it read as before. (`src/shared/query/names.ts`, `src/shared/query/parse.ts`) (#1510)
+
+## 6.4.3 — 2026-11-15
+
+Owner › Clip coverage now sorts itself: the server puts every event with a missing clip in a category, and only the Actionable ones ask for a look.
+
+### Highlights
+- [workspace] Clip coverage triaged by the server: To review is Actionable only
+- [workspace] Each event says its category and why in plain words
+- [workspace] Mark a whole category or season reviewed, count shown first
+- [fixes] A reviewed event comes back only when its new gap is actionable
+
+### Changed
+- Owner › Clip coverage: every event with a played match missing a clip is triaged by the server as Actionable (a match the clock alone puts outside the video: before or after the broadcast, before its cut start or after its end, outside what its chapters confirm, never checked against the video itself; or no reason found), No timing, Early start / unsafe, or Old season (before last season, decided when read so it follows the season rollover). To review counts Actionable only and is the default view; each category is a filter with its count, and each row says its category and why. "Played before the broadcast started" is never put anywhere but Actionable on that reason alone. (`server/videos/coverageTriage.ts`, `src/components/owner/ClipCoveragePanel.tsx`, migration 89) (#1509)
+- A reviewed event opens again only when its missing list changes to an actionable one; a deploy or refreshed facts alone never open one. (`server/videos/coverageCheck.ts`)
+
+### Added
+- Bulk Reviewed: "Mark all non-actionable as reviewed", a whole category, or a whole season (its non-actionable events, its Actionable ones only when ticked). Each asks first with its count, marks only if that's still the count, and is in the audit log (`clipCoverage.bulkReviewed`, with category, season and count). Missing lists stay, and the 5-minute check keeps checking every event.
+
+## 6.4.2 — 2026-11-14
+
+World rankings and the home page's prediction record open cleanly with no signal.
+
+### Highlights
+- [offline] Home's prediction record shows its last numbers with no signal
+- [fixes] World rankings with no season saved no longer looks stuck loading
+- [rankings] Its season picker shows next to the "needs a connection" note
+
+### Fixed
+- World rankings, opened with no signal and no season saved: the season picker now shows next to the page's "needs a connection" note, instead of a loading placeholder that never went away. (`src/pages/RankingsPage.tsx`)
+- The home page's prediction record (`/api/predict/accuracy`) is kept on the device like the season totals, so with no signal it shows the last numbers it loaded, marked with their time, instead of "needs a connection". (`src/lib/offline/kept.ts`) (#1511)
+
+## 6.4.1 — 2026-11-14
+
+With no signal, the event page says its videos need a connection instead of its Watch buttons quietly going away, and the livestream button no longer opens a tab that can't load.
+
+### Highlights
+- [offline] Offline, the event page says its video needs a connection
+- [offline] The livestream button offline says it needs a connection
+- [offline] A Watch on Wi-Fi with no internet says so instead of failing
+
+### Changed
+- An event with something to watch (its stream, a livestream link, or a match with a clip or FIRST's video), opened from what's saved on this device or with no internet, shows one line under its actions: "Video needs a connection. Scores, stats and calls here work offline." A saved season doesn't know each match's clip, so its rows have no Watch button to say it themselves.
+- The livestream button, in the header and the LIVE panel, is a disabled "Livestream needs a connection" button then (44 px tall on phones), instead of a link to a tab that can't load or a jump to a player that can't play.
+- A match's Watch and official-video buttons follow the app's connection check too, not only the browser's word: on a Wi-Fi with no internet or a sign-in page they say they need a connection. (#1514)
+
+## 6.4.0 — 2026-11-14
+
+2025's events and 2024's APOC get match clips read off their recordings' frames: 2,612 more matches now open on their match, and 1,538 move to the second the frames show.
+
+### Highlights
+- [history] 2,612 more matches open on their match in the recording
+- [history] 1,538 clips now start where the video shows the match start
+- [history] Frame clips for every framed 2025 event and 2024's APOC
+
+### Changed
+- `server/data/frameTimings.ts` holds the two-signal reader's starts for 128 framed events (165 videos: 2025's events, and two 2024-season APOC videos under AUSYOS), in place of the 7 events shipped with 6.3.4. Against what's live: 30,273 of 34,423 played matches keep their clip as it is, 2,612 get a clip (456 read and confirmed, 2,156 between two agreeing reads), 1,538 move to the frames' second (1,256 by 30 s or less; 282 by more, all earlier in the video, across 23 events) and none lose a clip. 35 of them, one for every event with a move over 30 s plus 12 new ones, were checked by eye 30 s into the match: each shows that match running. (#1502)
+
+## 6.3.9 — 2026-11-14
+
+FTC One Search works with no signal at the meet: search a team in the downloaded event by number or name, the event, a match, or set its teams side by side, and get the same answer as online. Anything else says plainly that it needs data the pack doesn't hold, and shows what the pack does hold.
+
+### Highlights
+- [offline] Search the event's teams, the event and its matches offline
+- [offline] "12722 vs 17064 vs 27851" compares pack teams with no signal
+- [offline] Searches the pack can't answer say what's missing, not an error
+- [speed] Offline search answers at once, with no network wait
+
+### Added
+- The event pack holds FTC One Search's whole answer (`/api/search?answer=1`, as the /search page shows it, for anyone) for every team in the event by number and by name, the event by code and by name, and each match as search reads one ("USMIMIQ1 Q12"), read through the route's own functions (`server/api/searchPage.ts`, which the route now calls too), and each team's season numbers for the result cards (`/api/teams-summary`). Measured for the real 2026 USMIMIQ1 (34 teams): the pack's answers, Compare and search parts about 178 KB gzipped. With no signal, "Questions with video", People also ask and Related searches are left out (nothing plays offline, and they're read live).
+- Two to four of the pack's teams set against each other ("A vs B", "A vs B vs C") are built on the phone by the same functions the server builds them with (`src/shared/searchVersus.ts`: Compare's hit, the team rows, the season-numbers card; the server's `searchCompare.ts`, `twoTeam.ts` and `answers/index.ts` now call them), from the pack's new `search` section. Checked byte for byte against the server's own JSON (10 of 10 queries on 2026 USMIMIQ1, and in `server/packs/eventSearch.test.ts`).
+- Any other search with no signal is read by search's own parser, now in `src/shared/query/` (the server imports it from there), and answers "This needs data that isn't in your downloaded pack (it's about the 2025–26 season)", then the pack's event, teams, matches and data time, with links to the pack's pages it names. A saved season still answers plain results first, as before.
+
+### Changed
+- With an event pack saved, search waits 4 seconds for the server before the pack answers (no answer, or no network at all: at once), never search's 10-second slow-search wait; a search the pack can't answer still waits for a server that's answering everything else. (#1489)
+
+## 6.3.8 — 2026-11-14
+
+A search asking for video with nothing to play now offers questions with video right away, even the first one after a restart.
+
+### Highlights
+- [fixes] Video searches with nothing to play always offer questions that play
+- [fixes] Questions with video show sooner: no extra wait when some are ready
+- [fixes] Events from last season get a turn when this season's have no clips
+
+### Fixed
+- Search: "Questions with video" for an answer at an event this season could come out empty. Each nearby event was checked by a search of its own, in turn, and when this season's had no clips last season's never got a turn before the wait ran out. A few questions about the latest seasons' best known events with clips are now checked in the background at server start, and again after each search index rebuild and every half hour; they are offered when nothing nearby plays in time, without waiting longer. Each nearby season now gets at most half the turns. (`server/api/answers/videoSuggest.ts`, `server/index.ts`) (#1501)
+
+## 6.3.7 — 2026-11-14
+
+A recorded event with a day that has no recording now always reads "Partially recorded", and the coverage line no longer says "Full".
+
+### Highlights
+- [fixes] A partly recorded event never reads as fully recorded
+- [fixes] Event pages name a day with no recording in the coverage line
+- [fixes] The coverage line waits for the check instead of guessing
+
+### Fixed
+- Event page coverage line: an event whose coverage check finds a day with no recording (FPEWESEA 2025: Friday and Sunday) said "Full recording only — no match clips in it yet"; it now says "Partially recorded — 0 of 124 matches have video". A recording with no clip placed reads "Recording only — no match clips in it yet", never "Full". The line and the day chips read the same coverage request. While the check is out, a line with no clip waits instead of saying "Recording only" first; a recording that won't play keeps saying so. (`src/components/contributors/RecordingGaps.tsx`, `src/shared/contributors.ts`) (#1500)
+
+## 6.3.6 — 2026-11-14
+
+A search asking for video with nothing to play now always gets its questions with video, and none of them reads like a typo.
+
+### Highlights
+- [fixes] The first video search after a quiet spell still offers questions
+- [fixes] Questions with video never show an event name that reads like a typo
+- [fixes] A misspelled name is skipped and the next question takes its place
+
+### Fixed
+- Search: a watch search whose answer plays nothing waited 2.5 s for its "Questions with video", and the first one after the checks expired could find none in time, so it offered nothing. With none found by then it now waits up to 2 s more and answers as soon as one is found. (`server/api/answers/videoSuggest.ts`)
+- Search: "Questions with video" offered an event under its stored name even when that name has a typo. An event's name now reads as one only when a word no other event has is a letter dropped, doubled or swapped inside a word at least three other events spell in full; rare and accented names stay. The set is built per search index version at start and after a rebuild, never on a search. A skipped event is made up by the next one, the latest seasons' best known events top up to three, and a general question with video stands in when no event's is left. (`server/api/answers/nameTypos.ts`, `server/api/answers/videoSuggest.ts`, `server/index.ts`) (#1499)
+
 ## 6.3.5 — 2026-11-14
 
 The official-video watcher no longer adds a second stream to a day that already has one, and sets aside drone and simulator contests, FIRST Global, council meetings and school sports days.

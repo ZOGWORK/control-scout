@@ -12,19 +12,19 @@ import { siteMeta } from "./api/meta.js";
 import { CURRENT_SEASON, SEASONS, SEASON_NUMBERS, isLegacy, seasonInfo } from "./data/seasons.js";
 import { ensureSearchIndex, search } from "./api/search.js";
 import { MAX_QUERY, cleanQuery, learnQuery, searchAnswer } from "./api/searchAnswer.js";
-import { mineAnswer } from "./api/searchMine.js";
 import { myTeamOf } from "../src/shared/searchMine.js";
-import { answerHits, pickedQuery, pickedSeasonOf, withHighlights } from "./api/searchPageAnswer.js";
+import { pickedQuery, pickedSeasonOf } from "./api/searchPageAnswer.js";
 import { keptFollowUps, pageAnswer } from "./api/answers/followUps.js";
+import { finishPageAnswer, typedPageAnswer } from "./api/searchPage.js";
 import { withVideoAlternatives } from "./api/answers/videoSuggest.js";
 import { relatedPage } from "./api/answers/relatedPage.js";
 import { refine } from "./api/searchBruno.js";
 import { brunoAnswer } from "./api/searchBrunoAnswer.js";
-import { SEARCH_PAGE_LIMIT } from "../src/shared/search.js";
+import { SEARCH_PAGE_LIMIT, preferOf } from "../src/shared/search.js";
 import { searchTiming } from "./api/searchTiming.js";
 
 /** A search's preferred teams and events (?prefer=team:4215,event:2025:USNJCMP), the visitor's own: ranked first. */
-const preferOf = (raw: unknown) => new Set(String(raw ?? "").split(",").filter((k) => /^(team:\d{1,6}|event:\d{4}:[A-Z0-9_-]{2,24})$/i.test(k)).slice(0, 100));
+// ?prefer= (src/shared/search.ts preferOf): read the same way by the event pack with no signal.
 import { recordClick } from "./api/searchLearn.js";
 import { recordIntent } from "./api/searchIntents.js";
 import { rebuildSearch } from "./stats/job.js";
@@ -41,7 +41,7 @@ import { teamHighlightsPage } from "./teamHighlightsPage.js";
 import { teamRecordPage } from "./teamRecordPage.js";
 import { eventHighlightsPage } from "./eventHighlightsPage.js";
 import { perTeamOf, simulatedRankings } from "./projections/rankingSim.js";
-import { recordingStream } from "./videos/recordings.js";
+import { recordingStream, seasonRecordings, seasonVideoKinds } from "./videos/recordings.js";
 import { eventClipCoverage } from "./videos/coverage.js";
 import { answerVideo } from "./api/answers/video.js";
 import { matchViews } from "./api/matches.js";
@@ -418,10 +418,9 @@ export function createApp(opts: { dist?: string; /** Tests only: a smaller searc
     if (req.query.answer === "1" && !kinds.size) {
       const q = await pickedQuery(req.query.q, req.query.season);
       // The same query asked again within a minute (a retry, another visitor) is the answer already worked out
-      // (server/api/searchReads.ts).
-      const typed = await pageAnswer(q, limit, prefer);
-      // "My" and "our" with no team named: the visitor's My team, sent as ?my= (server/api/searchMine.ts).
-      const ans = (await mineAnswer(q, typed, myTeamOf(req.query.my), (x) => pageAnswer(x, limit, prefer))) ?? typed;
+      // (server/api/searchReads.ts); "my" and "our" with no team named: the visitor's My team, sent as ?my=
+      // (server/api/searchMine.ts). The event pack ships these same answers (server/api/searchPage.ts).
+      const ans = await typedPageAnswer(q, limit, prefer, myTeamOf(req.query.my));
       const answered = performance.now();
       // How it was read (server/api/searchLayers.ts), taken from the answer object itself, before it's copied.
       const trace = outcomeTrace(ans);
@@ -435,27 +434,24 @@ export function createApp(opts: { dist?: string; /** Tests only: a smaller searc
         const p = failureOf(q, ans, trace) ? await patternFor(q) : null;
         noteSearch(q, ans, req.ip ?? "?", trace, at, p?.key ?? (await keyFor(q)), p?.missed);
       }).catch(() => {});
-      // A search for one team alone ("4215") on the results page: the team's highlights as its answer, its matches'
-      // videos with it (server/api/searchPageAnswer.ts, which Control Scout Lite's search page reads too).
-      // Who's asking (for the videos below) is read beside the highlights, not after them.
+      // A lone team's highlights, the rows' numbers and the answer's video (server/api/searchPage.ts). Who's asking (for
+      // the videos) is read beside the highlights, not after them.
       const asking = currentUser(req).catch(() => null).then(viewerOf);
-      asking.catch(() => {}); // awaited below; never an unhandled rejection meanwhile
-      const full = await withHighlights(ans, limit);
-      // Its video (server/api/answers/video.ts): one read for the whole answer, beside the team rows'.
+      asking.catch(() => {}); // awaited inside; never an unhandled rejection meanwhile
+      const { body, contributor } = await finishPageAnswer(ans, limit, asking);
       // Match videos people added are for the viewer asking (docs/contributors.md): an answer carrying one is never cached.
-      const viewer = await asking;
-      const [hits, video] = await Promise.all([answerHits(full.hits), answerVideo(full, Date.now(), viewer).then((v) => v ?? null, () => undefined)]);
-      if (video && (video.main?.kind === "contributor" || Object.values(video.rows ?? {}).some((x) => x.kind === "contributor"))) res.setHeader("Cache-Control", "private, no-store");
+      if (contributor) res.setHeader("Cache-Control", "private, no-store");
       // Asked to watch and nothing plays (server/api/answers/videoSuggest.ts): questions that do, each checked. Only
       // when the video was read: a failed read says nothing either way.
-      const offered = video === undefined ? full : await withVideoAlternatives(q, full, video, (x) => pageAnswer(x, limit, prefer), (b) => answerVideo(b, Date.now(), viewer), undefined, undefined, viewer?.userId != null ? `u${viewer.userId}` : "").catch(() => full);
+      const viewer = await asking;
+      const offered = body.video === undefined ? body : await withVideoAlternatives(q, body, body.video, (x) => pageAnswer(x, limit, prefer), (b) => answerVideo(b, Date.now(), viewer), undefined, undefined, viewer?.userId != null ? `u${viewer.userId}` : "").catch(() => body);
       // Checked for this viewer (a video they added may be what plays): questions offered to one viewer are never cached.
-      if (viewer?.userId != null && offered !== full) res.setHeader("Cache-Control", "private, no-store");
+      if (viewer?.userId != null && offered !== body) res.setHeader("Cache-Control", "private, no-store");
       // This process's own time (searchTiming): the answer, then the rest (highlights, team numbers, video).
       res.setHeader("Server-Timing", searchTiming({ answer: answered - started, extras: performance.now() - answered }));
       // null: read, and nothing plays (the page then says so); a read that failed sends none, as a first paint carries
       // none (src/shared/api.ts): the page then says nothing about video.
-      return { ...offered, hits, ...(video !== undefined ? { video } : {}) };
+      return { ...offered, hits: body.hits, ...(body.video !== undefined ? { video: body.video } : {}) };
     }
     return { q: String(req.query.q ?? ""), hits: await search(String(req.query.q ?? "").slice(0, MAX_QUERY), limit, prefer, kinds) };
   }));

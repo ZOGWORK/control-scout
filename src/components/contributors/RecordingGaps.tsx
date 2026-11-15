@@ -1,12 +1,12 @@
 // What a recorded event's video doesn't cover, under the coverage line (server/videos/coverage.ts): each day or part
 // with its share of clips, a day with no recording, and, one tap away, the matches without a clip and why. Only for an
 // event with a recording where some played match has no video at all: a fully covered one shows nothing more.
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Check, CircleSlash, TriangleAlert } from "lucide-react";
 import type { ClipCoverage, MatchView } from "../../shared/api";
 import { labelRanges, missingGroups } from "../../shared/coverage";
 import { useApi } from "../../lib/api";
-import { useContributorVideos } from "./EventClips";
+import { CoverageLine, useContributorVideos } from "./EventClips";
 import { cn } from "../cn";
 
 /** What the page's coverage depends on, as a short hash: which played matches have no video and their times (FIRST
@@ -28,16 +28,37 @@ export function chipTone(v: { matches: number; clipped: number }): "done" | "sho
 export const coveragePath = (season: number, code: string) => `/api/events/${season}/${encodeURIComponent(code)}/coverage`;
 
 /** `recorded`: the event has a recording linked, playable or not (a private one still says why); `videos`: its videos' ids. */
-export function RecordingGaps({ season, code, recorded, matches, videos = [] }: { season: number; code: string; recorded: boolean; matches: MatchView[]; videos?: string[] }) {
-  const byKey = useContributorVideos();
-  // Asked only when a played match has neither a clip nor FIRST's video; asked again when the matches move (a live
-  // event's new results, Refresh results, a clip placed): the path carries what the page has.
+export interface RecordingProps { season: number; code: string; recorded: boolean; matches: MatchView[]; videos?: string[] }
+
+/** The coverage check for the page: asked only when a played match has neither a clip nor FIRST's video; asked again
+ *  when the matches move (a live event's new results, Refresh results, a clip placed): the path carries what the page
+ *  has. The line and the gaps below it read the same path, so it's one request. `data`: the answer, or while a new path
+ *  is out (a live event's next result), this event's last one, so neither the line nor the chips blank meanwhile. */
+function useRecordingCoverage({ season, code, recorded, matches, videos = [] }: RecordingProps) {
   const played = matches.filter((m) => m.played);
   const gap = recorded && played.some((m) => !m.clip && !m.video);
   const s = useApi<ClipCoverage>(gap ? `${coveragePath(season, code)}?m=${missingSignature(played, videos)}` : null);
+  const event = `${season}/${code}`;
+  const [last, setLast] = useState<{ event: string; c: ClipCoverage } | null>(null);
+  useEffect(() => { if (s.data) setLast({ event, c: s.data }); }, [s.data, event]);
+  return { gap, s, data: s.data ?? (last?.event === event ? last.c : undefined) };
+}
+
+/** The coverage line, told when a day of the event has no recording, so a partly recorded event never reads as only
+ *  "Recording" (FPEWESEA 2025: Friday and Sunday unrecorded). `playable`: the page plays the recording; one that won't
+ *  play keeps saying so. While the check is out, a line with no clip waits; if it fails, the line goes on without it. */
+export function RecordingCoverageLine({ reserve, playable, unplayable, ...rec }: RecordingProps & { reserve?: boolean; playable: boolean; unplayable: boolean }) {
+  const { gap, s, data: known } = useRecordingCoverage(rec);
+  const asks = playable && gap;
+  // The line waits only before this event's first answer (useRecordingCoverage keeps the last one while it re-asks).
+  return <CoverageLine reserve={reserve} recorded={playable} unplayable={unplayable} partial={asks && !!known?.daysMissing.length} hold={asks && !known && !s.error} />;
+}
+
+export function RecordingGaps(rec: RecordingProps) {
+  const byKey = useContributorVideos();
+  const { gap, data: c } = useRecordingCoverage(rec);
   // A match someone added a video for has one: not missing here.
-  const missing = useMemo(() => (s.data?.matches ?? []).filter((m) => !m.clip && !byKey[m.key]), [s.data, byKey]);
-  const c = s.data;
+  const missing = useMemo(() => (c?.matches ?? []).filter((m) => !m.clip && !byKey[m.key]), [c, byKey]);
   if (!gap || !c || !missing.length) return null;
   const groups = missingGroups(missing);
   return (

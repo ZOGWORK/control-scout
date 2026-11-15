@@ -25,10 +25,10 @@ const bundles = () => import("../../lib/offline/bundles");
 const evKey = (season: number, code: string) => `${season}:${code.toUpperCase()}`;
 const today = () => new Date().toISOString().slice(0, 10);
 
-interface EventOption { season: number; code: string; name: string; start: string | null }
+export interface EventOption { season: number; code: string; name: string; start: string | null }
 
 /** The events worth offering: the one in the link, your team's this season (soonest first), and the ones you track. */
-function useEventOptions(): EventOption[] {
+export function useEventOptions(): EventOption[] {
   const [sp] = useSearchParams();
   const { state } = usePersonal();
   const team = useApi<TeamProfile>(state.myTeam ? `/api/teams/${state.myTeam}` : null);
@@ -46,7 +46,8 @@ function useEventOptions(): EventOption[] {
   }, [sp, team.data, state.tracked?.events]);
 }
 
-export function EventBundles() {
+/** `showSaved`: list the bundles on this device here (the Offline page lists every pack in one place instead). */
+export function EventBundles({ showSaved = true }: { showSaved?: boolean } = {}) {
   // The owner's switches (GET /api/flags): event-day bundles, and offline packs (paused, bundles pause too). Off, the
   // builder and updates hide; bundles already here stay listed (open, remove) and still answer with no signal.
   const bundlesOn = useFlag("eventBundle");
@@ -67,7 +68,7 @@ export function EventBundles() {
         </p>
       </div>
       {on ? <Builder saved={saved} /> : <p className="p-4 text-sm text-muted-foreground sm:p-6" data-bundles-off>New bundles are switched off for now. The ones on this device keep working.</p>}
-      {saved.length > 0 && <SavedList saved={saved} canUpdate={on} />}
+      {showSaved && saved.length > 0 && <SavedList saved={saved} canUpdate={on} />}
     </section>
   );
 }
@@ -81,7 +82,7 @@ function Builder({ saved }: { saved: SavedBundle[] }) {
   const ev = options.find((o) => evKey(o.season, o.code) === chosen) ?? options[0] ?? null;
   const [team, setTeam] = useState<number | null | undefined>(undefined);
   const [m, setM] = useState<{ key: string; manifest?: BundleManifest; error?: string } | null>(null);
-  const [pct, setPct] = useState<number | null>(null);
+  const [got, setGot] = useState<{ done: number; total: number } | null>(null);
 
   // Your team, when it's at this event; else the first pick stays "no team" until chosen.
   // The event's teams outlive a manifest (changing team asks again for the same event's field).
@@ -117,12 +118,12 @@ function Builder({ saved }: { saved: SavedBundle[] }) {
   const upToDate = !!have && !!manifest && have.version === manifest.version;
   const download = async () => {
     if (!req || !manifest) return;
-    setPct(0);
+    setGot({ done: 0, total: manifest.bytes });
     try {
-      const b = await (await bundles()).downloadBundle(req, (d, t) => setPct(Math.min(100, (d / Math.max(1, t)) * 100)), manifest);
+      const b = await (await bundles()).downloadBundle(req, (done, total) => setGot({ done, total }), manifest);
       toast.success(`${b.name} bundle saved on this device`, { description: `${fmtBytes(b.bytes)}, data from ${snapshotClock(bundleTime(b))}. It works with no signal.` });
     } catch (e) { toast.error((e as Error).message); }
-    finally { setPct(null); }
+    finally { setGot(null); }
   };
 
   return (
@@ -161,8 +162,8 @@ function Builder({ saved }: { saved: SavedBundle[] }) {
                 ))}
               </ul>
               <p className="text-xs text-muted-foreground">Data from <span className="font-medium text-foreground tabular-nums">{snapshotClock(manifest.dataAsOf ?? manifest.builtAt)}</span> · engine v{manifest.engineVersion}</p>
-              {pct != null ? (
-                <div role="status"><Progress value={pct} aria-label="Downloading the bundle" /><p className="mt-1 text-xs tabular-nums text-muted-foreground">Downloading… {fmtBytes((pct / 100) * manifest.bytes)} of {fmtBytes(manifest.bytes)}</p></div>
+              {got != null ? (
+                <div role="status"><Progress value={Math.min(100, (got.done / Math.max(1, got.total)) * 100)} aria-label="Downloading the bundle" /><p className="mt-1 text-xs tabular-nums text-muted-foreground">Downloading… {fmtBytes(got.done)} of {fmtBytes(got.total)}</p></div>
               ) : upToDate ? (
                 <p className="inline-flex items-center gap-1.5 text-sm text-success"><CheckCircle2 className="size-4" />On this device and current. <Link to={`/bundle/${have!.season}/${encodeURIComponent(have!.code)}`} className="underline">Open it</Link></p>
               ) : (

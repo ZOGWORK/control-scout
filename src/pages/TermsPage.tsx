@@ -44,7 +44,7 @@ const SECTIONS: LegalSectionDef[] = [
       <>
         <p>Use Control Scout the way it's meant to be used. Please don't:</p>
         <ul>
-          <li><strong>Scrape it aggressively</strong> or hammer the API with automated requests. Requests are <strong>rate-limited per IP address</strong>, and clients that go over the limit get slowed or blocked. Need a whole season? The <In to="/download">Download page</In> has full seasons as files.</li>
+          <li><strong>Scrape it aggressively</strong> or hammer the API with automated requests. Requests are <strong>rate-limited per IP address</strong>, and clients that go over the limit get slowed or blocked. Need a whole season? The <In to="/download">Offline page</In> has full seasons as files.</li>
           <li>Try to break, overload or get around the site's security, rate limits or sign-in.</li>
           <li>Use someone else's account, or sign in with an email address that isn't yours.</li>
           <li>Use the site to harass anyone, or to post or send anything unlawful or harmful.</li>
