@@ -147,6 +147,9 @@ function set(next: Partial<ConnectionState>) {
   const prev = state.internet;
   if (changed || merged.checkedAt !== state.checkedAt) state = merged;
   if (state.internet === "yes") { retryStep = 0; onlineUntil = 0; waitingUntil = 0; }
+  // No internet after all (the browser's offline event): a check waiting on a busy server stops waiting, so the
+  // back-off starts now rather than after BUSY_TIMEOUT_MS.
+  else if (state.internet === "no" || state.internet === "portal") stopBusyWait?.();
   if (merged.checkedAt && merged.internet !== "unknown") {
     if (merged.internet === "yes") heardAt = Math.max(heardAt, merged.checkedAt);
     remember(merged.internet, merged.checkedAt);
@@ -224,6 +227,8 @@ export async function classify(res: Response): Promise<Internet> {
 }
 
 let inflight: Promise<Internet> | null = null;
+/** Ends the wait of a check that is waiting on a busy server (BUSY_TIMEOUT_MS), when one is. */
+let stopBusyWait: (() => void) | null = null;
 let started = false;
 
 /** Check now (one at a time: a check already running is shared). Resolves to the answer. */
@@ -237,7 +242,12 @@ export function checkInternet(): Promise<Internet> {
   let waited = false;
   const giveUp = () => {
     // The server answered another request while this one waited: that's the answer (it's set aside below), no wait.
-    if (!waited && answeredAt < since && busy()) { waited = true; timer = setTimeout(giveUp, BUSY_TIMEOUT_MS - CHECK_TIMEOUT_MS); return; }
+    if (!waited && answeredAt < since && busy()) {
+      waited = true;
+      timer = setTimeout(giveUp, BUSY_TIMEOUT_MS - CHECK_TIMEOUT_MS);
+      stopBusyWait = () => { clearTimeout(timer); ctrl.abort(); };
+      return;
+    }
     ctrl.abort();
   };
   let timer = setTimeout(giveUp, CHECK_TIMEOUT_MS);
@@ -249,6 +259,7 @@ export function checkInternet(): Promise<Internet> {
       return "no";
     } finally {
       clearTimeout(timer);
+      stopBusyWait = null;
     }
   })().then((internet) => {
     if (inflight === run) inflight = null;
@@ -385,6 +396,7 @@ export function resetConnection() {
   onlineUntil = 0;
   waitingUntil = 0;
   inflight = null;
+  stopBusyWait = null;
   shown = null;
   answeredAt = 0;
   try { sessionStorage.removeItem(LAST_KEY); } catch { /* none */ }
