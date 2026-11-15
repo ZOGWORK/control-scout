@@ -17,15 +17,21 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 
 ## 6.6.7 — 2026-11-15
 
-Search reads a year after an award's winners: "inspire award winners 2024" lists that season's Inspire Award winners.
+Clip coverage's To review now holds only matches checked against the video itself; the rest wait under their own count, and every match the video showed without a clip is a finding.
 
 ### Highlights
-- [fixes] "inspire award winners 2024" lists the 2024–25 winners
-- [fixes] "think award winners 2025" lists the 2025–26 winners
-- [fixes] A team numbered like a year is still read as that team
+- [workspace] To review holds only matches checked against the video itself
+- [workspace] "Not yet checked against the video" gets its own count, never hidden
+- [workspace] Each match the video showed with no clip is listed as a finding
+- [workspace] Each check pass is logged and shown: clipped, missing and why
+- [workspace] The pending video checks count down pass by pass
 
-### Fixed
-- Search: one award's winners with a bare year ("inspire award winners 2024", "think award winners 2025") said no team, event or match matched, since the year was taken for a team number. A year ending the question is now its season, as search reads a year everywhere (2024 is 2024–25; at Worlds, the Championship held that year). A number before the ask, or after "team" or "#", is still a team's. Failed search #1434. (`server/api/answers/families/placeAwards.ts`) (#1533)
+### Changed
+- Owner › Clip coverage: an event is To review only for a match its video's frames were read for and that still has no clip (or a match with no reason found), and its reason says what was checked in the video and what was missing there; matches still waiting for their check are counted beside it. An event whose missing matches were left out by the clock alone and not yet checked against the video is "Not yet checked against the video": a pending check with its own count and list, in any season, never in To review, never marked reviewed (one or in any bulk), moving on once its frames are read; a review given to it while it waited doesn't carry over, so its video-checked list comes back To review. (`server/videos/coverageTriage.ts`, `server/videos/coverageCheck.ts`, `src/components/owner/ClipCoveragePanel.tsx`) (#1539)
+
+### Added
+- Each clip coverage check pass logs events checked, fully clipped, matches clipped and missing, and the missing by what their video check found (not yet checked, checked with no start found, seen in the video with no clip, or the video's own reason); the console shows the last pass. Every match the video's frames saw with no clip is a finding in the console, with its video, the second it was seen at, its event and why, whatever its review; so is every clip pulled because its first frame showed another match, with the frame checks' totals (checked, confirmed, pulled, to read again, videos with no overlay). A finding stays until a pass clears it (its clip placed, or a re-read shows the match isn't there) and is never marked reviewed. The console counts the matches still waiting for their video check after each pass and how many fewer than the pass before, and the pass log line ends with it.
+
 ## 6.6.6 — 2026-11-15
 
 35 more official event recordings play: 25 of FIRST Indiana's events, SoCal's ILTs and championship, and Kansas City's Piper meets. West Michigan's Meet 5 and Meet 6 each play their own stream.
