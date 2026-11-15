@@ -21,11 +21,12 @@ World rankings and the home page's prediction record open cleanly with no signal
 
 ### Highlights
 - [offline] Home's prediction record shows its last numbers with no signal
-- [fixes] World rankings with no season saved no longer looks like it's still loading
+- [fixes] World rankings with no season saved no longer looks stuck loading
+- [rankings] Its season picker shows next to the "needs a connection" note
 
 ### Fixed
-- World rankings, opened with no signal and no season saved: the season picker now shows next to the page's "needs a connection" note, instead of a loading placeholder that never went away.
-- The home page's prediction record (`/api/predict/accuracy`) is kept on the device like the season totals, so with no signal it shows the last numbers it loaded, marked with their time, instead of "needs a connection".
+- World rankings, opened with no signal and no season saved: the season picker now shows next to the page's "needs a connection" note, instead of a loading placeholder that never went away. (`src/pages/RankingsPage.tsx`)
+- The home page's prediction record (`/api/predict/accuracy`) is kept on the device like the season totals, so with no signal it shows the last numbers it loaded, marked with their time, instead of "needs a connection". (`src/lib/offline/kept.ts`) (#1511)
 
 ## 6.3.9 — 2026-11-14
 
