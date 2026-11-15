@@ -2370,6 +2370,36 @@ CREATE INDEX clip_coverage_triage ON clip_coverage (reviewed_at, triage, season)
   },
   {
     version: 90,
+    name: "bug reports filed as GitHub issues",
+    sql: `
+-- Each top-bar bug report becomes one GitHub issue (server/bugReports.ts, fileBugReport). issue_number / issue_url: the
+-- issue once filed (issue_url as GitHub answered it). filing_at: a filer's claim (stale after 10 minutes);
+-- file_attempts: tries so far; file_error: why it isn't filed yet, in plain words, for the owner console;
+-- file_marker: the id written into the issue body, so an attempt whose reply was lost adopts that issue instead of
+-- filing twice; labels_missing: a label GitHub dropped (it didn't exist). Closing or deleting the local report never
+-- touches the issue, and closing the issue never touches the report.
+ALTER TABLE bug_reports ADD COLUMN issue_number INTEGER;
+ALTER TABLE bug_reports ADD COLUMN issue_url TEXT;
+ALTER TABLE bug_reports ADD COLUMN filed_at TEXT;
+ALTER TABLE bug_reports ADD COLUMN filing_at TEXT;
+ALTER TABLE bug_reports ADD COLUMN file_attempts INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE bug_reports ADD COLUMN file_error TEXT;
+ALTER TABLE bug_reports ADD COLUMN file_marker TEXT;
+ALTER TABLE bug_reports ADD COLUMN labels_missing TEXT;
+-- to_github: 1 for reports sent with the dialog saying they become a public issue. Reports already here were sent
+-- before it said so, so they stay private (0) and are never filed.
+ALTER TABLE bug_reports ADD COLUMN to_github INTEGER NOT NULL DEFAULT 1;
+UPDATE bug_reports SET to_github = 0;
+-- An attachment uploaded to GitHub: github_url (https://github.com/user-attachments/assets/<uuid>), and why an upload
+-- failed. on_disk: 1 while the local copy in DATA_DIR/bug-reports is kept (until the issue is filed and the URL is
+-- checked to open), 0 once it's deleted; only local copies count against the disk cap.
+ALTER TABLE bug_report_files ADD COLUMN github_url TEXT;
+ALTER TABLE bug_report_files ADD COLUMN upload_error TEXT;
+ALTER TABLE bug_report_files ADD COLUMN on_disk INTEGER NOT NULL DEFAULT 1;
+`,
+  },
+  {
+    version: 91,
     name: "official channel audit",
     sql: `
 -- The channel audit (server/videos/officialAudit.ts), after every watcher run: every upload of every watched channel,

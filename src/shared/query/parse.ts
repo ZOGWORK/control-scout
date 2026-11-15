@@ -162,6 +162,9 @@ const SIZE_BEFORE = /^(?:than|over|least|most|under|above|below|exceeding)$/;
 const FLOOR = /(?:^| )(more than|greater than|over|above|exceeding|beyond|at least) (\d{1,5}) (?:points?|pts)(?= |$)/;
 /** Every word of a lexicon phrase: a team's name beside one ("bad wolf offensive power rating") still ends there. */
 const LEX_WORDS = new Set(LEXICON.flatMap((e) => e.words));
+/** The words search reads on their own, as one-word phrases: a word only inside a longer phrase ("fit" of "best fit")
+ *  can be a name's own word. */
+const LEX_ONE_WORDS = new Set(LEXICON.filter((e) => e.words.length === 1).flatMap((e) => e.words));
 
 const symKey = (s: Sym): string | null => {
   switch (s.k) {
@@ -363,7 +366,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       const span = toks.slice(i, i + len);
       const said = span.map((t) => t.w).join(" ");
       if (span.some((t) => t.used) || !ctx.names.eventNamed(said) || ctx.names.teamsNamed(said).length) continue;
-      const own = span.filter((t) => !EVENT_NAME_WORDS.has(t.w) && !KIND_WORDS.has(t.w) && !LEX_WORDS.has(t.w) && !/^\d+$/.test(t.w));
+      const own = span.filter((t) => !EVENT_NAME_WORDS.has(t.w) && !KIND_WORDS.has(t.w) && !LEX_ONE_WORDS.has(t.w) && !/^\d+$/.test(t.w));
       if (!own.length) continue;
       const numbered = span.some((t) => /^\d+$/.test(t.w));
       if (!numbered && ctx.names.place(own.map((t) => t.w).join(" "), own.map((t) => t.typed).join(" "))) continue;
@@ -652,7 +655,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       const champ = toks.slice(from, to + 1).every((t) => !EVENT_NAME_WORDS.has(t.w) || /^(?:championships?|champs)$/.test(t.w));
       if (pl) {
         p.place = { ...pl, typed: bare.map((t) => t.typed).join(" ") }; placeFrom = from; toks.slice(from, to + 1).forEach((t) => (t.used = true));
-        if (champ && pl.kind === "region") { p.states = true; symbols.add("states"); } else symbols.add("thing:event");
+        if (champ && pl.kind !== "city") { p.states = true; symbols.add("states"); } else symbols.add("thing:event");
         continue;
       }
     }
@@ -745,6 +748,20 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     for (const [i, one] of toks.entries()) {
       if (one.used || one === own || toks[i - 1]?.used === false || toks[i + 1]?.used === false) continue;
       if (await ownEventWord(one)) break;
+    }
+  }
+  // A word left after an event was read that is, or nearly spells, a word of a longer stored name of that event
+  // ("romania championships highlights vlaciu": its VLAICU Division): that event, the word read into its name as stored.
+  if (p.event && !p.event.latest && ctx.names.nearEventWord) {
+    for (const t of toks) {
+      if (t.used || isLex(t.w) || /^\d+$/.test(t.w) || ctx.names.teamsNamed(t.w).length || ctx.names.place(t.w, t.typed)) continue;
+      const word = ctx.names.nearEventWord(t.w);
+      if (!word || p.event.words.split(" ").includes(word)) continue;
+      const words = `${p.event.words} ${word}`;
+      if (!(await ctx.isEvent(words))) continue;
+      p.event = { ...p.event, words, typed: `${p.event.typed} ${word}` };
+      t.used = true;
+      break;
     }
   }
   // "Worlds division highlights", with no team: every division of Worlds, which Worlds already is (each division and

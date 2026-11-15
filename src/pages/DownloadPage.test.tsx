@@ -14,6 +14,8 @@ const order: number[] = [];
 let failSeason: number | null = null;
 // While set, each save waits here until the test lets it finish.
 let gate: Promise<void> | null = null;
+// What Delete on a saved season does (it returns the bytes deleted).
+let onRemove: () => Promise<number | void> = async () => {};
 const toastErr = vi.fn(), toastOk = vi.fn();
 
 // The predictions pack syncLite would leave (null: none); packStatus reads the same.
@@ -29,7 +31,7 @@ vi.mock("../lib/offline/seasons", () => ({
     if (f.seasons[0] === failSeason) throw new Error("network");
     return { season: f.seasons[0] };
   },
-  removeSeason: async () => {},
+  removeSeason: () => onRemove(),
   SeasonGone: class extends Error {},
 }));
 vi.mock("../components/ui/sonner", () => ({ toast: Object.assign(vi.fn(), { success: (...a: unknown[]) => toastOk(...a), error: (...a: unknown[]) => toastErr(...a) }) }));
@@ -43,7 +45,7 @@ const { TooltipProvider } = await import("../components/ui/overlay");
 const mount = (url = "/download?pick=season") => render(<MemoryRouter initialEntries={[url]}><TooltipProvider><DownloadPage /></TooltipProvider></MemoryRouter>);
 const sv = (season: number, sha: string) => ({ season, sha256: sha, version: "2026-09-01.1", bytes: 9_000_000, savedAt: 1 }) as unknown as SavedSeason;
 
-beforeEach(() => { lite.saved = null; saved = []; order.length = 0; failSeason = null; gate = null; resetSeasonBatch(); toastErr.mockClear(); toastOk.mockClear(); });
+beforeEach(() => { onRemove = async () => {}; lite.saved = null; saved = []; order.length = 0; failSeason = null; gate = null; resetSeasonBatch(); toastErr.mockClear(); toastOk.mockClear(); });
 afterEach(cleanup);
 
 describe("Download page seasons", () => {
@@ -189,7 +191,8 @@ describe("the Offline page's layout", () => {
     expect(row.textContent).toContain("not saved yet");
     expect(screen.queryByRole("button", { name: "Delete 2026–27 season" })).toBeNull(); // not listed as a saved pack
     fireEvent.click(screen.getByRole("button", { name: "Delete the paused 2026–27 season download" }));
-    await waitFor(() => expect(toastOk).toHaveBeenCalledWith("Freed 1 KB", expect.anything()));
+    // No storage figure from the browser here: it says what was deleted, never that space was freed.
+    await waitFor(() => expect(toastOk).toHaveBeenCalledWith("The paused 2026–27 season download deleted", { description: "The paused 2026–27 season download deleted from this device (1 KB of data)." }));
     expect(await partialDownloads()).toEqual([]);
   });
 
@@ -205,7 +208,7 @@ describe("the Offline page's layout", () => {
     await finishDownload("e".repeat(64));
   });
 
-  it("every saved pack shows its size and one total; Delete says how much it freed", async () => {
+  it("every saved pack shows its size and one total; Delete says what it deleted", async () => {
     saved = [sv(2025, "b"), sv(2024, "old")];
     mount("/download");
     const list = await screen.findByRole("list", { name: "Saved on this device" });
@@ -214,7 +217,47 @@ describe("the Offline page's layout", () => {
     for (const r of rows) expect(r.textContent).toContain("9.0 MB");
     expect(screen.getByText(/Packs use/).textContent).toBe("Packs use 18.0 MB");
     fireEvent.click(screen.getByRole("button", { name: "Delete 2025–26 season" }));
-    await waitFor(() => expect(toastOk).toHaveBeenCalledWith("Freed 9.0 MB", { description: "2025–26 season deleted from this device." }));
+    await waitFor(() => expect(toastOk).toHaveBeenCalledWith("2025–26 season deleted", { description: "2025–26 season deleted from this device (9.0 MB of data)." }));
+  });
+
+  it("has what scripts/offline-check.ts --season taps: the Whole current season choice, then its one Download button", async () => {
+    mount("/download?event=2026:USMIMIQ1"); // the check lands here after the event pack, on the event choice
+    fireEvent.click(await screen.findByRole("radio", { name: /Whole current season/ }));
+    expect(document.querySelector("[data-choice=whole]")?.getAttribute("aria-checked")).toBe("true");
+    const btn = await waitFor(() => { const b = document.querySelector("[data-whole-download]"); if (!b) throw new Error("no button"); return b; });
+    expect(btn.textContent).toMatch(/Download · 10\.0 MB/);
+    fireEvent.click(btn);
+    await waitFor(() => expect(order).toEqual([2026]));
+  });
+
+  describe("Freed: only what the browser's storage figure dropped by", () => {
+    const usage = { now: 0 };
+    beforeEach(() => { Object.defineProperty(navigator, "storage", { configurable: true, value: { estimate: async () => ({ usage: usage.now, quota: 2e9 }) } }); });
+    afterEach(() => { delete (navigator as { storage?: unknown }).storage; });
+
+    it("a 9.0 MB season the browser kept in 3.6 MB frees 3.6 MB, and says so (not 9.0 MB)", async () => {
+      saved = [sv(2025, "b")];
+      usage.now = 16_000_000;
+      onRemove = async () => { usage.now = 12_400_000; return 9_000_000; };
+      mount("/download");
+      fireEvent.click(await screen.findByRole("button", { name: "Delete 2025–26 season" }));
+      await waitFor(() => expect(toastOk).toHaveBeenCalledWith("Freed 3.6 MB", { description: "2025–26 season deleted from this device (9.0 MB of data; the browser's storage figure dropped by 3.6 MB)." }));
+      expect(document.querySelector("[data-freed]")?.textContent).toContain("dropped by 3.6 MB");
+      expect(document.querySelector("[data-storage-estimate]")?.textContent).toContain("12.4 MB");
+    });
+
+    it("a figure that hasn't dropped (a private window keeps it in memory) claims nothing freed, and catches up when it drops", async () => {
+      saved = [sv(2025, "b")];
+      usage.now = 23_200_000;
+      onRemove = async () => 9_000_000;
+      mount("/download");
+      fireEvent.click(await screen.findByRole("button", { name: "Delete 2025–26 season" }));
+      await waitFor(() => expect(toastOk).toHaveBeenCalledWith("2025–26 season deleted", { description: "2025–26 season deleted from this device (9.0 MB of data). The browser's storage figure hasn't dropped yet: it gives the space back on its own." }));
+      expect(toastOk.mock.calls.flat().join(" ")).not.toMatch(/Freed/);
+      // The browser gives the space back later: the line under the list follows its figure (read again after 1 s).
+      usage.now = 19_600_000;
+      await waitFor(() => expect(document.querySelector("[data-freed]")?.textContent).toContain("dropped by 3.6 MB"), { timeout: 3000 });
+    });
   });
 });
 

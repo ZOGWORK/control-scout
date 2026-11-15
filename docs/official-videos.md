@@ -211,7 +211,7 @@ channel's whole uploads list, video by video, with Scout's records. It reads onl
 (`playlistItems` on its `UU…` playlist, `snippet,contentDetails` for the titles, then `videos` for the facts). It
 **never searches YouTube**.
 
-- **What it reads.** Each upload is stored once in `official_audit_videos` (migration 90).
+- **What it reads.** Each upload is stored once in `official_audit_videos` (migration 91).
   - Every run reads each channel's newest page, and keeps reading only while a page is all new.
   - Each channel's whole list is read once a week, the channel read longest ago first. A video no longer on the list
     at a full read is marked gone (`gone_at`).

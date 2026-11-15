@@ -54,6 +54,9 @@ describe("season top matches", () => {
     expect(readTopMatches("4215 highest score in NJ")).toBeNull();
     expect(readTopMatches("4215 highest score in District of Columbia")).toBeNull();
     expect(readTopMatches("highest scoring matches at 2024 texas qualifier")).toMatchObject({ season: 2024, event: "texas qualifier" });
+    // An event named without "at" (failed search #1435): its words hold an event's own word.
+    expect(readTopMatches("best auto match in romania championship")).toMatchObject({ event: "romania championship", region: null, phase: "auto" });
+    expect(readTopMatches("best auto match romania championship")).toMatchObject({ event: "romania championship", region: null, phase: "auto" });
     expect(readTopMatches("highest combined scores in decode")).toMatchObject({ season: 2025 });
     expect(readTopMatches("top alliance scores in decode")).toMatchObject({ season: 2025 });
     for (const q of ["4215 highest score", "hypnotic robotics highest score", "world record score decode", "best auto team"]) expect(readTopMatches(q), q).toBeNull();
