@@ -142,7 +142,7 @@ describe("a team's next match", () => {
 describe("search answers from the same readings", () => {
   it("the weekend's events, however it's asked, are the page's", async () => {
     const page = (await weekendEvents({ now: NOW })).events.map((e) => e.code).sort();
-    for (const q of ["what FTC events are happening this weekend", "events this weekend", "what's on this weekend", "ftc events this weekend", "anything happening this weekend"]) {
+    for (const q of ["what FTC events are happening this weekend", "events this weekend", "what's on this weekend", "ftc events this weekend", "anything happening this weekend", "what's happening in ftc this weekend"]) {
       const a = await ask(q);
       expect(a.stat?.intent, q).toBe("weekend-events");
       expect(a.sorry, q).toBeUndefined();
