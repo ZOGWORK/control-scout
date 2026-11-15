@@ -58,6 +58,8 @@ export const NOTHING_READ = "no frame of the video could be read";
 /** The least a match can take in a video: 30 s Auto, 8 s switch, 2:00 TeleOp. Two placed starts closer than this
  *  overlap. */
 export const MATCH_S = AUTO_S + SWITCH_S + TELEOP_S;
+/** How far (seconds) a lone confirmed read may sit from where the rest of its video sits and still place its match. */
+export const LONE_S = 30 * 60;
 
 /** A division's own name from its event's ("Romania Championship - COANDA Division" → "COANDA"), or null. */
 export function divisionOf(name: string): string | null {
@@ -107,9 +109,11 @@ export function dataRows<T>(text: string): T[] {
  * from the clock only ever falls, match by match: a read that breaks that is a misread (a replay, an overlay left on the
  * last match, a digit read wrong), and only the longest run of reads that never rises (by more than a read's slack) is
  * kept. Reads that agree on how far the video sits from the clock form stretches. A stretch of two or more reads
- * places its reads ("high") and every match between them ("medium"). A stretch of one read places it only where the
- * broadcast's own clock (`shift`, the video's second minus the epoch, when YouTube gives the broadcast start and the
- * video kept it) agrees; otherwise that one read is all there is, and it goes to review. Placed starts must be in order,
+ * places its reads ("high") and every match between them ("medium"). A stretch of one read is a confirmed read too
+ * (its overlay and timer agree at two points, and 25 s before it the match wasn't running): the video is the truth, so
+ * it places that match where the frames show it, however far from the schedule, as long as the clock puts it in the
+ * same part of the stream (within LONE_S of where the reads beside it, or else the broadcast's own clock, put the video);
+ * further off, nothing tells it isn't another day's or event's, and it goes to review. Placed starts must be in order,
  * a match apart and inside the video; any that aren't go to review too. Every other match is missing, with the reason.
  */
 export function judge(ms: M[], seen: Map<number, number>, shift: number | null, length: number, read: Set<number> = new Set(seen.keys())): Judged {
@@ -143,8 +147,11 @@ export function judge(ms: M[], seen: Map<number, number>, shift: number | null, 
   for (const s of stretches) {
     if (s.length === 1) {
       const i = s[0];
-      if (shift != null && Math.abs(d(i) - shift) <= SAME_S) placedAt.set(ms[i].label, { t: seen.get(i)!, confidence: "high" });
-      else review.set(ms[i].label, { t: seen.get(i)!, why: "one frame read, and nothing else agrees where the video sits" });
+      // Where the rest of the video sits: the nearest other read's distance, else the broadcast's clock.
+      const others = kept.filter((k) => k !== i);
+      const ref = others.length ? d(others.reduce((a, b) => (Math.abs(b - i) < Math.abs(a - i) ? b : a))) : shift;
+      if (ref != null && Math.abs(d(i) - ref) <= LONE_S) placedAt.set(ms[i].label, { t: seen.get(i)!, confidence: "high" });
+      else review.set(ms[i].label, { t: seen.get(i)!, why: ref == null ? "one frame read, and no clock or other read to tell which part of the stream it's in" : `one frame read, ${Math.round(Math.abs(d(i) - ref) / 60)} min from where the rest of the video sits` });
       continue;
     }
     for (let n = 0; n < s.length; n++) {
