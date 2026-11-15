@@ -2,7 +2,7 @@
 // the person (Update, Resume, the whole-season download). Loaded only when there's something to pick up
 // (resumeWatcher.tsx) or from the Download page.
 import { ManifestError, fetchManifest, lastSyncError, packStatus, syncLite, type PackFile, type PackManifest } from "../packs";
-import { noteRequestFailed } from "../connection";
+import { noteDownloadWaiting } from "../connection";
 import { activeDownloads, byConnection, partialDownloads, type PartialDownload } from "./download";
 import { batchRunning, runSeasonBatch, type BatchResult } from "./seasonBatch";
 import { savedSeasons } from "./saved";
@@ -30,7 +30,7 @@ export async function getLite(version: string | undefined): Promise<void> {
     // the connection. Anything else isn't picked up by itself.
     const e = lastSyncError();
     const connection = byConnection(e) || (e instanceof ManifestError && e.reason === "unreachable") || litePaused(await partialDownloads().catch(() => []));
-    if (connection) noteRequestFailed(); else clearResume(LITE);
+    if (connection) noteDownloadWaiting(); else clearResume(LITE);
     throw new Error("Couldn't finish downloading the predictions pack. Try again in a moment.");
   }
   clearResume(LITE);
@@ -46,6 +46,18 @@ export { resumeAllowed } from "./updatePolicy";
 export const MAX_STALLED = 4;
 /** One auto attempt per download at most this often. */
 export const MIN_GAP_MS = 10_000;
+/** The pack list is a small file: no answer in this long is a request hung by a line that just came back
+ *  (lib/connection.ts), abandoned and asked again, up to MANIFEST_TRIES times. Without a limit one hung request
+ *  held the pick-up (and every later one, which shares it) until the browser gave up. */
+export const MANIFEST_TIMEOUT_MS = 5000;
+export const MANIFEST_TRIES = 3;
+
+/** The pack list, given up on after MANIFEST_TIMEOUT_MS. */
+function manifestSoon(): Promise<PackManifest> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), MANIFEST_TIMEOUT_MS);
+  return fetchManifest({ signal: ctrl.signal }).finally(() => clearTimeout(timer));
+}
 
 export interface ResumeDeps {
   fetchManifest: () => Promise<PackManifest>;
@@ -56,7 +68,7 @@ export interface ResumeDeps {
   now: () => number;
 }
 const realDeps: ResumeDeps = {
-  fetchManifest,
+  fetchManifest: manifestSoon,
   runSeasonBatch,
   getLite,
   partialDownloads,
@@ -70,6 +82,20 @@ const tries = new Map<string, { at: number; have: number; stalled: number }>();
 export function resetResume() { tries.clear(); running = null; }
 
 const haveOf = (key: string, l: PartialDownload[]) => l.filter((p) => `${p.owner.kind}:${p.owner.id}` === key).reduce((n, p) => Math.max(n, p.have), 0);
+
+/** How long until a marked download that was tried moments ago may be tried again (null: none waits on the gap; one
+ *  that stopped being retried doesn't count). The watcher tries again then, so a check that found internet during
+ *  the gap isn't lost until the next one (minutes away once there's internet). */
+export function nextTryIn(now = Date.now()): number | null {
+  let soonest: number | null = null;
+  for (const m of resumeMarks(now)) {
+    const t = tries.get(m.key);
+    if (!t || t.stalled + 1 >= MAX_STALLED) continue;
+    const wait = Math.max(0, t.at + MIN_GAP_MS - now);
+    if (soonest == null || wait < soonest) soonest = wait;
+  }
+  return soonest;
+}
 
 /** Should this download get an auto attempt now? Records the attempt. */
 function due(key: string, have: number, now: number): boolean {
@@ -102,8 +128,9 @@ export function resumePaused(allowed: () => boolean, deps: ResumeDeps = realDeps
 async function pickUp(allowed: () => boolean, deps: ResumeDeps): Promise<Tried[]> {
   const tried: Tried[] = [];
   if (!resumeMarks(deps.now()).length || !allowed() || deps.busy()) return tried;
-  let m: PackManifest;
-  try { m = await deps.fetchManifest(); } catch { return tried; }
+  let m: PackManifest | null = null;
+  for (let i = 0; i < MANIFEST_TRIES && !m && allowed(); i++) m = await deps.fetchManifest().catch(() => null);
+  if (!m) return tried;
   const partials = await deps.partialDownloads().catch(() => [] as PartialDownload[]);
   // Read again: marks change while the manifest loads (another tab picked them up, the person deleted one).
   for (const mark of resumeMarks(deps.now())) {

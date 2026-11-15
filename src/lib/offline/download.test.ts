@@ -9,7 +9,7 @@ import { join } from "node:path";
 import { gzipSync } from "node:zlib";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resumeMarks, wantResume } from "./resumeMarks";
-import { ChecksumError, DownloadPaused, NoConnection, PIECE, StorageError, StorageFull, download, txError, finishDownload, partialDownloads, resetDownloadStore, type DownloadOwner } from "./download";
+import { ChecksumError, DownloadPaused, NoConnection, PIECE, STALL, StorageError, StorageFull, download, txError, finishDownload, partialDownloads, resetDownloadStore, type DownloadOwner } from "./download";
 import { deviceItems, pausedItems, totalBytes, whatChanged } from "./storage";
 import { downloadLite, getv, packStatus, removeLite, syncLite, type PackFile, type PackManifest } from "../packs";
 
@@ -439,6 +439,76 @@ describe("a connection that drops before anything came", () => {
     const e2 = await download(file, { owner, fetch: empty }).catch((x) => x);
     expect(e2).not.toBeInstanceOf(DownloadPaused);
     expect(await partialDownloads()).toEqual([]);
+  });
+});
+
+describe("a try that hangs (right after the line comes back)", () => {
+  const saved = { ...STALL };
+  beforeEach(() => { Object.assign(STALL, { ms: 60, retries: 3, pauseMs: 0 }); });
+  afterEach(() => { Object.assign(STALL, saved); });
+
+  /** Answers nothing (headers never come) until the request is given up on, as a hung request does. */
+  const hung = (init?: RequestInit) => new Promise<Response>((_res, rej) => {
+    init?.signal?.addEventListener("abort", () => rej(new DOMException("aborted", "AbortError")));
+  });
+  /** Headers, then `upTo` bytes, then silence (the body never ends) until given up on. */
+  function silentAfter(data: Uint8Array, upTo: number, init?: RequestInit): Response {
+    let sent = false;
+    const body = new ReadableStream<Uint8Array>({
+      pull(c) {
+        if (!sent) { sent = true; c.enqueue(data.slice(0, upTo)); return; }
+        return new Promise<void>((_res, rej) => init?.signal?.addEventListener("abort", () => { const e = new DOMException("aborted", "AbortError"); c.error(e); rej(e); }));
+      },
+    });
+    return new Response(body, { status: 200, headers: { ETag: '"v1"' } });
+  }
+
+  it("one with no answer is given up on after STALL.ms and asked again at once: the file comes, no pause", async () => {
+    const data = bytes(PIECE + 99, 5);
+    const file = { url: "/packs/hang", bytes: data.length, sha256: sha(data) };
+    const ok = server(data);
+    let n = 0;
+    const fetch = vi.fn(async (u: string, init?: RequestInit) => (n++ < 2 ? hung(init) : ok.fn(u, init)));
+    const t0 = Date.now();
+    const got = await download(file, { owner, fetch: fetch as unknown as typeof globalThis.fetch });
+    expect(sha(got)).toBe(file.sha256);
+    expect(fetch).toHaveBeenCalledTimes(3); // two hung tries abandoned, the third came
+    expect(Date.now() - t0).toBeLessThan(2000);
+  });
+
+  it("a body that goes silent mid-way keeps what came and asks for the rest (Range), not from the start", async () => {
+    const data = bytes(PIECE * 2 + 7, 3);
+    const file = { url: "/packs/silent", bytes: data.length, sha256: sha(data) };
+    const ok = server(data);
+    let n = 0;
+    const fetch = vi.fn(async (u: string, init?: RequestInit) => (n++ === 0 ? silentAfter(data, PIECE + 10, init) : ok.fn(u, init)));
+    const got = await download(file, { owner, fetch: fetch as unknown as typeof globalThis.fetch });
+    expect(sha(got)).toBe(file.sha256);
+    expect(ok.calls[0].range).toBe(`bytes=${PIECE + 10}-`);
+  });
+
+  it("every try hangs: it pauses as a dropped connection does (what came is kept), never hangs on", async () => {
+    const data = bytes(PIECE * 2, 9);
+    const file = { url: "/packs/dead", bytes: data.length, sha256: sha(data) };
+    let n = 0;
+    const fetch = vi.fn(async (_u: string, init?: RequestInit) => (n++ === 0 ? silentAfter(data, PIECE + 10, init) : hung(init)));
+    const e = await download(file, { owner, fetch: fetch as unknown as typeof globalThis.fetch }).catch((x) => x);
+    expect(e).toBeInstanceOf(DownloadPaused);
+    expect(fetch).toHaveBeenCalledTimes(1 + STALL.retries);
+    expect((await partialDownloads())[0]).toMatchObject({ have: PIECE + 10 });
+  });
+
+  it("Stop while a try hangs is a Stop (no retry, no pause)", async () => {
+    const data = bytes(PIECE, 4);
+    const file = { url: "/packs/stop", bytes: data.length, sha256: sha(data) };
+    STALL.ms = 10_000;
+    const fetch = vi.fn(async (_u: string, init?: RequestInit) => hung(init));
+    const ctrl = new AbortController();
+    const p = download(file, { owner, fetch: fetch as unknown as typeof globalThis.fetch, signal: ctrl.signal }).catch((x) => x);
+    await new Promise((r) => setTimeout(r, 20));
+    ctrl.abort();
+    expect((await p).name).toBe("AbortError");
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
 });
 
