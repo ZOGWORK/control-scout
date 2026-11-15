@@ -15,6 +15,20 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 6.5.0 — 2026-11-15
+
+Owner › Clip coverage takes the stream as the truth: a match the clock alone left without a clip says what its video showed, and an early start is only "unsafe" once the video shows it.
+
+### Highlights
+- [workspace] Clip coverage says what each match's video showed, not the clock
+- [workspace] An early start goes to To review until its video confirms it
+- [workspace] Each match left out shows the video's own timestamps nearby
+- [fixes] "Starts up to N min early" is never a reason on its own any more
+
+### Changed
+- Clip coverage: a played match left without a clip by the clock alone (an early start, or a time before or after the broadcast, the cut start, the video's end, what its chapters confirm, every recording) now says what its video's own frames showed: "Not yet checked against the video", "Checked in the video (date): no start found for it", or "seen at h:mm:ss, not yet confirmed", with the video's timestamps of the matches around it. The clock's reading is kept apart and is never a reason on its own. (`server/videos/coverage.ts`) (#PR)
+- Triage: Early start / unsafe only once the frames show a match starting while the one before is still on (`earlyStart` in `server/data/frameTimings.ts`); until then it's Actionable, and the event's reason says how many matches weren't checked against the video, or were checked with no start found there. (`server/videos/coverageTriage.ts`)
+
 ## 6.4.9 — 2026-11-15
 
 Lite has its own Network & offline screen: on one bar of signal it says whether you're online, on Wi-Fi, mobile data or nothing, whether that's actually giving internet, how much a download uses, and what's downloaded on this phone and how big it is.
