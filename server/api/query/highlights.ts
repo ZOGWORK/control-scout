@@ -217,6 +217,14 @@ export function highlightsAnswer(f: HighlightFind): Promise<StatAnswer> {
   return page;
 }
 
+/** Played matches at the events, with no filter of the question's. */
+async function playedAt(season: number, events: { season: number; code: string }[]): Promise<number> {
+  const keys = events.filter((e) => e.season === season);
+  if (!keys.length) return 0;
+  const row = await get<{ n: number }>(`SELECT COUNT(*) n FROM matches m WHERE m.played = 1 AND m.season = ? AND m.code IN (${keys.map(() => "?").join(", ")})`, [season, ...keys.map((e) => e.code)]);
+  return Number(row?.n ?? 0);
+}
+
 async function workOut(f0: HighlightFind): Promise<StatAnswer> {
   const events = await scopeEvents(f0);
   const f: HighlightFind = { ...f0, ...(events ? { events } : {}) };
@@ -249,8 +257,12 @@ async function workOut(f0: HighlightFind): Promise<StatAnswer> {
     definition: DEFINITION(at, S, whole, !!f.named),
     source: `From ${count.toLocaleString("en-US")} played match${count === 1 ? "" : "es"}${where2}`,
   };
-  // An event named with nothing played there yet says so plainly; a wider scope says where it looked.
-  if (!picks.length) return { ...base, blocks: [], none: ev && !f.window ? NO_EVENT_HIGHLIGHTS : `No played matches${f.named ? "" : " at official events"}${where2} yet.` };
+  // An event named with nothing played there yet says so plainly (its matches counted with no filter: "playoff
+  // highlights at <event>" mid-qualifications has matches played); a wider or narrower scope says where it looked.
+  if (!picks.length) {
+    const unplayed = !!ev && !f.window && !!events?.length && await playedAt(f.season, events) === 0;
+    return { ...base, blocks: [], none: unplayed ? NO_EVENT_HIGHLIGHTS : `No played matches${f.named ? "" : " at official events"}${where2} yet.` };
+  }
   const gallery = await galleryOf(whole ? scored : null, events, f.videos ? (f.named && ev ? "No recording for this event — stats only." : `No match videos${where2} yet.`) : null, ev ? f.eventName : undefined);
   // A video page leads with the scope's latest playoff match (a recap ends on the final, whatever reason it was
   // listed under), highlights with the best score.
