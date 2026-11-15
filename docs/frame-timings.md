@@ -74,6 +74,15 @@ stands only when one of its reads showed this division's own name (`divisionOf`,
 
 A gap in one stretch doesn't stop the day: the next read that agrees with another starts a new stretch.
 
+## Every clip opens on its match
+
+A placed start isn't a clip until its opening is checked (`checkOpenings`): the overlay 20, 12 or 5 s before the start
+must name that match (and, on a shared stream, not a sibling division's). The first that does is where the clip opens
+(`opens`); the server starts the clip there (`frameOpen`). One whose opening frame shows another match goes to review;
+one whose overlay can't be read there is missing with "overlay could not be read at its clip's start". A row with
+`opens` plays only the starts in it. `--verify` checks the openings of rows read before this, without reading their
+starts again.
+
 Only `starts` become clips. `review` (with the start found and why) and `missing` (with why) are written per video for
 the owner's review list; review starts are never shown as clips, and nothing is dropped without a reason.
 
