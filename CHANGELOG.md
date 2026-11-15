@@ -25,7 +25,7 @@ Settings › Network & offline now says whether the Wi-Fi is actually giving int
 - [offline] On a network that lets nothing through, it says so, not "offline"
 
 ### Changed
-- Network & offline status (`/settings#network`): when the connection check gets a page that isn't ours (a sign-in page), the heading says the device is connected (to Wi-Fi when the browser says Wi-Fi, else to a network) but gets no internet, and a line under it says it's likely waiting at a sign-in page: open any website to sign in. When the check gets no answer while the browser says it's online, it reads "Connected, but nothing is getting through"; "You're offline" stays for when the browser itself says there's no network. (`src/lib/networkAdvice.ts`, `src/components/settings/NetworkSection.tsx`) (#1512)
+- Network & offline status (`/settings#network`): when the connection check gets a page that isn't ours (a sign-in page), the heading says the device is connected (to Wi-Fi when the browser says Wi-Fi, else to a network) but gets no internet, and a line under it says it's likely waiting at a sign-in page: open any website to sign in. When the check gets no answer while the browser says it's online, it reads "Connected, but nothing is getting through"; "You're offline" stays for when the browser itself says there's no network. (`src/lib/networkAdvice.ts`, `src/components/settings/NetworkSection.tsx`) (#1513)
 
 ## 6.3.9 — 2026-11-14
 
