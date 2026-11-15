@@ -68,7 +68,15 @@ export async function pipelineAnswer(q: string, opts: PipelineOptions): Promise<
   }
   // An event's matches and nothing else asked ("<event> matches", "matches at <event>"): its matches in the order played,
   // each row playing its clip, as a team's matches do.
+  // "<place> states matches" is the place's championship's ("nj states" is "nj championship", as search reads it).
   if (!p.intent && asksEventMatches(p)) return eventMatchesAnswer(p, opts);
+  // Read as a place's top matches (a place the parser doesn't know, "nyc", left over): only when the words are the
+  // place, "states" and matches; read again, the championship's name must be all that's left.
+  if (p.states && (p.place || p.leftover.length) && !p.event && !p.teams.length && p.symbols.every((s) => s === "states" || s === "thing:match" || s.startsWith("prep:") || s.startsWith("level:"))
+    && STATES_WORD.test(q) && !/united states/i.test(q)) {
+    const champ = await parseQuery(q.replace(new RegExp(STATES_WORD.source, "gi"), "$1championship"), ctx);
+    if (!champ.intent && asksEventMatches(champ)) return eventMatchesAnswer({ ...champ, q }, opts);
+  }
   // One team's question in two time windows set against each other ("12345 record this month, versus last month"):
   // asked in each, exactly as said, side by side.
   if (!p.complete) {
@@ -281,6 +289,8 @@ export function asksEventMatches(p: Parsed): boolean {
   if (p.time && !(p.time.kind === "season" && p.time.year != null && !p.time.relative)) return false;
   return p.symbols.includes("thing:match") && p.symbols.every((s) => s === "thing:match" || s.startsWith("prep:") || s.startsWith("level:"));
 }
+
+const STATES_WORD = /(^| )states(?= |$)/i;
 
 /** Most matches an event's list shows (a championship's qualification and playoff matches fit). */
 export const EVENT_MATCHES_MAX = 200;
