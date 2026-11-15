@@ -8,7 +8,10 @@ import type { Server } from "node:http";
 import { createHash } from "node:crypto";
 import { gunzipSync } from "node:zlib";
 import express from "express";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { kvSet, migrate, openDb, run, setDb } from "../db";
 import { createApp } from "../app";
 import { setMailer } from "../auth/email";
@@ -18,10 +21,14 @@ import { clearConsensusCache } from "../scout/consensus";
 import { clearCutoffCache } from "../api/matchReport";
 import { buildBundle, clearBundleCache, defaultRulesProvider, setPrepareMs, setRulesProvider } from "./bundle";
 import { setFlag } from "../flags";
-import { packLookup, packPath, type BundleManifest, type EventBundle, type PackApi, type PackCompareTeam } from "../../src/shared/eventBundle";
+import { packLookup, packPath, pairsAmong, type BundleManifest, type EventBundle, type PackApi, type PackCompareTeam } from "../../src/shared/eventBundle";
 import { compareFromPacks } from "../../src/shared/compare";
 import { PACK_READS, assertComplete, clearPackCache, setPackReads } from "./eventApi";
-import type { CompareView, EventDetail } from "../../src/shared/api";
+import type { CompareView, EventDetail, MatchExplanationView } from "../../src/shared/api";
+import { buildLite } from "./build";
+import { PartnershipTable } from "@control-scout/predict-engine";
+import { bundleCall, liteCall } from "../../src/lib/offline/predictCall";
+import type { LitePack } from "../../src/lib/packs";
 
 const KEY = "k".repeat(40);
 const S = 2025;
@@ -441,5 +448,77 @@ describe("the event pack", () => {
     lineupOnly.answers[packPath(`/api/teams/13/matches?season=${S}`)!] = {};
     const compare13 = { ...compare, 13: { block: {}, latest: S } } as unknown as Record<string, PackCompareTeam>;
     expect(() => assertComplete(c13, lineupOnly, compare13)).not.toThrow();
+  });
+});
+
+// The owner's rule for offline predictions: the same lineup on the same snapshot gives the server's page exactly
+// (odds, scores and ranges, bonus RP odds, the why factors and sheet, reasons, names). Both snapshots the device
+// can predict from are built here by the server's own builders and run through the device's code (predictCall.ts).
+describe("offline predictions are the server's", () => {
+  const anon = client();
+  // A clock past every book's own (a book's clock only moves forward), the same for the server and the device.
+  const NOW = Date.now() + 864e5;
+  const lineups: [number[], number[]][] = [[[11, 12], [13, 14]], [[13, 14], [11, 12]], [[11], [14]]];
+  beforeAll(async () => {
+    // Team 13 missed 2 of its last 10: a reason on the server's page, so it must be on the device's too.
+    await run(`INSERT INTO team_reliability (season, code, team, matches, no_shows, dqs, near_zero, contrib_n, recent_matches, recent_no_shows, recent_near_zero, idx, computed_at)
+      VALUES (?, '', 13, 10, 2, 0, 0, 10, 10, 2, 0, 80, '2025-11-02T00:00:00Z'), (?, '', 12, 10, 0, 0, 0, 10, 10, 0, 1, 95, '2025-11-02T00:00:00Z')`, [S, S]);
+    await setFlag("factorSheet", true, "owner@example.com");
+  });
+  // One clock for the server and the device (a rating's doubt grows with the time since its last match).
+  beforeEach(() => { vi.useFakeTimers({ toFake: ["Date"], now: NOW }); });
+  afterEach(() => { vi.useRealTimers(); });
+
+  const server = async (red: number[], blue: number[]) => {
+    const r = await anon("GET", `/api/predict/match?season=${S}&red=${red.join(",")}&blue=${blue.join(",")}`);
+    expect(r.status).toBe(200);
+    return r.json as MatchExplanationView;
+  };
+
+  it("from the event bundle", async () => {
+    const b = await buildBundle({ season: S, code: EV, team: null, workspace: null });
+    const body = JSON.parse(gunzipSync(b!.gz).toString("utf8")) as EventBundle;
+    expect(body.predict?.names).toContainEqual([13, "Climbers"]);
+    for (const [red, blue] of lineups) expect(bundleCall(body, S, red, blue, "qual", NOW)).toEqual(await server(red, blue));
+    // The fixture shows every part: bonus odds, the factor sheet, the recent-record reason and the names.
+    const online = await server([11, 12], [13, 14]);
+    expect(online.bonus).not.toBeNull();
+    expect(online.factorSheet).toBeTruthy();
+    expect(online.reasons).toContain("Team 13 was a no-show in 2 of its last 10 matches");
+    expect(online.teamsRed.map((t) => t.name)).toEqual(["Penalty Box", "Swingers"]);
+  });
+
+  // The lite pack's pair history is a deliberate cut (src/shared/litePairs.ts: the newest season's same-alliance pairs
+  // with 3+ matches, to keep the venue download small), so its head-to-head line is the one part that can differ
+  // (here: this fixture's season isn't the newest, so the pack has none for it). Every other number and word matches.
+  const pairLineOut = (v: MatchExplanationView): MatchExplanationView => ({
+    ...v, history: null, factorSheet: v.factorSheet && { ...v.factorSheet, reasons: v.factorSheet.reasons.filter((r) => r.id !== "headToHead") },
+  });
+  it("from the lite pack (all but the pair-history line)", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "cs-lite-"));
+    try {
+      const built = await buildLite("t.1", dir, () => {});
+      const pack = JSON.parse(gunzipSync(readFileSync(join(dir, built.name))).toString("utf8")) as LitePack;
+      expect(pack.recent?.[String(S)]).toEqual([[13, 10, 2, 0]]); // only records that make a reason ship
+      for (const [red, blue] of lineups) {
+        const online = await server(red, blue);
+        expect(online.factorSheet?.reasons.some((r) => r.id === "headToHead")).toBe(true);
+        expect(pairLineOut(liteCall(pack, S, red, blue, "qual", NOW))).toEqual(pairLineOut(online));
+      }
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+
+  it("the pair history cut to the event's teams reads back as the table had every pair of them, and nothing else", () => {
+    const d = { version: 1 as const, season: S, events: [[S, "A", "Meet A"], [S, "B", "Meet B"]] as [number, string, string][],
+      together: [[11, 12, 3, 2, 1, 0, 1, 0.5, S, 140, S, 1], [11, 99, 4, 4, 0, 0, 1, 0.5, S, 150, S, 0]], against: [[11, 13, 3, 1, 2, 0, 1, 0.2, S], [13, 99, 3, 1, 2, 0, 1, 0.2, S]] };
+    const table = PartnershipTable.fromData(d)!;
+    const cut = PartnershipTable.fromData(pairsAmong(table, S, [13, 12, 11]))!;
+    for (const [a, b] of [[11, 12], [12, 11], [11, 13], [13, 11], [12, 13]]) {
+      expect(cut.together(a, b)).toEqual(table.together(a, b));
+      expect(cut.against(a, b)).toEqual(table.against(a, b));
+    }
+    expect(cut.eventName(S, "B")).toBe("Meet B");
+    expect(cut.together(11, 99)).toBeUndefined();
+    expect(cut.against(13, 99)).toBeUndefined();
   });
 });

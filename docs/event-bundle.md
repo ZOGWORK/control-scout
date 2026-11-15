@@ -8,7 +8,7 @@ venue when the signal drops, and says everywhere what time its data is from.
 | Section | What | Where it's used with no signal |
 | --- | --- | --- |
 | `event` | The event detail exactly as `/api/events/:season/:code` serves it: teams, schedule, rankings, alliances, the predictions made for its matches | The event page (`lib/offline/answer.ts` answers the read from the bundle) |
-| `ratings` | The season's rating book cut to the event's teams (`sliceBook`) | Predictions in the browser with the lite pack's engine, when the lite pack isn't on the device (`lib/offline/predict.ts`) |
+| `ratings` | The season's rating book cut to the event's teams (`sliceBook`), and beside it (`predict`) the rest of what the server's prediction reads, from the same build: the season's bonus RP model, the pair history among the event's teams (`pairsAmong`), their recent records and their names | Predictions in the browser that are the server's call at the bundle's time (`src/shared/predictView.ts`): the newer of this bundle and the lite pack answers for a lineup of the event's teams (`lib/offline/predict.ts`) |
 | `reports` | A frozen Know your match report for each of your team's matches (up to 24), static HTML | `/events/:season/:code/match/:key` with no signal (or, for a report the bundle holds, no answer in 4 s) |
 | `picklist` | The workspace pick list, static HTML (members only) | `/bundle/:season/:code/picklist` when the live list doesn't load |
 | `rules` | The question-box rules reference for the season (`src/shared/rules`), static HTML, while the `rulesReference` switch is on; pluggable (`setRulesProvider`) | The bundle page |
