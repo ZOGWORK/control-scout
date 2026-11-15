@@ -46,7 +46,7 @@ export function netWords(season: number, packs: PackList) {
  *  this browser's storage (as src/lib/offline/storage.ts and NetworkSection list them), and the saved choices. ES5-ish
  *  and small (it travels with every load of this page). */
 export const NET_SCRIPT = `(function(){var d=document,$=function(i){return d.getElementById(i)},R=$("n-status");if(!R)return;
-var W=JSON.parse(R.getAttribute("data-words")),N=navigator,C=N.connection||null,st={internet:"yes",at:0},busy=false,again=false;
+var W=JSON.parse(R.getAttribute("data-words")),N=navigator,C=N.connection||null,st={internet:N.onLine===false?"no":"yes",at:0},busy=false,again=false;
 function ls(k){try{return JSON.parse(localStorage.getItem(k)||"null")}catch(e){return null}}
 function e(s){return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;")}
 function txt(i,s){var x=$(i);if(x)x.textContent=s}

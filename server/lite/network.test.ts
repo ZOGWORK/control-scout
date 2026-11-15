@@ -52,6 +52,18 @@ describe("the line coming back mid-check", () => {
   });
 });
 
+describe("before the first check answers", () => {
+  it("a page shown while the device says it's offline never first claims the internet works", () => {
+    setConnection(undefined, false);
+    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>(() => {})));
+    document.body.innerHTML = networkPage(DEFAULT_VIEW, S, PACKS).body;
+    new Function(NET_SCRIPT)();
+    expect(text("n-title")).toBe("You're offline");
+    expect(text("n-net")).toBe("None");
+    expect(text("n-type")).toBe("None");
+  });
+});
+
 describe("the status, from a real check", () => {
   it("our server's answer: online, and the internet works", async () => {
     setConnection("wifi");
