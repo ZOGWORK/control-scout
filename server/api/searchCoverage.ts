@@ -508,14 +508,16 @@ const EXPLAINS: Explainer[] = [
     pages: [{ title: "How ranking points and advancement work", href: "/methodology#advancement" }, { title: "Rankings", href: "/rankings" }],
   },
   {
-    // "what is a tie breaker point", "tiebreakers": what orders teams level on ranking score. As the methodology page
-    // says it (#advancement) and the engine's rules hold it (packages/predict-engine/src/rules.ts tiebreakKeys).
+    // "what is a tie breaker point", "tiebreakers": what orders teams level on ranking score, season by season, as the
+    // methodology page says it (#advancement) and the engine's rules hold it (packages/predict-engine/src/rules.ts
+    // tiebreakKeys: 2025–26 on, average non-penalty score first; 2024–25, average auto then endgame).
     words: /^(?:what(?:'s| is| are| does)?|whats|how (?:do|does|is|are))?\s*(?:an?\s+|the\s+)?(?:tie[\s-]?breakers?|tie[\s-]?breaks?|tbps?)(?:\s+(?:points?|scores?))?\s*(?:mean|means|work|works|decided|calculated)?$/,
     label: "Tiebreakers: how teams level on ranking score are ordered",
     lines: [
-      { text: "Teams with the same ranking score are put in order by tiebreakers", detail: "The first tiebreaker is average non-penalty score in qualification matches", href: "/methodology#advancement" },
-      { text: "Then come the season's other averages, average auto points among them, and last a random draw", detail: "FIRST's Competition Manual sets them each season", href: OFFICIAL.manual },
-      { text: "Simulated rankings use the same tiebreakers", detail: "Each run of an event seeds teams with the official tiebreakers", href: "/methodology#advancement" },
+      { text: "Teams with the same ranking score are put in order by tiebreakers", detail: "Each season's Competition Manual sets the order, so it changes with the game", href: OFFICIAL.manual },
+      { text: "From 2025–26 on, average non-penalty score comes first", detail: "Then the season's other averages, average auto points among them, and last a random draw", href: "/methodology#advancement" },
+      { text: "In 2024–25, average auto points came first, then average endgame points", detail: "Older seasons used their own rules, \"tiebreaker points\" among them: that season's manual has them", href: OFFICIAL.manual },
+      { text: "Simulated rankings use the season's own tiebreakers", detail: "Each run of an event seeds teams with the official tiebreakers", href: "/methodology#advancement" },
     ],
     pages: [{ title: "How ranking points and advancement work", href: "/methodology#advancement" }, { title: "Rankings", href: "/rankings" }],
   },
