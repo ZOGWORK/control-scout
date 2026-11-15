@@ -51,6 +51,8 @@ import { asksOfTeams, pipelineAnswer, pipelineReads } from "./query/execute.js";
 import { derivedVerdict, yesNoAnswer } from "./answers/yesNo.js";
 import { sorryFor } from "./answers/sorry.js";
 import { fold, names } from "./query/names.js";
+import { initialismEvent } from "./query/initialisms.js";
+import { ORDINARY } from "../../src/shared/query/ordinary.js";
 import { eventPlace, normalise, parseQuery } from "./query/parse.js";
 import { parseContext } from "./query/context.js";
 import { pickShared, whichLine } from "./query/shared.js";
@@ -274,6 +276,14 @@ export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promi
     const b = await searchAnswer(unwatched, opts);
     if (b.stat || b.card) return carryOutcome(b, { ...b, q: cleanQuery(raw) });
   }
+  // An event's initialism beside other words ("cri matches", "mti 2025") that the words as said didn't read as that
+  // event (a team whose name starts the same way can outrank it): the same ask with the event's name, kept when it
+  // answers about that event.
+  const named = await initialismInFull(said);
+  if (named && !aboutEvent(a, named)) {
+    const b = await searchAnswer(named.q, opts);
+    if (aboutEvent(b, named)) return carryOutcome(b, { ...b, q: cleanQuery(raw) });
+  }
   // A season said by its game ("how many teams in nj decode year", "…, centerstage") and not answered as said: the
   // same ask with the season's years, the way every reader reads a season. Only when the words as said found no
   // answer, so a team or event named like a game keeps its own.
@@ -289,6 +299,37 @@ export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promi
   if (opts.spell === false || String(raw ?? "").includes('"')) return onPage(raw, a, opts);
   const asked = /\?\s*$/.test(String(raw ?? ""));
   return onPage(raw, await spelled(cleanQuery(raw), a, (q) => searchAnswer(asked ? `${q}?` : q, { ...opts, spell: false })), opts);
+}
+
+/**
+ * `q` with its one word that is an event's initialism ("cri", ../query/initialisms.ts) said as the event's name, and
+ * the event chosen the way every initialism reader chooses it (a year typed narrows it). Null when no word is one, or
+ * the word is a team's name, an ordinary word, or shorter than three letters (two letters are too often something else).
+ */
+export async function initialismInFull(q: string): Promise<{ q: string; season: number; code: string; name: string } | null> {
+  const idx = await names();
+  const tokens = String(q ?? "").split(/(\s+)/);
+  const hits = tokens.map((t, i) => ({ i, w: t.toLowerCase().replace(/^[^a-z]+|[^a-z]+$/g, "") }))
+    .filter(({ w }) => w.length >= 3 && !ORDINARY.has(w) && idx.initialism(w).length && !idx.teamsNamed(w).length);
+  if (hits.length !== 1) return null;
+  const year = /(?:^|\D)(20\d\d)(?!\d)/.exec(q)?.[1];
+  const when = year ? (e: { season: number; start: string | null }) => e.season === Number(year) || String(e.start ?? "").startsWith(year) : undefined;
+  const ev = await initialismEvent(hits[0].w, when);
+  if (!ev) return null;
+  const name = (await get<{ name: string }>("SELECT name FROM events WHERE season = ? AND code = ?", [ev.season, ev.code]))?.name;
+  if (!name) return null;
+  const out = [...tokens];
+  out[hits[0].i] = out[hits[0].i].replace(new RegExp(hits[0].w, "i"), name);
+  return { q: out.join(""), season: ev.season, code: ev.code, name };
+}
+
+/** The answer is about the event: its first hit is the event, or its card or line names it (by its code or name). */
+function aboutEvent(a: SearchAnswer, e: { code: string; name: string }): boolean {
+  if (a.step === "recovery") return false;
+  if (a.hits[0] && a.hits[0].ref.split(":")[1] === e.code) return true;
+  // A card about it (a question answered), else the line saying what was found, unless that found a team first.
+  if (a.stat || a.card) { const said = JSON.stringify([a.stat?.title, a.stat?.headline, a.card]); if (said.includes(e.name) || said.includes(e.code)) return true; }
+  return a.hits[0]?.kind !== "team" && !!a.understood?.label && (a.understood.label.includes(e.name) || a.understood.label.includes(e.code));
 }
 
 /** The lexicon's phrases that ask to watch: "with video" (the match finder's filter), "video", "clips", and
