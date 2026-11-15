@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 6.7.3 — 2026-11-15
+
+Official videos › The channel audit no longer counts a channel's hidden spare copy of a stream as a video the watcher missed.
+
+### Highlights
+- [fixes] A copy a channel made unlisted isn't a missed video
+- [fixes] A video made private after it was listed is set aside too
+- [fixes] Watcher misses now count only public uploads
+
+### Fixed
+- A video a channel made unlisted or private after it was listed is off its public uploads list, which is all the watcher reads: the audit sets it aside ("unlisted now: the channel took it off its public list, so it isn't for Scout") instead of counting a watcher miss and opening a finding. The audit's second live run counted one, a Kazakhstan regional's spare copy of a stream the watcher already has in review. (`server/videos/officialAudit.ts`) (#1554)
+
 ## 6.7.2 — 2026-11-15
 
 Search › "Where does 4215 rank in New Jersey" answers with the region page's own numbers (rank in New Jersey, rating, record, OPR) and opens that page with the team's row marked.
