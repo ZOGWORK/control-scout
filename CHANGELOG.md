@@ -17,15 +17,16 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 
 ## 6.6.9 — 2026-11-15
 
-Search reads a year after an award's winners: "inspire award winners 2024" lists that season's Inspire Award winners.
+Owner › Clip coverage: the check pass's log line has no stray double space before its pending count.
 
 ### Highlights
-- [fixes] "inspire award winners 2024" lists the 2024–25 winners
-- [fixes] "think award winners 2025" lists the 2025–26 winners
-- [fixes] A team numbered like a year is still read as that team
+- [fixes] The clip coverage pass log reads cleanly
+- [workspace] Its pending count follows one spacer, like every part before it
+- [workspace] A test keeps the line free of double spaces
 
 ### Fixed
-- Search: one award's winners with a bare year ("inspire award winners 2024", "think award winners 2025") said no team, event or match matched, since the year was taken for a team number. A year ending the question is now its season, as search reads a year everywhere (2024 is 2024–25; at Worlds, the Championship held that year). A number before the ask, or after "team" or "#", is still a team's. Failed search #1434. (`server/api/answers/families/placeAwards.ts`) (#1533)
+- The clip coverage pass log line had two spaces before "· N matches not yet checked against the video". (`server/videos/coverageCheck.ts`) (#1552)
+
 ## 6.6.8 — 2026-11-15
 
 Events › The Chicago Robotics Invitational shows its full results: teams, matches, standings, alliances and awards for 2025–26 and 2024–25, from the event's own results site.

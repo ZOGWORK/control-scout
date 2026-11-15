@@ -159,6 +159,21 @@ describe("CRI results sync", () => {
     expect(site.calls.filter((c) => c.startsWith("match"))).toEqual([]);
   });
 
+  it("a read that fails or never finishes is tried again hours later, not a week later", async () => {
+    const site = io();
+    const broken: CriIo = { ...site, lists: async () => { throw new Error("HTTP 503"); } };
+    expect((await syncCriResults({ io: broken, now: new Date("2026-11-15T00:00:00Z") })).failed).toHaveLength(2);
+    expect((await syncCriResults({ io: site, now: new Date("2026-11-15T02:00:00Z") })).note).toBe("read recently");
+    const later = await syncCriResults({ io: site, now: new Date("2026-11-15T07:00:00Z") });
+    expect(later.written.map((w) => w.season)).toEqual([2025, 2024]);
+    // A read the cycle was stopped in (a deploy): started, never finished.
+    const stopped: CriIo = { ...site, seasons: () => new Promise(() => {}) };
+    void syncCriResults({ io: stopped, now: new Date("2026-11-30T00:00:00Z") });
+    await new Promise((r) => setTimeout(r, 50));
+    expect((await syncCriResults({ io: site, now: new Date("2026-11-30T03:00:00Z") })).note).toBe("read recently");
+    expect((await syncCriResults({ io: site, now: new Date("2026-11-30T07:00:00Z") })).note).toBeUndefined();
+  });
+
   it("never writes over results FIRST posted", async () => {
     await writeEventBundle({
       event: meta(2025, "2026-07-24"), teams: [],
