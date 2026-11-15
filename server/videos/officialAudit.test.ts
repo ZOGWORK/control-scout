@@ -231,4 +231,14 @@ describe("the channel audit", () => {
       expect((await row(id)).facts_at).toBe("2026-02-21T06:00:00.000Z");
     } finally { uploads.shift(); }
   });
+
+  it("keeps a channel's last check when the units ran out before it was read", async () => {
+    const before = await get<any>("SELECT checked_at FROM official_audit_channels WHERE channel_id = ?", [TX]);
+    expect(before.checked_at).toBeTruthy();
+    const out = await audit(NOW + 3 * FULL_EVERY_MS, 0);
+    expect(out?.channels).toBe(0);
+    const after = await get<any>("SELECT checked_at, last_error FROM official_audit_channels WHERE channel_id = ?", [TX]);
+    expect(after.checked_at).toBe(before.checked_at);
+    expect(after.last_error).toMatch(/not read this run: the audit stopped at its 0 units/);
+  });
 });
