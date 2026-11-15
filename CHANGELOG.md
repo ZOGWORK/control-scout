@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.4.0 — 2026-11-15
+## 6.4.1 — 2026-11-14
 
 World rankings and the home page's prediction record open cleanly with no signal.
 
@@ -27,6 +27,18 @@ World rankings and the home page's prediction record open cleanly with no signal
 ### Fixed
 - World rankings, opened with no signal and no season saved: the season picker now shows next to the page's "needs a connection" note, instead of a loading placeholder that never went away. (`src/pages/RankingsPage.tsx`)
 - The home page's prediction record (`/api/predict/accuracy`) is kept on the device like the season totals, so with no signal it shows the last numbers it loaded, marked with their time, instead of "needs a connection". (`src/lib/offline/kept.ts`) (#1511)
+
+## 6.4.0 — 2026-11-14
+
+2025's events and 2024's APOC get match clips read off their recordings' frames: 2,612 more matches now open on their match, and 1,538 move to the second the frames show.
+
+### Highlights
+- [history] 2,612 more matches open on their match in the recording
+- [history] 1,538 clips now start where the video shows the match start
+- [history] Frame clips for every framed 2025 event and 2024's APOC
+
+### Changed
+- `server/data/frameTimings.ts` holds the two-signal reader's starts for 128 framed events (165 videos: 2025's events, and two 2024-season APOC videos under AUSYOS), in place of the 7 events shipped with 6.3.4. Against what's live: 30,273 of 34,423 played matches keep their clip as it is, 2,612 get a clip (456 read and confirmed, 2,156 between two agreeing reads), 1,538 move to the frames' second (1,256 by 30 s or less; 282 by more, all earlier in the video, across 23 events) and none lose a clip. 35 of them, one for every event with a move over 30 s plus 12 new ones, were checked by eye 30 s into the match: each shows that match running. (#1502)
 
 ## 6.3.9 — 2026-11-14
 
