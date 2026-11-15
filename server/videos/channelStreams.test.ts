@@ -6,7 +6,7 @@ import { all, migrate, openDb, run, setDb } from "../db";
 import { clearAllCaches } from "../caches";
 import type { MatchView } from "../../src/shared/api";
 import { eventRecording, recordingStream, withClips } from "./recordings";
-import { apiReader, channelDue, channelRef, onDates, pageReader, resolveChannelStreams, type Broadcast, type ChannelReader } from "./channelStreams";
+import { apiReader, channelDue, channelRef, onDates, ownBroadcasts, pageReader, resolveChannelStreams, type Broadcast, type ChannelReader } from "./channelStreams";
 
 const S = 2025;
 const CH = "https://youtube.com/@funroboticsnetwork/streams";
@@ -59,6 +59,25 @@ describe("onDates", () => {
   });
 });
 
+describe("ownBroadcasts", () => {
+  const day = { start: "2026-11-14", end: "2026-11-14", timezone: "America/Detroit" };
+  const m5 = { videoId: "6lcZz9UrOdE", start: "2026-11-14T13:26:44Z", title: "West Michigan FTC League Meet 5 - BIOBUZZ" };
+  const m6 = { videoId: "_DrkMn2tDg4", start: "2026-11-14T17:37:13Z", title: "West Michigan FTC League Meet 6 - BIOBUZZ" };
+  it("two meets in a day on one channel link: each keeps only the broadcast its title names", () => {
+    expect(ownBroadcasts([m5, m6], { name: "West Michigan Meet 5" }, [{ name: "West Michigan Meet 6", ...day }])).toEqual([m5]);
+    expect(ownBroadcasts([m5, m6], { name: "West Michigan Meet 6" }, [{ name: "West Michigan Meet 5", ...day }])).toEqual([m6]);
+  });
+  it("keeps a broadcast whose title names no sibling, has no title, or names a meet no sibling is, and changes nothing without siblings", () => {
+    const plain = { videoId: "aaaaaaaaaaa", start: "2026-11-14T20:00:00Z", title: "West Michigan FTC League - BIOBUZZ" };
+    const untitled = { videoId: "bbbbbbbbbbb", start: "2026-11-14T21:00:00Z" };
+    const nine = { videoId: "ccccccccccc", start: "2026-11-14T22:00:00Z", title: "West Michigan FTC League Meet 9" };
+    expect(ownBroadcasts([plain, untitled, nine], { name: "West Michigan Meet 5" }, [{ name: "West Michigan Meet 6", ...day }])).toEqual([plain, untitled, nine]);
+    expect(ownBroadcasts([m5, m6], { name: "West Michigan Meet 5" }, [])).toEqual([m5, m6]);
+    // A sibling on another day doesn't claim a broadcast of this one.
+    expect(ownBroadcasts([m5, m6], { name: "West Michigan Meet 5" }, [{ name: "West Michigan Meet 6", start: "2026-11-21", end: "2026-11-21", timezone: "America/Detroit" }])).toEqual([m5, m6]);
+  });
+});
+
 describe("channelDue", () => {
   const e = { start: "2026-06-27", end: "2026-06-28" };
   // An answered read at `at` (failed: a try at `at` after an answered read at `read`).
@@ -96,9 +115,10 @@ describe("apiReader", () => {
       if (u.pathname.endsWith("/channels")) return json({ items: [{ id: "UCabcdefghijklmnopqrstuv" }] });
       if (u.pathname.endsWith("/playlistItems")) {
         expect(u.searchParams.get("playlistId")).toBe("UUabcdefghijklmnopqrstuv");
+        expect(u.searchParams.get("part")).toBe("snippet,contentDetails");
         return u.searchParams.get("pageToken")
           ? json({ items: [{ contentDetails: { videoId: SAT, videoPublishedAt: "2026-06-27T16:50:00Z" } }, { contentDetails: { videoId: OTHER, videoPublishedAt: "2026-04-01T00:00:00Z" } }], nextPageToken: "p3" })
-          : json({ items: [{ contentDetails: { videoId: SUN, videoPublishedAt: "2026-06-28T12:30:00Z" } }], nextPageToken: "p2" });
+          : json({ items: [{ snippet: { title: "MTI Sunday" }, contentDetails: { videoId: SUN, videoPublishedAt: "2026-06-28T12:30:00Z" } }], nextPageToken: "p2" });
       }
       return json({ items: [
         { id: SUN, liveStreamingDetails: { actualStartTime: "2026-06-28T12:30:00Z", actualEndTime: "2026-06-28T22:13:00Z" }, contentDetails: { duration: "PT9H43M10S" } },
@@ -107,7 +127,7 @@ describe("apiReader", () => {
       ] });
     }) as unknown as typeof fetch;
     const got = await apiReader("k", fake)(channelRef(CH)!, Date.parse("2026-05-13T00:00:00Z"));
-    expect(got).toEqual([{ videoId: SUN, start: "2026-06-28T12:30:00.000Z" }, { videoId: SAT, start: "2026-06-27T16:50:00.000Z" }]);
+    expect(got).toEqual([{ videoId: SUN, start: "2026-06-28T12:30:00.000Z", title: "MTI Sunday" }, { videoId: SAT, start: "2026-06-27T16:50:00.000Z" }]);
     // Stopped paging once the uploads reached back past the date.
     expect(asked).toEqual(["channels", "playlistItems", "playlistItems", "videos"]);
   });
@@ -217,5 +237,30 @@ describe("resolveChannelStreams and the event's recording", () => {
     expect(await eventRecording(S, "MTI")).toBeNull();
     await resolve(NOW + 17 * 86_400_000);
     expect(await all("SELECT video_id FROM event_broadcasts")).toEqual([]);
+  });
+});
+
+describe("resolveChannelStreams: two meets in a day on one channel link", () => {
+  const WM = "https://www.youtube.com/@firstalumninetworkgrandvalley/streams";
+  const M5 = "6lcZz9UrOdE", M6 = "_DrkMn2tDg4";
+  const reader: ChannelReader = async () => [
+    { videoId: M6, start: "2026-11-14T17:37:13Z", title: "West Michigan FTC League Meet 6 - BIOBUZZ" },
+    { videoId: M5, start: "2026-11-14T13:26:44Z", title: "West Michigan FTC League Meet 5 - BIOBUZZ" },
+  ];
+  beforeAll(async () => {
+    const c = openDb(":memory:");
+    setDb(c);
+    await migrate(c);
+    await run("INSERT INTO seasons (season, name) VALUES (2026, 'Test')");
+    for (const n of [5, 6]) await run("INSERT INTO events (season, code, name, type, start, end, timezone, remote, hybrid, livestream, source) VALUES (2026, ?, ?, 'LeagueMeet', '2026-11-14', '2026-11-14', 'America/Detroit', 0, 0, ?, 'test')", [`USMIWMM${n}`, `West Michigan Meet ${n}`, WM]);
+    // What the earlier read saved: both broadcasts on both meets.
+    for (const code of ["USMIWMM5", "USMIWMM6"]) for (const [id, start] of [[M5, "2026-11-14T13:26:44.000Z"], [M6, "2026-11-14T17:37:13.000Z"]]) await run("INSERT INTO event_broadcasts (season, code, video_id, url, start) VALUES (2026, ?, ?, ?, ?)", [code, id, WM, start]);
+  });
+  it("each meet keeps only its own broadcast, the ones saved before included", async () => {
+    expect(await resolveChannelStreams(() => {}, { reader, withKey: true, now: () => Date.parse("2026-11-15T06:00:00Z") })).toBe(2);
+    expect(await all("SELECT code, video_id FROM event_broadcasts ORDER BY code")).toEqual([{ code: "USMIWMM5", video_id: M5 }, { code: "USMIWMM6", video_id: M6 }]);
+    clearAllCaches();
+    expect((await eventRecording(2026, "USMIWMM6"))?.videoId).toBe(M6);
+    expect((await eventRecording(2026, "USMIWMM6"))?.more).toBeUndefined();
   });
 });

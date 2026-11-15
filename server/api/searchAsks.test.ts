@@ -83,7 +83,7 @@ describe("test 16: each intent returns its stated surface", () => {
     for (const q of ["top teams in New Jersey", "NJ rankings", "best team in NJ", "the strongest in New Jersey atm"]) {
       const a = await ask(q);
       expect(teams(a), q).toEqual(["23268 Ultraviolet", "4215 Hypnotic Robotics", "6980 Bad Wolf"]);
-      expect(hrefs(a)[0], q).toBe("/rankings?season=2025&region=USA%3ANJ");
+      expect(hrefs(a)[0], q).toBe("/rankings/regions/USA/NJ?season=2025");
       expect(a.hits, q).toEqual([]);
     }
   });
@@ -307,7 +307,7 @@ describe("Greptile on #440, round 2", () => {
   it("a conversational opening keeps the links the answer added", async () => {
     // An OPR list's full list is the Teams page, sorted the same way.
     expect(hrefs(await ask("show me highest OPR"))[0]).toMatch(/^\/teams\?view=season&season=2025&sort=totalPointsNpOpr/);
-    expect(hrefs(await ask("show me top teams in NJ"))[0]).toBe("/rankings?season=2025&region=USA%3ANJ");
+    expect(hrefs(await ask("show me top teams in NJ"))[0]).toBe("/rankings/regions/USA/NJ?season=2025");
   });
 });
 

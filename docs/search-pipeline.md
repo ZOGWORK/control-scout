@@ -159,6 +159,17 @@ answer read from its matches (results, record, match lists, scores, rank, OPR), 
 season. "Ever", "all time" or "all (of their) state championships" reads every season it played one, labelled "All
 seasons". Answers read from event or season rows (best finish, seasons played) are across its state championships.
 
+## An event by its initialism
+
+`src/shared/query/initialisms.ts`: an event's initialism is its significant words' first letters (2 to 6 words, none a
+number or date) and any short form its name states in parentheses. A trailing event type FIRST appends ("Premier
+Event", "Off-Season Event") is also left out, so FIRST's "Chicago Robotics Invitational Premier Event" is CRI as well
+as CRIPE. The search index holds them with the event's words (`server/stats/job.ts`), and every reader picks among
+events sharing one with `initialismEvent` (`server/api/query/initialisms.ts`). Beside other words ("cri matches",
+"cri results", "cri 2025"), where a team whose name starts the same way can outrank the event, `searchAnswer` reads the
+word as the event's name (`initialismInFull`, a year typed narrows the event) and keeps that answer when its first hit
+or its card is the event. Not for a word that is a team's name, an ordinary word, or shorter than three letters.
+
 ## Highlights
 
 `server/api/query/highlights.ts`: "highlights" (or "highlight reel", "top moments", "best moments", "best matches",

@@ -12,7 +12,11 @@ A channel is official for an event when it is one of:
   FIRST in Texas, FIRST Chesapeake, FTC Iowa, FIRST Nevada, MT Robotics Alliance for Montana, BCA Activities for
   North Dakota's "Dakota FTC", …). FIRST Nevada posts each meet as an upload a few days later, its title starting
   with the meet's date ("2026-01-10 FTC League Meet # 4S - Southern Nevada"): the checked list takes that date as the
-  day, and the watcher, which needs a broadcast date, sends such uploads to the owner,
+  day, and the watcher, which needs a broadcast date, sends such uploads to the owner. FIRST Indiana Robotics streams
+  its events on Twitch and uploads each a few days later, its title naming the event and its date ("2026 FTC Greenwood
+  QT (02.21.26) - Part 1"): the checked list takes them the same way (2020-21 to 2025-26, 25 uploads, checked
+  2026-11-15), leaving out its two-day "State Championship Day 1/Day 2" uploads (the FRC championship; FTC's is one
+  day) and its FRC off-season events (Boiler Bot Battle, Monster Match),
 - the event's own organiser or league (NTX FTC for FiT-North, GEARS for the Michiana Premier Event, NorCal FIRST
   Tech Challenge for Northern California's events (watched for those named "NorCal …", as every one is from 2026-27;
   older ones were checked by hand), …),
@@ -23,7 +27,9 @@ A channel is official for an event when it is one of:
 - the event's own streamer, where FIRST's event pages or the host name it: Stars of the Galaxy (FTC 12099) for the
   Central Ohio league in Columbus, and the FIRST Alumni Network Grand Valley for the West Michigan league at GVSU in
   Grand Rapids (watched for those events only; FANGV's Robot in 3 Days streams are FRC and never used), FTC SoCal
-  League G for League G's meets in Carson, 7419 Tech Support, which streamed NorCal East Bay Meet 1 of 2026 from its
+  League G for League G's meets in Carson, SoCal FTC's own live channel (@FIRSTsocalftclive, a channel of its own,
+  watched separately from @Socalftc) for its inter-league tournaments ("ILT #6" is Scout's "SoCal FTC Qualifier 6")
+  and the Los Angeles championship at Monrovia, 7419 Tech Support, which streamed NorCal East Bay Meet 1 of 2026 from its
   own school (linked once, not watched), and in Oregon Overcharged (FTC 12599) for the Rose City League and Leo RHS
   Robotics (Roseburg HS) for the SOAR League, whose streams FIRST's own Oregon event pages link (each watched for its
   own league only),
@@ -73,7 +79,7 @@ exceptions rules 2 and 7 name for the checked list only, and the auto-watcher us
    Meet @ 8 AM"), an upload of a one-day event its title names, or an upload of an event that played every match on
    one day (Scout's match times say which; FTC Louisiana's two-day qualifiers play on the Saturday).
 3. Its title names the event: a distinctive word of the event's name or city (the league, the venue, "Mockingbird"),
-   or the event's designators (an NTX league letter, a meet number, a UIL class, a stage). An event named by an
+   or the event's designators (an NTX league letter, a meet number, a qualifier or ILT number, a UIL class, a stage). An event named by an
    acronym ("APOC") also fits a title spelling it out in words in a row ("Asia Pacific Open Championship"); a common
    one ("FTC") never counts. A state or region name alone counts only for that region's one championship on that date.
 4. Where the event has divisions, the title names the division ("COANDĂ", "Franklin", "Black"), and a division video
@@ -93,7 +99,10 @@ exceptions rules 2 and 7 name for the checked list only, and the auto-watcher us
    2021-22 Santa Clara QT; 7419's East Bay Meet 1 of 2026). Titles that differ count only when both name the same
    event and the second starts at most 30 minutes after the first ends (Montana's 2023 State, "MT FTC Championship
    2023" to 23:13:53Z, then "MT FTC State 2023" from 23:15:48Z). A second broadcast that overlaps the first, or one
-   the event's FIRST link already plays, is still left out.
+   the event's FIRST link already plays, is still left out. A day whose video the event already plays without a part
+   (FIRST's link, or the watcher's add) and a second video of it naming one ("matches only") gets the part from the
+   list: Chicago Robotics Invitational 2026 has a "Matches" video and a "Full stream" each day, Sunday's full stream
+   being FIRST's own link.
 
 Per-match clips are never mapped from a title outside FIRST's own per-match videos (the Championship's are already
 FIRST's match videos, `matches.video`). A recording never hides FIRST's per-match video or a verified contributor's
@@ -106,6 +115,10 @@ recording path (`server/videos/recordings.ts`) treats each kept recording as one
 without FIRST's link gets its first day as its video; every other day joins it, in broadcast order, and the event
 page's Watch section shows a button per day ("Friday", "Saturday", "Sunday · Awards"). Each match links to its second
 in its own day's video when YouTube's timing for that video holds (the same checks as FIRST's links).
+
+When FIRST's link is a channel's page (`server/videos/channelStreams.ts`) and two events that day give the same one
+(West Michigan's Meet 5 and Meet 6, both "@firstalumninetworkgrandvalley/streams"), a broadcast whose title names one
+of them by its designator ("Meet 6") is that event's only. A title naming neither stays with both.
 
 A removed row (`removed_at`) is never written again, so taking a video out sticks.
 
@@ -184,6 +197,18 @@ minutes and starts a run only when the last one is 6 hours old, so a deploy does
   its frames (`CoverageMatch.video`): "Not yet checked against the video", "Checked in the video (date): no start found
   for it", "seen at h:mm:ss, not yet confirmed", with the video's own timestamps of the matches around it. The clock's
   reading is kept apart (`CoverageMatch.clock`) and is never a reason on its own.
+  Zero-error brief (2026-11-15), journey 5 and the coverage half of 7: "To review" holds only matches checked against
+  the video itself (its frames read), each saying what was checked there and what was missing. A match left out by the
+  clock alone whose video isn't read yet is a pending check, "Not yet checked against the video", with its own count in
+  any season; it's never in To review, never marked reviewed (one or bulk), and moves on once its frames are read. Each
+  check pass logs events checked, fully clipped, matches clipped and missing, and the missing by what their video check
+  found; the console shows the last pass (kv `clip-coverage:last-pass`). Every missing match the frames saw in the video
+  (`video.seenAt`) is a finding in the console, with its video, second, event and why, whatever its review; so is every
+  clock-placed clip pulled because its first frame showed another match (`clipCheckFindings`, server/data/clipChecks.ts),
+  with the frame checks' totals beside the last pass. A finding stays until a pass clears it (its clip placed, or a
+  re-read shows the match isn't there); there's no Reviewed for it. The pending checks read as work in progress: after
+  each pass, the matches still waiting for their video check across every stored event (`CoveragePass.pending`) are
+  counted, with the pass before's count (`pendingBefore`), and the console says how many fewer.
 - **The owner's queue** (Owner › Official videos, with an "N to review" badge on the console's menu), oldest first. Each
   row shows the title, channel, video id, published and broadcast times, length, the best-guess event and why it
   wasn't added:
@@ -203,3 +228,59 @@ minutes and starts a run only when the last one is 6 hours old, so a deploy does
   and the live lane share; YouTube's reads happen outside it. When the sync holds it for 3 minutes or more the run
   doesn't start, or stops as "database busy", and that run doesn't count toward the 6-hour wait, so the next
   half-hourly check runs it again. The checks start 17.5 minutes after boot, midway between the sync's 5-minute ticks.
+
+## The channel audit
+
+`server/videos/officialAudit.ts` runs after every watcher run (scheduled, or Run now). It compares each watched
+channel's whole uploads list, video by video, with Scout's records. It reads only the channel's uploads list
+(`playlistItems` on its `UU…` playlist, `snippet,contentDetails` for the titles, then `videos` for the facts). It
+**never searches YouTube**.
+
+- **What it reads.** Each upload is stored once in `official_audit_videos` (migration 91).
+  - Every run reads each channel's newest page, and keeps reading only while a page is all new.
+  - Each channel's whole list is read once a week, the channel read longest ago first. A video no longer on the list
+    at a full read is marked gone (`gone_at`).
+  - Facts are read once per video, and only for one that may be a competition and that Scout has no record of. The
+    watcher's own adds have their facts read every run.
+- **Quota.** About 1 unit per channel a run (63 units), plus 1 per 50 new uploads that need facts. The weekly full
+  reads add about 700 units a week: 34,447 uploads on 63 channels, measured 2026-11-15. That comes to under 600 units
+  a day. An audit uses at most 800 units (`AUDIT_MAX_UNITS`), and what it doesn't reach waits for the next run.
+- **What Scout has for each upload** (`record`): the checked list, the watcher's add, the owner's add, FIRST's event
+  link, the event's short stream link, the channel's broadcasts, or the owner's stream (each of these plays on an
+  event); or the watcher's row (in review, set aside, a duplicate, rejected), or removed by the owner.
+- **An upload Scout has nothing for.** The watcher's rules run on it (`matchVideo`), with its best-guess event and what
+  that guess rests on (`bestGuess`: among the region's competitions from 21 days before its date to the day after,
+  the one whose name, city and designators the title shares most, nearest the date on a tie). Then it is one of:
+  - **Set aside, with the reason.** The title says it isn't a competition ("the title says "FRC""), or the title names
+    no competition. A short upload can't be a day's recording. A private or deleted video gives no facts.
+  - **Not read by the watcher yet.** It's in the watcher's window but went up or ended after the watcher's last run,
+    or it's live. The watcher's next run reads it.
+  - **A watcher miss.** It's in the window, older than the watcher's last run, and the watcher has no row for it. It
+    counts in the run's `missed` and becomes a finding at once. If a watcher run after that still has no row for it,
+    it goes to the review queue with why. The audit never adds a video.
+  - **Set aside by the audit.** It's older than the window, but it can't fill a day Scout has no video for. That's
+    a broadcast on a day with no Scout event in the region, an upload with no event to put it on, or one whose event
+    (its own, or its best guess) already plays a video for each of its days (`everyDayPlays`). The reason says which.
+  - **A finding.** It's older than the window and may be a recording Scout lacks: an "add" or "review" verdict whose
+    event has a day with no video. It shows in
+    Owner › Official videos with its verdict, why and best guess. The owner sends it to review (`officialVideo.auditQueue`)
+    or says why it isn't a recording (`officialVideo.auditDismiss`, reason required), and it's never opened again.
+- **The watcher's own adds**, checked every run (`official_audit_adds`). Each is checked for these:
+  - it's still on its event, public, embeddable, and blocked in fewer than 50 countries;
+  - its title is an FTC competition stream's;
+  - it was broadcast on the day it's on, at the venue, and that day is one of the event's;
+  - the rules still pick only that event;
+  - no second video plays that day unless both name their parts.
+
+  A wrong add is listed with what's wrong. One that the watcher's title rules set aside today (a rule tightened since,
+  such as drone or FRC streams) is taken off its event by the audit, as the watcher would have left it. It's logged as
+  `officialVideo.remove` by "channel audit" and still counts as a wrong add. The owner removes any other wrong add.
+- **Best guesses in review.** Every video in review or set aside whose verdict names no event gets a best guess
+  (`official_watch.guess_why`). New rows get it when the watcher reads them; older rows get it at the next audit.
+- **Runs** (`official_audit_runs`): units, channels read and read in full, uploads, those with a Scout record, set
+  aside, open findings, watcher misses, queued, and the adds checked and wrong. Each channel's counts are in
+  `official_audit_channels`: uploads, with a record, without one, playing on an event (every season, and 2026-27
+  alone), and open findings.
+- **Owner › Official videos › Channel audit** shows the last audit and its error, the uploads with a Scout record,
+  the watcher misses, and the watcher's own adds over its last 10 runs and its last 100 videos read (added, wrong, not
+  checked yet). It also lists the wrong adds, the findings, each channel's counts and the set-aside reasons.

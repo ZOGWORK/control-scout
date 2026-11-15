@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.6.5 — 2026-11-15
+## 6.7.3 — 2026-11-15
 
 Search answers four more questions it used to miss: three team numbers side by side, a team's Auto OPR at Worlds, what a tiebreaker is, and "teams in" with nothing after it.
 
@@ -30,6 +30,128 @@ Search answers four more questions it used to miss: three team numbers side by s
 - A team's Auto OPR at Worlds ("what was hypnotic robotics auto opr at worlds in centerstage", and the same without "opr") showed the team card and "can't answer that yet". It's now that phase's OPR in the team's Worlds division (47.3 at Edison, 2023–24), with its OPR and the other phases beside it, as "auto" alone already reads a team's season Auto OPR. A phase next to another stat word ("highest auto at worlds") stays with the match answers. (`server/api/answers/families/oprRating.ts`) (#1493, #1494)
 - "What is a tie breaker point" found nothing. A new explainer says how teams level on ranking score are ordered (average non-penalty score first, as the methodology page says), and a typo of "breaker" is now corrected to it. (`server/api/searchCoverage.ts`, `server/api/spelling.ts`) (#1430, #1429)
 - "teams in" with nothing after it found nothing. It now lists every team, best by OPR this season, with how many are registered and how to add a place. (`server/api/searchCoverage.ts`) (#1421)
+
+## 6.7.2 — 2026-11-15
+
+Search › "Where does 4215 rank in New Jersey" answers with the region page's own numbers (rank in New Jersey, rating, record, OPR) and opens that page with the team's row marked.
+
+### Highlights
+- [rankings] Ask where a team ranks in its state: rank, rating, record, OPR
+- [rankings] Top teams in a state answer from its rankings page
+- [rankings] Not ranked yet says how many rated matches a team has
+
+### Changed
+- "Where does {team} rank in {region}": the answer adds the team's season record, shows its rating to one decimal as the region page does, and links to the region page on the team's page with its row marked. A team from there with fewer than 3 rated matches is "Not ranked yet — N of 3 rated matches" (or "No rated matches yet"), never ranked by its OPR instead. (`server/api/answers/families/oprRating.ts`)
+- "Top teams in New Jersey", "best team in New Jersey", "New Jersey rankings": the region page's rows (rank in the region, rating, OPR, record) and a link to it; a region with no rated team says "No rated teams yet". (`server/api/searchAsks.ts`, `server/api/answers/families/leaderboard.ts`, `server/api/searchIntents.ts`) (#1544)
+
+## 6.7.1 — 2026-11-15
+
+Owner › Official videos › Channel audit: after every watcher run, each watched channel's whole uploads list is compared, video by video, with what Scout has. Misses, wrong adds and possible recordings are owner findings.
+
+### Highlights
+- [workspace] Every watched channel's uploads checked against Scout
+- [workspace] The watcher's own adds are checked again after each run
+- [fixes] A drone or FRC stream added before the rules caught it comes off
+- [workspace] Each video in review or set aside has a best-guess event
+
+### Added
+- The channel audit (`server/videos/officialAudit.ts`, migration 91). It runs after every watcher run, scheduled or Run now. It reads each watched channel's uploads list with the YouTube Data API, never a search: the newest page every run, and the whole list once a week. It stores each upload with where Scout has it: the checked list, the watcher, FIRST's link, a short link, the channel's broadcasts, or the owner's stream.
+  - An upload Scout has nothing for gets the watcher's rules and a best guess. It's set aside with the reason, left for the watcher's next run, or a finding.
+  - A watcher miss goes to review if a later watcher run still misses it. The audit never adds a video.
+  - An older video that can't fill a day Scout has no video for is set aside with why: a broadcast on a day with no Scout event in the region, or one whose event already plays a video every day.
+  - The audit uses at most 800 units a run, and under 600 a day in steady running. (`docs/official-videos.md`)
+- The watcher's own adds are checked again every run: still playable, an FTC competition, the right day and event, and not a second video of the day. Owner › Official videos shows the result over the watcher's last 10 runs and its last 100 videos read.
+- Owner › Official videos › Channel audit shows each channel's uploads, those with a Scout record, those that play on an event (every season, and 2026-27), the findings (send to review, or say why it isn't a recording), and the set-aside reasons.
+
+### Changed
+- A video set aside by its title now says what in the title set it aside (`the title says "FRC"`, or that it names no competition). Every video in review or set aside whose verdict named no event gets a best-guess event, with what that guess rests on (`server/videos/officialMatch.ts`, `server/videos/officialWatch.ts`).
+
+### Fixed
+- An add the watcher's title rules set aside today now comes off its event: a rule tightened since, such as a drone contest's stream on Almaty Tech Cup, added before #1498. It still counts as a wrong add.
+
+## 6.7.0 — 2026-11-15
+
+Search reads a year after an award's winners: "inspire award winners 2024" lists that season's Inspire Award winners.
+
+### Highlights
+- [fixes] "inspire award winners 2024" lists the 2024–25 winners
+- [fixes] "think award winners 2025" lists the 2025–26 winners
+- [fixes] A team numbered like a year is still read as that team
+
+### Fixed
+- Search: one award's winners with a bare year ("inspire award winners 2024", "think award winners 2025") said no team, event or match matched, since the year was taken for a team number. A year ending the question is now its season, as search reads a year everywhere (2024 is 2024–25; at Worlds, the Championship held that year). A number before the ask, or after "team" or "#", is still a team's. Failed search #1434. (`server/api/answers/families/placeAwards.ts`) (#1533)
+## 6.6.9 — 2026-11-15
+
+Owner › Clip coverage: the check pass's log line has no stray double space before its pending count.
+
+### Highlights
+- [fixes] The clip coverage pass log reads cleanly
+- [workspace] Its pending count follows one spacer, like every part before it
+- [workspace] A test keeps the line free of double spaces
+
+### Fixed
+- The clip coverage pass log line had two spaces before "· N matches not yet checked against the video". (`server/videos/coverageCheck.ts`) (#1552)
+
+## 6.6.8 — 2026-11-15
+
+Events › The Chicago Robotics Invitational shows its full results: teams, matches, standings, alliances and awards for 2025–26 and 2024–25, from the event's own results site.
+
+### Highlights
+- [history] Chicago Robotics Invitational: matches, rankings and awards
+- [history] Its matches play from the event's recordings
+- [fixes] The page says plainly where the results came from
+
+### Added
+- CRI results: FIRST lists the Chicago Robotics Invitational (FPECRI) with no teams or matches. Its results now come from chicagoroboticsinvitational.com as the event's ordinary results, for 2025–26 (38 teams, 62 matches) and 2024–25 (38 teams, 67 matches). That covers each match's auto / TeleOp / endgame / penalty split, standings, alliances and awards. The event page says "Results from chicagoroboticsinvitational.com" and links there. The results are read weekly and cached, and they never replace FIRST's: if FIRST posts the event, its results win. (`server/sources/cri.ts`, `server/data/criResults.ts`, `docs/cri-results.md`) (#1537)
+
+## 6.6.7 — 2026-11-15
+
+Clip coverage's To review now holds only matches checked against the video itself; the rest wait under their own count, and every match the video showed without a clip is a finding.
+
+### Highlights
+- [workspace] To review holds only matches checked against the video itself
+- [workspace] "Not yet checked against the video" gets its own count, never hidden
+- [workspace] Each match the video showed with no clip is listed as a finding
+- [workspace] Each check pass is logged and shown: clipped, missing and why
+- [workspace] The pending video checks count down pass by pass
+
+### Changed
+- Owner › Clip coverage: an event is To review only for a match its video's frames were read for and that still has no clip (or a match with no reason found), and its reason says what was checked in the video and what was missing there; matches still waiting for their check are counted beside it. An event whose missing matches were left out by the clock alone and not yet checked against the video is "Not yet checked against the video": a pending check with its own count and list, in any season, never in To review, never marked reviewed (one or in any bulk), moving on once its frames are read; a review given to it while it waited doesn't carry over, so its video-checked list comes back To review. (`server/videos/coverageTriage.ts`, `server/videos/coverageCheck.ts`, `src/components/owner/ClipCoveragePanel.tsx`) (#1539)
+
+### Added
+- Each clip coverage check pass logs events checked, fully clipped, matches clipped and missing, and the missing by what their video check found (not yet checked, checked with no start found, seen in the video with no clip, or the video's own reason); the console shows the last pass. Every match the video's frames saw with no clip is a finding in the console, with its video, the second it was seen at, its event and why, whatever its review; so is every clip pulled because its first frame showed another match, with the frame checks' totals (checked, confirmed, pulled, to read again, videos with no overlay). A finding stays until a pass clears it (its clip placed, or a re-read shows the match isn't there) and is never marked reviewed. The console counts the matches still waiting for their video check after each pass and how many fewer than the pass before, and the pass log line ends with it.
+
+## 6.6.6 — 2026-11-15
+
+35 more official event recordings play: 25 of FIRST Indiana's events, SoCal's ILTs and championship, and Kansas City's Piper meets. West Michigan's Meet 5 and Meet 6 each play their own stream.
+
+### Highlights
+- [fixes] West Michigan Meet 5 and Meet 6 each play only their own stream
+- [live] 25 FIRST Indiana events now have their full recording, 2021 to 2026
+- [live] SoCal's ILTs and LA championship play from SoCal FTC's live channel
+- [live] Chicago Robotics Invitational 2026: Matches and Full stream each day
+
+### Fixed
+- West Michigan's Meet 5 and Meet 6 (Nov 14) were held the same day, and FIRST's event pages give both the same channel link. Each page played both meets' streams, and Meet 6's page opened on Meet 5's. When two events that day share a channel link, a broadcast whose title names one of them ("Meet 6") is now that event's only; a title naming neither stays with both. (`server/videos/channelStreams.ts`)
+- Chicago Robotics Invitational 2026 showed "Saturday · Matches", "Saturday" and "Sunday": Saturday's full stream had no part, and Sunday's "matches only" stream wasn't listed. Each day now has "Matches" and "Full stream". Sunday's full stream is FIRST's own link, so the checked list names its part, and a listed part now also names a day's video that the event already plays without one. (`server/videos/officialVideos.ts`, `server/videos/recordings.ts`)
+
+### Added
+- FIRST Indiana Robotics' event recordings: 25 Twitch broadcasts it uploads a few days later, each titled with its event and date, from the 2021 State Championship to the 2026 one. None of these events had a video before. (`server/data/officialVideos.json`)
+- SoCal FTC's own live channel (@FIRSTsocalftclive) is now watched: ILT #3, #5 and #6 of 2025-26 and the Los Angeles championship at Monrovia play. "ILT #6" is read as "SoCal FTC Qualifier 6". (`server/data/officialChannels.ts`, `server/videos/officialMatch.ts`)
+- League G's 2025-26 Meet 3, and FIRST MOKS's three Piper meets of Nov 14 (8 AM, 10:30 AM, 1 PM).
+
+## 6.6.5 — 2026-11-15
+
+Search › "CRI" finds the Chicago Robotics Invitational: an event's short form now leaves out the "Premier Event" FIRST adds to its name, and works beside other words.
+
+### Highlights
+- [fixes] "CRI" finds the Chicago Robotics Invitational
+- [fixes] A short form beside "matches" or a year finds the event
+- [fixes] A team whose name starts the same way no longer takes its place
+
+### Fixed
+- An event's initialism also leaves out a trailing event type FIRST appends ("Premier Event", "Off-Season Event"), so "Chicago Robotics Invitational Premier Event" is CRI as well as CRIPE. (`src/shared/query/initialisms.ts`)
+- An initialism beside other words ("cri matches", "cri results", "cri 2025") is read as the event's name when the words as typed found something else first: "CRI matches" opened Critical Mass's matches. A team named so, an ordinary word, or a two-letter word is never read this way. (`server/api/searchAnswer.ts`, `docs/search-pipeline.md`) (#1542)
 
 ## 6.6.4 — 2026-11-15
 

@@ -10,6 +10,7 @@ import { resolveStreamLinks } from "./videos/streamLinks.js";
 import { resolveChannelStreams } from "./videos/channelStreams.js";
 import { seedOfficialVideos } from "./videos/officialVideos.js";
 import { WATCH_CHECK_MS, WATCH_FIRST_MS, watchIfDue } from "./videos/officialWatch.js";
+import { runChannelAudit } from "./videos/officialAudit.js";
 import "./env.js";
 import { env } from "./env.js";
 import { migrate, all, openReplicaIfRemote } from "./db.js";
@@ -254,9 +255,13 @@ if (!process.env.CS_NO_SCHEDULER) {
   // channel's new uploads, every 6 hours with the YouTube Data API (never a search). Checked every 30 minutes, from
   // 17.5 minutes after boot (midway between the sync's ticks, WATCH_FIRST_MS): a deploy doesn't start a run of its own
   // when the last one is less than 6 hours old.
-  // A run that added a recording has its event's coverage checked at once (server/videos/coverageCheck.ts).
+  // A run that added a recording has its event's coverage checked at once (server/videos/coverageCheck.ts). Every run
+  // is followed by the channel audit (server/videos/officialAudit.ts): each channel's uploads list against Scout.
   const watch = () => {
-    watchIfDue(log).then((r) => (r?.added ? checkClipCoverage(log) : 0))
+    watchIfDue(log).then(async (r) => {
+      if (r) await runChannelAudit(log).catch((e) => log(`official videos: audit: ${(e as Error).message}`));
+      return r?.added ? checkClipCoverage(log) : 0;
+    })
       .catch((e) => log(`official videos: watcher: ${(e as Error).message}`));
   };
   setTimeout(() => { watch(); setInterval(watch, WATCH_CHECK_MS).unref(); }, WATCH_FIRST_MS).unref();

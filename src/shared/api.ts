@@ -605,8 +605,21 @@ export interface ClipCoverage {
   matches: CoverageMatch[];
 }
 
+/** An owner-console finding at `at` seconds into `videoId`: "seen", a match the video's frames saw with no clip; "pulled",
+ *  a clip whose first frame showed another match (server/data/clipChecks.ts), so it no longer plays. */
+export interface CoverageFinding { kind: "seen" | "pulled"; season: number; code: string; name: string; label: string; videoId: string; at: number; why: string }
+/** The frame checks of clips placed from the clock (server/data/clipChecks.ts): clips checked, confirmed, pulled, read
+ *  again later (a blank or transition frame), and videos whose overlay can't be read anywhere (never pulled). */
+export interface ClipCheckTotals { checked: number; ok: number; pulled: number; unconfirmed: number; noOverlayVideos: number }
+/** One clip coverage check pass (server/videos/coverageCheck.ts): events it checked (`events` of them recorded), how
+ *  many are fully clipped, matches clipped and missing, and the missing by what their video check found (`why`). */
+export interface CoveragePass { at: string; checked: number; events: number; full: number; clipped: number; missing: number; why: Record<string, number>; opened: number;
+  /** Every stored event's matches still waiting for their video check after this pass, and after the pass before (null: none
+   *  recorded): how the pending work shrinks. */
+  pending?: number; pendingBefore?: number | null }
+
 /** An event's triage category (server/videos/coverageTriage.ts): only actionable events are the owner's "To review". */
-export type CoverageTriage = "actionable" | "no-timing" | "early-start" | "old-season";
+export type CoverageTriage = "actionable" | "unchecked" | "no-timing" | "early-start" | "old-season";
 
 /** Owner > Clip coverage (server/videos/coverageCheck.ts): one event with a played match missing a clip, as last checked. */
 export interface OwnerCoverageEvent {
@@ -624,6 +637,8 @@ export interface OwnerCoverageEvent {
 export interface OwnerClipCoverage {
   events: OwnerCoverageEvent[]; list: CoverageTriage | "reviewed"; open: number; reviewed: number;
   categories: Record<CoverageTriage, number>; seasons: { season: number; open: number; actionable: number }[];
+  /** Matches the video showed with no clip (always shown, whatever their review), and the last check pass. */
+  findings: CoverageFinding[]; lastPass: CoveragePass | null; clipChecks: ClipCheckTotals;
   totals: { events: number; played: number; withClip: number; full: number };
 }
 
@@ -719,6 +734,9 @@ export interface EventDetail {
   /** When this server last read the event's team list from FIRST without error (its full fetch, or its registrations):
    *  the event page's "last synced" time. Null: never read. Absent (time unknown) from older servers and saved packs. */
   teamsSyncedAt?: string | null;
+  /** The event's results came from its own results site, not FIRST (FIRST published none: server/data/criResults.ts):
+   *  the site's name and the event's page there. Absent: FIRST's results (or an older server). */
+  resultsSource?: { site: string; url: string } | null;
   /** The event has a highlights page (/events/<season>/<code>/highlights: server/eventHighlightsPage.ts). Absent: an
    *  older server or a saved pack. */
   highlights?: boolean;
@@ -1051,8 +1069,8 @@ interface ResultChangeBase {
   /** Changed values: "red.total", "blue.bonus.goal", "dq", "time", "field", "red", "blue" (labels has their names). */
   fields: string[];
   /** The feed the new value came from, and the one the stored value came from. */
-  source: "first" | "ftc-scout";
-  prevSource: "first" | "ftc-scout" | null;
+  source: "first" | "ftc-scout" | "cri";
+  prevSource: "first" | "ftc-scout" | "cri" | null;
   /** When the sync saw the change (not when FIRST made it). */
   checkedAt: string;
 }
@@ -1085,11 +1103,41 @@ export interface OfficialWatchRow {
   videoId: string; channelId: string; channel: string; title: string; start: string | null; published: string | null; durationS: number | null;
   /** pending: to review · ignored: set aside, not a competition stream · added: by the watcher · approved / rejected: by the owner. */
   status: "pending" | "ignored" | "duplicate" | "added" | "approved" | "rejected";
-  season: number | null; code: string | null; day: string | null; part: string | null; why: string; seenAt: string; decidedAt: string | null; decidedBy: string | null;
+  season: number | null; code: string | null; day: string | null; part: string | null; why: string;
+  /** What season/code/day rest on when the verdict itself named no event (a best guess); null when the verdict did. */
+  guessWhy: string | null; seenAt: string; decidedAt: string | null; decidedBy: string | null;
 }
 export interface OfficialChannelRow { channelId: string; title: string; region: string; words: string | null; titlePattern: string | null; watchFrom: string; checkedAt: string | null; lastError: string | null }
 export interface OfficialWatchRunRow { id: number; startedAt: string; finishedAt: string | null; units: number; channels: number; seen: number; added: number; queued: number; duplicates: number; error: string | null }
 export interface OwnerOfficialVideos {
   apiKey: boolean; everyHours: number; nextRunAt: string | null; unitsToday: number; recordings: number; events: number;
   pending: OfficialWatchRow[]; ignored: OfficialWatchRow[]; duplicates: OfficialWatchRow[]; decided: OfficialWatchRow[]; runs: OfficialWatchRunRow[]; channels: OfficialChannelRow[];
+  /** The channel audit after each watcher run (server/videos/officialAudit.ts). */
+  audit: OfficialAudit;
+}
+/** One channel audit: each watched channel's whole uploads list against Scout's records. missed: watcher misses it
+ *  found (in the watcher's window, no Scout record: sent to review). */
+export interface OfficialAuditRun {
+  id: number; startedAt: string; finishedAt: string | null; units: number; channels: number; fullChannels: number; uploads: number; recorded: number; setAside: number;
+  findings: number; missed: number; queued: number; addsChecked: number; addsWrong: number; error: string | null;
+}
+/** A channel at its last audit. uploads: its uploads-list count (null: not audited yet); recorded: those Scout has any
+ *  record of; linked: those that play on an event (every season), linkedCurrent: of the 2026-27 season. */
+export interface OfficialAuditChannel {
+  channelId: string; title: string; uploads: number | null; recorded: number; unrecorded: number; linked: number; linkedCurrent: number; openFindings: number;
+  fullAt: string | null; checkedAt: string | null; lastError: string | null;
+}
+/** An upload Scout has no record of that may be a recording: the watcher's verdict on it, why, and the best guess. */
+export interface OfficialAuditFinding {
+  videoId: string; channel: string; title: string; published: string | null; start: string | null; durationS: number | null; verdict: string | null; why: string | null;
+  guessSeason: number | null; guessCode: string | null; guessDay: string | null; guessWhy: string | null; inWindow: boolean;
+}
+export interface OfficialAddTally { added: number; ok: number; wrong: number; unchecked: number }
+export interface OfficialAudit {
+  runs: OfficialAuditRun[]; channels: OfficialAuditChannel[]; openFindings: number; findings: OfficialAuditFinding[];
+  wrongAdds: { videoId: string; title: string; season: number; code: string; day: string | null; why: string; removed: boolean; checkedAt: string }[];
+  /** Uploads set aside by the rules (Scout has no record, not a recording), by reason. */
+  setAside: { why: string; n: number }[];
+  /** The watcher's own adds over its last 10 runs (runs, from–to) and its last 100 videos read, as the audit checked them. */
+  adds: { runs: number; from: string | null; to: string | null; lastRuns: OfficialAddTally; read: number; last100: OfficialAddTally };
 }
