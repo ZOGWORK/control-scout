@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 6.7.9 — 2026-11-15
+
+Predict's "80% ranges have held …" line now shows with no signal too.
+
+### Highlights
+- [offline] Predict's "80% ranges have held …" line shows offline
+- [offline] The score ranges' record is saved with each event pack
+- [predict] Offline predictions now read the same as online, line for line
+
+### Fixed
+- Offline, Predict left out the calibration line ("80% ranges have held 90.9% of 8,966 live alliance scores"). It reads `/api/predict/ranges`, which is now kept on the device like the track record and asked for with each event pack, so the line shows its last-loaded numbers with no signal. (`src/lib/offline/kept.ts`, `src/lib/offline/warm.ts`) (#1568)
+
 ## 6.7.8 — 2026-11-15
 
 Report a bug › the public notice is larger, offers a private email instead, and Send asks once more before anything is posted.
