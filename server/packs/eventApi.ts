@@ -140,7 +140,9 @@ async function packCardReads(c: PackContext): Promise<PackRead[]> {
   ];
 }
 
-/** /api/search?answer=1 at the page's limit, for anyone (no preferred teams, signed out): the route's own answer. */
+/** /api/search?answer=1 at the page's limit, for anyone (no preferred teams, signed out): the route's own answer.
+ *  Without its video parts: the route's "Questions with video" block (withVideoAlternatives) and the video itself are
+ *  left out, as nothing plays with no signal (server/packs/eventSearch.test.ts compares a versus built on the phone the same way). */
 async function packSearchAnswer(q: string): Promise<SearchAnswer> {
   await ensureSearchIndex(rebuildSearch);
   return (await finishPageAnswer(await typedPageAnswer(q, SEARCH_PAGE_LIMIT, new Set(), null), SEARCH_PAGE_LIMIT, Promise.resolve(SIGNED_OUT))).body;
@@ -301,7 +303,16 @@ export async function buildPackApi(season: number, ev: EventDetail, reads: Reads
     await inTurns(c.teams, 6, async (t) => { (compare[String(t)].others ??= {})[String(s)] = await compareBlockOf(t, s); });
   }
   const extra = (cx: PackContext): PackRead[] => others.flatMap((s) => cx.teams.map((t) => ({ path: `/api/teams/${t}/matches?season=${s}`, read: () => teamMatchesAnswer(t, s), needed: `team ${t}'s ${s} matches` })));
-  const list = (await Promise.all([...reads, extra].map((r) => r(c)))).flat();
+  // One read a path: two lists can ask for the same one (a card's latest-season match list and Compare's), and the
+  // first keeps what a later one says it's needed for.
+  const unique = new Map<string, PackRead>();
+  for (const r of (await Promise.all([...reads, extra].map((r) => r(c)))).flat()) {
+    const key = packPath(r.path) ?? r.path;
+    const prev = unique.get(key);
+    if (!prev) unique.set(key, r);
+    else if (!prev.needed && r.needed) unique.set(key, { ...prev, needed: r.needed });
+  }
+  const list = [...unique.values()];
   const api: PackApi = { answers: {}, same: {}, errors: {} };
   // The same answer twice (a profile with and without ?season=) is stored once.
   const byText = new Map<string, string>();
