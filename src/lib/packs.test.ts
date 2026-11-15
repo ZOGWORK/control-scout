@@ -82,6 +82,7 @@ describe("syncLite", () => {
     expect(await explicit).toMatchObject({ version: "v1" });
   });
 
+  const originalDelete = IDBObjectStore.prototype.delete;
   it("a Delete that storage refuses leaves the pack updating in the background (no deleted mark left behind)", async () => {
     vi.stubGlobal("fetch", server());
     expect(await syncLite({ allowed: () => true })).toMatchObject({ version: "v1" });
@@ -90,6 +91,15 @@ describe("syncLite", () => {
     spy.mockRestore();
     expect(localStorage.getItem("cs-lite-deleted")).toBeNull();
     expect(packStatus()).not.toBeNull();
+    // Only the second delete refused: the pack still listed is still whole, so it still loads.
+    let n = 0;
+    const second = vi.spyOn(IDBObjectStore.prototype, "delete").mockImplementation(function (this: IDBObjectStore, key: IDBValidKey | IDBKeyRange) {
+      if (++n === 2) throw new DOMException("refused", "UnknownError");
+      return originalDelete.call(this, key);
+    });
+    await expect(removeLite()).rejects.toBeTruthy();
+    second.mockRestore();
+    if (packStatus()) expect(await loadLite()).not.toBeNull();
   });
 
   it("downloads when allowed (or with no check: Get it now)", async () => {

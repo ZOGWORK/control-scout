@@ -196,8 +196,9 @@ export async function removeLite(): Promise<number> {
   // back whatever it wrote whether its write lands before or after the del below.
   try { localStorage.setItem(LITE_DELETED_KEY, "1"); } catch { /* storage blocked */ }
   try {
-    await del(LITE_KEY);
+    // The old copy first: if a delete fails, the pack in use is either whole (still listed) or gone with its listing.
     await del(OLD_LITE_KEY);
+    await del(LITE_KEY);
   } catch (e) {
     // The pack is still here: without the mark gone, the background sync would never update it again.
     try { localStorage.removeItem(LITE_DELETED_KEY); } catch { /* storage blocked */ }
