@@ -24,6 +24,17 @@ Search reads a year after an award's winners: "inspire award winners 2024" lists
 
 ### Fixed
 - Search: one award's winners with a bare year ("inspire award winners 2024", "think award winners 2025") said no team, event or match matched, since the year was taken for a team number. A year ending the question is now its season, as search reads a year everywhere (2024 is 2024–25; at Worlds, the Championship held that year). A number before the ask, or after "team" or "#", is still a team's. Failed search #1434. (`server/api/answers/families/placeAwards.ts`) (#1533)
+## 6.5.4 — 2026-11-15
+
+Clip coverage never names an early start as a reason, not even in passing.
+
+### Highlights
+- [fixes] A short video's reason says what the clock allows, not "early start"
+- [fixes] To review never mentions an early start in any match's reason
+- [workspace] Six To review events now read as the video's own shortfall
+
+### Fixed
+- Clip coverage: a video shorter than its broadcast, with nothing to place the gap, read "(over the 15 min an early start covers)"; it now reads "(more than the 15 min the clock allows for)". Six To-review events carried it beside other reasons (ROBUQ1, RONR1LT, USTXCMPJOHN, LTCMP, KZALOS1, KZCMPJNB2), so "early start" still appeared in To review. (`server/videos/coverage.ts`) (#1522)
 
 ## 6.5.3 — 2026-11-15
 
