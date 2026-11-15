@@ -15,6 +15,22 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 6.5.7 — 2026-11-15
+
+A paused download picks up within seconds of the line coming back, Delete acts at once, and Delete only says "Freed" for space the browser really gave back.
+
+### Highlights
+- [offline] A paused download picks up within seconds of the line coming back
+- [offline] A download request that hangs is dropped after 6 s and tried again
+- [offline] Delete on a saved season acts at once
+- [offline] Delete says "Freed" only for space the browser gave back
+
+### Fixed
+- Auto-resume waited on the connection check's back-off. Measured live (9.0 MB current season, cut at 50%, line back after 20 s), the save finished 53 s after the line came back: checks at 5 s, 10 s, 20 s and 30 s steps found it late, and one hung. While a download the person started waits for the line, the check now runs every 2 s (for up to 10 minutes). A download try with no answer for 6 s (headers or the next chunk) is dropped and tried again at once, from the bytes kept, up to 3 times before it pauses; the pack list gives up after 5 s and is asked again. One paused again is tried once its 10 s gap is over, not at the next check minutes later. (`src/lib/connection.ts`, `src/lib/offline/download.ts`, `src/lib/offline/resume.ts`, `src/lib/offline/resumeWatcher.tsx`) (#1536)
+- Delete on a saved season no longer reads the whole file back into memory first, and a save never holds the season for more than 3 s while the SQLite engine caches (its request can hang on a line that just came back, and the save run keeps Delete greyed out). Clearing the download pieces and dropping the engine happen outside the season's lock. (`src/lib/offline/seasons.ts`)
+- "Freed 9.0 MB" claimed the pack's own size. Measured on Chromium, nothing of the season stays behind (IndexedDB, Cache Storage and OPFS listed before the save, after it and after Delete), but the browser keeps IndexedDB data compressed, so the 9.0 MB season took 3.6 MB and freed that (4.3 MB with the engine); a private window keeps storage in memory and its figure doesn't drop at all. Delete now reads the browser's figure just before and after: "Freed" is only what it dropped by, otherwise it says what was deleted and that the browser gives the space back on its own, and the line under the list follows the figure as it catches up. (`src/pages/DownloadPage.tsx`)
+- `npm run offline:check -- --season` taps the Whole current season choice and its Download button (the old Save offline row is gone). (`scripts/offline-check.ts`)
+
 ## 6.5.6 — 2026-11-15
 
 Highlights searches typed in the header's search box now show the question and a link to its answer, and three more highlights searches play.

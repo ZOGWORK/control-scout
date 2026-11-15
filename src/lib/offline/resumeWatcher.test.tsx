@@ -22,7 +22,8 @@ vi.mock("../connection", () => ({
   onInternetConfirmed: (f: () => void) => { conn.confirmed.add(f); return () => conn.confirmed.delete(f); },
 }));
 const resumePaused = vi.hoisted(() => vi.fn(async (_allowed: () => boolean) => [{ key: "season:2026", saved: true }]));
-vi.mock("./resume", async (orig) => ({ ...(await orig<typeof import("./resume")>()), resumePaused }));
+const nextTryIn = vi.hoisted(() => vi.fn((): number | null => null));
+vi.mock("./resume", async (orig) => ({ ...(await orig<typeof import("./resume")>()), resumePaused, nextTryIn }));
 
 const { DownloadResumer } = await import("./resumeWatcher");
 const { clearResume, wantResume } = await import("./resumeMarks");
@@ -86,6 +87,37 @@ describe("DownloadResumer", () => {
     expect(allowed()).toBe(true);
     netConn.type = "cellular";
     expect(allowed()).toBe(false);
+  });
+
+  it("one tried moments ago (paused again) is tried again once the gap is over, with no new check", async () => {
+    wantResume("season", "2026");
+    resumePaused.mockResolvedValueOnce([{ key: "season:2026", saved: false }]);
+    nextTryIn.mockReturnValueOnce(200);
+    conn.internet = "yes";
+    render(<DownloadResumer />);
+    await vi.waitFor(() => expect(resumePaused).toHaveBeenCalledTimes(1), { timeout: 5000 });
+    // No check fires again (with internet they're minutes apart): the gap's own timer tries it.
+    await vi.waitFor(() => expect(resumePaused).toHaveBeenCalledTimes(2), { timeout: 5000 });
+    await vi.waitFor(() => expect(toast.success).toHaveBeenCalledWith("2026–27 season saved on this device", expect.anything()));
+  });
+
+  it("a gap that's over with nothing tried (another download running, no pack list) waits for the next check, never loops", async () => {
+    wantResume("season", "2026");
+    resumePaused.mockResolvedValue([]);
+    nextTryIn.mockReturnValue(0);
+    conn.internet = "yes";
+    try {
+      render(<DownloadResumer />);
+      await vi.waitFor(() => expect(resumePaused).toHaveBeenCalled(), { timeout: 5000 });
+      const n = resumePaused.mock.calls.length;
+      await act(async () => { await new Promise((r) => setTimeout(r, 600)); });
+      expect(resumePaused).toHaveBeenCalledTimes(n);
+    } finally {
+      resumePaused.mockReset();
+      resumePaused.mockImplementation(async () => [{ key: "season:2026", saved: true }]);
+      nextTryIn.mockReset();
+      nextTryIn.mockImplementation(() => null);
+    }
   });
 
   it("Wi-Fi and mobile data: picks up on mobile data too", async () => {
