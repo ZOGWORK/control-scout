@@ -13,7 +13,7 @@ const gz = new Uint8Array(gzipSync(JSON.stringify(pack)));
 const file: PackFile = { name: "scout-pack-v1-lite.json.gz", url: "/packs/lite.json.gz", bytes: gz.length, sha256: createHash("sha256").update(gz).digest("hex"), seasons: [2025], kind: "lite", contents: "" };
 const manifest = { format: 1, version: "v1", builtAt: pack.builtAt, engineVersion: pack.engineVersion, dataAsOf: null, lite: file, full: [] } as PackManifest;
 
-afterEach(async () => { vi.unstubAllGlobals(); vi.restoreAllMocks(); await removeLite(); });
+afterEach(async () => { vi.unstubAllGlobals(); vi.restoreAllMocks(); await removeLite(); localStorage.removeItem("cs-lite-deleted"); });
 
 describe("downloadLite", () => {
   it("stores the verified bytes without decoding them", async () => {
@@ -35,7 +35,7 @@ describe("downloadLite", () => {
   });
 
   it("refuses bytes that don't match the published checksum", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => new Response(new Uint8Array([1, 2, 3]))));
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(new Uint8Array(gz.length))));
     await expect(downloadLite(file, manifest)).rejects.toThrow(/checksum/);
     expect(packStatus()).toBeNull();
   });
@@ -80,6 +80,26 @@ describe("syncLite", () => {
     const explicit = syncLite();
     expect(await background).toBeNull();
     expect(await explicit).toMatchObject({ version: "v1" });
+  });
+
+  const originalDelete = IDBObjectStore.prototype.delete;
+  it("a Delete that storage refuses leaves the pack updating in the background (no deleted mark left behind)", async () => {
+    vi.stubGlobal("fetch", server());
+    expect(await syncLite({ allowed: () => true })).toMatchObject({ version: "v1" });
+    const spy = vi.spyOn(IDBObjectStore.prototype, "delete").mockImplementation(() => { throw new DOMException("refused", "UnknownError"); });
+    await expect(removeLite()).rejects.toBeTruthy();
+    spy.mockRestore();
+    expect(localStorage.getItem("cs-lite-deleted")).toBeNull();
+    expect(packStatus()).not.toBeNull();
+    // Only the second delete refused: the pack still listed is still whole, so it still loads.
+    let n = 0;
+    const second = vi.spyOn(IDBObjectStore.prototype, "delete").mockImplementation(function (this: IDBObjectStore, key: IDBValidKey | IDBKeyRange) {
+      if (++n === 2) throw new DOMException("refused", "UnknownError");
+      return originalDelete.call(this, key);
+    });
+    await expect(removeLite()).rejects.toBeTruthy();
+    second.mockRestore();
+    if (packStatus()) expect(await loadLite()).not.toBeNull();
   });
 
   it("downloads when allowed (or with no check: Get it now)", async () => {

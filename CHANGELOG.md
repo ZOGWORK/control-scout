@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.4.4 — 2026-11-15
+## 6.4.7 — 2026-11-15
 
 Settings › Network & offline now says whether the Wi-Fi is actually giving internet: a Wi-Fi whose sign-in page answers reads "Connected to Wi-Fi, but no internet" and says to open any website to sign in, instead of "You're offline".
 
@@ -26,6 +26,49 @@ Settings › Network & offline now says whether the Wi-Fi is actually giving int
 
 ### Changed
 - Network & offline status (`/settings#network`): when the connection check gets a page that isn't ours (a sign-in page), the heading says the device is connected (to Wi-Fi when the browser says Wi-Fi, else to a network) but gets no internet, and a line under it says it's likely waiting at a sign-in page: open any website to sign in. When the check gets no answer while the browser says it's online, it reads "Connected, but nothing is getting through"; "You're offline" stays for when the browser itself says there's no network. (`src/lib/networkAdvice.ts`, `src/components/settings/NetworkSection.tsx`) (#1513)
+
+## 6.4.6 — 2026-11-15
+
+Turn Wi-Fi back on and the Offline pill goes within seconds, in the background, without a tap or a reload.
+
+### Highlights
+- [offline] The Offline pill goes within seconds of the Wi-Fi coming back
+- [offline] With no signal, checks come after 3, 5, 10, 20 s, then every 30 s
+- [offline] Coming back to the app with no signal checks again at once
+- [speed] Back online, checks stay as rare as before
+
+### Changed
+- With no internet (or a Wi-Fi sign-in page), the connection check now comes 3 s, 5 s, 10 s and 20 s after the last one, then every 30 s as before, instead of every 30 s from the start; measured live, the Offline pill took 29 to 62 s to go after the line came back. The steps start over once there's internet again, and on the browser's online event, the tab coming into view, or the window getting focus, each of which also checks at once when the last check is over 5 s old. With internet, checks are as before (every 5 minutes, tab in view). (`src/lib/connection.ts`) (#1512)
+
+## 6.4.5 — 2026-11-15
+
+Offline downloads pick up where they stopped when the connection drops, show real MB progress, and never leave a half pack that looks saved. The Download page is now one Offline page: what to save at the top, everything on this device below.
+
+### Highlights
+- [offline] Downloads pick up where they stopped, even after a restart
+- [offline] Real progress, "5.7 MB of 45.3 MB", or "Paused at 24%"
+- [offline] Each pack shows its size; Delete says how much it freed
+- [offline] Save this event, a season, or the whole current season
+- [offline] Updates say what they bring and when the data is from
+
+### Added
+- One downloader for every offline file (season packs, the predictions pack, event packs): it keeps what it has received in IndexedDB in 512 KB pieces as they arrive, and after a dropped connection (or closing the app) asks only for the rest with `Range: bytes=<have>-` (If-Range with a strong ETag). A server that ignores the range, a range of a different file, or a file that changed starts again cleanly from the first byte. The bytes become a saved copy only once the whole file matches its published SHA-256; the pieces are deleted after the saved copy is swapped in. (`src/lib/offline/download.ts`, `src/lib/offline/useDownloads.ts`)
+- Season packs are also published gzipped (`.db.gz`, with its own size and SHA-256 in the manifest), and that is what the app downloads: browsers ask for a resumed range uncompressed, so resuming the plain `.db` would cost its raw size. The unzipped file is checked against the pack's own SHA-256 too. The plain `.db` stays for analysts. Each season pack also carries its played-match and event counts. (`server/packs/build.ts`)
+- Offline page (`/download`, "Offline" in the menu): This event / A season / Whole current season at the top, each with its download size; On this device below with every pack's size here, when its data is from ("Data from Nov 13, 8:09 PM"), what a newer release brings ("Newer data from Nov 14, 9:02 AM · 214 new matches from 3 more events"), Update and Delete; half downloads as "Paused at 24% · not saved yet" with Resume and Delete; one total and the browser's own storage estimate. (`src/pages/DownloadPage.tsx`, `src/lib/offline/storage.ts`)
+
+### Changed
+- Delete really deletes: the predictions pack's bytes are removed from IndexedDB (they were overwritten with null), and every delete says "Freed 6.9 MB". The browser is asked to keep this site's storage on the first download of any kind. Event-day bundles show real bytes while downloading. The menu calls the page Offline. (`src/lib/packs.ts`, `src/lib/offline/bundles.ts`, `src/components/offline/EventBundles.tsx`) (#1462)
+## 6.4.4 — 2026-11-15
+
+A search naming an event by its whole name now gets that event, even when the name ends in a number or holds a town.
+
+### Highlights
+- [fixes] An event named in full is that event, never its number as a team
+- [fixes] A town or region inside an event's name no longer becomes the place
+- [fixes] More "<event> highlights" searches play the event's clips
+
+### Fixed
+- Search: a league meet's own number was read as a team ("Ritchie League Meet 1" became team 1), and a town or region inside an event's name became the place with the rest left unread. An event's whole stored name is now read first, before its words are teams, numbers or places; a name made only of kind words and a number, a team's whole name, and a place with only event words beside it read as before. (`src/shared/query/names.ts`, `src/shared/query/parse.ts`) (#1510)
 
 ## 6.4.3 — 2026-11-15
 

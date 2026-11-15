@@ -5,7 +5,10 @@
 //           with no server (same engine). Target < 10 MB.
 //   full  — scout-pack-<version>-<season>.db : one SQLite file per season with
 //           events, teams, rankings, matches (scores, breakdowns, penalties),
-//           lineups, alliances, awards, advancement and computed stats.
+//           lineups, alliances, awards, advancement and computed stats. Its
+//           gzipped twin (.db.gz) is what the app downloads: browsers ask for a
+//           resumed range uncompressed, so resuming the .db would cost the raw
+//           size, a range of the .gz only its own few MB.
 //   latest.json — the manifest the app polls (version, size, sha256, seasons).
 //
 // Versions are dated (YYYY-MM-DD.N); the last few are kept so a device that
@@ -37,7 +40,14 @@ const KEEP_VERSIONS = 3;
 
 const sha256 = (buf: Buffer) => createHash("sha256").update(buf).digest("hex");
 
-export interface BuiltFile { name: string; url: string; bytes: number; sha256: string; seasons: number[]; kind: "lite" | "full"; contents: string }
+export interface BuiltGz { name: string; url: string; bytes: number; sha256: string }
+export interface BuiltFile {
+  name: string; url: string; bytes: number; sha256: string; seasons: number[]; kind: "lite" | "full"; contents: string;
+  /** Full packs: the same file gzipped (the app's download; the .db stays for analysts). */
+  gz?: BuiltGz;
+  /** Full packs: played matches and events with any played match, so the app can say what a release adds. */
+  stats?: { matches: number; events: number };
+}
 export interface Manifest { format: number; version: string; builtAt: string; engineVersion: string; dataAsOf: string | null; lite: BuiltFile | null; full: BuiltFile[] }
 
 async function nextVersion(dir: string): Promise<string> {
@@ -107,7 +117,7 @@ export async function buildFull(season: number, version: string, dir: string, lo
   // renamed into place, so a build that fails at any step leaves no file behind.
   const final = join(dir, name), tmp = `${final}.tmp`, part = `${final}.part`;
   for (const f of [tmp, part]) if (!(await dropFile(f))) throw new Error(`full ${season}: can't remove the stale ${f}`);
-  let rows = 0, teams = 0;
+  let rows = 0, teams = 0, played = { matches: 0, events: 0 };
   const out = createClient({ url: ":memory:" });
   let ok = false;
   try {
@@ -128,6 +138,10 @@ export async function buildFull(season: number, version: string, dir: string, lo
       });
       if (before.quiet && after.quiet && after.version === before.version && after.gen === before.gen) {
         await out.execute({ sql: "INSERT INTO pack_info VALUES ('data_version', ?)", args: [before.version] });
+        // What the release adds is counted from the pack's own rows: the live lane can write matches once the reads
+        // are done, and those aren't in this file.
+        const c = (await out.execute({ sql: "SELECT COUNT(*) m, COUNT(DISTINCT code) e FROM matches WHERE season = ? AND played = 1", args: [season] })).rows[0];
+        played = { matches: Number(c?.m ?? 0), events: Number(c?.e ?? 0) };
         break;
       }
       const why = after.version !== before.version ? `data version moved (${before.version} → ${after.version})`
@@ -148,8 +162,15 @@ export async function buildFull(season: number, version: string, dir: string, lo
     if (!ok) { await dropFile(part); await dropFile(final); }
   }
   const buf = readFileSync(final);
-  log(`full ${season}: ${rows + teams} rows → ${(buf.length / 1e6).toFixed(1)} MB`);
+  // Browsers ask for a resumed range with Accept-Encoding: identity, so the pack also ships pre-compressed
+  // (.db.gz): the app downloads that, resumably, and checks the .db's own SHA-256 after gunzip.
+  const gz = gzipSync(buf, { level: 9 });
+  writeFileSync(`${final}.gz.part`, gz);
+  renameSync(`${final}.gz.part`, `${final}.gz`);
+  log(`full ${season}: ${rows + teams} rows → ${(buf.length / 1e6).toFixed(1)} MB (${(gz.length / 1e6).toFixed(2)} MB gz)`);
   return { name, url: `/packs/${name}`, bytes: buf.length, sha256: sha256(buf), seasons: [season], kind: "full",
+    gz: { name: `${name}.gz`, url: `/packs/${name}.gz`, bytes: gz.length, sha256: sha256(gz) },
+    stats: played,
     contents: `Every ${seasonInfo(season).label} ${seasonInfo(season).game} event, team, match (scores, breakdowns, penalties, lineups), ranking, alliance, award and computed stat — a plain SQLite file.` };
 }
 

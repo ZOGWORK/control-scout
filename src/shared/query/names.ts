@@ -39,6 +39,10 @@ export interface Names {
   /** The codes of the events one word is the initialism of ("mti", "fr": ./initialisms.ts), looked up whole, so a
    *  two-letter one needs no search; none when it's no event's. */
   initialism(word: string): string[];
+  /** Whether these words (folded) are some stored event's whole name, in any season ("ritchie league meet 1"). */
+  eventNamed(words: string): boolean;
+  /** The longest event name, in words (the parser looks no further). */
+  eventLongest: number;
 }
 
 /** Lower case, accents and punctuation dropped, single spaces: how names are compared. */
@@ -112,7 +116,12 @@ export function buildNames(teams: NameRow[], places: { city: string | null; stat
   const stems = new Set<string>();
   // An event's initialisms too ("mti"), which the search index holds with its name (./initialisms.ts).
   const initials = new Map<string, Set<string>>();
+  // Every event's whole name, folded.
+  const eventNames = new Set<string>();
+  let eventLongest = 0;
   for (const p of places) {
+    const whole = fold(p.name ?? "");
+    if (whole) { eventNames.add(whole); eventLongest = Math.max(eventLongest, whole.split(" ").length); }
     for (const w of [...fold(`${p.name ?? ""} ${p.code ?? ""}`).split(" "), ...eventInitialisms(p.name ?? "")]) if (w.length >= 3) stems.add(w.slice(0, 3));
     if (p.code) for (const i of eventInitialisms(p.name ?? "")) (initials.get(i) ?? initials.set(i, new Set()).get(i)!).add(p.code);
   }
@@ -161,6 +170,8 @@ export function buildNames(teams: NameRow[], places: { city: string | null; stat
     },
     longest,    eventStem: (w) => stems.has(fold(w).slice(0, 3)),
     initialism: (w) => [...(initials.get(fold(w)) ?? [])],
+    eventNamed: (w) => eventNames.has(fold(w)),
+    eventLongest,
     place(w, typed) {
       const f = fold(w);
       if (!f) return null;
