@@ -13,7 +13,7 @@ import { eventVideosByDay, forgetOfficial } from "./officialVideos.js";
 import { isoDuration } from "./youtube.js";
 import { STARTUP_CYCLE_MS } from "../warm.js";
 import { LockBusy, isBusy, lockHolder, withDataLock } from "../data/lock.js";
-import { matchVideo, parseRule, type ChannelRule, type Verdict, type WatchEvent, type WatchVideo } from "./officialMatch.js";
+import { bestGuess, matchVideo, parseRule, type ChannelRule, type Verdict, type WatchEvent, type WatchVideo } from "./officialMatch.js";
 
 export const WATCH_EVERY_MS = 6 * 3600_000;
 /** The half-hourly check's first one after boot: 7.5 minutes after the startup sync (server/warm.ts STARTUP_CYCLE_MS),
@@ -94,7 +94,11 @@ async function api(path: string, params: Record<string, string>, key: string, fe
 /** The events whose dates are within a day of a broadcast date (the match applies the channel's region and the venue's date). */
 async function eventsAround(day: string): Promise<WatchEvent[]> {
   const t = Date.parse(`${day}T00:00:00Z`);
-  const lo = new Date(t - 864e5).toISOString().slice(0, 10), hi = new Date(t + 864e5).toISOString().slice(0, 10);
+  return eventsBetween(new Date(t - 864e5).toISOString().slice(0, 10), new Date(t + 864e5).toISOString().slice(0, 10));
+}
+
+/** The events on any day from lo to hi (YYYY-MM-DD). */
+export async function eventsBetween(lo: string, hi: string): Promise<WatchEvent[]> {
   const rows = await all<any>(
     `SELECT e.season, e.code, e.name, e.type, e.city, e.state, e.country, e.start, e.end, e.timezone, e.division_code,
             EXISTS (SELECT 1 FROM events c WHERE c.season = e.season AND c.division_code = e.code AND c.code != e.code) AS parent
@@ -107,7 +111,8 @@ async function eventsAround(day: string): Promise<WatchEvent[]> {
 }
 
 /** A watcher's verdict: the match's, or a duplicate of a video an event already plays (logged, never added or queued). */
-export type WatchVerdict = Verdict | { kind: "duplicate"; why: string; event?: Pick<WatchEvent, "season" | "code">; day?: string; part?: string | null };
+export type WatchVerdict = (Verdict | { kind: "duplicate"; why: string; event?: Pick<WatchEvent, "season" | "code">; day?: string; part?: string | null })
+  & { /** For one in review or set aside whose verdict names no event: the event it most likely is, and what that rests on. */ guess?: { event?: Pick<WatchEvent, "season" | "code">; day?: string; why: string } };
 
 /** A recording that just joined an event: by the watcher (every check passed) or by the owner's approval. */
 export interface RecordingAdded { season: number; code: string; day: string | null; part: string | null; videoId: string; by: "watcher" | "owner" }
@@ -207,6 +212,7 @@ export async function runOfficialWatch(log: (s: string) => void, opts: { apiKey?
               // Live now or still to come: read again next run, once it's over.
               if (live === "live" || live === "upcoming") continue;
               const v: WatchVideo = {
+                published: part.find((p) => p.id === String(item.id))?.published ?? null,
                 videoId: String(item.id), title: String(item?.snippet?.title ?? "").slice(0, 300),
                 start: item?.liveStreamingDetails?.actualStartTime ?? null, durationS: isoDuration(item?.contentDetails?.duration),
                 privacy: String(item?.status?.privacyStatus ?? "public"), embeddable: item?.status?.embeddable !== false,
@@ -215,8 +221,7 @@ export async function runOfficialWatch(log: (s: string) => void, opts: { apiKey?
               if (!VIDEO_ID.test(v.videoId)) continue;
               out.seen++;
               const verdict = await decide(v, ch);
-              const published = part.find((p) => p.id === v.videoId)?.published ?? null;
-              await record(v, ch, verdict, published, now());
+              await record(v, ch, verdict, v.published ?? null, now());
               if (verdict.kind === "add") { out.added++; added.push({ season: verdict.event.season, code: verdict.event.code, day: verdict.day, part: verdict.part, videoId: v.videoId, by: "watcher" }); }
               else if (verdict.kind === "review") out.queued++;
               else if (verdict.kind === "duplicate") out.duplicates++;
@@ -294,19 +299,29 @@ export async function decide(v: WatchVideo, ch: Pick<ChannelRow, "region" | "wor
   const rule: ChannelRule = { region: ch.region, words: ch.words, titlePattern: ch.titlePattern };
   const events = v.start ? await eventsAround(v.start.slice(0, 10)) : [];
   const verdict = matchVideo(v, rule, events);
-  return verdict.kind === "add" ? settle(verdict) : verdict;
+  if (verdict.kind === "add") return settle(verdict);
+  return verdict.kind === "review" && verdict.event ? verdict : { ...verdict, guess: await guessFor(v, rule) };
+}
+
+/** bestGuess over the events from 21 days before the video's date to the day after. */
+export async function guessFor(v: WatchVideo, rule: ChannelRule): Promise<NonNullable<WatchVerdict["guess"]>> {
+  const anchor = (v.start ?? v.published ?? "").slice(0, 10);
+  const t = Date.parse(`${anchor}T00:00:00Z`);
+  const events = Number.isFinite(t) ? await eventsBetween(new Date(t - 21 * 864e5).toISOString().slice(0, 10), new Date(t + 864e5).toISOString().slice(0, 10)) : [];
+  return bestGuess(v, rule, events);
 }
 
 async function record(v: WatchVideo, ch: ChannelRow, verdict: WatchVerdict, published: string | null, now: number): Promise<void> {
   const at = new Date(now).toISOString();
-  const ev = verdict.kind === "ignore" ? null : verdict.event ?? null;
-  const day = verdict.kind === "ignore" ? null : verdict.day ?? null;
+  // An event the verdict names, else (in review or set aside) the best guess: the owner's form starts from it.
+  const ev = (verdict.kind === "ignore" ? null : verdict.event ?? null) ?? verdict.guess?.event ?? null;
+  const day = (verdict.kind === "ignore" ? null : verdict.day ?? null) ?? verdict.guess?.day ?? null;
   const part = verdict.kind === "ignore" ? null : verdict.part ?? null;
   const status = verdict.kind === "add" ? "added" : verdict.kind === "review" ? "pending" : verdict.kind === "duplicate" ? "duplicate" : "ignored";
   const writes = [{
-    sql: `INSERT INTO official_watch (video_id, channel_id, title, start, published, duration, status, season, code, day, part, why, seen_at, decided_at, decided_by)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(video_id) DO NOTHING`,
-    args: [v.videoId, ch.channelId, v.title, v.start, published, v.durationS, status, ev?.season ?? null, ev?.code ?? null, day, part, verdict.why, at, verdict.kind === "add" ? at : null, verdict.kind === "add" ? "watcher" : null] as (string | number | null)[],
+    sql: `INSERT INTO official_watch (video_id, channel_id, title, start, published, duration, status, season, code, day, part, why, guess_why, seen_at, decided_at, decided_by)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(video_id) DO NOTHING`,
+    args: [v.videoId, ch.channelId, v.title, v.start, published, v.durationS, status, ev?.season ?? null, ev?.code ?? null, day, part, verdict.why, verdict.guess?.why ?? null, at, verdict.kind === "add" ? at : null, verdict.kind === "add" ? "watcher" : null] as (string | number | null)[],
   }];
   if (verdict.kind === "add") writes.push({
     sql: `INSERT INTO official_videos (video_id, season, code, kind, day, part, channel_id, title, source, why, added_at, added_by)
@@ -318,13 +333,13 @@ async function record(v: WatchVideo, ch: ChannelRow, verdict: WatchVerdict, publ
 
 // ---- The owner's side (server/videos/officialOwnerRoutes.ts) ----
 
-export interface WatchRow { videoId: string; channelId: string; channel: string; title: string; start: string | null; published: string | null; durationS: number | null; status: string; season: number | null; code: string | null; day: string | null; part: string | null; why: string; seenAt: string; decidedAt: string | null; decidedBy: string | null }
+export interface WatchRow { videoId: string; channelId: string; channel: string; title: string; start: string | null; published: string | null; durationS: number | null; status: string; season: number | null; code: string | null; day: string | null; part: string | null; why: string; guessWhy: string | null; seenAt: string; decidedAt: string | null; decidedBy: string | null }
 const watchOf = (r: any): WatchRow => ({
   videoId: String(r.video_id), channelId: String(r.channel_id), channel: String(r.channel ?? r.channel_id), title: String(r.title), start: r.start ?? null, published: r.published ?? null,
   durationS: r.duration == null ? null : Number(r.duration), status: String(r.status), season: r.season == null ? null : Number(r.season), code: r.code ?? null,
-  day: r.day ?? null, part: r.part ?? null, why: String(r.why), seenAt: String(r.seen_at), decidedAt: r.decided_at ?? null, decidedBy: r.decided_by ?? null,
+  day: r.day ?? null, part: r.part ?? null, why: String(r.why), guessWhy: r.guess_why ?? null, seenAt: String(r.seen_at), decidedAt: r.decided_at ?? null, decidedBy: r.decided_by ?? null,
 });
-const WATCH_SELECT = "SELECT w.video_id, w.channel_id, w.title, w.start, w.published, w.duration, w.status, w.season, w.code, w.day, w.part, w.why, w.seen_at, w.decided_at, w.decided_by, c.title AS channel FROM official_watch w LEFT JOIN official_channels c ON c.channel_id = w.channel_id";
+const WATCH_SELECT = "SELECT w.video_id, w.channel_id, w.title, w.start, w.published, w.duration, w.status, w.season, w.code, w.day, w.part, w.why, w.guess_why, w.seen_at, w.decided_at, w.decided_by, c.title AS channel FROM official_watch w LEFT JOIN official_channels c ON c.channel_id = w.channel_id";
 
 export async function pendingCount(): Promise<number> {
   return Number((await get<{ n: number }>("SELECT COUNT(*) AS n FROM official_watch WHERE status = 'pending'"))?.n ?? 0);
