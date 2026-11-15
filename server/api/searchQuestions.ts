@@ -147,7 +147,7 @@ const eventLine = (team: number, e: EvRow, awards: string[] = []): SearchCardLin
 });
 
 /** The card for a question about `team` (its number and name). */
-export async function questionCard(it: ParsedQuestion, team: { number: number; name: string | null }, opts: { weekend?: boolean } = {}): Promise<SearchCard> {
+export async function questionCard(it: ParsedQuestion, team: { number: number; name: string | null }, opts: { weekend?: boolean; now?: number } = {}): Promise<SearchCard> {
   const n = team.number, who = team.name?.trim() || `Team ${n}`;
   const card: SearchCard = { kind: it.kind, title: TITLE[it.kind], team, lines: [] };
 
@@ -227,7 +227,7 @@ export async function questionCard(it: ParsedQuestion, team: { number: number; n
   // call. Asked of this weekend with none, what the team has this weekend, or its next event, as those pages say it;
   // asked plainly, a match scheduled later still answers (below).
   if (it.kind === "next-match" && !it.many) {
-    const w = await teamNextMatch(n);
+    const w = await teamNextMatch(n, opts.now);
     if (w.kind === "match" || opts.weekend) return nextMatchCard(w, card);
   }
   if (it.kind === "next-match") {
@@ -265,9 +265,9 @@ async function nextEvents(n: number, most = 3): Promise<SearchCardLine[]> {
 }
 
 /** The answer for a question: the team found for its core (`team`, from search), the card, and the rest of search's hits. */
-export async function questionAnswer(q: string, it: ParsedQuestion, team: SearchHit, rest: SearchHit[], pages: SearchAnswer["pages"]): Promise<SearchAnswer> {
+export async function questionAnswer(q: string, it: ParsedQuestion, team: SearchHit, rest: SearchHit[], pages: SearchAnswer["pages"], now?: number): Promise<SearchAnswer> {
   const name = teamNameOf(team.title) || null;
-  const card = await questionCard(it, { number: Number(team.ref), name }, { weekend: /\bth(?:is|e)\s+weekend\b/i.test(q) });
+  const card = await questionCard(it, { number: Number(team.ref), name }, { now, weekend: /\bth(?:is|e)\s+weekend\b/i.test(q) });
   const top: SearchHit = { ...team, section: SECTION[it.kind], facts: undefined, events: undefined };
   return {
     q, hits: [top, ...rest.filter((h) => !(h.kind === "team" && h.ref === team.ref))], pages, step: "deterministic", weak: false, card,
