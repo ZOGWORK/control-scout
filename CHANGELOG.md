@@ -23,7 +23,7 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 - [fixes] West Michigan Meet 5 and Meet 6 each play only their own stream
 - [live] 25 FIRST Indiana events now have their full recording, 2021 to 2026
 - [live] SoCal's ILTs and LA championship play from SoCal FTC's live channel
-- [live] Chicago Robotics Invitational 2026 shows Matches and Full stream for each day
+- [live] Chicago Robotics Invitational 2026: Matches and Full stream each day
 
 ### Fixed
 - West Michigan's Meet 5 and Meet 6 (Nov 14) were held the same day, and FIRST's event pages give both the same channel link. Each page played both meets' streams, and Meet 6's page opened on Meet 5's. When two events that day share a channel link, a broadcast whose title names one of them ("Meet 6") is now that event's only; a title naming neither stays with both. (`server/videos/channelStreams.ts`)
