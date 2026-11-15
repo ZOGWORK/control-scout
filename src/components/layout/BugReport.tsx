@@ -240,7 +240,7 @@ function BugReportForm({ phone = false, onDone }: { phone?: boolean; onDone: () 
   const ids = { cat: useId(), msg: useId(), email: useId(), files: useId() };
   const pasted = useRef(0);
   // "Capture this screen": only where the browser can share a tab (not phones), checked once per dialog.
-  const [canCapture] = useState(canCaptureScreen);
+  const [canCapture] = useState(() => !phone && canCaptureScreen());
   const [capturing, setCapturing] = useState(false);
   const [captureNote, setCaptureNote] = useState<string | null>(null);
   const captured = useRef(0);
