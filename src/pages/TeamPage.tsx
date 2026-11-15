@@ -40,7 +40,7 @@ import { direction, trendLabel } from "../shared/trend";
 import { teamTitle } from "../shared/teamTitle";
 import { eventOver, onEventDates, type EventCalendar } from "../shared/eventDay";
 import { nextMatchOf } from "../shared/nextMatch";
-import { inWeekend, viewerToday } from "../shared/weekend";
+import { inWeekend, viewerToday, type NextMatchAnswer } from "../shared/weekend";
 import { OFFICIAL_ONLY, OFFICIAL_RULE, RECORD_RULE, offSeasonRecord, wltText } from "../shared/eventRecord";
 import { OfflineNote } from "../components/OfflineNote";
 import { offlineSource } from "../lib/offline/saved";
@@ -641,7 +641,7 @@ export function nextMatch(matches: MatchView[], events: TeamEventRow[], now = Da
  * alliances filled in) once a schedule is posted; else its next event, saying the match list comes at the event; else
  * plainly that none is published, with its last event. Drawn in the first paint from the answers the page already has.
  */
-function Upcoming({ p, next: first, last: before }: { p: TeamProfile; next: TeamEventRow | null; last: TeamEventRow | null }) {
+export function Upcoming({ p, next: first, last: before }: { p: TeamProfile; next: TeamEventRow | null; last: TeamEventRow | null }) {
   const n = p.team.number;
   // The page's own matches request (MatchesSection asks for the same): no second request, and in the drawn page's data.
   const ms = useApi<{ matches: MatchView[] }>(first ? `/api/teams/${n}/matches?season=${p.season}` : null);
@@ -659,6 +659,10 @@ function Upcoming({ p, next: first, last: before }: { p: TeamProfile; next: Team
   // This season's team with no match this weekend: its next event is said as the "This weekend" page says it.
   const current = useCurrentSeason();
   const away = !!next && !m && p.season === current && !inWeekend(next, "this", now, viewerToday(new Date(now)));
+  // No event of its own listed this season: the events it's registered for are read as the "This weekend" page reads
+  // them (GET /api/teams/:number/next), so the two never disagree.
+  const wk = useApi<NextMatchAnswer>(!next && p.season === current ? `/api/teams/${n}/next` : null);
+  const reg = wk.data && (wk.data.kind === "next-event" || wk.data.kind === "no-schedule") ? wk.data : null;
   const row = ROW;
   return (
     <section aria-labelledby={`upcoming-${n}`} className="mt-5 max-sm:mt-4 space-y-2 text-sm" data-upcoming>
@@ -690,7 +694,13 @@ function Upcoming({ p, next: first, last: before }: { p: TeamProfile; next: Team
           <span className="shrink-0 font-medium text-accent-text">{ADVANCING.has(next.type ?? "") ? "Odds to advance →" : "Schedule →"}</span>
         </Link>
       )}
-      {!next && <p className="text-muted-foreground">{p.season === current ? `No matches this weekend — ${n} has no upcoming event in ${seasonLabel(p.season)}` : `No upcoming event is published for ${n} yet`}{last ? "; its last event:" : "."}</p>}
+      {!next && reg?.event ? (
+        // An event it's registered for, not yet in its event list: the "This weekend" page's own line and link.
+        <Link to={reg.event.href} className={cn(row, "border-accent/30 bg-accent/[0.05]")} data-no-weekend-match>
+          <span className="min-w-0">{reg.line}</span>
+          <span className="shrink-0 font-medium text-accent-text">Schedule →</span>
+        </Link>
+      ) : !next && <p className="text-muted-foreground">{p.season === current ? `No matches this weekend — ${n} has no upcoming event in ${seasonLabel(p.season)}` : `No upcoming event is published for ${n} yet`}{last ? "; its last event:" : "."}</p>}
       {last && <LastEvent last={last} team={n} />}
     </section>
   );
