@@ -1,7 +1,9 @@
 // Owner console › Clip coverage (server/videos/coverageCheck.ts): every recorded event with a played match missing a
 // clip, checked again whenever its recording or results change, and triaged by the server (coverageTriage.ts): only
-// Actionable events are "To review", the default view; No timing, Early start / unsafe and Old season are one tap away,
-// each row with its category and why. Each shows its days and parts with the video checked for each, a day with no
+// Actionable events (checked against the video itself) are "To review", the default view; "Not yet checked against the
+// video" is a pending check with its own count, never reviewed; No timing, Early start / unsafe and Old season are one tap
+// away. Above them: every match the video showed that has no clip (a finding), and the last check pass in numbers. Each
+// row has its category and why. Each shows its days and parts with the video checked for each, a day with no
 // recording, and the matches without a clip grouped by why. Mark one reviewed, or a whole category or season at once
 // (confirmed with its count, audited): a reviewed event comes back only when its missing list changes to an actionable
 // one. Nothing here changes a clip.
@@ -17,7 +19,7 @@ import { apiFetch, ApiError, markStale, prime, useApi } from "../../lib/api";
 import { ago, seasonLabel } from "../../lib/format";
 import { watchUrl } from "../../shared/recording";
 import { labelRanges, missingGroups, TRIAGE_ABOUT, TRIAGE_LABEL, TRIAGE_ORDER } from "../../shared/coverage";
-import type { CoverageTriage, OwnerClipCoverage, OwnerCoverageEvent } from "../../shared/api";
+import type { CoveragePass, CoverageTriage, OwnerClipCoverage, OwnerCoverageEvent } from "../../shared/api";
 import { chipTone } from "../contributors/RecordingGaps";
 import { cn } from "../cn";
 
@@ -26,6 +28,20 @@ type List = CoverageTriage | "reviewed";
 const listPath = (list: List) => `${PATH}?list=${list}`;
 const n = (x: number) => x.toLocaleString();
 const events = (x: number) => `${n(x)} ${x === 1 ? "event" : "events"}`;
+/** A second in a video: "2:54:00". */
+const hms = (s: number) => { const t = Math.max(0, Math.round(s)); return `${Math.floor(t / 3600)}:${String(Math.floor(t / 60) % 60).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`; };
+
+/** The last check pass in numbers: what it checked, and why each missing match is missing, by its video check. */
+function LastPass({ p }: { p: CoveragePass | null }) {
+  if (!p) return <p className="text-xs text-muted-foreground" data-coverage-pass>No check pass recorded yet: the next one (within 5 minutes) is.</p>;
+  const why = Object.entries(p.why).sort((a, b) => b[1] - a[1]);
+  return (
+    <p className="text-xs text-muted-foreground" data-coverage-pass>
+      Last check {ago(p.at)}: {events(p.checked)} checked · {n(p.full)} fully clipped · {n(p.clipped)} matches clipped · {n(p.missing)} missing
+      {why.length ? <> ({why.map(([k, x]) => `${k} ${n(x)}`).join(", ")})</> : null}.
+    </p>
+  );
+}
 
 /** After a change: every list and the menu's count are asked again. */
 function changed(r: OwnerClipCoverage) {
@@ -59,6 +75,7 @@ export function ClipCoveragePanel() {
   return (
     <Async state={state}>
       {(d) => {
+        // A pending video check is never marked reviewed: it's not in any bulk.
         const other = d.categories["no-timing"] + d.categories["early-start"] + d.categories["old-season"];
         const seasonOpen = d.seasons.find((s) => s.season === season) ?? d.seasons[0];
         const shown = list === "reviewed" ? d.reviewed : d.categories[list];
@@ -68,10 +85,26 @@ export function ClipCoveragePanel() {
             <p className="text-sm text-muted-foreground" data-coverage-totals>
               {n(d.totals.events)} recorded events checked · {n(d.totals.full)} fully clipped · {n(d.totals.withClip)} of {n(d.totals.played)} played matches have a clip
             </p>
+            <LastPass p={d.lastPass} />
+            <Section title={`In the video, no clip (${n(d.findings.length)})`} description="Findings: matches the video's own frames showed, with no clip. Each with its video, the second it was seen at, and why it has no clip. Never marked reviewed." >
+              {d.findings.length ? (
+                <ul className="grid gap-1.5 text-xs" data-coverage-findings>
+                  {d.findings.map((f) => (
+                    <li key={`${f.season}/${f.code}/${f.label}`} className="rounded-lg border border-warning/50 bg-warning/[0.07] px-2.5 py-1.5" data-coverage-finding={`${f.season}/${f.code}/${f.label}`}>
+                      <Link to={`/events/${f.season}/${encodeURIComponent(f.code)}`} className="font-medium hover:underline">{f.season} {f.code} {f.label}</Link>
+                      {" · "}<a href={watchUrl(f.videoId, f.at)} target="_blank" rel="noreferrer noopener" className="font-mono hover:underline">{f.videoId} at {hms(f.at)}</a>
+                      <span className="text-muted-foreground"> · {f.why}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : <p className="text-sm text-muted-foreground" data-coverage-findings>None: every match the video showed has its clip.</p>}
+            </Section>
             <div className="grid gap-3" data-coverage-triage>
               <p className="text-sm">
                 <span className="font-medium">To review: {events(d.open)}</span>
-                <span className="text-muted-foreground"> (Actionable only). Not to review: {TRIAGE_ORDER.slice(1).map((k) => `${TRIAGE_LABEL[k]} ${n(d.categories[k])}`).join(" · ")} · Reviewed {n(d.reviewed)}.</span>
+                <span className="text-muted-foreground"> (checked against the video). </span>
+                <span className="font-medium" data-coverage-unchecked>Not yet checked against the video: {events(d.categories.unchecked)}</span>
+                <span className="text-muted-foreground"> (a pending check, never reviewed). Not to review: {TRIAGE_ORDER.slice(2).map((k) => `${TRIAGE_LABEL[k]} ${n(d.categories[k])}`).join(" · ")} · Reviewed {n(d.reviewed)}.</span>
               </p>
               {other > 0 && (
                 <div>
@@ -93,14 +126,14 @@ export function ClipCoveragePanel() {
             <Section
               title={list === "actionable" ? `To review (${n(d.open)})` : list === "reviewed" ? `Reviewed (${n(d.reviewed)})` : `${TRIAGE_LABEL[list]} (${n(shown)})`}
               description={list === "reviewed" ? "Seen already: back under To review only if the missing list changes to an actionable one." : `${TRIAGE_ABOUT[list]} Newest season first; checked again after every recording is added or refreshed.`}
-              action={list !== "reviewed" && list !== "actionable" && shown > 0
+              action={list !== "reviewed" && list !== "actionable" && list !== "unchecked" && shown > 0
                 ? <Button size="sm" variant="outline" onClick={() => setBulk({ category: list, count: shown, what: `every ${TRIAGE_LABEL[list]} event` })} data-coverage-bulk={list}><Check /> Mark all {n(shown)} reviewed</Button>
                 : undefined}
               stackAction
             >
               {shown ? <Pages key={`${list}-${round}`} first={d} total={shown} list={list} onDone={done} />
                 : list === "actionable"
-                  ? <EmptyState icon={Film} title="0 to review" description="Nothing actionable: every gap left is No timing, Early start / unsafe or Old season, or was reviewed." />
+                  ? <EmptyState icon={Film} title="0 to review" description="No match checked against the video is left without a clip and a reason. Matches not yet checked are counted under Not yet checked against the video." />
                   : <p className="text-sm text-muted-foreground">None.</p>}
             </Section>
             {d.seasons.length > 0 && seasonOpen && (
@@ -199,7 +232,7 @@ function EventGaps({ e, onDone }: { e: OwnerCoverageEvent; onDone: () => void })
           <Link to={`/events/${e.season}/${encodeURIComponent(e.code)}`} className="font-medium hover:underline">{e.name}</Link>
           <div className="text-xs text-muted-foreground">{e.season} {e.code} · <span className="tabular-nums">{e.withClip} of {e.played}</span> clipped · checked {ago(e.checkedAt)}{e.reviewedAt ? ` · reviewed by ${e.reviewedBy}` : ""}</div>
         </div>
-        {!e.reviewedAt && <Button size="sm" variant="outline" onClick={() => reviewed(e, onDone)}><Check /> Reviewed</Button>}
+        {!e.reviewedAt && e.triage !== "unchecked" && <Button size="sm" variant="outline" onClick={() => reviewed(e, onDone)}><Check /> Reviewed</Button>}
       </div>
       <p className="mt-2 text-xs" data-triage-why>
         <span className={cn("mr-1.5 inline-flex items-center rounded-full border px-2 py-0.5 font-medium", e.triage === "actionable" ? "border-warning/50 bg-warning/[0.07]" : "border-line text-muted-foreground")}>{TRIAGE_LABEL[e.triage]}</span>
