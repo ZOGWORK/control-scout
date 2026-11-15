@@ -4,7 +4,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, renderHook } from "@testing-library/react";
 import {
-  CARRY_MS, CHECK_TIMEOUT_MS, DEMO_KEY, EVENT_GAP_MS, FAIL_DEBOUNCE_MS, IDLE_MS, LAST_KEY, ONLINE_RETRY_MS, ONLINE_WINDOW_MS, RETRY_MS, RETRY_STEPS_MS, checkInternet, classify, connection, noteRequestFailed, noteServerAnswer,
+  CARRY_MS, CHECK_TIMEOUT_MS, DEMO_KEY, EVENT_GAP_MS, FAIL_DEBOUNCE_MS, IDLE_MS, LAST_KEY, ONLINE_RETRY_MS, ONLINE_WINDOW_MS, RETRY_MS, RETRY_STEPS_MS, WAITING_RETRY_MS, WAITING_WINDOW_MS, checkInternet, classify, connection, noteDownloadWaiting, noteRequestFailed, noteServerAnswer,
   offlineNow, resetConnection, shownOffline, startConnectionWatch, useConnection,
 } from "./connection";
 
@@ -406,6 +406,60 @@ describe("watching", () => {
     noteServerAnswer();
     expect(connection().internet).toBe("yes");
     expect(fetch).not.toHaveBeenCalled();
+  });
+});
+
+describe("a paused download waiting for the line", () => {
+  it("checks every WAITING_RETRY_MS instead of the back-off, so the line coming back is seen in seconds", async () => {
+    vi.useFakeTimers();
+    let up = false;
+    const fetch = vi.fn(async () => { if (!up) throw new TypeError("Failed to fetch"); return json({ ok: true }); });
+    vi.stubGlobal("fetch", fetch);
+    stop = startConnectionWatch();
+    noteRequestFailed();
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(RETRY_STEPS_MS.reduce((a, b) => a + b, 0)); // down to the 30 s cadence
+    const before = fetch.mock.calls.length;
+    noteDownloadWaiting();
+    await vi.advanceTimersByTimeAsync(FAIL_DEBOUNCE_MS); // checked soon
+    expect(fetch).toHaveBeenCalledTimes(before + 1);
+    for (let i = 2; i <= 5; i++) {
+      await vi.advanceTimersByTimeAsync(WAITING_RETRY_MS);
+      expect(fetch).toHaveBeenCalledTimes(before + i); // every 2 s, never 30 s
+    }
+    up = true;
+    await vi.advanceTimersByTimeAsync(WAITING_RETRY_MS);
+    expect(connection().internet).toBe("yes");
+  });
+
+  it("is over once there's internet, and after WAITING_WINDOW_MS the back-off is back", async () => {
+    vi.useFakeTimers();
+    let up = false;
+    const fetch = vi.fn(async () => { if (!up) throw new TypeError("Failed to fetch"); return json({ ok: true }); });
+    vi.stubGlobal("fetch", fetch);
+    stop = startConnectionWatch();
+    noteDownloadWaiting();
+    await vi.advanceTimersByTimeAsync(WAITING_WINDOW_MS + RETRY_MS);
+    // Past the window: the back-off's own cadence.
+    let at = fetch.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(WAITING_RETRY_MS * 3);
+    expect(fetch.mock.calls.length - at).toBeLessThanOrEqual(1);
+    up = true;
+    await vi.advanceTimersByTimeAsync(RETRY_MS);
+    expect(connection().internet).toBe("yes");
+    // Waiting again, then internet: an outage after that backs off as usual (3 s first, then 5 s).
+    noteDownloadWaiting();
+    await vi.advanceTimersByTimeAsync(FAIL_DEBOUNCE_MS);
+    expect(connection().internet).toBe("yes");
+    up = false;
+    noteRequestFailed();
+    await vi.advanceTimersByTimeAsync(FAIL_DEBOUNCE_MS);
+    expect(connection().internet).toBe("no");
+    at = fetch.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(WAITING_RETRY_MS);
+    expect(fetch).toHaveBeenCalledTimes(at);
+    await vi.advanceTimersByTimeAsync(RETRY_STEPS_MS[0] - WAITING_RETRY_MS);
+    expect(fetch).toHaveBeenCalledTimes(at + 1);
   });
 });
 
