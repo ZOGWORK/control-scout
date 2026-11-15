@@ -19,6 +19,7 @@ import { completedSeason, currentSeason, defaultSeason, lastSeason, seasonWhy } 
 import { names, type Place } from "../../query/names.js";
 import { regionOf } from "../../../../src/shared/searchEventQuery.js";
 import { CHAMPIONSHIP_TYPE } from "../clauses.js";
+import { SEASON_NUMBERS } from "../../../data/seasons.js";
 import { eventHref, shortEvent } from "../matchSet.js";
 import { place } from "../../../../src/shared/format.js";
 
@@ -30,6 +31,8 @@ const AWARDS: [RegExp, string][] = [
   [/\bwinning\s+alliances?\b/, "Winner"], [/\bfinalist(?:\s+alliances?)?\b/, "Finalist"],
 ];
 const ALLIANCE = new Set(["Winner", "Finalist"]);
+/** A bare year said for the season ("2024"): a season FTC has played, never a team number. */
+const BARE_YEAR = new RegExp(String.raw`\b(${SEASON_NUMBERS.join("|")})\b(?!\s*[-–/]\s*\d)`);
 // FIRST's Leadership Award is stored as a Winner: read as its own award ("Leadership"), never a Winning Alliance,
 // and won whatever place it's stored at.
 const TYPE_SQL = "CASE WHEN a.type = 'Winner' AND COALESCE(a.name, '') LIKE '%Leadership%' THEN 'Leadership' ELSE a.type END";
@@ -62,14 +65,18 @@ export interface PlaceAwardsAsk {
 export async function readPlaceAwards(q: string): Promise<PlaceAwardsAsk | null> {
   const typed = q.replace(/[?!.,;:]/g, " ").replace(/\s+/g, " ").trim();
   let t = ` ${typed.toLowerCase().replace(/['’]s\b/g, "")} `;
-  if (/\d{1,6}(?!\d*\s*[-–/]\s*\d)/.test(t.replace(/\b20\d\d\s*[-–/]\s*\d\d\b/g, " "))) return null;
+  // A number is a team's (another answer's question), but a season ("2024-25") or a bare year ("inspire award winners
+  // 2024", as search reads one: src/shared/query/time.ts) is this question's time.
+  if (/\d{1,6}(?!\d*\s*[-–/]\s*\d)/.test(t.replace(/\b20\d\d\s*[-–/]\s*\d\d\b/g, " ").replace(BARE_YEAR, " "))) return null;
   // A state's code typed in capitals that's also a word ("IN", "OR"): kept as the place, never read as one.
   const codes = new Map<string, string>();
   t = ` ${t.trim().split(" ").map((w, i) => { const x = typed.split(" ")[i]; if (!/^[A-Z]{2}$/.test(x ?? "") || !regionOf([x])) return w; const k = `stcode${codes.size}x`; codes.set(k, x); return k; }).join(" ")} `;
   const cut = (re: RegExp) => { const m = re.exec(t); if (m) t = `${t.slice(0, m.index)} ${t.slice(m.index + m[0].length)} `; return m; };
   // The season.
   const sm = cut(/\s(?:in\s+|for\s+|during\s+)?(?:the\s+)?(?:(this|current|last|previous|past)\s+(?:season|year)|(20\d\d)\s*[-–/]\s*(\d\d))(?=\s)/);
-  const seasonSaid = !sm ? null : sm[2] ? "named" : /^(?:this|current)$/.test(sm[1]) ? "this" : "last";
+  // A bare year, when no season is said the other ways ("… 2024"): its season is read below, once Worlds is known.
+  const ym = sm ? null : cut(new RegExp(String.raw`\s(?:in\s+|for\s+|during\s+)?${BARE_YEAR.source}(?=\s)`));
+  const seasonSaid = ym ? "named" : !sm ? null : sm[2] ? "named" : /^(?:this|current)$/.test(sm[1]) ? "this" : "last";
   if (sm?.[2] && (Number(sm[2]) + 1) % 100 !== Number(sm[3])) return null;
   // Worlds' playoffs reached: "make worlds finals", "reach the playoffs at worlds".
   const WORLDS = String.raw`(?:the\s+)?(?:worlds|world\s+championships?|first\s+championship)`, REACH = String.raw`(?:make|made|makes|reach|reached|get\s+to|got\s+to|play\s+in|played\s+in|in|at)`;
@@ -79,7 +86,9 @@ export async function readPlaceAwards(q: string): Promise<PlaceAwardsAsk | null>
   // The one season rule (../season.ts): "this season" is the current season (no team is named here), "last season" the
   // latest completed one. At Worlds "last year" is the latest Championship that has finished, as the winners answer
   // reads it (the completed season too).
-  const season = !sm ? null : sm[2] ? Number(sm[2]) : seasonSaid === "this" ? currentSeason() : worlds && /\byear$/.test(sm[0]) ? completedSeason() : lastSeason();
+  // A bare year is the season it starts, as search reads one ("2025": 2025–26); with Worlds, the Championship held that
+  // year ("inspire winners at worlds 2024": 2023–24's), as Worlds with a year is read everywhere.
+  const season = ym ? Number(ym[1]) - (worlds ? 1 : 0) : !sm ? null : sm[2] ? Number(sm[2]) : seasonSaid === "this" ? currentSeason() : worlds && /\byear$/.test(sm[0]) ? completedSeason() : lastSeason();
   const byM = cut(/\s(?:by|on|ranked\s+by|sorted\s+by)\s+(auto|teleop|endgame|opr|rating)(?:\s+opr)?(?=\s)/);
   const types: string[] = [];
   for (const [re, type] of AWARDS) if (cut(re) && !types.includes(type)) types.push(type);
