@@ -216,7 +216,7 @@ export interface SearchVideoItem {
   /** The broadcast is still live (a stream or recording only). */
   live?: boolean;
   /** A contributor video's credit (the actual name, never a username), badge, likes and the viewer's own part. */
-  contributor?: { id: number; name: string; verified: boolean; profile: string | null; likes: number; liked: boolean; mine: boolean; tier: "public" | "team" | "self" };
+  contributor?: { id: number; name: string; verified: boolean; profile: string | null; avatar?: string | null; likes: number; liked: boolean; mine: boolean; tier: "public" | "team" | "self" };
 }
 export interface SearchVideo {
   main?: SearchVideoItem;
