@@ -4,6 +4,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { migrate, openDb, run, setDb } from "../db";
 import { rebuildSearch } from "../stats/job";
 import { searchAnswer } from "./searchAnswer";
+import { teamListAnswer } from "./searchCoverage";
 import { CURRENT_SEASON } from "../data/seasons";
 import { seasonLabel } from "../../src/shared/format";
 
@@ -74,6 +75,12 @@ describe("counts", () => {
   it("a country stored under two labels counts both, asked by any of its names", async () => {
     for (const q of ["how many teams in swaziland", "how many teams in eswatini"]) expect((await ask(q)).card?.lines[0].text, q).toMatch(/^3 teams registered in /);
     expect((await ask("top teams in swaziland")).card?.lines.map((l) => l.text)).toEqual(["40001 Mbabane Bots", "40003 Lobamba Bots", "40002 Manzini Bots"]);
+    // Every reader the place feeds: the season's best scores (no error from a second label) and most improved.
+    const scores = await ask("top scores in swaziland");
+    expect(scores.step).not.toBe("recovery");
+    // The place readers' own best-scores list reads both labels in one filter, its arguments in step.
+    expect((await teamListAnswer("top scores in swaziland"))?.understood?.label).toMatch(/eSwatini/);
+    expect((await ask("most improved teams in swaziland")).step).not.toBe("recovery");
   });
   it("no teams or events named: both counts for the place", async () => {
     const a = await ask("How many in Australia");

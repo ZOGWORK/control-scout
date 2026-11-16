@@ -1091,7 +1091,7 @@ export async function teamListAnswer(q: string): Promise<SearchAnswer | null> {
   if ((m = /^(?:the\s+)?(?:top|highest|best|biggest|max(?:imum)?)\s+(?:match\s+)?(?:scores?|scoring matches|scoring games)\s+(?:in|from|at)\s+(.+?)$/.exec(t))) {
     const p = await placeOf(cased(q, m[1]));
     if (!p) return null;
-    const where = p.state ? "e.country = ? AND e.state = ?" : "e.country = ?";
+    const where = placeSql(p).replace(/\bt\./g, "e.").replace(/^ AND /, "");
     const types = RECORD_TYPES.map(() => "?").join(", ");
     const latest = await get<{ s: number | null }>(`SELECT MAX(m.season) s FROM matches m JOIN events e ON e.season = m.season AND e.code = m.code WHERE m.played = 1 AND ${where} AND e.type IN (${types})`, [...placeArgs(p), ...RECORD_TYPES]);
     const s = latest?.s != null ? Number(latest.s) : null;
@@ -1137,7 +1137,7 @@ export async function teamListAnswer(q: string): Promise<SearchAnswer | null> {
       return new Map(rows.map((r, i) => [Number(r.team), { ...r, rank: i + 1, share: (i + 1) / rows.length }]));
     };
     const [now, before] = [await standing(season), await standing(season - 1)];
-    const inPlace = (r: any) => !p || (p.state ? r.state === p.state && r.country === p.country : r.country === p.country);
+    const inPlace = (r: any) => !p || (p.state ? r.state === p.state && r.country === p.country : (p.labels ?? [p.country]).includes(r.country));
     const pct = (share: number) => `top ${Math.max(1, Math.round(share * 100))}%`;
     const rows = [...now.values()].filter((r) => before.has(Number(r.team)) && inPlace(r))
       .map((r) => ({ ...r, was: before.get(Number(r.team))!, gain: before.get(Number(r.team))!.share - r.share }))
