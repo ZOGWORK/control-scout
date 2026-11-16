@@ -15,6 +15,23 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 6.9.6 — 2026-11-16
+
+Event videos › Owner › Official videos reaches 0 waiting: the watcher decides what it can by itself, and the rest is decided from the video.
+
+### Highlights
+- [history] 156 more event recordings play; no video waits on the owner
+- [history] A meet whose stream was deleted and uploaded again plays the new upload
+- [fixes] FRC, FLL, meetings and ceremonies stay off FTC event days
+
+### Event videos
+- The watcher sets aside what the facts settle instead of sending it to review: a clip under 45 minutes, a video that doesn't play here, a broadcast with no Scout event that day or a day either side, one field's or one named division's stream of an event Scout keeps whole, and more titles that aren't FTC competitions (coach calls, Coaches Corners, meetings, keynotes, Robot in 30 Hours, recaps, gaming leagues, prediction shows, FRC's game names, UrSim and xRC). (`server/videos/officialMatch.ts`) (#1604)
+- Uploads match like broadcasts on the one date their title says ("January 17, 2026", "12_17_23", "Tournament 12/13"), or, with no date, on a one-day event they went up within 14 days of, when the title says the event's whole name. A title naming two meets is two events. "Morning", "Afternoon" and "Before/After lunch" are parts; "Qualification & Playoff matches" is the whole day. (`server/videos/officialMatch.ts`)
+- More, taught from the videos decided by hand: an NTX league pair's tournament ("C&N-League Tournament"); one meet over two same-day meets in one city told apart only by a letter or AM and PM (set aside: two events in one video); an undated upload of a multi-day event, of a ceremony alone or of one division's stream (set aside: which day or division can't be told); a title naming no event when every event that day was remote, and any stream of a remote event goes to review, never added; "FTC Events" for a date (set aside); and a live broadcast whose title's date is a day or a month off, when the event it names doesn't run on that date (its broadcast date counts). (`server/videos/officialMatch.ts`, `server/videos/officialWatch.ts`, `server/videos/officialAudit.ts`)
+- The channel audit decides the review queue and the watcher's set-aside videos again every run with today's rules, and adds what passes every check of the watcher's, as the watcher would. Two videos that fit one event's day at the same audit (a day's live broadcast and its upload, an early stream beside the main one) both go to review: which plays is a judgement. An add lands whole or not at all: a day another recording took meanwhile sends the video to review. (`server/videos/officialAudit.ts`, `server/videos/officialWatch.ts`, migration 93)
+- A day's video YouTube no longer plays holds no day: a new broadcast of it is added and every dead video it replaces comes off. A title date like 12.17.23 is read as December 17. (`server/videos/officialWatch.ts`, `server/videos/officialMatch.ts`)
+- The decisions file (`server/data/videoDecisions.ts`) holds the 134 judgement cases the rules can't make: 78 links, 7 rejects and 49 set aside, each with what the rules say on their own and the evidence it rests on (frames, descriptions, which Scout event a title means). They land as the owner's decisions would, never over one the owner made. Measured on a copy of the live database, the decisions and one channel audit leave the review queue at 0 (from 69) and the audit's open findings at 0 (from 323). That run adds 78 recordings and links 78 more, and every new link plays. Of the 78 audit adds, 72 are the decision's own link, one is the Awards part of APOC 2024, four replace FIRST links that no longer play, and one is NTX's I&N Tournament (live 2024-12-14), found by the league-pair rule. None is a video a decision turned down. (`server/videos/videoDecisions.ts`)
+
 ## 6.9.5 — 2026-11-16
 
 Search › "wr" is the world record, and a stray letter at the end no longer breaks a question.
