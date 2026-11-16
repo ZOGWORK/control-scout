@@ -18,7 +18,7 @@ import { fetchFromApi, fetchWatchPage, type WatchPageFacts } from "./youtube.js"
 import { youtubeId } from "../../src/shared/personal.js";
 import { officialRecordingIds, seasonOfficial } from "./officialVideos.js";
 import { checkedTo } from "../data/checkedTimings.js";
-import { frameStart, hasFrames } from "../data/frameTimings.js";
+import { frameOpen, frameStart, hasFrames } from "../data/frameTimings.js";
 import { clipPulled } from "../data/clipChecks.js";
 
 export interface VideoMeta extends WatchPageFacts { videoId: string; checkedAt: string }
@@ -352,7 +352,8 @@ export function withClips<M extends Pick<MatchView, "label" | "time" | "startsAt
       const starts = framedStarts.get(v.videoId)!;
       const s = starts.get(label);
       if (s != null) {
-        const t = Math.max(0, s - CLIP_LEAD_S);
+        // Where its opening frame was checked, there (its overlay names the match); else the usual lead-in.
+        const t = frameOpen(v.videoId, r.code!, label) ?? Math.max(0, s - CLIP_LEAD_S);
         let next: number | null = null;
         for (const o of starts.values()) if (o > s && (next == null || o < next)) next = o;
         const end = frameClipEnd(s, next, v.meta?.length ?? null);

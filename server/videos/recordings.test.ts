@@ -236,6 +236,19 @@ describe("matches read off a recording's own frames", () => {
       setFrameTimingsForTests([]);
     }
   });
+  it("open a checked frame clip where its first frame names the match, and play no unchecked start of that row", async () => {
+    // Q1's overlay named it 12 s before its start (1000 → opens at 988); Q3's opening couldn't be checked.
+    setFrameTimingsForTests([{ videoId: GAPPED_ID, code: "GAPPED", checked: "2026-11-15", starts: { Q1: 1000, Q3: 1600 }, opens: { Q1: 988 } }]);
+    try {
+      const rec = (await seasonRecordings(S)).get("GAPPED")!;
+      const m: Pick<MatchView, "label" | "time" | "startsAt" | "played" | "clip">[] = [1, 3].map((n) => ({ label: `Q${n}`, time: `${DAY}T10:3${n}:13`, startsAt: `${DAY}T10:3${n}:13.000Z`, played: true, clip: undefined }));
+      const clips = withClips(m, rec);
+      expect(clips[0].clip?.t).toBe(988);
+      expect(clips[1].clip?.t ?? null).not.toBe(1580);
+    } finally {
+      setFrameTimingsForTests([]);
+    }
+  });
   it("never serve a clock clip whose first frame names another match; one that named nothing stays", async () => {
     setClipChecksForTests([{ videoId: FIRST_ID, code: "CLIPS", season: S, checked: "2026-11-15", pulled: { Q1: { t: 100, showed: "Q7" } }, unconfirmed: { Q2: { t: 14205, why: "no overlay at its first frame" } } }]);
     try {

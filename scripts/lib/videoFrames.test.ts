@@ -1,7 +1,7 @@
 // The pure parts of the frame reader (scripts/video-frames.ts): the overlay's match, the timer's elapsed time, and
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
-import { dataRows, elapsed, judge, NOTHING_READ, overlayLabel, secondsOf, type M } from "./videoFrames";
+import { dataRows, divisionOf, elapsed, overlayDivision, leadIn, LEAD_IN_S, judge, NOTHING_READ, overlayLabel, secondsOf, startOffset, type M } from "./videoFrames";
 
 describe("the frame reader", () => {
   it("names the match the overlay shows, and nothing else", () => {
@@ -9,6 +9,10 @@ describe("the frame reader", () => {
     expect(overlayLabel("Playoff Match 10")).toBe("M10");
     expect(overlayLabel("APOC Decode 2026  Finals Match 2")).toBe("F2");
     expect(overlayLabel("FiT-North I&S League Tournament  Match 1  DECODE")).toBe("M1");
+    // USIAWESTLT 2025, 20 s before M3: a bracket whose "advances to" line is cut off at the top names no match.
+    expect(overlayLabel("Playoff Match 5  M4 vs A5  M5 M3 vs A6  M8 M6 vs M5  M9 M7 vs M8  Easter Island & Chichen Itza")).toBeNull();
+    // Two boxes' numbers aren't a bracket: "Playoff Match 3" still names M3.
+    expect(overlayLabel("Easter Island & Chichen Itza  Playoff Match 3  Alliance 1  M1")).toBe("M3");
     expect(overlayLabel("Upcoming matches")).toBeNull();
   });
 
@@ -73,18 +77,56 @@ describe("the frame reader", () => {
     expect(judge(ms, new Map(), null, 10_000).missing.get("Q1")).toBe(NOTHING_READ);
   });
 
+  it("looks for a match the clock puts before a broadcast in the next broadcast only", () => {
+    // Saturday 10:00–18:00 and Sunday 09:00–17:00 (epoch seconds from an arbitrary 0).
+    const w = [{ start: 36_000, end: 64_800 }, { start: 118_800, end: 147_600 }];
+    expect(leadIn(35_000, 0, w)).toBe(true); // 17 min before Saturday's broadcast: Saturday's video
+    expect(leadIn(35_000, 1, w)).toBe(false); // ...never Sunday's
+    expect(leadIn(36_000 - LEAD_IN_S - 1, 0, w)).toBe(false); // more than 6 hours before
+    expect(leadIn(40_000, 0, w)).toBe(false); // inside Saturday's broadcast: already its
+    expect(leadIn(117_000, 1, w)).toBe(true); // Sunday morning before Sunday's broadcast
+    expect(leadIn(70_000, 1, w)).toBe(false); // Saturday evening, after Saturday's end: more than 6 h before Sunday's
+    expect(leadIn(35_000, 0, [{ start: null, end: null }])).toBe(false); // an upload has no broadcast to be before
+  });
+
+  it("tells a division's overlay from its sibling's on a shared stream", () => {
+    expect(divisionOf("Romania Championship - COANDA Division")).toBe("COANDA");
+    expect(divisionOf("Chesapeake Championship - Blue Crab Division")).toBe("Blue Crab");
+    expect(divisionOf("Brookline Robo Rally 1")).toBeNull();
+    // Read off ROCMPCND's Friday stream (pvmxbH8YW-k): VLAICU's overlay at 9761 s, COANDA's at 10000 s.
+    expect(overlayDivision("Romania Championship - VLAICU Divis  Qualification 1 of 72  2:23", "COANDA", ["VLAICU"])).toBe("other");
+    expect(overlayDivision("Romania Championship - COANDĂ Divisi  Qualification 2 of 72", "COANDA", ["VLAICU"])).toBe("own");
+    expect(overlayDivision("a Division  Romania Championship - (  Qualification 2 of 72", "COANDA", ["VLAICU"])).toBeNull();
+    expect(overlayDivision("Western Edge Premier Event - Sea Division", "Sand", ["Sea"])).toBe("other");
+    expect(overlayDivision("Seattle Qualifier", "Sand", ["Sea"])).toBeNull();
+  });
+
   it("reads the data file's rows", () => {
     const text = 'export interface X {}\n// --- Data (scripts/video-frames.ts writes from here on) ---\nexport const FRAME_TIMINGS = [\n  {"videoId":"a","code":"X","starts":{"Q1":5}},\n  {"videoId":"b","code":"Y","starts":{}},\n];\n';
     expect(dataRows<{ videoId: string }>(text).map((r) => r.videoId)).toEqual(["a", "b"]);
     expect(dataRows("no marker")).toEqual([]);
   });
 
-  it("never places a match on one read alone: two reads that disagree each go to review", () => {
+  it("writes an early start only where both starts were read off the video, never one filled from the clock", () => {
+    // Q1 and Q3 read and agree; Q2 is filled between them (medium) only 100 s after Q1: both go to review, but nothing
+    // says the video showed Q2 starting while Q1 was on.
+    const ms: M[] = [{ label: "Q1", epoch: 0 }, { label: "Q2", epoch: 100 }, { label: "Q3", epoch: 400 }];
+    const j = judge(ms, new Map([[0, 10], [2, 410]]), null, 10_000);
+    expect(j.review.has("Q2")).toBe(true);
+    expect(j.earlyStart.has("Q2")).toBe(false);
+  });
+  it("places a lone confirmed read where the frames show it, however far from FIRST's times", () => {
     const ms: M[] = Array.from({ length: 4 }, (_, i) => ({ label: `M${i + 1}`, epoch: i * 500 }));
+    // M1 and M4 disagree by 5 min (the stream lost time between them): each is in the video where its frames say.
     const j = judge(ms, new Map([[0, 10], [3, 1500 - 300]]), null, 10_000);
-    expect(j.placed.size).toBe(0);
-    expect([...j.review.keys()]).toEqual(["M1", "M4"]);
+    expect([...j.placed]).toEqual([["M1", { t: 10, confidence: "high" }], ["M4", { t: 1200, confidence: "high" }]]);
     expect(j.missing.get("M2")).toMatch(/in a gap/);
+    // A read 3 hours from where FIRST's times put it: placed where the frames show it, nothing flagged for the distance.
+    const k = judge(ms, new Map([[3, 1500 + 3 * 3600]]), null, 20_000);
+    expect(k.placed.get("M4")).toEqual({ t: 12300, confidence: "high" });
+    expect(k.review.size).toBe(0);
+    // One read, and no clock or other read beside it: still where its frames show it.
+    expect(judge(ms, new Map([[1, 600]]), null, 10_000).placed.get("M2")).toEqual({ t: 600, confidence: "high" });
   });
 
   describe("judging a video's matches (clock first, frames must agree)", () => {
@@ -100,12 +142,11 @@ describe("the frame reader", () => {
       expect(j.review.size + j.missing.size).toBe(0);
     });
 
-    it("never places a match on one signal alone: a lone read goes to review unless the broadcast's clock agrees", () => {
+    it("places a lone confirmed read after a gap where its frames show it (the stream is the truth)", () => {
       // Q1–Q5 agree at -9000; Q9 alone at -9300 (a gap: the stream stopped for 5 minutes).
       const seen = new Map([at(0, -9000), at(4, -9000), at(8, -9300)]);
       const j = judge(ms, seen, null, 8000);
-      expect(j.review.get("Q9")).toMatchObject({ t: ms[8].epoch - 9300, why: /one frame read/ });
-      expect(j.placed.has("Q9")).toBe(false);
+      expect(j.placed.get("Q9")).toEqual({ t: ms[8].epoch - 9300, confidence: "high" });
       // Q6–Q8 sit in the gap: missing, with the reason, never silently skipped.
       expect(j.missing.get("Q7")).toMatch(/in a gap/);
       expect(j.missing.get("Q10")).toMatch(/no frame read/);
@@ -135,6 +176,20 @@ describe("the frame reader", () => {
       // Q3, a match on, still stands.
       expect(k.placed.get("Q3")).toEqual({ t: 500, confidence: "high" });
       expect(k.review.size + k.placed.size + k.missing.size).toBe(3);
+      // Q2's start (160) is inside Q1's play (100 + 158): written as an early start, read off the video.
+      expect([...k.earlyStart]).toEqual([["Q2", { t: 160, previousEnds: 258 }]]);
+    });
+
+    it("keeps two read starts a cut brought within a match of each other, but never filled ones", () => {
+      // USTXSASQ 2025 (DgrBhJC2TIk): Q14 read at 7838, Q15 at 7989; the stream cut from Q14 at 1:07 to Q13's results.
+      const sasq: M[] = [{ label: "Q14", epoch: 0 }, { label: "Q15", epoch: 400 }];
+      const j = judge(sasq, new Map([[0, 7838], [1, 7989]]), null, 20000);
+      expect([...j.placed.keys()]).toEqual(["Q14", "Q15"]);
+      expect(j.review.size + j.earlyStart.size).toBe(0);
+      // A start filled between reads (medium) that overlaps the next still goes to review.
+      const fill: M[] = [{ label: "Q1", epoch: 0 }, { label: "Q2", epoch: 100 }, { label: "Q3", epoch: 140 }, { label: "Q4", epoch: 1000 }];
+      const k = judge(fill, new Map([[0, 1000], [2, 1140], [3, 2000]]), null, 20000);
+      expect(k.review.has("Q2")).toBe(true);
     });
 
     it("tells a match whose frames were read but never confirmed from one never read", () => {
@@ -145,5 +200,29 @@ describe("the frame reader", () => {
       // A frame of the video was read (it named Q3), so the others aren't "nothing read".
       expect(k.missing.get("Q4")).toMatch(/no agreeing reads/);
     });
+  });
+});
+
+describe("a recording cut mid-match", () => {
+  // USIAPOMPM11 2025 (ufVIXyeHAjk) loses 19 s inside Q8: the timer reads 1:10 at 3936 s and 0:50 at 3937 s.
+  it("takes a later read's earlier start as time the video lost, a later one as a first read made after a cut", () => {
+    expect(startOffset(3848, 3829)).toBe("lost");
+    expect(startOffset(3829, 3848)).toBe("gained");
+    expect(startOffset(3848, 3852)).toBe("same");
+    // Further off than a cut loses: another start, never explained away.
+    expect(startOffset(3848, 3700)).toBe("other");
+    expect(startOffset(3848, 3990)).toBe("other");
+  });
+});
+
+describe("a full-screen card naming several matches", () => {
+  // CAONMIQ 2025 (FHaZsGfUE68): the bracket card before M4 at 22183 s, and M6's result card at 23505 s.
+  it("names the match on screen, never one a team advances to, and none where two are named", () => {
+    expect(overlayLabel("Up Next  Match 4\nAlliance 2  VS  Alliance 3\nM1 A4 vs A5  M3 A1 vs A4\nWinner advances to Playoff Match 7\nLoser advances to Playoff Match 6\nM7 A1 vs M4")).toBe("M4");
+    expect(overlayLabel("Match Results  Match 6\nWINNER  Alliance 3 95  Alliance 5 41\nAdvances to:\nPlayoff Match 8\nWill be Red Alliance\nScan for detailed Match 6 results")).toBe("M6");
+    expect(overlayLabel("Match 4  Match 7")).toBeNull();
+    // The running bar's own playoff name still reads (ROCMPVLC's "Playoff Match 11").
+    expect(overlayLabel("onship - VLAICU Division  Romania C  Playoff Match 11")).toBe("M11");
+    expect(overlayLabel("Mississauga Qualifier  Match 10  2:30")).toBe("M10");
   });
 });

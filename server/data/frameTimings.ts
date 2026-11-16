@@ -32,6 +32,12 @@ export interface FrameTiming {
    *  the video, `previousEnds`, the second the one before ends. Only these are "Early start / unsafe" in Owner › Clip
    *  coverage (server/videos/coverageTriage.ts); an early start by the clock alone is never one. */
   earlyStart?: Record<string, { t: number; previousEnds: number }>;
+  /** Where each placed match's clip opens: the first second before its start whose overlay names it. A row that has
+   *  it was checked clip by clip, and only the starts in it are clips (scripts/video-frames.ts, checkOpenings). */
+  opens?: Record<string, number>;
+  /** Starts already live before openings were checked whose opening frame named nothing (blank, a transition): they
+   *  keep playing at the usual lead-in until a re-read confirms or pulls them. Never set on a new placement. */
+  unconfirmed?: string[];
 }
 
 let byKey: Map<string, Record<string, number>> | null = null;
@@ -39,18 +45,38 @@ let byKey: Map<string, Record<string, number>> | null = null;
 /** Two placed starts closer than this (a match's 2:38 less a read's slack) overlap: one of them is wrong. */
 const OVERLAP_S = 152;
 
+/** The closest two starts can be when the recording cut the end of the first (a match's 2:38 less the most one cut
+ *  loses, LOSS_S in scripts/lib/videoFrames.ts). */
+const CUT_S = 98;
+
 /** A row's starts that can be clips: any two closer than a match overlap (a misread, or an older read written before
- *  the plausibility check), and neither is used. */
-export function plausibleStarts(starts: Record<string, number>): Record<string, number> {
+ *  the plausibility check), and neither is used. Unless the recording cut the first short: two starts no closer than
+ *  CUT_S whose clip openings were each checked and named their own match (`opens`, scripts/video-frames.ts) stand. */
+export function plausibleStarts(starts: Record<string, number>, opens?: Record<string, number>): Record<string, number> {
   const sorted = Object.entries(starts).sort((a, b) => a[1] - b[1]);
   const bad = new Set<string>();
   for (let i = 1; i < sorted.length; i++) {
-    if (sorted[i][1] - sorted[i - 1][1] < OVERLAP_S) { bad.add(sorted[i][0]); bad.add(sorted[i - 1][0]); }
+    const gap = sorted[i][1] - sorted[i - 1][1];
+    const cut = gap >= CUT_S && opens?.[sorted[i][0]] != null && opens?.[sorted[i - 1][0]] != null;
+    if (gap < OVERLAP_S && !cut) { bad.add(sorted[i][0]); bad.add(sorted[i - 1][0]); }
   }
   return Object.fromEntries(sorted.filter(([l]) => !bad.has(l)));
 }
 
-const keyed = () => new Map(FRAME_TIMINGS.map((f) => [`${f.videoId}|${f.code}`, plausibleStarts(f.starts)]));
+/** A row's starts that can be clips: plausible, and, where its clip openings were checked, only those that open on
+ *  their match. The one reading the server plays from and Owner › Clip coverage reports (server/videos/coverage.ts). */
+export const playableStarts = (f: FrameTiming): Record<string, number> => {
+  const s = plausibleStarts(f.starts, f.opens);
+  return f.opens ? Object.fromEntries(Object.entries(s).filter(([l]) => f.opens![l] != null || f.unconfirmed?.includes(l))) : s;
+};
+const keyed = () => new Map(FRAME_TIMINGS.map((f) => [`${f.videoId}|${f.code}`, playableStarts(f)]));
+let opensByKey: Map<string, Record<string, number>> | null = null;
+
+/** The second a framed match's clip opens at, where its opening was checked (its overlay names it there), else null. */
+export function frameOpen(videoId: string, code: string, label: string): number | null {
+  opensByKey ??= new Map(FRAME_TIMINGS.map((f) => [`${f.videoId}|${f.code}`, f.opens ?? {}]));
+  return opensByKey.get(`${videoId}|${code}`)?.[label] ?? null;
+}
 
 /** The second a match starts at in a video, from its frames, or null when they weren't read for it. */
 export function frameStart(videoId: string, code: string, label: string): number | null {
@@ -89,7 +115,7 @@ export function frameEarlyStart(videoId: string, code: string, label: string): {
 /** How sure a framed start is: "high" read off its own frames, "medium" filled between two agreeing reads. */
 export function frameConfidence(videoId: string, code: string, label: string): "high" | "medium" | null {
   const f = FRAME_TIMINGS.find((x) => x.videoId === videoId && x.code === code);
-  if (!f || plausibleStarts(f.starts)[label] == null) return null;
+  if (!f || playableStarts(f)[label] == null) return null;
   return f.medium?.includes(label) ? "medium" : "high";
 }
 
@@ -97,6 +123,7 @@ export function frameConfidence(videoId: string, code: string, label: string): "
 export function setFrameTimingsForTests(list: FrameTiming[]) {
   FRAME_TIMINGS.splice(0, FRAME_TIMINGS.length, ...list);
   byKey = null;
+  opensByKey = null;
 }
 
 // --- Data (scripts/video-frames.ts writes from here on) ---

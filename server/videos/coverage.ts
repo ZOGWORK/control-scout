@@ -8,7 +8,7 @@ import { all } from "../db.js";
 import { CLIP_LEAD_S, GAP_SLACK_MAX_S, actualStart, clearOfPrevious, clipSecond, gapSlack, type RecordingTiming } from "../../src/shared/recording.js";
 import { localToUtcMs } from "../../src/shared/time.js";
 import { checkedTo } from "../data/checkedTimings.js";
-import { frameRow, plausibleStarts } from "../data/frameTimings.js";
+import { frameRow, plausibleStarts, playableStarts } from "../data/frameTimings.js";
 import { dayLabel, eventSpan, previousStart, seasonRecordings, withClips, withConfirmed, within, type EventSpan, type Recording, type RecordingVideo } from "./recordings.js";
 import type { ClipCoverage, CoverageMatch, CoverageReason, CoverageVideo, CoverageVideoCheck } from "../../src/shared/api.js";
 
@@ -85,7 +85,7 @@ export function videoCheck(videoId: string, code: string, label: string, order: 
   const row = frameRow(videoId, code);
   // Not read, or the video couldn't be played (read again on the next run): not checked yet.
   if (!row || row.missing?.[label]?.startsWith(PLAY_FAILED)) return { checked: null };
-  const starts = plausibleStarts(row.starts);
+  const starts = playableStarts(row);
   const i = order.indexOf(label);
   const near = (step: number) => {
     for (let j = i + step; i >= 0 && j >= 0 && j < order.length; j += step) if (starts[order[j]] != null) return { label: order[j], at: starts[order[j]] };
@@ -97,8 +97,15 @@ export function videoCheck(videoId: string, code: string, label: string, order: 
   if (early) return { ...out, earlyStart: early };
   const seen = row.review?.[label];
   if (seen) return { ...out, seenAt: seen.t, found: seen.why };
-  // A read the plausibility check left out (it overlaps another): seen, never placed.
-  if (row.starts[label] != null) return { ...out, seenAt: row.starts[label], found: "its read overlaps another match's" };
+  // A read seen, never placed: the server plays it, yet no clip (withClips keeps a video's starts only in the order the
+  // matches were played, inOrder in server/videos/recordings.ts: a replay shown in a break, an older misread); or the
+  // plausibility check left it out (it overlaps another); or its clip's opening frame was checked and didn't name it.
+  if (row.starts[label] != null) {
+    const found = starts[label] != null ? "its read breaks the order the matches were played in"
+      : plausibleStarts(row.starts, row.opens)[label] == null ? "its read overlaps another match's"
+      : "its clip's opening frame doesn't name it";
+    return { ...out, seenAt: row.starts[label], found };
+  }
   if (row.missing?.[label]) return { ...out, found: row.missing[label] };
   // Read, and none of the event's matches are in it (they're all another of its videos').
   return !Object.keys(row.starts).length && !row.missing ? { ...out, found: "none of this event's matches are in it" } : out;

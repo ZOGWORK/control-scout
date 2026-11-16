@@ -75,14 +75,19 @@ export function clipEnd(startsAt: string | null | undefined, rec: RecordingTimin
  *  (APOC 2026's frames), and a frame-read start is already where the timer shows, live delay and all. */
 export const FRAME_TAIL_S = 50;
 
+/** How far two frame reads of the same moment can differ (the server's overlap filter allows the same: 160 − 8 = 152). */
+const FRAME_SLACK_S = 8;
+
 /**
  * The second a clip placed from the recording's frames stops at: its timer's start (`start`, read off the frames) plus
  * MATCH_PLAY_S and FRAME_TAIL_S, so the final score is up. `next`: the next framed start in the same video: the clip
- * stops when that match's timer starts, though never before its own play is over. Never past the video's end.
+ * stops when that match's timer starts, though never before its own play is over, a read's slack apart. Closer than
+ * that, the recording cut this match short (both clips open on their own match, server/data/frameTimings.ts): the
+ * rest of its play isn't in the video, and the clip stops where the next one starts. Never past the video's end.
  */
 export function frameClipEnd(start: number, next: number | null, length: number | null): number {
   let end = start + MATCH_PLAY_S + FRAME_TAIL_S;
-  if (next != null && next > start) end = Math.max(Math.min(end, next), start + MATCH_PLAY_S);
+  if (next != null && next > start) end = next - start < MATCH_PLAY_S - FRAME_SLACK_S ? next : Math.max(Math.min(end, next), start + MATCH_PLAY_S);
   if (length != null) end = Math.min(end, length);
   return Math.floor(end);
 }

@@ -44,6 +44,10 @@ or an overlay left on the previous match) and fills each stretch between two rea
 
 No match is placed on one signal alone.
 
+On a stream an event's divisions share (one feed cutting between fields, as Romania's championship does), every read
+also checks whose division the overlay names: a sibling division's overlay is never this event's match, and a start
+stands only when one of its reads showed this division's own name (`divisionOf`, `overlayDivision`).
+
 1. **Each read is checked before and after its start.** A read gives a match and its start. Later in TeleOp the
    overlay must name the same match and its timer give the same start, within 6 s; 25 s before the start, that match
    mustn't be running yet. A read that fails either is dropped. This catches a wrong match number on screen for a few
@@ -54,16 +58,46 @@ No match is placed on one signal alone.
    (as above), then groups them into stretches that agree on how far the video sits from the clock:
    - a stretch of two or more reads places its reads (**high** confidence) and every match between them (**medium**:
      filled, not read);
-   - a stretch of one read is placed only when the broadcast's own clock (YouTube's start, where the video kept it)
-     agrees with it (high). Otherwise it is one signal only, and goes to **review**.
+   - a stretch of one read is still a confirmed read (step 1: its overlay and timer agree at two points, and the match
+     wasn't running 25 s before), so the video places it where its frames show it (high), however far that is from
+     FIRST's schedule: the stream is the truth (owner, 2026-11-15). No read is ever flagged for how far it sits from
+     FIRST's times (owner, 2026-11-16): what keeps a wrong one out is read off the frames (two timer reads that agree,
+     the match not running 25 s before, an opening that names it, the division's own name on a shared stream).
 3. **Plausible or review.** Placed starts must be inside the video, in match order, and at least 2:32 apart (a
    match's 2:38 less a read's 6 s slack).
-   Any that aren't go to review.
+   Any that aren't go to review. Where a start lands inside the previous match's play, both read off the video, the
+   later one is also written to `earlyStart` (its start and when the previous match's play ends): the only early start
+   that keeps a match from a clip.
 4. **Missing, with the reason.** Every other match of the video gets a reason: its read disagreed with the matches
    around it, its frames didn't confirm a start, it sits in a gap whose two sides disagree (the stream may have been
    off), no frame of the video could be read, or no read near it.
 
 A gap in one stretch doesn't stop the day: the next read that agrees with another starts a new stretch.
+
+## Every clip opens on its match
+
+A placed start isn't a clip until its opening is checked (`checkOpenings`): the overlay 20, 12, 5, 2 or 0 s before the
+start must name that match (and, on a shared stream, not a sibling division's). The first that does is where the clip
+opens (`opens`); the server starts the clip there (`frameOpen`). The last two are for a results or bracket card that
+stays up until the match's own overlay comes on (CAONMIQ 2025 M7, USIAWESTLT M3). One whose opening frame shows another
+match goes to review; one whose overlay can't be read there is missing with "overlay could not be read at its clip's
+start". A row with `opens` plays only the starts in it. `--verify` checks the openings of rows read before this, without
+reading their starts again.
+
+What a frame names (`overlayLabel`): "Qualification N of M", "Finals Match N", or one "Match N". A card naming several
+names none, except the match its "Up Next" header names; a match a team "advances to" is a later one, never the one on
+screen; a bracket (three different M-numbers in its boxes) names none, its "advances to" line cut off or not; a replay
+("M6-2") is named by its match alone ("M6").
+
+A clip already live is never dropped on a frame that names nothing: `--verify`, and a re-read with `--live <main's
+frameTimings.ts>`, keep such a start in `unconfirmed` (it plays at the usual lead-in) until a later read confirms or
+pulls it. Only an opening that names another match pulls a live clip. A new placement whose opening names nothing is
+never placed.
+
+A recording can be cut mid-match (a stream restarted): a later read then gives an earlier start than the true one. The
+reader marks such a read "lost" and keeps it only where a read of Auto 12–20 s on agrees; the read after a cut
+("gained") has its other side checked in turn. Opening a video and closing a player are bounded (90 s, 15 s): a frozen
+page fails that video with the reason, and the next run reads it again.
 
 Only `starts` become clips. `review` (with the start found and why) and `missing` (with why) are written per video for
 the owner's review list; review starts are never shown as clips, and nothing is dropped without a reason.
@@ -73,8 +107,8 @@ against the frames; a match in none of `starts`, `review`, `missing` or `earlySt
 
 A video where three matches in a row give no read, and nothing has been read yet, counts as one without the overlay
 and is left, after one more go in a fresh player (a player that never showed the stream looks the same). A frame read
-that hangs over 2 minutes fails its video with that reason. Any video gets a budget of 4 reads per match (40 at
-least), confirmations included: a confirmation spends up to seven of them (70 to 140 s in until one agrees, then
+that hangs over 2 minutes fails its video with that reason. Any video gets a budget of 8 reads per match (60 at
+least; a stream cut mid-match spends extra confirming reads), confirmations included: a confirmation spends up to seven of them (70 to 140 s in until one agrees, then
 one 25 s before the start).
 
 ## Where the timings live
