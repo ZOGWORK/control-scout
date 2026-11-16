@@ -20,6 +20,8 @@ let pageSize = 50;
 let quotaOnVideos = false;
 /** The videos call fails with a server error this many more times (Infinity: every time). */
 let failVideos = 0;
+/** The status that failure answers (a 503 unless set). */
+let failStatus = 503;
 const fakeFetch = (async (url: string) => {
   const u = new URL(url);
   calls.push(u.pathname.split("/").pop()!);
@@ -32,7 +34,7 @@ const fakeFetch = (async (url: string) => {
     const items = uploads.slice(page * pageSize, (page + 1) * pageSize);
     return json({ items: items.map((i) => ({ snippet: { title: i.title }, contentDetails: { videoId: i.id, videoPublishedAt: i.published } })), ...(uploads.length > (page + 1) * pageSize ? { nextPageToken: String(page + 1) } : {}) });
   }
-  if (failVideos > 0) { failVideos--; return { ok: false, status: 503, json: async () => ({}) } as Response; }
+  if (failVideos > 0) { failVideos--; return { ok: false, status: failStatus, json: async () => ({}) } as Response; }
   if (quotaOnVideos) return { ok: false, status: 403, json: async () => ({ error: { errors: [{ reason: "quotaExceeded" }] } }) } as Response;
   const ids = (u.searchParams.get("id") ?? "").split(",");
   return json({ items: uploads.filter((i) => ids.includes(i.id)).map((i) => ({
@@ -288,6 +290,19 @@ describe("the channel audit", () => {
       expect((await row(id)).facts_at).toBe("2026-02-23T06:00:00.000Z");
       expect(await get<any>("SELECT status, decided_by FROM official_watch WHERE video_id = ?", [id])).toMatchObject({ status: "ignored", decided_by: "channel audit" });
     } finally { uploads.shift(); failVideos = 0; await run("DELETE FROM official_watch WHERE video_id = ?", [id]); }
+  });
+
+  it("never tries a 4xx facts call twice: it would answer the same, at a unit a try", async () => {
+    const id = "fourxxclip1";
+    uploads.unshift({ id, title: "Compact Swerve Drive | 99999 Testers | FTC Intake Explainer", published: "2026-02-22T14:00:00Z", start: null, minutes: 1 });
+    failVideos = 1; failStatus = 403;
+    try {
+      const out = await audit(Date.parse("2026-02-23T06:00:00Z"));
+      // The one failure was spent on the first call; the batch waits for the next run, its error said.
+      expect(failVideos).toBe(0);
+      expect(out?.error).toMatch(/facts of \d+ videos couldn't be read: YouTube videos answered 403/);
+      expect((await row(id)).facts_at).toBeNull();
+    } finally { uploads.shift(); failVideos = 0; failStatus = 503; }
   });
 
   it("keeps an add found unplayable as wrong when its facts can't be read next run", async () => {
