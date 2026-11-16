@@ -5,7 +5,8 @@
 import type { StatAnswer, StatBlock } from "../../../src/shared/searchStat.js";
 import type { Region } from "../../../src/shared/regions.js";
 import { seasonLabel } from "../../../src/shared/format.js";
-import { all } from "../../db.js";
+import { all, kvGet } from "../../db.js";
+import { idle, writeState } from "../../data/writeGen.js";
 import { matchHref, shortEvent, teamLinks } from "../answers/matchSet.js";
 import { OFFICIAL_TYPES } from "../../../src/shared/eventRecord.js";
 import { DOUBLE_ELIM_FROM } from "../../../src/shared/bracketOdds.js";
@@ -20,32 +21,7 @@ export const asksNow = (q: string) => /\b(?:now|rn|currently|current|ongoing|act
 
 export async function streakBoardAnswer(o: { region: Region; season: number; now: boolean; losing: boolean; n: number }): Promise<StatAnswer> {
   const want = o.losing ? "L" : "W";
-  // The place's teams TEAMS_PER_READ at a time, as a range of numbers: rows come ordered by team first, so the reads in turn
-  // give the one read's rows in its order, and each read starts with the event loop let go if it was held
-  // (../../db.ts busyTurn): the whole USA is some 3 s of reads, never one that holds every other request that long.
-  const place = [o.region.country, ...(o.region.state ? [o.region.state] : [])];
-  const numbers = (await all<{ number: number }>(`SELECT number FROM teams WHERE country = ?${o.region.state ? " AND state = ?" : ""} ORDER BY number`, place)).map((r) => Number(r.number));
-  const rows: Row[] = [];
-  for (let i = 0; i < numbers.length; i += TEAMS_PER_READ) for (const r of await all<Row>(`SELECT t.team, m.season, m.code, m.level, m.series, m.number, m.label, e.name, e.type, t.alliance, m.red_total, m.blue_total
-    -- From the region's teams, then each one's matches (match_teams_team_match): SQLite otherwise read every match of
-    -- the two seasons first and kept the region's after, 0.7-1.1 s for Romania's 600 teams with this process held the
-    -- whole time; 0.1 s this way. Each CROSS JOIN keeps that order (an inner join all the same): with plain joins it
-    -- may put the matches first again and scan the teams for each one.
-    FROM teams tm CROSS JOIN match_teams t ON t.team = tm.number
-    CROSS JOIN matches m ON m.season = t.season AND m.code = t.code AND m.level = t.level AND m.series = t.series AND m.number = t.number
-    CROSS JOIN events e ON e.season = m.season AND e.code = m.code
-    WHERE m.played = 1 AND m.red_total IS NOT NULL AND m.blue_total IS NOT NULL AND m.red_np IS NOT NULL AND m.blue_np IS NOT NULL AND m.season IN (?, ?)
-      -- The one record rule (src/shared/eventRecord.ts recordSql): official in-person events; a qualification no-show
-      -- counts and a surrogate match doesn't.
-      AND COALESCE(e.remote, 0) = 0 AND e.type IN (${OFFICIAL_TYPES.map(() => "?").join(", ")})
-      AND CASE WHEN t.level = 'qual' THEN COALESCE(t.surrogate, 0) = 0 ELSE COALESCE(t.on_field, 1) = 1 END
-      AND tm.country = ?${o.region.state ? " AND tm.state = ?" : ""} AND tm.number BETWEEN ? AND ?
-    -- A team's own match order (../answers/matchSet.ts teamMatches): by event, a division before the finals it feeds,
-    -- then the event's order (qualifications, playoffs by stage; a classic bracket's final, series 0, last: a double
-    -- elimination bracket may number from 0, its first match first), never by match time, which a played
-    -- match may lack.
-    ORDER BY t.team, e.start, t.season, COALESCE(e.division_code, e.code), e.division_code IS NULL, t.code, t.level = 'playoff', t.level = 'playoff' AND t.series = 0 AND t.season < ?, t.series, t.number`,
-    [o.season - 1, o.season, ...OFFICIAL_TYPES, ...place, numbers[i], numbers[Math.min(i + TEAMS_PER_READ, numbers.length) - 1], DOUBLE_ELIM_FROM])) rows.push(r);
+  const rows = await boardRows(o);
   const result = (r: Row) => (r.red_total === r.blue_total ? "T" : (r.red_total > r.blue_total) === (r.alliance === "red") ? "W" : "L");
   const byTeam = new Map<number, Row[]>();
   for (const r of rows) { const ms = byTeam.get(Number(r.team)); if (ms) ms.push(r); else byTeam.set(Number(r.team), [r]); }
@@ -88,4 +64,50 @@ export async function streakBoardAnswer(o: { region: Region; season: number; now
       sub: `${span(first)}${o.now ? "" : going.length ? ` · going now: ${label(going[0].team)}, ${word(going[0].run.length)}` : ""}`,
     },
   };
+}
+
+/** Reads in a row a board may take when data keeps landing meanwhile; the last one's rows are used whatever happens. */
+const READS_MAX = 3;
+
+/** The place's matches for the board, TEAMS_PER_READ teams at a time, as a range of numbers: rows come ordered by team
+ *  first, so the reads in turn give one read's rows in its order, and each read starts with the event loop let go if it
+ *  was held (../../db.ts busyTurn): the whole USA is some 3 s of reads, never one that holds every other request that
+ *  long. Read in parts, a write landing between two (the live lane, every minute on event days) would leave early teams
+ *  from before it and later ones from after: so it waits for no write in flight, and reads again (up to READS_MAX)
+ *  when one started meanwhile, in this process (../../data/writeGen.ts) or another (data:version). */
+async function boardRows(o: { region: Region; season: number }): Promise<Row[]> {
+  for (let tries = 1; ; tries++) {
+    await idle();
+    const gen = writeState().gen, version = await kvGet<string>("data:version");
+    const rows = await readBoard(o);
+    if (tries >= READS_MAX || (writeState().gen === gen && (await kvGet<string>("data:version")) === version)) return rows;
+  }
+}
+
+/** One read of the board's rows, a part at a time (boardRows). */
+async function readBoard(o: { region: Region; season: number }): Promise<Row[]> {
+  const place = [o.region.country, ...(o.region.state ? [o.region.state] : [])];
+  const numbers = (await all<{ number: number }>(`SELECT number FROM teams WHERE country = ?${o.region.state ? " AND state = ?" : ""} ORDER BY number`, place)).map((r) => Number(r.number));
+  const rows: Row[] = [];
+  for (let i = 0; i < numbers.length; i += TEAMS_PER_READ) for (const r of await all<Row>(`SELECT t.team, m.season, m.code, m.level, m.series, m.number, m.label, e.name, e.type, t.alliance, m.red_total, m.blue_total
+    -- From the region's teams, then each one's matches (match_teams_team_match): SQLite otherwise read every match of
+    -- the two seasons first and kept the region's after, 0.7-1.1 s for Romania's 600 teams with this process held the
+    -- whole time; 0.1 s this way. Each CROSS JOIN keeps that order (an inner join all the same): with plain joins it
+    -- may put the matches first again and scan the teams for each one.
+    FROM teams tm CROSS JOIN match_teams t ON t.team = tm.number
+    CROSS JOIN matches m ON m.season = t.season AND m.code = t.code AND m.level = t.level AND m.series = t.series AND m.number = t.number
+    CROSS JOIN events e ON e.season = m.season AND e.code = m.code
+    WHERE m.played = 1 AND m.red_total IS NOT NULL AND m.blue_total IS NOT NULL AND m.red_np IS NOT NULL AND m.blue_np IS NOT NULL AND m.season IN (?, ?)
+      -- The one record rule (src/shared/eventRecord.ts recordSql): official in-person events; a qualification no-show
+      -- counts and a surrogate match doesn't.
+      AND COALESCE(e.remote, 0) = 0 AND e.type IN (${OFFICIAL_TYPES.map(() => "?").join(", ")})
+      AND CASE WHEN t.level = 'qual' THEN COALESCE(t.surrogate, 0) = 0 ELSE COALESCE(t.on_field, 1) = 1 END
+      AND tm.country = ?${o.region.state ? " AND tm.state = ?" : ""} AND tm.number BETWEEN ? AND ?
+    -- A team's own match order (../answers/matchSet.ts teamMatches): by event, a division before the finals it feeds,
+    -- then the event's order (qualifications, playoffs by stage; a classic bracket's final, series 0, last: a double
+    -- elimination bracket may number from 0, its first match first), never by match time, which a played
+    -- match may lack.
+    ORDER BY t.team, e.start, t.season, COALESCE(e.division_code, e.code), e.division_code IS NULL, t.code, t.level = 'playoff', t.level = 'playoff' AND t.series = 0 AND t.season < ?, t.series, t.number`,
+    [o.season - 1, o.season, ...OFFICIAL_TYPES, ...place, numbers[i], numbers[Math.min(i + TEAMS_PER_READ, numbers.length) - 1], DOUBLE_ELIM_FROM])) rows.push(r);
+  return rows;
 }
