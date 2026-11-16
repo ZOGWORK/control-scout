@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // The Events page's coin flips: each card shows both sides' odds and its confidence tier and opens the match
-// page; the closest call is marked; decided ones show the result beside the call made before them; a day with
-// none (no events, or no close calls) or a failed load leaves the section out; the skeleton holds its place while loading.
+// page; the closest call is marked; a day with none left to play (no events, no close calls, or all played), a
+// switched-off feature or a failed load leaves the section out; the skeleton holds its place while loading.
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
@@ -39,13 +39,15 @@ describe("CoinFlipRadarSection", () => {
     expect(screen.getByText("2 to play")).toBeTruthy();
   });
 
-  it("lists decided ones with the result and the call made before the match", () => {
+  it("leaves the section out once every coin flip has been played, and never lists decided ones", () => {
     data = radar({ events: 1, calls: 4, decided: [row(3, { played: true, kind: "live", pRed: 0.54, tier: "confident", result: { red: 98, blue: 120 } })] });
+    expect(show().container.innerHTML).toBe("");
+    cleanup();
+    data = radar({ events: 1, calls: 4, upcoming: [row(1)], decided: [row(3, { played: true, result: { red: 98, blue: 120 } })] });
     show();
-    expect(screen.getByText(/Every coin flip on today’s schedules has been played/)).toBeTruthy();
-    const line = screen.getByText(/called Red 54% before the match/);
-    // The saved call keeps its confidence tier beside it.
-    expect(line.textContent).toMatch(/called Red 54% before the match\s*confidence: solid · the other side won/);
+    expect(screen.getByText("1 to play")).toBeTruthy();
+    expect(screen.queryByText(/decided/i)).toBeNull();
+    expect(screen.getAllByRole("link")).toHaveLength(1);
   });
 
   it("shows six cards, then all on request", () => {
@@ -85,7 +87,7 @@ describe("a day with no coin flips", () => {
       cleanup();
     }
     expect(hasFlips(radar({ upcoming: [row(1)] }))).toBe(true);
-    expect(hasFlips(radar({ decided: [row(1, { played: true, result: { red: 1, blue: 0 } })] }))).toBe(true);
+    expect(hasFlips(radar({ decided: [row(1, { played: true, result: { red: 1, blue: 0 } })] }))).toBe(false);
   });
 
   it("holds its place with a skeleton while loading", () => {
@@ -151,8 +153,7 @@ describe("the card's visuals agree with its printed odds", () => {
     expect(printedOdds(0.5)).toEqual({ red: 50, blue: 50 });
     expect([favourite(0.495), favourite(0.5), favourite(0.505)]).toEqual([null, null, "red"]);
     expect([meterAt(0.495), meterAt(0.5), meterAt(0.505)].map((x) => Math.round(x))).toEqual([50, 50, 45]);
-    data = radar({ events: 1, calls: 2, upcoming: [row(1, { pRed: 0.495 }), row(2, { pRed: 0.505 })],
-      decided: [row(3, { played: true, kind: "live", pRed: 0.495, result: { red: 70, blue: 60 } })] });
+    data = radar({ events: 1, calls: 2, upcoming: [row(1, { pRed: 0.495 }), row(2, { pRed: 0.505 })] });
     show();
     const links = screen.getAllByRole("link");
     expect(links[0].textContent).toMatch(/50%50%/);
@@ -160,7 +161,6 @@ describe("the card's visuals agree with its printed odds", () => {
     expect(links[1].textContent).toMatch(/51%49%/);
     const [even, red] = screen.getAllByTestId("coin-marker");
     expect([even.dataset.side, red.dataset.side]).toEqual(["even", "red"]);
-    expect(screen.getByText(/called 50:50 before the match/).textContent).toMatch(/a true coin flip/);
     // The even card is the closest call.
     expect(screen.getByText("Closest call").closest("a")).toBe(links[0]);
   });
@@ -169,9 +169,6 @@ describe("the card's visuals agree with its printed odds", () => {
     expect(favourite(0.503)).toBeNull();
     expect(favourite(0.506)).toBe("red");
     expect(favourite(0.494)).toBe("blue");
-    data = radar({ events: 1, calls: 1, decided: [row(4, { played: true, kind: "live", pRed: 0.503, result: { red: 80, blue: 90 } })] });
-    show();
-    expect(screen.getByText(/called 50:50 before the match/).textContent).toMatch(/a true coin flip/);
   });
 
   it("marks the closest call by the printed odds, the sooner on a tie", () => {
