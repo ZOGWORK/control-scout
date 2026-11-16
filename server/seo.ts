@@ -237,10 +237,15 @@ export const FLIPS_HINT_MS = 150;
  * and on a day with none, a placeholder held while it loads would vanish and pull the whole list up (most of the
  * page's layout shift). Answered from the stored radar only (server/api/coinFlips.ts storedCoinFlips: a page load
  * never starts gathering one); none fresh, or a slow or failed read, leaves the tag out, and the page keeps the placeholder.
+ * Switched off (the coinFlips flag), it says none, so nothing of the radar shows while the page's flags load.
  */
 export async function coinFlipsHint(path: string): Promise<string> {
   if (path !== "/events") return "";
   try {
+    // Switched off by the owner: "none today", so the page holds no placeholder (no heading flashes) while the
+    // browser's flags are still on their way.
+    const { isEnabled } = await import("./flags.js");
+    if (!(await isEnabled("coinFlips"))) return `<meta name="${COIN_FLIPS_META}" content="0" />`;
     const { storedCoinFlips } = await import("./api/coinFlips.js");
     let timer: ReturnType<typeof setTimeout> | undefined;
     const late = new Promise<null>((ok) => { timer = setTimeout(ok, FLIPS_HINT_MS, null); });
