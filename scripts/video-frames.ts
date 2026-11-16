@@ -318,7 +318,7 @@ async function verifyRow(row: FrameTiming, division: { own: string; others: stri
     log(`    couldn't check: ${(e as Error).message.split("\n")[0]} (the row is kept unchecked; the next --verify tries it again)`);
     failedVideos++;
   } finally {
-    await page?.context().close().catch(() => {});
+    await closePage(page);
   }
 }
 
@@ -515,8 +515,19 @@ async function player(): Promise<Page> {
   return ctx.newPage();
 }
 
-/** Load a video in the privacy-enhanced embed, playing, with nothing drawn over the overlay. */
-async function open(page: Page, videoId: string): Promise<void> {
+/** A step that can wait on a frozen page with no timeout of its own (a page's evaluate, closing its context): failed
+ *  after `s` seconds instead, or the run waits forever (a --verify sat idle 50 minutes, 2026-11-16). */
+function within<T>(p: Promise<T>, s: number, what: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error(`${what} hung over ${s} s`)), s * 1000); });
+  return Promise.race([p, late]).finally(() => clearTimeout(timer));
+}
+/** Close a player page's context, never waiting on a frozen one. */
+const closePage = (page: Page | null) => (page ? within(page.context().close(), 15, "closing the player").catch(() => {}) : Promise.resolve());
+
+/** Load a video in the privacy-enhanced embed, playing, with nothing drawn over the overlay (90 s at most). */
+const open = (page: Page, videoId: string) => within(openOnce(page, videoId), 90, "opening the video");
+async function openOnce(page: Page, videoId: string): Promise<void> {
   await page.goto(`https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&mute=1&controls=0&rel=0&iv_load_policy=3&cc_load_policy=0`, { referer: "https://controlscout.org/" });
   await page.waitForFunction(() => (document.querySelector("video")?.readyState ?? 0) >= 2, null, { timeout: 30000 });
   // No captions over the overlay.
@@ -615,7 +626,7 @@ async function doCode(code: string): Promise<void> {
       // video without the overlay, so it gets one more go in a fresh player before its matches count as missing.
       if (!j.placed.size && !j.review.size && [...j.missing.values()].every((w) => w === NOTHING_READ)) {
         log("    nothing read: again in a fresh player");
-        await page.context().close();
+        await closePage(page);
         page = await player();
         if (division) divisions.set(page, division);
         await open(page, v.videoId);
@@ -656,7 +667,7 @@ async function doCode(code: string): Promise<void> {
         keep(key, { videoId: v.videoId, code, checked: today, starts: {}, missing: Object.fromEntries(mine.map((x) => [x.label, `${PLAY_FAILED}: ${why}`])) });
       }
     } finally {
-      await page?.context().close().catch(() => {});
+      await closePage(page);
     }
   }
   } finally {
