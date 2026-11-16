@@ -321,11 +321,13 @@ export async function runChannelAudit(log: (s: string) => void, opts: { apiKey?:
           if (live || (!row.facts_at && !title)) { /* read again next run */ }
           else if (m.kind === "add") {
             const add = m;
-            await locked(() => record(v, { channelId: String(r.channel_id), title: rule.title }, add, v.published ?? null, now(), "channel audit"));
-            out.added++;
-            rec = { record: "added by the channel audit", season: add.event.season, code: add.event.code, plays: true };
-            records.set(vid, rec);
-            why = `added by the channel audit: ${add.why}`;
+            // Another recording took its day meanwhile: in the owner's review now, naming the clash.
+            if (await locked(() => record(v, { channelId: String(r.channel_id), title: rule.title }, add, v.published ?? null, now(), "channel audit"))) {
+              out.added++;
+              rec = { record: "added by the channel audit", season: add.event.season, code: add.event.code, plays: true };
+              records.set(vid, rec);
+              why = `added by the channel audit: ${add.why}`;
+            } else { rec = { record: REVIEW, season: add.event.season, code: add.event.code, plays: false }; records.set(vid, rec); }
           } else if (redo === "pending" && (m.kind === "ignore" || m.kind === "duplicate")) {
             // The rules decide it now: out of the owner's queue, set aside with why.
             out.setAside++;
@@ -346,12 +348,13 @@ export async function runChannelAudit(log: (s: string) => void, opts: { apiKey?:
           // once, so the next upload's verdict sees it), and checked again with the watcher's adds from the next run.
           // One in the watcher's window it didn't take is still a watcher miss.
           const add = m;
-          await locked(() => record(v, { channelId: String(r.channel_id), title: rule.title }, add, v.published ?? null, now(), "channel audit"));
-          out.added++;
-          if (inWindow) out.missed++;
-          rec = { record: "added by the channel audit", season: add.event.season, code: add.event.code, plays: true };
-          records.set(vid, rec);
-          why = `added by the channel audit: ${add.why}`;
+          if (await locked(() => record(v, { channelId: String(r.channel_id), title: rule.title }, add, v.published ?? null, now(), "channel audit"))) {
+            out.added++;
+            if (inWindow) out.missed++;
+            rec = { record: "added by the channel audit", season: add.event.season, code: add.event.code, plays: true };
+            records.set(vid, rec);
+            why = `added by the channel audit: ${add.why}`;
+          } else { rec = { record: REVIEW, season: add.event.season, code: add.event.code, plays: false }; records.set(vid, rec); }
           finding = null;
         } else if (row.facts_at && finding !== "dismissed" && finding !== "queued") {
           if (finding !== "open" || !foundAt) foundAt = at;
