@@ -20,7 +20,7 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 Event videos › 149 more event recordings play, each checked against its event, day and division from the video itself.
 
 ### Highlights
-- [history] 149 more event recordings, from 2019 to this season, checked from the video before they play
+- [history] 149 more event recordings play, each checked from the video
 - [fixes] A meet whose stream was deleted and uploaded again plays the new upload
 - [fixes] Videos that aren't FTC (FRC off-season events, meetings, simulators) stay off event pages
 
