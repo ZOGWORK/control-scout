@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 6.9.6 — 2026-11-16
+
+Event videos › Owner › Official videos reaches 0 waiting: the watcher decides what it can by itself, and the rest is decided from the video.
+
+### Highlights
+- [history] Every video waiting in the owner's review is decided, with why
+- [history] NTX league-pair tournaments and dated streams with a typo play
+- [fixes] Ceremonies, remote-season shows and division streams stay off event days
+
+### Event videos
+- The watcher reads more by itself: an NTX league pair's tournament ("C&N-League Tournament"); one meet over two same-day meets told apart only by a letter or AM and PM (set aside: two events in one video); an undated upload of a multi-day event, of a ceremony alone or of one division's stream (set aside: which day or division can't be told); a title naming no event when every event that day was remote (set aside); "FTC Events" for a date (set aside); and a live broadcast whose title's date is a day or a month off, when the event it names doesn't run on that date (its broadcast date counts). (`server/videos/officialMatch.ts`, `server/videos/officialWatch.ts`, `server/videos/officialAudit.ts`)
+- The decisions file holds the 134 judgement cases the rules can't make: 78 links, 7 rejects and 49 set aside, each with what the rules say on their own and the evidence it rests on (frames, descriptions, which Scout event a title means). Measured on a copy of the live database, the decisions and one channel audit leave the review queue at 0 (from 69) and the audit's open findings at 0 (from 323). That run adds 78 recordings and links 78 more, and every new link plays. Of the 78 audit adds, 72 are the decision's own link, one is the Awards part of APOC 2024, four replace FIRST links that no longer play, and one is NTX's I&N Tournament (live 2024-12-14), found by the league-pair rule. None is a video a decision turned down. (`server/data/videoDecisions.ts`)
+
 ## 6.9.5 — 2026-11-16
 
 Event videos › 68 more event recordings play, and the official-videos watcher decides by itself what it used to leave for the owner.
