@@ -62,6 +62,8 @@ describe("closest matches as searched", () => {
     }
   });
   it("a bare score after the closest: both alliances over it, said on the card (#1564)", async () => {
+    // Its points said or not: the same reading.
+    expect((await stat("closest match in decode above 500 points")).scope).toContain("Both alliances scored over 500");
     const s = await stat("closest match in decode above 500");
     expect(s?.intent).toBe("find-closest");
     expect(s.scope).toContain("Both alliances scored over 500");

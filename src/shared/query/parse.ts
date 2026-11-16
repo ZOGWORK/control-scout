@@ -248,8 +248,10 @@ const COND_RE = /(?:^| )(?:(?:where|with|in which|when|that|and) )?(?:the )?(los
  *  "over 200 points" is a floor). Its number is never a team. */
 const EXACT_RE = /(?:^| )(?<!(?:than|over|above|exceeding|beyond|least|most|under|below) )(?:an? )?(\d{1,4})[ -]?(?:points?|pts|pt)(?= (?:match|matches|game|games)(?: |$))/;
 /** "Closest match in <season> above 500": a bare comparison ending a closest match's question, both alliances' scores
- *  over it (a close match is level, so its two scores are). Read only beside a closest measure's words (the lexicon's). */
-const BARE_RE = /(?:^| )(over|more than|above|at least|under|less than|below|at most) (\d{2,4})$/;
+ *  over it (a close match is level, so its two scores are), its points said or not ("above 500 points"). Read only
+ *  beside a closest measure's words (the lexicon's). A ceiling ("closest match under 5") is the margin's bound a
+ *  closest match takes (by less than N points), never both scores under it, so only a floor is read here. */
+const BARE_RE = /(?:^| )(over|more than|above|at least) (\d{1,4})(?: points?| pts)?$/;
 let closeWords: string[] | null = null;
 const saysClosest = (q: string) => (closeWords ??= LEXICON.filter((e) => e.syms.some((s) => s.k === "agg" && s.v === "closest")).map((e) => e.words.join(" "))).some((w) => ` ${q} `.includes(` ${w} `));
 export function scoreCondOf(q: string): { cond: ScoreCond; rest: string; said: string } | null {
