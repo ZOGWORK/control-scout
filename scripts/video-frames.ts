@@ -24,6 +24,9 @@
 //   --dry     print, don't write
 //   --trace   print every frame read (where, what it named, the start it gave) to stderr
 //   --verify  read no starts: check where each placed match's clip opens, for rows not yet checked (opens)
+//   --live <file>  the timings the live site serves (a copy of main's server/data/frameTimings.ts): a re-read start
+//             that is one of them (same video, match and second, within a read's slack) and whose opening frame names
+//             nothing stays, unconfirmed, as --verify keeps it; only an overlay naming another match pulls a live clip
 //   TESSERACT_JS=<path to tesseract.js's entry>  where tesseract.js is, when it isn't in node_modules
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
@@ -31,7 +34,7 @@ import { AUTO_S, OPEN_LEADS, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELE
 
 // The command line: --name value or --name=value for the value flags, --name alone for the others. Anything else stops
 // the run before it reads: a misspelt flag mustn't quietly read (and write) every recording of the season.
-const VALUE_FLAGS = new Set(["season", "codes", "limit", "lanes"]), BOOL_FLAGS = new Set(["all", "check", "dry", "trace", "verify"]);
+const VALUE_FLAGS = new Set(["season", "codes", "limit", "lanes", "live"]), BOOL_FLAGS = new Set(["all", "check", "dry", "trace", "verify"]);
 const args = new Map<string, string | true>();
 {
   const argv = process.argv.slice(2);
@@ -68,6 +71,10 @@ const R = await import("../server/videos/recordings.js");
 const { CLIP_LEAD_S, actualStart } = await import("../src/shared/recording.js");
 const { localToUtcMs } = await import("../src/shared/time.js");
 const { FRAME_TIMINGS } = await import("../server/data/frameTimings.js");
+/** --live: what the live site serves, by video and event (its starts). */
+const LIVE = new Map<string, Record<string, number>>(
+  arg("live") ? dataRows<{ videoId: string; code: string; starts: Record<string, number> }>(readFileSync(arg("live")!, "utf8")).map((f) => [`${f.videoId}|${f.code}`, f.starts]) : [],
+);
 type FrameTiming = (typeof FRAME_TIMINGS)[number];
 const T: any = await import(process.env.TESSERACT_JS ?? "tesseract.js");
 const createWorker = T.createWorker ?? T.default?.createWorker;
@@ -254,7 +261,7 @@ const MISSES = 3;
  * clip can't open on it goes to review, and one whose overlay can't be read there at all is missing with
  * OVERLAY_UNREAD. Nothing is a clip unchecked.
  */
-async function checkOpenings(page: Page, j: Judged, log: (s: string) => void, unread?: Set<string>): Promise<void> {
+async function checkOpenings(page: Page, j: Judged, log: (s: string) => void, unread?: Set<string>, live?: Record<string, number>): Promise<void> {
   const failed: string[] = [];
   for (const [label, p] of [...j.placed]) {
     if (j.opens.has(label)) continue; // checked on an earlier --verify
@@ -264,19 +271,20 @@ async function checkOpenings(page: Page, j: Judged, log: (s: string) => void, un
       if (t < 0) continue;
       const r = await readAt(page, t, true);
       if (r.division === "other") { named = "another division's match"; continue; }
-      if (r.label === label) { at = t; break; }
+      // The overlay names a replay (a tiebreak's "M6-2") by its match alone ("M6"), as placeVideo reads it.
+      if (r.label === label.replace(/-\d+$/, "")) { at = t; break; }
       if (r.label) named = r.label;
     }
     if (at != null) { j.opens.set(label, at); continue; }
-    // A clip already live (--verify) whose opening frame named nothing (blank, a transition, a cutaway) stays, to be
-    // read again: only an overlay naming another match pulls it.
-    if (unread && !named) { unread.add(label); continue; }
+    // A clip already live (--verify, or a re-read start the live site serves: --live) whose opening frame named nothing
+    // (blank, a transition, a cutaway) stays, to be read again: only an overlay naming another match pulls it.
+    if (unread && !named && (!live || (live[label] != null && Math.abs(live[label] - p.t) <= SAME_S))) { unread.add(label); continue; }
     j.placed.delete(label);
     failed.push(label);
     if (named) j.review.set(label, { t: p.t, why: `its clip's first frame shows ${named}, not ${label}` });
     else j.missing.set(label, OVERLAY_UNREAD);
   }
-  log(`    clip openings: ${j.opens.size} name their match${unread?.size ? `; ${unread.size} unconfirmed, to read again: ${[...unread].join(" ")}` : ""}${failed.length ? `; ${unread ? "pulled" : "not placed"}: ${failed.join(" ")}` : ""}`);
+  log(`    clip openings: ${j.opens.size} name their match${unread?.size ? `; ${unread.size} unconfirmed, to read again: ${[...unread].join(" ")}` : ""}${failed.length ? `; ${unread && !live ? "pulled" : "not placed"}: ${failed.join(" ")}` : ""}`);
 }
 
 /** --verify: a row read before clip openings were checked gets them checked, its starts as they were read. */
@@ -318,7 +326,7 @@ async function verifyRow(row: FrameTiming, division: { own: string; others: stri
 
 /** The second each of a video's matches starts at, as far as its frames show. `shift`: the video's second for a moment
  *  minus that moment (epoch seconds), when YouTube gives the broadcast's start (an upload has none). */
-async function placeVideo(page: Page, ms: M[], shift: number | null, length: number, log: (s: string) => void): Promise<Judged> {
+async function placeVideo(page: Page, ms: M[], shift: number | null, length: number, log: (s: string) => void, unread?: Set<string>, live?: Record<string, number>): Promise<Judged> {
   // The overlay names a replay ("M14-2", a tiebreak) by its match alone (M14): each name, its matches in order.
   const byName = new Map<string, number[]>();
   ms.forEach((m, i) => { const n = m.label.replace(/-\d+$/, ""); byName.set(n, [...(byName.get(n) ?? []), i]); });
@@ -423,7 +431,7 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
   }
   if (blind()) log(`    no overlay read in ${reads()} frames`);
   const j = judge(ms, seen, shift, length, tried);
-  await checkOpenings(page, j, log);
+  await checkOpenings(page, j, log, live ? unread : undefined, live);
   const out = new Map([...j.placed].map(([l, p]) => [l, p.t]));
   const high = [...j.placed.values()].filter((p) => p.confidence === "high").length;
   log(`    ${out.size} of ${ms.length} placed (${high} high, ${out.size - high} medium), ${seen.size} read, ${unconfirmed} reads not confirmed, ${reads()} frames`);
@@ -600,7 +608,9 @@ async function doCode(code: string): Promise<void> {
       await open(page, v.videoId);
       log(`  ${v.videoId}: ${mine.length} matches`);
       console.error(`${new Date().toISOString().slice(11, 19)} ${code} ${v.videoId}: ${mine.length} matches`);
-      let j = await placeVideo(page, mine, from == null ? null : -from, m.length!, log);
+      // Live starts whose opening reads nothing stay, unconfirmed (--live).
+      const live = LIVE.get(`${v.videoId}|${code}`), unread = new Set<string>();
+      let j = await placeVideo(page, mine, from == null ? null : -from, m.length!, log, unread, live);
       // Nothing read at all: a player that never showed the stream (an interstitial, a stalled load) looks the same as a
       // video without the overlay, so it gets one more go in a fresh player before its matches count as missing.
       if (!j.placed.size && !j.review.size && [...j.missing.values()].every((w) => w === NOTHING_READ)) {
@@ -609,7 +619,8 @@ async function doCode(code: string): Promise<void> {
         page = await player();
         if (division) divisions.set(page, division);
         await open(page, v.videoId);
-        j = await placeVideo(page, mine, from == null ? null : -from, m.length!, log);
+        unread.clear();
+        j = await placeVideo(page, mine, from == null ? null : -from, m.length!, log, unread, live);
       }
       const out = new Map([...j.placed].map(([l, p]) => [l, p.t]));
       for (const l of out.keys()) held.add(l);
@@ -632,6 +643,7 @@ async function doCode(code: string): Promise<void> {
           ...(j.missing.size ? { missing: Object.fromEntries(j.missing) } : {}),
           ...(j.earlyStart.size ? { earlyStart: Object.fromEntries(j.earlyStart) } : {}),
           opens: Object.fromEntries(j.opens),
+          ...(unread.size ? { unconfirmed: [...unread] } : {}),
         });
       }
     } catch (e) {
