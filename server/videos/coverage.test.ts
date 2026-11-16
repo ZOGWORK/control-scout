@@ -183,6 +183,15 @@ describe("clipCoverage, what the video showed (Romania COANDA 2025 ROCMPCND)", (
       why: "Checked in the video (2026-11-14): no start found for it; in the video, Q20 at 0:03:29" });
   });
 
+  it("a start whose clip opening was checked and named nothing: said so, and never cited as a placed neighbour", () => {
+    // Openings checked for Q1 and Q3 only: Q2's opening frame didn't name it, so it's no clip (as the server plays it).
+    setFrameTimingsForTests([{ videoId: fri.videoId, code: "ROCMPCND", checked: "2026-11-16", starts: { Q1: 3300, Q2: 3600, Q3: 10440 }, opens: { Q1: 3288, Q3: 10428 } }]);
+    expect(q2().video).toEqual({ checked: "2026-11-16", seenAt: 3600, found: "its clip's opening frame doesn't name it", before: { label: "Q1", at: 3300 }, after: { label: "Q3", at: 10440 } });
+    // Q1's opening named nothing too: it's no clip either, so it isn't cited as where the video sits before Q2.
+    setFrameTimingsForTests([{ videoId: fri.videoId, code: "ROCMPCND", checked: "2026-11-16", starts: { Q1: 3300, Q2: 3600, Q3: 10440 }, opens: { Q3: 10428 } }]);
+    expect(q2().video).toEqual({ checked: "2026-11-16", seenAt: 3600, found: "its clip's opening frame doesn't name it", after: { label: "Q3", at: 10440 } });
+  });
+
   it("writes a second in a video as h:mm:ss", () => {
     expect([hms(10440), hms(209), hms(0), hms(-3)]).toEqual(["2:54:00", "0:03:29", "0:00:00", "0:00:00"]);
   });
