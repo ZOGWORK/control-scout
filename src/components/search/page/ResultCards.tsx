@@ -143,23 +143,34 @@ export function CompareCard({ h, summaries, onOpen, preview }: { h: SearchHit; s
     }} data-result="compare"
       className="lift group block rounded-2xl border border-border bg-card p-4 sm:p-6">
       <span className="flex items-center gap-2 text-sm text-muted-foreground"><ArrowLeftRight className="size-4" aria-hidden />Compare side by side: records, OPR and event history</span>
-      {nums.length >= 2 ? (
-        <span className="mt-3 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3">
-          {nums.slice(0, 2).map((n, i) => {
-            const name = sides.find((x) => x.number === n)?.name ?? summaries.get(n)?.s.name ?? teamParts(names[i] ?? "")?.name ?? "Team";
-            const place = sides.find((x) => x.number === n)?.place || summaries.get(n)?.s.place;
-            return (
-              <span key={n} className={cn("min-w-0", i === 1 && "col-start-3 text-right")}>
-                <span className="block font-display text-3xl font-semibold leading-none tracking-tight tabular-nums text-foreground group-hover:text-accent-text sm:text-4xl">{n}</span>
-                <span className="mt-1.5 block break-words text-base text-foreground/90 sm:text-lg">{name}</span>
-                {place && <span className="mt-0.5 block truncate text-xs text-muted-foreground">{place}</span>}
-              </span>
-            );
-          })}
-          <span aria-hidden className="col-start-2 row-start-1 self-center text-sm font-medium text-muted-foreground">vs</span>
-        </span>
-      ) : <span className="mt-2 block break-words font-display text-lg font-semibold text-foreground">{h.title}</span>}
-      {nums.length > 2 && <span className="mt-2 block text-sm text-foreground/90">{nums.slice(2).map((n) => `${sides.find((x) => x.number === n)?.name ?? summaries.get(n)?.s.name ?? "Team"} (${n})`).join(", ")}</span>}
+      {nums.length >= 2 ? (() => {
+        const side = (n: number, i: number) => ({
+          name: sides.find((x) => x.number === n)?.name ?? summaries.get(n)?.s.name ?? teamParts(names[i] ?? "")?.name ?? "Team",
+          place: sides.find((x) => x.number === n)?.place || summaries.get(n)?.s.place,
+        });
+        const Side = (n: number, i: number, right?: boolean) => {
+          const { name, place } = side(n, i);
+          return (
+            <span key={n} className={cn("min-w-0", right && "col-start-3 text-right")} data-compare-side={n}>
+              <span className="block font-display text-3xl font-semibold leading-none tracking-tight tabular-nums text-foreground group-hover:text-accent-text sm:text-4xl">{n}</span>
+              <span className="mt-1.5 block break-words text-base text-foreground/90 sm:text-lg">{name}</span>
+              {place && <span className="mt-0.5 block truncate text-xs text-muted-foreground">{place}</span>}
+            </span>
+          );
+        };
+        // Two teams face each other across a "vs"; three or four sit side by side, each as big as the others.
+        return nums.length === 2 ? (
+          <span className="mt-3 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3">
+            {Side(nums[0], 0)}
+            <span aria-hidden className="col-start-2 row-start-1 self-center text-sm font-medium text-muted-foreground">vs</span>
+            {Side(nums[1], 1, true)}
+          </span>
+        ) : (
+          <span className={cn("mt-3 grid grid-cols-2 items-start gap-x-3 gap-y-4", nums.length >= 4 ? "sm:grid-cols-4" : "sm:grid-cols-3")}>
+            {nums.slice(0, 4).map((n, i) => Side(n, i))}
+          </span>
+        );
+      })() : <span className="mt-2 block break-words font-display text-lg font-semibold text-foreground">{h.title}</span>}
       <span className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-foreground underline decoration-border underline-offset-2 max-md:min-h-[44px]" data-cta>View comparison<ArrowRight className="size-4" aria-hidden /></span>
     </Link>
   );
@@ -168,7 +179,8 @@ export function CompareCard({ h, summaries, onOpen, preview }: { h: SearchHit; s
 /** Head-to-head at a glance (desktop, beside the results): each side's season record, OPR and OPR rank. A preview
  *  only: the full comparison is a link away. */
 export function HeadToHead({ h, now, before, season: current }: { h: SearchHit; now?: TeamSummary[]; before?: TeamSummary[]; season: number }) {
-  const nums = compareTeams(h).slice(0, 2);
+  const nums = compareTeams(h).slice(0, 4);
+  const cols = nums.length >= 4 ? "grid-cols-4" : nums.length === 3 ? "grid-cols-3" : "grid-cols-2";
   // One season for both sides, so the rows compare like with like: this season once either side has numbers in it.
   // With no earlier season to fall back on (a Compare that names its season), always this one.
   const useNow = !before || nums.some((n) => { const t = now?.find((x) => x.team === n); return !!t && hasNumbers(t); });
@@ -184,11 +196,11 @@ export function HeadToHead({ h, now, before, season: current }: { h: SearchHit; 
   return (
     <aside aria-label="Head-to-head summary" className="rounded-2xl border border-border bg-card p-4 sm:p-5" data-head-to-head>
       <p className="flex items-center justify-between gap-2 text-sm font-semibold text-foreground"><span className="inline-flex items-center gap-1.5"><ArrowLeftRight className="size-4 text-muted-foreground" aria-hidden />Head-to-head</span><span className="rounded-full border border-border bg-muted/50 px-2.5 py-0.5 text-xs font-medium text-foreground/80" data-h2h-season>{seasonLabel(season)}</span></p>
-      <div className="mt-3 grid grid-cols-2 gap-3">
+      <div className={cn("mt-3 grid gap-3", cols)}>
         {sides.map(({ n, s }) => (
           <div key={n} className="min-w-0">
-            <p className="font-display text-2xl font-semibold leading-none tabular-nums text-foreground">{n}</p>
-            <p className="mt-1 truncate text-sm text-foreground/90">{s?.name ?? " "}</p>
+            <p className={cn("font-display font-semibold leading-none tabular-nums text-foreground", nums.length > 2 ? "text-xl" : "text-2xl")}>{n}</p>
+            <p className={cn("mt-1 text-sm text-foreground/90", nums.length > 2 ? "break-words" : "truncate")}>{s?.name ?? " "}</p>
           </div>
         ))}
       </div>
@@ -197,15 +209,17 @@ export function HeadToHead({ h, now, before, season: current }: { h: SearchHit; 
           {shown.map(([label, f]) => (
             <div key={label} className="py-2.5">
               <dt className="text-xs text-muted-foreground">{label}</dt>
-              <dd className="mt-0.5 grid grid-cols-2 gap-3 font-display text-lg font-semibold tabular-nums text-foreground">{(() => {
+              <dd className={cn("mt-0.5 grid gap-3 font-display font-semibold tabular-nums text-foreground", cols, nums.length > 2 ? "text-base" : "text-lg")}>{(() => {
                 const vs = sides.map(({ s }) => (s && f(s)) ?? null);
                 // The better side marked (the record by win share; a rank the lower), as the search answers mark it.
                 const share = (r: string | null) => { const m = r && /^(\d+)-(\d+)-(\d+)/.exec(r); const g = m ? +m[1] + +m[2] + +m[3] : 0; return m && g ? (+m[1] + +m[3] / 2) / g : null; };
-                const win = vs.length === 2 ? (label === "Record" ? better(label, share(vs[0]), share(vs[1])) : better(label, vs[0], vs[1])) : null;
+                const cmp = label === "Record" ? vs.map(share) : vs;
+                // The best side beats every other side with a number; a tie marks none, and so does one side alone.
+                const win = cmp.filter((v) => v != null).length < 2 ? -1 : cmp.findIndex((v, i) => v != null && cmp.every((w, j) => j === i || w == null || better(label, v, w) === "a"));
                 return sides.map(({ n }, i) => (
-                  <span key={n} className={cn("inline-flex items-center gap-1", win === (i === 0 ? "a" : "b") && "font-bold")} data-better={win === (i === 0 ? "a" : "b") ? "" : undefined}>
+                  <span key={n} className={cn("inline-flex min-w-0 flex-wrap items-center gap-1 break-words", win === i && "font-bold")} data-better={win === i ? "" : undefined}>
                     {vs[i] == null ? "—" : label === "Record" ? <RecordText text={vs[i]!} /> : vs[i]}
-                    {win === (i === 0 ? "a" : "b") && <Trophy className="size-3.5 text-muted-foreground" aria-label="Better" />}
+                    {win === i && <Trophy className="size-3.5 text-muted-foreground" aria-label="Better" />}
                   </span>
                 ));
               })()}</dd>
