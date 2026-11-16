@@ -1,7 +1,7 @@
 // The pure parts of the frame reader (scripts/video-frames.ts): the overlay's match, the timer's elapsed time, and
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
-import { dataRows, divisionOf, elapsed, overlayDivision, leadIn, LEAD_IN_S, judge, NOTHING_READ, overlayLabel, secondsOf, startOffset, type M } from "./videoFrames";
+import { dataRows, divisionOf, elapsed, overlayDivision, leadIn, LEAD_IN_S, judge, NOTHING_READ, overlayLabel, secondsOf, startOffset, playedCount, type M } from "./videoFrames";
 
 describe("the frame reader", () => {
   it("names the match the overlay shows, and nothing else", () => {
@@ -212,5 +212,14 @@ describe("a full-screen card naming several matches", () => {
     // The running bar's own playoff name still reads (ROCMPVLC's "Playoff Match 11").
     expect(overlayLabel("onship - VLAICU Division  Romania C  Playoff Match 11")).toBe("M11");
     expect(overlayLabel("Mississauga Qualifier  Match 10  2:30")).toBe("M10");
+  });
+});
+
+describe("FTC Live's count of matches played", () => {
+  // CABCVIQ2 2025 (_eblj5-6VnA) opens on its rankings card: "5 matches per team ... 4 / 23 matches played".
+  it("reads the count and the total off the rankings card, and nothing else", () => {
+    expect(playedCount("ftc.events/CABCVIQ2/rankings  5 matches per team  4 / 23 matches played")).toEqual({ played: 4, of: 23 });
+    expect(playedCount("Qualification 21 of 36  2:05")).toBeNull();
+    expect(playedCount("40 / 23 matches played")).toBeNull();
   });
 });
