@@ -18,6 +18,8 @@ export interface AccountUser { id: number; email: string | null; displayName: st
   username?: string | null;
   /** When the username can change next (ISO); null: now. */
   usernameNextChange?: string | null;
+  /** The profile picture (the same one as in Control Point), or null. Missing from older servers. */
+  avatarUrl?: string | null;
   /** A mark of this sign-in (the username prompt shows once per sign-in). */
   session?: string | null;
   /** Only present (true) for the owner (OWNER_EMAILS): shows the owner portal's nav item. The server enforces access. */
