@@ -316,7 +316,8 @@ export function matchVideo(v: WatchVideo, rule: ChannelRule, events: WatchEvent[
   // A broadcast's own date is YouTube's record; a title's is typed. The title's date is a slip ("2/3/24" streamed on
   // 3/3) when the event the title names by its own words or number doesn't run on it at all: that event that day.
   // An event that runs on the title's date too (a re-stream of an earlier day), or one named by less, is the owner's.
-  const ownName = a.strong && ([...a.words].every(said) || (["meet", "n", "letter"] as const).some((k) => td[k] != null && td[k] === designators(a.e.name)[k]));
+  // Named by its own words means it has some, every one said: a name of region words and stop words names nothing.
+  const ownName = a.strong && ((a.words.size > 0 && [...a.words].every(said)) || (["meet", "n", "letter"] as const).some((k) => td[k] != null && td[k] === designators(a.e.name)[k]));
   // A slip is a day or a month off ("2/3/24" for 3/3), never a year: last season's date is another video's.
   const slip = !upload && ownName && !!titleDates && titleDates.every((t) => (t < a.e.start || t > (a.e.end || a.e.start)) && Math.abs(daysBetween(t, a.d)) <= 31);
   if (titleDates && !titleDates.includes(a.d) && !slip) return { kind: "review", why: `the title's date ${titleDates[0]} isn't the broadcast's (${a.d})`, ...at };
