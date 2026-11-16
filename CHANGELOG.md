@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.9.0 — 2026-11-16
+## 6.9.4 — 2026-11-16
 
 Events › Today's coin flips shows only matches still to play, and nothing at all when it's switched off.
 
@@ -26,6 +26,58 @@ Events › Today's coin flips shows only matches still to play, and nothing at a
 
 ### Changed
 - Events: Today's coin flips no longer lists the matches already decided ("Decided today") or counts them; once every coin flip of the day has been played the section leaves the page, as on a day with none. Switched off by the owner, it shows nothing at all (no "switched off for now" note), and the page's first HTML says so, so not even its heading shows while the page loads. (`src/components/home/CoinFlipRadar.tsx`, `src/shared/coinFlips.ts`, `server/seo.ts`) (#1591)
+
+## 6.9.3 — 2026-11-16
+
+Home › the search suggestions show the whole FTC world, plus your own team.
+
+### Highlights
+- [home] Search suggestions cover teams and events around the world
+- [teams] With My team set, two suggestions are about your team
+- [fixes] No suggestion is about one fixed team or one state any more
+
+### Changed
+- Home: the search suggestion chips name no fixed team and lean on no one region. They are leaderboards, winners, counts, high scores and filtered lists from around the world ("Who won DECODE", "Best in Romania by auto", "Top teams in Brazil", "How many teams in Canada"), and an hour's six never name one place twice. With My team set, two of the six are about that team, shown by number and name ("4215 Hypnotic Robotics record") and run by number, so they always find it. The chips' rows stay in place while the team's name loads, so nothing moves. The search box's example list is world-general too. (`src/shared/homeSuggestions.ts`, `src/components/home/HeroSearch.tsx`, `src/components/search/discover.tsx`) (#1599)
+
+## 6.9.2 — 2026-11-16
+
+Search › "best team in the us" ranks the United States, not the whole world.
+
+### Highlights
+- [fixes] "Best team in the US" shows the US teams, not the world's
+- [rankings] It opens the same USA board and USA rankings as "best team in USA"
+- [fixes] "Tell us" and "for us" are still read as plain words, never a country
+
+### Fixed
+- Search: a country's two-letter name said with "the" before it ("best team in the us rn", "the u.s.") is the country, so the answer is the country's board and its rankings link, the same as "best team in usa". "Us" on its own ("tell us the best team", "best team for us") is still a plain word. (`src/shared/query/names.ts`, `src/shared/query/parse.ts`) (#1601)
+
+## 6.9.1 — 2026-11-16
+
+Profile pictures: any account can have one, and it's the same picture in Control Point.
+
+### Highlights
+- [appearance] Add a profile picture in Settings › Profile
+- [workspace] The same picture in Control Scout and Control Point
+- [share] Match videos show the contributor's picture next to "Video by"
+
+### Added
+- Settings › Profile › Profile picture: add, change or remove one. The app crops the middle square to 512 px before it sends it, so no photo details (location, camera) leave the device. It shows in the account footer and menu. (`src/components/settings/ProfilePictureRow.tsx`, `src/lib/avatarImage.ts`, `src/components/UserAvatar.tsx`) (#1596)
+- A linked account's picture is the shared account's, kept by Control Point: set or removed in either app, it changes in the other. A change Control Point can't take at once is sent again on the next account read, and a Control Point too old to know about pictures never removes one. (`server/auth/avatars.ts`, `server/auth/controlPoint.ts`, docs/shared-accounts.md "Profile pictures")
+- Match videos: the credit shows the contributor's picture beside their name, and their profile page beside the heading. (`src/components/contributors/VideoCredit.tsx`, `src/pages/ContributorPage.tsx`)
+- Pictures are served from `/api/avatars/<user>/<version>`, cached for good (a new picture gets a new address). Uploads are PNG, JPEG or WebP, checked by the file's own bytes. Migration 92 (`user_avatars`, never in the offline snapshot).
+
+## 6.9.0 — 2026-11-16
+
+The sidebar's Rankings row gets a small arrow: Region rankings, Leagues and Power rankings fold out under it.
+
+### Highlights
+- [rankings] Region, league and power rankings fold out under Rankings
+- [appearance] More is shorter: Compare, Shortlist, Rules, Offline, How it works
+- [rankings] Clicking Rankings opens the world rankings and leaves the list folded
+
+### Navigation
+- The Rankings row still goes to the world rankings; only the arrow beside it shows the three rankings pages, and going to any of them never opens it by itself (Rankings' icon lights instead).
+- Network & offline left the More list; it is still in Settings, linked from the Offline page and Home. (`src/components/layout/Shell.tsx`) (#1593)
 
 ## 6.8.9 — 2026-11-15
 

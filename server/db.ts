@@ -2487,6 +2487,27 @@ CREATE TABLE official_audit_adds (
 ALTER TABLE official_watch ADD COLUMN guess_why TEXT;
 `,
   },
+  {
+    version: 92,
+    name: "profile pictures",
+    sql: `
+-- An account's profile picture (server/auth/avatars.ts, docs/shared-accounts.md "Profile pictures"): one per account,
+-- the image itself (PNG, JPEG, WebP or GIF, checked by its first bytes). version: random, new with every picture, the
+-- last part of its URL (/api/avatars/<user>/<version>), so a URL never changes what it shows and can be cached for
+-- good. Control Point keeps the shared account's picture: cp_id is the picture id Control Point last reported for
+-- the one stored here (NULL: not synced yet). pending: a change made here Control Point hasn't taken yet ('push'
+-- this picture, 'delete' it), retried on the next account read. A 'delete' row keeps no image.
+CREATE TABLE user_avatars (
+  user_id INTEGER PRIMARY KEY,
+  data BLOB,
+  mime TEXT,
+  version TEXT,
+  cp_id TEXT,
+  pending TEXT,
+  updated_at TEXT NOT NULL
+);
+`,
+  },
 ];
 
 export type Db = Client;
