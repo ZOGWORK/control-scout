@@ -1,7 +1,7 @@
 // The pure parts of the frame reader (scripts/video-frames.ts): the overlay's match, the timer's elapsed time, and
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
-import { dataRows, divisionOf, elapsed, overlayDivision, leadIn, LEAD_IN_S, judge, NOTHING_READ, overlayLabel, secondsOf, startOffset, playedCount, type M } from "./videoFrames";
+import { dataRows, divisionOf, elapsed, overlayDivision, leadIn, LEAD_IN_S, judge, NOTHING_READ, overlayLabel, secondsLoose, secondsOf, startOffset, playedCount, type M } from "./videoFrames";
 
 describe("the frame reader", () => {
   it("names the match the overlay shows, and nothing else", () => {
@@ -17,6 +17,13 @@ describe("the frame reader", () => {
   it("reads a timer", () => {
     expect(secondsOf("2:25")).toBe(145);
     expect(secondsOf(" 0:07\n")).toBe(7);
+    // FIRST AGE's white box: its thin colon dropped ("117" is 1:17); anything else as secondsOf, never two readings in one.
+    expect(secondsLoose("117\n")).toBe(77);
+    expect(secondsLoose("1:04")).toBe(64);
+    expect(secondsLoose("052")).toBe(52);
+    expect(secondsLoose("1578")).toBeNull();
+    expect(secondsLoose("12")).toBeNull();
+    expect(secondsLoose("317")).toBeNull();
     expect(secondsOf("2:75")).toBeNull();
     expect(secondsOf("")).toBeNull();
   });
