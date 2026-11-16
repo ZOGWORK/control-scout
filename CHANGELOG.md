@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.8.9 — 2026-11-15
+## 6.9.0 — 2026-11-16
 
 Events › Today's coin flips shows only matches still to play, and nothing at all when it's switched off.
 
@@ -26,6 +26,9 @@ Events › Today's coin flips shows only matches still to play, and nothing at a
 
 ### Changed
 - Events: Today's coin flips no longer lists the matches already decided ("Decided today") or counts them; once every coin flip of the day has been played the section leaves the page, as on a day with none. Switched off by the owner, it shows nothing at all (no "switched off for now" note), and the page's first HTML says so, so not even its heading shows while the page loads. (`src/components/home/CoinFlipRadar.tsx`, `src/shared/coinFlips.ts`, `server/seo.ts`) (#1591)
+
+## 6.8.9 — 2026-11-15
+
 Speed › a slow search no longer makes every other page wait: the server takes turns between its reads.
 
 ### Highlights
