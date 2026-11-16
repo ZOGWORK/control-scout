@@ -61,7 +61,7 @@ const qualNumber = (label: string) => { const m = /^Q(\d+)$/.exec(label); return
  * an earlier match, or count fewer played). `order`: the event's played matches in time order. Null where the frames
  * prove nothing about it (no edge read, or the match sits inside what the recording shows).
  */
-export function outsideRecording(row: Pick<FrameTiming, "opensOn" | "endsOn" | "starts" | "review" | "earlyStart">, label: string, order: string[]): string | null {
+export function outsideRecording(row: Pick<FrameTiming, "opensOn" | "endsOn"> & Partial<Pick<FrameTiming, "starts" | "review" | "earlyStart">>, label: string, order: string[]): string | null {
   const i = order.indexOf(label), q = qualNumber(label);
   // An edge counts only where everything else the frames saw in the video agrees with it: a first frame can show a
   // bracket, a schedule or the day before's last card, so one naming M7 while Q2 is read an hour in proves nothing.
