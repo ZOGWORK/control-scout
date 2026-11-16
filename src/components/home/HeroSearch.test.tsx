@@ -178,6 +178,23 @@ describe("HeroSearch", () => {
     expect(chips().some((b) => b.textContent?.startsWith("4215 Hypnotic"))).toBe(true);
   });
 
+  it("a team name that never comes holds the first draw no longer than ACCOUNT_WAIT_MS: its chips draw by number, and the name swaps in if it comes", () => {
+    myTeam = 4215;
+    summary = { loading: true };
+    const { rerender } = show();
+    const list = screen.getByRole("list", { name: "Example searches" });
+    expect(list.className).toContain("invisible");
+    act(() => { vi.advanceTimersByTime(ACCOUNT_WAIT_MS); });
+    expect(list.className).not.toContain("invisible");
+    const own = chips().map((b) => b.textContent ?? "").filter((t) => t.startsWith("4215"));
+    expect(own).toHaveLength(2);
+    expect(own.some((t) => t.includes("Hypnotic"))).toBe(false);
+    summary = { loading: false, data: { teams: [{ team: 4215, name: "Hypnotic Robotics" }] } };
+    rerender(<MemoryRouter initialEntries={["/"]}><HeroSearch inputRef={null} onEscape={() => {}} hint="Ctrl K" /><Where /></MemoryRouter>);
+    expect(list.className).not.toContain("invisible");
+    expect(chips().some((b) => b.textContent?.startsWith("4215 Hypnotic"))).toBe(true);
+  });
+
   it("waits no longer than ACCOUNT_WAIT_MS for the account, and not at all once it's known signed out", () => {
     account = { here: true, syncReady: false, user: null, providers: null };
     show();

@@ -45,8 +45,8 @@ export const heroPlaceholder = (s: HomeSuggestion) => `Try “${s.q}”`;
 
 const NONE: HomeSuggestion[] = [];
 
-/** The longest the chips wait for a signed-in device's account copy (My team may arrive with it): past this they draw
- *  from what the device has. */
+/** The longest the chips' first draw waits for a signed-in device's account copy (My team may arrive with it) and the
+ *  team's name: past this they draw from what the device has. */
 export const ACCOUNT_WAIT_MS = 2500;
 
 /** The visitor's own team's chips (teamSuggestions): none without a team (My team). The team's name comes from the
@@ -54,7 +54,7 @@ export const ACCOUNT_WAIT_MS = 2500;
  *  alone.
  *  `pending` holds only the first draw (the list keeps its rows, hidden): until the team's name is in and, on a device
  *  synced with an account, until the account's copy is in (its My team may differ from the device's), the account is
- *  known to be gone, it can't be reached, or ACCOUNT_WAIT_MS has passed. So the chips draw once, with the team's among
+ *  known to be gone, it can't be reached, or ACCOUNT_WAIT_MS has passed (then by number, if the name isn't in). So the chips draw once, with the team's among
  *  them. Once drawn they never hide again: a later change (My team set or changed, a sign-in) keeps the chips shown
  *  until the new team's name is in, then swaps them once. */
 export function useMyTeamChips(): { mine: HomeSuggestion[]; pending: boolean } {
@@ -63,19 +63,23 @@ export function useMyTeamChips(): { mine: HomeSuggestion[]; pending: boolean } {
   // Read at the first draw, the only one it holds.
   const [accountHere] = useState(hasAccountOnDevice);
   const settling = accountHere && !syncReady && !offlineAccount && !(providers && !user) && sync !== "error" && sync !== "offline";
-  const [waited, setWaited] = useState(false);
-  useEffect(() => {
-    if (!settling) return;
-    const t = setTimeout(() => setWaited(true), ACCOUNT_WAIT_MS);
-    return () => clearTimeout(t);
-  }, [settling]);
   const season = useCurrentSeason();
   const info = useApi<{ teams: TeamSummary[] }>(team ? `/api/teams-summary${qs({ season, teams: String(team) })}` : null);
+  const nameLoading = !!team && info.loading;
   const name = info.data?.teams?.find((t) => t.team === team)?.name ?? null;
   const fresh = useMemo(() => (team ? teamSuggestions(team, name) : NONE), [team, name]);
   // The chips last drawn: null until the first draw.
   const [shown, setShown] = useState<HomeSuggestion[] | null>(null);
-  const ready = !(team && info.loading) && (shown !== null || !(settling && !waited));
+  // The first draw waits at most ACCOUNT_WAIT_MS, for the account and the name alike: a request that hangs draws the
+  // team's chips by number, and its name swaps in if it comes.
+  const holding = shown === null && (settling || nameLoading);
+  const [waited, setWaited] = useState(false);
+  useEffect(() => {
+    if (!holding) return;
+    const t = setTimeout(() => setWaited(true), ACCOUNT_WAIT_MS);
+    return () => clearTimeout(t);
+  }, [holding]);
+  const ready = shown !== null ? !nameLoading : !holding || waited;
   if (ready && shown !== fresh) setShown(fresh);
   return { mine: ready ? fresh : shown ?? NONE, pending: shown === null && !ready };
 }
