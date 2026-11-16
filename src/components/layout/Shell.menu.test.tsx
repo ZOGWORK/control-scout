@@ -120,7 +120,11 @@ describe("the phone's top bar and tab bar", () => {
     const { sheet } = await openMenu();
     expect(button.getAttribute("aria-expanded")).toBe("true");
     const pages = within(sheet).getByRole("navigation", { name: "All pages" });
-    for (const name of ["Home", "Events", "Teams", "Rankings", "Power rankings", "Predict", "Compare", "Shortlist", "Scout", "Offline"]) expect(within(pages).getByRole("link", { name })).toBeTruthy();
+    for (const name of ["Home", "Events", "Teams", "Rankings", "Predict", "Compare", "Shortlist", "Scout", "Offline"]) expect(within(pages).getByRole("link", { name })).toBeTruthy();
+    // Rankings' own pages wait behind its arrow.
+    expect(within(pages).queryByRole("link", { name: "Power rankings" })).toBeNull();
+    fireEvent.click(within(pages).getByRole("button", { name: "Show more rankings" }));
+    for (const name of ["Region rankings", "Leagues", "Power rankings"]) expect(within(pages).getByRole("link", { name })).toBeTruthy();
     // How it works opens to its two pages (Predictions, FTC One Search) instead of being one.
     expect(within(pages).getByRole("button", { name: "How it works" }).getAttribute("aria-expanded")).toBe("false");
   });
@@ -189,12 +193,56 @@ describe("the desktop sidebar", () => {
     fireEvent.click(more);
     expect(more.getAttribute("aria-expanded")).toBe("true");
     expect(morePages().hidden).toBe(false);
-    for (const name of ["Power rankings", "Compare", "Shortlist", "Offline"]) expect(within(morePages()).getByRole("link", { name })).toBeTruthy();
+    // In this order; the three rankings pages live under Rankings' arrow, not here.
+    expect(within(morePages()).getAllByRole("link").map((l) => l.textContent)).toEqual(["Compare", "Shortlist", "Rules", "Offline"]);
+    expect(within(morePages()).queryByRole("link", { name: "Power rankings" })).toBeNull();
     expect(within(morePages()).getByRole("button", { name: "How it works" })).toBeTruthy();
     // Settings is the footer's gear alone; What's new sits in the footer, in view with More folded.
     expect(within(morePages()).queryByRole("link", { name: "Settings" })).toBeNull();
     expect(within(morePages()).queryByRole("button", { name: /What's new/ })).toBeNull();
     expect(localStorage.getItem("cs-nav-more")).toBe("1");
+  });
+
+  const rankingsArrow = () => within(sidebar()).getByRole("button", { name: /more rankings$/ });
+  const rankingsPages = () => document.getElementById(rankingsArrow().getAttribute("aria-controls")!)!;
+
+  it("Rankings' arrow, and only the arrow, shows Region rankings, Leagues and Power rankings", async () => {
+    wide(true);
+    shell();
+    expect(rankingsArrow().getAttribute("aria-expanded")).toBe("false");
+    expect(rankingsPages().hidden).toBe(true);
+    // Going to Rankings leaves them folded.
+    fireEvent.click(within(sidebar()).getByRole("link", { name: "Rankings" }));
+    await waitFor(() => expect(where).toBe("/rankings"));
+    expect(rankingsPages().hidden).toBe(true);
+    fireEvent.click(rankingsArrow());
+    expect(rankingsArrow().getAttribute("aria-expanded")).toBe("true");
+    expect(rankingsArrow().getAttribute("aria-label")).toBe("Hide more rankings");
+    expect(within(rankingsPages()).getAllByRole("link").map((l) => l.textContent)).toEqual(["Region rankings", "Leagues", "Power rankings"]);
+    fireEvent.click(rankingsArrow());
+    expect(rankingsPages().hidden).toBe(true);
+  });
+
+  it("stays folded on a rankings sub-page, with Rankings' icon lit instead", () => {
+    wide(true);
+    shell("/power-rankings");
+    expect(rankingsArrow().getAttribute("aria-expanded")).toBe("false");
+    const rankings = within(sidebar()).getByRole("link", { name: "Rankings" });
+    expect(rankings.getAttribute("aria-current")).toBeNull();
+    expect(rankings.querySelector("svg")!.getAttribute("class")).toContain("text-accent");
+    // More doesn't open for it either: Power rankings isn't one of its pages any more.
+    expect(moreButton().getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("Escape inside the open rankings list folds it and returns focus to the arrow", () => {
+    wide(true);
+    shell();
+    fireEvent.click(rankingsArrow());
+    const leagues = within(rankingsPages()).getByRole("link", { name: "Leagues" });
+    act(() => leagues.focus());
+    fireEvent.keyDown(leagues, { key: "Escape" });
+    expect(rankingsArrow().getAttribute("aria-expanded")).toBe("false");
+    expect(document.activeElement).toBe(rankingsArrow());
   });
 
   it("Escape inside the open More group folds it and returns focus to its toggle", () => {
