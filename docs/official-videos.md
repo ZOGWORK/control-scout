@@ -179,6 +179,9 @@ minutes and starts a run only when the last one is 6 hours old, so a deploy does
     meetings (a council, a committee, a legislature), keynotes and conference sessions, Robot in 30 Hours and robot
     reveals, recaps, ranking and prediction shows, gaming-league streams, FRC (by name or by its games: REBUILT,
     REEFSCAPE, CRESCENDO, …), FLL, FGC, VEX, drones, simulators (UrSim, xRC);
+  - a team's robot video: "Snapshot", "Reveal" or "Robot showcase" beside a team number (3 to 5 digits, not a year)
+    in a title that names no event ("Compact Differential Swerve Drive | 23334 Axiom | FTC BIOBUZZ Snapshot"). The
+    title settles it, so it needs no facts;
   - a video under 45 minutes, whatever event it fits: a clip or highlight, never a day's recording (the owner can
     still add it as a highlight from the set-aside list);
   - a video that doesn't play here: private, unlisted, embedding off, or blocked in 50 or more countries;
@@ -261,7 +264,9 @@ channel's whole uploads list, video by video, with Scout's records. It reads onl
   - Each channel's whole list is read once a week, the channel read longest ago first. A video no longer on the list
     at a full read is marked gone (`gone_at`).
   - Facts are read once per video, and only for one that may be a competition and that Scout has no record of. The
-    watcher's own adds have their facts read every run.
+    watcher's own adds have their facts read every run. A facts call that fails (a 5xx, a timeout) is tried once
+    more in the same run; if it fails again, or answers a 4xx (which a second try wouldn't change), its 50 videos are
+    read next run.
 - **Quota.** About 1 unit per channel a run (63 units), plus 1 per 50 new uploads that need facts. The weekly full
   reads add about 700 units a week: 34,447 uploads on 63 channels, measured 2026-11-15. That comes to under 600 units
   a day. An audit uses at most 800 units (`AUDIT_MAX_UNITS`), and what it doesn't reach waits for the next run.

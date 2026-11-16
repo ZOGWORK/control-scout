@@ -38,13 +38,17 @@ const YT_LINK = /(?:v=|youtu\.be\/|\/live\/|\/embed\/)([A-Za-z0-9_-]{11})/g;
 
 type Fetch = typeof fetch;
 class QuotaError extends Error {}
+/** YouTube answered with an error status: status says whether trying again could help (a 5xx) or not (a 4xx). */
+class AnswerError extends Error { constructor(message: string, readonly status: number) { super(message); } }
+/** Whether a failed call is worth one more try: a 5xx, a timeout or a network error, never a 4xx (a bad key, a bad request). */
+const transient = (e: unknown) => !(e instanceof QuotaError) && (!(e instanceof AnswerError) || e.status >= 500);
 async function api(path: string, params: Record<string, string>, key: string, fetchImpl: Fetch): Promise<any> {
   const res = await fetchImpl(`${API}/${path}?${new URLSearchParams({ ...params, key })}`, { signal: AbortSignal.timeout(20_000) });
   if (res.ok) return res.json();
   let reason = "";
   try { reason = String((await res.json())?.error?.errors?.[0]?.reason ?? ""); } catch { /* no body */ }
   if (/quotaExceeded|dailyLimitExceeded|rateLimitExceeded/.test(reason)) throw new QuotaError(`YouTube quota used up (${reason})`);
-  throw new Error(`YouTube ${path} answered ${res.status}${reason ? ` (${reason})` : ""}`);
+  throw new AnswerError(`YouTube ${path} answered ${res.status}${reason ? ` (${reason})` : ""}`, res.status);
 }
 
 export interface AuditRun {
@@ -179,12 +183,25 @@ export async function runChannelAudit(log: (s: string) => void, opts: { apiKey?:
       const ids = needFacts.slice(i, i + 50);
       out.units++;
       let body: any;
-      try {
-        body = await api("videos", { part: "snippet,contentDetails,status,liveStreamingDetails", id: ids.join(","), maxResults: "50" }, key, fetchImpl);
-      } catch (e) {
-        // One failed call (a 5xx, a timeout) leaves these without facts, read again next run; the rest of the audit goes on.
-        if (e instanceof QuotaError) throw e;
-        factsError ??= `facts of ${ids.length} videos couldn't be read: ${String((e as Error).message ?? e).slice(0, 200)}`;
+      // A failed call (a 5xx, a timeout) is tried once more in this run, a unit allowing: the 50 videos it holds, one
+      // waiting in the owner's review among them, would otherwise wait for the next run, hours away.
+      let failed: unknown = null;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        if (attempt) { if (out.units >= maxUnits) break; out.units++; }
+        try {
+          body = await api("videos", { part: "snippet,contentDetails,status,liveStreamingDetails", id: ids.join(","), maxResults: "50" }, key, fetchImpl);
+          failed = null;
+          break;
+        } catch (e) {
+          if (e instanceof QuotaError) throw e;
+          failed = e;
+          // A 4xx answers the same again (a bad key, a bad request): no second try, no unit spent on one.
+          if (!transient(e)) break;
+        }
+      }
+      if (failed) {
+        // Still failing: these stay without facts, read again next run; the rest of the audit goes on.
+        factsError ??= `facts of ${ids.length} videos couldn't be read: ${String((failed as Error).message ?? failed).slice(0, 200)}`;
         continue;
       }
       const got = new Set<string>();
