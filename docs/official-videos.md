@@ -179,6 +179,9 @@ minutes and starts a run only when the last one is 6 hours old, so a deploy does
     meetings (a council, a committee, a legislature), keynotes and conference sessions, Robot in 30 Hours and robot
     reveals, recaps, ranking and prediction shows, gaming-league streams, FRC (by name or by its games: REBUILT,
     REEFSCAPE, CRESCENDO, …), FLL, FGC, VEX, drones, simulators (UrSim, xRC);
+  - a team's robot video: "Snapshot", "Reveal" or "Robot showcase" beside a team number (3 to 5 digits, not a year)
+    in a title that names no event ("Compact Differential Swerve Drive | 23334 Axiom | FTC BIOBUZZ Snapshot"). The
+    title settles it, so it needs no facts;
   - a video under 45 minutes, whatever event it fits: a clip or highlight, never a day's recording (the owner can
     still add it as a highlight from the set-aside list);
   - a video that doesn't play here: private, unlisted, embedding off, or blocked in 50 or more countries;
