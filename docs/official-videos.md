@@ -87,7 +87,11 @@ exceptions rules 2 and 7 name for the checked list only, and the auto-watcher us
    (Romania's Finals & awards stream).
 5. Where the title names a day, the days follow the broadcast dates in order (an event listed with a setup day first
    has its "Day 1" on its second date; that offset must be the same, or keep increasing, across the event's videos).
-   Where the title names a weekday or a date, it must be the broadcast's.
+   Where the title names a weekday or a date, it must be the broadcast's. The one exception: a live broadcast whose
+   title's date is a slip, a day or a month off (NYC FIRST's "Championships 2/3/24" streamed on 3/3, NTX's "Meet #3
+   (2025.01.11)" streamed on 01-18), when the event the title names by its own words or number doesn't run on the
+   title's date at all. The broadcast's date is YouTube's record; the title's is typed. A year off, or an event that
+   also runs on the title's date (a re-stream of its other day), stays for the owner.
 6. The title fits exactly one Scout event. Two events that fit equally (two league meets that day, AM and PM halves of
    one meet) mean the video is left out.
 7. The event doesn't already play a video for that day: FIRST's link, a short link's video, a channel's broadcasts, or
@@ -319,8 +323,15 @@ applied by `server/videos/videoDecisions.ts` once a process after the checked li
 question is whether the watcher could have decided it from the same evidence; if so, the rule is taught instead, and
 the entry is left out. Each entry says what the rules say on their own (`rulesSay`): the cases left need the video
 itself (frames: an overlay naming the event, an FRC field, one field of two), its description (the date of an
-undated upload), or which Scout event a title means when the names differ. The file is empty until those judgement
-cases are added.
+undated upload), or which Scout event a title means when the names differ. 134 entries are left (78 link, 7 reject,
+49 set aside), of the 395 videos decided on 2026-11-16; the rules decide the other 261 the same way.
+
+Taught to the rules from those decisions (each a group of 5 or more decided one way, and checked to add nothing a
+decision turned down): an NTX league pair's tournament ("C&N-League Tournament" is Scout's "C&N Tournament"); one meet
+over two same-day meets told apart only by a letter or AM and PM (two events in one video); an undated upload of a
+multi-day event, a ceremony alone or one division's stream (which day, or which division, can't be told); a title
+naming no event when every event that day was played remotely (2020-21: no matches played together); "FTC Events" for a
+date (that day's several events in one video); and a broadcast whose title's date is a slip (rule 5).
 Each entry is one video: **link** (to an event, its venue-local day, and a part only when the video's own title names
 one), **reject** (not FTC: FRC, FLL, FGC, a simulator, a meeting, a webinar, with which) or **set aside** (FTC, but not
 a day's recording Scout can play: a clip, unplayable here, a second copy of a day that already plays, two events or
