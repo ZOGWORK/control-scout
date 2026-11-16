@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 7.0.4 — 2026-11-16
+## 7.0.5 — 2026-11-16
 
 Videos › the frame reader checks a clip's opening on the exact second the clip opens, so no clip starts on a frame just before its match's overlay.
 
@@ -26,6 +26,18 @@ Videos › the frame reader checks a clip's opening on the exact second the clip
 
 ### Fixed
 - Videos: a clip opening's frame is read paused at its own second; read playing, it was about a second later than the second recorded, so a clip could open on the frame just before the overlay (LTCMP 2024 Q20 at 8948, a sponsor slate; read paused it opens at 8951). Timer reads still play. (`scripts/video-frames.ts`) (#1618)
+
+## 7.0.4 — 2026-11-16
+
+Videos › 2024 recordings of events N to USH read frame by frame: 295 more matches get a clip that opens where the frame names the match.
+
+### Highlights
+- [fixes] 295 more 2024 matches get a clip read off the video
+- [fixes] Each new clip opens where the frame names its match
+- [fixes] No clip already playing is taken away or moved
+
+### Fixed
+- Videos: 11 of the 2024 season's recordings (events N to USH) read with the frame reader of 7.0.1: 295 matches placed where their frames show them, each clip opening where its overlay names it; no live clip changes. The rest of 2024 follows in its own releases. (`server/data/frameTimings.ts`) (#1616)
 
 ## 7.0.3 — 2026-11-16
 
