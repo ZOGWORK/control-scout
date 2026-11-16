@@ -641,3 +641,11 @@ describe("with video (search video brief, point 5)", () => {
     expect(await parse("6980 opr with video")).toMatchObject({ withVideo: true, complete: false });
   });
 });
+
+describe("\"top\" before a count with another measure said (failed-search #1563)", () => {
+  it("is the count's word only; a highest said too stays, and a phrase starting \"most\" is never a highest", async () => {
+    expect(await parse("top 10 closest match in decode")).toMatchObject({ intent: "close-matches", agg: "closest", n: 10, complete: true });
+    expect(await parse("top 5 most accurate predictions")).toMatchObject({ intent: "accurate-matches", agg: "min", n: 5, complete: true });
+    expect((await parse("top 10 highest scores in decode")).symbols).toContain("agg:max");
+  });
+});

@@ -10,7 +10,8 @@ import type { StatAnswer } from "../../../src/shared/searchStat";
 
 const NOW = Date.parse("2026-03-18T12:00:00Z");
 const stat = async (q: string) => (await searchAnswer(q, { limit: 25, full: true, now: NOW })).stat as StatAnswer;
-const rowsOf = (s: StatAnswer): unknown[] => s.blocks.flatMap((b): unknown[] => (b.kind === "matches" || b.kind === "table" ? b.rows : []));
+/** The table rows' cells, in the order shown. */
+const cellsOf = (s: StatAnswer) => s.blocks.flatMap((b) => (b.kind === "table" ? b.rows.map((r) => r.cells) : []));
 
 beforeAll(async () => {
   const c = openDb(":memory:");
@@ -57,7 +58,7 @@ describe("closest matches as searched", () => {
       expect(s?.intent, q).toBe("find-closest");
       expect(s.title, q).toMatch(/^Closest matches/);
       // Every decided and tied match at official events, closest first: the tie, then 5, then 110.
-      expect(rowsOf(s).length, q).toBe(3);
+      expect(cellsOf(s).map((c) => [c.value, c.score]), q).toEqual([["Tie", "100–100"], ["5-point margin", "520–515"], ["110-point margin", "610–500"]]);
     }
   });
   it("a bare score after the closest: both alliances over it, said on the card (#1564)", async () => {
@@ -65,5 +66,9 @@ describe("closest matches as searched", () => {
     expect(s?.intent).toBe("find-closest");
     expect(s.scope).toContain("Both alliances scored over 500");
     expect(s.headline?.value).toBe("5-point margin");
+    // Over 500 is strictly over: the 610–500 match, its blue alliance on exactly 500, is left out, so 520–515 is all.
+    expect(s.headline?.sub).toContain("Red 520");
+    expect(cellsOf(s)).toEqual([]);
+    expect(s.source).toMatch(/^From 1 played match /);
   });
 });

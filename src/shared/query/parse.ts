@@ -306,6 +306,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
   let rate = false;
   /** Where "top" stood before a count ("top 10"), read as the count's word when another measure is said. */
   let topAt: number | null = null;
+  const maxFrom: number[] = [];
   const p: Parsed = {
     q: raw, teams: [], event: null, place: null, time, level: null, finals: false, eventKind: null, alliance: null, worlds: false, states: false, award: null, agg: null,
     n: null, matchNumber: null, noPenalties: false, symbols: [], intent: null, rule: null, leftover: [], unexplained: [], complete: false,
@@ -505,6 +506,8 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     const e = lexAt(i);
     if (!e) continue;
     e.words.forEach((_, j) => (toks[i + j].used = true));
+    // Where each phrase read as the highest starts: "top" before a count is told apart from another highest said.
+    if (e.syms.some((s) => s.k === "agg" && s.v === "max")) maxFrom.push(i);
     // A stat said not to go by ("by rating, not OPR"): dropped with its "not". Stats only: "did not win" keeps its win.
     if (i > 0 && !toks[i - 1].used && toks[i - 1].w === "not" && e.syms.every((s) => s.k === "metric" && NOT_STATS.has(s.v))) { toks[i - 1].used = true; (p.notStats ??= []).push(e.words.map((_, j) => toks[i + j].typed).join(" ")); (p.notMetrics ??= []).push(...e.syms.map((s) => `metric:${s.k === "metric" ? s.v : ""}`)); continue; }
     // A colour read as an alliance can start a team's name typed nearly right ("blue megalodns"): step 4 may take it back.
@@ -530,8 +533,8 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
   }
   // "Top 10 closest matches": "top" before a count only says how many when another measure follows it, never the
   // highest as well. Its "max" is dropped, so the measure said is the one read.
-  const saysMax = (w: string) => LEXICON.some((e) => e.words.length === 1 && e.words[0] === w && e.syms.some((s) => s.k === "agg" && s.v === "max"));
-  if (topAt != null && symbols.has("agg:max") && !toks.some((t, k) => k !== topAt && saysMax(t.w))) {
+  // Only the phrases actually read count: "most" in "most accurate" is that phrase's, never a highest of its own.
+  if (topAt != null && symbols.has("agg:max") && maxFrom.every((k) => k === topAt)) {
     const other = [...symbols].find((s) => s.startsWith("agg:") && s !== "agg:max");
     if (other) { symbols.delete("agg:max"); p.agg = other.slice(4) as Parsed["agg"]; }
   }
