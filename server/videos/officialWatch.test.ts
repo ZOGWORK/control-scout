@@ -335,6 +335,16 @@ describe("the official-video watcher", () => {
     uploads = [{ id: "brazosaward", title: "FiT Brazos Qualifier - Awards", published: "2026-02-01T04:00:00Z", start: "2026-01-31T22:30:00Z", minutes: 60 }];
     expect(await runOfficialWatch(() => {}, { apiKey: "k", fetchImpl: fakeFetch, now: () => LATER + 10 * 864e5 })).toMatchObject({ seen: 1, added: 0, queued: 1 });
     expect(await get<any>("SELECT status, why FROM official_watch WHERE video_id = 'brazosaward'")).toMatchObject({ status: "pending", why: expect.stringMatching(/USTXBRQ already plays brazosfull1 for 2026-01-31: a second video of that day must name its part/) });
+
+    // The day's video YouTube no longer plays (the stream was deleted and streamed again): it holds no day, the new
+    // broadcast is added and the dead one comes off the event.
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, timezone, remote, hybrid, livestream, source) VALUES (2025, 'USTXPLQ', 'TX Plano Qualifier', 'Qualifier', 'Plano', 'TX', 'USA', '2026-02-07', '2026-02-07', 'America/Chicago', 0, 0, NULL, 'test')");
+    await run("INSERT INTO official_videos (video_id, season, code, kind, day, part, channel_id, title, source, added_at) VALUES ('planodeleted', 2025, 'USTXPLQ', 'recording', '2026-02-07', NULL, ?, 'TX Plano Qualifier', 'list', 'x')", [TX]);
+    await run("INSERT INTO video_meta (video_id, status, checked_at) VALUES ('planodeleted', 'unavailable', 'x')");
+    uploads = [{ id: "planoagain1", title: "FiT Plano Qualifier", published: "2026-02-08T04:00:00Z", start: "2026-02-07T15:00:00Z" }];
+    expect(await runOfficialWatch(() => {}, { apiKey: "k", fetchImpl: fakeFetch, now: () => LATER + 20 * 864e5 })).toMatchObject({ seen: 1, added: 1, queued: 0 });
+    expect(await get<any>("SELECT code, day, removed_at FROM official_videos WHERE video_id = 'planoagain1'")).toMatchObject({ code: "USTXPLQ", day: "2026-02-07", removed_at: null });
+    expect((await get<any>("SELECT removed_at FROM official_videos WHERE video_id = 'planodeleted'")).removed_at).toBeTruthy();
   });
 
   it("pages back through a channel's uploads to a stream scheduled before the watch, and stops at the lookback", async () => {
