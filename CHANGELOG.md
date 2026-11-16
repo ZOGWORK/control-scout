@@ -17,19 +17,15 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 
 ## 6.9.4 — 2026-11-16
 
-Event videos › 155 more event recordings play, and the official-videos watcher decides what it can by itself, so nothing waits on the owner.
+Events › Today's coin flips shows only matches still to play, and nothing at all when it's switched off.
 
 ### Highlights
-- [history] 155 more event recordings play, each checked from the video
-- [fixes] A meet whose stream was deleted and uploaded again plays the new upload
-- [fixes] FRC streams, meetings and simulators stay off FTC event pages
+- [fixes] Coin flips switched off leaves no trace on Events
+- [live] Today's coin flips lists only matches still to play
+- [appearance] The section leaves Events once every coin flip is played
 
-### Event videos
-- The watcher sets aside what the facts settle instead of sending it to review: a clip under 45 minutes, a video that doesn't play here, a broadcast with no Scout event that day or a day either side, one field's or one named division's stream of an event Scout keeps whole, and more titles that aren't FTC competitions (coach calls, Coaches Corners, meetings, keynotes, Robot in 30 Hours, recaps, gaming leagues, prediction shows, FRC's game names, UrSim and xRC). (`server/videos/officialMatch.ts`) (#1602)
-- Uploads match like broadcasts on the one date their title says ("January 17, 2026", "12_17_23", "Tournament 12/13"), or, with no date, on a one-day event they went up within 14 days of, when the title says the event's whole name. A title naming two meets is two events. "Morning", "Afternoon" and "Before/After lunch" are parts; "Qualification & Playoff matches" is the whole day. (`server/videos/officialMatch.ts`)
-- The channel audit decides the review queue and the watcher's set-aside videos again every run with today's rules, and adds what passes every check of the watcher's, as the watcher would. (`server/videos/officialAudit.ts`, migration 93)
-- What the rules can't decide (frames, descriptions, or which event a title means) is decided from evidence: 192 videos, each with what the rules say on their own and the evidence it rests on. Of the 395 waiting on 2026-11-16 (69 in review, 323 audit findings and 3 found since), the rules decide the other 203 the same way. (`server/data/videoDecisions.ts`, `server/videos/videoDecisions.ts`)
-- A day's video YouTube no longer plays holds no day: a new broadcast of it is added and the dead one comes off. A title date like 12.17.23 is read as December 17. (`server/videos/officialWatch.ts`, `server/videos/officialMatch.ts`)
+### Changed
+- Events: Today's coin flips no longer lists the matches already decided ("Decided today") or counts them; once every coin flip of the day has been played the section leaves the page, as on a day with none. Switched off by the owner, it shows nothing at all (no "switched off for now" note), and the page's first HTML says so, so not even its heading shows while the page loads. (`src/components/home/CoinFlipRadar.tsx`, `src/shared/coinFlips.ts`, `server/seo.ts`) (#1591)
 
 ## 6.9.3 — 2026-11-16
 

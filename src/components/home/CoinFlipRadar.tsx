@@ -1,12 +1,11 @@
 // The Events page's coin-flip radar: today's closest calls across every event on today at its venue
-// (server/api/coinFlips.ts). Still to play first, as cards with a zoomed 40–60% meter so a 52:48 call
-// reads at a glance; then the ones already decided, with their results. Each opens its match page.
+// (server/api/coinFlips.ts): the ones still to play, as cards with a zoomed 40–60% meter so a 52:48 call
+// reads at a glance. Each opens its match page. Once none are left to play, the section goes.
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowUpRight, Coins, PowerOff } from "lucide-react";
+import { Coins } from "lucide-react";
 import { isFeatureDisabled, useApi } from "../../lib/api";
 import { useFlag } from "../../lib/flags";
-import { featureOffMessage } from "../../shared/flags";
 import { useMediaQuery } from "../../lib/meta";
 import { ago } from "../../lib/format";
 import { COIN_FLIPS_META, coinFlipHref, hasFlips, type CoinFlipRadar, type CoinFlipRow } from "../../shared/coinFlips";
@@ -15,10 +14,9 @@ import { TierMark } from "../predict";
 import { cn } from "../cn";
 import { tierPhrase } from "../../shared/tierWords";
 
-/** Cards shown before "Show all" (fewer on a phone, where they stack), and decided rows before "All decided". */
+/** Cards shown before "Show all" (fewer on a phone, where they stack). */
 const FIRST_UPCOMING = 6;
 const FIRST_UPCOMING_PHONE = 3;
-const FIRST_DECIDED = 3;
 
 /** "10:05 AM" at the venue: FIRST's event-local wall time as it reads; a zoned timestamp (as the fallback
  *  source stores them) is read in the venue's zone. */
@@ -141,31 +139,6 @@ function FlipCard({ r, closest }: { r: CoinFlipRow; closest: boolean }) {
   );
 }
 
-function DecidedRow({ r }: { r: CoinFlipRow }) {
-  const res = r.result!;
-  const winner = res.red > res.blue ? "red" : res.blue > res.red ? "blue" : null;
-  const fav = favourite(r.pRed), odds = printedOdds(r.pRed);
-  const call = fav ? `${fav === "red" ? "Red" : "Blue"} ${odds[fav]}%` : "50:50";
-  const verdict = !winner ? "a tie" : !fav ? "a true coin flip" : winner === fav ? "the call held" : "the other side won";
-  return (
-    <li>
-      <Link to={coinFlipHref(r)} className="group flex flex-wrap items-center gap-x-3 gap-y-1 py-2.5 text-sm focus-visible:outline-2 focus-visible:outline-ring">
-        <span className="rounded-md bg-text-base/10 px-1.5 py-0.5 font-mono text-xs font-semibold">{r.label}</span>
-        <span className="min-w-0 flex-1 basis-40 truncate group-hover:text-accent-text" title={r.eventName}>{r.eventName}</span>
-        <span className="flex items-center gap-1.5 font-mono font-semibold tabular-nums">
-          <span className={cn("text-red-alliance", winner === "blue" && "opacity-60")}>{res.red}</span>
-          <span className="text-text-muted">–</span>
-          <span className={cn("text-blue-alliance", winner === "red" && "opacity-60")}>{res.blue}</span>
-        </span>
-        <span className="inline-flex flex-wrap items-center gap-x-1.5 text-xs text-text-muted">
-          called {call} before the match <TierMark tier={r.tier} /> · {verdict}
-        </span>
-        <ArrowUpRight className="size-4 shrink-0 text-text-muted group-hover:text-accent-text" aria-hidden />
-      </Link>
-    </li>
-  );
-}
-
 /** An open home page keeps up: results come in and the next match moves up while someone watches. */
 export const REFRESH_MS = 60_000;
 
@@ -181,28 +154,21 @@ function useRadarRefresh(reload: () => void) {
   }, [reload]);
 }
 
-/** Nothing renders on a day with no coin flips, or when they couldn't load (a stale radar stays up through a
+/** Nothing renders on a day with no coin flips left to play, when switched off, or when they couldn't load (a stale radar stays up through a
  *  failed refresh); the skeleton holds the place while loading, unless the page's HTML said today has none. `className` (the page's spacing) goes on the
  *  section, so a hidden section leaves no gap. */
 export function CoinFlipRadarSection({ className }: { className?: string }) {
-  // Switched off by the owner (the coinFlips feature toggle): not asked for, and a short note in its place.
+  // Switched off by the owner (the coinFlips feature toggle): not asked for, and nothing in its place, so a
+  // visitor never learns the feature exists.
   const on = useFlag("coinFlips");
   const state = useApi<CoinFlipRadar>(on ? "/api/home/coin-flips" : null);
   useRadarRefresh(state.reload);
   const [allUp, setAllUp] = useState(false);
-  const [allDone, setAllDone] = useState(false);
   const first = useMediaQuery("(max-width: 639px)") ? FIRST_UPCOMING_PHONE : FIRST_UPCOMING;
   const r = state.data;
   const closest = useMemo(() => (r ? closestKey(r.upcoming) : null), [r]);
   const up = r ? (allUp ? r.upcoming : r.upcoming.slice(0, first)) : [];
-  const done = r ? (allDone ? r.decided : r.decided.slice(0, FIRST_DECIDED)) : [];
-  if (!on || isFeatureDisabled(state.error)) {
-    return (
-      <p role="status" className={cn("flex items-center gap-2 text-sm text-text-muted", className)}>
-        <PowerOff className="size-4 shrink-0" aria-hidden /> {featureOffMessage("coinFlips")}
-      </p>
-    );
-  }
+  if (!on || isFeatureDisabled(state.error)) return null;
   if ((state.error && !r) || (r && !hasFlips(r))) return null;
   // A day the page already knows has none: no placeholder while it loads, so the page below doesn't jump up after.
   if (!r && !flipsExpected()) return null;
@@ -220,7 +186,7 @@ export function CoinFlipRadarSection({ className }: { className?: string }) {
         </div>
         {r && (
           <span className="shrink-0 rounded-lg border border-accent/40 bg-accent/10 px-2.5 py-1 text-xs font-medium tabular-nums text-accent-text">
-            {r.upcoming.length} to play{r.decided.length ? ` · ${r.decided.length} decided` : ""}
+            {r.upcoming.length} to play
           </span>
         )}
       </div>
@@ -229,27 +195,13 @@ export function CoinFlipRadarSection({ className }: { className?: string }) {
           <ul aria-busy="true" className="grid gap-3 @2xl/radar:grid-cols-2 @5xl/radar:grid-cols-3">{[0, 1, 2].map((i) => <li key={i} className="h-[7.5rem] rounded-xl border border-line" />)}</ul>
         ) : (
           <>
-            {!up.length && <p className="rounded-xl border border-dashed border-line px-4 py-4 text-sm text-text-muted">Every coin flip on today’s schedules has been played. The results are below.</p>}
-            {up.length > 0 && (
-              <ul className="grid gap-3 @2xl/radar:grid-cols-2 @5xl/radar:grid-cols-3">
-                {up.map((x) => <FlipCard key={`${x.code}|${x.key}`} r={x} closest={r.upcoming.length > 1 && closest === `${x.code}|${x.key}`} />)}
-              </ul>
-            )}
+            <ul className="grid gap-3 @2xl/radar:grid-cols-2 @5xl/radar:grid-cols-3">
+              {up.map((x) => <FlipCard key={`${x.code}|${x.key}`} r={x} closest={r.upcoming.length > 1 && closest === `${x.code}|${x.key}`} />)}
+            </ul>
             {r.upcoming.length > first && (
               <Button variant="secondary" size="sm" className="mt-3 max-sm:h-10" aria-expanded={allUp} onClick={() => setAllUp((v) => !v)}>
                 {allUp ? "Show fewer" : `Show all ${r.upcoming.length} to play`}
               </Button>
-            )}
-            {r.decided.length > 0 && (
-              <div className="mt-4">
-                <h3 className="text-sm font-semibold">Decided today</h3>
-                <ul className="mt-1 divide-y divide-line border-y border-line">{done.map((x) => <DecidedRow key={`${x.code}|${x.key}`} r={x} />)}</ul>
-                {r.decided.length > FIRST_DECIDED && (
-                  <Button variant="secondary" size="sm" className="mt-3 max-sm:h-10" aria-expanded={allDone} onClick={() => setAllDone((v) => !v)}>
-                    {allDone ? "Show fewer" : `All ${r.decided.length} decided`}
-                  </Button>
-                )}
-              </div>
             )}
             <p className="mt-3 text-xs text-text-muted">
               Each call is the one on its match page: logged before the match (and scored in the public record) or, until it’s logged, from today’s ratings. Updated {ago(r.generatedAt)}.
