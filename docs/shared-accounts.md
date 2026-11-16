@@ -897,6 +897,40 @@ the browser's cookie, and signs the person in by that email:
   tab, since Google's sign-in returns to another page), which reads the state
   from the cookie.
 
+## Profile pictures
+
+Any account can have a profile picture (Settings → Profile → Profile picture), and it is the same picture in both
+apps: set or removed in either, it changes in the other. Control Point keeps the shared account's picture;
+Scout keeps a copy (`user_avatars`, migration 92) and serves it from its own address, so a page never needs
+Control Point to show one. Code: `server/auth/avatars.ts`, with the Control Point calls in `server/auth/controlPoint.ts`.
+
+Control Point's side of the contract:
+
+| route | body | result |
+|---|---|---|
+| (every account answer) | | `account.avatar`: `{ id }` (opaque, new with every picture) or `null`. Missing on an older Control Point. |
+| `GET /internal/accounts/:id/avatar` | | `200` image bytes, `Content-Type` PNG/JPEG/WebP/GIF, header `X-Avatar-Id`; `404 { error: "no_avatar" }` |
+| `PUT /internal/accounts/:id/avatar` | raw image, `Content-Type: image/png\|jpeg\|webp`, ≤ 512 KB | `200 { avatar: { id } }`; `400 invalid_image`, `413 too_large`, `404` |
+| `DELETE /internal/accounts/:id/avatar` | | `200 { ok: true }` |
+
+On Control Point a picture belongs to the account, not one workspace: setting it (there or from Scout) writes the
+account and every active `members` row with its email.
+
+How Scout keeps the two the same:
+
+- **Set or removed in Scout:** stored at once (the app sends a 512 px square, WebP or JPEG, drawn fresh so no
+  photo metadata leaves the device), marked `pending`, then sent to Control Point. If Control Point can't take it
+  now, the next account read (at most a minute later on `/me`) sends it again. Changes for one account go in order.
+- **Set or removed in Control Point:** each account answer names its picture id. When it differs from the id Scout
+  last synced (`cp_id`), Scout fetches the picture, or drops its copy when the answer says `null`.
+- **Never lost:** a pending change goes first, whatever an answer says; an answer asked for before a change made here
+  doesn't undo it; and an older Control Point that sends no `avatar` field changes nothing (missing is never read
+  as removed). A picture set while not linked waits and is sent once the account links.
+- **Serving:** `GET /api/avatars/<user>/<version>`, public (pictures show next to a contributor's name on videos),
+  cached for good: every picture gets a new random version, so a URL always shows the same image and can't be
+  guessed. Uploads are PNG, JPEG or WebP (what Control Point takes; a GIF can only arrive from Control Point). The type is read from the file's first bytes (never the client's word), with `nosniff` and a sandbox CSP.
+- Deleting the Scout account deletes Scout's copy, not the shared account's picture.
+
 ## Not in scope (yet)
 
 - Signing out of Control Point doesn't end Scout sessions (Scout sessions last

@@ -1,9 +1,10 @@
 // The pipeline run end to end on a small database (docs/search-pipeline.md): the slots applied as filters and stated on
 // the card, the same card for every phrasing of one question and every team, a year honoured, a future year said.
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, onTestFinished } from "vitest";
 import { migrate, openDb, run, setDb } from "../../db";
 import { rebuildSearch } from "../../stats/job";
 import { clearAllCaches } from "../../caches";
+import { setFlag } from "../../flags";
 import { searchAnswer } from "../searchAnswer";
 import { namedParts, rewriteQuery } from "../searchCoverage";
 import { names } from "./names";
@@ -543,6 +544,10 @@ describe("forecasts", () => {
     expect((await ask("4215 last 3 predictions at garden qualifier")).stat?.title).not.toBe("Prediction vs result at Garden Qualifier");
   });
   it("a team at a named event: before and after side by side, Predict open on it", async () => {
+    // The saved call's chance (forecast.ts nextChance): with live predictions on, the engine's call takes its place as
+    // soon as the engine, built in the background on the first ask, is ready, which depends on how fast this file runs.
+    const live = await setFlag("livePredictions", false, "test");
+    onTestFinished(() => setFlag("livePredictions", live, "test").then(() => {}));
     for (const q of ["predicted chances of 4215 garden qualifier", "4215 garden qualifier prediction", "garden qualifier forecast for hypnotic robotics"]) {
       const a = await ask(q);
       const s = a.stat as StatAnswer;

@@ -1,7 +1,7 @@
 // The 260-query completion list's two-team, partner and prediction queries (2026-11-04) on a small fixture: each reads
 // as its own question and answers from the stored rows (season numbers, matches, awards, reliability, the stored event
 // projection), with both teams named as data (stat.teams) so no TEAMS card repeats them.
-import { beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { migrate, openDb, run, setDb } from "../../db";
 import { rebuildSearch } from "../../stats/job";
 import { CURRENT_SEASON } from "../../data/seasons";
@@ -112,6 +112,11 @@ describe("reading the 260 list's two-team questions", () => {
 });
 
 describe("the answers", () => {
+  // The ratings alone, said plainly: with live predictions on, the engine built in the background on the first ask
+  // makes the call instead as soon as it's ready, which depends on how fast this file runs.
+  let live = true;
+  beforeAll(async () => { live = await setFlag("livePredictions", false, "test"); });
+  afterAll(async () => { await setFlag("livePredictions", live, "test"); });
   it("predictions name both teams and state the ratings (no ratings built in a test: no made-up score)", async () => {
     for (const q of ["4215 versus 6980 prediction", "6980 versus 4215 who wins", "4215 predicted score against 6980", "4215 expected margin against 6980", "4215 win probability against 6980"]) {
       const a = await ask(q);

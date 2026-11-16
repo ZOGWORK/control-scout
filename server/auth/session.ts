@@ -15,6 +15,8 @@ export interface User {
   username?: string | null;
   /** When the username was last set (ISO), for the once-in-30-days rule. */
   usernameChangedAt?: string | null;
+  /** The profile picture's URL (server/auth/avatars.ts), or null for none. */
+  avatarUrl?: string | null;
 }
 
 export const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
@@ -37,8 +39,13 @@ export async function userForIdentity(provider: string, subject: string, email: 
 }
 
 export async function getUser(id: number): Promise<User | null> {
-  const u = await get<any>("SELECT id, email, display_name, created_at, username, username_changed_at FROM users WHERE id = ?", [id]);
-  return u ? { id: Number(u.id), email: u.email, displayName: u.display_name, createdAt: u.created_at, username: u.username ?? null, usernameChangedAt: u.username_changed_at ?? null } : null;
+  const u = await get<any>(
+    `SELECT u.id, u.email, u.display_name, u.created_at, u.username, u.username_changed_at, a.version avatar_version
+       FROM users u LEFT JOIN user_avatars a ON a.user_id = u.id AND a.data IS NOT NULL WHERE u.id = ?`, [id]);
+  return u ? {
+    id: Number(u.id), email: u.email, displayName: u.display_name, createdAt: u.created_at, username: u.username ?? null, usernameChangedAt: u.username_changed_at ?? null,
+    avatarUrl: u.avatar_version ? `/api/avatars/${Number(u.id)}/${u.avatar_version}` : null,
+  } : null;
 }
 
 /** Start a session; returns its mark (sessionMark). */
@@ -104,7 +111,7 @@ export async function deleteUser(id: number): Promise<void> {
   // does), and whatever was written before is deleted below.
   await run("DELETE FROM users WHERE id = ?", [id]);
   await run("DELETE FROM push_sent WHERE subscription_id IN (SELECT id FROM push_subscriptions WHERE user_id = ?)", [id]);
-  for (const t of ["sessions", "identities", "user_state", "scout_entries", "inbox_items", "push_subscriptions", "digest_prefs", "digest_sends", "commons_mutes"]) await run(`DELETE FROM ${t} WHERE user_id = ?`, [id]);
+  for (const t of ["sessions", "identities", "user_state", "scout_entries", "inbox_items", "push_subscriptions", "digest_prefs", "digest_sends", "commons_mutes", "user_avatars"]) await run(`DELETE FROM ${t} WHERE user_id = ?`, [id]);
   // Their reports in the scouting commons (the note is theirs); a report already acted on leaves its outcome in the audit log.
   await run("DELETE FROM commons_reports WHERE reporter_user_id = ?", [id]);
   // Match videos they added go with the account (gone from everyone's view at once), with the likes and reports on
