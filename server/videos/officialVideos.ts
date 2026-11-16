@@ -16,6 +16,19 @@ export function localDate(iso: string, tz: string | null | undefined): string {
   try { return new Intl.DateTimeFormat("en-CA", { timeZone: tz || "UTC", year: "numeric", month: "2-digit", day: "2-digit" }).format(t); } catch { return t.toISOString().slice(0, 10); }
 }
 
+/**
+ * Why a FIRST event link's video (or the video its short link led to) isn't that event's: YouTube says it was broadcast
+ * on a date outside the event's dates, a day either side, at the venue ("SOAR Meet 2"'s stream given as Meet 3's link).
+ * null when it fits, or when its broadcast start isn't known (an upload, facts not read yet).
+ */
+export function linkAiredOff(ev: { code: string; start: string; end?: string | null; timezone?: string | null }, aired: string | null | undefined): string | null {
+  if (!aired || !ev.start) return null;
+  const day = localDate(aired, ev.timezone);
+  const shift = (d: string, n: number) => new Date(Date.parse(`${d.slice(0, 10)}T00:00:00Z`) + n * 864e5).toISOString().slice(0, 10);
+  const from = shift(ev.start, -1), to = shift(ev.end || ev.start, 1);
+  return day < from || day > to ? `FIRST's link for ${ev.code} was broadcast on ${day}, outside ${ev.code}'s dates (${ev.start.slice(0, 10)}${ev.end && ev.end.slice(0, 10) !== ev.start.slice(0, 10) ? ` to ${ev.end.slice(0, 10)}` : ""}): not used for it` : null;
+}
+
 export type OfficialKind = "recording" | "highlight";
 export interface OfficialVideo {
   season: number; code: string; videoId: string; kind: OfficialKind;
