@@ -195,8 +195,11 @@ describe("the watcher's matcher", () => {
     const m3 = [ev("USTXNEM3", "FiT-North E-League Meet 3", { start: "2025-01-18", end: "2025-01-18", type: "LeagueMeet" })];
     expect(matchVideo(vid("NTX FTC E-League Meet #3 (2025.01.11)", { start: "2025-01-18T17:30:00Z" }), NTX, m3)).toMatchObject({ kind: "add", event: { code: "USTXNEM3" }, day: "2025-01-18" });
     // A two-day event the title's date falls in: a re-stream of its other day, for the owner.
-    const two = [ev("USTXNECMP", "FiT-North Championship", { start: "2025-01-17", end: "2025-01-18", type: "Championship" })];
-    expect(matchVideo(vid("NTX FTC North Championship (2025.01.17)", { start: "2025-01-18T15:00:00Z" }), NTX, two)).toMatchObject({ kind: "review", why: /the title's date 2025-01-17 isn't the broadcast's/ });
+    const two = [ev("USTXNECMP", "FiT-North Lone Star Championship", { start: "2025-01-17", end: "2025-01-18", type: "Championship" })];
+    expect(matchVideo(vid("NTX FTC Lone Star Championship (2025.01.17)", { start: "2025-01-18T15:00:00Z" }), NTX, two)).toMatchObject({ kind: "review", why: /the title's date 2025-01-17 isn't the broadcast's/ });
+    // An event whose name is only region and stop words: the title names it by nothing of its own, so no slip.
+    const bare = [ev("USTXNEC", "FiT-North Championship", { start: "2025-01-18", end: "2025-01-18", type: "Championship", city: "Lone Star" })];
+    expect(matchVideo(vid("NTX FTC Lone Star Championship (2025.01.11)", { start: "2025-01-18T15:00:00Z" }), NTX, bare)).toMatchObject({ kind: "review", why: /the title's date 2025-01-11 isn't the broadcast's/ });
     // An upload's only date is its title's: never overridden.
     expect(matchVideo(vid("NTX FTC E-League Meet #3 (2025.01.11)", { start: null, published: "2025-01-19T09:00:00Z" }), NTX, m3).kind).not.toBe("add");
   });
