@@ -107,8 +107,8 @@ against the frames; a match in none of `starts`, `review`, `missing` or `earlySt
 
 A video where three matches in a row give no read, and nothing has been read yet, counts as one without the overlay
 and is left, after one more go in a fresh player (a player that never showed the stream looks the same). A frame read
-that hangs over 2 minutes fails its video with that reason. Any video gets a budget of 4 reads per match (40 at
-least), confirmations included: a confirmation spends up to seven of them (70 to 140 s in until one agrees, then
+that hangs over 2 minutes fails its video with that reason. Any video gets a budget of 8 reads per match (60 at
+least; a stream cut mid-match spends extra confirming reads), confirmations included: a confirmation spends up to seven of them (70 to 140 s in until one agrees, then
 one 25 s before the start).
 
 ## Where the timings live
