@@ -1037,7 +1037,7 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
         const inOrder = (h: SearchHit) => (fold(h.title).includes(fold(named)) ? 0 : 1);
         const listed = [...evs].sort((a, b) => inOrder(a) - inOrder(b)).slice(0, 10);
         const which = label[0].toUpperCase().replace(/\s+/g, "");
-        return answer(q, { hits: listed, step: "deterministic", understood: { kind: "names", label: `No event is named "${said.join(" ")}" (no event's name has "${said.slice(k).join(" ")}"): events named "${named}", to find ${which} in` } });
+        return answer(q, { hits: listed, step: "deterministic", understood: { kind: "names", label: `No ${which} at "${said.join(" ")}": events named "${named}"` } });
       }
     }
     const ws = words(nameWords(rest, opts.asked));

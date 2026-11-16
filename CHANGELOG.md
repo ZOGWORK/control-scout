@@ -36,11 +36,11 @@ Search › a match asked at an event name with a word no event has lists the eve
 
 ### Highlights
 - [fixes] "Q16 Chicago Meet 2 Westside" lists the Chicago Meet 2 events
-- [fixes] The word no event has is named, so you know what to change
+- [fixes] The heading says what wasn't found, so you know what to change
 - [fixes] Events with the words in order come first, never teams
 
 ### Fixed
-- Search: a match's number with an event name no stored event fits whole ("Q16 Chicago Meet 2 Westside", where no event's name has "Westside") lists the events named by the longest run of its words from the start, those with the words in order first, and says which word fit none; never teams that share a word. (`server/api/searchAnswer.ts`) (#1560)
+- Search: a match's number with an event name no stored event fits whole ("Q16 Chicago Meet 2 Westside", where no event's name has "Westside") lists the events named by the longest run of its words from the start, those with the words in order first, under a heading saying what wasn't found; never teams that share a word. (`server/api/searchAnswer.ts`) (#1560)
 
 ## 6.8.8 — 2026-11-15
 

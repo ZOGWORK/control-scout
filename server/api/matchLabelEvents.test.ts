@@ -26,13 +26,12 @@ beforeAll(async () => {
 });
 
 describe("a match's number at an event named with a word no event has", () => {
-  it("lists the events the other words name, in their order first, and says which word fit none (#1560)", async () => {
+  it("lists the events the other words name, in their order first, under a short heading saying what wasn't found (#1560)", async () => {
     const q = "Q16 Lakeview Meet 2 Westside";
     const a = await searchAnswer(q, { limit: 25 });
     expect(a.hits.every((h) => h.kind === "event")).toBe(true);
     expect(a.hits.slice(0, 2).map((h) => h.title).sort()).toEqual(["Lakeview Meet 2 - Hancock", "Lakeview Meet 2 - Harper 1"]);
-    expect(a.understood?.label).toContain('"Westside"');
-    expect(a.understood?.label).toContain("Q16");
+    expect(a.understood?.label).toBe('No Q16 at "Lakeview Meet 2 Westside": events named "Lakeview Meet 2"');
     expect(failureOf(q, a, outcomeTrace(a))).toBeNull();
   });
 });
