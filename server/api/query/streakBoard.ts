@@ -10,6 +10,9 @@ import { matchHref, shortEvent, teamLinks } from "../answers/matchSet.js";
 import { OFFICIAL_TYPES } from "../../../src/shared/eventRecord.js";
 import { DOUBLE_ELIM_FROM } from "../../../src/shared/bracketOdds.js";
 
+/** Teams read at a time: a read of their matches is a tenth of a second or so (the USA's 14,000 teams: some 55 reads). */
+const TEAMS_PER_READ = 250;
+
 interface Row { team: number; season: number; code: string; level: string; series: number; number: number; label: string; name: string; type: string | null; alliance: string; red_total: number; blue_total: number }
 
 /** Whether the query asks for the streak going now ("right now", "current", "still"), not the longest of the seasons. */
@@ -17,24 +20,35 @@ export const asksNow = (q: string) => /\b(?:now|rn|currently|current|ongoing|act
 
 export async function streakBoardAnswer(o: { region: Region; season: number; now: boolean; losing: boolean; n: number }): Promise<StatAnswer> {
   const want = o.losing ? "L" : "W";
-  const rows = await all<Row>(`SELECT t.team, m.season, m.code, m.level, m.series, m.number, m.label, e.name, e.type, t.alliance, m.red_total, m.blue_total
-    FROM match_teams t JOIN matches m ON m.season = t.season AND m.code = t.code AND m.level = t.level AND m.series = t.series AND m.number = t.number
-    JOIN events e ON e.season = m.season AND e.code = m.code JOIN teams tm ON tm.number = t.team
+  // The place's teams TEAMS_PER_READ at a time, as a range of numbers: rows come ordered by team first, so the reads in turn
+  // give the one read's rows in its order, and each read starts with the event loop let go if it was held
+  // (../../db.ts busyTurn): the whole USA is some 3 s of reads, never one that holds every other request that long.
+  const place = [o.region.country, ...(o.region.state ? [o.region.state] : [])];
+  const numbers = (await all<{ number: number }>(`SELECT number FROM teams WHERE country = ?${o.region.state ? " AND state = ?" : ""} ORDER BY number`, place)).map((r) => Number(r.number));
+  const rows: Row[] = [];
+  for (let i = 0; i < numbers.length; i += TEAMS_PER_READ) for (const r of await all<Row>(`SELECT t.team, m.season, m.code, m.level, m.series, m.number, m.label, e.name, e.type, t.alliance, m.red_total, m.blue_total
+    -- From the region's teams, then each one's matches (match_teams_team_match): SQLite otherwise read every match of
+    -- the two seasons first and kept the region's after, 0.7-1.1 s for Romania's 600 teams with this process held the
+    -- whole time; 0.1 s this way. Each CROSS JOIN keeps that order (an inner join all the same): with plain joins it
+    -- may put the matches first again and scan the teams for each one.
+    FROM teams tm CROSS JOIN match_teams t ON t.team = tm.number
+    CROSS JOIN matches m ON m.season = t.season AND m.code = t.code AND m.level = t.level AND m.series = t.series AND m.number = t.number
+    CROSS JOIN events e ON e.season = m.season AND e.code = m.code
     WHERE m.played = 1 AND m.red_total IS NOT NULL AND m.blue_total IS NOT NULL AND m.red_np IS NOT NULL AND m.blue_np IS NOT NULL AND m.season IN (?, ?)
       -- The one record rule (src/shared/eventRecord.ts recordSql): official in-person events; a qualification no-show
       -- counts and a surrogate match doesn't.
       AND COALESCE(e.remote, 0) = 0 AND e.type IN (${OFFICIAL_TYPES.map(() => "?").join(", ")})
       AND CASE WHEN t.level = 'qual' THEN COALESCE(t.surrogate, 0) = 0 ELSE COALESCE(t.on_field, 1) = 1 END
-      AND tm.country = ?${o.region.state ? " AND tm.state = ?" : ""}
+      AND tm.country = ?${o.region.state ? " AND tm.state = ?" : ""} AND tm.number BETWEEN ? AND ?
     -- A team's own match order (../answers/matchSet.ts teamMatches): by event, a division before the finals it feeds,
     -- then the event's order (qualifications, playoffs by stage; a classic bracket's final, series 0, last: a double
     -- elimination bracket may number from 0, its first match first), never by match time, which a played
     -- match may lack.
     ORDER BY t.team, e.start, t.season, COALESCE(e.division_code, e.code), e.division_code IS NULL, t.code, t.level = 'playoff', t.level = 'playoff' AND t.series = 0 AND t.season < ?, t.series, t.number`,
-    [o.season - 1, o.season, ...OFFICIAL_TYPES, o.region.country, ...(o.region.state ? [o.region.state] : []), DOUBLE_ELIM_FROM]);
+    [o.season - 1, o.season, ...OFFICIAL_TYPES, ...place, numbers[i], numbers[Math.min(i + TEAMS_PER_READ, numbers.length) - 1], DOUBLE_ELIM_FROM])) rows.push(r);
   const result = (r: Row) => (r.red_total === r.blue_total ? "T" : (r.red_total > r.blue_total) === (r.alliance === "red") ? "W" : "L");
   const byTeam = new Map<number, Row[]>();
-  for (const r of rows) byTeam.set(Number(r.team), [...(byTeam.get(Number(r.team)) ?? []), r]);
+  for (const r of rows) { const ms = byTeam.get(Number(r.team)); if (ms) ms.push(r); else byTeam.set(Number(r.team), [r]); }
   // Each team's longest run in the seasons, and its run up to its latest match (both shown: "now" is the second's).
   const longest: { team: number; run: Row[] }[] = [], going: { team: number; run: Row[] }[] = [];
   for (const [team, ms] of byTeam) {
