@@ -85,7 +85,7 @@ export function videoCheck(videoId: string, code: string, label: string, order: 
   const row = frameRow(videoId, code);
   // Not read, or the video couldn't be played (read again on the next run): not checked yet.
   if (!row || row.missing?.[label]?.startsWith(PLAY_FAILED)) return { checked: null };
-  const starts = plausibleStarts(row.starts);
+  const starts = plausibleStarts(row.starts, row.opens);
   const i = order.indexOf(label);
   const near = (step: number) => {
     for (let j = i + step; i >= 0 && j >= 0 && j < order.length; j += step) if (starts[order[j]] != null) return { label: order[j], at: starts[order[j]] };
