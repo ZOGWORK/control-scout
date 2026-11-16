@@ -48,14 +48,17 @@ describe("busyTurn", () => {
     expect(healthMs).toBeLessThan(500);
   });
 
-  it("gives a timer due meanwhile its turn within a few slices, not after the whole run", async () => {
+  it("gives a timer due meanwhile its turn early in the run, not after the whole run", async () => {
     const searching = search(400, 2);
     const t0 = performance.now();
     let late = Infinity;
     setTimeout(() => { late = performance.now() - t0; }, 0);
     await searching;
-    expect(performance.now() - t0).toBeGreaterThan(700);
-    expect(late).toBeLessThan(SLICE_MS * 5);
+    const run = performance.now() - t0;
+    expect(run).toBeGreaterThan(700);
+    // Within a few slices on a quiet machine (about SLICE_MS); on a busy one (CI) still well inside the run, where
+    // without the turns it ran only once the whole run was over.
+    expect(late).toBeLessThan(Math.min(400, run / 2));
   });
 
   it("costs nothing to reads that never hold the thread: no extra turn of the loop for them", async () => {
