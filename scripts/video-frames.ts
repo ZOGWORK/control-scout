@@ -363,6 +363,9 @@ async function readEdges(page: Page, length: number): Promise<{ opensOn?: Edge; 
   return { ...(opensOn ? { opensOn } : {}), ...(endsOn ? { endsOn } : {}) };
 }
 
+/** An edge as the log says it: "M1 at 400 s (no match before it)", "4/23 played at 3 s", "nothing". */
+const saidEdge = (e?: Edge, side = "before") => (e ? `${e.label ?? ""}${e.played != null ? ` ${e.played}/${e.of} played` : ""} at ${e.at} s${e.clear ? ` (no match on screen ${side} it)` : ""}` : "nothing");
+
 /** --bounds: a read row gets its video's edges (opensOn, endsOn), its starts as they were. */
 async function boundsRow(row: FrameTiming, length: number, division: { own: string; others: string[] } | null, log: (s: string) => void): Promise<void> {
   let page: Page | null = null;
@@ -371,8 +374,7 @@ async function boundsRow(row: FrameTiming, length: number, division: { own: stri
     if (division) divisions.set(page, division);
     await open(page, row.videoId);
     const { opensOn, endsOn } = await readEdges(page, length);
-    const said = (e?: Edge) => (e ? `${e.label ?? ""}${e.played != null ? ` ${e.played}/${e.of} played` : ""} at ${e.at} s${e.clear ? " (no match before it)" : ""}` : "nothing");
-    log(`  ${row.videoId}: opens on ${said(opensOn)}, ends on ${said(endsOn)}`);
+    log(`  ${row.videoId}: opens on ${saidEdge(opensOn)}, ends on ${saidEdge(endsOn, "after")}`);
     const { opensOn: _o, endsOn: _e, ...rest } = row;
     keep(`${row.videoId}|${row.code}`, { ...rest, ...(opensOn ? { opensOn } : {}), ...(endsOn ? { endsOn } : {}) });
   } catch (e) {
@@ -701,7 +703,10 @@ async function doCode(code: string): Promise<void> {
         const nothing = !j.placed.size && !j.review.size && [...j.missing.values()].every((w) => w === NOTHING_READ);
         // A re-read (--all) that read nothing at all (a player stuck on an interstitial) keeps what an earlier read placed.
         if (nothing && Object.keys(kept.get(key)?.starts ?? {}).length) log("    nothing read: the earlier read is kept");
-        else keep(key, {
+        else {
+          const edges = await readEdges(page, m.length!);
+          log(`    opens on ${saidEdge(edges.opensOn)}, ends on ${saidEdge(edges.endsOn, "after")}`);
+          keep(key, {
           videoId: v.videoId, code, checked: today,
           starts: Object.fromEntries(sorted.map(([l, p]) => [l, p.t])),
           ...(sorted.some(([, p]) => p.confidence === "medium") ? { medium: sorted.filter(([, p]) => p.confidence === "medium").map(([l]) => l) } : {}),
@@ -710,8 +715,9 @@ async function doCode(code: string): Promise<void> {
           ...(j.earlyStart.size ? { earlyStart: Object.fromEntries(j.earlyStart) } : {}),
           opens: Object.fromEntries(j.opens),
           ...(unread.size ? { unconfirmed: [...unread] } : {}),
-          ...(await readEdges(page, m.length!)),
-        });
+          ...edges,
+          });
+        }
       }
     } catch (e) {
       const why = (e as Error).message.split("\n")[0];
