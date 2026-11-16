@@ -28,6 +28,16 @@ export function overlayLabel(text: string): string | null {
   return named.size === 1 ? `M${[...named][0]}` : null;
 }
 
+/** FTC Live's rankings card counts the matches played so far ("4 / 23 matches played"): the count and the total. */
+export function playedCount(text: string): { played: number; of: number } | null {
+  const m = /(\d{1,3})\s*\/\s*(\d{1,3})\s+matches\s+played/i.exec(text);
+  return m && Number(m[1]) <= Number(m[2]) ? { played: Number(m[1]), of: Number(m[2]) } : null;
+}
+
+/** Seconds from a recording's start (or back from its end) its edge is read at, in turn: the first frame that names a
+ *  match or counts the matches played is the edge (within EDGE_S, server/data/frameTimings.ts). */
+export const EDGE_AT = [3, 20, 45, 75, 110];
+
 /** "2:25" → 145; anything else null. */
 export const secondsOf = (s: string) => { const m = /(\d):([0-5]\d)/.exec(s); return m ? Number(m[1]) * 60 + Number(m[2]) : null; };
 
