@@ -40,6 +40,12 @@ describe("the watcher's matcher", () => {
     expect(matchVideo(vid("Mockingbird Qualifier 1/17/2026"), TX, one).kind).toBe("add");
     expect(matchVideo(vid("Mockingbird Qualifier 17.01.26"), TX, one).kind).toBe("add");
     expect(matchVideo(vid("Mockingbird Qualifier 17.01.27"), TX, one).kind).toBe("review");
+    // Month.day.year with dots ("Finger Lakes Qualifier Afternoon 12.17.23"): read as the one real date it can be,
+    // never as month 17. A day the broadcast isn't still goes to review, saying the real date.
+    expect(matchVideo(vid("Mockingbird Qualifier 01.17.26"), TX, one).kind).toBe("add");
+    expect(matchVideo(vid("Mockingbird Qualifier 01.18.26"), TX, one)).toMatchObject({ kind: "review", why: "the title's date 2026-01-18 isn't the broadcast's (2026-01-17)" });
+    // Numbers that are no date at all aren't a date the broadcast must match.
+    expect(matchVideo(vid("Mockingbird Qualifier 45.33.26"), TX, one).kind).toBe("add");
     // Any weekday the title names must be the broadcast's (2026-01-17 was a Saturday).
     expect(matchVideo(vid("Mockingbird Qualifier - Monday"), TX, one)).toMatchObject({ kind: "review", why: /says monday/ });
     expect(matchVideo(vid("Mockingbird Qualifier - Saturday"), TX, one).kind).toBe("add");
