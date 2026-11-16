@@ -149,6 +149,23 @@ async function timer(page: Page): Promise<{ where: "bottom" | "top"; left: numbe
 
 const now = (page: Page) => page.evaluate(() => document.querySelector("video")!.currentTime);
 
+/** FTC Live's bottom bar's top row, over the timer's row: the event (or division) on its left half, the match
+ *  ("Qualification 8 of 23", "Playoff Match 1") on its right. */
+const LABEL_ROW = { x: 0, y: 548, width: 1280, height: 56 };
+const MATCH_HALF = { ...LABEL_ROW, x: 640, width: 640 };
+/** The match the bottom bar's row names, read on its own: a frame whose whole read names nothing because a busy field
+ *  and crowd threw the page layout off, the bar's line lost with it (USARBEQ 2024 Q8 at 7097 s: the whole frame read a
+ *  jumble, the row alone "Qualification 8 of 23"). The match's half alone: the whole row can lose it too, to the logo
+ *  and event name beside it (USCHSGAQ1 2024 M1 at 19167 s, its half "Playoff Match 1"). A clip opening's check only,
+ *  so a match's placement is read as before. On a shared stream the row has to name this division too, as a whole
+ *  frame's read does. */
+async function labelRow(page: Page, ctx: { own: string; others: string[] } | undefined): Promise<string | null> {
+  const label = overlayLabel((await worker.recognize(await page.screenshot({ clip: MATCH_HALF }))).data.text as string);
+  if (!label || !ctx) return label;
+  const row = (await worker.recognize(await page.screenshot({ clip: LABEL_ROW }))).data.text as string;
+  return overlayDivision(row, ctx.own, ctx.others) === "own" ? label : null;
+}
+
 /** Go to second t. Playing (a timer read needs the clock running), the frame read is about a second on by the time
  *  it's taken (LTCMP 2024 Q20: asked 8948, read 8948.9, the overlay already in). `still`: paused at t, so the frame
  *  read is t's own (a clip opening's check: the second the clip opens at is the frame read). */
@@ -192,7 +209,7 @@ async function readAtOnce(page: Page, t: number, labelOnly = false): Promise<Rea
   const division = ctx ? overlayDivision(text, ctx.own, ctx.others) : undefined;
   // Another division's match on the shared stream: not this event's, whatever its number.
   if (division === "other") return { label: null, start: null, at, text, why: "another division's overlay", division };
-  const label = overlayLabel(text);
+  const label = overlayLabel(text) ?? (labelOnly ? await labelRow(page, ctx) : null);
   if (!label || labelOnly) return { label, start: null, at, text, division };
   const a = await timer(page);
   const atA = await now(page);
