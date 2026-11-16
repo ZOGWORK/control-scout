@@ -15,6 +15,17 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.1.2 — 2026-11-16
+
+Videos › the frame reader reads a busy frame's match name from the overlay's bar alone, so a clip whose opening frame plainly names its match is confirmed even when the crowd and field throw the whole-frame read off.
+
+### Highlights
+- [fixes] Clip openings on busy frames are read from the overlay's bar
+- [fixes] All 9 clips the paused re-check left unread now confirm their match
+
+### Fixed
+- Videos (the frame reader, `scripts/video-frames.ts`): a clip opening whose whole frame names nothing has the right half of FTC Live's bottom bar row read on its own (`labelRow`), where the match's name is all there is; on a shared stream the whole row must also name this division. The paused re-check of 2024 and 2026 left 9 clips already playing unconfirmed, each frame plainly showing its match (USARBEQ 2024 Q8 at 7097 s, "Qualification 8 of 23", read as a jumble whole). With this read all 9 name their match on the 7 events' recordings (USCALACAS1 2026; FPEMITHO, ROSLT, USARBEQ, USCHSCHQ, USCHSGAQ1 2024), and no opening there changes otherwise. Placement reads are unchanged. Clips on the site change only with the data releases that carry these reads.
+
 ## 7.1.1 — 2026-11-16
 
 Event videos › a team's robot Snapshot is set aside by its title, and a YouTube call that times out during the channel audit is tried again at once, so nothing waits in the owner's review for either.
