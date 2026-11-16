@@ -2508,6 +2508,15 @@ CREATE TABLE user_avatars (
 );
 `,
   },
+  {
+    version: 93,
+    name: "channel audit adds",
+    sql: `
+-- The channel audit adds an upload Scout has no record of that passes every check of the watcher's (its event's day
+-- free), as the watcher would (server/videos/officialAudit.ts): how many each run added.
+ALTER TABLE official_audit_runs ADD COLUMN added INTEGER NOT NULL DEFAULT 0;
+`,
+  },
 ];
 
 export type Db = Client;
