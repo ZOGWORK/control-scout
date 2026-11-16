@@ -125,6 +125,15 @@ When FIRST's link is a channel's page (`server/videos/channelStreams.ts`) and tw
 (West Michigan's Meet 5 and Meet 6, both "@firstalumninetworkgrandvalley/streams"), a broadcast whose title names one
 of them by its designator ("Meet 6") is that event's only. A title naming neither stays with both.
 
+FIRST's link (or the video its short link led to) is the event's video only when YouTube's broadcast date fits the
+event, a day either side at the venue (`linkAiredOff`, `server/videos/officialVideos.ts`). One broadcast on another
+date is another event's stream or a test: 2024's USORSOM3 (2025-01-11) was given USORSOM2's stream of 2024-12-14.
+It isn't played for that event, and the channel audit doesn't count it as that event's record, so the video is decided
+like any other upload; the event plays its kept recording if it has one. Owner › Official videos lists each such link
+under "FIRST links not used", with why (nothing to do: FIRST's data, not a decision). A link whose broadcast start
+isn't known yet (an upload, facts not read) is kept. Measured on a copy of the live database (2026-11-16): 6 of 480
+links, among 413 with a known start; a championship's link to one of its divisions' streams that day fits and is kept.
+
 A removed row (`removed_at`) is never written again, so taking a video out sticks.
 
 ## Highlights
