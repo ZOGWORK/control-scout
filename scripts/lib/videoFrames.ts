@@ -24,7 +24,10 @@ export function overlayLabel(text: string): string | null {
   // a result ("Match 6", "Advances to: Playoff Match 8"). A match it says a team advances to is a later one, never the
   // one on screen; of the rest, two different numbers name no one match, so the frame names none (CAONMIQ 2025).
   // A bracket's boxes ("M4 vs A5", "M3 vs A6", "M8") make it one even where its "advances to" line is cut off at the
-  // top (USIAWESTLT 2025 M3: "Playoff Match 5" alone): three different M-numbers, and the frame names no match.
+  // top (USIAWESTLT 2025 M3: "Playoff Match 5" alone): three different M-numbers, and the frame names no match, unless
+  // its header says which is up next ("Up Next  Match 4", CAONMIQ 2025).
+  const next = /Up\s+Next\W+(?:Playoff\s+)?Match\s+(\d{1,2})\b/i.exec(text);
+  if (next) return `M${Number(next[1])}`;
   if (new Set([...text.matchAll(/\bM(\d{1,2})\b/g)].map((m) => m[1])).size >= 3) return null;
   const named = new Set<number>();
   for (const m of text.matchAll(/(advances\s+to:?\s+(?:Playoff\s+)?)?\bMatch\s+(\d{1,2})\b/gi)) if (!m[1]) named.add(Number(m[2]));
