@@ -72,12 +72,13 @@ const { CLIP_LEAD_S, actualStart } = await import("../src/shared/recording.js");
 const { localToUtcMs } = await import("../src/shared/time.js");
 const { FRAME_TIMINGS } = await import("../server/data/frameTimings.js");
 /** --live: what the live site serves, by video and event (its starts). */
-const liveText = (path: string) => {
-  try { return readFileSync(path, "utf8"); } catch (e) { console.error(`--live ${path}: can't be read (${(e as Error).message.split("\n")[0]})`); process.exit(2); }
+const liveRows = (path: string) => {
+  let text: string;
+  try { text = readFileSync(path, "utf8"); } catch (e) { console.error(`--live ${path}: can't be read (${(e as Error).message.split("\n")[0]})`); process.exit(2); }
+  // A truncated or hand-edited row stops the run cleanly, before anything is read.
+  try { return dataRows<{ videoId: string; code: string; starts: Record<string, number> }>(text); } catch (e) { console.error(`--live ${path}: a row doesn't parse (${(e as Error).message.split("\n")[0]})`); process.exit(2); }
 };
-const LIVE = new Map<string, Record<string, number>>(
-  arg("live") ? dataRows<{ videoId: string; code: string; starts: Record<string, number> }>(liveText(arg("live")!)).map((f) => [`${f.videoId}|${f.code}`, f.starts]) : [],
-);
+const LIVE = new Map<string, Record<string, number>>(arg("live") ? liveRows(arg("live")!).map((f) => [`${f.videoId}|${f.code}`, f.starts]) : []);
 // A --live copy that gives no rows (a wrong file) would protect no live clip: stop, as an unknown --codes does.
 if (arg("live") && !LIVE.size) { console.error(`--live ${arg("live")}: no frame timing rows in it (a copy of main's server/data/frameTimings.ts?)`); process.exit(2); }
 type FrameTiming = (typeof FRAME_TIMINGS)[number];
