@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.9.8 — 2026-11-16
+## 6.9.9 — 2026-11-16
 
 Search › a match asked at an event name with a word no event has lists the events the other words name.
 
@@ -26,6 +26,23 @@ Search › a match asked at an event name with a word no event has lists the eve
 
 ### Fixed
 - Search: a match's number with an event name no stored event fits whole ("Q16 Chicago Meet 2 Westside", where no event's name has "Westside") lists the events named by the longest run of its words from the start, those with the words in order first, under a heading saying what wasn't found; never teams that share a word. (`server/api/searchAnswer.ts`) (#1600)
+
+## 6.9.8 — 2026-11-16
+
+Search reads countries, counts and leaders the ways people asked: Taiwan, "in the world", "how many in Australia", "who leads".
+
+### Highlights
+- [fixes] "Top teams in Taiwan" lists Chinese Taipei's teams
+- [fixes] "Teams with the highest OPR in Texas 2024" gets its board
+- [fixes] "How many in Australia" counts both teams and events there
+- [fixes] "Who leads auto in Texas" is the Texas auto OPR board
+
+### Fixed
+- A country's best teams by another of its names ("Top teams in Taiwan", stored as Chinese Taipei): the stored label with the most teams for that country (`src/shared/countries.ts`). With none ranked yet this season, last season's teams, said so in the label. (`server/api/searchCoverage.ts` teamListAnswer)
+- "Teams with the most …", "team with the highest …": "with" after "team" is having it, never a second thing joined on, so everyone's board answers (`src/shared/query/parse.ts`). "Teams with the highest win rate" now gets the win-rate board, as "teams with the most wins" already did.
+- "Who leads <stat>", "who is leading in <stat>": the highest by that stat, everyone's board (`src/shared/query/lexicon.ts`).
+- Counts: "in the world", "worldwide" and the like are everywhere, never a place to look up, with season words after them too; "how many in <place>" (or "in the world") with neither teams nor events said gives both counts, the title naming a season only when both lines share it; a count of one says "1 event", not "1 events". (`server/api/searchCoverage.ts` countAnswer)
+- A country stored under two labels ("eSwatini" and "Eswatini") is counted and listed under both, asked by any of its names. (`server/api/searchCoverage.ts` placeOf) (#1603)
 
 ## 6.9.7 — 2026-11-16
 

@@ -658,3 +658,10 @@ describe("a country's two-letter name (#1587)", () => {
     for (const q of ["tell us the best team", "best team for us", "show us 4215 opr"]) expect((await parse(q)).place, q).toBeNull();
   });
 });
+
+describe("who leads a stat (failed search #1012)", () => {
+  it("'leads' and 'is leading' are the highest by that stat, everyone's board", async () => {
+    expect(await parse("Who leads auto in Texas")).toMatchObject({ intent: "leaderboard", agg: "max", complete: true, leftover: [] });
+    expect(await parse("who is leading in opr in nj")).toMatchObject({ intent: "leaderboard", agg: "max", complete: true });
+  });
+});
