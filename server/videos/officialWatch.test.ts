@@ -7,7 +7,7 @@ import { all, get, migrate, openDb, run, setDb } from "../db";
 import { OFFICIAL_CHANNELS } from "../data/officialChannels";
 import { STARTUP_CYCLE_MS } from "../warm";
 import { release, tryAcquire } from "../data/lock";
-import { WATCH_CHECK_MS, WATCH_FIRST_MS, approveWatched, onRecordingAdded, type RecordingAdded, ownerOfficial, rejectWatched, removeChannel, removeOfficial, resetChannelsSeeded, runOfficialWatch, saveChannel, seedOfficialChannels, watchIfDue } from "./officialWatch";
+import { WATCH_CHECK_MS, WATCH_FIRST_MS, approveWatched, onRecordingAdded, type RecordingAdded, ownerOfficial, rejectWatched, record, removeChannel, removeOfficial, resetChannelsSeeded, runOfficialWatch, saveChannel, seedOfficialChannels, watchIfDue } from "./officialWatch";
 
 const TX = "UCKezDYNRPpAy2_1XRMBWKSw";
 const T0 = Date.parse("2026-01-10T00:00:00Z");
@@ -335,6 +335,30 @@ describe("the official-video watcher", () => {
     uploads = [{ id: "brazosaward", title: "FiT Brazos Qualifier - Awards", published: "2026-02-01T04:00:00Z", start: "2026-01-31T22:30:00Z", minutes: 60 }];
     expect(await runOfficialWatch(() => {}, { apiKey: "k", fetchImpl: fakeFetch, now: () => LATER + 10 * 864e5 })).toMatchObject({ seen: 1, added: 0, queued: 1 });
     expect(await get<any>("SELECT status, why FROM official_watch WHERE video_id = 'brazosaward'")).toMatchObject({ status: "pending", why: expect.stringMatching(/USTXBRQ already plays brazosfull1 for 2026-01-31: a second video of that day must name its part/) });
+
+    // The day's video YouTube no longer plays (the stream was deleted and streamed again): it holds no day, the new
+    // broadcast is added and the dead one comes off the event.
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, timezone, remote, hybrid, livestream, source) VALUES (2025, 'USTXPLQ', 'TX Plano Qualifier', 'Qualifier', 'Plano', 'TX', 'USA', '2026-02-07', '2026-02-07', 'America/Chicago', 0, 0, NULL, 'test')");
+    await run("INSERT INTO official_videos (video_id, season, code, kind, day, part, channel_id, title, source, added_at) VALUES ('planodeleted', 2025, 'USTXPLQ', 'recording', '2026-02-07', NULL, ?, 'TX Plano Qualifier', 'list', 'x')", [TX]);
+    await run("INSERT INTO video_meta (video_id, status, checked_at) VALUES ('planodeleted', 'unavailable', 'x')");
+    uploads = [{ id: "planoagain1", title: "FiT Plano Qualifier", published: "2026-02-08T04:00:00Z", start: "2026-02-07T15:00:00Z" }];
+    expect(await runOfficialWatch(() => {}, { apiKey: "k", fetchImpl: fakeFetch, now: () => LATER + 20 * 864e5 })).toMatchObject({ seen: 1, added: 1, queued: 0 });
+    expect(await get<any>("SELECT code, day, removed_at FROM official_videos WHERE video_id = 'planoagain1'")).toMatchObject({ code: "USTXPLQ", day: "2026-02-07", removed_at: null });
+    expect((await get<any>("SELECT removed_at FROM official_videos WHERE video_id = 'planodeleted'")).removed_at).toBeTruthy();
+
+    // A dead "Matches" video of a day: a whole-day broadcast of that day is added, and the dead part comes off too.
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, timezone, remote, hybrid, livestream, source) VALUES (2025, 'USTXLUQ', 'TX Lubbock Qualifier', 'Qualifier', 'Lubbock', 'TX', 'USA', '2026-02-14', '2026-02-14', 'America/Chicago', 0, 0, NULL, 'test')");
+    await run("INSERT INTO official_videos (video_id, season, code, kind, day, part, channel_id, title, source, added_at) VALUES ('lubbockdead', 2025, 'USTXLUQ', 'recording', '2026-02-14', 'Matches', ?, 'TX Lubbock Qualifier matches', 'list', 'x')", [TX]);
+    await run("INSERT INTO video_meta (video_id, status, checked_at) VALUES ('lubbockdead', 'unavailable', 'x')");
+    uploads = [{ id: "lubbockday1", title: "FiT Lubbock Qualifier", published: "2026-02-15T04:00:00Z", start: "2026-02-14T15:00:00Z" }];
+    expect(await runOfficialWatch(() => {}, { apiKey: "k", fetchImpl: fakeFetch, now: () => LATER + 20.5 * 864e5 })).toMatchObject({ seen: 1, added: 1, queued: 0 });
+    expect((await get<any>("SELECT removed_at FROM official_videos WHERE video_id = 'lubbockdead'")).removed_at).toBeTruthy();
+
+    // A second whole-day video of a day that already plays whole (a re-stream, a second camera): set aside as a
+    // duplicate, never sent to review.
+    uploads = [{ id: "planocopy01", title: "FiT Plano Qualifier (second camera)", published: "2026-02-08T05:00:00Z", start: "2026-02-07T15:10:00Z" }];
+    expect(await runOfficialWatch(() => {}, { apiKey: "k", fetchImpl: fakeFetch, now: () => LATER + 21 * 864e5 })).toMatchObject({ seen: 1, added: 0, queued: 0, duplicates: 1 });
+    expect(await get<any>("SELECT status, why FROM official_watch WHERE video_id = 'planocopy01'")).toMatchObject({ status: "duplicate", why: "duplicate: USTXPLQ already plays planoagain1 for 2026-02-07" });
   });
 
   it("pages back through a channel's uploads to a stream scheduled before the watch, and stops at the lookback", async () => {
@@ -354,5 +378,17 @@ describe("the official-video watcher", () => {
     expect(playlists.filter((p) => p === `UU${TX.slice(2)}`)).toHaveLength(2);
     const seen = new Set((await all<{ video_id: string }>("SELECT video_id FROM official_watch WHERE video_id LIKE 'page%'")).map((r) => r.video_id));
     expect([...seen].sort()).toEqual(["pageonepg1a", "pageonepg1b", "pagetwopg2a"]);
+  });
+});
+
+describe("an add that loses its day", () => {
+  it("goes to the owner's review when another recording took the day as it was added, never counted as added", async () => {
+    // The owner approved another video for the day after the verdict was reached (approval takes no data lock).
+    await run("INSERT INTO official_videos (video_id, season, code, kind, day, part, channel_id, title, source, added_at) VALUES ('ownerpicked', 2025, 'USTXCLASH', 'recording', '2026-01-17', NULL, ?, 'x', 'owner', 'x')", [TX]);
+    const v = { videoId: "lostitsday1", title: "TX Houston Qualifier", start: "2026-01-17T15:00:00Z", published: "2026-01-17T23:00:00Z", durationS: 25200, privacy: "public", embeddable: true, blockedIn: 0 };
+    const put = await record(v, { channelId: TX, title: "Texas FTC" }, { kind: "add", why: "the title names it", event: { season: 2025, code: "USTXCLASH" } as any, day: "2026-01-17", part: null }, v.published, T0);
+    expect(put).toBe(false);
+    expect(await get<any>("SELECT status, code, day, why FROM official_watch WHERE video_id = 'lostitsday1'")).toMatchObject({ status: "pending", code: "USTXCLASH", day: "2026-01-17", why: expect.stringMatching(/^another recording took USTXCLASH's 2026-01-17 as this one was added/) });
+    expect(await get("SELECT 1 FROM official_videos WHERE video_id = 'lostitsday1'")).toBeUndefined();
   });
 });
