@@ -26,6 +26,18 @@ Events › Today's coin flips shows only matches still to play, and nothing at a
 
 ### Changed
 - Events: Today's coin flips no longer lists the matches already decided ("Decided today") or counts them; once every coin flip of the day has been played the section leaves the page, as on a day with none. Switched off by the owner, it shows nothing at all (no "switched off for now" note), and the page's first HTML says so, so not even its heading shows while the page loads. (`src/components/home/CoinFlipRadar.tsx`, `src/shared/coinFlips.ts`, `server/seo.ts`) (#1591)
+Speed › a slow search no longer makes every other page wait: the server takes turns between its reads.
+
+### Highlights
+- [speed] Pages and the connection check answer while a slow search runs
+- [speed] Searches of common words only run in a fraction of the time
+- [speed] Streak boards ("longest winning streak in Romania") answer faster
+
+### Fixed
+- Server: a search made of many quick database reads held the whole server for its run (seconds on an uncached search), so every other visitor's request, and the connection check that said "You're offline", waited behind it. Reads now let other requests in once the server has been busy for 20 ms; on the slowest searches the health check waited a tenth as long (median 3.5 s → 0.3 s), and the searches themselves ran faster. (`server/db.ts`) (#1586)
+- Search: a search of common words only ("teams with highest opr in texas 2024") read every team name's words, all 28,000, before checking whether the name matched at all: 4 of its 7 seconds. It now checks the match first. (`server/api/search.ts`)
+- Search: a place's streak board reads that place's teams and their matches, a few hundred teams at a time, instead of every match of two seasons; the same board, 3–8 times faster in a state or a country, its parts all one moment of the data (a read snapshot) whatever is stored meanwhile. (`server/api/query/streakBoard.ts`, `server/db.ts`)
+- Search: a two-team or alliance prediction made before any match of the season is rated shows the teams' ratings and says no match is rated yet, never a called score of 0–0 or "still loading". (`server/api/answers/families/predict.ts`)
 
 ## 6.8.8 — 2026-11-15
 
