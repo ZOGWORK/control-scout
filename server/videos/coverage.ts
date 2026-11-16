@@ -97,11 +97,14 @@ export function videoCheck(videoId: string, code: string, label: string, order: 
   if (early) return { ...out, earlyStart: early };
   const seen = row.review?.[label];
   if (seen) return { ...out, seenAt: seen.t, found: seen.why };
-  // A read the plausibility check left out (it overlaps another), or whose clip's opening frame was checked and didn't
-  // name it: seen, never placed.
+  // A read seen, never placed: the server plays it, yet no clip (withClips keeps a video's starts only in the order the
+  // matches were played, inOrder in server/videos/recordings.ts: a replay shown in a break, an older misread); or the
+  // plausibility check left it out (it overlaps another); or its clip's opening frame was checked and didn't name it.
   if (row.starts[label] != null) {
-    const overlaps = plausibleStarts(row.starts, row.opens)[label] == null;
-    return { ...out, seenAt: row.starts[label], found: overlaps ? "its read overlaps another match's" : "its clip's opening frame doesn't name it" };
+    const found = starts[label] != null ? "its read breaks the order the matches were played in"
+      : plausibleStarts(row.starts, row.opens)[label] == null ? "its read overlaps another match's"
+      : "its clip's opening frame doesn't name it";
+    return { ...out, seenAt: row.starts[label], found };
   }
   if (row.missing?.[label]) return { ...out, found: row.missing[label] };
   // Read, and none of the event's matches are in it (they're all another of its videos').
