@@ -214,7 +214,9 @@ export function judge(ms: M[], seen: Map<number, number>, shift: number | null, 
     const cut = next != null && placedAt.get(l)!.confidence === "high" && placedAt.get(next)!.confidence === "high" && t + MATCH_S - placedAt.get(next)!.t <= LOSS_S;
     if (next != null && !cut && placedAt.get(next)!.t - t < MATCH_S - SAME_S) {
       bad.add(l); bad.add(next);
-      earlyStart.set(next, { t: placedAt.get(next)!.t, previousEnds: t + MATCH_S });
+      // Only where both starts were read off the video: a start filled from the clock between two reads (medium) shows
+      // nothing about where that match began.
+      if (placedAt.get(l)!.confidence === "high" && placedAt.get(next)!.confidence === "high") earlyStart.set(next, { t: placedAt.get(next)!.t, previousEnds: t + MATCH_S });
     }
   });
   for (const l of bad) { review.set(l, { t: placedAt.get(l)!.t, why: "placed outside the video, out of order, or overlapping the next match" }); placedAt.delete(l); }
