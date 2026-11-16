@@ -641,3 +641,12 @@ describe("with video (search video brief, point 5)", () => {
     expect(await parse("6980 opr with video")).toMatchObject({ withVideo: true, complete: false });
   });
 });
+
+describe("a country's two-letter name (#1587)", () => {
+  it("said with \"the\" before it is the country", async () => {
+    expect((await parse("best team in the us rn")).place).toMatchObject({ kind: "country", country: "USA", typed: "the us" });
+  });
+  it("alone it stays a pronoun, never a place", async () => {
+    for (const q of ["tell us the best team", "best team for us", "show us 4215 opr"]) expect((await parse(q)).place, q).toBeNull();
+  });
+});
