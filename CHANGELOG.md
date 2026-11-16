@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.0.8 — 2026-11-16
+
+Videos › 2024 recordings of events USI to USM read frame by frame: 358 more matches get a clip that opens on a frame naming the match.
+
+### Highlights
+- [fixes] 358 more 2024 matches get a clip read off the video
+- [fixes] Each clip opens on the exact frame that names its match
+- [fixes] No clip already playing is taken away or moved
+
+### Fixed
+- Videos: 12 of the 2024 season's recordings (events USI to USM) read frame by frame, their openings read paused at their own second: 358 matches placed where their frames show them, each clip opening on a frame whose overlay names it; 17 whose opening frame named nothing are left out (3 of them newly, read paused). No live clip changes. (`server/data/frameTimings.ts`) (#1621)
+
 ## 7.0.7 — 2026-11-16
 
 Videos › the frame reader checks each clip's opening on the exact frame it would open on, and never drops a clip already playing unless a frame shows another match. The corrected openings follow in the data releases.
