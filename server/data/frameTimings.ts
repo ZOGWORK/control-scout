@@ -64,12 +64,12 @@ export function plausibleStarts(starts: Record<string, number>, opens?: Record<s
 }
 
 /** A row's starts that can be clips: plausible, and, where its clip openings were checked, only those that open on
- *  their match. */
-const playable = (f: FrameTiming) => {
+ *  their match. The one reading the server plays from and Owner › Clip coverage reports (server/videos/coverage.ts). */
+export const playableStarts = (f: FrameTiming): Record<string, number> => {
   const s = plausibleStarts(f.starts, f.opens);
   return f.opens ? Object.fromEntries(Object.entries(s).filter(([l]) => f.opens![l] != null || f.unconfirmed?.includes(l))) : s;
 };
-const keyed = () => new Map(FRAME_TIMINGS.map((f) => [`${f.videoId}|${f.code}`, playable(f)]));
+const keyed = () => new Map(FRAME_TIMINGS.map((f) => [`${f.videoId}|${f.code}`, playableStarts(f)]));
 let opensByKey: Map<string, Record<string, number>> | null = null;
 
 /** The second a framed match's clip opens at, where its opening was checked (its overlay names it there), else null. */
@@ -115,7 +115,7 @@ export function frameEarlyStart(videoId: string, code: string, label: string): {
 /** How sure a framed start is: "high" read off its own frames, "medium" filled between two agreeing reads. */
 export function frameConfidence(videoId: string, code: string, label: string): "high" | "medium" | null {
   const f = FRAME_TIMINGS.find((x) => x.videoId === videoId && x.code === code);
-  if (!f || playable(f)[label] == null) return null;
+  if (!f || playableStarts(f)[label] == null) return null;
   return f.medium?.includes(label) ? "medium" : "high";
 }
 
