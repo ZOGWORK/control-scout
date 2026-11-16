@@ -135,7 +135,8 @@ async function recordingsAdded(added: RecordingAdded[], log: (s: string) => void
 /** An "add" checked against what the event already plays: the same video or day and part is a duplicate; another
  *  video of a day it already plays, unless both name their parts, or one whose day isn't known yet, sends it to review. */
 export async function settle(v: Verdict & { kind: "add" }): Promise<WatchVerdict> {
-  const has = await eventVideosByDay(v.event.season, v.event.code);
+  // A video YouTube no longer plays (deleted or made private: a stream re-uploaded under a new id) holds no day.
+  const has = (await eventVideosByDay(v.event.season, v.event.code)).filter((h) => !h.gone);
   const at = { event: v.event, day: v.day, part: v.part };
   const same = has.find((h) => h.day === v.day && (h.part ?? null) === (v.part ?? null));
   if (same) return { kind: "duplicate", why: `duplicate: ${v.event.code} already plays ${same.videoId} for ${v.day}${v.part ? ` (${v.part})` : ""}`, ...at };
@@ -311,7 +312,9 @@ export async function guessFor(v: WatchVideo, rule: ChannelRule): Promise<NonNul
   return bestGuess(v, rule, events);
 }
 
-async function record(v: WatchVideo, ch: ChannelRow, verdict: WatchVerdict, published: string | null, now: number): Promise<void> {
+/** A verdict written: the watcher's row, and for an add the recording on its event. by: who added it (the watcher, or
+ *  the channel audit for one older than the watcher's window that passes every check: server/videos/officialAudit.ts). */
+export async function record(v: WatchVideo, ch: Pick<ChannelRow, "channelId" | "title">, verdict: WatchVerdict, published: string | null, now: number, by: "watcher" | "channel audit" = "watcher"): Promise<void> {
   const at = new Date(now).toISOString();
   // An event the verdict names, else (in review or set aside) the best guess: the owner's form starts from it.
   const ev = (verdict.kind === "ignore" ? null : verdict.event ?? null) ?? verdict.guess?.event ?? null;
@@ -321,12 +324,17 @@ async function record(v: WatchVideo, ch: ChannelRow, verdict: WatchVerdict, publ
   const writes = [{
     sql: `INSERT INTO official_watch (video_id, channel_id, title, start, published, duration, status, season, code, day, part, why, guess_why, seen_at, decided_at, decided_by)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(video_id) DO NOTHING`,
-    args: [v.videoId, ch.channelId, v.title, v.start, published, v.durationS, status, ev?.season ?? null, ev?.code ?? null, day, part, verdict.why, verdict.guess?.why ?? null, at, verdict.kind === "add" ? at : null, verdict.kind === "add" ? "watcher" : null] as (string | number | null)[],
+    args: [v.videoId, ch.channelId, v.title, v.start, published, v.durationS, status, ev?.season ?? null, ev?.code ?? null, day, part, verdict.why, verdict.guess?.why ?? null, at, verdict.kind === "add" ? at : null, verdict.kind === "add" ? by : null] as (string | number | null)[],
   }];
+  // The day's slot held only by a recording YouTube no longer plays (settle let it through): that one comes off first.
   if (verdict.kind === "add") writes.push({
+    sql: `UPDATE official_videos SET removed_at = ? WHERE season = ? AND code = ? AND kind = 'recording' AND removed_at IS NULL AND day = ? AND COALESCE(part, '') = COALESCE(?, '')
+            AND video_id IN (SELECT video_id FROM video_meta WHERE status = 'unavailable')`,
+    args: [at, verdict.event.season, verdict.event.code, verdict.day, verdict.part],
+  }, {
     sql: `INSERT INTO official_videos (video_id, season, code, kind, day, part, channel_id, title, source, why, added_at, added_by)
           VALUES (?, ?, ?, 'recording', ?, ?, ?, ?, 'watcher', ?, ?, NULL) ON CONFLICT(video_id) DO NOTHING`,
-    args: [v.videoId, verdict.event.season, verdict.event.code, verdict.day, verdict.part, ch.channelId, v.title, `watcher: ${ch.title}; ${verdict.why}`, at],
+    args: [v.videoId, verdict.event.season, verdict.event.code, verdict.day, verdict.part, ch.channelId, v.title, `${by}: ${ch.title}; ${verdict.why}`, at],
   });
   await db().batch(writes, "write");
 }
