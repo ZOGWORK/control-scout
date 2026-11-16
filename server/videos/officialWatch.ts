@@ -325,12 +325,14 @@ export async function record(v: WatchVideo, ch: Pick<ChannelRow, "channelId" | "
           WHERE excluded.status = 'added' AND official_watch.status IN ('pending', 'ignored')`,
     args: [v.videoId, ch.channelId, v.title, v.start, published, v.durationS, status, ev?.season ?? null, ev?.code ?? null, day, part, verdict.why, verdict.guess?.why ?? null, at, verdict.kind === "add" ? at : null, verdict.kind === "add" ? by : null] as (string | number | null)[],
   }];
-  // The day's slot held only by a recording YouTube no longer plays (settle let it through): that one comes off first.
+  // The day's slot held only by recordings YouTube no longer plays (settle let it through): those come off first. Each
+  // one this add would have clashed with, were it playable: the same part, or either of them the whole day.
   if (verdict.kind === "add") writes.push({
-    sql: `UPDATE official_videos SET removed_at = ? WHERE season = ? AND code = ? AND kind = 'recording' AND removed_at IS NULL AND day = ? AND COALESCE(part, '') = COALESCE(?, '')
+    sql: `UPDATE official_videos SET removed_at = ? WHERE season = ? AND code = ? AND kind = 'recording' AND removed_at IS NULL AND day = ?
+            AND (COALESCE(part, '') = COALESCE(?, '') OR part IS NULL OR ? IS NULL)
             AND video_id IN (SELECT video_id FROM video_meta WHERE status = 'unavailable')
             AND EXISTS (SELECT 1 FROM official_watch WHERE video_id = ? AND status = 'added')`,
-    args: [at, verdict.event.season, verdict.event.code, verdict.day, verdict.part, v.videoId],
+    args: [at, verdict.event.season, verdict.event.code, verdict.day, verdict.part, verdict.part, v.videoId],
   }, {
     // Only when its watch row says added (new, or decided again from review or set aside): never over an owner's decision.
     sql: `INSERT INTO official_videos (video_id, season, code, kind, day, part, channel_id, title, source, why, added_at, added_by)
