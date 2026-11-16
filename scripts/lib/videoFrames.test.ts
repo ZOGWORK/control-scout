@@ -202,3 +202,15 @@ describe("a recording cut mid-match", () => {
     expect(startOffset(3848, 3990)).toBe("other");
   });
 });
+
+describe("a full-screen card naming several matches", () => {
+  // CAONMIQ 2025 (FHaZsGfUE68): the bracket card before M4 at 22183 s, and M6's result card at 23505 s.
+  it("names the match on screen, never one a team advances to, and none where two are named", () => {
+    expect(overlayLabel("Up Next  Match 4\nAlliance 2  VS  Alliance 3\nM1 A4 vs A5  M3 A1 vs A4\nWinner advances to Playoff Match 7\nLoser advances to Playoff Match 6\nM7 A1 vs M4")).toBe("M4");
+    expect(overlayLabel("Match Results  Match 6\nWINNER  Alliance 3 95  Alliance 5 41\nAdvances to:\nPlayoff Match 8\nWill be Red Alliance\nScan for detailed Match 6 results")).toBe("M6");
+    expect(overlayLabel("Match 4  Match 7")).toBeNull();
+    // The running bar's own playoff name still reads (ROCMPVLC's "Playoff Match 11").
+    expect(overlayLabel("onship - VLAICU Division  Romania C  Playoff Match 11")).toBe("M11");
+    expect(overlayLabel("Mississauga Qualifier  Match 10  2:30")).toBe("M10");
+  });
+});
