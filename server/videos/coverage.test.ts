@@ -240,4 +240,15 @@ describe("clipCoverage, a match between two of a day's recordings (USFLFNLT)", (
     ]);
     expect(clipCoverage(ms, rec, rec, "America/New_York", NOW).matches[0].why).toBe(`${GAP}; not yet checked against either video`);
   });
+
+  it("a read the server would play but that breaks the played order (a replay in a break): said so, never blamed on its opening", () => {
+    // Q1 read after Q2–Q4, though it was played first: the played order keeps Q2, Q3, Q4 and leaves Q1 out.
+    setFrameTimingsForTests([
+      { videoId: "afaqqytUvDU", code: "USFLFNLT", checked: "2026-11-16", starts: {} },
+      { videoId: "nm-LnMVtCJM", code: "USFLFNLT", checked: "2026-11-16", starts: { Q2: 100, Q3: 260, Q4: 420, Q1: 700 }, opens: { Q2: 88, Q3: 248, Q4: 408, Q1: 688 } },
+    ]);
+    const q1 = clipCoverage(ms, rec, rec, "America/New_York", NOW).matches[0];
+    expect(q1.clip).toBe(false);
+    expect(q1.video).toMatchObject({ seenAt: 700, found: "its read breaks the order the matches were played in" });
+  });
 });
