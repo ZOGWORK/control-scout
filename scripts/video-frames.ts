@@ -128,6 +128,9 @@ const TIMERS = [
   { where: "bottom" as const, clip: { x: 565, y: 175, width: 150, height: 68 } },
   // The bottom bar shrunk to 90% inside black side bars, raised off the bottom edge (ROCMPCND's Friday stream at Q2).
   { where: "bottom" as const, clip: { x: 580, y: 606, width: 120, height: 52 } },
+  // The timer alone in a white box between the scores, a gamepad icon above it and Auto's dots below (FIRST AGE's bar,
+  // USNMCMP 2025): with the icon in the crop the OCR reads "1:04" as "11040", so only the digits' row is read.
+  { where: "bottom" as const, clip: { x: 585, y: 651, width: 110, height: 38 } },
 ];
 
 /** The timer's reading. `auto`: whether a reading of 0:30 or less is Auto, told by readAt. */
