@@ -278,8 +278,8 @@ describe("the channel audit", () => {
 
   it("tries a failed facts call once more in the same run: a clip in the owner's review is set aside now", async () => {
     const id = "retryclip01";
-    uploads.unshift({ id, title: "Compact Swerve Drive | 99999 Testers | FTC BIOBUZZ Snapshot", published: "2026-02-22T14:00:00Z", start: null, minutes: 1 });
-    await run("INSERT INTO official_watch (video_id, channel_id, title, published, duration, status, why, seen_at) VALUES (?, ?, 'Compact Swerve Drive | 99999 Testers | FTC BIOBUZZ Snapshot', '2026-02-22T14:00:00Z', 60, 'pending', 'an upload, not a live broadcast', 'x')", [id, TX]);
+    uploads.unshift({ id, title: "Compact Swerve Drive | 99999 Testers | FTC Intake Explainer", published: "2026-02-22T14:00:00Z", start: null, minutes: 1 });
+    await run("INSERT INTO official_watch (video_id, channel_id, title, published, duration, status, why, seen_at) VALUES (?, ?, 'Compact Swerve Drive | 99999 Testers | FTC Intake Explainer', '2026-02-22T14:00:00Z', 60, 'pending', 'an upload, not a live broadcast', 'x')", [id, TX]);
     failVideos = 1;
     try {
       const out = await audit(Date.parse("2026-02-23T06:00:00Z"));
