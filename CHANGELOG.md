@@ -15,6 +15,20 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 6.9.7 — 2026-11-16
+
+Search › closest matches answer at an event named, as a top 10, and above a score.
+
+### Highlights
+- [fixes] "Closest match in <event>" lists that event's closest matches
+- [fixes] "Top 10 closest match" lists the ten closest, not the highest
+- [fixes] "Closest match above 500": both alliances over 500, said on the card
+
+### Fixed
+- Search: a closest match asked at an event named by its name or its initials ("closest match in multinational tech invitational", "closes match in mti") lists that event's matches, closest first, an off-season event included. (`server/api/query/execute.ts`, `src/shared/query/lexicon.ts`) (#1566, #1567)
+- Search: "top 10 closest match in decode" reads "top" as the count's word when the closest is said, so the closest matches are listed, never the highest-scoring. (`src/shared/query/parse.ts`) (#1563)
+- Search: a bare score ending a closest match's question ("closest match in decode above 500") is both alliances' scores over it, stated on the card as "Both alliances scored over 500". (`src/shared/query/parse.ts`, `src/shared/query/intents.ts`) (#1564)
+
 ## 6.9.6 — 2026-11-16
 
 Search › a team's number shows the team, with no "Questions with video" about other events.
