@@ -642,11 +642,26 @@ describe("with video (search video brief, point 5)", () => {
   });
 });
 
+describe("\"top\" before a count with another measure said (failed-search #1563)", () => {
+  it("is the count's word only; a highest said too stays, and a phrase starting \"most\" is never a highest", async () => {
+    expect(await parse("top 10 closest match in decode")).toMatchObject({ intent: "close-matches", agg: "closest", n: 10, complete: true });
+    expect(await parse("top 5 most accurate predictions")).toMatchObject({ intent: "accurate-matches", agg: "min", n: 5, complete: true });
+    expect((await parse("top 10 highest scores in decode")).symbols).toContain("agg:max");
+  });
+});
+
 describe("a country's two-letter name (#1587)", () => {
   it("said with \"the\" before it is the country", async () => {
     expect((await parse("best team in the us rn")).place).toMatchObject({ kind: "country", country: "USA", typed: "the us" });
   });
   it("alone it stays a pronoun, never a place", async () => {
     for (const q of ["tell us the best team", "best team for us", "show us 4215 opr"]) expect((await parse(q)).place, q).toBeNull();
+  });
+});
+
+describe("who leads a stat (failed search #1012)", () => {
+  it("'leads' and 'is leading' are the highest by that stat, everyone's board", async () => {
+    expect(await parse("Who leads auto in Texas")).toMatchObject({ intent: "leaderboard", agg: "max", complete: true, leftover: [] });
+    expect(await parse("who is leading in opr in nj")).toMatchObject({ intent: "leaderboard", agg: "max", complete: true });
   });
 });

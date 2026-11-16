@@ -37,7 +37,7 @@ import { intentAnswer, parseIntent } from "./searchIntents.js";
 import { inRegion, namedTeamHit, teamsByName } from "./teamsByName.js";
 import { parseQuestion, questionAnswer } from "./searchQuestions.js";
 import { highScoreAnswer, parseHighScore } from "./searchHighScores.js";
-import { eventVersusSearch, leagueSearch, statAnswer } from "./answers/index.js";
+import { eventFit, eventVersusSearch, leagueSearch, statAnswer } from "./answers/index.js";
 import { divisionFieldAnswer, oprPhaseOf, readDivisionField, type EventRow } from "./answers/families/eventVersus.js";
 import { seasonOfDate } from "./query/time.js";
 import { WATCH_TAKERS } from "./query/intents.js";
@@ -55,7 +55,7 @@ import { fold, names } from "./query/names.js";
 import { initialismEvent } from "./query/initialisms.js";
 import { ORDINARY } from "../../src/shared/query/ordinary.js";
 import { eventPlace, normalise, parseQuery } from "./query/parse.js";
-import { parseContext } from "./query/context.js";
+import { EVENT_FIT, parseContext } from "./query/context.js";
 import { pickShared, whichLine } from "./query/shared.js";
 import { withPage } from "./answers/teamsNamed.js";
 import { asideWord, asksWhich, onlyOrdinary } from "./query/ordinary.js";
@@ -397,6 +397,10 @@ async function withTeamHighlights(a: SearchAnswer): Promise<SearchAnswer> {
   const kept = at < 0 ? [...s.blocks, ...blocks] : [...s.blocks.slice(0, at), ...blocks, ...s.blocks.slice(at)];
   return { ...a, stat: { ...s, blocks: kept, definition: `${s.definition} Each team's highlights are its standout matches of the season: its best score, biggest win, latest playoff win, best Auto and closest win.` } };
 }
+
+/** Whether the query's own words ask to watch ("highlights", "with video", …) or say highlights another way ("best
+ *  moments", "top plays"), whatever else it says. */
+export const hasWatchWord = (q: string): boolean => new RegExp(WATCH_RE.source, "i").test(q) || HIGHLIGHT_SAID.test(q);
 
 /** `q` without its words asking to watch; `q` itself when it has none, or when fewer than two words would be left. */
 export function withoutWatch(q: string): string {
@@ -1046,6 +1050,23 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
     // A question ("what is the best ftc team right now") isn't a list of names: a word of it matching a town
     // ("Best") or a team ("The Best Friends") is no answer, so it says what it read and offers the browse links.
     if (opts.asked || isQuestionForm(opts.typed ?? q)) return recovery(q, [`No team, event or match matched "${nameWords(q)}"`]);
+    // A match's number with words no stored event's name fits whole ("Q16 <town> Meet 2 <word>"): a match is only ever
+    // at an event, so the closest are the events named by the longest run of its words from the start, the words past
+    // it said as matching none; never teams with a word in common.
+    const label = MATCH_WORDS.exec(rest);
+    if (label) {
+      const said = rest.replace(label[0], " ").replace(/\s+/g, " ").trim().split(" ").filter(Boolean);
+      for (let k = said.length - 1; k >= 2; k--) {
+        const named = said.slice(0, k).join(" ");
+        const evs = (await search(named, limit, prefer, new Set(["event"]), season)).filter((h) => h.kind === "event" && eventFit(named, h.title, h.ref.split(":")[1] ?? "") >= EVENT_FIT);
+        if (!evs.length) continue;
+        // Those with the words in their order first ("<town> Meet 2 - …" before "<town> Meet 1 - … 2").
+        const inOrder = (h: SearchHit) => (fold(h.title).includes(fold(named)) ? 0 : 1);
+        const listed = [...evs].sort((a, b) => inOrder(a) - inOrder(b)).slice(0, 10);
+        const which = label[0].toUpperCase().replace(/\s+/g, "");
+        return answer(q, { hits: listed, step: "deterministic", understood: { kind: "names", label: `No ${which} at "${said.join(" ")}": events named "${named}"` } });
+      }
+    }
     const ws = words(nameWords(rest, opts.asked));
     const closest = uniq(hits).slice(0, 10).map((h): SearchHit => ({ ...h, match: "fuzzy", matched: ws.filter((w) => words(`${h.title} ${h.subtitle}`).some((x) => x.startsWith(w))) }));
     return recovery(q, [`No team, event or match matched all of "${nameWords(q)}"`, "Closest matches: each has some of the words"], closest);

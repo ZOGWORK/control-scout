@@ -15,21 +15,74 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.9.6 — 2026-11-16
+## 7.0.0 — 2026-11-16
 
-Event videos › 80 more event recordings play, and the official-videos watcher decides by itself what it used to leave for the owner.
+Search › a town's meet named ("rolla meet") is that event, its last played edition when this season's is still to come.
 
 ### Highlights
-- [history] 80 more event recordings play, found by the watcher's own checks
-- [history] A meet whose stream was deleted and uploaded again plays the new upload
-- [fixes] FRC, FLL, meetings and ceremonies stay off FTC event days
+- [fixes] "Top plays at rolla meet" shows the Rolla Meet's highlights
+- [fixes] An event renamed to a new code each season is found in every season
+- [fixes] "Did <team> play at <event>" never counts another event's reused code
 
-### Event videos
-- The watcher sets aside what the facts settle instead of sending it to review: a clip under 45 minutes, a video that doesn't play here, a broadcast with no Scout event that day or a day either side, one field's or one named division's stream of an event Scout keeps whole, and more titles that aren't FTC competitions (coach calls, Coaches Corners, meetings, keynotes, Robot in 30 Hours, recaps, gaming leagues, prediction shows, FRC's game names, UrSim and xRC). (`server/videos/officialMatch.ts`) (#1605)
-- Uploads match like broadcasts on the one date their title says ("January 17, 2026", "12_17_23", "Tournament 12/13"), or, with no date, on a one-day event they went up within 14 days of, when the title says the event's whole name. A title naming two meets is two events. "Morning", "Afternoon" and "Before/After lunch" are parts; "Qualification & Playoff matches" is the whole day. (`server/videos/officialMatch.ts`)
-- More, taught from the videos decided by hand: an NTX league pair's tournament ("C&N-League Tournament"); one meet over two same-day meets in one city told apart only by a letter or AM and PM (set aside: two events in one video); an undated upload of a multi-day event, of a ceremony alone or of one division's stream (set aside: which day or division can't be told); a title naming no event when every event that day was remote, and any stream of a remote event goes to review, never added; "FTC Events" for a date (set aside); and a live broadcast whose title's date is a day or a month off, when the event it names doesn't run on that date (its broadcast date counts). (`server/videos/officialMatch.ts`, `server/videos/officialWatch.ts`, `server/videos/officialAudit.ts`)
-- The channel audit decides the review queue and the watcher's set-aside videos again every run with today's rules, and adds what passes every check of the watcher's, as the watcher would. Two videos that fit one event's day at the same audit (a day's live broadcast and its upload, an early stream beside the main one) both go to review: which plays is a judgement. An add lands whole or not at all: a day another recording took meanwhile sends the video to review. Measured on a copy of the live database, one audit takes the review queue from 69 to 17 and the open findings from 323 to 112, adding 80 recordings, none a video a check of the video itself turned down; the judgement cases follow. (`server/videos/officialAudit.ts`, `server/videos/officialWatch.ts`, migration 93)
-- A day's video YouTube no longer plays holds no day: a new broadcast of it is added and every dead video it replaces comes off. A title date like 12.17.23 is read as December 17. (`server/videos/officialWatch.ts`, `server/videos/officialMatch.ts`)
+### Fixed
+- Search: a town followed by an event word that together name a stored event ("top plays at rolla meet") is read as that event, never as the town's events with "meet" left over. (`src/shared/query/parse.ts`)
+- Search: an event held under a different code each season is found in each of them by its name, so the answer can fall back to last season's edition while this season's is unplayed. (`server/api/query/highlights.ts`) (#1597)
+- Search: "did <team> play at <event>" matches the event named by its season and code together, so a code another event reuses in another season never answers Yes. (`server/api/answers/yesNo.ts`)
+
+## 6.9.9 — 2026-11-16
+
+Search › a match asked at an event name with a word no event has lists the events the other words name.
+
+### Highlights
+- [fixes] "Q16 Chicago Meet 2 Westside" lists the Chicago Meet 2 events
+- [fixes] The heading says what wasn't found, so you know what to change
+- [fixes] Events with the words in order come first, never teams
+
+### Fixed
+- Search: a match's number with an event name no stored event fits whole ("Q16 Chicago Meet 2 Westside", where no event's name has "Westside") lists the events named by the longest run of its words from the start, those with the words in order first, under a heading saying what wasn't found; never teams that share a word. (`server/api/searchAnswer.ts`) (#1600)
+
+## 6.9.8 — 2026-11-16
+
+Search reads countries, counts and leaders the ways people asked: Taiwan, "in the world", "how many in Australia", "who leads".
+
+### Highlights
+- [fixes] "Top teams in Taiwan" lists Chinese Taipei's teams
+- [fixes] "Teams with the highest OPR in Texas 2024" gets its board
+- [fixes] "How many in Australia" counts both teams and events there
+- [fixes] "Who leads auto in Texas" is the Texas auto OPR board
+
+### Fixed
+- A country's best teams by another of its names ("Top teams in Taiwan", stored as Chinese Taipei): the stored label with the most teams for that country (`src/shared/countries.ts`). With none ranked yet this season, last season's teams, said so in the label. (`server/api/searchCoverage.ts` teamListAnswer)
+- "Teams with the most …", "team with the highest …": "with" after "team" is having it, never a second thing joined on, so everyone's board answers (`src/shared/query/parse.ts`). "Teams with the highest win rate" now gets the win-rate board, as "teams with the most wins" already did.
+- "Who leads <stat>", "who is leading in <stat>": the highest by that stat, everyone's board (`src/shared/query/lexicon.ts`).
+- Counts: "in the world", "worldwide" and the like are everywhere, never a place to look up, with season words after them too; "how many in <place>" (or "in the world") with neither teams nor events said gives both counts, the title naming a season only when both lines share it; a count of one says "1 event", not "1 events". (`server/api/searchCoverage.ts` countAnswer)
+- A country stored under two labels ("eSwatini" and "Eswatini") is counted and listed under both, asked by any of its names. (`server/api/searchCoverage.ts` placeOf) (#1603)
+
+## 6.9.7 — 2026-11-16
+
+Search › closest matches answer at an event named, as a top 10, and above a score.
+
+### Highlights
+- [fixes] "Closest match in <event>" lists that event's closest matches
+- [fixes] "Top 10 closest match" lists the ten closest, not the highest
+- [fixes] "Closest match above 500": both alliances over 500, said on the card
+
+### Fixed
+- Search: a closest match asked at an event named by its name or its initials ("closest match in multinational tech invitational", "closes match in mti") lists that event's matches, closest first, an off-season event included. (`server/api/query/execute.ts`, `src/shared/query/lexicon.ts`) (#1566, #1567)
+- Search: "top 10 closest match in decode" reads "top" as the count's word when the closest is said, so the closest matches are listed, never the highest-scoring. (`src/shared/query/parse.ts`) (#1563)
+- Search: a bare score ending a closest match's question ("closest match in decode above 500") is both alliances' scores over it, stated on the card as "Both alliances scored over 500". (`src/shared/query/parse.ts`, `src/shared/query/intents.ts`) (#1564)
+
+## 6.9.6 — 2026-11-16
+
+Search › a team's number shows the team, with no "Questions with video" about other events.
+
+### Highlights
+- [fixes] Searching a team number no longer suggests other events' highlights
+- [fixes] A team's highlights search only suggests that team's own video
+- [teams] A team search shows just the team and its own highlights
+
+### Changed
+- Search: "Questions with video" shows only when the search's own words ask to watch ("highlights", "with video", "video") or it filters to matches with video; a bare team number ("4215") whose card happens to hold highlights never gets it. On a team's answer the questions offered are the team's own seasons with a clip, never other events' highlights. (`server/api/answers/videoSuggest.ts`, `server/api/searchAnswer.ts`) (#1595)
 
 ## 6.9.5 — 2026-11-16
 

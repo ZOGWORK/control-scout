@@ -115,6 +115,8 @@ export interface ParseContext {
 
 /** `at`: the word as typed it came from (its place among the words typed, before any time was read out). */
 type Tok = { w: string; typed: string; at: number; used: boolean; alliance?: boolean; side?: "red" | "blue" };
+/** The words that name a team ("team", "robots"). */
+const TEAM_WORDS = new Set(LEXICON.filter((e) => e.words.length === 1 && e.syms.length === 1 && e.syms[0].k === "thing" && e.syms[0].v === "team").map((e) => e.words[0]));
 /** The one-word filler phrases ("the", "a"): read before a name that starts with one. */
 const FILLER_WORDS = new Set(LEXICON.filter((e) => e.words.length === 1 && e.syms.every((x) => x.k === "filler")).map((e) => e.words[0]));
 /** Every filler phrase, one word or more ("the", "thank you"). */
@@ -247,11 +249,21 @@ const COND_RE = /(?:^| )(?:(?:where|with|in which|when|that|and) )?(?:the )?(los
 /** "A 226 point match", "226-point games": a score said outright, by either alliance (no comparison word before it:
  *  "over 200 points" is a floor). Its number is never a team. */
 const EXACT_RE = /(?:^| )(?<!(?:than|over|above|exceeding|beyond|least|most|under|below) )(?:an? )?(\d{1,4})[ -]?(?:points?|pts|pt)(?= (?:match|matches|game|games)(?: |$))/;
+/** "Closest match in <season> above 500": a bare comparison ending a closest match's question, both alliances' scores
+ *  over it (a close match is level, so its two scores are), its points said or not ("above 500 points"). Read only
+ *  beside a closest measure's words (the lexicon's). A ceiling ("closest match under 5") is the margin's bound a
+ *  closest match takes (by less than N points), never both scores under it, so only a floor is read here. */
+const BARE_RE = /(?:^| )(over|more than|above|at least) (\d{1,4})(?: points?| pts)?$/;
+let closeWords: string[] | null = null;
+const saysClosest = (q: string) => (closeWords ??= LEXICON.filter((e) => e.syms.some((s) => s.k === "agg" && s.v === "closest")).map((e) => e.words.join(" "))).some((w) => ` ${q} `.includes(` ${w} `));
 export function scoreCondOf(q: string): { cond: ScoreCond; rest: string; said: string } | null {
   const m = COND_RE.exec(q);
   if (!m) {
     const x = EXACT_RE.exec(q);
-    return x ? { cond: { side: "either", op: "=", n: Number(x[1]) }, rest: `${q.slice(0, x.index)} ${q.slice(x.index + x[0].length)}`.replace(/\s+/g, " ").trim(), said: x[0].trim() } : null;
+    if (x) return { cond: { side: "either", op: "=", n: Number(x[1]) }, rest: `${q.slice(0, x.index)} ${q.slice(x.index + x[0].length)}`.replace(/\s+/g, " ").trim(), said: x[0].trim() };
+    const b = BARE_RE.exec(q);
+    if (!b || !saysClosest(q.slice(0, b.index))) return null;
+    return { cond: { side: "both", op: OP.find(([re]) => re.test(b[1]))![1], n: Number(b[2]) }, rest: q.slice(0, b.index).trim(), said: b[0].trim() };
   }
   const op = OP.find(([re]) => re.test(m[2]))![1];
   return { cond: { side: SIDE[m[1]], op, n: Number(m[3]) }, rest: `${q.slice(0, m.index)} ${q.slice(m.index + m[0].length)}`.replace(/\s+/g, " ").trim(), said: m[0].trim() };
@@ -296,6 +308,9 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     if (new RegExp(`(?:^| )(?:over|across|through|throughout) (?:the )?${span}(?= |$)`).test(q)) symbols.add("trend");
   }
   let rate = false;
+  /** Where "top" stood before a count ("top 10"), read as the count's word when another measure is said. */
+  let topAt: number | null = null;
+  const maxFrom: number[] = [];
   const p: Parsed = {
     q: raw, teams: [], event: null, place: null, time, level: null, finals: false, eventKind: null, alliance: null, worlds: false, states: false, award: null, agg: null,
     n: null, matchNumber: null, noPenalties: false, symbols: [], intent: null, rule: null, leftover: [], unexplained: [], complete: false,
@@ -439,7 +454,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     const n = Number(t.w), prev = toks[i - 1]?.w, next = toks[i + 1]?.w;
     if (prev && MATCH_BEFORE.test(prev) && n <= 400) { p.matchNumber = n; t.used = true; toks[i - 1].used = true; symbols.add("thing:match"); if (prev !== "match" && prev !== "game") p.level = "qual"; continue; }
     // "Top 5 teams", and "top 3" ending the query.
-    if (prev && COUNT_BEFORE.test(prev) && n <= 50 && (next ? !ctx.names.team(Number(next)) : !p.teams.length)) { p.n = n; t.used = true; continue; }
+    if (prev && COUNT_BEFORE.test(prev) && n <= 50 && (next ? !ctx.names.team(Number(next)) : !p.teams.length)) { p.n = n; t.used = true; if (prev === "top") topAt = i - 1; continue; }
     // A size in teams ("more than 40 teams", "at least 40 teams", "40 or more teams"): a count, never team 40.
     const sized = /^teams?$/.test(next ?? "") || (next === "or" && /^(?:more|fewer|less)$/.test(toks[i + 2]?.w ?? "") && /^teams?$/.test(toks[i + 3]?.w ?? ""));
     if (sized && (SIZE_BEFORE.test(prev ?? "") || next === "or")) { t.used = true; continue; }
@@ -498,11 +513,18 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     const e = lexAt(i);
     if (!e) continue;
     e.words.forEach((_, j) => (toks[i + j].used = true));
+    // Where each phrase read as the highest starts: "top" before a count is told apart from another highest said.
+    if (e.syms.some((s) => s.k === "agg" && s.v === "max")) maxFrom.push(i);
     // A stat said not to go by ("by rating, not OPR"): dropped with its "not". Stats only: "did not win" keeps its win.
     if (i > 0 && !toks[i - 1].used && toks[i - 1].w === "not" && e.syms.every((s) => s.k === "metric" && NOT_STATS.has(s.v))) { toks[i - 1].used = true; (p.notStats ??= []).push(e.words.map((_, j) => toks[i + j].typed).join(" ")); (p.notMetrics ??= []).push(...e.syms.map((s) => `metric:${s.k === "metric" ? s.v : ""}`)); continue; }
     // A colour read as an alliance can start a team's name typed nearly right ("blue megalodns"): step 4 may take it back.
     if (e.words.length === 1 && e.syms.length === 1 && e.syms[0].k === "alliance") toks[i].alliance = true;
+    // "Teams with the most …", "team with the highest …": "with" there is having, never a second thing joined on.
+    let next = i + 1;
+    while (toks[next] && (toks[next].w === "the" || toks[next].w === "a")) next++;
+    const having = e.words.length === 1 && e.words[0] === "with" && i > 0 && TEAM_WORDS.has(toks[i - 1].w) && !!lexAt(next)?.syms.some((s) => s.k === "agg");
     for (const s of e.syms) {
+      if (having && s.k === "and") continue;
       if (s.k === "level") p.level = s.v;
       else if (s.k === "finals") p.finals = true;
       else if (s.k === "alliance") { p.alliance = s.v; e.words.forEach((_, j) => (toks[i + j].side = s.v)); }
@@ -520,6 +542,13 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       const k = symKey(s);
       if (k && s.k !== "award") symbols.add(k);
     }
+  }
+  // "Top 10 closest matches": "top" before a count only says how many when another measure follows it, never the
+  // highest as well. Its "max" is dropped, so the measure said is the one read.
+  // Only the phrases actually read count: "most" in "most accurate" is that phrase's, never a highest of its own.
+  if (topAt != null && symbols.has("agg:max") && maxFrom.every((k) => k === topAt)) {
+    const other = [...symbols].find((s) => s.startsWith("agg:") && s !== "agg:max");
+    if (other) { symbols.delete("agg:max"); p.agg = other.slice(4) as Parsed["agg"]; }
   }
   // Reaching Worlds said beside a forecast ("chance of making worlds", "odds of qualifying for worlds"): the chance to
   // advance there, never a count of appearances or qualification matches.
@@ -632,6 +661,19 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     }
     const hasEventWord = toks.slice(from, to + 1).some((t) => EVENT_NAME_WORDS.has(t.w));
     const place = !hasEventWord ? ctx.names.place(words(), typed()) : null;
+    // A town with the event words the lexicon read after it that together name a stored event ("top plays at rolla
+    // meet": the Rolla Meet), read as that event, never as the town's events with "meet" left over.
+    if (place?.kind === "city" && !p.event) {
+      let b = to;
+      while (b + 1 < toks.length && EVENT_NAME_WORDS.has(toks[b + 1].w)) b++;
+      const span = toks.slice(from, b + 1);
+      if (b > to && await ctx.isEvent(span.map((t) => t.w).join(" "))) {
+        p.event = { words: span.map((t) => t.w).join(" "), typed: span.map((t) => t.typed).join(" ") };
+        span.forEach((t) => (t.used = true));
+        if (!toks.some((t) => !span.includes(t) && KIND_WORDS.has(t.w))) symbols.delete("thing:event");
+        continue;
+      }
+    }
     if (place && !p.place) { p.place = { ...place, typed: typed() }; placeFrom = from; toks.slice(from, to + 1).forEach((t) => (t.used = true)); continue; }
     // The region or country a town named is in, said after it ("Cluj-Napoca, Romania", "Oradell, NJ"): the same place.
     if (place && p.place && within(p.place, place)) { toks.slice(from, to + 1).forEach((t) => (t.used = true)); continue; }

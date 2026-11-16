@@ -85,6 +85,8 @@ const TABLE: [string, Sym | Sym[]][] = [
   // Aggregations.
   ["highest|high|best|top|max|maximum|biggest|largest|greatest|most|record high|world record|peak|strongest|winningest|career high|personal best|longest|most times|the most times", { k: "agg", v: "max" }],
   // The ones worth watching are the best: "what team should i watch at nj states".
+  // Who is first by a stat ("who leads auto in texas", "who is leading in opr"): the highest.
+  ["leads|leads in|is leading|is leading in|leading in", { k: "agg", v: "max" }],
   ["should i watch|should we watch|worth watching|to keep an eye on|should i keep an eye on", { k: "agg", v: "max" }],
   // "Who" asked that way is the teams: "who should i watch at worlds".
   ["who should i watch|who should we watch|who to watch|who is worth watching|who should i keep an eye on", [{ k: "thing", v: "team" }, { k: "agg", v: "max" }]],
@@ -99,6 +101,8 @@ const TABLE: [string, Sym | Sym[]][] = [
   ["first|earliest|debut|very first|opening|initial", { k: "agg", v: "first" }],
   ["last|latest|most recent|recent|newest|previous|final|current|so far", { k: "agg", v: "last" }],
   ["closest|tightest|narrowest|nail biter|nailbiter", { k: "agg", v: "closest" }],
+  // "Closes" is a word of its own, so spelling never corrects it; before "match" it's only ever "closest" cut short.
+  ["closes match|closes matches|closes game|closes games", [{ k: "agg", v: "closest" }, { k: "thing", v: "match" }]],
   // A sort said as an order ("highest scoring first", "lowest first"): the highest or lowest, never a first match.
   ["highest first|best first|top first|most first|biggest first", { k: "agg", v: "max" }],
   ["lowest first|worst first|fewest first|least first|smallest first", { k: "agg", v: "min" }],
