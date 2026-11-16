@@ -259,16 +259,18 @@ const MISSES = 3;
 
 /**
  * Every placed match's clip must open on that match: its first frame's overlay names it (and, on a stream divisions
- * share, not a sibling division's). Tried 20, 12 and 5 s before its start; the first that names it is where the clip
- * opens. One that names another match there (the previous match's result still up) is tried closer in; a match whose
- * clip can't open on it goes to review, and one whose overlay can't be read there at all is missing with
- * OVERLAY_UNREAD. Nothing is a clip unchecked.
+ * share, not a sibling division's). Tried 20, 12, 5, 2 and 0 s before its start (OPEN_LEADS); the first that names it
+ * is where the clip opens. One that names another match there (the previous match's result still up) is tried closer
+ * in; a match whose clip can't open on it goes to review, and one whose overlay can't be read there at all is missing
+ * with OVERLAY_UNREAD. A read that fails leaves the openings not yet checked unread: a live clip stays unconfirmed, a new
+ * placement is missing with PLAY_FAILED, so the next run reads the video again. Nothing is a clip unchecked.
  */
 async function checkOpenings(page: Page, j: Judged, log: (s: string) => void, unread?: Set<string>, live?: Record<string, number>): Promise<void> {
   const failed: string[] = [];
-  // A read that fails (a hang, OCR broken) leaves that opening, and the rest after it, as if nothing had been read: never
-  // the video's other starts, which stand as placed.
+  // A read that fails (a hang, OCR broken) leaves that opening, and the rest after it, unchecked: never the video's
+  // other starts, which stand as placed.
   let broken = false;
+  const isLive = (label: string, t: number) => !live || (live[label] != null && Math.abs(live[label] - t) <= SAME_S);
   for (const [label, p] of [...j.placed]) {
     if (j.opens.has(label)) continue; // checked on an earlier --verify
     let named: string | null = null, at: number | null = null;
@@ -283,9 +285,15 @@ async function checkOpenings(page: Page, j: Judged, log: (s: string) => void, un
       if (r.label) named = r.label;
     }
     if (at != null) { j.opens.set(label, at); continue; }
+    if (broken) {
+      // Not checked: a live clip stays unconfirmed; a new placement waits for the video's next read.
+      if (unread && isLive(label, p.t)) unread.add(label);
+      else { j.placed.delete(label); failed.push(label); j.missing.set(label, `${PLAY_FAILED}: an opening read failed, so its opening wasn't checked`); }
+      continue;
+    }
     // A clip already live (--verify, or a re-read start the live site serves: --live) whose opening frame named nothing
     // (blank, a transition, a cutaway) stays, to be read again: only an overlay naming another match pulls it.
-    if (unread && !named && (!live || (live[label] != null && Math.abs(live[label] - p.t) <= SAME_S))) { unread.add(label); continue; }
+    if (unread && !named && isLive(label, p.t)) { unread.add(label); continue; }
     j.placed.delete(label);
     failed.push(label);
     if (named) j.review.set(label, { t: p.t, why: `its clip's first frame shows ${named}, not ${label}` });
