@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 7.0.9 — 2026-11-16
+## 7.1.0 — 2026-11-16
 
 Search › typing just a team's number or its whole name opens the team's page.
 
@@ -26,6 +26,18 @@ Search › typing just a team's number or its whole name opens the team's page.
 
 ### Changed
 - Search: Enter (or the magnifier) on a query that is one team alone ("4215", "team 4215", "Hypnotic Robotics") opens the team's page straight away, even when the results page would show the team's highlights. Asking for them ("4215 highlights"), a topic ("4215 record") or a name several teams share still opens the results page. (`src/components/search/direct.ts`, `src/components/search/SearchBox.tsx`) (#1624)
+
+## 7.0.9 — 2026-11-16
+
+Videos › 2024 recordings of events USN to Z read frame by frame: 288 more matches get a clip that opens on a frame naming the match.
+
+### Highlights
+- [fixes] 288 more 2024 matches get a clip read off the video
+- [fixes] Each clip opens on the exact frame that names its match
+- [fixes] No clip already playing is taken away or moved
+
+### Fixed
+- Videos: 14 of the 2024 season's recordings (events USN to Z) read frame by frame, their openings read paused at their own second: 288 matches placed where their frames show them, each clip opening on a frame whose overlay names it; 43 whose opening frame named nothing are left out (7 of them newly, read paused). No live clip changes. (`server/data/frameTimings.ts`) (#1622)
 
 ## 7.0.8 — 2026-11-16
 
