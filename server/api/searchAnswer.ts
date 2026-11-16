@@ -398,6 +398,10 @@ async function withTeamHighlights(a: SearchAnswer): Promise<SearchAnswer> {
   return { ...a, stat: { ...s, blocks: kept, definition: `${s.definition} Each team's highlights are its standout matches of the season: its best score, biggest win, latest playoff win, best Auto and closest win.` } };
 }
 
+/** Whether the query's own words ask to watch ("highlights", "with video", …) or say highlights another way ("best
+ *  moments", "top plays"), whatever else it says. */
+export const hasWatchWord = (q: string): boolean => new RegExp(WATCH_RE.source, "i").test(q) || HIGHLIGHT_SAID.test(q);
+
 /** `q` without its words asking to watch; `q` itself when it has none, or when fewer than two words would be left. */
 export function withoutWatch(q: string): string {
   const out = q.replace(WATCH_RE, " ").replace(/\s+/g, " ").trim();

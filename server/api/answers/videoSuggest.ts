@@ -10,7 +10,7 @@ import { registerCache } from "../../caches.js";
 import { OFFICIAL_TYPES } from "./clauses.js";
 import { CURRENT_SEASON } from "../../data/seasons.js";
 import { seasonClipKeys, seasonVideoKinds } from "../../videos/recordings.js";
-import { withoutWatch } from "../searchAnswer.js";
+import { hasWatchWord } from "../searchAnswer.js";
 import { teamMatches } from "./matchSet.js";
 import { inTurns, pageAnswer } from "./followUps.js";
 import { answerVideo, refOfHref, rowRefs } from "./video.js";
@@ -37,11 +37,18 @@ const SEASONS_BACK = 4;
 /** A season as search reads it ("2025-26"). */
 const seasonWords = (s: number) => `${s}-${String((s + 1) % 100).padStart(2, "0")}`;
 
-/** Whether the search asked to watch: its words ("with video", "highlights", "video") or an answer of highlights. */
+/** The teams an answer is about: a comparison's every side, else its one team. */
+const answerTeams = (a: SearchAnswer): number[] => {
+  const many = a.stat?.teams?.map((t) => t.number) ?? [];
+  return many.length ? many : a.stat?.team ? [a.stat.team.number] : [];
+};
+
+/** Whether the search asked to watch: its own words ("with video", "highlights", "video"), a "With video" filter, or,
+ *  on an answer about no team, an answer of highlights (a paraphrase such as "best moments in Grand Rapids"). A team's
+ *  card that only happens to hold highlights (a bare "4215") never counts: the visitor asked for the team. */
 export function asksVideo(q: string, a: SearchAnswer): boolean {
-  // The query's spacing evened out first: only a watch word dropped counts.
-  const flat = q.replace(/\s+/g, " ").trim();
-  return withoutWatch(flat) !== flat || /highlights|video/.test(a.stat?.intent ?? "") || !!a.stat?.scope.includes("With video");
+  return hasWatchWord(q) || !!a.stat?.scope.includes("With video")
+    || (!answerTeams(a).length && /highlights|video/.test(a.stat?.intent ?? ""));
 }
 
 /** Whether an answer has anything to play. */
@@ -54,17 +61,20 @@ export const hasVideo = (v: SearchVideo | null | undefined) => !!(v?.main || v?.
  *  question left, the general ones (GENERAL). */
 export async function videoCandidates(a: SearchAnswer, now = Date.now(), typosOf: () => Promise<ReadonlySet<string>> = nameTypos): Promise<string[]> {
   const out: string[] = [];
-  const team = a.stat?.team?.number ?? null;
-  // Each read on its own: one that fails drops its own questions, never the others'.
-  const ms = team != null ? await teamMatches(team).catch(() => []) : [];
-  if (team != null) {
-    for (let s = CURRENT_SEASON; s > CURRENT_SEASON - SEASONS_BACK && out.length < 2; s--) {
+  const teams = answerTeams(a);
+  for (const team of teams) {
+    // Each read on its own: one that fails drops its own questions, never the others'.
+    const ms = await teamMatches(team).catch(() => []);
+    let mine = 0;
+    for (let s = CURRENT_SEASON; s > CURRENT_SEASON - SEASONS_BACK && mine < 2; s--) {
       const theirs = ms.filter((m) => m.season === s);
       if (!theirs.length) continue;
       const keys = await seasonClipKeys(s, now).catch(() => new Set<string>());
-      if (theirs.some((m) => keys.has(`${m.code}|${m.level}|${m.series}|${m.number}`))) out.push(`${team} highlights ${seasonWords(s)}`);
+      if (theirs.some((m) => keys.has(`${m.code}|${m.level}|${m.series}|${m.number}`))) { out.push(`${team} highlights ${seasonWords(s)}`); mine++; }
     }
   }
+  // A team's answer (or a comparison's) offers its own teams' video only: never other events' highlights.
+  if (teams.length) return out;
   const own = out.length;
   const typos = await typosOf().catch(() => null);
   if (!typos) return [...out, ...GENERAL];
@@ -159,12 +169,13 @@ export async function withVideoAlternatives(q: string, a: SearchAnswer, v: Searc
     const stop = () => { gaveUp = true; if (mine) { mine.waiting--; mine = null; } r([...offered]); };
     onFound = stop;
     // None found by the wait: the questions checked in the background (warmVideoQuestions) at once, else a little longer.
-    timers.push(setTimeout(() => { past = true; if (offered.length || moreMs <= 0 || fallback(q).length) stop(); else timers.push(setTimeout(stop, moreMs)); }, waitMs));
+    timers.push(setTimeout(() => { past = true; if (offered.length || moreMs <= 0 || (!answerTeams(a).length && fallback(q).length)) stop(); else timers.push(setTimeout(stop, moreMs)); }, waitMs));
   })]).finally(() => timers.forEach(clearTimeout));
   // The background set kept up with the data: built again, off this search, when it has moved, with the reads it was
   // built with. Never before it was built (server start): a process that never warmed it (a test) reads nothing here.
   if (known) { const o = known.o; void (o.version ?? searchVersion)().then((v) => { if (known && !fresh(v, o)) return warmVideoQuestions(o); }).catch(() => {}); }
-  if (!found.length) found.push(...fallback(q));
+  // The background set is other events' questions: never offered on a team's answer.
+  if (!found.length && !answerTeams(a).length) found.push(...fallback(q));
   if (!found.length) return a;
   const block: StatAnswer["blocks"][number] = { kind: "related", title: "Questions with video", queries: found };
   return { ...a, stat: { ...a.stat, blocks: [block, ...a.stat.blocks] } };

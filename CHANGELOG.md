@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.9.6 — 2026-11-16
+## 6.9.7 — 2026-11-16
 
 Speed › a slow search no longer makes every other page wait: the server takes turns between its reads.
 
@@ -29,6 +29,18 @@ Speed › a slow search no longer makes every other page wait: the server takes 
 - Search: a search of common words only ("teams with highest opr in texas 2024") read every team name's words, all 28,000, before checking whether the name matched at all: 4 of its 7 seconds. It now checks the match first. (`server/api/search.ts`)
 - Search: a place's streak board reads that place's teams and their matches, a few hundred teams at a time, instead of every match of two seasons; the same board, 3–8 times faster in a state or a country, its parts all one moment of the data (a read snapshot) whatever is stored meanwhile. (`server/api/query/streakBoard.ts`, `server/db.ts`)
 - Search: a two-team or alliance prediction made before any match of the season is rated shows the teams' ratings and says no match is rated yet, never a called score of 0–0 or "still loading". (`server/api/answers/families/predict.ts`)
+
+## 6.9.6 — 2026-11-16
+
+Search › a team's number shows the team, with no "Questions with video" about other events.
+
+### Highlights
+- [fixes] Searching a team number no longer suggests other events' highlights
+- [fixes] A team's highlights search only suggests that team's own video
+- [teams] A team search shows just the team and its own highlights
+
+### Changed
+- Search: "Questions with video" shows only when the search's own words ask to watch ("highlights", "with video", "video") or it filters to matches with video; a bare team number ("4215") whose card happens to hold highlights never gets it. On a team's answer the questions offered are the team's own seasons with a clip, never other events' highlights. (`server/api/answers/videoSuggest.ts`, `server/api/searchAnswer.ts`) (#1595)
 
 ## 6.9.5 — 2026-11-16
 
