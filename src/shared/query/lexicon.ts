@@ -85,6 +85,8 @@ const TABLE: [string, Sym | Sym[]][] = [
   // Aggregations.
   ["highest|high|best|top|max|maximum|biggest|largest|greatest|most|record high|world record|peak|strongest|winningest|career high|personal best|longest|most times|the most times", { k: "agg", v: "max" }],
   // The ones worth watching are the best: "what team should i watch at nj states".
+  // Who is first by a stat ("who leads auto in texas", "who is leading in opr"): the highest.
+  ["leads|leads in|is leading|is leading in|leading in", { k: "agg", v: "max" }],
   ["should i watch|should we watch|worth watching|to keep an eye on|should i keep an eye on", { k: "agg", v: "max" }],
   // "Who" asked that way is the teams: "who should i watch at worlds".
   ["who should i watch|who should we watch|who to watch|who is worth watching|who should i keep an eye on", [{ k: "thing", v: "team" }, { k: "agg", v: "max" }]],
