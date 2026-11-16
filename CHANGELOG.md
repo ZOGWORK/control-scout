@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 6.9.2 — 2026-11-16
+
+Search › "best team in the us" ranks the United States, not the whole world.
+
+### Highlights
+- [fixes] "Best team in the US" shows the US teams, not the world's
+- [rankings] It opens the same USA board and USA rankings as "best team in USA"
+- [fixes] "Tell us" and "for us" are still read as plain words, never a country
+
+### Fixed
+- Search: a country's two-letter name said with "the" before it ("best team in the us rn", "the u.s.") is the country, so the answer is the country's board and its rankings link, the same as "best team in usa". "Us" on its own ("tell us the best team", "best team for us") is still a plain word. (`src/shared/query/names.ts`, `src/shared/query/parse.ts`) (#1601)
+
 ## 6.9.1 — 2026-11-16
 
 Profile pictures: any account can have one, and it's the same picture in Control Point.
