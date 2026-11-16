@@ -30,7 +30,7 @@
 //   TESSERACT_JS=<path to tesseract.js's entry>  where tesseract.js is, when it isn't in node_modules
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
-import { AUTO_S, MATCH_S, OPEN_LEADS, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, elapsed, overlayDivision, leadIn, judge, NOTHING_READ, overlayLabel, secondsOf, type Judged, type M } from "./lib/videoFrames";
+import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, elapsed, overlayDivision, leadIn, judge, NOTHING_READ, overlayLabel, secondsOf, type Judged, type M } from "./lib/videoFrames";
 
 // The command line: --name value or --name=value for the value flags, --name alone for the others. Anything else stops
 // the run before it reads: a misspelt flag mustn't quietly read (and write) every recording of the season.
@@ -421,12 +421,16 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
     if (live && namedAny) for (const [label, t] of Object.entries(live)) {
       if (j.placed.has(label) || !order.has(label)) continue;
       const i = order.get(label)!;
-      const clash = [...j.placed].find(([o, p]) => Math.abs(p.t - t) < MATCH_S - SAME_S || (order.get(o)! < i) !== (p.t < t));
+      const confidence = liveMedium?.has(label) ? "medium" : "high";
+      // As judge allows: two starts read off the video closer than a match by no more than a cut loses (the recording
+      // skipped the end of the first) both stand.
+      const close = (p: { t: number; confidence: string }) => Math.abs(p.t - t) < MATCH_S - SAME_S && !(confidence === "high" && p.confidence === "high" && Math.abs(p.t - t) >= MATCH_S - LOSS_S);
+      const clash = [...j.placed].find(([o, p]) => close(p) || (order.get(o)! < i) !== (p.t < t));
       j.missing.delete(label); j.earlyStart.delete(label);
       if (t < 0 || t + MATCH_S > length + SAME_S) { j.review.set(label, { t, why: "a live clip this read finds outside the video" }); continue; }
       if (clash) { j.review.set(label, { t, why: `a live clip this read finds ${clash[0]} too close to or out of order with (${clash[0]} at ${Math.round(clash[1].t)} s)` }); continue; }
       j.review.delete(label);
-      j.placed.set(label, { t, confidence: liveMedium?.has(label) ? "medium" : "high" });
+      j.placed.set(label, { t, confidence });
     }
     await checkOpenings(page, j, log, live ? unread : undefined, live);
   };
