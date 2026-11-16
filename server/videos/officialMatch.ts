@@ -336,6 +336,9 @@ export function matchVideo(v: WatchVideo, rule: ChannelRule, events: WatchEvent[
   if (!ownDiv && !a.e.parent && DIVRE.test(v.title) && !/inter-?division/i.test(v.title)) return { kind: "ignore", why: `one division's stream of ${a.e.code}, which Scout has as one event: its clips would open on whichever division played at that time` };
   if (FIELD.test(v.title) && !ownDiv) return { kind: "ignore", why: `one field's stream of ${a.e.code}, which Scout has as one event: its clips would open on whichever field played at that time` };
   const dated = uploadDay ? "the title's date (an upload)" : lagged ? `when it went up (an upload on ${pubDay}, within ${UPLOAD_LAG_DAYS} days of the event's one day)` : "broadcast date";
+  // A remote event (2020-21: teams on their own fields) has no matches played together; a stream naming one is its
+  // show or ceremony, or a day FIRST did link: which, the owner decides.
+  if (a.e.remote) return { kind: "review", why: `${a.e.code} was played remotely: whether this stream is a day of it to link is for the owner`, ...at };
   return { kind: "add", ...at, why: `${a.e.code}, ${a.d}: title and ${dated} fit only this event` };
 }
 
