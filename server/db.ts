@@ -2517,6 +2517,47 @@ CREATE TABLE user_avatars (
 ALTER TABLE official_audit_runs ADD COLUMN added INTEGER NOT NULL DEFAULT 0;
 `,
   },
+  {
+    version: 94,
+    name: "nj conferences",
+    sql: `
+-- New Jersey's conferences (src/shared/conferences.ts), read once at sync time from each NJ league tournament's name
+-- (server/data/conferences.ts). Keyed by (season, code): codes are reused and the LT / LT2 suffix flips between seasons.
+-- name is FTCNJ's wording when its page has the event, else FIRST's; aliases holds the slugs it is found by (its own,
+-- and FIRST's when FIRST's wording is part of FTCNJ's).
+CREATE TABLE event_conferences (
+  season INTEGER NOT NULL,
+  code TEXT NOT NULL,
+  region TEXT NOT NULL,
+  league TEXT NOT NULL,
+  name TEXT NOT NULL,
+  slug TEXT NOT NULL,
+  first_name TEXT,
+  aliases TEXT NOT NULL DEFAULT '[]',
+  source TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (season, code)
+);
+-- Each conference tournament's league standing the week before it, stored because league_rankings holds only today's:
+-- what the teams went in with can't be read back after. One row per league team, replaced until the tournament starts.
+CREATE TABLE conference_snapshots (
+  season INTEGER NOT NULL,
+  code TEXT NOT NULL,
+  team INTEGER NOT NULL,
+  rank INTEGER NOT NULL,
+  rs REAL,
+  tbp REAL,
+  wins INTEGER,
+  losses INTEGER,
+  ties INTEGER,
+  played INTEGER,
+  meets INTEGER,
+  read_at TEXT,
+  taken_at TEXT NOT NULL,
+  PRIMARY KEY (season, code, team)
+);
+`,
+  },
 ];
 
 export type Db = Client;
