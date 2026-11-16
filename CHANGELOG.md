@@ -15,20 +15,31 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.9.7 — 2026-11-16
+## 6.9.8 — 2026-11-16
 
-Speed › a slow search no longer makes every other page wait: the server takes turns between its reads.
+Search › a match asked at an event name with a word no event has lists the events the other words name.
 
 ### Highlights
-- [speed] Pages and the connection check answer while a slow search runs
-- [speed] Searches of common words only run in a fraction of the time
-- [speed] Streak boards ("longest winning streak in Romania") answer faster
+- [fixes] "Q16 Chicago Meet 2 Westside" lists the Chicago Meet 2 events
+- [fixes] The heading says what wasn't found, so you know what to change
+- [fixes] Events with the words in order come first, never teams
 
 ### Fixed
-- Server: a search made of many quick database reads held the whole server for its run (seconds on an uncached search), so every other visitor's request, and the connection check that said "You're offline", waited behind it. Reads now let other requests in once the server has been busy for 20 ms; on the slowest searches the health check waited a tenth as long (median 3.5 s → 0.3 s), and the searches themselves ran faster. (`server/db.ts`) (#1600)
-- Search: a search of common words only ("teams with highest opr in texas 2024") read every team name's words, all 28,000, before checking whether the name matched at all: 4 of its 7 seconds. It now checks the match first. (`server/api/search.ts`)
-- Search: a place's streak board reads that place's teams and their matches, a few hundred teams at a time, instead of every match of two seasons; the same board, 3–8 times faster in a state or a country, its parts all one moment of the data (a read snapshot) whatever is stored meanwhile. (`server/api/query/streakBoard.ts`, `server/db.ts`)
-- Search: a two-team or alliance prediction made before any match of the season is rated shows the teams' ratings and says no match is rated yet, never a called score of 0–0 or "still loading". (`server/api/answers/families/predict.ts`)
+- Search: a match's number with an event name no stored event fits whole ("Q16 Chicago Meet 2 Westside", where no event's name has "Westside") lists the events named by the longest run of its words from the start, those with the words in order first, under a heading saying what wasn't found; never teams that share a word. (`server/api/searchAnswer.ts`) (#1600)
+
+## 6.9.7 — 2026-11-16
+
+Search › closest matches answer at an event named, as a top 10, and above a score.
+
+### Highlights
+- [fixes] "Closest match in <event>" lists that event's closest matches
+- [fixes] "Top 10 closest match" lists the ten closest, not the highest
+- [fixes] "Closest match above 500": both alliances over 500, said on the card
+
+### Fixed
+- Search: a closest match asked at an event named by its name or its initials ("closest match in multinational tech invitational", "closes match in mti") lists that event's matches, closest first, an off-season event included. (`server/api/query/execute.ts`, `src/shared/query/lexicon.ts`) (#1566, #1567)
+- Search: "top 10 closest match in decode" reads "top" as the count's word when the closest is said, so the closest matches are listed, never the highest-scoring. (`src/shared/query/parse.ts`) (#1563)
+- Search: a bare score ending a closest match's question ("closest match in decode above 500") is both alliances' scores over it, stated on the card as "Both alliances scored over 500". (`src/shared/query/parse.ts`, `src/shared/query/intents.ts`) (#1564)
 
 ## 6.9.6 — 2026-11-16
 
