@@ -52,6 +52,18 @@ export async function predictionSeasonOf(teams: number[]): Promise<{ season: num
 
 const ALLIANCE_RULE = "The engine's call for a qualification match between the two alliances named, as Predict makes it for the same lineup: each alliance's expected score (without penalties, margin-calibrated), the win chance and the predicted margin, from each team's prediction rating (points per match ± its uncertainty) as their team pages show it.";
 
+/** The engine to make a call with, or why there's no call (said on the card instead of one, with the ratings): live
+ *  predictions switched off, the engine still being built, or built with no match of `season` rated yet, its ratings
+ *  carried over from the last game (forecast.ts rangedCall and the match page make no call then either: it would be a
+ *  made-up score, "53% to win · predicted 0–0"). */
+async function callingEngine(season: number): Promise<{ engine: NonNullable<Awaited<ReturnType<typeof readyForecaster>>> | null; noCall: string }> {
+  if (!(await isEnabled("livePredictions").catch(() => false))) return { engine: null, noCall: "Live predictions are switched off just now." };
+  const f = readyForecaster(season);
+  const engine = f ? await f : null;
+  if (!engine) return { engine: null, noCall: "The engine's ratings are still loading: Predict shows the call." };
+  return engine.seasonEvents(season).length ? { engine, noCall: "" } : { engine: null, noCall: `No ${seasonLabel(season)} match is rated yet: the engine makes its call once one is played.` };
+}
+
 /** "predict 12345 23456 vs 34567 45678": two alliances of two, the engine's call for that qualification match. */
 export async function allianceForecast(red: AnswerTeam[], blue: AnswerTeam[], season: number, why?: string): Promise<StatAnswer> {
   const S = seasonLabel(season), side = (ts: AnswerTeam[]) => ts.map((t) => t.number).join(" & ");
@@ -64,16 +76,15 @@ export async function allianceForecast(red: AnswerTeam[], blue: AnswerTeam[], se
   const of = (t: AnswerTeam) => rows.find((r) => Number(r.team) === t.number);
   const missing = all4.filter((t) => of(t)?.rating_np == null).map(whoOf);
   if (missing.length) return { ...base, blocks: [links], none: `No ${S} prediction rating for ${missing.join(" or ")} yet.` };
-  const off = !(await isEnabled("livePredictions").catch(() => false));
-  const f = off ? null : readyForecaster(season);
+  const { engine: f, noCall } = await callingEngine(season);
   const nums = (ts: AnswerTeam[]) => ts.map((t) => t.number);
-  const x = f ? (await f).explain(season, nums(red), nums(blue), "qual", undefined, await recentRecords(season, nums(all4))) : null;
+  const x = f ? f.explain(season, nums(red), nums(blue), "qual", undefined, await recentRecords(season, nums(all4))) : null;
   const ratings: StatBlock = { kind: "table", title: "Prediction ratings", columns: [{ key: "team", label: "Team" }, { key: "side", label: "Alliance" }, { key: "rating", label: "Rating", num: true }, { key: "rank", label: "Rank" }],
     rows: all4.map((t) => ({ cells: { team: whoOf(t), side: red.includes(t) ? "Red" : "Blue", rating: `${num1(of(t)!.rating_np)} ±${Math.round(of(t)!.rating_sd ?? 0)}`, rank: of(t)!.rating_rank ? `#${of(t)!.rating_rank}` : "–" }, href: teamHref(t.number, season) })) };
   if (!x) {
     // No call to show: the ratings, said plainly, never a made-up score.
     const sum = (ts: AnswerTeam[]) => ts.reduce((n, t) => n + Number(of(t)!.rating_np), 0), gap = sum(red) - sum(blue);
-    return { ...base, headline: { value: `${gap >= 0 ? R : B} rated higher`, label: `by ${num1(Math.abs(gap))} points per match together`, sub: off ? "Live predictions are switched off just now." : "The engine's ratings are still loading: Predict shows the call." }, blocks: [ratings, links] };
+    return { ...base, headline: { value: `${gap >= 0 ? R : B} rated higher`, label: `by ${num1(Math.abs(gap))} points per match together`, sub: noCall }, blocks: [ratings, links] };
   }
   const pa = x.winProbA, sa = x.predictedScoreA, sb = x.predictedScoreB, margin = sa - sb;
   const even = Math.abs(pa - 0.5) < 0.005;
@@ -113,13 +124,12 @@ export async function pairPrediction(intent: string, title: string, a: AnswerTea
   const missing = [ra?.rating_np == null ? whoOf(a) : "", rb?.rating_np == null ? whoOf(b) : ""].filter(Boolean);
   if (missing.length) return { ...base, blocks: [links], none: `No ${S} prediction rating for ${missing.join(" or ")} yet.` };
   const rating = (t: AnswerTeam, r: RatingRow, lead: boolean) => ({ label: whoOf(t), value: `${num1(r.rating_np)} ±${Math.round(r.rating_sd ?? 0)}`, sub: r.rating_rank ? `Rating · #${r.rating_rank} worldwide` : "Rating", href: teamHref(t.number, season), ...(lead ? { tone: "accent" as const } : {}) });
-  const off = !(await isEnabled("livePredictions").catch(() => false));
-  const f = off ? null : readyForecaster(season);
-  const x = f ? (await f).explain(season, [a.number], [b.number], "qual", undefined, await recentRecords(season, [a.number, b.number])) : null;
+  const { engine: f, noCall } = await callingEngine(season);
+  const x = f ? f.explain(season, [a.number], [b.number], "qual", undefined, await recentRecords(season, [a.number, b.number])) : null;
   if (!x) {
     // No call to show: the ratings, said plainly, never a made-up score.
     const gap = Number(ra!.rating_np) - Number(rb!.rating_np), ahead = gap >= 0 ? a : b;
-    return { ...base, headline: { value: `${ahead.number} rated higher`, label: `by ${num1(Math.abs(gap))} points per match`, sub: off ? "Live predictions are switched off just now." : "The engine's ratings are still loading: Predict shows the call." },
+    return { ...base, headline: { value: `${ahead.number} rated higher`, label: `by ${num1(Math.abs(gap))} points per match`, sub: noCall },
       blocks: [{ kind: "kpis", items: [rating(a, ra!, gap > 0), rating(b, rb!, gap < 0)] }, links] };
   }
   const pa = x.winProbA, sa = x.predictedScoreA, sb = x.predictedScoreB, margin = sa - sb;
@@ -217,7 +227,7 @@ const chance = (p: number) => (p < 0.01 ? "<1%" : p > 0.99 ? ">99%" : pct(p));
 
 /** "Can 12345 beat a top 10 team worldwide, and by how much would they lose": the engine's call for the team against each
  *  team ranked in the world's top `n` by prediction rating in `season`, the favoured ones counted and the predicted
- *  losses' margins said. With no call to make (predictions off, ratings still loading), the ratings gaps, never a guess. */
+ *  losses' margins said. With no call to make (callingEngine says why), the ratings gaps, never a guess. */
 export async function predictTopAnswer(team: AnswerTeam, season: number, n: number): Promise<StatAnswer> {
   const S = seasonLabel(season);
   const title = `${team.number} against the top ${n} worldwide`;
@@ -232,9 +242,7 @@ export async function predictTopAnswer(team: AnswerTeam, season: number, n: numb
   if (!tops.length) return { ...base, blocks: [ranks], none: `No ${S} world ranks by prediction rating yet.` };
   const inTop = own.rating_rank != null && Number(own.rating_rank) <= n;
   const who = (r: { team: number; name: string | null }) => whoOf({ number: Number(r.team), name: r.name });
-  const off = !(await isEnabled("livePredictions").catch(() => false));
-  const f = off ? null : readyForecaster(season);
-  const engine = f ? await f : null;
+  const { engine, noCall } = await callingEngine(season);
   const recent = engine ? await recentRecords(season, [team.number, ...tops.map((r) => Number(r.team))]) : undefined;
   const calls = engine ? tops.map((r) => ({ r, x: engine.explain(season, [team.number], [Number(r.team)], "qual", undefined, recent) })) : [];
   const ownLine = `${whoOf(team)}: ${num1(own.rating_np)} ±${Math.round(own.rating_sd ?? 0)}${own.rating_rank ? `, #${own.rating_rank} worldwide` : ""}`;
@@ -244,7 +252,7 @@ export async function predictTopAnswer(team: AnswerTeam, season: number, n: numb
     const above = tops.filter((r) => Number(r.rating_np) > Number(own.rating_np)).length;
     return {
       ...base, definition: `${TOP_RULE}${extra}`,
-      headline: { value: above === tops.length ? "Rated below all" : `Rated above ${tops.length - above}`, label: inTop ? `of the other ${tops.length} teams in the ${S} top ${n} worldwide` : `of the ${S} top ${n} worldwide`, sub: `${off ? "Live predictions are switched off just now." : "The engine's ratings are still loading: Predict shows the call."} ${ownLine}` },
+      headline: { value: above === tops.length ? "Rated below all" : `Rated above ${tops.length - above}`, label: inTop ? `of the other ${tops.length} teams in the ${S} top ${n} worldwide` : `of the ${S} top ${n} worldwide`, sub: `${noCall} ${ownLine}` },
       blocks: [{ kind: "table", title: `The top ${n}, ${S}`, columns: [{ key: "team", label: "World rank" }, { key: "rating", label: "Rating", num: true }, { key: "gap", label: "Gap", num: true }],
         rows: tops.map((r) => ({ cells: { team: `#${r.rating_rank} · ${r.team}`, rating: num1(r.rating_np), gap: num1(Number(own.rating_np) - Number(r.rating_np)) }, href: predictHref({ mode: "match", season, red: [team.number], blue: [Number(r.team)] }) })) }, ranks],
     };

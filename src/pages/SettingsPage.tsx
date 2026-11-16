@@ -50,6 +50,7 @@ import { ago } from "../lib/format";
 import { workspacesOf } from "../lib/scoutSpace";
 import { Group, Row } from "../components/settings/rows";
 import { UsernameRow } from "../components/settings/UsernameRow";
+import { ProfilePictureRow } from "../components/settings/ProfilePictureRow";
 import { VerificationRow } from "../components/settings/VerificationRow";
 import { WorkspaceSection } from "../components/settings/WorkspaceSection";
 import { TabBarSettings } from "../components/settings/TabBarSettings";
@@ -283,6 +284,7 @@ function SignedIn({ user, sync, onSignOut }: { user: AccountUser; sync: string; 
   return (
     <div>
       <Group title="Details" description="How you appear in Control Scout.">
+        <ProfilePictureRow user={user} />
         <Row label="Actual name" htmlFor="display-name" description="The credit on match videos you add (Video by …). Your real name, as your team knows it." stack>
           <form onSubmit={(e) => { e.preventDefault(); saveName(); }} noValidate className="max-w-md">
             <div className="flex gap-2">
