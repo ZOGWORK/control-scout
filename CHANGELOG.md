@@ -21,8 +21,8 @@ Search › closest matches answer at an event named, as a top 10, and above a sc
 
 ### Highlights
 - [fixes] "Closest match in <event>" lists that event's closest matches
-- [fixes] "Top 10 closest match in decode" lists the ten closest, not the highest-scoring
-- [fixes] "Closest match in decode above 500" lists close matches where both alliances scored over 500, said on the card
+- [fixes] "Top 10 closest match" lists the ten closest, not the highest
+- [fixes] "Closest match above 500": both alliances over 500, said on the card
 
 ### Fixed
 - Search: a closest match asked at an event named by its name or its initials ("closest match in multinational tech invitational", "closes match in mti") lists that event's matches, closest first, an off-season event included. (`server/api/query/execute.ts`, `src/shared/query/lexicon.ts`) (#1566, #1567)
