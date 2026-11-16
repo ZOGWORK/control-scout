@@ -17,15 +17,14 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 
 ## 7.0.1 — 2026-11-16
 
-Videos › every clip read off a recording's frames now opens on a frame that names its match.
+Videos › a clip read off a recording's frames opens where the frame names its match; a clip already playing stays unless the video shows another match.
 
 ### Highlights
 - [fixes] Match clips open on their own match, never the one before
-- [fixes] 1,207 matches the clock left out now have clips from the video
 - [fixes] Clips already playing stay, unless the video shows another match
 
 ### Fixed
-- Videos: every frame-read clip opens 20, 12, 5, 2 or 0 s before its start, at the first frame whose overlay names the match; a results or bracket card up until the match begins, a replay ("M6-2"), an "Up Next" header and a bracket whose "advances to" line is cut off are read for what they name. A live clip whose opening names nothing keeps playing; only a frame naming another match pulls one (2 of 4,346: CAONMIQ M7, USIAWESTLT Q15). A recording cut mid-match no longer misplaces the matches after it. Of 2,080 matches the clock left out as early starts, 1,207 now have clips, each opening checked. (`scripts/video-frames.ts`, `scripts/lib/videoFrames.ts`, `server/data/frameTimings.ts`) (#1607)
+- Videos: a frame-read clip opens 20, 12, 5, 2 or 0 s before its start, at the first frame whose overlay names the match (`opens`); a results or bracket card up until the match begins, a replay ("M6-2"), an "Up Next" header and a bracket whose "advances to" line is cut off are read for what they name. A clip already live whose opening names nothing keeps playing (`unconfirmed`); only a frame naming another match pulls one. A recording cut mid-match no longer misplaces the matches after it, and a frozen player can't stall a read. The re-read data follows in its own releases, a season at a time. (`scripts/video-frames.ts`, `scripts/lib/videoFrames.ts`, `server/data/frameTimings.ts`, `server/videos/recordings.ts`) (#1607)
 
 ## 7.0.0 — 2026-11-16
 
