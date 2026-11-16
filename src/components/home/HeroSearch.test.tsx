@@ -15,10 +15,11 @@ let myTeam: number | null = null;
 let summary: { data?: unknown; error?: Error; loading: boolean } = { loading: true };
 const asked: (string | null)[] = [];
 vi.mock("motion/react", async (orig) => ({ ...(await orig<typeof import("motion/react")>()), useReducedMotion: () => reduced }));
-let account = { here: false, syncReady: false, user: null as { id: number } | null, providers: null as object | null };
+type Account = { here: boolean; syncReady: boolean; user: { id: number } | null; providers: object | null; offlineAccount?: boolean; sync?: string };
+let account: Account = { here: false, syncReady: false, user: null, providers: null };
 vi.mock("../../lib/personal", () => ({
   hasAccountOnDevice: () => account.here,
-  usePersonal: () => ({ user: account.user, providers: account.providers, syncReady: account.syncReady, offlineAccount: false, sync: "local", state: { myTeam, tracked: { teams: [], events: [] }, bookmarks: [] } }),
+  usePersonal: () => ({ user: account.user, providers: account.providers, syncReady: account.syncReady, offlineAccount: account.offlineAccount ?? false, sync: account.sync ?? "local", state: { myTeam, tracked: { teams: [], events: [] }, bookmarks: [] } }),
 }));
 vi.mock("../../lib/meta", async (orig) => ({ ...(await orig<typeof import("../../lib/meta")>()), useMeta: () => null }));
 vi.mock("../../lib/api", async (orig) => ({
@@ -195,6 +196,22 @@ describe("HeroSearch", () => {
     expect(chips().some((b) => b.textContent?.startsWith("4215 Hypnotic"))).toBe(true);
   });
 
+  it("never holds for an account whose sync failed, is offline, or opened from the offline copy", () => {
+    for (const extra of [{ sync: "error" }, { sync: "offline" }, { offlineAccount: true }]) {
+      account = { here: true, syncReady: false, user: { id: 7 }, providers: {}, ...extra };
+      show();
+      const list = screen.getByRole("list", { name: "Example searches" });
+      expect(list.className, JSON.stringify(extra)).not.toContain("invisible");
+      expect(list.getAttribute("aria-busy")).toBeNull();
+      expect(chips().length).toBeGreaterThan(0);
+      cleanup();
+    }
+    // The same account still syncing does hold (the guard is what lets the three above through).
+    account = { here: true, syncReady: false, user: { id: 7 }, providers: {}, sync: "syncing" };
+    show();
+    expect(screen.getByRole("list", { name: "Example searches" }).className).toContain("invisible");
+  });
+
   it("waits no longer than ACCOUNT_WAIT_MS for the account, and not at all once it's known signed out", () => {
     account = { here: true, syncReady: false, user: null, providers: null };
     show();
@@ -215,6 +232,9 @@ describe("HeroSearch", () => {
     const own = suggestionsAt(HOUR, HOME_SUGGESTIONS, teamSuggestions(4215, null)).filter((s) => s.mine);
     expect(own.map(suggestionLabel).every((l) => /^4215 [a-zA-Z]/.test(l) && !l.includes("Hypnotic"))).toBe(true);
     expect(chips().map((b) => b.textContent)).toEqual(expect.arrayContaining(own.map(suggestionLabel)));
+    const list = screen.getByRole("list", { name: "Example searches" });
+    expect(list.className).not.toContain("invisible");
+    expect(list.getAttribute("aria-busy")).toBeNull();
   });
 
   it("never searches for the example in the placeholder", () => {
