@@ -2589,7 +2589,30 @@ function splitSql(sql: string): string[] {
 // Small query helpers
 // ---------------------------------------------------------------------------
 
+/** How long a run of reads may hold this process before the next read lets the event loop turn first (busyTurn). */
+export const SLICE_MS = 20;
+let turnedAt = performance.now();
+let watching = false;
+
+/** Lets the event loop turn first when this process has gone SLICE_MS without one; else nothing. The driver answers a
+ *  local read without ever giving the loop back (its results resolve as microtasks), so a search making hundreds of
+ *  reads in a row, each quick, held this process for its whole run: an uncached search took 12 s on the VM and
+ *  /api/health, like every other request, waited the 12 s behind it (#1557). Each read starts here, so such a run lets
+ *  the requests waiting meanwhile in every SLICE_MS or so (and the longest wait is the longest single stretch of work
+ *  between reads). The same reads run, in the same order, with the same answers: only when they run changes. */
+export async function busyTurn(): Promise<void> {
+  const now = performance.now();
+  if (now - turnedAt < SLICE_MS) {
+    // Noted when the loop next turns of itself: a run of reads that never lets it keeps turnedAt where it was.
+    if (!watching) { watching = true; setImmediate(() => { watching = false; turnedAt = performance.now(); }); }
+    return;
+  }
+  await new Promise<void>((go) => setImmediate(go));
+  turnedAt = performance.now();
+}
+
 export async function all<T = Row>(sql: string, args: InArgs = []): Promise<T[]> {
+  await busyTurn();
   return (await db().execute({ sql, args })).rows as unknown as T[];
 }
 
@@ -2610,6 +2633,7 @@ export async function allInChunks<T = Row>(sql: string, args: InArgs, key: keyof
 }
 
 export async function get<T = Row>(sql: string, args: InArgs = []): Promise<T | undefined> {
+  await busyTurn();
   return (await db().execute({ sql, args })).rows[0] as unknown as T | undefined;
 }
 
