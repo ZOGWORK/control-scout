@@ -86,8 +86,15 @@ export async function eventsNamed(words: string, types: readonly string[] | null
   // An initialism's events by the names index, which a search for a short word may rank below others.
   const codes = [...new Set([...hits.map((h) => h.ref.split(":")[1]), ...(await names()).initialism(words)])];
   if (!codes.length) return [];
-  const rows = await all<{ season: number; code: string; name: string; type: string | null; division_code: string | null; start: string | null; end: string | null; city: string | null; state: string | null }>(
-    `SELECT season, code, name, type, division_code, start, end, city, state FROM events WHERE code IN (${codes.map(() => "?").join(", ")})`, codes);
+  type Row = { season: number; code: string; name: string; type: string | null; division_code: string | null; start: string | null; end: string | null; city: string | null; state: string | null };
+  const COLS = "season, code, name, type, division_code, start, end, city, state";
+  const byCode = await all<Row>(`SELECT ${COLS} FROM events WHERE code IN (${codes.map(() => "?").join(", ")})`, codes);
+  // The same name in other seasons under another code ("Rolla Meet @ 10 AM" is one code one season and another the
+  // next): search lists one edition of a name, so its other editions are found by the name itself.
+  const sameName = [...new Set(byCode.filter((e) => eventFit(words, e.name, e.code) >= EVENT_FIT).map((e) => e.name))];
+  const byName = sameName.length ? await all<Row>(`SELECT ${COLS} FROM events WHERE name IN (${sameName.map(() => "?").join(", ")})`, sameName) : [];
+  const seen = new Set<string>();
+  const rows = [...byCode, ...byName].filter((e) => { const k = `${e.season}|${e.code}`; if (seen.has(k)) return false; seen.add(k); return true; });
   const fits = rows.map((e) => ({ e, fit: eventFit(words, e.name, e.code) })).filter(({ e, fit }) => fit >= EVENT_FIT && (!types || types.includes(e.type ?? "")) && (!when || when({ season: Number(e.season), start: e.start ?? null })));
   // An initialism several events share ("mti"): the one initialismEvent picks among these (the kinds and year asked),
   // in each season it was held.
