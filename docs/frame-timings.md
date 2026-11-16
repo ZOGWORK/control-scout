@@ -76,12 +76,28 @@ A gap in one stretch doesn't stop the day: the next read that agrees with anothe
 
 ## Every clip opens on its match
 
-A placed start isn't a clip until its opening is checked (`checkOpenings`): the overlay 20, 12 or 5 s before the start
-must name that match (and, on a shared stream, not a sibling division's). The first that does is where the clip opens
-(`opens`); the server starts the clip there (`frameOpen`). One whose opening frame shows another match goes to review;
-one whose overlay can't be read there is missing with "overlay could not be read at its clip's start". A row with
-`opens` plays only the starts in it. `--verify` checks the openings of rows read before this, without reading their
-starts again.
+A placed start isn't a clip until its opening is checked (`checkOpenings`): the overlay 20, 12, 5, 2 or 0 s before the
+start must name that match (and, on a shared stream, not a sibling division's). The first that does is where the clip
+opens (`opens`); the server starts the clip there (`frameOpen`). The last two are for a results or bracket card that
+stays up until the match's own overlay comes on (CAONMIQ 2025 M7, USIAWESTLT M3). One whose opening frame shows another
+match goes to review; one whose overlay can't be read there is missing with "overlay could not be read at its clip's
+start". A row with `opens` plays only the starts in it. `--verify` checks the openings of rows read before this, without
+reading their starts again.
+
+What a frame names (`overlayLabel`): "Qualification N of M", "Finals Match N", or one "Match N". A card naming several
+names none, except the match its "Up Next" header names; a match a team "advances to" is a later one, never the one on
+screen; a bracket (three different M-numbers in its boxes) names none, its "advances to" line cut off or not; a replay
+("M6-2") is named by its match alone ("M6").
+
+A clip already live is never dropped on a frame that names nothing: `--verify`, and a re-read with `--live <main's
+frameTimings.ts>`, keep such a start in `unconfirmed` (it plays at the usual lead-in) until a later read confirms or
+pulls it. Only an opening that names another match pulls a live clip. A new placement whose opening names nothing is
+never placed.
+
+A recording can be cut mid-match (a stream restarted): a later read then gives an earlier start than the true one. The
+reader marks such a read "lost" and keeps it only where a read of Auto 12–20 s on agrees; the read after a cut
+("gained") has its other side checked in turn. Opening a video and closing a player are bounded (90 s, 15 s): a frozen
+page fails that video with the reason, and the next run reads it again.
 
 Only `starts` become clips. `review` (with the start found and why) and `missing` (with why) are written per video for
 the owner's review list; review starts are never shown as clips, and nothing is dropped without a reason.
