@@ -179,12 +179,23 @@ export async function runChannelAudit(log: (s: string) => void, opts: { apiKey?:
       const ids = needFacts.slice(i, i + 50);
       out.units++;
       let body: any;
-      try {
-        body = await api("videos", { part: "snippet,contentDetails,status,liveStreamingDetails", id: ids.join(","), maxResults: "50" }, key, fetchImpl);
-      } catch (e) {
-        // One failed call (a 5xx, a timeout) leaves these without facts, read again next run; the rest of the audit goes on.
-        if (e instanceof QuotaError) throw e;
-        factsError ??= `facts of ${ids.length} videos couldn't be read: ${String((e as Error).message ?? e).slice(0, 200)}`;
+      // A failed call (a 5xx, a timeout) is tried once more in this run, a unit allowing: the 50 videos it holds, one
+      // waiting in the owner's review among them, would otherwise wait for the next run, hours away.
+      let failed: unknown = null;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        if (attempt) { if (out.units >= maxUnits) break; out.units++; }
+        try {
+          body = await api("videos", { part: "snippet,contentDetails,status,liveStreamingDetails", id: ids.join(","), maxResults: "50" }, key, fetchImpl);
+          failed = null;
+          break;
+        } catch (e) {
+          if (e instanceof QuotaError) throw e;
+          failed = e;
+        }
+      }
+      if (failed) {
+        // Still failing: these stay without facts, read again next run; the rest of the audit goes on.
+        factsError ??= `facts of ${ids.length} videos couldn't be read: ${String((failed as Error).message ?? failed).slice(0, 200)}`;
         continue;
       }
       const got = new Set<string>();
