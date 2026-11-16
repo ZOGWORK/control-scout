@@ -595,7 +595,8 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     // An event named with a score to reach ("matches at <event> where both alliances scored over 250"): its matches,
     // its divisions' too. A calendar year said is the edition held that year; none said, its latest.
     const year = p.time?.kind === "season" && p.time.year != null && !p.time.relative ? p.time.year : null;
-    const named = p.event && !kind && (p.scoreCond || labelled || p.withVideo) ? await eventsNamed(normalise(p.event.words), null, year != null ? (e) => (e.start ?? "").startsWith(String(year)) : undefined) : null;
+    // A measure asked of an event named by its name ("closest match in <event>") is that event's matches too.
+    const named = p.event && !kind && (p.scoreCond || labelled || p.withVideo || (FIND[intent] && intent !== "match-label")) ? await eventsNamed(normalise(p.event.words), null, year != null ? (e) => (e.start ?? "").startsWith(String(year)) : undefined) : null;
     const events = named && year != null ? named.filter((e) => (e.start ?? "").startsWith(String(year))) : named;
     if (events && !events.length) return null;
     if (((p.event || p.eventKind) && !kind && !events) || (p.worlds && !labelled) || (p.states && !labelled) || p.alliance || (scope.ever && !p.withVideo) || (p.place && p.place.kind === "city")) return null;

@@ -101,6 +101,8 @@ const TABLE: [string, Sym | Sym[]][] = [
   ["first|earliest|debut|very first|opening|initial", { k: "agg", v: "first" }],
   ["last|latest|most recent|recent|newest|previous|final|current|so far", { k: "agg", v: "last" }],
   ["closest|tightest|narrowest|nail biter|nailbiter", { k: "agg", v: "closest" }],
+  // "Closes" is a word of its own, so spelling never corrects it; before "match" it's only ever "closest" cut short.
+  ["closes match|closes matches|closes game|closes games", [{ k: "agg", v: "closest" }, { k: "thing", v: "match" }]],
   // A sort said as an order ("highest scoring first", "lowest first"): the highest or lowest, never a first match.
   ["highest first|best first|top first|most first|biggest first", { k: "agg", v: "max" }],
   ["lowest first|worst first|fewest first|least first|smallest first", { k: "agg", v: "min" }],
