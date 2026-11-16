@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.0.4 — 2026-11-16
+
+Videos › the frame reader checks a clip's opening on the exact second the clip opens, so no clip starts on a frame just before its match's overlay.
+
+### Highlights
+- [fixes] Match clips no longer open a second before their overlay
+- [fixes] A clip's opening is checked on the very frame it starts on
+- [fixes] Lithuania 2024 Q20 now opens on its match, not a sponsor slate
+
+### Fixed
+- Videos: a clip opening's frame is read paused at its own second; read playing, it was about a second later than the second recorded, so a clip could open on the frame just before the overlay (LTCMP 2024 Q20 at 8948, a sponsor slate; read paused it opens at 8951). Timer reads still play. (`scripts/video-frames.ts`) (#1618)
+
 ## 7.0.3 — 2026-11-16
 
 Videos › 2024 recordings of events A to M read frame by frame: 285 more matches get a clip that opens where the frame names the match.
