@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.9.6 — 2026-11-16
+## 6.9.7 — 2026-11-16
 
 Search › a town's meet named ("rolla meet") is that event, its last played edition when this season's is still to come.
 
@@ -28,6 +28,18 @@ Search › a town's meet named ("rolla meet") is that event, its last played edi
 - Search: a town followed by an event word that together name a stored event ("top plays at rolla meet") is read as that event, never as the town's events with "meet" left over. (`src/shared/query/parse.ts`)
 - Search: an event held under a different code each season is found in each of them by its name, so the answer can fall back to last season's edition while this season's is unplayed. (`server/api/query/highlights.ts`) (#1573)
 - Search: "did <team> play at <event>" matches the event named by its season and code together, so a code another event reuses in another season never answers Yes. (`server/api/answers/yesNo.ts`)
+
+## 6.9.6 — 2026-11-16
+
+Search › a team's number shows the team, with no "Questions with video" about other events.
+
+### Highlights
+- [fixes] Searching a team number no longer suggests other events' highlights
+- [fixes] A team's highlights search only suggests that team's own video
+- [teams] A team search shows just the team and its own highlights
+
+### Changed
+- Search: "Questions with video" shows only when the search's own words ask to watch ("highlights", "with video", "video") or it filters to matches with video; a bare team number ("4215") whose card happens to hold highlights never gets it. On a team's answer the questions offered are the team's own seasons with a clip, never other events' highlights. (`server/api/answers/videoSuggest.ts`, `server/api/searchAnswer.ts`) (#1595)
 
 ## 6.9.5 — 2026-11-16
 
