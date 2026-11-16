@@ -98,23 +98,26 @@ const divisions = new WeakMap<Page, { own: string; others: string[] }>();
 
 // --- Reading a frame -----------------------------------------------------------------------------------------------
 
-// Two OCR workers shared by every lane (a tesseract.js worker does one job at a time). One that hangs is replaced, or
-// every later read would queue behind its stuck job and time out too.
+// Three OCR workers shared by every lane (a tesseract.js worker does one job at a time). One that hangs is replaced, or
+// every later read would queue behind its stuck job and time out too. `rowOcr` reads the overlay bar's row alone
+// (labelRow) with tesseract's own page layout (psm 3, tesseract.js's default being one block, psm 6): read as one
+// block, USMNCMPNANO 2024's "Playoff Match 1" comes out "PlayoffMach1"; laid out, as it is.
 const ocr = async () => {
-  const w = await createWorker("eng"), d = await createWorker("eng");
+  const w = await createWorker("eng"), d = await createWorker("eng"), r = await createWorker("eng");
   await d.setParameters({ tessedit_char_whitelist: "0123456789:", tessedit_pageseg_mode: "7" });
-  return [w, d] as const;
+  await r.setParameters({ tessedit_pageseg_mode: "3" });
+  return [w, d, r] as const;
 };
-let [worker, digits] = await ocr();
+let [worker, digits, rowOcr] = await ocr();
 let renewing: Promise<void> | null = null;
 /** Set when hung workers couldn't be replaced: every later read then fails its video at once (written with the reason,
  *  read again next run) instead of queueing behind the stuck job. */
 let ocrBroken: string | null = null;
 function renewOcr(): Promise<void> {
   renewing ??= (async () => {
-    const old = [worker, digits];
+    const old = [worker, digits, rowOcr];
     try {
-      [worker, digits] = await ocr();
+      [worker, digits, rowOcr] = await ocr();
       console.error("a frame read hung: the OCR workers were replaced");
     } catch (e) {
       ocrBroken = `the OCR workers hung and couldn't be replaced (${(e as Error).message.split("\n")[0]})`;
@@ -160,9 +163,9 @@ const MATCH_HALF = { ...LABEL_ROW, x: 640, width: 640 };
  *  so a match's placement is read as before. On a shared stream the row has to name this division too, as a whole
  *  frame's read does. */
 async function labelRow(page: Page, ctx: { own: string; others: string[] } | undefined): Promise<string | null> {
-  const label = overlayLabel((await worker.recognize(await page.screenshot({ clip: MATCH_HALF }))).data.text as string);
+  const label = overlayLabel((await rowOcr.recognize(await page.screenshot({ clip: MATCH_HALF }))).data.text as string);
   if (!label || !ctx) return label;
-  const row = (await worker.recognize(await page.screenshot({ clip: LABEL_ROW }))).data.text as string;
+  const row = (await rowOcr.recognize(await page.screenshot({ clip: LABEL_ROW }))).data.text as string;
   return overlayDivision(row, ctx.own, ctx.others) === "own" ? label : null;
 }
 
@@ -784,6 +787,7 @@ await browser.close().catch(() => {});
 await (renewing as Promise<void> | null)?.catch(() => {});
 await worker.terminate().catch(() => {});
 await digits.terminate().catch(() => {});
+await rowOcr.terminate().catch(() => {});
 if (failedEvents) { console.error(`${failedEvents} events failed before their videos were read`); process.exitCode = 1; }
 // Videos that couldn't be played are written as such and read again on the next run, but this run didn't finish them.
 if (failedVideos) { console.error(`${failedVideos} videos couldn't be played (written with the reason; the next run reads them again)`); process.exitCode = 1; }
