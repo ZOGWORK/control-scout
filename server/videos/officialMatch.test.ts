@@ -208,6 +208,9 @@ describe("the watcher's matcher", () => {
     // An event played in person that day keeps it for the owner.
     const both = [...remote, ev("USCPMDQ1", "CP Maryland Qualifier", { start: "2021-02-14", end: "2021-02-14" })];
     expect(matchVideo(vid("CHS FIRST Tech Challenge Event 2/14/2021", { start: null, published: "2021-02-14T23:00:00Z" }), { region: "country=USA" }, both).kind).toBe("review");
+    // A broadcast naming the remote event itself: the owner's, never added.
+    expect(matchVideo(vid("CP FTC Qualifier #2 Remote Awards", { start: "2021-02-14T19:00:00Z" }), { region: "country=USA" }, remote))
+      .toMatchObject({ kind: "review", why: /USCPRIQT2 was played remotely/ });
   });
 
   it("sets aside a dated upload of FTC Events: several events in one video", () => {
