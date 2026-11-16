@@ -32,7 +32,7 @@
 //   TESSERACT_JS=<path to tesseract.js's entry>  where tesseract.js is, when it isn't in node_modules
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
-import { EDGE_AT, playedCount } from "./lib/videoFrames";
+import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, playedCount } from "./lib/videoFrames";
 import { AUTO_S, OPEN_LEADS, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, elapsed, overlayDivision, leadIn, judge, NOTHING_READ, overlayLabel, secondsOf, type Judged, type M } from "./lib/videoFrames";
 
 // The command line: --name value or --name=value for the value flags, --name alone for the others. Anything else stops
@@ -330,21 +330,36 @@ async function verifyRow(row: FrameTiming, division: { own: string; others: stri
 
 // --- The recording's edges ----------------------------------------------------------------------------------------
 
-type Edge = { at: number; label?: string; played?: number; of?: number };
+type Edge = { at: number; label?: string; played?: number; of?: number; clear?: boolean };
 /** What a recording's first and last frames show (EDGE_AT from each end): the first frame from that end that names a
- *  match (this division's; another's names none) or counts the matches played. Nothing read there: no edge. */
+ *  match (this division's; another's names none) or counts the matches played. None does, and none shows a timer: read
+ *  on every CLEAR_STEP_S (up to CLEAR_MAX_S, or half the video) while each frame shows no match at all, and the first
+ *  that names one is the edge, "clear" of matches before it. A timer on screen with no match named: no edge. */
 async function readEdges(page: Page, length: number): Promise<{ opensOn?: Edge; endsOn?: Edge }> {
-  const at = async (ts: number[]): Promise<Edge | undefined> => {
-    for (const t of ts) {
+  const named = async (t: number): Promise<Edge | null> => {
+    const r = await readAt(page, t, true);
+    const n = playedCount(r.text);
+    return r.label || n ? { at: Math.round(t), ...(r.label ? { label: r.label } : {}), ...(n ? { played: n.played, of: n.of } : {}) } : null;
+  };
+  const edge = async (from: (s: number) => number): Promise<Edge | undefined> => {
+    let quiet = true;
+    for (const s of EDGE_AT) {
+      const t = from(s);
       if (t < 0 || t > length) continue;
-      const r = await readAt(page, t, true);
-      const n = playedCount(r.text);
-      if (r.label || n) return { at: Math.round(t), ...(r.label ? { label: r.label } : {}), ...(n ? { played: n.played, of: n.of } : {}) };
+      const e = await named(t);
+      if (e) return e;
+      if (quiet && await timer(page)) quiet = false;
+    }
+    if (!quiet) return undefined;
+    for (let s = EDGE_AT[EDGE_AT.length - 1] + CLEAR_STEP_S; s <= Math.min(CLEAR_MAX_S, length / 2); s += CLEAR_STEP_S) {
+      const e = await named(from(s));
+      if (e) return { ...e, clear: true };
+      if (await timer(page)) return undefined;
     }
     return undefined;
   };
-  const opensOn = await at(EDGE_AT);
-  const endsOn = await at(EDGE_AT.map((s) => length - s));
+  const opensOn = await edge((s) => s);
+  const endsOn = await edge((s) => length - s);
   return { ...(opensOn ? { opensOn } : {}), ...(endsOn ? { endsOn } : {}) };
 }
 
@@ -356,7 +371,7 @@ async function boundsRow(row: FrameTiming, length: number, division: { own: stri
     if (division) divisions.set(page, division);
     await open(page, row.videoId);
     const { opensOn, endsOn } = await readEdges(page, length);
-    const said = (e?: Edge) => (e ? `${e.label ?? ""}${e.played != null ? ` ${e.played}/${e.of} played` : ""} at ${e.at} s` : "nothing");
+    const said = (e?: Edge) => (e ? `${e.label ?? ""}${e.played != null ? ` ${e.played}/${e.of} played` : ""} at ${e.at} s${e.clear ? " (no match before it)" : ""}` : "nothing");
     log(`  ${row.videoId}: opens on ${said(opensOn)}, ends on ${said(endsOn)}`);
     const { opensOn: _o, endsOn: _e, ...rest } = row;
     keep(`${row.videoId}|${row.code}`, { ...rest, ...(opensOn ? { opensOn } : {}), ...(endsOn ? { endsOn } : {}) });
