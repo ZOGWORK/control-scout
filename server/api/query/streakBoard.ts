@@ -72,15 +72,24 @@ export async function streakBoardAnswer(o: { region: Region; season: number; now
  *  event days, a sync in its child process) are in none of them, never in the later parts only. Where the database
  *  can't hold a moment apart (one shared connection: in memory, an embedded replica) it's one read, as before. */
 async function boardRows(o: { region: Region; season: number }): Promise<Row[]> {
-  return (await inSnapshot((read) => readBoard(o, read, TEAMS_PER_READ))) ?? readBoard(o, all, Infinity);
+  return (await inSnapshot((read) => readBoard(o, read, TEAMS_PER_READ))) ?? readBoard(o, all, null);
 }
 
-/** The board's rows through `read`, `per` teams a read (boardRows). */
-async function readBoard(o: { region: Region; season: number }, read: <R>(sql: string, args?: (string | number)[]) => Promise<R[]>, per: number): Promise<Row[]> {
+/** The board's rows through `read` (boardRows): `per` teams a read, or (null) every team in the one read. */
+async function readBoard(o: { region: Region; season: number }, read: <R>(sql: string, args?: (string | number)[]) => Promise<R[]>, per: number | null): Promise<Row[]> {
   const place = [o.region.country, ...(o.region.state ? [o.region.state] : [])];
+  const args = (range: number[]) => [o.season - 1, o.season, ...OFFICIAL_TYPES, ...place, ...range, DOUBLE_ELIM_FROM];
+  // One read: the matches alone, no list of the teams read first (a write between the two would be in one of them only).
+  if (per == null) return read<Row>(matchesSql(o, false), args([]));
   const numbers = (await read<{ number: number }>(`SELECT number FROM teams WHERE country = ?${o.region.state ? " AND state = ?" : ""} ORDER BY number`, place)).map((r) => Number(r.number));
   const rows: Row[] = [];
-  for (let i = 0; i < numbers.length; i += per) for (const r of await read<Row>(`SELECT t.team, m.season, m.code, m.level, m.series, m.number, m.label, e.name, e.type, t.alliance, m.red_total, m.blue_total
+  for (let i = 0; i < numbers.length; i += per) for (const r of await read<Row>(matchesSql(o, true), args([numbers[i], numbers[Math.min(i + per, numbers.length) - 1]]))) rows.push(r);
+  return rows;
+}
+
+/** The place's official matches, by team then each team's match order; `ranged`: of the teams numbered between two more
+ *  arguments only. */
+const matchesSql = (o: { region: Region }, ranged: boolean) => `SELECT t.team, m.season, m.code, m.level, m.series, m.number, m.label, e.name, e.type, t.alliance, m.red_total, m.blue_total
     -- From the region's teams, then each one's matches (match_teams_team_match): SQLite otherwise read every match of
     -- the two seasons first and kept the region's after, 0.7-1.1 s for Romania's 600 teams with this process held the
     -- whole time; 0.1 s this way. Each CROSS JOIN keeps that order (an inner join all the same): with plain joins it
@@ -93,12 +102,9 @@ async function readBoard(o: { region: Region; season: number }, read: <R>(sql: s
       -- counts and a surrogate match doesn't.
       AND COALESCE(e.remote, 0) = 0 AND e.type IN (${OFFICIAL_TYPES.map(() => "?").join(", ")})
       AND CASE WHEN t.level = 'qual' THEN COALESCE(t.surrogate, 0) = 0 ELSE COALESCE(t.on_field, 1) = 1 END
-      AND tm.country = ?${o.region.state ? " AND tm.state = ?" : ""} AND tm.number BETWEEN ? AND ?
+      AND tm.country = ?${o.region.state ? " AND tm.state = ?" : ""}${ranged ? " AND tm.number BETWEEN ? AND ?" : ""}
     -- A team's own match order (../answers/matchSet.ts teamMatches): by event, a division before the finals it feeds,
     -- then the event's order (qualifications, playoffs by stage; a classic bracket's final, series 0, last: a double
     -- elimination bracket may number from 0, its first match first), never by match time, which a played
     -- match may lack.
-    ORDER BY t.team, e.start, t.season, COALESCE(e.division_code, e.code), e.division_code IS NULL, t.code, t.level = 'playoff', t.level = 'playoff' AND t.series = 0 AND t.season < ?, t.series, t.number`,
-    [o.season - 1, o.season, ...OFFICIAL_TYPES, ...place, numbers[i], numbers[Math.min(i + per, numbers.length) - 1], DOUBLE_ELIM_FROM])) rows.push(r);
-  return rows;
-}
+    ORDER BY t.team, e.start, t.season, COALESCE(e.division_code, e.code), e.division_code IS NULL, t.code, t.level = 'playoff', t.level = 'playoff' AND t.series = 0 AND t.season < ?, t.series, t.number`;
