@@ -1,9 +1,10 @@
 // Home's suggestion pool and the hourly pick: every family of answer is in the pool, each chip fits, and each hour
 // gives six of different families, with a leaderboard and a sentence or filtered query, the same in every browser.
+// The pool names no team and leans on no one region; a visitor's own team adds its own two chips.
 import { describe, expect, it } from "vitest";
-import { HOME_SUGGESTIONS, SUGGESTION_COUNT, SUGGESTION_HOUR_MS, SUGGESTION_LABEL_MAX, SUGGESTION_TEAMS, DESKTOP_CHIPS, allFit, chipWidthEstimate, fitChips, placeholderable, suggestionLabel, suggestionTeams, suggestionsAt, type HomeSuggestion, type SuggestionKind } from "./homeSuggestions";
+import { HOME_SUGGESTIONS, SUGGESTION_COUNT, SUGGESTION_HOUR_MS, SUGGESTION_LABEL_MAX, TEAM_LABEL_MAX, TEAM_SUGGESTION_COUNT, DESKTOP_CHIPS, allFit, chipWidthEstimate, fitChips, placeholderable, suggestionLabel, suggestionsAt, teamLabel, teamSuggestions, type HomeSuggestion, type SuggestionKind } from "./homeSuggestions";
 
-const KINDS: SuggestionKind[] = ["team", "opr", "rating", "record", "matches", "awards", "worlds", "versus", "three", "leaderboard", "winners", "predict", "question", "filters"];
+const KINDS: SuggestionKind[] = ["leaderboard", "phase", "winners", "question", "filters", "count", "scores", "events"];
 const T0 = Date.UTC(2026, 10, 4, 0, 0);
 const hours = Array.from({ length: 24 * 60 }, (_, h) => T0 + h * SUGGESTION_HOUR_MS);
 
@@ -21,26 +22,54 @@ describe("home suggestion pool", () => {
     }
     expect(new Set(HOME_SUGGESTIONS.map(suggestionLabel)).size).toBe(HOME_SUGGESTIONS.length);
   });
-  it("names only the six suggestion teams, each several times, and none over and over", () => {
-    const counts = new Map<string, number>();
-    for (const s of HOME_SUGGESTIONS) for (const t of suggestionTeams(s)) counts.set(t, (counts.get(t) ?? 0) + 1);
-    expect([...counts.keys()].sort()).toEqual(Object.keys(SUGGESTION_TEAMS).sort());
-    for (const [t, n] of counts) { expect(n, t).toBeGreaterThanOrEqual(4); expect(n, t).toBeLessThanOrEqual(14); }
+  it("holds only its own families, none of them a team's", () => {
+    expect([...new Set(HOME_SUGGESTIONS.map((s) => s.kind))].sort()).toEqual([...KINDS].sort());
+    expect(HOME_SUGGESTIONS.filter((s) => s.mine)).toEqual([]);
   });
-  it("fails on any suggestion naming a team outside the six, by number or by name", () => {
-    const allowed = new Set(Object.keys(SUGGESTION_TEAMS));
-    // Every team number in a query or label (a threshold, "opr over 100" or "OPR 120+", is not one).
+  it("names no team, by number or by name", () => {
+    // Every team number in a query or label (a threshold, "opr over 100" or "OPR 20+", is not one).
     const numbers = (text: string): string[] => text.match(/(?<!\bover )\b\d{3,5}\b(?!\+)/g) ?? [];
-    const outside = HOME_SUGGESTIONS.flatMap((s) => [...numbers(s.q), ...numbers(suggestionLabel(s)), ...(s.teams ?? [])].filter((t) => !allowed.has(t)).map((t) => `${s.q}: ${t}`));
-    expect(outside).toEqual([]);
-    // A team named by name is listed in `teams`, and a team listed there is named by its own name.
-    for (const s of HOME_SUGGESTIONS) {
-      const named = Object.entries(SUGGESTION_TEAMS).filter(([n, name]) => !numbers(s.q).includes(n) && s.q.toLowerCase().includes(name.toLowerCase())).map(([n]) => n);
-      expect([...(s.teams ?? [])].sort(), s.q).toEqual(named.sort());
+    expect(HOME_SUGGESTIONS.flatMap((s) => [...numbers(s.q), ...numbers(suggestionLabel(s))].map((t) => `${s.q}: ${t}`))).toEqual([]);
+    // The teams the pool once named, by name.
+    for (const name of ["Hypnotic Robotics", "Bad Wolf", "ENFORCERS", "Don't Blink", "Ultraviolet", "Bit by Bit"]) {
+      expect(HOME_SUGGESTIONS.filter((s) => `${s.q} ${suggestionLabel(s)}`.toLowerCase().includes(name.toLowerCase())).map((s) => s.q), name).toEqual([]);
     }
-    // The check itself catches the old random teams.
-    const bad: HomeSuggestion = { q: "14343 auto OPR", kind: "opr" };
-    expect(suggestionTeams(bad).some((t) => !allowed.has(t))).toBe(true);
+  });
+  it("leans on no one region: no New Jersey, and no place in more than a few chips", () => {
+    expect(HOME_SUGGESTIONS.filter((s) => /\b(nj|new jersey|oradell)\b/i.test(`${s.q} ${suggestionLabel(s)}`)).map((s) => s.q)).toEqual([]);
+    const places = ["Texas", "California", "Michigan", "Florida", "Canada", "China", "Brazil", "Australia", "Romania", "Houston", "Ontario"];
+    const names = (s: HomeSuggestion, p: string) => new RegExp(`\\b${p}\\b`, "i").test(s.q);
+    for (const p of places) expect(HOME_SUGGESTIONS.filter((s) => names(s, p)).length, p).toBeLessThanOrEqual(8);
+    // Many name no place at all: the world's boards.
+    expect(HOME_SUGGESTIONS.filter((s) => !places.some((p) => names(s, p))).length).toBeGreaterThanOrEqual(15);
+  });
+});
+
+describe("a visitor's own team's chips", () => {
+  it("run by the team's number, one of each family, and show its number and name", () => {
+    const mine = teamSuggestions(4215, "Hypnotic Robotics");
+    expect(mine.map((s) => s.q)).toEqual(["4215 rating", "4215 OPR", "4215 record", "4215 matches", "4215 awards", "When did 4215 go to Worlds"]);
+    expect(new Set(mine.map((s) => s.kind)).size).toBe(mine.length);
+    expect(mine.every((s) => s.mine)).toBe(true);
+    expect(mine.map(suggestionLabel)).toEqual(["4215 Hypnotic Robotics rating", "4215 Hypnotic Robotics OPR", "4215 Hypnotic Robotics record", "4215 Hypnotic Robotics matches", "4215 Hypnotic Robotics awards", "4215 Hypnotic Robotics Worlds"]);
+    // Their families are none of the pool's, so the pool fills the rest without a clash.
+    expect(mine.filter((s) => KINDS.includes(s.kind))).toEqual([]);
+  });
+  it("fit a chip: the name cut at a word with “…”, a name with no room left out, and the number alone with no name", () => {
+    expect(teamLabel(4215, "Hypnotic Robotics", "at Worlds")).toBe("4215 Hypnotic… at Worlds");
+    expect(teamLabel(4215, "Hypnotic Robotics", "OPR")).toBe("4215 Hypnotic Robotics OPR");
+    expect(teamLabel(6980, "Bad Wolf", "at Worlds")).toBe("6980 Bad Wolf at Worlds");
+    expect(teamLabel(12345, "Supercalifragilisticexpialidocious", "rating")).toBe("12345 Supercalifragili… rating");
+    expect(teamLabel(12345, "Robo-Rangers & Friends", "matches")).toBe("12345 Robo-Rangers… matches");
+    expect(teamLabel(16091, "T.W.C.A. (Team Without a Cool Acronym)", "rating")).toBe("16091 T.W.C.A.… rating");
+    expect(teamLabel(12345, null, "matches")).toBe("12345 matches");
+    expect(teamLabel(12345, "  ", "matches")).toBe("12345 matches");
+    for (const name of ["A", "The Quick Brown Fox Jumps", "Robo-Rangers & Friends of the Lake", "X Y Z W V U T S R Q"]) {
+      for (const s of teamSuggestions(123456, name)) {
+        expect(suggestionLabel(s).length, suggestionLabel(s)).toBeLessThanOrEqual(TEAM_LABEL_MAX);
+        expect(suggestionLabel(s)).toMatch(/^123456 /);
+      }
+    }
   });
 });
 
@@ -73,9 +102,23 @@ describe("suggestionsAt", () => {
       for (const w of [300, 390, 500]) expect(allFit(ws, w, 8, 2)).toBe(fitChips(ws, w, 8, 2).length === ws.length);
     }
   });
-  it("never names one team twice in an hour", () => {
-    const clashes = hours.filter((h) => { const t = suggestionsAt(h).flatMap(suggestionTeams); return new Set(t).size !== t.length; }).length;
-    expect(clashes).toBe(0);
+  it("with a team of its own: two of its chips every hour (changing through the day), the rest the pool's, all fitting a desktop", () => {
+    const mine = teamSuggestions(4215, "Hypnotic Robotics");
+    const days = hours.slice(0, 24 * 14);
+    const picked = new Set<string>();
+    for (const h of days) {
+      const six = suggestionsAt(h, HOME_SUGGESTIONS, mine);
+      const own = six.filter((s) => s.mine);
+      expect(own).toHaveLength(TEAM_SUGGESTION_COUNT);
+      own.forEach((s) => picked.add(s.q));
+      expect(six.length).toBeGreaterThanOrEqual(5);
+      expect(six.length).toBeLessThanOrEqual(SUGGESTION_COUNT);
+      expect(new Set(six.map((s) => s.kind)).size).toBe(six.length);
+      expect(six.some((s) => s.kind === "leaderboard")).toBe(true);
+      expect(allFit(six.map(chipWidthEstimate), DESKTOP_CHIPS.width, DESKTOP_CHIPS.gap, DESKTOP_CHIPS.rows)).toBe(true);
+      expect(suggestionsAt(h, HOME_SUGGESTIONS, mine)).toEqual(six);
+    }
+    expect(picked.size).toBe(mine.length);
   });
 });
 
@@ -103,8 +146,13 @@ describe("fitChips", () => {
     expect(rowsOf(widths, order, 290, 8)).toBeLessThanOrEqual(2);
   });
   it("keeps a leaderboard and a sentence query over others of the same width", () => {
-    const order = fitChips([150, 150, 150, 150], 310, 8, 1, ["team", "leaderboard", "opr", "question"]);
+    const order = fitChips([150, 150, 150, 150], 310, 8, 1, ["count", "leaderboard", "phase", "question"]);
     expect(order).toEqual([1, 3]);
+  });
+  it("keeps the visitor's own team's chips over more of the others", () => {
+    // Two 200px chips of the pool's fit one row of 410 where the team's 260px chip would leave room for none of them.
+    expect(fitChips([200, 200, 260], 410, 8, 1)).toEqual([0, 1]);
+    expect(fitChips([200, 200, 260], 410, 8, 1, [], [false, false, true])).toEqual([2]);
   });
   it("lays out every hour's six at phone widths on no more than two rows, keeping at least two", () => {
     const w = (s: HomeSuggestion) => 44 + 7.2 * suggestionLabel(s).length;

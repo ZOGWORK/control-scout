@@ -7,17 +7,24 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { RECENT_KEY } from "../search/discover";
-import { SUGGESTION_HOUR_MS, SUGGESTION_TEAMS, fitChips, placeholderable, suggestionLabel, suggestionsAt } from "../../shared/homeSuggestions";
+import { HOME_SUGGESTIONS, SUGGESTION_HOUR_MS, fitChips, placeholderable, suggestionLabel, suggestionsAt, teamSuggestions } from "../../shared/homeSuggestions";
 import { HERO_EXAMPLE_MS, HeroSearch, heroPlaceholder } from "./HeroSearch";
 
 let reduced = false;
+let myTeam: number | null = null;
+let summary: { data?: unknown; error?: Error; loading: boolean } = { loading: true };
+const asked: (string | null)[] = [];
 vi.mock("motion/react", async (orig) => ({ ...(await orig<typeof import("motion/react")>()), useReducedMotion: () => reduced }));
-vi.mock("../../lib/personal", () => ({ usePersonal: () => ({ user: null, state: { myTeam: null, tracked: { teams: [], events: [] }, bookmarks: [] } }) }));
+vi.mock("../../lib/personal", () => ({ usePersonal: () => ({ user: null, state: { myTeam, tracked: { teams: [], events: [] }, bookmarks: [] } }) }));
 vi.mock("../../lib/meta", async (orig) => ({ ...(await orig<typeof import("../../lib/meta")>()), useMeta: () => null }));
 vi.mock("../../lib/api", async (orig) => ({
   ...(await orig<typeof import("../../lib/api")>()),
   apiFetch: () => new Promise(() => {}),
-  useApi: () => ({ data: undefined, error: undefined, loading: true, reload: () => {} }),
+  useApi: (path: string | null) => {
+    asked.push(path);
+    if (path?.startsWith("/api/teams-summary")) return { ...summary, reload: () => {} };
+    return { data: undefined, error: undefined, loading: !!path, reload: () => {} };
+  },
 }));
 
 function Where() { const l = useLocation(); return <output data-testid="at">{l.pathname + l.search}</output>; }
@@ -35,7 +42,7 @@ const six = () => suggestionsAt(HOUR);
 const typeable = () => six().filter(placeholderable);
 const chips = () => [...screen.getByRole("list", { name: "Example searches" }).querySelectorAll("button")];
 
-beforeEach(() => { reduced = false; localStorage.clear(); vi.useFakeTimers(); vi.setSystemTime(HOUR); });
+beforeEach(() => { reduced = false; myTeam = null; summary = { loading: true }; asked.length = 0; localStorage.clear(); vi.useFakeTimers(); vi.setSystemTime(HOUR); });
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 
 describe("HeroSearch", () => {
@@ -91,15 +98,52 @@ describe("HeroSearch", () => {
     expect(JSON.parse(localStorage.getItem(RECENT_KEY) ?? "[]")).toContain(board.q);
   });
 
-  it("names only the six suggestion teams in its chips and placeholder, all day", () => {
-    const allowed = new Set(Object.keys(SUGGESTION_TEAMS));
-    const outside = (text: string) => (text.match(/(?<!\bover )\b\d{3,5}\b(?!\+)/g) ?? []).filter((t) => !allowed.has(t));
+  it("names no team in its chips and placeholder, all day, for a visitor with no team of their own", () => {
+    const teams = (text: string) => text.match(/(?<!\bover )\b\d{3,5}\b(?!\+)/g) ?? [];
     show();
+    expect(asked.some((p) => p?.startsWith("/api/teams-summary"))).toBe(false);
     for (let h = 0; h < 24; h++) {
       const shown = [...chips().map((b) => b.textContent ?? ""), field().getAttribute("placeholder") ?? ""];
-      expect(shown.flatMap(outside), shown.join(" | ")).toEqual([]);
+      expect(shown.flatMap(teams), shown.join(" | ")).toEqual([]);
       act(() => { vi.advanceTimersByTime(SUGGESTION_HOUR_MS); });
     }
+  });
+
+  it("with My team set: two chips about that team, by number and name, among the pool's, and they run by number", () => {
+    myTeam = 4215;
+    summary = { loading: false, data: { teams: [{ team: 4215, name: "Hypnotic Robotics" }] } };
+    show();
+    expect(asked.some((p) => p?.startsWith("/api/teams-summary") && p.includes("teams=4215"))).toBe(true);
+    const want = suggestionsAt(HOUR, HOME_SUGGESTIONS, teamSuggestions(4215, "Hypnotic Robotics"));
+    expect(chips().map((b) => b.textContent)).toEqual(want.map(suggestionLabel));
+    const own = want.filter((s) => s.mine);
+    expect(own).toHaveLength(2);
+    for (const s of own) expect(suggestionLabel(s)).toMatch(/^4215 Hypnotic/);
+    fireEvent.click(chips()[want.indexOf(own[0])]);
+    expect(screen.getByTestId("at").textContent).toBe(`/search?q=${encodeURIComponent(own[0].q)}`);
+    expect(own[0].q).toMatch(/\b4215\b/);
+  });
+
+  it("with My team set, holds the chips' rows hidden until the team's name is in, then draws them once", () => {
+    myTeam = 4215;
+    const { rerender } = show();
+    const list = screen.getByRole("list", { name: "Example searches" });
+    expect(list.className).toContain("invisible");
+    expect(list.getAttribute("aria-busy")).toBe("true");
+    summary = { loading: false, data: { teams: [{ team: 4215, name: "Hypnotic Robotics" }] } };
+    rerender(<MemoryRouter initialEntries={["/"]}><HeroSearch inputRef={null} onEscape={() => {}} hint="Ctrl K" /><Where /></MemoryRouter>);
+    expect(list.className).not.toContain("invisible");
+    expect(list.getAttribute("aria-busy")).toBeNull();
+    expect(chips().some((b) => b.textContent?.startsWith("4215 Hypnotic"))).toBe(true);
+  });
+
+  it("with My team set and its name unknown (the request failed), its chips go by number alone", () => {
+    myTeam = 4215;
+    summary = { loading: false, error: new Error("offline") };
+    show();
+    const own = suggestionsAt(HOUR, HOME_SUGGESTIONS, teamSuggestions(4215, null)).filter((s) => s.mine);
+    expect(own.map(suggestionLabel).every((l) => /^4215 [a-zA-Z]/.test(l) && !l.includes("Hypnotic"))).toBe(true);
+    expect(chips().map((b) => b.textContent)).toEqual(expect.arrayContaining(own.map(suggestionLabel)));
   });
 
   it("never searches for the example in the placeholder", () => {

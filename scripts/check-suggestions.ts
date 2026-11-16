@@ -3,13 +3,15 @@
 //   - gives no answer card (`stat` or `card`), or a card that says nothing was found;
 //   - is misspelled: search's spelling correction (server/api/spelling.ts, its vocabulary built from the stored
 //     team, school, event, venue, city and region names) offers "Did you mean" for the query, or for the chip's
-//     label searched alone;
-//   - names a team by name (`teams`) in a spelling other than the team's own, as its team page stores it.
+//     label searched alone.
+// With --team, a visitor's own team's chips (teamSuggestions) are asked too, as that team (a team with no awards or
+// no Worlds yet gets a card that says so: reported, not failed, as it is that team's true answer).
 // Run it before adding a query to the pool, and after a search change ships.
 //
 //   npm run suggestions:check                                  (the live site)
 //   npm run suggestions:check -- --base http://localhost:3000
-import { HOME_SUGGESTIONS, suggestionLabel, type HomeSuggestion } from "../src/shared/homeSuggestions.js";
+//   npm run suggestions:check -- --team 4215
+import { HOME_SUGGESTIONS, suggestionLabel, teamSuggestions, type HomeSuggestion } from "../src/shared/homeSuggestions.js";
 import type { SearchAnswer } from "../src/shared/api.js";
 
 const arg = (n: string) => { const i = process.argv.indexOf(`--${n}`); return i === -1 ? undefined : process.argv[i + 1]; };
@@ -28,18 +30,6 @@ export function misspelled(text: string, a: SearchAnswer): string | null {
   return a.didYouMean || a.step === "did-you-mean" ? `“${text}” is misspelled: search offers “${a.didYouMean ?? "?"}”` : null;
 }
 
-/** Why a chip names a team other than as the team's own name is spelled, or null. `names`: each team's stored name. */
-export function misnamed(s: HomeSuggestion, names: ReadonlyMap<string, string>): string | null {
-  for (const t of s.teams ?? []) {
-    const name = names.get(t);
-    if (!name) return `team ${t} has no name`;
-    for (const text of new Set([s.q, suggestionLabel(s)])) {
-      if (!text.toLowerCase().includes(name.toLowerCase())) return `“${text}” doesn't spell ${t}'s name, “${name}”`;
-    }
-  }
-  return null;
-}
-
 async function get<T>(path: string): Promise<T> {
   for (let attempt = 0; ; attempt++) {
     try {
@@ -54,26 +44,33 @@ async function get<T>(path: string): Promise<T> {
 }
 const ask = (q: string) => get<SearchAnswer>(`/api/search?${new URLSearchParams({ q, limit: "40", answer: "1" })}`);
 
-async function check(s: HomeSuggestion, names: ReadonlyMap<string, string>): Promise<string | null> {
+async function check(s: HomeSuggestion): Promise<string | null> {
   try {
     const a = await ask(s.q);
     const label = suggestionLabel(s);
-    return noCard(a) ?? misspelled(s.q, a) ?? (label === s.q ? null : misspelled(label, await ask(label))) ?? misnamed(s, names);
+    // A team's own chip's label holds its name (or a cut "…" of it): only the query is the team's to spell.
+    return noCard(a) ?? misspelled(s.q, a) ?? (label === s.q || s.mine ? null : misspelled(label, await ask(label)));
   } catch (e) { return (e as Error).message; }
 }
 
 // Run as a script; imported (its test), only the checks above.
 if (/check-suggestions\.ts$/.test(process.argv[1] ?? "")) {
-  const names = new Map<string, string>();
-  for (const t of new Set(HOME_SUGGESTIONS.flatMap((s) => s.teams ?? []))) {
-    try { names.set(t, (await get<{ team: { name: string } }>(`/api/teams/${t}`)).team.name); } catch { /* reported as no name */ }
+  const team = Number(arg("team"));
+  let mine: HomeSuggestion[] = [];
+  if (Number.isInteger(team) && team > 0) {
+    let name: string | null = null;
+    try { name = (await get<{ team: { name: string | null } }>(`/api/teams/${team}`)).team.name; } catch { /* by number alone */ }
+    mine = teamSuggestions(team, name);
   }
   const failed: string[] = [];
-  for (const s of HOME_SUGGESTIONS) {
-    const why = await check(s, names);
-    console.log(`${why ? "FAIL" : "ok  "}  ${s.kind.padEnd(11)} ${s.q}${why ? `  → ${why}` : ""}`);
-    if (why) failed.push(s.q);
+  for (const s of [...HOME_SUGGESTIONS, ...mine]) {
+    const why = await check(s);
+    // A team's own "none yet" (no awards, never at Worlds) is its true answer.
+    const soft = !!why && !!s.mine && why.startsWith("the card says none");
+    console.log(`${!why ? "ok  " : soft ? "none" : "FAIL"}  ${s.kind.padEnd(11)} ${suggestionLabel(s)}${s.label ? `  (${s.q})` : ""}${why ? `  → ${why}` : ""}`);
+    if (why && !soft) failed.push(s.q);
   }
-  console.log(`\n${HOME_SUGGESTIONS.length - failed.length} of ${HOME_SUGGESTIONS.length} answer with a card, spelled right, on ${base}`);
+  const all = HOME_SUGGESTIONS.length + mine.length;
+  console.log(`\n${all - failed.length} of ${all} answer with a card, spelled right, on ${base}`);
   if (failed.length) process.exit(1);
 }
