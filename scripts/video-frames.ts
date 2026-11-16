@@ -465,7 +465,9 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
   // A clip already live that this read left out (one read of it out of order, a gap the reads around it disagree on:
   // FPEWESEA 2025 Q97–Q100) goes back to its live second, where its opening decides it, as for any start: its overlay
   // there keeps it, another match's pulls it, nothing read leaves it unconfirmed. Only a frame pulls a live clip.
-  if (live) for (const [label, t] of Object.entries(live)) {
+  // Not when this read saw nothing at all (a stuck player): the video is read again on a fresh player, or its earlier
+  // row kept, as before.
+  if (live && seen.size) for (const [label, t] of Object.entries(live)) {
     if (j.placed.has(label) || !ms.some((m) => m.label === label)) continue;
     j.review.delete(label); j.missing.delete(label); j.earlyStart.delete(label);
     j.placed.set(label, { t, confidence: "high" });
