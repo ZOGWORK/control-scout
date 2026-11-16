@@ -7,7 +7,7 @@ import { all, get, migrate, openDb, run, setDb } from "../db";
 import { OFFICIAL_CHANNELS } from "../data/officialChannels";
 import { STARTUP_CYCLE_MS } from "../warm";
 import { release, tryAcquire } from "../data/lock";
-import { WATCH_CHECK_MS, WATCH_FIRST_MS, approveWatched, onRecordingAdded, type RecordingAdded, ownerOfficial, rejectWatched, removeChannel, removeOfficial, resetChannelsSeeded, runOfficialWatch, saveChannel, seedOfficialChannels, watchIfDue } from "./officialWatch";
+import { WATCH_CHECK_MS, WATCH_FIRST_MS, approveWatched, onRecordingAdded, type RecordingAdded, ownerOfficial, rejectWatched, record, removeChannel, removeOfficial, resetChannelsSeeded, runOfficialWatch, saveChannel, seedOfficialChannels, watchIfDue } from "./officialWatch";
 
 const TX = "UCKezDYNRPpAy2_1XRMBWKSw";
 const T0 = Date.parse("2026-01-10T00:00:00Z");
@@ -378,5 +378,17 @@ describe("the official-video watcher", () => {
     expect(playlists.filter((p) => p === `UU${TX.slice(2)}`)).toHaveLength(2);
     const seen = new Set((await all<{ video_id: string }>("SELECT video_id FROM official_watch WHERE video_id LIKE 'page%'")).map((r) => r.video_id));
     expect([...seen].sort()).toEqual(["pageonepg1a", "pageonepg1b", "pagetwopg2a"]);
+  });
+});
+
+describe("an add that loses its day", () => {
+  it("goes to the owner's review when another recording took the day as it was added, never counted as added", async () => {
+    // The owner approved another video for the day after the verdict was reached (approval takes no data lock).
+    await run("INSERT INTO official_videos (video_id, season, code, kind, day, part, channel_id, title, source, added_at) VALUES ('ownerpicked', 2025, 'USTXCLASH', 'recording', '2026-01-17', NULL, ?, 'x', 'owner', 'x')", [TX]);
+    const v = { videoId: "lostitsday1", title: "TX Houston Qualifier", start: "2026-01-17T15:00:00Z", published: "2026-01-17T23:00:00Z", durationS: 25200, privacy: "public", embeddable: true, blockedIn: 0 };
+    const put = await record(v, { channelId: TX, title: "Texas FTC" }, { kind: "add", why: "the title names it", event: { season: 2025, code: "USTXCLASH" } as any, day: "2026-01-17", part: null }, v.published, T0);
+    expect(put).toBe(false);
+    expect(await get<any>("SELECT status, code, day, why FROM official_watch WHERE video_id = 'lostitsday1'")).toMatchObject({ status: "pending", code: "USTXCLASH", day: "2026-01-17", why: expect.stringMatching(/^another recording took USTXCLASH's 2026-01-17 as this one was added/) });
+    expect(await get("SELECT 1 FROM official_videos WHERE video_id = 'lostitsday1'")).toBeUndefined();
   });
 });
