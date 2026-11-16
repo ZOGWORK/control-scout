@@ -20,8 +20,12 @@ export function overlayLabel(text: string): string | null {
   if (q) return `Q${Number(q[1])}`;
   const f = /Finals?\s+Match\s+(\d)\b/i.exec(text);
   if (f) return `F${Number(f[1])}`;
-  const p = /\bMatch\s+(\d{1,2})\b/i.exec(text);
-  return p ? `M${Number(p[1])}` : null;
+  // A full-screen card can name several matches: a bracket ("Up Next Match 4", "Winner advances to Playoff Match 7") or
+  // a result ("Match 6", "Advances to: Playoff Match 8"). A match it says a team advances to is a later one, never the
+  // one on screen; of the rest, two different numbers name no one match, so the frame names none (CAONMIQ 2025).
+  const named = new Set<number>();
+  for (const m of text.matchAll(/(advances\s+to:?\s+(?:Playoff\s+)?)?\bMatch\s+(\d{1,2})\b/gi)) if (!m[1]) named.add(Number(m[2]));
+  return named.size === 1 ? `M${[...named][0]}` : null;
 }
 
 /** "2:25" → 145; anything else null. */
