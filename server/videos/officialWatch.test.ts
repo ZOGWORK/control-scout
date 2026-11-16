@@ -346,6 +346,14 @@ describe("the official-video watcher", () => {
     expect(await get<any>("SELECT code, day, removed_at FROM official_videos WHERE video_id = 'planoagain1'")).toMatchObject({ code: "USTXPLQ", day: "2026-02-07", removed_at: null });
     expect((await get<any>("SELECT removed_at FROM official_videos WHERE video_id = 'planodeleted'")).removed_at).toBeTruthy();
 
+    // A dead "Matches" video of a day: a whole-day broadcast of that day is added, and the dead part comes off too.
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, timezone, remote, hybrid, livestream, source) VALUES (2025, 'USTXLUQ', 'TX Lubbock Qualifier', 'Qualifier', 'Lubbock', 'TX', 'USA', '2026-02-14', '2026-02-14', 'America/Chicago', 0, 0, NULL, 'test')");
+    await run("INSERT INTO official_videos (video_id, season, code, kind, day, part, channel_id, title, source, added_at) VALUES ('lubbockdead', 2025, 'USTXLUQ', 'recording', '2026-02-14', 'Matches', ?, 'TX Lubbock Qualifier matches', 'list', 'x')", [TX]);
+    await run("INSERT INTO video_meta (video_id, status, checked_at) VALUES ('lubbockdead', 'unavailable', 'x')");
+    uploads = [{ id: "lubbockday1", title: "FiT Lubbock Qualifier", published: "2026-02-15T04:00:00Z", start: "2026-02-14T15:00:00Z" }];
+    expect(await runOfficialWatch(() => {}, { apiKey: "k", fetchImpl: fakeFetch, now: () => LATER + 20.5 * 864e5 })).toMatchObject({ seen: 1, added: 1, queued: 0 });
+    expect((await get<any>("SELECT removed_at FROM official_videos WHERE video_id = 'lubbockdead'")).removed_at).toBeTruthy();
+
     // A second whole-day video of a day that already plays whole (a re-stream, a second camera): set aside as a
     // duplicate, never sent to review.
     uploads = [{ id: "planocopy01", title: "FiT Plano Qualifier (second camera)", published: "2026-02-08T05:00:00Z", start: "2026-02-07T15:10:00Z" }];
