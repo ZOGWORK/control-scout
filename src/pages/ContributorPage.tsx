@@ -10,6 +10,7 @@ import { usePersonal } from "../lib/personal";
 import { useReloadOnVideoChange } from "../lib/contributors";
 import { playMatchVideo } from "../lib/streamSeek";
 import { PageHeader, EmptyState } from "../components/page";
+import { UserAvatar } from "../components/UserAvatar";
 import { Async } from "../components/states";
 import { NotFoundView } from "../components/NotFoundView";
 import { VerifiedMark, VideoCredit } from "../components/contributors/VideoCredit";
@@ -32,7 +33,7 @@ export default function ContributorPage() {
       {(p) => (
         <div data-contributor-profile={p.status}>
           <PageHeader
-            title={<span className="inline-flex items-center gap-2">{p.name}{p.verified && <VerifiedMark className="size-6" />}</span>}
+            title={<span className="inline-flex items-center gap-2.5">{p.avatar && <UserAvatar url={p.avatar} name={p.name} className="size-10 text-base" />}{p.name}{p.verified && <VerifiedMark className="size-6" />}</span>}
             description={p.verified ? "Verified contributor: adds match videos everyone can watch." : "Adds match videos for their team."}
           />
           {p.pending && <p className="mb-4 flex items-center gap-2 text-sm font-medium" data-review-pending><Clock className="size-4 text-accent-text" aria-hidden />{PENDING_TEXT}</p>}
