@@ -26,7 +26,7 @@ Search › a town's meet named ("rolla meet") is that event, its last played edi
 
 ### Fixed
 - Search: a town followed by an event word that together name a stored event ("top plays at rolla meet") is read as that event, never as the town's events with "meet" left over. (`src/shared/query/parse.ts`)
-- Search: an event held under a different code each season is found in each of them by its name, so the answer can fall back to last season's edition while this season's is unplayed. (`server/api/query/highlights.ts`) (#1573)
+- Search: an event held under a different code each season is found in each of them by its name, so the answer can fall back to last season's edition while this season's is unplayed. (`server/api/query/highlights.ts`) (#1597)
 - Search: "did <team> play at <event>" matches the event named by its season and code together, so a code another event reuses in another season never answers Yes. (`server/api/answers/yesNo.ts`)
 
 ## 6.9.6 — 2026-11-16
