@@ -38,6 +38,7 @@ import { eventView, withPageExtras, withStream } from "./api/eventView.js";
 import { videosRouter } from "./videos/routes.js";
 import { viewerOf } from "./videos/contributors.js";
 import { leagueStandings } from "./api/leagues.js";
+import { leagueConferences } from "./api/conferences.js";
 import { teamHighlightsPage } from "./teamHighlightsPage.js";
 import { teamRecordPage } from "./teamRecordPage.js";
 import { eventHighlightsPage } from "./eventHighlightsPage.js";
@@ -681,6 +682,15 @@ export function createApp(opts: { dist?: string; /** Tests only: a smaller searc
     const r = String(req.params.region), c = String(req.params.code);
     if (!/^[A-Za-z0-9]{1,16}$/.test(r) || !/^[A-Za-z0-9]{1,16}$/.test(c)) throw bad("invalid league");
     const d = await leagueStandings(season(req.params.season), r, c);
+    if (!d) throw new HttpError(404, `No league ${c} in ${r} in ${req.params.season}`);
+    return d;
+  }));
+  // A New Jersey league's conference tables (api/conferences.ts): each conference tournament's teams by FIRST's league
+  // standing over the league meets only. No conferences outside New Jersey: an empty list, never a guess.
+  api.get("/leagues/:season/:region/:code/conferences", h(async (req) => {
+    const r = String(req.params.region), c = String(req.params.code);
+    if (!/^[A-Za-z0-9]{1,16}$/.test(r) || !/^[A-Za-z0-9]{1,16}$/.test(c)) throw bad("invalid league");
+    const d = await leagueConferences(season(req.params.season), r, c);
     if (!d) throw new HttpError(404, `No league ${c} in ${r} in ${req.params.season}`);
     return d;
   }));
