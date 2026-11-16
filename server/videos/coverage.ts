@@ -8,7 +8,7 @@ import { all } from "../db.js";
 import { CLIP_LEAD_S, GAP_SLACK_MAX_S, actualStart, clearOfPrevious, clipSecond, gapSlack, type RecordingTiming } from "../../src/shared/recording.js";
 import { localToUtcMs } from "../../src/shared/time.js";
 import { checkedTo } from "../data/checkedTimings.js";
-import { frameRow, plausibleStarts } from "../data/frameTimings.js";
+import { frameRow, outsideRecording, plausibleStarts } from "../data/frameTimings.js";
 import { dayLabel, eventSpan, previousStart, seasonRecordings, withClips, withConfirmed, within, type EventSpan, type Recording, type RecordingVideo } from "./recordings.js";
 import type { ClipCoverage, CoverageMatch, CoverageReason, CoverageVideo, CoverageVideoCheck } from "../../src/shared/api.js";
 
@@ -99,6 +99,9 @@ export function videoCheck(videoId: string, code: string, label: string, order: 
   if (seen) return { ...out, seenAt: seen.t, found: seen.why };
   // A read the plausibility check left out (it overlaps another): seen, never placed.
   if (row.starts[label] != null) return { ...out, seenAt: row.starts[label], found: "its read overlaps another match's" };
+  // Played before the recording starts or after it ends, as its first or last frames show: not in it at all.
+  const outside = outsideRecording(row, label, order);
+  if (outside) return { ...out, outside };
   if (row.missing?.[label]) return { ...out, found: row.missing[label] };
   // Read, and none of the event's matches are in it (they're all another of its videos').
   return !Object.keys(row.starts).length && !row.missing ? { ...out, found: "none of this event's matches are in it" } : out;
@@ -129,6 +132,7 @@ export function videoWhy(v: CoverageVideoCheck): string {
   if (v.earlyStart) return `Checked in the video: it starts at ${hms(v.earlyStart.t)} while the match before runs to ${hms(v.earlyStart.previousEnds)}, so a clip would open on that one`;
   if (!v.checked) return `Not yet checked against the video${inVideo}`;
   if (v.seenAt != null) return `Checked in the video (${v.checked}): seen at ${hms(v.seenAt)}, not yet confirmed${v.found ? ` (${v.found})` : ""}`;
+  if (v.outside) return `Checked in the video (${v.checked}): not in the recording, ${v.outside}`;
   return `Checked in the video (${v.checked}): no start found for it${v.found ? ` (${v.found})` : ""}${inVideo}`;
 }
 
