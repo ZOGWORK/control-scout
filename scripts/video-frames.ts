@@ -415,7 +415,9 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
   // At most a few reads per match, every read counted (confirming ones too): checked before each read or confirmation.
   // A recording cut mid-match costs extra confirming reads (confirmed, autoAgrees): 4 a match left a cut stream's later
   // matches unread (USIAPOMPM11 2025, 81 frames of 72).
-  const budget = Math.max(60, 8 * ms.length);
+  // Reads spent finding the matches when the clock reads nothing (scan) are added: they place none (USNMCMP 2025, 61
+  // frames of scanning, then 232 left M1–M5 in a gap unread).
+  let budget = Math.max(60, 8 * ms.length);
   let unconfirmed = 0;
   const near = (i: number): number | null => {
     // The distance of the read nearest by order, else the broadcast's.
@@ -502,11 +504,20 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
   await span(0, ms.length - 1);
   // The matches before the first read, each from the nearest read's distance now (the clock alone may put them before
   // the video's start): the first that can't be read ends it.
-  const firstSeen = Math.min(...seen.keys());
-  for (let i = firstSeen - 1; i >= 0 && Number.isFinite(firstSeen) && !blind() && reads() < budget; i--) if ((await anchor(i)) == null) break;
+  const before = async () => {
+    const firstSeen = Math.min(...seen.keys());
+    for (let i = firstSeen - 1; i >= 0 && Number.isFinite(firstSeen) && !blind() && reads() < budget; i--) if ((await anchor(i)) == null) break;
+  };
+  await before();
   if (blind() && shift != null) {
     await scan();
-    if (seen.size) { log(`    the clock read nothing; found by scanning, ${reads()} frames in`); missed = 0; await span(0, ms.length - 1); }
+    if (seen.size) {
+      log(`    the clock read nothing; found by scanning, ${reads()} frames in`);
+      budget += reads();
+      missed = 0;
+      await span(0, ms.length - 1);
+      await before();
+    }
   }
   if (blind()) log(`    no overlay read in ${reads()} frames`);
   const j = judge(ms, seen, shift, length, tried);
