@@ -9,6 +9,8 @@ describe("the frame reader", () => {
     expect(overlayLabel("Playoff Match 10")).toBe("M10");
     expect(overlayLabel("APOC Decode 2026  Finals Match 2")).toBe("F2");
     expect(overlayLabel("FiT-North I&S League Tournament  Match 1  DECODE")).toBe("M1");
+    // USNMCMP 2025's recording opens on the field check: "Test Match 1", Test Team 1–4. None of the event's matches.
+    expect(overlayLabel("New Mexico Championship  Test Match 1  -1 Test Team 1  -3 Test Team 3")).toBeNull();
     expect(overlayLabel("Upcoming matches")).toBeNull();
   });
 
