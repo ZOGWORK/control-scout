@@ -150,9 +150,19 @@ function weekday(iso: string, tz: string | null): string {
   try { return new Intl.DateTimeFormat("en-US", { timeZone: tz || "UTC", weekday: "long" }).format(new Date(iso)).toLowerCase(); } catch { return ""; }
 }
 /** Why a title isn't a competition stream, naming what in it says so; null when it may be one. */
+/** A team's own robot video: "Compact Differential Swerve Drive | 23334 Axiom | FTC BIOBUZZ Snapshot". */
+const TEAM_SHOW = /\b(?:robot\s+)?(?:reveal|snapshot)\b|\brobot\s+showcase\b/i;
+/** What names an event in a title: a team video names none. ("Showcase" alone can be an event: it counts only as "robot showcase".) */
+const EVENT_WORD = /(champs|championship|campionat|qualif|tournament|turneu|regional|league|\bmeets?(?![a-z])|invitational|premier|scrimmage|state cup|\bday\s*\d{1,2}(?!\d)|\bcup\b|competi|rodeo|madness|roundup|\bfinals?\b|playoff|ceremon|award)/i;
+/** A team number: 3 to 5 digits standing alone (not a sponsor's "66" or an episode's "12"), never a year (1990–2039). */
+const teamNumber = (title: string) => [...title.matchAll(/(?<![\d.\/-])\b(\d{3,5})\b(?![\d.\/-])/g)].some((m) => !/^(199\d|20[0-3]\d)$/.test(m[1]));
+
 export function notCompetition(title: string): string | null {
   const not = NOT.exec(title);
   if (not) return `not a competition stream: the title says "${not[0].trim()}"`;
+  // A team's robot reveal, snapshot or showcase, naming no event: the team's own video, not an event's recording.
+  const show = TEAM_SHOW.exec(title);
+  if (show && teamNumber(title) && !EVENT_WORD.test(title)) return `a team's robot video, not an event recording: the title says "${show[0].trim()}" beside a team number and names no event`;
   if (!COMP.test(title)) return "not a competition stream: the title names no competition (no qualifier, meet, league, tournament, championship or FTC)";
   return null;
 }
