@@ -31,6 +31,11 @@ beforeAll(async () => {
       await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (2025, 'USMORM6', 'qual', 0, ?, ?, ?, 1)", [n, t, a]);
     }
   }
+  // A team that played only the meet holding last season's Rolla code this season (Ignite): never at the Rolla Meet.
+  await run("INSERT INTO teams (number, name, city, state, country) VALUES (30205, 'Spark Bots', 'Rolla', 'MO', 'USA')");
+  await run("INSERT INTO team_seasons (season, team) VALUES (2026, 30205)");
+  await run("INSERT INTO event_teams (season, code, team, rank) VALUES (2026, 'USMORM6', 30205, 1)");
+  await run("INSERT INTO team_event_stats (season, code, team, opr_np, matches) VALUES (2026, 'USMORM6', 30205, 40, 3)");
   await rebuildSearch();
   clearAllCaches();
 });
@@ -44,5 +49,10 @@ describe("a town's meet named", () => {
   });
   it("the town alone is still the town", async () => {
     expect((await stat("highlights in rolla")).title).toMatch(/^Highlights in Rolla/);
+  });
+  it("a code reused by another event in another season never counts as the named event (Loopy on #1597)", async () => {
+    const a = await searchAnswer("did 30205 play at rolla meet", { limit: 25, full: true, now: NOW });
+    expect(a.stat?.intent).toBe("yes-no-attended");
+    expect(a.verdict?.answer).toBe("No");
   });
 });
