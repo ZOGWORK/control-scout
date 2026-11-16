@@ -2538,7 +2538,34 @@ export function openDb(url: string, authToken?: string | null): Client {
     const path = url.slice(5);
     if (path && path !== ":memory:") mkdirSync(dirname(resolve(path)), { recursive: true });
   }
-  return createClient({ url, authToken: authToken ?? undefined });
+  const c = createClient({ url, authToken: authToken ?? undefined });
+  // A database file: the driver keeps a pool of connections to it, so a transaction holds one of its own (inSnapshot).
+  // In memory or an embedded replica it has only the one every read shares.
+  if (/^file:(?!:memory:)/.test(url) && !/mode=memory/.test(url)) pooled.add(c);
+  return c;
+}
+
+/** The clients with a pool of connections (openDb): a read transaction on one leaves the others to every other read. */
+const pooled = new WeakSet<Client>();
+
+/** `fn`'s reads (through `read`) all seeing the database as it was at the first of them, whatever any process writes
+ *  meanwhile: one read transaction, on a connection of its own (SQLite's WAL: other reads and every writer carry on,
+ *  none waits for it). Each read starts with the event loop let go if it was held (busyTurn), as all() does, so work
+ *  split into many reads for that stays one moment. Null, `fn` never run, where the database is one connection
+ *  shared by every read (in memory, an embedded replica): a transaction there would hold it from every other request,
+ *  so the caller reads in one go instead. */
+export async function inSnapshot<T>(fn: (read: <R = Row>(sql: string, args?: InArgs) => Promise<R[]>) => Promise<T>): Promise<T | null> {
+  const c = db();
+  if (!pooled.has(c)) return null;
+  const tx = await c.transaction("read");
+  try {
+    return await fn(async <R = Row>(sql: string, args: InArgs = []) => {
+      await busyTurn();
+      return (await tx.execute({ sql, args })).rows as unknown as R[];
+    });
+  } finally {
+    tx.close();
+  }
 }
 
 let primaryClient: Client | null = null;
