@@ -312,6 +312,34 @@ export async function guessFor(v: WatchVideo, rule: ChannelRule): Promise<NonNul
 /** A verdict written: the watcher's row, and for an add the recording on its event. by: who added it (the watcher, or
  *  the channel audit for one older than the watcher's window that passes every check: server/videos/officialAudit.ts). */
 export async function record(v: WatchVideo, ch: Pick<ChannelRow, "channelId" | "title">, verdict: WatchVerdict, published: string | null, now: number, by: "watcher" | "channel audit" = "watcher"): Promise<boolean> {
+  const writes = verdictWrites(v, ch, verdict, published, now, by);
+  if (verdict.kind !== "add") { await db().batch(writes, "write"); return false; }
+  // An add lands whole or not at all: the row claimed as added and its recording in. Another recording that took the
+  // day meanwhile (an owner's approval takes no data lock) leaves the insert with nothing to do: undone, and the video
+  // goes to the owner's review naming the clash, never counted or kept as added.
+  const tx = await db().transaction("write");
+  let clash = false, put = false;
+  try {
+    const results = [];
+    for (const s of writes) results.push(await tx.execute(s));
+    put = results[results.length - 1].rowsAffected > 0;
+    clash = results[0].rowsAffected > 0 && !put;
+    if (clash) await tx.rollback(); else await tx.commit();
+  } catch (e) {
+    await tx.rollback().catch(() => {});
+    throw e;
+  } finally {
+    tx.close();
+  }
+  if (!clash) return put;
+  const where = `${verdict.event.code}'s ${verdict.day}${verdict.part ? ` (${verdict.part})` : ""}`;
+  const review: WatchVerdict = { kind: "review", why: `another recording took ${where} as this one was added: which plays is for the owner (${verdict.why})`.slice(0, 500), event: verdict.event, day: verdict.day, part: verdict.part };
+  await db().batch(verdictWrites(v, ch, review, published, now, by), "write");
+  return false;
+}
+
+/** The rows one verdict writes: the watcher's row, and for an add the dead recordings it replaces and its own. */
+function verdictWrites(v: WatchVideo, ch: Pick<ChannelRow, "channelId" | "title">, verdict: WatchVerdict, published: string | null, now: number, by: "watcher" | "channel audit"): { sql: string; args: (string | number | null)[] }[] {
   const at = new Date(now).toISOString();
   // An event the verdict names, else (in review or set aside) the best guess: the owner's form starts from it.
   const ev = (verdict.kind === "ignore" ? null : verdict.event ?? null) ?? verdict.guess?.event ?? null;
@@ -342,28 +370,7 @@ export async function record(v: WatchVideo, ch: Pick<ChannelRow, "channelId" | "
           ON CONFLICT DO NOTHING`,
     args: [v.videoId, verdict.event.season, verdict.event.code, verdict.day, verdict.part, ch.channelId, v.title, `${by}: ${ch.title}; ${verdict.why}`, at, v.videoId],
   });
-  if (verdict.kind !== "add") { await db().batch(writes, "write"); return false; }
-  // An add lands whole or not at all: the row claimed as added and its recording in. Another recording that took the
-  // day meanwhile (an owner's approval takes no data lock) leaves the insert with nothing to do: undone, and the video
-  // goes to the owner's review naming the clash, never counted or kept as added.
-  const tx = await db().transaction("write");
-  let clash = false, put = false;
-  try {
-    const results = [];
-    for (const s of writes) results.push(await tx.execute(s));
-    put = results[results.length - 1].rowsAffected > 0;
-    clash = results[0].rowsAffected > 0 && !put;
-    if (clash) await tx.rollback(); else await tx.commit();
-  } catch (e) {
-    await tx.rollback().catch(() => {});
-    throw e;
-  } finally {
-    tx.close();
-  }
-  if (!clash) return put;
-  const where = `${verdict.event.code}'s ${verdict.day}${verdict.part ? ` (${verdict.part})` : ""}`;
-  await record(v, ch, { kind: "review", why: `another recording took ${where} as this one was added: which plays is for the owner (${verdict.why})`.slice(0, 500), event: verdict.event, day: verdict.day, part: verdict.part }, published, now, by);
-  return false;
+  return writes;
 }
 
 // ---- The owner's side (server/videos/officialOwnerRoutes.ts) ----
