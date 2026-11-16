@@ -267,6 +267,8 @@ export function matchVideo(v: WatchVideo, rule: ChannelRule, events: WatchEvent[
     : events.some((e) => !NOT_EVENTS.has(e.type) && inRegion(e) && daysBetween(dayOf(e)!, e.start) <= 1 && daysBetween(e.end || e.start, dayOf(e)!) <= 1)
       ? { kind: "review", why: `no Scout event in the channel's region on the ${uploadDay ? "title's date" : "broadcast date"}, but one a day either side` }
       : { kind: "ignore", why: `no Scout event in the channel's region on the ${uploadDay ? "title's date" : "broadcast date"} or a day either side: nothing to put it on` };
+  // "FTC Events" for a date: that day's several events in one video, whichever one its title's words also fit.
+  if (/\b(?:FTC|FIRST Tech Challenge)\s+events\b/i.test(v.title)) return { kind: "ignore", why: "the title says FTC Events: more than one event in one video" };
   const fits = cands.filter((c) => !c.why.length && c.score > 0 && c.real);
   // One meet over two same-day events told apart only by a suffix or AM/PM ("U-League Meet #1" over Scout's "Meet 1a"
   // and "Meet 1b", or its AM and PM meets), the title saying neither: two events in one video. Set aside.
@@ -275,7 +277,8 @@ export function matchVideo(v: WatchVideo, rule: ChannelRule, events: WatchEvent[
     const suffixOnly = (c: Cand) => c.real && c.why.every((w) => w === "meet")
       && (!c.why.length || (td.meet != null && new RegExp(`^${td.meet}[a-z]$`).test(String(designators(c.e.name).meet ?? ""))));
     const groups = new Map<string, Cand[]>();
-    for (const c of cands.filter(suffixOnly)) { const k = `${c.d} ${base(c.e.name)}`; groups.set(k, [...(groups.get(k) ?? []), c]); }
+    // Twins share a day, a name but for the suffix, and a city: meets in two cities are told apart by where.
+    for (const c of cands.filter(suffixOnly)) { const k = `${c.d} ${base(c.e.name)} ${norm(c.e.city ?? "")}`; groups.set(k, [...(groups.get(k) ?? []), c]); }
     // Every one a variant: beside a plain "Meet #1", the title's "Meet #1" is that one.
     const twins = [...groups.values()].find((g) => g.length > 1 && g.every((c) => designators(c.e.name).ampm || /\bmeet\s*#?\s*\d+[a-z]\b/i.test(c.e.name)));
     if (twins) return { kind: "ignore", why: `the title fits ${twins.map((c) => c.e.code).join(" and ")}, same-day meets told apart only by ${twins.some((c) => designators(c.e.name).ampm) ? "AM and PM" : "a letter"}: two events in one video` };
@@ -299,8 +302,6 @@ export function matchVideo(v: WatchVideo, rule: ChannelRule, events: WatchEvent[
   if (!a) {
     const best = [...cands].sort((x, y) => y.score - x.score)[0];
     if (short) return { kind: "ignore", why: `${mins} minutes long, and its title fits no event that day: not a day's recording` };
-    // "FTC Events" for a date: that day's several events in one video.
-    if (/\b(?:FTC|FIRST Tech Challenge)\s+events\b/i.test(v.title)) return { kind: "ignore", why: "the title says FTC Events: more than one event in one video, and it names none of them" };
     // Every event that day played remotely (teams on their own fields, scored from their own videos): a stream that
     // names none of them is a ceremony or a show, not one's day of matches.
     if (cands.every((c) => c.e.remote)) return { kind: "ignore", why: `the only Scout events then are remote ones (${cands.slice(0, 3).map((c) => c.e.code).join(", ")}${cands.length > 3 ? ", …" : ""}), and the title names none of them: no matches played together to link` };
