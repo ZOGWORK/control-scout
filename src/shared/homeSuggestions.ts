@@ -14,8 +14,9 @@ export type SuggestionKind =
   | "rating" | "opr" | "record" | "matches" | "awards" | "worlds";
 
 /** `q` runs on tap; `label` is the chip's text when the query is too long for a chip (sentence case); `mine`: a chip
- *  about the visitor's own team (teamSuggestions), kept over the others where room is short (fitChips). */
-export interface HomeSuggestion { q: string; kind: SuggestionKind; label?: string; mine?: true }
+ *  about the visitor's own team (teamSuggestions), kept over the others where room is short (fitChips); `short`: such a
+ *  chip's label cut to TEAM_SHORT_LABEL_MAX, used when its full label would leave too little room (suggestionsAt). */
+export interface HomeSuggestion { q: string; kind: SuggestionKind; label?: string; mine?: true; short?: string }
 
 /** The chip text: its own short label, or the query itself. */
 export const suggestionLabel = (s: HomeSuggestion) => s.label ?? s.q;
@@ -116,13 +117,13 @@ export const TEAM_LABEL_MAX = 30;
 
 /** "4215 Hypnotic Robotics rating": the team's number and name, the name cut short (at a word, with "…") when the
  *  label would pass TEAM_LABEL_MAX, and the number alone when there's no name or no room for a useful part. */
-export function teamLabel(team: number, name: string | null | undefined, tail: string): string {
+export function teamLabel(team: number, name: string | null | undefined, tail: string, max: number = TEAM_LABEL_MAX): string {
   const bare = `${team} ${tail}`;
   const n = (name ?? "").replace(/\s+/g, " ").trim();
   if (!n) return bare;
   const whole = `${team} ${n} ${tail}`;
-  if (whole.length <= TEAM_LABEL_MAX) return whole;
-  const room = TEAM_LABEL_MAX - bare.length - 2; // the space before the name and the "…"
+  if (whole.length <= max) return whole;
+  const room = max - bare.length - 2; // the space before the name and the "…"
   let cut = n.slice(0, Math.max(0, room));
   const space = cut.lastIndexOf(" ");
   if (n[cut.length] !== " " && space >= 3) cut = cut.slice(0, space);
@@ -135,9 +136,16 @@ export function teamLabel(team: number, name: string | null | undefined, tail: s
   return cut.length >= 3 ? `${team} ${cut}${short ? "" : "…"} ${tail}` : bare;
 }
 
+/** The longest a team chip's `short` label is: short enough that each of its two chips shares a desktop row with a
+ *  pool chip (DESKTOP_CHIPS), so five or six show however long the team's name. */
+export const TEAM_SHORT_LABEL_MAX = 25;
+
 /** Every chip the visitor's own team can have, by its number and (when known) its name as its team page has it. */
 export function teamSuggestions(team: number, name?: string | null): HomeSuggestion[] {
-  return TEAM_TEMPLATES.map((t) => ({ q: t.q(team), kind: t.kind, label: teamLabel(team, name, t.tail), mine: true }));
+  return TEAM_TEMPLATES.map((t) => {
+    const label = teamLabel(team, name, t.tail), short = teamLabel(team, name, t.tail, TEAM_SHORT_LABEL_MAX);
+    return { q: t.q(team), kind: t.kind, label, ...(short !== label ? { short } : {}), mine: true };
+  });
 }
 
 /** The places the pool's queries name: an hour's six name each at most once, so no one place fills the chips. */
@@ -201,8 +209,18 @@ export function suggestionsAt(now: number, pool: readonly HomeSuggestion[] = HOM
     }
     return out;
   };
-  let out = attempt();
-  for (let i = 0; i < 20 && out.length < SUGGESTION_COUNT; i++) { const next = attempt(); if (next.length > out.length) out = next; }
+  const best = () => {
+    let got = attempt();
+    for (let i = 0; i < 20 && got.length < SUGGESTION_COUNT; i++) { const next = attempt(); if (next.length > got.length) got = next; }
+    return got;
+  };
+  let out = best();
+  // A long team name leaves no room beside its two chips for five in all: those two take their shorter labels.
+  if (mine.length && out.length < SUGGESTION_COUNT - 1) {
+    mine = mine.map((s) => (s.short ? { ...s, label: s.short } : s));
+    const tighter = best();
+    if (tighter.length > out.length) out = tighter;
+  }
   return shuffle(out);
 }
 

@@ -133,6 +133,21 @@ describe("suggestionsAt", () => {
     }
     expect(picked.size).toBe(mine.length);
   });
+  it("with a team of a long name: still five or six, its two chips taking their shorter labels when they must", () => {
+    for (const name of ["Counterclockwise Robotics Team", "Supercalifragilisticexpialidocious", "The Very Long Named Robotics Club of Somewhere"]) {
+      const mine = teamSuggestions(19999, name);
+      for (const h of hours.slice(0, 24 * 14)) {
+        const six = suggestionsAt(h, HOME_SUGGESTIONS, mine);
+        expect(six.length, `${name} ${six.map(suggestionLabel).join(" | ")}`).toBeGreaterThanOrEqual(5);
+        expect(six.filter((s) => s.mine)).toHaveLength(TEAM_SUGGESTION_COUNT);
+        expect(allFit(six.map(chipWidthEstimate), DESKTOP_CHIPS.width, DESKTOP_CHIPS.gap, DESKTOP_CHIPS.rows)).toBe(true);
+        for (const s of six.filter((x) => x.mine)) expect(suggestionLabel(s)).toMatch(/^19999 /);
+      }
+    }
+    // A short name keeps its full labels.
+    const own = suggestionsAt(hours[0], HOME_SUGGESTIONS, teamSuggestions(6980, "Bad Wolf")).filter((s) => s.mine);
+    for (const s of own) expect(suggestionLabel(s)).toMatch(/^6980 Bad Wolf /);
+  });
 });
 
 describe("fitChips", () => {
