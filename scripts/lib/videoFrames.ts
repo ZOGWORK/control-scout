@@ -79,9 +79,6 @@ export const OPEN_LEADS = [20, 12, 5, 2, 0];
 /** The reason a placed match whose clip opening couldn't be checked gets: never a clip, never a clock reason. */
 export const OVERLAY_UNREAD = "overlay could not be read at its clip's start";
 
-/** How far (seconds) a lone confirmed read may sit from where the rest of its video sits and still place its match. */
-export const LONE_S = 30 * 60;
-
 /** The most a recording loses in one cut, as a confirming read can explain it (USIAPOMPM11 2025 loses 19 s mid-match). */
 export const LOSS_S = 60;
 
@@ -149,9 +146,8 @@ export function dataRows<T>(text: string): T[] {
  * kept. Reads that agree on how far the video sits from the clock form stretches. A stretch of two or more reads
  * places its reads ("high") and every match between them ("medium"). A stretch of one read is a confirmed read too
  * (its overlay and timer agree at two points, and 25 s before it the match wasn't running): the video is the truth, so
- * it places that match where the frames show it, however far from the schedule, as long as the clock puts it in the
- * same part of the stream (within LONE_S of where the reads beside it, or else the broadcast's own clock, put the video);
- * further off, nothing tells it isn't another day's or event's, and it goes to review. Placed starts must be in order,
+ * it places that match where the frames show it, however far that is from FIRST's times (owner, 2026-11-16: never
+ * flag a read for its distance from the schedule). Placed starts must be in order,
  * a match apart and inside the video; any that aren't go to review too. Every other match is missing, with the reason.
  */
 export function judge(ms: M[], seen: Map<number, number>, shift: number | null, length: number, read: Set<number> = new Set(seen.keys())): Judged {
@@ -185,12 +181,8 @@ export function judge(ms: M[], seen: Map<number, number>, shift: number | null, 
   for (const s of stretches) {
     if (s.length === 1) {
       const i = s[0];
-      // Where the rest of the video sits: the nearest other read's distance (any read, kept or not: a lone read the
-      // longest run left out still says where the video was), else the broadcast's clock.
-      const others = idx.filter((k) => k !== i);
-      const ref = others.length ? d(others.reduce((a, b) => (Math.abs(b - i) < Math.abs(a - i) ? b : a))) : shift;
-      if (ref != null && Math.abs(d(i) - ref) <= LONE_S) placedAt.set(ms[i].label, { t: seen.get(i)!, confidence: "high" });
-      else review.set(ms[i].label, { t: seen.get(i)!, why: ref == null ? "one frame read, and no clock or other read to tell which part of the stream it's in" : `one frame read, ${Math.round(Math.abs(d(i) - ref) / 60)} min from where the rest of the video sits` });
+      // A confirmed read: where its frames show it, never weighed against the schedule.
+      placedAt.set(ms[s[0]].label, { t: seen.get(s[0])!, confidence: "high" });
       continue;
     }
     for (let n = 0; n < s.length; n++) {
