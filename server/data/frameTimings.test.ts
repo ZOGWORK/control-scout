@@ -65,6 +65,15 @@ describe("a match proven not in the recording, from its first and last frames", 
     expect(outsideRecording({ endsOn: { at: 8600, label: "Q17" }, starts: { Q20: 8000 } }, "Q30", quals(40))).toBeNull();
     expect(outsideRecording({ endsOn: { at: 8600, label: "Q17" }, starts: { Q16: 8300 } }, "Q30", quals(40))).toMatch(/after the recording ends/);
   });
+  it("settles the quals of a recording that opens on an empty field, then the playoffs (USORIMLT 2025)", () => {
+    // Nothing on screen at 0:03–1:50, nor every minute after, until "Up Next: Playoff Match 1" at 6:40.
+    const order = [...quals(14), "M1", "M2"];
+    const row = { opensOn: { at: 400, label: "M1", clear: true }, starts: { M1: 720, M2: 1402 } };
+    expect(outsideRecording(row, "Q1", order)).toBe("played before the recording starts: it opens on M1 at 0:06:40, no match on screen before it");
+    expect(outsideRecording(row, "M2", order)).toBeNull();
+    // The same frame without the minute-by-minute reads before it proves nothing.
+    expect(outsideRecording({ ...row, opensOn: { at: 400, label: "M1" } }, "Q1", order)).toBeNull();
+  });
   it("proves nothing from an opening read further in than its edge, or with no edge read", () => {
     expect(outsideRecording({ opensOn: { at: 720, label: "M1" } }, "Q3", [...quals(14), "M1"])).toBeNull();
     expect(outsideRecording({}, "Q3", quals(14))).toBeNull();
