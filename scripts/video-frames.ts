@@ -363,6 +363,7 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
   ms.forEach((m, i) => { const n = m.label.replace(/-\d+$/, ""); byName.set(n, [...(byName.get(n) ?? []), i]); });
   const seen = new Map<number, number>(); // index → confirmed start second
   const tried = new Set<number>(); // matches a read named, confirmed or not
+  let namedAny = false; // a frame named one of the event's matches, timer read or not: the player showed the stream
   const from = pageReads.get(page) ?? 0, reads = () => (pageReads.get(page) ?? 0) - from;
   // At most a few reads per match, every read counted (confirming ones too): checked before each read or confirmation.
   // A recording cut mid-match costs extra confirming reads (confirmed, autoAgrees): 4 a match left a cut stream's later
@@ -385,6 +386,7 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
   };
   const note = async (r: Read) => {
     const named = r.label ? byName.get(r.label) : undefined;
+    if (named) namedAny = true;
     if (!named || r.start == null) return;
     // A match with replays and nothing yet to place the read against (no read placed, no broadcast clock): which of
     // them it shows can't be told, so the read is left rather than guessed.
@@ -407,12 +409,40 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
     log(`    ${r.label} at ${r.start} s not confirmed: ${no}`);
   };
 
+  /** A clip already live that this read left out (one read of it out of order, a gap the reads around it disagree on:
+   *  FPEWESEA 2025 Q97–Q100) goes back to its live second, where its opening decides it, as for any start: its overlay
+   *  there keeps it, another match's pulls it, nothing read leaves it unconfirmed. Only a frame pulls a live clip. Not
+   *  when no frame named any of the event's matches (a stuck player): the video is read again on a fresh player, or its
+   *  earlier row kept, as before. And as judge places any start: inside the video, in played order, a match apart from
+   *  this read's placements; one that isn't conflicts with what the frames show here, and goes to review saying with
+   *  what. Then every placed start's opening is checked. */
+  const liveBack = async (j: Judged) => {
+    const order = new Map(ms.map((m, i) => [m.label, i]));
+    if (live && namedAny) for (const [label, t] of Object.entries(live)) {
+      if (j.placed.has(label) || !order.has(label)) continue;
+      const i = order.get(label)!;
+      const clash = [...j.placed].find(([o, p]) => Math.abs(p.t - t) < MATCH_S - SAME_S || (order.get(o)! < i) !== (p.t < t));
+      j.missing.delete(label); j.earlyStart.delete(label);
+      if (t < 0 || t + MATCH_S > length + SAME_S) { j.review.set(label, { t, why: "a live clip this read finds outside the video" }); continue; }
+      if (clash) { j.review.set(label, { t, why: `a live clip this read finds ${clash[0]} too close to or out of order with (${clash[0]} at ${Math.round(clash[1].t)} s)` }); continue; }
+      j.review.delete(label);
+      j.placed.set(label, { t, confidence: liveMedium?.has(label) ? "medium" : "high" });
+    }
+    await checkOpenings(page, j, log, live ? unread : undefined, live);
+  };
+
   // Any match at all, a frame every 10 minutes: where there's no clock to go by (an upload), or the clock's guesses read
   // nothing (a broadcast whose start YouTube has wrong).
   const scan = async () => { for (let t = 300; t < length && !seen.size && reads() < budget; t += 600) { await note(await readAt(page, t)); } };
   if (shift == null) {
     await scan();
-    if (!seen.size) { log("    no match found in it"); return judge(ms, seen, shift, length, tried); }
+    if (!seen.size) {
+      log("    no match found in it");
+      // Its frames named matches without a start confirmed (an upload): live clips still go back for their openings.
+      const j = judge(ms, seen, shift, length, tried);
+      if (live && namedAny) await liveBack(j);
+      return j;
+    }
   }
 
   // A video without FTC Live's overlay (a camera-only stream) reads nothing: stop after a few matches in a row with no
@@ -466,24 +496,7 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
   }
   if (blind()) log(`    no overlay read in ${reads()} frames`);
   const j = judge(ms, seen, shift, length, tried);
-  // A clip already live that this read left out (one read of it out of order, a gap the reads around it disagree on:
-  // FPEWESEA 2025 Q97–Q100) goes back to its live second, where its opening decides it, as for any start: its overlay
-  // there keeps it, another match's pulls it, nothing read leaves it unconfirmed. Only a frame pulls a live clip.
-  // Not when no frame named any match (a stuck player): the video is read again on a fresh player, or its earlier row
-  // kept, as before. And as judge places any start: inside the video, in played order, a match apart from this read's
-  // placements; one that isn't conflicts with what the frames show here, and goes to review saying with what.
-  const order = new Map(ms.map((m, i) => [m.label, i]));
-  if (live && tried.size) for (const [label, t] of Object.entries(live)) {
-    if (j.placed.has(label) || !order.has(label)) continue;
-    const i = order.get(label)!;
-    const clash = [...j.placed].find(([o, p]) => Math.abs(p.t - t) < MATCH_S - SAME_S || (order.get(o)! < i) !== (p.t < t));
-    j.missing.delete(label); j.earlyStart.delete(label);
-    if (t < 0 || t + MATCH_S > length + SAME_S) { j.review.set(label, { t, why: "a live clip this read finds outside the video" }); continue; }
-    if (clash) { j.review.set(label, { t, why: `a live clip this read finds ${clash[0]} too close to or out of order with (${clash[0]} at ${Math.round(clash[1].t)} s)` }); continue; }
-    j.review.delete(label);
-    j.placed.set(label, { t, confidence: liveMedium?.has(label) ? "medium" : "high" });
-  }
-  await checkOpenings(page, j, log, live ? unread : undefined, live);
+  await liveBack(j);
   const out = new Map([...j.placed].map(([l, p]) => [l, p.t]));
   const high = [...j.placed.values()].filter((p) => p.confidence === "high").length;
   log(`    ${out.size} of ${ms.length} placed (${high} high, ${out.size - high} medium), ${seen.size} read, ${unconfirmed} reads not confirmed, ${reads()} frames`);
