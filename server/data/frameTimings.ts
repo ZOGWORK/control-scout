@@ -61,10 +61,20 @@ const qualNumber = (label: string) => { const m = /^Q(\d+)$/.exec(label); return
  * an earlier match, or count fewer played). `order`: the event's played matches in time order. Null where the frames
  * prove nothing about it (no edge read, or the match sits inside what the recording shows).
  */
-export function outsideRecording(row: Pick<FrameTiming, "opensOn" | "endsOn">, label: string, order: string[]): string | null {
+export function outsideRecording(row: Pick<FrameTiming, "opensOn" | "endsOn" | "starts" | "review" | "earlyStart">, label: string, order: string[]): string | null {
   const i = order.indexOf(label), q = qualNumber(label);
-  const o = row.opensOn, e = row.endsOn;
-  if (o && o.at <= EDGE_S) {
+  // An edge counts only where everything else the frames saw in the video agrees with it: a first frame can show a
+  // bracket, a schedule or the day before's last card, so one naming M7 while Q2 is read an hour in proves nothing.
+  const seen = [...Object.keys(row.starts ?? {}), ...Object.keys(row.review ?? {}), ...Object.keys(row.earlyStart ?? {})];
+  const at = (l: string) => order.indexOf(l);
+  const opens = (edge: RecordingEdge | undefined) => !!edge && edge.at <= EDGE_S && !seen.some((l) =>
+    (edge.label != null && at(edge.label) >= 0 && at(l) >= 0 && at(l) < at(edge.label)) ||
+    (edge.played != null && qualNumber(l) != null && qualNumber(l)! <= edge.played));
+  const ends = (edge: RecordingEdge | undefined) => !!edge && !seen.some((l) =>
+    (edge.label != null && at(edge.label) >= 0 && at(l) > at(edge.label)) ||
+    (edge.played != null && qualNumber(l) != null && qualNumber(l)! > edge.played));
+  const o = opens(row.opensOn) ? row.opensOn : undefined, e = ends(row.endsOn) ? row.endsOn : undefined;
+  if (o) {
     if (o.played != null && q != null && q <= o.played) return `played before the recording starts: at ${hms(o.at)} it shows ${o.played}${o.of ? ` of ${o.of}` : ""} matches played`;
     if (o.label && i >= 0 && order.indexOf(o.label) > i) return `played before the recording starts: it opens on ${o.label} at ${hms(o.at)}`;
   }
