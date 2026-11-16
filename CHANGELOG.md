@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.0.3 — 2026-11-16
+
+Videos › 2024 recordings of events A to M read frame by frame: 285 more matches get a clip that opens where the frame names the match.
+
+### Highlights
+- [fixes] 285 more 2024 matches get a clip read off the video
+- [fixes] Each new clip opens on a frame that names its match
+- [fixes] No clip already playing is taken away or moved
+
+### Fixed
+- Videos: 10 of the 2024 season's recordings (events A to M) read with the frame reader of 7.0.1: 347 matches placed where their frames show them, 285 of them new, each new clip opening on a frame whose overlay names it; every live start stays where it was. The rest of 2024 follows in its own releases. (`server/data/frameTimings.ts`) (#1614)
+
 ## 7.0.2 — 2026-11-16
 
 Videos › this season's recordings read frame by frame: 158 more matches get a clip that opens where the frame names the match.
