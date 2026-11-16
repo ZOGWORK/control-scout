@@ -90,14 +90,14 @@ async function scoutRecords(): Promise<Map<string, Record_>> {
 
 /** Every event with a date, for matching in memory, bucketed by month so a window reads two or three buckets. */
 async function eventIndex(): Promise<(lo: string, hi: string) => WatchEvent[]> {
-  const rows = await all<any>("SELECT season, code, name, type, city, state, country, start, end, timezone, division_code FROM events WHERE start IS NOT NULL");
+  const rows = await all<any>("SELECT season, code, name, type, city, state, country, start, end, timezone, division_code, remote FROM events WHERE start IS NOT NULL");
   const parents = new Set(rows.filter((r) => r.division_code && r.division_code !== r.code).map((r) => `${r.season}/${r.division_code}`));
   const buckets = new Map<string, WatchEvent[]>();
   for (const r of rows) {
     const e: WatchEvent = {
       season: Number(r.season), code: String(r.code), name: String(r.name ?? ""), type: String(r.type ?? ""), city: r.city ?? null, state: r.state ?? null,
       country: r.country ?? null, start: String(r.start).slice(0, 10), end: r.end ? String(r.end).slice(0, 10) : null, timezone: r.timezone ?? null,
-      divisionCode: r.division_code ?? null, parent: parents.has(`${r.season}/${r.code}`),
+      divisionCode: r.division_code ?? null, parent: parents.has(`${r.season}/${r.code}`), remote: !!Number(r.remote),
     };
     for (let m = e.start.slice(0, 7); m <= (e.end ?? e.start).slice(0, 7); m = nextMonth(m)) {
       if (!buckets.has(m)) buckets.set(m, []);
@@ -508,9 +508,9 @@ async function checkAdds(rows: any[], facts: Map<string, any>, rules: Map<string
     const rule = rules.get(String(a.channel_id));
     if (rule && start && a.e_start && !nc) {
       const v: WatchVideo = { videoId: vid, title, start, durationS: f?.duration ?? r?.duration ?? null, privacy: "public", embeddable: true, blockedIn: 0 };
-      const d = String(start).slice(0, 10);
+      const w = videoWindow(v)!;
       // Playability is checked above from its facts: here, only which event the rules pick for it today.
-      const m = matchVideo(v, rule, events(shift(d, -1), shift(d, 1)));
+      const m = matchVideo(v, rule, events(w[0], w[1]));
       if (m.kind !== "add") wrong.push(`the rules no longer pick it alone: ${m.why}`);
       else if (m.event.code !== String(a.code) || m.event.season !== Number(a.season)) wrong.push(`the rules now pick ${m.event.season} ${m.event.code}, not ${a.season} ${a.code}`);
     }
