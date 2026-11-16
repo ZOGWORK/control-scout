@@ -1,26 +1,34 @@
-// A streak board read in parts (streakBoard.ts boardRows) describes one moment: a write landing between two parts (the
-// live lane storing results) has the board read again, so a team in a part already read and one in a part still to
-// come are counted alike, never one from before the write and one from after.
-import { beforeAll, describe, expect, it, vi } from "vitest";
-import { writing } from "../../data/writeGen";
+// A streak board read in parts (streakBoard.ts boardRows) describes one moment: results stored between two parts (the
+// live lane, a sync in its child process) are in none of the parts, never in the later ones only. A database file, as
+// in production: its read snapshot holds a connection of its own.
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-const hook = vi.hoisted(() => ({ afterFirstPart: null as null | (() => Promise<void>) }));
+const hook = vi.hoisted(() => ({ afterFirstPart: null as null | (() => Promise<void>), parts: 0 }));
 vi.mock("../../db.js", async (real) => {
   const m = await real<typeof import("../../db.js")>();
   return {
     ...m,
-    all: async (sql: string, args?: unknown[]) => {
-      const rows = await m.all(sql, args as never);
-      const f = hook.afterFirstPart;
-      if (f && sql.includes("CROSS JOIN match_teams")) { hook.afterFirstPart = null; await f(); }
-      return rows;
-    },
+    // The real snapshot, its reads counted, and a write made just after the first part (on the server's own connection).
+    inSnapshot: (fn: Parameters<typeof m.inSnapshot>[0]) => m.inSnapshot((read) => fn(async (sql, args) => {
+      const rows = await read(sql, args);
+      if (sql.includes("CROSS JOIN match_teams")) {
+        hook.parts++;
+        const f = hook.afterFirstPart;
+        if (f) { hook.afterFirstPart = null; await f(); }
+      }
+      return rows as never;
+    })),
   };
 });
 
-const { migrate, openDb, run, setDb } = await import("../../db");
+const { all, migrate, openDb, run, setDb } = await import("../../db");
 const { streakBoardAnswer } = await import("./streakBoard");
 
+const dir = mkdtempSync(join(tmpdir(), "streak-snapshot-"));
+afterAll(() => { try { rmSync(dir, { recursive: true, force: true }); } catch { /* still open on Windows */ } });
 const S = 2025;
 const NJ = { key: "USA:NJ", country: "USA", state: "NJ", name: "New Jersey" };
 let match = 0;
@@ -31,7 +39,7 @@ const play = async (team: number, day: number) => {
 };
 
 beforeAll(async () => {
-  const c = openDb(":memory:");
+  const c = openDb(`file:${join(dir, "scout.db").replace(/\\/g, "/")}`);
   setDb(c);
   await migrate(c);
   // 600 teams: three parts. Each wins once on day 1.
@@ -41,12 +49,18 @@ beforeAll(async () => {
 });
 
 describe("a streak board read while results are stored", () => {
-  it("reads again when a write lands between its parts: both new wins counted, the first part's and the last's", async () => {
+  it("never mixes moments: wins stored between its parts are in none of them, the first part's or the last's", async () => {
     // Just after the first part (teams 1000-1249) is read: a win more for 1005 (read already) and 1590 (still to come).
-    hook.afterFirstPart = () => writing(async () => { await play(1005, 2); await play(1590, 2); });
+    hook.afterFirstPart = async () => { await play(1005, 2); await play(1590, 2); };
+    hook.parts = 0;
     const a = await streakBoardAnswer({ region: NJ, season: 2026, now: false, losing: false, n: 2 });
-    expect(a.source).toBe("From 602 match results of 600 teams from New Jersey");
+    expect(hook.parts).toBe(3); // read in parts, the write landed between them
+    expect(a.source).toBe("From 600 match results of 600 teams from New Jersey");
     const longest = a.blocks?.find((b) => b.kind === "table");
-    expect(longest?.kind === "table" && longest.rows.map((r) => [String(r.cells.team).slice(0, 4), r.cells.streak])).toEqual([["1005", "2 wins"], ["1590", "2 wins"]]);
+    expect(longest?.kind === "table" && longest.rows.map((r) => r.cells.streak)).toEqual(["1 win", "1 win"]);
+    // Stored all the same: the next board has both.
+    expect((await all("SELECT COUNT(*) n FROM match_teams"))[0]).toEqual({ n: 602 });
+    const next = await streakBoardAnswer({ region: NJ, season: 2026, now: false, losing: false, n: 2 });
+    expect(next.source).toBe("From 602 match results of 600 teams from New Jersey");
   });
 });
