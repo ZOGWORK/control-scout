@@ -330,7 +330,7 @@ async function verifyRow(row: FrameTiming, division: { own: string; others: stri
 
 // --- The recording's edges ----------------------------------------------------------------------------------------
 
-type Edge = { at: number; label?: string; played?: number; of?: number; clear?: boolean };
+type Edge = { at: number; label?: string; played?: number; of?: number; clear?: boolean; underway?: boolean };
 /** What a recording's first and last frames show (EDGE_AT from each end): the first frame from that end that names a
  *  match (this division's; another's names none) or counts the matches played. None does, and none shows a timer: read
  *  on every CLEAR_STEP_S (up to CLEAR_MAX_S, or half the video) while each frame shows no match at all, and the first
@@ -359,12 +359,24 @@ async function readEdges(page: Page, length: number): Promise<{ opensOn?: Edge; 
     return undefined;
   };
   const opensOn = await edge((s) => s);
+  // The match it opens on, already being played: its timer runs between two reads 3 s apart, and even its least
+  // elapsed reading (an Auto reading of 0:30 or less could be either period) puts its start before the recording's.
+  if (opensOn?.label && !opensOn.clear) {
+    await seek(page, opensOn.at);
+    const a = await timer(page);
+    await seek(page, opensOn.at + 3);
+    const b = await timer(page);
+    if (a && b && a.where === b.where && a.left - b.left >= 1 && a.left - b.left <= 5) {
+      const ways = [elapsed({ ...a, auto: false }), ...(a.left <= AUTO_S ? [elapsed({ ...a, auto: true })] : [])].filter((x): x is number => x != null);
+      if (ways.length && Math.min(...ways) > opensOn.at) opensOn.underway = true;
+    }
+  }
   const endsOn = await edge((s) => length - s);
   return { ...(opensOn ? { opensOn } : {}), ...(endsOn ? { endsOn } : {}) };
 }
 
 /** An edge as the log says it: "M1 at 400 s (no match before it)", "4/23 played at 3 s", "nothing". */
-const saidEdge = (e?: Edge, side = "before") => (e ? `${e.label ?? ""}${e.played != null ? ` ${e.played}/${e.of} played` : ""} at ${e.at} s${e.clear ? ` (no match on screen ${side} it)` : ""}` : "nothing");
+const saidEdge = (e?: Edge, side = "before") => (e ? `${e.label ?? ""}${e.played != null ? ` ${e.played}/${e.of} played` : ""} at ${e.at} s${e.clear ? ` (no match on screen ${side} it)` : ""}${e.underway ? " (already being played)" : ""}` : "nothing");
 
 /** --bounds: a read row gets its video's edges (opensOn, endsOn), its starts as they were. */
 async function boundsRow(row: FrameTiming, length: number, division: { own: string; others: string[] } | null, log: (s: string) => void): Promise<void> {
