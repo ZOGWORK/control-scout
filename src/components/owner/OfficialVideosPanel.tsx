@@ -241,6 +241,16 @@ function Audit({ a }: { a: OfficialAudit }) {
             </li>))}</ul>
         </div>
       )}
+      {(a.unusedLinks?.length ?? 0) > 0 && (
+        <details className="mt-4 text-sm" data-unused-links>
+          <summary className="cursor-pointer text-muted-foreground">FIRST links not used ({a.unusedLinks.length})</summary>
+          <p className="mt-1 text-xs text-muted-foreground">FIRST's livestream link for these events is a video YouTube says was broadcast on another date: another event's stream or a test. Scout doesn't play it for the event or count it as the event's recording. Nothing to do here.</p>
+          <ul className="mt-2 grid grid-cols-[minmax(0,1fr)] gap-1">{a.unusedLinks.map((l) => (
+            <li key={`${l.season}/${l.code}/${l.videoId}`} className="text-xs">
+              <Link to={`/events/${l.season}/${l.code}`} className="font-medium hover:underline">{l.season} {l.code}</Link> · <a href={watchUrl(l.videoId)} target="_blank" rel="noreferrer noopener" className="font-mono hover:underline">{l.videoId}</a> · <span className="text-muted-foreground">{l.why}</span>
+            </li>))}</ul>
+        </details>
+      )}
       <div className="mt-4 grid grid-cols-[minmax(0,1fr)] gap-2">
         <h3 className="text-sm font-medium">Findings {a.openFindings > a.findings.length ? `(first ${a.findings.length} of ${a.openFindings})` : `(${a.openFindings})`}</h3>
         <p className="text-xs text-muted-foreground">Uploads Scout has no record of that may be a recording: older than the watcher's window, or a watcher miss waiting for its next run. Each has the watcher's verdict, why, and the event it fits best. Send one to review to add it, or say why it isn't one.</p>
