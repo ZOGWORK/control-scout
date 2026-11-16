@@ -76,9 +76,13 @@ const liveRows = (path: string) => {
   let text: string;
   try { text = readFileSync(path, "utf8"); } catch (e) { console.error(`--live ${path}: can't be read (${(e as Error).message.split("\n")[0]})`); process.exit(2); }
   // A truncated or hand-edited row stops the run cleanly, before anything is read.
-  try { return dataRows<{ videoId: string; code: string; starts: Record<string, number> }>(text); } catch (e) { console.error(`--live ${path}: a row doesn't parse (${(e as Error).message.split("\n")[0]})`); process.exit(2); }
+  try { return dataRows<{ videoId: string; code: string; starts: Record<string, number>; medium?: string[] }>(text); } catch (e) { console.error(`--live ${path}: a row doesn't parse (${(e as Error).message.split("\n")[0]})`); process.exit(2); }
 };
-const LIVE = new Map<string, Record<string, number>>(arg("live") ? liveRows(arg("live")!).map((f) => [`${f.videoId}|${f.code}`, f.starts]) : []);
+const LIVE_ROWS = arg("live") ? liveRows(arg("live")!) : [];
+const LIVE = new Map<string, Record<string, number>>(LIVE_ROWS.map((f) => [`${f.videoId}|${f.code}`, f.starts]));
+/** The live starts placed from the clock between two reads, not read off the video (a row's `medium`): a live clip
+ *  a read leaves out keeps that confidence when it goes back for its opening check. */
+const LIVE_MEDIUM = new Map<string, Set<string>>(LIVE_ROWS.map((f) => [`${f.videoId}|${f.code}`, new Set(f.medium ?? [])]));
 // A --live copy that gives no rows (a wrong file) would protect no live clip: stop, as an unknown --codes does.
 if (arg("live") && !LIVE.size) { console.error(`--live ${arg("live")}: no frame timing rows in it (a copy of main's server/data/frameTimings.ts?)`); process.exit(2); }
 type FrameTiming = (typeof FRAME_TIMINGS)[number];
@@ -353,7 +357,7 @@ async function verifyRow(row: FrameTiming, division: { own: string; others: stri
 
 /** The second each of a video's matches starts at, as far as its frames show. `shift`: the video's second for a moment
  *  minus that moment (epoch seconds), when YouTube gives the broadcast's start (an upload has none). */
-async function placeVideo(page: Page, ms: M[], shift: number | null, length: number, log: (s: string) => void, unread?: Set<string>, live?: Record<string, number>): Promise<Judged> {
+async function placeVideo(page: Page, ms: M[], shift: number | null, length: number, log: (s: string) => void, unread?: Set<string>, live?: Record<string, number>, liveMedium?: Set<string>): Promise<Judged> {
   // The overlay names a replay ("M14-2", a tiebreak) by its match alone (M14): each name, its matches in order.
   const byName = new Map<string, number[]>();
   ms.forEach((m, i) => { const n = m.label.replace(/-\d+$/, ""); byName.set(n, [...(byName.get(n) ?? []), i]); });
@@ -470,7 +474,7 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
   if (live && seen.size) for (const [label, t] of Object.entries(live)) {
     if (j.placed.has(label) || !ms.some((m) => m.label === label)) continue;
     j.review.delete(label); j.missing.delete(label); j.earlyStart.delete(label);
-    j.placed.set(label, { t, confidence: "high" });
+    j.placed.set(label, { t, confidence: liveMedium?.has(label) ? "medium" : "high" });
   }
   await checkOpenings(page, j, log, live ? unread : undefined, live);
   const out = new Map([...j.placed].map(([l, p]) => [l, p.t]));
@@ -663,8 +667,8 @@ async function doCode(code: string): Promise<void> {
       log(`  ${v.videoId}: ${mine.length} matches`);
       console.error(`${new Date().toISOString().slice(11, 19)} ${code} ${v.videoId}: ${mine.length} matches`);
       // Live starts whose opening reads nothing stay, unconfirmed (--live).
-      const live = LIVE.get(`${v.videoId}|${code}`), unread = new Set<string>();
-      let j = await placeVideo(page, mine, from == null ? null : -from, m.length!, log, unread, live);
+      const live = LIVE.get(`${v.videoId}|${code}`), liveMedium = LIVE_MEDIUM.get(`${v.videoId}|${code}`), unread = new Set<string>();
+      let j = await placeVideo(page, mine, from == null ? null : -from, m.length!, log, unread, live, liveMedium);
       // Nothing read at all: a player that never showed the stream (an interstitial, a stalled load) looks the same as a
       // video without the overlay, so it gets one more go in a fresh player before its matches count as missing.
       if (!j.placed.size && !j.review.size && [...j.missing.values()].every((w) => w === NOTHING_READ)) {
@@ -674,7 +678,7 @@ async function doCode(code: string): Promise<void> {
         if (division) divisions.set(page, division);
         await open(page, v.videoId);
         unread.clear();
-        j = await placeVideo(page, mine, from == null ? null : -from, m.length!, log, unread, live);
+        j = await placeVideo(page, mine, from == null ? null : -from, m.length!, log, unread, live, liveMedium);
       }
       const out = new Map([...j.placed].map(([l, p]) => [l, p.t]));
       for (const l of out.keys()) held.add(l);
