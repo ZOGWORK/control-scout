@@ -26,7 +26,7 @@ Search › "wr" is the world record, and a stray letter at the end no longer bre
 
 ### Fixed
 - Search: "wr" is read as "world record" ("current wr"), like the other short forms; never a word of a team's name. (`src/shared/query/lexicon.ts`) (#1583)
-- Search: one letter typed at the end of a question search reads whole without it ("what is the best team in nj n") is left out, and the answer says it wasn't read. "A" and "i" are words and stay. (`server/api/searchAnswer.ts`) (#1584, #1012)
+- Search: one letter typed at the end of a question search reads whole without it ("what is the best team in nj n") is left out, and the answer says it wasn't read. "A" and "i" are words, and "u" is read as "you", so those stay. (`server/api/searchAnswer.ts`) (#1584, #1012)
 - Search: "si" right after a question word ("what si the best team") is "is" with its letters swapped, never an event's initials. (`src/shared/query/lexicon.ts`) (#1584)
 
 ## 6.9.4 — 2026-11-16
