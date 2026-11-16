@@ -75,6 +75,8 @@ const { FRAME_TIMINGS } = await import("../server/data/frameTimings.js");
 const LIVE = new Map<string, Record<string, number>>(
   arg("live") ? dataRows<{ videoId: string; code: string; starts: Record<string, number> }>(readFileSync(arg("live")!, "utf8")).map((f) => [`${f.videoId}|${f.code}`, f.starts]) : [],
 );
+// A --live copy that gives no rows (a wrong file) would protect no live clip: stop, as an unknown --codes does.
+if (arg("live") && !LIVE.size) { console.error(`--live ${arg("live")}: no frame timing rows in it (a copy of main's server/data/frameTimings.ts?)`); process.exit(2); }
 type FrameTiming = (typeof FRAME_TIMINGS)[number];
 const T: any = await import(process.env.TESSERACT_JS ?? "tesseract.js");
 const createWorker = T.createWorker ?? T.default?.createWorker;
@@ -234,6 +236,7 @@ async function confirmed(page: Page, label: string, start: number, own = false, 
   }
   if (why) return why;
   const before = await readAt(page, start - 25);
+  if (before.label === label) own ||= before.division === "own";
   if (before.label === label && before.start != null) return `25 s before it was already running (start ${Math.round(before.start - start)} s off)`;
   if (divisions.has(page) && !own) return "no read of it showed its division's name (the stream carries another division too)";
   return null;
@@ -263,13 +266,17 @@ const MISSES = 3;
  */
 async function checkOpenings(page: Page, j: Judged, log: (s: string) => void, unread?: Set<string>, live?: Record<string, number>): Promise<void> {
   const failed: string[] = [];
+  // A read that fails (a hang, OCR broken) leaves that opening, and the rest after it, as if nothing had been read: never
+  // the video's other starts, which stand as placed.
+  let broken = false;
   for (const [label, p] of [...j.placed]) {
     if (j.opens.has(label)) continue; // checked on an earlier --verify
     let named: string | null = null, at: number | null = null;
-    for (const lead of OPEN_LEADS) {
+    for (const lead of broken ? [] : OPEN_LEADS) {
       const t = p.t - lead;
       if (t < 0) continue;
-      const r = await readAt(page, t, true);
+      let r: Read;
+      try { r = await readAt(page, t, true); } catch (e) { broken = true; log(`    an opening read failed (${(e as Error).message.split("\n")[0]}): the rest are left unchecked`); break; }
       if (r.division === "other") { named = "another division's match"; continue; }
       // The overlay names a replay (a tiebreak's "M6-2") by its match alone ("M6"), as placeVideo reads it.
       if (r.label === label.replace(/-\d+$/, "")) { at = t; break; }
@@ -579,6 +586,8 @@ async function doCode(code: string): Promise<void> {
   const rowOf = (v: (typeof own)[number]) => kept.get(`${v.videoId}|${code}`);
   const read = own.filter(holds).every((v) => { const f = rowOf(v); return f && !Object.values(f.missing ?? {}).some((w) => w.startsWith(PLAY_FAILED)); });
   if (!CHECK && !ALL && !VERIFY && !waiting && own.some(holds) && read) return;
+  // --verify: an event none of whose rows still has openings to check doesn't count against --limit.
+  if (VERIFY && !own.some((v) => { const f = rowOf(v); return f && (!f.opens || f.unconfirmed?.length) && Object.keys(f.starts).length; })) return;
   // Checked again once claimed: a lane that passed its check while another was still loading would read past --limit.
   if (++done > limit) return;
   // An event's lines together (events run side by side).
