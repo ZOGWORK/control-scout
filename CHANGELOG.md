@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.9.5 — 2026-11-16
+## 6.9.6 — 2026-11-16
 
 Search › a team's number shows the team, with no "Questions with video" about other events.
 
@@ -26,6 +26,20 @@ Search › a team's number shows the team, with no "Questions with video" about 
 
 ### Changed
 - Search: "Questions with video" shows only when the search's own words ask to watch ("highlights", "with video", "video") or it filters to matches with video; a bare team number ("4215") whose card happens to hold highlights never gets it. On a team's answer the questions offered are the team's own seasons with a clip, never other events' highlights. (`server/api/answers/videoSuggest.ts`, `server/api/searchAnswer.ts`) (#1595)
+
+## 6.9.5 — 2026-11-16
+
+Search › "wr" is the world record, and a stray letter at the end no longer breaks a question.
+
+### Highlights
+- [fixes] "Current wr" shows the world record, as "current world record" does
+- [fixes] A stray letter typed at the end is skipped and said as not read
+- [fixes] "What si the best team in nj" reads "si" as "is"
+
+### Fixed
+- Search: "wr" is read as "world record" ("current wr"), like the other short forms; never a word of a team's name. (`src/shared/query/lexicon.ts`) (#1583)
+- Search: one letter typed at the end of a question search reads whole without it ("what is the best team in nj n") is left out, and the answer says it wasn't read. "A" and "i" are words, and "u" is read as "you", so those stay. (`server/api/searchAnswer.ts`) (#1584, #1012)
+- Search: "si" right after a question word ("what si the best team") is "is" with its letters swapped, never an event's initials. (`src/shared/query/lexicon.ts`) (#1584)
 
 ## 6.9.4 — 2026-11-16
 
