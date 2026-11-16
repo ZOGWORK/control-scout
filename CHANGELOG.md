@@ -22,9 +22,10 @@ Search › a team's number shows the team, with no "Questions with video" about 
 ### Highlights
 - [fixes] Searching a team number no longer suggests other events' highlights
 - [fixes] A team's highlights search only suggests that team's own video
+- [teams] A team search shows just the team and its own highlights
 
 ### Changed
-- Search: "Questions with video" shows only when the search's own words ask to watch ("highlights", "with video", "video") or it filters to matches with video; a bare team number ("4215") whose card happens to hold highlights never gets it. On a team's answer the questions offered are the team's own seasons with a clip, never other events' highlights. (`server/api/answers/videoSuggest.ts`, `server/api/searchAnswer.ts`)
+- Search: "Questions with video" shows only when the search's own words ask to watch ("highlights", "with video", "video") or it filters to matches with video; a bare team number ("4215") whose card happens to hold highlights never gets it. On a team's answer the questions offered are the team's own seasons with a clip, never other events' highlights. (`server/api/answers/videoSuggest.ts`, `server/api/searchAnswer.ts`) (#1595)
 
 ## 6.8.8 — 2026-11-15
 
