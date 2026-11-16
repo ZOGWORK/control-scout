@@ -60,9 +60,9 @@ stands only when one of its reads showed this division's own name (`divisionOf`,
      filled, not read);
    - a stretch of one read is still a confirmed read (step 1: its overlay and timer agree at two points, and the match
      wasn't running 25 s before), so the video places it where its frames show it (high), however far that is from
-     FIRST's schedule: the stream is the truth (owner, 2026-11-15). It goes to **review** only when it sits more than
-     30 minutes from where the reads beside it, or else the broadcast's own clock, put the video (it may be another
-     day's or event's), or when there's neither to compare with.
+     FIRST's schedule: the stream is the truth (owner, 2026-11-15). No read is ever flagged for how far it sits from
+     FIRST's times (owner, 2026-11-16): what keeps a wrong one out is read off the frames (two timer reads that agree,
+     the match not running 25 s before, an opening that names it, the division's own name on a shared stream).
 3. **Plausible or review.** Placed starts must be inside the video, in match order, and at least 2:32 apart (a
    match's 2:38 less a read's 6 s slack).
    Any that aren't go to review. Where a start lands inside the previous match's play, both read off the video, the
