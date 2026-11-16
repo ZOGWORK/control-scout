@@ -38,6 +38,11 @@ export function playedCount(text: string): { played: number; of: number } | null
 /** Seconds from a recording's start (or back from its end) its edge is read at, in turn: the first frame that names a
  *  match or counts the matches played is the edge (within EDGE_S, server/data/frameTimings.ts). */
 export const EDGE_AT = [3, 20, 45, 75, 110];
+/** Where none of those frames names a match (a stream opening on an empty field, USORIMLT 2025), the edge is read on
+ *  every CLEAR_STEP_S, up to CLEAR_MAX_S in, until one does: under a match's 2:38, so a match played in that stretch
+ *  would show on at least two of the frames. Every frame before it showing no match makes it the edge ("clear"). */
+export const CLEAR_STEP_S = 60;
+export const CLEAR_MAX_S = 2400;
 
 /** "2:25" → 145; anything else null. */
 export const secondsOf = (s: string) => { const m = /(\d):([0-5]\d)/.exec(s); return m ? Number(m[1]) * 60 + Number(m[2]) : null; };
