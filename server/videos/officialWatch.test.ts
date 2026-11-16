@@ -345,6 +345,12 @@ describe("the official-video watcher", () => {
     expect(await runOfficialWatch(() => {}, { apiKey: "k", fetchImpl: fakeFetch, now: () => LATER + 20 * 864e5 })).toMatchObject({ seen: 1, added: 1, queued: 0 });
     expect(await get<any>("SELECT code, day, removed_at FROM official_videos WHERE video_id = 'planoagain1'")).toMatchObject({ code: "USTXPLQ", day: "2026-02-07", removed_at: null });
     expect((await get<any>("SELECT removed_at FROM official_videos WHERE video_id = 'planodeleted'")).removed_at).toBeTruthy();
+
+    // A second whole-day video of a day that already plays whole (a re-stream, a second camera): set aside as a
+    // duplicate, never sent to review.
+    uploads = [{ id: "planocopy01", title: "FiT Plano Qualifier (second camera)", published: "2026-02-08T05:00:00Z", start: "2026-02-07T15:10:00Z" }];
+    expect(await runOfficialWatch(() => {}, { apiKey: "k", fetchImpl: fakeFetch, now: () => LATER + 21 * 864e5 })).toMatchObject({ seen: 1, added: 0, queued: 0, duplicates: 1 });
+    expect(await get<any>("SELECT status, why FROM official_watch WHERE video_id = 'planocopy01'")).toMatchObject({ status: "duplicate", why: "duplicate: USTXPLQ already plays planoagain1 for 2026-02-07" });
   });
 
   it("pages back through a channel's uploads to a stream scheduled before the watch, and stops at the lookback", async () => {
