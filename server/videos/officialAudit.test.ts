@@ -275,6 +275,20 @@ describe("the channel audit", () => {
     expect((await ownerAudit()).unusedLinks).toEqual([]);
   });
 
+  it("checks a short link's video the same way: one broadcast on another date isn't the event's record", async () => {
+    // FIRST gives a short link (no YouTube id in it); followed while the meet was on, it led to the Pecan stream.
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, timezone, remote, hybrid, livestream, source) VALUES (2025, 'USTXSHO', 'TX Short Link Meet', 'LeagueMeet', 'Waco', 'TX', 'USA', '2026-02-21', '2026-02-21', 'America/Chicago', 0, 0, 'https://ftcwa.live/meet', 'test')");
+    await run("INSERT INTO event_stream_links (season, code, url, video_id, checked_at) VALUES (2025, 'USTXSHO', 'https://ftcwa.live/meet', ?, 'x')", [FIRSTS]);
+    try {
+      await audit(Date.parse("2026-02-23T06:00:00Z"));
+      expect(await row(FIRSTS)).toMatchObject({ record: "FIRST's event link", code: "USTXPEQ" });
+      expect((await ownerAudit()).unusedLinks).toEqual([{ season: 2025, code: "USTXSHO", videoId: FIRSTS, why: expect.stringMatching(/^FIRST's short link's video for USTXSHO was broadcast on 2026-01-17, outside USTXSHO's dates/) }]);
+    } finally {
+      await run("DELETE FROM event_stream_links WHERE season = 2025 AND code = 'USTXSHO'");
+      await run("DELETE FROM events WHERE season = 2025 AND code = 'USTXSHO'");
+    }
+  });
+
   it("goes on with the run when a facts call fails twice, and reads those facts next run", async () => {
     const id = "fail503xxxx";
     uploads.unshift({ id, title: "FTC Texas Mockingbird Qualifier Day 4", published: "2026-02-22T14:00:00Z", start: "2026-02-22T14:00:00Z" });
