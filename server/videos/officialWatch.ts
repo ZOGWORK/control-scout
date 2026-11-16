@@ -217,9 +217,11 @@ export async function runOfficialWatch(log: (s: string) => void, opts: { apiKey?
               out.seen++;
               const verdict = await decide(v, ch);
               const put = await record(v, ch, verdict, v.published ?? null, now());
-              if (verdict.kind === "add" && !put) out.queued++;
-              else if (verdict.kind === "add") { out.added++; added.push({ season: verdict.event.season, code: verdict.event.code, day: verdict.day, part: verdict.part, videoId: v.videoId, by: "watcher" }); }
-              else if (verdict.kind === "review") out.queued++;
+              if (verdict.kind === "add") {
+                // Added; or sent to review, its day taken meanwhile; or decided by the owner meanwhile (neither).
+                if (put === "added") { out.added++; added.push({ season: verdict.event.season, code: verdict.event.code, day: verdict.day, part: verdict.part, videoId: v.videoId, by: "watcher" }); }
+                else if (put === "queued") out.queued++;
+              } else if (verdict.kind === "review") out.queued++;
               else if (verdict.kind === "duplicate") out.duplicates++;
             }
           });
@@ -310,10 +312,12 @@ export async function guessFor(v: WatchVideo, rule: ChannelRule): Promise<NonNul
 }
 
 /** A verdict written: the watcher's row, and for an add the recording on its event. by: who added it (the watcher, or
- *  the channel audit for one older than the watcher's window that passes every check: server/videos/officialAudit.ts). */
-export async function record(v: WatchVideo, ch: Pick<ChannelRow, "channelId" | "title">, verdict: WatchVerdict, published: string | null, now: number, by: "watcher" | "channel audit" = "watcher"): Promise<boolean> {
+ *  the channel audit for one older than the watcher's window that passes every check: server/videos/officialAudit.ts).
+ *  For an add, what became of it: "added"; "queued" (its day taken meanwhile: in the owner's review, naming the clash);
+ *  or "kept" (the owner decided the video meanwhile, and that stands). Any other verdict: "kept". */
+export async function record(v: WatchVideo, ch: Pick<ChannelRow, "channelId" | "title">, verdict: WatchVerdict, published: string | null, now: number, by: "watcher" | "channel audit" = "watcher"): Promise<"added" | "queued" | "kept"> {
   const writes = verdictWrites(v, ch, verdict, published, now, by);
-  if (verdict.kind !== "add") { await db().batch(writes, "write"); return false; }
+  if (verdict.kind !== "add") { await db().batch(writes, "write"); return "kept"; }
   // An add lands whole or not at all: the row claimed as added and its recording in. Another recording that took the
   // day meanwhile (an owner's approval takes no data lock) leaves the insert with nothing to do: undone, and the video
   // goes to the owner's review naming the clash, never counted or kept as added.
@@ -331,15 +335,17 @@ export async function record(v: WatchVideo, ch: Pick<ChannelRow, "channelId" | "
   } finally {
     tx.close();
   }
-  if (!clash) return put;
+  if (!clash) return put ? "added" : "kept";
   const where = `${verdict.event.code}'s ${verdict.day}${verdict.part ? ` (${verdict.part})` : ""}`;
   const review: WatchVerdict = { kind: "review", why: `another recording took ${where} as this one was added: which plays is for the owner (${verdict.why})`.slice(0, 500), event: verdict.event, day: verdict.day, part: verdict.part };
-  await db().batch(verdictWrites(v, ch, review, published, now, by), "write");
-  return false;
+  // Reopened: a row in review or set aside (the audit deciding it again) goes to review too, not left as it was.
+  await db().batch(verdictWrites(v, ch, review, published, now, by, true), "write");
+  return "queued";
 }
 
-/** The rows one verdict writes: the watcher's row, and for an add the dead recordings it replaces and its own. */
-function verdictWrites(v: WatchVideo, ch: Pick<ChannelRow, "channelId" | "title">, verdict: WatchVerdict, published: string | null, now: number, by: "watcher" | "channel audit"): { sql: string; args: (string | number | null)[] }[] {
+/** The rows one verdict writes: the watcher's row, and for an add the dead recordings it replaces and its own. An
+ *  existing row in review or set aside is overwritten only by an add, or with reopen (a lost add sent to review). */
+function verdictWrites(v: WatchVideo, ch: Pick<ChannelRow, "channelId" | "title">, verdict: WatchVerdict, published: string | null, now: number, by: "watcher" | "channel audit", reopen = false): { sql: string; args: (string | number | null)[] }[] {
   const at = new Date(now).toISOString();
   // An event the verdict names, else (in review or set aside) the best guess: the owner's form starts from it.
   const ev = (verdict.kind === "ignore" ? null : verdict.event ?? null) ?? verdict.guess?.event ?? null;
@@ -351,7 +357,7 @@ function verdictWrites(v: WatchVideo, ch: Pick<ChannelRow, "channelId" | "title"
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(video_id) DO UPDATE SET status = excluded.status, season = excluded.season, code = excluded.code, day = excluded.day, part = excluded.part,
             why = excluded.why, start = excluded.start, duration = excluded.duration, decided_at = excluded.decided_at, decided_by = excluded.decided_by
-          WHERE excluded.status = 'added' AND official_watch.status IN ('pending', 'ignored')`,
+          WHERE ${reopen ? "" : "excluded.status = 'added' AND "}official_watch.status IN ('pending', 'ignored')`,
     args: [v.videoId, ch.channelId, v.title, v.start, published, v.durationS, status, ev?.season ?? null, ev?.code ?? null, day, part, verdict.why, verdict.guess?.why ?? null, at, verdict.kind === "add" ? at : null, verdict.kind === "add" ? by : null] as (string | number | null)[],
   }];
   // The day's slot held only by recordings YouTube no longer plays (settle let it through): those come off first. Each
