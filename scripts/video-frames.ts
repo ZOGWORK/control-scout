@@ -129,9 +129,10 @@ const TIMERS = [
   // The bottom bar shrunk to 90% inside black side bars, raised off the bottom edge (ROCMPCND's Friday stream at Q2).
   { where: "bottom" as const, clip: { x: 580, y: 606, width: 120, height: 52 } },
   // The timer alone in a white box between the scores, a gamepad icon above it and Auto's dots below (FIRST AGE's bar,
-  // USNMCMP 2025): with the icon in the crop the OCR reads "1:04" as "11040", so only the digits' row is read, and its
+  // USNMCMP 2025): with the icon in the crop the OCR reads "1:04" as "11040", so only the digits' row is read (with a
+  // margin round them: a tight crop reads 1:37 as 1:29 and 1:22 as 1:92, this one read 1:57 to 1:17 right), and its
   // thin colon, often dropped ("117"), isn't needed (secondsLoose).
-  { where: "bottom" as const, clip: { x: 585, y: 651, width: 110, height: 38 }, loose: true },
+  { where: "bottom" as const, clip: { x: 580, y: 647, width: 120, height: 48 }, loose: true },
   // The same white box in a bar across the top (FIRST AGE's top layout, USPAKSN 2026): wider than FIRST Texas's.
   { where: "top" as const, clip: { x: 585, y: 92, width: 110, height: 50 }, loose: true },
 ];
