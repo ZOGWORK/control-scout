@@ -37,7 +37,7 @@ export function decisionProblem(d: VideoDecision): string | null {
   return null;
 }
 
-export interface DecisionsRun { applied: number; linked: number; rejected: number; setAside: number; kept: number; skipped: string[] }
+export interface DecisionsRun { applied: number; linked: number; rejected: number; setAside: number; kept: number; skipped: string[]; /** Threw this pass (a busy database, say): tried again next pass. */ failed: string[] }
 
 let applied = false;
 
@@ -47,7 +47,7 @@ let applied = false;
  */
 export async function applyVideoDecisions(log: (s: string) => void, list: VideoDecision[] = VIDEO_DECISIONS, opts: { again?: boolean; now?: number; lockWaitMs?: number } = {}): Promise<DecisionsRun | null> {
   if (applied && !opts.again) return null;
-  const out: DecisionsRun = { applied: 0, linked: 0, rejected: 0, setAside: 0, kept: 0, skipped: [] };
+  const out: DecisionsRun = { applied: 0, linked: 0, rejected: 0, setAside: 0, kept: 0, skipped: [], failed: [] };
   const at = new Date(opts.now ?? Date.now()).toISOString();
   let waiting = 0;
   try {
@@ -58,7 +58,7 @@ export async function applyVideoDecisions(log: (s: string) => void, list: VideoD
         // One that fails (a busy database, say) is retried next pass; the rest still go.
         let r: Awaited<ReturnType<typeof applyOne>>;
         try { r = await applyOne(d, at); }
-        catch (e) { waiting++; out.skipped.push(`${d.videoId}: failed this pass (${String((e as Error)?.message ?? e).slice(0, 120)})`); continue; }
+        catch (e) { out.failed.push(`${d.videoId}: ${String((e as Error)?.message ?? e).slice(0, 120)}`); continue; }
         if (r === "waiting") waiting++;
         else if (r === "kept") out.kept++;
         else if (typeof r === "string" && r.startsWith("skip:")) out.skipped.push(`${d.videoId}: ${r.slice(5)}`);
@@ -74,9 +74,9 @@ export async function applyVideoDecisions(log: (s: string) => void, list: VideoD
     throw e;
   }
   if (out.linked) forgetOfficial();
-  if (!waiting) applied = true;
-  if (out.applied || out.skipped.length) {
-    log(`official videos: decisions from evidence: ${out.applied} applied (${out.linked} linked, ${out.rejected} rejected, ${out.setAside} set aside), ${out.kept} already decided${waiting ? `, ${waiting} not read by the audit yet` : ""}${out.skipped.length ? `; not applied: ${out.skipped.slice(0, 5).join("; ")}` : ""}`);
+  if (!waiting && !out.failed.length) applied = true;
+  if (out.applied || out.skipped.length || out.failed.length) {
+    log(`official videos: decisions from evidence: ${out.applied} applied (${out.linked} linked, ${out.rejected} rejected, ${out.setAside} set aside), ${out.kept} already decided${waiting ? `, ${waiting} not read by the audit yet` : ""}${out.failed.length ? `; ${out.failed.length} failed, tried again next pass: ${out.failed.slice(0, 3).join("; ")}` : ""}${out.skipped.length ? `; not applied: ${out.skipped.slice(0, 5).join("; ")}` : ""}`);
     if (out.applied) await recordAudit(EVIDENCE, "officialVideo.evidence", { applied: out.applied, linked: out.linked, rejected: out.rejected, setAside: out.setAside });
   }
   return out;
@@ -128,19 +128,26 @@ async function applyOne(d: VideoDecision, at: string): Promise<"done" | "kept" |
     finding,
   ];
   // The link itself must land (no other recording on that day and part), or none of it does.
-  return (await inOne(d.videoId, writes, dead.length, dead.length + 1)) ? "done" : `skip:${d.code} ${d.day} is taken, the video is on another event, or the owner decided it meanwhile`;
+  // The day read again inside the write: an owner's approval since (it takes no data lock) of another recording on
+  // that day and an overlapping part (the whole day, or the same part) leaves it taken, and nothing is written.
+  const taken = { sql: `SELECT 1 FROM official_videos WHERE season = ? AND code = ? AND kind = 'recording' AND removed_at IS NULL AND day = ? AND video_id != ?
+            AND (? IS NULL OR part IS NULL OR part = ?)${dead.length ? ` AND video_id NOT IN (${dead.map(() => "?").join(", ")})` : ""} LIMIT 1`,
+    args: [Number(ev.season), String(ev.code), d.day!, d.videoId, d.part ?? null, d.part ?? null, ...dead.map((h) => h.videoId)] };
+  return (await inOne(d.videoId, writes, dead.length, dead.length + 1, taken)) ? "done" : `skip:${d.code} ${d.day} is taken, the video is on another event, or the owner decided it meanwhile`;
 }
 
 /**
  * The writes in one transaction, committed only when the video's finding isn't dismissed (read inside it: an owner's
- * dismissal since the first read stands), the queue row was claimed (at claimAt: an owner's decision made since the
- * status read leaves it unclaimed) and, for a link, its recording landed (at landAt). false: rolled back.
+ * dismissal since the first read stands), nothing holds the day (taken: a query that must find no row, for a link),
+ * the queue row was claimed (at claimAt: an owner's decision made since the status read leaves it unclaimed) and, for
+ * a link, its recording landed (at landAt). false: rolled back.
  */
-async function inOne(videoId: string, writes: { sql: string; args: (string | number | null)[] }[], claimAt: number, landAt?: number): Promise<boolean> {
+async function inOne(videoId: string, writes: { sql: string; args: (string | number | null)[] }[], claimAt: number, landAt?: number, taken?: { sql: string; args: (string | number | null)[] }): Promise<boolean> {
   const tx = await db().transaction("write");
   try {
     const dismissed = await tx.execute({ sql: "SELECT 1 FROM official_audit_videos WHERE video_id = ? AND finding = 'dismissed'", args: [videoId] });
     if (dismissed.rows.length) { await tx.rollback(); return false; }
+    if (taken && (await tx.execute(taken)).rows.length) { await tx.rollback(); return false; }
     const results = [];
     for (const s of writes) results.push(await tx.execute(s));
     if (!results[claimAt].rowsAffected || (landAt != null && !results[landAt].rowsAffected)) { await tx.rollback(); return false; }
