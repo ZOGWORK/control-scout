@@ -23,6 +23,10 @@ is the account's **actual name**, `users.display_name` (max 60 characters, Setti
 "Video by Parthiv". The owner console shows username, actual name and email together, which is how
 two people with the same first name are told apart.
 
+Next to the name, the credit shows the contributor's **profile picture** when they have one (their initial when not):
+the same picture as their account's, in Control Point too (docs/shared-accounts.md "Profile pictures"). Their
+profile page (/contributors/<username>) shows it beside the heading.
+
 Every change to either is written to the owner audit log with the account as the actor
 (`account.username`, `account.name`; `server/auth/username.ts`). The owner console reads a
 contributor's name history from there.
