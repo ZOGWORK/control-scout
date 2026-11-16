@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.9.1 — 2026-11-16
+## 6.9.2 — 2026-11-16
 
 Search › a town's meet named ("rolla meet") is that event, its last played edition when this season's is still to come.
 
@@ -28,6 +28,49 @@ Search › a town's meet named ("rolla meet") is that event, its last played edi
 - Search: a town followed by an event word that together name a stored event ("top plays at rolla meet") is read as that event, never as the town's events with "meet" left over. (`src/shared/query/parse.ts`) (#1573)
 - Search: an event held under a different code each season is found in each of them by its name, so the answer can fall back to last season's edition while this season's is unplayed. (`server/api/query/highlights.ts`) (#1573)
 - Search: "did <team> play at <event>" matches the event named by its season and code together, so a code another event reuses in another season never answers Yes. (`server/api/answers/yesNo.ts`)
+
+## 6.9.1 — 2026-11-16
+
+Profile pictures: any account can have one, and it's the same picture in Control Point.
+
+### Highlights
+- [appearance] Add a profile picture in Settings › Profile
+- [workspace] The same picture in Control Scout and Control Point
+- [share] Match videos show the contributor's picture next to "Video by"
+
+### Added
+- Settings › Profile › Profile picture: add, change or remove one. The app crops the middle square to 512 px before it sends it, so no photo details (location, camera) leave the device. It shows in the account footer and menu. (`src/components/settings/ProfilePictureRow.tsx`, `src/lib/avatarImage.ts`, `src/components/UserAvatar.tsx`) (#1596)
+- A linked account's picture is the shared account's, kept by Control Point: set or removed in either app, it changes in the other. A change Control Point can't take at once is sent again on the next account read, and a Control Point too old to know about pictures never removes one. (`server/auth/avatars.ts`, `server/auth/controlPoint.ts`, docs/shared-accounts.md "Profile pictures")
+- Match videos: the credit shows the contributor's picture beside their name, and their profile page beside the heading. (`src/components/contributors/VideoCredit.tsx`, `src/pages/ContributorPage.tsx`)
+- Pictures are served from `/api/avatars/<user>/<version>`, cached for good (a new picture gets a new address). Uploads are PNG, JPEG or WebP, checked by the file's own bytes. Migration 92 (`user_avatars`, never in the offline snapshot).
+
+## 6.9.0 — 2026-11-16
+
+The sidebar's Rankings row gets a small arrow: Region rankings, Leagues and Power rankings fold out under it.
+
+### Highlights
+- [rankings] Region, league and power rankings fold out under Rankings
+- [appearance] More is shorter: Compare, Shortlist, Rules, Offline, How it works
+- [rankings] Clicking Rankings opens the world rankings and leaves the list folded
+
+### Navigation
+- The Rankings row still goes to the world rankings; only the arrow beside it shows the three rankings pages, and going to any of them never opens it by itself (Rankings' icon lights instead).
+- Network & offline left the More list; it is still in Settings, linked from the Offline page and Home. (`src/components/layout/Shell.tsx`) (#1593)
+
+## 6.8.9 — 2026-11-15
+
+Speed › a slow search no longer makes every other page wait: the server takes turns between its reads.
+
+### Highlights
+- [speed] Pages and the connection check answer while a slow search runs
+- [speed] Searches of common words only run in a fraction of the time
+- [speed] Streak boards ("longest winning streak in Romania") answer faster
+
+### Fixed
+- Server: a search made of many quick database reads held the whole server for its run (seconds on an uncached search), so every other visitor's request, and the connection check that said "You're offline", waited behind it. Reads now let other requests in once the server has been busy for 20 ms; on the slowest searches the health check waited a tenth as long (median 3.5 s → 0.3 s), and the searches themselves ran faster. (`server/db.ts`) (#1586)
+- Search: a search of common words only ("teams with highest opr in texas 2024") read every team name's words, all 28,000, before checking whether the name matched at all: 4 of its 7 seconds. It now checks the match first. (`server/api/search.ts`)
+- Search: a place's streak board reads that place's teams and their matches, a few hundred teams at a time, instead of every match of two seasons; the same board, 3–8 times faster in a state or a country, its parts all one moment of the data (a read snapshot) whatever is stored meanwhile. (`server/api/query/streakBoard.ts`, `server/db.ts`)
+- Search: a two-team or alliance prediction made before any match of the season is rated shows the teams' ratings and says no match is rated yet, never a called score of 0–0 or "still loading". (`server/api/answers/families/predict.ts`)
 
 ## 6.8.8 — 2026-11-15
 

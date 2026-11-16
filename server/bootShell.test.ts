@@ -113,13 +113,20 @@ describe("static first paint", () => {
     const meta = { title: "T", description: "D", type: "website" } as const;
     const labels = (html: string) => [...html.matchAll(/<span>([^<]+)<\/span>/g)].map((m) => m[1]);
     const side = (path: string) => bootShell(path, meta).match(/<aside class="csb-side">.*?<\/aside>/)![0];
-    expect(labels(side("/"))).toEqual(["Control Scout", "Home", "Events", "Teams", "Rankings", "Predict", "My team", "Scout", "More", "Region rankings", "Leagues", "Power rankings", "Compare", "Shortlist", "Offline", "How it works", "Predictions", "FTC One Search"]);
+    expect(labels(side("/"))).toEqual(["Control Scout", "Home", "Events", "Teams", "Rankings", "Region rankings", "Leagues", "Power rankings", "Predict", "My team", "Scout", "More", "Compare", "Shortlist", "Offline", "How it works", "Predictions", "FTC One Search"]);
     // How it works folds open to its two pages, as in the app: open on either of them.
     expect(side("/how-it-works/search")).toContain('<details class="csb-more csb-sub" open><summary><i class="csb-ico"></i><span>How it works</span>');
     expect(side("/")).toContain('<details class="csb-more csb-sub"><summary>');
     // A native <details>: it opens without the app, and is already open on one of its own pages.
     expect(side("/")).toContain('<details class="csb-more"><summary>');
     expect(side("/compare")).toContain('<details class="csb-more" open><summary>');
+    // Rankings' pages fold out under its arrow, shut on every page, its own sub-pages too (More stays shut for them).
+    expect(side("/")).toContain('<details class="csb-sub csb-rks"><summary aria-label="Show more rankings">');
+    for (const p of ["/rankings", "/rankings/regions", "/leagues", "/power-rankings"]) {
+      expect(side(p)).not.toContain('<details class="csb-sub csb-rks" open>');
+      expect(side(p)).toContain('<details class="csb-more"><summary>');
+    }
+    expect(side("/leagues")).toContain('<a href="/leagues" aria-current="page">');
     expect(side("/download")).toContain('<a href="/download" aria-current="page">');
     // The rail hides row names visually only: every link keeps its name for screen readers.
     const narrow = BOOT_STYLE.match(/@media \(max-width:1279px\)\{[^\n]*\}/)![0];

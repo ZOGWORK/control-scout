@@ -72,6 +72,7 @@ import { ForecastUnavailable, eventForecast } from "./predict/eventForecast.js";
 import { bonusView } from "../src/shared/bonusOdds.js";
 import { matchExplanation } from "./api/predictMatch.js";
 import { authRouter, meRouter, authProviders } from "./auth/routes.js";
+import { avatarsRouter } from "./auth/avatars.js";
 import { contactRouter } from "./contact.js";
 import { bugReportsRouter } from "./bugReports.js";
 import { scoutRouter } from "./scout/entries.js";
@@ -996,6 +997,8 @@ export function createApp(opts: { dist?: string; /** Tests only: a smaller searc
 
   api.use("/auth", authRouter());
   api.use("/me", meRouter());
+  // Profile pictures (server/auth/avatars.ts): public, each URL cached for good.
+  api.use("/avatars", avatarsRouter());
   // Entry photos (docs/r2-photos.md): 404 throughout unless R2 is configured and the photos switch is on.
   api.use("/scout/photos", photosRouter());
   api.use("/scout", scoutRouter());
