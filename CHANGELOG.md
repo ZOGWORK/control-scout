@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 6.9.9 — 2026-11-16
+
+Search › a match asked at an event name with a word no event has lists the events the other words name.
+
+### Highlights
+- [fixes] "Q16 Chicago Meet 2 Westside" lists the Chicago Meet 2 events
+- [fixes] The heading says what wasn't found, so you know what to change
+- [fixes] Events with the words in order come first, never teams
+
+### Fixed
+- Search: a match's number with an event name no stored event fits whole ("Q16 Chicago Meet 2 Westside", where no event's name has "Westside") lists the events named by the longest run of its words from the start, those with the words in order first, under a heading saying what wasn't found; never teams that share a word. (`server/api/searchAnswer.ts`) (#1600)
+
 ## 6.9.8 — 2026-11-16
 
 Search reads countries, counts and leaders the ways people asked: Taiwan, "in the world", "how many in Australia", "who leads".
