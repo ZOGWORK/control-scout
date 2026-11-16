@@ -257,14 +257,17 @@ channel's whole uploads list, video by video, with Scout's records. It reads onl
     not a miss.
   - **Not read by the watcher yet.** It's in the watcher's window but went up or ended after the watcher's last run,
     or it's live. The watcher's next run reads it.
+  - **Added by the audit.** Every check of the watcher's passes and its event's day is free (`settle`): the audit adds
+    it as the watcher would (`record`, `decided_by` "channel audit", counted in the run's `added`), and from the next
+    run checks it with the watcher's own adds. An upload is never added this way: it has no broadcast date.
   - **A watcher miss.** It's in the window, older than the watcher's last run, and the watcher has no row for it. It
-    counts in the run's `missed` and becomes a finding at once. If a watcher run after that still has no row for it,
-    it goes to the review queue with why. The audit never adds a video.
+    counts in the run's `missed`. One that passes every check is added (above); any other becomes a finding at once,
+    and if a watcher run after that still has no row for it, it goes to the review queue with why.
   - **Set aside by the audit.** It's older than the window, but it can't fill a day Scout has no video for. That's
     a broadcast on a day with no Scout event in the region, an upload with no event to put it on, or one whose event
     (its own, or its best guess) already plays a video for each of its days (`everyDayPlays`). The reason says which.
-  - **A finding.** It's older than the window and may be a recording Scout lacks: an "add" or "review" verdict whose
-    event has a day with no video. It shows in
+  - **A finding.** It's older than the window and may be a recording Scout lacks: a "review" verdict whose event has
+    a day with no video. It shows in
     Owner › Official videos with its verdict, why and best guess. The owner sends it to review (`officialVideo.auditQueue`)
     or says why it isn't a recording (`officialVideo.auditDismiss`, reason required), and it's never opened again.
 - **The watcher's own adds**, checked every run (`official_audit_adds`). Each is checked for these:
@@ -286,3 +289,26 @@ channel's whole uploads list, video by video, with Scout's records. It reads onl
 - **Owner › Official videos › Channel audit** shows the last audit and its error, the uploads with a Scout record,
   the watcher misses, and the watcher's own adds over its last 10 runs and its last 100 videos read (added, wrong, not
   checked yet). It also lists the wrong adds, the findings, each channel's counts and the set-aside reasons.
+
+## Decisions from evidence
+
+The owner's review queue and the audit's findings are decided by checking each video, not by the owner
+(`server/data/videoDecisions.ts`, applied by `server/videos/videoDecisions.ts` once a process after the checked list).
+Each entry is one video: **link** (to an event, its venue-local day, and a part only when the video's own title names
+one), **reject** (not FTC: FRC, FLL, FGC, a simulator, a meeting, a webinar, with which) or **set aside** (FTC, but not
+a day's recording Scout can play: a clip, unplayable here, a second copy of a day that already plays, two events or
+two simultaneous divisions in one video, no Scout event to put it on), with its reason and one line of evidence: the
+title and description, the broadcast date against the event's days, the length, and frames read from the video
+where those leave it open (the FTC Live overlay names the event and match).
+
+- It lands as an owner's decision would: `official_watch` approved or rejected, `decided_by` "evidence", its why
+  saying the decision and what was checked; a link in `official_videos` with source "evidence". An audit finding gets
+  its queue row from the audit's facts, and the finding is settled (a link is a record; anything else is dismissed
+  with the reason). Owner › Official videos shows each as "Decided from evidence", with its why.
+- A decision never overrides one already made (the owner's, the watcher's). A link is written only on a free day of
+  its event, or one held by a video YouTube no longer plays that it names in `replaces` (a stream deleted and
+  uploaded again), which comes off the event. One whose event isn't in the database is logged and left.
+- Two videos of one day only when both titles name their parts, and never two simultaneous streams (two divisions
+  or two fields) on one event without divisions: a match would open on whichever covers its time, often the wrong one.
+- A video YouTube no longer plays holds no day for the watcher or the audit either (`eventVideosByDay` `gone`): a new
+  broadcast of that day is added, and the dead one comes off.
