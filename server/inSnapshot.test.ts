@@ -79,6 +79,31 @@ describe("inSnapshot", () => {
     expect(await inSnapshot(async (read) => (await read("SELECT id FROM t")).length)).toBe(0);
   });
 
+  it("is null once the file leaves write-ahead logging, though it held one before", async () => {
+    await fileDb();
+    expect(await inSnapshot(async (read) => (await read("SELECT id FROM t")).length)).toBe(2);
+    await run("PRAGMA journal_mode = DELETE");
+    let ran = false;
+    expect(await inSnapshot(async () => { ran = true; })).toBeNull();
+    expect(ran).toBe(false);
+    await run("INSERT INTO t (id) VALUES (3)"); // no read left holding the file: a writer goes straight in
+  });
+
+  it("asks again after a probe that failed, never keeping the failure", async () => {
+    const url = `file:${join(mkdtempSync(join(tmpdir(), "snapshot-")), "scout.db").replace(/\\/g, "/")}`;
+    const c = createClient({ url });
+    setDb(c);
+    await migrate(c);
+    const execute = c.execute.bind(c);
+    let fail = true;
+    (c as { execute: unknown }).execute = (st: string | { sql: string }) => {
+      if (fail && (typeof st === "string" ? st : st.sql).includes("database_list")) { fail = false; return Promise.reject(new Error("busy")); }
+      return execute(st as never);
+    };
+    expect(await inSnapshot(async () => 1)).toBeNull();
+    expect(await inSnapshot(async () => 1)).toBe(1);
+  });
+
   it("is null in memory, its work never run: one connection shared by every read", async () => {
     let ran = false;
     for (const url of [":memory:", "file::memory:"]) {
