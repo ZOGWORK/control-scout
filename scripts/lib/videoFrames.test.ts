@@ -9,6 +9,10 @@ describe("the frame reader", () => {
     expect(overlayLabel("Playoff Match 10")).toBe("M10");
     expect(overlayLabel("APOC Decode 2026  Finals Match 2")).toBe("F2");
     expect(overlayLabel("FiT-North I&S League Tournament  Match 1  DECODE")).toBe("M1");
+    // USIAWESTLT 2025, 20 s before M3: a bracket whose "advances to" line is cut off at the top names no match.
+    expect(overlayLabel("Playoff Match 5  M4 vs A5  M5 M3 vs A6  M8 M6 vs M5  M9 M7 vs M8  Easter Island & Chichen Itza")).toBeNull();
+    // Two boxes' numbers aren't a bracket: "Playoff Match 3" still names M3.
+    expect(overlayLabel("Easter Island & Chichen Itza  Playoff Match 3  Alliance 1  M1")).toBe("M3");
     expect(overlayLabel("Upcoming matches")).toBeNull();
   });
 
