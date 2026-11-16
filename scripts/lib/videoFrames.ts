@@ -46,6 +46,9 @@ export const CLEAR_MAX_S = 2400;
 
 /** "2:25" → 145; anything else null. */
 export const secondsOf = (s: string) => { const m = /(\d):([0-5]\d)/.exec(s); return m ? Number(m[1]) * 60 + Number(m[2]) : null; };
+/** secondsOf, where the font's colon is too thin for the OCR to keep ("1:17" read "117", FIRST AGE's white box): the
+ *  whole reading is one timer, with or without its colon, at most 2:59. */
+export const secondsLoose = (s: string) => { const m = /^([0-2]):?([0-5]\d)$/.exec(s.replace(/\s/g, "")); return m ? Number(m[1]) * 60 + Number(m[2]) : secondsOf(s); };
 
 /** Seconds since the match started, from its timer (where it's running: a timer standing at its full time is a match
  *  not started yet). Either bar counts Auto down from 0:30, then TeleOp from 2:00, so a reading of 0:30 or less is Auto
