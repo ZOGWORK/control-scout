@@ -67,13 +67,16 @@ describe("inSnapshot", () => {
     expect(seen).toEqual([0, 0]);
   });
 
-  it("is null on a file without write-ahead logging, where a held read would lock out every writer", async () => {
+  it("is null on a file without write-ahead logging, where a held read would lock out every writer, until it has it", async () => {
     const url = `file:${join(mkdtempSync(join(tmpdir(), "snapshot-")), "scout.db").replace(/\\/g, "/")}`;
     setDb(createClient({ url }));
     await run("CREATE TABLE t (id INTEGER PRIMARY KEY)");
     let ran = false;
     expect(await inSnapshot(async () => { ran = true; })).toBeNull();
     expect(ran).toBe(false);
+    // Switched to write-ahead logging afterwards (as configure() does): the same client holds one from then on.
+    await run("PRAGMA journal_mode = WAL");
+    expect(await inSnapshot(async (read) => (await read("SELECT id FROM t")).length)).toBe(0);
   });
 
   it("is null in memory, its work never run: one connection shared by every read", async () => {
