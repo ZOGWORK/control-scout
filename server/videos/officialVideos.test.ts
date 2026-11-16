@@ -786,3 +786,18 @@ describe("the shipped list", () => {
     for (const no of ["ftRnZIOtgTQ", "b_Ab_UpLkWo", "NnInm3IP2Ko", "1ZeVXfwUcNo", "8EUpGcyY8vY"]) expect(ids.has(no), no).toBe(false);
   });
 });
+
+describe("a FIRST link's broadcast date", () => {
+  it("fits its event a day either side, at the venue; off by more, it's named", async () => {
+    const { linkAiredOff } = await import("./officialVideos");
+    const som3 = { code: "USORSOM3", start: "2025-01-11", end: "2025-01-11", timezone: "America/Los_Angeles" };
+    expect(linkAiredOff(som3, "2024-12-14T17:15:03Z")).toMatch(/broadcast on 2024-12-14, outside USORSOM3's dates \(2025-01-11\): not used/);
+    expect(linkAiredOff(som3, "2025-01-11T17:00:00Z")).toBeNull();
+    // A stream started the evening before (at the venue) or running past midnight still fits.
+    expect(linkAiredOff(som3, "2025-01-11T03:00:00Z")).toBeNull();
+    expect(linkAiredOff(som3, "2025-01-13T07:00:00Z")).toBeNull(); // 23:00 on the 12th at the venue
+    expect(linkAiredOff(som3, "2025-01-14T07:00:00Z")).toMatch(/outside/);
+    expect(linkAiredOff(som3, null)).toBeNull();
+    expect(linkAiredOff({ code: "TWO", start: "2026-02-06", end: "2026-02-08", timezone: "America/New_York" }, "2026-02-07T15:00:00Z")).toBeNull();
+  });
+});

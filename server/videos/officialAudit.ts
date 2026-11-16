@@ -20,7 +20,7 @@ import { env } from "../env.js";
 import { recordAudit } from "../portal/audit.js";
 import { withDataLock } from "../data/lock.js";
 import { isoDuration } from "./youtube.js";
-import { eventVideosByDay, forgetOfficial, localDate } from "./officialVideos.js";
+import { eventVideosByDay, forgetOfficial, linkAiredOff, localDate } from "./officialVideos.js";
 import { LOOKBACK_MS, record, settle, type WatchVerdict } from "./officialWatch.js";
 import { NOT_EVENTS, bestGuess, matchVideo, notCompetition, videoWindow, type ChannelRule, type WatchEvent, type WatchVideo } from "./officialMatch.js";
 
@@ -66,7 +66,37 @@ interface Record_ { record: string; season: number | null; code: string | null; 
 const REVIEW = "in the owner's review";
 const SET_ASIDE = "set aside by the watcher";
 const SET_ASIDE_BY_AUDIT = "set aside by the channel audit";
-async function scoutRecords(): Promise<Map<string, Record_>> {
+/** A FIRST event link the audit didn't take as its event's record, and why. */
+export interface UnusedLink { season: number; code: string; videoId: string; why: string }
+/**
+ * FIRST's event links, a YouTube link or a short link followed to its video: a record of their event only when
+ * YouTube's broadcast date fits it (linkAiredOff, the same check the event's recording makes,
+ * server/videos/recordings.ts). One aired on another date isn't the event's: its video is decided like any other
+ * upload, and the link is listed as unused, with why.
+ */
+async function firstLinks(): Promise<{ used: { season: number; code: string; videoId: string; short: boolean }[]; unused: UnusedLink[] }> {
+  const rows = await all<any>("SELECT season, code, livestream, start, end, timezone FROM events WHERE livestream LIKE '%youtu%'");
+  const shorts = await all<any>(`SELECT l.season, l.code, l.video_id, e.start, e.end, e.timezone FROM event_stream_links l
+    LEFT JOIN events e ON e.season = l.season AND e.code = l.code WHERE l.video_id IS NOT NULL`);
+  const links = [
+    ...rows.flatMap((r) => [...String(r.livestream).matchAll(YT_LINK)].map((m) => ({ r, videoId: m[1], short: false }))),
+    ...shorts.map((r) => ({ r, videoId: String(r.video_id), short: true })),
+  ];
+  const ids = [...new Set(links.map((l) => l.videoId))];
+  const aired = new Map<string, string>();
+  for (let i = 0; i < ids.length; i += 200) {
+    const part = ids.slice(i, i + 200);
+    for (const m of await all<any>(`SELECT video_id, start FROM video_meta WHERE start IS NOT NULL AND video_id IN (${part.map(() => "?").join(",")})`, part)) aired.set(String(m.video_id), String(m.start));
+  }
+  const out: { used: { season: number; code: string; videoId: string; short: boolean }[]; unused: UnusedLink[] } = { used: [], unused: [] };
+  for (const { r, videoId, short } of links) {
+    const l = { season: Number(r.season), code: String(r.code), videoId };
+    const off = r.start ? linkAiredOff({ code: l.code, start: String(r.start), end: r.end ?? null, timezone: r.timezone ?? null }, aired.get(videoId)) : null;
+    if (off) out.unused.push({ ...l, why: short ? off.replace("FIRST's link", "FIRST's short link's video") : off }); else out.used.push({ ...l, short });
+  }
+  return out;
+}
+async function scoutRecords(unused?: UnusedLink[]): Promise<Map<string, Record_>> {
   const out = new Map<string, Record_>();
   const put = (id: string, r: Record_) => { if (VIDEO_ID.test(id) && (!out.has(id) || (r.plays && !out.get(id)!.plays))) out.set(id, r); };
   for (const r of await all<any>("SELECT video_id, season, code, source, why, removed_at FROM official_videos")) {
@@ -76,12 +106,11 @@ async function scoutRecords(): Promise<Map<string, Record_>> {
   }
   for (const [sql, label] of [
     ["SELECT video_id, season, code FROM event_broadcasts", "the channel's broadcasts on FIRST's channel link"],
-    ["SELECT video_id, season, code FROM event_stream_links WHERE video_id IS NOT NULL", "the event's short stream link"],
     ["SELECT video_id, season, code FROM event_streams", "the owner's stream"],
   ] as const) for (const r of await all<any>(sql)) put(String(r.video_id), { record: label, season: Number(r.season), code: String(r.code), plays: true });
-  for (const r of await all<any>("SELECT season, code, livestream FROM events WHERE livestream LIKE '%youtu%'")) {
-    for (const m of String(r.livestream).matchAll(YT_LINK)) put(m[1], { record: "FIRST's event link", season: Number(r.season), code: String(r.code), plays: true });
-  }
+  const links = await firstLinks();
+  for (const l of links.used) put(l.videoId, { record: l.short ? "the event's short stream link" : "FIRST's event link", season: l.season, code: l.code, plays: true });
+  unused?.push(...links.unused);
   const watch: Record<string, string> = { added: "added by the watcher", approved: "approved by the owner", pending: REVIEW, ignored: SET_ASIDE, duplicate: "a duplicate the watcher logged", rejected: "rejected by the owner" };
   for (const r of await all<any>("SELECT video_id, status, season, code, decided_by FROM official_watch")) {
     const label = r.decided_by === "evidence" && (r.status === "approved" || r.status === "rejected") ? `${r.status === "approved" ? "linked" : "decided"} from evidence`
@@ -132,6 +161,8 @@ export async function runChannelAudit(log: (s: string) => void, opts: { apiKey?:
   const fetchImpl = opts.fetchImpl ?? fetch;
   const maxUnits = opts.maxUnits ?? AUDIT_MAX_UNITS;
   const locked = <T>(fn: () => Promise<T>) => withDataLock("official channel audit", fn, { ttlMs: 60_000, waitMs: opts.lockWaitMs ?? 3 * 60_000, pollMs: 1000 });
+  // FIRST links not taken as their event's record this run (aired on another date), named in the run's log line.
+  const unusedLinks: UnusedLink[] = [];
   const out: AuditRun = { units: 0, channels: 0, fullChannels: 0, uploads: 0, recorded: 0, setAside: 0, added: 0, findings: 0, missed: 0, queued: 0, addsChecked: 0, addsWrong: 0, error: null };
   const startedAt = new Date(now()).toISOString();
   let runId = 0;
@@ -170,7 +201,7 @@ export async function runChannelAudit(log: (s: string) => void, opts: { apiKey?:
     }
     // 2. The facts of what may be a competition, Scout having no record of it, and of the watcher's adds (read again
     //    each run: one made private or blocked since is wrong now).
-    const records = await scoutRecords();
+    const records = await scoutRecords(unusedLinks);
     const rows = await all<any>("SELECT video_id, channel_id, title, published, start, duration, privacy, embeddable, blocked_in, facts_at, finding, found_at FROM official_audit_videos WHERE gone_at IS NULL");
     const adds = new Set((await all<{ video_id: string }>("SELECT video_id FROM official_videos WHERE source = 'watcher'")).map((r) => String(r.video_id)));
     // The review queue and the watcher's set-aside rows are decided again each run with today's rules: a video the
@@ -447,7 +478,8 @@ export async function runChannelAudit(log: (s: string) => void, opts: { apiKey?:
         queued = ?, adds_checked = ?, adds_wrong = ?, error = ? WHERE id = ?`,
       [new Date(now()).toISOString(), out.units, out.channels, out.fullChannels, out.uploads, out.recorded, out.setAside, out.added, out.findings, out.missed, out.queued, out.addsChecked, out.addsWrong, out.error, runId])).catch(() => {});
   }
-  log(`official videos: audit of ${out.channels} channels (${out.units} units, ${out.fullChannels} read in full): ${out.uploads} uploads, ${out.recorded} with a Scout record, ${out.setAside} set aside, ${out.added} added, ${out.findings} open findings, ${out.missed} watcher misses (${out.queued} sent to review), ${out.addsWrong} of ${out.addsChecked} watcher adds wrong${out.error ? `; ${out.error}` : ""}`);
+  const unusedLinksNote = unusedLinks.length ? `, ${unusedLinks.length} FIRST link${unusedLinks.length === 1 ? "" : "s"} not used (${unusedLinks.slice(0, 5).map((l) => `${l.code}: ${l.videoId}`).join(", ")}${unusedLinks.length > 5 ? ", …" : ""})` : "";
+  log(`official videos: audit of ${out.channels} channels (${out.units} units, ${out.fullChannels} read in full): ${out.uploads} uploads, ${out.recorded} with a Scout record, ${out.setAside} set aside, ${out.added} added, ${out.findings} open findings, ${out.missed} watcher misses (${out.queued} sent to review), ${out.addsWrong} of ${out.addsChecked} watcher adds wrong${unusedLinksNote}${out.error ? `; ${out.error}` : ""}`);
   return out;
 }
 
@@ -596,6 +628,7 @@ export async function ownerAudit() {
     wrongAdds: wrong.map((w) => ({ videoId: String(w.video_id), title: String(w.title), season: Number(w.season), code: String(w.code), day: w.day ?? null, why: String(w.why), removed: !!w.removed_at, checkedAt: String(w.checked_at) })),
     setAside: setAsideReasons(reasons),
     adds: await measureAdds(),
+    unusedLinks: (await firstLinks()).unused,
   };
 }
 

@@ -1141,4 +1141,7 @@ export interface OfficialAudit {
   setAside: { why: string; n: number }[];
   /** The watcher's own adds over its last 10 runs (runs, from–to) and its last 100 videos read, as the audit checked them. */
   adds: { runs: number; from: string | null; to: string | null; lastRuns: OfficialAddTally; read: number; last100: OfficialAddTally };
+  /** FIRST event links whose video YouTube says was broadcast outside the event's dates: not used as the event's video,
+   *  nor as its record in the audit. Nothing for the owner to do; listed so the reason is seen. */
+  unusedLinks: { season: number; code: string; videoId: string; why: string }[];
 }

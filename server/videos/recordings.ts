@@ -16,7 +16,7 @@ import type { EventStream, MatchView } from "../../src/shared/api.js";
 import { env } from "../env.js";
 import { fetchFromApi, fetchWatchPage, type WatchPageFacts } from "./youtube.js";
 import { youtubeId } from "../../src/shared/personal.js";
-import { officialRecordingIds, seasonOfficial } from "./officialVideos.js";
+import { linkAiredOff, officialRecordingIds, seasonOfficial } from "./officialVideos.js";
 import { checkedTo } from "../data/checkedTimings.js";
 import { frameOpen, frameStart, hasFrames } from "../data/frameTimings.js";
 import { clipPulled } from "../data/clipChecks.js";
@@ -89,10 +89,10 @@ function seasonData(season: number, now = Date.now()) {
   const v = (async () => {
     const failed: string[] = [];
     const [links, short, official, days] = await Promise.all([
-      all<{ code: string; livestream: string }>("SELECT code, livestream FROM events WHERE season = ? AND livestream LIKE '%youtu%'", [season]),
+      all<{ code: string; livestream: string; start: string; end: string | null; timezone: string | null }>("SELECT code, livestream, start, end, timezone FROM events WHERE season = ? AND livestream LIKE '%youtu%'", [season]),
       // Short links followed while their event was on, while FIRST still gives the same link.
-      all<{ code: string; video_id: string }>(
-        `SELECT l.code, l.video_id FROM event_stream_links l JOIN events e ON e.season = l.season AND e.code = l.code
+      all<{ code: string; video_id: string; start: string; end: string | null; timezone: string | null }>(
+        `SELECT l.code, l.video_id, e.start, e.end, e.timezone FROM event_stream_links l JOIN events e ON e.season = l.season AND e.code = l.code
          WHERE l.season = ? AND l.video_id IS NOT NULL AND e.livestream = l.url`, [season]),
       // Events with FIRST's own per-match videos (championship-level events, mostly).
       all<{ code: string }>("SELECT DISTINCT code FROM matches WHERE season = ? AND video IS NOT NULL AND video != ''", [season]),
@@ -101,9 +101,18 @@ function seasonData(season: number, now = Date.now()) {
         `SELECT b.code, b.video_id FROM event_broadcasts b JOIN events e ON e.season = b.season AND e.code = b.code
          WHERE b.season = ? AND e.livestream = b.url ORDER BY b.code, b.start`, [season]),
     ]);
+    // FIRST's link (or its short link's video) is the event's video only when YouTube's broadcast date fits the event:
+    // one broadcast on another date is another event's stream or a test (linkAiredOff), and is left out.
+    const linkIds = [...new Set([...links.map((l) => firstVideoId(l.livestream)), ...short.map((l) => String(l.video_id))].filter((x): x is string => !!x))];
+    const aired = new Map<string, string | null>();
+    for (let i = 0; i < linkIds.length; i += 200) {
+      const part = linkIds.slice(i, i + 200);
+      for (const r of await all<{ video_id: string; start: string | null }>(`SELECT video_id, start FROM video_meta WHERE video_id IN (${part.map(() => "?").join(",")})`, part)) aired.set(String(r.video_id), r.start ?? null);
+    }
+    const fits = (code: string, id: string, e: { start: string; end: string | null; timezone: string | null }) => !linkAiredOff({ code, ...e }, aired.get(id));
     const first = new Map<string, string>();
-    for (const l of links) { const id = firstVideoId(l.livestream); if (id) first.set(String(l.code), id); }
-    for (const l of short) first.set(String(l.code), String(l.video_id));
+    for (const l of links) { const id = firstVideoId(l.livestream); if (id && fits(String(l.code), id, l)) first.set(String(l.code), id); }
+    for (const l of short) if (fits(String(l.code), String(l.video_id), l)) first.set(String(l.code), String(l.video_id));
     const link = new Map(first);
     // The other days' broadcasts of an event whose first one is its video.
     const more = new Map<string, string[]>();
