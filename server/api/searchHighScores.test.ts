@@ -56,6 +56,11 @@ describe("what's read as a high-score question", () => {
 });
 
 describe("the answer", () => {
+  it("\"wr\" is the world record (failed-search #1583)", async () => {
+    const a = await searchAnswer("current wr");
+    expect(a.card?.kind).toBe("high-scores");
+    expect(a.card).toEqual((await searchAnswer("current world record")).card);
+  });
   it("a season's best scores without penalties, official events only, each a link to its match with its alliance", async () => {
     const a = await searchAnswer("world record score decode");
     expect(a.card).toMatchObject({ kind: "high-scores", title: "Highest scores in 2025–26 (DECODE)" });

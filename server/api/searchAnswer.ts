@@ -139,6 +139,20 @@ export async function withoutAside(q: string, opts: { now?: number; prefer?: Rea
   const again = await parseQuery(rest, ctx);
   return again.leftover.length ? q : rest;
 }
+
+/** A stray letter typed at the end ("what is the best team in nj n"): one letter left unread after a question the
+ *  parser reads whole without it. The question without it, and the letter, to say it wasn't read. Never "a" or "i"
+ *  (words), nor a letter anything reads (a team's name, a short form). */
+export async function withoutStrayLetter(q: string, opts: { now?: number; prefer?: ReadonlySet<string> } = {}): Promise<{ rest: string; letter: string } | null> {
+  const m = /^(\S+(?:\s+\S+)+?)\s+([b-hj-z])\s*([?!.]*)\s*$/i.exec(q.trim());
+  if (!m || q.includes('"')) return null;
+  const ctx = await parseContext(opts.now, opts.prefer);
+  const p = await parseQuery(q, ctx);
+  if (p.leftover.length !== 1 || p.leftover[0].toLowerCase() !== m[2].toLowerCase()) return null;
+  const rest = `${m[1]}${m[3]}`;
+  const again = await parseQuery(rest, ctx);
+  return !again.leftover.length && again.intent ? { rest, letter: m[2] } : null;
+}
 /** The lexicon's one-word filler ("i", "please"). */
 /** A chat command and its option name, written before the question: "/ask question:", "/ask question: ". */
 const SLASH_COMMAND = /^\s*\/[a-z]+\s+[a-z_]+\s*:\s*/i;
@@ -240,6 +254,13 @@ export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promi
   if (unasked !== String(raw ?? "")) {
     const b = await searchAnswer(unasked, opts);
     return carryOutcome(b, { ...b, q: cleanQuery(raw) });
+  }
+  // A stray letter typed at the end ("… in nj n"): the question without it, the letter said as not read.
+  const stray = await withoutStrayLetter(String(raw ?? ""), opts);
+  if (stray) {
+    const b = await searchAnswer(stray.rest, opts);
+    const understood = b.understood ? { ...b.understood, unread: [...(b.understood.unread ?? []), stray.letter] } : b.understood;
+    return carryOutcome(b, { ...b, q: cleanQuery(raw), ...(understood ? { understood } : {}) });
   }
   const said = String(raw ?? ""), full = await inFull(said);
   if (full !== said) {
