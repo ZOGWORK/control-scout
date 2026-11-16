@@ -121,6 +121,7 @@ describe("decisions from evidence", () => {
 
 describe("the shipped decisions", () => {
   it("are each complete, one per video, with no two links on one event's day and part", () => {
+    expect(VIDEO_DECISIONS.length).toBeGreaterThan(0);
     for (const d of VIDEO_DECISIONS) expect([d.videoId, decisionProblem(d)]).toEqual([d.videoId, null]);
     expect(new Set(VIDEO_DECISIONS.map((d) => d.videoId)).size).toBe(VIDEO_DECISIONS.length);
     const slots = new Map<string, (string | null)[]>();
