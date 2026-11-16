@@ -42,7 +42,7 @@ let phone = false;
 vi.mock("../lib/meta", async (orig) => ({ ...(await orig<typeof import("../lib/meta")>()), useCurrentSeason: () => 2026, useTitle: () => {}, useMediaQuery: () => phone, useMeta: () => null }));
 const st = (myTeam: number | null) => ({ myTeam, tracked: { teams: [], events: [] }, bookmarks: [] });
 let personal: { user: unknown; state: ReturnType<typeof st> } = { user: null, state: st(null) };
-vi.mock("../lib/personal", () => ({ usePersonal: () => personal }));
+vi.mock("../lib/personal", () => ({ usePersonal: () => personal, hasAccountOnDevice: () => false }));
 // The drawing itself is d3 on real boundaries: stood in for here (the selector and list are what's tested).
 vi.mock("../components/home/AtlasMap", async () => {
   const { useEffect } = await import("react");

@@ -288,6 +288,11 @@ export const INFORMAL: [string, string][] = [
   // "NJ champs", "Romania champs", "world champs": the championship, as every reader reads it.
   ["champs", "championship"],
   ["ur", "your"], ["u", "you"],
+  // "WR": the world record, as players say it ("current wr").
+  ["wr", "world record"],
+  // "Is" with its letters swapped after a question word ("what si the best team"): two letters are never spell-checked,
+  // and alone "si" can be an event's initials, so only there.
+  ["what si", "what is"], ["who si", "who is"], ["which si", "which is"], ["where si", "where is"], ["when si", "when is"], ["how si", "how is"],
 ];
 
 /** Numbers said as words, read as digits after a word that takes a number ("opr over eighty", "top five teams", "last

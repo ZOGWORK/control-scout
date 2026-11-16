@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.9.2 — 2026-11-16
+## 6.9.6 — 2026-11-16
 
 Search › closest matches answer at an event named, as a top 10, and above a score.
 
@@ -28,6 +28,56 @@ Search › closest matches answer at an event named, as a top 10, and above a sc
 - Search: a closest match asked at an event named by its name or its initials ("closest match in multinational tech invitational", "closes match in mti") lists that event's matches, closest first, an off-season event included. (`server/api/query/execute.ts`, `src/shared/query/lexicon.ts`) (#1566, #1567)
 - Search: "top 10 closest match in decode" reads "top" as the count's word when the closest is said, so the closest matches are listed, never the highest-scoring. (`src/shared/query/parse.ts`) (#1563)
 - Search: a bare score ending a closest match's question ("closest match in decode above 500") is both alliances' scores over it, stated on the card as "Both alliances scored over 500". (`src/shared/query/parse.ts`, `src/shared/query/intents.ts`) (#1564)
+
+## 6.9.5 — 2026-11-16
+
+Search › "wr" is the world record, and a stray letter at the end no longer breaks a question.
+
+### Highlights
+- [fixes] "Current wr" shows the world record, as "current world record" does
+- [fixes] A stray letter typed at the end is skipped and said as not read
+- [fixes] "What si the best team in nj" reads "si" as "is"
+
+### Fixed
+- Search: "wr" is read as "world record" ("current wr"), like the other short forms; never a word of a team's name. (`src/shared/query/lexicon.ts`) (#1583)
+- Search: one letter typed at the end of a question search reads whole without it ("what is the best team in nj n") is left out, and the answer says it wasn't read. "A" and "i" are words, and "u" is read as "you", so those stay. (`server/api/searchAnswer.ts`) (#1584, #1012)
+- Search: "si" right after a question word ("what si the best team") is "is" with its letters swapped, never an event's initials. (`src/shared/query/lexicon.ts`) (#1584)
+
+## 6.9.4 — 2026-11-16
+
+Events › Today's coin flips shows only matches still to play, and nothing at all when it's switched off.
+
+### Highlights
+- [fixes] Coin flips switched off leaves no trace on Events
+- [live] Today's coin flips lists only matches still to play
+- [appearance] The section leaves Events once every coin flip is played
+
+### Changed
+- Events: Today's coin flips no longer lists the matches already decided ("Decided today") or counts them; once every coin flip of the day has been played the section leaves the page, as on a day with none. Switched off by the owner, it shows nothing at all (no "switched off for now" note), and the page's first HTML says so, so not even its heading shows while the page loads. (`src/components/home/CoinFlipRadar.tsx`, `src/shared/coinFlips.ts`, `server/seo.ts`) (#1591)
+
+## 6.9.3 — 2026-11-16
+
+Home › the search suggestions show the whole FTC world, plus your own team.
+
+### Highlights
+- [home] Search suggestions cover teams and events around the world
+- [teams] With My team set, two suggestions are about your team
+- [fixes] No suggestion is about one fixed team or one state any more
+
+### Changed
+- Home: the search suggestion chips name no fixed team and lean on no one region. They are leaderboards, winners, counts, high scores and filtered lists from around the world ("Who won DECODE", "Best in Romania by auto", "Top teams in Brazil", "How many teams in Canada"), and an hour's six never name one place twice. With My team set, two of the six are about that team, shown by number and name ("4215 Hypnotic Robotics record") and run by number, so they always find it. The chips' rows stay in place while the team's name loads, so nothing moves. The search box's example list is world-general too. (`src/shared/homeSuggestions.ts`, `src/components/home/HeroSearch.tsx`, `src/components/search/discover.tsx`) (#1599)
+
+## 6.9.2 — 2026-11-16
+
+Search › "best team in the us" ranks the United States, not the whole world.
+
+### Highlights
+- [fixes] "Best team in the US" shows the US teams, not the world's
+- [rankings] It opens the same USA board and USA rankings as "best team in USA"
+- [fixes] "Tell us" and "for us" are still read as plain words, never a country
+
+### Fixed
+- Search: a country's two-letter name said with "the" before it ("best team in the us rn", "the u.s.") is the country, so the answer is the country's board and its rankings link, the same as "best team in usa". "Us" on its own ("tell us the best team", "best team for us") is still a plain word. (`src/shared/query/names.ts`, `src/shared/query/parse.ts`) (#1601)
 
 ## 6.9.1 — 2026-11-16
 

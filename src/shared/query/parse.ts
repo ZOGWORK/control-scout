@@ -486,8 +486,11 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       if (span.some((t) => t.used) || EVENT_NAME_WORDS.has(toks[i + len]?.w ?? "")) continue;
       const code = len === 1 && /^[A-Z]{2}$/.test(span[0].typed);
       if (code && !/^(?:in|from|at)$/.test(toks[i - 1]?.w ?? "")) continue;
-      if (!code && span.every((t) => isLex(t.w))) continue;
+      // Lexicon words only: never a place, but a country said with "the" ("in the us"), a word that's a pronoun alone.
+      const lexOnly = span.every((t) => isLex(t.w)), theCountry = lexOnly && len === 2 && span[0].w === "the";
+      if (!code && lexOnly && !theCountry) continue;
       const pl = ctx.names.place(span.map((t) => t.w).join(" "), span.map((t) => t.typed).join(" "));
+      if (pl && theCountry && pl.kind !== "country") continue;
       if (pl) { p.place = { ...pl, typed: span.map((t) => t.typed).join(" ") }; placeFrom = i; span.forEach((t) => (t.used = true)); }
     }
   }
