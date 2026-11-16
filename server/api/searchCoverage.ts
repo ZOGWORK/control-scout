@@ -1182,7 +1182,7 @@ export async function teamListAnswer(q: string): Promise<SearchAnswer | null> {
     const row = await get<any>(`SELECT AVG(s.opr_np) a, COUNT(*) n, MAX(s.opr_np) hi FROM team_season_stats s JOIN teams t ON t.number = s.team WHERE ${ranked} AND s.opr_np IS NOT NULL${placeSql(p)}`, [season, ...placeArgs(p)]);
     const title = `Average OPR${p ? ` in ${p.name}` : ""} · ${seasonLabel(season)}`;
     const n = Number(row?.n ?? 0);
-    const lines: SearchCardLine[] = n ? [{ text: `${fmt1(row.a)} average OPR`, detail: `Over ${n.toLocaleString("en-US")} teams with ${RANKED_MIN_MATCHES}+ matches; highest ${fmt1(row.hi)}. Season OPR without penalties`, href: `/rankings?season=${season}${p ? `&region=${encodeURIComponent(p.key)}` : ""}` }] : [];
+    const lines: SearchCardLine[] = n ? [{ text: `${fmt1(row.a)} average OPR`, detail: `Over ${n.toLocaleString("en-US")} teams with ${RANKED_MIN_MATCHES}+ matches; highest ${fmt1(row.hi)}. Season OPR without penalties`, href: p ? placePage(p, season).href : `/rankings?season=${season}` }] : [];
     return answer(q, { hits: [], pages: [{ title: "Rankings", href: `/rankings?season=${season}` }], card: { kind: "info", title, lines, ...(n ? {} : { none: `No ranked teams${p ? ` in ${p.name}` : ""} for ${seasonLabel(season)} yet.` }) }, understood: { kind: "question", label: title } });
   }
   // A place's teams at Worlds: "nj teams at worlds", "teams from new jersey at worlds".

@@ -86,6 +86,7 @@ describe("counts", () => {
     expect((await ask("most improved teams in swaziland")).card?.lines.map((l) => l.text)).toEqual(["40004 Hhohho Bots"]);
     // Its link lists the teams by country code, every label, as the card does.
     expect((await ask("top teams in swaziland")).pages[0]).toEqual({ title: "eSwatini teams", href: `/teams?season=${C}&view=listed&country=SZ` });
+    expect((await ask("average opr in swaziland")).card?.lines[0]?.href).toBe(`/teams?season=${C}&view=listed&country=SZ`);
   });
   it("no teams or events named: both counts for the place", async () => {
     const a = await ask("How many in Australia");
