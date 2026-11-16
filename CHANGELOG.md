@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.0.9 — 2026-11-16
+
+Event videos › a YouTube call that times out during the channel audit is tried again at once, so a video in the owner's review isn't left waiting six hours for it.
+
+### Highlights
+- [fixes] A YouTube timeout no longer leaves a video waiting in review
+- [history] Videos YouTube was slow to describe are read in the same audit
+- [fixes] The audit says a facts call failed only after a second try
+
+### Fixed
+- Event videos: the channel audit tries a failed facts call (a 5xx, a timeout) once more in the same run, a unit allowing, before leaving its 50 videos for the next run. Live on 2026-11-16, one timed-out call at 22:22Z left a 79-second team clip in the owner's review, which the clip rule sets aside once its facts are read. (`server/videos/officialAudit.ts`) (#PR)
+
 ## 7.0.8 — 2026-11-16
 
 Videos › 2024 recordings of events USI to USM read frame by frame: 358 more matches get a clip that opens on a frame naming the match.
