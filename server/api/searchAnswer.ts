@@ -376,6 +376,9 @@ async function withTeamHighlights(a: SearchAnswer): Promise<SearchAnswer> {
 }
 
 /** `q` without its words asking to watch; `q` itself when it has none, or when fewer than two words would be left. */
+/** Whether the query's own words ask to watch ("highlights", "with video", …), whatever else it says. */
+export const hasWatchWord = (q: string): boolean => new RegExp(WATCH_RE.source, "i").test(q);
+
 export function withoutWatch(q: string): string {
   const out = q.replace(WATCH_RE, " ").replace(/\s+/g, " ").trim();
   return out === q.trim() || out.split(" ").length < 2 ? q : out;

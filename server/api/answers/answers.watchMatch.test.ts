@@ -266,23 +266,23 @@ describe("highlights with video", () => {
 });
 
 // No dead ends (search video brief, point 7): the questions offered when nothing plays are the team's own seasons with
-// a clip, then the events with clips, each one a search whose answer plays.
+// a clip for a team's answer (never other events'), else the events with clips, each one a search whose answer plays.
 describe("questions with video", () => {
-  it("a team's own season with a clip, then events with clips; each of them plays", async () => {
+  it("a team's own seasons with a clip only; an event's answer gets events with clips; each of them plays", async () => {
     const { videoCandidates, withVideoAlternatives } = await import("./videoSuggest");
     const { a } = await ask("4215 matches 2025-26");
     const cs = await videoCandidates(a, NOW);
     expect(cs[0]).toBe("4215 highlights 2025-26");
-    expect(cs).toContain("Massachusetts Championship highlights 2025-26");
-    // A qualifier with no video is never offered.
-    expect(cs.some((c) => /New Jersey Qualifier/.test(c))).toBe(false);
-    // A question that reads like a typo is never tried: the rest still are.
-    const spelled = await videoCandidates(a, NOW, async () => new Set(["massachusetts"]));
-    expect(spelled.some((c) => /Massachusetts/.test(c))).toBe(false);
-    expect(spelled).toContain("4215 highlights 2025-26");
+    expect(cs.every((c) => c.startsWith("4215 "))).toBe(true);
     // An answer about an event in seasons with no clips: the latest seasons' best known events with clips instead.
     const away = { ...a, stat: { ...a.stat!, team: undefined, headline: { value: "40", label: "Q1", href: "/events/2024/USNJQ0?match=qual:0:1" }, blocks: [] } };
-    expect(await videoCandidates(away, NOW)).toContain("Massachusetts Championship highlights 2025-26");
+    const evs = await videoCandidates(away, NOW);
+    expect(evs).toContain("Massachusetts Championship highlights 2025-26");
+    // A qualifier with no video is never offered.
+    expect(evs.some((c) => /New Jersey Qualifier/.test(c))).toBe(false);
+    // A question that reads like a typo is never tried: the rest still are.
+    const spelled = await videoCandidates(away, NOW, async () => new Set(["massachusetts"]));
+    expect(spelled.some((c) => /Massachusetts/.test(c))).toBe(false);
     // Every event with clips reading like a typo, or the typos unknown: the general question, never a typo.
     expect(await videoCandidates(away, NOW, async () => new Set(["massachusetts", "edison"]))).toEqual(["highest score with video"]);
     expect(await videoCandidates(away, NOW, async () => { throw new Error("busy"); })).toEqual(["highest score with video"]);
@@ -302,7 +302,11 @@ describe("questions with video", () => {
     const { nameTyposVersion } = await import("./nameTypos");
     const { searchVersion } = await import("../searchReads");
     expect(nameTyposVersion()).toBe(await searchVersion());
-    const { a } = await ask("5555 matches with video");
+    const { a: theirs } = await ask("5555 matches with video");
+    // A team's answer never gets the background set (other events' questions): it is read as an answer with no team.
+    const a = { ...theirs, stat: { ...theirs.stat!, team: undefined } };
+    const kept = await withVideoAlternatives("5555 matches with video", theirs, undefined, asking, playing, 5000, async () => [], "", 0);
+    expect(kept.stat?.blocks.some((b) => b.kind === "related" && b.title === "Questions with video")).toBe(false);
     const out = await withVideoAlternatives("5555 matches with video", a, undefined, asking, playing, 5000, async () => ["New Jersey Qualifier 2026 highlights 2026-27"], "", 0);
     const offered = out.stat?.blocks.find((b) => b.kind === "related" && b.title === "Questions with video");
     const qs = offered && offered.kind === "related" ? offered.queries : [];

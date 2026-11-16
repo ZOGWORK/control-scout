@@ -14,10 +14,13 @@ const answer = (intent = "results", none?: string): SearchAnswer => ({
 const clip: SearchVideo = { main: { videoId: "v", t: 10, end: 250, kind: "recording", match: "Q1" } };
 
 describe("asksVideo", () => {
-  it("reads the words asking to watch, and answers of highlights", () => {
+  it("reads the words asking to watch, never an answer that only happens to be highlights", () => {
     expect(asksVideo("6980 results at east bergen with video", answer())).toBe(true);
     expect(asksVideo("who won into the deep highlights", answer())).toBe(true);
-    expect(asksVideo("6980", answer("team-highlights"))).toBe(true);
+    expect(asksVideo("6980 highlights", answer("team-highlights"))).toBe(true);
+    // A bare team number: the visitor asked for the team, not to watch.
+    expect(asksVideo("6980", answer("team-highlights"))).toBe(false);
+    expect(asksVideo("4215", answer("highlights"))).toBe(false);
     expect(asksVideo("6980 results at east bergen", answer())).toBe(false);
   });
   it("hasVideo: a card's clip, a row's, or the recording a match is in", () => {

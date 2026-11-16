@@ -10,7 +10,7 @@ import { registerCache } from "../../caches.js";
 import { OFFICIAL_TYPES } from "./clauses.js";
 import { CURRENT_SEASON } from "../../data/seasons.js";
 import { seasonClipKeys, seasonVideoKinds } from "../../videos/recordings.js";
-import { withoutWatch } from "../searchAnswer.js";
+import { hasWatchWord } from "../searchAnswer.js";
 import { teamMatches } from "./matchSet.js";
 import { inTurns, pageAnswer } from "./followUps.js";
 import { answerVideo, refOfHref, rowRefs } from "./video.js";
@@ -37,11 +37,11 @@ const SEASONS_BACK = 4;
 /** A season as search reads it ("2025-26"). */
 const seasonWords = (s: number) => `${s}-${String((s + 1) % 100).padStart(2, "0")}`;
 
-/** Whether the search asked to watch: its words ("with video", "highlights", "video") or an answer of highlights. */
+/** Whether the search asked to watch: its own words ("with video", "highlights", "video") or a "With video" filter.
+ *  An answer that only happens to be highlights (a bare team number's card) never counts: the visitor asked for the
+ *  team, and questions about other events would be noise. */
 export function asksVideo(q: string, a: SearchAnswer): boolean {
-  // The query's spacing evened out first: only a watch word dropped counts.
-  const flat = q.replace(/\s+/g, " ").trim();
-  return withoutWatch(flat) !== flat || /highlights|video/.test(a.stat?.intent ?? "") || !!a.stat?.scope.includes("With video");
+  return hasWatchWord(q) || !!a.stat?.scope.includes("With video");
 }
 
 /** Whether an answer has anything to play. */
@@ -65,6 +65,8 @@ export async function videoCandidates(a: SearchAnswer, now = Date.now(), typosOf
       if (theirs.some((m) => keys.has(`${m.code}|${m.level}|${m.series}|${m.number}`))) out.push(`${team} highlights ${seasonWords(s)}`);
     }
   }
+  // A team's answer offers the team's own video only: never other events' highlights it didn't ask about.
+  if (team != null) return out;
   const own = out.length;
   const typos = await typosOf().catch(() => null);
   if (!typos) return [...out, ...GENERAL];
@@ -159,12 +161,13 @@ export async function withVideoAlternatives(q: string, a: SearchAnswer, v: Searc
     const stop = () => { gaveUp = true; if (mine) { mine.waiting--; mine = null; } r([...offered]); };
     onFound = stop;
     // None found by the wait: the questions checked in the background (warmVideoQuestions) at once, else a little longer.
-    timers.push(setTimeout(() => { past = true; if (offered.length || moreMs <= 0 || fallback(q).length) stop(); else timers.push(setTimeout(stop, moreMs)); }, waitMs));
+    timers.push(setTimeout(() => { past = true; if (offered.length || moreMs <= 0 || (a.stat?.team == null && fallback(q).length)) stop(); else timers.push(setTimeout(stop, moreMs)); }, waitMs));
   })]).finally(() => timers.forEach(clearTimeout));
   // The background set kept up with the data: built again, off this search, when it has moved, with the reads it was
   // built with. Never before it was built (server start): a process that never warmed it (a test) reads nothing here.
   if (known) { const o = known.o; void (o.version ?? searchVersion)().then((v) => { if (known && !fresh(v, o)) return warmVideoQuestions(o); }).catch(() => {}); }
-  if (!found.length) found.push(...fallback(q));
+  // The background set is other events' questions: never offered on a team's answer.
+  if (!found.length && a.stat.team == null) found.push(...fallback(q));
   if (!found.length) return a;
   const block: StatAnswer["blocks"][number] = { kind: "related", title: "Questions with video", queries: found };
   return { ...a, stat: { ...a.stat, blocks: [block, ...a.stat.blocks] } };
