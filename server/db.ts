@@ -2538,15 +2538,29 @@ export function openDb(url: string, authToken?: string | null): Client {
     const path = url.slice(5);
     if (path && path !== ":memory:") mkdirSync(dirname(resolve(path)), { recursive: true });
   }
-  const c = createClient({ url, authToken: authToken ?? undefined });
-  // A database file: the driver keeps a pool of connections to it, so a transaction holds one of its own (inSnapshot).
-  // In memory or an embedded replica it has only the one every read shares.
-  if (/^file:(?!:memory:)/.test(url) && !/mode=memory/.test(url)) pooled.add(c);
-  return c;
+  return createClient({ url, authToken: authToken ?? undefined });
 }
 
-/** The clients with a pool of connections (openDb): a read transaction on one leaves the others to every other read. */
-const pooled = new WeakSet<Client>();
+const pooledKind = new WeakMap<Client, Promise<boolean>>();
+/** Whether `c` is a database file of its own: the driver then keeps a pool of connections to it, so a transaction holds
+ *  one apart from the one other reads take (inSnapshot), in write-ahead logging, so that reader never blocks a writer.
+ *  In memory (its database name has no file: SQLite's own database_list says) or as the embedded replica the driver
+ *  has only the one every read shares; a remote database isn't a file. Asked once per client, however it was made. */
+function pooledFile(c: Client): Promise<boolean> {
+  let k = pooledKind.get(c);
+  if (!k) {
+    k = (async () => {
+      if ((c.protocol && c.protocol !== "file") || c === replicaClient) return false;
+      const main = (await c.execute("PRAGMA database_list")).rows.find((r) => r.name === "main");
+      if (!main || String(main.file ?? "") === "") return false;
+      // Write-ahead logging (configure() sets it; the file keeps it): a reader holding its moment never stops a writer.
+      // Without it a held read would lock every writer out ("database is locked") for its whole run.
+      return String((await c.execute("PRAGMA journal_mode")).rows[0]?.journal_mode ?? "").toLowerCase() === "wal";
+    })().catch(() => false);
+    pooledKind.set(c, k);
+  }
+  return k;
+}
 
 /** `fn`'s reads (through `read`) all seeing the database as it was at the first of them, whatever any process writes
  *  meanwhile: one read transaction, on a connection of its own (SQLite's WAL: other reads and every writer carry on,
@@ -2556,7 +2570,7 @@ const pooled = new WeakSet<Client>();
  *  so the caller reads in one go instead. */
 export async function inSnapshot<T>(fn: (read: <R = Row>(sql: string, args?: InArgs) => Promise<R[]>) => Promise<T>): Promise<T | null> {
   const c = db();
-  if (!pooled.has(c)) return null;
+  if (!(await pooledFile(c))) return null;
   const tx = await c.transaction("read");
   try {
     return await fn(async <R = Row>(sql: string, args: InArgs = []) => {
