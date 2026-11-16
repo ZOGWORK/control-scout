@@ -33,7 +33,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
 import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, playedCount } from "./lib/videoFrames";
-import { AUTO_S, OPEN_LEADS, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, elapsed, overlayDivision, leadIn, judge, NOTHING_READ, overlayLabel, secondsOf, type Judged, type M } from "./lib/videoFrames";
+import { AUTO_S, OPEN_LEADS, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, elapsed, overlayDivision, leadIn, judge, NOTHING_READ, overlayLabel, secondsLoose, secondsOf, type Judged, type M } from "./lib/videoFrames";
 
 // The command line: --name value or --name=value for the value flags, --name alone for the others. Anything else stops
 // the run before it reads: a misspelt flag mustn't quietly read (and write) every recording of the season.
@@ -129,14 +129,16 @@ const TIMERS = [
   // The bottom bar shrunk to 90% inside black side bars, raised off the bottom edge (ROCMPCND's Friday stream at Q2).
   { where: "bottom" as const, clip: { x: 580, y: 606, width: 120, height: 52 } },
   // The timer alone in a white box between the scores, a gamepad icon above it and Auto's dots below (FIRST AGE's bar,
-  // USNMCMP 2025): with the icon in the crop the OCR reads "1:04" as "11040", so only the digits' row is read.
-  { where: "bottom" as const, clip: { x: 585, y: 651, width: 110, height: 38 } },
+  // USNMCMP 2025): with the icon in the crop the OCR reads "1:04" as "11040", so only the digits' row is read, and its
+  // thin colon, often dropped ("117"), isn't needed (secondsLoose).
+  { where: "bottom" as const, clip: { x: 585, y: 651, width: 110, height: 38 }, loose: true },
 ];
 
 /** The timer's reading. `auto`: whether a reading of 0:30 or less is Auto, told by readAt. */
 async function timer(page: Page): Promise<{ where: "bottom" | "top"; left: number; auto: boolean } | null> {
   for (const t of TIMERS) {
-    const left = secondsOf((await digits.recognize(await page.screenshot({ clip: t.clip }))).data.text);
+    const text = (await digits.recognize(await page.screenshot({ clip: t.clip }))).data.text;
+    const left = "loose" in t ? secondsLoose(text) : secondsOf(text);
     if (left == null || left > AUTO_S + SWITCH_S + TELEOP_S) continue;
     return { where: t.where, left, auto: false };
   }
