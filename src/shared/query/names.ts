@@ -34,7 +34,7 @@ export interface Names {
    *  ("copper roboics": two teams called Copper Robotics); none when no shared name is the nearest, or two names are. */
   nearShared?(words: string): TeamName[];
   /** The place these words name, or null. */
-  place(words: string, typed?: string, short?: boolean): Place | null;
+  place(words: string, typed?: string): Place | null;
   /** The longest team name, in words (the parser looks no further). */
   longest: number;
   /** Whether a word starts the way some word of an event's name or code does (its first three letters): words that
@@ -209,7 +209,7 @@ export function buildNames(teams: NameRow[], places: { city: string | null; stat
       }
       return found.length === 1 ? found[0] : null;
     },
-    place(w, typed, short) {
+    place(w, typed) {
       const f = fold(w);
       if (!f) return null;
       // A region by its name or code (a two-letter code that's also a word only as typed in capitals).
@@ -218,10 +218,13 @@ export function buildNames(teams: NameRow[], places: { city: string | null; stat
       // A country as the data stores it ("Romania", "USA") or by another of its names ("Turkey", "UK").
       // Or by its people's word ("Romanian teams").
       const people = countryOfDemonym(f);
-      const said = countryOf(w);
+      // A country's two-letter name is never read alone ("us" is a pronoun: "tell us"), but said with "the" before it
+      // ("the us", "the u.s.") it is the country, since a pronoun never takes "the". Longer names read without it.
+      const short = f.startsWith("the ") ? f.slice(4) : "";
+      const the = short && short.replace(/ /g, "").length < 3 ? countryOf(short) : null;
+      const said = countryOf(w) ?? the;
       const stored = countries.get(f) ?? storedCountries.find(({ c }) => c === said || (!!people && c === people))?.label;
-      // Two letters ("us", "uk") only when the caller has read them as a place's name ("in the us").
-      if (stored && f.length >= (short ? 2 : 3)) return { kind: "country", country: stored, state: null, city: null, name: countryOf(stored)?.name ?? stored };
+      if (stored && f.length >= 3) return { kind: "country", country: stored, state: null, city: null, name: countryOf(stored)?.name ?? stored };
       const t = townOf(f);
       if (t && f.length >= 3) {
         return { kind: "city", country: t.country, state: t.state, city: t.city, name: t.city };

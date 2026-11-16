@@ -85,6 +85,8 @@ const TABLE: [string, Sym | Sym[]][] = [
   // Aggregations.
   ["highest|high|best|top|max|maximum|biggest|largest|greatest|most|record high|world record|peak|strongest|winningest|career high|personal best|longest|most times|the most times", { k: "agg", v: "max" }],
   // The ones worth watching are the best: "what team should i watch at nj states".
+  // Who is first by a stat ("who leads auto in texas", "who is leading in opr"): the highest.
+  ["leads|leads in|is leading|is leading in|leading in", { k: "agg", v: "max" }],
   ["should i watch|should we watch|worth watching|to keep an eye on|should i keep an eye on", { k: "agg", v: "max" }],
   // "Who" asked that way is the teams: "who should i watch at worlds".
   ["who should i watch|who should we watch|who to watch|who is worth watching|who should i keep an eye on", [{ k: "thing", v: "team" }, { k: "agg", v: "max" }]],
@@ -286,6 +288,11 @@ export const INFORMAL: [string, string][] = [
   // "NJ champs", "Romania champs", "world champs": the championship, as every reader reads it.
   ["champs", "championship"],
   ["ur", "your"], ["u", "you"],
+  // "WR": the world record, as players say it ("current wr").
+  ["wr", "world record"],
+  // "Is" with its letters swapped after a question word ("what si the best team"): two letters are never spell-checked,
+  // and alone "si" can be an event's initials, so only there.
+  ["what si", "what is"], ["who si", "who is"], ["which si", "which is"], ["where si", "where is"], ["when si", "when is"], ["how si", "how is"],
 ];
 
 /** Numbers said as words, read as digits after a word that takes a number ("opr over eighty", "top five teams", "last

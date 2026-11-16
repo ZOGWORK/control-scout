@@ -475,11 +475,11 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       if (span.some((t) => t.used) || EVENT_NAME_WORDS.has(toks[i + len]?.w ?? "")) continue;
       const code = len === 1 && /^[A-Z]{2}$/.test(span[0].typed);
       if (code && !/^(?:in|from|at)$/.test(toks[i - 1]?.w ?? "")) continue;
-      // A word the lexicon reads is a place only after "in the" or "from the" ("best team in the us": the country, never
-      // "us" the pronoun).
-      const theAfterIn = toks[i - 1]?.w === "the" && /^(?:in|from|across)$/.test(toks[i - 2]?.w ?? "");
-      if (!code && !theAfterIn && span.every((t) => isLex(t.w))) continue;
-      const pl = ctx.names.place(span.map((t) => t.w).join(" "), span.map((t) => t.typed).join(" "), theAfterIn);
+      // Lexicon words only: never a place, but a country said with "the" ("in the us"), a word that's a pronoun alone.
+      const lexOnly = span.every((t) => isLex(t.w)), theCountry = lexOnly && len === 2 && span[0].w === "the";
+      if (!code && lexOnly && !theCountry) continue;
+      const pl = ctx.names.place(span.map((t) => t.w).join(" "), span.map((t) => t.typed).join(" "));
+      if (pl && theCountry && pl.kind !== "country") continue;
       if (pl) { p.place = { ...pl, typed: span.map((t) => t.typed).join(" ") }; placeFrom = i; span.forEach((t) => (t.used = true)); }
     }
   }

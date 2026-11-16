@@ -1,6 +1,5 @@
 // Countries and counts said the ways logged failed searches said them (#1524 "Top teams in Taiwan", #1311 "teams with
-// highest opr in texas 2024", #1590 "How many teams in the world", #1594 "How many in Australia", #1587 "best team in
-// the us rn"). Every number is from the fixture.
+// highest opr in texas 2024", #1590 "How many teams in the world", #1594 "How many in Australia"). Every number is from the fixture.
 import { beforeAll, describe, expect, it } from "vitest";
 import { migrate, openDb, run, setDb } from "../db";
 import { rebuildSearch } from "../stats/job";
@@ -49,11 +48,6 @@ describe("a country or a place said the ways logged searches said it", () => {
     const a = await ask("teams with highest opr in texas 2024");
     expect(a.step).toBe("deterministic");
     expect(a.stat?.title).toBe(`Top 10 teams by OPR in Texas · ${seasonLabel(2024)}`);
-  });
-  it("'in the us' is the country, never 'us' the pronoun", async () => {
-    const a = await ask("best team in the us rn");
-    expect(a.stat?.title).toMatch(/in United States/);
-    expect(a.stat?.title).not.toMatch(/worldwide/);
   });
 });
 

@@ -5,20 +5,19 @@ import { useSyncExternalStore } from "react";
 import { cn } from "../cn";
 
 /** What kind of search an example shows: the set has one of each (src/components/search/discover.test.ts). */
-export type SearchExampleKind = "place" | "versus" | "question" | "record" | "rankings" | "leaderboard";
+export type SearchExampleKind = "events" | "winners" | "question" | "place" | "rankings" | "leaderboard";
 
 /** Real, runnable examples, one of each kind, checked against the live answer API before each was added: each gives
- *  a real result, not a "none found". No team appears twice, the teams are only the six suggestion teams, by name
- *  (src/shared/homeSuggestions.ts SUGGESTION_TEAMS), and some name no team at all, so the set shows the range
- *  of what search answers rather than one team's page. (A next-match prediction waits until match lists are
- *  published: before an event it answers "none scheduled".) In sentence case: the text shown is the query that runs. */
+ *  a real result, not a "none found". None names a team, and none leans on one region (Sushil, Nov 15 2026), so the
+ *  set shows the range of what search answers rather than one team's page. In sentence case: the text shown is the
+ *  query that runs. */
 export const SEARCH_EXAMPLE_SET: readonly { q: string; kind: SearchExampleKind }[] = [
-  { q: "Meets in New Jersey", kind: "place" },
-  { q: "Bad Wolf vs Don't Blink", kind: "versus" },
-  { q: "When did ENFORCERS go to Worlds", kind: "question" },
-  { q: "Hypnotic Robotics record", kind: "record" },
-  { q: "Top teams in NJ", kind: "rankings" },
-  { q: "Highest OPR", kind: "leaderboard" },
+  { q: "Meets this weekend", kind: "events" },
+  { q: "Who won Worlds", kind: "winners" },
+  { q: "Which team has the highest OPR", kind: "question" },
+  { q: "Teams in Brazil", kind: "place" },
+  { q: "Top teams in Canada", kind: "rankings" },
+  { q: "Best teleop OPR", kind: "leaderboard" },
 ];
 export const SEARCH_EXAMPLES: readonly string[] = SEARCH_EXAMPLE_SET.map((e) => e.q);
 
