@@ -30,6 +30,8 @@ let cpDown = false;
 let oldCp = false;
 /** Delay (ms) for account reads; the answer is what Control Point had when the read arrived. */
 let slowReads = 0;
+/** Delay (ms) for picture downloads; the picture is what Control Point had when the request arrived. */
+let slowPics = 0;
 const pushes: { id: number; mime: string; bytes: number }[] = [];
 const deletes: number[] = [];
 const accountFor = (email: string) => {
@@ -63,7 +65,8 @@ beforeAll(async () => {
   stub.get("/internal/accounts/:id/avatar", (req, res) => {
     const p = pics.get(Number(req.params.id));
     if (!p) { res.status(404).json({ error: "no_avatar" }); return; }
-    res.setHeader("Content-Type", p.mime); res.setHeader("X-Avatar-Id", p.id); res.end(p.data);
+    const send = () => { res.setHeader("Content-Type", p.mime); res.setHeader("X-Avatar-Id", p.id); res.end(p.data); };
+    if (slowPics) setTimeout(send, slowPics); else send();
   });
   stub.put("/internal/accounts/:id/avatar", express.raw({ type: "image/*", limit: "512kb" }), (req, res) => {
     const id = Number(req.params.id);
@@ -91,7 +94,7 @@ afterAll(() => {
   for (const k of ["CONTROL_POINT_INTERNAL_URL", "CONTROL_POINT_PUBLIC_URL", "CONTROL_POINT_INTERNAL_KEY", "APP_URL"]) delete process.env[k];
 });
 beforeEach(() => {
-  cpDown = false; oldCp = false; pushes.length = 0; deletes.length = 0;
+  cpDown = false; oldCp = false; slowReads = 0; slowPics = 0; pushes.length = 0; deletes.length = 0;
   clearInfoCache(); resetAvatarLimits();
   Object.assign(process.env, { CONTROL_POINT_INTERNAL_URL: cpBase, CONTROL_POINT_PUBLIC_URL: "https://cp.test", CONTROL_POINT_INTERNAL_KEY: KEY, APP_URL: "http://127.0.0.1" });
 });
@@ -166,6 +169,8 @@ describe("profile pictures", () => {
     const c = client();
     await c.signIn("pic2@example.com");
     expect((await c.upload(Buffer.from("<svg onload=alert(1)>"))).status).toBe(400);
+    // A GIF would never sync (Control Point takes PNG, JPEG and WebP), so it isn't taken here either.
+    expect((await c.upload(Buffer.from("GIF89a-gif-body"))).status).toBe(400);
     expect((await c.req("/api/me/avatar", { method: "PUT", json: { image: "" } })).status).toBe(400);
     expect((await c.upload(Buffer.concat([PNG, Buffer.alloc(600 * 1024)]))).status).toBe(413);
     expect((await c.req("/api/me/avatar", { method: "PUT", type: "image/png", body: "x" })).status).toBe(415);
@@ -218,7 +223,8 @@ describe("profile pictures", () => {
     // Control Point's answer says "no picture", but the pending change goes first: it is sent, not dropped.
     expect((await c.me()).avatarUrl).toBe(url);
     expect(pushes.map((p) => p.id)).toEqual([accountFor("pic5@example.com").id]);
-    expect(await get<any>("SELECT pending FROM user_avatars WHERE version IS NOT NULL AND cp_id IS NOT NULL")).toMatchObject({ pending: null });
+    expect(await get<any>("SELECT pending, cp_id FROM user_avatars WHERE user_id = (SELECT id FROM users WHERE email = 'pic5@example.com')"))
+      .toMatchObject({ pending: null, cp_id: pics.get(accountFor("pic5@example.com").id)!.id });
   });
 
   it("an older Control Point (no avatar field) never drops a picture; the change waits for one that has it", async () => {
@@ -250,6 +256,23 @@ describe("profile pictures", () => {
     expect((await bytesAt(url)).equals(PNG)).toBe(true);
     // The next (fresh) answer names the pushed picture: still the same URL.
     expect((await c.me()).avatarUrl).toBe(url);
+  });
+
+  it("a picture removed here while one from Control Point is on its way stays removed", async () => {
+    const c = client();
+    await c.signIn("pic9@example.com");
+    setInCp("pic9@example.com", JPEG, "image/jpeg");
+    slowPics = 400;
+    clearInfoCache();
+    const reading = c.req("/api/auth/me"); // asks for the JPEG, slowly
+    await new Promise((r) => setTimeout(r, 150));
+    // Removed here meanwhile (no row was there, so only the change count can stop the pull).
+    expect((await c.req("/api/me/avatar", { method: "DELETE", json: {} })).status).toBe(200);
+    await reading;
+    slowPics = 0;
+    expect(await get("SELECT 1 FROM user_avatars WHERE user_id = (SELECT id FROM users WHERE email = 'pic9@example.com')")).toBeUndefined();
+    expect(pics.has(accountFor("pic9@example.com").id)).toBe(false);
+    expect((await c.me()).avatarUrl).toBeNull();
   });
 
   it("goes with the account when it is deleted", async () => {

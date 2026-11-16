@@ -899,7 +899,7 @@ the browser's cookie, and signs the person in by that email:
 
 ## Profile pictures
 
-Any account can have a profile picture (Settings → Account → Profile picture), and it is the same picture in both
+Any account can have a profile picture (Settings → Profile → Profile picture), and it is the same picture in both
 apps: set or removed in either, it changes in the other. Control Point keeps the shared account's picture;
 Scout keeps a copy (`user_avatars`, migration 92) and serves it from its own address, so a page never needs
 Control Point to show one. Code: `server/auth/avatars.ts`, with the Control Point calls in `server/auth/controlPoint.ts`.
@@ -928,7 +928,7 @@ How Scout keeps the two the same:
   as removed). A picture set while not linked waits and is sent once the account links.
 - **Serving:** `GET /api/avatars/<user>/<version>`, public (pictures show next to a contributor's name on videos),
   cached for good: every picture gets a new random version, so a URL always shows the same image and can't be
-  guessed. The type is read from the file's first bytes (never the client's word), with `nosniff` and a sandbox CSP.
+  guessed. Uploads are PNG, JPEG or WebP (what Control Point takes; a GIF can only arrive from Control Point). The type is read from the file's first bytes (never the client's word), with `nosniff` and a sandbox CSP.
 - Deleting the Scout account deletes Scout's copy, not the shared account's picture.
 
 ## Not in scope (yet)

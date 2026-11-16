@@ -49,6 +49,15 @@ export async function avatarUrlFor(userId: number): Promise<string | null> {
   return avatarUrlOf(userId, r?.version);
 }
 
+/** Changes made here, counted per account: a pull that started before one never writes over it (a remove leaves no
+ *  row for the database to guard). */
+const localChanges = new Map<number, number>();
+const changeCount = (userId: number) => localChanges.get(userId) ?? 0;
+function noteLocalChange(userId: number) {
+  localChanges.set(userId, changeCount(userId) + 1);
+  if (localChanges.size > 50_000) localChanges.clear();
+}
+
 /** Keep pushes for one account in order: a remove right after a set must reach Control Point after it. */
 const queues = new Map<number, Promise<unknown>>();
 function inOrder<T>(userId: number, fn: () => Promise<T>): Promise<T> {
@@ -86,11 +95,16 @@ export function pushPending(userId: number, accountId?: number | null): Promise<
 
 export type SetAvatarResult = { ok: true; avatarUrl: string } | { ok: false; error: "invalid_image" | "too_large" };
 
+/** What an upload may be: what Control Point takes too (a GIF it would refuse, so it could never sync). The app always
+ *  sends WebP or JPEG; a GIF only ever arrives from Control Point itself. */
+const UPLOAD_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
+
 /** Make `data` this account's picture (here at once, then Control Point). */
 export async function setAvatar(userId: number, data: Uint8Array): Promise<SetAvatarResult> {
   if (data.length > AVATAR_MAX_BYTES) return { ok: false, error: "too_large" };
   const mime = sniffImage(data);
-  if (!mime) return { ok: false, error: "invalid_image" };
+  if (!mime || !UPLOAD_TYPES.has(mime)) return { ok: false, error: "invalid_image" };
+  noteLocalChange(userId);
   const version = newVersion();
   await run(
     `INSERT INTO user_avatars (user_id, data, mime, version, cp_id, pending, updated_at) VALUES (?, ?, ?, ?, NULL, 'push', ?)
@@ -103,6 +117,7 @@ export async function setAvatar(userId: number, data: Uint8Array): Promise<SetAv
 
 /** This account has no picture any more (here at once, then Control Point). */
 export async function removeAvatar(userId: number): Promise<void> {
+  noteLocalChange(userId);
   const linked = controlPointEnabled() ? await linkedAccountId(userId) : null;
   if (linked == null) {
     // Nothing to tell Control Point, though a picture set before linking may still be waiting to go: drop it too.
@@ -141,19 +156,27 @@ export async function syncAvatarFrom(account: SharedAccount): Promise<void> {
       return;
     }
     if (row?.cp_id === remote.id) return;
+    const before = changeCount(userId);
     const pic = await fetchAccountAvatar(account.id);
+    // Changed here while the picture was on its way: this answer is older than that change.
+    if (changeCount(userId) !== before) return;
     if (!pic) {
       if (row?.cp_id != null) await run("DELETE FROM user_avatars WHERE user_id = ? AND pending IS NULL AND cp_id = ?", [userId, row.cp_id]);
       return;
     }
-    if (pic.data.length > CP_AVATAR_MAX || sniffImage(pic.data) == null) return;
-    // Never over a change made here meanwhile.
-    await run(
-      `INSERT INTO user_avatars (user_id, data, mime, version, cp_id, pending, updated_at) VALUES (?, ?, ?, ?, ?, NULL, ?)
-       ON CONFLICT(user_id) DO UPDATE SET data = excluded.data, mime = excluded.mime, version = excluded.version, cp_id = excluded.cp_id, updated_at = excluded.updated_at
-       WHERE user_avatars.pending IS NULL AND user_avatars.updated_at = ?`,
-      [userId, pic.data, sniffImage(pic.data), newVersion(), pic.id, now(), row?.updated_at ?? ""],
-    );
+    const mime = sniffImage(pic.data);
+    if (pic.data.length > CP_AVATAR_MAX || mime == null) return;
+    // Never over a change made here meanwhile: replace exactly the row that was read, or add one only while there is
+    // still none and the account still exists.
+    if (row) {
+      await run("UPDATE user_avatars SET data = ?, mime = ?, version = ?, cp_id = ?, updated_at = ? WHERE user_id = ? AND pending IS NULL AND updated_at = ?",
+        [pic.data, mime, newVersion(), pic.id, now(), userId, row.updated_at]);
+    } else {
+      await run(
+        `INSERT INTO user_avatars (user_id, data, mime, version, cp_id, pending, updated_at)
+         SELECT ?, ?, ?, ?, ?, NULL, ? WHERE EXISTS (SELECT 1 FROM users WHERE id = ?) AND NOT EXISTS (SELECT 1 FROM user_avatars WHERE user_id = ?)`,
+        [userId, pic.data, mime, newVersion(), pic.id, now(), userId, userId]);
+    }
   } catch (e) { logFailure("avatar sync", e); }
 }
 
@@ -209,7 +232,7 @@ export async function handleSetAvatar(userId: number, body: unknown, res: Respon
   }
   const out = await setAvatar(userId, new Uint8Array(Buffer.from(b64, "base64")));
   if (!out.ok) {
-    res.status(out.error === "too_large" ? 413 : 400).json({ error: out.error === "too_large" ? "That picture is too large." : "That file isn't a PNG, JPEG, WebP or GIF picture." });
+    res.status(out.error === "too_large" ? 413 : 400).json({ error: out.error === "too_large" ? "That picture is too large." : "That file isn't a PNG, JPEG or WebP picture." });
     return;
   }
   return { ok: true, avatarUrl: out.avatarUrl };

@@ -21,14 +21,14 @@ Profile pictures: any account can have one, and it's the same picture in Control
 
 ### Highlights
 - [appearance] Add a profile picture in Settings › Profile
-- [workspace] One picture for your account in Control Scout and Control Point, either way round
+- [workspace] The same picture in Control Scout and Control Point
 - [share] Match videos show the contributor's picture next to "Video by"
 
 ### Added
-- Settings › Profile › Profile picture: add, change or remove one. The app crops the middle square to 512 px before it sends it, so no photo details (location, camera) leave the device. It shows in the account footer and menu. (`src/components/settings/ProfilePictureRow.tsx`, `src/lib/avatarImage.ts`, `src/components/UserAvatar.tsx`)
+- Settings › Profile › Profile picture: add, change or remove one. The app crops the middle square to 512 px before it sends it, so no photo details (location, camera) leave the device. It shows in the account footer and menu. (`src/components/settings/ProfilePictureRow.tsx`, `src/lib/avatarImage.ts`, `src/components/UserAvatar.tsx`) (#1596)
 - A linked account's picture is the shared account's, kept by Control Point: set or removed in either app, it changes in the other. A change Control Point can't take at once is sent again on the next account read, and a Control Point too old to know about pictures never removes one. (`server/auth/avatars.ts`, `server/auth/controlPoint.ts`, docs/shared-accounts.md "Profile pictures")
 - Match videos: the credit shows the contributor's picture beside their name, and their profile page beside the heading. (`src/components/contributors/VideoCredit.tsx`, `src/pages/ContributorPage.tsx`)
-- Pictures are served from `/api/avatars/<user>/<version>`, cached for good (a new picture gets a new address). Only PNG, JPEG, WebP and GIF are accepted, checked by the file's own bytes. Migration 92 (`user_avatars`, never in the offline snapshot).
+- Pictures are served from `/api/avatars/<user>/<version>`, cached for good (a new picture gets a new address). Uploads are PNG, JPEG or WebP, checked by the file's own bytes. Migration 92 (`user_avatars`, never in the offline snapshot).
 
 ## 6.8.9 — 2026-11-15
 
