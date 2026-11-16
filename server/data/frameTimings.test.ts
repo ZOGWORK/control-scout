@@ -74,6 +74,12 @@ describe("a match proven not in the recording, from its first and last frames", 
     // The same frame without the minute-by-minute reads before it proves nothing.
     expect(outsideRecording({ ...row, opensOn: { at: 400, label: "M1" } }, "Q1", order)).toBeNull();
   });
+  it("settles the match a recording opens on while it's being played (USCALACAS1 2026 Q1)", () => {
+    const row = { opensOn: { at: 3, label: "Q1", underway: true }, starts: { Q2: 520 } };
+    expect(outsideRecording(row, "Q1", quals(13))).toBe("under way when the recording starts: at 0:00:03 its timer is already running");
+    // An "Up Next: Q1" card (no running timer) proves nothing about Q1.
+    expect(outsideRecording({ ...row, opensOn: { at: 3, label: "Q1" } }, "Q1", quals(13))).toBeNull();
+  });
   it("proves nothing from an opening read further in than its edge, or with no edge read", () => {
     expect(outsideRecording({ opensOn: { at: 720, label: "M1" } }, "Q3", [...quals(14), "M1"])).toBeNull();
     expect(outsideRecording({}, "Q3", quals(14))).toBeNull();
