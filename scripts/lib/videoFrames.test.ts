@@ -115,18 +115,18 @@ describe("the frame reader", () => {
     expect(j.review.has("Q2")).toBe(true);
     expect(j.earlyStart.has("Q2")).toBe(false);
   });
-  it("places a lone confirmed read where the frames show it, unless it's far from where the rest of the video sits", () => {
+  it("places a lone confirmed read where the frames show it, however far from FIRST's times", () => {
     const ms: M[] = Array.from({ length: 4 }, (_, i) => ({ label: `M${i + 1}`, epoch: i * 500 }));
     // M1 and M4 disagree by 5 min (the stream lost time between them): each is in the video where its frames say.
     const j = judge(ms, new Map([[0, 10], [3, 1500 - 300]]), null, 10_000);
     expect([...j.placed]).toEqual([["M1", { t: 10, confidence: "high" }], ["M4", { t: 1200, confidence: "high" }]]);
     expect(j.missing.get("M2")).toMatch(/in a gap/);
-    // A read 3 hours from the rest: nothing says it's this part of the stream (another day, another event).
-    const k = judge(ms, new Map([[0, 10], [3, 1500 + 3 * 3600]]), null, 20_000);
-    expect(k.placed.size).toBe(0);
-    expect(k.review.get("M4")?.why).toMatch(/180 min from where the rest/);
-    // One read, and no clock or other read to tell where it is.
-    expect(judge(ms, new Map([[1, 600]]), null, 10_000).review.get("M2")?.why).toMatch(/no clock or other read/);
+    // A read 3 hours from where FIRST's times put it: placed where the frames show it, nothing flagged for the distance.
+    const k = judge(ms, new Map([[3, 1500 + 3 * 3600]]), null, 20_000);
+    expect(k.placed.get("M4")).toEqual({ t: 12300, confidence: "high" });
+    expect(k.review.size).toBe(0);
+    // One read, and no clock or other read beside it: still where its frames show it.
+    expect(judge(ms, new Map([[1, 600]]), null, 10_000).placed.get("M2")).toEqual({ t: 600, confidence: "high" });
   });
 
   describe("judging a video's matches (clock first, frames must agree)", () => {
