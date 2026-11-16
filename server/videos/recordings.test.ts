@@ -466,3 +466,19 @@ describe("with a YouTube API key", () => {
     expect(await get("SELECT duration, end FROM video_meta WHERE video_id = ?", ["Late0000001"])).toEqual({ duration: 16541, end: `${DAY}T17:33:56.000Z` });
   });
 });
+
+describe("FIRST's link to a video broadcast on another date", () => {
+  // 2024 USORSOM3 (2025-01-11): FIRST's livestream link was USORSOM2's stream of 2024-12-14.
+  it("isn't the event's video; the event whose date it fits keeps it", async () => {
+    await run("INSERT INTO events (season, code, name, type, start, end, timezone, remote, hybrid, livestream, source) VALUES (?, 'SOM2', 'Meet 2', 'LeagueMeet', '2026-04-11', '2026-04-11', 'America/Los_Angeles', 0, 0, 'https://www.youtube.com/watch?v=OtherDay001', 'test')", [S]);
+    await run("INSERT INTO events (season, code, name, type, start, end, timezone, remote, hybrid, livestream, source) VALUES (?, 'SOM3', 'Meet 3', 'LeagueMeet', ?, ?, 'America/Los_Angeles', 0, 0, 'https://www.youtube.com/watch?v=OtherDay001', 'test')", [S, DAY, DAY]);
+    // A link YouTube hasn't given a broadcast start for yet is kept: nothing says it's off.
+    await run("INSERT INTO events (season, code, name, type, start, end, timezone, remote, hybrid, livestream, source) VALUES (?, 'NOTREAD', 'Meet 4', 'LeagueMeet', ?, ?, 'UTC', 0, 0, 'https://www.youtube.com/watch?v=NotRead0001', 'test')", [S, DAY, DAY]);
+    await run("INSERT INTO video_meta (video_id, status, start, end, duration, live, checked_at) VALUES ('OtherDay001', 'ok', '2026-04-11T17:15:03Z', '2026-04-11T22:33:58Z', 18884, 0, 'x')");
+    clearAllCaches();
+    const recs = await seasonRecordings(S);
+    expect(recs.get("SOM2")?.videoId).toBe("OtherDay001");
+    expect(recs.has("SOM3")).toBe(false);
+    expect(recs.get("NOTREAD")?.videoId).toBe("NotRead0001");
+  });
+});
