@@ -22,9 +22,10 @@ Events › Today's coin flips shows only matches still to play, and nothing at a
 ### Highlights
 - [fixes] Coin flips switched off leaves no trace on Events
 - [live] Today's coin flips lists only matches still to play
+- [appearance] The section leaves Events once every coin flip is played
 
 ### Changed
-- Events: Today's coin flips no longer lists the matches already decided ("Decided today") or counts them; once every coin flip of the day has been played the section leaves the page, as on a day with none. Switched off by the owner, it shows nothing at all (no "switched off for now" note). (`src/components/home/CoinFlipRadar.tsx`, `src/shared/coinFlips.ts`)
+- Events: Today's coin flips no longer lists the matches already decided ("Decided today") or counts them; once every coin flip of the day has been played the section leaves the page, as on a day with none. Switched off by the owner, it shows nothing at all (no "switched off for now" note), and the page's first HTML says so, so not even its heading shows while the page loads. (`src/components/home/CoinFlipRadar.tsx`, `src/shared/coinFlips.ts`, `server/seo.ts`) (#1591)
 
 ## 6.8.8 — 2026-11-15
 

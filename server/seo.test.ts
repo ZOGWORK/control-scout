@@ -125,6 +125,11 @@ describe("page head in the first HTML", () => {
     writeFileSync(file, "<html><head><title>FTC Control Scout</title>\n</head><body></body></html>");
     expect((await renderPage(file, "/events")).html).toContain('<meta name="cs-coin-flips" content="1" />');
     for (const p of ["/", "/teams", "/events/2025/USNJNOM3"]) expect(await coinFlipsHint(p)).toBe("");
+    // Switched off: none today, whatever is stored, so nothing of the radar shows while the page's flags load.
+    const { setFlag } = await import("./flags");
+    await setFlag("coinFlips", false, "test");
+    expect(await coinFlipsHint("/events")).toBe('<meta name="cs-coin-flips" content="0" />');
+    await setFlag("coinFlips", true, "test");
   });
 
   it("team and event pages get their own title, description (120–160), canonical, OG and Twitter tags", async () => {
