@@ -6,7 +6,7 @@
 // marks what left the channel.
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { all, get, migrate, openDb, run, setDb } from "../db";
-import { seedOfficialChannels, decide } from "./officialWatch";
+import { seedOfficialChannels, decide, pendingCount } from "./officialWatch";
 import { FULL_EVERY_MS, dismissFinding, measureAdds, ownerAudit, queueFinding, runChannelAudit } from "./officialAudit";
 
 const TX = "UCKezDYNRPpAy2_1XRMBWKSw";
@@ -74,7 +74,8 @@ beforeAll(async () => {
     { id: FIRSTS, title: "FTC Texas Pecan Qualifier", published: "2026-01-17T22:00:00Z", start: "2026-01-17T14:00:00Z" },
     { id: LISTED, title: "FTC Texas Pecan Qualifier Sunday", published: "2026-01-18T22:00:00Z", start: "2026-01-18T14:00:00Z" },
     { id: WEB, title: "FTC Texas coaches webinar", published: "2026-01-05T22:00:00Z", start: null, minutes: 60 },
-    { id: OLDUP, title: "FTC Texas Mockingbird Qualifier 2025", published: "2025-01-14T22:00:00Z", start: null },
+    // Uploaded nineteen days after its event: too late to be dated by when it went up.
+    { id: OLDUP, title: "FTC Texas Mockingbird Qualifier 2025", published: "2025-01-30T22:00:00Z", start: null },
     // In the window, older than the watcher's last run, and not every check passes (its title's day isn't the broadcast's).
     { id: MISS, title: "FTC Texas Houston Qualifier Day 2", published: "2026-01-10T23:00:00Z", start: "2026-01-10T15:00:00Z" },
     { id: GOOD, title: "FTC Texas Mockingbird Qualifier", published: "2026-01-17T23:00:00Z", start: "2026-01-17T15:00:00Z" },
@@ -85,7 +86,7 @@ beforeAll(async () => {
     // The channel's own copy of a day FIRST's link already plays: a duplicate, as the watcher would log it.
     { id: COPY, title: "FTC Texas Pecan Qualifier (channel copy)", published: "2026-01-17T23:30:00Z", start: "2026-01-17T14:05:00Z" },
     // Older than the window: an upload of an event that already plays every day, and a broadcast on a day with no event.
-    { id: OLDCOV, title: "FTC Texas Bluebonnet Qualifier 2025", published: "2025-01-15T22:00:00Z", start: null },
+    { id: OLDCOV, title: "FTC Texas Bluebonnet Qualifier 2025", published: "2025-01-30T22:00:00Z", start: null },
     { id: OLDNONE, title: "FTC Texas Scrimmage", published: "2025-03-01T22:00:00Z", start: "2025-03-01T15:00:00Z" },
     // Older than the window, every check of the watcher's passes, and its event plays nothing: the audit adds it.
     { id: OLDADD, title: "FTC Texas Longhorn Qualifier", published: "2025-02-08T23:00:00Z", start: "2025-02-08T15:00:00Z" },
@@ -125,7 +126,7 @@ describe("the channel audit", () => {
     expect(await row(OLDCOV)).toMatchObject({ finding: null, verdict: "ignore",
       why: "set aside by the audit: its event 2024 USTXBLQ (TX Bluebonnet Qualifier) already plays a video for its one day (bluebonnet1)" });
     expect(await row(OLDNONE)).toMatchObject({ finding: null, verdict: "ignore",
-      why: "set aside by the audit: no Scout event in the channel's region on the broadcast date: nothing to put it on" });
+      why: "no Scout event in the channel's region on the broadcast date or a day either side: nothing to put it on" });
   });
 
   it("leaves what went up or ended after the watcher's last run to its next run: not a miss", async () => {
@@ -169,7 +170,7 @@ describe("the channel audit", () => {
   it("keeps an older possible recording as a finding, with its verdict and best guess", async () => {
     const o = await row(OLDUP);
     expect(o).toMatchObject({ finding: "open", in_window: 0, verdict: "review", why: "an upload, not a live broadcast: no broadcast date confirms its day", guess_season: 2024, guess_code: "USTXMOQ" });
-    expect(o.guess_why).toBe(`best guess USTXMOQ (TX Mockingbird Qualifier), 3 days from the day it was published: the title shares "mockingbird" with it`);
+    expect(o.guess_why).toBe(`best guess USTXMOQ (TX Mockingbird Qualifier), 19 days from the day it was published: the title shares "mockingbird" with it`);
   });
 
   it("checks each of the watcher's own adds again", async () => {
@@ -217,7 +218,7 @@ describe("the channel audit", () => {
   });
 
   it("gives a watcher verdict that names no event a best guess", async () => {
-    const v = await decide({ videoId: "uploadxxxxx", title: "FTC Texas Bluebonnet Qualifier", start: null, published: "2025-01-15T00:00:00Z", durationS: 6 * 3600, privacy: "public", embeddable: true, blockedIn: 0 },
+    const v = await decide({ videoId: "uploadxxxxx", title: "FTC Texas Bluebonnet Qualifier", start: null, published: "2025-01-30T00:00:00Z", durationS: 6 * 3600, privacy: "public", embeddable: true, blockedIn: 0 },
       { region: "state=TX", words: "texas", titlePattern: null });
     expect(v.kind).toBe("review");
     expect(v.guess).toMatchObject({ event: { season: 2024, code: "USTXBLQ" }, day: "2025-01-12" });
@@ -300,6 +301,32 @@ describe("the channel audit", () => {
       await run("UPDATE official_channels SET removed_at = NULL WHERE channel_id = ?", [TX]);
       await run("UPDATE official_audit_videos SET finding = NULL, found_at = NULL WHERE video_id = ?", [OLDNONE]);
     }
+  });
+
+  it("decides the review queue again with today's rules: sets aside what they decide, adds what passes every check", async () => {
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, timezone, remote, hybrid, livestream, source) VALUES (2024, 'USTXCAQ', 'TX Cactus Qualifier', 'Qualifier', 'El Paso', 'TX', 'USA', '2025-03-08', '2025-03-08', 'America/Denver', 0, 0, NULL, 'test')");
+    const CLIP = "pendclip001", CACTUS = "pendcactus1";
+    uploads.unshift(
+      // A 12-minute broadcast of a day: a clip, which today's rules set aside.
+      { id: CLIP, title: "FTC Texas Mockingbird Qualifier highlights", published: "2026-01-17T23:00:00Z", start: "2026-01-17T16:00:00Z", minutes: 12 },
+      // An undated upload two days after a one-day event its title names in full: dated by when it went up, and added.
+      { id: CACTUS, title: "FTC Texas Cactus Qualifier", published: "2025-03-10T22:00:00Z", start: null },
+    );
+    const q = "INSERT INTO official_watch (video_id, channel_id, title, status, why, seen_at) VALUES (?, ?, ?, 'pending', 'waiting for the owner', '2025-03-11T00:00:00Z')";
+    await run(q, [CLIP, TX, "FTC Texas Mockingbird Qualifier highlights"]);
+    await run(q, [CACTUS, TX, "FTC Texas Cactus Qualifier"]);
+    const before = await pendingCount();
+    try {
+      await run("UPDATE official_audit_channels SET full_at = NULL WHERE channel_id = ?", [TX]);
+      const out = await audit(Date.parse("2026-02-26T06:00:00Z"));
+      expect(await get<any>("SELECT status, decided_by, why FROM official_watch WHERE video_id = ?", [CLIP])).toMatchObject({ status: "ignored", decided_by: "channel audit",
+        why: "set aside by the channel audit: 12 minutes long: a clip or highlight of USTXMOQ, not a day's recording (set aside; add it as a highlight if it is one)" });
+      expect(await get<any>("SELECT status, decided_by, code, day FROM official_watch WHERE video_id = ?", [CACTUS])).toMatchObject({ status: "added", decided_by: "channel audit", code: "USTXCAQ", day: "2025-03-08" });
+      expect(await get<any>("SELECT code, day, source, removed_at FROM official_videos WHERE video_id = ?", [CACTUS])).toMatchObject({ code: "USTXCAQ", day: "2025-03-08", source: "watcher", removed_at: null });
+      expect(await row(CACTUS)).toMatchObject({ record: "added by the channel audit", finding: null });
+      expect(await pendingCount()).toBe(before - 2);
+      expect(out!.added).toBeGreaterThanOrEqual(1);
+    } finally { uploads.splice(0, 2); }
   });
 
   it("sets aside a video the channel has made unlisted since, not a watcher miss", async () => {
