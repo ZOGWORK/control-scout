@@ -81,14 +81,66 @@ export function designators(s: string): Designators {
 }
 
 const COMP = /(champs|championship|campionat|qualif|tournament|turneu|regional|league|\bmeets?(?![a-z])|invitational|premier|scrimmage|state cup|uil|division|\bday\s*\d{1,2}(?!\d)|super|showcase|\bcup\b|competi|ftc|tech challenge|rodeo|madness|roundup)/i;
-const NOT = /(webinar|training|sesiune|workshop|kick ?off|q&a|interview|judg|referee|pregatire|informativ|\bfrc\b|first robotics competition|lego|\bfll\b|\bvex\b|banquet|town hall|info session|mentor|district event|\bweek \d|inspection status|opening ceremon|practice day|test stream|livestream test|pre-?show|first global|\bfgc\b|\bdrones?\b|\bdcl\b|simulator)/i;
-const PART = /(ceremon|award|premier[ei]|finala|finals?\b|alliance selection|playoff|elimination)/i;
-const PART_NAME: [RegExp, string][] = [[/alliance selection/i, "Alliance selection & finals"], [/finala/i, "Finals & awards"], [/ceremon|award|premier[ei]/i, "Awards"], [/finals?\b/i, "Finals"], [/playoff/i, "Playoffs"], [/elimination/i, "Eliminations"]];
+const NOT = /(webinar|training|sesiune|workshop|kick ?off|q&a|interview|judg|referee|pregatire|informativ|\bfrc\b|first robotics competition|lego|\bfll\b|\bvex\b|banquet|town hall|info session|mentor|district event|\bweek \d|inspection status|opening ceremon|practice day|test stream|livestream test|pre-?show|first global|\bfgc\b|\bdrones?\b|\bdcl\b|simulator|\bursim\b|\bxrc\b|\b(?:rebuilt|reefscape|crescendo|charged up|rapid react|infinite recharge)\b|coach(?:es)?'? (?:call|corner)|program call|\bmeeting\b|legislature|committee|\bcouncil\b|keynote|\bnemc\b|sports day|robot in 30 hours|\bri30h\b|\bri3d\b|robot reveals?|\brecap\b|вебинар|\bfllc\b|gaming league|minecraft|valorant|rocket league|dungeons|\btop 25\b|predictions|board of education|meet the candidates|\bdiscuti[ae]\b|detalii tehnice)/i;
+const PART = /(ceremon|award|premier[ei]|finala|finals?\b|alliance selection|playoff|elimination|\bmorning\b|\bafternoon\b|(?:before|after) lunch)/i;
+const PART_NAME: [RegExp, string][] = [[/alliance selection/i, "Alliance selection & finals"], [/finala/i, "Finals & awards"], [/ceremon|award|premier[ei]/i, "Awards"], [/finals?\b/i, "Finals"], [/playoff/i, "Playoffs"], [/elimination/i, "Eliminations"], [/\bmorning\b/i, "Morning"], [/\bafternoon\b/i, "Afternoon"], [/before lunch/i, "Before lunch"], [/after lunch/i, "After lunch"]];
 const FIELD = /(divizia|\bfield\s*\d|\bfield [ab]\b|teren)/i;
 const DIVRE = /(?:-\s*|\b)([\p{L}\w' .]+?)\s+Div(?:ision|izia)?\b/iu;
 const TYPEHINT: [RegExp, string[]][] = [[/championship|campionat/i, ["Championship", "FIRSTChampionship"]], [/qualif/i, ["Qualifier", "SuperQualifier"]], [/league tournament|turneu de liga|league championship/i, ["LeagueTournament"]], [/scrimmage/i, ["Scrimmage"]], [/league meet/i, ["LeagueMeet"]], [/invitational|premier/i, ["Premier", "OffSeason"]]];
 /** Event types that are never a competition with a recording to link. */
 export const NOT_EVENTS = new Set(["Kickoff", "VolunteerSignup", "Workshop", "PracticeDay", "DemoExhibition", "Other"]);
+
+const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+const MON = "(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sept?(?:ember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)";
+/** "November 14, 2026", "Nov 14 2026", "14 November 2026". */
+const MONTHDATE = new RegExp(`\\b${MON}\\.? (\\d{1,2})(?:st|nd|rd|th)?,? (\\d{4})\\b|\\b(\\d{1,2}) ${MON},? (\\d{4})\\b`, "i");
+const monthOf = (m: string) => MONTHS.indexOf(m.slice(0, 3).toLowerCase()) + 1 || null;
+/**
+ * The dates a title says, year included, each reading that is a real date: 2026-01-17 · 1/17/2026 · 1/17/26 ·
+ * 17.01.26, 01.17.26 or 26.01.17 (any reading may fit) · November 14, 2026 · 14 Nov 2026. null when it says none.
+ */
+export function titleDatesOf(title: string, ref?: string | null): string[] | null {
+  const dm = /(\d{4})[.\-/](\d{1,2})[.\-/](\d{1,2})|\b(\d{1,2})\/(\d{1,2})\/(\d{2,4})\b|(?<![\d.])(\d{2})[._](\d{2})[._](\d{2})(?![\d.])/.exec(title);
+  const yr = (y: string) => (y.length === 2 ? 2000 + Number(y) : Number(y));
+  // A reading that isn't a real date is no reading: "12.17.23" is only December 17 (month.day.year).
+  const iso = (y: number, m: number, d: number) => m >= 1 && m <= 12 && d >= 1 && d <= new Date(Date.UTC(y, m, 0)).getUTCDate()
+    ? `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}` : null;
+  const readings: (string | null)[] = !dm ? []
+    : dm[1] ? [iso(Number(dm[1]), Number(dm[2]), Number(dm[3]))]
+    : dm[4] ? [iso(yr(dm[6]), Number(dm[4]), Number(dm[5]))]
+    : [iso(yr(dm[9]), Number(dm[8]), Number(dm[7])), iso(yr(dm[9]), Number(dm[7]), Number(dm[8])), iso(yr(dm[7]), Number(dm[8]), Number(dm[9]))];
+  const named = MONTHDATE.exec(title);
+  if (named) {
+    const [, m1, d1, y1, d2, m2, y2] = named;
+    const m = monthOf(m1 ?? m2);
+    if (m) readings.push(iso(Number(y1 ?? y2), m, Number(d1 ?? d2)));
+  }
+  // "Tournament 12/13" (no year), read against the video's own date: the latest such day on or before it, within 60 days.
+  const short = !dm && !named && ref ? /(?<![\d/.])(\d{1,2})\/(\d{1,2})(?![\d/])/.exec(title) : null;
+  if (short) {
+    const y = Number(ref!.slice(0, 4));
+    const d = [iso(y, Number(short[1]), Number(short[2])), iso(y - 1, Number(short[1]), Number(short[2]))].find((x) => x && x <= ref!.slice(0, 10));
+    if (d && daysBetween(d, ref!.slice(0, 10)) <= 60) readings.push(d);
+  }
+  const dates = [...new Set(readings.filter((r): r is string => r != null))];
+  return dates.length ? dates : null;
+}
+
+/** How long after a one-day event an upload of it can go up and still be dated by when it went up. */
+const UPLOAD_LAG_DAYS = 14;
+
+/**
+ * The days to find a video's events in: a day either side of its broadcast's date, else (an upload) of the one date
+ * its title says, else the two weeks before it went up (an upload of a one-day event, dated by when it went up).
+ */
+export function videoWindow(v: Pick<WatchVideo, "title" | "start" | "published">): [string, string] | null {
+  const shift = (d: string, n: number) => new Date(Date.parse(`${d}T00:00:00Z`) + n * 864e5).toISOString().slice(0, 10);
+  const titled = v.start ? null : titleDatesOf(v.title, v.published);
+  const d = v.start ? v.start.slice(0, 10) : titled?.length === 1 ? titled[0] : null;
+  if (d) return [shift(d, -1), shift(d, 1)];
+  const pub = v.published?.slice(0, 10);
+  return !titled && pub && /^\d{4}-\d{2}-\d{2}$/.test(pub) ? [shift(pub, -UPLOAD_LAG_DAYS - 1), pub] : null;
+}
 
 const daysBetween = (a: string, b: string) => Math.round((Date.parse(b) - Date.parse(a)) / 864e5);
 function weekday(iso: string, tz: string | null): string {
@@ -106,6 +158,8 @@ export function partOf(title: string): string | null {
   const r = /matches\s*(\d+)\s*[-–]\s*(\d+)/i.exec(title);
   if (r) return `Matches ${r[1]}–${r[2]}`;
   if (!PART.test(title)) return null;
+  // "Qualification & Playoff matches": the day's matches, all of them, not its playoffs alone.
+  if (/qualification|\bquals?\b/i.test(title) && /playoff|elimination|finals?\b/i.test(title) && !/ceremon|award/i.test(title)) return null;
   return PART_NAME.find(([re]) => re.test(title))?.[1] ?? null;
 }
 
@@ -122,10 +176,11 @@ export function matchVideo(v: WatchVideo, rule: ChannelRule, events: WatchEvent[
   const mins = Math.round((v.durationS ?? 0) / 60);
   // A short upload can't be a day's recording and has no broadcast date to tie it to an event: set aside with why (the
   // owner can still add it as a highlight from the set-aside list). A full-length upload might be a re-uploaded day.
-  if (!v.start) return short
-    ? { kind: "ignore", why: `a ${mins}-minute upload, not a broadcast: too short for a day's recording (set aside; add it as a highlight if it is one)` }
-    : { kind: "review", why: "an upload, not a live broadcast: no broadcast date confirms its day" };
+  if (!v.start && short) return { kind: "ignore", why: `a ${mins}-minute upload, not a broadcast: too short for a day's recording (set aside; add it as a highlight if it is one)` };
   if (v.durationS == null) return { kind: "review", why: "YouTube gave no length for it, so it can't be told from a clip" };
+  // Not a public video that plays here (private, unlisted, embedding off, blocked in most countries): nothing to link,
+  // whichever event it is. Set aside with why; a later change of its settings is read by the next audit.
+  if (v.privacy !== "public" || !v.embeddable || v.blockedIn >= 50) return { kind: "ignore", why: `not a public video that plays here (${v.privacy}${v.embeddable ? "" : ", not embeddable"}${v.blockedIn ? `, blocked in ${v.blockedIn} countries` : ""})` };
   const extra = new Set(norm(rule.words).split(" ").filter(Boolean));
   const vt = toks(v.title, extra);
   const td = designators(v.title);
@@ -134,25 +189,33 @@ export function matchVideo(v: WatchVideo, rule: ChannelRule, events: WatchEvent[
   const dw = /\bday (one|two|three|four)\b/i.exec(v.title)?.[1]?.toLowerCase();
   const titleDay = dn ? Number(dn) : dw ? ({ one: 1, two: 2, three: 3, four: 4 } as Record<string, number>)[dw] : null;
   const wd = /\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/i.exec(v.title)?.[1]?.toLowerCase() ?? null;
-  // A date in the title, year included: 2026-01-17 · 1/17/2026 · 1/17/26 · 17.01.26, 01.17.26 or 26.01.17 (any reading may fit).
-  const dm = /(\d{4})[.\-/](\d{1,2})[.\-/](\d{1,2})|\b(\d{1,2})\/(\d{1,2})\/(\d{2,4})\b|\b(\d{2})\.(\d{2})\.(\d{2})\b/.exec(v.title);
-  const yr = (y: string) => (y.length === 2 ? 2000 + Number(y) : Number(y));
-  // A reading that isn't a real date is no reading: "12.17.23" is only December 17 (month.day.year).
-  const iso = (y: number, m: number, d: number) => m >= 1 && m <= 12 && d >= 1 && d <= new Date(Date.UTC(y, m, 0)).getUTCDate()
-    ? `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}` : null;
-  const readings = !dm ? []
-    : dm[1] ? [iso(Number(dm[1]), Number(dm[2]), Number(dm[3]))]
-    : dm[4] ? [iso(yr(dm[6]), Number(dm[4]), Number(dm[5]))]
-    : [iso(yr(dm[9]), Number(dm[8]), Number(dm[7])), iso(yr(dm[9]), Number(dm[7]), Number(dm[8])), iso(yr(dm[7]), Number(dm[8]), Number(dm[9]))];
-  const dates = readings.filter((r): r is string => r != null);
-  const titleDates = dates.length ? dates : null;
+  const titleDates = titleDatesOf(v.title, v.start ?? v.published);
+  const upload = !v.start;
+  const UPLOAD = "an upload, not a live broadcast: no broadcast date confirms its day";
+  // An upload has no broadcast date: its day is the title's date when the title reads as exactly one date. With no
+  // date in its title, an upload that went up within two weeks of a one-day event is dated by that: the event's one
+  // day. (Not a day a title numbers: "Day 4" of an event whose dates include set-up days isn't its fourth date.)
+  if (upload && titleDates && titleDates.length !== 1) return { kind: "review", why: UPLOAD };
+  const uploadDay = upload && titleDates ? titleDates[0] : null;
+  const pubDay = v.published && /^\d{4}-\d{2}-\d{2}/.test(v.published) ? v.published.slice(0, 10) : null;
+  const lagDay = (e: WatchEvent): string | null => {
+    const end = e.end || e.start;
+    if (!pubDay || pubDay < end || daysBetween(end, pubDay) > UPLOAD_LAG_DAYS) return null;
+    return e.start === end ? e.start : null;
+  };
+  const lagged = upload && !uploadDay;
+  const dayOf = (e: WatchEvent) => (v.start ? localDate(v.start, e.timezone) : uploadDay ?? lagDay(e));
+  const weekdayOf = (e: WatchEvent, d: string) => (upload ? weekday(`${d}T12:00:00Z`, "UTC") : weekday(v.start!, e.timezone));
+  // A title naming two meets or qualifiers ("Meet #3 / Meet #4"): two events in one video, for the owner.
+  const numbered = new Set([...v.title.matchAll(/\b(?:meet|qualifier|qual)\s*#?\s*(\d{1,2})\b/gi)].map((m) => Number(m[1])));
   const idHit = (() => { if (!rule.titlePattern) return false; try { return new RegExp(rule.titlePattern, "i").test(v.title); } catch { return false; } })();
   /** strong: evidence of its own (a designator, a word of its name or city, its acronym), not only the region's name. */
   type Cand = { e: WatchEvent; d: string; score: number; real: boolean; strong: boolean; /** Its name's distinctive words. */ words: Set<string>; why: string[] };
   const cands: Cand[] = [];
   for (const e of events) {
     if (NOT_EVENTS.has(e.type) || !inRegion(e)) continue;
-    const d = localDate(v.start, e.timezone);
+    const d = dayOf(e);
+    if (!d) continue;
     if (d < e.start || d > (e.end || e.start)) continue;
     const ed = designators(e.name);
     const why: string[] = [];
@@ -178,9 +241,12 @@ export function matchVideo(v: WatchVideo, rule: ChannelRule, events: WatchEvent[
     if (!real && idHit && score > 0) real = true;
     cands.push({ e, d, score, real, strong, words: toks(e.name, extra), why });
   }
+  if (!cands.length && lagged) return { kind: "review", why: UPLOAD };
   if (!cands.length) return short
     ? { kind: "ignore", why: `${mins} minutes long, and no Scout event in the channel's region on the broadcast date: not a day's recording` }
-    : { kind: "review", why: "no Scout event in the channel's region on the broadcast date" };
+    : events.some((e) => !NOT_EVENTS.has(e.type) && inRegion(e) && daysBetween(dayOf(e)!, e.start) <= 1 && daysBetween(e.end || e.start, dayOf(e)!) <= 1)
+      ? { kind: "review", why: `no Scout event in the channel's region on the ${uploadDay ? "title's date" : "broadcast date"}, but one a day either side` }
+      : { kind: "ignore", why: `no Scout event in the channel's region on the ${uploadDay ? "title's date" : "broadcast date"} or a day either side: nothing to put it on` };
   const fits = cands.filter((c) => !c.why.length && c.score > 0 && c.real);
   // A title naming the region itself ("FTC Iowa …") makes every one of its events that day plausible, but an event the
   // title names by its own word ("Iris", "Waterloo") or designator is the one it's about: region-name-only fits drop out.
@@ -201,20 +267,32 @@ export function matchVideo(v: WatchVideo, rule: ChannelRule, events: WatchEvent[
   if (!a) {
     const best = [...cands].sort((x, y) => y.score - x.score)[0];
     if (short) return { kind: "ignore", why: `${mins} minutes long, and its title fits no event that day: not a day's recording` };
+    if (lagged) return { kind: "review", why: UPLOAD };
     return { kind: "review", why: `no event on that date fits the title${best ? ` (closest: ${best.e.code}${best.why.length ? `, differs on ${best.why.join(", ")}` : ""})` : ""}`, ...(best ? { event: best.e, day: best.d } : {}) };
   }
   const at = { event: a.e, day: a.d, part: partOf(v.title) };
-  if (short) return { kind: "review", why: `${mins} minutes long: a clip or highlight, not a day's recording`, ...at };
+  if (short) return { kind: "ignore", why: `${mins} minutes long: a clip or highlight of ${a.e.code}, not a day's recording (set aside; add it as a highlight if it is one)` };
+  if (numbered.size > 1) return { kind: "review", why: `the title names ${numbered.size} meets or qualifiers (${[...numbered].join(", ")}): two events in one video`, ...at };
   // Two events that both fit, whatever their scores, are for the owner to tell apart.
   if (b) return { kind: "review", why: `the title fits both ${a.e.code} and ${b.e.code}`, ...at };
   if (titleDates && !titleDates.includes(a.d)) return { kind: "review", why: `the title's date ${titleDates[0]} isn't the broadcast's (${a.d})`, ...at };
-  if (wd && wd !== weekday(v.start, a.e.timezone)) return { kind: "review", why: `the title says ${wd}, the broadcast was on ${weekday(v.start, a.e.timezone)}`, ...at };
-  if (v.privacy !== "public" || !v.embeddable || v.blockedIn >= 50) return { kind: "review", why: `not a public video that plays here (${v.privacy}${v.embeddable ? "" : ", not embeddable"}${v.blockedIn ? `, blocked in ${v.blockedIn} countries` : ""})`, ...at };
+  if (wd && wd !== weekdayOf(a.e, a.d)) return { kind: "review", why: `the title says ${wd}, the ${uploadDay ? "title's date" : "broadcast"} was on ${weekdayOf(a.e, a.d)}`, ...at };
+  // An upload dated only by its title needs the title to name the event itself (a word of its name, a designator),
+  // not only the region's: the date is the uploader's word, so the rest must be the event's own.
+  if (uploadDay && !a.strong) return { kind: "review", why: `an upload dated ${uploadDay} by its title, which names ${a.e.code} only by its region`, ...at };
+  // An upload dated only by when it went up: two weeks hold more events than a day, so the title must say every
+  // distinctive word of the event's name, and name one thing ("Meet 1 & Tournament Qualifications" is two).
+  if (lagged && ![...a.words].every(said)) return { kind: "review", why: `an upload with no date, whose title doesn't say all of ${a.e.code}'s name`, ...at };
+  if (lagged && /\s(?:&|and|\+)\s/i.test(v.title)) return { kind: "review", why: `an upload with no date, whose title joins two names`, ...at };
   // One video at a time can't check the days line up across the event (the list could), so a title's day must be the event's own.
   const eventDay = daysBetween(a.e.start, a.d) + 1;
   if (titleDay != null && titleDay !== eventDay) return { kind: "review", why: `the title says day ${titleDay}, the broadcast was the event's day ${eventDay}`, ...at };
-  if (FIELD.test(v.title) && !(a.e.divisionCode && a.e.divisionCode !== a.e.code)) return { kind: "review", why: "one field's stream of a one-event meet", ...at };
-  return { kind: "add", ...at, why: `${a.e.code}, ${a.d}: title and broadcast date fit only this event` };
+  // A named division's stream ("Flowers Division") of an event Scout keeps whole: its divisions played at once.
+  const ownDiv = !!(a.e.divisionCode && a.e.divisionCode !== a.e.code);
+  if (!ownDiv && !a.e.parent && DIVRE.test(v.title) && !/inter-?division/i.test(v.title)) return { kind: "ignore", why: `one division's stream of ${a.e.code}, which Scout has as one event: its clips would open on whichever division played at that time` };
+  if (FIELD.test(v.title) && !ownDiv) return { kind: "ignore", why: `one field's stream of ${a.e.code}, which Scout has as one event: its clips would open on whichever field played at that time` };
+  const dated = uploadDay ? "the title's date (an upload)" : lagged ? `when it went up (an upload on ${pubDay}, within ${UPLOAD_LAG_DAYS} days of the event's one day)` : "broadcast date";
+  return { kind: "add", ...at, why: `${a.e.code}, ${a.d}: title and ${dated} fit only this event` };
 }
 
 /** The event a video most likely is, when its verdict names none: for the owner's review and the channel audit, never
