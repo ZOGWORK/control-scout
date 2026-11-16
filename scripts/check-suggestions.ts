@@ -53,11 +53,22 @@ async function check(s: HomeSuggestion): Promise<string | null> {
   } catch (e) { return (e as Error).message; }
 }
 
+/** The team `--team` names: null without the flag; an error for a value that is no team number (a missing one too),
+ *  so a typo never passes as a check of nothing. */
+export function teamArg(argv: readonly string[]): number | null {
+  const i = argv.indexOf("--team");
+  if (i === -1) return null;
+  const raw = argv[i + 1];
+  if (!raw || !/^\d{1,6}$/.test(raw) || Number(raw) <= 0) throw new Error(`--team needs a team number, got ${raw === undefined ? "nothing" : `“${raw}”`}`);
+  return Number(raw);
+}
+
 // Run as a script; imported (its test), only the checks above.
 if (/check-suggestions\.ts$/.test(process.argv[1] ?? "")) {
-  const team = Number(arg("team"));
+  let team: number | null;
+  try { team = teamArg(process.argv); } catch (e) { console.error((e as Error).message); process.exit(2); }
   let mine: HomeSuggestion[] = [];
-  if (Number.isInteger(team) && team > 0) {
+  if (team) {
     let name: string | null = null;
     try { name = (await get<{ team: { name: string | null } }>(`/api/teams/${team}`)).team.name; } catch { /* by number alone */ }
     mine = teamSuggestions(team, name);

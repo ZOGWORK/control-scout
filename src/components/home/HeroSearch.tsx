@@ -17,7 +17,7 @@ import { HOME_SUGGESTIONS, SUGGESTION_HOUR_MS, fitChips, placeholderable, sugges
 import type { SearchHit, TeamSummary } from "../../shared/api";
 import { qs, useApi } from "../../lib/api";
 import { useCurrentSeason } from "../../lib/meta";
-import { usePersonal } from "../../lib/personal";
+import { hasAccountOnDevice, usePersonal } from "../../lib/personal";
 
 /** Each family's name (read with the chip) and icon. */
 const KINDS: Record<SuggestionKind, { label: string; icon: ComponentType<{ className?: string }> }> = {
@@ -45,14 +45,29 @@ export const heroPlaceholder = (s: HomeSuggestion) => `Try “${s.q}”`;
 
 const NONE: HomeSuggestion[] = [];
 
+/** The longest the chips wait for a signed-in device's account copy (My team may arrive with it): past this they draw
+ *  from what the device has. */
+export const ACCOUNT_WAIT_MS = 2500;
+
 /** The visitor's own team's chips (teamSuggestions): none without a team (My team). The team's name comes from the
  *  same request Home's Your team card makes, so one answer serves both; `pending` while it is on its way. A request
- *  that fails leaves the chips by number alone. */
+ *  that fails leaves the chips by number alone. On a device synced with an account, `pending` too until the account's
+ *  copy is in (its My team may differ from the device's), the account is known to be gone, it can't be reached, or
+ *  ACCOUNT_WAIT_MS has passed: so the chips draw once, not the pool's and then the team's. */
 export function useMyTeamChips(): { mine: HomeSuggestion[]; pending: boolean } {
-  const team = usePersonal().state.myTeam;
+  const { state, user, providers, syncReady, offlineAccount, sync } = usePersonal();
+  const team = state.myTeam;
+  const [accountHere] = useState(hasAccountOnDevice);
+  const settling = accountHere && !syncReady && !offlineAccount && !(providers && !user) && sync !== "error" && sync !== "offline";
+  const [waited, setWaited] = useState(false);
+  useEffect(() => {
+    if (!settling) return;
+    const t = setTimeout(() => setWaited(true), ACCOUNT_WAIT_MS);
+    return () => clearTimeout(t);
+  }, [settling]);
   const season = useCurrentSeason();
   const info = useApi<{ teams: TeamSummary[] }>(team ? `/api/teams-summary${qs({ season, teams: String(team) })}` : null);
-  const pending = !!team && info.loading;
+  const pending = (settling && !waited) || (!!team && info.loading);
   const name = info.data?.teams?.find((t) => t.team === team)?.name ?? null;
   const mine = useMemo(() => (team && !pending ? teamSuggestions(team, name) : NONE), [team, pending, name]);
   return { mine, pending };

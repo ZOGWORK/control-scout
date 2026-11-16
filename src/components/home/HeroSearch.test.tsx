@@ -8,14 +8,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { RECENT_KEY } from "../search/discover";
 import { HOME_SUGGESTIONS, SUGGESTION_HOUR_MS, fitChips, placeholderable, suggestionLabel, suggestionsAt, teamSuggestions } from "../../shared/homeSuggestions";
-import { HERO_EXAMPLE_MS, HeroSearch, heroPlaceholder } from "./HeroSearch";
+import { ACCOUNT_WAIT_MS, HERO_EXAMPLE_MS, HeroSearch, heroPlaceholder } from "./HeroSearch";
 
 let reduced = false;
 let myTeam: number | null = null;
 let summary: { data?: unknown; error?: Error; loading: boolean } = { loading: true };
 const asked: (string | null)[] = [];
 vi.mock("motion/react", async (orig) => ({ ...(await orig<typeof import("motion/react")>()), useReducedMotion: () => reduced }));
-vi.mock("../../lib/personal", () => ({ usePersonal: () => ({ user: null, state: { myTeam, tracked: { teams: [], events: [] }, bookmarks: [] } }) }));
+let account = { here: false, syncReady: false, user: null as { id: number } | null, providers: null as object | null };
+vi.mock("../../lib/personal", () => ({
+  hasAccountOnDevice: () => account.here,
+  usePersonal: () => ({ user: account.user, providers: account.providers, syncReady: account.syncReady, offlineAccount: false, sync: "local", state: { myTeam, tracked: { teams: [], events: [] }, bookmarks: [] } }),
+}));
 vi.mock("../../lib/meta", async (orig) => ({ ...(await orig<typeof import("../../lib/meta")>()), useMeta: () => null }));
 vi.mock("../../lib/api", async (orig) => ({
   ...(await orig<typeof import("../../lib/api")>()),
@@ -42,7 +46,7 @@ const six = () => suggestionsAt(HOUR);
 const typeable = () => six().filter(placeholderable);
 const chips = () => [...screen.getByRole("list", { name: "Example searches" }).querySelectorAll("button")];
 
-beforeEach(() => { reduced = false; myTeam = null; summary = { loading: true }; asked.length = 0; localStorage.clear(); vi.useFakeTimers(); vi.setSystemTime(HOUR); });
+beforeEach(() => { reduced = false; myTeam = null; account = { here: false, syncReady: false, user: null, providers: null }; summary = { loading: true }; asked.length = 0; localStorage.clear(); vi.useFakeTimers(); vi.setSystemTime(HOUR); });
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 
 describe("HeroSearch", () => {
@@ -135,6 +139,34 @@ describe("HeroSearch", () => {
     expect(list.className).not.toContain("invisible");
     expect(list.getAttribute("aria-busy")).toBeNull();
     expect(chips().some((b) => b.textContent?.startsWith("4215 Hypnotic"))).toBe(true);
+  });
+
+  it("on a device synced with an account, holds the chips until the account's copy is in, so its My team draws once", () => {
+    account = { here: true, syncReady: false, user: { id: 7 }, providers: {} };
+    const again = () => rerender(<MemoryRouter initialEntries={["/"]}><HeroSearch inputRef={null} onEscape={() => {}} hint="Ctrl K" /><Where /></MemoryRouter>);
+    const { rerender } = show();
+    const list = screen.getByRole("list", { name: "Example searches" });
+    expect(list.className).toContain("invisible");
+    // The account's copy arrives with a My team: the chips draw once, with that team's among them.
+    account = { ...account, syncReady: true };
+    myTeam = 4215;
+    summary = { loading: false, data: { teams: [{ team: 4215, name: "Hypnotic Robotics" }] } };
+    again();
+    expect(list.className).not.toContain("invisible");
+    expect(chips().some((b) => b.textContent?.startsWith("4215 Hypnotic"))).toBe(true);
+  });
+
+  it("waits no longer than ACCOUNT_WAIT_MS for the account, and not at all once it's known signed out", () => {
+    account = { here: true, syncReady: false, user: null, providers: null };
+    show();
+    const list = screen.getByRole("list", { name: "Example searches" });
+    expect(list.className).toContain("invisible");
+    act(() => { vi.advanceTimersByTime(ACCOUNT_WAIT_MS); });
+    expect(list.className).not.toContain("invisible");
+    cleanup();
+    account = { here: true, syncReady: false, user: null, providers: {} };
+    show();
+    expect(screen.getByRole("list", { name: "Example searches" }).className).not.toContain("invisible");
   });
 
   it("with My team set and its name unknown (the request failed), its chips go by number alone", () => {

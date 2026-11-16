@@ -9,7 +9,7 @@ import { describe, expect, it } from "vitest";
 import { createClient } from "@libsql/client";
 import { buildVocab, correctWord, type Vocab } from "./spelling";
 import { HOME_SUGGESTIONS, suggestionLabel } from "../../src/shared/homeSuggestions";
-import { misspelled } from "../../scripts/check-suggestions";
+import { misspelled, teamArg } from "../../scripts/check-suggestions";
 
 /** Each word search would correct in the pool's queries and labels, as "text: word → fix". */
 const fixes = (v: Vocab) => HOME_SUGGESTIONS.flatMap((s) => [...new Set([s.q, suggestionLabel(s)])].flatMap((text) =>
@@ -39,5 +39,13 @@ describe("suggestions:check's spelling checks", () => {
     expect(misspelled("hypnotik robotics opr", answer({ step: "did-you-mean", didYouMean: "Hypnotic Robotics opr" }))).toContain("Hypnotic Robotics opr");
     expect(misspelled("4215 oper", answer({ didYouMean: "4215 opr" }))).toContain("4215 opr");
     expect(misspelled("4215 opr", answer({}))).toBeNull();
+  });
+  it("reads --team as a team number, and fails loudly on one that isn't", () => {
+    expect(teamArg(["node", "x"])).toBeNull();
+    expect(teamArg(["node", "x", "--team", "4215"])).toBe(4215);
+    expect(() => teamArg(["node", "x", "--team", "abc"])).toThrow("“abc”");
+    expect(() => teamArg(["node", "x", "--team"])).toThrow("nothing");
+    expect(() => teamArg(["node", "x", "--team", "--base"])).toThrow("“--base”");
+    expect(() => teamArg(["node", "x", "--team", "0"])).toThrow("“0”");
   });
 });
