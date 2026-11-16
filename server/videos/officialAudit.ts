@@ -69,23 +69,30 @@ const SET_ASIDE_BY_AUDIT = "set aside by the channel audit";
 /** A FIRST event link the audit didn't take as its event's record, and why. */
 export interface UnusedLink { season: number; code: string; videoId: string; why: string }
 /**
- * FIRST's YouTube event links: a record of their event only when YouTube's broadcast date fits it (linkAiredOff, the
- * same check the event's recording makes, server/videos/recordings.ts). One aired on another date isn't the event's:
- * its video is decided like any other upload, and the link is listed as unused, with why.
+ * FIRST's event links, a YouTube link or a short link followed to its video: a record of their event only when
+ * YouTube's broadcast date fits it (linkAiredOff, the same check the event's recording makes,
+ * server/videos/recordings.ts). One aired on another date isn't the event's: its video is decided like any other
+ * upload, and the link is listed as unused, with why.
  */
-async function firstLinks(): Promise<{ used: { season: number; code: string; videoId: string }[]; unused: UnusedLink[] }> {
+async function firstLinks(): Promise<{ used: { season: number; code: string; videoId: string; short: boolean }[]; unused: UnusedLink[] }> {
   const rows = await all<any>("SELECT season, code, livestream, start, end, timezone FROM events WHERE livestream LIKE '%youtu%'");
-  const ids = [...new Set(rows.flatMap((r) => [...String(r.livestream).matchAll(YT_LINK)].map((m) => m[1])))];
+  const shorts = await all<any>(`SELECT l.season, l.code, l.video_id, e.start, e.end, e.timezone FROM event_stream_links l
+    LEFT JOIN events e ON e.season = l.season AND e.code = l.code WHERE l.video_id IS NOT NULL`);
+  const links = [
+    ...rows.flatMap((r) => [...String(r.livestream).matchAll(YT_LINK)].map((m) => ({ r, videoId: m[1], short: false }))),
+    ...shorts.map((r) => ({ r, videoId: String(r.video_id), short: true })),
+  ];
+  const ids = [...new Set(links.map((l) => l.videoId))];
   const aired = new Map<string, string>();
   for (let i = 0; i < ids.length; i += 200) {
     const part = ids.slice(i, i + 200);
     for (const m of await all<any>(`SELECT video_id, start FROM video_meta WHERE start IS NOT NULL AND video_id IN (${part.map(() => "?").join(",")})`, part)) aired.set(String(m.video_id), String(m.start));
   }
-  const out: { used: { season: number; code: string; videoId: string }[]; unused: UnusedLink[] } = { used: [], unused: [] };
-  for (const r of rows) for (const m of String(r.livestream).matchAll(YT_LINK)) {
-    const l = { season: Number(r.season), code: String(r.code), videoId: m[1] };
-    const off = r.start ? linkAiredOff({ code: l.code, start: String(r.start), end: r.end ?? null, timezone: r.timezone ?? null }, aired.get(l.videoId)) : null;
-    if (off) out.unused.push({ ...l, why: off }); else out.used.push(l);
+  const out: { used: { season: number; code: string; videoId: string; short: boolean }[]; unused: UnusedLink[] } = { used: [], unused: [] };
+  for (const { r, videoId, short } of links) {
+    const l = { season: Number(r.season), code: String(r.code), videoId };
+    const off = r.start ? linkAiredOff({ code: l.code, start: String(r.start), end: r.end ?? null, timezone: r.timezone ?? null }, aired.get(videoId)) : null;
+    if (off) out.unused.push({ ...l, why: short ? off.replace("FIRST's link", "FIRST's short link's video") : off }); else out.used.push({ ...l, short });
   }
   return out;
 }
@@ -99,11 +106,10 @@ async function scoutRecords(unused?: UnusedLink[]): Promise<Map<string, Record_>
   }
   for (const [sql, label] of [
     ["SELECT video_id, season, code FROM event_broadcasts", "the channel's broadcasts on FIRST's channel link"],
-    ["SELECT video_id, season, code FROM event_stream_links WHERE video_id IS NOT NULL", "the event's short stream link"],
     ["SELECT video_id, season, code FROM event_streams", "the owner's stream"],
   ] as const) for (const r of await all<any>(sql)) put(String(r.video_id), { record: label, season: Number(r.season), code: String(r.code), plays: true });
   const links = await firstLinks();
-  for (const l of links.used) put(l.videoId, { record: "FIRST's event link", season: l.season, code: l.code, plays: true });
+  for (const l of links.used) put(l.videoId, { record: l.short ? "the event's short stream link" : "FIRST's event link", season: l.season, code: l.code, plays: true });
   unused?.push(...links.unused);
   const watch: Record<string, string> = { added: "added by the watcher", approved: "approved by the owner", pending: REVIEW, ignored: SET_ASIDE, duplicate: "a duplicate the watcher logged", rejected: "rejected by the owner" };
   for (const r of await all<any>("SELECT video_id, status, season, code, decided_by FROM official_watch")) {
