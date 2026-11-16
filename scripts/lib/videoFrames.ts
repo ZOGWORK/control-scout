@@ -23,6 +23,9 @@ export function overlayLabel(text: string): string | null {
   // A full-screen card can name several matches: a bracket ("Up Next Match 4", "Winner advances to Playoff Match 7") or
   // a result ("Match 6", "Advances to: Playoff Match 8"). A match it says a team advances to is a later one, never the
   // one on screen; of the rest, two different numbers name no one match, so the frame names none (CAONMIQ 2025).
+  // A bracket's boxes ("M4 vs A5", "M3 vs A6", "M8") make it one even where its "advances to" line is cut off at the
+  // top (USIAWESTLT 2025 M3: "Playoff Match 5" alone): three different M-numbers, and the frame names no match.
+  if (new Set([...text.matchAll(/\bM(\d{1,2})\b/g)].map((m) => m[1])).size >= 3) return null;
   const named = new Set<number>();
   for (const m of text.matchAll(/(advances\s+to:?\s+(?:Playoff\s+)?)?\bMatch\s+(\d{1,2})\b/gi)) if (!m[1]) named.add(Number(m[2]));
   return named.size === 1 ? `M${[...named][0]}` : null;
