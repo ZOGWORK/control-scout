@@ -13,7 +13,7 @@ import { eventVideosByDay, forgetOfficial } from "./officialVideos.js";
 import { isoDuration } from "./youtube.js";
 import { STARTUP_CYCLE_MS } from "../warm.js";
 import { LockBusy, isBusy, lockHolder, withDataLock } from "../data/lock.js";
-import { bestGuess, matchVideo, parseRule, type ChannelRule, type Verdict, type WatchEvent, type WatchVideo } from "./officialMatch.js";
+import { bestGuess, matchVideo, parseRule, videoWindow, type ChannelRule, type Verdict, type WatchEvent, type WatchVideo } from "./officialMatch.js";
 
 export const WATCH_EVERY_MS = 6 * 3600_000;
 /** The half-hourly check's first one after boot: 7.5 minutes after the startup sync (server/warm.ts STARTUP_CYCLE_MS),
@@ -89,12 +89,6 @@ async function api(path: string, params: Record<string, string>, key: string, fe
   try { reason = String((await res.json())?.error?.errors?.[0]?.reason ?? ""); } catch { /* no body */ }
   if (/quotaExceeded|dailyLimitExceeded|rateLimitExceeded/.test(reason)) throw new QuotaError(`YouTube quota used up (${reason})`);
   throw new Error(`YouTube ${path} answered ${res.status}${reason ? ` (${reason})` : ""}`);
-}
-
-/** The events whose dates are within a day of a broadcast date (the match applies the channel's region and the venue's date). */
-async function eventsAround(day: string): Promise<WatchEvent[]> {
-  const t = Date.parse(`${day}T00:00:00Z`);
-  return eventsBetween(new Date(t - 864e5).toISOString().slice(0, 10), new Date(t + 864e5).toISOString().slice(0, 10));
 }
 
 /** The events on any day from lo to hi (YYYY-MM-DD). */
@@ -298,7 +292,9 @@ export async function decide(v: WatchVideo, ch: Pick<ChannelRow, "region" | "wor
      UNION ALL SELECT season, code, 'FIRST''s event link' FROM events WHERE livestream LIKE '%' || ?1 || '%' LIMIT 1`, [v.videoId]);
   if (played) return { kind: "duplicate", why: `duplicate: already ${played.season} ${played.code}'s video (${played.via})`, event: { season: Number(played.season), code: String(played.code) } };
   const rule: ChannelRule = { region: ch.region, words: ch.words, titlePattern: ch.titlePattern };
-  const events = v.start ? await eventsAround(v.start.slice(0, 10)) : [];
+  // Around its broadcast date, or (an upload) the one date its title says, or the two weeks before it went up.
+  const when = videoWindow(v);
+  const events = when ? await eventsBetween(when[0], when[1]) : [];
   const verdict = matchVideo(v, rule, events);
   if (verdict.kind === "add") return settle(verdict);
   return verdict.kind === "review" && verdict.event ? verdict : { ...verdict, guess: await guessFor(v, rule) };
@@ -323,18 +319,24 @@ export async function record(v: WatchVideo, ch: Pick<ChannelRow, "channelId" | "
   const status = verdict.kind === "add" ? "added" : verdict.kind === "review" ? "pending" : verdict.kind === "duplicate" ? "duplicate" : "ignored";
   const writes = [{
     sql: `INSERT INTO official_watch (video_id, channel_id, title, start, published, duration, status, season, code, day, part, why, guess_why, seen_at, decided_at, decided_by)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(video_id) DO NOTHING`,
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(video_id) DO UPDATE SET status = excluded.status, season = excluded.season, code = excluded.code, day = excluded.day, part = excluded.part,
+            why = excluded.why, start = excluded.start, duration = excluded.duration, decided_at = excluded.decided_at, decided_by = excluded.decided_by
+          WHERE excluded.status = 'added' AND official_watch.status IN ('pending', 'ignored')`,
     args: [v.videoId, ch.channelId, v.title, v.start, published, v.durationS, status, ev?.season ?? null, ev?.code ?? null, day, part, verdict.why, verdict.guess?.why ?? null, at, verdict.kind === "add" ? at : null, verdict.kind === "add" ? by : null] as (string | number | null)[],
   }];
   // The day's slot held only by a recording YouTube no longer plays (settle let it through): that one comes off first.
   if (verdict.kind === "add") writes.push({
     sql: `UPDATE official_videos SET removed_at = ? WHERE season = ? AND code = ? AND kind = 'recording' AND removed_at IS NULL AND day = ? AND COALESCE(part, '') = COALESCE(?, '')
-            AND video_id IN (SELECT video_id FROM video_meta WHERE status = 'unavailable')`,
-    args: [at, verdict.event.season, verdict.event.code, verdict.day, verdict.part],
+            AND video_id IN (SELECT video_id FROM video_meta WHERE status = 'unavailable')
+            AND EXISTS (SELECT 1 FROM official_watch WHERE video_id = ? AND status = 'added')`,
+    args: [at, verdict.event.season, verdict.event.code, verdict.day, verdict.part, v.videoId],
   }, {
+    // Only when its watch row says added (new, or decided again from review or set aside): never over an owner's decision.
     sql: `INSERT INTO official_videos (video_id, season, code, kind, day, part, channel_id, title, source, why, added_at, added_by)
-          VALUES (?, ?, ?, 'recording', ?, ?, ?, ?, 'watcher', ?, ?, NULL) ON CONFLICT(video_id) DO NOTHING`,
-    args: [v.videoId, verdict.event.season, verdict.event.code, verdict.day, verdict.part, ch.channelId, v.title, `${by}: ${ch.title}; ${verdict.why}`, at],
+          SELECT ?, ?, ?, 'recording', ?, ?, ?, ?, 'watcher', ?, ?, NULL WHERE EXISTS (SELECT 1 FROM official_watch WHERE video_id = ? AND status = 'added')
+          ON CONFLICT(video_id) DO NOTHING`,
+    args: [v.videoId, verdict.event.season, verdict.event.code, verdict.day, verdict.part, ch.channelId, v.title, `${by}: ${ch.title}; ${verdict.why}`, at, v.videoId],
   });
   await db().batch(writes, "write");
 }
