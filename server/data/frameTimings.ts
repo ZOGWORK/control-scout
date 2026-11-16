@@ -38,6 +38,41 @@ export interface FrameTiming {
   /** Starts already live before openings were checked whose opening frame named nothing (blank, a transition): they
    *  keep playing at the usual lead-in until a re-read confirms or pulls them. Never set on a new placement. */
   unconfirmed?: string[];
+  /** What the recording's first frames show (within EDGE_S of its start): the match its overlay names, or FTC Live's
+   *  "N / M matches played" count. The proof that a match was played before the recording starts (outsideRecording). */
+  opensOn?: RecordingEdge;
+  /** What its last frames show (within EDGE_S of its end): the proof that a match was played after it ends. */
+  endsOn?: RecordingEdge;
+}
+
+/** One edge of a recording, read off its frames: the second, and the match named there and/or the matches played. */
+export interface RecordingEdge { at: number; label?: string; played?: number; of?: number }
+
+/** How close to a recording's start or end a frame must be to count as its edge: a match first seen an hour in can't
+ *  tell that the ones before it aren't in the video (their overlay may just not have read). */
+export const EDGE_S = 120;
+
+const hms = (s: number) => `${Math.floor(s / 3600)}:${String(Math.floor((s % 3600) / 60)).padStart(2, "0")}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+const qualNumber = (label: string) => { const m = /^Q(\d+)$/.exec(label); return m ? Number(m[1]) : null; };
+
+/**
+ * Whether a match isn't in a recording at all, proven from its frames, never the clock: played before it starts (its
+ * first frames name a later match, or count it among the matches already played) or after it ends (its last frames name
+ * an earlier match, or count fewer played). `order`: the event's played matches in time order. Null where the frames
+ * prove nothing about it (no edge read, or the match sits inside what the recording shows).
+ */
+export function outsideRecording(row: Pick<FrameTiming, "opensOn" | "endsOn">, label: string, order: string[]): string | null {
+  const i = order.indexOf(label), q = qualNumber(label);
+  const o = row.opensOn, e = row.endsOn;
+  if (o && o.at <= EDGE_S) {
+    if (o.played != null && q != null && q <= o.played) return `played before the recording starts: at ${hms(o.at)} it shows ${o.played}${o.of ? ` of ${o.of}` : ""} matches played`;
+    if (o.label && i >= 0 && order.indexOf(o.label) > i) return `played before the recording starts: it opens on ${o.label} at ${hms(o.at)}`;
+  }
+  if (e) {
+    if (e.played != null && q != null && q > e.played) return `played after the recording ends: at ${hms(e.at)} it shows ${e.played}${e.of ? ` of ${e.of}` : ""} matches played`;
+    if (e.label && i >= 0 && order.indexOf(e.label) >= 0 && order.indexOf(e.label) < i) return `played after the recording ends: it ends on ${e.label} at ${hms(e.at)}`;
+  }
+  return null;
 }
 
 let byKey: Map<string, Record<string, number>> | null = null;
