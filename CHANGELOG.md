@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.9.6 — 2026-11-16
+## 6.9.7 — 2026-11-16
 
 Search reads countries, counts and leaders the ways people asked: Taiwan, "in the world", "how many in Australia", "who leads".
 
@@ -30,6 +30,18 @@ Search reads countries, counts and leaders the ways people asked: Taiwan, "in th
 - "Teams with the most …", "team with the highest …": "with" after "team" is having it, never a second thing joined on, so everyone's board answers (`src/shared/query/parse.ts`). "Teams with the highest win rate" now gets the win-rate board, as "teams with the most wins" already did. (#1311)
 - "Who leads <stat>", "who is leading in <stat>": the highest by that stat, everyone's board (`src/shared/query/lexicon.ts`). (#1012)
 - Counts: "in the world", "worldwide" and the like are everywhere, never a place to look up; "how many in <place>" with neither teams nor events said gives both counts; a count of one says "1 event", not "1 events". (`server/api/searchCoverage.ts` countAnswer) (#1590, #1594)
+
+## 6.9.6 — 2026-11-16
+
+Search › a team's number shows the team, with no "Questions with video" about other events.
+
+### Highlights
+- [fixes] Searching a team number no longer suggests other events' highlights
+- [fixes] A team's highlights search only suggests that team's own video
+- [teams] A team search shows just the team and its own highlights
+
+### Changed
+- Search: "Questions with video" shows only when the search's own words ask to watch ("highlights", "with video", "video") or it filters to matches with video; a bare team number ("4215") whose card happens to hold highlights never gets it. On a team's answer the questions offered are the team's own seasons with a clip, never other events' highlights. (`server/api/answers/videoSuggest.ts`, `server/api/searchAnswer.ts`) (#1595)
 
 ## 6.9.5 — 2026-11-16
 
