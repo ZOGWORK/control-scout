@@ -18,8 +18,8 @@ let calls: string[] = [];
 let pageSize = 50;
 /** The videos call answers that the day's quota is spent. */
 let quotaOnVideos = false;
-/** The videos call fails with a server error. */
-let failVideos = false;
+/** The videos call fails with a server error this many more times (Infinity: every time). */
+let failVideos = 0;
 const fakeFetch = (async (url: string) => {
   const u = new URL(url);
   calls.push(u.pathname.split("/").pop()!);
@@ -32,7 +32,7 @@ const fakeFetch = (async (url: string) => {
     const items = uploads.slice(page * pageSize, (page + 1) * pageSize);
     return json({ items: items.map((i) => ({ snippet: { title: i.title }, contentDetails: { videoId: i.id, videoPublishedAt: i.published } })), ...(uploads.length > (page + 1) * pageSize ? { nextPageToken: String(page + 1) } : {}) });
   }
-  if (failVideos) return { ok: false, status: 503, json: async () => ({}) } as Response;
+  if (failVideos > 0) { failVideos--; return { ok: false, status: 503, json: async () => ({}) } as Response; }
   if (quotaOnVideos) return { ok: false, status: 403, json: async () => ({ error: { errors: [{ reason: "quotaExceeded" }] } }) } as Response;
   const ids = (u.searchParams.get("id") ?? "").split(",");
   return json({ items: uploads.filter((i) => ids.includes(i.id)).map((i) => ({
@@ -92,7 +92,7 @@ beforeAll(async () => {
     { id: OLDADD, title: "FTC Texas Longhorn Qualifier", published: "2025-02-08T23:00:00Z", start: "2025-02-08T15:00:00Z" },
   ];
 });
-beforeEach(() => { calls = []; pageSize = 50; quotaOnVideos = false; failVideos = false; });
+beforeEach(() => { calls = []; pageSize = 50; quotaOnVideos = false; failVideos = 0; });
 
 describe("the channel audit", () => {
   it("reads the whole uploads list and records where Scout has each video", async () => {
@@ -260,20 +260,34 @@ describe("the channel audit", () => {
     expect(after.last_error).toMatch(/not read this run: the audit stopped at its 0 units/);
   });
 
-  it("goes on with the run when a facts call fails, and reads those facts next run", async () => {
+  it("goes on with the run when a facts call fails twice, and reads those facts next run", async () => {
     const id = "fail503xxxx";
     uploads.unshift({ id, title: "FTC Texas Mockingbird Qualifier Day 4", published: "2026-02-22T14:00:00Z", start: "2026-02-22T14:00:00Z" });
-    failVideos = true;
+    failVideos = Infinity;
     try {
       const out = await audit(Date.parse("2026-02-23T06:00:00Z"));
       expect(out?.error).toMatch(/facts of \d+ videos couldn't be read: YouTube videos answered 503/);
       expect((await row(id)).facts_at).toBeNull();
       expect((await row(id)).why).toMatch(/facts weren't read yet/);
       expect((await get<any>("SELECT checked_at FROM official_audit_channels WHERE channel_id = ?", [TX])).checked_at).toBe("2026-02-23T06:00:00.000Z");
-      failVideos = false;
+      failVideos = 0;
       await audit(Date.parse("2026-02-23T12:00:00Z"));
       expect((await row(id)).facts_at).toBe("2026-02-23T12:00:00.000Z");
-    } finally { uploads.shift(); failVideos = false; }
+    } finally { uploads.shift(); failVideos = 0; }
+  });
+
+  it("tries a failed facts call once more in the same run: a clip in the owner's review is set aside now", async () => {
+    const id = "retryclip01";
+    uploads.unshift({ id, title: "Compact Swerve Drive | 99999 Testers | FTC BIOBUZZ Snapshot", published: "2026-02-22T14:00:00Z", start: null, minutes: 1 });
+    await run("INSERT INTO official_watch (video_id, channel_id, title, published, duration, status, why, seen_at) VALUES (?, ?, 'Compact Swerve Drive | 99999 Testers | FTC BIOBUZZ Snapshot', '2026-02-22T14:00:00Z', 60, 'pending', 'an upload, not a live broadcast', 'x')", [id, TX]);
+    failVideos = 1;
+    try {
+      const out = await audit(Date.parse("2026-02-23T06:00:00Z"));
+      expect(failVideos).toBe(0);
+      expect(out?.error ?? "").not.toMatch(/couldn't be read/);
+      expect((await row(id)).facts_at).toBe("2026-02-23T06:00:00.000Z");
+      expect(await get<any>("SELECT status, decided_by FROM official_watch WHERE video_id = ?", [id])).toMatchObject({ status: "ignored", decided_by: "channel audit" });
+    } finally { uploads.shift(); failVideos = 0; await run("DELETE FROM official_watch WHERE video_id = ?", [id]); }
   });
 
   it("keeps an add found unplayable as wrong when its facts can't be read next run", async () => {
@@ -282,10 +296,10 @@ describe("the channel audit", () => {
     try {
       await audit(Date.parse("2026-02-24T06:00:00Z"));
       expect(await get<any>("SELECT ok, why FROM official_audit_adds WHERE video_id = ?", [GOOD])).toMatchObject({ ok: 0, why: expect.stringMatching(/it is private now/) });
-      failVideos = true;
+      failVideos = Infinity;
       await audit(Date.parse("2026-02-24T12:00:00Z"));
       expect(await get<any>("SELECT ok, why FROM official_audit_adds WHERE video_id = ?", [GOOD])).toMatchObject({ ok: 0, why: expect.stringMatching(/it is private now/) });
-    } finally { delete it0.privacy; failVideos = false; }
+    } finally { delete it0.privacy; failVideos = 0; }
   });
 
   it("leaves a channel the owner stopped watching out of the findings and their count", async () => {
