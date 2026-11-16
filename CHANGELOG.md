@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 7.0.8 — 2026-11-16
+## 7.0.7 — 2026-11-16
 
 Videos › 2024 recordings of events USI to USM read frame by frame: 358 more matches get a clip that opens on a frame naming the match.
 
