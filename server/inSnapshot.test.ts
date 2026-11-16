@@ -4,6 +4,7 @@
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { createClient } from "@libsql/client";
 import { describe, expect, it } from "vitest";
 import { all, inSnapshot, migrate, openDb, run, setDb } from "./db";
 
@@ -51,10 +52,37 @@ describe("inSnapshot", () => {
     expect(await inSnapshot(async (read) => count(await read<{ n: number }>("SELECT COUNT(*) n FROM t")))).toBe(3);
   });
 
-  it("is null in memory, its work never run: one connection shared by every read", async () => {
-    const c = openDb(":memory:");
-    setDb(c);
+  it("holds one on any database file, however its client was made", async () => {
+    const url = `file:${join(mkdtempSync(join(tmpdir(), "snapshot-")), "scout.db").replace(/\\/g, "/")}`;
+    const made = openDb(url);
+    setDb(made);
+    await migrate(made); // write-ahead logging, as the server's database is
+    await run("CREATE TABLE t (id INTEGER PRIMARY KEY)");
+    setDb(createClient({ url }));
+    const seen = await inSnapshot(async (read) => {
+      const before = (await read("SELECT id FROM t")).length;
+      await run("INSERT INTO t (id) VALUES (1)");
+      return [before, (await read("SELECT id FROM t")).length];
+    });
+    expect(seen).toEqual([0, 0]);
+  });
+
+  it("is null on a file without write-ahead logging, where a held read would lock out every writer", async () => {
+    const url = `file:${join(mkdtempSync(join(tmpdir(), "snapshot-")), "scout.db").replace(/\\/g, "/")}`;
+    setDb(createClient({ url }));
+    await run("CREATE TABLE t (id INTEGER PRIMARY KEY)");
     let ran = false;
+    expect(await inSnapshot(async () => { ran = true; })).toBeNull();
+    expect(ran).toBe(false);
+  });
+
+  it("is null in memory, its work never run: one connection shared by every read", async () => {
+    let ran = false;
+    for (const url of [":memory:", "file::memory:"]) {
+      setDb(createClient({ url }));
+      expect(await inSnapshot(async () => { ran = true; }), url).toBeNull();
+    }
+    setDb(openDb(":memory:"));
     expect(await inSnapshot(async () => { ran = true; })).toBeNull();
     expect(ran).toBe(false);
   });
