@@ -10,6 +10,7 @@ import { publishAccountChanged, publishRevoked } from "../scout/bus.js";
 import { formerWorkspaces, markOrphaned, mirroredStates, restoreWorkspace } from "../scout/orphans.js";
 import { recordAudit } from "../portal/audit.js";
 import { env } from "../env.js";
+import { syncAvatarFrom } from "./avatars.js";
 import type { OrphanReason, OrphanState } from "../../src/shared/orphaned.js";
 import type { User } from "./session.js";
 import type { BrunoOutput, FactPacket } from "../powerRankings/factCheck.js";
@@ -24,6 +25,9 @@ export interface SharedAccount {
   controlPoint: { member: boolean; teams: { teamNumber: number | null; name: string }[]; shortlist?: number[] };
   /** The account's Control Point workspaces. Sent by newer Control Point deploys only: missing means none. */
   workspaces?: unknown;
+  /** The account's profile picture: an opaque id, new with every picture, or null for none. Sent by newer Control
+   *  Point deploys only: missing means unknown (never "removed"). Read through accountAvatar. */
+  avatar?: unknown;
 }
 
 /** A Control Point workspace the account belongs to. `id` is opaque and stable across renames; `name` can change. */
@@ -166,6 +170,8 @@ export async function brunoSearchAnswerStream(question: string, facts: string[],
 
 /** When each account answer was asked for: an answer asked before Scout dropped a membership can't restore it (withoutDropped). */
 const askedAtOf = new WeakMap<object, number>();
+/** When this account answer was asked for (0 when unknown): a picture changed here after that isn't undone by it. */
+export const accountAskedAt = (a: object): number => askedAtOf.get(a) ?? 0;
 const stamped = <T extends object>(a: T, asked: number): T => { askedAtOf.set(a, asked); return a; };
 
 export async function resolveAccount(email: string, verifiedBy: "scout-email-code" | "google", displayName?: string | null): Promise<SharedAccount> {
@@ -186,6 +192,63 @@ export async function getAccount(id: number): Promise<SharedAccount | null> {
   const asked = Date.now();
   try { const a = (await internal<{ account: SharedAccount }>(`/internal/accounts/${id}`)).account; return a && typeof a === "object" ? stamped(a, asked) : a; }
   catch (e) { if ((e as { status?: number }).status === 404) return null; throw e; }
+}
+
+// --- Profile pictures (server/auth/avatars.ts, docs/shared-accounts.md "Profile pictures") --------------------------
+
+/** A picture id as Scout accepts it: opaque and short. */
+const isAvatarId = (v: unknown): v is string => typeof v === "string" && /^[A-Za-z0-9_-]{1,64}$/.test(v);
+
+/**
+ * The account's picture as Control Point reported it: `{ id }`, null for none, or undefined when the answer doesn't
+ * say (an older Control Point, or a malformed field). Undefined must never be read as "removed".
+ */
+export function accountAvatar(a: SharedAccount): { id: string } | null | undefined {
+  if (!("avatar" in a)) return undefined;
+  if (a.avatar === null) return null;
+  const id = (a.avatar as { id?: unknown } | undefined)?.id;
+  return isAvatarId(id) ? { id } : undefined;
+}
+
+/** The pictures Control Point may send (its file types that browsers show). */
+const AVATAR_TYPES = new Set(["image/png", "image/jpeg", "image/webp", "image/gif"]);
+/** The largest picture Scout takes from Control Point (its own upload limit). */
+export const CP_AVATAR_MAX = 2 * 1024 * 1024;
+
+/** Control Point's GET /internal/accounts/:id/avatar: the picture's bytes, or null when the account has none. */
+export async function fetchAccountAvatar(accountId: number, timeoutMs = 5000): Promise<{ id: string; mime: string; data: Uint8Array } | null> {
+  const res = await fetch(`${env.controlPointInternalUrl!.replace(/\/$/, "")}/internal/accounts/${accountId}/avatar`, {
+    headers: { "X-Internal-Key": env.controlPointInternalKey! },
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  if (res.status === 404) { await res.body?.cancel().catch(() => {}); return null; }
+  if (!res.ok) { await res.body?.cancel().catch(() => {}); throw Object.assign(new Error(`Control Point answered ${res.status}`), { status: res.status }); }
+  const mime = (res.headers.get("content-type") ?? "").split(";")[0].trim().toLowerCase();
+  const id = res.headers.get("x-avatar-id");
+  const len = Number(res.headers.get("content-length"));
+  if (!AVATAR_TYPES.has(mime) || !isAvatarId(id) || len > CP_AVATAR_MAX) { await res.body?.cancel().catch(() => {}); throw new Error("Control Point sent an unexpected picture"); }
+  const data = new Uint8Array(await res.arrayBuffer());
+  if (!data.length || data.length > CP_AVATAR_MAX) throw new Error("Control Point sent an unexpected picture");
+  return { id, mime, data };
+}
+
+/** Control Point's PUT /internal/accounts/:id/avatar: make this the account's picture. Answers its new id. */
+export async function pushAccountAvatar(accountId: number, mime: string, data: Uint8Array, timeoutMs = 5000): Promise<string> {
+  const res = await fetch(`${env.controlPointInternalUrl!.replace(/\/$/, "")}/internal/accounts/${accountId}/avatar`, {
+    method: "PUT",
+    headers: { "X-Internal-Key": env.controlPointInternalKey!, "Content-Type": mime },
+    body: data,
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  const out = await res.json().catch(() => null) as { avatar?: { id?: unknown }; error?: string } | null;
+  if (!res.ok) throw Object.assign(new Error(out?.error ?? `Control Point answered ${res.status}`), { status: res.status });
+  if (!isAvatarId(out?.avatar?.id)) throw new Error("Control Point sent an unexpected picture");
+  return out!.avatar!.id as string;
+}
+
+/** Control Point's DELETE /internal/accounts/:id/avatar: the account has no picture any more. */
+export async function deleteAccountAvatar(accountId: number): Promise<void> {
+  await internal<{ ok: true }>(`/internal/accounts/${accountId}/avatar`, { method: "DELETE" }, 5000);
 }
 
 /** The shared account id this Scout user is linked to, if any. */
@@ -338,6 +401,7 @@ export async function rememberInfo(account: SharedAccount): Promise<void> {
     }
   }
   await storeMemberships(account.id, workspaces, account);
+  await syncAvatarFrom(account);
 }
 /** Tests: forget everything (a cold cache). */
 export const clearInfoCache = () => { infoCache.clear(); lastForced.clear(); dropped.clear(); deferred.clear(); answeredAt.clear(); workspaceChecks.clear(); };

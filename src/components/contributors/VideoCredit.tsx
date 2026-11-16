@@ -15,8 +15,9 @@ import { useOpenSignIn } from "../layout/AccountMenu";
 import { announceVideosChanged, editVideo, likeVideo, removeVideo, reportVideo } from "../../lib/contributors";
 import { TEXT_MAX, VIDEO_REPORT_REASONS, VIDEO_REPORT_REASON_LABEL, type VideoReportReason } from "../../shared/contributors";
 import { cn } from "../cn";
+import { UserAvatar } from "../UserAvatar";
 
-export interface CreditInfo { id: number; name: string; verified: boolean; profile: string | null; likes: number; liked: boolean; mine: boolean; tier?: "public" | "team" | "self" }
+export interface CreditInfo { id: number; name: string; verified: boolean; profile: string | null; avatar?: string | null; likes: number; liked: boolean; mine: boolean; tier?: "public" | "team" | "self" }
 
 export function VerifiedMark({ className }: { className?: string }) {
   return <BadgeCheck className={cn("inline size-4 shrink-0 text-accent-text", className)} role="img" aria-label="Verified contributor" data-verified-badge />;
@@ -47,6 +48,7 @@ export function VideoCredit({ c, size = "md", className }: { c: CreditInfo; size
     : <span className="font-medium text-text-base">{c.name}</span>;
   return (
     <div className={cn("flex min-w-0 items-center gap-1", text, className)} data-video-credit>
+      <UserAvatar url={c.avatar} name={c.name} className={size === "sm" ? "mr-0.5 size-5 text-[10px]" : "mr-1 size-6 text-xs"} />
       <span className="min-w-0 truncate text-text-muted">Video by {name}</span>
       {c.verified && <VerifiedMark className={size === "sm" ? "size-3.5" : undefined} />}
       <span className="ml-auto flex shrink-0 items-center">
