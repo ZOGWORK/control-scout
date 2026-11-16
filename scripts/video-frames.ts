@@ -408,17 +408,21 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
     return null;
   }
 
-  // The first and last match, then the middle of any stretch whose ends disagree.
-  async function span(i: number, j: number): Promise<void> {
-    let a = await anchor(i), b = await anchor(j);
-    // A match that can't be read: its neighbour inward stands in.
-    while (a == null && i < j && !blind() && reads() < budget) a = await anchor(++i);
-    while (b == null && j > i && !blind() && reads() < budget) b = await anchor(--j);
-    if (a == null || b == null) return;
-    if (Math.abs((a - ms[i].epoch) - (b - ms[j].epoch)) <= SAME_S || j - i <= 1) return;
-    const mid = (i + j) >> 1;
-    await span(i, mid);
-    await span(mid, j);
+  // The first and last match, then the middle of any stretch whose ends disagree: each stretch's left half before its
+  // right, kept on a list of stretches still to read (no function calling itself).
+  async function span(first: number, last: number): Promise<void> {
+    const todo: [number, number][] = [[first, last]];
+    while (todo.length) {
+      let [i, j] = todo.pop()!;
+      let a = await anchor(i), b = await anchor(j);
+      // A match that can't be read: its neighbour inward stands in.
+      while (a == null && i < j && !blind() && reads() < budget) a = await anchor(++i);
+      while (b == null && j > i && !blind() && reads() < budget) b = await anchor(--j);
+      if (a == null || b == null) continue;
+      if (Math.abs((a - ms[i].epoch) - (b - ms[j].epoch)) <= SAME_S || j - i <= 1) continue;
+      const mid = (i + j) >> 1;
+      todo.push([mid, j], [i, mid]);
+    }
   }
   await span(0, ms.length - 1);
   // The matches before the first read, each from the nearest read's distance now (the clock alone may put them before
