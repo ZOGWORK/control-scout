@@ -15,20 +15,29 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.9.2 — 2026-11-16
+## 6.9.3 — 2026-11-16
 
-Event videos › 149 more event recordings play, each checked against its event, day and division from the video itself.
+Home › the search suggestions show the whole FTC world, plus your own team.
 
 ### Highlights
-- [history] 149 more event recordings play, each checked from the video
-- [fixes] A meet whose stream was deleted and uploaded again plays the new upload
-- [fixes] FRC streams, meetings and simulators stay off FTC event pages
+- [home] Search suggestions cover teams and events around the world
+- [teams] With My team set, two suggestions are about your team
+- [fixes] No suggestion is about one fixed team or one state any more
 
-### Event videos
-- The owner's review queue (69) and the channel audit's 323 findings are decided by checking each video: title, description, broadcast date against the event's days, length, and frames where those leave it open. 149 linked, 69 rejected (not FTC), 174 set aside with a specific reason. (`server/data/videoDecisions.ts`, `server/videos/videoDecisions.ts`) (#1602)
-- The channel audit adds an upload that passes every check of the watcher's, as the watcher would, and checks it like the watcher's own adds. (`server/videos/officialAudit.ts`, migration 93)
-- A day's video YouTube no longer plays holds no day: a new broadcast of it is added and the dead one comes off. (`server/videos/officialWatch.ts`)
-- A title date like 12.17.23 is read as December 17, never as month 17. (`server/videos/officialMatch.ts`)
+### Changed
+- Home: the search suggestion chips name no fixed team and lean on no one region. They are leaderboards, winners, counts, high scores and filtered lists from around the world ("Who won DECODE", "Best in Romania by auto", "Top teams in Brazil", "How many teams in Canada"), and an hour's six never name one place twice. With My team set, two of the six are about that team, shown by number and name ("4215 Hypnotic Robotics record") and run by number, so they always find it. The chips' rows stay in place while the team's name loads, so nothing moves. The search box's example list is world-general too. (`src/shared/homeSuggestions.ts`, `src/components/home/HeroSearch.tsx`, `src/components/search/discover.tsx`) (#1599)
+
+## 6.9.2 — 2026-11-16
+
+Search › "best team in the us" ranks the United States, not the whole world.
+
+### Highlights
+- [fixes] "Best team in the US" shows the US teams, not the world's
+- [rankings] It opens the same USA board and USA rankings as "best team in USA"
+- [fixes] "Tell us" and "for us" are still read as plain words, never a country
+
+### Fixed
+- Search: a country's two-letter name said with "the" before it ("best team in the us rn", "the u.s.") is the country, so the answer is the country's board and its rankings link, the same as "best team in usa". "Us" on its own ("tell us the best team", "best team for us") is still a plain word. (`src/shared/query/names.ts`, `src/shared/query/parse.ts`) (#1601)
 
 ## 6.9.1 — 2026-11-16
 

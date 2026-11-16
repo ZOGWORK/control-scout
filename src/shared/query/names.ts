@@ -218,7 +218,11 @@ export function buildNames(teams: NameRow[], places: { city: string | null; stat
       // A country as the data stores it ("Romania", "USA") or by another of its names ("Turkey", "UK").
       // Or by its people's word ("Romanian teams").
       const people = countryOfDemonym(f);
-      const said = countryOf(w);
+      // A country's two-letter name is never read alone ("us" is a pronoun: "tell us"), but said with "the" before it
+      // ("the us", "the u.s.") it is the country, since a pronoun never takes "the". Longer names read without it.
+      const short = f.startsWith("the ") ? f.slice(4) : "";
+      const the = short && short.replace(/ /g, "").length < 3 ? countryOf(short) : null;
+      const said = countryOf(w) ?? the;
       const stored = countries.get(f) ?? storedCountries.find(({ c }) => c === said || (!!people && c === people))?.label;
       if (stored && f.length >= 3) return { kind: "country", country: stored, state: null, city: null, name: countryOf(stored)?.name ?? stored };
       const t = townOf(f);
