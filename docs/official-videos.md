@@ -290,7 +290,8 @@ channel's whole uploads list, video by video, with Scout's records. It reads onl
   since decides what it can. One in review that the rules now set aside leaves the queue (`official_watch` ignored or
   duplicate, `decided_by` "channel audit", its why starting "set aside by the channel audit"); one in review or set
   aside that now passes every check is added. Whatever still needs a judgement stays in review. A title that isn't a
-  competition's decides it without facts being read.
+  competition's decides it without facts being read. Two videos that pass every check for one event's day and part in
+  the same audit (a live broadcast and its upload, an early stream beside the main one) are both left in review.
 - **The watcher's own adds**, checked every run (`official_audit_adds`). Each is checked for these:
   - it's still on its event, public, embeddable, and blocked in fewer than 50 countries;
   - its title is an FTC competition stream's;
@@ -318,8 +319,8 @@ applied by `server/videos/videoDecisions.ts` once a process after the checked li
 question is whether the watcher could have decided it from the same evidence; if so, the rule is taught instead, and
 the entry is left out. Each entry says what the rules say on their own (`rulesSay`): the cases left need the video
 itself (frames: an overlay naming the event, an FRC field, one field of two), its description (the date of an
-undated upload), or which Scout event a title means when the names differ. Of the 395 videos decided on 2026-11-16,
-the rules decide 203 the same way and 192 are entries.
+undated upload), or which Scout event a title means when the names differ. The file is empty until those judgement
+cases are added.
 Each entry is one video: **link** (to an event, its venue-local day, and a part only when the video's own title names
 one), **reject** (not FTC: FRC, FLL, FGC, a simulator, a meeting, a webinar, with which) or **set aside** (FTC, but not
 a day's recording Scout can play: a clip, unplayable here, a second copy of a day that already plays, two events or
