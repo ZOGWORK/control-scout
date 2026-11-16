@@ -107,6 +107,14 @@ describe("the frame reader", () => {
     expect(dataRows("no marker")).toEqual([]);
   });
 
+  it("writes an early start only where both starts were read off the video, never one filled from the clock", () => {
+    // Q1 and Q3 read and agree; Q2 is filled between them (medium) only 100 s after Q1: both go to review, but nothing
+    // says the video showed Q2 starting while Q1 was on.
+    const ms: M[] = [{ label: "Q1", epoch: 0 }, { label: "Q2", epoch: 100 }, { label: "Q3", epoch: 400 }];
+    const j = judge(ms, new Map([[0, 10], [2, 410]]), null, 10_000);
+    expect(j.review.has("Q2")).toBe(true);
+    expect(j.earlyStart.has("Q2")).toBe(false);
+  });
   it("places a lone confirmed read where the frames show it, unless it's far from where the rest of the video sits", () => {
     const ms: M[] = Array.from({ length: 4 }, (_, i) => ({ label: `M${i + 1}`, epoch: i * 500 }));
     // M1 and M4 disagree by 5 min (the stream lost time between them): each is in the video where its frames say.
