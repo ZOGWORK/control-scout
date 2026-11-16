@@ -31,8 +31,8 @@ beforeAll(async () => {
     await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (?, ?, ?, 'Qualifier', 'Town', 'NJ', 'USA', ?, ?, 't')", [S, `Q${d}`, `Qualifier ${d}`, `2026-01-0${d}`, `2026-01-0${d}`]);
   // Every New Jersey team wins once on day 1.
   for (let i = 0; i < 600; i++) await play(1000 + i * 2, true, 1);
-  // 2190 (the last read): three more wins, then a loss, then a win. 1010 (the first): one more win. A Texas team wins
-  // five times: never on New Jersey's board.
+  // 2190 (the last read): three more wins, then a loss, its last match. 1010 (the first): one more win. A Texas team
+  // wins five times: never on New Jersey's board.
   for (const [d, won] of [[2, true], [3, true], [4, true], [5, false]] as const) await play(2190, won, d);
   await play(1010, true, 2);
   for (let d = 1; d <= 5; d++) await play(1001, true, d);
