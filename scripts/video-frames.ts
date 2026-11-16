@@ -145,9 +145,16 @@ async function timer(page: Page): Promise<{ where: "bottom" | "top"; left: numbe
 
 const now = (page: Page) => page.evaluate(() => document.querySelector("video")!.currentTime);
 
-async function seek(page: Page, t: number) {
-  await page.evaluate((t) => new Promise((r) => { const v = document.querySelector("video")!; v.addEventListener("seeked", r, { once: true }); v.currentTime = t; setTimeout(r, 15000); }), t);
-  await page.waitForFunction(() => document.querySelector("video")!.readyState >= 3, null, { timeout: 20000 }).catch(() => {});
+/** Go to second t. Playing (a timer read needs the clock running), the frame read is about a second on by the time
+ *  it's taken (LTCMP 2024 Q20: asked 8948, read 8948.9, the overlay already in). `still`: paused at t, so the frame
+ *  read is t's own (a clip opening's check: the second the clip opens at is the frame read). */
+async function seek(page: Page, t: number, still = false) {
+  await page.evaluate(([t, still]) => new Promise((r) => {
+    const v = document.querySelector("video")!;
+    if (still) v.pause(); else void v.play().catch(() => {});
+    v.addEventListener("seeked", r, { once: true }); v.currentTime = t as number; setTimeout(r, 15000);
+  }), [t, still] as const);
+  await page.waitForFunction((still) => document.querySelector("video")!.readyState >= (still ? 2 : 3), still, { timeout: 20000 }).catch(() => {});
   await page.waitForTimeout(900);
 }
 
@@ -174,7 +181,7 @@ function readAt(page: Page, t: number, labelOnly = false): Promise<Read> {
 /** labelOnly: the overlay's match alone, not its timer (a clip opening's check). */
 async function readAtOnce(page: Page, t: number, labelOnly = false): Promise<Read> {
   if (ocrBroken) throw new Error(ocrBroken);
-  await seek(page, Math.max(0, t));
+  await seek(page, Math.max(0, t), labelOnly);
   const at = await now(page);
   const text = (await worker.recognize(await page.screenshot())).data.text as string;
   const ctx = divisions.get(page);
