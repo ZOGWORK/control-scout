@@ -9,6 +9,7 @@
 //   self    otherwise: the contributor alone
 // The credit is the contributor's actual name (users.display_name) as it is now; a link whose contributor has no name
 // isn't served until they set one. The username never leaves the server with a link (only their profile's address).
+import { avatarUrlOf } from "../auth/avatars.js";
 import type { InStatement } from "@libsql/client";
 import { all, db, get, run } from "../db.js";
 import { membershipOf, teamNumbersOf } from "./membership.js";
@@ -49,14 +50,16 @@ interface Row {
   id: number; season: number; code: string; level: string; series: number; number: number; video_id: string; t: number;
   team_number: number | null; team_only: number; self_only: number; over_first: number; preferred_at: string | null;
   contributor_user_id: number; display_name: string | null; username: string | null; vstatus: string | null; likes: number; liked: number; created_at: string;
+  avatar_version: string | null;
 }
 
 const SELECT = `SELECT cv.id, cv.season, cv.code, cv.level, cv.series, cv.number, cv.video_id, cv.t, cv.team_number, cv.team_only, cv.self_only,
-    cv.over_first, cv.preferred_at, cv.contributor_user_id, cv.created_at, u.display_name, u.username, vc.status vstatus,
+    cv.over_first, cv.preferred_at, cv.contributor_user_id, cv.created_at, u.display_name, u.username, vc.status vstatus, ua.version avatar_version,
     (SELECT COUNT(*) FROM contributor_video_likes l WHERE l.video_id = cv.id) likes,
     EXISTS (SELECT 1 FROM contributor_video_likes l WHERE l.video_id = cv.id AND l.user_id = ?) liked
   FROM contributor_videos cv JOIN users u ON u.id = cv.contributor_user_id
   LEFT JOIN video_contributors vc ON vc.user_id = cv.contributor_user_id
+  LEFT JOIN user_avatars ua ON ua.user_id = cv.contributor_user_id AND ua.data IS NOT NULL
   WHERE cv.status = 'live' AND TRIM(COALESCE(u.display_name, '')) <> ''`;
 
 /** The link's tier now. */
@@ -81,6 +84,7 @@ function toVideo(r: Row, v: Viewer): ContributorVideo & { overFirst: boolean } {
   return {
     id: Number(r.id), videoId: String(r.video_id), t: Number(r.t) || 0, tier, team: r.team_number == null ? null : Number(r.team_number),
     name: String(r.display_name).trim(), verified: tier === "public", profile: r.username ? `/contributors/${encodeURIComponent(r.username)}` : null,
+    avatar: avatarUrlOf(Number(r.contributor_user_id), r.avatar_version),
     likes: Number(r.likes) || 0, liked: !!Number(r.liked), mine: v.userId != null && v.userId === Number(r.contributor_user_id), overFirst: !!Number(r.over_first),
   };
 }
@@ -326,7 +330,9 @@ export async function reportVideo(user: User, id: number, reason: unknown, note:
 // --- The contributor's profile --------------------------------------------------------------------------------
 
 export async function contributorProfile(username: string, viewerUser: User | null): Promise<ContributorProfile | null> {
-  const u = await get<any>("SELECT id, display_name, username FROM users WHERE lower(username) = lower(?)", [username]);
+  const u = await get<any>(
+    `SELECT u.id, u.display_name, u.username, a.version avatar_version FROM users u
+       LEFT JOIN user_avatars a ON a.user_id = u.id AND a.data IS NOT NULL WHERE lower(u.username) = lower(?)`, [username]);
   if (!u || !String(u.display_name ?? "").trim()) return null;
   const v = await viewerOf(viewerUser);
   const [row, teams] = await Promise.all([contributorRow(Number(u.id)), membershipOf(Number(u.id))]);
@@ -342,7 +348,7 @@ export async function contributorProfile(username: string, viewerUser: User | nu
   }));
   const verified = row?.status === "verified";
   return {
-    name: String(u.display_name).trim(), username: String(u.username), verified,
+    name: String(u.display_name).trim(), username: String(u.username), verified, avatar: avatarUrlOf(Number(u.id), u.avatar_version),
     status: verified ? "verified" : videos.some((x) => x.tier === "team") ? "team" : "none",
     teams: teams.map((t) => ({ number: t.number, name: t.name })), videos, likes: videos.reduce((s, x) => s + x.likes, 0),
     pending: viewerUser?.id === Number(u.id) && row?.status === "pending",

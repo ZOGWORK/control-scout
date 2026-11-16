@@ -16,7 +16,7 @@ import { announceVideosChanged, editVideo, likeVideo, removeVideo, reportVideo }
 import { TEXT_MAX, VIDEO_REPORT_REASONS, VIDEO_REPORT_REASON_LABEL, type VideoReportReason } from "../../shared/contributors";
 import { cn } from "../cn";
 
-export interface CreditInfo { id: number; name: string; verified: boolean; profile: string | null; likes: number; liked: boolean; mine: boolean; tier?: "public" | "team" | "self" }
+export interface CreditInfo { id: number; name: string; verified: boolean; profile: string | null; avatar?: string | null; likes: number; liked: boolean; mine: boolean; tier?: "public" | "team" | "self" }
 
 export function VerifiedMark({ className }: { className?: string }) {
   return <BadgeCheck className={cn("inline size-4 shrink-0 text-accent-text", className)} role="img" aria-label="Verified contributor" data-verified-badge />;
