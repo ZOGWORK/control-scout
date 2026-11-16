@@ -19,12 +19,15 @@ beforeAll(async () => {
   await run(ev, [2026, "USMOBATTLE", "Battle Meet @ 10 AM", "2026-11-14", "2026-11-14"]);
   await run(ev, [2026, "USMOPIPER", "Piper Meet @ 8 AM", "2026-11-14", "2026-11-14"]);
   await run(ev, [2026, "USMOROLLA", "Rolla Meet @ 10 AM", "2026-11-14", "2026-11-14"]);
+  await run(ev, [2026, "USMOUNTIMED", "Untimed Meet", "2026-11-14", "2026-11-14"]);
   const ov = "INSERT INTO official_videos (video_id, season, code, kind, day, part, channel_id, title, source, why, added_at) VALUES (?, 2026, ?, 'recording', '2026-11-14', NULL, ?, 'x', 'list', 'x', '2026-11-14T00:00:00Z')";
   // Battle's listed stream is gone from YouTube; Piper's plays.
   await run(ov, ["deadstream1", "USMOBATTLE", CH]);
   await run(ov, ["piperstream", "USMOPIPER", CH]);
   await run("INSERT INTO video_meta (video_id, status, checked_at) VALUES ('deadstream1', 'unavailable', 'x')");
   await run("INSERT INTO video_meta (video_id, status, start, checked_at) VALUES ('piperstream', 'ok', '2026-11-14T14:00:00Z', 'x')");
+  // A recording of Untimed Meet whose day isn't read yet (no listed day, no timing).
+  await run("INSERT INTO official_videos (video_id, season, code, kind, day, part, channel_id, title, source, why, added_at) VALUES ('untimedvid1', 2026, 'USMOUNTIMED', 'recording', NULL, NULL, ?, 'x', 'list', 'x', 'x')", [CH]);
   // In the owner's review queue.
   const q = "INSERT INTO official_watch (video_id, channel_id, title, status, why, seen_at) VALUES (?, ?, ?, 'pending', ?, '2026-11-15T00:00:00Z')";
   await run(q, ["battlereupl", CH, "FTC STL North League Meet at Battle High School", "an upload, not a live broadcast"]);
@@ -100,6 +103,14 @@ describe("decisions from evidence", () => {
     expect(await watch("ownerdismis")).toBeUndefined();
     expect(await get("SELECT 1 FROM official_videos WHERE video_id = 'ownerdismis'")).toBeUndefined();
     expect(await finding("ownerdismis")).toMatchObject({ finding: "dismissed", finding_by: "owner@example.test" });
+  });
+
+  it("waits while the event plays a video whose day isn't known yet", async () => {
+    await run("INSERT INTO official_watch (video_id, channel_id, title, status, why, seen_at) VALUES ('untimedcopy', ?, 'Untimed Meet stream', 'pending', 'an upload', 'x')", [CH]);
+    const out = await apply([link("untimedcopy", "USMOUNTIMED")]);
+    expect(out).toMatchObject({ applied: 0, linked: 0 });
+    expect(await watch("untimedcopy")).toMatchObject({ status: "pending" });
+    expect(await get("SELECT 1 FROM official_videos WHERE video_id = 'untimedcopy'")).toBeUndefined();
   });
 
   it("applies once a process: a second pass does nothing", async () => {
