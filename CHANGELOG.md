@@ -25,7 +25,7 @@ Event videos › 149 more event recordings play, each checked against its event,
 - [fixes] Videos that aren't FTC (FRC off-season events, meetings, simulators) stay off event pages
 
 ### Event videos
-- The owner's review queue (69) and the channel audit's 323 findings are decided by checking each video: title, description, broadcast date against the event's days, length, and frames where those leave it open. 149 linked, 69 rejected (not FTC), 174 set aside with a specific reason. (`server/data/videoDecisions.ts`, `server/videos/videoDecisions.ts`)
+- The owner's review queue (69) and the channel audit's 323 findings are decided by checking each video: title, description, broadcast date against the event's days, length, and frames where those leave it open. 149 linked, 69 rejected (not FTC), 174 set aside with a specific reason. (`server/data/videoDecisions.ts`, `server/videos/videoDecisions.ts`) (#1602)
 - The channel audit adds an upload that passes every check of the watcher's, as the watcher would, and checks it like the watcher's own adds. (`server/videos/officialAudit.ts`, migration 92)
 - A day's video YouTube no longer plays holds no day: a new broadcast of it is added and the dead one comes off. (`server/videos/officialWatch.ts`)
 - A title date like 12.17.23 is read as December 17, never as month 17. (`server/videos/officialMatch.ts`)
