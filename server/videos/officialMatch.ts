@@ -134,14 +134,18 @@ export function matchVideo(v: WatchVideo, rule: ChannelRule, events: WatchEvent[
   const dw = /\bday (one|two|three|four)\b/i.exec(v.title)?.[1]?.toLowerCase();
   const titleDay = dn ? Number(dn) : dw ? ({ one: 1, two: 2, three: 3, four: 4 } as Record<string, number>)[dw] : null;
   const wd = /\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/i.exec(v.title)?.[1]?.toLowerCase() ?? null;
-  // A date in the title, year included: 2026-01-17 · 1/17/2026 · 1/17/26 · 17.01.26 or 26.01.17 (either reading may fit).
+  // A date in the title, year included: 2026-01-17 · 1/17/2026 · 1/17/26 · 17.01.26, 01.17.26 or 26.01.17 (any reading may fit).
   const dm = /(\d{4})[.\-/](\d{1,2})[.\-/](\d{1,2})|\b(\d{1,2})\/(\d{1,2})\/(\d{2,4})\b|\b(\d{2})\.(\d{2})\.(\d{2})\b/.exec(v.title);
   const yr = (y: string) => (y.length === 2 ? 2000 + Number(y) : Number(y));
-  const iso = (y: number, m: number, d: number) => `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-  const titleDates = !dm ? null
+  // A reading that isn't a real date is no reading: "12.17.23" is only December 17 (month.day.year).
+  const iso = (y: number, m: number, d: number) => m >= 1 && m <= 12 && d >= 1 && d <= new Date(Date.UTC(y, m, 0)).getUTCDate()
+    ? `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}` : null;
+  const readings = !dm ? []
     : dm[1] ? [iso(Number(dm[1]), Number(dm[2]), Number(dm[3]))]
     : dm[4] ? [iso(yr(dm[6]), Number(dm[4]), Number(dm[5]))]
-    : [iso(yr(dm[9]), Number(dm[8]), Number(dm[7])), iso(yr(dm[7]), Number(dm[8]), Number(dm[9]))];
+    : [iso(yr(dm[9]), Number(dm[8]), Number(dm[7])), iso(yr(dm[9]), Number(dm[7]), Number(dm[8])), iso(yr(dm[7]), Number(dm[8]), Number(dm[9]))];
+  const dates = readings.filter((r): r is string => r != null);
+  const titleDates = dates.length ? dates : null;
   const idHit = (() => { if (!rule.titlePattern) return false; try { return new RegExp(rule.titlePattern, "i").test(v.title); } catch { return false; } })();
   /** strong: evidence of its own (a designator, a word of its name or city, its acronym), not only the region's name. */
   type Cand = { e: WatchEvent; d: string; score: number; real: boolean; strong: boolean; /** Its name's distinctive words. */ words: Set<string>; why: string[] };
