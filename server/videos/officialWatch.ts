@@ -94,13 +94,13 @@ async function api(path: string, params: Record<string, string>, key: string, fe
 /** The events on any day from lo to hi (YYYY-MM-DD). */
 export async function eventsBetween(lo: string, hi: string): Promise<WatchEvent[]> {
   const rows = await all<any>(
-    `SELECT e.season, e.code, e.name, e.type, e.city, e.state, e.country, e.start, e.end, e.timezone, e.division_code,
+    `SELECT e.season, e.code, e.name, e.type, e.city, e.state, e.country, e.start, e.end, e.timezone, e.division_code, e.remote,
             EXISTS (SELECT 1 FROM events c WHERE c.season = e.season AND c.division_code = e.code AND c.code != e.code) AS parent
      FROM events e WHERE e.start IS NOT NULL AND e.start <= ? AND COALESCE(e.end, e.start) >= ?`, [hi, lo]);
   return rows.map((r) => ({
     season: Number(r.season), code: String(r.code), name: String(r.name ?? ""), type: String(r.type ?? ""), city: r.city ?? null, state: r.state ?? null,
     country: r.country ?? null, start: String(r.start).slice(0, 10), end: r.end ? String(r.end).slice(0, 10) : null, timezone: r.timezone ?? null,
-    divisionCode: r.division_code ?? null, parent: !!Number(r.parent),
+    divisionCode: r.division_code ?? null, parent: !!Number(r.parent), remote: !!Number(r.remote),
   }));
 }
 
