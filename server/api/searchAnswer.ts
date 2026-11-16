@@ -140,12 +140,14 @@ export async function withoutAside(q: string, opts: { now?: number; prefer?: Rea
   return again.leftover.length ? q : rest;
 }
 
+const ONE_LETTER_FORMS = new Set(INFORMAL.map(([from]) => from).filter((f) => f.length === 1));
 /** A stray letter typed at the end ("what is the best team in nj n"): one letter left unread after a question the
  *  parser reads whole without it. The question without it, and the letter, to say it wasn't read. Never "a" or "i"
  *  (words), nor a letter anything reads (a team's name, a short form). */
 export async function withoutStrayLetter(q: string, opts: { now?: number; prefer?: ReadonlySet<string> } = {}): Promise<{ rest: string; letter: string } | null> {
   const m = /^(\S+(?:\s+\S+)+?)\s+([b-hj-z])\s*([?!.]*)\s*$/i.exec(q.trim());
-  if (!m || q.includes('"')) return null;
+  // A one-letter short form ("u" for "you", ./query/lexicon.ts INFORMAL) is read, said in full later: never stray.
+  if (!m || q.includes('"') || ONE_LETTER_FORMS.has(m[2].toLowerCase())) return null;
   const ctx = await parseContext(opts.now, opts.prefer);
   const p = await parseQuery(q, ctx);
   if (p.leftover.length !== 1 || p.leftover[0].toLowerCase() !== m[2].toLowerCase()) return null;

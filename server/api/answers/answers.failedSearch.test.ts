@@ -353,5 +353,7 @@ describe("a stray letter, and \"is\" typed \"si\" (failed-search #1584, #1012)",
       expect(a.stat?.headline, q).toEqual(clean.stat!.headline);
       expect(a.understood?.unread, q).toEqual(["n"]);
     }
+    // "u" is a short form search reads ("you"), never a stray letter said as unread.
+    expect((await full("what is the best team in nj u")).understood?.unread ?? []).not.toContain("u");
   });
 });
