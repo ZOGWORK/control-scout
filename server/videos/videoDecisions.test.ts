@@ -20,6 +20,7 @@ beforeAll(async () => {
   await run(ev, [2026, "USMOPIPER", "Piper Meet @ 8 AM", "2026-11-14", "2026-11-14"]);
   await run(ev, [2026, "USMOROLLA", "Rolla Meet @ 10 AM", "2026-11-14", "2026-11-14"]);
   await run(ev, [2026, "USMOUNTIMED", "Untimed Meet", "2026-11-14", "2026-11-14"]);
+  await run(ev, [2026, "USMORAWD", "Rolla Awards Meet", "2026-11-14", "2026-11-14"]);
   const ov = "INSERT INTO official_videos (video_id, season, code, kind, day, part, channel_id, title, source, why, added_at) VALUES (?, 2026, ?, 'recording', '2026-11-14', NULL, ?, 'x', 'list', 'x', '2026-11-14T00:00:00Z')";
   // Battle's listed stream is gone from YouTube; Piper's plays.
   await run(ov, ["deadstream1", "USMOBATTLE", CH]);
@@ -111,6 +112,16 @@ describe("decisions from evidence", () => {
     expect(out).toMatchObject({ applied: 0, linked: 0 });
     expect(await watch("untimedcopy")).toMatchObject({ status: "pending" });
     expect(await get("SELECT 1 FROM official_videos WHERE video_id = 'untimedcopy'")).toBeUndefined();
+  });
+
+  it("never links a day another recording took since the day was read: the whole day against a named part", async () => {
+    // The owner approved an Awards video for Rolla's day (no data lock), and the decision names the whole day.
+    await run("INSERT INTO official_videos (video_id, season, code, kind, day, part, channel_id, title, source, why, added_at) VALUES ('rollaawards', 2026, 'USMORAWD', 'recording', '2026-11-14', 'Awards', ?, 'x', 'owner', 'x', 'x')", [CH]);
+    await run("INSERT INTO official_watch (video_id, channel_id, title, status, why, seen_at) VALUES ('rollawhole1', ?, 'Rolla meet', 'pending', 'an upload', 'x')", [CH]);
+    const out = await apply([link("rollawhole1", "USMORAWD")]);
+    expect(out).toMatchObject({ applied: 0 });
+    expect(await watch("rollawhole1")).toMatchObject({ status: "pending" });
+    expect(await get("SELECT 1 FROM official_videos WHERE video_id = 'rollawhole1'")).toBeUndefined();
   });
 
   it("applies once a process: a second pass does nothing", async () => {
