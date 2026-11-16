@@ -1,11 +1,18 @@
 // Decisions from evidence (server/data/videoDecisions.ts): each lands the way an owner's decision does, decided_by
 // "evidence" with its reason and evidence line; a link only on a free day of its event (or one held by a video YouTube
 // no longer plays, which it replaces); a video already decided keeps that decision; the audit's finding is settled.
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import { get, migrate, openDb, run, setDb } from "../db";
 import { VIDEO_DECISIONS, type VideoDecision } from "../data/videoDecisions";
 import { applyVideoDecisions, decisionProblem, decisionWhy } from "./videoDecisions";
 import { ownerOfficial } from "./officialWatch";
+import * as officialVideos from "./officialVideos";
+
+// The day's videos as the decisions read them, real unless a test stands in for that one read.
+vi.mock("./officialVideos", async (real) => {
+  const mod = await real<typeof import("./officialVideos")>();
+  return { ...mod, eventVideosByDay: vi.fn(mod.eventVideosByDay) };
+});
 
 const CH = "UCKezDYNRPpAy2_1XRMBWKSw";
 const apply = (list: VideoDecision[]) => applyVideoDecisions(() => {}, list, { again: true, now: Date.parse("2026-11-16T06:00:00Z"), lockWaitMs: 1000 });
@@ -115,10 +122,19 @@ describe("decisions from evidence", () => {
   });
 
   it("never links a day another recording took since the day was read: the whole day against a named part", async () => {
-    // The owner approved an Awards video for Rolla's day (no data lock), and the decision names the whole day.
-    await run("INSERT INTO official_videos (video_id, season, code, kind, day, part, channel_id, title, source, why, added_at) VALUES ('rollaawards', 2026, 'USMORAWD', 'recording', '2026-11-14', 'Awards', ?, 'x', 'owner', 'x', 'x')", [CH]);
+    // The owner approves an Awards video for Rolla's day (no data lock) just after the decision read the day free;
+    // the decision names the whole day. Only the re-read inside the write can see it.
+    const read = vi.mocked(officialVideos.eventVideosByDay);
+    const real = read.getMockImplementation()!;
+    read.mockImplementationOnce(async (season, code) => {
+      const days = await real(season, code);
+      await run("INSERT INTO official_videos (video_id, season, code, kind, day, part, channel_id, title, source, why, added_at) VALUES ('rollaawards', 2026, 'USMORAWD', 'recording', '2026-11-14', 'Awards', ?, 'x', 'owner', 'x', 'x')", [CH]);
+      return days;
+    });
     await run("INSERT INTO official_watch (video_id, channel_id, title, status, why, seen_at) VALUES ('rollawhole1', ?, 'Rolla meet', 'pending', 'an upload', 'x')", [CH]);
     const out = await apply([link("rollawhole1", "USMORAWD")]);
+    // The day was read free: the award video came after it.
+    expect(await read.mock.results.at(-1)!.value).toEqual([]);
     expect(out).toMatchObject({ applied: 0 });
     expect(await watch("rollawhole1")).toMatchObject({ status: "pending" });
     expect(await get("SELECT 1 FROM official_videos WHERE video_id = 'rollawhole1'")).toBeUndefined();
