@@ -52,6 +52,19 @@ describe("a match proven not in the recording, from its first and last frames", 
     expect(outsideRecording({ endsOn: { at: 8600, label: "Q17" } }, "Q18", quals(40))).toMatch(/after the recording ends: it ends on Q17 at 2:23:20/);
     expect(outsideRecording({ endsOn: { at: 8600, label: "Q17" } }, "Q17", quals(40))).toBeNull();
   });
+  it("ignores an edge the rest of the video contradicts: a first frame can show a bracket or yesterday's last card", () => {
+    // USNMCMP 2025: its first frames name M1, yet Q2 and Q6 are read at 2:06 and 2:45 in. USTXSASQ 2025 opens on M7.
+    const order = [...quals(24), "M1", "M2", "M7"];
+    const nm = { opensOn: { at: 20, label: "M1" }, starts: { Q2: 126, Q6: 165 } };
+    expect(outsideRecording(nm, "Q1", order)).toBeNull();
+    expect(outsideRecording(nm, "Q14", order)).toBeNull();
+    expect(outsideRecording({ opensOn: { at: 3, label: "M7" }, starts: {}, review: { Q9: { t: 900, why: "one signal only" } } }, "Q3", order)).toBeNull();
+    // A count the reads contradict (Q3 seen in it, yet 4 counted as played) proves nothing either.
+    expect(outsideRecording({ opensOn: { at: 3, played: 4, of: 23 }, starts: { Q3: 200 } }, "Q2", quals(23))).toBeNull();
+    // An end edge with a later match read before it proves nothing; one with every read before it holds.
+    expect(outsideRecording({ endsOn: { at: 8600, label: "Q17" }, starts: { Q20: 8000 } }, "Q30", quals(40))).toBeNull();
+    expect(outsideRecording({ endsOn: { at: 8600, label: "Q17" }, starts: { Q16: 8300 } }, "Q30", quals(40))).toMatch(/after the recording ends/);
+  });
   it("proves nothing from an opening read further in than its edge, or with no edge read", () => {
     expect(outsideRecording({ opensOn: { at: 720, label: "M1" } }, "Q3", [...quals(14), "M1"])).toBeNull();
     expect(outsideRecording({}, "Q3", quals(14))).toBeNull();
