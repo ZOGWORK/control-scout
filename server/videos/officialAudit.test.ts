@@ -329,6 +329,22 @@ describe("the channel audit", () => {
     } finally { uploads.splice(0, 2); }
   });
 
+  it("adds neither of two videos that fit one event's day at once: which plays is for the owner", async () => {
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, timezone, remote, hybrid, livestream, source) VALUES (2024, 'USTXODQ', 'TX Odessa Qualifier', 'Qualifier', 'Odessa', 'TX', 'USA', '2025-03-15', '2025-03-15', 'America/Chicago', 0, 0, NULL, 'test')");
+    uploads.unshift(
+      { id: "odessaearly", title: "FTC Texas Odessa Qualifier", published: "2025-03-15T17:00:00Z", start: "2025-03-15T15:00:00Z", minutes: 90 },
+      { id: "odessamain1", title: "FTC Texas Odessa Qualifier", published: "2025-03-15T23:00:00Z", start: "2025-03-15T17:00:00Z", minutes: 300 },
+    );
+    try {
+      await run("UPDATE official_audit_channels SET full_at = NULL WHERE channel_id = ?", [TX]);
+      await audit(Date.parse("2026-02-27T06:00:00Z"));
+      for (const id of ["odessaearly", "odessamain1"]) {
+        expect(await get("SELECT 1 FROM official_videos WHERE video_id = ?", [id])).toBeUndefined();
+        expect(await row(id)).toMatchObject({ verdict: "review", why: expect.stringMatching(/2 videos fit USTXODQ's 2025-03-15 at once/) });
+      }
+    } finally { uploads.splice(0, 2); }
+  });
+
   it("sets aside a video the channel has made unlisted since, not a watcher miss", async () => {
     const id = "hiddencopyx";
     uploads.unshift({ id, title: "FTC Texas Houston Qualifier", published: "2026-01-10T23:30:00Z", start: "2026-01-10T15:05:00Z", privacy: "unlisted" });
