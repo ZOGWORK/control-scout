@@ -629,6 +629,19 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     }
     const hasEventWord = toks.slice(from, to + 1).some((t) => EVENT_NAME_WORDS.has(t.w));
     const place = !hasEventWord ? ctx.names.place(words(), typed()) : null;
+    // A town with the event words the lexicon read after it that together name a stored event ("top plays at rolla
+    // meet": the Rolla Meet), read as that event, never as the town's events with "meet" left over.
+    if (place?.kind === "city" && !p.event) {
+      let b = to;
+      while (b + 1 < toks.length && EVENT_NAME_WORDS.has(toks[b + 1].w)) b++;
+      const span = toks.slice(from, b + 1);
+      if (b > to && await ctx.isEvent(span.map((t) => t.w).join(" "))) {
+        p.event = { words: span.map((t) => t.w).join(" "), typed: span.map((t) => t.typed).join(" ") };
+        span.forEach((t) => (t.used = true));
+        if (!toks.some((t) => !span.includes(t) && KIND_WORDS.has(t.w))) symbols.delete("thing:event");
+        continue;
+      }
+    }
     if (place && !p.place) { p.place = { ...place, typed: typed() }; placeFrom = from; toks.slice(from, to + 1).forEach((t) => (t.used = true)); continue; }
     // The region or country a town named is in, said after it ("Cluj-Napoca, Romania", "Oradell, NJ"): the same place.
     if (place && p.place && within(p.place, place)) { toks.slice(from, to + 1).forEach((t) => (t.used = true)); continue; }
