@@ -52,6 +52,15 @@ export async function predictionSeasonOf(teams: number[]): Promise<{ season: num
 
 const ALLIANCE_RULE = "The engine's call for a qualification match between the two alliances named, as Predict makes it for the same lineup: each alliance's expected score (without penalties, margin-calibrated), the win chance and the predicted margin, from each team's prediction rating (points per match ± its uncertainty) as their team pages show it.";
 
+/** The engine, when it is built and has a rated match in `season` to call from (as forecast.ts rangedCall and the match
+ *  page ask): else null, and the answer shows the ratings alone. Its ratings carried over from the last game with none
+ *  played yet, a call would be a made-up score ("53% to win · predicted 0–0"). */
+async function callingEngine(season: number) {
+  const f = readyForecaster(season);
+  const engine = f ? await f : null;
+  return engine?.seasonEvents(season).length ? engine : null;
+}
+
 /** "predict 12345 23456 vs 34567 45678": two alliances of two, the engine's call for that qualification match. */
 export async function allianceForecast(red: AnswerTeam[], blue: AnswerTeam[], season: number, why?: string): Promise<StatAnswer> {
   const S = seasonLabel(season), side = (ts: AnswerTeam[]) => ts.map((t) => t.number).join(" & ");
@@ -65,9 +74,9 @@ export async function allianceForecast(red: AnswerTeam[], blue: AnswerTeam[], se
   const missing = all4.filter((t) => of(t)?.rating_np == null).map(whoOf);
   if (missing.length) return { ...base, blocks: [links], none: `No ${S} prediction rating for ${missing.join(" or ")} yet.` };
   const off = !(await isEnabled("livePredictions").catch(() => false));
-  const f = off ? null : readyForecaster(season);
+  const f = off ? null : await callingEngine(season);
   const nums = (ts: AnswerTeam[]) => ts.map((t) => t.number);
-  const x = f ? (await f).explain(season, nums(red), nums(blue), "qual", undefined, await recentRecords(season, nums(all4))) : null;
+  const x = f ? f.explain(season, nums(red), nums(blue), "qual", undefined, await recentRecords(season, nums(all4))) : null;
   const ratings: StatBlock = { kind: "table", title: "Prediction ratings", columns: [{ key: "team", label: "Team" }, { key: "side", label: "Alliance" }, { key: "rating", label: "Rating", num: true }, { key: "rank", label: "Rank" }],
     rows: all4.map((t) => ({ cells: { team: whoOf(t), side: red.includes(t) ? "Red" : "Blue", rating: `${num1(of(t)!.rating_np)} ±${Math.round(of(t)!.rating_sd ?? 0)}`, rank: of(t)!.rating_rank ? `#${of(t)!.rating_rank}` : "–" }, href: teamHref(t.number, season) })) };
   if (!x) {
@@ -114,8 +123,8 @@ export async function pairPrediction(intent: string, title: string, a: AnswerTea
   if (missing.length) return { ...base, blocks: [links], none: `No ${S} prediction rating for ${missing.join(" or ")} yet.` };
   const rating = (t: AnswerTeam, r: RatingRow, lead: boolean) => ({ label: whoOf(t), value: `${num1(r.rating_np)} ±${Math.round(r.rating_sd ?? 0)}`, sub: r.rating_rank ? `Rating · #${r.rating_rank} worldwide` : "Rating", href: teamHref(t.number, season), ...(lead ? { tone: "accent" as const } : {}) });
   const off = !(await isEnabled("livePredictions").catch(() => false));
-  const f = off ? null : readyForecaster(season);
-  const x = f ? (await f).explain(season, [a.number], [b.number], "qual", undefined, await recentRecords(season, [a.number, b.number])) : null;
+  const f = off ? null : await callingEngine(season);
+  const x = f ? f.explain(season, [a.number], [b.number], "qual", undefined, await recentRecords(season, [a.number, b.number])) : null;
   if (!x) {
     // No call to show: the ratings, said plainly, never a made-up score.
     const gap = Number(ra!.rating_np) - Number(rb!.rating_np), ahead = gap >= 0 ? a : b;
@@ -233,8 +242,7 @@ export async function predictTopAnswer(team: AnswerTeam, season: number, n: numb
   const inTop = own.rating_rank != null && Number(own.rating_rank) <= n;
   const who = (r: { team: number; name: string | null }) => whoOf({ number: Number(r.team), name: r.name });
   const off = !(await isEnabled("livePredictions").catch(() => false));
-  const f = off ? null : readyForecaster(season);
-  const engine = f ? await f : null;
+  const engine = off ? null : await callingEngine(season);
   const recent = engine ? await recentRecords(season, [team.number, ...tops.map((r) => Number(r.team))]) : undefined;
   const calls = engine ? tops.map((r) => ({ r, x: engine.explain(season, [team.number], [Number(r.team)], "qual", undefined, recent) })) : [];
   const ownLine = `${whoOf(team)}: ${num1(own.rating_np)} ±${Math.round(own.rating_sd ?? 0)}${own.rating_rank ? `, #${own.rating_rank} worldwide` : ""}`;
