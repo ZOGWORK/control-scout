@@ -30,6 +30,18 @@ Speed › a slow search no longer makes every other page wait: the server takes 
 - Search: a place's streak board reads that place's teams and their matches, a few hundred teams at a time, instead of every match of two seasons; the same board, 3–8 times faster in a state or a country, its parts all one moment of the data (a read snapshot) whatever is stored meanwhile. (`server/api/query/streakBoard.ts`, `server/db.ts`)
 - Search: a two-team or alliance prediction made before any match of the season is rated shows the teams' ratings and says no match is rated yet, never a called score of 0–0 or "still loading". (`server/api/answers/families/predict.ts`)
 
+## 6.9.2 — 2026-11-16
+
+Search › a match asked at an event name with a word no event has lists the events the other words name.
+
+### Highlights
+- [fixes] "Q16 Chicago Meet 2 Westside" lists the Chicago Meet 2 events
+- [fixes] The word no event has is named, so you know what to change
+- [fixes] Events with the words in order come first, never teams
+
+### Fixed
+- Search: a match's number with an event name no stored event fits whole ("Q16 Chicago Meet 2 Westside", where no event's name has "Westside") lists the events named by the longest run of its words from the start, those with the words in order first, and says which word fit none; never teams that share a word. (`server/api/searchAnswer.ts`) (#1560)
+
 ## 6.8.8 — 2026-11-15
 
 Search › comparing three or four teams shows every team, not just the first two.
