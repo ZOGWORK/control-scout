@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.1.2 — 2026-11-16
+
+Event videos › FIRST's livestream link plays for an event only when YouTube says it was broadcast on that event's dates: USORSOM3 no longer plays Meet 2's stream.
+
+### Highlights
+- [fixes] An event no longer plays another event's livestream from FIRST
+- [history] USORSOM3 and USORRCM2 play their own recordings
+- [fixes] Owner › Official videos lists each FIRST link it doesn't use
+
+### Fixed
+- Event videos: FIRST's livestream link (or the video its short link led to) is an event's video only when YouTube's broadcast date fits the event, a day either side at the venue. One broadcast on another date, another event's stream or a test, isn't played for the event and isn't the event's record in the channel audit; the event plays its kept recording if it has one, and Owner › Official videos lists the link under "FIRST links not used" with why. A link whose broadcast start isn't known yet is kept. On a copy of the live database: 6 of 480 FIRST links (413 with a known start); USORSOM3 now plays "SOAR League FTC Meet 3" and USORRCM2 "Rose City League Meet 2"; one channel audit still leaves 0 in review and 0 open findings. (`server/videos/officialVideos.ts`, `server/videos/recordings.ts`, `server/videos/officialAudit.ts`) (#PR)
+
 ## 7.1.1 — 2026-11-16
 
 Event videos › a team's robot Snapshot is set aside by its title, and a YouTube call that times out during the channel audit is tried again at once, so nothing waits in the owner's review for either.
