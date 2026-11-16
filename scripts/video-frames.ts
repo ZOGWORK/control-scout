@@ -336,6 +336,14 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
     for (const [k, s] of seen) if (Math.abs(k - i) < d) { d = Math.abs(k - i); best = s - ms[k].epoch; }
     return best ?? shift;
   };
+  /** The distances of the nearest reads before and after a match by order (one where they agree), else the broadcast's. */
+  const sides = (i: number): number[] => {
+    const ks = [...seen.keys()];
+    const before = ks.filter((k) => k < i).sort((a, b) => b - a)[0], after = ks.filter((k) => k > i).sort((a, b) => a - b)[0];
+    const ds = [before, after].filter((k): k is number => k != null).map((k) => seen.get(k)! - ms[k].epoch).sort((a, b) => Math.abs(a - near(i)!) - Math.abs(b - near(i)!));
+    if (!ds.length) return shift == null ? [] : [shift];
+    return ds.length === 2 && Math.abs(ds[0] - ds[1]) <= SAME_S ? [ds[0]] : ds;
+  };
   const note = async (r: Read) => {
     const named = r.label ? byName.get(r.label) : undefined;
     if (!named || r.start == null) return;
@@ -375,14 +383,18 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
   async function anchor(i: number): Promise<number | null> {
     if (seen.has(i)) return seen.get(i)!;
     if (blind() || reads() >= budget) return null;
-    for (let k = 0; k < TRIES && reads() < budget; k++) {
-      const est = ms[i].epoch + near(i)!;
-      // Into the match (its timer running), then either side of where it should be.
-      const t = est + [45, 100, -40, 160, -120, 240, -240][k];
-      if (t < 0 || t > length) continue;
-      const r = await readAt(page, t);
-      await note(r);
-      if (seen.has(i)) { missed = 0; return seen.get(i)!; }
+    // Where the reads either side put the video, each in turn: where they disagree (a gap where the video lost time),
+    // the match sits at one of them, and the nearest read alone may be the wrong side (CAONMIQ 2025's M10, at M9's
+    // distance while its tie M11 sits 345 s earlier, was looked for only at M11's).
+    for (const dist of sides(i)) {
+      for (let k = 0; k < TRIES && reads() < budget; k++) {
+        // Into the match (its timer running), then either side of where it should be.
+        const t = ms[i].epoch + dist + [45, 100, -40, 160, -120, 240, -240][k];
+        if (t < 0 || t > length) continue;
+        const r = await readAt(page, t);
+        await note(r);
+        if (seen.has(i)) { missed = 0; return seen.get(i)!; }
+      }
     }
     missed++;
     return null;
