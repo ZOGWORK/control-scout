@@ -88,10 +88,11 @@ exceptions rules 2 and 7 name for the checked list only, and the auto-watcher us
 5. Where the title names a day, the days follow the broadcast dates in order (an event listed with a setup day first
    has its "Day 1" on its second date; that offset must be the same, or keep increasing, across the event's videos).
    Where the title names a weekday or a date, it must be the broadcast's. The one exception: a live broadcast whose
-   title's date is a slip, a day or a month off (NYC FIRST's "Championships 2/3/24" streamed on 3/3, NTX's "Meet #3
-   (2025.01.11)" streamed on 01-18), when the event the title names by its own words or number doesn't run on the
-   title's date at all. The broadcast's date is YouTube's record; the title's is typed. A year off, or an event that
-   also runs on the title's date (a re-stream of its other day), stays for the owner.
+   title's date is a slip, up to 31 days either side of the broadcast (a day, a week or a month off: NYC FIRST's
+   "Championships 2/3/24" streamed on 3/3, NTX's "Meet #3 (2025.01.11)" streamed on 01-18), when the event the title
+   names by its own words or number doesn't run on the title's date at all. The broadcast's date is YouTube's record;
+   the title's is typed. More than 31 days off (a year off, say), an upload, or an event that also runs on the
+   title's date (a re-stream of its other day) stays for the owner.
 6. The title fits exactly one Scout event. Two events that fit equally (two league meets that day, AM and PM halves of
    one meet) mean the video is left out.
 7. The event doesn't already play a video for that day: FIRST's link, a short link's video, a channel's broadcasts, or
