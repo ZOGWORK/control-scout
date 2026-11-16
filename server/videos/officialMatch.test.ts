@@ -29,7 +29,6 @@ describe("the watcher's matcher", () => {
     expect(matchVideo(vid("Mockingbird Qualifier"), TX, events)).toMatchObject({ kind: "review", why: /fits both/ });
     const one = [ev("USTXMOQ", "TX Mockingbird Qualifier")];
     expect(matchVideo(vid("Mockingbird Qualifier", { start: null }), TX, one)).toMatchObject({ kind: "review", why: /upload/ });
-    expect(matchVideo(vid("Mockingbird Qualifier", { durationS: 180 }), TX, one)).toMatchObject({ kind: "review", why: /clip or highlight/ });
     expect(matchVideo(vid("Mockingbird Qualifier", { durationS: null }), TX, one)).toMatchObject({ kind: "review", why: /no length/ });
     expect(matchVideo(vid("Mockingbird Qualifier Day 2"), TX, one)).toMatchObject({ kind: "review", why: /day 2/ });
     expect(matchVideo(vid("Mockingbird Qualifier Day 10"), TX, one)).toMatchObject({ kind: "review", why: /says day 10,/ });
@@ -52,14 +51,16 @@ describe("the watcher's matcher", () => {
     // Two events that both fit go to review, even when one scores higher.
     const two = [ev("USTXMOQ", "TX Mockingbird Qualifier"), ev("USTXMOM3", "TX Mockingbird League Meet 3")];
     expect(matchVideo(vid("Mockingbird League Meet 3"), TX, two)).toMatchObject({ kind: "review", why: /fits both/ });
-    expect(matchVideo(vid("Mockingbird Qualifier", { blockedIn: 249 }), TX, one)).toMatchObject({ kind: "review", why: /blocked in 249/ });
-    expect(matchVideo(vid("Mockingbird Qualifier", { embeddable: false }), TX, one)).toMatchObject({ kind: "review", why: /not embeddable/ });
-    expect(matchVideo(vid("Mockingbird Qualifier", { privacy: "unlisted" }), TX, one)).toMatchObject({ kind: "review", why: /unlisted/ });
+    // Not a video that plays here: nothing to link, whichever event it is.
+    expect(matchVideo(vid("Mockingbird Qualifier", { blockedIn: 249 }), TX, one)).toMatchObject({ kind: "ignore", why: /blocked in 249/ });
+    expect(matchVideo(vid("Mockingbird Qualifier", { embeddable: false }), TX, one)).toMatchObject({ kind: "ignore", why: /not embeddable/ });
+    expect(matchVideo(vid("Mockingbird Qualifier", { privacy: "unlisted" }), TX, one)).toMatchObject({ kind: "ignore", why: /unlisted/ });
     // A state name and a type alone aren't evidence.
     expect(matchVideo(vid("Texas Qualifier"), TX, one)).toMatchObject({ kind: "review", why: /no event on that date fits/ });
-    // No event of the channel's region that day.
-    expect(matchVideo(vid("Mockingbird Qualifier"), { region: "state=IA" }, one)).toMatchObject({ kind: "review", why: /no Scout event/ });
-    expect(matchVideo(vid("Mockingbird Qualifier", { start: "2026-02-20T15:00:00Z" }), TX, one)).toMatchObject({ kind: "review" });
+    // No event of the channel's region that day or a day either side: nothing to put it on. One a day off: the owner decides.
+    expect(matchVideo(vid("Mockingbird Qualifier"), { region: "state=IA" }, one)).toMatchObject({ kind: "ignore", why: /no Scout event .* or a day either side/ });
+    expect(matchVideo(vid("Mockingbird Qualifier", { start: "2026-02-20T15:00:00Z" }), TX, one)).toMatchObject({ kind: "ignore", why: /no Scout event/ });
+    expect(matchVideo(vid("Mockingbird Qualifier", { start: "2026-01-16T15:00:00Z" }), TX, one)).toMatchObject({ kind: "review", why: /a day either side/ });
   });
 
   it("keeps divisions apart, and a parent event never gets a division's video", () => {
@@ -203,12 +204,40 @@ describe("the watcher's matcher", () => {
   it("sets aside a short video that names no event: an upload, a call, a team's reel", () => {
     const one = [ev("USTXMOQ", "TX Mockingbird Qualifier")];
     expect(matchVideo(vid("Compact Differential Swerve Drive | 23334 Axiom | FTC BIOBUZZ Snapshot", { start: null, durationS: 79 }), TX, one)).toMatchObject({ kind: "ignore", why: /1-minute upload/ });
-    expect(matchVideo(vid("FTC Program Call Nov 12, 2026 Recording", { durationS: 22 * 60 }), TX, one)).toMatchObject({ kind: "ignore", why: /22 minutes long, and its title fits no event/ });
-    expect(matchVideo(vid("FTC Program Call", { durationS: 22 * 60 }), { region: "state=WI" }, one)).toMatchObject({ kind: "ignore", why: /no Scout event/ });
-    // Short and about one event: the owner decides (a highlight, or a clip of the day).
-    expect(matchVideo(vid("Mockingbird Qualifier", { durationS: 180 }), TX, one)).toMatchObject({ kind: "review", why: /clip or highlight/, event: { code: "USTXMOQ" } });
-    // A full-length upload might be a re-uploaded day: the owner decides.
+    expect(matchVideo(vid("FTC Program Call Nov 12, 2026 Recording", { durationS: 22 * 60 }), TX, one)).toMatchObject({ kind: "ignore", why: /the title says "program call"/ });
+    expect(matchVideo(vid("FTC Robotics Night", { durationS: 22 * 60 }), TX, one)).toMatchObject({ kind: "ignore", why: /22 minutes long, and its title fits no event/ });
+    expect(matchVideo(vid("FTC Wisconsin Qualifier", { durationS: 22 * 60 }), { region: "state=WI" }, one)).toMatchObject({ kind: "ignore", why: /no Scout event/ });
+    // Short and about one event: a clip or highlight, never a day's recording (set aside; the owner can add a highlight).
+    expect(matchVideo(vid("Mockingbird Qualifier", { durationS: 180 }), TX, one)).toMatchObject({ kind: "ignore", why: /3 minutes long: a clip or highlight of USTXMOQ/ });
+    // A full-length upload might be a re-uploaded day: the owner decides, unless its title dates it (below).
     expect(matchVideo(vid("Mockingbird Qualifier", { start: null }), TX, one)).toMatchObject({ kind: "review", why: /upload/ });
+  });
+
+  it("matches an upload on the one date its title says, as strictly as a broadcast", () => {
+    const one = [ev("USTXMOQ", "TX Mockingbird Qualifier")];
+    const up = (title: string) => matchVideo(vid(title, { start: null }), TX, one);
+    expect(up("Mockingbird Qualifier January 17, 2026")).toMatchObject({ kind: "add", event: { code: "USTXMOQ" }, day: "2026-01-17", why: /an upload/ });
+    expect(up("Mockingbird Qualifier 18 Jan 2026")).toMatchObject({ kind: "add", day: "2026-01-18" });
+    expect(up("Mockingbird Qualifier (2026-1-17)")).toMatchObject({ kind: "add", day: "2026-01-17" });
+    // 01.02.26 reads as January 2 or February 1: no one date, so the owner decides.
+    expect(up("Mockingbird Qualifier 01.02.26")).toMatchObject({ kind: "review", why: /upload/ });
+    // The title's weekday and day number must agree with its date.
+    expect(up("Mockingbird Qualifier Sunday 1/17/2026")).toMatchObject({ kind: "review", why: /says sunday, the title's date was on saturday/ });
+    expect(up("Mockingbird Qualifier Day 2 1/17/2026")).toMatchObject({ kind: "review", why: /day 2/ });
+    // Named only by its region: the date is the uploader's word, so the owner decides.
+    expect(up("Texas Qualifier 1/17/2026")).toMatchObject({ kind: "review" });
+    // A date with no event in the region: nothing to put it on.
+    expect(up("Mockingbird Qualifier March 7, 2026")).toMatchObject({ kind: "ignore", why: /title's date or a day either side/ });
+  });
+
+  it("sets aside a field's stream of a one-event meet and the titles of other programs", () => {
+    const one = [ev("USTXMOQ", "TX Mockingbird Qualifier")];
+    expect(matchVideo(vid("Mockingbird Qualifier Field 2"), TX, one)).toMatchObject({ kind: "ignore", why: /one field's stream of USTXMOQ/ });
+    for (const [title, word] of [["Battle o' Baltimore 2026 REBUILT Qualifier", "REBUILT"], ["FIRST Nevada FTC Coaches Corner: League Meets", "Coaches Corner"],
+      ["UrSim Digital Regional Qualifier", "UrSim"], ["Robot in 30 Hours FTC", "Robot in 30 Hours"], ["Town Council Meeting - Robotics League", "Council"],
+      ["FTC Texas State Championship Recap", "Recap"], ["League Tournament keynote", "keynote"]] as const) {
+      expect(matchVideo(vid(title), TX, one)).toMatchObject({ kind: "ignore", why: new RegExp(`the title says "${word}"`, "i") });
+    }
   });
 
   it("sets aside what isn't a competition stream", () => {
