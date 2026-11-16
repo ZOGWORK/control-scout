@@ -22,9 +22,10 @@ Videos › the frame reader reads a busy frame's match name from the overlay's b
 ### Highlights
 - [fixes] Clip openings on busy frames are read from the overlay's bar
 - [fixes] All 9 clips the paused re-check left unread now confirm their match
+- [history] Corrected clip openings follow in the next data releases
 
 ### Fixed
-- Videos (the frame reader, `scripts/video-frames.ts`): a clip opening whose whole frame names nothing has the right half of FTC Live's bottom bar row read on its own (`labelRow`), where the match's name is all there is; on a shared stream the whole row must also name this division. The paused re-check of 2024 and 2026 left 9 clips already playing unconfirmed, each frame plainly showing its match (USARBEQ 2024 Q8 at 7097 s, "Qualification 8 of 23", read as a jumble whole). With this read all 9 name their match on the 7 events' recordings (USCALACAS1 2026; FPEMITHO, ROSLT, USARBEQ, USCHSCHQ, USCHSGAQ1 2024), and no opening there changes otherwise. Placement reads are unchanged. Clips on the site change only with the data releases that carry these reads.
+- Videos (the frame reader, `scripts/video-frames.ts`): a clip opening whose whole frame names nothing has the right half of FTC Live's bottom bar row read on its own (`labelRow`), where the match's name is all there is; on a shared stream the whole row must also name this division. The paused re-check of 2024 and 2026 left 9 clips already playing unconfirmed, each frame plainly showing its match (USARBEQ 2024 Q8 at 7097 s, "Qualification 8 of 23", read as a jumble whole). With this read all 9 name their match on the 7 events' recordings (USCALACAS1 2026; FPEMITHO, ROSLT, USARBEQ, USCHSCHQ, USCHSGAQ1 2024), and no opening there changes otherwise. Placement reads are unchanged. Clips on the site change only with the data releases that carry these reads. (#1627)
 
 ## 7.1.1 — 2026-11-16
 
