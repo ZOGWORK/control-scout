@@ -387,8 +387,25 @@ describe("an add that loses its day", () => {
     await run("INSERT INTO official_videos (video_id, season, code, kind, day, part, channel_id, title, source, added_at) VALUES ('ownerpicked', 2025, 'USTXCLASH', 'recording', '2026-01-17', NULL, ?, 'x', 'owner', 'x')", [TX]);
     const v = { videoId: "lostitsday1", title: "TX Houston Qualifier", start: "2026-01-17T15:00:00Z", published: "2026-01-17T23:00:00Z", durationS: 25200, privacy: "public", embeddable: true, blockedIn: 0 };
     const put = await record(v, { channelId: TX, title: "Texas FTC" }, { kind: "add", why: "the title names it", event: { season: 2025, code: "USTXCLASH" } as any, day: "2026-01-17", part: null }, v.published, T0);
-    expect(put).toBe(false);
+    expect(put).toBe("queued");
     expect(await get<any>("SELECT status, code, day, why FROM official_watch WHERE video_id = 'lostitsday1'")).toMatchObject({ status: "pending", code: "USTXCLASH", day: "2026-01-17", why: expect.stringMatching(/^another recording took USTXCLASH's 2026-01-17 as this one was added/) });
     expect(await get("SELECT 1 FROM official_videos WHERE video_id = 'lostitsday1'")).toBeUndefined();
+  });
+
+  it("sends a set-aside video the audit decides again to review when its day was taken meanwhile, not left set aside", async () => {
+    await run("INSERT INTO official_watch (video_id, channel_id, title, status, why, seen_at) VALUES ('wasignored1', ?, 'TX Clash Qualifier', 'ignored', 'set aside by the watcher', 'x')", [TX]);
+    const v = { videoId: "wasignored1", title: "TX Clash Qualifier", start: "2026-01-17T15:00:00Z", published: "2026-01-17T23:00:00Z", durationS: 25200, privacy: "public", embeddable: true, blockedIn: 0 };
+    const put = await record(v, { channelId: TX, title: "Texas FTC" }, { kind: "add", why: "the title names it", event: { season: 2025, code: "USTXCLASH" } as any, day: "2026-01-17", part: null }, v.published, T0, "channel audit");
+    expect(put).toBe("queued");
+    expect(await get<any>("SELECT status, why FROM official_watch WHERE video_id = 'wasignored1'")).toMatchObject({ status: "pending", why: expect.stringMatching(/^another recording took USTXCLASH's 2026-01-17/) });
+  });
+
+  it("leaves a video the owner decided meanwhile as they decided: neither added nor queued", async () => {
+    await run("INSERT INTO official_watch (video_id, channel_id, title, status, why, seen_at, decided_by) VALUES ('ownerdecide', ?, 'TX Free Qualifier', 'approved', 'x', 'x', 'owner@example.test')", [TX]);
+    const v = { videoId: "ownerdecide", title: "TX Free Qualifier", start: "2026-01-24T15:00:00Z", published: "2026-01-24T23:00:00Z", durationS: 25200, privacy: "public", embeddable: true, blockedIn: 0 };
+    const put = await record(v, { channelId: TX, title: "Texas FTC" }, { kind: "add", why: "the title names it", event: { season: 2025, code: "USTXFREE" } as any, day: "2026-01-24", part: null }, v.published, T0);
+    expect(put).toBe("kept");
+    expect(await get<any>("SELECT status, decided_by FROM official_watch WHERE video_id = 'ownerdecide'")).toMatchObject({ status: "approved", decided_by: "owner@example.test" });
+    expect(await get("SELECT 1 FROM official_videos WHERE video_id = 'ownerdecide'")).toBeUndefined();
   });
 });
