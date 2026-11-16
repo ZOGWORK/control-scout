@@ -22,6 +22,7 @@ Videos › a clip read off a recording's frames opens where the frame names its 
 ### Highlights
 - [fixes] Match clips open on their own match, never the one before
 - [fixes] Clips already playing stay, unless the video shows another match
+- [fixes] A stream that restarts mid-match no longer shifts the clips after it
 
 ### Fixed
 - Videos: a frame-read clip opens 20, 12, 5, 2 or 0 s before its start, at the first frame whose overlay names the match (`opens`); a results or bracket card up until the match begins, a replay ("M6-2"), an "Up Next" header and a bracket whose "advances to" line is cut off are read for what they name. A clip already live whose opening names nothing keeps playing (`unconfirmed`); only a frame naming another match pulls one. A recording cut mid-match no longer misplaces the matches after it, and a frozen player can't stall a read. The re-read data follows in its own releases, a season at a time. (`scripts/video-frames.ts`, `scripts/lib/videoFrames.ts`, `server/data/frameTimings.ts`, `server/videos/recordings.ts`) (#1607)
