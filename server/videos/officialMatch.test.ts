@@ -333,6 +333,18 @@ describe("the watcher's matcher", () => {
     expect(matchVideo(vid("Coach webinar"), TX, [])).toMatchObject({ kind: "ignore" });
   });
 
+  it("sets aside a team's robot snapshot or reveal that names no event, with no facts read", () => {
+    // The live run of 2026-11-16: a 79-second team clip whose facts call timed out stayed in the owner's review.
+    const FUN = { region: "country=USA;type=Premier,OffSeason,SuperQualifier" };
+    const noFacts = { start: null, durationS: null };
+    const team = matchVideo(vid("Compact Differential Swerve Drive | 23334 Axiom | FTC BIOBUZZ Snapshot", noFacts), FUN, []);
+    expect(team).toMatchObject({ kind: "ignore", why: expect.stringMatching(/a team's robot video.*"Snapshot"/) });
+    expect(matchVideo(vid("Team 12345 Robot Showcase", noFacts), FUN, [])).toMatchObject({ kind: "ignore", why: expect.stringMatching(/team's robot video/) });
+    // Not a team's video: no team number (a sponsor's 66, a year), a showcase event, or an event named beside it.
+    for (const title of ["FIRST in Texas Virtual Showcase 2020 presented by Phillips 66", "FTC Season 2025 Snapshot", "Team 12345 Snapshot at the Mockingbird League Meet 3", "16750 Robot Reveal | Texas Qualifier Day 2"])
+      expect(matchVideo(vid(title, noFacts), TX, []).why).not.toMatch(/team's robot video/);
+  });
+
   it("reads region rules, and refuses one it can't", () => {
     const e = ev("X", "Michiana Premier Event", { state: "IN", type: "Premier" });
     expect(parseRule("state=IN;name=michiana|gears")!(e)).toBe(true);
