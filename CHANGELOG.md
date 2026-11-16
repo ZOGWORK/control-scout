@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 6.8.8 — 2026-11-15
+
+Search › comparing three or four teams shows every team, not just the first two.
+
+### Highlights
+- [fixes] A three-team compare search shows all three teams
+- [teams] Head-to-head gives every compared team its own column
+- [appearance] Three or four teams sit side by side at the same size
+
+### Fixed
+- Search: a Compare of three or four teams ("33950 vs bad wolf vs hypnotic") shows each team at the same size on the card, and the Head-to-head panel gives each its own column; its trophy goes to the side that beats every other side with a number. (`src/components/search/page/ResultCards.tsx`) (#1585)
+
 ## 6.8.7 — 2026-11-15
 
 This weekend › a team page names the event the team is registered for next, and "in FTC" is never read as a place.
