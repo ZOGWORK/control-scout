@@ -65,8 +65,10 @@ export const NOTHING_READ = "no frame of the video could be read";
 /** The least a match can take in a video: 30 s Auto, 8 s switch, 2:00 TeleOp. Two placed starts closer than this
  *  overlap. */
 export const MATCH_S = AUTO_S + SWITCH_S + TELEOP_S;
-/** Where a clip may open, seconds before its match's start, earliest first: the first whose frame names the match. */
-export const OPEN_LEADS = [20, 12, 5];
+/** Where a clip may open, seconds before its match's start, earliest first: the first whose frame names the match.
+ *  The last two open at the start itself: a results card ("Match 6 results", CAONMIQ 2025 M7) or a bracket card
+ *  (USIAWESTLT 2025 M3) can stay up until the match's own overlay comes on, seconds before it starts. */
+export const OPEN_LEADS = [20, 12, 5, 2, 0];
 
 /** The reason a placed match whose clip opening couldn't be checked gets: never a clip, never a clock reason. */
 export const OVERLAY_UNREAD = "overlay could not be read at its clip's start";
