@@ -49,14 +49,15 @@ describe("allianceForecast", () => {
     ready = false;
     const s = await allianceForecast(red, blue, 2025);
     expect(explain).not.toHaveBeenCalled();
-    expect(s.headline).toMatchObject({ value: "201 & 202 rated higher", label: "by 20.0 points per match together" });
+    expect(s.headline).toMatchObject({ value: "201 & 202 rated higher", label: "by 20.0 points per match together", sub: "The engine's ratings are still loading: Predict shows the call." });
     expect(JSON.stringify(s.blocks)).not.toMatch(/Predicted score/);
   });
   it("with the engine built but no match of the season rated yet, the ratings alone: never a call of 0-0", async () => {
     played = [];
     const s = await allianceForecast(red, blue, 2025);
     expect(explain).not.toHaveBeenCalled();
-    expect(s.headline).toMatchObject({ value: "201 & 202 rated higher", label: "by 20.0 points per match together" });
+    // Said as it is: nothing is loading, no match is rated yet.
+    expect(s.headline).toMatchObject({ value: "201 & 202 rated higher", label: "by 20.0 points per match together", sub: "No 2025–26 match is rated yet: the engine makes its call once one is played." });
   });
   it("a team with no rating that season is named", async () => {
     const s = await allianceForecast(red, [blue[0], { number: 999, name: "Unrated" }], 2025);
