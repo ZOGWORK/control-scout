@@ -116,6 +116,8 @@ export interface ParseContext {
 /** `at`: the word as typed it came from (its place among the words typed, before any time was read out). */
 type Tok = { w: string; typed: string; at: number; used: boolean; alliance?: boolean; side?: "red" | "blue" };
 /** The one-word filler phrases ("the", "a"): read before a name that starts with one. */
+/** The words that name a team ("team", "robots"). */
+const TEAM_WORDS = new Set(LEXICON.filter((e) => e.words.length === 1 && e.syms.length === 1 && e.syms[0].k === "thing" && e.syms[0].v === "team").map((e) => e.words[0]));
 const FILLER_WORDS = new Set(LEXICON.filter((e) => e.words.length === 1 && e.syms.every((x) => x.k === "filler")).map((e) => e.words[0]));
 /** Every filler phrase, one word or more ("the", "thank you"). */
 const FILLER_PHRASES = LEXICON.filter((e) => e.syms.every((x) => x.k === "filler")).map((e) => e.words);
@@ -473,8 +475,11 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       if (span.some((t) => t.used) || EVENT_NAME_WORDS.has(toks[i + len]?.w ?? "")) continue;
       const code = len === 1 && /^[A-Z]{2}$/.test(span[0].typed);
       if (code && !/^(?:in|from|at)$/.test(toks[i - 1]?.w ?? "")) continue;
-      if (!code && span.every((t) => isLex(t.w))) continue;
-      const pl = ctx.names.place(span.map((t) => t.w).join(" "), span.map((t) => t.typed).join(" "));
+      // A word the lexicon reads is a place only after "in the" or "from the" ("best team in the us": the country, never
+      // "us" the pronoun).
+      const theAfterIn = toks[i - 1]?.w === "the" && /^(?:in|from|across)$/.test(toks[i - 2]?.w ?? "");
+      if (!code && !theAfterIn && span.every((t) => isLex(t.w))) continue;
+      const pl = ctx.names.place(span.map((t) => t.w).join(" "), span.map((t) => t.typed).join(" "), theAfterIn);
       if (pl) { p.place = { ...pl, typed: span.map((t) => t.typed).join(" ") }; placeFrom = i; span.forEach((t) => (t.used = true)); }
     }
   }
@@ -499,7 +504,12 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     if (i > 0 && !toks[i - 1].used && toks[i - 1].w === "not" && e.syms.every((s) => s.k === "metric" && NOT_STATS.has(s.v))) { toks[i - 1].used = true; (p.notStats ??= []).push(e.words.map((_, j) => toks[i + j].typed).join(" ")); (p.notMetrics ??= []).push(...e.syms.map((s) => `metric:${s.k === "metric" ? s.v : ""}`)); continue; }
     // A colour read as an alliance can start a team's name typed nearly right ("blue megalodns"): step 4 may take it back.
     if (e.words.length === 1 && e.syms.length === 1 && e.syms[0].k === "alliance") toks[i].alliance = true;
+    // "Teams with the most …", "team with the highest …": "with" there is having, never a second thing joined on.
+    let next = i + 1;
+    while (toks[next] && (toks[next].w === "the" || toks[next].w === "a")) next++;
+    const having = e.words.length === 1 && e.words[0] === "with" && i > 0 && TEAM_WORDS.has(toks[i - 1].w) && !!lexAt(next)?.syms.some((s) => s.k === "agg");
     for (const s of e.syms) {
+      if (having && s.k === "and") continue;
       if (s.k === "level") p.level = s.v;
       else if (s.k === "finals") p.finals = true;
       else if (s.k === "alliance") { p.alliance = s.v; e.words.forEach((_, j) => (toks[i + j].side = s.v)); }

@@ -183,9 +183,11 @@ describe("answers on their own", () => {
     // Undefeated is a leaderboard filter the pipeline applies (server/api/query/): no losses, the most wins first.
     const u = (await ask("undefeated teams")).stat?.blocks[0];
     expect(u?.kind === "leaderboard" ? u.rows.map((r) => r.team.label) : u).toEqual(["6980 Bad Wolf"]);
+    // "Teams with the highest …" is having it (#1311): the pipeline's win-rate board. The link opens the season the
+    // numbers are from.
     const w = await ask("teams with the highest win rate");
-    // The link opens the season the numbers are from.
-    expect(w.card?.lines[0]).toMatchObject({ text: "6980 Bad Wolf", results: ["#1", "100% wins", "20-0-0", "OPR 130.0"], href: `/teams/6980?season=${S}` });
+    expect(w.stat?.title).toMatch(/^Top 10 teams by win rate /);
+    expect(w.stat?.headline).toMatchObject({ value: "6980 Bad Wolf", href: `/teams/6980?season=${S}` });
   });
   it("most improved: by OPR standing season to season, never raw OPR", async () => {
     // The stat answers (./answers) take "most improved teams" first; this is the list when they don't.
@@ -337,9 +339,8 @@ describe("a list of teams as a table", () => {
     expect(a.understood?.label).toMatch(/registered for .*, best by OPR first$/);
   });
   it("a list ranked by another number carries it as its own column, in its own order", async () => {
-    const w = (await ask("teams with the highest win rate")).card!.table!;
-    expect(w).toMatchObject({ by: "rank", asked: { label: "Win rate" } });
-    expect(w.rows[0]).toMatchObject({ team: 6980, asked: { display: "100%" } });
+    const b = (await ask("teams with the highest win rate")).stat?.blocks.find((x) => x.kind === "leaderboard");
+    expect(b?.kind === "leaderboard" ? b.rows[0] : b).toMatchObject({ team: { label: "6980 Bad Wolf" }, display: "100%", record: "20-0-0" });
     expect((await ask("best teams in romania")).card!.table!.rows[0]).toMatchObject({ team: 14270, dc: 100 });
   });
   it("a single team's answer keeps its card, with no table", async () => {

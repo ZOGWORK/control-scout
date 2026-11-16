@@ -15,6 +15,22 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 6.9.2 — 2026-11-16
+
+Search reads countries and counts the ways people asked: Taiwan, "in the us", "in the world", "how many in Australia".
+
+### Highlights
+- [fixes] "Top teams in Taiwan" lists Chinese Taipei's teams
+- [fixes] "Best team in the us" is the United States, not the whole world
+- [fixes] "Teams with the highest OPR in Texas 2024" gets its board
+- [fixes] "How many in Australia" counts both teams and events there
+
+### Fixed
+- A country's best teams by another of its names ("Top teams in Taiwan", stored as Chinese Taipei): the stored label with the most teams for that country (`src/shared/countries.ts`). With none ranked yet this season, last season's teams, said so in the label. (`server/api/searchCoverage.ts` teamListAnswer) (#1524)
+- "Teams with the most …", "team with the highest …": "with" after "team" is having it, never a second thing joined on, so everyone's board answers (`src/shared/query/parse.ts`). "Teams with the highest win rate" now gets the win-rate board, as "teams with the most wins" already did. (#1311)
+- "In the us", "from the uk": a two-letter country name after "in the" or "from the" is the country, never "us" the pronoun (`src/shared/query/parse.ts`, `src/shared/query/names.ts` place). (#1587)
+- Counts: "in the world", "worldwide" and the like are everywhere, never a place to look up; "how many in <place>" with neither teams nor events said gives both counts; a count of one says "1 event", not "1 events". (`server/api/searchCoverage.ts` countAnswer) (#1590, #1594)
+
 ## 6.9.1 — 2026-11-16
 
 Profile pictures: any account can have one, and it's the same picture in Control Point.

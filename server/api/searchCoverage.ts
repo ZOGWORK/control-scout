@@ -707,6 +707,17 @@ export async function countAnswer(q: string): Promise<SearchAnswer | null> {
     if (sm[2] && !sm[3] && !sm[4]) year = Number(sm[2]);
     t = t.slice(0, sm.index);
   }
+  // Everywhere said ("in the world", "worldwide"): no place.
+  t = t.replace(/\s+(?:in the (?:whole )?world|in all the world|worldwide|world wide|globally|across the world|around the world|all over the world|internationally)$/, "");
+  // Neither teams nor events named ("how many in Australia"): both counts, one line each.
+  const bare = /^how many\s+(?:are there\s+)?((?:in|from)\s+.+)$/.exec(t);
+  if (bare) {
+    const said = sm ? sm[0] : "";
+    const [tm, ev] = [await countAnswer(`how many teams ${bare[1]}${said}`), await countAnswer(`how many events ${bare[1]}${said}`)];
+    if (!tm?.card || !ev?.card) return null;
+    const label = `${tm.card.title.replace(/^How many teams/, "How many teams and events")}`;
+    return answer(q, { hits: [], pages: [...tm.pages, ...ev.pages], card: { kind: "info", title: label, lines: [...tm.card.lines, ...ev.card.lines] }, understood: { kind: "question", label } });
+  }
   const m =/^how many\s+(?:ftc\s+)?(?:league\s+)?(teams?|events?|meets?|competitions?)\s*(?:are there|is there|exist|are|there are)?\s*(?:(?:in|from)\s+(.+?))?\s*(?:this season|this year|right now|now|in ftc|total)?\s*(?:are there|exist)?$/.exec(t);
   if (!m) return null;
   const teams = m[1].startsWith("team");
@@ -721,7 +732,7 @@ export async function countAnswer(q: string): Promise<SearchAnswer | null> {
     ? await get<{ n: number }>(`SELECT COUNT(*) n FROM team_seasons s JOIN teams t ON t.number = s.team WHERE s.season = ?${where}`, [season, ...placeArgs(place)])
     : await get<{ n: number }>(`SELECT COUNT(*) n FROM events e WHERE ${inYear ? "substr(e.start, 1, 4) = ?" : "e.season = ?"}${meets ? " AND e.type = 'LeagueMeet'" : ""}${where}`, [inYear ? String(year) : season, ...placeArgs(place)]);
   const n = Number(row?.n ?? 0);
-  const what = teams ? "teams registered" : meets ? "league meets" : "events";
+  const what = n === 1 ? (teams ? "team registered" : meets ? "league meet" : "event") : teams ? "teams registered" : meets ? "league meets" : "events";
   const inPlace = place ? ` in ${place.name}` : "";
   const when = inYear ? String(year) : seasonLabel(season);
   const label = `How many ${teams ? "teams" : meets ? "league meets" : "events"}${inPlace} · ${when}`;
@@ -1015,7 +1026,14 @@ async function placeOf(words: string): Promise<Place | null> {
   if (r) return { name: r.name, country: r.country, state: r.state, key: r.key };
   const alias: Record<string, string> = { us: "USA", usa: "USA", "united states": "USA", america: "USA", uk: "United Kingdom", britain: "United Kingdom", "great britain": "United Kingdom", england: "United Kingdom" };
   const row = await get<{ country: string }>("SELECT country FROM teams WHERE LOWER(country) = LOWER(?) LIMIT 1", [alias[w.toLowerCase()] ?? w]);
-  return row ? { name: row.country, country: row.country, state: null, key: row.country } : null;
+  if (row) return { name: row.country, country: row.country, state: null, key: row.country };
+  // A country by another of its names ("Taiwan" for the stored "Chinese Taipei", ../../src/shared/countries.ts): the
+  // stored label holding the most teams.
+  const c = countryOf(w);
+  if (!c) return null;
+  const labels = await all<{ country: string }>("SELECT country FROM teams WHERE country IS NOT NULL GROUP BY country ORDER BY COUNT(*) DESC");
+  const hit = labels.find((l) => countryOf(l.country)?.code === c.code);
+  return hit ? { name: hit.country, country: hit.country, state: null, key: hit.country } : null;
 }
 const placeSql = (p: Place | null) => (p ? (p.state ? " AND t.country = ? AND t.state = ?" : " AND t.country = ?") : "");
 const placeArgs = (p: Place | null) => (p ? (p.state ? [p.country, p.state] : [p.country]) : []);
@@ -1049,10 +1067,14 @@ export async function teamListAnswer(q: string): Promise<SearchAnswer | null> {
     if (p && !p.state) {
       // "top 3 teams in canada": that many (1 to 50); else 10.
       const n = m[1] ? Math.min(50, Math.max(1, Number(m[1]))) : 10;
-      const rows = await all<any>(`SELECT s.team, t.name, t.city, t.state, t.country, s.opr_np, ${PHASE_COLS}, s.wins, s.losses, s.ties FROM team_season_stats s JOIN teams t ON t.number = s.team WHERE ${ranked}${placeSql(p)} ORDER BY s.opr_np DESC, s.team LIMIT ${n}`, [season, ...placeArgs(p)]);
-      const lines = rows.map((r, i) => lineOf(r, [`#${i + 1} in ${p.name}`, `OPR ${fmt1(r.opr_np)}`, `${r.wins}-${r.losses}-${r.ties}`], season));
-      const title = `Top teams in ${p.name} · ${seasonLabel(season)}`;
-      return card(title, lines, `No ranked teams in ${p.name} for ${seasonLabel(season)} yet.`, [{ title: `${p.name} rankings`, href: `/rankings?season=${season}&region=${encodeURIComponent(p.key)}` }], `${title}, by OPR without penalties`, tableOf(rows, season));
+      const read = (s: number) => all<any>(`SELECT s.team, t.name, t.city, t.state, t.country, s.opr_np, ${PHASE_COLS}, s.wins, s.losses, s.ties FROM team_season_stats s JOIN teams t ON t.number = s.team WHERE ${ranked}${placeSql(p)} ORDER BY s.opr_np DESC, s.team LIMIT ${n}`, [s, ...placeArgs(p)]);
+      // Nobody there ranked yet this season: the season before, named in the title, as the leaderboards step back.
+      let shown = season, rows = await read(season);
+      if (!rows.length && SEASONS.some((x) => x.season === season - 1)) { const before = await read(season - 1); if (before.length) { rows = before; shown = season - 1; } }
+      const lines = rows.map((r, i) => lineOf(r, [`#${i + 1} in ${p.name}`, `OPR ${fmt1(r.opr_np)}`, `${r.wins}-${r.losses}-${r.ties}`], shown));
+      const title = `Top teams in ${p.name} · ${seasonLabel(shown)}`;
+      const label = `${title}, by OPR without penalties${shown !== season ? ` (no ${seasonLabel(season)} ranked teams yet)` : ""}`;
+      return card(title, lines, `No ranked teams in ${p.name} for ${seasonLabel(season)} yet.`, [{ title: `${p.name} rankings`, href: `/rankings?season=${shown}&region=${encodeURIComponent(p.key)}` }], label, tableOf(rows, shown));
     }
   }
   // A place's best match scores: "top scores in NJ", "highest score in texas". As the season records are kept
