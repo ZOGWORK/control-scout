@@ -240,7 +240,7 @@ async function searchWords(q: string, limit: number, prefer: ReadonlySet<string>
   // own, or when it's typed whole ("match point" is Match Point; both sides cleaned alike, so "the best" is The Best).
   const plain = (t: string) => t.toLowerCase().replace(/[^\p{L}\d]+/gu, " ").trim();
   const nameless = onlyCommonWords(query) ? plain(query) : null;
-  const unnamed = (kind: string, title: string) => nameless != null && kind === "team" && plain(nameWords(teamNameOf(title))) !== nameless;
+  const unnamed = (kind: string, title: string) => nameless != null && kind === "team" && teamNameKey(title, plain) !== nameless;
   const add = (r: any, name: string) => {
     if (unnamed(r.kind, r.title)) return;
     const k = `${r.kind}:${r.ref}`;
@@ -272,10 +272,13 @@ async function searchWords(q: string, limit: number, prefer: ReadonlySet<string>
     // scoreWords on every name, each name word's score read from the query word's scores; the 2-letter chunks are
     // then checked on the few names that score (both are filters, so the order doesn't change which pass).
     const passed: { r: FuzzyRow; s: number }[] = [];
+    // The score first, then the name check (both filters, so the order changes nothing): the name check reads a
+    // name's words (nameWords), slow enough that on every one of the ~28k names it held this process for 4 s on a
+    // search of common words only ("teams with highest opr in texas 2024"), every other request waiting behind it.
     for (const r of index.rows) {
-      if (!allow(r.kind) || unnamed(r.kind, r.title)) continue;
+      if (!allow(r.kind)) continue;
       const s = scoreIds(qs, scores, r);
-      if (s >= 0.6) passed.push({ r, s });
+      if (s >= 0.6 && !unnamed(r.kind, r.title)) passed.push({ r, s });
     }
     const scanned = passed.filter(({ r }) => qb.every((b) => { for (const x of b) if (r.bigrams.has(x)) return true; return false; }))
       .map((x) => (prefer.has(`${x.r.kind}:${x.r.ref}`) ? { ...x, s: x.s + 0.1 } : x)) // same preference as the indexed path
@@ -284,6 +287,18 @@ async function searchWords(q: string, limit: number, prefer: ReadonlySet<string>
     for (const { r } of scanned) { if (out.length >= limit * 4) break; push({ kind: r.kind, ref: r.ref, title: r.title, subtitle: r.subtitle, season: r.season }); }
   }
   return newestSeasons(await numbersKept(query, out), query).slice(0, limit);
+}
+
+/** A team's name as its words that can name it (nameWords), cleaned by `plain`: worked out once per title in this
+ *  process, as every search of common words only asks it of the same names again. Bounded: emptied past 50,000. */
+const nameKeys = new Map<string, string>();
+function teamNameKey(title: string, plain: (t: string) => string): string {
+  let k = nameKeys.get(title);
+  if (k === undefined) {
+    if (nameKeys.size >= 50_000) nameKeys.clear();
+    nameKeys.set(title, (k = plain(nameWords(teamNameOf(title)))));
+  }
+  return k;
 }
 
 /** Words before a number that make it a count or a bound, never a team's number. */
