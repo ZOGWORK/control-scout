@@ -2541,25 +2541,30 @@ export function openDb(url: string, authToken?: string | null): Client {
   return createClient({ url, authToken: authToken ?? undefined });
 }
 
-const pooledKind = new WeakMap<Client, Promise<boolean>>();
+const fileKind = new WeakMap<Client, Promise<boolean>>();
+const walSeen = new WeakSet<Client>();
 /** Whether `c` is a database file of its own: the driver then keeps a pool of connections to it, so a transaction holds
  *  one apart from the one other reads take (inSnapshot), in write-ahead logging, so that reader never blocks a writer.
  *  In memory (its database name has no file: SQLite's own database_list says) or as the embedded replica the driver
- *  has only the one every read shares; a remote database isn't a file. Asked once per client, however it was made. */
-function pooledFile(c: Client): Promise<boolean> {
-  let k = pooledKind.get(c);
-  if (!k) {
-    k = (async () => {
+ *  has only the one every read shares; a remote database isn't a file. That is asked once per client, however it was
+ *  made; the journal until it's found to be write-ahead (configure() may switch a file to it after a first ask). */
+async function pooledFile(c: Client): Promise<boolean> {
+  let file = fileKind.get(c);
+  if (!file) {
+    file = (async () => {
       if ((c.protocol && c.protocol !== "file") || c === replicaClient) return false;
       const main = (await c.execute("PRAGMA database_list")).rows.find((r) => r.name === "main");
-      if (!main || String(main.file ?? "") === "") return false;
-      // Write-ahead logging (configure() sets it; the file keeps it): a reader holding its moment never stops a writer.
-      // Without it a held read would lock every writer out ("database is locked") for its whole run.
-      return String((await c.execute("PRAGMA journal_mode")).rows[0]?.journal_mode ?? "").toLowerCase() === "wal";
+      return !!main && String(main.file ?? "") !== "";
     })().catch(() => false);
-    pooledKind.set(c, k);
+    fileKind.set(c, file);
   }
-  return k;
+  if (!(await file)) return false;
+  if (walSeen.has(c)) return true;
+  // Write-ahead logging (configure() sets it; the file keeps it): a reader holding its moment never stops a writer.
+  // Without it a held read would lock every writer out ("database is locked") for its whole run.
+  const wal = String((await c.execute("PRAGMA journal_mode").catch(() => null))?.rows[0]?.journal_mode ?? "").toLowerCase() === "wal";
+  if (wal) walSeen.add(c);
+  return wal;
 }
 
 /** `fn`'s reads (through `read`) all seeing the database as it was at the first of them, whatever any process writes
