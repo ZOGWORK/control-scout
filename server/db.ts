@@ -2541,43 +2541,40 @@ export function openDb(url: string, authToken?: string | null): Client {
   return createClient({ url, authToken: authToken ?? undefined });
 }
 
-const fileKind = new WeakMap<Client, Promise<boolean>>();
-const walSeen = new WeakSet<Client>();
+const fileKind = new WeakMap<Client, boolean>();
 /** Whether `c` is a database file of its own: the driver then keeps a pool of connections to it, so a transaction holds
- *  one apart from the one other reads take (inSnapshot), in write-ahead logging, so that reader never blocks a writer.
- *  In memory (its database name has no file: SQLite's own database_list says) or as the embedded replica the driver
- *  has only the one every read shares; a remote database isn't a file. That is asked once per client, however it was
- *  made; the journal until it's found to be write-ahead (configure() may switch a file to it after a first ask). */
-async function pooledFile(c: Client): Promise<boolean> {
-  let file = fileKind.get(c);
-  if (!file) {
-    file = (async () => {
-      if ((c.protocol && c.protocol !== "file") || c === replicaClient) return false;
-      const main = (await c.execute("PRAGMA database_list")).rows.find((r) => r.name === "main");
-      return !!main && String(main.file ?? "") !== "";
-    })().catch(() => false);
-    fileKind.set(c, file);
+ *  one apart from the one other reads take (inSnapshot). In memory (its database name has no file: SQLite's own
+ *  database_list says) or as the embedded replica the driver has only the one every read shares; a remote database
+ *  isn't a file. Kept once known, however the client was made; a probe that failed is asked again next time. */
+async function fileOfItsOwn(c: Client): Promise<boolean> {
+  const known = fileKind.get(c);
+  if (known !== undefined) return known;
+  let kind: boolean;
+  if ((c.protocol && c.protocol !== "file") || c === replicaClient) kind = false;
+  else {
+    const main = (await c.execute("PRAGMA database_list").catch(() => null))?.rows.find((r) => r.name === "main");
+    if (!main) return false; // the probe failed: not kept
+    kind = String(main.file ?? "") !== "";
   }
-  if (!(await file)) return false;
-  if (walSeen.has(c)) return true;
-  // Write-ahead logging (configure() sets it; the file keeps it): a reader holding its moment never stops a writer.
-  // Without it a held read would lock every writer out ("database is locked") for its whole run.
-  const wal = String((await c.execute("PRAGMA journal_mode").catch(() => null))?.rows[0]?.journal_mode ?? "").toLowerCase() === "wal";
-  if (wal) walSeen.add(c);
-  return wal;
+  fileKind.set(c, kind);
+  return kind;
 }
 
 /** `fn`'s reads (through `read`) all seeing the database as it was at the first of them, whatever any process writes
  *  meanwhile: one read transaction, on a connection of its own (SQLite's WAL: other reads and every writer carry on,
  *  none waits for it). Each read starts with the event loop let go if it was held (busyTurn), as all() does, so work
  *  split into many reads for that stays one moment. Null, `fn` never run, where the database is one connection
- *  shared by every read (in memory, an embedded replica): a transaction there would hold it from every other request,
- *  so the caller reads in one go instead. */
+ *  shared by every read (in memory, an embedded replica): a transaction there would hold it from every other request;
+ *  or where it isn't in write-ahead logging: the caller reads in one go instead. */
 export async function inSnapshot<T>(fn: (read: <R = Row>(sql: string, args?: InArgs) => Promise<R[]>) => Promise<T>): Promise<T | null> {
   const c = db();
-  if (!(await pooledFile(c))) return null;
+  if (!(await fileOfItsOwn(c))) return null;
   const tx = await c.transaction("read");
   try {
+    // Write-ahead logging on the connection held, asked each time: a reader holding its moment then never stops a
+    // writer. In any other journal a held read would lock every writer out ("database is locked") for its whole run.
+    const mode = String((await tx.execute("PRAGMA journal_mode")).rows[0]?.journal_mode ?? "").toLowerCase();
+    if (mode !== "wal") return null;
     return await fn(async <R = Row>(sql: string, args: InArgs = []) => {
       await busyTurn();
       return (await tx.execute({ sql, args })).rows as unknown as R[];
