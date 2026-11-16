@@ -19,8 +19,11 @@ describe("asksVideo", () => {
     expect(asksVideo("who won into the deep highlights", answer())).toBe(true);
     expect(asksVideo("6980 highlights", answer("team-highlights"))).toBe(true);
     // A bare team number: the visitor asked for the team, not to watch.
-    expect(asksVideo("6980", answer("team-highlights"))).toBe(false);
-    expect(asksVideo("4215", answer("highlights"))).toBe(false);
+    expect(asksVideo("6980", { ...answer("team-highlights"), stat: { ...answer().stat!, intent: "team-highlights", team: { number: 6980, name: "Bad Wolf" } } })).toBe(false);
+    const team = (intent: string): SearchAnswer => { const a = answer(intent); return { ...a, stat: { ...a.stat!, team: { number: 4215, name: "Hypnotic Robotics" } } }; };
+    expect(asksVideo("4215", team("team-highlights"))).toBe(false);
+    // An answer about no team that is highlights (a paraphrase with no watch word) still counts.
+    expect(asksVideo("best moments in grand rapids", answer("scope-highlights"))).toBe(true);
     expect(asksVideo("6980 results at east bergen", answer())).toBe(false);
   });
   it("hasVideo: a card's clip, a row's, or the recording a match is in", () => {

@@ -274,6 +274,11 @@ describe("questions with video", () => {
     const cs = await videoCandidates(a, NOW);
     expect(cs[0]).toBe("4215 highlights 2025-26");
     expect(cs.every((c) => c.startsWith("4215 "))).toBe(true);
+    // A comparison: every side's own seasons, never other events'.
+    const two = { ...a, stat: { ...a.stat!, teams: [{ number: 5555, name: null }, { number: 4215, name: null }] } };
+    const both = await videoCandidates(two, NOW);
+    expect(both).toContain("4215 highlights 2025-26");
+    expect(both.every((c) => /^(5555|4215) /.test(c))).toBe(true);
     // An answer about an event in seasons with no clips: the latest seasons' best known events with clips instead.
     const away = { ...a, stat: { ...a.stat!, team: undefined, headline: { value: "40", label: "Q1", href: "/events/2024/USNJQ0?match=qual:0:1" }, blocks: [] } };
     const evs = await videoCandidates(away, NOW);
