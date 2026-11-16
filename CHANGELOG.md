@@ -25,7 +25,7 @@ Event videos › a YouTube call that times out during the channel audit is tried
 - [fixes] The audit says a facts call failed only after a second try
 
 ### Fixed
-- Event videos: the channel audit tries a failed facts call (a 5xx, a timeout) once more in the same run, a unit allowing, before leaving its 50 videos for the next run. Live on 2026-11-16, one timed-out call at 22:22Z left a 79-second team clip in the owner's review, which the clip rule sets aside once its facts are read. (`server/videos/officialAudit.ts`) (#PR)
+- Event videos: the channel audit tries a failed facts call (a 5xx, a timeout) once more in the same run, a unit allowing, before leaving its 50 videos for the next run. Live on 2026-11-16, one timed-out call at 22:22Z left a 79-second team clip in the owner's review, which the clip rule sets aside once its facts are read. (`server/videos/officialAudit.ts`) (#1623)
 
 ## 7.0.8 — 2026-11-16
 
