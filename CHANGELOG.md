@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 6.9.7 — 2026-11-16
+
+Event videos › Owner › Official videos reaches 0 waiting: what the watcher can't decide by rule is decided from the video itself.
+
+### Highlights
+- [history] 76 more event recordings play, each checked from the video
+- [history] No video waits in the owner's review, and each says why
+- [fixes] FLL, FRC and copies of a day stay off FTC event pages
+
+### Event videos
+- The decisions file (`server/data/videoDecisions.ts`) holds the 134 judgement cases the rules can't make: 78 links, 7 rejects and 49 set aside, each with what the rules say on their own and the evidence it rests on (frames, descriptions, which Scout event a title means). They land as the owner's decisions would, marked "Decided from evidence", and never over one the owner made: a dismissal is read again inside the write, a link waits while its event plays a video whose day isn't known yet, and one that fails is tried again next pass. Measured on a copy of the live database with 6.9.6's rules, the decisions and one channel audit leave the review queue at 0 (from 17) and the audit's open findings at 0 (from 112); every new link plays, and no audit add is a video a decision turned down. (`server/videos/videoDecisions.ts`, `server/index.ts`) (#PRNUM)
+
 ## 6.9.6 — 2026-11-16
 
 Event videos › 80 more event recordings play, and the official-videos watcher decides by itself what it used to leave for the owner.
