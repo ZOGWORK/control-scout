@@ -1,6 +1,10 @@
 // A place's streak board read a few hundred teams at a time (streakBoard.ts TEAMS_PER_READ), each read a turn of the
 // event loop apart: one read of a whole country's matches held every other request for seconds (#1557). Read in parts,
-// the board is the same: every team's matches, in each team's own order, the leaders found in any part.
+// the board is the same: every team's matches, in each team's own order, the leaders found in any part. A database file,
+// as in production (in memory, the board is one read: db.ts inSnapshot).
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
 import { migrate, openDb, run, setDb } from "../../db";
 import { streakBoardAnswer } from "./streakBoard";
@@ -17,7 +21,7 @@ const play = async (team: number, won: boolean, day: number) => {
 };
 
 beforeAll(async () => {
-  const c = openDb(":memory:");
+  const c = openDb(`file:${join(mkdtempSync(join(tmpdir(), "streak-reads-")), "scout.db").replace(/\\/g, "/")}`);
   setDb(c);
   await migrate(c);
   // 600 New Jersey teams (several reads), and teams elsewhere between their numbers, which never count.
