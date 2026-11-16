@@ -21,6 +21,8 @@ Search › comparing three or four teams shows every team, not just the first tw
 
 ### Highlights
 - [fixes] A three-team compare search shows all three teams
+- [teams] Head-to-head gives every compared team its own column
+- [appearance] Three or four teams sit side by side at the same size
 
 ### Fixed
 - Search: a Compare of three or four teams ("33950 vs bad wolf vs hypnotic") shows each team at the same size on the card, and the Head-to-head panel gives each its own column; its trophy goes to the side that beats every other side with a number. (`src/components/search/page/ResultCards.tsx`) (#1585)
