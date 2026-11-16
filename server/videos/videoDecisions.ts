@@ -83,6 +83,9 @@ export async function applyVideoDecisions(log: (s: string) => void, list: VideoD
 async function applyOne(d: VideoDecision, at: string): Promise<"done" | "kept" | "waiting" | `skip:${string}`> {
   const w = await get<any>("SELECT status, channel_id, title FROM official_watch WHERE video_id = ?", [d.videoId]);
   if (w && !["pending", "ignored"].includes(String(w.status))) return "kept";
+  // A finding the owner (or an earlier decision) already dismissed is decided: never overridden, a link least of all.
+  const found = await get<any>("SELECT finding FROM official_audit_videos WHERE video_id = ?", [d.videoId]);
+  if (found?.finding === "dismissed") return "kept";
   const a = w ? null : await get<any>("SELECT channel_id, title, start, published, duration FROM official_audit_videos WHERE video_id = ?", [d.videoId]);
   if (!w && !a) return "waiting";
   const why = decisionWhy(d);
@@ -99,10 +102,7 @@ async function applyOne(d: VideoDecision, at: string): Promise<"done" | "kept" |
   const finding = d.decision === "link"
     ? { sql: "UPDATE official_audit_videos SET finding = NULL, found_at = NULL WHERE video_id = ? AND finding = 'open'", args: [d.videoId] }
     : { sql: "UPDATE official_audit_videos SET finding = 'dismissed', finding_why = ?, finding_by = ? WHERE video_id = ? AND finding = 'open'", args: [d.reason!.slice(0, 300), EVIDENCE, d.videoId] };
-  if (d.decision !== "link") {
-    await db().batch([claim, finding], "write");
-    return "done";
-  }
+  if (d.decision !== "link") return (await inOne([claim, finding], 0)) ? "done" : "kept";
   // A link: its event and day, the day free (or held only by a video YouTube no longer plays, named in replaces).
   const ev = await get<any>("SELECT season, code, start, end FROM events WHERE season = ? AND code = ?", [d.season!, d.code!]);
   if (!ev) return `skip:${d.season} ${d.code} isn't in this database`;
@@ -122,20 +122,28 @@ async function applyOne(d: VideoDecision, at: string): Promise<"done" | "kept" |
       args: [d.videoId, Number(ev.season), String(ev.code), d.day!, d.part ?? null, channel, title, why, at, EVIDENCE] },
     finding,
   ];
+  // The link itself must land (no other recording on that day and part), or none of it does.
+  return (await inOne(writes, dead.length, dead.length + 1)) ? "done" : `skip:${d.code} ${d.day} is taken, the video is on another event, or the owner decided it meanwhile`;
+}
+
+/**
+ * The writes in one transaction, committed only when the queue row was claimed (at claimAt: an owner's decision made
+ * since the status read leaves it unclaimed) and, for a link, its recording landed (at landAt). false: rolled back.
+ */
+async function inOne(writes: { sql: string; args: (string | number | null)[] }[], claimAt: number, landAt?: number): Promise<boolean> {
   const tx = await db().transaction("write");
   try {
     const results = [];
     for (const s of writes) results.push(await tx.execute(s));
-    // The link itself must land (no other recording on that day and part), or none of it does.
-    if (!results[dead.length + 1].rowsAffected) { await tx.rollback(); return `skip:${d.code} ${d.day} is taken, or the video is on another event`; }
+    if (!results[claimAt].rowsAffected || (landAt != null && !results[landAt].rowsAffected)) { await tx.rollback(); return false; }
     await tx.commit();
+    return true;
   } catch (e) {
     await tx.rollback().catch(() => {});
     throw e;
   } finally {
     tx.close();
   }
-  return "done";
 }
 
 /** Test hook: forget that this process applied them. */
