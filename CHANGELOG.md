@@ -15,6 +15,21 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 6.9.1 — 2026-11-16
+
+Event videos › 149 more event recordings play, each checked against its event, day and division from the video itself.
+
+### Highlights
+- [history] 149 more event recordings, from 2019 to this season, checked from the video before they play
+- [fixes] A meet whose stream was deleted and uploaded again plays the new upload
+- [fixes] Videos that aren't FTC (FRC off-season events, meetings, simulators) stay off event pages
+
+### Event videos
+- The owner's review queue (69) and the channel audit's 323 findings are decided by checking each video: title, description, broadcast date against the event's days, length, and frames where those leave it open. 149 linked, 69 rejected (not FTC), 174 set aside with a specific reason. (`server/data/videoDecisions.ts`, `server/videos/videoDecisions.ts`)
+- The channel audit adds an upload that passes every check of the watcher's, as the watcher would, and checks it like the watcher's own adds. (`server/videos/officialAudit.ts`, migration 92)
+- A day's video YouTube no longer plays holds no day: a new broadcast of it is added and the dead one comes off. (`server/videos/officialWatch.ts`)
+- A title date like 12.17.23 is read as December 17, never as month 17. (`server/videos/officialMatch.ts`)
+
 ## 6.9.0 — 2026-11-16
 
 The sidebar's Rankings row gets a small arrow: Region rankings, Leagues and Power rankings fold out under it.
