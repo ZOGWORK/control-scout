@@ -185,8 +185,9 @@ export function judge(ms: M[], seen: Map<number, number>, shift: number | null, 
   for (const s of stretches) {
     if (s.length === 1) {
       const i = s[0];
-      // Where the rest of the video sits: the nearest other read's distance, else the broadcast's clock.
-      const others = kept.filter((k) => k !== i);
+      // Where the rest of the video sits: the nearest other read's distance (any read, kept or not: a lone read the
+      // longest run left out still says where the video was), else the broadcast's clock.
+      const others = idx.filter((k) => k !== i);
       const ref = others.length ? d(others.reduce((a, b) => (Math.abs(b - i) < Math.abs(a - i) ? b : a))) : shift;
       if (ref != null && Math.abs(d(i) - ref) <= LONE_S) placedAt.set(ms[i].label, { t: seen.get(i)!, confidence: "high" });
       else review.set(ms[i].label, { t: seen.get(i)!, why: ref == null ? "one frame read, and no clock or other read to tell which part of the stream it's in" : `one frame read, ${Math.round(Math.abs(d(i) - ref) / 60)} min from where the rest of the video sits` });
