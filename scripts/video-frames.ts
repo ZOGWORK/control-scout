@@ -295,6 +295,8 @@ async function checkOpenings(page: Page, j: Judged, log: (s: string) => void, un
       if (t < 0) continue;
       let r: Read;
       try { r = await readAt(page, t, true); } catch (e) { broken = true; log(`    an opening read failed (${(e as Error).message.split("\n")[0]}): the rest are left unchecked`); break; }
+      // A seek that never landed shows whatever frame was up before (the last read's): that frame names nothing here.
+      if (Math.abs(r.at - t) > 1) { log(`    ${label}: the opening read at ${t} s landed at ${Math.round(r.at)} s; not counted`); continue; }
       if (r.division === "other") { named = "another division's match"; continue; }
       // The overlay names a replay (a tiebreak's "M6-2") by its match alone ("M6"), as placeVideo reads it.
       if (r.label === label.replace(/-\d+$/, "")) { at = t; break; }
