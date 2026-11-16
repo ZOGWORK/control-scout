@@ -46,7 +46,7 @@ const args = new Map<string, string | true>();
       if (v == null || v === "" || v.startsWith("--")) { console.error(`--${name}: give it a value`); process.exit(2); }
       args.set(name, v);
     } else if (m && BOOL_FLAGS.has(name) && m[2] == null) args.set(name, true);
-    else { console.error(`${argv[i]}: not a flag this script takes (--season, --codes, --limit, --lanes, --all, --check, --dry, --trace, --verify)`); process.exit(2); }
+    else { console.error(`${argv[i]}: not a flag this script takes (--season, --codes, --limit, --lanes, --all, --check, --dry, --trace, --verify, --live <file>)`); process.exit(2); }
   }
 }
 const arg = (k: string) => { const v = args.get(k); return typeof v === "string" ? v : undefined; };
