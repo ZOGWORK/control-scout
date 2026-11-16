@@ -36,6 +36,8 @@ beforeAll(async () => {
   const f = "INSERT INTO official_audit_videos (video_id, channel_id, title, published, start, duration, first_seen, last_seen, finding, found_at) VALUES (?, ?, ?, '2026-11-14T20:00:00Z', ?, 7200, 'x', 'x', 'open', 'x')";
   await run(f, ["rollalive01", CH, "FTC STL Mid League Rolla Meet", "2026-11-14T15:00:00Z"]);
   await run(f, ["frcoffseasn", CH, "Battle o' Baltimore — Day 1", "2026-11-14T13:00:00Z"]);
+  // A finding the owner dismissed (no queue row).
+  await run("INSERT INTO official_audit_videos (video_id, channel_id, title, published, start, duration, first_seen, last_seen, finding, finding_why, finding_by) VALUES ('ownerdismis', ?, 'FTC STL Mid League Rolla Meet replay', '2026-11-14T20:00:00Z', '2026-11-14T15:00:00Z', 7200, 'x', 'x', 'dismissed', 'a replay', 'owner@example.test')", [CH]);
 });
 
 const link = (videoId: string, code: string, extra: Partial<VideoDecision> = {}): VideoDecision =>
@@ -90,6 +92,14 @@ describe("decisions from evidence", () => {
     expect(out).toMatchObject({ applied: 0, kept: 1 });
     expect(await watch("ownersaidno")).toMatchObject({ status: "rejected", decided_by: "owner@example.test" });
     expect(await watch("notreadyet1")).toBeUndefined();
+  });
+
+  it("keeps a finding the owner dismissed: never linked over it", async () => {
+    const out = await apply([link("ownerdismis", "USMOROLLA", { part: "Replay" })]);
+    expect(out).toMatchObject({ applied: 0, kept: 1 });
+    expect(await watch("ownerdismis")).toBeUndefined();
+    expect(await get("SELECT 1 FROM official_videos WHERE video_id = 'ownerdismis'")).toBeUndefined();
+    expect(await finding("ownerdismis")).toMatchObject({ finding: "dismissed", finding_by: "owner@example.test" });
   });
 
   it("applies once a process: a second pass does nothing", async () => {
