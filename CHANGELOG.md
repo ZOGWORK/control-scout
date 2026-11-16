@@ -25,7 +25,7 @@ Event videos › a team's robot Snapshot is set aside by its title, and a YouTub
 - [history] Videos YouTube was slow to describe are read in the same audit
 
 ### Fixed
-- Event videos: a team's robot video, "Snapshot", "Reveal" or "Robot showcase" beside a team number in a title that names no event, is set aside by its title, with no facts needed. On a copy of the live database it sets aside 136 uploads, every one a team Snapshot (1 in the owner's review, 42 already set aside), and no recording, add or decided link; the 395 videos decided by hand replay unchanged. (`server/videos/officialMatch.ts`) (#1626)
+- Event videos: a team's robot video, "Snapshot", "Reveal" or "Robot showcase" beside a team number in a title that names no event, is set aside by its title, with no facts needed. On a copy of the live database it sets aside 136 uploads, every one a team Snapshot (1 in the owner's review, 42 already set aside), and no recording, add or decided link; the 395 videos decided by hand replay unchanged. (`server/videos/officialMatch.ts`)
 - Event videos: the channel audit tries a failed facts call once more in the same run when the failure is transient (a 5xx, a timeout, a network error; never a 4xx, which would answer the same), a unit allowing, before leaving its 50 videos for the next run. Live on 2026-11-16, one timed-out call at 22:22Z left that team clip in the owner's review. (`server/videos/officialAudit.ts`) (#1626)
 
 ## 7.1.0 — 2026-11-16
