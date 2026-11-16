@@ -25,7 +25,7 @@ Search › typing just a team's number or its whole name opens the team's page.
 - [fixes] "4215 highlights" still shows the team's highlights
 
 ### Changed
-- Search: Enter (or the magnifier) on a query that is one team alone ("4215", "team 4215", "Hypnotic Robotics") opens the team's page straight away, even when the results page would show the team's highlights. Asking for them ("4215 highlights"), a topic ("4215 record") or a name several teams share still opens the results page. (`src/components/search/direct.ts`, `src/components/search/SearchBox.tsx`)
+- Search: Enter (or the magnifier) on a query that is one team alone ("4215", "team 4215", "Hypnotic Robotics") opens the team's page straight away, even when the results page would show the team's highlights. Asking for them ("4215 highlights"), a topic ("4215 record") or a name several teams share still opens the results page. (`src/components/search/direct.ts`, `src/components/search/SearchBox.tsx`) (#1624)
 
 ## 7.0.8 — 2026-11-16
 
