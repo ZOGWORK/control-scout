@@ -712,7 +712,7 @@ export async function countAnswer(q: string): Promise<SearchAnswer | null> {
   const everywhere = WORLD.test(t);
   t = t.replace(WORLD, "");
   // Neither teams nor events named ("how many in Australia", "how many in the world"): both counts, one line each.
-  const bare = /^how many(?:\s+are there)?(?:\s+((?:in|from)\s+.+))?$/.exec(t);
+  const bare = /^how many(?:\s+are there)?(?:\s+((?:in|from)\s+.+?))?(?:\s+(?:this season|this year|right now|now|total))?$/.exec(t);
   if (bare && (bare[1] || everywhere)) {
     const said = sm ? sm[0] : "", where = bare[1] ? ` ${bare[1]}` : "";
     const [tm, ev] = [await countAnswer(`how many teams${where}${said}`), await countAnswer(`how many events${where}${said}`)];
@@ -1045,6 +1045,12 @@ async function placeOf(words: string): Promise<Place | null> {
 /** A place's filter on teams (`t.`); a country stored under several labels matches each of them. */
 const placeSql = (p: Place | null) => (p ? (p.state ? " AND t.country = ? AND t.state = ?" : p.labels ? ` AND t.country IN (${p.labels.map(() => "?").join(", ")})` : " AND t.country = ?") : "");
 const placeArgs = (p: Place | null) => (p ? (p.state ? [p.country, p.state] : p.labels ?? [p.country]) : []);
+/** A place's ranked teams page: its rankings; a country stored under several labels, the Teams list by its country code,
+ *  which reads every label (the rankings page matches one). */
+const placePage = (p: Place, season: number) => {
+  const code = p.labels ? countryOf(p.country)?.code : null;
+  return code ? { title: `${p.name} teams`, href: `/teams?season=${season}&view=listed&country=${code}` } : { title: `${p.name} rankings`, href: `/rankings?season=${season}&region=${encodeURIComponent(p.key)}` };
+};
 const fmt1 = (x: number | null) => (x == null ? "–" : (Math.round(Number(x) * 10) / 10).toFixed(1));
 /** A team's line; `season` when its numbers are one season's, so the link opens that season. */
 const lineOf = (r: any, results: string[], season?: number | null): SearchCardLine => ({
@@ -1082,7 +1088,7 @@ export async function teamListAnswer(q: string): Promise<SearchAnswer | null> {
       const lines = rows.map((r, i) => lineOf(r, [`#${i + 1} in ${p.name}`, `OPR ${fmt1(r.opr_np)}`, `${r.wins}-${r.losses}-${r.ties}`], shown));
       const title = `Top teams in ${p.name} · ${seasonLabel(shown)}`;
       const label = `${title}, by OPR without penalties${shown !== season ? ` (no ${seasonLabel(season)} ranked teams yet)` : ""}`;
-      return card(title, lines, `No ranked teams in ${p.name} for ${seasonLabel(season)} yet.`, [{ title: `${p.name} rankings`, href: `/rankings?season=${shown}&region=${encodeURIComponent(p.key)}` }], label, tableOf(rows, shown));
+      return card(title, lines, `No ranked teams in ${p.name} for ${seasonLabel(season)} yet.`, [placePage(p, shown)], label, tableOf(rows, shown));
     }
   }
   // A place's best match scores: "top scores in NJ", "highest score in texas". As the season records are kept
@@ -1460,7 +1466,7 @@ export async function placeTeamsAnswer(q: string, prefer: ReadonlySet<string>): 
     const lines = rows.map((r, i) => lineOf(r, [`#${i + 1}`, `OPR ${fmt1(r.opr_np)}`, `${r.wins}-${r.losses}-${r.ties}`], season));
     const title = `Teams in ${p.name}`;
     return answer(q, {
-      hits: [], pages: [{ title: `${p.name} rankings`, href: `/rankings?season=${season}&region=${encodeURIComponent(p.key)}` }],
+      hits: [], pages: [placePage(p, season)],
       card: { kind: "leaderboard", title: `${title} · best by OPR, ${seasonLabel(season)}`, lines, ...(lines.length ? { table: tableOf(rows, season) } : { none: `No team in ${p.name} has ${RANKED_MIN_MATCHES}+ matches in ${seasonLabel(season)} yet.` }) },
       understood: { kind: "question", label: `${title}: ${Number(n?.n ?? 0).toLocaleString("en-US")} registered for ${seasonLabel(CURRENT_SEASON)}, best by OPR first` },
     });
