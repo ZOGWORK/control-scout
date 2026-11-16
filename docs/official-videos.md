@@ -154,9 +154,12 @@ minutes and starts a run only when the last one is 6 hours old, so a deploy does
 - **Each new video, once** (`official_watch`): it gets matched with the list's rules (`server/videos/officialMatch.ts`).
   A recording is **added** (`official_videos`, source `watcher`) only when all of these hold:
   - it is a finished live broadcast of at least 45 minutes, public and embeddable, and not blocked in 50 or more countries;
-  - it fits exactly one event of the channel's region on its broadcast date at the venue;
+    or a full-length upload dated by its title (one date: "January 17, 2026", "1/17/26", "12_17_23", "Tournament
+    12/13" read against when it went up), or, with no date in its title, one that went up within 14 days of a one-day
+    event whose whole name its title says and that joins no two names ("Meet 1 & Tournament");
+  - it fits exactly one event of the channel's region on its broadcast date at the venue (an upload: that date);
   - the title agrees on the division, designators, date, weekday and day number. Taken one at a time, a title's
-    "Day N" must be the event's own day N;
+    "Day N" must be the event's own day N. A title naming two meets or qualifiers ("Meet #3 / Meet #4") is two events;
   - the event has no video for that day yet (a second video of a day is kept only when both name their parts, such
     as "Matches" and "Awards"), and none whose day isn't known yet. Another programme's stream at the same venue (FIRST
     Global, a drone or simulator contest) is set aside, and "Meeting" or "Sports Day 2026" no longer reads as a meet or a
@@ -165,10 +168,22 @@ minutes and starts a run only when the last one is 6 hours old, so a deploy does
   A video the event already plays for that day, or one that is already some event's video (FIRST's link, a short
   link, a channel broadcast, the owner's stream), is logged as a **duplicate** and never added or queued.
 
-  Anything short of that goes **to review**, with the reason and the event it fits best. Titles that aren't
-  competition streams (webinars, kickoffs, FRC, …) are **set aside**, and so is a video under 45 minutes that fits no
-  event (an upload, a program call, a team's reel): it can't be a day's recording, and the owner can still add it as a
-  highlight from the set-aside list. A title naming the region itself ("FTC Iowa …") makes all its events that day
+  Anything short of that goes **to review**, with the reason and the event it fits best, unless the rules settle it
+  from the same facts. These are **set aside**, each with its reason, and never wait on the owner:
+  - a title that isn't a competition stream: webinars, kickoffs, coach calls and Coaches Corners, program calls,
+    meetings (a council, a committee, a legislature), keynotes and conference sessions, Robot in 30 Hours and robot
+    reveals, recaps, ranking and prediction shows, gaming-league streams, FRC (by name or by its games: REBUILT,
+    REEFSCAPE, CRESCENDO, …), FLL, FGC, VEX, drones, simulators (UrSim, xRC);
+  - a video under 45 minutes, whatever event it fits: a clip or highlight, never a day's recording (the owner can
+    still add it as a highlight from the set-aside list);
+  - a video that doesn't play here: private, unlisted, embedding off, or blocked in 50 or more countries;
+  - a broadcast with no Scout event in the channel's region that day or a day either side (one a day off, such as a
+    stream scheduled the day before Scout's date, goes to review);
+  - one field's stream ("Field 2") or one named division's ("Flowers Division") of an event Scout keeps as one event:
+    its divisions or fields played at once, so a clip would open on whichever covered its time.
+
+  Parts are read from the title too: Awards, Finals, Playoffs, Eliminations, Morning, Afternoon, Before and After
+  lunch, "Matches 1–13". "Qualification & Playoff matches" is the whole day's matches, not a part. A title naming the region itself ("FTC Iowa …") makes all its events that day
   plausible, so when the title also names one event by its own word or designator ("Iris", "Waterloo", "Meet #1" and
   not "Meet #1a"), the events it fits by the region's name alone drop out. Two events sharing a word ("CTX GEMS
   Diamond League Meet 2" and "… Emerald …") are told apart the same way: an event whose name has a word the title
@@ -257,9 +272,10 @@ channel's whole uploads list, video by video, with Scout's records. It reads onl
     not a miss.
   - **Not read by the watcher yet.** It's in the watcher's window but went up or ended after the watcher's last run,
     or it's live. The watcher's next run reads it.
-  - **Added by the audit.** Every check of the watcher's passes and its event's day is free (`settle`): the audit adds
-    it as the watcher would (`record`, `decided_by` "channel audit", counted in the run's `added`), and from the next
-    run checks it with the watcher's own adds. An upload is never added this way: it has no broadcast date.
+  - **Added by the audit.** Every check of the watcher's passes and its event's day and part are free (`settle`): the
+    audit adds it as the watcher would (`record`, `decided_by` "channel audit", counted in the run's `added`), and from
+    the next run checks it with the watcher's own adds. An upload qualifies only when the watcher's upload rules date
+    it (above).
   - **A watcher miss.** It's in the window, older than the watcher's last run, and the watcher has no row for it. It
     counts in the run's `missed`. One that passes every check is added (above); any other becomes a finding at once,
     and if a watcher run after that still has no row for it, it goes to the review queue with why.
@@ -270,6 +286,11 @@ channel's whole uploads list, video by video, with Scout's records. It reads onl
     a day with no video. It shows in
     Owner › Official videos with its verdict, why and best guess. The owner sends it to review (`officialVideo.auditQueue`)
     or says why it isn't a recording (`officialVideo.auditDismiss`, reason required), and it's never opened again.
+- **The review queue and the watcher's set-aside rows, decided again every run** with today's rules: a rule learned
+  since decides what it can. One in review that the rules now set aside leaves the queue (`official_watch` ignored or
+  duplicate, `decided_by` "channel audit", its why starting "set aside by the channel audit"); one in review or set
+  aside that now passes every check is added. Whatever still needs a judgement stays in review. A title that isn't a
+  competition's decides it without facts being read.
 - **The watcher's own adds**, checked every run (`official_audit_adds`). Each is checked for these:
   - it's still on its event, public, embeddable, and blocked in fewer than 50 countries;
   - its title is an FTC competition stream's;
@@ -292,8 +313,13 @@ channel's whole uploads list, video by video, with Scout's records. It reads onl
 
 ## Decisions from evidence
 
-The owner's review queue and the audit's findings are decided by checking each video, not by the owner
-(`server/data/videoDecisions.ts`, applied by `server/videos/videoDecisions.ts` once a process after the checked list).
+What the rules can't decide is decided by checking each video, not by the owner (`server/data/videoDecisions.ts`,
+applied by `server/videos/videoDecisions.ts` once a process after the checked list). Before an entry is written, the
+question is whether the watcher could have decided it from the same evidence; if so, the rule is taught instead, and
+the entry is left out. Each entry says what the rules say on their own (`rulesSay`): the cases left need the video
+itself (frames: an overlay naming the event, an FRC field, one field of two), its description (the date of an
+undated upload), or which Scout event a title means when the names differ. Of the 395 videos decided on 2026-11-16,
+the rules decide 203 the same way and 192 are entries.
 Each entry is one video: **link** (to an event, its venue-local day, and a part only when the video's own title names
 one), **reject** (not FTC: FRC, FLL, FGC, a simulator, a meeting, a webinar, with which) or **set aside** (FTC, but not
 a day's recording Scout can play: a clip, unplayable here, a second copy of a day that already plays, two events or
