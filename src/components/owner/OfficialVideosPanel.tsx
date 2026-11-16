@@ -151,10 +151,12 @@ function Decided({ w }: { w: OfficialWatchRow }) {
     <li className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border bg-card p-3 text-sm">
       <div className="min-w-0">
         <p className="flex flex-wrap items-center gap-2"><Badge variant={s.variant}>{s.label}</Badge>
+          {w.decidedBy === "evidence" && <Badge variant="secondary" data-evidence>Decided from evidence</Badge>}
           {w.code && w.season ? <Link to={`/events/${w.season}/${w.code}`} className="font-medium hover:underline">{w.season} {w.code}</Link> : null}
           {w.day ? <span className="text-muted-foreground">{w.day}{w.part ? ` · ${w.part}` : ""}</span> : null}</p>
         <a href={watchUrl(w.videoId)} target="_blank" rel="noreferrer noopener" className="mt-1 block truncate text-foreground hover:underline">{w.title}</a>
-        <p className="text-xs text-muted-foreground">{w.channel} · {ago(w.decidedAt ?? w.seenAt)}{w.decidedBy && w.decidedBy !== "watcher" ? ` by ${w.decidedBy}` : ""}</p>
+        <p className="text-xs text-muted-foreground">{w.channel} · {ago(w.decidedAt ?? w.seenAt)}{w.decidedBy && w.decidedBy !== "watcher" && w.decidedBy !== "evidence" ? ` by ${w.decidedBy}` : ""}</p>
+        {w.decidedBy === "evidence" && <p className="mt-1 text-xs text-muted-foreground" data-evidence-why>{w.why}</p>}
       </div>
       {(w.status === "added" || w.status === "approved") && (
         <Button variant="outline" size="sm" disabled={busy} onClick={async () => { setBusy(true); await act(`/${w.videoId}/remove`, { method: "POST" }, "Removed from its event."); setBusy(false); }}><Trash2 /> Remove</Button>
@@ -217,7 +219,7 @@ function Audit({ a }: { a: OfficialAudit }) {
           {last?.error && <dd className="mt-1 text-danger">{last.error}</dd>}</div>
         <div className="rounded-xl border border-border bg-card p-3"><dt className="text-muted-foreground">Uploads with a Scout record</dt>
           <dd className="mt-1 font-medium tabular-nums">{n(recorded)} of {n(uploads)}, {audited} of {a.channels.length} channels read</dd>
-          {last && <dd className="mt-1 text-xs text-muted-foreground">{n(last.setAside)} set aside by their title or facts</dd>}</div>
+          {last && <dd className="mt-1 text-xs text-muted-foreground">{n(last.setAside)} set aside by their title or facts{last.added ? `, ${n(last.added)} added by the audit (every check passed)` : ""}</dd>}</div>
         <div className="rounded-xl border border-border bg-card p-3"><dt className="text-muted-foreground">Missed by the watcher</dt>
           <dd className={`mt-1 font-medium tabular-nums ${last?.missed ? "text-danger" : ""}`}>{last ? `${last.missed} last audit${last.queued ? `, ${last.queued} sent to review` : ""}` : "—"}</dd>
           <dd className="mt-1 text-xs text-muted-foreground">{last?.missed && last.missed > last.queued ? "A miss goes to review when the watcher's next run still misses it. " : ""}{a.openFindings} open finding{a.openFindings === 1 ? "" : "s"} in all</dd></div>

@@ -29,7 +29,6 @@ describe("the watcher's matcher", () => {
     expect(matchVideo(vid("Mockingbird Qualifier"), TX, events)).toMatchObject({ kind: "review", why: /fits both/ });
     const one = [ev("USTXMOQ", "TX Mockingbird Qualifier")];
     expect(matchVideo(vid("Mockingbird Qualifier", { start: null }), TX, one)).toMatchObject({ kind: "review", why: /upload/ });
-    expect(matchVideo(vid("Mockingbird Qualifier", { durationS: 180 }), TX, one)).toMatchObject({ kind: "review", why: /clip or highlight/ });
     expect(matchVideo(vid("Mockingbird Qualifier", { durationS: null }), TX, one)).toMatchObject({ kind: "review", why: /no length/ });
     expect(matchVideo(vid("Mockingbird Qualifier Day 2"), TX, one)).toMatchObject({ kind: "review", why: /day 2/ });
     expect(matchVideo(vid("Mockingbird Qualifier Day 10"), TX, one)).toMatchObject({ kind: "review", why: /says day 10,/ });
@@ -40,20 +39,28 @@ describe("the watcher's matcher", () => {
     expect(matchVideo(vid("Mockingbird Qualifier 1/17/2026"), TX, one).kind).toBe("add");
     expect(matchVideo(vid("Mockingbird Qualifier 17.01.26"), TX, one).kind).toBe("add");
     expect(matchVideo(vid("Mockingbird Qualifier 17.01.27"), TX, one).kind).toBe("review");
+    // Month.day.year with dots ("Finger Lakes Qualifier Afternoon 12.17.23"): read as the one real date it can be,
+    // never as month 17. A day the broadcast isn't still goes to review, saying the real date.
+    expect(matchVideo(vid("Mockingbird Qualifier 01.17.26"), TX, one).kind).toBe("add");
+    expect(matchVideo(vid("Mockingbird Qualifier 01.18.26"), TX, one)).toMatchObject({ kind: "review", why: "the title's date 2026-01-18 isn't the broadcast's (2026-01-17)" });
+    // Numbers that are no date at all aren't a date the broadcast must match.
+    expect(matchVideo(vid("Mockingbird Qualifier 45.33.26"), TX, one).kind).toBe("add");
     // Any weekday the title names must be the broadcast's (2026-01-17 was a Saturday).
     expect(matchVideo(vid("Mockingbird Qualifier - Monday"), TX, one)).toMatchObject({ kind: "review", why: /says monday/ });
     expect(matchVideo(vid("Mockingbird Qualifier - Saturday"), TX, one).kind).toBe("add");
     // Two events that both fit go to review, even when one scores higher.
     const two = [ev("USTXMOQ", "TX Mockingbird Qualifier"), ev("USTXMOM3", "TX Mockingbird League Meet 3")];
     expect(matchVideo(vid("Mockingbird League Meet 3"), TX, two)).toMatchObject({ kind: "review", why: /fits both/ });
-    expect(matchVideo(vid("Mockingbird Qualifier", { blockedIn: 249 }), TX, one)).toMatchObject({ kind: "review", why: /blocked in 249/ });
-    expect(matchVideo(vid("Mockingbird Qualifier", { embeddable: false }), TX, one)).toMatchObject({ kind: "review", why: /not embeddable/ });
-    expect(matchVideo(vid("Mockingbird Qualifier", { privacy: "unlisted" }), TX, one)).toMatchObject({ kind: "review", why: /unlisted/ });
+    // Not a video that plays here: nothing to link, whichever event it is.
+    expect(matchVideo(vid("Mockingbird Qualifier", { blockedIn: 249 }), TX, one)).toMatchObject({ kind: "ignore", why: /blocked in 249/ });
+    expect(matchVideo(vid("Mockingbird Qualifier", { embeddable: false }), TX, one)).toMatchObject({ kind: "ignore", why: /not embeddable/ });
+    expect(matchVideo(vid("Mockingbird Qualifier", { privacy: "unlisted" }), TX, one)).toMatchObject({ kind: "ignore", why: /unlisted/ });
     // A state name and a type alone aren't evidence.
     expect(matchVideo(vid("Texas Qualifier"), TX, one)).toMatchObject({ kind: "review", why: /no event on that date fits/ });
-    // No event of the channel's region that day.
-    expect(matchVideo(vid("Mockingbird Qualifier"), { region: "state=IA" }, one)).toMatchObject({ kind: "review", why: /no Scout event/ });
-    expect(matchVideo(vid("Mockingbird Qualifier", { start: "2026-02-20T15:00:00Z" }), TX, one)).toMatchObject({ kind: "review" });
+    // No event of the channel's region that day or a day either side: nothing to put it on. One a day off: the owner decides.
+    expect(matchVideo(vid("Mockingbird Qualifier"), { region: "state=IA" }, one)).toMatchObject({ kind: "ignore", why: /no Scout event .* or a day either side/ });
+    expect(matchVideo(vid("Mockingbird Qualifier", { start: "2026-02-20T15:00:00Z" }), TX, one)).toMatchObject({ kind: "ignore", why: /no Scout event/ });
+    expect(matchVideo(vid("Mockingbird Qualifier", { start: "2026-01-16T15:00:00Z" }), TX, one)).toMatchObject({ kind: "review", why: /a day either side/ });
   });
 
   it("keeps divisions apart, and a parent event never gets a division's video", () => {
@@ -152,6 +159,81 @@ describe("the watcher's matcher", () => {
     expect(matchVideo(vid("FTC Iowa League Meet", at), IA, events)).toMatchObject({ kind: "review", why: /fits both/ });
   });
 
+  it("reads a league pair's tournament as one designator: C&N League Tournament is TX-North C&N Tournament", () => {
+    const NTX = { region: "state=TX", words: "texas ntx fit north" };
+    const day = { city: "Dallas", type: "LeagueTournament", start: "2022-12-10", end: "2022-12-10" } as const;
+    const events = [ev("USTXNOCNLT1", "TX-North C&N Tournament", day), ev("USTXNOBTLT", "TX-North B&T Tournament", { ...day, city: "Aledo" })];
+    expect(designators("NTX FTC C&N-League Tournament")).toMatchObject({ letter: "C&N" });
+    expect(designators("SoCal FTC ILT #6 - Leagues E & W").letter).toBeUndefined();
+    const v = matchVideo(vid("NTX FTC C&N-League Tournament (2022.12.10)", { start: "2022-12-10T15:00:00Z" }), NTX, events);
+    expect(v.kind === "add" && v.event.code).toBe("USTXNOCNLT1");
+  });
+
+  it("sets aside one meet over two same-day meets told apart only by a letter or AM and PM", () => {
+    const NTX = { region: "state=TX", words: "texas ntx fit north" };
+    const day = { city: "Flower Mound", type: "LeagueMeet", start: "2024-11-09", end: "2024-11-09" } as const;
+    const at = { start: "2024-11-09T14:00:00Z" };
+    const ab = [ev("USTXNXM1", "FiT-North X-League Meet 1a", day), ev("USTXNXM2", "FiT-North X-League Meet 1b", day)];
+    expect(matchVideo(vid("NTX FTC X-League Meet #1 (2024.11.09)", at), NTX, ab)).toMatchObject({ kind: "ignore", why: /USTXNXM1 and USTXNXM2, same-day meets told apart only by a letter/ });
+    // Its own letter in the title: that one.
+    expect(matchVideo(vid("NTX FTC X-League Meet #1b (2024.11.09)", at), NTX, ab)).toMatchObject({ kind: "add", event: { code: "USTXNXM2" } });
+    const ampm = [ev("USTXNUAM1", "FiT-North U-League AM Meet 1", day), ev("USTXNUPM1", "FiT-North U-League PM Meet 1", day)];
+    expect(matchVideo(vid("NTX FTC U-League meet #1 (2024.11.09)", at), NTX, ampm)).toMatchObject({ kind: "ignore", why: /told apart only by AM and PM/ });
+    // Meets in two cities aren't twins: never set aside as two events in one video (which one it is stays for the owner).
+    const apart = [ev("USTXNXM1", "FiT-North X-League Meet 1a", day), ev("USTXNXM2", "FiT-North X-League Meet 1b", { ...day, city: "Denton" })];
+    expect(matchVideo(vid("NTX FTC X-League Meet #1 Denton (2024.11.09)", at), NTX, apart).kind).toBe("review");
+  });
+
+  it("sets aside an undated upload of a multi-day event: which day it is can't be told", () => {
+    const cmp = [ev("FTCCMP1JEMI", "FIRST Championship Jemison Division", { start: "2025-04-15", end: "2025-04-19", type: "FIRSTChampionship" })];
+    const v = matchVideo(vid("FIRST Championship: Jemison Division - Day 4 Complete", { start: null, published: "2025-04-21T00:00:00Z" }), { region: "country=USA" }, cmp);
+    expect(v).toMatchObject({ kind: "ignore", why: /an upload of FTCCMP1JEMI \(2025-04-15 to 2025-04-19\) with no date: which of its days it is can't be told/ });
+  });
+
+  it("trusts the broadcast's date over a title's slip, only when the event it names doesn't run on the title's date", () => {
+    const NTX = { region: "state=TX", words: "texas ntx fit north" };
+    const m3 = [ev("USTXNEM3", "FiT-North E-League Meet 3", { start: "2025-01-18", end: "2025-01-18", type: "LeagueMeet" })];
+    expect(matchVideo(vid("NTX FTC E-League Meet #3 (2025.01.11)", { start: "2025-01-18T17:30:00Z" }), NTX, m3)).toMatchObject({ kind: "add", event: { code: "USTXNEM3" }, day: "2025-01-18" });
+    // A two-day event the title's date falls in: a re-stream of its other day, for the owner.
+    const two = [ev("USTXNECMP", "FiT-North Lone Star Championship", { start: "2025-01-17", end: "2025-01-18", type: "Championship" })];
+    expect(matchVideo(vid("NTX FTC Lone Star Championship (2025.01.17)", { start: "2025-01-18T15:00:00Z" }), NTX, two)).toMatchObject({ kind: "review", why: /the title's date 2025-01-17 isn't the broadcast's/ });
+    // An event whose name is only region and stop words: the title names it by nothing of its own, so no slip.
+    const bare = [ev("USTXNEC", "FiT-North Championship", { start: "2025-01-18", end: "2025-01-18", type: "Championship", city: "Lone Star" })];
+    expect(matchVideo(vid("NTX FTC Lone Star Championship (2025.01.11)", { start: "2025-01-18T15:00:00Z" }), NTX, bare)).toMatchObject({ kind: "review", why: /the title's date 2025-01-11 isn't the broadcast's/ });
+    // An upload's only date is its title's: never overridden.
+    expect(matchVideo(vid("NTX FTC E-League Meet #3 (2025.01.11)", { start: null, published: "2025-01-19T09:00:00Z" }), NTX, m3).kind).not.toBe("add");
+  });
+
+  it("sets aside a title naming no event when every event then was played remotely", () => {
+    const remote = [ev("USCPRIQT2", "CP FTC Qualifier #2 REMOTE", { start: "2021-02-08", end: "2021-02-14", remote: true })];
+    expect(matchVideo(vid("CHS FIRST Tech Challenge Event 2/14/2021", { start: null, published: "2021-02-14T23:00:00Z" }), { region: "country=USA" }, remote))
+      .toMatchObject({ kind: "ignore", why: /the only Scout events then are remote ones \(USCPRIQT2\)/ });
+    // An event played in person that day keeps it for the owner.
+    const both = [...remote, ev("USCPMDQ1", "CP Maryland Qualifier", { start: "2021-02-14", end: "2021-02-14" })];
+    expect(matchVideo(vid("CHS FIRST Tech Challenge Event 2/14/2021", { start: null, published: "2021-02-14T23:00:00Z" }), { region: "country=USA" }, both).kind).toBe("review");
+    // A broadcast naming the remote event itself: the owner's, never added.
+    expect(matchVideo(vid("CP FTC Qualifier #2 Remote Awards", { start: "2021-02-14T19:00:00Z" }), { region: "country=USA" }, remote))
+      .toMatchObject({ kind: "review", why: /USCPRIQT2 was played remotely/ });
+  });
+
+  it("sets aside a dated upload of FTC Events: several events in one video", () => {
+    const day = [ev("USCHSHAQ1", "CHS Harrisonburg Qualifier 1", { start: "2022-02-05", end: "2022-02-05" }), ev("USCHSLAQ1", "CHS Laurel Qualifier 1", { start: "2022-02-05", end: "2022-02-05" })];
+    expect(matchVideo(vid("FIRST Chesapeake February 5th, 2022 FTC Events", { start: null, published: "2022-02-06T02:00:00Z" }), { region: "country=USA" }, day))
+      .toMatchObject({ kind: "ignore", why: /the title says FTC Events/ });
+    // Its words fitting one of them ("Harrisonburg") doesn't make it that one.
+    expect(matchVideo(vid("FIRST Chesapeake Harrisonburg February 5th, 2022 FTC Events", { start: null, published: "2022-02-06T02:00:00Z" }), { region: "country=USA" }, day))
+      .toMatchObject({ kind: "ignore", why: /the title says FTC Events/ });
+  });
+
+  it("sets aside an undated upload of a ceremony alone, or of one division's stream", () => {
+    const ga = [ev("USGACMP", "Georgia Championship", { start: "2024-02-17", end: "2024-02-18", type: "Championship" })];
+    const at = { start: null, published: "2024-02-23T00:00:00Z" };
+    expect(matchVideo(vid("Closing Ceremonies - 2024 GA FTC State Championship", { ...at, durationS: 45 * 60 }), { region: "country=USA" }, ga)).toMatchObject({ kind: "ignore", why: /a ceremony alone \(45 minutes/ });
+    expect(matchVideo(vid("2024 GA FTC State Championship - Kamen Division", { ...at, durationS: 340 * 60 }), { region: "country=USA" }, ga)).toMatchObject({ kind: "ignore", why: /one division's stream, with no date/ });
+    // A ceremony with matches in it, or a long one, stays for the owner.
+    expect(matchVideo(vid("2024 GA FTC State Championship - Finals and Awards", { ...at, durationS: 80 * 60 }), { region: "country=USA" }, ga).kind).toBe("review");
+  });
+
   it("a meet split in two keeps its letter: Meet #1 is not Meet #1a", () => {
     const day = { city: "Plano", type: "LeagueMeet", start: "2026-10-31", end: "2026-10-31" } as const;
     const events = [ev("USTXNONIM1", "NTX I-League Meet #1", day), ev("USTXNONIM2", "NTX I-League Meet #1a", day)];
@@ -197,12 +279,40 @@ describe("the watcher's matcher", () => {
   it("sets aside a short video that names no event: an upload, a call, a team's reel", () => {
     const one = [ev("USTXMOQ", "TX Mockingbird Qualifier")];
     expect(matchVideo(vid("Compact Differential Swerve Drive | 23334 Axiom | FTC BIOBUZZ Snapshot", { start: null, durationS: 79 }), TX, one)).toMatchObject({ kind: "ignore", why: /1-minute upload/ });
-    expect(matchVideo(vid("FTC Program Call Nov 12, 2026 Recording", { durationS: 22 * 60 }), TX, one)).toMatchObject({ kind: "ignore", why: /22 minutes long, and its title fits no event/ });
-    expect(matchVideo(vid("FTC Program Call", { durationS: 22 * 60 }), { region: "state=WI" }, one)).toMatchObject({ kind: "ignore", why: /no Scout event/ });
-    // Short and about one event: the owner decides (a highlight, or a clip of the day).
-    expect(matchVideo(vid("Mockingbird Qualifier", { durationS: 180 }), TX, one)).toMatchObject({ kind: "review", why: /clip or highlight/, event: { code: "USTXMOQ" } });
-    // A full-length upload might be a re-uploaded day: the owner decides.
+    expect(matchVideo(vid("FTC Program Call Nov 12, 2026 Recording", { durationS: 22 * 60 }), TX, one)).toMatchObject({ kind: "ignore", why: /the title says "program call"/ });
+    expect(matchVideo(vid("FTC Robotics Night", { durationS: 22 * 60 }), TX, one)).toMatchObject({ kind: "ignore", why: /22 minutes long, and its title fits no event/ });
+    expect(matchVideo(vid("FTC Wisconsin Qualifier", { durationS: 22 * 60 }), { region: "state=WI" }, one)).toMatchObject({ kind: "ignore", why: /no Scout event/ });
+    // Short and about one event: a clip or highlight, never a day's recording (set aside; the owner can add a highlight).
+    expect(matchVideo(vid("Mockingbird Qualifier", { durationS: 180 }), TX, one)).toMatchObject({ kind: "ignore", why: /3 minutes long: a clip or highlight of USTXMOQ/ });
+    // A full-length upload might be a re-uploaded day: the owner decides, unless its title dates it (below).
     expect(matchVideo(vid("Mockingbird Qualifier", { start: null }), TX, one)).toMatchObject({ kind: "review", why: /upload/ });
+  });
+
+  it("matches an upload on the one date its title says, as strictly as a broadcast", () => {
+    const one = [ev("USTXMOQ", "TX Mockingbird Qualifier")];
+    const up = (title: string) => matchVideo(vid(title, { start: null }), TX, one);
+    expect(up("Mockingbird Qualifier January 17, 2026")).toMatchObject({ kind: "add", event: { code: "USTXMOQ" }, day: "2026-01-17", why: /an upload/ });
+    expect(up("Mockingbird Qualifier 18 Jan 2026")).toMatchObject({ kind: "add", day: "2026-01-18" });
+    expect(up("Mockingbird Qualifier (2026-1-17)")).toMatchObject({ kind: "add", day: "2026-01-17" });
+    // 01.02.26 reads as January 2 or February 1: no one date, so the owner decides.
+    expect(up("Mockingbird Qualifier 01.02.26")).toMatchObject({ kind: "review", why: /upload/ });
+    // The title's weekday and day number must agree with its date.
+    expect(up("Mockingbird Qualifier Sunday 1/17/2026")).toMatchObject({ kind: "review", why: /says sunday, the title's date was on saturday/ });
+    expect(up("Mockingbird Qualifier Day 2 1/17/2026")).toMatchObject({ kind: "review", why: /day 2/ });
+    // Named only by its region: the date is the uploader's word, so the owner decides.
+    expect(up("Texas Qualifier 1/17/2026")).toMatchObject({ kind: "review" });
+    // A date with no event in the region: nothing to put it on.
+    expect(up("Mockingbird Qualifier March 7, 2026")).toMatchObject({ kind: "ignore", why: /title's date or a day either side/ });
+  });
+
+  it("sets aside a field's stream of a one-event meet and the titles of other programs", () => {
+    const one = [ev("USTXMOQ", "TX Mockingbird Qualifier")];
+    expect(matchVideo(vid("Mockingbird Qualifier Field 2"), TX, one)).toMatchObject({ kind: "ignore", why: /one field's stream of USTXMOQ/ });
+    for (const [title, word] of [["Battle o' Baltimore 2026 REBUILT Qualifier", "REBUILT"], ["FIRST Nevada FTC Coaches Corner: League Meets", "Coaches Corner"],
+      ["UrSim Digital Regional Qualifier", "UrSim"], ["Robot in 30 Hours FTC", "Robot in 30 Hours"], ["Town Council Meeting - Robotics League", "Council"],
+      ["FTC Texas State Championship Recap", "Recap"], ["League Tournament keynote", "keynote"]] as const) {
+      expect(matchVideo(vid(title), TX, one)).toMatchObject({ kind: "ignore", why: new RegExp(`the title says "${word}"`, "i") });
+    }
   });
 
   it("sets aside what isn't a competition stream", () => {

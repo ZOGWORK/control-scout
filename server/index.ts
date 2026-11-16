@@ -9,6 +9,7 @@ import { checkClipCoverage, triageUntriaged } from "./videos/coverageCheck.js";
 import { resolveStreamLinks } from "./videos/streamLinks.js";
 import { resolveChannelStreams } from "./videos/channelStreams.js";
 import { seedOfficialVideos } from "./videos/officialVideos.js";
+import { applyVideoDecisions } from "./videos/videoDecisions.js";
 import { WATCH_CHECK_MS, WATCH_FIRST_MS, watchIfDue } from "./videos/officialWatch.js";
 import { runChannelAudit } from "./videos/officialAudit.js";
 import "./env.js";
@@ -242,6 +243,8 @@ if (!process.env.CS_NO_SCHEDULER) {
   // The checked list of official recordings (server/videos/officialVideos.ts) is written first: new rows after a deploy, none after.
   const recordings = () => {
     seedOfficialVideos(log).catch((e) => log(`official videos: ${(e as Error).message}`))
+      // Then the decisions from evidence (server/data/videoDecisions.ts): once a process, like the list.
+      .then(() => applyVideoDecisions(log)).catch((e) => log(`official videos: decisions: ${(e as Error).message}`))
       .then(() => resolveStreamLinks(log)).catch((e) => log(`recordings: ${(e as Error).message}`))
       .then(() => resolveChannelStreams(log)).catch((e) => log(`recordings: ${(e as Error).message}`))
       .then(() => backfillVideoMeta(log)).catch((e) => log(`recordings: ${(e as Error).message}`))

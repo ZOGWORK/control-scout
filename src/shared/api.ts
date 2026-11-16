@@ -1116,10 +1116,11 @@ export interface OwnerOfficialVideos {
   audit: OfficialAudit;
 }
 /** One channel audit: each watched channel's whole uploads list against Scout's records. missed: watcher misses it
- *  found (in the watcher's window, no Scout record: sent to review). */
+ *  found (in the watcher's window, no Scout record: added when every check passes, else sent to review). added:
+ *  uploads with no record that passed every check of the watcher's, added by the audit. */
 export interface OfficialAuditRun {
   id: number; startedAt: string; finishedAt: string | null; units: number; channels: number; fullChannels: number; uploads: number; recorded: number; setAside: number;
-  findings: number; missed: number; queued: number; addsChecked: number; addsWrong: number; error: string | null;
+  added: number; findings: number; missed: number; queued: number; addsChecked: number; addsWrong: number; error: string | null;
 }
 /** A channel at its last audit. uploads: its uploads-list count (null: not audited yet); recorded: those Scout has any
  *  record of; linked: those that play on an event (every season), linkedCurrent: of the 2026-27 season. */
