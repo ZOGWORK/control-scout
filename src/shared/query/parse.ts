@@ -115,9 +115,9 @@ export interface ParseContext {
 
 /** `at`: the word as typed it came from (its place among the words typed, before any time was read out). */
 type Tok = { w: string; typed: string; at: number; used: boolean; alliance?: boolean; side?: "red" | "blue" };
-/** The one-word filler phrases ("the", "a"): read before a name that starts with one. */
 /** The words that name a team ("team", "robots"). */
 const TEAM_WORDS = new Set(LEXICON.filter((e) => e.words.length === 1 && e.syms.length === 1 && e.syms[0].k === "thing" && e.syms[0].v === "team").map((e) => e.words[0]));
+/** The one-word filler phrases ("the", "a"): read before a name that starts with one. */
 const FILLER_WORDS = new Set(LEXICON.filter((e) => e.words.length === 1 && e.syms.every((x) => x.k === "filler")).map((e) => e.words[0]));
 /** Every filler phrase, one word or more ("the", "thank you"). */
 const FILLER_PHRASES = LEXICON.filter((e) => e.syms.every((x) => x.k === "filler")).map((e) => e.words);

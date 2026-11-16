@@ -707,15 +707,19 @@ export async function countAnswer(q: string): Promise<SearchAnswer | null> {
     if (sm[2] && !sm[3] && !sm[4]) year = Number(sm[2]);
     t = t.slice(0, sm.index);
   }
-  // Everywhere said ("in the world", "worldwide"): no place.
-  t = t.replace(/\s+(?:in the (?:whole )?world|in all the world|worldwide|world wide|globally|across the world|around the world|all over the world|internationally)$/, "");
-  // Neither teams nor events named ("how many in Australia"): both counts, one line each.
-  const bare = /^how many\s+(?:are there\s+)?((?:in|from)\s+.+)$/.exec(t);
-  if (bare) {
-    const said = sm ? sm[0] : "";
-    const [tm, ev] = [await countAnswer(`how many teams ${bare[1]}${said}`), await countAnswer(`how many events ${bare[1]}${said}`)];
+  // Everywhere said ("in the world", "worldwide", before "this season" too): no place.
+  const WORLD = /\s+(?:in the (?:whole )?world|in all the world|worldwide|world wide|globally|across the world|around the world|all over the world|internationally)(?=\s|$)/g;
+  const everywhere = WORLD.test(t);
+  t = t.replace(WORLD, "");
+  // Neither teams nor events named ("how many in Australia", "how many in the world"): both counts, one line each.
+  const bare = /^how many(?:\s+are there)?(?:\s+((?:in|from)\s+.+))?$/.exec(t);
+  if (bare && (bare[1] || everywhere)) {
+    const said = sm ? sm[0] : "", where = bare[1] ? ` ${bare[1]}` : "";
+    const [tm, ev] = [await countAnswer(`how many teams${where}${said}`), await countAnswer(`how many events${where}${said}`)];
     if (!tm?.card || !ev?.card) return null;
-    const label = `${tm.card.title.replace(/^How many teams/, "How many teams and events")}`;
+    // One season for both, named once; a bare year is a season of teams but a calendar year of events, each line its own.
+    const [head, when] = tm.card.title.split(" · "), evWhen = ev.card.title.split(" · ")[1];
+    const label = `${head.replace(/^How many teams/, "How many teams and events")}${when === evWhen ? ` · ${when}` : ""}`;
     return answer(q, { hits: [], pages: [...tm.pages, ...ev.pages], card: { kind: "info", title: label, lines: [...tm.card.lines, ...ev.card.lines] }, understood: { kind: "question", label } });
   }
   const m =/^how many\s+(?:ftc\s+)?(?:league\s+)?(teams?|events?|meets?|competitions?)\s*(?:are there|is there|exist|are|there are)?\s*(?:(?:in|from)\s+(.+?))?\s*(?:this season|this year|right now|now|in ftc|total)?\s*(?:are there|exist)?$/.exec(t);
@@ -1012,7 +1016,7 @@ export async function teamFallback(q: string, prefer: ReadonlySet<string>): Prom
 }
 
 /** A place a team list can be filtered to: a state or province ("NJ"), or a country by its stored name ("Canada"). */
-type Place = { name: string; country: string; state: string | null; key: string };
+type Place = { name: string; country: string; state: string | null; key: string; labels?: string[] };
 /** The words as typed, found again in the query: a state code keeps its capitals ("OR" is Oregon, "or" is a word). */
 function cased(q: string, part: string): string {
   const typed = squash(q), i = typed.toLowerCase().indexOf(part);
@@ -1025,18 +1029,22 @@ async function placeOf(words: string): Promise<Place | null> {
   const r = regionOf(w.split(" "));
   if (r) return { name: r.name, country: r.country, state: r.state, key: r.key };
   const alias: Record<string, string> = { us: "USA", usa: "USA", "united states": "USA", america: "USA", uk: "United Kingdom", britain: "United Kingdom", "great britain": "United Kingdom", england: "United Kingdom" };
-  const row = await get<{ country: string }>("SELECT country FROM teams WHERE LOWER(country) = LOWER(?) LIMIT 1", [alias[w.toLowerCase()] ?? w]);
-  if (row) return { name: row.country, country: row.country, state: null, key: row.country };
-  // A country by another of its names ("Taiwan" for the stored "Chinese Taipei", ../../src/shared/countries.ts): the
-  // stored label holding the most teams.
-  const c = countryOf(w);
-  if (!c) return null;
-  const labels = await all<{ country: string }>("SELECT country FROM teams WHERE country IS NOT NULL GROUP BY country ORDER BY COUNT(*) DESC");
-  const hit = labels.find((l) => countryOf(l.country)?.code === c.code);
-  return hit ? { name: hit.country, country: hit.country, state: null, key: hit.country } : null;
+  const said = alias[w.toLowerCase()] ?? w;
+  const row = await get<{ country: string }>("SELECT country FROM teams WHERE LOWER(country) = LOWER(?) LIMIT 1", [said]);
+  // A country by any of its names ("Taiwan" for the stored "Chinese Taipei", ../../src/shared/countries.ts), with every
+  // label it is stored under ("eSwatini" and "Eswatini"): named by the one said, else the one holding the most teams.
+  const code = countryOf(row?.country ?? said)?.code;
+  if (code) {
+    const labels = (await all<{ country: string }>("SELECT country FROM teams WHERE country IS NOT NULL GROUP BY country ORDER BY COUNT(*) DESC, country"))
+      .map((l) => l.country).filter((l) => countryOf(l)?.code === code);
+    const name = row?.country ?? labels[0];
+    if (name) return { name, country: name, state: null, key: name, ...(labels.length > 1 ? { labels } : {}) };
+  }
+  return row ? { name: row.country, country: row.country, state: null, key: row.country } : null;
 }
-const placeSql = (p: Place | null) => (p ? (p.state ? " AND t.country = ? AND t.state = ?" : " AND t.country = ?") : "");
-const placeArgs = (p: Place | null) => (p ? (p.state ? [p.country, p.state] : [p.country]) : []);
+/** A place's filter on teams (`t.`); a country stored under several labels matches each of them. */
+const placeSql = (p: Place | null) => (p ? (p.state ? " AND t.country = ? AND t.state = ?" : p.labels ? ` AND t.country IN (${p.labels.map(() => "?").join(", ")})` : " AND t.country = ?") : "");
+const placeArgs = (p: Place | null) => (p ? (p.state ? [p.country, p.state] : p.labels ?? [p.country]) : []);
 const fmt1 = (x: number | null) => (x == null ? "–" : (Math.round(Number(x) * 10) / 10).toFixed(1));
 /** A team's line; `season` when its numbers are one season's, so the link opens that season. */
 const lineOf = (r: any, results: string[], season?: number | null): SearchCardLine => ({

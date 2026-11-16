@@ -29,7 +29,8 @@ Search reads countries, counts and leaders the ways people asked: Taiwan, "in th
 - A country's best teams by another of its names ("Top teams in Taiwan", stored as Chinese Taipei): the stored label with the most teams for that country (`src/shared/countries.ts`). With none ranked yet this season, last season's teams, said so in the label. (`server/api/searchCoverage.ts` teamListAnswer) (#1524)
 - "Teams with the most …", "team with the highest …": "with" after "team" is having it, never a second thing joined on, so everyone's board answers (`src/shared/query/parse.ts`). "Teams with the highest win rate" now gets the win-rate board, as "teams with the most wins" already did. (#1311)
 - "Who leads <stat>", "who is leading in <stat>": the highest by that stat, everyone's board (`src/shared/query/lexicon.ts`). (#1012)
-- Counts: "in the world", "worldwide" and the like are everywhere, never a place to look up; "how many in <place>" with neither teams nor events said gives both counts; a count of one says "1 event", not "1 events". (`server/api/searchCoverage.ts` countAnswer) (#1590, #1594)
+- Counts: "in the world", "worldwide" and the like are everywhere, never a place to look up, with season words after them too; "how many in <place>" (or "in the world") with neither teams nor events said gives both counts, the title naming a season only when both lines share it; a count of one says "1 event", not "1 events". (`server/api/searchCoverage.ts` countAnswer) (#1590, #1594)
+- A country stored under two labels ("eSwatini" and "Eswatini") is counted and listed under both, asked by any of its names. (`server/api/searchCoverage.ts` placeOf)
 
 ## 6.9.7 — 2026-11-16
 
