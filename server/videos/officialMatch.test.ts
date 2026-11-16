@@ -179,6 +179,9 @@ describe("the watcher's matcher", () => {
     expect(matchVideo(vid("NTX FTC X-League Meet #1b (2024.11.09)", at), NTX, ab)).toMatchObject({ kind: "add", event: { code: "USTXNXM2" } });
     const ampm = [ev("USTXNUAM1", "FiT-North U-League AM Meet 1", day), ev("USTXNUPM1", "FiT-North U-League PM Meet 1", day)];
     expect(matchVideo(vid("NTX FTC U-League meet #1 (2024.11.09)", at), NTX, ampm)).toMatchObject({ kind: "ignore", why: /told apart only by AM and PM/ });
+    // Meets in two cities aren't twins: never set aside as two events in one video (which one it is stays for the owner).
+    const apart = [ev("USTXNXM1", "FiT-North X-League Meet 1a", day), ev("USTXNXM2", "FiT-North X-League Meet 1b", { ...day, city: "Denton" })];
+    expect(matchVideo(vid("NTX FTC X-League Meet #1 Denton (2024.11.09)", at), NTX, apart).kind).toBe("review");
   });
 
   it("sets aside an undated upload of a multi-day event: which day it is can't be told", () => {
@@ -210,6 +213,9 @@ describe("the watcher's matcher", () => {
   it("sets aside a dated upload of FTC Events: several events in one video", () => {
     const day = [ev("USCHSHAQ1", "CHS Harrisonburg Qualifier 1", { start: "2022-02-05", end: "2022-02-05" }), ev("USCHSLAQ1", "CHS Laurel Qualifier 1", { start: "2022-02-05", end: "2022-02-05" })];
     expect(matchVideo(vid("FIRST Chesapeake February 5th, 2022 FTC Events", { start: null, published: "2022-02-06T02:00:00Z" }), { region: "country=USA" }, day))
+      .toMatchObject({ kind: "ignore", why: /the title says FTC Events/ });
+    // Its words fitting one of them ("Harrisonburg") doesn't make it that one.
+    expect(matchVideo(vid("FIRST Chesapeake Harrisonburg February 5th, 2022 FTC Events", { start: null, published: "2022-02-06T02:00:00Z" }), { region: "country=USA" }, day))
       .toMatchObject({ kind: "ignore", why: /the title says FTC Events/ });
   });
 
