@@ -156,6 +156,28 @@ describe("HeroSearch", () => {
     expect(chips().some((b) => b.textContent?.startsWith("4215 Hypnotic"))).toBe(true);
   });
 
+  it("once drawn, never hides: My team set later (or a sign-in bringing one) keeps the chips until its name is in, then swaps them once", () => {
+    const { rerender } = show();
+    const again = () => rerender(<MemoryRouter initialEntries={["/"]}><HeroSearch inputRef={null} onEscape={() => {}} hint="Ctrl K" /><Where /></MemoryRouter>);
+    const list = screen.getByRole("list", { name: "Example searches" });
+    const before = chips().map((b) => b.textContent);
+    expect(list.className).not.toContain("invisible");
+    // A sign-in on this page: the account's sync starts and its My team arrives, its name still loading.
+    account = { here: true, syncReady: false, user: { id: 7 }, providers: {} };
+    myTeam = 4215;
+    summary = { loading: true };
+    again();
+    expect(list.className).not.toContain("invisible");
+    expect(chips().map((b) => b.textContent)).toEqual(before);
+    act(() => { vi.advanceTimersByTime(ACCOUNT_WAIT_MS * 3); });
+    expect(list.className).not.toContain("invisible");
+    // The name arrives: one swap, with the team's chips.
+    summary = { loading: false, data: { teams: [{ team: 4215, name: "Hypnotic Robotics" }] } };
+    again();
+    expect(list.className).not.toContain("invisible");
+    expect(chips().some((b) => b.textContent?.startsWith("4215 Hypnotic"))).toBe(true);
+  });
+
   it("waits no longer than ACCOUNT_WAIT_MS for the account, and not at all once it's known signed out", () => {
     account = { here: true, syncReady: false, user: null, providers: null };
     show();
