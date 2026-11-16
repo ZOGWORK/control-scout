@@ -22,7 +22,7 @@ import { withDataLock } from "../data/lock.js";
 import { isoDuration } from "./youtube.js";
 import { eventVideosByDay, forgetOfficial, localDate } from "./officialVideos.js";
 import { LOOKBACK_MS, record, settle, type WatchVerdict } from "./officialWatch.js";
-import { NOT_EVENTS, bestGuess, matchVideo, notCompetition, type ChannelRule, type WatchEvent, type WatchVideo } from "./officialMatch.js";
+import { NOT_EVENTS, bestGuess, matchVideo, notCompetition, videoWindow, type ChannelRule, type WatchEvent, type WatchVideo } from "./officialMatch.js";
 
 const API = "https://www.googleapis.com/youtube/v3";
 const VIDEO_ID = /^[A-Za-z0-9_-]{11}$/;
@@ -49,7 +49,8 @@ async function api(path: string, params: Record<string, string>, key: string, fe
 
 export interface AuditRun {
   units: number; channels: number; fullChannels: number; uploads: number; recorded: number; setAside: number;
-  /** Uploads Scout had no record of that pass every check of the watcher's: added by the audit. */
+  /** Videos that pass every check of the watcher's, Scout having no record of them or only the watcher's review or
+   *  set-aside row: added by the audit. */
   added: number; findings: number; missed: number; queued: number; addsChecked: number; addsWrong: number; error: string | null;
 }
 
@@ -57,13 +58,17 @@ export interface AuditRun {
 interface Record_ { record: string; season: number | null; code: string | null; plays: boolean }
 
 /** Every video Scout has a record of, by id. */
+/** The record labels of the rows the audit decides again each run (see needFacts). */
+const REVIEW = "in the owner's review";
+const SET_ASIDE = "set aside by the watcher";
+const SET_ASIDE_BY_AUDIT = "set aside by the channel audit";
 async function scoutRecords(): Promise<Map<string, Record_>> {
   const out = new Map<string, Record_>();
   const put = (id: string, r: Record_) => { if (VIDEO_ID.test(id) && (!out.has(id) || (r.plays && !out.get(id)!.plays))) out.set(id, r); };
-  for (const r of await all<any>("SELECT video_id, season, code, source, removed_at FROM official_videos")) {
+  for (const r of await all<any>("SELECT video_id, season, code, source, why, removed_at FROM official_videos")) {
     put(String(r.video_id), r.removed_at
       ? { record: "removed from its event by the owner", season: Number(r.season), code: String(r.code), plays: false }
-      : { record: r.source === "list" ? "the checked list" : r.source === "watcher" ? "added by the watcher" : r.source === "evidence" ? "linked from evidence" : "added by the owner", season: Number(r.season), code: String(r.code), plays: true });
+      : { record: r.source === "list" ? "the checked list" : r.source === "watcher" ? (String(r.why ?? "").startsWith("channel audit:") ? "added by the channel audit" : "added by the watcher") : r.source === "evidence" ? "linked from evidence" : "added by the owner", season: Number(r.season), code: String(r.code), plays: true });
   }
   for (const [sql, label] of [
     ["SELECT video_id, season, code FROM event_broadcasts", "the channel's broadcasts on FIRST's channel link"],
@@ -73,9 +78,11 @@ async function scoutRecords(): Promise<Map<string, Record_>> {
   for (const r of await all<any>("SELECT season, code, livestream FROM events WHERE livestream LIKE '%youtu%'")) {
     for (const m of String(r.livestream).matchAll(YT_LINK)) put(m[1], { record: "FIRST's event link", season: Number(r.season), code: String(r.code), plays: true });
   }
-  const watch: Record<string, string> = { added: "added by the watcher", approved: "approved by the owner", pending: "in the owner's review", ignored: "set aside by the watcher", duplicate: "a duplicate the watcher logged", rejected: "rejected by the owner" };
+  const watch: Record<string, string> = { added: "added by the watcher", approved: "approved by the owner", pending: REVIEW, ignored: SET_ASIDE, duplicate: "a duplicate the watcher logged", rejected: "rejected by the owner" };
   for (const r of await all<any>("SELECT video_id, status, season, code, decided_by FROM official_watch")) {
-    const label = r.decided_by === "evidence" && (r.status === "approved" || r.status === "rejected") ? `${r.status === "approved" ? "linked" : "decided"} from evidence` : watch[String(r.status)];
+    const label = r.decided_by === "evidence" && (r.status === "approved" || r.status === "rejected") ? `${r.status === "approved" ? "linked" : "decided"} from evidence`
+      : r.decided_by === "channel audit" && r.status === "added" ? "added by the channel audit"
+      : watch[String(r.status)];
     put(String(r.video_id), { record: label ?? `the watcher: ${r.status}`, season: r.season == null ? null : Number(r.season), code: r.code ?? null, plays: false });
   }
   return out;
@@ -162,7 +169,10 @@ export async function runChannelAudit(log: (s: string) => void, opts: { apiKey?:
     const records = await scoutRecords();
     const rows = await all<any>("SELECT video_id, channel_id, title, published, start, duration, privacy, embeddable, blocked_in, facts_at, finding, found_at FROM official_audit_videos WHERE gone_at IS NULL");
     const adds = new Set((await all<{ video_id: string }>("SELECT video_id FROM official_videos WHERE source = 'watcher'")).map((r) => String(r.video_id)));
-    const needFacts = rows.filter((r) => (!records.has(String(r.video_id)) && !r.facts_at && !notCompetition(String(r.title))) || adds.has(String(r.video_id))).map((r) => String(r.video_id));
+    // The review queue and the watcher's set-aside rows are decided again each run with today's rules: a video the
+    // rules now decide never waits on the owner, and one set aside for want of its event is added once Scout has it.
+    const again = (id: string) => { const r = records.get(id); return !!r && (r.record === REVIEW || r.record === SET_ASIDE); };
+    const needFacts = rows.filter((r) => ((!records.has(String(r.video_id)) || again(String(r.video_id))) && !r.facts_at && !notCompetition(String(r.title))) || adds.has(String(r.video_id))).map((r) => String(r.video_id));
     const facts = new Map<string, any>();
     let factsError: string | null = null;
     for (let i = 0; i < needFacts.length && out.units < maxUnits; i += 50) {
@@ -231,10 +241,11 @@ export async function runChannelAudit(log: (s: string) => void, opts: { apiKey?:
       const rule = rules.get(String(r.channel_id));
       if (!rule) continue;
       let rec = records.get(vid);
+      const redo = rec && rec.record === REVIEW ? "pending" : rec && rec.record === SET_ASIDE ? "ignored" : null;
       const inWindow = !!row.published && String(row.published) >= rule.floor ? 1 : 0;
       let verdict: string | null = null, why: string | null = null, finding: string | null = r.finding ?? null, foundAt: string | null = r.found_at ?? null;
       let guess: { season: number | null; code: string | null; day: string | null; why: string | null } = { season: null, code: null, day: null, why: null };
-      if (rec) {
+      if (rec && !redo) {
         out.recorded++;
         foundAt = finding === "open" ? null : foundAt;
         // Recorded since: an open finding is settled (queued and dismissed ones keep their history).
@@ -249,7 +260,7 @@ export async function runChannelAudit(log: (s: string) => void, opts: { apiKey?:
           : v.privacy === "unavailable" ? { kind: "ignore" as const, why: "listed on the channel but private or deleted: YouTube gives nothing for it" }
           // Hidden since it was listed (a channel's spare copy, often): off its public list, which is all the watcher reads.
           : v.privacy === "unlisted" || v.privacy === "private" ? { kind: "ignore" as const, why: `${v.privacy} now: the channel took it off its public list, so it isn't for Scout` }
-          : matchVideo(v, rule, v.start ? events(shift(v.start.slice(0, 10), -1), shift(v.start.slice(0, 10), 1)) : []);
+          : (() => { const w = videoWindow(v); return matchVideo(v, rule, w ? events(w[0], w[1]) : []); })();
         // As the watcher would: against what the event already plays that day (a duplicate, or a second video of it).
         if (m.kind === "add") m = await settle(m);
         const anchor = (v.start ?? v.published ?? "").slice(0, 10);
@@ -260,8 +271,10 @@ export async function runChannelAudit(log: (s: string) => void, opts: { apiKey?:
         why = m.why;
         // Older than the watcher's window, a video that can't fill a day Scout has no video for isn't a missed
         // recording: set aside, with why (a broadcast on a day the region has no Scout event; an upload with no event to
-        // put it on; one whose event already plays a video for each of its days). What's left may be one.
-        if (!inWindow && !live && row.facts_at && (m.kind === "review" || m.kind === "add")) {
+        // put it on; one whose event already plays a video for each of its days). What's left may be one. Not an add:
+        // the watcher's own check of its day and part (settle) passed, so a day playing only another part ("Afternoon"
+        // beside its "Morning") doesn't set it aside.
+        if (!inWindow && !live && row.facts_at && m.kind === "review") {
           // A broadcast fits only an event on its own day: the best guess's 3 weeks are for an upload.
           const ev = ("event" in m && m.event ? m.event : v.start ? undefined : g.event) as WatchEvent | undefined;
           const gap = v.start && !ev ? `${m.why}: nothing to put it on`
@@ -273,8 +286,30 @@ export async function runChannelAudit(log: (s: string) => void, opts: { apiKey?:
         const ended = f?.end ?? (Number.isFinite(startMs) && v.durationS != null ? new Date(startMs + v.durationS * 1000).toISOString() : null);
         const last = [v.published, ended].filter(Boolean).sort().pop() ?? null;
         const unread = inWindow && (!watchedAt || !last || last >= watchedAt);
+        if (redo) {
+          // In the review queue or set aside by the watcher: decided again, as the watcher would decide it today.
+          out.recorded++;
+          if (finding === "open") finding = null;
+          // A title that says it isn't a competition decides it with no facts read (they never are for one).
+          if (live || (!row.facts_at && !title)) { /* read again next run */ }
+          else if (m.kind === "add") {
+            const add = m;
+            await locked(() => record(v, { channelId: String(r.channel_id), title: rule.title }, add, v.published ?? null, now(), "channel audit"));
+            out.added++;
+            rec = { record: "added by the channel audit", season: add.event.season, code: add.event.code, plays: true };
+            records.set(vid, rec);
+            why = `added by the channel audit: ${add.why}`;
+          } else if (redo === "pending" && (m.kind === "ignore" || m.kind === "duplicate")) {
+            // The rules decide it now: out of the owner's queue, set aside with why.
+            out.setAside++;
+            const setWhy = `set aside by the channel audit: ${m.why}`.slice(0, 500);
+            writes.push({ sql: "UPDATE official_watch SET status = ?, decided_at = ?, decided_by = 'channel audit', why = ? WHERE video_id = ? AND status = 'pending'", args: [m.kind === "duplicate" ? "duplicate" : "ignored", at, setWhy, vid] });
+            rec = { ...rec!, record: SET_ASIDE_BY_AUDIT };
+            records.set(vid, rec);
+          }
+        }
         // Set aside by its title or facts, or a duplicate of what its event plays that day: the watcher would log it, not queue it.
-        if (m.kind === "ignore" || m.kind === "duplicate") { out.setAside++; if (finding === "open") finding = null; }
+        else if (m.kind === "ignore" || m.kind === "duplicate") { out.setAside++; if (finding === "open") finding = null; }
         else if (unread || live) {
           // In the watcher's window but newer than its last run, or live then: its next run reads it.
           why = `not read by the watcher yet (it went up or ended after the watcher's last run): ${why}`;
