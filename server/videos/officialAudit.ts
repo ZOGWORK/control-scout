@@ -4,10 +4,11 @@
 // link, short links, the channels' broadcasts and the owner's streams. Each upload is stored once in
 // official_audit_videos with where Scout has it. One Scout has nothing for gets the watcher's rules applied to it and
 // a best-guess event: by its title it is set aside with the reason (a webinar, FRC, no competition named), and
-// anything that may be a recording is a finding in Owner › Official videos. One inside the watcher's window, older
-// than the watcher's last run, is a watcher miss, counted by the run: a finding at once, and sent to the review queue
-// (never added: the audit never adds) when a watcher run after it was found still has no row for it. Newer than the
-// watcher's last run, or live then, it's the watcher's next run's to read.
+// anything that may be a recording is a finding in Owner › Official videos. One that passes every check of the
+// watcher's (its event's day free) is added, as the watcher would, and checked with the watcher's adds from then on.
+// One inside the watcher's window, older than the watcher's last run, is a watcher miss, counted by the run: added
+// when every check passes, else a finding at once, sent to the review queue when a watcher run after it was found
+// still has no row for it. Newer than the watcher's last run, or live then, it's the watcher's next run's to read.
 // The watcher's own adds are each checked again against their video's facts and their event; a wrong one is a finding.
 //
 // Quota: every run reads each channel's newest uploads page (1 unit a channel, more only when a page is all new) and
@@ -20,7 +21,7 @@ import { recordAudit } from "../portal/audit.js";
 import { withDataLock } from "../data/lock.js";
 import { isoDuration } from "./youtube.js";
 import { eventVideosByDay, forgetOfficial, localDate } from "./officialVideos.js";
-import { LOOKBACK_MS, settle, type WatchVerdict } from "./officialWatch.js";
+import { LOOKBACK_MS, record, settle, type WatchVerdict } from "./officialWatch.js";
 import { NOT_EVENTS, bestGuess, matchVideo, notCompetition, type ChannelRule, type WatchEvent, type WatchVideo } from "./officialMatch.js";
 
 const API = "https://www.googleapis.com/youtube/v3";
@@ -48,7 +49,8 @@ async function api(path: string, params: Record<string, string>, key: string, fe
 
 export interface AuditRun {
   units: number; channels: number; fullChannels: number; uploads: number; recorded: number; setAside: number;
-  findings: number; missed: number; queued: number; addsChecked: number; addsWrong: number; error: string | null;
+  /** Uploads Scout had no record of that pass every check of the watcher's: added by the audit. */
+  added: number; findings: number; missed: number; queued: number; addsChecked: number; addsWrong: number; error: string | null;
 }
 
 /** Where Scout has a video: what plays it on an event (with the event), else the watcher's row. */
@@ -61,7 +63,7 @@ async function scoutRecords(): Promise<Map<string, Record_>> {
   for (const r of await all<any>("SELECT video_id, season, code, source, removed_at FROM official_videos")) {
     put(String(r.video_id), r.removed_at
       ? { record: "removed from its event by the owner", season: Number(r.season), code: String(r.code), plays: false }
-      : { record: r.source === "list" ? "the checked list" : r.source === "watcher" ? "added by the watcher" : "added by the owner", season: Number(r.season), code: String(r.code), plays: true });
+      : { record: r.source === "list" ? "the checked list" : r.source === "watcher" ? "added by the watcher" : r.source === "evidence" ? "linked from evidence" : "added by the owner", season: Number(r.season), code: String(r.code), plays: true });
   }
   for (const [sql, label] of [
     ["SELECT video_id, season, code FROM event_broadcasts", "the channel's broadcasts on FIRST's channel link"],
@@ -72,8 +74,9 @@ async function scoutRecords(): Promise<Map<string, Record_>> {
     for (const m of String(r.livestream).matchAll(YT_LINK)) put(m[1], { record: "FIRST's event link", season: Number(r.season), code: String(r.code), plays: true });
   }
   const watch: Record<string, string> = { added: "added by the watcher", approved: "approved by the owner", pending: "in the owner's review", ignored: "set aside by the watcher", duplicate: "a duplicate the watcher logged", rejected: "rejected by the owner" };
-  for (const r of await all<any>("SELECT video_id, status, season, code FROM official_watch")) {
-    put(String(r.video_id), { record: watch[String(r.status)] ?? `the watcher: ${r.status}`, season: r.season == null ? null : Number(r.season), code: r.code ?? null, plays: false });
+  for (const r of await all<any>("SELECT video_id, status, season, code, decided_by FROM official_watch")) {
+    const label = r.decided_by === "evidence" && (r.status === "approved" || r.status === "rejected") ? `${r.status === "approved" ? "linked" : "decided"} from evidence` : watch[String(r.status)];
+    put(String(r.video_id), { record: label ?? `the watcher: ${r.status}`, season: r.season == null ? null : Number(r.season), code: r.code ?? null, plays: false });
   }
   return out;
 }
@@ -107,8 +110,8 @@ const shift = (day: string, days: number) => new Date(Date.parse(`${day}T00:00:0
 let busy = false;
 
 /**
- * One audit over every watched channel. Without YOUTUBE_API_KEY nothing is read. Read-only toward what plays: it
- * writes its own tables, and the watcher's review queue for a watcher miss (never an add).
+ * One audit over every watched channel. Without YOUTUBE_API_KEY nothing is read. Toward what plays it writes only
+ * what the watcher would: an upload that passes every check, and the review queue for a watcher miss.
  */
 export async function runChannelAudit(log: (s: string) => void, opts: { apiKey?: string | null; fetchImpl?: Fetch; now?: () => number; maxUnits?: number; lockWaitMs?: number } = {}): Promise<AuditRun | null> {
   const key = opts.apiKey === undefined ? env.youtubeApiKey : opts.apiKey;
@@ -118,7 +121,7 @@ export async function runChannelAudit(log: (s: string) => void, opts: { apiKey?:
   const fetchImpl = opts.fetchImpl ?? fetch;
   const maxUnits = opts.maxUnits ?? AUDIT_MAX_UNITS;
   const locked = <T>(fn: () => Promise<T>) => withDataLock("official channel audit", fn, { ttlMs: 60_000, waitMs: opts.lockWaitMs ?? 3 * 60_000, pollMs: 1000 });
-  const out: AuditRun = { units: 0, channels: 0, fullChannels: 0, uploads: 0, recorded: 0, setAside: 0, findings: 0, missed: 0, queued: 0, addsChecked: 0, addsWrong: 0, error: null };
+  const out: AuditRun = { units: 0, channels: 0, fullChannels: 0, uploads: 0, recorded: 0, setAside: 0, added: 0, findings: 0, missed: 0, queued: 0, addsChecked: 0, addsWrong: 0, error: null };
   const startedAt = new Date(now()).toISOString();
   let runId = 0;
   try {
@@ -227,7 +230,7 @@ export async function runChannelAudit(log: (s: string) => void, opts: { apiKey?:
       const row = { ...r, ...(f ? { start: f.start, duration: f.duration, privacy: f.privacy, embeddable: f.embeddable, blocked_in: f.blocked_in, facts_at: fLive ? null : at } : {}) };
       const rule = rules.get(String(r.channel_id));
       if (!rule) continue;
-      const rec = records.get(vid);
+      let rec = records.get(vid);
       const inWindow = !!row.published && String(row.published) >= rule.floor ? 1 : 0;
       let verdict: string | null = null, why: string | null = null, finding: string | null = r.finding ?? null, foundAt: string | null = r.found_at ?? null;
       let guess: { season: number | null; code: string | null; day: string | null; why: string | null } = { season: null, code: null, day: null, why: null };
@@ -254,7 +257,7 @@ export async function runChannelAudit(log: (s: string) => void, opts: { apiKey?:
           : /^\d{4}-\d{2}-\d{2}$/.test(anchor) ? bestGuess(v, rule, events(shift(anchor, -21), shift(anchor, 1))) : bestGuess(v, rule, []);
         guess = { season: g.event?.season ?? null, code: g.event?.code ?? null, day: g.day ?? null, why: g.why ?? null };
         verdict = m.kind;
-        why = m.kind === "add" ? `every check of the watcher's passes (${m.why}), but the audit never adds: for the owner to decide` : m.why;
+        why = m.why;
         // Older than the watcher's window, a video that can't fill a day Scout has no video for isn't a missed
         // recording: set aside, with why (a broadcast on a day the region has no Scout event; an upload with no event to
         // put it on; one whose event already plays a video for each of its days). What's left may be one.
@@ -276,6 +279,18 @@ export async function runChannelAudit(log: (s: string) => void, opts: { apiKey?:
           // In the watcher's window but newer than its last run, or live then: its next run reads it.
           why = `not read by the watcher yet (it went up or ended after the watcher's last run): ${why}`;
           if (finding === "open") finding = null;
+        } else if (m.kind === "add" && row.facts_at && finding !== "dismissed" && finding !== "queued") {
+          // Every check of the watcher's passes, and its event's day is free: added, as the watcher would (written at
+          // once, so the next upload's verdict sees it), and checked again with the watcher's adds from the next run.
+          // One in the watcher's window it didn't take is still a watcher miss.
+          const add = m;
+          await locked(() => record(v, { channelId: String(r.channel_id), title: rule.title }, add, v.published ?? null, now(), "channel audit"));
+          out.added++;
+          if (inWindow) out.missed++;
+          rec = { record: "added by the channel audit", season: add.event.season, code: add.event.code, plays: true };
+          records.set(vid, rec);
+          why = `added by the channel audit: ${add.why}`;
+          finding = null;
         } else if (row.facts_at && finding !== "dismissed" && finding !== "queued") {
           if (finding !== "open" || !foundAt) foundAt = at;
           finding = "open";
@@ -343,11 +358,11 @@ export async function runChannelAudit(log: (s: string) => void, opts: { apiKey?:
     out.error = String((e as Error).message ?? e).slice(0, 300);
   } finally {
     busy = false;
-    if (runId) await locked(() => run(`UPDATE official_audit_runs SET finished_at = ?, units = ?, channels = ?, full_channels = ?, uploads = ?, recorded = ?, set_aside = ?, findings = ?, missed = ?,
+    if (runId) await locked(() => run(`UPDATE official_audit_runs SET finished_at = ?, units = ?, channels = ?, full_channels = ?, uploads = ?, recorded = ?, set_aside = ?, added = ?, findings = ?, missed = ?,
         queued = ?, adds_checked = ?, adds_wrong = ?, error = ? WHERE id = ?`,
-      [new Date(now()).toISOString(), out.units, out.channels, out.fullChannels, out.uploads, out.recorded, out.setAside, out.findings, out.missed, out.queued, out.addsChecked, out.addsWrong, out.error, runId])).catch(() => {});
+      [new Date(now()).toISOString(), out.units, out.channels, out.fullChannels, out.uploads, out.recorded, out.setAside, out.added, out.findings, out.missed, out.queued, out.addsChecked, out.addsWrong, out.error, runId])).catch(() => {});
   }
-  log(`official videos: audit of ${out.channels} channels (${out.units} units, ${out.fullChannels} read in full): ${out.uploads} uploads, ${out.recorded} with a Scout record, ${out.setAside} set aside, ${out.findings} open findings, ${out.missed} watcher misses (${out.queued} sent to review), ${out.addsWrong} of ${out.addsChecked} watcher adds wrong${out.error ? `; ${out.error}` : ""}`);
+  log(`official videos: audit of ${out.channels} channels (${out.units} units, ${out.fullChannels} read in full): ${out.uploads} uploads, ${out.recorded} with a Scout record, ${out.setAside} set aside, ${out.added} added, ${out.findings} open findings, ${out.missed} watcher misses (${out.queued} sent to review), ${out.addsWrong} of ${out.addsChecked} watcher adds wrong${out.error ? `; ${out.error}` : ""}`);
   return out;
 }
 
@@ -385,7 +400,8 @@ async function readUploads(channelId: string, full: boolean, key: string, fetchI
 /** Why an event can't take another day's recording: each of its days already plays a video (a one-day event: any
  *  video, its day read or not). Null when a day has none, or the event plays nothing. */
 export async function everyDayPlays(e: WatchEvent): Promise<string | null> {
-  const has = await eventVideosByDay(e.season, e.code);
+  // One YouTube no longer plays holds no day: an upload replacing it may be the day's recording.
+  const has = (await eventVideosByDay(e.season, e.code)).filter((h) => !h.gone);
   if (!has.length) return null;
   const days: string[] = [];
   for (let d = e.start; d <= (e.end ?? e.start) && days.length < 14; d = shift(d, 1)) days.push(d);
@@ -434,7 +450,7 @@ async function checkAdds(rows: any[], facts: Map<string, any>, rules: Map<string
       else if (m.event.code !== String(a.code) || m.event.season !== Number(a.season)) wrong.push(`the rules now pick ${m.event.season} ${m.event.code}, not ${a.season} ${a.code}`);
     }
     if (!a.removed_at && a.e_start) {
-      const others = (await eventVideosByDay(Number(a.season), String(a.code))).filter((h) => h.videoId !== vid && h.day === a.day && (h.part == null || a.part == null));
+      const others = (await eventVideosByDay(Number(a.season), String(a.code))).filter((h) => h.videoId !== vid && !h.gone && h.day === a.day && (h.part == null || a.part == null));
       if (others.length) wrong.push(`a second video of ${a.day} (${others[0].videoId} plays it too) and not both name their part`);
     }
     // Nothing known of its playability and no other fault: no verdict this run, its last check stands.
@@ -475,7 +491,7 @@ export async function ownerAudit() {
   // A channel the owner stopped watching isn't audited any more: its rows are left as they were, out of these lists and counts.
   const watched = "channel_id IN (SELECT channel_id FROM official_channels WHERE removed_at IS NULL)";
   const [runs, channels, findings, wrong, reasons, open] = await Promise.all([
-    all<any>("SELECT id, started_at, finished_at, units, channels, full_channels, uploads, recorded, set_aside, findings, missed, queued, adds_checked, adds_wrong, error FROM official_audit_runs ORDER BY id DESC LIMIT 10"),
+    all<any>("SELECT id, started_at, finished_at, units, channels, full_channels, uploads, recorded, set_aside, added, findings, missed, queued, adds_checked, adds_wrong, error FROM official_audit_runs ORDER BY id DESC LIMIT 10"),
     all<any>(`SELECT c.channel_id, c.title, a.uploads, a.recorded, a.unrecorded, a.linked, a.linked_current, a.open_findings, a.full_at, a.checked_at, a.last_error
       FROM official_channels c LEFT JOIN official_audit_channels a ON a.channel_id = c.channel_id WHERE c.removed_at IS NULL ORDER BY COALESCE(a.open_findings, 0) DESC, c.title`),
     all<any>(`SELECT v.video_id, v.channel_id, v.title, v.published, v.start, v.duration, v.verdict, v.why, v.guess_season, v.guess_code, v.guess_day, v.guess_why, v.in_window, c.title AS channel FROM official_audit_videos v LEFT JOIN official_channels c ON c.channel_id = v.channel_id
@@ -486,7 +502,7 @@ export async function ownerAudit() {
   ]);
   return {
     runs: runs.map((r) => ({ id: Number(r.id), startedAt: String(r.started_at), finishedAt: r.finished_at ?? null, units: Number(r.units), channels: Number(r.channels), fullChannels: Number(r.full_channels),
-      uploads: Number(r.uploads), recorded: Number(r.recorded), setAside: Number(r.set_aside), findings: Number(r.findings), missed: Number(r.missed), queued: Number(r.queued),
+      uploads: Number(r.uploads), recorded: Number(r.recorded), setAside: Number(r.set_aside), added: Number(r.added ?? 0), findings: Number(r.findings), missed: Number(r.missed), queued: Number(r.queued),
       addsChecked: Number(r.adds_checked), addsWrong: Number(r.adds_wrong), error: r.error ?? null })),
     channels: channels.map((c) => ({ channelId: String(c.channel_id), title: String(c.title), uploads: c.uploads == null ? null : Number(c.uploads), recorded: Number(c.recorded ?? 0), unrecorded: Number(c.unrecorded ?? 0),
       linked: Number(c.linked ?? 0), linkedCurrent: Number(c.linked_current ?? 0), openFindings: Number(c.open_findings ?? 0), fullAt: c.full_at ?? null, checkedAt: c.checked_at ?? null, lastError: c.last_error ?? null })),
