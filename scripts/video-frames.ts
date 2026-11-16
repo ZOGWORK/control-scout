@@ -132,6 +132,8 @@ const TIMERS = [
   // USNMCMP 2025): with the icon in the crop the OCR reads "1:04" as "11040", so only the digits' row is read, and its
   // thin colon, often dropped ("117"), isn't needed (secondsLoose).
   { where: "bottom" as const, clip: { x: 585, y: 651, width: 110, height: 38 }, loose: true },
+  // The same white box in a bar across the top (FIRST AGE's top layout, USPAKSN 2026): wider than FIRST Texas's.
+  { where: "top" as const, clip: { x: 585, y: 92, width: 110, height: 50 }, loose: true },
 ];
 
 /** The timer's reading. `auto`: whether a reading of 0:30 or less is Auto, told by readAt. */
