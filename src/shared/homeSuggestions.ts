@@ -126,17 +126,25 @@ export function teamLabel(team: number, name: string | null | undefined, tail: s
   let cut = n.slice(0, Math.max(0, room));
   const space = cut.lastIndexOf(" ");
   if (n[cut.length] !== " " && space >= 3) cut = cut.slice(0, space);
-  // A bracket opened and not closed is left out whole: "T.W.C.A. (Team" is "T.W.C.A.".
+  // A bracket opened and not closed is left out whole, and what comes before it is the name's own short form, with
+  // no "…": "T.W.C.A. (Team Without a Cool Acronym)" is "T.W.C.A.".
   const open = cut.lastIndexOf("(");
-  if (open > cut.lastIndexOf(")")) cut = cut.slice(0, open);
+  const short = open > cut.lastIndexOf(")");
+  if (short) cut = cut.slice(0, open);
   cut = cut.replace(/[\s,;:&/-]+$/u, "");
-  return cut.length >= 3 ? `${team} ${cut}… ${tail}` : bare;
+  return cut.length >= 3 ? `${team} ${cut}${short ? "" : "…"} ${tail}` : bare;
 }
 
 /** Every chip the visitor's own team can have, by its number and (when known) its name as its team page has it. */
 export function teamSuggestions(team: number, name?: string | null): HomeSuggestion[] {
   return TEAM_TEMPLATES.map((t) => ({ q: t.q(team), kind: t.kind, label: teamLabel(team, name, t.tail), mine: true }));
 }
+
+/** The places the pool's queries name: an hour's six name each at most once, so no one place fills the chips. */
+export const SUGGESTION_PLACES = ["Texas", "California", "Michigan", "Florida", "Canada", "China", "Brazil", "Australia", "Romania", "Houston", "Ontario"] as const;
+const PLACE_RES = SUGGESTION_PLACES.map((p) => [p, new RegExp(`\\b${p}\\b`, "i")] as const);
+/** The place a suggestion's query names, or null for the world. */
+export const suggestionPlace = (s: HomeSuggestion): string | null => PLACE_RES.find(([, re]) => re.test(s.q))?.[0] ?? null;
 
 /** How many chips show at once, and how long one set stays: a UTC hour. */
 export const SUGGESTION_COUNT = 6;
@@ -163,7 +171,7 @@ export const chipWidthEstimate = (s: HomeSuggestion) => 68 + 6.6 * suggestionLab
 export const DESKTOP_CHIPS = { width: 390, gap: 8, rows: 3 } as const;
 
 /** The six for the UTC hour holding `now`: a leaderboard, a whole-sentence or several-filter query, then four other
- *  families, never two of one family. A query that wouldn't fit a desktop's rows beside the ones chosen
+ *  families, never two of one family and never one place (SUGGESTION_PLACES) twice. A query that wouldn't fit a desktop's rows beside the ones chosen
  *  (DESKTOP_CHIPS) is passed over; a family with none left gives way to the next one, so a desktop shows all six (the
  *  first two always fill: most of their queries are short). In a shuffled order.
  *  `mine`: the visitor's own team's chips (teamSuggestions). TEAM_SUGGESTION_COUNT of them are picked first, then the
@@ -184,10 +192,12 @@ export function suggestionsAt(now: number, pool: readonly HomeSuggestion[] = HOM
     for (const kind of wanted) {
       if (out.length === SUGGESTION_COUNT) break;
       const all = pool.filter((s) => s.kind === kind);
-      const fresh = all.filter((s) => fitsWith([...out, s]));
+      const places = new Set(out.map(suggestionPlace).filter(Boolean));
+      const fresh = all.filter((s) => !places.has(suggestionPlace(s)) && fitsWith([...out, s]));
       // A must-have family with nothing that fits still shows, unless the visitor's own chips took the room.
       if (!fresh.length && (!must.includes(kind) || mine.length)) continue;
-      out.push(pick(fresh.length ? fresh : all));
+      const elsewhere = all.filter((s) => !places.has(suggestionPlace(s)));
+      out.push(pick(fresh.length ? fresh : elsewhere.length ? elsewhere : all));
     }
     return out;
   };

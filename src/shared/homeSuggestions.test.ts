@@ -2,7 +2,7 @@
 // gives six of different families, with a leaderboard and a sentence or filtered query, the same in every browser.
 // The pool names no team and leans on no one region; a visitor's own team adds its own two chips.
 import { describe, expect, it } from "vitest";
-import { HOME_SUGGESTIONS, SUGGESTION_COUNT, SUGGESTION_HOUR_MS, SUGGESTION_LABEL_MAX, TEAM_LABEL_MAX, TEAM_SUGGESTION_COUNT, DESKTOP_CHIPS, allFit, chipWidthEstimate, fitChips, placeholderable, suggestionLabel, suggestionsAt, teamLabel, teamSuggestions, type HomeSuggestion, type SuggestionKind } from "./homeSuggestions";
+import { HOME_SUGGESTIONS, SUGGESTION_COUNT, SUGGESTION_HOUR_MS, SUGGESTION_LABEL_MAX, SUGGESTION_PLACES, TEAM_LABEL_MAX, TEAM_SUGGESTION_COUNT, DESKTOP_CHIPS, allFit, chipWidthEstimate, fitChips, placeholderable, suggestionLabel, suggestionPlace, suggestionsAt, teamLabel, teamSuggestions, type HomeSuggestion, type SuggestionKind } from "./homeSuggestions";
 
 const KINDS: SuggestionKind[] = ["leaderboard", "phase", "winners", "question", "filters", "count", "scores", "events"];
 const T0 = Date.UTC(2026, 10, 4, 0, 0);
@@ -37,7 +37,13 @@ describe("home suggestion pool", () => {
   });
   it("leans on no one region: no New Jersey, and no place in more than a few chips", () => {
     expect(HOME_SUGGESTIONS.filter((s) => /\b(nj|new jersey|oradell)\b/i.test(`${s.q} ${suggestionLabel(s)}`)).map((s) => s.q)).toEqual([]);
-    const places = ["Texas", "California", "Michigan", "Florida", "Canada", "China", "Brazil", "Australia", "Romania", "Houston", "Ontario"];
+    const places = SUGGESTION_PLACES;
+    // Every place a query names is one suggestionPlace knows (so an hour never shows it twice).
+    const named = /\bin ([A-Z][a-z]+)|\bfrom ([a-z]+)|\b(romania|ontario|michigan|texas|california|brazil|china)\b/gi;
+    for (const s of HOME_SUGGESTIONS) for (const m of s.q.matchAll(named)) {
+      const word = (m[1] ?? m[2] ?? m[3]).toLowerCase();
+      if (!["the", "a"].includes(word)) expect(places.map((p) => p.toLowerCase()), s.q).toContain(word);
+    }
     const names = (s: HomeSuggestion, p: string) => new RegExp(`\\b${p}\\b`, "i").test(s.q);
     for (const p of places) expect(HOME_SUGGESTIONS.filter((s) => names(s, p)).length, p).toBeLessThanOrEqual(8);
     // Many name no place at all: the world's boards.
@@ -61,7 +67,7 @@ describe("a visitor's own team's chips", () => {
     expect(teamLabel(6980, "Bad Wolf", "at Worlds")).toBe("6980 Bad Wolf at Worlds");
     expect(teamLabel(12345, "Supercalifragilisticexpialidocious", "rating")).toBe("12345 Supercalifragili… rating");
     expect(teamLabel(12345, "Robo-Rangers & Friends", "matches")).toBe("12345 Robo-Rangers… matches");
-    expect(teamLabel(16091, "T.W.C.A. (Team Without a Cool Acronym)", "rating")).toBe("16091 T.W.C.A.… rating");
+    expect(teamLabel(16091, "T.W.C.A. (Team Without a Cool Acronym)", "rating")).toBe("16091 T.W.C.A. rating");
     expect(teamLabel(12345, null, "matches")).toBe("12345 matches");
     expect(teamLabel(12345, "  ", "matches")).toBe("12345 matches");
     for (const name of ["A", "The Quick Brown Fox Jumps", "Robo-Rangers & Friends of the Lake", "X Y Z W V U T S R Q"]) {
@@ -92,6 +98,13 @@ describe("suggestionsAt", () => {
     for (let i = 1; i < hours.length; i++) expect(suggestionsAt(hours[i]).map((s) => s.q)).not.toEqual(suggestionsAt(hours[i - 1]).map((s) => s.q));
     const seen = new Set(hours.flatMap((h) => suggestionsAt(h).map((s) => s.q)));
     expect(HOME_SUGGESTIONS.filter((s) => !seen.has(s.q)).map((s) => s.q)).toEqual([]);
+  });
+  it("never names one place twice in an hour, with or without a team of the visitor's own", () => {
+    const mine = teamSuggestions(16091, "T.W.C.A. (Team Without a Cool Acronym)");
+    for (const h of hours) for (const six of [suggestionsAt(h), suggestionsAt(h, HOME_SUGGESTIONS, mine)]) {
+      const places = six.map(suggestionPlace).filter(Boolean);
+      expect(new Set(places).size, six.map((s) => s.q).join(" | ")).toBe(places.length);
+    }
   });
   it("fits every hour's six whole on a desktop's rows, beside the globe too", () => {
     const short = hours.filter((h) => !allFit(suggestionsAt(h).map(chipWidthEstimate), DESKTOP_CHIPS.width, DESKTOP_CHIPS.gap, DESKTOP_CHIPS.rows)).length;
