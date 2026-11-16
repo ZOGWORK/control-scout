@@ -5,8 +5,7 @@
 import type { StatAnswer, StatBlock } from "../../../src/shared/searchStat.js";
 import type { Region } from "../../../src/shared/regions.js";
 import { seasonLabel } from "../../../src/shared/format.js";
-import { all, kvGet } from "../../db.js";
-import { idle, writeState } from "../../data/writeGen.js";
+import { all, inSnapshot } from "../../db.js";
 import { matchHref, shortEvent, teamLinks } from "../answers/matchSet.js";
 import { OFFICIAL_TYPES } from "../../../src/shared/eventRecord.js";
 import { DOUBLE_ELIM_FROM } from "../../../src/shared/bracketOdds.js";
@@ -66,30 +65,22 @@ export async function streakBoardAnswer(o: { region: Region; season: number; now
   };
 }
 
-/** Reads in a row a board may take when data keeps landing meanwhile; the last one's rows are used whatever happens. */
-const READS_MAX = 3;
-
 /** The place's matches for the board, TEAMS_PER_READ teams at a time, as a range of numbers: rows come ordered by team
  *  first, so the reads in turn give one read's rows in its order, and each read starts with the event loop let go if it
  *  was held (../../db.ts busyTurn): the whole USA is some 3 s of reads, never one that holds every other request that
- *  long. Read in parts, a write landing between two (the live lane, every minute on event days) would leave early teams
- *  from before it and later ones from after: so it waits for no write in flight, and reads again (up to READS_MAX)
- *  when one started meanwhile, in this process (../../data/writeGen.ts) or another (data:version). */
+ *  long. The parts are one moment of the data (inSnapshot): results stored meanwhile (the live lane every minute on
+ *  event days, a sync in its child process) are in none of them, never in the later parts only. Where the database
+ *  can't hold a moment apart (one shared connection: in memory, an embedded replica) it's one read, as before. */
 async function boardRows(o: { region: Region; season: number }): Promise<Row[]> {
-  for (let tries = 1; ; tries++) {
-    await idle();
-    const gen = writeState().gen, version = await kvGet<string>("data:version");
-    const rows = await readBoard(o);
-    if (tries >= READS_MAX || (writeState().gen === gen && (await kvGet<string>("data:version")) === version)) return rows;
-  }
+  return (await inSnapshot((read) => readBoard(o, read, TEAMS_PER_READ))) ?? readBoard(o, all, Infinity);
 }
 
-/** One read of the board's rows, a part at a time (boardRows). */
-async function readBoard(o: { region: Region; season: number }): Promise<Row[]> {
+/** The board's rows through `read`, `per` teams a read (boardRows). */
+async function readBoard(o: { region: Region; season: number }, read: <R>(sql: string, args?: (string | number)[]) => Promise<R[]>, per: number): Promise<Row[]> {
   const place = [o.region.country, ...(o.region.state ? [o.region.state] : [])];
-  const numbers = (await all<{ number: number }>(`SELECT number FROM teams WHERE country = ?${o.region.state ? " AND state = ?" : ""} ORDER BY number`, place)).map((r) => Number(r.number));
+  const numbers = (await read<{ number: number }>(`SELECT number FROM teams WHERE country = ?${o.region.state ? " AND state = ?" : ""} ORDER BY number`, place)).map((r) => Number(r.number));
   const rows: Row[] = [];
-  for (let i = 0; i < numbers.length; i += TEAMS_PER_READ) for (const r of await all<Row>(`SELECT t.team, m.season, m.code, m.level, m.series, m.number, m.label, e.name, e.type, t.alliance, m.red_total, m.blue_total
+  for (let i = 0; i < numbers.length; i += per) for (const r of await read<Row>(`SELECT t.team, m.season, m.code, m.level, m.series, m.number, m.label, e.name, e.type, t.alliance, m.red_total, m.blue_total
     -- From the region's teams, then each one's matches (match_teams_team_match): SQLite otherwise read every match of
     -- the two seasons first and kept the region's after, 0.7-1.1 s for Romania's 600 teams with this process held the
     -- whole time; 0.1 s this way. Each CROSS JOIN keeps that order (an inner join all the same): with plain joins it
@@ -108,6 +99,6 @@ async function readBoard(o: { region: Region; season: number }): Promise<Row[]> 
     -- elimination bracket may number from 0, its first match first), never by match time, which a played
     -- match may lack.
     ORDER BY t.team, e.start, t.season, COALESCE(e.division_code, e.code), e.division_code IS NULL, t.code, t.level = 'playoff', t.level = 'playoff' AND t.series = 0 AND t.season < ?, t.series, t.number`,
-    [o.season - 1, o.season, ...OFFICIAL_TYPES, ...place, numbers[i], numbers[Math.min(i + TEAMS_PER_READ, numbers.length) - 1], DOUBLE_ELIM_FROM])) rows.push(r);
+    [o.season - 1, o.season, ...OFFICIAL_TYPES, ...place, numbers[i], numbers[Math.min(i + per, numbers.length) - 1], DOUBLE_ELIM_FROM])) rows.push(r);
   return rows;
 }
