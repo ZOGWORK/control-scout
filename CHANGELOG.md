@@ -15,6 +15,622 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 6.9.9 — 2026-11-16
+
+Search › a match asked at an event name with a word no event has lists the events the other words name.
+
+### Highlights
+- [fixes] "Q16 Chicago Meet 2 Westside" lists the Chicago Meet 2 events
+- [fixes] The heading says what wasn't found, so you know what to change
+- [fixes] Events with the words in order come first, never teams
+
+### Fixed
+- Search: a match's number with an event name no stored event fits whole ("Q16 Chicago Meet 2 Westside", where no event's name has "Westside") lists the events named by the longest run of its words from the start, those with the words in order first, under a heading saying what wasn't found; never teams that share a word. (`server/api/searchAnswer.ts`) (#1600)
+
+## 6.9.8 — 2026-11-16
+
+Search reads countries, counts and leaders the ways people asked: Taiwan, "in the world", "how many in Australia", "who leads".
+
+### Highlights
+- [fixes] "Top teams in Taiwan" lists Chinese Taipei's teams
+- [fixes] "Teams with the highest OPR in Texas 2024" gets its board
+- [fixes] "How many in Australia" counts both teams and events there
+- [fixes] "Who leads auto in Texas" is the Texas auto OPR board
+
+### Fixed
+- A country's best teams by another of its names ("Top teams in Taiwan", stored as Chinese Taipei): the stored label with the most teams for that country (`src/shared/countries.ts`). With none ranked yet this season, last season's teams, said so in the label. (`server/api/searchCoverage.ts` teamListAnswer)
+- "Teams with the most …", "team with the highest …": "with" after "team" is having it, never a second thing joined on, so everyone's board answers (`src/shared/query/parse.ts`). "Teams with the highest win rate" now gets the win-rate board, as "teams with the most wins" already did.
+- "Who leads <stat>", "who is leading in <stat>": the highest by that stat, everyone's board (`src/shared/query/lexicon.ts`).
+- Counts: "in the world", "worldwide" and the like are everywhere, never a place to look up, with season words after them too; "how many in <place>" (or "in the world") with neither teams nor events said gives both counts, the title naming a season only when both lines share it; a count of one says "1 event", not "1 events". (`server/api/searchCoverage.ts` countAnswer)
+- A country stored under two labels ("eSwatini" and "Eswatini") is counted and listed under both, asked by any of its names. (`server/api/searchCoverage.ts` placeOf) (#1603)
+
+## 6.9.7 — 2026-11-16
+
+Search › closest matches answer at an event named, as a top 10, and above a score.
+
+### Highlights
+- [fixes] "Closest match in <event>" lists that event's closest matches
+- [fixes] "Top 10 closest match" lists the ten closest, not the highest
+- [fixes] "Closest match above 500": both alliances over 500, said on the card
+
+### Fixed
+- Search: a closest match asked at an event named by its name or its initials ("closest match in multinational tech invitational", "closes match in mti") lists that event's matches, closest first, an off-season event included. (`server/api/query/execute.ts`, `src/shared/query/lexicon.ts`) (#1566, #1567)
+- Search: "top 10 closest match in decode" reads "top" as the count's word when the closest is said, so the closest matches are listed, never the highest-scoring. (`src/shared/query/parse.ts`) (#1563)
+- Search: a bare score ending a closest match's question ("closest match in decode above 500") is both alliances' scores over it, stated on the card as "Both alliances scored over 500". (`src/shared/query/parse.ts`, `src/shared/query/intents.ts`) (#1564)
+
+## 6.9.6 — 2026-11-16
+
+Search › a team's number shows the team, with no "Questions with video" about other events.
+
+### Highlights
+- [fixes] Searching a team number no longer suggests other events' highlights
+- [fixes] A team's highlights search only suggests that team's own video
+- [teams] A team search shows just the team and its own highlights
+
+### Changed
+- Search: "Questions with video" shows only when the search's own words ask to watch ("highlights", "with video", "video") or it filters to matches with video; a bare team number ("4215") whose card happens to hold highlights never gets it. On a team's answer the questions offered are the team's own seasons with a clip, never other events' highlights. (`server/api/answers/videoSuggest.ts`, `server/api/searchAnswer.ts`) (#1595)
+
+## 6.9.5 — 2026-11-16
+
+Search › "wr" is the world record, and a stray letter at the end no longer breaks a question.
+
+### Highlights
+- [fixes] "Current wr" shows the world record, as "current world record" does
+- [fixes] A stray letter typed at the end is skipped and said as not read
+- [fixes] "What si the best team in nj" reads "si" as "is"
+
+### Fixed
+- Search: "wr" is read as "world record" ("current wr"), like the other short forms; never a word of a team's name. (`src/shared/query/lexicon.ts`) (#1583)
+- Search: one letter typed at the end of a question search reads whole without it ("what is the best team in nj n") is left out, and the answer says it wasn't read. "A" and "i" are words, and "u" is read as "you", so those stay. (`server/api/searchAnswer.ts`) (#1584, #1012)
+- Search: "si" right after a question word ("what si the best team") is "is" with its letters swapped, never an event's initials. (`src/shared/query/lexicon.ts`) (#1584)
+
+## 6.9.4 — 2026-11-16
+
+Events › Today's coin flips shows only matches still to play, and nothing at all when it's switched off.
+
+### Highlights
+- [fixes] Coin flips switched off leaves no trace on Events
+- [live] Today's coin flips lists only matches still to play
+- [appearance] The section leaves Events once every coin flip is played
+
+### Changed
+- Events: Today's coin flips no longer lists the matches already decided ("Decided today") or counts them; once every coin flip of the day has been played the section leaves the page, as on a day with none. Switched off by the owner, it shows nothing at all (no "switched off for now" note), and the page's first HTML says so, so not even its heading shows while the page loads. (`src/components/home/CoinFlipRadar.tsx`, `src/shared/coinFlips.ts`, `server/seo.ts`) (#1591)
+
+## 6.9.3 — 2026-11-16
+
+Home › the search suggestions show the whole FTC world, plus your own team.
+
+### Highlights
+- [home] Search suggestions cover teams and events around the world
+- [teams] With My team set, two suggestions are about your team
+- [fixes] No suggestion is about one fixed team or one state any more
+
+### Changed
+- Home: the search suggestion chips name no fixed team and lean on no one region. They are leaderboards, winners, counts, high scores and filtered lists from around the world ("Who won DECODE", "Best in Romania by auto", "Top teams in Brazil", "How many teams in Canada"), and an hour's six never name one place twice. With My team set, two of the six are about that team, shown by number and name ("4215 Hypnotic Robotics record") and run by number, so they always find it. The chips' rows stay in place while the team's name loads, so nothing moves. The search box's example list is world-general too. (`src/shared/homeSuggestions.ts`, `src/components/home/HeroSearch.tsx`, `src/components/search/discover.tsx`) (#1599)
+
+## 6.9.2 — 2026-11-16
+
+Search › "best team in the us" ranks the United States, not the whole world.
+
+### Highlights
+- [fixes] "Best team in the US" shows the US teams, not the world's
+- [rankings] It opens the same USA board and USA rankings as "best team in USA"
+- [fixes] "Tell us" and "for us" are still read as plain words, never a country
+
+### Fixed
+- Search: a country's two-letter name said with "the" before it ("best team in the us rn", "the u.s.") is the country, so the answer is the country's board and its rankings link, the same as "best team in usa". "Us" on its own ("tell us the best team", "best team for us") is still a plain word. (`src/shared/query/names.ts`, `src/shared/query/parse.ts`) (#1601)
+
+## 6.9.1 — 2026-11-16
+
+Profile pictures: any account can have one, and it's the same picture in Control Point.
+
+### Highlights
+- [appearance] Add a profile picture in Settings › Profile
+- [workspace] The same picture in Control Scout and Control Point
+- [share] Match videos show the contributor's picture next to "Video by"
+
+### Added
+- Settings › Profile › Profile picture: add, change or remove one. The app crops the middle square to 512 px before it sends it, so no photo details (location, camera) leave the device. It shows in the account footer and menu. (`src/components/settings/ProfilePictureRow.tsx`, `src/lib/avatarImage.ts`, `src/components/UserAvatar.tsx`) (#1596)
+- A linked account's picture is the shared account's, kept by Control Point: set or removed in either app, it changes in the other. A change Control Point can't take at once is sent again on the next account read, and a Control Point too old to know about pictures never removes one. (`server/auth/avatars.ts`, `server/auth/controlPoint.ts`, docs/shared-accounts.md "Profile pictures")
+- Match videos: the credit shows the contributor's picture beside their name, and their profile page beside the heading. (`src/components/contributors/VideoCredit.tsx`, `src/pages/ContributorPage.tsx`)
+- Pictures are served from `/api/avatars/<user>/<version>`, cached for good (a new picture gets a new address). Uploads are PNG, JPEG or WebP, checked by the file's own bytes. Migration 92 (`user_avatars`, never in the offline snapshot).
+
+## 6.9.0 — 2026-11-16
+
+The sidebar's Rankings row gets a small arrow: Region rankings, Leagues and Power rankings fold out under it.
+
+### Highlights
+- [rankings] Region, league and power rankings fold out under Rankings
+- [appearance] More is shorter: Compare, Shortlist, Rules, Offline, How it works
+- [rankings] Clicking Rankings opens the world rankings and leaves the list folded
+
+### Navigation
+- The Rankings row still goes to the world rankings; only the arrow beside it shows the three rankings pages, and going to any of them never opens it by itself (Rankings' icon lights instead).
+- Network & offline left the More list; it is still in Settings, linked from the Offline page and Home. (`src/components/layout/Shell.tsx`) (#1593)
+
+## 6.8.9 — 2026-11-15
+
+Speed › a slow search no longer makes every other page wait: the server takes turns between its reads.
+
+### Highlights
+- [speed] Pages and the connection check answer while a slow search runs
+- [speed] Searches of common words only run in a fraction of the time
+- [speed] Streak boards ("longest winning streak in Romania") answer faster
+
+### Fixed
+- Server: a search made of many quick database reads held the whole server for its run (seconds on an uncached search), so every other visitor's request, and the connection check that said "You're offline", waited behind it. Reads now let other requests in once the server has been busy for 20 ms; on the slowest searches the health check waited a tenth as long (median 3.5 s → 0.3 s), and the searches themselves ran faster. (`server/db.ts`) (#1586)
+- Search: a search of common words only ("teams with highest opr in texas 2024") read every team name's words, all 28,000, before checking whether the name matched at all: 4 of its 7 seconds. It now checks the match first. (`server/api/search.ts`)
+- Search: a place's streak board reads that place's teams and their matches, a few hundred teams at a time, instead of every match of two seasons; the same board, 3–8 times faster in a state or a country, its parts all one moment of the data (a read snapshot) whatever is stored meanwhile. (`server/api/query/streakBoard.ts`, `server/db.ts`)
+- Search: a two-team or alliance prediction made before any match of the season is rated shows the teams' ratings and says no match is rated yet, never a called score of 0–0 or "still loading". (`server/api/answers/families/predict.ts`)
+
+## 6.8.8 — 2026-11-15
+
+Search › comparing three or four teams shows every team, not just the first two.
+
+### Highlights
+- [fixes] A three-team compare search shows all three teams
+- [teams] Head-to-head gives every compared team its own column
+- [appearance] Three or four teams sit side by side at the same size
+
+### Fixed
+- Search: a Compare of three or four teams ("33950 vs bad wolf vs hypnotic") shows each team at the same size on the card, and the Head-to-head panel gives each its own column; its trophy goes to the side that beats every other side with a number. (`src/components/search/page/ResultCards.tsx`) (#1585)
+
+## 6.8.7 — 2026-11-15
+
+This weekend › a team page names the event the team is registered for next, and "in FTC" is never read as a place.
+
+### Highlights
+- [teams] A team's next registered event shows on its page
+- [fixes] "What's happening in FTC this weekend" lists the weekend's events
+- [live] The team page and This weekend name the same next event
+
+### Fixed
+- Team page Upcoming: an event the team is registered for but hasn't played yet is named and linked as the This weekend page names it ("No matches this weekend — next event is …"), never "no upcoming event". (`src/pages/TeamPage.tsx`)
+- Search: the program's own name after "in" or "at" ("what's happening in ftc this weekend") is the program, never a venue; a venue named "FTC …" stays the venue. (`src/shared/searchEventQuery.ts`) (#1582)
+
+## 6.8.6 — 2026-11-15
+
+This weekend › the weekend's FTC events on one page, a team's next match with its time and call, and search answers both.
+
+### Highlights
+- [live] This weekend: every FTC event this weekend, live ones marked
+- [live] Last, this and next weekend, in a state or a country
+- [teams] A team's next match: its time, partners, opponents and call
+- [live] Search answers "events this weekend" and "4215 next match"
+
+### Added
+- This weekend (`/weekend`), linked from Home's On the calendar. Each event shows its kind, place, dates and teams, and links to its page, with "Live now" while it's under way and its recording where one is on record. Last, this and next weekend use the windows search reads those words as; a state or country can be picked as on Rankings, with My region. The current season only, said on the page; "No FTC events this weekend." when there are none. (`src/pages/WeekendPage.tsx`, `server/api/weekend.ts`, `src/shared/weekend.ts`, `src/shared/query/time.ts`, `src/components/home/HomeSections.tsx`)
+- A team's next match this weekend, on the page and in search: the event, the match, its time on the event's clock (and yours where it differs), alliance, partners, opponents and the match list's call; played matches show their score and clip. With no match this weekend: "No matches this weekend — next event is …", linked. (`src/components/NextMatchPanel.tsx`, `src/shared/nextMatch.ts`, `server/api/searchQuestions.ts`, `server/api/answers/weekend.ts`)
+- Search: "what FTC events are happening this weekend", "meets this weekend in New Jersey", "what's on this weekend", "next weekend", "events today" and "tomorrow" answer directly with the page's events. (`server/api/searchEvents.ts`, `src/shared/searchEventQuery.ts`)
+
+### Changed
+- Team page Upcoming: with no match this weekend it names the team's next event. (`src/pages/TeamPage.tsx`)
+- Search's bounded windows ("this weekend", "today") read search's own day; an event whose calendar is still behind (Los Angeles on Sunday evening) keeps its window, one ahead (Sydney's Monday) waits. (`server/api/searchEvents.ts`) (#1581)
+
+## 6.8.5 — 2026-11-15
+
+Search › highlights questions people asked that came back empty now answer: a town's highlights, the best TeleOp or Auto videos in a country, and teams compared with "highlights".
+
+### Highlights
+- [fixes] "Highlights in Grand Rapids": a town's standout matches
+- [fixes] "Best teleop videos in Romania": the best TeleOp matches there
+- [fixes] "4215 vs 6980 highlights": the comparison, then each team's best
+- [fixes] An event with nothing played yet says "No highlights yet"
+
+### Fixed
+- Search: highlights in a town ("highlights in Grand Rapids", "best moments in Oradell") are the matches at events held there, named as the town, in its own state. A town name two regions share is the region with five times the other's teams and events ("Grand Rapids" is Michigan's, never team Rapid Robots); closer counts stay unread. (`server/api/query/execute.ts`, `server/api/query/highlights.ts`, `server/api/query/matchFind.ts`, `src/shared/query/names.ts`)
+- Search: one period's best said of matches with no team or OPR ("best teleop videos in romania decode", "highest teleop score in romania", "best auto videos in michigan") is the season's best matches by that period's points in that place, a state or a whole country, each playing its clip, never a board of teams. "Best teleop OPR in Romania" stays the board. (`server/api/query/execute.ts`, `server/api/answers/read.ts`, `server/api/answers/index.ts`, `server/api/searchAnswer.ts`)
+- Search: teams compared with "highlights" ("4215 vs 6980 highlights", "… best moments") show the side by side and then each team's standout matches of that season, the same ones its highlights page lists. (`server/api/searchAnswer.ts`)
+- Search: an event's highlights before any match is played say "No highlights yet — no matches played at this event." (`server/api/query/highlights.ts`) (#1579)
+
+## 6.8.4 — 2026-11-15
+
+Offline search › a saved season answers a search in about a third of a second.
+
+### Highlights
+- [offline] Offline search from a saved season answers in about 0.3 s
+- [speed] A saved season's search index is kept, not rebuilt each page
+- [offline] With no signal, saved seasons get ready while the app is idle
+
+### Changed
+- Offline search with a season saved: the season's search index (every team and event, normalised) is kept on the device once built, per file and release, and read back with the file, instead of being rebuilt on each page; plain-ASCII names skip the Unicode passes (same result); rows come out of SQLite without re-reading column names; and with no signal the saved seasons and event packs open once the page has settled and is idle. /search?q=4215 offline with the season saved: about 1 s before, about 0.3 s after. (`src/lib/offline/readers.ts`, `src/lib/offline/seasons.ts`, `src/lib/offline/answer.ts`, `src/lib/api.ts`, `src/shared/fuzzy.ts`) (#1580)
+
+## 6.8.3 — 2026-11-15
+
+Region rankings › the table fits a phone screen in every sort.
+
+### Highlights
+- [rankings] Region rankings fit a phone screen in every sort
+- [rankings] Sorted by Events on a phone, Events shows in OPR's place
+- [rankings] Team numbers sit closer to the scores on a phone
+
+### Changed
+- Region rankings on phones: cells are a little tighter and the team column sizes to its number, so the table fits 390px; sorted by Events, Events shows in OPR's place. (`src/pages/RegionRankingsPage.tsx`) (#1578)
+
+## 6.8.2 — 2026-11-15
+
+Region and league rankings › the tables fit a phone screen without scrolling sideways.
+
+### Highlights
+- [rankings] Region rankings fit a phone: matches sit under the record
+- [rankings] League standings fit a phone with Scout's rating and region rank
+- [rankings] Search shows a team's OPR to one decimal, as the region page does
+
+### Changed
+- Region rankings on phones: the rated-match count sits under the record, and the Events (kept when sorted by it), Matches and Swing columns show from tablet width up, as Trend does. League standings on phones: Matches and Meets show from tablet width up beside Scout's columns, headed "Scout" and "Region". A region rank answer in search reads the OPR to one decimal. (`src/pages/RegionRankingsPage.tsx`, `src/components/LeagueTable.tsx`, `server/api/answers/families/oprRating.ts`) (#1569)
+
+## 6.8.1 — 2026-11-15
+
+Report a bug › capture the page behind the dialog without closing it, and a thin scrollbar that matches the theme.
+
+### Highlights
+- [report] "Capture this screen" adds a picture of the page behind the dialog
+- [report] Your browser asks first; saying no just leaves a short note
+- [appearance] Dialogs and sheets scroll with a thin, theme-coloured scrollbar
+
+### Added
+- Report a bug: a "Capture this screen" button beside the drop zone, in browsers that can share a tab (not phones). The browser asks first, this tab offered first; the dialog and its backdrop step aside for one frame, sharing stops at once, and the picture is added as a screenshot under the usual limits (six, 5 MB each; full means no prompt at all). A refused or cancelled prompt adds nothing and leaves a short note. The site's Permissions-Policy now allows screen capture for this site only. (`src/components/layout/BugReport.tsx`, `src/components/layout/captureScreen.ts`, `server/securityHeaders.ts`) (#1570)
+
+### Changed
+- Dialogs and sheets that scroll use the app's own thin scrollbar in the theme's colours (Light, Dim, Dark, Midnight) instead of the system's wide one, still scrollable by wheel, touch and keyboard. (`src/components/ui/overlay.tsx`)
+
+## 6.8.0 — 2026-11-15
+
+Welcome, step 3: the OR between your team's searches and the wider ones is smaller.
+
+### Highlights
+- [home] The welcome's OR is smaller, so the searches stand out
+- [home] Thin lines and a quiet OR, on phones and desktop
+- [appearance] Matches every theme
+
+### Changed
+- Welcome, step 3: the OR divider is 14px bold in the muted text colour with 2px rules (was 30px extra-bold with 3px rules). (`src/components/onboarding/Onboarding.tsx`) (#1571)
+
+## 6.7.9 — 2026-11-15
+
+Predict's "80% ranges have held …" line now shows with no signal too.
+
+### Highlights
+- [offline] Predict's "80% ranges have held …" line shows offline
+- [offline] The score ranges' record is saved with each event pack
+- [predict] Offline predictions now read the same as online, line for line
+
+### Fixed
+- Offline, Predict left out the calibration line ("80% ranges have held 90.9% of 8,966 live alliance scores"). It reads `/api/predict/ranges`, which is now kept on the device like the track record and asked for with each event pack, so the line shows its last-loaded numbers with no signal. (`src/lib/offline/kept.ts`, `src/lib/offline/warm.ts`) (#1568)
+
+## 6.7.8 — 2026-11-15
+
+Report a bug › the public notice is larger, offers a private email instead, and Send asks once more before anything is posted.
+
+### Highlights
+- [report] The "this is public" notice is larger and easier to read
+- [report] Want it private? Email sushil.m@icloud.com instead
+- [report] Send asks a second time: only "Yes, post it publicly" sends
+
+### Changed
+- Report a bug: the public GitHub Issue notice is a boxed, full-size line with a private-email way out (a mailto link), on the form and on the sent screen. The first Send asks "Send this as a public issue?"; only "Yes, post it publicly" sends (Enter in a field never does), the question says when a typed email will be public too, any edit asks again, and Go back returns to the form, focus on Send report, with nothing sent. On phones the sheet scrolls so both answers are in view (stopping as soon as you scroll yourself), and it has bottom padding again. (`src/components/layout/BugReport.tsx`) (#1562)
+
+## 6.7.7 — 2026-11-15
+
+Search › An event's matches ("CRI matches", "matches at the NJ championship") list every match in the order played, with each clip playing inline.
+
+### Highlights
+- [history] An event's matches list every match, in the order played
+- [history] Each match's clip plays right in the answer
+- [history] Add a year or "playoff" to narrow the list
+
+### Changed
+- "<event> matches" — by the event's name, code or initialism, "<place> states matches" too — answers with the event's played matches, qualification first and the playoffs after, each row playing its clip. A year picks that edition and a match type narrows it; a team, a measure or a time window still goes to its own answer. Clips are read for up to 200 rows (was 60), and a list cut at 200 says so. (`server/api/query/execute.ts`, `server/api/query/matchFind.ts`, `server/api/answers/video.ts`) (#1556)
+
+## 6.7.6 — 2026-11-15
+
+Search reads a period's OPR said after a place: "Romania teleop opr" lists Romania's teams by TeleOp OPR.
+
+### Highlights
+- [fixes] "Romania teleop opr" lists Romania's teams by TeleOp OPR
+- [fixes] "nj auto opr" and "nj endgame opr" read the same way
+- [rankings] A place's board by one period's OPR needs no "best" or "top"
+
+### Fixed
+- Search: a place followed by a period's OPR ("Romania teleop opr") read as two stats at once, TeleOp and OPR, so nothing answered. "TeleOp OPR", "Auto OPR" and "Endgame OPR" are each one stat now, as they already were after "best" or "top": *Top 10 teams by TeleOp OPR in Romania · 2025–26*. Failed search #1526. (`src/shared/query/intents.ts`) (#1555)
+
+## 6.7.5 — 2026-11-15
+
+Search answers four more questions it used to miss: three team numbers side by side, a team's Auto OPR at Worlds, what a tiebreaker is, and "teams in" with nothing after it.
+
+### Highlights
+- [fixes] Three or four team numbers typed with spaces compare those teams
+- [fixes] A team's Auto, TeleOp or Endgame OPR at Worlds answers in its division
+- [fixes] "What is a tiebreaker" explains how tied teams are ordered
+- [fixes] "teams in" with no place lists every team, best by OPR
+
+### Fixed
+- Three or four team numbers with only spaces or commas between them ("16461 19460 23314") found nothing. Two numbers already opened the comparison. Now two to four numbers compare that many teams; a year among them still reads as a season, never a team. (`server/api/searchCoverage.ts`) (#1495)
+- A team's Auto OPR at Worlds ("what was hypnotic robotics auto opr at worlds in centerstage", and the same without "opr") showed the team card and "can't answer that yet". It's now that phase's OPR in the team's Worlds division (47.3 at Edison, 2023–24), with its OPR and the other phases beside it, as "auto" alone already reads a team's season Auto OPR. A phase next to another stat word ("highest auto at worlds") stays with the match answers. (`server/api/answers/families/oprRating.ts`) (#1493, #1494, #1530)
+- "What is a tie breaker point" found nothing. A new explainer says how teams level on ranking score are ordered, season by season (from 2025–26 on, average non-penalty score first; in 2024–25, average auto then endgame), and a typo of "breaker" is now corrected to it. (`server/api/searchCoverage.ts`, `server/api/spelling.ts`) (#1430, #1429)
+- "teams in" with nothing after it found nothing. It now lists every team, best by OPR this season, with how many are registered and how to add a place. (`server/api/searchCoverage.ts`) (#1421)
+
+## 6.7.4 — 2026-11-15
+
+Official videos › The channel audit no longer counts a channel's hidden spare copy of a stream as a video the watcher missed.
+
+### Highlights
+- [fixes] A copy a channel made unlisted isn't a missed video
+- [fixes] Its set-aside reason says the channel unlisted it
+- [fixes] Watcher misses now count only public uploads
+
+### Fixed
+- A video a channel made unlisted or private after it was listed is off its public uploads list, which is all the watcher reads: the audit sets it aside ("unlisted now: the channel took it off its public list, so it isn't for Scout") instead of counting a watcher miss and opening a finding. The audit's second live run counted one, a Kazakhstan regional's spare copy of a stream the watcher already has in review. (`server/videos/officialAudit.ts`) (#1554)
+
+## 6.7.3 — 2026-11-15
+
+A slow search no longer reads as "You're offline". While a long search keeps the server busy, the connection check waits for it instead of deciding there's no internet, and a search that did fail for want of a connection is asked again once the internet is back.
+
+### Highlights
+- [fixes] A slow search no longer says you're offline
+- [fixes] Reloading during a slow search waits for it, not "offline"
+- [offline] A search that failed offline runs again once you're back
+
+### Fixed
+- The connection check: no answer from `/api/health` within 2.5 s just after the server answered this tab (in the last minute, carried over a reload) now waits up to 20 s before it means no internet. A long search holds the server, and the check waited behind it (measured live: 11.8 s behind a 12 s search); it then said "no internet", the search was let go as "You're offline", and a reload started from that. With no recent answer, or once a check has found no internet, 2.5 s still means no internet. (`src/lib/connection.ts`)
+- Search results: "You're offline" (or "Can't reach the server") is asked again by itself when the connection check finds internet, instead of staying until Try again. (`src/components/search/SearchBox.tsx`) (#1561)
+
+## 6.7.2 — 2026-11-15
+
+Search › "Where does 4215 rank in New Jersey" answers with the region page's own numbers (rank in New Jersey, rating, record, OPR) and opens that page with the team's row marked.
+
+### Highlights
+- [rankings] Ask where a team ranks in its state: rank, rating, record, OPR
+- [rankings] Top teams in a state answer from its rankings page
+- [rankings] Not ranked yet says how many rated matches a team has
+
+### Changed
+- "Where does {team} rank in {region}": the answer adds the team's season record, shows its rating to one decimal as the region page does, and links to the region page on the team's page with its row marked. A team from there with fewer than 3 rated matches is "Not ranked yet — N of 3 rated matches" (or "No rated matches yet"), never ranked by its OPR instead. (`server/api/answers/families/oprRating.ts`)
+- "Top teams in New Jersey", "best team in New Jersey", "New Jersey rankings": the region page's rows (rank in the region, rating, OPR, record) and a link to it; a region with no rated team says "No rated teams yet". (`server/api/searchAsks.ts`, `server/api/answers/families/leaderboard.ts`, `server/api/searchIntents.ts`) (#1544)
+
+## 6.7.1 — 2026-11-15
+
+Owner › Official videos › Channel audit: after every watcher run, each watched channel's whole uploads list is compared, video by video, with what Scout has. Misses, wrong adds and possible recordings are owner findings.
+
+### Highlights
+- [workspace] Every watched channel's uploads checked against Scout
+- [workspace] The watcher's own adds are checked again after each run
+- [fixes] A drone or FRC stream added before the rules caught it comes off
+- [workspace] Each video in review or set aside has a best-guess event
+
+### Added
+- The channel audit (`server/videos/officialAudit.ts`, migration 91). It runs after every watcher run, scheduled or Run now. It reads each watched channel's uploads list with the YouTube Data API, never a search: the newest page every run, and the whole list once a week. It stores each upload with where Scout has it: the checked list, the watcher, FIRST's link, a short link, the channel's broadcasts, or the owner's stream.
+  - An upload Scout has nothing for gets the watcher's rules and a best guess. It's set aside with the reason, left for the watcher's next run, or a finding.
+  - A watcher miss goes to review if a later watcher run still misses it. The audit never adds a video.
+  - An older video that can't fill a day Scout has no video for is set aside with why: a broadcast on a day with no Scout event in the region, or one whose event already plays a video every day.
+  - The audit uses at most 800 units a run, and under 600 a day in steady running. (`docs/official-videos.md`)
+- The watcher's own adds are checked again every run: still playable, an FTC competition, the right day and event, and not a second video of the day. Owner › Official videos shows the result over the watcher's last 10 runs and its last 100 videos read.
+- Owner › Official videos › Channel audit shows each channel's uploads, those with a Scout record, those that play on an event (every season, and 2026-27), the findings (send to review, or say why it isn't a recording), and the set-aside reasons.
+
+### Changed
+- A video set aside by its title now says what in the title set it aside (`the title says "FRC"`, or that it names no competition). Every video in review or set aside whose verdict named no event gets a best-guess event, with what that guess rests on (`server/videos/officialMatch.ts`, `server/videos/officialWatch.ts`).
+
+### Fixed
+- An add the watcher's title rules set aside today now comes off its event: a rule tightened since, such as a drone contest's stream on Almaty Tech Cup, added before #1498. It still counts as a wrong add.
+
+## 6.7.0 — 2026-11-15
+
+Search reads a year after an award's winners: "inspire award winners 2024" lists that season's Inspire Award winners.
+
+### Highlights
+- [fixes] "inspire award winners 2024" lists the 2024–25 winners
+- [fixes] "think award winners 2025" lists the 2025–26 winners
+- [fixes] A team numbered like a year is still read as that team
+
+### Fixed
+- Search: one award's winners with a bare year ("inspire award winners 2024", "think award winners 2025") said no team, event or match matched, since the year was taken for a team number. A year ending the question is now its season, as search reads a year everywhere (2024 is 2024–25; at Worlds, the Championship held that year). A number before the ask, or after "team" or "#", is still a team's. Failed search #1434. (`server/api/answers/families/placeAwards.ts`) (#1533)
+## 6.6.9 — 2026-11-15
+
+Owner › Clip coverage: the check pass's log line has no stray double space before its pending count.
+
+### Highlights
+- [fixes] The clip coverage pass log reads cleanly
+- [workspace] Its pending count follows one spacer, like every part before it
+- [workspace] A test keeps the line free of double spaces
+
+### Fixed
+- The clip coverage pass log line had two spaces before "· N matches not yet checked against the video". (`server/videos/coverageCheck.ts`) (#1552)
+
+## 6.6.8 — 2026-11-15
+
+Events › The Chicago Robotics Invitational shows its full results: teams, matches, standings, alliances and awards for 2025–26 and 2024–25, from the event's own results site.
+
+### Highlights
+- [history] Chicago Robotics Invitational: matches, rankings and awards
+- [history] Its matches play from the event's recordings
+- [fixes] The page says plainly where the results came from
+
+### Added
+- CRI results: FIRST lists the Chicago Robotics Invitational (FPECRI) with no teams or matches. Its results now come from chicagoroboticsinvitational.com as the event's ordinary results, for 2025–26 (38 teams, 62 matches) and 2024–25 (38 teams, 67 matches). That covers each match's auto / TeleOp / endgame / penalty split, standings, alliances and awards. The event page says "Results from chicagoroboticsinvitational.com" and links there. The results are read weekly and cached, and they never replace FIRST's: if FIRST posts the event, its results win. (`server/sources/cri.ts`, `server/data/criResults.ts`, `docs/cri-results.md`) (#1537)
+
+## 6.6.7 — 2026-11-15
+
+Clip coverage's To review now holds only matches checked against the video itself; the rest wait under their own count, and every match the video showed without a clip is a finding.
+
+### Highlights
+- [workspace] To review holds only matches checked against the video itself
+- [workspace] "Not yet checked against the video" gets its own count, never hidden
+- [workspace] Each match the video showed with no clip is listed as a finding
+- [workspace] Each check pass is logged and shown: clipped, missing and why
+- [workspace] The pending video checks count down pass by pass
+
+### Changed
+- Owner › Clip coverage: an event is To review only for a match its video's frames were read for and that still has no clip (or a match with no reason found), and its reason says what was checked in the video and what was missing there; matches still waiting for their check are counted beside it. An event whose missing matches were left out by the clock alone and not yet checked against the video is "Not yet checked against the video": a pending check with its own count and list, in any season, never in To review, never marked reviewed (one or in any bulk), moving on once its frames are read; a review given to it while it waited doesn't carry over, so its video-checked list comes back To review. (`server/videos/coverageTriage.ts`, `server/videos/coverageCheck.ts`, `src/components/owner/ClipCoveragePanel.tsx`) (#1539)
+
+### Added
+- Each clip coverage check pass logs events checked, fully clipped, matches clipped and missing, and the missing by what their video check found (not yet checked, checked with no start found, seen in the video with no clip, or the video's own reason); the console shows the last pass. Every match the video's frames saw with no clip is a finding in the console, with its video, the second it was seen at, its event and why, whatever its review; so is every clip pulled because its first frame showed another match, with the frame checks' totals (checked, confirmed, pulled, to read again, videos with no overlay). A finding stays until a pass clears it (its clip placed, or a re-read shows the match isn't there) and is never marked reviewed. The console counts the matches still waiting for their video check after each pass and how many fewer than the pass before, and the pass log line ends with it.
+
+## 6.6.6 — 2026-11-15
+
+35 more official event recordings play: 25 of FIRST Indiana's events, SoCal's ILTs and championship, and Kansas City's Piper meets. West Michigan's Meet 5 and Meet 6 each play their own stream.
+
+### Highlights
+- [fixes] West Michigan Meet 5 and Meet 6 each play only their own stream
+- [live] 25 FIRST Indiana events now have their full recording, 2021 to 2026
+- [live] SoCal's ILTs and LA championship play from SoCal FTC's live channel
+- [live] Chicago Robotics Invitational 2026: Matches and Full stream each day
+
+### Fixed
+- West Michigan's Meet 5 and Meet 6 (Nov 14) were held the same day, and FIRST's event pages give both the same channel link. Each page played both meets' streams, and Meet 6's page opened on Meet 5's. When two events that day share a channel link, a broadcast whose title names one of them ("Meet 6") is now that event's only; a title naming neither stays with both. (`server/videos/channelStreams.ts`)
+- Chicago Robotics Invitational 2026 showed "Saturday · Matches", "Saturday" and "Sunday": Saturday's full stream had no part, and Sunday's "matches only" stream wasn't listed. Each day now has "Matches" and "Full stream". Sunday's full stream is FIRST's own link, so the checked list names its part, and a listed part now also names a day's video that the event already plays without one. (`server/videos/officialVideos.ts`, `server/videos/recordings.ts`)
+
+### Added
+- FIRST Indiana Robotics' event recordings: 25 Twitch broadcasts it uploads a few days later, each titled with its event and date, from the 2021 State Championship to the 2026 one. None of these events had a video before. (`server/data/officialVideos.json`)
+- SoCal FTC's own live channel (@FIRSTsocalftclive) is now watched: ILT #3, #5 and #6 of 2025-26 and the Los Angeles championship at Monrovia play. "ILT #6" is read as "SoCal FTC Qualifier 6". (`server/data/officialChannels.ts`, `server/videos/officialMatch.ts`)
+- League G's 2025-26 Meet 3, and FIRST MOKS's three Piper meets of Nov 14 (8 AM, 10:30 AM, 1 PM).
+
+## 6.6.5 — 2026-11-15
+
+Search › "CRI" finds the Chicago Robotics Invitational: an event's short form now leaves out the "Premier Event" FIRST adds to its name, and works beside other words.
+
+### Highlights
+- [fixes] "CRI" finds the Chicago Robotics Invitational
+- [fixes] A short form beside "matches" or a year finds the event
+- [fixes] A team whose name starts the same way no longer takes its place
+
+### Fixed
+- An event's initialism also leaves out a trailing event type FIRST appends ("Premier Event", "Off-Season Event"), so "Chicago Robotics Invitational Premier Event" is CRI as well as CRIPE. (`src/shared/query/initialisms.ts`)
+- An initialism beside other words ("cri matches", "cri results", "cri 2025") is read as the event's name when the words as typed found something else first: "CRI matches" opened Critical Mass's matches. A team named so, an ordinary word, or a two-letter word is never read this way. (`server/api/searchAnswer.ts`, `docs/search-pipeline.md`) (#1542)
+
+## 6.6.4 — 2026-11-15
+
+A bug report's screenshot or video is cleared from the server minutes after its GitHub issue is filed, instead of waiting for a quiet stretch with no deploys.
+
+### Highlights
+- [report] Attachments leave the server minutes after the issue is filed
+- [report] Reports waiting on GitHub are tried again a minute after each restart
+- [fixes] Busy deploy days no longer hold up bug report filing
+
+### Fixed
+- Report a bug: GitHub takes a few seconds to open a new issue's attachments to everyone, so the first check right after filing usually finds them closed. The server now checks again after 15 s, 1 min and 3 min and deletes the local copy once each opens, instead of waiting for the 10-minute sweep. The sweep also runs one minute after each start: deploys restarted the server every few minutes on 2026-11-15 and each restart put it off again, so neither the clean-up nor "file it later" ran. (`server/bugReports.ts`, `server/index.ts`) (#1551)
+
+## 6.6.3 — 2026-11-15
+
+Search reads a question that calls Bruno by name: "bruno, whats the best team in nj" gets New Jersey's top teams.
+
+### Highlights
+- [fixes] A question that starts "bruno bruno …" gets its answer, not "no match"
+- [fixes] "bruno, whats the best team in nj" lists New Jersey's top teams
+- [offline] Offline search reads Bruno's name the same way
+
+### Fixed
+- Search: Bruno called by name ("bruno bruno whats the best team in nj rn") left "bruno" unread and the search found nothing. The name is now read like "hey": the question gets *Best team in New Jersey by prediction rating · 2026–27*, online and offline. Failed search #1428. (`src/shared/query/lexicon.ts`) (#1534)
+
+## 6.6.2 — 2026-11-15
+
+Search answers a top-scores question about an event named without "at": "best auto match in romania champs" lists the Romania Championship's best auto scores.
+
+### Highlights
+- [fixes] "best auto match in romania champs" lists its top auto scores
+- [fixes] An event named after "in" is read as the event, not as a place
+- [fixes] "4215 highest score in …" still answers about the team
+
+### Fixed
+- Search: a top-scores question naming an event after "in", or with no word before it ("best auto match in romania champs", "best auto match romania champs"), said no team, event or match matched. The words left are now the event's name when they aren't a place, end the question and hold an event's own word (championship, qualifier, league, meet …); "4215 highest score in …" stays the team's question. Answer: *Highest auto scores in DECODE (2025–26) at Romania Championship*. Failed search #1435. (`server/api/answers/families/topMatches.ts`) (#1532)
+
+## 6.6.1 — 2026-11-15
+
+Welcome › Step 3 "Ask anything" is now six searches you can tap: your team's next match and awards, a large OR, then two built from your team's own history and two wider ones.
+
+### Highlights
+- [home] Tap any welcome step 3 example to run that exact search
+- [home] Two examples are built from your team's own seasons
+- [home] A large OR splits your team's searches from the wider ones
+
+### Changed
+- Welcome, step 3: the examples are buttons. Each one ends the welcome and opens that search, as written, on the results page. With a team picked: "<team> next match", "<team> awards", a large OR, then the team's compare (its sister team at the same school and town, else the team it met most, over its last finished season) and its auto OPR in the season it played at Worlds (else its best season by OPR rank), then "30030 vs 21087 vs 11228" (Worlds' winning alliance) and "best teleop opr in Romania in 2025-26". A team with no season played yet gets its town's teams and its region's best rookies instead. Every team example is run on the server first, and one that doesn't answer is replaced by the next, or left out: never made up. (`src/components/onboarding/Onboarding.tsx`, `server/api/onboardingExamples.ts`, `GET /api/onboarding/examples`) (#1540)
+
+## 6.6.0 — 2026-11-15
+
+Rankings › Leagues have a list of their own, and a league's standings show each team's Control Scout rating, OPR and place in its region beside FIRST's ranking.
+
+### Highlights
+- [rankings] Every league in one list, by where it plays
+- [rankings] League standings show Scout rating, OPR and region rank
+- [rankings] From a league to its region's rankings and back
+
+### Added
+- Leagues (`/leagues`): every league of the season grouped by where its meets are, with meets played, teams and FIRST's #1 by ranking score, searchable, season switch; each place links to its region rankings. In the navigation (Leagues) and on every region page. (`src/pages/LeaguesPage.tsx`, `server/api/leagues.ts`)
+- League standings: links to the league's region rankings and to the leagues list; after FIRST's columns (unchanged), Scout rating ("Not rated yet" under 3 rated matches, never a made-up number), OPR (— when none) and the team's rank in its home region, linked to its row on that region's page. (`src/pages/LeaguePage.tsx`, `src/components/LeagueTable.tsx`)
+
+## 6.5.9 — 2026-11-15
+
+Report a bug now files a public GitHub Issue on ZOGWORK/control-scout for you, with your screenshot or video in it, and shows you the issue's number and link right after you send.
+
+### Highlights
+- [report] Report a bug files a GitHub Issue for you, no GitHub account needed
+- [report] Your screenshot shows in the issue, your video plays in it
+- [report] You get the issue number and link the moment it's filed
+- [report] The dialog says plainly the issue is public
+
+### Changed
+- Report a bug (top bar): each report becomes one GitHub Issue, `[user] <first line>`, labels `bug` + `user-reported`, with the message in a code fence, the category, the page, release, screen, device and theme, the email only if you typed one, and the attachments: screenshots inline, a video as GitHub's player. Attachments upload to GitHub first (the request `gh issue create --attach` makes), then the issue is opened; one that fails to upload is named as failed in the issue and kept for the owner. Filing happens after Send has answered; the dialog then shows "Thanks — filed as #N" with the link, "Thanks — saved, we'll file it on GitHub", or "Something went wrong — your report is saved, we'll try again", never a made-up link. No token, GitHub down or a refusal: the report is kept and a later sweep files it; a try whose reply was lost adopts its issue instead of filing twice. The message is sanitized in the browser and again on the server; the page goes to GitHub as a bare path. The email box is no longer filled in for signed-in people, since it shows on the public issue. Reports sent before this release stay private and are never filed. (`server/bugReports.ts`, `server/errorReports.ts`, `src/components/layout/BugReport.tsx`, migration 90)
+- Owner console › Bug reports: each report shows its GitHub issue (one click to open it) or "Not filed yet" and why; attachments link to GitHub once the local copy is deleted (after the issue is filed and the URL opens); only local copies count against the disk cap. Closing or deleting a report here never touches its issue. The audit log records each filing (issue number, upload route) and each failure. (`src/components/owner/BugReportsPanel.tsx`) (#1535)
+
+## 6.5.8 — 2026-11-15
+
+Rankings › Every region has its own rankings page: New Jersey's teams ranked in New Jersey, with their record, OPR, events and the matches each rating rests on, and who climbed, fell or is new this week.
+
+### Highlights
+- [rankings] A rankings page for every country, state and province
+- [rankings] This week's biggest climbers, fallers and new teams at the top
+- [rankings] Record, OPR, events and rated matches beside each rating
+- [teams] Rank in New Jersey (or your region) from the team page
+
+### Added
+- Rankings by region (`/rankings/regions`): every country and named state or province with rated teams, most teams first, its #1 team and its leagues, searchable, with a season switch. Linked from Rankings, the navigation (Region rankings) and Home's footer. (`src/pages/RegionsPage.tsx`)
+- A region's rankings (`/rankings/regions/USA/NJ`): rank in the region (world rank beside it), rating, season record, OPR, events, rated matches, move in the region since last week and the trend, sortable by rank, rating, OPR, record, events and move without renumbering. The week's top three climbers and fallers and the teams new to the table sit above it; teams with fewer than three rated matches are listed apart and labeled ("Not ranked yet — 2 of 3 rated matches", "No rated matches yet"), never ranked; a region with no rated team says so. Its leagues link to their standings. Season and week switches keep the region; `?team=` opens the page that team's row is on, marked. Ratings are labeled comparable inside one season only. (`src/pages/RegionRankingsPage.tsx`, `server/api/regionRankings.ts`)
+- Team page: its place in its home region and "Rank in New Jersey →" (or its own region) opens the region's table on the team's page with its row marked. (`src/pages/TeamPage.tsx`)
+- `/rankings` with one place picked links to that place's page; every view links to the regions list. (`src/pages/RankingsPage.tsx`)
+
+## 6.5.7 — 2026-11-15
+
+A paused download picks up within seconds of the line coming back, Delete acts at once, and Delete only says "Freed" for space the browser really gave back.
+
+### Highlights
+- [offline] A paused download picks up within seconds of the line coming back
+- [offline] A download request that hangs is dropped after 6 s and tried again
+- [offline] Delete on a saved season acts at once
+- [offline] Delete says "Freed" only for space the browser gave back
+
+### Fixed
+- Auto-resume waited on the connection check's back-off. Measured live (9.0 MB current season, cut at 50%, line back after 20 s), the save finished 53 s after the line came back: checks at 5 s, 10 s, 20 s and 30 s steps found it late, and one hung. While a download the person started waits for the line, the check now runs every 2 s (for up to 10 minutes). A download try with no answer for 6 s (headers or the next chunk) is dropped and tried again at once, from the bytes kept, up to 3 times before it pauses; the pack list gives up after 5 s and is asked again. One paused again is tried once its 10 s gap is over, not at the next check minutes later. (`src/lib/connection.ts`, `src/lib/offline/download.ts`, `src/lib/offline/resume.ts`, `src/lib/offline/resumeWatcher.tsx`) (#1536)
+- Delete on a saved season no longer reads the whole file back into memory first, and a save never holds the season for more than 3 s while the SQLite engine caches (its request can hang on a line that just came back, and the save run keeps Delete greyed out). Clearing the download pieces and dropping the engine happen outside the season's lock. (`src/lib/offline/seasons.ts`)
+- "Freed 9.0 MB" claimed the pack's own size. Measured on Chromium, nothing of the season stays behind (IndexedDB, Cache Storage and OPFS listed before the save, after it and after Delete), but the browser keeps IndexedDB data compressed, so the 9.0 MB season took 3.6 MB and freed that (4.3 MB with the engine); a private window keeps storage in memory and its figure doesn't drop at all. Delete now reads the browser's figure just before and after: "Freed" is only what it dropped by, otherwise it says what was deleted and that the browser gives the space back on its own, and the line under the list follows the figure as it catches up. (`src/pages/DownloadPage.tsx`)
+- `npm run offline:check -- --season` taps the Whole current season choice and its Download button (the old Save offline row is gone). (`scripts/offline-check.ts`)
+
+## 6.5.6 — 2026-11-15
+
+Highlights searches typed in the header's search box now show the question and a link to its answer, and three more highlights searches play.
+
+### Highlights
+- [fixes] The search box reads highlights searches and links to their answer
+- [fixes] FiT-Central Texas Regional Championship highlights now play
+- [fixes] A division typed nearly right after its event plays it
+- [fixes] "usa champs highlights" plays the US championships' best
+
+### Fixed
+- Highlights searches typed in the header's search box ("worlds highlights", "decode highlights", an event's or a team's highlights) showed "No team, event or match matched", though pressing Enter opened the answer. The box asks for a shorter answer than the results page, and the highlights reader answered only the page's. In the box it now shows the question as read ("Highlights at West Michigan Meet 6, 2026–27") with a link to its answer page, without reading any matches while you type; a team's highlights keep the team's row too. (`server/api/query/execute.ts`)
+- "FiT-Central Texas Regional Championship highlights" found no event. Search reads an event's whole stored name first, but it counted "fit" as one of its own words (from phrases like "best fit"), so only "Central Texas" was left as the name's own words, and that read as the state. Only words search reads on their own now count; a word it reads only inside a longer phrase can be part of a name. (`src/shared/query/parse.ts`)
+- A Romania championships highlights search with the VLAICU Division's name typed with two letters swapped found nothing: the event was read, the division's name was not. A word left over after an event is read that is, or nearly spells, a word of that event's own stored names (one letter off, a swap counts as one, five letters or more, one such word only) is now read into the event, so it plays Romania Championship - VLAICU Division and the card names it as stored. (`src/shared/query/names.ts`, `src/shared/query/parse.ts`)
+- "usa champs highlights" found nothing. A state with only a championship word after it ("texas champs") is its state championship; a country is now read the same way, as its championships, unless an event is named that way ("romania champs" stays Romania Championship). (`src/shared/query/parse.ts`) (#1528)
+## 6.5.5 — 2026-11-15
+
+Videos › A clip whose first frame shows another match is never played: the clips placed from the clock are checked frame by frame, and a wrong one is pulled.
+
+### Highlights
+- [fixes] A clip that opens on another match is pulled
+- [workspace] Each pulled clip is an owner finding with what it showed
+- [fixes] A blank first frame keeps its clip and is read again
+
+### Changed
+- Clock-placed clips are checked by the overlay at their first frame (`server/data/clipChecks.ts`). One that names a different match is never served (`withClips`), and is listed with its start and what it showed for the owner console. One that names nothing (a blank or a transition) stays and is read again; a video with no readable overlay is counted, never pulled. The sweep's data follows season by season. (`server/videos/recordings.ts`, `docs/frame-timings.md`) (#1529)
+
 ## 6.5.4 — 2026-11-15
 
 Clip coverage never names an early start as a reason, not even in passing.

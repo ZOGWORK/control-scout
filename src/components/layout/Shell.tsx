@@ -10,7 +10,7 @@ import { Link, NavLink, useLocation, useMatch } from "react-router-dom";
 import { MotionConfig } from "motion/react";
 import { m } from "../motion";
 import {
-  BookOpen, Bookmark, CalendarDays, ChevronDown, ClipboardList, DatabaseZap, Download, Ellipsis, Gavel, House, ListOrdered, PanelLeft, PanelLeftClose, PanelLeftOpen, Scale, Search, Sparkles, Star, Trophy, Users, Wifi,
+  BookOpen, Bookmark, CalendarDays, ChevronDown, ClipboardList, DatabaseZap, Download, Ellipsis, Gavel, House, ListOrdered, MapPin, PanelLeft, PanelLeftClose, PanelLeftOpen, Scale, Search, Sparkles, Star, Trophy, Users,
 } from "lucide-react";
 import { cn } from "../cn";
 import { useMediaQuery, useMeta } from "../../lib/meta";
@@ -34,8 +34,10 @@ import { watchTextSize } from "../../lib/textSize";
 import { useFlag } from "../../lib/flags";
 import { PAGE_FRAME } from "../../shared/boot";
 
-/** `children`: a row that opens to its own pages instead of being one (How it works: Predictions, FTC One Search). */
-interface NavItem { to: string; label: string; icon: ComponentType<{ className?: string }>; end?: boolean; children?: NavItem[] }
+/** `children`: a row that opens to its own pages instead of being one (How it works: Predictions, FTC One Search).
+ *  `sub`: a row that is a page itself, with a small arrow beside it that shows its sub-pages (Rankings: Region
+ *  rankings, Leagues, Power rankings). Only the arrow opens them; going to the page never does. */
+interface NavItem { to: string; label: string; icon: ComponentType<{ className?: string }>; end?: boolean; children?: NavItem[]; sub?: NavItem[] }
 
 /** The everyday pages, always in view; everything else sits under `more` (the sidebar folds it under a "More"
  *  toggle; the menu sheet lists it under a "More" heading). Nothing is left out, just out of the way. */
@@ -44,19 +46,22 @@ const SECTIONS: { title: string | null; items: NavItem[]; more?: boolean }[] = [
     { to: "/", label: "Home", icon: House, end: true },
     { to: "/events", label: "Events", icon: CalendarDays },
     { to: "/teams", label: "Teams", icon: Users },
-    { to: "/rankings", label: "Rankings", icon: ListOrdered },
+    { to: "/rankings", label: "Rankings", icon: ListOrdered, end: true, sub: [
+      { to: "/rankings/regions", label: "Region rankings", icon: MapPin },
+      { to: "/leagues", label: "Leagues", icon: CalendarDays },
+      { to: "/power-rankings", label: "Power rankings", icon: Trophy },
+    ] },
     { to: "/predict", label: "Predict", icon: Sparkles, end: true },
     // The YOURS row: "My team" / "My teams" (YoursNavRow decides what it opens).
     { to: FOLLOWED_TEAM_PATH, label: "My team", icon: Star },
     { to: "/scout", label: "Scout", icon: ClipboardList },
   ] },
   { title: "More", more: true, items: [
-    { to: "/power-rankings", label: "Power rankings", icon: Trophy },
     { to: "/compare", label: "Compare", icon: Scale },
     { to: "/shortlist", label: "Shortlist", icon: Bookmark },
     { to: "/rules", label: "Rules", icon: Gavel },
+    // Network & offline is a Settings section (/settings#network), linked from the Offline page and Home.
     { to: "/download", label: "Offline", icon: Download },
-    { to: "/network", label: "Network & offline", icon: Wifi },
     { to: "/methodology", label: "How it works", icon: BookOpen, children: [
       { to: "/methodology", label: "Predictions", icon: Sparkles },
       { to: "/how-it-works/search", label: "FTC One Search", icon: Search },
@@ -92,10 +97,11 @@ function RailTip({ on, label, children }: { on?: boolean; label: string; childre
   );
 }
 
-function RowInner({ item, on, collapsed, dense }: { item: NavItem; on: boolean; collapsed?: boolean; dense?: boolean }) {
+/** `pill`: draw the lit background (defaults to `on`; a parent lit for one of its sub-pages lights its icon only). */
+function RowInner({ item, on, pill = on, collapsed, dense }: { item: NavItem; on: boolean; pill?: boolean; collapsed?: boolean; dense?: boolean }) {
   return (
     <>
-      {on && <m.span layoutId="cs-nav-active" transition={{ type: "spring", stiffness: 500, damping: 38 }} className="absolute inset-0 rounded-lg bg-text-base/[0.08]" />}
+      {pill && <m.span layoutId="cs-nav-active" transition={{ type: "spring", stiffness: 500, damping: 38 }} className="absolute inset-0 rounded-lg bg-text-base/[0.08]" />}
       <item.icon className={cn("relative shrink-0", dense ? "size-[18px]" : "size-5", on && "text-accent")} />
       <span className={collapsed ? "sr-only" : "relative truncate"}>{item.label}</span>
     </>
@@ -130,8 +136,56 @@ function SectionRows({ items, ...opts }: RowOpts & { items: NavItem[] }) {
       {items.map((it) => it.to === FOLLOWED_TEAM_PATH
         ? <YoursNavRow key={it.to} {...opts} />
         : it.children ? <ParentRow key={it.label} item={it} {...opts} />
+        : it.sub ? <SubPagesRow key={it.to} item={it} {...opts} />
         : <NavRow key={it.to} item={it} {...opts} />)}
     </>
+  );
+}
+
+/** A page row with an arrow beside it that folds out its sub-pages (Rankings: Region rankings, Leagues, Power
+ *  rankings). Shut until the arrow is pressed: arriving on the page, or on one of the sub-pages, never opens it (the
+ *  row's icon lights instead, so you can still tell where you are). In the icon rail the arrow sits under the icon. */
+function SubPagesRow({ item, collapsed, dense, onNavigate }: RowOpts & { item: NavItem }) {
+  const { pathname } = useLocation();
+  const kids = item.sub ?? [];
+  const inSub = kids.some((k) => isUnder(pathname.toLowerCase(), k.to));
+  const [open, setOpen] = useState(false);
+  const button = useRef<HTMLButtonElement>(null);
+  const id = useId();
+  const label = `${open ? "Hide" : "Show"} more ${item.label.toLowerCase()}`;
+  const arrow = (
+    <RailTip on={collapsed} label={label}>
+      <button ref={button} type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-controls={id} aria-label={label}
+        className={cn("flex shrink-0 items-center justify-center rounded-md text-text-muted outline-none hover:bg-text-base/[0.08] hover:text-text-base focus-visible:ring-2 focus-visible:ring-ring/60",
+          collapsed ? "h-4 w-full" : "absolute right-1 top-1/2 size-7 -translate-y-1/2 pointer-coarse:size-9")}>
+        <ChevronDown className={cn(collapsed ? "size-3" : "size-4", "transition-transform duration-150 motion-reduce:transition-none", open && "rotate-180")} aria-hidden />
+      </button>
+    </RailTip>
+  );
+  return (
+    // Escape inside the open list folds it and puts the keyboard back on the arrow.
+    <div className="space-y-(--nav-gap)" onKeyDown={(e) => { if (e.key === "Escape" && open) { e.stopPropagation(); setOpen(false); button.current?.focus(); } }}>
+      <div className="relative">
+        <NavRowLit item={item} collapsed={collapsed} dense={dense} onNavigate={onNavigate} lit={inSub} roomForArrow={!collapsed} />
+        {!collapsed && arrow}
+      </div>
+      {collapsed && arrow}
+      <div id={id} role="group" aria-label={`More ${item.label.toLowerCase()}`} hidden={!open} className={cn("space-y-(--nav-gap)", !collapsed && "ml-4 border-l border-line pl-2")}>
+        {kids.map((k) => <NavRow key={k.to} item={k} collapsed={collapsed} dense={dense} onNavigate={onNavigate} />)}
+      </div>
+    </div>
+  );
+}
+
+/** NavRow for SubPagesRow's page: its icon lights on a sub-page (`lit`), and it leaves room on the right for the arrow. */
+function NavRowLit({ item, collapsed, dense, onNavigate, lit, roomForArrow }: RowOpts & { item: NavItem; lit: boolean; roomForArrow: boolean }) {
+  const on = !!useMatch({ path: item.to, end: !!item.end });
+  return (
+    <RailTip on={collapsed} label={item.label}>
+      <NavLink to={item.to} end={item.end} onClick={onNavigate} aria-current={on ? "page" : false} className={cn(rowClass(on, collapsed, dense), roomForArrow && "pr-9")}>
+        <RowInner item={item} on={on || lit} pill={on} collapsed={collapsed} dense={dense} />
+      </NavLink>
+    </RailTip>
   );
 }
 
@@ -163,7 +217,7 @@ function ParentRow({ item, collapsed, dense, onNavigate }: RowOpts & { item: Nav
   );
 }
 
-/** The sidebar's "More" group: Power rankings, Compare, Shortlist, Rules, Download, Network & offline and How it works, folded away until asked for.
+/** The sidebar's "More" group: Compare, Shortlist, Rules, Offline and How it works, folded away until asked for.
  *  It opens by itself on one of its own pages (so the lit row shows); opening or closing it by hand is remembered. */
 function MoreGroup({ items, collapsed }: { items: NavItem[]; collapsed?: boolean }) {
   const [open, setOpen] = useState(() => { try { return localStorage.getItem(MORE_KEY) === "1"; } catch { return false; } });

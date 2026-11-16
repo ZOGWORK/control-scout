@@ -9,6 +9,7 @@ import { env } from "../env.js";
 import { cleanValue, mergeValue, PERSONAL_KEYS, type PersonalKey, type Stamped } from "../../src/shared/personal.js";
 import { isOwnerEmail } from "../owner.js";
 import { clearMalformedSession, currentUser, deleteUser, endSession, readCookie, sessionMark, startSession, token, userForIdentity, type User } from "./session.js";
+import { avatarUrlFor, handleSetAvatar, removeAvatar } from "./avatars.js";
 import { checkUsername, nextUsernameChange, setDisplayName, setUsername } from "./username.js";
 import { emailSignInEnabled, startEmailSignIn, verifyEmailCode } from "./email.js";
 import { copyToAdminSpaces } from "../scout/adminCopies.js";
@@ -50,7 +51,7 @@ export function safeBack(v: unknown): string | null {
   return (path || "/") + (rest ? `?${rest}` : "");
 }
 
-const publicUser = (u: User) => ({ id: u.id, email: u.email, displayName: u.displayName, createdAt: u.createdAt, username: u.username ?? null, usernameChangedAt: u.usernameChangedAt ?? null, usernameNextChange: nextUsernameChange(u) });
+const publicUser = (u: User) => ({ id: u.id, email: u.email, displayName: u.displayName, createdAt: u.createdAt, username: u.username ?? null, usernameChangedAt: u.usernameChangedAt ?? null, usernameNextChange: nextUsernameChange(u), avatarUrl: u.avatarUrl ?? null });
 /** The owner portal's nav item shows only for owners (OWNER_EMAILS): they get isOwner: true, everyone else nothing at all. */
 const ownerMark = (u: User) => (isOwnerEmail(u.email) ? { isOwner: true as const } : {});
 
@@ -72,7 +73,9 @@ export function authRouter(): Router {
     }
     // Membership is only ever shown to the signed-in owner of the address (never before it's proven).
     const controlPoint = linked != null ? await controlPointInfo(linked) : null;
-    return { user: { ...publicUser(u), ...ownerMark(u), session: sessionMark(req), controlPointLinked: linked != null, controlPoint }, providers: { ...authProviders(), via } };
+    // Read after the account answer: it may have just brought a picture set in Control Point.
+    const avatarUrl = linked != null ? await avatarUrlFor(u.id) : u.avatarUrl ?? null;
+    return { user: { ...publicUser(u), avatarUrl, ...ownerMark(u), session: sessionMark(req), controlPointLinked: linked != null, controlPoint }, providers: { ...authProviders(), via } };
   }));
 
   r.post("/email/start", ipLimit(20, 15 * 60_000), h(async (req, res) => {
@@ -99,7 +102,7 @@ export function authRouter(): Router {
     const linked = await linkToSharedAccount(user, "scout-email-code", out.email); // the shared account (best effort, 3 s max)
     const session = await startSession(res, user, req.get("user-agent"));
     const id = linked?.id ?? (controlPointEnabled() ? await linkedAccountId(user.id) : null);
-    return { user: { ...publicUser(user), ...ownerMark(user), session, controlPointLinked: id != null, controlPoint: id != null ? await controlPointInfo(id) : null } };
+    return { user: { ...publicUser(user), avatarUrl: await avatarUrlFor(user.id), ...ownerMark(user), session, controlPointLinked: id != null, controlPoint: id != null ? await controlPointInfo(id) : null } };
   }));
 
   r.post("/logout", h(async (req, res) => { await endSession(req, res); return { ok: true }; }));
@@ -274,6 +277,9 @@ export function meRouter(): Router {
     if (!out.ok) { res.status(out.reason === "taken" ? 409 : out.reason === "tooSoon" ? 429 : 400).json(out); return; }
     return { ok: true, username: out.username };
   }));
+  // The profile picture (server/auth/avatars.ts): the same one in Control Point. The app sends a small square.
+  r.put("/avatar", h(async (req, res) => handleSetAvatar(uid(req), req.body, res)));
+  r.delete("/avatar", h(async (req) => { await removeAvatar(uid(req)); return { ok: true, avatarUrl: null }; }));
   r.delete("/", h(async (req, res) => {
     if (req.body?.confirm !== "DELETE") { res.status(400).json({ error: "Confirm with {\"confirm\":\"DELETE\"}" }); return; }
     await deleteUser(uid(req));

@@ -16,7 +16,7 @@ import { predictHref } from "../../../src/shared/predictUrl.js";
 import { boardSearch, statAnswer, statAnswerOf, topSearch, twoTeamSearch, type Resolve } from "../answers/index.js";
 import { currentSeason, defaultSeason, lastSeason, seasonWhy, teamSeason } from "../answers/season.js";
 import { BOARD_STATS } from "../answers/families/leaderboard.js";
-import type { TopMatchesQuestion } from "../answers/families/topMatches.js";
+import type { Phase, TopMatchesQuestion } from "../answers/families/topMatches.js";
 import { defaultSteps, isEmpty, relaxed, windowSteps } from "./relax.js";
 import { eventsNamed, heldInYear, highlightsAnswer, latestPlayed, recentWindow, scopeEvents, type HighlightFind } from "./highlights.js";
 import { teamHighlights, type TeamHighlightScope } from "../answers/highlights.js";
@@ -66,6 +66,22 @@ export async function pipelineAnswer(q: string, opts: PipelineOptions): Promise<
     const n = String(p.teams[0].number);
     return selfMatchAnswer(p, (await opts.resolve(n)).hits.find((h) => h.kind === "team" && h.ref === n), opts.pages, opts.full);
   }
+  // An event's matches and nothing else asked ("<event> matches", "matches at <event>"): its matches in the order played,
+  // each row playing its clip, as a team's matches do.
+  // "<place> states matches" is the place's championship's ("nj states" is "nj championship", as search reads it).
+  if (!p.intent && asksEventMatches(p)) return eventMatchesAnswer(p, opts);
+  // Read as a place's top matches (a place the parser doesn't know, "nyc", left over): only when the words are the
+  // place, "states" and matches; read again, the championship's name must be all that's left.
+  if (p.states && (p.place || p.leftover.length) && !p.event && !p.teams.length && p.symbols.every((s) => s === "states" || s === "thing:match" || s.startsWith("prep:") || s.startsWith("level:"))
+    && STATES_WORD.test(q) && !/\bunited states\b/i.test(q)) {
+    const champ = await parseQuery(q.replace(new RegExp(STATES_WORD.source, "gi"), "$1championship"), ctx);
+    if (!champ.intent && asksEventMatches(champ)) return eventMatchesAnswer({ ...champ, q }, opts);
+  }
+  // One period's best matches said with a match's words a board doesn't take ("highest teleop score in romania", "best
+  // auto videos in michigan"): the leaderboard rule leaves those words unexplained; they are what makes it a question
+  // about matches, answered as one below (periodMatches). Nothing else may be left unread.
+  if (!p.complete && p.intent === "leaderboard" && !p.teams.length && !p.leftover.length && periodMatches(p)
+    && p.unexplained.every((s) => MATCH_WORDS.includes(s))) p = { ...p, complete: true };
   // One team's question in two time windows set against each other ("12345 record this month, versus last month"):
   // asked in each, exactly as said, side by side.
   if (!p.complete) {
@@ -228,7 +244,7 @@ const TEAM_FIND = new Set<MatchMeasure>(["miss", "accurate"]);
 /** The matches a measure finds, in a sentence ("no 2026–27 upsets yet"). */
 const MATCH_NOUN: Record<MatchMeasure, string> = {
   high: "scored matches", low: "scored matches", closest: "decided matches", lopsided: "decided matches", penalties: "matches with penalty points",
-  upset: "upsets", comeback: "comebacks", "loss-high": "decided matches", miss: "matches with a saved prediction", accurate: "matches with a saved prediction",
+  upset: "upsets", comeback: "comebacks", "loss-high": "decided matches", miss: "matches with a saved prediction", accurate: "matches with a saved prediction", order: "matches",
 };
 /** A time's label that already reads alone ("in March 2026", "this week", "on Mar 15, 2026", "today"). */
 const WHEN_WORD = /^(?:in|on|during|this|last|next|from|between|today|tonight|yesterday|tomorrow)\b/i;
@@ -270,6 +286,44 @@ async function advancementResult(p: Parsed, stat: StatAnswer, opts: PipelineOpti
 
 /** Whether `p` names a stat other than OPR (auto, record, penalties …): an answer counted by OPR only isn't it. */
 export const saysOtherStat = (p: Pick<Parsed, "symbols">) => p.symbols.some((s) => BOARD_STAT[s] && BOARD_STAT[s] !== "opr");
+
+/** The words only name an event and its matches ("<event> matches", "matches at <event>", a year or a match type
+ *  beside it): no team, measure, place, window or other ask. */
+export function asksEventMatches(p: Parsed): boolean {
+  if (!p.event || p.teams.length || p.eventKind || p.worlds || p.states || p.place || p.alliance || p.scoreCond || p.withVideo || p.matchNumber != null || p.leftover.length) return false;
+  if (p.time && !(p.time.kind === "season" && p.time.year != null && !p.time.relative)) return false;
+  return p.symbols.includes("thing:match") && p.symbols.every((s) => s === "thing:match" || s.startsWith("prep:") || s.startsWith("level:"));
+}
+
+const STATES_WORD = /(^| )states(?= |$)/i;
+
+/** Most matches an event's list shows (a championship's qualification and playoff matches fit). */
+export const EVENT_MATCHES_MAX = 200;
+
+/** The event's matches in the order played (qualification, then playoffs), its divisions' too: the edition held in the
+ *  year said, else its latest with a match played. Null when no event goes by the name (search lists names then). */
+async function eventMatchesAnswer(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer | null> {
+  if (!opts.full) return null;
+  const year = p.time?.kind === "season" ? p.time.year ?? null : null;
+  const held = year != null ? (e: { start: string | null }) => (e.start ?? "").startsWith(String(year)) : undefined;
+  const named = await eventsNamed(normalise(p.event!.words), null, held);
+  const events = held ? named.filter(held) : named;
+  if (!events.length) return null;
+  const keys = (await scopeEvents({ season: 0, region: null, level: null, finals: false, kind: null, events })) ?? [];
+  if (!keys.length) return null;
+  const played = await get<{ s: number | null }>(
+    `SELECT MAX(m.season) s FROM matches m WHERE m.played = 1 AND (${keys.map(() => "(m.season = ? AND m.code = ?)").join(" OR ")})`, keys.flatMap((k) => [k.season, k.code]));
+  const season = played?.s != null ? Number(played.s) : Math.max(...events.map((e) => e.season));
+  const mainFirst = [...events].sort((x, y) => Number(x.division != null) - Number(y.division != null));
+  const f: MatchFind = {
+    measure: "order", season, region: null, level: p.level, finals: p.finals, kind: null, n: EVENT_MATCHES_MAX, list: true,
+    events: keys.map((k) => ({ ...k, name: mainFirst.find((e) => e.season === k.season)?.name })),
+    named: true,
+  };
+  const stat = await matchFindAnswer(f);
+  return { q: p.q, hits: [], pages: opts.pages, step: "deterministic", weak: false, understood: { kind: "question", label: stat.title, season }, stat,
+    intent: { kind: `stat-${stat.intent}`, pattern: "event-matches", met: true, understood: describe(p) } };
+}
 
 async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer | null> {
   const intent = p.intent!;
@@ -541,7 +595,8 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     // An event named with a score to reach ("matches at <event> where both alliances scored over 250"): its matches,
     // its divisions' too. A calendar year said is the edition held that year; none said, its latest.
     const year = p.time?.kind === "season" && p.time.year != null && !p.time.relative ? p.time.year : null;
-    const named = p.event && !kind && (p.scoreCond || labelled || p.withVideo) ? await eventsNamed(normalise(p.event.words), null, year != null ? (e) => (e.start ?? "").startsWith(String(year)) : undefined) : null;
+    // A measure asked of an event named by its name ("closest match in <event>") is that event's matches too.
+    const named = p.event && !kind && (p.scoreCond || labelled || p.withVideo || (FIND[intent] && intent !== "match-label")) ? await eventsNamed(normalise(p.event.words), null, year != null ? (e) => (e.start ?? "").startsWith(String(year)) : undefined) : null;
     const events = named && year != null ? named.filter((e) => (e.start ?? "").startsWith(String(year))) : named;
     if (events && !events.length) return null;
     if (((p.event || p.eventKind) && !kind && !events) || (p.worlds && !labelled) || (p.states && !labelled) || p.alliance || (scope.ever && !p.withVideo) || (p.place && p.place.kind === "city")) return null;
@@ -601,7 +656,11 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     const counted = readLeaderboard(p.q);
     if (counted && BOARD_STATS[counted.stat]?.count) return boardSearch(p.q, counted, opts);
   }
-  if (!p.teams.length && intent === "top-matches") {
+  // One period's best said of matches, no team ("highest teleop score in romania", "best auto videos in michigan",
+  // "best teleop match decode"): the season's best matches by that period's points, never a board of teams. "OPR" or
+  // "team" said keeps the board ("best teleop opr in romania").
+  const phase = !p.teams.length && intent === "leaderboard" ? periodMatches(p) : null;
+  if (!p.teams.length && (intent === "top-matches" || phase)) {
     // "With video" the finder didn't answer ("highest score ever with video"): never the best without it.
     if (p.withVideo || p.worlds || p.states || p.level || p.alliance || (p.place && p.place.kind === "city")) return null;
     // An event named by its name ("best match in <event>"): that event's matches, its divisions' too, in the season said,
@@ -613,7 +672,7 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     const t: TopMatchesQuestion = {
       // An event with no time said: its latest edition with a match played (null lets the reader find it).
       season: scope.ever ? scope.season : p.event && !p.time ? null : placeSeason(p, scope.season, opts), game: null, ever: scope.ever, region: p.event ? null : regionOf(p), event: p.event ? p.event.words : null,
-      ...(scope.window ? { window: scope.window } : {}), ...(p.n != null ? { n: p.n } : one ? { n: 1 } : {}), ...(p.noPenalties ? { noPenalties: true } : {}),
+      ...(scope.window ? { window: scope.window } : {}), ...(p.n != null ? { n: p.n } : one ? { n: 1 } : {}), ...(p.noPenalties ? { noPenalties: true } : {}), ...(phase ? { phase } : {}),
       // "Official" said ("best official decode score"): official records only.
       ...(/\bofficial(?:ly)?\b/i.test(p.q) ? { official: true as const } : {}),
     };
@@ -828,12 +887,21 @@ const STATES_KIND = { types: ["Championship"], label: "State championships" };
  *  said in the chip. The search box keeps a link to the answer page. */
 async function highlights(p: Parsed, scope: ReadScope, opts: PipelineOptions): Promise<SearchAnswer | null> {
   // A count of none ("top 0 highlights") lists nothing to show.
-  if (!opts.full || p.alliance || scope.ever || p.place?.kind === "city" || (p.n != null && p.n < 1)) return null;
+  if (p.alliance || scope.ever || (p.n != null && p.n < 1)) return null;
+  // A town said ("highlights in Grand Rapids"): its events only, in its own state (or country), named as the town.
+  const town = p.place?.kind === "city" && p.place.city ? p.place : null;
+  if (town && p.teams.length) return null;
   // "Recent highlights": a scope's latest week of play, when no team, event or time says which matches already.
   const recent = p.symbols.includes("agg:last") && !(p.teams.length || p.event || p.worlds || p.states || p.time);
   const answer = (stat: StatAnswer, season: number, hits: SearchAnswer["hits"] = []): SearchAnswer => ({
     q: p.q, hits, pages: opts.pages, step: "deterministic", weak: false, understood: { kind: "question", label: stat.title, season }, stat,
-    intent: { kind: `stat-${stat.intent}`, pattern: `${p.teams.length ? "[team] " : ""}highlights${p.event ? " [event]" : p.worlds ? " [worlds]" : p.states ? " [states]" : ""}${p.place ? " [place]" : ""}${scope.window ? " [window]" : ""}`, met: true, understood: [] },
+    intent: { kind: `stat-${stat.intent}`, pattern, met: true, understood: [] },
+  });
+  const pattern = `${p.teams.length ? "[team] " : ""}highlights${p.event ? " [event]" : p.worlds ? " [worlds]" : p.states ? " [states]" : ""}${p.place ? " [place]" : ""}${scope.window ? " [window]" : ""}`;
+  // The search box: the question as read and a link to its answer page, no match read while typing.
+  const box = (label: string, intent: string, hits: SearchAnswer["hits"] = []): SearchAnswer => ({
+    q: p.q, hits, pages: [{ title: label, href: `/search?q=${encodeURIComponent(p.q)}` }, ...opts.pages], step: "deterministic", weak: false,
+    understood: { kind: "question", label }, intent: { kind: `stat-${intent}`, pattern, met: true, understood: [label] },
   });
   // Video words alone ("recap", "videos", "watch"): a video page; "highlights", "best" or "what happened": the
   // standout matches first.
@@ -847,7 +915,7 @@ async function highlights(p: Parsed, scope: ReadScope, opts: PipelineOptions): P
   if (named && !named.length) return null;
   const evs = named && year != null ? named.filter((e) => (e.start ?? "").startsWith(String(year))) : named;
   if (evs && !evs.length) return null;
-  const region = regionOf(p);
+  const region: Region | null = town ? { key: `${town.country}:${town.state ?? ""}`, country: town.country, state: town.state ?? "", name: town.city! } : regionOf(p);
   const held = year == null ? null : evs ? evs.map((e) => e.season) : p.worlds || p.states ? await heldInYear(kind!.types, year, p.states ? region : null) : null;
   if (held && !held.length) return null;
   const heldIn = held ? Math.max(...held) : null;
@@ -867,6 +935,11 @@ async function highlights(p: Parsed, scope: ReadScope, opts: PipelineOptions): P
     // A time said ("in December", "this week"): its matches played on those days, in an event named too when one is.
     const w = scope.window;
     const when: TeamHighlightScope | undefined = w ? { has: (m) => { const d = (m.date ?? "").slice(0, 10); return d >= w.from && d <= w.to && (!place || place.has(m)); }, label: place?.label ?? w.label, phrase: `${place ? `at ${place.label} ` : ""}${WHEN_WORD.test(w.label) ? w.label : `in ${w.label}`}`, ...(said != null ? { season: said } : {}) } : place;
+    if (!opts.full) {
+      const hit = (await opts.resolve(String(t.number))).hits.find((h) => h.kind === "team" && h.ref === String(t.number));
+      const where = when ? ` ${when.phrase ?? `at ${when.label}`}` : "";
+      return box(`${t.name ?? `Team ${t.number}`} (${t.number}) highlights${where}${said != null && !w ? `, ${seasonLabel(said)}` : ""}`, "team-highlights", hit ? [{ ...hit, facts: undefined, events: undefined }] : []);
+    }
     // A window is kept by its dates alone, never its first day's season: a week across the season's start (Aug 31 to
     // Sep 6) has matches of both, and the latest season with any is shown (each season's highlights stay apart).
     const stat = await teamHighlights({ number: t.number, name: t.name }, w ? undefined : said ?? undefined, when, p.n ?? undefined, videos ? "videos" : "highlights");
@@ -891,7 +964,7 @@ async function highlights(p: Parsed, scope: ReadScope, opts: PipelineOptions): P
   // An event named with no season said is its latest held, never the current season it isn't in.
   const lastHeld = evs && !p.time ? Math.max(...evs.map((e) => e.season)) : null;
   const f: HighlightFind = {
-    season: heldIn ?? lastHeld ?? placeSeason(p, scope.season, opts), region, level: p.level, finals: p.finals, kind: evs ? null : kind, ...(scope.window ? { window: scope.window } : {}), ...(p.n != null ? { n: p.n } : {}), ...(videos ? { videos } : {}),
+    season: heldIn ?? lastHeld ?? placeSeason(p, scope.season, opts), region, ...(town ? { city: town.city! } : {}), level: p.level, finals: p.finals, kind: evs ? null : kind, ...(scope.window ? { window: scope.window } : {}), ...(p.n != null ? { n: p.n } : {}), ...(videos ? { videos } : {}),
     ...(evs ? {
       events: evs.map((e) => ({ season: e.season, code: e.code })),
       // An off-season event named ("MTI"): its own matches, though highlights are otherwise official events only.
@@ -902,6 +975,11 @@ async function highlights(p: Parsed, scope: ReadScope, opts: PipelineOptions): P
     chips: [...(region ? [region.name] : []), ...(scope.window ? [scope.window.label.replace(/^./, (c) => c.toUpperCase())] : []),
       ...(p.finals ? ["Finals"] : p.level === "qual" ? ["Qualification matches"] : p.level === "playoff" ? ["Playoff matches"] : []), ...(kind && !evs ? [kind.label] : [])],
   };
+  if (!opts.full) {
+    const name = f.eventName?.get(f.season)?.name ?? (f.eventName ? [...f.eventName.values()].pop()?.name : undefined);
+    const S = p.time ? `, ${seasonLabel(f.season)}` : "";
+    return box(`${recent ? "Recent highlights" : "Highlights"}${name ? ` at ${name}` : f.at ? ` ${f.at}` : ""}${scope.window ? ` ${WHEN_WORD.test(scope.window.label) ? scope.window.label : `in ${scope.window.label}`}` : ""}${S}`, "scope-highlights");
+  }
   const card = async (season: number, g: HighlightFind = f) => answer(await highlightsAnswer({ ...g, season }), season);
   if (recent) {
     const r = await recentWindow(f);
@@ -956,12 +1034,23 @@ function readScopeOf(p: Parsed): ReadScope | null {
   if (p.states && /\b(?:all|every|each)\s+(?:of\s+)?(?:(?:their|its|the)\s+)?(?:states|state\s+champ)/i.test(p.q)) s.ever = true;
   if (p.place) {
     // A town names where a team is from, which a team's own question already knows: only events in a region or a
-    // country are a filter. A leaderboard's town is the teams from it.
-    if (p.place.kind === "city") return p.intent === "leaderboard" ? s : null;
+    // country are a filter. A leaderboard's town is the teams from it; highlights with no team, the events held there.
+    if (p.place.kind === "city") return p.intent === "leaderboard" || (p.intent === "highlights" && !p.teams.length) ? s : null;
     if (p.place.kind === "region") s.place = regionOf(p);
     else s.area = { country: p.place.country, state: null, name: p.place.name };
   }
   return s;
+}
+
+/** The period a board's words rank matches by: one period's stat said with a match's words ("score", "match",
+ *  "videos", "highlights") and the best asked, no team, OPR or count of teams said; else null (a board of teams). */
+const PERIOD_OF: Record<string, Phase> = { "metric:auto": "auto", "metric:teleop": "teleop", "metric:endgame": "endgame" };
+const MATCH_WORDS = ["metric:score", "thing:match", "videos", "highlights"];
+export function periodMatches(p: Parsed): Phase | null {
+  const periods = [...new Set(p.symbols.map((s) => PERIOD_OF[s]).filter(Boolean))];
+  if (periods.length !== 1 || p.agg !== "max" || !p.symbols.some((s) => MATCH_WORDS.includes(s))) return null;
+  if (p.symbols.some((s) => s === "thing:team" || s === "metric:opr" || s === "metric:rating" || s === "agg:count")) return null;
+  return periods[0];
 }
 
 /** The place as a region (a whole country has no state). */

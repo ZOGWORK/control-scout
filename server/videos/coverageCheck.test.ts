@@ -11,6 +11,8 @@ import { createApp } from "../app";
 import { forgetRecordings } from "./recordings";
 import { currentSeason } from "../api/answers/season";
 import { seasonLabel } from "../../src/shared/format";
+import { FRAME_TIMINGS, setFrameTimingsForTests } from "../data/frameTimings";
+import { CLIP_CHECKS, setClipChecksForTests } from "../data/clipChecks";
 import { checkClipCoverage, markCoverageBulkReviewed, markCoverageReviewed, openCoverageCount, ownerClipCoverage, triageUntriaged } from "./coverageCheck";
 
 const S = currentSeason();
@@ -33,7 +35,11 @@ async function meta(videoId: string, start: string, end: string, length: number)
 const row = (code: string) => get<any>("SELECT state, with_clip, triage, triage_why, reviewed_at, missing_key, detail FROM clip_coverage WHERE code = ?", [code]);
 const version = async (code: string) => String((await row(code)).missing_key);
 
+// Saturday's video was read frame by frame and Q1 wasn't found in it (none of its matches placed from frames, so the
+// clock still places Q2): Q1 is checked against the video, so To review, not a pending check.
+const KEPT_FRAMES = [...FRAME_TIMINGS];
 beforeAll(async () => {
+  setFrameTimingsForTests([{ videoId: "SATURDAYv01", code: "TWODAY", checked: "2026-11-15", starts: {}, missing: { Q1: "no frame read of it" } }]);
   const c = openDb(":memory:");
   setDb(c);
   await migrate(c);
@@ -56,14 +62,14 @@ beforeAll(async () => {
   await new Promise((r) => server.once("listening", r));
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 });
-afterAll(() => new Promise<void>((r) => server.close(() => r())));
+afterAll(() => { setFrameTimingsForTests(KEPT_FRAMES); return new Promise<void>((r) => server.close(() => r())); });
 
 describe("clip coverage check and triage", () => {
   it("triages a recorded event whose video isn't read yet as No timing, with the reason: listed, never covered, never To review", async () => {
     expect(await checkClipCoverage(() => {})).toBe(2);
     const o = await ownerClipCoverage();
     expect([o.list, o.open, o.events]).toEqual(["actionable", 0, []]);
-    expect(o.categories).toEqual({ actionable: 0, "no-timing": 1, "early-start": 0, "old-season": 1 });
+    expect(o.categories).toEqual({ actionable: 0, unchecked: 0, "no-timing": 1, "early-start": 0, "old-season": 1 });
     const n = await ownerClipCoverage({ list: "no-timing" });
     expect(n.events.map((e) => [e.code, e.withClip, e.played, e.triage])).toEqual([["TWODAY", 0, 3, "no-timing"]]);
     expect(n.events[0].triageWhy).toBe("3 matches: Video's facts not read from YouTube yet");
@@ -106,10 +112,10 @@ describe("clip coverage check and triage", () => {
     expect(await openCoverageCount()).toBe(1);
     const e = (await ownerClipCoverage()).events[0];
     expect([e.code, e.triage]).toEqual(["TWODAY", "actionable"]);
-    // Said as what the video showed (no frames read of it yet), never what the clock said; the clock's kept apart.
-    expect(e.triageWhy).toBe("1 match not yet checked against the video (Q1) (1 more held back for other reasons)");
+    // Said as what the video showed (its frames read, Q1 not found), never what the clock said; the clock's kept apart.
+    expect(e.triageWhy).toBe("1 match checked in the video, no start found there (Q1) (1 more held back for other reasons)");
     expect(e.missing.map((m) => [m.label, m.reason])).toEqual([["Q1", "before-broadcast"], ["Q3", "no-recording-day"]]);
-    expect(e.missing[0]).toMatchObject({ why: "Not yet checked against the video", clock: "Played before the broadcast started", video: { checked: null } });
+    expect(e.missing[0]).toMatchObject({ why: "Checked in the video (2026-11-15): no start found for it (no frame read of it)", clock: "Played before the broadcast started", video: { checked: "2026-11-15" } });
   });
 
   it("a deploy (every fingerprint new, nothing else) re-opens nothing, nor a non-actionable change after it", async () => {
@@ -157,7 +163,7 @@ describe("clip coverage check and triage", () => {
     await add("BULKOLD", "actionable", OLD);
     await add("BULKOLDNT", "no-timing", OLD);
     const before = await ownerClipCoverage();
-    expect(before.categories).toEqual({ actionable: 2, "no-timing": 1, "early-start": 1, "old-season": 1 });
+    expect(before.categories).toEqual({ actionable: 2, unchecked: 0, "no-timing": 1, "early-start": 1, "old-season": 1 });
     expect(before.seasons).toEqual([{ season: S, open: 3, actionable: 1 }, { season: OLD, open: 2, actionable: 1 }]);
     // A season's non-actionable ones only (the panel's default): its Actionable one stays To review.
     expect(await markCoverageBulkReviewed({ category: "non-actionable", season: OLD }, 1, "owner@test")).toEqual({ status: "ok", count: 1 });
@@ -165,7 +171,7 @@ describe("clip coverage check and triage", () => {
     // Confirmed on a count that moved: nothing marked.
     expect(await markCoverageBulkReviewed({ category: "non-actionable" }, 5, "owner@test")).toEqual({ status: "changed", count: 2 });
     expect(await markCoverageBulkReviewed({ category: "non-actionable" }, 2, "owner@test")).toEqual({ status: "ok", count: 2 });
-    expect((await ownerClipCoverage()).categories).toEqual({ actionable: 2, "no-timing": 0, "early-start": 0, "old-season": 0 });
+    expect((await ownerClipCoverage()).categories).toEqual({ actionable: 2, unchecked: 0, "no-timing": 0, "early-start": 0, "old-season": 0 });
     // A season with "include Actionable": every one of that season's.
     expect(await markCoverageBulkReviewed({ season: OLD }, 1, "owner@test")).toEqual({ status: "ok", count: 1 });
     expect((await ownerClipCoverage()).events.map((e) => e.code)).toEqual(["BULKAC"]);
@@ -190,7 +196,18 @@ describe("clip coverage check and triage", () => {
     await run("INSERT INTO clip_coverage (season, code, fingerprint, checked_at, state, played, with_clip, missing_key, detail) VALUES (?, 'PRE3', 'x', '2026-11-01T00:00:00Z', 'unplaced', 2, 0, 'k', '{not json')", [S]);
     expect(await triageUntriaged(() => {})).toBe(3);
     expect(await row("PRE1")).toMatchObject({ triage: "no-timing", triage_why: "2 matches: Video unavailable or private", reviewed_at: null });
-    expect(await row("PRE2")).toMatchObject({ triage: "actionable", reviewed_at: "2026-11-02T00:00:00Z" });
+    // A list stored before video checks existed: its clock-only match is a pending check (a stored review doesn't hide it).
+    expect(await row("PRE2")).toMatchObject({ triage: "unchecked", reviewed_at: "2026-11-02T00:00:00Z" });
+    expect((await ownerClipCoverage({ list: "unchecked" })).events.map((e) => e.code)).toContain("PRE2");
+    expect((await ownerClipCoverage({ list: "reviewed" })).events.map((e) => e.code)).not.toContain("PRE2");
+    // A pending check can't be marked reviewed, alone or in any bulk.
+    await run("INSERT INTO clip_coverage (season, code, fingerprint, checked_at, state, played, with_clip, missing_key, detail, triage, triage_why) VALUES (?, 'PRE4', 'x', '2026-11-01T00:00:00Z', 'partial', 3, 2, 'k', '{}', 'unchecked', 'w')", [S]);
+    expect(await markCoverageReviewed(S, "PRE4", "k", "owner@test")).toBe("none");
+    const all4 = (await ownerClipCoverage()).seasons.find((x) => x.season === S)!.open;
+    expect(await markCoverageBulkReviewed({ season: S }, all4, "owner@test")).toMatchObject({ status: "ok" });
+    expect(await row("PRE4")).toMatchObject({ triage: "unchecked", reviewed_at: null });
+    expect((await ownerClipCoverage()).categories.unchecked).toBe(2);
+    await run("UPDATE clip_coverage SET reviewed_at = NULL, reviewed_by = NULL WHERE code IN ('PRE1', 'PRE3') OR code = 'TWODAY'");
     expect(await row("PRE3")).toMatchObject({ triage: "actionable", triage_why: "No missing list to judge from: look at the event" });
     expect((await ownerClipCoverage()).events.find((e) => e.code === "PRE3")).toMatchObject({ missing: [], videos: [] });
     expect((await ownerClipCoverage()).events.map((e) => e.code)).not.toContain("PRE1");
@@ -244,6 +261,88 @@ describe("clip coverage check and triage", () => {
     await run("DELETE FROM event_broadcasts WHERE code = 'TWODAY'");
     forgetRecordings();
     expect(await checkClipCoverage(() => {})).toBe(1);
+  });
+
+  it("lists findings: a match the frames saw with no clip, and a clip pulled by its first frame, with the last pass", async () => {
+    const keptChecks = [...CLIP_CHECKS];
+    // Q1 seen in the video by one read (not confirmed): no clip, a finding.
+    setFrameTimingsForTests([{ videoId: "SATURDAYv01", code: "TWODAY", checked: "2026-11-15", starts: {}, review: { Q1: { t: 1800, why: "one signal only" } } }]);
+    setClipChecksForTests([{ videoId: "SATURDAYv01", code: "TWODAY", season: S, checked: "2026-11-15", pulled: { Q2: { t: 3600, showed: "Q1" } } }]);
+    try {
+      await run("UPDATE clip_coverage SET fingerprint = 'x' WHERE code = 'TWODAY'");
+      const logged: string[] = [];
+      expect(await checkClipCoverage((l) => logged.push(l))).toBe(1);
+      expect(logged[0]).toMatch(/^clip coverage: checked 1 event \(1 recorded\) · 0 fully clipped · \d+ matches clipped · \d+ missing \(.*seen in the video, no clip \(a finding\) 1/);
+      const o = await ownerClipCoverage();
+      expect(o.findings).toEqual(expect.arrayContaining([
+        { kind: "seen", season: S, code: "TWODAY", name: "Two Day Qualifier", label: "Q1", videoId: "SATURDAYv01", at: 1800, why: "Checked in the video (2026-11-15): seen at 0:30:00, not yet confirmed (one signal only)" },
+        { kind: "pulled", season: S, code: "TWODAY", name: "Two Day Qualifier", label: "Q2", videoId: "SATURDAYv01", at: 3600, why: "Clip pulled: its first frame shows Q1, not Q2" },
+      ]));
+      expect(o.clipChecks).toMatchObject({ pulled: 1 });
+      expect(o.lastPass).toMatchObject({ checked: 1, events: 1, why: expect.objectContaining({ "seen in the video, no clip (a finding)": 1 }), pending: expect.any(Number) });
+      expect(o.lastPass!.pendingBefore === null || typeof o.lastPass!.pendingBefore === "number").toBe(true);
+      // A finding stays until a pass clears it: here a re-read shows Q1 isn't in the video and the pulled clip's check is
+      // gone, so the next pass drops both (never by marking reviewed). The pass before's pending count is kept beside it.
+      setClipChecksForTests(keptChecks);
+      setFrameTimingsForTests([{ videoId: "SATURDAYv01", code: "TWODAY", checked: "2026-11-15", starts: {}, missing: { Q1: "no frame read of it" } }]);
+      await run("UPDATE clip_coverage SET fingerprint = 'x' WHERE code = 'TWODAY'");
+      expect(await checkClipCoverage(() => {})).toBe(1);
+      const after = await ownerClipCoverage();
+      expect(after.findings.filter((f) => f.code === "TWODAY")).toEqual([]);
+      expect(after.lastPass!.pendingBefore).toBe(o.lastPass!.pending);
+    } finally {
+      setClipChecksForTests(keptChecks);
+      setFrameTimingsForTests([{ videoId: "SATURDAYv01", code: "TWODAY", checked: "2026-11-15", starts: {}, missing: { Q1: "no frame read of it" } }]);
+      await run("UPDATE clip_coverage SET fingerprint = 'x' WHERE code = 'TWODAY'");
+      await checkClipCoverage(() => {});
+    }
+  });
+
+  it("doesn't carry a review given to a pending check over to the list once its video is checked", async () => {
+    // Q1 waits for its video check (no frame row): a pending check; say a review was stored on it.
+    setFrameTimingsForTests([]);
+    await run("UPDATE clip_coverage SET fingerprint = 'x' WHERE code = 'TWODAY'");
+    await checkClipCoverage(() => {});
+    expect(await row("TWODAY")).toMatchObject({ triage: "unchecked" });
+    await run("UPDATE clip_coverage SET reviewed_at = '2026-11-14T00:00:00Z', reviewed_by = 'owner@test' WHERE code = 'TWODAY'");
+    const key = (await row("TWODAY")).missing_key;
+    // Its frames are read, Q1 not found: the same matches missing, now checked against the video, so To review again.
+    setFrameTimingsForTests([{ videoId: "SATURDAYv01", code: "TWODAY", checked: "2026-11-15", starts: {}, missing: { Q1: "no frame read of it" } }]);
+    await run("UPDATE clip_coverage SET fingerprint = 'x' WHERE code = 'TWODAY'");
+    const logged: string[] = [];
+    await checkClipCoverage((l) => logged.push(l));
+    expect(await row("TWODAY")).toMatchObject({ triage: "actionable", missing_key: key, reviewed_at: null });
+    expect(logged[0]).toMatch(/ · 1 actionable for owner review/);
+    expect((await ownerClipCoverage()).events.map((e) => e.code)).toContain("TWODAY");
+  });
+
+  it("doesn't carry a review given to a pending check over when the checked list isn't actionable either", async () => {
+    setFrameTimingsForTests([]);
+    await run("UPDATE clip_coverage SET fingerprint = 'x' WHERE code = 'TWODAY'");
+    await checkClipCoverage(() => {});
+    expect(await row("TWODAY")).toMatchObject({ triage: "unchecked" });
+    await run("UPDATE clip_coverage SET reviewed_at = '2026-11-14T00:00:00Z', reviewed_by = 'owner@test' WHERE code = 'TWODAY'");
+    // Its frames are read and Q1 is placed from them: only Q3 is missing (no recording that day), not actionable.
+    setFrameTimingsForTests([{ videoId: "SATURDAYv01", code: "TWODAY", checked: "2026-11-15", starts: { Q1: 1800 } }]);
+    await run("UPDATE clip_coverage SET fingerprint = 'x' WHERE code = 'TWODAY'");
+    await checkClipCoverage(() => {});
+    const r = await row("TWODAY");
+    expect(r.triage).not.toBe("actionable");
+    expect(r.triage).not.toBe("unchecked");
+    expect(r.reviewed_at).toBeNull();
+    setFrameTimingsForTests([{ videoId: "SATURDAYv01", code: "TWODAY", checked: "2026-11-15", starts: {}, missing: { Q1: "no frame read of it" } }]);
+    await run("UPDATE clip_coverage SET fingerprint = 'x' WHERE code = 'TWODAY'");
+    await checkClipCoverage(() => {});
+  });
+
+  it("still records the pass when a stored detail is unreadable", async () => {
+    await run("UPDATE clip_coverage SET detail = '{not json' WHERE code = 'PRE3'");
+    await run("UPDATE clip_coverage SET fingerprint = 'x' WHERE code = 'TWODAY'");
+    const logged: string[] = [];
+    expect(await checkClipCoverage((l) => logged.push(l))).toBeGreaterThan(0);
+    expect(logged[0]).toMatch(/^clip coverage: checked /);
+    expect(logged[0]).not.toMatch(/  /);
+    expect((await ownerClipCoverage()).lastPass).toMatchObject({ pending: expect.any(Number) });
   });
 
   it("drops an event from every list once it has no recording left (stats only)", async () => {

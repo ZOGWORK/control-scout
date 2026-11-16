@@ -170,9 +170,15 @@ export function OnTheCalendar({ season }: { season: number }) {
           </ul>
         )}
       </div>
-      <Link to="/events" className="mt-3 inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-accent-text hover:underline">
-        {evs.length > shown.length ? `${evs.length - shown.length} more this week · all events` : "All events"} <ArrowRight className="size-4" />
-      </Link>
+      <div className="mt-3 flex flex-wrap gap-x-5">
+        {/* This weekend's events everywhere, by place, and My team's next match (src/pages/WeekendPage.tsx). */}
+        <Link to="/weekend" data-weekend-link className="inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-accent-text hover:underline">
+          This weekend <ArrowRight className="size-4" />
+        </Link>
+        <Link to="/events" className="inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-accent-text hover:underline">
+          {evs.length > shown.length ? `${evs.length - shown.length} more this week · all events` : "All events"} <ArrowRight className="size-4" />
+        </Link>
+      </div>
     </section>
   );
 }

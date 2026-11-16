@@ -1,12 +1,16 @@
 // What search's parser (./parse.ts) knows about names, as types, and how names are compared (fold). The server's index
 // of them is server/api/query/names.ts (from the data); the app's with no signal is the event pack's
 // (src/lib/offline/search.ts).
-import { joinThousands } from "../fuzzy.js";
+import { allowedEdits, editDistance, joinThousands } from "../fuzzy.js";
 import { countryOf, countryOfDemonym } from "../countries.js";
 import { regionOf, regionPartOf } from "../searchEventQuery.js";
 import { edits, nearRegion } from "../regions.js";
 import { eventInitialisms } from "./initialisms.js";
 import { LEXICON } from "./lexicon.js";
+
+/** How many times the teams and events a shared town name has in one region must outnumber the rest for it to be
+ *  that region's town. */
+export const TOWN_LEAD = 5;
 
 export interface TeamName { number: number; name: string | null; country: string | null; state: string | null; city: string | null; lastPlayed: number | null;
   /** Its best OPR percentile (0–1) in its last two ranked seasons: how a name several teams share is told apart (./shared.ts). */
@@ -43,6 +47,10 @@ export interface Names {
   eventNamed(words: string): boolean;
   /** The longest event name, in words (the parser looks no further). */
   eventLongest: number;
+  /** The one word of a stored event's name that this word is or nearly spells ("vlaciu": "vlaicu"): five letters or
+   *  more, the same first letter, within the edits allowed for its length (a swap of two letters is one), and no other
+   *  such word as close. Null when none is, or two are. */
+  nearEventWord?(word: string): string | null;
 }
 
 /** Lower case, accents and punctuation dropped, single spaces: how names are compared. */
@@ -105,23 +113,36 @@ export function buildNames(teams: NameRow[], places: { city: string | null; stat
       if (core) put(byJoined, core.replace(/ /g, ""), t);
     }
   }
-  // A town is known with the region (or country) it's in; the same town name in two regions stays ambiguous.
-  const towns = new Map<string, Map<string, { country: string; state: string | null; city: string }>>();
+  // A town is known with the region (or country) it's in, counted by its teams and events there; the same town name in
+  // two regions is the one that holds at least TOWN_LEAD times the others' teams and events ("Grand Rapids": Michigan's
+  // 31 to Minnesota's 1), else it stays ambiguous.
+  const towns = new Map<string, Map<string, { country: string; state: string | null; city: string; n: number }>>();
   for (const p of [...teams, ...places]) {
     const k = fold(p.city ?? "");
     if (!k || !p.country) continue;
     const where = `${p.country}:${p.state ?? ""}`;
-    (towns.get(k) ?? towns.set(k, new Map()).get(k)!).set(where, { country: p.country, state: p.state, city: p.city! });
+    const at = towns.get(k) ?? towns.set(k, new Map()).get(k)!;
+    const had = at.get(where);
+    if (had) had.n++; else at.set(where, { country: p.country, state: p.state, city: p.city!, n: 1 });
   }
+  const townOf = (k: string) => {
+    const at = towns.get(k);
+    if (!at) return null;
+    const [first, second] = [...at.values()].sort((a, b) => b.n - a.n);
+    return !second || first.n >= TOWN_LEAD * second.n ? first : null;
+  };
   const stems = new Set<string>();
   // An event's initialisms too ("mti"), which the search index holds with its name (./initialisms.ts).
   const initials = new Map<string, Set<string>>();
   // Every event's whole name, folded.
   const eventNames = new Set<string>();
+  // The words of every event's name (five letters or more), by length: what a near miss of one is checked against.
+  const eventWords = new Map<number, Set<string>>();
   let eventLongest = 0;
   for (const p of places) {
     const whole = fold(p.name ?? "");
     if (whole) { eventNames.add(whole); eventLongest = Math.max(eventLongest, whole.split(" ").length); }
+    for (const w of whole.split(" ")) if (w.length >= 5 && !/\d/.test(w)) (eventWords.get(w.length) ?? eventWords.set(w.length, new Set()).get(w.length)!).add(w);
     for (const w of [...fold(`${p.name ?? ""} ${p.code ?? ""}`).split(" "), ...eventInitialisms(p.name ?? "")]) if (w.length >= 3) stems.add(w.slice(0, 3));
     if (p.code) for (const i of eventInitialisms(p.name ?? "")) (initials.get(i) ?? initials.set(i, new Set()).get(i)!).add(p.code);
   }
@@ -172,6 +193,22 @@ export function buildNames(teams: NameRow[], places: { city: string | null; stat
     initialism: (w) => [...(initials.get(fold(w)) ?? [])],
     eventNamed: (w) => eventNames.has(fold(w)),
     eventLongest,
+    nearEventWord(w) {
+      const f = fold(w);
+      if (f.length < 5 || /[^a-z]/.test(f)) return null;
+      if (eventWords.get(f.length)?.has(f)) return f;
+      const most = allowedEdits(f.length);
+      let best = most + 1, found: string[] = [];
+      for (let len = f.length - most; len <= f.length + most; len++) {
+        for (const k of eventWords.get(len) ?? []) {
+          if (k[0] !== f[0]) continue;
+          const d = editDistance(f, k, most);
+          if (d > most) continue;
+          if (d < best) { best = d; found = [k]; } else if (d === best) found.push(k);
+        }
+      }
+      return found.length === 1 ? found[0] : null;
+    },
     place(w, typed) {
       const f = fold(w);
       if (!f) return null;
@@ -181,12 +218,15 @@ export function buildNames(teams: NameRow[], places: { city: string | null; stat
       // A country as the data stores it ("Romania", "USA") or by another of its names ("Turkey", "UK").
       // Or by its people's word ("Romanian teams").
       const people = countryOfDemonym(f);
-      const said = countryOf(w);
+      // A country's two-letter name is never read alone ("us" is a pronoun: "tell us"), but said with "the" before it
+      // ("the us", "the u.s.") it is the country, since a pronoun never takes "the". Longer names read without it.
+      const short = f.startsWith("the ") ? f.slice(4) : "";
+      const the = short && short.replace(/ /g, "").length < 3 ? countryOf(short) : null;
+      const said = countryOf(w) ?? the;
       const stored = countries.get(f) ?? storedCountries.find(({ c }) => c === said || (!!people && c === people))?.label;
       if (stored && f.length >= 3) return { kind: "country", country: stored, state: null, city: null, name: countryOf(stored)?.name ?? stored };
-      const town = towns.get(f);
-      if (town && town.size === 1 && f.length >= 3) {
-        const t = [...town.values()][0];
+      const t = townOf(f);
+      if (t && f.length >= 3) {
         return { kind: "city", country: t.country, state: t.state, city: t.city, name: t.city };
       }
       // A part of a region ("north jersey", "northern IN"), as typed so a code in capitals still reads: after a stored

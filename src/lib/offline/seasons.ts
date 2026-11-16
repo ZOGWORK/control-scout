@@ -12,18 +12,29 @@ import { checkFormat, del, fetchVerified, getv, keys, put, type PackFile, type P
 import { savedSeasons, writeSaved, type SavedSeason } from "./saved";
 import { dropPartial, finishDownload, partialDownloads } from "./download";
 import { clearResume, markKey } from "./resumeMarks";
-import { wrap, type Db, type SeasonDb } from "./readers";
+import { indexJson, primeIndex, wrap, type Db, type SeasonDb } from "./readers";
+import { measured, now } from "./timing";
 
 export { savedSeasons, useSavedSeasons, SEASONS_EVENT, type SavedSeason } from "./saved";
 
 // One key per file (season + checksum): a new copy never overwrites the one the saved list points at.
 const key = (season: number, sha256: string) => `season:${season}:${sha256}`;
 
+declare const __APP_VERSION__: string | undefined;
+/** A season file's search index, built once and kept (readers.ts indexJson), so the first offline search after a page
+ *  opens doesn't read and normalise every team and event again. Per release too: a release can change how the index
+ *  is made (normalising, region names), and then builds it afresh. */
+const RELEASE = typeof __APP_VERSION__ === "string" ? __APP_VERSION__ : "dev";
+const INDEX_PREFIX = (season: number) => `search-index:${season}:`;
+const indexKey = (season: number, sha256: string) => `${INDEX_PREFIX(season)}${sha256}:${RELEASE}`;
+
 const engineUrl = () => import("sql.js/dist/sql-wasm-browser.wasm?url").then((m) => m.default);
 let sqlite: Promise<SqlJsStatic> | null = null;
 function loadSqlite(): Promise<SqlJsStatic> {
+  const t0 = now();
   sqlite ??= Promise.all([import("sql.js/dist/sql-wasm-browser.js"), engineUrl()])
     .then(([m, wasm]) => m.default({ locateFile: () => wasm }))
+    .then((SQL) => { measured("engine", t0); return SQL; })
     .catch((e) => { sqlite = null; throw e; }); // a failed load (offline before it was ever cached) can retry
   return sqlite;
 }
@@ -44,6 +55,10 @@ async function keepEngine(): Promise<void> {
     if (!(await cache.match(url))) await cache.add(url);
   } catch { /* offline reads then need the engine fetched once online */ }
 }
+/** A save waits at most this long for the engine to be cached: its request can hang on a line that just came back,
+ *  and the save run (which keeps the season's Delete greyed out) would wait with it. Caching carries on in the
+ *  background; the worker's install fetches it too. */
+export const ENGINE_WAIT_MS = 3000;
 
 /** Does it start with SQLite's file header? */
 const SQLITE_MAGIC = "SQLite format 3\0";
@@ -71,7 +86,7 @@ async function openPack(bytes: Uint8Array, season: number): Promise<Database> {
 // Open databases stay in memory (opening a season again on every page would be
 // slow), but a season is tens of MB: only the KEEP_OPEN most recently read
 // stay. Keyed by checksum, so an update reopens. Map order = least recent first.
-interface Entry { sha256: string; db: Promise<Database>; pins: number; dead?: boolean }
+interface Entry { season: number; sha256: string; db: Promise<Database>; pins: number; dead?: boolean; indexKept?: boolean }
 const open = new Map<number, Entry>();
 const KEEP_OPEN = 2;
 
@@ -110,10 +125,14 @@ export async function saveSeason(file: PackFile, manifest: PackManifest, onProgr
   if (!isSqlite(bytes)) throw new Error("That file isn't a Control Scout season pack — not saved.");
   // One save per season at a time, across tabs: two releases saved at once would otherwise both
   // replace the same previous copy and leave one download stored but unlisted.
-  return oneAtATime(season, () => {
+  const meta = await oneAtATime(season, () => {
     if (opts.replaceOnly && !listed(season)) throw new SeasonGone(season);
     return store(season, file, manifest, bytes);
   });
+  // After the season lock, so it never holds up a Delete tapped the moment the season shows as saved (the pieces'
+  // lock can be another tab's).
+  await finishDownload(file.sha256, file.gz?.sha256); // the downloaded pieces: the saved copy stands now
+  return meta;
 }
 
 // Web Locks cover every tab; without them (old browsers, tests) this tab's own saves still queue.
@@ -143,7 +162,8 @@ async function store(season: number, file: PackFile, manifest: PackManifest, byt
   catch (e) {
     throw (e as DOMException)?.name === "QuotaExceededError" ? new Error("Not enough storage on this device to save this season. Remove another saved season, or free some space.") : e;
   }
-  await keepEngine();
+  // Before the season shows as saved (it opens offline only with the engine there), but never for long.
+  await Promise.race([keepEngine(), new Promise((r) => setTimeout(r, ENGINE_WAIT_MS))]);
   const meta: SavedSeason = { season, version: manifest.version, sha256: file.sha256, bytes: bytes.length, savedAt: Date.now(), dataAsOf: manifest.dataAsOf, builtAt: manifest.builtAt, ...(file.stats ? { stats: file.stats } : {}) };
   try { writeSaved([...savedSeasons().filter((s) => s.season !== season), meta]); }
   catch (e) {
@@ -156,23 +176,30 @@ async function store(season: number, file: PackFile, manifest: PackManifest, byt
   if (was && was.sha256 !== file.sha256) close(season);
   if (prev && prev.sha256 !== file.sha256) await del(key(season, prev.sha256)).catch(() => {});
   await sweep(season).catch(() => {}); // tidying only: the save itself succeeded
-  await finishDownload(file.sha256, file.gz?.sha256); // the downloaded pieces: the saved copy stands now
   return meta;
 }
 
-/** Delete a saved season (its bytes and its place in the list). Returns the bytes freed. */
+/** Delete a saved season (its bytes and its place in the list). Returns the bytes deleted. */
 export async function removeSeason(season: number): Promise<number> {
-  return oneAtATime(season, async () => {
+  const deleted = await oneAtATime(season, async () => {
     const meta = savedSeasons().find((s) => s.season === season);
     close(season);
-    // The list and the file change together: if either step fails, the season stays listed with its
-    // file in place (restored if it was already deleted), so Remove can be tried again.
+    // The list and the file change together: if either step fails, the season stays listed with its file in
+    // place, so Remove can be tried again. The list goes first, so the file is never read back into memory to put
+    // back (tens of MB, read before every Delete); a file delete that fails lists the season again.
     const k = meta ? key(season, meta.sha256) : null;
-    const bytes = k ? await getv<Uint8Array>(k) : undefined;
-    if (k) await del(k);
-    try { writeSaved(savedSeasons().filter((s) => s.season !== season)); }
-    catch (e) { if (k && bytes) await put(k, bytes).catch(() => {}); throw e; }
+    writeSaved(savedSeasons().filter((s) => s.season !== season));
+    if (k && meta) {
+      try { await del(k); }
+      catch (e) {
+        // Listed again as it was (another tab's change to another season meanwhile stays).
+        try { writeSaved([...savedSeasons().filter((s) => s.season !== season), meta]); } catch { /* the next sweep takes the unlisted file */ }
+        throw e;
+      }
+    }
     await sweep(season).catch(() => {}); // leftovers of interrupted saves; the season itself is gone
+    // Its kept search index goes too (tidying only).
+    try { for (const k2 of await keys(INDEX_PREFIX(season))) await del(k2); } catch { /* freed with the next update or Clear cache */ }
     // Nothing of the season stays behind: a half download of it (a paused update) goes too, and it no longer
     // picks up by itself.
     clearResume(markKey("season", String(season)));
@@ -183,9 +210,11 @@ export async function removeSeason(season: number): Promise<number> {
         if (p.owner.kind === "season" && p.owner.id === String(season) && (await dropPartial(p.sha256))) partial += p.have;
       }
     } catch { /* left for the paused row's own Delete */ }
-    if (!savedSeasons().length) await dropEngine();
     return (meta?.bytes ?? 0) + partial;
   });
+  // Outside the season lock: a save of the season never waits on it.
+  if (!savedSeasons().length) await dropEngine();
+  return deleted;
 }
 
 /** The last saved season went: the SQLite engine kept for reading seasons offline goes from the worker's caches
@@ -206,19 +235,65 @@ function entry(season: number): Entry | null {
   const o = open.get(season);
   if (o?.sha256 === meta.sha256) { open.delete(season); open.set(season, o); return o; }
   close(season);
+  // Its db is set just below (the read marks it only after its first await).
+  const e = { season, sha256: meta.sha256, pins: 0 } as Entry;
   const db = (async () => {
-    const bytes = await getv<Uint8Array>(key(season, meta.sha256));
+    const t0 = now();
+    // The kept search index is read alongside the file; without one (or unreadable), the first search builds it.
+    const [bytes, index] = await Promise.all([getv<Uint8Array>(key(season, meta.sha256)), getv<string>(indexKey(season, meta.sha256)).catch(() => undefined)]);
     if (!bytes) throw new Error(`Season ${season} isn't on this device any more.`);
-    return openPack(bytes, season);
+    measured(`read ${season}`, t0);
+    const opened = await openPack(bytes, season);
+    measured(`open ${season}`, t0);
+    if (primeIndex(wrapOf(opened), index)) e.indexKept = true;
+    return opened;
   })();
-  const e: Entry = { sha256: meta.sha256, db, pins: 0 };
+  e.db = db;
   open.set(season, e);
+  unkept.add(e);
   db.catch(() => { if (open.get(season) === e) open.delete(season); }); // retry next time
   return e;
 }
 
 // One wrapper per open database, so what the readers cache per pack (search names) lasts.
 const wrapped = new WeakMap<Database, Db>();
+function wrapOf(db: Database): Db {
+  let w = wrapped.get(db);
+  if (!w) { w = wrap(db); wrapped.set(db, w); }
+  return w;
+}
+
+/** Seasons opened on this page whose search index isn't kept yet, open or not: a search over three or more saved
+ *  seasons builds every one's index but keeps only KEEP_OPEN open, and a closed one's built index (it lives in the
+ *  readers' cache, not in the closed file) is still kept. */
+const unkept = new Set<Entry>();
+
+/** Keep the search index of every season opened on this page that built one and hasn't kept it yet (after a search,
+ *  or answer.ts warmOffline, in idle time), replacing any older one kept for that season. Best effort: storage full
+ *  just means it's built again. */
+export async function keepSearchIndexes(): Promise<void> {
+  for (const e of [...unkept]) {
+    if (e.indexKept) { unkept.delete(e); continue; }
+    const db = await e.db.catch(() => null);
+    if (!db) { unkept.delete(e); continue; }
+    const json = indexJson(wrapOf(db));
+    const isOpen = open.get(e.season) === e;
+    // Not built yet: a later search may build it while the season is open; closed, it never will.
+    if (!json) { if (!isOpen) unkept.delete(e); continue; }
+    // The season removed or updated since it opened: its index is for a file no longer listed.
+    if (savedSeasons().find((s) => s.season === e.season)?.sha256 !== e.sha256) { unkept.delete(e); continue; }
+    if (e.indexKept) continue;
+    e.indexKept = true;
+    try {
+      const k = indexKey(e.season, e.sha256);
+      await put(k, json);
+      // Removed or updated while it was written: this index goes too.
+      const current = savedSeasons().find((s) => s.season === e.season)?.sha256 === e.sha256;
+      for (const old of await keys(INDEX_PREFIX(e.season))) if (old !== k || !current) await del(old);
+      unkept.delete(e);
+    } catch { e.indexKept = false; }
+  }
+}
 
 /**
  * Read the saved seasons that open, newest first: just `only` when given (a
@@ -235,8 +310,7 @@ export async function readSaved<T>(only: number | undefined, read: (dbs: SeasonD
     const dbs = await Promise.all(got.map(async ({ season, e }) => {
       const db = await e.db.catch(() => null);
       if (!db) return null;
-      if (!wrapped.has(db)) wrapped.set(db, wrap(db));
-      return { season, db: wrapped.get(db)! };
+      return { season, db: wrapOf(db) };
     }));
     // Awaited here, so a read that runs async (the world ranking's shared reads) keeps its databases open until done.
     return await read(dbs.filter((x): x is SeasonDb => !!x));

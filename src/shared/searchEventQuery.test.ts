@@ -213,3 +213,17 @@ describe("labels echo the words typed (owner bug)", () => {
     expect(eventSetLabel(readEventQuery("meets tournaments in NJ")!)).toBe("Meets and tournaments in New Jersey");
   });
 });
+
+describe("the program's own name is never a place", () => {
+  it("\"in ftc\", \"of the FIRST Tech Challenge\": the program, the window's events", () => {
+    for (const q of ["what's happening in ftc this weekend", "events in ftc this weekend", "what events are on in the FIRST Tech Challenge today", "meets in ftc in New Jersey this weekend"]) {
+      const e = readEventQuery(q);
+      expect(e?.where ?? null, q).toBeNull();
+      expect(e?.words ?? [], q).toEqual([]);
+    }
+    expect(readEventQuery("meets in ftc in New Jersey this weekend")).toMatchObject({ kinds: ["meet"], time: "this-weekend", region: { key: "USA:NJ" } });
+  });
+  it("a venue whose name goes on after FTC stays the venue", () => {
+    expect(readEventQuery("events at FTC San Luis Potosi")?.where).toMatch(/ftc san luis potosi/i);
+  });
+});

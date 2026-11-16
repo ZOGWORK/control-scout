@@ -14,10 +14,19 @@ const answer = (intent = "results", none?: string): SearchAnswer => ({
 const clip: SearchVideo = { main: { videoId: "v", t: 10, end: 250, kind: "recording", match: "Q1" } };
 
 describe("asksVideo", () => {
-  it("reads the words asking to watch, and answers of highlights", () => {
+  it("reads the words asking to watch, never an answer that only happens to be highlights", () => {
     expect(asksVideo("6980 results at east bergen with video", answer())).toBe(true);
     expect(asksVideo("who won into the deep highlights", answer())).toBe(true);
-    expect(asksVideo("6980", answer("team-highlights"))).toBe(true);
+    expect(asksVideo("6980 highlights", answer("team-highlights"))).toBe(true);
+    // A bare team number: the visitor asked for the team, not to watch.
+    expect(asksVideo("6980", { ...answer("team-highlights"), stat: { ...answer().stat!, intent: "team-highlights", team: { number: 6980, name: "Bad Wolf" } } })).toBe(false);
+    const team = (intent: string): SearchAnswer => { const a = answer(intent); return { ...a, stat: { ...a.stat!, team: { number: 4215, name: "Hypnotic Robotics" } } }; };
+    expect(asksVideo("4215", team("team-highlights"))).toBe(false);
+    // A team's highlights said another way still asks to watch.
+    expect(asksVideo("4215 best moments", team("team-highlights"))).toBe(true);
+    expect(asksVideo("4215 top plays", team("team-highlights"))).toBe(true);
+    // An answer about no team that is highlights (a paraphrase with no watch word) still counts.
+    expect(asksVideo("best moments in grand rapids", answer("scope-highlights"))).toBe(true);
     expect(asksVideo("6980 results at east bergen", answer())).toBe(false);
   });
   it("hasVideo: a card's clip, a row's, or the recording a match is in", () => {

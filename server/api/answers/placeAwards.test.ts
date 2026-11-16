@@ -99,6 +99,16 @@ describe("a place's award winners", () => {
     expect(rows(last).map((r) => r.team)).toEqual(["22222 Maple Gears", "22222 Maple Gears"]);
     const wa = await placeAwardsAnswer((await readPlaceAwards("winning alliance winners"))!);
     expect(wa.headline?.value).toBe("20265 Heart of RoBots, 11111 Lone Star Bots");
+    // A bare year is that season, as search reads one (failed search #1434 "inspire award winners 2024"), never a team.
+    const year = await readPlaceAwards(`inspire award winners ${S - 1}`);
+    expect(year).toMatchObject({ place: null, types: ["Inspire"], mode: "list", season: S - 1, seasonSaid: "named" });
+    expect(rows(await placeAwardsAnswer(year!)).map((r) => r.team)).toEqual(["22222 Maple Gears", "22222 Maple Gears"]);
+    expect(await readPlaceAwards(`think award winners ${S}`)).toMatchObject({ types: ["Think"], season: S });
+    expect(await readPlaceAwards("4215 inspire award winners")).toBeNull();
+    // Teams are numbered like seasons too (Loopy on #1533): a number before the ask, or after "team" or "#", is a team's.
+    for (const q of [`team ${S} inspire awards`, `did ${S} win think award`, `${S} inspire award winners`, `inspire awards team ${S}`, `inspire award winners #${S}`]) {
+      expect(await readPlaceAwards(q), q).toBeNull();
+    }
     // Every row of the events chosen is shown, never half an alliance cut at 50 rows (Greptile on #1217).
     for (let i = 0; i < 20; i++) {
       const code = `USWAQ${i}`;

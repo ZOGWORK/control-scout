@@ -18,8 +18,9 @@ import { contributorItem, pickMatchVideo } from "../../../src/shared/contributor
 /** A match or an event an answer links to. */
 export interface VideoRef { season: number; code: string; key?: string }
 
-/** Most rows an answer's play buttons are read for (a video page's tiles: more), and most events in one read. */
-const MAX_ROWS = 60;
+/** Most rows an answer's play buttons are read for (an event's whole match list, ../query/execute.ts EVENT_MATCHES_MAX,
+ *  qualification and playoffs: its finals last; a video page's tiles: more), and most events in one read. */
+const MAX_ROWS = 200;
 const MAX_TILES = 220;
 const MAX_EVENTS = 30;
 

@@ -62,8 +62,12 @@ const PullToRefresh = named(() => import("./components/layout/PullToRefresh"), "
 const PAGES = {
   TeamPage: lazyPage(() => import("./pages/TeamPage")),
   EventsPage: lazyPage(() => import("./pages/EventsPage")),
+  WeekendPage: lazyPage(() => import("./pages/WeekendPage")),
   RecordsPage: lazyPage(() => import("./pages/RecordsPage")),
   RankingsPage: lazyPage(() => import("./pages/RankingsPage")),
+  RegionsPage: lazyPage(() => import("./pages/RegionsPage")),
+  RegionRankingsPage: lazyPage(() => import("./pages/RegionRankingsPage")),
+  LeaguesPage: lazyPage(() => import("./pages/LeaguesPage")),
   EventPage: lazyPage(() => import("./pages/EventPage")),
   PredictPage: lazyPage(() => import("./pages/PredictPage")),
   ComparePage: lazyPage(() => import("./pages/ComparePage")),
@@ -102,7 +106,7 @@ const PAGES = {
 } satisfies Record<PageModule, unknown>;
 // Dev only: one piece of the Scout redesign at a time, for screenshots (the import is dropped from production builds).
 const ScoutPreviewPage = import.meta.env.DEV ? lazy(() => import("./pages/ScoutPreviewPage")) : () => null;
-const { TeamPage, EventsPage, RecordsPage, RankingsPage, EventPage, PredictPage, ComparePage, MyTeamPage, MyTeamsPage, ShortlistPage, ScoutPage, DownloadPage, SettingsPage, MethodologyPage, SearchDocsPage, PrivacyPage, TermsPage, ContactPage, DonatePage, StatusPage, SupportersPage, FaqPage, RulesPage, MatchReportPage, PowerRankingsPage, EventDisplayPage, EventCodeRedirect, DigestUnsubscribedPage, BundlePage, SearchPage, RelatedSearchesPage, LeaguePage, TeamHighlightsPage, TeamRecordSplitPage, EventHighlightsPage, ContributorPage, GetVerifiedPage, VerifyVideoPage, NotFound } = PAGES;
+const { TeamPage, EventsPage, WeekendPage, RecordsPage, RankingsPage, RegionsPage, RegionRankingsPage, LeaguesPage, EventPage, PredictPage, ComparePage, MyTeamPage, MyTeamsPage, ShortlistPage, ScoutPage, DownloadPage, SettingsPage, MethodologyPage, SearchDocsPage, PrivacyPage, TermsPage, ContactPage, DonatePage, StatusPage, SupportersPage, FaqPage, RulesPage, MatchReportPage, PowerRankingsPage, EventDisplayPage, EventCodeRedirect, DigestUnsubscribedPage, BundlePage, SearchPage, RelatedSearchesPage, LeaguePage, TeamHighlightsPage, TeamRecordSplitPage, EventHighlightsPage, ContributorPage, GetVerifiedPage, VerifyVideoPage, NotFound } = PAGES;
 const BundlePicklistPage = named(() => import("./pages/BundlePage"), "BundlePicklistPage");
 
 // Offline: the service worker precaches the app so it opens with no signal.
@@ -183,7 +187,10 @@ void ready.catch(() => { /* a failed load is retried (and shown) by the page's o
                   <Route path="/teams/:number/highlights" element={<TeamHighlightsPage />} />
                   <Route path="/teams/:number/record-split" element={<TeamRecordSplitPage />} />
                   <Route path="/rankings" element={<RankingsPage />} />
+                  <Route path="/rankings/regions" element={<RegionsPage />} />
+                  <Route path="/rankings/regions/:country/:state?" element={<RegionRankingsPage />} />
                   <Route path="/events" element={<EventsPage />} />
+                  <Route path="/weekend" element={<WeekendPage />} />
                   <Route path="/events/:code" element={<EventCodeRedirect />} />
                   <Route path="/events/:season/:code" element={<EventPage />} />
                   <Route path="/events/:season/:code/match/:key" element={<MatchReportPage />} />
@@ -224,6 +231,7 @@ void ready.catch(() => { /* a failed load is retried (and shown) by the page's o
                   {/* Where the browser's address-bar search lands (/opensearch.xml): the same results as the header's box. */}
                   <Route path="/search" element={<SearchPage />} />
                   <Route path="/related-searches" element={<RelatedSearchesPage />} />
+                  <Route path="/leagues" element={<LeaguesPage />} />
                   <Route path="/leagues/:season/:region/:code" element={<LeaguePage />} />
                   {/* Owners only; everyone else (and the server, for everyone) sees the not-found page. */}
                   <Route path="/owner" element={<OwnerRoute notFound={<NotFound />} />} />

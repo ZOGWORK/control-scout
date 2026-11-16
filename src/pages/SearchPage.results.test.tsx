@@ -393,6 +393,17 @@ describe("search results page", () => {
     expect(card.textContent).toContain("23268UltravioletHackettstown, NJ");
   });
 
+  it("a Compare of three teams shows all three, on the card and in the head-to-head", () => {
+    state.answer = answer([{ kind: "compare" as SearchHit["kind"], ref: "4215,6980,33950", title: "4215 | Hypnotic Robotics vs 6980 | Bad Wolf vs 33950 | First Street Kids", subtitle: "", season: 2026, href: "/compare?teams=4215,6980,33950",
+      compare: { teams: [{ number: 4215, name: "Hypnotic Robotics", place: "Oradell, NJ" }, { number: 6980, name: "Bad Wolf", place: "Oradell, NJ" }, { number: 33950, name: "First Street Kids", place: "Ridgewood, NJ" }] } } as SearchHit]);
+    const { container } = show("/search?q=x");
+    const card = container.querySelector('[data-result="compare"]')!;
+    expect([...card.querySelectorAll("[data-compare-side]")].map((e) => e.getAttribute("data-compare-side"))).toEqual(["4215", "6980", "33950"]);
+    expect(card.textContent).toContain("33950First Street KidsRidgewood, NJ");
+    const h2h = container.querySelector("[data-head-to-head]")!;
+    expect(h2h.textContent).toContain("33950");
+  });
+
   it("numbers print once: a side-by-side answer card takes the head-to-head panel's place; a Compare link alone keeps it", () => {
     const hit = { kind: "compare" as SearchHit["kind"], ref: "4215,23268", title: "4215 | Hypnotic Robotics vs 23268 | Ultraviolet", subtitle: "", season: 2025, href: "/compare?teams=4215,23268",
       compare: { teams: [{ number: 4215, name: "Hypnotic Robotics", place: "Oradell, NJ" }, { number: 23268, name: "Ultraviolet", place: "Hackettstown, NJ" }] } } as SearchHit;

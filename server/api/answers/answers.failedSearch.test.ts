@@ -342,3 +342,18 @@ describe("an event the team didn't play: the reason, and its real events", () =>
     expect(r.blocks).toEqual([expect.objectContaining({ kind: "links", title: "Its events in 2024–25", items: [expect.objectContaining({ label: "Deep South Conference Southern League Tournament" })] })]);
   });
 });
+
+describe("a stray letter, and \"is\" typed \"si\" (failed-search #1584, #1012)", () => {
+  it("the question without the letter, the letter said as not read", async () => {
+    const clean = await full("what is the best team in nj");
+    expect(clean.stat).toBeTruthy();
+    for (const q of ["what is the best team in nj n", "what si the best team in nj n"]) {
+      const a = await full(q);
+      expect(a.stat?.title, q).toBe(clean.stat!.title);
+      expect(a.stat?.headline, q).toEqual(clean.stat!.headline);
+      expect(a.understood?.unread, q).toEqual(["n"]);
+    }
+    // "u" is a short form search reads ("you"), never a stray letter said as unread.
+    expect((await full("what is the best team in nj u")).understood?.unread ?? []).not.toContain("u");
+  });
+});

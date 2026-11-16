@@ -10,6 +10,7 @@ import { findRegions, regionLabel, type Region } from "../../../../src/shared/re
 import { dateRange, num, possessive, seasonLabel } from "../../../../src/shared/format.js";
 import { regionOf } from "../../../../src/shared/searchEventQuery.js";
 import { RANKED_MIN_MATCHES, WEEK_MS, weekOf } from "../../../../src/shared/rankings.js";
+import { regionHref, unrankedLabel } from "../../../../src/shared/regionRankings.js";
 import { RECORDS_MAX_PAGE_SIZE, type TeamSeasonRecord } from "../../../../src/shared/statCatalog.js";
 import { all, get } from "../../../db.js";
 import { regionPlace } from "../../rankings.js";
@@ -44,6 +45,8 @@ export interface OprRatingQuestion {
   future?: { season: number; typed: string };
   /** "auto OPR versus TeleOp OPR": the two phases, as asked. */
   phases?: [Phase, Phase];
+  /** "12345 auto opr at worlds", "12345 auto at worlds": one phase's OPR at the FIRST Championship. */
+  phase?: Phase;
   /** "in the top 10 percent": the share asked about. */
   pct?: number;
 }
@@ -51,6 +54,10 @@ export interface OprRatingQuestion {
 const PHASE_WORD = String.raw`(auto(?:nomous)?|tele-?op|driver[\s-]controlled|end\s?game)`;
 const phaseOf = (w: string): Phase => (/^auto/.test(w) ? "auto" : /^end/.test(w) ? "endgame" : "teleop");
 const PHASE_NAME: Record<Phase, string> = { auto: "Auto", teleop: "TeleOp", endgame: "Endgame" };
+/** One phase named, its "opr" after it if said ("auto opr", "auto"). */
+const PHASE_OPR = new RegExp(String.raw`\b${PHASE_WORD}(?:\s+opr)?\b`);
+/** Any other stat word: a phase beside one of these is another answer's ("highest auto", "auto score", "auto rank"). */
+const OTHER_STAT = new RegExp(String.raw`\b(?:opr|rating|rank(?:ing)?|vs|versus|highest|lowest|best|worst|top|average|avg|mean|scores?|points?|record|matches|games?|penalt(?:y|ies)|${PHASE_WORD.slice(1, -1)})\b`);
 
 // In order: the more specific first. Each takes its own words out; what's left names the team (and maybe a place).
 const RULES: { id: OprRatingId; re: RegExp }[] = [
@@ -125,6 +132,14 @@ export function readOprRating(raw: string): OprRatingQuestion | null {
   // "12345 opr at worlds", "12345 rating at the first championship": the OPR or the rating, Worlds only.
   const { scope, rest } = readScope(q);
   if (scope.championship && !scope.at && !scope.level && !scope.alliance) {
+    // One phase, with or without "opr" ("12345 auto opr at worlds", "12345 auto at worlds"): that phase's OPR there,
+    // as "12345 auto" is its season Auto OPR. Never beside another stat word ("highest auto", "auto score" are the
+    // match answers').
+    const ph = PHASE_OPR.exec(rest);
+    if (ph && !OTHER_STAT.test(rest.replace(ph[0], " "))) {
+      const core = squash(rest.replace(ph[0], " ").replace(FILLER, " "));
+      if (core) return { id: "opr-worlds", core, season: scope.season, region: null, ever: scope.ever, phase: phaseOf(ph[1]), ...(scope.latest ? { latest: true } : {}), ...(scope.future ? { future: scope.future } : {}) };
+    }
     const which = /\bopr\b/.test(rest) && !/\b(?:auto|tele-?op|end\s?game|rank|vs|versus)\b/.test(rest) ? "opr-worlds" : /\brating\b/.test(rest) && !/\b(?:rank|vs|versus)\b/.test(rest) ? "rating-worlds" : null;
     const core = which ? squash(rest.replace(FILLER, " ")) : "";
     if (which && core) return { id: which, core, season: scope.season, region: null, ever: scope.ever, ...(scope.latest ? { latest: true } : {}), ...(scope.future ? { future: scope.future } : {}) };
@@ -146,7 +161,9 @@ const who = (t: Team) => `${t.number}${t.name ? ` ${t.name}` : ""}`;
 const n = (x: number) => x.toLocaleString("en-US");
 const topPct = (rank: number, of: number) => Math.max(1, Math.ceil((100 * rank) / of));
 const ordinal = (x: number) => `${x}${x % 100 >= 11 && x % 100 <= 13 ? "th" : ["th", "st", "nd", "rd"][x % 10] ?? "th"}`;
-const rankingsHref = (season: number, region: Region | null) => `/rankings?season=${season}${region ? `&region=${encodeURIComponent(region.key)}` : ""}`;
+/** A place's rankings: its region page (src/shared/regionRankings.ts), the team's row marked when given; the world
+ *  ranking without a place. */
+const rankingsHref = (season: number, region: Region | null, team?: number) => (region ? regionHref(region.key, { season, team }) : `/rankings?season=${season}`);
 
 const OPR_RULE = "OPR: the points a team adds to its alliance's score without penalties, its best event that season, as its team page shows. Ranks count every team with an OPR that season; each season is a different game, so a number is only set against its own season's.";
 const RATING_RULE = `The prediction rating is the engine's estimate of the points a team adds to its alliance each match (without penalties), with its ± spread (the engine's uncertainty, which narrows as matches are rated), as the team page and Rankings show it; ranked once ${RANKED_MIN_MATCHES} matches are rated.`;
@@ -400,10 +417,14 @@ function rankKpis(st: NonNullable<Awaited<ReturnType<typeof seasonStats>>>, pop:
   const o = st.opr.np, r = st.rating;
   return { kind: "kpis", items: [
     ...(region && place && by !== "opr" ? [
-      { label: `${region.name} by rating`, value: place.rating ? `#${n(place.rating.rank)} of ${n(place.rating.of)}` : "Not ranked", sub: r ? `${num(r.np)} ± ${num(r.sd)}` : undefined, tone: "accent" as const },
+      // To one decimal, as the region's rankings show it.
+      { label: `${region.name} by rating`, value: place.rating ? `#${n(place.rating.rank)} of ${n(place.rating.of)}` : "Not ranked", sub: r ? `${r.np.toFixed(1)} ± ${num(r.sd)}` : undefined, tone: "accent" as const },
+      // The season's record, as the region's rankings table shows it beside the rating.
+      { label: "Record", value: `${st.record.wins}-${st.record.losses}-${st.record.ties}`, sub: "Every official match this season" },
     ] : []),
     ...(region && place && by !== "rating" ? [
-      { label: `${region.name} by OPR`, value: place.opr ? `#${n(place.opr.rank)} of ${n(place.opr.of)}` : "Not ranked", sub: `OPR ${num(o.value)}`, ...(by === "opr" ? { tone: "accent" as const } : {}) },
+      // OPR to one decimal too, as the region's rankings table shows it.
+      { label: `${region.name} by OPR`, value: place.opr ? `#${n(place.opr.rank)} of ${n(place.opr.of)}` : "Not ranked", sub: `OPR ${o.value != null ? o.value.toFixed(1) : num(o.value)}`, ...(by === "opr" ? { tone: "accent" as const } : {}) },
     ] : []),
     { label: "Worldwide by OPR", value: o.rank && o.of ? `#${n(o.rank)} of ${n(o.of)}` : "Not ranked", sub: o.rank && o.of ? `OPR ${num(o.value)} · top ${topPct(o.rank, o.of)}%` : `OPR ${num(o.value)}` },
     { label: "Worldwide by rating", value: r?.rank ? `#${n(r.rank)}${pop ? ` of ${n(pop)}` : ""}` : "Not ranked", sub: r ? `${num(r.np)} ± ${num(r.sd)}` : undefined },
@@ -425,11 +446,12 @@ async function regionAnswer(f: OprRatingQuestion, team: Team, season: number, st
     family: "stat", intent: by === "both" ? "region-rank" : `${by}-region-rank`, title, team, scope: [r.name, S],
     definition: `${by !== "rating" ? PLACE_RULE(r, "opr") : ""}${by === "both" ? " " : ""}${by !== "opr" ? PLACE_RULE(r, "rating") : ""} ${by === "opr" ? OPR_RULE : RATING_RULE}${why}`.trim(),
     source: `From the ${S} season numbers of ${r.name} teams`, blocks: [],
-    more: by === "opr" ? { label: `View the ${r.name} list on the Teams page`, href: teamsHref(season, BOARD_STATS.opr, r) ?? rankingsHref(season, r) } : { label: `View the ${r.name} rankings`, href: rankingsHref(season, r) },
+    more: by === "opr" ? { label: `View the ${r.name} list on the Teams page`, href: teamsHref(season, BOARD_STATS.opr, r) ?? rankingsHref(season, r) } : { label: `View ${team.number} on the ${r.name} rankings`, href: rankingsHref(season, r, team.number) },
   };
   const lead = by === "opr" ? opr : rating ?? opr;
   const list = by === "opr" ? "OPR" : by === "rating" ? "rankings" : "lists";
-  if (!st || !lead) {
+  // Not ranked by rating (asked by rating, or by both): its label, never the OPR place standing in for a rank.
+  if (!st || !lead || (by !== "opr" && !rating)) {
     // A place's lists rank the teams from there: a team from elsewhere is said to be, with its own place's question.
     const home = await get<{ state: string | null; country: string | null }>("SELECT state, country FROM teams WHERE number = ?", [team.number]);
     if (home && (home.country !== r.country || (home.state ?? "") !== r.state)) {
@@ -440,7 +462,9 @@ async function regionAnswer(f: OprRatingQuestion, team: Team, season: number, st
       const ask = `${team.number} ${by === "opr" ? "opr rank" : by === "rating" ? "rating" : "rank"} in ${from} in ${S}`;
       return { ...b, blocks: named ? [{ kind: "related", title: `Its own ${from} ${list}`, queries: [ask] }] : [], none: `${who(team)} isn't on the ${r.name} ${list} for ${S}: ${from ? `it's a team from ${from}, and` : ""} the ${r.name} ${list} rank teams from ${r.name} only.` };
     }
-    return { ...b, none: `${who(team)} isn't on the ${r.name} ${list} for ${S}: it needs ${RANKED_MIN_MATCHES}+ ${by === "opr" ? "matches" : "rated matches"} that season.` };
+    // From there but not ranked: its label, as the region's rankings list it (never a rank or a rating it doesn't have).
+    if (by !== "opr") return { ...b, none: `${who(team)}: ${unrankedLabel(st?.rating?.matches ?? 0)} in ${S}. A team is on the ${r.name} rankings after its ${RANKED_MIN_MATCHES}rd rated match.` };
+    return { ...b, none: `${who(team)} isn't on the ${r.name} ${list} for ${S}: it needs ${RANKED_MIN_MATCHES}+ matches that season.` };
   }
   const leadBy = by === "opr" || (by === "both" && !rating) ? "OPR" : "prediction rating";
   const sub = by === "both"
@@ -452,7 +476,7 @@ async function regionAnswer(f: OprRatingQuestion, team: Team, season: number, st
   if (by === "rating" && st.rating) blocks.push(ratingKpis(st, pop));
   if (opr && by !== "rating") blocks.push({ kind: "table", title: `Nearby on the ${r.name} OPR list`, columns: [{ key: "rank", label: "#", num: true }, { key: "team", label: "Team" }, { key: "opr", label: "OPR", num: true }],
     rows: opr.near.map((x) => ({ cells: { rank: x.rank, team: `${x.team} ${x.name ?? ""}`.trim(), opr: num(x.v) }, href: teamHref(x.team, season), strong: x.team === team.number })) });
-  return { ...b, headline: { value: `#${n(lead.rank)} of ${n(lead.of)}`, label: `in ${r.name} by ${leadBy}`, sub, href: leadBy === "OPR" ? (teamsHref(season, BOARD_STATS.opr, r) ?? undefined) : rankingsHref(season, r) }, blocks };
+  return { ...b, headline: { value: `#${n(lead.rank)} of ${n(lead.of)}`, label: `in ${r.name} by ${leadBy}`, sub, href: leadBy === "OPR" ? (teamsHref(season, BOARD_STATS.opr, r) ?? undefined) : rankingsHref(season, r, team.number) }, blocks };
 }
 
 /** The OPR, or the season-end rating, at each FIRST Championship the team played (every season, or the one named). */
@@ -489,10 +513,15 @@ async function worldsAnswer(f: OprRatingQuestion, team: Team, set: { events: Tea
     return { ...b, headline: { value: `${num(lead.r!.np)} ± ${num(lead.r!.sd)}`, label: `after ${lead.e.name}${lead.finals ? " and the Worlds finals" : ""}, ${seasonLabel(lead.e.season)}`, sub: [dateRange(lead.e.start, lead.e.end), lead.r!.rank ? `#${n(lead.r!.rank)} worldwide that season` : null].filter(Boolean).join(" · "), href: eventHref(lead.e.season, lead.e.code, team.number) }, blocks: [table] };
   }
   const e = top.e;
+  // One phase asked ("auto opr at worlds"): that phase's OPR leads, its tile marked; the other tiles stay beside it.
+  const ph = f.phase;
+  const tone = (k: "np" | Phase) => (ph === k ? { tone: "accent" as const } : {});
   return {
-    ...b, headline: { value: num(e.opr), label: `at ${e.name}, ${seasonLabel(e.season)}`, sub: [dateRange(e.start, e.end), `${e.matches} matches`, e.rank && e.of ? `ranked #${e.rank} of ${e.of} in the division` : null].filter(Boolean).join(" · "), href: eventHref(e.season, e.code, team.number) },
+    ...b,
+    ...(ph ? { title: `${PHASE_NAME[ph]} OPR at the FIRST Championship`, definition: `${PHASE_NAME[ph]} OPR at the FIRST Championship: the team's ${PHASE_NAME[ph]} OPR in its Worlds division only, as its team page lists that event, not the season ${PHASE_NAME[ph]} OPR. Its division is named.${note}` } : {}),
+    headline: { value: num(ph ? e[ph] : e.opr), label: `${ph ? `${PHASE_NAME[ph]} OPR ` : ""}at ${e.name}, ${seasonLabel(e.season)}`, sub: [ph ? `OPR ${num(e.opr)}` : null, dateRange(e.start, e.end), `${e.matches} matches`, e.rank && e.of ? `ranked #${e.rank} of ${e.of} in the division` : null].filter(Boolean).join(" · "), href: eventHref(e.season, e.code, team.number) },
     blocks: [
-      { kind: "kpis", items: [{ label: "OPR", value: num(e.opr), phase: "np" as const }, { label: "Auto", value: num(e.auto), phase: "auto" as const }, { label: "TeleOp", value: num(e.teleop), phase: "teleop" as const }, { label: "Endgame", value: num(e.endgame), phase: "endgame" as const }] },
+      { kind: "kpis", items: [{ label: "OPR", value: num(e.opr), phase: "np" as const, ...tone("np") }, { label: "Auto", value: num(e.auto), phase: "auto" as const, ...tone("auto") }, { label: "TeleOp", value: num(e.teleop), phase: "teleop" as const, ...tone("teleop") }, { label: "Endgame", value: num(e.endgame), phase: "endgame" as const, ...tone("endgame") }] },
       eventTable(rows.map((x) => x.e), team, true, "Each FIRST Championship"),
     ],
   };

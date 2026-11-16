@@ -85,6 +85,8 @@ const TABLE: [string, Sym | Sym[]][] = [
   // Aggregations.
   ["highest|high|best|top|max|maximum|biggest|largest|greatest|most|record high|world record|peak|strongest|winningest|career high|personal best|longest|most times|the most times", { k: "agg", v: "max" }],
   // The ones worth watching are the best: "what team should i watch at nj states".
+  // Who is first by a stat ("who leads auto in texas", "who is leading in opr"): the highest.
+  ["leads|leads in|is leading|is leading in|leading in", { k: "agg", v: "max" }],
   ["should i watch|should we watch|worth watching|to keep an eye on|should i keep an eye on", { k: "agg", v: "max" }],
   // "Who" asked that way is the teams: "who should i watch at worlds".
   ["who should i watch|who should we watch|who to watch|who is worth watching|who should i keep an eye on", [{ k: "thing", v: "team" }, { k: "agg", v: "max" }]],
@@ -99,6 +101,8 @@ const TABLE: [string, Sym | Sym[]][] = [
   ["first|earliest|debut|very first|opening|initial", { k: "agg", v: "first" }],
   ["last|latest|most recent|recent|newest|previous|final|current|so far", { k: "agg", v: "last" }],
   ["closest|tightest|narrowest|nail biter|nailbiter", { k: "agg", v: "closest" }],
+  // "Closes" is a word of its own, so spelling never corrects it; before "match" it's only ever "closest" cut short.
+  ["closes match|closes matches|closes game|closes games", [{ k: "agg", v: "closest" }, { k: "thing", v: "match" }]],
   // A sort said as an order ("highest scoring first", "lowest first"): the highest or lowest, never a first match.
   ["highest first|best first|top first|most first|biggest first", { k: "agg", v: "max" }],
   ["lowest first|worst first|fewest first|least first|smallest first", { k: "agg", v: "min" }],
@@ -239,7 +243,7 @@ const TABLE: [string, Sym | Sym[]][] = [
   ["per event|each event|every event|per competition|per tournament|by event", { k: "per", v: "event" }],
   ["rate", { k: "per", v: "rate" }],
   // Filler: the question's frame and conversation, never part of a name.
-  ["the|a|an|is|are|was|were|be|been|has|have|had|do|does|did|what|whats|which|who|whom|how|when|where|why|please|pls|plz|thanks|thank you|hey|hi|hello|yo|ok|okay|so|just|really|actually|basically|like|um|uh|rn|right now|at the moment|currently|now|today's|show|show me|tell|tell me|give|give me|get|find|lookup|look up|search|i want|i want to know|i wanna know|i need|can you|could you|would you|let me know|let me see|i'd like|id like|want|need|know|see|me|my|us|our|we|i|you|their|its|his|her|they|them|it|team's|teams'|ftc|first tech challenge|tech challenge|stat|stats|statistics|info|information|data|number|numbers|result|results|performance|performances|did they|ever had|on record|official|overall|all|any|some|there|here|that|this|these|those|than|then|to|on|into|about|up|out|off|over|under|ago|yet|still|also|too|much|many|good|well|very|quite|pretty|kind of|sort of|exactly|anyone|anybody|someone|somebody|got|get|gets|getting", { k: "filler" }],
+  ["the|a|an|is|are|was|were|be|been|has|have|had|do|does|did|what|whats|which|who|whom|how|when|where|why|please|pls|plz|thanks|thank you|hey|hi|hello|yo|bruno|ok|okay|so|just|really|actually|basically|like|um|uh|rn|right now|at the moment|currently|now|today's|show|show me|tell|tell me|give|give me|get|find|lookup|look up|search|i want|i want to know|i wanna know|i need|can you|could you|would you|let me know|let me see|i'd like|id like|want|need|know|see|me|my|us|our|we|i|you|their|its|his|her|they|them|it|team's|teams'|ftc|first tech challenge|tech challenge|stat|stats|statistics|info|information|data|number|numbers|result|results|performance|performances|did they|ever had|on record|official|overall|all|any|some|there|here|that|this|these|those|than|then|to|on|into|about|up|out|off|over|under|ago|yet|still|also|too|much|many|good|well|very|quite|pretty|kind of|sort of|exactly|anyone|anybody|someone|somebody|got|get|gets|getting", { k: "filler" }],
 ];
 
 /** The awards by the words people use (awards.type values). */
@@ -286,6 +290,11 @@ export const INFORMAL: [string, string][] = [
   // "NJ champs", "Romania champs", "world champs": the championship, as every reader reads it.
   ["champs", "championship"],
   ["ur", "your"], ["u", "you"],
+  // "WR": the world record, as players say it ("current wr").
+  ["wr", "world record"],
+  // "Is" with its letters swapped after a question word ("what si the best team"): two letters are never spell-checked,
+  // and alone "si" can be an event's initials, so only there.
+  ["what si", "what is"], ["who si", "who is"], ["which si", "which is"], ["where si", "where is"], ["when si", "when is"], ["how si", "how is"],
 ];
 
 /** Numbers said as words, read as digits after a word that takes a number ("opr over eighty", "top five teams", "last

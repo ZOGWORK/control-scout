@@ -13,7 +13,7 @@ import { pairHistory } from "../../shared/pairHistory";
 import { rangesOf } from "../../shared/scoreRange";
 import { compactSheet } from "../../shared/factorSheet";
 import { markOffline, savedSeasons, type OfflineSource } from "./saved";
-import { readSaved } from "./seasons";
+import { keepSearchIndexes, readSaved } from "./seasons";
 import { bundleFor, bundlesWith, savedBundles } from "./bundleMeta";
 import { loadBundle } from "./bundles";
 import { bundleTime, packLookup, type EventBundle, type SavedBundle } from "../../shared/eventBundle";
@@ -21,8 +21,8 @@ import { compareFromPacks } from "../../shared/compare";
 import type { CompareView } from "../../shared/api";
 import { answerableOffline } from "./kept";
 import { scoutReadAnswer } from "./scoutReads";
-import { packSearchAnswer, packTeamSummaries } from "./search";
-import { readEventDetail, readMatchViews, readProjections, readSearch, readTeamProfile, readTeamSchedule, type ReadOpts, type SeasonDb } from "./readers";
+import { packSearchAnswer, packTeamSummaries, warmPackSearch } from "./search";
+import { readEventDetail, readMatchViews, readProjections, readSearch, readTeamProfile, readTeamSchedule, warmSearch, type ReadOpts, type SeasonDb } from "./readers";
 import { NotSaved, ranksAnyone, readBoard, readRankingPlaces, readRankings } from "./boards";
 
 let books: { pack: LitePack | null; bySeason: Map<number, RatingBook | null> } | null = null;
@@ -124,10 +124,21 @@ export async function offlineProjections(season: number, code: string): Promise<
 }
 
 export async function offlineSearch(q: string, limit = 15, prefer: ReadonlySet<string> = new Set(), kinds?: ReadonlySet<SearchHit["kind"]>): Promise<{ q: string; hits: SearchHit[] } | null> {
-  return readSaved(undefined, (dbs) => {
+  const got = await readSaved(undefined, (dbs) => {
     const src = dbs[0] && source(dbs[0].season);
     return src ? markOffline({ q, hits: readSearch(dbs, q.slice(0, 80), limit, prefer, kinds) }, src) : null;
   });
+  // The index this search built is kept on the device once the page is idle (seasons.ts), so the next page opened
+  // offline reads it rather than building it again. Nothing to do once it's kept.
+  whenIdle(() => { keepSearchIndexes().catch(() => {}); });
+  return got;
+}
+
+type IdleWindow = typeof globalThis & { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number };
+/** Run `f` once the page is idle (a moment later where there's no idle callback). */
+function whenIdle(f: () => void) {
+  const w = globalThis as IdleWindow;
+  if (w.requestIdleCallback) w.requestIdleCallback(f, { timeout: 5000 }); else setTimeout(f, 500);
 }
 
 const int = (s: string | null) => (s && /^\d+$/.test(s) ? Number(s) : undefined);
@@ -220,6 +231,23 @@ async function savedSeasonAnswer(path: string): Promise<unknown | null> {
   if (fromPack != null) return fromPack;
   const fromSeason = await seasonAnswer(path, url, season);
   return fromSeason ?? packAnswer(path);
+}
+
+let warming: Promise<void> | null = null;
+/**
+ * Get ready to answer offline (lib/api.ts calls this in idle time once there's no signal): decode the saved event
+ * packs search reads, open the saved seasons and build their search index, as the first offline search would. That
+ * search then answers from what's already open, the same answer, only sooner. Never fails; nothing saved, nothing done.
+ */
+export function warmOffline(): Promise<void> {
+  warming ??= (async () => {
+    await warmPackSearch();
+    if (!savedSeasons().length) return;
+    await readSaved(undefined, (dbs) => warmSearch(dbs));
+    // Kept on the device, so the next page opened offline reads the index instead of building it again.
+    await keepSearchIndexes();
+  })().catch(() => {}).finally(() => { warming = null; });
+  return warming;
 }
 
 /** Leaderboard paths a saved season's boards answer (src/lib/offline/boards.ts). */

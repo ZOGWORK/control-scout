@@ -437,6 +437,11 @@ html.ambient-calm .ambient-breath, html.ambient-calm .ambient-glow { display: no
 /* Rows that scroll sideways by touch / wheel without a visible bar (toolbar chips). */
 .no-scrollbar { scrollbar-width: none; }
 .no-scrollbar::-webkit-scrollbar { display: none; }
+/* Report a bug's "Capture this screen" (components/layout/captureScreen.ts): the dialog, the sheet and their backdrop
+   step out of the way while the one frame is taken. Opacity, not display or visibility, so focus stays put. */
+html[data-capturing-screen] :is([data-slot="dialog-overlay"], [data-slot="dialog-content"], [data-slot="sheet-content"]) {
+  opacity: 0 !important; transition: none !important; animation: none !important;
+}
 /* A thin bar sweeping across while a table refreshes. */
 @keyframes cs-progress { 0% { transform: translateX(-100%); } 100% { transform: translateX(300%); } }
 .cs-progress { animation: cs-progress 1s ease-in-out infinite; }

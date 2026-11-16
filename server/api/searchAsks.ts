@@ -27,6 +27,8 @@ import { teamPageSql } from "../../src/shared/teamPages.js";
 import { CURRENT_SEASON, FIRST_PREDICT_SEASON, SEASONS, isLegacy } from "../data/seasons.js";
 import { all } from "../db.js";
 import { rankings } from "./rankings.js";
+import { regionRankings } from "./regionRankings.js";
+import { regionHref } from "../../src/shared/regionRankings.js";
 import { search } from "./search.js";
 import { fuzzyScore } from "./fuzzy.js";
 import { PHASE_COLS, tableOf } from "./teamTableRows.js";
@@ -391,13 +393,15 @@ export async function askAnswer(q: string, ask: Ask, opts: { prefer: ReadonlySet
       const region = ask.region;
       const place = parsePlaces(region.key)?.[0];
       if (!place) return null;
-      const { season, got: r, skipped } = await currentFirst((s) => rankings({ season: s, week: null, places: [place], page: 1 }), (x) => !x.rows.length);
-      const lines = r.rows.slice(0, 5).map((row, i) => teamLine(row.team, row.name, [`#${i + 1} in ${region.name}`, `#${row.rank} worldwide`]));
-      const href = `/rankings?season=${season}&region=${encodeURIComponent(ask.region.key)}`;
+      // The region's rankings page's own view (server/api/regionRankings.ts): the same ranks, ratings, OPRs and records.
+      const { season, got: r, skipped } = await currentFirst((s) => regionRankings({ season: s, week: null, place, page: 1, sort: "rank", team: null }), (x) => !x.rows.length);
+      const lines = r.rows.slice(0, 5).map((row) => teamLine(row.team, row.name, [`#${row.rank} in ${region.name}`, `Rating ${row.rating.toFixed(1)}`,
+        `OPR ${row.opr == null ? "—" : row.opr.toFixed(1)}`, row.wins == null ? "—" : `${row.wins}-${row.losses}-${row.ties}`, `#${row.world} worldwide`]));
+      const href = regionHref(r.region.key, { season });
       const title = `Top teams in ${ask.region.name} · ${seasonLabel(season)}`;
       return answer(q, {
         hits: [], pages: withPage(q, [{ title: `${ask.region.name} rankings (${r.total} teams)`, href }]),
-        card: { kind: "leaderboard", title, lines, ...(lines.length ? {} : { none: `No ranked teams in ${ask.region.name} for ${seasonLabel(season)} yet.` }) },
+        card: { kind: "leaderboard", title, lines, ...(lines.length ? {} : { none: `No rated teams yet in ${ask.region.name} for ${seasonLabel(season)}: a team is ranked after its third rated match.` }) },
         understood: { kind: "question", label: `${title}: the region's rankings${fellBack(skipped, ` in ${ask.region.name}`)}`, place: { key: ask.region.key, name: ask.region.name }, season },
       });
     }
