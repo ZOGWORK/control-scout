@@ -22,7 +22,7 @@ Event videos › 149 more event recordings play, each checked against its event,
 ### Highlights
 - [history] 149 more event recordings play, each checked from the video
 - [fixes] A meet whose stream was deleted and uploaded again plays the new upload
-- [fixes] Videos that aren't FTC (FRC off-season events, meetings, simulators) stay off event pages
+- [fixes] FRC streams, meetings and simulators stay off FTC event pages
 
 ### Event videos
 - The owner's review queue (69) and the channel audit's 323 findings are decided by checking each video: title, description, broadcast date against the event's days, length, and frames where those leave it open. 149 linked, 69 rejected (not FTC), 174 set aside with a specific reason. (`server/data/videoDecisions.ts`, `server/videos/videoDecisions.ts`) (#1602)
