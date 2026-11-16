@@ -159,6 +159,69 @@ describe("the watcher's matcher", () => {
     expect(matchVideo(vid("FTC Iowa League Meet", at), IA, events)).toMatchObject({ kind: "review", why: /fits both/ });
   });
 
+  it("reads a league pair's tournament as one designator: C&N League Tournament is TX-North C&N Tournament", () => {
+    const NTX = { region: "state=TX", words: "texas ntx fit north" };
+    const day = { city: "Dallas", type: "LeagueTournament", start: "2022-12-10", end: "2022-12-10" } as const;
+    const events = [ev("USTXNOCNLT1", "TX-North C&N Tournament", day), ev("USTXNOBTLT", "TX-North B&T Tournament", { ...day, city: "Aledo" })];
+    expect(designators("NTX FTC C&N-League Tournament")).toMatchObject({ letter: "C&N" });
+    expect(designators("SoCal FTC ILT #6 - Leagues E & W").letter).toBeUndefined();
+    const v = matchVideo(vid("NTX FTC C&N-League Tournament (2022.12.10)", { start: "2022-12-10T15:00:00Z" }), NTX, events);
+    expect(v.kind === "add" && v.event.code).toBe("USTXNOCNLT1");
+  });
+
+  it("sets aside one meet over two same-day meets told apart only by a letter or AM and PM", () => {
+    const NTX = { region: "state=TX", words: "texas ntx fit north" };
+    const day = { city: "Flower Mound", type: "LeagueMeet", start: "2024-11-09", end: "2024-11-09" } as const;
+    const at = { start: "2024-11-09T14:00:00Z" };
+    const ab = [ev("USTXNXM1", "FiT-North X-League Meet 1a", day), ev("USTXNXM2", "FiT-North X-League Meet 1b", day)];
+    expect(matchVideo(vid("NTX FTC X-League Meet #1 (2024.11.09)", at), NTX, ab)).toMatchObject({ kind: "ignore", why: /USTXNXM1 and USTXNXM2, same-day meets told apart only by a letter/ });
+    // Its own letter in the title: that one.
+    expect(matchVideo(vid("NTX FTC X-League Meet #1b (2024.11.09)", at), NTX, ab)).toMatchObject({ kind: "add", event: { code: "USTXNXM2" } });
+    const ampm = [ev("USTXNUAM1", "FiT-North U-League AM Meet 1", day), ev("USTXNUPM1", "FiT-North U-League PM Meet 1", day)];
+    expect(matchVideo(vid("NTX FTC U-League meet #1 (2024.11.09)", at), NTX, ampm)).toMatchObject({ kind: "ignore", why: /told apart only by AM and PM/ });
+  });
+
+  it("sets aside an undated upload of a multi-day event: which day it is can't be told", () => {
+    const cmp = [ev("FTCCMP1JEMI", "FIRST Championship Jemison Division", { start: "2025-04-15", end: "2025-04-19", type: "FIRSTChampionship" })];
+    const v = matchVideo(vid("FIRST Championship: Jemison Division - Day 4 Complete", { start: null, published: "2025-04-21T00:00:00Z" }), { region: "country=USA" }, cmp);
+    expect(v).toMatchObject({ kind: "ignore", why: /an upload of FTCCMP1JEMI \(2025-04-15 to 2025-04-19\) with no date: which of its days it is can't be told/ });
+  });
+
+  it("trusts the broadcast's date over a title's slip, only when the event it names doesn't run on the title's date", () => {
+    const NTX = { region: "state=TX", words: "texas ntx fit north" };
+    const m3 = [ev("USTXNEM3", "FiT-North E-League Meet 3", { start: "2025-01-18", end: "2025-01-18", type: "LeagueMeet" })];
+    expect(matchVideo(vid("NTX FTC E-League Meet #3 (2025.01.11)", { start: "2025-01-18T17:30:00Z" }), NTX, m3)).toMatchObject({ kind: "add", event: { code: "USTXNEM3" }, day: "2025-01-18" });
+    // A two-day event the title's date falls in: a re-stream of its other day, for the owner.
+    const two = [ev("USTXNECMP", "FiT-North Championship", { start: "2025-01-17", end: "2025-01-18", type: "Championship" })];
+    expect(matchVideo(vid("NTX FTC North Championship (2025.01.17)", { start: "2025-01-18T15:00:00Z" }), NTX, two)).toMatchObject({ kind: "review", why: /the title's date 2025-01-17 isn't the broadcast's/ });
+    // An upload's only date is its title's: never overridden.
+    expect(matchVideo(vid("NTX FTC E-League Meet #3 (2025.01.11)", { start: null, published: "2025-01-19T09:00:00Z" }), NTX, m3).kind).not.toBe("add");
+  });
+
+  it("sets aside a title naming no event when every event then was played remotely", () => {
+    const remote = [ev("USCPRIQT2", "CP FTC Qualifier #2 REMOTE", { start: "2021-02-08", end: "2021-02-14", remote: true })];
+    expect(matchVideo(vid("CHS FIRST Tech Challenge Event 2/14/2021", { start: null, published: "2021-02-14T23:00:00Z" }), { region: "country=USA" }, remote))
+      .toMatchObject({ kind: "ignore", why: /the only Scout events then are remote ones \(USCPRIQT2\)/ });
+    // An event played in person that day keeps it for the owner.
+    const both = [...remote, ev("USCPMDQ1", "CP Maryland Qualifier", { start: "2021-02-14", end: "2021-02-14" })];
+    expect(matchVideo(vid("CHS FIRST Tech Challenge Event 2/14/2021", { start: null, published: "2021-02-14T23:00:00Z" }), { region: "country=USA" }, both).kind).toBe("review");
+  });
+
+  it("sets aside a dated upload of FTC Events: several events in one video", () => {
+    const day = [ev("USCHSHAQ1", "CHS Harrisonburg Qualifier 1", { start: "2022-02-05", end: "2022-02-05" }), ev("USCHSLAQ1", "CHS Laurel Qualifier 1", { start: "2022-02-05", end: "2022-02-05" })];
+    expect(matchVideo(vid("FIRST Chesapeake February 5th, 2022 FTC Events", { start: null, published: "2022-02-06T02:00:00Z" }), { region: "country=USA" }, day))
+      .toMatchObject({ kind: "ignore", why: /the title says FTC Events/ });
+  });
+
+  it("sets aside an undated upload of a ceremony alone, or of one division's stream", () => {
+    const ga = [ev("USGACMP", "Georgia Championship", { start: "2024-02-17", end: "2024-02-18", type: "Championship" })];
+    const at = { start: null, published: "2024-02-23T00:00:00Z" };
+    expect(matchVideo(vid("Closing Ceremonies - 2024 GA FTC State Championship", { ...at, durationS: 45 * 60 }), { region: "country=USA" }, ga)).toMatchObject({ kind: "ignore", why: /a ceremony alone \(45 minutes/ });
+    expect(matchVideo(vid("2024 GA FTC State Championship - Kamen Division", { ...at, durationS: 340 * 60 }), { region: "country=USA" }, ga)).toMatchObject({ kind: "ignore", why: /one division's stream, with no date/ });
+    // A ceremony with matches in it, or a long one, stays for the owner.
+    expect(matchVideo(vid("2024 GA FTC State Championship - Finals and Awards", { ...at, durationS: 80 * 60 }), { region: "country=USA" }, ga).kind).toBe("review");
+  });
+
   it("a meet split in two keeps its letter: Meet #1 is not Meet #1a", () => {
     const day = { city: "Plano", type: "LeagueMeet", start: "2026-10-31", end: "2026-10-31" } as const;
     const events = [ev("USTXNONIM1", "NTX I-League Meet #1", day), ev("USTXNONIM2", "NTX I-League Meet #1a", day)];
