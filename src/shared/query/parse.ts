@@ -247,11 +247,19 @@ const COND_RE = /(?:^| )(?:(?:where|with|in which|when|that|and) )?(?:the )?(los
 /** "A 226 point match", "226-point games": a score said outright, by either alliance (no comparison word before it:
  *  "over 200 points" is a floor). Its number is never a team. */
 const EXACT_RE = /(?:^| )(?<!(?:than|over|above|exceeding|beyond|least|most|under|below) )(?:an? )?(\d{1,4})[ -]?(?:points?|pts|pt)(?= (?:match|matches|game|games)(?: |$))/;
+/** "Closest match in <season> above 500": a bare comparison ending a closest match's question, both alliances' scores
+ *  over it (a close match is level, so its two scores are). Read only beside a closest measure's words (the lexicon's). */
+const BARE_RE = /(?:^| )(over|more than|above|at least|under|less than|below|at most) (\d{2,4})$/;
+let closeWords: string[] | null = null;
+const saysClosest = (q: string) => (closeWords ??= LEXICON.filter((e) => e.syms.some((s) => s.k === "agg" && s.v === "closest")).map((e) => e.words.join(" "))).some((w) => ` ${q} `.includes(` ${w} `));
 export function scoreCondOf(q: string): { cond: ScoreCond; rest: string; said: string } | null {
   const m = COND_RE.exec(q);
   if (!m) {
     const x = EXACT_RE.exec(q);
-    return x ? { cond: { side: "either", op: "=", n: Number(x[1]) }, rest: `${q.slice(0, x.index)} ${q.slice(x.index + x[0].length)}`.replace(/\s+/g, " ").trim(), said: x[0].trim() } : null;
+    if (x) return { cond: { side: "either", op: "=", n: Number(x[1]) }, rest: `${q.slice(0, x.index)} ${q.slice(x.index + x[0].length)}`.replace(/\s+/g, " ").trim(), said: x[0].trim() };
+    const b = BARE_RE.exec(q);
+    if (!b || !saysClosest(q.slice(0, b.index))) return null;
+    return { cond: { side: "both", op: OP.find(([re]) => re.test(b[1]))![1], n: Number(b[2]) }, rest: q.slice(0, b.index).trim(), said: b[0].trim() };
   }
   const op = OP.find(([re]) => re.test(m[2]))![1];
   return { cond: { side: SIDE[m[1]], op, n: Number(m[3]) }, rest: `${q.slice(0, m.index)} ${q.slice(m.index + m[0].length)}`.replace(/\s+/g, " ").trim(), said: m[0].trim() };
@@ -296,6 +304,8 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     if (new RegExp(`(?:^| )(?:over|across|through|throughout) (?:the )?${span}(?= |$)`).test(q)) symbols.add("trend");
   }
   let rate = false;
+  /** Where "top" stood before a count ("top 10"), read as the count's word when another measure is said. */
+  let topAt: number | null = null;
   const p: Parsed = {
     q: raw, teams: [], event: null, place: null, time, level: null, finals: false, eventKind: null, alliance: null, worlds: false, states: false, award: null, agg: null,
     n: null, matchNumber: null, noPenalties: false, symbols: [], intent: null, rule: null, leftover: [], unexplained: [], complete: false,
@@ -439,7 +449,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     const n = Number(t.w), prev = toks[i - 1]?.w, next = toks[i + 1]?.w;
     if (prev && MATCH_BEFORE.test(prev) && n <= 400) { p.matchNumber = n; t.used = true; toks[i - 1].used = true; symbols.add("thing:match"); if (prev !== "match" && prev !== "game") p.level = "qual"; continue; }
     // "Top 5 teams", and "top 3" ending the query.
-    if (prev && COUNT_BEFORE.test(prev) && n <= 50 && (next ? !ctx.names.team(Number(next)) : !p.teams.length)) { p.n = n; t.used = true; continue; }
+    if (prev && COUNT_BEFORE.test(prev) && n <= 50 && (next ? !ctx.names.team(Number(next)) : !p.teams.length)) { p.n = n; t.used = true; if (prev === "top") topAt = i - 1; continue; }
     // A size in teams ("more than 40 teams", "at least 40 teams", "40 or more teams"): a count, never team 40.
     const sized = /^teams?$/.test(next ?? "") || (next === "or" && /^(?:more|fewer|less)$/.test(toks[i + 2]?.w ?? "") && /^teams?$/.test(toks[i + 3]?.w ?? ""));
     if (sized && (SIZE_BEFORE.test(prev ?? "") || next === "or")) { t.used = true; continue; }
@@ -517,6 +527,13 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       const k = symKey(s);
       if (k && s.k !== "award") symbols.add(k);
     }
+  }
+  // "Top 10 closest matches": "top" before a count only says how many when another measure follows it, never the
+  // highest as well. Its "max" is dropped, so the measure said is the one read.
+  const saysMax = (w: string) => LEXICON.some((e) => e.words.length === 1 && e.words[0] === w && e.syms.some((s) => s.k === "agg" && s.v === "max"));
+  if (topAt != null && symbols.has("agg:max") && !toks.some((t, k) => k !== topAt && saysMax(t.w))) {
+    const other = [...symbols].find((s) => s.startsWith("agg:") && s !== "agg:max");
+    if (other) { symbols.delete("agg:max"); p.agg = other.slice(4) as Parsed["agg"]; }
   }
   // Reaching Worlds said beside a forecast ("chance of making worlds", "odds of qualifying for worlds"): the chance to
   // advance there, never a count of appearances or qualification matches.
