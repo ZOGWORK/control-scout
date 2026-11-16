@@ -72,8 +72,11 @@ const { CLIP_LEAD_S, actualStart } = await import("../src/shared/recording.js");
 const { localToUtcMs } = await import("../src/shared/time.js");
 const { FRAME_TIMINGS } = await import("../server/data/frameTimings.js");
 /** --live: what the live site serves, by video and event (its starts). */
+const liveText = (path: string) => {
+  try { return readFileSync(path, "utf8"); } catch (e) { console.error(`--live ${path}: can't be read (${(e as Error).message.split("\n")[0]})`); process.exit(2); }
+};
 const LIVE = new Map<string, Record<string, number>>(
-  arg("live") ? dataRows<{ videoId: string; code: string; starts: Record<string, number> }>(readFileSync(arg("live")!, "utf8")).map((f) => [`${f.videoId}|${f.code}`, f.starts]) : [],
+  arg("live") ? dataRows<{ videoId: string; code: string; starts: Record<string, number> }>(liveText(arg("live")!)).map((f) => [`${f.videoId}|${f.code}`, f.starts]) : [],
 );
 // A --live copy that gives no rows (a wrong file) would protect no live clip: stop, as an unknown --codes does.
 if (arg("live") && !LIVE.size) { console.error(`--live ${arg("live")}: no frame timing rows in it (a copy of main's server/data/frameTimings.ts?)`); process.exit(2); }
@@ -211,7 +214,7 @@ const AUTO_CONFIRM = [12, 20];
 /** A read stands only when frames before and after its start agree: 70 s on (TeleOp), the overlay names the same match
  *  and its timer gives the same start; 25 s before, that match isn't running yet. One read alone is never a start
  *  (a wrong match number on screen for a few seconds, a replay, a digit read wrong). */
-async function confirmed(page: Page, label: string, start: number, own = false, other?: { start?: number }): Promise<string | null> {
+async function confirmed(page: Page, label: string, start: number, own = false, other?: { start?: number; own?: boolean }): Promise<string | null> {
   // A frame that reads nothing (the player still buffering after a long seek, the timer not caught running) says
   // nothing either way, so a later point of TeleOp is tried; a frame that reads another match or start disagrees.
   let why = "";
@@ -226,7 +229,8 @@ async function confirmed(page: Page, label: string, start: number, own = false, 
         // A recording cut mid-match: the start stands if an Auto read, early in the same match, agrees with it.
         if (off === "lost" && (await autoAgrees(page, label, start))) { why = ""; break; }
         // The first read came after a cut: the other start may be the real one (checked by the caller).
-        if (off === "gained" && other) other.start = at.start;
+        // Its division evidence goes with it: a read here that showed the own division counts for the other start too.
+        if (off === "gained" && other) { other.start = at.start; other.own = own; }
         return `${after} s on its timer gave a start ${Math.round(at.start - start)} s off`;
       }
       why = "";
@@ -378,11 +382,11 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
     const i = named.reduce((a, b) => (off(b) < off(a) ? b : a));
     tried.add(i);
     if (seen.has(i) || reads() >= budget) return;
-    const other: { start?: number } = {};
+    const other: { start?: number; own?: boolean } = {};
     const no = await confirmed(page, r.label!, r.start, r.division === "own", other);
     if (no == null) { seen.set(i, r.start); return; }
     // The read came after a cut in the recording (a later read gives a later start): the later start, checked the same way.
-    if (other.start != null && reads() < budget && (await confirmed(page, r.label!, other.start, r.division === "own")) == null) {
+    if (other.start != null && reads() < budget && (await confirmed(page, r.label!, other.start, r.division === "own" || !!other.own)) == null) {
       seen.set(i, other.start);
       log(`    ${r.label} at ${r.start} s read after a cut in the video; its start is ${other.start} s`);
       return;
