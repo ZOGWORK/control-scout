@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.9.1 — 2026-11-16
+## 6.9.2 — 2026-11-16
 
 Home › the search suggestions show the whole FTC world, plus your own team.
 
@@ -26,6 +26,21 @@ Home › the search suggestions show the whole FTC world, plus your own team.
 
 ### Changed
 - Home: the search suggestion chips name no fixed team and lean on no one region. They are leaderboards, winners, counts, high scores and filtered lists from around the world ("Who won DECODE", "Best in Romania by auto", "Top teams in Brazil", "How many teams in Canada"), and an hour's six never name one place twice. With My team set, two of the six are about that team, shown by number and name ("4215 Hypnotic Robotics record") and run by number, so they always find it. The chips' rows stay in place while the team's name loads, so nothing moves. The search box's example list is world-general too. (`src/shared/homeSuggestions.ts`, `src/components/home/HeroSearch.tsx`, `src/components/search/discover.tsx`) (#1599)
+
+## 6.9.1 — 2026-11-16
+
+Profile pictures: any account can have one, and it's the same picture in Control Point.
+
+### Highlights
+- [appearance] Add a profile picture in Settings › Profile
+- [workspace] The same picture in Control Scout and Control Point
+- [share] Match videos show the contributor's picture next to "Video by"
+
+### Added
+- Settings › Profile › Profile picture: add, change or remove one. The app crops the middle square to 512 px before it sends it, so no photo details (location, camera) leave the device. It shows in the account footer and menu. (`src/components/settings/ProfilePictureRow.tsx`, `src/lib/avatarImage.ts`, `src/components/UserAvatar.tsx`) (#1596)
+- A linked account's picture is the shared account's, kept by Control Point: set or removed in either app, it changes in the other. A change Control Point can't take at once is sent again on the next account read, and a Control Point too old to know about pictures never removes one. (`server/auth/avatars.ts`, `server/auth/controlPoint.ts`, docs/shared-accounts.md "Profile pictures")
+- Match videos: the credit shows the contributor's picture beside their name, and their profile page beside the heading. (`src/components/contributors/VideoCredit.tsx`, `src/pages/ContributorPage.tsx`)
+- Pictures are served from `/api/avatars/<user>/<version>`, cached for good (a new picture gets a new address). Uploads are PNG, JPEG or WebP, checked by the file's own bytes. Migration 92 (`user_avatars`, never in the offline snapshot).
 
 ## 6.9.0 — 2026-11-16
 

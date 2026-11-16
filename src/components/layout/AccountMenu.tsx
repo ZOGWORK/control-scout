@@ -25,6 +25,7 @@ import { toast } from "../ui/sonner";
 import { cn } from "../cn";
 import { clearVouch, noteVouch, VOUCH_URL, vouchPending } from "../../lib/cpVouch";
 import { MergeScreen, ProviderButtons, useShortlistMerge } from "./AccountMerge";
+import { UserAvatar } from "../UserAvatar";
 
 const SYNC_LABEL: Record<string, string> = { synced: "Synced", syncing: "Syncing…", offline: "Offline: will sync", error: "Sync error: will retry", local: "This device only" };
 
@@ -148,10 +149,10 @@ function Tip({ on, label, children }: { on: boolean; label: string; children: Re
   );
 }
 
-function Avatar({ initial, dot }: { initial: string; dot: string }) {
+function Avatar({ name, url, dot }: { name: string; url?: string | null; dot: string }) {
   return (
-    <span className="relative flex size-8 shrink-0 items-center justify-center rounded-full bg-accent/15 text-sm font-semibold text-accent-text">
-      {initial}
+    <span className="relative flex size-8 shrink-0">
+      <UserAvatar url={url} name={name} />
       <span className={cn("absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full ring-2 ring-secondary", dot)} aria-hidden />
     </span>
   );
@@ -169,7 +170,6 @@ export function AccountFooter({ place, onNavigate }: { place: "sidebar" | "rail"
   const rail = place === "rail";
   const name = user ? user.displayName || user.email || "Your account" : "";
   const status = offlineAccount ? STATUS.offline : STATUS[sync] ?? STATUS.local;
-  const initial = (name || "?").trim().charAt(0).toUpperCase();
   const leave = () => { setOpen(false); onNavigate?.(); };
   const signOutNow = () => signOut().then(() => { setOpen(false); toast("Signed out. Your data stays on this device"); });
   const toggle = { "data-account-toggle": "", onClick: () => setOpen((o) => !o), "aria-expanded": open, "aria-controls": panelId };
@@ -200,7 +200,7 @@ export function AccountFooter({ place, onNavigate }: { place: "sidebar" | "rail"
           <Tip on label={user ? `${name}: ${status.label}` : "Sign in"}>
             <button type="button" {...toggle} aria-label={user ? `Account: ${name}` : "Sign in"}
               className={cn("flex size-10 items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring/60", user ? "hover:bg-text-base/[0.06]" : "text-text-muted hover:bg-text-base/[0.06] hover:text-text-base")}>
-              {user ? <Avatar initial={initial} dot={status.dot} /> : <LogIn className="size-[18px]" />}
+              {user ? <Avatar name={name} url={user.avatarUrl} dot={status.dot} /> : <LogIn className="size-[18px]" />}
             </button>
           </Tip>
         </div>
@@ -212,7 +212,7 @@ export function AccountFooter({ place, onNavigate }: { place: "sidebar" | "rail"
           {user ? (
             <button type="button" {...toggle} aria-label={`Account: ${name}`}
               className="flex h-11 min-w-0 flex-1 items-center gap-2.5 rounded-lg px-1.5 text-left outline-none hover:bg-text-base/[0.05] focus-visible:ring-2 focus-visible:ring-ring/60">
-              <Avatar initial={initial} dot={status.dot} />
+              <Avatar name={name} url={user.avatarUrl} dot={status.dot} />
               <span className="min-w-0">
                 <span className="block truncate text-sm font-medium leading-tight">{name}</span>
                 <span className="block truncate text-xs leading-tight text-text-muted">{status.label}</span>
