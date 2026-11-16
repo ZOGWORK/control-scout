@@ -45,13 +45,20 @@ let byKey: Map<string, Record<string, number>> | null = null;
 /** Two placed starts closer than this (a match's 2:38 less a read's slack) overlap: one of them is wrong. */
 const OVERLAP_S = 152;
 
+/** The closest two starts can be when the recording cut the end of the first (a match's 2:38 less the most one cut
+ *  loses, LOSS_S in scripts/lib/videoFrames.ts). */
+const CUT_S = 98;
+
 /** A row's starts that can be clips: any two closer than a match overlap (a misread, or an older read written before
- *  the plausibility check), and neither is used. */
-export function plausibleStarts(starts: Record<string, number>): Record<string, number> {
+ *  the plausibility check), and neither is used. Unless the recording cut the first short: two starts no closer than
+ *  CUT_S whose clip openings were each checked and named their own match (`opens`, scripts/video-frames.ts) stand. */
+export function plausibleStarts(starts: Record<string, number>, opens?: Record<string, number>): Record<string, number> {
   const sorted = Object.entries(starts).sort((a, b) => a[1] - b[1]);
   const bad = new Set<string>();
   for (let i = 1; i < sorted.length; i++) {
-    if (sorted[i][1] - sorted[i - 1][1] < OVERLAP_S) { bad.add(sorted[i][0]); bad.add(sorted[i - 1][0]); }
+    const gap = sorted[i][1] - sorted[i - 1][1];
+    const cut = gap >= CUT_S && opens?.[sorted[i][0]] != null && opens?.[sorted[i - 1][0]] != null;
+    if (gap < OVERLAP_S && !cut) { bad.add(sorted[i][0]); bad.add(sorted[i - 1][0]); }
   }
   return Object.fromEntries(sorted.filter(([l]) => !bad.has(l)));
 }
@@ -59,7 +66,7 @@ export function plausibleStarts(starts: Record<string, number>): Record<string, 
 /** A row's starts that can be clips: plausible, and, where its clip openings were checked, only those that open on
  *  their match. */
 const playable = (f: FrameTiming) => {
-  const s = plausibleStarts(f.starts);
+  const s = plausibleStarts(f.starts, f.opens);
   return f.opens ? Object.fromEntries(Object.entries(s).filter(([l]) => f.opens![l] != null || f.unconfirmed?.includes(l))) : s;
 };
 const keyed = () => new Map(FRAME_TIMINGS.map((f) => [`${f.videoId}|${f.code}`, playable(f)]));
