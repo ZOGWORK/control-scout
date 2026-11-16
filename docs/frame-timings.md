@@ -84,6 +84,10 @@ match goes to review; one whose overlay can't be read there is missing with "ove
 start". A row with `opens` plays only the starts in it. `--verify` checks the openings of rows read before this, without
 reading their starts again.
 
+An opening is read paused at its second, so the frame read is the one the clip opens on. A playing read lands about a
+second later by the time it's taken: LTCMP 2024 Q20, asked 8948, read 8948.9 with "Qualification 20 of 40" already in,
+while 8948 itself is a sponsor slate (the paused read gives 8951). Timer reads still play: the clock has to run.
+
 What a frame names (`overlayLabel`): "Qualification N of M", "Finals Match N", or one "Match N". A card naming several
 names none, except the match its "Up Next" header names; a match a team "advances to" is a later one, never the one on
 screen; a bracket (three different M-numbers in its boxes) names none, its "advances to" line cut off or not; a replay
