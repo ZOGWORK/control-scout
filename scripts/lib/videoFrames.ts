@@ -304,7 +304,7 @@ export function judge(ms: M[], seen: Map<number, number>, shift: number | null, 
     missing.set(m.label,
       dropped.has(i) ? "its frame read disagrees with the matches around it"
       : read.has(i) ? "its frames didn't confirm a start"
-      : m.scheduled && (kept.length || sKept.size) ? SCHEDULED_UNREAD
+      : m.scheduled && (kept.length || sKept.size || read.size) ? SCHEDULED_UNREAD
       : before != null && after != null ? "in a gap: the reads either side disagree where the video sits, so it may not be in the video"
       : !kept.length && !read.size ? NOTHING_READ
       : "no frame read of it, and no agreeing reads on both sides");

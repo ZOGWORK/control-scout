@@ -93,6 +93,11 @@ describe("the frame reader", () => {
     expect(tie.missing.get("Q4")).toBe("its frame read disagrees with the matches around it");
     // Nothing is filled between two reads for a scheduled match, however the reads agree.
     expect(j.missing.get("Q3")).toBe(SCHEDULED_UNREAD);
+    // Frames named a match but none confirmed a start: the others are still unread for want of a time, not "nothing read".
+    const none = judge(ms, new Map(), null, 10_000, new Set([2]));
+    expect(none.missing.get("Q1")).toBe(SCHEDULED_UNREAD);
+    expect(none.missing.get("Q3")).toBe("its frames didn't confirm a start");
+    expect(judge(ms, new Map(), null, 10_000, new Set()).missing.get("Q1")).toBe(NOTHING_READ);
   });
 
   it("keeps the clock's reads and fills only clock matches when scheduled ones sit between them", () => {
