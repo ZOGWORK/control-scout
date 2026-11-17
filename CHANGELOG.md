@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 7.6.2 — 2026-11-17
+## 7.6.3 — 2026-11-17
 
 Videos › 97 matches from two 2025 events (West Lafayette QT1 and the FiT-North F&T League Tournament) get a clip, each opening on a frame that names its match and its event.
 
@@ -26,6 +26,18 @@ Videos › 97 matches from two 2025 events (West Lafayette QT1 and the FiT-North
 
 ### Fixed
 - Videos (`server/data/frameTimings/2025.ts`): West Lafayette QT1 (48 of 48) and FiT-North F&T League Tournament (49 of 53) get frame-checked starts. Each start's opening frame names its match and this event. FiT-North's Q3 and M4 stay without a clip because the event name wasn't legible on their frames, and M3 and M10 because no frame confirmed a start. (#1734)
+
+## 7.6.2 — 2026-11-17
+
+Videos › 105 matches from three 2025 events (Greenwood QT and the NorCal Regional Championship's Gold and Silicon divisions) get a clip, each opening on a frame that names its match and its event.
+
+### Highlights
+- [fixes] 105 more 2025 matches get a clip
+- [fixes] Each opens on a frame naming its match
+- [fixes] No clip already playing changes
+
+### Fixed
+- Videos (`server/data/frameTimings/2025.ts`): Greenwood QT (52 of 52, over its two videos), NorCal Regional Championship Gold Division (27 of 50) and Silicon Division (26 of 50) get frame-checked starts. Each start's opening frame names its match and its own division. The NorCal matches left out had no frame read that confirms a start. (#1731)
 
 ## 7.6.1 — 2026-11-17
 
