@@ -23,6 +23,11 @@ export function conferenceShown(region: string | null | undefined, my: { team: n
 
 /** Whether this visitor sees conference rankings for a league in `region` ("USNJ") in `season`. */
 export function useConferenceGate(region: string | null | undefined, season: number | null = null): boolean {
+  return useConferenceGateState(region, season).shown;
+}
+
+/** The gate and whether it's still deciding (My team's region not read yet): a page that says "hidden" waits for it. */
+export function useConferenceGateState(region: string | null | undefined, season: number | null = null): { shown: boolean; deciding: boolean } {
   const my = useMyConference(season, region?.toUpperCase() === CONFERENCE_REGION);
-  return conferenceShown(region, my);
+  return { shown: conferenceShown(region, my), deciding: my.loading };
 }
