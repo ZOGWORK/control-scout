@@ -60,7 +60,9 @@ export function shapeProblems(pr: PrView): { mark: ReturnType<typeof readMarker>
   // person's change. A PR changing nothing has nothing to merge.
   const own = pr.files.find((f) => f.path === file);
   if (!own) problems.push(`doesn't change ${file}`);
-  else if (own.changeType && own.changeType !== "MODIFIED") problems.push(`${file} ${own.changeType.toLowerCase()}, not changed in place`);
+  // Fails closed: a file whose change GitHub didn't name isn't known to be changed in place.
+  else if (!own.changeType) problems.push(`${file}: no change type from GitHub, not known to be changed in place`);
+  else if (own.changeType !== "MODIFIED") problems.push(`${file} ${own.changeType.toLowerCase()}, not changed in place`);
   return { mark, file, problems };
 }
 
