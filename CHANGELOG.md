@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 7.4.2 — 2026-11-17
+## 7.4.4 — 2026-11-17
 
 Event videos › Scout now keeps whether each video's owner lets it play on other sites, the first step to clips of such videos opening on YouTube.
 
@@ -26,6 +26,36 @@ Event videos › Scout now keeps whether each video's owner lets it play on othe
 
 ### Fixed
 - Event videos: whether a video's owner lets it play on other sites is read with its other facts (YouTube's `status.embeddable`, a watch page's `playableInEmbed`: false from any page, true only from one that plays) and kept (migration 95). A video read before that was kept is read once more with the API key. 20 of 1,771 linked videos have embedding off; their clips can't play in the app's player, and the next releases open them on YouTube instead. (`server/videos/youtube.ts`, `server/videos/recordings.ts`) (#1665)
+
+## 7.4.3 — 2026-11-17
+
+Search › a place, its leagues and New Jersey's conferences answer directly: "nj", "nj leagues", "nj conferences", "East Bergen".
+
+### Highlights
+- [rankings] "nj" links New Jersey's rankings, leagues and conferences
+- [rankings] "nj leagues" lists New Jersey's leagues
+- [rankings] "nj conferences" lists all eight, with each one's winner
+- [rankings] A conference's name alone opens its rankings
+- [fixes] "new york city" searches find NYC's events
+
+### Search
+- A place alone ("nj", "New Jersey", "USA:NJ") keeps "All events in New Jersey" first and links the place's rankings, its leagues and, for New Jersey, its conferences; "nj rankings", "nj leagues" and "nj conferences" link the one they ask for first (`src/shared/placePages.ts`, #1678).
+- "nj leagues" / "leagues in new jersey": the place's leagues listed, each to its standings; the Leagues page takes `?q=` to open filtered.
+- "nj conferences" / "new jersey conference": every conference of the latest season played out, each with its winner, then the next season's, coming up.
+- A conference's name alone or with its rankings ("East Bergen", "far north rankings") opens its table, unless a team or league goes by those words; conference answers now list their tournament and team as cards.
+- A city FIRST runs as its own region, said in full ("new york city championship"), reads as its events' short form (NYC).
+
+## 7.4.2 — 2026-11-17
+
+Rankings › a conference page opened for a team starts at its top: header, note and movers first, the team's row highlighted below.
+
+### Highlights
+- [rankings] Conference pages open at the top, not scrolled to the table
+- [rankings] The team you came from stays highlighted in the table
+- [fixes] Climbers, fallers and the winner are seen before the table
+
+### Fixes
+- Conference rankings (`src/components/ConferenceSection.tsx`): a link naming a team (`?team=4215`) no longer scrolls the page down to its row, which put the table first and the header, season note, movers and winner out of view; the row is on the page it opens on and highlighted, as before (#1682).
 
 ## 7.4.1 — 2026-11-17
 
