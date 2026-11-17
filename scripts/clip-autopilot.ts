@@ -142,6 +142,12 @@ const commitEach = (files: [string, string][]) => { for (const [f, msg] of files
 const push = (branch: string) => git("push", "--quiet", "--no-verify", "origin", `HEAD:refs/heads/${branch}`);
 const askReview = (pr: number) => sh("gh", ["pr", "comment", String(pr), "--body", "@loopyreviews-bot review"], { ok: true });
 const today = new Date().toISOString().slice(0, 10);
+/** Closes an autopilot PR; false (logged) where GitHub refused or couldn't be reached: the PR is still open. */
+function closePr(pr: number, comment: string): boolean {
+  const r = sh("gh", ["pr", "close", String(pr), "--comment", comment], { ok: true });
+  if (r.code) log(`#${pr}: couldn't be closed (gh exit ${r.code}); still open, tried again next run`);
+  return !r.code;
+}
 
 /** A data PR's words: title, description, mark, CHANGELOG entry ("VERSION"/"#PR" filled at release), commit line. */
 type PrText = { title: string; body: string[]; marker: string; entry: string; what: string };
@@ -189,8 +195,7 @@ for (const p of open) {
     const live = new Map(fileRows<Keyed>(mainText(file)).map((r) => [rowKey(r), r]));
     const keep = rows.filter((r) => !problems(r, live.get(rowKey(r))).length);
     if (!keep.length) {
-      sh("gh", ["pr", "close", String(p.number), "--comment", "Main changed these rows since this read (another read reached them first): closed, the next run reads anything still due."], { ok: true });
-      log(`#${p.number}: closed, main read its rows meanwhile`);
+      if (closePr(p.number, "Main changed these rows since this read (another read reached them first): closed, the next run reads anything still due.")) log(`#${p.number}: closed, main read its rows meanwhile`);
       continue;
     }
     // Its words made again from the rows it keeps: rows main took meanwhile leave its title, entry and mark too.
@@ -268,8 +273,9 @@ function openPr(o: { file: string; rows: Keyed[]; branch: string } & PrText): bo
   } catch (e) {
     // A PR without its release would be rebuilt with another release's entry: closed instead, its rows read again
     // next run. Either way the run goes on to the next PR, season and the sweep.
-    log(`"${o.title}": couldn't be opened (${(e as Error).message})${pr ? `; #${pr} closed without its release` : ""}`);
-    if (pr) sh("gh", ["pr", "close", String(pr), "--comment", "The autopilot couldn't finish this PR's release (CHANGELOG and version): closed; the next run reads these rows again."], { ok: true });
+    log(`"${o.title}": couldn't be opened (${(e as Error).message})`);
+    // Left open where the close fails too: the next run rebuilds it, its release made again from its rows.
+    if (pr && closePr(pr, "The autopilot couldn't finish this PR's release (CHANGELOG and version): closed; the next run reads these rows again.")) log(`#${pr}: closed without its release`);
     return false;
   } finally {
     // A step that failed halfway leaves its files behind: the clone is the autopilot's own, so put back to main.
