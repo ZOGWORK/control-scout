@@ -34,7 +34,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
 import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, playedCount } from "./lib/videoFrames";
-import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, elapsed, overlayDivision, leadIn, judge, NOTHING_READ, overlayLabel, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M } from "./lib/videoFrames";
+import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, elapsed, overlayDivision, leadIn, judge, NOTHING_READ, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M } from "./lib/videoFrames";
 
 // The command line: --name value or --name=value for the value flags, --name alone for the others. Anything else stops
 // the run before it reads: a misspelt flag mustn't quietly read (and write) every recording of the season.
@@ -162,9 +162,11 @@ const PLAIN_TIMERS = [
   { where: "plain" as const, clip: { x: 595, y: 594, width: 90, height: 36 }, plain: true },
   { where: "plain" as const, clip: { x: 595, y: 684, width: 90, height: 34 }, plain: true },
 ];
-/** Best-of-3 semifinals and finals (2019–2022): the overlay names every playoff "Semifinal 1 Match 2" or "Finals
- *  Match 1", never a bare "Match 1" (overlayLabel). */
-const SEMIFINALS = season <= 2022;
+/** Best-of-3 semifinals and finals (2019–2023; double elimination from 2024, whose playoffs FIRST numbers M1–M13): the
+ *  overlay names every playoff "Semifinal 1 Match 2" or "Finals Match 1", never a bare "Match 1" (overlayLabel).
+ *  CENTERSTAGE's (2023) too: USMOKSCMP's M2 opens on "Semifinal 2 Match 1", which a read losing "Semifinal" took
+ *  for M1, pulling the clip. */
+const SEMIFINALS = season <= 2023;
 const TIMER_CROPS: { where: "bottom" | "top" | "plain"; clip: { x: number; y: number; width: number; height: number }; loose?: boolean; plain?: boolean }[] =
   season <= 2022 ? [...PLAIN_TIMERS, ...TIMERS] : TIMERS;
 
@@ -176,26 +178,74 @@ async function timer(page: Page): Promise<{ where: "bottom" | "top" | "plain"; l
     if (left == null || left > AUTO_S + SWITCH_S + TELEOP_S) continue;
     return { where: t.where, left, auto: false };
   }
-  return null;
+  // None of the known places: the bar found in the frame itself (overlayBand), its timer read in the centre column.
+  // Read as a bottom bar: a reading over 2:00 is then a 2:30 count's Auto (elapsed), which a 2:00 TeleOp never shows.
+  const band = await barBand(page);
+  if (!band) return null;
+  // The digits fill the bar's upper half; the icon under them (a gamepad, a hand) reads as digits too ("1:17" as "127").
+  const top = Math.max(0, band.top - 4);
+  const clip = { x: 565, y: top, width: 150, height: Math.min(720, band.top + Math.round((band.bottom - band.top) * 0.55) + 4) - top };
+  const left = secondsOf((await digits.recognize(await page.screenshot({ clip }))).data.text);
+  return left == null || left > AUTO_S + SWITCH_S + TELEOP_S ? null : { where: "bottom", left, auto: false };
+}
+
+/** Where the score bar is in the frame on screen (overlayBand, run in the page on the screenshot's own pixels: a
+ *  picture drawn from a data URL never taints the canvas). Null: no bar on screen. */
+async function barBand(page: Page): Promise<{ top: number; bottom: number } | null> {
+  const png = (await page.screenshot()).toString("base64");
+  await page.evaluate(async (png) => {
+    const img = new Image();
+    img.src = `data:image/png;base64,${png}`;
+    await img.decode();
+    const c = document.createElement("canvas");
+    c.width = img.width; c.height = img.height;
+    const g = c.getContext("2d")!;
+    g.drawImage(img, 0, 0);
+    (window as any).__frame = g.getImageData(0, 0, c.width, c.height);
+  }, png);
+  return page.evaluate(`(${overlayBand.toString()})(window.__frame.data, window.__frame.width, window.__frame.height)`) as Promise<{ top: number; bottom: number } | null>;
 }
 
 const now = (page: Page) => page.evaluate(() => document.querySelector("video")!.currentTime);
 
 /** FTC Live's bottom bar's top row, over the timer's row: the event (or division) on its left half, the match
- *  ("Qualification 8 of 23", "Playoff Match 1") on its right. */
+ *  ("Qualification 8 of 23", "Playoff Match 1") on its right half, read on its own (readRow). */
 const LABEL_ROW = { x: 0, y: 548, width: 1280, height: 56 };
-const MATCH_HALF = { ...LABEL_ROW, x: 640, width: 640 };
 /** The match the bottom bar's row names, read on its own: a frame whose whole read names nothing because a busy field
  *  and crowd threw the page layout off, the bar's line lost with it (USARBEQ 2024 Q8 at 7097 s: the whole frame read a
  *  jumble, the row alone "Qualification 8 of 23"). The match's half alone: the whole row can lose it too, to the logo
- *  and event name beside it (USCHSGAQ1 2024 M1 at 19167 s, its half "Playoff Match 1"). A clip opening's check only,
- *  so a match's placement is read as before. On a shared stream the row has to name this division too, as a whole
- *  frame's read does. */
+ *  and event name beside it (USCHSGAQ1 2024 M1 at 19167 s, its half "Playoff Match 1"). Placement reads use it too:
+ *  on CENTERSTAGE's (2023) streams nearly every frame of play loses the bar's line in a whole-frame read (NLBNM1 at
+ *  3300 s: the row alone "Qualification 4 of 23"), so a video read nothing. A row-named read still needs the timer seen
+ *  running and the confirming reads before and after its start, as any read does. On a shared stream the row has to
+ *  name this division too (rowLabel), as a whole frame's read does. A bar somewhere else (overlayBand: Arizona's
+ *  CENTERSTAGE bar flush with the top, "Qualification 3 of 32" in the strip over it) has the row over it read instead
+ *  (rowAbove). CENTERSTAGE's bottom bar sits its line 8 px lower than later seasons' (ROW_LOWER): read at the usual
+ *  row, tesseract runs "9 of" into "90f" there (USTXNTM1 2023 at 1108 s), so that row is read too. */
+const ROW_LOWER = 8;
 async function labelRow(page: Page, ctx: { own: string; others: string[] } | undefined): Promise<string | null> {
-  const label = overlayLabel((await rowOcr.recognize(await page.screenshot({ clip: MATCH_HALF }))).data.text as string, SEMIFINALS);
-  if (!label || !ctx) return label;
-  const row = (await rowOcr.recognize(await page.screenshot({ clip: LABEL_ROW }))).data.text as string;
-  return overlayDivision(row, ctx.own, ctx.others) === "own" ? label : null;
+  for (const row of [LABEL_ROW, { ...LABEL_ROW, y: LABEL_ROW.y + ROW_LOWER }]) {
+    const fixed = await readRow(page, row, ctx);
+    if (fixed) return fixed;
+  }
+  const band = await barBand(page);
+  const row = band && rowAbove(band, LABEL_ROW);
+  return row ? readRow(page, row, ctx) : null;
+}
+async function readRow(page: Page, row: { x: number; y: number; width: number; height: number }, ctx: { own: string; others: string[] } | undefined): Promise<string | null> {
+  const half = (await rowOcr.recognize(await page.screenshot({ clip: { ...row, x: row.width / 2, width: row.width / 2 } }))).data.text as string;
+  if (!overlayLabel(half, SEMIFINALS) || !ctx) return rowLabel(half, null, undefined, SEMIFINALS);
+  return rowLabel(half, (await rowOcr.recognize(await page.screenshot({ clip: row }))).data.text as string, ctx, SEMIFINALS);
+}
+
+/** The match a frame names: the whole frame's read, else the bar's row on its own (labelRow). `division`: whose the
+ *  frame is on a shared stream; a match the row named there is this division's (labelRow checked the row). */
+async function frameLabel(page: Page, text: string, ctx: { own: string; others: string[] } | undefined): Promise<{ label: string | null; division?: "own" | "other" | null }> {
+  const whole = overlayLabel(text, SEMIFINALS);
+  const division = ctx ? overlayDivision(text, ctx.own, ctx.others) : undefined;
+  if (whole || division === "other") return { label: whole, division };
+  const row = await labelRow(page, ctx);
+  return { label: row, division: row && ctx ? "own" : division };
 }
 
 /** Go to second t. Playing (a timer read needs the clock running), the frame read is about a second on by the time
@@ -238,10 +288,9 @@ async function readAtOnce(page: Page, t: number, labelOnly = false): Promise<Rea
   const at = await now(page);
   const text = (await worker.recognize(await page.screenshot())).data.text as string;
   const ctx = divisions.get(page);
-  const division = ctx ? overlayDivision(text, ctx.own, ctx.others) : undefined;
+  const { label, division } = await frameLabel(page, text, ctx);
   // Another division's match on the shared stream: not this event's, whatever its number.
   if (division === "other") return { label: null, start: null, at, text, why: "another division's overlay", division };
-  const label = overlayLabel(text, SEMIFINALS) ?? (labelOnly ? await labelRow(page, ctx) : null);
   if (!label || labelOnly) return { label, start: null, at, text, division };
   const a = await timer(page);
   const atA = await now(page);
@@ -260,7 +309,7 @@ async function readAtOnce(page: Page, t: number, labelOnly = false): Promise<Rea
     await seek(page, atA + 45);
     const c = await timer(page);
     const atC = await now(page);
-    const named = overlayLabel((await worker.recognize(await page.screenshot())).data.text, SEMIFINALS);
+    const { label: named } = await frameLabel(page, (await worker.recognize(await page.screenshot())).data.text as string, ctx);
     a.auto = !!c && c.where === a.where && c.left > AUTO_S && (named === label || (!named && autoLeadsTo(a.left, atC - atA, c.left)));
   }
   const e = elapsed(a);
@@ -581,7 +630,17 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
 
   // Any match at all, a frame every 10 minutes: where there's no clock to go by (an upload), or the clock's guesses read
   // nothing (a broadcast whose start YouTube has wrong).
-  const scan = async () => { for (let t = 300; t < length && !seen.size && reads() < budget; t += 600) { await note(await readAt(page, t)); } };
+  // A scan frame that names a match whose timer isn't running (the field being set before it, its score after it) has
+  // that match within minutes: a minute on at a time, SCAN_AHEAD times at most, until a timer is read running (stepOn).
+  // USTXNTM1 2023's upload: every scan frame named a match between two (Q11, Q13, Q15), none with its clock running.
+  const scan = async () => {
+    for (let t = 300; t < length && !seen.size && reads() < budget; t += 600) {
+      let r = await readAt(page, t);
+      const named = !!r.label;
+      await note(r);
+      for (let k = 1; stepOn(named, r.start, k) && !seen.size && t + 60 * k < length && reads() < budget; k++) await note(r = await readAt(page, t + 60 * k));
+    }
+  };
   // Matches with only their scheduled time (M.scheduled) have no clock to look for them by: the video is walked a frame
   // every WALK_STEP_S (each match's 2:38 shows on at least two), past each match once its start is confirmed. A video
   // naming none of its matches in its first WALK_BLIND_S has no overlay to read: the walk stops there.

@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 7.3.4 — 2026-11-17
+## 7.3.8 — 2026-11-17
 
 Event videos › Scout now keeps whether each video's owner lets it play on other sites, the first step to clips of such videos opening on YouTube.
 
@@ -26,6 +26,54 @@ Event videos › Scout now keeps whether each video's owner lets it play on othe
 
 ### Fixed
 - Event videos: whether a video's owner lets it play on other sites is read with its other facts (YouTube's `status.embeddable`, a watch page's `playableInEmbed`: false from any page, true only from one that plays) and kept (migration 95). A video read before that was kept is read once more with the API key. 20 of 1,771 linked videos have embedding off; their clips can't play in the app's player, and the next releases open them on YouTube instead. (`server/videos/youtube.ts`, `server/videos/recordings.ts`) (#1665)
+
+## 7.3.7 — 2026-11-17
+
+Videos › the frame reader no longer takes a playoff bar's "Winner → Match 7" for the match being played.
+
+### Highlights
+- [fixes] Playoff clips read the right match on FIRST DIVE's 2024 bar
+- [fixes] A bracket's next match is never taken for the one on screen
+- [fixes] More 2024 playoff openings confirmed from their own frame
+
+### Fixed
+- FIRST DIVE's 2024 playoff bar shows the bracket's next steps beside the match on screen ("Winner → Match 7", "Loser → Match 5"). The frame reader counted those as matches named on screen: where tesseract lost the bar's own "Playoff Match 1" line (AUCMP 2024 at 16874 s), the frame read as Match 7, a later match; where it kept it, two numbers named no match and the opening went unread. Like "advances to", a Winner or Loser line's match is now never the one on screen. (`scripts/lib/videoFrames.ts`) (#1659)
+
+## 7.3.6 — 2026-11-17
+
+Search engines › a Lite page with nothing on it yet says noindex, like its full page, so Google stops calling it a soft 404.
+
+### Highlights
+- [fixes] Lite team and event pages follow their full page's indexing rule
+- [fixes] A team or event with no data yet is noindex in Lite too
+- [fixes] Pages with data keep only their canonical link, as before
+
+### Fixed
+- Search engines: a team or event page with nothing on it but a name is noindex (`server/indexable.ts`), but its Lite twin only pointed its canonical at it, so Google crawled a 21-word Lite page that could be indexed and reported it as a soft 404 (`/lite/teams/19381` in Search Console's Soft 404 examples). The Lite team and event pages now ask the same rule and say noindex when their full page does. (`server/lite/routes.ts`, `server/lite/render.ts`) (#1670)
+
+## 7.3.5 — 2026-11-17
+
+Search engines › a page Google drew before a deploy still finds its scripts, so its render no longer comes out empty.
+
+### Highlights
+- [fixes] Pages drawn before an update keep loading their scripts for 30 days
+- [fixes] Google's renderer no longer meets a missing chunk and an empty page
+- [fixes] A tab left open across an update still opens its pages
+
+### Fixed
+- Search engines: only the three newest releases stay on disk and the site deploys several times a day, so a page drawn hours earlier (kept by Googlebot's renderer, which caches scripts for weeks, or open in a tab) asked for chunks that were gone: Googlebot got 404s on `/assets/*.js` (about 370 in two weeks of the server's log), and a page whose chunk is missing renders empty, which Google reads as a soft 404. Every release's hashed files are now kept for 30 days in one archive the server falls back to after the release's own files (each file renamed in whole, never rewritten while served); anything in neither is still a 404. (`server/app.ts`, `deploy/oracle-vm-setup.sh`) (#1666)
+
+## 7.3.4 — 2026-11-17
+
+Videos › the frame reader now reads CENTERSTAGE (2023) recordings, whose overlay it couldn't read before, so their matches can get clips.
+
+### Highlights
+- [fixes] 2023 recordings can be read for match clips
+- [fixes] Score bars at the top of the screen are found too
+- [fixes] Uploaded recordings find their first match sooner
+
+### Fixed
+- Videos (`scripts/video-frames.ts`, `scripts/lib/videoFrames.ts`): CENTERSTAGE's (2023) recordings read no match at all. A busy frame loses FTC Live's bar in a whole-frame read, so placement reads now fall back on the bar's row read on its own, at its usual height or 8 px lower, as clip openings already did. Where none of the known crops holds the timer, the score bar is found by its alliance colours wherever the stream put it (Arizona's flush-top bar in dark navy and maroon), and its timer and the row over it are read there. An upload's scan steps a minute on, up to three times, past a frame naming a match not yet running. CENTERSTAGE's playoffs are best-of-3 semifinals, named "Semifinal 2 Match 1" on the overlay, so a read that loses "Semifinal" no longer takes that for M1 and pulls the real match's clip. Measured on dry runs: NLBNM1 0 → 22 of 23 placed, USTXNTM1 0 → 10 of 17 (Q1–Q7 come before the video), USAZGIQ 0 → 37 of 38, each opening naming its match (#1655).
 
 ## 7.3.3 — 2026-11-17
 

@@ -1,9 +1,89 @@
 // The pure parts of the frame reader (scripts/video-frames.ts): the overlay's match, the timer's elapsed time, and
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
-import { dataRows, divisionOf, elapsed, overlayDivision, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayLabel, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, type M } from "./videoFrames";
+import { dataRows, divisionOf, elapsed, overlayDivision, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, type M } from "./videoFrames";
 
 describe("the frame reader", () => {
+  // A 1280 × 720 frame: a grey field, and a score bar from `top` to `bottom` with one alliance's colour each side of the
+  // timer (white digits in a dark box at the centre), its rows broken here and there by white icons and digits.
+  const frame = (bars: { top: number; bottom: number; left?: "blue" | "red"; dark?: boolean }[], floor = [120, 115, 110]) => {
+    const w = 1280, h = 720, px = new Uint8ClampedArray(w * h * 4);
+    const put = (x: number, y: number, [r, g, b]: number[]) => { const i = (y * w + x) * 4; px[i] = r; px[i + 1] = g; px[i + 2] = b; px[i + 3] = 255; };
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) put(x, y, floor);
+    for (const bar of bars) {
+      const BLUE = bar.dark ? [2, 46, 80] : [20, 80, 200], RED = bar.dark ? [111, 12, 17] : [210, 30, 40];
+      const [l, r] = bar.left === "red" ? [RED, BLUE] : [BLUE, RED];
+      for (let y = bar.top; y < bar.bottom; y++) for (let x = 0; x < w; x++) {
+        const icon = (x % 40 < 8 && y % 12 < 6) || y === bar.top + 5;
+        put(x, y, icon ? [250, 250, 250] : x < 560 ? l : x >= 720 ? r : [15, 15, 15]);
+      }
+    }
+    return px;
+  };
+  it("finds FTC Live's score bar wherever the stream put it", () => {
+    // FTC Live's default: along the bottom (most streams, CENTERSTAGE's FiT-North and Benelux ones).
+    expect(overlayBand(frame([{ top: 612, bottom: 700 }]), 1280, 720)).toEqual({ top: 612, bottom: 700 });
+    // Flush with the top under a title strip, in dark navy and maroon (Arizona's CENTERSTAGE qualifiers, USAZGIQ 2023:
+    // the bar 48–170 px down).
+    expect(overlayBand(frame([{ top: 48, bottom: 170, dark: true }]), 1280, 720)).toEqual({ top: 48, bottom: 170 });
+    // Under a title bar at the top (FIRST in Texas).
+    expect(overlayBand(frame([{ top: 98, bottom: 142, left: "red" }]), 1280, 720)).toEqual({ top: 98, bottom: 142 });
+    // Red on the left is a bar too; of two, the taller.
+    expect(overlayBand(frame([{ top: 20, bottom: 40 }, { top: 600, bottom: 690, left: "red" }]), 1280, 720)).toEqual({ top: 600, bottom: 690 });
+    // The taller by a single row wins too, whichever comes first.
+    expect(overlayBand(frame([{ top: 100, bottom: 190 }, { top: 500, bottom: 591 }]), 1280, 720)).toEqual({ top: 500, bottom: 591 });
+    expect(overlayBand(frame([{ top: 100, bottom: 191 }, { top: 500, bottom: 590 }]), 1280, 720)).toEqual({ top: 100, bottom: 191 });
+    // No bar: a plain frame, or one alliance's colour alone (a results card's half), or a strip too thin to be one.
+    expect(overlayBand(frame([]), 1280, 720)).toBeNull();
+    // An orange wood floor is neither alliance's colour.
+    expect(overlayBand(frame([], [200, 130, 60]), 1280, 720)).toBeNull();
+    const card = frame([]);
+    for (let y = 100; y < 600; y++) for (let x = 0; x < 640; x++) { const i = (y * 1280 + x) * 4; card[i] = 20; card[i + 1] = 80; card[i + 2] = 200; }
+    expect(overlayBand(card, 1280, 720)).toBeNull();
+    expect(overlayBand(frame([{ top: 300, bottom: 310 }]), 1280, 720)).toBeNull();
+    // A results card: its blue half and red half fill the frame's height (CENTERSTAGE's "WINNER" card).
+    expect(overlayBand(frame([{ top: 60, bottom: 660 }]), 1280, 720)).toBeNull();
+  });
+
+  it("steps the upload scan on past a named match until its timer runs, through a cutaway", () => {
+    // USTXNTM1 2023: the scan frame names Q11 with no timer running; a minute on, a camera cutaway names nothing; the
+    // steps go on (k = 2, 3) all the same.
+    expect(stepOn(true, null, 1)).toBe(true);
+    expect(stepOn(true, null, 2)).toBe(true);
+    expect(stepOn(true, null, SCAN_AHEAD)).toBe(true);
+    expect(stepOn(true, null, SCAN_AHEAD + 1)).toBe(false);
+    // A running start read: done. A scan frame naming nothing: no stepping.
+    expect(stepOn(true, 2275, 2)).toBe(false);
+    expect(stepOn(false, null, 1)).toBe(false);
+  });
+
+  it("reads the match's row over a bar found somewhere other than the bottom", () => {
+    const usual = { x: 0, y: 548, width: 1280, height: 56 };
+    // Arizona's bar flush with the top: the strip over it, cut at the frame's edge.
+    expect(rowAbove({ top: 54 }, usual)).toEqual({ x: 0, y: 0, width: 1280, height: 54 });
+    // FIRST in Texas's bar under a title bar.
+    expect(rowAbove({ top: 98 }, usual)).toEqual({ x: 0, y: 42, width: 1280, height: 56 });
+    // The bottom bar where it always is: the usual row, already read. No room over a bar at the very top.
+    expect(rowAbove({ top: 612 }, usual)).toBeNull();
+    expect(rowAbove({ top: 10 }, usual)).toBeNull();
+  });
+
+  it("names the match the bar's row names on its own, on a shared stream only with this division's name", () => {
+    // Reads of CENTERSTAGE (2023) rows, whose whole frames named nothing: USTXNTM1 at 1500 s, NLBNM1 at 3300 s.
+    expect(rowLabel("TE FiT-North T-League Meet 1 Qualification 10 of 17 PERS [Ah", null)).toBe("Q10");
+    expect(rowLabel("wens SHN— NL Benelux LM Leek Qualification 4 of 23 PUERS TAT", null)).toBe("Q4");
+    expect(rowLabel("Playoff Match 1", null)).toBe("M1");
+    expect(rowLabel("os 55 pe", null)).toBeNull();
+    // A shared stream: the whole row must name this division, never a sibling's or none.
+    const ctx = { own: "Solo", others: ["Duo"] };
+    expect(rowLabel("Qualification 3 of 28", "Illinois State Championship - Solo  Qualification 3 of 28", ctx)).toBe("Q3");
+    expect(rowLabel("Qualification 3 of 28", "Illinois State Championship - Duo  Qualification 3 of 28", ctx)).toBeNull();
+    expect(rowLabel("Qualification 3 of 28", "Illinois State Championship  Qualification 3 of 28", ctx)).toBeNull();
+    expect(rowLabel("Qualification 3 of 28", null, ctx)).toBeNull();
+    // A match a team advances to is never the one on screen, read whole or by row.
+    expect(rowLabel("Advances to: Playoff Match 8", null)).toBeNull();
+  });
+
   it("names the match the overlay shows, and nothing else", () => {
     expect(overlayLabel("FIRST AGE  Qualification 21 of 36  2:05")).toBe("Q21");
     expect(overlayLabel("Playoff Match 10")).toBe("M10");
@@ -344,6 +424,16 @@ describe("a full-screen card naming several matches", () => {
     // The running bar's own playoff name still reads (ROCMPVLC's "Playoff Match 11").
     expect(overlayLabel("onship - VLAICU Division  Romania C  Playoff Match 11")).toBe("M11");
     expect(overlayLabel("Mississauga Qualifier  Match 10  2:30")).toBe("M10");
+  });
+  // FIRST DIVE's 2024 playoff bar: the match on screen, with its winner's and loser's next matches beside it (AUCMP
+  // g8Zrl3yxVHM M1 at 16874 s, M2 at 17221 s; FPECA 167irOy-YgY M3 at 14293 s), as tesseract reads them.
+  it("never takes the bar's \"Winner → Match N\" or \"Loser → Match N\" for the match on screen", () => {
+    expect(overlayLabel("er DIVE — | Australia Championship Playoff Match 2\n® Winner-> Match 7 -")).toBe("M2");
+    expect(overlayLabel("eer DIVE Carolinas Premier Event Playoff Match 3\n® Winner-> Match 7 —")).toBe("M3");
+    expect(overlayLabel("Australia Championship  Playoff Match 1\nWinner → Match 7\nLoser → Match 5")).toBe("M1");
+    // The bar's own line lost to the crowd behind it: the next steps alone name no match on screen.
+    expect(overlayLabel("® Winner Match 7 -\nPERL] Barker Biuebacks | J loser © Match5 JESRARLL")).toBeNull();
+    expect(overlayLabel("Winner → Match 7\nLoser → Match 5")).toBeNull();
   });
 });
 
