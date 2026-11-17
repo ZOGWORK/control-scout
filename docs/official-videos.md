@@ -325,6 +325,17 @@ channel's whole uploads list, video by video, with Scout's records. It reads onl
   A wrong add is listed with what's wrong. One that the watcher's title rules set aside today (a rule tightened since,
   such as drone or FRC streams) is taken off its event by the audit, as the watcher would have left it. It's logged as
   `officialVideo.remove` by "channel audit" and still counts as a wrong add. The owner removes any other wrong add.
+- **The link check** (`server/videos/linkCheck.ts`, before each of the watcher's 30-minute checks). Every recording
+  linked by the checked list or the watcher is checked again against YouTube's facts (`video_meta`) and its title on
+  its channel today (`official_audit_videos`). It's taken off its event when:
+  - it never aired: YouTube still lists it as live or to come with no start, a day after the event's last day;
+  - its title now names one meet number and the event's name another ("Meet #1a" counts as meet 1; a title naming
+    two meets is no call).
+
+  A channel can reuse a scheduled stream for a later meet: FIRST in Missouri's `qM3qo5rrmyc` was listed for
+  Camdenton Meet #1 (2026 USMOKSSWM1) while still to come, never aired that day, and became its "Southwest League
+  Meet #2 … November 21" stream. It's logged as `officialVideo.remove` by "link check". The owner's links and links
+  from evidence are decisions on what the video shows, and stay.
 - **Best guesses in review.** Every video in review or set aside whose verdict names no event gets a best guess
   (`official_watch.guess_why`). New rows get it when the watcher reads them; older rows get it at the next audit.
 - **Runs** (`official_audit_runs`): units, channels read and read in full, uploads, those with a Scout record, set
