@@ -1176,7 +1176,8 @@ if (!CHECK && !DRY) {
   if (unsaved) { console.error(`${FRAMES_FILE} could not be written: this run's timings are lost`); process.exitCode = 1; }
   else console.log(`wrote ${kept.size} videos to ${FRAMES_FILE}`);
 }
+// Before the report: a run on a black player writes nothing at all, its report included.
+stopIfDark();
 mkdirSync(".data", { recursive: true });
 writeFileSync(".data/video-frames-report.txt", report.join("\n"));
-stopIfDark();
 process.exit(process.exitCode ?? 0);
