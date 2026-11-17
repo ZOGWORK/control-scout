@@ -459,6 +459,14 @@ describe("with a YouTube API key", () => {
     expect(await get("SELECT status, duration FROM video_meta WHERE video_id = ?", [ELSE])).toEqual({ status: "ok", duration: 14400 });
   });
 
+  it("a weekly read that fails keeps the time of the last real read, so it's tried again soon, not a week on", async () => {
+    await run("DELETE FROM video_meta");
+    await run("INSERT INTO video_meta (video_id, status, start, end, duration, live, checked_at) VALUES (?, 'ok', ?, ?, 16541, 0, '2026-01-01T00:00:00.000Z')", [FIRST_ID, `${DAY}T12:58:13Z`, `${DAY}T17:33:56Z`]);
+    const down = (async () => new Response("", { status: 503 })) as unknown as typeof fetch;
+    await backfillVideoMeta(() => {}, { apiKey: "KEY", gapMs: 0, fetchImpl: down, now: () => Date.parse("2026-02-01T00:00:00Z") });
+    expect(await get("SELECT status, checked_at FROM video_meta WHERE video_id = ?", [FIRST_ID])).toEqual({ status: "ok", checked_at: "2026-01-01T00:00:00.000Z" });
+  });
+
   it("a pass that never finishes doesn't stop the next one for good", async () => {
     await event("STUCK", "https://www.youtube.com/watch?v=Stuck000001");
     // A read that never settles: the pass waits on it for ever.
