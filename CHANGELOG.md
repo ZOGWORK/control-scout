@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 7.4.5 — 2026-11-17
+## 7.5.7 — 2026-11-17
 
 Videos › 331 matches from eight more 2023 events get clips, each opening on its own match: St. Louis North's league tournament, four FiT-North and Chesapeake qualifiers and tournaments, Chesapeake's Stage Left championship division, and Arizona's Gilbert qualifier.
 
@@ -26,6 +26,152 @@ Videos › 331 matches from eight more 2023 events get clips, each opening on it
 
 ### Fixed
 - Videos (`server/data/frameTimings/2023.ts`): frame-read starts for USMOKSSTLNLT1 (49 of 49 played), USTXATQ (46 of 46), USTXFMQ (41 of 42), USTXNCNLT (42 of 43), USAZGIQ (38 of 38), USCHSCHQ1 (38 of 38), USCHSCMPSL (39 of 41) and USCHSMCQ (38 of 38). Each clip's opening frame names its match and its event; a clip whose first frame shows the match before is left for review, never shown (#1690).
+
+## 7.5.6 — 2026-11-17
+
+Videos › 372 matches from eight 2023 events get clips, each opening on its own match: Arizona's Grand Canyon and Saguaro championship divisions and its Glendale qualifier, Kansas City's East and Missouri's SW/Mid league tournaments, Texas's Tesla championship division, and the FiT South area championship and North B&T tournament.
+
+### Highlights
+- [fixes] 372 more 2023 matches get a clip
+- [fixes] Every clip opens on a frame naming its match
+- [fixes] Eight 2023 events that had no clips now have them
+
+### Fixed
+- Videos (`server/data/frameTimings/2023.ts`): frame-read starts for USAZCMPGC1 (42 of 45 played), USAZCMPSG1 (38 of 42), USAZGLQ (41 of 41), USMOKSKCELT (49 of 49), USMOKSSWMILT (47 of 50), USTXCMPTESL (54 of 60, two videos), USTXMISQ (55 of 58) and USTXNBTLT (46 of 50). Each clip's opening frame names its match; semifinal matches read before the reader knew CENTERSTAGE's semifinal names are left for review, never shown as clips (#1681).
+
+## 7.5.5 — 2026-11-17
+
+Videos › The frame reader now reads streams whose score bar sits along the top of the frame, as FIRST Nevada's do.
+
+### Highlights
+- [fixes] Match clips can now be found on streams with the score bar on top
+- [fixes] An event's own matches are no longer taken for another event's
+- [history] Nevada's 2024 championship: 33 of 57 matches found, from none
+
+### Fixed
+- The frame reader read nothing on FTC Live's bar moved to the top edge (FIRST Nevada, USNVCMP 2024): its row is now read on its own when the whole frame names no match, and that bar's timer is read first in its own place under it. A dry read of USNVCMP places 33 of 57 matches, from 0. (`scripts/video-frames.ts`)
+- The overlay's event check took this event's own frames for another event's: a total with its last digit lost ("of 46" read "of 4") now tells nothing, and only words of four letters or more weigh against a name ("rer DIVE — Nevada Chan"). (`scripts/lib/videoFrames.ts`) (#1713)
+
+## 7.5.4 — 2026-11-17
+
+Videos › 167 of the İstanbul Premier Event's 168 division match clips now open on a frame naming their match and division, and 16 Valens clips that opened 48 s late now catch the start.
+
+### Highlights
+- [fixes] 167 İstanbul clips open on a frame naming their match
+- [fixes] 16 Valens Division clips no longer miss the start of their match
+- [fixes] No clip is taken away
+
+### Fixed
+- Videos: both divisions of the İstanbul Premier Event (FPEISTRDIV, FPEISTVDIV) are now played from their recordings' own frames, two day videos each, rather than from the clock. Rumeli places 83 of its 84 matches; its Q28 has no readable overlay at its start, so it keeps the clock's clip. Valens places all 84. Each clip opens on a paused frame whose overlay names its match and its own division, never the sibling's, though the two share a stream. 151 openings move 11 to 18 s later, past the clock's early lead-in, to where the match's overlay is up. Valens's first day runs 49 s off the clock from Q36 on, so its Q36–Q51 clips, which opened about 48 s into play, now open before the start. (`server/data/frameTimings/2025.ts`) (#1669)
+
+## 7.5.3 — 2026-11-17
+
+Videos › 200 matches from four 2023 events get clips, each opening on its own match: Toronto's first qualifier, Iowa's Gold championship, Missouri's state championship and Kansas City's West league tournament.
+
+### Highlights
+- [fixes] 200 more 2023 matches get a clip
+- [fixes] Every clip opens on a frame naming its match
+- [fixes] Four 2023 events that had no clips now have them
+
+### Fixed
+- Videos (`server/data/frameTimings/2023.ts`): frame-read starts for CAONTOQ1 (44 of 51 played), USIACMPGOLD (47 of 61), USMOKSCMP (57 of 61) and USMOKSKCWLT (52 of 54). Each clip's opening frame names its match; semifinal matches read before the reader knew CENTERSTAGE's semifinal names are left for review, never shown as clips (#1668).
+
+## 7.5.2 — 2026-11-17
+
+Videos › The first match clips for 2022 (POWERPLAY): 318 matches in 6 events, each clip opening on a frame that names its match.
+
+### Highlights
+- [history] 2022 events get match clips for the first time
+- [history] 318 matches in 6 events, read off the recordings' own frames
+- [fixes] Every clip opens on a frame naming its match
+
+### Added
+- Videos: clips read off the recordings' frames (`server/data/frameTimings/2022.ts`), now that the frame reader reads 2022's overlay (#1651): USCHSHEQ 54 of 54 played matches, USCHSUBQ 53 of 53, USMOKSSWMILT1 48 of 48, USMOKSCMP 61 of 62, USCHSHAQ1 53 of 55, USTXCECCS 49 of 55. Each placed start's clip opens on a paused frame whose overlay names that match (20, 12, 5, 2 or 0 s before it). The matches left out stay without a clip, with the reason. (#1664)
+
+## 7.5.1 — 2026-11-17
+
+Videos › 168 more 2024 matches play as clips: the Australian Championship in full, South Australia, North Scarborough and the Carolinas Premier Event.
+
+### Highlights
+- [history] Every match of the 2024 Australian Championship now plays as a clip
+- [history] North Scarborough Qualifier: 50 of 55 matches as clips
+- [history] Carolinas Premier Event and South Australia Qualifier clips added
+
+### Added
+- Frame-read match starts for 6 more 2024 recordings (5 events), each start checked against two timer reads and each clip's opening against a paused frame naming its match: AUCMP 77 of 77 played matches (two days), CAONSCQ2 50 of 55 (4 to review, 1 missing), FPECA 31 of 71 (the linked recording is Day 2), AUTOQ 10 of 24 (Q11–Q18 and M1–M6 have no confirmed frame read yet), and CABCSUQ1's recording checked (its 2 readable matches had no confirmed start). (`server/data/frameTimings/2024.ts`) (#1663)
+
+## 7.5.0 — 2026-11-17
+
+Videos › 61 of the Chicago Robotics Invitational's 67 matches (2024) get a clip, read off its Saturday and Sunday videos: FIRST posts no times for them, so their frames place them.
+
+### Highlights
+- [fixes] 61 Chicago Robotics Invitational matches get a clip
+- [fixes] Each opens on a frame whose overlay names its match
+- [fixes] No clip already playing changes
+
+### Fixed
+- Videos (`server/data/frameTimings/2024.ts`): the Chicago Robotics Invitational (FPECRI 2024) posts its results with no match times, so its recordings were never read. Read by its frames alone (#1693), its Saturday video places 34 matches and its Sunday video 27, each checked paused on its clip's opening frame. Q21, Q37, Q44, Q49, Q57 and M1 stay without a clip: no frame of them confirmed a start. (#1710)
+
+## 7.4.9 — 2026-11-17
+
+Event videos › an event's recording can now be found on a day it played that FIRST's dates leave out, and KZCMP 2022's second day plays.
+
+### Highlights
+- [fixes] Videos of a day an event played outside its dates
+- [fixes] 145 events played outside FIRST's listed dates
+- [fixes] Kazakhstan Central Asia 2022 day 2 has its recordings
+
+### Fixed
+- Event videos: an event's days, for finding and checking its videos, are FIRST's listed dates widened to every day it played a match. FIRST's dates are wrong for 145 events (2,619 played matches): Kazakhstan Central Asia FTC Regional Championship 2022 is listed 23 to 25 Feb 2023 and played Q32–Q39 and its playoffs on the 26th, so its day-2 recordings fitted no event. The watcher, the channel audit, an owner's approval and decisions from evidence all use the widened days. KZCMP's day-2 qualifier and playoff recordings are linked (each checked on a frame), and the upload before its playoffs, which holds no match, is set aside. (`server/videos/eventDays.ts`, `server/data/videoDecisions.ts`) (#1703)
+
+## 7.4.8 — 2026-11-17
+
+Tests › a check on the welcome email failed now and then for no reason, holding up unrelated changes; it no longer does.
+
+### Highlights
+- [fixes] A test that failed at random no longer holds up changes
+- [fixes] No change to the welcome email itself
+- [fixes] A real weekday or time in the email still fails it
+
+### Fixed
+- Tests (`server/digest/welcome.test.ts`): the welcome email's "no weekday or clock time" check read the whole text, unsubscribe link included, and the link's random token sometimes held a run like `9AM` (`DjPos9AMRs…`), failing CI on unrelated changes. The check now leaves links out and matches days and times as whole words. A real "9 AM" or "Monday" in the email still fails it (#1674).
+
+## 7.4.7 — 2026-11-17
+
+Videos › the frame reader no longer takes a season logo misread for another event's name, which turned every match of Kazakhstan's 2022 championship away.
+
+### Highlights
+- [fixes] A misread logo beside the match is no event's name
+- [fixes] A match's own total beats a misread name
+- [fixes] No clip changes
+
+### Fixed
+- Videos (the frame reader, `scripts/lib/videoFrames.ts`): POWERPLAY's (2022) "FIRST ENERGIZE" logo reads "FIRST ZN=RGIZ= swe" on a playing frame, two words beside the match that aren't the event's, so `overlayEvent` called every frame of KZCMP 2022 another event's overlay and read none. A name now counts as another event's only with two telling words of four letters or more, a name read as another's never overrules an "of M" that is this event's own qualification total, and ENERGIZE is a season logo word. (#1697)
+
+## 7.4.6 — 2026-11-17
+
+Videos › matches FIRST gives no real start for, with no time at all (the Chicago Robotics Invitational's) or only a schedule's, can now get clips read off the video's own frames.
+
+### Highlights
+- [fixes] Matches posted with no start time can get clips
+- [fixes] 2019's scheduled-only matches can get frame clips too
+- [fixes] A frame start out of play order is never served
+
+### Fixed
+- Videos (`server/videos/recordings.ts`, `src/shared/recording.ts`): a start read off a recording's frames was dropped for any match without a real start (a schedule's whole minute, or no time at all), so no frame row could ever give those matches a clip. Their frame starts now play, ordered among the event's matches by their scheduled time, else after the timed ones by label (`labelRank`: qualifications by number, then playoffs, a best-of-three's games turn about, then finals). A start out of that order is still left out (`inOrder`). The event page, a match's own page and the season's With video list all agree.
+- Videos (the frame reader, `scripts/video-frames.ts`, `scripts/lib/videoFrames.ts`): matches with no time at all were never read (the reader asked only for timed ones). They're now read like scheduled ones, by their frames alone, in any of the event's videos (`playedMatches`). (#1693)
+
+## 7.4.5 — 2026-11-17
+
+Event videos › the official-video watcher and its channel audit now run on time on a day of many deploys.
+
+### Highlights
+- [fixes] The video watcher runs on days with many deploys
+- [fixes] Its check comes 7.5 minutes after a restart
+- [fixes] The channel audit follows it, as before
+
+### Fixed
+- Official videos: the watcher's first check after boot came 17.5 minutes in, and every deploy restarts the server. On 17 Nov, with deploys every 4 to 27 minutes, the run due at 10:27 never started, nor the channel audit after it. The first check now comes 7.5 minutes after boot, still midway between the sync's 5-minute ticks. (`server/videos/officialWatch.ts`) (#1687)
 
 ## 7.4.4 — 2026-11-17
 
