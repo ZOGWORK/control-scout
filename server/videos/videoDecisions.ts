@@ -12,6 +12,7 @@ import { withDataLock, LockBusy } from "../data/lock.js";
 import { recordAudit } from "../portal/audit.js";
 import { VIDEO_DECISIONS, type VideoDecision } from "../data/videoDecisions.js";
 import { eventVideosByDay, forgetOfficial } from "./officialVideos.js";
+import { EVENT_FIRST_DAY, EVENT_LAST_DAY } from "./eventDays.js";
 
 /** Who the console says decided it. */
 export const EVIDENCE = "evidence";
@@ -107,7 +108,8 @@ async function applyOne(d: VideoDecision, at: string): Promise<"done" | "kept" |
     : { sql: "UPDATE official_audit_videos SET finding = 'dismissed', finding_why = ?, finding_by = ? WHERE video_id = ? AND finding = 'open'", args: [d.reason!.slice(0, 300), EVIDENCE, d.videoId] };
   if (d.decision !== "link") return (await inOne(d.videoId, [claim, finding], 0)) ? "done" : "kept";
   // A link: its event and day, the day free (or held only by a video YouTube no longer plays, named in replaces).
-  const ev = await get<any>("SELECT season, code, start, end FROM events WHERE season = ? AND code = ?", [d.season!, d.code!]);
+  // Its days: the listed ones and the days it played (eventDays.ts).
+  const ev = await get<any>(`SELECT e.season, e.code, ${EVENT_FIRST_DAY} AS start, ${EVENT_LAST_DAY} AS end FROM events e WHERE e.season = ? AND e.code = ?`, [d.season!, d.code!]);
   if (!ev) return `skip:${d.season} ${d.code} isn't in this database`;
   const start = String(ev.start).slice(0, 10), end = String(ev.end ?? ev.start).slice(0, 10);
   if (d.day! < start || d.day! > end) return `skip:${d.code} runs ${start} to ${end}, not ${d.day}`;
