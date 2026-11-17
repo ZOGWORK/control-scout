@@ -33,7 +33,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
 import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, playedCount } from "./lib/videoFrames";
-import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, elapsed, overlayDivision, leadIn, judge, NOTHING_READ, overlayLabel, secondsLoose, secondsOf, type Judged, type M } from "./lib/videoFrames";
+import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, elapsed, overlayDivision, leadIn, judge, NOTHING_READ, overlayLabel, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M } from "./lib/videoFrames";
 
 // The command line: --name value or --name=value for the value flags, --name alone for the others. Anything else stops
 // the run before it reads: a misspelt flag mustn't quietly read (and write) every recording of the season.
@@ -149,12 +149,22 @@ const TIMERS = [
   // The same white box in a bar across the top (FIRST AGE's top layout, USPAKSN 2026): wider than FIRST Texas's.
   { where: "top" as const, clip: { x: 585, y: 92, width: 110, height: 50 }, loose: true },
 ];
+/** FTC Live's overlay from 2019 to 2022 shows the timer as bare seconds ("30", "112": secondsPlain), in a box over the
+ *  scores (SKYSTONE 2019, FREIGHT FRENZY 2021: USCHSCMPCARR) or under the centre graphic (POWERPLAY 2022: AUMPOS1).
+ *  Read first for those seasons, before the bars whose crops would catch a score there ("150" reads 1:50 loose), and
+ *  never for later ones, whose bars have other numbers in those places. */
+const PLAIN_TIMERS = [
+  { where: "plain" as const, clip: { x: 595, y: 594, width: 90, height: 36 }, plain: true },
+  { where: "plain" as const, clip: { x: 595, y: 684, width: 90, height: 34 }, plain: true },
+];
+const TIMER_CROPS: { where: "bottom" | "top" | "plain"; clip: { x: number; y: number; width: number; height: number }; loose?: boolean; plain?: boolean }[] =
+  season <= 2022 ? [...PLAIN_TIMERS, ...TIMERS] : TIMERS;
 
 /** The timer's reading. `auto`: whether a reading of 0:30 or less is Auto, told by readAt. */
-async function timer(page: Page): Promise<{ where: "bottom" | "top"; left: number; auto: boolean } | null> {
-  for (const t of TIMERS) {
+async function timer(page: Page): Promise<{ where: "bottom" | "top" | "plain"; left: number; auto: boolean } | null> {
+  for (const t of TIMER_CROPS) {
     const text = (await digits.recognize(await page.screenshot({ clip: t.clip }))).data.text;
-    const left = "loose" in t ? secondsLoose(text) : secondsOf(text);
+    const left = t.plain ? secondsPlain(text) : t.loose ? secondsLoose(text) : secondsOf(text);
     if (left == null || left > AUTO_S + SWITCH_S + TELEOP_S) continue;
     return { where: t.where, left, auto: false };
   }
@@ -329,8 +339,9 @@ async function checkOpenings(page: Page, j: Judged, log: (s: string) => void, un
       // A seek that never landed shows whatever frame was up before (the last read's): that frame names nothing here.
       if (Math.abs(r.at - t) > 1) { log(`    ${label}: the opening read at ${t} s landed at ${Math.round(r.at)} s; not counted`); continue; }
       if (r.division === "other") { named = "another division's match"; continue; }
-      // The overlay names a replay (a tiebreak's "M6-2") by its match alone ("M6"), as placeVideo reads it.
-      if (r.label === label.replace(/-\d+$/, "")) { at = t; break; }
+      // The overlay names a replay (a tiebreak's "M6-2") by its match alone ("M6"), as placeVideo reads it; a
+      // semifinal's match by its series and number ("M1-2"), that match only (sameMatch).
+      if (sameMatch(r.label ?? "", label)) { at = t; break; }
       if (r.label) named = r.label;
     }
     if (at != null) { j.opens.set(label, at); continue; }
@@ -468,9 +479,9 @@ async function boundsRow(row: FrameTiming, length: number, division: { own: stri
 /** The second each of a video's matches starts at, as far as its frames show. `shift`: the video's second for a moment
  *  minus that moment (epoch seconds), when YouTube gives the broadcast's start (an upload has none). */
 async function placeVideo(page: Page, ms: M[], shift: number | null, length: number, log: (s: string) => void, unread?: Set<string>, live?: Record<string, number>, liveMedium?: Set<string>): Promise<Judged> {
-  // The overlay names a replay ("M14-2", a tiebreak) by its match alone (M14): each name, its matches in order.
-  const byName = new Map<string, number[]>();
-  ms.forEach((m, i) => { const n = m.label.replace(/-\d+$/, ""); byName.set(n, [...(byName.get(n) ?? []), i]); });
+  // The overlay names a replay ("M14-2", a tiebreak) by its match alone (M14), and a semifinal's match by its series
+  // and number ("M1-2" is that match only): each name, its matches in order (sameMatch).
+  const byName = { get: (n: string) => { const is = ms.flatMap((m, i) => (sameMatch(n, m.label) ? [i] : [])); return is.length ? is : undefined; } };
   const seen = new Map<number, number>(); // index → confirmed start second
   const tried = new Set<number>(); // matches a read named, confirmed or not
   let namedAny = false; // a frame named one of the event's matches, timer read or not: the player showed the stream
