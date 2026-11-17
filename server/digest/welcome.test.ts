@@ -84,7 +84,9 @@ describe("the welcome email", () => {
     expect(m.text).toContain("4215 Team Duct Tape");
     expect(m.text).toContain("6980 Robo Lions");
     expect(m.text).toContain("A few times a week");
-    expect(m.text).not.toMatch(/Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|\d{1,2}(:\d\d)? ?(AM|PM)/);
+    // No day or clock time in the prose. Links are left out: the unsubscribe token is random base64url, and one
+    // holding "9AM" ("…s9AMRs…") read as a clock time and failed CI at random.
+    expect(m.text.replace(/https?:\/\/\S+/g, "")).not.toMatch(/\b(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b|\b\d{1,2}(?::\d\d)? ?(?:AM|PM)\b/);
     const token = (await get<{ token: string }>("SELECT token FROM digest_prefs WHERE user_id = ?", [u.id]))!.token;
     expect(m.opts?.headers?.["List-Unsubscribe"]).toBe(`<http://localhost:5173/api/digest/unsubscribe?t=${token}>`);
     expect(m.html.match(/<img /g)).toHaveLength(1);

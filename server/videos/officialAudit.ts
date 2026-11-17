@@ -23,6 +23,7 @@ import { isoDuration } from "./youtube.js";
 import { eventVideosByDay, forgetOfficial, linkAiredOff, localDate } from "./officialVideos.js";
 import { LOOKBACK_MS, record, settle, type WatchVerdict } from "./officialWatch.js";
 import { NOT_EVENTS, bestGuess, matchVideo, notCompetition, videoWindow, type ChannelRule, type WatchEvent, type WatchVideo } from "./officialMatch.js";
+import { EVENT_FIRST_DAY, EVENT_LAST_DAY } from "./eventDays.js";
 
 const API = "https://www.googleapis.com/youtube/v3";
 const VIDEO_ID = /^[A-Za-z0-9_-]{11}$/;
@@ -79,8 +80,8 @@ export interface UnusedLink { season: number; code: string; videoId: string; why
  * upload, and the link is listed as unused, with why.
  */
 async function firstLinks(): Promise<{ used: { season: number; code: string; videoId: string; short: boolean }[]; unused: UnusedLink[] }> {
-  const rows = await all<any>("SELECT season, code, livestream, start, end, timezone FROM events WHERE livestream LIKE '%youtu%'");
-  const shorts = await all<any>(`SELECT l.season, l.code, l.video_id, e.start, e.end, e.timezone FROM event_stream_links l
+  const rows = await all<any>(`SELECT e.season, e.code, e.livestream, ${EVENT_FIRST_DAY} AS start, ${EVENT_LAST_DAY} AS end, e.timezone FROM events e WHERE e.livestream LIKE '%youtu%'`);
+  const shorts = await all<any>(`SELECT l.season, l.code, l.video_id, ${EVENT_FIRST_DAY} AS start, ${EVENT_LAST_DAY} AS end, e.timezone FROM event_stream_links l
     LEFT JOIN events e ON e.season = l.season AND e.code = l.code WHERE l.video_id IS NOT NULL`);
   const links = [
     ...rows.flatMap((r) => [...String(r.livestream).matchAll(YT_LINK)].map((m) => ({ r, videoId: m[1], short: false }))),
@@ -127,7 +128,8 @@ async function scoutRecords(unused?: UnusedLink[]): Promise<Map<string, Record_>
 
 /** Every event with a date, for matching in memory, bucketed by month so a window reads two or three buckets. */
 async function eventIndex(): Promise<(lo: string, hi: string) => WatchEvent[]> {
-  const rows = await all<any>("SELECT season, code, name, type, city, state, country, start, end, timezone, division_code, remote FROM events WHERE start IS NOT NULL");
+  // Its days: the listed ones and the days it played (eventDays.ts).
+  const rows = await all<any>(`SELECT e.season, e.code, e.name, e.type, e.city, e.state, e.country, ${EVENT_FIRST_DAY} AS start, ${EVENT_LAST_DAY} AS end, e.timezone, e.division_code, e.remote FROM events e WHERE e.start IS NOT NULL`);
   const parents = new Set(rows.filter((r) => r.division_code && r.division_code !== r.code).map((r) => `${r.season}/${r.division_code}`));
   const buckets = new Map<string, WatchEvent[]>();
   for (const r of rows) {
@@ -555,7 +557,7 @@ export async function everyDayPlays(e: WatchEvent): Promise<string | null> {
  *  broadcast on the day it's on, the only event the rules fit, and not a second video of that day unless both name
  *  their parts. An add the owner has since removed counts as wrong (it was). */
 async function checkAdds(rows: any[], facts: Map<string, any>, rules: Map<string, ChannelRule & { floor: string }>, events: (lo: string, hi: string) => WatchEvent[], at: string): Promise<{ videoId: string; ok: boolean; why: string; setAside: string | null }[]> {
-  const adds = await all<any>(`SELECT o.video_id, o.season, o.code, o.day, o.part, o.channel_id, o.title, o.removed_at, e.start AS e_start, e.end AS e_end, e.timezone, e.type, e.name
+  const adds = await all<any>(`SELECT o.video_id, o.season, o.code, o.day, o.part, o.channel_id, o.title, o.removed_at, ${EVENT_FIRST_DAY} AS e_start, ${EVENT_LAST_DAY} AS e_end, e.timezone, e.type, e.name
     FROM official_videos o LEFT JOIN events e ON e.season = o.season AND e.code = o.code WHERE o.source = 'watcher'`);
   const byId = new Map(rows.map((r) => [String(r.video_id), r]));
   const out: { videoId: string; ok: boolean; why: string; setAside: string | null }[] = [];
