@@ -43,6 +43,12 @@ describe("the leagues list", () => {
     expect(nj.textContent).toContain("#1 by RS: 17670 Jersey (2.40)");
     expect(nj.textContent).toContain("No standings yet");
     expect(within(nj).getByRole("link", { name: "New Jersey rankings →" }).getAttribute("href")).toBe("/rankings/regions/USA/NJ?season=2026");
+    // New Jersey alone has conferences: with no My team set, a link to each of its leagues' conference rankings.
+    expect([...nj.querySelectorAll("[data-conference-button] a")].map((a) => [a.textContent, a.getAttribute("href")])).toEqual([
+      ["Northeast League", "/leagues/2026/USNJ/NE#conferences"], ["South League", "/leagues/2026/USNJ/SO#conferences"]]);
+    expect(nj.textContent).toContain("View Conference Rankings");
+    expect(screen.getByRole("region", { name: "Texas" }).querySelector("[data-conference-button]")).toBeNull();
+    expect(screen.getByRole("region", { name: "Texas" }).textContent).not.toContain("Conference");
   });
 });
 
