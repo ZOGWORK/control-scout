@@ -17,7 +17,8 @@ describe("a place's pages", () => {
     expect(hrefs("nj rankings")).toEqual(["/rankings/regions/USA/NJ", "/rankings"]);
     expect(hrefs("show me the new jersey rankings")).toEqual(["/rankings/regions/USA/NJ", "/rankings"]);
     expect(hrefs("nj leagues")).toEqual(["/leagues?q=New%20Jersey", "/rankings"]);
-    expect(hrefs("nj conferences")).toEqual(["/search?q=New%20Jersey%20conferences", "/rankings"]);
+    // The conferences asked for are the answer itself: no link to the same search.
+    expect(hrefs("nj conferences")).toEqual(["/rankings"]);
     expect(hrefs("texas conferences")).toEqual(["/rankings"]);
   });
 
