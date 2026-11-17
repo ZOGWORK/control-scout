@@ -68,10 +68,10 @@ describe("the YouTube Data API", () => {
   });
   it("a recorded broadcast, one live now, one scheduled, an upload", () => {
     expect(apiFacts({ contentDetails: { duration: "PT4H35M41S" }, liveStreamingDetails: { actualStartTime: "2026-05-02T12:58:13Z", actualEndTime: "2026-05-02T17:33:56Z" } }))
-      .toEqual({ status: "ok", start: "2026-05-02T12:58:13.000Z", end: "2026-05-02T17:33:56.000Z", length: 16541, live: false });
+      .toEqual({ status: "ok", start: "2026-05-02T12:58:13.000Z", end: "2026-05-02T17:33:56.000Z", length: 16541, live: false, embeddable: true });
     expect(apiFacts({ contentDetails: { duration: "P0D" }, liveStreamingDetails: { actualStartTime: "2026-05-02T12:58:13Z" } })).toMatchObject({ live: true, length: null });
     expect(apiFacts({ liveStreamingDetails: { scheduledStartTime: "2026-05-03T12:00:00Z" } })).toMatchObject({ live: true, start: null });
-    expect(apiFacts({ contentDetails: { duration: "PT3M33S" } })).toEqual({ status: "ok", start: null, end: null, length: 213, live: false });
+    expect(apiFacts({ contentDetails: { duration: "PT3M33S" } })).toEqual({ status: "ok", start: null, end: null, length: 213, live: false, embeddable: true });
   });
   it("a region block stops a video when it covers every country or its event's own: one that plays there keeps its clips", () => {
     // Live: FTC Ontario's Central Toronto Qualifier stream, blocked in all 249 (the watch page: UNPLAYABLE, "Video unavailable").
@@ -93,12 +93,21 @@ describe("the YouTube Data API", () => {
     expect(at({ allowed: ["US", "CA"] }, ["US"])).toMatchObject({ status: "ok" });
     expect(at({ allowed: [] })).toMatchObject({ status: "unavailable" });
   });
+  it("reads whether a video may be embedded: false plays on youtube.com only; a watch page says only false", () => {
+    expect(apiFacts({ contentDetails: { duration: "PT4H" }, status: { embeddable: false } })).toMatchObject({ status: "ok", embeddable: false });
+    expect(apiFacts({ contentDetails: { duration: "PT4H" }, status: { embeddable: true } })).toMatchObject({ embeddable: true });
+    expect(apiFacts({ contentDetails: { duration: "PT4H" } })).toMatchObject({ embeddable: true });
+    const page = (embed: string) => `"playabilityStatus":{"status":"OK","playableInEmbed":${embed}},"lengthSeconds":"600"`;
+    expect(parseWatchPage(page("false"))).toMatchObject({ status: "ok", embeddable: false });
+    expect(parseWatchPage(page("true"))).not.toHaveProperty("embeddable");
+    expect(parseWatchPage(`"playabilityStatus":{"status":"OK"},"lengthSeconds":"600"`)).not.toHaveProperty("embeddable");
+  });
   it("asks for up to 50 at once; one missing from the answer is unavailable; a failed request leaves all to try again", async () => {
     let asked = "";
     const ok = (async (url: string) => { asked = url; return Response.json({ items: [{ id: "aaaaaaaaaaa", contentDetails: { duration: "PT1M" } }] }); }) as unknown as typeof fetch;
     const got = await fetchFromApi(["aaaaaaaaaaa", "bbbbbbbbbbb"], "KEY", ok);
     expect(new URL(asked).searchParams.get("id")).toBe("aaaaaaaaaaa,bbbbbbbbbbb");
-    expect(new URL(asked).searchParams.get("part")).toBe("liveStreamingDetails,contentDetails");
+    expect(new URL(asked).searchParams.get("part")).toBe("liveStreamingDetails,contentDetails,status");
     expect(got.get("aaaaaaaaaaa")).toMatchObject({ status: "ok", length: 60 });
     expect(got.get("bbbbbbbbbbb")!.status).toBe("unavailable");
     const quota = (async () => new Response("{}", { status: 403 })) as unknown as typeof fetch;
