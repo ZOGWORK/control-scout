@@ -44,7 +44,9 @@ export function kindOf(m: CoverageMatch, pulled = false): MissKind {
   if (v) {
     if (v.earlyStart) return "early";
     if (!v.checked) return "unchecked";
-    return v.seenAt != null ? "seen" : "notfound";
+    if (v.seenAt != null) return "seen";
+    // Its frames show it was played before the recording starts or after it ends (or under way when it opens).
+    return v.outside ? "outside" : "notfound";
   }
   return m.reason ? BY_REASON[m.reason] ?? "other" : "other";
 }
@@ -54,6 +56,7 @@ export function kindOfWhy(key: string): MissKind {
   if (/^seen in the video/.test(key)) return "seen";
   if (/^starts inside the match before/.test(key)) return "early";
   if (/^not yet checked/.test(key)) return "unchecked";
+  if (/^checked in the video, not in the recording/.test(key)) return "outside";
   if (/^checked in the video/.test(key)) return "notfound";
   return BY_REASON[key as CoverageReason] ?? "other";
 }
