@@ -1042,9 +1042,9 @@ async function doCode(code: string): Promise<void> {
   // A match with no time at all is read the same way, after the timed ones in its label's order (playedMatches).
   // Results entered after the fact (enteredLater): their times place nothing, so the matches are read by their frames
   // alone, as an event FIRST gives no times for is.
-  const [days] = await all<{ start: string | null; end: string | null }>("SELECT start, end FROM events WHERE season = ? AND code = ?", [season, code]);
+  const [ev] = await all<{ name: string; division_code: string | null; start: string | null; end: string | null }>("SELECT name, division_code, start, end FROM events WHERE season = ? AND code = ?", [season, code]);
   const windows = [rec, ...(rec.more ?? [])].map((v) => ({ start: v.meta?.start ? Date.parse(v.meta.start) : null, end: v.meta?.end ? Date.parse(v.meta.end) : null }));
-  if (enteredLater(rows, days ?? null, windows, localToUtcMs)) {
+  if (enteredLater(rows, ev ?? null, windows, localToUtcMs)) {
     report.push(`${code}: every match time is outside the event's dates and its videos (results entered later): read by its frames alone`);
     for (const r of rows) r.time = null;
   }
@@ -1054,7 +1054,6 @@ async function doCode(code: string): Promise<void> {
   if (timeless) report.push(`${code}: ${timeless} played matches not read: no timezone for the event, so their start can't be placed`);
   if (!played.length) return;
   // Divisions of one event can share a stream: each read must be this division's overlay (divisionOf, overlayDivision).
-  const [ev] = await all<{ name: string; division_code: string | null }>("SELECT name, division_code FROM events WHERE season = ? AND code = ?", [season, code]);
   // Its name and qualification total, to tell its overlay from another event's on the same stream (overlayEvent).
   const [q] = await all<{ n: number }>("SELECT COUNT(*) AS n FROM matches WHERE season = ? AND code = ? AND label LIKE 'Q%'", [season, code]);
   if (ev?.name) eventNames.set(code, { name: ev.name, quals: Number(q?.n ?? 0) });
