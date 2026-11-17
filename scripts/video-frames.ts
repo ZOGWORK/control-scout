@@ -27,6 +27,8 @@
 //   --verify  read no starts: check where each placed match's clip opens, for rows not yet checked (opens)
 //   --bounds  read no starts: read each read video's first and last frames (opensOn, endsOn), the proof that a match
 //             was played before it starts or after it ends (outsideRecording); a normal read reads them too
+//   --clips   read no starts: check each clip the live site plays from the clock by its first frame, paused (ok,
+//             pulled when it names another match, unconfirmed when it names none), into server/data/clipChecks.ts
 //   --live <file>  the timings the live site serves (a copy of main's server/data/frameTimings/<season>.ts): a re-read start
 //             that is one of them (same video, match and second, within a read's slack) and whose opening frame names
 //             nothing stays, unconfirmed, as --verify keeps it; only an overlay naming another match pulls a live clip
@@ -38,7 +40,7 @@ import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, startOffset, OVERLAY_UNREAD, SAME_
 
 // The command line: --name value or --name=value for the value flags, --name alone for the others. Anything else stops
 // the run before it reads: a misspelt flag mustn't quietly read (and write) every recording of the season.
-const VALUE_FLAGS = new Set(["season", "codes", "limit", "lanes", "live"]), BOOL_FLAGS = new Set(["all", "bounds", "check", "dry", "trace", "verify"]);
+const VALUE_FLAGS = new Set(["season", "codes", "limit", "lanes", "live"]), BOOL_FLAGS = new Set(["all", "bounds", "check", "clips", "dry", "trace", "verify"]);
 const args = new Map<string, string | true>();
 {
   const argv = process.argv.slice(2);
@@ -50,7 +52,7 @@ const args = new Map<string, string | true>();
       if (v == null || v === "" || v.startsWith("--")) { console.error(`--${name}: give it a value`); process.exit(2); }
       args.set(name, v);
     } else if (m && BOOL_FLAGS.has(name) && m[2] == null) args.set(name, true);
-    else { console.error(`${argv[i]}: not a flag this script takes (--season, --codes, --limit, --lanes, --all, --check, --dry, --trace, --verify, --live <file>)`); process.exit(2); }
+    else { console.error(`${argv[i]}: not a flag this script takes (--season, --codes, --limit, --lanes, --all, --check, --dry, --trace, --verify, --clips, --live <file>)`); process.exit(2); }
   }
 }
 const arg = (k: string) => { const v = args.get(k); return typeof v === "string" ? v : undefined; };
@@ -71,7 +73,7 @@ const lanes = count("lanes", 3);
  *  server/data/frameTimings.ts, before it can be read). */
 const FRAMES_FILE = `server/data/frameTimings/${season}.ts`;
 if (!existsSync(FRAMES_FILE)) { console.error(`--season ${season}: no ${FRAMES_FILE} (add it, and its import in server/data/frameTimings.ts)`); process.exit(2); }
-const CHECK = flag("check"), ALL = flag("all"), DRY = flag("dry"), TRACE = flag("trace"), VERIFY = flag("verify"), BOUNDS = flag("bounds");
+const CHECK = flag("check"), ALL = flag("all"), DRY = flag("dry"), TRACE = flag("trace"), VERIFY = flag("verify"), BOUNDS = flag("bounds"), CLIPS = flag("clips");
 
 const { migrate, all } = await import("../server/db.js");
 await migrate();
@@ -79,6 +81,7 @@ const R = await import("../server/videos/recordings.js");
 const { CLIP_LEAD_S, actualStart } = await import("../src/shared/recording.js");
 const { localToUtcMs } = await import("../src/shared/time.js");
 const { localDate } = await import("../server/videos/officialVideos.js");
+const { frameStart } = await import("../server/data/frameTimings.js");
 /** --live: what the live site serves, by video and event (its starts). */
 const liveRows = (path: string) => {
   let text: string;
@@ -803,6 +806,90 @@ function save(): void {
  *  on the next run. */
 const PLAY_FAILED = "the video couldn't be played";
 
+// --- Live clock clips checked by their first frame (--clips) ----------------------------------------------------------
+
+/** server/data/clipChecks.ts: the sweep's rows (owner decision 2026-11-15, "verify old"). */
+const CLIPS_FILE = "server/data/clipChecks.ts";
+type ClipCheck = import("../server/data/clipChecks.js").ClipCheck;
+const clipKept = new Map<string, ClipCheck>(CLIPS ? dataRows<ClipCheck>(readFileSync(CLIPS_FILE, "utf8")).map((c) => [`${c.videoId}|${c.code}`, c]) : []);
+const clipTouched = new Set<string>();
+/** A video's clips read with nothing named at all (and at least this many read): its overlay can't be read, so its
+ *  clips can't be checked by frame (counted, never pulled). */
+const NO_OVERLAY_AFTER = 5;
+
+/** Write the sweep's rows (as save() writes the timings: rows this run didn't touch are taken from the file). */
+function saveClips(): void {
+  if (DRY) return;
+  const text = readFileSync(CLIPS_FILE, "utf8");
+  const onDisk = new Map(dataRows<ClipCheck>(text).map((c) => [`${c.videoId}|${c.code}`, c]));
+  for (const [key, c] of onDisk) if (!clipTouched.has(key)) clipKept.set(key, c);
+  const list = [...clipKept.values()].sort((a, b) => a.code.localeCompare(b.code) || a.videoId.localeCompare(b.videoId));
+  writeFileSync(CLIPS_FILE, `${text.split("// --- Data")[0]}// --- Data (scripts/clip-checks.ts writes from here on) ---\nexport const CLIP_CHECKS: ClipCheck[] = [\n${list.map((c) => `  ${JSON.stringify(c)},`).join("\n")}\n];\n`);
+}
+
+/** --clips: each clip the live site plays from the clock (not from frames: those are checked where they're placed,
+ *  `opens`) is read paused at its first second, as a clip's opening is (checkOpenings). The frame names its match: ok.
+ *  It names another match (or another division's): pulled, never served again. It names nothing: unconfirmed, read
+ *  again next sweep; nothing ever pulls a clip but a frame naming another match. Clips already ok or pulled, and videos
+ *  without a readable overlay, aren't read again. */
+async function checkClips(code: string, rec: Parameters<typeof R.withClips>[1], views: Parameters<typeof R.withClips>[0], span: Parameters<typeof R.withClips>[3], division: { own: string; others: string[] } | null): Promise<void> {
+  const todo = new Map<string, { label: string; t: number }[]>();
+  for (const v of R.withClips(views, rec, Date.now(), span)) {
+    const c = v.clip as { videoId: string; t: number } | undefined;
+    if (!c || frameStart(c.videoId, code, v.label) != null) continue;
+    const row = clipKept.get(`${c.videoId}|${code}`);
+    if (row?.noOverlay || row?.ok?.includes(v.label) || row?.pulled?.[v.label]) continue;
+    (todo.get(c.videoId) ?? todo.set(c.videoId, []).get(c.videoId)!).push({ label: v.label, t: c.t });
+  }
+  if (!todo.size || ++done > limit) return;
+  const lines: string[] = [];
+  const log = (s: string) => { lines.push(s); };
+  try {
+    log(`${code}: ${[...todo.values()].reduce((s, x) => s + x.length, 0)} clock clips to check by their first frame`);
+    for (const [videoId, clips] of todo) {
+      const key = `${videoId}|${code}`, prev = clipKept.get(key);
+      const ok = new Set(prev?.ok ?? []), pulled = { ...prev?.pulled }, unconfirmed = { ...prev?.unconfirmed };
+      let page: Page | null = null, named = 0, read = 0;
+      try {
+        page = await player();
+        if (division) divisions.set(page, division);
+        await open(page, videoId);
+        for (const c of clips) {
+          const r = await readAt(page, c.t, true);
+          // A seek that never landed shows the frame before it: that says nothing of this clip.
+          if (Math.abs(r.at - c.t) > 1) { unconfirmed[c.label] = { t: c.t, why: `the read at ${c.t} s landed at ${Math.round(r.at)} s` }; continue; }
+          read++;
+          delete unconfirmed[c.label];
+          if (r.division === "other") { named++; pulled[c.label] = { t: c.t, showed: "another division's match" }; }
+          else if (r.label && sameMatch(r.label, c.label)) { named++; ok.add(c.label); }
+          else if (r.label) { named++; pulled[c.label] = { t: c.t, showed: eventLabel(r.label) }; }
+          else unconfirmed[c.label] = { t: c.t, why: "its first frame names no match" };
+        }
+        const noOverlay = !named && read >= NO_OVERLAY_AFTER && !ok.size && !Object.keys(pulled).length;
+        log(`  ${videoId}: ${clips.length} clips · ${ok.size} ok · ${Object.keys(pulled).length} pulled${Object.keys(pulled).length ? ` (${Object.entries(pulled).map(([l, p]) => `${l} at ${p.t} s shows ${p.showed}`).join(", ")})` : ""} · ${Object.keys(unconfirmed).length} unconfirmed${noOverlay ? " · no readable overlay" : ""}`);
+        clipKept.set(key, {
+          videoId, code, season, checked: today,
+          ...(ok.size ? { ok: [...ok] } : {}),
+          ...(Object.keys(pulled).length ? { pulled } : {}),
+          ...(!noOverlay && Object.keys(unconfirmed).length ? { unconfirmed } : {}),
+          ...(noOverlay ? { noOverlay: true as const } : {}),
+        });
+        clipTouched.add(key);
+      } catch (e) {
+        // Not played, or a read that hung: nothing written for this video, so the next sweep reads it again.
+        log(`  ${videoId}: couldn't check (${(e as Error).message.split("\n")[0]}); read again next sweep`);
+        failedVideos++;
+      } finally {
+        await closePage(page);
+      }
+    }
+  } finally {
+    console.log(lines.join("\n"));
+    report.push(...lines);
+    saveClips();
+  }
+}
+
 /** A fresh player page (its own browser context). */
 async function player(): Promise<Page> {
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 720 } });
@@ -852,6 +939,8 @@ async function doCode(code: string): Promise<void> {
   const span = await R.eventMatchSpan(season, code);
   const views = played.map((m) => ({ label: m.label, time: m.time, played: true, startsAt: new Date(m.epoch * 1000).toISOString(), clip: undefined as any }));
   // Without this script's own timings: what YouTube's facts alone give.
+  // --clips: the clips the live site plays from the clock, checked by their first frame; nothing else.
+  if (CLIPS) return checkClips(code, rec, views, span, division);
   const placed = R.withClips(views, rec, Date.now(), span, { frames: false });
   const missing = placed.filter((v) => !v.clip).map((v) => v.label);
   if (CHECK ? !placed.some((v) => v.clip) : !ALL && !VERIFY && !BOUNDS && !missing.length) return;
