@@ -47,6 +47,12 @@ describe("rowProblems", () => {
     expect(rowProblems(row({ checked: "2026-11-17", starts: { Q1: 600, Q2: 1000 }, opensOn: { at: 3, label: "Q1" } }), live)).toEqual([]);
     expect(rowProblems(row({ checked: "2026-11-14", starts: { Q1: 600, Q2: 1000 }, opensOn: { at: 3, label: "Q1" } }), live)).toEqual(["changed without a newer checked date than the live row's (2026-11-14)"]);
     expect(rowProblems(live, live)).toEqual([]);
+    // An opening a re-read adds to an older row's start is checked like a new one's.
+    expect(rowProblems(row({ checked: "2026-11-18", starts: { Q1: 600, Q2: 1000 }, opens: { Q1: 590, Q2: 995 } }), live)).toEqual(["Q1: opens 10 s before its start, not 20/12/5/2/0"]);
+    expect(rowProblems(row({ checked: "2026-11-18", starts: { Q1: 600, Q2: 1000 }, opens: { Q1: 588, Q2: 995 } }), live)).toEqual([]);
+    // Openings the live row had can't be dropped.
+    const checkedLive = row({ checked: "2026-11-14", starts: { Q1: 600 }, opens: { Q1: 588 } });
+    expect(rowProblems(row({ checked: "2026-11-18", starts: { Q1: 600 } }), checkedLive)).toEqual(["openings the live row checked are gone"]);
     // Once a row checks openings, a live start it keeps needs one, or is unconfirmed.
     expect(rowProblems(row({ starts: { Q1: 600, Q2: 1000 }, opens: { Q1: 588 } }), live)).toEqual(["Q2: a live clip left with no opening and not unconfirmed"]);
   });
@@ -54,6 +60,8 @@ describe("rowProblems", () => {
   it("refuses an early start that doesn't overlap the match before", () => {
     expect(rowProblems(row({ earlyStart: { Q2: { t: 900, previousEnds: 880 } } }))).toEqual(["Q2: early start 900 isn't before the previous match's end 880"]);
     expect(rowProblems(row({ checked: "Nov 17" }))).toEqual(['checked "Nov 17" isn\'t a date']);
+    expect(rowProblems(row({ checked: "2026-99-99" }))).toEqual(['checked "2026-99-99" isn\'t a date']);
+    expect(rowProblems(row({ checked: "2026-02-30" }))).toEqual(['checked "2026-02-30" isn\'t a date']);
   });
 });
 
