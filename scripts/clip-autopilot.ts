@@ -144,7 +144,7 @@ if (!snapshot) {
 process.env.DATABASE_URL = `file:${snapshot.replace(/\\/g, "/")}`;
 
 // --- 3. The queue ------------------------------------------------------------------------------------------------------
-const { migrate } = await import("../server/db.js");
+const { migrate, all } = await import("../server/db.js");
 await migrate();
 const { frameQueue } = await import("../server/videos/frameQueue.js");
 const queue = await frameQueue();
@@ -175,9 +175,14 @@ for (const [season, events] of bySeason) {
   const after = readFileSync(file, "utf8");
   writeFileSync(file, before);
   const live = new Map(fileRows(mainText(file)).map((r) => [rowKey(r), r]));
+  // Each event's played matches in the order they were played (FIRST's times are the venue's own, so they sort).
+  const order = new Map<string, string[]>();
+  for (const m of await all<{ code: string; label: string }>(`SELECT code, label FROM matches WHERE season = ? AND played = 1 AND time IS NOT NULL AND code IN (${codes.map(() => "?").join(",")}) ORDER BY code, time`, [season, ...codes])) {
+    (order.get(String(m.code)) ?? order.set(String(m.code), []).get(String(m.code))!).push(String(m.label));
+  }
   const good: Row[] = [];
   for (const r of changedRows(before, after).filter((x) => codes.includes(x.code))) {
-    const problems = rowProblems(r, live.get(rowKey(r)));
+    const problems = rowProblems(r, live.get(rowKey(r)), order.get(r.code));
     if (problems.length) log(`  ${r.code} ${r.videoId}: left out, ${problems.join("; ")}`); else good.push(r);
   }
   for (const e of events) {
