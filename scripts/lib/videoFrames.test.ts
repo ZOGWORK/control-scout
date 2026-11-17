@@ -1,7 +1,7 @@
 // The pure parts of the frame reader (scripts/video-frames.ts): the overlay's match, the timer's elapsed time, and
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
-import { dataRows, divisionOf, elapsed, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, type M } from "./videoFrames";
+import { dataRows, divisionOf, elapsed, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, undetailed, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, type M } from "./videoFrames";
 
 describe("the frame reader", () => {
   // A 1280 × 720 frame: a grey field, and a score bar from `top` to `bottom` with one alliance's colour each side of the
@@ -526,5 +526,22 @@ describe("an event's played matches, a time or not", () => {
   });
   it("leaves out a time the event's zone can't place", () => {
     expect(playedMatches([{ label: "Q1", time: "2025-07-19T10:01:13", timezone: null }], { ...f, utcMs: () => null })).toEqual([]);
+  });
+});
+
+describe("undetailed", () => {
+  const ok = (videoId: string) => ({ videoId, meta: { status: "ok", length: 6552 } });
+  it("says each linked recording with no details on file (KZCMP 2022's day-2 videos)", () => {
+    const r = undetailed([ok("1VAGi4X7hWA"), { videoId: "w0H2auno5c8" }, { videoId: "ZXdoZmDoHp0", meta: null }]);
+    expect(r.skipped).toEqual([{ videoId: "w0H2auno5c8", why: "no details on file" }, { videoId: "ZXdoZmDoHp0", why: "no details on file" }]);
+    expect(r.only).toBe(false);
+  });
+  it("says a failed fetch and a missing length apart", () => {
+    const r = undetailed([{ videoId: "a", meta: { status: "error" } }, { videoId: "b", meta: { status: "ok", length: 0 } }]);
+    expect(r.skipped.map((s) => s.why)).toEqual(["its details couldn't be fetched (error)", "no length on file"]);
+  });
+  it("is `only` when no video of the event can be read, and empty when all can", () => {
+    expect(undetailed([{ videoId: "w0H2auno5c8" }]).only).toBe(true);
+    expect(undetailed([ok("a"), ok("b")])).toEqual({ skipped: [], only: false });
   });
 });
