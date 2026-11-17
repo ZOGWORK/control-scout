@@ -95,8 +95,10 @@ describe("conference section", () => {
     show({ ...NO, conferences: [] });
     expect(document.querySelector("[data-conference-none]")!.textContent).toContain("aren't known yet");
     cleanup();
-    show(NO, { slug: "nowhere-conference" });
+    show(NO, { slug: "nowhere-conference", team: 4215 });
     expect(document.querySelector("[data-conference-unknown]")).toBeTruthy();
+    expect(document.querySelector("[data-conference-table]")).toBeNull();
+    expect(screen.getAllByRole("tab").map((t) => t.getAttribute("aria-selected"))).toEqual(["false", "false"]);
   });
 
   it("picks by slug, then the team's conference, and leaves rows with no value last either way", () => {
@@ -112,6 +114,7 @@ describe("conference section", () => {
     const twin = { ...FN, code: "USNJNOLT9", slug: EB.slug };
     show({ ...NO, conferences: [FN, EB, twin] }, { slug: EB.slug });
     expect(document.querySelector("[data-conference-unknown]")).toBeTruthy();
+    expect(document.querySelector("[data-conference-table]")).toBeNull();
     fireEvent.click(screen.getAllByRole("tab", { name: "Far North Conference" })[1]);
     expect(screen.getAllByRole("tab", { name: "Far North Conference" })[1].getAttribute("aria-selected")).toBe("true");
     expect(document.querySelector("[data-conference-unknown]")).toBeNull();
