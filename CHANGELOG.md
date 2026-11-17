@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.4.7 — 2026-11-17
+
+Videos › the frame reader no longer takes a season logo misread for another event's name, which turned every match of Kazakhstan's 2022 championship away.
+
+### Highlights
+- [fixes] A misread logo beside the match is no event's name
+- [fixes] A match's own total beats a misread name
+- [fixes] No clip changes
+
+### Fixed
+- Videos (the frame reader, `scripts/lib/videoFrames.ts`): POWERPLAY's (2022) "FIRST ENERGIZE" logo reads "FIRST ZN=RGIZ= swe" on a playing frame, two words beside the match that aren't the event's, so `overlayEvent` called every frame of KZCMP 2022 another event's overlay and read none. A name now counts as another event's only with two telling words of four letters or more, a name read as another's never overrules an "of M" that is this event's own qualification total, and ENERGIZE is a season logo word. (#1697)
+
 ## 7.4.6 — 2026-11-17
 
 Videos › matches FIRST gives no real start for, with no time at all (the Chicago Robotics Invitational's) or only a schedule's, can now get clips read off the video's own frames.
