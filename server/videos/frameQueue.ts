@@ -34,10 +34,10 @@ function lastUtcDay(end: string, timezone: string | null | undefined): string {
   return t == null ? end : utcDay(t);
 }
 
-/** The date a match's video was read for this event, or null. Coverage carries the video check only where the clock
- *  alone left the match out, or it fell between two recordings (both checked, betweenCheck); the frame rows themselves
- *  say it for the rest, so a row merged since the last coverage check counts at once. */
-const checkedOf = (m: CoverageMatch, code: string) => (m.video ? m.video.checked : m.videoId ? videoCheck(m.videoId, code, m.label, []).checked : null) ?? null;
+/** The date a match's video was read for this event, or null: off the frame rows themselves, so a row merged since
+ *  the last coverage check counts at once. A match between two recordings has no video of its own: its stored check
+ *  of both (betweenCheck) stands. */
+const checkedOf = (m: CoverageMatch, code: string) => (m.videoId ? videoCheck(m.videoId, code, m.label, []).checked : m.video?.checked) ?? null;
 
 /** How one missing match stands with the frame reader. */
 function matchState(m: CoverageMatch, checked: string | null, last: string | null): "unreadable" | "facts" | "unread" | "stale" | "read" {
