@@ -30,11 +30,18 @@ if (-not (Test-Path (Join-Path $Clone ".git"))) {
 if (-not (Test-Path $Tesseract)) {
   # tesseract.js isn't one of the app's dependencies (the server never needs it): installed once beside it.
   npm install --prefix (Join-Path $env:USERPROFILE "frame-ocr") tesseract.js
+  if ($LASTEXITCODE -ne 0) { throw "npm install tesseract.js failed: the task isn't installed" }
 }
 Push-Location $Clone
 try {
-  if (-not (Test-Path "node_modules")) { npm ci --no-audit --no-fund --loglevel=error }
+  # A native command's failure doesn't stop the script on its own ($ErrorActionPreference covers cmdlets only): each
+  # is checked, so a broken install never registers a task that fails every run.
+  if (-not (Test-Path "node_modules")) {
+    npm ci --no-audit --no-fund --loglevel=error
+    if ($LASTEXITCODE -ne 0) { throw "npm ci failed: the task isn't installed" }
+  }
   npx playwright install chromium
+  if ($LASTEXITCODE -ne 0) { throw "playwright install chromium failed: the task isn't installed" }
 } finally { Pop-Location }
 
 $tess = "file:///" + ($Tesseract -replace "\\", "/")
