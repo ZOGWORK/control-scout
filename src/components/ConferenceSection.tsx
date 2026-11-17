@@ -7,7 +7,7 @@ import { Link } from "react-router-dom";
 import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, Trophy } from "lucide-react";
 import { cn } from "./cn";
 import { TeamNumber } from "./records/RecordsTable";
-import { asOfDate, conferenceHref, CONFERENCE_LABEL, ordinal, type Conference, type ConferenceRow, type LeagueConferences } from "../shared/conferences";
+import { asGiven, asOfDate, conferenceHref, CONFERENCE_LABEL, ordinal, type Conference, type ConferenceRow, type LeagueConferences } from "../shared/conferences";
 import { dateRange, seasonLabel } from "../shared/format";
 import { leagueTitle } from "../shared/leagues";
 
@@ -80,7 +80,7 @@ export function ConferenceSection({ data, leagueName, slug, team }: { data: Leag
       ) : (
         <>
           {unknown && <p className="text-sm text-muted-foreground" data-conference-unknown>This league has no one conference by that name this season, so no table is shown: pick a conference above.</p>}
-          {data.conferences.length > 1 && (
+          {(data.conferences.length > 1 || unknown) && (
             <div role="tablist" aria-label="Conferences" className="flex flex-wrap gap-2">
               {data.conferences.map((c) => {
                 const on = c.code === picked?.code;
@@ -199,9 +199,9 @@ function ConferenceTable({ c, team }: { c: Conference; team: number | null }) {
                       <Link to={href} className="hover:underline max-sm:hidden"><span className="font-mono font-medium tabular-nums">{r.team}</span> <span className={cn(!marked && "text-muted-foreground")}>{r.name}</span></Link>
                       {r.registered === "pending" && <span className="ml-1 text-xs font-normal text-muted-foreground">(waitlist)</span>}
                     </td>
-                    <td className={cn(TD, "text-right tabular-nums")}>{one(r.rs) ?? "—"}</td>
+                    <td className={cn(TD, "text-right tabular-nums")}>{asGiven(r.rs) ?? "—"}</td>
                     <td className={cn(TD, "text-right tabular-nums")}>{record(r) ?? "—"}</td>
-                    <td className={cn(TD, "text-right tabular-nums max-sm:hidden")}>{one(r.tbp) ?? "—"}</td>
+                    <td className={cn(TD, "text-right tabular-nums max-sm:hidden")}>{asGiven(r.tbp) ?? "—"}</td>
                     <td className={cn(TD, "text-right tabular-nums max-sm:hidden")} data-played>{r.played ?? "—"}</td>
                     <td className={cn(TD, "text-right tabular-nums max-sm:hidden")} data-meets>{r.meets ?? "—"}</td>
                     <td className={cn(TD, "border-l border-border text-right tabular-nums max-sm:hidden")}>{one(r.rating) ?? "—"}</td>
