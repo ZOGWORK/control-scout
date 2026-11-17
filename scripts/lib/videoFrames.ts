@@ -140,13 +140,16 @@ export const LOSS_S = 60;
  * How a confirming read's start compares with the start it checks, the confirming read being later in the match. A
  * recording can be cut mid-match (a stream that dropped a few seconds): the video loses time, never gains it, so a read
  * after the cut gives an earlier start by the time lost ("lost"), and a start that a later read puts later came from a
- * read after a cut itself ("gained": the later start is the one to check). Further off, it's another start ("other").
+ * read after a cut itself ("gained": the later start is the one to check). Later by TeleOp's 2:00 and the 8 s switch
+ * ("period"): the first read took an Auto reading for TeleOp's last 30 s (its overlay unread 45 s on, USCHSCHQ2 2022
+ * Q16), and the later start is the one to check, as after a cut. Further off, it's another start ("other").
  */
-export function startOffset(start: number, later: number): "same" | "lost" | "gained" | "other" {
+export function startOffset(start: number, later: number): "same" | "lost" | "gained" | "period" | "other" {
   const off = later - start;
   if (Math.abs(off) <= SAME_S) return "same";
   if (off < 0 && -off <= LOSS_S) return "lost";
   if (off > 0 && off <= LOSS_S) return "gained";
+  if (Math.abs(off - (TELEOP_S + SWITCH_S)) <= SAME_S) return "period";
   return "other";
 }
 
