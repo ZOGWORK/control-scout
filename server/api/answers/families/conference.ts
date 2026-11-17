@@ -6,7 +6,7 @@
 // standing over the league meets only: never the tournament's. Who won comes from the awards, never the top seed.
 import type { StatAnswer, StatBlock } from "../../../../src/shared/searchStat.js";
 import { seasonLabel } from "../../../../src/shared/format.js";
-import { asOfDate, CONFERENCE_LABEL, conferenceHref, ordinal, type Conference, type ConferenceRow } from "../../../../src/shared/conferences.js";
+import { asGiven, asOfDate, CONFERENCE_LABEL, conferenceHref, ordinal, type Conference, type ConferenceRow } from "../../../../src/shared/conferences.js";
 import { leagueTitle } from "../../../../src/shared/leagues.js";
 import { all } from "../../../db.js";
 import { allConferences, conferenceByEvent, teamConferenceEvent, tournamentRank } from "../../conferences.js";
@@ -79,7 +79,6 @@ export function matchConference(words: string[], list: Stored[]): { hits: Stored
   return { hits: [], lead: words };
 }
 
-const one = (v: number | null) => (v == null ? "—" : v.toFixed(1));
 const rec = (r: ConferenceRow) => (r.wins == null || r.losses == null ? "—" : `${r.wins}-${r.losses}-${r.ties ?? 0}`);
 const teams = (n: number) => `${n} team${n === 1 ? "" : "s"}`;
 const who = (t: { team: number; name: string | null }) => `${t.team}${t.name ? ` ${t.name}` : ""}`;
@@ -90,7 +89,7 @@ function tableBlock(c: Conference, team: number | null): StatBlock {
     kind: "table", title: `${c.name} · ${seasonLabel(c.season)} · ${CONFERENCE_LABEL}`,
     columns: [{ key: "team", label: "Team" }, { key: "rank", label: "Conf.", num: true }, { key: "league", label: "League", num: true }, { key: "rs", label: "RS", num: true }, { key: "tbp", label: "TBP", num: true }, { key: "wlt", label: "W-L-T" }, { key: "played", label: "Matches", num: true }, { key: "meets", label: "Meets", num: true }],
     rows: c.rows.map((r) => ({
-      cells: { team: who(r), rank: r.rank != null ? ordinal(r.rank) : r.registered ? "Registered" : "Not ranked yet", league: r.leagueRank != null ? `${r.leagueRank} of ${c.leagueOf}` : "—", rs: one(r.rs), tbp: one(r.tbp), wlt: rec(r), played: r.played ?? "—", meets: r.meets ?? "—" },
+      cells: { team: who(r), rank: r.rank != null ? ordinal(r.rank) : c.rs.kind === "gone" ? "Not available" : r.registered ? "Registered" : "Not ranked yet", league: r.leagueRank != null ? `${r.leagueRank} of ${c.leagueOf}` : "—", rs: (asGiven(r.rs) ?? "—"), tbp: (asGiven(r.tbp) ?? "—"), wlt: rec(r), played: r.played ?? "—", meets: r.meets ?? "—" },
       href: `/teams/${r.team}?season=${c.season}`, strong: r.team === team,
     })),
   };
@@ -186,13 +185,13 @@ export async function conferenceAskAnswer(ask: ConferenceAsk, current: number): 
     const href = conferenceHref(d.season, d.region, d.league, { slug: d.slug, team });
     const tRank = d.status !== "upcoming" && d.teamsFrom === "field" ? await tournamentRank(d.season, d.code, team) : null;
     const reg = pick.registered;
-    const sub = [r.leagueRank != null ? `League rank ${r.leagueRank} of ${d.leagueOf}` : null, r.rs != null ? `RS ${one(r.rs)}` : null, r.tbp != null ? `TBP ${one(r.tbp)}` : null,
+    const sub = [r.leagueRank != null ? `League rank ${r.leagueRank} of ${d.leagueOf}` : null, r.rs != null ? `RS ${(asGiven(r.rs) ?? "—")}` : null, r.tbp != null ? `TBP ${(asGiven(r.tbp) ?? "—")}` : null,
       r.played != null ? `${r.played} played` : null, r.meets != null ? `${r.meets} meet${r.meets === 1 ? "" : "s"}` : null].filter(Boolean).join(" · ");
     const blocks: StatBlock[] = [
       { kind: "kpis", items: [
-        { label: reg ? "Going in, by league RS" : "Conference rank", value: r.rank != null ? `${ordinal(r.rank)} of ${d.rows.length}` : "Not ranked yet", sub: r.rank != null ? `by league RS, ${d.name}` : "no league meets played", href, tone: "accent" },
+        { label: reg ? "Going in, by league RS" : "Conference rank", value: r.rank != null ? `${ordinal(r.rank)} of ${d.rows.length}` : d.rs.kind === "gone" ? "Not available" : "Not ranked yet", sub: r.rank != null ? `by league RS, ${d.name}` : d.rs.kind === "gone" ? "the going-in standing can't be read any more" : "no league meets played", href, tone: "accent" },
         { label: "League rank", value: r.leagueRank != null ? `${r.leagueRank} of ${d.leagueOf}` : "—", sub: leagueTitle(d.leagueName, d.league) },
-        { label: "RS", value: one(r.rs), sub: `TBP ${one(r.tbp)}` },
+        { label: "RS", value: (asGiven(r.rs) ?? "—"), sub: `TBP ${(asGiven(r.tbp) ?? "—")}` },
         { label: "League meets", value: r.meets != null ? String(r.meets) : "—", sub: r.played != null ? `${r.played} matches` : undefined },
       ] },
       tableBlock(d, team),
@@ -201,7 +200,7 @@ export async function conferenceAskAnswer(ask: ConferenceAsk, current: number): 
     const notes = [sourceLine(d), going(d), tRank != null && r.rank != null ? `At the tournament itself ${team} ranked ${ordinal(tRank)}: a different ranking from the league's.` : ""].filter(Boolean).join(" ");
     return {
       ...base(d.season), title: reg ? `${team} going into ${d.name} · ${S}` : `${team} in ${d.name} · ${S}`, team: { number: team, name: r.name },
-      headline: { value: r.rank != null ? `${ordinal(r.rank)} of ${d.rows.length}` : "Not ranked yet",
+      headline: { value: r.rank != null ? `${ordinal(r.rank)} of ${d.rows.length}` : d.rs.kind === "gone" ? "Not available" : "Not ranked yet",
         label: `${who(r)} ${reg ? "is registered for" : "in"} ${d.name}, ${leagueTitle(d.leagueName, d.league)}, ${S}, by league RS`, sub: [sub, CONFERENCE_LABEL].filter(Boolean).join(" · "), href },
       definition: `${base(d.season).definition} ${notes}`, blocks,
     };
@@ -257,7 +256,7 @@ export async function conferenceAskAnswer(ask: ConferenceAsk, current: number): 
   const top = d.rows.find((r) => r.rank === 1);
   return {
     ...base(d.season), title: `${d.name} rankings · ${S}`,
-    ...(top ? { headline: { value: `#1 ${top.team}`, label: d.status === "upcoming" ? `${who(top)} is first going into ${d.name} by league RS, ${S}` : `${who(top)} leads ${d.name} by league RS, ${S}`, sub: `RS ${one(top.rs)} · TBP ${one(top.tbp)} · ${top.meets ?? 0} meets · ${CONFERENCE_LABEL}`, href } } : {}),
+    ...(top ? { headline: { value: `#1 ${top.team}`, label: d.status === "upcoming" ? `${who(top)} is first going into ${d.name} by league RS, ${S}` : `${who(top)} leads ${d.name} by league RS, ${S}`, sub: `RS ${(asGiven(top.rs) ?? "—")} · TBP ${(asGiven(top.tbp) ?? "—")} · ${top.meets ?? 0} meets · ${CONFERENCE_LABEL}`, href } } : {}),
     definition: `${base(d.season).definition} ${sourceLine(d)} ${going(d)}`.trim(),
     blocks: [tableBlock(d, null), { kind: "links", title: "Full conference table", items: [{ label: `${d.name} · ${S}`, href, sub: `${leagueTitle(d.leagueName, d.league)} · ${CONFERENCE_LABEL}` }] }, ...tail],
   };
