@@ -27,14 +27,23 @@ const isDate = (s: string) => {
 };
 
 /** What's wrong with a row the reader wrote, against the row the live site serves for that video and event (none: a
- *  new one). Empty: it can ship. */
-export function rowProblems(next: Row, live?: Row): string[] {
+ *  new one). `order`: the event's played matches in the order they were played (by their real starts), for the order
+ *  check. Empty: it can ship. */
+export function rowProblems(next: Row, live?: Row, order?: string[]): string[] {
   const out: string[] = [];
   if (!isDate(next.checked)) out.push(`checked "${next.checked}" isn't a date`);
   if (live && JSON.stringify(live) !== JSON.stringify(next) && !(next.checked > live.checked)) out.push(`changed without a newer checked date than the live row's (${live.checked})`);
   for (const [l, t] of Object.entries(next.starts)) if (!Number.isInteger(t) || t < 0) out.push(`${l}: start ${t} isn't a second in the video`);
+  for (const [l, t] of Object.entries(next.opens ?? {})) if (!Number.isInteger(t) || t < 0) out.push(`${l}: opening ${t} isn't a second in the video`);
   const plausible = plausibleStarts(next.starts, next.opens);
   for (const l of Object.keys(next.starts)) if (plausible[l] == null) out.push(`${l}: its start overlaps another match's`);
+  // In the order the matches were played (their real starts: a match played late, a replay, keeps its place in time,
+  // not its number's), as the reader judges them.
+  if (order) {
+    const at = new Map(order.map((l, i) => [l, i]));
+    const byOrder = Object.entries(next.starts).filter(([l]) => at.has(l)).sort((a, b) => at.get(a[0])! - at.get(b[0])!);
+    for (let i = 1; i < byOrder.length; i++) if (byOrder[i][1] <= byOrder[i - 1][1]) out.push(`${byOrder[i][0]}: starts before ${byOrder[i - 1][0]}, out of the order they were played`);
+  }
   const was = live ? live.starts : {};
   if (live?.opens && !next.opens) out.push("openings the live row checked are gone");
   for (const [l, t] of Object.entries(next.starts)) {
