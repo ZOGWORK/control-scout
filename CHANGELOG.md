@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 7.3.1 — 2026-11-17
+## 7.3.4 — 2026-11-17
 
 Search engines › a page Google drew before a deploy still finds its scripts, so its render no longer comes out empty.
 
@@ -24,7 +24,49 @@ Search engines › a page Google drew before a deploy still finds its scripts, s
 - [fixes] Google's renderer no longer meets a missing chunk and an empty page
 
 ### Fixed
-- Search engines: only the three newest releases stay on disk and the site deploys several times a day, so a page drawn hours earlier (kept by Googlebot's renderer, which caches scripts for weeks, or open in a tab) asked for chunks that were gone: Googlebot got 404s on `/assets/*.js` (about 370 in two weeks of the server's log), and a page whose chunk is missing renders empty, which Google reads as a soft 404. Every release's hashed files are now kept for 30 days in one archive the server falls back to after the release's own files; anything in neither is still a 404. (`server/app.ts`, `deploy/oracle-vm-setup.sh`)
+- Search engines: only the three newest releases stay on disk and the site deploys several times a day, so a page drawn hours earlier (kept by Googlebot's renderer, which caches scripts for weeks, or open in a tab) asked for chunks that were gone: Googlebot got 404s on `/assets/*.js` (about 370 in two weeks of the server's log), and a page whose chunk is missing renders empty, which Google reads as a soft 404. Every release's hashed files are now kept for 30 days in one archive the server falls back to after the release's own files (each file renamed in whole, never rewritten while served); anything in neither is still a 404. (`server/app.ts`, `deploy/oracle-vm-setup.sh`) (#1666)
+
+## 7.3.3 — 2026-11-17
+
+Owner console › Clip coverage is now a quick, visual review screen: meters and coloured tiles up top, one card per event, and every missing match a chip that opens its video at the right second.
+
+### Highlights
+- [workspace] Clip coverage: two big progress meters and coloured count tiles
+- [workspace] One card per event, its missing matches as coloured chips
+- [workspace] Press a chip to watch that moment, without leaving the page
+- [workspace] Reviewed right on the card, at once
+
+### Changed
+- Owner console › Clip coverage: events fully clipped and matches with a clip as two big meters; the lists (To review, Not yet checked, No timing, Early start, Old season, Reviewed) as coloured count tiles; why matches have no clip as a coloured bar with a tile per kind that shows only that kind's chips. Each event is a card with its video's thumbnail, a clipped meter and its missing matches as chips coloured by kind (a short reason on hover); a chip opens the app's video dialog at the second worth seeing. Reviewed sits on the card and takes it off at once, putting it back if the server says no. Matches found in the video are chips too. The long reasons are under Details on each card, and bulk Reviewed with the check numbers under "Bulk review and check details". Works on phones (44px touch targets, no sideways scroll) and in every theme. (`src/components/owner/ClipCoveragePanel.tsx`, `src/components/owner/clipReview.ts`) (#1650)
+
+## 7.3.2 — 2026-11-17
+
+Videos › the Almaty Tech Cup gets match clips read off its recordings' frames: 16 on its second day now, 12 more on its first day once that day's recording is linked.
+
+### Highlights
+- [fixes] 16 Almaty Tech Cup matches get a clip read off the video
+- [fixes] Each opens on a frame whose overlay names its match and event
+- [fixes] No clip already playing changes
+
+### Fixed
+- Videos: KZALOS1's two day recordings lost time against their broadcast, so the clock placed none of its matches. Their starts are now read off the frames, and each clip opens on a frame (read paused) whose overlay names its match and "Almaty Tech Cup XII". Day 2 (EAkHPgVm-Ow): 16 of the 34 matches it holds. Q28–Q31 come before the recording starts, and 14 others have no frame naming them at their clip's start, because the stream cuts to a camera without the overlay between matches. Day 1 (9ywna4SeDoI): 12 of the 15 matches it holds. Q14's timer reads disagreed, and Q1 and Q2 had no read. That row plays once the day's recording is linked. No clip already playing is taken away. (`server/data/frameTimings/2025.ts`) (#1662)
+
+## 7.3.1 — 2026-11-17
+
+Rankings › a New Jersey league's conferences get their own rankings page, laid out like region rankings.
+
+### Highlights
+- [rankings] Each NJ conference has its own rankings page
+- [rankings] Biggest climbers, fallers and newcomers before the table
+- [rankings] A switch between the league's conferences, with date and teams
+- [rankings] View Conference Rankings button on the league page
+- [rankings] The tournament's winners shown above the table
+
+### Rankings
+- The page sits at /leagues/SEASON/REGION/LEAGUE/conferences; old #conferences links on the league page open it (#1657).
+- Moves are places by Scout rating among the conference's teams, week over week, labelled as Scout's, never FIRST's league rank.
+- Teams with no league meet yet sit under "Not ranked yet" instead of the table.
+- Footer links to world, New Jersey and all-region rankings, all leagues, the league and the tournament.
 
 ## 7.3.0 — 2026-11-17
 
