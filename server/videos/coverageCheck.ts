@@ -19,6 +19,7 @@ import { clipCoverage, eventMatchRows } from "./coverage.js";
 import { baseTriage, seasonTriage, type BaseTriage } from "./coverageTriage.js";
 import { currentSeason } from "../api/answers/season.js";
 import { frameQueue, queueSummary, type FrameStatus } from "./frameQueue.js";
+import { autopilotPrs } from "./autopilotPrs.js";
 import type { ClipCoverage, CoverageFrames, CoverageMatch, CoverageFinding, CoveragePass, CoverageTriage, OwnerClipCoverage, OwnerCoverageEvent } from "../../src/shared/api.js";
 
 /** Once per process: every event is checked again after a deploy. */
@@ -244,7 +245,7 @@ export async function ownerClipCoverage(o: { list?: CoverageTriage | "reviewed";
               FROM clip_coverage c WHERE ${MISSING} AND c.reviewed_at IS NULL AND ${TRIAGE} != 'unchecked' GROUP BY c.season ORDER BY c.season DESC`),
     coverageFindings(),
     kvGet<CoveragePass>(LAST_PASS).catch(() => null),
-    frameQueue(),
+    autopilotPrs().then((prs) => frameQueue(Date.now(), prs)),
   ]);
   const frames = new Map(queue.map((q) => [`${q.season}/${q.code}`, q.frames]));
   const categories = Object.fromEntries(TRIAGES.map((k) => [k, 0])) as Record<CoverageTriage, number>;
