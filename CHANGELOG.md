@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 7.3.8 — 2026-11-17
+## 7.3.9 — 2026-11-17
 
 Event videos › Scout now keeps whether each video's owner lets it play on other sites, the first step to clips of such videos opening on YouTube.
 
@@ -26,6 +26,18 @@ Event videos › Scout now keeps whether each video's owner lets it play on othe
 
 ### Fixed
 - Event videos: whether a video's owner lets it play on other sites is read with its other facts (YouTube's `status.embeddable`, a watch page's `playableInEmbed`: false from any page, true only from one that plays) and kept (migration 95). A video read before that was kept is read once more with the API key. 20 of 1,771 linked videos have embedding off; their clips can't play in the app's player, and the next releases open them on YouTube instead. (`server/videos/youtube.ts`, `server/videos/recordings.ts`) (#1665)
+
+## 7.3.8 — 2026-11-17
+
+Videos › the frame reader tells one event's overlay from another's on the same stream: a frame naming another event is never this event's match.
+
+### Highlights
+- [fixes] A split screen of two events no longer mixes up their matches
+- [fixes] Each frame's event name or qualification total must be this event's
+- [fixes] No clip changes
+
+### Fixed
+- Videos (the frame reader, `scripts/video-frames.ts`, `scripts/lib/videoFrames.ts`): a frame whose overlay names another event, by the name beside the match or, where no name is read, by its qualification total ("of 24" for an event of 26), is never this event's start, clip opening or recording edge; on a split screen, the half that is this event's gives its match. USTXCAM1 2024's recording shows two league meets side by side, and its first frames' "Qualification 3 of 24" was the other meet's. The 15 recording edges already in the data were each checked against their saved frame: every one names its own event. (#1656)
 
 ## 7.3.7 — 2026-11-17
 
