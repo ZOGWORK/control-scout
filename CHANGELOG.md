@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 7.3.8 — 2026-11-17
+## 7.4.0 — 2026-11-17
 
 Tests › a check on the welcome email failed now and then for no reason, holding up unrelated changes; it no longer does.
 
@@ -26,6 +26,30 @@ Tests › a check on the welcome email failed now and then for no reason, holdin
 
 ### Fixed
 - Tests (`server/digest/welcome.test.ts`): the welcome email's "no weekday or clock time" check read the whole text, unsubscribe link included, and the link's random token sometimes held a run like `9AM` (`DjPos9AMRs…`), failing CI on unrelated changes. The check now leaves links out and matches days and times as whole words. A real "9 AM" or "Monday" in the email still fails it (#1674).
+
+## 7.3.9 — 2026-11-17
+
+Owner › Clip coverage now knows which events are due for a frame read: every event whose official recording has matches without a clip queues itself, most missing first, the moment its recording is linked.
+
+### Highlights
+- [report] Recorded events missing clips queue for a frame read
+- [report] Most missing first, and each event says where it stands
+- [report] Events read before they finished are read again once
+
+### Added
+- Owner › Clip coverage: each event with a missing clip carries its place with the automatic frame reader: queued (with its place in line and the matches a read could place), waiting (the event isn't over yet, or its video's YouTube facts aren't in), read (the date, each match keeping its own why), or nothing a frame read can place (no video that day, a private video, no real start from FIRST). The queue's numbers and the next events in line come with it. A recording the official-videos watcher links is in the queue at the next coverage check, five minutes at most. A video read on or before the event's last day is due once more after the event. (`server/videos/frameQueue.ts`, `server/videos/coverageCheck.ts`) (#1652)
+
+## 7.3.8 — 2026-11-17
+
+Videos › the frame reader tells one event's overlay from another's on the same stream: a frame naming another event is never this event's match.
+
+### Highlights
+- [fixes] A split screen of two events no longer mixes up their matches
+- [fixes] Each frame's event name or qualification total must be this event's
+- [fixes] No clip changes
+
+### Fixed
+- Videos (the frame reader, `scripts/video-frames.ts`, `scripts/lib/videoFrames.ts`): a frame whose overlay names another event, by the name beside the match or, where no name is read, by its qualification total ("of 24" for an event of 26), is never this event's start, clip opening or recording edge; on a split screen, the half that is this event's gives its match. USTXCAM1 2024's recording shows two league meets side by side, and its first frames' "Qualification 3 of 24" was the other meet's. The 15 recording edges already in the data were each checked against their saved frame: every one names its own event. (#1656)
 
 ## 7.3.7 — 2026-11-17
 

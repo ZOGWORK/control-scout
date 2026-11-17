@@ -1,7 +1,7 @@
 // The pure parts of the frame reader (scripts/video-frames.ts): the overlay's match, the timer's elapsed time, and
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
-import { dataRows, divisionOf, elapsed, overlayDivision, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, type M } from "./videoFrames";
+import { dataRows, divisionOf, elapsed, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, type M } from "./videoFrames";
 
 describe("the frame reader", () => {
   // A 1280 × 720 frame: a grey field, and a score bar from `top` to `bottom` with one alliance's colour each side of the
@@ -443,5 +443,45 @@ describe("FTC Live's count of matches played", () => {
     expect(playedCount("ftc.events/CABCVIQ2/rankings  5 matches per team  4 / 23 matches played")).toEqual({ played: 4, of: 23 });
     expect(playedCount("Qualification 21 of 36  2:05")).toBeNull();
     expect(playedCount("40 / 23 matches played")).toBeNull();
+  });
+});
+
+describe("whose event an overlay names", () => {
+  // Read as tesseract reads the saved frames (scripts/video-frames.ts), each with its event's name and qual total.
+  it("tells another event's half of a split screen by its total, its name lost to OCR (USTXCAM1 2024 at 76 s)", () => {
+    // Left half: FiT-Central North San Antonio League Meet 1, "Qualification 3 of 24"; this event (26 quals) on the right.
+    expect(overlayEvent("—E— Qualification 3 of 24 y- ny. FT-Contrl Hil Countittpotionerit 2s [RE", "FiT-Central Hill Country League Meet 1", 26)).toEqual({ event: "other" });
+  });
+  it("reads this event's half of a split screen where both halves are read", () => {
+    const text = "FiT-Central North San Antonio League Meet 1 Qualification 3 of 24 INTO THE DEEP FiT-Central Hill Country League Meet 1 Qualification 7 of 26";
+    expect(overlayEvent(text, "FiT-Central Hill Country League Meet 1", 26)).toEqual({ event: "own", label: "Q7", phrase: "Q7" });
+    // Without the total, the names alone tell the halves apart.
+    expect(overlayEvent(text, "FiT-Central Hill Country League Meet 1")).toEqual({ event: "own", label: "Q7", phrase: "Q7" });
+  });
+  it("keeps a single event's frame with its name cut, scrolled or reordered", () => {
+    expect(overlayEvent("ad ! | \'{ B= \ Division Michiana Premier Event - Qualification 21 of 115 \"RDF:", "Michiana Premier Event - Thomson Division", 115)).toEqual({ event: "own", phrase: "Q21" });
+    expect(overlayEvent("rest DIVE Checkpoint Scrimmage Beehive Aca Qualification 1 of 11", "Beehive Academy Checkpoint Scrimmage", 11)).toEqual({ event: "own", phrase: "Q1" });
+    expect(overlayEvent("24 CANOPY | Collegiate Meet @ 9 AM Qualification 2 of 15 BIOBUZZ", "Collegiate Meet @ 9 AM", 15)).toEqual({ event: "own", phrase: "Q2" });
+    expect(overlayEvent("Austin Semi-Area Championship • Qualification 10 of 40", "FiT-Central Semi-Area Championship Austin", 40)).toEqual({ event: "own", phrase: "Q10" });
+  });
+  it("names no match of this event with another total, and tells a playoff by its name alone", () => {
+    expect(overlayEvent("CANOPY | —E— Qualification 2 of 16", "Collegiate Meet @ 9 AM", 15)).toEqual({ event: "other" });
+    // Its name read, a total the db doesn't hold (a schedule changed since) still counts: the name decides.
+    expect(overlayEvent("CANOPY | Collegiate Meet @ 9 AM Qualification 2 of 16", "Collegiate Meet @ 9 AM", 15)).toEqual({ event: "own", phrase: "Q2" });
+    expect(overlayEvent("DIVE Hawaii Championship Playoff Match 3", "Hawaii Championship", 25)).toEqual({ event: "own", phrase: "M3" });
+    expect(overlayEvent("DIVE Western Edge Premier Event Playoff Match 3", "Hawaii Championship", 25)).toEqual({ event: "other" });
+    // Two matches, neither another event's for sure (a split screen's unread half, or one event's bracket card): the
+    // frame gives no match of its own (overlayLabel: several named name none), only the one beside this event's name.
+    expect(overlayEvent("—E— Playoff Match 3 DIVE Hawaii Championship Playoff Match 5", "Hawaii Championship", 25)).toEqual({ event: "own", phrase: "M5" });
+    expect(overlayEvent("DIVE Hawaii Championship Playoff Match 3 Winner Playoff Match 5", "Hawaii Championship", 25)).toEqual({ event: "own", phrase: "M3" });
+    // 2019–2022's best-of-3 semifinals keep their series and number (overlayLabel's M2-1), never F1 or M1.
+    expect(overlayEvent("Hawaii Championship Semifinal 2 Match 1", "Hawaii Championship", 25, true)).toEqual({ event: "own", phrase: "M2-1" });
+    expect(overlayEvent("Hawaii Championship Semi-final 1 Match 2", "Hawaii Championship", 25, true)).toEqual({ event: "own", phrase: "M1-2" });
+    // Its series lost to OCR ("Semifinals Match 1"): no match, as overlayLabel names none.
+    expect(overlayEvent("Hawaii Championship Semifinals Match 1", "Hawaii Championship", 25, true)).toEqual({ event: "own" });
+    // The finals of those years, "Finals Match 2" even with a letter misread.
+    expect(overlayEvent("Hawaii Championship Finais Match 2", "Hawaii Championship", 25, true)).toEqual({ event: "own", phrase: "F2" });
+    // Nothing to tell by: no total, no name.
+    expect(overlayEvent("Playoff Match 3", "Hawaii Championship", 25)).toEqual({ event: null });
   });
 });
