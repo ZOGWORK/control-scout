@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 7.3.7 — 2026-11-17
+## 7.3.8 — 2026-11-17
 
 Videos › the İstanbul Premier Event's divisions now open every match clip on a frame naming its match and division, and 16 Valens clips that opened 48 s late now catch the start.
 
@@ -26,6 +26,18 @@ Videos › the İstanbul Premier Event's divisions now open every match clip on 
 
 ### Fixed
 - Videos: both divisions of the İstanbul Premier Event (FPEISTRDIV, FPEISTVDIV) are now played from their recordings' own frames, two day videos each, rather than from the clock. Rumeli places 83 of its 84 matches; its Q28 has no readable overlay at its start, so it keeps the clock's clip. Valens places all 84. Each clip opens on a paused frame whose overlay names its match and its own division, never the sibling's, though the two share a stream. 151 openings move 11 to 18 s later, past the clock's early lead-in, to where the match's overlay is up. Valens's first day runs 49 s off the clock from Q36 on, so its Q36–Q51 clips, which opened about 48 s into play, now open before the start. (`server/data/frameTimings/2025.ts`) (#1669)
+
+## 7.3.7 — 2026-11-17
+
+Videos › the frame reader no longer takes a playoff bar's "Winner → Match 7" for the match being played.
+
+### Highlights
+- [fixes] Playoff clips read the right match on FIRST DIVE's 2024 bar
+- [fixes] A bracket's next match is never taken for the one on screen
+- [fixes] More 2024 playoff openings confirmed from their own frame
+
+### Fixed
+- FIRST DIVE's 2024 playoff bar shows the bracket's next steps beside the match on screen ("Winner → Match 7", "Loser → Match 5"). The frame reader counted those as matches named on screen: where tesseract lost the bar's own "Playoff Match 1" line (AUCMP 2024 at 16874 s), the frame read as Match 7, a later match; where it kept it, two numbers named no match and the opening went unread. Like "advances to", a Winner or Loser line's match is now never the one on screen. (`scripts/lib/videoFrames.ts`) (#1659)
 
 ## 7.3.6 — 2026-11-17
 
