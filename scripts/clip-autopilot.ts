@@ -61,8 +61,23 @@ const tsx = (args: string[], timeoutMs: number) => sh(process.execPath, ["node_m
 
 // --- One run at a time --------------------------------------------------------------------------------------------
 const LOCK = join(DIR, "lock");
-if (existsSync(LOCK) && Date.now() - Number(readFileSync(LOCK, "utf8")) < 10 * 3600_000) { log("another run holds the lock: stopping"); process.exit(0); }
-writeFileSync(LOCK, String(Date.now()));
+/** A lock a killed run left (shutdown, power cut, the task stopped): its process is gone, or it's older than any run. */
+function staleLock(): boolean {
+  const [pid, at] = readFileSync(LOCK, "utf8").split(" ").map(Number);
+  if (!(Date.now() - at < 10 * 3600_000)) return true;
+  try { process.kill(pid, 0); return false; } catch (e) { return (e as NodeJS.ErrnoException).code === "ESRCH"; }
+}
+// Taken atomically ("wx": only if no lock is there), so two runs starting together can't both hold it.
+for (let tries = 0; ; tries++) {
+  try { writeFileSync(LOCK, `${process.pid} ${Date.now()}`, { flag: "wx" }); break; } catch (e) {
+    if ((e as NodeJS.ErrnoException).code !== "EEXIST") throw e;
+    let stale = true;
+    try { stale = staleLock(); } catch { /* unreadable or half-written: a crashed run's */ }
+    if (!stale || tries) { log("another run holds the lock: stopping"); process.exit(0); }
+    log("a stopped run's lock: taken over");
+    rmSync(LOCK, { force: true });
+  }
+}
 process.on("exit", () => rmSync(LOCK, { force: true }));
 
 const MEMORY_FILE = join(DIR, "memory.json");
@@ -147,7 +162,11 @@ for (const p of open) {
   } catch (e) {
     log(`#${p.number}: couldn't be rebuilt on main (${(e as Error).message}); left as it is`);
     sh("git", ["merge", "--abort"], { ok: true, quiet: true });
-  } finally { if (!DRY) git("switch", "--quiet", "--detach", "origin/main"); }
+  } finally {
+    // A rebuild that failed after its merge was committed or its files written leaves them behind: put back, so the
+    // switch to main (and the rest of the run) goes ahead.
+    if (!DRY) { sh("git", ["reset", "--quiet", "--hard"], { ok: true }); git("switch", "--quiet", "--detach", "origin/main"); }
+  }
 }
 
 // --- 2. A snapshot of the live database ---------------------------------------------------------------------------------
