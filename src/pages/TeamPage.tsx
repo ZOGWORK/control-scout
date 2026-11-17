@@ -5,6 +5,8 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import { recordWords } from "../shared/format";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { leagueHref, leagueTitle } from "../shared/leagues";
+import { CONFERENCE_REGION, ordinal, type TeamConferenceInfo } from "../shared/conferences";
+import { useConferenceGate } from "../lib/conferenceGate";
 import { regionHref } from "../shared/regionRankings";
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 import {
@@ -282,6 +284,7 @@ function Hero({ p, onSeason, fellBackFrom, asked = false }: { p: TeamProfile; on
           {/* What's next: on the team's own page (its newest season, or the current one); a past season asked for shows only its last event. */}
           {!asked || p.season >= current ? <Upcoming p={p} next={next} last={last} /> : last && <LastEvent last={last} team={t.number} className="mt-5 max-sm:mt-4" />}
           {p.league && <LeagueStanding league={p.league} season={p.season} team={t.number} />}
+          {p.league?.region.toUpperCase() === CONFERENCE_REGION && <ConferenceStanding season={p.season} team={t.number} />}
           {p.region && <RegionStanding region={p.region} season={p.season} team={t.number} />}
           {predictable ? (
             <div className="mt-5 max-sm:mt-4 flex flex-wrap gap-2">
@@ -573,6 +576,22 @@ function LeagueStanding({ league, season, team }: { league: NonNullable<TeamProf
     <Link to={`${leagueHref(season, league.region, league.code)}?team=${team}`} data-league-standing className={cn(ROW, "mt-2 border-border bg-card text-sm")}>
       <span className="min-w-0 truncate"><span className="font-semibold tabular-nums">{league.played ? `#${league.rank} of ${league.of}` : "Not ranked yet"}</span> <span className="text-muted-foreground">in the {leagueTitle(league.name, league.code)}</span></span>
       <span className="shrink-0 text-muted-foreground">Standings →</span>
+    </Link>
+  );
+}
+
+/** A New Jersey team's place in its conference (src/shared/conferences.ts), once FIRST lists it in a conference
+ *  tournament: by league standing among that tournament's teams, linking to the league page's conference table with
+ *  its row marked. Nothing for a team with no conference, or for a visitor whose My team is based elsewhere. */
+function ConferenceStanding({ season, team }: { season: number; team: number }) {
+  const shown = useConferenceGate(CONFERENCE_REGION, season);
+  const r = useApi<TeamConferenceInfo>(shown ? `/api/teams/${team}/conference?season=${season}` : null);
+  const c = r.data?.nj ? r.data.conference : null;
+  if (!c) return null;
+  return (
+    <Link to={c.href} data-conference-standing className={cn(ROW, "mt-2 border-border bg-card text-sm")}>
+      <span className="min-w-0 truncate"><span className="font-semibold">Rank in {c.name}</span> <span className="text-muted-foreground">{c.rank != null ? `${ordinal(c.rank)} of ${c.of} by league RS` : "Not ranked yet: no league meets played"}</span></span>
+      <span className="shrink-0 text-muted-foreground">Table →</span>
     </Link>
   );
 }
