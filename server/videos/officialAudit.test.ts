@@ -409,4 +409,28 @@ describe("the channel audit", () => {
       expect(await row(id)).toMatchObject({ verdict: "ignore", finding: null, why: "unlisted now: the channel took it off its public list, so it isn't for Scout" });
     } finally { uploads.shift(); }
   });
+  it("decides a watcher's duplicate again: while its event's video plays it stays one; once that video is gone, it's the day's recording", async () => {
+    // Live: Almaty Tech Cup's 2026-06-30 stream was logged a duplicate of a video later taken off the event, and never
+    // looked at again; FIRST links that went private left their events' days empty beside a channel's own copy.
+    const FST = "mesquitefst", CPY = "mesquitecpy";
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, timezone, remote, hybrid, livestream, source) VALUES (2024, 'USTXMEQ', 'TX Mesquite Qualifier', 'Qualifier', 'Mesquite', 'TX', 'USA', '2025-03-22', '2025-03-22', 'America/Chicago', 0, 0, ?, 'test')", [`https://youtu.be/${FST}`]);
+    await run("INSERT INTO video_meta (video_id, status, start, end, duration, live, checked_at) VALUES (?, 'ok', '2025-03-22T14:00:00Z', '2025-03-22T22:00:00Z', 28800, 0, 'x')", [FST]);
+    await run("INSERT INTO official_watch (video_id, channel_id, title, status, season, code, day, why, seen_at) VALUES (?, ?, 'FTC Texas Mesquite Qualifier', 'duplicate', 2024, 'USTXMEQ', '2025-03-22', ?, '2025-03-23T00:00:00Z')",
+      [CPY, TX, `duplicate: USTXMEQ already plays ${FST} for 2025-03-22`]);
+    uploads.unshift({ id: CPY, title: "FTC Texas Mesquite Qualifier", published: "2025-03-22T23:00:00Z", start: "2025-03-22T14:05:00Z" });
+    try {
+      await run("UPDATE official_audit_channels SET full_at = NULL WHERE channel_id = ?", [TX]);
+      await audit(Date.parse("2026-02-28T06:00:00Z"));
+      expect(await get<any>("SELECT status FROM official_watch WHERE video_id = ?", [CPY])).toMatchObject({ status: "duplicate" });
+      expect(await get("SELECT 1 FROM official_videos WHERE video_id = ?", [CPY])).toBeUndefined();
+      expect(await row(CPY)).toMatchObject({ record: "a duplicate the watcher logged" });
+      // FIRST's link goes private: the channel's copy passes every check and the day is free, so it's added.
+      await run("UPDATE video_meta SET status = 'unavailable', start = NULL, end = NULL, duration = NULL WHERE video_id = ?", [FST]);
+      await run("UPDATE official_audit_channels SET full_at = NULL WHERE channel_id = ?", [TX]);
+      await audit(Date.parse("2026-03-01T06:00:00Z"));
+      expect(await get<any>("SELECT status, decided_by, code, day FROM official_watch WHERE video_id = ?", [CPY])).toMatchObject({ status: "added", decided_by: "channel audit", code: "USTXMEQ", day: "2025-03-22" });
+      expect(await get<any>("SELECT code, day, source, removed_at FROM official_videos WHERE video_id = ?", [CPY])).toMatchObject({ code: "USTXMEQ", day: "2025-03-22", source: "watcher", removed_at: null });
+      expect(await row(CPY)).toMatchObject({ record: "added by the channel audit" });
+    } finally { uploads.shift(); }
+  });
 });
