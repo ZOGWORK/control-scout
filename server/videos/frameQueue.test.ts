@@ -39,6 +39,10 @@ describe("frameStatus", () => {
     // No last day known: the latest missing match's date stands in.
     expect(frameStatus(ev([miss("Q1", { date: "2026-11-18" })], { end: null }), NOW).state).toBe("waiting");
     expect(frameStatus(ev([miss("Q1", { date: "2026-11-15" })], { end: null }), NOW).state).toBe("queued");
+    // No last day at all (no end, no match dated): it may still be on, so it waits, and a read of it doesn't settle it.
+    expect(frameStatus(ev([miss("Q1", { date: null })], { end: null }), NOW))
+      .toMatchObject({ state: "waiting", due: 0, why: "Waits for the event's last day to be known: 1 match to read then" });
+    expect(frameStatus(ev([miss("Q1", { date: null, ...readOn("2026-11-16") })], { end: null }), NOW).state).toBe("waiting");
   });
 
   it("counts the venue's last day to its end there: an American evening is the next UTC day", () => {
@@ -60,6 +64,11 @@ describe("frameStatus", () => {
     expect(frameStatus(ev([miss("Q9", { date: "2026-11-15", ...readOn("2026-11-14") })], { end: null }), NOW).state).toBe("queued");
     expect(frameStatus(ev([miss("Q9", readOn("2026-11-15"))]), NOW))
       .toMatchObject({ state: "read", due: 0, at: "2026-11-15", why: "Read 2026-11-15: 1 match still without a clip, as the video shows (see each match)" });
+  });
+
+  it("dates a read by the matches it read, never by a match it can't place whose video was read another day", () => {
+    const f = frameStatus(ev([miss("Q1", readOn("2026-11-15")), miss("Q2", { reason: "no-start", ...readOn("2026-11-20") })]), NOW);
+    expect(f).toMatchObject({ state: "read", at: "2026-11-15", why: "Read 2026-11-15: 1 match still without a clip, as the video shows (see each match)" });
   });
 
   it("never queues what no frame read can place: no video, a private one, no start time", () => {
@@ -103,6 +112,12 @@ describe("rankQueue", () => {
     expect(list[0].frames.why).toBe("w · 4th in line");
     expect(list[3].frames.why).toBe("w · 1st in line");
     expect(list[4].frames.rank).toBeUndefined();
+    // Ranked again (as the runner does after filtering): one place each, and none on an event left out of the queue.
+    list[3].frames.state = "read";
+    expect(rankQueue(list).map((x) => `${x.code}#${x.frames.rank}`)).toEqual(["A#1", "C#2", "B#3"]);
+    expect([list[0].frames.why, list[3].frames.why, list[3].frames.rank]).toEqual(["w · 3rd in line", "w", undefined]);
+    list[3].frames.state = "queued";
+    rankQueue(list);
     const s = queueSummary(list.map((x) => ({ ...x, name: x.code })), 2);
     expect(s).toEqual({ queued: 4, matches: 55, waiting: 1, next: [{ season: 2023, code: "Z", name: "Z", matches: 40 }, { season: 2025, code: "A", name: "A", matches: 5 }] });
   });
