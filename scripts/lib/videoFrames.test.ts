@@ -1,7 +1,7 @@
 // The pure parts of the frame reader (scripts/video-frames.ts): the overlay's match, the timer's elapsed time, and
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
-import { dataRows, divisionOf, elapsed, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, type M } from "./videoFrames";
+import { dataRows, divisionOf, elapsed, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, type M } from "./videoFrames";
 
 describe("the frame reader", () => {
   // A 1280 × 720 frame: a grey field, and a score bar from `top` to `bottom` with one alliance's colour each side of the
@@ -492,5 +492,29 @@ describe("whose event an overlay names", () => {
     expect(overlayEvent("Hawaii Championship Finais Match 2", "Hawaii Championship", 25, true)).toEqual({ event: "own", phrase: "F2" });
     // Nothing to tell by: no total, no name.
     expect(overlayEvent("Playoff Match 3", "Hawaii Championship", 25)).toEqual({ event: null });
+  });
+});
+
+describe("an event's played matches, a time or not", () => {
+  // A stand-in for the zone: the venue's wall clock read as UTC.
+  const f = { utcMs: (t: string) => Date.parse(`${t}Z`), actual: (t: string | null) => !!t && !t.endsWith(":00"), rank: (l: string) => ({ Q1: 1, Q2: 2, M1: 1e6 + 1000 } as Record<string, number>)[l] ?? 4e6 };
+  it("reads one with no time by its frames alone, after the timed ones in its label's order", () => {
+    const ms = playedMatches([
+      { label: "M1", time: null, timezone: null }, { label: "Q2", time: "2025-07-19T10:07:00", timezone: "America/Chicago" },
+      { label: "Q1", time: "2025-07-19T10:01:13", timezone: "America/Chicago" }, { label: "X1", time: null, timezone: null },
+    ], f);
+    expect(ms.map((m) => [m.label, !!m.scheduled])).toEqual([["Q1", false], ["Q2", true], ["M1", true], ["X1", true]]);
+    expect(ms.map((m) => m.time)).toEqual(["2025-07-19T10:01:13", "2025-07-19T10:07:00", null, null]);
+    // Only ordered: no time means no clock, so each epoch is just after the last timed one's.
+    expect(ms[2].epoch).toBeGreaterThan(ms[1].epoch);
+    expect(ms[3].epoch).toBeGreaterThan(ms[2].epoch);
+  });
+  it("Chicago Robotics Invitational's results: none has a time, all are read in label order", () => {
+    const ms = playedMatches([{ label: "M1", time: null, timezone: null }, { label: "Q2", time: null, timezone: null }, { label: "Q1", time: null, timezone: null }], f);
+    expect(ms.map((m) => m.label)).toEqual(["Q1", "Q2", "M1"]);
+    expect(ms.every((m) => m.scheduled)).toBe(true);
+  });
+  it("leaves out a time the event's zone can't place", () => {
+    expect(playedMatches([{ label: "Q1", time: "2025-07-19T10:01:13", timezone: null }], { ...f, utcMs: () => null })).toEqual([]);
   });
 });
