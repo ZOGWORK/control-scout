@@ -1,4 +1,5 @@
 // The runner's merge step (scripts/lib/autopilotMergeStep.ts): main quiet, at most one of its own PRs, live by sha.
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { mainQuiet, mainStill, pickMerge, servesMerge } from "./autopilotMergeStep";
 
@@ -66,5 +67,17 @@ describe("servesMerge", () => {
     // Serving the release but not ready yet (warming up after the restart): not live yet.
     expect(servesMerge(JSON.stringify({ release: "m1", ready: false }), "m1", isAncestor)).toBeNull();
     expect(servesMerge(JSON.stringify({ release: "m1", ready: true }), "m1", isAncestor)).toBe(true);
+  });
+});
+
+describe("the runner's merge step (scripts/clip-autopilot.ts 1c)", () => {
+  it("is called only after every top-level const and let of its section has run", () => {
+    // A const read before its line runs throws (temporal dead zone): the step's catch would log "nothing merged" every run.
+    const src = readFileSync("scripts/clip-autopilot.ts", "utf8");
+    const section = src.slice(src.indexOf("// --- 1c."), src.indexOf("// --- 2."));
+    const call = section.indexOf("if (!DRY && MERGE) mergeOne();");
+    expect(call).toBeGreaterThan(section.indexOf("function mergeOne("));
+    const late = [...section.matchAll(/^(?:const|let) (\w+)/gm)].filter((m) => (m.index ?? 0) > call).map((m) => m[1]);
+    expect(late).toEqual([]);
   });
 });
