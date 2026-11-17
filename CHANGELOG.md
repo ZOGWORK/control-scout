@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.1.8 — 2026-11-17
+
+Videos › 8 more 2024 matches get a clip: their start was read off the video, and the overlay's bar now names each one on its opening frame.
+
+### Highlights
+- [fixes] 8 more 2024 matches get a clip read off the video
+- [fixes] Each opens on a frame whose overlay names its match
+- [fixes] No clip already playing changes
+
+### Fixed
+- Videos: 8 matches in 6 of the 2024 recordings of events USI to Z (USMNCMPNANO M2, USMOKSCMP Q38, USOHNEOHLT Q12 and Q16, USORPHQ Q18, USTXDTQ2 M6, USWISHQ M1 and M2), left out until now because their opening frame couldn't be read, get their clip: read paused, the overlay's bar names each one there. The other 176 openings in those recordings stay as they were, and no clip is taken away. (`server/data/frameTimings.ts`) (#1636)
+
 ## 7.1.7 — 2026-11-17
 
 Videos › 2024 clips from events N to USH open on the exact frame that names their match, read paused: 47 of 280 openings move by a few seconds, and none is taken away.
