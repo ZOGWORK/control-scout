@@ -71,11 +71,12 @@ const fold = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCas
 const ALL: (Region & { names: string[] })[] = Object.entries(STATES).flatMap(([country, m]) =>
   Object.entries(m).map(([state, v]) => ({ key: `${country}:${state}`, country, state, name: v.split("|")[0], names: v.split("|").map(fold) })));
 
-/** Regions a search names: a full name or its start ("new jers"), or a US/Canadian code typed alone ("NJ"). */
+/** Regions a search names: a full name or its start ("new jers"), a US/Canadian code typed alone ("NJ"), or its key as
+ *  links write it ("USA:NJ"). */
 export function findRegions(q: string): Region[] {
   const f = fold(q);
   if (f.length < 2) return [];
-  const exact = ALL.filter((r) => r.names.includes(f) || ((r.country === "USA" || r.country === "Canada") && r.state.toLowerCase() === f));
+  const exact = ALL.filter((r) => r.names.includes(f) || r.key.toLowerCase() === f || ((r.country === "USA" || r.country === "Canada") && r.state.toLowerCase() === f));
   if (exact.length || f.length < 4) return exact.map(({ names: _, ...r }) => r);
   return ALL.filter((r) => r.names.some((n) => n.startsWith(f))).slice(0, 3).map(({ names: _, ...r }) => r);
 }
@@ -86,6 +87,14 @@ export function regionNamed(q: string): Region | null {
   const hits = f ? ALL.filter((r) => r.names.includes(f)) : [];
   return hits.length === 1 ? (({ names: _, ...r }) => r)(hits[0]) : null;
 }
+
+/** Places a search names that are no state or country: a city FIRST runs as a region of its own, its events named
+ *  by its short form ("NYC Qualifier 1"). Each name it's said by, as whole words, and that short form. */
+const CITY_NAMES: readonly [names: RegExp, short: string][] = [[/\bnew\s+york\s+city\b/gi, "NYC"]];
+
+/** The query with each such place said by its short form ("new york city championship" → "NYC championship"), so it
+ *  reads as the events name it, never as its state plus a stray word. */
+export const cityShortForm = (q: string): string => CITY_NAMES.reduce((s, [re, to]) => s.replace(re, to), q);
 
 /** Letters to change, add or drop to turn `a` into `b`. */
 export function edits(a: string, b: string): number {
