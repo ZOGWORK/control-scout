@@ -17,7 +17,7 @@ match ("Qualification 21 of 36", "Playoff Match 7") and runs its timer.
 point, and reads two things with tesseract.js:
 
 1. **The overlay's match**: `overlayLabel` turns "Qualification 21 of 36" into Q21, "Finals Match 2" into F2, and
-   "Playoff Match 10" or a bare "Match 10" (2025's playoff overlay) into M10. 2019–2022's best-of-3 semifinals
+   "Playoff Match 10" or a bare "Match 10" (2025's playoff overlay) into M10. 2019–2023's best-of-3 semifinals
    ("Semifinal 1 Match 2") are named by series and number (M1-2), the event's match of that series and number only:
    its M1 is "Semifinal 1 Match 1", its M2 "Semifinal 2 Match 1" (`sameMatch`).
 2. **The timer**, in one of three places: the bar along the bottom (FTC Live's default), a box over the field under
@@ -96,7 +96,10 @@ A busy frame (crowd, robots, game pieces) can throw tesseract's page layout off 
 USARBEQ 2024 Q8 at 7097 s reads as a jumble whole, though "Qualification 8 of 23" is plain on screen. So an opening
 whose whole frame names nothing has the match's half of the bar's top row read on its own (`labelRow`): the whole row
 can lose it too, to the logo and event name beside it (USCHSGAQ1 2024 M1, its half "Playoff Match 1"). On a shared
-stream the whole row must also name this division. Placement reads stay whole-frame reads.
+stream the whole row must also name this division. Placement reads fall back on the row the same way: on CENTERSTAGE's
+(2023) streams nearly every frame of play loses the bar's line in a whole-frame read (NLBNM1 at 3300 s reads a jumble,
+its row alone "Qualification 4 of 23"), so those videos read nothing at all before. A row-named read is held to the same
+checks as any other: its timer seen running, the same match and start 70 s on, not running 25 s before.
 
 With `--live`, a clip the live site already plays that a read leaves out (one read of it out of order, a gap the reads
 around it disagree on: FPEWESEA 2025 Q97–Q100) goes back to its live second for its opening check, like any start: its

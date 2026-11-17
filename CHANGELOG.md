@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 7.3.2 — 2026-11-17
+## 7.3.9 — 2026-11-17
 
 Videos › 20 more 2024 matches get a clip, read off three event videos and checked paused on each clip's opening frame, and 5 matches played before their recording are settled.
 
@@ -26,6 +26,91 @@ Videos › 20 more 2024 matches get a clip, read off three event videos and chec
 
 ### Fixed
 - Videos: 7 more 2024 recordings are read into the data (`server/data/frameTimings/2024.ts`). Saguaro Blossom - Microchip Qualifier (USAZCHQ1) gets 13 clips, Battle of Brookfield (USWIBRQ1) 5 and the Hawaii Championship (USHICMP) 2, each opening on a frame whose overlay names its match. FiT-North T-League Meet 1's recording (USTXNTM1) opens on Q6, so Q1–Q5 are settled as played before it. Pennsylvania's championship (USPACMP) and USNYNYBRQ1 are recorded as checked, with the matches their videos don't show named for review. No clip already playing changes. (#1649)
+
+## 7.3.8 — 2026-11-17
+
+Videos › the frame reader tells one event's overlay from another's on the same stream: a frame naming another event is never this event's match.
+
+### Highlights
+- [fixes] A split screen of two events no longer mixes up their matches
+- [fixes] Each frame's event name or qualification total must be this event's
+- [fixes] No clip changes
+
+### Fixed
+- Videos (the frame reader, `scripts/video-frames.ts`, `scripts/lib/videoFrames.ts`): a frame whose overlay names another event, by the name beside the match or, where no name is read, by its qualification total ("of 24" for an event of 26), is never this event's start, clip opening or recording edge; on a split screen, the half that is this event's gives its match. USTXCAM1 2024's recording shows two league meets side by side, and its first frames' "Qualification 3 of 24" was the other meet's. The 15 recording edges already in the data were each checked against their saved frame: every one names its own event. (#1656)
+
+## 7.3.7 — 2026-11-17
+
+Videos › the frame reader no longer takes a playoff bar's "Winner → Match 7" for the match being played.
+
+### Highlights
+- [fixes] Playoff clips read the right match on FIRST DIVE's 2024 bar
+- [fixes] A bracket's next match is never taken for the one on screen
+- [fixes] More 2024 playoff openings confirmed from their own frame
+
+### Fixed
+- FIRST DIVE's 2024 playoff bar shows the bracket's next steps beside the match on screen ("Winner → Match 7", "Loser → Match 5"). The frame reader counted those as matches named on screen: where tesseract lost the bar's own "Playoff Match 1" line (AUCMP 2024 at 16874 s), the frame read as Match 7, a later match; where it kept it, two numbers named no match and the opening went unread. Like "advances to", a Winner or Loser line's match is now never the one on screen. (`scripts/lib/videoFrames.ts`) (#1659)
+
+## 7.3.6 — 2026-11-17
+
+Search engines › a Lite page with nothing on it yet says noindex, like its full page, so Google stops calling it a soft 404.
+
+### Highlights
+- [fixes] Lite team and event pages follow their full page's indexing rule
+- [fixes] A team or event with no data yet is noindex in Lite too
+- [fixes] Pages with data keep only their canonical link, as before
+
+### Fixed
+- Search engines: a team or event page with nothing on it but a name is noindex (`server/indexable.ts`), but its Lite twin only pointed its canonical at it, so Google crawled a 21-word Lite page that could be indexed and reported it as a soft 404 (`/lite/teams/19381` in Search Console's Soft 404 examples). The Lite team and event pages now ask the same rule and say noindex when their full page does. (`server/lite/routes.ts`, `server/lite/render.ts`) (#1670)
+
+## 7.3.5 — 2026-11-17
+
+Search engines › a page Google drew before a deploy still finds its scripts, so its render no longer comes out empty.
+
+### Highlights
+- [fixes] Pages drawn before an update keep loading their scripts for 30 days
+- [fixes] Google's renderer no longer meets a missing chunk and an empty page
+- [fixes] A tab left open across an update still opens its pages
+
+### Fixed
+- Search engines: only the three newest releases stay on disk and the site deploys several times a day, so a page drawn hours earlier (kept by Googlebot's renderer, which caches scripts for weeks, or open in a tab) asked for chunks that were gone: Googlebot got 404s on `/assets/*.js` (about 370 in two weeks of the server's log), and a page whose chunk is missing renders empty, which Google reads as a soft 404. Every release's hashed files are now kept for 30 days in one archive the server falls back to after the release's own files (each file renamed in whole, never rewritten while served); anything in neither is still a 404. (`server/app.ts`, `deploy/oracle-vm-setup.sh`) (#1666)
+
+## 7.3.4 — 2026-11-17
+
+Videos › the frame reader now reads CENTERSTAGE (2023) recordings, whose overlay it couldn't read before, so their matches can get clips.
+
+### Highlights
+- [fixes] 2023 recordings can be read for match clips
+- [fixes] Score bars at the top of the screen are found too
+- [fixes] Uploaded recordings find their first match sooner
+
+### Fixed
+- Videos (`scripts/video-frames.ts`, `scripts/lib/videoFrames.ts`): CENTERSTAGE's (2023) recordings read no match at all. A busy frame loses FTC Live's bar in a whole-frame read, so placement reads now fall back on the bar's row read on its own, at its usual height or 8 px lower, as clip openings already did. Where none of the known crops holds the timer, the score bar is found by its alliance colours wherever the stream put it (Arizona's flush-top bar in dark navy and maroon), and its timer and the row over it are read there. An upload's scan steps a minute on, up to three times, past a frame naming a match not yet running. CENTERSTAGE's playoffs are best-of-3 semifinals, named "Semifinal 2 Match 1" on the overlay, so a read that loses "Semifinal" no longer takes that for M1 and pulls the real match's clip. Measured on dry runs: NLBNM1 0 → 22 of 23 placed, USTXNTM1 0 → 10 of 17 (Q1–Q7 come before the video), USAZGIQ 0 → 37 of 38, each opening naming its match (#1655).
+
+## 7.3.3 — 2026-11-17
+
+Owner console › Clip coverage is now a quick, visual review screen: meters and coloured tiles up top, one card per event, and every missing match a chip that opens its video at the right second.
+
+### Highlights
+- [workspace] Clip coverage: two big progress meters and coloured count tiles
+- [workspace] One card per event, its missing matches as coloured chips
+- [workspace] Press a chip to watch that moment, without leaving the page
+- [workspace] Reviewed right on the card, at once
+
+### Changed
+- Owner console › Clip coverage: events fully clipped and matches with a clip as two big meters; the lists (To review, Not yet checked, No timing, Early start, Old season, Reviewed) as coloured count tiles; why matches have no clip as a coloured bar with a tile per kind that shows only that kind's chips. Each event is a card with its video's thumbnail, a clipped meter and its missing matches as chips coloured by kind (a short reason on hover); a chip opens the app's video dialog at the second worth seeing. Reviewed sits on the card and takes it off at once, putting it back if the server says no. Matches found in the video are chips too. The long reasons are under Details on each card, and bulk Reviewed with the check numbers under "Bulk review and check details". Works on phones (44px touch targets, no sideways scroll) and in every theme. (`src/components/owner/ClipCoveragePanel.tsx`, `src/components/owner/clipReview.ts`) (#1650)
+
+## 7.3.2 — 2026-11-17
+
+Videos › the Almaty Tech Cup gets match clips read off its recordings' frames: 16 on its second day now, 12 more on its first day once that day's recording is linked.
+
+### Highlights
+- [fixes] 16 Almaty Tech Cup matches get a clip read off the video
+- [fixes] Each opens on a frame whose overlay names its match and event
+- [fixes] No clip already playing changes
+
+### Fixed
+- Videos: KZALOS1's two day recordings lost time against their broadcast, so the clock placed none of its matches. Their starts are now read off the frames, and each clip opens on a frame (read paused) whose overlay names its match and "Almaty Tech Cup XII". Day 2 (EAkHPgVm-Ow): 16 of the 34 matches it holds. Q28–Q31 come before the recording starts, and 14 others have no frame naming them at their clip's start, because the stream cuts to a camera without the overlay between matches. Day 1 (9ywna4SeDoI): 12 of the 15 matches it holds. Q14's timer reads disagreed, and Q1 and Q2 had no read. That row plays once the day's recording is linked. No clip already playing is taken away. (`server/data/frameTimings/2025.ts`) (#1662)
 
 ## 7.3.1 — 2026-11-17
 
