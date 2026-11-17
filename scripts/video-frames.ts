@@ -858,9 +858,10 @@ const browser = await chromium.launch({ args: ["--autoplay-policy=no-user-gestur
 const today = new Date().toISOString().slice(0, 10);
 let done = 0;
 const report: string[] = [];
-// Linked recordings skipped for want of details (undetailed), and the events left with none to read.
-let skippedVideos = 0;
-const onlySkipped: string[] = [];
+// Linked recordings skipped (undetailed): for want of details a fetch would give, or gone/still live; and the events
+// left with nothing to read until their details are fetched.
+let undetailedVideos = 0, unreadableVideos = 0;
+const undetailedEvents: string[] = [];
 
 /** Write the timings kept so far (after each event, so a run cut short keeps what it read). A file another program
  *  holds open for a moment (an editor, git, a test run reading it) only delays the write: it's tried again, and if it
@@ -1100,15 +1101,16 @@ async function doCode(code: string): Promise<void> {
     if ("length" in p) { v.meta = { ...v.meta, length: p.length }; log(`  ${v.videoId}: no duration from YouTube, ${p.length} s from the player`); }
     else log(`  ${v.videoId}: no duration from YouTube, not read: ${p.why}`);
   }
-  // A linked recording with no details can't be read: said now (stderr, not only in the event's lines), and counted.
+  // A linked recording that can't be read is said now (stderr, not only in the event's lines) and counted: one a fetch
+  // of its details would fix apart from one that's gone or still live (undetailed).
   const unread = undetailed(own);
   for (const s of unread.skipped) {
     const line = `${code}: linked recording ${s.videoId} skipped: ${s.why}`;
     log(`  ${line}`);
     console.error(`!! ${line}`);
   }
-  skippedVideos += unread.skipped.length;
-  if (unread.only) onlySkipped.push(code);
+  for (const s of unread.skipped) if (s.fixable) undetailedVideos++; else unreadableVideos++;
+  if (unread.fails) undetailedEvents.push(code);
   const videos = own.filter((v) => v.meta?.status === "ok" && v.meta.length);
   const held = new Set<string>();
   for (const v of videos) {
@@ -1248,9 +1250,11 @@ await rowOcr.terminate().catch(() => {});
 if (failedEvents) { console.error(`${failedEvents} events failed before their videos were read`); process.exitCode = 1; }
 // Videos that couldn't be played are written as such and read again on the next run, but this run didn't finish them.
 if (failedVideos) { console.error(`${failedVideos} videos couldn't be played (written with the reason; the next run reads them again)`); process.exitCode = 1; }
-// Linked recordings with no details (undetailed): counted; an event none of whose videos could be read fails the run.
-if (skippedVideos) console.error(`${skippedVideos} linked recordings skipped: no details on file (fetch them, then read again)`);
-if (onlySkipped.length) { console.error(`${onlySkipped.join(", ")}: every linked recording skipped, nothing read`); process.exitCode = 1; }
+// Linked recordings skipped (undetailed): counted by kind. Only an event left with nothing to read for want of details
+// a fetch would give fails the run; one whose only video is removed, private or still live is said, never failed.
+if (undetailedVideos) console.error(`${undetailedVideos} linked recordings skipped: no details on file, or the fetch failed (fetch them, then read again)`);
+if (unreadableVideos) console.error(`${unreadableVideos} linked recordings not read: unavailable on YouTube or still live (said per event above)`);
+if (undetailedEvents.length) { console.error(`${undetailedEvents.join(", ")}: no linked recording could be read for want of details`); process.exitCode = 1; }
 if (!CHECK && !DRY) {
   // The last save may have failed with no save after it (retried above): the run then says so and fails.
   if (unsaved) { console.error(`${FRAMES_FILE} could not be written: this run's timings are lost`); process.exitCode = 1; }
