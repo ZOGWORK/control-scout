@@ -66,6 +66,10 @@ interface Record_ { record: string; season: number | null; code: string | null; 
 const REVIEW = "in the owner's review";
 const SET_ASIDE = "set aside by the watcher";
 const SET_ASIDE_BY_AUDIT = "set aside by the channel audit";
+/** Logged by the watcher as a copy of what its event already played that day. Decided again every audit, like one set
+ *  aside: the video it copied may since have gone (private, deleted, blocked) or come off the event, and then this one,
+ *  if every check passes, is the day's recording. While the event still plays that day it stays a duplicate. */
+const DUPLICATE = "a duplicate the watcher logged";
 /** A FIRST event link the audit didn't take as its event's record, and why. */
 export interface UnusedLink { season: number; code: string; videoId: string; why: string }
 /**
@@ -111,7 +115,7 @@ async function scoutRecords(unused?: UnusedLink[]): Promise<Map<string, Record_>
   const links = await firstLinks();
   for (const l of links.used) put(l.videoId, { record: l.short ? "the event's short stream link" : "FIRST's event link", season: l.season, code: l.code, plays: true });
   unused?.push(...links.unused);
-  const watch: Record<string, string> = { added: "added by the watcher", approved: "approved by the owner", pending: REVIEW, ignored: SET_ASIDE, duplicate: "a duplicate the watcher logged", rejected: "rejected by the owner" };
+  const watch: Record<string, string> = { added: "added by the watcher", approved: "approved by the owner", pending: REVIEW, ignored: SET_ASIDE, duplicate: DUPLICATE, rejected: "rejected by the owner" };
   for (const r of await all<any>("SELECT video_id, status, season, code, decided_by FROM official_watch")) {
     const label = r.decided_by === "evidence" && (r.status === "approved" || r.status === "rejected") ? `${r.status === "approved" ? "linked" : "decided"} from evidence`
       : r.decided_by === "channel audit" && r.status === "added" ? "added by the channel audit"
@@ -204,9 +208,10 @@ export async function runChannelAudit(log: (s: string) => void, opts: { apiKey?:
     const records = await scoutRecords(unusedLinks);
     const rows = await all<any>("SELECT video_id, channel_id, title, published, start, duration, privacy, embeddable, blocked_in, facts_at, finding, found_at FROM official_audit_videos WHERE gone_at IS NULL");
     const adds = new Set((await all<{ video_id: string }>("SELECT video_id FROM official_videos WHERE source = 'watcher'")).map((r) => String(r.video_id)));
-    // The review queue and the watcher's set-aside rows are decided again each run with today's rules: a video the
-    // rules now decide never waits on the owner, and one set aside for want of its event is added once Scout has it.
-    const again = (id: string) => { const r = records.get(id); return !!r && (r.record === REVIEW || r.record === SET_ASIDE); };
+    // The review queue and the watcher's set-aside and duplicate rows are decided again each run with today's rules: a
+    // video the rules now decide never waits on the owner, one set aside for want of its event is added once Scout has
+    // it, and a duplicate is added once the video it copied no longer plays.
+    const again = (id: string) => { const r = records.get(id); return !!r && (r.record === REVIEW || r.record === SET_ASIDE || r.record === DUPLICATE); };
     const needFacts = rows.filter((r) => ((!records.has(String(r.video_id)) || again(String(r.video_id))) && !r.facts_at && !notCompetition(String(r.title))) || adds.has(String(r.video_id))).map((r) => String(r.video_id));
     const facts = new Map<string, any>();
     let factsError: string | null = null;
@@ -289,7 +294,7 @@ export async function runChannelAudit(log: (s: string) => void, opts: { apiKey?:
       const rule = rules.get(String(r.channel_id));
       if (!rule) return null;
       const rec = records.get(vid);
-      const redo = rec && rec.record === REVIEW ? "pending" as const : rec && rec.record === SET_ASIDE ? "ignored" as const : null;
+      const redo = rec && rec.record === REVIEW ? "pending" as const : rec && (rec.record === SET_ASIDE || rec.record === DUPLICATE) ? "ignored" as const : null;
       const v: WatchVideo = { videoId: vid, title: String(row.title), start: row.start ?? null, published: row.published ?? null, durationS: row.duration == null ? null : Number(row.duration), privacy: String(row.privacy ?? "public"), embeddable: Number(row.embeddable ?? 1) !== 0, blockedIn: Number(row.blocked_in ?? 0) };
       const title = notCompetition(v.title);
       const live = f?.live === "live" || f?.live === "upcoming";
