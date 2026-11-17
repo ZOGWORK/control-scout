@@ -98,6 +98,9 @@ describe("the frame reader", () => {
     expect(none.missing.get("Q1")).toBe(SCHEDULED_UNREAD);
     expect(none.missing.get("Q3")).toBe("its frames didn't confirm a start");
     expect(judge(ms, new Map(), null, 10_000, new Set()).missing.get("Q1")).toBe(NOTHING_READ);
+    // A recording cut mid-match (USTXSASQ 2025's kind): two starts 151 s apart, both read off the video, both stand.
+    const cut = judge(ms, new Map([[0, 2000], [1, 2151]]), null, 10_000, new Set([0, 1]));
+    expect([...cut.placed.keys()]).toEqual(["Q1", "Q2"]);
   });
 
   it("keeps the clock's reads and fills only clock matches when scheduled ones sit between them", () => {

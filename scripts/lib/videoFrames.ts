@@ -240,9 +240,9 @@ export function judge(ms: M[], seen: Map<number, number>, shift: number | null, 
   len.forEach((l, k) => { if (l === longest) { const r = runOf(k); if (!kept.length || agreeing(r) >= agreeing(kept)) kept = r; } });
   const dropped = new Set(idx.filter((i) => !kept.includes(i)));
   // The scheduled matches' reads: those on every longest run rising with the matches' order (a match apart at least,
-  // less a read's slack). Two runs as long that differ can't say which read is wrong, so neither of theirs stands.
+  // less what a cut in the recording loses, as for two high starts below). Two runs as long that differ can't say which read is wrong, so neither of theirs stands.
   const sched = [...seen.keys()].filter((i) => !timed(i)).sort((a, b) => a - b);
-  const after = (a: number, b: number) => seen.get(sched[b])! - seen.get(sched[a])! >= MATCH_S - SAME_S;
+  const after = (a: number, b: number) => seen.get(sched[b])! - seen.get(sched[a])! >= MATCH_S - LOSS_S;
   const pre = sched.map(() => 1), suf = sched.map(() => 1);
   for (let b = 0; b < sched.length; b++) for (let a = 0; a < b; a++) if (after(a, b)) pre[b] = Math.max(pre[b], pre[a] + 1);
   for (let a = sched.length - 1; a >= 0; a--) for (let b = a + 1; b < sched.length; b++) if (after(a, b)) suf[a] = Math.max(suf[a], suf[b] + 1);
