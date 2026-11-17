@@ -135,6 +135,74 @@ export function overlayDivision(text: string, own: string, others: string[]): "o
   return has(own) ? "own" : null;
 }
 
+/**
+ * The match FTC Live's bottom bar names when its row is read on its own (the reader's labelRow): `half` is the read of
+ * the row's right half, where the match sits ("Qualification 10 of 17"), `row` the whole row's, where the event or
+ * division sits. On a stream an event's divisions share (`ctx`), the row must name this division, as a whole frame's
+ * read must; a row naming no division, or a sibling's, names no match of this event.
+ */
+export function rowLabel(half: string, row: string | null, ctx?: { own: string; others: string[] }): string | null {
+  const label = overlayLabel(half);
+  if (!label || !ctx) return label;
+  return row != null && overlayDivision(row, ctx.own, ctx.others) === "own" ? label : null;
+}
+
+/**
+ * Where FTC Live's score bar sits in a frame (RGBA pixels, `width` × `height`): the rows where one alliance's colour
+ * fills much of the half left of the timer's column and the other's the half right of it (blue then red, or red then
+ * blue): whole halves, as a bar's white score badges can fill the stretch beside the timer (Arizona's, USAZGIQ 2023). Its tallest run of such rows (a row or two of icons and digits breaking it is bridged) is the bar, wherever the
+ * stream put it: along the bottom (FTC Live's default), under a title bar at the top (FIRST in Texas), or flush with the
+ * top (Arizona's CENTERSTAGE streams, the timer 56–96 px down). Null: no run at least 3% of the frame tall (a frame with
+ * no bar: a slate, a camera, a results card). Self-contained (no imports, no outer names): the reader runs it in the page.
+ */
+export function overlayBand(px: ArrayLike<number>, width: number, height: number): { top: number; bottom: number } | null {
+  const BLUE = 1, RED = 2;
+  const colour = (i: number): number => {
+    const r = px[i], g = px[i + 1], b = px[i + 2];
+    // By hue more than brightness: Arizona's bar is a dark navy (2, 46, 80) and maroon (111, 12, 17). Red twice the
+    // green and blue, so an orange wood floor (200, 130, 60) is neither.
+    if (b >= 60 && b > r + 40 && b > g * 1.4) return BLUE;
+    if (r >= 70 && r > g * 2 && r > b * 2) return RED;
+    return 0;
+  };
+  // Share of a stretch's pixels in each colour, every other pixel.
+  const share = (y: number, from: number, to: number): [number, number] => {
+    let blue = 0, red = 0, n = 0;
+    for (let x = Math.round(from * width); x < Math.round(to * width); x += 2) {
+      const c = colour((y * width + x) * 4);
+      if (c === BLUE) blue++; else if (c === RED) red++;
+      n++;
+    }
+    return [blue / n, red / n];
+  };
+  const MIN = 0.4, GAP = 3, TALL = Math.round(height * 0.03), CARD = Math.round(height * 0.2);
+  let best: { top: number; bottom: number } | null = null, top = -1, last = -1;
+  for (let y = 0; y <= height; y++) {
+    let bar = false;
+    if (y < height) {
+      const [lb, lr] = share(y, 0.02, 0.44), [rb, rr] = share(y, 0.56, 0.98);
+      bar = (lb >= MIN && rr >= MIN) || (lr >= MIN && rb >= MIN);
+    }
+    if (bar) { if (top < 0 || y - last > GAP + 1) top = y; last = y; continue; }
+    if (top >= 0 && (y - last > GAP || y === height)) {
+      if (last - top + 1 >= TALL && last - top + 1 <= CARD && (!best || last - top > best.bottom - best.top)) best = { top, bottom: last + 1 };
+      top = -1;
+    }
+  }
+  return best;
+}
+
+/**
+ * The row over a score bar found in the frame (overlayBand), where FTC Live names the match: as tall as the usual row
+ * (`usual`, over the bottom bar), cut at the frame's top. Null where it would be the usual row again (a bar where the
+ * bottom bar always is), or there's no room over the bar for a line of text.
+ */
+export function rowAbove(band: { top: number }, usual: { x: number; y: number; width: number; height: number }): { x: number; y: number; width: number; height: number } | null {
+  const y = Math.max(0, band.top - usual.height), height = band.top - y;
+  if (height < 24 || Math.abs(y - usual.y) <= 16) return null;
+  return { x: usual.x, y, width: usual.width, height };
+}
+
 /** How long before a broadcast's start a match no broadcast holds is still looked for in it (seconds). */
 export const LEAD_IN_S = 6 * 3600;
 
