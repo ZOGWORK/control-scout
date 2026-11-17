@@ -38,6 +38,7 @@ import { eventView, withPageExtras, withStream } from "./api/eventView.js";
 import { videosRouter } from "./videos/routes.js";
 import { viewerOf } from "./videos/contributors.js";
 import { leagueStandings } from "./api/leagues.js";
+import { leagueConferences, teamConferenceInfo } from "./api/conferences.js";
 import { teamHighlightsPage } from "./teamHighlightsPage.js";
 import { teamRecordPage } from "./teamRecordPage.js";
 import { eventHighlightsPage } from "./eventHighlightsPage.js";
@@ -571,6 +572,10 @@ export function createApp(opts: { dist?: string; /** Tests only: a smaller searc
     return p;
   }));
 
+  // A team's New Jersey conference (api/conferences.ts): whether it's based in New Jersey (who sees the conference
+  // button), its league and, once FIRST lists it in a conference tournament, its place there.
+  api.get("/teams/:number/conference", h(async (req) => teamConferenceInfo(int(req.params.number, "team", { min: 1, max: 999999 }), season(req.query.season))));
+
   // A team's highlights page (server/teamHighlightsPage.ts): Search's "<team> highlights" answer, the same for
   // every visitor. Not found for a team with no page to index or no match to pick from.
   api.get("/teams/:number/highlights", h(async (req) => {
@@ -681,6 +686,15 @@ export function createApp(opts: { dist?: string; /** Tests only: a smaller searc
     const r = String(req.params.region), c = String(req.params.code);
     if (!/^[A-Za-z0-9]{1,16}$/.test(r) || !/^[A-Za-z0-9]{1,16}$/.test(c)) throw bad("invalid league");
     const d = await leagueStandings(season(req.params.season), r, c);
+    if (!d) throw new HttpError(404, `No league ${c} in ${r} in ${req.params.season}`);
+    return d;
+  }));
+  // A New Jersey league's conference tables (api/conferences.ts): each conference tournament's teams by FIRST's league
+  // standing over the league meets only. No conferences outside New Jersey: an empty list, never a guess.
+  api.get("/leagues/:season/:region/:code/conferences", h(async (req) => {
+    const r = String(req.params.region), c = String(req.params.code);
+    if (!/^[A-Za-z0-9]{1,16}$/.test(r) || !/^[A-Za-z0-9]{1,16}$/.test(c)) throw bad("invalid league");
+    const d = await leagueConferences(season(req.params.season), r, c);
     if (!d) throw new HttpError(404, `No league ${c} in ${r} in ${req.params.season}`);
     return d;
   }));

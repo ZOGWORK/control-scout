@@ -93,6 +93,9 @@ export const PUBLIC_TABLES = [
   "event_stream_links", "event_broadcasts",
   // Official event recordings and highlights from the organisers' own channels (migration 83): public video ids.
   "official_videos",
+  // New Jersey's conferences read from public event names, and FIRST's public league standings kept the week before
+  // each conference tournament (migration 94).
+  "event_conferences", "conference_snapshots",
 ];
 
 /** True only when replacing the file can't lose anything: it's missing or zero

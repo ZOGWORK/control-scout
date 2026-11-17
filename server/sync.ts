@@ -13,6 +13,7 @@ import { FirstError, firstEventBundle, firstEvents, firstTeams } from "./sources
 import { bundleFromScout, fetchScoutEvent } from "./sources/ftcScout.js";
 import { hasFirst } from "./env.js";
 import { syncFtcNj } from "./data/provisional.js";
+import { syncConferences } from "./data/conferences.js";
 import { CRI_SOURCE } from "./sources/cri.js";
 import { sessionPairs, syncRegistrations, type SessionEvent } from "./data/registrations.js";
 import { backfillAdvancementPoints } from "./data/advancementPoints.js";
@@ -232,6 +233,14 @@ export async function syncAll(o: SyncOptions = {}): Promise<SyncReport[]> {
   }
   // The season before's league standings, read once with the current season's sync (a frozen season's stops before them).
   if (hasFirst() && seasons.includes(CURRENT_SEASON)) await leagueSync(CURRENT_SEASON - 1, true, o.log ?? (() => {}));
+  // New Jersey's conferences from its league tournaments' names, and the week-before snapshots (data/conferences.ts):
+  // local reads only, so a frozen past season's are written too. Its own failure never fails the sync.
+  for (const s of [CURRENT_SEASON, CURRENT_SEASON - 1]) {
+    try {
+      const c = await syncConferences(s);
+      if (c.snapshots) o.log?.(`${s}: ${c.conferences} NJ conferences, ${c.snapshots} league snapshots taken`);
+    } catch (e) { o.log?.(`${s}: conferences failed: ${(e as Error).message.slice(0, 120)}`); }
+  }
   await kvSet("sync:last", { at: new Date().toISOString(), reports: out.map((r) => ({ ...r, failed: r.failed.slice(0, 20), failedCount: r.failed.length })) });
   return out;
 }
