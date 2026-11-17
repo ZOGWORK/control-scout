@@ -1,7 +1,7 @@
 // The pure parts of the frame reader (scripts/video-frames.ts): the overlay's match, the timer's elapsed time, and
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
-import { dataRows, divisionOf, elapsed, overlayDivision, leadIn, LEAD_IN_S, judge, NOTHING_READ, overlayLabel, sameMatch, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, type M } from "./videoFrames";
+import { dataRows, divisionOf, elapsed, overlayDivision, leadIn, LEAD_IN_S, judge, NOTHING_READ, autoLeadsTo, overlayLabel, sameMatch, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, type M } from "./videoFrames";
 
 describe("the frame reader", () => {
   it("names the match the overlay shows, and nothing else", () => {
@@ -24,6 +24,12 @@ describe("the frame reader", () => {
     expect(overlayLabel("Semifinal 1 Match 2  Match Preview  8588 Finger Puppet Mafia")).toBe("M1-2");
     expect(overlayLabel("Semi-Final 1 Match 3")).toBe("M1-3");
     expect(overlayLabel("AU APOC 2023  Finals Match 2")).toBe("F2");
+    expect(overlayLabel("Finais Match 1  Super Qualifier: Iowa City")).toBe("F1");
+    // A bare "Match 1" in a season of semifinals is one of those with its first word lost: none (2019IASQ4 F1).
+    expect(overlayLabel("Match 1  Super Qualifier: Iowa City", true)).toBeNull();
+    expect(overlayLabel("Semifinal 1 Match 1  Super Qualifier: Iowa City", true)).toBe("M1-1");
+    expect(overlayLabel("Qualification 4 of 36", true)).toBe("Q4");
+    expect(overlayLabel("Match 1  Super Qualifier: Iowa City")).toBe("M1");
     // AUMPOS1 2022's bracket card names its semifinals with no match: none.
     expect(overlayLabel("Elimination Bracket  Semifinal 1  12993 8644 20871  Semifinal 2  Finals")).toBeNull();
     expect(sameMatch("M2-1", "M2")).toBe(true);
@@ -55,6 +61,16 @@ describe("the frame reader", () => {
     expect(elapsed({ where: "plain", left: 24, auto: true })).toBe(6);
     expect(elapsed({ where: "plain", left: 24, auto: false })).toBe(134);
     expect(elapsed({ where: "plain", left: 120, auto: false })).toBeNull();
+  });
+
+  it("tells Auto from TeleOp's end by where the timer stands 45 s on", () => {
+    // 2019IASQ4 M2-1: Auto "10" at 18300, 46 s on TeleOp reads 92 (10 s of Auto, the 8 s switch, 28 s of TeleOp).
+    expect(autoLeadsTo(10, 46, 92)).toBe(true);
+    expect(autoLeadsTo(10, 46, 94)).toBe(true);
+    expect(autoLeadsTo(10, 46, 100)).toBe(false);
+    // The end of TeleOp ("0:20") leads to a finished match: no TeleOp reading 45 s on is its.
+    expect(autoLeadsTo(20, 45, 30)).toBe(false);
+    expect(autoLeadsTo(30, 30, 120)).toBe(false);
   });
 
   it("reads a timer", () => {

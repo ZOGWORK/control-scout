@@ -14,17 +14,21 @@ export const AUTO_S = 30, SWITCH_S = 8, TELEOP_S = 120;
 /** The match an overlay names: "Qualification 21 of 36" → Q21, "Finals Match 2" → F2, "Playoff Match 7" or just
  *  "Match 7" (a playoff on 2025's overlay) → M7; anything else none. A frame's label only counts with its timer seen
  *  running and confirmed a minute on (scripts/video-frames.ts), so a bracket screen or schedule naming a match, with no
- *  timer running, gives no start. */
-export function overlayLabel(text: string): string | null {
+ *  timer running, gives no start. `semifinals`: the event's playoffs are best-of-3 semifinals and finals (2019–2022),
+ *  whose overlay names each as "Semifinal 1 Match 2" or "Finals Match 1": a bare "Match 1" there is one of those read
+ *  with its first word lost (2019IASQ4's "Finals Match 1" read "Match 1"), so it names none. */
+export function overlayLabel(text: string, semifinals = false): string | null {
   const q = /Qualification\s+(\d{1,3})\s+of\s+\d{1,3}/i.exec(text);
   if (q) return `Q${Number(q[1])}`;
-  const f = /Finals?\s+Match\s+(\d)\b/i.exec(text);
+  // "Finals" with a letter the OCR reads as another ("Finais", "Fnals").
+  const f = /(?<!Semi-?\s?)\bF[il1]?na[il1|]s?\s+Match\s+(\d)\b/i.exec(text);
   if (f) return `F${Number(f[1])}`;
   // Best-of-3 semifinals (2019–2022's playoffs): "Semifinal 2 Match 1" is the second semifinal's first match, the
   // event's M2 (series 2, number 1), and "Semifinal 1 Match 2" is its M1-2, never M2. Named with series and number
   // ("M2-1", "M1-2") so it's never taken for a replay (sameMatch).
   const sf = /Semi-?\s?finals?\s+(\d)\s+Match\s+(\d)\b/i.exec(text);
   if (sf) return `M${Number(sf[1])}-${Number(sf[2])}`;
+  if (semifinals) return null;
   // A full-screen card can name several matches: a bracket ("Up Next Match 4", "Winner advances to Playoff Match 7") or
   // a result ("Match 6", "Advances to: Playoff Match 8"). A match it says a team advances to is a later one, never the
   // one on screen; of the rest, two different numbers name no one match, so the frame names none (CAONMIQ 2025). A
@@ -38,6 +42,14 @@ export function overlayLabel(text: string): string | null {
   const named = new Set<number>();
   for (const m of text.matchAll(/(advances\s+to:?\s+(?:Playoff\s+)?|\bTest\s+)?\bMatch\s+(\d{1,2})\b/gi)) if (!m[1]) named.add(Number(m[2]));
   return named.size === 1 ? `M${[...named][0]}` : null;
+}
+
+/** Whether a timer reading `later` seconds after an Auto reading of `left` is that same match's TeleOp, to within 3 s:
+ *  Auto's rest, the 8 s switch, then TeleOp counting down from 2:00. The end of TeleOp (the other way to read a
+ *  reading of 0:30 or less) leads to a finished match, never to that reading. */
+export function autoLeadsTo(left: number, later: number, reading: number): boolean {
+  const into = later - left - SWITCH_S;
+  return into > 0 && into < TELEOP_S && Math.abs(reading - (TELEOP_S - into)) <= 3;
 }
 
 /** Whether a frame's match (overlayLabel) is the event's match `label`. A semifinal's ("M1-2": series and number) is
