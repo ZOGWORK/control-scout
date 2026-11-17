@@ -92,17 +92,31 @@ export function changedRows<T extends Keyed = Row>(before: string, after: string
   return fileRows<T>(after).filter((r) => was.get(rowKey(r)) !== JSON.stringify(r));
 }
 
-/** A frame timings file with these rows in it (each replacing the row of its video and event, or added), every other
- *  row and line as it was, sorted as the reader sorts them (event, then video). */
+/** A season (or clip checks) file with these rows in it: a row of the same video and event replaced on its own line, a
+ *  new row put just before the first row whose event code sorts after its own (at the end only when none does), every
+ *  other line as it was. Never re-sorted or appended: PRs from different sources each touch only their own rows' lines,
+ *  so they don't conflict (owner's rule, 2026-11-17). */
 export function applyRows<T extends Keyed>(text: string, rows: T[]): string {
   const [head, rest] = splitAt(text, "// --- Data");
   const open = rest.indexOf("[\n"), close = rest.lastIndexOf("\n];");
   if (open < 0 || close < 0) throw new Error("no rows array under the data mark");
-  const byKey = new Map(fileRows<T>(text).map((r) => [rowKey(r), r]));
-  for (const r of rows) byKey.set(rowKey(r), r);
-  if (!byKey.size) return text;
-  const list = [...byKey.values()].sort((a, b) => a.code.localeCompare(b.code) || a.videoId.localeCompare(b.videoId));
-  return `${head}${rest.slice(0, open + 2)}${list.map(rowLine).join("\n")}${rest.slice(close)}`;
+  if (!rows.length) return text;
+  // The lines between "[" and "];" ("[\n];", a season not read yet, has none).
+  const lines = close >= open + 2 ? rest.slice(open + 2, close).split("\n") : [];
+  const rowOf = (line: string): T | null => { const m = /^\s*(\{.*\}),?\s*$/.exec(line); return m ? (JSON.parse(m[1]) as T) : null; };
+  const at = new Map(lines.flatMap((l, i) => { const r = rowOf(l); return r ? [[rowKey(r), i] as const] : []; }));
+  const added: T[] = [];
+  for (const r of rows) { const i = at.get(rowKey(r)); if (i != null) lines[i] = rowLine(r); else added.push(r); }
+  // Each new row's place among the lines as they were: before the first row whose code sorts after its own.
+  const before = new Map<number, T[]>();
+  for (const r of added.sort((a, b) => a.code.localeCompare(b.code) || a.videoId.localeCompare(b.videoId))) {
+    let i = lines.findIndex((l) => { const o = rowOf(l); return o != null && o.code.localeCompare(r.code) > 0; });
+    if (i < 0) i = lines.length;
+    (before.get(i) ?? before.set(i, []).get(i)!).push(r);
+  }
+  const out: string[] = [];
+  for (let i = 0; i <= lines.length; i++) { for (const r of before.get(i) ?? []) out.push(rowLine(r)); if (i < lines.length) out.push(lines[i]); }
+  return `${head}${rest.slice(0, open + 2)}${out.join("\n")}${rest.slice(close)}`;
 }
 const splitAt = (s: string, mark: string): [string, string] => { const i = s.indexOf(mark); if (i < 0) throw new Error(`no "${mark}" mark`); return [s.slice(0, i), s.slice(i)]; };
 
@@ -117,6 +131,29 @@ export function chunkRows<T extends Keyed>(rows: T[], max = 15_000): T[][] {
   for (const g of groups) {
     const fit = out.find((c) => size(c) + size(g) <= max);
     if (fit) fit.push(...g); else out.push([...g]);
+  }
+  return out;
+}
+
+/** About how big a PR's diff is from `before` to `after` (bytes of the lines it shows): every line added or removed,
+ *  and `context` lines either side of each added one, as git shows them. Lines are whole rows, so context counts. */
+export function diffBytes(before: string, after: string, context = 3): number {
+  const a = before.split("\n"), b = after.split("\n"), had = new Set(a), has = new Set(b);
+  const shown = new Set<number>();
+  b.forEach((l, i) => { if (!had.has(l)) for (let j = Math.max(0, i - context); j <= Math.min(b.length - 1, i + context); j++) shown.add(j); });
+  const removed = a.filter((l) => !has.has(l));
+  return [...shown].reduce((n, i) => n + Buffer.byteLength(b[i]) + 2, 0) + removed.reduce((n, l) => n + Buffer.byteLength(l) + 2, 0);
+}
+
+/** A season's rows as data PRs whose diffs on `text` (main's file) are each at most `maxDiff` bytes (Loopy can't
+ *  review a diff much over 16 KB): chunked as chunkRows does, any chunk still too big halved until it fits or is one
+ *  row (a row bigger than that alone ships alone). */
+export function prChunks<T extends Keyed>(text: string, rows: T[], maxDiff = 12_000): T[][] {
+  const todo = chunkRows(rows, maxDiff / 2), out: T[][] = [];
+  while (todo.length) {
+    const c = todo.shift()!;
+    if (c.length > 1 && diffBytes(text, applyRows(text, c)) > maxDiff) todo.unshift(c.slice(0, c.length >> 1), c.slice(c.length >> 1));
+    else out.push(c);
   }
   return out;
 }
