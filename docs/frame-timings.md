@@ -188,9 +188,13 @@ PR like any other change. A season with no file yet needs one (an empty copy of 
 `server/data/frameTimings.ts`.
 
 A video linked to an event is read only once its YouTube details (length, broadcast start) are in the copy's
-`video_meta`. One without them is never dropped quietly: the run prints `<code>: linked recording <id> skipped: no
-details on file`, counts these at the end, and exits 1 when an event had no video it could read. A copy taken before a
-video was linked lacks its details: copy them from the live database, then read the event again.
+`video_meta`. One that can't be read is never dropped quietly: the run prints `<code>: linked recording <id> skipped:
+<why>` and counts these at the end. Two kinds:
+- **No details on file, or the fetch failed.** A fetch would fix it. The run exits 1 when an event has no other video
+  it could read. A copy taken before a video was linked lacks its details: copy them from the live database, then read
+  the event again.
+- **Unavailable on YouTube (removed or private), or no length (a live stream the player can't time).** It's said, but
+  it never fails the run: an event whose only video is gone or still live would otherwise fail every run.
 
 ## Checked against the clock
 
