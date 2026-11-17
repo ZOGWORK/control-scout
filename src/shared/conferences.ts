@@ -3,6 +3,7 @@
 // codes are reused across seasons and the LT / LT2 suffix flips, so a code alone never names a conference. Its table
 // (server/api/conferences.ts) is the tournament's teams ranked by FIRST's league standing over the league meets only:
 // two different rankings from the tournament's own, and labelled so wherever it shows.
+import type { TrendDir } from "./trend";
 
 /** The one region with conferences. */
 export const CONFERENCE_REGION = "USNJ";
@@ -51,6 +52,16 @@ export interface ConferenceRow {
   opr: number | null;
   /** Going-in view only: FTC New Jersey's status for the team (registered, or the waitlist's pending). */
   registered?: "registered" | "pending";
+  /** Its move by Scout rating among the conference's teams (src/shared/rankings.ts movementOf, as region rankings
+   *  counts it): places up (+) or down (-) since `Conference.moves.baseline`, "new" when it wasn't rated then; absent
+   *  or null when there's nothing to compare with. Never a move in FIRST's league rank: Scout keeps no league history. */
+  move?: number | "new" | null;
+  trend?: TrendDir | null;
+  /** Its rank by Scout rating among the conference's rated teams, in the week the moves are read at. */
+  ratingRank?: number | null;
+  /** The Scout rating in the week `ratingRank` was read (the tournament's week once it's over), so a mover card pairs a
+   *  place with the rating that earned it; `rating` stays the live one the table shows. */
+  ratingThen?: number | null;
 }
 
 /** Where a table's league numbers come from. */
@@ -91,6 +102,9 @@ export interface Conference {
   rows: ConferenceRow[];
   /** From the awards (Winning Alliance captain and picks), never the rank 1. */
   winner: ConferenceWinner | null;
+  /** The weeks the moves compare (`week` null: this week's live ranking), or null when there's no saved week to
+   *  compare with: then no row has a move. */
+  moves?: { week: string | null; baseline: string } | null;
   /** The same conference in other seasons (it can change leagues). */
   seasons: { season: number; region: string; league: string; code: string; name: string; slug: string }[];
 }
@@ -127,13 +141,13 @@ export interface TeamConferenceInfo {
   conference: TeamConference | null;
 }
 
-/** A league page's conference section, with a conference and a team marked. */
+/** A league's conference rankings page (src/pages/ConferencePage.tsx), with a conference and a team marked. */
 export function conferenceHref(season: number, region: string, league: string, o: { slug?: string | null; team?: number | null } = {}): string {
   const q = new URLSearchParams();
   if (o.slug) q.set("conference", o.slug);
   if (o.team) q.set("team", String(o.team));
   const qs = q.toString();
-  return `/leagues/${season}/${encodeURIComponent(region)}/${encodeURIComponent(league)}${qs ? `?${qs}` : ""}#conferences`;
+  return `/leagues/${season}/${encodeURIComponent(region)}/${encodeURIComponent(league)}/conferences${qs ? `?${qs}` : ""}`;
 }
 
 /** One of FIRST's numbers as FIRST gave it, never rounded: one decimal when it has no more ("4.0", "3.8"), else in

@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 7.3.1 — 2026-11-17
+## 7.3.3 — 2026-11-17
 
 Videos › the frame reader now reads CENTERSTAGE (2023) recordings, whose overlay it couldn't read before, so their matches can get clips.
 
@@ -26,6 +26,35 @@ Videos › the frame reader now reads CENTERSTAGE (2023) recordings, whose overl
 
 ### Fixed
 - Videos (`scripts/video-frames.ts`, `scripts/lib/videoFrames.ts`): CENTERSTAGE's (2023) recordings read no match at all. A busy frame loses FTC Live's bar in a whole-frame read, so placement reads now fall back on the bar's row read on its own, at its usual height or 8 px lower, as clip openings already did. Where none of the known crops holds the timer, the score bar is found by its alliance colours wherever the stream put it (Arizona's flush-top bar in dark navy and maroon), and its timer and the row over it are read there. An upload's scan steps a minute on, up to three times, past a frame naming a match not yet running. CENTERSTAGE's playoffs are best-of-3 semifinals, named "Semifinal 2 Match 1" on the overlay, so a read that loses "Semifinal" no longer takes that for M1 and pulls the real match's clip. Measured on dry runs: NLBNM1 0 → 22 of 23 placed, USTXNTM1 0 → 10 of 17 (Q1–Q7 come before the video), USAZGIQ 0 → 37 of 38, each opening naming its match (#1655).
+
+## 7.3.2 — 2026-11-17
+
+Videos › the Almaty Tech Cup gets match clips read off its recordings' frames: 16 on its second day now, 12 more on its first day once that day's recording is linked.
+
+### Highlights
+- [fixes] 16 Almaty Tech Cup matches get a clip read off the video
+- [fixes] Each opens on a frame whose overlay names its match and event
+- [fixes] No clip already playing changes
+
+### Fixed
+- Videos: KZALOS1's two day recordings lost time against their broadcast, so the clock placed none of its matches. Their starts are now read off the frames, and each clip opens on a frame (read paused) whose overlay names its match and "Almaty Tech Cup XII". Day 2 (EAkHPgVm-Ow): 16 of the 34 matches it holds. Q28–Q31 come before the recording starts, and 14 others have no frame naming them at their clip's start, because the stream cuts to a camera without the overlay between matches. Day 1 (9ywna4SeDoI): 12 of the 15 matches it holds. Q14's timer reads disagreed, and Q1 and Q2 had no read. That row plays once the day's recording is linked. No clip already playing is taken away. (`server/data/frameTimings/2025.ts`) (#1662)
+
+## 7.3.1 — 2026-11-17
+
+Rankings › a New Jersey league's conferences get their own rankings page, laid out like region rankings.
+
+### Highlights
+- [rankings] Each NJ conference has its own rankings page
+- [rankings] Biggest climbers, fallers and newcomers before the table
+- [rankings] A switch between the league's conferences, with date and teams
+- [rankings] View Conference Rankings button on the league page
+- [rankings] The tournament's winners shown above the table
+
+### Rankings
+- The page sits at /leagues/SEASON/REGION/LEAGUE/conferences; old #conferences links on the league page open it (#1657).
+- Moves are places by Scout rating among the conference's teams, week over week, labelled as Scout's, never FIRST's league rank.
+- Teams with no league meet yet sit under "Not ranked yet" instead of the table.
+- Footer links to world, New Jersey and all-region rankings, all leagues, the league and the tournament.
 
 ## 7.3.0 — 2026-11-17
 
