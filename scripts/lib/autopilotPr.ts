@@ -36,7 +36,7 @@ function filedVideos(ref: string): Map<string, number> {
 export interface Gate { number: number; head: string; file: string; problems: string[] }
 
 /** A PR as `gh pr view --json` reports it: the fields the gate reads. */
-export interface PrView { state: string; isDraft: boolean; mergeable: string; headRefName: string; body: string; files: { path: string }[] }
+export interface PrView { state: string; isDraft: boolean; mergeable: string; headRefName: string; body: string; files: { path: string; changeType?: string }[] }
 
 /** What stops a merge in the PR's own shape, from GitHub's facts alone: open, not a draft, mergeability worked out
  *  clean (UNKNOWN, still computing just after a push or a main move, waits), the autopilot's branch, its mark naming
@@ -56,6 +56,11 @@ export function shapeProblems(pr: PrView): { mark: ReturnType<typeof readMarker>
   // A PR opened before the rule still carries a release: the runner's next rebuild puts those files back to main's.
   const others = pr.files.map((f) => f.path).filter((p) => p !== file);
   if (others.length) problems.push(`changes more than its data file: ${others.join(", ")}`);
+  // Its data file changed in place: a rename (one path listed, e.g. 2025.ts to 2024.ts), an add or a delete is a
+  // person's change. A PR changing nothing has nothing to merge.
+  const own = pr.files.find((f) => f.path === file);
+  if (!own) problems.push(`doesn't change ${file}`);
+  else if (own.changeType && own.changeType !== "MODIFIED") problems.push(`${file} ${own.changeType.toLowerCase()}, not changed in place`);
   return { mark, file, problems };
 }
 
