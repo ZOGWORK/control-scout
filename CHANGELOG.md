@@ -27,7 +27,7 @@ Search › a place, its leagues and New Jersey's conferences answer directly: "n
 - [fixes] "new york city" searches find NYC's events
 
 ### Search
-- A place alone ("nj", "New Jersey", "USA:NJ") keeps "All events in New Jersey" first and links the place's rankings, its leagues and, for New Jersey, its conferences; "nj rankings", "nj leagues" and "nj conferences" link the one they ask for first (`src/shared/placePages.ts`, #PR).
+- A place alone ("nj", "New Jersey", "USA:NJ") keeps "All events in New Jersey" first and links the place's rankings, its leagues and, for New Jersey, its conferences; "nj rankings", "nj leagues" and "nj conferences" link the one they ask for first (`src/shared/placePages.ts`, #1678).
 - "nj leagues" / "leagues in new jersey": the place's leagues listed, each to its standings; the Leagues page takes `?q=` to open filtered.
 - "nj conferences" / "new jersey conference": every conference of the latest season played out, each with its winner, then the next season's, coming up.
 - A conference's name alone or with its rankings ("East Bergen", "far north rankings") opens its table, unless a team or league goes by those words; conference answers now list their tournament and team as cards.
