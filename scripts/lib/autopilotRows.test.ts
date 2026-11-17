@@ -34,6 +34,8 @@ describe("rowProblems", () => {
     expect(rowProblems(row({ starts: swapped, opens: opens(swapped) }), undefined, ["Q2", "Q1"])).toEqual([]);
     const replay = { M3: 100, M4: 500, "M3-2": 900 };
     expect(rowProblems(row({ starts: replay, opens: opens(replay) }), undefined, ["M3", "M4", "M3-2"])).toEqual([]);
+    // A start for a match the event never played.
+    expect(rowProblems(row({ starts: { Q9: 600 }, opens: { Q9: 588 } }), undefined, ["Q1", "Q2"])).toEqual(["Q9: not a match the event played"]);
     // Without the order, nothing to check it against.
     expect(rowProblems(row({ starts: swapped, opens: opens(swapped) }))).toEqual([]);
   });
@@ -52,6 +54,9 @@ describe("rowProblems", () => {
       .toEqual(["Q2: a live clip dropped without a frame naming another match"]);
     // A paused frame there names Q3: pulled, rightly.
     expect(rowProblems(row({ starts: { Q1: 600 }, opens: { Q1: 588 }, review: { Q2: { t: 1000, why: "its clip's first frame shows Q3, not Q2" } } }), live)).toEqual([]);
+    // Only a frame naming a different match pulls it.
+    expect(rowProblems(row({ starts: { Q1: 600 }, opens: { Q1: 588 }, review: { Q2: { t: 1000, why: "its clip's first frame shows Q2, not Q2" } } }), live)).toEqual(["Q2: a live clip dropped without a frame naming another match"]);
+    expect(rowProblems(row({ starts: { Q1: 600 }, opens: { Q1: 588 }, review: { Q2: { t: 1000, why: "its clip's first frame shows Q3, not Q4" } } }), live)).toEqual(["Q2: a live clip dropped without a frame naming another match"]);
     // Moved further than a read's slack is a drop too.
     expect(rowProblems(row({ starts: { Q1: 600, Q2: 1200 }, opens: { Q1: 588, Q2: 1195 } }), live)).toEqual(["Q2: a live clip moved without a frame naming another match"]);
   });
