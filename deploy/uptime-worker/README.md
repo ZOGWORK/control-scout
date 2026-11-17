@@ -68,6 +68,7 @@ Manage Webhooks permission in the Control Point Discord.
 | Name | Where | Default | Meaning |
 | --- | --- | --- | --- |
 | `UPTIME_DISCORD_WEBHOOK` | **secret** (`wrangler secret put`) | unset | Discord webhook URL. Unset: alerts are only logged, nothing is posted. |
+| `UPTIME_GATE_KEY` | **secret** (`wrangler secret put`) | unset | Sent as `x-uptime-key`. Use the same value as the site's `UPTIME_GATE_KEY`, so the checks still reach the app while the shutdown message is up (docs/deploy.md, "Shutdown message"). Unset: no header is sent, and while the message is up `/` answers 503, which counts as down. |
 | `SITE` | `[vars]` in `wrangler.toml` | `https://controlscout.org` | Site to check (no trailing slash). |
 | `FAIL_THRESHOLD` | `[vars]` | `2` | Failed checks in a row (one a minute) before "down". |
 | `REMIND_MINUTES` | `[vars]` | `30` | Minimum gap between "still down" reminders. |
