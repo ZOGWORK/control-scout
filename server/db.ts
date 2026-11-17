@@ -2568,6 +2568,19 @@ CREATE TABLE conference_snapshots (
 ALTER TABLE video_meta ADD COLUMN embeddable INTEGER;
 `,
   },
+  {
+    version: 96,
+    name: "video unplayable since",
+    sql: `
+-- When a video was first read as one no one can play here (server/videos/recordings.ts saveMeta): unavailable on
+-- YouTube (private, removed), or its owner turned off playing it on other sites (embeddable 0), so neither the app's
+-- player nor the frame reader can show it. Kept while it stays so, cleared the first read it plays again; Clip coverage
+-- gives its matches that settled reason with this date (server/videos/coverage.ts). NULL: it plays.
+ALTER TABLE video_meta ADD COLUMN unplayable_since TEXT;
+-- Videos already read so: the earliest date on record is their last read.
+UPDATE video_meta SET unplayable_since = checked_at WHERE status = 'unavailable' OR (status = 'ok' AND embeddable = 0);
+`,
+  },
 ];
 
 export type Db = Client;
