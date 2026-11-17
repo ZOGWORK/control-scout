@@ -172,6 +172,21 @@ describe("answering a conference ask", () => {
     expect((await ask("who won hudson/east bergen conference 2026-27"))!.none).toBe("Hudson/East Bergen Conference 2026–27 is under way: no winner yet.");
   });
 
+  it("lists every conference of the season in 'which conference?', each one's winner or where it stands", async () => {
+    await run("DELETE FROM awards WHERE code = 'USNJUCLT'");
+    clearAllCaches();
+    const w = (await ask("who won Conference?"))!;
+    const l = w.blocks[0];
+    expect(l.kind === "links" && l.items.map((i) => i.label)).toEqual(["Central Conference: no winner on record yet", "East Bergen Conference: won by 4215 Hypnotic Robotics with 207 Critical Mass"]);
+    // Not a winner ask: the latest season with conferences, awards or not.
+    await run("DELETE FROM awards");
+    clearAllCaches();
+    const t = (await ask("conference rankings"))!;
+    expect(t.title).toBe("Which conference? New Jersey's conferences · 2026–27");
+    expect(t.none).toBeUndefined();
+    expect((await ask("East Bergen Conference rankings 2027-28"))!.title).toBe("Hudson/East Bergen Conference · 2027–28");
+  });
+
   it("keeps the next edition when a later season has two tournaments of the name", async () => {
     for (const code of ["USNJAALT", "USNJBBLT"]) {
       await run("INSERT INTO events (season, code, name, type, region, league, state, country, start, end, source) VALUES (2027, ?, 'East Bergen Conference Northeast League Tournament', 'LeagueTournament', 'USNJ', 'NE', 'NJ', 'USA', '2028-02-20', '2028-02-20', 'first')", [code]);
