@@ -16,7 +16,7 @@ const h = vi.hoisted(() => ({
   calls: [] as { path: string; init?: { method?: string; json?: unknown } }[],
   failNext: {} as Record<string, number>,
 }));
-vi.mock("../../lib/personal", () => ({ usePersonal: () => ({ user: h.user, providers: {}, state: { myTeam: null }, syncReady: false }) }));
+vi.mock("../../lib/personal", () => ({ usePersonal: () => ({ user: h.user, providers: {}, state: { myTeam: null, settings: { theme: "dark" } }, update: () => true, syncReady: false }) }));
 vi.mock("../../lib/api", async (orig) => { const real = await orig<typeof import("../../lib/api")>(); return {
   ...real,
   apiFetch: async (path: string, init?: { method?: string; json?: { ids?: number[]; all?: boolean; on?: boolean } }) => {

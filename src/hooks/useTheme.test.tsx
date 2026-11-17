@@ -8,9 +8,30 @@ import { resetFlags } from "../lib/flags";
 import { DOG_THEME_COLOR, THEME_COLOR, ThemeSync } from "./useTheme";
 
 const update = vi.hoisted(() => vi.fn());
-vi.mock("../lib/personal", () => ({ usePersonal: () => ({ state: { settings: { theme: "dark", density: "comfortable", ambient: true } }, update }) }));
+const h = vi.hoisted(() => ({ settings: { theme: "dark", density: "comfortable", ambient: true } as Record<string, unknown> }));
+vi.mock("../lib/personal", () => ({ usePersonal: () => ({ state: { settings: h.settings }, update }) }));
 
-afterEach(() => { cleanup(); resetFlags(); document.documentElement.className = ""; });
+afterEach(() => { cleanup(); resetFlags(); document.documentElement.className = ""; h.settings = { theme: "dark", density: "comfortable", ambient: true }; });
+
+// The top bar's switch comes back from Light to the dark theme last in use, however it was picked (Settings too).
+describe("the dark theme the light/dark switch returns to", () => {
+  const written = () => update.mock.calls.filter(([k]) => k === "settings").map(([, fn]) => (fn as (s: Record<string, unknown>) => Record<string, unknown>)(h.settings));
+  it("is remembered when a dark theme is picked anywhere, Settings included", () => {
+    update.mockClear();
+    h.settings = { ...h.settings, theme: "midnight" };
+    render(<ThemeSync />);
+    expect(written().some((s) => s.darkTheme === "midnight" && s.theme === "midnight")).toBe(true);
+  });
+  it("writes nothing for Dark with none remembered (the default already means it), for Light, or when already remembered", () => {
+    for (const settings of [{ theme: "dark" }, { theme: "light", darkTheme: "midnight" }, { theme: "dim", darkTheme: "dim" }]) {
+      update.mockClear();
+      h.settings = { density: "comfortable", ambient: true, ...settings };
+      render(<ThemeSync />);
+      expect(written().some((s) => "darkTheme" in s && s.darkTheme !== (settings as { darkTheme?: string }).darkTheme)).toBe(false);
+      cleanup();
+    }
+  });
+});
 
 describe("the dog theme", () => {
   it("is off by default: the usual page colour", () => {
