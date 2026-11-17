@@ -36,7 +36,7 @@ const EVENTS = (): Record<string, OwnerCoverageEvent[]> => ({
 });
 const page = (list: string): OwnerClipCoverage => ({
   events: list === "actionable" && !h.actionable ? [] : EVENTS()[list] ?? [], list: list as OwnerClipCoverage["list"], open: h.actionable, reviewed: 1,
-  categories: { actionable: h.actionable, unchecked: 4, "no-timing": 1, "early-start": 1, "old-season": 0 },
+  categories: { actionable: h.actionable, unchecked: 4, "no-timing": 1, "early-start": 1, unplayable: 0, "old-season": 0 },
   clipChecks: { checked: 120, ok: 117, pulled: 1, unconfirmed: 2, noOverlayVideos: 3 },
   findings: [{ kind: "pulled", season: 2026, code: "USAZFLQ", name: "Flagstaff", label: "Q7", videoId: "flagVideo01", at: 3600, why: "Clip pulled: its first frame shows Q6, not Q7" },
     { kind: "seen", season: 2025, code: "ROCMPCND", name: "Romania COANDA", label: "Q2", videoId: "pvmxbH8YW-k", at: 9952, why: "Checked in the video (2026-11-15): seen at 2:45:52, not yet confirmed" }],
@@ -133,14 +133,14 @@ describe("ClipCoveragePanel, a review screen", () => {
   it("the reason tiles count every missing match by kind and show only that kind's chips", () => {
     show();
     const tiles = [...document.querySelectorAll("[data-coverage-kind]")].map((t) => `${t.getAttribute("data-coverage-kind")} ${t.textContent}`);
-    expect(tiles).toEqual(["unchecked Not checked2,400", "unavailable Unavailable900", "noclock No clock350"]);
+    expect(tiles).toEqual(["unchecked Not checked2,400", "unavailable Can't be played900", "noclock No clock350"]);
     fireEvent.click(document.querySelector('[data-coverage-kind="noclock"]')!);
     expect(chips()).toEqual(["Q6:noclock"]);
     // No finding is that kind: the findings step aside.
     expect(document.querySelector("[data-coverage-findings]")).toBeNull();
     fireEvent.click(document.querySelector('[data-coverage-kind="unavailable"]')!);
     expect(rows()).toEqual([]);
-    expect(screen.getByText("No event shown here has a Unavailable match.")).toBeTruthy();
+    expect(screen.getByText("No event shown here has a Can't be played match.")).toBeTruthy();
     fireEvent.click(document.querySelector("[data-coverage-only-clear]")!);
     expect(chips()).toHaveLength(4);
   });
