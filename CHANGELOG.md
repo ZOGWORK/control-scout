@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 7.5.0 — 2026-11-17
+## 7.5.1 — 2026-11-17
 
 Videos › 168 more 2024 matches play as clips: the Australian Championship in full, South Australia, North Scarborough and the Carolinas Premier Event.
 
@@ -26,6 +26,18 @@ Videos › 168 more 2024 matches play as clips: the Australian Championship in f
 
 ### Added
 - Frame-read match starts for 6 more 2024 recordings (5 events), each start checked against two timer reads and each clip's opening against a paused frame naming its match: AUCMP 77 of 77 played matches (two days), CAONSCQ2 50 of 55 (4 to review, 1 missing), FPECA 31 of 71 (the linked recording is Day 2), AUTOQ 10 of 24 (Q11–Q18 and M1–M6 have no confirmed frame read yet), and CABCSUQ1's recording checked (its 2 readable matches had no confirmed start). (`server/data/frameTimings/2024.ts`) (#1663)
+
+## 7.5.0 — 2026-11-17
+
+Videos › 61 of the Chicago Robotics Invitational's 67 matches (2024) get a clip, read off its Saturday and Sunday videos: FIRST posts no times for them, so their frames place them.
+
+### Highlights
+- [fixes] 61 Chicago Robotics Invitational matches get a clip
+- [fixes] Each opens on a frame whose overlay names its match
+- [fixes] No clip already playing changes
+
+### Fixed
+- Videos (`server/data/frameTimings/2024.ts`): the Chicago Robotics Invitational (FPECRI 2024) posts its results with no match times, so its recordings were never read. Read by its frames alone (#1693), its Saturday video places 34 matches and its Sunday video 27, each checked paused on its clip's opening frame. Q21, Q37, Q44, Q49, Q57 and M1 stay without a clip: no frame of them confirmed a start. (#1710)
 
 ## 7.4.9 — 2026-11-17
 
