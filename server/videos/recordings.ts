@@ -464,6 +464,9 @@ const DAY = 86_400_000;
  * one not started yet (live, no start: youtube.ts) after an hour; a broadcast archived within 2 days (its length
  * still settling) after 6 hours. A video cut far short of its broadcast whose chapters were never read: after a day
  * (at once for one read before chapters were kept); one read with none (none yet, or a page served without them): weekly.
+ * A video read as unavailable: after a day with an API key, weekly without (one made private for a while, or blocked,
+ * comes back; a read that missed it once mustn't hide it for good). With a key, any other video weekly (one deleted or
+ * blocked since is seen within a week; 50 a request, so every linked video costs a few dozen requests a week).
  */
 export function due(m: VideoMeta | null, now: number, withKey = false): boolean {
   if (!m) return true;
@@ -474,7 +477,8 @@ export function due(m: VideoMeta | null, now: number, withKey = false): boolean 
   if (m.live) return age > (m.start ? 5 * 60_000 : 3600_000);
   if (m.status === "ok" && m.end && now - Date.parse(m.end) < 2 * DAY) return age > 6 * 3600_000;
   if (cutShort(m) && !m.chapters?.length) return age > (m.chapters ? 7 * DAY : DAY);
-  return false;
+  if (m.status === "unavailable") return age > (withKey ? DAY : 7 * DAY);
+  return withKey && age > 7 * DAY;
 }
 
 /** When the pass in progress began (0: none). One pass at a time, but a pass that never finishes (a read that never
