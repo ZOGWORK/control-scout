@@ -15,6 +15,17 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.2.4 — 2026-11-17
+
+Videos › the frame-read match starts are kept one file a season, so a season's recordings can be read alongside another's; every clip plays as before.
+
+### Highlights
+- [fixes] Match clips play from the same seconds as before
+- [fixes] Each season's frame-read starts in a file of its own
+
+### Changed
+- Videos (`server/data/frameTimings.ts`, `scripts/video-frames.ts`): the frame reader's rows live in `server/data/frameTimings/<season>.ts`, one file per season of the row's event (2024: 48 rows, 2025: 162, 2026: 8; 2019 and 2021–2023 empty), and `frameTimings.ts` serves them together, unchanged (#1647). `scripts/video-frames.ts --season N` reads and writes only that season's file, so readers of different seasons never touch the same file. A test pins the 218 rows the single file held.
+
 ## 7.2.3 — 2026-11-17
 
 Search › New Jersey conference questions answered directly: a team's rank in its conference, a conference's table, who won it, with the same numbers as the league page.
