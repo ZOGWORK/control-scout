@@ -98,23 +98,26 @@ const divisions = new WeakMap<Page, { own: string; others: string[] }>();
 
 // --- Reading a frame -----------------------------------------------------------------------------------------------
 
-// Two OCR workers shared by every lane (a tesseract.js worker does one job at a time). One that hangs is replaced, or
-// every later read would queue behind its stuck job and time out too.
+// Three OCR workers shared by every lane (a tesseract.js worker does one job at a time). One that hangs is replaced, or
+// every later read would queue behind its stuck job and time out too. `rowOcr` reads the overlay bar's row alone
+// (labelRow) with tesseract's own page layout (psm 3, tesseract.js's default being one block, psm 6): read as one
+// block, USMNCMPNANO 2024's "Playoff Match 1" comes out "PlayoffMach1"; laid out, as it is.
 const ocr = async () => {
-  const w = await createWorker("eng"), d = await createWorker("eng");
+  const w = await createWorker("eng"), d = await createWorker("eng"), r = await createWorker("eng");
   await d.setParameters({ tessedit_char_whitelist: "0123456789:", tessedit_pageseg_mode: "7" });
-  return [w, d] as const;
+  await r.setParameters({ tessedit_pageseg_mode: "3" });
+  return [w, d, r] as const;
 };
-let [worker, digits] = await ocr();
+let [worker, digits, rowOcr] = await ocr();
 let renewing: Promise<void> | null = null;
 /** Set when hung workers couldn't be replaced: every later read then fails its video at once (written with the reason,
  *  read again next run) instead of queueing behind the stuck job. */
 let ocrBroken: string | null = null;
 function renewOcr(): Promise<void> {
   renewing ??= (async () => {
-    const old = [worker, digits];
+    const old = [worker, digits, rowOcr];
     try {
-      [worker, digits] = await ocr();
+      [worker, digits, rowOcr] = await ocr();
       console.error("a frame read hung: the OCR workers were replaced");
     } catch (e) {
       ocrBroken = `the OCR workers hung and couldn't be replaced (${(e as Error).message.split("\n")[0]})`;
@@ -148,6 +151,23 @@ async function timer(page: Page): Promise<{ where: "bottom" | "top"; left: numbe
 }
 
 const now = (page: Page) => page.evaluate(() => document.querySelector("video")!.currentTime);
+
+/** FTC Live's bottom bar's top row, over the timer's row: the event (or division) on its left half, the match
+ *  ("Qualification 8 of 23", "Playoff Match 1") on its right. */
+const LABEL_ROW = { x: 0, y: 548, width: 1280, height: 56 };
+const MATCH_HALF = { ...LABEL_ROW, x: 640, width: 640 };
+/** The match the bottom bar's row names, read on its own: a frame whose whole read names nothing because a busy field
+ *  and crowd threw the page layout off, the bar's line lost with it (USARBEQ 2024 Q8 at 7097 s: the whole frame read a
+ *  jumble, the row alone "Qualification 8 of 23"). The match's half alone: the whole row can lose it too, to the logo
+ *  and event name beside it (USCHSGAQ1 2024 M1 at 19167 s, its half "Playoff Match 1"). A clip opening's check only,
+ *  so a match's placement is read as before. On a shared stream the row has to name this division too, as a whole
+ *  frame's read does. */
+async function labelRow(page: Page, ctx: { own: string; others: string[] } | undefined): Promise<string | null> {
+  const label = overlayLabel((await rowOcr.recognize(await page.screenshot({ clip: MATCH_HALF }))).data.text as string);
+  if (!label || !ctx) return label;
+  const row = (await rowOcr.recognize(await page.screenshot({ clip: LABEL_ROW }))).data.text as string;
+  return overlayDivision(row, ctx.own, ctx.others) === "own" ? label : null;
+}
 
 /** Go to second t. Playing (a timer read needs the clock running), the frame read is about a second on by the time
  *  it's taken (LTCMP 2024 Q20: asked 8948, read 8948.9, the overlay already in). `still`: paused at t, so the frame
@@ -192,7 +212,7 @@ async function readAtOnce(page: Page, t: number, labelOnly = false): Promise<Rea
   const division = ctx ? overlayDivision(text, ctx.own, ctx.others) : undefined;
   // Another division's match on the shared stream: not this event's, whatever its number.
   if (division === "other") return { label: null, start: null, at, text, why: "another division's overlay", division };
-  const label = overlayLabel(text);
+  const label = overlayLabel(text) ?? (labelOnly ? await labelRow(page, ctx) : null);
   if (!label || labelOnly) return { label, start: null, at, text, division };
   const a = await timer(page);
   const atA = await now(page);
@@ -767,6 +787,7 @@ await browser.close().catch(() => {});
 await (renewing as Promise<void> | null)?.catch(() => {});
 await worker.terminate().catch(() => {});
 await digits.terminate().catch(() => {});
+await rowOcr.terminate().catch(() => {});
 if (failedEvents) { console.error(`${failedEvents} events failed before their videos were read`); process.exitCode = 1; }
 // Videos that couldn't be played are written as such and read again on the next run, but this run didn't finish them.
 if (failedVideos) { console.error(`${failedVideos} videos couldn't be played (written with the reason; the next run reads them again)`); process.exitCode = 1; }
