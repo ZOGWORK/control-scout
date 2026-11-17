@@ -22,6 +22,7 @@ Videos › 136 more 2022 (POWERPLAY) match clips: every played match of the Indi
 ### Highlights
 - [history] Indiana's 2022 championship gets a clip for every match
 - [history] Both Kansas City league tournaments get a clip for every match
+- [fixes] Every clip opens on a frame naming its match and its own event
 
 ### Added
 - Videos: clips read off the recordings' frames (`server/data/frameTimings/2022.ts`): USINCMP 43 of 43 played matches, USMOKSKCELT 47 of 47, USMOKSKCWLT 46 of 46. Each placed start's clip opens on a paused frame whose overlay names that match (20, 12, 5, 2 or 0 s before it) and no other event. (#1694)
