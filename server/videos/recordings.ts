@@ -16,6 +16,7 @@ import type { EventStream, MatchView } from "../../src/shared/api.js";
 import { env } from "../env.js";
 import { fetchFromApi, fetchWatchPage, type WatchPageFacts } from "./youtube.js";
 import { youtubeId } from "../../src/shared/personal.js";
+import { countryOf } from "../../src/shared/countries.js";
 import { linkAiredOff, officialRecordingIds, seasonOfficial } from "./officialVideos.js";
 import { checkedTo } from "../data/checkedTimings.js";
 import { frameOpen, frameStart, hasFrames } from "../data/frameTimings.js";
@@ -467,8 +468,8 @@ const DAY = 86_400_000;
  * A video YouTube called unavailable (private, removed, embedding off) after a week: an owner can make it public again
  * (USILCSSLT 2024's recording, unavailable since 2026-10-24, played again by 11-17), and until it's read again none of
  * its matches gets a clip or a frame read.
- * With an API key, a video that plays is read again weekly: one deleted or blocked everywhere since (youtube.ts
- * BLOCKED_EVERYWHERE) is seen within a week, so its clips stop (50 a request: every linked video costs a few dozen a week).
+ * With an API key, a video that plays is read again weekly: one deleted or blocked for its viewers since (youtube.ts
+ * blockedForViewers) is seen within a week, so its clips stop (50 a request: every linked video costs a few dozen a week).
  */
 export function due(m: VideoMeta | null, now: number, withKey = false): boolean {
   if (!m) return true;
@@ -499,7 +500,7 @@ export async function backfillVideoMeta(log: (s: string) => void, opts: { max?: 
   busy = began;
   const now = opts.now ?? Date.now;
   try {
-    const links = await all<{ season: number; livestream: string }>("SELECT season, livestream FROM events WHERE livestream LIKE '%youtu%' ORDER BY season DESC, start DESC");
+    const links = await all<{ season: number; livestream: string; country: string | null }>("SELECT season, livestream, country FROM events WHERE livestream LIKE '%youtu%' ORDER BY season DESC, start DESC");
     const owned = await all<{ video_id: string }>("SELECT video_id FROM event_streams UNION SELECT video_id FROM event_stream_links WHERE video_id IS NOT NULL UNION SELECT video_id FROM event_broadcasts");
     const ids = [...new Set([...owned.map((o) => String(o.video_id)), ...links.map((l) => firstVideoId(l.livestream)).filter((x): x is string => !!x), ...await officialRecordingIds().catch(() => [])])];
     const known = new Map<string, VideoMeta>();
@@ -508,10 +509,20 @@ export async function backfillVideoMeta(log: (s: string) => void, opts: { max?: 
       for (const r of await all<any>(`SELECT ${META_COLUMNS} FROM video_meta WHERE video_id IN (${part.map(() => "?").join(",")})`, part)) known.set(String(r.video_id), metaOf(r));
     }
     const key = opts.apiKey === undefined ? env.youtubeApiKey : opts.apiKey;
+    // Each video's events' countries: a region block there stops its viewers (youtube.ts blockedForViewers).
+    const homes = new Map<string, Set<string>>();
+    if (key) {
+      const home = (id: string, country: unknown) => { const c = countryOf(country == null ? null : String(country))?.code; if (c) (homes.get(id) ?? homes.set(id, new Set()).get(id)!).add(c); };
+      for (const r of await all<{ video_id: string; country: string | null }>(
+        `SELECT x.video_id, e.country FROM (SELECT video_id, season, code FROM event_streams UNION SELECT video_id, season, code FROM event_stream_links WHERE video_id IS NOT NULL
+           UNION SELECT video_id, season, code FROM event_broadcasts UNION SELECT video_id, season, code FROM official_videos WHERE kind = 'recording' AND removed_at IS NULL) x
+         JOIN events e ON e.season = x.season AND e.code = x.code`)) home(String(r.video_id), r.country);
+      for (const l of links) { const id = firstVideoId(l.livestream); if (id) home(id, l.country); }
+    }
     // With the API, 50 a request (1 quota unit each, of 10,000 a day); without it, one watch page at a time.
     const todo = ids.filter((id) => due(known.get(id) ?? null, now(), !!key)).slice(0, opts.max ?? (key ? 1000 : 120));
     const fromApi = new Map<string, WatchPageFacts>();
-    if (key) for (let i = 0; i < todo.length; i += 50) for (const [id, f] of await fetchFromApi(todo.slice(i, i + 50), key, opts.fetchImpl)) fromApi.set(id, f);
+    if (key) for (let i = 0; i < todo.length; i += 50) for (const [id, f] of await fetchFromApi(todo.slice(i, i + 50), key, opts.fetchImpl, (id) => [...(homes.get(id) ?? [])])) fromApi.set(id, f);
     let n = 0, errors = 0;
     for (const id of todo) {
       if (n && !key) await new Promise((r) => setTimeout(r, opts.gapMs ?? 1500));
