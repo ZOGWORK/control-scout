@@ -57,7 +57,7 @@ h1 em { font-style: normal; color: #ffc700; }
 </div>
 <div class="card">
   <div class="tag">Match prediction</div>
-  <div class="title">Qualification 12</div>
+  <div class="title">Example match</div>
   <div class="odds"><div class="red"><span>Red</span>64%</div><div class="blue"><span>Blue</span>36%</div></div>
   <div class="meter"><i></i><i></i></div>
   <div class="score"><span>Called score</span><b>128 – 104</b></div>
