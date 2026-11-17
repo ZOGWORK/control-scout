@@ -133,6 +133,13 @@ export function conferenceHref(season: number, region: string, league: string, o
   return `/leagues/${season}/${encodeURIComponent(region)}/${encodeURIComponent(league)}${qs ? `?${qs}` : ""}#conferences`;
 }
 
+/** One of FIRST's numbers as FIRST gave it, never rounded: one decimal when it has no more ("4.0", "3.8"), else in
+ *  full ("3.85"). Null when FIRST gave none. */
+export function asGiven(v: number | null | undefined): string | null {
+  if (v == null || !Number.isFinite(v)) return null;
+  return Math.abs(v * 10 - Math.round(v * 10)) < 1e-9 ? v.toFixed(1) : String(v);
+}
+
 /** "1st", "2nd", "12th". */
 export function ordinal(n: number): string {
   const t = n % 100, u = n % 10;
