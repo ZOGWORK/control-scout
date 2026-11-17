@@ -201,7 +201,7 @@ async function labelRow(page: Page, ctx: { own: string; others: string[] } | und
   // The whole row has the event's name beside the match: another event's is never this one's.
   const row = (await rowOcr.recognize(await page.screenshot({ clip: LABEL_ROW }))).data.text as string;
   // On a split screen the match half may be the other event's: the match beside this event's name in the row is its.
-  const seen = event ? overlayEvent(row, event.name, event.quals) : null;
+  const seen = event ? overlayEvent(row, event.name, event.quals, SEMIFINALS) : null;
   if (seen?.event === "other") return null;
   const own = seen?.phrase ?? label;
   return !ctx || overlayDivision(row, ctx.own, ctx.others) === "own" ? own : null;
@@ -252,7 +252,7 @@ async function readAtOnce(page: Page, t: number, labelOnly = false): Promise<Rea
   if (division === "other") return { label: null, start: null, at, text, why: "another division's overlay", division };
   // Another event's overlay (its name beside the match): not this event's either. On a split screen, this event's half.
   const own = pageEvent.get(page);
-  const event = own ? overlayEvent(text, own.name, own.quals) : null;
+  const event = own ? overlayEvent(text, own.name, own.quals, SEMIFINALS) : null;
   if (event?.event === "other") return { label: null, start: null, at, text, why: "another event's overlay", division: "other" };
   const label = event?.label ?? overlayLabel(text, SEMIFINALS) ?? (labelOnly ? await labelRow(page, ctx, own) : null);
   if (!label || labelOnly) return { label, start: null, at, text, division };
