@@ -121,23 +121,28 @@ describe("season files", () => {
     expect(applyRows(before, [])).toBe(before);
   });
 
-  it("measures a diff as git shows it: lines added and removed, three lines of context either side", () => {
+  it("measures a diff as git shows it: lines added and removed, three lines of context either side, its headers", () => {
     const lines = Array.from({ length: 20 }, (_, i) => `line ${String(i).padStart(2, "0")}`);
     const before = lines.join("\n"), after = [...lines.slice(0, 10), "added", ...lines.slice(10)].join("\n");
-    expect(diffBytes(before, after)).toBe(7 * 2 + 6 * 7 + 5); // 6 context lines + the added one, each with its "+"/" " and newline
-    expect(diffBytes(before, before.replace("line 05", "line X5"))).toBe(6 * 9 + 9 + 9); // context, the new line, the old one
+    // The file's header (160) and one hunk's (32), 6 context lines and the added one, each with its "+"/" " and newline.
+    expect(diffBytes(before, after)).toBe(160 + 32 + 6 * 9 + 7);
+    expect(diffBytes(before, before.replace("line 05", "line X5"))).toBe(160 + 32 + 6 * 9 + 9 + 9); // context, the new line, the old one
+    // Two changes far apart: two hunks.
+    expect(diffBytes(before, before.replace("line 01", "line X1").replace("line 18", "line X8"))).toBe(160 + 2 * 32 + (4 + 4) * 9 + 2 * (9 + 9));
+    expect(diffBytes(before, before)).toBe(0);
   });
 
-  it("ships rows as PRs whose diffs on main's file each stay under the cap, halving any that don't", () => {
+  it("ships rows as PRs whose diffs on main's file each stay under the cap, every row shipped or left for later", () => {
     // Rows of about 1 KB each, 10 events of 3 videos, against a file holding a row of every other event.
     const big = (code: string, v: string) => row({ code, videoId: v, starts: Object.fromEntries(Array.from({ length: 40 }, (_, i) => [`Q${i + 1}`, 1000 + i * 400])) });
     const main = FILE(Array.from({ length: 10 }, (_, e) => big(`E${e}Q`, "live" + e)));
     const rows = Array.from({ length: 10 }, (_, e) => [0, 1, 2].map((v) => big(`E${e}Q`, `v${e}${v}`))).flat();
-    const chunks = prChunks(main, rows, 6_000);
-    expect(chunks.flat().map(rowKey).sort()).toEqual(rows.map(rowKey).sort());
-    for (const c of chunks) expect(diffBytes(main, applyRows(main, c))).toBeLessThanOrEqual(6_000);
+    const { ship, later } = prChunks(main, rows, 6_000);
+    expect([...ship.flat(), ...later].map(rowKey).sort()).toEqual(rows.map(rowKey).sort());
+    expect(later).toEqual([]);
+    for (const c of ship) expect(diffBytes(main, applyRows(main, c))).toBeLessThanOrEqual(6_000);
     // A row bigger than the cap alone: shipped alone, never dropped or split.
-    expect(prChunks(main, [big("E1Q", "solo")], 500)).toEqual([[big("E1Q", "solo")]]);
+    expect(prChunks(main, [big("E1Q", "solo")], 500)).toEqual({ ship: [[big("E1Q", "solo")]], later: [] });
   });
 
   it("never splits rows whose changes touch (one gap, neighbouring lines) across PRs: git would conflict", () => {
@@ -147,11 +152,46 @@ describe("season files", () => {
     // Two new BQ rows share the gap before CQ's line, which the changed CQ row replaces, and a new CQ row goes right
     // after it (before EQ): all four touch, so one PR.
     const b1 = big("BQ", "b1"), b2 = big("BQ", "b2"), c2 = big("CQ", "c2"), cMoved = { ...live[1], checked: "2026-11-18" };
-    // Far apart: a new HQ row (before IQ). Under a cap smaller than any two rows, each group is its own PR.
-    const chunks = prChunks(main, [b1, c2, b2, cMoved, big("HQ", "h1")], 1_000);
-    expect(chunks.map((c) => c.map(rowKey))).toEqual([[rowKey(b1), rowKey(b2), rowKey(cMoved), rowKey(c2)], [rowKey(big("HQ", "h1"))]]);
+    // Far apart: a new HQ row (before IQ). A cap that fits them all: the touching four in one PR.
+    expect(rowGroups(main, [b1, c2, b2, cMoved, big("HQ", "h1")]).map((g) => g.map(rowKey))).toEqual([[rowKey(b1), rowKey(b2), rowKey(cMoved), rowKey(c2)], [rowKey(big("HQ", "h1"))]]);
+    // A cap that fits one row a PR: the touching group ships its first row now and the rest wait (never a second PR
+    // into the same lines); the HQ group, apart, ships too.
+    expect(prChunks(main, [b1, c2, b2, cMoved, big("HQ", "h1")], 1_000)).toEqual({ ship: [[b1], [big("HQ", "h1")]], later: [b2, cMoved, c2] });
     // One unchanged line between two changes keeps them apart: a new BQ row (before CQ) and a new DQ row (before EQ).
     expect(rowGroups(main, [b1, big("DQ", "d1"), big("HQ", "h1"), b2]).map((g) => g.map(rowKey))).toEqual([[rowKey(b1), rowKey(b2)], [rowKey(big("DQ", "d1"))], [rowKey(big("HQ", "h1"))]]);
+  });
+
+  it("in a sparse file (new events sharing one gap) ships what fits under the cap and leaves the rest for later", () => {
+    // 2026.ts has a handful of rows: 8 new events of 3 videos each all go before the one row that sorts after them.
+    const big = (code: string, v: string) => row({ code, videoId: v, starts: Object.fromEntries(Array.from({ length: 40 }, (_, i) => [`Q${i + 1}`, 1000 + i * 400])) });
+    const main = FILE([big("AAQ", "live"), big("ZZQ", "live")]);
+    const rows = ["USCA", "USFL", "USGA", "USIL", "USMI", "USNJ", "USNY", "USTX"].flatMap((e) => [1, 2, 3].map((v) => big(`${e}Q`, `${e}v${v}`)));
+    expect(rowGroups(main, rows)).toHaveLength(1);
+    const { ship, later } = prChunks(main, rows, 12_000);
+    expect(ship).toHaveLength(1);
+    expect(diffBytes(main, applyRows(main, ship[0]))).toBeLessThanOrEqual(12_000);
+    expect(ship[0].length).toBeGreaterThan(1);
+    expect([...ship[0], ...later].map(rowKey).sort()).toEqual(rows.map(rowKey).sort());
+    // The first rows in file order ship: the next run reads the rest on the main this PR leaves.
+    expect(ship[0].map(rowKey)).toEqual(rows.slice(0, ship[0].length).map(rowKey));
+  });
+
+  it("leaves for later any rows touching an open PR's rows: a second PR into the same lines would conflict", () => {
+    const big = (code: string, v: string) => row({ code, videoId: v, starts: { Q1: 100 } });
+    const main = FILE([big("AQ", "live"), big("CQ", "live"), big("EQ", "live"), big("GQ", "live")]);
+    const open = [big("BQ", "inpr")];
+    // BQ's gap is the open PR's; DQ's (before EQ) is one unchanged line away: free.
+    expect(prChunks(main, [big("BQ", "new"), big("DQ", "new")], 12_000, open)).toEqual({ ship: [[big("DQ", "new")]], later: [big("BQ", "new")] });
+  });
+
+  it("one row a key: given twice, the last counts; a file holding a key twice is refused", () => {
+    expect(applyRows(FILE([A]), [B, { ...B, checked: "2026-11-18" }])).toBe(FILE([A, { ...B, checked: "2026-11-18" }]));
+    expect(() => applyRows(FILE([A, A]), [B])).toThrow("v1|AAQ is in the file twice");
+  });
+
+  it("puts a comma on a hand-written last row that lacks one before rows after it", () => {
+    const text = FILE([A]).replace(`${rowLine(A)}`, rowLine(A).replace(/,$/, ""));
+    expect(applyRows(text, [C])).toBe(FILE([A, C]));
   });
 
   it("splits rows into PRs of at most 15 KB, an event's rows together", () => {
