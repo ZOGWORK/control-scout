@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.6.3 — 2026-11-17
+
+Videos › 135 matches from four 2025 events (Indiana State Championship, Westfield QT, Shoals QT and Pompeii) get a clip, each opening on a frame that names its match and its event.
+
+### Highlights
+- [fixes] 135 more 2025 matches get a clip
+- [fixes] Indiana State Championship fully clipped
+- [fixes] Each opens on a frame naming its match
+
+### Fixed
+- Videos (`server/data/frameTimings/2025.ts`): Indiana State Championship (45 of 45), Westfield QT (45 of 45), Shoals QT (35 of 47 over its two videos) and Pompeii (the 10 matches its video holds) get frame-checked starts. Each start's opening frame names its match and this event. Shoals QT's other 12 matches stay without a clip because no frame confirmed their start. (#1739)
+
 ## 7.6.2 — 2026-11-17
 
 Videos › 105 matches from three 2025 events (Greenwood QT and the NorCal Regional Championship's Gold and Silicon divisions) get a clip, each opening on a frame that names its match and its event.
