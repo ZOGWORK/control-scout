@@ -253,24 +253,26 @@ describe("whose event an overlay names", () => {
   });
   it("reads this event's half of a split screen where both halves are read", () => {
     const text = "FiT-Central North San Antonio League Meet 1 Qualification 3 of 24 INTO THE DEEP FiT-Central Hill Country League Meet 1 Qualification 7 of 26";
-    expect(overlayEvent(text, "FiT-Central Hill Country League Meet 1", 26)).toEqual({ event: "own", label: "Q7" });
+    expect(overlayEvent(text, "FiT-Central Hill Country League Meet 1", 26)).toEqual({ event: "own", label: "Q7", phrase: "Q7" });
     // Without the total, the names alone tell the halves apart.
-    expect(overlayEvent(text, "FiT-Central Hill Country League Meet 1")).toEqual({ event: "own", label: "Q7" });
+    expect(overlayEvent(text, "FiT-Central Hill Country League Meet 1")).toEqual({ event: "own", label: "Q7", phrase: "Q7" });
   });
   it("keeps a single event's frame with its name cut, scrolled or reordered", () => {
-    expect(overlayEvent("ad ! | \'{ B= \ Division Michiana Premier Event - Qualification 21 of 115 \"RDF:", "Michiana Premier Event - Thomson Division", 115)).toEqual({ event: "own" });
-    expect(overlayEvent("rest DIVE Checkpoint Scrimmage Beehive Aca Qualification 1 of 11", "Beehive Academy Checkpoint Scrimmage", 11)).toEqual({ event: "own" });
-    expect(overlayEvent("24 CANOPY | Collegiate Meet @ 9 AM Qualification 2 of 15 BIOBUZZ", "Collegiate Meet @ 9 AM", 15)).toEqual({ event: "own" });
-    expect(overlayEvent("Austin Semi-Area Championship • Qualification 10 of 40", "FiT-Central Semi-Area Championship Austin", 40)).toEqual({ event: "own" });
+    expect(overlayEvent("ad ! | \'{ B= \ Division Michiana Premier Event - Qualification 21 of 115 \"RDF:", "Michiana Premier Event - Thomson Division", 115)).toEqual({ event: "own", phrase: "Q21" });
+    expect(overlayEvent("rest DIVE Checkpoint Scrimmage Beehive Aca Qualification 1 of 11", "Beehive Academy Checkpoint Scrimmage", 11)).toEqual({ event: "own", phrase: "Q1" });
+    expect(overlayEvent("24 CANOPY | Collegiate Meet @ 9 AM Qualification 2 of 15 BIOBUZZ", "Collegiate Meet @ 9 AM", 15)).toEqual({ event: "own", phrase: "Q2" });
+    expect(overlayEvent("Austin Semi-Area Championship • Qualification 10 of 40", "FiT-Central Semi-Area Championship Austin", 40)).toEqual({ event: "own", phrase: "Q10" });
   });
   it("names no match of this event with another total, and tells a playoff by its name alone", () => {
     expect(overlayEvent("CANOPY | —E— Qualification 2 of 16", "Collegiate Meet @ 9 AM", 15)).toEqual({ event: "other" });
     // Its name read, a total the db doesn't hold (a schedule changed since) still counts: the name decides.
-    expect(overlayEvent("CANOPY | Collegiate Meet @ 9 AM Qualification 2 of 16", "Collegiate Meet @ 9 AM", 15)).toEqual({ event: "own" });
-    expect(overlayEvent("DIVE Hawaii Championship Playoff Match 3", "Hawaii Championship", 25)).toEqual({ event: "own" });
+    expect(overlayEvent("CANOPY | Collegiate Meet @ 9 AM Qualification 2 of 16", "Collegiate Meet @ 9 AM", 15)).toEqual({ event: "own", phrase: "Q2" });
+    expect(overlayEvent("DIVE Hawaii Championship Playoff Match 3", "Hawaii Championship", 25)).toEqual({ event: "own", phrase: "M3" });
     expect(overlayEvent("DIVE Western Edge Premier Event Playoff Match 3", "Hawaii Championship", 25)).toEqual({ event: "other" });
-    // A split screen whose other half can't be judged (no name, no total): this event's half still gives its match.
-    expect(overlayEvent("—E— Playoff Match 3 DIVE Hawaii Championship Playoff Match 5", "Hawaii Championship", 25)).toEqual({ event: "own", label: "M5" });
+    // Two matches, neither another event's for sure (a split screen's unread half, or one event's bracket card): the
+    // frame gives no match of its own (overlayLabel: several named name none), only the one beside this event's name.
+    expect(overlayEvent("—E— Playoff Match 3 DIVE Hawaii Championship Playoff Match 5", "Hawaii Championship", 25)).toEqual({ event: "own", phrase: "M5" });
+    expect(overlayEvent("DIVE Hawaii Championship Playoff Match 3 Winner Playoff Match 5", "Hawaii Championship", 25)).toEqual({ event: "own", phrase: "M3" });
     // Nothing to tell by: no total, no name.
     expect(overlayEvent("Playoff Match 3", "Hawaii Championship", 25)).toEqual({ event: null });
   });
