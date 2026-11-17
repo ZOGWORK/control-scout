@@ -58,10 +58,19 @@ beforeEach(() => { calls = []; playlists = []; quota = false; pageSize = 50; });
 describe("the official-video watcher", () => {
   it("checks midway between the sync's ticks, never as an event day's sync starts", () => {
     // The sync: STARTUP_CYCLE_MS after boot, then on 5-minute ticks (every 15 minutes on event days).
+    const TICK = 5 * 60_000;
     for (let k = 0; k < 48; k++) {
-      const offGrid = (WATCH_FIRST_MS + k * WATCH_CHECK_MS - STARTUP_CYCLE_MS) % (5 * 60_000);
+      const offGrid = (((WATCH_FIRST_MS + k * WATCH_CHECK_MS - STARTUP_CYCLE_MS) % TICK) + TICK) % TICK;
       expect(offGrid).toBe(2.5 * 60_000);
     }
+  });
+
+  it("checks soon after boot, so a run due during a morning of deploys still starts", () => {
+    // 17 Nov's restarts (deploys), minutes apart: with the first check at 17.5 minutes none of these let it come, and the
+    // run due at 10:27 never started. Each restart starts the wait over; the check must fit inside nearly all of them.
+    const gaps = [17, 28, 10, 43, 11, 10, 14, 10, 13, 11, 11, 10, 12, 12, 18, 26, 14, 8.5, 12.5, 18, 3.5, 4.5, 11];
+    expect(WATCH_FIRST_MS).toBeLessThan(STARTUP_CYCLE_MS);
+    expect(gaps.filter((m) => m * 60_000 > WATCH_FIRST_MS).length).toBe(gaps.length - 2);
   });
 
   it("seeds the watchlist once; a removed channel never comes back", async () => {

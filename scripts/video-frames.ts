@@ -35,8 +35,8 @@
 //   TESSERACT_JS=<path to tesseract.js's entry>  where tesseract.js is, when it isn't in node_modules
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
-import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, playedCount } from "./lib/videoFrames";
-import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, elapsed, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M } from "./lib/videoFrames";
+import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, playedCount, playedMatches, wholeLength } from "./lib/videoFrames";
+import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, cropOrder, elapsed, flippedClip, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M } from "./lib/videoFrames";
 
 // The command line: --name value or --name=value for the value flags, --name alone for the others. Anything else stops
 // the run before it reads: a misspelt flag mustn't quietly read (and write) every recording of the season.
@@ -78,7 +78,7 @@ const CHECK = flag("check"), ALL = flag("all"), DRY = flag("dry"), TRACE = flag(
 const { migrate, all } = await import("../server/db.js");
 await migrate();
 const R = await import("../server/videos/recordings.js");
-const { CLIP_LEAD_S, actualStart } = await import("../src/shared/recording.js");
+const { CLIP_LEAD_S, actualStart, labelRank } = await import("../src/shared/recording.js");
 const { localToUtcMs } = await import("../src/shared/time.js");
 const { localDate } = await import("../server/videos/officialVideos.js");
 const { frameStart } = await import("../server/data/frameTimings.js");
@@ -147,6 +147,12 @@ let failedVideos = 0;
 /** The timer's places: FTC Live's bar along the bottom (also shrunk inside side bars), or its box over the field under a bar
  *  across the top (FTC Ontario's layout) ("bottom"); or a bar along the top (FIRST Texas's layout, "top"). Each counts a 0:30 Auto, then a
  *  2:00 TeleOp (elapsed, scripts/lib/videoFrames.ts). */
+/** FTC Live's whole bar moved to the top of the frame, its timer row under the event/match row (FIRST Nevada's stream,
+ *  USNVCMP 2024: "Nevada Championship | Qualification 21 of 46" on top, "0:44" beneath): the bottom bar's timer, 68 px
+ *  from the top. Last in TIMERS, so no other layout's numbers are read here first; read first where the frame's match
+ *  came from the top bar's row (TOP_ROW), as FIRST Texas's crops catch part of its digits there ("2" then "110" for
+ *  1:22, which reads as no running timer). */
+const TOP_BAR_TIMER = { where: "bottom" as const, clip: { x: 565, y: 68, width: 150, height: 86 } };
 const TIMERS = [
   { where: "bottom" as const, clip: { x: 565, y: 618, width: 150, height: 86 } },
   { where: "top" as const, clip: { x: 603, y: 101, width: 74, height: 38 } },
@@ -160,6 +166,7 @@ const TIMERS = [
   { where: "bottom" as const, clip: { x: 580, y: 647, width: 120, height: 48 }, loose: true },
   // The same white box in a bar across the top (FIRST AGE's top layout, USPAKSN 2026): wider than FIRST Texas's.
   { where: "top" as const, clip: { x: 585, y: 92, width: 110, height: 50 }, loose: true },
+  TOP_BAR_TIMER,
 ];
 /** FTC Live's overlay from 2019 to 2022 shows the timer as bare seconds ("30", "112": secondsPlain), in a box over the
  *  scores (SKYSTONE 2019, FREIGHT FRENZY 2021: USCHSCMPCARR) or under the centre graphic (POWERPLAY 2022: AUMPOS1).
@@ -167,7 +174,12 @@ const TIMERS = [
  *  never for later ones, whose bars have other numbers in those places. */
 const PLAIN_TIMERS = [
   { where: "plain" as const, clip: { x: 595, y: 594, width: 90, height: 36 }, plain: true },
-  { where: "plain" as const, clip: { x: 595, y: 684, width: 90, height: 34 }, plain: true },
+  // POWERPLAY's box, inside the bar it sits on: a crop reaching the bar's coloured edge reads it as a "1" (USCHSCMPVIO
+  // 2022 at 5664 s, "78" read "178"), every confirmation of the event's matches failing with it.
+  { where: "plain" as const, clip: { x: 605, y: 686, width: 70, height: 30 }, plain: true },
+  // The same bar flipped to the top of the frame, its timer flush with the top edge (USAZCMPGC23 2022, Arizona's
+  // championship: "85" at 8640 s). Read after the bottom's, so a bottom bar is always read first.
+  { where: "plain" as const, clip: flippedClip({ x: 605, y: 686, width: 70, height: 30 }), plain: true },
 ];
 /** Best-of-3 semifinals and finals (2019–2023; double elimination from 2024, whose playoffs FIRST numbers M1–M13): the
  *  overlay names every playoff "Semifinal 1 Match 2" or "Finals Match 1", never a bare "Match 1" (overlayLabel).
@@ -178,12 +190,19 @@ const TIMER_CROPS: { where: "bottom" | "top" | "plain"; clip: { x: number; y: nu
   season <= 2022 ? [...PLAIN_TIMERS, ...TIMERS] : TIMERS;
 
 /** The timer's reading. `auto`: whether a reading of 0:30 or less is Auto, told by readAt. */
-async function timer(page: Page): Promise<{ where: "bottom" | "top" | "plain"; left: number; auto: boolean } | null> {
-  for (const t of TIMER_CROPS) {
+type TimerCrop = (typeof TIMER_CROPS)[number];
+/** The crop whose two readings last showed a running clock on this page's video, read first from then on (unless the
+ *  frame's bar names its own, `first`): the other crops look at the field or the crowd there, and a stray number in one
+ *  (a robot's sticker, a sign) would otherwise be taken for the clock before the real one is reached. Arizona's 2022
+ *  championship (USAZCMPGC23), its bar flipped to the top: the bottom crops read "4", "1", "5" off the field, paired
+ *  with the top's "114" and "52", and no start was confirmed. Dropped when its pair doesn't run. */
+const timerCrop = new WeakMap<Page, TimerCrop>();
+async function timer(page: Page, first?: TimerCrop | null): Promise<{ where: "bottom" | "top" | "plain"; left: number; auto: boolean; crop: TimerCrop | null } | null> {
+  for (const t of cropOrder(TIMER_CROPS, first ?? timerCrop.get(page))) {
     const text = (await digits.recognize(await page.screenshot({ clip: t.clip }))).data.text;
     const left = t.plain ? secondsPlain(text) : t.loose ? secondsLoose(text) : secondsOf(text);
     if (left == null || left > AUTO_S + SWITCH_S + TELEOP_S) continue;
-    return { where: t.where, left, auto: false };
+    return { where: t.where, left, auto: false, crop: t };
   }
   // None of the known places: the bar found in the frame itself (overlayBand), its timer read in the centre column.
   // Read as a bottom bar: a reading over 2:00 is then a 2:30 count's Auto (elapsed), which a 2:00 TeleOp never shows.
@@ -193,7 +212,7 @@ async function timer(page: Page): Promise<{ where: "bottom" | "top" | "plain"; l
   const top = Math.max(0, band.top - 4);
   const clip = { x: 565, y: top, width: 150, height: Math.min(720, band.top + Math.round((band.bottom - band.top) * 0.55) + 4) - top };
   const left = secondsOf((await digits.recognize(await page.screenshot({ clip }))).data.text);
-  return left == null || left > AUTO_S + SWITCH_S + TELEOP_S ? null : { where: "bottom", left, auto: false };
+  return left == null || left > AUTO_S + SWITCH_S + TELEOP_S ? null : { where: "bottom", left, auto: false, crop: null };
 }
 
 /** Where the score bar is in the frame on screen (overlayBand, run in the page on the screenshot's own pixels: a
@@ -218,6 +237,10 @@ const now = (page: Page) => page.evaluate(() => document.querySelector("video")!
 /** FTC Live's bottom bar's top row, over the timer's row: the event (or division) on its left half, the match
  *  ("Qualification 8 of 23", "Playoff Match 1") on its right half, read on its own (readRow). */
 const LABEL_ROW = { x: 0, y: 548, width: 1280, height: 56 };
+/** The same bar moved to the top edge (FIRST Nevada's stream, USNVCMP 2024): its row 50 px tall at the top, the timer
+ *  under it (TOP_BAR_TIMER). Its whole-frame read never once named the match (the field and side panels take the page
+ *  layout), its half alone "Qualification 36 of 46"; the band finder sees no row above a bar already at the top. */
+const TOP_ROW = { x: 0, y: 0, width: 1280, height: 50 };
 /** The match the bottom bar's row names, read on its own: a frame whose whole read names nothing because a busy field
  *  and crowd threw the page layout off, the bar's line lost with it (USARBEQ 2024 Q8 at 7097 s: the whole frame read a
  *  jumble, the row alone "Qualification 8 of 23"). The match's half alone: the whole row can lose it too, to the logo
@@ -231,14 +254,17 @@ const LABEL_ROW = { x: 0, y: 548, width: 1280, height: 56 };
  *  row, tesseract runs "9 of" into "90f" there (USTXNTM1 2023 at 1108 s), so that row is read too. */
 const ROW_LOWER = 8;
 type PageEvent = { name: string; quals: number };
-async function labelRow(page: Page, ctx: { own: string; others: string[] } | undefined, event?: PageEvent): Promise<string | null> {
+async function labelRow(page: Page, ctx: { own: string; others: string[] } | undefined, event?: PageEvent): Promise<{ label: string; timer?: (typeof TIMER_CROPS)[number] } | null> {
   for (const row of [LABEL_ROW, { ...LABEL_ROW, y: LABEL_ROW.y + ROW_LOWER }]) {
     const fixed = await readRow(page, row, ctx, event);
-    if (fixed) return fixed;
+    if (fixed) return { label: fixed };
   }
+  const top = await readRow(page, TOP_ROW, ctx, event);
+  if (top) return { label: top, timer: TOP_BAR_TIMER };
   const band = await barBand(page);
   const row = band && rowAbove(band, LABEL_ROW);
-  return row ? readRow(page, row, ctx, event) : null;
+  const above = row ? await readRow(page, row, ctx, event) : null;
+  return above ? { label: above } : null;
 }
 /** The row's match half, then (on a shared stream, or where the event is known) the whole row: the event name beside
  *  the match says whose it is (overlayEvent). Another event's is never this one's; on a split screen the match half may
@@ -256,7 +282,7 @@ async function readRow(page: Page, row: { x: number; y: number; width: number; h
 /** The match a frame names: the whole frame's read, else the bar's row on its own (labelRow). `division`: whose the
  *  frame is on a shared stream; a match the row named there is this division's (labelRow checked the row). `event`:
  *  "other" where the overlay names another event beside the match (overlayEvent); on a split screen, this event's half. */
-async function frameLabel(page: Page, text: string, ctx: { own: string; others: string[] } | undefined): Promise<{ label: string | null; division?: "own" | "other" | null; event?: "other" }> {
+async function frameLabel(page: Page, text: string, ctx: { own: string; others: string[] } | undefined): Promise<{ label: string | null; division?: "own" | "other" | null; event?: "other"; timer?: (typeof TIMER_CROPS)[number] }> {
   const own = pageEvent.get(page);
   const seen = own ? overlayEvent(text, own.name, own.quals, SEMIFINALS) : null;
   if (seen?.event === "other") return { label: null, division: "other", event: "other" };
@@ -264,7 +290,7 @@ async function frameLabel(page: Page, text: string, ctx: { own: string; others: 
   const division = ctx ? overlayDivision(text, ctx.own, ctx.others) : undefined;
   if (whole || division === "other") return { label: whole, division };
   const row = await labelRow(page, ctx, own);
-  return { label: row, division: row && ctx ? "own" : division };
+  return { label: row?.label ?? null, division: row && ctx ? "own" : division, timer: row?.timer };
 }
 
 /** Go to second t. Playing (a timer read needs the clock running), the frame read is about a second on by the time
@@ -300,33 +326,73 @@ function readAt(page: Page, t: number, labelOnly = false): Promise<Read> {
   ]);
 }
 
+/** Near-black frames: a player that plays but shows no picture (the page's own layer hiding it, 2026-11-17) reads
+ *  nothing anywhere, and a run on it would write every match "no frame read". Every SHADE_EVERY-th read's screenshot
+ *  is checked; once DARK_MIN are checked and more than DARK_SHARE of them are near-black (mean brightness under
+ *  DARK_MEAN of 255), nothing is written (stopIfDark): the run stops and says so. */
+const SHADE_EVERY = 6, DARK_MIN = 12, DARK_SHARE = 0.5, DARK_MEAN = 18;
+let reads = 0, shadeChecked = 0, shadeDark = 0;
+async function nearBlack(page: Page, png: Buffer): Promise<boolean> {
+  return page.evaluate(async ({ b64, under }) => {
+    const img = new Image();
+    img.src = `data:image/png;base64,${b64}`;
+    await img.decode();
+    const c = document.createElement("canvas");
+    c.width = 160; c.height = 90;
+    const g = c.getContext("2d")!;
+    g.drawImage(img, 0, 0, c.width, c.height);
+    const d = g.getImageData(0, 0, c.width, c.height).data;
+    let sum = 0;
+    for (let i = 0; i < d.length; i += 4) sum += 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+    return sum / (c.width * c.height) < under;
+  }, { b64: png.toString("base64"), under: DARK_MEAN });
+}
+/** Most frames near-black: write nothing, say so (the autopilot stops its whole run on this line), exit. */
+function stopIfDark(): void {
+  if (shadeChecked < DARK_MIN || shadeDark / shadeChecked <= DARK_SHARE) return;
+  const line = `NEAR-BLACK FRAMES: ${shadeDark} of ${shadeChecked} sampled reads showed no picture; nothing written`;
+  console.log(line);
+  console.error(line);
+  process.exit(3);
+}
+
 /** labelOnly: the overlay's match alone, not its timer (a clip opening's check). */
 async function readAtOnce(page: Page, t: number, labelOnly = false): Promise<Read> {
   if (ocrBroken) throw new Error(ocrBroken);
   await seek(page, Math.max(0, t), labelOnly);
   const at = await now(page);
-  const text = (await worker.recognize(await page.screenshot())).data.text as string;
+  const shot = await page.screenshot();
+  if (reads++ % SHADE_EVERY === 0) {
+    const dark = await nearBlack(page, shot).catch(() => null);
+    if (dark != null) { shadeChecked++; if (dark) shadeDark++; }
+  }
+  const text = (await worker.recognize(shot)).data.text as string;
   const ctx = divisions.get(page);
-  const { label, division, event } = await frameLabel(page, text, ctx);
+  const { label, division, event, timer: first } = await frameLabel(page, text, ctx);
   // Another division's match on the shared stream, or another event's beside its name: not this event's, whatever its number.
   if (division === "other") return { label: null, start: null, at, text, why: event === "other" ? "another event's overlay" : "another division's overlay", division };
   if (!label || labelOnly) return { label, start: null, at, text, division };
-  const a = await timer(page);
+  const a = await timer(page, first);
   const atA = await now(page);
   await page.waitForTimeout(1500);
-  const b = await timer(page);
+  // The second reading from the first's crop: two numbers from two places aren't one clock.
+  const b = a && await timer(page, a.crop ?? first);
   const atB = await now(page);
-  if (!a || !b || a.where !== b.where) return { label, start: null, at, text, why: `timer read ${a ? `${a.where} ${a.left}` : "nothing"}, then ${b ? `${b.where} ${b.left}` : "nothing"}` };
+  if (!a || !b || a.where !== b.where || a.crop !== b.crop) return { label, start: null, at, text, why: `timer read ${a ? `${a.where} ${a.left}` : "nothing"}, then ${b ? `${b.where} ${b.left}` : "nothing"}` };
   const ran = a.left - b.left, played = atB - atA;
   // Running: down by the time played (to the second either side). A paused or standing timer: not in play (timerRan).
-  if (!timerRan(ran, played)) return { label, start: null, at, text, why: `timer ${a.left} then ${b.left} over ${played.toFixed(1)} s played` };
+  if (!timerRan(ran, played)) {
+    if (a.crop && timerCrop.get(page) === a.crop) timerCrop.delete(page);
+    return { label, start: null, at, text, why: `timer ${a.left} then ${b.left} over ${played.toFixed(1)} s played` };
+  }
+  if (a.crop) timerCrop.set(page, a.crop);
   // 0:30 or less on either bar: Auto, or the end of TeleOp. 45 s on, Auto has become TeleOp's 2:00 (well over 30 s
   // left); the end of TeleOp has finished. That later frame is the same match by its overlay, or, where the overlay
   // can't be read there, by its TeleOp reading the very second Auto's leads to (2019IASQ4's "Semifinal 2 Match 1",
   // unread 45 s on: its Auto "0:10" was taken for TeleOp's, a start 128 s early).
   if (a.left <= AUTO_S) {
     await seek(page, atA + 45);
-    const c = await timer(page);
+    const c = await timer(page, a.crop ?? first);
     const atC = await now(page);
     const { label: named } = await frameLabel(page, (await worker.recognize(await page.screenshot())).data.text as string, ctx);
     a.auto = !!c && c.where === a.where && c.left > AUTO_S && (named === label || (!named && autoLeadsTo(a.left, atC - atA, c.left)));
@@ -530,8 +596,8 @@ async function readEdges(page: Page, length: number): Promise<{ opensOn?: Edge; 
     await seek(page, opensOn.at);
     const a = await timer(page);
     await seek(page, opensOn.at + 3);
-    const b = await timer(page);
-    if (a && b && a.where === b.where && a.left - b.left >= 1 && a.left - b.left <= 5) {
+    const b = a && await timer(page, a.crop);
+    if (a && b && a.where === b.where && a.crop === b.crop && a.left - b.left >= 1 && a.left - b.left <= 5) {
       const ways = [elapsed({ ...a, auto: false }), ...(a.left <= AUTO_S ? [elapsed({ ...a, auto: true })] : [])].filter((x): x is number => x != null);
       if (ways.length && Math.min(...ways) > opensOn.at) opensOn.underway = true;
     }
@@ -798,6 +864,7 @@ const report: string[] = [];
  *  still can't be written the next event's save writes everything kept. */
 let unsaved = false;
 function save(): void {
+  stopIfDark();
   if (CHECK || DRY) return;
   const file = FRAMES_FILE;
   for (let tries = 1; ; tries++) {
@@ -837,6 +904,7 @@ const NO_OVERLAY_AFTER = 5;
 
 /** Write the sweep's rows (as save() writes the timings: rows this run didn't touch are taken from the file). */
 function saveClips(): void {
+  stopIfDark();
   if (DRY) return;
   const text = readFileSync(CLIPS_FILE, "utf8");
   const onDisk = new Map(dataRows<ClipCheck>(text).map((c) => [`${c.videoId}|${c.code}`, c]));
@@ -936,17 +1004,39 @@ async function openOnce(page: Page, videoId: string): Promise<void> {
   // Auto-captions sit right over the bottom bar's timer, and the embed's own bars over the top: hidden.
   // The newer embed also draws the video's title (often the event's name) over the top of a paused frame, outside
   // #movie_player: hidden too, or the event-name check (overlayEvent) could read the title instead of the overlay.
-  await page.addStyleTag({ content: ".ytp-caption-window-container, .caption-window, .ytp-chrome-top, .ytp-pause-overlay, .ytp-show-cards-title, .ytp-ce-element, .ytp-player-content.ytp-iv-player-content, .ytp-large-play-button, .ytp-bezel, .ytp-chrome-bottom, #player-controls, #player-control-overlay, player-top-controls, embedded-player-video-details { display: none !important; }" });
+  // Only the title pieces, never their containers (#player-controls, #player-control-overlay): hiding those turns a
+  // PLAYING frame pure black (USNVCMP 2024: 30 of 30 black; this rule: 77 of 77 drawn, top bar clear).
+  await page.addStyleTag({ content: ".ytp-caption-window-container, .caption-window, .ytp-chrome-top, .ytp-pause-overlay, .ytp-show-cards-title, .ytp-ce-element, .ytp-player-content.ytp-iv-player-content, .ytp-large-play-button, .ytp-bezel, .ytp-chrome-bottom, player-top-controls, .ytwPlayerTopControlsHost, embedded-player-video-details, .ytmCuedOverlayGradient { display: none !important; }" });
+}
+
+/** A video's length in whole seconds, as its player gives it, or why it has none: a stream that is still live or
+ *  hasn't started (a link to next week's meet: 2026 USMOKSSWM1) isn't a recording yet, and plays no frames here. */
+async function playerLength(videoId: string): Promise<{ length: number } | { why: string }> {
+  let page: Page | null = null;
+  try {
+    page = await player();
+    await page.goto(`https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&mute=1&controls=0`, { referer: "https://controlscout.org/" });
+    const got = await within(page.waitForFunction(() => {
+      const d = (document.querySelector("#movie_player") as any)?.getVideoData?.(), v = document.querySelector("video");
+      return (d?.isLive || d?.errorCode) ? { live: !!d.isLive, error: d.errorCode ?? null, d: NaN } : (v?.readyState ?? 0) >= 1 ? { live: false, error: null, d: v!.duration } : null;
+    }, null, { timeout: 30000 }).then((h) => h.jsonValue()), 40, "reading the length") as { live: boolean; error: string | null; d: number };
+    const s = got.live ? null : wholeLength(got.d);
+    return s ? { length: s } : { why: got.live ? "a live or upcoming stream, not a recording yet" : `the player gives no length${got.error ? ` (${got.error})` : ""}` };
+  } catch (e) {
+    return { why: `the player gives no length (${(e as Error).message.split("\n")[0]})` };
+  } finally {
+    await closePage(page);
+  }
 }
 
 async function doCode(code: string): Promise<void> {
   const rec = recs.get(code)!;
-  const rows = await all<{ label: string; time: string; timezone: string | null; played: number }>(
-    "SELECT m.label, m.time, e.timezone, m.played FROM matches m JOIN events e ON e.season = m.season AND e.code = m.code WHERE m.season = ? AND m.code = ? AND m.played = 1 AND m.time IS NOT NULL", [season, code]);
+  const rows = await all<{ label: string; time: string | null; timezone: string | null; played: number }>(
+    "SELECT m.label, m.time, e.timezone, m.played FROM matches m JOIN events e ON e.season = m.season AND e.code = m.code WHERE m.season = ? AND m.code = ? AND m.played = 1", [season, code]);
   // A match FIRST gives only its scheduled time for (2019's qualifications) is read too, by its frames alone (M.scheduled):
   // its time orders it among the others and places nothing.
-  const played = rows.map((r) => ({ label: String(r.label), time: String(r.time), epoch: (localToUtcMs(r.time, r.timezone) ?? NaN) / 1000, ...(actualStart(r.time) ? {} : { scheduled: true }) }))
-    .filter((m) => Number.isFinite(m.epoch)).sort((a, b) => a.epoch - b.epoch);
+  // A match with no time at all is read the same way, after the timed ones in its label's order (playedMatches).
+  const played = playedMatches(rows, { utcMs: localToUtcMs, actual: actualStart, rank: labelRank });
   // A played match with no time the clock can place (the event has no timezone) can't be read: said, not skipped quietly.
   const timeless = rows.length - played.length;
   if (timeless) report.push(`${code}: ${timeless} played matches not read: no timezone for the event, so their start can't be placed`);
@@ -960,7 +1050,7 @@ async function doCode(code: string): Promise<void> {
   const ownDiv = ev ? divisionOf(ev.name) : null, others = siblings.map((x) => divisionOf(x.name));
   const division = ownDiv && others.length && others.every((x): x is string => x != null) ? { own: ownDiv, others: others as string[] } : null;
   const span = await R.eventMatchSpan(season, code);
-  const views = played.map((m) => ({ label: m.label, time: m.time, played: true, startsAt: new Date(m.epoch * 1000).toISOString(), clip: undefined as any }));
+  const views = played.map((m) => ({ label: m.label, time: m.time, played: true, startsAt: m.time == null ? null : new Date(m.epoch * 1000).toISOString(), clip: undefined as any }));
   // Without this script's own timings: what YouTube's facts alone give.
   // --clips: the clips the live site plays from the clock, checked by their first frame; nothing else.
   if (CLIPS) return checkClips(code, rec, views, span, division);
@@ -977,10 +1067,13 @@ async function doCode(code: string): Promise<void> {
   const waiting = own.some((v) => !v.meta || v.meta.status === "error");
   const holds = (v: (typeof own)[number]) => {
     const m = v.meta;
-    if (m?.status !== "ok" || !m.length) return false;
+    // A video YouTube gave no duration for counts once it has a row (the player timed it on an earlier run, below);
+    // until then it doesn't, so a stream still live or not started is looked at again on the next run.
+    if (m?.status !== "ok" || (!m.length && !kept.has(`${v.videoId}|${code}`))) return false;
     if (!m.start) return true;
     const a = Date.parse(m.start) / 1000, b = m.end ? Date.parse(m.end) / 1000 : Infinity;
-    return played.some((x) => a <= x.epoch && x.epoch <= b);
+    // A match with no time may be in any of the event's videos.
+    return played.some((x) => x.time == null || (a <= x.epoch && x.epoch <= b));
   };
   const rowOf = (v: (typeof own)[number]) => kept.get(`${v.videoId}|${code}`);
   const read = own.filter(holds).every((v) => { const f = rowOf(v); return f && !Object.values(f.missing ?? {}).some((w) => w.startsWith(PLAY_FAILED)); });
@@ -996,6 +1089,14 @@ async function doCode(code: string): Promise<void> {
   const log = (s: string) => { lines.push(s); };
   try {
   log(`${code}: ${missing.length} of ${played.length} matches without a clip`);
+  // A video YouTube gave no duration for is timed by the player itself; one the player can't time (a stream still
+  // live or not started: 2026 USMOKSSWM1, USORSOM1) is said, not skipped quietly.
+  for (const v of [rec, ...(rec.more ?? [])]) {
+    if (v.meta?.status !== "ok" || v.meta.length) continue;
+    const p = await playerLength(v.videoId);
+    if ("length" in p) { v.meta = { ...v.meta, length: p.length }; log(`  ${v.videoId}: no duration from YouTube, ${p.length} s from the player`); }
+    else log(`  ${v.videoId}: no duration from YouTube, not read: ${p.why}`);
+  }
   const videos = [rec, ...(rec.more ?? [])].filter((v) => v.meta?.status === "ok" && v.meta.length);
   const held = new Set<string>();
   for (const v of videos) {
@@ -1008,8 +1109,9 @@ async function doCode(code: string): Promise<void> {
     // A match with only its scheduled time can't be put in a broadcast's window by it (2019IASQ4's Q1 "04:15" local,
     // its stream starting 11:00): it's in the event's only video, or in the one broadcast (or listed) on its day, the
     // venue's date (a Saturday 09:00 broadcast in Sydney starts on Friday in UTC).
+    // A match with no time at all (Chicago Robotics Invitational's results) may be in any of them: each video is walked.
     const day = v.day ?? (m.start ? localDate(m.start, rows[0]?.timezone) : undefined);
-    const mine = played.filter((x) => !held.has(x.label) && (x.scheduled ? videos.length === 1 || !day || x.time.slice(0, 10) === day
+    const mine = played.filter((x) => !held.has(x.label) && (x.scheduled ? x.time == null || videos.length === 1 || !day || x.time.slice(0, 10) === day
       : from == null ? !videos.some((o) => o !== v && inside(o, x.epoch))
       : (from <= x.epoch && (!m.end || x.epoch <= Date.parse(m.end) / 1000)) || lead(x)));
     // A video read well on an earlier run keeps its row: the event is back for another of its videos (a new link, one
@@ -1139,6 +1241,8 @@ if (!CHECK && !DRY) {
   if (unsaved) { console.error(`${FRAMES_FILE} could not be written: this run's timings are lost`); process.exitCode = 1; }
   else console.log(`wrote ${kept.size} videos to ${FRAMES_FILE}`);
 }
+// Before the report: a run on a black player writes nothing at all, its report included.
+stopIfDark();
 mkdirSync(".data", { recursive: true });
 writeFileSync(".data/video-frames-report.txt", report.join("\n"));
 process.exit(process.exitCode ?? 0);
