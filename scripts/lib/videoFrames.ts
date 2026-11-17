@@ -7,6 +7,25 @@
  *  says nothing of where it sits: it's placed only where its own frames show it (judge). */
 export type M = { label: string; epoch: number; scheduled?: boolean };
 
+/**
+ * An event's played matches as a read goes by them, in played order, each with its time (null: none). A match with no
+ * time at all (results posted with none: the Chicago Robotics Invitational's) is read as a scheduled one is, by its
+ * frames alone (M.scheduled), ordered after the timed ones by its label (`rank`, labelRank); `epoch` only orders it. A
+ * time the event's zone can't place (none known) leaves its match out (the caller says so).
+ */
+export function playedMatches(
+  rows: { label: string; time: string | null; timezone: string | null }[],
+  f: { utcMs: (time: string, timezone: string | null) => number | null; actual: (time: string | null) => boolean; rank: (label: string) => number },
+): (M & { time: string | null })[] {
+  const timed = rows.filter((r) => r.time != null)
+    .map((r) => ({ label: String(r.label), time: String(r.time), epoch: (f.utcMs(String(r.time), r.timezone) ?? NaN) / 1000, ...(f.actual(r.time) ? {} : { scheduled: true }) }))
+    .filter((m) => Number.isFinite(m.epoch)).sort((a, b) => a.epoch - b.epoch);
+  const after = timed.length ? timed[timed.length - 1].epoch : 0;
+  const untimed = rows.filter((r) => r.time == null).map((r) => String(r.label)).sort((a, b) => f.rank(a) - f.rank(b))
+    .map((label, i) => ({ label, time: null, epoch: after + 1 + i, scheduled: true }));
+  return [...timed, ...untimed];
+}
+
 /** Two reads closer than this (seconds) are the same distance: the timer reads to the second, and the frame read lags it. */
 export const SAME_S = 6;
 /** The most frames read looking for one match. */
