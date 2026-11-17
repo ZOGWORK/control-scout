@@ -127,5 +127,32 @@ describe("conference section", () => {
     fireEvent.click(screen.getAllByRole("tab", { name: "Far North Conference" })[1]);
     expect(screen.getAllByRole("tab", { name: "Far North Conference" })[1].getAttribute("aria-selected")).toBe("true");
     expect(document.querySelector("[data-conference-unknown]")).toBeNull();
+    expect([...document.querySelectorAll("[data-conference-table] tbody tr")].map((tr) => tr.getAttribute("data-team"))).toEqual(["14450"]);
+  });
+
+  it("a sort lands on the first page of the new order, not back on the marked team's page", () => {
+    const many = { ...EB, rows: Array.from({ length: 70 }, (_, i) => row(1000 + i, i + 1, i + 1, 4 - i / 100)) };
+    show({ ...NO, conferences: [many] }, { team: 1010 });
+    expect(document.querySelector("tr[data-marked]")!.getAttribute("data-team")).toBe("1010");
+    // Lowest RS first: 1010 is now on the second page, and the sort shows the first.
+    fireEvent.click(screen.getByRole("button", { name: /^RS/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^RS/ }));
+    const shown = [...document.querySelectorAll("[data-conference-table] tbody tr")].map((tr) => tr.getAttribute("data-team"));
+    expect(shown).toHaveLength(CONFERENCE_PAGE);
+    expect(shown[0]).toBe("1069");
+    expect(document.querySelector("tr[data-marked]")).toBeNull();
+  });
+
+  it("says when FTC New Jersey's list doesn't split the teams by session", () => {
+    const going: Conference = {
+      ...EB, season: 2026, status: "upcoming", teamsFrom: "registered", winner: null, rs: { kind: "live", asOf: "2026-11-16T21:49:28.125Z" },
+      registered: { count: 1, fetchedAt: "2026-11-15T23:47:01.825Z", url: "https://www.newjerseyftc.com/upcoming-events.html", sessionUnknown: true },
+      rows: [row(4215, 1, 24, 1.2, { registered: "registered" })],
+    };
+    show({ season: 2026, region: "USNJ", code: "NE", conferences: [going] });
+    expect(document.querySelector("[data-session-unknown]")!.textContent).toContain("doesn't say which session each team is in");
+    cleanup();
+    show({ season: 2026, region: "USNJ", code: "NE", conferences: [{ ...going, registered: { ...going.registered!, sessionUnknown: false } }] });
+    expect(document.querySelector("[data-session-unknown]")).toBeNull();
   });
 });
