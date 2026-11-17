@@ -24,8 +24,15 @@ export function dedupePredictions(list: readonly SavedPrediction[]): SavedPredic
 export const THEMES = ["light", "dim", "dark", "midnight", "system"] as const;
 export type ThemeChoice = (typeof THEMES)[number];
 
+/** The dark themes: the top bar's light/dark switch returns to the one last used (Settings.darkTheme). */
+export const DARK_THEMES = ["dim", "dark", "midnight"] as const;
+export type DarkTheme = (typeof DARK_THEMES)[number];
+
 export interface Settings {
   theme: ThemeChoice;
+  /** The dark theme the top bar's light/dark switch goes back to: the one in use when it last switched to Light.
+   *  Optional, missing means Dark (the default), so a value saved before it existed is unchanged. */
+  darkTheme?: DarkTheme;
   density: "comfortable" | "compact";
   /** Animated background (on by default; reduced motion always stills it). */
   ambient: boolean;
@@ -110,6 +117,7 @@ export function cleanValue<K extends PersonalKey>(key: K, v: unknown): PersonalS
         // Kept only when set to a known value (missing: the default), so older values stay as they were.
         ...(o.offlineUpdates === "ask" || o.offlineUpdates === "auto" ? { offlineUpdates: o.offlineUpdates } : {}),
         ...(o.offlineNetwork === "wifi" || o.offlineNetwork === "any" ? { offlineNetwork: o.offlineNetwork } : {}),
+        ...((DARK_THEMES as readonly string[]).includes(o.darkTheme as string) ? { darkTheme: o.darkTheme } : {}),
       } as PersonalState[K];
     }
     case "videoLinks": {
