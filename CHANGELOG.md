@@ -25,7 +25,7 @@ Videos › The first match clips for 2022 (POWERPLAY): 318 matches in 6 events, 
 - [fixes] Every clip opens on a frame naming its match
 
 ### Added
-- Videos: clips read off the recordings' frames (`server/data/frameTimings/2022.ts`), now that the frame reader reads 2022's overlay (#1651): USCHSHEQ 54 of 54 played matches, USCHSUBQ 53 of 53, USMOKSSWMILT1 48 of 48, USMOKSCMP 61 of 62, USCHSHAQ1 53 of 55, USTXCECCS 49 of 55. Each placed start's clip opens on a paused frame whose overlay names that match (20, 12, 5, 2 or 0 s before it). The matches left out stay without a clip, with the reason. (#PR)
+- Videos: clips read off the recordings' frames (`server/data/frameTimings/2022.ts`), now that the frame reader reads 2022's overlay (#1651): USCHSHEQ 54 of 54 played matches, USCHSUBQ 53 of 53, USMOKSSWMILT1 48 of 48, USMOKSCMP 61 of 62, USCHSHAQ1 53 of 55, USTXCECCS 49 of 55. Each placed start's clip opens on a paused frame whose overlay names that match (20, 12, 5, 2 or 0 s before it). The matches left out stay without a clip, with the reason. (#1664)
 
 ## 7.3.0 — 2026-11-17
 
