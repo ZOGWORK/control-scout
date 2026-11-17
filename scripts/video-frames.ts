@@ -785,7 +785,9 @@ async function openOnce(page: Page, videoId: string): Promise<void> {
   // No captions over the overlay.
   await page.evaluate(() => { try { (document.querySelector("#movie_player") as any)?.unloadModule?.("captions"); } catch { /* none */ } });
   // Auto-captions sit right over the bottom bar's timer, and the embed's own bars over the top: hidden.
-  await page.addStyleTag({ content: ".ytp-caption-window-container, .caption-window, .ytp-chrome-top, .ytp-pause-overlay, .ytp-show-cards-title, .ytp-ce-element, .ytp-player-content.ytp-iv-player-content, .ytp-large-play-button, .ytp-bezel, .ytp-chrome-bottom { display: none !important; }" });
+  // The newer embed also draws the video's title (often the event's name) over the top of a paused frame, outside
+  // #movie_player: hidden too, or the event-name check (overlayEvent) could read the title instead of the overlay.
+  await page.addStyleTag({ content: ".ytp-caption-window-container, .caption-window, .ytp-chrome-top, .ytp-pause-overlay, .ytp-show-cards-title, .ytp-ce-element, .ytp-player-content.ytp-iv-player-content, .ytp-large-play-button, .ytp-bezel, .ytp-chrome-bottom, #player-controls, #player-control-overlay, player-top-controls, embedded-player-video-details { display: none !important; }" });
 }
 
 async function doCode(code: string): Promise<void> {
