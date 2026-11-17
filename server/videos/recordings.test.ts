@@ -351,6 +351,13 @@ describe("when a video is read again", () => {
     // 26 min short: read (it was left out under the old half-hour mark, with no early start either).
     expect(due({ ...cut, length: 38000 }, t("2026-05-05T01:00:00Z"))).toBe(true);
   });
+  it("with a key, a video that plays weekly: one deleted or blocked everywhere since is seen within a week", () => {
+    // Live: five recordings read "ok" once are blocked in every country now (the watch page: "Video unavailable").
+    const settled = meta({ start: "2026-04-01T12:00:00Z", end: "2026-04-01T20:00:00Z", length: 28800 });
+    expect(due(settled, t("2026-05-08T23:00:00Z"), true)).toBe(false);
+    expect(due(settled, t("2026-05-09T01:00:00Z"), true)).toBe(true);
+    expect(due(settled, t("2027-01-01T00:00:00Z"))).toBe(false);
+  });
 });
 
 describe("FIRST's link to a YouTube video", () => {
@@ -433,6 +440,31 @@ describe("with a YouTube API key", () => {
     expect(await get("SELECT status, duration FROM video_meta WHERE video_id = ?", [FIRST_ID])).toEqual({ status: "ok", duration: 16541 });
     expect(await get("SELECT status, duration FROM video_meta WHERE video_id = ?", [extra[extra.length - 1]])).toEqual({ status: "ok", duration: 16541 });
     expect(await get("SELECT status FROM video_meta WHERE video_id = ?", [GONE_ID])).toEqual({ status: "unavailable" });
+  });
+
+  it("reads a region block against the event's own country: blocked there, unavailable; blocked in 60 others, it keeps its clips", async () => {
+    await run("DELETE FROM video_meta");
+    const HOME = "BlockedHome", ELSE = "BlockedElse";
+    await event("REGHOME", `https://www.youtube.com/watch?v=${HOME}`);
+    await event("REGELSE", `https://www.youtube.com/watch?v=${ELSE}`);
+    await run("UPDATE events SET country = 'USA' WHERE season = ? AND code IN ('REGHOME', 'REGELSE')", [S]);
+    const sixty = Array.from({ length: 60 }, (_, i) => `X${i}`);
+    const api = (async (url: string) => {
+      const ids = new URL(url).searchParams.get("id")!.split(",");
+      return Response.json({ items: ids.map((id) => ({ id, contentDetails: { duration: "PT4H", ...(id === HOME ? { regionRestriction: { blocked: ["US"] } } : id === ELSE ? { regionRestriction: { blocked: sixty } } : {}) },
+        liveStreamingDetails: { actualStartTime: `${DAY}T12:00:00Z`, actualEndTime: `${DAY}T16:00:00Z` } })) });
+    }) as unknown as typeof fetch;
+    await backfillVideoMeta(() => {}, { apiKey: "KEY", gapMs: 0, fetchImpl: api });
+    expect(await get("SELECT status FROM video_meta WHERE video_id = ?", [HOME])).toEqual({ status: "unavailable" });
+    expect(await get("SELECT status, duration FROM video_meta WHERE video_id = ?", [ELSE])).toEqual({ status: "ok", duration: 14400 });
+  });
+
+  it("a weekly read that fails keeps the time of the last real read, so it's tried again soon, not a week on", async () => {
+    await run("DELETE FROM video_meta");
+    await run("INSERT INTO video_meta (video_id, status, start, end, duration, live, checked_at) VALUES (?, 'ok', ?, ?, 16541, 0, '2026-01-01T00:00:00.000Z')", [FIRST_ID, `${DAY}T12:58:13Z`, `${DAY}T17:33:56Z`]);
+    const down = (async () => new Response("", { status: 503 })) as unknown as typeof fetch;
+    await backfillVideoMeta(() => {}, { apiKey: "KEY", gapMs: 0, fetchImpl: down, now: () => Date.parse("2026-02-01T00:00:00Z") });
+    expect(await get("SELECT status, checked_at FROM video_meta WHERE video_id = ?", [FIRST_ID])).toEqual({ status: "ok", checked_at: "2026-01-01T00:00:00.000Z" });
   });
 
   it("a pass that never finishes doesn't stop the next one for good", async () => {
