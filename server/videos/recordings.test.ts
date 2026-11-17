@@ -353,7 +353,7 @@ describe("when a video is read again", () => {
   });
   it("with a key, a video that plays weekly: one deleted or blocked everywhere since is seen within a week", () => {
     // Live: five recordings read "ok" once are blocked in every country now (the watch page: "Video unavailable").
-    const settled = meta({ start: "2026-04-01T12:00:00Z", end: "2026-04-01T20:00:00Z", length: 28800 });
+    const settled = meta({ start: "2026-04-01T12:00:00Z", end: "2026-04-01T20:00:00Z", length: 28800, embeddable: true });
     expect(due(settled, t("2026-05-08T23:00:00Z"), true)).toBe(false);
     expect(due(settled, t("2026-05-09T01:00:00Z"), true)).toBe(true);
     expect(due(settled, t("2027-01-01T00:00:00Z"))).toBe(false);
@@ -465,6 +465,22 @@ describe("with a YouTube API key", () => {
     const down = (async () => new Response("", { status: 503 })) as unknown as typeof fetch;
     await backfillVideoMeta(() => {}, { apiKey: "KEY", gapMs: 0, fetchImpl: down, now: () => Date.parse("2026-02-01T00:00:00Z") });
     expect(await get("SELECT status, checked_at FROM video_meta WHERE video_id = ?", [FIRST_ID])).toEqual({ status: "ok", checked_at: "2026-01-01T00:00:00.000Z" });
+  });
+
+  it("keeps whether a video may be embedded, and reads it once, with the key, for a video read before it was kept", async () => {
+    await run("DELETE FROM video_meta");
+    // Read before embedding was kept: due once with the key.
+    await run("INSERT INTO video_meta (video_id, status, start, end, duration, live, checked_at) VALUES (?, 'ok', ?, ?, 16541, 0, ?)", [FIRST_ID, `${DAY}T12:58:13Z`, `${DAY}T17:33:56Z`, new Date().toISOString()]);
+    const api = (embeddable?: boolean) => (async (url: string) => {
+      const ids = new URL(url).searchParams.get("id")!.split(",");
+      expect(new URL(url).searchParams.get("part")).toContain("status");
+      return Response.json({ items: ids.map((id) => ({ id, contentDetails: { duration: "PT4H35M41S" }, ...(embeddable == null ? {} : { status: { embeddable: id === FIRST_ID ? embeddable : true } }),
+        liveStreamingDetails: { actualStartTime: `${DAY}T12:58:13Z`, actualEndTime: `${DAY}T17:33:56Z` } })) });
+    }) as unknown as typeof fetch;
+    await backfillVideoMeta(() => {}, { apiKey: "KEY", gapMs: 0, fetchImpl: api(false) });
+    expect(await get("SELECT status, embeddable FROM video_meta WHERE video_id = ?", [FIRST_ID])).toEqual({ status: "ok", embeddable: 0 });
+    expect(due({ videoId: "x", status: "ok", start: null, end: null, length: 1, live: false, checkedAt: new Date().toISOString() }, Date.now(), true)).toBe(true);
+    expect(due({ videoId: "x", status: "ok", start: null, end: null, length: 1, live: false, checkedAt: new Date().toISOString(), embeddable: false }, Date.now(), true)).toBe(false);
   });
 
   it("a pass that never finishes doesn't stop the next one for good", async () => {
