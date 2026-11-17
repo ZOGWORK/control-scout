@@ -396,6 +396,8 @@ type Edge = { at: number; label?: string; played?: number; of?: number; clear?: 
 async function readEdges(page: Page, length: number): Promise<{ opensOn?: Edge; endsOn?: Edge }> {
   const named = async (t: number): Promise<Edge | null> => {
     const r = await readAt(page, t, true);
+    // A sibling division's frame on a shared stream is never this event's edge: neither its match nor its count.
+    if (r.division === "other") return null;
     const n = playedCount(r.text);
     return r.label || n ? { at: Math.round(t), ...(r.label ? { label: r.label } : {}), ...(n ? { played: n.played, of: n.of } : {}) } : null;
   };
@@ -451,7 +453,7 @@ async function boundsRow(row: FrameTiming, length: number, division: { own: stri
     log(`    couldn't read its edges: ${(e as Error).message.split("\n")[0]} (the row is kept as it was)`);
     failedVideos++;
   } finally {
-    await page?.context().close().catch(() => {});
+    await closePage(page);
   }
 }
 
@@ -782,7 +784,7 @@ async function doCode(code: string): Promise<void> {
     const prior = kept.get(`${v.videoId}|${code}`);
     if (BOUNDS) {
       // Only a video's first and last frames, for a row read before they were (or every row, with --all).
-      if (prior && (ALL || (!prior.opensOn && !prior.endsOn))) await boundsRow(prior, m.length!, division, log);
+      if (prior && (ALL || !prior.opensOn || !prior.endsOn)) await boundsRow(prior, m.length!, division, log);
       continue;
     }
     if (VERIFY) {
@@ -836,7 +838,12 @@ async function doCode(code: string): Promise<void> {
         // A re-read (--all) that read nothing at all (a player stuck on an interstitial) keeps what an earlier read placed.
         if (nothing && Object.keys(kept.get(key)?.starts ?? {}).length) log("    nothing read: the earlier read is kept");
         else {
-          const edges = await readEdges(page, m.length!);
+          // The edges are read after the matches are placed: one that fails keeps the placed row, without edges (a
+          // later --bounds reads them).
+          const edges = await readEdges(page, m.length!).catch((e: Error) => {
+            log(`    couldn't read its edges: ${e.message.split("\n")[0]} (the row is kept without them)`);
+            return {} as { opensOn?: Edge; endsOn?: Edge };
+          });
           log(`    opens on ${saidEdge(edges.opensOn)}, ends on ${saidEdge(edges.endsOn, "after")}`);
           keep(key, {
           videoId: v.videoId, code, checked: today,
