@@ -25,7 +25,7 @@ Videos › 61 of the Chicago Robotics Invitational's 67 matches (2024) get a cli
 - [fixes] No clip already playing changes
 
 ### Fixed
-- Videos (`server/data/frameTimings/2024.ts`): the Chicago Robotics Invitational (FPECRI 2024) posts its results with no match times, so its recordings were never read. Read by its frames alone (#1693), its Saturday video places 34 matches and its Sunday video 27, each checked paused on its clip's opening frame. Q21, Q37, Q44, Q49, Q57 and M1 stay without a clip: no frame of them confirmed a start. (#PRNUM)
+- Videos (`server/data/frameTimings/2024.ts`): the Chicago Robotics Invitational (FPECRI 2024) posts its results with no match times, so its recordings were never read. Read by its frames alone (#1693), its Saturday video places 34 matches and its Sunday video 27, each checked paused on its clip's opening frame. Q21, Q37, Q44, Q49, Q57 and M1 stay without a clip: no frame of them confirmed a start. (#1710)
 
 ## 7.4.9 — 2026-11-17
 
