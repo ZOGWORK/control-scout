@@ -13,7 +13,8 @@
 // on, so a video with one gap takes about 2 log n reads. A match is kept only where a read saw it, or where two reads
 // that agree hold it between them.
 //
-// What it writes: server/data/frameTimings.ts (the server plays each match from there: server/videos/recordings.ts).
+// What it writes: server/data/frameTimings/<season>.ts, the --season's own file and no other (the server plays each match
+// from server/data/frameTimings.ts, every season's rows together: server/videos/recordings.ts).
 // Run it on a copy of the live database, on a computer that can play YouTube (YouTube refuses data-centre servers).
 //
 //   DATABASE_URL=file:/path/to/copy.db npx tsx scripts/video-frames.ts [--season 2025] [--codes USTXCMP4T,ROCMPVLC]
@@ -26,11 +27,11 @@
 //   --verify  read no starts: check where each placed match's clip opens, for rows not yet checked (opens)
 //   --bounds  read no starts: read each read video's first and last frames (opensOn, endsOn), the proof that a match
 //             was played before it starts or after it ends (outsideRecording); a normal read reads them too
-//   --live <file>  the timings the live site serves (a copy of main's server/data/frameTimings.ts): a re-read start
+//   --live <file>  the timings the live site serves (a copy of main's server/data/frameTimings/<season>.ts): a re-read start
 //             that is one of them (same video, match and second, within a read's slack) and whose opening frame names
 //             nothing stays, unconfirmed, as --verify keeps it; only an overlay naming another match pulls a live clip
 //   TESSERACT_JS=<path to tesseract.js's entry>  where tesseract.js is, when it isn't in node_modules
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
 import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, playedCount } from "./lib/videoFrames";
 import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, elapsed, overlayDivision, leadIn, judge, NOTHING_READ, overlayBand, overlayLabel, rowAbove, rowLabel, secondsLoose, secondsOf, type Judged, type M } from "./lib/videoFrames";
@@ -66,6 +67,10 @@ const season = count("season", 2025);
 const only = arg("codes")?.split(",").map((c) => c.trim().toUpperCase()).filter(Boolean);
 const limit = arg("limit") == null ? Infinity : count("limit", 1);
 const lanes = count("lanes", 3);
+/** The season's own file of rows: the only file a run writes (a season with no file yet needs one, imported in
+ *  server/data/frameTimings.ts, before it can be read). */
+const FRAMES_FILE = `server/data/frameTimings/${season}.ts`;
+if (!existsSync(FRAMES_FILE)) { console.error(`--season ${season}: no ${FRAMES_FILE} (add it, and its import in server/data/frameTimings.ts)`); process.exit(2); }
 const CHECK = flag("check"), ALL = flag("all"), DRY = flag("dry"), TRACE = flag("trace"), VERIFY = flag("verify"), BOUNDS = flag("bounds");
 
 const { migrate, all } = await import("../server/db.js");
@@ -73,7 +78,6 @@ await migrate();
 const R = await import("../server/videos/recordings.js");
 const { CLIP_LEAD_S, actualStart } = await import("../src/shared/recording.js");
 const { localToUtcMs } = await import("../src/shared/time.js");
-const { FRAME_TIMINGS } = await import("../server/data/frameTimings.js");
 /** --live: what the live site serves, by video and event (its starts). */
 const liveRows = (path: string) => {
   let text: string;
@@ -87,8 +91,8 @@ const LIVE = new Map<string, Record<string, number>>(LIVE_ROWS.map((f) => [`${f.
  *  a read leaves out keeps that confidence when it goes back for its opening check. */
 const LIVE_MEDIUM = new Map<string, Set<string>>(LIVE_ROWS.map((f) => [`${f.videoId}|${f.code}`, new Set(f.medium ?? [])]));
 // A --live copy that gives no rows (a wrong file) would protect no live clip: stop, as an unknown --codes does.
-if (arg("live") && !LIVE.size) { console.error(`--live ${arg("live")}: no frame timing rows in it (a copy of main's server/data/frameTimings.ts?)`); process.exit(2); }
-type FrameTiming = (typeof FRAME_TIMINGS)[number];
+if (arg("live") && !LIVE.size) { console.error(`--live ${arg("live")}: no frame timing rows in it (a copy of main's server/data/frameTimings/${season}.ts?)`); process.exit(2); }
+type FrameTiming = import("../server/data/frameTimings.js").FrameTiming;
 const T: any = await import(process.env.TESSERACT_JS ?? "tesseract.js");
 const createWorker = T.createWorker ?? T.default?.createWorker;
 
@@ -715,7 +719,7 @@ const codes = [...recs.keys()].filter((c) => !only || only.includes(c)).sort();
 const unknown = (only ?? []).filter((c) => !recs.has(c));
 if (unknown.length) { console.error(`--codes: no ${season} recording for ${unknown.join(", ")}`); process.exit(2); }
 if (!codes.length) { console.error(`no ${season} recordings to read`); process.exit(2); }
-const kept = new Map<string, FrameTiming>(FRAME_TIMINGS.map((f) => [`${f.videoId}|${f.code}`, { ...f, starts: { ...f.starts } }]));
+const kept = new Map<string, FrameTiming>(dataRows<FrameTiming>(readFileSync(FRAMES_FILE, "utf8")).map((f) => [`${f.videoId}|${f.code}`, { ...f, starts: { ...f.starts } }]));
 // The rows this run wrote. Every other row is taken from the file at each save, so rows written meanwhile (another
 // run with other --codes, a merge bringing a data PR) aren't overwritten by the start-of-run copy.
 const touched = new Set<string>();
@@ -731,7 +735,7 @@ const report: string[] = [];
 let unsaved = false;
 function save(): void {
   if (CHECK || DRY) return;
-  const file = "server/data/frameTimings.ts";
+  const file = FRAMES_FILE;
   for (let tries = 1; ; tries++) {
     try {
       const text = readFileSync(file, "utf8");
@@ -742,7 +746,7 @@ function save(): void {
       for (const [key, f] of onDisk) if (!touched.has(key)) kept.set(key, f);
       const list = [...kept.values()].sort((a, b) => a.code.localeCompare(b.code) || a.videoId.localeCompare(b.videoId));
       const rows = list.map((f) => `  ${JSON.stringify(f)},`).join("\n");
-      writeFileSync(file, `${head}// --- Data (scripts/video-frames.ts writes from here on) ---\nexport const FRAME_TIMINGS: FrameTiming[] = [\n${rows}\n];\n`);
+      writeFileSync(file, `${head}// --- Data (scripts/video-frames.ts writes from here on) ---\nexport const ROWS: FrameTiming[] = [\n${rows}\n];\n`);
       unsaved = false;
       return;
     } catch (e) {
@@ -968,8 +972,8 @@ if (failedEvents) { console.error(`${failedEvents} events failed before their vi
 if (failedVideos) { console.error(`${failedVideos} videos couldn't be played (written with the reason; the next run reads them again)`); process.exitCode = 1; }
 if (!CHECK && !DRY) {
   // The last save may have failed with no save after it (retried above): the run then says so and fails.
-  if (unsaved) { console.error("server/data/frameTimings.ts could not be written: this run's timings are lost"); process.exitCode = 1; }
-  else console.log(`wrote ${kept.size} videos to server/data/frameTimings.ts`);
+  if (unsaved) { console.error(`${FRAMES_FILE} could not be written: this run's timings are lost`); process.exitCode = 1; }
+  else console.log(`wrote ${kept.size} videos to ${FRAMES_FILE}`);
 }
 mkdirSync(".data", { recursive: true });
 writeFileSync(".data/video-frames-report.txt", report.join("\n"));
