@@ -133,7 +133,7 @@ export function ConferenceTable({ c, team }: { c: Conference; team: number | nul
     setPage(0);
   };
   if (!ranked.length) {
-    return <p className="rounded-xl border border-border bg-card p-3 text-sm" data-conference-empty>{c.rows.length ? "No team in this conference has a league standing yet: they're listed below." : "No teams are listed for this tournament yet."}</p>;
+    return <p className="rounded-xl border border-border bg-card p-3 text-sm" data-conference-empty>{!c.rows.length ? "No teams are listed for this tournament yet." : c.rs.kind === "gone" ? "The league standing these teams went in with can't be read any more: they're listed below." : "No team in this conference has a league standing yet: they're listed below."}</p>;
   }
   return (
     <div className="space-y-2">
@@ -210,7 +210,7 @@ export function ConferenceUnranked({ c, team }: { c: Conference; team: number | 
   const label = c.rs.kind === "gone" ? "Not available — the going-in standing can't be read any more" : "Not ranked yet — no league meets played";
   return (
     <section aria-labelledby="conference-unranked" className="space-y-2" data-conference-unranked>
-      <h2 id="conference-unranked" className="font-display text-lg font-semibold">Not ranked yet ({none.length})</h2>
+      <h2 id="conference-unranked" className="font-display text-lg font-semibold">{c.rs.kind === "gone" ? "Standing not available" : "Not ranked yet"} ({none.length})</h2>
       <ul className="grid gap-x-4 gap-y-1.5 text-sm sm:grid-cols-2 lg:grid-cols-3">
         {none.map((r) => (
           <li key={r.team} data-team={r.team} data-marked={r.team === team ? "" : undefined} className={cn("flex min-w-0 flex-col", r.team === team && "font-semibold")}>
