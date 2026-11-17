@@ -156,8 +156,9 @@ export function readAsk(q: string): Ask | null {
   // Leaderboards: the world's ("best team", "what is the best FTC team right now") or a place's.
   const lw = leaderWords(t);
   if (/^(?:the )?(?:top|best|highest(?: |-)ranked|strongest|number one|no 1|1)(?: \d+)? (?:teams?|robots?)$/.test(lw.t) || (lw.opened && /^(?:best|top|strongest|number one)$/.test(lw.t))) return { kind: "leaderboard", region: null };
-  // "The best in NJ": the team word can go unsaid before a place, since only a team is "the best in" a region.
-  let m = /^(?:the )?(?:top|best|highest(?: |-)ranked|strongest)(?: \d+)?(?: (?:teams?|robots?)(?: in| from| of)?| in| from| of) (.+)$/.exec(lw.t);
+  // "The best in NJ": the team word can go unsaid before a place, since only a team is "the best in" a region; and so
+  // can "in" when every word after the superlative is the place ("top texas").
+  let m = /^(?:the )?(?:top|best|highest(?: |-)ranked|strongest)(?: \d+)?(?: (?:teams?|robots?)(?: in| from| of)?| in| from| of)? (.+)$/.exec(lw.t);
   if (m) { const region = regionIn(m[1]); if (region) return { kind: "leaderboard", region }; }
   m = /^(.+?) (?:rankings?|standings|leaderboard|top teams|best teams?)$/.exec(lw.t);
   if (m) { const region = regionIn(m[1]); if (region) return { kind: "leaderboard", region }; }

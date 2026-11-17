@@ -11,7 +11,7 @@ import { hasFirst } from "./env.js";
 import { siteMeta } from "./api/meta.js";
 import { CURRENT_SEASON, SEASONS, SEASON_NUMBERS, isLegacy, seasonInfo } from "./data/seasons.js";
 import { ensureSearchIndex, search } from "./api/search.js";
-import { MAX_QUERY, cleanQuery, learnQuery, searchAnswer } from "./api/searchAnswer.js";
+import { MAX_QUERY, cleanQuery, learnQuery, plainSearch, searchAnswer } from "./api/searchAnswer.js";
 import { myTeamOf } from "../src/shared/searchMine.js";
 import { pickedQuery, pickedSeasonOf } from "./api/searchPageAnswer.js";
 import { keptFollowUps, pageAnswer } from "./api/answers/followUps.js";
@@ -282,7 +282,7 @@ export function createServer(app: express.Express, health: () => Record<string, 
   return server;
 }
 
-export function createApp(opts: { dist?: string; /** Tests only: a smaller search limit. */ searchesPerMinute?: number } = {}) {
+export function createApp(opts: { dist?: string; /** Earlier releases' hashed assets (deploy/oracle-vm-setup.sh). */ assetArchive?: string; /** Tests only: a smaller search limit. */ searchesPerMinute?: number } = {}) {
   const app = express();
   app.disable("x-powered-by");
   app.set("trust proxy", 1);
@@ -459,7 +459,7 @@ export function createApp(opts: { dist?: string; /** Tests only: a smaller searc
       // none (src/shared/api.ts): the page then says nothing about video.
       return { ...offered, hits: body.hits, ...(body.video !== undefined ? { video: body.video } : {}) };
     }
-    return { q: String(req.query.q ?? ""), hits: await search(String(req.query.q ?? "").slice(0, MAX_QUERY), limit, prefer, kinds) };
+    return { q: String(req.query.q ?? ""), hits: await plainSearch(String(req.query.q ?? "").slice(0, MAX_QUERY), limit, prefer, kinds) };
   }));
 
   // People also ask and Related searches (server/api/answers/followUps.ts): asked by /search after its answer is on
@@ -1119,6 +1119,13 @@ export function createApp(opts: { dist?: string; /** Tests only: a smaller searc
   const dist = opts.dist ?? join(process.cwd(), "dist");
   if (existsSync(join(dist, "index.html"))) {
     app.use("/assets", express.static(join(dist, "assets"), { immutable: true, maxAge: "1y" }));
+    // Then an earlier release's: a page drawn before the latest deploy (still open in a tab, or kept by a search
+    // engine's renderer, which caches scripts for weeks) asks for the chunks of the release that drew it, and only the
+    // three newest releases stay on disk. The deploy keeps every release's hashed files for 30 days in
+    // shared/assets-archive, linked into each release as .assets-archive (deploy/oracle-vm-setup.sh). Without it the
+    // chunk is a 404 and the page renders empty: Googlebot's render then reads as a soft 404. Always mounted: a
+    // folder that isn't there (yet) just falls through to the 404, and one made after start is served from then on.
+    app.use("/assets", express.static(opts.assetArchive ?? join(process.cwd(), ".assets-archive"), { immutable: true, maxAge: "1y" }));
     // The service worker and its file list must never be served stale.
     for (const f of ["sw.js"]) app.get(`/${f}`, (_req, res) => { res.setHeader("Cache-Control", "no-cache"); res.sendFile(join(dist, f)); });
     app.use(express.static(dist, { index: false, maxAge: "1h" }));

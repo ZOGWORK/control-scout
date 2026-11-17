@@ -247,10 +247,17 @@ describe("a place's award winners", () => {
     await run("UPDATE match_teams SET on_field = 1 WHERE code = 'FTCCMP1' AND team = 33333");
     expect(await readPlaceAwards("worlds finals")).toBeNull();
   });
-  it("keeps the default season, saying none were won, with older seasons to ask", async () => {
+  it("steps back to the season before when the default one has none, saying so, with older seasons to ask", async () => {
     const a = await searchAnswer("Ontario Think winners", { limit: 25, learn: false, full: true });
-    expect(a.stat?.none).toBe(`No Think Award won by teams from Ontario in ${a.stat?.scope.at(-1)} in the published awards.`);
-    expect(a.stat?.blocks.find((b) => b.kind === "related")).toMatchObject({ queries: [`Ontario Think winners ${S - 1}-${String(S % 100).padStart(2, "0")}`, expect.any(String)] });
+    const lbl = (s: number) => `${s}–${String((s + 1) % 100).padStart(2, "0")}`;
+    expect(a.stat?.none).toBeUndefined();
+    expect(a.stat?.scope[0]).toBe(`No ${lbl(S)} Think Awards yet in Ontario; showing ${lbl(S - 1)}`);
+    expect(a.stat?.scope.at(-1)).toBe(lbl(S - 1));
+    expect(rows(a.stat!).map((r) => r.team)).toEqual(["33333 Northern Bolts"]);
+    expect(a.stat?.blocks.find((b) => b.kind === "related")).toMatchObject({ queries: [`Ontario Think winners ${S - 2}-${String((S - 1) % 100).padStart(2, "0")}`, expect.any(String)] });
+    // A season said is kept, saying none were won.
+    const said = await searchAnswer(`Ontario Think winners ${S}-${String((S + 1) % 100).padStart(2, "0")}`, { limit: 25, learn: false, full: true });
+    expect(said.stat?.none).toBe(`No Think Award won by teams from Ontario in ${lbl(S)} in the published awards.`);
   });
   it("counts only 1st place toward the rarest award", async () => {
     const s = await placeAwardsAnswer((await readPlaceAwards("the rarest award a Texas team won"))!);
