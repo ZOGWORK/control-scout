@@ -5,6 +5,7 @@ import { createHash, randomBytes } from "node:crypto";
 import type { Request, Response } from "express";
 import { all, get, run } from "../db.js";
 import { env } from "../env.js";
+import { isEnabled } from "../flags.js";
 
 export const SESSION_COOKIE = "cs_session";
 const SESSION_DAYS = 30;
@@ -22,7 +23,13 @@ export interface User {
 export const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
 export const token = (bytes = 32) => randomBytes(bytes).toString("base64url");
 
-/** Find or create the user behind a proven identity. */
+/** No account matched and new ones can't be made: the publicAccess kill switch is off (server/shutdownGate.ts). */
+export class SignupsClosedError extends Error {
+  constructor() { super("New accounts can't be made right now."); this.name = "SignupsClosedError"; }
+}
+
+/** Find or create the user behind a proven identity. While publicAccess is off only an existing account is found
+ *  (by identity or by email); a new one throws SignupsClosedError. */
 export async function userForIdentity(provider: string, subject: string, email: string | null, displayName?: string | null): Promise<User> {
   const existing = await get<{ user_id: number }>("SELECT user_id FROM identities WHERE provider = ? AND subject = ?", [provider, subject]);
   let userId = existing?.user_id;
@@ -31,6 +38,7 @@ export async function userForIdentity(provider: string, subject: string, email: 
     userId = (await get<{ id: number }>("SELECT id FROM users WHERE email = ?", [email]))?.id;
   }
   if (!userId) {
+    if (!(await isEnabled("publicAccess"))) throw new SignupsClosedError();
     const r = await get<{ id: number }>("INSERT INTO users (email, display_name, created_at) VALUES (?, ?, ?) RETURNING id", [email, displayName ?? null, new Date().toISOString()]);
     userId = r!.id;
   }
