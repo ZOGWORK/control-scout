@@ -15,18 +15,6 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 7.6.4 — 2026-11-17
-
-Videos › 49 more 2025 matches get a clip read off their recording's frames: all 40 of the Ottawa Qualifier's and 9 more at Sydney North.
-
-### Highlights
-- [fixes] All 40 Ottawa Qualifier matches get a clip
-- [fixes] 9 more Sydney North Qualifier matches get a clip
-- [fixes] Each opens on a frame whose overlay names its match and event
-
-### Fixed
-- Videos: three 2025 recordings are now read off their frames, each clip opening on a paused frame whose overlay names its match and this event. CAONKAQ (Ottawa Qualifier): its video runs 6 h 32 min short of its broadcast, and its earlier read placed none; all 40 of its matches are placed now. AUSYQ2 (Sydney North Qualifier): its two day videos place 47 of 53, so 51 of 53 play, up from 42. Q1 comes before the broadcast, and Q14's clock start overlaps the match before it. CAONNYQ (North York Qualifier): read again, its 12 placed matches stay, and its recording is now shown to open on Q16 already being played, so Q1–Q15 are settled as played before it starts. No clip already playing is taken away. (`server/data/frameTimings/2025.ts`) (#1675)
-
 ## 7.6.3 — 2026-11-17
 
 Event videos › a title's "Day 2" can mean the event's second day of play, and two Romanian events get the recordings of the days FIRST's dates left out.
