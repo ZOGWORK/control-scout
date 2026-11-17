@@ -198,7 +198,7 @@ export function leadIn(at: number, i: number, windows: { start: number | null; e
   return !windows.some((w, k) => k !== i && w.start != null && at < w.start && w.start < from);
 }
 
-/** The rows of server/data/frameTimings.ts as written (one JSON row a line after the data marker). */
+/** The rows of a server/data/frameTimings/<season>.ts file as written (one JSON row a line after the data marker). */
 export function dataRows<T>(text: string): T[] {
   const data = text.split("// --- Data")[1] ?? "";
   return data.split("\n").flatMap((line) => { const m = /^\s*(\{.*\}),?\s*$/.exec(line); return m ? [JSON.parse(m[1]) as T] : []; });
