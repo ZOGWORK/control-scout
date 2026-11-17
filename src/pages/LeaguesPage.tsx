@@ -23,7 +23,8 @@ export default function LeaguesPage() {
   const [sp, setSp] = useSearchParams();
   const current = useCurrentSeason();
   const seasonParam = Number(sp.get("season")) || null;
-  const [q, setQ] = useState("");
+  // ?q= (a place's "Leagues in New Jersey" link from search, src/shared/placePages.ts): the box filled in with it.
+  const [q, setQ] = useState(() => sp.get("q") ?? "");
   const state = useApi<LeaguesResponse>(`/api/leagues${qs({ season: seasonParam })}`);
   const season = state.data?.season ?? seasonParam ?? current;
   useTitle(`FTC leagues ${seasonLabel(season)}`);
