@@ -13,6 +13,8 @@ export const CLIPS_FILE = "server/data/clipChecks.ts";
 export const seasonFile = (season: number) => `server/data/frameTimings/${season}.ts`;
 /** The only files an autopilot data PR changes, beside its data file. */
 const RELEASE_FILES = ["CHANGELOG.md", "package.json", "package-lock.json"];
+/** The branch every autopilot PR is opened from (scripts/clip-autopilot.ts). */
+export const BRANCH = "clip-autopilot/";
 
 /** A command's output; throws with its last lines on failure. */
 function out(cmd: string, args: string[]): string {
@@ -43,9 +45,14 @@ export function prGate(number: number, main = "origin/main"): Gate {
   const mark = readMarker(String(pr.body ?? ""));
   if (pr.state !== "OPEN") problems.push(`${pr.state.toLowerCase()}, not open`);
   if (pr.isDraft) problems.push("a draft");
+  // Only a merge GitHub has worked out as clean: UNKNOWN (still computing, just after a push or a main move) waits.
   if (pr.mergeable === "CONFLICTING") problems.push("conflicts with main");
+  else if (pr.mergeable !== "MERGEABLE") problems.push(`mergeability ${String(pr.mergeable).toLowerCase()}, not worked out yet`);
+  if (!String(pr.headRefName ?? "").startsWith(BRANCH)) problems.push(`branch ${pr.headRefName}, not the autopilot's (${BRANCH}…)`);
   if (!mark) return { number, head: pr.headRefOid, version: "", file: "", problems: [...problems, "no autopilot mark"] };
   const file = mark.file ?? seasonFile(mark.season), head = String(pr.headRefOid);
+  // The mark is the PR body's: it may name only the autopilot's own data files, never one the gate can't read rows from.
+  if (file !== CLIPS_FILE && file !== seasonFile(mark.season)) return { number, head, version: "", file, problems: [...problems, `its mark names ${file}, not ${seasonFile(mark.season)} or ${CLIPS_FILE}`] };
   git("fetch", "--quiet", "origin", head);
   // Only its data file and its release: anything else is a person's change.
   const others = (pr.files as { path: string }[]).map((f) => f.path).filter((p) => p !== file && !RELEASE_FILES.includes(p));

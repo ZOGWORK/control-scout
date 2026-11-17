@@ -8,7 +8,8 @@ import { prGate } from "./lib/autopilotPr";
 
 const prs = process.argv.slice(2).map(Number);
 if (!prs.length || prs.some((n) => !Number.isInteger(n) || n < 1)) { console.error("give PR numbers: npx tsx scripts/autopilot-merge-check.ts 1717 1719"); process.exit(2); }
-spawnSync("git", ["fetch", "--quiet", "origin", "main"], { stdio: "inherit" });
+// Against main as it is now, or not at all: a stale origin/main could pass a PR main has since outdated.
+if (spawnSync("git", ["fetch", "--quiet", "origin", "main"], { stdio: "inherit" }).status !== 0) { console.error("git fetch origin main failed: nothing checked"); process.exit(2); }
 let blocked = 0;
 for (const n of prs) {
   try {
