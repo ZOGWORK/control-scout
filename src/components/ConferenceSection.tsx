@@ -18,7 +18,8 @@ const SORTS: { key: SortKey; get: (r: ConferenceRow) => number | null }[] = [
   { key: "rank", get: (r) => r.rank },
   { key: "rs", get: (r) => r.rs },
   { key: "tbp", get: (r) => r.tbp },
-  { key: "record", get: (r) => (r.wins == null ? null : r.wins - (r.losses ?? 0)) },
+  // Win share, a tie counting half (as src/shared/teamTable.ts sorts records).
+  { key: "record", get: (r) => { const n = (r.wins ?? 0) + (r.losses ?? 0) + (r.ties ?? 0); return r.wins == null || !n ? null : (r.wins + (r.ties ?? 0) / 2) / n; } },
   { key: "rating", get: (r) => r.rating },
   { key: "opr", get: (r) => r.opr },
   { key: "played", get: (r) => r.played },
@@ -110,7 +111,7 @@ function SourceLine({ c }: { c: Conference }) {
   );
   if (rs.kind === "snapshot") return <p data-rs-source>League RS as of {asOfDate(rs.asOf)}, the week before the tournament.</p>;
   if (rs.kind === "final") return <p data-rs-source>Final league RS — league meets ended {asOfDate(rs.lastMeet)}, before this tournament.</p>;
-  return <p data-rs-source>League RS as of {asOfDate(rs.asOf) ?? "the last read from FIRST"}{c.rows.some((r) => r.meets != null && r.meets <= 1) ? ": early in the season, after one meet a team's RS rests on a few matches" : ""}.</p>;
+  return <p data-rs-source>League RS as of {asOfDate(rs.asOf) ?? "the last read from FIRST"}{c.rows.some((r) => r.meets != null) && c.rows.every((r) => r.meets == null || r.meets <= 1) ? ": after one meet, each team's RS rests on a few matches" : ""}.</p>;
 }
 
 function ConferenceTable({ c, team }: { c: Conference; team: number | null }) {
