@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 7.5.5 — 2026-11-17
+## 7.5.9 — 2026-11-17
 
 Videos › the clip reader now says why a video with no length isn't read (a stream still live, or one that hasn't aired), where before it skipped it without a word.
 
@@ -26,6 +26,55 @@ Videos › the clip reader now says why a video with no length isn't read (a str
 
 ### Fixed
 - Videos (`scripts/video-frames.ts`): the frame reader dropped any video YouTube gave no duration for, with nothing in its report (2026 USMOKSSWM1 and USORSOM1 printed only "15 of 15 matches without a clip"). Such a video is now timed by its player and read; one the player can't time is said: USMOKSSWM1's link is next week's Southwest League Meet #2 stream, not yet aired, and USORSOM1's is still marked live. (#1712)
+
+## 7.5.8 — 2026-11-17
+
+Videos › 261 matches from seven more 2023 events get clips, each opening on its own match: Indiana's and Louisiana's championships, Chesapeake's Stage Right division and two of its qualifiers, Colorado's Severance qualifier and Southern Nevada's league tournament.
+
+### Highlights
+- [fixes] 261 more 2023 matches get a clip
+- [fixes] Every clip opens on a frame naming its match
+- [fixes] Seven more 2023 events that had no clips now have them
+
+### Fixed
+- Videos (`server/data/frameTimings/2023.ts`): frame-read starts for USCHSUBQ (40 of 40 played), USCHSCMPSR (37 of 41), USCOSEQ (41 of 41), USNVSOLT (35 of 40), USCHSDCQ2 (37 of 37), USINCMP (38 of 38) and USLACMP (33 of 38). Each clip's opening frame names its match and its event (#1705).
+
+## 7.5.7 — 2026-11-17
+
+Videos › 331 matches from eight more 2023 events get clips, each opening on its own match: St. Louis North's league tournament, four FiT-North and Chesapeake qualifiers and tournaments, Chesapeake's Stage Left championship division, and Arizona's Gilbert qualifier.
+
+### Highlights
+- [fixes] 331 more 2023 matches get a clip
+- [fixes] Every clip opens on a frame naming its match
+- [fixes] Eight more 2023 events that had no clips now have them
+
+### Fixed
+- Videos (`server/data/frameTimings/2023.ts`): frame-read starts for USMOKSSTLNLT1 (49 of 49 played), USTXATQ (46 of 46), USTXFMQ (41 of 42), USTXNCNLT (42 of 43), USAZGIQ (38 of 38), USCHSCHQ1 (38 of 38), USCHSCMPSL (39 of 41) and USCHSMCQ (38 of 38). Each clip's opening frame names its match and its event; a clip whose first frame shows the match before is left for review, never shown (#1690).
+
+## 7.5.6 — 2026-11-17
+
+Videos › 372 matches from eight 2023 events get clips, each opening on its own match: Arizona's Grand Canyon and Saguaro championship divisions and its Glendale qualifier, Kansas City's East and Missouri's SW/Mid league tournaments, Texas's Tesla championship division, and the FiT South area championship and North B&T tournament.
+
+### Highlights
+- [fixes] 372 more 2023 matches get a clip
+- [fixes] Every clip opens on a frame naming its match
+- [fixes] Eight 2023 events that had no clips now have them
+
+### Fixed
+- Videos (`server/data/frameTimings/2023.ts`): frame-read starts for USAZCMPGC1 (42 of 45 played), USAZCMPSG1 (38 of 42), USAZGLQ (41 of 41), USMOKSKCELT (49 of 49), USMOKSSWMILT (47 of 50), USTXCMPTESL (54 of 60, two videos), USTXMISQ (55 of 58) and USTXNBTLT (46 of 50). Each clip's opening frame names its match; semifinal matches read before the reader knew CENTERSTAGE's semifinal names are left for review, never shown as clips (#1681).
+
+## 7.5.5 — 2026-11-17
+
+Videos › The frame reader now reads streams whose score bar sits along the top of the frame, as FIRST Nevada's do.
+
+### Highlights
+- [fixes] Match clips can now be found on streams with the score bar on top
+- [fixes] An event's own matches are no longer taken for another event's
+- [history] Nevada's 2024 championship: 33 of 57 matches found, from none
+
+### Fixed
+- The frame reader read nothing on FTC Live's bar moved to the top edge (FIRST Nevada, USNVCMP 2024): its row is now read on its own when the whole frame names no match, and that bar's timer is read first in its own place under it. A dry read of USNVCMP places 33 of 57 matches, from 0. (`scripts/video-frames.ts`)
+- The overlay's event check took this event's own frames for another event's: a total with its last digit lost ("of 46" read "of 4") now tells nothing, and only words of four letters or more weigh against a name ("rer DIVE — Nevada Chan"). (`scripts/lib/videoFrames.ts`) (#1713)
 
 ## 7.5.4 — 2026-11-17
 
