@@ -7,7 +7,8 @@ import { migrate, openDb, run, setDb } from "../../../db";
 import { clearAllCaches } from "../../../caches";
 import { syncConferences } from "../../../data/conferences";
 import { allConferences } from "../../conferences";
-import { conferenceAskAnswer, matchConference, readConferenceAsk } from "./conference";
+import { conferenceSearch } from "../index";
+import { conferenceAskAnswer, matchConference, readConferenceAsk, readConferenceName } from "./conference";
 
 describe("reading a conference ask", () => {
   it.each([
@@ -34,10 +35,14 @@ describe("reading a conference ask", () => {
     // The name after a bare "conference".
     ["conference rankings for east bergen", { team: null, words: ["east", "bergen"] }],
     ["who won the conference for east bergen", { words: ["east", "bergen"], won: true }],
+    // Nothing asked of it but itself: the conference's table, or the list when none is named.
+    ["east bergen conference", { team: null, words: ["east", "bergen"], bare: true, won: false }],
+    ["nj conference", { team: null, words: [], bare: true }],
+    ["New Jersey conferences", { team: null, words: [], bare: true }],
+    ["conferences", { team: null, words: [], bare: true }],
   ])("%s", (q, want) => expect(readConferenceAsk(q)).toMatchObject(want));
 
   it.each([
-    "east bergen conference", // the event's name alone
     "east bergen conference inspire award", // an award's ask
     "4215 rank at east bergen conference", // the tournament's rank
     "how did 4215 do at east bergen conference",
@@ -264,5 +269,43 @@ describe("answering a conference ask", () => {
     expect((await ask("where does hypnotic robotics rank in east bergen conference"))!.title).toBe("4215 in East Bergen Conference · 2025–26");
     await run("INSERT INTO teams (number, name, state, country) VALUES (9999, 'Hypnotic Robotics', 'NJ', 'USA')");
     expect(await ask("where does hypnotic robotics rank in east bergen conference")).toBeNull();
+  });
+
+  it("lists the conferences asked for themselves: the latest season played out first, each with its winner, then the next", async () => {
+    for (const q of ["nj conference", "new jersey conferences", "conferences"]) {
+      const a = (await ask(q))!;
+      expect(a.title).toBe("New Jersey's conferences · 2025–26");
+      const [done, ahead] = a.blocks;
+      expect(done.kind === "links" && [done.title, done.items.map((i) => i.label)]).toEqual(["New Jersey's conferences, 2025–26: 2, each with its winner", [
+        "Central Conference: won by 31257 KinetIQ with 19772 Rust in Piece", "East Bergen Conference: won by 4215 Hypnotic Robotics with 207 Critical Mass"]]);
+      expect(ahead.kind === "links" && [ahead.title, ahead.items.map((i) => i.label)]).toEqual(["Coming up: 2026–27, 1 conference", ["Hudson/East Bergen Conference: not played yet"]]);
+    }
+  });
+
+  it("reads a conference named and nothing more as its table, naming the tournament for its card; a team before it is the tournament's ask", async () => {
+    const a = (await ask("east bergen conference"))!;
+    expect([a.title, a.events]).toEqual(["East Bergen Conference rankings · 2025–26", [{ season: 2025, code: "USNJNOLT2" }]]);
+    expect((await ask("4215 conference ranking"))!.events).toEqual([{ season: 2025, code: "USNJNOLT2" }]);
+    expect((await ask("who won east bergen conference"))!.events).toEqual([{ season: 2025, code: "USNJNOLT2" }]);
+    expect(await ask("hypnotic robotics east bergen conference")).toBeNull();
+  });
+
+  it("reads a conference's whole name alone, never part of one or more than one", async () => {
+    const list = await allConferences();
+    expect(readConferenceName("East Bergen", list)).toMatchObject({ words: ["east", "bergen"], bare: true, team: null });
+    expect(readConferenceName("hudson/east bergen", list)).toMatchObject({ words: ["hudson", "east", "bergen"] });
+    // Its table asked with its name alone: the table, not the bare reading.
+    expect(readConferenceName("east bergen rankings", list)).toMatchObject({ words: ["east", "bergen"], won: false });
+    expect(readConferenceName("east bergen rankings", list)?.bare).toBeUndefined();
+    // Who won is the event readers'; a league's own ask is the league's.
+    for (const q of ["bergen", "east bergen robotics", "east bergen 2", "central league", "who won east bergen", "east bergen inspire award"]) expect(readConferenceName(q, list)).toBeNull();
+  });
+
+  it("leaves a name that is a league's or a team's too to theirs, and answers the conference's own name", async () => {
+    expect((await conferenceSearch("East Bergen", { full: true, pages: [] }))?.stat?.title).toBe("East Bergen Conference rankings · 2025–26");
+    await run("INSERT INTO leagues (season, region, code, name) VALUES (2025, 'USNJ', 'CE', 'Central')");
+    expect(await conferenceSearch("central", { full: true, pages: [] })).toBeNull();
+    await run("INSERT INTO teams (number, name, state, country) VALUES (8888, 'East Bergen', 'NJ', 'USA')");
+    expect(await conferenceSearch("East Bergen", { full: true, pages: [] })).toBeNull();
   });
 });
