@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 7.1.9 — 2026-11-17
+## 7.2.0 — 2026-11-17
 
 Videos › the frame reader learns what a recording's first and last frames prove: a match played before the recording starts or after it ends is settled as not in it, instead of waiting in the owner's clip review.
 
@@ -25,7 +25,19 @@ Videos › the frame reader learns what a recording's first and last frames prov
 - [fixes] A test match before the event names none of its matches
 
 ### Fixed
-- Videos (the frame reader, `scripts/video-frames.ts`; `server/data/frameTimings.ts`; `server/videos/coverage.ts`): a recording's edges are read off its frames (`opensOn`, `endsOn`): the match its first or last frames name, or FTC Live's "N / M matches played" count. A match those frames prove was played before the recording starts, or after it ends, is settled as not in it (`outsideRecording`), but only where every other read in the video agrees with the edge. An opening on a match already under way settles that match (its clip can't open on its start). An edge read further in than 2 minutes counts only when every frame before it, a minute apart, showed no match. The reader also reads FIRST AGE's white timer box (in a bar across the top) with or without its thin colon, and a "Test Match 1" field check names none of the event's matches. No clip changes with this release: the edges reach the site with the data releases that carry them. (#1638)
+- Videos (the frame reader, `scripts/video-frames.ts`; `server/data/frameTimings.ts`; `server/videos/coverage.ts`): a recording's edges are read off its frames (`opensOn`, `endsOn`): the match its first or last frames name, or FTC Live's "N / M matches played" count. A match those frames prove was played before the recording starts, or after it ends, is settled as not in it (`outsideRecording`), but only where every other read in the video agrees with the edge. An opening on a match already under way settles that match (its clip can't open on its start). An edge read further in than 2 minutes counts only when every frame before it, a minute apart, showed no match. The reader also reads FIRST AGE's white timer box (in a bar across the top) with or without its thin colon, and a "Test Match 1" field check names none of the event's matches. No clip changes with this release: the edges reach the site with the data releases that carry them. An end edge counts only within 2 minutes of the recording's end (or with every frame between read empty), as an opening does; FTC Live's matches-played count settles only where its total is the event's qualification total (it counts no playoff match); a seek that never landed is no edge. (#1638)
+
+## 7.1.9 — 2026-11-17
+
+Leagues › a New Jersey league's page shows its conference rankings: each conference tournament's teams ranked by FIRST's league standing, league meets only.
+
+### Highlights
+- [rankings] NJ league pages rank each conference by league standing
+- [rankings] Before a conference tournament: who registered, and when it was read
+- [rankings] Who won each conference, from FIRST's awards
+
+### Added
+- League page (New Jersey only): View Conference Rankings, and a section with a tab per conference of the league. Each tab lists the conference tournament's teams in FIRST's league order, labelled "League meets only — excludes this tournament.", with each team's rank in the conference beside its rank in the league, its league record, RS, TBP, matches and meets played, Scout rating, OPR and league rank. A team with no league meet shows "Not ranked yet — no league meets played", never an RS of 0. Sorting reorders rows but never renumbers them; ?team= marks a row and opens its page. Before the tournament the teams come from FTC New Jersey's registrations (labelled registered, with the date read, never as the final field); after it, the league standing they went in with. The winner is read from the awards, never the top seed. A visitor whose My team is based outside New Jersey sees none of it. (`src/components/ConferenceSection.tsx`, `src/lib/conferenceGate.ts`, `src/pages/LeaguePage.tsx`, `server/api/conferences.ts`) (#1632)
 
 ## 7.1.8 — 2026-11-17
 
