@@ -88,6 +88,12 @@ An opening is read paused at its second, so the frame read is the one the clip o
 second later by the time it's taken: LTCMP 2024 Q20, asked 8948, read 8948.9 with "Qualification 20 of 40" already in,
 while 8948 itself is a sponsor slate (the paused read gives 8951). Timer reads still play: the clock has to run.
 
+A busy frame (crowd, robots, game pieces) can throw tesseract's page layout off and lose the bottom bar's line with it:
+USARBEQ 2024 Q8 at 7097 s reads as a jumble whole, though "Qualification 8 of 23" is plain on screen. So an opening
+whose whole frame names nothing has the match's half of the bar's top row read on its own (`labelRow`): the whole row
+can lose it too, to the logo and event name beside it (USCHSGAQ1 2024 M1, its half "Playoff Match 1"). On a shared
+stream the whole row must also name this division. Placement reads stay whole-frame reads.
+
 With `--live`, a clip the live site already plays that a read leaves out (one read of it out of order, a gap the reads
 around it disagree on: FPEWESEA 2025 Q97–Q100) goes back to its live second for its opening check, like any start: its
 overlay there keeps it, another match's pulls it, nothing read leaves it unconfirmed. Only a frame pulls a live clip.
