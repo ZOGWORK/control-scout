@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 7.3.2 — 2026-11-17
+## 7.3.4 — 2026-11-17
 
 Owner › Clip coverage now knows which events are due for a frame read: every event whose official recording has matches without a clip queues itself, most missing first, the moment its recording is linked.
 
@@ -26,6 +26,31 @@ Owner › Clip coverage now knows which events are due for a frame read: every e
 
 ### Added
 - Owner › Clip coverage: each event with a missing clip carries its place with the automatic frame reader: queued (with its place in line and the matches a read could place), waiting (the event isn't over yet, or its video's YouTube facts aren't in), read (the date, each match keeping its own why), or nothing a frame read can place (no video that day, a private video, no real start from FIRST). The queue's numbers and the next events in line come with it. A recording the official-videos watcher links is in the queue at the next coverage check, five minutes at most. A video read on or before the event's last day is due once more after the event. (`server/videos/frameQueue.ts`, `server/videos/coverageCheck.ts`) (#1652)
+
+## 7.3.3 — 2026-11-17
+
+Owner console › Clip coverage is now a quick, visual review screen: meters and coloured tiles up top, one card per event, and every missing match a chip that opens its video at the right second.
+
+### Highlights
+- [workspace] Clip coverage: two big progress meters and coloured count tiles
+- [workspace] One card per event, its missing matches as coloured chips
+- [workspace] Press a chip to watch that moment, without leaving the page
+- [workspace] Reviewed right on the card, at once
+
+### Changed
+- Owner console › Clip coverage: events fully clipped and matches with a clip as two big meters; the lists (To review, Not yet checked, No timing, Early start, Old season, Reviewed) as coloured count tiles; why matches have no clip as a coloured bar with a tile per kind that shows only that kind's chips. Each event is a card with its video's thumbnail, a clipped meter and its missing matches as chips coloured by kind (a short reason on hover); a chip opens the app's video dialog at the second worth seeing. Reviewed sits on the card and takes it off at once, putting it back if the server says no. Matches found in the video are chips too. The long reasons are under Details on each card, and bulk Reviewed with the check numbers under "Bulk review and check details". Works on phones (44px touch targets, no sideways scroll) and in every theme. (`src/components/owner/ClipCoveragePanel.tsx`, `src/components/owner/clipReview.ts`) (#1650)
+
+## 7.3.2 — 2026-11-17
+
+Videos › the Almaty Tech Cup gets match clips read off its recordings' frames: 16 on its second day now, 12 more on its first day once that day's recording is linked.
+
+### Highlights
+- [fixes] 16 Almaty Tech Cup matches get a clip read off the video
+- [fixes] Each opens on a frame whose overlay names its match and event
+- [fixes] No clip already playing changes
+
+### Fixed
+- Videos: KZALOS1's two day recordings lost time against their broadcast, so the clock placed none of its matches. Their starts are now read off the frames, and each clip opens on a frame (read paused) whose overlay names its match and "Almaty Tech Cup XII". Day 2 (EAkHPgVm-Ow): 16 of the 34 matches it holds. Q28–Q31 come before the recording starts, and 14 others have no frame naming them at their clip's start, because the stream cuts to a camera without the overlay between matches. Day 1 (9ywna4SeDoI): 12 of the 15 matches it holds. Q14's timer reads disagreed, and Q1 and Q2 had no read. That row plays once the day's recording is linked. No clip already playing is taken away. (`server/data/frameTimings/2025.ts`) (#1662)
 
 ## 7.3.1 — 2026-11-17
 
