@@ -11,7 +11,7 @@ import { FULL_EVERY_MS, dismissFinding, measureAdds, ownerAudit, queueFinding, r
 
 const TX = "UCKezDYNRPpAy2_1XRMBWKSw";
 const NOW = Date.parse("2026-01-20T00:00:00Z");
-type Item = { id: string; title: string; published: string; start?: string | null; minutes?: number; privacy?: string; live?: string };
+type Item = { id: string; title: string; published: string; start?: string | null; minutes?: number; privacy?: string; live?: string; /** What the uploads list says in its place ("Deleted video"). */ listTitle?: string };
 const OLDADD = "oldaddoldad", FIRSTS = "firstlinkxx", LISTED = "listedlisto", WEB = "webinarwebi", OLDUP = "oldupload01", MISS = "missmissmis", GOOD = "goodaddgood", BAD = "badaddbadad", LATE = "latelatelat", DRONE = "dronedronex", COPY = "pecancopyxx", OLDCOV = "oldcovered1", OLDNONE = "oldnoevent1";
 let uploads: Item[] = [];
 let calls: string[] = [];
@@ -32,7 +32,7 @@ const fakeFetch = (async (url: string) => {
     if (u.searchParams.get("playlistId") !== `UU${TX.slice(2)}`) return json({ items: [] });
     const page = Number(u.searchParams.get("pageToken") || 0);
     const items = uploads.slice(page * pageSize, (page + 1) * pageSize);
-    return json({ items: items.map((i) => ({ snippet: { title: i.title }, contentDetails: { videoId: i.id, videoPublishedAt: i.published } })), ...(uploads.length > (page + 1) * pageSize ? { nextPageToken: String(page + 1) } : {}) });
+    return json({ items: items.map((i) => ({ snippet: { title: i.listTitle ?? i.title }, contentDetails: { videoId: i.id, videoPublishedAt: i.published } })), ...(uploads.length > (page + 1) * pageSize ? { nextPageToken: String(page + 1) } : {}) });
   }
   if (failVideos > 0) { failVideos--; return { ok: false, status: failStatus, json: async () => ({}) } as Response; }
   if (quotaOnVideos) return { ok: false, status: 403, json: async () => ({ error: { errors: [{ reason: "quotaExceeded" }] } }) } as Response;
@@ -455,5 +455,37 @@ describe("the channel audit", () => {
       uploads.splice(0, 3);
       await run("UPDATE official_watch SET status = 'rejected' WHERE video_id IN (?, ?)", [A, B]);
     }
+  });
+  it("never takes an uploads list's \"Deleted video\" for a title, and puts back an add it took off for one", async () => {
+    // NYC FIRST's bjwZWaiMwnc, public and playable, was listed on its channel's uploads as "Deleted video" (2026-11-17).
+    const good = uploads.find((u) => u.id === GOOD)!;
+    good.listTitle = "Deleted video";
+    expect((await audit(Date.parse("2026-03-03T06:00:00Z")))?.error).toBeNull();
+    expect((await get<any>("SELECT title FROM official_audit_videos WHERE video_id = ?", [GOOD])).title).toBe("FTC Texas Mockingbird Qualifier");
+    expect((await get<any>("SELECT removed_at FROM official_videos WHERE video_id = ?", [GOOD])).removed_at).toBeNull();
+    expect((await get<any>("SELECT ok FROM official_audit_adds WHERE video_id = ?", [GOOD])).ok).toBe(1);
+    // What an audit before this did: the placeholder written as its title, the add taken off its event for it.
+    await run("UPDATE official_audit_videos SET title = 'Deleted video' WHERE video_id = ?", [GOOD]);
+    await run("UPDATE official_videos SET removed_at = '2026-03-03T06:00:00Z' WHERE video_id = ?", [GOOD]);
+    await run("UPDATE official_watch SET status = 'rejected', decided_by = 'channel audit', why = 'taken off its event by the channel audit: not a competition stream' WHERE video_id = ?", [GOOD]);
+    expect((await audit(Date.parse("2026-03-04T06:00:00Z")))?.error).toBeNull();
+    expect((await get<any>("SELECT removed_at FROM official_videos WHERE video_id = ?", [GOOD])).removed_at).toBeNull();
+    expect(await get<any>("SELECT status, decided_by, why FROM official_watch WHERE video_id = ?", [GOOD])).toMatchObject({ status: "added", decided_by: "channel audit", why: expect.stringMatching(/^back on its event/) });
+    // One the owner removed stays off.
+    await run("UPDATE official_videos SET removed_at = '2026-03-04T07:00:00Z' WHERE video_id = ?", [GOOD]);
+    await run("UPDATE official_watch SET status = 'rejected', decided_by = 'owner' WHERE video_id = ?", [GOOD]);
+    await audit(Date.parse("2026-03-05T06:00:00Z"));
+    expect((await get<any>("SELECT removed_at FROM official_videos WHERE video_id = ?", [GOOD])).removed_at).toBeTruthy();
+    delete good.listTitle;
+  });
+
+  it("reads an upload's own title when its uploads list gives a placeholder", async () => {
+    // Stored as "Deleted video" by an audit before this; the videos list gives its title.
+    await run("UPDATE official_audit_videos SET title = 'Deleted video', facts_at = '2026-03-01T00:00:00Z' WHERE video_id = ?", [OLDNONE]);
+    const old = uploads.find((u) => u.id === OLDNONE)!;
+    old.listTitle = "Deleted video";
+    await audit(Date.parse("2026-03-06T06:00:00Z"));
+    expect((await get<any>("SELECT title FROM official_audit_videos WHERE video_id = ?", [OLDNONE])).title).toBe("FTC Texas Scrimmage");
+    delete old.listTitle;
   });
 });
