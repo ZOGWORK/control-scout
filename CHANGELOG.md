@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.6.3 — 2026-11-17
+
+Videos › 206 more 2024 matches play as clips: Missouri's SW League Tournament, Chicago's City League, New Orleans and Finger Lakes in full, plus Hawaii and Lakeshore.
+
+### Highlights
+- [history] Every 2024 SW League Tournament and Chicago City League match as a clip
+- [history] Every 2024 New Orleans and Finger Lakes qualifier match as a clip
+- [history] Hawaii League Tournament: 35 of 39 matches as clips
+
+### Added
+- Frame-read match starts for 6 more 2024 recordings, each clip's opening checked against a paused frame naming its match: USMOKSSWLT 43 of 43 played matches, USLANOQ 42 of 42, USILCCLT1 39 of 39, USNYEXPEQ2 39 of 39, USHIHI24LT 35 of 39 (4 missing), USWIMAQ2 8 of 41 (1 to review, 32 missing). (`server/data/frameTimings/2024.ts`) (#PRNUM)
+
 ## 7.6.2 — 2026-11-17
 
 Videos › 105 matches from three 2025 events (Greenwood QT and the NorCal Regional Championship's Gold and Silicon divisions) get a clip, each opening on a frame that names its match and its event.
