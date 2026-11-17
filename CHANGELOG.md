@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.1.4 — 2026-11-17
+
+Videos › 2026 clips open on the exact frame that names their match, read paused: 25 of 153 openings move by a few seconds, and none is taken away.
+
+### Highlights
+- [fixes] 2026 clips open on the exact frame that names their match
+- [fixes] 25 openings move by a few seconds; 128 stay as they were
+- [fixes] No clip already playing is taken away
+
+### Fixed
+- Videos: the 7 shipped 2026 recordings' clip openings read again paused at their own second, and from the overlay's bar where the frame is busy: of 153 openings 128 stay, 20 open later and 5 earlier (−8 to +15 s), each on a frame whose overlay names its match. None is taken away or left unconfirmed (USCALACAS1 Q12, which the paused re-check couldn't read, names its match on the bar). (`server/data/frameTimings.ts`) (#1630)
+
 ## 7.1.3 — 2026-11-16
 
 Videos › the frame reader reads a busy frame's match name from the overlay's bar alone, so a clip whose opening frame plainly names its match is confirmed even when the crowd and field throw the whole-frame read off.
