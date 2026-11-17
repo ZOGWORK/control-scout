@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 7.2.4 — 2026-11-17
+## 7.2.5 — 2026-11-17
 
 Sharing › a new link-preview card for Discord, iMessage and Slack, readable at the size those apps show it.
 
@@ -26,6 +26,18 @@ Sharing › a new link-preview card for Discord, iMessage and Slack, readable at
 
 ### Changed
 - The link-preview card (`og:image`, `twitter:image`): "Every FTC match, predicted." on two lines, the site's address in gold, and a match-prediction panel labelled "Example match" (red and blue odds, the meter and a called score) drawn as the app shows one, an illustration rather than a real match; nothing on it under 30px, so it reads at the third of its size chat apps show it. Its address is versioned (`/og-image.png?v=2`) so apps that cached the old card fetch the new one, and its alt text says what it shows. (`scripts/og-image.ts`, `public/og-image.png`, `server/seoMeta.ts`) (#1644)
+
+## 7.2.4 — 2026-11-17
+
+Videos › 37 matches in 8 recordings are settled as played before their recording starts: each recording's first frame names a later match, or counts them as played.
+
+### Highlights
+- [fixes] 37 matches played before their recording no longer need review
+- [fixes] Each one rests on the recording's own first frame
+- [fixes] No clip changes
+
+### Fixed
+- Videos: the first frames of 8 recordings are read into the data (`opensOn`, `server/data/frameTimings.ts`): FPEMITHO opens on Q21, USMNCMPNANO on Q10, USMOKSCMP on Q3 at 1:50 (2024), USMIWMM4 and USMOKSSTLSM1 on Q2 (2026), USIACORM5 and USMOKSSTLNM2 on a match already under way (Q3, Q1), and MDCHS1 shows FTC Live's "25 / 36 matches played" at 2:50 with no match on screen before it. The 37 matches they prove were played before their recording starts (or cut by it) are settled in Clip coverage, with that reason. No clip is added, moved or taken away. (#1645)
 
 ## 7.2.3 — 2026-11-17
 
