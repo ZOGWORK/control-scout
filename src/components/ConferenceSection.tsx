@@ -121,11 +121,15 @@ function ConferenceTable({ c, team }: { c: Conference; team: number | null }) {
   // The page holding the marked team, so a link to it opens on its row.
   const teamPage = () => { const i = rows.findIndex((r) => r.team === team); return i < 0 ? 0 : Math.floor(i / CONFERENCE_PAGE); };
   const [page, setPage] = useState(teamPage);
-  useEffect(() => { setPage(teamPage()); }, [rows, team]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Only a new marked team jumps to its page; a sort lands on the first page of the new order (pick, below).
+  useEffect(() => { setPage(teamPage()); }, [team]); // eslint-disable-line react-hooks/exhaustive-deps
   const shown = rows.slice(page * CONFERENCE_PAGE, (page + 1) * CONFERENCE_PAGE);
   const ranked = c.rows.filter((r) => r.rank != null).length;
   const going = c.status === "upcoming";
-  const pick = (key: SortKey) => setSort((s) => (s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: key === "rank" ? "asc" : "desc" }));
+  const pick = (key: SortKey) => {
+    setSort((s) => (s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: key === "rank" ? "asc" : "desc" }));
+    setPage(0);
+  };
   const where = [c.venue, c.city].filter(Boolean).join(", ");
   return (
     <div className="space-y-2" data-conference={c.slug}>
@@ -142,6 +146,7 @@ function ConferenceTable({ c, team }: { c: Conference; team: number | null }) {
           <p data-going-in>
             Tournament hasn't started yet — {c.registered.count} teams registered via <a href={c.registered.url} target="_blank" rel="noreferrer" className="text-accent-text hover:underline">FTC New Jersey</a>, fetched {asOfDate(c.registered.fetchedAt)}.
             {" "}Registered, not the final field: teams may be added or dropped before FIRST posts it.
+            {c.registered.sessionUnknown && <span data-session-unknown>{" "}This tournament runs morning and afternoon sessions; FTC New Jersey&apos;s list doesn&apos;t say which session each team is in.</span>}
           </p>
         )}
         {going && c.teamsFrom === "field" && <p data-going-in>Tournament hasn't started yet — FIRST's team list: {c.rows.length} teams.</p>}
