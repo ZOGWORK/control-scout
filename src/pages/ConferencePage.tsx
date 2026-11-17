@@ -10,7 +10,7 @@ import { useApi, qs } from "../lib/api";
 import { useTitle } from "../lib/meta";
 import { ago, seasonLabel } from "../lib/format";
 import { useMyTeamNumber } from "../lib/personal";
-import { useConferenceGate } from "../lib/conferenceGate";
+import { useConferenceGateState } from "../lib/conferenceGate";
 import { PageHeader, EmptyState } from "../components/page";
 import { ErrorState } from "../components/states";
 import { MoverCards } from "../components/rankings/MoverCards";
@@ -32,7 +32,7 @@ export default function ConferencePage() {
   const myTeam = useMyTeamNumber();
   const team = Number(sp.get("team")) || myTeam || null;
   const slug = sp.get("conference");
-  const shown = useConferenceGate(ok ? region : null, ok ? season : null);
+  const { shown, deciding } = useConferenceGateState(ok ? region : null, ok ? season : null);
   const league = useApi<LeagueStandings>(ok && nj ? `/api/leagues/${season}/${region}/${code}` : null);
   const conf = useApi<LeagueConferences>(ok && nj && shown ? `/api/leagues/${season}/${region}/${code}/conferences` : null);
   const list = conf.data?.conferences ?? [];
@@ -45,7 +45,7 @@ export default function ConferencePage() {
   const back = leagueHref(season, region.toUpperCase(), code.toUpperCase());
   if (!nj) return <EmptyState icon={ListOrdered} title="No conference rankings here" description="Conferences are FTC New Jersey's: only a New Jersey league has them." action={<Link to={back} className="text-accent-text underline">The league's standings</Link>} />;
   // Hidden from a My team outside New Jersey, as the league page hides its button.
-  if (!shown && !conf.loading) return <EmptyState icon={ListOrdered} title="Conference rankings are New Jersey's" description="Your My team isn't a New Jersey team, so conference rankings aren't shown." action={<Link to={back} className="text-accent-text underline">The league's standings</Link>} />;
+  if (!shown && !deciding) return <EmptyState icon={ListOrdered} title="Conference rankings are New Jersey's" description="Your My team isn't a New Jersey team, so conference rankings aren't shown." action={<Link to={back} className="text-accent-text underline">The league's standings</Link>} />;
 
   // Another season: the same conference's edition when there is one (it can change leagues), else this league's.
   const toSeason = (s: number) => {
