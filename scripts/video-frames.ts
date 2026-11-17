@@ -33,7 +33,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
 import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, playedCount } from "./lib/videoFrames";
-import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, elapsed, overlayDivision, leadIn, judge, NOTHING_READ, overlayLabel, autoLeadsTo, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M } from "./lib/videoFrames";
+import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, elapsed, overlayDivision, leadIn, judge, NOTHING_READ, overlayLabel, autoLeadsTo, eventLabel, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M } from "./lib/videoFrames";
 
 // The command line: --name value or --name=value for the value flags, --name alone for the others. Anything else stops
 // the run before it reads: a misspelt flag mustn't quietly read (and write) every recording of the season.
@@ -349,7 +349,7 @@ async function checkOpenings(page: Page, j: Judged, log: (s: string) => void, un
       // The overlay names a replay (a tiebreak's "M6-2") by its match alone ("M6"), as placeVideo reads it; a
       // semifinal's match by its series and number ("M1-2"), that match only (sameMatch).
       if (sameMatch(r.label ?? "", label)) { at = t; break; }
-      if (r.label) named = r.label;
+      if (r.label) named = eventLabel(r.label);
     }
     if (at != null) { j.opens.set(label, at); continue; }
     if (broken) {
@@ -420,7 +420,10 @@ async function readEdges(page: Page, length: number): Promise<{ opensOn?: Edge; 
     // A sibling division's frame on a shared stream is never this event's edge: neither its match nor its count.
     if (r.division === "other") return null;
     const n = playedCount(r.text);
-    return r.label || n ? { at: Math.round(t), ...(r.label ? { label: r.label } : {}), ...(n ? { played: n.played, of: n.of } : {}) } : null;
+    // Stored as the event names the match (a semifinal's first match "M2-1" is the event's M2), so outsideRecording
+    // finds it among the event's matches.
+    const label = r.label && eventLabel(r.label);
+    return label || n ? { at: Math.round(t), ...(label ? { label } : {}), ...(n ? { played: n.played, of: n.of } : {}) } : null;
   };
   const edge = async (from: (s: number) => number): Promise<Edge | undefined> => {
     let quiet = true;
