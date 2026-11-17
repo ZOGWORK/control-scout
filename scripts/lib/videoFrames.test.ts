@@ -69,6 +69,15 @@ describe("the frame reader", () => {
     expect(elapsed({ where: "plain", left: 120, auto: false })).toBeNull();
   });
 
+  it("counts a timer running only when it went down", () => {
+    expect(timerRan(2, 1.7)).toBe(true);
+    expect(timerRan(1, 1.6)).toBe(true);
+    // RIQUAL3 2019: the next match's "30" standing, read 1.6 s apart.
+    expect(timerRan(0, 1.6)).toBe(false);
+    expect(timerRan(0, 0.4)).toBe(false);
+    expect(timerRan(5, 1.7)).toBe(false);
+  });
+
   it("places matches with only a scheduled time where their own frames show them, never filled", () => {
     // 2019MOQ8: FIRST gives whole-minute scheduled times only, 5 minutes apart; the event ran slower.
     const ms: M[] = [1, 2, 3, 4, 5].map((n) => ({ label: `Q${n}`, epoch: 1_000 + n * 300, scheduled: true }));
@@ -96,13 +105,6 @@ describe("the frame reader", () => {
     expect(j.placed.get("Q1")).toEqual({ t: 50, confidence: "high" });
     expect(j.placed.get("M2")).toEqual({ t: 20_400, confidence: "medium" });
     expect(j.placed.get("M1-2")).toEqual({ t: 20_800, confidence: "high" });
-  it("counts a timer running only when it went down", () => {
-    expect(timerRan(2, 1.7)).toBe(true);
-    expect(timerRan(1, 1.6)).toBe(true);
-    // RIQUAL3 2019: the next match's "30" standing, read 1.6 s apart.
-    expect(timerRan(0, 1.6)).toBe(false);
-    expect(timerRan(0, 0.4)).toBe(false);
-    expect(timerRan(5, 1.7)).toBe(false);
   });
 
   it("tells Auto from TeleOp's end by where the timer stands 45 s on", () => {
