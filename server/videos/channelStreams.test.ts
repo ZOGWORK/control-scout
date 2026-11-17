@@ -307,4 +307,10 @@ describe("reweighBroadcasts: broadcasts found before, by today's rules", () => {
     expect((await all<{ video_id: string }>("SELECT video_id FROM event_stream_links WHERE code = 'CABCVIQ'")).map((r) => r.video_id)).toEqual([VIC]);
     expect(await reweighBroadcasts()).toBe(0);
   });
+  it("weighs a broadcast whose stored title is a placeholder (\"Deleted video\") as untitled: it stays", async () => {
+    await run("INSERT INTO event_broadcasts (season, code, video_id, url, start) VALUES (2022, 'CABCVIQ', 'deletedvide', ?, '2023-01-28T22:00:00Z')", [BC]);
+    await run("INSERT INTO official_audit_videos (video_id, channel_id, title, published, first_seen, last_seen) VALUES ('deletedvide', 'UCjqJ09AW-_NL0e1OKSSqVNA', 'Deleted video', '2023-01-29T05:00:00Z', 'x', 'x')");
+    expect(await reweighBroadcasts()).toBe(0);
+    expect((await all<{ video_id: string }>("SELECT video_id FROM event_broadcasts WHERE code = 'CABCVIQ' ORDER BY start")).map((r) => r.video_id)).toEqual([VIC, "deletedvide"]);
+  });
 });
