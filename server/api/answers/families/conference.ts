@@ -21,6 +21,8 @@ export interface ConferenceAsk {
   last: boolean;
   /** "This season": the current one. */
   now: boolean;
+  /** Asked in the past tense with no season said ("where was 207 in its conference"): the latest one played out. */
+  past?: true;
   /** "Who won …": the winning alliance, from the awards. */
   won: boolean;
   /** Nothing asked of it but itself ("nj conferences", "east bergen conference", "East Bergen"): the list, or the
@@ -33,6 +35,8 @@ export type ConferenceStat = StatAnswer & { events?: { season: number; code: str
 
 const WON = /\b(?:who|which\s+teams?)\s+(?:won|wins|took|takes)\b|\bwinners?\b|\bchampions?\b|\bwon\b/;
 const TABLE = /\b(?:rank(?:s|ed|ing|ings)?|standings?|leaderboard|table|top|best|strongest|leaders?|leading|first|1st|#1|number\s+one|position|place|placing|order)\b/;
+/** The past tense: a conference played out, never the one coming up. */
+const PAST = /\b(?:was|were|did|finished|ended|came)\b/;
 /** An award's ask ("east bergen conference inspire winner") is the award readers', not this one. */
 const AWARD = /\b(?:inspire|think|connect|motivate|innovate|design|control|reach|sustain|judges|dean'?s?|compass|award)\b/;
 /** The ask's frame, never part of a conference's name. */
@@ -85,7 +89,9 @@ export function readConferenceAsk(raw: string): ConferenceAsk | null {
   if (!won && !TABLE.test(rest) && after.length) return null;
   // A season after every stored one is kept, so the answer says it has none yet.
   const season = scope.future?.season ?? (scope.lastYear ? null : scope.season);
-  return { words, team, season, last: !!scope.lastYear && season == null, now: scope.latest && season == null && !scope.lastYear, won, ...(bare ? { bare } : {}) };
+  const last = !!scope.lastYear && season == null, now = !!scope.latest && season == null && !scope.lastYear;
+  const past = season == null && !last && !now && PAST.test(rest);
+  return { words, team, season, last, now, won, ...(bare ? { bare } : {}), ...(past ? { past: true as const } : {}) };
 }
 
 /** A conference's whole name with "conference" left out ("East Bergen", "far north rankings"), nothing else said but
@@ -209,21 +215,23 @@ export async function conferenceAskAnswer(ask: ConferenceAsk, current: number): 
   // A team's conference place.
   if (team != null) {
     let pick: { season: number; code: string; registered: boolean; waitlist: boolean } | null = null;
+    // No season said: the newest season the team is in a conference (this one when it is, even going in from the
+    // sign-ups), else the one before, said so below. In the past tense, the newest one played out.
+    const playedOut = async (s: number, code: string) => !ask.past || (await conferenceByEvent(s, code))?.status === "finished";
     if (hits.length) {
-      // That conference: the season asked, else the latest FIRST lists the team in it, else its latest sign-up.
+      // That conference: the season asked, else its newest edition the team is in, FIRST's field before the sign-ups.
       const named = [...hits].sort((a, b) => b.season - a.season).filter((c) => season == null || c.season === season);
-      for (const registered of [false, true]) {
-        for (const c of named) {
-          const ev = await teamConferenceEvent(c.season, team);
-          if (ev && ev.code === c.code && ev.registered === registered) { pick = { season: c.season, ...ev }; break; }
+      seek: for (const s of [...new Set(named.map((c) => c.season))]) {
+        for (const registered of [false, true]) {
+          for (const c of named.filter((x) => x.season === s)) {
+            const ev = await teamConferenceEvent(c.season, team);
+            if (ev && ev.code === c.code && ev.registered === registered && await playedOut(c.season, c.code)) { pick = { season: c.season, ...ev }; break seek; }
+          }
         }
-        if (pick) break;
       }
     } else {
       const seasons = season != null ? [season] : [...new Set(list.map((c) => c.season))].sort((a, b) => b - a);
-      // No season said: the latest one FIRST lists the team in a conference field, else its latest sign-up.
-      for (const s of seasons) { const ev = await teamConferenceEvent(s, team); if (ev && !ev.registered) { pick = { season: s, ...ev }; break; } }
-      if (!pick) for (const s of seasons) { const ev = await teamConferenceEvent(s, team); if (ev) { pick = { season: s, ...ev }; break; } }
+      for (const s of seasons) { const ev = await teamConferenceEvent(s, team); if (ev && await playedOut(s, ev.code)) { pick = { season: s, ...ev }; break; } }
     }
     // Re-read for the table: a sync between the two reads (FIRST's field replacing the sign-ups) can leave the team off
     // it, which is the not-on-the-list answer, never a crash.
@@ -265,8 +273,11 @@ export async function conferenceAskAnswer(ask: ConferenceAsk, current: number): 
       { kind: "links", title: "Full conference table", items: [{ label: `${d.name} · ${S}`, href, sub: `${leagueTitle(d.leagueName, d.league)} · ${CONFERENCE_LABEL}` }] },
     ];
     const notes = [sourceLine(d), going(d), tRank != null && r.rank != null ? `At the tournament itself ${team} ranked ${ordinal(tRank)}: a different ranking from the league's.` : ""].filter(Boolean).join(" ");
+    // An older season than the current, none said: this season's absence is said first, as every no-season answer does.
+    const back = season == null && !ask.past && d.season < current ? `No ${seasonLabel(current)} conference for ${team} yet; showing ${S}` : null;
+    const scope = base(d.season).scope;
     return {
-      ...base(d.season), title: goingIn ? `${team} going into ${d.name} · ${S}` : `${team} in ${d.name} · ${S}`, team: { number: team, name: r.name },
+      ...base(d.season), scope: back ? [back, ...scope] : scope, title: goingIn ? `${team} going into ${d.name} · ${S}` : `${team} in ${d.name} · ${S}`, team: { number: team, name: r.name },
       headline: { value: r.rank != null ? `${ordinal(r.rank)} of ${d.rows.length}` : d.rs.kind === "gone" ? "Not available" : "Not ranked yet",
         label: `${who(r)} ${waitlist ? "is on the waitlist for" : reg && goingIn ? "is registered for" : goingIn ? "is going into" : "in"} ${d.name}, ${leagueTitle(d.leagueName, d.league)}, ${S}, by league RS`, sub: [sub, CONFERENCE_LABEL].filter(Boolean).join(" · "), href },
       definition: `${base(d.season).definition} ${notes}`, blocks, events: [{ season: d.season, code: d.code }],
