@@ -552,18 +552,29 @@ describe("an event's played matches, a time or not", () => {
 
 describe("undetailed", () => {
   const ok = (videoId: string) => ({ videoId, meta: { status: "ok", length: 6552 } });
+  const none = "no details on file (fetch them, then read again)";
   it("says each linked recording with no details on file (KZCMP 2022's day-2 videos)", () => {
     const r = undetailed([ok("1VAGi4X7hWA"), { videoId: "w0H2auno5c8" }, { videoId: "ZXdoZmDoHp0", meta: null }]);
-    expect(r.skipped).toEqual([{ videoId: "w0H2auno5c8", why: "no details on file" }, { videoId: "ZXdoZmDoHp0", why: "no details on file" }]);
-    expect(r.only).toBe(false);
+    expect(r.skipped).toEqual([{ videoId: "w0H2auno5c8", why: none, fixable: true }, { videoId: "ZXdoZmDoHp0", why: none, fixable: true }]);
+    expect(r.fails).toBe(false);
   });
-  it("says a failed fetch and a missing length apart", () => {
-    const r = undetailed([{ videoId: "a", meta: { status: "error" } }, { videoId: "b", meta: { status: "ok", length: 0 } }]);
-    expect(r.skipped.map((s) => s.why)).toEqual(["its details couldn't be fetched (error)", "no length on file"]);
+  it("says a failed fetch, a removed video and an untimed live stream apart, and only the fetch as fixable", () => {
+    const r = undetailed([{ videoId: "a", meta: { status: "error" } }, { videoId: "b", meta: { status: "unavailable" } }, { videoId: "c", meta: { status: "ok", length: 0 } }]);
+    expect(r.skipped.map((s) => [s.why, s.fixable])).toEqual([
+      ["fetching its details failed (fetch again, then read again)", true],
+      ["unavailable on YouTube (removed or private)", false],
+      ["no length: a live stream or one the player can't time (looked at again next run)", false],
+    ]);
   });
-  it("is `only` when no video of the event can be read, and empty when all can", () => {
-    expect(undetailed([{ videoId: "w0H2auno5c8" }]).only).toBe(true);
-    expect(undetailed([ok("a"), ok("b")])).toEqual({ skipped: [], only: false });
+  it("fails when no video can be read for want of details a fetch would give, and empty when all can be read", () => {
+    expect(undetailed([{ videoId: "w0H2auno5c8" }]).fails).toBe(true);
+    expect(undetailed([{ videoId: "a", meta: { status: "error" } }, { videoId: "b", meta: { status: "unavailable" } }]).fails).toBe(true);
+    expect(undetailed([ok("a"), ok("b")])).toEqual({ skipped: [], fails: false });
+  });
+  it("never fails for an event whose only video is removed or still live: it would fail every run", () => {
+    expect(undetailed([{ videoId: "gone", meta: { status: "unavailable" } }]).fails).toBe(false);
+    expect(undetailed([{ videoId: "live", meta: { status: "ok", length: null } }]).fails).toBe(false);
+    expect(undetailed([{ videoId: "gone", meta: { status: "unavailable" } }, { videoId: "live", meta: { status: "ok" } }]).fails).toBe(false);
   });
 });
 
