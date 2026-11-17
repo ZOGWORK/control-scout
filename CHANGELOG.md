@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 7.3.1 — 2026-11-17
+## 7.3.2 — 2026-11-17
 
 Videos › the frame reader tells one event's overlay from another's on the same stream: a frame naming another event is never this event's match.
 
@@ -26,6 +26,23 @@ Videos › the frame reader tells one event's overlay from another's on the same
 
 ### Fixed
 - Videos (the frame reader, `scripts/video-frames.ts`, `scripts/lib/videoFrames.ts`): a frame whose overlay names another event, by the name beside the match or, where no name is read, by its qualification total ("of 24" for an event of 26), is never this event's start, clip opening or recording edge; on a split screen, the half that is this event's gives its match. USTXCAM1 2024's recording shows two league meets side by side, and its first frames' "Qualification 3 of 24" was the other meet's. The 15 recording edges already in the data were each checked against their saved frame: every one names its own event. (#1656)
+
+## 7.3.1 — 2026-11-17
+
+Rankings › a New Jersey league's conferences get their own rankings page, laid out like region rankings.
+
+### Highlights
+- [rankings] Each NJ conference has its own rankings page
+- [rankings] Biggest climbers, fallers and newcomers before the table
+- [rankings] A switch between the league's conferences, with date and teams
+- [rankings] View Conference Rankings button on the league page
+- [rankings] The tournament's winners shown above the table
+
+### Rankings
+- The page sits at /leagues/SEASON/REGION/LEAGUE/conferences; old #conferences links on the league page open it (#1657).
+- Moves are places by Scout rating among the conference's teams, week over week, labelled as Scout's, never FIRST's league rank.
+- Teams with no league meet yet sit under "Not ranked yet" instead of the table.
+- Footer links to world, New Jersey and all-region rankings, all leagues, the league and the tournament.
 
 ## 7.3.0 — 2026-11-17
 
