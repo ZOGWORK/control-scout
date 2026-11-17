@@ -11,6 +11,7 @@ export interface WatchEvent {
   season: number; code: string; name: string; type: string; city: string | null; state: string | null; country: string | null;
   start: string; end: string | null; timezone: string | null; divisionCode: string | null; /** Other events name this one as their parent. */ parent: boolean;
   /** Played remotely: each team on its own field, scored from its own videos (2020-21). */ remote?: boolean;
+  /** The venue-local days it played a match, in order (eventDays.ts): a title's day number may count these. */ playedDays?: string[];
 }
 export interface WatchVideo {
   videoId: string; title: string; /** liveStreamingDetails.actualStartTime: null for an upload. */ start: string | null;
@@ -340,8 +341,11 @@ export function matchVideo(v: WatchVideo, rule: ChannelRule, events: WatchEvent[
   if (lagged && ![...a.words].every(said)) return { kind: "review", why: `an upload with no date, whose title doesn't say all of ${a.e.code}'s name`, ...at };
   if (lagged && /\s(?:&|and|\+)\s/i.test(v.title)) return { kind: "review", why: `an upload with no date, whose title joins two names`, ...at };
   // One video at a time can't check the days line up across the event (the list could), so a title's day must be the event's own.
+  // Its day by the calendar from its first day, or by the days it played (an event listed from a practice day, or one
+  // FIRST's dates leave a day out of: RONR4LT 2023's "DAY 2" is its second day of play, its listed day 4).
   const eventDay = daysBetween(a.e.start, a.d) + 1;
-  if (titleDay != null && titleDay !== eventDay) return { kind: "review", why: `the title says day ${titleDay}, the broadcast was the event's day ${eventDay}`, ...at };
+  const playDay = a.e.playedDays?.includes(a.d) ? a.e.playedDays.indexOf(a.d) + 1 : null;
+  if (titleDay != null && titleDay !== eventDay && titleDay !== playDay) return { kind: "review", why: `the title says day ${titleDay}, the broadcast was the event's day ${eventDay}`, ...at };
   // A named division's stream ("Flowers Division") of an event Scout keeps whole: its divisions played at once.
   const ownDiv = !!(a.e.divisionCode && a.e.divisionCode !== a.e.code);
   if (!ownDiv && !a.e.parent && DIVRE.test(v.title) && !/inter-?division/i.test(v.title)) return { kind: "ignore", why: `one division's stream of ${a.e.code}, which Scout has as one event: its clips would open on whichever division played at that time` };

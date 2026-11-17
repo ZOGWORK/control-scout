@@ -12,6 +12,7 @@ import { isYouTubeHost, parseStreamUrl } from "../../src/shared/stream.js";
 import { designators } from "./officialMatch.js";
 import { forgetRecordings } from "./recordings.js";
 import { fetchFromApi, fetchWatchPage, type WatchPageFacts } from "./youtube.js";
+import { EVENT_FIRST_DAY, EVENT_LAST_DAY } from "./eventDays.js";
 
 const DAY_MS = 86_400_000;
 /** Events whose last date is at most this long ago are looked for without the key (the streams page holds only the latest). */
@@ -189,7 +190,7 @@ export async function resolveChannelStreams(log: (s: string) => void, opts: { ma
     const withKey = opts.withKey ?? !!key;
     const reader = opts.reader ?? (key ? apiReader(key) : pageReader());
     const rows = await all<{ season: number; code: string; name: string | null; start: string; end: string | null; timezone: string | null; livestream: string; url: string | null; video_id: string | null; checked_at: string | null; read_at: string | null }>(
-      `SELECT e.season, e.code, e.name, e.start, e.end, e.timezone, e.livestream, l.url, l.video_id, l.checked_at, l.read_at FROM events e
+      `SELECT e.season, e.code, e.name, ${EVENT_FIRST_DAY} AS start, ${EVENT_LAST_DAY} AS end, e.timezone, e.livestream, l.url, l.video_id, l.checked_at, l.read_at FROM events e
        LEFT JOIN event_stream_links l ON l.season = e.season AND l.code = e.code
        WHERE e.livestream LIKE '%youtu%' AND e.start IS NOT NULL AND substr(e.start, 1, 10) <= ?
        ORDER BY e.start DESC`, [new Date(now + DAY_MS).toISOString().slice(0, 10)]);
