@@ -4,7 +4,8 @@
 // YouTube refuses data-centre addresses (GitHub's runners and the VM both get its "confirm you're not a bot" page), so
 // this runs on a computer at home, from a clone of its own, on a schedule (scripts/clip-autopilot-task.ps1). Each run:
 //   1. (its start, scripts/clip-autopilot-start.mjs: one run at a time, the clone and its dependencies at main) rebuilds
-//      its own open PRs on main when main moved under them;
+//      its own open PRs on main when main moved under them, then merges one of them that passes the merge gate
+//      (scripts/lib/autopilotMerge.ts: Loopy 5/5 on its head, every check passed, its rows safe) and waits for it live;
 //   2. takes a read-only snapshot of the live database (VACUUM INTO over ssh: the VM's database is never written);
 //   3. takes the queue from that snapshot (server/videos/frameQueue.ts), most missing first;
 //   4. reads each picked event with scripts/video-frames.ts (--live main's season file), then --verify, then --bounds;
@@ -20,6 +21,7 @@
 //   --sweep N events whose clock clips are checked per run (default 4; 0: no sweep)
 //   --db F    read this snapshot instead of taking one
 //   --dry     in the current checkout: read and check, print the PRs it would open, leave the files as they were
+//   --no-merge  open and rebuild its PRs, never merge one
 //   AUTOPILOT_SSH (ubuntu@132.145.202.89), AUTOPILOT_SSH_KEY (~/.ssh/oracle-controlpoint), TESSERACT_JS: passed on.
 import { existsSync, mkdirSync, readFileSync, writeFileSync, appendFileSync } from "node:fs";
 import { homedir } from "node:os";
@@ -29,12 +31,18 @@ import { gunzipSync } from "node:zlib";
 import { applyRows, changedRows, chunkRows, fileRows, prMarker, readMarker, rowKey, rowProblems, type Keyed, type Row } from "./lib/autopilotRows";
 import { changelogEntry, forgetSettled, nextVersion, pickEvents, remember, rowsDelta, type Memory } from "./lib/autopilotRun";
 import { clipCheckProblems, clipsDelta, clipsEntry } from "./lib/autopilotClips";
+import { prGate } from "./lib/autopilotPr";
 import type { ClipCheck } from "../server/data/clipChecks";
 
 const argv = process.argv.slice(2);
 const opt = (k: string) => { const i = argv.indexOf(`--${k}`); return i >= 0 ? argv[i + 1] : undefined; };
-for (const a of argv) if (a.startsWith("--") && !["--max", "--sweep", "--db", "--dry"].includes(a)) { console.error(`${a}: not a flag (--max N, --sweep N, --db F, --dry)`); process.exit(2); }
-const MAX = Number(opt("max") ?? 6), SWEEP = Number(opt("sweep") ?? 4), DRY = argv.includes("--dry"), DB = opt("db");
+for (const a of argv) if (a.startsWith("--") && !["--max", "--sweep", "--db", "--dry", "--no-merge"].includes(a)) { console.error(`${a}: not a flag (--max N, --sweep N, --db F, --dry, --no-merge)`); process.exit(2); }
+const MAX = Number(opt("max") ?? 6), SWEEP = Number(opt("sweep") ?? 4), DRY = argv.includes("--dry"), DB = opt("db"), MERGE = !argv.includes("--no-merge");
+/** Main's last commit at least this old before a merge (each merge deploys; merges spaced, owner's rule). */
+const MAIN_QUIET_MS = 10 * 60_000;
+/** How long a merge is waited for on the live site. */
+const LIVE_WAIT_MS = 20 * 60_000;
+const HEALTH_URL = process.env.AUTOPILOT_HEALTH ?? "https://controlscout.org/api/health";
 if (!Number.isInteger(MAX) || MAX < 1) { console.error("--max: a whole number, 1 or more"); process.exit(2); }
 if (!Number.isInteger(SWEEP) || SWEEP < 0) { console.error("--sweep: a whole number, 0 or more"); process.exit(2); }
 
@@ -148,6 +156,8 @@ function clipsText(rows: ClipCheck[], live: Map<string, ClipCheck>): PrText {
 // --- 1b. Own PRs rebuilt on main --------------------------------------------------------------------------------------
 if (!DRY) sh("gh", ["label", "create", LABEL, "--force", "--color", "0e8a16", "--description", "A data PR the clip autopilot opened (scripts/clip-autopilot.ts)"], { ok: true, quiet: true });
 const open = DRY ? [] : openPrs();
+/** PRs renumbered on main this run: each waits for Loopy's review of its new head, so none merges this run. */
+const rebuilt = new Set<number>();
 for (const p of open) {
   try {
     // Inside the try: a branch that can't be read (deleted, not fetched) is logged and left, never the whole run.
@@ -174,6 +184,7 @@ for (const p of open) {
     push(p.branch);
     sh("gh", ["pr", "edit", String(p.number), "--title", text.title, "--body", [...text.body, "", text.marker].join("\n")]);
     askReview(p.number);
+    rebuilt.add(p.number);
     log(`#${p.number}: rebuilt on main as ${version}${keep.length < rows.length ? ` (${rows.length - keep.length} rows main changed meanwhile left out)` : ""}`);
   } catch (e) {
     log(`#${p.number}: couldn't be rebuilt on main (${(e as Error).message}); left as it is`);
@@ -183,6 +194,53 @@ for (const p of open) {
     // switch to main (and the rest of the run) goes ahead.
     if (!DRY) { sh("git", ["reset", "--quiet", "--hard"], { ok: true }); git("switch", "--quiet", "--detach", "origin/main"); }
   }
+}
+
+// --- 1c. One of its own PRs merged, where nothing stops it ------------------------------------------------------------
+// The owner's standing rule: a data PR merges at Loopy 5/5 on its exact head with every check passed. With nobody
+// watching, the autopilot merges its own data PRs only (its label, branch, mark and GitHub user), each through the gate
+// (scripts/lib/autopilotMerge.ts: anything a person should look at first stops it), at most one a run, never within
+// MAIN_QUIET of main's last commit (each merge deploys and restarts the site), never deleting its branch. Then it
+// waits for /api/health to serve the merge. --no-merge: open and rebuild PRs only.
+if (!DRY && MERGE) mergeOne();
+function mergeOne(): void {
+  try {
+    const me = sh("gh", ["api", "user", "--jq", ".login"], { quiet: true }).out.trim();
+    const last = Date.parse(sh("gh", ["api", "repos/{owner}/{repo}/commits/main", "--jq", ".commit.committer.date"], { quiet: true }).out.trim());
+    if (!(Date.now() - last >= MAIN_QUIET_MS)) { log(`merge: main's last commit is ${Math.round((Date.now() - last) / 60_000)} min old, under ${MAIN_QUIET_MS / 60_000}: none this run`); return; }
+    git("fetch", "--quiet", "origin");
+    for (const p of open) {
+      if (rebuilt.has(p.number)) continue;
+      const author = sh("gh", ["pr", "view", String(p.number), "--json", "author", "--jq", ".author.login"], { quiet: true }).out.trim();
+      if (author !== me) { log(`merge: #${p.number} is ${author}'s, not this autopilot's (${me}): left`); continue; }
+      const g = prGate(p.number);
+      if (g.problems.length) { log(`merge: #${p.number} waits: ${g.problems.slice(0, 4).join("; ")}${g.problems.length > 4 ? ` (+${g.problems.length - 4})` : ""}`); continue; }
+      // The exact head the gate passed, or no merge: a push since then means another review.
+      const r = sh("gh", ["pr", "merge", String(p.number), "--merge", "--match-head-commit", g.head], { ok: true });
+      if (r.code) { log(`merge: #${p.number} refused by GitHub (exit ${r.code}): left open`); continue; }
+      const merged = sh("gh", ["pr", "view", String(p.number), "--json", "mergeCommit", "--jq", ".mergeCommit.oid"], { quiet: true }).out.trim();
+      log(`merge: #${p.number} merged as ${merged.slice(0, 9)} (${g.version}); waiting for it live`);
+      waitLive(merged, g.version);
+      return;
+    }
+  } catch (e) {
+    log(`merge: stopped (${(e as Error).message}); nothing merged this run`);
+  }
+}
+/** Waits (up to LIVE_WAIT_MS) for the site's /api/health to serve `merged` or a later main commit. */
+function waitLive(merged: string, version: string): void {
+  const until = Date.now() + LIVE_WAIT_MS;
+  while (Date.now() < until) {
+    sh(process.execPath, ["-e", "setTimeout(() => {}, 60000)"], { quiet: true, ok: true });
+    const health = sh("curl", ["-s", "--max-time", "20", HEALTH_URL], { quiet: true, ok: true }).out;
+    let release = "";
+    try { release = String(JSON.parse(health).release ?? ""); } catch { continue; }
+    if (!release) continue;
+    sh("git", ["fetch", "--quiet", "origin"], { ok: true, quiet: true });
+    // Live: the release served is the merge, or a main commit after it.
+    if (release === merged || sh("git", ["merge-base", "--is-ancestor", merged, release], { ok: true, quiet: true }).code === 0) { log(`merge: ${version} live (release ${release.slice(0, 9)})`); return; }
+  }
+  log(`merge: ${merged.slice(0, 9)} (${version}) not live after ${LIVE_WAIT_MS / 60_000} min: check the deploy`);
 }
 
 // --- 2. A snapshot of the live database ---------------------------------------------------------------------------------
