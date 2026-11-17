@@ -147,6 +147,12 @@ let failedVideos = 0;
 /** The timer's places: FTC Live's bar along the bottom (also shrunk inside side bars), or its box over the field under a bar
  *  across the top (FTC Ontario's layout) ("bottom"); or a bar along the top (FIRST Texas's layout, "top"). Each counts a 0:30 Auto, then a
  *  2:00 TeleOp (elapsed, scripts/lib/videoFrames.ts). */
+/** FTC Live's whole bar moved to the top of the frame, its timer row under the event/match row (FIRST Nevada's stream,
+ *  USNVCMP 2024: "Nevada Championship | Qualification 21 of 46" on top, "0:44" beneath): the bottom bar's timer, 68 px
+ *  from the top. Last in TIMERS, so no other layout's numbers are read here first; read first where the frame's match
+ *  came from the top bar's row (TOP_ROW), as FIRST Texas's crops catch part of its digits there ("2" then "110" for
+ *  1:22, which reads as no running timer). */
+const TOP_BAR_TIMER = { where: "bottom" as const, clip: { x: 565, y: 68, width: 150, height: 86 } };
 const TIMERS = [
   { where: "bottom" as const, clip: { x: 565, y: 618, width: 150, height: 86 } },
   { where: "top" as const, clip: { x: 603, y: 101, width: 74, height: 38 } },
@@ -160,6 +166,7 @@ const TIMERS = [
   { where: "bottom" as const, clip: { x: 580, y: 647, width: 120, height: 48 }, loose: true },
   // The same white box in a bar across the top (FIRST AGE's top layout, USPAKSN 2026): wider than FIRST Texas's.
   { where: "top" as const, clip: { x: 585, y: 92, width: 110, height: 50 }, loose: true },
+  TOP_BAR_TIMER,
 ];
 /** FTC Live's overlay from 2019 to 2022 shows the timer as bare seconds ("30", "112": secondsPlain), in a box over the
  *  scores (SKYSTONE 2019, FREIGHT FRENZY 2021: USCHSCMPCARR) or under the centre graphic (POWERPLAY 2022: AUMPOS1).
@@ -180,8 +187,8 @@ const TIMER_CROPS: { where: "bottom" | "top" | "plain"; clip: { x: number; y: nu
   season <= 2022 ? [...PLAIN_TIMERS, ...TIMERS] : TIMERS;
 
 /** The timer's reading. `auto`: whether a reading of 0:30 or less is Auto, told by readAt. */
-async function timer(page: Page): Promise<{ where: "bottom" | "top" | "plain"; left: number; auto: boolean } | null> {
-  for (const t of TIMER_CROPS) {
+async function timer(page: Page, first?: (typeof TIMER_CROPS)[number]): Promise<{ where: "bottom" | "top" | "plain"; left: number; auto: boolean } | null> {
+  for (const t of first ? [first, ...TIMER_CROPS.filter((c) => c !== first)] : TIMER_CROPS) {
     const text = (await digits.recognize(await page.screenshot({ clip: t.clip }))).data.text;
     const left = t.plain ? secondsPlain(text) : t.loose ? secondsLoose(text) : secondsOf(text);
     if (left == null || left > AUTO_S + SWITCH_S + TELEOP_S) continue;
@@ -220,6 +227,10 @@ const now = (page: Page) => page.evaluate(() => document.querySelector("video")!
 /** FTC Live's bottom bar's top row, over the timer's row: the event (or division) on its left half, the match
  *  ("Qualification 8 of 23", "Playoff Match 1") on its right half, read on its own (readRow). */
 const LABEL_ROW = { x: 0, y: 548, width: 1280, height: 56 };
+/** The same bar moved to the top edge (FIRST Nevada's stream, USNVCMP 2024): its row 50 px tall at the top, the timer
+ *  under it (TOP_BAR_TIMER). Its whole-frame read never once named the match (the field and side panels take the page
+ *  layout), its half alone "Qualification 36 of 46"; the band finder sees no row above a bar already at the top. */
+const TOP_ROW = { x: 0, y: 0, width: 1280, height: 50 };
 /** The match the bottom bar's row names, read on its own: a frame whose whole read names nothing because a busy field
  *  and crowd threw the page layout off, the bar's line lost with it (USARBEQ 2024 Q8 at 7097 s: the whole frame read a
  *  jumble, the row alone "Qualification 8 of 23"). The match's half alone: the whole row can lose it too, to the logo
@@ -233,14 +244,17 @@ const LABEL_ROW = { x: 0, y: 548, width: 1280, height: 56 };
  *  row, tesseract runs "9 of" into "90f" there (USTXNTM1 2023 at 1108 s), so that row is read too. */
 const ROW_LOWER = 8;
 type PageEvent = { name: string; quals: number };
-async function labelRow(page: Page, ctx: { own: string; others: string[] } | undefined, event?: PageEvent): Promise<string | null> {
+async function labelRow(page: Page, ctx: { own: string; others: string[] } | undefined, event?: PageEvent): Promise<{ label: string; timer?: (typeof TIMER_CROPS)[number] } | null> {
   for (const row of [LABEL_ROW, { ...LABEL_ROW, y: LABEL_ROW.y + ROW_LOWER }]) {
     const fixed = await readRow(page, row, ctx, event);
-    if (fixed) return fixed;
+    if (fixed) return { label: fixed };
   }
+  const top = await readRow(page, TOP_ROW, ctx, event);
+  if (top) return { label: top, timer: TOP_BAR_TIMER };
   const band = await barBand(page);
   const row = band && rowAbove(band, LABEL_ROW);
-  return row ? readRow(page, row, ctx, event) : null;
+  const above = row ? await readRow(page, row, ctx, event) : null;
+  return above ? { label: above } : null;
 }
 /** The row's match half, then (on a shared stream, or where the event is known) the whole row: the event name beside
  *  the match says whose it is (overlayEvent). Another event's is never this one's; on a split screen the match half may
@@ -258,7 +272,7 @@ async function readRow(page: Page, row: { x: number; y: number; width: number; h
 /** The match a frame names: the whole frame's read, else the bar's row on its own (labelRow). `division`: whose the
  *  frame is on a shared stream; a match the row named there is this division's (labelRow checked the row). `event`:
  *  "other" where the overlay names another event beside the match (overlayEvent); on a split screen, this event's half. */
-async function frameLabel(page: Page, text: string, ctx: { own: string; others: string[] } | undefined): Promise<{ label: string | null; division?: "own" | "other" | null; event?: "other" }> {
+async function frameLabel(page: Page, text: string, ctx: { own: string; others: string[] } | undefined): Promise<{ label: string | null; division?: "own" | "other" | null; event?: "other"; timer?: (typeof TIMER_CROPS)[number] }> {
   const own = pageEvent.get(page);
   const seen = own ? overlayEvent(text, own.name, own.quals, SEMIFINALS) : null;
   if (seen?.event === "other") return { label: null, division: "other", event: "other" };
@@ -266,7 +280,7 @@ async function frameLabel(page: Page, text: string, ctx: { own: string; others: 
   const division = ctx ? overlayDivision(text, ctx.own, ctx.others) : undefined;
   if (whole || division === "other") return { label: whole, division };
   const row = await labelRow(page, ctx, own);
-  return { label: row, division: row && ctx ? "own" : division };
+  return { label: row?.label ?? null, division: row && ctx ? "own" : division, timer: row?.timer };
 }
 
 /** Go to second t. Playing (a timer read needs the clock running), the frame read is about a second on by the time
@@ -344,14 +358,14 @@ async function readAtOnce(page: Page, t: number, labelOnly = false): Promise<Rea
   }
   const text = (await worker.recognize(shot)).data.text as string;
   const ctx = divisions.get(page);
-  const { label, division, event } = await frameLabel(page, text, ctx);
+  const { label, division, event, timer: first } = await frameLabel(page, text, ctx);
   // Another division's match on the shared stream, or another event's beside its name: not this event's, whatever its number.
   if (division === "other") return { label: null, start: null, at, text, why: event === "other" ? "another event's overlay" : "another division's overlay", division };
   if (!label || labelOnly) return { label, start: null, at, text, division };
-  const a = await timer(page);
+  const a = await timer(page, first);
   const atA = await now(page);
   await page.waitForTimeout(1500);
-  const b = await timer(page);
+  const b = await timer(page, first);
   const atB = await now(page);
   if (!a || !b || a.where !== b.where) return { label, start: null, at, text, why: `timer read ${a ? `${a.where} ${a.left}` : "nothing"}, then ${b ? `${b.where} ${b.left}` : "nothing"}` };
   const ran = a.left - b.left, played = atB - atA;
@@ -363,7 +377,7 @@ async function readAtOnce(page: Page, t: number, labelOnly = false): Promise<Rea
   // unread 45 s on: its Auto "0:10" was taken for TeleOp's, a start 128 s early).
   if (a.left <= AUTO_S) {
     await seek(page, atA + 45);
-    const c = await timer(page);
+    const c = await timer(page, first);
     const atC = await now(page);
     const { label: named } = await frameLabel(page, (await worker.recognize(await page.screenshot())).data.text as string, ctx);
     a.auto = !!c && c.where === a.where && c.left > AUTO_S && (named === label || (!named && autoLeadsTo(a.left, atC - atA, c.left)));

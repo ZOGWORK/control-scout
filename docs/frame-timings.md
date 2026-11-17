@@ -20,6 +20,8 @@ point, and reads two things with tesseract.js:
    "Playoff Match 10" or a bare "Match 10" (2025's playoff overlay) into M10. 2019–2023's best-of-3 semifinals
    ("Semifinal 1 Match 2") are named by series and number (M1-2), the event's match of that series and number only:
    its M1 is "Semifinal 1 Match 1", its M2 "Semifinal 2 Match 1" (`sameMatch`).
+   Where the whole frame names nothing, the bar's row is read on its own: along the bottom, then FTC Live's whole bar
+   moved to the top edge (FIRST Nevada, USNVCMP 2024), whose timer is then read first in its own place under that row.
 2. **The timer**, in one of three places: the bar along the bottom (FTC Live's default), a box over the field under
    a bar across the top (FTC Ontario), or the bar along the top (FIRST in Texas). FTC Live's overlay from 2019 to 2022
    shows it as bare seconds ("30", "112": `secondsPlain`), in a box over the scores (SKYSTONE, FREIGHT FRENZY) or

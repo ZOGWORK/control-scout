@@ -58,7 +58,12 @@ powershell -ExecutionPolicy Bypass -File scripts/clip-autopilot-task.ps1
 It clones the repository to `~/control-scout-autopilot`, installs what the reader needs (tesseract.js beside it,
 Playwright's Chromium), and registers the task "Control Scout clip autopilot", every 3 hours while you're signed in.
 `-RunNow` starts a run at once; `-Remove` takes the task away. Any other always-on computer at home works the same way
-(`npx tsx scripts/clip-autopilot.ts` from cron).
+(`node scripts/clip-autopilot-start.mjs` from cron).
+
+A real run always goes through `scripts/clip-autopilot-start.mjs` (plain Node). It holds the run's lock, puts the clone
+back to main (a killed run can leave files changed), and runs `npm ci` when main's `package-lock.json` changed, before
+anything runs from `node_modules`. The runner refuses a real run its start didn't begin: on Windows, `npm ci` can't
+replace `node_modules` under the running tsx (its `esbuild.exe` is held open).
 
 To try it without opening PRs, in any checkout: `npx tsx scripts/clip-autopilot.ts --dry --max 1` reads and checks,
 prints the PRs it would open, and leaves the files as they were.
