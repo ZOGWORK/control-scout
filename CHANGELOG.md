@@ -25,7 +25,7 @@ Videos › 206 more 2024 matches play as clips: Missouri's SW League Tournament,
 - [history] Hawaii League Tournament: 35 of 39 matches as clips
 
 ### Added
-- Frame-read match starts for 6 more 2024 recordings, each clip's opening checked against a paused frame naming its match: USMOKSSWLT 43 of 43 played matches, USLANOQ 42 of 42, USILCCLT1 39 of 39, USNYEXPEQ2 39 of 39, USHIHI24LT 35 of 39 (4 missing), USWIMAQ2 8 of 41 (1 to review, 32 missing). (`server/data/frameTimings/2024.ts`) (#PRNUM)
+- Frame-read match starts for 6 more 2024 recordings, each clip's opening checked against a paused frame naming its match: USMOKSSWLT 43 of 43 played matches, USLANOQ 42 of 42, USILCCLT1 39 of 39, USNYEXPEQ2 39 of 39, USHIHI24LT 35 of 39 (4 missing), USWIMAQ2 8 of 41 (1 to review, 32 missing). (`server/data/frameTimings/2024.ts`) (#1737)
 
 ## 7.6.2 — 2026-11-17
 
