@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.4.2 — 2026-11-17
+
+Videos › 21 more 2025 matches get a clip read off their recording's frames: 14 at the Central Asia Championship (Janibek Division) and 7 at Western Edge, and 28 Janibek matches played before Friday's recording are settled.
+
+### Highlights
+- [fixes] 14 more Janibek Division matches get a clip
+- [fixes] 7 more Western Edge matches get a clip (Sand and Sea)
+- [fixes] Each opens on a frame whose overlay names its match and division
+
+### Fixed
+- Videos: three 2025 events are read off their frames, each clip opening on a paused frame whose overlay names its match and this division. KZCMPJNB2 (Central Asia Championship, Janibek Division): Wednesday's video runs 17 min short of its broadcast, so none of its matches played; 14 of 15 do now, and 31 Thursday and Friday matches play from their frames instead of the clock. Friday's video opens on Playoff Match 10, so Q58–Q76 and M1–M9 are settled as played before it. FPEWESND (Western Edge, Sand): Q67–Q69, Q109 and Q110 get a clip (59 → 64). FPEWESEA (Western Edge, Sea): Q109 and Q110 get a clip (65 → 67). No clip already playing is taken away. (`server/data/frameTimings/2025.ts`) (#1685)
+
 ## 7.4.1 — 2026-11-17
 
 Videos › 20 more 2024 matches get a clip, read off three event videos and checked paused on each clip's opening frame, and 5 matches played before their recording are settled.
