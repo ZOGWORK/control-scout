@@ -33,7 +33,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
 import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, playedCount } from "./lib/videoFrames";
-import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, elapsed, overlayDivision, leadIn, judge, NOTHING_READ, overlayLabel, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M } from "./lib/videoFrames";
+import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, elapsed, overlayDivision, leadIn, judge, NOTHING_READ, overlayLabel, autoLeadsTo, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M } from "./lib/videoFrames";
 
 // The command line: --name value or --name=value for the value flags, --name alone for the others. Anything else stops
 // the run before it reads: a misspelt flag mustn't quietly read (and write) every recording of the season.
@@ -157,6 +157,9 @@ const PLAIN_TIMERS = [
   { where: "plain" as const, clip: { x: 595, y: 594, width: 90, height: 36 }, plain: true },
   { where: "plain" as const, clip: { x: 595, y: 684, width: 90, height: 34 }, plain: true },
 ];
+/** Best-of-3 semifinals and finals (2019–2022): the overlay names every playoff "Semifinal 1 Match 2" or "Finals
+ *  Match 1", never a bare "Match 1" (overlayLabel). */
+const SEMIFINALS = season <= 2022;
 const TIMER_CROPS: { where: "bottom" | "top" | "plain"; clip: { x: number; y: number; width: number; height: number }; loose?: boolean; plain?: boolean }[] =
   season <= 2022 ? [...PLAIN_TIMERS, ...TIMERS] : TIMERS;
 
@@ -184,7 +187,7 @@ const MATCH_HALF = { ...LABEL_ROW, x: 640, width: 640 };
  *  so a match's placement is read as before. On a shared stream the row has to name this division too, as a whole
  *  frame's read does. */
 async function labelRow(page: Page, ctx: { own: string; others: string[] } | undefined): Promise<string | null> {
-  const label = overlayLabel((await rowOcr.recognize(await page.screenshot({ clip: MATCH_HALF }))).data.text as string);
+  const label = overlayLabel((await rowOcr.recognize(await page.screenshot({ clip: MATCH_HALF }))).data.text as string, SEMIFINALS);
   if (!label || !ctx) return label;
   const row = (await rowOcr.recognize(await page.screenshot({ clip: LABEL_ROW }))).data.text as string;
   return overlayDivision(row, ctx.own, ctx.others) === "own" ? label : null;
@@ -233,7 +236,7 @@ async function readAtOnce(page: Page, t: number, labelOnly = false): Promise<Rea
   const division = ctx ? overlayDivision(text, ctx.own, ctx.others) : undefined;
   // Another division's match on the shared stream: not this event's, whatever its number.
   if (division === "other") return { label: null, start: null, at, text, why: "another division's overlay", division };
-  const label = overlayLabel(text) ?? (labelOnly ? await labelRow(page, ctx) : null);
+  const label = overlayLabel(text, SEMIFINALS) ?? (labelOnly ? await labelRow(page, ctx) : null);
   if (!label || labelOnly) return { label, start: null, at, text, division };
   const a = await timer(page);
   const atA = await now(page);
@@ -245,11 +248,15 @@ async function readAtOnce(page: Page, t: number, labelOnly = false): Promise<Rea
   // Running: down by the time played (to the second either side). A paused or standing timer: not in play.
   if (played < 0.5 || Math.abs(ran - played) > 1.6) return { label, start: null, at, text, why: `timer ${a.left} then ${b.left} over ${played.toFixed(1)} s played` };
   // 0:30 or less on either bar: Auto, or the end of TeleOp. 45 s on, Auto has become TeleOp's 2:00 (well over 30 s
-  // left); the end of TeleOp has finished.
+  // left); the end of TeleOp has finished. That later frame is the same match by its overlay, or, where the overlay
+  // can't be read there, by its TeleOp reading the very second Auto's leads to (2019IASQ4's "Semifinal 2 Match 1",
+  // unread 45 s on: its Auto "0:10" was taken for TeleOp's, a start 128 s early).
   if (a.left <= AUTO_S) {
     await seek(page, atA + 45);
     const c = await timer(page);
-    a.auto = !!c && c.where === a.where && c.left > AUTO_S && overlayLabel((await worker.recognize(await page.screenshot())).data.text) === label;
+    const atC = await now(page);
+    const named = overlayLabel((await worker.recognize(await page.screenshot())).data.text, SEMIFINALS);
+    a.auto = !!c && c.where === a.where && c.left > AUTO_S && (named === label || (!named && autoLeadsTo(a.left, atC - atA, c.left)));
   }
   const e = elapsed(a);
   return { label, start: e == null ? null : Math.round(atA - e), at, text, division, ...(e == null ? { why: `timer ${a.left} isn't a running match's` } : {}) };
