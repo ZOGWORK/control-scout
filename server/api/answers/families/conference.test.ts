@@ -9,6 +9,7 @@ import { syncConferences } from "../../../data/conferences";
 import { allConferences } from "../../conferences";
 import { conferenceSearch } from "../index";
 import { plainSearch } from "../../searchAnswer";
+import { resultOf } from "../../searchLayers";
 import { conferenceAskAnswer, matchConference, readConferenceAsk, readConferenceName } from "./conference";
 
 describe("reading a conference ask", () => {
@@ -128,6 +129,19 @@ describe("answering a conference ask", () => {
     const table = a.blocks.find((b) => b.kind === "table");
     expect(table && table.kind === "table" && table.rows.map((r) => [r.cells.team, r.cells.rank, r.cells.rs])).toEqual([
       ["6980 Bad Wolf", 1, "4.0"], ["4215 Hypnotic Robotics", 2, "3.8"], ["207 Critical Mass", 3, "3.8"], ["30680 Tech BnB", "Not ranked yet", "—"]]);
+  });
+
+  it("gives the dropdown the answer's page to open, so a team's conference place is never an empty result (#1640)", async () => {
+    const q = "where does 4215 rank in East Bergen Conference";
+    const a = (await conferenceSearch(q, { full: false, pages: [] }))!;
+    expect(a.understood?.label).toBe("4215 in East Bergen Conference · 2025–26");
+    expect(a.stat).toBeUndefined();
+    expect(a.pages).toEqual([{ title: "4215 in East Bergen Conference · 2025–26", href: `/search?q=${encodeURIComponent(q)}` }]);
+    expect(resultOf(a, { team: true, intent: true })).toBe("answered");
+    // The page itself carries the card, with its own pages only.
+    const f = (await conferenceSearch(q, { full: true, pages: [] }))!;
+    expect(f.pages).toEqual([]);
+    expect(f.stat?.headline?.value).toBe("2nd of 4");
   });
 
   it("answers the season asked, going in from the sign-ups when FIRST has no field yet", async () => {

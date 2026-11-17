@@ -412,7 +412,9 @@ export async function conferenceSearch(q: string, opts: { full: boolean; pages: 
   const rows = events?.length ? await all<any>(`SELECT season, code, name, type, venue, city, state, country, start, end, timezone FROM events WHERE ${events.map(() => "(season = ? AND code = ?)").join(" OR ")}`, events.flatMap((e) => [e.season, e.code])) : [];
   const team = answered.team ? (await search(String(answered.team.number), 5)).find((h) => h.kind === "team" && h.ref === String(answered.team!.number)) : undefined;
   const hits: SearchHit[] = [...(team ? [team] : []), ...rows.map((r) => eventHit(r))];
-  return { q, hits, pages: opts.pages, step: "deterministic", weak: false, understood: { kind: "question", label: answered.title, season },
+  // The dropdown carries no card: the answer's page to open, so the reading there is something to tap, never empty.
+  const pages = opts.full ? opts.pages : [{ title: answered.title, href: `/search?q=${encodeURIComponent(q)}` }, ...opts.pages];
+  return { q, hits, pages, step: "deterministic", weak: false, understood: { kind: "question", label: answered.title, season },
     intent: { kind: "stat-conference", pattern: `${ca.team != null ? "[team] " : ""}[conference] ${ca.won ? "winner" : ca.bare ? (ca.words.length ? "name" : "list") : "ranking"}${ca.season != null ? " [season]" : ""}`, met: true, understood: [answered.title] }, ...(opts.full ? { stat: answered } : {}) };
 }
 
