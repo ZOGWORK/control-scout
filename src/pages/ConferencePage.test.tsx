@@ -176,6 +176,13 @@ describe("a conference's rankings page", () => {
     expect(screen.getByRole("heading", { name: /Standing not available/ })).toBeTruthy();
     expect(screen.queryByText(/has a league standing yet/)).toBeNull();
   });
+  it("opens at its top with the team marked, never scrolled down to the table", () => {
+    const scrolled = vi.fn();
+    Element.prototype.scrollIntoView = scrolled;
+    open();
+    expect(document.querySelector("[data-conference-table] tr[data-team='4215'][data-marked]")).toBeTruthy();
+    expect(scrolled).not.toHaveBeenCalled();
+  });
   it("names itself in the top bar, never \"Not found\"", () => {
     expect(pageTitle("/leagues/2025/USNJ/NO/conferences")).toBe("Conference rankings");
     expect(pageTitle("/leagues/2025/USNJ/NO/conferences/")).toBe("Conference rankings");
