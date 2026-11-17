@@ -849,7 +849,9 @@ async function openOnce(page: Page, videoId: string): Promise<void> {
   // Auto-captions sit right over the bottom bar's timer, and the embed's own bars over the top: hidden.
   // The newer embed also draws the video's title (often the event's name) over the top of a paused frame, outside
   // #movie_player: hidden too, or the event-name check (overlayEvent) could read the title instead of the overlay.
-  await page.addStyleTag({ content: ".ytp-caption-window-container, .caption-window, .ytp-chrome-top, .ytp-pause-overlay, .ytp-show-cards-title, .ytp-ce-element, .ytp-player-content.ytp-iv-player-content, .ytp-large-play-button, .ytp-bezel, .ytp-chrome-bottom, #player-controls, #player-control-overlay, player-top-controls, embedded-player-video-details { display: none !important; }" });
+  // Only the title pieces, never their containers (#player-controls, #player-control-overlay): hiding those turns a
+  // PLAYING frame pure black (USNVCMP 2024: 30 of 30 black; this rule: 77 of 77 drawn, top bar clear).
+  await page.addStyleTag({ content: ".ytp-caption-window-container, .caption-window, .ytp-chrome-top, .ytp-pause-overlay, .ytp-show-cards-title, .ytp-ce-element, .ytp-player-content.ytp-iv-player-content, .ytp-large-play-button, .ytp-bezel, .ytp-chrome-bottom, player-top-controls, .ytwPlayerTopControlsHost, embedded-player-video-details, .ytmCuedOverlayGradient { display: none !important; }" });
 }
 
 async function doCode(code: string): Promise<void> {
