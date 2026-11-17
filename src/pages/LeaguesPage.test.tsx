@@ -54,7 +54,7 @@ describe("the leagues list", () => {
     expect(within(nj).getByRole("link", { name: "New Jersey rankings →" }).getAttribute("href")).toBe("/rankings/regions/USA/NJ?season=2026");
     // New Jersey alone has conferences: with no My team set, a link to each of its leagues' conference rankings.
     expect([...nj.querySelectorAll("[data-conference-button] a")].map((a) => [a.textContent, a.getAttribute("href")])).toEqual([
-      ["Northeast League", "/leagues/2026/USNJ/NE#conferences"], ["South League", "/leagues/2026/USNJ/SO#conferences"]]);
+      ["Northeast League", "/leagues/2026/USNJ/NE/conferences"], ["South League", "/leagues/2026/USNJ/SO/conferences"]]);
     expect(nj.textContent).toContain("View Conference Rankings");
     expect(screen.getByRole("region", { name: "Texas" }).querySelector("[data-conference-button]")).toBeNull();
     expect(screen.getByRole("region", { name: "Texas" }).textContent).not.toContain("Conference");
@@ -66,9 +66,19 @@ describe("a league's page", () => {
   it("links back to its region's rankings and the leagues list", () => {
     mount();
     const nav = screen.getByRole("navigation", { name: "League links" });
-    // A New Jersey league, no My team set: its conference rankings too.
-    expect(within(nav).getAllByRole("link").map((a) => [a.textContent, a.getAttribute("href")])).toEqual([["New Jersey rankings", "/rankings/regions/USA/NJ?season=2026"], ["All leagues", "/leagues?season=2026"], ["View Conference Rankings", "#conferences"]]);
-    expect(document.querySelector("[data-conferences]")).toBeTruthy();
+    // A New Jersey league, no My team set: a button to its conference rankings' own page, the team kept.
+    expect(within(nav).getAllByRole("link").map((a) => [a.textContent, a.getAttribute("href")])).toEqual([["New Jersey rankings", "/rankings/regions/USA/NJ?season=2026"], ["All leagues", "/leagues?season=2026"], ["View Conference Rankings", "/leagues/2026/USNJ/NE/conferences?team=4215"]]);
+    const button = nav.querySelector("[data-conference-button]")!;
+    expect(button.className).toContain("rounded-lg border");
+    expect(button.querySelector("svg")).toBeTruthy();
+  });
+
+  it("sends an old link to its conference section to the conference page", () => {
+    render(<MemoryRouter initialEntries={["/leagues/2026/USNJ/NE?conference=hudson-east-bergen-conference&team=4215#conferences"]}><Routes>
+      <Route path="/leagues/:season/:region/:code" element={<LeaguePage />} />
+      <Route path="/leagues/:season/:region/:code/conferences" element={<p data-landed>conference page</p>} />
+    </Routes></MemoryRouter>);
+    expect(document.querySelector("[data-landed]")).toBeTruthy();
   });
 
   it("shows Scout's numbers beside FIRST's, and Not rated yet where there's no rating", () => {
@@ -82,14 +92,4 @@ describe("a league's page", () => {
     expect(rows[1].querySelector("[data-region-rank]")).toBeNull();
   });
 
-  it("marks My team's row in the conference table when the link names no team", () => {
-    myTeam = 4215;
-    const row = (team: number, rank: number) => ({ team, name: `Team ${team}`, rank, leagueRank: rank, wins: 1, losses: 0, ties: 0, rs: 2, tbp: 10, played: 5, meets: 1, rating: null, opr: null });
-    conferences = [{ season: 2026, code: "USNJNELT2", name: "Hudson/East Bergen Conference", slug: "hudson-east-bergen-conference", firstName: null, event: "Hudson/East Bergen Conference", start: "2027-02-21",
-      venue: null, city: null, status: "upcoming", teamsFrom: "field", registered: null, rs: { kind: "live", asOf: null }, leagueOf: 2, rows: [row(9001, 1), row(4215, 2)], winner: null, seasons: [] }];
-    render(<MemoryRouter initialEntries={["/leagues/2026/USNJ/NE"]}><Routes><Route path="/leagues/:season/:region/:code" element={<LeaguePage />} /></Routes></MemoryRouter>);
-    expect(document.querySelector("[data-conference-table] tr[data-marked]")?.getAttribute("data-team")).toBe("4215");
-    // The league table keeps marking only the link's team.
-    expect(document.querySelector("[data-league-table] tr[data-marked]")).toBeNull();
-  });
 });
