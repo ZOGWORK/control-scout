@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 7.3.1 — 2026-11-17
+## 7.3.2 — 2026-11-17
 
 Owner › Clip coverage now knows which events are due for a frame read: every event whose official recording has matches without a clip queues itself, most missing first, the moment its recording is linked.
 
@@ -26,6 +26,23 @@ Owner › Clip coverage now knows which events are due for a frame read: every e
 
 ### Added
 - Owner › Clip coverage: each event with a missing clip carries its place with the automatic frame reader: queued (with its place in line and the matches a read could place), waiting (the event isn't over yet, or its video's YouTube facts aren't in), read (the date, each match keeping its own why), or nothing a frame read can place (no video that day, a private video, no real start from FIRST). The queue's numbers and the next events in line come with it. A recording the official-videos watcher links is in the queue at the next coverage check, five minutes at most. A video read on or before the event's last day is due once more after the event. (`server/videos/frameQueue.ts`, `server/videos/coverageCheck.ts`) (#1652)
+
+## 7.3.1 — 2026-11-17
+
+Rankings › a New Jersey league's conferences get their own rankings page, laid out like region rankings.
+
+### Highlights
+- [rankings] Each NJ conference has its own rankings page
+- [rankings] Biggest climbers, fallers and newcomers before the table
+- [rankings] A switch between the league's conferences, with date and teams
+- [rankings] View Conference Rankings button on the league page
+- [rankings] The tournament's winners shown above the table
+
+### Rankings
+- The page sits at /leagues/SEASON/REGION/LEAGUE/conferences; old #conferences links on the league page open it (#1657).
+- Moves are places by Scout rating among the conference's teams, week over week, labelled as Scout's, never FIRST's league rank.
+- Teams with no league meet yet sit under "Not ranked yet" instead of the table.
+- Footer links to world, New Jersey and all-region rankings, all leagues, the league and the tournament.
 
 ## 7.3.0 — 2026-11-17
 
