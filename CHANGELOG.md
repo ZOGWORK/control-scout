@@ -22,6 +22,7 @@ Videos › Every match of four 2023 qualifiers (Mount St Joseph Stage Left, Mech
 ### Highlights
 - [history] 126 more 2023 matches as clips
 - [fixes] Each opens on a frame naming its match and event
+- [history] Four qualifiers covered match for match
 
 ### Fixed
 - Videos (`server/data/frameTimings/2023.ts`): CHS-MD Mount St Joseph Qualifier Stage Left (32 of 32), CHS-VA Mechanicsville Mayhem Qualifier Stage Right (32 of 32), CHS-VA Norfolk Academy Qualifier (31 of 31) and MS Grenada Qualifier (31 of 31) get frame-checked starts. Every opening frame names its match. No frame names the other stage or another event. (#1763)
