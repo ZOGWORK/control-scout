@@ -292,9 +292,10 @@ async function confirmed(page: Page, label: string, start: number, own = false, 
         const off = startOffset(start, at.start);
         // A recording cut mid-match: the start stands if an Auto read, early in the same match, agrees with it.
         if (off === "lost" && (await autoAgrees(page, label, start))) { why = ""; break; }
-        // The first read came after a cut: the other start may be the real one (checked by the caller).
-        // Its division evidence goes with it: a read here that showed the own division counts for the other start too.
-        if (off === "gained" && other) { other.start = at.start; other.own = own; }
+        // The first read came after a cut, or took Auto for TeleOp's end ("period"): the other start may be the real
+        // one (checked by the caller, in full). Its division evidence goes with it: a read here that showed the own
+        // division counts for the other start too.
+        if ((off === "gained" || off === "period") && other) { other.start = at.start; other.own = own; }
         return `${after} s on its timer gave a start ${Math.round(at.start - start)} s off`;
       }
       why = "";
@@ -539,7 +540,7 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
     // The read came after a cut in the recording (a later read gives a later start): the later start, checked the same way.
     if (other.start != null && reads() < budget && (await confirmed(page, r.label!, other.start, r.division === "own" || !!other.own)) == null) {
       seen.set(i, other.start);
-      log(`    ${r.label} at ${r.start} s read after a cut in the video; its start is ${other.start} s`);
+      log(`    ${r.label} at ${r.start} s read after a cut in the video, or Auto taken for TeleOp; its start is ${other.start} s`);
       return;
     }
     unconfirmed++;
