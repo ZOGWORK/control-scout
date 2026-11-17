@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.4.7 — 2026-11-17
+
+Videos › 51 more 2022 (POWERPLAY) match clips from Iowa's Chemical League and Indiana's North-Central League tournaments.
+
+### Highlights
+- [history] Iowa Chemical League Tournament: clips for 25 of 31 matches
+- [history] Indiana North-Central League Tournament: clips for 26 of 28
+- [fixes] Every clip opens on a frame naming its match and its own event
+
+### Added
+- Videos: clips read off the recordings' frames (`server/data/frameTimings/2022.ts`): USIACHLT 25 of 31 played matches, USINNCLT 26 of 28. Each placed start's clip opens on a paused frame whose overlay names that match (20, 12, 5, 2 or 0 s before it), and no frame names another event. The matches left out stay without a clip, with the reason. (#1722)
+
 ## 7.4.6 — 2026-11-17
 
 Videos › 104 more 2022 (POWERPLAY) match clips from Virginia's Mechanicsville 2 and Norfolk qualifiers and Maryland's Potomac qualifier.
