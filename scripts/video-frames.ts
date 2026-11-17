@@ -186,10 +186,10 @@ async function labelRow(page: Page, ctx: { own: string; others: string[] } | und
   if (!label || (!ctx && !event)) return label;
   // The whole row has the event's name beside the match: another event's is never this one's.
   const row = (await rowOcr.recognize(await page.screenshot({ clip: LABEL_ROW }))).data.text as string;
-  // On a split screen the match half may be the other event's: this event's half of the row gives its match.
+  // On a split screen the match half may be the other event's: the match beside this event's name in the row is its.
   const seen = event ? overlayEvent(row, event.name, event.quals) : null;
   if (seen?.event === "other") return null;
-  const own = seen?.label ?? label;
+  const own = seen?.phrase ?? label;
   return !ctx || overlayDivision(row, ctx.own, ctx.others) === "own" ? own : null;
 }
 
