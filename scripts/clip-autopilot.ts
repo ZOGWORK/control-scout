@@ -32,6 +32,7 @@ import { applyRows, changedRows, chunkRows, fileRows, prMarker, readMarker, rowK
 import { changelogEntry, forgetSettled, nextVersion, pickEvents, remember, rowsDelta, type Memory } from "./lib/autopilotRun";
 import { clipCheckProblems, clipsDelta, clipsEntry } from "./lib/autopilotClips";
 import { prGate } from "./lib/autopilotPr";
+import { mainQuiet, pickMerge, servesMerge } from "./lib/autopilotMergeStep";
 import type { ClipCheck } from "../server/data/clipChecks";
 
 const argv = process.argv.slice(2);
@@ -205,44 +206,42 @@ for (const p of open) {
 if (!DRY && MERGE) mergeOne();
 function mergeOne(): void {
   try {
-    const me = sh("gh", ["api", "user", "--jq", ".login"], { quiet: true }).out.trim();
     const last = Date.parse(sh("gh", ["api", "repos/{owner}/{repo}/commits/main", "--jq", ".commit.committer.date"], { quiet: true }).out.trim());
-    if (!(Date.now() - last >= MAIN_QUIET_MS)) { log(`merge: main's last commit is ${Math.round((Date.now() - last) / 60_000)} min old, under ${MAIN_QUIET_MS / 1000} s: none this run`); return; }
+    const why = mainQuiet(last, Date.now(), MAIN_QUIET_MS);
+    if (why) { log(`merge: ${why}: none this run`); return; }
+    const me = sh("gh", ["api", "user", "--jq", ".login"], { quiet: true }).out.trim();
     git("fetch", "--quiet", "origin");
-    for (const p of open) {
-      if (rebuilt.has(p.number)) continue;
-      const author = sh("gh", ["pr", "view", String(p.number), "--json", "author", "--jq", ".author.login"], { quiet: true }).out.trim();
-      if (author !== me) { log(`merge: #${p.number} is ${author}'s, not this autopilot's (${me}): left`); continue; }
-      const g = prGate(p.number);
-      if (g.problems.length) { log(`merge: #${p.number} waits: ${g.problems.slice(0, 4).join("; ")}${g.problems.length > 4 ? ` (+${g.problems.length - 4})` : ""}`); continue; }
-      // The exact head the gate passed, or no merge: a push since then means another review.
-      const r = sh("gh", ["pr", "merge", String(p.number), "--merge", "--match-head-commit", g.head], { ok: true });
-      if (r.code) { log(`merge: #${p.number} refused by GitHub (exit ${r.code}): left open`); continue; }
-      const merged = sh("gh", ["pr", "view", String(p.number), "--json", "mergeCommit", "--jq", ".mergeCommit.oid"], { quiet: true }).out.trim();
-      log(`merge: #${p.number} merged as ${merged.slice(0, 9)} (${g.version}); waiting for it live`);
-      waitLive(merged, g.version);
-      // main moved: the PRs this run opens next take the version after this one, live or not.
-      git("fetch", "--quiet", "origin");
-      return;
-    }
+    const { pick, passed } = pickMerge(open, {
+      rebuilt, me, gate: prGate,
+      author: (n) => sh("gh", ["pr", "view", String(n), "--json", "author", "--jq", ".author.login"], { quiet: true }).out.trim(),
+    });
+    for (const p of passed) log(`merge: ${p}`);
+    if (!pick) return;
+    // The exact head the gate passed, or no merge: a push since then means another review.
+    const r = sh("gh", ["pr", "merge", String(pick.number), "--merge", "--match-head-commit", pick.head], { ok: true });
+    if (r.code) { log(`merge: #${pick.number} refused by GitHub (exit ${r.code}): left open`); return; }
+    const merged = sh("gh", ["pr", "view", String(pick.number), "--json", "mergeCommit", "--jq", ".mergeCommit.oid"], { quiet: true }).out.trim();
+    log(`merge: #${pick.number} merged as ${merged.slice(0, 9)}; waiting for it live`);
+    waitLive(merged, `#${pick.number}`);
+    // main moved: what this run opens next is made on main as it is now, live or not.
+    git("fetch", "--quiet", "origin");
   } catch (e) {
     log(`merge: stopped (${(e as Error).message}); nothing merged this run`);
   }
 }
-/** Waits (up to LIVE_WAIT_MS) for the site's /api/health to serve `merged` or a later main commit. */
-function waitLive(merged: string, version: string): void {
+/** Waits (up to LIVE_WAIT_MS) for the site's /api/health to serve `merged` (the merge commit) or a later main commit. */
+function waitLive(merged: string, what: string): void {
   const until = Date.now() + LIVE_WAIT_MS;
+  const isAncestor = (older: string, newer: string) => {
+    sh("git", ["fetch", "--quiet", "origin"], { ok: true, quiet: true });
+    return sh("git", ["merge-base", "--is-ancestor", older, newer], { ok: true, quiet: true }).code === 0;
+  };
   while (Date.now() < until) {
     sh(process.execPath, ["-e", "setTimeout(() => {}, 60000)"], { quiet: true, ok: true });
     const health = sh("curl", ["-s", "--max-time", "20", HEALTH_URL], { quiet: true, ok: true }).out;
-    let release = "";
-    try { release = String(JSON.parse(health).release ?? ""); } catch { continue; }
-    if (!release) continue;
-    sh("git", ["fetch", "--quiet", "origin"], { ok: true, quiet: true });
-    // Live: the release served is the merge, or a main commit after it.
-    if (release === merged || sh("git", ["merge-base", "--is-ancestor", merged, release], { ok: true, quiet: true }).code === 0) { log(`merge: ${version} live (release ${release.slice(0, 9)})`); return; }
+    if (servesMerge(health, merged, isAncestor)) { log(`merge: ${what} live (${merged.slice(0, 9)})`); return; }
   }
-  log(`merge: ${merged.slice(0, 9)} (${version}) not live after ${LIVE_WAIT_MS / 60_000} min: check the deploy`);
+  log(`merge: ${what} (${merged.slice(0, 9)}) not live after ${LIVE_WAIT_MS / 60_000} min: check the deploy`);
 }
 
 // --- 2. A snapshot of the live database ---------------------------------------------------------------------------------
