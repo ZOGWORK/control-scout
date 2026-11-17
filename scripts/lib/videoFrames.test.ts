@@ -1,7 +1,7 @@
 // The pure parts of the frame reader (scripts/video-frames.ts): the overlay's match, the timer's elapsed time, and
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
-import { dataRows, divisionOf, elapsed, overlayDivision, leadIn, LEAD_IN_S, judge, NOTHING_READ, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, type M } from "./videoFrames";
+import { dataRows, divisionOf, elapsed, overlayDivision, leadIn, LEAD_IN_S, judge, NOTHING_READ, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, type M } from "./videoFrames";
 
 describe("the frame reader", () => {
   // A 1280 × 720 frame: a grey field, and a score bar from `top` to `bottom` with one alliance's colour each side of the
@@ -43,6 +43,18 @@ describe("the frame reader", () => {
     expect(overlayBand(frame([{ top: 300, bottom: 310 }]), 1280, 720)).toBeNull();
     // A results card: its blue half and red half fill the frame's height (CENTERSTAGE's "WINNER" card).
     expect(overlayBand(frame([{ top: 60, bottom: 660 }]), 1280, 720)).toBeNull();
+  });
+
+  it("steps the upload scan on past a named match until its timer runs, through a cutaway", () => {
+    // USTXNTM1 2023: the scan frame names Q11 with no timer running; a minute on, a camera cutaway names nothing; the
+    // steps go on (k = 2, 3) all the same.
+    expect(stepOn(true, null, 1)).toBe(true);
+    expect(stepOn(true, null, 2)).toBe(true);
+    expect(stepOn(true, null, SCAN_AHEAD)).toBe(true);
+    expect(stepOn(true, null, SCAN_AHEAD + 1)).toBe(false);
+    // A running start read: done. A scan frame naming nothing: no stepping.
+    expect(stepOn(true, 2275, 2)).toBe(false);
+    expect(stepOn(false, null, 1)).toBe(false);
   });
 
   it("reads the match's row over a bar found somewhere other than the bottom", () => {
