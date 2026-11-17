@@ -25,7 +25,7 @@ Videos › the frame reader no longer takes a season logo misread for another ev
 - [fixes] No clip changes
 
 ### Fixed
-- Videos (the frame reader, `scripts/lib/videoFrames.ts`): POWERPLAY's (2022) "FIRST ENERGIZE" logo reads "FIRST ZN=RGIZ= swe" on a playing frame, two words beside the match that aren't the event's, so `overlayEvent` called every frame of KZCMP 2022 another event's overlay and read none. A name now counts as another event's only with two telling words of four letters or more, a name read as another's never overrules an "of M" that is this event's own qualification total, and ENERGIZE is a season logo word.
+- Videos (the frame reader, `scripts/lib/videoFrames.ts`): POWERPLAY's (2022) "FIRST ENERGIZE" logo reads "FIRST ZN=RGIZ= swe" on a playing frame, two words beside the match that aren't the event's, so `overlayEvent` called every frame of KZCMP 2022 another event's overlay and read none. A name now counts as another event's only with two telling words of four letters or more, a name read as another's never overrules an "of M" that is this event's own qualification total, and ENERGIZE is a season logo word. (#1697)
 
 ## 7.4.5 — 2026-11-17
 
