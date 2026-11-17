@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 7.3.4 — 2026-11-17
+## 7.3.5 — 2026-11-17
 
 Search engines › a page Google drew before a deploy still finds its scripts, so its render no longer comes out empty.
 
@@ -25,7 +25,17 @@ Search engines › a page Google drew before a deploy still finds its scripts, s
 - [fixes] A tab left open across an update still opens its pages
 
 ### Fixed
-- Search engines: only the three newest releases stay on disk and the site deploys several times a day, so a page drawn hours earlier (kept by Googlebot's renderer, which caches scripts for weeks, or open in a tab) asked for chunks that were gone: Googlebot got 404s on `/assets/*.js` (about 370 in two weeks of the server's log), and a page whose chunk is missing renders empty, which Google reads as a soft 404. Every release's hashed files are now kept for 30 days in one archive the server falls back to after the release's own files (each file renamed in whole, never rewritten while served); anything in neither is still a 404. (`server/app.ts`, `deploy/oracle-vm-setup.sh`) (#1666)
+- Search engines: only the three newest releases stay on disk and the site deploys several times a day, so a page drawn hours earlier (kept by Googlebot's renderer, which caches scripts for weeks, or open in a tab) asked for chunks that were gone: Googlebot got 404s on `/assets/*.js` (about 370 in two weeks of the server's log), and a page whose chunk is missing renders empty, which Google reads as a soft 404. Every release's hashed files are now kept for 30 days in one archive the server falls back to after the release's own files (each file renamed in whole, never rewritten while served); anything in neither is still a 404. (`server/app.ts`, `deploy/oracle-vm-setup.sh`) (#1666)## 7.3.4 — 2026-11-17
+
+Videos › the frame reader now reads CENTERSTAGE (2023) recordings, whose overlay it couldn't read before, so their matches can get clips.
+
+### Highlights
+- [fixes] 2023 recordings can be read for match clips
+- [fixes] Score bars at the top of the screen are found too
+- [fixes] Uploaded recordings find their first match sooner
+
+### Fixed
+- Videos (`scripts/video-frames.ts`, `scripts/lib/videoFrames.ts`): CENTERSTAGE's (2023) recordings read no match at all. A busy frame loses FTC Live's bar in a whole-frame read, so placement reads now fall back on the bar's row read on its own, at its usual height or 8 px lower, as clip openings already did. Where none of the known crops holds the timer, the score bar is found by its alliance colours wherever the stream put it (Arizona's flush-top bar in dark navy and maroon), and its timer and the row over it are read there. An upload's scan steps a minute on, up to three times, past a frame naming a match not yet running. CENTERSTAGE's playoffs are best-of-3 semifinals, named "Semifinal 2 Match 1" on the overlay, so a read that loses "Semifinal" no longer takes that for M1 and pulls the real match's clip. Measured on dry runs: NLBNM1 0 → 22 of 23 placed, USTXNTM1 0 → 10 of 17 (Q1–Q7 come before the video), USAZGIQ 0 → 37 of 38, each opening naming its match (#1655).
 
 ## 7.3.3 — 2026-11-17
 
