@@ -1,7 +1,7 @@
 // The pure parts of the frame reader (scripts/video-frames.ts): the overlay's match, the timer's elapsed time, and
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
-import { dataRows, divisionOf, cropOrder, elapsed, flippedClip, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, type M } from "./videoFrames";
+import { countsThrough, dataRows, divisionOf, cropOrder, elapsed, flippedClip, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, type M } from "./videoFrames";
 
 describe("the frame reader", () => {
   // A 1280 × 720 frame: a grey field, and a score bar from `top` to `bottom` with one alliance's colour each side of the
@@ -229,6 +229,22 @@ describe("the frame reader", () => {
     // The end of TeleOp ("0:20") leads to a finished match: no TeleOp reading 45 s on is its.
     expect(autoLeadsTo(20, 45, 30)).toBe(false);
     expect(autoLeadsTo(30, 30, 120)).toBe(false);
+  });
+
+  it("tells a timeout's countdown through a start from a match's card", () => {
+    // A 3:00 timeout on an audience display's card, read at 1:50 under a bar naming the next match, gives a start
+    // where it shows 2:38: 25 s before that it shows 3:03, 90 s before 4:08.
+    expect(countsThrough(183, 25)).toBe(true);
+    expect(countsThrough(248, 90)).toBe(true);
+    // Taken as a whole-match count (2:30 at the start), a few seconds' OCR either way.
+    expect(countsThrough(175, 25)).toBe(true);
+    expect(countsThrough(186, 25)).toBe(true);
+    // A real match: its card stands at 2:30 before it (never over 2:38), or shows the last match's 0:00.
+    expect(countsThrough(150, 25)).toBe(false);
+    expect(countsThrough(0, 25)).toBe(false);
+    // A long countdown that doesn't reach the start's 2:30–2:38 is something else (a break timer ending elsewhere).
+    expect(countsThrough(300, 25)).toBe(false);
+    expect(countsThrough(170, 25)).toBe(false);
   });
 
   it("reads a timer", () => {
