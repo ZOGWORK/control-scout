@@ -72,7 +72,9 @@ exceptions rules 2 and 7 name for the checked list only, and the auto-watcher us
 
 1. It's on an official channel, it exists, it's public, it can be embedded, and YouTube doesn't block it in most
    countries.
-2. It's a live broadcast whose start, at the venue, falls inside the event's dates in Scout. An upload has no
+2. It's a live broadcast whose start, at the venue, falls inside the event's dates in Scout: FIRST's listed dates,
+   widened to every day the event played a match (`server/videos/eventDays.ts`; FIRST lists KZCMP 2022 as 23 to 25
+   Feb 2023, and it played its last qualifications and its playoffs on the 26th). An upload has no
    broadcast date, so it can't prove its day, and is left out. The checked list makes one exception, by hand: an
    upload whose title names its date (FIRST Nevada's "2026-01-10 FTC League Meet # 4S - Southern Nevada") and, where
    a venue holds several meets that day, its session (FIRST MOKS's "FTC Meet @ Belton 8AM (2026-11-7)" is "Belton
