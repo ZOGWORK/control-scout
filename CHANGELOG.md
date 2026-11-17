@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.6.1 — 2026-11-17
+
+Search › "WAC" reads as winning alliance captain, so "nj wac" lists New Jersey's Winning Alliance Captains.
+
+### Highlights
+- [fixes] "WAC" means winning alliance captain in search
+- [fixes] "NJ WACs" lists the state's captains
+- [fixes] "WAC" is never changed by spelling fixes
+
+### Fixed
+- Search (`server/api/answers/families/placeAwards.ts`, `server/api/spelling.ts`): "WAC" and "WACs", the usual short form, read as the words in full ("nj wac", "teams in nj that won wac"), and spelling leaves them as typed. Only the whole word counts ("wacky" doesn't). (#1725)
+
 ## 7.6.0 — 2026-11-17
 
 Videos › 85 more 2024 matches play as clips: Indianapolis's qualifier in full and New York's Broadalbin-Perth qualifier.
