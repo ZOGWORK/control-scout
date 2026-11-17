@@ -28,10 +28,6 @@ point, and reads two things with tesseract.js:
    under POWERPLAY's centre graphic; for those seasons those places are read first, then POWERPLAY's bar flipped to
    the top of the frame (Arizona's 2022 championship), its box at the same crop mirrored (`flippedClip`). A timer's two
    readings come from one crop, and the crop whose clock last ran is read first for the rest of the video (`cropOrder`).
-   Where none of those places reads, or the label came from the top row, the timer's own box is found in the bar
-   (`timerDigits`): the light box between the alliances' scores, its digits the tallest inked rows in it, so neither
-   the icon under them nor a field monitor's box beside the bar is read (Nevada 2023's top bar stands its box above the
-   coloured band, where a fixed crop read the robot icon and put every match ~20 s late).
    Each counts Auto down from 0:30,
    then 8 s to pick up the controllers ("0:05" under a hand), then TeleOp from 2:00. Some bottom bars instead
    count the whole match down from 2:30: Auto reads 2:30 to 2:00 there, so a bottom-bar reading above 2:00 is that
