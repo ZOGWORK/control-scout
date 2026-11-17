@@ -17,15 +17,15 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 
 ## 7.6.3 — 2026-11-17
 
-Videos › 124 more matches get clips, each start read off its recording's own frames (3 recordings of 1 event, 2022), read and checked by the clip autopilot.
+Event videos › a title's "Day 2" can mean the event's second day of play, and two Romanian events get the recordings of the days FIRST's dates left out.
 
 ### Highlights
-- [fixes] 124 more matches get clips read off their recordings
-- [fixes] Each clip opens on a frame naming its match
-- [fixes] Read automatically once the event ended
+- [fixes] A title's day number counts the days an event played
+- [fixes] RO #4 Iasi 2024 day 2 recording linked
+- [fixes] Romania's 2021 national championship recording linked
 
 ### Fixed
-- Videos: frame-read rows for ROBUQ1 (2022): 124 clips added, 6 matches given a reason from the frames. Every start passed the autopilot's checks (opening frame at 20/12/5/2/0 s naming the match, plausible, no live clip pulled without a frame naming another match). (`server/data/frameTimings/2022.ts`) (#1717)
+- Event videos: a title's "Day N" must be the event's own day N, counted by the calendar from its first day or by the days it played a match. RONR4LT 2023 is listed 7 to 9 March 2024 and played on the 9th and 10th: its "DAY 2" broadcast on the 10th read as the event's day 4, and with #1703's wider days the channel audit would have opened it as a finding. Its day-2 recording (Finals Match 1 on a frame) and ROBUOS1 2020's one day of play, 30 Aug 2021 after its listed 27 to 29 (Semifinal 1 Match 1 on a frame), are linked. (`server/videos/officialMatch.ts`, `server/data/videoDecisions.ts`) (#1726)
 
 ## 7.6.2 — 2026-11-17
 
