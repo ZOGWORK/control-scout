@@ -17,7 +17,7 @@ export const AUTO_S = 30, SWITCH_S = 8, TELEOP_S = 120;
 /** The match an overlay names: "Qualification 21 of 36" → Q21, "Finals Match 2" → F2, "Playoff Match 7" or just
  *  "Match 7" (a playoff on 2025's overlay) → M7; anything else none. A frame's label only counts with its timer seen
  *  running and confirmed a minute on (scripts/video-frames.ts), so a bracket screen or schedule naming a match, with no
- *  timer running, gives no start. `semifinals`: the event's playoffs are best-of-3 semifinals and finals (2019–2022),
+ *  timer running, gives no start. `semifinals`: the event's playoffs are best-of-3 semifinals and finals (2019–2023),
  *  whose overlay names each as "Semifinal 1 Match 2" or "Finals Match 1": a bare "Match 1" there is one of those read
  *  with its first word lost (2019IASQ4's "Finals Match 1" read "Match 1"), so it names none. */
 export function overlayLabel(text: string, semifinals = false): string | null {
@@ -26,7 +26,7 @@ export function overlayLabel(text: string, semifinals = false): string | null {
   // "Finals" with a letter the OCR reads as another ("Finais", "Fnals").
   const f = /(?<!Semi-?\s?)\bF[il1]?na[il1|]s?\s+Match\s+(\d)\b/i.exec(text);
   if (f) return `F${Number(f[1])}`;
-  // Best-of-3 semifinals (2019–2022's playoffs): "Semifinal 2 Match 1" is the second semifinal's first match, the
+  // Best-of-3 semifinals (2019–2023's playoffs): "Semifinal 2 Match 1" is the second semifinal's first match, the
   // event's M2 (series 2, number 1), and "Semifinal 1 Match 2" is its M1-2, never M2. Named with series and number
   // ("M2-1", "M1-2") so it's never taken for a replay (sameMatch).
   const sf = /Semi-?\s?finals?\s+(\d)\s+Match\s+(\d)\b/i.exec(text);
@@ -234,6 +234,84 @@ export function overlayEvent(text: string, own: string, quals?: number, semifina
   const phrase = ownLabel ? { phrase: ownLabel } : {};
   if (ownSeen) return other ? { event: "own", ...(ownLabel ? { label: ownLabel } : {}), ...phrase } : { event: "own", ...phrase };
   return { event: other ? "other" : null };
+}
+
+/**
+ * The match FTC Live's bottom bar names when its row is read on its own (the reader's labelRow): `half` is the read of
+ * the row's right half, where the match sits ("Qualification 10 of 17"), `row` the whole row's, where the event or
+ * division sits. On a stream an event's divisions share (`ctx`), the row must name this division, as a whole frame's
+ * read must; a row naming no division, or a sibling's, names no match of this event. `semifinals`: as overlayLabel's.
+ */
+export function rowLabel(half: string, row: string | null, ctx?: { own: string; others: string[] }, semifinals = false): string | null {
+  const label = overlayLabel(half, semifinals);
+  if (!label || !ctx) return label;
+  return row != null && overlayDivision(row, ctx.own, ctx.others) === "own" ? label : null;
+}
+
+/**
+ * Where FTC Live's score bar sits in a frame (RGBA pixels, `width` × `height`): the rows where one alliance's colour
+ * fills much of the half left of the timer's column and the other's the half right of it (blue then red, or red then
+ * blue): whole halves, as a bar's white score badges can fill the stretch beside the timer (Arizona's, USAZGIQ 2023). Its tallest run of such rows (a row or two of icons and digits breaking it is bridged) is the bar, wherever the
+ * stream put it: along the bottom (FTC Live's default), under a title bar at the top (FIRST in Texas), or flush with the
+ * top (Arizona's CENTERSTAGE streams, the timer 56–96 px down). Null: no run at least 3% of the frame tall (a frame with
+ * no bar: a slate, a camera, a results card). Self-contained (no imports, no outer names): the reader runs it in the page.
+ */
+export function overlayBand(px: ArrayLike<number>, width: number, height: number): { top: number; bottom: number } | null {
+  const BLUE = 1, RED = 2;
+  const colour = (i: number): number => {
+    const r = px[i], g = px[i + 1], b = px[i + 2];
+    // By hue more than brightness: Arizona's bar is a dark navy (2, 46, 80) and maroon (111, 12, 17). Red twice the
+    // green and blue, so an orange wood floor (200, 130, 60) is neither.
+    if (b >= 60 && b > r + 40 && b > g * 1.4) return BLUE;
+    if (r >= 70 && r > g * 2 && r > b * 2) return RED;
+    return 0;
+  };
+  // Share of a stretch's pixels in each colour, every other pixel.
+  const share = (y: number, from: number, to: number): [number, number] => {
+    let blue = 0, red = 0, n = 0;
+    for (let x = Math.round(from * width); x < Math.round(to * width); x += 2) {
+      const c = colour((y * width + x) * 4);
+      if (c === BLUE) blue++; else if (c === RED) red++;
+      n++;
+    }
+    return [blue / n, red / n];
+  };
+  const MIN = 0.4, GAP = 3, TALL = Math.round(height * 0.03), CARD = Math.round(height * 0.2);
+  let best: { top: number; bottom: number } | null = null, top = -1, last = -1;
+  for (let y = 0; y <= height; y++) {
+    let bar = false;
+    if (y < height) {
+      const [lb, lr] = share(y, 0.02, 0.44), [rb, rr] = share(y, 0.56, 0.98);
+      bar = (lb >= MIN && rr >= MIN) || (lr >= MIN && rb >= MIN);
+    }
+    if (bar) { if (top < 0 || y - last > GAP + 1) top = y; last = y; continue; }
+    if (top >= 0 && (y - last > GAP || y === height)) {
+      if (last - top + 1 >= TALL && last - top + 1 <= CARD && (!best || last - top + 1 > best.bottom - best.top)) best = { top, bottom: last + 1 };
+      top = -1;
+    }
+  }
+  return best;
+}
+
+/**
+ * The row over a score bar found in the frame (overlayBand), where FTC Live names the match: as tall as the usual row
+ * (`usual`, over the bottom bar), cut at the frame's top. Null where it would be the usual row again (a bar where the
+ * bottom bar always is), or there's no room over the bar for a line of text.
+ */
+export function rowAbove(band: { top: number }, usual: { x: number; y: number; width: number; height: number }): { x: number; y: number; width: number; height: number } | null {
+  const y = Math.max(0, band.top - usual.height), height = band.top - y;
+  if (height < 24 || Math.abs(y - usual.y) <= 16) return null;
+  return { x: usual.x, y, width: usual.width, height };
+}
+
+/** Reads a minute apart the upload scan takes past a frame naming a match not yet running: a match's turnaround is 4–8
+ *  minutes, so three minutes on usually lands in its play (the next scan frame, 10 minutes on, tries again if not). */
+export const SCAN_AHEAD = 3;
+/** Whether the upload scan reads a minute on again (the k-th step): the scan frame named a match (`named`) and no read
+ *  since gave a running start (`start`, the last read's). Only the first frame's naming counts: a step landing on a camera
+ *  cutaway that names nothing keeps stepping, as the match is still to come. */
+export function stepOn(named: boolean, start: number | null, k: number): boolean {
+  return named && start == null && k <= SCAN_AHEAD;
 }
 
 /** How long before a broadcast's start a match no broadcast holds is still looked for in it (seconds). */
