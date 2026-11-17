@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 7.3.3 — 2026-11-17
+## 7.3.4 — 2026-11-17
 
 Videos › the frame reader now reads CENTERSTAGE (2023) recordings, whose overlay it couldn't read before, so their matches can get clips.
 
@@ -26,6 +26,19 @@ Videos › the frame reader now reads CENTERSTAGE (2023) recordings, whose overl
 
 ### Fixed
 - Videos (`scripts/video-frames.ts`, `scripts/lib/videoFrames.ts`): CENTERSTAGE's (2023) recordings read no match at all. A busy frame loses FTC Live's bar in a whole-frame read, so placement reads now fall back on the bar's row read on its own, at its usual height or 8 px lower, as clip openings already did. Where none of the known crops holds the timer, the score bar is found by its alliance colours wherever the stream put it (Arizona's flush-top bar in dark navy and maroon), and its timer and the row over it are read there. An upload's scan steps a minute on, up to three times, past a frame naming a match not yet running. CENTERSTAGE's playoffs are best-of-3 semifinals, named "Semifinal 2 Match 1" on the overlay, so a read that loses "Semifinal" no longer takes that for M1 and pulls the real match's clip. Measured on dry runs: NLBNM1 0 → 22 of 23 placed, USTXNTM1 0 → 10 of 17 (Q1–Q7 come before the video), USAZGIQ 0 → 37 of 38, each opening naming its match (#1655).
+
+## 7.3.3 — 2026-11-17
+
+Owner console › Clip coverage is now a quick, visual review screen: meters and coloured tiles up top, one card per event, and every missing match a chip that opens its video at the right second.
+
+### Highlights
+- [workspace] Clip coverage: two big progress meters and coloured count tiles
+- [workspace] One card per event, its missing matches as coloured chips
+- [workspace] Press a chip to watch that moment, without leaving the page
+- [workspace] Reviewed right on the card, at once
+
+### Changed
+- Owner console › Clip coverage: events fully clipped and matches with a clip as two big meters; the lists (To review, Not yet checked, No timing, Early start, Old season, Reviewed) as coloured count tiles; why matches have no clip as a coloured bar with a tile per kind that shows only that kind's chips. Each event is a card with its video's thumbnail, a clipped meter and its missing matches as chips coloured by kind (a short reason on hover); a chip opens the app's video dialog at the second worth seeing. Reviewed sits on the card and takes it off at once, putting it back if the server says no. Matches found in the video are chips too. The long reasons are under Details on each card, and bulk Reviewed with the check numbers under "Bulk review and check details". Works on phones (44px touch targets, no sideways scroll) and in every theme. (`src/components/owner/ClipCoveragePanel.tsx`, `src/components/owner/clipReview.ts`) (#1650)
 
 ## 7.3.2 — 2026-11-17
 
