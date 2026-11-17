@@ -47,10 +47,11 @@ export default function ConferencePage() {
   // Hidden from a My team outside New Jersey, as the league page hides its button.
   if (!shown && !deciding) return <EmptyState icon={ListOrdered} title="Conference rankings are New Jersey's" description="Your My team isn't a New Jersey team, so conference rankings aren't shown." action={<Link to={back} className="text-accent-text underline">The league's standings</Link>} />;
 
-  // Another season: the same conference's edition when there is one (it can change leagues), else this league's.
+  // Another season: the same conference's edition when there is one (it can change leagues), else this league's. Linked
+  // by its tournament code: that season's league may hold two conferences sharing the slug, and a code is always one.
   const toSeason = (s: number) => {
     const o = picked?.seasons.find((x) => x.season === s);
-    navigate(o ? conferenceHref(o.season, o.region, o.league, { slug: o.slug, team }) : conferenceHref(s, region.toUpperCase(), code.toUpperCase(), { team }));
+    navigate(o ? conferenceHref(o.season, o.region, o.league, { slug: o.code, team }) : conferenceHref(s, region.toUpperCase(), code.toUpperCase(), { team }));
   };
   const placeKey = league.data?.placeKey ?? null;
   return (
@@ -155,8 +156,8 @@ function ConferenceView({ c, team }: { c: Conference; team: number | null }) {
 
       {(next || prev) && (
         <nav className="flex flex-wrap gap-x-4 gap-y-2 text-sm" aria-label="Other seasons" data-conference-seasons>
-          {prev && <Link to={conferenceHref(prev.season, prev.region, prev.league, { slug: prev.slug, team })} className="text-accent-text hover:underline">← Last season: {prev.name}, {seasonLabel(prev.season)} ({leagueTitle(null, prev.league)})</Link>}
-          {next && <Link to={conferenceHref(next.season, next.region, next.league, { slug: next.slug, team })} className="text-accent-text hover:underline">Next season: {next.name}, {seasonLabel(next.season)} ({leagueTitle(null, next.league)}) →</Link>}
+          {prev && <Link to={conferenceHref(prev.season, prev.region, prev.league, { slug: prev.code, team })} className="text-accent-text hover:underline">← Last season: {prev.name}, {seasonLabel(prev.season)} ({leagueTitle(null, prev.league)})</Link>}
+          {next && <Link to={conferenceHref(next.season, next.region, next.league, { slug: next.code, team })} className="text-accent-text hover:underline">Next season: {next.name}, {seasonLabel(next.season)} ({leagueTitle(null, next.league)}) →</Link>}
         </nav>
       )}
     </div>
