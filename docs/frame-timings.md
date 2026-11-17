@@ -92,7 +92,10 @@ A busy frame (crowd, robots, game pieces) can throw tesseract's page layout off 
 USARBEQ 2024 Q8 at 7097 s reads as a jumble whole, though "Qualification 8 of 23" is plain on screen. So an opening
 whose whole frame names nothing has the match's half of the bar's top row read on its own (`labelRow`): the whole row
 can lose it too, to the logo and event name beside it (USCHSGAQ1 2024 M1, its half "Playoff Match 1"). On a shared
-stream the whole row must also name this division. Placement reads stay whole-frame reads.
+stream the whole row must also name this division. Placement reads fall back on the row the same way: on CENTERSTAGE's
+(2023) streams nearly every frame of play loses the bar's line in a whole-frame read (NLBNM1 at 3300 s reads a jumble,
+its row alone "Qualification 4 of 23"), so those videos read nothing at all before. A row-named read is held to the same
+checks as any other: its timer seen running, the same match and start 70 s on, not running 25 s before.
 
 With `--live`, a clip the live site already plays that a read leaves out (one read of it out of order, a gap the reads
 around it disagree on: FPEWESEA 2025 Q97–Q100) goes back to its live second for its opening check, like any start: its
