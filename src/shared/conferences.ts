@@ -100,6 +100,28 @@ export interface LeagueConferences {
   conferences: Conference[];
 }
 
+/** A team's conference place (server/api/conferences.ts): out of its conference tournament's FIRST field. */
+export interface TeamConference {
+  season: number; region: string; league: string; code: string; name: string; slug: string;
+  /** Its place by league standing among the conference's teams (null: no league standing); of: the field's size;
+   *  ranked: the teams with a standing. */
+  rank: number | null; of: number; ranked: number;
+  leagueRank: number | null; leagueOf: number;
+  href: string;
+}
+
+/** What the conference button needs to know about a team (GET /api/teams/:number/conference). */
+export interface TeamConferenceInfo {
+  team: number;
+  season: number;
+  /** Based in New Jersey (FIRST's home state); null: no such team. */
+  nj: boolean | null;
+  /** Its league that season (its latest, as the team page says it). */
+  league: { region: string; code: string; name: string | null } | null;
+  /** Its conference, once FIRST lists it in a conference tournament's field. */
+  conference: TeamConference | null;
+}
+
 /** A league page's conference section, with a conference and a team marked. */
 export function conferenceHref(season: number, region: string, league: string, o: { slug?: string | null; team?: number | null } = {}): string {
   const q = new URLSearchParams();
