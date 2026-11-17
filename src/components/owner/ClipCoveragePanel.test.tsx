@@ -74,10 +74,14 @@ describe("clipReview kinds", () => {
     expect(kindOf(miss("Q1", { video: { checked: "x", earlyStart: { t: 1, previousEnds: 2 } } }))).toBe("early");
     expect(kindOf(miss("Q1", { video: { checked: "x" } }))).toBe("notfound");
     // The same order as the pass log's videoState, so a tile counts what its chips show: an early start before a
-    // sighting, an unread video before anything, and `outside` left to the reason.
+    // sighting, an unread video before anything; one its frames show outside the recording is Outside video, whatever
+    // its reason (a gap-unplaced match read in its video: the clock's shortfall is only why the clock couldn't place it).
     expect(kindOf(miss("Q1", { video: { checked: "x", seenAt: 5, earlyStart: { t: 1, previousEnds: 2 } } }))).toBe("early");
     expect(kindOf(miss("Q1", { video: { checked: null, outside: "before the video" } }))).toBe("unchecked");
-    expect(kindOf(miss("Q1", { video: { checked: "x", outside: "before the video" } }))).toBe("notfound");
+    expect(kindOf(miss("Q1", { video: { checked: "x", outside: "before the video" } }))).toBe("outside");
+    expect(kindOf(miss("Q1", { reason: "gap-unplaced", video: { checked: "x", outside: "played before the recording starts" } }))).toBe("outside");
+    expect(kindOf(miss("Q1", { reason: "gap-unplaced", video: { checked: "x", found: "its frames didn't confirm a start" } }))).toBe("notfound");
+    expect(kindTotals({ "checked in the video, not in the recording": 2, "checked in the video, no start found": 1 })).toEqual([{ kind: "outside", n: 2 }, { kind: "notfound", n: 1 }]);
     expect(kindOf(miss("Q1", { reason: "gap-unplaced" }))).toBe("unplaced");
     expect(kindOf(miss("Q1", { reason: "video-unavailable" }))).toBe("unavailable");
     expect(kindOf(miss("Q1", { video: { checked: "x", seenAt: 5 } }), true)).toBe("pulled");
