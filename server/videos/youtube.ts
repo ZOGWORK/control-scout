@@ -63,6 +63,14 @@ export function parseWatchPage(html: string): WatchPageFacts {
   return pageFacts(html, playability === "LIVE_STREAM_OFFLINE");
 }
 
+/** Whether the page's owner lets it play on other sites. False wherever the page says so; true only from a page that
+ *  plays (status OK, or a broadcast not started), never a sign-in wall's: an owner who turns embedding back on is seen
+ *  without the API key. Neither: not said, so the stored value stays (saveMeta). */
+function embedFlag(html: string): { embeddable?: boolean } {
+  if (/"playableInEmbed":false/.test(html)) return { embeddable: false };
+  return /"playabilityStatus":\{"status":"(?:OK|LIVE_STREAM_OFFLINE)"[^{}]*"playableInEmbed":true/.test(html) ? { embeddable: true } : {};
+}
+
 /** The timing facts and chapters of a page that carries the player response. */
 function pageFacts(html: string, offline: boolean): WatchPageFacts {
   const length = Number(/"lengthSeconds":"(\d+)"/.exec(html)?.[1]);
@@ -78,8 +86,7 @@ function pageFacts(html: string, offline: boolean): WatchPageFacts {
     // A scheduled broadcast not started yet (LIVE_STREAM_OFFLINE) counts as live with no start, so it's read again until it runs.
     live: details.isLiveNow === true || offline,
     chapters: parseChapters(html),
-    // A watch page says so only when its owner turned embedding off; otherwise it isn't read here (the API reads it).
-    ...(/"playableInEmbed":false/.test(html) ? { embeddable: false } : {}),
+    ...embedFlag(html),
   };
 }
 

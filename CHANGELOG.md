@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 7.3.2 — 2026-11-17
+## 7.3.4 — 2026-11-17
 
 Event videos › Scout now keeps whether each video's owner lets it play on other sites, the first step to clips of such videos opening on YouTube.
 
@@ -25,7 +25,32 @@ Event videos › Scout now keeps whether each video's owner lets it play on othe
 - [fixes] Checked again once with each video's other facts
 
 ### Fixed
-- Event videos: whether a video's owner lets it play on other sites is read with its other facts (YouTube's `status.embeddable`, a watch page's `playableInEmbed`) and kept (migration 95). A video read before that was kept is read once more with the API key. 20 of 1,771 linked videos have embedding off; their clips can't play in the app's player, and the next releases open them on YouTube instead. (`server/videos/youtube.ts`, `server/videos/recordings.ts`) (#1665)
+- Event videos: whether a video's owner lets it play on other sites is read with its other facts (YouTube's `status.embeddable`, a watch page's `playableInEmbed`: false from any page, true only from one that plays) and kept (migration 95). A video read before that was kept is read once more with the API key. 20 of 1,771 linked videos have embedding off; their clips can't play in the app's player, and the next releases open them on YouTube instead. (`server/videos/youtube.ts`, `server/videos/recordings.ts`) (#1665)
+
+## 7.3.3 — 2026-11-17
+
+Owner console › Clip coverage is now a quick, visual review screen: meters and coloured tiles up top, one card per event, and every missing match a chip that opens its video at the right second.
+
+### Highlights
+- [workspace] Clip coverage: two big progress meters and coloured count tiles
+- [workspace] One card per event, its missing matches as coloured chips
+- [workspace] Press a chip to watch that moment, without leaving the page
+- [workspace] Reviewed right on the card, at once
+
+### Changed
+- Owner console › Clip coverage: events fully clipped and matches with a clip as two big meters; the lists (To review, Not yet checked, No timing, Early start, Old season, Reviewed) as coloured count tiles; why matches have no clip as a coloured bar with a tile per kind that shows only that kind's chips. Each event is a card with its video's thumbnail, a clipped meter and its missing matches as chips coloured by kind (a short reason on hover); a chip opens the app's video dialog at the second worth seeing. Reviewed sits on the card and takes it off at once, putting it back if the server says no. Matches found in the video are chips too. The long reasons are under Details on each card, and bulk Reviewed with the check numbers under "Bulk review and check details". Works on phones (44px touch targets, no sideways scroll) and in every theme. (`src/components/owner/ClipCoveragePanel.tsx`, `src/components/owner/clipReview.ts`) (#1650)
+
+## 7.3.2 — 2026-11-17
+
+Videos › the Almaty Tech Cup gets match clips read off its recordings' frames: 16 on its second day now, 12 more on its first day once that day's recording is linked.
+
+### Highlights
+- [fixes] 16 Almaty Tech Cup matches get a clip read off the video
+- [fixes] Each opens on a frame whose overlay names its match and event
+- [fixes] No clip already playing changes
+
+### Fixed
+- Videos: KZALOS1's two day recordings lost time against their broadcast, so the clock placed none of its matches. Their starts are now read off the frames, and each clip opens on a frame (read paused) whose overlay names its match and "Almaty Tech Cup XII". Day 2 (EAkHPgVm-Ow): 16 of the 34 matches it holds. Q28–Q31 come before the recording starts, and 14 others have no frame naming them at their clip's start, because the stream cuts to a camera without the overlay between matches. Day 1 (9ywna4SeDoI): 12 of the 15 matches it holds. Q14's timer reads disagreed, and Q1 and Q2 had no read. That row plays once the day's recording is linked. No clip already playing is taken away. (`server/data/frameTimings/2025.ts`) (#1662)
 
 ## 7.3.1 — 2026-11-17
 
