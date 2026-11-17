@@ -384,6 +384,13 @@ describe("whose event an overlay names", () => {
     // frame gives no match of its own (overlayLabel: several named name none), only the one beside this event's name.
     expect(overlayEvent("—E— Playoff Match 3 DIVE Hawaii Championship Playoff Match 5", "Hawaii Championship", 25)).toEqual({ event: "own", phrase: "M5" });
     expect(overlayEvent("DIVE Hawaii Championship Playoff Match 3 Winner Playoff Match 5", "Hawaii Championship", 25)).toEqual({ event: "own", phrase: "M3" });
+    // 2019–2022's best-of-3 semifinals keep their series and number (overlayLabel's M2-1), never F1 or M1.
+    expect(overlayEvent("Hawaii Championship Semifinal 2 Match 1", "Hawaii Championship", 25, true)).toEqual({ event: "own", phrase: "M2-1" });
+    expect(overlayEvent("Hawaii Championship Semi-final 1 Match 2", "Hawaii Championship", 25, true)).toEqual({ event: "own", phrase: "M1-2" });
+    // Its series lost to OCR ("Semifinals Match 1"): no match, as overlayLabel names none.
+    expect(overlayEvent("Hawaii Championship Semifinals Match 1", "Hawaii Championship", 25, true)).toEqual({ event: "own" });
+    // The finals of those years, "Finals Match 2" even with a letter misread.
+    expect(overlayEvent("Hawaii Championship Finais Match 2", "Hawaii Championship", 25, true)).toEqual({ event: "own", phrase: "F2" });
     // Nothing to tell by: no total, no name.
     expect(overlayEvent("Playoff Match 3", "Hawaii Championship", 25)).toEqual({ event: null });
   });
