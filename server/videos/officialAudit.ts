@@ -23,7 +23,7 @@ import { isoDuration } from "./youtube.js";
 import { eventVideosByDay, forgetOfficial, linkAiredOff, localDate } from "./officialVideos.js";
 import { LOOKBACK_MS, record, settle, type WatchVerdict } from "./officialWatch.js";
 import { NOT_EVENTS, bestGuess, matchVideo, notCompetition, videoWindow, type ChannelRule, type WatchEvent, type WatchVideo } from "./officialMatch.js";
-import { EVENT_FIRST_DAY, EVENT_LAST_DAY } from "./eventDays.js";
+import { EVENT_FIRST_DAY, EVENT_LAST_DAY, EVENT_PLAYED_DAYS, playedDays } from "./eventDays.js";
 
 const API = "https://www.googleapis.com/youtube/v3";
 const VIDEO_ID = /^[A-Za-z0-9_-]{11}$/;
@@ -129,14 +129,14 @@ async function scoutRecords(unused?: UnusedLink[]): Promise<Map<string, Record_>
 /** Every event with a date, for matching in memory, bucketed by month so a window reads two or three buckets. */
 async function eventIndex(): Promise<(lo: string, hi: string) => WatchEvent[]> {
   // Its days: the listed ones and the days it played (eventDays.ts).
-  const rows = await all<any>(`SELECT e.season, e.code, e.name, e.type, e.city, e.state, e.country, ${EVENT_FIRST_DAY} AS start, ${EVENT_LAST_DAY} AS end, e.timezone, e.division_code, e.remote FROM events e WHERE e.start IS NOT NULL`);
+  const rows = await all<any>(`SELECT e.season, e.code, e.name, e.type, e.city, e.state, e.country, ${EVENT_FIRST_DAY} AS start, ${EVENT_LAST_DAY} AS end, e.timezone, e.division_code, e.remote, ${EVENT_PLAYED_DAYS} AS played_days FROM events e WHERE e.start IS NOT NULL`);
   const parents = new Set(rows.filter((r) => r.division_code && r.division_code !== r.code).map((r) => `${r.season}/${r.division_code}`));
   const buckets = new Map<string, WatchEvent[]>();
   for (const r of rows) {
     const e: WatchEvent = {
       season: Number(r.season), code: String(r.code), name: String(r.name ?? ""), type: String(r.type ?? ""), city: r.city ?? null, state: r.state ?? null,
       country: r.country ?? null, start: String(r.start).slice(0, 10), end: r.end ? String(r.end).slice(0, 10) : null, timezone: r.timezone ?? null,
-      divisionCode: r.division_code ?? null, parent: parents.has(`${r.season}/${r.code}`), remote: !!Number(r.remote),
+      divisionCode: r.division_code ?? null, parent: parents.has(`${r.season}/${r.code}`), remote: !!Number(r.remote), playedDays: playedDays(r.played_days),
     };
     for (let m = e.start.slice(0, 7); m <= (e.end ?? e.start).slice(0, 7); m = nextMonth(m)) {
       if (!buckets.has(m)) buckets.set(m, []);
