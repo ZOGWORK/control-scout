@@ -35,6 +35,17 @@ describe("checkSite", () => {
     expect(r.checks.map((c) => [c.name, c.ok, c.status])).toEqual([["api", true, 200], ["home", true, 200]]);
   });
 
+  it("sends x-uptime-key on both checks only when a gate key is set (the site's shutdown message)", async () => {
+    const seen: (string | null)[] = [];
+    const inner = fakeFetch({ api: API_UP, home: HOME_UP });
+    const f: FetchLike = (url, init) => { seen.push(new Headers(init?.headers).get("x-uptime-key")); return inner(url, init); };
+    await checkSite(f, SITE);
+    await checkSite(f, SITE, { gateKey: "k1" });
+    expect(seen).toEqual([null, null, "k1", "k1"]);
+    expect(configFrom({ UPTIME_GATE_KEY: "k1" }).gateKey).toBe("k1");
+    expect(configFrom({}).gateKey).toBeUndefined();
+  });
+
   it("times out a hanging request", async () => {
     const r = await checkSite(fakeFetch({ api: "hang", home: HOME_UP }), SITE, { timeoutMs: 30 });
     expect(r.ok).toBe(false);

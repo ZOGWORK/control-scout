@@ -258,6 +258,35 @@ One-time setup (needs Sushil, since both steps are credentials):
 
 Manual deploys with `deploy/deploy.sh` keep working the same way.
 
+## Shutdown message
+
+A temporary "closed to new visitors" switch (`server/shutdownGate.ts`). It needs no deploy.
+
+- **Turn it on:** in the owner console, go to Features › kill switches and switch **Public access** (`publicAccess`) **off**.
+  To take the message down, switch it back on. The change reaches every process within 10 s.
+- **After each flip, purge Cloudflare's cache** (Caching › Configuration › Purge Everything). Pages cached before the
+  flip would otherwise keep being served for up to their `s-maxage`, and `/api/flags` for 15 s.
+- **What someone who isn't signed in sees:** only "Control Scout is temporarily unavailable." / "We'll be back in a
+  couple of days.", plus a small "Have an account? Sign in" form (email code, and Control Point or Google when they're
+  set up). Every page, `/lite`, `/packs` and the sitemap answer 503 with `Retry-After: 172800`, so search engines keep
+  the index. `/api/*` answers 503 `{error: "unavailable"}`. An installed app's cached shell shows the same two lines.
+- **What account holders see:** the site as usual, on the same addresses. Their answers are `private, no-store`, so
+  Cloudflare never caches them.
+- **No new accounts while it's on:** a sign-in that doesn't match an existing account (by identity or by email) is
+  refused with "New accounts can't be made right now."
+- **Untouched:** all data, every URL, offline packs already on devices, `/api/health`, and the Discord bot, which
+  reads the database directly and keeps answering.
+- **Uptime checks:** while the message is up, `/` answers 503 to the checks unless they send the key. To let them
+  through, pick one random value and set it in three places:
+  1. On the VM, add `UPTIME_GATE_KEY=<value>` to `/opt/control-scout/shared/.env`, then
+     `sudo systemctl restart control-scout`.
+  2. For the Worker, run `cd deploy/uptime-worker && npx wrangler@4 secret put UPTIME_GATE_KEY` and paste the same
+     value at the prompt.
+  3. For the GitHub check, add a repo secret `UPTIME_GATE_KEY` (Settings › Secrets and variables › Actions) with the
+     same value.
+
+  Without the key, nothing gets past the message that way, and both monitors report the site as down.
+
 ## Rollback
 
 The Oracle VM is the production host. Render (https://control-scout.onrender.com)
