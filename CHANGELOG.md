@@ -15,6 +15,16 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.6.3 — 2026-11-17
+
+Videos › An event whose official link is a channel's streams page no longer plays another event's broadcast from the same day: 21 event days lose a stream that wasn't theirs, BC's Victoria Qualifier among them.
+
+### Highlights
+- [fixes] Events sharing a streaming channel each keep only their own day's broadcast
+- [fixes] BC Victoria Qualifier 2022 no longer plays the Vancouver qualifier's stream
+
+### Fixed
+- Videos: on a day with two or more broadcasts from FIRST's channel link, those whose titles name the event's own words ("Victoria", "Lower Mainland", "Laurel") are its, and the rest are another event's (`ownBroadcasts`, `ownWords`). Broadcasts found before are weighed again each run with the channel audit's titles (`reweighBroadcasts`), so the 21 event days already holding another event's stream are put right: 2022 CABCVIQ, FIRST Chesapeake's same-day qualifiers, the Winter Charger Qualifier's North Texas league meets, Arizona's White Mountain and Central Asia's tech fest. (#1750)
 ## 7.6.2 — 2026-11-17
 
 Videos › 105 matches from three 2025 events (Greenwood QT and the NorCal Regional Championship's Gold and Silicon divisions) get a clip, each opening on a frame that names its match and its event.
