@@ -15,6 +15,20 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.2.0 — 2026-11-17
+
+Teams, events and Leagues › ways into New Jersey's conference rankings: a team's rank in its conference, a conference tournament's link to its table, and View Conference Rankings on the New Jersey leagues.
+
+### Highlights
+- [teams] A NJ team's page shows its rank in its conference
+- [rankings] View Conference Rankings on the New Jersey leagues
+- [history] A conference tournament links its conference's table
+
+### Added
+- Team page: a New Jersey team FIRST lists in a conference tournament's field shows "Rank in {conference}", its place by league standing out of the conference's teams, linking to the league page's conference table with its row marked. (`src/pages/TeamPage.tsx`)
+- Event page: a New Jersey conference tournament links its conference's table on the league page. (`src/pages/EventPage.tsx`)
+- Leagues: the New Jersey group alone gets View Conference Rankings, straight to My team's league when it has one there, else a link per league; nothing changes for any other place. A My team based outside New Jersey sees none of these. (`src/pages/LeaguesPage.tsx`) (#1633)
+
 ## 7.1.9 — 2026-11-17
 
 Leagues › a New Jersey league's page shows its conference rankings: each conference tournament's teams ranked by FIRST's league standing, league meets only.

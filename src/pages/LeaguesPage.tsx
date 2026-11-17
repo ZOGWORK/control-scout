@@ -1,6 +1,7 @@
 // /leagues: every league of the season (server/api/leagues.ts leagueList), grouped by where its meets are, each with
 // its meets played, its teams and FIRST's #1 by ranking score, to its standings page. Each place links to its region
-// rankings. ?season= in the URL. FIRST's league standing only: Scout's ratings are on the region pages.
+// rankings. ?season= in the URL. FIRST's league standing only: Scout's ratings are on the region pages. New Jersey's
+// group alone gets View Conference Rankings (src/lib/conferenceGate.ts): to My team's league, or one per league.
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { CalendarDays, ListOrdered, Search } from "lucide-react";
@@ -13,6 +14,8 @@ import { PageHeader, EmptyState } from "../components/page";
 import { Async } from "../components/states";
 import { Input } from "../components/ui/basic";
 import { SeasonPick } from "./RankingsPage";
+import { conferenceShown, useMyConference } from "../lib/conferenceGate";
+import { CONFERENCE_REGION, conferenceHref } from "../shared/conferences";
 
 const fold = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
 
@@ -60,6 +63,7 @@ function Groups({ d, q }: { d: LeaguesResponse; q: string }) {
             {list[0].placeName ?? "Place not listed"}
             {place && <Link to={regionHref(place, { season: d.season })} className="text-sm font-normal text-accent-text hover:underline">{list[0].placeName} rankings →</Link>}
           </h2>
+          {list.some((l) => l.region.toUpperCase() === CONFERENCE_REGION) && <ConferenceButton season={d.season} leagues={list.filter((l) => l.region.toUpperCase() === CONFERENCE_REGION)} />}
           <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {list.map((l) => (
               <li key={`${l.region}-${l.code}`}>
@@ -73,6 +77,22 @@ function Groups({ d, q }: { d: LeaguesResponse; q: string }) {
           </ul>
         </section>
       ))}
+    </div>
+  );
+}
+
+/** New Jersey's "View Conference Rankings": straight to My team's league's conferences (its row marked) when My team has
+ *  a New Jersey league that season, else a link per league. Nothing when My team is based elsewhere. */
+function ConferenceButton({ season, leagues }: { season: number; leagues: LeagueListItem[] }) {
+  const my = useMyConference(season);
+  if (!conferenceShown(CONFERENCE_REGION, my)) return null;
+  const mine = my.info?.league && leagues.find((l) => l.region === my.info!.league!.region && l.code === my.info!.league!.code);
+  const btn = "inline-flex h-9 items-center rounded-lg border border-accent/60 bg-accent/10 px-3 text-sm font-medium text-accent-text hover:bg-accent/15 max-sm:h-[44px]";
+  if (mine) return <Link to={conferenceHref(season, mine.region, mine.code, { slug: my.info!.conference?.slug, team: my.team })} className={btn} data-conference-button>View Conference Rankings</Link>;
+  return (
+    <div className="flex flex-wrap items-center gap-2" data-conference-button>
+      <span className="text-sm font-medium">View Conference Rankings:</span>
+      {leagues.map((l) => <Link key={l.code} to={conferenceHref(season, l.region, l.code)} className={btn}>{leagueTitle(l.name, l.code)}</Link>)}
     </div>
   );
 }
