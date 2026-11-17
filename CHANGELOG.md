@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.4.5 — 2026-11-17
+
+Videos › matches FIRST gives no real start for, with no time at all (the Chicago Robotics Invitational's) or only a schedule's, can now get clips read off the video's own frames.
+
+### Highlights
+- [fixes] Matches posted with no start time can get clips
+- [fixes] 2019's scheduled-only matches can get frame clips too
+- [fixes] A frame start out of play order is never served
+
+### Fixed
+- Videos (`server/videos/recordings.ts`, `src/shared/recording.ts`): a start read off a recording's frames was dropped for any match without a real start (a schedule's whole minute, or no time at all), so no frame row could ever give those matches a clip. Their frame starts now play, ordered among the event's matches by their scheduled time, else after the timed ones by label (`labelRank`: qualifications by number, then playoffs, a best-of-three's games turn about, then finals). A start out of that order is still left out (`inOrder`). The event page, a match's own page and the season's With video list all agree.
+- Videos (the frame reader, `scripts/video-frames.ts`, `scripts/lib/videoFrames.ts`): matches with no time at all were never read (the reader asked only for timed ones). They're now read like scheduled ones, by their frames alone, in any of the event's videos (`playedMatches`).
+
 ## 7.4.4 — 2026-11-17
 
 Event videos › Scout now keeps whether each video's owner lets it play on other sites, the first step to clips of such videos opening on YouTube.
