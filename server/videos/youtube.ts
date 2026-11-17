@@ -101,8 +101,15 @@ export function isoDuration(d: string | undefined): number | null {
   return s > 0 ? s : null;
 }
 
+/** Blocked in this many countries or more, a video plays almost nowhere: YouTube's watch page says "Video unavailable"
+ *  to everyone (a copyright block is listed as every country). The channel audit and watcher set such an upload aside
+ *  (officialMatch.ts), and the facts reader counts it unavailable, so no clip links to a video that won't play. */
+export const BLOCKED_EVERYWHERE = 50;
+
 /** One videos.list item → its facts. */
 export function apiFacts(item: any): WatchPageFacts {
+  const blocked = item?.contentDetails?.regionRestriction?.blocked;
+  if (Array.isArray(blocked) && blocked.length >= BLOCKED_EVERYWHERE) return UNAVAILABLE;
   const live = item?.liveStreamingDetails as { actualStartTime?: string; actualEndTime?: string; scheduledStartTime?: string } | undefined;
   const started = iso(live?.actualStartTime);
   return {
