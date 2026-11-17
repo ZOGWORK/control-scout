@@ -243,6 +243,15 @@ export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promi
   return pages.length === a.pages.length && pages.every((p, i) => p === a.pages[i]) ? a : carryOutcome(a, { ...a, pages });
 }
 
+/** Plain hits (/api/search without ?answer=1): the names that match. None match a question ("4215 conference ranking")
+ *  and no kinds were asked for: the answer's own cards instead, so a question the answer reads is never an empty list.
+ *  A picker (kinds named) keeps its plain names. */
+export async function plainSearch(q: string, limit: number, prefer: ReadonlySet<string>, kinds: ReadonlySet<SearchHit["kind"]>): Promise<SearchHit[]> {
+  const hits = await search(q, limit, prefer, kinds as Set<SearchHit["kind"]>);
+  if (hits.length || kinds.size || !q.trim()) return hits;
+  return (await searchAnswer(q, { limit, prefer, learn: false })).hits.slice(0, limit);
+}
+
 async function answerOf(raw: string, opts: AnswerOptions): Promise<SearchAnswer> {
   // The season a query naming none means (./answers/season.ts), read before the readers that use it.
   await refreshSearchSeason(opts.now);
