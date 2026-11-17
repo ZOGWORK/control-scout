@@ -53,6 +53,14 @@ describe("conference page pieces", () => {
     expect([m.newcomers.map((r) => r.team), m.newTotal]).toEqual([[18155], 1]);
   });
 
+  it("pairs a mover's place with the rating of the same week, not today's", () => {
+    // Read at the tournament's week: 6980 was 1st on 40; today's rating (12) would sit under a #1 it didn't earn.
+    const c: Conference = { ...EB, moves: { week: "2026-03-02", baseline: "2026-02-23" }, rows: [
+      row(6980, 1, 7, 4.0, { move: 2, ratingRank: 1, rating: 12, ratingThen: 40 }), row(23717, 2, 9, 3.9, { move: -2, ratingRank: 3, rating: 50, ratingThen: 30 })] };
+    const m = conferenceMovers(c);
+    expect([m.climbers[0].rating, m.fallers[0].rating]).toEqual([40, 30]);
+  });
+
   it("says where the league numbers come from", () => {
     expect(sourceText(EB)).toBe("Final league RS — league meets ended Feb 1, 2026, before this tournament.");
     expect(sourceText({ ...EB, rs: { kind: "gone" } })).toContain("no longer available");
