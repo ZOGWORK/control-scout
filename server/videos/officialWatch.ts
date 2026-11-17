@@ -97,7 +97,7 @@ async function api(path: string, params: Record<string, string>, key: string, fe
 /** The events on any day from lo to hi (YYYY-MM-DD): their listed days and the days they played (eventDays.ts). */
 export async function eventsBetween(lo: string, hi: string): Promise<WatchEvent[]> {
   const rows = await all<any>(
-    `SELECT * FROM (SELECT e.season, e.code, e.name, e.type, e.city, e.state, e.country, ${EVENT_FIRST_DAY} AS start, ${EVENT_LAST_DAY} AS end, e.timezone, e.division_code, e.remote,
+    `SELECT season, code, name, type, city, state, country, start, end, timezone, division_code, remote, parent FROM (SELECT e.season, e.code, e.name, e.type, e.city, e.state, e.country, ${EVENT_FIRST_DAY} AS start, ${EVENT_LAST_DAY} AS end, e.timezone, e.division_code, e.remote,
             EXISTS (SELECT 1 FROM events c WHERE c.season = e.season AND c.division_code = e.code AND c.code != e.code) AS parent
      FROM events e WHERE e.start IS NOT NULL) WHERE start <= ? AND end >= ?`, [hi, lo]);
   return rows.map((r) => ({
