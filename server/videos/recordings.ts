@@ -65,11 +65,12 @@ export function firstVideoId(url: string | null | undefined): string | null {
 }
 
 /** The video_meta columns metaOf reads (all of them). */
-const META_COLUMNS = "video_id, status, start, end, duration, live, checked_at, chapters";
+const META_COLUMNS = "video_id, status, start, end, duration, live, checked_at, chapters, embeddable";
 const metaOf = (r: any): VideoMeta => ({
   videoId: String(r.video_id), status: r.status, start: r.start ?? null, end: r.end ?? null,
   length: r.duration == null ? null : Number(r.duration), live: !!r.live, checkedAt: String(r.checked_at),
   ...(r.chapters == null ? {} : { chapters: readChapters(r.chapters) }),
+  ...(r.embeddable == null ? {} : { embeddable: !!Number(r.embeddable) }),
 });
 function readChapters(json: string): Chapter[] {
   try {
@@ -453,10 +454,11 @@ export function within(startsAt: string | null | undefined, m: VideoMeta, now: n
 async function saveMeta(videoId: string, f: WatchPageFacts, now: number) {
   // Chapters not read this time (the Data API, a watch page that failed), or a page served without them, keep the ones read before.
   await run(
-    `INSERT INTO video_meta (video_id, status, start, end, duration, live, checked_at, chapters) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    // Embedding not read this time (a page that didn't say) keeps what was read before.
+    `INSERT INTO video_meta (video_id, status, start, end, duration, live, checked_at, chapters, embeddable) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(video_id) DO UPDATE SET status = excluded.status, start = excluded.start, end = excluded.end, duration = excluded.duration, live = excluded.live, checked_at = excluded.checked_at,
-       chapters = COALESCE(NULLIF(excluded.chapters, '[]'), video_meta.chapters, excluded.chapters)`,
-    [videoId, f.status, f.start, f.end, f.length, f.live ? 1 : 0, new Date(now).toISOString(), f.chapters ? JSON.stringify(f.chapters) : null]);
+       chapters = COALESCE(NULLIF(excluded.chapters, '[]'), video_meta.chapters, excluded.chapters), embeddable = COALESCE(excluded.embeddable, video_meta.embeddable)`,
+    [videoId, f.status, f.start, f.end, f.length, f.live ? 1 : 0, new Date(now).toISOString(), f.chapters ? JSON.stringify(f.chapters) : null, f.embeddable == null ? null : f.embeddable ? 1 : 0]);
 }
 
 const DAY = 86_400_000;
@@ -475,6 +477,8 @@ export function due(m: VideoMeta | null, now: number, withKey = false): boolean 
   if (!m) return true;
   const age = now - Date.parse(m.checkedAt);
   if (withKey && m.status === "ok" && age > 7 * DAY) return true;
+  // Whether it may be embedded wasn't read yet (read before that was kept): once, with the key (50 a request).
+  if (withKey && m.status === "ok" && m.embeddable === undefined) return true;
   // With the API key an error is rare (network, quota) and the API answers servers, so it's tried again soon:
   // that also picks up, within minutes, every video the watch page refused before the key was set.
   if (m.status === "error") return age > (withKey ? 15 * 60_000 : DAY);
