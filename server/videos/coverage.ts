@@ -79,9 +79,11 @@ export const CLOCK_ONLY: ReadonlySet<CoverageReason> = new Set<CoverageReason>([
  *  "missing" work, since no frame read or clip can reach it until the video plays again. */
 export const UNPLAYABLE: ReadonlySet<CoverageReason> = new Set<CoverageReason>(["video-unavailable", "video-no-embed"]);
 
-/** Reasons a frame read could still settle (it would show where the match is): the clock's, a gap that can't be placed,
- *  or none found. A video no frame read can play turns these into video-no-embed. */
-const FRAME_SETTLES: ReadonlySet<CoverageReason> = new Set<CoverageReason>([...CLOCK_ONLY, "gap-unplaced", "unexplained"]);
+/** Reasons only a frame read could settle (it would show where the match is): the clock's, and a gap the clock can't
+ *  place. A video no frame read can play turns these into video-no-embed. Not "unexplained": no reason found is a
+ *  coverage gap, not a frame one; its clock clip may still be owed (embedding off, clips still open on youtube.com), so
+ *  it stays To review. */
+export const FRAME_SETTLES: ReadonlySet<CoverageReason> = new Set<CoverageReason>([...CLOCK_ONLY, "gap-unplaced"]);
 
 /** "since 2026-10-24, checked again weekly (last 2026-11-17)": when a video was first read as unplayable, and its last read. */
 function unplayableDates(meta: { unplayableSince?: string; checkedAt?: string } | null | undefined): string {
