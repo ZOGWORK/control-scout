@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.4.5 — 2026-11-17
+
+Videos › 298 more 2024 matches play as clips: Gaithersburg, Union Bridge and KC West in full, plus Colorado, KC East and Mississippi.
+
+### Highlights
+- [history] Every 2024 Gaithersburg and Union Bridge qualifier match as a clip
+- [history] Every 2024 KC West League Tournament match as a clip
+- [history] Colorado, KC East and Mississippi 2024 clips added
+
+### Added
+- Frame-read match starts for 6 more 2024 recordings, each start checked against two timer reads and each clip's opening against a paused frame naming its match: USCHSGAQ3 54 of 54 played matches, USCHSUBQ 52 of 52, USMOKSKCWLT 55 of 55, USMOKSKCELT 51 of 52 (1 missing), USMSCMP 46 of 49 (3 missing), USCOCMP 40 of 51 (1 to review, 10 missing). (`server/data/frameTimings/2024.ts`) (#PRNUM)
+
 ## 7.4.4 — 2026-11-17
 
 Event videos › Scout now keeps whether each video's owner lets it play on other sites, the first step to clips of such videos opening on YouTube.
