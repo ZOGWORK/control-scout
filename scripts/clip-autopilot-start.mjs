@@ -10,9 +10,9 @@
 //   node scripts/clip-autopilot-start.mjs [--max 6] [--sweep 4] [--db snapshot.db]
 import { createHash } from "node:crypto";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
-import { freemem } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
+import { freeMb } from "./lib/freeMemory.mjs";
 
 const DIR = ".data/autopilot", LOCK = join(DIR, "lock"), HASH = join(DIR, "lock-hash");
 mkdirSync(DIR, { recursive: true });
@@ -31,17 +31,7 @@ const git = (...args) => { if (run("git", args, { timeout: 600_000 })) { log(`gi
 // start and the scheduled task died with nothing logged (2026-11-17: under 1 GB free, exit 0xC000013A). So it waits,
 // checking each minute, until enough is free, and after WAIT_MIN_MS gives up this run (the next one tries again).
 const MIN_FREE_MB = Number(process.env.AUTOPILOT_MIN_FREE_MB ?? 3072), WAIT_MIN_MS = Number(process.env.AUTOPILOT_MEM_WAIT_MIN ?? 30) * 60_000;
-/** Memory a run can have, in MB. macOS counts only pages nobody has touched as free (freemem() is a few hundred MB on
- *  an idle Mac): there, what it can take back at once counts too, from vm_stat (free, inactive, speculative, purgeable). */
-function freeMb() {
-  if (process.platform === "darwin") {
-    const r = spawnSync("vm_stat", { encoding: "utf8", timeout: 10_000 });
-    const page = Number(/page size of (\d+) bytes/.exec(r.stdout ?? "")?.[1]);
-    const pages = (k) => Number(new RegExp(`Pages ${k}:\\s+(\\d+)`).exec(r.stdout ?? "")?.[1] ?? 0);
-    if (r.status === 0 && page) return Math.round(((pages("free") + pages("inactive") + pages("speculative") + pages("purgeable")) * page) / 2 ** 20);
-  }
-  return Math.round(freemem() / 2 ** 20);
-}
+// freeMb (scripts/lib/freeMemory.mjs): on macOS what vm_stat says it can take back at once, elsewhere os.freemem().
 if (freeMb() < MIN_FREE_MB) {
   log(`${freeMb()} MB free, under ${MIN_FREE_MB}: waiting`);
   const until = Date.now() + WAIT_MIN_MS;
