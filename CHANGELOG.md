@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.5.0 — 2026-11-17
+
+Videos › 27 more 2022 (POWERPLAY) match clips from Indiana's FIN Northwest League Tournament.
+
+### Highlights
+- [history] Indiana FIN Northwest League Tournament: clips for all 27 matches
+- [history] Streams with the score bar at the top get clips too
+- [fixes] Every clip opens on a frame naming its match and its own event
+
+### Added
+- Videos: clips read off the recordings' frames (`server/data/frameTimings/2022.ts`): USINNWLT 27 of 27 played matches (its score bar flipped to the top, read by #1715's reader). Each placed start's clip opens on a paused frame whose overlay names that match, and no frame names another event. (#1730)
+
 ## 7.4.9 — 2026-11-17
 
 Videos › 36 more 2022 (POWERPLAY) match clips from the Kazakhstan Central Asia championship and Arizona's championship (Saguaro Division).
