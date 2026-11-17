@@ -15,6 +15,16 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.6.4 — 2026-11-17
+
+Videos › Two official recordings the channel audit took off their events come back: NYC's Qualifier 3 and Pennsylvania's Blue Streak Qualifier. YouTube had listed them as "Deleted video" on their channels while they were public all along.
+
+### Highlights
+- [fixes] NYC Qualifier 3 and Blue Streak Qualifier play their official recordings again
+- [fixes] A video YouTube lists as "Deleted video" by mistake is no longer taken off its event
+
+### Fixed
+- Videos: a channel's uploads list can give "Deleted video" or "Private video" in place of a public video's title. The channel audit wrote that over the title and took two of the watcher's adds off their events as "not a competition stream": 2025 USNYNYBRQ2 `bjwZWaiMwnc` and USPALAQ2 `YOFnlPCVD7s`. Such a placeholder is never written over a title (`isPlaceholderTitle`). The video's own title is read from YouTube's videos list, and an add is checked by its own title. An add the audit took off and finds right again comes back on its event (`officialVideo.restore`); one the owner removed stays off. (#1784)
 ## 7.6.3 — 2026-11-17
 
 Event videos › a title's "Day 2" can mean the event's second day of play, and two Romanian events get the recordings of the days FIRST's dates left out.
