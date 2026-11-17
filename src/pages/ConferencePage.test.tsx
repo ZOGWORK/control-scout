@@ -122,7 +122,8 @@ describe("a conference's rankings page", () => {
 
   it("links next season by name, and the pages around it", () => {
     open();
-    expect(screen.getByRole("link", { name: /Next season: Hudson\/East Bergen Conference, 2026–27/ }).getAttribute("href")).toBe("/leagues/2026/USNJ/NE/conferences?conference=hudson-east-bergen-conference&team=4215");
+    expect(screen.getByRole("link", { name: /Next season: Hudson\/East Bergen Conference, 2026–27/ }).getAttribute("href")).toBe("/leagues/2026/USNJ/NE/conferences?conference=USNJNELT2&team=4215");
+    // By code: next season's league could hold two conferences sharing the slug, and a code names one.
     const links = within(screen.getByRole("navigation", { name: "More rankings" })).getAllByRole("link").map((a) => [a.textContent, a.getAttribute("href")]);
     expect(links).toEqual([["World rankings", "/rankings?season=2025"], ["New Jersey rankings", "/rankings/regions/USA/NJ?season=2025"], ["All regions", "/rankings/regions?season=2025"],
       ["All leagues", "/leagues?season=2025"], ["Northern League standings", "/leagues/2025/USNJ/NO"], ["East Bergen Conference Northern League Tournament", "/events/2025/USNJNOLT2"]]);
@@ -167,6 +168,13 @@ describe("a conference's rankings page", () => {
     open();
     expect(screen.queryByText("Conference rankings are New Jersey's")).toBeNull();
     expect(document.querySelector("[data-conference-table]")).toBeNull();
+  });
+  it("says the standing is gone, not that no one is ranked yet, once a later league meet replaced it", () => {
+    conferences = [FN, { ...EB, rs: { kind: "gone" }, rows: EB.rows.map((r) => ({ ...r, rank: null, leagueRank: null })) }];
+    open();
+    expect(document.querySelector("[data-conference-empty]")!.textContent).toContain("can't be read any more");
+    expect(screen.getByRole("heading", { name: /Standing not available/ })).toBeTruthy();
+    expect(screen.queryByText(/has a league standing yet/)).toBeNull();
   });
   it("names itself in the top bar, never \"Not found\"", () => {
     expect(pageTitle("/leagues/2025/USNJ/NO/conferences")).toBe("Conference rankings");
