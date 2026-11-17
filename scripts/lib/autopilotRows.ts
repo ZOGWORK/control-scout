@@ -59,9 +59,13 @@ export function rowProblems(next: Row, live?: Row, order?: string[]): string[] {
     }
     if (open != null) {
       if (!OPEN_LEADS.includes(t - open)) out.push(`${l}: opens ${t - open} s before its start, not ${OPEN_LEADS.join("/")}`);
-    } else if (next.unconfirmed?.includes(l)) {
-      if (was[l] == null || Math.abs(was[l] - t) > SAME_S) out.push(`${l}: unconfirmed, but not a live clip at that second`);
-    } else out.push(`${l}: no opening frame checked for it`);
+    } else if (!next.unconfirmed?.includes(l)) out.push(`${l}: no opening frame checked for it`);
+  }
+  // Unconfirmed only ever a live clip, at its live second, whose opening named nothing (so none checked for it).
+  for (const l of next.unconfirmed ?? []) {
+    const t = next.starts[l];
+    if (t == null || was[l] == null || Math.abs(was[l] - t) > SAME_S) out.push(`${l}: unconfirmed, but not a live clip at that second`);
+    else if (next.opens?.[l] != null) out.push(`${l}: unconfirmed, yet its opening is checked`);
   }
   // Live clips: kept (anywhere in starts, a read's slack from where they were), or pulled by a frame naming another match.
   if (live) {
@@ -70,7 +74,7 @@ export function rowProblems(next: Row, live?: Row, order?: string[]): string[] {
       if (now != null && Math.abs(now - t) <= SAME_S) continue;
       // Pulled at its own live second: the frame read there, not where a re-read placed it.
       const pull = next.review?.[l];
-      if (!pull || Math.abs(pull.t - t) > SAME_S || !namesAnother(l, pull.why)) out.push(`${l}: a live clip ${now == null ? "dropped" : "moved"} without a frame naming another match`);
+      if (!pull || !Number.isFinite(pull.t) || Math.abs(pull.t - t) > SAME_S || !namesAnother(l, pull.why)) out.push(`${l}: a live clip ${now == null ? "dropped" : "moved"} without a frame naming another match`);
     }
   }
   for (const [l, e] of Object.entries(next.earlyStart ?? {})) if (!(e.previousEnds > e.t)) out.push(`${l}: early start ${e.t} isn't before the previous match's end ${e.previousEnds}`);
