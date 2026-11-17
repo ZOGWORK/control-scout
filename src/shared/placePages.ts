@@ -10,11 +10,11 @@ import { regionOf } from "./searchEventQuery.js";
 export type PlacePage = "rankings" | "leagues" | "conferences";
 
 /** The words that ask for one of a place's pages ("nj rankings"): each with the page it asks for. */
-const ASKS: Record<string, PlacePage> = {
-  rankings: "rankings", ranking: "rankings", ranked: "rankings", rank: "rankings",
-  leagues: "leagues", league: "leagues",
-  conferences: "conferences", conference: "conferences",
-};
+const ASKS = new Map<string, PlacePage>([
+  ["rankings", "rankings"], ["ranking", "rankings"], ["ranked", "rankings"], ["rank", "rankings"],
+  ["leagues", "leagues"], ["league", "leagues"],
+  ["conferences", "conferences"], ["conference", "conferences"],
+]);
 /** Said around a place and its page words without asking for anything else ("show me the nj rankings"). */
 const FRAME = new Set(["the", "in", "of", "for", "show", "me", "all", "list", "ftc"]);
 
@@ -34,8 +34,8 @@ export function placePages(r: Region, which: readonly PlacePage[] = ["rankings",
  *  when the query is more than a place and those words (a team, an event's name, a time). */
 export function placeAsk(q: string): { region: Region; pages: PlacePage[] } | null {
   const words = q.replace(/[?!.,]/g, " ").split(/\s+/).filter(Boolean);
-  const asked = [...new Set(words.map((w) => ASKS[w.toLowerCase()]).filter((p): p is PlacePage => !!p))];
-  const rest = words.filter((w) => !ASKS[w.toLowerCase()] && !FRAME.has(w.toLowerCase()));
+  const asked = [...new Set(words.map((w) => ASKS.get(w.toLowerCase())).filter((p): p is PlacePage => !!p))];
+  const rest = words.filter((w) => !ASKS.has(w.toLowerCase()) && !FRAME.has(w.toLowerCase()));
   const region = rest.length ? regionOf(rest) : null;
   if (!region) return null;
   return { region, pages: asked.length ? asked : ["rankings", "leagues", "conferences"] };
