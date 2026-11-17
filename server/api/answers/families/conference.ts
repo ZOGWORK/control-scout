@@ -58,12 +58,15 @@ export function readConferenceAsk(raw: string): ConferenceAsk | null {
   if (team != null && at) return null;
   // "Essex/Union": two words of a name.
   const before = (at ?? rest).split(/\bconf(?:erence)?s?\b/)[0].replace(/([a-z])[/–-](?=[a-z])/g, "$1 ");
-  const words = before.split(" ").filter((w) => w && !FRAME.has(w) && !/^\d+$/.test(w));
+  const named = (t: string) => t.replace(/([a-z])[/–-](?=[a-z])/g, "$1 ").split(" ").filter((w) => w && !FRAME.has(w) && !/^\d+$/.test(w));
+  const after = named((at ?? rest).split(/\bconf(?:erence)?s?\b/).slice(1).join(" "));
+  // The name before "conference", else after it when a table or winner is asked ("conference rankings for east bergen").
+  const lead = named(before);
+  const words = lead.length ? lead : won || TABLE.test(rest) ? after : [];
   // A team and a conference's name with no rank or winner asked ("how did 4215 do at east bergen conference") is the
   // tournament's question; a team's number beside "conference" alone ("4215 conference") is this one.
   if (!won && !TABLE.test(rest) && words.length) return null;
   // Words after "conference" that aren't frame ("4215 conference schedule") ask something else about it.
-  const after = (at ?? rest).split(/\bconf(?:erence)?s?\b/).slice(1).join(" ").split(" ").filter((w) => w && !FRAME.has(w) && !/^\d+$/.test(w));
   if (!won && !TABLE.test(rest) && after.length) return null;
   // A season after every stored one is kept, so the answer says it has none yet.
   const season = scope.future?.season ?? (scope.lastYear ? null : scope.season);
@@ -71,6 +74,8 @@ export function readConferenceAsk(raw: string): ConferenceAsk | null {
 }
 
 type Stored = Awaited<ReturnType<typeof allConferences>>[number];
+/** The latest season's of some editions. */
+const latest = (l: Stored[]) => [...l].sort((a, b) => b.season - a.season)[0];
 const tokens = (slug: string) => slug.split("-").filter((t) => t && t !== "conference");
 
 /** The stored conferences the trailing words name, best first (a name said whole beats one it is part of), and the
@@ -120,9 +125,10 @@ const going = (c: Conference) => c.teamsFrom === "registered" && c.registered
 /** The next edition of a conference after `season` (a later season's tournament not finished yet), said in a line. */
 async function nextOf(c: Stored, list: Stored[]): Promise<StatBlock | null> {
   const mine = new Set(c.aliases);
-  const later = list.filter((o) => o.season > c.season && o.aliases.some((a) => mine.has(a))).sort((a, b) => a.season - b.season);
-  if (later.length !== 1 && new Set(later.map((o) => o.season)).size !== later.length) return null;
-  const n = later[0];
+  const later = list.filter((o) => o.season > c.season && o.aliases.some((a) => mine.has(a)));
+  // The earliest later season with exactly one edition (a season with two alias-sharing tournaments names neither).
+  const seasons = [...new Set(later.map((o) => o.season))].sort((a, b) => a - b);
+  const n = seasons.map((s) => later.filter((o) => o.season === s)).find((l) => l.length === 1)?.[0];
   if (!n) return null;
   const d = await conferenceByEvent(n.season, n.code);
   if (!d || d.status === "finished") return null;
@@ -185,7 +191,10 @@ export async function conferenceAskAnswer(ask: ConferenceAsk, current: number): 
     const mine = got?.rows.find((x) => x.team === team);
     if (!pick || !got || !mine) {
       const S = season ?? current;
-      const named = hits[0]?.name;
+      // The conference's name in the season asked (else its latest), never another season's.
+      const asked = season != null ? hits.filter((c) => c.season === season) : [];
+      if (season != null && hits.length && !asked.length) return { ...base(S), title: `${latest(hits).name} · ${seasonLabel(S)}`, none: `No New Jersey conference by that name in ${seasonLabel(S)}.` };
+      const named = hits.length ? latest(asked.length ? asked : hits).name : null;
       const [t] = await all<{ name: string | null; state: string | null }>("SELECT name, state FROM teams WHERE number = ?", [team]);
       if (!t) return null;
       return { ...base(S), title: `${team}'s conference`, team: { number: team, name: t.name },
@@ -198,12 +207,14 @@ export async function conferenceAskAnswer(ask: ConferenceAsk, current: number): 
     const S = seasonLabel(d.season);
     const href = conferenceHref(d.season, d.region, d.league, { slug: d.slug, team });
     const tRank = d.status !== "upcoming" && d.teamsFrom === "field" ? await tournamentRank(d.season, d.code, team) : null;
-    const reg = pick.registered;
+    // From the re-read: a sync may have put FIRST's field in place of the sign-ups.
+    const reg = d.teamsFrom === "registered";
+    const waitlist = reg && r.registered === "pending";
     const sub = [r.leagueRank != null ? `League rank ${r.leagueRank} of ${d.leagueOf}` : null, r.rs != null ? `RS ${(asGiven(r.rs) ?? "—")}` : null, r.tbp != null ? `TBP ${(asGiven(r.tbp) ?? "—")}` : null,
       r.played != null ? `${r.played} played` : null, r.meets != null ? `${r.meets} meet${r.meets === 1 ? "" : "s"}` : null].filter(Boolean).join(" · ");
     const blocks: StatBlock[] = [
       { kind: "kpis", items: [
-        { label: pick.waitlist ? "Waitlist, by league RS" : reg ? "Going in, by league RS" : "Conference rank", value: r.rank != null ? `${ordinal(r.rank)} of ${d.rows.length}` : d.rs.kind === "gone" ? "Not available" : "Not ranked yet", sub: r.rank != null ? `by league RS, ${d.name}` : d.rs.kind === "gone" ? "the going-in standing can't be read any more" : "no league meets played", href, tone: "accent" },
+        { label: waitlist ?"Waitlist, by league RS" : reg ? "Going in, by league RS" : "Conference rank", value: r.rank != null ? `${ordinal(r.rank)} of ${d.rows.length}` : d.rs.kind === "gone" ? "Not available" : "Not ranked yet", sub: r.rank != null ? `by league RS, ${d.name}` : d.rs.kind === "gone" ? "the going-in standing can't be read any more" : "no league meets played", href, tone: "accent" },
         { label: "League rank", value: r.leagueRank != null ? `${r.leagueRank} of ${d.leagueOf}` : "—", sub: leagueTitle(d.leagueName, d.league) },
         { label: "RS", value: (asGiven(r.rs) ?? "—"), sub: `TBP ${(asGiven(r.tbp) ?? "—")}` },
         { label: "League meets", value: r.meets != null ? String(r.meets) : "—", sub: r.played != null ? `${r.played} matches` : undefined },
@@ -215,7 +226,7 @@ export async function conferenceAskAnswer(ask: ConferenceAsk, current: number): 
     return {
       ...base(d.season), title: reg ? `${team} going into ${d.name} · ${S}` : `${team} in ${d.name} · ${S}`, team: { number: team, name: r.name },
       headline: { value: r.rank != null ? `${ordinal(r.rank)} of ${d.rows.length}` : d.rs.kind === "gone" ? "Not available" : "Not ranked yet",
-        label: `${who(r)} ${pick.waitlist ? "is on the waitlist for" : reg ? "is registered for" : "in"} ${d.name}, ${leagueTitle(d.leagueName, d.league)}, ${S}, by league RS`, sub: [sub, CONFERENCE_LABEL].filter(Boolean).join(" · "), href },
+        label: `${who(r)} ${waitlist ?"is on the waitlist for" : reg ? "is registered for" : "in"} ${d.name}, ${leagueTitle(d.leagueName, d.league)}, ${S}, by league RS`, sub: [sub, CONFERENCE_LABEL].filter(Boolean).join(" · "), href },
       definition: `${base(d.season).definition} ${notes}`, blocks,
     };
   }
@@ -237,11 +248,14 @@ export async function conferenceAskAnswer(ask: ConferenceAsk, current: number): 
 
   // A conference's table, or who won it: the season asked, else the latest finished one (the next one said in a line).
   const pickC = season != null ? hits.filter((c) => c.season === season) : hits;
-  if (!pickC.length) return { ...base(season!), title: `${hits[0].name} · ${seasonLabel(season!)}`, none: `No New Jersey conference by that name in ${seasonLabel(season!)}.` };
+  if (!pickC.length) return { ...base(season!), title: `${latest(hits).name} ·${seasonLabel(season!)}`, none: `No New Jersey conference by that name in ${seasonLabel(season!)}.` };
   // Two conferences the words fit equally in one season: which one, never a guess.
   const bySeason = new Map<number, Stored[]>();
   for (const c of pickC) bySeason.set(c.season, [...(bySeason.get(c.season) ?? []), c]);
-  const ambiguous = [...bySeason.values()].find((l) => l.length > 1);
+  // With no season said, a season the words fit twice is passed over while another fits once; asked, it's "which?".
+  const clear = [...bySeason.values()].filter((l) => l.length === 1).flat();
+  const ambiguous = season == null && clear.length ? undefined : [...bySeason.values()].find((l) => l.length > 1);
+  if (season == null && clear.length) pickC.splice(0, pickC.length, ...clear);
   if (ambiguous) {
     return { ...base(ambiguous[0].season), title: "Which conference?", blocks: [{ kind: "links", title: `Which conference? More than one is called "${ask.words.join(" ")}"`,
       items: ambiguous.map((c) => ({ label: `${c.name} · ${seasonLabel(c.season)}`, href: conferenceHref(c.season, c.region, c.league, { slug: c.slug }), sub: `${leagueTitle(c.leagueName, c.league)}` })) }] };
@@ -260,6 +274,7 @@ export async function conferenceAskAnswer(ask: ConferenceAsk, current: number): 
     if (!d.winner) {
       return { ...base(d.season), title: `Who won ${d.name} · ${S}`, none: d.status === "finished"
         ? `No winner is on record yet for ${d.name} ${S}: FIRST hasn't posted the tournament's awards.`
+        : d.status === "live" ? `${d.name} ${S} is under way: no winner yet.`
         : `${d.name} ${S} hasn't been won yet: it's on ${asOfDate(d.start) ?? "a date to be set"}. ${going(d)}`.trim(), blocks: [tableBlock(d, null), ...tail] };
     }
     const w = d.winner;
