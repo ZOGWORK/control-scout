@@ -6,6 +6,9 @@ declare module "sql.js" {
     bind(params?: SqlValue[]): boolean;
     step(): boolean;
     getAsObject(): Record<string, SqlValue>;
+    /** The current row's values, in column order. */
+    get(): SqlValue[];
+    getColumnNames(): string[];
     free(): boolean;
   }
   export interface Database {

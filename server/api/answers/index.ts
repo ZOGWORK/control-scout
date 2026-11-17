@@ -61,7 +61,7 @@ import { names } from "../query/names.js";
 import { countryOf } from "../../../src/shared/countries.js";
 import { regionOf } from "../../../src/shared/searchEventQuery.js";
 import { compoundSearch } from "./compoundSearch.js";
-import { EVENT_ROWS, SEASON_ROWS, THEIR_FIRST, THEIR_LAST, readLeaderboard, readStatQuestion, readTeamSet, readTwoTeam, type LeaderboardQuestion, type TeamSetQuestion, type IntentId, type StatQuestion, type TwoTeamId, type TwoTeamQuestion } from "./read.js";
+import { EVENT_ROWS, SEASON_ROWS, THEIR_FIRST, THEIR_LAST, WATCH_WORDS, readLeaderboard, readStatQuestion, readTeamSet, readTwoTeam, type LeaderboardQuestion, type TeamSetQuestion, type IntentId, type StatQuestion, type TwoTeamId, type TwoTeamQuestion } from "./read.js";
 
 /** Search's own answer for the part of a query that names the team (searchAnswer with intents off). */
 export type Resolve = (core: string) => Promise<SearchAnswer>;
@@ -467,7 +467,8 @@ export async function statAnswer(q: string, resolve: Resolve, opts: { full: bool
   }
   // An asked board reads the season as the pipeline does: the current one, then the one before when nobody is ranked
   // there yet, said on the card.
-  const asked = opts.full ? boardOfAsk(q) : null;
+  // Asked to watch ("best teleop videos in romania"): matches to play, never a board of teams (./read.ts WATCH_WORDS).
+  const asked = opts.full && !WATCH_WORDS.test(q.toLowerCase()) ? boardOfAsk(q) : null;
   if (asked) {
     const season = askSeason();
     const a = await boardSearch(q, { ...asked, season }, opts);

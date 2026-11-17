@@ -271,9 +271,13 @@ export function rewriteQuery(q: string, named: ReadonlySet<string> = new Set()):
   if ((m = new RegExp(`^(?:who|which(?: team)?)\\s+(?:is|s|'s)\\s+(?:better|stronger)\\s*:?\\s+${TEAM}\\s+(?:or|and|vs\\.?)\\s+${TEAM}$`).exec(t))) return { q: `${m[1]} vs ${m[2]}` };
   if ((m = new RegExp(`^who\\s+(?:would|will|is going to|wins)\\s*(?:win)?\\s+(?:between\\s+)?${TEAM}\\s+(?:or|and)\\s+${TEAM}$`).exec(t))) return { q: `${m[1]} vs ${m[2]} who wins` };
   if ((m = new RegExp(`^${TEAM}\\s+(?:or|and)\\s+${TEAM}\\s+(?:who wins|who would win|who will win|which is better|who is better)$`).exec(t))) return { q: `${m[1]} vs ${m[2]}${/win/.test(t) ? " who wins" : ""}` };
-  // Two numbers are two teams, unless one is a year ("12345 2024" and "2024 12345" are 12345's 2024 season).
+  // Two to four numbers are that many teams, side by side (Compare holds four), unless one is a year ("12345 2024" and
+  // "2024 12345" are 12345's 2024 season; two years are two teams as before). Each number once.
   const year = (n: string) => /^(?:19|20)\d\d$/.test(n);
-  if ((m = /^(\d{1,6})(?:\s*[,&]\s*|\s+(?:and\s+|or\s+)?)(\d{1,6})$/.exec(t)) && m[1] !== m[2] && year(m[1]) === year(m[2])) return { q: `${m[1]} vs ${m[2]}` };
+  if (/^\d{1,6}(?:(?:\s*[,&]\s*|\s+(?:and\s+|or\s+)?)\d{1,6}){1,3}$/.test(t)) {
+    const list = t.split(/[^\d]+/).filter(Boolean);
+    if (new Set(list).size === list.length && (list.length === 2 ? year(list[0]) === year(list[1]) : !list.some(year))) return { q: list.join(" vs ") };
+  }
   // A team's quality, asked the short way.
   if ((m = /^(?:is|are)\s+(.+?)\s+(?:any\s+|really\s+|actually\s+)?(?:good|strong|decent|competitive|any good)$/.exec(t))) return { q: `how good is ${m[1]}` };
   // A team's next match, asked as a prediction.
@@ -504,6 +508,20 @@ const EXPLAINS: Explainer[] = [
     pages: [{ title: "How ranking points and advancement work", href: "/methodology#advancement" }, { title: "Rankings", href: "/rankings" }],
   },
   {
+    // "what is a tie breaker point", "tiebreakers": what orders teams level on ranking score, season by season, as the
+    // methodology page says it (#advancement) and the engine's rules hold it (packages/predict-engine/src/rules.ts
+    // tiebreakKeys: 2025–26 on, average non-penalty score first; 2024–25, average auto then endgame).
+    words: /^(?:what(?:'s| is| are| does)?|whats|how (?:do|does|is|are))?\s*(?:an?\s+|the\s+)?(?:tie[\s-]?breakers?|tie[\s-]?breaks?|tbps?)(?:\s+(?:points?|scores?))?\s*(?:mean|means|work|works|decided|calculated)?$/,
+    label: "Tiebreakers: how teams level on ranking score are ordered",
+    lines: [
+      { text: "Teams with the same ranking score are put in order by tiebreakers", detail: "Each season's Competition Manual sets the order, so it changes with the game", href: OFFICIAL.manual },
+      { text: "From 2025–26 on, average non-penalty score comes first", detail: "Then the season's other averages, average auto points among them, and last a random draw", href: "/methodology#advancement" },
+      { text: "In 2024–25, average auto points came first, then average endgame points", detail: "Older seasons used their own rules, \"tiebreaker points\" among them: that season's manual has them", href: OFFICIAL.manual },
+      { text: "Simulated rankings use the season's own tiebreakers", detail: "Each run of an event seeds teams with the official tiebreakers", href: "/methodology#advancement" },
+    ],
+    pages: [{ title: "How ranking points and advancement work", href: "/methodology#advancement" }, { title: "Rankings", href: "/rankings" }],
+  },
+  {
     words: /^(?:how (?:does|do|is)|what is)\s+(?:the\s+)?(?:advancement|teams? advance|advancing|qualifying|teams? qualify)(?:\s+(?:work|decided|calculated))?(?:\s+to\s+(?:states?|worlds|the championship))?$/,
     label: "Advancement: how teams move on, and the odds",
     lines: [{ text: "Advancing depends on rank, alliance selection, the bracket and the awards", detail: "The engine simulates the event thousands of times to give each team's odds", href: "/methodology#advancement" }],
@@ -689,6 +707,21 @@ export async function countAnswer(q: string): Promise<SearchAnswer | null> {
     if (sm[2] && !sm[3] && !sm[4]) year = Number(sm[2]);
     t = t.slice(0, sm.index);
   }
+  // Everywhere said ("in the world", "worldwide", before "this season" too): no place.
+  const WORLD = /\s+(?:in the (?:whole )?world|in all the world|worldwide|world wide|globally|across the world|around the world|all over the world|internationally)(?=\s|$)/g;
+  const everywhere = WORLD.test(t);
+  t = t.replace(WORLD, "");
+  // Neither teams nor events named ("how many in Australia", "how many in the world"): both counts, one line each.
+  const bare = /^how many(?:\s+are there)?(?:\s+((?:in|from)\s+.+?))?(?:\s+(?:this season|this year|right now|now|total))?$/.exec(t);
+  if (bare && (bare[1] || everywhere)) {
+    const said = sm ? sm[0] : "", where = bare[1] ? ` ${bare[1]}` : "";
+    const [tm, ev] = [await countAnswer(`how many teams${where}${said}`), await countAnswer(`how many events${where}${said}`)];
+    if (!tm?.card || !ev?.card) return null;
+    // One season for both, named once; a bare year is a season of teams but a calendar year of events, each line its own.
+    const [head, when] = tm.card.title.split(" · "), evWhen = ev.card.title.split(" · ")[1];
+    const label = `${head.replace(/^How many teams/, "How many teams and events")}${when === evWhen ? ` · ${when}` : ""}`;
+    return answer(q, { hits: [], pages: [...tm.pages, ...ev.pages], card: { kind: "info", title: label, lines: [...tm.card.lines, ...ev.card.lines] }, understood: { kind: "question", label } });
+  }
   const m =/^how many\s+(?:ftc\s+)?(?:league\s+)?(teams?|events?|meets?|competitions?)\s*(?:are there|is there|exist|are|there are)?\s*(?:(?:in|from)\s+(.+?))?\s*(?:this season|this year|right now|now|in ftc|total)?\s*(?:are there|exist)?$/.exec(t);
   if (!m) return null;
   const teams = m[1].startsWith("team");
@@ -703,7 +736,7 @@ export async function countAnswer(q: string): Promise<SearchAnswer | null> {
     ? await get<{ n: number }>(`SELECT COUNT(*) n FROM team_seasons s JOIN teams t ON t.number = s.team WHERE s.season = ?${where}`, [season, ...placeArgs(place)])
     : await get<{ n: number }>(`SELECT COUNT(*) n FROM events e WHERE ${inYear ? "substr(e.start, 1, 4) = ?" : "e.season = ?"}${meets ? " AND e.type = 'LeagueMeet'" : ""}${where}`, [inYear ? String(year) : season, ...placeArgs(place)]);
   const n = Number(row?.n ?? 0);
-  const what = teams ? "teams registered" : meets ? "league meets" : "events";
+  const what = n === 1 ? (teams ? "team registered" : meets ? "league meet" : "event") : teams ? "teams registered" : meets ? "league meets" : "events";
   const inPlace = place ? ` in ${place.name}` : "";
   const when = inYear ? String(year) : seasonLabel(season);
   const label = `How many ${teams ? "teams" : meets ? "league meets" : "events"}${inPlace} · ${when}`;
@@ -983,7 +1016,7 @@ export async function teamFallback(q: string, prefer: ReadonlySet<string>): Prom
 }
 
 /** A place a team list can be filtered to: a state or province ("NJ"), or a country by its stored name ("Canada"). */
-type Place = { name: string; country: string; state: string | null; key: string };
+type Place = { name: string; country: string; state: string | null; key: string; labels?: string[] };
 /** The words as typed, found again in the query: a state code keeps its capitals ("OR" is Oregon, "or" is a word). */
 function cased(q: string, part: string): string {
   const typed = squash(q), i = typed.toLowerCase().indexOf(part);
@@ -996,11 +1029,28 @@ async function placeOf(words: string): Promise<Place | null> {
   const r = regionOf(w.split(" "));
   if (r) return { name: r.name, country: r.country, state: r.state, key: r.key };
   const alias: Record<string, string> = { us: "USA", usa: "USA", "united states": "USA", america: "USA", uk: "United Kingdom", britain: "United Kingdom", "great britain": "United Kingdom", england: "United Kingdom" };
-  const row = await get<{ country: string }>("SELECT country FROM teams WHERE LOWER(country) = LOWER(?) LIMIT 1", [alias[w.toLowerCase()] ?? w]);
+  const said = alias[w.toLowerCase()] ?? w;
+  const row = await get<{ country: string }>("SELECT country FROM teams WHERE LOWER(country) = LOWER(?) LIMIT 1", [said]);
+  // A country by any of its names ("Taiwan" for the stored "Chinese Taipei", ../../src/shared/countries.ts), with every
+  // label it is stored under ("eSwatini" and "Eswatini"): named by the one said, else the one holding the most teams.
+  const code = countryOf(row?.country ?? said)?.code;
+  if (code) {
+    const labels = (await all<{ country: string }>("SELECT country FROM teams WHERE country IS NOT NULL GROUP BY country ORDER BY COUNT(*) DESC, country"))
+      .map((l) => l.country).filter((l) => countryOf(l)?.code === code);
+    const name = row?.country ?? labels[0];
+    if (name) return { name, country: name, state: null, key: name, ...(labels.length > 1 ? { labels } : {}) };
+  }
   return row ? { name: row.country, country: row.country, state: null, key: row.country } : null;
 }
-const placeSql = (p: Place | null) => (p ? (p.state ? " AND t.country = ? AND t.state = ?" : " AND t.country = ?") : "");
-const placeArgs = (p: Place | null) => (p ? (p.state ? [p.country, p.state] : [p.country]) : []);
+/** A place's filter on teams (`t.`); a country stored under several labels matches each of them. */
+const placeSql = (p: Place | null) => (p ? (p.state ? " AND t.country = ? AND t.state = ?" : p.labels ? ` AND t.country IN (${p.labels.map(() => "?").join(", ")})` : " AND t.country = ?") : "");
+const placeArgs = (p: Place | null) => (p ? (p.state ? [p.country, p.state] : p.labels ?? [p.country]) : []);
+/** A place's ranked teams page: its rankings; a country stored under several labels, the Teams list by its country code,
+ *  which reads every label (the rankings page matches one). */
+const placePage = (p: Place, season: number) => {
+  const code = p.labels ? countryOf(p.country)?.code : null;
+  return code ? { title: `${p.name} teams`, href: `/teams?season=${season}&view=listed&country=${code}` } : { title: `${p.name} rankings`, href: `/rankings?season=${season}&region=${encodeURIComponent(p.key)}` };
+};
 const fmt1 = (x: number | null) => (x == null ? "–" : (Math.round(Number(x) * 10) / 10).toFixed(1));
 /** A team's line; `season` when its numbers are one season's, so the link opens that season. */
 const lineOf = (r: any, results: string[], season?: number | null): SearchCardLine => ({
@@ -1031,10 +1081,14 @@ export async function teamListAnswer(q: string): Promise<SearchAnswer | null> {
     if (p && !p.state) {
       // "top 3 teams in canada": that many (1 to 50); else 10.
       const n = m[1] ? Math.min(50, Math.max(1, Number(m[1]))) : 10;
-      const rows = await all<any>(`SELECT s.team, t.name, t.city, t.state, t.country, s.opr_np, ${PHASE_COLS}, s.wins, s.losses, s.ties FROM team_season_stats s JOIN teams t ON t.number = s.team WHERE ${ranked}${placeSql(p)} ORDER BY s.opr_np DESC, s.team LIMIT ${n}`, [season, ...placeArgs(p)]);
-      const lines = rows.map((r, i) => lineOf(r, [`#${i + 1} in ${p.name}`, `OPR ${fmt1(r.opr_np)}`, `${r.wins}-${r.losses}-${r.ties}`], season));
-      const title = `Top teams in ${p.name} · ${seasonLabel(season)}`;
-      return card(title, lines, `No ranked teams in ${p.name} for ${seasonLabel(season)} yet.`, [{ title: `${p.name} rankings`, href: `/rankings?season=${season}&region=${encodeURIComponent(p.key)}` }], `${title}, by OPR without penalties`, tableOf(rows, season));
+      const read = (s: number) => all<any>(`SELECT s.team, t.name, t.city, t.state, t.country, s.opr_np, ${PHASE_COLS}, s.wins, s.losses, s.ties FROM team_season_stats s JOIN teams t ON t.number = s.team WHERE ${ranked}${placeSql(p)} ORDER BY s.opr_np DESC, s.team LIMIT ${n}`, [s, ...placeArgs(p)]);
+      // Nobody there ranked yet this season: the season before, named in the title, as the leaderboards step back.
+      let shown = season, rows = await read(season);
+      if (!rows.length && SEASONS.some((x) => x.season === season - 1)) { const before = await read(season - 1); if (before.length) { rows = before; shown = season - 1; } }
+      const lines = rows.map((r, i) => lineOf(r, [`#${i + 1} in ${p.name}`, `OPR ${fmt1(r.opr_np)}`, `${r.wins}-${r.losses}-${r.ties}`], shown));
+      const title = `Top teams in ${p.name} · ${seasonLabel(shown)}`;
+      const label = `${title}, by OPR without penalties${shown !== season ? ` (no ${seasonLabel(season)} ranked teams yet)` : ""}`;
+      return card(title, lines, `No ranked teams in ${p.name} for ${seasonLabel(season)} yet.`, [placePage(p, shown)], label, tableOf(rows, shown));
     }
   }
   // A place's best match scores: "top scores in NJ", "highest score in texas". As the season records are kept
@@ -1043,7 +1097,7 @@ export async function teamListAnswer(q: string): Promise<SearchAnswer | null> {
   if ((m = /^(?:the\s+)?(?:top|highest|best|biggest|max(?:imum)?)\s+(?:match\s+)?(?:scores?|scoring matches|scoring games)\s+(?:in|from|at)\s+(.+?)$/.exec(t))) {
     const p = await placeOf(cased(q, m[1]));
     if (!p) return null;
-    const where = p.state ? "e.country = ? AND e.state = ?" : "e.country = ?";
+    const where = placeSql(p).replace(/\bt\./g, "e.").replace(/^ AND /, "");
     const types = RECORD_TYPES.map(() => "?").join(", ");
     const latest = await get<{ s: number | null }>(`SELECT MAX(m.season) s FROM matches m JOIN events e ON e.season = m.season AND e.code = m.code WHERE m.played = 1 AND ${where} AND e.type IN (${types})`, [...placeArgs(p), ...RECORD_TYPES]);
     const s = latest?.s != null ? Number(latest.s) : null;
@@ -1089,7 +1143,7 @@ export async function teamListAnswer(q: string): Promise<SearchAnswer | null> {
       return new Map(rows.map((r, i) => [Number(r.team), { ...r, rank: i + 1, share: (i + 1) / rows.length }]));
     };
     const [now, before] = [await standing(season), await standing(season - 1)];
-    const inPlace = (r: any) => !p || (p.state ? r.state === p.state && r.country === p.country : r.country === p.country);
+    const inPlace = (r: any) => !p || (p.state ? r.state === p.state && r.country === p.country : (p.labels ?? [p.country]).includes(r.country));
     const pct = (share: number) => `top ${Math.max(1, Math.round(share * 100))}%`;
     const rows = [...now.values()].filter((r) => before.has(Number(r.team)) && inPlace(r))
       .map((r) => ({ ...r, was: before.get(Number(r.team))!, gain: before.get(Number(r.team))!.share - r.share }))
@@ -1128,7 +1182,7 @@ export async function teamListAnswer(q: string): Promise<SearchAnswer | null> {
     const row = await get<any>(`SELECT AVG(s.opr_np) a, COUNT(*) n, MAX(s.opr_np) hi FROM team_season_stats s JOIN teams t ON t.number = s.team WHERE ${ranked} AND s.opr_np IS NOT NULL${placeSql(p)}`, [season, ...placeArgs(p)]);
     const title = `Average OPR${p ? ` in ${p.name}` : ""} · ${seasonLabel(season)}`;
     const n = Number(row?.n ?? 0);
-    const lines: SearchCardLine[] = n ? [{ text: `${fmt1(row.a)} average OPR`, detail: `Over ${n.toLocaleString("en-US")} teams with ${RANKED_MIN_MATCHES}+ matches; highest ${fmt1(row.hi)}. Season OPR without penalties`, href: `/rankings?season=${season}${p ? `&region=${encodeURIComponent(p.key)}` : ""}` }] : [];
+    const lines: SearchCardLine[] = n ? [{ text: `${fmt1(row.a)} average OPR`, detail: `Over ${n.toLocaleString("en-US")} teams with ${RANKED_MIN_MATCHES}+ matches; highest ${fmt1(row.hi)}. Season OPR without penalties`, href: p ? placePage(p, season).href : `/rankings?season=${season}` }] : [];
     return answer(q, { hits: [], pages: [{ title: "Rankings", href: `/rankings?season=${season}` }], card: { kind: "info", title, lines, ...(n ? {} : { none: `No ranked teams${p ? ` in ${p.name}` : ""} for ${seasonLabel(season)} yet.` }) }, understood: { kind: "question", label: title } });
   }
   // A place's teams at Worlds: "nj teams at worlds", "teams from new jersey at worlds".
@@ -1386,6 +1440,19 @@ export async function monthAnswer(q: string, now?: number): Promise<SearchAnswer
 /** "teams in New Jersey", "nj teams", "teams in Oradell", "texas ftc teams": a place's teams, best first. */
 export async function placeTeamsAnswer(q: string, prefer: ReadonlySet<string>): Promise<SearchAnswer | null> {
   const t = squash(q.toLowerCase().replace(/[?]/g, "").replace(/\bftc\b/g, " "));
+  // "teams in" with no place after it: every team, as the Teams list ranks them, and the way to name a place.
+  const bare = /^(?:all\s+)?(?:the\s+)?teams?\s+(in|from|based in)$/.exec(t);
+  if (bare) {
+    const season = defaultSeason();
+    const rows = await all<any>(`SELECT s.team, t.name, t.city, t.state, t.country, s.opr_np, ${PHASE_COLS}, s.wins, s.losses, s.ties FROM team_season_stats s JOIN teams t ON t.number = s.team WHERE s.season = ? AND s.matches >= ${RANKED_MIN_MATCHES} AND ${teamPageSql("s.team", "t.name")} ORDER BY s.opr_np DESC, s.team LIMIT 25`, [season]);
+    const n = await get<{ n: number }>("SELECT COUNT(*) n FROM team_seasons WHERE season = ?", [CURRENT_SEASON]);
+    const lines = rows.map((r, i) => lineOf(r, [`#${i + 1}`, `OPR ${fmt1(r.opr_np)}`, `${r.wins}-${r.losses}-${r.ties}`], season));
+    return answer(q, {
+      hits: [], pages: [{ title: "Teams", href: "/teams" }, { title: "Rankings", href: `/rankings?season=${season}` }],
+      card: { kind: "leaderboard", title: `Teams worldwide · best by OPR, ${seasonLabel(season)}`, lines, ...(lines.length ? { table: tableOf(rows, season) } : { none: `No team has ${RANKED_MIN_MATCHES}+ matches in ${seasonLabel(season)} yet.` }) },
+      understood: { kind: "question", label: `Teams worldwide (no place named after "${bare[1]}"): ${Number(n?.n ?? 0).toLocaleString("en-US")} registered for ${seasonLabel(CURRENT_SEASON)}, best by OPR first. Add a place: "teams in Texas"` },
+    });
+  }
   const m = /^(?:all\s+)?(?:the\s+)?teams?\s+(?:in|from|based in)\s+(.+)$/.exec(t) ?? /^(.+?)\s+teams?$/.exec(t); // "teams" as search singularizes it too
   if (!m) return null;
   // "best team", "top teams" (place-first only): the leaderboards' (./searchAsks.ts), never a place called "best".
@@ -1399,7 +1466,7 @@ export async function placeTeamsAnswer(q: string, prefer: ReadonlySet<string>): 
     const lines = rows.map((r, i) => lineOf(r, [`#${i + 1}`, `OPR ${fmt1(r.opr_np)}`, `${r.wins}-${r.losses}-${r.ties}`], season));
     const title = `Teams in ${p.name}`;
     return answer(q, {
-      hits: [], pages: [{ title: `${p.name} rankings`, href: `/rankings?season=${season}&region=${encodeURIComponent(p.key)}` }],
+      hits: [], pages: [placePage(p, season)],
       card: { kind: "leaderboard", title: `${title} · best by OPR, ${seasonLabel(season)}`, lines, ...(lines.length ? { table: tableOf(rows, season) } : { none: `No team in ${p.name} has ${RANKED_MIN_MATCHES}+ matches in ${seasonLabel(season)} yet.` }) },
       understood: { kind: "question", label: `${title}: ${Number(n?.n ?? 0).toLocaleString("en-US")} registered for ${seasonLabel(CURRENT_SEASON)}, best by OPR first` },
     });

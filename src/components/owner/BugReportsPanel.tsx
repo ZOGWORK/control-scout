@@ -1,9 +1,11 @@
 // Owner console › Bug reports: what people sent with the top bar's "Report a bug" button (server/bugReports.ts), newest
 // first, open ones and closed ones apart (50 at a time, then Load older), each with its screenshots (click for full
-// size) and video, the details the dialog attached, and Close / Reopen / Delete. Attachments load from
-// /api/owner/bug-reports/:id/files/:n, behind the owner gate.
+// size) and video, the details the dialog attached, its GitHub issue (one click to open it) or why it isn't filed yet,
+// and Close / Reopen / Delete. The local report and the issue are two records: closing or deleting here never touches
+// the issue. Attachments load from /api/owner/bug-reports/:id/files/:n (behind the owner gate) while the local copy is
+// kept; once it's on GitHub and the copy is deleted, they link to GitHub.
 import { useEffect, useRef, useState } from "react";
-import { Bug, CheckCircle2, Mail, RotateCcw, Trash2 } from "lucide-react";
+import { Bug, CheckCircle2, CircleDashed, ExternalLink, Github, Mail, RotateCcw, Trash2 } from "lucide-react";
 import { Section, EmptyState } from "../page";
 import { Async } from "../states";
 import { Badge } from "../ui/basic";
@@ -24,22 +26,57 @@ function Attachments({ r }: { r: BugReportItem }) {
   if (!r.files.length && !r.missing) return null;
   return (
     <div className="mt-3 flex flex-wrap gap-2">
-      {r.files.map((f) => f.type.startsWith("video/")
-        ? <video key={f.n} src={f.url} controls preload="metadata" className="max-h-56 max-w-full rounded-lg border border-border bg-black" aria-label={`Video ${f.n + 1}, ${formatBytes(f.bytes)}`} />
-        : (
-          <a key={f.n} href={f.url} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-lg border border-border outline-none focus-visible:ring-2 focus-visible:ring-ring/60" title={`Screenshot ${f.n + 1}, ${formatBytes(f.bytes)}: open full size`}>
-            <img src={f.url} alt={`Screenshot ${f.n + 1} of report #${r.id}`} loading="lazy" className="h-28 w-40 object-cover object-top" />
-          </a>
-        ))}
+      {r.files.map((f) => {
+        const what = `${f.type.startsWith("video/") ? "Video" : "Screenshot"} ${f.n + 1}, ${formatBytes(f.bytes)}`;
+        // On GitHub only (the local copy was deleted): a link, since the page's own policy doesn't load GitHub media.
+        if (!f.url) {
+          return f.githubUrl ? (
+            <a key={f.n} href={f.githubUrl} target="_blank" rel="noopener noreferrer"
+              className="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-border px-3 text-xs font-medium text-accent-text outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring/60">
+              <Github className="size-3.5" aria-hidden />{what} on GitHub<ExternalLink className="size-3" aria-hidden />
+            </a>
+          ) : <span key={f.n} className="self-center text-xs text-muted-foreground">{what}: no copy left</span>;
+        }
+        const media = f.type.startsWith("video/")
+          ? <video src={f.url} controls preload="metadata" className="max-h-56 max-w-full rounded-lg border border-border bg-black" aria-label={what} />
+          : (
+            <a href={f.url} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-lg border border-border outline-none focus-visible:ring-2 focus-visible:ring-ring/60" title={`${what}: open full size`}>
+              <img src={f.url} alt={`Screenshot ${f.n + 1} of report #${r.id}`} loading="lazy" className="h-28 w-40 object-cover object-top" />
+            </a>
+          );
+        return (
+          <figure key={f.n} className="flex flex-col gap-1">
+            {media}
+            {f.uploadError && !f.githubUrl && <figcaption className="max-w-40 text-[11px] text-warning">Didn't upload to GitHub: {f.uploadError}</figcaption>}
+          </figure>
+        );
+      })}
       {r.missing > 0 && <span className="self-center text-xs text-muted-foreground">{r.missing} attachment{r.missing === 1 ? " was" : "s were"} never uploaded</span>}
     </div>
+  );
+}
+
+/** Its GitHub issue, one click away, or "Not filed yet" and why. */
+function Issue({ r }: { r: BugReportItem }) {
+  if (r.issue) {
+    return (
+      <a href={r.issue.url} target="_blank" rel="noopener noreferrer" data-testid="bug-report-issue"
+        className="inline-flex min-h-8 items-center gap-1.5 font-medium text-accent-text underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring/60 max-sm:min-h-11">
+        <Github className="size-3.5" aria-hidden />Issue #{r.issue.number}<ExternalLink className="size-3" aria-hidden />
+      </a>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1.5 text-muted-foreground" data-testid="bug-report-not-filed">
+      <CircleDashed className="size-3.5" aria-hidden />{r.notFiled?.startsWith("Private:") ? r.notFiled : `Not filed yet${r.notFiled ? `: ${r.notFiled}` : ""}`}
+    </span>
   );
 }
 
 function ReportCard({ r, onChanged }: { r: BugReportItem; onChanged: () => void }) {
   const [busy, setBusy] = useState(false);
   const act = async (what: "close" | "reopen" | "delete") => {
-    if (what === "delete" && !window.confirm(`Delete bug report #${r.id} and its attachments? This can't be undone.`)) return;
+    if (what === "delete" && !window.confirm(`Delete bug report #${r.id} and its attachments here? This can't be undone.${r.issue ? ` Its GitHub issue #${r.issue.number} stays.` : ""}`)) return;
     setBusy(true);
     try {
       if (what === "delete") await apiFetch(`${PATH}/${r.id}`, { method: "DELETE", json: {} });
@@ -60,6 +97,7 @@ function ReportCard({ r, onChanged }: { r: BugReportItem; onChanged: () => void 
           ? <a className="inline-flex min-w-0 items-center gap-1 truncate text-accent-text underline-offset-4 hover:underline" href={`mailto:${r.email}`}><Mail className="size-3.5 shrink-0" aria-hidden />{r.email}</a>
           : <span className="text-muted-foreground">No email given</span>}
       </div>
+      <div className="mt-2 text-sm"><Issue r={r} /></div>
       <p className="mt-2 whitespace-pre-wrap break-words text-sm text-foreground">{r.message}</p>
       <Attachments r={r} />
       <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs text-muted-foreground">

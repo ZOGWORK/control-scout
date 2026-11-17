@@ -60,9 +60,9 @@ stands only when one of its reads showed this division's own name (`divisionOf`,
      filled, not read);
    - a stretch of one read is still a confirmed read (step 1: its overlay and timer agree at two points, and the match
      wasn't running 25 s before), so the video places it where its frames show it (high), however far that is from
-     FIRST's schedule: the stream is the truth (owner, 2026-11-15). It goes to **review** only when it sits more than
-     30 minutes from where the reads beside it, or else the broadcast's own clock, put the video (it may be another
-     day's or event's), or when there's neither to compare with.
+     FIRST's schedule: the stream is the truth (owner, 2026-11-15). No read is ever flagged for how far it sits from
+     FIRST's times (owner, 2026-11-16): what keeps a wrong one out is read off the frames (two timer reads that agree,
+     the match not running 25 s before, an opening that names it, the division's own name on a shared stream).
 3. **Plausible or review.** Placed starts must be inside the video, in match order, and at least 2:32 apart (a
    match's 2:38 less a read's 6 s slack).
    Any that aren't go to review. Where a start lands inside the previous match's play, both read off the video, the
@@ -76,12 +76,42 @@ A gap in one stretch doesn't stop the day: the next read that agrees with anothe
 
 ## Every clip opens on its match
 
-A placed start isn't a clip until its opening is checked (`checkOpenings`): the overlay 20, 12 or 5 s before the start
-must name that match (and, on a shared stream, not a sibling division's). The first that does is where the clip opens
-(`opens`); the server starts the clip there (`frameOpen`). One whose opening frame shows another match goes to review;
-one whose overlay can't be read there is missing with "overlay could not be read at its clip's start". A row with
-`opens` plays only the starts in it. `--verify` checks the openings of rows read before this, without reading their
-starts again.
+A placed start isn't a clip until its opening is checked (`checkOpenings`): the overlay 20, 12, 5, 2 or 0 s before the
+start must name that match (and, on a shared stream, not a sibling division's). The first that does is where the clip
+opens (`opens`); the server starts the clip there (`frameOpen`). The last two are for a results or bracket card that
+stays up until the match's own overlay comes on (CAONMIQ 2025 M7, USIAWESTLT M3). One whose opening frame shows another
+match goes to review; one whose overlay can't be read there is missing with "overlay could not be read at its clip's
+start". A row with `opens` plays only the starts in it. `--verify` checks the openings of rows read before this, without
+reading their starts again.
+
+An opening is read paused at its second, so the frame read is the one the clip opens on. A playing read lands about a
+second later by the time it's taken: LTCMP 2024 Q20, asked 8948, read 8948.9 with "Qualification 20 of 40" already in,
+while 8948 itself is a sponsor slate (the paused read gives 8951). Timer reads still play: the clock has to run.
+
+A busy frame (crowd, robots, game pieces) can throw tesseract's page layout off and lose the bottom bar's line with it:
+USARBEQ 2024 Q8 at 7097 s reads as a jumble whole, though "Qualification 8 of 23" is plain on screen. So an opening
+whose whole frame names nothing has the match's half of the bar's top row read on its own (`labelRow`): the whole row
+can lose it too, to the logo and event name beside it (USCHSGAQ1 2024 M1, its half "Playoff Match 1"). On a shared
+stream the whole row must also name this division. Placement reads stay whole-frame reads.
+
+With `--live`, a clip the live site already plays that a read leaves out (one read of it out of order, a gap the reads
+around it disagree on: FPEWESEA 2025 Q97–Q100) goes back to its live second for its opening check, like any start: its
+overlay there keeps it, another match's pulls it, nothing read leaves it unconfirmed. Only a frame pulls a live clip.
+
+What a frame names (`overlayLabel`): "Qualification N of M", "Finals Match N", or one "Match N". A card naming several
+names none, except the match its "Up Next" header names; a match a team "advances to" is a later one, never the one on
+screen; a bracket (three different M-numbers in its boxes) names none, its "advances to" line cut off or not; a replay
+("M6-2") is named by its match alone ("M6").
+
+A clip already live is never dropped on a frame that names nothing: `--verify`, and a re-read with `--live <main's
+frameTimings.ts>`, keep such a start in `unconfirmed` (it plays at the usual lead-in) until a later read confirms or
+pulls it. Only an opening that names another match pulls a live clip. A new placement whose opening names nothing is
+never placed.
+
+A recording can be cut mid-match (a stream restarted): a later read then gives an earlier start than the true one. The
+reader marks such a read "lost" and keeps it only where a read of Auto 12–20 s on agrees; the read after a cut
+("gained") has its other side checked in turn. Opening a video and closing a player are bounded (90 s, 15 s): a frozen
+page fails that video with the reason, and the next run reads it again.
 
 Only `starts` become clips. `review` (with the start found and why) and `missing` (with why) are written per video for
 the owner's review list; review starts are never shown as clips, and nothing is dropped without a reason.
@@ -91,8 +121,8 @@ against the frames; a match in none of `starts`, `review`, `missing` or `earlySt
 
 A video where three matches in a row give no read, and nothing has been read yet, counts as one without the overlay
 and is left, after one more go in a fresh player (a player that never showed the stream looks the same). A frame read
-that hangs over 2 minutes fails its video with that reason. Any video gets a budget of 4 reads per match (40 at
-least), confirmations included: a confirmation spends up to seven of them (70 to 140 s in until one agrees, then
+that hangs over 2 minutes fails its video with that reason. Any video gets a budget of 8 reads per match (60 at
+least; a stream cut mid-match spends extra confirming reads), confirmations included: a confirmation spends up to seven of them (70 to 140 s in until one agrees, then
 one 25 s before the start).
 
 ## Where the timings live
@@ -140,6 +170,22 @@ through a PR like any other change.
 On GATOR (USOHSHOS, a full recording the server already places from the clock), frames land 9 to 14 s after the
 clock (median 10 s): YouTube's live delay. That's within the 20 s lead-in each clip starts with. On FTC Ontario's
 layout (Sudbury, Bolton), frames land 6 to 8 s after the clock where the video kept its broadcast whole.
+
+## Clock clips checked by their first frame
+
+Owner decision (2026-11-15, "New clips + verify old"): a new clip is only placed once the overlay at its first frame
+names its match. The clips already placed from YouTube's facts (the clock, about 27,000) stay live while a background
+sweep reads the overlay at each one's first frame, recorded in `server/data/clipChecks.ts`:
+
+- **ok**: the first frame names the match. The clip stays.
+- **pulled**: the first frame names a different match. The clip is never served (`clipPulled`, checked in
+  `withClips`), and it's a finding on the owner console (`clipCheckFindings`) with the clip's start and what it showed.
+- **unconfirmed**: the first frame names nothing (blank, a transition, a cutaway). The clip stays and is read again on
+  the next sweep. A frame that shows nothing is never a reason to pull.
+- **noOverlay**: no frame of the video showed a readable overlay (older seasons' layouts). Its clips can't be checked
+  by frame; they're counted and never pulled.
+
+The sweep runs season by season, newest first, and each data PR reports its measured counts (`clipCheckTotals`).
 
 ## Not covered
 

@@ -135,6 +135,13 @@ The finals are a classic bracket's "F" series, or a double-elimination bracket's
 replay (the event's bracket by its alliance count, from the engine's `BRACKETS`). Only the finder applies the finals:
 any other answer said with them is left to the readers after it, never answered for every playoff match.
 
+An event named with nothing asked of it but its matches ("CRI matches", "matches at the NJ championship", "CRI
+playoff matches", "CRI 2025 matches") is the finder's plain list (`asksEventMatches` in `execute.ts`, measure
+`order`): every played match in the order played, qualification first, the playoffs after, each row linking its match so
+the answer plays its clip inline, the way a team's "matches with video" does (`answers/video.ts` reads up to 200 rows,
+an event's whole list). No year said reads the event's latest edition with a played match; a year reads the edition
+held then. A team, a measure, a place or a window leaves the query to the readers that own it.
+
 No season said (or "this season") reads the season today is in; when it has none of the matches asked for yet it
 reads the season before and says so: "No 2026–27 matches yet in California; showing 2025–26", "No 2026–27
 comebacks yet…". The plain highest score (no measure, no match type) follows the same rule. "Last season" is the
@@ -158,6 +165,17 @@ One rule, one resolver (`server/api/answers/season.ts`), read by every intent:
 answer read from its matches (results, record, match lists, scores, rank, OPR), and the card names the event and its
 season. "Ever", "all time" or "all (of their) state championships" reads every season it played one, labelled "All
 seasons". Answers read from event or season rows (best finish, seasons played) are across its state championships.
+
+## An event by its initialism
+
+`src/shared/query/initialisms.ts`: an event's initialism is its significant words' first letters (2 to 6 words, none a
+number or date) and any short form its name states in parentheses. A trailing event type FIRST appends ("Premier
+Event", "Off-Season Event") is also left out, so FIRST's "Chicago Robotics Invitational Premier Event" is CRI as well
+as CRIPE. The search index holds them with the event's words (`server/stats/job.ts`), and every reader picks among
+events sharing one with `initialismEvent` (`server/api/query/initialisms.ts`). Beside other words ("cri matches",
+"cri results", "cri 2025"), where a team whose name starts the same way can outrank the event, `searchAnswer` reads the
+word as the event's name (`initialismInFull`, a year typed narrows the event) and keeps that answer when its first hit
+or its card is the event. Not for a word that is a team's name, an ordinary word, or shorter than three letters.
 
 ## Highlights
 

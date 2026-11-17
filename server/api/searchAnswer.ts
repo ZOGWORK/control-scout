@@ -25,6 +25,7 @@ import { ruleAnswer } from "./searchRules.js";
 import { askAnswer, readAsk } from "./searchAsks.js";
 import { readRuleQuery } from "../../src/shared/searchRuleQuery.js";
 import { seasonLabel } from "../../src/shared/format.js";
+import { teamHighlights } from "./answers/highlights.js";
 import { cleanTeamName, searchTeamTitle, teamNameOf, teamWords } from "../../src/shared/teamTitle.js";
 import { teamPageSql } from "../../src/shared/teamPages.js";
 import { CURRENT_SEASON, SEASONS } from "../data/seasons.js";
@@ -36,7 +37,7 @@ import { intentAnswer, parseIntent } from "./searchIntents.js";
 import { inRegion, namedTeamHit, teamsByName } from "./teamsByName.js";
 import { parseQuestion, questionAnswer } from "./searchQuestions.js";
 import { highScoreAnswer, parseHighScore } from "./searchHighScores.js";
-import { eventVersusSearch, leagueSearch, statAnswer } from "./answers/index.js";
+import { eventFit, eventVersusSearch, leagueSearch, statAnswer } from "./answers/index.js";
 import { divisionFieldAnswer, oprPhaseOf, readDivisionField, type EventRow } from "./answers/families/eventVersus.js";
 import { seasonOfDate } from "./query/time.js";
 import { WATCH_TAKERS } from "./query/intents.js";
@@ -51,8 +52,10 @@ import { asksOfTeams, pipelineAnswer, pipelineReads } from "./query/execute.js";
 import { derivedVerdict, yesNoAnswer } from "./answers/yesNo.js";
 import { sorryFor } from "./answers/sorry.js";
 import { fold, names } from "./query/names.js";
+import { initialismEvent } from "./query/initialisms.js";
+import { ORDINARY } from "../../src/shared/query/ordinary.js";
 import { eventPlace, normalise, parseQuery } from "./query/parse.js";
-import { parseContext } from "./query/context.js";
+import { EVENT_FIT, parseContext } from "./query/context.js";
 import { pickShared, whichLine } from "./query/shared.js";
 import { withPage } from "./answers/teamsNamed.js";
 import { asideWord, asksWhich, onlyOrdinary } from "./query/ordinary.js";
@@ -89,6 +92,8 @@ export interface AnswerOptions {
   full?: boolean;
   /** False: the page's answer without its sorry note or verdict, for checking a sorry suggestion (never in a loop). */
   sorry?: boolean;
+  /** False: an event's initialism isn't read again as its name (the search for the name itself: never in a loop). */
+  initialisms?: boolean;
 }
 
 
@@ -133,6 +138,22 @@ export async function withoutAside(q: string, opts: { now?: number; prefer?: Rea
   const rest = ws.slice(0, k).join(" ") + (/[?]\s*$/.test(q) ? "?" : "");
   const again = await parseQuery(rest, ctx);
   return again.leftover.length ? q : rest;
+}
+
+const ONE_LETTER_FORMS = new Set(INFORMAL.map(([from]) => from).filter((f) => f.length === 1));
+/** A stray letter typed at the end ("what is the best team in nj n"): one letter left unread after a question the
+ *  parser reads whole without it. The question without it, and the letter, to say it wasn't read. Never "a" or "i"
+ *  (words), nor a letter anything reads (a team's name, a short form). */
+export async function withoutStrayLetter(q: string, opts: { now?: number; prefer?: ReadonlySet<string> } = {}): Promise<{ rest: string; letter: string } | null> {
+  const m = /^(\S+(?:\s+\S+)+?)\s+([b-hj-z])\s*([?!.]*)\s*$/i.exec(q.trim());
+  // A one-letter short form ("u" for "you", ./query/lexicon.ts INFORMAL) is read, said in full later: never stray.
+  if (!m || q.includes('"') || ONE_LETTER_FORMS.has(m[2].toLowerCase())) return null;
+  const ctx = await parseContext(opts.now, opts.prefer);
+  const p = await parseQuery(q, ctx);
+  if (p.leftover.length !== 1 || p.leftover[0].toLowerCase() !== m[2].toLowerCase()) return null;
+  const rest = `${m[1]}${m[3]}`;
+  const again = await parseQuery(rest, ctx);
+  return !again.leftover.length && again.intent ? { rest, letter: m[2] } : null;
 }
 /** The lexicon's one-word filler ("i", "please"). */
 /** A chat command and its option name, written before the question: "/ask question:", "/ask question: ". */
@@ -236,6 +257,13 @@ export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promi
     const b = await searchAnswer(unasked, opts);
     return carryOutcome(b, { ...b, q: cleanQuery(raw) });
   }
+  // A stray letter typed at the end ("… in nj n"): the question without it, the letter said as not read.
+  const stray = await withoutStrayLetter(String(raw ?? ""), opts);
+  if (stray) {
+    const b = await searchAnswer(stray.rest, opts);
+    const understood = b.understood ? { ...b.understood, unread: [...(b.understood.unread ?? []), stray.letter] } : b.understood;
+    return carryOutcome(b, { ...b, q: cleanQuery(raw), ...(understood ? { understood } : {}) });
+  }
   const said = String(raw ?? ""), full = await inFull(said);
   if (full !== said) {
     const b = await searchAnswer(full, opts);
@@ -265,6 +293,12 @@ export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promi
     return carryOutcome(b, { ...b, q: cleanQuery(raw) });
   }
   const a = await numberedAnswer(raw, opts);
+  // Teams compared with "highlights" said ("4215 vs 6980 highlights"): the side by side, then each team's own
+  // highlights of the season compared, the same standout matches its highlights page lists.
+  const shown = !!(opts.full ?? (opts.limit ?? 12) >= SEARCH_PAGE_LIMIT);
+  const asksHighlights = shown && HIGHLIGHT_SAID.test(said);
+  const compared = async (x: SearchAnswer) => (asksHighlights && x.stat?.intent === "compare" ? withTeamHighlights(x) : x);
+  if (asksHighlights && a.stat?.intent === "compare") return compared(a);
   // Asked to watch it ("who won decode with video", "… highlights"): every answer plays its matches' video
   // (./answers/video.ts), so words asking to watch beside a question whose answer didn't take them are dropped and
   // the question answered as asked. Never when the answer took them (a team's or a scope's highlights, a video page,
@@ -272,7 +306,22 @@ export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promi
   const unwatched = withoutWatch(said);
   if (unwatched !== said && !tookWatch(a)) {
     const b = await searchAnswer(unwatched, opts);
-    if (b.stat || b.card) return carryOutcome(b, { ...b, q: cleanQuery(raw) });
+    if (b.stat || b.card) return carryOutcome(b, { ...(await compared(b)), q: cleanQuery(raw) });
+  }
+  // Highlights said in other words ("4215 versus 6980 best moments") beside teams compared, unanswered as said: the
+  // comparison, each team's highlights after it. Kept only when the words left are a comparison.
+  if (asksHighlights && !a.stat && !a.card) {
+    const plain = said.replace(new RegExp(HIGHLIGHT_SAID.source, "gi"), " ").replace(/\s+/g, " ").trim();
+    const b = plain && plain !== said ? await searchAnswer(plain, opts) : null;
+    if (b?.stat?.intent === "compare") return carryOutcome(b, { ...(await compared(b)), q: cleanQuery(raw) });
+  }
+  // An event's initialism beside other words ("cri matches", "mti 2025") that the words as said didn't read as that
+  // event (a team whose name starts the same way can outrank it): the same ask with the event's name, kept when it
+  // answers about that event.
+  const named = opts.initialisms === false ? null : await initialismInFull(said);
+  if (named && !aboutEvent(a, named)) {
+    const b = await searchAnswer(named.q, { ...opts, initialisms: false });
+    if (aboutEvent(b, named)) return carryOutcome(b, { ...b, q: cleanQuery(raw) });
   }
   // A season said by its game ("how many teams in nj decode year", "…, centerstage") and not answered as said: the
   // same ask with the season's years, the way every reader reads a season. Only when the words as said found no
@@ -291,11 +340,67 @@ export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promi
   return onPage(raw, await spelled(cleanQuery(raw), a, (q) => searchAnswer(asked ? `${q}?` : q, { ...opts, spell: false })), opts);
 }
 
+/**
+ * `q` with its one word that is an event's initialism ("cri", ../query/initialisms.ts) said as the event's name, and
+ * the event chosen the way every initialism reader chooses it (a year typed narrows it). Null when no word is one, or
+ * the word is a team's name, an ordinary word, or shorter than three letters (two letters are too often something else).
+ */
+export async function initialismInFull(q: string): Promise<{ q: string; season: number; code: string; name: string } | null> {
+  const idx = await names();
+  const tokens = String(q ?? "").split(/(\s+)/);
+  const hits = tokens.map((t, i) => ({ i, w: t.toLowerCase().replace(/^[^a-z]+|[^a-z]+$/g, "") }))
+    .filter(({ w }) => w.length >= 3 && !ORDINARY.has(w) && idx.initialism(w).length && !idx.teamsNamed(w).length);
+  if (hits.length !== 1) return null;
+  const year = /(?:^|\D)(20\d\d)(?!\d)/.exec(q)?.[1];
+  const when = year ? (e: { season: number; start: string | null }) => e.season === Number(year) || String(e.start ?? "").startsWith(year) : undefined;
+  const ev = await initialismEvent(hits[0].w, when);
+  if (!ev) return null;
+  const name = (await get<{ name: string }>("SELECT name FROM events WHERE season = ? AND code = ?", [ev.season, ev.code]))?.name;
+  if (!name) return null;
+  const out = [...tokens];
+  out[hits[0].i] = out[hits[0].i].replace(new RegExp(hits[0].w, "i"), name);
+  return { q: out.join(""), season: ev.season, code: ev.code, name };
+}
+
+/** The answer is about the event: its first hit is the event, or its card or line names it (by its code or name). */
+function aboutEvent(a: SearchAnswer, e: { code: string; name: string }): boolean {
+  if (a.step === "recovery") return false;
+  if (a.hits[0] && a.hits[0].ref.split(":")[1] === e.code) return true;
+  // A card about it (a question answered), else the line saying what was found, unless that found a team first.
+  if (a.stat || a.card) { const said = JSON.stringify([a.stat?.title, a.stat?.headline, a.card]); if (said.includes(e.name) || said.includes(e.code)) return true; }
+  return a.hits[0]?.kind !== "team" && !!a.understood?.label && (a.understood.label.includes(e.name) || a.understood.label.includes(e.code));
+}
+
 /** The lexicon's phrases that ask to watch: "with video" (the match finder's filter), "video", "clips", and
  *  "highlights" itself (never its other phrases, "best matches", which ask for matches). */
 const WATCH_PHRASES = LEXICON.filter((e) => e.syms.length === 1 && (e.syms[0].k === "withvideo" || e.syms[0].k === "videos" || (e.syms[0].k === "highlights" && e.words[0].startsWith("highlight")))).map((e) => e.words);
 const escRe = (w: string) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const WATCH_RE = new RegExp(`(?:^|\\s)(?:${WATCH_PHRASES.map((ws) => ws.map(escRe).join("\\s+")).join("|")})(?=\\s|[?!.,]|$)`, "gi");
+
+/** "Highlights" (or its phrases) said: src/shared/query/lexicon.ts's highlights words. */
+const HIGHLIGHT_SAID = /\b(?:highlights?|highlight reels?|best moments|top moments|best plays|top plays|standout (?:matches|moments))\b/i;
+
+/** A comparison with each team's highlights after it: the season it compares (its first chip), else each team's latest
+ *  with matches. A team with none that season adds nothing; the comparison stands as it was. */
+async function withTeamHighlights(a: SearchAnswer): Promise<SearchAnswer> {
+  const s = a.stat!;
+  const teams = s.teams ?? (s.team ? [s.team] : []);
+  const season = SEASONS.find((x) => seasonLabel(x.season) === s.scope[0])?.season;
+  const each = await Promise.all(teams.map((t) => teamHighlights(t, season).catch(() => null)));
+  const blocks = each.flatMap((h, i) => {
+    const b = h?.blocks.find((x) => x.kind === "matches");
+    return b ? [{ ...b, title: `${teams[i].number}${teams[i].name ? ` ${teams[i].name}` : ""}: ${b.title}` }] : [];
+  });
+  if (!blocks.length) return a;
+  // Before the questions to try next, after the comparison itself.
+  const at = s.blocks.findIndex((b) => b.kind === "links");
+  const kept = at < 0 ? [...s.blocks, ...blocks] : [...s.blocks.slice(0, at), ...blocks, ...s.blocks.slice(at)];
+  return { ...a, stat: { ...s, blocks: kept, definition: `${s.definition} Each team's highlights are its standout matches of the season: its best score, biggest win, latest playoff win, best Auto and closest win.` } };
+}
+
+/** Whether the query's own words ask to watch ("highlights", "with video", …) or say highlights another way ("best
+ *  moments", "top plays"), whatever else it says. */
+export const hasWatchWord = (q: string): boolean => new RegExp(WATCH_RE.source, "i").test(q) || HIGHLIGHT_SAID.test(q);
 
 /** `q` without its words asking to watch; `q` itself when it has none, or when fewer than two words would be left. */
 export function withoutWatch(q: string): string {
@@ -303,11 +408,13 @@ export function withoutWatch(q: string): string {
   return out === q.trim() || out.split(" ").length < 2 ? q : out;
 }
 
-/** Whether an answer is one that watching asks for: highlights, a page of match videos, or matches found with video. */
+/** Whether an answer is one that watching asks for: highlights, a page of match videos, a season's top matches, or
+ *  matches found with video. */
 export function tookWatch(a: SearchAnswer): boolean {
   const s = a.stat;
   if (!s) return false;
-  return /highlights|video/.test(s.intent) || WATCH_TAKERS.has(s.intent) || s.scope.includes("With video") || s.blocks.some((b) => b.kind === "videos" || (b.kind === "matches" && b.rows.length > 0 && b.rows.every((r) => r.note)));
+  // A season's top matches ("best teleop videos in romania") list matches, each playing its clip: watching took them.
+  return /highlights|video|top-matches/.test(s.intent) || WATCH_TAKERS.has(s.intent) || s.scope.includes("With video") || s.blocks.some((b) => b.kind === "videos" || (b.kind === "matches" && b.rows.length > 0 && b.rows.every((r) => r.note)));
 }
 
 /** `q` with a game's name (and a "year" or "season" after it, an "in" or a comma before it) said as its season's years
@@ -811,7 +918,7 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
     const base = await resolveCore(question.core, opts);
     const team = base.step !== "recovery" && base.hits[0]?.kind === "team" && !base.hits[0].href ? base.hits[0] : null;
     if (team) {
-      const ans = await questionAnswer(q, question, team, base.hits.slice(1), pagesFor(q));
+      const ans = await questionAnswer(q, question, team, base.hits.slice(1), pagesFor(q), opts.now);
       // The team found by a near spelling of its name ("hypnotik robotics upcoming events"): said as a correction, only
       // when the team's own search says so (its name close to what was typed, no other name as close). Words found in
       // a school, city or venue ("river dell robotics") are the team as typed, never "corrected" to its name.
@@ -943,6 +1050,23 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
     // A question ("what is the best ftc team right now") isn't a list of names: a word of it matching a town
     // ("Best") or a team ("The Best Friends") is no answer, so it says what it read and offers the browse links.
     if (opts.asked || isQuestionForm(opts.typed ?? q)) return recovery(q, [`No team, event or match matched "${nameWords(q)}"`]);
+    // A match's number with words no stored event's name fits whole ("Q16 <town> Meet 2 <word>"): a match is only ever
+    // at an event, so the closest are the events named by the longest run of its words from the start, the words past
+    // it said as matching none; never teams with a word in common.
+    const label = MATCH_WORDS.exec(rest);
+    if (label) {
+      const said = rest.replace(label[0], " ").replace(/\s+/g, " ").trim().split(" ").filter(Boolean);
+      for (let k = said.length - 1; k >= 2; k--) {
+        const named = said.slice(0, k).join(" ");
+        const evs = (await search(named, limit, prefer, new Set(["event"]), season)).filter((h) => h.kind === "event" && eventFit(named, h.title, h.ref.split(":")[1] ?? "") >= EVENT_FIT);
+        if (!evs.length) continue;
+        // Those with the words in their order first ("<town> Meet 2 - …" before "<town> Meet 1 - … 2").
+        const inOrder = (h: SearchHit) => (fold(h.title).includes(fold(named)) ? 0 : 1);
+        const listed = [...evs].sort((a, b) => inOrder(a) - inOrder(b)).slice(0, 10);
+        const which = label[0].toUpperCase().replace(/\s+/g, "");
+        return answer(q, { hits: listed, step: "deterministic", understood: { kind: "names", label: `No ${which} at "${said.join(" ")}": events named "${named}"` } });
+      }
+    }
     const ws = words(nameWords(rest, opts.asked));
     const closest = uniq(hits).slice(0, 10).map((h): SearchHit => ({ ...h, match: "fuzzy", matched: ws.filter((w) => words(`${h.title} ${h.subtitle}`).some((x) => x.startsWith(w))) }));
     return recovery(q, [`No team, event or match matched all of "${nameWords(q)}"`, "Closest matches: each has some of the words"], closest);

@@ -79,6 +79,8 @@ const WATCH = ["highlights", "videos"];
 const OUTCOMES = ["metric:win", "metric:loss", "outcome:W", "outcome:L"];
 /** The season numbers a leaderboard ranks teams by. */
 const BOARD_METRICS = ["metric:opr", "metric:rating", "metric:winrate", "metric:auto", "metric:teleop", "metric:endgame", "metric:reliability"];
+/** The board stats that are one period's part of OPR ("teleop opr"). */
+const PERIOD_OPR = new Set(["metric:auto", "metric:teleop", "metric:endgame"]);
 /** What a leaderboard takes in: its stats, a record beside them (every row shows it), "by". */
 // Penalties only beside "team" ("which team fouls the least"): the most penalties alone are the matches with the most.
 // A filter on the teams ranked: part of their name, or no award ever won.
@@ -270,7 +272,8 @@ export const INTENTS: IntentRule[] = [
   // Matches by a measure ("and" is "with": "the match with the most penalty points").
   R("low-matches", 0, ["agg:min", "metric:score"], ["thing:match", "nopen", "and"]),
   R("low-matches", 0, ["agg:min", "thing:match"], ["metric:score", "nopen", "and"]),
-  R("close-matches", 0, ["agg:closest"], ["thing:match", "metric:score", "metric:margin", "metric:win", "metric:loss", "outcome:W", "outcome:L", "and"]),
+  // A score both alliances reached said too ("closest match above 500"): the close matches among those.
+  R("close-matches", 0, ["agg:closest"], ["thing:match", "metric:score", "metric:margin", "metric:win", "metric:loss", "outcome:W", "outcome:L", "and", "cond"]),
   R("close-matches", 0, ["agg:min", "metric:margin"], ["thing:match", "metric:win", "metric:loss", "metric:score", "outcome:W", "outcome:L", "and"]),
   R("lopsided-matches", 0, ["agg:max", "metric:margin"], ["thing:match", "metric:win", "metric:score", "outcome:W", "and"]),
   R("penalty-matches", 0, ["agg:max", "metric:penalty"], ["thing:match", "metric:score", "and"]),
@@ -305,7 +308,8 @@ export const INTENTS: IntentRule[] = [
   ]),
   // A team stat alone with a season or a place and no one team ("2027 opr", "opr nj", "nj teams ranked by opr"): everyone's
   // board by it (./execute.ts).
-  ...BOARD_METRICS.map((m) => R("leaderboard", 0, [m], ["thing:team", "thing:season", "prep:in", "prep:for", "name-has", "no-award"], { noEvent: true })),
+  // A period's OPR said in full ("romania teleop opr", "nj auto opr") is that period's stat: "opr" names it, no second stat.
+  ...BOARD_METRICS.map((m) => R("leaderboard", 0, [m], ["thing:team", "thing:season", "prep:in", "prep:for", "name-has", "no-award", ...(PERIOD_OPR.has(m) ? ["metric:opr"] : [])], { noEvent: true })),
   // A number's rise over the season, each team's first event to its last ("fastest growing team by rating gain across
   // the season"): the board of the most gained.
   R("leaderboard", 0, ["gain"], [...BOARD_OPT, "agg:max", "trend", "thing:season"], { noEvent: true }),

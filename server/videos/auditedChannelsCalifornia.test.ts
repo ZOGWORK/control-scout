@@ -8,7 +8,7 @@ import type { OfficialList } from "./officialVideos";
 import shipped from "../data/officialVideos.json" with { type: "json" };
 
 const data = shipped as OfficialList;
-const NC = "UCsWixqR83vr2poZHfU_FgcQ", G = "UCJAVhMsmeKHf7riEsPafi9w", T7419 = "UCesNcwI6hz2m5T44R2_9rlA";
+const NC = "UCsWixqR83vr2poZHfU_FgcQ", G = "UCJAVhMsmeKHf7riEsPafi9w", T7419 = "UCesNcwI6hz2m5T44R2_9rlA", LIVE = "UCjXduKUa9FVXO7L-wz5sjOg";
 
 // Scout's events (season/code → name, city, start, end), as the live database gave them on 2026-11-14.
 const EVENTS: Record<string, [name: string, city: string, start: string, end: string]> = {
@@ -46,7 +46,12 @@ const EVENTS: Record<string, [name: string, city: string, start: string, end: st
   "2020/USCANSJCT": ["NorCal FTC-Regional Championship REMOTE", "Remote Event", "2021-05-02", "2021-05-02"],
   "2026/USCALACAS2": ["SoCal - G - Scrimmage 1", "Carson", "2026-11-07", "2026-11-07"],
   "2026/USCALACAS1": ["SoCal - G - Scrimmage 0", "Carson", "2026-10-24", "2026-10-24"],
+  "2025/USCALACAS2": ["SoCal FTC Group G - Scrimmage 3", "Carson", "2026-01-17", "2026-01-17"],
   "2025/USCALACAS3": ["SoCal FTC Group G - Scrimmage 2", "Carson", "2025-12-13", "2025-12-13"],
+  "2025/USCALACMP": ["California - Los Angeles Championship", "Monrovia", "2026-03-07", "2026-03-07"],
+  "2025/USCALAPAQ2": ["SoCal FTC Qualifier 6 - TPPA Sun", "Palmdale", "2026-02-15", "2026-02-15"],
+  "2025/USCALAPAQ1": ["SoCal FTC Qualifier 5 - TPPA Sat", "Palmdale", "2026-02-14", "2026-02-14"],
+  "2025/USCALAMOQ1": ["SoCal FTC Qualifier 3 - MHS Sat", "Monrovia", "2026-01-31", "2026-01-31"],
   "2025/USCALACAS4": ["SoCal FTC Group G - Scrimmage 1", "Carson", "2025-11-15", "2025-11-15"],
   "2025/USCALACAS1": ["SoCal FTC Group G - Scrimmage 0", "Carson", "2025-10-18", "2025-10-18"],
   "2024/USCALAGM3": ["SoCal FTC League G - Meet 3", "Carson", "2025-01-18", "2025-01-18"],
@@ -89,7 +94,8 @@ describe("audited channels: California", () => {
 
   it("FTC SoCal League G: each meet on League G's event with the same number, never another league's", () => {
     const g = rowsOf(G);
-    expect(g).toHaveLength(6);
+    // 2025's Meet 3 is an upload (published 2026-01-23) of the one League G event of January, "Scrimmage 3" (2026-01-17).
+    expect(g).toHaveLength(7);
     for (const x of g) {
       const name = eventOf(x);
       expect(name, x.videoId).toMatch(/\bG\b/);
@@ -97,6 +103,29 @@ describe("audited channels: California", () => {
       const year = /^(\d{4}) /.exec(x.title)?.[1];
       if (year) expect(Number(year), x.videoId).toBe(x.season);
     }
+  });
+
+  it("SoCal FTC live (@FIRSTsocalftclive): each ILT on the qualifier with its number, the regional championship at Monrovia", () => {
+    const rows = rowsOf(LIVE).map((x) => `${x.season}/${x.code} ${x.day} ${x.videoId}`).sort();
+    // Every live broadcast of 45 minutes or more on the channel (YouTube Data API uploads list, 2026-11-15); its
+    // 1-minute "Qualifier 5 TPAA Saturday" and its kickoff talks aren't recordings.
+    expect(rows).toEqual([
+      "2025/USCALACMP 2026-03-07 9FYW9EKPlKM", "2025/USCALAMOQ1 2026-01-31 lwY0faBmsJ4",
+      "2025/USCALAPAQ1 2026-02-14 3n1rfzfB3dk", "2025/USCALAPAQ2 2026-02-15 zm2yCAsNK0w",
+    ]);
+    for (const x of rowsOf(LIVE)) {
+      const name = eventOf(x);
+      const ilt = /ILT #(\d)/.exec(x.title)?.[1];
+      if (ilt) expect(name, x.videoId).toMatch(new RegExp(`^SoCal FTC Qualifier ${ilt} `));
+      else expect(x.title, x.videoId).toMatch(/Regional Championships \| Monrovia/);
+    }
+    expect(data.channels[LIVE]).toBe("SoCal FTC live");
+    const rule = parseRule(OFFICIAL_CHANNELS.find((c) => c.channelId === LIVE)!.region)!;
+    const ca = { season: 2026, type: "Qualifier", city: "Palmdale", state: "CA", country: "USA", start: "2027-02-13", end: "2027-02-13", timezone: "America/Los_Angeles", divisionCode: null, parent: false };
+    expect(rule({ ...ca, code: "USCALAPAQ1", name: "SoCal FTC Qualifier 5 - TPPA Sat" })).toBe(true);
+    expect(rule({ ...ca, code: "USCALACMP", name: "California - Los Angeles Championship", type: "Championship" })).toBe(true);
+    expect(rule({ ...ca, code: "USCALACAS2", name: "SoCal FTC Group G - Scrimmage 3", type: "Scrimmage" })).toBe(false);
+    expect(rule({ ...ca, code: "USCALSCMP", name: "Los Angeles Unified School District Championship", type: "Championship" })).toBe(false);
   });
 
   it("7419 Tech Support: the two long streams of East Bay Meet #1 only, as its two parts", () => {
@@ -109,9 +138,9 @@ describe("audited channels: California", () => {
 
   it("leaves out what was checked and failed", () => {
     const ids = new Set(data.videos.map((x) => x.videoId));
-    // Already FIRST's own link (League G 2024 Meets 0-2); an undated upload (League G 2025 Meet 3); a scrimmage Scout
+    // Already FIRST's own link (League G 2024 Meets 0-2); a scrimmage Scout
     // has no event for; a false-start and short restarts; 7419's FRC sim and short test streams; webinars and kickoffs.
-    for (const no of ["cJYP0zQX8xk", "2PKJiU7_vuQ", "jgRLlw92hAk", "vGua-Y2ANkA", "mljqisRdhjY", "LizEgCXcMEE", "l3U5ZvvfFws", "6IYa3pcLR28", "ukr74I90ct0",
+    for (const no of ["cJYP0zQX8xk", "2PKJiU7_vuQ", "jgRLlw92hAk", "mljqisRdhjY", "clIX83Jyt18", "aoY5AS_omEY", "LizEgCXcMEE", "l3U5ZvvfFws", "6IYa3pcLR28", "ukr74I90ct0",
       "2i1_VVFu3y4", "EijEKNZX27o", "gnaJXc9GP-Y", "fGraUziq-Mc", "A67q1I0mu9Q"]) expect(ids.has(no), no).toBe(false);
   });
 

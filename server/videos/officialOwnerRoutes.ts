@@ -6,6 +6,7 @@ import { isEventCodeParam } from "../../src/shared/eventCode.js";
 import { markCoverageBulkReviewed, markCoverageReviewed, openCoverageCount, ownerClipCoverage, TRIAGES } from "./coverageCheck.js";
 import type { CoverageTriage } from "../../src/shared/api.js";
 import { approveWatched, ownerOfficial, pendingCount, rejectWatched, removeChannel, removeOfficial, runNow, saveChannel } from "./officialWatch.js";
+import { dismissFinding, ownerAudit, queueFinding, runChannelAudit } from "./officialAudit.js";
 
 type H = (fn: (req: Request, res: Response) => Promise<unknown>) => (req: Request, res: Response, next: NextFunction) => void;
 const str = (v: unknown, max = 300) => (typeof v === "string" ? v.trim().slice(0, max) : "");
@@ -46,7 +47,9 @@ export function clipCoverageOwnerRoutes(r: Router, h: H, actor: (req: Request) =
 }
 
 export function officialVideoOwnerRoutes(r: Router, h: H, actor: (req: Request) => string, log: (s: string) => void = () => {}): void {
-  r.get("/official-videos", h(async () => ownerOfficial()));
+  // The panel's data: the watcher's, and the channel audit's (server/videos/officialAudit.ts).
+  const full = async () => ({ ...(await ownerOfficial()), audit: await ownerAudit() });
+  r.get("/official-videos", h(async () => full()));
   r.get("/official-videos/counts", h(async () => ({ pending: await pendingCount() })));
 
   const one = (fn: (id: string, req: Request) => Promise<{ ok: true } | { ok: false; error: string }>) => h(async (req, res) => {
@@ -54,25 +57,30 @@ export function officialVideoOwnerRoutes(r: Router, h: H, actor: (req: Request) 
     if (!VIDEO_ID.test(id)) { res.status(400).json({ error: "Not a YouTube video id." }); return; }
     const out = await fn(id, req);
     if (!out.ok) { res.status(400).json({ error: out.error }); return; }
-    return ownerOfficial();
+    return full();
   });
   r.post("/official-videos/:videoId/approve", one((id, req) => approveWatched(id, req.body ?? {}, actor(req))));
   r.post("/official-videos/:videoId/reject", one((id, req) => rejectWatched(id, str(req.body?.reason, 200) || null, actor(req))));
   r.post("/official-videos/:videoId/remove", one((id, req) => removeOfficial(id, actor(req))));
+  // A channel-audit finding: to the review queue, or not a recording (why required).
+  r.post("/official-videos/audit/:videoId/queue", one((id, req) => queueFinding(id, actor(req))));
+  r.post("/official-videos/audit/:videoId/dismiss", one((id, req) => dismissFinding(id, str(req.body?.reason, 300), actor(req))));
 
   r.put("/official-videos/channels", h(async (req, res) => {
     const out = await saveChannel(req.body ?? {}, actor(req));
     if (!out.ok) { res.status(400).json({ error: out.error }); return; }
-    return ownerOfficial();
+    return full();
   }));
   r.delete("/official-videos/channels/:channelId", h(async (req, res) => {
     const out = await removeChannel(String(req.params.channelId), actor(req));
     if (!out.ok) { res.status(404).json({ error: out.error }); return; }
-    return ownerOfficial();
+    return full();
   }));
   r.post("/official-videos/run", h(async (req, res) => {
     const out = await runNow(actor(req), log);
     if (!out.ok) { res.status(400).json({ error: out.error }); return; }
-    return { run: out.run, ...(await ownerOfficial()) };
+    // The audit follows, as after a scheduled run; the panel shows it on its next load.
+    void runChannelAudit(log).catch((e) => log(`official videos: audit: ${(e as Error).message}`));
+    return { run: out.run, ...(await full()) };
   }));
 }

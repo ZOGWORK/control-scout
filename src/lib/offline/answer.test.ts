@@ -10,10 +10,11 @@ import type { RankingsResponse } from "../../shared/rankings";
 
 let dbs: SeasonDb[] = [];
 const reads: (number | undefined)[] = [];
-vi.mock("./seasons", () => ({ readSaved: async (only: number | undefined, read: (d: SeasonDb[]) => unknown) => { reads.push(only); return read(dbs.filter((d) => only === undefined || d.season === only)); } }));
+const kept = vi.hoisted(() => ({ n: 0 }));
+vi.mock("./seasons", () => ({ keepSearchIndexes: async () => { kept.n++; }, readSaved: async (only: number | undefined, read: (d: SeasonDb[]) => unknown) => { reads.push(only); return read(dbs.filter((d) => only === undefined || d.season === only)); } }));
 vi.mock("../packs", () => ({ loadLite: async () => null }));
 
-import { offlineAnswer } from "./answer";
+import { offlineAnswer, warmOffline } from "./answer";
 import { offlineSource, writeSaved, type SavedSeason } from "./saved";
 
 const meta = (season: number): SavedSeason => ({ season, version: "v", sha256: String(season), bytes: 1, savedAt: season, dataAsOf: `${season}-12-01T00:00:00Z`, builtAt: "b" });
@@ -45,6 +46,26 @@ describe("offlineAnswer", () => {
     expect(offlineSource(s)).not.toBeNull();
     const ev2 = await offlineAnswer("/api/search?q=newark&limit=1&kinds=event%2Cplace") as { hits: SearchHit[] };
     expect(ev2.hits.map((h) => h.kind)).toEqual(["event"]);
+  });
+
+  it("gets the saved seasons ready for an offline search (warmOffline), which then answers the same", async () => {
+    const before = await offlineAnswer("/api/search?q=gear&limit=12&answer=1");
+    reads.length = 0;
+    await warmOffline();
+    // Every saved season (what a search reads), once.
+    expect(reads).toEqual([undefined]);
+    expect(await offlineAnswer("/api/search?q=gear&limit=12&answer=1")).toEqual(before);
+  });
+
+  it("keeps the search index a season search built, once the page is idle", async () => {
+    vi.useFakeTimers();
+    try {
+      kept.n = 0;
+      await offlineAnswer("/api/search?q=gear&limit=12&answer=1");
+      expect(kept.n).toBe(0); // not while the answer is on its way
+      await vi.runAllTimersAsync();
+      expect(kept.n).toBe(1);
+    } finally { vi.useRealTimers(); }
   });
 
   it("opens only the season a season's page asks for", async () => {

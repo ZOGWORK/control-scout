@@ -9,6 +9,7 @@ import { createApp } from "../app";
 import { clearAllCaches } from "../caches";
 import { backfillVideoMeta, due, firstVideoId, inOrder, seasonClipKeys, seasonRecordings, withClips, type VideoMeta } from "./recordings";
 import { setFrameTimingsForTests } from "../data/frameTimings";
+import { setClipChecksForTests } from "../data/clipChecks";
 import type { MatchView } from "../../src/shared/api";
 
 let server: Server;
@@ -248,6 +249,22 @@ describe("matches read off a recording's own frames", () => {
       setFrameTimingsForTests([]);
     }
   });
+  it("never serve a clock clip whose first frame names another match; one that named nothing stays", async () => {
+    setClipChecksForTests([{ videoId: FIRST_ID, code: "CLIPS", season: S, checked: "2026-11-15", pulled: { Q1: { t: 100, showed: "Q7" } }, unconfirmed: { Q2: { t: 14205, why: "no overlay at its first frame" } } }]);
+    try {
+      clearAllCaches();
+      const ms = (await getJson(`/api/events/${S}/CLIPS`)).matches;
+      expect(ms.find((m: any) => m.label === "Q1").clip).toBeUndefined();
+      expect(ms.find((m: any) => m.label === "Q2").clip?.videoId).toBe(FIRST_ID);
+      // Another event's check on the same video never pulls this event's clip.
+      setClipChecksForTests([{ videoId: FIRST_ID, code: "ELSEWHEN", season: S, checked: "2026-11-15", pulled: { Q1: { t: 100, showed: "Q7" } } }]);
+      clearAllCaches();
+      expect((await getJson(`/api/events/${S}/CLIPS`)).matches[0].clip.t).toBe(100);
+    } finally {
+      setClipChecksForTests([]);
+      clearAllCaches();
+    }
+  });
   it("count for search's With video, an upload's framed matches too", async () => {
     clearAllCaches();
     expect((await seasonClipKeys(S)).has("UPLOAD|qual|0|1")).toBe(false);
@@ -447,5 +464,21 @@ describe("with a YouTube API key", () => {
     release(Response.json({ items: [{ id: "Late0000001", contentDetails: { duration: "PT1H" }, liveStreamingDetails: { actualStartTime: `${DAY}T12:58:13Z` } }] }));
     expect(await old).toBe(0);
     expect(await get("SELECT duration, end FROM video_meta WHERE video_id = ?", ["Late0000001"])).toEqual({ duration: 16541, end: `${DAY}T17:33:56.000Z` });
+  });
+});
+
+describe("FIRST's link to a video broadcast on another date", () => {
+  // 2024 USORSOM3 (2025-01-11): FIRST's livestream link was USORSOM2's stream of 2024-12-14.
+  it("isn't the event's video; the event whose date it fits keeps it", async () => {
+    await run("INSERT INTO events (season, code, name, type, start, end, timezone, remote, hybrid, livestream, source) VALUES (?, 'SOM2', 'Meet 2', 'LeagueMeet', '2026-04-11', '2026-04-11', 'America/Los_Angeles', 0, 0, 'https://www.youtube.com/watch?v=OtherDay001', 'test')", [S]);
+    await run("INSERT INTO events (season, code, name, type, start, end, timezone, remote, hybrid, livestream, source) VALUES (?, 'SOM3', 'Meet 3', 'LeagueMeet', ?, ?, 'America/Los_Angeles', 0, 0, 'https://www.youtube.com/watch?v=OtherDay001', 'test')", [S, DAY, DAY]);
+    // A link YouTube hasn't given a broadcast start for yet is kept: nothing says it's off.
+    await run("INSERT INTO events (season, code, name, type, start, end, timezone, remote, hybrid, livestream, source) VALUES (?, 'NOTREAD', 'Meet 4', 'LeagueMeet', ?, ?, 'UTC', 0, 0, 'https://www.youtube.com/watch?v=NotRead0001', 'test')", [S, DAY, DAY]);
+    await run("INSERT INTO video_meta (video_id, status, start, end, duration, live, checked_at) VALUES ('OtherDay001', 'ok', '2026-04-11T17:15:03Z', '2026-04-11T22:33:58Z', 18884, 0, 'x')");
+    clearAllCaches();
+    const recs = await seasonRecordings(S);
+    expect(recs.get("SOM2")?.videoId).toBe("OtherDay001");
+    expect(recs.has("SOM3")).toBe(false);
+    expect(recs.get("NOTREAD")?.videoId).toBe("NotRead0001");
   });
 });

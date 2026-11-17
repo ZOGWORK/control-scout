@@ -15,6 +15,17 @@ describe("frame timings the server plays from", () => {
     expect(frameConfidence("v", "E", "Q33")).toBeNull();
     expect(frameConfidence("v", "E", "Q36")).toBe("high");
   });
+  it("plays two close starts where the recording cut the first short and each clip opens on its own match", () => {
+    // USTXSASQ 2025: the stream cuts from Q14 at 1:07 to Q13's results, then Q15, 151 s after Q14 began.
+    const starts = { Q14: 7838, Q15: 7989 };
+    expect(plausibleStarts(starts, { Q14: 7826, Q15: 7977 })).toEqual(starts);
+    // Without both openings checked, or closer than a cut can explain, they overlap as before.
+    expect(plausibleStarts(starts, { Q14: 7826 })).toEqual({});
+    expect(plausibleStarts({ Q14: 7838, Q15: 7900 }, { Q14: 7826, Q15: 7888 })).toEqual({});
+    setFrameTimingsForTests([{ videoId: "v", code: "E", checked: "2026-11-16", starts, opens: { Q14: 7826, Q15: 7977 } }]);
+    expect(frameStart("v", "E", "Q14")).toBe(7838);
+    expect(frameStart("v", "E", "Q15")).toBe(7989);
+  });
   it("counts a video as framed only with a start it can play", () => {
     setFrameTimingsForTests([{ videoId: "v", code: "E", checked: "2026-11-14", starts: {}, missing: { Q1: "no frame of the video could be read" } }]);
     expect(hasFrames("v", "E")).toBe(false);

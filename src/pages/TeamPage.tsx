@@ -5,6 +5,7 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import { recordWords } from "../shared/format";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { leagueHref, leagueTitle } from "../shared/leagues";
+import { regionHref } from "../shared/regionRankings";
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 import {
   Award, Bookmark, BookmarkCheck, CalendarDays, ChevronDown, ClipboardList, ExternalLink, Eye, GraduationCap, Info, Link2, MapPin, Scale, Sparkles, Star, TrendingDown, TrendingUp, Trophy,
@@ -38,6 +39,8 @@ import { copyLink } from "../lib/clipboard";
 import { direction, trendLabel } from "../shared/trend";
 import { teamTitle } from "../shared/teamTitle";
 import { eventOver, onEventDates, type EventCalendar } from "../shared/eventDay";
+import { nextMatchOf } from "../shared/nextMatch";
+import { inWeekend, viewerToday, type NextMatchAnswer } from "../shared/weekend";
 import { OFFICIAL_ONLY, OFFICIAL_RULE, RECORD_RULE, offSeasonRecord, wltText } from "../shared/eventRecord";
 import { OfflineNote } from "../components/OfflineNote";
 import { offlineSource } from "../lib/offline/saved";
@@ -279,6 +282,7 @@ function Hero({ p, onSeason, fellBackFrom, asked = false }: { p: TeamProfile; on
           {/* What's next: on the team's own page (its newest season, or the current one); a past season asked for shows only its last event. */}
           {!asked || p.season >= current ? <Upcoming p={p} next={next} last={last} /> : last && <LastEvent last={last} team={t.number} className="mt-5 max-sm:mt-4" />}
           {p.league && <LeagueStanding league={p.league} season={p.season} team={t.number} />}
+          {p.region && <RegionStanding region={p.region} season={p.season} team={t.number} />}
           {predictable ? (
             <div className="mt-5 max-sm:mt-4 flex flex-wrap gap-2">
               <Button size="sm" asChild><Link to={matchHref}><Sparkles /> Predict a match with {t.number}</Link></Button>
@@ -573,6 +577,17 @@ function LeagueStanding({ league, season, team }: { league: NonNullable<TeamProf
   );
 }
 
+/** The team's place in its home region's rankings (src/shared/regionRankings.ts), linking to that region's table on the
+ *  page its row is on, the row marked. A team not ranked yet says so, never a rank. */
+function RegionStanding({ region, season, team }: { region: NonNullable<TeamProfile["region"]>; season: number; team: number }) {
+  return (
+    <Link to={regionHref(region.key, { season, team })} data-region-standing className={cn(ROW, "mt-2 border-border bg-card text-sm")}>
+      <span className="min-w-0 truncate"><span className="font-semibold tabular-nums">{region.rank != null ? `#${region.rank} of ${region.of}` : "Not ranked yet"}</span> <span className="text-muted-foreground">in {region.name}</span></span>
+      <span className="shrink-0 text-muted-foreground">Rank in {region.name} →</span>
+    </Link>
+  );
+}
+
 function LastEvent({ last, team, className }: { last: TeamEventRow; team: number; className?: string }) {
   return (
     <Link to={`/events/${last.season}/${last.code}?team=${team}`} className={cn(ROW, "border-border bg-card", className)}>
@@ -616,10 +631,9 @@ export const lineup = (teams: { number: number }[], team: number) =>
   [...teams.filter((t) => t.number === team), ...teams.filter((t) => t.number !== team)].slice(0, 2).map((t) => t.number);
 
 /** The team's next match on a posted schedule, soonest first (not played, its event not over); null when none is posted. */
+/** The one rule the "This weekend" page and search read too (src/shared/nextMatch.ts). */
 export function nextMatch(matches: MatchView[], events: TeamEventRow[], now = Date.now()): MatchView | null {
-  const live = new Set(events.filter((e) => !eventOver(e, now)).map((e) => e.code));
-  // A match whose start passed over half an hour ago without a result is late, not next.
-  return matches.find((m) => !m.played && live.has(m.code) && (!m.startsAt || Date.parse(m.startsAt) > now - 30 * 60_000)) ?? null;
+  return nextMatchOf(matches, events, now);
 }
 
 /**
@@ -627,7 +641,7 @@ export function nextMatch(matches: MatchView[], events: TeamEventRow[], now = Da
  * alliances filled in) once a schedule is posted; else its next event, saying the match list comes at the event; else
  * plainly that none is published, with its last event. Drawn in the first paint from the answers the page already has.
  */
-function Upcoming({ p, next: first, last: before }: { p: TeamProfile; next: TeamEventRow | null; last: TeamEventRow | null }) {
+export function Upcoming({ p, next: first, last: before }: { p: TeamProfile; next: TeamEventRow | null; last: TeamEventRow | null }) {
   const n = p.team.number;
   // The page's own matches request (MatchesSection asks for the same): no second request, and in the drawn page's data.
   const ms = useApi<{ matches: MatchView[] }>(first ? `/api/teams/${n}/matches?season=${p.season}` : null);
@@ -642,6 +656,13 @@ function Upcoming({ p, next: first, last: before }: { p: TeamProfile; next: Team
   const side = m ? (m.red.teams.some((t) => t.number === n) ? "red" : "blue") : null;
   const chance = m?.prediction && side ? (side === "red" ? m.prediction.pRed : 1 - m.prediction.pRed) : null;
   const predictable = usePredictable(p.season);
+  // This season's team with no match this weekend: its next event is said as the "This weekend" page says it.
+  const current = useCurrentSeason();
+  const away = !!next && !m && p.season === current && !inWeekend(next, "this", now, viewerToday(new Date(now)));
+  // No event of its own listed this season: the events it's registered for are read as the "This weekend" page reads
+  // them (GET /api/teams/:number/next), so the two never disagree.
+  const wk = useApi<NextMatchAnswer>(!next && p.season === current ? `/api/teams/${n}/next` : null);
+  const reg = wk.data && (wk.data.kind === "next-event" || wk.data.kind === "no-schedule") ? wk.data : null;
   const row = ROW;
   return (
     <section aria-labelledby={`upcoming-${n}`} className="mt-5 max-sm:mt-4 space-y-2 text-sm" data-upcoming>
@@ -663,12 +684,23 @@ function Upcoming({ p, next: first, last: before }: { p: TeamProfile; next: Team
       )}
       {next && !m && (
         <Link to={ADVANCING.has(next.type ?? "") ? `/events/${next.season}/${next.code}?tab=odds&team=${n}` : `/events/${next.season}/${next.code}?team=${n}`} className={cn(row, "border-accent/30 bg-accent/[0.05]")}>
-          <span className="min-w-0"><span className="block truncate" title={next.name}><span className="text-muted-foreground">Next event · </span>{next.name}</span>
-            <span className="block text-xs text-muted-foreground">{[dateRange(next.start, next.end), ms.data ? "match list is posted at the event" : ms.error ? "match list couldn't be checked just now" : null].filter(Boolean).join(" · ")}</span></span>
+          {away ? (
+            // Its next event isn't this weekend: said as the "This weekend" page and search say it (server/api/weekend.ts).
+            <span className="min-w-0" data-no-weekend-match><span className="block">No matches this weekend — next event is <span className="font-medium">{next.name}</span> on {dateRange(next.start, next.end)}.</span></span>
+          ) : (
+            <span className="min-w-0"><span className="block truncate" title={next.name}><span className="text-muted-foreground">Next event · </span>{next.name}</span>
+              <span className="block text-xs text-muted-foreground">{[dateRange(next.start, next.end), ms.data ? "match list is posted at the event" : ms.error ? "match list couldn't be checked just now" : null].filter(Boolean).join(" · ")}</span></span>
+          )}
           <span className="shrink-0 font-medium text-accent-text">{ADVANCING.has(next.type ?? "") ? "Odds to advance →" : "Schedule →"}</span>
         </Link>
       )}
-      {!next && <p className="text-muted-foreground">No upcoming event is published for {n} yet{last ? "; its last event:" : "."}</p>}
+      {!next && reg?.event ? (
+        // An event it's registered for, not yet in its event list: the "This weekend" page's own line and link.
+        <Link to={reg.event.href} className={cn(row, "border-accent/30 bg-accent/[0.05]")} data-no-weekend-match>
+          <span className="min-w-0">{reg.line}</span>
+          <span className="shrink-0 font-medium text-accent-text">Schedule →</span>
+        </Link>
+      ) : !next && <p className="text-muted-foreground">{p.season === current ? `No matches this weekend — ${n} has no upcoming event in ${seasonLabel(p.season)}` : `No upcoming event is published for ${n} yet`}{last ? "; its last event:" : "."}</p>}
       {last && <LastEvent last={last} team={n} />}
     </section>
   );

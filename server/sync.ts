@@ -13,6 +13,8 @@ import { FirstError, firstEventBundle, firstEvents, firstTeams } from "./sources
 import { bundleFromScout, fetchScoutEvent } from "./sources/ftcScout.js";
 import { hasFirst } from "./env.js";
 import { syncFtcNj } from "./data/provisional.js";
+import { syncConferences } from "./data/conferences.js";
+import { CRI_SOURCE } from "./sources/cri.js";
 import { sessionPairs, syncRegistrations, type SessionEvent } from "./data/registrations.js";
 import { backfillAdvancementPoints } from "./data/advancementPoints.js";
 import { syncLeagues } from "./data/leagues.js";
@@ -86,7 +88,7 @@ function rowToEvent(r: any): EventRow {
 }
 
 /** Fetch + write one event: FIRST, else FTC Scout. */
-export async function syncEvent(meta: EventRow, log: SyncLog = () => {}): Promise<"first" | "ftc-scout"> {
+export async function syncEvent(meta: EventRow, log: SyncLog = () => {}): Promise<EventRow["source"]> {
   let bundle: EventBundle | null = null;
   let firstError: unknown = null;
   if (hasFirst()) {
@@ -104,9 +106,22 @@ export async function syncEvent(meta: EventRow, log: SyncLog = () => {}): Promis
     bundle = { ...sb, event: { ...sb.event, ...pickDefined(meta), source: "ftc-scout" } };
     if (firstError) log(`  ${meta.season} ${meta.code}: FIRST failed (${(firstError as Error).message.slice(0, 80)}), used FTC Scout`);
   }
+  // Results posted by the event's own site (data/criResults.ts) stay until FIRST posts some: an empty read keeps them
+  // and only refreshes the event's own row.
+  if (bundle.detail && !bundle.detail.matches.length && !bundle.detail.entries.length && (await keepsSiteResults(meta.season, meta.code))) {
+    await writeEventBundle({ ...bundle, detail: null, registrations: undefined, teamsRead: undefined });
+    return bundle.event.source;
+  }
   // Records first postings, score revisions and schedule moves in the same transaction (data/resultChanges.ts).
   await writeEventBundle(bundle);
   return bundle.event.source;
+}
+
+/** The stored results came from the event's own site (source "cri") and there are some. */
+export async function keepsSiteResults(season: number, code: string): Promise<boolean> {
+  const r = await get<{ source: string | null; n: number }>(
+    "SELECT source, (SELECT COUNT(*) FROM matches m WHERE m.season = e.season AND m.code = e.code) n FROM events e WHERE e.season = ? AND e.code = ?", [season, code]);
+  return r?.source === CRI_SOURCE && Number(r.n) > 0;
 }
 
 function pickDefined(e: EventRow): Partial<EventRow> {
@@ -218,6 +233,14 @@ export async function syncAll(o: SyncOptions = {}): Promise<SyncReport[]> {
   }
   // The season before's league standings, read once with the current season's sync (a frozen season's stops before them).
   if (hasFirst() && seasons.includes(CURRENT_SEASON)) await leagueSync(CURRENT_SEASON - 1, true, o.log ?? (() => {}));
+  // New Jersey's conferences from its league tournaments' names, and the week-before snapshots (data/conferences.ts):
+  // local reads only, so a frozen past season's are written too. Its own failure never fails the sync.
+  for (const s of [CURRENT_SEASON, CURRENT_SEASON - 1]) {
+    try {
+      const c = await syncConferences(s);
+      if (c.snapshots) o.log?.(`${s}: ${c.conferences} NJ conferences, ${c.snapshots} league snapshots taken`);
+    } catch (e) { o.log?.(`${s}: conferences failed: ${(e as Error).message.slice(0, 120)}`); }
+  }
   await kvSet("sync:last", { at: new Date().toISOString(), reports: out.map((r) => ({ ...r, failed: r.failed.slice(0, 20), failedCount: r.failed.length })) });
   return out;
 }

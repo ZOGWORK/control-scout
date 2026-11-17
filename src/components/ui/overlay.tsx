@@ -8,6 +8,8 @@ import { X, Check, ChevronRight } from 'lucide-react';
 import { cn } from '../cn';
 
 const panel = 'bg-elevated text-text-base border border-line shadow-2xl';
+// Dialogs and sheets that scroll do it with the page's own thin, theme-coloured bar (.custom-scrollbar in
+// src/index.css), not the system's wide grey one.
 
 /**
  * Our own portalled menus (the themed Select, marked data-cp-portal) render
@@ -80,7 +82,7 @@ export function DialogContent({ className, children, showClose = true, returnFoc
         data-esc-owner=""
         className={cn(
           panel,
-          'fixed left-1/2 top-1/2 z-[81] grid w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 rounded-2xl p-6 max-h-[calc(100dvh-2rem)] overflow-y-auto',
+          'fixed left-1/2 top-1/2 z-[81] grid w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 rounded-2xl p-6 max-h-[calc(100dvh-2rem)] overflow-y-auto custom-scrollbar',
           fade,
           className,
         )}
@@ -142,7 +144,7 @@ export function SheetContent({ className, children, side = 'right', returnFocus:
         ref={setEl}
         data-slot="sheet-content"
         data-esc-owner=""
-        className={cn(panel, 'fixed z-[81] flex flex-col gap-4 overflow-y-auto p-6', sides[side], fade, className)}
+        className={cn(panel, 'fixed z-[81] flex flex-col gap-4 overflow-y-auto custom-scrollbar p-6', sides[side], fade, className)}
         {...props}
         {...outsideGuards(props, 'sheet-content')}
         {...returnFocus}

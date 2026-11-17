@@ -7,8 +7,15 @@
 
 /** Lowercase, strip accents and punctuation, collapse spaces, a number written "1,000" as one — keeping letters of every script (机器人, Ελλάδα…). */
 export function normalize(s: string): string {
+  // Plain ASCII (nearly every team and event name): the same result without the Unicode passes, which made building
+  // a saved season's search index most of an offline search's time. NFKD and the mark strip change no ASCII letter,
+  // and the only ASCII letters and digits are a–z, A–Z and 0–9; "1,000" needs a comma.
+  if (ASCII.test(s)) return (s.includes(",") ? joinThousands(s) : s).toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
   return joinThousands(s).normalize("NFKD").replace(/\p{M}+/gu, "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 }
+
+// eslint-disable-next-line no-control-regex
+const ASCII = /^[\x00-\x7f]*$/;
 
 /** A number written with thousands separators ("1,000", "12,345,678") as one number: never a team and a leftover. */
 export const THOUSANDS = /(?<![\p{L}\p{N},.])\d{1,3}(?:,\d{3})+(?![\p{L}\p{N}]|,\d)/gu;

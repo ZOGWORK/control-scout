@@ -6,7 +6,8 @@
 //   - internet: "yes" when GET /api/health came back as this server's own answer ({ ok: true, … }, server/app.ts);
 //     "portal" when something else answered (a sign-in page, a redirect to another site, a page that isn't ours: a
 //     hotel or venue Wi-Fi that wants you to sign in first); "no" when nothing answered (a network error, or no answer
-//     in CHECK_TIMEOUT_MS); "unknown" before the first check.
+//     in CHECK_TIMEOUT_MS: BUSY_TIMEOUT_MS when our server answered moments ago, as it's then more likely busy than
+//     the line gone); "unknown" before the first check.
 //   - type: Wi-Fi, mobile data, none (the browser says it's offline) or unknown (most browsers don't say: iPhones,
 //     desktop Chrome). saveData: the browser's Data Saver.
 //
@@ -14,7 +15,8 @@
 // browser's online/offline events (online: at once, every time, then every ONLINE_RETRY_MS for a while), when the
 // tab comes back into view or the window gets focus while there's no internet, soon after any request fails for want
 // of a network (api.ts noteRequestFailed), after RETRY_STEPS_MS one after another (3 s, 5 s, 10 s, 20 s) and then every
-// RETRY_MS while there's no internet, and every IDLE_MS (tab in view) while there is. A server answer anywhere in
+// RETRY_MS while there's no internet (every WAITING_RETRY_MS while a paused download waits for the line), and every
+// IDLE_MS (tab in view) while there is. A server answer anywhere in
 // the app counts as "yes" at once (noteServerAnswer), so coming back never waits for the next check.
 //
 // For screenshots, localStorage `cs-connection-demo` = "offline" | "portal" shows that state (the pill, and the
@@ -36,8 +38,17 @@ export interface ConnectionState {
   checkedAt: number;
 }
 
-/** No answer to the check in this long: no internet. */
+/** No answer to the check in this long: no internet (but see BUSY_TIMEOUT_MS). */
 export const CHECK_TIMEOUT_MS = 2500;
+/** No answer in CHECK_TIMEOUT_MS while our server answered this tab within HEARD_MS (the browser saying online, and no
+ *  check since finding no internet): more likely our own server busy than the line gone. A long search holds the
+ *  server, and /api/health waits behind it with every other request: measured live, 11.8 s behind a 12 s search
+ *  (issue #1557: the check called that "no internet", the search was let go as "You're offline", and the verdict was
+ *  carried into the reload). The same check keeps waiting, up to this long in all, before it says "no". Reads saved
+ *  data can answer don't wait for it: they have their own OFFLINE_TIMEOUT_MS (api.ts). */
+export const BUSY_TIMEOUT_MS = 20_000;
+/** How recent an answer from our server makes a check that gets no answer "busy" first (BUSY_TIMEOUT_MS). */
+export const HEARD_MS = 60_000;
 /** While there's no internet (or a portal): check again this often, once RETRY_STEPS_MS are used up. */
 export const RETRY_MS = 30_000;
 /** While there's no internet (or a portal): the first checks come after these, one after another, so the line coming
@@ -53,6 +64,12 @@ export const EVENT_GAP_MS = 5000;
  *  after each of those kept the Offline pill up for up to 48 s after the line answered again. */
 export const ONLINE_RETRY_MS = 500;
 export const ONLINE_WINDOW_MS = 30_000;
+/** A download the person started is waiting for the line (paused by it: noteDownloadWaiting): while there's no
+ *  internet, check this often instead of the back-off, for WAITING_WINDOW_MS, so the download picks up within a
+ *  couple of seconds of the line answering again. With the back-off alone a 45 s outage was seen 18–28 s late
+ *  (the 20 s and 30 s steps), measured live. The check is one tiny request. */
+export const WAITING_RETRY_MS = 2000;
+export const WAITING_WINDOW_MS = 10 * 60_000;
 /** While there is: check again this often (only with the tab in view). Failures check sooner on their own. */
 export const IDLE_MS = 5 * 60_000;
 /** A request failure checks after this long, so a burst of failures (a page's requests) costs one check. */
@@ -87,12 +104,28 @@ export const LAST_KEY = "cs-connection-last";
 /** How long a "no internet" answer carries over to the next page load. */
 export const CARRY_MS = 2 * 60_000;
 
-function carried(): Internet | null {
-  try {
-    const v = JSON.parse(sessionStorage.getItem(LAST_KEY) ?? "null") as { internet?: Internet; at?: number } | null;
-    return v && (v.internet === "no" || v.internet === "portal") && typeof v.at === "number" && Math.abs(Date.now() - v.at) < CARRY_MS ? v.internet : null;
-  } catch { return null; }
+function lastAnswer(): { internet?: Internet; at?: number } | null {
+  try { return JSON.parse(sessionStorage.getItem(LAST_KEY) ?? "null") as { internet?: Internet; at?: number } | null; } catch { return null; }
 }
+function remember(internet: Internet, at: number) {
+  try { sessionStorage.setItem(LAST_KEY, JSON.stringify({ internet, at })); } catch { /* storage blocked */ }
+}
+
+function carried(): Internet | null {
+  const v = lastAnswer();
+  return v && (v.internet === "no" || v.internet === "portal") && typeof v.at === "number" && Math.abs(Date.now() - v.at) < CARRY_MS ? v.internet : null;
+}
+
+/** When our server last answered this tab (a fresh answer to any request, or a check finding internet), carried over
+ *  a reload like the last "no" is: a page reloaded while the server is busy waits for it as the page before did. */
+function carriedHeard(): number {
+  const v = lastAnswer();
+  return v?.internet === "yes" && typeof v.at === "number" && Math.abs(Date.now() - v.at) < HEARD_MS ? v.at : 0;
+}
+let heardAt = carriedHeard();
+/** When noteServerAnswer last wrote heardAt to sessionStorage (it writes at most every HEARD_WRITE_MS). */
+let heardWrittenAt = 0;
+const HEARD_WRITE_MS = 5000;
 
 const initial = (): ConnectionState => {
   const online = browserOnline();
@@ -100,6 +133,10 @@ const initial = (): ConnectionState => {
   return { online, internet: online ? carried() ?? "unknown" : "no", type: typeNow(online), saveData: info()?.saveData === true, checkedAt: 0 };
 };
 let state: ConnectionState = initial();
+/** Until when a paused download waits for the line (checks every WAITING_RETRY_MS while there's no internet). Over
+ *  once there's internet: a try that fails again marks it afresh. */
+let waitingUntil = 0;
+const waiting = () => Date.now() < waitingUntil;
 const listeners = new Set<() => void>();
 const internetListeners = new Set<(now: Internet, before: Internet) => void>();
 
@@ -109,9 +146,13 @@ function set(next: Partial<ConnectionState>) {
   const changed = merged.online !== state.online || merged.internet !== state.internet || merged.type !== state.type || merged.saveData !== state.saveData;
   const prev = state.internet;
   if (changed || merged.checkedAt !== state.checkedAt) state = merged;
-  if (state.internet === "yes") { retryStep = 0; onlineUntil = 0; }
+  if (state.internet === "yes") { retryStep = 0; onlineUntil = 0; waitingUntil = 0; }
+  // No internet after all (the browser's offline event): a check waiting on a busy server stops waiting, so the
+  // back-off starts now rather than after BUSY_TIMEOUT_MS.
+  else if (state.internet === "no" || state.internet === "portal") stopBusyWait?.();
   if (merged.checkedAt && merged.internet !== "unknown") {
-    try { sessionStorage.setItem(LAST_KEY, JSON.stringify({ internet: merged.internet, at: merged.checkedAt })); } catch { /* storage blocked */ }
+    if (merged.internet === "yes") heardAt = Math.max(heardAt, merged.checkedAt);
+    remember(merged.internet, merged.checkedAt);
   }
   if (changed) {
     listeners.forEach((f) => f());
@@ -186,14 +227,30 @@ export async function classify(res: Response): Promise<Internet> {
 }
 
 let inflight: Promise<Internet> | null = null;
+/** Ends the wait of a check that is waiting on a busy server (BUSY_TIMEOUT_MS), when one is. */
+let stopBusyWait: (() => void) | null = null;
 let started = false;
 
 /** Check now (one at a time: a check already running is shared). Resolves to the answer. */
 export function checkInternet(): Promise<Internet> {
   if (inflight) return inflight;
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), CHECK_TIMEOUT_MS);
   const since = Date.now();
+  // No answer in CHECK_TIMEOUT_MS: no internet, unless our server answered moments ago and nothing since said the
+  // line went (then it's more likely busy: the same check waits, up to BUSY_TIMEOUT_MS in all).
+  const busy = () => browserOnline() && state.internet !== "no" && state.internet !== "portal" && heardAt > 0 && since - heardAt < HEARD_MS;
+  let waited = false;
+  const giveUp = () => {
+    // The server answered another request while this one waited: that's the answer (it's set aside below), no wait.
+    if (!waited && answeredAt < since && busy()) {
+      waited = true;
+      timer = setTimeout(giveUp, BUSY_TIMEOUT_MS - CHECK_TIMEOUT_MS);
+      stopBusyWait = () => { clearTimeout(timer); ctrl.abort(); };
+      return;
+    }
+    ctrl.abort();
+  };
+  let timer = setTimeout(giveUp, CHECK_TIMEOUT_MS);
   const run: Promise<Internet> = (async (): Promise<Internet> => {
     try {
       const res = await fetch(HEALTH, { cache: "no-store", redirect: "manual", credentials: "omit", signal: ctrl.signal, headers: { Accept: "application/json" } });
@@ -202,6 +259,7 @@ export function checkInternet(): Promise<Internet> {
       return "no";
     } finally {
       clearTimeout(timer);
+      stopBusyWait = null;
     }
   })().then((internet) => {
     if (inflight === run) inflight = null;
@@ -224,6 +282,14 @@ export function freshInternet(maxAgeMs: number): Promise<Internet> {
   return checkInternet();
 }
 
+/** A download the person started was paused by the connection and picks up once it's back (resumeWatcher.tsx):
+ *  check soon, then every WAITING_RETRY_MS while there's no internet (for WAITING_WINDOW_MS). */
+export function noteDownloadWaiting() {
+  waitingUntil = Date.now() + WAITING_WINDOW_MS;
+  noteRequestFailed();
+  schedule();
+}
+
 let failTimer: ReturnType<typeof setTimeout> | undefined;
 /** A request couldn't reach the server (api.ts): check soon, so the next tap knows. */
 export function noteRequestFailed() {
@@ -235,6 +301,9 @@ export function noteRequestFailed() {
 let answeredAt = 0;
 export function noteServerAnswer() {
   answeredAt = Date.now();
+  // Kept for the next page load too (carriedHeard), at most once every few seconds: a page's burst of answers is one write.
+  if (answeredAt - heardWrittenAt > HEARD_WRITE_MS) { heardWrittenAt = answeredAt; remember("yes", answeredAt); }
+  heardAt = answeredAt;
   if (state.internet === "yes") return;
   set({ internet: "yes", checkedAt: Date.now() });
 }
@@ -245,7 +314,7 @@ let retryStep = 0;
 /** Until when checks that find no internet are tried again every ONLINE_RETRY_MS (the online event + ONLINE_WINDOW_MS). */
 let onlineUntil = 0;
 const quickTries = () => Date.now() < onlineUntil;
-const retryDelay = () => RETRY_STEPS_MS[retryStep] ?? RETRY_MS;
+const retryDelay = () => Math.min(RETRY_STEPS_MS[retryStep] ?? RETRY_MS, waiting() ? WAITING_RETRY_MS : Infinity);
 /** The next periodic check: soon while there's no internet (sooner at first), rarely (tab in view only) while there is. */
 function schedule() {
   if (!started) return;
@@ -325,10 +394,14 @@ export function resetConnection() {
   started = false;
   retryStep = 0;
   onlineUntil = 0;
+  waitingUntil = 0;
   inflight = null;
+  stopBusyWait = null;
   shown = null;
   answeredAt = 0;
   try { sessionStorage.removeItem(LAST_KEY); } catch { /* none */ }
+  heardAt = 0;
+  heardWrittenAt = 0;
   state = initial();
   listeners.forEach((f) => f());
 }

@@ -1,22 +1,27 @@
 // The top bar's "Report a bug" button (far right, next to the clock and the bell) and its dialog (a bottom sheet on
 // phones). No account needed. The person picks what kind of problem, describes it, and can attach screenshots
-// (pasted with Ctrl+V / ⌘V anywhere in the dialog, picked from disk, or dropped on it) and one short video under 5 MB.
+// (pasted with Ctrl+V / ⌘V anywhere in the dialog, picked from disk, dropped on it, or taken of the page behind the
+// dialog with "Capture this screen" where the browser can share a tab: captureScreen.ts) and one short video under 5 MB.
 // The page, version, screen, device and theme go with it and are listed in the dialog, so nothing is hidden.
-// Sending: POST /api/bug-reports, one PUT per attachment, then POST …/done (server/bugReports.ts), which emails it.
+// Sending: POST /api/bug-reports, one PUT per attachment, then POST …/done (server/bugReports.ts), which emails it and
+// files it as a public GitHub issue in the background. The dialog then asks GET …/status for a few seconds and shows
+// the issue's real number and link once it exists, or says it's saved and will be filed: never a made-up link.
+// The message is sanitized here and again on the server (src/shared/errorReport.ts sanitizeText).
 import { useCallback, useEffect, useId, useRef, useState, type ClipboardEvent, type DragEvent, type FormEvent } from "react";
 import { useLocation } from "react-router-dom";
-import { AlertCircle, Bug, CheckCircle2, Clapperboard, Gauge, ImagePlus, LayoutTemplate, Loader2, MessageCircle, Send, DatabaseZap, Wrench, X } from "lucide-react";
+import { AlertCircle, ArrowLeft, Bug, Camera, CheckCircle2, Clapperboard, ExternalLink, Globe, Gauge, ImagePlus, LayoutTemplate, Loader2, MessageCircle, Send, DatabaseZap, Wrench, X } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "../ui/overlay";
 import { Button } from "../ui/button";
 import { Input, Label, RequiredMark, Textarea } from "../ui/basic";
 import { cn } from "../cn";
 import { apiFetch, ApiError } from "../../lib/api";
-import { usePersonal } from "../../lib/personal";
 import { useTheme } from "../../hooks/useTheme";
 import { APP_VERSION } from "../../lib/errorReporting";
+import { sanitizeText } from "../../shared/errorReport";
+import { canCaptureScreen, captureScreen } from "./captureScreen";
 import {
   attachmentProblem, attachmentsProblem, BUG_CATEGORIES, BUG_LIMITS, formatBytes, IMAGE_TYPES, isImageType, isVideoType, VIDEO_TYPES,
-  type BugCategory, type BugContext, type BugReportCreated,
+  type BugCategory, type BugContext, type BugFiling, type BugReportCreated,
 } from "../../shared/bugReport";
 
 const ICONS: Record<BugCategory, typeof Bug> = { data: DatabaseZap, broken: Wrench, layout: LayoutTemplate, slow: Gauge, other: MessageCircle };
@@ -27,11 +32,37 @@ const HINTS: Record<BugCategory, string> = {
   slow: "Which page, and roughly how long it took.",
   other: "Anything else that isn't working the way it should.",
 };
+/** Said plainly before and after sending: the repository is public, so the issue is too. */
+export const PUBLIC_NOTE = "This files a public GitHub Issue on ZOGWORK/control-scout. Anyone can see it.";
+/** Where a report goes that shouldn't be public. */
+export const PRIVATE_EMAIL = "sushil.m@icloud.com";
+
+/** The public notice, large enough to be read, with the private way out. */
+function PublicNotice() {
+  return (
+    <div className="flex items-start gap-2.5 rounded-xl border border-warning/40 bg-warning/10 px-3.5 py-3 text-left" data-testid="bug-public-note">
+      <Globe className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
+      <div className="space-y-1 text-sm">
+        <p className="font-medium text-foreground">{PUBLIC_NOTE}</p>
+        <p className="text-text-muted" data-testid="bug-private-note">
+          Want it private? Email <a href={`mailto:${PRIVATE_EMAIL}?subject=${encodeURIComponent("Control Scout bug report")}`}
+            className="font-medium text-accent-text underline underline-offset-4 outline-none focus-visible:ring-2 focus-visible:ring-ring/60">{PRIVATE_EMAIL}</a> instead.
+        </p>
+      </div>
+    </div>
+  );
+}
 const PALETTE_NAME = { light: "Light", dim: "Dim", dark: "Dark", midnight: "Midnight" } as const;
 const ACCEPT = [...IMAGE_TYPES, ...VIDEO_TYPES].join(",");
 /** ⌘V on Apple keyboards, Ctrl+V elsewhere. */
 const pasteKeys = () => (/Mac|iPhone|iPad/.test(typeof navigator !== "undefined" ? navigator.platform || navigator.userAgent : "") ? "⌘V" : "Ctrl+V");
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+/** The only issue address the dialog will link to: this repository's issue with exactly that number. */
+export const issueLinkOk = (f: BugFiling): f is Extract<BugFiling, { state: "filed" }> =>
+  f.state === "filed" && Number.isInteger(f.number) && f.number > 0 && f.url === `https://github.com/ZOGWORK/control-scout/issues/${f.number}`;
+/** How long the dialog waits for the issue after sending, and how often it asks. */
+const FILING_WAIT_MS = 20_000;
+const FILING_EVERY_MS = 1_500;
 
 export interface Attachment { id: number; file: File; url: string }
 
@@ -126,20 +157,38 @@ export function BugReportButton() {
   return (
     <>
       {button}
-      {open === "sheet" && <Sheet open onOpenChange={close}><SheetContent side="bottom" className="gap-3 px-4 pt-5" returnFocus={back}><BugReportForm phone onDone={() => close(false)} /></SheetContent></Sheet>}
+      {open === "sheet" && <Sheet open onOpenChange={close}><SheetContent side="bottom" className="gap-3 px-4 pt-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]" returnFocus={back}><BugReportForm phone onDone={() => close(false)} /></SheetContent></Sheet>}
       {open === "dialog" && <Dialog open onOpenChange={close}><DialogContent className="max-w-xl" returnFocus={back}><BugReportForm onDone={() => close(false)} /></DialogContent></Dialog>}
     </>
   );
 }
 
 type Status = "idle" | "sending" | "sent";
+/** After sending: still asking, filed (a real issue), saved (not filed yet) or failed (a try failed, it'll retry). */
+type Filed = { state: "asking" } | Extract<BugFiling, { state: "filed" }> | { state: "saved" } | { state: "failed" };
+
+/** Asks the server whether the report is an issue yet, until it is, a try failed, or the wait is over. */
+export async function waitForIssue(id: number, token: string, stop: () => boolean, waitMs = FILING_WAIT_MS, everyMs = FILING_EVERY_MS): Promise<Filed> {
+  const until = Date.now() + waitMs;
+  let last: BugFiling = { state: "pending" };
+  while (!stop()) {
+    try {
+      last = await apiFetch<BugFiling>(`/api/bug-reports/${id}/status`, { headers: { "X-Bug-Token": token }, _online: true });
+      if (issueLinkOk(last)) return last;
+      if (last.state === "failed") return { state: "failed" };
+    } catch { /* not answered: keep asking until the wait is over */ }
+    if (Date.now() + everyMs > until) break;
+    await new Promise((r) => setTimeout(r, everyMs));
+  }
+  return { state: "saved" };
+}
 
 function BugReportForm({ phone = false, onDone }: { phone?: boolean; onDone: () => void }) {
-  const { user } = usePersonal();
   const context = useContextDetails();
   const [category, setCategory] = useState<BugCategory | null>(null);
   const [message, setMessage] = useState("");
-  const [email, setEmail] = useState(user?.email ?? "");
+  // Never filled in for them: whatever is typed here shows on the public issue.
+  const [email, setEmail] = useState("");
   const [website, setWebsite] = useState(""); // honeypot: hidden from people
   const [files, setFiles] = useState<Attachment[]>([]);
   const [fileProblem, setFileProblem] = useState<string | null>(null);
@@ -150,11 +199,52 @@ function BugReportForm({ phone = false, onDone }: { phone?: boolean; onDone: () 
   sending.current = status === "sending";
   const [progress, setProgress] = useState("");
   const [failure, setFailure] = useState<string | null>(null);
+  // The second confirmation: the first Send asks "public, sure?", only the second one sends.
+  const [confirming, setConfirming] = useState(false);
+  const confirmRef = useRef<HTMLButtonElement>(null);
+  const confirmBox = useRef<HTMLDivElement>(null);
+  const sendRef = useRef<HTMLButtonElement>(null);
+  // Go back hands focus back to Send report (the button it was on is gone).
+  const refocusSend = useRef(false);
+  useEffect(() => {
+    if (!confirming) {
+      if (refocusSend.current) { refocusSend.current = false; sendRef.current?.focus(); }
+      return;
+    }
+    confirmRef.current?.focus({ preventScroll: true });
+    // The whole question and both answers in view, on a phone too: the sheet (or dialog) scrolls to its end, and
+    // stays there while the box settles (it grows a little after its first frame).
+    const box = confirmBox.current;
+    const scroller = box?.closest<HTMLElement>("[data-slot=sheet-content], [data-slot=dialog-content]");
+    if (!box || !scroller) { box?.scrollIntoView?.({ block: "end" }); return; }
+    const toEnd = () => { scroller.scrollTop = scroller.scrollHeight; };
+    toEnd();
+    if (typeof ResizeObserver === "undefined") return;
+    const watch = new ResizeObserver(toEnd);
+    watch.observe(box);
+    // Never against the person: the first scroll of their own ends it.
+    const done = () => { clearTimeout(stop); watch.disconnect(); scroller.removeEventListener("wheel", done); scroller.removeEventListener("touchstart", done); };
+    const stop = setTimeout(done, 800);
+    scroller.addEventListener("wheel", done, { passive: true });
+    scroller.addEventListener("touchstart", done, { passive: true });
+    return done;
+  }, [confirming]);
+  // Anything changed after the question was asked is asked about again.
+  useEffect(() => { setConfirming(false); }, [category, message, email, files]);
+  const [filed, setFiled] = useState<Filed>({ state: "asking" });
+  const gone = useRef(false);
+  // Set on every mount (StrictMode mounts, unmounts and mounts again), cleared when the dialog closes.
+  useEffect(() => { gone.current = false; return () => { gone.current = true; }; }, []);
   const [dragging, setDragging] = useState(false);
   const pick = useRef<HTMLInputElement>(null);
   const ids = { cat: useId(), msg: useId(), email: useId(), files: useId() };
   const pasted = useRef(0);
-  useEffect(() => { if (user?.email) setEmail((e) => e || user.email!); }, [user?.email]);
+  // "Capture this screen": only where the browser can share a tab (not phones), checked once per dialog.
+  const [canCapture] = useState(() => !phone && canCaptureScreen());
+  const [capturing, setCapturing] = useState(false);
+  const [captureNote, setCaptureNote] = useState<string | null>(null);
+  const captured = useRef(0);
+  const captureRef = useRef<HTMLButtonElement>(null);
   // Thumbnails are object URLs: let them go when the dialog closes.
   const filesRef = useRef(files);
   filesRef.current = files;
@@ -171,6 +261,23 @@ function BugReportForm({ phone = false, onDone }: { phone?: boolean; onDone: () 
     filesRef.current = next;
     setFiles(next);
   }, []);
+  /** One picture of the page behind the dialog, added like any other screenshot. A refused prompt only leaves a note. */
+  const capture = async () => {
+    if (capturing || sending.current) return;
+    setCaptureNote(null);
+    // Already full: say so without asking the browser for anything.
+    const full = attachmentsProblem([...filesRef.current.map((a) => ({ type: a.file.type, bytes: a.file.size })), { type: "image/png", bytes: 1 }]);
+    if (full) { setFileProblem(full); return; }
+    setCapturing(true);
+    try {
+      const got = await captureScreen(captured.current + 1, BUG_LIMITS.imageBytes);
+      if (gone.current) return;
+      if (got.ok) { captured.current += 1; attach([got.file]); }
+      else setCaptureNote(got.reason === "declined" ? "No screen captured. You can paste or choose a screenshot instead." : "Couldn't capture the screen. Paste or choose a screenshot instead.");
+    } finally {
+      if (!gone.current) { setCapturing(false); requestAnimationFrame(() => captureRef.current?.focus({ preventScroll: true })); }
+    }
+  };
   const remove = (id: number) => {
     if (sending.current) return;
     const cur = filesRef.current;
@@ -198,8 +305,9 @@ function BugReportForm({ phone = false, onDone }: { phone?: boolean; onDone: () 
     email: email.trim() && !EMAIL.test(email.trim()) ? "That doesn't look like an email address." : null,
   };
 
-  const submit = async (e: FormEvent) => {
-    e.preventDefault();
+  /** The form's own submit (Send report, or Enter in a field) only ever asks; "Yes, post it publicly" sends. */
+  const submit = async (e?: FormEvent, confirmed = false) => {
+    e?.preventDefault();
     setTried(true);
     setFailure(null);
     const first = (["category", "message", "email"] as const).find((k) => errors[k]);
@@ -208,12 +316,18 @@ function BugReportForm({ phone = false, onDone }: { phone?: boolean; onDone: () 
       else document.getElementById(first === "message" ? ids.msg : ids.email)?.focus();
       return;
     }
+    if (!confirmed) {
+      if (confirming) confirmRef.current?.focus();
+      else setConfirming(true);
+      return;
+    }
+    setConfirming(false);
     setStatus("sending");
     try {
       setProgress("Sending your report…");
       const created = await apiFetch<BugReportCreated>("/api/bug-reports", {
         method: "POST", _online: true,
-        json: { category, message: message.trim(), email: email.trim() || undefined, context, website, files: files.map((a) => ({ type: a.file.type, bytes: a.file.size })) },
+        json: { category, message: sanitizeText(message.trim(), BUG_LIMITS.messageMax), email: email.trim() || undefined, context, website, files: files.map((a) => ({ type: a.file.type, bytes: a.file.size })) },
       });
       const headers = { "X-Bug-Token": created.token };
       const skipped: string[] = [];
@@ -230,6 +344,7 @@ function BugReportForm({ phone = false, onDone }: { phone?: boolean; onDone: () 
       }
       await apiFetch(`/api/bug-reports/${created.id}/done`, { method: "POST", json: {}, headers, _online: true });
       setStatus("sent");
+      void waitForIssue(created.id, created.token, () => gone.current).then((f) => { if (!gone.current) setFiled(f); });
       if (skipped.length) setFailure(`Your report was sent, but ${skipped.length === 1 ? "one attachment" : `${skipped.length} attachments`} didn't upload. ${skipped.join(" ")}`);
     } catch (err) {
       setStatus("idle");
@@ -242,12 +357,25 @@ function BugReportForm({ phone = false, onDone }: { phone?: boolean; onDone: () 
   const Header = phone ? SheetHeader : DialogHeader;
 
   if (status === "sent") {
+    const heading = filed.state === "filed" ? `Thanks — filed as #${filed.number}`
+      : filed.state === "failed" ? "Something went wrong — your report is saved, we'll try again"
+      : filed.state === "saved" ? "Thanks — saved, we'll file it on GitHub"
+      : "Thanks! Filing it on GitHub…";
     return (
-      <div role="status" className="flex flex-col items-center py-6 text-center">
+      <div role="status" className="flex flex-col items-center py-6 text-center" data-testid="bug-report-sent" data-filed={filed.state}>
         <Header className="sr-only"><Title>Bug report sent</Title><Desc>Thanks for the report.</Desc></Header>
-        <span className="mb-3 flex size-12 items-center justify-center rounded-full bg-success/12 text-success"><CheckCircle2 className="size-6" aria-hidden /></span>
-        <p className="font-display text-lg font-semibold text-foreground">Thanks! We've got your report.</p>
+        <span className={cn("mb-3 flex size-12 items-center justify-center rounded-full", filed.state === "failed" ? "bg-warning/12 text-warning" : "bg-success/12 text-success")}>
+          {filed.state === "asking" ? <Loader2 className="size-6 animate-spin" aria-hidden /> : filed.state === "failed" ? <AlertCircle className="size-6" aria-hidden /> : <CheckCircle2 className="size-6" aria-hidden />}
+        </span>
+        <p className="font-display text-lg font-semibold text-foreground">{heading}</p>
+        {filed.state === "filed" && (
+          <a href={filed.url} target="_blank" rel="noopener noreferrer" data-testid="bug-issue-link"
+            className="mt-2 inline-flex min-h-11 max-w-full items-center gap-1.5 break-all px-2 text-sm font-medium text-accent-text underline underline-offset-4 outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
+            #{filed.number} — {filed.url}<ExternalLink className="size-3.5 shrink-0" aria-hidden />
+          </a>
+        )}
         <p className="mt-1 max-w-sm text-sm text-text-muted">{email.trim() ? <>If we need more, we'll write to <strong className="text-foreground">{email.trim()}</strong>.</> : "We'll look into it."}</p>
+        <div className="mt-3 max-w-md"><PublicNotice /></div>
         {failure && <p className="mt-3 max-w-sm text-xs text-warning">{failure}</p>}
         <Button className="mt-5" onClick={onDone}>Done</Button>
       </div>
@@ -300,13 +428,24 @@ function BugReportForm({ phone = false, onDone }: { phone?: boolean; onDone: () 
           <span className="text-sm font-medium text-foreground" id={ids.files}>Screenshots or a video <span className="font-normal text-text-muted">(optional)</span></span>
           <span className="text-xs tabular-nums text-text-muted">{shots}/{BUG_LIMITS.images} images · {videos}/{BUG_LIMITS.videos} video</span>
         </div>
+        <div className="flex gap-2">
         <button type="button" onClick={() => pick.current?.click()} aria-describedby={ids.files} disabled={status === "sending"}
-          className={cn("flex w-full flex-col items-center justify-center gap-1 rounded-xl border border-dashed px-3 py-4 disabled:opacity-50 text-center text-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+          className={cn("flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-xl border border-dashed px-3 py-4 disabled:opacity-50 text-center text-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
             dragging ? "border-accent bg-accent-soft text-foreground" : "border-line text-text-muted hover:border-text-muted/50 hover:text-foreground")}
           data-testid="bug-attach">
           <span className="flex items-center gap-2 font-medium"><ImagePlus className="size-4" aria-hidden /> {phone ? "Add screenshots or a video" : "Paste, drop or choose files"}</span>
           <span className="text-xs text-text-muted">Images up to {formatBytes(BUG_LIMITS.imageBytes)} each · one video under {formatBytes(BUG_LIMITS.videoBytes)}</span>
         </button>
+        {canCapture && (
+          <Button ref={captureRef} type="button" variant="outline" onClick={() => void capture()} disabled={status === "sending" || capturing}
+            className="h-auto w-32 shrink-0 flex-col gap-1 whitespace-normal px-3 py-3 text-center leading-tight" data-testid="bug-capture"
+            title="Takes a picture of the page behind this dialog. Your browser asks first.">
+            {capturing ? <Loader2 className="animate-spin" aria-hidden /> : <Camera aria-hidden />}
+            <span>{capturing ? "Capturing…" : "Capture this screen"}</span>
+          </Button>
+        )}
+        </div>
+        {captureNote && <p className="text-xs text-text-muted" data-testid="bug-capture-note">{captureNote}</p>}
         <input ref={pick} type="file" accept={ACCEPT} multiple className="hidden" tabIndex={-1} aria-hidden
           onChange={(e) => { attach(Array.from(e.target.files ?? [])); e.target.value = ""; }} />
         {fileProblem && <p role="alert" className="flex items-start gap-1.5 text-xs text-danger"><AlertCircle className="mt-px size-3.5 shrink-0" aria-hidden />{fileProblem}</p>}
@@ -328,7 +467,7 @@ function BugReportForm({ phone = false, onDone }: { phone?: boolean; onDone: () 
       </div>
 
       <div className="space-y-1.5">
-        <Label htmlFor={ids.email}>Email <span className="font-normal text-text-muted">(optional, only to reply to you)</span></Label>
+        <Label htmlFor={ids.email}>Email <span className="font-normal text-text-muted">(optional, shown on the public issue so we can reply)</span></Label>
         <Input id={ids.email} type="email" inputMode="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)}
           aria-invalid={tried && !!errors.email} />
         {tried && errors.email && <p className="text-xs text-danger">{errors.email}</p>}
@@ -355,12 +494,26 @@ function BugReportForm({ phone = false, onDone }: { phone?: boolean; onDone: () 
         </div>
       )}
 
-      <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-xs text-text-muted" aria-live="polite">{progress || "No account needed."}</p>
-        <Button type="submit" disabled={status === "sending"} className="w-full sm:w-auto">
-          {status === "sending" ? <><Loader2 className="animate-spin" /> Sending…</> : <><Send /> Send report</>}
-        </Button>
-      </div>
+      <PublicNotice />
+
+      {confirming ? (
+        <div ref={confirmBox} role="alertdialog" aria-labelledby={`${ids.msg}-confirm`} className="space-y-3 rounded-xl border border-warning/60 bg-warning/10 px-3.5 py-3" data-testid="bug-confirm">
+          <p id={`${ids.msg}-confirm`} className="text-sm font-semibold text-foreground">
+            Send this as a public issue? Anyone can read it{email.trim() ? ", including your email" : ""}{files.length ? ", and see what you attached" : ""}.
+          </p>
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button type="button" variant="outline" className="w-full sm:w-auto" onClick={() => { refocusSend.current = true; setConfirming(false); }}><ArrowLeft /> Go back</Button>
+            <Button ref={confirmRef} type="button" onClick={() => void submit(undefined, true)} className="w-full sm:w-auto" data-testid="bug-confirm-send"><Send /> Yes, post it publicly</Button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs text-text-muted" aria-live="polite">{progress || "No account needed."}</p>
+          <Button ref={sendRef} type="submit" disabled={status === "sending"} className="w-full sm:w-auto">
+            {status === "sending" ? <><Loader2 className="animate-spin" /> Sending…</> : <><Send /> Send report</>}
+          </Button>
+        </div>
+      )}
     </form>
   );
 }

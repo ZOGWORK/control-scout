@@ -2368,6 +2368,196 @@ ALTER TABLE clip_coverage ADD COLUMN triage_why TEXT;
 CREATE INDEX clip_coverage_triage ON clip_coverage (reviewed_at, triage, season);
 `,
   },
+  {
+    version: 90,
+    name: "bug reports filed as GitHub issues",
+    sql: `
+-- Each top-bar bug report becomes one GitHub issue (server/bugReports.ts, fileBugReport). issue_number / issue_url: the
+-- issue once filed (issue_url as GitHub answered it). filing_at: a filer's claim (stale after 10 minutes);
+-- file_attempts: tries so far; file_error: why it isn't filed yet, in plain words, for the owner console;
+-- file_marker: the id written into the issue body, so an attempt whose reply was lost adopts that issue instead of
+-- filing twice; labels_missing: a label GitHub dropped (it didn't exist). Closing or deleting the local report never
+-- touches the issue, and closing the issue never touches the report.
+ALTER TABLE bug_reports ADD COLUMN issue_number INTEGER;
+ALTER TABLE bug_reports ADD COLUMN issue_url TEXT;
+ALTER TABLE bug_reports ADD COLUMN filed_at TEXT;
+ALTER TABLE bug_reports ADD COLUMN filing_at TEXT;
+ALTER TABLE bug_reports ADD COLUMN file_attempts INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE bug_reports ADD COLUMN file_error TEXT;
+ALTER TABLE bug_reports ADD COLUMN file_marker TEXT;
+ALTER TABLE bug_reports ADD COLUMN labels_missing TEXT;
+-- to_github: 1 for reports sent with the dialog saying they become a public issue. Reports already here were sent
+-- before it said so, so they stay private (0) and are never filed.
+ALTER TABLE bug_reports ADD COLUMN to_github INTEGER NOT NULL DEFAULT 1;
+UPDATE bug_reports SET to_github = 0;
+-- An attachment uploaded to GitHub: github_url (https://github.com/user-attachments/assets/<uuid>), and why an upload
+-- failed. on_disk: 1 while the local copy in DATA_DIR/bug-reports is kept (until the issue is filed and the URL is
+-- checked to open), 0 once it's deleted; only local copies count against the disk cap.
+ALTER TABLE bug_report_files ADD COLUMN github_url TEXT;
+ALTER TABLE bug_report_files ADD COLUMN upload_error TEXT;
+ALTER TABLE bug_report_files ADD COLUMN on_disk INTEGER NOT NULL DEFAULT 1;
+`,
+  },
+  {
+    version: 91,
+    name: "official channel audit",
+    sql: `
+-- The channel audit (server/videos/officialAudit.ts), after every watcher run: every upload of every watched channel,
+-- read from its uploads list (never a search), and what Scout has for it. record: where Scout has it (the checked
+-- list, the watcher, FIRST's link, a short link, the channel's broadcasts, the owner's stream), NULL for none. For a
+-- video with none: verdict/why, the watcher's rules on it (add, review, ignore) and why; guess_*, the event it fits
+-- best and what that guess rests on; in_window, published inside the watcher's window. finding: open (the owner's to
+-- decide; in the window, a watcher miss waiting for one more watcher run), queued (sent to the review queue),
+-- dismissed (the owner said it isn't a recording, finding_why), or NULL (recorded, or set aside by the rules with its
+-- reason); found_at, when it was first found. gone_at: off the channel's uploads list at its last full read.
+CREATE TABLE official_audit_videos (
+  video_id TEXT PRIMARY KEY,
+  channel_id TEXT NOT NULL,
+  title TEXT NOT NULL,
+  published TEXT,
+  start TEXT,
+  duration INTEGER,
+  privacy TEXT,
+  embeddable INTEGER,
+  blocked_in INTEGER,
+  facts_at TEXT,
+  record TEXT,
+  season INTEGER,
+  code TEXT,
+  verdict TEXT,
+  why TEXT,
+  guess_season INTEGER,
+  guess_code TEXT,
+  guess_day TEXT,
+  guess_why TEXT,
+  in_window INTEGER NOT NULL DEFAULT 0,
+  finding TEXT,
+  finding_why TEXT,
+  finding_by TEXT,
+  found_at TEXT,
+  first_seen TEXT NOT NULL,
+  last_seen TEXT NOT NULL,
+  gone_at TEXT
+);
+CREATE INDEX official_audit_videos_channel ON official_audit_videos (channel_id, gone_at);
+CREATE INDEX official_audit_videos_finding ON official_audit_videos (finding, in_window);
+-- Each channel at its last audit: its uploads-list count, how many of those Scout has a record of, how many play on an
+-- event (every season, and 2026-27 alone), its open findings, and when its whole list was last read (weekly; its new
+-- uploads every run).
+CREATE TABLE official_audit_channels (
+  channel_id TEXT PRIMARY KEY,
+  uploads INTEGER NOT NULL DEFAULT 0,
+  recorded INTEGER NOT NULL DEFAULT 0,
+  unrecorded INTEGER NOT NULL DEFAULT 0,
+  linked INTEGER NOT NULL DEFAULT 0,
+  linked_current INTEGER NOT NULL DEFAULT 0,
+  open_findings INTEGER NOT NULL DEFAULT 0,
+  full_at TEXT,
+  checked_at TEXT,
+  last_error TEXT
+);
+-- One row an audit: units used, what it read, the counts over every channel, and the check of the watcher's own adds
+-- (each re-checked against its video's facts and its event; adds_wrong must be 0).
+CREATE TABLE official_audit_runs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  watch_run INTEGER,
+  started_at TEXT NOT NULL,
+  finished_at TEXT,
+  units INTEGER NOT NULL DEFAULT 0,
+  channels INTEGER NOT NULL DEFAULT 0,
+  full_channels INTEGER NOT NULL DEFAULT 0,
+  uploads INTEGER NOT NULL DEFAULT 0,
+  recorded INTEGER NOT NULL DEFAULT 0,
+  set_aside INTEGER NOT NULL DEFAULT 0,
+  findings INTEGER NOT NULL DEFAULT 0,
+  missed INTEGER NOT NULL DEFAULT 0,
+  queued INTEGER NOT NULL DEFAULT 0,
+  adds_checked INTEGER NOT NULL DEFAULT 0,
+  adds_wrong INTEGER NOT NULL DEFAULT 0,
+  error TEXT
+);
+-- The audit's check of each video the watcher added on its own: ok, or what's wrong with it.
+CREATE TABLE official_audit_adds (
+  video_id TEXT PRIMARY KEY,
+  ok INTEGER NOT NULL,
+  why TEXT NOT NULL,
+  checked_at TEXT NOT NULL
+);
+-- What the event named for a video in review or set aside rests on, when its verdict named none itself.
+ALTER TABLE official_watch ADD COLUMN guess_why TEXT;
+`,
+  },
+  {
+    version: 92,
+    name: "profile pictures",
+    sql: `
+-- An account's profile picture (server/auth/avatars.ts, docs/shared-accounts.md "Profile pictures"): one per account,
+-- the image itself (PNG, JPEG, WebP or GIF, checked by its first bytes). version: random, new with every picture, the
+-- last part of its URL (/api/avatars/<user>/<version>), so a URL never changes what it shows and can be cached for
+-- good. Control Point keeps the shared account's picture: cp_id is the picture id Control Point last reported for
+-- the one stored here (NULL: not synced yet). pending: a change made here Control Point hasn't taken yet ('push'
+-- this picture, 'delete' it), retried on the next account read. A 'delete' row keeps no image.
+CREATE TABLE user_avatars (
+  user_id INTEGER PRIMARY KEY,
+  data BLOB,
+  mime TEXT,
+  version TEXT,
+  cp_id TEXT,
+  pending TEXT,
+  updated_at TEXT NOT NULL
+);
+`,
+  },
+  {
+    version: 93,
+    name: "channel audit adds",
+    sql: `
+-- The channel audit adds an upload Scout has no record of that passes every check of the watcher's (its event's day
+-- free), as the watcher would (server/videos/officialAudit.ts): how many each run added.
+ALTER TABLE official_audit_runs ADD COLUMN added INTEGER NOT NULL DEFAULT 0;
+`,
+  },
+  {
+    version: 94,
+    name: "nj conferences",
+    sql: `
+-- New Jersey's conferences (src/shared/conferences.ts), read once at sync time from each NJ league tournament's name
+-- (server/data/conferences.ts). Keyed by (season, code): codes are reused and the LT / LT2 suffix flips between seasons.
+-- name is FTCNJ's wording when its page has the event, else FIRST's; aliases holds the slugs it is found by (its own,
+-- and FIRST's when FIRST's wording is part of FTCNJ's).
+CREATE TABLE event_conferences (
+  season INTEGER NOT NULL,
+  code TEXT NOT NULL,
+  region TEXT NOT NULL,
+  league TEXT NOT NULL,
+  name TEXT NOT NULL,
+  slug TEXT NOT NULL,
+  first_name TEXT,
+  aliases TEXT NOT NULL DEFAULT '[]',
+  source TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (season, code)
+);
+-- Each conference tournament's league standing the week before it, stored because league_rankings holds only today's:
+-- what the teams went in with can't be read back after. One row per league team, replaced until the tournament starts.
+CREATE TABLE conference_snapshots (
+  season INTEGER NOT NULL,
+  code TEXT NOT NULL,
+  team INTEGER NOT NULL,
+  rank INTEGER NOT NULL,
+  rs REAL,
+  tbp REAL,
+  wins INTEGER,
+  losses INTEGER,
+  ties INTEGER,
+  played INTEGER,
+  meets INTEGER,
+  read_at TEXT,
+  taken_at TEXT NOT NULL,
+  PRIMARY KEY (season, code, team)
+);
+`,
+  },
 ];
 
 export type Db = Client;
@@ -2422,6 +2612,49 @@ export function openDb(url: string, authToken?: string | null): Client {
   return createClient({ url, authToken: authToken ?? undefined });
 }
 
+const fileKind = new WeakMap<Client, boolean>();
+/** Whether `c` is a database file of its own: the driver then keeps a pool of connections to it, so a transaction holds
+ *  one apart from the one other reads take (inSnapshot). In memory (its database name has no file: SQLite's own
+ *  database_list says) or as the embedded replica the driver has only the one every read shares; a remote database
+ *  isn't a file. Kept once known, however the client was made; a probe that failed is asked again next time. */
+async function fileOfItsOwn(c: Client): Promise<boolean> {
+  const known = fileKind.get(c);
+  if (known !== undefined) return known;
+  let kind: boolean;
+  if ((c.protocol && c.protocol !== "file") || c === replicaClient) kind = false;
+  else {
+    const main = (await c.execute("PRAGMA database_list").catch(() => null))?.rows.find((r) => r.name === "main");
+    if (!main) return false; // the probe failed: not kept
+    kind = String(main.file ?? "") !== "";
+  }
+  fileKind.set(c, kind);
+  return kind;
+}
+
+/** `fn`'s reads (through `read`) all seeing the database as it was at the first of them, whatever any process writes
+ *  meanwhile: one read transaction, on a connection of its own (SQLite's WAL: other reads and every writer carry on,
+ *  none waits for it). Each read starts with the event loop let go if it was held (busyTurn), as all() does, so work
+ *  split into many reads for that stays one moment. Null, `fn` never run, where the database is one connection
+ *  shared by every read (in memory, an embedded replica): a transaction there would hold it from every other request;
+ *  or where it isn't in write-ahead logging: the caller reads in one go instead. */
+export async function inSnapshot<T>(fn: (read: <R = Row>(sql: string, args?: InArgs) => Promise<R[]>) => Promise<T>): Promise<T | null> {
+  const c = db();
+  if (!(await fileOfItsOwn(c))) return null;
+  const tx = await c.transaction("read");
+  try {
+    // Write-ahead logging on the connection held, asked each time: a reader holding its moment then never stops a
+    // writer. In any other journal a held read would lock every writer out ("database is locked") for its whole run.
+    const mode = String((await tx.execute("PRAGMA journal_mode")).rows[0]?.journal_mode ?? "").toLowerCase();
+    if (mode !== "wal") return null;
+    return await fn(async <R = Row>(sql: string, args: InArgs = []) => {
+      await busyTurn();
+      return (await tx.execute({ sql, args })).rows as unknown as R[];
+    });
+  } finally {
+    tx.close();
+  }
+}
+
 let primaryClient: Client | null = null;
 /**
  * The database itself, bypassing the embedded replica: for the few small reads that must see another
@@ -2470,7 +2703,30 @@ function splitSql(sql: string): string[] {
 // Small query helpers
 // ---------------------------------------------------------------------------
 
+/** How long a run of reads may hold this process before the next read lets the event loop turn first (busyTurn). */
+export const SLICE_MS = 20;
+let turnedAt = performance.now();
+let watching = false;
+
+/** Lets the event loop turn first when this process has gone SLICE_MS without one; else nothing. The driver answers a
+ *  local read without ever giving the loop back (its results resolve as microtasks), so a search making hundreds of
+ *  reads in a row, each quick, held this process for its whole run: an uncached search took 12 s on the VM and
+ *  /api/health, like every other request, waited the 12 s behind it (#1557). Each read starts here, so such a run lets
+ *  the requests waiting meanwhile in every SLICE_MS or so (and the longest wait is the longest single stretch of work
+ *  between reads). The same reads run, in the same order, with the same answers: only when they run changes. */
+export async function busyTurn(): Promise<void> {
+  const now = performance.now();
+  if (now - turnedAt < SLICE_MS) {
+    // Noted when the loop next turns of itself: a run of reads that never lets it keeps turnedAt where it was.
+    if (!watching) { watching = true; setImmediate(() => { watching = false; turnedAt = performance.now(); }); }
+    return;
+  }
+  await new Promise<void>((go) => setImmediate(go));
+  turnedAt = performance.now();
+}
+
 export async function all<T = Row>(sql: string, args: InArgs = []): Promise<T[]> {
+  await busyTurn();
   return (await db().execute({ sql, args })).rows as unknown as T[];
 }
 
@@ -2491,6 +2747,7 @@ export async function allInChunks<T = Row>(sql: string, args: InArgs, key: keyof
 }
 
 export async function get<T = Row>(sql: string, args: InArgs = []): Promise<T | undefined> {
+  await busyTurn();
   return (await db().execute({ sql, args })).rows[0] as unknown as T | undefined;
 }
 

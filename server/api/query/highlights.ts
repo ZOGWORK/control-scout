@@ -70,6 +70,8 @@ const REASONS: { note: string; value: (r: Scored) => number | null; side: (r: Ro
   { note: "Closest finish", value: (r) => (decided(r) ? -margin(r) : null), side: winnerOf, sql: { side: WINNER, order: `${MARGIN} ASC`, only: "m.red_total <> m.blue_total" } },
   { note: "Biggest upset", value: upsetOf, side: winnerOf },
 ];
+/** What an event's highlights say before any match is played there. */
+export const NO_EVENT_HIGHLIGHTS = "No highlights yet — no matches played at this event.";
 /** Most matches read whole (the highlights picked here); a bigger scope is asked each reason's best of. */
 const READ_WHOLE = 4000;
 
@@ -84,8 +86,15 @@ export async function eventsNamed(words: string, types: readonly string[] | null
   // An initialism's events by the names index, which a search for a short word may rank below others.
   const codes = [...new Set([...hits.map((h) => h.ref.split(":")[1]), ...(await names()).initialism(words)])];
   if (!codes.length) return [];
-  const rows = await all<{ season: number; code: string; name: string; type: string | null; division_code: string | null; start: string | null; end: string | null; city: string | null; state: string | null }>(
-    `SELECT season, code, name, type, division_code, start, end, city, state FROM events WHERE code IN (${codes.map(() => "?").join(", ")})`, codes);
+  type Row = { season: number; code: string; name: string; type: string | null; division_code: string | null; start: string | null; end: string | null; city: string | null; state: string | null };
+  const COLS = "season, code, name, type, division_code, start, end, city, state";
+  const byCode = await all<Row>(`SELECT ${COLS} FROM events WHERE code IN (${codes.map(() => "?").join(", ")})`, codes);
+  // The same name in other seasons under another code ("Rolla Meet @ 10 AM" is one code one season and another the
+  // next): search lists one edition of a name, so its other editions are found by the name itself.
+  const sameName = [...new Set(byCode.filter((e) => eventFit(words, e.name, e.code) >= EVENT_FIT).map((e) => e.name))];
+  const byName = sameName.length ? await all<Row>(`SELECT ${COLS} FROM events WHERE name IN (${sameName.map(() => "?").join(", ")})`, sameName) : [];
+  const seen = new Set<string>();
+  const rows = [...byCode, ...byName].filter((e) => { const k = `${e.season}|${e.code}`; if (seen.has(k)) return false; seen.add(k); return true; });
   const fits = rows.map((e) => ({ e, fit: eventFit(words, e.name, e.code) })).filter(({ e, fit }) => fit >= EVENT_FIT && (!types || types.includes(e.type ?? "")) && (!when || when({ season: Number(e.season), start: e.start ?? null })));
   // An initialism several events share ("mti"): the one initialismEvent picks among these (the kinds and year asked),
   // in each season it was held.
@@ -125,6 +134,7 @@ export async function scopeEvents(f: MatchScope, upTo = false): Promise<{ season
   const sql = [`${f.window && !upTo ? "e.season BETWEEN ? AND ?" : `e.season ${upTo ? "<=" : "="} ?`} AND COALESCE(e.remote, 0) = 0 AND e.type IN (${types.map(() => "?").join(", ")})`];
   const args: (string | number)[] = [...(f.window && !upTo ? [f.season - 1, f.season + 1] : [f.season]), ...types];
   if (f.region) { sql.push(f.region.state ? "e.country = ? AND e.state = ?" : "e.country = ?"); args.push(f.region.country, ...(f.region.state ? [f.region.state] : [])); }
+  if (f.city) { sql.push("LOWER(e.city) = LOWER(?)"); args.push(f.city); }
   const rows = await all<{ season: number; code: string }>(`SELECT e.season, e.code FROM events e WHERE ${sql.join(" AND ")}`, args);
   return rows.map((r) => ({ season: Number(r.season), code: r.code }));
 }
@@ -214,6 +224,14 @@ export function highlightsAnswer(f: HighlightFind): Promise<StatAnswer> {
   return page;
 }
 
+/** Played matches at the events, with no filter of the question's. */
+async function playedAt(season: number, events: { season: number; code: string }[]): Promise<number> {
+  const keys = events.filter((e) => e.season === season);
+  if (!keys.length) return 0;
+  const row = await get<{ n: number }>(`SELECT COUNT(*) n FROM matches m WHERE m.played = 1 AND m.season = ? AND m.code IN (${keys.map(() => "?").join(", ")})`, [season, ...keys.map((e) => e.code)]);
+  return Number(row?.n ?? 0);
+}
+
 async function workOut(f0: HighlightFind): Promise<StatAnswer> {
   const events = await scopeEvents(f0);
   const f: HighlightFind = { ...f0, ...(events ? { events } : {}) };
@@ -246,7 +264,12 @@ async function workOut(f0: HighlightFind): Promise<StatAnswer> {
     definition: DEFINITION(at, S, whole, !!f.named),
     source: `From ${count.toLocaleString("en-US")} played match${count === 1 ? "" : "es"}${where2}`,
   };
-  if (!picks.length) return { ...base, blocks: [], none: `No played matches${f.named ? "" : " at official events"}${where2} yet.` };
+  // An event named with nothing played there yet says so plainly (its matches counted with no filter: "playoff
+  // highlights at <event>" mid-qualifications has matches played); a wider or narrower scope says where it looked.
+  if (!picks.length) {
+    const unplayed = !!ev && !f.window && !!events?.length && await playedAt(f.season, events) === 0;
+    return { ...base, blocks: [], none: unplayed ? NO_EVENT_HIGHLIGHTS : `No played matches${f.named ? "" : " at official events"}${where2} yet.` };
+  }
   const gallery = await galleryOf(whole ? scored : null, events, f.videos ? (f.named && ev ? "No recording for this event — stats only." : `No match videos${where2} yet.`) : null, ev ? f.eventName : undefined);
   // A video page leads with the scope's latest playoff match (a recap ends on the final, whatever reason it was
   // listed under), highlights with the best score.

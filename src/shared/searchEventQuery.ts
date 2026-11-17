@@ -57,6 +57,8 @@ const TIME_OF: Record<string, SearchTime> = {
 const WORD_CODES = new Set(["in", "or", "me", "hi", "ok", "oh", "la", "ma", "pa", "de", "al", "co", "id", "ga", "mo", "ne", "wa", "md", "nd", "sd", "ct", "va", "ms", "mt", "nm", "sc", "ar", "on", "ab", "pe", "ns"]);
 /** Words that frame a request for events, never part of an event's name ("show me all meets in NJ"). */
 const FRAME_WORDS = new Set(["next", "many", "much", "there", "all", "any", "list", "show", "me", "find", "get", "give", "see", "every", "some",
+  // "What FTC events are on this weekend", "anything happening today": the program's name and a request's own words.
+  "ftc", "anything",
   // "What events are happening this week", "events going on today", "events taking place in NJ".
   "happening", "going", "on", "taking", "place", "being", "held", "running", "scheduled"]);
 /** A request's phrase ending a place's words: "(are) happening", "(is) going on", "taking place", "being held", "that
@@ -147,6 +149,10 @@ export function readEventQuery(raw: string): EventQuery | null {
   if (time) q = q.replace(/\s+(?:that|which)(?:\s+(?:are|is|were|was))?(?:\s+(happened|happening|finished|ended|completed|started|took\s+place|taking\s+place|held|running|going\s+on))?$/i, (_m, verb?: string) => { ended = !!verb && /^(?:finished|ended|completed)$/i.test(verb); return ""; }).trim();
   // "Upcoming" beside a window still to come ("upcoming events this weekend") says nothing more: the window is it.
   if (time && time !== "upcoming" && time !== "past") q = q.replace(/(?:^|\s)(?:upcoming|coming up)(?=\s|$)/gi, " ").replace(/\s+/g, " ").trim();
+  // The program's own name after "in"/"at" ("what's happening in ftc this weekend", "events of the FIRST Tech
+  // Challenge today") is the program, never a place or venue: dropped when it ends the request or a place follows.
+  // A name going on ("at FTC San Luis Potosi") stays the venue's.
+  q = q.replace(/(?:^|\s)(?:in|at|for|of|from)\s+(?:the\s+)?(?:first\s+)?(?:ftc|first\s+tech\s+challenge)(?=\s+(?:in|at|near|around)\s|$)/i, "").replace(/\s+/g, " ").trim();
   let year: number | null = null, season: number | null = null;
   const y = /(?:^|\s)(20\d\d)(?:\s*[-–/]\s*(\d\d(?:\d\d)?))?(?=\s|$)/.exec(q);
   if (y) {
@@ -209,7 +215,10 @@ export function readEventQuery(raw: string): EventQuery | null {
   // "next" before an event word means upcoming ("when is the next meet in NJ"); a question's own words name nothing.
   if (!time && kinds.length && words.some((w) => /^next$/i.test(w))) time = "upcoming";
   if (statesOnly && !region) kinds.pop();
-  const named = words.filter((w) => { const l = w.toLowerCase(); return !STOPWORDS.has(l) && !QUESTION_WORDS.has(l) && !FRAME_WORDS.has(l) && !(region && /^(?:states?|champ?s?)$/i.test(w)); });
+  let named = words.filter((w) => { const l = w.toLowerCase(); return !STOPWORDS.has(l) && !QUESTION_WORDS.has(l) && !FRAME_WORDS.has(l) && !(region && /^(?:states?|champ?s?)$/i.test(w)); });
+  // A bounded time said with nothing else asked ("next weekend", "what's on this weekend", "tomorrow"): that window's
+  // events, of every kind. "Upcoming" or "past" alone names no window.
+  if (time && time !== "upcoming" && time !== "past" && !kinds.length && named.every((w) => /^what['’]?s$/i.test(w))) { named = []; kinds.push("event"); }
   // A question about the events ("who will win the NJ championship", "who won Inspire at …") or an action word
   // ("winner", "advance") asks something of them, read elsewhere: not the set of events itself.
   if (named.some((w) => ASKS.has(w.toLowerCase())) || (named.length && isQuestionForm(raw))) return null;

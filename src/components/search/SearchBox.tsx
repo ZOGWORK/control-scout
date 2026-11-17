@@ -6,7 +6,8 @@ import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useSta
 import { smoothBehavior } from "../../lib/pageScroll";
 import { ArrowLeftRight, ArrowRight, BookOpen, CalendarDays, ChevronDown, Clock, Compass, FileText, Info, Loader2, MapPin, Search, Shield, Sparkles, Swords, Trophy, Users, X } from "lucide-react";
 import { m } from "../motion";
-import { apiFetch } from "../../lib/api";
+import { ApiError, apiFetch } from "../../lib/api";
+import { onInternetChange } from "../../lib/connection";
 import { offlineSource } from "../../lib/offline/saved";
 import { usePersonal } from "../../lib/personal";
 import { MINE } from "../../shared/searchMine";
@@ -63,6 +64,8 @@ export function useSearchHits(q: string, kinds?: HitKind[], limit = 15, initial?
   const [error, setError] = useState<string | null>(null);
   // Bumped by retry(): the same query asked again after a failure.
   const [attempt, setAttempt] = useState(0);
+  // The error on screen is "no connection" (offline, or the server out of reach): asked again once there's internet.
+  const offlineError = useRef(false);
   const seq = useRef(0);
   // The search waiting out the typing pause: Enter (searchNow) runs it at once.
   const waiting = useRef<{ q: string; run: () => void } | null>(null);
@@ -81,7 +84,7 @@ export function useSearchHits(q: string, kinds?: HitKind[], limit = 15, initial?
     setAi(null);
     const typed = lastQ.current !== null && lastQ.current !== query;
     lastQ.current = query;
-    if (!query) { setRes({ q: "", hits: [] }); setError(null); setBusy(false); return; }
+    if (!query) { setRes({ q: "", hits: [] }); setError(null); offlineError.current = false; setBusy(false); return; }
     setBusy(true);
     // A newer query (or leaving) drops the older request: the server isn't kept busy with queries nobody waits for.
     const ctrl = new AbortController();
@@ -95,6 +98,7 @@ export function useSearchHits(q: string, kinds?: HitKind[], limit = 15, initial?
           const answer = !kindKey && isAnswer(r) ? r : undefined;
           setRes({ q: query, season, hits: kindKey ? r.hits.filter((h) => kindKey.split(",").includes(h.kind)) : r.hits, answer, live: true, saved: offlineSource(r) != null });
           setError(null);
+          offlineError.current = false;
           if (answer?.weak && brunoOn && refine) {
             setRefining(true);
             // 204 (null): he had nothing to add. Failing or slow: search's own answer stands.
@@ -104,7 +108,8 @@ export function useSearchHits(q: string, kinds?: HitKind[], limit = 15, initial?
               .finally(() => { if (id === seq.current) setRefining(false); });
           }
         })
-        .catch((e) => { if (id === seq.current) { setRes({ q: query, season, hits: [] }); setError(e.message); } }) // the query is answered (with an error): the spinner stops
+        // The query is answered (with an error): the spinner stops.
+        .catch((e) => { if (id === seq.current) { setRes({ q: query, season, hits: [] }); setError(e.message); offlineError.current = e instanceof ApiError && e.offline; } })
         .finally(() => { if (id === seq.current) setBusy(false); });
     };
     // Opening a page with its query, a retry or a change of preferred teams asks at once.
@@ -113,6 +118,9 @@ export function useSearchHits(q: string, kinds?: HitKind[], limit = 15, initial?
     return () => { clearTimeout(t); ctrl.abort(); waiting.current = null; };
   }, [q, prefer, myTeam, kindKey, limit, brunoOn, refine, attempt, season]);
   const retry = useCallback(() => setAttempt((n) => n + 1), []);
+  // "You're offline" stays only while it's true: the connection check finding internet again asks again by itself, as
+  // pages loaded through the cache are (api.ts refetchOffline). Before, the error stayed up until Try again (#1557).
+  useEffect(() => onInternetChange((now) => { if (now === "yes" && offlineError.current) { offlineError.current = false; retry(); } }), [retry]);
   /** Enter: search this query now, without waiting for the typing pause. */
   const searchNow = useCallback(() => { if (waiting.current?.q === q.trim()) waiting.current.run(); }, [q]);
   const current = res.q === q.trim() && (res.season ?? null) === season;
@@ -484,11 +492,10 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
   const openFull = () => runQuery(query);
   // A query that names one thing exactly (a team number, "team 6980", one team's whole name, an event code), as the
   // server's answer for it reads: straight to its page. Anything else, the full results page. With the answer not in
-  // yet, /search at once (never a wait here), which goes on to that one page itself when its answer names one. A team
-  // always goes by /search: only the results page's answer says whether it has highlights to show (direct.ts).
+  // yet, /search at once (never a wait here), which goes on to that one page itself when its answer names one (direct.ts).
   const openDirectOrFull = () => {
     const d = !idle && !busy && !stale ? directHit(answer, query) : null;
-    if (d && d.kind !== "team") pick(d);
+    if (d) pick(d);
     else { markDirect(query); openFull(); }
   };
   // Enter, the keyboard's Search key and the magnifier: the highlighted row (Enter only); with none, the full results

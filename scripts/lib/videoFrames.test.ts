@@ -11,6 +11,10 @@ describe("the frame reader", () => {
     expect(overlayLabel("FiT-North I&S League Tournament  Match 1  DECODE")).toBe("M1");
     // USNMCMP 2025's recording opens on the field check: "Test Match 1", Test Team 1–4. None of the event's matches.
     expect(overlayLabel("New Mexico Championship  Test Match 1  -1 Test Team 1  -3 Test Team 3")).toBeNull();
+    // USIAWESTLT 2025, 20 s before M3: a bracket whose "advances to" line is cut off at the top names no match.
+    expect(overlayLabel("Playoff Match 5  M4 vs A5  M5 M3 vs A6  M8 M6 vs M5  M9 M7 vs M8  Easter Island & Chichen Itza")).toBeNull();
+    // Two boxes' numbers aren't a bracket: "Playoff Match 3" still names M3.
+    expect(overlayLabel("Easter Island & Chichen Itza  Playoff Match 3  Alliance 1  M1")).toBe("M3");
     expect(overlayLabel("Upcoming matches")).toBeNull();
   });
 
@@ -112,18 +116,26 @@ describe("the frame reader", () => {
     expect(dataRows("no marker")).toEqual([]);
   });
 
-  it("places a lone confirmed read where the frames show it, unless it's far from where the rest of the video sits", () => {
+  it("writes an early start only where both starts were read off the video, never one filled from the clock", () => {
+    // Q1 and Q3 read and agree; Q2 is filled between them (medium) only 100 s after Q1: both go to review, but nothing
+    // says the video showed Q2 starting while Q1 was on.
+    const ms: M[] = [{ label: "Q1", epoch: 0 }, { label: "Q2", epoch: 100 }, { label: "Q3", epoch: 400 }];
+    const j = judge(ms, new Map([[0, 10], [2, 410]]), null, 10_000);
+    expect(j.review.has("Q2")).toBe(true);
+    expect(j.earlyStart.has("Q2")).toBe(false);
+  });
+  it("places a lone confirmed read where the frames show it, however far from FIRST's times", () => {
     const ms: M[] = Array.from({ length: 4 }, (_, i) => ({ label: `M${i + 1}`, epoch: i * 500 }));
     // M1 and M4 disagree by 5 min (the stream lost time between them): each is in the video where its frames say.
     const j = judge(ms, new Map([[0, 10], [3, 1500 - 300]]), null, 10_000);
     expect([...j.placed]).toEqual([["M1", { t: 10, confidence: "high" }], ["M4", { t: 1200, confidence: "high" }]]);
     expect(j.missing.get("M2")).toMatch(/in a gap/);
-    // A read 3 hours from the rest: nothing says it's this part of the stream (another day, another event).
-    const k = judge(ms, new Map([[0, 10], [3, 1500 + 3 * 3600]]), null, 20_000);
-    expect(k.placed.size).toBe(0);
-    expect(k.review.get("M4")).toMatchObject({ why: /180 min from where the rest/ });
-    // One read, and no clock or other read to tell where it is.
-    expect(judge(ms, new Map([[1, 600]]), null, 10_000).review.get("M2")).toMatchObject({ why: /no clock or other read/ });
+    // A read 3 hours from where FIRST's times put it: placed where the frames show it, nothing flagged for the distance.
+    const k = judge(ms, new Map([[3, 1500 + 3 * 3600]]), null, 20_000);
+    expect(k.placed.get("M4")).toEqual({ t: 12300, confidence: "high" });
+    expect(k.review.size).toBe(0);
+    // One read, and no clock or other read beside it: still where its frames show it.
+    expect(judge(ms, new Map([[1, 600]]), null, 10_000).placed.get("M2")).toEqual({ t: 600, confidence: "high" });
   });
 
   describe("judging a video's matches (clock first, frames must agree)", () => {

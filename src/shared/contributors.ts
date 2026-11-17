@@ -28,6 +28,8 @@ export interface ContributorVideo {
   verified: boolean;
   /** The contributor's profile (/contributors/<username>). */
   profile: string | null;
+  /** The contributor's profile picture (the same one as in Control Point), or null for none. */
+  avatar?: string | null;
   likes: number;
   /** This viewer likes it (signed in only). */
   liked: boolean;
@@ -165,6 +167,8 @@ export interface MyContributorStatus {
 export interface ProfileVideo extends ContributorVideo { season: number; code: string; key: string; label: string; event: string; red: number | null; blue: number | null; href: string }
 export interface ContributorProfile {
   name: string; username: string; verified: boolean; status: "verified" | "team" | "none";
+  /** Their profile picture, or null. */
+  avatar?: string | null;
   teams: { number: number; name: string | null }[];
   videos: ProfileVideo[];
   /** Likes on the videos THIS viewer can see (two viewers may see different totals). */
@@ -199,5 +203,5 @@ export function pickMatchVideo<F, C extends { overFirst?: boolean; tier?: VideoT
 
 /** A contributor video as a search answer's video item (the same player, the credit carried along). */
 export function contributorItem(v: ContributorVideo, match: string): SearchVideoItem {
-  return { videoId: v.videoId, t: v.t, kind: "contributor", match, contributor: { id: v.id, name: v.name, verified: v.verified, profile: v.profile, likes: v.likes, liked: v.liked, mine: v.mine, tier: v.tier } };
+  return { videoId: v.videoId, t: v.t, kind: "contributor", match, contributor: { id: v.id, name: v.name, verified: v.verified, profile: v.profile, avatar: v.avatar ?? null, likes: v.likes, liked: v.liked, mine: v.mine, tier: v.tier } };
 }

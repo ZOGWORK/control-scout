@@ -18,6 +18,11 @@ async function searchPacks(): Promise<{ meta: SavedBundle; bundle: EventBundle }
   return loaded.filter((x): x is { meta: SavedBundle; bundle: EventBundle } => !!x.bundle?.api);
 }
 
+/** Decode the saved event packs ahead of a search (answer.ts warmOffline). Never fails. */
+export function warmPackSearch(): Promise<void> {
+  return searchPacks().then(() => undefined, () => undefined);
+}
+
 const source = (b: SavedBundle): OfflineSource => ({ season: b.season, savedAt: b.savedAt, dataAsOf: b.dataAsOf, bundle: { builtAt: b.builtAt, name: b.name } });
 
 /** The parser's context, kept while the same packs are loaded (decoded bundles are kept per version: bundles.ts). */

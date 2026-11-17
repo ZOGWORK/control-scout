@@ -141,6 +141,49 @@ export async function gh<T>(token: string, method: "GET" | "POST" | "PATCH", pat
   return (await res.json()) as T;
 }
 
+let repoId: number | null = null;
+/** Tests: forget the cached repository id. */
+export const resetRepositoryId = () => { repoId = null; };
+/** The repository's numeric id (the upload endpoint asks for it), read once. */
+export async function repositoryId(token: string): Promise<number> {
+  repoId ??= (await gh<{ id: number }>(token, "GET", "")).id;
+  return repoId;
+}
+
+/** What an uploaded attachment's address must look like before it goes into an issue: GitHub's own asset URL. */
+export const ASSET_URL = /^https:\/\/github\.com\/user-attachments\/assets\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+/**
+ * Uploads one image or video as an issue attachment and returns its GitHub URL. The same request GitHub CLI's
+ * supported `gh issue create --attach` makes (cli/cli internal/attachments/client.go, gh 2.104.0): POST the bytes to
+ * uploads.github.com/user-attachments/assets?name=…&content_type=…&repository_id=…. Tested live with
+ * GITHUB_REPORT_TOKEN on 2026-11-14 (201). GitHub answers 404 when the token can't write to the repository.
+ */
+export async function uploadAsset(token: string, name: string, contentType: string, bytes: Uint8Array): Promise<string> {
+  const q = new URLSearchParams({ name, content_type: contentType, repository_id: String(await repositoryId(token)) });
+  const res = await (fetchImpl ?? fetch)(`https://uploads.github.com/user-attachments/assets?${q}`, {
+    method: "POST",
+    headers: {
+      Accept: "application/vnd.github+json",
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/octet-stream",
+      "User-Agent": "control-scout-bug-reports",
+    },
+    body: bytes,
+    signal: AbortSignal.timeout(60_000),
+  });
+  if (!res.ok) throw new GithubError(res.status, res.headers);
+  const url = String(((await res.json().catch(() => ({}))) as { url?: unknown }).url ?? "");
+  if (!ASSET_URL.test(url)) throw new Error("GitHub returned no attachment URL");
+  return url;
+}
+
+/** Whether an attachment URL opens for anyone (signed out): GitHub redirects it to the file. */
+export async function assetOpens(url: string): Promise<boolean> {
+  const res = await (fetchImpl ?? fetch)(url, { method: "HEAD", redirect: "manual", headers: { "User-Agent": "control-scout-bug-reports" }, signal: AbortSignal.timeout(10_000) });
+  return res.status === 302 || res.status === 200;
+}
+
 /** A code fence longer than any run of backticks in the text, so report text can never break out of it. */
 export function fenced(text: string): string {
   const longest = Math.max(0, ...(text.match(/`+/g) ?? []).map((s) => s.length));

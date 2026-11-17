@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { editDistance, fuzzyScore, normalize, trigramQuery, trigrams, wordScore } from "./fuzzy";
+import { editDistance, fuzzyScore, joinThousands, normalize, trigramQuery, trigrams, wordScore } from "./fuzzy";
 
 describe("editDistance", () => {
   it("counts an adjacent swap as one edit", () => {
@@ -49,5 +49,19 @@ describe("trigrams", () => {
     expect(trigrams("X Drive")).toContain("x d");
     expect(trigramQuery("ab")).toBeNull();
     expect(trigramQuery('a"bc')).toBe('"a b" OR " bc"');
+  });
+});
+
+describe("normalize's plain-ASCII shortcut", () => {
+  // The full Unicode passes, as normalize ran them for every string before the shortcut.
+  const full = (s: string) => joinThousands(s).normalize("NFKD").replace(/\p{M}+/gu, "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+  it("gives exactly what the Unicode passes give, for every ASCII character and real names", () => {
+    const every = Array.from({ length: 128 }, (_, i) => String.fromCharCode(i)).join("");
+    const names = [every, "4215 | Hypnotic Robotics", "  Oradell, NJ, USA ", "1,000 Lakes", "Team 12,345,678!", "a,123", "1,23", "R2-D2 (Bots)", "ROBO_tics\t\n", "x.1,000", ""];
+    for (const s of names) expect(normalize(s), JSON.stringify(s)).toBe(full(s));
+  });
+  it("leaves accents and other scripts to the Unicode passes", () => {
+    expect(normalize("Équipe Robótica")).toBe("equipe robotica");
+    expect(normalize("机器人 ４２１５")).toBe(full("机器人 ４２１５"));
   });
 });

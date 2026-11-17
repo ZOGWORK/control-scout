@@ -18,6 +18,8 @@ export interface AccountUser { id: number; email: string | null; displayName: st
   username?: string | null;
   /** When the username can change next (ISO); null: now. */
   usernameNextChange?: string | null;
+  /** The profile picture (the same one as in Control Point), or null. Missing from older servers. */
+  avatarUrl?: string | null;
   /** A mark of this sign-in (the username prompt shows once per sign-in). */
   session?: string | null;
   /** Only present (true) for the owner (OWNER_EMAILS): shows the owner portal's nav item. The server enforces access. */
@@ -183,6 +185,9 @@ function cachedAccount(): AccountUser | null {
 
 const getOwner = () => { try { return localStorage.getItem(OWNER) ?? ""; } catch { return ""; } };
 const setOwner = (v: string) => { try { localStorage.setItem(OWNER, v); } catch { /* ignore */ } };
+/** Whether this device's personal data was last synced with an account: its account's copy may still be on its way
+ *  (until `syncReady`), so what's shown from it (My team) can still change. */
+export const hasAccountOnDevice = () => getOwner() !== "";
 
 const toState = (s: Record<PersonalKey, Stamped<any> | null>): PersonalState =>
   Object.fromEntries(PERSONAL_KEYS.map((k) => [k, s[k]?.value ?? EMPTY_STATE[k]])) as unknown as PersonalState;

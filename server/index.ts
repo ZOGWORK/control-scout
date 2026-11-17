@@ -9,7 +9,9 @@ import { checkClipCoverage, triageUntriaged } from "./videos/coverageCheck.js";
 import { resolveStreamLinks } from "./videos/streamLinks.js";
 import { resolveChannelStreams } from "./videos/channelStreams.js";
 import { seedOfficialVideos } from "./videos/officialVideos.js";
+import { applyVideoDecisions } from "./videos/videoDecisions.js";
 import { WATCH_CHECK_MS, WATCH_FIRST_MS, watchIfDue } from "./videos/officialWatch.js";
+import { runChannelAudit } from "./videos/officialAudit.js";
 import "./env.js";
 import { env } from "./env.js";
 import { migrate, all, openReplicaIfRemote } from "./db.js";
@@ -174,7 +176,10 @@ scheduleCycles({ cycle, eventDay, backfillDue, eventDayMinutes });
 // check the free-tier guardrails. Nothing without R2 configured; off with the rest of the schedule.
 if (!process.env.CS_NO_SCHEDULER) {
   // Bug reports: email what's due and unsent (a failed or interrupted send), clear abandoned uploads, every 10 minutes (server/bugReports.ts).
-  setInterval(() => { sweepBugReports().catch((e) => log(`bug reports: sweep failed: ${(e as Error)?.message ?? e}`)); }, 10 * 60_000).unref();
+  // Also once a minute after boot: deploys restart the server often, and each restart would put the sweep off again.
+  const sweepBugs = () => { sweepBugReports().catch((e) => log(`bug reports: sweep failed: ${(e as Error)?.message ?? e}`)); };
+  setTimeout(sweepBugs, 60_000).unref();
+  setInterval(sweepBugs, 10 * 60_000).unref();
   // Failed searches → GitHub issues, every 10 minutes (server/searchFailures.ts).
   startSearchFailureJobs(log);
   // The public /status page's checks, every 2 minutes (server/uptime.ts). No alerts.
@@ -238,6 +243,8 @@ if (!process.env.CS_NO_SCHEDULER) {
   // The checked list of official recordings (server/videos/officialVideos.ts) is written first: new rows after a deploy, none after.
   const recordings = () => {
     seedOfficialVideos(log).catch((e) => log(`official videos: ${(e as Error).message}`))
+      // Then the decisions from evidence (server/data/videoDecisions.ts): once a process, like the list.
+      .then(() => applyVideoDecisions(log)).catch((e) => log(`official videos: decisions: ${(e as Error).message}`))
       .then(() => resolveStreamLinks(log)).catch((e) => log(`recordings: ${(e as Error).message}`))
       .then(() => resolveChannelStreams(log)).catch((e) => log(`recordings: ${(e as Error).message}`))
       .then(() => backfillVideoMeta(log)).catch((e) => log(`recordings: ${(e as Error).message}`))
@@ -251,9 +258,13 @@ if (!process.env.CS_NO_SCHEDULER) {
   // channel's new uploads, every 6 hours with the YouTube Data API (never a search). Checked every 30 minutes, from
   // 17.5 minutes after boot (midway between the sync's ticks, WATCH_FIRST_MS): a deploy doesn't start a run of its own
   // when the last one is less than 6 hours old.
-  // A run that added a recording has its event's coverage checked at once (server/videos/coverageCheck.ts).
+  // A run that added a recording has its event's coverage checked at once (server/videos/coverageCheck.ts). Every run
+  // is followed by the channel audit (server/videos/officialAudit.ts): each channel's uploads list against Scout.
   const watch = () => {
-    watchIfDue(log).then((r) => (r?.added ? checkClipCoverage(log) : 0))
+    watchIfDue(log).then(async (r) => {
+      if (r) await runChannelAudit(log).catch((e) => log(`official videos: audit: ${(e as Error).message}`));
+      return r?.added ? checkClipCoverage(log) : 0;
+    })
       .catch((e) => log(`official videos: watcher: ${(e as Error).message}`));
   };
   setTimeout(() => { watch(); setInterval(watch, WATCH_CHECK_MS).unref(); }, WATCH_FIRST_MS).unref();

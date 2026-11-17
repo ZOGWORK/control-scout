@@ -346,7 +346,11 @@ describe("frameClipEnd (a clip placed from the recording's frames)", () => {
   });
   it("stops when the next match's timer starts, but never before its own play is over", () => {
     expect(frameClipEnd(1000, 1180, null)).toBe(1180);
-    expect(frameClipEnd(1000, 1100, null)).toBe(1000 + MATCH_PLAY_S);
+    // A read's slack early: its own play still runs.
+    expect(frameClipEnd(1000, 1155, null)).toBe(1000 + MATCH_PLAY_S);
+    // Closer: the recording cut it short (USTXSASQ 2025, Q14 at 7838 and Q15 151 s on), so it stops where Q15 starts.
+    expect(frameClipEnd(7838, 7989, null)).toBe(7989);
+    expect(frameClipEnd(1000, 1100, null)).toBe(1100);
     // A start before this one (another event's, or a misread) doesn't cut it.
     expect(frameClipEnd(1000, 900, null)).toBe(1210);
   });

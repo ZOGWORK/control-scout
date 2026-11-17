@@ -22,21 +22,23 @@ const engineStarts = vi.hoisted(() => ({ n: 0 }));
 vi.mock("sql.js/dist/sql-wasm-browser.js", () => ({ default: () => { engineStarts.n++; return initSqlJs(); } }));
 vi.mock("sql.js/dist/sql-wasm-browser.wasm?url", () => ({ default: "/assets/sql-wasm-browser-abc.wasm" }));
 
-import { readSaved, removeSeason, saveSeason, savedSeasons, SEASONS_EVENT, SeasonGone } from "./seasons";
+import { ENGINE_WAIT_MS, keepSearchIndexes, readSaved, removeSeason, saveSeason, savedSeasons, SEASONS_EVENT, SeasonGone } from "./seasons";
+import { readSearch } from "./readers";
 import { runSeasonBatch } from "./seasonBatch";
 import { DownloadPaused, PIECE, download, partialDownloads } from "./download";
 import { resumeMarks, wantResume } from "./resumeMarks";
 
 // Cache Storage, as the service worker leaves it.
 const caches = new Map<string, Set<string>>();
-vi.stubGlobal("caches", {
+const cacheStub = {
   keys: async () => [...caches.keys()],
   open: async (n: string) => {
     if (!caches.has(n)) caches.set(n, new Set());
     const c = caches.get(n)!;
     return { match: async (u: string) => (c.has(u) ? {} : undefined), add: async (u: string) => { c.add(u); }, delete: async (u: string) => c.delete(u) };
   },
-});
+};
+vi.stubGlobal("caches", cacheStub);
 vi.stubEnv("DEV", false);
 
 const manifest = { format: 1, version: "v1", builtAt: "b", dataAsOf: null } as unknown as PackManifest;
@@ -55,6 +57,8 @@ beforeEach(async () => {
 });
 afterEach(() => vi.restoreAllMocks());
 
+/** The season files read back (a kept search index is read alongside each: search-index:…). */
+const fileGets = () => gets.filter((k) => k.startsWith("season:"));
 const names = (only?: number) => readSaved(only, (dbs) => dbs.map((d) => `${d.season}:${d.db.all("SELECT name FROM teams")[0].name}`));
 
 describe("saving never runs the pack", () => {
@@ -183,6 +187,34 @@ describe("Delete removes every copy", () => {
     expect(caches.get("cs-shell-20261001-aa")!.has(ENGINE)).toBe(false);
   });
 
+  it("acts at once: never reads the file back first, and never waits for a save still caching the engine", async () => {
+    await saveSeason(file(2024, "a"), manifest);
+    gets.length = 0;
+    await removeSeason(2024);
+    expect(gets).toEqual([]); // tens of MB were read back into memory before every Delete
+
+    // The engine's request hangs (a line that just came back): the save waits for it ENGINE_WAIT_MS at most (the
+    // save run keeps the season's Delete greyed out meanwhile), and a Delete then is done at once.
+    let release: () => void = () => {};
+    vi.stubGlobal("caches", {
+      keys: async () => ["cs-shell-1"],
+      open: async () => ({ match: async () => undefined, add: () => new Promise<void>((r) => { release = r; }), delete: async () => true }),
+    });
+    try {
+      let t0 = Date.now();
+      await saveSeason(file(2025, "a"), manifest);
+      expect(Date.now() - t0).toBeLessThan(ENGINE_WAIT_MS + 1000);
+      expect(savedSeasons().map((s) => s.season)).toEqual([2025]);
+      t0 = Date.now();
+      expect(await removeSeason(2025)).toBeGreaterThan(0);
+      expect(Date.now() - t0).toBeLessThan(1000);
+      expect(savedSeasons()).toEqual([]);
+    } finally {
+      release();
+      vi.stubGlobal("caches", cacheStub);
+    }
+  });
+
   it("keeps the engine (and another season's half download) while another season is saved", async () => {
     caches.set("cs-shell-20261001-aa", new Set([ENGINE])); // as the worker or the save left it
     await saveSeason(file(2024, "a"), manifest);
@@ -201,14 +233,38 @@ describe("readSaved", () => {
     for (const s of [2023, 2024, 2025]) await saveSeason(file(s, "a"), manifest);
     gets.length = 0;
     expect(await names()).toEqual(["2025:New", "2024:Mid", "2023:Old"]);
-    expect(gets).toEqual(["season:2023:a", "season:2024:a", "season:2025:a"]); // saving opened none of them
+    expect(fileGets()).toEqual(["season:2023:a", "season:2024:a", "season:2025:a"]); // saving opened none of them
     gets.length = 0;
     expect(await names(2025)).toEqual(["2025:New"]);
     expect(await names(2024)).toEqual(["2024:Mid"]);
     expect(gets).toEqual([]); // the newest two stayed open after reading all three
     expect(await names(2023)).toEqual(["2023:Old"]);
     expect(await names(2025)).toEqual(["2025:New"]);
-    expect(gets).toEqual(["season:2023:a", "season:2025:a"]); // opening 2023 let go of 2025, the least recently read
+    expect(fileGets()).toEqual(["season:2023:a", "season:2025:a"]); // opening 2023 let go of 2025, the least recently read
+  });
+
+  it("keeps a season's built search index, reads it back with the file once reopened, and drops it with the season", async () => {
+    for (const s of [2023, 2024, 2025]) await saveSeason(file(s, "a"), manifest);
+    const want = await readSaved(2025, (dbs) => readSearch(dbs, "new"));
+    await keepSearchIndexes();
+    const kept = () => [...store.keys()].filter((k) => k.startsWith("search-index:"));
+    expect(kept()).toHaveLength(1);
+    expect(kept()[0]).toMatch(/^search-index:2025:a:/);
+    // Reopened (the two others read since let it go): the kept index is read alongside the file, and answers the same.
+    await names(2023); await names(2024);
+    gets.length = 0;
+    expect(await readSaved(2025, (dbs) => readSearch(dbs, "new"))).toEqual(want);
+    expect(gets).toEqual(["season:2025:a", kept()[0]]);
+    await removeSeason(2025);
+    expect(kept()).toEqual([]);
+  });
+
+  it("keeps every saved season's index after a search over all of them, though only two stay open", async () => {
+    for (const s of [2023, 2024, 2025]) await saveSeason(file(s, "a"), manifest);
+    // A search reads all three; the least recent one (2023) is let go once it ends.
+    await readSaved(undefined, (dbs) => readSearch(dbs, "new"));
+    await keepSearchIndexes();
+    expect([...store.keys()].filter((k) => k.startsWith("search-index:")).map((k) => k.split(":")[1]).sort()).toEqual(["2023", "2024", "2025"]);
   });
 });
 
@@ -217,6 +273,7 @@ describe("updates never bring back a removed season (replaceOnly)", () => {
     await saveSeason(file(2025, "a"), manifest);
     // The download finishes only after the person pressed Remove.
     const p = saveSeason(file(2025, "b"), manifest, () => {}, { replaceOnly: true });
+    p.catch(() => {}); // it fails while the removal is still tidying up; checked below
     await removeSeason(2025);
     await expect(p).rejects.toBeInstanceOf(SeasonGone);
     expect(savedSeasons()).toEqual([]);

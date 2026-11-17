@@ -29,7 +29,9 @@ const rail = (on: string) => `${on}.csb-side{width:60px}${on}.csb-brand{justify-
   + `${on}.csb-nav a span,${on}.csb-more>summary span{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}`
   + `${on}.csb-nav a,${on}.csb-more>summary{justify-content:center;padding:0}`
   // A fold's pages sit level with every other row in the rail, as the app draws them there (no indent, no rule).
-  + `${on}.csb-sub>div{margin-left:0;padding-left:0;border-left:0}`;
+  + `${on}.csb-sub>div{margin-left:0;padding-left:0;border-left:0}`
+  // Rankings' arrow sits under its icon in the rail, a slim row, as the app draws it there.
+  + `${on}.csb-rk .csb-rks>summary{position:static;width:auto;height:16px;margin:0}`;
 export const BOOT_STYLE = `<style>
       html{background:#0a0a0b;scrollbar-gutter:stable}html.light{background:#fff}html.dim{background:#1e1f23}html.midnight{background:#000}body{margin:0}
       html::-webkit-scrollbar{width:6px;height:6px}html::-webkit-scrollbar-thumb{background:#2e2e35;border-radius:999px}html.light::-webkit-scrollbar-thumb{background:#d4d4d8}html.dim::-webkit-scrollbar-thumb{background:#45464e}html.midnight::-webkit-scrollbar-thumb{background:#222227}
@@ -45,11 +47,12 @@ export const BOOT_STYLE = `<style>
       .csb-brand img{width:28px;height:28px}
       .csb-nav{padding:6px 8px}
       .csb-grp{margin-bottom:12px}
-      .csb-nav a,.csb-more>summary{display:flex;align-items:center;gap:10px;height:34px;margin:0 0 2px;padding:0 10px;border-radius:8px;font-size:14px;font-weight:500;color:var(--b-mut)}
-      @media (min-height:900px){.csb-nav{padding-top:12px}.csb-grp{margin-bottom:16px}.csb-nav a,.csb-more>summary{height:40px;margin-bottom:4px}}
-      @media (min-height:1000px){.csb-nav{padding-top:16px}.csb-grp{margin-bottom:20px}.csb-nav a,.csb-more>summary{height:44px;margin-bottom:6px;font-size:15px}}
-      @media (min-height:1100px){.csb-nav{padding-top:20px}.csb-grp{margin-bottom:24px}.csb-nav a,.csb-more>summary{height:48px}}
+      .csb-nav a,.csb-more>summary,.csb-rks>summary{display:flex;align-items:center;gap:10px;height:34px;margin:0 0 2px;padding:0 10px;border-radius:8px;font-size:14px;font-weight:500;color:var(--b-mut)}
+      @media (min-height:900px){.csb-nav{padding-top:12px}.csb-grp{margin-bottom:16px}.csb-nav a,.csb-more>summary,.csb-rks>summary{height:40px;margin-bottom:4px}}
+      @media (min-height:1000px){.csb-nav{padding-top:16px}.csb-grp{margin-bottom:20px}.csb-nav a,.csb-more>summary,.csb-rks>summary{height:44px;margin-bottom:6px;font-size:15px}}
+      @media (min-height:1100px){.csb-nav{padding-top:20px}.csb-grp{margin-bottom:24px}.csb-nav a,.csb-more>summary,.csb-rks>summary{height:48px}}
       .csb-sub>div{margin-left:16px;padding-left:8px;border-left:1px solid var(--b-line)}
+      .csb-rk{position:relative}.csb-rk .csb-rks>summary{position:absolute;top:0;right:4px;width:28px;padding:0;justify-content:center;list-style:none;cursor:pointer}.csb-rks>summary::-webkit-details-marker{display:none}.csb-rks[open]>summary svg{transform:rotate(180deg)}
       .csb-more>summary{list-style:none;cursor:pointer}.csb-more>summary::-webkit-details-marker{display:none}
       .csb-nav a[aria-current]{color:var(--b-fg);background:color-mix(in srgb,var(--b-fg) 8%,transparent)}
       .csb-ico{width:18px;height:18px;flex-shrink:0;border-radius:6px;background:currentColor;opacity:.22}
@@ -150,12 +153,13 @@ export function bootConsent(): string {
     + `<div class="csbc-btns"><button type="button" data-a="0">No thanks</button><button type="button" data-a="1">Allow</button></div></section>${script}`;
 }
 
-/** `children`: a row that folds open to its own pages, as the app's sidebar does (How it works). */
-interface Item { to: string; label: string; end?: boolean; children?: Item[] }
+/** `children`: a row that folds open to its own pages, as the app's sidebar does (How it works). `sub`: a page row
+ *  with an arrow that folds out its sub-pages (Rankings), shut on every page, as the app's SubPagesRow is. */
+interface Item { to: string; label: string; end?: boolean; children?: Item[]; sub?: Item[] }
 // The sidebar's everyday pages, then its "More" group: a <details>, so it opens without the app too. Open on one of
 // its own pages, or when this device left it open (html.cs-nav-more, set in index.html from cs-nav-more).
-const PRIMARY: Item[] = [{ to: "/", label: "Home", end: true }, { to: "/events", label: "Events" }, { to: "/teams", label: "Teams" }, { to: "/rankings", label: "Rankings" }, { to: "/predict", label: "Predict", end: true }, { to: "/my-team", label: "My team" }, { to: "/scout", label: "Scout" }];
-const MORE: Item[] = [{ to: "/power-rankings", label: "Power rankings" }, { to: "/compare", label: "Compare" }, { to: "/shortlist", label: "Shortlist" }, { to: "/download", label: "Offline" }, { to: "/methodology", label: "How it works", children: [{ to: "/methodology", label: "Predictions" }, { to: "/how-it-works/search", label: "FTC One Search" }] }];
+const PRIMARY: Item[] = [{ to: "/", label: "Home", end: true }, { to: "/events", label: "Events" }, { to: "/teams", label: "Teams" }, { to: "/rankings", label: "Rankings", end: true, sub: [{ to: "/rankings/regions", label: "Region rankings" }, { to: "/leagues", label: "Leagues" }, { to: "/power-rankings", label: "Power rankings" }] }, { to: "/predict", label: "Predict", end: true }, { to: "/my-team", label: "My team" }, { to: "/scout", label: "Scout" }];
+const MORE: Item[] = [{ to: "/compare", label: "Compare" }, { to: "/shortlist", label: "Shortlist" }, { to: "/download", label: "Offline" }, { to: "/methodology", label: "How it works", children: [{ to: "/methodology", label: "Predictions" }, { to: "/how-it-works/search", label: "FTC One Search" }] }];
 // The phone tab bar's default (src/lib/tabBar.ts DEFAULT_TABS); a device with its own choice gets it once the app loads.
 const TABS: Item[] = [{ to: "/", label: "Home", end: true }, { to: "/events", label: "Events" }, { to: "/predict", label: "Predict", end: true }, { to: "/my-team", label: "My team" }, { to: "/scout", label: "Scout" }];
 
@@ -165,7 +169,11 @@ const active = (path: string, it: Item) => {
   return p === it.to || (!it.end && p.startsWith(`${it.to}/`));
 };
 const within = (path: string, it: Item) => (it.children ?? [it]).some((k) => active(path, k));
-const link = (path: string, it: Item): string => it.children
+const CHEVRON = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>`;
+const link = (path: string, it: Item): string => it.sub
+  // Rankings: its own link, then an arrow over the row's right end that folds out its pages. Never open by itself.
+  ? `<div class="csb-rk">${link(path, { ...it, sub: undefined })}<details class="csb-sub csb-rks"><summary aria-label="Show more ${esc(it.label.toLowerCase())}">${CHEVRON}</summary><div>${it.sub.map((k) => link(path, k)).join("")}</div></details></div>`
+  : it.children
   // The same fold the app draws (Shell ParentRow): open on one of its pages.
   ? `<details class="csb-more csb-sub"${within(path, it) ? " open" : ""}><summary><i class="csb-ico"></i><span>${esc(it.label)}</span></summary><div>${it.children.map((k) => link(path, k)).join("")}</div></details>`
   : `<a href="${it.to}"${active(path, it) ? ' aria-current="page"' : ""}><i class="csb-ico"></i><span>${esc(it.label)}</span></a>`;

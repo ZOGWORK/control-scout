@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, renderHook, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { AwardsAllTime, NextChance, OprSection, RowRecord, lineup, nextMatch, useEventDayRefresh } from "./TeamPage";
+import { AwardsAllTime, NextChance, OprSection, RowRecord, Upcoming, lineup, nextMatch, useEventDayRefresh } from "./TeamPage";
 import type { MatchView, TeamEventRow, TeamProfile } from "../shared/api";
 
 // useMeta as the app's metadata would answer it (null: not loaded yet, as with no provider), and the current season.
@@ -176,5 +176,22 @@ describe("useEventDayRefresh (Upcoming's clock)", () => {
     vi.setSystemTime(Date.parse("2026-11-14T14:00:00Z")); // the later event's day
     act(() => { vi.advanceTimersByTime(60_000); });
     expect(reload).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("Upcoming: an event the team is registered for, not yet in its list", () => {
+  it("says the This weekend page's line and links its event, never \"no upcoming event\"", async () => {
+    meta.current = 2025;
+    const answer = { team: 4215, name: null, season: 2025, seasonLabel: "2025–26", kind: "next-event", played: [],
+      event: { season: 2025, code: "USNJNW", name: "Dumont League Meet", dates: "Nov 21, 2026", place: null, href: "/events/2025/USNJNW?team=4215" },
+      line: "No matches this weekend — next event is Dumont League Meet on Nov 21, 2026." };
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (url) =>
+      String(url).includes("/api/teams/4215/next") ? new Response(JSON.stringify(answer), { headers: { "content-type": "application/json" } }) : new Response("{}", { status: 404 }));
+    try {
+      render(<MemoryRouter><Upcoming p={profile} next={null} last={null} /></MemoryRouter>);
+      const link = await screen.findByRole("link", { name: /next event is Dumont League Meet on Nov 21, 2026/ });
+      expect(link.getAttribute("href")).toBe("/events/2025/USNJNW?team=4215");
+      expect(screen.queryByText(/has no upcoming event/)).toBeNull();
+    } finally { fetchMock.mockRestore(); }
   });
 });

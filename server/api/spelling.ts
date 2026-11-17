@@ -44,7 +44,8 @@ const ASKED_WORDS = [
   "tournament", "tournaments", "competition", "competitions", "opponent", "opponents", "partner", "partners", "component",
   "components", "breakdown", "margin", "margins", "carry", "confidence", "worldwide", "nationwide", "statewide", "trend", "trends",
   "improve", "improved", "improvement", "advance", "advanced", "range", "beat", "beats", "head", "median", "mean", "maximum",
-  "minimum", "deviation", "percent", "percentage", "ratio", "rate", "share", "contribution", "contributions",
+  "minimum", "deviation", "percent", "percentage", "ratio", "rate", "share", "contribution", "contributions", "tiebreaker",
+  "tiebreakers", "breaker", "breakers",
 ];
 
 /** Plain English a query says around them: never corrected, and after search's own words as a correction. */

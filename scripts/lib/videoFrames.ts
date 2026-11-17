@@ -24,6 +24,12 @@ export function overlayLabel(text: string): string | null {
   // a result ("Match 6", "Advances to: Playoff Match 8"). A match it says a team advances to is a later one, never the
   // one on screen; of the rest, two different numbers name no one match, so the frame names none (CAONMIQ 2025). A
   // "Test Match 1" is the field check before the event's matches start (USNMCMP 2025 opens on one): none of its matches.
+  // A bracket's boxes ("M4 vs A5", "M3 vs A6", "M8") make it one even where its "advances to" line is cut off at the
+  // top (USIAWESTLT 2025 M3: "Playoff Match 5" alone): three different M-numbers, and the frame names no match, unless
+  // its header says which is up next ("Up Next  Match 4", CAONMIQ 2025).
+  const next = /Up\s+Next\W+(?:Playoff\s+)?Match\s+(\d{1,2})\b/i.exec(text);
+  if (next) return `M${Number(next[1])}`;
+  if (new Set([...text.matchAll(/\bM(\d{1,2})\b/g)].map((m) => m[1])).size >= 3) return null;
   const named = new Set<number>();
   for (const m of text.matchAll(/(advances\s+to:?\s+(?:Playoff\s+)?|\bTest\s+)?\bMatch\s+(\d{1,2})\b/gi)) if (!m[1]) named.add(Number(m[2]));
   return named.size === 1 ? `M${[...named][0]}` : null;
@@ -84,14 +90,13 @@ export const NOTHING_READ = "no frame of the video could be read";
 /** The least a match can take in a video: 30 s Auto, 8 s switch, 2:00 TeleOp. Two placed starts closer than this
  *  overlap. */
 export const MATCH_S = AUTO_S + SWITCH_S + TELEOP_S;
-/** Where a clip may open, seconds before its match's start, earliest first: the first whose frame names the match. */
-export const OPEN_LEADS = [20, 12, 5];
+/** Where a clip may open, seconds before its match's start, earliest first: the first whose frame names the match.
+ *  The last two open at the start itself: a results card ("Match 6 results", CAONMIQ 2025 M7) or a bracket card
+ *  (USIAWESTLT 2025 M3) can stay up until the match's own overlay comes on, seconds before it starts. */
+export const OPEN_LEADS = [20, 12, 5, 2, 0];
 
 /** The reason a placed match whose clip opening couldn't be checked gets: never a clip, never a clock reason. */
 export const OVERLAY_UNREAD = "overlay could not be read at its clip's start";
-
-/** How far (seconds) a lone confirmed read may sit from where the rest of its video sits and still place its match. */
-export const LONE_S = 30 * 60;
 
 /** The most a recording loses in one cut, as a confirming read can explain it (USIAPOMPM11 2025 loses 19 s mid-match). */
 export const LOSS_S = 60;
@@ -160,9 +165,8 @@ export function dataRows<T>(text: string): T[] {
  * kept. Reads that agree on how far the video sits from the clock form stretches. A stretch of two or more reads
  * places its reads ("high") and every match between them ("medium"). A stretch of one read is a confirmed read too
  * (its overlay and timer agree at two points, and 25 s before it the match wasn't running): the video is the truth, so
- * it places that match where the frames show it, however far from the schedule, as long as the clock puts it in the
- * same part of the stream (within LONE_S of where the reads beside it, or else the broadcast's own clock, put the video);
- * further off, nothing tells it isn't another day's or event's, and it goes to review. Placed starts must be in order,
+ * it places that match where the frames show it, however far that is from FIRST's times (owner, 2026-11-16: never
+ * flag a read for its distance from the schedule). Placed starts must be in order,
  * a match apart and inside the video; any that aren't go to review too. Every other match is missing, with the reason.
  */
 export function judge(ms: M[], seen: Map<number, number>, shift: number | null, length: number, read: Set<number> = new Set(seen.keys())): Judged {
@@ -196,11 +200,8 @@ export function judge(ms: M[], seen: Map<number, number>, shift: number | null, 
   for (const s of stretches) {
     if (s.length === 1) {
       const i = s[0];
-      // Where the rest of the video sits: the nearest other read's distance, else the broadcast's clock.
-      const others = kept.filter((k) => k !== i);
-      const ref = others.length ? d(others.reduce((a, b) => (Math.abs(b - i) < Math.abs(a - i) ? b : a))) : shift;
-      if (ref != null && Math.abs(d(i) - ref) <= LONE_S) placedAt.set(ms[i].label, { t: seen.get(i)!, confidence: "high" });
-      else review.set(ms[i].label, { t: seen.get(i)!, why: ref == null ? "one frame read, and no clock or other read to tell which part of the stream it's in" : `one frame read, ${Math.round(Math.abs(d(i) - ref) / 60)} min from where the rest of the video sits` });
+      // A confirmed read: where its frames show it, never weighed against the schedule.
+      placedAt.set(ms[s[0]].label, { t: seen.get(s[0])!, confidence: "high" });
       continue;
     }
     for (let n = 0; n < s.length; n++) {
@@ -224,7 +225,9 @@ export function judge(ms: M[], seen: Map<number, number>, shift: number | null, 
     const cut = next != null && placedAt.get(l)!.confidence === "high" && placedAt.get(next)!.confidence === "high" && t + MATCH_S - placedAt.get(next)!.t <= LOSS_S;
     if (next != null && !cut && placedAt.get(next)!.t - t < MATCH_S - SAME_S) {
       bad.add(l); bad.add(next);
-      earlyStart.set(next, { t: placedAt.get(next)!.t, previousEnds: t + MATCH_S });
+      // Only where both starts were read off the video: a start filled from the clock between two reads (medium) shows
+      // nothing about where that match began.
+      if (placedAt.get(l)!.confidence === "high" && placedAt.get(next)!.confidence === "high") earlyStart.set(next, { t: placedAt.get(next)!.t, previousEnds: t + MATCH_S });
     }
   });
   for (const l of bad) { review.set(l, { t: placedAt.get(l)!.t, why: "placed outside the video, out of order, or overlapping the next match" }); placedAt.delete(l); }

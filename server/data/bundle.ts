@@ -26,7 +26,7 @@ export interface EventRow {
   hybrid: boolean;
   website: string | null;
   livestream: string | null;
-  source: "first" | "ftc-scout";
+  source: "first" | "ftc-scout" | "cri";
   upstreamUpdated: string | null;
 }
 

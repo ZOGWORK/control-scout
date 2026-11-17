@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
-import { OFFLINE_FORECAST, readEventDetail, readMatchViews, readProjections, readSearch, readTeamProfile, readTeamSchedule, wrap, type SeasonDb } from "./readers";
+import { OFFLINE_FORECAST, readEventDetail, readMatchViews, readProjections, readSearch, readTeamProfile, readTeamSchedule, indexJson, primeIndex, warmSearch, wrap, type SeasonDb } from "./readers";
 import { mt, packDb, played, season2024, season2025, team } from "./testFixture";
 import { eventTypeLabel } from "../../shared/labels";
 import { SCHEDULE_COLUMNS, scheduleDifficulty, scheduleRows, withoutRemaining } from "../../shared/scheduleDifficulty";
@@ -184,6 +184,38 @@ describe("offline search (same hits as /api/search)", () => {
   it("finds a name written with a thousands separator, typed either way", async () => {
     const db = { season: 2025, db: wrap(await packDb(2025, { teams: [team(7, "1,000 Lakes", "Newark")] })) };
     for (const q of ["1,000 lakes", "1000 lakes"]) expect(readSearch([db], q)[0], q).toMatchObject({ kind: "team", ref: "7" });
+  });
+
+  it("answers the same after the index was built ahead (warmSearch), a number search first or a typo first", async () => {
+    // Fresh packs each time: the index is kept per opened pack.
+    const fresh = () => Promise.all([season2024(), season2025()]);
+    const cold = await fresh();
+    const want = ["100", "gaerheads", "gear", "qualifier new jersey"].map((q) => readSearch(cold, q));
+    const warm = await fresh();
+    warmSearch(warm);
+    expect(["100", "gaerheads", "gear", "qualifier new jersey"].map((q) => readSearch(warm, q))).toEqual(want);
+    // The typo index is made on first need: a number search before it changes nothing.
+    const numberFirst = await fresh();
+    readSearch(numberFirst, "4215");
+    expect(readSearch(numberFirst, "gaerheads")).toEqual(want[1]);
+  });
+
+  it("answers the same from a kept index (indexJson → primeIndex) as from one built from the pack", async () => {
+    const qs = ["100", "999", "gaerheads", "gear", "newark", "qualifier new jersey", "USNJQ1"];
+    const cold = await Promise.all([season2024(), season2025()]);
+    const want = qs.map((q) => readSearch(cold, q));
+    const json = cold.map((d) => indexJson(d.db));
+    expect(json.every((j) => typeof j === "string")).toBe(true);
+    const primed = await Promise.all([season2024(), season2025()]);
+    expect(primed.map((d, i) => primeIndex(d.db, json[i]))).toEqual([true, true]);
+    // A kept index stands in for the pack's tables: reading them would fail.
+    const noTables = primed.map((d) => ({ ...d, db: { all: (sql: string, p?: unknown[]) => { if (/FROM (teams|events)\b/.test(sql) && !/WHERE/.test(sql)) throw new Error("read the pack"); return d.db.all(sql, p as never); } } }));
+    for (const [i, d] of noTables.entries()) primeIndex(d.db, json[i]);
+    expect(qs.map((q) => readSearch(noTables, q))).toEqual(want);
+    // Not an index: ignored, and the index is built from the pack.
+    const other = await season2025();
+    expect([primeIndex(other.db, "{\"format\":99,\"rows\":[]}"), primeIndex(other.db, "not json"), primeIndex(other.db, undefined)]).toEqual([false, false, false]);
+    expect(indexJson(other.db)).toBeNull();
   });
 
   it("matches names by prefix and with typos", () => {

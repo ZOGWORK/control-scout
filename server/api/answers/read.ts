@@ -632,9 +632,14 @@ function readClimb(raw: string): LeaderboardQuestion | null {
   return to < from && region !== false ? { kind: "improved", stat: "opr", n: 25, region, city: null, season: scope.season, climb: { from, to } } : null;
 }
 
+/** Words asking to watch matches (src/shared/query/lexicon.ts "videos", "highlights"). */
+export const WATCH_WORDS = /\b(?:videos?|clips?|recaps?|replays?|footage|vods?|highlights?|highlight reels?)\b/;
+
 export function readLeaderboard(raw: string): LeaderboardQuestion | null {
   // "overall OPR" is the stat's name, not an every-season scope.
   const q = ` ${raw.toLowerCase().replace(/['’]s\b/g, "").replace(/[?!,.]/g, " ")} `.replace(/\s+/g, " ").replace(/\b(?:overall|total) opr\b/g, "opr");
+  // Asked to watch ("best teleop videos in romania", "best auto clips"): matches to play, never a board of teams.
+  if (WATCH_WORDS.test(q)) return null;
   const named = namedBoard(q);
   if (named !== undefined) return named;
   // "teams at Clearview Regional High School", "how many teams from Lincoln Academy": a school's teams, by the school

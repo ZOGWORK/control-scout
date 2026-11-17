@@ -16,9 +16,10 @@ import type { EventStream, MatchView } from "../../src/shared/api.js";
 import { env } from "../env.js";
 import { fetchFromApi, fetchWatchPage, type WatchPageFacts } from "./youtube.js";
 import { youtubeId } from "../../src/shared/personal.js";
-import { officialRecordingIds, seasonOfficial } from "./officialVideos.js";
+import { linkAiredOff, officialRecordingIds, seasonOfficial } from "./officialVideos.js";
 import { checkedTo } from "../data/checkedTimings.js";
 import { frameOpen, frameStart, hasFrames } from "../data/frameTimings.js";
+import { clipPulled } from "../data/clipChecks.js";
 
 export interface VideoMeta extends WatchPageFacts { videoId: string; checkedAt: string }
 /** One of a recording's videos. day: its broadcast's date at the venue, when an official list gave it; part: a named
@@ -37,7 +38,7 @@ export interface Recording extends RecordingVideo {
 }
 
 const TTL_MS = 60_000;
-type SeasonData = { first: Map<string, string>; more: Map<string, string[]>; daily: Set<string>; official: Set<string>; meta: Map<string, VideoMeta>; extra: Map<string, { day: string | null; part: string | null }>; failed: string[] };
+type SeasonData = { first: Map<string, string>; /** FIRST's own link (or its short link's video), by event. */ link: Map<string, string>; more: Map<string, string[]>; daily: Set<string>; official: Set<string>; meta: Map<string, VideoMeta>; extra: Map<string, { day: string | null; part: string | null }>; failed: string[] };
 
 /** Maps read without one of their sources (the owner's streams, the official recordings): online they're shown as
  *  they are (and the failure is logged); the season pack's events board refuses them (isPartial, api/reads.ts). */
@@ -88,10 +89,10 @@ function seasonData(season: number, now = Date.now()) {
   const v = (async () => {
     const failed: string[] = [];
     const [links, short, official, days] = await Promise.all([
-      all<{ code: string; livestream: string }>("SELECT code, livestream FROM events WHERE season = ? AND livestream LIKE '%youtu%'", [season]),
+      all<{ code: string; livestream: string; start: string; end: string | null; timezone: string | null }>("SELECT code, livestream, start, end, timezone FROM events WHERE season = ? AND livestream LIKE '%youtu%'", [season]),
       // Short links followed while their event was on, while FIRST still gives the same link.
-      all<{ code: string; video_id: string }>(
-        `SELECT l.code, l.video_id FROM event_stream_links l JOIN events e ON e.season = l.season AND e.code = l.code
+      all<{ code: string; video_id: string; start: string; end: string | null; timezone: string | null }>(
+        `SELECT l.code, l.video_id, e.start, e.end, e.timezone FROM event_stream_links l JOIN events e ON e.season = l.season AND e.code = l.code
          WHERE l.season = ? AND l.video_id IS NOT NULL AND e.livestream = l.url`, [season]),
       // Events with FIRST's own per-match videos (championship-level events, mostly).
       all<{ code: string }>("SELECT DISTINCT code FROM matches WHERE season = ? AND video IS NOT NULL AND video != ''", [season]),
@@ -100,9 +101,19 @@ function seasonData(season: number, now = Date.now()) {
         `SELECT b.code, b.video_id FROM event_broadcasts b JOIN events e ON e.season = b.season AND e.code = b.code
          WHERE b.season = ? AND e.livestream = b.url ORDER BY b.code, b.start`, [season]),
     ]);
+    // FIRST's link (or its short link's video) is the event's video only when YouTube's broadcast date fits the event:
+    // one broadcast on another date is another event's stream or a test (linkAiredOff), and is left out.
+    const linkIds = [...new Set([...links.map((l) => firstVideoId(l.livestream)), ...short.map((l) => String(l.video_id))].filter((x): x is string => !!x))];
+    const aired = new Map<string, string | null>();
+    for (let i = 0; i < linkIds.length; i += 200) {
+      const part = linkIds.slice(i, i + 200);
+      for (const r of await all<{ video_id: string; start: string | null }>(`SELECT video_id, start FROM video_meta WHERE video_id IN (${part.map(() => "?").join(",")})`, part)) aired.set(String(r.video_id), r.start ?? null);
+    }
+    const fits = (code: string, id: string, e: { start: string; end: string | null; timezone: string | null }) => !linkAiredOff({ code, ...e }, aired.get(id));
     const first = new Map<string, string>();
-    for (const l of links) { const id = firstVideoId(l.livestream); if (id) first.set(String(l.code), id); }
-    for (const l of short) first.set(String(l.code), String(l.video_id));
+    for (const l of links) { const id = firstVideoId(l.livestream); if (id && fits(String(l.code), id, l)) first.set(String(l.code), id); }
+    for (const l of short) if (fits(String(l.code), String(l.video_id), l)) first.set(String(l.code), String(l.video_id));
+    const link = new Map(first);
     // The other days' broadcasts of an event whose first one is its video.
     const more = new Map<string, string[]>();
     const daily = new Set(days.map((d) => String(d.code)));
@@ -127,7 +138,7 @@ function seasonData(season: number, now = Date.now()) {
       const part = ids.slice(i, i + 200);
       for (const r of await all<any>(`SELECT ${META_COLUMNS} FROM video_meta WHERE video_id IN (${part.map(() => "?").join(",")})`, part)) meta.set(String(r.video_id), metaOf(r));
     }
-    return { first, more, daily, official: new Set(official.map((o) => String(o.code))), meta, extra, failed };
+    return { first, link, more, daily, official: new Set(official.map((o) => String(o.code))), meta, extra, failed };
   })();
   // A map read before keeps being given while its next read runs (search reads these on its answer path: a read
   // costs a season's matches); forgetRecordings drops it at once when the links change.
@@ -145,7 +156,7 @@ const dayKey = (v: RecordingVideo) => v.meta?.start ?? (v.day ? `${v.day}T12:00:
  *  kept, for the coverage check, server/videos/coverage.ts, which names it as the reason its day has no clips). */
 export async function seasonRecordings(season: number, keepUnavailable = false): Promise<Map<string, Recording>> {
   const failed: string[] = [];
-  const [{ first, more, daily, meta, extra, failed: dataFailed }, owner] = await Promise.all([seasonData(season), soft("owner streams", season, failed, seasonStreams(season), () => new Map<string, EventStream>())]);
+  const [{ first, link, more, daily, meta, extra, failed: dataFailed }, owner] = await Promise.all([seasonData(season), soft("owner streams", season, failed, seasonStreams(season), () => new Map<string, EventStream>())]);
   const out = new Map<string, Recording>();
   if (failed.length || dataFailed.length) partial.add(out);
   for (const [code, videoId] of first) {
@@ -154,7 +165,7 @@ export async function seasonRecordings(season: number, keepUnavailable = false):
     // A day at a time: in the order they were broadcast (FIRST's link can be any of the days).
     if (all.length > 1) all.sort((a, b) => dayKey(a).localeCompare(dayKey(b)));
     const [main, ...days] = all;
-    if (main) out.set(code, { ...main, code, source: extra.has(main.videoId) ? "official" : "first", ...(days.length ? { more: days } : {}), ...(daily.has(code) ? { daily: true as const } : {}) });
+    if (main) out.set(code, { ...main, code, source: extra.has(main.videoId) && link.get(code) !== main.videoId ? "official" : "first", ...(days.length ? { more: days } : {}), ...(daily.has(code) ? { daily: true as const } : {}) });
   }
   for (const [code, s] of owner) out.set(code, { videoId: s.videoId, code, source: "owner", meta: meta.get(s.videoId) ?? null });
   if (!keepUnavailable) for (const [code, r] of out) if (r.meta?.status === "unavailable") out.delete(code);
@@ -381,6 +392,8 @@ export function withClips<M extends Pick<MatchView, "label" | "time" | "startsAt
     for (const v of videos) {
       const t = clipSecond(x.startsAt, v.timing, now);
       if (t == null || !clearOfPrevious(x.startsAt, v.slack ? previousStart(v.starts, x.startsAt) : null, v.slack)) continue;
+      // Its first frame was read and names another match (scripts/clip-checks.ts): never served.
+      if (r.code && clipPulled(v.videoId, r.code, x.label)) continue;
       const end = clipEnd(x.startsAt, v.timing, nextStart(v.starts, x.startsAt), now);
       return { ...x, clip: { videoId: v.videoId, t, url: watchUrl(v.videoId, t), ...(v.slack ? { early: v.slack } : {}), ...(end != null && end > t ? { end } : {}) } };
     }

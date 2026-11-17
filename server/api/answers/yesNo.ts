@@ -64,8 +64,8 @@ async function scopeOf(p: Parsed): Promise<EventScope | null | undefined> {
     const main = [...evs].sort((a, b) => b.season - a.season || Number(a.division != null) - Number(b.division != null))[0];
     const name = shortEvent(main.name, main.type);
     // The events named, each by its own code: a championship named takes its divisions (inScope), a division named
-    // is that division alone.
-    return { label: `${name}${said}`, codes: new Set(evs.map((e) => e.code)), ...when };
+    // is that division alone. Each with its season: a code is reused by another event in another season.
+    return { label: `${name}${said}`, codes: new Set(evs.map((e) => `${e.season}|${e.code}`)), ...when };
   }
   if (p.eventKind) {
     const k = eventKindOf(p.eventKind);
@@ -89,7 +89,7 @@ async function playedAt(team: number): Promise<EventRow[]> {
 
 const inScope = (s: EventScope, home: string | null) => (e: EventRow) =>
   (s.season == null || e.season === s.season) && (s.year == null || (e.start ?? "").startsWith(String(s.year)))
-  && (!s.types || s.types.includes(e.type ?? "")) && (!s.codes || s.codes.has(e.code) || (!!e.division_code && s.codes.has(e.division_code)))
+  && (!s.types || s.types.includes(e.type ?? "")) && (!s.codes || s.codes.has(`${e.season}|${e.code}`) || (!!e.division_code && s.codes.has(`${e.season}|${e.division_code}`)))
   && (!s.ownRegion || (!!home && e.region === home));
 
 const eventTable = (title: string, rows: EventRow[], team: number): StatBlock => ({

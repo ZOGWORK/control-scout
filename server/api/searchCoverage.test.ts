@@ -44,6 +44,10 @@ describe("rewrites: said the way a reader answers", () => {
     for (const q of ["compare 4215 and 6980", "is 4215 better than 6980", "which is better 4215 or 6980", "4215, 6980", "4215 & 6980"]) expect(rewriteQuery(q)?.q, q).toBe("4215 vs 6980");
     expect(rewriteQuery("who would win between 4215 and 6980")?.q).toBe("4215 vs 6980 who wins");
     expect(rewriteQuery("4215 2024")).toBeNull(); // a team and a year, never two teams
+    // Three or four bare numbers are that many teams (#1495); a year among them is never a team.
+    expect(rewriteQuery("4215 6980 23268")?.q).toBe("4215 vs 6980 vs 23268");
+    expect(rewriteQuery("4215, 6980, 23268 and 14270")?.q).toBe("4215 vs 6980 vs 23268 vs 14270");
+    for (const q of ["4215 6980 2024", "4215 6980 4215", "4215 6980 23268 14270 25920"]) expect(rewriteQuery(q)?.q ?? "", q).not.toMatch(/ vs .* vs /);
     // Review gaps (11-03): each said the way people ask it, read before the stat answers where those would misread it.
     for (const q of ["have 4215 and 6980 played each other", "have 4215 and 6980 ever played", "has 4215 played 6980", "did 4215 ever face 6980"]) expect(rewriteQuery(q), q).toMatchObject({ q: "4215 vs 6980 head to head", pre: true });
     expect(rewriteQuery("4215 record at nj states")).toMatchObject({ q: "4215 record at New Jersey championship", pre: true });
@@ -128,6 +132,15 @@ describe("answers on their own", () => {
     expect(explainAnswer("help")?.card?.lines.every((l) => l.href?.startsWith("/search?q="))).toBe(true);
     expect(explainAnswer("helpers")).toBeNull();
   });
+  it("tiebreakers explained (#1430, #1429)", async () => {
+    for (const q of ["what is a tie breaker point", "what is a tiebreaker", "tiebreakers"]) expect(explainAnswer(q)?.understood?.label, q).toMatch(/^Tiebreakers:/);
+    // Season by season: 2025–26 on and 2024–25 each say their own first tiebreaker.
+    const lines = explainAnswer("what is a tie breaker point")!.card!.lines.map((l) => l.text);
+    expect(lines).toContain("From 2025–26 on, average non-penalty score comes first");
+    expect(lines).toContain("In 2024–25, average auto points came first, then average endgame points");
+    // A typo of it is corrected to search's own word, then explained.
+    expect((await ask("what is a tie breker")).understood?.label).toMatch(/^Tiebreakers:/);
+  });
   it("a rewrite never loops, and a nonsense query still ends in a recovery", async () => {
     expect((await ask("qual 5 nj states")).step).toBeDefined();
     expect((await ask("asdfgh")).step).toBe("recovery");
@@ -170,9 +183,11 @@ describe("answers on their own", () => {
     // Undefeated is a leaderboard filter the pipeline applies (server/api/query/): no losses, the most wins first.
     const u = (await ask("undefeated teams")).stat?.blocks[0];
     expect(u?.kind === "leaderboard" ? u.rows.map((r) => r.team.label) : u).toEqual(["6980 Bad Wolf"]);
+    // "Teams with the highest …" is having it (#1311): the pipeline's win-rate board. The link opens the season the
+    // numbers are from.
     const w = await ask("teams with the highest win rate");
-    // The link opens the season the numbers are from.
-    expect(w.card?.lines[0]).toMatchObject({ text: "6980 Bad Wolf", results: ["#1", "100% wins", "20-0-0", "OPR 130.0"], href: `/teams/6980?season=${S}` });
+    expect(w.stat?.title).toMatch(/^Top 10 teams by win rate /);
+    expect(w.stat?.headline).toMatchObject({ value: "6980 Bad Wolf", href: `/teams/6980?season=${S}` });
   });
   it("most improved: by OPR standing season to season, never raw OPR", async () => {
     // The stat answers (./answers) take "most improved teams" first; this is the list when they don't.
@@ -262,6 +277,16 @@ describe("answers on their own", () => {
     const a = (await placeTeamsAnswer("teams in oradell", new Set()))!;
     expect(a.hits.map((h) => h.ref).sort()).toEqual(["4215", "6980"]);
   });
+  it("teams in, no place after it (#1421): every team, best by OPR, and the way to name a place", async () => {
+    const a = (await placeTeamsAnswer("teams in", new Set()))!;
+    expect(a.card?.title).toMatch(/^Teams worldwide · best by OPR/);
+    expect(a.understood?.label).toMatch(/no place named after "in"/);
+    // The search itself reaches it, not only the answer called directly.
+    expect((await ask("teams in")).card?.title).toMatch(/^Teams worldwide/);
+    // The word quoted is the one typed after "teams", however the list is asked for.
+    expect((await placeTeamsAnswer("all teams in", new Set()))!.understood?.label).toMatch(/no place named after "in"\)/);
+    expect((await placeTeamsAnswer("teams based in", new Set()))!.understood?.label).toMatch(/no place named after "based in"\)/);
+  });
 });
 
 describe("Greptile on #465", () => {
@@ -314,9 +339,8 @@ describe("a list of teams as a table", () => {
     expect(a.understood?.label).toMatch(/registered for .*, best by OPR first$/);
   });
   it("a list ranked by another number carries it as its own column, in its own order", async () => {
-    const w = (await ask("teams with the highest win rate")).card!.table!;
-    expect(w).toMatchObject({ by: "rank", asked: { label: "Win rate" } });
-    expect(w.rows[0]).toMatchObject({ team: 6980, asked: { display: "100%" } });
+    const b = (await ask("teams with the highest win rate")).stat?.blocks.find((x) => x.kind === "leaderboard");
+    expect(b?.kind === "leaderboard" ? b.rows[0] : b).toMatchObject({ team: { label: "6980 Bad Wolf" }, display: "100%", record: "20-0-0" });
     expect((await ask("best teams in romania")).card!.table!.rows[0]).toMatchObject({ team: 14270, dc: 100 });
   });
   it("a single team's answer keeps its card, with no table", async () => {

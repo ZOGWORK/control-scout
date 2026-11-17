@@ -2,10 +2,12 @@
 // state (API key, last run, quota today, Run now), then its review queue: each video it couldn't add on its own, with
 // why and the event it fits best, to approve (as a day's recording or a highlight) or reject. Then what was added or
 // decided lately (any can be taken off its event), the videos set aside as not competition streams, and the watched
-// channels with their region rules. Every action is audited on the server.
+// channels with their region rules. The channel audit after each run (server/videos/officialAudit.ts) sits under the
+// status: each channel's uploads against Scout's records, every finding, and the check of the watcher's own adds.
+// Every action is audited on the server.
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Check, ExternalLink, Play, RefreshCw, Trash2, Tv, X } from "lucide-react";
+import { Check, ExternalLink, Play, RefreshCw, Send, ShieldCheck, Trash2, Tv, X } from "lucide-react";
 import { Section, EmptyState } from "../page";
 import { Async } from "../states";
 import { Badge, Input } from "../ui/basic";
@@ -15,7 +17,7 @@ import { apiFetch, ApiError, prime, useApi } from "../../lib/api";
 import { ago } from "../../lib/format";
 import { thumbnailUrl } from "../../shared/stream";
 import { watchUrl } from "../../shared/recording";
-import type { OfficialChannelRow, OfficialWatchRow, OwnerOfficialVideos } from "../../shared/api";
+import type { OfficialAddTally, OfficialAudit, OfficialAuditFinding, OfficialChannelRow, OfficialWatchRow, OwnerOfficialVideos } from "../../shared/api";
 
 const PATH = "/api/owner/official-videos";
 const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "—");
@@ -40,8 +42,9 @@ export function OfficialVideosPanel() {
   return (
     <Async state={state}>
       {(d) => (
-        <div className="grid gap-8">
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-8">
           <Status d={d} />
+          <Audit a={d.audit} />
           <Section title={<>To review {d.pending.length > 0 && <Badge variant="soft" className="ml-1 align-middle">{d.pending.length}</Badge>}</>}
             description="Videos the watcher found on an official channel but couldn't add on its own, oldest first: why, and the event it fits best. Approve one as a day's recording or as a highlight, or reject it. Either way it's never proposed again.">
             {d.pending.length ? <ul className="grid gap-3">{d.pending.map((w) => <Review key={w.videoId} w={w} />)}</ul>
@@ -101,6 +104,7 @@ function VideoHead({ w }: { w: OfficialWatchRow }) {
         <p className="text-xs text-muted-foreground">{w.channel} · <span className="font-mono">{w.videoId}</span> · published {when(w.published)}{w.start ? ` · broadcast ${when(w.start)}` : ""}{w.durationS ? ` · ${mins(w.durationS)}` : ""}</p>
         <p className="mt-1 text-sm">{w.why}</p>
         <p className="text-xs text-muted-foreground">Best guess: {w.code && w.season ? <Link to={`/events/${w.season}/${w.code}`} className="font-medium text-foreground hover:underline">{w.season} {w.code}{w.day ? `, ${w.day}` : ""}</Link> : "no event"}</p>
+        {w.guessWhy && <p className="text-xs text-muted-foreground" data-guess-why>{w.guessWhy}</p>}
       </div>
     </div>
   );
@@ -147,10 +151,12 @@ function Decided({ w }: { w: OfficialWatchRow }) {
     <li className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border bg-card p-3 text-sm">
       <div className="min-w-0">
         <p className="flex flex-wrap items-center gap-2"><Badge variant={s.variant}>{s.label}</Badge>
+          {w.decidedBy === "evidence" && <Badge variant="secondary" data-evidence>Decided from evidence</Badge>}
           {w.code && w.season ? <Link to={`/events/${w.season}/${w.code}`} className="font-medium hover:underline">{w.season} {w.code}</Link> : null}
           {w.day ? <span className="text-muted-foreground">{w.day}{w.part ? ` · ${w.part}` : ""}</span> : null}</p>
         <a href={watchUrl(w.videoId)} target="_blank" rel="noreferrer noopener" className="mt-1 block truncate text-foreground hover:underline">{w.title}</a>
-        <p className="text-xs text-muted-foreground">{w.channel} · {ago(w.decidedAt ?? w.seenAt)}{w.decidedBy && w.decidedBy !== "watcher" ? ` by ${w.decidedBy}` : ""}</p>
+        <p className="text-xs text-muted-foreground">{w.channel} · {ago(w.decidedAt ?? w.seenAt)}{w.decidedBy && w.decidedBy !== "watcher" && w.decidedBy !== "evidence" ? ` by ${w.decidedBy}` : ""}</p>
+        {w.decidedBy === "evidence" && <p className="mt-1 text-xs text-muted-foreground" data-evidence-why>{w.why}</p>}
       </div>
       {(w.status === "added" || w.status === "approved") && (
         <Button variant="outline" size="sm" disabled={busy} onClick={async () => { setBusy(true); await act(`/${w.videoId}/remove`, { method: "POST" }, "Removed from its event."); setBusy(false); }}><Trash2 /> Remove</Button>
@@ -192,5 +198,108 @@ function Channels({ channels }: { channels: OfficialChannelRow[] }) {
         ))}
       </ul>
     </Section>
+  );
+}
+
+const tally = (t: OfficialAddTally) => `${t.added} added, ${t.wrong} wrong${t.unchecked ? `, ${t.unchecked} not checked yet` : ""}`;
+const n = (x: number) => x.toLocaleString();
+
+/** The channel audit: the last one's numbers, the watcher's adds as checked, wrong adds, findings, and each channel. */
+function Audit({ a }: { a: OfficialAudit }) {
+  const last = a.runs[0];
+  const uploads = a.channels.reduce((s, c) => s + (c.uploads ?? 0), 0);
+  const recorded = a.channels.reduce((s, c) => s + c.recorded, 0);
+  const audited = a.channels.filter((c) => c.uploads != null).length;
+  return (
+    <Section title={<>Channel audit {a.openFindings + a.wrongAdds.length > 0 && <Badge variant="soft" className="ml-1 align-middle">{a.openFindings + a.wrongAdds.length}</Badge>}</>}
+      description="After every watcher run, each watched channel's whole uploads list is read (never a search) and compared, video by video, with Scout's records. A video Scout has no record of is set aside by its title, sent to review when it's in the watcher's window (a watcher miss), or a finding below. The watcher's own adds are each checked again.">
+      <dl className="grid gap-3 text-sm sm:grid-cols-4" data-audit>
+        <div className="rounded-xl border border-border bg-card p-3"><dt className="text-muted-foreground">Last audit</dt>
+          <dd className="mt-1 font-medium" data-last-audit>{last ? `${ago(last.startedAt)}: ${last.channels} channels, ${last.fullChannels} read in full, ${n(last.units)} units` : "Not yet: after the next watcher run"}</dd>
+          {last?.error && <dd className="mt-1 text-danger">{last.error}</dd>}</div>
+        <div className="rounded-xl border border-border bg-card p-3"><dt className="text-muted-foreground">Uploads with a Scout record</dt>
+          <dd className="mt-1 font-medium tabular-nums">{n(recorded)} of {n(uploads)}, {audited} of {a.channels.length} channels read</dd>
+          {last && <dd className="mt-1 text-xs text-muted-foreground">{n(last.setAside)} set aside by their title or facts{last.added ? `, ${n(last.added)} added by the audit (every check passed)` : ""}</dd>}</div>
+        <div className="rounded-xl border border-border bg-card p-3"><dt className="text-muted-foreground">Missed by the watcher</dt>
+          <dd className={`mt-1 font-medium tabular-nums ${last?.missed ? "text-danger" : ""}`}>{last ? `${last.missed} last audit${last.queued ? `, ${last.queued} sent to review` : ""}` : "—"}</dd>
+          <dd className="mt-1 text-xs text-muted-foreground">{last?.missed && last.missed > last.queued ? "A miss goes to review when the watcher's next run still misses it. " : ""}{a.openFindings} open finding{a.openFindings === 1 ? "" : "s"} in all</dd></div>
+        <div className="rounded-xl border border-border bg-card p-3"><dt className="flex items-center gap-1 text-muted-foreground"><ShieldCheck className="size-3.5" aria-hidden /> The watcher's own adds</dt>
+          <dd className={`mt-1 font-medium tabular-nums ${a.adds.lastRuns.wrong || a.adds.last100.wrong ? "text-danger" : ""}`} data-adds>Last {a.adds.runs} runs: {tally(a.adds.lastRuns)}</dd>
+          <dd className="mt-1 text-xs text-muted-foreground tabular-nums">Last {a.adds.read} videos read: {tally(a.adds.last100)}</dd></div>
+      </dl>
+      {a.wrongAdds.length > 0 && (
+        <div className="mt-4 grid grid-cols-[minmax(0,1fr)] gap-2">
+          <h3 className="text-sm font-medium text-danger">Wrong adds ({a.wrongAdds.length})</h3>
+          <ul className="grid grid-cols-[minmax(0,1fr)] gap-2">{a.wrongAdds.map((w) => (
+            <li key={w.videoId} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-danger/40 bg-card p-3 text-sm" data-wrong-add={w.videoId}>
+              <div className="min-w-0">
+                <a href={watchUrl(w.videoId)} target="_blank" rel="noreferrer noopener" className="block truncate font-medium hover:underline">{w.title}</a>
+                <p className="text-xs text-muted-foreground"><span className="font-mono">{w.videoId}</span> · <Link to={`/events/${w.season}/${w.code}`} className="hover:underline">{w.season} {w.code}</Link>{w.day ? ` · ${w.day}` : ""}</p>
+                <p className="mt-1 text-sm">{w.why}</p>
+              </div>
+              {w.removed ? <Badge variant="secondary">Off its event</Badge> : <Button variant="outline" size="sm" onClick={() => void act(`/${w.videoId}/remove`, { method: "POST" }, "Removed from its event.")}><Trash2 /> Remove</Button>}
+            </li>))}</ul>
+        </div>
+      )}
+      {(a.unusedLinks?.length ?? 0) > 0 && (
+        <details className="mt-4 text-sm" data-unused-links>
+          <summary className="cursor-pointer text-muted-foreground">FIRST links not used ({a.unusedLinks.length})</summary>
+          <p className="mt-1 text-xs text-muted-foreground">FIRST's livestream link for these events is a video YouTube says was broadcast on another date: another event's stream or a test. Scout doesn't play it for the event or count it as the event's recording. Nothing to do here.</p>
+          <ul className="mt-2 grid grid-cols-[minmax(0,1fr)] gap-1">{a.unusedLinks.map((l) => (
+            <li key={`${l.season}/${l.code}/${l.videoId}`} className="text-xs">
+              <Link to={`/events/${l.season}/${l.code}`} className="font-medium hover:underline">{l.season} {l.code}</Link> · <a href={watchUrl(l.videoId)} target="_blank" rel="noreferrer noopener" className="font-mono hover:underline">{l.videoId}</a> · <span className="text-muted-foreground">{l.why}</span>
+            </li>))}</ul>
+        </details>
+      )}
+      <div className="mt-4 grid grid-cols-[minmax(0,1fr)] gap-2">
+        <h3 className="text-sm font-medium">Findings {a.openFindings > a.findings.length ? `(first ${a.findings.length} of ${a.openFindings})` : `(${a.openFindings})`}</h3>
+        <p className="text-xs text-muted-foreground">Uploads Scout has no record of that may be a recording: older than the watcher's window, or a watcher miss waiting for its next run. Each has the watcher's verdict, why, and the event it fits best. Send one to review to add it, or say why it isn't one.</p>
+        {a.findings.length ? <ul className="grid grid-cols-[minmax(0,1fr)] gap-3">{a.findings.map((f) => <Finding key={f.videoId} f={f} />)}</ul>
+          : <p className="text-sm text-muted-foreground">None open.</p>}
+      </div>
+      <details className="mt-4 text-sm">
+        <summary className="cursor-pointer text-muted-foreground">Each channel ({a.channels.length})</summary>
+        <div className="mt-2 overflow-x-auto">
+          <table className="w-full min-w-[34rem] text-left text-xs tabular-nums" data-audit-channels>
+            <thead className="text-muted-foreground"><tr>
+              <th className="py-1 pr-2 font-normal">Channel</th><th className="px-2 text-right font-normal">Uploads</th><th className="px-2 text-right font-normal">Scout record</th>
+              <th className="px-2 text-right font-normal">None</th><th className="px-2 text-right font-normal">Play</th><th className="px-2 text-right font-normal">2026-27</th><th className="px-2 text-right font-normal">Findings</th><th className="pl-2 font-normal">Read in full</th></tr></thead>
+            <tbody>{a.channels.map((c) => (
+              <tr key={c.channelId} className="border-t border-border">
+                <td className="max-w-[12rem] truncate py-1 pr-2"><a href={`https://www.youtube.com/channel/${c.channelId}`} target="_blank" rel="noreferrer noopener" className="hover:underline">{c.title}</a>{c.lastError && <span className="block truncate text-danger">{c.lastError}</span>}</td>
+                <td className="px-2 text-right">{c.uploads == null ? "—" : n(c.uploads)}</td><td className="px-2 text-right">{n(c.recorded)}</td><td className="px-2 text-right">{n(c.unrecorded)}</td>
+                <td className="px-2 text-right">{c.linked}</td><td className="px-2 text-right">{c.linkedCurrent}</td><td className={`px-2 text-right ${c.openFindings ? "font-medium text-danger" : ""}`}>{c.openFindings}</td>
+                <td className="pl-2 text-muted-foreground">{c.fullAt ? ago(c.fullAt) : "not yet"}</td>
+              </tr>))}</tbody>
+          </table>
+        </div>
+        <p className="mt-2 text-xs text-muted-foreground">Uploads: the channel's uploads list at its last read. Play: of those, the videos that play on a Scout event, every season. 2026-27: the ones on that season's events alone (from September 2026).</p>
+      </details>
+      {a.setAside.length > 0 && (
+        <details className="mt-2 text-sm">
+          <summary className="cursor-pointer text-muted-foreground">Set aside by the audit, by reason</summary>
+          <ul className="mt-2 grid gap-1 text-xs">{a.setAside.map((r) => <li key={r.why}><span className="font-medium tabular-nums">{n(r.n)}</span> · {r.why}</li>)}</ul>
+        </details>
+      )}
+    </Section>
+  );
+}
+
+function Finding({ f }: { f: OfficialAuditFinding }) {
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const go = async (path: string, json: unknown, done: string) => { setBusy(true); await act(path, { method: "POST", json }, done); setBusy(false); };
+  return (
+    <li className="min-w-0 rounded-xl border border-border bg-card p-3" data-finding={f.videoId}>
+      <a href={watchUrl(f.videoId)} target="_blank" rel="noreferrer noopener" className="inline-flex items-start gap-1 break-words font-medium text-foreground hover:underline [overflow-wrap:anywhere]">{f.title}<ExternalLink className="mt-1 size-3 shrink-0" aria-hidden /></a>
+      <p className="text-xs text-muted-foreground">{f.channel} · <span className="font-mono">{f.videoId}</span> · published {when(f.published)}{f.start ? ` · broadcast ${when(f.start)}` : ""}{f.durationS ? ` · ${mins(f.durationS)}` : ""}</p>
+      <p className="mt-1 text-sm">{f.why}</p>
+      <p className="text-xs text-muted-foreground">Best guess: {f.guessCode && f.guessSeason ? <Link to={`/events/${f.guessSeason}/${f.guessCode}`} className="font-medium text-foreground hover:underline">{f.guessSeason} {f.guessCode}{f.guessDay ? `, ${f.guessDay}` : ""}</Link> : "no event"}{f.guessWhy ? ` · ${f.guessWhy}` : ""}</p>
+      <form className="mt-3 flex flex-wrap items-end gap-2" noValidate onSubmit={(e) => { e.preventDefault(); void go(`/audit/${f.videoId}/dismiss`, { reason }, "Marked not a recording."); }}>
+        <Button type="button" disabled={busy} onClick={() => void go(`/audit/${f.videoId}/queue`, {}, "Sent to review.")}><Send /> Send to review</Button>
+        <label className="grid min-w-0 flex-1 basis-48 gap-1 text-xs"><span className="text-muted-foreground">Or, why it isn't a recording</span><Input value={reason} placeholder="An FRC event" onChange={(e) => setReason(e.target.value.slice(0, 300))} /></label>
+        <Button type="submit" variant="outline" disabled={busy || !reason.trim()}><X /> Not a recording</Button>
+      </form>
+    </li>
   );
 }

@@ -23,11 +23,20 @@ import { all, get } from "../db.js";
 import { searchRead } from "./searchReads.js";
 import { CURRENT_SEASON, SEASON_NUMBERS, gameOf } from "../data/seasons.js";
 import { edits, type Region } from "../../src/shared/regions.js";
-import { place } from "../../src/shared/format.js";
+import { dateRange, place } from "../../src/shared/format.js";
+import { weekendOf } from "../../src/shared/query/time.js";
+import { eventCards, noEventsLine, weekendEvents } from "./weekend.js";
+import { inWindow } from "../../src/shared/weekend.js";
+import { eventsStat } from "./answers/weekend.js";
 
 interface Row { season: number; code: string; name: string; type: string | null; division_code?: string | null; venue: string | null; city: string | null; state: string | null; country: string | null; start: string | null; end: string | null; timezone: string | null }
 
-/** Today's date (UTC): the reference for windows like "this weekend". */
+/** `d` (YYYY-MM-DD) moved `n` days. */
+/** "?which=next&region=USA%3ANJ", the parts given only; "" with none. */
+const qsOf = (o: Record<string, string | null>) => { const s = new URLSearchParams(Object.entries(o).filter((x): x is [string, string] => !!x[1])).toString(); return s ? `?${s}` : ""; };
+const shiftDays = (d: string, n: number) => new Date(Date.parse(`${d}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
+
+/** Today's date (UTC): the reference for windows like "this weekend" where no event's own calendar is read. */
 export const searchToday = (now = Date.now()) => new Date(now).toISOString().slice(0, 10);
 
 /** Today's date at the event's venue (its own calendar, as its status reads it), UTC when its time zone is unknown:
@@ -185,13 +194,19 @@ async function rowsFor(e: EventQuery, now: number, drop: { where?: boolean; time
   // Bounded windows ("this weekend"): an event is in when any of its days is (its last day, said as
   // finished: "that ended yesterday" leaves out one still running). "upcoming" and "past" are read on the
   // event's own calendar, below.
-  if (e.time && !drop.time && e.time !== "upcoming" && e.time !== "past") {
-    const w = timeWindow(e.time, today);
-    if (w.from) { where.push("COALESCE(end, start) >= ?"); args.push(w.from); }
-    if (w.to) { where.push(e.ended ? "COALESCE(end, start) <= ?" : "start <= ?"); args.push(w.to); }
+  // Each event's window is read on its own calendar (its time zone: a meet under way in Los Angeles at 02:00 UTC on
+  // Sunday is still this weekend's there), so the dates are read a week wide here and each event checked below.
+  const bounded = !!e.time && !drop.time && e.time !== "upcoming" && e.time !== "past";
+  if (bounded) {
+    const w = timeWindow(e.time!, today);
+    if (w.from) { where.push("COALESCE(end, start) >= ?"); args.push(shiftDays(w.from, -8)); }
+    if (w.to) { where.push(e.ended ? "COALESCE(end, start) <= ?" : "start <= ?"); args.push(shiftDays(w.to, 8)); }
   }
   // A copy: the rows read are shared (./searchReads.ts), and an every-season list is sorted in place below.
   let rows = [...(await searchRead<Row>(`SELECT season, code, name, type, division_code, venue, city, state, country, start, end, timezone FROM events WHERE ${where.join(" AND ")}`, args))];
+  // Search's own day's window, or the event's while its calendar is behind (src/shared/weekend.ts inWindow); "that
+  // ended" reads its last day.
+  if (bounded) rows = rows.filter((r) => inWindow(e.ended ? { ...r, start: r.end ?? r.start } : r, (d) => timeWindow(e.time!, d), now, today));
   if (e.time === "upcoming" && !drop.time) rows = rows.filter((r) => (r.end ?? r.start ?? "") >= dayAt(r.timezone));
   if (e.time === "past" && !drop.time) rows = rows.filter((r) => (r.end ?? r.start ?? "") < dayAt(r.timezone));
   // The kind of event: its type, or (no type stored) the word in its name ("… League Meet"). The most specific word
@@ -307,6 +322,26 @@ export async function eventSetAnswer(q: string, e: EventQuery, opts: { now?: num
     };
   };
 
+  // A window by its dates and nothing narrower than a place or a kind ("what FTC events are happening this weekend",
+  // "meets this weekend in New Jersey", "tomorrow"): answered directly, the events listed with their kind, place,
+  // dates and teams. A weekend is the "This weekend" page's own reading (./weekend.ts), so the two list the same events;
+  // none is said plainly for a weekend, never another window's events. Any other window with nothing in it ("today")
+  // keeps the labelled fallback below; a day of divisions only keeps its list, read as before.
+  const windowed = !!e.time && e.time !== "upcoming" && e.time !== "past" && !e.where && !e.words.length && e.year == null && e.season == null && !e.allSeasons && !e.ended;
+  if (windowed) {
+    const which = weekendOf(e.time);
+    const rows = await rowsFor(e, now);
+    const w = which ? await weekendEvents({ which, region: e.region?.key ?? null, types: eventTypesOf(e.kinds), now }) : null;
+    const events = w ? w.events : await eventCards(rows, now);
+    const span = w ? w.window : timeWindow(e.time!, today);
+    const none = which ? noEventsLine(which, e.region) : "";
+    const stat = eventsStat({
+      title: label().replace(/ events\b/, " FTC events"), label: dateRange(span.from, span.to) || "", season: CURRENT_SEASON, region: e.region?.name ?? null, events, none,
+      ...(which ? { page: { title: `${which === "this" ? "This" : which === "next" ? "Next" : "Last"} weekend's events, by place`, href: `/weekend${qsOf({ which: which === "this" ? null : which, region: e.region?.key ?? null })}` } } : {}),
+    });
+    if (which && !events.length && !rows.length) return { q, hits: [], pages: pagesFor(q), step: "deterministic", weak: false, understood: { ...base, label: none, total: 0 }, stat };
+    if (events.length && rows.length) return { ...done(rows, { ...base, label: label() }), stat };
+  }
   const rows = await rowsFor(e, now);
   if (rows.length) {
     const where = whereAsStored(e, rows);
