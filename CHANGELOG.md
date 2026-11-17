@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 7.5.4 — 2026-11-17
+## 7.5.5 — 2026-11-17
 
 Videos › 228 matches from four 2025 events (KC East and West League Tournaments, West Super Qualifier, Oklahoma Championship) get a clip, each opening on a frame that names its match and its event.
 
@@ -26,6 +26,18 @@ Videos › 228 matches from four 2025 events (KC East and West League Tournament
 
 ### Fixed
 - Videos (`server/data/frameTimings/2025.ts`): KC East League Tournament (55 of 55), KC West League Tournament (60 of 60), West Super Qualifier (64 of 64) and Oklahoma Championship (49 of 55) get frame-checked starts. Each start's opening frame names its match and this event. Oklahoma's Q3, Q6, Q21, Q27, Q37 and M1 stay without a clip because the event name wasn't legible on their frames. (#1714)
+
+## 7.5.4 — 2026-11-17
+
+Videos › 167 of the İstanbul Premier Event's 168 division match clips now open on a frame naming their match and division, and 16 Valens clips that opened 48 s late now catch the start.
+
+### Highlights
+- [fixes] 167 İstanbul clips open on a frame naming their match
+- [fixes] 16 Valens Division clips no longer miss the start of their match
+- [fixes] No clip is taken away
+
+### Fixed
+- Videos: both divisions of the İstanbul Premier Event (FPEISTRDIV, FPEISTVDIV) are now played from their recordings' own frames, two day videos each, rather than from the clock. Rumeli places 83 of its 84 matches; its Q28 has no readable overlay at its start, so it keeps the clock's clip. Valens places all 84. Each clip opens on a paused frame whose overlay names its match and its own division, never the sibling's, though the two share a stream. 151 openings move 11 to 18 s later, past the clock's early lead-in, to where the match's overlay is up. Valens's first day runs 49 s off the clock from Q36 on, so its Q36–Q51 clips, which opened about 48 s into play, now open before the start. (`server/data/frameTimings/2025.ts`) (#1669)
 
 ## 7.5.3 — 2026-11-17
 
