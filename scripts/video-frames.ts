@@ -35,7 +35,7 @@
 //   TESSERACT_JS=<path to tesseract.js's entry>  where tesseract.js is, when it isn't in node_modules
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
-import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, playedCount, playedMatches } from "./lib/videoFrames";
+import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, playedCount, playedMatches, wholeLength } from "./lib/videoFrames";
 import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, elapsed, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M } from "./lib/videoFrames";
 
 // The command line: --name value or --name=value for the value flags, --name alone for the others. Anything else stops
@@ -994,6 +994,26 @@ async function openOnce(page: Page, videoId: string): Promise<void> {
   await page.addStyleTag({ content: ".ytp-caption-window-container, .caption-window, .ytp-chrome-top, .ytp-pause-overlay, .ytp-show-cards-title, .ytp-ce-element, .ytp-player-content.ytp-iv-player-content, .ytp-large-play-button, .ytp-bezel, .ytp-chrome-bottom, player-top-controls, .ytwPlayerTopControlsHost, embedded-player-video-details, .ytmCuedOverlayGradient { display: none !important; }" });
 }
 
+/** A video's length in whole seconds, as its player gives it, or why it has none: a stream that is still live or
+ *  hasn't started (a link to next week's meet: 2026 USMOKSSWM1) isn't a recording yet, and plays no frames here. */
+async function playerLength(videoId: string): Promise<{ length: number } | { why: string }> {
+  let page: Page | null = null;
+  try {
+    page = await player();
+    await page.goto(`https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&mute=1&controls=0`, { referer: "https://controlscout.org/" });
+    const got = await within(page.waitForFunction(() => {
+      const d = (document.querySelector("#movie_player") as any)?.getVideoData?.(), v = document.querySelector("video");
+      return (d?.isLive || d?.errorCode) ? { live: !!d.isLive, error: d.errorCode ?? null, d: NaN } : (v?.readyState ?? 0) >= 1 ? { live: false, error: null, d: v!.duration } : null;
+    }, null, { timeout: 30000 }).then((h) => h.jsonValue()), 40, "reading the length") as { live: boolean; error: string | null; d: number };
+    const s = got.live ? null : wholeLength(got.d);
+    return s ? { length: s } : { why: got.live ? "a live or upcoming stream, not a recording yet" : `the player gives no length${got.error ? ` (${got.error})` : ""}` };
+  } catch (e) {
+    return { why: `the player gives no length (${(e as Error).message.split("\n")[0]})` };
+  } finally {
+    await closePage(page);
+  }
+}
+
 async function doCode(code: string): Promise<void> {
   const rec = recs.get(code)!;
   const rows = await all<{ label: string; time: string | null; timezone: string | null; played: number }>(
@@ -1032,7 +1052,9 @@ async function doCode(code: string): Promise<void> {
   const waiting = own.some((v) => !v.meta || v.meta.status === "error");
   const holds = (v: (typeof own)[number]) => {
     const m = v.meta;
-    if (m?.status !== "ok" || !m.length) return false;
+    // A video YouTube gave no duration for counts once it has a row (the player timed it on an earlier run, below);
+    // until then it doesn't, so a stream still live or not started is looked at again on the next run.
+    if (m?.status !== "ok" || (!m.length && !kept.has(`${v.videoId}|${code}`))) return false;
     if (!m.start) return true;
     const a = Date.parse(m.start) / 1000, b = m.end ? Date.parse(m.end) / 1000 : Infinity;
     // A match with no time may be in any of the event's videos.
@@ -1052,6 +1074,14 @@ async function doCode(code: string): Promise<void> {
   const log = (s: string) => { lines.push(s); };
   try {
   log(`${code}: ${missing.length} of ${played.length} matches without a clip`);
+  // A video YouTube gave no duration for is timed by the player itself; one the player can't time (a stream still
+  // live or not started: 2026 USMOKSSWM1, USORSOM1) is said, not skipped quietly.
+  for (const v of [rec, ...(rec.more ?? [])]) {
+    if (v.meta?.status !== "ok" || v.meta.length) continue;
+    const p = await playerLength(v.videoId);
+    if ("length" in p) { v.meta = { ...v.meta, length: p.length }; log(`  ${v.videoId}: no duration from YouTube, ${p.length} s from the player`); }
+    else log(`  ${v.videoId}: no duration from YouTube, not read: ${p.why}`);
+  }
   const videos = [rec, ...(rec.more ?? [])].filter((v) => v.meta?.status === "ok" && v.meta.length);
   const held = new Set<string>();
   for (const v of videos) {

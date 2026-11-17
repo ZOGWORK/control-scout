@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.5.9 — 2026-11-17
+
+Videos › the clip reader now says why a video with no length isn't read (a stream still live, or one that hasn't aired), where before it skipped it without a word.
+
+### Highlights
+- [fixes] A video with no length is timed by its player
+- [fixes] A live or upcoming stream is named, not skipped
+- [fixes] No clip already playing changes
+
+### Fixed
+- Videos (`scripts/video-frames.ts`): the frame reader dropped any video YouTube gave no duration for, with nothing in its report (2026 USMOKSSWM1 and USORSOM1 printed only "15 of 15 matches without a clip"). Such a video is now timed by its player and read; one the player can't time is said: USMOKSSWM1's link is next week's Southwest League Meet #2 stream, not yet aired, and USORSOM1's is still marked live. (#1712)
+
 ## 7.5.8 — 2026-11-17
 
 Videos › 261 matches from seven more 2023 events get clips, each opening on its own match: Indiana's and Louisiana's championships, Chesapeake's Stage Right division and two of its qualifiers, Colorado's Severance qualifier and Southern Nevada's league tournament.
