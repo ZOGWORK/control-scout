@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 7.2.2 — 2026-11-17
+## 7.2.3 — 2026-11-17
 
 Search › New Jersey conference questions answered directly: a team's rank in its conference, a conference's table, who won it, with the same numbers as the league page.
 
@@ -26,6 +26,18 @@ Search › New Jersey conference questions answered directly: a team's rank in i
 
 ### Added
 - Search: a New Jersey conference asked any way ("where does 4215 rank in East Bergen Conference", "top teams in East Bergen Conference", "who won East Bergen Conference") answers from the league page's conference table: the team's place by league standing beside its league rank, RS, TBP, matches and meets, labelled league meets only, with the tournament's own rank said apart; a conference's latest finished table with its next date and sign-ups; its winner from FIRST's awards; and "Which conference?" when none is named, never a guess. (`server/api/answers/families/conference.ts`) (#1637)
+
+## 7.2.2 — 2026-11-17
+
+Leagues › a New Jersey league page's conference table marks My team's row, as a link to it with the team does.
+
+### Highlights
+- [rankings] Your team's row is marked in its conference table
+- [rankings] The conference table opens on the page that holds your team
+- [rankings] A link naming a team still marks that team, not yours
+
+### Fixed
+- Leagues (`src/pages/LeaguePage.tsx`): with no team in the address, the conference table marks My team's row (and opens on its page); a My team not in the table marks nothing. The league table above it still marks only the link's team. (#1639)
 
 ## 7.2.1 — 2026-11-17
 
