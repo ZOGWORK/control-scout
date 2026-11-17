@@ -165,10 +165,11 @@ export function overlayEvent(text: string, own: string, quals?: number): { event
     if (read.length >= 2 && hit * 2 < read.length) return "other";
     return hit ? "own" : null;
   };
-  let other = false, ownLabel: string | undefined, ownSeen = false;
+  let other = false, ownLabel: string | undefined, ownSeen = false, phrases = 0;
   for (const line of text.split("\n")) {
     let from = 0;
     for (const m of line.matchAll(MATCH_PHRASE)) {
+      phrases++;
       const total = m[1] != null ? Number(m[1]) : null;
       const name = verdict(line.slice(from, m.index));
       // A name read decides; with none, the total (a schedule changed after the db was read can't drop a named frame).
@@ -178,7 +179,8 @@ export function overlayEvent(text: string, own: string, quals?: number): { event
       if (v === "own" && !ownSeen) { ownSeen = true; ownLabel = overlayLabel(m[0]) ?? undefined; }
     }
   }
-  if (ownSeen) return other ? { event: "own", ...(ownLabel ? { label: ownLabel } : {}) } : { event: "own" };
+  // With more than one match named (a split screen, its other half judged or not), this event's half says which is its.
+  if (ownSeen) return other || phrases > 1 ? { event: "own", ...(ownLabel ? { label: ownLabel } : {}) } : { event: "own" };
   return { event: other ? "other" : null };
 }
 
