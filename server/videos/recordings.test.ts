@@ -360,6 +360,18 @@ describe("when a video is read again", () => {
     expect(due({ ...fresh, checkedAt: "2026-05-04T00:00:00Z", length: 28800 }, t("2026-05-20T00:00:00Z"))).toBe(false);
     expect(due(meta({}), t("2027-01-01T00:00:00Z"))).toBe(false);
   });
+  it("a live or just-archived stream with embedding off is read as often as any other (its clock clips open on youtube.com)", () => {
+    const off = { embeddable: false };
+    expect(due(meta({ ...off, live: true, start: "2026-05-01T23:00:00Z" }), t("2026-05-02T00:06:00Z"))).toBe(true);
+    expect(due(meta({ ...off, live: true, start: "2026-05-01T23:00:00Z" }), t("2026-05-02T00:06:00Z"), true)).toBe(true);
+    expect(due(meta({ ...off, live: true, start: null }), t("2026-05-02T01:01:00Z"))).toBe(true);
+    // Archived an hour before its last read: its length still settling, so every 6 hours, not weekly.
+    const archived = meta({ ...off, start: "2026-05-01T15:00:00Z", end: "2026-05-01T23:00:00Z", length: 28800 });
+    expect(due(archived, t("2026-05-02T05:00:00Z"))).toBe(false);
+    expect(due(archived, t("2026-05-02T07:00:00Z"))).toBe(true);
+    // Settled (archived over 2 days ago): weekly.
+    expect(due(archived, t("2026-05-04T01:00:00Z"))).toBe(false);
+  });
   it("an unavailable video (private, removed, embedding off) after a week: an owner can make it public again", () => {
     // Embedding off: weekly too, with or without the API key, so one whose owner turns it back on is read again.
     expect(due(meta({ embeddable: false }), t("2026-05-08T23:00:00Z"))).toBe(false);
