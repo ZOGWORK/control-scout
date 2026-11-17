@@ -24,6 +24,18 @@ describe("the watcher's matcher", () => {
     expect(aw.kind === "add" && aw.part).toBe("Awards");
   });
 
+  it("takes a title's day number as a calendar day or as a day the event played", () => {
+    // Listed 15 to 17 Jan (a practice day first), played on the 17th and 18th: "Day 2" on the 18th is its second day
+    // of play, and its listed day 4; "Day 4" is its calendar day. "Day 3" is neither.
+    const played = [ev("USTXMOQ", "TX Mockingbird Qualifier", { start: "2026-01-15", end: "2026-01-18", playedDays: ["2026-01-17", "2026-01-18"] })];
+    const sun = { start: "2026-01-18T15:00:00Z" };
+    expect(matchVideo(vid("Mockingbird Qualifier Day 2", sun), TX, played).kind).toBe("add");
+    expect(matchVideo(vid("Mockingbird Qualifier Day 4", sun), TX, played).kind).toBe("add");
+    expect(matchVideo(vid("Mockingbird Qualifier Day 3", sun), TX, played)).toMatchObject({ kind: "review", why: "the title says day 3, the broadcast was the event's day 4" });
+    // Played days not known: the calendar only.
+    expect(matchVideo(vid("Mockingbird Qualifier Day 2", sun), TX, [{ ...played[0], playedDays: undefined }])).toMatchObject({ kind: "review", why: /says day 2,/ });
+  });
+
   it("sends anything short of certain to review", () => {
     const events = [ev("USTXMOQ", "TX Mockingbird Qualifier"), ev("USTXMOQ2", "TX Mockingbird Qualifier", { city: "Austin" })];
     expect(matchVideo(vid("Mockingbird Qualifier"), TX, events)).toMatchObject({ kind: "review", why: /fits both/ });
