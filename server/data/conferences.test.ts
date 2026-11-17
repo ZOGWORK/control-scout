@@ -137,7 +137,7 @@ describe("conference tables", () => {
     await syncConferences(2025, { now: new Date("2026-11-16T12:00:00Z") });
     expect(await teamConference(2025, 4215, { now: "2026-11-16" })).toEqual({
       season: 2025, region: "USNJ", league: "NO", code: "USNJNOLT2", name: "East Bergen Conference", slug: "east-bergen-conference",
-      rank: 4, of: 8, ranked: 7, leagueRank: 12, leagueOf: 8, href: "/leagues/2025/USNJ/NO?conference=east-bergen-conference&team=4215#conferences",
+      rank: 4, of: 8, ranked: 7, leagueRank: 12, leagueOf: 8, available: true, href: "/leagues/2025/USNJ/NO?conference=east-bergen-conference&team=4215#conferences",
     });
     expect(await teamConference(2025, 30680, { now: "2026-11-16" })).toMatchObject({ rank: null, leagueRank: null });
     expect(await teamConference(2025, 14450, { now: "2026-11-16" })).toBeNull();
@@ -196,6 +196,8 @@ describe("conference tables", () => {
     const gone = (await leagueConferences(2026, "USNJ", "NE", { now: "2027-03-02" }))!.conferences[0];
     expect(gone.rs).toEqual({ kind: "gone" });
     expect(gone.rows.map((r) => [r.team, r.rank, r.rs])).toEqual([[4215, null, null]]);
+    // The team page says it can't be read, never that the team played no league meet.
+    expect(await teamConference(2026, 4215, { now: "2027-03-02" })).toMatchObject({ rank: null, available: false });
   });
 
   it("links to the league page's conference section, and orders like FIRST", () => {
