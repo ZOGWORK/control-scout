@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.6.4 — 2026-11-17
+
+Videos › 57 more 2022 (POWERPLAY) match clips from TX-Central Kwolek Meet 3, TX-Central SSTallions Meet 3, TX-North B-League Meet 2.
+
+### Highlights
+- [history] TX-Central Kwolek Meet 3: clips for all 18 matches
+- [history] TX-Central SSTallions Meet 3: clips for 19 of 20 matches
+- [history] TX-North B-League Meet 2: clips for all 20 matches
+
+### Added
+- Videos: clips read off the recordings' frames (`server/data/frameTimings/2022.ts`): USTXCEKWM3 18 of 18 played matches, USTXCESTM1 19 of 20 played matches, USTXNOBLM2 20 of 20 played matches. Each placed start's clip opens on a paused frame whose overlay names that match, and no frame names another event. The matches left out stay without a clip, with the reason. (#1760)
+
 ## 7.6.3 — 2026-11-17
 
 Videos › 17 more 2022 (POWERPLAY) match clips from East Trails KC West AM.
