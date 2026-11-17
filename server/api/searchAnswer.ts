@@ -38,6 +38,8 @@ import { inRegion, namedTeamHit, teamsByName } from "./teamsByName.js";
 import { parseQuestion, questionAnswer } from "./searchQuestions.js";
 import { highScoreAnswer, parseHighScore } from "./searchHighScores.js";
 import { conferenceSearch, eventFit, eventVersusSearch, leagueSearch, statAnswer } from "./answers/index.js";
+import { withPlacePages } from "../../src/shared/placePages.js";
+import { cityShortForm } from "../../src/shared/regions.js";
 import { divisionFieldAnswer, oprPhaseOf, readDivisionField, type EventRow } from "./answers/families/eventVersus.js";
 import { seasonOfDate } from "./query/time.js";
 import { WATCH_TAKERS } from "./query/intents.js";
@@ -233,6 +235,15 @@ const recovery = (q: string, understood: string[], closest: SearchHit[] = []): S
 /** Search's answer for `raw` (docs/search.md). A top-level search goes through the layers (./searchLayers.ts,
  *  docs/search-layers.md): the readers below are Layer 1, and a query they miss is read again by its words. */
 export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promise<SearchAnswer> {
+  const a = await answerOf(raw, opts);
+  if (opts.inner || opts.intents === false || opts.rewrites) return a;
+  // A place asked for, alone or with its rankings, leagues or conferences ("nj", "nj rankings"): its own pages first
+  // (src/shared/placePages.ts), whatever answered it. Kept once by address, so an answer that recursed adds none twice.
+  const pages = withPlacePages(String(raw ?? ""), a.pages);
+  return pages.length === a.pages.length && pages.every((p, i) => p === a.pages[i]) ? a : carryOutcome(a, { ...a, pages });
+}
+
+async function answerOf(raw: string, opts: AnswerOptions): Promise<SearchAnswer> {
   // The season a query naming none means (./answers/season.ts), read before the readers that use it.
   await refreshSearchSeason(opts.now);
   if (opts.inner || opts.intents === false || opts.rewrites) return readerAnswer(raw, opts);
@@ -249,6 +260,13 @@ export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promi
   const plain = withoutContrast(String(raw ?? ""));
   if (plain !== String(raw ?? "")) {
     const b = await searchAnswer(plain, opts);
+    return carryOutcome(b, { ...b, q: cleanQuery(raw) });
+  }
+  // A city FIRST runs as a region of its own, said in full ("new york city championship"): its short form, as its
+  // events are named (src/shared/regions.ts).
+  const city = cityShortForm(plain);
+  if (city !== plain) {
+    const b = await searchAnswer(city, opts);
     return carryOutcome(b, { ...b, q: cleanQuery(raw) });
   }
   // A last clause that only talks around the question ("…, i forgot", "…, be honest") goes too: never a team's name.
