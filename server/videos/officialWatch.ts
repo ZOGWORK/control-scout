@@ -12,6 +12,7 @@ import { OFFICIAL_CHANNELS } from "../data/officialChannels.js";
 import { eventVideosByDay, forgetOfficial } from "./officialVideos.js";
 import { isoDuration } from "./youtube.js";
 import { STARTUP_CYCLE_MS } from "../warm.js";
+import { EVENT_FIRST_DAY, EVENT_LAST_DAY, EVENT_PLAYED_DAYS, playedDays } from "./eventDays.js";
 import { LockBusy, isBusy, lockHolder, withDataLock } from "../data/lock.js";
 import { bestGuess, matchVideo, parseRule, videoWindow, type ChannelRule, type Verdict, type WatchEvent, type WatchVideo } from "./officialMatch.js";
 
@@ -93,16 +94,16 @@ async function api(path: string, params: Record<string, string>, key: string, fe
   throw new Error(`YouTube ${path} answered ${res.status}${reason ? ` (${reason})` : ""}`);
 }
 
-/** The events on any day from lo to hi (YYYY-MM-DD). */
+/** The events on any day from lo to hi (YYYY-MM-DD): their listed days and the days they played (eventDays.ts). */
 export async function eventsBetween(lo: string, hi: string): Promise<WatchEvent[]> {
   const rows = await all<any>(
-    `SELECT e.season, e.code, e.name, e.type, e.city, e.state, e.country, e.start, e.end, e.timezone, e.division_code, e.remote,
+    `SELECT season, code, name, type, city, state, country, start, end, timezone, division_code, remote, parent, played_days FROM (SELECT e.season, e.code, e.name, e.type, e.city, e.state, e.country, ${EVENT_FIRST_DAY} AS start, ${EVENT_LAST_DAY} AS end, e.timezone, e.division_code, e.remote, ${EVENT_PLAYED_DAYS} AS played_days,
             EXISTS (SELECT 1 FROM events c WHERE c.season = e.season AND c.division_code = e.code AND c.code != e.code) AS parent
-     FROM events e WHERE e.start IS NOT NULL AND e.start <= ? AND COALESCE(e.end, e.start) >= ?`, [hi, lo]);
+     FROM events e WHERE e.start IS NOT NULL) WHERE start <= ? AND end >= ?`, [hi, lo]);
   return rows.map((r) => ({
     season: Number(r.season), code: String(r.code), name: String(r.name ?? ""), type: String(r.type ?? ""), city: r.city ?? null, state: r.state ?? null,
     country: r.country ?? null, start: String(r.start).slice(0, 10), end: r.end ? String(r.end).slice(0, 10) : null, timezone: r.timezone ?? null,
-    divisionCode: r.division_code ?? null, parent: !!Number(r.parent), remote: !!Number(r.remote),
+    divisionCode: r.division_code ?? null, parent: !!Number(r.parent), remote: !!Number(r.remote), playedDays: playedDays(r.played_days),
   }));
 }
 
@@ -437,7 +438,7 @@ export async function approveWatched(videoId: string, body: { season?: unknown; 
   if (!["pending", "ignored"].includes(String(w.status))) return { ok: false, error: `Already ${w.status}.` };
   const kind = body.kind === "highlight" ? "highlight" : "recording";
   const season = Number(body.season), code = typeof body.code === "string" ? body.code.trim().toUpperCase() : "";
-  const ev = Number.isInteger(season) && code ? await get<any>("SELECT season, code, start, end FROM events WHERE season = ? AND upper(code) = ?", [season, code]) : null;
+  const ev = Number.isInteger(season) && code ? await get<any>(`SELECT e.season, e.code, ${EVENT_FIRST_DAY} AS start, ${EVENT_LAST_DAY} AS end FROM events e WHERE e.season = ? AND upper(e.code) = ?`, [season, code]) : null;
   if (!ev) return { ok: false, error: "No such event: pick the season and the event's code." };
   const day = typeof body.day === "string" && DAY.test(body.day) ? body.day : null;
   const part = typeof body.part === "string" && body.part.trim() ? body.part.trim().slice(0, 60) : null;

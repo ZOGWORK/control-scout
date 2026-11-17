@@ -72,7 +72,9 @@ exceptions rules 2 and 7 name for the checked list only, and the auto-watcher us
 
 1. It's on an official channel, it exists, it's public, it can be embedded, and YouTube doesn't block it in most
    countries.
-2. It's a live broadcast whose start, at the venue, falls inside the event's dates in Scout. An upload has no
+2. It's a live broadcast whose start, at the venue, falls inside the event's dates in Scout: FIRST's listed dates,
+   widened to every day the event played a match (`server/videos/eventDays.ts`; FIRST lists KZCMP 2022 as 23 to 25
+   Feb 2023, and it played its last qualifications and its playoffs on the 26th). An upload has no
    broadcast date, so it can't prove its day, and is left out. The checked list makes one exception, by hand: an
    upload whose title names its date (FIRST Nevada's "2026-01-10 FTC League Meet # 4S - Southern Nevada") and, where
    a venue holds several meets that day, its session (FIRST MOKS's "FTC Meet @ Belton 8AM (2026-11-7)" is "Belton
@@ -173,7 +175,8 @@ minutes and starts a run only when the last one is 6 hours old, so a deploy does
     event whose whole name its title says and that joins no two names ("Meet 1 & Tournament");
   - it fits exactly one event of the channel's region on its broadcast date at the venue (an upload: that date);
   - the title agrees on the division, designators, date, weekday and day number. Taken one at a time, a title's
-    "Day N" must be the event's own day N. A title naming two meets or qualifiers ("Meet #3 / Meet #4") is two events;
+    "Day N" must be the event's own day N: its Nth day from its first, or the Nth day it played a match (RONR4LT
+    2023 is listed 7 to 9 March 2024 and played on the 9th and 10th, so its "DAY 2" is the 10th). A title naming two meets or qualifiers ("Meet #3 / Meet #4") is two events;
   - the event has no video for that day yet (a second video of a day is kept only when both name their parts, such
     as "Matches" and "Awards"), and none whose day isn't known yet. Another programme's stream at the same venue (FIRST
     Global, a drone or simulator contest) is set aside, and "Meeting" or "Sports Day 2026" no longer reads as a meet or a
