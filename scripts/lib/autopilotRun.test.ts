@@ -3,6 +3,7 @@
 import { describe, expect, it } from "vitest";
 import { nextRelease, parseChangelog } from "../../src/lib/changelog";
 import { GIVE_UP, RETRY_MS, changelogEntry, forgetSettled, nextVersion, pickEvents, remember, rowsDelta, type Memory, type Queued } from "./autopilotRun";
+import type { Row } from "./autopilotRows";
 
 const NOW = Date.parse("2026-11-17T12:00:00Z");
 const q = (code: string, rank: number, state = "queued"): Queued => ({ season: 2025, code, name: code, frames: { state, due: 10, rank } });
@@ -41,8 +42,8 @@ describe("pickEvents", () => {
 });
 
 describe("the data PR", () => {
-  const live = new Map([["v1|AAQ", { videoId: "v1", code: "AAQ", checked: "2026-11-15", starts: { Q1: 600 } }]]);
-  const rows = [
+  const live = new Map<string, Row>([["v1|AAQ", { videoId: "v1", code: "AAQ", checked: "2026-11-15", starts: { Q1: 600 } }]]);
+  const rows: Row[] = [
     { videoId: "v1", code: "AAQ", checked: "2026-11-17", starts: { Q1: 600, Q2: 1000 }, opens: { Q1: 588, Q2: 995 }, missing: { Q3: "its frames didn't confirm a start" } },
     { videoId: "v2", code: "BBQ", checked: "2026-11-17", starts: {}, missing: { Q1: "no frame read of it, and no agreeing reads on both sides" } },
   ];
