@@ -17,14 +17,16 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 
 ## 7.6.3 — 2026-11-17
 
-Videos › An event whose official link is a channel's streams page no longer plays another event's broadcast from the same day: 21 event days lose a stream that wasn't theirs, BC's Victoria Qualifier among them.
+Event videos › a title's "Day 2" can mean the event's second day of play, and two Romanian events get the recordings of the days FIRST's dates left out.
 
 ### Highlights
-- [fixes] Events sharing a streaming channel each keep only their own day's broadcast
-- [fixes] BC Victoria Qualifier 2022 no longer plays the Vancouver qualifier's stream
+- [fixes] A title's day number counts the days an event played
+- [fixes] RO #4 Iasi 2024 day 2 recording linked
+- [fixes] Romania's 2021 national championship recording linked
 
 ### Fixed
-- Videos: on a day with two or more broadcasts from FIRST's channel link, those whose titles name the event's own words ("Victoria", "Lower Mainland", "Laurel") are its, and the rest are another event's (`ownBroadcasts`, `ownWords`). Broadcasts found before are weighed again each run with the channel audit's titles (`reweighBroadcasts`), so the 21 event days already holding another event's stream are put right: 2022 CABCVIQ, FIRST Chesapeake's same-day qualifiers, the Winter Charger Qualifier's North Texas league meets, Arizona's White Mountain and Central Asia's tech fest. (#1750)
+- Event videos: a title's "Day N" must be the event's own day N, counted by the calendar from its first day or by the days it played a match. RONR4LT 2023 is listed 7 to 9 March 2024 and played on the 9th and 10th: its "DAY 2" broadcast on the 10th read as the event's day 4, and with #1703's wider days the channel audit would have opened it as a finding. Its day-2 recording (Finals Match 1 on a frame) and ROBUOS1 2020's one day of play, 30 Aug 2021 after its listed 27 to 29 (Semifinal 1 Match 1 on a frame), are linked. (`server/videos/officialMatch.ts`, `server/data/videoDecisions.ts`) (#1726)
+
 ## 7.6.2 — 2026-11-17
 
 Videos › 105 matches from three 2025 events (Greenwood QT and the NorCal Regional Championship's Gold and Silicon divisions) get a clip, each opening on a frame that names its match and its event.
