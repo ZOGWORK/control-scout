@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.4.2 — 2026-11-17
+
+Videos › twelve of this season's league meets in Iowa, Kansas City, Ohio and Washington get match clips read off their own recordings: 182 matches, each opening on its own match and meet.
+
+### Highlights
+- [fixes] Twelve 2026 league meets get match clips
+- [fixes] 182 matches placed, each opening on its own match
+- [fixes] Meets sharing a venue and day open on their own meet's time
+
+### Fixed
+- Videos (`server/data/frameTimings/2026.ts`): frame-read starts for USIALAVM1 (14 of 18), USIALAVM9 (9 of 14), USMOKSKCMM2 (15 of 15), USMOKSKCMM6 (13 of 18), USMOKSKCWM1 (8 of 15), USMOKSKCWM7 (8 of 18), USOHCOHM1 (20 of 20), USOHCON (20 of 20), USOHNEOHM1 (10 of 19), USWALAM1 (23 of 23), USWARIM2 (21 of 21) and USWASPM2 (21 of 21). Each opening was read paused at its second and names its match, and its overlay names the event. The Kansas City meets share a venue and day and differ only by start time ("Belton Meet @ 8 AM", "@ 10:30 AM"), so each of their clips also shows its own meet's time; five Piper @ 1 PM matches whose frames show no time are left out. Every match left out carries its reason (#1683).
+
 ## 7.4.1 — 2026-11-17
 
 Videos › 20 more 2024 matches get a clip, read off three event videos and checked paused on each clip's opening frame, and 5 matches played before their recording are settled.
