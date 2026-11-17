@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 7.4.5 — 2026-11-17
+## 7.4.6 — 2026-11-17
 
 Videos › matches FIRST gives no real start for, with no time at all (the Chicago Robotics Invitational's) or only a schedule's, can now get clips read off the video's own frames.
 
@@ -27,6 +27,18 @@ Videos › matches FIRST gives no real start for, with no time at all (the Chica
 ### Fixed
 - Videos (`server/videos/recordings.ts`, `src/shared/recording.ts`): a start read off a recording's frames was dropped for any match without a real start (a schedule's whole minute, or no time at all), so no frame row could ever give those matches a clip. Their frame starts now play, ordered among the event's matches by their scheduled time, else after the timed ones by label (`labelRank`: qualifications by number, then playoffs, a best-of-three's games turn about, then finals). A start out of that order is still left out (`inOrder`). The event page, a match's own page and the season's With video list all agree.
 - Videos (the frame reader, `scripts/video-frames.ts`, `scripts/lib/videoFrames.ts`): matches with no time at all were never read (the reader asked only for timed ones). They're now read like scheduled ones, by their frames alone, in any of the event's videos (`playedMatches`). (#1693)
+
+## 7.4.5 — 2026-11-17
+
+Event videos › the official-video watcher and its channel audit now run on time on a day of many deploys.
+
+### Highlights
+- [fixes] The video watcher runs on days with many deploys
+- [fixes] Its check comes 7.5 minutes after a restart
+- [fixes] The channel audit follows it, as before
+
+### Fixed
+- Official videos: the watcher's first check after boot came 17.5 minutes in, and every deploy restarts the server. On 17 Nov, with deploys every 4 to 27 minutes, the run due at 10:27 never started, nor the channel audit after it. The first check now comes 7.5 minutes after boot, still midway between the sync's 5-minute ticks. (`server/videos/officialWatch.ts`) (#1687)
 
 ## 7.4.4 — 2026-11-17
 
