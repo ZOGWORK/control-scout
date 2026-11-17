@@ -37,7 +37,7 @@ export function WatchLive({ d, stream }: { d: EventDetail; stream: EventStream }
       <div className={cn("grid gap-4", !finished && "lg:grid-cols-3")}>
         <div className={cn("min-w-0", finished ? "max-w-4xl" : "lg:col-span-2")}>
           <Player stream={stream} title={`${d.event.name} live stream`} matches={d.matches} liveCall={liveCall} recording={finished} />
-          {finished && <p className="mt-2 text-sm text-muted-foreground">{d.matches.some((m) => m.clip) ? "Event finished: this is the recording. A match's Watch button starts it at that match." : d.matches.some((m) => m.video) ? "Event finished: this is the recording. A match's video button plays that match here." : "Event finished: this is the recording."}</p>}
+          {finished && <p className="mt-2 text-sm text-muted-foreground">{stream.youtubeOnly?.includes(stream.videoId) ? `Event finished: this is the recording. Its owner turned off playing on other sites, so it plays on YouTube only${d.matches.some((m) => m.clip) ? "; a match's Watch button opens it there at that match" : ""}.` : d.matches.some((m) => m.clip) ? "Event finished: this is the recording. A match's Watch button starts it at that match." : d.matches.some((m) => m.video) ? "Event finished: this is the recording. A match's video button plays that match here." : "Event finished: this is the recording."}</p>}
         </div>
         {!finished && <PredictionRail d={d} rail={rail} />}
       </div>
@@ -95,9 +95,10 @@ function Player({ stream, title, matches, liveCall, recording }: { stream: Event
   const call: OverlayCall | null = start == null || !overlay ? null
     : own ? (ownMatch ? { match: ownMatch, phase: clock && !clock.playing && clock.t - (start ?? 0) >= MATCH_S ? "after" : "playing" } : null)
     : timed ? (clock ? videoMoment(matches.filter((m) => m.clip?.videoId === day), clock.t) : null) : liveVideo ? liveCall : null;
-  const offerOverlay = timed || liveVideo || !!ownMatch;
-  // The day's video plays on YouTube only (its owner turned off playing on other sites): no player here, a link there.
+  // The day's video plays on YouTube only (its owner turned off playing on other sites): no player here, a link there,
+  // and nothing to show over it.
   const youtubeOnly = !own && !!stream.youtubeOnly?.includes(day);
+  const offerOverlay = !youtubeOnly && (timed || liveVideo || !!ownMatch);
   return (
     <>
     <div ref={box} className="relative aspect-video w-full overflow-hidden rounded-2xl border border-border bg-black">
