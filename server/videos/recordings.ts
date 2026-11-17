@@ -491,7 +491,7 @@ const DAY = 86_400_000;
  * one not started yet (live, no start: youtube.ts) after an hour; a broadcast archived within 2 days (its length
  * still settling) after 6 hours. A video cut far short of its broadcast whose chapters were never read: after a day
  * (at once for one read before chapters were kept); one read with none (none yet, or a page served without them): weekly.
- * A video YouTube called unavailable (private, removed), or one whose owner turned embedding off, after a week: an owner can make it public again
+ * A settled video (not live, not archived within 2 days) YouTube called unavailable (private, removed), or one whose owner turned embedding off, after a week: an owner can make it public again
  * (USILCSSLT 2024's recording, unavailable since 2026-10-24, played again by 11-17), and until it's read again none of
  * its matches gets a clip or a frame read.
  * With an API key, a video that plays is read again weekly: one deleted or blocked for its viewers since (youtube.ts
@@ -506,10 +506,12 @@ export function due(m: VideoMeta | null, now: number, withKey = false): boolean 
   // With the API key an error is rare (network, quota) and the API answers servers, so it's tried again soon:
   // that also picks up, within minutes, every video the watch page refused before the key was set.
   if (m.status === "error") return age > (withKey ? 15 * 60_000 : DAY);
-  // Unplayable here (unavailable, or embedding off): weekly, so one that plays again is read again (its frames, its clips).
-  if (unplayable(m)) return age > 7 * DAY;
   if (m.live) return age > (m.start ? 5 * 60_000 : 3600_000);
   if (m.status === "ok" && m.end && now - Date.parse(m.end) < 2 * DAY) return age > 6 * 3600_000;
+  // Unplayable here (unavailable, or embedding off), once settled: weekly, so one that plays again is read again (its
+  // frames, its clips). After the live and just-archived rules: a live or settling stream with embedding off still has
+  // clock clips (they open on youtube.com), so its start, end and length are kept fresh like any other.
+  if (unplayable(m)) return age > 7 * DAY;
   if (cutShort(m) && !m.chapters?.length) return age > (m.chapters ? 7 * DAY : DAY);
   return false;
 }
