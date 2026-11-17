@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 7.5.6 — 2026-11-17
+## 7.6.1 — 2026-11-17
 
 Videos › The frame reader now reads POWERPLAY's score bar when a stream flips it to the top of the frame, and no longer pairs two numbers from two places as one clock: Arizona's 2022 championship went from 0 to 35 of 37 matches placed.
 
@@ -26,6 +26,65 @@ Videos › The frame reader now reads POWERPLAY's score bar when a stream flips 
 
 ### Fixed
 - Videos: the frame reader reads POWERPLAY's timer in its bar flipped to the top of the frame, at the bottom crop mirrored (`flippedClip`), after the bottom's. A timer's two readings come from one crop, and the crop whose clock last ran is read first for the rest of the video (`cropOrder`): on Arizona's flipped bar the bottom crops read robots' and signs' digits off the field, paired with the top's, and no start was confirmed. USAZCMPGC23 2022: 0 → 35 of 37 placed, every clip opening on a frame naming its match. (#1715)
+## 7.6.0 — 2026-11-17
+
+Videos › 85 more 2024 matches play as clips: Indianapolis's qualifier in full and New York's Broadalbin-Perth qualifier.
+
+### Highlights
+- [history] Every 2024 Indianapolis Qualifier match as a clip
+- [history] Broadalbin-Perth Qualifier: 42 of 43 matches as clips
+- [history] 85 more 2024 match clips, each opening checked on its frame
+
+### Added
+- Frame-read match starts for 2 more 2024 recordings, each clip's opening checked against a paused frame naming its match: USININQ 43 of 43 played matches, USNYEXBRQ 42 of 43 (1 missing). (`server/data/frameTimings/2024.ts`) (#1724)
+
+## 7.5.9 — 2026-11-17
+
+Videos › the clip reader now says why a video with no length isn't read (a stream still live, or one that hasn't aired), where before it skipped it without a word.
+
+### Highlights
+- [fixes] A video with no length is timed by its player
+- [fixes] A live or upcoming stream is named, not skipped
+- [fixes] No clip already playing changes
+
+### Fixed
+- Videos (`scripts/video-frames.ts`): the frame reader dropped any video YouTube gave no duration for, with nothing in its report (2026 USMOKSSWM1 and USORSOM1 printed only "15 of 15 matches without a clip"). Such a video is now timed by its player and read; one the player can't time is said: USMOKSSWM1's link is next week's Southwest League Meet #2 stream, not yet aired, and USORSOM1's is still marked live. (#1712)
+
+## 7.5.8 — 2026-11-17
+
+Videos › 261 matches from seven more 2023 events get clips, each opening on its own match: Indiana's and Louisiana's championships, Chesapeake's Stage Right division and two of its qualifiers, Colorado's Severance qualifier and Southern Nevada's league tournament.
+
+### Highlights
+- [fixes] 261 more 2023 matches get a clip
+- [fixes] Every clip opens on a frame naming its match
+- [fixes] Seven more 2023 events that had no clips now have them
+
+### Fixed
+- Videos (`server/data/frameTimings/2023.ts`): frame-read starts for USCHSUBQ (40 of 40 played), USCHSCMPSR (37 of 41), USCOSEQ (41 of 41), USNVSOLT (35 of 40), USCHSDCQ2 (37 of 37), USINCMP (38 of 38) and USLACMP (33 of 38). Each clip's opening frame names its match and its event (#1705).
+
+## 7.5.7 — 2026-11-17
+
+Videos › 331 matches from eight more 2023 events get clips, each opening on its own match: St. Louis North's league tournament, four FiT-North and Chesapeake qualifiers and tournaments, Chesapeake's Stage Left championship division, and Arizona's Gilbert qualifier.
+
+### Highlights
+- [fixes] 331 more 2023 matches get a clip
+- [fixes] Every clip opens on a frame naming its match
+- [fixes] Eight more 2023 events that had no clips now have them
+
+### Fixed
+- Videos (`server/data/frameTimings/2023.ts`): frame-read starts for USMOKSSTLNLT1 (49 of 49 played), USTXATQ (46 of 46), USTXFMQ (41 of 42), USTXNCNLT (42 of 43), USAZGIQ (38 of 38), USCHSCHQ1 (38 of 38), USCHSCMPSL (39 of 41) and USCHSMCQ (38 of 38). Each clip's opening frame names its match and its event; a clip whose first frame shows the match before is left for review, never shown (#1690).
+
+## 7.5.6 — 2026-11-17
+
+Videos › 372 matches from eight 2023 events get clips, each opening on its own match: Arizona's Grand Canyon and Saguaro championship divisions and its Glendale qualifier, Kansas City's East and Missouri's SW/Mid league tournaments, Texas's Tesla championship division, and the FiT South area championship and North B&T tournament.
+
+### Highlights
+- [fixes] 372 more 2023 matches get a clip
+- [fixes] Every clip opens on a frame naming its match
+- [fixes] Eight 2023 events that had no clips now have them
+
+### Fixed
+- Videos (`server/data/frameTimings/2023.ts`): frame-read starts for USAZCMPGC1 (42 of 45 played), USAZCMPSG1 (38 of 42), USAZGLQ (41 of 41), USMOKSKCELT (49 of 49), USMOKSSWMILT (47 of 50), USTXCMPTESL (54 of 60, two videos), USTXMISQ (55 of 58) and USTXNBTLT (46 of 50). Each clip's opening frame names its match; semifinal matches read before the reader knew CENTERSTAGE's semifinal names are left for review, never shown as clips (#1681).
 
 ## 7.5.5 — 2026-11-17
 

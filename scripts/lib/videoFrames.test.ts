@@ -1,7 +1,7 @@
 // The pure parts of the frame reader (scripts/video-frames.ts): the overlay's match, the timer's elapsed time, and
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
-import { dataRows, divisionOf, cropOrder, elapsed, flippedClip, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, type M } from "./videoFrames";
+import { dataRows, divisionOf, cropOrder, elapsed, flippedClip, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, type M } from "./videoFrames";
 
 describe("the frame reader", () => {
   // A 1280 × 720 frame: a grey field, and a score bar from `top` to `bottom` with one alliance's colour each side of the
@@ -547,5 +547,14 @@ describe("an event's played matches, a time or not", () => {
   });
   it("leaves out a time the event's zone can't place", () => {
     expect(playedMatches([{ label: "Q1", time: "2025-07-19T10:01:13", timezone: null }], { ...f, utcMs: () => null })).toEqual([]);
+  });
+});
+
+describe("wholeLength", () => {
+  it("times a video by its player when YouTube gave no duration, never a live stream or an empty player", () => {
+    expect(wholeLength(25019.6)).toBe(25020);
+    expect(wholeLength(Infinity)).toBeNull();
+    expect(wholeLength(NaN)).toBeNull();
+    expect(wholeLength(0)).toBeNull();
   });
 });

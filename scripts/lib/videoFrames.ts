@@ -101,6 +101,9 @@ export function playedCount(text: string): { played: number; of: number } | null
   return m && Number(m[1]) <= Number(m[2]) ? { played: Number(m[1]), of: Number(m[2]) } : null;
 }
 
+/** A player's duration as a video length: whole seconds, or null for a live stream (Infinity), nothing loaded (NaN, 0). */
+export const wholeLength = (d: number): number | null => (Number.isFinite(d) && d >= 1 ? Math.round(d) : null);
+
 /** Seconds from a recording's start (or back from its end) its edge is read at, in turn: the first frame that names a
  *  match or counts the matches played is the edge (within EDGE_S, server/data/frameTimings.ts). */
 export const EDGE_AT = [3, 20, 45, 75, 110];
