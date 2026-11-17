@@ -14,6 +14,7 @@ import { OfflineNote } from "../components/OfflineNote";
 import { LeagueTable } from "../components/LeagueTable";
 import { ConferenceSection } from "../components/ConferenceSection";
 import { useConferenceGate } from "../lib/conferenceGate";
+import { scrollToElement, smoothBehavior } from "../lib/pageScroll";
 import { CONFERENCE_REGION, type LeagueConferences } from "../shared/conferences";
 import { dateRange, seasonLabel } from "../shared/format";
 import { leaguePageTitle, leagueTitle, type LeagueStandings } from "../shared/leagues";
@@ -47,7 +48,7 @@ export default function LeaguePage() {
                 {d.placeKey && <Link to={regionHref(d.placeKey, { season: d.season })} className="text-accent-text hover:underline">{regionName(d.placeKey)} rankings</Link>}
                 <Link to={`/leagues?season=${d.season}`} className="text-accent-text hover:underline">All leagues</Link>
                 {conf.data && <a href="#conferences" className="font-medium text-accent-text hover:underline" data-conference-button
-                  onClick={(e) => { e.preventDefault(); document.getElementById("conferences")?.scrollIntoView({ behavior: "smooth", block: "start" }); history.replaceState(history.state, "", `${location.pathname}${location.search}#conferences`); }}>View Conference Rankings</a>}
+                  onClick={(e) => { e.preventDefault(); const el = document.getElementById("conferences"); if (el) scrollToElement(el, smoothBehavior()); history.replaceState(history.state, "", `${location.pathname}${location.search}#conferences`); }}>View Conference Rankings</a>}
               </nav>
               {d.rows.length ? (
                 <section aria-label="Standings" className="space-y-2">
@@ -57,7 +58,7 @@ export default function LeaguePage() {
                   </p>
                 </section>
               ) : <EmptyState icon={ListOrdered} title="No standings yet" description="FIRST publishes a league's standings once its first meet has scores. They show here within a few hours of that." />}
-              {conf.data && <ConferenceSection data={conf.data} leagueName={d.name} slug={sp.get("conference")} team={team} />}
+              {conf.data && <ConferenceSection key={`${conf.data.season}|${conf.data.region}|${conf.data.code}|${sp.get("conference") ?? ""}|${team ?? ""}`} data={conf.data} leagueName={d.name} slug={sp.get("conference")} team={team} />}
               {d.meets.length > 0 && (
                 <section aria-labelledby="league-meets" className="space-y-2">
                   <h2 id="league-meets" className="font-display text-lg font-semibold">Meets</h2>

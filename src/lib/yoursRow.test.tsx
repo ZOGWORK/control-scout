@@ -9,7 +9,7 @@ import type { AccountUser } from "./personal";
 import { yoursRow, yoursRowActive } from "./yoursRow";
 
 const h = vi.hoisted(() => ({ user: null as AccountUser | null }));
-vi.mock("./personal", () => ({ usePersonal: () => ({ user: h.user, providers: {}, state: { myTeam: null }, syncReady: false }) }));
+vi.mock("./personal", () => ({ usePersonal: () => ({ user: h.user, providers: {}, state: { myTeam: null, settings: { theme: "dark" } }, update: () => true, syncReady: false }) }));
 // The shell's top bar and backdrop aren't what's under test.
 vi.mock("../components/layout/Search", () => ({ GlobalSearch: () => null }));
 vi.mock("../components/layout/AccountMenu", () => ({ AccountProvider: ({ children }: { children: React.ReactNode }) => children, AccountFooter: () => null, useAccountPanel: () => ({ open: false, setOpen() {} }) }));

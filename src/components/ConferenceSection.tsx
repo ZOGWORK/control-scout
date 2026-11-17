@@ -39,7 +39,8 @@ export function sortConferenceRows(rows: ConferenceRow[], key: SortKey, dir: "as
 const one = (v: number | null) => (v == null ? null : v.toFixed(1));
 const record = (r: ConferenceRow) => (r.wins == null || r.losses == null ? null : `${r.wins}-${r.losses}-${r.ties ?? 0}`);
 
-/** The conference a link asks for, else the one the marked team is in, else the latest with teams. */
+/** The conference a link asks for (only when exactly one has that slug), else the one the marked team is in, else the
+ *  latest with teams (the list is oldest tournament first), else the latest. */
 export function pickConference(list: Conference[], slug: string | null, team: number | null): Conference | null {
   if (slug) {
     const hits = list.filter((c) => c.slug === slug);
@@ -49,14 +50,16 @@ export function pickConference(list: Conference[], slug: string | null, team: nu
     const hits = list.filter((c) => c.rows.some((r) => r.team === team));
     if (hits.length) return hits[hits.length - 1];
   }
-  return list[0] ?? null;
+  return [...list].reverse().find((c) => c.rows.length > 0) ?? list[list.length - 1] ?? null;
 }
 
 export function ConferenceSection({ data, leagueName, slug, team }: { data: LeagueConferences; leagueName: string | null; slug: string | null; team: number | null }) {
+  // A tab clicked, by its tournament's code (unique, where a slug may not be). The league page remounts this section
+  // on a new league, season, link or team, so a click never outlives the link it was made under.
   const [chosen, setChosen] = useState<string | null>(null);
-  const picked = pickConference(data.conferences, chosen ?? slug, chosen ? null : team);
-  // A link to a conference this league doesn't have (or two share): said, never a guess.
-  const unknown = !!slug && !chosen && !data.conferences.some((c) => c.slug === slug);
+  const picked = data.conferences.find((c) => c.code === chosen) ?? pickConference(data.conferences, slug, team);
+  // A link to a conference this league doesn't have, or that two share: said, never a guess.
+  const unknown = !!slug && !chosen && data.conferences.filter((c) => c.slug === slug).length !== 1;
   const ref = useRef<HTMLElement>(null);
   // Opened from a link to the section: in view once its rows are in.
   useEffect(() => {
@@ -76,13 +79,13 @@ export function ConferenceSection({ data, leagueName, slug, team }: { data: Leag
         </p>
       ) : (
         <>
-          {unknown && <p className="text-sm text-muted-foreground" data-conference-unknown>This league has no conference by that name this season.</p>}
+          {unknown && <p className="text-sm text-muted-foreground" data-conference-unknown>This league has no one conference by that name this season, so none is picked for it.</p>}
           {data.conferences.length > 1 && (
             <div role="tablist" aria-label="Conferences" className="flex flex-wrap gap-2">
               {data.conferences.map((c) => {
                 const on = c.code === picked?.code;
                 return (
-                  <button key={c.code} type="button" role="tab" aria-selected={on} onClick={() => setChosen(c.slug)}
+                  <button key={c.code} type="button" role="tab" aria-selected={on} onClick={() => setChosen(c.code)}
                     className={cn("h-9 rounded-lg border px-3 text-sm font-medium max-sm:h-[44px]", on ? "border-accent bg-accent/10 text-accent-text" : "border-border bg-card hover:border-accent/60")}>
                     {c.name}
                   </button>
@@ -90,7 +93,7 @@ export function ConferenceSection({ data, leagueName, slug, team }: { data: Leag
               })}
             </div>
           )}
-          {picked && <ConferenceTable key={picked.code} c={picked} team={team} />}
+          {picked && <ConferenceTable key={`${picked.season}|${picked.code}`} c={picked} team={team} />}
         </>
       )}
     </section>

@@ -58,8 +58,13 @@ describe("conference section", () => {
     show(NO, { team: 4215 });
     const before = new Map(ranks().map(([t, r]) => [t, r]));
     fireEvent.click(screen.getByRole("button", { name: /^OPR/ }));
-    expect(ranks()[0][0]).toBe(4215);
+    // Highest OPR first (4215 101.6, 23717 33.7, 18155 28.2, 15762 25.8, 6980 5), the team with none last.
+    expect(ranks().map(([t]) => t)).toEqual([4215, 23717, 18155, 15762, 6980, 30680]);
     fireEvent.click(screen.getByRole("button", { name: /^RS/ }));
+    // Highest RS first; 23717 and 15762 tie at 3.9 and keep league order.
+    expect(ranks().map(([t]) => t)).toEqual([6980, 23717, 15762, 4215, 18155, 30680]);
+    fireEvent.click(screen.getByRole("button", { name: /^RS/ }));
+    expect(ranks().map(([t]) => t)).toEqual([18155, 4215, 23717, 15762, 6980, 30680]);
     for (const [t, r] of ranks()) expect(r).toBe(before.get(t as number));
     expect(document.querySelector("tr[data-marked]")!.getAttribute("data-team")).toBe("4215");
   });
@@ -97,7 +102,18 @@ describe("conference section", () => {
   it("picks by slug, then the team's conference, and leaves rows with no value last either way", () => {
     expect(pickConference(NO.conferences, "far-north-conference", 4215)!.code).toBe("USNJNOLT");
     expect(pickConference(NO.conferences, null, 4215)!.code).toBe("USNJNOLT2");
-    expect(sortConferenceRows(EB.rows, "rs", "asc").map((r) => r.team).at(-1)).toBe(30680);
-    expect(sortConferenceRows(EB.rows, "rs", "desc").map((r) => r.team).at(-1)).toBe(30680);
+    expect(pickConference(NO.conferences, null, null)!.code).toBe("USNJNOLT2");
+    expect(pickConference([EB, { ...FN, rows: [] }], null, null)!.code).toBe("USNJNOLT2");
+    expect(sortConferenceRows(EB.rows, "rs", "asc").map((r) => r.team)).toEqual([18155, 4215, 23717, 15762, 6980, 30680]);
+    expect(sortConferenceRows(EB.rows, "rs", "desc").map((r) => r.team)).toEqual([6980, 23717, 15762, 4215, 18155, 30680]);
+  });
+
+  it("refuses a slug two conferences share, and a clicked tab shows its own table", () => {
+    const twin = { ...FN, code: "USNJNOLT9", slug: EB.slug };
+    show({ ...NO, conferences: [FN, EB, twin] }, { slug: EB.slug });
+    expect(document.querySelector("[data-conference-unknown]")).toBeTruthy();
+    fireEvent.click(screen.getAllByRole("tab", { name: "Far North Conference" })[1]);
+    expect(screen.getAllByRole("tab", { name: "Far North Conference" })[1].getAttribute("aria-selected")).toBe("true");
+    expect(document.querySelector("[data-conference-unknown]")).toBeNull();
   });
 });

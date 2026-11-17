@@ -15,6 +15,42 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.1.5 — 2026-11-16
+
+Leagues › a New Jersey league's page shows its conference rankings: each conference tournament's teams ranked by FIRST's league standing, league meets only.
+
+### Highlights
+- [rankings] NJ league pages rank each conference by league standing
+- [rankings] Before a conference tournament: who registered, and when it was read
+- [rankings] Who won each conference, from FIRST's awards
+
+### Added
+- League page (New Jersey only): View Conference Rankings, and a section with a tab per conference of the league. Each tab lists the conference tournament's teams in FIRST's league order, labelled "League meets only — excludes this tournament.", with each team's rank in the conference beside its rank in the league, its league record, RS, TBP, matches and meets played, Scout rating, OPR and league rank. A team with no league meet shows "Not ranked yet — no league meets played", never an RS of 0. Sorting reorders rows but never renumbers them; ?team= marks a row and opens its page. Before the tournament the teams come from FTC New Jersey's registrations (labelled registered, with the date read, never as the final field); after it, the league standing they went in with. The winner is read from the awards, never the top seed. A visitor whose My team is based outside New Jersey sees none of it. (`src/components/ConferenceSection.tsx`, `src/lib/conferenceGate.ts`, `src/pages/LeaguePage.tsx`, `server/api/conferences.ts`) (#1632)
+
+## 7.1.4 — 2026-11-16
+
+Appearance › a light/dark switch in the top bar, next to the bell, that comes back to your own dark theme.
+
+### Highlights
+- [appearance] Switch light and dark from the top bar, beside the bell
+- [appearance] Back from light is the dark theme you use: Dim, Dark or Midnight
+- [appearance] Settings still picks any theme, System included
+
+### Added
+- Top bar: a sun/moon button beside the notification bell switches to Light and back. Back from Light is the dark theme in use when it was pressed (Dim, Dark or Midnight; Dark when none was, the default), remembered as a setting that syncs with the account like the theme itself. (`src/components/layout/ThemeToggle.tsx`, `src/hooks/useTheme.ts`, `src/shared/personal.ts`, `src/components/layout/Shell.tsx`) (#1629)
+
+## 7.1.3 — 2026-11-16
+
+Videos › the frame reader reads a busy frame's match name from the overlay's bar alone, so a clip whose opening frame plainly names its match is confirmed even when the crowd and field throw the whole-frame read off.
+
+### Highlights
+- [fixes] Clip openings on busy frames are read from the overlay's bar
+- [fixes] All 9 clips the paused re-check left unread now confirm their match
+- [history] Corrected clip openings follow in the next data releases
+
+### Fixed
+- Videos (the frame reader, `scripts/video-frames.ts`): a clip opening whose whole frame names nothing has the right half of FTC Live's bottom bar row read on its own (`labelRow`), where the match's name is all there is, by its own OCR worker using tesseract's page layout (read as one block, "Playoff Match 1" came out "PlayoffMach1"); on a shared stream the whole row must also name this division. The paused re-check of 2024 and 2026 left 19 openings unread, 9 of them clips already playing, each frame plainly showing its match (USARBEQ 2024 Q8 at 7097 s, "Qualification 8 of 23", read as a jumble whole). With this read 17 of the 19 name their match, all 9 playing clips among them; the two left are AUSYOS 2024 M1 (no overlay on screen) and USMNCMPNANO 2024 M1. No other opening, start or reason in those rows changes. Placement reads are unchanged. Clips on the site change only with the data releases that carry these reads. (#1627)
+
 ## 7.1.2 — 2026-11-16
 
 Event videos › FIRST's livestream link plays for an event only when YouTube says it was broadcast on that event's dates: USORSOM3 no longer plays Meet 2's stream.
