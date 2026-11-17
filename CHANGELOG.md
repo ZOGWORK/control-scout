@@ -17,7 +17,7 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 
 ## 7.1.6 — 2026-11-17
 
-Videos › 2024 clips from events A to M open on the exact frame that names their match, read paused: 36 of 323 openings move by a few seconds, 3 more are confirmed, and none is taken away.
+Videos › 2024 clips from events A to M open on the exact frame that names their match, read paused: 36 of 322 openings move by a few seconds, 3 more are confirmed, and none is taken away.
 
 ### Highlights
 - [fixes] 2024 clips (events A to M) open on the frame naming their match
@@ -25,7 +25,7 @@ Videos › 2024 clips from events A to M open on the exact frame that names thei
 - [fixes] No clip already playing is taken away
 
 ### Fixed
-- Videos: the 9 shipped 2024 recordings of events A to M have their clip openings read again paused at their own second, and from the overlay's bar where the frame is busy: of 323 openings 283 stay, 32 open later and 4 earlier (−8 to +20 s), each on a frame whose overlay names its match, and AUSYOS Q43, M4 and M11, unconfirmed till now, open on a frame naming them. None is taken away or newly left unconfirmed. (`server/data/frameTimings.ts`) (#1634)
+- Videos: the 9 shipped 2024 recordings of events A to M have their clip openings read again paused at their own second, and from the overlay's bar where the frame is busy: of the 323 clips 283 openings stay, 32 open later and 4 earlier (−8 to +20 s), each on a frame whose overlay names its match, and AUSYOS Q43, M4 and M11, unconfirmed till now, open on a frame naming them: 322 openings. The 323rd, AUSYOS M1, has no overlay on screen at its start; as before, it stays unconfirmed and plays at the usual lead-in. None is taken away or newly left unconfirmed. (`server/data/frameTimings.ts`) (#1634)
 
 ## 7.1.5 — 2026-11-17
 
