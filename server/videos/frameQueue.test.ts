@@ -15,7 +15,7 @@ import type { CoverageMatch } from "../../src/shared/api";
 const NOW = Date.parse("2026-11-17T12:00:00Z");
 const miss = (label: string, o: Partial<CoverageMatch> = {}): CoverageMatch =>
   ({ key: label, label, date: "2026-11-14", clip: false, videoId: "VIDEOaaaaa1", reason: "gap-unplaced", video: { checked: null }, ...o });
-const ev = (missing: CoverageMatch[], o: Partial<QueueEvent> = {}): QueueEvent => ({ season: 2025, code: "USXXQ", name: "X Qualifier", end: "2026-11-14", missing, ...o });
+const ev = (missing: CoverageMatch[], o: Partial<QueueEvent> = {}): QueueEvent => ({ season: 2025, code: "USXXQ", name: "X Qualifier", end: "2026-11-14", timezone: "UTC", missing, ...o });
 
 describe("frameStatus", () => {
   it("queues an event that's over with a match in a video not read yet", () => {
@@ -30,8 +30,23 @@ describe("frameStatus", () => {
     expect(frameStatus(ev([miss("Q1", { date: "2026-11-15" })], { end: null }), NOW).state).toBe("queued");
   });
 
+  it("counts the venue's last day to its end there: an American evening is the next UTC day", () => {
+    // Los Angeles, last day the 16th: its 23:59 there is 07:59 UTC on the 17th, so it's over from the UTC 18th.
+    const la = (now: string) => frameStatus(ev([miss("Q1")], { end: "2026-11-16", timezone: "America/Los_Angeles" }), Date.parse(now)).state;
+    expect(la("2026-11-17T03:00:00Z")).toBe("waiting"); // 19:00 on the 16th there: finals on
+    expect(la("2026-11-17T23:00:00Z")).toBe("waiting");
+    expect(la("2026-11-18T00:30:00Z")).toBe("queued");
+    // A read dated the UTC 17th may have been that evening: read again once; one dated the 18th, after, settles.
+    const read = (checked: string) => frameStatus(ev([miss("Q1", { video: { checked } })], { end: "2026-11-16", timezone: "America/Los_Angeles" }), Date.parse("2026-11-19T12:00:00Z")).state;
+    expect([read("2026-11-17"), read("2026-11-18")]).toEqual(["queued", "read"]);
+    // No zone known: taken as the latest on earth, so never called over early.
+    expect(frameStatus(ev([miss("Q1")], { end: "2026-11-16", timezone: null }), Date.parse("2026-11-17T20:00:00Z")).state).toBe("waiting");
+  });
+
   it("reads again, once, a video read on or before the event's last day; a read after it settles", () => {
     expect(frameStatus(ev([miss("Q9", { video: { checked: "2026-11-14" } })]), NOW)).toMatchObject({ state: "queued", due: 1, why: "Queued for a frame read: 1 match, read before the event finished" });
+    // No last day stored: the latest missing match's date stands in for it here too.
+    expect(frameStatus(ev([miss("Q9", { date: "2026-11-15", video: { checked: "2026-11-14" } })], { end: null }), NOW).state).toBe("queued");
     expect(frameStatus(ev([miss("Q9", { video: { checked: "2026-11-15", found: "no frame read of it" } })]), NOW))
       .toMatchObject({ state: "read", due: 0, at: "2026-11-15", why: "Read 2026-11-15: 1 match still without a clip, as the video shows (see each match)" });
   });
@@ -45,6 +60,9 @@ describe("frameStatus", () => {
 
   it("waits for a video's YouTube facts before reading it", () => {
     expect(frameStatus(ev([miss("Q1", { reason: "video-unread" })]), NOW)).toMatchObject({ state: "waiting", why: "Waits for YouTube's facts for its video: 1 match" });
+    // Beside a video already read after the event: still waiting, never "read".
+    expect(frameStatus(ev([miss("Q1", { reason: "video-unread" }), miss("Q2", { video: { checked: "2026-11-16" } })]), NOW))
+      .toMatchObject({ state: "waiting", matches: 1, why: "Waits for YouTube's facts for its video: 1 match (1 more read, no clip)" });
   });
 
   it("counts only the matches a read could place, beside ones it can't", () => {
