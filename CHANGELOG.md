@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.6.3 — 2026-11-17
+
+Videos › 249 more matches get clips, each start read off its recording's own frames (4 recordings of 4 events, 2024), read and checked by the clip autopilot.
+
+### Highlights
+- [fixes] 249 more matches get clips read off their recordings
+- [fixes] Each clip opens on a frame naming its match
+- [fixes] Read automatically once the event ended
+
+### Fixed
+- Videos: frame-read rows for USMIAVLT, USMNCMPGLXY, USMOKSLSSQ, USTXWYQ (2024): 249 clips added, 16 matches given a reason from the frames. Every start passed the autopilot's checks (opening frame at 20/12/5/2/0 s naming the match, plausible, no live clip pulled without a frame naming another match). (`server/data/frameTimings/2024.ts`) (#1848)
+
 ## 7.6.2 — 2026-11-17
 
 Videos › 105 matches from three 2025 events (Greenwood QT and the NorCal Regional Championship's Gold and Silicon divisions) get a clip, each opening on a frame that names its match and its event.
