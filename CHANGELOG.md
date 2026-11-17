@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.6.4 — 2026-11-17
+
+Owner › Clip coverage › a recording no one can play here is a settled reason with its date, not "missing": 748 matches across 22 events move out, and the video is read again weekly so one that plays again comes back.
+
+### Highlights
+- [fixes] Clip coverage: a new "Can't be played" list for recordings that are private, removed, or not allowed on other sites
+- [fixes] Each says since when, read off YouTube's facts for that video
+- [fixes] Read again weekly: a video that plays again is read for its clips again
+
+### Fixed
+- Owner › Clip coverage: a played match whose only recording can't be played here is no longer counted as missing. The recording is either unavailable on YouTube (private or removed) or its owner turned off playing it on other sites, so neither the app's player nor the frame reader can show it. Its match gets a settled reason with the date the video was first seen so, as recorded per video with its YouTube facts (`video_meta.unplayable_since`, migration 96). Its event goes to a new "Can't be played" list, in any season. The check pass counts these matches apart ("N whose recording can't be played", not in "missing"), and the frame reader never queues them. A video with embedding off is now read again weekly even without an API key, as an unavailable one already was; the first read that finds it playing again clears the date, and its matches come back for their frames and clips. A video with embedding off whose frames were read anyway keeps what they showed. Measured on the live coverage lists: 748 of 16,201 missing matches (22 events, 2021–2026) move out of missing. (`server/videos/coverage.ts`, `server/videos/coverageTriage.ts`, `server/videos/recordings.ts`) (#1761)
+
 ## 7.6.3 — 2026-11-17
 
 Event videos › a title's "Day 2" can mean the event's second day of play, and two Romanian events get the recordings of the days FIRST's dates left out.
