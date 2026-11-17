@@ -22,6 +22,7 @@ Tests › a check on the welcome email failed now and then for no reason, holdin
 ### Highlights
 - [fixes] A test that failed at random no longer holds up changes
 - [fixes] No change to the welcome email itself
+- [fixes] A real weekday or time in the email still fails it
 
 ### Fixed
 - Tests (`server/digest/welcome.test.ts`): the welcome email's "no weekday or clock time" check read the whole text, unsubscribe link included, and the link's random token sometimes held a run like `9AM` (`DjPos9AMRs…`), failing CI on unrelated changes. The check now leaves links out and matches days and times as whole words. A real "9 AM" or "Monday" in the email still fails it (#1674).
