@@ -17,7 +17,7 @@ match ("Qualification 21 of 36", "Playoff Match 7") and runs its timer.
 point, and reads two things with tesseract.js:
 
 1. **The overlay's match**: `overlayLabel` turns "Qualification 21 of 36" into Q21, "Finals Match 2" into F2, and
-   "Playoff Match 10" or a bare "Match 10" (2025's playoff overlay) into M10. 2019–2022's best-of-3 semifinals
+   "Playoff Match 10" or a bare "Match 10" (2025's playoff overlay) into M10. 2019–2023's best-of-3 semifinals
    ("Semifinal 1 Match 2") are named by series and number (M1-2), the event's match of that series and number only:
    its M1 is "Semifinal 1 Match 1", its M2 "Semifinal 2 Match 1" (`sameMatch`).
 2. **The timer**, in one of three places: the bar along the bottom (FTC Live's default), a box over the field under
