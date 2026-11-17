@@ -20,8 +20,8 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 Videos › 74 more 2022 (POWERPLAY) match clips from Arizona's championship (Grand Canyon Division) and the Chesapeake championship (Scarlet Division).
 
 ### Highlights
-- [history] Arizona's 2022 championship, Grand Canyon Division: clips for 35 of 37 matches
-- [history] Chesapeake championship, Scarlet Division: clips for 39 of 40 matches
+- [history] Arizona's Grand Canyon Division: clips for 35 of 37 matches
+- [history] Chesapeake's Scarlet Division: clips for 39 of 40 matches
 - [fixes] Every clip opens on a frame naming its match and its own division
 
 ### Added
