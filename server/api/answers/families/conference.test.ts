@@ -187,6 +187,28 @@ describe("answering a conference ask", () => {
     expect((await ask("East Bergen Conference rankings 2027-28"))!.title).toBe("Hudson/East Bergen Conference · 2027–28");
   });
 
+  it("says the phase from the tournament's status, not where its list came from, and a season with no conferences plainly", async () => {
+    // FIRST's field out for a tournament not started yet: still going in.
+    await run("INSERT INTO event_teams (season, code, team, rank) VALUES (2026, 'USNJNELT2', 4215, NULL)");
+    clearAllCaches();
+    const a = (await ask("4215 conference ranking 2026-27"))!;
+    expect(a.title).toBe("4215 going into Hudson/East Bergen Conference · 2026–27");
+    expect(a.headline!.label).toContain("4215 Hypnotic Robotics is going into Hudson/East Bergen Conference");
+    expect(a.blocks[0].kind === "kpis" && a.blocks[0].items[0].label).toBe("Going in, by league RS");
+    // A past tournament FIRST never posted a team list for: the sign-ups, said so, never "hasn't started".
+    await run("INSERT INTO teams (number, name, state, country) VALUES (5555, 'Wait Team', 'NJ', 'USA')");
+    await run("INSERT INTO events (season, code, name, type, region, league, state, country, start, end, source) VALUES (2025, 'USNJGOLT', 'Gold Conference Northern League Tournament', 'LeagueTournament', 'USNJ', 'NO', 'NJ', 'USA', '2026-01-10', '2026-01-10', 'first')");
+    await run(`INSERT INTO event_provisional (season, code, source, url, title, teams, fetched_at) VALUES (2025, 'USNJGOLT', 'ftcnj', 'https://www.newjerseyftc.com/upcoming-events.html', 'FTCNJ Gold Conference', ?, '2026-01-05T12:00:00.000Z')`,
+      [JSON.stringify([{ team: 5555, name: "Wait Team", status: "registered", session: null }])]);
+    await syncConferences(2025, { now: new Date("2026-01-06T12:00:00Z") });
+    clearAllCaches();
+    const g = (await ask("5555 conference ranking 2025-26"))!;
+    expect(g.title).toBe("5555 in Gold Conference · 2025–26");
+    expect(g.definition).toContain("FIRST hasn't posted this tournament's team list: these are the 1 team registered via FTC New Jersey, fetched Jan 5, 2026, not its final field.");
+    expect(g.definition).not.toContain("hasn't started");
+    expect((await ask("conference rankings 2027-28"))!.none).toBe("No New Jersey conference tournaments are listed for 2027–28.");
+  });
+
   it("keeps the next edition when a later season has two tournaments of the name", async () => {
     for (const code of ["USNJAALT", "USNJBBLT"]) {
       await run("INSERT INTO events (season, code, name, type, region, league, state, country, start, end, source) VALUES (2027, ?, 'East Bergen Conference Northeast League Tournament', 'LeagueTournament', 'USNJ', 'NE', 'NJ', 'USA', '2028-02-20', '2028-02-20', 'first')", [code]);
