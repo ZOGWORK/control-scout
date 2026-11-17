@@ -25,7 +25,7 @@ Videos › 298 more 2024 matches play as clips: Gaithersburg, Union Bridge and K
 - [history] Colorado, KC East and Mississippi 2024 clips added
 
 ### Added
-- Frame-read match starts for 6 more 2024 recordings, each start checked against two timer reads and each clip's opening against a paused frame naming its match: USCHSGAQ3 54 of 54 played matches, USCHSUBQ 52 of 52, USMOKSKCWLT 55 of 55, USMOKSKCELT 51 of 52 (1 missing), USMSCMP 46 of 49 (3 missing), USCOCMP 40 of 51 (1 to review, 10 missing). (`server/data/frameTimings/2024.ts`) (#PRNUM)
+- Frame-read match starts for 6 more 2024 recordings, each start checked against two timer reads and each clip's opening against a paused frame naming its match: USCHSGAQ3 54 of 54 played matches, USCHSUBQ 52 of 52, USMOKSKCWLT 55 of 55, USMOKSKCELT 51 of 52 (1 missing), USMSCMP 46 of 49 (3 missing), USCOCMP 40 of 51 (1 to review, 10 missing). (`server/data/frameTimings/2024.ts`) (#1686)
 
 ## 7.4.4 — 2026-11-17
 
