@@ -62,7 +62,8 @@ Playwright's Chromium), and registers the task "Control Scout clip autopilot", e
 
 A real run always goes through `scripts/clip-autopilot-start.mjs` (plain Node). It first waits, up to 30 minutes, for 3 GB
 of memory free (`AUTOPILOT_MIN_FREE_MB`; with less, processes failed to start and scheduled runs died with nothing
-logged), and skips the run if it never comes. It holds the run's lock, puts the clone
+logged), and skips the run if it never comes. On macOS memory it can take back at once counts too (`vm_stat`: free,
+inactive, speculative, purgeable). With more than 6 GB it reads in 3 lanes, else 2 (`AUTOPILOT_LANES`). It holds the run's lock, puts the clone
 back to main (a killed run can leave files changed), and runs `npm ci` when main's `package-lock.json` changed, before
 anything runs from `node_modules`. The runner refuses a real run its start didn't begin: on Windows, `npm ci` can't
 replace `node_modules` under the running tsx (its `esbuild.exe` is held open).
