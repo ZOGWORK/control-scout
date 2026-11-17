@@ -36,7 +36,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
 import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, playedCount, playedMatches } from "./lib/videoFrames";
-import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, elapsed, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M } from "./lib/videoFrames";
+import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, elapsed, overlayDivision, overlayEvent, leadIn, undetailed, judge, NOTHING_READ, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M } from "./lib/videoFrames";
 
 // The command line: --name value or --name=value for the value flags, --name alone for the others. Anything else stops
 // the run before it reads: a misspelt flag mustn't quietly read (and write) every recording of the season.
@@ -843,6 +843,9 @@ const browser = await chromium.launch({ args: ["--autoplay-policy=no-user-gestur
 const today = new Date().toISOString().slice(0, 10);
 let done = 0;
 const report: string[] = [];
+// Linked recordings skipped for want of details (undetailed), and the events left with none to read.
+let skippedVideos = 0;
+const onlySkipped: string[] = [];
 
 /** Write the timings kept so far (after each event, so a run cut short keeps what it read). A file another program
  *  holds open for a moment (an editor, git, a test run reading it) only delays the write: it's tried again, and if it
@@ -1052,7 +1055,16 @@ async function doCode(code: string): Promise<void> {
   const log = (s: string) => { lines.push(s); };
   try {
   log(`${code}: ${missing.length} of ${played.length} matches without a clip`);
-  const videos = [rec, ...(rec.more ?? [])].filter((v) => v.meta?.status === "ok" && v.meta.length);
+  // A linked recording with no details can't be read: said now (stderr, not only in the event's lines), and counted.
+  const unread = undetailed(own);
+  for (const s of unread.skipped) {
+    const line = `${code}: linked recording ${s.videoId} skipped: ${s.why}`;
+    log(`  ${line}`);
+    console.error(`!! ${line}`);
+  }
+  skippedVideos += unread.skipped.length;
+  if (unread.only) onlySkipped.push(code);
+  const videos = own.filter((v) => v.meta?.status === "ok" && v.meta.length);
   const held = new Set<string>();
   for (const v of videos) {
     const m = v.meta!;
@@ -1191,6 +1203,9 @@ await rowOcr.terminate().catch(() => {});
 if (failedEvents) { console.error(`${failedEvents} events failed before their videos were read`); process.exitCode = 1; }
 // Videos that couldn't be played are written as such and read again on the next run, but this run didn't finish them.
 if (failedVideos) { console.error(`${failedVideos} videos couldn't be played (written with the reason; the next run reads them again)`); process.exitCode = 1; }
+// Linked recordings with no details (undetailed): counted; an event none of whose videos could be read fails the run.
+if (skippedVideos) console.error(`${skippedVideos} linked recordings skipped: no details on file (fetch them, then read again)`);
+if (onlySkipped.length) { console.error(`${onlySkipped.join(", ")}: every linked recording skipped, nothing read`); process.exitCode = 1; }
 if (!CHECK && !DRY) {
   // The last save may have failed with no save after it (retried above): the run then says so and fails.
   if (unsaved) { console.error(`${FRAMES_FILE} could not be written: this run's timings are lost`); process.exitCode = 1; }
