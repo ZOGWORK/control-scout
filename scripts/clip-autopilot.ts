@@ -204,11 +204,23 @@ for (const p of open) {
 // MAIN_QUIET of main's last commit (each merge deploys and restarts the site), never deleting its branch. Then it
 // waits for /api/health to serve the merge. --no-merge: open and rebuild PRs only.
 if (!DRY && MERGE) mergeOne();
-/** main's head as GitHub has it now: its sha and its last commit's time. */
+/** main's head as GitHub has it now: its sha and when main last moved, from GitHub's own record of the push (a commit
+ *  pushed straight to main keeps the date it was made, which can be long before). Without that record, the commit's. */
 const mainHead = () => {
-  const [sha, date] = sh("gh", ["api", "repos/{owner}/{repo}/commits/main", "--jq", ".sha + \" \" + .commit.committer.date"], { quiet: true }).out.trim().split(" ");
-  return { sha, at: Date.parse(date) };
+  const [sha, at] = sh("gh", ["api", "repos/{owner}/{repo}/activity?ref=refs/heads/main&per_page=1", "--jq", ".[0] | .after + \" \" + .timestamp"], { quiet: true, ok: true }).out.trim().split(" ");
+  if (/^[0-9a-f]{40}$/.test(sha ?? "") && Number.isFinite(Date.parse(at ?? ""))) return { sha, at: Date.parse(at) };
+  const [s, date] = sh("gh", ["api", "repos/{owner}/{repo}/commits/main", "--jq", ".sha + \" \" + .commit.committer.date"], { quiet: true }).out.trim().split(" ");
+  return { sha: s, at: Date.parse(date) };
 };
+/** The merge commit GitHub made for `pr`, asked a few times (it can take a moment to report it); "" if never. */
+function mergeCommitOf(pr: number): string {
+  for (let i = 0; i < 4; i++) {
+    const sha = sh("gh", ["api", `repos/{owner}/{repo}/pulls/${pr}`, "--jq", ".merge_commit_sha // \"\""], { quiet: true, ok: true }).out.trim();
+    if (/^[0-9a-f]{40}$/.test(sha)) return sha;
+    sh(process.execPath, ["-e", "setTimeout(() => {}, 10000)"], { quiet: true, ok: true });
+  }
+  return "";
+}
 function mergeOne(): void {
   let pick: { number: number; head: string } | null = null, done = false;
   try {
@@ -232,9 +244,9 @@ function mergeOne(): void {
     const r = sh("gh", ["pr", "merge", String(pick.number), "--merge", "--match-head-commit", pick.head], { ok: true });
     if (r.code) { log(`merge: #${pick.number} refused by GitHub (exit ${r.code}): left open`); return; }
     done = true;
-    let merged = sh("gh", ["pr", "view", String(pick.number), "--json", "mergeCommit", "--jq", ".mergeCommit.oid"], { quiet: true, ok: true }).out.trim();
-    // Not reported yet: main's head now, which holds the merge (a later commit only makes the live check stricter).
-    if (!/^[0-9a-f]{40}$/.test(merged)) { git("fetch", "--quiet", "origin"); merged = git("rev-parse", "origin/main"); }
+    let merged = mergeCommitOf(pick.number);
+    // Never reported: main's head now, which holds the merge (a later commit only makes the live check stricter).
+    if (!merged) { git("fetch", "--quiet", "origin"); merged = git("rev-parse", "origin/main"); log(`merge: #${pick.number}'s merge commit not reported; waiting on main's head`); }
     log(`merge: #${pick.number} merged as ${merged.slice(0, 9)}; waiting for it live`);
     waitLive(merged, `#${pick.number}`);
     // main moved: what this run opens next is made on main as it is now, live or not.
