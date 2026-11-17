@@ -3,7 +3,8 @@
 //
 // YouTube refuses data-centre addresses (GitHub's runners and the VM both get its "confirm you're not a bot" page), so
 // this runs on a computer at home, from a clone of its own, on a schedule (scripts/clip-autopilot-task.ps1). Each run:
-//   1. brings the clone to main, and rebuilds its own open PRs on main when main moved under them;
+//   1. (its start, scripts/clip-autopilot-start.mjs: one run at a time, the clone and its dependencies at main) rebuilds
+//      its own open PRs on main when main moved under them;
 //   2. takes a read-only snapshot of the live database (VACUUM INTO over ssh: the VM's database is never written);
 //   3. takes the queue from that snapshot (server/videos/frameQueue.ts), most missing first;
 //   4. reads each picked event with scripts/video-frames.ts (--live main's season file), then --verify, then --bounds;
@@ -13,14 +14,14 @@
 //      only where that frame names another match, confirmed where it names its own, left as it is where it names none;
 //      shipped as server/data/clipChecks.ts PRs, checked by scripts/lib/autopilotClips.ts.
 //
-//   npx tsx scripts/clip-autopilot.ts [--max 6] [--sweep 4] [--db snapshot.db] [--dry]
+//   node scripts/clip-autopilot-start.mjs [--max 6] [--sweep 4] [--db snapshot.db]   (a real run)
+//   npx tsx scripts/clip-autopilot.ts --dry [--max 1] [--sweep 0] [--db snapshot.db]  (a dry run, any checkout)
 //   --max N   events read per run (default 6)
 //   --sweep N events whose clock clips are checked per run (default 4; 0: no sweep)
 //   --db F    read this snapshot instead of taking one
 //   --dry     in the current checkout: read and check, print the PRs it would open, leave the files as they were
 //   AUTOPILOT_SSH (ubuntu@132.145.202.89), AUTOPILOT_SSH_KEY (~/.ssh/oracle-controlpoint), TESSERACT_JS: passed on.
-import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync, appendFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync, appendFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -59,38 +60,16 @@ function sh(cmd: string, args: string[], o: { ok?: boolean; timeoutMs?: number; 
 const git = (...a: string[]) => sh("git", a).out.trim();
 const tsx = (args: string[], timeoutMs: number) => sh(process.execPath, ["node_modules/tsx/dist/cli.mjs", ...args], { ok: true, timeoutMs });
 
-// --- One run at a time --------------------------------------------------------------------------------------------
+// --- Run from its start ------------------------------------------------------------------------------------------
+// A real run is started by scripts/clip-autopilot-start.mjs, which holds the run's lock (CLIP_AUTOPILOT_LOCK: its text) and
+// has brought the clone and its dependencies to main: npm ci can't replace node_modules under this process. A dry run
+// opens nothing and works in the current checkout, so it needs neither.
 const LOCK = join(DIR, "lock");
-/** A lock a killed run left (shutdown, power cut, the task stopped): its process is gone, or it's older than any run. */
-function staleLock(text: string): boolean {
-  const [pid, at] = text.split(" ").map(Number);
-  if (!(Date.now() - at < 10 * 3600_000)) return true;
-  try { process.kill(pid, 0); return false; } catch (e) { return (e as NodeJS.ErrnoException).code === "ESRCH"; }
+if (!DRY) {
+  let held = "";
+  try { held = readFileSync(LOCK, "utf8"); } catch { /* no lock: not started by the start */ }
+  if (!process.env.CLIP_AUTOPILOT_LOCK || held !== process.env.CLIP_AUTOPILOT_LOCK) { log("a real run starts with: node scripts/clip-autopilot-start.mjs (it holds the run's lock, and brings the clone and its dependencies to main)"); process.exit(2); }
 }
-// Taken atomically ("wx": only if no lock is there), so two runs starting together can't both hold it.
-for (let tries = 0; ; tries++) {
-  try { writeFileSync(LOCK, `${process.pid} ${Date.now()}`, { flag: "wx" }); break; } catch (e) {
-    if ((e as NodeJS.ErrnoException).code !== "EEXIST") throw e;
-    let stale = true, seen = "";
-    try { seen = readFileSync(LOCK, "utf8"); stale = staleLock(seen); } catch { /* unreadable or half-written: a crashed run's */ }
-    if (!stale || tries > 2) { log("another run holds the lock: stopping"); process.exit(0); }
-    // Taken over by renaming it away: only one run's rename of that file can succeed. A run whose rename fails (another
-    // took it first) tries again, and finds the winner's fresh lock.
-    const away = `${LOCK}.${process.pid}`;
-    try { renameSync(LOCK, away); } catch { continue; }
-    // The file renamed has to be the one judged stale: one another run took meanwhile goes back, and this run stops.
-    let got = "";
-    try { got = readFileSync(away, "utf8"); } catch { /* gone: nothing to put back */ }
-    if (got !== seen) {
-      try { renameSync(away, LOCK); } catch { /* a third run's lock is there: it holds it */ }
-      log("another run took the lock: stopping");
-      process.exit(0);
-    }
-    rmSync(away, { force: true });
-    log("a stopped run's lock: taken over");
-  }
-}
-process.on("exit", () => rmSync(LOCK, { force: true }));
 
 const MEMORY_FILE = join(DIR, "memory.json");
 const memory: Memory = existsSync(MEMORY_FILE) ? JSON.parse(readFileSync(MEMORY_FILE, "utf8")) : {};
@@ -104,20 +83,6 @@ process.on("exit", () => {
   for (const [file, text] of restore) writeFileSync(file, text);
 });
 
-// --- 1. The clone at main ------------------------------------------------------------------------------------------
-if (!DRY) {
-  // The clone is the autopilot's alone: changes in it are what a killed run left (the task's time limit, a shutdown).
-  if (git("status", "--porcelain", "--untracked-files=no")) { log("the clone had changes a stopped run left: put back to main"); git("reset", "--quiet", "--hard"); }
-  git("fetch", "--quiet", "origin");
-  git("switch", "--quiet", "--detach", "origin/main");
-  const lockHash = createHash("sha1").update(readFileSync("package-lock.json")).digest("hex"), HASH = join(DIR, "lock-hash");
-  if (!existsSync("node_modules") || !existsSync(HASH) || readFileSync(HASH, "utf8") !== lockHash) {
-    log("installing dependencies (package-lock.json changed)");
-    // npm is a .cmd on Windows, which only a shell runs.
-    sh("npm", ["ci", "--no-audit", "--no-fund", "--loglevel=error"], { timeoutMs: 1_800_000, shell: process.platform === "win32" });
-    writeFileSync(HASH, lockHash);
-  }
-}
 const mainText = (path: string) => (DRY ? readFileSync(path, "utf8") : git("show", `origin/main:${path}`) + "\n");
 const mainVersion = () => String(JSON.parse(mainText("package.json")).version);
 
