@@ -2,7 +2,7 @@
 // its meets played, its teams and FIRST's #1 by ranking score, to its standings page. Each place links to its region
 // rankings. ?season= in the URL. FIRST's league standing only: Scout's ratings are on the region pages. New Jersey's
 // group alone gets View Conference Rankings (src/lib/conferenceGate.ts): to My team's league, or one per league.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { CalendarDays, ListOrdered, Search } from "lucide-react";
 import { useApi, qs } from "../lib/api";
@@ -24,7 +24,10 @@ export default function LeaguesPage() {
   const current = useCurrentSeason();
   const seasonParam = Number(sp.get("season")) || null;
   // ?q= (a place's "Leagues in New Jersey" link from search, src/shared/placePages.ts): the box filled in with it.
-  const [q, setQ] = useState(() => sp.get("q") ?? "");
+  const asked = sp.get("q") ?? "";
+  const [q, setQ] = useState(asked);
+  // Another place's link followed while here ("Leagues in Texas" after New Jersey's): the box follows the address.
+  useEffect(() => { setQ(asked); }, [asked]);
   const state = useApi<LeaguesResponse>(`/api/leagues${qs({ season: seasonParam })}`);
   const season = state.data?.season ?? seasonParam ?? current;
   useTitle(`FTC leagues ${seasonLabel(season)}`);
