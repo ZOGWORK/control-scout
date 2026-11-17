@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 7.2.9 — 2026-11-17
+## 7.3.1 — 2026-11-17
 
 Videos › the frame reader tells one event's overlay from another's on the same stream: a frame naming another event is never this event's match.
 
@@ -26,6 +26,30 @@ Videos › the frame reader tells one event's overlay from another's on the same
 
 ### Fixed
 - Videos (the frame reader, `scripts/video-frames.ts`, `scripts/lib/videoFrames.ts`): a frame whose overlay names another event, by the name beside the match or, where no name is read, by its qualification total ("of 24" for an event of 26), is never this event's start, clip opening or recording edge; on a split screen, the half that is this event's gives its match. USTXCAM1 2024's recording shows two league meets side by side, and its first frames' "Qualification 3 of 24" was the other meet's. The 15 recording edges already in the data were each checked against their saved frame: every one names its own event. (#1656)
+
+## 7.3.0 — 2026-11-17
+
+Event videos › a recording blocked in every country no longer gets clips, and when an event's video goes dead, the channel's own copy of that day takes its place.
+
+### Highlights
+- [fixes] No more match clips that open a video blocked where its event is
+- [fixes] A dead event video is replaced by the channel's own copy of that day
+- [history] KZALOS1 gets its 2026-06-30 Almaty Tech Cup recording
+
+### Fixed
+- Event videos: a video whose region rules stop its viewers is unavailable: blocked in (nearly) every country, where the watch page says "Video unavailable" to everyone, or in the country its event is in. One that plays in its event's country keeps its clips, however many other countries block it. With the API key, a video that plays is read again weekly, so one deleted or blocked since loses its clips within a week. An upload the watcher logged as a duplicate of what its event played that day is decided again by every channel audit: once nothing plays that day (the other video went private, was deleted or came off the event) and every check passes, it is the day's recording. On a copy of the live database: 135 clips on 5 recordings blocked in every country come off; USAZGLQ1, AUINQ and FPECAR are fully clipped once their facts are read again; the audit adds KZALOS1's "Прямая трансляция Almaty Tech Cup 2026" for 2026-06-30, with 0 in review and 0 open findings. (`server/videos/youtube.ts`, `server/videos/recordings.ts`, `server/videos/officialAudit.ts`, `server/videos/officialWatch.ts`) (#1653)
+
+## 7.2.9 — 2026-11-17
+
+Videos › 104 more 2025 matches get a clip, read off their recording's frames: Sydney South, the Ontario championship and Kazakhstan's Kerey division.
+
+### Highlights
+- [fixes] 104 more 2025 matches get a clip read off the video
+- [fixes] Each opens on a frame whose overlay names its match and event
+- [fixes] No clip already playing changes
+
+### Fixed
+- Videos: three 2025 events whose recordings lost time against their broadcast had matches the clock couldn't place. Their starts are now read off the frames, and each clip opens on a frame (read paused) whose overlay names its match and this event: AUSYQ1 22 of 30 (Q1–Q8 were played before the recording starts), CAONCMP 69 of 74 (Q21, Q50 and Q59 open on another match and go to review; Q22 sits in the recording's 15-minute gap and Q23 wasn't confirmed), and KZCMPKER1 86 of 90 over its three day videos, up from 73. No clip already playing is taken away. (`server/data/frameTimings/2025.ts`) (#1658)
 
 ## 7.2.8 — 2026-11-17
 
