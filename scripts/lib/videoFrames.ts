@@ -148,15 +148,16 @@ export function elapsed(t: { where: "bottom" | "top" | "plain"; left: number; au
   return t.left >= TELEOP_S ? null : AUTO_S + SWITCH_S + TELEOP_S - t.left;
 }
 
+/** A card's clock alone: an M:SS standing on its own (no digit or colon either side), so stray text on the card ("12:58",
+ *  a time of day) never reads as one (secondsOf takes the first d:dd anywhere). */
+export const secondsAlone = (s: string) => { const m = /(?<![\d:])(\d):([0-5]\d)(?![\d:])/.exec(s); return m ? Number(m[1]) * 60 + Number(m[2]) : null; };
+
 /** Whether a timer reading `left` seconds, `before` s ahead of a start read off the same timer, is one countdown running
  *  through that start: longer than any match's (2:38: Auto, the switch, TeleOp), and reaching 2:30–2:38 at the start
  *  (a reading there taken as TeleOp's or as a whole-match count's, elapsed). An audience display's card counts other
  *  things down too (a timeout, a field reset, 3:00 and more) under a bar already naming the next match: read at 2:00 or
  *  less, such a countdown gives a start that every later frame agrees with, before the match is played. A real match's
  *  card shows 2:30 standing, or the last match's 0:00, before it starts: never this. */
-/** A card's clock alone: an M:SS standing on its own (no digit or colon either side), so stray text on the card ("12:58",
- *  a time of day) never reads as one (secondsOf takes the first d:dd anywhere). */
-export const secondsAlone = (s: string) => { const m = /(?<![\d:])(\d):([0-5]\d)(?![\d:])/.exec(s); return m ? Number(m[1]) * 60 + Number(m[2]) : null; };
 export function countsThrough(left: number, before: number): boolean {
   const atStart = left - before;
   return left > AUTO_S + SWITCH_S + TELEOP_S && atStart >= AUTO_S + TELEOP_S - 3 && atStart <= AUTO_S + SWITCH_S + TELEOP_S + 3;
