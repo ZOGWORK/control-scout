@@ -40,8 +40,28 @@ computer at home, in a clone kept for it alone. Each run:
    - a live clip leaves only when a frame at its opening names another match;
    - a re-read is dated after the live row;
 6. opens a data PR per season file, at most 15 KB of rows each (an event's rows together), labelled
-   `clip-autopilot`, with its CHANGELOG entry and version, and asks Loopy to review it. It merges like any other PR:
-   the main session merges at Loopy 5/5 and green CI.
+   `clip-autopilot`, with its CHANGELOG entry and version, and asks Loopy to review it.
+
+## Merging its own PRs
+
+At the start of each run, after renumbering any of its PRs that main moved under (once per PR per run, then Loopy is
+asked again), the runner merges at most one of its own data PRs (its label, branch, mark and GitHub user), and only
+when nothing stops it (`scripts/lib/autopilotMerge.ts`):
+
+- Loopy's latest summary says `Confidence: 5/5` and last reviewed the PR's exact head; every check passed (5 or more);
+- its version is main's next (main top + 1); it changes only its data file, CHANGELOG.md and package.json/lock;
+- its rows, measured from where it branched and checked against main's now: no row removed; no live start moved more
+  than 2 s or dropped; a new start only where the live row had the match missing or for review; every opening 20, 12,
+  5, 2 or 0 s before its start; no opening or end edge read more than 120 s from the recording's edge unless every
+  frame between was clear; no video already filed under another season; starts in order within each group (quals,
+  each semifinal series, a double-elimination bracket with replays after their own match, finals). A sweep PR keeps
+  the sweep's rules (`clipCheckProblems`);
+- main's last commit is at least 10 minutes old (every merge deploys).
+
+It merges with `gh pr merge --merge --match-head-commit <head>` (never deleting the branch), then waits up to 20
+minutes for `/api/health` to serve the merge. A PR the gate stops waits, its reasons in the run's log, for the next
+run or the owner. `npx tsx scripts/autopilot-merge-check.ts <PR…>` prints the same gate for any PR, changing nothing;
+`--no-merge` runs the autopilot without merging.
 
 Logs: `.data/autopilot/runs/<time>.log` in the clone (every command and its output), `.data/autopilot/task.log` (the
 schedule's). What it remembers between runs: `.data/autopilot/memory.json`.
