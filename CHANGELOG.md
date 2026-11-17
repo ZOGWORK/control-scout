@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 7.6.4 — 2026-11-17
+## 7.6.5 — 2026-11-17
 
 Search › a team's conference place shows this season when the team is in one, going in from the sign-ups, and last season's only when not, saying so; "where was …" shows the last one played out.
 
@@ -26,6 +26,18 @@ Search › a team's conference place shows this season when the team is in one, 
 
 ### Fixed
 - Search (`server/api/answers/families/conference.ts`): with no season said, a team's conference place is the newest season it is in one (FIRST's field before the sign-ups within that season), so "where is 207 in their conference" is 207 going into Hudson/East Bergen Conference, 2026–27, where it showed 2025–26. A team in none this season gets last season's, with "No 2026–27 conference for 207 yet; showing 2025–26" first. The past tense with no season said ("where was", "did", "finished") is the newest conference played out. A season said, and a conference's own table, are unchanged. (#1743)
+
+## 7.6.4 — 2026-11-17
+
+Search › "WAC" reads as winning alliance captain, so "nj wac" lists New Jersey's Winning Alliance Captains.
+
+### Highlights
+- [fixes] "WAC" means winning alliance captain in search
+- [fixes] "NJ WACs" lists the state's captains
+- [fixes] "WAC" is never changed by spelling fixes
+
+### Fixed
+- Search (`server/api/answers/families/placeAwards.ts`, `server/api/spelling.ts`): "WAC" and "WACs", the usual short form, read as the words in full ("nj wac", "teams in nj that won wac"), and spelling leaves them as typed. Only the whole word counts ("wacky" doesn't). (#1725)
 
 ## 7.6.3 — 2026-11-17
 
