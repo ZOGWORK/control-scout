@@ -93,6 +93,9 @@ describe("the frame reader", () => {
     expect(overlayLabel("FiT-North I&S League Tournament  Match 1  DECODE")).toBe("M1");
     // USNMCMP 2025's recording opens on the field check: "Test Match 1", Test Team 1–4. None of the event's matches.
     expect(overlayLabel("New Mexico Championship  Test Match 1  -1 Test Team 1  -3 Test Team 3")).toBeNull();
+    // USNYEXHJQ 2025 M4 (27840 s): a QR banner for the match just played sits beside the one on screen.
+    expect(overlayLabel("John Jay Qualifier  Scan for detailed Playoff Match 3 results  Playoff Match 4  2:30")).toBe("M4");
+    expect(overlayLabel("Scan for detailed Playoff Match 3 results")).toBeNull();
     // USIAWESTLT 2025, 20 s before M3: a bracket whose "advances to" line is cut off at the top names no match.
     expect(overlayLabel("Playoff Match 5  M4 vs A5  M5 M3 vs A6  M8 M6 vs M5  M9 M7 vs M8  Easter Island & Chichen Itza")).toBeNull();
     // Two boxes' numbers aren't a bracket: "Playoff Match 3" still names M3.
