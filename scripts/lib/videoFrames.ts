@@ -31,6 +31,8 @@ export function playedMatches(
  * hour): every timed match more than a day outside the event's listed dates, and inside none of its videos' broadcasts.
  * Then the times say when the results were entered, not when the matches were played, and the event is read by its
  * frames alone. All or nothing: some matches off the listed dates is a day FIRST's dates leave out (#1703), not this.
+ * And only with a broadcast to judge by: a rescheduled event (all its matches really played off its listed dates) with
+ * just an upload, or videos whose facts haven't come, keeps its times.
  */
 export function enteredLater(
   rows: { time: string | null; timezone: string | null }[],
@@ -39,7 +41,7 @@ export function enteredLater(
   utcMs: (time: string, timezone: string | null) => number | null,
 ): boolean {
   const timed = rows.filter((r) => r.time != null);
-  if (!timed.length || !days?.start) return false;
+  if (!timed.length || !days?.start || !videos.some((v) => v.start != null)) return false;
   const DAY = 86400000;
   const from = Date.parse(days.start.slice(0, 10)) - DAY, to = Date.parse((days.end ?? days.start).slice(0, 10)) + 2 * DAY;
   return timed.every((r) => {
