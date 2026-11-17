@@ -21,6 +21,8 @@ Videos › a recording YouTube once called unavailable is looked at again every 
 
 ### Highlights
 - [fixes] Recordings made public again get their match clips back
+- [fixes] An unavailable video is looked at again every week
+- [fixes] Fewer events stuck at "video unavailable" in Clip coverage
 
 ### Fixed
 - A video YouTube's facts called unavailable (private, removed, embedding off) was never read again, so a recording its owner later made public again stayed hidden for good: no clips, no frame read, "video unavailable" on Owner › Clip coverage. USILCSSLT 2024's recording (44 matches) was marked unavailable on 2026-10-24 and plays again now. Such a video is now read again a week after its last read, like any other fact that can change (28 videos on the live site today, a handful of API units a week). (`server/videos/recordings.ts`) (#1648)
