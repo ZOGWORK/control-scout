@@ -34,6 +34,8 @@ describe("reading a conference ask", () => {
     ["4215 conference ranking this season", { team: 4215, season: null, now: true, last: false }],
     // The past tense with no season said: the latest one played out.
     ["where was 207 in their conference", { team: 207, season: null, past: true }],
+    ["where 4215 came in its conference", { team: 4215, season: null, past: true }],
+    ["where 207 ended in their conference", { team: 207, season: null, past: true }],
 
     ["East Bergen Conference rankings this season", { team: null, now: true }],
     ["East Bergen Conference rankings in 2027", { season: 2027, now: false }],

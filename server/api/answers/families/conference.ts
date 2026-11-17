@@ -44,7 +44,7 @@ const FRAME = new Set(["the", "a", "an", "of", "in", "for", "at", "on", "is", "a
   "team", "teams", "show", "me", "current", "currently", "now", "this", "season", "year", "ftc", "nj", "new", "jersey", "and", "s", "my", "our", "its", "their", "all",
   "rank", "ranks", "ranked", "ranking", "rankings", "standing", "standings", "leaderboard", "table", "top", "best", "strongest", "leader", "leaders", "leading", "first", "1st", "#1",
   "number", "one", "position", "place", "placing", "order", "by", "league", "rs", "won", "win", "wins", "winner", "winners", "champion", "champions", "took", "take", "takes", "tournament",
-  "please", "pls", "tell", "list", "see", "get", "stand", "stands", "sit", "sits", "finish", "finished", "go", "going", "into", "with", "to"]);
+  "please", "pls", "tell", "list", "see", "get", "stand", "stands", "sit", "sits", "finish", "finished", "ended", "came", "go", "going", "into", "with", "to"]);
 
 /** Lower case, punctuation out; a season's dash or slash ("2025-26", "2025/26") kept for the scope reader. */
 const norm = (s: string) => s.toLowerCase().replace(/['’]/g, "").replace(/(\d)\s*([-–/])\s*(\d)/g, "$1$2$3").replace(/[^a-z0-9#\s\-–/]/g, " ").replace(/(^|\s)[-–/]+|[-–/]+(?=\s|$)/g, " ").replace(/\s+/g, " ").trim();
