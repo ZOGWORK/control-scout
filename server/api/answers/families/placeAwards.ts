@@ -400,7 +400,10 @@ export async function placeAwardsSearch(q: string, ask: PlaceAwardsAsk, pages: S
   // said so on the card, as every no-season answer steps back (../../query/relax.ts). A season said is kept.
   const latest = ask.mode === "list" && !ask.place && !ask.worlds && ask.types.length === 1;
   if (ask.season != null || ask.stage || ask.mode === "most" || ask.mode === "fewest" || ask.mode === "any" || latest) return first;
+  // The step is from the current season, read first; before its first matches the default season is already an older
+  // one, whose card says so itself (seasonWhy), so no step is said.
   const season = defaultSeason();
+  if (season !== currentSeason()) return first;
   const what = ask.types.length ? ask.types.map((t) => (ask.captain && t === "Winner" ? `${CAPTAIN}s` : `${awardName(t)}s`)).join(" and ") : "awards";
   const steps = defaultSteps(season, ask.place ? ` in ${ask.place.name}` : "", what);
   const out = (await relaxed(first, steps, (s) => placeAwardsCard(q, { ...ask, season: s }, pages))) ?? first;

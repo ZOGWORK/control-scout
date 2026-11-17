@@ -17,12 +17,12 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 
 ## 7.3.1 — 2026-11-17
 
-Search › a place's winning alliance captains, an award's name cut off after "won", "top" straight before a state, and a team's conference place in the search box now answer; a place's award winners step back a season when the current one has none yet, and say so.
+Search › a place's winning alliance captains, an award's name cut off after "won", "top" straight before a state, and a team's conference place in the search box now answer; a place's award winners step back one season when the current one has none yet, and say so.
 
 ### Highlights
 - [fixes] "NJ winning alliance captains" lists each captain's win
 - [fixes] An award's name cut short after "won" reads as that award
-- [fixes] Award winners show the latest season that has any
+- [fixes] Award winners show last season when this one has none yet
 - [fixes] "Top" right before a state shows its top teams
 - [fixes] A team's conference place opens from the search box
 
