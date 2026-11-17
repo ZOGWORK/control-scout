@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.5.0 — 2026-11-17
+
+Videos › 124 more matches get clips, each start read off its recording's own frames (3 recordings of 1 event, 2022), read and checked by the clip autopilot.
+
+### Highlights
+- [fixes] 124 more matches get clips read off their recordings
+- [fixes] Each clip opens on a frame naming its match
+- [fixes] Read automatically once the event ended
+
+### Fixed
+- Videos: frame-read rows for ROBUQ1 (2022): 124 clips added, 6 matches given a reason from the frames. Every start passed the autopilot's checks (opening frame at 20/12/5/2/0 s naming the match, plausible, no live clip pulled without a frame naming another match). (`server/data/frameTimings/2022.ts`) (#1717)
+
 ## 7.4.9 — 2026-11-17
 
 Event videos › an event's recording can now be found on a day it played that FIRST's dates leave out, and KZCMP 2022's second day plays.
