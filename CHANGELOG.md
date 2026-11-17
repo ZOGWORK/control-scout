@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.3.5 — 2026-11-17
+
+Videos › four Michigan qualifiers from this season get match clips read off their own recordings: 189 matches, each clip opening on a frame that names its match and its event.
+
+### Highlights
+- [fixes] Chelsea, Hartland, Lake Orion and Rochester qualifiers get match clips
+- [fixes] 189 matches placed, each opening on its own match
+- [fixes] Every clip's frame names this event, not a neighbour's
+
+### Fixed
+- Videos (`server/data/frameTimings/2026.ts`): frame-read starts for USMICHQ (Chelsea, 40 of 55), USMIHOQ (Hartland, 41 of 48), USMIOTQ (Lake Orion, 55 of 55) and USMIRHQ (Rochester, 53 of 55). Each opening was read paused at its second and names its match, and its overlay names the event. The matches left out each carry their reason (a gap the reads disagree on, an overlay unreadable at the clip's start, the opening showing the match before). USIANON's recording can't be played in the embedded player (embedding is off), and its row says so (#1671).
+
 ## 7.3.4 — 2026-11-17
 
 Videos › the frame reader now reads CENTERSTAGE (2023) recordings, whose overlay it couldn't read before, so their matches can get clips.
