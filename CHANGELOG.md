@@ -15,6 +15,17 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.3.9 — 2026-11-17
+
+Videos › 136 more 2022 (POWERPLAY) match clips: every played match of the Indiana championship and both Kansas City league tournaments.
+
+### Highlights
+- [history] Indiana's 2022 championship gets a clip for every match
+- [history] Both Kansas City league tournaments get a clip for every match
+
+### Added
+- Videos: clips read off the recordings' frames (`server/data/frameTimings/2022.ts`): USINCMP 43 of 43 played matches, USMOKSKCELT 47 of 47, USMOKSKCWLT 46 of 46. Each placed start's clip opens on a paused frame whose overlay names that match (20, 12, 5, 2 or 0 s before it) and no other event. (#1694)
+
 ## 7.3.8 — 2026-11-17
 
 Videos › 172 more 2022 (POWERPLAY) match clips in 4 events, each opening on a frame that names its match.
