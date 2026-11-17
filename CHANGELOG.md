@@ -25,7 +25,7 @@ Videos › the frame reader no longer takes a playoff bar's "Winner → Match 7"
 - [fixes] More 2024 playoff openings confirmed from their own frame
 
 ### Fixed
-- FIRST DIVE's 2024 playoff bar shows the bracket's next steps beside the match on screen ("Winner → Match 7", "Loser → Match 5"). The frame reader counted those as matches named on screen: where tesseract lost the bar's own "Playoff Match 1" line (AUCMP 2024 at 16874 s), the frame read as Match 7, a later match; where it kept it, two numbers named no match and the opening went unread. Like "advances to", a Winner or Loser line's match is now never the one on screen. (`scripts/lib/videoFrames.ts`) (#PRNUM)
+- FIRST DIVE's 2024 playoff bar shows the bracket's next steps beside the match on screen ("Winner → Match 7", "Loser → Match 5"). The frame reader counted those as matches named on screen: where tesseract lost the bar's own "Playoff Match 1" line (AUCMP 2024 at 16874 s), the frame read as Match 7, a later match; where it kept it, two numbers named no match and the opening went unread. Like "advances to", a Winner or Loser line's match is now never the one on screen. (`scripts/lib/videoFrames.ts`) (#1659)
 
 ## 7.2.8 — 2026-11-17
 
