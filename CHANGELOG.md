@@ -25,7 +25,7 @@ Search › "ranked" beside the best team reads as the board's own order, so "bes
 - [fixes] "Ranked" after the best team no longer stops a search
 
 ### Fixed
-- Search (`src/shared/query/intents.ts`, `server/api/searchAsks.ts`): "ranked" read as a rank to sort by, which the best-team board doesn't take, so "best romanian team ranked" read nothing. The best-team board now takes it as its own order (a team's rank is its OPR rank), and the region-rankings reader drops it after "best", "top" or "strongest" and at the end, so "best ranked team in nj" stays New Jersey's rankings. (#PRNUM)
+- Search (`src/shared/query/intents.ts`, `server/api/searchAsks.ts`): "ranked" read as a rank to sort by, which the best-team board doesn't take, so "best romanian team ranked" read nothing. The best-team board now takes it as its own order (a team's rank is its OPR rank), and the region-rankings reader drops it after "best", "top" or "strongest" and at the end, so "best ranked team in nj" stays New Jersey's rankings. (#1834)
 
 ## 7.6.6 — 2026-11-17
 
