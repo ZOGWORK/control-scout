@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.1.7 — 2026-11-16
+
+Search › New Jersey conference questions answered directly: a team's rank in its conference, a conference's table, who won it, with the same numbers as the league page.
+
+### Highlights
+- [rankings] "4215 conference ranking" answers with its rank by league standing
+- [rankings] "East Bergen Conference rankings" shows its table and the next one
+- [fixes] "Who won … Conference" comes from the awards, not the top seed
+
+### Added
+- Search: a New Jersey conference asked any way ("where does 4215 rank in East Bergen Conference", "top teams in East Bergen Conference", "who won East Bergen Conference") answers from the league page's conference table: the team's place by league standing beside its league rank, RS, TBP, matches and meets, labelled league meets only, with the tournament's own rank said apart; a conference's latest finished table with its next date and sign-ups; its winner from FIRST's awards; and "Which conference?" when none is named, never a guess. (`server/api/answers/families/conference.ts`) (#1637)
+
 ## 7.1.6 — 2026-11-16
 
 Teams, events and Leagues › ways into New Jersey's conference rankings: a team's rank in its conference, a conference tournament's link to its table, and View Conference Rankings on the New Jersey leagues.
