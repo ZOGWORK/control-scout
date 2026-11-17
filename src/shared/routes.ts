@@ -7,7 +7,7 @@
 /** A lazily loaded page module under src/pages (the file name without .tsx). */
 export type PageModule =
   | "TeamPage" | "EventsPage" | "RecordsPage" | "RankingsPage" | "EventPage" | "PredictPage" | "ComparePage" | "MyTeamPage" | "MyTeamsPage"
-  | "ShortlistPage" | "ScoutPage" | "DownloadPage" | "SettingsPage" | "MethodologyPage" | "SearchDocsPage" | "PrivacyPage" | "TermsPage" | "ContactPage" | "DonatePage" | "StatusPage" | "SupportersPage" | "FaqPage" | "RulesPage" | "MatchReportPage" | "PowerRankingsPage" | "EventDisplayPage" | "EventCodeRedirect" | "DigestUnsubscribedPage" | "BundlePage" | "SearchPage" | "RelatedSearchesPage" | "LeaguePage" | "RegionsPage" | "RegionRankingsPage" | "LeaguesPage" | "TeamHighlightsPage" | "TeamRecordSplitPage" | "EventHighlightsPage" | "ContributorPage" | "GetVerifiedPage" | "VerifyVideoPage" | "WeekendPage" | "NotFound";
+  | "ShortlistPage" | "ScoutPage" | "DownloadPage" | "SettingsPage" | "MethodologyPage" | "SearchDocsPage" | "PrivacyPage" | "TermsPage" | "ContactPage" | "DonatePage" | "StatusPage" | "SupportersPage" | "FaqPage" | "RulesPage" | "MatchReportPage" | "PowerRankingsPage" | "EventDisplayPage" | "EventCodeRedirect" | "DigestUnsubscribedPage" | "BundlePage" | "SearchPage" | "RelatedSearchesPage" | "LeaguePage" | "ConferencePage" | "RegionsPage" | "RegionRankingsPage" | "LeaguesPage" | "TeamHighlightsPage" | "TeamRecordSplitPage" | "EventHighlightsPage" | "ContributorPage" | "GetVerifiedPage" | "VerifyVideoPage" | "WeekendPage" | "NotFound";
 
 // React Router matches case-insensitively, a trailing slash included: so do these.
 const ROUTES: [RegExp, PageModule | null][] = [
@@ -57,6 +57,7 @@ const ROUTES: [RegExp, PageModule | null][] = [
   [/^\/related-searches\/?$/i, "RelatedSearchesPage"],
   [/^\/leagues\/?$/i, "LeaguesPage"],
   [/^\/leagues\/[^/]+\/[^/]+\/[^/]+\/?$/i, "LeaguePage"],
+  [/^\/leagues\/[^/]+\/[^/]+\/[^/]+\/conferences\/?$/i, "ConferencePage"],
   [/^\/contributors\/[^/]+\/?$/i, "ContributorPage"],
   [/^\/get-verified\/?$/i, "GetVerifiedPage"],
   [/^\/verify-video\/?$/i, "VerifyVideoPage"],
