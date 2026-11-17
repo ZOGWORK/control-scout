@@ -217,7 +217,9 @@ export async function conferenceAskAnswer(ask: ConferenceAsk, current: number): 
     let pick: { season: number; code: string; registered: boolean; waitlist: boolean } | null = null;
     // No season said: the newest season the team is in a conference (this one when it is, even going in from the
     // sign-ups), else the one before, said so below. In the past tense, the newest one played out.
-    const playedOut = async (s: number, code: string) => !ask.past || (await conferenceByEvent(s, code))?.status === "finished";
+    // None played out yet (a rookie in its first one): the newest it is in, never "on no list".
+    for (const strict of ask.past ? [true, false] : [false]) {
+    const playedOut = async (s: number, code: string) => !strict || (await conferenceByEvent(s, code))?.status === "finished";
     if (hits.length) {
       // That conference: the season asked, else its newest edition the team is in, FIRST's field before the sign-ups.
       const named = [...hits].sort((a, b) => b.season - a.season).filter((c) => season == null || c.season === season);
@@ -232,6 +234,8 @@ export async function conferenceAskAnswer(ask: ConferenceAsk, current: number): 
     } else {
       const seasons = season != null ? [season] : [...new Set(list.map((c) => c.season))].sort((a, b) => b - a);
       for (const s of seasons) { const ev = await teamConferenceEvent(s, team); if (ev && await playedOut(s, ev.code)) { pick = { season: s, ...ev }; break; } }
+    }
+    if (pick) break;
     }
     // Re-read for the table: a sync between the two reads (FIRST's field replacing the sign-ups) can leave the team off
     // it, which is the not-on-the-list answer, never a crash.

@@ -172,6 +172,17 @@ describe("answering a conference ask", () => {
     }
   });
 
+  it("answers the past tense with the newest conference when none has been played out yet, never \"on no list\"", async () => {
+    // A rookie registered only for this season's tournament.
+    await run("UPDATE event_provisional SET teams = ? WHERE season = 2026 AND code = 'USNJNELT2'", [JSON.stringify([
+      { team: 4215, name: "Hypnotic Robotics", status: "registered", session: null }, { team: 33333, name: "Rookies", status: "registered", session: null }])]);
+    await syncConferences(2026, { now: new Date("2026-11-16T12:00:00Z") });
+    clearAllCaches();
+    const a = (await ask("where was 33333 in their conference"))!;
+    expect(a.none).toBeUndefined();
+    expect(a.title).toBe("33333 going into Hudson/East Bergen Conference · 2026–27");
+  });
+
   it("answers the season asked, going in from the sign-ups when FIRST has no field yet", async () => {
     const a = (await ask("4215 conference ranking 2026-27"))!;
     expect(a.title).toBe("4215 going into Hudson/East Bergen Conference · 2026–27");
