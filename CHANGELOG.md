@@ -22,6 +22,7 @@ Videos › 37 matches from two 2023 Texas league meets get a clip, each opening 
 ### Highlights
 - [history] 37 more 2023 Texas league matches as clips
 - [fixes] Each opens on a frame naming its match
+- [fixes] GEMS Q1 was played before its recording starts
 
 ### Fixed
 - Videos (`server/data/frameTimings/2023.ts`): FiT-Central GEMS League Meet 3 (26 of 27; Q1 was played before the recording starts) and FiT-North E-League Meet 3 (11 of 11) get frame-checked starts. Every opening frame names its match and its own meet. (#1759)
