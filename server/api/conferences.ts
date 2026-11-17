@@ -4,8 +4,9 @@
 // FTC New Jersey's sign-ups (labelled registered, never the field); the numbers from FIRST's league table as stored:
 // today's before the tournament, the week-before snapshot after it. Scout computes none of FIRST's numbers.
 import { all } from "../db.js";
-import { CONFERENCE_REGION, conferenceHref, type Conference, type ConferenceRow, type ConferenceRs, type LeagueConferences } from "../../src/shared/conferences.js";
-import { leagueStandings, storedLeague } from "./leagues.js";
+import { CONFERENCE_REGION, conferenceHref, type Conference, type ConferenceRow, type ConferenceRs, type LeagueConferences, type TeamConference, type TeamConferenceInfo } from "../../src/shared/conferences.js";
+import { leagueStandings, storedLeague, teamLeagueStanding } from "./leagues.js";
+import { get } from "../db.js";
 import { liveList } from "./rankings.js";
 import { provisionalFor } from "../data/provisional.js";
 import type { LeagueStandings } from "../../src/shared/leagues.js";
@@ -122,9 +123,6 @@ export async function conferenceByEvent(season: number, code: string, o: { now?:
 }
 
 /** A team's conference in a season: the conference tournament FIRST lists it in (its latest), with its place there. */
-export interface TeamConference { season: number; region: string; league: string; code: string; name: string; slug: string; /** of: the conference's teams ("4th of 21"); ranked: those with a league standing. */
-  rank: number | null; of: number; ranked: number; leagueRank: number | null; leagueOf: number; href: string }
-
 export async function teamConference(season: number, team: number, o: { now?: string } = {}): Promise<TeamConference | null> {
   const [c] = await all<{ code: string }>(
     `SELECT c.code FROM event_conferences c JOIN event_teams et ON et.season = c.season AND et.code = c.code AND et.team = ? JOIN events e ON e.season = c.season AND e.code = c.code
@@ -138,5 +136,20 @@ export async function teamConference(season: number, team: number, o: { now?: st
     rank: r?.rank ?? null, of: conf.rows.length, ranked: conf.rows.filter((x) => x.rank != null).length,
     leagueRank: r?.leagueRank ?? null, leagueOf: conf.leagueOf,
     href: conferenceHref(season, conf.region, conf.league, { slug: conf.slug, team }),
+  };
+}
+
+/** What the conference button needs about a team: whether it's based in New Jersey, its league and its conference. */
+export async function teamConferenceInfo(team: number, season: number): Promise<TeamConferenceInfo> {
+  const [home, league, conference] = await Promise.all([
+    get<{ state: string | null; country: string | null }>("SELECT state, country FROM teams WHERE number = ?", [team]),
+    teamLeagueStanding(season, team),
+    teamConference(season, team),
+  ]);
+  return {
+    team, season,
+    nj: home ? (home.state ?? "").toUpperCase() === "NJ" && /^(USA|United States)/i.test(home.country ?? "USA") : null,
+    league: league ? { region: league.region, code: league.code, name: league.name } : null,
+    conference,
   };
 }
