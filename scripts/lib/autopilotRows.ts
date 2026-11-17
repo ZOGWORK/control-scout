@@ -68,7 +68,9 @@ export function rowProblems(next: Row, live?: Row, order?: string[]): string[] {
     for (const [l, t] of Object.entries(playableStarts(live))) {
       const now = next.starts[l];
       if (now != null && Math.abs(now - t) <= SAME_S) continue;
-      if (!namesAnother(l, next.review?.[l]?.why)) out.push(`${l}: a live clip ${now == null ? "dropped" : "moved"} without a frame naming another match`);
+      // Pulled at its own live second: the frame read there, not where a re-read placed it.
+      const pull = next.review?.[l];
+      if (!pull || Math.abs(pull.t - t) > SAME_S || !namesAnother(l, pull.why)) out.push(`${l}: a live clip ${now == null ? "dropped" : "moved"} without a frame naming another match`);
     }
   }
   for (const [l, e] of Object.entries(next.earlyStart ?? {})) if (!(e.previousEnds > e.t)) out.push(`${l}: early start ${e.t} isn't before the previous match's end ${e.previousEnds}`);
