@@ -302,12 +302,47 @@ function readAt(page: Page, t: number, labelOnly = false): Promise<Read> {
   ]);
 }
 
+/** Near-black frames: a player that plays but shows no picture (the page's own layer hiding it, 2026-11-17) reads
+ *  nothing anywhere, and a run on it would write every match "no frame read". Every SHADE_EVERY-th read's screenshot
+ *  is checked; once DARK_MIN are checked and more than DARK_SHARE of them are near-black (mean brightness under
+ *  DARK_MEAN of 255), nothing is written (stopIfDark): the run stops and says so. */
+const SHADE_EVERY = 6, DARK_MIN = 12, DARK_SHARE = 0.5, DARK_MEAN = 18;
+let reads = 0, shadeChecked = 0, shadeDark = 0;
+async function nearBlack(page: Page, png: Buffer): Promise<boolean> {
+  return page.evaluate(async ({ b64, under }) => {
+    const img = new Image();
+    img.src = `data:image/png;base64,${b64}`;
+    await img.decode();
+    const c = document.createElement("canvas");
+    c.width = 160; c.height = 90;
+    const g = c.getContext("2d")!;
+    g.drawImage(img, 0, 0, c.width, c.height);
+    const d = g.getImageData(0, 0, c.width, c.height).data;
+    let sum = 0;
+    for (let i = 0; i < d.length; i += 4) sum += 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+    return sum / (c.width * c.height) < under;
+  }, { b64: png.toString("base64"), under: DARK_MEAN });
+}
+/** Most frames near-black: write nothing, say so (the autopilot stops its whole run on this line), exit. */
+function stopIfDark(): void {
+  if (shadeChecked < DARK_MIN || shadeDark / shadeChecked <= DARK_SHARE) return;
+  const line = `NEAR-BLACK FRAMES: ${shadeDark} of ${shadeChecked} sampled reads showed no picture; nothing written`;
+  console.log(line);
+  console.error(line);
+  process.exit(3);
+}
+
 /** labelOnly: the overlay's match alone, not its timer (a clip opening's check). */
 async function readAtOnce(page: Page, t: number, labelOnly = false): Promise<Read> {
   if (ocrBroken) throw new Error(ocrBroken);
   await seek(page, Math.max(0, t), labelOnly);
   const at = await now(page);
-  const text = (await worker.recognize(await page.screenshot())).data.text as string;
+  const shot = await page.screenshot();
+  if (reads++ % SHADE_EVERY === 0) {
+    const dark = await nearBlack(page, shot).catch(() => null);
+    if (dark != null) { shadeChecked++; if (dark) shadeDark++; }
+  }
+  const text = (await worker.recognize(shot)).data.text as string;
   const ctx = divisions.get(page);
   const { label, division, event } = await frameLabel(page, text, ctx);
   // Another division's match on the shared stream, or another event's beside its name: not this event's, whatever its number.
@@ -800,6 +835,7 @@ const report: string[] = [];
  *  still can't be written the next event's save writes everything kept. */
 let unsaved = false;
 function save(): void {
+  stopIfDark();
   if (CHECK || DRY) return;
   const file = FRAMES_FILE;
   for (let tries = 1; ; tries++) {
@@ -839,6 +875,7 @@ const NO_OVERLAY_AFTER = 5;
 
 /** Write the sweep's rows (as save() writes the timings: rows this run didn't touch are taken from the file). */
 function saveClips(): void {
+  stopIfDark();
   if (DRY) return;
   const text = readFileSync(CLIPS_FILE, "utf8");
   const onDisk = new Map(dataRows<ClipCheck>(text).map((c) => [`${c.videoId}|${c.code}`, c]));
@@ -1143,6 +1180,8 @@ if (!CHECK && !DRY) {
   if (unsaved) { console.error(`${FRAMES_FILE} could not be written: this run's timings are lost`); process.exitCode = 1; }
   else console.log(`wrote ${kept.size} videos to ${FRAMES_FILE}`);
 }
+// Before the report: a run on a black player writes nothing at all, its report included.
+stopIfDark();
 mkdirSync(".data", { recursive: true });
 writeFileSync(".data/video-frames-report.txt", report.join("\n"));
 process.exit(process.exitCode ?? 0);
