@@ -3,7 +3,7 @@
 // clip moved or dropped, a start that wasn't asked for, an edge read far from the recording's edge) stops the merge,
 // and the PR waits for the owner's queue as before. Used by scripts/clip-autopilot.ts and
 // scripts/autopilot-merge-check.ts (the same check on any PR, by hand).
-import { EDGE_S, type FrameTiming } from "../../server/data/frameTimings.js";
+import { EDGE_S, playableStarts, type FrameTiming } from "../../server/data/frameTimings.js";
 import type { ClipCheck } from "../../server/data/clipChecks.js";
 import { OPEN_LEADS } from "./videoFrames.js";
 import { rowKey, type Keyed } from "./autopilotRows.js";
@@ -72,6 +72,12 @@ export function frameMergeProblems(season: number, next: FrameTiming[], base: Fr
     for (const [l, t] of Object.entries(was?.starts ?? {})) {
       if (r.starts[l] == null) out.push(`${key}: live ${l} dropped`);
       else if (Math.abs(r.starts[l] - t) > MOVE_S) out.push(`${key}: live ${l} moved ${t} → ${r.starts[l]}`);
+    }
+    // Every clip the site plays now still plays: once a row has any openings, a start without one stops playing
+    // (playableStarts), so a row gaining its first openings can unship the rest of its clips without moving a start.
+    if (was) {
+      const after = playableStarts(r);
+      for (const l of Object.keys(playableStarts(was))) if (after[l] == null && r.starts[l] != null) out.push(`${key}: live clip ${l} would stop playing`);
     }
     // A start the live row didn't have comes from one it lacked or held back: missing, or for review. A new row has none.
     if (was) for (const l of Object.keys(r.starts)) if (was.starts[l] == null && was.missing?.[l] == null && was.review?.[l] == null) out.push(`${key}: new start ${l} wasn't missing or for review`);
