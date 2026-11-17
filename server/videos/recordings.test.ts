@@ -347,6 +347,13 @@ describe("when a video is read again", () => {
     // 26 min short: read (it was left out under the old half-hour mark, with no early start either).
     expect(due({ ...cut, length: 38000 }, t("2026-05-05T01:00:00Z"))).toBe(true);
   });
+  it("with a key, a video that plays weekly: one deleted or blocked everywhere since is seen within a week", () => {
+    // Live: five recordings read "ok" once are blocked in every country now (the watch page: "Video unavailable").
+    const settled = meta({ start: "2026-04-01T12:00:00Z", end: "2026-04-01T20:00:00Z", length: 28800 });
+    expect(due(settled, t("2026-05-08T23:00:00Z"), true)).toBe(false);
+    expect(due(settled, t("2026-05-09T01:00:00Z"), true)).toBe(true);
+    expect(due(settled, t("2027-01-01T00:00:00Z"))).toBe(false);
+  });
 });
 
 describe("FIRST's link to a YouTube video", () => {
