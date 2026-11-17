@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.2.7 — 2026-11-17
+
+Event videos › a recording blocked in every country no longer gets clips, and when an event's video goes dead, the channel's own copy of that day takes its place.
+
+### Highlights
+- [fixes] No more match clips that open a video blocked everywhere
+- [fixes] A dead event video is replaced by the channel's own copy of that day
+- [history] KZALOS1 gets its 2026-06-30 Almaty Tech Cup recording
+
+### Fixed
+- Event videos: a video YouTube blocks in 50 countries or more is unavailable, as the channel audit already treated it; such a video says "Video unavailable" to everyone, so its clips didn't play. With the API key, a video that plays is read again weekly, so one deleted or blocked since loses its clips within a week. An upload the watcher logged as a duplicate of what its event played that day is decided again by every channel audit: once nothing plays that day (the other video went private, was deleted or came off the event) and every check passes, it is the day's recording. On a copy of the live database: 135 clips on 5 recordings blocked in every country come off; USAZGLQ1, AUINQ and FPECAR are fully clipped once their facts are read again; the audit adds KZALOS1's "Прямая трансляция Almaty Tech Cup 2026" for 2026-06-30, with 0 in review and 0 open findings. (`server/videos/youtube.ts`, `server/videos/recordings.ts`, `server/videos/officialAudit.ts`, `server/videos/officialWatch.ts`) (#1653)
+
 ## 7.2.6 — 2026-11-17
 
 Videos › 54 more matches in 7 recordings are settled as played before their recording starts, or cut by it: each recording's first frame names a later match, or one already under way.
