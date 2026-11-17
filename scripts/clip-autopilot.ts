@@ -185,6 +185,21 @@ function openPr(o: { file: string; rows: Keyed[]; branch: string; title: string;
     log(`opened ${url} (${version}): ${o.title}`);
   } finally { git("switch", "--quiet", "--detach", "origin/main"); }
 }
+/** Files a read may have written, as they were before it: put back if the run stops. */
+const restore = new Map<string, string>();
+/** The frame reader. A read whose frames came up near-black (a player showing no picture) wrote nothing; the run stops
+ *  there, every file put back as it was, and opens no PR: rows read off a black player would all say "no frame read". */
+function reader(args: string[], timeoutMs: number): { code: number; out: string } {
+  const r = tsx(args, timeoutMs);
+  const dark = r.out.split("\n").find((l) => l.startsWith("NEAR-BLACK FRAMES"));
+  if (dark) {
+    for (const [file, text] of restore) writeFileSync(file, text);
+    log(`stopped: ${dark}. The video player shows no picture; nothing read, no PR opened. Fix the reader, then run again.`);
+    writeFileSync(MEMORY_FILE, JSON.stringify(memory, null, 1));
+    process.exit(3);
+  }
+  return r;
+}
 const branchStamp = STAMP.slice(0, 16).replace(/[-T]/g, "");
 const today = new Date().toISOString().slice(0, 10);
 
@@ -196,6 +211,7 @@ for (const [season, events] of bySeason) {
   if (!existsSync(file)) { log(`${season}: no ${file} to write (add the season's file first)`); continue; }
   const before = readFileSync(file, "utf8"), liveFile = join(DIR, `live-${season}.ts`);
   writeFileSync(liveFile, mainText(file));
+  restore.set(file, before);
   const codes = events.map((e) => e.code);
   // An event with rows already (read before it finished, or one of its videos read) is read again whole (--all): the
   // reader otherwise skips an event whose videos all have rows. The others read what isn't read yet.
@@ -204,8 +220,8 @@ for (const [season, events] of bySeason) {
   // --live keeps the clips main plays from being dropped on a frame that names nothing; a season with no rows yet has
   // none to keep (and the reader refuses an empty --live file).
   const base = ["scripts/video-frames.ts", "--season", String(season), ...(fileRows(mainText(file)).length ? ["--live", liveFile] : []), "--lanes", "2"];
-  for (const [list, extra] of [[fresh, []], [again, ["--all"]]] as const) if (list.length) log(`${season} read ${list.join(",")}: exit ${tsx([...base, "--codes", list.join(","), ...extra], 6 * 3600_000).code}`);
-  for (const pass of ["--verify", "--bounds"]) log(`${season} ${pass}: exit ${tsx([...base, "--codes", codes.join(","), pass], 3 * 3600_000).code}`);
+  for (const [list, extra] of [[fresh, []], [again, ["--all"]]] as const) if (list.length) log(`${season} read ${list.join(",")}: exit ${reader([...base, "--codes", list.join(","), ...extra], 6 * 3600_000).code}`);
+  for (const pass of ["--verify", "--bounds"]) log(`${season} ${pass}: exit ${reader([...base, "--codes", codes.join(","), pass], 3 * 3600_000).code}`);
   const after = readFileSync(file, "utf8");
   writeFileSync(file, before);
   const live = new Map(fileRows(mainText(file)).map((r) => [rowKey(r), r]));
@@ -244,12 +260,13 @@ for (const [season, events] of bySeason) {
 // --sweep events a run, newest season first; events whose clips are all checked are passed over without a read.
 if (SWEEP && !open.some((p) => p.file === CLIPS_FILE)) {
   const before = readFileSync(CLIPS_FILE, "utf8");
+  restore.set(CLIPS_FILE, before);
   let budget = SWEEP;
   const seasons = (await all<{ season: number }>("SELECT DISTINCT season FROM events ORDER BY season DESC")).map((r) => Number(r.season));
   for (const season of seasons) {
     if (budget <= 0) break;
     if (!existsSync(seasonFile(season))) continue;
-    const r = tsx(["scripts/video-frames.ts", "--season", String(season), "--clips", "--limit", String(budget), "--lanes", "2"], 4 * 3600_000);
+    const r = reader(["scripts/video-frames.ts", "--season", String(season), "--clips", "--limit", String(budget), "--lanes", "2"], 4 * 3600_000);
     const checked = (r.out.match(/^\S+: \d+ clock clips to check by their first frame$/gm) ?? []).length;
     log(`${season} sweep: ${checked} events checked, exit ${r.code}`);
     budget -= checked;
