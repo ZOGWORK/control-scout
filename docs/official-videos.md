@@ -259,7 +259,9 @@ minutes and starts a run only when the last one is 6 hours old, so a deploy does
   the last run. Every write of the watcher's takes the data writer lease (`server/data/lock.ts`), the same one the sync
   and the live lane share; YouTube's reads happen outside it. When the sync holds it for 3 minutes or more the run
   doesn't start, or stops as "database busy", and that run doesn't count toward the 6-hour wait, so the next
-  half-hourly check runs it again. The checks start 17.5 minutes after boot, midway between the sync's 5-minute ticks.
+  half-hourly check runs it again. The checks start 7.5 minutes after boot, midway between the sync's 5-minute ticks and
+  before the startup sync. Every deploy restarts the server and starts the wait over, so the first check comes early:
+  at 17.5 minutes, a morning of deploys every 10 to 15 minutes (17 Nov) kept a run due at 10:27 from ever starting.
 
 ## The channel audit
 

@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 7.4.2 — 2026-11-17
+## 7.4.8 — 2026-11-17
 
 Tests › a check on the welcome email failed now and then for no reason, holding up unrelated changes; it no longer does.
 
@@ -26,6 +26,85 @@ Tests › a check on the welcome email failed now and then for no reason, holdin
 
 ### Fixed
 - Tests (`server/digest/welcome.test.ts`): the welcome email's "no weekday or clock time" check read the whole text, unsubscribe link included, and the link's random token sometimes held a run like `9AM` (`DjPos9AMRs…`), failing CI on unrelated changes. The check now leaves links out and matches days and times as whole words. A real "9 AM" or "Monday" in the email still fails it (#1674).
+
+## 7.4.7 — 2026-11-17
+
+Videos › the frame reader no longer takes a season logo misread for another event's name, which turned every match of Kazakhstan's 2022 championship away.
+
+### Highlights
+- [fixes] A misread logo beside the match is no event's name
+- [fixes] A match's own total beats a misread name
+- [fixes] No clip changes
+
+### Fixed
+- Videos (the frame reader, `scripts/lib/videoFrames.ts`): POWERPLAY's (2022) "FIRST ENERGIZE" logo reads "FIRST ZN=RGIZ= swe" on a playing frame, two words beside the match that aren't the event's, so `overlayEvent` called every frame of KZCMP 2022 another event's overlay and read none. A name now counts as another event's only with two telling words of four letters or more, a name read as another's never overrules an "of M" that is this event's own qualification total, and ENERGIZE is a season logo word. (#1697)
+
+## 7.4.6 — 2026-11-17
+
+Videos › matches FIRST gives no real start for, with no time at all (the Chicago Robotics Invitational's) or only a schedule's, can now get clips read off the video's own frames.
+
+### Highlights
+- [fixes] Matches posted with no start time can get clips
+- [fixes] 2019's scheduled-only matches can get frame clips too
+- [fixes] A frame start out of play order is never served
+
+### Fixed
+- Videos (`server/videos/recordings.ts`, `src/shared/recording.ts`): a start read off a recording's frames was dropped for any match without a real start (a schedule's whole minute, or no time at all), so no frame row could ever give those matches a clip. Their frame starts now play, ordered among the event's matches by their scheduled time, else after the timed ones by label (`labelRank`: qualifications by number, then playoffs, a best-of-three's games turn about, then finals). A start out of that order is still left out (`inOrder`). The event page, a match's own page and the season's With video list all agree.
+- Videos (the frame reader, `scripts/video-frames.ts`, `scripts/lib/videoFrames.ts`): matches with no time at all were never read (the reader asked only for timed ones). They're now read like scheduled ones, by their frames alone, in any of the event's videos (`playedMatches`). (#1693)
+
+## 7.4.5 — 2026-11-17
+
+Event videos › the official-video watcher and its channel audit now run on time on a day of many deploys.
+
+### Highlights
+- [fixes] The video watcher runs on days with many deploys
+- [fixes] Its check comes 7.5 minutes after a restart
+- [fixes] The channel audit follows it, as before
+
+### Fixed
+- Official videos: the watcher's first check after boot came 17.5 minutes in, and every deploy restarts the server. On 17 Nov, with deploys every 4 to 27 minutes, the run due at 10:27 never started, nor the channel audit after it. The first check now comes 7.5 minutes after boot, still midway between the sync's 5-minute ticks. (`server/videos/officialWatch.ts`) (#1687)
+
+## 7.4.4 — 2026-11-17
+
+Event videos › Scout now keeps whether each video's owner lets it play on other sites, the first step to clips of such videos opening on YouTube.
+
+### Highlights
+- [fixes] Scout knows which event videos play on YouTube only
+- [fixes] 20 official recordings with embedding off are found
+- [fixes] Checked again once with each video's other facts
+
+### Fixed
+- Event videos: whether a video's owner lets it play on other sites is read with its other facts (YouTube's `status.embeddable`, a watch page's `playableInEmbed`: false from any page, true only from one that plays) and kept (migration 95). A video read before that was kept is read once more with the API key. 20 of 1,771 linked videos have embedding off; their clips can't play in the app's player, and the next releases open them on YouTube instead. (`server/videos/youtube.ts`, `server/videos/recordings.ts`) (#1665)
+
+## 7.4.3 — 2026-11-17
+
+Search › a place, its leagues and New Jersey's conferences answer directly: "nj", "nj leagues", "nj conferences", "East Bergen".
+
+### Highlights
+- [rankings] "nj" links New Jersey's rankings, leagues and conferences
+- [rankings] "nj leagues" lists New Jersey's leagues
+- [rankings] "nj conferences" lists all eight, with each one's winner
+- [rankings] A conference's name alone opens its rankings
+- [fixes] "new york city" searches find NYC's events
+
+### Search
+- A place alone ("nj", "New Jersey", "USA:NJ") keeps "All events in New Jersey" first and links the place's rankings, its leagues and, for New Jersey, its conferences; "nj rankings", "nj leagues" and "nj conferences" link the one they ask for first (`src/shared/placePages.ts`, #1678).
+- "nj leagues" / "leagues in new jersey": the place's leagues listed, each to its standings; the Leagues page takes `?q=` to open filtered.
+- "nj conferences" / "new jersey conference": every conference of the latest season played out, each with its winner, then the next season's, coming up.
+- A conference's name alone or with its rankings ("East Bergen", "far north rankings") opens its table, unless a team or league goes by those words; conference answers now list their tournament and team as cards.
+- A city FIRST runs as its own region, said in full ("new york city championship"), reads as its events' short form (NYC).
+
+## 7.4.2 — 2026-11-17
+
+Rankings › a conference page opened for a team starts at its top: header, note and movers first, the team's row highlighted below.
+
+### Highlights
+- [rankings] Conference pages open at the top, not scrolled to the table
+- [rankings] The team you came from stays highlighted in the table
+- [fixes] Climbers, fallers and the winner are seen before the table
+
+### Fixes
+- Conference rankings (`src/components/ConferenceSection.tsx`): a link naming a team (`?team=4215`) no longer scrolls the page down to its row, which put the table first and the header, season note, movers and winner out of view; the row is on the page it opens on and highlighted, as before (#1682).
 
 ## 7.4.1 — 2026-11-17
 

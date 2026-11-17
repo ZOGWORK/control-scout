@@ -94,7 +94,7 @@ export function regionOf(ws: string[]): Region | null {
   if (!text) return null;
   if (/^[a-z]{2}$/i.test(text) && !/^[A-Z]{2}$/.test(text) && WORD_CODES.has(text.toLowerCase())) return null;
   const f = text.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
-  return findRegions(text).find((r) => r.name.toLowerCase() === f || (f.length === 2 && r.state.toLowerCase() === f && (r.country === "USA" || r.country === "Canada"))) ?? (f.length > 2 ? regionNamed(text) : null) ?? australianCode(text);
+  return findRegions(text).find((r) => r.name.toLowerCase() === f || r.key.toLowerCase() === f || (f.length === 2 && r.state.toLowerCase() === f && (r.country === "USA" || r.country === "Canada"))) ?? (f.length > 2 ? regionNamed(text) : null) ?? australianCode(text);
 }
 
 /** A part of a region said with a direction ("north jersey", "northern california", "western new york"): that whole

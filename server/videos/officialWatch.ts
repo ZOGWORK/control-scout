@@ -16,10 +16,12 @@ import { LockBusy, isBusy, lockHolder, withDataLock } from "../data/lock.js";
 import { bestGuess, matchVideo, parseRule, videoWindow, type ChannelRule, type Verdict, type WatchEvent, type WatchVideo } from "./officialMatch.js";
 
 export const WATCH_EVERY_MS = 6 * 3600_000;
-/** The half-hourly check's first one after boot: 7.5 minutes after the startup sync (server/warm.ts STARTUP_CYCLE_MS),
+/** The half-hourly check's first one after boot: 2.5 minutes before the startup sync (server/warm.ts STARTUP_CYCLE_MS),
  * so every check lands midway between the sync's 5-minute ticks, never as an event day's 15-minute sync starts and
- * takes the writer lease. */
-export const WATCH_FIRST_MS = STARTUP_CYCLE_MS + 7.5 * 60_000;
+ * takes the writer lease. Early, because every deploy restarts the server and starts the wait over: on 17 Nov, with a
+ * deploy every 4 to 27 minutes, the first check (then 17.5 minutes after boot) came after no run for six hours, and
+ * a run due at 10:27 never started. At 7.5 minutes, an overdue run starts after nearly every deploy. */
+export const WATCH_FIRST_MS = STARTUP_CYCLE_MS - 2.5 * 60_000;
 export const WATCH_CHECK_MS = 30 * 60_000;
 const RUN_STALE_MS = 25 * 60_000;
 const NEVER_FINISHED = "database busy or a restart: the run never finished, tried again within 30 minutes";
