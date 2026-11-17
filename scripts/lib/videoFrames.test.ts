@@ -1,7 +1,7 @@
 // The pure parts of the frame reader (scripts/video-frames.ts): the overlay's match, the timer's elapsed time, and
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
-import { dataRows, divisionOf, elapsed, overlayDivision, leadIn, LEAD_IN_S, judge, NOTHING_READ, autoLeadsTo, overlayLabel, sameMatch, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, type M } from "./videoFrames";
+import { dataRows, divisionOf, elapsed, overlayDivision, leadIn, LEAD_IN_S, judge, NOTHING_READ, autoLeadsTo, overlayLabel, eventLabel, sameMatch, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, type M } from "./videoFrames";
 
 describe("the frame reader", () => {
   it("names the match the overlay shows, and nothing else", () => {
@@ -42,6 +42,12 @@ describe("the frame reader", () => {
     expect(sameMatch("M6", "M6")).toBe(true);
     expect(sameMatch("Q12", "Q12")).toBe(true);
     expect(sameMatch("Q1", "Q12")).toBe(false);
+    // A recording's edge stores the event's own name, so outsideRecording finds it in the event's order.
+    expect(eventLabel("M2-1")).toBe("M2");
+    expect(eventLabel("M1-2")).toBe("M1-2");
+    expect(eventLabel("M6")).toBe("M6");
+    expect(eventLabel("F1")).toBe("F1");
+    expect(eventLabel("Q11")).toBe("Q11");
   });
 
   it("reads a bare-seconds timer (FTC Live's overlay, 2019–2022)", () => {

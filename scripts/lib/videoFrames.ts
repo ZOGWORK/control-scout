@@ -60,6 +60,12 @@ export function sameMatch(named: string, label: string): boolean {
   return named === label.replace(/-\d+$/, "");
 }
 
+/** A frame's match (overlayLabel) as the event names it, where that's one match: a semifinal's first match ("M2-1")
+ *  is the event's M2; every other name is the event's own already ("M1-2", "Q4", "F1"; "M6" of 2025's overlay, whose
+ *  replays it can't tell apart, stays "M6"). What a recording's edge stores (opensOn, endsOn), so outsideRecording
+ *  finds the match in the event's order. */
+export const eventLabel = (named: string) => named.replace(/^(M\d+)-1$/, "$1");
+
 /** FTC Live's rankings card counts the matches played so far ("4 / 23 matches played"): the count and the total. */
 export function playedCount(text: string): { played: number; of: number } | null {
   const m = /(\d{1,3})\s*\/\s*(\d{1,3})\s+matches\s+played/i.exec(text);
