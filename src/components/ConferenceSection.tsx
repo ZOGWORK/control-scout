@@ -125,9 +125,8 @@ export function ConferenceTable({ c, team }: { c: Conference; team: number | nul
   // Only a new marked team jumps to its page; a sort lands on the first page of the new order (pick, below).
   useEffect(() => { setPage(teamPage()); }, [team]); // eslint-disable-line react-hooks/exhaustive-deps
   const shown = rows.slice(page * CONFERENCE_PAGE, (page + 1) * CONFERENCE_PAGE);
-  // The marked row in view once it's drawn.
-  const marked = team != null && shown.some((r) => r.team === team);
-  useEffect(() => { if (marked) document.querySelector<HTMLElement>("[data-conference-table] tr[data-marked]")?.scrollIntoView?.({ block: "center" }); }, [marked]);
+  // The marked row is on the page it opens on and highlighted, never scrolled to: the page's header, note and movers
+  // come first (a dedicated page, not a section further down another one).
   const pick = (key: SortKey) => {
     setSort((s) => (s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: key === "rank" ? "asc" : "desc" }));
     setPage(0);

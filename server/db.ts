@@ -2558,6 +2558,16 @@ CREATE TABLE conference_snapshots (
 );
 `,
   },
+  {
+    version: 95,
+    name: "video embeddable",
+    sql: `
+-- Whether a video's owner lets it play on other sites (YouTube's status.embeddable, the watch page's playableInEmbed),
+-- read with its other facts (server/videos/recordings.ts saveMeta): 0 plays on youtube.com only, so a clip opens there
+-- rather than in the app's player; NULL not read yet.
+ALTER TABLE video_meta ADD COLUMN embeddable INTEGER;
+`,
+  },
 ];
 
 export type Db = Client;

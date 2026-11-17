@@ -3,9 +3,9 @@
 // rankings. The league page (/leagues/:season/:region/:code): links back to its region's page and the leagues list, and
 // Scout's rating, OPR and region rank beside FIRST's standing ("Not rated yet" where there's no rating), the region
 // rank linking to the team's row on its region page.
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { act, cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useNavigate } from "react-router-dom";
 import type { LeaguesResponse } from "../shared/regionRankings";
 import type { LeagueStandings } from "../shared/leagues";
 
@@ -58,6 +58,23 @@ describe("the leagues list", () => {
     expect(nj.textContent).toContain("View Conference Rankings");
     expect(screen.getByRole("region", { name: "Texas" }).querySelector("[data-conference-button]")).toBeNull();
     expect(screen.getByRole("region", { name: "Texas" }).textContent).not.toContain("Conference");
+  });
+
+  it("opens filtered to the place a search link names (?q=)", () => {
+    render(<MemoryRouter initialEntries={["/leagues?q=New%20Jersey"]}><LeaguesPage /></MemoryRouter>);
+    expect((screen.getByRole("textbox", { name: "Search leagues" }) as HTMLInputElement).value).toBe("New Jersey");
+    expect(screen.getByRole("region", { name: "New Jersey" })).toBeTruthy();
+    expect(screen.queryByRole("region", { name: "Texas" })).toBeNull();
+  });
+
+  it("follows a later ?q= while open, another place's link", () => {
+    let go: (to: string) => void = () => {};
+    const Nav = () => { const n = useNavigate(); go = n; return null; };
+    render(<MemoryRouter initialEntries={["/leagues?q=New%20Jersey"]}><Nav /><LeaguesPage /></MemoryRouter>);
+    act(() => go("/leagues?q=Texas"));
+    expect((screen.getByRole("textbox", { name: "Search leagues" }) as HTMLInputElement).value).toBe("Texas");
+    expect(screen.queryByRole("region", { name: "New Jersey" })).toBeNull();
+    expect(screen.getByRole("region", { name: "Texas" })).toBeTruthy();
   });
 });
 
