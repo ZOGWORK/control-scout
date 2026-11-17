@@ -11,7 +11,7 @@ import { get, migrate, openDb, run, setDb } from "./db";
 import { createApp } from "./app";
 import { setMailer } from "./auth/email";
 import { deleteUser, sha256, SignupsClosedError, userForIdentity } from "./auth/session";
-import { invalidateFlags, setFlag } from "./flags";
+import { forgetPublicAccess, invalidateFlags, setFlag } from "./flags";
 import { resetGateSessions } from "./shutdownGate";
 
 let server: Server;
@@ -55,6 +55,7 @@ afterAll(() => {
 beforeEach(async () => {
   await run("DELETE FROM feature_flags");
   invalidateFlags();
+  forgetPublicAccess();
   resetGateSessions();
   delete process.env.UPTIME_GATE_KEY;
 });
@@ -174,19 +175,23 @@ describe("with publicAccess off", () => {
   });
 });
 
-describe("when the flags can't be read and nothing was known yet", () => {
-  it("keeps the message up and sign-ups closed instead of opening by default", async () => {
+describe("when the flags can't be read yet (a restart)", () => {
+  const unreadable = async (check: () => Promise<void>) => {
     await run("ALTER TABLE feature_flags RENAME TO feature_flags_away");
-    try {
-      invalidateFlags();
-      const page = await call("/");
-      expect(page.status).toBe(503);
+    try { invalidateFlags(); await check(); } finally { await run("ALTER TABLE feature_flags_away RENAME TO feature_flags"); invalidateFlags(); }
+  };
+  it("keeps the message up and sign-ups closed when the switch was last read off", async () => {
+    await shutDown();
+    expect((await call("/")).status).toBe(503);
+    await unreadable(async () => {
+      expect((await call("/")).status).toBe(503);
       await expect(userForIdentity("email", "new@example.com", "new@example.com")).rejects.toBeInstanceOf(SignupsClosedError);
-    } finally {
-      await run("ALTER TABLE feature_flags_away RENAME TO feature_flags");
-      invalidateFlags();
-    }
+    });
+  });
+  it("keeps the site open when the switch was last read on, or never read", async () => {
+    await unreadable(async () => { expect((await call("/")).status).toBe(200); });
     expect((await call("/")).status).toBe(200);
+    await unreadable(async () => { expect((await call("/")).status).toBe(200); });
   });
 });
 

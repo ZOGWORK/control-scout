@@ -5,7 +5,7 @@ import { createHash, randomBytes } from "node:crypto";
 import type { Request, Response } from "express";
 import { all, get, run } from "../db.js";
 import { env } from "../env.js";
-import { isEnabledKnown } from "../flags.js";
+import { publicAccessOpen } from "../flags.js";
 
 export const SESSION_COOKIE = "cs_session";
 /** The shutdown gate's kept answers (token hash → live session?), cleared whenever a session is deleted, so a
@@ -41,7 +41,7 @@ export async function userForIdentity(provider: string, subject: string, email: 
     userId = (await get<{ id: number }>("SELECT id FROM users WHERE email = ?", [email]))?.id;
   }
   if (!userId) {
-    if (!(await isEnabledKnown("publicAccess"))) throw new SignupsClosedError();
+    if (!(await publicAccessOpen())) throw new SignupsClosedError();
     const r = await get<{ id: number }>("INSERT INTO users (email, display_name, created_at) VALUES (?, ?, ?) RETURNING id", [email, displayName ?? null, new Date().toISOString()]);
     userId = r!.id;
   }

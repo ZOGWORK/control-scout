@@ -12,9 +12,14 @@
 //
 // Gating a route: requireFeature("coinFlips") as middleware, or `if (!(await isEnabledFor(flag, ws))) return featureDisabled(res, flag)`.
 // Either way the answer is 403 {error: "feature_disabled", feature} with Cache-Control: no-store.
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { threadId } from "node:worker_threads";
 import type { NextFunction, Request, Response } from "express";
 import { db, primaryDb } from "./db.js";
 import { registerCache } from "./caches.js";
+import { env } from "./env.js";
 import { DEFAULT_FLAGS, FEATURE_DISABLED, FLAGS, featureOffMessage, isFlag, isWorkspaceFlag, type FeatureDisabledBody, type Flag, type FlagSet } from "../src/shared/flags.js";
 
 export { FLAGS, type Flag, type FlagSet } from "../src/shared/flags.js";
@@ -51,7 +56,7 @@ async function state(now = Date.now()): Promise<FlagState> {
   if (cached && now - cached.at < FLAG_TTL_MS) return cached.state;
   if (!loading) {
     const p = load().then(
-      (s) => { if (loading === p) { cached = { at: Date.now(), state: s }; loading = null; } return s; },
+      (s) => { if (loading === p) { cached = { at: Date.now(), state: s }; loading = null; } rememberPublicAccess(s.flags.publicAccess); return s; },
       (e) => {
         const s: FlagState = cached?.state ?? { flags: { ...DEFAULT_FLAGS }, overrides: new Map(), guessed: true };
         // Kept for a TTL too, so a database that's down isn't asked again on every request.
@@ -75,12 +80,33 @@ export async function isEnabled(flag: Flag): Promise<boolean> {
   return (await allFlags())[flag];
 }
 
-/** Is this flag on, by a value really read? False while the flags couldn't be read and nothing was known before
- *  (the database down right after a restart): the shutdown gate and sign-ups fail closed, never open by default. */
-export async function isEnabledKnown(flag: Flag): Promise<boolean> {
-  const s = await state();
-  return !s.guessed && s.flags[flag];
+/** The shutdown switch's last value read, kept on disk (a file in DATA_DIR while it's off), so a restart whose flags
+ *  can't be read yet keeps the message up when the owner had it up, and the site open when it was open. Tests that
+ *  don't set DATA_DIR keep theirs per worker, so no test file sees another's. */
+const offMarker = () => join(process.env.VITEST && !process.env.DATA_DIR ? join(tmpdir(), `cs-flags-${process.pid}-${threadId}`) : env.dataDir, "public-access-off");
+let markedOff: boolean | null = null;
+function rememberPublicAccess(on: boolean): void {
+  if (markedOff === !on) return;
+  try {
+    const file = offMarker();
+    if (on) rmSync(file, { force: true });
+    else { mkdirSync(join(file, ".."), { recursive: true }); writeFileSync(file, new Date().toISOString()); }
+    markedOff = !on;
+  } catch (e) {
+    console.warn(`[flags] couldn't keep the public access switch on disk: ${(e as Error)?.message ?? e}`);
+  }
 }
+
+/** Is the site open to visitors who aren't signed in (the publicAccess kill switch)? While the flags can't be read
+ *  and nothing was read since this start, the last value kept on disk: never opened just because a read failed. */
+export async function publicAccessOpen(): Promise<boolean> {
+  const s = await state();
+  if (!s.guessed) return s.flags.publicAccess;
+  try { return !existsSync(offMarker()); } catch { return false; }
+}
+
+/** Tests: forget what was kept on disk. */
+export function forgetPublicAccess(): void { markedOff = null; rmSync(offMarker(), { force: true }); }
 
 /**
  * Is `flag` on for this workspace (null: no workspace, the global value)? The workspace's override (workspace-scoped

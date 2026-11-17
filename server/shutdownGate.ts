@@ -7,7 +7,7 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import type { NextFunction, Request, Response } from "express";
 import { get } from "./db.js";
 import { env } from "./env.js";
-import { isEnabledKnown } from "./flags.js";
+import { publicAccessOpen } from "./flags.js";
 import { CSP_REPORT_PATH, cspHeaderName } from "./securityHeaders.js";
 import { gateSessions as sessions, readCookie, SESSION_COOKIE, sha256 } from "./auth/session.js";
 import { authProviders } from "./auth/routes.js";
@@ -108,10 +108,10 @@ function shut(req: Request, res: Response): void {
   res.type("html").send(gatePage(req.query.signin === "closed"));
 }
 
-/** Middleware (createApp, right after the JSON parser): with publicAccess on, straight through. Flags that couldn't be
- *  read (nothing known yet) count as off: the message stays up rather than the site opening by default. */
+/** Middleware (createApp, right after the JSON parser): with publicAccess on, straight through. Flags that can't be read
+ *  yet: the switch's last value kept on disk, so a restart neither opens a closed site nor closes an open one. */
 export function shutdownGate(req: Request, res: Response, next: NextFunction): void {
-  isEnabledKnown("publicAccess").then(async (open) => {
+  publicAccessOpen().then(async (open) => {
     if (open || alwaysThrough(req.path)) return next();
     if (isUptimeMonitor(req) || (await signedIn(req))) { keepPrivate(res); return next(); }
     shut(req, res);
