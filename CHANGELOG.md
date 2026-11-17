@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.5.6 — 2026-11-17
+
+Videos › two matches of a 2026 Missouri meet are settled as played before its recording starts: the video opens on Q3 with no match on screen before it.
+
+### Highlights
+- [fixes] 2 matches settled as played before their recording
+- [fixes] The proof is the recording's own first frames
+- [fixes] No clip already playing changes
+
+### Fixed
+- Videos (`server/data/frameTimings/2026.ts`): USMOKSSEM2's recording opens on Q3 at 2:50 with no match on screen before it, so Q1 and Q2 are settled as played before it (`outsideRecording`, from the video's own frames). The row records only that opening edge: Q3–Q14 keep the clips they have. (#1667)
+
 ## 7.5.5 — 2026-11-17
 
 Videos › The frame reader now reads streams whose score bar sits along the top of the frame, as FIRST Nevada's do.
