@@ -111,6 +111,24 @@ describe("light pages", () => {
     expect(r.headers.get("etag")).toBeTruthy();
   });
 
+  it("a page with nothing but a name is noindex like its full page; one with data is not (soft 404s)", async () => {
+    // Teams 10000+ played at NJQ1: indexable, so the Lite twin has only its canonical.
+    const team = await (await get(`/lite/teams/10000`)).text();
+    expect(team).toContain(`<link rel="canonical" href="https://controlscout.org/teams/10000">`);
+    expect(team).not.toContain(`name="robots"`);
+    expect(await (await get(`/lite/events/${S}/NJQ1`)).text()).not.toContain(`name="robots"`);
+    // A team we know with no season, match, award or event yet, and an event with no teams and no matches.
+    await run("INSERT INTO teams (number, name, city, state, country) VALUES (39322, 'Orion', 'Tel Aviv', '', 'Israel')");
+    await run("INSERT INTO events (season, code, name, type, start, end, remote, hybrid, source) VALUES (?, 'EMPTYQ', 'Empty Qualifier', 'Qualifier', '2099-01-01', '2099-01-01', 0, 0, 't')", [S]);
+    clearAllCaches();
+    const bare = await (await get(`/lite/teams/39322`)).text();
+    expect(bare).toContain(`<link rel="canonical" href="https://controlscout.org/teams/39322">`);
+    expect(bare).toContain(`<meta name="robots" content="noindex">`);
+    const r = await get(`/lite/events/${S}/EMPTYQ`);
+    expect(r.status).toBe(200);
+    expect(await r.text()).toContain(`<meta name="robots" content="noindex">`);
+  });
+
   it("a robot on the alliance but not on the field is marked, as on the full pages", async () => {
     await run("UPDATE match_teams SET on_field = 0 WHERE season = ? AND code = 'NJQ1' AND number = 3 AND station = 2 AND alliance = 'blue'", [S]);
     clearAllCaches();
