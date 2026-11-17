@@ -23,14 +23,15 @@ YouTube shows data-centre addresses a "Sign in to confirm you're not a bot" page
 GitHub-hosted runner (the embed never loads) and already seen on the VM (#1445). So the runner is a scheduled job on a
 computer at home, in a clone kept for it alone. Each run:
 
-1. brings the clone to main, and rebuilds its own open PRs on main when main moved under them (a newer version, or a
-   conflict): its rows applied to main's season file again, its CHANGELOG entry at main's next release. A row main
-   changed meanwhile (another read got there first) is checked again; one that no longer passes is left out, and a PR
-   with none left is closed;
+1. brings the clone to main, and rebuilds its own open PRs on main only when main changed one of their rows since they
+   branched, they conflict, or they still carry a release (opened before data PRs dropped theirs): never to renumber.
+   Its rows are applied to main's season file again and any CHANGELOG.md or package.json/lock put back to main's. A
+   row main changed meanwhile (another read got there first) is checked again; one that no longer passes is left out,
+   and a PR with none left is closed;
 2. takes a read-only snapshot of the live database (`VACUUM INTO` over ssh, copied down, removed from the VM);
 3. takes the queue from it; skips events already in an open autopilot PR, and events read lately with nothing new
    (tried again after 3 days, left after 3 such reads until their recording or matches change);
-4. reads up to `--max` events (6) with `scripts/video-frames.ts --season N --codes … --live <main's season file>`
+4. reads up to `--max` events (12) with `scripts/video-frames.ts --season N --codes … --live <main's season file>`
    (`--all` for an event with rows already), then `--verify`, then `--bounds`;
 5. checks every row it changed against main's (`rowProblems`, scripts/lib/autopilotRows.ts) and leaves out, with its
    reasons in the run's log, any that breaks a rule:
@@ -39,8 +40,11 @@ computer at home, in a clone kept for it alone. Each run:
    - no new placement `unconfirmed` (only a live clip whose opening frame named nothing stays so);
    - a live clip leaves only when a frame at its opening names another match;
    - a re-read is dated after the live row;
-6. opens a data PR per season file, at most 15 KB of rows each (an event's rows together), labelled
-   `clip-autopilot`, with its CHANGELOG entry and version, and asks Loopy to review it.
+6. opens data PRs per season file, each changing that file only: no CHANGELOG entry, no version (owner's rule,
+   2026-11-17), labelled `clip-autopilot` and `no-changelog`. A changed row stays on its own line and a new row goes
+   just before the first row whose event code sorts after its own, so PRs from different sources don't conflict.
+   Rows whose changes touch (one gap, neighbouring lines) go in one PR, and each PR's diff stays under 12 KB
+   (`prChunks`, scripts/lib/autopilotRows.ts). Each gets a review request.
 
 ## Merging its own PRs
 
