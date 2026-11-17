@@ -300,13 +300,38 @@ export async function runChannelAudit(log: (s: string) => void, opts: { apiKey?:
     // event, logged as officialVideo.restore by "channel audit".
     const back = checks.filter((c) => c.back);
     if (back.length) {
-      await locked(() => db().batch(back.flatMap((c) => [
-        { sql: "UPDATE official_videos SET removed_at = NULL WHERE video_id = ? AND source = 'watcher'", args: [c.videoId] },
-        { sql: "UPDATE official_watch SET status = 'added', decided_at = ?, decided_by = 'channel audit', why = ? WHERE video_id = ? AND decided_by = 'channel audit'", args: [at, `back on its event: the channel audit's check passes again (${c.why})`.slice(0, 500), c.videoId] },
-      ]), "write"));
-      forgetOfficial();
-      for (const c of back) { const rec = records.get(c.videoId); if (rec) records.set(c.videoId, { ...rec, record: "added by the watcher", plays: true }); }
-      for (const c of back) await recordAudit("channel audit", "officialVideo.restore", { videoId: c.videoId, why: c.why });
+      // One transaction each, every step guarded again in SQL: put back only while its row is still the audit's own
+      // rejection (the owner's Remove meanwhile stands) and no other recording now holds its day and part (the
+      // official_videos_day index). One that can't be put back stays off and is weighed again next run.
+      const restored = await locked(async () => {
+        const done: typeof back = [];
+        for (const c of back) {
+          const tx = await db().transaction("write");
+          try {
+            const put = await tx.execute({
+              sql: `UPDATE official_videos SET removed_at = NULL WHERE video_id = ? AND source = 'watcher' AND removed_at IS NOT NULL
+                      AND EXISTS (SELECT 1 FROM official_watch w WHERE w.video_id = official_videos.video_id AND w.status = 'rejected' AND w.decided_by = 'channel audit')
+                      AND NOT EXISTS (SELECT 1 FROM official_videos o WHERE o.kind = 'recording' AND o.removed_at IS NULL AND o.video_id != official_videos.video_id
+                        AND o.season = official_videos.season AND o.code = official_videos.code AND o.day IS official_videos.day AND COALESCE(o.part, '') = COALESCE(official_videos.part, ''))`,
+              args: [c.videoId],
+            });
+            if (!put.rowsAffected) { await tx.rollback(); continue; }
+            await tx.execute({ sql: "UPDATE official_watch SET status = 'added', decided_at = ?, decided_by = 'channel audit', why = ? WHERE video_id = ? AND status = 'rejected' AND decided_by = 'channel audit'",
+              args: [at, `back on its event: the channel audit's check passes again (${c.why})`.slice(0, 500), c.videoId] });
+            await tx.commit();
+            done.push(c);
+          } catch (e) {
+            await tx.rollback().catch(() => {});
+            log(`official videos: audit: ${c.videoId} not put back: ${(e as Error).message}`);
+          } finally {
+            tx.close();
+          }
+        }
+        return done;
+      });
+      if (restored.length) forgetOfficial();
+      for (const c of restored) { const rec = records.get(c.videoId); if (rec) records.set(c.videoId, { ...rec, record: "added by the watcher", plays: true }); }
+      for (const c of restored) await recordAudit("channel audit", "officialVideo.restore", { videoId: c.videoId, why: c.why });
     }
     // The watcher's rules on one upload, before its event's videos are weighed (settle): null for one Scout has a record
     // of that isn't decided again.
@@ -623,8 +648,8 @@ async function checkAdds(rows: any[], facts: Map<string, any>, rules: Map<string
       else if (m.event.code !== String(a.code) || m.event.season !== Number(a.season)) wrong.push(`the rules now pick ${m.event.season} ${m.event.code}, not ${a.season} ${a.code}`);
     }
     if (!off && a.e_start) {
-      const others = (await eventVideosByDay(Number(a.season), String(a.code))).filter((h) => h.videoId !== vid && !h.gone && h.day === a.day && (h.part == null || a.part == null));
-      if (others.length) wrong.push(`a second video of ${a.day} (${others[0].videoId} plays it too) and not both name their part`);
+      const others = (await eventVideosByDay(Number(a.season), String(a.code))).filter((h) => h.videoId !== vid && !h.gone && h.day === a.day && (h.part == null || a.part == null || h.part === a.part));
+      if (others.length) wrong.push(`a second video of ${a.day} (${others[0].videoId} plays it too) and ${others[0].part != null && others[0].part === a.part ? `both are its ${a.part}` : "not both name their part"}`);
     }
     // Nothing known of its playability and no other fault: no verdict this run, its last check stands.
     if (!f && !wrong.length) continue;
