@@ -143,6 +143,23 @@ describe("answering a conference ask", () => {
     expect(await ask("big ten conference rankings")).toBeNull();
   });
 
+  it("says a waitlisted team is on the waitlist, and a finished tournament with no awards has no winner on record", async () => {
+    await run("INSERT INTO teams (number, name, state, country) VALUES (5555, 'Wait Team', 'NJ', 'USA')");
+    await run("UPDATE event_provisional SET teams = ? WHERE code = 'USNJNELT2'", [JSON.stringify([
+      { team: 4215, name: "Hypnotic Robotics", status: "registered", session: null }, { team: 5555, name: "Wait Team", status: "pending", session: null }])]);
+    clearAllCaches();
+    const a = (await ask("5555 conference ranking"))!;
+    expect(a.headline!.label).toContain("5555 Wait Team is on the waitlist for Hudson/East Bergen Conference");
+    expect(a.blocks[0].kind === "kpis" && a.blocks[0].items[0].label).toBe("Waitlist, by league RS");
+    const table = a.blocks.find((b) => b.kind === "table");
+    expect(table && table.kind === "table" && table.rows.map((r) => [r.cells.team, r.cells.rank])).toEqual([["4215 Hypnotic Robotics", "Registered"], ["5555 Wait Team", "Waitlist"]]);
+    expect((await ask("4215 conference ranking 2026-27"))!.headline!.label).toContain("is registered for");
+    // Central is past, its awards not in yet: no winner on record, never "not won yet".
+    await run("DELETE FROM awards WHERE code = 'USNJUCLT'");
+    clearAllCaches();
+    expect((await ask("who won the central conference"))!.none).toBe("No winner is on record yet for Central Conference 2025–26: FIRST hasn't posted the tournament's awards.");
+  });
+
   it("answers this season as the current one, says a later season has none, and never picks between two same-named teams", async () => {
     expect((await ask("4215 conference ranking this season"))!.title).toBe("4215 going into Hudson/East Bergen Conference · 2026–27");
     expect((await ask("East Bergen Conference rankings in 2027"))!.none).toBe("No New Jersey conference by that name in 2027–28.");
