@@ -135,8 +135,12 @@ whose title wasn't read stays. Broadcasts found before are weighed again by thes
 (`reweighBroadcasts`, with the titles the channel audit keeps), since a link with a broadcast found isn't read again.
 A broadcast that is another event's official recording (`official_videos`) isn't this event's, whatever its day:
 2023 USAZTSQ (Tsalie) took FIRST Tech Challenge Arizona's "Red Rock Qualifier", USAZCHQ's checked recording and its
-only broadcast that day. A division's recording on its own parent championship stays, since the parent's playoffs
-are on its divisions' streams (`officialOwners`).
+only broadcast that day. It stays with this event when the other is this event's own division (the parent's playoffs
+are on its divisions' streams; a sibling division's recording still comes off), or a joint meet with it: the same day
+at the same venue, or a title naming this event too, by a word of its name the other's lacks ("Hill Country & North
+SA League Meet 1") or by its meet number ("NTX FTC C-League meet #2 and #3") (`officialOwners`, `notOthers`). A
+removed row or a highlight is no owner. With the API key a link with no broadcast left is read again weekly, so a
+broadcast whose owning row is removed later comes back.
 
 FIRST's link (or the video its short link led to) is the event's video only when YouTube's broadcast date fits the
 event, a day either side at the venue (`linkAiredOff`, `server/videos/officialVideos.ts`). One broadcast on another
