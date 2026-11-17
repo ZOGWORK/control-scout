@@ -92,6 +92,18 @@ sudo -u "$APP_USER" HOME="$SHARED/data" nice -n 15 ionice -c2 -n7 bash -c "cd '$
 chown -R root:root "$REL_DIR"
 chmod 755 "$REL_DIR"   # readable (not writable) by the app user
 chown -h root:root "$REL_DIR/.env" "$REL_DIR/.data"
+# Every release's hashed assets stay served for 30 days after its last deploy (server/app.ts serves
+# .assets-archive after the release's own dist/assets): a page drawn by an earlier release, kept in a tab or a
+# search engine's renderer cache, still finds its chunks once that release is pruned below. Copied over (not
+# skipped when present) so a file still in use keeps a fresh date; the hash in each name keeps contents equal.
+install -d -o root -g root -m 755 "$SHARED/assets-archive"
+# Every release still on disk (this one included): the first deploy with the archive already covers the last three.
+for assets in "$APP_DIR"/releases/*/dist/assets; do
+  if [ -d "$assets" ]; then cp -f "$assets"/* "$SHARED/assets-archive/"; fi
+done
+find "$SHARED/assets-archive" -type f -mtime +30 -delete
+ln -sfn "$SHARED/assets-archive" "$REL_DIR/.assets-archive"
+chown -h root:root "$REL_DIR/.assets-archive"
 
 # The port belongs to a systemd socket, not to the server: systemd keeps it open
 # through every restart and hands it to each new server (server/listen.ts), so
