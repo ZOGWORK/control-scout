@@ -47,6 +47,11 @@ export function overlayLabel(text: string, semifinals = false): string | null {
   return named.size === 1 ? `M${[...named][0]}` : null;
 }
 
+/** Whether a timer read twice `played` seconds of video apart ran: down by the time played, to the second either
+ *  side, and down at all. A timer standing still is no match in play however little was played between the reads:
+ *  RIQUAL3 2019's "30" waiting for the next match, read 1.6 s apart, passed as running and gave starts 150 s early. */
+export const timerRan = (ran: number, played: number) => played >= 0.5 && ran >= 1 && Math.abs(ran - played) <= 1.6;
+
 /** Whether a timer reading `later` seconds after an Auto reading of `left` is that same match's TeleOp, to within 3 s:
  *  Auto's rest, the 8 s switch, then TeleOp counting down from 2:00. The end of TeleOp (the other way to read a
  *  reading of 0:30 or less) leads to a finished match, never to that reading. */

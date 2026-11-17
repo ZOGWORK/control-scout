@@ -1,7 +1,7 @@
 // The pure parts of the frame reader (scripts/video-frames.ts): the overlay's match, the timer's elapsed time, and
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
-import { dataRows, divisionOf, elapsed, overlayDivision, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayLabel, eventLabel, sameMatch, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, type M } from "./videoFrames";
+import { dataRows, divisionOf, elapsed, overlayDivision, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayLabel, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, type M } from "./videoFrames";
 
 describe("the frame reader", () => {
   it("names the match the overlay shows, and nothing else", () => {
@@ -96,6 +96,13 @@ describe("the frame reader", () => {
     expect(j.placed.get("Q1")).toEqual({ t: 50, confidence: "high" });
     expect(j.placed.get("M2")).toEqual({ t: 20_400, confidence: "medium" });
     expect(j.placed.get("M1-2")).toEqual({ t: 20_800, confidence: "high" });
+  it("counts a timer running only when it went down", () => {
+    expect(timerRan(2, 1.7)).toBe(true);
+    expect(timerRan(1, 1.6)).toBe(true);
+    // RIQUAL3 2019: the next match's "30" standing, read 1.6 s apart.
+    expect(timerRan(0, 1.6)).toBe(false);
+    expect(timerRan(0, 0.4)).toBe(false);
+    expect(timerRan(5, 1.7)).toBe(false);
   });
 
   it("tells Auto from TeleOp's end by where the timer stands 45 s on", () => {
