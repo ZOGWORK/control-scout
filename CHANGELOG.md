@@ -25,7 +25,7 @@ Videos › 128 more 2024 matches play as clips: Arkansas's championship in full,
 - [history] Louisiana Championship: 36 of 46 matches as clips
 
 ### Added
-- Frame-read match starts for 3 more 2024 recordings, each start checked against two timer reads and each clip's opening against a paused frame naming its match: USARCMP 48 of 48 played matches, USFLFLORLT 44 of 47 (2 to review, 1 missing), USLACMP 36 of 46 (2 to review, 8 missing). (`server/data/frameTimings/2024.ts`) (#PRNUM)
+- Frame-read match starts for 3 more 2024 recordings, each start checked against two timer reads and each clip's opening against a paused frame naming its match: USARCMP 48 of 48 played matches, USFLFLORLT 44 of 47 (2 to review, 1 missing), USLACMP 36 of 46 (2 to review, 8 missing). (`server/data/frameTimings/2024.ts`) (#1702)
 
 ## 7.4.5 — 2026-11-17
 
