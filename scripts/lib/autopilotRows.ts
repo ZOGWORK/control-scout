@@ -20,25 +20,31 @@ export const rowLine = (r: Row) => `  ${JSON.stringify(r)},`;
 
 /** The review reason that pulls a live clip: a frame at its opening names another match. */
 const NAMES_ANOTHER = /^its clip's first frame shows .+, not /;
-const DATE = /^\d{4}-\d\d-\d\d$/;
+/** A calendar date, YYYY-MM-DD, that exists ("2026-02-30" doesn't). */
+const isDate = (s: string) => {
+  const t = /^\d{4}-\d\d-\d\d$/.test(s) ? Date.parse(`${s}T00:00:00Z`) : NaN;
+  return Number.isFinite(t) && new Date(t).toISOString().slice(0, 10) === s;
+};
 
 /** What's wrong with a row the reader wrote, against the row the live site serves for that video and event (none: a
  *  new one). Empty: it can ship. */
 export function rowProblems(next: Row, live?: Row): string[] {
   const out: string[] = [];
-  if (!DATE.test(next.checked)) out.push(`checked "${next.checked}" isn't a date`);
+  if (!isDate(next.checked)) out.push(`checked "${next.checked}" isn't a date`);
   if (live && JSON.stringify(live) !== JSON.stringify(next) && !(next.checked > live.checked)) out.push(`changed without a newer checked date than the live row's (${live.checked})`);
   for (const [l, t] of Object.entries(next.starts)) if (!Number.isInteger(t) || t < 0) out.push(`${l}: start ${t} isn't a second in the video`);
   const plausible = plausibleStarts(next.starts, next.opens);
   for (const l of Object.keys(next.starts)) if (plausible[l] == null) out.push(`${l}: its start overlaps another match's`);
   const was = live ? live.starts : {};
+  if (live?.opens && !next.opens) out.push("openings the live row checked are gone");
   for (const [l, t] of Object.entries(next.starts)) {
-    // A start the live site already plays where it was: as the live row has it (an older row without openings stands).
-    if (was[l] != null && Math.abs(was[l] - t) <= SAME_S && (!live?.opens || live.opens[l] === next.opens?.[l])) {
-      if (next.opens && next.opens[l] == null && !next.unconfirmed?.includes(l)) out.push(`${l}: a live clip left with no opening and not unconfirmed`);
+    // A start the live site already plays where it was, its opening as the live row has it (none, on an older row):
+    // stands. A new or moved opening is checked like any other.
+    const open = next.opens?.[l];
+    if (was[l] != null && Math.abs(was[l] - t) <= SAME_S && (open == null || open === live?.opens?.[l])) {
+      if (next.opens && open == null && !next.unconfirmed?.includes(l)) out.push(`${l}: a live clip left with no opening and not unconfirmed`);
       continue;
     }
-    const open = next.opens?.[l];
     if (open != null) {
       if (!OPEN_LEADS.includes(t - open)) out.push(`${l}: opens ${t - open} s before its start, not ${OPEN_LEADS.join("/")}`);
     } else if (next.unconfirmed?.includes(l)) {
