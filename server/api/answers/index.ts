@@ -405,7 +405,9 @@ export async function conferenceSearch(q: string, opts: { full: boolean; pages: 
   const stat = await conferenceAskAnswer(ca, askSeason());
   if (!stat) return null;
   const season = Number(/^(\d{4})/.exec(stat.scope[0] ?? "")?.[1]) || askSeason();
-  return { q, hits: [], pages: opts.pages, step: "deterministic", weak: false, understood: { kind: "question", label: stat.title, season },
+  // The dropdown carries no card: the answer's page to open, so the reading there is something to tap, never empty.
+  const pages = opts.full ? opts.pages : [{ title: stat.title, href: `/search?q=${encodeURIComponent(q)}` }, ...opts.pages];
+  return { q, hits: [], pages, step: "deterministic", weak: false, understood: { kind: "question", label: stat.title, season },
     intent: { kind: "stat-conference", pattern: `${ca.team != null ? "[team] " : ""}[conference] ${ca.won ? "winner" : "ranking"}${ca.season != null ? " [season]" : ""}`, met: true, understood: [stat.title] }, ...(opts.full ? { stat } : {}) };
 }
 
