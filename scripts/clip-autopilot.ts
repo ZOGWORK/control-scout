@@ -29,6 +29,7 @@ import { gunzipSync } from "node:zlib";
 import { applyRows, changedRows, chunkRows, fileRows, prMarker, readMarker, rowKey, rowProblems, type Keyed, type Row } from "./lib/autopilotRows";
 import { changelogEntry, forgetSettled, nextVersion, pickEvents, remember, rowsDelta, type Memory } from "./lib/autopilotRun";
 import { clipCheckProblems, clipsDelta, clipsEntry } from "./lib/autopilotClips";
+import { readFailed as readFailedExit } from "./lib/videoFrames";
 import type { ClipCheck } from "../server/data/clipChecks";
 
 const argv = process.argv.slice(2);
@@ -280,8 +281,10 @@ for (const [season, events] of bySeason) {
   // none to keep (and the reader refuses an empty --live file).
   const base = ["scripts/video-frames.ts", "--season", String(season), ...(fileRows(mainText(file)).length ? ["--live", liveFile] : []), "--lanes", "2"];
   // A read that crashed, timed out or was killed read nothing for sure: its events aren't counted as tried (remember).
+  // The reader's UNDETAILED_EXIT (an event left unread for want of details a fetch would give) isn't one: it read the
+  // rest, so the season's events are remembered as usual instead of re-picked every run (readFailedExit).
   let readFailed = false;
-  const pass = (args: string[], ms: number, what: string) => { const code = reader([...base, ...args], ms).code; if (code) readFailed = true; log(`${season} ${what}: exit ${code}`); };
+  const pass = (args: string[], ms: number, what: string) => { const code = reader([...base, ...args], ms).code; if (readFailedExit(code)) readFailed = true; log(`${season} ${what}: exit ${code}`); };
   for (const [list, extra] of [[fresh, []], [again, ["--all"]]] as const) if (list.length) pass(["--codes", list.join(","), ...extra], 6 * 3600_000, `read ${list.join(",")}`);
   for (const p of ["--verify", "--bounds"]) pass(["--codes", codes.join(","), p], 3 * 3600_000, p);
   const after = readFileSync(file, "utf8");
