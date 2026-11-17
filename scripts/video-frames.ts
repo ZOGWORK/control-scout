@@ -266,6 +266,10 @@ async function readAtOnce(page: Page, t: number, labelOnly = false): Promise<Rea
  *  over most of TeleOp: a stream may cut away to a camera without the overlay for a minute or more (Romania's
  *  championship cuts to the floor cameras mid-match). */
 const CONFIRM_AFTER = [70, 80, 95, 110, 125, 140];
+/** The walk through a video for matches with no start time from FIRST (placeVideo): a frame every 75 s; none of the
+ *  event's matches named in its first 2 hours (an opening ceremony runs long, a camera-only stream never names one)
+ *  stops it. */
+const WALK_STEP_S = 75, WALK_BLIND_S = 7200;
 /** Seconds into a match an Auto read confirms its start at, in turn, where a later read disagrees by time the video
  *  lost (confirmed). Early: before most of the match, where a cut in the recording is least likely to fall. */
 const AUTO_CONFIRM = [12, 20];
@@ -571,6 +575,19 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
   // Any match at all, a frame every 10 minutes: where there's no clock to go by (an upload), or the clock's guesses read
   // nothing (a broadcast whose start YouTube has wrong).
   const scan = async () => { for (let t = 300; t < length && !seen.size && reads() < budget; t += 600) { await note(await readAt(page, t)); } };
+  // Matches with only their scheduled time (M.scheduled) have no clock to look for them by: the video is walked a frame
+  // every WALK_STEP_S (each match's 2:38 shows on at least two), past each match once its start is confirmed. A video
+  // naming none of its matches in its first WALK_BLIND_S has no overlay to read: the walk stops there.
+  if (ms.some((m) => m.scheduled)) {
+    budget += Math.ceil(length / WALK_STEP_S);
+    for (let t = WALK_STEP_S; t < length && reads() < budget && (namedAny || t < WALK_BLIND_S);) {
+      const r = await readAt(page, t);
+      await note(r);
+      const confirmedHere = r.start != null && [...seen.values()].some((s) => Math.abs(s - r.start!) <= SAME_S);
+      t = confirmedHere ? Math.max(t + WALK_STEP_S, r.start! + MATCH_S + 20) : t + WALK_STEP_S;
+    }
+    log(`    walked for matches with no start time from FIRST: ${seen.size} read, ${reads()} frames`);
+  }
   if (shift == null) {
     await scan();
     if (!seen.size) {
@@ -587,6 +604,8 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
   let missed = 0;
   const blind = () => missed >= MISSES && !seen.size;
   async function anchor(i: number): Promise<number | null> {
+    // A match with only its scheduled time is the walk's (above): its time says nothing of where the video sits.
+    if (ms[i].scheduled) return null;
     if (seen.has(i)) return seen.get(i)!;
     if (blind() || reads() >= budget) return null;
     // Where the reads either side put the video, each in turn: where they disagree (a gap where the video lost time),
@@ -657,7 +676,7 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
   let prev: number | null = null, first = "", last = "";
   for (const m of ms) {
     const s = out.get(m.label);
-    if (s == null) continue;
+    if (s == null || m.scheduled) continue;
     const d = Math.round(s - m.epoch - (shift ?? 0));
     if (prev != null && Math.abs(d - prev) > SAME_S) { runs.push(`${first}–${last} ${prev} s`); first = ""; }
     if (!first) first = m.label;
@@ -751,10 +770,12 @@ async function doCode(code: string): Promise<void> {
   const rec = recs.get(code)!;
   const rows = await all<{ label: string; time: string; timezone: string | null; played: number }>(
     "SELECT m.label, m.time, e.timezone, m.played FROM matches m JOIN events e ON e.season = m.season AND e.code = m.code WHERE m.season = ? AND m.code = ? AND m.played = 1 AND m.time IS NOT NULL", [season, code]);
-  const played = rows.filter((r) => actualStart(r.time)).map((r) => ({ label: String(r.label), time: String(r.time), epoch: (localToUtcMs(r.time, r.timezone) ?? NaN) / 1000 }))
+  // A match FIRST gives only its scheduled time for (2019's qualifications) is read too, by its frames alone (M.scheduled):
+  // its time orders it among the others and places nothing.
+  const played = rows.map((r) => ({ label: String(r.label), time: String(r.time), epoch: (localToUtcMs(r.time, r.timezone) ?? NaN) / 1000, ...(actualStart(r.time) ? {} : { scheduled: true }) }))
     .filter((m) => Number.isFinite(m.epoch)).sort((a, b) => a.epoch - b.epoch);
   // A played match with no time the clock can place (the event has no timezone) can't be read: said, not skipped quietly.
-  const timeless = rows.filter((r) => actualStart(r.time)).length - played.length;
+  const timeless = rows.length - played.length;
   if (timeless) report.push(`${code}: ${timeless} played matches not read: no timezone for the event, so their start can't be placed`);
   if (!played.length) return;
   // Divisions of one event can share a stream: each read must be this division's overlay (divisionOf, overlayDivision).
@@ -806,7 +827,11 @@ async function doCode(code: string): Promise<void> {
     const windows = videos.map((o) => ({ start: o.meta?.start ? Date.parse(o.meta.start) / 1000 : null, end: o.meta?.end ? Date.parse(o.meta.end) / 1000 : null }));
     const inside = (o: (typeof videos)[number], at: number) => !!o.meta?.start && Date.parse(o.meta.start) / 1000 <= at && (!o.meta.end || at <= Date.parse(o.meta.end) / 1000);
     const lead = (x: (typeof played)[number]) => leadIn(x.epoch, videos.indexOf(v), windows);
-    const mine = played.filter((x) => !held.has(x.label) && (from == null ? !videos.some((o) => o !== v && inside(o, x.epoch))
+    // A match with only its scheduled time can't be put in a broadcast's window by it (2019IASQ4's Q1 "04:15" local,
+    // its stream starting 11:00): it's in the event's only video, or in the one broadcast (or listed) on its day.
+    const day = v.day ?? m.start?.slice(0, 10);
+    const mine = played.filter((x) => !held.has(x.label) && (x.scheduled ? videos.length === 1 || !day || x.time.slice(0, 10) === day
+      : from == null ? !videos.some((o) => o !== v && inside(o, x.epoch))
       : (from <= x.epoch && (!m.end || x.epoch <= Date.parse(m.end) / 1000)) || lead(x)));
     // A video read well on an earlier run keeps its row: the event is back for another of its videos (a new link, one
     // that couldn't be played), and a re-read now could place fewer of this one's matches. --all reads it again.
