@@ -58,6 +58,9 @@ describe("Watch", () => {
     const facade = screen.getByRole("link", { name: /^Play on YouTube:/ });
     expect(facade.getAttribute("href")).toBe(`https://www.youtube.com/watch?v=${clip.videoId}`);
     expect(facade.textContent).toContain("Plays on YouTube only");
+    // Nothing shows over a video that doesn't play here, and the note says where it plays.
+    expect(screen.queryByText("Predictions on video")).toBeNull();
+    expect(screen.getByText(/plays on YouTube only; a match's Watch button opens it there at that match/)).toBeTruthy();
   });
 
   it("a button's play of a video that plays on YouTube only opens its watch page from that second, never the dialog", () => {
