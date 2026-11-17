@@ -73,14 +73,25 @@ describe("the YouTube Data API", () => {
     expect(apiFacts({ liveStreamingDetails: { scheduledStartTime: "2026-05-03T12:00:00Z" } })).toMatchObject({ live: true, start: null });
     expect(apiFacts({ contentDetails: { duration: "PT3M33S" } })).toEqual({ status: "ok", start: null, end: null, length: 213, live: false });
   });
-  it("a video blocked in 50 countries or more is unavailable: it plays almost nowhere; a few countries' block plays", () => {
+  it("a region block stops a video when it covers every country or its event's own: one that plays there keeps its clips", () => {
     // Live: FTC Ontario's Central Toronto Qualifier stream, blocked in all 249 (the watch page: UNPLAYABLE, "Video unavailable").
     const every = Array.from({ length: 249 }, (_, i) => `C${i}`);
-    expect(apiFacts({ contentDetails: { duration: "PT8H22M15S", regionRestriction: { blocked: every } }, liveStreamingDetails: { actualStartTime: "2026-02-07T16:02:48Z" } }))
+    const at = (rule: object, homes?: string[]) => apiFacts({ contentDetails: { duration: "PT4H", regionRestriction: rule } }, homes);
+    expect(apiFacts({ contentDetails: { duration: "PT8H22M15S", regionRestriction: { blocked: every } }, liveStreamingDetails: { actualStartTime: "2026-02-07T16:02:48Z" } }, ["CA"]))
       .toEqual({ status: "unavailable", start: null, end: null, length: null, live: false });
-    expect(apiFacts({ contentDetails: { duration: "PT4H", regionRestriction: { blocked: every.slice(0, 50) } } })).toMatchObject({ status: "unavailable" });
-    expect(apiFacts({ contentDetails: { duration: "PT4H", regionRestriction: { blocked: every.slice(0, 49) } } })).toMatchObject({ status: "ok", length: 14400 });
-    expect(apiFacts({ contentDetails: { duration: "PT4H", regionRestriction: { blocked: ["BY", "RU"] } } })).toMatchObject({ status: "ok" });
+    expect(at({ blocked: every.slice(0, 240) })).toMatchObject({ status: "unavailable" });
+    // Blocked in 60 countries but not the event's: it plays for the people who watch, so it keeps its clips.
+    const sixty = [...every.slice(0, 59), "DE"];
+    expect(at({ blocked: sixty }, ["US"])).toMatchObject({ status: "ok", length: 14400 });
+    expect(at({ blocked: sixty })).toMatchObject({ status: "ok" });
+    // Blocked in the event's own country (a US event blocked in the US; a German event blocked in Germany): it doesn't.
+    expect(at({ blocked: ["US", "CA"] }, ["US"])).toMatchObject({ status: "unavailable" });
+    expect(at({ blocked: sixty }, ["DE"])).toMatchObject({ status: "unavailable" });
+    expect(at({ blocked: ["BY", "RU"] }, ["US"])).toMatchObject({ status: "ok" });
+    // Allowed only elsewhere, or nowhere.
+    expect(at({ allowed: ["BR"] }, ["US"])).toMatchObject({ status: "unavailable" });
+    expect(at({ allowed: ["US", "CA"] }, ["US"])).toMatchObject({ status: "ok" });
+    expect(at({ allowed: [] })).toMatchObject({ status: "unavailable" });
   });
   it("asks for up to 50 at once; one missing from the answer is unavailable; a failed request leaves all to try again", async () => {
     let asked = "";
