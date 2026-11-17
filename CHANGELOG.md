@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 7.4.8 — 2026-11-17
+## 7.4.9 — 2026-11-17
 
 Event videos › an event's recording can now be found on a day it played that FIRST's dates leave out, and KZCMP 2022's second day plays.
 
@@ -26,6 +26,18 @@ Event videos › an event's recording can now be found on a day it played that F
 
 ### Fixed
 - Event videos: an event's days, for finding and checking its videos, are FIRST's listed dates widened to every day it played a match. FIRST's dates are wrong for 145 events (2,619 played matches): Kazakhstan Central Asia FTC Regional Championship 2022 is listed 23 to 25 Feb 2023 and played Q32–Q39 and its playoffs on the 26th, so its day-2 recordings fitted no event. The watcher, the channel audit, an owner's approval and decisions from evidence all use the widened days. KZCMP's day-2 qualifier and playoff recordings are linked (each checked on a frame), and the upload before its playoffs, which holds no match, is set aside. (`server/videos/eventDays.ts`, `server/data/videoDecisions.ts`) (#1703)
+
+## 7.4.8 — 2026-11-17
+
+Tests › a check on the welcome email failed now and then for no reason, holding up unrelated changes; it no longer does.
+
+### Highlights
+- [fixes] A test that failed at random no longer holds up changes
+- [fixes] No change to the welcome email itself
+- [fixes] A real weekday or time in the email still fails it
+
+### Fixed
+- Tests (`server/digest/welcome.test.ts`): the welcome email's "no weekday or clock time" check read the whole text, unsubscribe link included, and the link's random token sometimes held a run like `9AM` (`DjPos9AMRs…`), failing CI on unrelated changes. The check now leaves links out and matches days and times as whole words. A real "9 AM" or "Monday" in the email still fails it (#1674).
 
 ## 7.4.7 — 2026-11-17
 
