@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.6.7 — 2026-11-17
+
+Search › "ranked" beside the best team reads as the board's own order, so "best romanian team ranked" lists Romania's top teams.
+
+### Highlights
+- [fixes] "Best romanian team ranked" lists Romania's top teams
+- [fixes] "Best ranked team in NJ" shows New Jersey's rankings
+- [fixes] "Ranked" after the best team no longer stops a search
+
+### Fixed
+- Search (`src/shared/query/intents.ts`, `server/api/searchAsks.ts`): "ranked" read as a rank to sort by, which the best-team board doesn't take, so "best romanian team ranked" read nothing. The best-team board now takes it as its own order (a team's rank is its OPR rank), and the region-rankings reader drops it after "best", "top" or "strongest" and at the end, so "best ranked team in nj" stays New Jersey's rankings. (#PRNUM)
+
 ## 7.6.6 — 2026-11-17
 
 Search › "thier" is read as "their" again, so "where is 207 in thier conference" answers 207's conference place.
