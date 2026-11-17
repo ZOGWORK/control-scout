@@ -37,3 +37,13 @@ describe("shapeProblems", () => {
     expect(shapeProblems(pr({ headRefName: "claude/clips-2025" })).problems).toEqual(["branch claude/clips-2025, not the autopilot's (clip-autopilot/…)"]);
   });
 });
+
+describe("shapeProblems: its data file changed in place", () => {
+  it("stops on a rename, an add or a delete of its data file, and on a PR changing nothing", () => {
+    expect(shapeProblems(pr({ files: [{ path: seasonFile(2025), changeType: "MODIFIED" }] })).problems).toEqual([]);
+    expect(shapeProblems(pr({ files: [{ path: seasonFile(2025), changeType: "RENAMED" }] })).problems).toEqual([`${seasonFile(2025)} renamed, not changed in place`]);
+    expect(shapeProblems(pr({ files: [{ path: seasonFile(2025), changeType: "ADDED" }] })).problems).toEqual([`${seasonFile(2025)} added, not changed in place`]);
+    expect(shapeProblems(pr({ files: [{ path: seasonFile(2025), changeType: "DELETED" }] })).problems).toEqual([`${seasonFile(2025)} deleted, not changed in place`]);
+    expect(shapeProblems(pr({ files: [] })).problems).toEqual([`doesn't change ${seasonFile(2025)}`]);
+  });
+});
