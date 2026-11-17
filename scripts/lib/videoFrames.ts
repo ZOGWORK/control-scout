@@ -14,7 +14,7 @@ export const AUTO_S = 30, SWITCH_S = 8, TELEOP_S = 120;
 /** The match an overlay names: "Qualification 21 of 36" → Q21, "Finals Match 2" → F2, "Playoff Match 7" or just
  *  "Match 7" (a playoff on 2025's overlay) → M7; anything else none. A frame's label only counts with its timer seen
  *  running and confirmed a minute on (scripts/video-frames.ts), so a bracket screen or schedule naming a match, with no
- *  timer running, gives no start. `semifinals`: the event's playoffs are best-of-3 semifinals and finals (2019–2022),
+ *  timer running, gives no start. `semifinals`: the event's playoffs are best-of-3 semifinals and finals (2019–2023),
  *  whose overlay names each as "Semifinal 1 Match 2" or "Finals Match 1": a bare "Match 1" there is one of those read
  *  with its first word lost (2019IASQ4's "Finals Match 1" read "Match 1"), so it names none. */
 export function overlayLabel(text: string, semifinals = false): string | null {
@@ -23,7 +23,7 @@ export function overlayLabel(text: string, semifinals = false): string | null {
   // "Finals" with a letter the OCR reads as another ("Finais", "Fnals").
   const f = /(?<!Semi-?\s?)\bF[il1]?na[il1|]s?\s+Match\s+(\d)\b/i.exec(text);
   if (f) return `F${Number(f[1])}`;
-  // Best-of-3 semifinals (2019–2022's playoffs): "Semifinal 2 Match 1" is the second semifinal's first match, the
+  // Best-of-3 semifinals (2019–2023's playoffs): "Semifinal 2 Match 1" is the second semifinal's first match, the
   // event's M2 (series 2, number 1), and "Semifinal 1 Match 2" is its M1-2, never M2. Named with series and number
   // ("M2-1", "M1-2") so it's never taken for a replay (sameMatch).
   const sf = /Semi-?\s?finals?\s+(\d)\s+Match\s+(\d)\b/i.exec(text);
