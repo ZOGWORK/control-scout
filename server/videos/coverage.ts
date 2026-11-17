@@ -312,6 +312,15 @@ export function clipCoverage(matches: CoverageInput[], rec: Recording | null, fu
       out.push({ ...base, clip: false, videoId: why.videoId, reason: why.reason, why: videoWhy(video), clock: why.why, video });
       continue;
     }
+    // A video too short of its broadcast for the clock to place anything in it, whose frames were read: what they showed
+    // is the reason too (played before the recording opens, no start found, seen with no clip), never the shortfall alone.
+    if (why.videoId && r?.code && why.reason === "gap-unplaced") {
+      const video = videoCheck(why.videoId, r.code, m.label, order);
+      if (video.checked) {
+        out.push({ ...base, clip: false, videoId: why.videoId, reason: why.reason, why: videoWhy(video), clock: why.why, video });
+        continue;
+      }
+    }
     out.push({ ...base, clip: false, videoId: why.videoId, reason: why.reason, why: why.why });
   }
   const videos: CoverageVideo[] = judged.map((j) => ({
