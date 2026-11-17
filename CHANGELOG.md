@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.4.9 — 2026-11-17
+
+Videos › 36 more 2022 (POWERPLAY) match clips from the Kazakhstan Central Asia championship and Arizona's championship (Saguaro Division).
+
+### Highlights
+- [history] Arizona's Saguaro Division: clips for 34 of 37 matches
+- [history] Kazakhstan Central Asia championship: clips for Q11 and Q32
+- [fixes] Every clip opens on a frame naming its match and its own event
+
+### Added
+- Videos: clips read off the recordings' frames (`server/data/frameTimings/2022.ts`): USAZCMPSG23 34 of 37 played matches (its score bar flipped to the top, read by #1715's reader), KZCMP Q11 on day 1 and Q32 on day 2 (day 1's overlay is frozen on Q2 for an hour, so no frame names Q3 to Q10). Each placed start's clip opens on a paused frame whose overlay names that match, and no frame names another event. The matches left out stay without a clip, with the reason. (#1729)
+
 ## 7.4.8 — 2026-11-17
 
 Videos › 84 more 2022 (POWERPLAY) match clips from the Louisiana championship and the TX-North Semi-Regional South.
