@@ -175,7 +175,8 @@ minutes and starts a run only when the last one is 6 hours old, so a deploy does
     event whose whole name its title says and that joins no two names ("Meet 1 & Tournament");
   - it fits exactly one event of the channel's region on its broadcast date at the venue (an upload: that date);
   - the title agrees on the division, designators, date, weekday and day number. Taken one at a time, a title's
-    "Day N" must be the event's own day N. A title naming two meets or qualifiers ("Meet #3 / Meet #4") is two events;
+    "Day N" must be the event's own day N: its Nth day from its first, or the Nth day it played a match (RONR4LT
+    2023 is listed 7 to 9 March 2024 and played on the 9th and 10th, so its "DAY 2" is the 10th). A title naming two meets or qualifiers ("Meet #3 / Meet #4") is two events;
   - the event has no video for that day yet (a second video of a day is kept only when both name their parts, such
     as "Matches" and "Awards"), and none whose day isn't known yet. Another programme's stream at the same venue (FIRST
     Global, a drone or simulator contest) is set aside, and "Meeting" or "Sports Day 2026" no longer reads as a meet or a

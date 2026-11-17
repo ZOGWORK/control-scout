@@ -12,3 +12,11 @@ const playedDay = (fn: "MIN" | "MAX") =>
 export const EVENT_FIRST_DAY = `MIN(substr(e.start, 1, 10), COALESCE(${playedDay("MIN")}, substr(e.start, 1, 10)))`;
 /** Its last day: its listed end (its start when it has none), or a later played day. */
 export const EVENT_LAST_DAY = `MAX(substr(COALESCE(e.end, e.start), 1, 10), COALESCE(${playedDay("MAX")}, substr(COALESCE(e.end, e.start), 1, 10)))`;
+
+/** The venue-local days it played a match, comma-separated in any order (NULL: none yet): a title's "day 2" is the second
+ *  of these as well as the second of its listed dates (RONR4LT 2023 is listed 7 to 9 March 2024 and played on the 9th
+ *  and 10th; its "DAY 2" broadcast is on the 10th). */
+export const EVENT_PLAYED_DAYS = `(SELECT group_concat(DISTINCT substr(m.time, 1, 10)) FROM matches m WHERE m.season = e.season AND m.code = e.code AND m.played = 1 AND m.time IS NOT NULL)`;
+
+/** EVENT_PLAYED_DAYS as read: the days in order, or undefined when none. */
+export const playedDays = (v: unknown): string[] | undefined => (v ? String(v).split(",").filter(Boolean).sort() : undefined);

@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 7.6.3 — 2026-11-17
+## 7.6.4 — 2026-11-17
 
 Videos › 135 matches from four 2025 events (Indiana State Championship, Westfield QT, Shoals QT and Pompeii) get a clip, each opening on a frame that names its match and its event.
 
@@ -26,6 +26,18 @@ Videos › 135 matches from four 2025 events (Indiana State Championship, Westfi
 
 ### Fixed
 - Videos (`server/data/frameTimings/2025.ts`): Indiana State Championship (45 of 45), Westfield QT (45 of 45), Shoals QT (35 of 47 over its two videos) and Pompeii (the 10 matches its video holds) get frame-checked starts. Each start's opening frame names its match and this event. Shoals QT's other 12 matches stay without a clip because no frame confirmed their start. (#1739)
+
+## 7.6.3 — 2026-11-17
+
+Event videos › a title's "Day 2" can mean the event's second day of play, and two Romanian events get the recordings of the days FIRST's dates left out.
+
+### Highlights
+- [fixes] A title's day number counts the days an event played
+- [fixes] RO #4 Iasi 2024 day 2 recording linked
+- [fixes] Romania's 2021 national championship recording linked
+
+### Fixed
+- Event videos: a title's "Day N" must be the event's own day N, counted by the calendar from its first day or by the days it played a match. RONR4LT 2023 is listed 7 to 9 March 2024 and played on the 9th and 10th: its "DAY 2" broadcast on the 10th read as the event's day 4, and with #1703's wider days the channel audit would have opened it as a finding. Its day-2 recording (Finals Match 1 on a frame) and ROBUOS1 2020's one day of play, 30 Aug 2021 after its listed 27 to 29 (Semifinal 1 Match 1 on a frame), are linked. (`server/videos/officialMatch.ts`, `server/data/videoDecisions.ts`) (#1726)
 
 ## 7.6.2 — 2026-11-17
 
