@@ -123,6 +123,7 @@ describe("season files", () => {
   it("marks a PR with its season and rows, read back by the next run", () => {
     const m = prMarker(2025, [A, B]);
     expect(readMarker(`Some text\n\n${m}\n`)).toEqual({ season: 2025, rows: ["v1|AAQ", "v2|BBQ"] });
+    expect(readMarker(prMarker(0, [A], "server/data/clipChecks.ts"))).toEqual({ season: 0, rows: ["v1|AAQ"], file: "server/data/clipChecks.ts" });
     expect(readMarker("no mark")).toBeNull();
     expect(readMarker("<!-- clip-autopilot {not json} -->")).toBeNull();
   });

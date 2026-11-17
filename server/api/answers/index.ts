@@ -33,7 +33,8 @@ import { championshipMatchesAnswer, eventScopeAnswer, matchLabelAnswer } from ".
 import { eventAnswer } from "./families/events.js";
 import { factAnswer, readTeamFact, seasonOf as factSeason, type FactQuestion } from "./families/facts.js";
 import { leagueAskAnswer, readLeagueAsk } from "./families/league.js";
-import { conferenceAskAnswer, readConferenceAsk } from "./families/conference.js";
+import { conferenceAskAnswer, readConferenceAsk, readConferenceName } from "./families/conference.js";
+import { allConferences } from "../conferences.js";
 import { OPR_RATING_TITLES, oprRatingAnswer, readOprRating, type OprRatingQuestion } from "./families/oprRating.js";
 import { readOverview } from "./families/overview.js";
 import { counts, matchAnswer, whoOf } from "./families/matches.js";
@@ -400,15 +401,32 @@ export async function leagueSearch(q: string, opts: { full: boolean; pages: Sear
  *  Conference"): its table by league standing, a team's place in it, or its winner from the awards (./families/
  *  conference.ts). Null when the words name no stored conference and no team's: left to the other readers. */
 export async function conferenceSearch(q: string, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
-  const ca = readConferenceAsk(q);
+  // A conference's whole name alone ("East Bergen") is its table too, unless a team goes by those very words.
+  const ca = readConferenceAsk(q) ?? await bareConference(q);
   if (!ca) return null;
-  const stat = await conferenceAskAnswer(ca, askSeason());
-  if (!stat) return null;
-  const season = Number(/^(\d{4})/.exec(stat.scope[0] ?? "")?.[1]) || askSeason();
+  const got = await conferenceAskAnswer(ca, askSeason());
+  if (!got) return null;
+  const { events, ...answered } = got;
+  const season = Number(/^(\d{4})/.exec(answered.scope[0] ?? "")?.[1]) || askSeason();
+  // What the answer is about, as cards under it: its tournament, then the team asked about.
+  const rows = events?.length ? await all<any>(`SELECT season, code, name, type, venue, city, state, country, start, end, timezone FROM events WHERE ${events.map(() => "(season = ? AND code = ?)").join(" OR ")}`, events.flatMap((e) => [e.season, e.code])) : [];
+  const team = answered.team ? (await search(String(answered.team.number), 5)).find((h) => h.kind === "team" && h.ref === String(answered.team!.number)) : undefined;
+  const hits: SearchHit[] = [...(team ? [team] : []), ...rows.map((r) => eventHit(r))];
   // The dropdown carries no card: the answer's page to open, so the reading there is something to tap, never empty.
-  const pages = opts.full ? opts.pages : [{ title: stat.title, href: `/search?q=${encodeURIComponent(q)}` }, ...opts.pages];
-  return { q, hits: [], pages, step: "deterministic", weak: false, understood: { kind: "question", label: stat.title, season },
-    intent: { kind: "stat-conference", pattern: `${ca.team != null ? "[team] " : ""}[conference] ${ca.won ? "winner" : "ranking"}${ca.season != null ? " [season]" : ""}`, met: true, understood: [stat.title] }, ...(opts.full ? { stat } : {}) };
+  const pages = opts.full ? opts.pages : [{ title: answered.title, href: `/search?q=${encodeURIComponent(q)}` }, ...opts.pages];
+  return { q, hits, pages, step: "deterministic", weak: false, understood: { kind: "question", label: answered.title, season },
+    intent: { kind: "stat-conference", pattern: `${ca.team != null ? "[team] " : ""}[conference] ${ca.won ? "winner" : ca.bare ? (ca.words.length ? "name" : "list") : "ranking"}${ca.season != null ? " [season]" : ""}`, met: true, understood: [answered.title] }, ...(opts.full ? { stat: answered } : {}) };
+}
+
+/** A conference named by its words alone, when no team's whole name is those words. */
+async function bareConference(q: string) {
+  const list = await allConferences();
+  const ask = list.length ? readConferenceName(q, list) : null;
+  if (!ask) return null;
+  // A team or a league by those very words ("Northern", the Northern League): theirs, never a guess at the conference.
+  const said = ask.words.join(" ");
+  const [teams, leagues] = await Promise.all([get<{ n: number }>("SELECT COUNT(*) n FROM teams WHERE lower(name) = ?", [said]), get<{ n: number }>("SELECT COUNT(*) n FROM leagues WHERE lower(name) = ?", [said])]);
+  return Number(teams?.n ?? 0) || Number(leagues?.n ?? 0) ? null : ask;
 }
 
 /** The answer for `q`, or null when it isn't a stat question or its team isn't found. */
