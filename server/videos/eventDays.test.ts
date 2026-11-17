@@ -39,7 +39,7 @@ describe("an event's days", () => {
   it("let a decision from evidence link a recording of that day", async () => {
     await run("INSERT INTO official_audit_videos (video_id, channel_id, title, published, first_seen, last_seen) VALUES ('ZXdoZmDoHp0', ?, 'Kazakhstan FTC Regional Championship (PLAYOFF)', '2023-02-26T10:55:36Z', 'x', 'x')", [CH]);
     const r = await applyVideoDecisions(() => {}, [{ videoId: "ZXdoZmDoHp0", decision: "link", season: 2022, code: "KZCMP", day: "2023-02-26", part: "Playoff", evidence: "test" }], { again: true, now: Date.parse("2026-11-17T12:00:00Z"), lockWaitMs: 1000 });
-    expect(r.skipped).toEqual([]);
+    expect(r?.skipped).toEqual([]);
     expect(await all("SELECT code, day, part FROM official_videos WHERE video_id = 'ZXdoZmDoHp0'")).toEqual([{ code: "KZCMP", day: "2023-02-26", part: "Playoff" }]);
   });
 });
