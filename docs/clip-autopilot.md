@@ -27,10 +27,14 @@ computer at home, in a clone kept for it alone. Each run:
    branched, they conflict, or they still carry a release (opened before data PRs dropped theirs): never to renumber.
    Its rows are applied to main's season file again and any CHANGELOG.md or package.json/lock put back to main's. A
    row main changed meanwhile (another read got there first) is checked again; one that no longer passes is left out,
-   and a PR with none left is closed;
+   and a PR with none left is closed. Every open PR, rebuilt or not, gets the `no-changelog` label if it lacks it and a
+   Loopy review request for its head unless Loopy's summary already names that head (at most once a head a day:
+   `.data/autopilot/asked.json`), so a step that failed once is done on the next run;
 2. takes a read-only snapshot of the live database (`VACUUM INTO` over ssh, copied down, removed from the VM);
-3. takes the queue from it; skips events already in an open autopilot PR, and events read lately with nothing new
-   (tried again after 3 days, left after 3 such reads until their recording or matches change);
+3. takes the queue from it; skips events already in an open autopilot PR, events read lately with nothing new
+   (tried again after 3 days, left after 3 such reads until their recording or matches change), and events whose good
+   rows waited last time (read again after 6 h, doubling each wait in a row up to 3 days; waits never count toward
+   the 3);
 4. reads up to `--max` events (12) with `scripts/video-frames.ts --season N --codes … --live <main's season file>`
    (`--all` for an event with rows already), then `--verify`, then `--bounds`;
 5. checks every row it changed against main's (`rowProblems`, scripts/lib/autopilotRows.ts) and leaves out, with its
@@ -45,9 +49,10 @@ computer at home, in a clone kept for it alone. Each run:
    just before the first row whose event code sorts after its own, so PRs from different sources don't conflict.
    Rows whose changes touch (one gap, neighbouring lines) go in one PR, and each PR's diff stays under 12 KB
    (`prChunks`, scripts/lib/autopilotRows.ts). Rows that would touch an open PR's lines, and those that don't fit under
-   12 KB in one gap (a sparse season file), wait for a later run, on the main those PRs leave; their events aren't
-   counted as tried. Each PR gets a review request, and merges like any other: the main session merges it once
-   reviewed with green CI.
+   12 KB, wait for a later run, on the main those PRs leave; their events aren't counted as tried. A group too big
+   for one PR is split at whole events. A single row whose own diff is too big for Loopy (16 KB) is never shipped:
+   it's logged for the owner, and its event counts a try. Each PR gets a review request, and merges like any other:
+   the main session merges it once Loopy gives 5/5 on the exact head and CI is green.
 
 Logs: `.data/autopilot/runs/<time>.log` in the clone (every command and its output), `.data/autopilot/task.log` (the
 schedule's). What it remembers between runs: `.data/autopilot/memory.json`.
