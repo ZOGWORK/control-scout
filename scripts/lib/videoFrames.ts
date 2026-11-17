@@ -43,7 +43,9 @@ export function overlayLabel(text: string, semifinals = false): string | null {
   if (next) return `M${Number(next[1])}`;
   if (new Set([...text.matchAll(/\bM(\d{1,2})\b/g)].map((m) => m[1])).size >= 3) return null;
   const named = new Set<number>();
-  for (const m of text.matchAll(/(advances\s+to:?\s+(?:Playoff\s+)?|\bTest\s+)?\bMatch\s+(\d{1,2})\b/gi)) if (!m[1]) named.add(Number(m[2]));
+  // FIRST DIVE's 2024 playoff bar puts the bracket's next steps beside the match on screen ("Winner → Match 7",
+  // "Loser → Match 5", AUCMP and FPECA 2024): those are later matches too, whatever the arrow reads as.
+  for (const m of text.matchAll(/(advances\s+to:?\s+(?:Playoff\s+)?|\bTest\s+|\b(?:Winner|Lo[s5]er)[^A-Za-z0-9\n]{0,8})?\bMatch\s+(\d{1,2})\b/gi)) if (!m[1]) named.add(Number(m[2]));
   return named.size === 1 ? `M${[...named][0]}` : null;
 }
 
