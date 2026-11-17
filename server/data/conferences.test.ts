@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { all, migrate, openDb, run, setDb } from "../db";
 import { clearAllCaches } from "../caches";
 import { conferenceOf, syncConferences } from "./conferences";
-import { conferenceByEvent, leagueConferences, teamConference } from "../api/conferences";
+import { conferenceByEvent, leagueConferences, teamConference, teamConferenceInfo } from "../api/conferences";
 import { CONFERENCE_LABEL, conferenceHref, conferenceName, conferenceSlug, ordinal } from "../../src/shared/conferences";
 
 const ev = (season: number, code: string, name: string, type: string, region: string, league: string, start: string) =>
@@ -137,6 +137,17 @@ describe("conference tables", () => {
     });
     expect(await teamConference(2025, 30680, { now: "2026-11-16" })).toMatchObject({ rank: null, leagueRank: null });
     expect(await teamConference(2025, 14450, { now: "2026-11-16" })).toBeNull();
+  });
+
+  it("tells the conference button whether a team is based in New Jersey, its league and its conference", async () => {
+    await syncConferences(2025, { now: new Date("2026-11-16T12:00:00Z") });
+    await run("UPDATE teams SET state = 'NJ', country = 'USA' WHERE number = 4215");
+    await run("INSERT INTO teams (number, name, state, country) VALUES (1111, 'Michigan Team', 'MI', 'USA')");
+    expect(await teamConferenceInfo(4215, 2025)).toMatchObject({ team: 4215, season: 2025, nj: true, league: { region: "USNJ", code: "NO" }, conference: { name: "East Bergen Conference", rank: 4 } });
+    expect(await teamConferenceInfo(1111, 2025)).toEqual({ team: 1111, season: 2025, nj: false, league: null, conference: null });
+    expect((await teamConferenceInfo(424242, 2025)).nj).toBeNull();
+    // 2026–27: in the Northeast League, registered for East Bergen but not in a FIRST field yet: no conference place.
+    expect(await teamConferenceInfo(4215, 2026)).toMatchObject({ nj: true, league: { region: "USNJ", code: "NE" }, conference: null });
   });
 
   it("shows the teams going in from FTC New Jersey's sign-ups before FIRST posts a field, with today's standing", async () => {
