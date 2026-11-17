@@ -3,3 +3,5 @@
 *.woff2 binary
 *.db binary
 *.ttf binary
+# Frame-read rows, written by scripts/video-frames.ts: data, collapsed in diffs.
+server/data/frameTimings/*.ts linguist-generated=true

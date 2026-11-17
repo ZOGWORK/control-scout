@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 7.2.7 — 2026-11-17
+## 7.3.0 — 2026-11-17
 
 Owner console › Clip coverage is now a quick, visual review screen: meters and coloured tiles up top, one card per event, and every missing match a chip that opens its video at the right second.
 
@@ -27,6 +27,42 @@ Owner console › Clip coverage is now a quick, visual review screen: meters and
 
 ### Changed
 - Owner console › Clip coverage: events fully clipped and matches with a clip as two big meters; the lists (To review, Not yet checked, No timing, Early start, Old season, Reviewed) as coloured count tiles; why matches have no clip as a coloured bar with a tile per kind that shows only that kind's chips. Each event is a card with its video's thumbnail, a clipped meter and its missing matches as chips coloured by kind (a short reason on hover); a chip opens the app's video dialog at the second worth seeing. Reviewed sits on the card and takes it off at once, putting it back if the server says no. Matches found in the video are chips too. The long reasons are under Details on each card, and bulk Reviewed with the check numbers under "Bulk review and check details". Works on phones (44px touch targets, no sideways scroll) and in every theme. (`src/components/owner/ClipCoveragePanel.tsx`, `src/components/owner/clipReview.ts`) (#1650)
+
+## 7.2.9 — 2026-11-17
+
+Videos › 104 more 2025 matches get a clip, read off their recording's frames: Sydney South, the Ontario championship and Kazakhstan's Kerey division.
+
+### Highlights
+- [fixes] 104 more 2025 matches get a clip read off the video
+- [fixes] Each opens on a frame whose overlay names its match and event
+- [fixes] No clip already playing changes
+
+### Fixed
+- Videos: three 2025 events whose recordings lost time against their broadcast had matches the clock couldn't place. Their starts are now read off the frames, and each clip opens on a frame (read paused) whose overlay names its match and this event: AUSYQ1 22 of 30 (Q1–Q8 were played before the recording starts), CAONCMP 69 of 74 (Q21, Q50 and Q59 open on another match and go to review; Q22 sits in the recording's 15-minute gap and Q23 wasn't confirmed), and KZCMPKER1 86 of 90 over its three day videos, up from 73. No clip already playing is taken away. (`server/data/frameTimings/2025.ts`) (#1658)
+
+## 7.2.8 — 2026-11-17
+
+Videos › the frame-read match starts are kept one file a season, so a season's recordings can be read alongside another's; every clip plays as before.
+
+### Highlights
+- [fixes] Match clips play from the same seconds as before
+- [fixes] Each season's frame-read starts in a file of its own
+- [fixes] Seasons' recordings can be read side by side
+
+### Changed
+- Videos (`server/data/frameTimings.ts`, `scripts/video-frames.ts`, `scripts/split-frame-timings.ts`): the frame reader's rows live in `server/data/frameTimings/<season>.ts`, one file per season of the row's event (2024: 48 rows, 2025: 162, 2026: 8; 2019 and 2021–2023 empty), and `frameTimings.ts` serves them together, unchanged (#1647). `scripts/video-frames.ts --season N` reads and writes only that season's file, so readers of different seasons never touch the same file. `scripts/split-frame-timings.ts` does the split (re-runnable, it reads its rows back), and a test checks the 218 rows it pinned.
+
+## 7.2.7 — 2026-11-17
+
+Videos › a recording YouTube once called unavailable is looked at again every week, so one made public again gets its clips.
+
+### Highlights
+- [fixes] Recordings made public again get their match clips back
+- [fixes] An unavailable video is looked at again every week
+- [fixes] Fewer events stuck at "video unavailable" in Clip coverage
+
+### Fixed
+- A video YouTube's facts called unavailable (private, removed, embedding off) was never read again, so a recording its owner later made public again stayed hidden for good: no clips, no frame read, "video unavailable" on Owner › Clip coverage. USILCSSLT 2024's recording (44 matches) was marked unavailable on 2026-10-24 and plays again now. Such a video is now read again a week after its last read, like any other fact that can change (28 videos on the live site today, a handful of API units a week). (`server/videos/recordings.ts`) (#1648)
 
 ## 7.2.6 — 2026-11-17
 
