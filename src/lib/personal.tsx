@@ -470,6 +470,11 @@ export function usePersonal(): PersonalApi {
   return c;
 }
 
+/** My team on this device, or null outside a PersonalProvider (a page drawn on its own: a test, a static render). */
+export function useMyTeamNumber(): number | null {
+  return useContext(Ctx)?.state.myTeam ?? null;
+}
+
 /** Convenience: is this team tracked / bookmarked / my team? */
 export function useTeamFlags(team: number) {
   const { state, update, set } = usePersonal();

@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.1.9 — 2026-11-17
+
+Leagues › a New Jersey league's page shows its conference rankings: each conference tournament's teams ranked by FIRST's league standing, league meets only.
+
+### Highlights
+- [rankings] NJ league pages rank each conference by league standing
+- [rankings] Before a conference tournament: who registered, and when it was read
+- [rankings] Who won each conference, from FIRST's awards
+
+### Added
+- League page (New Jersey only): View Conference Rankings, and a section with a tab per conference of the league. Each tab lists the conference tournament's teams in FIRST's league order, labelled "League meets only — excludes this tournament.", with each team's rank in the conference beside its rank in the league, its league record, RS, TBP, matches and meets played, Scout rating, OPR and league rank. A team with no league meet shows "Not ranked yet — no league meets played", never an RS of 0. Sorting reorders rows but never renumbers them; ?team= marks a row and opens its page. Before the tournament the teams come from FTC New Jersey's registrations (labelled registered, with the date read, never as the final field); after it, the league standing they went in with. The winner is read from the awards, never the top seed. A visitor whose My team is based outside New Jersey sees none of it. (`src/components/ConferenceSection.tsx`, `src/lib/conferenceGate.ts`, `src/pages/LeaguePage.tsx`, `server/api/conferences.ts`) (#1632)
+
 ## 7.1.8 — 2026-11-17
 
 Videos › 8 more 2024 matches get a clip: their start was read off the video, and the overlay's bar now names each one on its opening frame.
