@@ -17,7 +17,7 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 
 ## 7.2.9 — 2026-11-17
 
-Rankings › a New Jersey league's conferences get their own rankings page, laid out like region rankings (#1657).
+Rankings › a New Jersey league's conferences get their own rankings page, laid out like region rankings.
 
 ### Highlights
 - [rankings] Each NJ conference has its own rankings page
@@ -27,7 +27,7 @@ Rankings › a New Jersey league's conferences get their own rankings page, laid
 - [rankings] The tournament's winners shown above the table
 
 ### Rankings
-- The page sits at /leagues/SEASON/REGION/LEAGUE/conferences; old #conferences links on the league page open it.
+- The page sits at /leagues/SEASON/REGION/LEAGUE/conferences; old #conferences links on the league page open it (#1657).
 - Moves are places by Scout rating among the conference's teams, week over week, labelled as Scout's, never FIRST's league rank.
 - Teams with no league meet yet sit under "Not ranked yet" instead of the table.
 - Footer links to world, New Jersey and all-region rankings, all leagues, the league and the tournament.
