@@ -269,6 +269,8 @@ describe("whose event an overlay names", () => {
     expect(overlayEvent("CANOPY | Collegiate Meet @ 9 AM Qualification 2 of 16", "Collegiate Meet @ 9 AM", 15)).toEqual({ event: "own" });
     expect(overlayEvent("DIVE Hawaii Championship Playoff Match 3", "Hawaii Championship", 25)).toEqual({ event: "own" });
     expect(overlayEvent("DIVE Western Edge Premier Event Playoff Match 3", "Hawaii Championship", 25)).toEqual({ event: "other" });
+    // A split screen whose other half can't be judged (no name, no total): this event's half still gives its match.
+    expect(overlayEvent("—E— Playoff Match 3 DIVE Hawaii Championship Playoff Match 5", "Hawaii Championship", 25)).toEqual({ event: "own", label: "M5" });
     // Nothing to tell by: no total, no name.
     expect(overlayEvent("Playoff Match 3", "Hawaii Championship", 25)).toEqual({ event: null });
   });
