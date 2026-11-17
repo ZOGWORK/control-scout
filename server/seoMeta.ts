@@ -3,6 +3,7 @@
 // only this HTML (they don't run the app), so team and event pages get their
 // own values from the database here. The app's own document.title stays as
 // the in-app fallback.
+import { CONFERENCE_REGION } from "../src/shared/conferences.js";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { all, get } from "./db.js";
@@ -889,6 +890,16 @@ export async function pageMeta(path: string, query: Record<string, unknown> = {}
       const q = sp.toString();
       const firstPaint = await leagueFirstPaint(m[1], m[2], m[3], q ? `?${q}` : "");
       return firstPaint ? { ...lm, firstPaint } : lm;
+    }
+    // A league's conference rankings: New Jersey's leagues alone have them.
+    if ((m = p.match(/^\/leagues\/(\d{4})\/([A-Za-z0-9]{1,16})\/([A-Za-z0-9]{1,16})\/conferences$/i))) {
+      const lm = await leagueMeta(Number(m[1]), m[2], m[3]);
+      if (!lm || m[2].toUpperCase() !== CONFERENCE_REGION) return NOT_FOUND;
+      // A league with no conference known (or no standing to rank them by) draws an empty state: real, never indexed.
+      const known = await get<{ n: number }>("SELECT COUNT(*) n FROM event_conferences WHERE season = ? AND region = ? AND league = ?", [Number(m[1]), m[2].toUpperCase(), m[3].toUpperCase()]);
+      const title = `Conference rankings: ${lm.title}`;
+      return { title, description: fitDescription(`${title}: each conference tournament's teams ranked by FIRST's league standing over the league meets only.`), type: "website", path: `${lm.path}/conferences`,
+        ...(lm.noData || !Number(known?.n ?? 0) ? { noData: true } : {}) };
     }
     // Any other league-shaped address (a code that can't be one) is no league.
     if (/^\/leagues\/[^/]+\/[^/]+\/[^/]+$/i.test(p)) return NOT_FOUND;

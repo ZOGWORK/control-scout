@@ -1,7 +1,7 @@
 // The pure parts of the frame reader (scripts/video-frames.ts): the overlay's match, the timer's elapsed time, and
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
-import { dataRows, divisionOf, elapsed, overlayDivision, leadIn, LEAD_IN_S, judge, NOTHING_READ, autoLeadsTo, overlayLabel, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, type M } from "./videoFrames";
+import { dataRows, divisionOf, elapsed, overlayDivision, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayLabel, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, type M } from "./videoFrames";
 
 describe("the frame reader", () => {
   it("names the match the overlay shows, and nothing else", () => {
@@ -76,6 +76,43 @@ describe("the frame reader", () => {
     expect(timerRan(0, 1.6)).toBe(false);
     expect(timerRan(0, 0.4)).toBe(false);
     expect(timerRan(5, 1.7)).toBe(false);
+  });
+
+  it("places matches with only a scheduled time where their own frames show them, never filled", () => {
+    // 2019MOQ8: FIRST gives whole-minute scheduled times only, 5 minutes apart; the event ran slower.
+    const ms: M[] = [1, 2, 3, 4, 5].map((n) => ({ label: `Q${n}`, epoch: 1_000 + n * 300, scheduled: true }));
+    // Q1, Q2 and Q4 read in order (7 to 8 minutes apart); Q3 not read; Q6 misread far back (before Q4 and Q5).
+    const ms6: M[] = [...ms, { label: "Q6", epoch: 2_800, scheduled: true }];
+    const seen = new Map([[0, 2000], [1, 2430], [3, 3300], [4, 3750], [5, 2100]]);
+    const j = judge(ms6, seen, null, 10_000, new Set([0, 1, 3, 4, 5]));
+    expect([...j.placed].map(([l, p]) => [l, p.t, p.confidence])).toEqual([["Q1", 2000, "high"], ["Q2", 2430, "high"], ["Q4", 3300, "high"], ["Q5", 3750, "high"]]);
+    expect(j.missing.get("Q6")).toBe("its frame read disagrees with the matches around it");
+    // Two runs as long that differ (Q4 at 3300 or Q5 at 2900, each after Q2): neither of the two stands.
+    const tie = judge(ms, new Map([[0, 2000], [1, 2430], [3, 3300], [4, 2900]]), null, 10_000, new Set([0, 1, 3, 4]));
+    expect([...tie.placed.keys()]).toEqual(["Q1", "Q2"]);
+    expect(tie.missing.get("Q4")).toBe("its frame read disagrees with the matches around it");
+    // Nothing is filled between two reads for a scheduled match, however the reads agree.
+    expect(j.missing.get("Q3")).toBe(SCHEDULED_UNREAD);
+    // Frames named a match but none confirmed a start: the others are still unread for want of a time, not "nothing read".
+    const none = judge(ms, new Map(), null, 10_000, new Set([2]));
+    expect(none.missing.get("Q1")).toBe(SCHEDULED_UNREAD);
+    expect(none.missing.get("Q3")).toBe("its frames didn't confirm a start");
+    expect(judge(ms, new Map(), null, 10_000, new Set()).missing.get("Q1")).toBe(NOTHING_READ);
+    // A recording cut mid-match (USTXSASQ 2025's kind): two starts 151 s apart, both read off the video, both stand.
+    const cut = judge(ms, new Map([[0, 2000], [1, 2151]]), null, 10_000, new Set([0, 1]));
+    expect([...cut.placed.keys()]).toEqual(["Q1", "Q2"]);
+  });
+
+  it("keeps the clock's reads and fills only clock matches when scheduled ones sit between them", () => {
+    // 2019IASQ4: qualifications scheduled only, playoffs with FIRST's actual starts.
+    const ms: M[] = [
+      { label: "Q1", epoch: 100, scheduled: true },
+      { label: "M1", epoch: 10_000 }, { label: "M2", epoch: 10_400 }, { label: "M1-2", epoch: 10_800 },
+    ];
+    const j = judge(ms, new Map([[0, 50], [1, 20_000], [3, 20_800]]), null, 30_000, new Set([0, 1, 3]));
+    expect(j.placed.get("Q1")).toEqual({ t: 50, confidence: "high" });
+    expect(j.placed.get("M2")).toEqual({ t: 20_400, confidence: "medium" });
+    expect(j.placed.get("M1-2")).toEqual({ t: 20_800, confidence: "high" });
   });
 
   it("tells Auto from TeleOp's end by where the timer stands 45 s on", () => {
