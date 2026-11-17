@@ -97,26 +97,49 @@ export function changedRows<T extends Keyed = Row>(before: string, after: string
  *  other line as it was. Never re-sorted or appended: PRs from different sources each touch only their own rows' lines,
  *  so they don't conflict (owner's rule, 2026-11-17). */
 export function applyRows<T extends Keyed>(text: string, rows: T[]): string {
-  const [head, rest] = splitAt(text, "// --- Data");
-  const open = rest.indexOf("[\n"), close = rest.lastIndexOf("\n];");
-  if (open < 0 || close < 0) throw new Error("no rows array under the data mark");
-  if (!rows.length) return text;
-  // The lines between "[" and "];" ("[\n];", a season not read yet, has none).
-  const lines = close >= open + 2 ? rest.slice(open + 2, close).split("\n") : [];
-  const rowOf = (line: string): T | null => { const m = /^\s*(\{.*\}),?\s*$/.exec(line); return m ? (JSON.parse(m[1]) as T) : null; };
-  const at = new Map(lines.flatMap((l, i) => { const r = rowOf(l); return r ? [[rowKey(r), i] as const] : []; }));
-  const added: T[] = [];
-  for (const r of rows) { const i = at.get(rowKey(r)); if (i != null) lines[i] = rowLine(r); else added.push(r); }
-  // Each new row's place among the lines as they were: before the first row whose code sorts after its own.
+  if (!rows.length) { dataLines(text); return text; }
+  const { head, rest, open, close, lines } = dataLines(text);
   const before = new Map<number, T[]>();
-  for (const r of added.sort((a, b) => a.code.localeCompare(b.code) || a.videoId.localeCompare(b.videoId))) {
-    let i = lines.findIndex((l) => { const o = rowOf(l); return o != null && o.code.localeCompare(r.code) > 0; });
-    if (i < 0) i = lines.length;
-    (before.get(i) ?? before.set(i, []).get(i)!).push(r);
+  for (const p of rowPlaces(lines, rows)) {
+    if (p.replaces) lines[p.at] = rowLine(p.row);
+    else (before.get(p.at) ?? before.set(p.at, []).get(p.at)!).push(p.row);
   }
   const out: string[] = [];
   for (let i = 0; i <= lines.length; i++) { for (const r of before.get(i) ?? []) out.push(rowLine(r)); if (i < lines.length) out.push(lines[i]); }
   return `${head}${rest.slice(0, open + 2)}${out.join("\n")}${rest.slice(close)}`;
+}
+/** A data file split around its rows array: the lines between "[" and "];" ("[\n];", a season not read yet, has none). */
+function dataLines(text: string): { head: string; rest: string; open: number; close: number; lines: string[] } {
+  const [head, rest] = splitAt(text, "// --- Data");
+  const open = rest.indexOf("[\n"), close = rest.lastIndexOf("\n];");
+  if (open < 0 || close < 0) throw new Error("no rows array under the data mark");
+  return { head, rest, open, close, lines: close >= open + 2 ? rest.slice(open + 2, close).split("\n") : [] };
+}
+const rowOf = (line: string): Keyed | null => { const m = /^\s*(\{.*\}),?\s*$/.exec(line); return m ? (JSON.parse(m[1]) as Keyed) : null; };
+/** Where each row goes among the file's lines as they are: replacing its own row's line (`at` that line), or new, in
+ *  the gap before the first row whose code sorts after its own (`at` that line; the end when none does). New rows in
+ *  the same gap in code, then video, order. */
+function rowPlaces<T extends Keyed>(lines: string[], rows: T[]): { row: T; at: number; replaces: boolean }[] {
+  const at = new Map(lines.flatMap((l, i) => { const r = rowOf(l); return r ? [[rowKey(r), i] as const] : []; }));
+  return [...rows].sort((a, b) => a.code.localeCompare(b.code) || a.videoId.localeCompare(b.videoId)).map((row) => {
+    const i = at.get(rowKey(row));
+    if (i != null) return { row, at: i, replaces: true };
+    const gap = lines.findIndex((l) => { const o = rowOf(l); return o != null && o.code.localeCompare(row.code) > 0; });
+    return { row, at: gap < 0 ? lines.length : gap, replaces: false };
+  });
+}
+
+/** Rows that must ship in one PR: git conflicts where two branches change lines that overlap or touch, so rows whose
+ *  changes on `text` do (a replaced line is lines [i, i+1); a new row before line g, the empty [g, g)) go together.
+ *  Groups in file order. Two PRs adding rows into the same gap would conflict; one PR holding them doesn't. */
+export function rowGroups<T extends Keyed>(text: string, rows: T[]): T[][] {
+  const spans = rowPlaces(dataLines(text).lines, rows).map((p) => ({ row: p.row, start: p.at, end: p.at + (p.replaces ? 1 : 0) })).sort((a, b) => a.start - b.start || a.end - b.end);
+  const out: { end: number; rows: T[] }[] = [];
+  for (const s of spans) {
+    const last = out.at(-1);
+    if (last && s.start <= last.end) { last.rows.push(s.row); last.end = Math.max(last.end, s.end); } else out.push({ end: s.end, rows: [s.row] });
+  }
+  return out.map((g) => g.rows);
 }
 const splitAt = (s: string, mark: string): [string, string] => { const i = s.indexOf(mark); if (i < 0) throw new Error(`no "${mark}" mark`); return [s.slice(0, i), s.slice(i)]; };
 
@@ -146,14 +169,14 @@ export function diffBytes(before: string, after: string, context = 3): number {
 }
 
 /** A season's rows as data PRs whose diffs on `text` (main's file) are each at most `maxDiff` bytes (Loopy can't
- *  review a diff much over 16 KB): chunked as chunkRows does, any chunk still too big halved until it fits or is one
- *  row (a row bigger than that alone ships alone). */
+ *  review a diff much over 16 KB), so they never conflict with each other: rows that must go together (rowGroups:
+ *  changes that touch) are never split, groups packed in file order while the PR's diff fits. A group bigger than the
+ *  cap ships alone. */
 export function prChunks<T extends Keyed>(text: string, rows: T[], maxDiff = 12_000): T[][] {
-  const todo = chunkRows(rows, maxDiff / 2), out: T[][] = [];
-  while (todo.length) {
-    const c = todo.shift()!;
-    if (c.length > 1 && diffBytes(text, applyRows(text, c)) > maxDiff) todo.unshift(c.slice(0, c.length >> 1), c.slice(c.length >> 1));
-    else out.push(c);
+  const out: T[][] = [];
+  for (const g of rowGroups(text, rows)) {
+    const cur = out.at(-1);
+    if (cur && diffBytes(text, applyRows(text, [...cur, ...g])) <= maxDiff) cur.push(...g); else out.push([...g]);
   }
   return out;
 }
