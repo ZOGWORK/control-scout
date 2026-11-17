@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import type { Conference, ConferenceRow, LeagueConferences } from "../shared/conferences";
 import type { LeagueStandings } from "../shared/leagues";
+import { pageTitle } from "../shared/routes";
 
 const row = (team: number, rank: number | null, leagueRank: number | null, rs: number | null, extra: Partial<ConferenceRow> = {}): ConferenceRow => ({
   team, name: `Team ${team}`, rank, leagueRank, wins: rs == null ? null : 10, losses: rs == null ? null : 0, ties: rs == null ? null : 0, rs, tbp: rs == null ? null : rs * 20,
@@ -158,5 +159,10 @@ describe("a conference's rankings page", () => {
     myTeam = null;
     render(<MemoryRouter initialEntries={["/leagues/2025/USMI/AA/conferences"]}><Routes><Route path="/leagues/:season/:region/:code/conferences" element={<ConferencePage />} /></Routes></MemoryRouter>);
     expect(screen.getByText("No conference rankings here")).toBeTruthy();
+  });
+  it("names itself in the top bar, never \"Not found\"", () => {
+    expect(pageTitle("/leagues/2025/USNJ/NO/conferences")).toBe("Conference rankings");
+    expect(pageTitle("/leagues/2025/USNJ/NO/conferences/")).toBe("Conference rankings");
+    expect(pageTitle("/leagues/2025/USNJ/NO/conferences/x")).toBe("Not found");
   });
 });
