@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 7.2.0 — 2026-11-17
+## 7.2.1 — 2026-11-17
 
 Videos › the frame reader learns what a recording's first and last frames prove: a match played before the recording starts or after it ends is settled as not in it, instead of waiting in the owner's clip review.
 
@@ -26,6 +26,20 @@ Videos › the frame reader learns what a recording's first and last frames prov
 
 ### Fixed
 - Videos (the frame reader, `scripts/video-frames.ts`; `server/data/frameTimings.ts`; `server/videos/coverage.ts`): a recording's edges are read off its frames (`opensOn`, `endsOn`): the match its first or last frames name, or FTC Live's "N / M matches played" count. A match those frames prove was played before the recording starts, or after it ends, is settled as not in it (`outsideRecording`), but only where every other read in the video agrees with the edge. An opening on a match already under way settles that match (its clip can't open on its start). An edge read further in than 2 minutes counts only when every frame before it, a minute apart, showed no match. The reader also reads FIRST AGE's white timer box (in a bar across the top) with or without its thin colon, and a "Test Match 1" field check names none of the event's matches. No clip changes with this release: the edges reach the site with the data releases that carry them. An end edge counts only within 2 minutes of the recording's end (or with every frame between read empty), as an opening does; FTC Live's matches-played count settles only where its total is the event's qualification total (it counts no playoff match); a seek that never landed is no edge. (#1638)
+
+## 7.2.0 — 2026-11-17
+
+Teams, events and Leagues › ways into New Jersey's conference rankings: a team's rank in its conference, a conference tournament's link to its table, and View Conference Rankings on the New Jersey leagues.
+
+### Highlights
+- [teams] A NJ team's page shows its rank in its conference
+- [rankings] View Conference Rankings on the New Jersey leagues
+- [history] A conference tournament links its conference's table
+
+### Added
+- Team page: a New Jersey team FIRST lists in a conference tournament's field shows "Rank in {conference}", its place by league standing out of the conference's teams, linking to the league page's conference table with its row marked. (`src/pages/TeamPage.tsx`)
+- Event page: a New Jersey conference tournament links its conference's table on the league page. (`src/pages/EventPage.tsx`)
+- Leagues: the New Jersey group alone gets View Conference Rankings, straight to My team's league when it has one there, else a link per league; nothing changes for any other place. A My team based outside New Jersey sees none of these. (`src/pages/LeaguesPage.tsx`) (#1633)
 
 ## 7.1.9 — 2026-11-17
 

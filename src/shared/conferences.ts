@@ -109,6 +109,9 @@ export interface TeamConference {
    *  ranked: the teams with a standing. */
   rank: number | null; of: number; ranked: number;
   leagueRank: number | null; leagueOf: number;
+  /** False when the standing the teams went in with can't be read any more (no snapshot, a league meet after the
+   *  tournament): a null rank then says nothing about the team's meets. */
+  available: boolean;
   href: string;
 }
 
