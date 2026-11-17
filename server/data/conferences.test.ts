@@ -75,6 +75,10 @@ describe("conference names", () => {
     expect(conferenceName("FTCNJ Hudson/East Bergen Conference, Northeast League Tournament (Sunday)")).toBe("Hudson/East Bergen Conference");
     expect(conferenceName("FTCNJ W Central/Bergen Conference, ​Northeast League Tournament (Saturday)")).toBe("W Central/Bergen Conference");
     expect(conferenceName("Essex Conference Northeast Edge")).toBe("Essex Conference");
+    // Older seasons' names: a date and the league before the conference.
+    expect(conferenceName("NJ 2/25/24 Northern League East Bergen Conference Tournament")).toBe("East Bergen Conference");
+    expect(conferenceName("NJ 2/17/24 South Essex Conference League Tournament")).toBe("South Essex Conference");
+    expect(conferenceName("Central Conference Upper Central League Tournament")).toBe("Central Conference");
     expect(conferenceName("New Jersey Championship")).toBeNull();
     expect(conferenceName("P3-6 Northern League Meet")).toBeNull();
     expect(conferenceSlug("Hudson/East Bergen Conference")).toBe("hudson-east-bergen-conference");
