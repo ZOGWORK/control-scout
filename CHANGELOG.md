@@ -26,7 +26,7 @@ Videos › The frame reader now reads streams whose score bar sits along the top
 
 ### Fixed
 - The frame reader read nothing on FTC Live's bar moved to the top edge (FIRST Nevada, USNVCMP 2024): its row is now read on its own when the whole frame names no match, and that bar's timer is read first in its own place under it. A dry read of USNVCMP places 33 of 57 matches, from 0. (`scripts/video-frames.ts`)
-- The overlay's event check took this event's own frames for another event's: a total with its last digit lost ("of 46" read "of 4") now tells nothing, and only words of four letters or more weigh against a name ("rer DIVE — Nevada Chan"). (`scripts/lib/videoFrames.ts`) (#PRNUM)
+- The overlay's event check took this event's own frames for another event's: a total with its last digit lost ("of 46" read "of 4") now tells nothing, and only words of four letters or more weigh against a name ("rer DIVE — Nevada Chan"). (`scripts/lib/videoFrames.ts`) (#1713)
 
 ## 7.5.1 — 2026-11-17
 
