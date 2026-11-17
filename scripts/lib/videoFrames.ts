@@ -185,7 +185,7 @@ export function overlayBand(px: ArrayLike<number>, width: number, height: number
     }
     if (bar) { if (top < 0 || y - last > GAP + 1) top = y; last = y; continue; }
     if (top >= 0 && (y - last > GAP || y === height)) {
-      if (last - top + 1 >= TALL && last - top + 1 <= CARD && (!best || last - top > best.bottom - best.top)) best = { top, bottom: last + 1 };
+      if (last - top + 1 >= TALL && last - top + 1 <= CARD && (!best || last - top + 1 > best.bottom - best.top)) best = { top, bottom: last + 1 };
       top = -1;
     }
   }
