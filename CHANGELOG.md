@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 7.3.6 — 2026-11-17
+## 7.3.7 — 2026-11-17
 
 Videos › 200 matches from four 2023 events get clips, each opening on its own match: Toronto's first qualifier, Iowa's Gold championship, Missouri's state championship and Kansas City's West league tournament.
 
@@ -26,6 +26,18 @@ Videos › 200 matches from four 2023 events get clips, each opening on its own 
 
 ### Fixed
 - Videos (`server/data/frameTimings/2023.ts`): frame-read starts for CAONTOQ1 (44 of 51 played), USIACMPGOLD (47 of 61), USMOKSCMP (57 of 61) and USMOKSKCWLT (52 of 54). Each clip's opening frame names its match; semifinal matches read before the reader knew CENTERSTAGE's semifinal names are left for review, never shown as clips (#1668).
+
+## 7.3.6 — 2026-11-17
+
+Search engines › a Lite page with nothing on it yet says noindex, like its full page, so Google stops calling it a soft 404.
+
+### Highlights
+- [fixes] Lite team and event pages follow their full page's indexing rule
+- [fixes] A team or event with no data yet is noindex in Lite too
+- [fixes] Pages with data keep only their canonical link, as before
+
+### Fixed
+- Search engines: a team or event page with nothing on it but a name is noindex (`server/indexable.ts`), but its Lite twin only pointed its canonical at it, so Google crawled a 21-word Lite page that could be indexed and reported it as a soft 404 (`/lite/teams/19381` in Search Console's Soft 404 examples). The Lite team and event pages now ask the same rule and say noindex when their full page does. (`server/lite/routes.ts`, `server/lite/render.ts`) (#1670)
 
 ## 7.3.5 — 2026-11-17
 
