@@ -17,6 +17,9 @@ export interface WatchPageFacts {
   live: boolean;
   /** Its chapters, from the watch page only (the Data API doesn't give them); undefined: not read. */
   chapters?: Chapter[];
+  /** False when its owner turned embedding off: it plays on youtube.com only, never in a player on another site (the
+   *  app's player, the frame reader's embed). Undefined: not read. */
+  embeddable?: boolean;
 }
 
 const ERROR: WatchPageFacts = { status: "error", start: null, end: null, length: null, live: false };
@@ -75,6 +78,8 @@ function pageFacts(html: string, offline: boolean): WatchPageFacts {
     // A scheduled broadcast not started yet (LIVE_STREAM_OFFLINE) counts as live with no start, so it's read again until it runs.
     live: details.isLiveNow === true || offline,
     chapters: parseChapters(html),
+    // A watch page says so only when its owner turned embedding off; otherwise it isn't read here (the API reads it).
+    ...(/"playableInEmbed":false/.test(html) ? { embeddable: false } : {}),
   };
 }
 
@@ -130,6 +135,8 @@ export function apiFacts(item: any, homes: readonly string[] = []): WatchPageFac
     length: isoDuration(item?.contentDetails?.duration),
     // Live now, or scheduled and not started yet (read again until it runs).
     live: !!live && !live.actualEndTime && (!!started || !!live.scheduledStartTime),
+    // Asked for with every read (part "status"): false only when YouTube says so.
+    embeddable: item?.status?.embeddable !== false,
   };
 }
 
@@ -140,7 +147,7 @@ export function apiFacts(item: any, homes: readonly string[] = []): WatchPageFac
 export async function fetchFromApi(ids: string[], key: string, fetchImpl: typeof fetch = fetch, homes?: (id: string) => readonly string[]): Promise<Map<string, WatchPageFacts>> {
   const out = new Map<string, WatchPageFacts>(ids.map((id) => [id, ERROR]));
   try {
-    const q = new URLSearchParams({ part: "liveStreamingDetails,contentDetails", id: ids.slice(0, 50).join(","), key, maxResults: "50" });
+    const q = new URLSearchParams({ part: "liveStreamingDetails,contentDetails,status", id: ids.slice(0, 50).join(","), key, maxResults: "50" });
     const res = await fetchImpl(`https://www.googleapis.com/youtube/v3/videos?${q}`, { signal: AbortSignal.timeout(20_000) });
     if (!res.ok) return out;
     const body = await res.json() as { items?: unknown };
