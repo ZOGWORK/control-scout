@@ -6,6 +6,7 @@ import { all, migrate, openDb, run, setDb } from "../db";
 import { clearAllCaches } from "../caches";
 import { conferenceOf, syncConferences } from "./conferences";
 import { conferenceByEvent, leagueConferences, teamConference, teamConferenceInfo } from "../api/conferences";
+import { pageMeta } from "../seoMeta";
 import { CONFERENCE_LABEL, conferenceHref, conferenceName, conferenceSlug, ordinal } from "../../src/shared/conferences";
 
 const ev = (season: number, code: string, name: string, type: string, region: string, league: string, start: string) =>
@@ -96,6 +97,15 @@ describe("conference names", () => {
 });
 
 describe("conference tables", () => {
+  it("keeps a NJ league's conference page out of search until a conference is known", async () => {
+    const meta = () => pageMeta("/leagues/2025/USNJ/NO/conferences");
+    expect((await meta()).noData).toBe(true);
+    await syncConferences(2025, { now: new Date("2026-11-16T12:00:00Z") });
+    clearAllCaches();
+    expect([(await meta()).noData, (await meta()).title]).toEqual([undefined, expect.stringContaining("Conference rankings")]);
+    expect((await pageMeta("/leagues/2025/USMI/AB/conferences")).title).toBe((await pageMeta("/leagues/2025/USNJ/ZZ/conferences")).title);
+  });
+
   it("stores each NJ tournament's conference by (season, code), never outside New Jersey", async () => {
     await syncConferences(2025, { now: new Date("2026-11-16T12:00:00Z") });
     await syncConferences(2026, { now: new Date("2026-11-16T12:00:00Z") });
