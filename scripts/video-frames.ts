@@ -388,14 +388,17 @@ async function verifyRow(row: FrameTiming, division: { own: string; others: stri
 
 // --- The recording's edges ----------------------------------------------------------------------------------------
 
-type Edge = { at: number; label?: string; played?: number; of?: number; clear?: boolean; underway?: boolean };
+type Edge = { at: number; label?: string; played?: number; of?: number; fromEnd?: number; clear?: boolean; underway?: boolean };
 /** What a recording's first and last frames show (EDGE_AT from each end): the first frame from that end that names a
  *  match (this division's; another's names none) or counts the matches played. None does, and none shows a timer: read
  *  on every CLEAR_STEP_S (up to CLEAR_MAX_S, or half the video) while each frame shows no match at all, and the first
  *  that names one is the edge, "clear" of matches before it. A timer on screen with no match named: no edge. */
 async function readEdges(page: Page, length: number): Promise<{ opensOn?: Edge; endsOn?: Edge }> {
-  const named = async (t: number): Promise<Edge | null> => {
+  // A seek that never landed shows the frame that was up before (as in checkOpenings): it is no edge, and the stretch
+  // it stood for wasn't seen, so it can't count toward "clear" either.
+  const named = async (t: number): Promise<Edge | null | "missed"> => {
     const r = await readAt(page, t, true);
+    if (Math.abs(r.at - t) > 1) return "missed";
     // A sibling division's frame on a shared stream is never this event's edge: neither its match nor its count.
     if (r.division === "other") return null;
     const n = playedCount(r.text);
@@ -407,12 +410,14 @@ async function readEdges(page: Page, length: number): Promise<{ opensOn?: Edge; 
       const t = from(s);
       if (t < 0 || t > length) continue;
       const e = await named(t);
+      if (e === "missed") { quiet = false; continue; }
       if (e) return e;
       if (quiet && await timer(page)) quiet = false;
     }
     if (!quiet) return undefined;
     for (let s = EDGE_AT[EDGE_AT.length - 1] + CLEAR_STEP_S; s <= Math.min(CLEAR_MAX_S, length / 2); s += CLEAR_STEP_S) {
       const e = await named(from(s));
+      if (e === "missed") return undefined;
       if (e) return { ...e, clear: true };
       if (await timer(page)) return undefined;
     }
@@ -431,7 +436,8 @@ async function readEdges(page: Page, length: number): Promise<{ opensOn?: Edge; 
       if (ways.length && Math.min(...ways) > opensOn.at) opensOn.underway = true;
     }
   }
-  const endsOn = await edge((s) => length - s);
+  const end = await edge((s) => length - s);
+  const endsOn = end && { ...end, fromEnd: Math.max(0, Math.round(length - end.at)) };
   return { ...(opensOn ? { opensOn } : {}), ...(endsOn ? { endsOn } : {}) };
 }
 
@@ -447,8 +453,8 @@ async function boundsRow(row: FrameTiming, length: number, division: { own: stri
     await open(page, row.videoId);
     const { opensOn, endsOn } = await readEdges(page, length);
     log(`  ${row.videoId}: opens on ${saidEdge(opensOn)}, ends on ${saidEdge(endsOn, "after")}`);
-    const { opensOn: _o, endsOn: _e, ...rest } = row;
-    keep(`${row.videoId}|${row.code}`, { ...rest, ...(opensOn ? { opensOn } : {}), ...(endsOn ? { endsOn } : {}) });
+    // An edge this read didn't find keeps the one read before: a retry never erases a proven edge.
+    keep(`${row.videoId}|${row.code}`, { ...row, ...(opensOn ? { opensOn } : {}), ...(endsOn ? { endsOn } : {}) });
   } catch (e) {
     log(`    couldn't read its edges: ${(e as Error).message.split("\n")[0]} (the row is kept as it was)`);
     failedVideos++;
@@ -761,6 +767,8 @@ async function doCode(code: string): Promise<void> {
   if (!CHECK && !ALL && !VERIFY && !BOUNDS && !waiting && own.some(holds) && read) return;
   // --verify: an event none of whose rows still has openings to check doesn't count against --limit.
   if (VERIFY && !own.some((v) => { const f = rowOf(v); return f && (!f.opens || f.unconfirmed?.length) && Object.keys(f.starts).length; })) return;
+  // --bounds: likewise an event none of whose rows still lacks an edge (every row, with --all).
+  if (BOUNDS && !own.some((v) => { const f = rowOf(v); return f && (ALL || !f.opensOn || !f.endsOn); })) return;
   // Checked again once claimed: a lane that passed its check while another was still loading would read past --limit.
   if (++done > limit) return;
   // An event's lines together (events run side by side).
