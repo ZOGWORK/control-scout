@@ -25,7 +25,7 @@ Sharing › a new link-preview card for Discord, iMessage and Slack, readable at
 - [share] Shows a match prediction the way the app does
 
 ### Changed
-- The link-preview card (`og:image`, `twitter:image`): "Every FTC match, predicted." on two lines, the site's address in gold, and a match-prediction panel (red and blue odds, the meter and a called score) drawn as the app shows one; nothing on it under 30px, so it reads at the third of its size chat apps show it. Its address is versioned (`/og-image.png?v=2`) so apps that cached the old card fetch the new one, and its alt text says what it shows. (`scripts/og-image.ts`, `public/og-image.png`, `server/seoMeta.ts`)
+- The link-preview card (`og:image`, `twitter:image`): "Every FTC match, predicted." on two lines, the site's address in gold, and a match-prediction panel (red and blue odds, the meter and a called score) drawn as the app shows one; nothing on it under 30px, so it reads at the third of its size chat apps show it. Its address is versioned (`/og-image.png?v=2`) so apps that cached the old card fetch the new one, and its alt text says what it shows. (`scripts/og-image.ts`, `public/og-image.png`, `server/seoMeta.ts`) (#1644)
 
 ## 7.2.3 — 2026-11-17
 
