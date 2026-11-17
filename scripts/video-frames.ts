@@ -167,7 +167,9 @@ const TIMERS = [
  *  never for later ones, whose bars have other numbers in those places. */
 const PLAIN_TIMERS = [
   { where: "plain" as const, clip: { x: 595, y: 594, width: 90, height: 36 }, plain: true },
-  { where: "plain" as const, clip: { x: 595, y: 684, width: 90, height: 34 }, plain: true },
+  // POWERPLAY's box, inside the bar it sits on: a crop reaching the bar's coloured edge reads it as a "1" (USCHSCMPVIO
+  // 2022 at 5664 s, "78" read "178"), every confirmation of the event's matches failing with it.
+  { where: "plain" as const, clip: { x: 605, y: 686, width: 70, height: 30 }, plain: true },
 ];
 /** Best-of-3 semifinals and finals (2019–2023; double elimination from 2024, whose playoffs FIRST numbers M1–M13): the
  *  overlay names every playoff "Semifinal 1 Match 2" or "Finals Match 1", never a bare "Match 1" (overlayLabel).
