@@ -21,6 +21,8 @@ Videos › 34 more 2022 (POWERPLAY) match clips from the Charlottesville qualifi
 
 ### Highlights
 - [history] Charlottesville's 2022 qualifier gets clips for 34 of 53 matches
+- [history] Its playoffs get a clip for every match
+- [fixes] Every clip opens on a frame naming its match and its own event
 
 ### Added
 - Videos: clips read off the recording's frames (`server/data/frameTimings/2022.ts`): USCHSCHQ2 34 of 53 played matches. Each placed start's clip opens on a paused frame whose overlay names that match (20, 12, 5, 2 or 0 s before it) and no other event. The 19 matches left out stay without a clip, each with its reason. (#1696)
