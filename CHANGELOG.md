@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.4.4 — 2026-11-17
+
+Videos › 74 more 2022 (POWERPLAY) match clips from Arizona's championship (Grand Canyon Division) and the Chesapeake championship (Scarlet Division).
+
+### Highlights
+- [history] Arizona's 2022 championship, Grand Canyon Division: clips for 35 of 37 matches
+- [history] Chesapeake championship, Scarlet Division: clips for 39 of 40 matches
+- [fixes] Every clip opens on a frame naming its match and its own division
+
+### Added
+- Videos: clips read off the recordings' frames (`server/data/frameTimings/2022.ts`): USAZCMPGC23 35 of 37 played matches (its score bar flipped to the top of the frame, read by #1715's reader), USCHSCMPSCA 39 of 40. Each placed start's clip opens on a paused frame whose overlay names that match (20, 12, 5, 2 or 0 s before it) and its own division. The matches left out stay without a clip, with the reason. (#1716)
+
 ## 7.4.3 — 2026-11-17
 
 Videos › 61 more 2022 (POWERPLAY) match clips from Virginia's Mechanicsville Qualifier 1 and Maryland's McHenry Qualifier.
