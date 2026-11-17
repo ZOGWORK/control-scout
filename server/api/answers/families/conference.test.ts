@@ -229,6 +229,22 @@ describe("answering a conference ask", () => {
     expect(l.kind === "links" && l.items.map((i) => i.label)).toEqual(["Hudson/East Bergen Conference: not played yet"]);
   });
 
+  it("reads a possessive conference name, and an edition under way is now, not next, and before a later one", async () => {
+    expect((await ask("East Bergen's Conference rankings"))!.title).toBe("East Bergen Conference rankings · 2025–26");
+    expect((await ask("who won Central's conference"))!.headline).toMatchObject({ value: "31257" });
+    // Hudson/East Bergen 2026–27 under way, and a 2027–28 edition stored.
+    await run("INSERT INTO matches (season, code, level, series, number, label, played, source) VALUES (2026, 'USNJNELT2', 'qual', 0, 1, 'Q1', 1, 'first')");
+    await run("INSERT INTO event_teams (season, code, team, rank) VALUES (2026, 'USNJNELT2', 4215, 1)");
+    await run("INSERT INTO events (season, code, name, type, region, league, state, country, start, end, source) VALUES (2027, 'USNJNELT2', 'Hudson/East Bergen Conference Northeast League Tournament', 'LeagueTournament', 'USNJ', 'NE', 'NJ', 'USA', '2028-02-20', '2028-02-20', 'first')");
+    await syncConferences(2027, { now: new Date("2026-11-16T12:00:00Z") });
+    clearAllCaches();
+    const t = (await ask("East Bergen Conference rankings"))!;
+    const next = t.blocks.find((b) => b.kind === "links" && /^(Next|Under way)/.test(b.title));
+    expect(next && next.kind === "links" && [next.title, next.items[0].label.split(" · ")[0]]).toEqual(["Under way now: Hudson/East Bergen Conference, 2026–27", "Under way"]);
+    // Nothing finished: the edition under way, not next season's.
+    expect((await ask("who won hudson/east bergen conference"))!.none).toBe("Hudson/East Bergen Conference 2026–27 is under way: no winner yet.");
+  });
+
   it("keeps the next edition when a later season has two tournaments of the name", async () => {
     for (const code of ["USNJAALT", "USNJBBLT"]) {
       await run("INSERT INTO events (season, code, name, type, region, league, state, country, start, end, source) VALUES (2027, ?, 'East Bergen Conference Northeast League Tournament', 'LeagueTournament', 'USNJ', 'NE', 'NJ', 'USA', '2028-02-20', '2028-02-20', 'first')", [code]);
