@@ -17,7 +17,7 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 
 ## 7.6.3 — 2026-11-17
 
-Videos › 56 more matches get a clip read off their event's video, each opening on a frame whose overlay names its match.
+Videos › 56 more matches get a clip read off their event's video, and no clip that plays now stops.
 
 ### Highlights
 - [fixes] 56 more matches get a clip read off the video
