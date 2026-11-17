@@ -190,7 +190,7 @@ const GENERIC = new Set(["LEAGUE", "MEET", "QUALIFIER", "QUALIFIERS", "CHAMPIONS
   "TECH", "CHALLENGE", "DIVISION", "EVENT", "THE", "AND", "STATE", "REGIONAL", "MATCH", "PLAYOFF", "FINALS", "QUALIFICATION",
   // The season's logo beside the name ("FIRST DIVE", "CANOPY", "INTO THE DEEP", "BIOBUZZ presented by RTX").
   "DIVE", "CANOPY", "INTO", "DEEP", "DECODE", "BIOBUZZ", "CENTERSTAGE", "POWERPLAY", "FREIGHT", "FRENZY", "ULTIMATE", "GOAL",
-  "SKYSTONE", "PRESENTED", "QUALCOMM", "RTX"]);
+  "SKYSTONE", "PRESENTED", "QUALCOMM", "RTX", "ENERGIZE"]);
 const words = (s: string) => (plain(s).match(/[A-Z]{3,}/g) ?? []).filter((w) => !GENERIC.has(w));
 /** Where the overlay names a match, and the event name just before it on the same line. */
 // A semifinal (2019–2022's "Semifinal 2 Match 1", or "Semifinals Match 1" with its series lost) is taken whole, before
@@ -205,8 +205,11 @@ const MATCH_PHRASE = /Qualification\s+\d{1,3}\s+of\s+(\d{1,3})|Semi-?\s?finals?(
  *   USTXCAM1's left half read "—E— Qualification 3 of 24"): any other M is another event's, or a misread.
  * - the event name before it on its line, which decides where read. The ticker scrolls and cuts names at either end and orders their words its
  *   own way ("…n Division Michiana Premier Event -", "Austin Semi-Area Championship" for FiT-Central Semi-Area
- *   Championship Austin), so a name is another event's only where at least two of its telling words are read and fewer
- *   than half of them are this event's (a cut word matching the start or end of one).
+ *   Championship Austin), so a name is another event's only where at least two of its telling words of four letters or
+ *   more are read and fewer than half of its words are this event's (a cut word matching the start or end of one). A
+ *   logo misread beside the match is no name: POWERPLAY's (2022) "FIRST ENERGIZE" read "FIRST ZN=RGIZ= swe" on KZCMP's
+ *   playing frames, two words, neither this event's, and every one of its matches was taken for another event's.
+ *   Nor can a name read as another's overrule a total that is this event's: it's misread, not another event.
  * On a split screen the half that is this event's gives its match (`label`); `phrase`, the match beside its name.
  */
 export function overlayEvent(text: string, own: string, quals?: number, semifinals = false): { event: "own" | "other" | null; label?: string; phrase?: string } {
@@ -214,7 +217,7 @@ export function overlayEvent(text: string, own: string, quals?: number, semifina
   const verdict = (name: string): "own" | "other" | null => {
     const read = words(name);
     const hit = read.filter((w) => mine.some((o) => o === w || o.startsWith(w) || o.endsWith(w))).length;
-    if (read.length >= 2 && hit * 2 < read.length) return "other";
+    if (read.filter((w) => w.length >= 4).length >= 2 && hit * 2 < read.length) return "other";
     return hit ? "own" : null;
   };
   let other = false, ownLabel: string | undefined, ownSeen = false;
@@ -224,7 +227,9 @@ export function overlayEvent(text: string, own: string, quals?: number, semifina
       const total = m[1] != null ? Number(m[1]) : null;
       const name = verdict(line.slice(from, m.index));
       // A name read decides; with none, the total (a schedule changed after the db was read can't drop a named frame).
-      const v = name ?? (quals && total != null ? (total === quals ? "own" : "other") : null);
+      // A name read as another's beside this event's own total is a misread: the total stands.
+      const byTotal = quals && total != null ? (total === quals ? "own" as const : "other" as const) : null;
+      const v = name === "other" && byTotal === "own" ? "own" : name ?? byTotal;
       from = m.index! + m[0].length;
       if (v === "other") other = true;
       if (v === "own" && !ownSeen) { ownSeen = true; ownLabel = overlayLabel(m[0], semifinals) ?? undefined; }
