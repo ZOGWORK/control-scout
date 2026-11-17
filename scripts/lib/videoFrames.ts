@@ -118,6 +118,16 @@ export const secondsLoose = (s: string) => { const m = /^([0-2]):?([0-5]\d)$/.ex
 /** A timer that shows bare seconds (FTC Live's overlay from 2019 to 2022: Auto's "30" down to "0", the switch's "8" to
  *  "0", TeleOp's "120" to "0"): one to three digits and nothing else, at most TeleOp's 120. A colon is another bar's
  *  timer, never this one. */
+/** A crop of a bottom bar, for the same bar flipped to the top of a `height`-tall frame: the bar's rows in reverse, so
+ *  what sat `n` px off the bottom edge sits `n` px off the top (POWERPLAY's timer at y 686 of 720, 4 px above the
+ *  bottom, is at y 4 in Arizona's flipped bar). */
+export const flippedClip = (c: { x: number; y: number; width: number; height: number }, height = 720) => ({ ...c, y: height - c.y - c.height });
+
+/** The order the timer's crops are tried in: `first` (the crop the frame's bar names, or whose clock last ran) ahead,
+ *  the rest in their usual order. A `first` that isn't one of them changes nothing. */
+export const cropOrder = <T>(crops: readonly T[], first?: T | null): T[] =>
+  first != null && crops.includes(first) ? [first, ...crops.filter((c) => c !== first)] : [...crops];
+
 export const secondsPlain = (s: string) => { const m = /^\d{1,3}$/.exec(s.replace(/\s/g, "")); return m && Number(m[0]) <= TELEOP_S ? Number(m[0]) : null; };
 
 /** Seconds since the match started, from its timer (where it's running: a timer standing at its full time is a match
