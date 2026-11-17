@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 7.3.2 — 2026-11-17
+## 7.3.3 — 2026-11-17
 
 Videos › the frame reader tells one event's overlay from another's on the same stream: a frame naming another event is never this event's match.
 
@@ -26,6 +26,18 @@ Videos › the frame reader tells one event's overlay from another's on the same
 
 ### Fixed
 - Videos (the frame reader, `scripts/video-frames.ts`, `scripts/lib/videoFrames.ts`): a frame whose overlay names another event, by the name beside the match or, where no name is read, by its qualification total ("of 24" for an event of 26), is never this event's start, clip opening or recording edge; on a split screen, the half that is this event's gives its match. USTXCAM1 2024's recording shows two league meets side by side, and its first frames' "Qualification 3 of 24" was the other meet's. The 15 recording edges already in the data were each checked against their saved frame: every one names its own event. (#1656)
+
+## 7.3.2 — 2026-11-17
+
+Videos › the Almaty Tech Cup gets match clips read off its recordings' frames: 16 on its second day now, 12 more on its first day once that day's recording is linked.
+
+### Highlights
+- [fixes] 16 Almaty Tech Cup matches get a clip read off the video
+- [fixes] Each opens on a frame whose overlay names its match and event
+- [fixes] No clip already playing changes
+
+### Fixed
+- Videos: KZALOS1's two day recordings lost time against their broadcast, so the clock placed none of its matches. Their starts are now read off the frames, and each clip opens on a frame (read paused) whose overlay names its match and "Almaty Tech Cup XII". Day 2 (EAkHPgVm-Ow): 16 of the 34 matches it holds. Q28–Q31 come before the recording starts, and 14 others have no frame naming them at their clip's start, because the stream cuts to a camera without the overlay between matches. Day 1 (9ywna4SeDoI): 12 of the 15 matches it holds. Q14's timer reads disagreed, and Q1 and Q2 had no read. That row plays once the day's recording is linked. No clip already playing is taken away. (`server/data/frameTimings/2025.ts`) (#1662)
 
 ## 7.3.1 — 2026-11-17
 
