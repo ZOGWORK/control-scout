@@ -35,15 +35,16 @@ const BY_REASON: Record<CoverageReason, MissKind> = {
   "no-start": "other", "no-zone": "other", unexplained: "other",
 };
 
-/** One missing match's kind: a pulled clip first, then what its video's frames showed, else its reason. */
+/** One missing match's kind: a pulled clip first, then what its video's frames showed, else its reason. The video check
+ *  is read in the same order as the pass log's videoState (server/videos/coverageCheck.ts), so a kind's tile counts the
+ *  same matches its chips show. */
 export function kindOf(m: CoverageMatch, pulled = false): MissKind {
   if (pulled) return "pulled";
   const v = m.video;
   if (v) {
-    if (v.outside) return "outside";
-    if (v.seenAt != null) return "seen";
     if (v.earlyStart) return "early";
-    return v.checked ? "notfound" : "unchecked";
+    if (!v.checked) return "unchecked";
+    return v.seenAt != null ? "seen" : "notfound";
   }
   return m.reason ? BY_REASON[m.reason] ?? "other" : "other";
 }
