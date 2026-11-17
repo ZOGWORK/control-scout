@@ -21,6 +21,7 @@ import { AccountFooter, AccountProvider, useAccountPanel } from "./AccountMenu";
 import { ClockWeather, showsClockWeather } from "./TopBarExtras";
 import { ConnectionPill, useShowOffline } from "../ConnectionStatus";
 import { InboxBell } from "./InboxBell";
+import { ThemeToggle } from "./ThemeToggle";
 import { AccountSetupProvider } from "../AccountSetup";
 import { BugReportButton } from "./BugReport";
 import { usePersonal } from "../../lib/personal";
@@ -388,12 +389,13 @@ export function Shell({ children }: { children: ReactNode }) {
               {offline ? <ConnectionPill place="phone" /> : <Link to="/" className="tap-44 absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring/60 md:hidden" aria-label="Control Scout home"><BrandMark /></Link>}
               <p className="hidden truncate text-sm text-text-muted md:block"><span>Control Scout / </span><span className="text-text-base">{title}</span></p>
               <div className="flex flex-1 justify-end md:justify-center"><GlobalSearch part="field" /></div>
-              {/* Far right, against the bar's edge: connection, clock · weather, Report a bug, and the notification inbox
-                  (header only, never the sidebar). */}
+              {/* Far right, against the bar's edge: connection, clock · weather, Report a bug, the light/dark switch and the
+                  notification inbox (header only, never the sidebar). */}
               <div className="relative -mr-1.5 flex shrink-0 items-center gap-1 md:-mr-3 md:gap-2 lg:-mr-5">
                 <ConnectionPill place="wide" />
                 {showsClockWeather(loc.pathname) && <ClockWeather />}
                 <BugReportButton />
+                <ThemeToggle />
                 <InboxBell />
               </div>
             </header>}
