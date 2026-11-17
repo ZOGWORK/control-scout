@@ -104,7 +104,7 @@ describe("rankQueue", () => {
     expect(list[3].frames.why).toBe("w · 1st in line");
     expect(list[4].frames.rank).toBeUndefined();
     const s = queueSummary(list.map((x) => ({ ...x, name: x.code })), 2);
-    expect(s).toEqual({ queued: 4, matches: 55, waiting: 1, next: [{ season: 2023, code: "Z", name: "Z", matches: 40 }, { season: 2025, code: "A", name: "A", matches: 5 }] });
+    expect(s).toEqual({ queued: 4, matches: 55, waiting: 1, reading: 0, next: [{ season: 2023, code: "Z", name: "Z", matches: 40 }, { season: 2025, code: "A", name: "A", matches: 5 }] });
   });
 });
 
@@ -148,6 +148,12 @@ describe("a recording the watcher links becomes due", () => {
     expect(all.find((e) => e.code === "UPLOADQ")?.frames).toMatchObject({ state: "queued", rank: 1, matches: 3 });
     expect(all.find((e) => e.code === "UPLOADQ")?.frames).not.toHaveProperty("due");
     expect(o.frameQueue).toMatchObject({ queued: 1, matches: 3, next: [{ season: S, code: "UPLOADQ", name: "Upload Qualifier", matches: 3 }] });
+  });
+
+  it("reads as reading, out of the line, while its rows are in an open autopilot PR", async () => {
+    const q = await frameQueue(NOW, new Map([[`${S}/UPLOADQ`, 1700]]));
+    expect(q.find((x) => x.code === "UPLOADQ")?.frames).toEqual({ state: "reading", matches: 3, due: 0, pr: 1700, why: "Read by the clip autopilot: its clips ship with PR #1700, in review" });
+    expect(queueSummary(q)).toMatchObject({ queued: 0, reading: 1, next: [] });
   });
 
   it("leaves the queue once its frames are read after the event; comes back when the read was on the event's day", async () => {
