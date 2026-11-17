@@ -22,6 +22,7 @@ Videos › 20 matches from Nevada's 2023 state championship get a clip, each ope
 ### Highlights
 - [history] 20 Nevada 2023 championship matches as clips
 - [fixes] Each opens on a frame naming its match
+- [history] Q19–Q28 fall outside the recording, so they have no clip
 
 ### Fixed
 - Videos (`server/data/frameTimings/2023.ts`): FTC State Championship – Nevada 2023 (USNVCMP) gets frame-checked starts for 20 of its 35 matches (Q2–Q7, Q10–Q18 and five semifinal matches), read from the timer in its own box on the stream's top bar. Every opening frame names its match and this event. Q19–Q28 fall outside the recording. (#1751)
