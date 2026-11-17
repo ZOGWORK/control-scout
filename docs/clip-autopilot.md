@@ -44,8 +44,10 @@ computer at home, in a clone kept for it alone. Each run:
    2026-11-17), labelled `clip-autopilot` and `no-changelog`. A changed row stays on its own line and a new row goes
    just before the first row whose event code sorts after its own, so PRs from different sources don't conflict.
    Rows whose changes touch (one gap, neighbouring lines) go in one PR, and each PR's diff stays under 12 KB
-   (`prChunks`, scripts/lib/autopilotRows.ts). Each gets a review request, and merges like any other PR: the main
-   session merges it once reviewed with green CI.
+   (`prChunks`, scripts/lib/autopilotRows.ts). Rows that would touch an open PR's lines, and those that don't fit under
+   12 KB in one gap (a sparse season file), wait for a later run, on the main those PRs leave; their events aren't
+   counted as tried. Each PR gets a review request, and merges like any other: the main session merges it once
+   reviewed with green CI.
 
 Logs: `.data/autopilot/runs/<time>.log` in the clone (every command and its output), `.data/autopilot/task.log` (the
 schedule's). What it remembers between runs: `.data/autopilot/memory.json`.
