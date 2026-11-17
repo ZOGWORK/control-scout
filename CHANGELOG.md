@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.4.7 — 2026-11-17
+
+Videos › The first match clips for 2019 (SKYSTONE): 186 matches in 5 events, each clip opening on a frame that names its match.
+
+### Highlights
+- [history] 2019 events get match clips for the first time
+- [history] 186 matches in 5 events, read off the recordings' own frames
+- [fixes] Every clip opens on a frame naming its match and its own event
+
+### Added
+- Videos: clips read off the recordings' frames (`server/data/frameTimings/2019.ts`): Oakton (2019VAQ1) 51 of 52 played matches, Salem (2019VAQ7) 47 of 48, Newport News (2019VAQ5) 44 of 45, RI FTC Championship 38 of 43, Drury (2019MOQ6) 6 of 50, its recording about an hour long. Each placed start's clip opens on a paused frame whose overlay names that match (20, 12, 5, 2 or 0 s before it) and no other event. The matches left out stay without a clip, with the reason. (#1704)
+
 ## 7.4.6 — 2026-11-17
 
 Videos › matches FIRST gives no real start for, with no time at all (the Chicago Robotics Invitational's) or only a schedule's, can now get clips read off the video's own frames.
