@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 7.5.7 — 2026-11-17
+## 7.5.9 — 2026-11-17
 
 Videos › The frame reader now reads POWERPLAY's score bar when a stream flips it to the top of the frame, and no longer pairs two numbers from two places as one clock: Arizona's 2022 championship went from 0 to 35 of 37 matches placed.
 
@@ -26,6 +26,30 @@ Videos › The frame reader now reads POWERPLAY's score bar when a stream flips 
 
 ### Fixed
 - Videos: the frame reader reads POWERPLAY's timer in its bar flipped to the top of the frame, at the bottom crop mirrored (`flippedClip`), after the bottom's. A timer's two readings come from one crop, and the crop whose clock last ran is read first for the rest of the video (`cropOrder`): on Arizona's flipped bar the bottom crops read robots' and signs' digits off the field, paired with the top's, and no start was confirmed. USAZCMPGC23 2022: 0 → 35 of 37 placed, every clip opening on a frame naming its match. (#1715)
+
+## 7.5.8 — 2026-11-17
+
+Videos › 261 matches from seven more 2023 events get clips, each opening on its own match: Indiana's and Louisiana's championships, Chesapeake's Stage Right division and two of its qualifiers, Colorado's Severance qualifier and Southern Nevada's league tournament.
+
+### Highlights
+- [fixes] 261 more 2023 matches get a clip
+- [fixes] Every clip opens on a frame naming its match
+- [fixes] Seven more 2023 events that had no clips now have them
+
+### Fixed
+- Videos (`server/data/frameTimings/2023.ts`): frame-read starts for USCHSUBQ (40 of 40 played), USCHSCMPSR (37 of 41), USCOSEQ (41 of 41), USNVSOLT (35 of 40), USCHSDCQ2 (37 of 37), USINCMP (38 of 38) and USLACMP (33 of 38). Each clip's opening frame names its match and its event (#1705).
+
+## 7.5.7 — 2026-11-17
+
+Videos › 331 matches from eight more 2023 events get clips, each opening on its own match: St. Louis North's league tournament, four FiT-North and Chesapeake qualifiers and tournaments, Chesapeake's Stage Left championship division, and Arizona's Gilbert qualifier.
+
+### Highlights
+- [fixes] 331 more 2023 matches get a clip
+- [fixes] Every clip opens on a frame naming its match
+- [fixes] Eight more 2023 events that had no clips now have them
+
+### Fixed
+- Videos (`server/data/frameTimings/2023.ts`): frame-read starts for USMOKSSTLNLT1 (49 of 49 played), USTXATQ (46 of 46), USTXFMQ (41 of 42), USTXNCNLT (42 of 43), USAZGIQ (38 of 38), USCHSCHQ1 (38 of 38), USCHSCMPSL (39 of 41) and USCHSMCQ (38 of 38). Each clip's opening frame names its match and its event; a clip whose first frame shows the match before is left for review, never shown (#1690).
 
 ## 7.5.6 — 2026-11-17
 
