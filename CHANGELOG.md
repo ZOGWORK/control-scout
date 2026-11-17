@@ -21,6 +21,8 @@ Leagues › a New Jersey league page's conference table marks My team's row, as 
 
 ### Highlights
 - [rankings] Your team's row is marked in its conference table
+- [rankings] The conference table opens on the page that holds your team
+- [rankings] A link naming a team still marks that team, not yours
 
 ### Fixed
 - Leagues (`src/pages/LeaguePage.tsx`): with no team in the address, the conference table marks My team's row (and opens on its page); a My team not in the table marks nothing. The league table above it still marks only the link's team. (#1639)
