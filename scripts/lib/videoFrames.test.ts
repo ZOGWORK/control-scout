@@ -1,7 +1,7 @@
 // The pure parts of the frame reader (scripts/video-frames.ts): the overlay's match, the timer's elapsed time, and
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
-import { dataRows, divisionOf, cropOrder, elapsed, flippedClip, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, type M } from "./videoFrames";
+import { dataRows, divisionOf, cropOrder, elapsed, flippedClip, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, lookAgain, MISREAD, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, type M } from "./videoFrames";
 
 describe("the frame reader", () => {
   // A 1280 × 720 frame: a grey field, and a score bar from `top` to `bottom` with one alliance's colour each side of the
@@ -207,6 +207,23 @@ describe("the frame reader", () => {
     // A recording cut mid-match (USTXSASQ 2025's kind): two starts 151 s apart, both read off the video, both stand.
     const cut = judge(ms, new Map([[0, 2000], [1, 2151]]), null, 10_000, new Set([0, 1]));
     expect([...cut.placed.keys()]).toEqual(["Q1", "Q2"]);
+  });
+
+  it("looks again for a misread and for the matches after the last read", () => {
+    // USCHSBAQ3 2023 (FIRST's start times, seconds after Q1's): the video sits 7158 s after the clock all day. Q1's one
+    // read sits 300 s early, so judge drops it; F2, 16 minutes after F1 past a field timeout, was looked for before any
+    // read placed the video and never again.
+    const ms: M[] = ([["Q1", 0], ["Q2", 471], ["Q3", 861], ["Q4", 1375], ["F1", 20503], ["F2", 21476]] as const).map(([label, epoch]) => ({ label, epoch }));
+    const seen = new Map([[0, 6858], [1, 7629], [2, 8019], [3, 8533], [4, 27661]]);
+    expect(judge(ms, seen, null, 30_000).missing.get("Q1")).toBe(MISREAD);
+    expect(lookAgain(ms, seen, null, 30_000)).toEqual({ misread: [0], trailing: [5] });
+    // Read where the reads beside them put them (Q1 at 7158, F2 at 28634, as their frames show), both place.
+    const now = new Map([...seen, [0, 7158], [5, 28634]]);
+    expect(lookAgain(ms, now, null, 30_000)).toEqual({ misread: [], trailing: [] });
+    expect([...judge(ms, now, null, 30_000).placed.keys()]).toEqual(["Q1", "Q2", "Q3", "Q4", "F1", "F2"]);
+    // A scheduled-only match after the last read is the walk's; with nothing read there is nothing to look from.
+    expect(lookAgain([...ms, { label: "F3", epoch: 22_000, scheduled: true }], now, null, 30_000).trailing).toEqual([]);
+    expect(lookAgain(ms, new Map(), null, 30_000)).toEqual({ misread: [], trailing: [] });
   });
 
   it("keeps the clock's reads and fills only clock matches when scheduled ones sit between them", () => {
