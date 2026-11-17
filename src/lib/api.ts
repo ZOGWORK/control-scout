@@ -23,6 +23,7 @@ import { bundleCanAnswer, bundleFor, comparePacksSaved, packSearchSaved, savedBu
 import { answerableOffline, keepable, keepAnswer, keptAt, keptOwner, keptPaths } from "./offline/kept";
 import { packStatus } from "./packPolicy";
 import { FEATURE_DISABLED, featureOffMessage } from "../shared/flags";
+import { isUnavailableAnswer, markUnavailable, UNAVAILABLE_CODE } from "./shutdown";
 import { noteArrived, watchRequest } from "./liteSuggest";
 import { connection, freshInternet, noteRequestFailed, noteServerAnswer, offlineNow, onInternetChange, onInternetConfirmed } from "./connection";
 
@@ -407,6 +408,17 @@ export async function apiFetch<T>(path: string, init?: RequestInit & { json?: un
   } finally {
     // Answered from saved data, or failed: settled. A server answer settles once its body is in (below).
     if (!answered) { watch.done(); release(); }
+  }
+  // The site is closed to this visitor (server/shutdownGate.ts): no retry (its Retry-After is days); the app shows
+  // only the message (src/lib/shutdown.ts).
+  if (res.status === 503 && /json/i.test(res.headers.get("Content-Type") ?? "")) {
+    const peek = await res.clone().json().catch(() => null) as { message?: unknown } | null;
+    if (isUnavailableAnswer(res.status, peek)) {
+      watch.done(false);
+      release();
+      markUnavailable();
+      throw new ApiError(503, typeof peek?.message === "string" ? peek.message : "Control Scout is temporarily unavailable.", false, UNAVAILABLE_CODE);
+    }
   }
   // Server still starting (it opens its port before its data is ready): wait
   // as asked and try again, so a cold start reads as a slow load, not an error.
