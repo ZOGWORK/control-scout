@@ -313,4 +313,28 @@ describe("reweighBroadcasts: broadcasts found before, by today's rules", () => {
     expect(await reweighBroadcasts()).toBe(0);
     expect((await all<{ video_id: string }>("SELECT video_id FROM event_broadcasts WHERE code = 'CABCVIQ' ORDER BY start")).map((r) => r.video_id)).toEqual([VIC, "deletedvide"]);
   });
+  it("takes off a broadcast that is another event's official recording, its only one that day included", async () => {
+    // 2023 USAZTSQ (Tsalie) took FIRST Tech Challenge Arizona's "Red Rock Qualifier" broadcast: USAZCHQ's checked recording.
+    const AZ = "https://www.youtube.com/@firsttechchallengearizona6515";
+    await run("INSERT INTO seasons (season, name) VALUES (2023, 'Test') ON CONFLICT DO NOTHING");
+    const ev = "INSERT INTO events (season, code, name, type, start, end, timezone, remote, hybrid, livestream, source) VALUES (2023, ?, ?, 'Qualifier', '2024-01-20', '2024-01-20', ?, 0, 0, ?, 'test')";
+    await run(ev, ["USAZTSQ", "AZ Dine' College - Tsalie Qualifier", "America/Denver", AZ]);
+    await run(ev, ["USAZCHQ", "AZ Red Rock - Microchip Qualifier", "America/Phoenix", null]);
+    await run("INSERT INTO event_broadcasts (season, code, video_id, url, start) VALUES (2023, 'USAZTSQ', 'hINDJv2q0Tg', ?, '2024-01-20T16:31:53Z')", [AZ]);
+    await run("INSERT INTO event_stream_links (season, code, url, video_id, checked_at, read_at) VALUES (2023, 'USAZTSQ', ?, 'hINDJv2q0Tg', 'x', 'x')", [AZ]);
+    await run("INSERT INTO official_videos (video_id, season, code, kind, day, part, channel_id, title, source, why, added_at, added_by) VALUES ('hINDJv2q0Tg', 2023, 'USAZCHQ', 'recording', '2024-01-20', NULL, 'UCx', 'Arizona FIRST Tech Challenge 2023-2024 Red Rock Qualifier', 'list', 'x', 'x', NULL)");
+    expect(await reweighBroadcasts()).toBe(1);
+    expect(await all("SELECT video_id FROM event_broadcasts WHERE code = 'USAZTSQ'")).toEqual([]);
+    expect(await all("SELECT video_id FROM event_stream_links WHERE code = 'USAZTSQ'")).toEqual([{ video_id: null }]);
+    // USAZCHQ's own recording is left as it is.
+    expect(await all("SELECT code, removed_at FROM official_videos WHERE video_id = 'hINDJv2q0Tg'")).toEqual([{ code: "USAZCHQ", removed_at: null }]);
+    // A division's recording on its own parent championship stays.
+    const AZC = "https://www.youtube.com/@firsttechchallengearizona6515/streams";
+    await run("INSERT INTO events (season, code, name, type, start, end, timezone, remote, hybrid, livestream, division_code, source) VALUES (2023, 'USAZCMP', 'Arizona Championship', 'Championship', '2024-02-24', '2024-02-24', 'America/Phoenix', 0, 0, ?, NULL, 'test')", [AZC]);
+    await run("INSERT INTO events (season, code, name, type, start, end, timezone, remote, hybrid, livestream, division_code, source) VALUES (2023, 'USAZCMPGC', 'Arizona Championship - Grand Canyon Division', 'Championship', '2024-02-24', '2024-02-24', 'America/Phoenix', 0, 0, NULL, 'USAZCMP', 'test')");
+    await run("INSERT INTO event_broadcasts (season, code, video_id, url, start) VALUES (2023, 'USAZCMP', 'grandcanyon', ?, '2024-02-24T16:00:00Z')", [AZC]);
+    await run("INSERT INTO official_videos (video_id, season, code, kind, day, part, channel_id, title, source, why, added_at, added_by) VALUES ('grandcanyon', 2023, 'USAZCMPGC', 'recording', '2024-02-24', NULL, 'UCx', 'Arizona Championship - Grand Canyon Division', 'list', 'x', 'x', NULL)");
+    expect(await reweighBroadcasts()).toBe(0);
+    expect(await all("SELECT video_id FROM event_broadcasts WHERE code = 'USAZCMP'")).toEqual([{ video_id: "grandcanyon" }]);
+  });
 });
