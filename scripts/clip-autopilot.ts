@@ -96,6 +96,16 @@ function openPrs(): { number: number; branch: string; season: number; rows: stri
  *  renumber or conflict on a release. The label the Changelog check passes. Release files a PR opened before carries
  *  are put back to main's at its next rebuild. */
 const NO_CHANGELOG = "no-changelog", RELEASE_FILES = ["CHANGELOG.md", "package.json", "package-lock.json"];
+/** A data PR's diff at most this (Loopy can't review a diff much over 16 KB). */
+const PR_DIFF_MAX = 12_000;
+/** The rows open autopilot PRs bring to `file` (as their branches have them): a new PR never touches their lines. A
+ *  branch that can't be read holds nothing (its rebuild above logged why). */
+function heldRows(file: string): Keyed[] {
+  return open.filter((p) => (p.file ?? seasonFile(p.season)) === file).flatMap((p) => {
+    const want = new Set(p.rows);
+    try { return fileRows<Keyed>(git("show", `origin/${p.branch}:${file}`)).filter((r) => want.has(rowKey(r))); } catch { return []; }
+  });
+}
 const commitEach = (files: [string, string][]) => { for (const [f, msg] of files) { git("add", f); git("commit", "--quiet", "-m", msg); } };
 const push = (branch: string) => git("push", "--quiet", "--no-verify", "origin", `HEAD:refs/heads/${branch}`);
 const askReview = (pr: number) => sh("gh", ["pr", "comment", String(pr), "--body", "@loopyreviews-bot review"], { ok: true });
@@ -288,13 +298,16 @@ for (const [season, events] of bySeason) {
     if (problems.length) log(`  ${r.code} ${r.videoId}: left out, ${problems.join("; ")}`); else good.push(r);
   }
   // Shipped: only events whose rows a PR really opened with (a failed open closes its PR; the rows are read again).
-  const opened = new Set<string>();
-  for (const chunk of prChunks(mainText(file), good)) {
+  // Rows that would touch an open PR's lines, or overflow a PR Loopy can review, wait for a later run (prChunks).
+  const opened = new Set<string>(), { ship, later } = prChunks(mainText(file), good, PR_DIFF_MAX, heldRows(file));
+  for (const chunk of ship) {
     const ok = openPr({ file, rows: chunk, branch: `${BRANCH}${season}-${branchStamp}-${chunk[0].code}`, ...framesText(season, chunk, live) });
     if (ok) for (const r of chunk) opened.add(r.code);
   }
+  const waiting = new Set(later.map((r) => r.code));
   for (const e of events) {
     const n = good.filter((r) => r.code === e.code).length;
+    if (n && !opened.has(e.code) && waiting.has(e.code)) { log(`  ${season}/${e.code}: its rows wait for an open PR's lines or the next PR; not counted as a try`); continue; }
     if (n && !opened.has(e.code)) { log(`  ${season}/${e.code}: its PR couldn't be opened; not counted as a try`); continue; }
     if (!n && readFailed) { log(`  ${season}/${e.code}: the read failed; not counted as a try`); continue; }
     remember(memory, `${season}/${e.code}`, n, n ? "shipped" : after === before ? "no new rows" : "rows refused or unchanged");
@@ -329,6 +342,9 @@ if (SWEEP && !open.some((p) => p.file === CLIPS_FILE)) {
     const problems = clipCheckProblems(c, live.get(rowKey(c)));
     if (problems.length) log(`  ${c.season} ${c.code} ${c.videoId}: left out, ${problems.join("; ")}`); else good.push(c);
   }
-  for (const chunk of prChunks(mainText(CLIPS_FILE), good)) openPr({ file: CLIPS_FILE, rows: chunk, branch: `${BRANCH}clips-${branchStamp}-${chunk[0].code}`, ...clipsText(chunk, live) });
+  // The sweep runs only with no sweep PR open, so nothing is held; what overflows is swept again next run.
+  const { ship, later } = prChunks(mainText(CLIPS_FILE), good, PR_DIFF_MAX);
+  for (const chunk of ship) openPr({ file: CLIPS_FILE, rows: chunk, branch: `${BRANCH}clips-${branchStamp}-${chunk[0].code}`, ...clipsText(chunk, live) });
+  if (later.length) log(`sweep: ${later.length} rows wait for the next run (one PR into the same lines at a time)`);
 }
 log("done");
