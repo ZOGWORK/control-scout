@@ -368,6 +368,19 @@ export function leadIn(at: number, i: number, windows: { start: number | null; e
   return !windows.some((w, k) => k !== i && w.start != null && at < w.start && w.start < from);
 }
 
+/**
+ * An event's linked recordings the reader can't read: YouTube's details for them (length, broadcast start) aren't on
+ * file, or fetching them failed. Each is said, never dropped quietly: KZCMP 2022's two day-2 videos were linked with no
+ * details, and the read went over day 1 alone as if it were the whole event. `only`: none of its videos can be read.
+ */
+export function undetailed(videos: readonly { videoId: string; meta?: { status?: string; length?: number | null } | null }[]): { skipped: { videoId: string; why: string }[]; only: boolean } {
+  const skipped = videos.filter((v) => v.meta?.status !== "ok" || !v.meta.length).map((v) => ({
+    videoId: v.videoId,
+    why: !v.meta ? "no details on file" : v.meta.status !== "ok" ? `its details couldn't be fetched (${v.meta.status ?? "no status"})` : "no length on file",
+  }));
+  return { skipped, only: skipped.length > 0 && skipped.length === videos.length };
+}
+
 /** The rows of a server/data/frameTimings/<season>.ts file as written (one JSON row a line after the data marker). */
 export function dataRows<T>(text: string): T[] {
   const data = text.split("// --- Data")[1] ?? "";
