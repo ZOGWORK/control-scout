@@ -97,7 +97,7 @@ describe("answering a conference ask", () => {
     expect(a.definition).toContain("At the tournament itself 4215 ranked 1st: a different ranking from the league's.");
     const table = a.blocks.find((b) => b.kind === "table");
     expect(table && table.kind === "table" && table.rows.map((r) => [r.cells.team, r.cells.rank, r.cells.rs])).toEqual([
-      ["6980 Bad Wolf", "1st", "4.0"], ["4215 Hypnotic Robotics", "2nd", "3.8"], ["207 Critical Mass", "3rd", "3.8"], ["30680 Tech BnB", "Not ranked yet", "—"]]);
+      ["6980 Bad Wolf", 1, "4.0"], ["4215 Hypnotic Robotics", 2, "3.8"], ["207 Critical Mass", 3, "3.8"], ["30680 Tech BnB", "Not ranked yet", "—"]]);
   });
 
   it("answers the season asked, going in from the sign-ups when FIRST has no field yet", async () => {
