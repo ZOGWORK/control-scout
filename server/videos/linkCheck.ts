@@ -65,6 +65,8 @@ export async function findWrongLinks(now = Date.now()): Promise<Candidate[]> {
   const out: Candidate[] = [];
   for (const r of rows) {
     const title = r.title && !placeholder(r.title) ? String(r.title) : null;
+    // The broadcast's date at the venue. An event with no time zone is read in UTC: a day off at worst, which only
+    // brings back the title rule for that stream (the rule as it was before the aired-on-its-days exception).
     const aired = r.start ? localDate(Date.parse(String(r.start)), String(r.timezone ?? "UTC")) : null;
     const airedOnDays = !!aired && aired >= String(r.first) && aired <= String(r.end);
     const why = linkWrong({ end: String(r.end), name: String(r.name), listed: r.listed ?? null, title, live: r.live == null ? null : Number(r.live), start: r.start ?? null, checked: r.checked_at ?? null, played: !!r.played, airedOnDays }, now);
@@ -77,40 +79,48 @@ export async function findWrongLinks(now = Date.now()): Promise<Candidate[]> {
  * Free the links found wrong, one transaction each, every step only if the one before took effect (rowsAffected):
  * a link changed since it was read (the owner's Remove) is left as it is. Returns what came off.
  */
-export async function freeLinks(found: Candidate[], at: string): Promise<WrongLink[]> {
+export async function freeLinks(found: Candidate[], at: string, log: (s: string) => void = () => {}): Promise<WrongLink[]> {
   const freed: WrongLink[] = [];
   for (const c of found) {
-    const tx = await db().transaction("write");
-    try {
-      const del = await tx.execute({ sql: "DELETE FROM official_videos WHERE video_id = ? AND season = ? AND code = ? AND removed_at IS NULL AND source IN ('list', 'watcher')", args: [c.videoId, c.season, c.code] });
-      if (!del.rowsAffected) { await tx.rollback(); continue; }
-      await tx.execute({ sql: "INSERT INTO owner_audit (at, actor, action, details, result, old_value, new_value) VALUES (?, ?, ?, ?, NULL, NULL, NULL)",
-        args: [at, DROP_ACTOR, DROP_ACTION, JSON.stringify({ videoId: c.videoId, season: c.season, code: c.code, day: c.day, part: c.part, source: c.source, why: c.why })] });
-      // Set aside unless the owner or evidence decided it (approved, rejected): their decision stands.
-      await tx.execute({
-        sql: `INSERT INTO official_watch (video_id, channel_id, title, status, season, code, day, part, why, seen_at, decided_at, decided_by)
-              VALUES (?, ?, ?, 'ignored', NULL, NULL, NULL, NULL, ?, ?, ?, ?)
-              ON CONFLICT(video_id) DO UPDATE SET status = 'ignored', season = NULL, code = NULL, day = NULL, part = NULL,
-                why = excluded.why, seen_at = excluded.seen_at, decided_at = excluded.decided_at, decided_by = excluded.decided_by
-              WHERE official_watch.status IN ('added', 'pending', 'ignored', 'duplicate')`,
-        args: [c.videoId, c.channelId, c.title.slice(0, 300), `taken off ${c.season} ${c.code} ${c.day ?? ""} (${c.source}) by the link check: ${c.why}`.slice(0, 500), at, at, DROP_ACTOR],
-      });
-      await tx.commit();
-      freed.push({ videoId: c.videoId, season: c.season, code: c.code, why: c.why });
-    } catch (e) {
-      await tx.rollback().catch(() => {});
-      throw e;
-    } finally {
-      tx.close();
-    }
+    // One that fails (a busy database) is rolled back and tried again next check; the rest still go, and what came
+    // off is returned, so the caller's cache reset and log lines cover it.
+    try { if (await freeOne(c, at)) freed.push({ videoId: c.videoId, season: c.season, code: c.code, why: c.why }); }
+    catch (e) { log(`official videos: link check: ${c.videoId} on ${c.season} ${c.code} not freed: ${(e as Error).message}`); }
   }
   return freed;
+}
+
+/** One video freed in one transaction; false when its link changed since it was read. */
+async function freeOne(c: Candidate, at: string): Promise<boolean> {
+  const tx = await db().transaction("write");
+  try {
+    const del = await tx.execute({ sql: "DELETE FROM official_videos WHERE video_id = ? AND season = ? AND code = ? AND removed_at IS NULL AND source IN ('list', 'watcher')", args: [c.videoId, c.season, c.code] });
+    if (!del.rowsAffected) { await tx.rollback(); return false; }
+    await tx.execute({ sql: "INSERT INTO owner_audit (at, actor, action, details, result, old_value, new_value) VALUES (?, ?, ?, ?, NULL, NULL, NULL)",
+      args: [at, DROP_ACTOR, DROP_ACTION, JSON.stringify({ videoId: c.videoId, season: c.season, code: c.code, day: c.day, part: c.part, source: c.source, why: c.why })] });
+    // Set aside unless the owner or evidence decided it (approved, rejected): their decision stands.
+    await tx.execute({
+      sql: `INSERT INTO official_watch (video_id, channel_id, title, status, season, code, day, part, why, seen_at, decided_at, decided_by)
+            VALUES (?, ?, ?, 'ignored', NULL, NULL, NULL, NULL, ?, ?, ?, ?)
+            ON CONFLICT(video_id) DO UPDATE SET status = 'ignored', season = NULL, code = NULL, day = NULL, part = NULL,
+              why = excluded.why, seen_at = excluded.seen_at, decided_at = excluded.decided_at, decided_by = excluded.decided_by
+            WHERE official_watch.status IN ('added', 'pending', 'ignored', 'duplicate')`,
+      args: [c.videoId, c.channelId, c.title.slice(0, 300), `taken off ${c.season} ${c.code} ${c.day ?? ""} (${c.source}) by the link check: ${c.why}`.slice(0, 500), at, at, DROP_ACTOR],
+    });
+    await tx.commit();
+    return true;
+  } catch (e) {
+    await tx.rollback().catch(() => {});
+    throw e;
+  } finally {
+    tx.close();
+  }
 }
 
 /** Take wrong links off their events and free them, under the data lock. Returns what came off. */
 export async function dropWrongLinks(log: (s: string) => void, now = Date.now()): Promise<WrongLink[]> {
   const at = new Date(now).toISOString();
-  const dropped = await withDataLock("official link check", async () => freeLinks(await findWrongLinks(now), at), { ttlMs: 60_000, waitMs: 3 * 60_000, pollMs: 1000 });
+  const dropped = await withDataLock("official link check", async () => freeLinks(await findWrongLinks(now), at, log), { ttlMs: 60_000, waitMs: 3 * 60_000, pollMs: 1000 });
   if (dropped.length) forgetOfficial();
   for (const w of dropped) log(`official videos: ${w.videoId} taken off ${w.season} ${w.code}: ${w.why}`);
   return dropped;
