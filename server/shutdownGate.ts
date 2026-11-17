@@ -7,9 +7,9 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import type { NextFunction, Request, Response } from "express";
 import { get } from "./db.js";
 import { env } from "./env.js";
-import { isEnabled } from "./flags.js";
+import { isEnabledKnown } from "./flags.js";
 import { CSP_REPORT_PATH, cspHeaderName } from "./securityHeaders.js";
-import { readCookie, SESSION_COOKIE, sha256 } from "./auth/session.js";
+import { gateSessions as sessions, readCookie, SESSION_COOKIE, sha256 } from "./auth/session.js";
 import { authProviders } from "./auth/routes.js";
 
 export const UNAVAILABLE = "Control Scout is temporarily unavailable.";
@@ -31,7 +31,6 @@ const ALWAYS = [
 const alwaysThrough = (path: string) => !/\.\.|%|\\/.test(path) && ALWAYS.some((re) => re.test(path));
 
 const SESSION_TTL_MS = 30_000;
-const sessions = new Map<string, { ok: boolean; at: number }>();
 /** Is this request's session cookie a live session? Read only (unlike currentUser, which also stamps last_seen), and
  *  kept for 30 s per token so a signed-in page load doesn't ask the database once per file. */
 async function signedIn(req: Request): Promise<boolean> {
@@ -109,9 +108,10 @@ function shut(req: Request, res: Response): void {
   res.type("html").send(gatePage(req.query.signin === "closed"));
 }
 
-/** Middleware (createApp, right after the JSON parser): with publicAccess on, straight through. */
+/** Middleware (createApp, right after the JSON parser): with publicAccess on, straight through. Flags that couldn't be
+ *  read (nothing known yet) count as off: the message stays up rather than the site opening by default. */
 export function shutdownGate(req: Request, res: Response, next: NextFunction): void {
-  isEnabled("publicAccess").then(async (open) => {
+  isEnabledKnown("publicAccess").then(async (open) => {
     if (open || alwaysThrough(req.path)) return next();
     if (isUptimeMonitor(req) || (await signedIn(req))) { keepPrivate(res); return next(); }
     shut(req, res);

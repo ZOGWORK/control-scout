@@ -10,7 +10,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { get, migrate, openDb, run, setDb } from "./db";
 import { createApp } from "./app";
 import { setMailer } from "./auth/email";
-import { sha256, SignupsClosedError, userForIdentity } from "./auth/session";
+import { deleteUser, sha256, SignupsClosedError, userForIdentity } from "./auth/session";
 import { invalidateFlags, setFlag } from "./flags";
 import { resetGateSessions } from "./shutdownGate";
 
@@ -122,6 +122,20 @@ describe("with publicAccess off", () => {
     expect((await call("/", { cookie: "cs_session=nobody" })).status).toBe(503);
   });
 
+  it("a signed-out or deleted account is an outsider at once, never passed on a kept answer", async () => {
+    await shutDown();
+    const cookie = await session("leaving@example.com");
+    expect((await call("/", { cookie })).status).toBe(200);
+    const out = await call("/api/auth/logout", { cookie, method: "POST", body: {}, headers: { Origin: base } });
+    expect(out.status).toBe(200);
+    expect((await call("/", { cookie })).status).toBe(503);
+    const gone = await session("gone@example.com");
+    expect((await call("/", { cookie: gone })).status).toBe(200);
+    const u = await get<{ id: number }>("SELECT id FROM users WHERE email = ?", ["gone@example.com"]);
+    await deleteUser(u!.id);
+    expect((await call("/", { cookie: gone })).status).toBe(503);
+  });
+
   it("lets the uptime monitor in only with the right key, and never without UPTIME_GATE_KEY", async () => {
     await shutDown();
     expect((await call("/", { headers: { "x-uptime-key": "" } })).status).toBe(503);
@@ -157,6 +171,22 @@ describe("with publicAccess off", () => {
     expect((await userForIdentity("google", "g-1", "coach@example.com")).email).toBe("coach@example.com");
     expect((await userForIdentity("google", "g-1", null)).email).toBe("coach@example.com");
     await expect(userForIdentity("google", "g-2", "new@example.com")).rejects.toBeInstanceOf(SignupsClosedError);
+  });
+});
+
+describe("when the flags can't be read and nothing was known yet", () => {
+  it("keeps the message up and sign-ups closed instead of opening by default", async () => {
+    await run("ALTER TABLE feature_flags RENAME TO feature_flags_away");
+    try {
+      invalidateFlags();
+      const page = await call("/");
+      expect(page.status).toBe(503);
+      await expect(userForIdentity("email", "new@example.com", "new@example.com")).rejects.toBeInstanceOf(SignupsClosedError);
+    } finally {
+      await run("ALTER TABLE feature_flags_away RENAME TO feature_flags");
+      invalidateFlags();
+    }
+    expect((await call("/")).status).toBe(200);
   });
 });
 

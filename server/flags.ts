@@ -23,7 +23,7 @@ export { FLAGS, type Flag, type FlagSet } from "../src/shared/flags.js";
 export const FLAG_TTL_MS = 10_000;
 
 /** The global values, and each workspace's overrides (workspace id → flag → on/off). */
-interface FlagState { flags: FlagSet; overrides: Map<string, Map<Flag, boolean>> }
+interface FlagState { flags: FlagSet; overrides: Map<string, Map<Flag, boolean>>; guessed?: true }
 
 let cached: { at: number; state: FlagState } | null = null;
 let loading: Promise<FlagState> | null = null;
@@ -53,7 +53,7 @@ async function state(now = Date.now()): Promise<FlagState> {
     const p = load().then(
       (s) => { if (loading === p) { cached = { at: Date.now(), state: s }; loading = null; } return s; },
       (e) => {
-        const s = cached?.state ?? { flags: { ...DEFAULT_FLAGS }, overrides: new Map() };
+        const s: FlagState = cached?.state ?? { flags: { ...DEFAULT_FLAGS }, overrides: new Map(), guessed: true };
         // Kept for a TTL too, so a database that's down isn't asked again on every request.
         if (loading === p) { cached = { at: Date.now(), state: s }; loading = null; }
         console.warn(`[flags] couldn't read feature flags, keeping the last known values: ${(e as Error)?.message ?? e}`);
@@ -73,6 +73,13 @@ export async function allFlags(now = Date.now()): Promise<FlagSet> {
 /** Is this feature switched on globally? (Defaults to on.) For a workspace-scoped flag with a workspace at hand, use isEnabledFor. */
 export async function isEnabled(flag: Flag): Promise<boolean> {
   return (await allFlags())[flag];
+}
+
+/** Is this flag on, by a value really read? False while the flags couldn't be read and nothing was known before
+ *  (the database down right after a restart): the shutdown gate and sign-ups fail closed, never open by default. */
+export async function isEnabledKnown(flag: Flag): Promise<boolean> {
+  const s = await state();
+  return !s.guessed && s.flags[flag];
 }
 
 /**
