@@ -28,6 +28,9 @@ describe("a place's pages", () => {
   });
 
   it("leaves anything more than a place alone", () => {
+    // A word that is a property of every object ("constructor") is a word like any other, never a page.
+    expect(placeAsk("nj constructor")).toBeNull();
+    expect(hrefs("constructor toString nj")).toEqual(["/rankings"]);
     for (const q of ["4215 nj rankings", "nj meets this weekend", "east bergen rankings", "rankings", "top teams in nj"]) expect(hrefs(q)).toEqual(["/rankings"]);
   });
 });
