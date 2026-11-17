@@ -23,6 +23,14 @@ describe("reading a conference ask", () => {
     ["essex/union conference standings", { words: ["essex", "union"] }],
     ["what is hypnotic robotics conference rank", { team: null, words: ["hypnotic", "robotics"] }],
     ["top teams at east bergen conference", { team: null, words: ["east", "bergen"] }],
+    // A place in the ranking is never a team's number.
+    ["top 10 teams in East Bergen Conference", { team: null, words: ["east", "bergen"] }],
+    ["#1 in East Bergen Conference", { team: null, words: ["east", "bergen"] }],
+    ["number 2 in east bergen conference", { team: null, words: ["east", "bergen"] }],
+    // This season is the current one; a season after every stored one is kept.
+    ["4215 conference ranking this season", { team: 4215, season: null, now: true, last: false }],
+    ["East Bergen Conference rankings this season", { team: null, now: true }],
+    ["East Bergen Conference rankings in 2027", { season: 2027, now: false }],
   ])("%s", (q, want) => expect(readConferenceAsk(q)).toMatchObject(want));
 
   it.each([
@@ -33,6 +41,8 @@ describe("reading a conference ask", () => {
     "how did 4215 do in east bergen conference",
     "4215 northern league ranking", // no conference said
     "compare 4215 and 207 conference",
+    "4215 conference schedule", // the tournament's schedule, not its ranking
+    "4215 conference venue",
   ])("leaves %s to the other readers", (q) => expect(readConferenceAsk(q)).toBeNull());
 });
 
@@ -131,5 +141,13 @@ describe("answering a conference ask", () => {
   it("says plainly when a team has no conference, and leaves a name no conference has to the others", async () => {
     expect((await ask("1111 conference ranking"))!.none).toBe("1111 isn't a New Jersey team: conferences are New Jersey's alone.");
     expect(await ask("big ten conference rankings")).toBeNull();
+  });
+
+  it("answers this season as the current one, says a later season has none, and never picks between two same-named teams", async () => {
+    expect((await ask("4215 conference ranking this season"))!.title).toBe("4215 going into Hudson/East Bergen Conference · 2026–27");
+    expect((await ask("East Bergen Conference rankings in 2027"))!.none).toBe("No New Jersey conference by that name in 2027–28.");
+    expect((await ask("where does hypnotic robotics rank in east bergen conference"))!.title).toBe("4215 in East Bergen Conference · 2025–26");
+    await run("INSERT INTO teams (number, name, state, country) VALUES (9999, 'Hypnotic Robotics', 'NJ', 'USA')");
+    expect(await ask("where does hypnotic robotics rank in east bergen conference")).toBeNull();
   });
 });
