@@ -17,8 +17,10 @@ export const CONFERENCE_LABEL = "League meets only — excludes this tournament.
  */
 export function conferenceName(title: string | null | undefined): string | null {
   if (!title) return null;
-  const t = title.replace(/[​﻿]/g, "").replace(/\s+/g, " ").trim();
-  const m = /^(?:FTC\s*NJ\s+)?(.*?\S)\s+Conference\b/i.exec(t);
+  const t = title.replace(/[​﻿]/g, "").replace(/\s+/g, " ").trim()
+    // Older names lead with the region and date ("NJ 2/25/24 …") or the league ("Northern League East Bergen …").
+    .replace(/^(?:FTC\s*NJ|NJ)\s+/i, "").replace(/^\d{1,2}\/\d{1,2}\/\d{2,4}\s+/, "").replace(/^(?:[A-Z][\w-]*\s+){1,3}League\s+(?=.*\bConference\b)/, "");
+  const m = /^(.*?\S)\s+Conference\b/i.exec(t);
   if (!m) return null;
   const name = m[1].replace(/[,;:\s]+$/, "").trim();
   return name ? `${name} Conference` : null;
