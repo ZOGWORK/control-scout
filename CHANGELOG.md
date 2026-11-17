@@ -25,7 +25,7 @@ Event videos › Scout now keeps whether each video's owner lets it play on othe
 - [fixes] Checked again once with each video's other facts
 
 ### Fixed
-- Event videos: whether a video's owner lets it play on other sites is read with its other facts (YouTube's `status.embeddable`, a watch page's `playableInEmbed`) and kept (migration 95). A video read before that was kept is read once more with the API key. 20 of 1,771 linked videos have embedding off; their clips can't play in the app's player, and the next releases open them on YouTube instead. (`server/videos/youtube.ts`, `server/videos/recordings.ts`) (#1665)
+- Event videos: whether a video's owner lets it play on other sites is read with its other facts (YouTube's `status.embeddable`, a watch page's `playableInEmbed`: false from any page, true only from one that plays) and kept (migration 95). A video read before that was kept is read once more with the API key. 20 of 1,771 linked videos have embedding off; their clips can't play in the app's player, and the next releases open them on YouTube instead. (`server/videos/youtube.ts`, `server/videos/recordings.ts`) (#1665)
 
 ## 7.3.1 — 2026-11-17
 
