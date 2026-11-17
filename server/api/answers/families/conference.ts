@@ -19,6 +19,8 @@ export interface ConferenceAsk {
   season: number | null;
   /** "Last season": the season before the current one. */
   last: boolean;
+  /** "This season": the current one. */
+  now: boolean;
   /** "Who won …": the winning alliance, from the awards. */
   won: boolean;
 }
@@ -41,7 +43,9 @@ const norm = (s: string) => s.toLowerCase().replace(/['’]/g, "").replace(/(\d)
 export function readConferenceAsk(raw: string): ConferenceAsk | null {
   const q = ` ${norm(raw)} `;
   if (!/\bconf(?:erence)?s?\b/.test(q) || AWARD.test(q)) return null;
-  const { scope, rest } = readScope(q);
+  const { scope, rest: said } = readScope(q);
+  // A place in a ranking ("top 10", "#1", "number 2") is the table's ask, never a team's number.
+  const rest = said.replace(/\b(?:top|best|first|leading)\s+\d{1,3}\b|(?:^|\s)#\s*\d{1,3}\b|\bnumber\s+\d{1,3}\b/g, " top ");
   const nums = (rest.match(/\b\d{1,6}\b/g) ?? []).map(Number);
   if (nums.length > 1) return null;
   const team = nums[0] ?? null;
@@ -58,7 +62,12 @@ export function readConferenceAsk(raw: string): ConferenceAsk | null {
   // A team and a conference's name with no rank or winner asked ("how did 4215 do at east bergen conference") is the
   // tournament's question; a team's number beside "conference" alone ("4215 conference") is this one.
   if (!won && !TABLE.test(rest) && words.length) return null;
-  return { words, team, season: scope.lastYear ? null : scope.season, last: !!scope.lastYear, won };
+  // Words after "conference" that aren't frame ("4215 conference schedule") ask something else about it.
+  const after = (at ?? rest).split(/\bconf(?:erence)?s?\b/).slice(1).join(" ").split(" ").filter((w) => w && !FRAME.has(w) && !/^\d+$/.test(w));
+  if (!won && !TABLE.test(rest) && after.length) return null;
+  // A season after every stored one is kept, so the answer says it has none yet.
+  const season = scope.future?.season ?? (scope.lastYear ? null : scope.season);
+  return { words, team, season, last: !!scope.lastYear && season == null, now: scope.latest && season == null && !scope.lastYear, won };
 }
 
 type Stored = Awaited<ReturnType<typeof allConferences>>[number];
@@ -132,12 +141,13 @@ export async function conferenceAskAnswer(ask: ConferenceAsk, current: number): 
   const list = await allConferences();
   if (!list.length) return null;
   const { hits, lead } = ask.words.length ? matchConference(ask.words, list) : { hits: [] as Stored[], lead: [] as string[] };
-  const season = ask.last ? current - 1 : ask.season;
+  const season = ask.last ? current - 1 : ask.now ? current : ask.season;
   // A team asked by name before the conference's ("where does hypnotic robotics rank in east bergen conference").
   let team = ask.team;
   if (team == null && lead.length) {
-    const [t] = await all<{ number: number }>("SELECT number FROM teams WHERE lower(name) = ? ORDER BY number LIMIT 2", [lead.join(" ")]);
-    if (t) team = Number(t.number);
+    // Two teams of that name: neither, never the lower number.
+    const named = await all<{ number: number }>("SELECT number FROM teams WHERE lower(name) = ? ORDER BY number LIMIT 2", [lead.join(" ")]);
+    if (named.length === 1) team = Number(named[0].number);
   }
   if (ask.words.length && !hits.length && team == null) return null;
   if (lead.length && team == null) return null;
