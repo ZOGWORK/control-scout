@@ -1,9 +1,89 @@
 // The pure parts of the frame reader (scripts/video-frames.ts): the overlay's match, the timer's elapsed time, and
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
-import { dataRows, divisionOf, elapsed, overlayDivision, leadIn, LEAD_IN_S, judge, NOTHING_READ, autoLeadsTo, overlayLabel, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, type M } from "./videoFrames";
+import { dataRows, divisionOf, elapsed, overlayDivision, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, type M } from "./videoFrames";
 
 describe("the frame reader", () => {
+  // A 1280 × 720 frame: a grey field, and a score bar from `top` to `bottom` with one alliance's colour each side of the
+  // timer (white digits in a dark box at the centre), its rows broken here and there by white icons and digits.
+  const frame = (bars: { top: number; bottom: number; left?: "blue" | "red"; dark?: boolean }[], floor = [120, 115, 110]) => {
+    const w = 1280, h = 720, px = new Uint8ClampedArray(w * h * 4);
+    const put = (x: number, y: number, [r, g, b]: number[]) => { const i = (y * w + x) * 4; px[i] = r; px[i + 1] = g; px[i + 2] = b; px[i + 3] = 255; };
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) put(x, y, floor);
+    for (const bar of bars) {
+      const BLUE = bar.dark ? [2, 46, 80] : [20, 80, 200], RED = bar.dark ? [111, 12, 17] : [210, 30, 40];
+      const [l, r] = bar.left === "red" ? [RED, BLUE] : [BLUE, RED];
+      for (let y = bar.top; y < bar.bottom; y++) for (let x = 0; x < w; x++) {
+        const icon = (x % 40 < 8 && y % 12 < 6) || y === bar.top + 5;
+        put(x, y, icon ? [250, 250, 250] : x < 560 ? l : x >= 720 ? r : [15, 15, 15]);
+      }
+    }
+    return px;
+  };
+  it("finds FTC Live's score bar wherever the stream put it", () => {
+    // FTC Live's default: along the bottom (most streams, CENTERSTAGE's FiT-North and Benelux ones).
+    expect(overlayBand(frame([{ top: 612, bottom: 700 }]), 1280, 720)).toEqual({ top: 612, bottom: 700 });
+    // Flush with the top under a title strip, in dark navy and maroon (Arizona's CENTERSTAGE qualifiers, USAZGIQ 2023:
+    // the bar 48–170 px down).
+    expect(overlayBand(frame([{ top: 48, bottom: 170, dark: true }]), 1280, 720)).toEqual({ top: 48, bottom: 170 });
+    // Under a title bar at the top (FIRST in Texas).
+    expect(overlayBand(frame([{ top: 98, bottom: 142, left: "red" }]), 1280, 720)).toEqual({ top: 98, bottom: 142 });
+    // Red on the left is a bar too; of two, the taller.
+    expect(overlayBand(frame([{ top: 20, bottom: 40 }, { top: 600, bottom: 690, left: "red" }]), 1280, 720)).toEqual({ top: 600, bottom: 690 });
+    // The taller by a single row wins too, whichever comes first.
+    expect(overlayBand(frame([{ top: 100, bottom: 190 }, { top: 500, bottom: 591 }]), 1280, 720)).toEqual({ top: 500, bottom: 591 });
+    expect(overlayBand(frame([{ top: 100, bottom: 191 }, { top: 500, bottom: 590 }]), 1280, 720)).toEqual({ top: 100, bottom: 191 });
+    // No bar: a plain frame, or one alliance's colour alone (a results card's half), or a strip too thin to be one.
+    expect(overlayBand(frame([]), 1280, 720)).toBeNull();
+    // An orange wood floor is neither alliance's colour.
+    expect(overlayBand(frame([], [200, 130, 60]), 1280, 720)).toBeNull();
+    const card = frame([]);
+    for (let y = 100; y < 600; y++) for (let x = 0; x < 640; x++) { const i = (y * 1280 + x) * 4; card[i] = 20; card[i + 1] = 80; card[i + 2] = 200; }
+    expect(overlayBand(card, 1280, 720)).toBeNull();
+    expect(overlayBand(frame([{ top: 300, bottom: 310 }]), 1280, 720)).toBeNull();
+    // A results card: its blue half and red half fill the frame's height (CENTERSTAGE's "WINNER" card).
+    expect(overlayBand(frame([{ top: 60, bottom: 660 }]), 1280, 720)).toBeNull();
+  });
+
+  it("steps the upload scan on past a named match until its timer runs, through a cutaway", () => {
+    // USTXNTM1 2023: the scan frame names Q11 with no timer running; a minute on, a camera cutaway names nothing; the
+    // steps go on (k = 2, 3) all the same.
+    expect(stepOn(true, null, 1)).toBe(true);
+    expect(stepOn(true, null, 2)).toBe(true);
+    expect(stepOn(true, null, SCAN_AHEAD)).toBe(true);
+    expect(stepOn(true, null, SCAN_AHEAD + 1)).toBe(false);
+    // A running start read: done. A scan frame naming nothing: no stepping.
+    expect(stepOn(true, 2275, 2)).toBe(false);
+    expect(stepOn(false, null, 1)).toBe(false);
+  });
+
+  it("reads the match's row over a bar found somewhere other than the bottom", () => {
+    const usual = { x: 0, y: 548, width: 1280, height: 56 };
+    // Arizona's bar flush with the top: the strip over it, cut at the frame's edge.
+    expect(rowAbove({ top: 54 }, usual)).toEqual({ x: 0, y: 0, width: 1280, height: 54 });
+    // FIRST in Texas's bar under a title bar.
+    expect(rowAbove({ top: 98 }, usual)).toEqual({ x: 0, y: 42, width: 1280, height: 56 });
+    // The bottom bar where it always is: the usual row, already read. No room over a bar at the very top.
+    expect(rowAbove({ top: 612 }, usual)).toBeNull();
+    expect(rowAbove({ top: 10 }, usual)).toBeNull();
+  });
+
+  it("names the match the bar's row names on its own, on a shared stream only with this division's name", () => {
+    // Reads of CENTERSTAGE (2023) rows, whose whole frames named nothing: USTXNTM1 at 1500 s, NLBNM1 at 3300 s.
+    expect(rowLabel("TE FiT-North T-League Meet 1 Qualification 10 of 17 PERS [Ah", null)).toBe("Q10");
+    expect(rowLabel("wens SHN— NL Benelux LM Leek Qualification 4 of 23 PUERS TAT", null)).toBe("Q4");
+    expect(rowLabel("Playoff Match 1", null)).toBe("M1");
+    expect(rowLabel("os 55 pe", null)).toBeNull();
+    // A shared stream: the whole row must name this division, never a sibling's or none.
+    const ctx = { own: "Solo", others: ["Duo"] };
+    expect(rowLabel("Qualification 3 of 28", "Illinois State Championship - Solo  Qualification 3 of 28", ctx)).toBe("Q3");
+    expect(rowLabel("Qualification 3 of 28", "Illinois State Championship - Duo  Qualification 3 of 28", ctx)).toBeNull();
+    expect(rowLabel("Qualification 3 of 28", "Illinois State Championship  Qualification 3 of 28", ctx)).toBeNull();
+    expect(rowLabel("Qualification 3 of 28", null, ctx)).toBeNull();
+    // A match a team advances to is never the one on screen, read whole or by row.
+    expect(rowLabel("Advances to: Playoff Match 8", null)).toBeNull();
+  });
+
   it("names the match the overlay shows, and nothing else", () => {
     expect(overlayLabel("FIRST AGE  Qualification 21 of 36  2:05")).toBe("Q21");
     expect(overlayLabel("Playoff Match 10")).toBe("M10");
@@ -76,6 +156,43 @@ describe("the frame reader", () => {
     expect(timerRan(0, 1.6)).toBe(false);
     expect(timerRan(0, 0.4)).toBe(false);
     expect(timerRan(5, 1.7)).toBe(false);
+  });
+
+  it("places matches with only a scheduled time where their own frames show them, never filled", () => {
+    // 2019MOQ8: FIRST gives whole-minute scheduled times only, 5 minutes apart; the event ran slower.
+    const ms: M[] = [1, 2, 3, 4, 5].map((n) => ({ label: `Q${n}`, epoch: 1_000 + n * 300, scheduled: true }));
+    // Q1, Q2 and Q4 read in order (7 to 8 minutes apart); Q3 not read; Q6 misread far back (before Q4 and Q5).
+    const ms6: M[] = [...ms, { label: "Q6", epoch: 2_800, scheduled: true }];
+    const seen = new Map([[0, 2000], [1, 2430], [3, 3300], [4, 3750], [5, 2100]]);
+    const j = judge(ms6, seen, null, 10_000, new Set([0, 1, 3, 4, 5]));
+    expect([...j.placed].map(([l, p]) => [l, p.t, p.confidence])).toEqual([["Q1", 2000, "high"], ["Q2", 2430, "high"], ["Q4", 3300, "high"], ["Q5", 3750, "high"]]);
+    expect(j.missing.get("Q6")).toBe("its frame read disagrees with the matches around it");
+    // Two runs as long that differ (Q4 at 3300 or Q5 at 2900, each after Q2): neither of the two stands.
+    const tie = judge(ms, new Map([[0, 2000], [1, 2430], [3, 3300], [4, 2900]]), null, 10_000, new Set([0, 1, 3, 4]));
+    expect([...tie.placed.keys()]).toEqual(["Q1", "Q2"]);
+    expect(tie.missing.get("Q4")).toBe("its frame read disagrees with the matches around it");
+    // Nothing is filled between two reads for a scheduled match, however the reads agree.
+    expect(j.missing.get("Q3")).toBe(SCHEDULED_UNREAD);
+    // Frames named a match but none confirmed a start: the others are still unread for want of a time, not "nothing read".
+    const none = judge(ms, new Map(), null, 10_000, new Set([2]));
+    expect(none.missing.get("Q1")).toBe(SCHEDULED_UNREAD);
+    expect(none.missing.get("Q3")).toBe("its frames didn't confirm a start");
+    expect(judge(ms, new Map(), null, 10_000, new Set()).missing.get("Q1")).toBe(NOTHING_READ);
+    // A recording cut mid-match (USTXSASQ 2025's kind): two starts 151 s apart, both read off the video, both stand.
+    const cut = judge(ms, new Map([[0, 2000], [1, 2151]]), null, 10_000, new Set([0, 1]));
+    expect([...cut.placed.keys()]).toEqual(["Q1", "Q2"]);
+  });
+
+  it("keeps the clock's reads and fills only clock matches when scheduled ones sit between them", () => {
+    // 2019IASQ4: qualifications scheduled only, playoffs with FIRST's actual starts.
+    const ms: M[] = [
+      { label: "Q1", epoch: 100, scheduled: true },
+      { label: "M1", epoch: 10_000 }, { label: "M2", epoch: 10_400 }, { label: "M1-2", epoch: 10_800 },
+    ];
+    const j = judge(ms, new Map([[0, 50], [1, 20_000], [3, 20_800]]), null, 30_000, new Set([0, 1, 3]));
+    expect(j.placed.get("Q1")).toEqual({ t: 50, confidence: "high" });
+    expect(j.placed.get("M2")).toEqual({ t: 20_400, confidence: "medium" });
+    expect(j.placed.get("M1-2")).toEqual({ t: 20_800, confidence: "high" });
   });
 
   it("tells Auto from TeleOp's end by where the timer stands 45 s on", () => {

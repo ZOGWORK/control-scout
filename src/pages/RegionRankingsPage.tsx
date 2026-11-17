@@ -22,6 +22,7 @@ import { ErrorState } from "../components/states";
 import { TeamNumber } from "../components/records/RecordsTable";
 import { cn } from "../components/cn";
 import { Move, Pager, SeasonPick, TrendBadge, WeekPick, weekLabel } from "./RankingsPage";
+import { MoverCards } from "../components/rankings/MoverCards";
 
 const SORT_LABEL: Record<RegionSort, string> = { rank: "Rank", rating: "Rating", opr: "OPR", record: "Record", events: "Events played", move: "Move" };
 const th = "h-11 whitespace-nowrap bg-card px-2 align-bottom pb-2 text-[11px] font-bold uppercase tracking-wider text-text-muted shadow-[inset_0_-2px_0_color-mix(in_srgb,var(--color-text-base)_20%,transparent)] max-sm:px-1.5 sm:px-3";
@@ -145,45 +146,7 @@ function Movers({ data, finished }: { data: RegionRankingsResponse; finished: bo
   if (!data.baseline) {
     return <p className="text-sm text-text-muted" data-movers>No climbers or fallers to show: {data.week ? "no ranking was saved the week before this one." : finished ? "a finished season's ranking has no weekly moves (pick a week to see that week's)." : "no ranking saved at least a week ago to compare with yet."}</p>;
   }
-  const href = (t: number) => `/teams/${t}?season=${data.season}`;
-  const Card = ({ title, icon: Icon, tone, children }: { title: string; icon: typeof TrendingUp; tone: string; children: React.ReactNode }) => (
-    <div className="rounded-xl border border-line bg-card p-3">
-      <h3 className="mb-2 flex items-center gap-1.5 text-sm font-semibold"><Icon className={cn("size-4", tone)} aria-hidden />{title}</h3>
-      {children}
-    </div>
-  );
-  const MoverList = ({ rows, up }: { rows: RegionMover[]; up: boolean }) => rows.length ? (
-    <ol className="space-y-1.5 text-sm">
-      {rows.map((r) => (
-        <li key={r.team} className="flex items-baseline gap-2">
-          <span className={cn("inline-flex w-12 shrink-0 items-center gap-0.5 font-semibold tabular-nums", up ? "text-success" : "text-danger")}>
-            {up ? <ArrowUp className="size-3.5" strokeWidth={2.5} /> : <ArrowDown className="size-3.5" strokeWidth={2.5} />}{Math.abs(r.move)}
-            <span className="sr-only"> places {up ? "up" : "down"}</span>
-          </span>
-          <Link to={href(r.team)} className="min-w-0 flex-1 truncate hover:underline"><span className="font-mono font-semibold tabular-nums">{r.team}</span> {r.name ?? ""}</Link>
-          <span className="shrink-0 tabular-nums text-text-muted" title="Rank in the region · rating">#{r.rank} · {r.rating.toFixed(1)}</span>
-        </li>
-      ))}
-    </ol>
-  ) : <p className="text-sm text-text-muted">{up ? "No team moved up." : "No team moved down."}</p>;
-  const NewList = ({ rows }: { rows: RegionNewcomer[] }) => rows.length ? (
-    <ol className="space-y-1.5 text-sm">
-      {rows.slice(0, 5).map((r) => (
-        <li key={r.team} className="flex items-baseline gap-2">
-          <Link to={href(r.team)} className="min-w-0 flex-1 truncate hover:underline"><span className="font-mono font-semibold tabular-nums">{r.team}</span> {r.name ?? ""}</Link>
-          <span className="shrink-0 tabular-nums text-text-muted" title="Rank in the region · rating">#{r.rank} · {r.rating.toFixed(1)}</span>
-        </li>
-      ))}
-      {data.newTotal > 5 && <li className="text-xs text-text-muted">and {(data.newTotal - 5).toLocaleString()} more (sort by Move)</li>}
-    </ol>
-  ) : <p className="text-sm text-text-muted">No team is new to the table.</p>;
-  return (
-    <section aria-label="This week's moves" className="grid gap-3 sm:grid-cols-3" data-movers>
-      <Card title="Biggest climbers" icon={TrendingUp} tone="text-success"><MoverList rows={data.climbers} up /></Card>
-      <Card title="Biggest fallers" icon={TrendingDown} tone="text-danger"><MoverList rows={data.fallers} up={false} /></Card>
-      <Card title={`New to the table${data.newTotal ? ` (${data.newTotal.toLocaleString()})` : ""}`} icon={Sparkles} tone="text-accent"><NewList rows={data.newcomers} /></Card>
-    </section>
-  );
+  return <MoverCards season={data.season} climbers={data.climbers} fallers={data.fallers} newcomers={data.newcomers} newTotal={data.newTotal} rankTitle="Rank in the region · rating" />;
 }
 
 function RegionTable({ data, team, myTeam, sort, onSort }: { data: RegionRankingsResponse; team: number | null; myTeam: number | null; sort: RegionSort; onSort: (s: RegionSort) => void }) {
