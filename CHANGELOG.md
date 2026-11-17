@@ -15,6 +15,54 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.2.8 — 2026-11-17
+
+Videos › the frame-read match starts are kept one file a season, so a season's recordings can be read alongside another's; every clip plays as before.
+
+### Highlights
+- [fixes] Match clips play from the same seconds as before
+- [fixes] Each season's frame-read starts in a file of its own
+- [fixes] Seasons' recordings can be read side by side
+
+### Changed
+- Videos (`server/data/frameTimings.ts`, `scripts/video-frames.ts`, `scripts/split-frame-timings.ts`): the frame reader's rows live in `server/data/frameTimings/<season>.ts`, one file per season of the row's event (2024: 48 rows, 2025: 162, 2026: 8; 2019 and 2021–2023 empty), and `frameTimings.ts` serves them together, unchanged (#1647). `scripts/video-frames.ts --season N` reads and writes only that season's file, so readers of different seasons never touch the same file. `scripts/split-frame-timings.ts` does the split (re-runnable, it reads its rows back), and a test checks the 218 rows it pinned.
+
+## 7.2.7 — 2026-11-17
+
+Videos › a recording YouTube once called unavailable is looked at again every week, so one made public again gets its clips.
+
+### Highlights
+- [fixes] Recordings made public again get their match clips back
+- [fixes] An unavailable video is looked at again every week
+- [fixes] Fewer events stuck at "video unavailable" in Clip coverage
+
+### Fixed
+- A video YouTube's facts called unavailable (private, removed, embedding off) was never read again, so a recording its owner later made public again stayed hidden for good: no clips, no frame read, "video unavailable" on Owner › Clip coverage. USILCSSLT 2024's recording (44 matches) was marked unavailable on 2026-10-24 and plays again now. Such a video is now read again a week after its last read, like any other fact that can change (28 videos on the live site today, a handful of API units a week). (`server/videos/recordings.ts`) (#1648)
+
+## 7.2.6 — 2026-11-17
+
+Videos › 54 more matches in 7 recordings are settled as played before their recording starts, or cut by it: each recording's first frame names a later match, or one already under way.
+
+### Highlights
+- [fixes] 54 more matches played before their recording no longer need review
+- [fixes] Each one rests on the recording's own first frame
+- [fixes] No clip changes
+
+### Fixed
+- Videos: the first frames of 7 more recordings are read into the data (`opensOn`, `server/data/frameTimings.ts`): USOHKIQ opens on Q5, USTXAUQ on Q10, USTXDTQ2 on Q21 at 0:45 (2024), USTXCEGEM1 on Q2 at 3:50 with no match on screen before it (2026), and USORPHQ, USUTSAS and USWISHQ on a match already under way (Q1, Q1, Q18). The 54 matches they prove were played before their recording starts (or cut by it) are settled in Clip coverage, with that reason. No clip is added, moved or taken away. (#1646)
+
+## 7.2.5 — 2026-11-17
+
+Sharing › a new link-preview card for Discord, iMessage and Slack, readable at the size those apps show it.
+
+### Highlights
+- [share] A new preview card when a Control Scout link is shared
+- [share] Big type that reads at Discord's preview size
+- [share] Shows a match prediction the way the app does
+
+### Changed
+- The link-preview card (`og:image`, `twitter:image`): "Every FTC match, predicted." on two lines, the site's address in gold, and a match-prediction panel labelled "Example match" (red and blue odds, the meter and a called score) drawn as the app shows one, an illustration rather than a real match; nothing on it under 30px, so it reads at the third of its size chat apps show it. Its address is versioned (`/og-image.png?v=2`) so apps that cached the old card fetch the new one, and its alt text says what it shows. (`scripts/og-image.ts`, `public/og-image.png`, `server/seoMeta.ts`) (#1644)
+
 ## 7.2.4 — 2026-11-17
 
 Videos › 37 matches in 8 recordings are settled as played before their recording starts: each recording's first frame names a later match, or counts them as played.
