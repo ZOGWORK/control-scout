@@ -45,8 +45,8 @@ computer at home, in a clone kept for it alone. Each run:
 ## Merging its own PRs
 
 At the start of each run, after rebuilding any of its PRs whose rows main changed (a rebuilt PR waits for the review
-of its new head), the runner merges at most one of its own data PRs (its label, branch, mark and GitHub user), and
-only when nothing stops it (`scripts/lib/autopilotPr.ts` and `scripts/lib/autopilotMerge.ts`):
+of its new head), the runner merges at most one of its own data PRs (its label, branch and mark; it runs as the
+owner's GitHub account, so who opened a PR is no safeguard: the gate is), and only when nothing stops it (`scripts/lib/autopilotPr.ts` and `scripts/lib/autopilotMerge.ts`):
 
 - Loopy's latest summary says `Confidence: 5/5` and last reviewed the PR's exact head; every check passed (5 or more);
 - it changes its data file only: data PRs carry no CHANGELOG entry and no version (owner's rule, 2026-11-17), so
@@ -61,8 +61,10 @@ only when nothing stops it (`scripts/lib/autopilotPr.ts` and `scripts/lib/autopi
 - main's last commit is at least 605 s old (every merge deploys; the same spacing the main driver keeps).
 
 It merges with `gh pr merge --merge --match-head-commit <head>` (never deleting the branch), then waits up to 20
-minutes for `/api/health` to serve the merge: its `release` the merge commit, or a main commit after it. A PR the gate stops waits, its reasons in the run's log, for the next
-run or the owner. `npx tsx scripts/autopilot-merge-check.ts <PR…>` prints the same gate for any PR, changing nothing;
+minutes for `/api/health` to serve the merge: `ready`, and its `release` the merge commit or a main commit after it.
+Gating takes minutes, so main is read again just before the merge: if it moved since the gate read it, or isn't 605 s
+quiet any more, nothing merges this run. A PR whose gate can't be read (gh, git, a malformed file) waits without
+stopping the PRs after it. A PR the gate stops waits, its reasons in the run's log, for the next run or the owner. `npx tsx scripts/autopilot-merge-check.ts <PR…>` prints the same gate for any PR, changing nothing;
 `--no-merge` runs the autopilot without merging.
 
 Logs: `.data/autopilot/runs/<time>.log` in the clone (every command and its output), `.data/autopilot/task.log` (the
