@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 7.1.7 — 2026-11-16
+## 7.2.1 — 2026-11-17
 
 Search › New Jersey conference questions answered directly: a team's rank in its conference, a conference's table, who won it, with the same numbers as the league page.
 
@@ -27,7 +27,7 @@ Search › New Jersey conference questions answered directly: a team's rank in i
 ### Added
 - Search: a New Jersey conference asked any way ("where does 4215 rank in East Bergen Conference", "top teams in East Bergen Conference", "who won East Bergen Conference") answers from the league page's conference table: the team's place by league standing beside its league rank, RS, TBP, matches and meets, labelled league meets only, with the tournament's own rank said apart; a conference's latest finished table with its next date and sign-ups; its winner from FIRST's awards; and "Which conference?" when none is named, never a guess. (`server/api/answers/families/conference.ts`) (#1637)
 
-## 7.1.6 — 2026-11-16
+## 7.2.0 — 2026-11-17
 
 Teams, events and Leagues › ways into New Jersey's conference rankings: a team's rank in its conference, a conference tournament's link to its table, and View Conference Rankings on the New Jersey leagues.
 
@@ -41,7 +41,7 @@ Teams, events and Leagues › ways into New Jersey's conference rankings: a team
 - Event page: a New Jersey conference tournament links its conference's table on the league page. (`src/pages/EventPage.tsx`)
 - Leagues: the New Jersey group alone gets View Conference Rankings, straight to My team's league when it has one there, else a link per league; nothing changes for any other place. A My team based outside New Jersey sees none of these. (`src/pages/LeaguesPage.tsx`) (#1633)
 
-## 7.1.5 — 2026-11-16
+## 7.1.9 — 2026-11-17
 
 Leagues › a New Jersey league's page shows its conference rankings: each conference tournament's teams ranked by FIRST's league standing, league meets only.
 
@@ -52,6 +52,54 @@ Leagues › a New Jersey league's page shows its conference rankings: each confe
 
 ### Added
 - League page (New Jersey only): View Conference Rankings, and a section with a tab per conference of the league. Each tab lists the conference tournament's teams in FIRST's league order, labelled "League meets only — excludes this tournament.", with each team's rank in the conference beside its rank in the league, its league record, RS, TBP, matches and meets played, Scout rating, OPR and league rank. A team with no league meet shows "Not ranked yet — no league meets played", never an RS of 0. Sorting reorders rows but never renumbers them; ?team= marks a row and opens its page. Before the tournament the teams come from FTC New Jersey's registrations (labelled registered, with the date read, never as the final field); after it, the league standing they went in with. The winner is read from the awards, never the top seed. A visitor whose My team is based outside New Jersey sees none of it. (`src/components/ConferenceSection.tsx`, `src/lib/conferenceGate.ts`, `src/pages/LeaguePage.tsx`, `server/api/conferences.ts`) (#1632)
+
+## 7.1.8 — 2026-11-17
+
+Videos › 8 more 2024 matches get a clip: their start was read off the video, and the overlay's bar now names each one on its opening frame.
+
+### Highlights
+- [fixes] 8 more 2024 matches get a clip read off the video
+- [fixes] Each opens on a frame whose overlay names its match
+- [fixes] No clip already playing changes
+
+### Fixed
+- Videos: 8 matches in 6 of the 2024 recordings of events USI to Z (USMNCMPNANO M2, USMOKSCMP Q38, USOHNEOHLT Q12 and Q16, USORPHQ Q18, USTXDTQ2 M6, USWISHQ M1 and M2), left out until now because their opening frame couldn't be read, get their clip: read paused, the overlay's bar names each one there. The other 176 openings in those recordings stay as they were, and no clip is taken away. (`server/data/frameTimings.ts`) (#1636)
+
+## 7.1.7 — 2026-11-17
+
+Videos › 2024 clips from events N to USH open on the exact frame that names their match, read paused: 47 of 280 openings move by a few seconds, and none is taken away.
+
+### Highlights
+- [fixes] 2024 clips (events N to USH) open on the frame naming their match
+- [fixes] 47 openings move by a few seconds; 233 stay as they were
+- [fixes] No clip already playing is taken away
+
+### Fixed
+- Videos: the 9 shipped 2024 recordings of events N to USH have their clip openings read again paused at their own second, and from the overlay's bar where the frame is busy: of 280 openings 233 stay, 38 open later and 9 earlier (−8 to +18 s), each on a frame whose overlay names its match. None is taken away or left unconfirmed. (`server/data/frameTimings.ts`) (#1635)
+
+## 7.1.6 — 2026-11-17
+
+Videos › 2024 clips from events A to M open on the exact frame that names their match, read paused: 36 of 322 openings move by a few seconds, 3 more are confirmed, and none is taken away.
+
+### Highlights
+- [fixes] 2024 clips (events A to M) open on the frame naming their match
+- [fixes] 36 openings move by a few seconds; 283 stay as they were
+- [fixes] No clip already playing is taken away
+
+### Fixed
+- Videos: the 9 shipped 2024 recordings of events A to M have their clip openings read again paused at their own second, and from the overlay's bar where the frame is busy: of the 323 clips 283 openings stay, 32 open later and 4 earlier (−8 to +20 s), each on a frame whose overlay names its match, and AUSYOS Q43, M4 and M11, unconfirmed till now, open on a frame naming them: 322 openings. The 323rd, AUSYOS M1, has no overlay on screen at its start; as before, it stays unconfirmed and plays at the usual lead-in. None is taken away or newly left unconfirmed. (`server/data/frameTimings.ts`) (#1634)
+
+## 7.1.5 — 2026-11-17
+
+Videos › 2026 clips open on the exact frame that names their match, read paused: 25 of 153 openings move by a few seconds, and none is taken away.
+
+### Highlights
+- [fixes] 2026 clips open on the exact frame that names their match
+- [fixes] 25 openings move by a few seconds; 128 stay as they were
+- [fixes] No clip already playing is taken away
+
+### Fixed
+- Videos: the 7 shipped 2026 recordings' clip openings read again paused at their own second, and from the overlay's bar where the frame is busy: of 153 openings 128 stay, 20 open later and 5 earlier (−8 to +15 s), each on a frame whose overlay names its match. None is taken away or left unconfirmed (USCALACAS1 Q12, which the paused re-check couldn't read, names its match on the bar). (`server/data/frameTimings.ts`) (#1630)
 
 ## 7.1.4 — 2026-11-16
 
