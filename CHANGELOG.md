@@ -25,7 +25,7 @@ Videos › 71 more 2024 matches play as clips, from FIRST Nevada's streams with 
 - [history] Streams with the score bar on top now play as match clips
 
 ### Added
-- Frame-read match starts for 2 more 2024 recordings, read with the top-bar reader (#1713), each clip's opening checked against a paused frame naming its match: USNVSOLT 36 of 45 played matches (9 missing), USNVCMP 35 of 57 (3 to review, 19 missing). (`server/data/frameTimings/2024.ts`) (#PRNUM)
+- Frame-read match starts for 2 more 2024 recordings, read with the top-bar reader (#1713), each clip's opening checked against a paused frame naming its match: USNVSOLT 36 of 45 played matches (9 missing), USNVCMP 35 of 57 (3 to review, 19 missing). (`server/data/frameTimings/2024.ts`) (#1762)
 
 ## 7.6.3 — 2026-11-17
 
