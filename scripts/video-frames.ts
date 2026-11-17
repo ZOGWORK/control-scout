@@ -36,7 +36,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
 import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, playedCount, playedMatches, wholeLength } from "./lib/videoFrames";
-import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, cropOrder, elapsed, flippedClip, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, overlayBand, overlayLabel, timerDigits, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M } from "./lib/videoFrames";
+import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, cropOrder, elapsed, flippedClip, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, overlayBand, overlayLabel, timerDigits, timerSteps, afterUnreadBox, boxSeconds, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M } from "./lib/videoFrames";
 
 // The command line: --name value or --name=value for the value flags, --name alone for the others. Anything else stops
 // the run before it reads: a misspelt flag mustn't quietly read (and write) every recording of the season.
@@ -191,35 +191,44 @@ const TIMER_CROPS: { where: "bottom" | "top" | "plain"; clip: { x: number; y: nu
 
 /** The timer's reading. `auto`: whether a reading of 0:30 or less is Auto, told by readAt. */
 type TimerCrop = (typeof TIMER_CROPS)[number];
+/** A crop, or the timer's own box found in the frame (boxTimer): two readings pair only from one of them. */
+type CropId = TimerCrop | "box";
 /** The crop whose two readings last showed a running clock on this page's video, read first from then on (unless the
  *  frame's bar names its own, `first`): the other crops look at the field or the crowd there, and a stray number in one
  *  (a robot's sticker, a sign) would otherwise be taken for the clock before the real one is reached. Arizona's 2022
  *  championship (USAZCMPGC23), its bar flipped to the top: the bottom crops read "4", "1", "5" off the field, paired
  *  with the top's "114" and "52", and no start was confirmed. Dropped when its pair doesn't run. */
-const timerCrop = new WeakMap<Page, TimerCrop>();
-async function timer(page: Page, first?: TimerCrop | null): Promise<{ where: "bottom" | "top" | "plain"; left: number; auto: boolean; crop: TimerCrop | null } | null> {
-  // A label read from the top row: the timer box's own digits first (boxTimer), as TOP_BAR_TIMER is one broadcast's
-  // place and on another's top bar it catches the digits' lower half and the icon under them, a wrong time, not none
-  // (USNVCMP 2023: placements ~20 s late, openings on the slide between matches).
-  if ((first ?? timerCrop.get(page)) === TOP_BAR_TIMER) { const boxed = await boxTimer(page); if (boxed) return boxed; }
-  for (const t of cropOrder(TIMER_CROPS, first ?? timerCrop.get(page))) {
-    const text = (await digits.recognize(await page.screenshot({ clip: t.clip }))).data.text;
-    const left = t.plain ? secondsPlain(text) : t.loose ? secondsLoose(text) : secondsOf(text);
+const timerCrop = new WeakMap<Page, CropId>();
+async function timer(page: Page, first?: CropId | null): Promise<{ where: "bottom" | "top" | "plain"; left: number; auto: boolean; crop: CropId | null } | null> {
+  // In timerSteps' order. The bar is found once a call (barBand), for the box and the bar's upper half alike.
+  let band: { top: number; bottom: number } | null | undefined;
+  const bandOf = async () => (band === undefined ? (band = await barBand(page)) : band);
+  let boxUnread = false;
+  for (const s of timerSteps(TIMER_CROPS, first ?? timerCrop.get(page), TOP_BAR_TIMER)) {
+    if (boxUnread && !afterUnreadBox(s, TOP_BAR_TIMER)) continue;
+    if (s === "box") {
+      const b = await bandOf();
+      const r = b && await boxTimer(page, b);
+      if (r === "unread") boxUnread = true;
+      else if (r) return r;
+      continue;
+    }
+    if (s === "band") {
+      // No timer box in the bar found in the frame (overlayBand): its upper half, where the digits sit, read as a bottom
+      // bar's (a reading over 2:00 is a 2:30 count's Auto, elapsed); the icon under them ("1:17" as "127") is left out.
+      const b = await bandOf();
+      if (!b) return null;
+      const top = Math.max(0, b.top - 4);
+      const clip = { x: 565, y: top, width: 150, height: Math.min(720, b.top + Math.round((b.bottom - b.top) * 0.55) + 4) - top };
+      const left = secondsOf((await digits.recognize(await page.screenshot({ clip }))).data.text);
+      return left == null || left > AUTO_S + SWITCH_S + TELEOP_S ? null : { where: "bottom", left, auto: false, crop: null };
+    }
+    const text = (await digits.recognize(await page.screenshot({ clip: s.clip }))).data.text;
+    const left = s.plain ? secondsPlain(text) : s.loose ? secondsLoose(text) : secondsOf(text);
     if (left == null || left > AUTO_S + SWITCH_S + TELEOP_S) continue;
-    return { where: t.where, left, auto: false, crop: t };
+    return { where: s.where, left, auto: false, crop: s };
   }
-  // None of the known places: the bar found in the frame itself (overlayBand), its timer read in the centre column.
-  // Read as a bottom bar: a reading over 2:00 is then a 2:30 count's Auto (elapsed), which a 2:00 TeleOp never shows.
-  const boxed = await boxTimer(page);
-  if (boxed) return boxed;
-  const band = await barBand(page);
-  if (!band) return null;
-  // No timer box found: the digits fill the bar's upper half; the icon under them (a gamepad, a hand) reads as digits
-  // too ("1:17" as "127").
-  const top = Math.max(0, band.top - 4);
-  const clip = { x: 565, y: top, width: 150, height: Math.min(720, band.top + Math.round((band.bottom - band.top) * 0.55) + 4) - top };
-  const left = secondsOf((await digits.recognize(await page.screenshot({ clip }))).data.text);
-  return left == null || left > AUTO_S + SWITCH_S + TELEOP_S ? null : { where: "bottom", left, auto: false, crop: null };
+  return null;
 }
 
 /** Where the score bar is in the frame on screen (overlayBand, run in the page on the screenshot's own pixels: a
@@ -239,17 +248,14 @@ async function barBand(page: Page): Promise<{ top: number; bottom: number } | nu
   return page.evaluate(`(${overlayBand.toString()})(window.__frame.data, window.__frame.width, window.__frame.height)`) as Promise<{ top: number; bottom: number } | null>;
 }
 
-/** The timer read in its own box in the bar found in the frame (overlayBand, timerDigits): only the digits' rows, so
- *  neither the icon under them nor the bar round them is read; read as a bottom bar's, as the fallback's crop is. Not a
- *  crop kept for the video (cropOrder): the box is found again on each frame. */
-async function boxTimer(page: Page): Promise<{ where: "bottom"; left: number; auto: boolean; crop: null } | null> {
-  const band = await barBand(page);
-  if (!band) return null;
+/** The timer read in its own box in the bar found in the frame (`band`, timerDigits): only the digits' rows, neither the
+ *  icon under them nor the bar round them; bare seconds up to 2022 (boxSeconds). "unread": a box whose digits didn't
+ *  read; null: no box. Its crop is "box", found again on each frame. */
+async function boxTimer(page: Page, band: { top: number; bottom: number }): Promise<{ where: "bottom" | "plain"; left: number; auto: boolean; crop: "box" } | "unread" | null> {
   const clip = await page.evaluate(`(${timerDigits.toString()})(window.__frame.data, window.__frame.width, window.__frame.height, ${JSON.stringify(band)})`) as { x: number; y: number; width: number; height: number } | null;
   if (!clip) return null;
-  const text = (await digits.recognize(await page.screenshot({ clip }))).data.text;
-  const left = secondsOf(text) ?? secondsLoose(text);
-  return left == null || left > AUTO_S + SWITCH_S + TELEOP_S ? null : { where: "bottom", left, auto: false, crop: null };
+  const r = boxSeconds((await digits.recognize(await page.screenshot({ clip }))).data.text, season <= 2022);
+  return r ? { ...r, auto: false, crop: "box" } : "unread";
 }
 
 const now = (page: Page) => page.evaluate(() => document.querySelector("video")!.currentTime);
