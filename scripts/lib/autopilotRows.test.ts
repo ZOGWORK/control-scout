@@ -42,6 +42,9 @@ describe("rowProblems", () => {
 
   it("never lets a new placement be unconfirmed: only a live clip whose opening named nothing stays so", () => {
     expect(rowProblems(row({ starts: { Q1: 600 }, unconfirmed: ["Q1"] }))).toEqual(["Q1: unconfirmed, but not a live clip at that second"]);
+    // A checked opening doesn't make a new placement's "unconfirmed" right.
+    expect(rowProblems(row({ starts: { Q1: 600 }, opens: { Q1: 588 }, unconfirmed: ["Q1"] }))).toEqual(["Q1: unconfirmed, but not a live clip at that second"]);
+    expect(rowProblems(row({ starts: {}, unconfirmed: ["Q4"] }))).toEqual(["Q4: unconfirmed, but not a live clip at that second"]);
     const live = row({ checked: "2026-11-15", starts: { Q1: 600 } });
     expect(rowProblems(row({ starts: { Q1: 603 }, opens: {}, unconfirmed: ["Q1"] }), live)).toEqual([]);
   });
@@ -54,6 +57,8 @@ describe("rowProblems", () => {
       .toEqual(["Q2: a live clip dropped without a frame naming another match"]);
     // A paused frame there names Q3: pulled, rightly.
     expect(rowProblems(row({ starts: { Q1: 600 }, opens: { Q1: 588 }, review: { Q2: { t: 1000, why: "its clip's first frame shows Q3, not Q2" } } }), live)).toEqual([]);
+    // A pull with no second read at all pulls nothing.
+    expect(rowProblems(row({ starts: { Q1: 600 }, opens: { Q1: 588 }, review: { Q2: { why: "its clip's first frame shows Q3, not Q2" } as any } }), live)).toEqual(["Q2: a live clip dropped without a frame naming another match"]);
     // A naming frame read somewhere else (where a re-read placed it) doesn't pull the clip at its live second.
     expect(rowProblems(row({ starts: { Q1: 600 }, opens: { Q1: 588 }, review: { Q2: { t: 5000, why: "its clip's first frame shows Q3, not Q2" } } }), live)).toEqual(["Q2: a live clip dropped without a frame naming another match"]);
     // Only a frame naming a different match pulls it.
