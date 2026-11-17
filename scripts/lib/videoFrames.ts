@@ -26,6 +26,30 @@ export function playedMatches(
   return [...timed, ...untimed];
 }
 
+/**
+ * Results typed in after the event (2025 USMIAAS: all 26 matches stamped seven weeks after its livestream, within one
+ * hour): every timed match more than a day outside the event's listed dates, and inside none of its videos' broadcasts.
+ * Then the times say when the results were entered, not when the matches were played, and the event is read by its
+ * frames alone. All or nothing: some matches off the listed dates is a day FIRST's dates leave out (#1703), not this.
+ */
+export function enteredLater(
+  rows: { time: string | null; timezone: string | null }[],
+  days: { start: string | null; end: string | null } | null,
+  videos: { start: number | null; end: number | null }[],
+  utcMs: (time: string, timezone: string | null) => number | null,
+): boolean {
+  const timed = rows.filter((r) => r.time != null);
+  if (!timed.length || !days?.start) return false;
+  const DAY = 86400000;
+  const from = Date.parse(days.start.slice(0, 10)) - DAY, to = Date.parse((days.end ?? days.start).slice(0, 10)) + 2 * DAY;
+  return timed.every((r) => {
+    const d = Date.parse(r.time!.slice(0, 10));
+    if (d >= from && d < to) return false;
+    const ms = utcMs(r.time!, r.timezone);
+    return ms == null || !videos.some((v) => v.start != null && v.start <= ms && (v.end == null || ms <= v.end));
+  });
+}
+
 /** Two reads closer than this (seconds) are the same distance: the timer reads to the second, and the frame read lags it. */
 export const SAME_S = 6;
 /** The most frames read looking for one match. */
