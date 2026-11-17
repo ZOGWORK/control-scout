@@ -24,15 +24,24 @@ const NE: LeagueStandings = {
     { rank: 2, team: 9001, name: "New Team", wins: 1, losses: 1, ties: 0, rs: 1, tbp: null, played: 2, meets: 1, scout: { rating: null, opr: null, ratedMatches: 2, region: "USA:NJ", regionName: "New Jersey", regionRank: null } },
   ],
 };
+// My team (null: none set) and the league's conferences, per test.
+let myTeam: number | null = null;
+let conferences: unknown[] = [];
+vi.mock("../lib/personal", async (orig) => ({ ...(await orig<typeof import("../lib/personal")>()), useMyTeamNumber: () => myTeam }));
 vi.mock("../lib/api", async (orig) => ({
   ...(await orig<typeof import("../lib/api")>()),
-  useApi: (path: string | null) => ({ data: path?.endsWith("/conferences") ? { season: 2026, region: "USNJ", code: "NE", conferences: [] } : path?.startsWith("/api/leagues/") ? NE : path?.startsWith("/api/leagues") ? LIST : undefined, error: undefined, loading: false, reload: () => {} }),
+  useApi: (path: string | null) => ({
+    data: path?.endsWith("/conferences") ? { season: 2026, region: "USNJ", code: "NE", conferences }
+      : path?.startsWith("/api/teams/") ? { team: myTeam, season: 2026, nj: true, league: { region: "USNJ", code: "NE", name: "Northeast" }, conference: null }
+      : path?.startsWith("/api/leagues/") ? NE : path?.startsWith("/api/leagues") ? LIST : undefined,
+    error: undefined, loading: false, reload: () => {},
+  }),
 }));
 vi.mock("../lib/meta", async (orig) => ({ ...(await orig<typeof import("../lib/meta")>()), useCurrentSeason: () => 2026, useTitle: () => {}, useMeta: () => ({ seasons: [{ season: 2026, game: "BIOBUZZ", predictable: true }] }) }));
 
 const { default: LeaguesPage } = await import("./LeaguesPage");
 const { default: LeaguePage } = await import("./LeaguePage");
-afterEach(cleanup);
+afterEach(() => { cleanup(); myTeam = null; conferences = []; });
 
 describe("the leagues list", () => {
   it("groups leagues by where they play, each to its standings and each place to its rankings", () => {
@@ -71,5 +80,16 @@ describe("a league's page", () => {
     expect(rows[0].querySelector("[data-region-rank]")?.textContent).toBe("#39 NJ");
     expect(rows[1].querySelector("[data-scout-rating]")?.textContent).toBe("Not rated yet");
     expect(rows[1].querySelector("[data-region-rank]")).toBeNull();
+  });
+
+  it("marks My team's row in the conference table when the link names no team", () => {
+    myTeam = 4215;
+    const row = (team: number, rank: number) => ({ team, name: `Team ${team}`, rank, leagueRank: rank, wins: 1, losses: 0, ties: 0, rs: 2, tbp: 10, played: 5, meets: 1, rating: null, opr: null });
+    conferences = [{ season: 2026, code: "USNJNELT2", name: "Hudson/East Bergen Conference", slug: "hudson-east-bergen-conference", firstName: null, event: "Hudson/East Bergen Conference", start: "2027-02-21",
+      venue: null, city: null, status: "upcoming", teamsFrom: "field", registered: null, rs: { kind: "live", asOf: null }, leagueOf: 2, rows: [row(9001, 1), row(4215, 2)], winner: null, seasons: [] }];
+    render(<MemoryRouter initialEntries={["/leagues/2026/USNJ/NE"]}><Routes><Route path="/leagues/:season/:region/:code" element={<LeaguePage />} /></Routes></MemoryRouter>);
+    expect(document.querySelector("[data-conference-table] tr[data-marked]")?.getAttribute("data-team")).toBe("4215");
+    // The league table keeps marking only the link's team.
+    expect(document.querySelector("[data-league-table] tr[data-marked]")).toBeNull();
   });
 });
