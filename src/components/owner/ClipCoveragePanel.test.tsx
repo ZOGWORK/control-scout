@@ -16,9 +16,10 @@ const ev = (code: string, triage: CoverageTriage, triageWhy: string, o: Partial<
   season: 2026, code, name: `${code} meet`, state: "partial", played: 26, withClip: 15, checkedAt: new Date().toISOString(), reviewedAt: null, reviewedBy: null,
   version: `v-${code}`, videos: [{ videoId: "vidA0000001", label: "Sat", date: "2025-11-01", matches: 26, clipped: 15 }], daysMissing: [], missing: [], triage, triageWhy, ...o,
 });
-const EVENTS: Record<string, OwnerCoverageEvent[]> = {
+const h = vi.hoisted(() => ({ actionable: 1, fail: false, ver: "v-AUSYQ2", paths: [] as string[], sent: [] as { path: string; json: unknown }[] }));
+const EVENTS = (): Record<string, OwnerCoverageEvent[]> => ({
   actionable: [ev("AUSYQ2", "actionable", "1 match not yet checked against the video (Q1) (10 more held back for other reasons)", {
-    season: 2025,
+    season: 2025, version: h.ver,
     missing: [
       miss("Q1", { video: { checked: null } }),
       miss("Q2", { video: { checked: "2026-11-15", seenAt: 580 } }),
@@ -30,11 +31,11 @@ const EVENTS: Record<string, OwnerCoverageEvent[]> = {
   "early-start": [ev("USAZFLQ", "early-start", "11 matches checked in the video: each starts while the match before is still on, so a clip would open on the wrong match")],
   "no-timing": [ev("USAZGLQ1", "no-timing", "42 matches: Video unavailable or private", { withClip: 0, played: 42, state: "unplaced" })],
   unchecked: [ev("USAZFLQ", "unchecked", "11 matches not yet checked against the video (Q3, Q5, Q6, Q8, Q9, 6 more)", { missing: [miss("Q3", { video: { checked: null } })] })],
-  "old-season": [], reviewed: [],
-};
-const h = vi.hoisted(() => ({ actionable: 1, fail: false, paths: [] as string[], sent: [] as { path: string; json: unknown }[] }));
+  "old-season": [],
+  reviewed: [ev("AUSYQ2", "actionable", "Reviewed", { season: 2025, reviewedAt: new Date().toISOString(), reviewedBy: "owner@example.test" })],
+});
 const page = (list: string): OwnerClipCoverage => ({
-  events: list === "actionable" && !h.actionable ? [] : EVENTS[list] ?? [], list: list as OwnerClipCoverage["list"], open: h.actionable, reviewed: 0,
+  events: list === "actionable" && !h.actionable ? [] : EVENTS()[list] ?? [], list: list as OwnerClipCoverage["list"], open: h.actionable, reviewed: 1,
   categories: { actionable: h.actionable, unchecked: 4, "no-timing": 1, "early-start": 1, "old-season": 0 },
   clipChecks: { checked: 120, ok: 117, pulled: 1, unconfirmed: 2, noOverlayVideos: 3 },
   findings: [{ kind: "pulled", season: 2026, code: "USAZFLQ", name: "Flagstaff", label: "Q7", videoId: "flagVideo01", at: 3600, why: "Clip pulled: its first frame shows Q6, not Q7" },
@@ -59,7 +60,7 @@ const { ClipCoveragePanel } = await import("./ClipCoveragePanel");
 
 let played: MatchPlay[] = [];
 let off = () => {};
-beforeEach(() => { h.actionable = 1; h.fail = false; h.paths = []; h.sent = []; played = []; resetOptimistic(); off = onVideoDialog((p) => played.push(p)); });
+beforeEach(() => { h.actionable = 1; h.fail = false; h.ver = "v-AUSYQ2"; h.paths = []; h.sent = []; played = []; resetOptimistic(); off = onVideoDialog((p) => played.push(p)); });
 afterEach(() => { off(); cleanup(); });
 const show = () => render(<MemoryRouter><ClipCoveragePanel /></MemoryRouter>);
 const rows = () => [...document.querySelectorAll("[data-coverage-event]")].map((r) => [r.getAttribute("data-coverage-event"), r.getAttribute("data-triage")]);
@@ -149,6 +150,13 @@ describe("ClipCoveragePanel, a review screen", () => {
     fireEvent.click(document.querySelector("[data-coverage-reviewed]")!);
     expect(rows()).toEqual([]);
     await waitFor(() => expect(h.sent).toEqual([{ path: "/api/owner/clip-coverage/2025/AUSYQ2/reviewed", json: { version: "v-AUSYQ2" } }]));
+    // It's on the Reviewed list.
+    fireEvent.click(document.querySelector('[data-coverage-list="reviewed"]')!);
+    expect(rows()).toEqual([["2025/AUSYQ2", "actionable"]]);
+    // Its missing list changes (a new version) and it opens again: back on To review, not left hidden.
+    h.ver = "v-AUSYQ2-new";
+    fireEvent.click(document.querySelector('[data-coverage-list="actionable"]')!);
+    expect(rows()).toEqual([["2025/AUSYQ2", "actionable"]]);
     cleanup();
     h.fail = true;
     show();
