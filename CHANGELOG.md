@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.5.4 — 2026-11-17
+
+Videos › 228 matches from four 2025 events (KC East and West League Tournaments, West Super Qualifier, Oklahoma Championship) get a clip, each opening on a frame that names its match and its event.
+
+### Highlights
+- [fixes] 228 more 2025 matches get a clip
+- [fixes] Each opens on a frame naming its match
+- [fixes] No clip already playing changes
+
+### Fixed
+- Videos (`server/data/frameTimings/2025.ts`): KC East League Tournament (55 of 55), KC West League Tournament (60 of 60), West Super Qualifier (64 of 64) and Oklahoma Championship (49 of 55) get frame-checked starts. Each start's opening frame names its match and this event. Oklahoma's Q3, Q6, Q21, Q27, Q37 and M1 stay without a clip because the event name wasn't legible on their frames. (#1714)
+
 ## 7.5.3 — 2026-11-17
 
 Videos › 200 matches from four 2023 events get clips, each opening on its own match: Toronto's first qualifier, Iowa's Gold championship, Missouri's state championship and Kansas City's West league tournament.
