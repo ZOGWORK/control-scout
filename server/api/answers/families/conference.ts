@@ -89,7 +89,7 @@ function tableBlock(c: Conference, team: number | null): StatBlock {
     kind: "table", title: `${c.name} · ${seasonLabel(c.season)} · ${CONFERENCE_LABEL}`,
     columns: [{ key: "team", label: "Team" }, { key: "rank", label: "Conf.", num: true }, { key: "league", label: "League", num: true }, { key: "rs", label: "RS", num: true }, { key: "tbp", label: "TBP", num: true }, { key: "wlt", label: "W-L-T" }, { key: "played", label: "Matches", num: true }, { key: "meets", label: "Meets", num: true }],
     rows: c.rows.map((r) => ({
-      cells: { team: who(r), rank: r.rank != null ? ordinal(r.rank) : c.rs.kind === "gone" ? "Not available" : r.registered ? "Registered" : "Not ranked yet", league: r.leagueRank != null ? `${r.leagueRank} of ${c.leagueOf}` : "—", rs: (asGiven(r.rs) ?? "—"), tbp: (asGiven(r.tbp) ?? "—"), wlt: rec(r), played: r.played ?? "—", meets: r.meets ?? "—" },
+      cells: { team: who(r), rank: r.rank != null ? r.rank : c.rs.kind === "gone" ? "Not available" : r.registered ? "Registered" : "Not ranked yet", league: r.leagueRank != null ? `${r.leagueRank} of ${c.leagueOf}` : "—", rs: (asGiven(r.rs) ?? "—"), tbp: (asGiven(r.tbp) ?? "—"), wlt: rec(r), played: r.played ?? "—", meets: r.meets ?? "—" },
       href: `/teams/${r.team}?season=${c.season}`, strong: r.team === team,
     })),
   };
