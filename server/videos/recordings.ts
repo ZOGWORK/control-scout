@@ -543,7 +543,9 @@ export async function backfillVideoMeta(log: (s: string) => void, opts: { max?: 
       // Overtaken while it waited (a newer pass began): what this one read may be older than what that one saves.
       if (busy !== began) break;
       // A sign-in wall's chapters join them.
-      if (f.status === "error" && before?.status === "ok") await saveMeta(id, f.chapters?.length ? { ...before, chapters: f.chapters } : before, now());
+      // Kept as read when it was: a failed read isn't a check, so one due again (the weekly read) is tried again soon,
+      // not a week on.
+      if (f.status === "error" && before?.status === "ok") await saveMeta(id, f.chapters?.length ? { ...before, chapters: f.chapters } : before, Date.parse(before.checkedAt) || now());
       else await saveMeta(id, f, now());
       n++;
     }
