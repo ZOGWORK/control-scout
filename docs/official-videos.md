@@ -72,7 +72,9 @@ exceptions rules 2 and 7 name for the checked list only, and the auto-watcher us
 
 1. It's on an official channel, it exists, it's public, it can be embedded, and YouTube doesn't block it in most
    countries.
-2. It's a live broadcast whose start, at the venue, falls inside the event's dates in Scout. An upload has no
+2. It's a live broadcast whose start, at the venue, falls inside the event's dates in Scout: FIRST's listed dates,
+   widened to every day the event played a match (`server/videos/eventDays.ts`; FIRST lists KZCMP 2022 as 23 to 25
+   Feb 2023, and it played its last qualifications and its playoffs on the 26th). An upload has no
    broadcast date, so it can't prove its day, and is left out. The checked list makes one exception, by hand: an
    upload whose title names its date (FIRST Nevada's "2026-01-10 FTC League Meet # 4S - Southern Nevada") and, where
    a venue holds several meets that day, its session (FIRST MOKS's "FTC Meet @ Belton 8AM (2026-11-7)" is "Belton
@@ -259,7 +261,9 @@ minutes and starts a run only when the last one is 6 hours old, so a deploy does
   the last run. Every write of the watcher's takes the data writer lease (`server/data/lock.ts`), the same one the sync
   and the live lane share; YouTube's reads happen outside it. When the sync holds it for 3 minutes or more the run
   doesn't start, or stops as "database busy", and that run doesn't count toward the 6-hour wait, so the next
-  half-hourly check runs it again. The checks start 17.5 minutes after boot, midway between the sync's 5-minute ticks.
+  half-hourly check runs it again. The checks start 7.5 minutes after boot, midway between the sync's 5-minute ticks and
+  before the startup sync. Every deploy restarts the server and starts the wait over, so the first check comes early:
+  at 17.5 minutes, a morning of deploys every 10 to 15 minutes (17 Nov) kept a run due at 10:27 from ever starting.
 
 ## The channel audit
 
