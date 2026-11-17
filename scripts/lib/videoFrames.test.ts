@@ -1,7 +1,7 @@
 // The pure parts of the frame reader (scripts/video-frames.ts): the overlay's match, the timer's elapsed time, and
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
-import { dataRows, divisionOf, elapsed, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, type M } from "./videoFrames";
+import { dataRows, divisionOf, cropOrder, elapsed, flippedClip, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, type M } from "./videoFrames";
 
 describe("the frame reader", () => {
   // A 1280 × 720 frame: a grey field, and a score bar from `top` to `bottom` with one alliance's colour each side of the
@@ -130,6 +130,27 @@ describe("the frame reader", () => {
     expect(eventLabel("M6")).toBe("M6");
     expect(eventLabel("F1")).toBe("F1");
     expect(eventLabel("Q11")).toBe("Q11");
+  });
+
+  it("finds a bottom bar's crop in the same bar flipped to the top", () => {
+    // POWERPLAY's timer box, 4 px above the bottom edge of a 720 px frame, is 4 px below the top in Arizona's flipped
+    // bar (USAZCMPGC23 2022: "85" read there at 8640 s); x, width and height stay.
+    expect(flippedClip({ x: 605, y: 686, width: 70, height: 30 })).toEqual({ x: 605, y: 4, width: 70, height: 30 });
+    // Flipping twice is the crop itself; another frame height flips about its own middle.
+    const c = { x: 1, y: 600, width: 2, height: 50 };
+    expect(flippedClip(flippedClip(c))).toEqual(c);
+    expect(flippedClip({ x: 0, y: 1000, width: 10, height: 40 }, 1080)).toEqual({ x: 0, y: 40, width: 10, height: 40 });
+  });
+
+  it("tries the crop whose clock last ran first, then the rest in order", () => {
+    const [a, b, c, d] = [{ n: "a" }, { n: "b" }, { n: "c" }, { n: "d" }];
+    expect(cropOrder([a, b, c, d])).toEqual([a, b, c, d]);
+    // USAZCMPGC23 2022: the flipped bar's crop ran, so it's read before the bottom crops' stray field digits.
+    expect(cropOrder([a, b, c, d], c)).toEqual([c, a, b, d]);
+    expect(cropOrder([a, b, c, d], a)).toEqual([a, b, c, d]);
+    // None, or a crop that isn't one of these (the bar found in the frame): the usual order.
+    expect(cropOrder([a, b, c, d], null)).toEqual([a, b, c, d]);
+    expect(cropOrder([a, b, c, d], { n: "a" })).toEqual([a, b, c, d]);
   });
 
   it("reads a bare-seconds timer (FTC Live's overlay, 2019–2022)", () => {
