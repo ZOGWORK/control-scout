@@ -15,16 +15,30 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 7.6.2 — 2026-11-17
+## 7.6.3 — 2026-11-17
 
-Videos › A recording linked to an event is checked again against YouTube: a scheduled stream that never aired, or one whose title now names another meet, comes off the event. Camdenton Meet #1 no longer offers Southwest League Meet #2's upcoming stream.
+Event videos › a title's "Day 2" can mean the event's second day of play, and two Romanian events get the recordings of the days FIRST's dates left out.
 
 ### Highlights
-- [fixes] An event no longer links a stream that never aired for it
-- [fixes] A video renamed for another meet comes off the event it was listed for
+- [fixes] A title's day number counts the days an event played
+- [fixes] RO #4 Iasi 2024 day 2 recording linked
+- [fixes] Romania's 2021 national championship recording linked
 
 ### Fixed
-- Videos: the link check (`server/videos/linkCheck.ts`) runs before each of the watcher's checks. A recording linked by the checked list or the watcher comes off its event when YouTube still lists it as to come a day after the event's last day, or when its title on the channel now names one meet number and the event another. FIRST in Missouri's `qM3qo5rrmyc` had been listed for 2026 USMOKSSWM1 (Camdenton Meet #1) while still to come; it never aired that day and became the "Southwest League Meet #2 … November 21" stream. It is also out of the checked list. Owner and evidence links stay. (#1735)
+- Event videos: a title's "Day N" must be the event's own day N, counted by the calendar from its first day or by the days it played a match. RONR4LT 2023 is listed 7 to 9 March 2024 and played on the 9th and 10th: its "DAY 2" broadcast on the 10th read as the event's day 4, and with #1703's wider days the channel audit would have opened it as a finding. Its day-2 recording (Finals Match 1 on a frame) and ROBUOS1 2020's one day of play, 30 Aug 2021 after its listed 27 to 29 (Semifinal 1 Match 1 on a frame), are linked. (`server/videos/officialMatch.ts`, `server/data/videoDecisions.ts`) (#1726)
+
+## 7.6.2 — 2026-11-17
+
+Videos › 105 matches from three 2025 events (Greenwood QT and the NorCal Regional Championship's Gold and Silicon divisions) get a clip, each opening on a frame that names its match and its event.
+
+### Highlights
+- [fixes] 105 more 2025 matches get a clip
+- [fixes] Each opens on a frame naming its match
+- [fixes] No clip already playing changes
+
+### Fixed
+- Videos (`server/data/frameTimings/2025.ts`): Greenwood QT (52 of 52, over its two videos), NorCal Regional Championship Gold Division (27 of 50) and Silicon Division (26 of 50) get frame-checked starts. Each start's opening frame names its match and its own division. The NorCal matches left out had no frame read that confirms a start. (#1731)
+
 ## 7.6.1 — 2026-11-17
 
 Videos › The frame reader now reads POWERPLAY's score bar when a stream flips it to the top of the frame, and no longer pairs two numbers from two places as one clock: Arizona's 2022 championship went from 0 to 35 of 37 matches placed.
