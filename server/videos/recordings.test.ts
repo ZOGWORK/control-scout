@@ -327,12 +327,16 @@ describe("when a video is read again", () => {
     expect(due(meta({ status: "error" }), t("2026-05-02T00:16:00Z"), true)).toBe(true);
     expect(due(meta({ live: true, start: "2026-05-01T23:00:00Z" }), t("2026-05-02T00:06:00Z"))).toBe(true);
   });
-  it("a fresh archive after 6 hours for 2 days, then never; an upload or removed video never", () => {
+  it("a fresh archive after 6 hours for 2 days, then never; an upload never", () => {
     const fresh = meta({ start: "2026-05-01T12:00:00Z", end: "2026-05-01T20:00:00Z" });
     expect(due(fresh, t("2026-05-02T07:00:00Z"))).toBe(true);
     expect(due({ ...fresh, checkedAt: "2026-05-04T00:00:00Z", length: 28800 }, t("2026-05-20T00:00:00Z"))).toBe(false);
     expect(due(meta({}), t("2027-01-01T00:00:00Z"))).toBe(false);
-    expect(due(meta({ status: "unavailable" }), t("2027-01-01T00:00:00Z"))).toBe(false);
+  });
+  it("an unavailable video (private, removed, embedding off) after a week: an owner can make it public again", () => {
+    expect(due(meta({ status: "unavailable" }), t("2026-05-08T23:00:00Z"))).toBe(false);
+    expect(due(meta({ status: "unavailable" }), t("2026-05-09T01:00:00Z"))).toBe(true);
+    expect(due(meta({ status: "unavailable" }), t("2026-05-09T01:00:00Z"), true)).toBe(true);
   });
   it("a video far shorter than its broadcast whose chapters were never read: after a day, then not again once read", () => {
     const cut = meta({ start: "2026-05-01T12:00:00Z", end: "2026-05-01T23:00:00Z", length: 18000, checkedAt: "2026-05-04T00:00:00Z" });
