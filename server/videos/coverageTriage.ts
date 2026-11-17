@@ -47,8 +47,10 @@ function labels(ms: Missing[]): string {
 
 /** The video's frames show it starting while the match before is still on. */
 const earlyInVideo = (m: Missing) => m.reason === "overlaps-previous" && !!m.video?.earlyStart;
-/** Unsettled: left out by the clock alone and not shown by the video to start inside the match before, or no reason. */
-const unsettled = (m: Missing) => ACTIONABLE_REASONS.has(m.reason ?? "unexplained") && !earlyInVideo(m) && !betweenSettled(m) && !m.video?.outside;
+/** Unsettled: left out by the clock alone and not shown by the video to start inside the match before, or no reason; or,
+ *  whatever its reason, seen in its video's frames with no clip (a finding). */
+const unsettled = (m: Missing) => (ACTIONABLE_REASONS.has(m.reason ?? "unexplained") && !earlyInVideo(m) && !betweenSettled(m) && !m.video?.outside)
+  || (m.video?.seenAt != null && !earlyInVideo(m));
 /** Played between two recordings, and both videos' frames were read with it in neither: settled, nothing to place. */
 const betweenSettled = (m: Missing) => m.reason === "between-recordings" && !!m.video?.checked && m.video.seenAt == null;
 
