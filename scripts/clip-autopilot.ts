@@ -67,12 +67,19 @@ process.on("exit", () => rmSync(LOCK, { force: true }));
 
 const MEMORY_FILE = join(DIR, "memory.json");
 const memory: Memory = existsSync(MEMORY_FILE) ? JSON.parse(readFileSync(MEMORY_FILE, "utf8")) : {};
-// Written however the run ends (done, stopped, or thrown): what it tried keeps its retry and give-up counts.
-process.on("exit", () => writeFileSync(MEMORY_FILE, JSON.stringify(memory, null, 1)));
+/** Files a read may have written, as they were before it: put back however the run ends. */
+const restore = new Map<string, string>();
+// However the run ends (done, stopped, or thrown): what it tried keeps its retry and give-up counts, and every file a
+// read wrote is put back, so the clone is never left with changes.
+process.on("exit", () => {
+  writeFileSync(MEMORY_FILE, JSON.stringify(memory, null, 1));
+  for (const [file, text] of restore) writeFileSync(file, text);
+});
 
 // --- 1. The clone at main ------------------------------------------------------------------------------------------
 if (!DRY) {
-  if (git("status", "--porcelain", "--untracked-files=no")) { log("the clone has changes of its own: stopping (it must be a clone kept for the autopilot alone)"); process.exit(1); }
+  // The clone is the autopilot's alone: changes in it are what a killed run left (the task's time limit, a shutdown).
+  if (git("status", "--porcelain", "--untracked-files=no")) { log("the clone had changes a stopped run left: put back to main"); git("reset", "--quiet", "--hard"); }
   git("fetch", "--quiet", "origin");
   git("switch", "--quiet", "--detach", "origin/main");
   const lockHash = createHash("sha1").update(readFileSync("package-lock.json")).digest("hex"), HASH = join(DIR, "lock-hash");
@@ -111,9 +118,10 @@ const askReview = (pr: number) => sh("gh", ["pr", "comment", String(pr), "--body
 if (!DRY) sh("gh", ["label", "create", LABEL, "--force", "--color", "0e8a16", "--description", "A data PR the clip autopilot opened (scripts/clip-autopilot.ts)"], { ok: true, quiet: true });
 const open = DRY ? [] : openPrs();
 for (const p of open) {
-  const branchVersion = String(JSON.parse(git("show", `origin/${p.branch}:package.json`)).version);
-  if (p.mergeable !== "CONFLICTING" && nextVersion(mainVersion()) === branchVersion) continue;
   try {
+    // Inside the try: a branch that can't be read (deleted, not fetched) is logged and left, never the whole run.
+    const branchVersion = String(JSON.parse(git("show", `origin/${p.branch}:package.json`)).version);
+    if (p.mergeable !== "CONFLICTING" && nextVersion(mainVersion()) === branchVersion) continue;
     // A sweep PR's rows are checked as the sweep's are; a frame-read PR's as the reader's.
     const file = p.file ?? seasonFile(p.season), want = new Set(p.rows);
     const problems = (r: Keyed, was?: Keyed) => (file === CLIPS_FILE ? clipCheckProblems(r as ClipCheck, was as ClipCheck | undefined) : rowProblems(r as Row, was as Row | undefined));
@@ -201,15 +209,13 @@ function openPr(o: { file: string; rows: Keyed[]; branch: string; title: string;
     git("switch", "--quiet", "--detach", "origin/main");
   }
 }
-/** Files a read may have written, as they were before it: put back if the run stops. */
-const restore = new Map<string, string>();
 /** The frame reader. A read whose frames came up near-black (a player showing no picture) wrote nothing; the run stops
  *  there, every file put back as it was, and opens no PR: rows read off a black player would all say "no frame read". */
 function reader(args: string[], timeoutMs: number): { code: number; out: string } {
   const r = tsx(args, timeoutMs);
   const dark = r.out.split("\n").find((l) => l.startsWith("NEAR-BLACK FRAMES"));
   if (dark) {
-    for (const [file, text] of restore) writeFileSync(file, text);
+    // The exit puts every file back (restore).
     log(`stopped: ${dark}. The video player shows no picture; nothing read, no PR opened. Fix the reader, then run again.`);
     process.exit(3);
   }
