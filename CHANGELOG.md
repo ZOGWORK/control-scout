@@ -32,6 +32,7 @@ Videos › 89 more 2022 (POWERPLAY) match clips from Colorado's Central Metro an
 ### Highlights
 - [history] Colorado Central Metro Qualifier: a clip for every match
 - [history] Central Iowa Super Qualifier: clips for 42 of 43 matches
+- [fixes] Every clip opens on a frame naming its match and its own event
 
 ### Added
 - Videos: clips read off the recordings' frames (`server/data/frameTimings/2022.ts`): USCODEQ 47 of 47 played matches, USIANOSQ 42 of 43. Each placed start's clip opens on a paused frame whose overlay names that match (20, 12, 5, 2 or 0 s before it) and no other event. The match left out stays without a clip, with the reason. (#1695)
@@ -43,6 +44,7 @@ Videos › 136 more 2022 (POWERPLAY) match clips: every played match of the Indi
 ### Highlights
 - [history] Indiana's 2022 championship gets a clip for every match
 - [history] Both Kansas City league tournaments get a clip for every match
+- [fixes] Every clip opens on a frame naming its match and its own event
 
 ### Added
 - Videos: clips read off the recordings' frames (`server/data/frameTimings/2022.ts`): USINCMP 43 of 43 played matches, USMOKSKCELT 47 of 47, USMOKSKCWLT 46 of 46. Each placed start's clip opens on a paused frame whose overlay names that match (20, 12, 5, 2 or 0 s before it) and no other event. (#1694)
@@ -53,6 +55,7 @@ Videos › 172 more 2022 (POWERPLAY) match clips in 4 events, each opening on a 
 
 ### Highlights
 - [history] 172 more 2022 matches get clips, in 4 events
+- [history] Virginia's Orange Qualifier gets a clip for every match
 - [fixes] Every clip opens on a frame naming its match and its own event
 
 ### Added
