@@ -44,22 +44,24 @@ computer at home, in a clone kept for it alone. Each run:
 
 ## Merging its own PRs
 
-At the start of each run, after renumbering any of its PRs that main moved under (once per PR per run, then Loopy is
-asked again), the runner merges at most one of its own data PRs (its label, branch, mark and GitHub user), and only
-when nothing stops it (`scripts/lib/autopilotMerge.ts`):
+At the start of each run, after rebuilding any of its PRs whose rows main changed (a rebuilt PR waits for the review
+of its new head), the runner merges at most one of its own data PRs (its label, branch, mark and GitHub user), and
+only when nothing stops it (`scripts/lib/autopilotPr.ts` and `scripts/lib/autopilotMerge.ts`):
 
 - Loopy's latest summary says `Confidence: 5/5` and last reviewed the PR's exact head; every check passed (5 or more);
-- its version is main's next (main top + 1); it changes only its data file, CHANGELOG.md and package.json/lock;
+- it changes its data file only: data PRs carry no CHANGELOG entry and no version (owner's rule, 2026-11-17), so
+  there's no version to check; one opened before, still carrying CHANGELOG.md or package.json/lock, waits;
 - its rows, measured from where it branched and checked against main's now: no row removed; no live start moved more
   than 2 s or dropped; a new start only where the live row had the match missing or for review; every opening 20, 12,
   5, 2 or 0 s before its start; no opening or end edge read more than 120 s from the recording's edge unless every
   frame between was clear; no video already filed under another season; starts in order within each group (quals,
-  each semifinal series, a double-elimination bracket with replays after their own match, finals). A sweep PR keeps
-  the sweep's rules (`clipCheckProblems`);
+  each semifinal series, a double-elimination bracket with replays after their own match, finals); every clip the
+  site plays now still plays (a row gaining its first openings stops playing every start left without one). A sweep
+  PR keeps the sweep's rules (`clipCheckProblems`);
 - main's last commit is at least 605 s old (every merge deploys; the same spacing the main driver keeps).
 
 It merges with `gh pr merge --merge --match-head-commit <head>` (never deleting the branch), then waits up to 20
-minutes for `/api/health` to serve the merge. A PR the gate stops waits, its reasons in the run's log, for the next
+minutes for `/api/health` to serve the merge: its `release` the merge commit, or a main commit after it. A PR the gate stops waits, its reasons in the run's log, for the next
 run or the owner. `npx tsx scripts/autopilot-merge-check.ts <PR…>` prints the same gate for any PR, changing nothing;
 `--no-merge` runs the autopilot without merging.
 
