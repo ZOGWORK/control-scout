@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.4.2 — 2026-11-17
+
+Rankings › a conference page opened for a team starts at its top: header, note and movers first, the team's row highlighted below.
+
+### Highlights
+- [rankings] Conference pages open at the top, not scrolled to the table
+- [rankings] The team you came from stays highlighted in the table
+- [fixes] Climbers, fallers and the winner are seen before the table
+
+### Fixes
+- Conference rankings (`src/components/ConferenceSection.tsx`): a link naming a team (`?team=4215`) no longer scrolls the page down to its row, which put the table first and the header, season note, movers and winner out of view; the row is on the page it opens on and highlighted, as before (#PR).
+
 ## 7.4.1 — 2026-11-17
 
 Videos › 20 more 2024 matches get a clip, read off three event videos and checked paused on each clip's opening frame, and 5 matches played before their recording are settled.
