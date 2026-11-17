@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.4.6 — 2026-11-17
+
+Videos › 128 more 2024 matches play as clips: Arkansas's championship in full, plus Orlando's league tournament and Louisiana's championship.
+
+### Highlights
+- [history] Every 2024 Arkansas Championship match as a clip
+- [history] Orlando Robotics League Tournament: 44 of 47 matches as clips
+- [history] Louisiana Championship: 36 of 46 matches as clips
+
+### Added
+- Frame-read match starts for 3 more 2024 recordings, each start checked against two timer reads and each clip's opening against a paused frame naming its match: USARCMP 48 of 48 played matches, USFLFLORLT 44 of 47 (2 to review, 1 missing), USLACMP 36 of 46 (2 to review, 8 missing). (`server/data/frameTimings/2024.ts`) (#PRNUM)
+
 ## 7.4.5 — 2026-11-17
 
 Event videos › the official-video watcher and its channel audit now run on time on a day of many deploys.
