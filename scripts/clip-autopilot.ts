@@ -263,6 +263,8 @@ function reader(args: string[], timeoutMs: number): { code: number; out: string 
 const branchStamp = STAMP.slice(0, 16).replace(/[-T]/g, "");
 
 // --- 4–6. Read the due events, check, ship, season by season ------------------------------------------------------------------
+/** Reader lanes (a browser and OCR each): the start sets AUTOPILOT_LANES by the memory free (3 over 6 GB, else 2). */
+const LANES = /^[1-4]$/.test(process.env.AUTOPILOT_LANES ?? "") ? process.env.AUTOPILOT_LANES! : "2";
 const bySeason = new Map<number, typeof picked>();
 for (const q of picked) (bySeason.get(q.season) ?? bySeason.set(q.season, []).get(q.season)!).push(q);
 for (const [season, events] of bySeason) {
@@ -278,7 +280,7 @@ for (const [season, events] of bySeason) {
   const again = codes.filter((c) => hasRows.has(c)), fresh = codes.filter((c) => !hasRows.has(c));
   // --live keeps the clips main plays from being dropped on a frame that names nothing; a season with no rows yet has
   // none to keep (and the reader refuses an empty --live file).
-  const base = ["scripts/video-frames.ts", "--season", String(season), ...(fileRows(mainText(file)).length ? ["--live", liveFile] : []), "--lanes", "2"];
+  const base = ["scripts/video-frames.ts", "--season", String(season), ...(fileRows(mainText(file)).length ? ["--live", liveFile] : []), "--lanes", LANES];
   // A read that crashed, timed out or was killed read nothing for sure: its events aren't counted as tried (remember).
   let readFailed = false;
   const pass = (args: string[], ms: number, what: string) => { const code = reader([...base, ...args], ms).code; if (code) readFailed = true; log(`${season} ${what}: exit ${code}`); };
@@ -323,7 +325,7 @@ if (SWEEP && !open.some((p) => p.file === CLIPS_FILE)) {
   for (const season of seasons) {
     if (budget <= 0) break;
     if (!existsSync(seasonFile(season))) continue;
-    const r = reader(["scripts/video-frames.ts", "--season", String(season), "--clips", "--limit", String(budget), "--lanes", "2"], 4 * 3600_000);
+    const r = reader(["scripts/video-frames.ts", "--season", String(season), "--clips", "--limit", String(budget), "--lanes", LANES], 4 * 3600_000);
     const checked = (r.out.match(/^\S+: \d+ clock clips to check by their first frame$/gm) ?? []).length;
     log(`${season} sweep: ${checked} events checked, exit ${r.code}`);
     budget -= checked;
