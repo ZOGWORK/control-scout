@@ -623,3 +623,11 @@ html.compact .density-card { padding: 0.875rem; }
   30% { transform: rotate(-18deg) translateY(-2px); }
   60% { transform: rotate(14deg) translateY(1px); }
 }
+/* The shutdown message's construction tape (src/components/ShutdownScreen.tsx; the server's own page draws the same,
+   server/shutdownGate.ts): yellow and black stripes sliding slowly, still under reduced motion. */
+.cs-tape { background: repeating-linear-gradient(-45deg, var(--color-accent) 0 14px, #111 14px 28px); background-size: 39.6px 100%;
+  animation: cs-tape 1.6s linear infinite; }
+@keyframes cs-tape { to { background-position: 39.6px 0; } }
+.cs-pulse { animation: cs-pulse 2s ease-out infinite; }
+@keyframes cs-pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-accent) 60%, transparent); } 70%, 100% { box-shadow: 0 0 0 8px transparent; } }
+@media (prefers-reduced-motion: reduce) { .cs-tape, .cs-pulse { animation: none; } }

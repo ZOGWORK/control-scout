@@ -417,7 +417,7 @@ export async function apiFetch<T>(path: string, init?: RequestInit & { json?: un
       watch.done(false);
       release();
       markUnavailable();
-      throw new ApiError(503, typeof peek?.message === "string" ? peek.message : "Control Scout is temporarily unavailable.", false, UNAVAILABLE_CODE);
+      throw new ApiError(503, typeof peek?.message === "string" ? peek.message : "Control Scout is under construction.", false, UNAVAILABLE_CODE);
     }
   }
   // Server still starting (it opens its port before its data is ready): wait

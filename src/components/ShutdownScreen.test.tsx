@@ -14,7 +14,7 @@ import { ShutdownGate } from "./ShutdownScreen";
 const personal = vi.hoisted(() => ({ user: null as null | { id: number }, providers: null as null | object }));
 vi.mock("../lib/personal", () => ({ usePersonal: () => personal }));
 
-const LINE_1 = "Control Scout is temporarily unavailable.";
+const LINE_1 = "Control Scout is under construction.";
 const LINE_2 = "We'll be back in a couple of days.";
 const app = () => render(<ShutdownGate><p>The app</p></ShutdownGate>);
 

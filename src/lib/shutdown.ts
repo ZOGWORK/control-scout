@@ -1,5 +1,5 @@
 // The shutdown message in the app (server/shutdownGate.ts, docs/settings.md "Shutdown message"). The server shows a
-// visitor who isn't signed in only "temporarily unavailable" while the owner has publicAccess off; an installed app
+// visitor who isn't signed in only "under construction" while the owner has publicAccess off; an installed app
 // can still open its cached shell from the service worker, so the app shows the same message when it learns the site
 // is closed to it: an API answer of 503 {error: "unavailable"}, or /api/flags saying publicAccess is off while
 // /api/auth/me says nobody is signed in (src/components/ShutdownScreen.tsx). Nothing on the device is cleared.
@@ -11,7 +11,7 @@ export const UNAVAILABLE_CODE = "unavailable";
 let unavailable = false;
 const subs = new Set<() => void>();
 
-/** Is this one of the server's "temporarily unavailable" answers? */
+/** Is this one of the server's "under construction" answers? */
 export const isUnavailableAnswer = (status: number, body: unknown): boolean =>
   status === 503 && (body as { error?: unknown } | null)?.error === UNAVAILABLE_CODE;
 
