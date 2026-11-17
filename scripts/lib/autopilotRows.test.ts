@@ -2,7 +2,7 @@
 // the strict rules against the row live now, and the rows that pass go out applied to main's season file, at most
 // 15 KB a PR.
 import { describe, expect, it } from "vitest";
-import { applyRows, changedRows, chunkRows, diffBytes, fileRows, prChunks, prMarker, readMarker, rowKey, rowLine, rowProblems, type Row } from "./autopilotRows";
+import { applyRows, changedRows, chunkRows, diffBytes, fileRows, prChunks, prMarker, readMarker, rowGroups, rowKey, rowLine, rowProblems, type Row } from "./autopilotRows";
 
 const row = (o: Partial<Row> = {}): Row => ({ videoId: "VIDEOaaaaa1", code: "USXXQ", checked: "2026-11-17", starts: {}, ...o });
 // Q1 and Q2 placed, each opening checked (12 s and 5 s before its start).
@@ -138,6 +138,20 @@ describe("season files", () => {
     for (const c of chunks) expect(diffBytes(main, applyRows(main, c))).toBeLessThanOrEqual(6_000);
     // A row bigger than the cap alone: shipped alone, never dropped or split.
     expect(prChunks(main, [big("E1Q", "solo")], 500)).toEqual([[big("E1Q", "solo")]]);
+  });
+
+  it("never splits rows whose changes touch (one gap, neighbouring lines) across PRs: git would conflict", () => {
+    const big = (code: string, v: string) => row({ code, videoId: v, starts: Object.fromEntries(Array.from({ length: 40 }, (_, i) => [`Q${i + 1}`, 1000 + i * 400])) });
+    const live = ["AQ", "CQ", "EQ", "GQ", "IQ"].map((c) => big(c, "live"));
+    const main = FILE(live);
+    // Two new BQ rows share the gap before CQ's line, which the changed CQ row replaces, and a new CQ row goes right
+    // after it (before EQ): all four touch, so one PR.
+    const b1 = big("BQ", "b1"), b2 = big("BQ", "b2"), c2 = big("CQ", "c2"), cMoved = { ...live[1], checked: "2026-11-18" };
+    // Far apart: a new HQ row (before IQ). Under a cap smaller than any two rows, each group is its own PR.
+    const chunks = prChunks(main, [b1, c2, b2, cMoved, big("HQ", "h1")], 1_000);
+    expect(chunks.map((c) => c.map(rowKey))).toEqual([[rowKey(b1), rowKey(b2), rowKey(cMoved), rowKey(c2)], [rowKey(big("HQ", "h1"))]]);
+    // One unchanged line between two changes keeps them apart: a new BQ row (before CQ) and a new DQ row (before EQ).
+    expect(rowGroups(main, [b1, big("DQ", "d1"), big("HQ", "h1"), b2]).map((g) => g.map(rowKey))).toEqual([[rowKey(b1), rowKey(b2)], [rowKey(big("DQ", "d1"))], [rowKey(big("HQ", "h1"))]]);
   });
 
   it("splits rows into PRs of at most 15 KB, an event's rows together", () => {
