@@ -34,7 +34,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
 import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, playedCount } from "./lib/videoFrames";
-import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, elapsed, overlayDivision, leadIn, judge, NOTHING_READ, overlayBand, overlayLabel, rowAbove, rowLabel, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M } from "./lib/videoFrames";
+import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, elapsed, overlayDivision, leadIn, judge, NOTHING_READ, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M } from "./lib/videoFrames";
 
 // The command line: --name value or --name=value for the value flags, --name alone for the others. Anything else stops
 // the run before it reads: a misspelt flag mustn't quietly read (and write) every recording of the season.
@@ -319,9 +319,6 @@ async function readAtOnce(page: Page, t: number, labelOnly = false): Promise<Rea
  *  over most of TeleOp: a stream may cut away to a camera without the overlay for a minute or more (Romania's
  *  championship cuts to the floor cameras mid-match). */
 const CONFIRM_AFTER = [70, 80, 95, 110, 125, 140];
-/** Reads a minute apart the upload scan takes past a frame naming a match not yet running (scan): a match's turnaround
- *  is 4–8 minutes, so three minutes on usually lands in its play (the next scan frame tries again if not). */
-const SCAN_AHEAD = 3;
 /** Seconds into a match an Auto read confirms its start at, in turn, where a later read disagrees by time the video
  *  lost (confirmed). Early: before most of the match, where a cut in the recording is least likely to fall. */
 const AUTO_CONFIRM = [12, 20];
@@ -628,13 +625,14 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
   // Any match at all, a frame every 10 minutes: where there's no clock to go by (an upload), or the clock's guesses read
   // nothing (a broadcast whose start YouTube has wrong).
   // A scan frame that names a match whose timer isn't running (the field being set before it, its score after it) has
-  // that match within minutes: a minute on at a time, SCAN_AHEAD times at most, until a timer is read running.
+  // that match within minutes: a minute on at a time, SCAN_AHEAD times at most, until a timer is read running (stepOn).
   // USTXNTM1 2023's upload: every scan frame named a match between two (Q11, Q13, Q15), none with its clock running.
   const scan = async () => {
     for (let t = 300; t < length && !seen.size && reads() < budget; t += 600) {
       let r = await readAt(page, t);
+      const named = !!r.label;
       await note(r);
-      for (let k = 1; k <= SCAN_AHEAD && r.label && r.start == null && !seen.size && t + 60 * k < length && reads() < budget; k++) await note(r = await readAt(page, t + 60 * k));
+      for (let k = 1; stepOn(named, r.start, k) && !seen.size && t + 60 * k < length && reads() < budget; k++) await note(r = await readAt(page, t + 60 * k));
     }
   };
   if (shift == null) {
