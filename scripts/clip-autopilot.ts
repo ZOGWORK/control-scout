@@ -38,8 +38,8 @@ const LABEL = "clip-autopilot", BRANCH = "clip-autopilot/";
 const seasonFile = (season: number) => `server/data/frameTimings/${season}.ts`;
 
 /** A command, its output to the log; throws on failure unless `ok` is set. */
-function sh(cmd: string, args: string[], o: { ok?: boolean; timeoutMs?: number; quiet?: boolean; shell?: boolean } = {}): { code: number; out: string } {
-  const r = spawnSync(cmd, args, { encoding: "utf8", timeout: o.timeoutMs ?? 600_000, maxBuffer: 64 << 20, env: process.env, shell: o.shell });
+function sh(cmd: string, args: string[], o: { ok?: boolean; timeoutMs?: number; quiet?: boolean; shell?: boolean; input?: string } = {}): { code: number; out: string } {
+  const r = spawnSync(cmd, args, { encoding: "utf8", timeout: o.timeoutMs ?? 600_000, maxBuffer: 64 << 20, env: process.env, shell: o.shell, input: o.input });
   const out = `${r.stdout ?? ""}${r.stderr ?? ""}`;
   if (!o.quiet) appendFileSync(LOG, `$ ${cmd} ${args.join(" ")}\n${out}\n`);
   const code = r.status ?? (r.error ? 1 : 0);
@@ -133,7 +133,9 @@ if (!snapshot) {
   const host = process.env.AUTOPILOT_SSH ?? "ubuntu@132.145.202.89", key = process.env.AUTOPILOT_SSH_KEY ?? join(homedir(), ".ssh", "oracle-controlpoint");
   const ssh = ["-o", "BatchMode=yes", "-i", key], remote = `/tmp/autopilot-${STAMP}.db`;
   // VACUUM INTO reads the database and writes a copy: the live file is never written.
-  sh("ssh", [...ssh, host, `cd /opt/control-scout/current && sudo -u controlscout node -e \x27require("@libsql/client").createClient({url:"file:/opt/control-scout/shared/data/scout.db"}).execute("VACUUM INTO \x27${remote}\x27").then(()=>process.exit(0),e=>{console.error(e.message);process.exit(1)})\x27 && sudo gzip -f ${remote} && sudo chmod 644 ${remote}.gz`], { timeoutMs: 900_000 });
+  // The copy's script goes in on stdin: no quoting to survive two shells (Windows' and the VM's).
+  const vacuum = `require("@libsql/client").createClient({ url: "file:/opt/control-scout/shared/data/scout.db" }).execute(${JSON.stringify(`VACUUM INTO '${remote}'`)}).then(() => process.exit(0), (e) => { console.error(e.message); process.exit(1); });`;
+  sh("ssh", [...ssh, host, `cd /opt/control-scout/current && sudo -u controlscout node - && sudo gzip -f ${remote} && sudo chmod 644 ${remote}.gz`], { timeoutMs: 900_000, input: vacuum });
   try { sh("scp", [...ssh, `${host}:${remote}.gz`, join(DIR, "snapshot.db.gz")], { timeoutMs: 1_800_000 }); } finally { sh("ssh", [...ssh, host, `sudo rm -f ${remote} ${remote}.gz`], { ok: true }); }
   snapshot = join(DIR, "snapshot.db");
   writeFileSync(snapshot, gunzipSync(readFileSync(join(DIR, "snapshot.db.gz"))));
@@ -165,7 +167,9 @@ for (const [season, events] of bySeason) {
   // reader otherwise skips an event whose videos all have rows. The others read what isn't read yet.
   const hasRows = new Set(fileRows(before).map((r) => r.code));
   const again = codes.filter((c) => hasRows.has(c)), fresh = codes.filter((c) => !hasRows.has(c));
-  const base = ["scripts/video-frames.ts", "--season", String(season), "--live", liveFile, "--lanes", "2"];
+  // --live keeps the clips main plays from being dropped on a frame that names nothing; a season with no rows yet has
+  // none to keep (and the reader refuses an empty --live file).
+  const base = ["scripts/video-frames.ts", "--season", String(season), ...(fileRows(mainText(file)).length ? ["--live", liveFile] : []), "--lanes", "2"];
   for (const [list, extra] of [[fresh, []], [again, ["--all"]]] as const) if (list.length) log(`${season} read ${list.join(",")}: exit ${tsx([...base, "--codes", list.join(","), ...extra], 6 * 3600_000).code}`);
   for (const pass of ["--verify", "--bounds"]) log(`${season} ${pass}: exit ${tsx([...base, "--codes", codes.join(","), pass], 3 * 3600_000).code}`);
   const after = readFileSync(file, "utf8");
