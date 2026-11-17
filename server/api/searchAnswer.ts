@@ -37,7 +37,7 @@ import { intentAnswer, parseIntent } from "./searchIntents.js";
 import { inRegion, namedTeamHit, teamsByName } from "./teamsByName.js";
 import { parseQuestion, questionAnswer } from "./searchQuestions.js";
 import { highScoreAnswer, parseHighScore } from "./searchHighScores.js";
-import { eventFit, eventVersusSearch, leagueSearch, statAnswer } from "./answers/index.js";
+import { conferenceSearch, eventFit, eventVersusSearch, leagueSearch, statAnswer } from "./answers/index.js";
 import { divisionFieldAnswer, oprPhaseOf, readDivisionField, type EventRow } from "./answers/families/eventVersus.js";
 import { seasonOfDate } from "./query/time.js";
 import { WATCH_TAKERS } from "./query/intents.js";
@@ -822,6 +822,10 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   // as one structured question over the stored data. A query it can't read completely goes on to the readers below.
   // It reads the words as typed: plurals are its lexicon's to read, and a team's name keeps its own ("Robotics").
   // A league's standings with no team: before the pipeline reads "league leaderboard" as its own board.
+  // A New Jersey conference ("4215 conference ranking", "who won East Bergen Conference"): before the league reader and
+  // the pipeline, which would read a conference's name as its tournament's.
+  const conference = opts.intents === false ? null : await conferenceSearch(opts.typed ?? q, { full: !!opts.full, pages: pagesFor(q) });
+  if (conference) return conference;
   const league = opts.intents === false ? null : await leagueSearch(opts.typed ?? q, { full: !!opts.full, pages: pagesFor(q) });
   if (league) return league;
   const piped = opts.intents === false ? null : await pipelineAnswer(opts.typed ?? q, { full: !!opts.full, pages: pagesFor(q), now: opts.now, prefer, resolve: (core) => resolveCore(core, opts) });
