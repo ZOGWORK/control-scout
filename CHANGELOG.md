@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 7.3.5 — 2026-11-17
+## 7.3.7 — 2026-11-17
 
 Videos › 168 more 2024 matches play as clips: the Australian Championship in full, South Australia, North Scarborough and the Carolinas Premier Event.
 
@@ -26,6 +26,30 @@ Videos › 168 more 2024 matches play as clips: the Australian Championship in f
 
 ### Added
 - Frame-read match starts for 6 more 2024 recordings (5 events), each start checked against two timer reads and each clip's opening against a paused frame naming its match: AUCMP 77 of 77 played matches (two days), CAONSCQ2 50 of 55 (4 to review, 1 missing), FPECA 31 of 71 (the linked recording is Day 2), AUTOQ 10 of 24 (Q11–Q24 have no confirmed frame read yet), and CABCSUQ1's recording checked (its 2 readable matches had no confirmed start). (`server/data/frameTimings/2024.ts`) (#1663)
+
+## 7.3.6 — 2026-11-17
+
+Search engines › a Lite page with nothing on it yet says noindex, like its full page, so Google stops calling it a soft 404.
+
+### Highlights
+- [fixes] Lite team and event pages follow their full page's indexing rule
+- [fixes] A team or event with no data yet is noindex in Lite too
+- [fixes] Pages with data keep only their canonical link, as before
+
+### Fixed
+- Search engines: a team or event page with nothing on it but a name is noindex (`server/indexable.ts`), but its Lite twin only pointed its canonical at it, so Google crawled a 21-word Lite page that could be indexed and reported it as a soft 404 (`/lite/teams/19381` in Search Console's Soft 404 examples). The Lite team and event pages now ask the same rule and say noindex when their full page does. (`server/lite/routes.ts`, `server/lite/render.ts`) (#1670)
+
+## 7.3.5 — 2026-11-17
+
+Search engines › a page Google drew before a deploy still finds its scripts, so its render no longer comes out empty.
+
+### Highlights
+- [fixes] Pages drawn before an update keep loading their scripts for 30 days
+- [fixes] Google's renderer no longer meets a missing chunk and an empty page
+- [fixes] A tab left open across an update still opens its pages
+
+### Fixed
+- Search engines: only the three newest releases stay on disk and the site deploys several times a day, so a page drawn hours earlier (kept by Googlebot's renderer, which caches scripts for weeks, or open in a tab) asked for chunks that were gone: Googlebot got 404s on `/assets/*.js` (about 370 in two weeks of the server's log), and a page whose chunk is missing renders empty, which Google reads as a soft 404. Every release's hashed files are now kept for 30 days in one archive the server falls back to after the release's own files (each file renamed in whole, never rewritten while served); anything in neither is still a 404. (`server/app.ts`, `deploy/oracle-vm-setup.sh`) (#1666)
 
 ## 7.3.4 — 2026-11-17
 
