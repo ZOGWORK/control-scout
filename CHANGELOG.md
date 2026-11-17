@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.4.9 — 2026-11-17
+
+Videos › 120 more 2024 matches play as clips: Colorado's Denver and Northern qualifiers and Ohio's Hinckley Academy qualifier.
+
+### Highlights
+- [history] Hinckley Academy Qualifier: 43 of 45 matches as clips
+- [history] Denver Qualifier: 41 of 44 matches as clips
+- [history] Northern Colorado Qualifier: 36 of 45 matches as clips
+
+### Added
+- Frame-read match starts for 3 more 2024 recordings, each start checked against two timer reads and each clip's opening against a paused frame naming its match: USOHHIQ 43 of 45 played matches (2 missing), USCODEQ1 41 of 44 (3 missing), USCOLOQ 36 of 45 (9 missing). (`server/data/frameTimings/2024.ts`) (#PRNUM)
+
 ## 7.4.8 — 2026-11-17
 
 Tests › a check on the welcome email failed now and then for no reason, holding up unrelated changes; it no longer does.
