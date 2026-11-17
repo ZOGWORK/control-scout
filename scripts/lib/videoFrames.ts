@@ -402,6 +402,20 @@ export function undetailed(videos: readonly { videoId: string; meta?: { status?:
   return { skipped, fails: skipped.length > 0 && skipped.length === videos.length && skipped.some((s) => s.fixable) };
 }
 
+/**
+ * The reader's exit when its only trouble is events left unread for want of details a fetch would give (undetailed
+ * `fails`): it ran, nothing crashed, and no video it could read was left unfinished. Not 1, so a caller can tell it
+ * from a crash, a timeout or a video that couldn't be played. (2 is a usage error, 3 a dark player.)
+ */
+export const UNDETAILED_EXIT = 4;
+
+/**
+ * Whether a reader run's exit means the read itself failed (crashed, killed, timed out, a video unplayed): its events
+ * then aren't counted as tried. Exit 0 and UNDETAILED_EXIT both mean it read what it could; scripts/clip-autopilot.ts
+ * otherwise re-picked a whole season every run while one event's details were missing.
+ */
+export const readFailed = (code: number | null): boolean => code !== 0 && code !== UNDETAILED_EXIT;
+
 /** The rows of a server/data/frameTimings/<season>.ts file as written (one JSON row a line after the data marker). */
 export function dataRows<T>(text: string): T[] {
   const data = text.split("// --- Data")[1] ?? "";
