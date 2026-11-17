@@ -101,6 +101,9 @@ export function playedCount(text: string): { played: number; of: number } | null
   return m && Number(m[1]) <= Number(m[2]) ? { played: Number(m[1]), of: Number(m[2]) } : null;
 }
 
+/** A player's duration as a video length: whole seconds, or null for a live stream (Infinity), nothing loaded (NaN, 0). */
+export const wholeLength = (d: number): number | null => (Number.isFinite(d) && d >= 1 ? Math.round(d) : null);
+
 /** Seconds from a recording's start (or back from its end) its edge is read at, in turn: the first frame that names a
  *  match or counts the matches played is the edge (within EDGE_S, server/data/frameTimings.ts). */
 export const EDGE_AT = [3, 20, 45, 75, 110];
@@ -115,10 +118,20 @@ export const secondsOf = (s: string) => { const m = /(\d):([0-5]\d)/.exec(s); re
 /** secondsOf, where the font's colon is too thin for the OCR to keep ("1:17" read "117", FIRST AGE's white box): the
  *  whole reading is one timer, with or without its colon, at most 2:59. */
 export const secondsLoose = (s: string) => { const m = /^([0-2]):?([0-5]\d)$/.exec(s.replace(/\s/g, "")); return m ? Number(m[1]) * 60 + Number(m[2]) : secondsOf(s); };
+/** A crop of a bottom bar, for the same bar flipped to the top of a `height`-tall frame: the bar's rows in reverse, so
+ *  what sat `n` px off the bottom edge sits `n` px off the top (POWERPLAY's timer at y 686 of 720, 4 px above the
+ *  bottom, is at y 4 in Arizona's flipped bar). */
+export const flippedClip = (c: { x: number; y: number; width: number; height: number }, height = 720) => ({ ...c, y: height - c.y - c.height });
+
+/** The order the timer's crops are tried in: `first` (the crop the frame's bar names, or whose clock last ran) ahead,
+ *  the rest in their usual order. A `first` that isn't one of them changes nothing. */
+export const cropOrder = <T>(crops: readonly T[], first?: T | null): T[] =>
+  first != null && crops.includes(first) ? [first, ...crops.filter((c) => c !== first)] : [...crops];
+
 /** A timer that shows bare seconds (FTC Live's overlay from 2019 to 2022: Auto's "30" down to "0", the switch's "8" to
  *  "0", TeleOp's "120" to "0"): one to three digits and nothing else, at most TeleOp's 120. A colon is another bar's
  *  timer, never this one. */
-export const secondsPlain = (s: string) => { const m = /^\d{1,3}$/.exec(s.replace(/\s/g, "")); return m && Number(m[0]) <= TELEOP_S ? Number(m[0]) : null; };
+export const secondsPlain =(s: string) => { const m = /^\d{1,3}$/.exec(s.replace(/\s/g, "")); return m && Number(m[0]) <= TELEOP_S ? Number(m[0]) : null; };
 
 /** Seconds since the match started, from its timer (where it's running: a timer standing at its full time is a match
  *  not started yet). Either bar counts Auto down from 0:30, then TeleOp from 2:00, so a reading of 0:30 or less is Auto
@@ -216,6 +229,14 @@ const words = (s: string) => (plain(s).match(/[A-Z]{3,}/g) ?? []).filter((w) => 
 // its "finals Match 1" or "Match 1" could be: overlayLabel names it by series and number (M2-1), or none.
 const MATCH_PHRASE = /Qualification\s+\d{1,3}\s+of\s+(\d{1,3})|Semi-?\s?finals?(?:\s+\d)?\s+Match\s+\d\b|(?:Playoff\s+|F[il1]?na[il1|]s?\s+)?Match\s+\d{1,2}\b/gi;
 
+/** Whose a match's "of M" is, by the event's qualification total: its own; or, where the read is the start of the
+ *  total's digits, nothing to tell by (OCR loses a last digit: USNVCMP 2024's "of 46" read "of 4" at 2700 s, its own
+ *  Q7 taken for another event's); any other M another event's. */
+function totalSays(total: number, quals: number): "own" | "other" | null {
+  if (total === quals) return "own";
+  return String(quals).startsWith(String(total)) ? null : "other";
+}
+
 /**
  * Which event a frame's overlay names: "own" (this event), "other" (another event: two league meets split on one
  * stream, USTXCAM1 2024 its right half, the left "FiT-Central North San Antonio League Meet 1 — Qualification 3 of 24"),
@@ -235,8 +256,12 @@ export function overlayEvent(text: string, own: string, quals?: number, semifina
   const mine = words(own);
   const verdict = (name: string): "own" | "other" | null => {
     const read = words(name);
-    const hit = read.filter((w) => mine.some((o) => o === w || o.startsWith(w) || o.endsWith(w))).length;
-    if (read.filter((w) => w.length >= 4).length >= 2 && hit * 2 < read.length) return "other";
+    const ours = (w: string) => mine.some((o) => o === w || o.startsWith(w) || o.endsWith(w));
+    const hit = read.filter(ours).length;
+    // Only telling words weigh: a 3-letter scrap of the logo beside the name is no word of another event's (USNVCMP 2024
+    // at 2509 s: "rer DIVE — Nevada Chan qualification 6 of 4", its own Nevada one word in three, "Chan" its cut name).
+    const telling = read.filter((w) => w.length >= 4);
+    if (telling.length >= 2 && telling.filter(ours).length * 2 < telling.length) return "other";
     return hit ? "own" : null;
   };
   let other = false, ownLabel: string | undefined, ownSeen = false;
@@ -247,7 +272,7 @@ export function overlayEvent(text: string, own: string, quals?: number, semifina
       const name = verdict(line.slice(from, m.index));
       // A name read decides; with none, the total (a schedule changed after the db was read can't drop a named frame).
       // A name read as another's beside this event's own total is a misread: the total stands.
-      const byTotal = quals && total != null ? (total === quals ? "own" as const : "other" as const) : null;
+      const byTotal = quals && total != null ? totalSays(total, quals) : null;
       const v = name === "other" && byTotal === "own" ? "own" : name ?? byTotal;
       from = m.index! + m[0].length;
       if (v === "other") other = true;

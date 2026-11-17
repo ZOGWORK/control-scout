@@ -1,7 +1,7 @@
 // The pure parts of the frame reader (scripts/video-frames.ts): the overlay's match, the timer's elapsed time, and
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
-import { dataRows, divisionOf, elapsed, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, type M } from "./videoFrames";
+import { dataRows, divisionOf, cropOrder, elapsed, flippedClip, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, type M } from "./videoFrames";
 
 describe("the frame reader", () => {
   // A 1280 × 720 frame: a grey field, and a score bar from `top` to `bottom` with one alliance's colour each side of the
@@ -73,6 +73,8 @@ describe("the frame reader", () => {
     expect(rowLabel("TE FiT-North T-League Meet 1 Qualification 10 of 17 PERS [Ah", null)).toBe("Q10");
     expect(rowLabel("wens SHN— NL Benelux LM Leek Qualification 4 of 23 PUERS TAT", null)).toBe("Q4");
     expect(rowLabel("Playoff Match 1", null)).toBe("M1");
+    // The bar at the top edge (USNVCMP 2024 at 8100 s): its row's match half, read on its own, the logo under it.
+    expect(rowLabel("Qualification 36 of 46\nDEEP", null)).toBe("Q36");
     expect(rowLabel("os 55 pe", null)).toBeNull();
     // A shared stream: the whole row must name this division, never a sibling's or none.
     const ctx = { own: "Solo", others: ["Duo"] };
@@ -128,6 +130,27 @@ describe("the frame reader", () => {
     expect(eventLabel("M6")).toBe("M6");
     expect(eventLabel("F1")).toBe("F1");
     expect(eventLabel("Q11")).toBe("Q11");
+  });
+
+  it("finds a bottom bar's crop in the same bar flipped to the top", () => {
+    // POWERPLAY's timer box, 4 px above the bottom edge of a 720 px frame, is 4 px below the top in Arizona's flipped
+    // bar (USAZCMPGC23 2022: "85" read there at 8640 s); x, width and height stay.
+    expect(flippedClip({ x: 605, y: 686, width: 70, height: 30 })).toEqual({ x: 605, y: 4, width: 70, height: 30 });
+    // Flipping twice is the crop itself; another frame height flips about its own middle.
+    const c = { x: 1, y: 600, width: 2, height: 50 };
+    expect(flippedClip(flippedClip(c))).toEqual(c);
+    expect(flippedClip({ x: 0, y: 1000, width: 10, height: 40 }, 1080)).toEqual({ x: 0, y: 40, width: 10, height: 40 });
+  });
+
+  it("tries the crop whose clock last ran first, then the rest in order", () => {
+    const [a, b, c, d] = [{ n: "a" }, { n: "b" }, { n: "c" }, { n: "d" }];
+    expect(cropOrder([a, b, c, d])).toEqual([a, b, c, d]);
+    // USAZCMPGC23 2022: the flipped bar's crop ran, so it's read before the bottom crops' stray field digits.
+    expect(cropOrder([a, b, c, d], c)).toEqual([c, a, b, d]);
+    expect(cropOrder([a, b, c, d], a)).toEqual([a, b, c, d]);
+    // None, or a crop that isn't one of these (the bar found in the frame): the usual order.
+    expect(cropOrder([a, b, c, d], null)).toEqual([a, b, c, d]);
+    expect(cropOrder([a, b, c, d], { n: "a" })).toEqual([a, b, c, d]);
   });
 
   it("reads a bare-seconds timer (FTC Live's overlay, 2019–2022)", () => {
@@ -461,6 +484,14 @@ describe("whose event an overlay names", () => {
     // A name read as another's beside this event's own total: the total stands.
     expect(overlayEvent("Rolling Prairie Robotics Qualification 2 of 39", kz, 39)).toEqual({ event: "own", phrase: "Q2" });
   });
+  it("tells nothing by a total whose last digit OCR lost (USNVCMP 2024 at 2700 s: its own \"of 46\" read \"of 4\")", () => {
+    expect(overlayEvent("~~ DIVE — [CC qualification 7 of 4 Ro", "Nevada Championship", 46)).toEqual({ event: null });
+    // Not the start of the total's digits: another event's still.
+    expect(overlayEvent("—E— Qualification 7 of 5 Ro", "Nevada Championship", 46)).toEqual({ event: "other" });
+    // Logo scraps and a cut name beside it: Nevada's own (2509 s, 10021 s).
+    expect(overlayEvent("rer DIVE — Nevada Chan qualification 6 of 4 RB", "Nevada Championship", 46).event).not.toBe("other");
+    expect(overlayEvent("esr DIVE Nevada Cham qualification 7 of 4 WORE", "Nevada Championship", 46).event).not.toBe("other");
+  });
   it("reads this event's half of a split screen where both halves are read", () => {
     const text = "FiT-Central North San Antonio League Meet 1 Qualification 3 of 24 INTO THE DEEP FiT-Central Hill Country League Meet 1 Qualification 7 of 26";
     expect(overlayEvent(text, "FiT-Central Hill Country League Meet 1", 26)).toEqual({ event: "own", label: "Q7", phrase: "Q7" });
@@ -516,5 +547,14 @@ describe("an event's played matches, a time or not", () => {
   });
   it("leaves out a time the event's zone can't place", () => {
     expect(playedMatches([{ label: "Q1", time: "2025-07-19T10:01:13", timezone: null }], { ...f, utcMs: () => null })).toEqual([]);
+  });
+});
+
+describe("wholeLength", () => {
+  it("times a video by its player when YouTube gave no duration, never a live stream or an empty player", () => {
+    expect(wholeLength(25019.6)).toBe(25020);
+    expect(wholeLength(Infinity)).toBeNull();
+    expect(wholeLength(NaN)).toBeNull();
+    expect(wholeLength(0)).toBeNull();
   });
 });
