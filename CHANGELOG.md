@@ -25,7 +25,7 @@ Videos › 120 more 2024 matches play as clips: Colorado's Denver and Northern q
 - [history] Northern Colorado Qualifier: 36 of 45 matches as clips
 
 ### Added
-- Frame-read match starts for 3 more 2024 recordings, each start checked against two timer reads and each clip's opening against a paused frame naming its match: USOHHIQ 43 of 45 played matches (2 missing), USCODEQ1 41 of 44 (3 missing), USCOLOQ 36 of 45 (9 missing). (`server/data/frameTimings/2024.ts`) (#PRNUM)
+- Frame-read match starts for 3 more 2024 recordings, each start checked against two timer reads and each clip's opening against a paused frame naming its match: USOHHIQ 43 of 45 played matches (2 missing), USCODEQ1 41 of 44 (3 missing), USCOLOQ 36 of 45 (9 missing). (`server/data/frameTimings/2024.ts`) (#1708)
 
 ## 7.4.8 — 2026-11-17
 
