@@ -121,8 +121,10 @@ export async function seedOfficialVideos(log: (s: string) => void, data: Officia
   // Once a process: the list only changes with a deploy, which starts a new one.
   if (seeded && !again) return 0;
   const named = await nameListedParts(data);
-  // A video the link check took off (./linkCheck.ts) isn't written back from the list: it's freed for the meet it names now.
-  const known = new Set((await all<{ video_id: string }>("SELECT video_id FROM official_videos UNION SELECT video_id FROM official_watch WHERE decided_by = 'link check'")).map((r) => String(r.video_id)));
+  // A video the link check took off (./linkCheck.ts, logged by "link check" as officialVideo.remove) is never written
+  // back from the list, whatever is decided of it since: it's freed for the meet it names now.
+  const known = new Set((await all<{ video_id: string }>(`SELECT video_id FROM official_videos UNION
+    SELECT json_extract(details, '$.videoId') FROM owner_audit WHERE actor = 'link check' AND action = 'officialVideo.remove'`)).map((r) => String(r.video_id)));
   const todo = data.videos.filter((v) => isId(v.videoId) && !known.has(v.videoId));
   if (!todo.length) { seeded = true; if (named) forgetOfficial(); return named; }
   const keys = [...new Set(todo.map((v) => `${v.season}/${v.code}`))];
