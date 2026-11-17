@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.4.5 — 2026-11-17
+
+Videos › 84 more 2022 (POWERPLAY) match clips from the Netherlands' Hasselt and Bladel league meets and Virginia's Christiansburg qualifier.
+
+### Highlights
+- [history] NL League Meet Hasselt: clips for all 29 matches
+- [history] NL League Meet Bladel: clips for all 26 matches
+- [history] Christiansburg Qualifier: clips for 29 of 30 matches
+
+### Added
+- Videos: clips read off the recordings' frames (`server/data/frameTimings/2022.ts`): NLNLM2 29 of 29 played matches, NLNLM3 26 of 26, USCHSCHQ 29 of 30. Each placed start's clip opens on a paused frame whose overlay names that match (20, 12, 5, 2 or 0 s before it), and each frame's event name is this event's own. The match left out stays without a clip, with the reason. (#1720)
+
 ## 7.4.4 — 2026-11-17
 
 Videos › 74 more 2022 (POWERPLAY) match clips from Arizona's championship (Grand Canyon Division) and the Chesapeake championship (Scarlet Division).
