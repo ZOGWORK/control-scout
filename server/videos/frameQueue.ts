@@ -96,7 +96,7 @@ export function rankQueue<T extends { season: number; code: string; frames: Fram
 const ordinal = (n: number) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? "th" : ["th", "st", "nd", "rd"][n % 10] ?? "th"}`;
 
 /** Every event with a played match missing a clip, as clip_coverage holds it, with its place with the frame reader. */
-export async function frameQueue(now = Date.now()): Promise<{ season: number; code: string; name: string; frames: FrameStatus }[]> {
+export async function frameQueue(now = Date.now(), inPr: ReadonlyMap<string, number> = new Map()): Promise<{ season: number; code: string; name: string; frames: FrameStatus }[]> {
   const rows = await all<{ season: number; code: string; name: string | null; end: string | null; timezone: string | null; detail: string }>(
     `SELECT c.season, c.code, e.name, e.end, e.timezone, c.detail FROM clip_coverage c LEFT JOIN events e ON e.season = c.season AND e.code = c.code
      WHERE c.with_clip < c.played AND c.state != 'none'`);
@@ -108,7 +108,9 @@ export async function frameQueue(now = Date.now()): Promise<{ season: number; co
     let missing: CoverageMatch[] = [];
     try { missing = (JSON.parse(String(r.detail)) ?? {}).missing ?? []; } catch { /* an unreadable detail: nothing to queue */ }
     const e: QueueEvent = { season: Number(r.season), code: String(r.code), name: String(r.name ?? r.code), end: r.end ?? null, timezone: r.timezone ?? null, missing };
-    out.push({ season: e.season, code: e.code, name: e.name, frames: frameStatus(e, now) });
+    const f = frameStatus(e, now), pr = inPr.get(`${e.season}/${e.code}`);
+    // Read by the autopilot and in review: not queued again, said so.
+    out.push({ season: e.season, code: e.code, name: e.name, frames: pr != null && f.state === "queued" ? { state: "reading", matches: f.matches, due: 0, pr, why: `Read by the clip autopilot: its clips ship with PR #${pr}, in review` } : f });
   }
   rankQueue(out);
   return out;
@@ -120,6 +122,7 @@ export function queueSummary(events: { season: number; code: string; name: strin
   return {
     queued: queued.length, matches: queued.reduce((s, e) => s + e.frames.due, 0),
     waiting: events.filter((e) => e.frames.state === "waiting").length,
+    reading: events.filter((e) => e.frames.state === "reading").length,
     next: queued.slice(0, next).map((e) => ({ season: e.season, code: e.code, name: e.name, matches: e.frames.due })),
   };
 }
