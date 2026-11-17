@@ -17,15 +17,15 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 
 ## 7.6.3 — 2026-11-17
 
-Videos › 79 more matches get a clip read off their event's video, and no clip that plays now stops.
+Videos › 70 more 2025 matches get a clip read off their event's video, each opening on a paused frame whose overlay names its match.
 
 ### Highlights
-- [fixes] 79 more matches get a clip read off the video
+- [fixes] 70 more 2025 matches get a clip read off the video
+- [fixes] Each opens on a frame whose overlay names its match
 - [fixes] No clip that plays now stops playing
-- [fixes] No clip already playing changes
 
 ### Fixed
-- Videos (`server/data/frameTimings/`): a re-read of videos already in the data with the current reader adds 79 2025 starts (CAONKAQ, CAONSCQ2, NLHAQ, ROCMPCND, USCALACALAM2, USCODEQ1, USCODEQ2), each read off the video's frames (a row that already records checked openings gets the new starts' openings too; a row without any keeps none, so its other clips keep playing). Only starts are added: no row loses or moves one, and no clip already playing changes. (part 1 of 3) (#1738)
+- Videos (`server/data/frameTimings/2025.ts`): a re-read of videos already in the data with the current reader adds 70 starts (CAONKAQ, USCALACALAM2, USCODEQ2), each with a checked opening (`opens`). A row takes openings only whole: the re-read confirms every start it already had (an opening, within 2 s) and adds the new ones with theirs, so every clip in it opens on a checked frame and none stops playing. Rows the re-read can't confirm whole are left as they are. (part 1 of 3) (#1738)
 
 ## 7.6.2 — 2026-11-17
 
