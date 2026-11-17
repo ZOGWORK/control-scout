@@ -488,4 +488,19 @@ describe("the channel audit", () => {
     expect((await get<any>("SELECT title FROM official_audit_videos WHERE video_id = ?", [OLDNONE])).title).toBe("FTC Texas Scrimmage");
     delete old.listTitle;
   });
+
+  it("doesn't put an add back on a day and part another recording holds now, and the audit finishes", async () => {
+    // GOOD, taken off by the audit, its day's morning since taken by another recording.
+    await run("UPDATE official_videos SET part = 'Morning', removed_at = '2026-03-06T00:00:00Z' WHERE video_id = ?", [GOOD]);
+    await run("UPDATE official_watch SET status = 'rejected', decided_by = 'channel audit', why = 'taken off its event by the channel audit: x' WHERE video_id = ?", [GOOD]);
+    await run("INSERT INTO official_videos (video_id, season, code, kind, day, part, channel_id, title, source, why, added_at, added_by) VALUES ('samepart001', 2025, 'USTXMOQ', 'recording', '2026-01-17', 'Morning', ?, 'Mockingbird morning', 'list', 'x', '2026-03-06T00:00:00Z', NULL)", [TX]);
+    expect((await audit(Date.parse("2026-03-07T06:00:00Z")))?.error).toBeNull();
+    expect((await get<any>("SELECT removed_at FROM official_videos WHERE video_id = ?", [GOOD])).removed_at).toBeTruthy();
+    expect((await get<any>("SELECT why FROM official_audit_adds WHERE video_id = ?", [GOOD])).why).toMatch(/a second video of 2026-01-17 \(samepart001 plays it too\) and both are its Morning/);
+    // The day's morning free again: put back.
+    await run("DELETE FROM official_videos WHERE video_id = 'samepart001'");
+    expect((await audit(Date.parse("2026-03-08T06:00:00Z")))?.error).toBeNull();
+    expect((await get<any>("SELECT removed_at FROM official_videos WHERE video_id = ?", [GOOD])).removed_at).toBeNull();
+    expect((await get<any>("SELECT status FROM official_watch WHERE video_id = ?", [GOOD])).status).toBe("added");
+  });
 });
