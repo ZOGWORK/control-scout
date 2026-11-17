@@ -142,7 +142,7 @@ describe("page head in the first HTML", () => {
     expect(team).toContain('<link rel="canonical" href="https://controlscout.org/teams/4215" />');
     expect(team).toContain('<meta property="og:url" content="https://controlscout.org/teams/4215" />');
     expect(team).toContain('<meta name="twitter:card" content="summary_large_image" />');
-    expect(team).toContain('<meta property="og:image" content="https://controlscout.org/og-image.png" />');
+    expect(team).toContain('<meta property="og:image" content="https://controlscout.org/og-image.png?v=2" />');
     expect(team).not.toContain("generic"); // the template's own tags are replaced, not duplicated
     expect(team.match(/<title>/g)).toHaveLength(1);
     const desc = /<meta name="description" content="([^"]*)"/.exec(team)![1];
@@ -233,7 +233,7 @@ describe("page head in the first HTML", () => {
     expect(crumbs.itemListElement.map((x: { name: string; item: string }) => [x.name, x.item])).toEqual([
       ["Home", "https://controlscout.org/"], ["Teams", "https://controlscout.org/teams"], ["4215 Hypnotic Robotics", "https://controlscout.org/teams/4215"]]);
     const [ev] = ld(await renderIndex(file, "/events/2025/USNJNOM3"));
-    expect(ev.image).toEqual(["https://controlscout.org/og-image.png"]);
+    expect(ev.image).toEqual(["https://controlscout.org/og-image.png?v=2"]);
     expect(ev).toMatchObject({ "@type": "SportsEvent", name: "P1-4 PM Northern League Meet", startDate: "2025-11-08", url: "https://controlscout.org/events/2025/USNJNOM3", location: { name: "Don Bosco Prep" } });
     // A name containing </script> can't break out of the tag.
     await run("UPDATE teams SET name = 'Evil</script><script>alert(1)</script>' WHERE number = 4215");

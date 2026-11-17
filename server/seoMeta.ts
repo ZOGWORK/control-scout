@@ -58,6 +58,12 @@ import { answerSections } from "../src/shared/searchSections.js";
 import { rebuildSearch } from "./stats/job.js";
 import { SEARCH_HITS_ID, SEARCH_PAGE_LIMIT, SORRY_SENTENCE, cardWho, followApiPath, hitHref, relatedApiPath, relatedQuery, relatedSearch } from "../src/shared/search.js";
 import { hasPhases, phaseNote, teamColumns, teamTableOfLeaderboard, type TeamTable } from "../src/shared/teamTable.js";
+
+/** The site's link-preview card (scripts/og-image.ts renders public/og-image.png). The version is bumped whenever the
+ *  card is redrawn: Discord, Slack and iMessage cache a preview image by its URL, so a new one needs a new address. */
+export const OG_IMAGE_PATH = "/og-image.png?v=2";
+/** What the card says, for screen readers in apps that show it. */
+export const OG_IMAGE_ALT = "Control Scout: every FTC match, predicted. Free scouting with OPR, win odds and advancement.";
 import { answerDescription, badgeUnder, contextBadge, headingOver, isQualityQuestion, pageTitle, repeats, unreadNote } from "../src/shared/searchPage.js";
 
 /** The site's name, the same everywhere a search engine reads one: every <title>, og:site_name, the
@@ -296,7 +302,7 @@ async function eventMeta(season: number, code: string): Promise<PageMeta | null>
     "@context": "https://schema.org", "@type": "SportsEvent", name: e.name, url: canonicalUrl(eventPath(season, code)),
     sport: "Robotics (FIRST Tech Challenge)", organizer: FTC, description,
     // Events have no photos of their own: the site's 1200×630 card (Google's optional Event "image").
-    image: [`${canonicalOrigin()}/og-image.png`],
+    image: [`${canonicalOrigin()}${OG_IMAGE_PATH}`],
   };
   if (e.start) ev.startDate = e.start;
   if (e.end || e.start) ev.endDate = e.end ?? e.start;
@@ -365,7 +371,7 @@ function rankingsJsonLd(r: PowerRankingsResponse, path: string): Record<string, 
   };
   const article = {
     "@context": "https://schema.org", "@type": "Article", headline: w.title, description: w.introText.slice(0, 300), datePublished: w.published, dateModified: w.updated ?? w.published,
-    url, mainEntityOfPage: url, image: [`${o}/og-image.png`],
+    url, mainEntityOfPage: url, image: [`${o}${OG_IMAGE_PATH}`],
     author: { "@type": "Organization", name: SITE, url: `${o}/` }, publisher: { "@type": "Organization", name: SITE, logo: { "@type": "ImageObject", url: `${o}/logo-512.png` } },
   };
   return [article, list];
@@ -972,9 +978,9 @@ export function headTags(path: string, m: PageMeta): string {
   const title = m.title ? siteTitle(m.title) : HOME_TITLE;
   const url = canonicalUrl(m.path ?? path);
   // A shared matchup previews as its card, and its link (og:url) is the matchup itself; the canonical stays the page's.
-  const image = m.share ? `${canonicalOrigin()}${shareImagePath(m.share.query)}` : `${canonicalOrigin()}/og-image.png`;
+  const image = m.share ? `${canonicalOrigin()}${shareImagePath(m.share.query)}` : `${canonicalOrigin()}${OG_IMAGE_PATH}`;
   const ogUrl = m.share ? `${canonicalOrigin()}${sharePagePath(m.share.query)}` : url;
-  const alt = m.share?.alt ?? SITE;
+  const alt = m.share?.alt ?? OG_IMAGE_ALT;
   const tags = [
     `<title>${esc(title)}</title>`,
     `<meta name="description" content="${esc(m.description)}" />`,

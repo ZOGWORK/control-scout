@@ -131,7 +131,8 @@ one 25 s before the start).
 
 ## Where the timings live
 
-`server/data/frameTimings.ts`: one row per recording and event, `starts` mapping each match label to the second its
+`server/data/frameTimings/<season>.ts`, one file a season (the season of the row's event; `server/data/frameTimings.ts`
+reads them all and holds the logic): one row per recording and event, `starts` mapping each match label to the second its
 timer starts in the video; `medium` the placed matches filled rather than read; `review` and `missing` as above
 (`frameReview`, `frameMissing`, `frameConfidence` read them). The server checks it before the clock model: a framed match gets its clip at that second
 less the usual lead-in. An event with any framed played match counts as having clips in the events list, and so does
@@ -166,8 +167,10 @@ DATABASE_URL=file:/path/to/copy.db npx tsx scripts/video-frames.ts --season 2025
 - `--dry`: print, don't write.
 - `--lanes 3`: how many events are read at once.
 
-It writes `server/data/frameTimings.ts` after each event, so a run cut short keeps what it read. Commit the file
-through a PR like any other change.
+It writes the `--season`'s own file, `server/data/frameTimings/<season>.ts`, and no other, after each event, so a run
+cut short keeps what it read, and readers of different seasons never touch the same file. Commit the file through a
+PR like any other change. A season with no file yet needs one (an empty copy of another season's) and its import in
+`server/data/frameTimings.ts`.
 
 ## Checked against the clock
 
