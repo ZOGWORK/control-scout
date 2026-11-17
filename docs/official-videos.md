@@ -133,6 +133,10 @@ that day, whether or not that event gave FIRST the same link. 2022 CABCVIQ (BC V
 BC's "Vancouver Qualifier" beside its own; FIRST Chesapeake's same-day qualifiers each had the other's. A broadcast
 whose title wasn't read stays. Broadcasts found before are weighed again by these rules on each run
 (`reweighBroadcasts`, with the titles the channel audit keeps), since a link with a broadcast found isn't read again.
+A broadcast that is another event's official recording (`official_videos`) isn't this event's, whatever its day:
+2023 USAZTSQ (Tsalie) took FIRST Tech Challenge Arizona's "Red Rock Qualifier", USAZCHQ's checked recording and its
+only broadcast that day. A division's recording on its own parent championship stays, since the parent's playoffs
+are on its divisions' streams (`officialOwners`).
 
 FIRST's link (or the video its short link led to) is the event's video only when YouTube's broadcast date fits the
 event, a day either side at the venue (`linkAiredOff`, `server/videos/officialVideos.ts`). One broadcast on another
