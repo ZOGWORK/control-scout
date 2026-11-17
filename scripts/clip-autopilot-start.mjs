@@ -10,6 +10,7 @@
 //   node scripts/clip-autopilot-start.mjs [--max 6] [--sweep 4] [--db snapshot.db]
 import { createHash } from "node:crypto";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { freemem } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 
@@ -24,6 +25,20 @@ const run = (cmd, args, o = {}) => {
   return (o.shell ? spawnSync([cmd, ...args].join(" "), { ...opts, shell: true }) : spawnSync(cmd, args, opts)).status ?? 1;
 };
 const git = (...args) => { if (run("git", args, { timeout: 600_000 })) { log(`git ${args[0]} failed: no run`); process.exit(1); } };
+
+// --- Room to run -----------------------------------------------------------------------------------------------------
+// A run starts a browser and OCR per lane, and the computer is shared: with too little memory free, processes failed to
+// start and the scheduled task died with nothing logged (2026-11-17: under 1 GB free, exit 0xC000013A). So it waits,
+// checking each minute, until enough is free, and after WAIT_MIN_MS gives up this run (the next one tries again).
+const MIN_FREE_MB = Number(process.env.AUTOPILOT_MIN_FREE_MB ?? 3072), WAIT_MIN_MS = Number(process.env.AUTOPILOT_MEM_WAIT_MIN ?? 30) * 60_000;
+const freeMb = () => Math.round(freemem() / 2 ** 20);
+if (freeMb() < MIN_FREE_MB) {
+  log(`${freeMb()} MB free, under ${MIN_FREE_MB}: waiting`);
+  const until = Date.now() + WAIT_MIN_MS;
+  while (freeMb() < MIN_FREE_MB && Date.now() < until) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 60_000);
+  if (freeMb() < MIN_FREE_MB) { log(`still ${freeMb()} MB free after ${WAIT_MIN_MS / 60_000} min: no run`); process.exit(0); }
+  log(`${freeMb()} MB free: starting`);
+}
 
 // --- One run at a time ----------------------------------------------------------------------------------------------
 /** A lock a killed run left (shutdown, power cut, the task stopped): its process is gone, or it's older than any run. */
