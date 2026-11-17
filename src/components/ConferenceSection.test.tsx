@@ -110,6 +110,12 @@ describe("conference section", () => {
     expect(sortConferenceRows(EB.rows, "rs", "desc").map((r) => r.team)).toEqual([6980, 23717, 15762, 4215, 18155, 30680]);
   });
 
+  it("shows FIRST's RS as given, never rounded, and a lone conference's tab after a bad link", () => {
+    show({ ...NO, conferences: [{ ...EB, rows: [row(1, 1, 1, 3.85), row(2, 2, 2, 3.8)] }] }, { slug: "nowhere-conference" });
+    fireEvent.click(screen.getByRole("tab", { name: "East Bergen Conference" }));
+    expect([...document.querySelectorAll("[data-conference-table] tbody tr")].map((tr) => tr.querySelectorAll("td")[2].textContent)).toEqual(["3.85", "3.8"]);
+  });
+
   it("refuses a slug two conferences share, and a clicked tab shows its own table", () => {
     const twin = { ...FN, code: "USNJNOLT9", slug: EB.slug };
     show({ ...NO, conferences: [FN, EB, twin] }, { slug: EB.slug });

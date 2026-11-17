@@ -590,7 +590,7 @@ function ConferenceStanding({ season, team }: { season: number; team: number }) 
   if (!c) return null;
   return (
     <Link to={c.href} data-conference-standing className={cn(ROW, "mt-2 border-border bg-card text-sm")}>
-      <span className="min-w-0 truncate"><span className="font-semibold">Rank in {c.name}</span> <span className="text-muted-foreground">{c.rank != null ? `${ordinal(c.rank)} of ${c.of} by league RS` : "Not ranked yet: no league meets played"}</span></span>
+      <span className="min-w-0 truncate"><span className="font-semibold">Rank in {c.name}</span> <span className="text-muted-foreground">{c.rank != null ? `${ordinal(c.rank)} of ${c.of} by league RS` : c.available ? "Not ranked yet: no league meets played" : "Going-in standing no longer available"}</span></span>
       <span className="shrink-0 text-muted-foreground">Table →</span>
     </Link>
   );

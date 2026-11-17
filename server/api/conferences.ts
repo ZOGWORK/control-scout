@@ -134,7 +134,7 @@ export async function teamConference(season: number, team: number, o: { now?: st
   return {
     season, region: conf.region, league: conf.league, code: conf.code, name: conf.name, slug: conf.slug,
     rank: r?.rank ?? null, of: conf.rows.length, ranked: conf.rows.filter((x) => x.rank != null).length,
-    leagueRank: r?.leagueRank ?? null, leagueOf: conf.leagueOf,
+    leagueRank: r?.leagueRank ?? null, leagueOf: conf.leagueOf, available: conf.rs.kind !== "gone",
     href: conferenceHref(season, conf.region, conf.league, { slug: conf.slug, team }),
   };
 }

@@ -109,6 +109,9 @@ export interface TeamConference {
    *  ranked: the teams with a standing. */
   rank: number | null; of: number; ranked: number;
   leagueRank: number | null; leagueOf: number;
+  /** False when the standing the teams went in with can't be read any more (no snapshot, a league meet after the
+   *  tournament): a null rank then says nothing about the team's meets. */
+  available: boolean;
   href: string;
 }
 
@@ -131,6 +134,13 @@ export function conferenceHref(season: number, region: string, league: string, o
   if (o.team) q.set("team", String(o.team));
   const qs = q.toString();
   return `/leagues/${season}/${encodeURIComponent(region)}/${encodeURIComponent(league)}${qs ? `?${qs}` : ""}#conferences`;
+}
+
+/** One of FIRST's numbers as FIRST gave it, never rounded: one decimal when it has no more ("4.0", "3.8"), else in
+ *  full ("3.85"). Null when FIRST gave none. */
+export function asGiven(v: number | null | undefined): string | null {
+  if (v == null || !Number.isFinite(v)) return null;
+  return Math.abs(v * 10 - Math.round(v * 10)) < 1e-9 ? v.toFixed(1) : String(v);
 }
 
 /** "1st", "2nd", "12th". */
