@@ -11,7 +11,8 @@
 // before anything is written.
 //
 // Rows only move: the files it writes are read back and must hold the same rows, unchanged. It also writes
-// server/data/frameTimings.split.json, the pinned list frameTimings.split.test.ts checks every row against.
+// server/data/frameTimings.split.json, the pinned list frameTimings.split.test.ts checks every row against. Run it
+// again (no --db needed once every row is in a season file) to re-pin a row rewritten on the day it was pinned.
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { createClient } from "@libsql/client";
@@ -40,10 +41,15 @@ const add = (f: Row, where: string) => {
   if (prior && !isDeepStrictEqual(prior, f)) { console.error(`${key(f)}: two different rows (one in ${where})`); process.exit(2); }
   rows.set(key(f), f);
 };
-const files = existsSync(DIR) ? readdirSync(DIR).filter((n) => /^\d{4}\.ts$/.test(n)) : [];
+const files = existsSync(DIR) ? readdirSync(DIR).filter((n) => /^\d{4}\.ts$/.test(n)).sort() : [];
 for (const name of files) {
   const season = Number(name.slice(0, 4));
-  for (const f of dataRows<Row>(readFileSync(`${DIR}/${name}`, "utf8"))) { add(f, name); seasonOf.set(key(f), season); }
+  for (const f of dataRows<Row>(readFileSync(`${DIR}/${name}`, "utf8"))) {
+    // A row in two season files is in one too many, whichever it is: nothing here can tell which.
+    if (seasonOf.has(key(f))) { console.error(`${key(f)}: in ${seasonOf.get(key(f))}.ts and ${name}`); process.exit(2); }
+    add(f, name);
+    seasonOf.set(key(f), season);
+  }
 }
 for (const f of inMain) add(f, MAIN);
 
@@ -59,7 +65,7 @@ if (loose.length) {
       const r = await db.execute({ sql: `SELECT DISTINCT season FROM ${t} WHERE code = ? AND video_id = ?`, args: [f.code, f.videoId] });
       for (const x of r.rows) found.add(Number(x.season));
     }
-    const ev = await db.execute({ sql: "SELECT season FROM events WHERE code = ? AND livestream LIKE ?", args: [f.code, `%${f.videoId}%`] });
+    const ev = await db.execute({ sql: "SELECT season FROM events WHERE code = ? AND instr(livestream, ?) > 0", args: [f.code, f.videoId] });
     for (const x of ev.rows) found.add(Number(x.season));
     if (found.size === 1) seasonOf.set(key(f), [...found][0]);
     else stuck.push(`${key(f)}: ${found.size ? `linked in ${[...found].join(", ")}` : "no link to it"}`);
@@ -98,7 +104,8 @@ const sorted = (list: Row[]) => [...list].sort((a, b) => key(a).localeCompare(ke
 const back = seasons.flatMap((s) => dataRows<Row>(readFileSync(`${DIR}/${s}.ts`, "utf8")));
 if (dataRows(readFileSync(MAIN, "utf8")).length || !isDeepStrictEqual(sorted(back), sorted(all))) { console.error("the files written don't hold the same rows"); process.exit(1); }
 
-// The pinned rows: each one's video and event, the start of the sha-256 of the row as written, and its `checked`.
+// The pinned rows: each one's video and event, the start of the sha-256 of the row as written, its `checked`, and the
+// season whose file holds it.
 const hash = (f: Row) => createHash("sha256").update(JSON.stringify(f)).digest("hex").slice(0, 12);
-writeFileSync(PINS, `${JSON.stringify(sorted(all).map((f) => `${key(f)} ${hash(f)} ${f.checked}`), null, 0).replace(/","/g, '",\n"').replace(/^\[/, "[\n").replace(/\]$/, "\n]")}\n`);
+writeFileSync(PINS, `${JSON.stringify(sorted(all).map((f) => `${key(f)} ${hash(f)} ${f.checked} ${seasonOf.get(key(f))}`), null, 0).replace(/","/g, '",\n"').replace(/^\[/, "[\n").replace(/\]$/, "\n]")}\n`);
 console.log(`${all.length} rows (${loose.length} moved out of ${MAIN}); pinned in ${PINS}`);
