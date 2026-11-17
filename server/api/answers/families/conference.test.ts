@@ -2,7 +2,7 @@
 // team by number or whole name, a season), answered with the league page's own numbers: a team's place by league RS
 // beside its league rank, a conference's table, who won it from the awards (never the top seed), and "which
 // conference?" when none is named. A team "at" a conference is its tournament's question, left to the event readers.
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { migrate, openDb, run, setDb } from "../../../db";
 import { clearAllCaches } from "../../../caches";
 import { syncConferences } from "../../../data/conferences";
@@ -46,6 +46,13 @@ describe("reading a conference ask", () => {
     "compare 4215 and 207 conference",
     "4215 conference schedule", // the tournament's schedule, not its ranking
     "4215 conference venue",
+    // A filter the table can't answer, never answered as if unsaid.
+    "4215 conference ranking in playoffs",
+    "East Bergen Conference rankings at worlds",
+    "East Bergen Conference rankings all time",
+    // A team and a winner together: not the team's rank.
+    "who won 4215s conference",
+    "4215 conference champion",
   ])("leaves %s to the other readers", (q) => expect(readConferenceAsk(q)).toBeNull());
 });
 
@@ -69,7 +76,11 @@ describe("matching a conference's name", () => {
 });
 
 describe("answering a conference ask", () => {
+  // The fixtures' dates are read against Nov 16, 2026: the 2026–27 tournament stays upcoming whatever today is.
+  afterEach(() => { vi.useRealTimers(); });
   beforeEach(async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-16T12:00:00Z"));
     const c = openDb(":memory:");
     setDb(c);
     await migrate(c);
@@ -207,6 +218,15 @@ describe("answering a conference ask", () => {
     expect(g.definition).toContain("FIRST hasn't posted this tournament's team list: these are the 1 team registered via FTC New Jersey, fetched Jan 5, 2026, not its final field.");
     expect(g.definition).not.toContain("hasn't started");
     expect((await ask("conference rankings 2027-28"))!.none).toBe("No New Jersey conference tournaments are listed for 2027–28.");
+  });
+
+  it("says no conference has been won yet when none has a winner on record, never nothing", async () => {
+    await run("DELETE FROM awards");
+    clearAllCaches();
+    const w = (await ask("who won Conference?"))!;
+    expect(w.none).toBe("No New Jersey conference tournament has been won in 2026–27 yet.");
+    const l = w.blocks[0];
+    expect(l.kind === "links" && l.items.map((i) => i.label)).toEqual(["Hudson/East Bergen Conference: not played yet"]);
   });
 
   it("keeps the next edition when a later season has two tournaments of the name", async () => {
