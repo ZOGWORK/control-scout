@@ -38,7 +38,7 @@ import { eventView, withPageExtras, withStream } from "./api/eventView.js";
 import { videosRouter } from "./videos/routes.js";
 import { viewerOf } from "./videos/contributors.js";
 import { leagueStandings } from "./api/leagues.js";
-import { leagueConferences } from "./api/conferences.js";
+import { leagueConferences, teamConferenceInfo } from "./api/conferences.js";
 import { teamHighlightsPage } from "./teamHighlightsPage.js";
 import { teamRecordPage } from "./teamRecordPage.js";
 import { eventHighlightsPage } from "./eventHighlightsPage.js";
@@ -571,6 +571,10 @@ export function createApp(opts: { dist?: string; /** Tests only: a smaller searc
     if (!p) throw new HttpError(404, `No FTC team ${req.params.number} in our data`);
     return p;
   }));
+
+  // A team's New Jersey conference (api/conferences.ts): whether it's based in New Jersey (who sees the conference
+  // button), its league and, once FIRST lists it in a conference tournament, its place there.
+  api.get("/teams/:number/conference", h(async (req) => teamConferenceInfo(int(req.params.number, "team", { min: 1, max: 999999 }), season(req.query.season))));
 
   // A team's highlights page (server/teamHighlightsPage.ts): Search's "<team> highlights" answer, the same for
   // every visitor. Not found for a team with no page to index or no match to pick from.
