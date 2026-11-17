@@ -14,12 +14,21 @@ export const AUTO_S = 30, SWITCH_S = 8, TELEOP_S = 120;
 /** The match an overlay names: "Qualification 21 of 36" → Q21, "Finals Match 2" → F2, "Playoff Match 7" or just
  *  "Match 7" (a playoff on 2025's overlay) → M7; anything else none. A frame's label only counts with its timer seen
  *  running and confirmed a minute on (scripts/video-frames.ts), so a bracket screen or schedule naming a match, with no
- *  timer running, gives no start. */
-export function overlayLabel(text: string): string | null {
+ *  timer running, gives no start. `semifinals`: the event's playoffs are best-of-3 semifinals and finals (2019–2022),
+ *  whose overlay names each as "Semifinal 1 Match 2" or "Finals Match 1": a bare "Match 1" there is one of those read
+ *  with its first word lost (2019IASQ4's "Finals Match 1" read "Match 1"), so it names none. */
+export function overlayLabel(text: string, semifinals = false): string | null {
   const q = /Qualification\s+(\d{1,3})\s+of\s+\d{1,3}/i.exec(text);
   if (q) return `Q${Number(q[1])}`;
-  const f = /Finals?\s+Match\s+(\d)\b/i.exec(text);
+  // "Finals" with a letter the OCR reads as another ("Finais", "Fnals").
+  const f = /(?<!Semi-?\s?)\bF[il1]?na[il1|]s?\s+Match\s+(\d)\b/i.exec(text);
   if (f) return `F${Number(f[1])}`;
+  // Best-of-3 semifinals (2019–2022's playoffs): "Semifinal 2 Match 1" is the second semifinal's first match, the
+  // event's M2 (series 2, number 1), and "Semifinal 1 Match 2" is its M1-2, never M2. Named with series and number
+  // ("M2-1", "M1-2") so it's never taken for a replay (sameMatch).
+  const sf = /Semi-?\s?finals?\s+(\d)\s+Match\s+(\d)\b/i.exec(text);
+  if (sf) return `M${Number(sf[1])}-${Number(sf[2])}`;
+  if (semifinals) return null;
   // A full-screen card can name several matches: a bracket ("Up Next Match 4", "Winner advances to Playoff Match 7") or
   // a result ("Match 6", "Advances to: Playoff Match 8"). A match it says a team advances to is a later one, never the
   // one on screen; of the rest, two different numbers name no one match, so the frame names none (CAONMIQ 2025). A
@@ -34,6 +43,33 @@ export function overlayLabel(text: string): string | null {
   for (const m of text.matchAll(/(advances\s+to:?\s+(?:Playoff\s+)?|\bTest\s+)?\bMatch\s+(\d{1,2})\b/gi)) if (!m[1]) named.add(Number(m[2]));
   return named.size === 1 ? `M${[...named][0]}` : null;
 }
+
+/** Whether a timer read twice `played` seconds of video apart ran: down by the time played, to the second either
+ *  side, and down at all. A timer standing still is no match in play however little was played between the reads:
+ *  RIQUAL3 2019's "30" waiting for the next match, read 1.6 s apart, passed as running and gave starts 150 s early. */
+export const timerRan = (ran: number, played: number) => played >= 0.5 && ran >= 1 && Math.abs(ran - played) <= 1.6;
+
+/** Whether a timer reading `later` seconds after an Auto reading of `left` is that same match's TeleOp, to within 3 s:
+ *  Auto's rest, the 8 s switch, then TeleOp counting down from 2:00. The end of TeleOp (the other way to read a
+ *  reading of 0:30 or less) leads to a finished match, never to that reading. */
+export function autoLeadsTo(left: number, later: number, reading: number): boolean {
+  const into = later - left - SWITCH_S;
+  return into > 0 && into < TELEOP_S && Math.abs(reading - (TELEOP_S - into)) <= 3;
+}
+
+/** Whether a frame's match (overlayLabel) is the event's match `label`. A semifinal's ("M1-2": series and number) is
+ *  that match only: the event's M1 is "M1-1", its M1-2 "M1-2". Any other ("M6", 2025's overlay) also names its
+ *  replays ("M6-2", a tiebreak), which that overlay names by their match alone. */
+export function sameMatch(named: string, label: string): boolean {
+  if (/^M\d+-\d+$/.test(named)) return (/^M\d+$/.test(label) ? `${label}-1` : label) === named;
+  return named === label.replace(/-\d+$/, "");
+}
+
+/** A frame's match (overlayLabel) as the event names it, where that's one match: a semifinal's first match ("M2-1")
+ *  is the event's M2; every other name is the event's own already ("M1-2", "Q4", "F1"; "M6" of 2025's overlay, whose
+ *  replays it can't tell apart, stays "M6"). What a recording's edge stores (opensOn, endsOn), so outsideRecording
+ *  finds the match in the event's order. */
+export const eventLabel = (named: string) => named.replace(/^(M\d+)-1$/, "$1");
 
 /** FTC Live's rankings card counts the matches played so far ("4 / 23 matches played"): the count and the total. */
 export function playedCount(text: string): { played: number; of: number } | null {
@@ -55,12 +91,16 @@ export const secondsOf = (s: string) => { const m = /(\d):([0-5]\d)/.exec(s); re
 /** secondsOf, where the font's colon is too thin for the OCR to keep ("1:17" read "117", FIRST AGE's white box): the
  *  whole reading is one timer, with or without its colon, at most 2:59. */
 export const secondsLoose = (s: string) => { const m = /^([0-2]):?([0-5]\d)$/.exec(s.replace(/\s/g, "")); return m ? Number(m[1]) * 60 + Number(m[2]) : secondsOf(s); };
+/** A timer that shows bare seconds (FTC Live's overlay from 2019 to 2022: Auto's "30" down to "0", the switch's "8" to
+ *  "0", TeleOp's "120" to "0"): one to three digits and nothing else, at most TeleOp's 120. A colon is another bar's
+ *  timer, never this one. */
+export const secondsPlain = (s: string) => { const m = /^\d{1,3}$/.exec(s.replace(/\s/g, "")); return m && Number(m[0]) <= TELEOP_S ? Number(m[0]) : null; };
 
 /** Seconds since the match started, from its timer (where it's running: a timer standing at its full time is a match
  *  not started yet). Either bar counts Auto down from 0:30, then TeleOp from 2:00, so a reading of 0:30 or less is Auto
  *  only when `auto` says so (readAt tells it by a second read 45 s on); some bottom bars instead count the whole match
  *  down from 2:30, Auto being above 2:00. */
-export function elapsed(t: { where: "bottom" | "top"; left: number; auto: boolean }): number | null {
+export function elapsed(t: { where: "bottom" | "top" | "plain"; left: number; auto: boolean }): number | null {
   // Between Auto and TeleOp the timer counts down the 8 s to pick up the controllers ("0:05" under a hand): the same
   // digits as TeleOp's last seconds. Either could be meant, so no reading that low is used.
   if (t.left <= SWITCH_S) return null;
@@ -105,13 +145,16 @@ export const LOSS_S = 60;
  * How a confirming read's start compares with the start it checks, the confirming read being later in the match. A
  * recording can be cut mid-match (a stream that dropped a few seconds): the video loses time, never gains it, so a read
  * after the cut gives an earlier start by the time lost ("lost"), and a start that a later read puts later came from a
- * read after a cut itself ("gained": the later start is the one to check). Further off, it's another start ("other").
+ * read after a cut itself ("gained": the later start is the one to check). Later by TeleOp's 2:00 and the 8 s switch
+ * ("period"): the first read took an Auto reading for TeleOp's last 30 s (its overlay unread 45 s on, USCHSCHQ2 2022
+ * Q16), and the later start is the one to check, as after a cut. Further off, it's another start ("other").
  */
-export function startOffset(start: number, later: number): "same" | "lost" | "gained" | "other" {
+export function startOffset(start: number, later: number): "same" | "lost" | "gained" | "period" | "other" {
   const off = later - start;
   if (Math.abs(off) <= SAME_S) return "same";
   if (off < 0 && -off <= LOSS_S) return "lost";
   if (off > 0 && off <= LOSS_S) return "gained";
+  if (Math.abs(off - (TELEOP_S + SWITCH_S)) <= SAME_S) return "period";
   return "other";
 }
 
@@ -151,7 +194,7 @@ export function leadIn(at: number, i: number, windows: { start: number | null; e
   return !windows.some((w, k) => k !== i && w.start != null && at < w.start && w.start < from);
 }
 
-/** The rows of server/data/frameTimings.ts as written (one JSON row a line after the data marker). */
+/** The rows of a server/data/frameTimings/<season>.ts file as written (one JSON row a line after the data marker). */
 export function dataRows<T>(text: string): T[] {
   const data = text.split("// --- Data")[1] ?? "";
   return data.split("\n").flatMap((line) => { const m = /^\s*(\{.*\}),?\s*$/.exec(line); return m ? [JSON.parse(m[1]) as T] : []; });

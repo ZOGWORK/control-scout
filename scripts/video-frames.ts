@@ -13,7 +13,8 @@
 // on, so a video with one gap takes about 2 log n reads. A match is kept only where a read saw it, or where two reads
 // that agree hold it between them.
 //
-// What it writes: server/data/frameTimings.ts (the server plays each match from there: server/videos/recordings.ts).
+// What it writes: server/data/frameTimings/<season>.ts, the --season's own file and no other (the server plays each match
+// from server/data/frameTimings.ts, every season's rows together: server/videos/recordings.ts).
 // Run it on a copy of the live database, on a computer that can play YouTube (YouTube refuses data-centre servers).
 //
 //   DATABASE_URL=file:/path/to/copy.db npx tsx scripts/video-frames.ts [--season 2025] [--codes USTXCMP4T,ROCMPVLC]
@@ -26,14 +27,14 @@
 //   --verify  read no starts: check where each placed match's clip opens, for rows not yet checked (opens)
 //   --bounds  read no starts: read each read video's first and last frames (opensOn, endsOn), the proof that a match
 //             was played before it starts or after it ends (outsideRecording); a normal read reads them too
-//   --live <file>  the timings the live site serves (a copy of main's server/data/frameTimings.ts): a re-read start
+//   --live <file>  the timings the live site serves (a copy of main's server/data/frameTimings/<season>.ts): a re-read start
 //             that is one of them (same video, match and second, within a read's slack) and whose opening frame names
 //             nothing stays, unconfirmed, as --verify keeps it; only an overlay naming another match pulls a live clip
 //   TESSERACT_JS=<path to tesseract.js's entry>  where tesseract.js is, when it isn't in node_modules
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
 import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, playedCount } from "./lib/videoFrames";
-import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, elapsed, overlayDivision, leadIn, judge, NOTHING_READ, overlayLabel, secondsLoose, secondsOf, type Judged, type M } from "./lib/videoFrames";
+import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, elapsed, overlayDivision, leadIn, judge, NOTHING_READ, overlayLabel, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M } from "./lib/videoFrames";
 
 // The command line: --name value or --name=value for the value flags, --name alone for the others. Anything else stops
 // the run before it reads: a misspelt flag mustn't quietly read (and write) every recording of the season.
@@ -66,6 +67,10 @@ const season = count("season", 2025);
 const only = arg("codes")?.split(",").map((c) => c.trim().toUpperCase()).filter(Boolean);
 const limit = arg("limit") == null ? Infinity : count("limit", 1);
 const lanes = count("lanes", 3);
+/** The season's own file of rows: the only file a run writes (a season with no file yet needs one, imported in
+ *  server/data/frameTimings.ts, before it can be read). */
+const FRAMES_FILE = `server/data/frameTimings/${season}.ts`;
+if (!existsSync(FRAMES_FILE)) { console.error(`--season ${season}: no ${FRAMES_FILE} (add it, and its import in server/data/frameTimings.ts)`); process.exit(2); }
 const CHECK = flag("check"), ALL = flag("all"), DRY = flag("dry"), TRACE = flag("trace"), VERIFY = flag("verify"), BOUNDS = flag("bounds");
 
 const { migrate, all } = await import("../server/db.js");
@@ -73,7 +78,6 @@ await migrate();
 const R = await import("../server/videos/recordings.js");
 const { CLIP_LEAD_S, actualStart } = await import("../src/shared/recording.js");
 const { localToUtcMs } = await import("../src/shared/time.js");
-const { FRAME_TIMINGS } = await import("../server/data/frameTimings.js");
 /** --live: what the live site serves, by video and event (its starts). */
 const liveRows = (path: string) => {
   let text: string;
@@ -87,8 +91,8 @@ const LIVE = new Map<string, Record<string, number>>(LIVE_ROWS.map((f) => [`${f.
  *  a read leaves out keeps that confidence when it goes back for its opening check. */
 const LIVE_MEDIUM = new Map<string, Set<string>>(LIVE_ROWS.map((f) => [`${f.videoId}|${f.code}`, new Set(f.medium ?? [])]));
 // A --live copy that gives no rows (a wrong file) would protect no live clip: stop, as an unknown --codes does.
-if (arg("live") && !LIVE.size) { console.error(`--live ${arg("live")}: no frame timing rows in it (a copy of main's server/data/frameTimings.ts?)`); process.exit(2); }
-type FrameTiming = (typeof FRAME_TIMINGS)[number];
+if (arg("live") && !LIVE.size) { console.error(`--live ${arg("live")}: no frame timing rows in it (a copy of main's server/data/frameTimings/${season}.ts?)`); process.exit(2); }
+type FrameTiming = import("../server/data/frameTimings.js").FrameTiming;
 const T: any = await import(process.env.TESSERACT_JS ?? "tesseract.js");
 const createWorker = T.createWorker ?? T.default?.createWorker;
 
@@ -149,12 +153,25 @@ const TIMERS = [
   // The same white box in a bar across the top (FIRST AGE's top layout, USPAKSN 2026): wider than FIRST Texas's.
   { where: "top" as const, clip: { x: 585, y: 92, width: 110, height: 50 }, loose: true },
 ];
+/** FTC Live's overlay from 2019 to 2022 shows the timer as bare seconds ("30", "112": secondsPlain), in a box over the
+ *  scores (SKYSTONE 2019, FREIGHT FRENZY 2021: USCHSCMPCARR) or under the centre graphic (POWERPLAY 2022: AUMPOS1).
+ *  Read first for those seasons, before the bars whose crops would catch a score there ("150" reads 1:50 loose), and
+ *  never for later ones, whose bars have other numbers in those places. */
+const PLAIN_TIMERS = [
+  { where: "plain" as const, clip: { x: 595, y: 594, width: 90, height: 36 }, plain: true },
+  { where: "plain" as const, clip: { x: 595, y: 684, width: 90, height: 34 }, plain: true },
+];
+/** Best-of-3 semifinals and finals (2019–2022): the overlay names every playoff "Semifinal 1 Match 2" or "Finals
+ *  Match 1", never a bare "Match 1" (overlayLabel). */
+const SEMIFINALS = season <= 2022;
+const TIMER_CROPS: { where: "bottom" | "top" | "plain"; clip: { x: number; y: number; width: number; height: number }; loose?: boolean; plain?: boolean }[] =
+  season <= 2022 ? [...PLAIN_TIMERS, ...TIMERS] : TIMERS;
 
 /** The timer's reading. `auto`: whether a reading of 0:30 or less is Auto, told by readAt. */
-async function timer(page: Page): Promise<{ where: "bottom" | "top"; left: number; auto: boolean } | null> {
-  for (const t of TIMERS) {
+async function timer(page: Page): Promise<{ where: "bottom" | "top" | "plain"; left: number; auto: boolean } | null> {
+  for (const t of TIMER_CROPS) {
     const text = (await digits.recognize(await page.screenshot({ clip: t.clip }))).data.text;
-    const left = "loose" in t ? secondsLoose(text) : secondsOf(text);
+    const left = t.plain ? secondsPlain(text) : t.loose ? secondsLoose(text) : secondsOf(text);
     if (left == null || left > AUTO_S + SWITCH_S + TELEOP_S) continue;
     return { where: t.where, left, auto: false };
   }
@@ -174,7 +191,7 @@ const MATCH_HALF = { ...LABEL_ROW, x: 640, width: 640 };
  *  so a match's placement is read as before. On a shared stream the row has to name this division too, as a whole
  *  frame's read does. */
 async function labelRow(page: Page, ctx: { own: string; others: string[] } | undefined): Promise<string | null> {
-  const label = overlayLabel((await rowOcr.recognize(await page.screenshot({ clip: MATCH_HALF }))).data.text as string);
+  const label = overlayLabel((await rowOcr.recognize(await page.screenshot({ clip: MATCH_HALF }))).data.text as string, SEMIFINALS);
   if (!label || !ctx) return label;
   const row = (await rowOcr.recognize(await page.screenshot({ clip: LABEL_ROW }))).data.text as string;
   return overlayDivision(row, ctx.own, ctx.others) === "own" ? label : null;
@@ -223,7 +240,7 @@ async function readAtOnce(page: Page, t: number, labelOnly = false): Promise<Rea
   const division = ctx ? overlayDivision(text, ctx.own, ctx.others) : undefined;
   // Another division's match on the shared stream: not this event's, whatever its number.
   if (division === "other") return { label: null, start: null, at, text, why: "another division's overlay", division };
-  const label = overlayLabel(text) ?? (labelOnly ? await labelRow(page, ctx) : null);
+  const label = overlayLabel(text, SEMIFINALS) ?? (labelOnly ? await labelRow(page, ctx) : null);
   if (!label || labelOnly) return { label, start: null, at, text, division };
   const a = await timer(page);
   const atA = await now(page);
@@ -232,14 +249,18 @@ async function readAtOnce(page: Page, t: number, labelOnly = false): Promise<Rea
   const atB = await now(page);
   if (!a || !b || a.where !== b.where) return { label, start: null, at, text, why: `timer read ${a ? `${a.where} ${a.left}` : "nothing"}, then ${b ? `${b.where} ${b.left}` : "nothing"}` };
   const ran = a.left - b.left, played = atB - atA;
-  // Running: down by the time played (to the second either side). A paused or standing timer: not in play.
-  if (played < 0.5 || Math.abs(ran - played) > 1.6) return { label, start: null, at, text, why: `timer ${a.left} then ${b.left} over ${played.toFixed(1)} s played` };
+  // Running: down by the time played (to the second either side). A paused or standing timer: not in play (timerRan).
+  if (!timerRan(ran, played)) return { label, start: null, at, text, why: `timer ${a.left} then ${b.left} over ${played.toFixed(1)} s played` };
   // 0:30 or less on either bar: Auto, or the end of TeleOp. 45 s on, Auto has become TeleOp's 2:00 (well over 30 s
-  // left); the end of TeleOp has finished.
+  // left); the end of TeleOp has finished. That later frame is the same match by its overlay, or, where the overlay
+  // can't be read there, by its TeleOp reading the very second Auto's leads to (2019IASQ4's "Semifinal 2 Match 1",
+  // unread 45 s on: its Auto "0:10" was taken for TeleOp's, a start 128 s early).
   if (a.left <= AUTO_S) {
     await seek(page, atA + 45);
     const c = await timer(page);
-    a.auto = !!c && c.where === a.where && c.left > AUTO_S && overlayLabel((await worker.recognize(await page.screenshot())).data.text) === label;
+    const atC = await now(page);
+    const named = overlayLabel((await worker.recognize(await page.screenshot())).data.text, SEMIFINALS);
+    a.auto = !!c && c.where === a.where && c.left > AUTO_S && (named === label || (!named && autoLeadsTo(a.left, atC - atA, c.left)));
   }
   const e = elapsed(a);
   return { label, start: e == null ? null : Math.round(atA - e), at, text, division, ...(e == null ? { why: `timer ${a.left} isn't a running match's` } : {}) };
@@ -271,9 +292,10 @@ async function confirmed(page: Page, label: string, start: number, own = false, 
         const off = startOffset(start, at.start);
         // A recording cut mid-match: the start stands if an Auto read, early in the same match, agrees with it.
         if (off === "lost" && (await autoAgrees(page, label, start))) { why = ""; break; }
-        // The first read came after a cut: the other start may be the real one (checked by the caller).
-        // Its division evidence goes with it: a read here that showed the own division counts for the other start too.
-        if (off === "gained" && other) { other.start = at.start; other.own = own; }
+        // The first read came after a cut, or took Auto for TeleOp's end ("period"): the other start may be the real
+        // one (checked by the caller, in full). Its division evidence goes with it: a read here that showed the own
+        // division counts for the other start too.
+        if ((off === "gained" || off === "period") && other) { other.start = at.start; other.own = own; }
         return `${after} s on its timer gave a start ${Math.round(at.start - start)} s off`;
       }
       why = "";
@@ -329,9 +351,10 @@ async function checkOpenings(page: Page, j: Judged, log: (s: string) => void, un
       // A seek that never landed shows whatever frame was up before (the last read's): that frame names nothing here.
       if (Math.abs(r.at - t) > 1) { log(`    ${label}: the opening read at ${t} s landed at ${Math.round(r.at)} s; not counted`); continue; }
       if (r.division === "other") { named = "another division's match"; continue; }
-      // The overlay names a replay (a tiebreak's "M6-2") by its match alone ("M6"), as placeVideo reads it.
-      if (r.label === label.replace(/-\d+$/, "")) { at = t; break; }
-      if (r.label) named = r.label;
+      // The overlay names a replay (a tiebreak's "M6-2") by its match alone ("M6"), as placeVideo reads it; a
+      // semifinal's match by its series and number ("M1-2"), that match only (sameMatch).
+      if (sameMatch(r.label ?? "", label)) { at = t; break; }
+      if (r.label) named = eventLabel(r.label);
     }
     if (at != null) { j.opens.set(label, at); continue; }
     if (broken) {
@@ -402,7 +425,10 @@ async function readEdges(page: Page, length: number): Promise<{ opensOn?: Edge; 
     // A sibling division's frame on a shared stream is never this event's edge: neither its match nor its count.
     if (r.division === "other") return null;
     const n = playedCount(r.text);
-    return r.label || n ? { at: Math.round(t), ...(r.label ? { label: r.label } : {}), ...(n ? { played: n.played, of: n.of } : {}) } : null;
+    // Stored as the event names the match (a semifinal's first match "M2-1" is the event's M2), so outsideRecording
+    // finds it among the event's matches.
+    const label = r.label && eventLabel(r.label);
+    return label || n ? { at: Math.round(t), ...(label ? { label } : {}), ...(n ? { played: n.played, of: n.of } : {}) } : null;
   };
   const edge = async (from: (s: number) => number): Promise<Edge | undefined> => {
     let quiet = true;
@@ -468,9 +494,9 @@ async function boundsRow(row: FrameTiming, length: number, division: { own: stri
 /** The second each of a video's matches starts at, as far as its frames show. `shift`: the video's second for a moment
  *  minus that moment (epoch seconds), when YouTube gives the broadcast's start (an upload has none). */
 async function placeVideo(page: Page, ms: M[], shift: number | null, length: number, log: (s: string) => void, unread?: Set<string>, live?: Record<string, number>, liveMedium?: Set<string>): Promise<Judged> {
-  // The overlay names a replay ("M14-2", a tiebreak) by its match alone (M14): each name, its matches in order.
-  const byName = new Map<string, number[]>();
-  ms.forEach((m, i) => { const n = m.label.replace(/-\d+$/, ""); byName.set(n, [...(byName.get(n) ?? []), i]); });
+  // The overlay names a replay ("M14-2", a tiebreak) by its match alone (M14), and a semifinal's match by its series
+  // and number ("M1-2" is that match only): each name, its matches in order (sameMatch).
+  const byName = { get: (n: string) => { const is = ms.flatMap((m, i) => (sameMatch(n, m.label) ? [i] : [])); return is.length ? is : undefined; } };
   const seen = new Map<number, number>(); // index → confirmed start second
   const tried = new Set<number>(); // matches a read named, confirmed or not
   let namedAny = false; // a frame named one of the event's matches, timer read or not: the player showed the stream
@@ -514,7 +540,7 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
     // The read came after a cut in the recording (a later read gives a later start): the later start, checked the same way.
     if (other.start != null && reads() < budget && (await confirmed(page, r.label!, other.start, r.division === "own" || !!other.own)) == null) {
       seen.set(i, other.start);
-      log(`    ${r.label} at ${r.start} s read after a cut in the video; its start is ${other.start} s`);
+      log(`    ${r.label} at ${r.start} s read after a cut in the video, or Auto taken for TeleOp; its start is ${other.start} s`);
       return;
     }
     unconfirmed++;
@@ -656,7 +682,7 @@ const codes = [...recs.keys()].filter((c) => !only || only.includes(c)).sort();
 const unknown = (only ?? []).filter((c) => !recs.has(c));
 if (unknown.length) { console.error(`--codes: no ${season} recording for ${unknown.join(", ")}`); process.exit(2); }
 if (!codes.length) { console.error(`no ${season} recordings to read`); process.exit(2); }
-const kept = new Map<string, FrameTiming>(FRAME_TIMINGS.map((f) => [`${f.videoId}|${f.code}`, { ...f, starts: { ...f.starts } }]));
+const kept = new Map<string, FrameTiming>(dataRows<FrameTiming>(readFileSync(FRAMES_FILE, "utf8")).map((f) => [`${f.videoId}|${f.code}`, { ...f, starts: { ...f.starts } }]));
 // The rows this run wrote. Every other row is taken from the file at each save, so rows written meanwhile (another
 // run with other --codes, a merge bringing a data PR) aren't overwritten by the start-of-run copy.
 const touched = new Set<string>();
@@ -672,7 +698,7 @@ const report: string[] = [];
 let unsaved = false;
 function save(): void {
   if (CHECK || DRY) return;
-  const file = "server/data/frameTimings.ts";
+  const file = FRAMES_FILE;
   for (let tries = 1; ; tries++) {
     try {
       const text = readFileSync(file, "utf8");
@@ -683,7 +709,7 @@ function save(): void {
       for (const [key, f] of onDisk) if (!touched.has(key)) kept.set(key, f);
       const list = [...kept.values()].sort((a, b) => a.code.localeCompare(b.code) || a.videoId.localeCompare(b.videoId));
       const rows = list.map((f) => `  ${JSON.stringify(f)},`).join("\n");
-      writeFileSync(file, `${head}// --- Data (scripts/video-frames.ts writes from here on) ---\nexport const FRAME_TIMINGS: FrameTiming[] = [\n${rows}\n];\n`);
+      writeFileSync(file, `${head}// --- Data (scripts/video-frames.ts writes from here on) ---\nexport const ROWS: FrameTiming[] = [\n${rows}\n];\n`);
       unsaved = false;
       return;
     } catch (e) {
@@ -909,8 +935,8 @@ if (failedEvents) { console.error(`${failedEvents} events failed before their vi
 if (failedVideos) { console.error(`${failedVideos} videos couldn't be played (written with the reason; the next run reads them again)`); process.exitCode = 1; }
 if (!CHECK && !DRY) {
   // The last save may have failed with no save after it (retried above): the run then says so and fails.
-  if (unsaved) { console.error("server/data/frameTimings.ts could not be written: this run's timings are lost"); process.exitCode = 1; }
-  else console.log(`wrote ${kept.size} videos to server/data/frameTimings.ts`);
+  if (unsaved) { console.error(`${FRAMES_FILE} could not be written: this run's timings are lost`); process.exitCode = 1; }
+  else console.log(`wrote ${kept.size} videos to ${FRAMES_FILE}`);
 }
 mkdirSync(".data", { recursive: true });
 writeFileSync(".data/video-frames-report.txt", report.join("\n"));

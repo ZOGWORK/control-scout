@@ -15,6 +15,54 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.2.9 — 2026-11-17
+
+Videos › 104 more 2025 matches get a clip, read off their recording's frames: Sydney South, the Ontario championship and Kazakhstan's Kerey division.
+
+### Highlights
+- [fixes] 104 more 2025 matches get a clip read off the video
+- [fixes] Each opens on a frame whose overlay names its match and event
+- [fixes] No clip already playing changes
+
+### Fixed
+- Videos: three 2025 events whose recordings lost time against their broadcast had matches the clock couldn't place. Their starts are now read off the frames, and each clip opens on a frame (read paused) whose overlay names its match and this event: AUSYQ1 22 of 30 (Q1–Q8 were played before the recording starts), CAONCMP 69 of 74 (Q21, Q50 and Q59 open on another match and go to review; Q22 sits in the recording's 15-minute gap and Q23 wasn't confirmed), and KZCMPKER1 86 of 90 over its three day videos, up from 73. No clip already playing is taken away. (`server/data/frameTimings/2025.ts`) (#1658)
+
+## 7.2.8 — 2026-11-17
+
+Videos › the frame-read match starts are kept one file a season, so a season's recordings can be read alongside another's; every clip plays as before.
+
+### Highlights
+- [fixes] Match clips play from the same seconds as before
+- [fixes] Each season's frame-read starts in a file of its own
+- [fixes] Seasons' recordings can be read side by side
+
+### Changed
+- Videos (`server/data/frameTimings.ts`, `scripts/video-frames.ts`, `scripts/split-frame-timings.ts`): the frame reader's rows live in `server/data/frameTimings/<season>.ts`, one file per season of the row's event (2024: 48 rows, 2025: 162, 2026: 8; 2019 and 2021–2023 empty), and `frameTimings.ts` serves them together, unchanged (#1647). `scripts/video-frames.ts --season N` reads and writes only that season's file, so readers of different seasons never touch the same file. `scripts/split-frame-timings.ts` does the split (re-runnable, it reads its rows back), and a test checks the 218 rows it pinned.
+
+## 7.2.7 — 2026-11-17
+
+Videos › a recording YouTube once called unavailable is looked at again every week, so one made public again gets its clips.
+
+### Highlights
+- [fixes] Recordings made public again get their match clips back
+- [fixes] An unavailable video is looked at again every week
+- [fixes] Fewer events stuck at "video unavailable" in Clip coverage
+
+### Fixed
+- A video YouTube's facts called unavailable (private, removed, embedding off) was never read again, so a recording its owner later made public again stayed hidden for good: no clips, no frame read, "video unavailable" on Owner › Clip coverage. USILCSSLT 2024's recording (44 matches) was marked unavailable on 2026-10-24 and plays again now. Such a video is now read again a week after its last read, like any other fact that can change (28 videos on the live site today, a handful of API units a week). (`server/videos/recordings.ts`) (#1648)
+
+## 7.2.6 — 2026-11-17
+
+Videos › 54 more matches in 7 recordings are settled as played before their recording starts, or cut by it: each recording's first frame names a later match, or one already under way.
+
+### Highlights
+- [fixes] 54 more matches played before their recording no longer need review
+- [fixes] Each one rests on the recording's own first frame
+- [fixes] No clip changes
+
+### Fixed
+- Videos: the first frames of 7 more recordings are read into the data (`opensOn`, `server/data/frameTimings.ts`): USOHKIQ opens on Q5, USTXAUQ on Q10, USTXDTQ2 on Q21 at 0:45 (2024), USTXCEGEM1 on Q2 at 3:50 with no match on screen before it (2026), and USORPHQ, USUTSAS and USWISHQ on a match already under way (Q1, Q1, Q18). The 54 matches they prove were played before their recording starts (or cut by it) are settled in Clip coverage, with that reason. No clip is added, moved or taken away. (#1646)
+
 ## 7.2.5 — 2026-11-17
 
 Sharing › a new link-preview card for Discord, iMessage and Slack, readable at the size those apps show it.
