@@ -8,10 +8,11 @@
 // live refresh: the match being called, its result and verdict for a minute once it's in, then the next one.
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { Check, Play, X } from "lucide-react";
+import { Check, ExternalLink, Play, X } from "lucide-react";
 import type { EventDetail, EventStream, MatchView } from "../shared/api";
 import { embedUrl, thumbnailUrl } from "../shared/stream";
-import { clipParams, onStreamSeek } from "../lib/streamSeek";
+import { clipParams, onStreamSeek, YOUTUBE_ONLY_NOTE } from "../lib/streamSeek";
+import { watchUrl } from "../shared/recording";
 import { bridgedSrc, useVideoClock } from "../lib/ytBridge";
 import { MATCH_S, videoMoment } from "../lib/videoMoment";
 import { VideoPredictions, useVideoPredictions, type OverlayCall } from "./VideoPredictions";
@@ -95,10 +96,20 @@ function Player({ stream, title, matches, liveCall, recording }: { stream: Event
     : own ? (ownMatch ? { match: ownMatch, phase: clock && !clock.playing && clock.t - (start ?? 0) >= MATCH_S ? "after" : "playing" } : null)
     : timed ? (clock ? videoMoment(matches.filter((m) => m.clip?.videoId === day), clock.t) : null) : liveVideo ? liveCall : null;
   const offerOverlay = timed || liveVideo || !!ownMatch;
+  // The day's video plays on YouTube only (its owner turned off playing on other sites): no player here, a link there.
+  const youtubeOnly = !own && !!stream.youtubeOnly?.includes(day);
   return (
     <>
     <div ref={box} className="relative aspect-video w-full overflow-hidden rounded-2xl border border-border bg-black">
-      {start != null ? (
+      {youtubeOnly ? (
+        <a href={watchUrl(day)} target="_blank" rel="noreferrer noopener" className="group absolute inset-0 grid place-items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60" aria-label={`Play on YouTube: ${title}`} data-stream-facade data-youtube-only>
+          <img src={thumbnailUrl(day)} alt="" loading="lazy" decoding="async" onError={(e) => { e.currentTarget.hidden = true; }} className="absolute inset-0 size-full object-cover opacity-80 transition-opacity group-hover:opacity-100 motion-reduce:transition-none" />
+          <span className="relative grid justify-items-center gap-2">
+            <span className="grid size-16 place-items-center rounded-full bg-video-fill text-white shadow-lg sm:size-20"><ExternalLink className="size-7 sm:size-9" aria-hidden /></span>
+            <span className="rounded-md bg-black/75 px-2 py-1 text-sm font-medium text-white">{YOUTUBE_ONLY_NOTE} only</span>
+          </span>
+        </a>
+      ) : start != null ? (
         // Loaded by a click (the facade, or a match's Watch), so autoplay here is the viewer's own choice.
         <>
           <iframe ref={frame} key={play!.n} className="absolute inset-0 size-full" src={bridgedSrc(own ? embedUrl(own.videoId) : day === stream.videoId ? stream.streamUrl : embedUrl(day), { autoplay: 1, rel: 0, ...clipParams({ t: start, end: own ? undefined : play!.end }) })} title={own ? `${own.label}: official match video` : title}
