@@ -59,6 +59,9 @@ export interface ConferenceRow {
   trend?: TrendDir | null;
   /** Its rank by Scout rating among the conference's rated teams, in the week the moves are read at. */
   ratingRank?: number | null;
+  /** The Scout rating in the week `ratingRank` was read (the tournament's week once it's over), so a mover card pairs a
+   *  place with the rating that earned it; `rating` stays the live one the table shows. */
+  ratingThen?: number | null;
 }
 
 /** Where a table's league numbers come from. */
