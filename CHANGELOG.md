@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.3.2 — 2026-11-17
+
+Videos › 20 more 2024 matches get a clip, read off three event videos and checked paused on each clip's opening frame, and 5 matches played before their recording are settled.
+
+### Highlights
+- [fixes] 20 more 2024 matches get a clip read off the video
+- [fixes] Each opens on a frame whose overlay names its match
+- [fixes] 5 matches played before their recording no longer need review
+
+### Fixed
+- Videos: 7 more 2024 recordings are read into the data (`server/data/frameTimings/2024.ts`). Saguaro Blossom - Microchip Qualifier (USAZCHQ1) gets 13 clips, Battle of Brookfield (USWIBRQ1) 5 and the Hawaii Championship (USHICMP) 2, each opening on a frame whose overlay names its match. FiT-North T-League Meet 1's recording (USTXNTM1) opens on Q6, so Q1–Q5 are settled as played before it. Pennsylvania's championship (USPACMP) and USNYNYBRQ1 are recorded as checked, with the matches their videos don't show named for review. No clip already playing changes. (#1649)
+
 ## 7.3.1 — 2026-11-17
 
 Rankings › a New Jersey league's conferences get their own rankings page, laid out like region rankings.
