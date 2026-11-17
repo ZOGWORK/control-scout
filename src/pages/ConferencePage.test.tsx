@@ -49,7 +49,7 @@ afterEach(() => { cleanup(); myTeam = null; myNj = true; conferences = [FN, EB];
 
 const open = (url = "/leagues/2025/USNJ/NO/conferences?conference=east-bergen-conference&team=4215") =>
   render(<MemoryRouter initialEntries={[url]}><Routes><Route path="/leagues/:season/:region/:code/conferences" element={<ConferencePage />} /></Routes></MemoryRouter>);
-const ranks = () => [...document.querySelectorAll("[data-conference-table] tbody tr")].map((tr) => [Number(tr.getAttribute("data-team")), tr.querySelector("[data-rank]")!.textContent]);
+const ranks = () => [...document.querySelectorAll("[data-conference-table] tbody tr")].map((tr) => [Number(tr.getAttribute("data-team")), tr.querySelector("[data-rank]")!.textContent] as const);
 /** Whether `a` comes before `b` in the page. */
 const before = (a: Element, b: Element) => !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
 
