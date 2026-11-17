@@ -199,11 +199,6 @@ export function channelDue(row: { url: string | null; video_id: string | null; c
 }
 
 /**
- * The broadcasts found before, weighed again by ownBroadcasts with the titles the channel audit keeps
- * (official_audit_videos): an event's channel link with a broadcast found isn't read again, so a rule added since
- * reaches its rows only here. Returns how many events lost a broadcast.
- */
-/**
  * Every official recording's event (official_videos, on) and that event's parent when it's a division: a channel
  * broadcast that is another event's official recording isn't this event's, whatever its date says. 2023 USAZTSQ
  * (Tsalie) took FIRST Tech Challenge Arizona's "Red Rock Qualifier" broadcast, USAZCHQ's checked recording, its one
@@ -218,6 +213,12 @@ export async function officialOwners(): Promise<Map<string, { key: string; paren
 const notOthers = (list: Broadcast[], season: number, code: string, owners: Map<string, { key: string; parent: string | null }>) =>
   list.filter((b) => { const o = owners.get(b.videoId), me = `${season}/${code}`; return !o || o.key === me || o.parent === me; });
 
+/**
+ * The broadcasts found before, weighed again by today's rules (another event's official recording off, then
+ * ownBroadcasts) with the titles the channel audit keeps
+ * (official_audit_videos): an event's channel link with a broadcast found isn't read again, so a rule added since
+ * reaches its rows only here. Returns how many events lost a broadcast.
+ */
 export async function reweighBroadcasts(): Promise<number> {
   const rows = await all<{ season: number; code: string; video_id: string; url: string; start: string; title: string | null; name: string | null; timezone: string | null; ev_start: string; ev_end: string | null; livestream: string | null }>(
     `SELECT b.season, b.code, b.video_id, b.url, b.start, a.title, e.name, e.timezone, ${EVENT_FIRST_DAY} AS ev_start, ${EVENT_LAST_DAY} AS ev_end, e.livestream
