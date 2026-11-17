@@ -237,34 +237,40 @@ export async function conferenceAskAnswer(ask: ConferenceAsk, current: number): 
     for (const s of season != null ? [season] : seasons) {
       const ds = (await Promise.all(list.filter((c) => c.season === s).map((c) => conferenceByEvent(c.season, c.code)))).filter((d): d is NonNullable<typeof d> => !!d);
       const done = ds.filter((d) => d.status === "finished" && d.winner);
-      if (!done.length && season == null) continue;
+      // With no season said: the latest season with a winner on record for "who won", else the latest with conferences.
+      if (season == null && (ask.won ? !done.length : !ds.length)) continue;
       return { ...base(s), title: `Which conference? New Jersey's conferences · ${seasonLabel(s)}`,
-        none: done.length ? undefined : `No New Jersey conference tournament has been played in ${seasonLabel(s)} yet.`,
+        none: !ask.won || done.length ? undefined : `No New Jersey conference tournament has been won in ${seasonLabel(s)} yet.`,
         blocks: [{ kind: "links", title: ask.won ? `Which conference? Each New Jersey conference's winner, ${seasonLabel(s)}` : `Which conference? New Jersey's conferences, ${seasonLabel(s)}`,
-          items: (ask.won ? done : ds).map((d) => ({ label: `${d.name}${d.winner ? `: won by ${who(d.winner.captain)}${d.winner.picks.length ? ` with ${d.winner.picks.map(who).join(", ")}` : ""}` : ""}`, href: conferenceHref(d.season, d.region, d.league, { slug: d.slug }), sub: `${asOfDate(d.start) ?? ""} · ${leagueTitle(d.leagueName, d.league)}` })) }] };
+          // Every conference that season, each one's winner or where it stands, so any can be picked.
+          items: ds.map((d) => ({ label: `${d.name}: ${d.winner ? `won by ${who(d.winner.captain)}${d.winner.picks.length ? ` with ${d.winner.picks.map(who).join(", ")}` : ""}`
+            : d.status === "finished" ? "no winner on record yet" : d.status === "live" ? "under way" : "not played yet"}`, href: conferenceHref(d.season, d.region, d.league, { slug: d.slug }), sub: `${asOfDate(d.start) ?? ""} · ${leagueTitle(d.leagueName, d.league)}` })) }] };
     }
     return null;
   }
 
   // A conference's table, or who won it: the season asked, else the latest finished one (the next one said in a line).
   const pickC = season != null ? hits.filter((c) => c.season === season) : hits;
-  if (!pickC.length) return { ...base(season!), title: `${latest(hits).name} ·${seasonLabel(season!)}`, none: `No New Jersey conference by that name in ${seasonLabel(season!)}.` };
+  if (!pickC.length) return { ...base(season!), title: `${latest(hits).name} · ${seasonLabel(season!)}`, none: `No New Jersey conference by that name in ${seasonLabel(season!)}.` };
   // Two conferences the words fit equally in one season: which one, never a guess.
   const bySeason = new Map<number, Stored[]>();
   for (const c of pickC) bySeason.set(c.season, [...(bySeason.get(c.season) ?? []), c]);
   // With no season said, a season the words fit twice is passed over while another fits once; asked, it's "which?".
   const clear = [...bySeason.values()].filter((l) => l.length === 1).flat();
-  const ambiguous = season == null && clear.length ? undefined : [...bySeason.values()].find((l) => l.length > 1);
+  // The latest such season's, never the oldest.
+  const ambiguous = season == null && clear.length ? undefined : [...bySeason.entries()].sort((a, b) => b[0] - a[0]).map(([, l]) => l).find((l) => l.length > 1);
   if (season == null && clear.length) pickC.splice(0, pickC.length, ...clear);
   if (ambiguous) {
     return { ...base(ambiguous[0].season), title: "Which conference?", blocks: [{ kind: "links", title: `Which conference? More than one is called "${ask.words.join(" ")}"`,
       items: ambiguous.map((c) => ({ label: `${c.name} · ${seasonLabel(c.season)}`, href: conferenceHref(c.season, c.region, c.league, { slug: c.slug }), sub: `${leagueTitle(c.leagueName, c.league)}` })) }] };
   }
-  const got = season != null ? { c: pickC[0], d: (await conferenceByEvent(pickC[0].season, pickC[0].code))! } : (await finished(pickC)) ?? (() => {
+  const got = season != null ? { c: pickC[0], d: await conferenceByEvent(pickC[0].season, pickC[0].code) } : (await finished(pickC)) ?? (() => {
     const c = [...pickC].sort((a, b) => b.season - a.season)[0];
     return { c, d: null as null | Awaited<ReturnType<typeof conferenceByEvent>> };
   })();
-  const d = got.d ?? (await conferenceByEvent(got.c.season, got.c.code))!;
+  // A sync may have dropped the conference since the list was read: no answer, never a crash.
+  const d = got.d ?? (await conferenceByEvent(got.c.season, got.c.code));
+  if (!d) return null;
   const S = seasonLabel(d.season);
   const href = conferenceHref(d.season, d.region, d.league, { slug: d.slug });
   const next = season == null ? await nextOf(got.c, list) : null;
