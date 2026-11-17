@@ -73,6 +73,15 @@ describe("the YouTube Data API", () => {
     expect(apiFacts({ liveStreamingDetails: { scheduledStartTime: "2026-05-03T12:00:00Z" } })).toMatchObject({ live: true, start: null });
     expect(apiFacts({ contentDetails: { duration: "PT3M33S" } })).toEqual({ status: "ok", start: null, end: null, length: 213, live: false });
   });
+  it("a video blocked in 50 countries or more is unavailable: it plays almost nowhere; a few countries' block plays", () => {
+    // Live: FTC Ontario's Central Toronto Qualifier stream, blocked in all 249 (the watch page: UNPLAYABLE, "Video unavailable").
+    const every = Array.from({ length: 249 }, (_, i) => `C${i}`);
+    expect(apiFacts({ contentDetails: { duration: "PT8H22M15S", regionRestriction: { blocked: every } }, liveStreamingDetails: { actualStartTime: "2026-02-07T16:02:48Z" } }))
+      .toEqual({ status: "unavailable", start: null, end: null, length: null, live: false });
+    expect(apiFacts({ contentDetails: { duration: "PT4H", regionRestriction: { blocked: every.slice(0, 50) } } })).toMatchObject({ status: "unavailable" });
+    expect(apiFacts({ contentDetails: { duration: "PT4H", regionRestriction: { blocked: every.slice(0, 49) } } })).toMatchObject({ status: "ok", length: 14400 });
+    expect(apiFacts({ contentDetails: { duration: "PT4H", regionRestriction: { blocked: ["BY", "RU"] } } })).toMatchObject({ status: "ok" });
+  });
   it("asks for up to 50 at once; one missing from the answer is unavailable; a failed request leaves all to try again", async () => {
     let asked = "";
     const ok = (async (url: string) => { asked = url; return Response.json({ items: [{ id: "aaaaaaaaaaa", contentDetails: { duration: "PT1M" } }] }); }) as unknown as typeof fetch;
