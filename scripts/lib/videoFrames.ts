@@ -216,6 +216,14 @@ const words = (s: string) => (plain(s).match(/[A-Z]{3,}/g) ?? []).filter((w) => 
 // its "finals Match 1" or "Match 1" could be: overlayLabel names it by series and number (M2-1), or none.
 const MATCH_PHRASE = /Qualification\s+\d{1,3}\s+of\s+(\d{1,3})|Semi-?\s?finals?(?:\s+\d)?\s+Match\s+\d\b|(?:Playoff\s+|F[il1]?na[il1|]s?\s+)?Match\s+\d{1,2}\b/gi;
 
+/** Whose a match's "of M" is, by the event's qualification total: its own; or, where the read is the start of the
+ *  total's digits, nothing to tell by (OCR loses a last digit: USNVCMP 2024's "of 46" read "of 4" at 2700 s, its own
+ *  Q7 taken for another event's); any other M another event's. */
+function totalSays(total: number, quals: number): "own" | "other" | null {
+  if (total === quals) return "own";
+  return String(quals).startsWith(String(total)) ? null : "other";
+}
+
 /**
  * Which event a frame's overlay names: "own" (this event), "other" (another event: two league meets split on one
  * stream, USTXCAM1 2024 its right half, the left "FiT-Central North San Antonio League Meet 1 — Qualification 3 of 24"),
@@ -235,8 +243,12 @@ export function overlayEvent(text: string, own: string, quals?: number, semifina
   const mine = words(own);
   const verdict = (name: string): "own" | "other" | null => {
     const read = words(name);
-    const hit = read.filter((w) => mine.some((o) => o === w || o.startsWith(w) || o.endsWith(w))).length;
-    if (read.filter((w) => w.length >= 4).length >= 2 && hit * 2 < read.length) return "other";
+    const ours = (w: string) => mine.some((o) => o === w || o.startsWith(w) || o.endsWith(w));
+    const hit = read.filter(ours).length;
+    // Only telling words weigh: a 3-letter scrap of the logo beside the name is no word of another event's (USNVCMP 2024
+    // at 2509 s: "rer DIVE — Nevada Chan qualification 6 of 4", its own Nevada one word in three, "Chan" its cut name).
+    const telling = read.filter((w) => w.length >= 4);
+    if (telling.length >= 2 && telling.filter(ours).length * 2 < telling.length) return "other";
     return hit ? "own" : null;
   };
   let other = false, ownLabel: string | undefined, ownSeen = false;
@@ -247,7 +259,7 @@ export function overlayEvent(text: string, own: string, quals?: number, semifina
       const name = verdict(line.slice(from, m.index));
       // A name read decides; with none, the total (a schedule changed after the db was read can't drop a named frame).
       // A name read as another's beside this event's own total is a misread: the total stands.
-      const byTotal = quals && total != null ? (total === quals ? "own" as const : "other" as const) : null;
+      const byTotal = quals && total != null ? totalSays(total, quals) : null;
       const v = name === "other" && byTotal === "own" ? "own" : name ?? byTotal;
       from = m.index! + m[0].length;
       if (v === "other") other = true;

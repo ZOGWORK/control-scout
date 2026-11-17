@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 7.5.4 — 2026-11-17
+## 7.5.6 — 2026-11-17
 
 Videos › 372 matches from eight 2023 events get clips, each opening on its own match: Arizona's Grand Canyon and Saguaro championship divisions and its Glendale qualifier, Kansas City's East and Missouri's SW/Mid league tournaments, Texas's Tesla championship division, and the FiT South area championship and North B&T tournament.
 
@@ -26,6 +26,31 @@ Videos › 372 matches from eight 2023 events get clips, each opening on its own
 
 ### Fixed
 - Videos (`server/data/frameTimings/2023.ts`): frame-read starts for USAZCMPGC1 (42 of 45 played), USAZCMPSG1 (38 of 42), USAZGLQ (41 of 41), USMOKSKCELT (49 of 49), USMOKSSWMILT (47 of 50), USTXCMPTESL (54 of 60, two videos), USTXMISQ (55 of 58) and USTXNBTLT (46 of 50). Each clip's opening frame names its match; semifinal matches read before the reader knew CENTERSTAGE's semifinal names are left for review, never shown as clips (#1681).
+
+## 7.5.5 — 2026-11-17
+
+Videos › The frame reader now reads streams whose score bar sits along the top of the frame, as FIRST Nevada's do.
+
+### Highlights
+- [fixes] Match clips can now be found on streams with the score bar on top
+- [fixes] An event's own matches are no longer taken for another event's
+- [history] Nevada's 2024 championship: 33 of 57 matches found, from none
+
+### Fixed
+- The frame reader read nothing on FTC Live's bar moved to the top edge (FIRST Nevada, USNVCMP 2024): its row is now read on its own when the whole frame names no match, and that bar's timer is read first in its own place under it. A dry read of USNVCMP places 33 of 57 matches, from 0. (`scripts/video-frames.ts`)
+- The overlay's event check took this event's own frames for another event's: a total with its last digit lost ("of 46" read "of 4") now tells nothing, and only words of four letters or more weigh against a name ("rer DIVE — Nevada Chan"). (`scripts/lib/videoFrames.ts`) (#1713)
+
+## 7.5.4 — 2026-11-17
+
+Videos › 167 of the İstanbul Premier Event's 168 division match clips now open on a frame naming their match and division, and 16 Valens clips that opened 48 s late now catch the start.
+
+### Highlights
+- [fixes] 167 İstanbul clips open on a frame naming their match
+- [fixes] 16 Valens Division clips no longer miss the start of their match
+- [fixes] No clip is taken away
+
+### Fixed
+- Videos: both divisions of the İstanbul Premier Event (FPEISTRDIV, FPEISTVDIV) are now played from their recordings' own frames, two day videos each, rather than from the clock. Rumeli places 83 of its 84 matches; its Q28 has no readable overlay at its start, so it keeps the clock's clip. Valens places all 84. Each clip opens on a paused frame whose overlay names its match and its own division, never the sibling's, though the two share a stream. 151 openings move 11 to 18 s later, past the clock's early lead-in, to where the match's overlay is up. Valens's first day runs 49 s off the clock from Q36 on, so its Q36–Q51 clips, which opened about 48 s into play, now open before the start. (`server/data/frameTimings/2025.ts`) (#1669)
 
 ## 7.5.3 — 2026-11-17
 
