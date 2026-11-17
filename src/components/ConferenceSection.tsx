@@ -97,7 +97,9 @@ export function sourceText(c: Conference): string {
 
 /** The week's movers among the conference's teams, by Scout rating (src/shared/regionRankings.ts movers' rule). */
 export function conferenceMovers(c: Conference): { climbers: MoverItem[]; fallers: MoverItem[]; newcomers: NewItem[]; newTotal: number } {
-  const rated = c.rows.filter((r): r is ConferenceRow & { ratingRank: number; rating: number } => r.ratingRank != null && r.rating != null);
+  // The place and the rating of the same week: a finished conference's movers are read at its tournament's week.
+  const rated = c.rows.map((r) => ({ ...r, rating: r.ratingThen ?? r.rating }))
+    .filter((r): r is ConferenceRow & { ratingRank: number; rating: number } => r.ratingRank != null && r.rating != null);
   const moved = rated.filter((r): r is typeof r & { move: number } => typeof r.move === "number" && r.move !== 0);
   const m = (r: (typeof moved)[number]): MoverItem => ({ team: r.team, name: r.name, rank: r.ratingRank, rating: r.rating, move: r.move });
   const fresh = rated.filter((r) => r.move === "new").sort((a, b) => a.ratingRank - b.ratingRank);
