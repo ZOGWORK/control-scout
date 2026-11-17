@@ -382,16 +382,24 @@ export function leadIn(at: number, i: number, windows: { start: number | null; e
 }
 
 /**
- * An event's linked recordings the reader can't read: YouTube's details for them (length, broadcast start) aren't on
- * file, or fetching them failed. Each is said, never dropped quietly: KZCMP 2022's two day-2 videos were linked with no
- * details, and the read went over day 1 alone as if it were the whole event. `only`: none of its videos can be read.
+ * An event's linked recordings the reader can't read, each said, never dropped quietly (KZCMP 2022's two day-2 videos
+ * were linked with no details, and the read went over day 1 alone as if it were the whole event).
+ * `fixable`: fetching YouTube's details again would let it be read: none on file, or the fetch failed. A video YouTube
+ * says is unavailable (removed or private), or one with no length (a live stream the player can't time: looked at again
+ * next run), is said but isn't fixable by fetching.
+ * `fails`: none of the event's videos can be read and at least one is fixable; never for an event whose only video is
+ * gone or still live, which would fail every run.
  */
-export function undetailed(videos: readonly { videoId: string; meta?: { status?: string; length?: number | null } | null }[]): { skipped: { videoId: string; why: string }[]; only: boolean } {
-  const skipped = videos.filter((v) => v.meta?.status !== "ok" || !v.meta.length).map((v) => ({
-    videoId: v.videoId,
-    why: !v.meta ? "no details on file" : v.meta.status !== "ok" ? `its details couldn't be fetched (${v.meta.status ?? "no status"})` : "no length on file",
-  }));
-  return { skipped, only: skipped.length > 0 && skipped.length === videos.length };
+export function undetailed(videos: readonly { videoId: string; meta?: { status?: string; length?: number | null } | null }[]): { skipped: { videoId: string; why: string; fixable: boolean }[]; fails: boolean } {
+  const skipped = videos.filter((v) => v.meta?.status !== "ok" || !v.meta.length).map((v) => {
+    const m = v.meta;
+    if (!m) return { videoId: v.videoId, why: "no details on file (fetch them, then read again)", fixable: true };
+    if (m.status === "error") return { videoId: v.videoId, why: "fetching its details failed (fetch again, then read again)", fixable: true };
+    if (m.status === "unavailable") return { videoId: v.videoId, why: "unavailable on YouTube (removed or private)", fixable: false };
+    if (m.status !== "ok") return { videoId: v.videoId, why: `its details say ${m.status ?? "no status"}`, fixable: false };
+    return { videoId: v.videoId, why: "no length: a live stream or one the player can't time (looked at again next run)", fixable: false };
+  });
+  return { skipped, fails: skipped.length > 0 && skipped.length === videos.length && skipped.some((s) => s.fixable) };
 }
 
 /** The rows of a server/data/frameTimings/<season>.ts file as written (one JSON row a line after the data marker). */
