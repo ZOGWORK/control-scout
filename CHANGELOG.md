@@ -25,7 +25,9 @@ Search engines › a page Google drew before a deploy still finds its scripts, s
 - [fixes] A tab left open across an update still opens its pages
 
 ### Fixed
-- Search engines: only the three newest releases stay on disk and the site deploys several times a day, so a page drawn hours earlier (kept by Googlebot's renderer, which caches scripts for weeks, or open in a tab) asked for chunks that were gone: Googlebot got 404s on `/assets/*.js` (about 370 in two weeks of the server's log), and a page whose chunk is missing renders empty, which Google reads as a soft 404. Every release's hashed files are now kept for 30 days in one archive the server falls back to after the release's own files (each file renamed in whole, never rewritten while served); anything in neither is still a 404. (`server/app.ts`, `deploy/oracle-vm-setup.sh`) (#1666)## 7.3.4 — 2026-11-17
+- Search engines: only the three newest releases stay on disk and the site deploys several times a day, so a page drawn hours earlier (kept by Googlebot's renderer, which caches scripts for weeks, or open in a tab) asked for chunks that were gone: Googlebot got 404s on `/assets/*.js` (about 370 in two weeks of the server's log), and a page whose chunk is missing renders empty, which Google reads as a soft 404. Every release's hashed files are now kept for 30 days in one archive the server falls back to after the release's own files (each file renamed in whole, never rewritten while served); anything in neither is still a 404. (`server/app.ts`, `deploy/oracle-vm-setup.sh`) (#1666)
+
+## 7.3.4 — 2026-11-17
 
 Videos › the frame reader now reads CENTERSTAGE (2023) recordings, whose overlay it couldn't read before, so their matches can get clips.
 
