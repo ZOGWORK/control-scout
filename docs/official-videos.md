@@ -332,19 +332,23 @@ channel's whole uploads list, video by video, with Scout's records. It reads onl
   - it never aired: YouTube's facts, read after a day past the event's last day, still list it as live or to come
     with no start, and the event played (facts read before then prove nothing; a postponed event whose dates aren't
     moved yet keeps its stream);
-  - it was linked under a title naming the event's meet number, and its title now names another ("Meet #1a" counts
-    as meet 1; a title naming two meets, a pair like "Meet 3/4" or a date like "Meet 11/14" is no call).
+  - it was linked under a title naming the event's meet number, its title now names another, and it didn't air on the
+    event's days ("Meet #1a" counts as meet 1; a title naming two meets, a pair like "Meet 3/4", a date like
+    "Meet 11/14" or a year like "Meet 2026" is no call; a stream that aired on the event's days and was renamed since
+    is still that day's recording).
 
   A channel can reuse a scheduled stream for a later meet: FIRST in Missouri's `qM3qo5rrmyc` was listed for
   Camdenton Meet #1 (2026 USMOKSSWM1) while still to come, never aired that day, and became its "Southwest League
   Meet #2 … November 21" stream. The owner's links and links from evidence are decisions on what the video shows, and
-  stay. A video taken off is freed, in one write under the data lock, each step only if the one before took effect:
-  its link row goes; the drop is logged (`owner_audit`, "link check", `officialVideo.remove`, with its event, day,
-  part and source), and the checked list's seed never writes a video so logged back, whatever is decided of it later;
-  and it's set aside in the watcher's list (decided by "link check"), unless the owner or evidence decided its row.
-  The channel audit decides that list again each run: while it's still to come it stays set aside (nothing waits in
-  review), once it airs as the meet it names it's added there, and one the rules would send to review stays set
-  aside for the owner to approve.
+  stay. A video taken off is freed, under the data lock, one transaction a video, each step only if the one before took
+  effect: its link row goes (the owner's Remove meanwhile leaves nothing to do); the drop is logged (`owner_audit`,
+  "link check", `officialVideo.remove`, with its event, day, part and source), and the checked list's seed never
+  writes that video back onto that event, whatever is decided of it later (listed for another event, it's written
+  there; the entries it skips are logged); and it's set aside in the watcher's list (decided by "link check"), unless
+  the owner or evidence decided its row. The channel audit decides that list again each run: while it's still to come
+  it stays set aside, once it airs as the meet it names it's added there (or, if another video already holds that
+  day, put in the owner's review like any clash), and one the rules would send to review stays set aside for the
+  owner to approve.
 - **Best guesses in review.** Every video in review or set aside whose verdict names no event gets a best guess
   (`official_watch.guess_why`). New rows get it when the watcher reads them; older rows get it at the next audit.
 - **Runs** (`official_audit_runs`): units, channels read and read in full, uploads, those with a Scout record, set
