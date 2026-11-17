@@ -34,7 +34,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
 import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, playedCount } from "./lib/videoFrames";
-import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, elapsed, overlayDivision, leadIn, judge, NOTHING_READ, onSwitch, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M } from "./lib/videoFrames";
+import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, elapsed, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, onSwitch, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M } from "./lib/videoFrames";
 
 // The command line: --name value or --name=value for the value flags, --name alone for the others. Anything else stops
 // the run before it reads: a misspelt flag mustn't quietly read (and write) every recording of the season.
@@ -103,6 +103,10 @@ type Read = { label: string | null; start: number | null; at: number; text: stri
  *  overlay it saw; a sibling's is never this event's match, and a start stands only when a read of it showed this
  *  division's name. */
 const divisions = new WeakMap<Page, { own: string; others: string[] }>();
+/** Each event's name (events.name), and the event a page reads: a frame whose overlay names another event is never
+ *  this one's (overlayEvent: two league meets split on one stream, USTXCAM1 2024). */
+const eventNames = new Map<string, { name: string; quals: number }>();
+const pageEvent = new WeakMap<Page, { name: string; quals: number }>();
 
 // --- Reading a frame -----------------------------------------------------------------------------------------------
 
@@ -223,28 +227,40 @@ const LABEL_ROW = { x: 0, y: 548, width: 1280, height: 56 };
  *  (rowAbove). CENTERSTAGE's bottom bar sits its line 8 px lower than later seasons' (ROW_LOWER): read at the usual
  *  row, tesseract runs "9 of" into "90f" there (USTXNTM1 2023 at 1108 s), so that row is read too. */
 const ROW_LOWER = 8;
-async function labelRow(page: Page, ctx: { own: string; others: string[] } | undefined): Promise<string | null> {
+type PageEvent = { name: string; quals: number };
+async function labelRow(page: Page, ctx: { own: string; others: string[] } | undefined, event?: PageEvent): Promise<string | null> {
   for (const row of [LABEL_ROW, { ...LABEL_ROW, y: LABEL_ROW.y + ROW_LOWER }]) {
-    const fixed = await readRow(page, row, ctx);
+    const fixed = await readRow(page, row, ctx, event);
     if (fixed) return fixed;
   }
   const band = await barBand(page);
   const row = band && rowAbove(band, LABEL_ROW);
-  return row ? readRow(page, row, ctx) : null;
+  return row ? readRow(page, row, ctx, event) : null;
 }
-async function readRow(page: Page, row: { x: number; y: number; width: number; height: number }, ctx: { own: string; others: string[] } | undefined): Promise<string | null> {
+/** The row's match half, then (on a shared stream, or where the event is known) the whole row: the event name beside
+ *  the match says whose it is (overlayEvent). Another event's is never this one's; on a split screen the match half may
+ *  be the other event's, so the match beside this event's name in the row is taken. */
+async function readRow(page: Page, row: { x: number; y: number; width: number; height: number }, ctx: { own: string; others: string[] } | undefined, event?: PageEvent): Promise<string | null> {
   const half = (await rowOcr.recognize(await page.screenshot({ clip: { ...row, x: row.width / 2, width: row.width / 2 } }))).data.text as string;
-  if (!overlayLabel(half, SEMIFINALS) || !ctx) return rowLabel(half, null, undefined, SEMIFINALS);
-  return rowLabel(half, (await rowOcr.recognize(await page.screenshot({ clip: row }))).data.text as string, ctx, SEMIFINALS);
+  if (!overlayLabel(half, SEMIFINALS) || (!ctx && !event)) return rowLabel(half, null, undefined, SEMIFINALS);
+  const whole = (await rowOcr.recognize(await page.screenshot({ clip: row }))).data.text as string;
+  const seen = event ? overlayEvent(whole, event.name, event.quals, SEMIFINALS) : null;
+  if (seen?.event === "other") return null;
+  const label = rowLabel(half, whole, ctx, SEMIFINALS);
+  return label && (seen?.phrase ?? label);
 }
 
 /** The match a frame names: the whole frame's read, else the bar's row on its own (labelRow). `division`: whose the
- *  frame is on a shared stream; a match the row named there is this division's (labelRow checked the row). */
-async function frameLabel(page: Page, text: string, ctx: { own: string; others: string[] } | undefined): Promise<{ label: string | null; division?: "own" | "other" | null }> {
-  const whole = overlayLabel(text, SEMIFINALS);
+ *  frame is on a shared stream; a match the row named there is this division's (labelRow checked the row). `event`:
+ *  "other" where the overlay names another event beside the match (overlayEvent); on a split screen, this event's half. */
+async function frameLabel(page: Page, text: string, ctx: { own: string; others: string[] } | undefined): Promise<{ label: string | null; division?: "own" | "other" | null; event?: "other" }> {
+  const own = pageEvent.get(page);
+  const seen = own ? overlayEvent(text, own.name, own.quals, SEMIFINALS) : null;
+  if (seen?.event === "other") return { label: null, division: "other", event: "other" };
+  const whole = seen?.label ?? overlayLabel(text, SEMIFINALS);
   const division = ctx ? overlayDivision(text, ctx.own, ctx.others) : undefined;
   if (whole || division === "other") return { label: whole, division };
-  const row = await labelRow(page, ctx);
+  const row = await labelRow(page, ctx, own);
   return { label: row, division: row && ctx ? "own" : division };
 }
 
@@ -288,9 +304,9 @@ async function readAtOnce(page: Page, t: number, labelOnly = false): Promise<Rea
   const at = await now(page);
   const text = (await worker.recognize(await page.screenshot())).data.text as string;
   const ctx = divisions.get(page);
-  const { label, division } = await frameLabel(page, text, ctx);
-  // Another division's match on the shared stream: not this event's, whatever its number.
-  if (division === "other") return { label: null, start: null, at, text, why: "another division's overlay", division };
+  const { label, division, event } = await frameLabel(page, text, ctx);
+  // Another division's match on the shared stream, or another event's beside its name: not this event's, whatever its number.
+  if (division === "other") return { label: null, start: null, at, text, why: event === "other" ? "another event's overlay" : "another division's overlay", division };
   if (!label || labelOnly) return { label, start: null, at, text, division };
   const a = await timer(page);
   const atA = await now(page);
@@ -447,6 +463,7 @@ async function verifyRow(row: FrameTiming, division: { own: string; others: stri
   try {
     page = await player();
     if (division) divisions.set(page, division);
+    { const e = eventNames.get(row.code); if (e) pageEvent.set(page, e); }
     await open(page, row.videoId);
     log(`  ${row.videoId}: checking ${Object.keys(row.starts).length} clip openings`);
     const medium = new Set(row.medium ?? []);
@@ -543,6 +560,7 @@ async function boundsRow(row: FrameTiming, length: number, division: { own: stri
   try {
     page = await player();
     if (division) divisions.set(page, division);
+    { const e = eventNames.get(row.code); if (e) pageEvent.set(page, e); }
     await open(page, row.videoId);
     const { opensOn, endsOn } = await readEdges(page, length);
     log(`  ${row.videoId}: opens on ${saidEdge(opensOn)}, ends on ${saidEdge(endsOn, "after")}`);
@@ -842,7 +860,9 @@ async function openOnce(page: Page, videoId: string): Promise<void> {
   // No captions over the overlay.
   await page.evaluate(() => { try { (document.querySelector("#movie_player") as any)?.unloadModule?.("captions"); } catch { /* none */ } });
   // Auto-captions sit right over the bottom bar's timer, and the embed's own bars over the top: hidden.
-  await page.addStyleTag({ content: ".ytp-caption-window-container, .caption-window, .ytp-chrome-top, .ytp-pause-overlay, .ytp-show-cards-title, .ytp-ce-element, .ytp-player-content.ytp-iv-player-content, .ytp-large-play-button, .ytp-bezel, .ytp-chrome-bottom { display: none !important; }" });
+  // The newer embed also draws the video's title (often the event's name) over the top of a paused frame, outside
+  // #movie_player: hidden too, or the event-name check (overlayEvent) could read the title instead of the overlay.
+  await page.addStyleTag({ content: ".ytp-caption-window-container, .caption-window, .ytp-chrome-top, .ytp-pause-overlay, .ytp-show-cards-title, .ytp-ce-element, .ytp-player-content.ytp-iv-player-content, .ytp-large-play-button, .ytp-bezel, .ytp-chrome-bottom, #player-controls, #player-control-overlay, player-top-controls, embedded-player-video-details { display: none !important; }" });
 }
 
 async function doCode(code: string): Promise<void> {
@@ -859,6 +879,9 @@ async function doCode(code: string): Promise<void> {
   if (!played.length) return;
   // Divisions of one event can share a stream: each read must be this division's overlay (divisionOf, overlayDivision).
   const [ev] = await all<{ name: string; division_code: string | null }>("SELECT name, division_code FROM events WHERE season = ? AND code = ?", [season, code]);
+  // Its name and qualification total, to tell its overlay from another event's on the same stream (overlayEvent).
+  const [q] = await all<{ n: number }>("SELECT COUNT(*) AS n FROM matches WHERE season = ? AND code = ? AND label LIKE 'Q%'", [season, code]);
+  if (ev?.name) eventNames.set(code, { name: ev.name, quals: Number(q?.n ?? 0) });
   const siblings = ev?.division_code ? await all<{ name: string }>("SELECT name FROM events WHERE season = ? AND division_code = ? AND code != ?", [season, ev.division_code, code]) : [];
   const ownDiv = ev ? divisionOf(ev.name) : null, others = siblings.map((x) => divisionOf(x.name));
   const division = ownDiv && others.length && others.every((x): x is string => x != null) ? { own: ownDiv, others: others as string[] } : null;
@@ -941,6 +964,7 @@ async function doCode(code: string): Promise<void> {
     try {
       page = await player();
       if (division) divisions.set(page, division);
+      { const e = eventNames.get(code); if (e) pageEvent.set(page, e); }
       await open(page, v.videoId);
       log(`  ${v.videoId}: ${mine.length} matches`);
       console.error(`${new Date().toISOString().slice(11, 19)} ${code} ${v.videoId}: ${mine.length} matches`);
@@ -954,6 +978,7 @@ async function doCode(code: string): Promise<void> {
         await closePage(page);
         page = await player();
         if (division) divisions.set(page, division);
+        { const e = eventNames.get(code); if (e) pageEvent.set(page, e); }
         await open(page, v.videoId);
         unread.clear();
         j = await placeVideo(page, mine, from == null ? null : -from, m.length!, log, unread, live, liveMedium);
