@@ -45,7 +45,9 @@ try {
 } finally { Pop-Location }
 
 $tess = "file:///" + ($Tesseract -replace "\\", "/")
-$run = "Set-Location '$Clone'; `$env:TESSERACT_JS='$tess'; New-Item -ItemType Directory -Force .data\autopilot | Out-Null; git fetch --quiet origin; git switch --quiet --detach origin/main; node node_modules/tsx/dist/cli.mjs scripts/clip-autopilot.ts *>> .data\autopilot\task.log"
+# The start (plain Node) brings the clone and its dependencies to main before the runner runs: npm ci can't replace
+# node_modules under a running tsx on Windows.
+$run = "Set-Location '$Clone'; `$env:TESSERACT_JS='$tess'; New-Item -ItemType Directory -Force .data\autopilot | Out-Null; node scripts/clip-autopilot-start.mjs *>> .data\autopilot\task.log"
 $action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -WindowStyle Hidden -Command `"$run`""
 $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(5) -RepetitionInterval (New-TimeSpan -Hours $EveryHours)
 $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Hours 10) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
