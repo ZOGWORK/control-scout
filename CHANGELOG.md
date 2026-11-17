@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.6.3 — 2026-11-17
+
+Videos › 200 matches from six more 2023 events get clips, each opening on its own match: Texas's UIL 6A and 5A state championships, Alabama's Cup #2, Colorado's Central qualifier, and Chesapeake's Park School and Jackson Reed qualifiers.
+
+### Highlights
+- [fixes] 200 more 2023 matches get a clip
+- [fixes] Every clip opens on a frame naming its match
+- [fixes] Six more 2023 events that had no clips now have them
+
+### Fixed
+- Videos (`server/data/frameTimings/2023.ts`): frame-read starts for USCHSBAQ6 (34 of 34 played), USCHSDCQ (34 of 34), USCODEQ (34 of 34), USTXBES1 (34 of 35), USTXBES2 (35 of 35) and USALHUS2 (29 of 34). Each clip's opening frame names its match and its event (#1736).
+
 ## 7.6.2 — 2026-11-17
 
 Videos › 105 matches from three 2025 events (Greenwood QT and the NorCal Regional Championship's Gold and Silicon divisions) get a clip, each opening on a frame that names its match and its event.
