@@ -202,16 +202,16 @@ for (const p of open) {
 // watching, the autopilot merges its own data PRs only (its label, branch and mark), each through the gate
 // (scripts/lib/autopilotMerge.ts: anything a person should look at first stops it), at most one a run, never within
 // MAIN_QUIET of main's last commit (each merge deploys and restarts the site), never deleting its branch. Then it
-// waits for /api/health to serve the merge. --no-merge: open and rebuild PRs only.
-if (!DRY && MERGE) mergeOne();
+// waits for /api/health to serve the merge. --no-merge: open and rebuild PRs only. Called below its helpers: a `const`
+// read before its line runs throws (the step would stop every run with nothing merged).
 /** main's head as GitHub has it now: its sha and when main last moved, from GitHub's own record of the push (a commit
  *  pushed straight to main keeps the date it was made, which can be long before). Without that record, the commit's. */
-const mainHead = () => {
+function mainHead(): { sha: string; at: number } {
   const [sha, at] = sh("gh", ["api", "repos/{owner}/{repo}/activity?ref=refs/heads/main&per_page=1", "--jq", ".[0] | .after + \" \" + .timestamp"], { quiet: true, ok: true }).out.trim().split(" ");
   if (/^[0-9a-f]{40}$/.test(sha ?? "") && Number.isFinite(Date.parse(at ?? ""))) return { sha, at: Date.parse(at) };
   const [s, date] = sh("gh", ["api", "repos/{owner}/{repo}/commits/main", "--jq", ".sha + \" \" + .commit.committer.date"], { quiet: true }).out.trim().split(" ");
   return { sha: s, at: Date.parse(date) };
-};
+}
 /** The merge commit GitHub made for `pr`, asked a few times (it can take a moment to report it); "" if never. */
 function mergeCommitOf(pr: number): string {
   for (let i = 0; i < 4; i++) {
@@ -269,6 +269,7 @@ function waitLive(merged: string, what: string): void {
   }
   log(`merge: ${what} (${merged.slice(0, 9)}) not live after ${LIVE_WAIT_MS / 60_000} min: check the deploy`);
 }
+if (!DRY && MERGE) mergeOne();
 
 // --- 2. A snapshot of the live database ---------------------------------------------------------------------------------
 let snapshot = DB;
