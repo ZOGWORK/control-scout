@@ -36,7 +36,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
 import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, playedCount, playedMatches, wholeLength } from "./lib/videoFrames";
-import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, countsThrough, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, cropOrder, elapsed, flippedClip, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M } from "./lib/videoFrames";
+import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, countsThrough, secondsAlone, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, cropOrder, elapsed, flippedClip, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M } from "./lib/videoFrames";
 
 // The command line: --name value or --name=value for the value flags, --name alone for the others. Anything else stops
 // the run before it reads: a misspelt flag mustn't quietly read (and write) every recording of the season.
@@ -451,25 +451,44 @@ async function confirmed(page: Page, label: string, start: number, own = false, 
     why = at.label ? `${CONFIRM_AFTER.join(", ")} s on its timer wasn't read running (last: ${at.why})` : `${CONFIRM_AFTER.join(", ")} s on the overlay read nothing`;
   }
   if (why) return why;
+  // The crop the confirming reads ran in, taken now: the read 25 s before may change the page's crop.
+  const card = timerCrop.get(page)?.card ? timerCrop.get(page)! : null;
   const before = await readAt(page, start - 25);
   if (before.label === label) own ||= before.division === "own";
   if (before.label === label && before.start != null) return `25 s before it was already running (start ${Math.round(before.start - start)} s off)`;
-  // A start read off an audience display's card (the crop its confirming reads ran in): the card counts timeouts and
-  // field resets down too, under a bar already naming the next match. Up to 3 minutes before the start, the same card
-  // running one countdown through it (over a match's 2:38, reaching 2:30–2:38 at the start) is no match (countsThrough).
-  const crop = timerCrop.get(page);
-  if (crop?.card) {
+  // A start read off an audience display's card: the card counts timeouts and field resets down too, under a bar
+  // already naming the next match. The same card running one countdown through it (over a match's 2:38, reaching
+  // 2:30–2:38 at the start) is no match (countsThrough). A 3:00 timeout taken for a match began only 22 s before the
+  // start it gives, so the card is read close in (5, 10 s) as well as further out (a 5:00 reset).
+  if (card) {
     for (const ahead of COUNTDOWN_CHECK) {
-      await seek(page, start - ahead);
-      const left = secondsOf((await digits.recognize(await page.screenshot({ clip: crop.clip }))).data.text);
+      if (start - ahead < 0) continue;
+      const left = await cardAt(page, start - ahead, card.clip);
       if (left != null && countsThrough(left, ahead)) return `${ahead} s before it the card counted ${left} s down through its start (a timeout or reset, not a match)`;
     }
   }
   if (divisions.has(page) && !own) return "no read of it showed its division's name (the stream carries another division too)";
   return null;
 }
-/** Seconds before a start read off an audience display's card that the card is read for a countdown running through it. */
-const COUNTDOWN_CHECK = [25, 90, 170];
+/** Seconds before a start read off an audience display's card that the card is read for a countdown running through it.
+ *  At 5 and 10 s, a real match's card stands at 2:30 or shows the last match's 0:00: never over 2:38. */
+const COUNTDOWN_CHECK = [5, 10, 25, 90, 170];
+/** The clock alone on an audience display's card at second t (secondsAlone), as a frame read: counted in the page's
+ *  budget, traced, and failed after READ_LIMIT_S like readAt. */
+function cardAt(page: Page, t: number, clip: TimerCrop["clip"]): Promise<number | null> {
+  pageReads.set(page, (pageReads.get(page) ?? 0) + 1);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  return Promise.race([
+    (async () => {
+      await seek(page, t);
+      return secondsAlone((await digits.recognize(await page.screenshot({ clip }))).data.text);
+    })().finally(() => clearTimeout(timer)).then((left) => {
+      if (TRACE) console.error(`    card ${Math.round(t)} s: ${left ?? "-"}`);
+      return left;
+    }),
+    new Promise<never>((_, no) => { timer = setTimeout(() => { void renewOcr(); no(new Error(`a card read at ${Math.round(t)} s hung over ${READ_LIMIT_S} s`)); }, READ_LIMIT_S * 1000); }),
+  ]);
+}
 
 /** An Auto read early in the match (AUTO_CONFIRM) gives the same start: the frames right after it agree with it. */
 async function autoAgrees(page: Page, label: string, start: number): Promise<boolean> {
