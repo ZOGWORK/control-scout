@@ -184,6 +184,11 @@ cut short keeps what it read, and readers of different seasons never touch the s
 PR like any other change. A season with no file yet needs one (an empty copy of another season's) and its import in
 `server/data/frameTimings.ts`.
 
+A video linked to an event is read only once its YouTube details (length, broadcast start) are in the copy's
+`video_meta`. One without them is never dropped quietly: the run prints `<code>: linked recording <id> skipped: no
+details on file`, counts these at the end, and exits 1 when an event had no video it could read. A copy taken before a
+video was linked lacks its details: copy them from the live database, then read the event again.
+
 ## Checked against the clock
 
 On GATOR (USOHSHOS, a full recording the server already places from the clock), frames land 9 to 14 s after the
