@@ -234,6 +234,16 @@ describe("a full-screen card naming several matches", () => {
     expect(overlayLabel("onship - VLAICU Division  Romania C  Playoff Match 11")).toBe("M11");
     expect(overlayLabel("Mississauga Qualifier  Match 10  2:30")).toBe("M10");
   });
+  // FIRST DIVE's 2024 playoff bar: the match on screen, with its winner's and loser's next matches beside it (AUCMP
+  // g8Zrl3yxVHM M1 at 16874 s, M2 at 17221 s; FPECA 167irOy-YgY M3 at 14293 s), as tesseract reads them.
+  it("never takes the bar's \"Winner → Match N\" or \"Loser → Match N\" for the match on screen", () => {
+    expect(overlayLabel("er DIVE — | Australia Championship Playoff Match 2\n® Winner-> Match 7 -")).toBe("M2");
+    expect(overlayLabel("eer DIVE Carolinas Premier Event Playoff Match 3\n® Winner-> Match 7 —")).toBe("M3");
+    expect(overlayLabel("Australia Championship  Playoff Match 1\nWinner → Match 7\nLoser → Match 5")).toBe("M1");
+    // The bar's own line lost to the crowd behind it: the next steps alone name no match on screen.
+    expect(overlayLabel("® Winner Match 7 -\nPERL] Barker Biuebacks | J loser © Match5 JESRARLL")).toBeNull();
+    expect(overlayLabel("Winner → Match 7\nLoser → Match 5")).toBeNull();
+  });
 });
 
 describe("FTC Live's count of matches played", () => {
