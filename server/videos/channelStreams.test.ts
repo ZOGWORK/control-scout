@@ -6,7 +6,7 @@ import { all, migrate, openDb, run, setDb } from "../db";
 import { clearAllCaches } from "../caches";
 import type { MatchView } from "../../src/shared/api";
 import { eventRecording, recordingStream, withClips } from "./recordings";
-import { apiReader, channelDue, channelRef, onDates, ownBroadcasts, pageReader, resolveChannelStreams, type Broadcast, type ChannelReader } from "./channelStreams";
+import { apiReader, channelDue, channelRef, onDates, ownBroadcasts, ownWords, pageReader, resolveChannelStreams, reweighBroadcasts, type Broadcast, type ChannelReader } from "./channelStreams";
 
 const S = 2025;
 const CH = "https://youtube.com/@funroboticsnetwork/streams";
@@ -75,6 +75,26 @@ describe("ownBroadcasts", () => {
     expect(ownBroadcasts([m5, m6], { name: "West Michigan Meet 5" }, [])).toEqual([m5, m6]);
     // A sibling on another day doesn't claim a broadcast of this one.
     expect(ownBroadcasts([m5, m6], { name: "West Michigan Meet 5" }, [{ name: "West Michigan Meet 6", start: "2026-11-21", end: "2026-11-21", timezone: "America/Detroit" }])).toEqual([m5, m6]);
+  });
+  it("on a day of two broadcasts, keeps those whose titles name the event's own words, sibling or not", () => {
+    // FIRST Robotics BC streamed its Victoria and Lower Mainland qualifiers on 2023-01-28; only Victoria gave FIRST the link.
+    const van = { videoId: "Y0yrKRUpcJo", start: "2023-01-28T18:56:32Z", title: "British Columbia FIRST Tech Challenge Vancouver Qualifier Jan. 28 2023" };
+    const vic = { videoId: "TUFDPEuJSpM", start: "2023-01-28T19:03:42Z", title: "British Columbia FIRST Tech Challenge Victoria Qualifier Jan.  2022" };
+    expect(ownBroadcasts([van, vic], { name: "BC Victoria Qualifier", timezone: "America/Vancouver" }, [])).toEqual([vic]);
+    // Two siblings sharing FIRST Chesapeake's link: each keeps its own city's.
+    const laurel = { videoId: "x9rLb-CbpV4", start: "2026-02-01T14:00:00Z", title: "FIRST Chesapeake 2026 FTC Laurel, MD Qualifier II" };
+    const union = { videoId: "_a4kyRdwfFM", start: "2026-02-01T14:10:00Z", title: "FIRST Chesapeake 2026 FTC Union Bridge, MD Qualifier IV" };
+    const feb1 = { start: "2026-02-01", end: "2026-02-01", timezone: "America/New_York" };
+    expect(ownBroadcasts([laurel, union], { name: "Laurel, MD Qualifier 2", timezone: feb1.timezone }, [{ name: "Union Bridge, MD 4 Qualifier", ...feb1 }])).toEqual([laurel]);
+    expect(ownBroadcasts([laurel, union], { name: "Union Bridge, MD 4 Qualifier", timezone: feb1.timezone }, [{ name: "Laurel, MD Qualifier 2", ...feb1 }])).toEqual([union]);
+    // No title names it: all stay. One broadcast a day: it stays. A day's two each naming it (two parts): both stay.
+    const live = { videoId: "SIrsN45NDkg", start: "2023-01-28T18:00:00Z", title: "FIRST Tech Challenge Live Stream" };
+    expect(ownBroadcasts([van, live], { name: "BC Victoria Qualifier", timezone: "America/Vancouver" }, [])).toEqual([van, live]);
+    expect(ownBroadcasts([van], { name: "BC Victoria Qualifier", timezone: "America/Vancouver" }, [])).toEqual([van]);
+    const vic2 = { ...vic, videoId: "zzzzzzzzzzz", title: "BC Victoria Qualifier - Finals" };
+    expect(ownBroadcasts([vic, vic2], { name: "BC Victoria Qualifier", timezone: "America/Vancouver" }, [])).toEqual([vic, vic2]);
+    // Accents and common words: "Brașov" is "brasov"; "FTC", "Qualifier", "BC" name nothing.
+    expect(ownWords("BC Brașov FTC Qualifier #2")).toEqual(["brasov"]);
   });
 });
 
@@ -262,5 +282,29 @@ describe("resolveChannelStreams: two meets in a day on one channel link", () => 
     clearAllCaches();
     expect((await eventRecording(2026, "USMIWMM6"))?.videoId).toBe(M6);
     expect((await eventRecording(2026, "USMIWMM6"))?.more).toBeUndefined();
+  });
+});
+
+describe("reweighBroadcasts: broadcasts found before, by today's rules", () => {
+  const BC = "https://www.youtube.com/@firstroboticsbc/streams";
+  const VAN = "Y0yrKRUpcJo", VIC = "TUFDPEuJSpM";
+  beforeAll(async () => {
+    const c = openDb(":memory:");
+    setDb(c);
+    await migrate(c);
+    await run("INSERT INTO seasons (season, name) VALUES (2022, 'Test')");
+    await run("INSERT INTO events (season, code, name, type, start, end, timezone, remote, hybrid, livestream, source) VALUES (2022, 'CABCVIQ', 'BC Victoria Qualifier', 'Qualifier', '2023-01-28', '2023-01-28', 'America/Vancouver', 0, 0, ?, 'test')", [BC]);
+    // Found when broadcasts were kept by their date alone: the Vancouver stream first, so it was the event's link.
+    for (const [v, s] of [[VAN, "2023-01-28T18:56:32Z"], [VIC, "2023-01-28T19:03:42Z"]]) await run("INSERT INTO event_broadcasts (season, code, video_id, url, start) VALUES (2022, 'CABCVIQ', ?, ?, ?)", [v, BC, s]);
+    await run("INSERT INTO event_stream_links (season, code, url, video_id, checked_at, read_at) VALUES (2022, 'CABCVIQ', ?, ?, '2026-11-09T07:47:52Z', '2026-11-09T07:47:52Z')", [BC, VAN]);
+    const up = "INSERT INTO official_audit_videos (video_id, channel_id, title, published, first_seen, last_seen) VALUES (?, 'UCjqJ09AW-_NL0e1OKSSqVNA', ?, '2023-01-29T05:00:00Z', 'x', 'x')";
+    await run(up, [VAN, "British Columbia FIRST Tech Challenge Vancouver Qualifier Jan. 28 2023"]);
+    await run(up, [VIC, "British Columbia FIRST Tech Challenge Victoria Qualifier Jan.  2022"]);
+  });
+  it("takes another event's broadcast off, and the event's link moves to its own", async () => {
+    expect(await reweighBroadcasts()).toBe(1);
+    expect((await all<{ video_id: string }>("SELECT video_id FROM event_broadcasts WHERE code = 'CABCVIQ'")).map((r) => r.video_id)).toEqual([VIC]);
+    expect((await all<{ video_id: string }>("SELECT video_id FROM event_stream_links WHERE code = 'CABCVIQ'")).map((r) => r.video_id)).toEqual([VIC]);
+    expect(await reweighBroadcasts()).toBe(0);
   });
 });
