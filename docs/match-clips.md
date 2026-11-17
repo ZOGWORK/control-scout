@@ -9,7 +9,10 @@ same clips: the event page, a match's page, search's highlights and the events l
 ## Where a match sits: the broadcast's clock
 
 YouTube gives a recorded broadcast's start, end and length (the Data API with `YOUTUBE_API_KEY`, else the watch page;
-kept in `video_meta`). FIRST gives each played match's real start (its time with seconds). A match then sits at its start
+kept in `video_meta`). Those facts are read again (`due`, `server/videos/recordings.ts`): a video read as unavailable
+after a day with the key (weekly without), any other video weekly with the key, so one made private for a while comes
+back and one deleted since is seen. A video blocked in 50 countries or more is unavailable (`BLOCKED_EVERYWHERE`,
+`server/videos/youtube.ts`): it plays almost nowhere, so no clip links to it. FIRST gives each played match's real start (its time with seconds). A match then sits at its start
 minus the broadcast's start, **if the video's seconds still follow the clock** (`timingTrusted`,
 `src/shared/recording.ts`):
 
