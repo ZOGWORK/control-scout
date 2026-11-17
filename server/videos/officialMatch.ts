@@ -3,6 +3,7 @@
 // the channel's rule, the events around the broadcast date and the video's facts, and this says add, review or ignore.
 // Add only when every check passes and exactly one event fits; anything short of that is for the owner to decide.
 import { localDate } from "./officialVideos.js";
+import { BLOCKED_EVERYWHERE } from "./youtube.js";
 
 /** A channel's patch: which events can be its (docs/official-videos.md). Clauses separated by ";", each key=values:
  *  country=Romania · state=VA,MD,DC · type=Premier,OffSeason · name=<regex on the event's name>. All must hold. */
@@ -193,7 +194,7 @@ export function matchVideo(v: WatchVideo, rule: ChannelRule, events: WatchEvent[
   if (v.durationS == null) return { kind: "review", why: "YouTube gave no length for it, so it can't be told from a clip" };
   // Not a public video that plays here (private, unlisted, embedding off, blocked in most countries): nothing to link,
   // whichever event it is. Set aside with why; a later change of its settings is read by the next audit.
-  if (v.privacy !== "public" || !v.embeddable || v.blockedIn >= 50) return { kind: "ignore", why: `not a public video that plays here (${v.privacy}${v.embeddable ? "" : ", not embeddable"}${v.blockedIn ? `, blocked in ${v.blockedIn} countries` : ""})` };
+  if (v.privacy !== "public" || !v.embeddable || v.blockedIn >= BLOCKED_EVERYWHERE) return { kind: "ignore", why: `not a public video that plays here (${v.privacy}${v.embeddable ? "" : ", not embeddable"}${v.blockedIn ? `, blocked in ${v.blockedIn} countries` : ""})` };
   const extra = new Set(norm(rule.words).split(" ").filter(Boolean));
   const vt = toks(v.title, extra);
   const td = designators(v.title);
