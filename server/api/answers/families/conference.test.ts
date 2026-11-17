@@ -80,7 +80,7 @@ describe("answering a conference ask", () => {
     await run("INSERT INTO matches (season, code, level, series, number, label, played, source) VALUES (2025, 'USNJNOM3', 'qual', 0, 1, 'Q1', 1, 'first'), (2025, 'USNJNOLT2', 'qual', 0, 1, 'Q1', 1, 'first'), (2025, 'USNJUCLT', 'qual', 0, 1, 'Q1', 1, 'first')");
     for (const [n, name, state] of [[4215, "Hypnotic Robotics", "NJ"], [207, "Critical Mass", "NJ"], [6980, "Bad Wolf", "NJ"], [30680, "Tech BnB", "NJ"], [31257, "KinetIQ", "NJ"], [31814, "Top Seed", "NJ"], [19772, "Rust in Piece", "NJ"], [1111, "Michigan Team", "MI"]] as const)
       await run("INSERT INTO teams (number, name, state, country) VALUES (?, ?, ?, 'USA')", [n, name, state]);
-    // East Bergen: 4215 won the tournament (rank 1) but is 3rd here by league RS.
+    // East Bergen: 4215 won the tournament (rank 1) but is 2nd here by league RS (6980 first; 4215 beats 207 on TBP).
     for (const [t, rank] of [[4215, 1], [207, 2], [6980, 5], [30680, 21]]) await run("INSERT INTO event_teams (season, code, team, rank) VALUES (2025, 'USNJNOLT2', ?, ?)", [t, rank]);
     for (const [t, rank, rs, tbp] of [[6980, 7, 4.0, 75.4], [207, 13, 3.8, 91.9], [4215, 12, 3.8, 92.4], [99, 1, 5, 100]]) {
       await run("INSERT INTO league_rankings (season, region, league, team, rank, rs, tbp, wins, losses, ties, played) VALUES (2025, 'USNJ', 'NO', ?, ?, ?, ?, 10, 0, 0, 16)", [t, rank, rs, tbp]);
