@@ -51,7 +51,8 @@ function sh(cmd: string, args: string[], o: { ok?: boolean; timeoutMs?: number; 
   const r = spawnSync(cmd, args, { encoding: "utf8", timeout: o.timeoutMs ?? 600_000, maxBuffer: 64 << 20, env: process.env, shell: o.shell, input: o.input });
   const out = `${r.stdout ?? ""}${r.stderr ?? ""}`;
   if (!o.quiet) appendFileSync(LOG, `$ ${cmd} ${args.join(" ")}\n${out}\n`);
-  const code = r.status ?? (r.error ? 1 : 0);
+  // No status: killed by a signal (an out-of-memory kill, the timeout) or never started; a failure either way.
+  const code = r.status ?? 1;
   if (code && !o.ok) throw new Error(`${cmd} ${args.slice(0, 3).join(" ")} failed (${code}): ${out.trim().split("\n").slice(-3).join(" | ")}`);
   return { code, out: r.stdout ?? "" };
 }
@@ -66,6 +67,8 @@ process.on("exit", () => rmSync(LOCK, { force: true }));
 
 const MEMORY_FILE = join(DIR, "memory.json");
 const memory: Memory = existsSync(MEMORY_FILE) ? JSON.parse(readFileSync(MEMORY_FILE, "utf8")) : {};
+// Written however the run ends (done, stopped, or thrown): what it tried keeps its retry and give-up counts.
+process.on("exit", () => writeFileSync(MEMORY_FILE, JSON.stringify(memory, null, 1)));
 
 // --- 1. The clone at main ------------------------------------------------------------------------------------------
 if (!DRY) {
@@ -146,8 +149,11 @@ if (!snapshot) {
   // VACUUM INTO reads the database and writes a copy: the live file is never written.
   // The copy's script goes in on stdin: no quoting to survive two shells (Windows' and the VM's).
   const vacuum = `require("@libsql/client").createClient({ url: "file:/opt/control-scout/shared/data/scout.db" }).execute(${JSON.stringify(`VACUUM INTO '${remote}'`)}).then(() => process.exit(0), (e) => { console.error(e.message); process.exit(1); });`;
-  sh("ssh", [...ssh, host, `cd /opt/control-scout/current && sudo -u controlscout node - && sudo gzip -f ${remote} && sudo chmod 644 ${remote}.gz`], { timeoutMs: 900_000, input: vacuum });
-  try { sh("scp", [...ssh, `${host}:${remote}.gz`, join(DIR, "snapshot.db.gz")], { timeoutMs: 1_800_000 }); } finally { sh("ssh", [...ssh, host, `sudo rm -f ${remote} ${remote}.gz`], { ok: true }); }
+  // The copy is removed from the VM whatever fails: the copy, its gzip, or the download.
+  try {
+    sh("ssh", [...ssh, host, `cd /opt/control-scout/current && sudo -u controlscout node - && sudo gzip -f ${remote} && sudo chmod 644 ${remote}.gz`], { timeoutMs: 900_000, input: vacuum });
+    sh("scp", [...ssh, `${host}:${remote}.gz`, join(DIR, "snapshot.db.gz")], { timeoutMs: 1_800_000 });
+  } finally { sh("ssh", [...ssh, host, `sudo rm -f ${remote} ${remote}.gz`], { ok: true }); }
   snapshot = join(DIR, "snapshot.db");
   writeFileSync(snapshot, gunzipSync(readFileSync(join(DIR, "snapshot.db.gz"))));
   log(`snapshot taken (${Math.round(readFileSync(snapshot).length / 1e6)} MB)`);
@@ -172,18 +178,28 @@ for (const s of skipped.filter((x) => x.why !== "next run")) log(`  skipped ${s.
  *  CHANGELOG entry and version, each its own commit; Loopy asked to review. `marker`: the PR's mark (prMarker). */
 function openPr(o: { file: string; rows: Keyed[]; branch: string; title: string; body: string[]; marker: string; entry: string; what: string }): void {
   if (DRY) { log(`would open "${o.title}": ${o.rows.length} rows, ${o.rows.map(rowKey).join(" ")}`); return; }
+  let pr = 0;
   try {
     writeFileSync(o.file, applyRows(mainText(o.file), o.rows));
     commitEach([[o.file, `${o.file}: ${o.what}`]]);
     push(o.branch);
     const url = sh("gh", ["pr", "create", "--base", "main", "--head", o.branch, "--title", o.title, "--label", LABEL, "--body", [...o.body, "", o.marker].join("\n")]).out.trim();
-    const pr = Number(url.split("/").pop());
+    pr = Number(url.split("/").pop());
     const version = writeRelease(o.entry, pr);
     commitEach([["CHANGELOG.md", `CHANGELOG.md: ${version}`], ["package.json", `package.json: ${version}`], ["package-lock.json", `package-lock.json: ${version}`]]);
     push(o.branch);
     askReview(pr);
     log(`opened ${url} (${version}): ${o.title}`);
-  } finally { git("switch", "--quiet", "--detach", "origin/main"); }
+  } catch (e) {
+    // A PR without its release would be rebuilt with another release's entry: closed instead, its rows read again
+    // next run. Either way the run goes on to the next PR, season and the sweep.
+    log(`"${o.title}": couldn't be opened (${(e as Error).message})${pr ? `; #${pr} closed without its release` : ""}`);
+    if (pr) sh("gh", ["pr", "close", String(pr), "--comment", "The autopilot couldn't finish this PR's release (CHANGELOG and version): closed; the next run reads these rows again."], { ok: true });
+  } finally {
+    // A step that failed halfway leaves its files behind: the clone is the autopilot's own, so put back to main.
+    sh("git", ["reset", "--quiet", "--hard"], { ok: true });
+    git("switch", "--quiet", "--detach", "origin/main");
+  }
 }
 /** Files a read may have written, as they were before it: put back if the run stops. */
 const restore = new Map<string, string>();
@@ -195,7 +211,6 @@ function reader(args: string[], timeoutMs: number): { code: number; out: string 
   if (dark) {
     for (const [file, text] of restore) writeFileSync(file, text);
     log(`stopped: ${dark}. The video player shows no picture; nothing read, no PR opened. Fix the reader, then run again.`);
-    writeFileSync(MEMORY_FILE, JSON.stringify(memory, null, 1));
     process.exit(3);
   }
   return r;
@@ -293,5 +308,4 @@ if (SWEEP && !open.some((p) => p.file === CLIPS_FILE)) {
     });
   }
 }
-writeFileSync(MEMORY_FILE, JSON.stringify(memory, null, 1));
 log("done");
