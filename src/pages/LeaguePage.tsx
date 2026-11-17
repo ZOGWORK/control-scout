@@ -1,6 +1,8 @@
 // /leagues/:season/:region/:code: one league's standings, FIRST's official league rankings over every meet so far
 // (server/api/leagues.ts), and the league's meets. Linked from the league standing search answer, league meet pages
-// and the team page. ?team= marks that team's row. Server-rendered as its first paint (server/firstPaint.ts).
+// and the team page. ?team= marks that team's row. Server-rendered as its first paint (server/firstPaint.ts). A New
+// Jersey league also has its conference rankings (#conferences, ?conference=<slug>), for visitors the gate lets see
+// them (src/lib/conferenceGate.ts): never for a league elsewhere.
 import { CalendarDays, ListOrdered } from "lucide-react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { useApi } from "../lib/api";
@@ -10,6 +12,9 @@ import { PageHeader, EmptyState } from "../components/page";
 import { Async } from "../components/states";
 import { OfflineNote } from "../components/OfflineNote";
 import { LeagueTable } from "../components/LeagueTable";
+import { ConferenceSection } from "../components/ConferenceSection";
+import { useConferenceGate } from "../lib/conferenceGate";
+import { CONFERENCE_REGION, type LeagueConferences } from "../shared/conferences";
 import { dateRange, seasonLabel } from "../shared/format";
 import { leaguePageTitle, leagueTitle, type LeagueStandings } from "../shared/leagues";
 import { regionHref, regionName } from "../shared/regionRankings";
@@ -21,6 +26,8 @@ export default function LeaguePage() {
   const team = Number(sp.get("team")) || null;
   const ok = /^\d{4}$/.test(season) && /^[A-Za-z0-9]{1,16}$/.test(region) && /^[A-Za-z0-9]{1,16}$/.test(code);
   const state = useApi<LeagueStandings>(ok ? `/api/leagues/${season}/${region}/${code}` : null);
+  const conferencesShown = useConferenceGate(ok ? region : null, ok ? Number(season) : null);
+  const conf = useApi<LeagueConferences>(ok && conferencesShown && region.toUpperCase() === CONFERENCE_REGION ? `/api/leagues/${season}/${region}/${code}/conferences` : null);
   useTitle(state.data ? leaguePageTitle(state.data) : `${code.toUpperCase()} League`);
   if (!ok) return <EmptyState icon={ListOrdered} title="No such league" description="This address doesn't name a league." />;
   return (
@@ -39,6 +46,8 @@ export default function LeaguePage() {
               <nav className="flex flex-wrap gap-x-4 gap-y-1 text-sm" aria-label="League links" data-league-links>
                 {d.placeKey && <Link to={regionHref(d.placeKey, { season: d.season })} className="text-accent-text hover:underline">{regionName(d.placeKey)} rankings</Link>}
                 <Link to={`/leagues?season=${d.season}`} className="text-accent-text hover:underline">All leagues</Link>
+                {conf.data && <a href="#conferences" className="font-medium text-accent-text hover:underline" data-conference-button
+                  onClick={(e) => { e.preventDefault(); document.getElementById("conferences")?.scrollIntoView({ behavior: "smooth", block: "start" }); history.replaceState(history.state, "", `${location.pathname}${location.search}#conferences`); }}>View Conference Rankings</a>}
               </nav>
               {d.rows.length ? (
                 <section aria-label="Standings" className="space-y-2">
@@ -48,6 +57,7 @@ export default function LeaguePage() {
                   </p>
                 </section>
               ) : <EmptyState icon={ListOrdered} title="No standings yet" description="FIRST publishes a league's standings once its first meet has scores. They show here within a few hours of that." />}
+              {conf.data && <ConferenceSection data={conf.data} leagueName={d.name} slug={sp.get("conference")} team={team} />}
               {d.meets.length > 0 && (
                 <section aria-labelledby="league-meets" className="space-y-2">
                   <h2 id="league-meets" className="font-display text-lg font-semibold">Meets</h2>
