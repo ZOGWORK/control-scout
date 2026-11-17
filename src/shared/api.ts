@@ -637,12 +637,14 @@ export interface OwnerCoverageEvent {
   frames?: CoverageFrames;
 }
 /** An event with a missing clip and the automatic frame reader (scripts/clip-autopilot.ts): queued for a read (`rank` in
- *  line, 1 = next; `matches` a read could place), waiting (for the event to finish, or its video's YouTube facts), read
+ *  line, 1 = next; `matches` a read could place), reading (read, its rows in the open autopilot PR `pr`), waiting (for the event to finish, or its video's YouTube facts), read
  *  (`at`, the newest read's date; what's still missing is each match's own why), or nothing a read can place. `why`: in
  *  plain words. */
-export interface CoverageFrames { state: "queued" | "waiting" | "read" | "unreadable"; matches: number; rank?: number; at?: string | null; why: string }
+export interface CoverageFrames { state: "queued" | "reading" | "waiting" | "read" | "unreadable"; matches: number; rank?: number; at?: string | null; why: string;
+  /** reading: the open autopilot PR its rows ship with. */
+  pr?: number }
 /** The frame-read queue in numbers: events and matches queued, events waiting, and the next few in line. */
-export interface FrameQueueSummary { queued: number; matches: number; waiting: number; next: { season: number; code: string; name: string; matches: number }[] }
+export interface FrameQueueSummary { queued: number; matches: number; waiting: number; reading: number; next: { season: number; code: string; name: string; matches: number }[] }
 /** One page (after a given event) of one list: a category's events not yet reviewed, or the reviewed. `open`: actionable
  *  events not yet reviewed (the "To review" count); `categories`: every category's events not yet reviewed; `seasons`:
  *  events not yet reviewed by season; totals over every recorded event checked. */
