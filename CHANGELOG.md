@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 7.4.7 — 2026-11-17
+## 7.4.8 — 2026-11-17
 
 Event videos › an event's recording can now be found on a day it played that FIRST's dates leave out, and KZCMP 2022's second day plays.
 
@@ -26,6 +26,18 @@ Event videos › an event's recording can now be found on a day it played that F
 
 ### Fixed
 - Event videos: an event's days, for finding and checking its videos, are FIRST's listed dates widened to every day it played a match. FIRST's dates are wrong for 145 events (2,619 played matches): Kazakhstan Central Asia FTC Regional Championship 2022 is listed 23 to 25 Feb 2023 and played Q32–Q39 and its playoffs on the 26th, so its day-2 recordings fitted no event. The watcher, the channel audit, an owner's approval and decisions from evidence all use the widened days. KZCMP's day-2 qualifier and playoff recordings are linked (each checked on a frame), and the upload before its playoffs, which holds no match, is set aside. (`server/videos/eventDays.ts`, `server/data/videoDecisions.ts`) (#1703)
+
+## 7.4.7 — 2026-11-17
+
+Videos › the frame reader no longer takes a season logo misread for another event's name, which turned every match of Kazakhstan's 2022 championship away.
+
+### Highlights
+- [fixes] A misread logo beside the match is no event's name
+- [fixes] A match's own total beats a misread name
+- [fixes] No clip changes
+
+### Fixed
+- Videos (the frame reader, `scripts/lib/videoFrames.ts`): POWERPLAY's (2022) "FIRST ENERGIZE" logo reads "FIRST ZN=RGIZ= swe" on a playing frame, two words beside the match that aren't the event's, so `overlayEvent` called every frame of KZCMP 2022 another event's overlay and read none. A name now counts as another event's only with two telling words of four letters or more, a name read as another's never overrules an "of M" that is this event's own qualification total, and ENERGIZE is a season logo word. (#1697)
 
 ## 7.4.6 — 2026-11-17
 
