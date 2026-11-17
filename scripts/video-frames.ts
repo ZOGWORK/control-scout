@@ -990,7 +990,7 @@ async function playerLength(videoId: string): Promise<{ length: number } | { why
     const got = await within(page.waitForFunction(() => {
       const d = (document.querySelector("#movie_player") as any)?.getVideoData?.(), v = document.querySelector("video");
       return (d?.isLive || d?.errorCode) ? { live: !!d.isLive, error: d.errorCode ?? null, d: NaN } : (v?.readyState ?? 0) >= 1 ? { live: false, error: null, d: v!.duration } : null;
-    }, null, { timeout: 30000 }).then((h) => h.jsonValue()), 40, "reading the length");
+    }, null, { timeout: 30000 }).then((h) => h.jsonValue()), 40, "reading the length") as { live: boolean; error: string | null; d: number };
     const s = got.live ? null : wholeLength(got.d);
     return s ? { length: s } : { why: got.live ? "a live or upcoming stream, not a recording yet" : `the player gives no length${got.error ? ` (${got.error})` : ""}` };
   } catch (e) {
