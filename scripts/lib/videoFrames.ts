@@ -98,6 +98,17 @@ export function onSwitch(before: string | null, label: string): boolean {
   return !!before && !sameMatch(before, label);
 }
 
+/** The frame a second before an opening lead that names its match (checkOpenings), at `t`:
+ *  - "switch": the overlay is switching onto the match there, so the lead isn't used: the frame names another match
+ *    (onSwitch), or a sibling division's match on a stream two divisions share (a paused seek at the lead can show it).
+ *  - "failed": that read failed (null), so, as with a failed opening read, the openings left go unchecked.
+ *  - "kept": no switch there: nothing named, the same match, or a seek that didn't land at `t`. */
+export function beforeLead(before: { at: number; label: string | null; division?: "own" | "other" | null } | null, t: number, label: string): "switch" | "failed" | "kept" {
+  if (!before) return "failed";
+  if (Math.abs(before.at - t) > 1) return "kept";
+  return before.division === "other" || onSwitch(before.label, label) ? "switch" : "kept";
+}
+
 /** A frame's match (overlayLabel) as the event names it, where that's one match: a semifinal's first match ("M2-1")
  *  is the event's M2; every other name is the event's own already ("M1-2", "Q4", "F1"; "M6" of 2025's overlay, whose
  *  replays it can't tell apart, stays "M6"). What a recording's edge stores (opensOn, endsOn), so outsideRecording
