@@ -61,14 +61,14 @@ const git = (...a: string[]) => sh("git", a).out.trim();
 const tsx = (args: string[], timeoutMs: number) => sh(process.execPath, ["node_modules/tsx/dist/cli.mjs", ...args], { ok: true, timeoutMs });
 
 // --- Run from its start ------------------------------------------------------------------------------------------
-// A real run is started by scripts/clip-autopilot-start.mjs, which holds the run's lock (its own process id in it) and
+// A real run is started by scripts/clip-autopilot-start.mjs, which holds the run's lock (CLIP_AUTOPILOT_LOCK: its text) and
 // has brought the clone and its dependencies to main: npm ci can't replace node_modules under this process. A dry run
 // opens nothing and works in the current checkout, so it needs neither.
 const LOCK = join(DIR, "lock");
 if (!DRY) {
-  let holder = 0;
-  try { holder = Number(readFileSync(LOCK, "utf8").split(" ")[0]); } catch { /* no lock: not started by the start */ }
-  if (holder !== process.ppid) { log("a real run starts with: node scripts/clip-autopilot-start.mjs (it holds the run's lock, and brings the clone and its dependencies to main)"); process.exit(2); }
+  let held = "";
+  try { held = readFileSync(LOCK, "utf8"); } catch { /* no lock: not started by the start */ }
+  if (!process.env.CLIP_AUTOPILOT_LOCK || held !== process.env.CLIP_AUTOPILOT_LOCK) { log("a real run starts with: node scripts/clip-autopilot-start.mjs (it holds the run's lock, and brings the clone and its dependencies to main)"); process.exit(2); }
 }
 
 const MEMORY_FILE = join(DIR, "memory.json");
