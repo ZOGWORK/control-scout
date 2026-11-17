@@ -897,7 +897,8 @@ export async function pageMeta(path: string, query: Record<string, unknown> = {}
       if (!lm || m[2].toUpperCase() !== CONFERENCE_REGION) return NOT_FOUND;
       // A league with no conference known (or no standing to rank them by) draws an empty state: real, never indexed.
       const known = await get<{ n: number }>("SELECT COUNT(*) n FROM event_conferences WHERE season = ? AND region = ? AND league = ?", [Number(m[1]), m[2].toUpperCase(), m[3].toUpperCase()]);
-      const title = `Conference rankings: ${lm.title}`;
+      // The league's page title (leaguePageTitle) without "standings": these are the conferences' rankings, not its table.
+      const title = `Conference rankings: ${lm.title.replace(/ standings (?=\d{4}–\d{2}$)/, " ")}`;
       return { title, description: fitDescription(`${title}: each conference tournament's teams ranked by FIRST's league standing over the league meets only.`), type: "website", path: `${lm.path}/conferences`,
         ...(lm.noData || !Number(known?.n ?? 0) ? { noData: true } : {}) };
     }

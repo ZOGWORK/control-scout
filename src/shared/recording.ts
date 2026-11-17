@@ -311,6 +311,21 @@ export function actualStart(time: string | null | undefined): boolean {
   return !!m && (m[1] !== "00" || /[1-9]/.test(m[2] ?? ""));
 }
 
+/**
+ * Where a match comes in its event's played order by its label alone, for a match with no time to go by (results posted
+ * with none, Chicago Robotics Invitational's): qualifications by number, then playoffs, then finals. 2019–2023's
+ * best-of-three semifinals were played turn about (M1-1, M2-1, M1-2, M2-2), so a series' game counts before its series.
+ * A label of no known form comes last.
+ */
+export function labelRank(label: string): number {
+  const m = /^([QMF])(\d+)(?:-(\d+))?$/.exec(label);
+  if (!m) return 4e6;
+  const a = Number(m[2]), b = m[3] == null ? null : Number(m[3]);
+  if (m[1] === "Q") return a;
+  if (m[1] === "F") return 3e6 + a;
+  return 1e6 + (b == null ? a * 1000 : b * 1000 + a);
+}
+
 /** YouTube's own page for the video at a second (the link when the page has no player to seek). */
 export const watchUrl = (videoId: string, t?: number | null) => `https://www.youtube.com/watch?v=${videoId}${t ? `&t=${t}s` : ""}`;
 
