@@ -108,7 +108,7 @@ async function buildConference(c: ConfRow, league: LeagueStandings | null, now: 
   const all_ = teams.map((t) => {
     const r = row(t);
     const m = moved?.byTeam.get(t.team);
-    return moved ? { ...r, move: m ? m.move : null, trend: m ? m.trend : null, ratingRank: m ? m.rank : null } : r;
+    return moved ? { ...r, move: m ? m.move : null, trend: m ? m.trend : null, ratingRank: m ? m.rank : null, ratingThen: m ? m.rating : null } : r;
   });
   const rankedRows = all_.filter((r) => r.leagueRank != null).sort((a, b) => a.leagueRank! - b.leagueRank! || a.team - b.team);
   rankedRows.forEach((r, i) => { r.rank = i + 1; });
