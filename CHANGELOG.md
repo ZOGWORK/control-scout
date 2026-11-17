@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.5.8 — 2026-11-17
+
+Videos › 261 matches from seven more 2023 events get clips, each opening on its own match: Indiana's and Louisiana's championships, Chesapeake's Stage Right division and two of its qualifiers, Colorado's Severance qualifier and Southern Nevada's league tournament.
+
+### Highlights
+- [fixes] 261 more 2023 matches get a clip
+- [fixes] Every clip opens on a frame naming its match
+- [fixes] Seven more 2023 events that had no clips now have them
+
+### Fixed
+- Videos (`server/data/frameTimings/2023.ts`): frame-read starts for USCHSUBQ (40 of 40 played), USCHSCMPSR (37 of 41), USCOSEQ (41 of 41), USNVSOLT (35 of 40), USCHSDCQ2 (37 of 37), USINCMP (38 of 38) and USLACMP (33 of 38). Each clip's opening frame names its match and its event (#1705).
+
 ## 7.5.7 — 2026-11-17
 
 Videos › 331 matches from eight more 2023 events get clips, each opening on its own match: St. Louis North's league tournament, four FiT-North and Chesapeake qualifiers and tournaments, Chesapeake's Stage Left championship division, and Arizona's Gilbert qualifier.
