@@ -36,7 +36,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
 import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, playedCount, playedMatches, wholeLength } from "./lib/videoFrames";
-import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, cropOrder, elapsed, flippedClip, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M } from "./lib/videoFrames";
+import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, cropOrder, elapsed, flippedClip, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, overlayBand, overlayLabel, timerDigits, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M } from "./lib/videoFrames";
 
 // The command line: --name value or --name=value for the value flags, --name alone for the others. Anything else stops
 // the run before it reads: a misspelt flag mustn't quietly read (and write) every recording of the season.
@@ -198,6 +198,10 @@ type TimerCrop = (typeof TIMER_CROPS)[number];
  *  with the top's "114" and "52", and no start was confirmed. Dropped when its pair doesn't run. */
 const timerCrop = new WeakMap<Page, TimerCrop>();
 async function timer(page: Page, first?: TimerCrop | null): Promise<{ where: "bottom" | "top" | "plain"; left: number; auto: boolean; crop: TimerCrop | null } | null> {
+  // A label read from the top row: the timer box's own digits first (boxTimer), as TOP_BAR_TIMER is one broadcast's
+  // place and on another's top bar it catches the digits' lower half and the icon under them, a wrong time, not none
+  // (USNVCMP 2023: placements ~20 s late, openings on the slide between matches).
+  if ((first ?? timerCrop.get(page)) === TOP_BAR_TIMER) { const boxed = await boxTimer(page); if (boxed) return boxed; }
   for (const t of cropOrder(TIMER_CROPS, first ?? timerCrop.get(page))) {
     const text = (await digits.recognize(await page.screenshot({ clip: t.clip }))).data.text;
     const left = t.plain ? secondsPlain(text) : t.loose ? secondsLoose(text) : secondsOf(text);
@@ -206,9 +210,12 @@ async function timer(page: Page, first?: TimerCrop | null): Promise<{ where: "bo
   }
   // None of the known places: the bar found in the frame itself (overlayBand), its timer read in the centre column.
   // Read as a bottom bar: a reading over 2:00 is then a 2:30 count's Auto (elapsed), which a 2:00 TeleOp never shows.
+  const boxed = await boxTimer(page);
+  if (boxed) return boxed;
   const band = await barBand(page);
   if (!band) return null;
-  // The digits fill the bar's upper half; the icon under them (a gamepad, a hand) reads as digits too ("1:17" as "127").
+  // No timer box found: the digits fill the bar's upper half; the icon under them (a gamepad, a hand) reads as digits
+  // too ("1:17" as "127").
   const top = Math.max(0, band.top - 4);
   const clip = { x: 565, y: top, width: 150, height: Math.min(720, band.top + Math.round((band.bottom - band.top) * 0.55) + 4) - top };
   const left = secondsOf((await digits.recognize(await page.screenshot({ clip }))).data.text);
@@ -230,6 +237,19 @@ async function barBand(page: Page): Promise<{ top: number; bottom: number } | nu
     (window as any).__frame = g.getImageData(0, 0, c.width, c.height);
   }, png);
   return page.evaluate(`(${overlayBand.toString()})(window.__frame.data, window.__frame.width, window.__frame.height)`) as Promise<{ top: number; bottom: number } | null>;
+}
+
+/** The timer read in its own box in the bar found in the frame (overlayBand, timerDigits): only the digits' rows, so
+ *  neither the icon under them nor the bar round them is read; read as a bottom bar's, as the fallback's crop is. Not a
+ *  crop kept for the video (cropOrder): the box is found again on each frame. */
+async function boxTimer(page: Page): Promise<{ where: "bottom"; left: number; auto: boolean; crop: null } | null> {
+  const band = await barBand(page);
+  if (!band) return null;
+  const clip = await page.evaluate(`(${timerDigits.toString()})(window.__frame.data, window.__frame.width, window.__frame.height, ${JSON.stringify(band)})`) as { x: number; y: number; width: number; height: number } | null;
+  if (!clip) return null;
+  const text = (await digits.recognize(await page.screenshot({ clip }))).data.text;
+  const left = secondsOf(text) ?? secondsLoose(text);
+  return left == null || left > AUTO_S + SWITCH_S + TELEOP_S ? null : { where: "bottom", left, auto: false, crop: null };
 }
 
 const now = (page: Page) => page.evaluate(() => document.querySelector("video")!.currentTime);
