@@ -202,8 +202,8 @@ describe("Greptile on #434", () => {
     expect((await ask("New Jersey")).understood).toMatchObject({ kind: "events" });
     expect((await ask("Maryland")).understood?.kind).not.toBe("names");
   });
-  it("a region's events come before its teams in the sections", async () => {
-    expect(answerSections(await ask("New Jersey")).sections.map((x) => x.id).slice(0, 3)).toEqual(["place", "event", "team"]);
+  it("a region's events come before its teams in the sections, its own pages beside the place", async () => {
+    expect(answerSections(await ask("New Jersey")).sections.map((x) => x.id).slice(0, 4)).toEqual(["place", "pages", "event", "team"]);
   });
 });
 

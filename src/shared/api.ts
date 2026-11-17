@@ -633,7 +633,16 @@ export interface OwnerCoverageEvent {
   videos: CoverageVideo[]; daysMissing: ClipCoverage["daysMissing"]; missing: CoverageMatch[];
   /** Its category and why, in plain words. */
   triage: CoverageTriage; triageWhy: string;
+  /** Where it stands with the automatic frame reader (server/videos/frameQueue.ts). */
+  frames?: CoverageFrames;
 }
+/** An event with a missing clip and the automatic frame reader (scripts/clip-autopilot.ts): queued for a read (`rank` in
+ *  line, 1 = next; `matches` a read could place), waiting (for the event to finish, or its video's YouTube facts), read
+ *  (`at`, the newest read's date; what's still missing is each match's own why), or nothing a read can place. `why`: in
+ *  plain words. */
+export interface CoverageFrames { state: "queued" | "waiting" | "read" | "unreadable"; matches: number; rank?: number; at?: string | null; why: string }
+/** The frame-read queue in numbers: events and matches queued, events waiting, and the next few in line. */
+export interface FrameQueueSummary { queued: number; matches: number; waiting: number; next: { season: number; code: string; name: string; matches: number }[] }
 /** One page (after a given event) of one list: a category's events not yet reviewed, or the reviewed. `open`: actionable
  *  events not yet reviewed (the "To review" count); `categories`: every category's events not yet reviewed; `seasons`:
  *  events not yet reviewed by season; totals over every recorded event checked. */
@@ -643,6 +652,8 @@ export interface OwnerClipCoverage {
   /** Matches the video showed with no clip (always shown, whatever their review), and the last check pass. */
   findings: CoverageFinding[]; lastPass: CoveragePass | null; clipChecks: ClipCheckTotals;
   totals: { events: number; played: number; withClip: number; full: number };
+  /** The automatic frame reader's queue (server/videos/frameQueue.ts). */
+  frameQueue?: FrameQueueSummary;
 }
 
 export interface EventSummary {
