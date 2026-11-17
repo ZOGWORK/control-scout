@@ -25,7 +25,7 @@ Search › one period's best matches ("best teleop videos in romania decode") ge
 - [fixes] No more empty box for auto, teleop or endgame bests
 
 ### Fixed
-- Search (`server/api/answers/index.ts`): the box left a season's best matches to the asks' high-score card, which reads whole scores only, so a question about one period's best ("best teleop videos in romania decode", "highest teleop score in texas") showed nothing there while the page answered it. The box now shows "Highest teleop scores in Romania", linking to that page, as a board's does. Its label names no season, because the page may step back to the season before. (#PRNUM)
+- Search (`server/api/answers/index.ts`): the box left a season's best matches to the asks' high-score card, which reads whole scores only, so a question about one period's best ("best teleop videos in romania decode", "highest teleop score in texas") showed nothing there while the page answered it. The box now shows "Highest teleop scores in Romania", linking to that page, as a board's does. Its label names no season, because the page may step back to the season before. (#1836)
 
 ## 7.6.7 — 2026-11-17
 
