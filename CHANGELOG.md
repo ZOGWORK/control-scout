@@ -21,6 +21,7 @@ Videos › 172 more 2022 (POWERPLAY) match clips in 4 events, each opening on a 
 
 ### Highlights
 - [history] 172 more 2022 matches get clips, in 4 events
+- [history] Virginia's Orange Qualifier gets a clip for every match
 - [fixes] Every clip opens on a frame naming its match and its own event
 
 ### Added
