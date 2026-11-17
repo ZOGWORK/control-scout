@@ -25,7 +25,7 @@ Videos › 24 more matches get a clip read off their event's video, each opening
 - [fixes] No clip already playing changes
 
 ### Fixed
-- Videos (`server/data/frameTimings/`): a re-read of videos already in the data with the current reader adds 24 2025 starts (USTXCMP4A, USTXDAQ2, USTXNFM1, USTXNISLT, USTXNXAM3, USTXNXPM1, USTXSASQ, USTXWAS2, USWICMP), each checked paused on its clip's opening frame. Only starts are added: no row loses or moves one, and no clip already playing changes. (part 3 of 3)
+- Videos (`server/data/frameTimings/`): a re-read of videos already in the data with the current reader adds 24 2025 starts (USTXCMP4A, USTXDAQ2, USTXNFM1, USTXNISLT, USTXNXAM3, USTXNXPM1, USTXSASQ, USTXWAS2, USWICMP), each checked paused on its clip's opening frame. Only starts are added: no row loses or moves one, and no clip already playing changes. (part 3 of 3) (#1747)
 
 ## 7.6.2 — 2026-11-17
 
