@@ -1,7 +1,7 @@
 // The pure parts of the frame reader (scripts/video-frames.ts): the overlay's match, the timer's elapsed time, and
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
-import { dataRows, divisionOf, elapsed, overlayDivision, leadIn, LEAD_IN_S, judge, NOTHING_READ, overlayLabel, secondsLoose, secondsOf, startOffset, playedCount, type M } from "./videoFrames";
+import { dataRows, divisionOf, elapsed, overlayDivision, leadIn, LEAD_IN_S, judge, NOTHING_READ, overlayLabel, sameMatch, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, type M } from "./videoFrames";
 
 describe("the frame reader", () => {
   it("names the match the overlay shows, and nothing else", () => {
@@ -16,6 +16,45 @@ describe("the frame reader", () => {
     // Two boxes' numbers aren't a bracket: "Playoff Match 3" still names M3.
     expect(overlayLabel("Easter Island & Chichen Itza  Playoff Match 3  Alliance 1  M1")).toBe("M3");
     expect(overlayLabel("Upcoming matches")).toBeNull();
+  });
+
+  it("names a best-of-3 semifinal's match by its series and number (2019–2022)", () => {
+    // USCHSCMPCARR 2021's bar and IASQ4 2019's preview card: the event's M2 and M1-2, never M2 for "Match 2".
+    expect(overlayLabel("FIRST FORWARD  Semifinal 2 Match 1  Carriers Division  FREIGHT FRENZY")).toBe("M2-1");
+    expect(overlayLabel("Semifinal 1 Match 2  Match Preview  8588 Finger Puppet Mafia")).toBe("M1-2");
+    expect(overlayLabel("Semi-Final 1 Match 3")).toBe("M1-3");
+    expect(overlayLabel("AU APOC 2023  Finals Match 2")).toBe("F2");
+    // AUMPOS1 2022's bracket card names its semifinals with no match: none.
+    expect(overlayLabel("Elimination Bracket  Semifinal 1  12993 8644 20871  Semifinal 2  Finals")).toBeNull();
+    expect(sameMatch("M2-1", "M2")).toBe(true);
+    expect(sameMatch("M1-2", "M1-2")).toBe(true);
+    expect(sameMatch("M1-1", "M1-2")).toBe(false);
+    expect(sameMatch("M1-2", "M2")).toBe(false);
+    expect(sameMatch("M1-2", "M1")).toBe(false);
+    // 2025's overlay names a tiebreak replay by its match alone.
+    expect(sameMatch("M6", "M6-2")).toBe(true);
+    expect(sameMatch("M6", "M6")).toBe(true);
+    expect(sameMatch("Q12", "Q12")).toBe(true);
+    expect(sameMatch("Q1", "Q12")).toBe(false);
+  });
+
+  it("reads a bare-seconds timer (FTC Live's overlay, 2019–2022)", () => {
+    // AUMPOS1 2022: Auto "24", TeleOp "112"; IASQ4 2019 TeleOp "101".
+    expect(secondsPlain("24\n")).toBe(24);
+    expect(secondsPlain("112")).toBe(112);
+    expect(secondsPlain(" 101 ")).toBe(101);
+    expect(secondsPlain("0")).toBe(0);
+    // A colon is another bar's timer; more than TeleOp's 120 or four digits is a score, not this timer.
+    expect(secondsPlain(":1")).toBeNull();
+    expect(secondsPlain("1:12")).toBeNull();
+    expect(secondsPlain("150")).toBeNull();
+    expect(secondsPlain("3000")).toBeNull();
+    expect(secondsPlain("")).toBeNull();
+    // Bare seconds count Auto 30 to 0, the switch, then TeleOp 120 to 0: as any timer once read.
+    expect(elapsed({ where: "plain", left: 112, auto: false })).toBe(46);
+    expect(elapsed({ where: "plain", left: 24, auto: true })).toBe(6);
+    expect(elapsed({ where: "plain", left: 24, auto: false })).toBe(134);
+    expect(elapsed({ where: "plain", left: 120, auto: false })).toBeNull();
   });
 
   it("reads a timer", () => {

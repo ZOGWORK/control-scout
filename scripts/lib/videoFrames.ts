@@ -20,6 +20,11 @@ export function overlayLabel(text: string): string | null {
   if (q) return `Q${Number(q[1])}`;
   const f = /Finals?\s+Match\s+(\d)\b/i.exec(text);
   if (f) return `F${Number(f[1])}`;
+  // Best-of-3 semifinals (2019–2022's playoffs): "Semifinal 2 Match 1" is the second semifinal's first match, the
+  // event's M2 (series 2, number 1), and "Semifinal 1 Match 2" is its M1-2, never M2. Named with series and number
+  // ("M2-1", "M1-2") so it's never taken for a replay (sameMatch).
+  const sf = /Semi-?\s?finals?\s+(\d)\s+Match\s+(\d)\b/i.exec(text);
+  if (sf) return `M${Number(sf[1])}-${Number(sf[2])}`;
   // A full-screen card can name several matches: a bracket ("Up Next Match 4", "Winner advances to Playoff Match 7") or
   // a result ("Match 6", "Advances to: Playoff Match 8"). A match it says a team advances to is a later one, never the
   // one on screen; of the rest, two different numbers name no one match, so the frame names none (CAONMIQ 2025). A
@@ -33,6 +38,14 @@ export function overlayLabel(text: string): string | null {
   const named = new Set<number>();
   for (const m of text.matchAll(/(advances\s+to:?\s+(?:Playoff\s+)?|\bTest\s+)?\bMatch\s+(\d{1,2})\b/gi)) if (!m[1]) named.add(Number(m[2]));
   return named.size === 1 ? `M${[...named][0]}` : null;
+}
+
+/** Whether a frame's match (overlayLabel) is the event's match `label`. A semifinal's ("M1-2": series and number) is
+ *  that match only: the event's M1 is "M1-1", its M1-2 "M1-2". Any other ("M6", 2025's overlay) also names its
+ *  replays ("M6-2", a tiebreak), which that overlay names by their match alone. */
+export function sameMatch(named: string, label: string): boolean {
+  if (/^M\d+-\d+$/.test(named)) return (/^M\d+$/.test(label) ? `${label}-1` : label) === named;
+  return named === label.replace(/-\d+$/, "");
 }
 
 /** FTC Live's rankings card counts the matches played so far ("4 / 23 matches played"): the count and the total. */
@@ -55,12 +68,16 @@ export const secondsOf = (s: string) => { const m = /(\d):([0-5]\d)/.exec(s); re
 /** secondsOf, where the font's colon is too thin for the OCR to keep ("1:17" read "117", FIRST AGE's white box): the
  *  whole reading is one timer, with or without its colon, at most 2:59. */
 export const secondsLoose = (s: string) => { const m = /^([0-2]):?([0-5]\d)$/.exec(s.replace(/\s/g, "")); return m ? Number(m[1]) * 60 + Number(m[2]) : secondsOf(s); };
+/** A timer that shows bare seconds (FTC Live's overlay from 2019 to 2022: Auto's "30" down to "0", the switch's "8" to
+ *  "0", TeleOp's "120" to "0"): one to three digits and nothing else, at most TeleOp's 120. A colon is another bar's
+ *  timer, never this one. */
+export const secondsPlain = (s: string) => { const m = /^\d{1,3}$/.exec(s.replace(/\s/g, "")); return m && Number(m[0]) <= TELEOP_S ? Number(m[0]) : null; };
 
 /** Seconds since the match started, from its timer (where it's running: a timer standing at its full time is a match
  *  not started yet). Either bar counts Auto down from 0:30, then TeleOp from 2:00, so a reading of 0:30 or less is Auto
  *  only when `auto` says so (readAt tells it by a second read 45 s on); some bottom bars instead count the whole match
  *  down from 2:30, Auto being above 2:00. */
-export function elapsed(t: { where: "bottom" | "top"; left: number; auto: boolean }): number | null {
+export function elapsed(t: { where: "bottom" | "top" | "plain"; left: number; auto: boolean }): number | null {
   // Between Auto and TeleOp the timer counts down the 8 s to pick up the controllers ("0:05" under a hand): the same
   // digits as TeleOp's last seconds. Either could be meant, so no reading that low is used.
   if (t.left <= SWITCH_S) return null;
