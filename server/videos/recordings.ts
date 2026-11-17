@@ -10,7 +10,7 @@ import { all, run } from "../db.js";
 import { registerCache } from "../caches.js";
 import { seasonStreams } from "../portal/streams.js";
 import { embedUrl, parseStreamUrl } from "../../src/shared/stream.js";
-import { CHAPTER_MIN_GAP_S, CLIP_LEAD_S, actualStart, chaptersConfirm, clearOfPrevious, clipEnd, clipSecond, frameClipEnd, gapSlack, timingTrusted, watchUrl, type Chapter } from "../../src/shared/recording.js";
+import { CHAPTER_MIN_GAP_S, CLIP_LEAD_S, actualStart, chaptersConfirm, clearOfPrevious, clipEnd, clipSecond, frameClipEnd, gapSlack, labelRank, timingTrusted, watchUrl, type Chapter } from "../../src/shared/recording.js";
 import { localToUtcMs } from "../../src/shared/time.js";
 import type { EventStream, MatchView } from "../../src/shared/api.js";
 import { env } from "../env.js";
@@ -263,14 +263,15 @@ export function seasonClipKeys(season: number, now = Date.now()): Promise<Set<st
       || [r, ...(r.more ?? [])].some((d) => hasFrames(d.videoId, code)));
     for (let i = 0; i < recs.length; i += 200) {
       const part = recs.slice(i, i + 200);
-      const rows = await all<{ code: string; level: string; series: number; number: number; label: string; time: string; timezone: string | null }>(
+      // Every played match, a time or not: one with none can still be placed by its frames (withClips).
+      const rows = await all<{ code: string; level: string; series: number; number: number; label: string; time: string | null; timezone: string | null }>(
         `SELECT m.code, m.level, m.series, m.number, m.label, m.time, e.timezone FROM matches m JOIN events e ON e.season = m.season AND e.code = m.code
-         WHERE m.season = ? AND m.played = 1 AND m.time IS NOT NULL AND m.code IN (${part.map(() => "?").join(",")})`, [season, ...part.map(([c]) => c)]);
-      const byCode = new Map<string, (MatchStart & { time: string; key: string })[]>();
+         WHERE m.season = ? AND m.played = 1 AND m.code IN (${part.map(() => "?").join(",")})`, [season, ...part.map(([c]) => c)]);
+      const byCode = new Map<string, (MatchStart & { time: string | null; key: string })[]>();
       for (const r of rows) {
-        const ms = localToUtcMs(r.time, r.timezone);
+        const ms = r.time ? localToUtcMs(r.time, r.timezone) : null;
         const code = String(r.code);
-        (byCode.get(code) ?? byCode.set(code, []).get(code)!).push({ label: String(r.label), time: String(r.time), startsAt: ms == null ? null : new Date(ms).toISOString(), key: `${code}|${r.level}|${Number(r.series)}|${Number(r.number)}` });
+        (byCode.get(code) ?? byCode.set(code, []).get(code)!).push({ label: String(r.label), time: r.time == null ? null : String(r.time), startsAt: ms == null ? null : new Date(ms).toISOString(), key: `${code}|${r.level}|${Number(r.series)}|${Number(r.number)}` });
       }
       for (const [code, rec] of part) {
         const ms = byCode.get(code);
@@ -315,8 +316,9 @@ export function dayLabel(start: string | null | undefined, timezone: string | nu
 
 export interface MatchSpan { firstMatch: string | null; lastMatch: string | null }
 export interface MatchStart { label: string; startsAt: string | null | undefined }
-/** An event's played matches with a real start: their span (timingTrusted), and each one, for its chapter (chaptersConfirm). */
-export interface EventSpan extends MatchSpan { starts: MatchStart[] }
+/** An event's played matches with a real start: their span (timingTrusted), and each one, for its chapter (chaptersConfirm).
+ *  `untimed`: its other played matches (a scheduled time only, or none), which only their frames can place (withClips). */
+export interface EventSpan extends MatchSpan { starts: MatchStart[]; untimed?: MatchStart[] }
 
 export const eventSpan = (starts: MatchStart[]): EventSpan => ({ ...matchSpan(starts.map((s) => s.startsAt)), starts });
 
@@ -341,12 +343,13 @@ export function matchSpan(times: (string | null | undefined)[]): MatchSpan {
   return { firstMatch: first, lastMatch: last };
 }
 
-/** An event's played matches with a real start, read on their own (for a route that has one match). */
+/** An event's played matches with a real start, read on their own (for a route that has one match); the others `untimed`. */
 export async function eventMatchSpan(season: number, code: string): Promise<EventSpan> {
-  const rows = await all<{ label: string; time: string; timezone: string | null }>(
+  const rows = await all<{ label: string; time: string | null; timezone: string | null }>(
     `SELECT m.label, m.time, e.timezone FROM matches m JOIN events e ON e.season = m.season AND e.code = m.code
-     WHERE m.season = ? AND m.code = ? AND m.played = 1 AND m.time IS NOT NULL`, [season, code]);
-  return eventSpan(rows.filter((r) => actualStart(r.time)).map((r) => { const ms = localToUtcMs(r.time, r.timezone); return { label: String(r.label), startsAt: ms == null ? null : new Date(ms).toISOString() }; }));
+     WHERE m.season = ? AND m.code = ? AND m.played = 1`, [season, code]);
+  const start = (r: (typeof rows)[number]): MatchStart => { const ms = r.time ? localToUtcMs(r.time, r.timezone) : null; return { label: String(r.label), startsAt: ms == null ? null : new Date(ms).toISOString() }; };
+  return { ...eventSpan(rows.filter((r) => actualStart(r.time)).map(start)), untimed: rows.filter((r) => !actualStart(r.time)).map(start) };
 }
 
 /**
@@ -360,8 +363,15 @@ export function withClips<M extends Pick<MatchView, "label" | "time" | "startsAt
   // The recording's videos YouTube still plays, for their frame-read starts.
   const framed = opts.frames === false || !r.code ? [] : [{ videoId: r.videoId, meta: r.meta }, ...(r.more ?? [])].filter((v) => v.meta?.status !== "unavailable" && hasFrames(v.videoId, r.code!));
   const whole = span ?? eventSpan(matches.filter((x) => x.played && actualStart(x.time)).map((x) => ({ label: x.label, startsAt: x.startsAt })));
-  // Each framed video's starts that can play: in the order the event's matches were played (inOrder).
-  const framedStarts = new Map(framed.map((v) => [v.videoId, inOrder(whole.starts.map((s) => ({ label: s.label, at: s.startsAt ? Date.parse(s.startsAt) : NaN, t: frameStart(v.videoId, r.code!, s.label) })))]));
+  // Played matches with no real start (a scheduled time only, or none): only their frames place them.
+  const untimed = span?.untimed ?? matches.filter((x) => x.played && !actualStart(x.time)).map((x) => ({ label: x.label, startsAt: x.startsAt }));
+  // Each framed video's starts that can play: in the order the event's matches were played (inOrder). A match without a
+  // real start is ordered by its scheduled time, else after all timed ones by its label (labelRank).
+  const order = [
+    ...whole.starts.map((s) => ({ label: s.label, at: s.startsAt ? Date.parse(s.startsAt) : NaN })),
+    ...untimed.map((s) => { const at = s.startsAt ? Date.parse(s.startsAt) : NaN; return { label: s.label, at: Number.isFinite(at) ? at : Infinity }; }),
+  ];
+  const framedStarts = new Map(framed.map((v) => [v.videoId, inOrder(order.map((s) => ({ ...s, t: frameStart(v.videoId, r.code!, s.label) })))]));
   const fromFrames = (label: string) => {
     for (const v of framed) {
       const starts = framedStarts.get(v.videoId)!;
@@ -410,11 +420,12 @@ export function withClips<M extends Pick<MatchView, "label" | "time" | "startsAt
 /**
  * A video's frame-read starts that can play (label → second): a video loses time and never gains it, so its matches sit
  * in the order they were played (`at`, their real starts). A start that breaks that order (a replay shown in a break, an
- * older misread) is left out: the longest run in played order is kept. A match without a real start or a frame-read
- * start has none.
+ * older misread) is left out: the longest run in played order is kept. `at` Infinity: a match with no time, after the
+ * timed ones in its label's order (labelRank). A match whose time can't be read (NaN) or with no frame-read start has none.
  */
 export function inOrder(list: { label: string; at: number; t: number | null }[]): Map<string, number> {
-  const xs = list.filter((x): x is { label: string; at: number; t: number } => Number.isFinite(x.at) && x.t != null).sort((a, b) => a.at - b.at);
+  const xs = list.filter((x): x is { label: string; at: number; t: number } => !Number.isNaN(x.at) && x.t != null)
+    .sort((a, b) => (a.at === b.at ? labelRank(a.label) - labelRank(b.label) : a.at < b.at ? -1 : 1));
   const len = xs.map(() => 1), from = xs.map(() => -1);
   for (let b = 0; b < xs.length; b++) for (let a = 0; a < b; a++) {
     if (xs[a].t < xs[b].t && len[a] + 1 > len[b]) { len[b] = len[a] + 1; from[b] = a; }
