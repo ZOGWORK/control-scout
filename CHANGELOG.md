@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.2.2 — 2026-11-17
+
+Leagues › a New Jersey league page's conference table marks My team's row, as a link to it with the team does.
+
+### Highlights
+- [rankings] Your team's row is marked in its conference table
+- [rankings] The conference table opens on the page that holds your team
+- [rankings] A link naming a team still marks that team, not yours
+
+### Fixed
+- Leagues (`src/pages/LeaguePage.tsx`): with no team in the address, the conference table marks My team's row (and opens on its page); a My team not in the table marks nothing. The league table above it still marks only the link's team. (#1639)
+
 ## 7.2.1 — 2026-11-17
 
 Videos › the frame reader learns what a recording's first and last frames prove: a match played before the recording starts or after it ends is settled as not in it, instead of waiting in the owner's clip review.
