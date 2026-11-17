@@ -258,6 +258,6 @@ export const FLAG_INFO: Record<Flag, { label: string; on: string; off: string; p
   publicAccess: {
     label: "Public access",
     on: "Anyone can browse Control Scout and make an account.",
-    off: "New visitors see only 'temporarily unavailable'; signed-in accounts keep working; no new accounts can be made. Nothing is deleted or hidden, and every address stays the same (server/shutdownGate.ts, docs/settings.md).",
+    off: "New visitors see only the under-construction page; signed-in accounts keep working; no new accounts can be made. Nothing is deleted or hidden, and every address stays the same (server/shutdownGate.ts, docs/settings.md).",
   },
 };

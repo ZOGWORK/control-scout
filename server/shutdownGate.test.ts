@@ -70,9 +70,9 @@ describe("with publicAccess off", () => {
     expect(r.headers.get("cache-control")).toBe("no-store");
     expect(r.headers.get("vary")).toMatch(/Cookie/);
     const html = await r.text();
-    expect(html).toContain("Control Scout is temporarily unavailable.");
+    expect(html).toContain("Control Scout is under construction.");
     expect(html).toContain("We'll be back in a couple of days.");
-    expect(html).toContain("Have an account? Sign in");
+    expect(html).toContain("Have an account?");
     expect(html).not.toContain('id="root"');
     expect(html).not.toContain("New accounts can't be made right now.");
     expect(await (await call("/?signin=closed")).text()).toContain("New accounts can't be made right now.");
@@ -83,12 +83,12 @@ describe("with publicAccess off", () => {
     for (const p of ["/teams/123", "/events/2025/USNJQ1", "/lite", "/lite/teams/123", "/packs/latest.json", "/sitemap.xml"]) {
       const r = await call(p);
       expect(r.status, p).toBe(503);
-      expect(await r.text(), p).toContain("temporarily unavailable");
+      expect(await r.text(), p).toContain("under construction");
     }
     const api = await call("/api/teams/123");
     expect(api.status).toBe(503);
     expect(api.headers.get("cache-control")).toBe("no-store");
-    expect(await api.json()).toEqual({ error: "unavailable", message: "Control Scout is temporarily unavailable. We'll be back in a couple of days." });
+    expect(await api.json()).toEqual({ error: "unavailable", message: "Control Scout is under construction. We'll be back in a couple of days." });
   });
 
   it("leaves sign-in, the flags, assets and robots.txt reachable", async () => {
@@ -99,6 +99,8 @@ describe("with publicAccess off", () => {
     expect((await call("/api/flags")).status).toBe(200);
     expect((await call("/assets/index-AAAA1111.js")).status).toBe(200);
     expect((await call("/robots.txt")).status).toBe(200);
+    // The page's own look: the logo, the mark and the fonts it draws with.
+    for (const p of ["/logo-56.webp", "/mark.webp", "/fonts/Inter.woff2"]) expect((await call(p)).status, p).not.toBe(503);
   });
 
   it("a signed-in account gets the site, every answer private", async () => {

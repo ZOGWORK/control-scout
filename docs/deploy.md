@@ -266,7 +266,7 @@ A temporary "closed to new visitors" switch (`server/shutdownGate.ts`). It needs
   To take the message down, switch it back on. The change reaches every process within 10 s.
 - **After each flip, purge Cloudflare's cache** (Caching › Configuration › Purge Everything). Pages cached before the
   flip would otherwise keep being served for up to their `s-maxage`, and `/api/flags` for 15 s.
-- **What someone who isn't signed in sees:** only "Control Scout is temporarily unavailable." / "We'll be back in a
+- **What someone who isn't signed in sees:** only "Control Scout is under construction." / "We'll be back in a
   couple of days.", plus a small "Have an account? Sign in" form (email code, and Control Point or Google when they're
   set up). Every page, `/lite`, `/packs` and the sitemap answer 503 with `Retry-After: 172800`, so search engines keep
   the index. `/api/*` answers 503 `{error: "unavailable"}`. An installed app's cached shell shows the same two lines.
