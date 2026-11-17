@@ -117,7 +117,9 @@ function dataLines(text: string): { head: string; rest: string; open: number; cl
   const [head, rest] = splitAt(text, "// --- Data");
   const open = rest.indexOf("[\n"), close = rest.lastIndexOf("\n];");
   if (open < 0 || close < 0) throw new Error("no rows array under the data mark");
-  return { head, rest, open, close, lines: close >= open + 2 ? rest.slice(open + 2, close).split("\n") : [] };
+  const lines = close >= open + 2 ? rest.slice(open + 2, close).split("\n") : [];
+  // Only blank lines ("[\n\n];", a season not read yet): none, so the first rows don't sit under a blank line.
+  return { head, rest, open, close, lines: lines.every((l) => l.trim() === "") ? [] : lines };
 }
 const rowOf = (line: string): Keyed | null => { const m = /^\s*(\{.*\}),?\s*$/.exec(line); return m ? (JSON.parse(m[1]) as Keyed) : null; };
 /** Where each row goes among the file's lines as they are: replacing its own row's line (`at` that line), or new, in
@@ -185,32 +187,48 @@ export function diffBytes(before: string, after: string, context = 3): number {
   return FILE_HEADER + hunks * HUNK_HEADER + idx.reduce((n, i) => n + Buffer.byteLength(b[i]) + 2, 0) + removed.reduce((n, l) => n + Buffer.byteLength(l) + 2, 0);
 }
 
+/** A PR diff Loopy can't review at all: a row whose own diff is bigger never ships (it would never merge, and would hold
+ *  its lines from every other PR). */
+export const LOOPY_DIFF_MAX = 16_000;
+
 /** A season's rows as data PRs to open now (`ship`), each diff on `text` (main's file) at most `maxDiff` bytes (Loopy
  *  can't review a diff much over 16 KB), none conflicting with another or with an open PR; the rest wait (`later`) for
  *  the next run, on the main those PRs leave. Rows that must go together (rowGroups: changes that touch) never go in
  *  two PRs at once:
- *  - a group touching an open PR's rows (`held`, as main's file would get them) waits whole;
- *  - a group whose diff is over the cap (new rows sharing one gap in a sparse file) ships its first rows that fit, the
- *    rest wait;
+ *  - a group touching an open PR's rows (`held`, as main's file would get them) waits whole, a row the open PR also
+ *    changes included;
+ *  - a group whose diff is over the cap (new rows sharing one gap in a sparse file) ships its first whole events, in
+ *    file order, up to the first that doesn't fit (or, when its first event alone doesn't, that event's first rows up to
+ *    the first that doesn't), and the rest wait;
  *  - other groups are packed in file order while the PR's diff fits.
- *  A row over the cap alone ships alone (nothing smaller can carry it). */
-export function prChunks<T extends Keyed>(text: string, rows: T[], maxDiff = 12_000, held: Keyed[] = []): { ship: T[][]; later: T[] } {
-  const heldKeys = new Set(held.map(rowKey)), ship: T[][] = [], later: T[] = [];
-  const fits = (rs: T[]) => diffBytes(text, applyRows(text, rs)) <= maxDiff;
-  const mine = new Set(rows.map(rowKey));
-  for (const group of rowGroups(text, [...rows, ...held.filter((h) => !mine.has(rowKey(h)))] as T[])) {
-    const g = group.filter((r) => !heldKeys.has(rowKey(r)) || mine.has(rowKey(r)));
+ *  A row over the cap alone ships alone (nothing smaller can carry it), unless its diff is over LOOPY_DIFF_MAX: then it
+ *  never ships (`tooBig`, for the owner). */
+export function prChunks<T extends Keyed>(text: string, rows: T[], maxDiff = 12_000, held: Keyed[] = []): { ship: T[][]; later: T[]; tooBig: T[] } {
+  const heldKeys = new Set(held.map(rowKey)), ship: T[][] = [], later: T[] = [], tooBig: T[] = [];
+  const size = (rs: T[]) => diffBytes(text, applyRows(text, rs)), fits = (rs: T[]) => size(rs) <= maxDiff;
+  const free = rows.filter((r) => !heldKeys.has(rowKey(r)));
+  later.push(...rows.filter((r) => heldKeys.has(rowKey(r))));
+  for (const group of rowGroups(text, [...free, ...held] as T[])) {
+    const g = group.filter((r) => !heldKeys.has(rowKey(r)));
     if (g.length < group.length) { later.push(...g); continue; }
+    if (g.length === 1 && size(g) > LOOPY_DIFF_MAX) { tooBig.push(g[0]); continue; }
     if (!fits(g)) {
-      const piece: T[] = [];
-      for (const r of g) if (!piece.length || fits([...piece, r])) piece.push(r); else later.push(r);
-      ship.push(piece);
+      // Whole events while they fit; else the first event's rows while they fit. Never past the first that doesn't.
+      const events: T[][] = [];
+      for (const r of g) { const last = events.at(-1); if (last && last[0].code === r.code) last.push(r); else events.push([r]); }
+      let piece: T[] = [];
+      for (const e of events) { if (fits([...piece, ...e])) piece.push(...e); else break; }
+      if (!piece.length) for (const r of events[0]) { if (!piece.length || fits([...piece, r])) piece.push(r); else break; }
+      if (piece.length === 1 && size(piece) > LOOPY_DIFF_MAX) { tooBig.push(piece[0]); piece = []; }
+      const shipped = new Set(piece.map(rowKey));
+      later.push(...g.filter((r) => !shipped.has(rowKey(r)) && !tooBig.includes(r)));
+      if (piece.length) ship.push(piece);
       continue;
     }
     const cur = ship.at(-1);
     if (cur && fits([...cur, ...g])) cur.push(...g); else ship.push([...g]);
   }
-  return { ship, later };
+  return { ship, later, tooBig };
 }
 
 /** The mark an autopilot PR carries in its description: its season, rows (video|event) and, for a file other than the
