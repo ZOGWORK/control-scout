@@ -71,6 +71,12 @@ describe("clip coverage triage", () => {
     expect(t).toEqual({ triage: "unplayable", why: "42 matches: Recording can't be played: unavailable on YouTube (private or removed)" });
   });
 
+  it("a match its video's frames saw with no clip is To review whatever its reason; one they place outside it stays settled", () => {
+    const seen = { checked: "2026-11-17", seenAt: 5400, found: "its clip's opening frame doesn't name it" };
+    expect(triageCoverage(2025, [...many("gap-unplaced", 1, seen), ...many("gap-unplaced", 4, undefined, 2)], CURRENT).triage).toBe("actionable");
+    expect(triageCoverage(2025, many("gap-unplaced", 8, { checked: "2026-11-17", outside: "played before the recording starts" }), CURRENT).triage).toBe("no-timing");
+  });
+
   it("DESTQ 2025, its video's owner turned embedding off: Can't be played, in any season (never folded into Old season)", () => {
     expect(triageCoverage(2025, many("video-no-embed", 32), CURRENT).triage).toBe("unplayable");
     expect(triageCoverage(2021, many("video-unavailable", 12), CURRENT).triage).toBe("unplayable");

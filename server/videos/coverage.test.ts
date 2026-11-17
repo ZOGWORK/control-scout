@@ -49,6 +49,24 @@ describe("clipCoverage", () => {
     expect(c.daysMissing).toEqual([{ date: "2026-03-08", label: "Sunday", matches: 1 }]);
   });
 
+  it("a video too short for the clock whose frames were read says what they showed, the shortfall kept as the clock's (AUSYQ1 Q1–Q8)", () => {
+    const kept = [...FRAME_TIMINGS];
+    // Saturday's video was read: it opens on Q4 already under way, so Q3 was played before it.
+    setFrameTimingsForTests([{ videoId: sat.videoId, code: "TWODAY", checked: "2026-11-17", starts: {}, missing: { Q4: "its frames didn't confirm a start" }, opensOn: { at: 3, label: "Q4", underway: true } }]);
+    const g = clipCoverage(matches, { ...rec, code: "TWODAY" }, { ...rec, code: "TWODAY" }, "UTC", NOW);
+    const by = Object.fromEntries(g.matches.map((x) => [x.label, x]));
+    expect(by.Q3).toMatchObject({ reason: "gap-unplaced", video: { checked: "2026-11-17", outside: expect.stringMatching(/before/) }, clock: expect.stringMatching(/shorter than its broadcast/) });
+    expect(by.Q3.why).toMatch(/^Checked in the video \(2026-11-17\): not in the recording/);
+    // Q4, under way when the recording opens: settled as outside it too.
+    expect(by.Q4).toMatchObject({ reason: "gap-unplaced", video: { checked: "2026-11-17", outside: expect.stringMatching(/^under way/) } });
+    // Not read: the shortfall stays the reason, with no video check.
+    setFrameTimingsForTests([]);
+    const n = clipCoverage(matches, { ...rec, code: "TWODAY" }, { ...rec, code: "TWODAY" }, "UTC", NOW);
+    expect(n.matches.find((x) => x.label === "Q3")).toMatchObject({ reason: "gap-unplaced", why: expect.stringMatching(/shorter than its broadcast/) });
+    expect(n.matches.find((x) => x.label === "Q3")?.video).toBeUndefined();
+    setFrameTimingsForTests(kept);
+  });
+
   it("says a video YouTube won't play is why its day has none", () => {
     const gone = { ...rec, more: [{ videoId: "GONEvideo01", meta: { ...sat, videoId: "GONEvideo01", status: "unavailable" as const }, day: "2026-03-07" }] };
     const page = { ...rec, more: [] };
