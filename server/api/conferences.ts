@@ -162,18 +162,22 @@ export async function allConferences(): Promise<{ season: number; code: string; 
   return rows.map((r) => ({ season: Number(r.season), code: r.code, region: r.region, league: r.league, leagueName: r.league_name?.trim() || null, name: r.name, slug: r.slug, aliases: aliasesOf(r), start: r.start, end: r.end }));
 }
 
-/** The conference tournament a team is in for a season: FIRST's field first, else FTC New Jersey's sign-ups (`registered`). */
-export async function teamConferenceEvent(season: number, team: number): Promise<{ code: string; registered: boolean } | null> {
+/** The conference tournament a team is in for a season: FIRST's field first, else FTC New Jersey's sign-ups
+ *  (`registered`; `waitlist` when FTC New Jersey lists it as pending, not registered). */
+export async function teamConferenceEvent(season: number, team: number): Promise<{ code: string; registered: boolean; waitlist: boolean } | null> {
   const [field] = await all<{ code: string }>(
     `SELECT c.code FROM event_conferences c JOIN event_teams et ON et.season = c.season AND et.code = c.code AND et.team = ? JOIN events e ON e.season = c.season AND e.code = c.code
      WHERE c.season = ? ORDER BY e.start DESC, c.code LIMIT 1`, [team, season]);
-  if (field) return { code: field.code, registered: false };
+  if (field) return { code: field.code, registered: false, waitlist: false };
   // Sign-ups only count for a tournament FIRST has no team list for yet.
   const prov = await all<{ code: string; teams: string }>(
     `SELECT c.code, p.teams FROM event_conferences c JOIN event_provisional p ON p.season = c.season AND p.code = c.code JOIN events e ON e.season = c.season AND e.code = c.code
      WHERE c.season = ? AND NOT EXISTS (SELECT 1 FROM event_teams et WHERE et.season = c.season AND et.code = c.code) ORDER BY e.start DESC, c.code`, [season]);
   for (const p of prov) {
-    try { if ((JSON.parse(p.teams) as { team: number }[]).some((t) => Number(t.team) === team)) return { code: p.code, registered: true }; } catch { /* a damaged row: not this one */ }
+    try {
+      const t = (JSON.parse(p.teams) as { team: number; status?: string }[]).find((x) => Number(x.team) === team);
+      if (t) return { code: p.code, registered: true, waitlist: t.status === "pending" };
+    } catch { /* a damaged row: not this one */ }
   }
   return null;
 }
