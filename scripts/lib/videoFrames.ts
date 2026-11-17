@@ -22,7 +22,8 @@ export function overlayLabel(text: string): string | null {
   if (f) return `F${Number(f[1])}`;
   // A full-screen card can name several matches: a bracket ("Up Next Match 4", "Winner advances to Playoff Match 7") or
   // a result ("Match 6", "Advances to: Playoff Match 8"). A match it says a team advances to is a later one, never the
-  // one on screen; of the rest, two different numbers name no one match, so the frame names none (CAONMIQ 2025).
+  // one on screen; of the rest, two different numbers name no one match, so the frame names none (CAONMIQ 2025). A
+  // "Test Match 1" is the field check before the event's matches start (USNMCMP 2025 opens on one): none of its matches.
   // A bracket's boxes ("M4 vs A5", "M3 vs A6", "M8") make it one even where its "advances to" line is cut off at the
   // top (USIAWESTLT 2025 M3: "Playoff Match 5" alone): three different M-numbers, and the frame names no match, unless
   // its header says which is up next ("Up Next  Match 4", CAONMIQ 2025).
@@ -30,12 +31,30 @@ export function overlayLabel(text: string): string | null {
   if (next) return `M${Number(next[1])}`;
   if (new Set([...text.matchAll(/\bM(\d{1,2})\b/g)].map((m) => m[1])).size >= 3) return null;
   const named = new Set<number>();
-  for (const m of text.matchAll(/(advances\s+to:?\s+(?:Playoff\s+)?)?\bMatch\s+(\d{1,2})\b/gi)) if (!m[1]) named.add(Number(m[2]));
+  for (const m of text.matchAll(/(advances\s+to:?\s+(?:Playoff\s+)?|\bTest\s+)?\bMatch\s+(\d{1,2})\b/gi)) if (!m[1]) named.add(Number(m[2]));
   return named.size === 1 ? `M${[...named][0]}` : null;
 }
 
+/** FTC Live's rankings card counts the matches played so far ("4 / 23 matches played"): the count and the total. */
+export function playedCount(text: string): { played: number; of: number } | null {
+  const m = /(\d{1,3})\s*\/\s*(\d{1,3})\s+matches\s+played/i.exec(text);
+  return m && Number(m[1]) <= Number(m[2]) ? { played: Number(m[1]), of: Number(m[2]) } : null;
+}
+
+/** Seconds from a recording's start (or back from its end) its edge is read at, in turn: the first frame that names a
+ *  match or counts the matches played is the edge (within EDGE_S, server/data/frameTimings.ts). */
+export const EDGE_AT = [3, 20, 45, 75, 110];
+/** Where none of those frames names a match (a stream opening on an empty field, USORIMLT 2025), the edge is read on
+ *  every CLEAR_STEP_S, up to CLEAR_MAX_S in, until one does: under a match's 2:38, so a match played in that stretch
+ *  would show on at least two of the frames. Every frame before it showing no match makes it the edge ("clear"). */
+export const CLEAR_STEP_S = 60;
+export const CLEAR_MAX_S = 2400;
+
 /** "2:25" → 145; anything else null. */
 export const secondsOf = (s: string) => { const m = /(\d):([0-5]\d)/.exec(s); return m ? Number(m[1]) * 60 + Number(m[2]) : null; };
+/** secondsOf, where the font's colon is too thin for the OCR to keep ("1:17" read "117", FIRST AGE's white box): the
+ *  whole reading is one timer, with or without its colon, at most 2:59. */
+export const secondsLoose = (s: string) => { const m = /^([0-2]):?([0-5]\d)$/.exec(s.replace(/\s/g, "")); return m ? Number(m[1]) * 60 + Number(m[2]) : secondsOf(s); };
 
 /** Seconds since the match started, from its timer (where it's running: a timer standing at its full time is a match
  *  not started yet). Either bar counts Auto down from 0:30, then TeleOp from 2:00, so a reading of 0:30 or less is Auto

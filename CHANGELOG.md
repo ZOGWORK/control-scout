@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 7.2.1 — 2026-11-17
+## 7.2.2 — 2026-11-17
 
 Search › New Jersey conference questions answered directly: a team's rank in its conference, a conference's table, who won it, with the same numbers as the league page.
 
@@ -26,6 +26,18 @@ Search › New Jersey conference questions answered directly: a team's rank in i
 
 ### Added
 - Search: a New Jersey conference asked any way ("where does 4215 rank in East Bergen Conference", "top teams in East Bergen Conference", "who won East Bergen Conference") answers from the league page's conference table: the team's place by league standing beside its league rank, RS, TBP, matches and meets, labelled league meets only, with the tournament's own rank said apart; a conference's latest finished table with its next date and sign-ups; its winner from FIRST's awards; and "Which conference?" when none is named, never a guess. (`server/api/answers/families/conference.ts`) (#1637)
+
+## 7.2.1 — 2026-11-17
+
+Videos › the frame reader learns what a recording's first and last frames prove: a match played before the recording starts or after it ends is settled as not in it, instead of waiting in the owner's clip review.
+
+### Highlights
+- [fixes] Matches played before or after a recording are settled, not reviewed
+- [fixes] The reader reads FIRST AGE's white timer box
+- [fixes] A test match before the event names none of its matches
+
+### Fixed
+- Videos (the frame reader, `scripts/video-frames.ts`; `server/data/frameTimings.ts`; `server/videos/coverage.ts`): a recording's edges are read off its frames (`opensOn`, `endsOn`): the match its first or last frames name, or FTC Live's "N / M matches played" count. A match those frames prove was played before the recording starts, or after it ends, is settled as not in it (`outsideRecording`), but only where every other read in the video agrees with the edge. An opening on a match already under way settles that match (its clip can't open on its start). An edge read further in than 2 minutes counts only when every frame before it, a minute apart, showed no match. The reader also reads FIRST AGE's white timer box (in a bar across the top) with or without its thin colon, and a "Test Match 1" field check names none of the event's matches. No clip changes with this release: the edges reach the site with the data releases that carry them. An end edge counts only within 2 minutes of the recording's end (or with every frame between read empty), as an opening does; FTC Live's matches-played count settles only where its total is the event's qualification total (it counts no playoff match); a seek that never landed is no edge. (#1638)
 
 ## 7.2.0 — 2026-11-17
 

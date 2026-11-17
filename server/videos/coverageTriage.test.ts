@@ -29,6 +29,15 @@ describe("clip coverage triage", () => {
       .toEqual({ triage: "unchecked", why: "1 match not yet checked against the video (Q11) (10 more held back for other reasons)" });
   });
 
+  it("a match its recording's first or last frames prove isn't in it is settled, not the owner's (USTXSASQ 2025)", () => {
+    // The recording ends on Q17: Q19–Q40 and the playoffs were played after it. Nothing to place, nothing to review.
+    const after: CoverageVideoCheck = { checked: "2026-11-16", outside: "played after the recording ends: it ends on Q17 at 2:23:20" };
+    const t = triageCoverage(2025, many("after-broadcast", 22, after, 19), CURRENT);
+    expect(t.triage).toBe("no-timing");
+    // One it doesn't prove keeps the event in To review.
+    expect(triageCoverage(2025, [...many("after-broadcast", 22, after, 19), ...many("overlaps-previous", 1, { checked: "2026-11-16" }, 18)], CURRENT).triage).toBe("actionable");
+  });
+
   it("Romania COANDA 2025 ROCMPCND: Q2 (an early start) and Q19 (before the broadcast) say what their videos showed", () => {
     const q2 = { reason: "overlaps-previous" as const, label: "Q2", video: { checked: "2026-11-14", found: "no frame read of it, and no agreeing reads on both sides", after: { label: "Q3", at: 10440 } } };
     const q19 = { reason: "before-broadcast" as const, label: "Q19", video: { checked: "2026-11-14", after: { label: "Q20", at: 209 } } };
