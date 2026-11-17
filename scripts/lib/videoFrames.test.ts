@@ -576,6 +576,16 @@ describe("enteredLater", () => {
     expect(enteredLater(at("2026-04-23T10:00:00"), days, stream, utc)).toBe(false);
     expect(enteredLater(at("2026-05-02T10:00:00"), days, [{ start: utc("2026-05-02T09:00:00"), end: null }], utc)).toBe(false);
   });
+  it("counts the day after the event's end, never two days after; a match the clock can't place counts as outside", () => {
+    expect(enteredLater(at("2026-04-27T00:30:00"), days, stream, utc)).toBe(true);
+    expect(enteredLater(at("2026-04-26T23:30:00"), days, stream, utc)).toBe(false);
+    expect(enteredLater(at("2026-06-14T17:29:51"), days, stream, () => null)).toBe(true);
+  });
+  it("needs a broadcast to judge by: an upload alone, no videos or none with facts keep the times (a rescheduled event)", () => {
+    expect(enteredLater(at("2026-06-14T17:29:51"), days, [{ start: null, end: null }], utc)).toBe(false);
+    expect(enteredLater(at("2026-06-14T17:29:51"), days, [], utc)).toBe(false);
+    expect(enteredLater(at("2026-06-14T17:29:51"), days, [{ start: utc("2026-04-25T13:00:00"), end: null }], utc)).toBe(false);
+  });
   it("needs times and dates to judge", () => {
     expect(enteredLater([{ time: null, timezone: null }], days, stream, utc)).toBe(false);
     expect(enteredLater(at("2026-06-14T17:29:51"), null, stream, utc)).toBe(false);
