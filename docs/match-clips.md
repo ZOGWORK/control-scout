@@ -9,7 +9,10 @@ same clips: the event page, a match's page, search's highlights and the events l
 ## Where a match sits: the broadcast's clock
 
 YouTube gives a recorded broadcast's start, end and length (the Data API with `YOUTUBE_API_KEY`, else the watch page;
-kept in `video_meta`). FIRST gives each played match's real start (its time with seconds). A match then sits at its start
+kept in `video_meta`). With the key, a video that plays is read again weekly (`due`, `server/videos/recordings.ts`), so
+one deleted or blocked since is seen. A video whose region rules stop its viewers is unavailable (`blockedForViewers`,
+`server/videos/youtube.ts`): blocked in (nearly) every country, or in a country one of its events is in, or allowed only
+elsewhere. One that plays in its events' countries keeps its clips, however many others block it. FIRST gives each played match's real start (its time with seconds). A match then sits at its start
 minus the broadcast's start, **if the video's seconds still follow the clock** (`timingTrusted`,
 `src/shared/recording.ts`):
 
