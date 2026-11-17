@@ -25,7 +25,7 @@ Videos › 70 more 2025 matches get a clip read off their event's video, each op
 - [fixes] No clip that plays now stops playing
 
 ### Fixed
-- Videos (`server/data/frameTimings/2025.ts`): a re-read of videos already in the data with the current reader adds 70 starts (CAONKAQ, USCALACALAM2, USCODEQ2), each with a checked opening (`opens`). A row takes openings only whole: the re-read confirms every start it already had (an opening, within 2 s) and adds the new ones with theirs, so every clip in it opens on a checked frame and none stops playing. Rows the re-read can't confirm whole are left as they are. (part 1 of 3) (#1738)
+- Videos (`server/data/frameTimings/2025.ts`): a re-read of videos already in the data with the current reader adds 70 starts (CAONKAQ, USCALACALAM2, USCODEQ2), each with a checked opening (`opens`). A row takes openings only whole: the re-read confirms every start it already had (an opening, within 2 s), and every start in the row takes the re-read's start and opening together, so each opens exactly 20, 12, 5, 2 or 0 s before it on a checked frame and none stops playing. Rows the re-read can't confirm whole are left as they are. (part 1 of 3) (#1738)
 
 ## 7.6.2 — 2026-11-17
 
