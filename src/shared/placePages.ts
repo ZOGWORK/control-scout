@@ -47,6 +47,8 @@ export function withPlacePages(q: string, pages: SearchPageLink[]): SearchPageLi
   const ask = placeAsk(q);
   if (!ask) return pages;
   const path = (href: string) => href.split("#")[0].split("?")[0];
-  const own = placePages(ask.region, ask.pages).filter((o) => !pages.some((p) => path(p.href) === path(o.href) && path(o.href) !== "/search"));
+  // Asked for by name ("nj conferences"), a page that is itself a search is this answer: never linked to itself.
+  const asked = ask.pages.length < 3;
+  const own = placePages(ask.region, ask.pages).filter((o) => !(asked && path(o.href) === "/search") && !pages.some((p) => path(p.href) === path(o.href) && path(o.href) !== "/search"));
   return [...own, ...pages.filter((p) => !own.some((o) => o.href === p.href))];
 }
