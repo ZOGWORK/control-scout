@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 7.3.5 — 2026-11-17
+## 7.3.7 — 2026-11-17
 
 Videos › 212 more 2024 matches play as clips: Missouri Kansas West Super Qualifier in full, Avondale, Minnesota's Galaxy Division and Illinois's Suburban South.
 
@@ -25,7 +25,19 @@ Videos › 212 more 2024 matches play as clips: Missouri Kansas West Super Quali
 - [history] Minnesota State Championship Galaxy Division and Suburban South clips added
 
 ### Added
-- Frame-read match starts for 4 more 2024 recordings, each start checked against two timer reads and each clip's opening against a paused frame naming its match: USMOKSLSSQ 64 of 64 played matches, USMIAVLT 63 of 68 (5 missing), USMNCMPGLXY 56 of 66 (4 to review, 6 missing), USILCSSLT 29 of 44 (1 to review, 14 missing; its recording was wrongly marked unavailable until #1648). (`server/data/frameTimings/2024.ts`) (#PRNUM)
+- Frame-read match starts for 4 more 2024 recordings, each start checked against two timer reads and each clip's opening against a paused frame naming its match: USMOKSLSSQ 64 of 64 played matches, USMIAVLT 63 of 68 (5 missing), USMNCMPGLXY 56 of 66 (4 to review, 6 missing), USILCSSLT 29 of 44 (1 to review, 14 missing; its recording was wrongly marked unavailable until #1648). (`server/data/frameTimings/2024.ts`) (#1673)
+
+## 7.3.6 — 2026-11-17
+
+Search engines › a Lite page with nothing on it yet says noindex, like its full page, so Google stops calling it a soft 404.
+
+### Highlights
+- [fixes] Lite team and event pages follow their full page's indexing rule
+- [fixes] A team or event with no data yet is noindex in Lite too
+- [fixes] Pages with data keep only their canonical link, as before
+
+### Fixed
+- Search engines: a team or event page with nothing on it but a name is noindex (`server/indexable.ts`), but its Lite twin only pointed its canonical at it, so Google crawled a 21-word Lite page that could be indexed and reported it as a soft 404 (`/lite/teams/19381` in Search Console's Soft 404 examples). The Lite team and event pages now ask the same rule and say noindex when their full page does. (`server/lite/routes.ts`, `server/lite/render.ts`) (#1670)
 
 ## 7.3.5 — 2026-11-17
 

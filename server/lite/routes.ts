@@ -5,7 +5,8 @@
 // the rich one needs (a member of the workspace, signed in) and is never cached. ?lite=1 on a rich page's address
 // redirects to its twin.
 import express, { type NextFunction, type Request, type Response, type Router } from "express";
-import { all } from "../db.js";
+import { all, get } from "../db.js";
+import { eventHasDataSql, teamHasDataSql } from "../indexable.js";
 import { CURRENT_SEASON, SEASON_NUMBERS, isLegacy, seasonInfo } from "../data/seasons.js";
 import { cachedEventDetail, listEvents } from "../api/events.js";
 import { matchDetail, matchViews } from "../api/matches.js";
@@ -80,7 +81,7 @@ export const viewOf = (req: Request): LiteView => ({
 });
 
 type Cache = "public" | "revalidate" | "private";
-function send(req: Request, res: Response, page: LitePage, opts: { status?: number; cache?: Cache; csp?: string } = {}) {
+function send(req: Request, res: Response, page: LitePage, opts: { status?: number; cache?: Cache; csp?: string; noindex?: boolean } = {}) {
   const status = opts.status ?? 200;
   const cache = status >= 400 ? "no-store" : opts.cache === "private" ? "private, no-store" : opts.cache === "revalidate" ? "no-cache" : PUBLIC_CACHE;
   res.setHeader("Cache-Control", cache);
@@ -89,8 +90,15 @@ function send(req: Request, res: Response, page: LitePage, opts: { status?: numb
   res.setHeader(cspHeaderName(), opts.csp ?? LITE_CSP);
   // The rich page is the one to index; this is a lighter copy of it.
   const canonical = status === 200 && opts.cache !== "private" ? canonicalUrl(page.full.split("?")[0]) : null;
-  res.status(status).type("html").send(liteDocument(page, canonical, viewOf(req)));
+  res.status(status).type("html").send(liteDocument(page, canonical, viewOf(req), !!opts.noindex));
 }
+
+// A team or event page with nothing on it but its name is noindex (server/indexable.ts, the full page's own rule:
+// server/seoMeta.ts): its Lite twin says the same, or a search engine finds a near-empty page to index and calls it
+// a soft 404.
+const teamHasData = async (n: number) => !!(await get<{ ok: number }>(`SELECT ${teamHasDataSql("q.n")} ok FROM (SELECT ? n) q`, [n]))?.ok;
+const eventHasData = async (season: number, code: string) =>
+  !!(await get<{ ok: number }>(`SELECT ${eventHasDataSql("e")} ok FROM events e WHERE e.season = ? AND e.code = ?`, [season, code]))?.ok;
 
 const notFound = (req: Request, res: Response, text: string) =>
   send(req, res, messagePage("Not found", text, fullHref(`/lite${req.path}`, queryOf(req))), { status: 404 });
@@ -291,7 +299,7 @@ export function liteRouter(): Router {
     const code = await storedEventCode(season, raw); // any case (src/shared/eventCode.ts)
     const d = await cachedEventDetail(season, code);
     if (!d) return notFound(req, res, `No event ${code} in ${season}.`);
-    send(req, res, eventPage(liteEvent(d), eventPath(season, d.event.code)), { cache: d.live ? "revalidate" : "public" });
+    send(req, res, eventPage(liteEvent(d), eventPath(season, d.event.code)), { cache: d.live ? "revalidate" : "public", noindex: !(await eventHasData(season, d.event.code)) });
   }));
 
   r.get("/events/:season/:code/match/:key", h(async (req, res) => {
@@ -312,7 +320,7 @@ export function liteRouter(): Router {
     if (!p) return notFound(req, res, `No FTC team ${n} in our data.`);
     const matches = await matchViews({ season: p.season, team: n }, { predictUnplayed: true });
     // Revalidated while the team has a match today or later (its results move); otherwise the usual minute.
-    send(req, res, teamPage(liteTeam(p, matches), `/teams/${n}${season ? `?season=${season}` : ""}`), { cache: matches.some((m) => !m.played) ? "revalidate" : "public" });
+    send(req, res, teamPage(liteTeam(p, matches), `/teams/${n}${season ? `?season=${season}` : ""}`), { cache: matches.some((m) => !m.played) ? "revalidate" : "public", noindex: !(await teamHasData(n)) });
   }));
 
   // The workspace's shared pick list, read-only: the same gate as GET /api/scout/workspaces/:id/picklist.

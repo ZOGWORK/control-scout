@@ -110,8 +110,9 @@ export function header(full: string, view: LiteView): string {
 export const stickyNote = (full: string) =>
   `<div class="on card"><p>Lite is on: pages with a Lite version open here until you turn it off.</p>${button(`/lite/off?next=${encodeURIComponent(full)}`, "Turn off Lite")}</div>`;
 
-/** The whole document. `canonical`: the full page's absolute URL (search engines index that one, not this). */
-export function liteDocument(p: LitePage, canonical: string | null, view: LiteView = DEFAULT_VIEW): string {
+/** The whole document. `canonical`: the full page's absolute URL (search engines index that one, not this).
+ *  `noindex`: the full page is noindex (nothing on it yet but a name: server/indexable.ts), so this twin is too. */
+export function liteDocument(p: LitePage, canonical: string | null, view: LiteView = DEFAULT_VIEW, noindex = false): string {
   const cls = view.theme === "system" ? "sys" : view.theme === "dark" ? "" : view.theme;
   const scheme = view.theme === "system" ? "dark light" : view.theme === "light" ? "light" : "dark";
   const color = view.theme === "system"
@@ -120,7 +121,7 @@ export function liteDocument(p: LitePage, canonical: string | null, view: LiteVi
   const keep = view.sticky ? ""
     : `<p>${button(`/lite/on?next=${encodeURIComponent(view.here)}`, "Always open Lite")}</p><p>Pages with a Lite version then open in Lite every time, until you turn it off.</p>`;
   return `<!doctype html><html lang="en"${cls ? ` class="${cls}"` : ""}${view.textSize ? ` data-text-size="${view.textSize}"` : ""}><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">`
-    + `<title>${esc(p.title)} · Control Scout Lite</title>${canonical ? `<link rel="canonical" href="${esc(canonical)}">` : ""}`
+    + `<title>${esc(p.title)} · Control Scout Lite</title>${canonical ? `<link rel="canonical" href="${esc(canonical)}">` : ""}${noindex ? `<meta name="robots" content="noindex">` : ""}`
     + `<meta name="color-scheme" content="${scheme}">${color}<style>${LITE_STYLE}</style></head><body>`
     + header(p.full, view) + `<main class="in">${view.sticky ? stickyNote(p.full) : ""}${p.body}</main>`
     + `<footer><div class="in"><p>Control Scout Lite: text only, for a weak signal. The same data and predictions as the full version.</p>${keep}</div></footer></body></html>`;
