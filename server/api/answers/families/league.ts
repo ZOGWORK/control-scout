@@ -19,6 +19,8 @@ export interface LeagueAsk {
   last: boolean;
   /** "Who is first …": the leader is the headline. */
   leader: boolean;
+  /** Nothing asked but the leagues themselves ("nj leagues", "leagues in new jersey"): a place's list, never one table. */
+  list?: boolean;
 }
 
 /** What a standings ask says beside "league": its table, or who leads it. */
@@ -32,7 +34,8 @@ export function readLeagueAsk(raw: string): LeagueAsk | null {
   const q = ` ${raw.toLowerCase().replace(/['’]/g, "").replace(/[?!,.]/g, " ")} `.replace(/\s+/g, " ");
   if (!/\bleagues?\b/.test(q)) return null;
   const leader = LEADER.test(q);
-  if (!leader && !TABLE.test(q)) return null;
+  // No table or leader asked: only a place's list of leagues ("nj leagues"), read below once the words are known.
+  const list = !leader && !TABLE.test(q);
   const { scope, rest } = readScope(q);
   // Any other number is a team's (a season was taken out above).
   if (/\b\d{1,6}s?\b/.test(rest.replace(/\b(?:number\s+1|1st|#1)\b/g, " "))) return null;
@@ -46,7 +49,9 @@ export function readLeagueAsk(raw: string): LeagueAsk | null {
   const words = rest.split(" ").filter((w) => w && (caps.has(w.toUpperCase()) || !FRAME.has(w))).map((w) => caps.has(w.toUpperCase()) ? w.toUpperCase() : w);
   // A season after every one on record ("… in 2027") is kept as asked: the answer says it has no standings yet.
   const season = scope.future?.season ?? (scope.lastYear ? null : scope.season);
-  return words.length ? { words, season, last: !!scope.lastYear && season == null, leader } : null;
+  // The list asked: its words are a place and nothing more ("nj", "new jersey"), never a league's name or an event's word.
+  if (list && !regionOf(words)) return null;
+  return words.length ? { words, season, last: !!scope.lastYear && season == null, leader, ...(list ? { list } : {}) } : null;
 }
 
 export interface League { region: string; code: string; name: string | null; state: string | null; country: string | null; teams: number }
@@ -109,11 +114,15 @@ export async function leagueAskAnswer(ask: LeagueAsk, season: number, said: bool
   const S = seasonLabel(season);
   const why = said ? "" : ` With no season named, the season is ${S}, the current one.`;
   const base = { family: "leaderboard" as const, intent: "league-standings", title: `League standings ${S}`, scope: [S], definition: `A league's standing is FIRST's official league ranking, which counts every meet so far that season, ranked by ranking score (RS, average ranking points per match).${why}`, source: `FIRST's ${S} league rankings`, blocks: [] as StatBlock[] };
-  const { leagues, place, named, also } = matchLeagues(ask.words, await leaguesWithPlace(season));
+  const matched = matchLeagues(ask.words, await leaguesWithPlace(season));
+  // Only the list asked and the words a place as well as a league's code ("ma leagues"): the place's list.
+  const { leagues, place, named, also } = ask.list && matched.also ? { leagues: matched.also.leagues, place: matched.also.place, named: false, also: undefined } : matched;
   if (!leagues.length) return { ...base, none: `No league named "${ask.words.join(" ")}" has standings in ${S}.` };
   const label = (l: League) => `${leagueTitle(l.name, l.code)}${placeName(l.state, l.country) ? ` (${placeName(l.state, l.country)})` : ""}`;
-  // A place's leagues, no name said: the list.
-  if (!named && leagues.length > 1) {
+  // The leagues themselves asked with a league's own name ("northern league"): not this list; the name readers'.
+  if (ask.list && (named || !place)) return { ...base, none: `"${ask.words.join(" ")}" names no place's leagues.` };
+  // A place's leagues, no name said: the list (one league too, when only the list was asked).
+  if (!named && (leagues.length > 1 || ask.list)) {
     return { ...base, title: `Leagues in ${place} · ${S}`, scope: [S, place ?? ""].filter(Boolean),
       blocks: [{ kind: "links", title: `${leagues.length} leagues with standings`, items: leagues.sort((a, b) => (a.name ?? a.code).localeCompare(b.name ?? b.code)).map((l) => ({ label: leagueTitle(l.name, l.code), href: leagueHref(season, l.region, l.code), sub: `${l.teams} teams` })) }] };
   }

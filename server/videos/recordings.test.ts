@@ -282,6 +282,33 @@ describe("matches read off a recording's own frames", () => {
     expect(Object.fromEntries(inOrder([{ label: "Q1", at: at(1), t: 100 }, { label: "Q2", at: at(2), t: 5000 }, { label: "Q3", at: at(3), t: 400 }, { label: "Q4", at: at(4), t: 700 }, { label: "Q5", at: NaN, t: 900 }, { label: "Q6", at: at(6), t: null }])))
       .toEqual({ Q1: 100, Q3: 400, Q4: 700 });
   });
+  it("order a match with no time after the timed ones, by its label (best-of-three series turn about)", () => {
+    const at = (n: number) => Date.parse(`${DAY}T13:0${n}:00Z`);
+    // Each start rises in played order (Q1, Q2, M1-1, M2-1, M1-2, F1), so every one is kept; ordered by number alone
+    // (M1-1, M1-2, M2-1) M2-1's 700 would come after M1-2's 800 and be dropped.
+    expect(Object.fromEntries(inOrder([
+      { label: "F1", at: Infinity, t: 900 }, { label: "M2-1", at: Infinity, t: 700 }, { label: "M1-2", at: Infinity, t: 800 },
+      { label: "M1-1", at: Infinity, t: 600 }, { label: "Q2", at: at(2), t: 200 }, { label: "Q1", at: at(1), t: 100 },
+    ]))).toEqual({ Q1: 100, Q2: 200, "M1-1": 600, "M2-1": 700, "M1-2": 800, F1: 900 });
+  });
+  it("place matches FIRST gives no real start for by their frames: none at all (Chicago Robotics Invitational), or a schedule's", async () => {
+    // Q3's read sits before Q1's: out of the order they were played, so it's left out, as for timed matches.
+    setFrameTimingsForTests([{ videoId: GAPPED_ID, code: "GAPPED", checked: "2026-11-17", starts: { Q1: 1000, Q2: 1400, Q3: 300, M1: 2000 } }]);
+    try {
+      const rec = (await seasonRecordings(S)).get("GAPPED")!;
+      const none: Pick<MatchView, "label" | "time" | "startsAt" | "played" | "clip">[] = ["Q1", "Q2", "Q3", "M1"].map((label) => ({ label, time: null, startsAt: null, played: true, clip: undefined }));
+      expect(withClips(none, rec).map((x) => x.clip?.t ?? null)).toEqual([980, 1380, null, 1980]);
+      // A match's own page: the event's other matches come in the span (eventMatchSpan's untimed), so the same order holds.
+      const span = { firstMatch: null, lastMatch: null, starts: [], untimed: none.map(({ label }) => ({ label, startsAt: null })) };
+      expect(withClips([none[1]], rec, Date.now(), span)[0].clip?.t).toBe(1380);
+      expect(withClips([none[2]], rec, Date.now(), span)[0].clip).toBeUndefined();
+      // On the minute: the schedule's time, not when it was played. It orders the match; its frames place it.
+      const scheduled: Pick<MatchView, "label" | "time" | "startsAt" | "played" | "clip">[] = ["Q1", "Q2", "Q3", "M1"].map((label, n) => ({ label, time: `${DAY}T10:3${n}:00`, startsAt: `${DAY}T10:3${n}:00.000Z`, played: true, clip: undefined }));
+      expect(withClips(scheduled, rec).map((x) => x.clip?.t ?? null)).toEqual([980, 1380, null, 1980]);
+    } finally {
+      setFrameTimingsForTests([]);
+    }
+  });
   it("leave a match out when they weren't read for it, and are left out on request (what YouTube's facts alone give)", async () => {
     setFrameTimingsForTests([{ videoId: UPLOAD_ID, code: "UPLOAD", checked: "2026-11-13", starts: { Q7: 100 } }]);
     try {
@@ -353,7 +380,7 @@ describe("when a video is read again", () => {
   });
   it("with a key, a video that plays weekly: one deleted or blocked everywhere since is seen within a week", () => {
     // Live: five recordings read "ok" once are blocked in every country now (the watch page: "Video unavailable").
-    const settled = meta({ start: "2026-04-01T12:00:00Z", end: "2026-04-01T20:00:00Z", length: 28800 });
+    const settled = meta({ start: "2026-04-01T12:00:00Z", end: "2026-04-01T20:00:00Z", length: 28800, embeddable: true });
     expect(due(settled, t("2026-05-08T23:00:00Z"), true)).toBe(false);
     expect(due(settled, t("2026-05-09T01:00:00Z"), true)).toBe(true);
     expect(due(settled, t("2027-01-01T00:00:00Z"))).toBe(false);
@@ -465,6 +492,22 @@ describe("with a YouTube API key", () => {
     const down = (async () => new Response("", { status: 503 })) as unknown as typeof fetch;
     await backfillVideoMeta(() => {}, { apiKey: "KEY", gapMs: 0, fetchImpl: down, now: () => Date.parse("2026-02-01T00:00:00Z") });
     expect(await get("SELECT status, checked_at FROM video_meta WHERE video_id = ?", [FIRST_ID])).toEqual({ status: "ok", checked_at: "2026-01-01T00:00:00.000Z" });
+  });
+
+  it("keeps whether a video may be embedded, and reads it once, with the key, for a video read before it was kept", async () => {
+    await run("DELETE FROM video_meta");
+    // Read before embedding was kept: due once with the key.
+    await run("INSERT INTO video_meta (video_id, status, start, end, duration, live, checked_at) VALUES (?, 'ok', ?, ?, 16541, 0, ?)", [FIRST_ID, `${DAY}T12:58:13Z`, `${DAY}T17:33:56Z`, new Date().toISOString()]);
+    const api = (embeddable?: boolean) => (async (url: string) => {
+      const ids = new URL(url).searchParams.get("id")!.split(",");
+      expect(new URL(url).searchParams.get("part")).toContain("status");
+      return Response.json({ items: ids.map((id) => ({ id, contentDetails: { duration: "PT4H35M41S" }, ...(embeddable == null ? {} : { status: { embeddable: id === FIRST_ID ? embeddable : true } }),
+        liveStreamingDetails: { actualStartTime: `${DAY}T12:58:13Z`, actualEndTime: `${DAY}T17:33:56Z` } })) });
+    }) as unknown as typeof fetch;
+    await backfillVideoMeta(() => {}, { apiKey: "KEY", gapMs: 0, fetchImpl: api(false) });
+    expect(await get("SELECT status, embeddable FROM video_meta WHERE video_id = ?", [FIRST_ID])).toEqual({ status: "ok", embeddable: 0 });
+    expect(due({ videoId: "x", status: "ok", start: null, end: null, length: 1, live: false, checkedAt: new Date().toISOString() }, Date.now(), true)).toBe(true);
+    expect(due({ videoId: "x", status: "ok", start: null, end: null, length: 1, live: false, checkedAt: new Date().toISOString(), embeddable: false }, Date.now(), true)).toBe(false);
   });
 
   it("a pass that never finishes doesn't stop the next one for good", async () => {
