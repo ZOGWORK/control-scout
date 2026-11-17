@@ -191,7 +191,9 @@ const GENERIC = new Set(["LEAGUE", "MEET", "QUALIFIER", "QUALIFIERS", "CHAMPIONS
   "SKYSTONE", "PRESENTED", "QUALCOMM", "RTX"]);
 const words = (s: string) => (plain(s).match(/[A-Z]{3,}/g) ?? []).filter((w) => !GENERIC.has(w));
 /** Where the overlay names a match, and the event name just before it on the same line. */
-const MATCH_PHRASE = /Qualification\s+\d{1,3}\s+of\s+(\d{1,3})|(?:Playoff\s+|Finals?\s+)?Match\s+\d{1,2}\b/gi;
+// A semifinal (2019–2022's "Semifinal 2 Match 1", or "Semifinals Match 1" with its series lost) is taken whole, before
+// its "finals Match 1" or "Match 1" could be: overlayLabel names it by series and number (M2-1), or none.
+const MATCH_PHRASE = /Qualification\s+\d{1,3}\s+of\s+(\d{1,3})|Semi-?\s?finals?(?:\s+\d)?\s+Match\s+\d\b|(?:Playoff\s+|F[il1]?na[il1|]s?\s+)?Match\s+\d{1,2}\b/gi;
 
 /**
  * Which event a frame's overlay names: "own" (this event), "other" (another event: two league meets split on one
@@ -205,7 +207,7 @@ const MATCH_PHRASE = /Qualification\s+\d{1,3}\s+of\s+(\d{1,3})|(?:Playoff\s+|Fin
  *   than half of them are this event's (a cut word matching the start or end of one).
  * On a split screen the half that is this event's gives its match (`label`); `phrase`, the match beside its name.
  */
-export function overlayEvent(text: string, own: string, quals?: number): { event: "own" | "other" | null; label?: string; phrase?: string } {
+export function overlayEvent(text: string, own: string, quals?: number, semifinals = false): { event: "own" | "other" | null; label?: string; phrase?: string } {
   const mine = words(own);
   const verdict = (name: string): "own" | "other" | null => {
     const read = words(name);
@@ -223,7 +225,7 @@ export function overlayEvent(text: string, own: string, quals?: number): { event
       const v = name ?? (quals && total != null ? (total === quals ? "own" : "other") : null);
       from = m.index! + m[0].length;
       if (v === "other") other = true;
-      if (v === "own" && !ownSeen) { ownSeen = true; ownLabel = overlayLabel(m[0]) ?? undefined; }
+      if (v === "own" && !ownSeen) { ownSeen = true; ownLabel = overlayLabel(m[0], semifinals) ?? undefined; }
     }
   }
   // `phrase`: the match this event's name stands beside (the bar's row, read on its own, has one line). `label`: that
