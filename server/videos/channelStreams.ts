@@ -213,7 +213,8 @@ export async function reweighBroadcasts(): Promise<number> {
   let changed = 0;
   for (const bs of byEvent.values()) {
     const r = bs[0];
-    const list = bs.map((b) => ({ videoId: String(b.video_id), start: String(b.start), ...(b.title ? { title: String(b.title) } : {}) }));
+    // A placeholder the uploads list gave for a title ("Deleted video") is no title: the broadcast is weighed as untitled.
+    const list = bs.map((b) => ({ videoId: String(b.video_id), start: String(b.start), ...(b.title && !/^(deleted|private) video$/i.test(String(b.title).trim()) ? { title: String(b.title) } : {}) }));
     const siblings = [...byEvent.values()].map((o) => o[0]).filter((o) => o.season === r.season && o.code !== r.code && o.livestream && o.livestream === r.livestream)
       .map((o) => ({ name: String(o.name ?? ""), start: o.ev_start, end: o.ev_end, timezone: o.timezone }));
     const keep = ownBroadcasts(list, { name: String(r.name ?? ""), timezone: r.timezone }, siblings).sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
