@@ -389,6 +389,8 @@ describe("when a video is read again", () => {
     // Read with none: none yet, or a page served without them: weekly.
     expect(due({ ...cut, chapters: [] }, t("2026-05-10T00:00:00Z"))).toBe(false);
     expect(due({ ...cut, chapters: [] }, t("2026-05-11T01:00:00Z"))).toBe(true);
+    // Embedding off too: its chapters are still read after a day (clock clips open on youtube.com), not left a week.
+    expect(due({ ...cut, embeddable: false }, t("2026-05-05T01:00:00Z"))).toBe(true);
     // Short of it by 15 min or less (an early start covers that: gapSlack): chapters wouldn't be used, so never read for them.
     expect(due({ ...cut, length: 39600 - 900 }, t("2027-01-01T00:00:00Z"))).toBe(false);
     // 26 min short: read (it was left out under the old half-hour mark, with no early start either).
