@@ -14,7 +14,7 @@
 // server/data/frameTimings.split.json, the pinned list frameTimings.split.test.ts checks every row against. Run it
 // again (no --db needed once every row is in a season file) to re-pin a row rewritten on the day it was pinned.
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { createClient } from "@libsql/client";
 import { isDeepStrictEqual } from "node:util";
 import { dataRows } from "./lib/videoFrames.js";
@@ -76,6 +76,8 @@ if (loose.length) {
 // The season files, each sorted as scripts/video-frames.ts writes them.
 const all = [...rows.values()];
 const seasons = [...new Set([...SEASONS, ...seasonOf.values()])].sort((a, b) => a - b);
+// A first split (or one after the season files were deleted to re-split) starts with no folder.
+mkdirSync(DIR, { recursive: true });
 for (const s of seasons) {
   const list = all.filter((f) => seasonOf.get(key(f)) === s).sort((a, b) => a.code.localeCompare(b.code) || a.videoId.localeCompare(b.videoId));
   const file = `${DIR}/${s}.ts`;
