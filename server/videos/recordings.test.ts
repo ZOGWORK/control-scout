@@ -303,7 +303,7 @@ describe("matches read off a recording's own frames", () => {
       expect(withClips([none[1]], rec, Date.now(), span)[0].clip?.t).toBe(1380);
       expect(withClips([none[2]], rec, Date.now(), span)[0].clip).toBeUndefined();
       // On the minute: the schedule's time, not when it was played. It orders the match; its frames place it.
-      const scheduled = ["Q1", "Q2", "Q3", "M1"].map((label, n) => ({ label, time: `${DAY}T10:3${n}:00`, startsAt: `${DAY}T10:3${n}:00.000Z`, played: true, clip: undefined }));
+      const scheduled: Pick<MatchView, "label" | "time" | "startsAt" | "played" | "clip">[] = ["Q1", "Q2", "Q3", "M1"].map((label, n) => ({ label, time: `${DAY}T10:3${n}:00`, startsAt: `${DAY}T10:3${n}:00.000Z`, played: true, clip: undefined }));
       expect(withClips(scheduled, rec).map((x) => x.clip?.t ?? null)).toEqual([980, 1380, null, 1980]);
     } finally {
       setFrameTimingsForTests([]);
