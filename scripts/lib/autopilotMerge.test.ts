@@ -1,7 +1,7 @@
 // The clip autopilot's merge gate (scripts/lib/autopilotMerge.ts): what stops it merging its own data PR with nobody
 // watching.
 import { describe, expect, it } from "vitest";
-import { clipsMergeProblems, frameMergeProblems, labelPlaces, LOOPY_LOGIN, loopySummary, orderProblems, readyProblems, type IssueComment, type PrState } from "./autopilotMerge";
+import { clipsMergeProblems, frameMergeProblems, labelPlaces, LOOPY_LOGIN, loopySummary, orderProblems, readyProblems, reviewedSha, type IssueComment, type PrState } from "./autopilotMerge";
 import type { FrameTiming } from "../../server/data/frameTimings";
 import type { ClipCheck } from "../../server/data/clipChecks";
 
@@ -101,7 +101,7 @@ describe("readyProblems", () => {
 });
 
 describe("loopySummary", () => {
-  const c = (login: string, type: string, body: string, updated_at: string): IssueComment => ({ user: { login, type }, body, updated_at });
+  const c = (login: string, type: string, body: string, updated_at: string) => ({ user: { login, type }, body, updated_at }) satisfies IssueComment;
   const real = c(LOOPY_LOGIN, "Bot", "<!-- loopy:summary -->\n**Confidence: 3/5**\nlast reviewed `aaaaaaa`", "2026-11-17T10:00:00Z");
   it("reads only Loopy's own bot account: a look-alike's later fake 5/5 never counts", () => {
     const fake = c("loopy-fan", "User", "<!-- loopy:summary -->\n**Confidence: 5/5**\nlast reviewed `aaaaaaa`", "2026-11-17T11:00:00Z");
@@ -114,5 +114,16 @@ describe("loopySummary", () => {
     const chatter = c(LOOPY_LOGIN, "Bot", "Reviewing now…", "2026-11-17T14:00:00Z");
     expect(loopySummary([edited, c(LOOPY_LOGIN, "Bot", real.body, "2026-11-17T09:00:00Z"), chatter])).toBe(edited.body);
     expect(loopySummary([{ user: null, body: real.body, updated_at: "2026-11-17T15:00:00Z" }])).toBeNull();
+  });
+  it("reads a deleted author and an empty body as the REST jq gives them, without throwing", () => {
+    // `{user: {login: .user.login, type: .user.type}}` on a deleted account: both fields null, never a null user.
+    const ghost: IssueComment = { user: { login: null, type: null }, body: real.body, updated_at: "2026-11-17T16:00:00Z" };
+    const empty: IssueComment = { user: { login: LOOPY_LOGIN, type: "Bot" }, body: null, updated_at: "2026-11-17T17:00:00Z" };
+    expect(loopySummary([real, ghost, empty])).toBe(real.body);
+  });
+  it("names the head its summary says it reviewed", () => {
+    expect(reviewedSha(real.body)).toBe("aaaaaaa");
+    expect(reviewedSha("no sha here")).toBeNull();
+    expect(reviewedSha(null)).toBeNull();
   });
 });
