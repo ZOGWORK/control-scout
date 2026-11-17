@@ -104,6 +104,10 @@ export function applyRows<T extends Keyed>(text: string, rows: T[]): string {
     if (p.replaces) lines[p.at] = rowLine(p.row);
     else (before.get(p.at) ?? before.set(p.at, []).get(p.at)!).push(p.row);
   }
+  // Rows put after the last line: that line needs its comma (rowLine writes one; a hand-written last row may lack it).
+  let lastRow = lines.length - 1;
+  while (lastRow >= 0 && rowOf(lines[lastRow]) == null) lastRow--;
+  if (before.has(lines.length) && lastRow >= 0 && !lines[lastRow].trimEnd().endsWith(",")) lines[lastRow] = `${lines[lastRow].trimEnd()},`;
   const out: string[] = [];
   for (let i = 0; i <= lines.length; i++) { for (const r of before.get(i) ?? []) out.push(rowLine(r)); if (i < lines.length) out.push(lines[i]); }
   return `${head}${rest.slice(0, open + 2)}${out.join("\n")}${rest.slice(close)}`;
@@ -118,10 +122,17 @@ function dataLines(text: string): { head: string; rest: string; open: number; cl
 const rowOf = (line: string): Keyed | null => { const m = /^\s*(\{.*\}),?\s*$/.exec(line); return m ? (JSON.parse(m[1]) as Keyed) : null; };
 /** Where each row goes among the file's lines as they are: replacing its own row's line (`at` that line), or new, in
  *  the gap before the first row whose code sorts after its own (`at` that line; the end when none does). New rows in
- *  the same gap in code, then video, order. */
+ *  the same gap in code, then video, order. One row a key: of rows given twice the last counts; a file holding a key
+ *  twice is refused (which copy to replace would be a guess). */
 function rowPlaces<T extends Keyed>(lines: string[], rows: T[]): { row: T; at: number; replaces: boolean }[] {
-  const at = new Map(lines.flatMap((l, i) => { const r = rowOf(l); return r ? [[rowKey(r), i] as const] : []; }));
-  return [...rows].sort((a, b) => a.code.localeCompare(b.code) || a.videoId.localeCompare(b.videoId)).map((row) => {
+  const at = new Map<string, number>();
+  lines.forEach((l, i) => {
+    const r = rowOf(l);
+    if (!r) return;
+    if (at.has(rowKey(r))) throw new Error(`${rowKey(r)} is in the file twice`);
+    at.set(rowKey(r), i);
+  });
+  return [...new Map(rows.map((r) => [rowKey(r), r])).values()].sort((a, b) => a.code.localeCompare(b.code) || a.videoId.localeCompare(b.videoId)).map((row) => {
     const i = at.get(rowKey(row));
     if (i != null) return { row, at: i, replaces: true };
     const gap = lines.findIndex((l) => { const o = rowOf(l); return o != null && o.code.localeCompare(row.code) > 0; });
@@ -158,27 +169,48 @@ export function chunkRows<T extends Keyed>(rows: T[], max = 15_000): T[][] {
   return out;
 }
 
-/** About how big a PR's diff is from `before` to `after` (bytes of the lines it shows): every line added or removed,
- *  and `context` lines either side of each added one, as git shows them. Lines are whole rows, so context counts. */
+/** A diff's file header ("diff --git", index, ---/+++) and each hunk's "@@ -a,b +c,d @@" line, about. */
+const FILE_HEADER = 160, HUNK_HEADER = 32;
+/** About how big a PR's diff is from `before` to `after` (bytes): every line added or removed, `context` lines either
+ *  side of each added one, as git shows them (lines are whole rows, so context counts), each hunk's header and the
+ *  file's. 0: no change. */
 export function diffBytes(before: string, after: string, context = 3): number {
   const a = before.split("\n"), b = after.split("\n"), had = new Set(a), has = new Set(b);
   const shown = new Set<number>();
   b.forEach((l, i) => { if (!had.has(l)) for (let j = Math.max(0, i - context); j <= Math.min(b.length - 1, i + context); j++) shown.add(j); });
   const removed = a.filter((l) => !has.has(l));
-  return [...shown].reduce((n, i) => n + Buffer.byteLength(b[i]) + 2, 0) + removed.reduce((n, l) => n + Buffer.byteLength(l) + 2, 0);
+  if (!shown.size && !removed.length) return 0;
+  // Hunks: runs of shown lines (a removal sits beside the lines it was replaced by, inside their hunk).
+  const idx = [...shown].sort((x, y) => x - y), hunks = Math.max(1, idx.filter((v, k) => k === 0 || v !== idx[k - 1] + 1).length);
+  return FILE_HEADER + hunks * HUNK_HEADER + idx.reduce((n, i) => n + Buffer.byteLength(b[i]) + 2, 0) + removed.reduce((n, l) => n + Buffer.byteLength(l) + 2, 0);
 }
 
-/** A season's rows as data PRs whose diffs on `text` (main's file) are each at most `maxDiff` bytes (Loopy can't
- *  review a diff much over 16 KB), so they never conflict with each other: rows that must go together (rowGroups:
- *  changes that touch) are never split, groups packed in file order while the PR's diff fits. A group bigger than the
- *  cap ships alone. */
-export function prChunks<T extends Keyed>(text: string, rows: T[], maxDiff = 12_000): T[][] {
-  const out: T[][] = [];
-  for (const g of rowGroups(text, rows)) {
-    const cur = out.at(-1);
-    if (cur && diffBytes(text, applyRows(text, [...cur, ...g])) <= maxDiff) cur.push(...g); else out.push([...g]);
+/** A season's rows as data PRs to open now (`ship`), each diff on `text` (main's file) at most `maxDiff` bytes (Loopy
+ *  can't review a diff much over 16 KB), none conflicting with another or with an open PR; the rest wait (`later`) for
+ *  the next run, on the main those PRs leave. Rows that must go together (rowGroups: changes that touch) never go in
+ *  two PRs at once:
+ *  - a group touching an open PR's rows (`held`, as main's file would get them) waits whole;
+ *  - a group whose diff is over the cap (new rows sharing one gap in a sparse file) ships its first rows that fit, the
+ *    rest wait;
+ *  - other groups are packed in file order while the PR's diff fits.
+ *  A row over the cap alone ships alone (nothing smaller can carry it). */
+export function prChunks<T extends Keyed>(text: string, rows: T[], maxDiff = 12_000, held: Keyed[] = []): { ship: T[][]; later: T[] } {
+  const heldKeys = new Set(held.map(rowKey)), ship: T[][] = [], later: T[] = [];
+  const fits = (rs: T[]) => diffBytes(text, applyRows(text, rs)) <= maxDiff;
+  const mine = new Set(rows.map(rowKey));
+  for (const group of rowGroups(text, [...rows, ...held.filter((h) => !mine.has(rowKey(h)))] as T[])) {
+    const g = group.filter((r) => !heldKeys.has(rowKey(r)) || mine.has(rowKey(r)));
+    if (g.length < group.length) { later.push(...g); continue; }
+    if (!fits(g)) {
+      const piece: T[] = [];
+      for (const r of g) if (!piece.length || fits([...piece, r])) piece.push(r); else later.push(r);
+      ship.push(piece);
+      continue;
+    }
+    const cur = ship.at(-1);
+    if (cur && fits([...cur, ...g])) cur.push(...g); else ship.push([...g]);
   }
-  return out;
+  return { ship, later };
 }
 
 /** The mark an autopilot PR carries in its description: its season, rows (video|event) and, for a file other than the
