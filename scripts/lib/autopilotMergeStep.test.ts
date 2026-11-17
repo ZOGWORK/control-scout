@@ -1,12 +1,20 @@
 // The runner's merge step (scripts/lib/autopilotMergeStep.ts): main quiet, at most one of its own PRs, live by sha.
 import { describe, expect, it } from "vitest";
-import { mainQuiet, pickMerge, servesMerge } from "./autopilotMergeStep";
+import { mainQuiet, mainStill, pickMerge, servesMerge } from "./autopilotMergeStep";
 
 describe("mainQuiet", () => {
   it("merges only once main's last commit is old enough", () => {
     expect(mainQuiet(0, 605_000, 605_000)).toBeNull();
     expect(mainQuiet(0, 604_000, 605_000)).toBe("main's last commit is 604 s old, under 605 s");
     expect(mainQuiet(Number.NaN, 1, 605_000)).toBe("main's last commit time couldn't be read");
+  });
+});
+
+describe("mainStill", () => {
+  it("merges only if main hasn't moved since the gate read it, and is still quiet", () => {
+    expect(mainStill("aaaaaaaaa1", { sha: "aaaaaaaaa1", at: 0 }, 605_000, 605_000)).toBeNull();
+    expect(mainStill("aaaaaaaaa1", { sha: "bbbbbbbbb2", at: 0 }, 605_000, 605_000)).toBe("main moved to bbbbbbbbb since the gate read aaaaaaaaa");
+    expect(mainStill("aaaaaaaaa1", { sha: "aaaaaaaaa1", at: 1_000 }, 605_000, 605_000)).toBe("main's last commit is 604 s old, under 605 s");
   });
 });
 
@@ -32,6 +40,18 @@ describe("pickMerge", () => {
   });
 });
 
+describe("pickMerge: one PR that can't be read", () => {
+  it("waits, and never stops the PRs after it", () => {
+    const r = pickMerge([{ number: 5 }, { number: 6 }, { number: 7 }], {
+      rebuilt: new Set(), me: "auto",
+      author: (n) => { if (n === 6) throw new Error("gh: HTTP 502"); return "auto"; },
+      gate: (n) => { if (n === 5) throw new Error("no rows array under the data mark"); return { head: `sha${n}`, problems: [] }; },
+    });
+    expect(r.pick).toEqual({ number: 7, head: "sha7" });
+    expect(r.passed).toEqual(["#5 waits: its gate couldn't be read (no rows array under the data mark)", "#6 waits: its gate couldn't be read (gh: HTTP 502)"]);
+  });
+});
+
 describe("servesMerge", () => {
   const ancestors = new Set(["m1>r2"]);
   const isAncestor = (a: string, b: string) => ancestors.has(`${a}>${b}`);
@@ -43,5 +63,8 @@ describe("servesMerge", () => {
   it("asks again when no release can be read (restarting, down, not JSON)", () => {
     expect(servesMerge("<html>502</html>", "m1", isAncestor)).toBeNull();
     expect(servesMerge(JSON.stringify({ ok: false }), "m1", isAncestor)).toBeNull();
+    // Serving the release but not ready yet (warming up after the restart): not live yet.
+    expect(servesMerge(JSON.stringify({ release: "m1", ready: false }), "m1", isAncestor)).toBeNull();
+    expect(servesMerge(JSON.stringify({ release: "m1", ready: true }), "m1", isAncestor)).toBe(true);
   });
 });
