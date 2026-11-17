@@ -15,6 +15,24 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.3.9 — 2026-11-17
+
+Search › a place, its leagues and New Jersey's conferences answer directly: "nj", "nj leagues", "nj conferences", "East Bergen".
+
+### Highlights
+- [rankings] "nj" links New Jersey's rankings, leagues and conferences
+- [rankings] "nj leagues" lists New Jersey's leagues
+- [rankings] "nj conferences" lists all eight, with each one's winner
+- [rankings] A conference's name alone opens its rankings
+- [fixes] "new york city" searches find NYC's events
+
+### Search
+- A place alone ("nj", "New Jersey", "USA:NJ") keeps "All events in New Jersey" first and links the place's rankings, its leagues and, for New Jersey, its conferences; "nj rankings", "nj leagues" and "nj conferences" link the one they ask for first (`src/shared/placePages.ts`, #PR).
+- "nj leagues" / "leagues in new jersey": the place's leagues listed, each to its standings; the Leagues page takes `?q=` to open filtered.
+- "nj conferences" / "new jersey conference": every conference of the latest season played out, each with its winner, then the next season's, coming up.
+- A conference's name alone or with its rankings ("East Bergen", "far north rankings") opens its table, unless a team or league goes by those words; conference answers now list their tournament and team as cards.
+- A city FIRST runs as its own region, said in full ("new york city championship"), reads as its events' short form (NYC).
+
 ## 7.3.8 — 2026-11-17
 
 Videos › the frame reader tells one event's overlay from another's on the same stream: a frame naming another event is never this event's match.
