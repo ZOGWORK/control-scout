@@ -420,17 +420,40 @@ describe("the channel audit", () => {
     uploads.unshift({ id: CPY, title: "FTC Texas Mesquite Qualifier", published: "2025-03-22T23:00:00Z", start: "2025-03-22T14:05:00Z" });
     try {
       await run("UPDATE official_audit_channels SET full_at = NULL WHERE channel_id = ?", [TX]);
-      await audit(Date.parse("2026-02-28T06:00:00Z"));
+      expect((await audit(Date.parse("2026-02-28T06:00:00Z")))?.error).toBeNull();
       expect(await get<any>("SELECT status FROM official_watch WHERE video_id = ?", [CPY])).toMatchObject({ status: "duplicate" });
       expect(await get("SELECT 1 FROM official_videos WHERE video_id = ?", [CPY])).toBeUndefined();
       expect(await row(CPY)).toMatchObject({ record: "a duplicate the watcher logged" });
       // FIRST's link goes private: the channel's copy passes every check and the day is free, so it's added.
       await run("UPDATE video_meta SET status = 'unavailable', start = NULL, end = NULL, duration = NULL WHERE video_id = ?", [FST]);
       await run("UPDATE official_audit_channels SET full_at = NULL WHERE channel_id = ?", [TX]);
-      await audit(Date.parse("2026-03-01T06:00:00Z"));
+      expect((await audit(Date.parse("2026-03-01T06:00:00Z")))?.error).toBeNull();
       expect(await get<any>("SELECT status, decided_by, code, day FROM official_watch WHERE video_id = ?", [CPY])).toMatchObject({ status: "added", decided_by: "channel audit", code: "USTXMEQ", day: "2025-03-22" });
       expect(await get<any>("SELECT code, day, source, removed_at FROM official_videos WHERE video_id = ?", [CPY])).toMatchObject({ code: "USTXMEQ", day: "2025-03-22", source: "watcher", removed_at: null });
       expect(await row(CPY)).toMatchObject({ record: "added by the channel audit" });
     } finally { uploads.shift(); }
+  });
+  it("a freed day two duplicates both fit goes to the owner; one made unlisted since is set aside with that", async () => {
+    const FST = "rosefirstxx", A = "rosecopy001", B = "rosecopy002", HID = "rosehidden1";
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, timezone, remote, hybrid, livestream, source) VALUES (2024, 'USTXROQ', 'TX Rose Qualifier', 'Qualifier', 'Tyler', 'TX', 'USA', '2025-03-29', '2025-03-29', 'America/Chicago', 0, 0, ?, 'test')", [`https://youtu.be/${FST}`]);
+    await run("INSERT INTO video_meta (video_id, status, start, end, duration, live, checked_at) VALUES (?, 'unavailable', NULL, NULL, NULL, 0, 'x')", [FST]);
+    for (const id of [A, B, HID]) await run("INSERT INTO official_watch (video_id, channel_id, title, status, season, code, day, why, seen_at) VALUES (?, ?, 'FTC Texas Rose Qualifier', 'duplicate', 2024, 'USTXROQ', '2025-03-29', 'duplicate: USTXROQ already plays rosefirstxx for 2025-03-29', '2025-03-30T00:00:00Z')", [id, TX]);
+    uploads.unshift(
+      { id: A, title: "FTC Texas Rose Qualifier", published: "2025-03-29T23:00:00Z", start: "2025-03-29T14:05:00Z" },
+      { id: B, title: "FTC Texas Rose Qualifier", published: "2025-03-29T23:30:00Z", start: "2025-03-29T14:10:00Z" },
+      { id: HID, title: "FTC Texas Rose Qualifier", published: "2025-03-29T23:40:00Z", start: "2025-03-29T14:15:00Z", privacy: "unlisted" },
+    );
+    try {
+      await run("UPDATE official_audit_channels SET full_at = NULL WHERE channel_id = ?", [TX]);
+      expect((await audit(Date.parse("2026-03-02T06:00:00Z")))?.error).toBeNull();
+      for (const id of [A, B]) {
+        expect(await get<any>("SELECT status, code, day, why FROM official_watch WHERE video_id = ?", [id])).toMatchObject({ status: "pending", code: "USTXROQ", day: "2025-03-29", why: expect.stringMatching(/2 videos fit USTXROQ's 2025-03-29 at once/) });
+        expect(await get("SELECT 1 FROM official_videos WHERE video_id = ?", [id])).toBeUndefined();
+      }
+      expect(await get<any>("SELECT status, decided_by, why FROM official_watch WHERE video_id = ?", [HID])).toMatchObject({ status: "ignored", decided_by: "channel audit", why: "set aside by the channel audit: unlisted now: the channel took it off its public list, so it isn't for Scout" });
+    } finally {
+      uploads.splice(0, 3);
+      await run("UPDATE official_watch SET status = 'rejected' WHERE video_id IN (?, ?)", [A, B]);
+    }
   });
 });
