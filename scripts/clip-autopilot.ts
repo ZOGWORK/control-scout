@@ -39,7 +39,7 @@ const opt = (k: string) => { const i = argv.indexOf(`--${k}`); return i >= 0 ? a
 for (const a of argv) if (a.startsWith("--") && !["--max", "--sweep", "--db", "--dry", "--no-merge"].includes(a)) { console.error(`${a}: not a flag (--max N, --sweep N, --db F, --dry, --no-merge)`); process.exit(2); }
 const MAX = Number(opt("max") ?? 6), SWEEP = Number(opt("sweep") ?? 4), DRY = argv.includes("--dry"), DB = opt("db"), MERGE = !argv.includes("--no-merge");
 /** Main's last commit at least this old before a merge (each merge deploys; merges spaced, owner's rule). */
-const MAIN_QUIET_MS = 10 * 60_000;
+const MAIN_QUIET_MS = 605_000;
 /** How long a merge is waited for on the live site. */
 const LIVE_WAIT_MS = 20 * 60_000;
 const HEALTH_URL = process.env.AUTOPILOT_HEALTH ?? "https://controlscout.org/api/health";
@@ -207,7 +207,7 @@ function mergeOne(): void {
   try {
     const me = sh("gh", ["api", "user", "--jq", ".login"], { quiet: true }).out.trim();
     const last = Date.parse(sh("gh", ["api", "repos/{owner}/{repo}/commits/main", "--jq", ".commit.committer.date"], { quiet: true }).out.trim());
-    if (!(Date.now() - last >= MAIN_QUIET_MS)) { log(`merge: main's last commit is ${Math.round((Date.now() - last) / 60_000)} min old, under ${MAIN_QUIET_MS / 60_000}: none this run`); return; }
+    if (!(Date.now() - last >= MAIN_QUIET_MS)) { log(`merge: main's last commit is ${Math.round((Date.now() - last) / 60_000)} min old, under ${MAIN_QUIET_MS / 1000} s: none this run`); return; }
     git("fetch", "--quiet", "origin");
     for (const p of open) {
       if (rebuilt.has(p.number)) continue;
@@ -221,6 +221,8 @@ function mergeOne(): void {
       const merged = sh("gh", ["pr", "view", String(p.number), "--json", "mergeCommit", "--jq", ".mergeCommit.oid"], { quiet: true }).out.trim();
       log(`merge: #${p.number} merged as ${merged.slice(0, 9)} (${g.version}); waiting for it live`);
       waitLive(merged, g.version);
+      // main moved: the PRs this run opens next take the version after this one, live or not.
+      git("fetch", "--quiet", "origin");
       return;
     }
   } catch (e) {
