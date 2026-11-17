@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.2.8 — 2026-11-17
+
+Videos › the frame-read match starts are kept one file a season, so a season's recordings can be read alongside another's; every clip plays as before.
+
+### Highlights
+- [fixes] Match clips play from the same seconds as before
+- [fixes] Each season's frame-read starts in a file of its own
+- [fixes] Seasons' recordings can be read side by side
+
+### Changed
+- Videos (`server/data/frameTimings.ts`, `scripts/video-frames.ts`, `scripts/split-frame-timings.ts`): the frame reader's rows live in `server/data/frameTimings/<season>.ts`, one file per season of the row's event (2024: 48 rows, 2025: 162, 2026: 8; 2019 and 2021–2023 empty), and `frameTimings.ts` serves them together, unchanged (#1647). `scripts/video-frames.ts --season N` reads and writes only that season's file, so readers of different seasons never touch the same file. `scripts/split-frame-timings.ts` does the split (re-runnable, it reads its rows back), and a test checks the 218 rows it pinned.
+
 ## 7.2.7 — 2026-11-17
 
 Videos › a recording YouTube once called unavailable is looked at again every week, so one made public again gets its clips.
