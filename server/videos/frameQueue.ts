@@ -49,7 +49,8 @@ function matchState(m: CoverageMatch, checked: string | null, last: string | nul
   if (!checked) return "unread";
   // Read on or before the UTC day the event's last day ends on: matches played after that read may not be in it. The
   // queue only reads after that day (frameStatus), so a read it makes settles: never read twice for this.
-  return last && checked.slice(0, 10) <= last ? "stale" : "read";
+  // No last day known: the event may still be on, so no read of it is taken as after it.
+  return !last || checked.slice(0, 10) <= last ? "stale" : "read";
 }
 
 /** Where one event stands with the frame reader (not yet ranked): queued, waiting for the event to end or for its
@@ -65,6 +66,8 @@ export function frameStatus(e: QueueEvent, now = Date.now()): FrameStatus {
     const top = topReason(e.missing);
     return { state: "unreadable", matches: 0, due: 0, why: `Nothing a frame read can place${top ? `: ${top}` : ""}` };
   }
+  // No last day known (no end stored, no missing match dated): it may still be on, so it waits rather than queue early.
+  if (due && !last) return { state: "waiting", matches: due, due: 0, why: `Waits for the event's last day to be known: ${plural(due, "match")} to read then` };
   if (due && last && last >= utcDay(now)) return { state: "waiting", matches: due, due: 0, why: `Waits for the event to finish (last day ${end}): ${plural(due, "match")} to read then` };
   if (due) {
     const stale = n("stale");
@@ -72,7 +75,8 @@ export function frameStatus(e: QueueEvent, now = Date.now()): FrameStatus {
   }
   // A video whose facts aren't in yet is still to read, whatever the event's other videos showed.
   if (n("facts")) return { state: "waiting", matches: n("facts"), due: 0, why: `Waits for YouTube's facts for its video: ${plural(n("facts"), "match")}${n("read") ? ` (${n("read")} more read, no clip)` : ""}` };
-  const at = states.map((x) => x.checked).filter((d): d is string => !!d).sort().at(-1) ?? null;
+  // The read's date: the matches it read, never one it can't place (a no-start match's video, read another day).
+  const at = states.filter((x) => x.s === "read").map((x) => x.checked).filter((d): d is string => !!d).sort().at(-1) ?? null;
   const still = n("read");
   return { state: "read", matches: 0, due: 0, at, why: `Read ${at}: ${plural(still, "match")} still without a clip, as the video shows (see each match)` };
 }
@@ -89,15 +93,18 @@ function topReason(missing: CoverageMatch[]): string | null {
 export function rankQueue<T extends { season: number; code: string; frames: FrameStatus }>(events: T[]): T[] {
   const queued = events.filter((e) => e.frames.state === "queued")
     .sort((a, b) => b.frames.due - a.frames.due || b.season - a.season || (a.code < b.code ? -1 : a.code > b.code ? 1 : 0));
+  // Ranking again (a list ranked before, filtered) replaces each place: never two, and none left on an event no longer queued.
+  for (const e of events) { delete e.frames.rank; e.frames.why = e.frames.why.replace(IN_LINE, ""); }
   queued.forEach((e, i) => { e.frames.rank = i + 1; e.frames.why += ` · ${ordinal(i + 1)} in line`; });
   return queued;
 }
 
+const IN_LINE = / · \d+(?:st|nd|rd|th) in line$/;
 const ordinal = (n: number) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? "th" : ["th", "st", "nd", "rd"][n % 10] ?? "th"}`;
 
 /** Every event with a played match missing a clip, as clip_coverage holds it, with its place with the frame reader. */
-export async function frameQueue(now = Date.now()): Promise<{ season: number; code: string; name: string; frames: FrameStatus }[]> {
-  const rows = await all<{ season: number; code: string; name: string | null; end: string | null; timezone: string | null; detail: string }>(
+export async function frameQueue(now = Date.now(), read: Read = all): Promise<{ season: number; code: string; name: string; frames: FrameStatus }[]> {
+  const rows = await read<{ season: number; code: string; name: string | null; end: string | null; timezone: string | null; detail: string }>(
     `SELECT c.season, c.code, e.name, e.end, e.timezone, c.detail FROM clip_coverage c LEFT JOIN events e ON e.season = c.season AND e.code = c.code
      WHERE c.with_clip < c.played AND c.state != 'none'`);
   const out: { season: number; code: string; name: string; frames: FrameStatus }[] = [];
@@ -113,6 +120,9 @@ export async function frameQueue(now = Date.now()): Promise<{ season: number; co
   rankQueue(out);
   return out;
 }
+
+/** A read of the database: `all`, or one inside a snapshot (inSnapshot), so the queue and what's beside it agree. */
+export type Read = <R>(sql: string, args?: (string | number | null)[]) => Promise<R[]>;
 
 /** The queue in numbers for the owner console: events and matches queued, and the next few in line. */
 export function queueSummary(events: { season: number; code: string; name: string; frames: FrameStatus }[], next = 5): FrameQueueSummary {
