@@ -15,6 +15,30 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.6.8 — 2026-11-17
+
+Search › one period's best matches ("best teleop videos in romania decode") gets an answer in the search box too, linking to the full list.
+
+### Highlights
+- [fixes] "Best teleop videos in Romania" answers in the search box
+- [fixes] One period's best scores link to their full list
+- [fixes] No more empty box for auto, teleop or endgame bests
+
+### Fixed
+- Search (`server/api/answers/index.ts`): the box left a season's best matches to the asks' high-score card, which reads whole scores only, so a question about one period's best ("best teleop videos in romania decode", "highest teleop score in texas") showed nothing there while the page answered it. The box now shows "Highest teleop scores in Romania", linking to that page, as a board's does. Its label names no season, because the page may step back to the season before. (#1836)
+
+## 7.6.7 — 2026-11-17
+
+Search › "ranked" beside the best team reads as the board's own order, so "best romanian team ranked" lists Romania's top teams.
+
+### Highlights
+- [fixes] "Best romanian team ranked" lists Romania's top teams
+- [fixes] "Best ranked team in NJ" shows New Jersey's rankings
+- [fixes] "Ranked" after the best team no longer stops a search
+
+### Fixed
+- Search (`src/shared/query/intents.ts`, `server/api/searchAsks.ts`): "ranked" read as a rank to sort by, which the best-team board doesn't take, so "best romanian team ranked" read nothing. The best-team board now takes it as its own order (a team's rank is its OPR rank), and the region-rankings reader drops it after "best", "top" or "strongest" and at the end, so "best ranked team in nj" stays New Jersey's rankings. (#1834)
+
 ## 7.6.6 — 2026-11-17
 
 Search › "thier" is read as "their" again, so "where is 207 in thier conference" answers 207's conference place.
