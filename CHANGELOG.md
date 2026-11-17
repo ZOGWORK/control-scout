@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.6.4 — 2026-11-17
+
+Videos › 71 more 2024 matches play as clips, from FIRST Nevada's streams with the score bar along the top: the Nevada Championship and the NV Southern League Tournament.
+
+### Highlights
+- [history] Nevada Championship: 35 of 57 matches as clips, from none
+- [history] NV Southern League Tournament: 36 of 45 matches as clips
+- [history] Streams with the score bar on top now play as match clips
+
+### Added
+- Frame-read match starts for 2 more 2024 recordings, read with the top-bar reader (#1713), each clip's opening checked against a paused frame naming its match: USNVSOLT 36 of 45 played matches (9 missing), USNVCMP 35 of 57 (3 to review, 19 missing). (`server/data/frameTimings/2024.ts`) (#PRNUM)
+
 ## 7.6.3 — 2026-11-17
 
 Event videos › a title's "Day 2" can mean the event's second day of play, and two Romanian events get the recordings of the days FIRST's dates left out.
