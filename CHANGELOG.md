@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.2.4 — 2026-11-17
+
+Sharing › a new link-preview card for Discord, iMessage and Slack, readable at the size those apps show it.
+
+### Highlights
+- [share] A new preview card when a Control Scout link is shared
+- [share] Big type that reads at Discord's preview size
+- [share] Shows a match prediction the way the app does
+
+### Changed
+- The link-preview card (`og:image`, `twitter:image`): "Every FTC match, predicted." on two lines, the site's address in gold, and a match-prediction panel (red and blue odds, the meter and a called score) drawn as the app shows one; nothing on it under 30px, so it reads at the third of its size chat apps show it. Its address is versioned (`/og-image.png?v=2`) so apps that cached the old card fetch the new one, and its alt text says what it shows. (`scripts/og-image.ts`, `public/og-image.png`, `server/seoMeta.ts`)
+
 ## 7.2.3 — 2026-11-17
 
 Search › New Jersey conference questions answered directly: a team's rank in its conference, a conference's table, who won it, with the same numbers as the league page.
