@@ -212,7 +212,10 @@ export async function runChannelAudit(log: (s: string) => void, opts: { apiKey?:
     // video the rules now decide never waits on the owner, one set aside for want of its event is added once Scout has
     // it, and a duplicate is added once the video it copied no longer plays.
     const again = (id: string) => { const r = records.get(id); return !!r && (r.record === REVIEW || r.record === SET_ASIDE || r.record === DUPLICATE); };
-    const needFacts = rows.filter((r) => ((!records.has(String(r.video_id)) || again(String(r.video_id))) && !r.facts_at && !notCompetition(String(r.title))) || adds.has(String(r.video_id))).map((r) => String(r.video_id));
+    // A watcher's duplicate is read every run, as its adds are: it may be added the run its day's video goes, and must
+    // be added on facts read then (one made private or blocked since isn't).
+    const copy = (id: string) => records.get(id)?.record === DUPLICATE;
+    const needFacts = rows.filter((r) => ((!records.has(String(r.video_id)) || again(String(r.video_id))) && !r.facts_at && !notCompetition(String(r.title))) || adds.has(String(r.video_id)) || copy(String(r.video_id))).map((r) => String(r.video_id));
     const facts = new Map<string, any>();
     let factsError: string | null = null;
     for (let i = 0; i < needFacts.length && out.units < maxUnits; i += 50) {
@@ -294,7 +297,7 @@ export async function runChannelAudit(log: (s: string) => void, opts: { apiKey?:
       const rule = rules.get(String(r.channel_id));
       if (!rule) return null;
       const rec = records.get(vid);
-      const redo = rec && rec.record === REVIEW ? "pending" as const : rec && (rec.record === SET_ASIDE || rec.record === DUPLICATE) ? "ignored" as const : null;
+      const redo = rec && rec.record === REVIEW ? "pending" as const : rec && rec.record === SET_ASIDE ? "ignored" as const : rec && rec.record === DUPLICATE ? "duplicate" as const : null;
       const v: WatchVideo = { videoId: vid, title: String(row.title), start: row.start ?? null, published: row.published ?? null, durationS: row.duration == null ? null : Number(row.duration), privacy: String(row.privacy ?? "public"), embeddable: Number(row.embeddable ?? 1) !== 0, blockedIn: Number(row.blocked_in ?? 0) };
       const title = notCompetition(v.title);
       const live = f?.live === "live" || f?.live === "upcoming";
@@ -389,6 +392,22 @@ export async function runChannelAudit(log: (s: string) => void, opts: { apiKey?:
             const setWhy = `set aside by the channel audit: ${m.why}`.slice(0, 500);
             writes.push({ sql: "UPDATE official_watch SET status = ?, decided_at = ?, decided_by = 'channel audit', why = ? WHERE video_id = ? AND status = 'pending'", args: [m.kind === "duplicate" ? "duplicate" : "ignored", at, setWhy, vid] });
             rec = { ...rec!, record: SET_ASIDE_BY_AUDIT };
+            records.set(vid, rec);
+          } else if (redo === "duplicate" && m.kind === "ignore") {
+            // A copy the rules now set aside (made private, unlisted or blocked since): logged with that reason, not as a copy.
+            out.setAside++;
+            const setWhy = `set aside by the channel audit: ${m.why}`.slice(0, 500);
+            writes.push({ sql: "UPDATE official_watch SET status = 'ignored', decided_at = ?, decided_by = 'channel audit', why = ? WHERE video_id = ? AND status = 'duplicate'", args: [at, setWhy, vid] });
+            rec = { ...rec!, record: SET_ASIDE_BY_AUDIT };
+            records.set(vid, rec);
+          } else if (redo === "duplicate" && m.kind === "review") {
+            // Its day is free again, but which video plays is a judgement (two copies fit it, or a second video of a day
+            // must name its part): the owner's review, as the watcher would have queued it.
+            out.queued++;
+            const ev = "event" in m && m.event ? m.event : null;
+            writes.push({ sql: "UPDATE official_watch SET status = 'pending', season = ?, code = ?, day = ?, part = ?, decided_at = NULL, decided_by = NULL, why = ? WHERE video_id = ? AND status = 'duplicate'",
+              args: [ev?.season ?? null, ev?.code ?? null, ("day" in m ? m.day : null) ?? null, ("part" in m ? m.part : null) ?? null, `the channel audit: ${m.why}`.slice(0, 500), vid] });
+            rec = { record: REVIEW, season: ev?.season ?? null, code: ev?.code ?? null, plays: false };
             records.set(vid, rec);
           }
         }
