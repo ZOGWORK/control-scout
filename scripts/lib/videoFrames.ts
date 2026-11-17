@@ -165,6 +165,8 @@ export type Judged = {
 
 /** Why a match is missing when no frame of its video could be read at all. */
 export const NOTHING_READ = "no frame of the video could be read";
+/** Why a match is missing when its one read sits where the reads around it say the video isn't (judge drops it). */
+export const MISREAD = "its frame read disagrees with the matches around it";
 /** A match FIRST gives only a scheduled time for (M.scheduled) that no frame walked through the video showed running. */
 export const SCHEDULED_UNREAD = "no start time from FIRST, and no frame of it read";
 
@@ -390,6 +392,24 @@ export function dataRows<T>(text: string): T[] {
 }
 
 /**
+ * The matches to look for again once the reads have placed the video, each where the reads beside it put it.
+ * - misread: a match whose read judge drops (MISREAD). The reader takes a read match as found, so without this it is
+ *   never looked for where its neighbours say it is (USCHSBAQ3 2023's Q1, played on the clock's distance like Q2–F1).
+ * - trailing: the matches after the last clock read. The reader looks for the last match first, before any read places
+ *   the video, and walks back over the matches before the first read but never on over those after the last, so a
+ *   last match missed at that first try stays missing (USCHSBAQ3 2023's F2, 16 minutes after F1 past a field timeout).
+ * A scheduled-only match (M.scheduled) is the walk's, not the clock's: never in either.
+ */
+export function lookAgain(ms: M[], seen: Map<number, number>, shift: number | null, length: number): { misread: number[]; trailing: number[] } {
+  const j = judge(ms, seen, shift, length);
+  const misread = ms.flatMap((m, i) => (!m.scheduled && seen.has(i) && j.missing.get(m.label) === MISREAD ? [i] : []));
+  const bad = new Set(misread);
+  const last = Math.max(-1, ...[...seen.keys()].filter((k) => !ms[k].scheduled && !bad.has(k)));
+  const trailing = last < 0 ? [] : ms.flatMap((m, i) => (i > last && !m.scheduled && !seen.has(i) ? [i] : []));
+  return { misread, trailing };
+}
+
+/**
  * Judge a video's matches from its confirmed reads (index → start second). The clock (FIRST's actual start of each
  * match) is the anchor; the frames are the second signal. A video loses time and never gains it, so how far it sits
  * from the clock only ever falls, match by match: a read that breaks that is a misread (a replay, an overlay left on the
@@ -486,7 +506,7 @@ export function judge(ms: M[], seen: Map<number, number>, shift: number | null, 
     if (placedAt.has(m.label) || review.has(m.label)) return;
     const before = kept.filter((k) => k < i).at(-1), after = kept.find((k) => k > i);
     missing.set(m.label,
-      dropped.has(i) ? "its frame read disagrees with the matches around it"
+      dropped.has(i) ? MISREAD
       : read.has(i) ? "its frames didn't confirm a start"
       : m.scheduled && (kept.length || sKept.size || read.size) ? SCHEDULED_UNREAD
       : before != null && after != null ? "in a gap: the reads either side disagree where the video sits, so it may not be in the video"
