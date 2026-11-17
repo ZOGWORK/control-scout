@@ -85,6 +85,15 @@ describe("a place's winning alliance captains (#1642, #1643)", () => {
   });
 });
 
+describe("a place's award winners with none in any season tried", () => {
+  it("says so, and offers only seasons before the ones tried", async () => {
+    const a = await full("nj think winners");
+    expect(a.stat?.none).toContain("Nothing in 2025–26 either");
+    const rel = a.stat?.blocks.find((b) => b.kind === "related");
+    expect(rel && rel.kind === "related" && rel.queries).toEqual(["nj think winners 2024-25", "nj think winners 2023-24"]);
+  });
+});
+
 describe("an award's name cut off where it was won (#1641)", () => {
   it("completes a start one award's name has, and only that", () => {
     expect(awardCutOff("teams in nj that won ins")).toBe("teams in nj that won inspire");

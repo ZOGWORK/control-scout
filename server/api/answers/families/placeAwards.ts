@@ -22,7 +22,7 @@ import { CHAMPIONSHIP_TYPE } from "../clauses.js";
 import { SEASON_NUMBERS } from "../../../data/seasons.js";
 import { eventHref, shortEvent } from "../matchSet.js";
 import { place } from "../../../../src/shared/format.js";
-import { defaultSteps, relaxed } from "../../query/relax.js";
+import { defaultSteps, isEmpty, relaxed } from "../../query/relax.js";
 
 /** The awards by the words people use (awards.type). */
 const AWARDS: [RegExp, string][] = [
@@ -394,14 +394,23 @@ export async function placeAwardsSearch(q: string, ask: PlaceAwardsAsk, pages: S
   if (ask.season != null || ask.stage || ask.mode === "most" || ask.mode === "fewest" || ask.mode === "any" || latest) return first;
   const season = defaultSeason();
   const what = ask.types.length ? ask.types.map((t) => (ask.captain && t === "Winner" ? `${CAPTAIN}s` : `${awardName(t)}s`)).join(" and ") : "awards";
-  return (await relaxed(first, defaultSteps(season, ask.place ? ` in ${ask.place.name}` : "", what), (s) => placeAwardsCard(q, { ...ask, season: s }, pages))) ?? first;
+  const steps = defaultSteps(season, ask.place ? ` in ${ask.place.name}` : "", what);
+  const out = (await relaxed(first, steps, (s) => placeAwardsCard(q, { ...ask, season: s }, pages))) ?? first;
+  if (!isEmpty(out) || !out.stat) return out;
+  // None in any season tried: the seasons to ask next are the ones before every season tried, never one just tried.
+  const oldest = Math.min(...steps.map((x) => x.season));
+  return { ...out, stat: { ...out.stat, blocks: out.stat.blocks.map((blk) => (blk.kind === "related" && blk.title === OTHER_SEASONS ? { ...blk, queries: otherSeasons(q, oldest) } : blk)) } };
 }
+
+const OTHER_SEASONS = "Other seasons";
+/** The two seasons before `season`, each asked as `q` with its season written in. */
+const otherSeasons = (q: string, season: number) => [1, 2].map((k) => `${q.replace(/[?!.]+$/, "")} ${season - k}-${String((season - k + 1) % 100).padStart(2, "0")}`);
 
 async function placeAwardsCard(q: string, ask: PlaceAwardsAsk, pages: SearchPageLink[]): Promise<SearchAnswer> {
   const stat = await placeAwardsAnswer(ask);
   const shown = stat.scope.at(-1) ?? "";
   const season = /^\d{4}–\d{2}$/.test(shown) ? Number(shown.slice(0, 4)) : null;
-  if (season != null && !ask.seasonSaid) stat.blocks.push({ kind: "related", title: "Other seasons", queries: [1, 2].map((k) => `${q.replace(/[?!.]+$/, "")} ${season - k}-${String((season - k + 1) % 100).padStart(2, "0")}`) });
+  if (season != null && !ask.seasonSaid) stat.blocks.push({ kind: "related", title: OTHER_SEASONS, queries: otherSeasons(q, season) });
   return {
     q, hits: [], pages, step: "deterministic", weak: false,
     understood: { kind: "question", label: stat.title },
