@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.5.2 — 2026-11-17
+
+Videos › 32 more 2022 (POWERPLAY) match clips from the FIRST in Texas UIL State championships (1A-4A, 5A, 6A): every match their recordings hold.
+
+### Highlights
+- [history] Texas UIL State 1A-4A: clips for Q30 to the finals
+- [history] Texas UIL State 6A: clips for Q31 to the finals
+- [history] Texas UIL State 5A: clips for Q34 to the finals
+
+### Added
+- Videos: clips read off the recordings' frames (`server/data/frameTimings/2022.ts`): USTXSOCMP 13, USTXSOBES 11, USTXSOBEOS 8. Each recording opens late in its event, so the earlier matches are outside it. Each placed start's clip opens on a paused frame whose overlay names that match, and no frame names another event. (#1733)
+
 ## 7.5.1 — 2026-11-17
 
 Videos › 91 more 2022 (POWERPLAY) match clips from TX-North's B&T Tournament and its M-League Meets 1 and 2.
