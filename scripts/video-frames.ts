@@ -27,18 +27,20 @@
 //   --verify  read no starts: check where each placed match's clip opens, for rows not yet checked (opens)
 //   --bounds  read no starts: read each read video's first and last frames (opensOn, endsOn), the proof that a match
 //             was played before it starts or after it ends (outsideRecording); a normal read reads them too
+//   --clips   read no starts: check each clip the live site plays from the clock by its first frame, paused (ok,
+//             pulled when it names another match, unconfirmed when it names none), into server/data/clipChecks.ts
 //   --live <file>  the timings the live site serves (a copy of main's server/data/frameTimings/<season>.ts): a re-read start
 //             that is one of them (same video, match and second, within a read's slack) and whose opening frame names
 //             nothing stays, unconfirmed, as --verify keeps it; only an overlay naming another match pulls a live clip
 //   TESSERACT_JS=<path to tesseract.js's entry>  where tesseract.js is, when it isn't in node_modules
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
-import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, playedCount } from "./lib/videoFrames";
-import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, elapsed, overlayDivision, leadIn, judge, NOTHING_READ, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M } from "./lib/videoFrames";
+import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, playedCount, playedMatches } from "./lib/videoFrames";
+import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, elapsed, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M } from "./lib/videoFrames";
 
 // The command line: --name value or --name=value for the value flags, --name alone for the others. Anything else stops
 // the run before it reads: a misspelt flag mustn't quietly read (and write) every recording of the season.
-const VALUE_FLAGS = new Set(["season", "codes", "limit", "lanes", "live"]), BOOL_FLAGS = new Set(["all", "bounds", "check", "dry", "trace", "verify"]);
+const VALUE_FLAGS = new Set(["season", "codes", "limit", "lanes", "live"]), BOOL_FLAGS = new Set(["all", "bounds", "check", "clips", "dry", "trace", "verify"]);
 const args = new Map<string, string | true>();
 {
   const argv = process.argv.slice(2);
@@ -50,7 +52,7 @@ const args = new Map<string, string | true>();
       if (v == null || v === "" || v.startsWith("--")) { console.error(`--${name}: give it a value`); process.exit(2); }
       args.set(name, v);
     } else if (m && BOOL_FLAGS.has(name) && m[2] == null) args.set(name, true);
-    else { console.error(`${argv[i]}: not a flag this script takes (--season, --codes, --limit, --lanes, --all, --check, --dry, --trace, --verify, --live <file>)`); process.exit(2); }
+    else { console.error(`${argv[i]}: not a flag this script takes (--season, --codes, --limit, --lanes, --all, --check, --dry, --trace, --verify, --clips, --live <file>)`); process.exit(2); }
   }
 }
 const arg = (k: string) => { const v = args.get(k); return typeof v === "string" ? v : undefined; };
@@ -71,14 +73,15 @@ const lanes = count("lanes", 3);
  *  server/data/frameTimings.ts, before it can be read). */
 const FRAMES_FILE = `server/data/frameTimings/${season}.ts`;
 if (!existsSync(FRAMES_FILE)) { console.error(`--season ${season}: no ${FRAMES_FILE} (add it, and its import in server/data/frameTimings.ts)`); process.exit(2); }
-const CHECK = flag("check"), ALL = flag("all"), DRY = flag("dry"), TRACE = flag("trace"), VERIFY = flag("verify"), BOUNDS = flag("bounds");
+const CHECK = flag("check"), ALL = flag("all"), DRY = flag("dry"), TRACE = flag("trace"), VERIFY = flag("verify"), BOUNDS = flag("bounds"), CLIPS = flag("clips");
 
 const { migrate, all } = await import("../server/db.js");
 await migrate();
 const R = await import("../server/videos/recordings.js");
-const { CLIP_LEAD_S, actualStart } = await import("../src/shared/recording.js");
+const { CLIP_LEAD_S, actualStart, labelRank } = await import("../src/shared/recording.js");
 const { localToUtcMs } = await import("../src/shared/time.js");
 const { localDate } = await import("../server/videos/officialVideos.js");
+const { frameStart } = await import("../server/data/frameTimings.js");
 /** --live: what the live site serves, by video and event (its starts). */
 const liveRows = (path: string) => {
   let text: string;
@@ -103,6 +106,10 @@ type Read = { label: string | null; start: number | null; at: number; text: stri
  *  overlay it saw; a sibling's is never this event's match, and a start stands only when a read of it showed this
  *  division's name. */
 const divisions = new WeakMap<Page, { own: string; others: string[] }>();
+/** Each event's name (events.name), and the event a page reads: a frame whose overlay names another event is never
+ *  this one's (overlayEvent: two league meets split on one stream, USTXCAM1 2024). */
+const eventNames = new Map<string, { name: string; quals: number }>();
+const pageEvent = new WeakMap<Page, { name: string; quals: number }>();
 
 // --- Reading a frame -----------------------------------------------------------------------------------------------
 
@@ -160,7 +167,9 @@ const TIMERS = [
  *  never for later ones, whose bars have other numbers in those places. */
 const PLAIN_TIMERS = [
   { where: "plain" as const, clip: { x: 595, y: 594, width: 90, height: 36 }, plain: true },
-  { where: "plain" as const, clip: { x: 595, y: 684, width: 90, height: 34 }, plain: true },
+  // POWERPLAY's box, inside the bar it sits on: a crop reaching the bar's coloured edge reads it as a "1" (USCHSCMPVIO
+  // 2022 at 5664 s, "78" read "178"), every confirmation of the event's matches failing with it.
+  { where: "plain" as const, clip: { x: 605, y: 686, width: 70, height: 30 }, plain: true },
 ];
 /** Best-of-3 semifinals and finals (2019–2023; double elimination from 2024, whose playoffs FIRST numbers M1–M13): the
  *  overlay names every playoff "Semifinal 1 Match 2" or "Finals Match 1", never a bare "Match 1" (overlayLabel).
@@ -223,28 +232,40 @@ const LABEL_ROW = { x: 0, y: 548, width: 1280, height: 56 };
  *  (rowAbove). CENTERSTAGE's bottom bar sits its line 8 px lower than later seasons' (ROW_LOWER): read at the usual
  *  row, tesseract runs "9 of" into "90f" there (USTXNTM1 2023 at 1108 s), so that row is read too. */
 const ROW_LOWER = 8;
-async function labelRow(page: Page, ctx: { own: string; others: string[] } | undefined): Promise<string | null> {
+type PageEvent = { name: string; quals: number };
+async function labelRow(page: Page, ctx: { own: string; others: string[] } | undefined, event?: PageEvent): Promise<string | null> {
   for (const row of [LABEL_ROW, { ...LABEL_ROW, y: LABEL_ROW.y + ROW_LOWER }]) {
-    const fixed = await readRow(page, row, ctx);
+    const fixed = await readRow(page, row, ctx, event);
     if (fixed) return fixed;
   }
   const band = await barBand(page);
   const row = band && rowAbove(band, LABEL_ROW);
-  return row ? readRow(page, row, ctx) : null;
+  return row ? readRow(page, row, ctx, event) : null;
 }
-async function readRow(page: Page, row: { x: number; y: number; width: number; height: number }, ctx: { own: string; others: string[] } | undefined): Promise<string | null> {
+/** The row's match half, then (on a shared stream, or where the event is known) the whole row: the event name beside
+ *  the match says whose it is (overlayEvent). Another event's is never this one's; on a split screen the match half may
+ *  be the other event's, so the match beside this event's name in the row is taken. */
+async function readRow(page: Page, row: { x: number; y: number; width: number; height: number }, ctx: { own: string; others: string[] } | undefined, event?: PageEvent): Promise<string | null> {
   const half = (await rowOcr.recognize(await page.screenshot({ clip: { ...row, x: row.width / 2, width: row.width / 2 } }))).data.text as string;
-  if (!overlayLabel(half, SEMIFINALS) || !ctx) return rowLabel(half, null, undefined, SEMIFINALS);
-  return rowLabel(half, (await rowOcr.recognize(await page.screenshot({ clip: row }))).data.text as string, ctx, SEMIFINALS);
+  if (!overlayLabel(half, SEMIFINALS) || (!ctx && !event)) return rowLabel(half, null, undefined, SEMIFINALS);
+  const whole = (await rowOcr.recognize(await page.screenshot({ clip: row }))).data.text as string;
+  const seen = event ? overlayEvent(whole, event.name, event.quals, SEMIFINALS) : null;
+  if (seen?.event === "other") return null;
+  const label = rowLabel(half, whole, ctx, SEMIFINALS);
+  return label && (seen?.phrase ?? label);
 }
 
 /** The match a frame names: the whole frame's read, else the bar's row on its own (labelRow). `division`: whose the
- *  frame is on a shared stream; a match the row named there is this division's (labelRow checked the row). */
-async function frameLabel(page: Page, text: string, ctx: { own: string; others: string[] } | undefined): Promise<{ label: string | null; division?: "own" | "other" | null }> {
-  const whole = overlayLabel(text, SEMIFINALS);
+ *  frame is on a shared stream; a match the row named there is this division's (labelRow checked the row). `event`:
+ *  "other" where the overlay names another event beside the match (overlayEvent); on a split screen, this event's half. */
+async function frameLabel(page: Page, text: string, ctx: { own: string; others: string[] } | undefined): Promise<{ label: string | null; division?: "own" | "other" | null; event?: "other" }> {
+  const own = pageEvent.get(page);
+  const seen = own ? overlayEvent(text, own.name, own.quals, SEMIFINALS) : null;
+  if (seen?.event === "other") return { label: null, division: "other", event: "other" };
+  const whole = seen?.label ?? overlayLabel(text, SEMIFINALS);
   const division = ctx ? overlayDivision(text, ctx.own, ctx.others) : undefined;
   if (whole || division === "other") return { label: whole, division };
-  const row = await labelRow(page, ctx);
+  const row = await labelRow(page, ctx, own);
   return { label: row, division: row && ctx ? "own" : division };
 }
 
@@ -281,16 +302,51 @@ function readAt(page: Page, t: number, labelOnly = false): Promise<Read> {
   ]);
 }
 
+/** Near-black frames: a player that plays but shows no picture (the page's own layer hiding it, 2026-11-17) reads
+ *  nothing anywhere, and a run on it would write every match "no frame read". Every SHADE_EVERY-th read's screenshot
+ *  is checked; once DARK_MIN are checked and more than DARK_SHARE of them are near-black (mean brightness under
+ *  DARK_MEAN of 255), nothing is written (stopIfDark): the run stops and says so. */
+const SHADE_EVERY = 6, DARK_MIN = 12, DARK_SHARE = 0.5, DARK_MEAN = 18;
+let reads = 0, shadeChecked = 0, shadeDark = 0;
+async function nearBlack(page: Page, png: Buffer): Promise<boolean> {
+  return page.evaluate(async ({ b64, under }) => {
+    const img = new Image();
+    img.src = `data:image/png;base64,${b64}`;
+    await img.decode();
+    const c = document.createElement("canvas");
+    c.width = 160; c.height = 90;
+    const g = c.getContext("2d")!;
+    g.drawImage(img, 0, 0, c.width, c.height);
+    const d = g.getImageData(0, 0, c.width, c.height).data;
+    let sum = 0;
+    for (let i = 0; i < d.length; i += 4) sum += 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+    return sum / (c.width * c.height) < under;
+  }, { b64: png.toString("base64"), under: DARK_MEAN });
+}
+/** Most frames near-black: write nothing, say so (the autopilot stops its whole run on this line), exit. */
+function stopIfDark(): void {
+  if (shadeChecked < DARK_MIN || shadeDark / shadeChecked <= DARK_SHARE) return;
+  const line = `NEAR-BLACK FRAMES: ${shadeDark} of ${shadeChecked} sampled reads showed no picture; nothing written`;
+  console.log(line);
+  console.error(line);
+  process.exit(3);
+}
+
 /** labelOnly: the overlay's match alone, not its timer (a clip opening's check). */
 async function readAtOnce(page: Page, t: number, labelOnly = false): Promise<Read> {
   if (ocrBroken) throw new Error(ocrBroken);
   await seek(page, Math.max(0, t), labelOnly);
   const at = await now(page);
-  const text = (await worker.recognize(await page.screenshot())).data.text as string;
+  const shot = await page.screenshot();
+  if (reads++ % SHADE_EVERY === 0) {
+    const dark = await nearBlack(page, shot).catch(() => null);
+    if (dark != null) { shadeChecked++; if (dark) shadeDark++; }
+  }
+  const text = (await worker.recognize(shot)).data.text as string;
   const ctx = divisions.get(page);
-  const { label, division } = await frameLabel(page, text, ctx);
-  // Another division's match on the shared stream: not this event's, whatever its number.
-  if (division === "other") return { label: null, start: null, at, text, why: "another division's overlay", division };
+  const { label, division, event } = await frameLabel(page, text, ctx);
+  // Another division's match on the shared stream, or another event's beside its name: not this event's, whatever its number.
+  if (division === "other") return { label: null, start: null, at, text, why: event === "other" ? "another event's overlay" : "another division's overlay", division };
   if (!label || labelOnly) return { label, start: null, at, text, division };
   const a = await timer(page);
   const atA = await now(page);
@@ -434,6 +490,7 @@ async function verifyRow(row: FrameTiming, division: { own: string; others: stri
   try {
     page = await player();
     if (division) divisions.set(page, division);
+    { const e = eventNames.get(row.code); if (e) pageEvent.set(page, e); }
     await open(page, row.videoId);
     log(`  ${row.videoId}: checking ${Object.keys(row.starts).length} clip openings`);
     const medium = new Set(row.medium ?? []);
@@ -530,6 +587,7 @@ async function boundsRow(row: FrameTiming, length: number, division: { own: stri
   try {
     page = await player();
     if (division) divisions.set(page, division);
+    { const e = eventNames.get(row.code); if (e) pageEvent.set(page, e); }
     await open(page, row.videoId);
     const { opensOn, endsOn } = await readEdges(page, length);
     log(`  ${row.videoId}: opens on ${saidEdge(opensOn)}, ends on ${saidEdge(endsOn, "after")}`);
@@ -777,6 +835,7 @@ const report: string[] = [];
  *  still can't be written the next event's save writes everything kept. */
 let unsaved = false;
 function save(): void {
+  stopIfDark();
   if (CHECK || DRY) return;
   const file = FRAMES_FILE;
   for (let tries = 1; ; tries++) {
@@ -802,6 +861,91 @@ function save(): void {
 /** The start of the reason a match is missing when its video couldn't be played at all: such a video is tried again
  *  on the next run. */
 const PLAY_FAILED = "the video couldn't be played";
+
+// --- Live clock clips checked by their first frame (--clips) ----------------------------------------------------------
+
+/** server/data/clipChecks.ts: the sweep's rows (owner decision 2026-11-15, "verify old"). */
+const CLIPS_FILE = "server/data/clipChecks.ts";
+type ClipCheck = import("../server/data/clipChecks.js").ClipCheck;
+const clipKept = new Map<string, ClipCheck>(CLIPS ? dataRows<ClipCheck>(readFileSync(CLIPS_FILE, "utf8")).map((c) => [`${c.videoId}|${c.code}`, c]) : []);
+const clipTouched = new Set<string>();
+/** A video's clips read with nothing named at all (and at least this many read): its overlay can't be read, so its
+ *  clips can't be checked by frame (counted, never pulled). */
+const NO_OVERLAY_AFTER = 5;
+
+/** Write the sweep's rows (as save() writes the timings: rows this run didn't touch are taken from the file). */
+function saveClips(): void {
+  stopIfDark();
+  if (DRY) return;
+  const text = readFileSync(CLIPS_FILE, "utf8");
+  const onDisk = new Map(dataRows<ClipCheck>(text).map((c) => [`${c.videoId}|${c.code}`, c]));
+  for (const [key, c] of onDisk) if (!clipTouched.has(key)) clipKept.set(key, c);
+  const list = [...clipKept.values()].sort((a, b) => a.code.localeCompare(b.code) || a.videoId.localeCompare(b.videoId));
+  writeFileSync(CLIPS_FILE, `${text.split("// --- Data")[0]}// --- Data (scripts/clip-checks.ts writes from here on) ---\nexport const CLIP_CHECKS: ClipCheck[] = [\n${list.map((c) => `  ${JSON.stringify(c)},`).join("\n")}\n];\n`);
+}
+
+/** --clips: each clip the live site plays from the clock (not from frames: those are checked where they're placed,
+ *  `opens`) is read paused at its first second, as a clip's opening is (checkOpenings). The frame names its match: ok.
+ *  It names another match (or another division's): pulled, never served again. It names nothing: unconfirmed, read
+ *  again next sweep; nothing ever pulls a clip but a frame naming another match. Clips already ok or pulled, and videos
+ *  without a readable overlay, aren't read again. */
+async function checkClips(code: string, rec: Parameters<typeof R.withClips>[1], views: Parameters<typeof R.withClips>[0], span: Parameters<typeof R.withClips>[3], division: { own: string; others: string[] } | null): Promise<void> {
+  const todo = new Map<string, { label: string; t: number }[]>();
+  for (const v of R.withClips(views, rec, Date.now(), span)) {
+    const c = v.clip as { videoId: string; t: number } | undefined;
+    if (!c || frameStart(c.videoId, code, v.label) != null) continue;
+    const row = clipKept.get(`${c.videoId}|${code}`);
+    if (row?.noOverlay || row?.ok?.includes(v.label) || row?.pulled?.[v.label]) continue;
+    (todo.get(c.videoId) ?? todo.set(c.videoId, []).get(c.videoId)!).push({ label: v.label, t: c.t });
+  }
+  if (!todo.size || ++done > limit) return;
+  const lines: string[] = [];
+  const log = (s: string) => { lines.push(s); };
+  try {
+    log(`${code}: ${[...todo.values()].reduce((s, x) => s + x.length, 0)} clock clips to check by their first frame`);
+    for (const [videoId, clips] of todo) {
+      const key = `${videoId}|${code}`, prev = clipKept.get(key);
+      const ok = new Set(prev?.ok ?? []), pulled = { ...prev?.pulled }, unconfirmed = { ...prev?.unconfirmed };
+      let page: Page | null = null, named = 0, read = 0;
+      try {
+        page = await player();
+        if (division) divisions.set(page, division);
+        await open(page, videoId);
+        for (const c of clips) {
+          const r = await readAt(page, c.t, true);
+          // A seek that never landed shows the frame before it: that says nothing of this clip.
+          if (Math.abs(r.at - c.t) > 1) { unconfirmed[c.label] = { t: c.t, why: `the read at ${c.t} s landed at ${Math.round(r.at)} s` }; continue; }
+          read++;
+          delete unconfirmed[c.label];
+          if (r.division === "other") { named++; pulled[c.label] = { t: c.t, showed: "another division's match" }; }
+          else if (r.label && sameMatch(r.label, c.label)) { named++; ok.add(c.label); }
+          else if (r.label) { named++; pulled[c.label] = { t: c.t, showed: eventLabel(r.label) }; }
+          else unconfirmed[c.label] = { t: c.t, why: "its first frame names no match" };
+        }
+        const noOverlay = !named && read >= NO_OVERLAY_AFTER && !ok.size && !Object.keys(pulled).length;
+        log(`  ${videoId}: ${clips.length} clips · ${ok.size} ok · ${Object.keys(pulled).length} pulled${Object.keys(pulled).length ? ` (${Object.entries(pulled).map(([l, p]) => `${l} at ${p.t} s shows ${p.showed}`).join(", ")})` : ""} · ${Object.keys(unconfirmed).length} unconfirmed${noOverlay ? " · no readable overlay" : ""}`);
+        clipKept.set(key, {
+          videoId, code, season, checked: today,
+          ...(ok.size ? { ok: [...ok] } : {}),
+          ...(Object.keys(pulled).length ? { pulled } : {}),
+          ...(!noOverlay && Object.keys(unconfirmed).length ? { unconfirmed } : {}),
+          ...(noOverlay ? { noOverlay: true as const } : {}),
+        });
+        clipTouched.add(key);
+      } catch (e) {
+        // Not played, or a read that hung: nothing written for this video, so the next sweep reads it again.
+        log(`  ${videoId}: couldn't check (${(e as Error).message.split("\n")[0]}); read again next sweep`);
+        failedVideos++;
+      } finally {
+        await closePage(page);
+      }
+    }
+  } finally {
+    console.log(lines.join("\n"));
+    report.push(...lines);
+    saveClips();
+  }
+}
 
 /** A fresh player page (its own browser context). */
 async function player(): Promise<Page> {
@@ -829,29 +973,38 @@ async function openOnce(page: Page, videoId: string): Promise<void> {
   // No captions over the overlay.
   await page.evaluate(() => { try { (document.querySelector("#movie_player") as any)?.unloadModule?.("captions"); } catch { /* none */ } });
   // Auto-captions sit right over the bottom bar's timer, and the embed's own bars over the top: hidden.
-  await page.addStyleTag({ content: ".ytp-caption-window-container, .caption-window, .ytp-chrome-top, .ytp-pause-overlay, .ytp-show-cards-title, .ytp-ce-element, .ytp-player-content.ytp-iv-player-content, .ytp-large-play-button, .ytp-bezel, .ytp-chrome-bottom { display: none !important; }" });
+  // The newer embed also draws the video's title (often the event's name) over the top of a paused frame, outside
+  // #movie_player: hidden too, or the event-name check (overlayEvent) could read the title instead of the overlay.
+  // Only the title pieces, never their containers (#player-controls, #player-control-overlay): hiding those turns a
+  // PLAYING frame pure black (USNVCMP 2024: 30 of 30 black; this rule: 77 of 77 drawn, top bar clear).
+  await page.addStyleTag({ content: ".ytp-caption-window-container, .caption-window, .ytp-chrome-top, .ytp-pause-overlay, .ytp-show-cards-title, .ytp-ce-element, .ytp-player-content.ytp-iv-player-content, .ytp-large-play-button, .ytp-bezel, .ytp-chrome-bottom, player-top-controls, .ytwPlayerTopControlsHost, embedded-player-video-details, .ytmCuedOverlayGradient { display: none !important; }" });
 }
 
 async function doCode(code: string): Promise<void> {
   const rec = recs.get(code)!;
-  const rows = await all<{ label: string; time: string; timezone: string | null; played: number }>(
-    "SELECT m.label, m.time, e.timezone, m.played FROM matches m JOIN events e ON e.season = m.season AND e.code = m.code WHERE m.season = ? AND m.code = ? AND m.played = 1 AND m.time IS NOT NULL", [season, code]);
+  const rows = await all<{ label: string; time: string | null; timezone: string | null; played: number }>(
+    "SELECT m.label, m.time, e.timezone, m.played FROM matches m JOIN events e ON e.season = m.season AND e.code = m.code WHERE m.season = ? AND m.code = ? AND m.played = 1", [season, code]);
   // A match FIRST gives only its scheduled time for (2019's qualifications) is read too, by its frames alone (M.scheduled):
   // its time orders it among the others and places nothing.
-  const played = rows.map((r) => ({ label: String(r.label), time: String(r.time), epoch: (localToUtcMs(r.time, r.timezone) ?? NaN) / 1000, ...(actualStart(r.time) ? {} : { scheduled: true }) }))
-    .filter((m) => Number.isFinite(m.epoch)).sort((a, b) => a.epoch - b.epoch);
+  // A match with no time at all is read the same way, after the timed ones in its label's order (playedMatches).
+  const played = playedMatches(rows, { utcMs: localToUtcMs, actual: actualStart, rank: labelRank });
   // A played match with no time the clock can place (the event has no timezone) can't be read: said, not skipped quietly.
   const timeless = rows.length - played.length;
   if (timeless) report.push(`${code}: ${timeless} played matches not read: no timezone for the event, so their start can't be placed`);
   if (!played.length) return;
   // Divisions of one event can share a stream: each read must be this division's overlay (divisionOf, overlayDivision).
   const [ev] = await all<{ name: string; division_code: string | null }>("SELECT name, division_code FROM events WHERE season = ? AND code = ?", [season, code]);
+  // Its name and qualification total, to tell its overlay from another event's on the same stream (overlayEvent).
+  const [q] = await all<{ n: number }>("SELECT COUNT(*) AS n FROM matches WHERE season = ? AND code = ? AND label LIKE 'Q%'", [season, code]);
+  if (ev?.name) eventNames.set(code, { name: ev.name, quals: Number(q?.n ?? 0) });
   const siblings = ev?.division_code ? await all<{ name: string }>("SELECT name FROM events WHERE season = ? AND division_code = ? AND code != ?", [season, ev.division_code, code]) : [];
   const ownDiv = ev ? divisionOf(ev.name) : null, others = siblings.map((x) => divisionOf(x.name));
   const division = ownDiv && others.length && others.every((x): x is string => x != null) ? { own: ownDiv, others: others as string[] } : null;
   const span = await R.eventMatchSpan(season, code);
-  const views = played.map((m) => ({ label: m.label, time: m.time, played: true, startsAt: new Date(m.epoch * 1000).toISOString(), clip: undefined as any }));
+  const views = played.map((m) => ({ label: m.label, time: m.time, played: true, startsAt: m.time == null ? null : new Date(m.epoch * 1000).toISOString(), clip: undefined as any }));
   // Without this script's own timings: what YouTube's facts alone give.
+  // --clips: the clips the live site plays from the clock, checked by their first frame; nothing else.
+  if (CLIPS) return checkClips(code, rec, views, span, division);
   const placed = R.withClips(views, rec, Date.now(), span, { frames: false });
   const missing = placed.filter((v) => !v.clip).map((v) => v.label);
   if (CHECK ? !placed.some((v) => v.clip) : !ALL && !VERIFY && !BOUNDS && !missing.length) return;
@@ -868,7 +1021,8 @@ async function doCode(code: string): Promise<void> {
     if (m?.status !== "ok" || !m.length) return false;
     if (!m.start) return true;
     const a = Date.parse(m.start) / 1000, b = m.end ? Date.parse(m.end) / 1000 : Infinity;
-    return played.some((x) => a <= x.epoch && x.epoch <= b);
+    // A match with no time may be in any of the event's videos.
+    return played.some((x) => x.time == null || (a <= x.epoch && x.epoch <= b));
   };
   const rowOf = (v: (typeof own)[number]) => kept.get(`${v.videoId}|${code}`);
   const read = own.filter(holds).every((v) => { const f = rowOf(v); return f && !Object.values(f.missing ?? {}).some((w) => w.startsWith(PLAY_FAILED)); });
@@ -896,8 +1050,9 @@ async function doCode(code: string): Promise<void> {
     // A match with only its scheduled time can't be put in a broadcast's window by it (2019IASQ4's Q1 "04:15" local,
     // its stream starting 11:00): it's in the event's only video, or in the one broadcast (or listed) on its day, the
     // venue's date (a Saturday 09:00 broadcast in Sydney starts on Friday in UTC).
+    // A match with no time at all (Chicago Robotics Invitational's results) may be in any of them: each video is walked.
     const day = v.day ?? (m.start ? localDate(m.start, rows[0]?.timezone) : undefined);
-    const mine = played.filter((x) => !held.has(x.label) && (x.scheduled ? videos.length === 1 || !day || x.time.slice(0, 10) === day
+    const mine = played.filter((x) => !held.has(x.label) && (x.scheduled ? x.time == null || videos.length === 1 || !day || x.time.slice(0, 10) === day
       : from == null ? !videos.some((o) => o !== v && inside(o, x.epoch))
       : (from <= x.epoch && (!m.end || x.epoch <= Date.parse(m.end) / 1000)) || lead(x)));
     // A video read well on an earlier run keeps its row: the event is back for another of its videos (a new link, one
@@ -928,6 +1083,7 @@ async function doCode(code: string): Promise<void> {
     try {
       page = await player();
       if (division) divisions.set(page, division);
+      { const e = eventNames.get(code); if (e) pageEvent.set(page, e); }
       await open(page, v.videoId);
       log(`  ${v.videoId}: ${mine.length} matches`);
       console.error(`${new Date().toISOString().slice(11, 19)} ${code} ${v.videoId}: ${mine.length} matches`);
@@ -941,6 +1097,7 @@ async function doCode(code: string): Promise<void> {
         await closePage(page);
         page = await player();
         if (division) divisions.set(page, division);
+        { const e = eventNames.get(code); if (e) pageEvent.set(page, e); }
         await open(page, v.videoId);
         unread.clear();
         j = await placeVideo(page, mine, from == null ? null : -from, m.length!, log, unread, live, liveMedium);
@@ -1025,6 +1182,8 @@ if (!CHECK && !DRY) {
   if (unsaved) { console.error(`${FRAMES_FILE} could not be written: this run's timings are lost`); process.exitCode = 1; }
   else console.log(`wrote ${kept.size} videos to ${FRAMES_FILE}`);
 }
+// Before the report: a run on a black player writes nothing at all, its report included.
+stopIfDark();
 mkdirSync(".data", { recursive: true });
 writeFileSync(".data/video-frames-report.txt", report.join("\n"));
 process.exit(process.exitCode ?? 0);

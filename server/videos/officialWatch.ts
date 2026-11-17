@@ -12,14 +12,17 @@ import { OFFICIAL_CHANNELS } from "../data/officialChannels.js";
 import { eventVideosByDay, forgetOfficial } from "./officialVideos.js";
 import { isoDuration } from "./youtube.js";
 import { STARTUP_CYCLE_MS } from "../warm.js";
+import { EVENT_FIRST_DAY, EVENT_LAST_DAY } from "./eventDays.js";
 import { LockBusy, isBusy, lockHolder, withDataLock } from "../data/lock.js";
 import { bestGuess, matchVideo, parseRule, videoWindow, type ChannelRule, type Verdict, type WatchEvent, type WatchVideo } from "./officialMatch.js";
 
 export const WATCH_EVERY_MS = 6 * 3600_000;
-/** The half-hourly check's first one after boot: 7.5 minutes after the startup sync (server/warm.ts STARTUP_CYCLE_MS),
+/** The half-hourly check's first one after boot: 2.5 minutes before the startup sync (server/warm.ts STARTUP_CYCLE_MS),
  * so every check lands midway between the sync's 5-minute ticks, never as an event day's 15-minute sync starts and
- * takes the writer lease. */
-export const WATCH_FIRST_MS = STARTUP_CYCLE_MS + 7.5 * 60_000;
+ * takes the writer lease. Early, because every deploy restarts the server and starts the wait over: on 17 Nov, with a
+ * deploy every 4 to 27 minutes, the first check (then 17.5 minutes after boot) came after no run for six hours, and
+ * a run due at 10:27 never started. At 7.5 minutes, an overdue run starts after nearly every deploy. */
+export const WATCH_FIRST_MS = STARTUP_CYCLE_MS - 2.5 * 60_000;
 export const WATCH_CHECK_MS = 30 * 60_000;
 const RUN_STALE_MS = 25 * 60_000;
 const NEVER_FINISHED = "database busy or a restart: the run never finished, tried again within 30 minutes";
@@ -91,12 +94,12 @@ async function api(path: string, params: Record<string, string>, key: string, fe
   throw new Error(`YouTube ${path} answered ${res.status}${reason ? ` (${reason})` : ""}`);
 }
 
-/** The events on any day from lo to hi (YYYY-MM-DD). */
+/** The events on any day from lo to hi (YYYY-MM-DD): their listed days and the days they played (eventDays.ts). */
 export async function eventsBetween(lo: string, hi: string): Promise<WatchEvent[]> {
   const rows = await all<any>(
-    `SELECT e.season, e.code, e.name, e.type, e.city, e.state, e.country, e.start, e.end, e.timezone, e.division_code, e.remote,
+    `SELECT season, code, name, type, city, state, country, start, end, timezone, division_code, remote, parent FROM (SELECT e.season, e.code, e.name, e.type, e.city, e.state, e.country, ${EVENT_FIRST_DAY} AS start, ${EVENT_LAST_DAY} AS end, e.timezone, e.division_code, e.remote,
             EXISTS (SELECT 1 FROM events c WHERE c.season = e.season AND c.division_code = e.code AND c.code != e.code) AS parent
-     FROM events e WHERE e.start IS NOT NULL AND e.start <= ? AND COALESCE(e.end, e.start) >= ?`, [hi, lo]);
+     FROM events e WHERE e.start IS NOT NULL) WHERE start <= ? AND end >= ?`, [hi, lo]);
   return rows.map((r) => ({
     season: Number(r.season), code: String(r.code), name: String(r.name ?? ""), type: String(r.type ?? ""), city: r.city ?? null, state: r.state ?? null,
     country: r.country ?? null, start: String(r.start).slice(0, 10), end: r.end ? String(r.end).slice(0, 10) : null, timezone: r.timezone ?? null,
@@ -435,7 +438,7 @@ export async function approveWatched(videoId: string, body: { season?: unknown; 
   if (!["pending", "ignored"].includes(String(w.status))) return { ok: false, error: `Already ${w.status}.` };
   const kind = body.kind === "highlight" ? "highlight" : "recording";
   const season = Number(body.season), code = typeof body.code === "string" ? body.code.trim().toUpperCase() : "";
-  const ev = Number.isInteger(season) && code ? await get<any>("SELECT season, code, start, end FROM events WHERE season = ? AND upper(code) = ?", [season, code]) : null;
+  const ev = Number.isInteger(season) && code ? await get<any>(`SELECT e.season, e.code, ${EVENT_FIRST_DAY} AS start, ${EVENT_LAST_DAY} AS end FROM events e WHERE e.season = ? AND upper(e.code) = ?`, [season, code]) : null;
   if (!ev) return { ok: false, error: "No such event: pick the season and the event's code." };
   const day = typeof body.day === "string" && DAY.test(body.day) ? body.day : null;
   const part = typeof body.part === "string" && body.part.trim() ? body.part.trim().slice(0, 60) : null;

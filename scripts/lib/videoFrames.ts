@@ -7,6 +7,25 @@
  *  says nothing of where it sits: it's placed only where its own frames show it (judge). */
 export type M = { label: string; epoch: number; scheduled?: boolean };
 
+/**
+ * An event's played matches as a read goes by them, in played order, each with its time (null: none). A match with no
+ * time at all (results posted with none: the Chicago Robotics Invitational's) is read as a scheduled one is, by its
+ * frames alone (M.scheduled), ordered after the timed ones by its label (`rank`, labelRank); `epoch` only orders it. A
+ * time the event's zone can't place (none known) leaves its match out (the caller says so).
+ */
+export function playedMatches(
+  rows: { label: string; time: string | null; timezone: string | null }[],
+  f: { utcMs: (time: string, timezone: string | null) => number | null; actual: (time: string | null) => boolean; rank: (label: string) => number },
+): (M & { time: string | null })[] {
+  const timed = rows.filter((r) => r.time != null)
+    .map((r) => ({ label: String(r.label), time: String(r.time), epoch: (f.utcMs(String(r.time), r.timezone) ?? NaN) / 1000, ...(f.actual(r.time) ? {} : { scheduled: true }) }))
+    .filter((m) => Number.isFinite(m.epoch)).sort((a, b) => a.epoch - b.epoch);
+  const after = timed.length ? timed[timed.length - 1].epoch : 0;
+  const untimed = rows.filter((r) => r.time == null).map((r) => String(r.label)).sort((a, b) => f.rank(a) - f.rank(b))
+    .map((label, i) => ({ label, time: null, epoch: after + 1 + i, scheduled: true }));
+  return [...timed, ...untimed];
+}
+
 /** Two reads closer than this (seconds) are the same distance: the timer reads to the second, and the frame read lags it. */
 export const SAME_S = 6;
 /** The most frames read looking for one match. */
@@ -183,6 +202,64 @@ export function overlayDivision(text: string, own: string, others: string[]): "o
   const has = (d: string) => new RegExp(`(^|[^A-Z])${escape(plain(d)).replace(/\s+/g, "\\s+")}([^A-Z]|$)`).test(t);
   if (others.some(has)) return "other";
   return has(own) ? "own" : null;
+}
+
+/** Words in an event's name that say nothing about which event it is. */
+const GENERIC = new Set(["LEAGUE", "MEET", "QUALIFIER", "QUALIFIERS", "CHAMPIONSHIP", "CHAMPIONSHIPS", "FTC", "FIT", "FIRST",
+  "TECH", "CHALLENGE", "DIVISION", "EVENT", "THE", "AND", "STATE", "REGIONAL", "MATCH", "PLAYOFF", "FINALS", "QUALIFICATION",
+  // The season's logo beside the name ("FIRST DIVE", "CANOPY", "INTO THE DEEP", "BIOBUZZ presented by RTX").
+  "DIVE", "CANOPY", "INTO", "DEEP", "DECODE", "BIOBUZZ", "CENTERSTAGE", "POWERPLAY", "FREIGHT", "FRENZY", "ULTIMATE", "GOAL",
+  "SKYSTONE", "PRESENTED", "QUALCOMM", "RTX", "ENERGIZE"]);
+const words = (s: string) => (plain(s).match(/[A-Z]{3,}/g) ?? []).filter((w) => !GENERIC.has(w));
+/** Where the overlay names a match, and the event name just before it on the same line. */
+// A semifinal (2019–2022's "Semifinal 2 Match 1", or "Semifinals Match 1" with its series lost) is taken whole, before
+// its "finals Match 1" or "Match 1" could be: overlayLabel names it by series and number (M2-1), or none.
+const MATCH_PHRASE = /Qualification\s+\d{1,3}\s+of\s+(\d{1,3})|Semi-?\s?finals?(?:\s+\d)?\s+Match\s+\d\b|(?:Playoff\s+|F[il1]?na[il1|]s?\s+)?Match\s+\d{1,2}\b/gi;
+
+/**
+ * Which event a frame's overlay names: "own" (this event), "other" (another event: two league meets split on one
+ * stream, USTXCAM1 2024 its right half, the left "FiT-Central North San Antonio League Meet 1 — Qualification 3 of 24"),
+ * or null (nothing to tell by). Two things beside a match say whose it is:
+ * - its "of M", against the event's qualification total (`quals`), where its name isn't read (often lost to OCR:
+ *   USTXCAM1's left half read "—E— Qualification 3 of 24"): any other M is another event's, or a misread.
+ * - the event name before it on its line, which decides where read. The ticker scrolls and cuts names at either end and orders their words its
+ *   own way ("…n Division Michiana Premier Event -", "Austin Semi-Area Championship" for FiT-Central Semi-Area
+ *   Championship Austin), so a name is another event's only where at least two of its telling words of four letters or
+ *   more are read and fewer than half of its words are this event's (a cut word matching the start or end of one). A
+ *   logo misread beside the match is no name: POWERPLAY's (2022) "FIRST ENERGIZE" read "FIRST ZN=RGIZ= swe" on KZCMP's
+ *   playing frames, two words, neither this event's, and every one of its matches was taken for another event's.
+ *   Nor can a name read as another's overrule a total that is this event's: it's misread, not another event.
+ * On a split screen the half that is this event's gives its match (`label`); `phrase`, the match beside its name.
+ */
+export function overlayEvent(text: string, own: string, quals?: number, semifinals = false): { event: "own" | "other" | null; label?: string; phrase?: string } {
+  const mine = words(own);
+  const verdict = (name: string): "own" | "other" | null => {
+    const read = words(name);
+    const hit = read.filter((w) => mine.some((o) => o === w || o.startsWith(w) || o.endsWith(w))).length;
+    if (read.filter((w) => w.length >= 4).length >= 2 && hit * 2 < read.length) return "other";
+    return hit ? "own" : null;
+  };
+  let other = false, ownLabel: string | undefined, ownSeen = false;
+  for (const line of text.split("\n")) {
+    let from = 0;
+    for (const m of line.matchAll(MATCH_PHRASE)) {
+      const total = m[1] != null ? Number(m[1]) : null;
+      const name = verdict(line.slice(from, m.index));
+      // A name read decides; with none, the total (a schedule changed after the db was read can't drop a named frame).
+      // A name read as another's beside this event's own total is a misread: the total stands.
+      const byTotal = quals && total != null ? (total === quals ? "own" as const : "other" as const) : null;
+      const v = name === "other" && byTotal === "own" ? "own" : name ?? byTotal;
+      from = m.index! + m[0].length;
+      if (v === "other") other = true;
+      if (v === "own" && !ownSeen) { ownSeen = true; ownLabel = overlayLabel(m[0], semifinals) ?? undefined; }
+    }
+  }
+  // `phrase`: the match this event's name stands beside (the bar's row, read on its own, has one line). `label`: that
+  // match, given for the whole frame only where another event's match is beside it too (a split screen). Several
+  // matches with no other event's among them stay overlayLabel's to judge: a bracket naming several names none.
+  const phrase = ownLabel ? { phrase: ownLabel } : {};
+  if (ownSeen) return other ? { event: "own", ...(ownLabel ? { label: ownLabel } : {}), ...phrase } : { event: "own", ...phrase };
+  return { event: other ? "other" : null };
 }
 
 /**

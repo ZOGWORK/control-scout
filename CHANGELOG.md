@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 7.3.8 — 2026-11-17
+## 7.5.3 — 2026-11-17
 
 Videos › 167 of the İstanbul Premier Event's 168 division match clips now open on a frame naming their match and division, and 16 Valens clips that opened 48 s late now catch the start.
 
@@ -26,6 +26,198 @@ Videos › 167 of the İstanbul Premier Event's 168 division match clips now ope
 
 ### Fixed
 - Videos: both divisions of the İstanbul Premier Event (FPEISTRDIV, FPEISTVDIV) are now played from their recordings' own frames, two day videos each, rather than from the clock. Rumeli places 83 of its 84 matches; its Q28 has no readable overlay at its start, so it keeps the clock's clip. Valens places all 84. Each clip opens on a paused frame whose overlay names its match and its own division, never the sibling's, though the two share a stream. 151 openings move 11 to 18 s later, past the clock's early lead-in, to where the match's overlay is up. Valens's first day runs 49 s off the clock from Q36 on, so its Q36–Q51 clips, which opened about 48 s into play, now open before the start. (`server/data/frameTimings/2025.ts`) (#1669)
+
+## 7.5.2 — 2026-11-17
+
+Videos › The first match clips for 2022 (POWERPLAY): 318 matches in 6 events, each clip opening on a frame that names its match.
+
+### Highlights
+- [history] 2022 events get match clips for the first time
+- [history] 318 matches in 6 events, read off the recordings' own frames
+- [fixes] Every clip opens on a frame naming its match
+
+### Added
+- Videos: clips read off the recordings' frames (`server/data/frameTimings/2022.ts`), now that the frame reader reads 2022's overlay (#1651): USCHSHEQ 54 of 54 played matches, USCHSUBQ 53 of 53, USMOKSSWMILT1 48 of 48, USMOKSCMP 61 of 62, USCHSHAQ1 53 of 55, USTXCECCS 49 of 55. Each placed start's clip opens on a paused frame whose overlay names that match (20, 12, 5, 2 or 0 s before it). The matches left out stay without a clip, with the reason. (#1664)
+
+## 7.5.1 — 2026-11-17
+
+Videos › 168 more 2024 matches play as clips: the Australian Championship in full, South Australia, North Scarborough and the Carolinas Premier Event.
+
+### Highlights
+- [history] Every match of the 2024 Australian Championship now plays as a clip
+- [history] North Scarborough Qualifier: 50 of 55 matches as clips
+- [history] Carolinas Premier Event and South Australia Qualifier clips added
+
+### Added
+- Frame-read match starts for 6 more 2024 recordings (5 events), each start checked against two timer reads and each clip's opening against a paused frame naming its match: AUCMP 77 of 77 played matches (two days), CAONSCQ2 50 of 55 (4 to review, 1 missing), FPECA 31 of 71 (the linked recording is Day 2), AUTOQ 10 of 24 (Q11–Q18 and M1–M6 have no confirmed frame read yet), and CABCSUQ1's recording checked (its 2 readable matches had no confirmed start). (`server/data/frameTimings/2024.ts`) (#1663)
+
+## 7.5.0 — 2026-11-17
+
+Videos › 61 of the Chicago Robotics Invitational's 67 matches (2024) get a clip, read off its Saturday and Sunday videos: FIRST posts no times for them, so their frames place them.
+
+### Highlights
+- [fixes] 61 Chicago Robotics Invitational matches get a clip
+- [fixes] Each opens on a frame whose overlay names its match
+- [fixes] No clip already playing changes
+
+### Fixed
+- Videos (`server/data/frameTimings/2024.ts`): the Chicago Robotics Invitational (FPECRI 2024) posts its results with no match times, so its recordings were never read. Read by its frames alone (#1693), its Saturday video places 34 matches and its Sunday video 27, each checked paused on its clip's opening frame. Q21, Q37, Q44, Q49, Q57 and M1 stay without a clip: no frame of them confirmed a start. (#1710)
+
+## 7.4.9 — 2026-11-17
+
+Event videos › an event's recording can now be found on a day it played that FIRST's dates leave out, and KZCMP 2022's second day plays.
+
+### Highlights
+- [fixes] Videos of a day an event played outside its dates
+- [fixes] 145 events played outside FIRST's listed dates
+- [fixes] Kazakhstan Central Asia 2022 day 2 has its recordings
+
+### Fixed
+- Event videos: an event's days, for finding and checking its videos, are FIRST's listed dates widened to every day it played a match. FIRST's dates are wrong for 145 events (2,619 played matches): Kazakhstan Central Asia FTC Regional Championship 2022 is listed 23 to 25 Feb 2023 and played Q32–Q39 and its playoffs on the 26th, so its day-2 recordings fitted no event. The watcher, the channel audit, an owner's approval and decisions from evidence all use the widened days. KZCMP's day-2 qualifier and playoff recordings are linked (each checked on a frame), and the upload before its playoffs, which holds no match, is set aside. (`server/videos/eventDays.ts`, `server/data/videoDecisions.ts`) (#1703)
+
+## 7.4.8 — 2026-11-17
+
+Tests › a check on the welcome email failed now and then for no reason, holding up unrelated changes; it no longer does.
+
+### Highlights
+- [fixes] A test that failed at random no longer holds up changes
+- [fixes] No change to the welcome email itself
+- [fixes] A real weekday or time in the email still fails it
+
+### Fixed
+- Tests (`server/digest/welcome.test.ts`): the welcome email's "no weekday or clock time" check read the whole text, unsubscribe link included, and the link's random token sometimes held a run like `9AM` (`DjPos9AMRs…`), failing CI on unrelated changes. The check now leaves links out and matches days and times as whole words. A real "9 AM" or "Monday" in the email still fails it (#1674).
+
+## 7.4.7 — 2026-11-17
+
+Videos › the frame reader no longer takes a season logo misread for another event's name, which turned every match of Kazakhstan's 2022 championship away.
+
+### Highlights
+- [fixes] A misread logo beside the match is no event's name
+- [fixes] A match's own total beats a misread name
+- [fixes] No clip changes
+
+### Fixed
+- Videos (the frame reader, `scripts/lib/videoFrames.ts`): POWERPLAY's (2022) "FIRST ENERGIZE" logo reads "FIRST ZN=RGIZ= swe" on a playing frame, two words beside the match that aren't the event's, so `overlayEvent` called every frame of KZCMP 2022 another event's overlay and read none. A name now counts as another event's only with two telling words of four letters or more, a name read as another's never overrules an "of M" that is this event's own qualification total, and ENERGIZE is a season logo word. (#1697)
+
+## 7.4.6 — 2026-11-17
+
+Videos › matches FIRST gives no real start for, with no time at all (the Chicago Robotics Invitational's) or only a schedule's, can now get clips read off the video's own frames.
+
+### Highlights
+- [fixes] Matches posted with no start time can get clips
+- [fixes] 2019's scheduled-only matches can get frame clips too
+- [fixes] A frame start out of play order is never served
+
+### Fixed
+- Videos (`server/videos/recordings.ts`, `src/shared/recording.ts`): a start read off a recording's frames was dropped for any match without a real start (a schedule's whole minute, or no time at all), so no frame row could ever give those matches a clip. Their frame starts now play, ordered among the event's matches by their scheduled time, else after the timed ones by label (`labelRank`: qualifications by number, then playoffs, a best-of-three's games turn about, then finals). A start out of that order is still left out (`inOrder`). The event page, a match's own page and the season's With video list all agree.
+- Videos (the frame reader, `scripts/video-frames.ts`, `scripts/lib/videoFrames.ts`): matches with no time at all were never read (the reader asked only for timed ones). They're now read like scheduled ones, by their frames alone, in any of the event's videos (`playedMatches`). (#1693)
+
+## 7.4.5 — 2026-11-17
+
+Event videos › the official-video watcher and its channel audit now run on time on a day of many deploys.
+
+### Highlights
+- [fixes] The video watcher runs on days with many deploys
+- [fixes] Its check comes 7.5 minutes after a restart
+- [fixes] The channel audit follows it, as before
+
+### Fixed
+- Official videos: the watcher's first check after boot came 17.5 minutes in, and every deploy restarts the server. On 17 Nov, with deploys every 4 to 27 minutes, the run due at 10:27 never started, nor the channel audit after it. The first check now comes 7.5 minutes after boot, still midway between the sync's 5-minute ticks. (`server/videos/officialWatch.ts`) (#1687)
+
+## 7.4.4 — 2026-11-17
+
+Event videos › Scout now keeps whether each video's owner lets it play on other sites, the first step to clips of such videos opening on YouTube.
+
+### Highlights
+- [fixes] Scout knows which event videos play on YouTube only
+- [fixes] 20 official recordings with embedding off are found
+- [fixes] Checked again once with each video's other facts
+
+### Fixed
+- Event videos: whether a video's owner lets it play on other sites is read with its other facts (YouTube's `status.embeddable`, a watch page's `playableInEmbed`: false from any page, true only from one that plays) and kept (migration 95). A video read before that was kept is read once more with the API key. 20 of 1,771 linked videos have embedding off; their clips can't play in the app's player, and the next releases open them on YouTube instead. (`server/videos/youtube.ts`, `server/videos/recordings.ts`) (#1665)
+
+## 7.4.3 — 2026-11-17
+
+Search › a place, its leagues and New Jersey's conferences answer directly: "nj", "nj leagues", "nj conferences", "East Bergen".
+
+### Highlights
+- [rankings] "nj" links New Jersey's rankings, leagues and conferences
+- [rankings] "nj leagues" lists New Jersey's leagues
+- [rankings] "nj conferences" lists all eight, with each one's winner
+- [rankings] A conference's name alone opens its rankings
+- [fixes] "new york city" searches find NYC's events
+
+### Search
+- A place alone ("nj", "New Jersey", "USA:NJ") keeps "All events in New Jersey" first and links the place's rankings, its leagues and, for New Jersey, its conferences; "nj rankings", "nj leagues" and "nj conferences" link the one they ask for first (`src/shared/placePages.ts`, #1678).
+- "nj leagues" / "leagues in new jersey": the place's leagues listed, each to its standings; the Leagues page takes `?q=` to open filtered.
+- "nj conferences" / "new jersey conference": every conference of the latest season played out, each with its winner, then the next season's, coming up.
+- A conference's name alone or with its rankings ("East Bergen", "far north rankings") opens its table, unless a team or league goes by those words; conference answers now list their tournament and team as cards.
+- A city FIRST runs as its own region, said in full ("new york city championship"), reads as its events' short form (NYC).
+
+## 7.4.2 — 2026-11-17
+
+Rankings › a conference page opened for a team starts at its top: header, note and movers first, the team's row highlighted below.
+
+### Highlights
+- [rankings] Conference pages open at the top, not scrolled to the table
+- [rankings] The team you came from stays highlighted in the table
+- [fixes] Climbers, fallers and the winner are seen before the table
+
+### Fixes
+- Conference rankings (`src/components/ConferenceSection.tsx`): a link naming a team (`?team=4215`) no longer scrolls the page down to its row, which put the table first and the header, season note, movers and winner out of view; the row is on the page it opens on and highlighted, as before (#1682).
+
+## 7.4.1 — 2026-11-17
+
+Videos › 20 more 2024 matches get a clip, read off three event videos and checked paused on each clip's opening frame, and 5 matches played before their recording are settled.
+
+### Highlights
+- [fixes] 20 more 2024 matches get a clip read off the video
+- [fixes] Each opens on a frame whose overlay names its match
+- [fixes] 5 matches played before their recording no longer need review
+
+### Fixed
+- Videos: 5 more 2024 recordings are read into the data (`server/data/frameTimings/2024.ts`). Saguaro Blossom - Microchip Qualifier (USAZCHQ1) gets 13 clips, Battle of Brookfield (USWIBRQ1) 5 and the Hawaii Championship (USHICMP) 2, each opening on a frame whose overlay names its match. FiT-North T-League Meet 1's recording (USTXNTM1) opens on Q6, so Q1–Q5 are settled as played before it. Pennsylvania's championship (USPACMP) has its second video recorded as checked, with the matches it doesn't show named for review; two videos that timed out before playing are left out, so the next run reads them. No clip already playing changes. (#1649)
+
+## 7.4.0 — 2026-11-17
+
+Search › a place's winning alliance captains, an award's name cut off after "won", "top" straight before a state, and a team's conference place in the search box now answer; a place's award winners step back one season when the current one has none yet, and say so.
+
+### Highlights
+- [fixes] "NJ winning alliance captains" lists each captain's win
+- [fixes] An award's name cut short after "won" reads as that award
+- [fixes] Award winners show last season when this one has none yet
+- [fixes] "Top" right before a state shows its top teams
+- [fixes] A team's conference place opens from the search box
+
+### Fixed
+- Search (`server/api/answers/families/placeAwards.ts`): "winning alliance captain(s)" is the Winning Alliance award at its captain's place (1st, the team FIRST lists first), never its picks (the award's name says so, else the event's alliance selection); the word stands for the winners, so "NJ winning alliance captains" and "teams in NJ that won winning alliance captain" are New Jersey's captains, each event listed (#1660). A place's award winners with no season said read the current season, and when it has none yet the season before, with the card's chip saying so ("No 2026–27 Inspire Awards yet in New Jersey; showing 2025–26"), as every no-season answer steps back (`server/api/query/relax.ts`). A season said is kept.
+- Search (`server/api/spelling.ts` `awardCutOff`): a query's last word after "won", "got", "received", "earned" or "winners of" that starts exactly one award's name (3 letters or more) reads as that award, offered as a correction and taken only when it answers directly; a start two awards share ("con": Connect, Control) is left as typed.
+- Search (`server/api/searchAsks.ts`): a superlative straight before a place ("top Texas", and so "Top west Texas", read as all of Texas and said so) is the place's leaderboard, as "top in Texas" already was.
+- Search (`server/api/answers/index.ts` `conferenceSearch`): in the search box, where an answer carries no card, a conference answer links its own /search page, so "where does 4215 rank in East Bergen Conference" is something to open, never an empty result.
+
+## 7.3.9 — 2026-11-17
+
+Owner › Clip coverage now knows which events are due for a frame read: every event whose official recording has matches without a clip queues itself, most missing first, the moment its recording is linked.
+
+### Highlights
+- [report] Recorded events missing clips queue for a frame read
+- [report] Most missing first, and each event says where it stands
+- [report] Events read before they finished are read again once
+
+### Added
+- Owner › Clip coverage: each event with a missing clip carries its place with the automatic frame reader: queued (with its place in line and the matches a read could place), waiting (the event isn't over yet, or its video's YouTube facts aren't in), read (the date, each match keeping its own why), or nothing a frame read can place (no video that day, a private video, no real start from FIRST). The queue's numbers and the next events in line come with it. A recording the official-videos watcher links is in the queue at the next coverage check, five minutes at most. A video read on or before the event's last day is due once more after the event. (`server/videos/frameQueue.ts`, `server/videos/coverageCheck.ts`) (#1652)
+
+## 7.3.8 — 2026-11-17
+
+Videos › the frame reader tells one event's overlay from another's on the same stream: a frame naming another event is never this event's match.
+
+### Highlights
+- [fixes] A split screen of two events no longer mixes up their matches
+- [fixes] Each frame's event name or qualification total must be this event's
+- [fixes] No clip changes
+
+### Fixed
+- Videos (the frame reader, `scripts/video-frames.ts`, `scripts/lib/videoFrames.ts`): a frame whose overlay names another event, by the name beside the match or, where no name is read, by its qualification total ("of 24" for an event of 26), is never this event's start, clip opening or recording edge; on a split screen, the half that is this event's gives its match. USTXCAM1 2024's recording shows two league meets side by side, and its first frames' "Qualification 3 of 24" was the other meet's. The 15 recording edges already in the data were each checked against their saved frame: every one names its own event. (#1656)
 
 ## 7.3.7 — 2026-11-17
 

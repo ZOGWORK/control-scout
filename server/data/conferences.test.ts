@@ -102,7 +102,7 @@ describe("conference tables", () => {
     expect((await meta()).noData).toBe(true);
     await syncConferences(2025, { now: new Date("2026-11-16T12:00:00Z") });
     clearAllCaches();
-    expect([(await meta()).noData, (await meta()).title]).toEqual([undefined, expect.stringContaining("Conference rankings")]);
+    expect([(await meta()).noData, (await meta()).title]).toEqual([undefined, "Conference rankings: NO League (New Jersey) 2025–26"]);
     expect((await pageMeta("/leagues/2025/USMI/AB/conferences")).title).toBe((await pageMeta("/leagues/2025/USNJ/ZZ/conferences")).title);
   });
 
