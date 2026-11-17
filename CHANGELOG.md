@@ -15,6 +15,17 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.6.4 — 2026-11-17
+
+Videos › Every match of four 2023 qualifiers (Mount St Joseph Stage Left, Mechanicsville Mayhem Stage Right, Norfolk Academy and Grenada) gets a clip, 126 in all, each opening on a frame that names its match.
+
+### Highlights
+- [history] 126 more 2023 matches as clips
+- [fixes] Each opens on a frame naming its match and event
+
+### Fixed
+- Videos (`server/data/frameTimings/2023.ts`): CHS-MD Mount St Joseph Qualifier Stage Left (32 of 32), CHS-VA Mechanicsville Mayhem Qualifier Stage Right (32 of 32), CHS-VA Norfolk Academy Qualifier (31 of 31) and MS Grenada Qualifier (31 of 31) get frame-checked starts. Every opening frame names its match. No frame names the other stage or another event. (#1763)
+
 ## 7.6.3 — 2026-11-17
 
 Event videos › a title's "Day 2" can mean the event's second day of play, and two Romanian events get the recordings of the days FIRST's dates left out.
