@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.1.7 — 2026-11-17
+
+Videos › 2024 clips from events N to USH open on the exact frame that names their match, read paused: 47 of 280 openings move by a few seconds, and none is taken away.
+
+### Highlights
+- [fixes] 2024 clips (events N to USH) open on the frame naming their match
+- [fixes] 47 openings move by a few seconds; 233 stay as they were
+- [fixes] No clip already playing is taken away
+
+### Fixed
+- Videos: the 9 shipped 2024 recordings of events N to USH have their clip openings read again paused at their own second, and from the overlay's bar where the frame is busy: of 280 openings 233 stay, 38 open later and 9 earlier (−8 to +18 s), each on a frame whose overlay names its match. None is taken away or left unconfirmed. (`server/data/frameTimings.ts`) (#1635)
+
 ## 7.1.6 — 2026-11-17
 
 Videos › 2024 clips from events A to M open on the exact frame that names their match, read paused: 36 of 322 openings move by a few seconds, 3 more are confirmed, and none is taken away.
