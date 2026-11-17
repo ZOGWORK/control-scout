@@ -52,7 +52,8 @@ export const WHY: Record<CoverageReason, string> = {
   "outside-span": "Outside every recording's time",
   "before-broadcast": "Played before the broadcast started",
   "after-broadcast": "Played after the broadcast ended",
-  "video-unavailable": "Video unavailable or private",
+  "video-unavailable": "Recording can't be played: unavailable on YouTube (private or removed)",
+  "video-no-embed": "Recording can't be read: its owner turned off playing it on other sites, so its frames can't be read",
   "video-unread": "Video's facts not read from YouTube yet",
   "no-clock": "Video has no broadcast clock (an upload, not a live stream)",
   "gap-unplaced": "Video shorter than its broadcast, missing time can't be placed",
@@ -72,6 +73,21 @@ export const WHY: Record<CoverageReason, string> = {
 export const CLOCK_ONLY: ReadonlySet<CoverageReason> = new Set<CoverageReason>([
   "overlaps-previous", "before-broadcast", "after-broadcast", "before-cut", "past-video-end", "before-chapters", "past-chapters", "outside-span",
 ]);
+
+/** Reasons that settle a match because its recording can't be played here at all (video_meta: unavailable, or embedding
+ *  off), as recorded per video by the YouTube facts read (server/videos/recordings.ts saveMeta), read again weekly: not
+ *  "missing" work, since no frame read or clip can reach it until the video plays again. */
+export const UNPLAYABLE: ReadonlySet<CoverageReason> = new Set<CoverageReason>(["video-unavailable", "video-no-embed"]);
+
+/** Reasons a frame read could still settle (it would show where the match is): the clock's, a gap that can't be placed,
+ *  or none found. A video no frame read can play turns these into video-no-embed. */
+const FRAME_SETTLES: ReadonlySet<CoverageReason> = new Set<CoverageReason>([...CLOCK_ONLY, "gap-unplaced", "unexplained"]);
+
+/** "since 2026-10-24, checked again weekly (last 2026-11-17)": when a video was first read as unplayable, and its last read. */
+function unplayableDates(meta: { unplayableSince?: string; checkedAt?: string } | null | undefined): string {
+  const since = meta?.unplayableSince?.slice(0, 10), last = meta?.checkedAt?.slice(0, 10);
+  return `${since ? ` since ${since}` : ""}; checked again weekly${last ? ` (last ${last})` : ""}`;
+}
 
 /** 10440 → "2:54:00", 209 → "0:03:29": a second in a video. */
 export function hms(s: number): string {
@@ -158,7 +174,7 @@ function judge(v: RecordingVideo, r: Recording, whole: EventSpan, timezone: stri
   const label = dayLabel(v.meta?.start ?? (v.day ? `${v.day}T12:00:00Z` : null), v.meta?.start ? timezone : "UTC") + (v.part ? ` · ${v.part}` : "");
   const meta = v.meta;
   if (!meta) return { v, date, label, dead: { reason: "video-unread", why: WHY["video-unread"] } };
-  if (meta.status === "unavailable") return { v, date, label, dead: { reason: "video-unavailable", why: WHY["video-unavailable"] } };
+  if (meta.status === "unavailable") return { v, date, label, dead: { reason: "video-unavailable", why: WHY["video-unavailable"] + unplayableDates(meta) } };
   if (meta.status !== "ok") return { v, date, label, dead: { reason: "video-unread", why: "YouTube's facts couldn't be read" } };
   if (!meta.start) return { v, date, label, dead: { reason: "no-clock", why: WHY["no-clock"] } };
   // A finished broadcast whose length YouTube didn't give: clipSecond has no end to place a match against.
@@ -275,7 +291,13 @@ export function clipCoverage(matches: CoverageInput[], rec: Recording | null, fu
       out.push({ ...base, clip: true, videoId: vid, basis: m.video && !clip ? "FIRST's match video" : judged.find((j) => j.v.videoId === vid)?.basis ?? "clock" });
       continue;
     }
-    const why: ReturnType<typeof reasonFor> = judged.length ? reasonFor(m, judged, now, timezone) : { reason: "no-first-video" as const, why: WHY["no-first-video"], videoId: null };
+    let why: ReturnType<typeof reasonFor> = judged.length ? reasonFor(m, judged, now, timezone) : { reason: "no-first-video" as const, why: WHY["no-first-video"], videoId: null };
+    // Its video plays on youtube.com only (embedding off) and no frame read of it exists: what a frame read would settle
+    // never can be, as neither the frame reader nor the app's player can show it. A video read anyway keeps its check.
+    const meta = why.videoId ? judged.find((j) => j.v.videoId === why.videoId)?.v.meta : null;
+    if (why.videoId && meta?.status === "ok" && meta.embeddable === false && FRAME_SETTLES.has(why.reason) && !(r?.code && frameRow(why.videoId, r.code))) {
+      why = { reason: "video-no-embed", why: WHY["video-no-embed"] + unplayableDates(meta), videoId: why.videoId };
+    }
     if (why.videoId) { const c = counts.get(why.videoId) ?? { matches: 0, clipped: 0 }; c.matches++; counts.set(why.videoId, c); }
     // Between two recordings: the gap is the reason, with whether both videos were checked for it.
     if (why.between && r?.code) {
