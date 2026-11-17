@@ -1,8 +1,9 @@
 // The clip autopilot's row checks (scripts/lib/autopilotRows.ts): a row the frame reader wrote ships only when it keeps
 // the strict rules against the row live now, and the rows that pass go out applied to main's season file, at most
 // 15 KB a PR.
+import { readdirSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { applyRows, changedRows, chunkRows, diffBytes, fileRows, prChunks, prMarker, readMarker, rowGroups, rowKey, rowLine, rowProblems, type Row } from "./autopilotRows";
+import { applyRows, changedRows, chunkRows, diffBytes, fileRows, LOOPY_DIFF_MAX, prChunks, prMarker, readMarker, rowGroups, rowKey, rowLine, rowProblems, type Row } from "./autopilotRows";
 
 const row = (o: Partial<Row> = {}): Row => ({ videoId: "VIDEOaaaaa1", code: "USXXQ", checked: "2026-11-17", starts: {}, ...o });
 // Q1 and Q2 placed, each opening checked (12 s and 5 s before its start).
@@ -142,7 +143,7 @@ describe("season files", () => {
     expect(later).toEqual([]);
     for (const c of ship) expect(diffBytes(main, applyRows(main, c))).toBeLessThanOrEqual(6_000);
     // A row bigger than the cap alone: shipped alone, never dropped or split.
-    expect(prChunks(main, [big("E1Q", "solo")], 500)).toEqual({ ship: [[big("E1Q", "solo")]], later: [] });
+    expect(prChunks(main, [big("E1Q", "solo")], 500)).toEqual({ ship: [[big("E1Q", "solo")]], later: [], tooBig: [] });
   });
 
   it("never splits rows whose changes touch (one gap, neighbouring lines) across PRs: git would conflict", () => {
@@ -156,7 +157,7 @@ describe("season files", () => {
     expect(rowGroups(main, [b1, c2, b2, cMoved, big("HQ", "h1")]).map((g) => g.map(rowKey))).toEqual([[rowKey(b1), rowKey(b2), rowKey(cMoved), rowKey(c2)], [rowKey(big("HQ", "h1"))]]);
     // A cap that fits one row a PR: the touching group ships its first row now and the rest wait (never a second PR
     // into the same lines); the HQ group, apart, ships too.
-    expect(prChunks(main, [b1, c2, b2, cMoved, big("HQ", "h1")], 1_000)).toEqual({ ship: [[b1], [big("HQ", "h1")]], later: [b2, cMoved, c2] });
+    expect(prChunks(main, [b1, c2, b2, cMoved, big("HQ", "h1")], 1_000)).toEqual({ ship: [[b1], [big("HQ", "h1")]], later: [b2, cMoved, c2], tooBig: [] });
     // One unchanged line between two changes keeps them apart: a new BQ row (before CQ) and a new DQ row (before EQ).
     expect(rowGroups(main, [b1, big("DQ", "d1"), big("HQ", "h1"), b2]).map((g) => g.map(rowKey))).toEqual([[rowKey(b1), rowKey(b2)], [rowKey(big("DQ", "d1"))], [rowKey(big("HQ", "h1"))]]);
   });
@@ -181,7 +182,41 @@ describe("season files", () => {
     const main = FILE([big("AQ", "live"), big("CQ", "live"), big("EQ", "live"), big("GQ", "live")]);
     const open = [big("BQ", "inpr")];
     // BQ's gap is the open PR's; DQ's (before EQ) is one unchanged line away: free.
-    expect(prChunks(main, [big("BQ", "new"), big("DQ", "new")], 12_000, open)).toEqual({ ship: [[big("DQ", "new")]], later: [big("BQ", "new")] });
+    expect(prChunks(main, [big("BQ", "new"), big("DQ", "new")], 12_000, open)).toEqual({ ship: [[big("DQ", "new")]], later: [big("BQ", "new")], tooBig: [] });
+    // A row the open PR changes too waits, even given as new: never two PRs into the same line.
+    expect(prChunks(main, [big("BQ", "inpr"), big("DQ", "new")], 12_000, open)).toEqual({ ship: [[big("DQ", "new")]], later: [big("BQ", "inpr")], tooBig: [] });
+  });
+
+  it("splits an over-cap group at whole events, stopping at the first that doesn't fit", () => {
+    const r = (code: string, v: string, n: number) => row({ code, videoId: v, starts: Object.fromEntries(Array.from({ length: n }, (_, i) => [`Q${i + 1}`, 1000 + i * 400])) });
+    const main = FILE([r("AAQ", "live", 1), r("ZZQ", "live", 1)]);
+    // One gap: events BQ (2 rows), CQ (2 rows). A cap fitting three rows ships BQ whole, not BQ and half of CQ.
+    const bq = [r("BQ", "b1", 40), r("BQ", "b2", 40)], cq = [r("CQ", "c1", 40), r("CQ", "c2", 40)];
+    const three = diffBytes(main, applyRows(main, [...bq, cq[0]]));
+    expect(prChunks(main, [...bq, ...cq], three)).toEqual({ ship: [bq], later: cq, tooBig: [] });
+    // Events DQ (small), EQ (large), FQ (small): DQ ships, and EQ stops it there: FQ waits too, never skipped past EQ.
+    const dq = r("DQ", "d", 5), eq = r("EQ", "e", 400), fq = r("FQ", "f", 5);
+    expect(prChunks(main, [dq, eq, fq], diffBytes(main, applyRows(main, [dq, fq])))).toEqual({ ship: [[dq]], later: [eq, fq], tooBig: [] });
+  });
+
+  it("never ships a row Loopy can't review at all: over the hard limit it's refused, for the owner", () => {
+    const huge = row({ code: "MQ", videoId: "huge", missing: Object.fromEntries(Array.from({ length: 400 }, (_, i) => [`Q${i}`, "no frame read of it, and no agreeing reads on both sides"])) });
+    const main = FILE([A, C]);
+    expect(diffBytes(main, applyRows(main, [huge]))).toBeGreaterThan(LOOPY_DIFF_MAX);
+    expect(prChunks(main, [huge, B], 12_000)).toEqual({ ship: [[B]], later: [], tooBig: [huge] });
+  });
+
+  it("adds the first rows to a season not read yet without a blank line above them", () => {
+    expect(applyRows("// --- Data\nexport const ROWS: FrameTiming[] = [\n\n];\n", [A])).toBe(`// --- Data\nexport const ROWS: FrameTiming[] = [\n${rowLine(A)}\n];\n`);
+  });
+
+  it("leaves every real data file byte for byte as it is when all its rows are applied again", () => {
+    const files = [...readdirSync("server/data/frameTimings").filter((f) => /^\d{4}\.ts$/.test(f)).map((f) => `server/data/frameTimings/${f}`), "server/data/clipChecks.ts"];
+    expect(files.length).toBeGreaterThan(5);
+    for (const f of files) {
+      const text = readFileSync(f, "utf8");
+      expect(applyRows(text, fileRows(text)), f).toBe(text);
+    }
   });
 
   it("one row a key: given twice, the last counts; a file holding a key twice is refused", () => {
