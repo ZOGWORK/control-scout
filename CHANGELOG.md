@@ -17,7 +17,7 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 
 ## 7.2.8 — 2026-11-17
 
-Rankings › a New Jersey league's conferences get their own rankings page, laid out like region rankings (#1650).
+Rankings › a New Jersey league's conferences get their own rankings page, laid out like region rankings (#1657).
 
 ### Highlights
 - [rankings] Each NJ conference has its own rankings page
