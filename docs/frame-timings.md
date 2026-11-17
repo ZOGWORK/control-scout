@@ -17,9 +17,11 @@ match ("Qualification 21 of 36", "Playoff Match 7") and runs its timer.
 point, and reads two things with tesseract.js:
 
 1. **The overlay's match**: `overlayLabel` turns "Qualification 21 of 36" into Q21, "Finals Match 2" into F2, and
-   "Playoff Match 10" or a bare "Match 10" (2025's playoff overlay) into M10. 2019–2022's best-of-3 semifinals
+   "Playoff Match 10" or a bare "Match 10" (2025's playoff overlay) into M10. 2019–2023's best-of-3 semifinals
    ("Semifinal 1 Match 2") are named by series and number (M1-2), the event's match of that series and number only:
    its M1 is "Semifinal 1 Match 1", its M2 "Semifinal 2 Match 1" (`sameMatch`).
+   Where the whole frame names nothing, the bar's row is read on its own: along the bottom, then FTC Live's whole bar
+   moved to the top edge (FIRST Nevada, USNVCMP 2024), whose timer is then read first in its own place under that row.
 2. **The timer**, in one of three places: the bar along the bottom (FTC Live's default), a box over the field under
    a bar across the top (FTC Ontario), or the bar along the top (FIRST in Texas). FTC Live's overlay from 2019 to 2022
    shows it as bare seconds ("30", "112": `secondsPlain`), in a box over the scores (SKYSTONE, FREIGHT FRENZY) or
@@ -43,6 +45,13 @@ matches the same distance apart (within 6 s) hold every match between them at th
 the first and last match a video holds, and the middle of any stretch whose ends disagree: a video with one gap takes
 about 2 log n reads. `judge` then keeps the longest run of reads that never rise (dropping misreads such as a replay
 or an overlay left on the previous match) and fills each stretch between two reads that agree.
+
+A match FIRST gives no real start for has no clock to place it by: a schedule's whole minute (2019's qualifications),
+or no time at all (results posted with none, as the Chicago Robotics Invitational's are). The video is walked a frame
+every few minutes and each such match is placed only where its own frames show it running; nothing is filled between
+them. A match with no time may be in any of the event's videos, and comes after the timed ones in its label's order
+(`labelRank`: qualifications by number, then playoffs, a best-of-three's games turn about, then finals). The server
+orders the frame starts the same way (`inOrder`): a start out of that order is left out, never served.
 
 ## Two signals, never one
 
@@ -96,7 +105,10 @@ A busy frame (crowd, robots, game pieces) can throw tesseract's page layout off 
 USARBEQ 2024 Q8 at 7097 s reads as a jumble whole, though "Qualification 8 of 23" is plain on screen. So an opening
 whose whole frame names nothing has the match's half of the bar's top row read on its own (`labelRow`): the whole row
 can lose it too, to the logo and event name beside it (USCHSGAQ1 2024 M1, its half "Playoff Match 1"). On a shared
-stream the whole row must also name this division. Placement reads stay whole-frame reads.
+stream the whole row must also name this division. Placement reads fall back on the row the same way: on CENTERSTAGE's
+(2023) streams nearly every frame of play loses the bar's line in a whole-frame read (NLBNM1 at 3300 s reads a jumble,
+its row alone "Qualification 4 of 23"), so those videos read nothing at all before. A row-named read is held to the same
+checks as any other: its timer seen running, the same match and start 70 s on, not running 25 s before.
 
 With `--live`, a clip the live site already plays that a read leaves out (one read of it out of order, a gap the reads
 around it disagree on: FPEWESEA 2025 Q97–Q100) goes back to its live second for its opening check, like any start: its

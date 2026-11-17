@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { findRegions, regionLabel, regionNames } from "./regions";
+import { cityShortForm, findRegions, regionLabel, regionNames } from "./regions";
+import { regionOf } from "./searchEventQuery";
 
 describe("regionNames", () => {
   it("spells out codes per country", () => {
@@ -27,5 +28,17 @@ describe("placeName", () => {
     expect(placeName(null, "USA")).toBe("USA");
     expect(placeName("XX", "Mexico")).toBe("Mexico");
     expect(placeName(null, null)).toBeNull();
+  });
+});
+
+describe("a place said another way", () => {
+  it("reads New Jersey by its name, its code or its key, all one place", () => {
+    for (const q of ["nj", "NJ", "new jersey", "New Jersey", "USA:NJ"]) expect(regionOf(q.split(" "))?.key).toBe("USA:NJ");
+  });
+  it("says a city FIRST runs as its own region by its events' short form, whole words only", () => {
+    expect(cityShortForm("new york city championship")).toBe("NYC championship");
+    expect(cityShortForm("New  York City")).toBe("NYC");
+    expect(cityShortForm("new york championship")).toBe("new york championship");
+    expect(cityShortForm("new york cityscape")).toBe("new york cityscape");
   });
 });

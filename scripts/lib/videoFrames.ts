@@ -7,6 +7,25 @@
  *  says nothing of where it sits: it's placed only where its own frames show it (judge). */
 export type M = { label: string; epoch: number; scheduled?: boolean };
 
+/**
+ * An event's played matches as a read goes by them, in played order, each with its time (null: none). A match with no
+ * time at all (results posted with none: the Chicago Robotics Invitational's) is read as a scheduled one is, by its
+ * frames alone (M.scheduled), ordered after the timed ones by its label (`rank`, labelRank); `epoch` only orders it. A
+ * time the event's zone can't place (none known) leaves its match out (the caller says so).
+ */
+export function playedMatches(
+  rows: { label: string; time: string | null; timezone: string | null }[],
+  f: { utcMs: (time: string, timezone: string | null) => number | null; actual: (time: string | null) => boolean; rank: (label: string) => number },
+): (M & { time: string | null })[] {
+  const timed = rows.filter((r) => r.time != null)
+    .map((r) => ({ label: String(r.label), time: String(r.time), epoch: (f.utcMs(String(r.time), r.timezone) ?? NaN) / 1000, ...(f.actual(r.time) ? {} : { scheduled: true }) }))
+    .filter((m) => Number.isFinite(m.epoch)).sort((a, b) => a.epoch - b.epoch);
+  const after = timed.length ? timed[timed.length - 1].epoch : 0;
+  const untimed = rows.filter((r) => r.time == null).map((r) => String(r.label)).sort((a, b) => f.rank(a) - f.rank(b))
+    .map((label, i) => ({ label, time: null, epoch: after + 1 + i, scheduled: true }));
+  return [...timed, ...untimed];
+}
+
 /** Two reads closer than this (seconds) are the same distance: the timer reads to the second, and the frame read lags it. */
 export const SAME_S = 6;
 /** The most frames read looking for one match. */
@@ -17,7 +36,7 @@ export const AUTO_S = 30, SWITCH_S = 8, TELEOP_S = 120;
 /** The match an overlay names: "Qualification 21 of 36" → Q21, "Finals Match 2" → F2, "Playoff Match 7" or just
  *  "Match 7" (a playoff on 2025's overlay) → M7; anything else none. A frame's label only counts with its timer seen
  *  running and confirmed a minute on (scripts/video-frames.ts), so a bracket screen or schedule naming a match, with no
- *  timer running, gives no start. `semifinals`: the event's playoffs are best-of-3 semifinals and finals (2019–2022),
+ *  timer running, gives no start. `semifinals`: the event's playoffs are best-of-3 semifinals and finals (2019–2023),
  *  whose overlay names each as "Semifinal 1 Match 2" or "Finals Match 1": a bare "Match 1" there is one of those read
  *  with its first word lost (2019IASQ4's "Finals Match 1" read "Match 1"), so it names none. */
 export function overlayLabel(text: string, semifinals = false): string | null {
@@ -26,7 +45,7 @@ export function overlayLabel(text: string, semifinals = false): string | null {
   // "Finals" with a letter the OCR reads as another ("Finais", "Fnals").
   const f = /(?<!Semi-?\s?)\bF[il1]?na[il1|]s?\s+Match\s+(\d)\b/i.exec(text);
   if (f) return `F${Number(f[1])}`;
-  // Best-of-3 semifinals (2019–2022's playoffs): "Semifinal 2 Match 1" is the second semifinal's first match, the
+  // Best-of-3 semifinals (2019–2023's playoffs): "Semifinal 2 Match 1" is the second semifinal's first match, the
   // event's M2 (series 2, number 1), and "Semifinal 1 Match 2" is its M1-2, never M2. Named with series and number
   // ("M2-1", "M1-2") so it's never taken for a replay (sameMatch).
   const sf = /Semi-?\s?finals?\s+(\d)\s+Match\s+(\d)\b/i.exec(text);
@@ -43,7 +62,9 @@ export function overlayLabel(text: string, semifinals = false): string | null {
   if (next) return `M${Number(next[1])}`;
   if (new Set([...text.matchAll(/\bM(\d{1,2})\b/g)].map((m) => m[1])).size >= 3) return null;
   const named = new Set<number>();
-  for (const m of text.matchAll(/(advances\s+to:?\s+(?:Playoff\s+)?|\bTest\s+)?\bMatch\s+(\d{1,2})\b/gi)) if (!m[1]) named.add(Number(m[2]));
+  // FIRST DIVE's 2024 playoff bar puts the bracket's next steps beside the match on screen ("Winner → Match 7",
+  // "Loser → Match 5", AUCMP and FPECA 2024): those are later matches too, whatever the arrow reads as.
+  for (const m of text.matchAll(/(advances\s+to:?\s+(?:Playoff\s+)?|\bTest\s+|\b(?:Winner|Lo[s5]er)[^A-Za-z0-9\n]{0,8})?\bMatch\s+(\d{1,2})\b/gi)) if (!m[1]) named.add(Number(m[2]));
   return named.size === 1 ? `M${[...named][0]}` : null;
 }
 
@@ -181,6 +202,154 @@ export function overlayDivision(text: string, own: string, others: string[]): "o
   const has = (d: string) => new RegExp(`(^|[^A-Z])${escape(plain(d)).replace(/\s+/g, "\\s+")}([^A-Z]|$)`).test(t);
   if (others.some(has)) return "other";
   return has(own) ? "own" : null;
+}
+
+/** Words in an event's name that say nothing about which event it is. */
+const GENERIC = new Set(["LEAGUE", "MEET", "QUALIFIER", "QUALIFIERS", "CHAMPIONSHIP", "CHAMPIONSHIPS", "FTC", "FIT", "FIRST",
+  "TECH", "CHALLENGE", "DIVISION", "EVENT", "THE", "AND", "STATE", "REGIONAL", "MATCH", "PLAYOFF", "FINALS", "QUALIFICATION",
+  // The season's logo beside the name ("FIRST DIVE", "CANOPY", "INTO THE DEEP", "BIOBUZZ presented by RTX").
+  "DIVE", "CANOPY", "INTO", "DEEP", "DECODE", "BIOBUZZ", "CENTERSTAGE", "POWERPLAY", "FREIGHT", "FRENZY", "ULTIMATE", "GOAL",
+  "SKYSTONE", "PRESENTED", "QUALCOMM", "RTX", "ENERGIZE"]);
+const words = (s: string) => (plain(s).match(/[A-Z]{3,}/g) ?? []).filter((w) => !GENERIC.has(w));
+/** Where the overlay names a match, and the event name just before it on the same line. */
+// A semifinal (2019–2022's "Semifinal 2 Match 1", or "Semifinals Match 1" with its series lost) is taken whole, before
+// its "finals Match 1" or "Match 1" could be: overlayLabel names it by series and number (M2-1), or none.
+const MATCH_PHRASE = /Qualification\s+\d{1,3}\s+of\s+(\d{1,3})|Semi-?\s?finals?(?:\s+\d)?\s+Match\s+\d\b|(?:Playoff\s+|F[il1]?na[il1|]s?\s+)?Match\s+\d{1,2}\b/gi;
+
+/** Whose a match's "of M" is, by the event's qualification total: its own; or, where the read is the start of the
+ *  total's digits, nothing to tell by (OCR loses a last digit: USNVCMP 2024's "of 46" read "of 4" at 2700 s, its own
+ *  Q7 taken for another event's); any other M another event's. */
+function totalSays(total: number, quals: number): "own" | "other" | null {
+  if (total === quals) return "own";
+  return String(quals).startsWith(String(total)) ? null : "other";
+}
+
+/**
+ * Which event a frame's overlay names: "own" (this event), "other" (another event: two league meets split on one
+ * stream, USTXCAM1 2024 its right half, the left "FiT-Central North San Antonio League Meet 1 — Qualification 3 of 24"),
+ * or null (nothing to tell by). Two things beside a match say whose it is:
+ * - its "of M", against the event's qualification total (`quals`), where its name isn't read (often lost to OCR:
+ *   USTXCAM1's left half read "—E— Qualification 3 of 24"): any other M is another event's, or a misread.
+ * - the event name before it on its line, which decides where read. The ticker scrolls and cuts names at either end and orders their words its
+ *   own way ("…n Division Michiana Premier Event -", "Austin Semi-Area Championship" for FiT-Central Semi-Area
+ *   Championship Austin), so a name is another event's only where at least two of its telling words of four letters or
+ *   more are read and fewer than half of its words are this event's (a cut word matching the start or end of one). A
+ *   logo misread beside the match is no name: POWERPLAY's (2022) "FIRST ENERGIZE" read "FIRST ZN=RGIZ= swe" on KZCMP's
+ *   playing frames, two words, neither this event's, and every one of its matches was taken for another event's.
+ *   Nor can a name read as another's overrule a total that is this event's: it's misread, not another event.
+ * On a split screen the half that is this event's gives its match (`label`); `phrase`, the match beside its name.
+ */
+export function overlayEvent(text: string, own: string, quals?: number, semifinals = false): { event: "own" | "other" | null; label?: string; phrase?: string } {
+  const mine = words(own);
+  const verdict = (name: string): "own" | "other" | null => {
+    const read = words(name);
+    const ours = (w: string) => mine.some((o) => o === w || o.startsWith(w) || o.endsWith(w));
+    const hit = read.filter(ours).length;
+    // Only telling words weigh: a 3-letter scrap of the logo beside the name is no word of another event's (USNVCMP 2024
+    // at 2509 s: "rer DIVE — Nevada Chan qualification 6 of 4", its own Nevada one word in three, "Chan" its cut name).
+    const telling = read.filter((w) => w.length >= 4);
+    if (telling.length >= 2 && telling.filter(ours).length * 2 < telling.length) return "other";
+    return hit ? "own" : null;
+  };
+  let other = false, ownLabel: string | undefined, ownSeen = false;
+  for (const line of text.split("\n")) {
+    let from = 0;
+    for (const m of line.matchAll(MATCH_PHRASE)) {
+      const total = m[1] != null ? Number(m[1]) : null;
+      const name = verdict(line.slice(from, m.index));
+      // A name read decides; with none, the total (a schedule changed after the db was read can't drop a named frame).
+      // A name read as another's beside this event's own total is a misread: the total stands.
+      const byTotal = quals && total != null ? totalSays(total, quals) : null;
+      const v = name === "other" && byTotal === "own" ? "own" : name ?? byTotal;
+      from = m.index! + m[0].length;
+      if (v === "other") other = true;
+      if (v === "own" && !ownSeen) { ownSeen = true; ownLabel = overlayLabel(m[0], semifinals) ?? undefined; }
+    }
+  }
+  // `phrase`: the match this event's name stands beside (the bar's row, read on its own, has one line). `label`: that
+  // match, given for the whole frame only where another event's match is beside it too (a split screen). Several
+  // matches with no other event's among them stay overlayLabel's to judge: a bracket naming several names none.
+  const phrase = ownLabel ? { phrase: ownLabel } : {};
+  if (ownSeen) return other ? { event: "own", ...(ownLabel ? { label: ownLabel } : {}), ...phrase } : { event: "own", ...phrase };
+  return { event: other ? "other" : null };
+}
+
+/**
+ * The match FTC Live's bottom bar names when its row is read on its own (the reader's labelRow): `half` is the read of
+ * the row's right half, where the match sits ("Qualification 10 of 17"), `row` the whole row's, where the event or
+ * division sits. On a stream an event's divisions share (`ctx`), the row must name this division, as a whole frame's
+ * read must; a row naming no division, or a sibling's, names no match of this event. `semifinals`: as overlayLabel's.
+ */
+export function rowLabel(half: string, row: string | null, ctx?: { own: string; others: string[] }, semifinals = false): string | null {
+  const label = overlayLabel(half, semifinals);
+  if (!label || !ctx) return label;
+  return row != null && overlayDivision(row, ctx.own, ctx.others) === "own" ? label : null;
+}
+
+/**
+ * Where FTC Live's score bar sits in a frame (RGBA pixels, `width` × `height`): the rows where one alliance's colour
+ * fills much of the half left of the timer's column and the other's the half right of it (blue then red, or red then
+ * blue): whole halves, as a bar's white score badges can fill the stretch beside the timer (Arizona's, USAZGIQ 2023). Its tallest run of such rows (a row or two of icons and digits breaking it is bridged) is the bar, wherever the
+ * stream put it: along the bottom (FTC Live's default), under a title bar at the top (FIRST in Texas), or flush with the
+ * top (Arizona's CENTERSTAGE streams, the timer 56–96 px down). Null: no run at least 3% of the frame tall (a frame with
+ * no bar: a slate, a camera, a results card). Self-contained (no imports, no outer names): the reader runs it in the page.
+ */
+export function overlayBand(px: ArrayLike<number>, width: number, height: number): { top: number; bottom: number } | null {
+  const BLUE = 1, RED = 2;
+  const colour = (i: number): number => {
+    const r = px[i], g = px[i + 1], b = px[i + 2];
+    // By hue more than brightness: Arizona's bar is a dark navy (2, 46, 80) and maroon (111, 12, 17). Red twice the
+    // green and blue, so an orange wood floor (200, 130, 60) is neither.
+    if (b >= 60 && b > r + 40 && b > g * 1.4) return BLUE;
+    if (r >= 70 && r > g * 2 && r > b * 2) return RED;
+    return 0;
+  };
+  // Share of a stretch's pixels in each colour, every other pixel.
+  const share = (y: number, from: number, to: number): [number, number] => {
+    let blue = 0, red = 0, n = 0;
+    for (let x = Math.round(from * width); x < Math.round(to * width); x += 2) {
+      const c = colour((y * width + x) * 4);
+      if (c === BLUE) blue++; else if (c === RED) red++;
+      n++;
+    }
+    return [blue / n, red / n];
+  };
+  const MIN = 0.4, GAP = 3, TALL = Math.round(height * 0.03), CARD = Math.round(height * 0.2);
+  let best: { top: number; bottom: number } | null = null, top = -1, last = -1;
+  for (let y = 0; y <= height; y++) {
+    let bar = false;
+    if (y < height) {
+      const [lb, lr] = share(y, 0.02, 0.44), [rb, rr] = share(y, 0.56, 0.98);
+      bar = (lb >= MIN && rr >= MIN) || (lr >= MIN && rb >= MIN);
+    }
+    if (bar) { if (top < 0 || y - last > GAP + 1) top = y; last = y; continue; }
+    if (top >= 0 && (y - last > GAP || y === height)) {
+      if (last - top + 1 >= TALL && last - top + 1 <= CARD && (!best || last - top + 1 > best.bottom - best.top)) best = { top, bottom: last + 1 };
+      top = -1;
+    }
+  }
+  return best;
+}
+
+/**
+ * The row over a score bar found in the frame (overlayBand), where FTC Live names the match: as tall as the usual row
+ * (`usual`, over the bottom bar), cut at the frame's top. Null where it would be the usual row again (a bar where the
+ * bottom bar always is), or there's no room over the bar for a line of text.
+ */
+export function rowAbove(band: { top: number }, usual: { x: number; y: number; width: number; height: number }): { x: number; y: number; width: number; height: number } | null {
+  const y = Math.max(0, band.top - usual.height), height = band.top - y;
+  if (height < 24 || Math.abs(y - usual.y) <= 16) return null;
+  return { x: usual.x, y, width: usual.width, height };
+}
+
+/** Reads a minute apart the upload scan takes past a frame naming a match not yet running: a match's turnaround is 4–8
+ *  minutes, so three minutes on usually lands in its play (the next scan frame, 10 minutes on, tries again if not). */
+export const SCAN_AHEAD = 3;
+/** Whether the upload scan reads a minute on again (the k-th step): the scan frame named a match (`named`) and no read
+ *  since gave a running start (`start`, the last read's). Only the first frame's naming counts: a step landing on a camera
+ *  cutaway that names nothing keeps stepping, as the match is still to come. */
+export function stepOn(named: boolean, start: number | null, k: number): boolean {
+  return named && start == null && k <= SCAN_AHEAD;
 }
 
 /** How long before a broadcast's start a match no broadcast holds is still looked for in it (seconds). */

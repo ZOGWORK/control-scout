@@ -25,6 +25,10 @@ describe("league standings asks", () => {
     // No standings word: a league's events, not its table.
     expect(readLeagueAsk("northeast league meets")).toBeNull();
     expect(readLeagueAsk("league standings")).toBeNull();
+    // The leagues themselves for a place: its list; a league's name or an event's word with them is not that.
+    expect(readLeagueAsk("nj leagues")).toMatchObject({ words: ["nj"], list: true, leader: false });
+    expect(readLeagueAsk("leagues in new jersey")).toMatchObject({ words: ["new", "jersey"], list: true });
+    for (const q of ["northern league", "leagues", "nj league meets"]) expect(readLeagueAsk(q)).toBeNull();
     // Filters the league table can't answer: not a league standings ask.
     for (const q of ["northeast league standings in the playoffs", "red alliance northeast league standings", "northeast league standings all time", "northeast league standings on march 15 2026"]) expect(readLeagueAsk(q)).toBeNull();
   });
