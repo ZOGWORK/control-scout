@@ -25,7 +25,7 @@ Videos › 88 more matches get a clip read off their event's video, each opening
 - [fixes] No clip already playing changes
 
 ### Fixed
-- Videos (`server/data/frameTimings/`): a re-read of videos already in the data with the current reader adds 88 2025 starts (CAONKAQ, CAONSCQ2, FPEWESEA, FPEWESND, NLHAQ, ROCMPCND, USCALACALAM2, USCODEQ1, USCODEQ2), each checked paused on its clip's opening frame. Only starts are added: no row loses or moves one, and no clip already playing changes. (part 1 of 3)
+- Videos (`server/data/frameTimings/`): a re-read of videos already in the data with the current reader adds 88 2025 starts (CAONKAQ, CAONSCQ2, FPEWESEA, FPEWESND, NLHAQ, ROCMPCND, USCALACALAM2, USCODEQ1, USCODEQ2), each checked paused on its clip's opening frame. Only starts are added: no row loses or moves one, and no clip already playing changes. (part 1 of 3) (#1738)
 
 ## 7.6.2 — 2026-11-17
 
