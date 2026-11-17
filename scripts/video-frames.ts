@@ -24,17 +24,20 @@
 //   --dry     print, don't write
 //   --trace   print every frame read (where, what it named, the start it gave) to stderr
 //   --verify  read no starts: check where each placed match's clip opens, for rows not yet checked (opens)
+//   --bounds  read no starts: read each read video's first and last frames (opensOn, endsOn), the proof that a match
+//             was played before it starts or after it ends (outsideRecording); a normal read reads them too
 //   --live <file>  the timings the live site serves (a copy of main's server/data/frameTimings.ts): a re-read start
 //             that is one of them (same video, match and second, within a read's slack) and whose opening frame names
 //             nothing stays, unconfirmed, as --verify keeps it; only an overlay naming another match pulls a live clip
 //   TESSERACT_JS=<path to tesseract.js's entry>  where tesseract.js is, when it isn't in node_modules
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
-import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, elapsed, overlayDivision, leadIn, judge, NOTHING_READ, overlayLabel, secondsOf, type Judged, type M } from "./lib/videoFrames";
+import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, playedCount } from "./lib/videoFrames";
+import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, elapsed, overlayDivision, leadIn, judge, NOTHING_READ, overlayLabel, secondsLoose, secondsOf, type Judged, type M } from "./lib/videoFrames";
 
 // The command line: --name value or --name=value for the value flags, --name alone for the others. Anything else stops
 // the run before it reads: a misspelt flag mustn't quietly read (and write) every recording of the season.
-const VALUE_FLAGS = new Set(["season", "codes", "limit", "lanes", "live"]), BOOL_FLAGS = new Set(["all", "check", "dry", "trace", "verify"]);
+const VALUE_FLAGS = new Set(["season", "codes", "limit", "lanes", "live"]), BOOL_FLAGS = new Set(["all", "bounds", "check", "dry", "trace", "verify"]);
 const args = new Map<string, string | true>();
 {
   const argv = process.argv.slice(2);
@@ -63,7 +66,7 @@ const season = count("season", 2025);
 const only = arg("codes")?.split(",").map((c) => c.trim().toUpperCase()).filter(Boolean);
 const limit = arg("limit") == null ? Infinity : count("limit", 1);
 const lanes = count("lanes", 3);
-const CHECK = flag("check"), ALL = flag("all"), DRY = flag("dry"), TRACE = flag("trace"), VERIFY = flag("verify");
+const CHECK = flag("check"), ALL = flag("all"), DRY = flag("dry"), TRACE = flag("trace"), VERIFY = flag("verify"), BOUNDS = flag("bounds");
 
 const { migrate, all } = await import("../server/db.js");
 await migrate();
@@ -138,12 +141,20 @@ const TIMERS = [
   { where: "bottom" as const, clip: { x: 565, y: 175, width: 150, height: 68 } },
   // The bottom bar shrunk to 90% inside black side bars, raised off the bottom edge (ROCMPCND's Friday stream at Q2).
   { where: "bottom" as const, clip: { x: 580, y: 606, width: 120, height: 52 } },
+  // The timer alone in a white box between the scores, a gamepad icon above it and Auto's dots below (FIRST AGE's bar,
+  // USNMCMP 2025): with the icon in the crop the OCR reads "1:04" as "11040", so only the digits' row is read (with a
+  // margin round them: a tight crop reads 1:37 as 1:29 and 1:22 as 1:92, this one read 1:57 to 1:17 right), and its
+  // thin colon, often dropped ("117"), isn't needed (secondsLoose).
+  { where: "bottom" as const, clip: { x: 580, y: 647, width: 120, height: 48 }, loose: true },
+  // The same white box in a bar across the top (FIRST AGE's top layout, USPAKSN 2026): wider than FIRST Texas's.
+  { where: "top" as const, clip: { x: 585, y: 92, width: 110, height: 50 }, loose: true },
 ];
 
 /** The timer's reading. `auto`: whether a reading of 0:30 or less is Auto, told by readAt. */
 async function timer(page: Page): Promise<{ where: "bottom" | "top"; left: number; auto: boolean } | null> {
   for (const t of TIMERS) {
-    const left = secondsOf((await digits.recognize(await page.screenshot({ clip: t.clip }))).data.text);
+    const text = (await digits.recognize(await page.screenshot({ clip: t.clip }))).data.text;
+    const left = "loose" in t ? secondsLoose(text) : secondsOf(text);
     if (left == null || left > AUTO_S + SWITCH_S + TELEOP_S) continue;
     return { where: t.where, left, auto: false };
   }
@@ -375,6 +386,83 @@ async function verifyRow(row: FrameTiming, division: { own: string; others: stri
   }
 }
 
+// --- The recording's edges ----------------------------------------------------------------------------------------
+
+type Edge = { at: number; label?: string; played?: number; of?: number; fromEnd?: number; clear?: boolean; underway?: boolean };
+/** What a recording's first and last frames show (EDGE_AT from each end): the first frame from that end that names a
+ *  match (this division's; another's names none) or counts the matches played. None does, and none shows a timer: read
+ *  on every CLEAR_STEP_S (up to CLEAR_MAX_S, or half the video) while each frame shows no match at all, and the first
+ *  that names one is the edge, "clear" of matches before it. A timer on screen with no match named: no edge. */
+async function readEdges(page: Page, length: number): Promise<{ opensOn?: Edge; endsOn?: Edge }> {
+  // A seek that never landed shows the frame that was up before (as in checkOpenings): it is no edge, and the stretch
+  // it stood for wasn't seen, so it can't count toward "clear" either.
+  const named = async (t: number): Promise<Edge | null | "missed"> => {
+    const r = await readAt(page, t, true);
+    if (Math.abs(r.at - t) > 1) return "missed";
+    // A sibling division's frame on a shared stream is never this event's edge: neither its match nor its count.
+    if (r.division === "other") return null;
+    const n = playedCount(r.text);
+    return r.label || n ? { at: Math.round(t), ...(r.label ? { label: r.label } : {}), ...(n ? { played: n.played, of: n.of } : {}) } : null;
+  };
+  const edge = async (from: (s: number) => number): Promise<Edge | undefined> => {
+    let quiet = true;
+    for (const s of EDGE_AT) {
+      const t = from(s);
+      if (t < 0 || t > length) continue;
+      const e = await named(t);
+      if (e === "missed") { quiet = false; continue; }
+      if (e) return e;
+      if (quiet && await timer(page)) quiet = false;
+    }
+    if (!quiet) return undefined;
+    for (let s = EDGE_AT[EDGE_AT.length - 1] + CLEAR_STEP_S; s <= Math.min(CLEAR_MAX_S, length / 2); s += CLEAR_STEP_S) {
+      const e = await named(from(s));
+      if (e === "missed") return undefined;
+      if (e) return { ...e, clear: true };
+      if (await timer(page)) return undefined;
+    }
+    return undefined;
+  };
+  const opensOn = await edge((s) => s);
+  // The match it opens on, already being played: its timer runs between two reads 3 s apart, and even its least
+  // elapsed reading (an Auto reading of 0:30 or less could be either period) puts its start before the recording's.
+  if (opensOn?.label && !opensOn.clear) {
+    await seek(page, opensOn.at);
+    const a = await timer(page);
+    await seek(page, opensOn.at + 3);
+    const b = await timer(page);
+    if (a && b && a.where === b.where && a.left - b.left >= 1 && a.left - b.left <= 5) {
+      const ways = [elapsed({ ...a, auto: false }), ...(a.left <= AUTO_S ? [elapsed({ ...a, auto: true })] : [])].filter((x): x is number => x != null);
+      if (ways.length && Math.min(...ways) > opensOn.at) opensOn.underway = true;
+    }
+  }
+  const end = await edge((s) => length - s);
+  const endsOn = end && { ...end, fromEnd: Math.max(0, Math.round(length - end.at)) };
+  return { ...(opensOn ? { opensOn } : {}), ...(endsOn ? { endsOn } : {}) };
+}
+
+/** An edge as the log says it: "M1 at 400 s (no match before it)", "4/23 played at 3 s", "nothing". */
+const saidEdge = (e?: Edge, side = "before") => (e ? `${e.label ?? ""}${e.played != null ? ` ${e.played}/${e.of} played` : ""} at ${e.at} s${e.clear ? ` (no match on screen ${side} it)` : ""}${e.underway ? " (already being played)" : ""}` : "nothing");
+
+/** --bounds: a read row gets its video's edges (opensOn, endsOn), its starts as they were. */
+async function boundsRow(row: FrameTiming, length: number, division: { own: string; others: string[] } | null, log: (s: string) => void): Promise<void> {
+  let page: Page | null = null;
+  try {
+    page = await player();
+    if (division) divisions.set(page, division);
+    await open(page, row.videoId);
+    const { opensOn, endsOn } = await readEdges(page, length);
+    log(`  ${row.videoId}: opens on ${saidEdge(opensOn)}, ends on ${saidEdge(endsOn, "after")}`);
+    // An edge this read didn't find keeps the one read before: a retry never erases a proven edge.
+    keep(`${row.videoId}|${row.code}`, { ...row, ...(opensOn ? { opensOn } : {}), ...(endsOn ? { endsOn } : {}) });
+  } catch (e) {
+    log(`    couldn't read its edges: ${(e as Error).message.split("\n")[0]} (the row is kept as it was)`);
+    failedVideos++;
+  } finally {
+    await closePage(page);
+  }
+}
+
 // --- Finding each match --------------------------------------------------------------------------------------------
 
 /** The second each of a video's matches starts at, as far as its frames show. `shift`: the video's second for a moment
@@ -390,7 +478,9 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
   // At most a few reads per match, every read counted (confirming ones too): checked before each read or confirmation.
   // A recording cut mid-match costs extra confirming reads (confirmed, autoAgrees): 4 a match left a cut stream's later
   // matches unread (USIAPOMPM11 2025, 81 frames of 72).
-  const budget = Math.max(60, 8 * ms.length);
+  // Reads spent finding the matches when the clock reads nothing (scan) are added: they place none (USNMCMP 2025, 61
+  // frames of scanning, then 232 left M1–M5 in a gap unread).
+  let budget = Math.max(60, 8 * ms.length);
   let unconfirmed = 0;
   const near = (i: number): number | null => {
     // The distance of the read nearest by order, else the broadcast's.
@@ -514,11 +604,20 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
   await span(0, ms.length - 1);
   // The matches before the first read, each from the nearest read's distance now (the clock alone may put them before
   // the video's start): the first that can't be read ends it.
-  const firstSeen = Math.min(...seen.keys());
-  for (let i = firstSeen - 1; i >= 0 && Number.isFinite(firstSeen) && !blind() && reads() < budget; i--) if ((await anchor(i)) == null) break;
+  const before = async () => {
+    const firstSeen = Math.min(...seen.keys());
+    for (let i = firstSeen - 1; i >= 0 && Number.isFinite(firstSeen) && !blind() && reads() < budget; i--) if ((await anchor(i)) == null) break;
+  };
+  await before();
   if (blind() && shift != null) {
     await scan();
-    if (seen.size) { log(`    the clock read nothing; found by scanning, ${reads()} frames in`); missed = 0; await span(0, ms.length - 1); }
+    if (seen.size) {
+      log(`    the clock read nothing; found by scanning, ${reads()} frames in`);
+      budget += reads();
+      missed = 0;
+      await span(0, ms.length - 1);
+      await before();
+    }
   }
   if (blind()) log(`    no overlay read in ${reads()} frames`);
   const j = judge(ms, seen, shift, length, tried);
@@ -647,7 +746,7 @@ async function doCode(code: string): Promise<void> {
   // Without this script's own timings: what YouTube's facts alone give.
   const placed = R.withClips(views, rec, Date.now(), span, { frames: false });
   const missing = placed.filter((v) => !v.clip).map((v) => v.label);
-  if (CHECK ? !placed.some((v) => v.clip) : !ALL && !VERIFY && !missing.length) return;
+  if (CHECK ? !placed.some((v) => v.clip) : !ALL && !VERIFY && !BOUNDS && !missing.length) return;
   // Read on an earlier run (each event is written as it finishes): not again, unless --all.
   // Any of its videos that couldn't be played at all keeps the event unread, so the next run tries it again. (An event's
   // rows are saved once all its videos are read, so a run cut short leaves none of them.)
@@ -665,9 +764,11 @@ async function doCode(code: string): Promise<void> {
   };
   const rowOf = (v: (typeof own)[number]) => kept.get(`${v.videoId}|${code}`);
   const read = own.filter(holds).every((v) => { const f = rowOf(v); return f && !Object.values(f.missing ?? {}).some((w) => w.startsWith(PLAY_FAILED)); });
-  if (!CHECK && !ALL && !VERIFY && !waiting && own.some(holds) && read) return;
+  if (!CHECK && !ALL && !VERIFY && !BOUNDS && !waiting && own.some(holds) && read) return;
   // --verify: an event none of whose rows still has openings to check doesn't count against --limit.
   if (VERIFY && !own.some((v) => { const f = rowOf(v); return f && (!f.opens || f.unconfirmed?.length) && Object.keys(f.starts).length; })) return;
+  // --bounds: likewise an event none of whose rows still lacks an edge (every row, with --all).
+  if (BOUNDS && !own.some((v) => { const f = rowOf(v); return f && (ALL || !f.opensOn || !f.endsOn); })) return;
   // Checked again once claimed: a lane that passed its check while another was still loading would read past --limit.
   if (++done > limit) return;
   // An event's lines together (events run side by side).
@@ -689,6 +790,11 @@ async function doCode(code: string): Promise<void> {
     // A video read well on an earlier run keeps its row: the event is back for another of its videos (a new link, one
     // that couldn't be played), and a re-read now could place fewer of this one's matches. --all reads it again.
     const prior = kept.get(`${v.videoId}|${code}`);
+    if (BOUNDS) {
+      // Only a video's first and last frames, for a row read before they were (or every row, with --all).
+      if (prior && (ALL || !prior.opensOn || !prior.endsOn)) await boundsRow(prior, m.length!, division, log);
+      continue;
+    }
     if (VERIFY) {
       // Only where each clip opens, for a row read before that was checked: its starts stay as read.
       if (prior && (!prior.opens || prior.unconfirmed?.length) && Object.keys(prior.starts).length) await verifyRow(prior, division, log);
@@ -739,7 +845,15 @@ async function doCode(code: string): Promise<void> {
         const nothing = !j.placed.size && !j.review.size && [...j.missing.values()].every((w) => w === NOTHING_READ);
         // A re-read (--all) that read nothing at all (a player stuck on an interstitial) keeps what an earlier read placed.
         if (nothing && Object.keys(kept.get(key)?.starts ?? {}).length) log("    nothing read: the earlier read is kept");
-        else keep(key, {
+        else {
+          // The edges are read after the matches are placed: one that fails keeps the placed row, without edges (a
+          // later --bounds reads them).
+          const edges = await readEdges(page, m.length!).catch((e: Error) => {
+            log(`    couldn't read its edges: ${e.message.split("\n")[0]} (the row is kept without them)`);
+            return {} as { opensOn?: Edge; endsOn?: Edge };
+          });
+          log(`    opens on ${saidEdge(edges.opensOn)}, ends on ${saidEdge(edges.endsOn, "after")}`);
+          keep(key, {
           videoId: v.videoId, code, checked: today,
           starts: Object.fromEntries(sorted.map(([l, p]) => [l, p.t])),
           ...(sorted.some(([, p]) => p.confidence === "medium") ? { medium: sorted.filter(([, p]) => p.confidence === "medium").map(([l]) => l) } : {}),
@@ -748,7 +862,9 @@ async function doCode(code: string): Promise<void> {
           ...(j.earlyStart.size ? { earlyStart: Object.fromEntries(j.earlyStart) } : {}),
           opens: Object.fromEntries(j.opens),
           ...(unread.size ? { unconfirmed: [...unread] } : {}),
-        });
+          ...edges,
+          });
+        }
       }
     } catch (e) {
       const why = (e as Error).message.split("\n")[0];

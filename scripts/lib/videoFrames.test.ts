@@ -1,7 +1,7 @@
 // The pure parts of the frame reader (scripts/video-frames.ts): the overlay's match, the timer's elapsed time, and
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
-import { dataRows, divisionOf, elapsed, overlayDivision, leadIn, LEAD_IN_S, judge, NOTHING_READ, overlayLabel, secondsOf, startOffset, type M } from "./videoFrames";
+import { dataRows, divisionOf, elapsed, overlayDivision, leadIn, LEAD_IN_S, judge, NOTHING_READ, overlayLabel, secondsLoose, secondsOf, startOffset, playedCount, type M } from "./videoFrames";
 
 describe("the frame reader", () => {
   it("names the match the overlay shows, and nothing else", () => {
@@ -9,6 +9,8 @@ describe("the frame reader", () => {
     expect(overlayLabel("Playoff Match 10")).toBe("M10");
     expect(overlayLabel("APOC Decode 2026  Finals Match 2")).toBe("F2");
     expect(overlayLabel("FiT-North I&S League Tournament  Match 1  DECODE")).toBe("M1");
+    // USNMCMP 2025's recording opens on the field check: "Test Match 1", Test Team 1–4. None of the event's matches.
+    expect(overlayLabel("New Mexico Championship  Test Match 1  -1 Test Team 1  -3 Test Team 3")).toBeNull();
     // USIAWESTLT 2025, 20 s before M3: a bracket whose "advances to" line is cut off at the top names no match.
     expect(overlayLabel("Playoff Match 5  M4 vs A5  M5 M3 vs A6  M8 M6 vs M5  M9 M7 vs M8  Easter Island & Chichen Itza")).toBeNull();
     // Two boxes' numbers aren't a bracket: "Playoff Match 3" still names M3.
@@ -19,6 +21,13 @@ describe("the frame reader", () => {
   it("reads a timer", () => {
     expect(secondsOf("2:25")).toBe(145);
     expect(secondsOf(" 0:07\n")).toBe(7);
+    // FIRST AGE's white box: its thin colon dropped ("117" is 1:17); anything else as secondsOf, never two readings in one.
+    expect(secondsLoose("117\n")).toBe(77);
+    expect(secondsLoose("1:04")).toBe(64);
+    expect(secondsLoose("052")).toBe(52);
+    expect(secondsLoose("1578")).toBeNull();
+    expect(secondsLoose("12")).toBeNull();
+    expect(secondsLoose("317")).toBeNull();
     expect(secondsOf("2:75")).toBeNull();
     expect(secondsOf("")).toBeNull();
   });
@@ -224,5 +233,14 @@ describe("a full-screen card naming several matches", () => {
     // The running bar's own playoff name still reads (ROCMPVLC's "Playoff Match 11").
     expect(overlayLabel("onship - VLAICU Division  Romania C  Playoff Match 11")).toBe("M11");
     expect(overlayLabel("Mississauga Qualifier  Match 10  2:30")).toBe("M10");
+  });
+});
+
+describe("FTC Live's count of matches played", () => {
+  // CABCVIQ2 2025 (_eblj5-6VnA) opens on its rankings card: "5 matches per team ... 4 / 23 matches played".
+  it("reads the count and the total off the rankings card, and nothing else", () => {
+    expect(playedCount("ftc.events/CABCVIQ2/rankings  5 matches per team  4 / 23 matches played")).toEqual({ played: 4, of: 23 });
+    expect(playedCount("Qualification 21 of 36  2:05")).toBeNull();
+    expect(playedCount("40 / 23 matches played")).toBeNull();
   });
 });

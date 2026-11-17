@@ -584,6 +584,9 @@ export interface CoverageVideoCheck {
   checked: string | null; seenAt?: number; found?: string;
   earlyStart?: { t: number; previousEnds: number };
   before?: { label: string; at: number }; after?: { label: string; at: number };
+  /** Not in the recording at all, as its first or last frames prove (server/data/frameTimings.ts outsideRecording):
+   *  settled, nothing to place. */
+  outside?: string;
 }
 /** `why`: in plain words; for a match the clock alone left without a clip, what the video showed (`video`), with the
  *  clock's own reading kept in `clock`. */
