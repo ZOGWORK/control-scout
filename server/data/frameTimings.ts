@@ -48,6 +48,8 @@ export interface FrameTiming {
 /** One edge of a recording, read off its frames: the second, and the match named there and/or the matches played. */
 export interface RecordingEdge {
   at: number; label?: string; played?: number; of?: number;
+  /** An end edge's distance back from the recording's end (`at` counts from its start): within EDGE_S, or `clear`. */
+  fromEnd?: number;
   /** Read further from the edge than EDGE_S: every frame between the edge and `at`, CLEAR_STEP_S apart (less than a
    *  match lasts, so each match would show on two: scripts/lib/videoFrames.ts), showed no overlay naming a match and no
    *  running timer. */
@@ -76,20 +78,24 @@ export function outsideRecording(row: Pick<FrameTiming, "opensOn" | "endsOn"> & 
   // bracket, a schedule or the day before's last card, so one naming M7 while Q2 is read an hour in proves nothing.
   const seen = [...Object.keys(row.starts ?? {}), ...Object.keys(row.review ?? {}), ...Object.keys(row.earlyStart ?? {})];
   const at = (l: string) => order.indexOf(l);
+  // FTC Live's "N / M matches played" counts qualification matches only: M is the event's qual total (MDCHS1 36 of its
+  // 46 matches). A count whose M isn't that total (a sibling division's, a misread) settles nothing.
+  const quals = order.filter((l) => qualNumber(l) != null).length;
+  const counts = (edge: RecordingEdge) => edge.played != null && edge.of === quals;
   const opens = (edge: RecordingEdge | undefined) => !!edge && (edge.at <= EDGE_S || !!edge.clear) && !seen.some((l) =>
     (edge.label != null && at(edge.label) >= 0 && at(l) >= 0 && at(l) < at(edge.label)) ||
     (edge.played != null && qualNumber(l) != null && qualNumber(l)! <= edge.played));
-  const ends = (edge: RecordingEdge | undefined) => !!edge && !seen.some((l) =>
+  const ends = (edge: RecordingEdge | undefined) => !!edge && ((edge.fromEnd != null && edge.fromEnd <= EDGE_S) || !!edge.clear) && !seen.some((l) =>
     (edge.label != null && at(edge.label) >= 0 && at(l) > at(edge.label)) ||
     (edge.played != null && qualNumber(l) != null && qualNumber(l)! > edge.played));
   const o = opens(row.opensOn) ? row.opensOn : undefined, e = ends(row.endsOn) ? row.endsOn : undefined;
   if (o) {
-    if (o.played != null && q != null && q <= o.played) return `played before the recording starts: at ${hms(o.at)} it shows ${o.played}${o.of ? ` of ${o.of}` : ""} matches played`;
+    if (counts(o) && q != null && q <= o.played!) return `played before the recording starts: at ${hms(o.at)} it shows ${o.played}${o.of ? ` of ${o.of}` : ""} matches played`;
     if (o.underway && o.label === label) return `under way when the recording starts: at ${hms(o.at)} its timer is already running`;
     if (o.label && i >= 0 && order.indexOf(o.label) > i) return `played before the recording starts: it opens on ${o.label} at ${hms(o.at)}${o.clear ? ", no match on screen before it" : ""}`;
   }
   if (e) {
-    if (e.played != null && q != null && q > e.played) return `played after the recording ends: at ${hms(e.at)} it shows ${e.played}${e.of ? ` of ${e.of}` : ""} matches played`;
+    if (counts(e) && q != null && q > e.played!) return `played after the recording ends: at ${hms(e.at)} it shows ${e.played}${e.of ? ` of ${e.of}` : ""} matches played`;
     if (e.label && i >= 0 && order.indexOf(e.label) >= 0 && order.indexOf(e.label) < i) return `played after the recording ends: it ends on ${e.label} at ${hms(e.at)}${e.clear ? ", no match on screen after it" : ""}`;
   }
   return null;
