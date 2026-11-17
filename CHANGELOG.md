@@ -22,6 +22,7 @@ Videos › Every match of three 2023 qualifiers (Arizona's Red Rock - Microchip,
 ### Highlights
 - [history] 106 more 2023 matches as clips
 - [fixes] Each opens on a frame naming its match and event
+- [history] Three qualifiers covered match for match
 
 ### Fixed
 - Videos (`server/data/frameTimings/2023.ts`): AZ Red Rock - Microchip Qualifier (35 of 35), CHS-DC International #1 Qualifier (36 of 36) and CHS-VA Harrisonburg 2 Qualifier Stage Right (35 of 35) get frame-checked starts. Every opening frame names its match and its own event. (#1764)
