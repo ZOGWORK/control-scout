@@ -20,7 +20,7 @@
 //   --dry     in the current checkout: read and check, print the PRs it would open, leave the files as they were
 //   AUTOPILOT_SSH (ubuntu@132.145.202.89), AUTOPILOT_SSH_KEY (~/.ssh/oracle-controlpoint), TESSERACT_JS: passed on.
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync, appendFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync, appendFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -73,9 +73,13 @@ for (let tries = 0; ; tries++) {
     if ((e as NodeJS.ErrnoException).code !== "EEXIST") throw e;
     let stale = true;
     try { stale = staleLock(); } catch { /* unreadable or half-written: a crashed run's */ }
-    if (!stale || tries) { log("another run holds the lock: stopping"); process.exit(0); }
+    if (!stale || tries > 2) { log("another run holds the lock: stopping"); process.exit(0); }
+    // Taken over by renaming it away: only one run's rename of that file can succeed. A run whose rename fails (another
+    // took it first) tries again, and finds the winner's fresh lock.
+    const away = `${LOCK}.${process.pid}`;
+    try { renameSync(LOCK, away); } catch { continue; }
+    rmSync(away, { force: true });
     log("a stopped run's lock: taken over");
-    rmSync(LOCK, { force: true });
   }
 }
 process.on("exit", () => rmSync(LOCK, { force: true }));
@@ -315,6 +319,9 @@ if (SWEEP && !open.some((p) => p.file === CLIPS_FILE)) {
     const checked = (r.out.match(/^\S+: \d+ clock clips to check by their first frame$/gm) ?? []).length;
     log(`${season} sweep: ${checked} events checked, exit ${r.code}`);
     budget -= checked;
+    // A sweep read that failed (a blocked or crashed player, the timeout) would fail the same way for every season:
+    // the sweep stops here, the next run tries again.
+    if (r.code) { log("sweep stopped: its read failed"); break; }
   }
   const after = readFileSync(CLIPS_FILE, "utf8");
   writeFileSync(CLIPS_FILE, before);
