@@ -19,7 +19,9 @@ export const rowKey = (r: Pick<Row, "videoId" | "code">) => `${r.videoId}|${r.co
 export const rowLine = (r: Row) => `  ${JSON.stringify(r)},`;
 
 /** The review reason that pulls a live clip: a frame at its opening names another match. */
-const NAMES_ANOTHER = /^its clip's first frame shows .+, not /;
+const PULLED = /^its clip's first frame shows (.+), not (.+)$/;
+/** Whether a review reason is the reader's pull of this match: its opening frame names a different match. */
+const namesAnother = (label: string, why: string | undefined) => { const m = PULLED.exec(why ?? ""); return !!m && m[2] === label && m[1] !== label; };
 /** A calendar date, YYYY-MM-DD, that exists ("2026-02-30" doesn't). */
 const isDate = (s: string) => {
   const t = /^\d{4}-\d\d-\d\d$/.test(s) ? Date.parse(`${s}T00:00:00Z`) : NaN;
@@ -41,6 +43,7 @@ export function rowProblems(next: Row, live?: Row, order?: string[]): string[] {
   // not its number's), as the reader judges them.
   if (order) {
     const at = new Map(order.map((l, i) => [l, i]));
+    for (const l of Object.keys(next.starts)) if (!at.has(l)) out.push(`${l}: not a match the event played`);
     const byOrder = Object.entries(next.starts).filter(([l]) => at.has(l)).sort((a, b) => at.get(a[0])! - at.get(b[0])!);
     for (let i = 1; i < byOrder.length; i++) if (byOrder[i][1] <= byOrder[i - 1][1]) out.push(`${byOrder[i][0]}: starts before ${byOrder[i - 1][0]}, out of the order they were played`);
   }
@@ -65,7 +68,7 @@ export function rowProblems(next: Row, live?: Row, order?: string[]): string[] {
     for (const [l, t] of Object.entries(playableStarts(live))) {
       const now = next.starts[l];
       if (now != null && Math.abs(now - t) <= SAME_S) continue;
-      if (!NAMES_ANOTHER.test(next.review?.[l]?.why ?? "")) out.push(`${l}: a live clip ${now == null ? "dropped" : "moved"} without a frame naming another match`);
+      if (!namesAnother(l, next.review?.[l]?.why)) out.push(`${l}: a live clip ${now == null ? "dropped" : "moved"} without a frame naming another match`);
     }
   }
   for (const [l, e] of Object.entries(next.earlyStart ?? {})) if (!(e.previousEnds > e.t)) out.push(`${l}: early start ${e.t} isn't before the previous match's end ${e.previousEnds}`);
