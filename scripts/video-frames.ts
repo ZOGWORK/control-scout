@@ -35,8 +35,8 @@
 //   TESSERACT_JS=<path to tesseract.js's entry>  where tesseract.js is, when it isn't in node_modules
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
-import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, playedCount, playedMatches } from "./lib/videoFrames";
-import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, elapsed, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M } from "./lib/videoFrames";
+import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, playedCount, playedMatches, wholeLength } from "./lib/videoFrames";
+import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, cropOrder, elapsed, flippedClip, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M } from "./lib/videoFrames";
 
 // The command line: --name value or --name=value for the value flags, --name alone for the others. Anything else stops
 // the run before it reads: a misspelt flag mustn't quietly read (and write) every recording of the season.
@@ -177,6 +177,9 @@ const PLAIN_TIMERS = [
   // POWERPLAY's box, inside the bar it sits on: a crop reaching the bar's coloured edge reads it as a "1" (USCHSCMPVIO
   // 2022 at 5664 s, "78" read "178"), every confirmation of the event's matches failing with it.
   { where: "plain" as const, clip: { x: 605, y: 686, width: 70, height: 30 }, plain: true },
+  // The same bar flipped to the top of the frame, its timer flush with the top edge (USAZCMPGC23 2022, Arizona's
+  // championship: "85" at 8640 s). Read after the bottom's, so a bottom bar is always read first.
+  { where: "plain" as const, clip: flippedClip({ x: 605, y: 686, width: 70, height: 30 }), plain: true },
 ];
 /** Best-of-3 semifinals and finals (2019–2023; double elimination from 2024, whose playoffs FIRST numbers M1–M13): the
  *  overlay names every playoff "Semifinal 1 Match 2" or "Finals Match 1", never a bare "Match 1" (overlayLabel).
@@ -187,12 +190,19 @@ const TIMER_CROPS: { where: "bottom" | "top" | "plain"; clip: { x: number; y: nu
   season <= 2022 ? [...PLAIN_TIMERS, ...TIMERS] : TIMERS;
 
 /** The timer's reading. `auto`: whether a reading of 0:30 or less is Auto, told by readAt. */
-async function timer(page: Page, first?: (typeof TIMER_CROPS)[number]): Promise<{ where: "bottom" | "top" | "plain"; left: number; auto: boolean } | null> {
-  for (const t of first ? [first, ...TIMER_CROPS.filter((c) => c !== first)] : TIMER_CROPS) {
+type TimerCrop = (typeof TIMER_CROPS)[number];
+/** The crop whose two readings last showed a running clock on this page's video, read first from then on (unless the
+ *  frame's bar names its own, `first`): the other crops look at the field or the crowd there, and a stray number in one
+ *  (a robot's sticker, a sign) would otherwise be taken for the clock before the real one is reached. Arizona's 2022
+ *  championship (USAZCMPGC23), its bar flipped to the top: the bottom crops read "4", "1", "5" off the field, paired
+ *  with the top's "114" and "52", and no start was confirmed. Dropped when its pair doesn't run. */
+const timerCrop = new WeakMap<Page, TimerCrop>();
+async function timer(page: Page, first?: TimerCrop | null): Promise<{ where: "bottom" | "top" | "plain"; left: number; auto: boolean; crop: TimerCrop | null } | null> {
+  for (const t of cropOrder(TIMER_CROPS, first ?? timerCrop.get(page))) {
     const text = (await digits.recognize(await page.screenshot({ clip: t.clip }))).data.text;
     const left = t.plain ? secondsPlain(text) : t.loose ? secondsLoose(text) : secondsOf(text);
     if (left == null || left > AUTO_S + SWITCH_S + TELEOP_S) continue;
-    return { where: t.where, left, auto: false };
+    return { where: t.where, left, auto: false, crop: t };
   }
   // None of the known places: the bar found in the frame itself (overlayBand), its timer read in the centre column.
   // Read as a bottom bar: a reading over 2:00 is then a 2:30 count's Auto (elapsed), which a 2:00 TeleOp never shows.
@@ -202,7 +212,7 @@ async function timer(page: Page, first?: (typeof TIMER_CROPS)[number]): Promise<
   const top = Math.max(0, band.top - 4);
   const clip = { x: 565, y: top, width: 150, height: Math.min(720, band.top + Math.round((band.bottom - band.top) * 0.55) + 4) - top };
   const left = secondsOf((await digits.recognize(await page.screenshot({ clip }))).data.text);
-  return left == null || left > AUTO_S + SWITCH_S + TELEOP_S ? null : { where: "bottom", left, auto: false };
+  return left == null || left > AUTO_S + SWITCH_S + TELEOP_S ? null : { where: "bottom", left, auto: false, crop: null };
 }
 
 /** Where the score bar is in the frame on screen (overlayBand, run in the page on the screenshot's own pixels: a
@@ -365,19 +375,24 @@ async function readAtOnce(page: Page, t: number, labelOnly = false): Promise<Rea
   const a = await timer(page, first);
   const atA = await now(page);
   await page.waitForTimeout(1500);
-  const b = await timer(page, first);
+  // The second reading from the first's crop: two numbers from two places aren't one clock.
+  const b = a && await timer(page, a.crop ?? first);
   const atB = await now(page);
-  if (!a || !b || a.where !== b.where) return { label, start: null, at, text, why: `timer read ${a ? `${a.where} ${a.left}` : "nothing"}, then ${b ? `${b.where} ${b.left}` : "nothing"}` };
+  if (!a || !b || a.where !== b.where || a.crop !== b.crop) return { label, start: null, at, text, why: `timer read ${a ? `${a.where} ${a.left}` : "nothing"}, then ${b ? `${b.where} ${b.left}` : "nothing"}` };
   const ran = a.left - b.left, played = atB - atA;
   // Running: down by the time played (to the second either side). A paused or standing timer: not in play (timerRan).
-  if (!timerRan(ran, played)) return { label, start: null, at, text, why: `timer ${a.left} then ${b.left} over ${played.toFixed(1)} s played` };
+  if (!timerRan(ran, played)) {
+    if (a.crop && timerCrop.get(page) === a.crop) timerCrop.delete(page);
+    return { label, start: null, at, text, why: `timer ${a.left} then ${b.left} over ${played.toFixed(1)} s played` };
+  }
+  if (a.crop) timerCrop.set(page, a.crop);
   // 0:30 or less on either bar: Auto, or the end of TeleOp. 45 s on, Auto has become TeleOp's 2:00 (well over 30 s
   // left); the end of TeleOp has finished. That later frame is the same match by its overlay, or, where the overlay
   // can't be read there, by its TeleOp reading the very second Auto's leads to (2019IASQ4's "Semifinal 2 Match 1",
   // unread 45 s on: its Auto "0:10" was taken for TeleOp's, a start 128 s early).
   if (a.left <= AUTO_S) {
     await seek(page, atA + 45);
-    const c = await timer(page, first);
+    const c = await timer(page, a.crop ?? first);
     const atC = await now(page);
     const { label: named } = await frameLabel(page, (await worker.recognize(await page.screenshot())).data.text as string, ctx);
     a.auto = !!c && c.where === a.where && c.left > AUTO_S && (named === label || (!named && autoLeadsTo(a.left, atC - atA, c.left)));
@@ -581,8 +596,8 @@ async function readEdges(page: Page, length: number): Promise<{ opensOn?: Edge; 
     await seek(page, opensOn.at);
     const a = await timer(page);
     await seek(page, opensOn.at + 3);
-    const b = await timer(page);
-    if (a && b && a.where === b.where && a.left - b.left >= 1 && a.left - b.left <= 5) {
+    const b = a && await timer(page, a.crop);
+    if (a && b && a.where === b.where && a.crop === b.crop && a.left - b.left >= 1 && a.left - b.left <= 5) {
       const ways = [elapsed({ ...a, auto: false }), ...(a.left <= AUTO_S ? [elapsed({ ...a, auto: true })] : [])].filter((x): x is number => x != null);
       if (ways.length && Math.min(...ways) > opensOn.at) opensOn.underway = true;
     }
@@ -994,6 +1009,26 @@ async function openOnce(page: Page, videoId: string): Promise<void> {
   await page.addStyleTag({ content: ".ytp-caption-window-container, .caption-window, .ytp-chrome-top, .ytp-pause-overlay, .ytp-show-cards-title, .ytp-ce-element, .ytp-player-content.ytp-iv-player-content, .ytp-large-play-button, .ytp-bezel, .ytp-chrome-bottom, player-top-controls, .ytwPlayerTopControlsHost, embedded-player-video-details, .ytmCuedOverlayGradient { display: none !important; }" });
 }
 
+/** A video's length in whole seconds, as its player gives it, or why it has none: a stream that is still live or
+ *  hasn't started (a link to next week's meet: 2026 USMOKSSWM1) isn't a recording yet, and plays no frames here. */
+async function playerLength(videoId: string): Promise<{ length: number } | { why: string }> {
+  let page: Page | null = null;
+  try {
+    page = await player();
+    await page.goto(`https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&mute=1&controls=0`, { referer: "https://controlscout.org/" });
+    const got = await within(page.waitForFunction(() => {
+      const d = (document.querySelector("#movie_player") as any)?.getVideoData?.(), v = document.querySelector("video");
+      return (d?.isLive || d?.errorCode) ? { live: !!d.isLive, error: d.errorCode ?? null, d: NaN } : (v?.readyState ?? 0) >= 1 ? { live: false, error: null, d: v!.duration } : null;
+    }, null, { timeout: 30000 }).then((h) => h.jsonValue()), 40, "reading the length") as { live: boolean; error: string | null; d: number };
+    const s = got.live ? null : wholeLength(got.d);
+    return s ? { length: s } : { why: got.live ? "a live or upcoming stream, not a recording yet" : `the player gives no length${got.error ? ` (${got.error})` : ""}` };
+  } catch (e) {
+    return { why: `the player gives no length (${(e as Error).message.split("\n")[0]})` };
+  } finally {
+    await closePage(page);
+  }
+}
+
 async function doCode(code: string): Promise<void> {
   const rec = recs.get(code)!;
   const rows = await all<{ label: string; time: string | null; timezone: string | null; played: number }>(
@@ -1032,7 +1067,9 @@ async function doCode(code: string): Promise<void> {
   const waiting = own.some((v) => !v.meta || v.meta.status === "error");
   const holds = (v: (typeof own)[number]) => {
     const m = v.meta;
-    if (m?.status !== "ok" || !m.length) return false;
+    // A video YouTube gave no duration for counts once it has a row (the player timed it on an earlier run, below);
+    // until then it doesn't, so a stream still live or not started is looked at again on the next run.
+    if (m?.status !== "ok" || (!m.length && !kept.has(`${v.videoId}|${code}`))) return false;
     if (!m.start) return true;
     const a = Date.parse(m.start) / 1000, b = m.end ? Date.parse(m.end) / 1000 : Infinity;
     // A match with no time may be in any of the event's videos.
@@ -1052,6 +1089,14 @@ async function doCode(code: string): Promise<void> {
   const log = (s: string) => { lines.push(s); };
   try {
   log(`${code}: ${missing.length} of ${played.length} matches without a clip`);
+  // A video YouTube gave no duration for is timed by the player itself; one the player can't time (a stream still
+  // live or not started: 2026 USMOKSSWM1, USORSOM1) is said, not skipped quietly.
+  for (const v of [rec, ...(rec.more ?? [])]) {
+    if (v.meta?.status !== "ok" || v.meta.length) continue;
+    const p = await playerLength(v.videoId);
+    if ("length" in p) { v.meta = { ...v.meta, length: p.length }; log(`  ${v.videoId}: no duration from YouTube, ${p.length} s from the player`); }
+    else log(`  ${v.videoId}: no duration from YouTube, not read: ${p.why}`);
+  }
   const videos = [rec, ...(rec.more ?? [])].filter((v) => v.meta?.status === "ok" && v.meta.length);
   const held = new Set<string>();
   for (const v of videos) {

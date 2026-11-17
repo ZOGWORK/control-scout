@@ -2,7 +2,7 @@
 // the strict rules against the row live now, and the rows that pass go out applied to main's season file, at most
 // 15 KB a PR.
 import { describe, expect, it } from "vitest";
-import { applyRows, changedRows, chunkRows, fileRows, prMarker, readMarker, rowLine, rowProblems, type Row } from "./autopilotRows";
+import { applyRows, changedRows, chunkRows, diffBytes, fileRows, prChunks, prMarker, readMarker, rowGroups, rowKey, rowLine, rowProblems, type Row } from "./autopilotRows";
 
 const row = (o: Partial<Row> = {}): Row => ({ videoId: "VIDEOaaaaa1", code: "USXXQ", checked: "2026-11-17", starts: {}, ...o });
 // Q1 and Q2 placed, each opening checked (12 s and 5 s before its start).
@@ -105,6 +105,53 @@ describe("season files", () => {
     // The empty season file of a season not read yet.
     expect(applyRows("// --- Data\nexport const ROWS: FrameTiming[] = [\n];\n", [A])).toBe(`// --- Data\nexport const ROWS: FrameTiming[] = [\n${rowLine(A)}\n];\n`);
     expect(() => applyRows("no mark", [A])).toThrow('no "// --- Data" mark');
+  });
+
+  it("puts a new row before the first row whose code sorts after it, never re-sorting or appending what's there", () => {
+    const D = row({ code: "DDQ", videoId: "v4" }), C2 = row({ code: "CCQ", videoId: "v0" });
+    // A file other sources left out of order: its lines stay where they are; only the PR's own lines change.
+    const before = FILE([C, A, D]);
+    expect(applyRows(before, [B])).toBe(FILE([B, C, A, D]));
+    // Same code as rows already there: after them, before the next code (DDQ), not re-sorted by video.
+    expect(applyRows(before, [C2])).toBe(FILE([C, A, C2, D]));
+    // Nothing sorts after it: the only case it goes last.
+    expect(applyRows(FILE([A, B]), [D])).toBe(FILE([A, B, D]));
+    // A replaced row keeps its own line's place.
+    expect(applyRows(before, [{ ...A, checked: "2026-11-18" }])).toBe(FILE([C, { ...A, checked: "2026-11-18" }, D]));
+    expect(applyRows(before, [])).toBe(before);
+  });
+
+  it("measures a diff as git shows it: lines added and removed, three lines of context either side", () => {
+    const lines = Array.from({ length: 20 }, (_, i) => `line ${String(i).padStart(2, "0")}`);
+    const before = lines.join("\n"), after = [...lines.slice(0, 10), "added", ...lines.slice(10)].join("\n");
+    expect(diffBytes(before, after)).toBe(7 * 2 + 6 * 7 + 5); // 6 context lines + the added one, each with its "+"/" " and newline
+    expect(diffBytes(before, before.replace("line 05", "line X5"))).toBe(6 * 9 + 9 + 9); // context, the new line, the old one
+  });
+
+  it("ships rows as PRs whose diffs on main's file each stay under the cap, halving any that don't", () => {
+    // Rows of about 1 KB each, 10 events of 3 videos, against a file holding a row of every other event.
+    const big = (code: string, v: string) => row({ code, videoId: v, starts: Object.fromEntries(Array.from({ length: 40 }, (_, i) => [`Q${i + 1}`, 1000 + i * 400])) });
+    const main = FILE(Array.from({ length: 10 }, (_, e) => big(`E${e}Q`, "live" + e)));
+    const rows = Array.from({ length: 10 }, (_, e) => [0, 1, 2].map((v) => big(`E${e}Q`, `v${e}${v}`))).flat();
+    const chunks = prChunks(main, rows, 6_000);
+    expect(chunks.flat().map(rowKey).sort()).toEqual(rows.map(rowKey).sort());
+    for (const c of chunks) expect(diffBytes(main, applyRows(main, c))).toBeLessThanOrEqual(6_000);
+    // A row bigger than the cap alone: shipped alone, never dropped or split.
+    expect(prChunks(main, [big("E1Q", "solo")], 500)).toEqual([[big("E1Q", "solo")]]);
+  });
+
+  it("never splits rows whose changes touch (one gap, neighbouring lines) across PRs: git would conflict", () => {
+    const big = (code: string, v: string) => row({ code, videoId: v, starts: Object.fromEntries(Array.from({ length: 40 }, (_, i) => [`Q${i + 1}`, 1000 + i * 400])) });
+    const live = ["AQ", "CQ", "EQ", "GQ", "IQ"].map((c) => big(c, "live"));
+    const main = FILE(live);
+    // Two new BQ rows share the gap before CQ's line, which the changed CQ row replaces, and a new CQ row goes right
+    // after it (before EQ): all four touch, so one PR.
+    const b1 = big("BQ", "b1"), b2 = big("BQ", "b2"), c2 = big("CQ", "c2"), cMoved = { ...live[1], checked: "2026-11-18" };
+    // Far apart: a new HQ row (before IQ). Under a cap smaller than any two rows, each group is its own PR.
+    const chunks = prChunks(main, [b1, c2, b2, cMoved, big("HQ", "h1")], 1_000);
+    expect(chunks.map((c) => c.map(rowKey))).toEqual([[rowKey(b1), rowKey(b2), rowKey(cMoved), rowKey(c2)], [rowKey(big("HQ", "h1"))]]);
+    // One unchanged line between two changes keeps them apart: a new BQ row (before CQ) and a new DQ row (before EQ).
+    expect(rowGroups(main, [b1, big("DQ", "d1"), big("HQ", "h1"), b2]).map((g) => g.map(rowKey))).toEqual([[rowKey(b1), rowKey(b2)], [rowKey(big("DQ", "d1"))], [rowKey(big("HQ", "h1"))]]);
   });
 
   it("splits rows into PRs of at most 15 KB, an event's rows together", () => {

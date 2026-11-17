@@ -92,17 +92,54 @@ export function changedRows<T extends Keyed = Row>(before: string, after: string
   return fileRows<T>(after).filter((r) => was.get(rowKey(r)) !== JSON.stringify(r));
 }
 
-/** A frame timings file with these rows in it (each replacing the row of its video and event, or added), every other
- *  row and line as it was, sorted as the reader sorts them (event, then video). */
+/** A season (or clip checks) file with these rows in it: a row of the same video and event replaced on its own line, a
+ *  new row put just before the first row whose event code sorts after its own (at the end only when none does), every
+ *  other line as it was. Never re-sorted or appended: PRs from different sources each touch only their own rows' lines,
+ *  so they don't conflict (owner's rule, 2026-11-17). */
 export function applyRows<T extends Keyed>(text: string, rows: T[]): string {
+  if (!rows.length) { dataLines(text); return text; }
+  const { head, rest, open, close, lines } = dataLines(text);
+  const before = new Map<number, T[]>();
+  for (const p of rowPlaces(lines, rows)) {
+    if (p.replaces) lines[p.at] = rowLine(p.row);
+    else (before.get(p.at) ?? before.set(p.at, []).get(p.at)!).push(p.row);
+  }
+  const out: string[] = [];
+  for (let i = 0; i <= lines.length; i++) { for (const r of before.get(i) ?? []) out.push(rowLine(r)); if (i < lines.length) out.push(lines[i]); }
+  return `${head}${rest.slice(0, open + 2)}${out.join("\n")}${rest.slice(close)}`;
+}
+/** A data file split around its rows array: the lines between "[" and "];" ("[\n];", a season not read yet, has none). */
+function dataLines(text: string): { head: string; rest: string; open: number; close: number; lines: string[] } {
   const [head, rest] = splitAt(text, "// --- Data");
   const open = rest.indexOf("[\n"), close = rest.lastIndexOf("\n];");
   if (open < 0 || close < 0) throw new Error("no rows array under the data mark");
-  const byKey = new Map(fileRows<T>(text).map((r) => [rowKey(r), r]));
-  for (const r of rows) byKey.set(rowKey(r), r);
-  if (!byKey.size) return text;
-  const list = [...byKey.values()].sort((a, b) => a.code.localeCompare(b.code) || a.videoId.localeCompare(b.videoId));
-  return `${head}${rest.slice(0, open + 2)}${list.map(rowLine).join("\n")}${rest.slice(close)}`;
+  return { head, rest, open, close, lines: close >= open + 2 ? rest.slice(open + 2, close).split("\n") : [] };
+}
+const rowOf = (line: string): Keyed | null => { const m = /^\s*(\{.*\}),?\s*$/.exec(line); return m ? (JSON.parse(m[1]) as Keyed) : null; };
+/** Where each row goes among the file's lines as they are: replacing its own row's line (`at` that line), or new, in
+ *  the gap before the first row whose code sorts after its own (`at` that line; the end when none does). New rows in
+ *  the same gap in code, then video, order. */
+function rowPlaces<T extends Keyed>(lines: string[], rows: T[]): { row: T; at: number; replaces: boolean }[] {
+  const at = new Map(lines.flatMap((l, i) => { const r = rowOf(l); return r ? [[rowKey(r), i] as const] : []; }));
+  return [...rows].sort((a, b) => a.code.localeCompare(b.code) || a.videoId.localeCompare(b.videoId)).map((row) => {
+    const i = at.get(rowKey(row));
+    if (i != null) return { row, at: i, replaces: true };
+    const gap = lines.findIndex((l) => { const o = rowOf(l); return o != null && o.code.localeCompare(row.code) > 0; });
+    return { row, at: gap < 0 ? lines.length : gap, replaces: false };
+  });
+}
+
+/** Rows that must ship in one PR: git conflicts where two branches change lines that overlap or touch, so rows whose
+ *  changes on `text` do (a replaced line is lines [i, i+1); a new row before line g, the empty [g, g)) go together.
+ *  Groups in file order. Two PRs adding rows into the same gap would conflict; one PR holding them doesn't. */
+export function rowGroups<T extends Keyed>(text: string, rows: T[]): T[][] {
+  const spans = rowPlaces(dataLines(text).lines, rows).map((p) => ({ row: p.row, start: p.at, end: p.at + (p.replaces ? 1 : 0) })).sort((a, b) => a.start - b.start || a.end - b.end);
+  const out: { end: number; rows: T[] }[] = [];
+  for (const s of spans) {
+    const last = out.at(-1);
+    if (last && s.start <= last.end) { last.rows.push(s.row); last.end = Math.max(last.end, s.end); } else out.push({ end: s.end, rows: [s.row] });
+  }
+  return out.map((g) => g.rows);
 }
 const splitAt = (s: string, mark: string): [string, string] => { const i = s.indexOf(mark); if (i < 0) throw new Error(`no "${mark}" mark`); return [s.slice(0, i), s.slice(i)]; };
 
@@ -117,6 +154,29 @@ export function chunkRows<T extends Keyed>(rows: T[], max = 15_000): T[][] {
   for (const g of groups) {
     const fit = out.find((c) => size(c) + size(g) <= max);
     if (fit) fit.push(...g); else out.push([...g]);
+  }
+  return out;
+}
+
+/** About how big a PR's diff is from `before` to `after` (bytes of the lines it shows): every line added or removed,
+ *  and `context` lines either side of each added one, as git shows them. Lines are whole rows, so context counts. */
+export function diffBytes(before: string, after: string, context = 3): number {
+  const a = before.split("\n"), b = after.split("\n"), had = new Set(a), has = new Set(b);
+  const shown = new Set<number>();
+  b.forEach((l, i) => { if (!had.has(l)) for (let j = Math.max(0, i - context); j <= Math.min(b.length - 1, i + context); j++) shown.add(j); });
+  const removed = a.filter((l) => !has.has(l));
+  return [...shown].reduce((n, i) => n + Buffer.byteLength(b[i]) + 2, 0) + removed.reduce((n, l) => n + Buffer.byteLength(l) + 2, 0);
+}
+
+/** A season's rows as data PRs whose diffs on `text` (main's file) are each at most `maxDiff` bytes (Loopy can't
+ *  review a diff much over 16 KB), so they never conflict with each other: rows that must go together (rowGroups:
+ *  changes that touch) are never split, groups packed in file order while the PR's diff fits. A group bigger than the
+ *  cap ships alone. */
+export function prChunks<T extends Keyed>(text: string, rows: T[], maxDiff = 12_000): T[][] {
+  const out: T[][] = [];
+  for (const g of rowGroups(text, rows)) {
+    const cur = out.at(-1);
+    if (cur && diffBytes(text, applyRows(text, [...cur, ...g])) <= maxDiff) cur.push(...g); else out.push([...g]);
   }
   return out;
 }
