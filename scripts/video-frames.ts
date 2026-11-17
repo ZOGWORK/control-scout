@@ -161,9 +161,11 @@ const PLAIN_TIMERS = [
   { where: "plain" as const, clip: { x: 595, y: 594, width: 90, height: 36 }, plain: true },
   { where: "plain" as const, clip: { x: 595, y: 684, width: 90, height: 34 }, plain: true },
 ];
-/** Best-of-3 semifinals and finals (2019–2022): the overlay names every playoff "Semifinal 1 Match 2" or "Finals
- *  Match 1", never a bare "Match 1" (overlayLabel). */
-const SEMIFINALS = season <= 2022;
+/** Best-of-3 semifinals and finals (2019–2023; double elimination from 2024, whose playoffs FIRST numbers M1–M13): the
+ *  overlay names every playoff "Semifinal 1 Match 2" or "Finals Match 1", never a bare "Match 1" (overlayLabel).
+ *  CENTERSTAGE's (2023) too: USMOKSCMP's M2 opens on "Semifinal 2 Match 1", which a read losing "Semifinal" took
+ *  for M1, pulling the clip. */
+const SEMIFINALS = season <= 2023;
 const TIMER_CROPS: { where: "bottom" | "top" | "plain"; clip: { x: number; y: number; width: number; height: number }; loose?: boolean; plain?: boolean }[] =
   season <= 2022 ? [...PLAIN_TIMERS, ...TIMERS] : TIMERS;
 
