@@ -18,7 +18,8 @@ import { seasonRecordings, type Recording, isPartial } from "./recordings.js";
 import { clipCoverage, eventMatchRows } from "./coverage.js";
 import { baseTriage, seasonTriage, type BaseTriage } from "./coverageTriage.js";
 import { currentSeason } from "../api/answers/season.js";
-import type { ClipCoverage, CoverageMatch, CoverageFinding, CoveragePass, CoverageTriage, OwnerClipCoverage, OwnerCoverageEvent } from "../../src/shared/api.js";
+import { frameQueue, queueSummary, type FrameStatus } from "./frameQueue.js";
+import type { ClipCoverage, CoverageFrames, CoverageMatch, CoverageFinding, CoveragePass, CoverageTriage, OwnerClipCoverage, OwnerCoverageEvent } from "../../src/shared/api.js";
 
 /** Once per process: every event is checked again after a deploy. */
 const BOOT = new Date().toISOString();
@@ -232,7 +233,7 @@ export async function ownerClipCoverage(o: { list?: CoverageTriage | "reviewed";
   const after = o.after ? " AND (c.season < ? OR (c.season = ? AND c.code > ?))" : "";
   const where = `${MISSING} AND ${list === "reviewed" ? REVIEWED(TRIAGE) : list === "unchecked" ? `${TRIAGE} = ?` : `c.reviewed_at IS NULL AND ${TRIAGE} = ?`}${after}`;
   const args = [...(list === "reviewed" ? [] : [list]), ...(o.after ? [o.after.season, o.after.season, o.after.code] : [])];
-  const [rows, t, cats, seasons, findings, lastPass] = await Promise.all([
+  const [rows, t, cats, seasons, findings, lastPass, queue] = await Promise.all([
     all<any>(`SELECT c.season, c.code, e.name, c.state, c.played, c.with_clip, c.checked_at, c.reviewed_at, c.reviewed_by, c.missing_key, c.detail, c.triage, c.triage_why
               FROM clip_coverage c LEFT JOIN events e ON e.season = c.season AND e.code = c.code
               WHERE ${where} ORDER BY c.season DESC, c.code LIMIT ?`, [...args, limit]),
@@ -243,7 +244,9 @@ export async function ownerClipCoverage(o: { list?: CoverageTriage | "reviewed";
               FROM clip_coverage c WHERE ${MISSING} AND c.reviewed_at IS NULL AND ${TRIAGE} != 'unchecked' GROUP BY c.season ORDER BY c.season DESC`),
     coverageFindings(),
     kvGet<CoveragePass>(LAST_PASS).catch(() => null),
+    frameQueue(),
   ]);
+  const frames = new Map(queue.map((q) => [`${q.season}/${q.code}`, q.frames]));
   const categories = Object.fromEntries(TRIAGES.map((k) => [k, 0])) as Record<CoverageTriage, number>;
   let reviewed = 0;
   for (const r of cats) {
@@ -259,14 +262,18 @@ export async function ownerClipCoverage(o: { list?: CoverageTriage | "reviewed";
       checkedAt: String(r.checked_at), reviewedAt: r.reviewed_at ?? null, reviewedBy: r.reviewed_by ?? null, version: String(r.missing_key),
       videos: d.videos ?? [], daysMissing: d.daysMissing ?? [], missing: d.missing ?? [],
       triage: t.triage, triageWhy: t.why,
+      ...(frames.has(`${r.season}/${r.code}`) ? { frames: publicFrames(frames.get(`${r.season}/${r.code}`)!) } : {}),
     };
   });
   return {
     events, list, open: categories.actionable, reviewed, categories, findings, lastPass: lastPass ?? null, clipChecks: clipCheckTotals(),
     seasons: seasons.map((x) => ({ season: Number(x.season), open: Number(x.n), actionable: Number(x.a ?? 0) })),
     totals: { events: Number(t?.events ?? 0), played: Number(t?.played ?? 0), withClip: Number(t?.with_clip ?? 0), full: Number(t?.full ?? 0) },
+    frameQueue: queueSummary(queue),
   };
 }
+/** An event's frame status as the console gets it (the ranking's own count left out). */
+const publicFrames = ({ due: _due, ...f }: FrameStatus): CoverageFrames => f;
 const PAGE = 50;
 
 /** How many events wait for the owner's review: actionable ones not reviewed yet (the console's badge). */
