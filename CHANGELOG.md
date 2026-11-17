@@ -25,7 +25,7 @@ Rankings › a conference page opened for a team starts at its top: header, note
 - [fixes] Climbers, fallers and the winner are seen before the table
 
 ### Fixes
-- Conference rankings (`src/components/ConferenceSection.tsx`): a link naming a team (`?team=4215`) no longer scrolls the page down to its row, which put the table first and the header, season note, movers and winner out of view; the row is on the page it opens on and highlighted, as before (#PR).
+- Conference rankings (`src/components/ConferenceSection.tsx`): a link naming a team (`?team=4215`) no longer scrolls the page down to its row, which put the table first and the header, season note, movers and winner out of view; the row is on the page it opens on and highlighted, as before (#1682).
 
 ## 7.4.1 — 2026-11-17
 
