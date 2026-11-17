@@ -22,7 +22,7 @@ Videos › a match clip never opens on the moment the overlay switches over from
 ### Highlights
 - [fixes] Match clips open on their own match, never the one before
 - [fixes] A clearer frame is picked where the overlay changes
-- [fixes] Fewer clips start a few seconds early
+- [fixes] Openings are read where the overlay has settled
 
 ### Fixed
 - Videos (`scripts/video-frames.ts`, `scripts/lib/videoFrames.ts`): a clip's opening check passes over a 20, 12 or 5 s lead whose frame a second earlier names another match, as such a lead sits on the overlay's switch and a paused seek there can show either match (USMOKSCMP 2023 Q9 at 4004 s read Q9 once and Q8 once). The next lead in is used; the 2 and 0 s leads, kept for results cards, are unchanged (#1672).
