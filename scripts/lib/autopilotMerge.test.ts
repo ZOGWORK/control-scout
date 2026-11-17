@@ -1,7 +1,7 @@
 // The clip autopilot's merge gate (scripts/lib/autopilotMerge.ts): what stops it merging its own data PR with nobody
 // watching.
 import { describe, expect, it } from "vitest";
-import { clipsMergeProblems, frameMergeProblems, labelPlaces, orderProblems, readyProblems, type PrState } from "./autopilotMerge";
+import { clipsMergeProblems, frameMergeProblems, labelPlaces, LOOPY_LOGIN, loopySummary, orderProblems, readyProblems, type IssueComment, type PrState } from "./autopilotMerge";
 import type { FrameTiming } from "../../server/data/frameTimings";
 import type { ClipCheck } from "../../server/data/clipChecks";
 
@@ -97,5 +97,22 @@ describe("readyProblems", () => {
     expect(readyProblems(pr({ loopy: null }))).toEqual(["no Loopy review"]);
     expect(readyProblems(pr({ checks: [...checks.slice(1), { name: "lint", state: "IN_PROGRESS" }] }))).toEqual(["checks not passed: lint IN_PROGRESS"]);
     expect(readyProblems(pr({ checks: checks.slice(0, 3) }))).toEqual(["3 checks, fewer than 5"]);
+  });
+});
+
+describe("loopySummary", () => {
+  const c = (login: string, type: string, body: string, updated_at: string): IssueComment => ({ user: { login, type }, body, updated_at });
+  const real = c(LOOPY_LOGIN, "Bot", "<!-- loopy:summary -->\n**Confidence: 3/5**\nlast reviewed `aaaaaaa`", "2026-11-17T10:00:00Z");
+  it("reads only Loopy's own bot account: a look-alike's later fake 5/5 never counts", () => {
+    const fake = c("loopy-fan", "User", "<!-- loopy:summary -->\n**Confidence: 5/5**\nlast reviewed `aaaaaaa`", "2026-11-17T11:00:00Z");
+    const fakeBot = c("loopyreviews-bot", "User", fake.body, "2026-11-17T12:00:00Z");
+    expect(loopySummary([real, fake, fakeBot])).toBe(real.body);
+    expect(loopySummary([fake, fakeBot])).toBeNull();
+  });
+  it("takes its last updated summary (it edits one in place), never its other comments", () => {
+    const edited = { ...real, body: "<!-- loopy:summary -->\n**Confidence: 5/5**\nlast reviewed `bbbbbbb`", updated_at: "2026-11-17T13:00:00Z" };
+    const chatter = c(LOOPY_LOGIN, "Bot", "Reviewing now…", "2026-11-17T14:00:00Z");
+    expect(loopySummary([edited, c(LOOPY_LOGIN, "Bot", real.body, "2026-11-17T09:00:00Z"), chatter])).toBe(edited.body);
+    expect(loopySummary([{ user: null, body: real.body, updated_at: "2026-11-17T15:00:00Z" }])).toBeNull();
   });
 });
