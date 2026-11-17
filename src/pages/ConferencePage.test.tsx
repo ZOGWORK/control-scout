@@ -31,21 +31,23 @@ const NO: LeagueStandings = { season: 2025, region: "USNJ", code: "NO", name: "N
 
 let myTeam: number | null = null;
 let myNj = true;
+/** My team's region still being read (its /api/teams/N/conference answer not back). */
+let myPending = false;
 let conferences: Conference[] = [FN, EB];
 vi.mock("../lib/personal", async (orig) => ({ ...(await orig<typeof import("../lib/personal")>()), useMyTeamNumber: () => myTeam }));
 vi.mock("../lib/api", async (orig) => ({
   ...(await orig<typeof import("../lib/api")>()),
   useApi: (path: string | null) => ({
-    data: !path ? undefined : path.endsWith("/conferences") ? ({ season: 2025, region: "USNJ", code: "NO", conferences } satisfies LeagueConferences)
+    data: !path || (myPending && path.startsWith("/api/teams/")) ? undefined : path.endsWith("/conferences") ? ({ season: 2025, region: "USNJ", code: "NO", conferences } satisfies LeagueConferences)
       : path.startsWith("/api/teams/") ? { team: myTeam, season: 2025, nj: myNj, league: null, conference: null }
       : path.startsWith("/api/leagues/") ? NO : undefined,
-    error: undefined, loading: false, reload: () => {},
+    error: undefined, loading: !!path && myPending && path.startsWith("/api/teams/"), reload: () => {},
   }),
 }));
 vi.mock("../lib/meta", async (orig) => ({ ...(await orig<typeof import("../lib/meta")>()), useCurrentSeason: () => 2026, useTitle: () => {}, useMeta: () => ({ seasons: [{ season: 2025, game: "DECODE", predictable: true }, { season: 2026, game: "BIOBUZZ", predictable: true }] }) }));
 
 const { default: ConferencePage } = await import("./ConferencePage");
-afterEach(() => { cleanup(); myTeam = null; myNj = true; conferences = [FN, EB]; });
+afterEach(() => { cleanup(); myTeam = null; myNj = true; myPending = false; conferences = [FN, EB]; });
 
 const open = (url = "/leagues/2025/USNJ/NO/conferences?conference=east-bergen-conference&team=4215") =>
   render(<MemoryRouter initialEntries={[url]}><Routes><Route path="/leagues/:season/:region/:code/conferences" element={<ConferencePage />} /></Routes></MemoryRouter>);
@@ -159,6 +161,12 @@ describe("a conference's rankings page", () => {
     myTeam = null;
     render(<MemoryRouter initialEntries={["/leagues/2025/USMI/AA/conferences"]}><Routes><Route path="/leagues/:season/:region/:code/conferences" element={<ConferencePage />} /></Routes></MemoryRouter>);
     expect(screen.getByText("No conference rankings here")).toBeTruthy();
+  });
+  it("waits for My team's region before saying it's hidden, so a New Jersey team never sees that flash", () => {
+    myTeam = 4215; myPending = true;
+    open();
+    expect(screen.queryByText("Conference rankings are New Jersey's")).toBeNull();
+    expect(document.querySelector("[data-conference-table]")).toBeNull();
   });
   it("names itself in the top bar, never \"Not found\"", () => {
     expect(pageTitle("/leagues/2025/USNJ/NO/conferences")).toBe("Conference rankings");
