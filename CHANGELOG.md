@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.6.0 — 2026-11-17
+
+Videos › 36 more 2022 (POWERPLAY) match clips from Knob Noster AM (KC East), Pleasant Lea AM (KC East).
+
+### Highlights
+- [history] Knob Noster AM (KC East): clips for all 18 matches
+- [history] Pleasant Lea AM (KC East): clips for all 18 matches
+- [fixes] Every clip opens on a frame naming its match and its own event
+
+### Added
+- Videos: clips read off the recordings' frames (`server/data/frameTimings/2022.ts`): USMOKSKCEM1 18 of 18 played matches, USMOKSKCEM2 18 of 18 played matches. Each placed start's clip opens on a paused frame whose overlay names that match, and no frame names another event. The matches left out stay without a clip, with the reason. (#1753)
+
 ## 7.5.9 — 2026-11-17
 
 Videos › 15 more 2022 (POWERPLAY) match clips from IA Chemical Meet (2022-11-12).
