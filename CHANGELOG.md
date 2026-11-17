@@ -20,9 +20,9 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 Videos › 212 more 2024 matches play as clips: Missouri Kansas West Super Qualifier in full, Avondale, Minnesota's Galaxy Division and Illinois's Suburban South.
 
 ### Highlights
-- [history] Every match of the 2024 Missouri Kansas West Super Qualifier now plays as a clip
+- [history] Every 2024 Missouri Kansas West Super Qualifier match as a clip
 - [history] Avondale League Tournament: 63 of 68 matches as clips
-- [history] Minnesota State Championship Galaxy Division and Suburban South clips added
+- [history] Minnesota Galaxy Division and Suburban South clips added
 
 ### Added
 - Frame-read match starts for 4 more 2024 recordings, each start checked against two timer reads and each clip's opening against a paused frame naming its match: USMOKSLSSQ 64 of 64 played matches, USMIAVLT 63 of 68 (5 missing), USMNCMPGLXY 56 of 66 (4 to review, 6 missing), USILCSSLT 29 of 44 (1 to review, 14 missing; its recording was wrongly marked unavailable until #1648). (`server/data/frameTimings/2024.ts`) (#1673)
