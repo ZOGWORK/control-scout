@@ -479,6 +479,13 @@ async function spelledFix(typed: string, a: SearchAnswer, run: (q: string) => Pr
     const b = await run(best);
     if (strength(b) >= 4) return was === 3 ? carryOutcome(a, { ...a, didYouMean: best }) : carryOutcome(b, { ...b, q: a.q, step: "did-you-mean", didYouMean: best });
   }
+  // An award's name cut off where it was won ("teams in nj that won ins"): the one award it starts, taken only when that
+  // answers directly.
+  const award = was <= 3 ? awardCutOff(typed) : null;
+  if (award) {
+    const b = await run(award);
+    if (strength(b) >= 4) return carryOutcome(b, { ...b, q: a.q, step: "did-you-mean", didYouMean: b.step === "did-you-mean" && b.didYouMean ? b.didYouMean : award });
+  }
   // A query cut off mid-word: read without the word, offered as a correction.
   const cut = was <= 1 ? await cutOff(typed) : null;
   if (cut) {
@@ -550,6 +557,19 @@ export function bestFix(typed: string): string | null {
   if (b !== "best" && !(b.length >= 3 && editDistance(b, "best", 1) <= 1)) return null;
   if ((b === "best" && !w) || (w && /^(?:teams?|robots?)$/.test(w))) return null;
   return `${m[1]}best team`;
+}
+
+/** An award's name cut off as the query's last word, after a word saying it was won ("teams in nj that won ins",
+ *  "… winners of des"): the query with the award's name in full, when the start (3 letters or more) is the start of
+ *  exactly one award's name. A start several awards share ("con": Connect, Control) is no award; a whole name needs
+ *  nothing. Else null. */
+export function awardCutOff(typed: string): string | null {
+  const m = /^(.*\b(?:won|win|wins|got|received|earned|winners?\s+of)\s+(?:the\s+|an?\s+)?)(\p{L}{3,})(\s+awards?)?$/iu.exec(typed.trim().replace(/\s+/g, " "));
+  if (!m) return null;
+  const w = m[2].toLowerCase();
+  const starts = AWARDS.filter((x) => x.startsWith(w));
+  if (starts.length !== 1 || starts[0] === w) return null;
+  return `${m[1]}${starts[0]}${m[3] ?? ""}`;
 }
 
 /** A query cut off mid-word ("when was the first time enforcers whe") or ending in a stray word ("theseus highlights

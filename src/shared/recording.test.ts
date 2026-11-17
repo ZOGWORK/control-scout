@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { actualStart, chapterLabel, chaptersConfirm, CHAPTER_MIN_ANCHORS, CHAPTER_MIN_GAP_S, CHAPTER_TAIL, CLIP_LEAD_S, clearOfPrevious, clipEnd, clipSecond, CLIP_TAIL_S, LIVE_DELAY_MAX_S, LIVE_DELAY_MIN_S, clipTime, FRAME_TAIL_S, frameClipEnd, gapSlack, GAP_SLACK_MAX_S, MATCH_PLAY_S, timingTrusted, watchUrl, type Chapter } from "./recording";
+import { actualStart, chapterLabel, chaptersConfirm, CHAPTER_MIN_ANCHORS, CHAPTER_MIN_GAP_S, CHAPTER_TAIL, CLIP_LEAD_S, clearOfPrevious, clipEnd, clipSecond, CLIP_TAIL_S, LIVE_DELAY_MAX_S, LIVE_DELAY_MIN_S, clipTime, FRAME_TAIL_S, frameClipEnd, gapSlack, GAP_SLACK_MAX_S, labelRank, MATCH_PLAY_S, timingTrusted, watchUrl, type Chapter } from "./recording";
 
 const rec = { start: "2026-05-02T12:58:13Z", length: 4 * 3600, live: false };
 
@@ -160,6 +160,16 @@ describe("a real start or a schedule", () => {
     expect(actualStart("2026-05-02T09:00:00.000")).toBe(false);
     expect(actualStart("2026-05-02T09:00:00Z")).toBe(false);
     expect(actualStart(null)).toBe(false);
+  });
+});
+
+describe("a match's place in played order by its label alone", () => {
+  it("qualifications by number, then playoffs (a best-of-three's games turn about), then finals; anything else last", () => {
+    const order = ["Q2", "F1", "M2-1", "Q10", "M1-2", "X1", "M1-1", "F2", "Q1"].sort((a, b) => labelRank(a) - labelRank(b));
+    expect(order).toEqual(["Q1", "Q2", "Q10", "M1-1", "M2-1", "M1-2", "F1", "F2", "X1"]);
+    // DIVE's double elimination: M1 … M13 by number.
+    expect(["M10", "M2", "M9"].sort((a, b) => labelRank(a) - labelRank(b))).toEqual(["M2", "M9", "M10"]);
+    expect(labelRank("Q999")).toBeLessThan(labelRank("M1"));
   });
 });
 

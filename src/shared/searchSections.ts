@@ -86,7 +86,13 @@ export function answerSections(answer: SearchAnswer, ai?: SearchAnswer | null): 
     notes.understood = answer.recovery.understood;
     if (answer.recovery.closest.length) sections.push({ id: "closest", title: "Closest matches", rows: answer.recovery.closest.flatMap((h) => rowsOf(h, "closest/")) });
   }
-  if (answer.pages.length) sections.push({ id: "pages", title: "Pages", rows: answer.pages.map((p) => ({ key: `page:${p.href}`, hit: pageHit(p) })) });
+  if (answer.pages.length) {
+    const pages: AnswerSection = { id: "pages", title: "Pages", rows: answer.pages.map((p) => ({ key: `page:${p.href}`, hit: pageHit(p) })) };
+    // A place's events ("nj"): its pages (rankings, leagues: src/shared/placePages.ts) beside the place, above its events,
+    // never under a long list of them.
+    const place = answer.understood?.kind === "events" ? sections.findIndex((g) => g.id === "place") : -1;
+    if (place >= 0) sections.splice(place + 1, 0, pages); else sections.push(pages);
+  }
   if (answer.step === "recovery" && answer.recovery?.browse.length) {
     sections.push({ id: "browse", title: "Browse", rows: answer.recovery.browse.map((p) => ({ key: `browse:${p.href}`, hit: pageHit(p) })) });
   }
