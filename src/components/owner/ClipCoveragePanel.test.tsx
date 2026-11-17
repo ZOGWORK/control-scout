@@ -22,7 +22,7 @@ const EVENTS = (): Record<string, OwnerCoverageEvent[]> => ({
     season: 2025, version: h.ver,
     missing: [
       miss("Q1", { video: { checked: null } }),
-      miss("Q2", { video: { checked: "2026-11-15", seenAt: 580 } }),
+      miss("Q2", { reason: "gap-unplaced", why: "Checked in the video (2026-11-15): seen at 0:09:40, not yet confirmed", clock: "Video 4 h shorter than its broadcast, no chapters to confirm the clock", video: { checked: "2026-11-15", seenAt: 580 } }),
       miss("Q6", { reason: "no-clock", why: "Video has no broadcast clock (an upload, not a live stream)" }),
       miss("M9", { videoId: null, reason: "no-recording-day" }),
       miss("Q3", { clip: true }),
@@ -108,6 +108,8 @@ describe("ClipCoveragePanel, a review screen", () => {
     expect(document.querySelector("[data-triage-why]")).toBeNull();
     fireEvent.click(document.querySelector("[data-coverage-details]")!);
     expect(document.querySelector("[data-triage-why]")?.textContent).toMatch(/^Actionable1 match not yet checked against the video \(Q1\)/);
+    // What the frames showed, with the clock's own reason kept beside it.
+    expect(screen.getByText(/· Checked in the video \(2026-11-15\): seen at 0:09:40, not yet confirmed\. The clock: Video 4 h shorter than its broadcast/)).toBeTruthy();
   });
 
   it("a chip opens the app's video dialog at its second, with the match's label", () => {
