@@ -63,7 +63,10 @@ owner's GitHub account, so who opened a PR is no safeguard: the gate is), and on
 It merges with `gh pr merge --merge --match-head-commit <head>` (never deleting the branch), then waits up to 20
 minutes for `/api/health` to serve the merge: `ready`, and its `release` the merge commit or a main commit after it.
 Gating takes minutes, so main is read again just before the merge: if it moved since the gate read it, or isn't 605 s
-quiet any more, nothing merges this run. A PR whose gate can't be read (gh, git, a malformed file) waits without
+quiet any more (when main last moved is GitHub's record of the push, not a commit's own date), nothing merges this
+run. A few seconds still pass between that read and the merge: a merge landing in them can still make two deploys
+close together (the merge itself is safe: `--match-head-commit`, and the rows were checked against main moments
+before). A PR whose gate can't be read (gh, git, a malformed file) waits without
 stopping the PRs after it. A PR the gate stops waits, its reasons in the run's log, for the next run or the owner. `npx tsx scripts/autopilot-merge-check.ts <PR…>` prints the same gate for any PR, changing nothing;
 `--no-merge` runs the autopilot without merging.
 
