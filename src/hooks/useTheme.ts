@@ -1,7 +1,7 @@
 // Theme + density from the personal settings (dark graphite is the default).
 import { useEffect, useRef, useState } from "react";
 import { usePersonal } from "../lib/personal";
-import type { ThemeChoice } from "../shared/personal";
+import type { Settings, ThemeChoice } from "../shared/personal";
 import { useFlag } from "../lib/flags";
 import { takeLitePick, writeThemeCookie } from "../lib/liteCookies";
 
@@ -13,6 +13,13 @@ export type Palette = Exclude<ThemeChoice, "system">;
 export const THEME_COLOR: Record<Palette, string> = { light: "#ffffff", dim: "#1e1f23", dark: "#0a0a0b", midnight: "#000000" };
 /** The same with the owner's dog theme on (dogTheme): each palette's yellow-tinted page (src/index.css, html.dog). */
 export const DOG_THEME_COLOR: Record<Palette, string> = { light: "#fff8dc", dim: "#2a2513", dark: "#17130a", midnight: "#0b0903" };
+
+/** The top bar's light/dark switch (src/components/layout/ThemeToggle.tsx): from any dark theme (System showing dark
+ *  included) to Light, remembering that dark theme; from Light back to it (Dark when none was remembered). */
+export function toggledTheme(s: Settings, palette: Palette): Settings {
+  if (palette === "light") return { ...s, theme: s.darkTheme ?? "dark" };
+  return { ...s, theme: "light", darkTheme: palette };
+}
 
 export function useTheme() {
   const { state } = usePersonal();

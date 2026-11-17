@@ -11,7 +11,7 @@ import { DEFAULT_FLAGS } from "../../shared/flags";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 
 const personal = vi.hoisted(() => ({ user: null as null | { id: number; email: string; displayName: string | null; createdAt: string }, sync: "local", offlineAccount: false, signOut: vi.fn(async () => {}) }));
-vi.mock("../../lib/personal", () => ({ SIGNED_IN: "cs-signed-in", usePersonal: () => ({ ...personal, providers: {}, state: { myTeam: null }, syncReady: false }) }));
+vi.mock("../../lib/personal", () => ({ SIGNED_IN: "cs-signed-in", usePersonal: () => ({ ...personal, providers: {}, state: { myTeam: null, settings: { theme: "dark" } }, update: () => true, syncReady: false }) }));
 vi.mock("./Search", () => ({ GlobalSearch: () => null }));
 vi.mock("./TopBarExtras", () => ({ ClockWeather: () => null, showsClockWeather: () => true }));
 vi.mock("./InboxBell", () => ({ InboxBell: () => null }));
