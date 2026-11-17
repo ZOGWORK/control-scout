@@ -1038,7 +1038,9 @@ async function doCode(code: string): Promise<void> {
   const waiting = own.some((v) => !v.meta || v.meta.status === "error");
   const holds = (v: (typeof own)[number]) => {
     const m = v.meta;
-    if (m?.status !== "ok" || !m.length) return false;
+    // A video YouTube gave no duration for counts once it has a row (the player timed it on an earlier run, below);
+    // until then it doesn't, so a stream still live or not started is looked at again on the next run.
+    if (m?.status !== "ok" || (!m.length && !kept.has(`${v.videoId}|${code}`))) return false;
     if (!m.start) return true;
     const a = Date.parse(m.start) / 1000, b = m.end ? Date.parse(m.end) / 1000 : Infinity;
     // A match with no time may be in any of the event's videos.
