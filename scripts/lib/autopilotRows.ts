@@ -19,7 +19,9 @@ export const rowKey = (r: Pick<Row, "videoId" | "code">) => `${r.videoId}|${r.co
 export const rowLine = (r: Row) => `  ${JSON.stringify(r)},`;
 
 /** The review reason that pulls a live clip: a frame at its opening names another match. */
-const NAMES_ANOTHER = /^its clip's first frame shows .+, not /;
+const PULLED = /^its clip's first frame shows (.+), not (.+)$/;
+/** Whether a review reason is the reader's pull of this match: its opening frame names a different match. */
+const namesAnother = (label: string, why: string | undefined) => { const m = PULLED.exec(why ?? ""); return !!m && m[2] === label && m[1] !== label; };
 /** A calendar date, YYYY-MM-DD, that exists ("2026-02-30" doesn't). */
 const isDate = (s: string) => {
   const t = /^\d{4}-\d\d-\d\d$/.test(s) ? Date.parse(`${s}T00:00:00Z`) : NaN;
@@ -41,6 +43,7 @@ export function rowProblems(next: Row, live?: Row, order?: string[]): string[] {
   // not its number's), as the reader judges them.
   if (order) {
     const at = new Map(order.map((l, i) => [l, i]));
+    for (const l of Object.keys(next.starts)) if (!at.has(l)) out.push(`${l}: not a match the event played`);
     const byOrder = Object.entries(next.starts).filter(([l]) => at.has(l)).sort((a, b) => at.get(a[0])! - at.get(b[0])!);
     for (let i = 1; i < byOrder.length; i++) if (byOrder[i][1] <= byOrder[i - 1][1]) out.push(`${byOrder[i][0]}: starts before ${byOrder[i - 1][0]}, out of the order they were played`);
   }
@@ -56,16 +59,22 @@ export function rowProblems(next: Row, live?: Row, order?: string[]): string[] {
     }
     if (open != null) {
       if (!OPEN_LEADS.includes(t - open)) out.push(`${l}: opens ${t - open} s before its start, not ${OPEN_LEADS.join("/")}`);
-    } else if (next.unconfirmed?.includes(l)) {
-      if (was[l] == null || Math.abs(was[l] - t) > SAME_S) out.push(`${l}: unconfirmed, but not a live clip at that second`);
-    } else out.push(`${l}: no opening frame checked for it`);
+    } else if (!next.unconfirmed?.includes(l)) out.push(`${l}: no opening frame checked for it`);
+  }
+  // Unconfirmed only ever a live clip, at its live second, whose opening named nothing (so none checked for it).
+  for (const l of next.unconfirmed ?? []) {
+    const t = next.starts[l];
+    if (t == null || was[l] == null || Math.abs(was[l] - t) > SAME_S) out.push(`${l}: unconfirmed, but not a live clip at that second`);
+    else if (next.opens?.[l] != null) out.push(`${l}: unconfirmed, yet its opening is checked`);
   }
   // Live clips: kept (anywhere in starts, a read's slack from where they were), or pulled by a frame naming another match.
   if (live) {
     for (const [l, t] of Object.entries(playableStarts(live))) {
       const now = next.starts[l];
       if (now != null && Math.abs(now - t) <= SAME_S) continue;
-      if (!NAMES_ANOTHER.test(next.review?.[l]?.why ?? "")) out.push(`${l}: a live clip ${now == null ? "dropped" : "moved"} without a frame naming another match`);
+      // Pulled at its own live second: the frame read there, not where a re-read placed it.
+      const pull = next.review?.[l];
+      if (!pull || !Number.isFinite(pull.t) || Math.abs(pull.t - t) > SAME_S || !namesAnother(l, pull.why)) out.push(`${l}: a live clip ${now == null ? "dropped" : "moved"} without a frame naming another match`);
     }
   }
   for (const [l, e] of Object.entries(next.earlyStart ?? {})) if (!(e.previousEnds > e.t)) out.push(`${l}: early start ${e.t} isn't before the previous match's end ${e.previousEnds}`);
