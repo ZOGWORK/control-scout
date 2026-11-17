@@ -59,6 +59,13 @@ describe("the leagues list", () => {
     expect(screen.getByRole("region", { name: "Texas" }).querySelector("[data-conference-button]")).toBeNull();
     expect(screen.getByRole("region", { name: "Texas" }).textContent).not.toContain("Conference");
   });
+
+  it("opens filtered to the place a search link names (?q=)", () => {
+    render(<MemoryRouter initialEntries={["/leagues?q=New%20Jersey"]}><LeaguesPage /></MemoryRouter>);
+    expect((screen.getByRole("textbox", { name: "Search leagues" }) as HTMLInputElement).value).toBe("New Jersey");
+    expect(screen.getByRole("region", { name: "New Jersey" })).toBeTruthy();
+    expect(screen.queryByRole("region", { name: "Texas" })).toBeNull();
+  });
 });
 
 describe("a league's page", () => {
