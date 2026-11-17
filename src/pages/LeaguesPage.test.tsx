@@ -26,7 +26,7 @@ const NE: LeagueStandings = {
 };
 vi.mock("../lib/api", async (orig) => ({
   ...(await orig<typeof import("../lib/api")>()),
-  useApi: (path: string | null) => ({ data: path?.startsWith("/api/leagues/") ? NE : path?.startsWith("/api/leagues") ? LIST : undefined, error: undefined, loading: false, reload: () => {} }),
+  useApi: (path: string | null) => ({ data: path?.endsWith("/conferences") ? { season: 2026, region: "USNJ", code: "NE", conferences: [] } : path?.startsWith("/api/leagues/") ? NE : path?.startsWith("/api/leagues") ? LIST : undefined, error: undefined, loading: false, reload: () => {} }),
 }));
 vi.mock("../lib/meta", async (orig) => ({ ...(await orig<typeof import("../lib/meta")>()), useCurrentSeason: () => 2026, useTitle: () => {}, useMeta: () => ({ seasons: [{ season: 2026, game: "BIOBUZZ", predictable: true }] }) }));
 
@@ -51,7 +51,9 @@ describe("a league's page", () => {
   it("links back to its region's rankings and the leagues list", () => {
     mount();
     const nav = screen.getByRole("navigation", { name: "League links" });
-    expect(within(nav).getAllByRole("link").map((a) => [a.textContent, a.getAttribute("href")])).toEqual([["New Jersey rankings", "/rankings/regions/USA/NJ?season=2026"], ["All leagues", "/leagues?season=2026"]]);
+    // A New Jersey league, no My team set: its conference rankings too.
+    expect(within(nav).getAllByRole("link").map((a) => [a.textContent, a.getAttribute("href")])).toEqual([["New Jersey rankings", "/rankings/regions/USA/NJ?season=2026"], ["All leagues", "/leagues?season=2026"], ["View Conference Rankings", "#conferences"]]);
+    expect(document.querySelector("[data-conferences]")).toBeTruthy();
   });
 
   it("shows Scout's numbers beside FIRST's, and Not rated yet where there's no rating", () => {
