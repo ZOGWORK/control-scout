@@ -335,7 +335,8 @@ channel's whole uploads list, video by video, with Scout's records. It reads onl
   - it was linked under a title naming the event's meet number, its title now names another, and it didn't air on the
     event's days ("Meet #1a" counts as meet 1; a title naming two meets, a pair like "Meet 3/4", a date like
     "Meet 11/14" or a year like "Meet 2026" is no call; a stream that aired on the event's days and was renamed since
-    is still that day's recording).
+    is still that day's recording; so a wrong link to a stream that aired that day, two meets on one channel the same
+    date, isn't caught by this rule and stays for the owner to remove).
 
   A channel can reuse a scheduled stream for a later meet: FIRST in Missouri's `qM3qo5rrmyc` was listed for
   Camdenton Meet #1 (2026 USMOKSSWM1) while still to come, never aired that day, and became its "Southwest League
