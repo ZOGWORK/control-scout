@@ -246,6 +246,16 @@ export function rowAbove(band: { top: number }, usual: { x: number; y: number; w
   return { x: usual.x, y, width: usual.width, height };
 }
 
+/** Reads a minute apart the upload scan takes past a frame naming a match not yet running: a match's turnaround is 4–8
+ *  minutes, so three minutes on usually lands in its play (the next scan frame, 10 minutes on, tries again if not). */
+export const SCAN_AHEAD = 3;
+/** Whether the upload scan reads a minute on again (the k-th step): the scan frame named a match (`named`) and no read
+ *  since gave a running start (`start`, the last read's). Only the first frame's naming counts: a step landing on a camera
+ *  cutaway that names nothing keeps stepping, as the match is still to come. */
+export function stepOn(named: boolean, start: number | null, k: number): boolean {
+  return named && start == null && k <= SCAN_AHEAD;
+}
+
 /** How long before a broadcast's start a match no broadcast holds is still looked for in it (seconds). */
 export const LEAD_IN_S = 6 * 3600;
 
