@@ -1,7 +1,7 @@
 // The pure parts of the frame reader (scripts/video-frames.ts): the overlay's match, the timer's elapsed time, and
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
-import { dataRows, divisionOf, elapsed, overlayDivision, leadIn, LEAD_IN_S, judge, NOTHING_READ, overlayLabel, secondsLoose, secondsOf, startOffset, playedCount, type M } from "./videoFrames";
+import { dataRows, divisionOf, elapsed, overlayDivision, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayLabel, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, type M } from "./videoFrames";
 
 describe("the frame reader", () => {
   it("names the match the overlay shows, and nothing else", () => {
@@ -16,6 +16,113 @@ describe("the frame reader", () => {
     // Two boxes' numbers aren't a bracket: "Playoff Match 3" still names M3.
     expect(overlayLabel("Easter Island & Chichen Itza  Playoff Match 3  Alliance 1  M1")).toBe("M3");
     expect(overlayLabel("Upcoming matches")).toBeNull();
+  });
+
+  it("names a best-of-3 semifinal's match by its series and number (2019–2022)", () => {
+    // USCHSCMPCARR 2021's bar and IASQ4 2019's preview card: the event's M2 and M1-2, never M2 for "Match 2".
+    expect(overlayLabel("FIRST FORWARD  Semifinal 2 Match 1  Carriers Division  FREIGHT FRENZY")).toBe("M2-1");
+    expect(overlayLabel("Semifinal 1 Match 2  Match Preview  8588 Finger Puppet Mafia")).toBe("M1-2");
+    expect(overlayLabel("Semi-Final 1 Match 3")).toBe("M1-3");
+    expect(overlayLabel("AU APOC 2023  Finals Match 2")).toBe("F2");
+    expect(overlayLabel("Finais Match 1  Super Qualifier: Iowa City")).toBe("F1");
+    // A bare "Match 1" in a season of semifinals is one of those with its first word lost: none (2019IASQ4 F1).
+    expect(overlayLabel("Match 1  Super Qualifier: Iowa City", true)).toBeNull();
+    expect(overlayLabel("Semifinal 1 Match 1  Super Qualifier: Iowa City", true)).toBe("M1-1");
+    expect(overlayLabel("Qualification 4 of 36", true)).toBe("Q4");
+    expect(overlayLabel("Match 1  Super Qualifier: Iowa City")).toBe("M1");
+    // AUMPOS1 2022's bracket card names its semifinals with no match: none.
+    expect(overlayLabel("Elimination Bracket  Semifinal 1  12993 8644 20871  Semifinal 2  Finals")).toBeNull();
+    expect(sameMatch("M2-1", "M2")).toBe(true);
+    expect(sameMatch("M1-2", "M1-2")).toBe(true);
+    expect(sameMatch("M1-1", "M1-2")).toBe(false);
+    expect(sameMatch("M1-2", "M2")).toBe(false);
+    expect(sameMatch("M1-2", "M1")).toBe(false);
+    // 2025's overlay names a tiebreak replay by its match alone.
+    expect(sameMatch("M6", "M6-2")).toBe(true);
+    expect(sameMatch("M6", "M6")).toBe(true);
+    expect(sameMatch("Q12", "Q12")).toBe(true);
+    expect(sameMatch("Q1", "Q12")).toBe(false);
+    // A recording's edge stores the event's own name, so outsideRecording finds it in the event's order.
+    expect(eventLabel("M2-1")).toBe("M2");
+    expect(eventLabel("M1-2")).toBe("M1-2");
+    expect(eventLabel("M6")).toBe("M6");
+    expect(eventLabel("F1")).toBe("F1");
+    expect(eventLabel("Q11")).toBe("Q11");
+  });
+
+  it("reads a bare-seconds timer (FTC Live's overlay, 2019–2022)", () => {
+    // AUMPOS1 2022: Auto "24", TeleOp "112"; IASQ4 2019 TeleOp "101".
+    expect(secondsPlain("24\n")).toBe(24);
+    expect(secondsPlain("112")).toBe(112);
+    expect(secondsPlain(" 101 ")).toBe(101);
+    expect(secondsPlain("0")).toBe(0);
+    // A colon is another bar's timer; more than TeleOp's 120 or four digits is a score, not this timer.
+    expect(secondsPlain(":1")).toBeNull();
+    expect(secondsPlain("1:12")).toBeNull();
+    expect(secondsPlain("150")).toBeNull();
+    expect(secondsPlain("3000")).toBeNull();
+    expect(secondsPlain("")).toBeNull();
+    // Bare seconds count Auto 30 to 0, the switch, then TeleOp 120 to 0: as any timer once read.
+    expect(elapsed({ where: "plain", left: 112, auto: false })).toBe(46);
+    expect(elapsed({ where: "plain", left: 24, auto: true })).toBe(6);
+    expect(elapsed({ where: "plain", left: 24, auto: false })).toBe(134);
+    expect(elapsed({ where: "plain", left: 120, auto: false })).toBeNull();
+  });
+
+  it("counts a timer running only when it went down", () => {
+    expect(timerRan(2, 1.7)).toBe(true);
+    expect(timerRan(1, 1.6)).toBe(true);
+    // RIQUAL3 2019: the next match's "30" standing, read 1.6 s apart.
+    expect(timerRan(0, 1.6)).toBe(false);
+    expect(timerRan(0, 0.4)).toBe(false);
+    expect(timerRan(5, 1.7)).toBe(false);
+  });
+
+  it("places matches with only a scheduled time where their own frames show them, never filled", () => {
+    // 2019MOQ8: FIRST gives whole-minute scheduled times only, 5 minutes apart; the event ran slower.
+    const ms: M[] = [1, 2, 3, 4, 5].map((n) => ({ label: `Q${n}`, epoch: 1_000 + n * 300, scheduled: true }));
+    // Q1, Q2 and Q4 read in order (7 to 8 minutes apart); Q3 not read; Q6 misread far back (before Q4 and Q5).
+    const ms6: M[] = [...ms, { label: "Q6", epoch: 2_800, scheduled: true }];
+    const seen = new Map([[0, 2000], [1, 2430], [3, 3300], [4, 3750], [5, 2100]]);
+    const j = judge(ms6, seen, null, 10_000, new Set([0, 1, 3, 4, 5]));
+    expect([...j.placed].map(([l, p]) => [l, p.t, p.confidence])).toEqual([["Q1", 2000, "high"], ["Q2", 2430, "high"], ["Q4", 3300, "high"], ["Q5", 3750, "high"]]);
+    expect(j.missing.get("Q6")).toBe("its frame read disagrees with the matches around it");
+    // Two runs as long that differ (Q4 at 3300 or Q5 at 2900, each after Q2): neither of the two stands.
+    const tie = judge(ms, new Map([[0, 2000], [1, 2430], [3, 3300], [4, 2900]]), null, 10_000, new Set([0, 1, 3, 4]));
+    expect([...tie.placed.keys()]).toEqual(["Q1", "Q2"]);
+    expect(tie.missing.get("Q4")).toBe("its frame read disagrees with the matches around it");
+    // Nothing is filled between two reads for a scheduled match, however the reads agree.
+    expect(j.missing.get("Q3")).toBe(SCHEDULED_UNREAD);
+    // Frames named a match but none confirmed a start: the others are still unread for want of a time, not "nothing read".
+    const none = judge(ms, new Map(), null, 10_000, new Set([2]));
+    expect(none.missing.get("Q1")).toBe(SCHEDULED_UNREAD);
+    expect(none.missing.get("Q3")).toBe("its frames didn't confirm a start");
+    expect(judge(ms, new Map(), null, 10_000, new Set()).missing.get("Q1")).toBe(NOTHING_READ);
+    // A recording cut mid-match (USTXSASQ 2025's kind): two starts 151 s apart, both read off the video, both stand.
+    const cut = judge(ms, new Map([[0, 2000], [1, 2151]]), null, 10_000, new Set([0, 1]));
+    expect([...cut.placed.keys()]).toEqual(["Q1", "Q2"]);
+  });
+
+  it("keeps the clock's reads and fills only clock matches when scheduled ones sit between them", () => {
+    // 2019IASQ4: qualifications scheduled only, playoffs with FIRST's actual starts.
+    const ms: M[] = [
+      { label: "Q1", epoch: 100, scheduled: true },
+      { label: "M1", epoch: 10_000 }, { label: "M2", epoch: 10_400 }, { label: "M1-2", epoch: 10_800 },
+    ];
+    const j = judge(ms, new Map([[0, 50], [1, 20_000], [3, 20_800]]), null, 30_000, new Set([0, 1, 3]));
+    expect(j.placed.get("Q1")).toEqual({ t: 50, confidence: "high" });
+    expect(j.placed.get("M2")).toEqual({ t: 20_400, confidence: "medium" });
+    expect(j.placed.get("M1-2")).toEqual({ t: 20_800, confidence: "high" });
+  });
+
+  it("tells Auto from TeleOp's end by where the timer stands 45 s on", () => {
+    // 2019IASQ4 M2-1: Auto "10" at 18300, 46 s on TeleOp reads 92 (10 s of Auto, the 8 s switch, 28 s of TeleOp).
+    expect(autoLeadsTo(10, 46, 92)).toBe(true);
+    expect(autoLeadsTo(10, 46, 94)).toBe(true);
+    expect(autoLeadsTo(10, 46, 100)).toBe(false);
+    // The end of TeleOp ("0:20") leads to a finished match: no TeleOp reading 45 s on is its.
+    expect(autoLeadsTo(20, 45, 30)).toBe(false);
+    expect(autoLeadsTo(30, 30, 120)).toBe(false);
   });
 
   it("reads a timer", () => {
@@ -217,6 +324,10 @@ describe("a recording cut mid-match", () => {
   it("takes a later read's earlier start as time the video lost, a later one as a first read made after a cut", () => {
     expect(startOffset(3848, 3829)).toBe("lost");
     expect(startOffset(3829, 3848)).toBe("gained");
+    // USCHSCHQ2 2022 Q16: Auto read as TeleOp's end, a start 128 s early; the later read is the start to check.
+    expect(startOffset(6767, 6895)).toBe("period");
+    expect(startOffset(6767, 6900)).toBe("period");
+    expect(startOffset(6767, 6950)).toBe("other");
     expect(startOffset(3848, 3852)).toBe("same");
     // Further off than a cut loses: another start, never explained away.
     expect(startOffset(3848, 3700)).toBe("other");

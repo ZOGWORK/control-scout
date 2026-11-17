@@ -34,7 +34,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
 import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, playedCount } from "./lib/videoFrames";
-import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, elapsed, overlayDivision, leadIn, judge, NOTHING_READ, overlayLabel, secondsLoose, secondsOf, type Judged, type M } from "./lib/videoFrames";
+import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, elapsed, overlayDivision, leadIn, judge, NOTHING_READ, overlayLabel, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M } from "./lib/videoFrames";
 
 // The command line: --name value or --name=value for the value flags, --name alone for the others. Anything else stops
 // the run before it reads: a misspelt flag mustn't quietly read (and write) every recording of the season.
@@ -78,6 +78,7 @@ await migrate();
 const R = await import("../server/videos/recordings.js");
 const { CLIP_LEAD_S, actualStart } = await import("../src/shared/recording.js");
 const { localToUtcMs } = await import("../src/shared/time.js");
+const { localDate } = await import("../server/videos/officialVideos.js");
 /** --live: what the live site serves, by video and event (its starts). */
 const liveRows = (path: string) => {
   let text: string;
@@ -153,12 +154,25 @@ const TIMERS = [
   // The same white box in a bar across the top (FIRST AGE's top layout, USPAKSN 2026): wider than FIRST Texas's.
   { where: "top" as const, clip: { x: 585, y: 92, width: 110, height: 50 }, loose: true },
 ];
+/** FTC Live's overlay from 2019 to 2022 shows the timer as bare seconds ("30", "112": secondsPlain), in a box over the
+ *  scores (SKYSTONE 2019, FREIGHT FRENZY 2021: USCHSCMPCARR) or under the centre graphic (POWERPLAY 2022: AUMPOS1).
+ *  Read first for those seasons, before the bars whose crops would catch a score there ("150" reads 1:50 loose), and
+ *  never for later ones, whose bars have other numbers in those places. */
+const PLAIN_TIMERS = [
+  { where: "plain" as const, clip: { x: 595, y: 594, width: 90, height: 36 }, plain: true },
+  { where: "plain" as const, clip: { x: 595, y: 684, width: 90, height: 34 }, plain: true },
+];
+/** Best-of-3 semifinals and finals (2019–2022): the overlay names every playoff "Semifinal 1 Match 2" or "Finals
+ *  Match 1", never a bare "Match 1" (overlayLabel). */
+const SEMIFINALS = season <= 2022;
+const TIMER_CROPS: { where: "bottom" | "top" | "plain"; clip: { x: number; y: number; width: number; height: number }; loose?: boolean; plain?: boolean }[] =
+  season <= 2022 ? [...PLAIN_TIMERS, ...TIMERS] : TIMERS;
 
 /** The timer's reading. `auto`: whether a reading of 0:30 or less is Auto, told by readAt. */
-async function timer(page: Page): Promise<{ where: "bottom" | "top"; left: number; auto: boolean } | null> {
-  for (const t of TIMERS) {
+async function timer(page: Page): Promise<{ where: "bottom" | "top" | "plain"; left: number; auto: boolean } | null> {
+  for (const t of TIMER_CROPS) {
     const text = (await digits.recognize(await page.screenshot({ clip: t.clip }))).data.text;
-    const left = "loose" in t ? secondsLoose(text) : secondsOf(text);
+    const left = t.plain ? secondsPlain(text) : t.loose ? secondsLoose(text) : secondsOf(text);
     if (left == null || left > AUTO_S + SWITCH_S + TELEOP_S) continue;
     return { where: t.where, left, auto: false };
   }
@@ -178,7 +192,7 @@ const MATCH_HALF = { ...LABEL_ROW, x: 640, width: 640 };
  *  so a match's placement is read as before. On a shared stream the row has to name this division too, as a whole
  *  frame's read does. */
 async function labelRow(page: Page, ctx: { own: string; others: string[] } | undefined): Promise<string | null> {
-  const label = overlayLabel((await rowOcr.recognize(await page.screenshot({ clip: MATCH_HALF }))).data.text as string);
+  const label = overlayLabel((await rowOcr.recognize(await page.screenshot({ clip: MATCH_HALF }))).data.text as string, SEMIFINALS);
   if (!label || !ctx) return label;
   const row = (await rowOcr.recognize(await page.screenshot({ clip: LABEL_ROW }))).data.text as string;
   return overlayDivision(row, ctx.own, ctx.others) === "own" ? label : null;
@@ -227,7 +241,7 @@ async function readAtOnce(page: Page, t: number, labelOnly = false): Promise<Rea
   const division = ctx ? overlayDivision(text, ctx.own, ctx.others) : undefined;
   // Another division's match on the shared stream: not this event's, whatever its number.
   if (division === "other") return { label: null, start: null, at, text, why: "another division's overlay", division };
-  const label = overlayLabel(text) ?? (labelOnly ? await labelRow(page, ctx) : null);
+  const label = overlayLabel(text, SEMIFINALS) ?? (labelOnly ? await labelRow(page, ctx) : null);
   if (!label || labelOnly) return { label, start: null, at, text, division };
   const a = await timer(page);
   const atA = await now(page);
@@ -236,14 +250,18 @@ async function readAtOnce(page: Page, t: number, labelOnly = false): Promise<Rea
   const atB = await now(page);
   if (!a || !b || a.where !== b.where) return { label, start: null, at, text, why: `timer read ${a ? `${a.where} ${a.left}` : "nothing"}, then ${b ? `${b.where} ${b.left}` : "nothing"}` };
   const ran = a.left - b.left, played = atB - atA;
-  // Running: down by the time played (to the second either side). A paused or standing timer: not in play.
-  if (played < 0.5 || Math.abs(ran - played) > 1.6) return { label, start: null, at, text, why: `timer ${a.left} then ${b.left} over ${played.toFixed(1)} s played` };
+  // Running: down by the time played (to the second either side). A paused or standing timer: not in play (timerRan).
+  if (!timerRan(ran, played)) return { label, start: null, at, text, why: `timer ${a.left} then ${b.left} over ${played.toFixed(1)} s played` };
   // 0:30 or less on either bar: Auto, or the end of TeleOp. 45 s on, Auto has become TeleOp's 2:00 (well over 30 s
-  // left); the end of TeleOp has finished.
+  // left); the end of TeleOp has finished. That later frame is the same match by its overlay, or, where the overlay
+  // can't be read there, by its TeleOp reading the very second Auto's leads to (2019IASQ4's "Semifinal 2 Match 1",
+  // unread 45 s on: its Auto "0:10" was taken for TeleOp's, a start 128 s early).
   if (a.left <= AUTO_S) {
     await seek(page, atA + 45);
     const c = await timer(page);
-    a.auto = !!c && c.where === a.where && c.left > AUTO_S && overlayLabel((await worker.recognize(await page.screenshot())).data.text) === label;
+    const atC = await now(page);
+    const named = overlayLabel((await worker.recognize(await page.screenshot())).data.text, SEMIFINALS);
+    a.auto = !!c && c.where === a.where && c.left > AUTO_S && (named === label || (!named && autoLeadsTo(a.left, atC - atA, c.left)));
   }
   const e = elapsed(a);
   return { label, start: e == null ? null : Math.round(atA - e), at, text, division, ...(e == null ? { why: `timer ${a.left} isn't a running match's` } : {}) };
@@ -253,6 +271,10 @@ async function readAtOnce(page: Page, t: number, labelOnly = false): Promise<Rea
  *  over most of TeleOp: a stream may cut away to a camera without the overlay for a minute or more (Romania's
  *  championship cuts to the floor cameras mid-match). */
 const CONFIRM_AFTER = [70, 80, 95, 110, 125, 140];
+/** The walk through a video for matches with no start time from FIRST (placeVideo): a frame every 75 s; none of the
+ *  event's matches named in its first 2 hours (an opening ceremony runs long, a camera-only stream never names one)
+ *  stops it. */
+const WALK_STEP_S = 75, WALK_BLIND_S = 7200;
 /** Seconds into a match an Auto read confirms its start at, in turn, where a later read disagrees by time the video
  *  lost (confirmed). Early: before most of the match, where a cut in the recording is least likely to fall. */
 const AUTO_CONFIRM = [12, 20];
@@ -275,9 +297,10 @@ async function confirmed(page: Page, label: string, start: number, own = false, 
         const off = startOffset(start, at.start);
         // A recording cut mid-match: the start stands if an Auto read, early in the same match, agrees with it.
         if (off === "lost" && (await autoAgrees(page, label, start))) { why = ""; break; }
-        // The first read came after a cut: the other start may be the real one (checked by the caller).
-        // Its division evidence goes with it: a read here that showed the own division counts for the other start too.
-        if (off === "gained" && other) { other.start = at.start; other.own = own; }
+        // The first read came after a cut, or took Auto for TeleOp's end ("period"): the other start may be the real
+        // one (checked by the caller, in full). Its division evidence goes with it: a read here that showed the own
+        // division counts for the other start too.
+        if ((off === "gained" || off === "period") && other) { other.start = at.start; other.own = own; }
         return `${after} s on its timer gave a start ${Math.round(at.start - start)} s off`;
       }
       why = "";
@@ -333,9 +356,10 @@ async function checkOpenings(page: Page, j: Judged, log: (s: string) => void, un
       // A seek that never landed shows whatever frame was up before (the last read's): that frame names nothing here.
       if (Math.abs(r.at - t) > 1) { log(`    ${label}: the opening read at ${t} s landed at ${Math.round(r.at)} s; not counted`); continue; }
       if (r.division === "other") { named = "another division's match"; continue; }
-      // The overlay names a replay (a tiebreak's "M6-2") by its match alone ("M6"), as placeVideo reads it.
-      if (r.label === label.replace(/-\d+$/, "")) { at = t; break; }
-      if (r.label) named = r.label;
+      // The overlay names a replay (a tiebreak's "M6-2") by its match alone ("M6"), as placeVideo reads it; a
+      // semifinal's match by its series and number ("M1-2"), that match only (sameMatch).
+      if (sameMatch(r.label ?? "", label)) { at = t; break; }
+      if (r.label) named = eventLabel(r.label);
     }
     if (at != null) { j.opens.set(label, at); continue; }
     if (broken) {
@@ -406,7 +430,10 @@ async function readEdges(page: Page, length: number): Promise<{ opensOn?: Edge; 
     // A sibling division's frame on a shared stream is never this event's edge: neither its match nor its count.
     if (r.division === "other") return null;
     const n = playedCount(r.text);
-    return r.label || n ? { at: Math.round(t), ...(r.label ? { label: r.label } : {}), ...(n ? { played: n.played, of: n.of } : {}) } : null;
+    // Stored as the event names the match (a semifinal's first match "M2-1" is the event's M2), so outsideRecording
+    // finds it among the event's matches.
+    const label = r.label && eventLabel(r.label);
+    return label || n ? { at: Math.round(t), ...(label ? { label } : {}), ...(n ? { played: n.played, of: n.of } : {}) } : null;
   };
   const edge = async (from: (s: number) => number): Promise<Edge | undefined> => {
     let quiet = true;
@@ -472,9 +499,9 @@ async function boundsRow(row: FrameTiming, length: number, division: { own: stri
 /** The second each of a video's matches starts at, as far as its frames show. `shift`: the video's second for a moment
  *  minus that moment (epoch seconds), when YouTube gives the broadcast's start (an upload has none). */
 async function placeVideo(page: Page, ms: M[], shift: number | null, length: number, log: (s: string) => void, unread?: Set<string>, live?: Record<string, number>, liveMedium?: Set<string>): Promise<Judged> {
-  // The overlay names a replay ("M14-2", a tiebreak) by its match alone (M14): each name, its matches in order.
-  const byName = new Map<string, number[]>();
-  ms.forEach((m, i) => { const n = m.label.replace(/-\d+$/, ""); byName.set(n, [...(byName.get(n) ?? []), i]); });
+  // The overlay names a replay ("M14-2", a tiebreak) by its match alone (M14), and a semifinal's match by its series
+  // and number ("M1-2" is that match only): each name, its matches in order (sameMatch).
+  const byName = { get: (n: string) => { const is = ms.flatMap((m, i) => (sameMatch(n, m.label) ? [i] : [])); return is.length ? is : undefined; } };
   const seen = new Map<number, number>(); // index → confirmed start second
   const tried = new Set<number>(); // matches a read named, confirmed or not
   let namedAny = false; // a frame named one of the event's matches, timer read or not: the player showed the stream
@@ -489,12 +516,13 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
   const near = (i: number): number | null => {
     // The distance of the read nearest by order, else the broadcast's.
     let best: number | null = null, d = Infinity;
-    for (const [k, s] of seen) if (Math.abs(k - i) < d) { d = Math.abs(k - i); best = s - ms[k].epoch; }
+    // Not a scheduled match's read: its time is hours from when it was played, so it says nothing of the clock.
+    for (const [k, s] of seen) if (!ms[k].scheduled && Math.abs(k - i) < d) { d = Math.abs(k - i); best = s - ms[k].epoch; }
     return best ?? shift;
   };
   /** The distances of the nearest reads before and after a match by order (one where they agree), else the broadcast's. */
   const sides = (i: number): number[] => {
-    const ks = [...seen.keys()];
+    const ks = [...seen.keys()].filter((k) => !ms[k].scheduled);
     const before = ks.filter((k) => k < i).sort((a, b) => b - a)[0], after = ks.filter((k) => k > i).sort((a, b) => a - b)[0];
     const ds = [before, after].filter((k): k is number => k != null).map((k) => seen.get(k)! - ms[k].epoch).sort((a, b) => Math.abs(a - near(i)!) - Math.abs(b - near(i)!));
     if (!ds.length) return shift == null ? [] : [shift];
@@ -518,7 +546,7 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
     // The read came after a cut in the recording (a later read gives a later start): the later start, checked the same way.
     if (other.start != null && reads() < budget && (await confirmed(page, r.label!, other.start, r.division === "own" || !!other.own)) == null) {
       seen.set(i, other.start);
-      log(`    ${r.label} at ${r.start} s read after a cut in the video; its start is ${other.start} s`);
+      log(`    ${r.label} at ${r.start} s read after a cut in the video, or Auto taken for TeleOp; its start is ${other.start} s`);
       return;
     }
     unconfirmed++;
@@ -554,6 +582,19 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
   // Any match at all, a frame every 10 minutes: where there's no clock to go by (an upload), or the clock's guesses read
   // nothing (a broadcast whose start YouTube has wrong).
   const scan = async () => { for (let t = 300; t < length && !seen.size && reads() < budget; t += 600) { await note(await readAt(page, t)); } };
+  // Matches with only their scheduled time (M.scheduled) have no clock to look for them by: the video is walked a frame
+  // every WALK_STEP_S (each match's 2:38 shows on at least two), past each match once its start is confirmed. A video
+  // naming none of its matches in its first WALK_BLIND_S has no overlay to read: the walk stops there.
+  if (ms.some((m) => m.scheduled)) {
+    budget += Math.ceil(length / WALK_STEP_S);
+    for (let t = WALK_STEP_S; t < length && reads() < budget && (namedAny || t < WALK_BLIND_S);) {
+      const r = await readAt(page, t);
+      await note(r);
+      const confirmedHere = r.start != null && [...seen.values()].some((s) => Math.abs(s - r.start!) <= SAME_S);
+      t = confirmedHere ? Math.max(t + WALK_STEP_S, r.start! + MATCH_S + 20) : t + WALK_STEP_S;
+    }
+    log(`    walked for matches with no start time from FIRST: ${seen.size} read, ${reads()} frames`);
+  }
   if (shift == null) {
     await scan();
     if (!seen.size) {
@@ -570,6 +611,8 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
   let missed = 0;
   const blind = () => missed >= MISSES && !seen.size;
   async function anchor(i: number): Promise<number | null> {
+    // A match with only its scheduled time is the walk's (above): its time says nothing of where the video sits.
+    if (ms[i].scheduled) return null;
     if (seen.has(i)) return seen.get(i)!;
     if (blind() || reads() >= budget) return null;
     // Where the reads either side put the video, each in turn: where they disagree (a gap where the video lost time),
@@ -640,7 +683,7 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
   let prev: number | null = null, first = "", last = "";
   for (const m of ms) {
     const s = out.get(m.label);
-    if (s == null) continue;
+    if (s == null || m.scheduled) continue;
     const d = Math.round(s - m.epoch - (shift ?? 0));
     if (prev != null && Math.abs(d - prev) > SAME_S) { runs.push(`${first}–${last} ${prev} s`); first = ""; }
     if (!first) first = m.label;
@@ -734,10 +777,12 @@ async function doCode(code: string): Promise<void> {
   const rec = recs.get(code)!;
   const rows = await all<{ label: string; time: string; timezone: string | null; played: number }>(
     "SELECT m.label, m.time, e.timezone, m.played FROM matches m JOIN events e ON e.season = m.season AND e.code = m.code WHERE m.season = ? AND m.code = ? AND m.played = 1 AND m.time IS NOT NULL", [season, code]);
-  const played = rows.filter((r) => actualStart(r.time)).map((r) => ({ label: String(r.label), time: String(r.time), epoch: (localToUtcMs(r.time, r.timezone) ?? NaN) / 1000 }))
+  // A match FIRST gives only its scheduled time for (2019's qualifications) is read too, by its frames alone (M.scheduled):
+  // its time orders it among the others and places nothing.
+  const played = rows.map((r) => ({ label: String(r.label), time: String(r.time), epoch: (localToUtcMs(r.time, r.timezone) ?? NaN) / 1000, ...(actualStart(r.time) ? {} : { scheduled: true }) }))
     .filter((m) => Number.isFinite(m.epoch)).sort((a, b) => a.epoch - b.epoch);
   // A played match with no time the clock can place (the event has no timezone) can't be read: said, not skipped quietly.
-  const timeless = rows.filter((r) => actualStart(r.time)).length - played.length;
+  const timeless = rows.length - played.length;
   if (timeless) report.push(`${code}: ${timeless} played matches not read: no timezone for the event, so their start can't be placed`);
   if (!played.length) return;
   // Divisions of one event can share a stream: each read must be this division's overlay (divisionOf, overlayDivision).
@@ -789,7 +834,12 @@ async function doCode(code: string): Promise<void> {
     const windows = videos.map((o) => ({ start: o.meta?.start ? Date.parse(o.meta.start) / 1000 : null, end: o.meta?.end ? Date.parse(o.meta.end) / 1000 : null }));
     const inside = (o: (typeof videos)[number], at: number) => !!o.meta?.start && Date.parse(o.meta.start) / 1000 <= at && (!o.meta.end || at <= Date.parse(o.meta.end) / 1000);
     const lead = (x: (typeof played)[number]) => leadIn(x.epoch, videos.indexOf(v), windows);
-    const mine = played.filter((x) => !held.has(x.label) && (from == null ? !videos.some((o) => o !== v && inside(o, x.epoch))
+    // A match with only its scheduled time can't be put in a broadcast's window by it (2019IASQ4's Q1 "04:15" local,
+    // its stream starting 11:00): it's in the event's only video, or in the one broadcast (or listed) on its day, the
+    // venue's date (a Saturday 09:00 broadcast in Sydney starts on Friday in UTC).
+    const day = v.day ?? (m.start ? localDate(m.start, rows[0]?.timezone) : undefined);
+    const mine = played.filter((x) => !held.has(x.label) && (x.scheduled ? videos.length === 1 || !day || x.time.slice(0, 10) === day
+      : from == null ? !videos.some((o) => o !== v && inside(o, x.epoch))
       : (from <= x.epoch && (!m.end || x.epoch <= Date.parse(m.end) / 1000)) || lead(x)));
     // A video read well on an earlier run keeps its row: the event is back for another of its videos (a new link, one
     // that couldn't be played), and a re-read now could place fewer of this one's matches. --all reads it again.
