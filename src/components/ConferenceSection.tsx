@@ -75,7 +75,7 @@ export function ConferenceSwitch({ list, picked, leagueName, region, league, tea
         const on = c.code === picked?.code;
         return (
           <Link key={c.code} to={conferenceHref(c.season, region, league, { slug: conferenceKey(list, c), team })} aria-current={on ? "page" : undefined}
-            className={cn(trigger, on ? active : idle, "h-auto min-h-9 flex-col items-start gap-0 py-1.5 text-left max-sm:w-full")} data-conference-tab={c.code}>
+            className={cn(trigger, on ? active : idle, "h-auto min-h-9 flex-col items-start gap-0 py-1.5 text-left max-sm:h-auto max-sm:min-h-[44px] max-sm:w-full")} data-conference-tab={c.code}>
             <span className="font-semibold">{c.name}</span>
             <span className="text-xs font-normal text-text-muted">{leagueTitle(leagueName, league)} · {asOfDate(c.start) ?? "Date to be set"} · {c.rows.length} team{c.rows.length === 1 ? "" : "s"}</span>
           </Link>
