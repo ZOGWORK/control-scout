@@ -97,8 +97,8 @@ export async function readPlaceAwards(q: string): Promise<PlaceAwardsAsk | null>
   const byM = cut(/\s(?:by|on|ranked\s+by|sorted\s+by)\s+(auto|teleop|endgame|opr|rating)(?:\s+opr)?(?=\s)/);
   const types: string[] = [];
   // A winning alliance's captain ("NJ winning alliance captains"): the Winning Alliance award at 1st place, the team
-  // FIRST lists first. The captain is who won it, so the word stands for "winners".
-  const captain = !!cut(/\swinning\s+alliances?\s+captains?(?=\s)/);
+  // FIRST lists first. The captain is who won it, so the word stands for "winners". "WAC" is its usual short form.
+  const captain = !!cut(/\s(?:winning\s+alliances?\s+captains?|wacs?)(?=\s)/);
   if (captain) types.push("Winner");
   for (const [re, type] of AWARDS) if (cut(re) && !types.includes(type)) types.push(type);
   if (stage && types.length) return null;
