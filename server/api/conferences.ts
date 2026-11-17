@@ -7,7 +7,10 @@ import { all } from "../db.js";
 import { CONFERENCE_REGION, conferenceHref, type Conference, type ConferenceRow, type ConferenceRs, type LeagueConferences, type TeamConference, type TeamConferenceInfo } from "../../src/shared/conferences.js";
 import { leagueStandings, storedLeague, teamLeagueStanding } from "./leagues.js";
 import { get } from "../db.js";
-import { liveList } from "./rankings.js";
+import { baselineWeek, liveList, snapshotWeeks, weekList } from "./rankings.js";
+import { regionRows } from "../../src/shared/regionRankings.js";
+import { weekStartMs } from "../../src/shared/rankings.js";
+import { CURRENT_SEASON } from "../data/seasons.js";
 import { provisionalFor } from "../data/provisional.js";
 import type { LeagueStandings } from "../../src/shared/leagues.js";
 
@@ -21,6 +24,27 @@ const aliasesOf = (r: Pick<ConfRow, "aliases" | "slug">): string[] => { try { co
 
 /** League numbers by team: one row of FIRST's league table (today's, or the snapshot). */
 type LeagueNums = { rank: number; rs: number | null; tbp: number | null; wins: number | null; losses: number | null; ties: number | null; played: number | null; meets: number | null };
+
+/**
+ * The conference's moves by Scout rating, counted the way region rankings counts them (src/shared/regionRankings.ts
+ * regionRows): the teams renumbered among themselves in the ranking read, against the newest saved week at least a week
+ * older. Before or during the tournament (this season) the ranking read is this week's; after it, the week the
+ * tournament was in. Null when there's no saved week to read or to compare with.
+ */
+async function conferenceMoves(season: number, start: string | null, finished: boolean, teams: number[], nowMs: number) {
+  const weeks = await snapshotWeeks(season);
+  const live = !finished && season === CURRENT_SEASON;
+  const at = start ? Date.parse(`${start}T23:59:59Z`) : NaN;
+  const week = live ? null : Number.isFinite(at) ? weeks.find((w) => weekStartMs(w) <= at) ?? null : null;
+  if (!live && !week) return null;
+  const base = baselineWeek(weeks, season, week, nowMs);
+  if (!base) return null;
+  const [list, prev] = await Promise.all([week ? weekList(season, week) : liveList(season), weekList(season, base)]);
+  const mine = new Set(teams);
+  const inConf = (t: { country: string | null; state: string | null }) => mine.has(Number((t as unknown as { team: number }).team));
+  const rows = regionRows(list, prev, inConf);
+  return { week, baseline: base, byTeam: new Map(rows.map((r) => [r.team, r])) };
+}
 
 async function buildConference(c: ConfRow, league: LeagueStandings | null, now: string): Promise<Conference> {
   const { season, code } = c;
@@ -80,7 +104,12 @@ async function buildConference(c: ConfRow, league: LeagueStandings | null, now: 
       ...(t.registered ? { registered: t.registered } : {}),
     };
   };
-  const all_ = teams.map(row);
+  const moved = await conferenceMoves(season, c.start, finished, teams.map((t) => t.team), Date.parse(`${now}T12:00:00Z`));
+  const all_ = teams.map((t) => {
+    const r = row(t);
+    const m = moved?.byTeam.get(t.team);
+    return moved ? { ...r, move: m ? m.move : null, trend: m ? m.trend : null, ratingRank: m ? m.rank : null, ratingThen: m ? m.rating : null } : r;
+  });
   const rankedRows = all_.filter((r) => r.leagueRank != null).sort((a, b) => a.leagueRank! - b.leagueRank! || a.team - b.team);
   rankedRows.forEach((r, i) => { r.rank = i + 1; });
   const rows = [...rankedRows, ...all_.filter((r) => r.leagueRank == null).sort((a, b) => a.team - b.team)];
@@ -95,7 +124,7 @@ async function buildConference(c: ConfRow, league: LeagueStandings | null, now: 
     season, code, name: c.name, slug: c.slug, firstName: c.first_name, event: c.event, start: c.start, venue: c.venue, city: c.city, status,
     teamsFrom: field.length ? "field" : teams.length ? "registered" : "none",
     registered: !field.length && prov ? { count: prov.teams.filter((t) => t.status === "registered").length, fetchedAt: prov.fetchedAt, url: prov.url, sessionUnknown: prov.sessionUnknown } : null,
-    rs, leagueOf, rows,
+    rs, leagueOf, rows, moves: moved ? { week: moved.week, baseline: moved.baseline } : null,
     winner: captain ? { captain: { team: Number(captain.team), name: captain.name }, picks: winners.filter((w) => w.placement > 1).map((w) => ({ team: Number(w.team), name: w.name })) } : null,
     seasons,
   };
