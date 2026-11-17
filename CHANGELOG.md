@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 7.2.8 — 2026-11-17
+## 7.2.9 — 2026-11-17
 
 Rankings › a New Jersey league's conferences get their own rankings page, laid out like region rankings (#1657).
 
@@ -31,6 +31,18 @@ Rankings › a New Jersey league's conferences get their own rankings page, laid
 - Moves are places by Scout rating among the conference's teams, week over week, labelled as Scout's, never FIRST's league rank.
 - Teams with no league meet yet sit under "Not ranked yet" instead of the table.
 - Footer links to world, New Jersey and all-region rankings, all leagues, the league and the tournament.
+
+## 7.2.8 — 2026-11-17
+
+Videos › the frame-read match starts are kept one file a season, so a season's recordings can be read alongside another's; every clip plays as before.
+
+### Highlights
+- [fixes] Match clips play from the same seconds as before
+- [fixes] Each season's frame-read starts in a file of its own
+- [fixes] Seasons' recordings can be read side by side
+
+### Changed
+- Videos (`server/data/frameTimings.ts`, `scripts/video-frames.ts`, `scripts/split-frame-timings.ts`): the frame reader's rows live in `server/data/frameTimings/<season>.ts`, one file per season of the row's event (2024: 48 rows, 2025: 162, 2026: 8; 2019 and 2021–2023 empty), and `frameTimings.ts` serves them together, unchanged (#1647). `scripts/video-frames.ts --season N` reads and writes only that season's file, so readers of different seasons never touch the same file. `scripts/split-frame-timings.ts` does the split (re-runnable, it reads its rows back), and a test checks the 218 rows it pinned.
 
 ## 7.2.7 — 2026-11-17
 
