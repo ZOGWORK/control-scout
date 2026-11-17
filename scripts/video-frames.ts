@@ -78,6 +78,7 @@ await migrate();
 const R = await import("../server/videos/recordings.js");
 const { CLIP_LEAD_S, actualStart } = await import("../src/shared/recording.js");
 const { localToUtcMs } = await import("../src/shared/time.js");
+const { localDate } = await import("../server/videos/officialVideos.js");
 /** --live: what the live site serves, by video and event (its starts). */
 const liveRows = (path: string) => {
   let text: string;
@@ -515,12 +516,13 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
   const near = (i: number): number | null => {
     // The distance of the read nearest by order, else the broadcast's.
     let best: number | null = null, d = Infinity;
-    for (const [k, s] of seen) if (Math.abs(k - i) < d) { d = Math.abs(k - i); best = s - ms[k].epoch; }
+    // Not a scheduled match's read: its time is hours from when it was played, so it says nothing of the clock.
+    for (const [k, s] of seen) if (!ms[k].scheduled && Math.abs(k - i) < d) { d = Math.abs(k - i); best = s - ms[k].epoch; }
     return best ?? shift;
   };
   /** The distances of the nearest reads before and after a match by order (one where they agree), else the broadcast's. */
   const sides = (i: number): number[] => {
-    const ks = [...seen.keys()];
+    const ks = [...seen.keys()].filter((k) => !ms[k].scheduled);
     const before = ks.filter((k) => k < i).sort((a, b) => b - a)[0], after = ks.filter((k) => k > i).sort((a, b) => a - b)[0];
     const ds = [before, after].filter((k): k is number => k != null).map((k) => seen.get(k)! - ms[k].epoch).sort((a, b) => Math.abs(a - near(i)!) - Math.abs(b - near(i)!));
     if (!ds.length) return shift == null ? [] : [shift];
@@ -833,8 +835,9 @@ async function doCode(code: string): Promise<void> {
     const inside = (o: (typeof videos)[number], at: number) => !!o.meta?.start && Date.parse(o.meta.start) / 1000 <= at && (!o.meta.end || at <= Date.parse(o.meta.end) / 1000);
     const lead = (x: (typeof played)[number]) => leadIn(x.epoch, videos.indexOf(v), windows);
     // A match with only its scheduled time can't be put in a broadcast's window by it (2019IASQ4's Q1 "04:15" local,
-    // its stream starting 11:00): it's in the event's only video, or in the one broadcast (or listed) on its day.
-    const day = v.day ?? m.start?.slice(0, 10);
+    // its stream starting 11:00): it's in the event's only video, or in the one broadcast (or listed) on its day, the
+    // venue's date (a Saturday 09:00 broadcast in Sydney starts on Friday in UTC).
+    const day = v.day ?? (m.start ? localDate(m.start, rows[0]?.timezone) : undefined);
     const mine = played.filter((x) => !held.has(x.label) && (x.scheduled ? videos.length === 1 || !day || x.time.slice(0, 10) === day
       : from == null ? !videos.some((o) => o !== v && inside(o, x.epoch))
       : (from <= x.epoch && (!m.end || x.epoch <= Date.parse(m.end) / 1000)) || lead(x)));
