@@ -20,7 +20,7 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 Owner › Clip coverage now knows which events are due for a frame read: every event whose official recording has matches without a clip queues itself, most missing first, the moment its recording is linked.
 
 ### Highlights
-- [report] Events with a recording and missing clips queue themselves for a frame read
+- [report] Recorded events missing clips queue for a frame read
 - [report] Most missing first, and each event says where it stands
 - [report] Events read before they finished are read again once
 
