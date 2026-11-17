@@ -17,7 +17,7 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 
 ## 7.3.8 — 2026-11-17
 
-Videos › the İstanbul Premier Event's divisions now open every match clip on a frame naming its match and division, and 16 Valens clips that opened 48 s late now catch the start.
+Videos › 167 of the İstanbul Premier Event's 168 division match clips now open on a frame naming their match and division, and 16 Valens clips that opened 48 s late now catch the start.
 
 ### Highlights
 - [fixes] 167 İstanbul clips open on a frame naming their match
