@@ -2,7 +2,10 @@
 // video's matches from the frames read. Kept apart so they can be tested without a browser.
 
 /** A played match: its label and its real start (epoch seconds, from FIRST's actual start time). */
-export type M = { label: string; epoch: number };
+/** A match the video holds: its label and its start (epoch seconds). `scheduled`: FIRST gives only its scheduled time
+ *  (2019's qualifications: "04:34:00" in Missouri, whole minutes), not when it was played, so `epoch` orders it and
+ *  says nothing of where it sits: it's placed only where its own frames show it (judge). */
+export type M = { label: string; epoch: number; scheduled?: boolean };
 
 /** Two reads closer than this (seconds) are the same distance: the timer reads to the second, and the frame read lags it. */
 export const SAME_S = 6;
@@ -126,6 +129,8 @@ export type Judged = {
 
 /** Why a match is missing when no frame of its video could be read at all. */
 export const NOTHING_READ = "no frame of the video could be read";
+/** A match FIRST gives only a scheduled time for (M.scheduled) that no frame walked through the video showed running. */
+export const SCHEDULED_UNREAD = "no start time from FIRST, and no frame of it read";
 
 /** The least a match can take in a video: 30 s Auto, 8 s switch, 2:00 TeleOp. Two placed starts closer than this
  *  overlap. */
@@ -211,9 +216,14 @@ export function dataRows<T>(text: string): T[] {
  * it places that match where the frames show it, however far that is from FIRST's times (owner, 2026-11-16: never
  * flag a read for its distance from the schedule). Placed starts must be in order,
  * a match apart and inside the video; any that aren't go to review too. Every other match is missing, with the reason.
+ *
+ * A match with only its scheduled time (M.scheduled) has no clock to weigh its read against: of those reads, the longest
+ * run whose starts rise in the matches' order is kept (a read out of that order is a misread), each placed where its
+ * own frames show it ("high"), and nothing is ever filled between them or between the clock's reads on its account.
  */
 export function judge(ms: M[], seen: Map<number, number>, shift: number | null, length: number, read: Set<number> = new Set(seen.keys())): Judged {
-  const idx = [...seen.keys()].sort((a, b) => a - b);
+  const timed = (i: number) => !ms[i].scheduled;
+  const idx = [...seen.keys()].filter(timed).sort((a, b) => a - b);
   const d = (i: number) => seen.get(i)! - ms[i].epoch;
   // low: the least distance on the run so far. A read may sit at most a read's slack above it, so slack can't add up
   // read by read into a rise (0, +6, +12).
@@ -229,8 +239,20 @@ export function judge(ms: M[], seen: Map<number, number>, shift: number | null, 
   const longest = Math.max(0, ...len);
   len.forEach((l, k) => { if (l === longest) { const r = runOf(k); if (!kept.length || agreeing(r) >= agreeing(kept)) kept = r; } });
   const dropped = new Set(idx.filter((i) => !kept.includes(i)));
+  // The scheduled matches' reads: those on every longest run rising with the matches' order (a match apart at least,
+  // less what a cut in the recording loses, as for two high starts below). Two runs as long that differ can't say which read is wrong, so neither of theirs stands.
+  const sched = [...seen.keys()].filter((i) => !timed(i)).sort((a, b) => a - b);
+  const after = (a: number, b: number) => seen.get(sched[b])! - seen.get(sched[a])! >= MATCH_S - LOSS_S;
+  const pre = sched.map(() => 1), suf = sched.map(() => 1);
+  for (let b = 0; b < sched.length; b++) for (let a = 0; a < b; a++) if (after(a, b)) pre[b] = Math.max(pre[b], pre[a] + 1);
+  for (let a = sched.length - 1; a >= 0; a--) for (let b = a + 1; b < sched.length; b++) if (after(a, b)) suf[a] = Math.max(suf[a], suf[b] + 1);
+  const L = Math.max(0, ...pre);
+  const onLongest = sched.map((_, n) => pre[n] + suf[n] - 1 === L);
+  const sKept = new Set(sched.filter((_, n) => onLongest[n] && sched.filter((__, m) => onLongest[m] && pre[m] === pre[n]).length === 1));
+  for (const i of sched) if (!sKept.has(i)) dropped.add(i);
 
   const placedAt = new Map<string, Placed>();
+  for (const i of sched) if (sKept.has(i)) placedAt.set(ms[i].label, { t: seen.get(i)!, confidence: "high" });
   const review = new Map<string, { t: number; why: string }>();
   // Stretches: kept reads in a row agreeing on the distance.
   const stretches: number[][] = [];
@@ -250,7 +272,7 @@ export function judge(ms: M[], seen: Map<number, number>, shift: number | null, 
     for (let n = 0; n < s.length; n++) {
       placedAt.set(ms[s[n]].label, { t: seen.get(s[n])!, confidence: "high" });
       const j = s[n + 1];
-      if (j != null) for (let k = s[n] + 1; k < j; k++) placedAt.set(ms[k].label, { t: Math.round(ms[k].epoch + d(s[n])), confidence: "medium" });
+      if (j != null) for (let k = s[n] + 1; k < j; k++) if (timed(k)) placedAt.set(ms[k].label, { t: Math.round(ms[k].epoch + d(s[n])), confidence: "medium" });
     }
   }
 
@@ -282,6 +304,7 @@ export function judge(ms: M[], seen: Map<number, number>, shift: number | null, 
     missing.set(m.label,
       dropped.has(i) ? "its frame read disagrees with the matches around it"
       : read.has(i) ? "its frames didn't confirm a start"
+      : m.scheduled && (kept.length || sKept.size || read.size) ? SCHEDULED_UNREAD
       : before != null && after != null ? "in a gap: the reads either side disagree where the video sits, so it may not be in the video"
       : !kept.length && !read.size ? NOTHING_READ
       : "no frame read of it, and no agreeing reads on both sides");
