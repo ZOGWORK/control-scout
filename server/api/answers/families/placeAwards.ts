@@ -162,6 +162,12 @@ const count = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? on
 const awardName = (type: string) => (ALLIANCE.has(type) ? awardLabel(type, 1) : `${awardLabel(type, 1)} Award`);
 const awardsName = (type: string) => `${awardName(type)}s`;
 const CAPTAIN = "Winning Alliance Captain";
+/** A Winning Alliance row that is its captain's: the award's name says so (FIRST's "Winning Alliance - Captain"), or it
+ *  names no role (a source that gives every member the same place) and the team captained the event's alliance
+ *  selection. Every other award's rows pass. */
+const CAPTAIN_SQL = `(${TYPE_SQL} <> 'Winner' OR COALESCE(a.name, '') LIKE '%Captain%'
+  OR (COALESCE(a.name, '') NOT LIKE '%Selected%' AND COALESCE(a.name, '') NOT LIKE '%Pick%' AND COALESCE(a.name, '') NOT LIKE '%Backup%'
+      AND EXISTS (SELECT 1 FROM alliances al WHERE al.season = a.season AND al.code = a.code AND al.captain = a.team)))`;
 const teamLabel = (r: Row) => `${r.team}${r.team_name ? ` ${r.team_name}` : ""}`;
 
 function placeSql(p: Place | null): { sql: string; args: (string | null)[] } {
@@ -215,7 +221,7 @@ export async function placeAwardsAnswer(ask: PlaceAwardsAsk): Promise<StatAnswer
   const board = ask.mode === "most" || ask.mode === "fewest";
   // One award's winners with no place said: the latest events that gave it, newest first, in any season unless one was said.
   const latest = ask.mode === "list" && !ask.place && !ask.worlds && ask.types.length === 1;
-  const won = `${ask.types.length || (ask.mode !== "list" && !board) ? ` AND ${WON_SQL}` : ""}${ask.captain ? " AND a.placement = 1" : ""}`;
+  const won = `${ask.types.length || (ask.mode !== "list" && !board) ? ` AND ${WON_SQL}` : ""}${ask.captain ? ` AND ${CAPTAIN_SQL}` : ""}`;
   const typeSql = ask.types.length ? ` AND ${TYPE_SQL} IN (${ask.types.map(() => "?").join(", ")})` : "";
   // The season: the one said, else the current season (the one season rule, ../season.ts), never another one
   // quietly; the count boards and "any" with none said count every season. It's filtered in SQL, never after loading every season.
@@ -246,7 +252,9 @@ export async function placeAwardsAnswer(ask: PlaceAwardsAsk): Promise<StatAnswer
   const when = season == null ? "every season" : seasonLabel(season);
   const scope = [ask.place?.name ?? "Every team", ...(ask.worlds ? ["FIRST Championship"] : []), season == null ? "All seasons" : seasonLabel(season)];
   const base = { family: "awards" as const, intent: "place-awards", scope, source: `From ${count(records, "award record")} in the events' published awards` };
-  const rule = `${ALLIANCE.has(ask.types[0] ?? "") || !ask.types.length ? "A Winning or Finalist Alliance award counts for each of its teams. " : ""}${ask.captain ? "A Winning Alliance Captain is the team FIRST lists first on an event's Winning Alliance award: its captain, never its picks. " : ""}A judged award is won at 1st place${ask.types.length ? "" : " (2nd and 3rd place are listed as such)"}. A team's place is its home on FIRST's listing. From the events' published awards.${ask.season == null && season != null ? ` ${seasonWhy("any", season)}` : ""}`;
+  // Captains alone: the alliance's other teams never count, so the every-member rule isn't said.
+  const members = ask.types.some((ty) => ALLIANCE.has(ty) && !(ask.captain && ty === "Winner"));
+  const rule = `${members || !ask.types.length ? `A ${ask.captain ? "Finalist" : "Winning or Finalist"} Alliance award counts for each of its teams. ` : ""}${ask.captain ? "A Winning Alliance Captain is the captain of an event's winning alliance, as its award names it (else the event's alliance selection): never its picks. " : ""}A judged award is won at 1st place${ask.types.length ? "" : " (2nd and 3rd place are listed as such)"}. A team's place is its home on FIRST's listing. From the events' published awards.${ask.season == null && season != null ? ` ${seasonWhy("any", season)}` : ""}`;
   const title = ask.types.length ? `${ask.place ? `${ask.place.name} ` : ""}${ask.captain ? whats : `${what} winners`}${at}` : `Awards won by ${whose}${at}`;
   const none = (s: string) => ({ ...base, title, blocks: [], definition: rule, none: s });
   const ev = (r: Row) => shortEvent(r.event, r.etype);
@@ -368,10 +376,10 @@ export async function placeAwardsAnswer(ask: PlaceAwardsAsk): Promise<StatAnswer
     // The newest event's winners lead; the table is each of the latest events that gave the award.
     const first = xs.filter((r) => r.season === xs[0].season && r.code === xs[0].code);
     const events = new Set(xs.map((r) => `${r.season}|${r.code}`)).size;
-    const t2 = `The latest ${what} winners${at}${season == null ? "" : `, ${when}`}`;
+    const t2 = `The latest ${ask.captain ? whats : `${what} winners`}${at}${season == null ? "" : `, ${when}`}`;
     return {
       ...base, title: t2, scope: [...scope.slice(0, -1), season == null ? `Latest ${count(events, "event")}` : seasonLabel(season)],
-      headline: { value: [...new Set(first.map(teamLabel))].join(", "), label: `won the ${what} at ${ev(first[0])}`, sub: [first[0].start, seasonLabel(first[0].season)].filter(Boolean).join(" · "), ...(first.length === 1 ? { href: eventHref(first[0].season, first[0].code, first[0].team) } : {}) },
+      headline: { value: [...new Set(first.map(teamLabel))].join(", "), label: `${ask.captain && ask.types.length === 1 ? "captained the winning alliance" : `won the ${what}`} at ${ev(first[0])}`, sub: [first[0].start, seasonLabel(first[0].season)].filter(Boolean).join(" · "), ...(first.length === 1 ? { href: eventHref(first[0].season, first[0].code, first[0].team) } : {}) },
       blocks: [table(xs, `The latest ${count(events, "event")} that gave it, newest first`, undefined, xs.length)],
       definition: `The latest winners: the events (up to ${LATEST_EVENTS}) most recently held that gave the award, by their start date, ${season == null ? "in any season" : `in ${when}`}. ${rule}`,
     };

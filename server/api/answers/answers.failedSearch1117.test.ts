@@ -9,7 +9,7 @@ import { rebuildSearch } from "../../stats/job";
 import { clearAllCaches } from "../../caches";
 import { searchAnswer } from "../searchAnswer";
 import { awardCutOff } from "../spelling";
-import { readPlaceAwards } from "./families/placeAwards";
+import { placeAwardsAnswer, readPlaceAwards } from "./families/placeAwards";
 import { refreshSearchSeason, resetSearchSeason } from "./season";
 import { readAsk } from "../searchAsks";
 import { resultOf } from "../searchLayers";
@@ -43,6 +43,7 @@ beforeAll(async () => {
   await ev(2025, "USNJQ1", "Oradell Qualifier", "NJ", "2026-01-10");
   await ev(2025, "USNJQ2", "Hackettstown Qualifier", "NJ", "2026-01-24");
   await ev(2025, "USTXQ1", "Austin Qualifier", "TX", "2026-01-11");
+  await ev(2025, "USTXQ2", "Dallas Qualifier", "TX", "2026-02-07");
   await ev(2026, "USNJM1", "Northern League Meet", "NJ", "2026-11-08");
   // 2025–26's awards: at each NJ event the captain (1st) and its pick (2nd), and the Inspire Award; nothing yet in 2026–27.
   const award = (code: string, type: string, placement: number, team: number, name: string) =>
@@ -55,6 +56,13 @@ beforeAll(async () => {
   await award("USNJQ1", "Inspire", 2, 4215, "Inspire Award");
   await award("USTXQ1", "Winner", 1, 30030, "Winning Alliance - Captain");
   await award("USTXQ1", "Inspire", 1, 38702, "Inspire Award");
+  // A source that gives every member of the alliance 1st place, the role unnamed: the captain is the alliance selection's.
+  await award("USTXQ2", "Winner", 1, 30030, "Winning Alliance Award");
+  await award("USTXQ2", "Winner", 1, 38702, "Winning Alliance Award");
+  await run("INSERT INTO alliances (season, code, number, captain, pick1) VALUES (2025, 'USTXQ2', 1, 38702, 30030)");
+  // A Finalist Alliance counts for each of its teams, whatever its place.
+  await award("USNJQ1", "Finalist", 1, 7149, "Finalist Alliance - Captain");
+  await award("USNJQ1", "Finalist", 2, 23268, "Finalist Alliance - 1st Team Selected");
   await rebuildSearch();
   resetSearchSeason();
   await refreshSearchSeason();
@@ -77,6 +85,21 @@ describe("a place's winning alliance captains (#1642, #1643)", () => {
     }
     // The misspelled word is search's own: its answer is the spelled query's, offered as a correction.
     expect((await full("nj winning allaince captain")).didYouMean).toBe("nj winning alliance captain");
+  });
+  it("finds the captain where every member got 1st place, from the alliance selection", async () => {
+    const a = await placeAwardsAnswer({ ...(await readPlaceAwards("texas winning alliance captains"))!, season: 2025 });
+    expect(a.blocks[0].kind === "table" && a.blocks[0].rows.map((r) => r.cells.team)).toEqual(["38702 Mech-dranos", "30030 Exodus"]);
+    expect(a.definition).not.toContain("counts for each of its teams");
+    expect(a.definition).toContain("never its picks");
+  });
+  it("keeps every Finalist asked beside the captains, and words the latest captains anywhere as captains", async () => {
+    const nj = (await readPlaceAwards("nj winning alliance captains"))!;
+    const both = await placeAwardsAnswer({ ...nj, types: ["Winner", "Finalist"], season: 2025 });
+    expect(both.blocks[0].kind === "table" && both.blocks[0].rows.map((r) => `${r.cells.team} ${r.cells.award}`).sort()).toEqual([
+      "23268 Ultraviolet Finalist Alliance", "23268 Ultraviolet Winning Alliance Captain", "4215 Hypnotic Robotics Winning Alliance Captain", "7149 Enforcers Finalist Alliance"]);
+    const any = await placeAwardsAnswer({ ...nj, place: null });
+    expect(any.title).toMatch(/^The latest Winning Alliance Captains/);
+    expect(any.headline?.label).toMatch(/^captained the winning alliance at /);
   });
   it("leaves a season said as said", async () => {
     const a = await full("teams in nj that won winning alliance captain 2026-27");
