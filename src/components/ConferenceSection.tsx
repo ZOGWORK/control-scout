@@ -57,9 +57,9 @@ export function ConferenceSection({ data, leagueName, slug, team }: { data: Leag
   // A tab clicked, by its tournament's code (unique, where a slug may not be). The league page remounts this section
   // on a new league, season, link or team, so a click never outlives the link it was made under.
   const [chosen, setChosen] = useState<string | null>(null);
-  const picked = data.conferences.find((c) => c.code === chosen) ?? pickConference(data.conferences, slug, team);
-  // A link to a conference this league doesn't have, or that two share: said, never a guess.
+  // A link to a conference this league doesn't have, or that two share: said, and no table shown until one is picked.
   const unknown = !!slug && !chosen && data.conferences.filter((c) => c.slug === slug).length !== 1;
+  const picked = data.conferences.find((c) => c.code === chosen) ?? (unknown ? null : pickConference(data.conferences, slug, team));
   const ref = useRef<HTMLElement>(null);
   // Opened from a link to the section: in view once its rows are in.
   useEffect(() => {
@@ -79,7 +79,7 @@ export function ConferenceSection({ data, leagueName, slug, team }: { data: Leag
         </p>
       ) : (
         <>
-          {unknown && <p className="text-sm text-muted-foreground" data-conference-unknown>This league has no one conference by that name this season, so none is picked for it.</p>}
+          {unknown && <p className="text-sm text-muted-foreground" data-conference-unknown>This league has no one conference by that name this season, so no table is shown: pick a conference above.</p>}
           {data.conferences.length > 1 && (
             <div role="tablist" aria-label="Conferences" className="flex flex-wrap gap-2">
               {data.conferences.map((c) => {
