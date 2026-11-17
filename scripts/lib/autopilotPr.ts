@@ -35,27 +35,38 @@ function filedVideos(ref: string): Map<string, number> {
 
 export interface Gate { number: number; head: string; file: string; problems: string[] }
 
-/** An autopilot PR and what stops its merge (none: it may merge), against `main` (a ref, fetched). */
-export function prGate(number: number, main = "origin/main"): Gate {
-  const pr = JSON.parse(gh("pr", "view", String(number), "--json", "state,isDraft,mergeable,headRefOid,headRefName,body,files,statusCheckRollup"));
+/** A PR as `gh pr view --json` reports it: the fields the gate reads. */
+export interface PrView { state: string; isDraft: boolean; mergeable: string; headRefName: string; body: string; files: { path: string }[] }
+
+/** What stops a merge in the PR's own shape, from GitHub's facts alone: open, not a draft, mergeability worked out
+ *  clean (UNKNOWN, still computing just after a push or a main move, waits), the autopilot's branch, its mark naming
+ *  one of its own data files (the mark is the PR body's: never a file the gate can't read rows from), and that file the
+ *  only one it changes (owner's rule, 2026-11-17: no CHANGELOG, no version). `file`: "" without such a mark. */
+export function shapeProblems(pr: PrView): { mark: ReturnType<typeof readMarker>; file: string; problems: string[] } {
   const problems: string[] = [];
-  const mark = readMarker(String(pr.body ?? ""));
   if (pr.state !== "OPEN") problems.push(`${pr.state.toLowerCase()}, not open`);
   if (pr.isDraft) problems.push("a draft");
-  // Only a merge GitHub has worked out as clean: UNKNOWN (still computing, just after a push or a main move) waits.
   if (pr.mergeable === "CONFLICTING") problems.push("conflicts with main");
   else if (pr.mergeable !== "MERGEABLE") problems.push(`mergeability ${String(pr.mergeable).toLowerCase()}, not worked out yet`);
   if (!String(pr.headRefName ?? "").startsWith(BRANCH)) problems.push(`branch ${pr.headRefName}, not the autopilot's (${BRANCH}…)`);
-  if (!mark) return { number, head: pr.headRefOid, file: "", problems: [...problems, "no autopilot mark"] };
-  const file = mark.file ?? seasonFile(mark.season), head = String(pr.headRefOid);
-  // The mark is the PR body's: it may name only the autopilot's own data files, never one the gate can't read rows from.
-  if (file !== CLIPS_FILE && file !== seasonFile(mark.season)) return { number, head, file, problems: [...problems, `its mark names ${file}, not ${seasonFile(mark.season)} or ${CLIPS_FILE}`] };
-  git("fetch", "--quiet", "origin", head);
-  // Only its data file and its release: anything else is a person's change.
-  // Its data file only (owner's rule, 2026-11-17: no CHANGELOG, no version, so nothing to renumber). A PR opened before
-  // still carries a release: the runner's next rebuild puts those files back to main's.
-  const others = (pr.files as { path: string }[]).map((f) => f.path).filter((p) => p !== file);
+  const mark = readMarker(String(pr.body ?? ""));
+  if (!mark) return { mark, file: "", problems: [...problems, "no autopilot mark"] };
+  const file = mark.file ?? seasonFile(mark.season);
+  if (file !== CLIPS_FILE && file !== seasonFile(mark.season)) return { mark, file: "", problems: [...problems, `its mark names ${file}, not ${seasonFile(mark.season)} or ${CLIPS_FILE}`] };
+  // A PR opened before the rule still carries a release: the runner's next rebuild puts those files back to main's.
+  const others = pr.files.map((f) => f.path).filter((p) => p !== file);
   if (others.length) problems.push(`changes more than its data file: ${others.join(", ")}`);
+  return { mark, file, problems };
+}
+
+/** An autopilot PR and what stops its merge (none: it may merge), against `main` (a ref, fetched). */
+export function prGate(number: number, main = "origin/main"): Gate {
+  const pr = JSON.parse(gh("pr", "view", String(number), "--json", "state,isDraft,mergeable,headRefOid,headRefName,body,files,statusCheckRollup"));
+  const head = String(pr.headRefOid), shape = shapeProblems(pr);
+  const { mark, file } = shape, problems = [...shape.problems];
+  // Without its own mark and data file there are no rows to check.
+  if (!mark || !file) return { number, head, file, problems };
+  git("fetch", "--quiet", "origin", head);
   // The PR's own change: against where it branched (rows main gained since aren't its); each row checked against main's now.
   const base = git("merge-base", head, main).trim();
   const next = git("show", `${head}:${file}`), was = git("show", `${base}:${file}`), live = git("show", `${main}:${file}`);
