@@ -307,6 +307,10 @@ describe("a recording cut mid-match", () => {
   it("takes a later read's earlier start as time the video lost, a later one as a first read made after a cut", () => {
     expect(startOffset(3848, 3829)).toBe("lost");
     expect(startOffset(3829, 3848)).toBe("gained");
+    // USCHSCHQ2 2022 Q16: Auto read as TeleOp's end, a start 128 s early; the later read is the start to check.
+    expect(startOffset(6767, 6895)).toBe("period");
+    expect(startOffset(6767, 6900)).toBe("period");
+    expect(startOffset(6767, 6950)).toBe("other");
     expect(startOffset(3848, 3852)).toBe("same");
     // Further off than a cut loses: another start, never explained away.
     expect(startOffset(3848, 3700)).toBe("other");
