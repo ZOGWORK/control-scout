@@ -72,7 +72,8 @@ const restore = new Map<string, string>();
 // However the run ends (done, stopped, or thrown): what it tried keeps its retry and give-up counts, and every file a
 // read wrote is put back, so the clone is never left with changes.
 process.on("exit", () => {
-  writeFileSync(MEMORY_FILE, JSON.stringify(memory, null, 1));
+  // A dry run opens no PR: what it "would open" or didn't find never counts toward the real runs' retries.
+  if (!DRY) writeFileSync(MEMORY_FILE, JSON.stringify(memory, null, 1));
   for (const [file, text] of restore) writeFileSync(file, text);
 });
 
@@ -241,8 +242,11 @@ for (const [season, events] of bySeason) {
   // --live keeps the clips main plays from being dropped on a frame that names nothing; a season with no rows yet has
   // none to keep (and the reader refuses an empty --live file).
   const base = ["scripts/video-frames.ts", "--season", String(season), ...(fileRows(mainText(file)).length ? ["--live", liveFile] : []), "--lanes", "2"];
-  for (const [list, extra] of [[fresh, []], [again, ["--all"]]] as const) if (list.length) log(`${season} read ${list.join(",")}: exit ${reader([...base, "--codes", list.join(","), ...extra], 6 * 3600_000).code}`);
-  for (const pass of ["--verify", "--bounds"]) log(`${season} ${pass}: exit ${reader([...base, "--codes", codes.join(","), pass], 3 * 3600_000).code}`);
+  // A read that crashed, timed out or was killed read nothing for sure: its events aren't counted as tried (remember).
+  let readFailed = false;
+  const pass = (args: string[], ms: number, what: string) => { const code = reader([...base, ...args], ms).code; if (code) readFailed = true; log(`${season} ${what}: exit ${code}`); };
+  for (const [list, extra] of [[fresh, []], [again, ["--all"]]] as const) if (list.length) pass(["--codes", list.join(","), ...extra], 6 * 3600_000, `read ${list.join(",")}`);
+  for (const p of ["--verify", "--bounds"]) pass(["--codes", codes.join(","), p], 3 * 3600_000, p);
   const after = readFileSync(file, "utf8");
   writeFileSync(file, before);
   const live = new Map(fileRows(mainText(file)).map((r) => [rowKey(r), r]));
@@ -258,6 +262,7 @@ for (const [season, events] of bySeason) {
   }
   for (const e of events) {
     const n = good.filter((r) => r.code === e.code).length;
+    if (!n && readFailed) { log(`  ${season}/${e.code}: the read failed; not counted as a try`); continue; }
     remember(memory, `${season}/${e.code}`, n, n ? "shipped" : after === before ? "no new rows" : "rows refused or unchanged");
   }
   for (const chunk of chunkRows(good)) {
