@@ -1,7 +1,7 @@
 // The pure parts of the frame reader (scripts/video-frames.ts): the overlay's match, the timer's elapsed time, and
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
-import { countsThrough, secondsAlone, dataRows, divisionOf, cropOrder, elapsed, flippedClip, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, type M } from "./videoFrames";
+import { cardClip, cardStill, countsThrough, dataRows, divisionOf, cropOrder, elapsed, flippedClip, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, type M } from "./videoFrames";
 
 describe("the frame reader", () => {
   // A 1280 × 720 frame: a grey field, and a score bar from `top` to `bottom` with one alliance's colour each side of the
@@ -234,9 +234,10 @@ describe("the frame reader", () => {
   it("tells a timeout's countdown through a start from a match's card", () => {
     // A 3:00 timeout on an audience display's card, read at 2:00 or less under a bar naming the next match, gives a
     // start where it shows 2:38, 22 s after it began: 10 s before that start it shows 2:48, 5 s before 2:43, and 25 s
-    // before it hasn't begun (standing at 3:00, or another card).
+    // before it hasn't begun, standing at its full 3:00 (still more than a match, reaching the start's 2:35).
     expect(countsThrough(168, 10)).toBe(true);
     expect(countsThrough(163, 5)).toBe(true);
+    expect(countsThrough(180, 25)).toBe(true);
     // A 2:40 countdown is 2 s in at the start: 5 s before, it stands at its full 2:40.
     expect(countsThrough(160, 5)).toBe(true);
     // Longer ones (a 5:00 reset) are caught further out.
@@ -256,13 +257,20 @@ describe("the frame reader", () => {
     expect(countsThrough(150, 10)).toBe(false);
   });
 
-  it("reads a card's clock only where it stands alone", () => {
-    expect(secondsAlone("Field 2\n2:48")).toBe(168);
-    expect(secondsAlone("2:30")).toBe(150);
-    // Stray text on the card: a time of day, or more digits round the clock, isn't it.
-    expect(secondsAlone("12:58")).toBeNull();
-    expect(secondsAlone("2:581")).toBeNull();
-    expect(secondsAlone("1:2:30")).toBeNull();
+  it("reads an audience display's card for the countdown check", () => {
+    // What the digits worker read off USMAWEQ's card (Aj0stAP3EwM, 2:30 standing before Q37): cut close, "7:20"; with
+    // the margin, "2:30". Cut close, a card standing still read as more than a match, far from the start: no check.
+    expect(secondsOf("2:30\n")).toBe(150);
+    expect(cardStill(secondsOf("2:30\n")!)).toBe(true);
+    expect(countsThrough(secondsOf("7:20\n")!, 5)).toBe(false);
+    // Reads of nothing it could take ("0:99" off a blank card, or no text): no clock, so no check passed on them.
+    expect(secondsOf("0:99\n")).toBeNull();
+    expect(secondsOf("")).toBeNull();
+    expect(cardStill(0)).toBe(true);
+    expect(cardStill(163)).toBe(false);
+    // The margin: 40 px each side, kept inside the frame.
+    expect(cardClip({ x: 340, y: 110, width: 600, height: 210 })).toEqual({ x: 300, y: 70, width: 680, height: 290 });
+    expect(cardClip({ x: 10, y: 0, width: 1260, height: 700 })).toEqual({ x: 0, y: 0, width: 1280, height: 720 });
   });
 
   it("reads a timer", () => {
