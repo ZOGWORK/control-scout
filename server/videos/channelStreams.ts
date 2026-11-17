@@ -203,12 +203,28 @@ export function channelDue(row: { url: string | null; video_id: string | null; c
  * (official_audit_videos): an event's channel link with a broadcast found isn't read again, so a rule added since
  * reaches its rows only here. Returns how many events lost a broadcast.
  */
+/**
+ * Every official recording's event (official_videos, on) and that event's parent when it's a division: a channel
+ * broadcast that is another event's official recording isn't this event's, whatever its date says. 2023 USAZTSQ
+ * (Tsalie) took FIRST Tech Challenge Arizona's "Red Rock Qualifier" broadcast, USAZCHQ's checked recording, its one
+ * broadcast that day. A division's recording on its own parent championship (Arizona 2022's Grand Canyon on USAZCMP)
+ * stays: the parent's playoffs are played on its divisions' streams.
+ */
+export async function officialOwners(): Promise<Map<string, { key: string; parent: string | null }>> {
+  return new Map((await all<{ video_id: string; season: number; code: string; parent: string | null }>(
+    `SELECT o.video_id, o.season, o.code, e.division_code AS parent FROM official_videos o LEFT JOIN events e ON e.season = o.season AND e.code = o.code
+     WHERE o.removed_at IS NULL AND o.kind = 'recording'`)).map((r) => [String(r.video_id), { key: `${r.season}/${r.code}`, parent: r.parent ? `${r.season}/${r.parent}` : null }]));
+}
+const notOthers = (list: Broadcast[], season: number, code: string, owners: Map<string, { key: string; parent: string | null }>) =>
+  list.filter((b) => { const o = owners.get(b.videoId), me = `${season}/${code}`; return !o || o.key === me || o.parent === me; });
+
 export async function reweighBroadcasts(): Promise<number> {
   const rows = await all<{ season: number; code: string; video_id: string; url: string; start: string; title: string | null; name: string | null; timezone: string | null; ev_start: string; ev_end: string | null; livestream: string | null }>(
     `SELECT b.season, b.code, b.video_id, b.url, b.start, a.title, e.name, e.timezone, ${EVENT_FIRST_DAY} AS ev_start, ${EVENT_LAST_DAY} AS ev_end, e.livestream
      FROM event_broadcasts b JOIN events e ON e.season = b.season AND e.code = b.code LEFT JOIN official_audit_videos a ON a.video_id = b.video_id`);
   const byEvent = new Map<string, typeof rows>();
   for (const r of rows) { const k = `${r.season}/${r.code}`; byEvent.set(k, [...(byEvent.get(k) ?? []), r]); }
+  const owners = await officialOwners();
   const writes: { sql: string; args: (string | number | null)[] }[] = [];
   let changed = 0;
   for (const bs of byEvent.values()) {
@@ -217,7 +233,7 @@ export async function reweighBroadcasts(): Promise<number> {
     const list = bs.map((b) => ({ videoId: String(b.video_id), start: String(b.start), ...(b.title && !/^(deleted|private) video$/i.test(String(b.title).trim()) ? { title: String(b.title) } : {}) }));
     const siblings = [...byEvent.values()].map((o) => o[0]).filter((o) => o.season === r.season && o.code !== r.code && o.livestream && o.livestream === r.livestream)
       .map((o) => ({ name: String(o.name ?? ""), start: o.ev_start, end: o.ev_end, timezone: o.timezone }));
-    const keep = ownBroadcasts(list, { name: String(r.name ?? ""), timezone: r.timezone }, siblings).sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
+    const keep = ownBroadcasts(notOthers(list, Number(r.season), String(r.code), owners), { name: String(r.name ?? ""), timezone: r.timezone }, siblings).sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
     if (keep.length === list.length) continue;
     changed++;
     const gone = list.filter((b) => !keep.includes(b));
@@ -260,6 +276,7 @@ export async function resolveChannelStreams(log: (s: string) => void, opts: { ma
     const read = new Map<string, Promise<Broadcast[] | "error">>();
     // Broadcasts found before, weighed again by the rules of today first.
     let changed = await reweighBroadcasts();
+    const owners = await officialOwners();
     for (const r of todo) {
       const c = channelRef(r.livestream)!;
       const since = Date.parse(`${r.start.slice(0, 10)}T00:00:00Z`) - LISTED_BEFORE_DAYS * DAY_MS;
@@ -286,7 +303,7 @@ export async function resolveChannelStreams(log: (s: string) => void, opts: { ma
       // Another event on these dates with the same link (the same season's league meets): a broadcast its title gives
       // to that other event leaves this one, the ones found before included (their titles are in this read).
       const siblings = rows.filter((o) => o.season === r.season && o.code !== r.code && o.livestream === r.livestream).map((o) => ({ name: String(o.name ?? ""), start: o.start, end: o.end, timezone: o.timezone }));
-      const keep = ownBroadcasts([...merged.values()], { name: String(r.name ?? ""), timezone: r.timezone }, siblings).sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
+      const keep = ownBroadcasts(notOthers([...merged.values()], r.season, r.code, owners), { name: String(r.name ?? ""), timezone: r.timezone }, siblings).sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
       const was = before.map((b) => String(b.video_id)).sort().join();
       if (!sameLink || keep.map((b) => b.videoId).sort().join() !== was || (keep[0]?.videoId ?? null) !== r.video_id) changed++;
       // One transaction: an interrupted save keeps the previous set.
