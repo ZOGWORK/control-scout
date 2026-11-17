@@ -36,7 +36,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
 import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, playedCount, playedMatches, wholeLength } from "./lib/videoFrames";
-import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, countsThrough, secondsAlone, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, cropOrder, elapsed, flippedClip, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M } from "./lib/videoFrames";
+import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, cardClip, cardStill, countsThrough, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, cropOrder, elapsed, flippedClip, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M } from "./lib/videoFrames";
 
 // The command line: --name value or --name=value for the value flags, --name alone for the others. Anything else stops
 // the run before it reads: a misspelt flag mustn't quietly read (and write) every recording of the season.
@@ -460,12 +460,19 @@ async function confirmed(page: Page, label: string, start: number, own = false, 
   // already naming the next match. The same card running one countdown through it (over a match's 2:38, reaching
   // 2:30–2:38 at the start) is no match (countsThrough). A 3:00 timeout taken for a match began only 22 s before the
   // start it gives, so the card is read close in (5, 10 s) as well as further out (a 5:00 reset).
+  // A card no check could read proves nothing: the start stays unconfirmed. A card standing still (a match's 2:30, or
+  // the last match's 0:00) close in counts nothing down through the start, so the reads further out are skipped.
   if (card) {
+    let read = false;
     for (const ahead of COUNTDOWN_CHECK) {
       if (start - ahead < 0) continue;
       const left = await cardAt(page, start - ahead, card.clip);
-      if (left != null && countsThrough(left, ahead)) return `${ahead} s before it the card counted ${left} s down through its start (a timeout or reset, not a match)`;
+      if (left == null) continue;
+      read = true;
+      if (countsThrough(left, ahead)) return `${ahead} s before it the card counted ${left} s down through its start (a timeout or reset, not a match)`;
+      if (ahead <= 10 && cardStill(left)) break;
     }
+    if (!read) return `the card read nothing ${COUNTDOWN_CHECK.join(", ")} s before it, so no countdown through it was ruled out`;
   }
   if (divisions.has(page) && !own) return "no read of it showed its division's name (the stream carries another division too)";
   return null;
@@ -473,7 +480,7 @@ async function confirmed(page: Page, label: string, start: number, own = false, 
 /** Seconds before a start read off an audience display's card that the card is read for a countdown running through it.
  *  At 5 and 10 s, a real match's card stands at 2:30 or shows the last match's 0:00: never over 2:38. */
 const COUNTDOWN_CHECK = [5, 10, 25, 90, 170];
-/** The clock alone on an audience display's card at second t (secondsAlone), as a frame read: counted in the page's
+/** The clock on an audience display's card at second t (secondsOf, as the start reads take it), as a frame read: counted in the page's
  *  budget, traced, and failed after READ_LIMIT_S like readAt. */
 function cardAt(page: Page, t: number, clip: TimerCrop["clip"]): Promise<number | null> {
   pageReads.set(page, (pageReads.get(page) ?? 0) + 1);
@@ -481,11 +488,11 @@ function cardAt(page: Page, t: number, clip: TimerCrop["clip"]): Promise<number 
   return Promise.race([
     (async () => {
       await seek(page, t);
-      return secondsAlone((await digits.recognize(await page.screenshot({ clip }))).data.text);
-    })().finally(() => clearTimeout(timer)).then((left) => {
-      if (TRACE) console.error(`    card ${Math.round(t)} s: ${left ?? "-"}`);
+      const text = (await digits.recognize(await page.screenshot({ clip: cardClip(clip) }))).data.text;
+      const left = secondsOf(text);
+      if (TRACE) console.error(`    card ${Math.round(t)} s: ${left ?? "-"} (read ${JSON.stringify(text)})`);
       return left;
-    }),
+    })().finally(() => clearTimeout(timer)),
     new Promise<never>((_, no) => { timer = setTimeout(() => { void renewOcr(); no(new Error(`a card read at ${Math.round(t)} s hung over ${READ_LIMIT_S} s`)); }, READ_LIMIT_S * 1000); }),
   ]);
 }
