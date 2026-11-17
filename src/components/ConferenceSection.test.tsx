@@ -105,6 +105,9 @@ describe("conference section", () => {
     expect(pickConference(NO.conferences, "far-north-conference", 4215)!.code).toBe("USNJNOLT");
     expect(pickConference(NO.conferences, null, 4215)!.code).toBe("USNJNOLT2");
     expect(pickConference(NO.conferences, null, null)!.code).toBe("USNJNOLT2");
+    // Records by win share, a tie half: 5-0-0 above 12-4-0 above 5-0-5's equal .750 (league order between those).
+    const recs = [row(1, 1, 1, 3, { wins: 12, losses: 4, ties: 0 }), row(2, 2, 2, 3, { wins: 5, losses: 0, ties: 5 }), row(3, 3, 3, 3, { wins: 5, losses: 0, ties: 0 })];
+    expect(sortConferenceRows(recs, "record", "desc").map((r) => r.team)).toEqual([3, 1, 2]);
     expect(pickConference([EB, { ...FN, rows: [] }], null, null)!.code).toBe("USNJNOLT2");
     expect(sortConferenceRows(EB.rows, "rs", "asc").map((r) => r.team)).toEqual([18155, 4215, 23717, 15762, 6980, 30680]);
     expect(sortConferenceRows(EB.rows, "rs", "desc").map((r) => r.team)).toEqual([6980, 23717, 15762, 4215, 18155, 30680]);
