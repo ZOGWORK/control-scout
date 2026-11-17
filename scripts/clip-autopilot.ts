@@ -32,7 +32,7 @@ import { applyRows, changedRows, chunkRows, fileRows, prMarker, readMarker, rowK
 import { changelogEntry, forgetSettled, nextVersion, pickEvents, remember, rowsDelta, type Memory } from "./lib/autopilotRun";
 import { clipCheckProblems, clipsDelta, clipsEntry } from "./lib/autopilotClips";
 import { prGate } from "./lib/autopilotPr";
-import { mainQuiet, pickMerge, servesMerge } from "./lib/autopilotMergeStep";
+import { mainQuiet, mainStill, pickMerge, servesMerge } from "./lib/autopilotMergeStep";
 import type { ClipCheck } from "../server/data/clipChecks";
 
 const argv = process.argv.slice(2);
@@ -199,34 +199,48 @@ for (const p of open) {
 
 // --- 1c. One of its own PRs merged, where nothing stops it ------------------------------------------------------------
 // The owner's standing rule: a data PR merges at Loopy 5/5 on its exact head with every check passed. With nobody
-// watching, the autopilot merges its own data PRs only (its label, branch, mark and GitHub user), each through the gate
+// watching, the autopilot merges its own data PRs only (its label, branch and mark), each through the gate
 // (scripts/lib/autopilotMerge.ts: anything a person should look at first stops it), at most one a run, never within
 // MAIN_QUIET of main's last commit (each merge deploys and restarts the site), never deleting its branch. Then it
 // waits for /api/health to serve the merge. --no-merge: open and rebuild PRs only.
 if (!DRY && MERGE) mergeOne();
+/** main's head as GitHub has it now: its sha and its last commit's time. */
+const mainHead = () => {
+  const [sha, date] = sh("gh", ["api", "repos/{owner}/{repo}/commits/main", "--jq", ".sha + \" \" + .commit.committer.date"], { quiet: true }).out.trim().split(" ");
+  return { sha, at: Date.parse(date) };
+};
 function mergeOne(): void {
+  let pick: { number: number; head: string } | null = null, done = false;
   try {
-    const last = Date.parse(sh("gh", ["api", "repos/{owner}/{repo}/commits/main", "--jq", ".commit.committer.date"], { quiet: true }).out.trim());
-    const why = mainQuiet(last, Date.now(), MAIN_QUIET_MS);
+    const before = mainHead();
+    const why = mainQuiet(before.at, Date.now(), MAIN_QUIET_MS);
     if (why) { log(`merge: ${why}: none this run`); return; }
     const me = sh("gh", ["api", "user", "--jq", ".login"], { quiet: true }).out.trim();
     git("fetch", "--quiet", "origin");
-    const { pick, passed } = pickMerge(open, {
+    const gatedOn = git("rev-parse", "origin/main");
+    const picked = pickMerge(open, {
       rebuilt, me, gate: prGate,
       author: (n) => sh("gh", ["pr", "view", String(n), "--json", "author", "--jq", ".author.login"], { quiet: true }).out.trim(),
     });
-    for (const p of passed) log(`merge: ${p}`);
+    for (const p of picked.passed) log(`merge: ${p}`);
+    pick = picked.pick;
     if (!pick) return;
+    // Gating took minutes: main read again, the merge only on the main the rows were checked against, still quiet.
+    const moved = mainStill(gatedOn, mainHead(), Date.now(), MAIN_QUIET_MS);
+    if (moved) { log(`merge: #${pick.number} waits: ${moved}`); return; }
     // The exact head the gate passed, or no merge: a push since then means another review.
     const r = sh("gh", ["pr", "merge", String(pick.number), "--merge", "--match-head-commit", pick.head], { ok: true });
     if (r.code) { log(`merge: #${pick.number} refused by GitHub (exit ${r.code}): left open`); return; }
-    const merged = sh("gh", ["pr", "view", String(pick.number), "--json", "mergeCommit", "--jq", ".mergeCommit.oid"], { quiet: true }).out.trim();
+    done = true;
+    let merged = sh("gh", ["pr", "view", String(pick.number), "--json", "mergeCommit", "--jq", ".mergeCommit.oid"], { quiet: true, ok: true }).out.trim();
+    // Not reported yet: main's head now, which holds the merge (a later commit only makes the live check stricter).
+    if (!/^[0-9a-f]{40}$/.test(merged)) { git("fetch", "--quiet", "origin"); merged = git("rev-parse", "origin/main"); }
     log(`merge: #${pick.number} merged as ${merged.slice(0, 9)}; waiting for it live`);
     waitLive(merged, `#${pick.number}`);
     // main moved: what this run opens next is made on main as it is now, live or not.
     git("fetch", "--quiet", "origin");
   } catch (e) {
-    log(`merge: stopped (${(e as Error).message}); nothing merged this run`);
+    log(`merge: stopped (${(e as Error).message}); ${done && pick ? `#${pick.number} was merged: check it went live` : "nothing merged this run"}`);
   }
 }
 /** Waits (up to LIVE_WAIT_MS) for the site's /api/health to serve `merged` (the merge commit) or a later main commit. */
