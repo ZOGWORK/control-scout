@@ -256,7 +256,7 @@ if (!process.env.CS_NO_SCHEDULER) {
   setInterval(recordings, 5 * 60_000).unref();
   // The official-video watcher (server/videos/officialWatch.ts, docs/official-videos.md): each watched official
   // channel's new uploads, every 6 hours with the YouTube Data API (never a search). Checked every 30 minutes, from
-  // 17.5 minutes after boot (midway between the sync's ticks, WATCH_FIRST_MS): a deploy doesn't start a run of its own
+  // 7.5 minutes after boot (midway between the sync's ticks, before the startup sync, WATCH_FIRST_MS): a deploy doesn't start a run of its own
   // when the last one is less than 6 hours old.
   // A run that added a recording has its event's coverage checked at once (server/videos/coverageCheck.ts). Every run
   // is followed by the channel audit (server/videos/officialAudit.ts): each channel's uploads list against Scout.

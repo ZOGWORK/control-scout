@@ -11,7 +11,7 @@ import { hasFirst } from "./env.js";
 import { siteMeta } from "./api/meta.js";
 import { CURRENT_SEASON, SEASONS, SEASON_NUMBERS, isLegacy, seasonInfo } from "./data/seasons.js";
 import { ensureSearchIndex, search } from "./api/search.js";
-import { MAX_QUERY, cleanQuery, learnQuery, searchAnswer } from "./api/searchAnswer.js";
+import { MAX_QUERY, cleanQuery, learnQuery, plainSearch, searchAnswer } from "./api/searchAnswer.js";
 import { myTeamOf } from "../src/shared/searchMine.js";
 import { pickedQuery, pickedSeasonOf } from "./api/searchPageAnswer.js";
 import { keptFollowUps, pageAnswer } from "./api/answers/followUps.js";
@@ -459,7 +459,7 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
       // none (src/shared/api.ts): the page then says nothing about video.
       return { ...offered, hits: body.hits, ...(body.video !== undefined ? { video: body.video } : {}) };
     }
-    return { q: String(req.query.q ?? ""), hits: await search(String(req.query.q ?? "").slice(0, MAX_QUERY), limit, prefer, kinds) };
+    return { q: String(req.query.q ?? ""), hits: await plainSearch(String(req.query.q ?? "").slice(0, MAX_QUERY), limit, prefer, kinds) };
   }));
 
   // People also ask and Related searches (server/api/answers/followUps.ts): asked by /search after its answer is on
