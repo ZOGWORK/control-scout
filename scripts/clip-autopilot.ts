@@ -62,8 +62,8 @@ const tsx = (args: string[], timeoutMs: number) => sh(process.execPath, ["node_m
 // --- One run at a time --------------------------------------------------------------------------------------------
 const LOCK = join(DIR, "lock");
 /** A lock a killed run left (shutdown, power cut, the task stopped): its process is gone, or it's older than any run. */
-function staleLock(): boolean {
-  const [pid, at] = readFileSync(LOCK, "utf8").split(" ").map(Number);
+function staleLock(text: string): boolean {
+  const [pid, at] = text.split(" ").map(Number);
   if (!(Date.now() - at < 10 * 3600_000)) return true;
   try { process.kill(pid, 0); return false; } catch (e) { return (e as NodeJS.ErrnoException).code === "ESRCH"; }
 }
@@ -71,13 +71,21 @@ function staleLock(): boolean {
 for (let tries = 0; ; tries++) {
   try { writeFileSync(LOCK, `${process.pid} ${Date.now()}`, { flag: "wx" }); break; } catch (e) {
     if ((e as NodeJS.ErrnoException).code !== "EEXIST") throw e;
-    let stale = true;
-    try { stale = staleLock(); } catch { /* unreadable or half-written: a crashed run's */ }
+    let stale = true, seen = "";
+    try { seen = readFileSync(LOCK, "utf8"); stale = staleLock(seen); } catch { /* unreadable or half-written: a crashed run's */ }
     if (!stale || tries > 2) { log("another run holds the lock: stopping"); process.exit(0); }
     // Taken over by renaming it away: only one run's rename of that file can succeed. A run whose rename fails (another
     // took it first) tries again, and finds the winner's fresh lock.
     const away = `${LOCK}.${process.pid}`;
     try { renameSync(LOCK, away); } catch { continue; }
+    // The file renamed has to be the one judged stale: one another run took meanwhile goes back, and this run stops.
+    let got = "";
+    try { got = readFileSync(away, "utf8"); } catch { /* gone: nothing to put back */ }
+    if (got !== seen) {
+      try { renameSync(away, LOCK); } catch { /* a third run's lock is there: it holds it */ }
+      log("another run took the lock: stopping");
+      process.exit(0);
+    }
     rmSync(away, { force: true });
     log("a stopped run's lock: taken over");
   }
@@ -133,6 +141,38 @@ function writeRelease(entry: string, pr: number): string {
 const commitEach = (files: [string, string][]) => { for (const [f, msg] of files) { git("add", f); git("commit", "--quiet", "-m", msg); } };
 const push = (branch: string) => git("push", "--quiet", "--no-verify", "origin", `HEAD:refs/heads/${branch}`);
 const askReview = (pr: number) => sh("gh", ["pr", "comment", String(pr), "--body", "@loopyreviews-bot review"], { ok: true });
+const today = new Date().toISOString().slice(0, 10);
+
+/** A data PR's words: title, description, mark, CHANGELOG entry ("VERSION"/"#PR" filled at release), commit line. */
+type PrText = { title: string; body: string[]; marker: string; entry: string; what: string };
+/** A frame-read PR's words, from its rows against main's (opened, or rebuilt on main with fewer rows). */
+function framesText(season: number, rows: Row[], live: Map<string, Row>): PrText {
+  const d = rowsDelta(rows, live);
+  return {
+    what: `frame-read rows for ${d.events.join(", ")}`,
+    title: `Clips: frame-read ${d.events.join(", ")} (${season}), ${d.clips} new`,
+    body: [
+      `Read by the clip autopilot (\`scripts/clip-autopilot.ts\`, docs/clip-autopilot.md), with nobody running the reader: ${d.events.length} events from the frame-read queue, ${d.recordings} recordings, ${d.clips} new clips, ${d.reasons} matches given a reason from the frames.`,
+      "", "Every row passed `rowProblems` against main's row: each placed or moved start opens 20/12/5/2/0 s before it on a frame naming its match; starts plausible and in the order played; no new `unconfirmed`; no live clip pulled without a frame at its own second naming another match; re-reads dated after the live row.",
+      "", ...rows.map((r) => `- ${r.code} \`${r.videoId}\`: ${Object.keys(r.starts).length} starts, ${Object.keys(r.missing ?? {}).length} missing, ${Object.keys(r.review ?? {}).length} for review`),
+    ],
+    marker: prMarker(season, rows), entry: changelogEntry(season, d, today),
+  };
+}
+/** A sweep PR's words, from its rows against main's. */
+function clipsText(rows: ClipCheck[], live: Map<string, ClipCheck>): PrText {
+  const d = clipsDelta(rows, live);
+  return {
+    what: `first-frame checks for ${d.events.join(", ")}`,
+    title: `Clips: first-frame checks, ${d.pulled} pulled, ${d.ok} confirmed (${d.events.length} events)`,
+    body: [
+      `Swept by the clip autopilot (\`scripts/video-frames.ts --clips\`): each clip the live site plays from the clock, read paused at its first second. ${d.ok} name their own match (ok), ${d.pulled} name another match (pulled: never served), ${d.unconfirmed} name none (still served, read again next sweep).`,
+      "", "Every row passed `clipCheckProblems` against main's: a pull only where the frame names a different match; no clip in two states; what main's row settled kept (a pull lifts only on a frame naming the match, an ok goes only on one naming another).",
+      "", ...d.pulledList.map((x) => `- pulled: ${x}`),
+    ],
+    marker: prMarker(0, rows, CLIPS_FILE), entry: clipsEntry(d, today),
+  };
+}
 
 // --- 1b. Own PRs rebuilt on main --------------------------------------------------------------------------------------
 if (!DRY) sh("gh", ["label", "create", LABEL, "--force", "--color", "0e8a16", "--description", "A data PR the clip autopilot opened (scripts/clip-autopilot.ts)"], { ok: true, quiet: true });
@@ -153,14 +193,16 @@ for (const p of open) {
       log(`#${p.number}: closed, main read its rows meanwhile`);
       continue;
     }
-    const entry = git("show", `origin/${p.branch}:CHANGELOG.md`).split(/\n(?=## )/)[1].replace(/^## \S+/, "## VERSION").replace(/\(#\d+\)/, "(#PR)");
+    // Its words made again from the rows it keeps: rows main took meanwhile leave its title, entry and mark too.
+    const text = file === CLIPS_FILE ? clipsText(keep as ClipCheck[], live as Map<string, ClipCheck>) : framesText(p.season, keep as Row[], live as Map<string, Row>);
     git("switch", "--quiet", "--detach", `origin/${p.branch}`);
     sh("git", ["merge", "--no-commit", "--no-ff", "origin/main"], { ok: true });
     writeFileSync(file, applyRows(mainText(file), keep));
-    const version = writeRelease(entry, p.number);
+    const version = writeRelease(text.entry, p.number);
     for (const f of [file, "CHANGELOG.md", "package.json", "package-lock.json"]) git("add", f);
     git("commit", "--quiet", "--no-edit", "-m", `Merge main; release ${version}`);
     push(p.branch);
+    sh("gh", ["pr", "edit", String(p.number), "--title", text.title, "--body", [...text.body, "", text.marker].join("\n")]);
     askReview(p.number);
     log(`#${p.number}: rebuilt on main as ${version}${keep.length < rows.length ? ` (${rows.length - keep.length} rows main changed meanwhile left out)` : ""}`);
   } catch (e) {
@@ -208,8 +250,8 @@ for (const s of skipped.filter((x) => x.why !== "next run")) log(`  skipped ${s.
 
 /** Opens a data PR with these rows applied to main's `file`: the rows commit, then (once the PR has its number) its
  *  CHANGELOG entry and version, each its own commit; Loopy asked to review. `marker`: the PR's mark (prMarker). */
-function openPr(o: { file: string; rows: Keyed[]; branch: string; title: string; body: string[]; marker: string; entry: string; what: string }): void {
-  if (DRY) { log(`would open "${o.title}": ${o.rows.length} rows, ${o.rows.map(rowKey).join(" ")}`); return; }
+function openPr(o: { file: string; rows: Keyed[]; branch: string } & PrText): boolean {
+  if (DRY) { log(`would open "${o.title}": ${o.rows.length} rows, ${o.rows.map(rowKey).join(" ")}`); return true; }
   let pr = 0;
   try {
     writeFileSync(o.file, applyRows(mainText(o.file), o.rows));
@@ -222,11 +264,13 @@ function openPr(o: { file: string; rows: Keyed[]; branch: string; title: string;
     push(o.branch);
     askReview(pr);
     log(`opened ${url} (${version}): ${o.title}`);
+    return true;
   } catch (e) {
     // A PR without its release would be rebuilt with another release's entry: closed instead, its rows read again
     // next run. Either way the run goes on to the next PR, season and the sweep.
     log(`"${o.title}": couldn't be opened (${(e as Error).message})${pr ? `; #${pr} closed without its release` : ""}`);
     if (pr) sh("gh", ["pr", "close", String(pr), "--comment", "The autopilot couldn't finish this PR's release (CHANGELOG and version): closed; the next run reads these rows again."], { ok: true });
+    return false;
   } finally {
     // A step that failed halfway leaves its files behind: the clone is the autopilot's own, so put back to main.
     sh("git", ["reset", "--quiet", "--hard"], { ok: true });
@@ -246,7 +290,6 @@ function reader(args: string[], timeoutMs: number): { code: number; out: string 
   return r;
 }
 const branchStamp = STAMP.slice(0, 16).replace(/[-T]/g, "");
-const today = new Date().toISOString().slice(0, 10);
 
 // --- 4–6. Read the due events, check, ship, season by season ------------------------------------------------------------------
 const bySeason = new Map<number, typeof picked>();
@@ -283,23 +326,17 @@ for (const [season, events] of bySeason) {
     const problems = rowProblems(r, live.get(rowKey(r)), order.get(r.code));
     if (problems.length) log(`  ${r.code} ${r.videoId}: left out, ${problems.join("; ")}`); else good.push(r);
   }
+  // Shipped: only events whose rows a PR really opened with (a failed open closes its PR; the rows are read again).
+  const opened = new Set<string>();
+  for (const chunk of chunkRows(good)) {
+    const ok = openPr({ file, rows: chunk, branch: `${BRANCH}${season}-${branchStamp}-${chunk[0].code}`, ...framesText(season, chunk, live) });
+    if (ok) for (const r of chunk) opened.add(r.code);
+  }
   for (const e of events) {
     const n = good.filter((r) => r.code === e.code).length;
+    if (n && !opened.has(e.code)) { log(`  ${season}/${e.code}: its PR couldn't be opened; not counted as a try`); continue; }
     if (!n && readFailed) { log(`  ${season}/${e.code}: the read failed; not counted as a try`); continue; }
     remember(memory, `${season}/${e.code}`, n, n ? "shipped" : after === before ? "no new rows" : "rows refused or unchanged");
-  }
-  for (const chunk of chunkRows(good)) {
-    const d = rowsDelta(chunk, live);
-    openPr({
-      file, rows: chunk, branch: `${BRANCH}${season}-${branchStamp}-${d.events[0]}`, what: `frame-read rows for ${d.events.join(", ")}`,
-      title: `Clips: frame-read ${d.events.join(", ")} (${season}), ${d.clips} new`,
-      body: [
-        `Read by the clip autopilot (\`scripts/clip-autopilot.ts\`, docs/clip-autopilot.md), with nobody running the reader: ${d.events.length} events from the frame-read queue, ${d.recordings} recordings, ${d.clips} new clips, ${d.reasons} matches given a reason from the frames.`,
-        "", "Every row passed `rowProblems` against main's row: each placed or moved start opens 20/12/5/2/0 s before it on a frame naming its match; starts plausible and in the order played; no new `unconfirmed`; no live clip pulled without a frame at its own second naming another match; re-reads dated after the live row.",
-        "", ...chunk.map((r) => `- ${r.code} \`${r.videoId}\`: ${Object.keys(r.starts).length} starts, ${Object.keys(r.missing ?? {}).length} missing, ${Object.keys(r.review ?? {}).length} for review`),
-      ],
-      marker: prMarker(season, chunk), entry: changelogEntry(season, d, today),
-    });
   }
 }
 
@@ -331,18 +368,6 @@ if (SWEEP && !open.some((p) => p.file === CLIPS_FILE)) {
     const problems = clipCheckProblems(c, live.get(rowKey(c)));
     if (problems.length) log(`  ${c.season} ${c.code} ${c.videoId}: left out, ${problems.join("; ")}`); else good.push(c);
   }
-  for (const chunk of chunkRows(good)) {
-    const d = clipsDelta(chunk, live);
-    openPr({
-      file: CLIPS_FILE, rows: chunk, branch: `${BRANCH}clips-${branchStamp}-${chunk[0].code}`, what: `first-frame checks for ${d.events.join(", ")}`,
-      title: `Clips: first-frame checks, ${d.pulled} pulled, ${d.ok} confirmed (${d.events.length} events)`,
-      body: [
-        `Swept by the clip autopilot (\`scripts/video-frames.ts --clips\`): each clip the live site plays from the clock, read paused at its first second. ${d.ok} name their own match (ok), ${d.pulled} name another match (pulled: never served), ${d.unconfirmed} name none (still served, read again next sweep).`,
-        "", "Every row passed `clipCheckProblems` against main's: a pull only where the frame names a different match; no clip in two states; what main's row settled kept (a pull lifts only on a frame naming the match, an ok goes only on one naming another).",
-        "", ...d.pulledList.map((x) => `- pulled: ${x}`),
-      ],
-      marker: prMarker(0, chunk, CLIPS_FILE), entry: clipsEntry(d, today),
-    });
-  }
+  for (const chunk of chunkRows(good)) openPr({ file: CLIPS_FILE, rows: chunk, branch: `${BRANCH}clips-${branchStamp}-${chunk[0].code}`, ...clipsText(chunk, live) });
 }
 log("done");
