@@ -344,7 +344,8 @@ export async function record(v: WatchVideo, ch: Pick<ChannelRow, "channelId" | "
 }
 
 /** The rows one verdict writes: the watcher's row, and for an add the dead recordings it replaces and its own. An
- *  existing row in review or set aside is overwritten only by an add, or with reopen (a lost add sent to review). */
+ *  existing row in review, set aside or logged as a duplicate is overwritten only by an add (the audit deciding it
+ *  again: a duplicate whose day's video has gone), or with reopen (a lost add sent to review). */
 function verdictWrites(v: WatchVideo, ch: Pick<ChannelRow, "channelId" | "title">, verdict: WatchVerdict, published: string | null, now: number, by: "watcher" | "channel audit", reopen = false): { sql: string; args: (string | number | null)[] }[] {
   const at = new Date(now).toISOString();
   // An event the verdict names, else (in review or set aside) the best guess: the owner's form starts from it.
@@ -357,7 +358,7 @@ function verdictWrites(v: WatchVideo, ch: Pick<ChannelRow, "channelId" | "title"
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(video_id) DO UPDATE SET status = excluded.status, season = excluded.season, code = excluded.code, day = excluded.day, part = excluded.part,
             why = excluded.why, start = excluded.start, duration = excluded.duration, decided_at = excluded.decided_at, decided_by = excluded.decided_by
-          WHERE ${reopen ? "" : "excluded.status = 'added' AND "}official_watch.status IN ('pending', 'ignored')`,
+          WHERE ${reopen ? "" : "excluded.status = 'added' AND "}official_watch.status IN ('pending', 'ignored', 'duplicate')`,
     args: [v.videoId, ch.channelId, v.title, v.start, published, v.durationS, status, ev?.season ?? null, ev?.code ?? null, day, part, verdict.why, verdict.guess?.why ?? null, at, verdict.kind === "add" ? at : null, verdict.kind === "add" ? by : null] as (string | number | null)[],
   }];
   // The day's slot held only by recordings YouTube no longer plays (settle let it through): those come off first. Each
