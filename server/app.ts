@@ -1123,9 +1123,9 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
     // engine's renderer, which caches scripts for weeks) asks for the chunks of the release that drew it, and only the
     // three newest releases stay on disk. The deploy keeps every release's hashed files for 30 days in
     // shared/assets-archive, linked into each release as .assets-archive (deploy/oracle-vm-setup.sh). Without it the
-    // chunk is a 404 and the page renders empty: Googlebot's render then reads as a soft 404.
-    const archive = opts.assetArchive ?? join(process.cwd(), ".assets-archive");
-    if (existsSync(archive)) app.use("/assets", express.static(archive, { immutable: true, maxAge: "1y" }));
+    // chunk is a 404 and the page renders empty: Googlebot's render then reads as a soft 404. Always mounted: a
+    // folder that isn't there (yet) just falls through to the 404, and one made after start is served from then on.
+    app.use("/assets", express.static(opts.assetArchive ?? join(process.cwd(), ".assets-archive"), { immutable: true, maxAge: "1y" }));
     // The service worker and its file list must never be served stale.
     for (const f of ["sw.js"]) app.get(`/${f}`, (_req, res) => { res.setHeader("Cache-Control", "no-cache"); res.sendFile(join(dist, f)); });
     app.use(express.static(dist, { index: false, maxAge: "1h" }));
