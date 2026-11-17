@@ -91,7 +91,9 @@ const tokens = (slug: string) => slug.split("-").filter((t) => t && t !== "confe
 export function matchConference(words: string[], list: Stored[]): { hits: Stored[]; lead: string[] } {
   for (let n = words.length; n >= 1; n--) {
     const said = words.slice(words.length - n).map((w) => w.toLowerCase());
-    const fit = (c: Stored) => Math.min(...c.aliases.map((a) => { const t = tokens(a); return said.every((w) => t.includes(w)) ? t.length - said.length : Infinity; }));
+    // A possessive ("east bergen's", read as "bergens") is its word too.
+    const has = (t: string[], w: string) => t.includes(w) || (w.length > 3 && w.endsWith("s") && t.includes(w.slice(0, -1)));
+    const fit = (c: Stored) => Math.min(...c.aliases.map((a) => { const t = tokens(a); return said.every((w) => has(t, w)) ? t.length - said.length : Infinity; }));
     const hits = list.filter((c) => fit(c) !== Infinity);
     if (hits.length) {
       const best = Math.min(...hits.map(fit));
@@ -143,8 +145,10 @@ async function nextOf(c: Stored, list: Stored[]): Promise<StatBlock | null> {
   if (!n) return null;
   const d = await conferenceByEvent(n.season, n.code);
   if (!d || d.status === "finished") return null;
+  // One under way is now, not next.
+  const now = d.status === "live";
   const regs = d.registered ? `, ${teams(d.registered.count)} registered via FTC New Jersey (fetched ${asOfDate(d.registered.fetchedAt)})` : d.teamsFrom === "field" ? `, ${d.rows.length} teams on FIRST's list` : "";
-  return { kind: "links", title: `Next: ${d.name}, ${seasonLabel(d.season)}`, items: [{ label: `${asOfDate(d.start) ?? "Date to be set"} · ${leagueTitle(d.leagueName, d.league)}${regs}`, href: conferenceHref(d.season, d.region, d.league, { slug: d.slug }) }] };
+  return { kind: "links", title: `${now ? "Under way now" : "Next"}: ${d.name}, ${seasonLabel(d.season)}`, items: [{ label: `${now ? "Under way" : asOfDate(d.start) ?? "Date to be set"} · ${leagueTitle(d.leagueName, d.league)}${regs}`, href: conferenceHref(d.season, d.region, d.league, { slug: d.slug }) }] };
 }
 
 const base = (season: number) => ({
@@ -169,10 +173,11 @@ export async function conferenceAskAnswer(ask: ConferenceAsk, current: number): 
   if (ask.words.length && !hits.length && team == null) return null;
   if (lead.length && team == null) return null;
 
-  const finished = async (cands: Stored[]) => {
+  // The latest edition in a state (finished, else one under way), newest first.
+  const latestIn = async (cands: Stored[], status: "finished" | "live") => {
     for (const c of [...cands].sort((a, b) => b.season - a.season || (b.start ?? "").localeCompare(a.start ?? ""))) {
       const d = await conferenceByEvent(c.season, c.code);
-      if (d && d.status === "finished") return { c, d };
+      if (d && d.status === status) return { c, d };
     }
     return null;
   };
@@ -288,7 +293,7 @@ export async function conferenceAskAnswer(ask: ConferenceAsk, current: number): 
     return { ...base(ambiguous[0].season), title: "Which conference?", blocks: [{ kind: "links", title: `Which conference? More than one is called "${ask.words.join(" ")}"`,
       items: ambiguous.map((c) => ({ label: `${c.name} · ${seasonLabel(c.season)}`, href: conferenceHref(c.season, c.region, c.league, { slug: c.slug }), sub: `${leagueTitle(c.leagueName, c.league)}` })) }] };
   }
-  const got = season != null ? { c: pickC[0], d: await conferenceByEvent(pickC[0].season, pickC[0].code) } : (await finished(pickC)) ?? (() => {
+  const got = season != null ? { c: pickC[0], d: await conferenceByEvent(pickC[0].season, pickC[0].code) } : (await latestIn(pickC, "finished")) ?? (await latestIn(pickC, "live")) ?? (() => {
     const c = [...pickC].sort((a, b) => b.season - a.season)[0];
     return { c, d: null as null | Awaited<ReturnType<typeof conferenceByEvent>> };
   })();
