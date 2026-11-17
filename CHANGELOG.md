@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.2.9 — 2026-11-17
+
+Videos › the frame reader now reads CENTERSTAGE (2023) recordings, whose overlay it couldn't read before, so their matches can get clips.
+
+### Highlights
+- [fixes] 2023 recordings can be read for match clips
+- [fixes] Score bars at the top of the screen are found too
+- [fixes] Uploaded recordings find their first match sooner
+
+### Fixed
+- Videos (`scripts/video-frames.ts`, `scripts/lib/videoFrames.ts`): CENTERSTAGE's (2023) recordings read no match at all. A busy frame loses FTC Live's bar in a whole-frame read, so placement reads now fall back on the bar's row read on its own, at its usual height or 8 px lower, as clip openings already did. Where none of the known crops holds the timer, the score bar is found by its alliance colours wherever the stream put it (Arizona's flush-top bar in dark navy and maroon), and its timer and the row over it are read there. An upload's scan steps a minute on, up to three times, past a frame naming a match not yet running. Measured on dry runs: NLBNM1 0 → 22 of 23 placed, USTXNTM1 0 → 10 of 17 (Q1–Q7 come before the video), USAZGIQ 0 → 37 of 38, each opening naming its match (#1655).
+
 ## 7.2.8 — 2026-11-17
 
 Videos › the frame-read match starts are kept one file a season, so a season's recordings can be read alongside another's; every clip plays as before.
