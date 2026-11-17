@@ -36,7 +36,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
 import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, playedCount, playedMatches, wholeLength } from "./lib/videoFrames";
-import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, cropOrder, elapsed, flippedClip, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M } from "./lib/videoFrames";
+import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, cropOrder, elapsed, flippedClip, overlayDivision, overlayEvent, leadIn, judge, lookAgain, NOTHING_READ, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M } from "./lib/videoFrames";
 
 // The command line: --name value or --name=value for the value flags, --name alone for the others. Anything else stops
 // the run before it reads: a misspelt flag mustn't quietly read (and write) every recording of the season.
@@ -802,6 +802,14 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
     for (let i = firstSeen - 1; i >= 0 && Number.isFinite(firstSeen) && !blind() && reads() < budget; i--) if ((await anchor(i)) == null) break;
   };
   await before();
+  // Once the reads place the video: each misread looked for again where its neighbours put it (kept if nothing better is
+  // read, for judge to drop), then the matches after the last read, until one can't be read (lookAgain).
+  const again = async () => {
+    const { misread, trailing } = lookAgain(ms, seen, shift, length);
+    for (const i of misread) { const was = seen.get(i)!; seen.delete(i); if ((await anchor(i)) == null && !seen.has(i)) seen.set(i, was); }
+    for (const i of trailing) if (!seen.has(i) && (await anchor(i)) == null) break;
+  };
+  await again();
   if (blind() && shift != null) {
     await scan();
     if (seen.size) {
@@ -810,6 +818,7 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
       missed = 0;
       await span(0, ms.length - 1);
       await before();
+      await again();
     }
   }
   if (blind()) log(`    no overlay read in ${reads()} frames`);
