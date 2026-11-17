@@ -34,7 +34,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
 import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, playedCount } from "./lib/videoFrames";
-import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, elapsed, overlayDivision, leadIn, judge, NOTHING_READ, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M } from "./lib/videoFrames";
+import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, elapsed, overlayDivision, leadIn, judge, NOTHING_READ, onSwitch, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M } from "./lib/videoFrames";
 
 // The command line: --name value or --name=value for the value flags, --name alone for the others. Anything else stops
 // the run before it reads: a misspelt flag mustn't quietly read (and write) every recording of the season.
@@ -407,7 +407,20 @@ async function checkOpenings(page: Page, j: Judged, log: (s: string) => void, un
       if (r.division === "other") { named = "another division's match"; continue; }
       // The overlay names a replay (a tiebreak's "M6-2") by its match alone ("M6"), as placeVideo reads it; a
       // semifinal's match by its series and number ("M1-2"), that match only (sameMatch).
-      if (sameMatch(r.label ?? "", label)) { at = t; break; }
+      if (sameMatch(r.label ?? "", label)) {
+        // On the overlay's switch to it (a second before names another match): not this lead; the next one in. Only for
+        // the leads of 5 s or more: the 2 and 0 s leads are for a results card that stays up until the match's own
+        // overlay comes on (CAONMIQ 2025 M7), where the second before names the match before by design.
+        if (lead > 2 && t >= 1) {
+          let before: Read | null = null;
+          try { before = await readAt(page, t - 1, true); } catch { /* unread: no switch seen */ }
+          if (before && Math.abs(before.at - (t - 1)) <= 1 && onSwitch(before.division === "other" ? null : before.label, label)) {
+            log(`    ${label}: its ${lead} s lead sits on the overlay's switch from ${eventLabel(before.label!)}; trying the next lead`);
+            continue;
+          }
+        }
+        at = t; break;
+      }
       if (r.label) named = eventLabel(r.label);
     }
     if (at != null) { j.opens.set(label, at); continue; }
