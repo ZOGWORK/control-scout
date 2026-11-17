@@ -33,6 +33,7 @@ import { championshipMatchesAnswer, eventScopeAnswer, matchLabelAnswer } from ".
 import { eventAnswer } from "./families/events.js";
 import { factAnswer, readTeamFact, seasonOf as factSeason, type FactQuestion } from "./families/facts.js";
 import { leagueAskAnswer, readLeagueAsk } from "./families/league.js";
+import { conferenceAskAnswer, readConferenceAsk } from "./families/conference.js";
 import { OPR_RATING_TITLES, oprRatingAnswer, readOprRating, type OprRatingQuestion } from "./families/oprRating.js";
 import { readOverview } from "./families/overview.js";
 import { counts, matchAnswer, whoOf } from "./families/matches.js";
@@ -393,6 +394,19 @@ export async function leagueSearch(q: string, opts: { full: boolean; pages: Sear
   if (stat.none && season <= askSeason()) return null;
   return { q, hits: [], pages: opts.pages, step: "deterministic", weak: false, understood: { kind: "question", label: stat.title, season },
     intent: { kind: "stat-league-standings", pattern: `[league] standings${la.season != null ? " [season]" : ""}`, met: true, understood: [stat.title] }, ...(opts.full ? { stat } : {}) };
+}
+
+/** A New Jersey conference asked ("4215 conference ranking", "East Bergen Conference rankings", "who won East Bergen
+ *  Conference"): its table by league standing, a team's place in it, or its winner from the awards (./families/
+ *  conference.ts). Null when the words name no stored conference and no team's: left to the other readers. */
+export async function conferenceSearch(q: string, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
+  const ca = readConferenceAsk(q);
+  if (!ca) return null;
+  const stat = await conferenceAskAnswer(ca, askSeason());
+  if (!stat) return null;
+  const season = Number(/^(\d{4})/.exec(stat.scope[0] ?? "")?.[1]) || askSeason();
+  return { q, hits: [], pages: opts.pages, step: "deterministic", weak: false, understood: { kind: "question", label: stat.title, season },
+    intent: { kind: "stat-conference", pattern: `${ca.team != null ? "[team] " : ""}[conference] ${ca.won ? "winner" : "ranking"}${ca.season != null ? " [season]" : ""}`, met: true, understood: [stat.title] }, ...(opts.full ? { stat } : {}) };
 }
 
 /** The answer for `q`, or null when it isn't a stat question or its team isn't found. */
