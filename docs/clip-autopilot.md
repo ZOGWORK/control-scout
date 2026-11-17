@@ -56,7 +56,7 @@ when nothing stops it (`scripts/lib/autopilotMerge.ts`):
   frame between was clear; no video already filed under another season; starts in order within each group (quals,
   each semifinal series, a double-elimination bracket with replays after their own match, finals). A sweep PR keeps
   the sweep's rules (`clipCheckProblems`);
-- main's last commit is at least 10 minutes old (every merge deploys).
+- main's last commit is at least 605 s old (every merge deploys; the same spacing the main driver keeps).
 
 It merges with `gh pr merge --merge --match-head-commit <head>` (never deleting the branch), then waits up to 20
 minutes for `/api/health` to serve the merge. A PR the gate stops waits, its reasons in the run's log, for the next
