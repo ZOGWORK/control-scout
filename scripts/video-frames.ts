@@ -36,7 +36,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
 import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, playedCount, playedMatches, wholeLength } from "./lib/videoFrames";
-import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, cropOrder, elapsed, flippedClip, overlayDivision, overlayEvent, leadIn, undetailed, judge, NOTHING_READ, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M } from "./lib/videoFrames";
+import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, cropOrder, elapsed, flippedClip, overlayDivision, overlayEvent, leadIn, undetailed, UNDETAILED_EXIT, judge, NOTHING_READ, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M } from "./lib/videoFrames";
 
 // The command line: --name value or --name=value for the value flags, --name alone for the others. Anything else stops
 // the run before it reads: a misspelt flag mustn't quietly read (and write) every recording of the season.
@@ -1251,10 +1251,11 @@ if (failedEvents) { console.error(`${failedEvents} events failed before their vi
 // Videos that couldn't be played are written as such and read again on the next run, but this run didn't finish them.
 if (failedVideos) { console.error(`${failedVideos} videos couldn't be played (written with the reason; the next run reads them again)`); process.exitCode = 1; }
 // Linked recordings skipped (undetailed): counted by kind. Only an event left with nothing to read for want of details
-// a fetch would give fails the run; one whose only video is removed, private or still live is said, never failed.
+// a fetch would give is flagged in the exit, and with its own code (UNDETAILED_EXIT), not 1: the read ran, so a caller
+// (clip-autopilot's readFailed) doesn't take it for a crash. Any real failure above or below still exits 1.
 if (undetailedVideos) console.error(`${undetailedVideos} linked recordings skipped: no details on file, or the fetch failed (fetch them, then read again)`);
-if (unreadableVideos) console.error(`${unreadableVideos} linked recordings not read: unavailable on YouTube or still live (said per event above)`);
-if (undetailedEvents.length) { console.error(`${undetailedEvents.join(", ")}: no linked recording could be read for want of details`); process.exitCode = 1; }
+if (unreadableVideos) console.error(`${unreadableVideos} linked recordings not read: removed or private on YouTube, or no length (a live stream the player can't time) (said per event above)`);
+if (undetailedEvents.length) { console.error(`${undetailedEvents.join(", ")}: no linked recording could be read for want of details (exit ${UNDETAILED_EXIT})`); if (!process.exitCode) process.exitCode = UNDETAILED_EXIT; }
 if (!CHECK && !DRY) {
   // The last save may have failed with no save after it (retried above): the run then says so and fails.
   if (unsaved) { console.error(`${FRAMES_FILE} could not be written: this run's timings are lost`); process.exitCode = 1; }
