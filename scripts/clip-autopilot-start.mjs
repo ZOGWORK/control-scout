@@ -31,7 +31,17 @@ const git = (...args) => { if (run("git", args, { timeout: 600_000 })) { log(`gi
 // start and the scheduled task died with nothing logged (2026-11-17: under 1 GB free, exit 0xC000013A). So it waits,
 // checking each minute, until enough is free, and after WAIT_MIN_MS gives up this run (the next one tries again).
 const MIN_FREE_MB = Number(process.env.AUTOPILOT_MIN_FREE_MB ?? 3072), WAIT_MIN_MS = Number(process.env.AUTOPILOT_MEM_WAIT_MIN ?? 30) * 60_000;
-const freeMb = () => Math.round(freemem() / 2 ** 20);
+/** Memory a run can have, in MB. macOS counts only pages nobody has touched as free (freemem() is a few hundred MB on
+ *  an idle Mac): there, what it can take back at once counts too, from vm_stat (free, inactive, speculative, purgeable). */
+function freeMb() {
+  if (process.platform === "darwin") {
+    const r = spawnSync("vm_stat", { encoding: "utf8", timeout: 10_000 });
+    const page = Number(/page size of (\d+) bytes/.exec(r.stdout ?? "")?.[1]);
+    const pages = (k) => Number(new RegExp(`Pages ${k}:\\s+(\\d+)`).exec(r.stdout ?? "")?.[1] ?? 0);
+    if (r.status === 0 && page) return Math.round(((pages("free") + pages("inactive") + pages("speculative") + pages("purgeable")) * page) / 2 ** 20);
+  }
+  return Math.round(freemem() / 2 ** 20);
+}
 if (freeMb() < MIN_FREE_MB) {
   log(`${freeMb()} MB free, under ${MIN_FREE_MB}: waiting`);
   const until = Date.now() + WAIT_MIN_MS;
@@ -39,6 +49,11 @@ if (freeMb() < MIN_FREE_MB) {
   if (freeMb() < MIN_FREE_MB) { log(`still ${freeMb()} MB free after ${WAIT_MIN_MS / 60_000} min: no run`); process.exit(0); }
   log(`${freeMb()} MB free: starting`);
 }
+// Lanes (a browser and OCR each) by the room there is: 3 with more than LANES3_MB free, else 2. The runner passes it
+// to the reader (AUTOPILOT_LANES); set it to choose.
+const LANES3_MB = 6144;
+if (!process.env.AUTOPILOT_LANES) process.env.AUTOPILOT_LANES = freeMb() > LANES3_MB ? "3" : "2";
+log(`${freeMb()} MB free: ${process.env.AUTOPILOT_LANES} lanes`);
 
 // --- One run at a time ----------------------------------------------------------------------------------------------
 /** A lock a killed run left (shutdown, power cut, the task stopped): its process is gone, or it's older than any run. */
