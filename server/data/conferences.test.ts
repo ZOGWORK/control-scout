@@ -109,6 +109,24 @@ describe("conference tables", () => {
     expect(await leagueConferences(2025, "USNJ", "ZZ")).toBeNull();
   });
 
+  it("counts a finished conference's moves by Scout rating among its own teams, the tournament's week against the week before", async () => {
+    await syncConferences(2025, { now: new Date("2026-11-16T12:00:00Z") });
+    // World ranks in two saved weeks; only East Bergen's teams count, renumbered among themselves.
+    const weeks: [string, [number, number, number][]][] = [
+      ["2026-02-23", [[1, 9999, 60], [2, 6980, 50], [3, 4215, 40], [4, 23717, 30]]],
+      ["2026-03-02", [[1, 4215, 55], [2, 9999, 52], [3, 6980, 45], [4, 23717, 31], [5, 18155, 20]]],
+    ];
+    for (const [week, list] of weeks) {
+      await run("INSERT INTO ranking_weeks (season, week, teams, taken_at) VALUES (2025, ?, ?, ?)", [week, list.length, `${week}T01:00:00Z`]);
+      for (const [rank, team, rating] of list) await run("INSERT INTO ranking_snapshots (season, week, team, rank, rating) VALUES (2025, ?, ?, ?, ?)", [week, team, rank, rating]);
+    }
+    const eb = (await leagueConferences(2025, "USNJ", "NO", { now: "2026-11-16" }))!.conferences[1];
+    expect(eb.moves).toEqual({ week: "2026-03-02", baseline: "2026-02-23" });
+    const by = new Map(eb.rows.map((r) => [r.team, [r.ratingRank, r.move, r.trend]]));
+    // In the conference: 6980 1st → 2nd, 4215 2nd → 1st, 23717 3rd → 3rd, 18155 new; 30680 unrated, no move.
+    expect([by.get(4215), by.get(6980), by.get(23717), by.get(18155), by.get(30680)]).toEqual([[1, 1, "up"], [2, -1, "down"], [3, 0, "flat"], [4, "new", null], [null, null, null]]);
+  });
+
   it("ranks East Bergen's field by the league standing, with the unranked team last and no number made up", async () => {
     await syncConferences(2025, { now: new Date("2026-11-16T12:00:00Z") });
     const d = await leagueConferences(2025, "usnj", "no", { now: "2026-11-16" });
@@ -137,7 +155,7 @@ describe("conference tables", () => {
     await syncConferences(2025, { now: new Date("2026-11-16T12:00:00Z") });
     expect(await teamConference(2025, 4215, { now: "2026-11-16" })).toEqual({
       season: 2025, region: "USNJ", league: "NO", code: "USNJNOLT2", name: "East Bergen Conference", slug: "east-bergen-conference",
-      rank: 4, of: 8, ranked: 7, leagueRank: 12, leagueOf: 8, available: true, href: "/leagues/2025/USNJ/NO?conference=east-bergen-conference&team=4215#conferences",
+      rank: 4, of: 8, ranked: 7, leagueRank: 12, leagueOf: 8, available: true, href: "/leagues/2025/USNJ/NO/conferences?conference=east-bergen-conference&team=4215",
     });
     expect(await teamConference(2025, 30680, { now: "2026-11-16" })).toMatchObject({ rank: null, leagueRank: null });
     expect(await teamConference(2025, 14450, { now: "2026-11-16" })).toBeNull();
@@ -201,7 +219,7 @@ describe("conference tables", () => {
   });
 
   it("links to the league page's conference section, and orders like FIRST", () => {
-    expect(conferenceHref(2026, "USNJ", "NE", { slug: "hudson-east-bergen-conference", team: 4215 })).toBe("/leagues/2026/USNJ/NE?conference=hudson-east-bergen-conference&team=4215#conferences");
+    expect(conferenceHref(2026, "USNJ", "NE", { slug: "hudson-east-bergen-conference", team: 4215 })).toBe("/leagues/2026/USNJ/NE/conferences?conference=hudson-east-bergen-conference&team=4215");
     expect([1, 2, 3, 4, 11, 12, 13, 21, 22, 23, 101].map(ordinal)).toEqual(["1st", "2nd", "3rd", "4th", "11th", "12th", "13th", "21st", "22nd", "23rd", "101st"]);
     expect(CONFERENCE_LABEL).toBe("League meets only — excludes this tournament.");
   });
