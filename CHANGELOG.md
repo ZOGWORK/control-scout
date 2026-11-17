@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 7.3.2 — 2026-11-17
+## 7.3.1 — 2026-11-17
 
 Videos › 168 more 2024 matches play as clips: the Australian Championship in full, South Australia, North Scarborough and the Carolinas Premier Event.
 
@@ -26,6 +26,18 @@ Videos › 168 more 2024 matches play as clips: the Australian Championship in f
 
 ### Added
 - Frame-read match starts for 6 more 2024 recordings (5 events), each start checked against two timer reads and each clip's opening against a paused frame naming its match: AUCMP 77 of 77 played matches (two days), CAONSCQ2 50 of 55 (4 to review, 1 missing), FPECA 31 of 71 (the linked recording is Day 2), AUTOQ 10 of 24 (Q11–Q24 have no confirmed frame read yet), and CABCSUQ1's recording checked (its 2 readable matches had no confirmed start). (`server/data/frameTimings/2024.ts`) (#1663)
+
+## 7.3.0 — 2026-11-17
+
+Event videos › a recording blocked in every country no longer gets clips, and when an event's video goes dead, the channel's own copy of that day takes its place.
+
+### Highlights
+- [fixes] No more match clips that open a video blocked where its event is
+- [fixes] A dead event video is replaced by the channel's own copy of that day
+- [history] KZALOS1 gets its 2026-06-30 Almaty Tech Cup recording
+
+### Fixed
+- Event videos: a video whose region rules stop its viewers is unavailable: blocked in (nearly) every country, where the watch page says "Video unavailable" to everyone, or in the country its event is in. One that plays in its event's country keeps its clips, however many other countries block it. With the API key, a video that plays is read again weekly, so one deleted or blocked since loses its clips within a week. An upload the watcher logged as a duplicate of what its event played that day is decided again by every channel audit: once nothing plays that day (the other video went private, was deleted or came off the event) and every check passes, it is the day's recording. On a copy of the live database: 135 clips on 5 recordings blocked in every country come off; USAZGLQ1, AUINQ and FPECAR are fully clipped once their facts are read again; the audit adds KZALOS1's "Прямая трансляция Almaty Tech Cup 2026" for 2026-06-30, with 0 in review and 0 open findings. (`server/videos/youtube.ts`, `server/videos/recordings.ts`, `server/videos/officialAudit.ts`, `server/videos/officialWatch.ts`) (#1653)
 
 ## 7.2.9 — 2026-11-17
 
