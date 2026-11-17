@@ -359,10 +359,13 @@ describe("notOthers: another event's official recording", () => {
   });
   it("keeps a division's recording on its parent, never on a sibling division", () => {
     const parent = { season: 2022, code: "USAZCMP", name: "Arizona Championship", venue: "Arena", start: "2023-02-25" };
-    const sibling = { ...parent, code: "USAZCMPSG23", name: "Arizona Championship - Saguaro Division", venue: "Hall B" };
-    const gc = new Map<string, Owner>([["vid", { key: "2022/USAZCMPGC23", parent: "2022/USAZCMP", name: "Arizona Championship - Grand Canyon Division", venue: "Hall A", day: "2023-02-25" }]]);
+    // Divisions share their championship's day and building, as in FIRST's data.
+    const sibling = { ...parent, code: "USAZCMPSG23", name: "Arizona Championship - Saguaro Division", parent: "USAZCMP" };
+    const gc = new Map<string, Owner>([["vid", { key: "2022/USAZCMPGC23", parent: "2022/USAZCMP", name: "Arizona Championship - Grand Canyon Division", venue: "Arena", day: "2023-02-25" }]]);
     expect(notOthers([b("Arizona Championship - Grand Canyon Division")], parent, gc)).toHaveLength(1);
+    // A sibling division at the same venue, the same day: still off, whatever its title or venue says.
     expect(notOthers([b("Arizona Championship - Grand Canyon Division")], sibling, gc)).toEqual([]);
+    expect(notOthers([b("Arizona Championship - Grand Canyon and Saguaro Divisions")], sibling, gc)).toEqual([]);
   });
 });
 
