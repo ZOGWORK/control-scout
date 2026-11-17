@@ -71,15 +71,16 @@ export function ClipCoveragePanel() {
   const [bulk, setBulk] = useState<Bulk | null>(null);
   // Chips of one kind only (a reason tile pressed), or every kind.
   const [only, setOnly] = useState<MissKind | null>(null);
-  // Events marked reviewed here, off the screen before the server answers (back if it says no).
-  const [gone, setGone] = useState<ReadonlySet<string>>(new Set());
+  // Events marked reviewed here, by the missing list's version they were marked at: off the open lists before the server
+  // answers (back if it says no), and back on them if that list changes (a new version, opened again). Never off Reviewed.
+  const [gone, setGone] = useState<ReadonlyMap<string, string>>(new Map());
   const done = () => setRound((x) => x + 1);
   const review = (e: OwnerCoverageEvent) => {
     const k = eventKey(e);
     void optimistic<OwnerClipCoverage>({
       key: `clip-coverage/${k}`,
       what: `${e.code} marked reviewed`,
-      apply: () => { setGone((s) => new Set(s).add(k)); return () => setGone((s) => { const x = new Set(s); x.delete(k); return x; }); },
+      apply: () => { setGone((s) => new Map(s).set(k, e.version)); return () => setGone((s) => { const x = new Map(s); x.delete(k); return x; }); },
       send: () => apiFetch<OwnerClipCoverage>(`${PATH}/${e.season}/${encodeURIComponent(e.code)}/reviewed`, { method: "POST", json: { version: e.version } }),
       reconcile: changed,
     }).then((r) => { if (r.ok) toast.success(`${e.code} marked reviewed`); else markStale(PATH); });
@@ -284,14 +285,14 @@ function Findings({ findings, only }: { findings: CoverageFinding[]; only: MissK
 
 /** A list's first page, then "Show more" for the next ones (50 at a time), so no event is out of reach. */
 function Pages({ first, total, list, gone, only, findings, onReview }: {
-  first: OwnerClipCoverage; total: number; list: List; gone: ReadonlySet<string>; only: MissKind | null; findings: CoverageFinding[]; onReview: (e: OwnerCoverageEvent) => void;
+  first: OwnerClipCoverage; total: number; list: List; gone: ReadonlyMap<string, string>; only: MissKind | null; findings: CoverageFinding[]; onReview: (e: OwnerCoverageEvent) => void;
 }) {
   const [more, setMore] = useState<OwnerCoverageEvent[]>([]);
   const [busy, setBusy] = useState(false);
   // An event that moved between lists while paging (reviewed elsewhere) is shown once.
   const all = [...first.events, ...more].filter((e, i, a) => a.findIndex((x) => x.season === e.season && x.code === e.code) === i);
   const byLabel = useMemo(() => new Map(findings.map((f) => [`${eventKey(f)}/${f.label}`, f])), [findings]);
-  const shown = all.filter((e) => !gone.has(eventKey(e)));
+  const shown = list === "reviewed" ? all : all.filter((e) => gone.get(eventKey(e)) !== e.version);
   const next = async () => {
     setBusy(true);
     const last = all[all.length - 1];
