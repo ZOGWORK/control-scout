@@ -35,7 +35,7 @@
 //   TESSERACT_JS=<path to tesseract.js's entry>  where tesseract.js is, when it isn't in node_modules
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
-import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, playedCount, playedMatches, wholeLength } from "./lib/videoFrames";
+import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, enteredLater, playedCount, playedMatches, wholeLength } from "./lib/videoFrames";
 import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, cropOrder, elapsed, flippedClip, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M } from "./lib/videoFrames";
 
 // The command line: --name value or --name=value for the value flags, --name alone for the others. Anything else stops
@@ -1040,6 +1040,14 @@ async function doCode(code: string): Promise<void> {
   // A match FIRST gives only its scheduled time for (2019's qualifications) is read too, by its frames alone (M.scheduled):
   // its time orders it among the others and places nothing.
   // A match with no time at all is read the same way, after the timed ones in its label's order (playedMatches).
+  // Results entered after the fact (enteredLater): their times place nothing, so the matches are read by their frames
+  // alone, as an event FIRST gives no times for is.
+  const [days] = await all<{ start: string | null; end: string | null }>("SELECT start, end FROM events WHERE season = ? AND code = ?", [season, code]);
+  const windows = [rec, ...(rec.more ?? [])].map((v) => ({ start: v.meta?.start ? Date.parse(v.meta.start) : null, end: v.meta?.end ? Date.parse(v.meta.end) : null }));
+  if (enteredLater(rows, days ?? null, windows, localToUtcMs)) {
+    report.push(`${code}: every match time is outside the event's dates and its videos (results entered later): read by its frames alone`);
+    for (const r of rows) r.time = null;
+  }
   const played = playedMatches(rows, { utcMs: localToUtcMs, actual: actualStart, rank: labelRank });
   // A played match with no time the clock can place (the event has no timezone) can't be read: said, not skipped quietly.
   const timeless = rows.length - played.length;
