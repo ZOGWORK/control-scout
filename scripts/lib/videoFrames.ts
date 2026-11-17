@@ -155,9 +155,9 @@ const MATCH_PHRASE = /Qualification\s+\d{1,3}\s+of\s+(\d{1,3})|(?:Playoff\s+|Fin
  *   own way ("…n Division Michiana Premier Event -", "Austin Semi-Area Championship" for FiT-Central Semi-Area
  *   Championship Austin), so a name is another event's only where at least two of its telling words are read and fewer
  *   than half of them are this event's (a cut word matching the start or end of one).
- * On a split screen the half that is this event's gives its match: `label`.
+ * On a split screen the half that is this event's gives its match (`label`); `phrase`, the match beside its name.
  */
-export function overlayEvent(text: string, own: string, quals?: number): { event: "own" | "other" | null; label?: string } {
+export function overlayEvent(text: string, own: string, quals?: number): { event: "own" | "other" | null; label?: string; phrase?: string } {
   const mine = words(own);
   const verdict = (name: string): "own" | "other" | null => {
     const read = words(name);
@@ -165,11 +165,10 @@ export function overlayEvent(text: string, own: string, quals?: number): { event
     if (read.length >= 2 && hit * 2 < read.length) return "other";
     return hit ? "own" : null;
   };
-  let other = false, ownLabel: string | undefined, ownSeen = false, phrases = 0;
+  let other = false, ownLabel: string | undefined, ownSeen = false;
   for (const line of text.split("\n")) {
     let from = 0;
     for (const m of line.matchAll(MATCH_PHRASE)) {
-      phrases++;
       const total = m[1] != null ? Number(m[1]) : null;
       const name = verdict(line.slice(from, m.index));
       // A name read decides; with none, the total (a schedule changed after the db was read can't drop a named frame).
@@ -179,8 +178,11 @@ export function overlayEvent(text: string, own: string, quals?: number): { event
       if (v === "own" && !ownSeen) { ownSeen = true; ownLabel = overlayLabel(m[0]) ?? undefined; }
     }
   }
-  // With more than one match named (a split screen, its other half judged or not), this event's half says which is its.
-  if (ownSeen) return other || phrases > 1 ? { event: "own", ...(ownLabel ? { label: ownLabel } : {}) } : { event: "own" };
+  // `phrase`: the match this event's name stands beside (the bar's row, read on its own, has one line). `label`: that
+  // match, given for the whole frame only where another event's match is beside it too (a split screen). Several
+  // matches with no other event's among them stay overlayLabel's to judge: a bracket naming several names none.
+  const phrase = ownLabel ? { phrase: ownLabel } : {};
+  if (ownSeen) return other ? { event: "own", ...(ownLabel ? { label: ownLabel } : {}), ...phrase } : { event: "own", ...phrase };
   return { event: other ? "other" : null };
 }
 
