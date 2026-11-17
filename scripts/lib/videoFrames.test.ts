@@ -1,7 +1,7 @@
 // The pure parts of the frame reader (scripts/video-frames.ts): the overlay's match, the timer's elapsed time, and
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
-import { dataRows, divisionOf, cropOrder, elapsed, flippedClip, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, type M } from "./videoFrames";
+import { dataRows, divisionOf, cropOrder, elapsed, flippedClip, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, enteredLater, playedCount, playedMatches, wholeLength, type M } from "./videoFrames";
 
 describe("the frame reader", () => {
   // A 1280 × 720 frame: a grey field, and a score bar from `top` to `bottom` with one alliance's colour each side of the
@@ -559,5 +559,25 @@ describe("wholeLength", () => {
     expect(wholeLength(Infinity)).toBeNull();
     expect(wholeLength(NaN)).toBeNull();
     expect(wholeLength(0)).toBeNull();
+  });
+});
+
+describe("enteredLater", () => {
+  const utc = (t: string) => Date.parse(`${t}Z`);
+  const days = { start: "2026-04-24", end: "2026-04-25" };
+  const stream = [{ start: utc("2026-04-25T13:26:46"), end: utc("2026-04-25T21:01:16") }];
+  const at = (...ts: string[]) => ts.map((time) => ({ time, timezone: null }));
+  it("reads by frames alone when every match time is weeks off the event's dates and outside its videos (USMIAAS)", () => {
+    expect(enteredLater(at("2026-06-14T17:29:51", "2026-06-14T18:40:27"), days, stream, utc)).toBe(true);
+  });
+  it("keeps the times when any match falls in the event's dates, a day either side, or a video", () => {
+    expect(enteredLater(at("2026-06-14T17:29:51", "2026-04-25T15:00:00"), days, stream, utc)).toBe(false);
+    expect(enteredLater(at("2026-04-26T10:00:00"), days, stream, utc)).toBe(false);
+    expect(enteredLater(at("2026-04-23T10:00:00"), days, stream, utc)).toBe(false);
+    expect(enteredLater(at("2026-05-02T10:00:00"), days, [{ start: utc("2026-05-02T09:00:00"), end: null }], utc)).toBe(false);
+  });
+  it("needs times and dates to judge", () => {
+    expect(enteredLater([{ time: null, timezone: null }], days, stream, utc)).toBe(false);
+    expect(enteredLater(at("2026-06-14T17:29:51"), null, stream, utc)).toBe(false);
   });
 });
