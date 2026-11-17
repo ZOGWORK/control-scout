@@ -35,7 +35,7 @@
 //   TESSERACT_JS=<path to tesseract.js's entry>  where tesseract.js is, when it isn't in node_modules
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
-import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, playedCount } from "./lib/videoFrames";
+import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, playedCount, playedMatches } from "./lib/videoFrames";
 import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, elapsed, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M } from "./lib/videoFrames";
 
 // The command line: --name value or --name=value for the value flags, --name alone for the others. Anything else stops
@@ -78,7 +78,7 @@ const CHECK = flag("check"), ALL = flag("all"), DRY = flag("dry"), TRACE = flag(
 const { migrate, all } = await import("../server/db.js");
 await migrate();
 const R = await import("../server/videos/recordings.js");
-const { CLIP_LEAD_S, actualStart } = await import("../src/shared/recording.js");
+const { CLIP_LEAD_S, actualStart, labelRank } = await import("../src/shared/recording.js");
 const { localToUtcMs } = await import("../src/shared/time.js");
 const { localDate } = await import("../server/videos/officialVideos.js");
 const { frameStart } = await import("../server/data/frameTimings.js");
@@ -982,12 +982,12 @@ async function openOnce(page: Page, videoId: string): Promise<void> {
 
 async function doCode(code: string): Promise<void> {
   const rec = recs.get(code)!;
-  const rows = await all<{ label: string; time: string; timezone: string | null; played: number }>(
-    "SELECT m.label, m.time, e.timezone, m.played FROM matches m JOIN events e ON e.season = m.season AND e.code = m.code WHERE m.season = ? AND m.code = ? AND m.played = 1 AND m.time IS NOT NULL", [season, code]);
+  const rows = await all<{ label: string; time: string | null; timezone: string | null; played: number }>(
+    "SELECT m.label, m.time, e.timezone, m.played FROM matches m JOIN events e ON e.season = m.season AND e.code = m.code WHERE m.season = ? AND m.code = ? AND m.played = 1", [season, code]);
   // A match FIRST gives only its scheduled time for (2019's qualifications) is read too, by its frames alone (M.scheduled):
   // its time orders it among the others and places nothing.
-  const played = rows.map((r) => ({ label: String(r.label), time: String(r.time), epoch: (localToUtcMs(r.time, r.timezone) ?? NaN) / 1000, ...(actualStart(r.time) ? {} : { scheduled: true }) }))
-    .filter((m) => Number.isFinite(m.epoch)).sort((a, b) => a.epoch - b.epoch);
+  // A match with no time at all is read the same way, after the timed ones in its label's order (playedMatches).
+  const played = playedMatches(rows, { utcMs: localToUtcMs, actual: actualStart, rank: labelRank });
   // A played match with no time the clock can place (the event has no timezone) can't be read: said, not skipped quietly.
   const timeless = rows.length - played.length;
   if (timeless) report.push(`${code}: ${timeless} played matches not read: no timezone for the event, so their start can't be placed`);
@@ -1001,7 +1001,7 @@ async function doCode(code: string): Promise<void> {
   const ownDiv = ev ? divisionOf(ev.name) : null, others = siblings.map((x) => divisionOf(x.name));
   const division = ownDiv && others.length && others.every((x): x is string => x != null) ? { own: ownDiv, others: others as string[] } : null;
   const span = await R.eventMatchSpan(season, code);
-  const views = played.map((m) => ({ label: m.label, time: m.time, played: true, startsAt: new Date(m.epoch * 1000).toISOString(), clip: undefined as any }));
+  const views = played.map((m) => ({ label: m.label, time: m.time, played: true, startsAt: m.time == null ? null : new Date(m.epoch * 1000).toISOString(), clip: undefined as any }));
   // Without this script's own timings: what YouTube's facts alone give.
   // --clips: the clips the live site plays from the clock, checked by their first frame; nothing else.
   if (CLIPS) return checkClips(code, rec, views, span, division);
@@ -1021,7 +1021,8 @@ async function doCode(code: string): Promise<void> {
     if (m?.status !== "ok" || !m.length) return false;
     if (!m.start) return true;
     const a = Date.parse(m.start) / 1000, b = m.end ? Date.parse(m.end) / 1000 : Infinity;
-    return played.some((x) => a <= x.epoch && x.epoch <= b);
+    // A match with no time may be in any of the event's videos.
+    return played.some((x) => x.time == null || (a <= x.epoch && x.epoch <= b));
   };
   const rowOf = (v: (typeof own)[number]) => kept.get(`${v.videoId}|${code}`);
   const read = own.filter(holds).every((v) => { const f = rowOf(v); return f && !Object.values(f.missing ?? {}).some((w) => w.startsWith(PLAY_FAILED)); });
@@ -1049,8 +1050,9 @@ async function doCode(code: string): Promise<void> {
     // A match with only its scheduled time can't be put in a broadcast's window by it (2019IASQ4's Q1 "04:15" local,
     // its stream starting 11:00): it's in the event's only video, or in the one broadcast (or listed) on its day, the
     // venue's date (a Saturday 09:00 broadcast in Sydney starts on Friday in UTC).
+    // A match with no time at all (Chicago Robotics Invitational's results) may be in any of them: each video is walked.
     const day = v.day ?? (m.start ? localDate(m.start, rows[0]?.timezone) : undefined);
-    const mine = played.filter((x) => !held.has(x.label) && (x.scheduled ? videos.length === 1 || !day || x.time.slice(0, 10) === day
+    const mine = played.filter((x) => !held.has(x.label) && (x.scheduled ? x.time == null || videos.length === 1 || !day || x.time.slice(0, 10) === day
       : from == null ? !videos.some((o) => o !== v && inside(o, x.epoch))
       : (from <= x.epoch && (!m.end || x.epoch <= Date.parse(m.end) / 1000)) || lead(x)));
     // A video read well on an earlier run keeps its row: the event is back for another of its videos (a new link, one

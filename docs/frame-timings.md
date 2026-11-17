@@ -44,6 +44,13 @@ the first and last match a video holds, and the middle of any stretch whose ends
 about 2 log n reads. `judge` then keeps the longest run of reads that never rise (dropping misreads such as a replay
 or an overlay left on the previous match) and fills each stretch between two reads that agree.
 
+A match FIRST gives no real start for has no clock to place it by: a schedule's whole minute (2019's qualifications),
+or no time at all (results posted with none, as the Chicago Robotics Invitational's are). The video is walked a frame
+every few minutes and each such match is placed only where its own frames show it running; nothing is filled between
+them. A match with no time may be in any of the event's videos, and comes after the timed ones in its label's order
+(`labelRank`: qualifications by number, then playoffs, a best-of-three's games turn about, then finals). The server
+orders the frame starts the same way (`inOrder`): a start out of that order is left out, never served.
+
 ## Two signals, never one
 
 No match is placed on one signal alone.
