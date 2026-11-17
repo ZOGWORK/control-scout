@@ -119,7 +119,7 @@ describe("answering a conference ask", () => {
   it("gives a team's conference place by league RS, beside its league rank, linking the table", async () => {
     const a = (await ask("4215 conference ranking"))!;
     expect(a.title).toBe("4215 in East Bergen Conference · 2025–26");
-    expect(a.headline).toMatchObject({ value: "2nd of 4", href: "/leagues/2025/USNJ/NO?conference=east-bergen-conference&team=4215#conferences" });
+    expect(a.headline).toMatchObject({ value: "2nd of 4", href: "/leagues/2025/USNJ/NO/conferences?conference=east-bergen-conference&team=4215" });
     expect(a.headline!.sub).toContain("League rank 12 of 4 · RS 3.8 · TBP 92.4 · 16 played");
     expect(a.headline!.sub).toContain("League meets only — excludes this tournament.");
     // Two rankings, said apart: 1st at the tournament itself.
