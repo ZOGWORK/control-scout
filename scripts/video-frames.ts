@@ -36,7 +36,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
 import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, playedCount, playedMatches, wholeLength } from "./lib/videoFrames";
-import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, cropOrder, elapsed, flippedClip, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M } from "./lib/videoFrames";
+import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, countsThrough, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, cropOrder, elapsed, flippedClip, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M } from "./lib/videoFrames";
 
 // The command line: --name value or --name=value for the value flags, --name alone for the others. Anything else stops
 // the run before it reads: a misspelt flag mustn't quietly read (and write) every recording of the season.
@@ -149,7 +149,8 @@ let failedVideos = 0;
  *  2:00 TeleOp (elapsed, scripts/lib/videoFrames.ts). */
 /** FTC Live's whole bar moved to the top of the frame, its timer row under the event/match row (FIRST Nevada's stream,
  *  USNVCMP 2024: "Nevada Championship | Qualification 21 of 46" on top, "0:44" beneath): the bottom bar's timer, 68 px
- *  from the top. Last in TIMERS, so no other layout's numbers are read here first; read first where the frame's match
+ *  from the top. Last of the bars in TIMERS (only the audience display's card comes after it), so no other bar's
+ *  numbers are read here first; read first where the frame's match
  *  came from the top bar's row (TOP_ROW), as FIRST Texas's crops catch part of its digits there ("2" then "110" for
  *  1:22, which reads as no running timer). */
 const TOP_BAR_TIMER = { where: "bottom" as const, clip: { x: 565, y: 68, width: 150, height: 86 } };
@@ -169,8 +170,11 @@ const TIMERS = [
   TOP_BAR_TIMER,
   // FTC Live's audience display streamed whole (USMAWEQ 2025, MA FTC): the timer large in a white card over the middle
   // of the frame under "Field 2", the bar along the bottom naming the match. Last, so no other layout's field or
-  // crowd is read here first; a number there still counts only as a clock seen running twice.
-  { where: "bottom" as const, clip: { x: 340, y: 110, width: 600, height: 210 } },
+  // crowd is read here first; a number there still counts only as a clock seen running twice. Being in TIMERS, it's
+  // read before timer()'s own fallback (the bar found in the frame, barBand), and a running clock in it counts as a
+  // "timer on screen" for readEdges too. The card counts other things down as well (a timeout, a field reset): a
+  // start read off it is checked for one countdown running through it (`card`, confirmed: countsThrough).
+  { where: "bottom" as const, clip: { x: 340, y: 110, width: 600, height: 210 }, card: true },
 ];
 /** FTC Live's overlay from 2019 to 2022 shows the timer as bare seconds ("30", "112": secondsPlain), in a box over the
  *  scores (SKYSTONE 2019, FREIGHT FRENZY 2021: USCHSCMPCARR) or under the centre graphic (POWERPLAY 2022: AUMPOS1).
@@ -190,7 +194,7 @@ const PLAIN_TIMERS = [
  *  CENTERSTAGE's (2023) too: USMOKSCMP's M2 opens on "Semifinal 2 Match 1", which a read losing "Semifinal" took
  *  for M1, pulling the clip. */
 const SEMIFINALS = season <= 2023;
-const TIMER_CROPS: { where: "bottom" | "top" | "plain"; clip: { x: number; y: number; width: number; height: number }; loose?: boolean; plain?: boolean }[] =
+const TIMER_CROPS: { where: "bottom" | "top" | "plain"; clip: { x: number; y: number; width: number; height: number }; loose?: boolean; plain?: boolean; card?: boolean }[] =
   season <= 2022 ? [...PLAIN_TIMERS, ...TIMERS] : TIMERS;
 
 /** The timer's reading. `auto`: whether a reading of 0:30 or less is Auto, told by readAt. */
@@ -450,9 +454,22 @@ async function confirmed(page: Page, label: string, start: number, own = false, 
   const before = await readAt(page, start - 25);
   if (before.label === label) own ||= before.division === "own";
   if (before.label === label && before.start != null) return `25 s before it was already running (start ${Math.round(before.start - start)} s off)`;
+  // A start read off an audience display's card (the crop its confirming reads ran in): the card counts timeouts and
+  // field resets down too, under a bar already naming the next match. Up to 3 minutes before the start, the same card
+  // running one countdown through it (over a match's 2:38, reaching 2:30–2:38 at the start) is no match (countsThrough).
+  const crop = timerCrop.get(page);
+  if (crop?.card) {
+    for (const ahead of COUNTDOWN_CHECK) {
+      await seek(page, start - ahead);
+      const left = secondsOf((await digits.recognize(await page.screenshot({ clip: crop.clip }))).data.text);
+      if (left != null && countsThrough(left, ahead)) return `${ahead} s before it the card counted ${left} s down through its start (a timeout or reset, not a match)`;
+    }
+  }
   if (divisions.has(page) && !own) return "no read of it showed its division's name (the stream carries another division too)";
   return null;
 }
+/** Seconds before a start read off an audience display's card that the card is read for a countdown running through it. */
+const COUNTDOWN_CHECK = [25, 90, 170];
 
 /** An Auto read early in the match (AUTO_CONFIRM) gives the same start: the frames right after it agree with it. */
 async function autoAgrees(page: Page, label: string, start: number): Promise<boolean> {
