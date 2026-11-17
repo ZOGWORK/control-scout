@@ -25,7 +25,7 @@ Videos › 85 more 2024 matches play as clips: Indianapolis's qualifier in full 
 - [history] 85 more 2024 match clips, each opening checked on its frame
 
 ### Added
-- Frame-read match starts for 2 more 2024 recordings, each clip's opening checked against a paused frame naming its match: USININQ 43 of 43 played matches, USNYEXBRQ 42 of 43 (1 missing). (`server/data/frameTimings/2024.ts`) (#PRNUM)
+- Frame-read match starts for 2 more 2024 recordings, each clip's opening checked against a paused frame naming its match: USININQ 43 of 43 played matches, USNYEXBRQ 42 of 43 (1 missing). (`server/data/frameTimings/2024.ts`) (#1724)
 
 ## 7.5.9 — 2026-11-17
 
