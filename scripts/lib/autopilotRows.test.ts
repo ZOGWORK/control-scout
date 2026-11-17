@@ -54,6 +54,8 @@ describe("rowProblems", () => {
       .toEqual(["Q2: a live clip dropped without a frame naming another match"]);
     // A paused frame there names Q3: pulled, rightly.
     expect(rowProblems(row({ starts: { Q1: 600 }, opens: { Q1: 588 }, review: { Q2: { t: 1000, why: "its clip's first frame shows Q3, not Q2" } } }), live)).toEqual([]);
+    // A naming frame read somewhere else (where a re-read placed it) doesn't pull the clip at its live second.
+    expect(rowProblems(row({ starts: { Q1: 600 }, opens: { Q1: 588 }, review: { Q2: { t: 5000, why: "its clip's first frame shows Q3, not Q2" } } }), live)).toEqual(["Q2: a live clip dropped without a frame naming another match"]);
     // Only a frame naming a different match pulls it.
     expect(rowProblems(row({ starts: { Q1: 600 }, opens: { Q1: 588 }, review: { Q2: { t: 1000, why: "its clip's first frame shows Q2, not Q2" } } }), live)).toEqual(["Q2: a live clip dropped without a frame naming another match"]);
     expect(rowProblems(row({ starts: { Q1: 600 }, opens: { Q1: 588 }, review: { Q2: { t: 1000, why: "its clip's first frame shows Q3, not Q4" } } }), live)).toEqual(["Q2: a live clip dropped without a frame naming another match"]);
