@@ -33,7 +33,7 @@ import { AWARDS, FILLER, INTENTS, LEADER_STAT_WORDS, PARAPHRASES, PHASES, SCAFFO
 const ASKED_WORDS = [
   "opr", "oprs", "record", "records", "awards", "award", "worlds", "inspire", "playoffs", "playoff", "qualifiers", "qualifier", "qualifying",
   "quals", "championship", "championships", "champion", "champions", "league", "leagues", "meet", "meets", "premier", "scrimmage",
-  "division", "divisions", "finals", "final", "semifinal", "semifinals", "alliance", "alliances", "captain", "captains", "rank", "ranked",
+  "division", "divisions", "finals", "final", "semifinal", "semifinals", "alliance", "alliances", "captain", "captains", "wac", "wacs", "rank", "ranked",
   "ranking", "rankings", "score", "scores", "scored", "scoring", "highest", "lowest", "average", "total", "points", "auto", "autonomous",
   "teleop", "endgame", "penalty", "penalties", "foul", "fouls", "match", "matches", "event", "events", "team", "teams", "season",
   "seasons", "rookie", "veteran", "school", "sponsor", "sponsors", "website", "location", "upcoming", "latest", "previous", "winner",
