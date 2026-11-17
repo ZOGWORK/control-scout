@@ -21,11 +21,11 @@ Videos › 24 more matches get a clip read off their event's video, each opening
 
 ### Highlights
 - [fixes] 24 more matches get a clip read off the video
-- [fixes] Each opens on a frame whose overlay names its match
+- [fixes] No clip that plays now stops playing
 - [fixes] No clip already playing changes
 
 ### Fixed
-- Videos (`server/data/frameTimings/`): a re-read of videos already in the data with the current reader adds 24 2025 starts (USTXCMP4A, USTXDAQ2, USTXNFM1, USTXNISLT, USTXNXAM3, USTXNXPM1, USTXSASQ, USTXWAS2, USWICMP), each checked paused on its clip's opening frame. Only starts are added: no row loses or moves one, and no clip already playing changes. (part 3 of 3) (#1747)
+- Videos (`server/data/frameTimings/`): a re-read of videos already in the data with the current reader adds 24 2025 starts (USTXCMP4A, USTXDAQ2, USTXNFM1, USTXNISLT, USTXNXAM3, USTXNXPM1, USTXSASQ, USTXWAS2, USWICMP), each read off the video's frames (a row that already records checked openings gets the new starts' openings too; a row without any keeps none, so its other clips keep playing). Only starts are added: no row loses or moves one, and no clip already playing changes. (part 3 of 3) (#1747)
 
 ## 7.6.2 — 2026-11-17
 
