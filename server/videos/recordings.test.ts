@@ -361,6 +361,10 @@ describe("when a video is read again", () => {
     expect(due(meta({}), t("2027-01-01T00:00:00Z"))).toBe(false);
   });
   it("an unavailable video (private, removed, embedding off) after a week: an owner can make it public again", () => {
+    // Embedding off: weekly too, with or without the API key, so one whose owner turns it back on is read again.
+    expect(due(meta({ embeddable: false }), t("2026-05-08T23:00:00Z"))).toBe(false);
+    expect(due(meta({ embeddable: false }), t("2026-05-09T01:00:00Z"))).toBe(true);
+    expect(due(meta({ embeddable: true }), t("2026-05-09T01:00:00Z"))).toBe(false);
     expect(due(meta({ status: "unavailable" }), t("2026-05-08T23:00:00Z"))).toBe(false);
     expect(due(meta({ status: "unavailable" }), t("2026-05-09T01:00:00Z"))).toBe(true);
     expect(due(meta({ status: "unavailable" }), t("2026-05-09T01:00:00Z"), true)).toBe(true);
