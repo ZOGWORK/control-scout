@@ -15,6 +15,16 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.2.6 — 2026-11-17
+
+Videos › a recording YouTube once called unavailable is looked at again every week, so one made public again gets its clips.
+
+### Highlights
+- [fixes] Recordings made public again get their match clips back
+
+### Fixed
+- A video YouTube's facts called unavailable (private, removed, embedding off) was never read again, so a recording its owner later made public again stayed hidden for good: no clips, no frame read, "video unavailable" on Owner › Clip coverage. USILCSSLT 2024's recording (44 matches) was marked unavailable on 2026-10-24 and plays again now. Such a video is now read again a week after its last read, like any other fact that can change (28 videos on the live site today, a handful of API units a week). (`server/videos/recordings.ts`) (#PR)
+
 ## 7.2.5 — 2026-11-17
 
 Sharing › a new link-preview card for Discord, iMessage and Slack, readable at the size those apps show it.
