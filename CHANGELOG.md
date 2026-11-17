@@ -25,7 +25,7 @@ Appearance › a light/dark switch in the top bar, next to the bell, that comes 
 - [appearance] Settings still picks any theme, System included
 
 ### Added
-- Top bar: a sun/moon button beside the notification bell switches to Light and back. Back from Light is the dark theme in use when it was pressed (Dim, Dark or Midnight; Dark when none was, the default), remembered as a setting that syncs with the account like the theme itself. (`src/components/layout/ThemeToggle.tsx`, `src/hooks/useTheme.ts`, `src/shared/personal.ts`, `src/components/layout/Shell.tsx`)
+- Top bar: a sun/moon button beside the notification bell switches to Light and back. Back from Light is the dark theme in use when it was pressed (Dim, Dark or Midnight; Dark when none was, the default), remembered as a setting that syncs with the account like the theme itself. (`src/components/layout/ThemeToggle.tsx`, `src/hooks/useTheme.ts`, `src/shared/personal.ts`, `src/components/layout/Shell.tsx`) (#1629)
 
 ## 7.1.2 — 2026-11-16
 
