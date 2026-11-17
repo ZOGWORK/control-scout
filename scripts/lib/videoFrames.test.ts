@@ -1,7 +1,7 @@
 // The pure parts of the frame reader (scripts/video-frames.ts): the overlay's match, the timer's elapsed time, and
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
-import { dataRows, divisionOf, cropOrder, elapsed, flippedClip, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, undetailed, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, type M } from "./videoFrames";
+import { dataRows, divisionOf, cropOrder, elapsed, flippedClip, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, undetailed, UNDETAILED_EXIT, readFailed, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, type M } from "./videoFrames";
 
 describe("the frame reader", () => {
   // A 1280 × 720 frame: a grey field, and a score bar from `top` to `bottom` with one alliance's colour each side of the
@@ -570,6 +570,14 @@ describe("undetailed", () => {
     expect(undetailed([{ videoId: "w0H2auno5c8" }]).fails).toBe(true);
     expect(undetailed([{ videoId: "a", meta: { status: "error" } }, { videoId: "b", meta: { status: "unavailable" } }]).fails).toBe(true);
     expect(undetailed([ok("a"), ok("b")])).toEqual({ skipped: [], fails: false });
+  });
+  it("tells the reader's undetailed exit apart from a failed read, so the autopilot doesn't forget a season", () => {
+    // A live video with no length beside one whose details fetch errored: nothing readable, a fetch would fix it.
+    expect(undetailed([{ videoId: "live", meta: { status: "ok", length: null } }, { videoId: "err", meta: { status: "error" } }]).fails).toBe(true);
+    expect(UNDETAILED_EXIT).not.toBe(1);
+    expect(readFailed(0)).toBe(false);
+    expect(readFailed(UNDETAILED_EXIT)).toBe(false);
+    for (const code of [1, 2, 3, null]) expect(readFailed(code)).toBe(true);
   });
   it("never fails for an event whose only video is removed or still live: it would fail every run", () => {
     expect(undetailed([{ videoId: "gone", meta: { status: "unavailable" } }]).fails).toBe(false);
