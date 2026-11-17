@@ -10,6 +10,7 @@
 // queues: its reason stands as it is.
 import { all, busyTurn } from "../db.js";
 import { WHY, videoCheck } from "./coverage.js";
+import { localToUtcMs } from "../../src/shared/time.js";
 import type { CoverageFrames, CoverageMatch, CoverageReason, FrameQueueSummary } from "../../src/shared/api.js";
 
 /** Reasons a frame read can't change: no video to read, one YouTube won't play, or no start time to place a match by. */
@@ -17,14 +18,21 @@ export const UNREADABLE: ReadonlySet<CoverageReason> = new Set<CoverageReason>([
 /** The video's YouTube facts aren't in yet: the reader waits for them (it reads no video without its facts). */
 const FACTS_PENDING: CoverageReason = "video-unread";
 
-/** One event as the queue reads it: its last day (YYYY-MM-DD, the venue's) and its missing matches with their video checks. */
-export interface QueueEvent { season: number; code: string; name: string; end: string | null; missing: CoverageMatch[] }
+/** One event as the queue reads it: its last day (YYYY-MM-DD, the venue's), the venue's time zone, and its missing
+ *  matches with their video checks. */
+export interface QueueEvent { season: number; code: string; name: string; end: string | null; timezone?: string | null; missing: CoverageMatch[] }
 /** An event's place with the frame reader, before ranking: `due`, the missing matches a read could place now. */
 export interface FrameStatus extends CoverageFrames { due: number }
 
 const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? "" : "es"}`;
-/** The UTC date of `now`, YYYY-MM-DD. An event is over from the day after its last day, wherever it was. */
-const day = (now: number) => new Date(now).toISOString().slice(0, 10);
+/** The UTC date of a moment, YYYY-MM-DD: the calendar a read's `checked` date is written in. */
+const utcDay = (t: number) => new Date(t).toISOString().slice(0, 10);
+/** The UTC date the venue's last day ends on (its 23:59:59 there): an evening in America is the next UTC day. A zone
+ *  not known is taken as the latest on earth (UTC-12), so no event is called over while it may still be on. */
+function lastUtcDay(end: string, timezone: string | null | undefined): string {
+  const t = localToUtcMs(`${end}T23:59:59`, timezone || "Etc/GMT+12");
+  return t == null ? end : utcDay(t);
+}
 
 /** The date a match's video was read for this event, or null. Coverage carries the video check only where the clock
  *  alone left the match out, or it fell between two recordings (both checked, betweenCheck); the frame rows themselves
@@ -32,34 +40,38 @@ const day = (now: number) => new Date(now).toISOString().slice(0, 10);
 const checkedOf = (m: CoverageMatch, code: string) => (m.video ? m.video.checked : m.videoId ? videoCheck(m.videoId, code, m.label, []).checked : null) ?? null;
 
 /** How one missing match stands with the frame reader. */
-function matchState(m: CoverageMatch, checked: string | null, end: string | null): "unreadable" | "facts" | "unread" | "stale" | "read" {
+function matchState(m: CoverageMatch, checked: string | null, last: string | null): "unreadable" | "facts" | "unread" | "stale" | "read" {
   const reason = m.reason ?? "unexplained";
   // Between two recordings it has no video of its own, only its check of both.
   const between = reason === "between-recordings" && !!m.video;
   if (!between && (!m.videoId || UNREADABLE.has(reason))) return "unreadable";
   if (reason === FACTS_PENDING) return "facts";
   if (!checked) return "unread";
-  // Read on or before the event's last day: matches played after that read aren't in it.
-  return end && checked.slice(0, 10) <= end ? "stale" : "read";
+  // Read on or before the UTC day the event's last day ends on: matches played after that read may not be in it. The
+  // queue only reads after that day (frameStatus), so a read it makes settles: never read twice for this.
+  return last && checked.slice(0, 10) <= last ? "stale" : "read";
 }
 
 /** Where one event stands with the frame reader (not yet ranked): queued, waiting for the event to end or for its
  *  video's facts, read (with what's still missing), or nothing a read can fix. */
 export function frameStatus(e: QueueEvent, now = Date.now()): FrameStatus {
-  const states = e.missing.map((m) => { const checked = checkedOf(m, e.code); return { m, checked, s: matchState(m, checked, e.end) }; });
+  // The last day: the event's own, else its latest missing match's.
+  const end = e.end ?? e.missing.map((m) => m.date).filter((d): d is string => !!d).sort().at(-1) ?? null;
+  const last = end ? lastUtcDay(end, e.timezone) : null;
+  const states = e.missing.map((m) => { const checked = checkedOf(m, e.code); return { m, checked, s: matchState(m, checked, last) }; });
   const n = (s: string) => states.filter((x) => x.s === s).length;
   const due = n("unread") + n("stale"), readable = due + n("read") + n("facts");
   if (!readable) {
     const top = topReason(e.missing);
     return { state: "unreadable", matches: 0, due: 0, why: `Nothing a frame read can place${top ? `: ${top}` : ""}` };
   }
-  const end = e.end ?? e.missing.map((m) => m.date).filter((d): d is string => !!d).sort().at(-1) ?? null;
-  if (due && end && end >= day(now)) return { state: "waiting", matches: due, due: 0, why: `Waits for the event to finish (last day ${end}): ${plural(due, "match")} to read then` };
+  if (due && last && last >= utcDay(now)) return { state: "waiting", matches: due, due: 0, why: `Waits for the event to finish (last day ${end}): ${plural(due, "match")} to read then` };
   if (due) {
     const stale = n("stale");
     return { state: "queued", matches: due, due, why: `Queued for a frame read: ${plural(due, "match")}${stale === due ? ", read before the event finished" : stale ? ` (${stale} read before the event finished)` : ""}` };
   }
-  if (n("facts") && !n("read")) return { state: "waiting", matches: n("facts"), due: 0, why: `Waits for YouTube's facts for its video: ${plural(n("facts"), "match")}` };
+  // A video whose facts aren't in yet is still to read, whatever the event's other videos showed.
+  if (n("facts")) return { state: "waiting", matches: n("facts"), due: 0, why: `Waits for YouTube's facts for its video: ${plural(n("facts"), "match")}${n("read") ? ` (${n("read")} more read, no clip)` : ""}` };
   const at = states.map((x) => x.checked).filter((d): d is string => !!d).sort().at(-1) ?? null;
   const still = n("read");
   return { state: "read", matches: 0, due: 0, at, why: `Read ${at}: ${plural(still, "match")} still without a clip, as the video shows (see each match)` };
@@ -85,8 +97,8 @@ const ordinal = (n: number) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? "th" : ["
 
 /** Every event with a played match missing a clip, as clip_coverage holds it, with its place with the frame reader. */
 export async function frameQueue(now = Date.now()): Promise<{ season: number; code: string; name: string; frames: FrameStatus }[]> {
-  const rows = await all<{ season: number; code: string; name: string | null; end: string | null; detail: string }>(
-    `SELECT c.season, c.code, e.name, e.end, c.detail FROM clip_coverage c LEFT JOIN events e ON e.season = c.season AND e.code = c.code
+  const rows = await all<{ season: number; code: string; name: string | null; end: string | null; timezone: string | null; detail: string }>(
+    `SELECT c.season, c.code, e.name, e.end, e.timezone, c.detail FROM clip_coverage c LEFT JOIN events e ON e.season = c.season AND e.code = c.code
      WHERE c.with_clip < c.played AND c.state != 'none'`);
   const out: { season: number; code: string; name: string; frames: FrameStatus }[] = [];
   for (let i = 0; i < rows.length; i++) {
@@ -95,7 +107,7 @@ export async function frameQueue(now = Date.now()): Promise<{ season: number; co
     const r = rows[i];
     let missing: CoverageMatch[] = [];
     try { missing = (JSON.parse(String(r.detail)) ?? {}).missing ?? []; } catch { /* an unreadable detail: nothing to queue */ }
-    const e: QueueEvent = { season: Number(r.season), code: String(r.code), name: String(r.name ?? r.code), end: r.end ?? null, missing };
+    const e: QueueEvent = { season: Number(r.season), code: String(r.code), name: String(r.name ?? r.code), end: r.end ?? null, timezone: r.timezone ?? null, missing };
     out.push({ season: e.season, code: e.code, name: e.name, frames: frameStatus(e, now) });
   }
   rankQueue(out);
