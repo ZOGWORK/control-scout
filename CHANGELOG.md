@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 7.2.6 — 2026-11-17
+## 7.2.7 — 2026-11-17
 
 Videos › a recording YouTube once called unavailable is looked at again every week, so one made public again gets its clips.
 
@@ -24,6 +24,18 @@ Videos › a recording YouTube once called unavailable is looked at again every 
 
 ### Fixed
 - A video YouTube's facts called unavailable (private, removed, embedding off) was never read again, so a recording its owner later made public again stayed hidden for good: no clips, no frame read, "video unavailable" on Owner › Clip coverage. USILCSSLT 2024's recording (44 matches) was marked unavailable on 2026-10-24 and plays again now. Such a video is now read again a week after its last read, like any other fact that can change (28 videos on the live site today, a handful of API units a week). (`server/videos/recordings.ts`) (#1648)
+
+## 7.2.6 — 2026-11-17
+
+Videos › 54 more matches in 7 recordings are settled as played before their recording starts, or cut by it: each recording's first frame names a later match, or one already under way.
+
+### Highlights
+- [fixes] 54 more matches played before their recording no longer need review
+- [fixes] Each one rests on the recording's own first frame
+- [fixes] No clip changes
+
+### Fixed
+- Videos: the first frames of 7 more recordings are read into the data (`opensOn`, `server/data/frameTimings.ts`): USOHKIQ opens on Q5, USTXAUQ on Q10, USTXDTQ2 on Q21 at 0:45 (2024), USTXCEGEM1 on Q2 at 3:50 with no match on screen before it (2026), and USORPHQ, USUTSAS and USWISHQ on a match already under way (Q1, Q1, Q18). The 54 matches they prove were played before their recording starts (or cut by it) are settled in Clip coverage, with that reason. No clip is added, moved or taken away. (#1646)
 
 ## 7.2.5 — 2026-11-17
 
