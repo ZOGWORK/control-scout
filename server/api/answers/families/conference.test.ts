@@ -8,6 +8,7 @@ import { clearAllCaches } from "../../../caches";
 import { syncConferences } from "../../../data/conferences";
 import { allConferences } from "../../conferences";
 import { conferenceSearch } from "../index";
+import { plainSearch } from "../../searchAnswer";
 import { conferenceAskAnswer, matchConference, readConferenceAsk, readConferenceName } from "./conference";
 
 describe("reading a conference ask", () => {
@@ -307,5 +308,12 @@ describe("answering a conference ask", () => {
     expect(await conferenceSearch("central", { full: true, pages: [] })).toBeNull();
     await run("INSERT INTO teams (number, name, state, country) VALUES (8888, 'East Bergen', 'NJ', 'USA')");
     expect(await conferenceSearch("East Bergen", { full: true, pages: [] })).toBeNull();
+  });
+
+  it("gives plain search (no answer asked) the answer's cards when no name matches a question, never an empty list", async () => {
+    const hits = await plainSearch("4215 conference ranking", 12, new Set(), new Set());
+    expect(hits.map((h) => h.ref)).toContain("2025:USNJNOLT2");
+    // A picker asking for some kinds keeps its plain names only.
+    expect(await plainSearch("4215 conference ranking", 12, new Set(), new Set(["event"]))).toEqual([]);
   });
 });
