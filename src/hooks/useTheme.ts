@@ -61,6 +61,12 @@ export function ThemeSync() {
     if (waiting.current) { if (theme !== fromLite) return; waiting.current = false; }
     writeThemeCookie(theme);
   }, [theme, fromLite]);
+  // The dark theme in use, however it was picked (Settings or the top bar's switch), is the one the switch comes back
+  // to from Light. Only a change is written: Dark, the default, is what a missing value already means.
+  const remembered = state.settings.darkTheme ?? "dark";
+  useEffect(() => {
+    if ((theme === "dim" || theme === "dark" || theme === "midnight") && theme !== remembered) update("settings", (s) => ({ ...s, darkTheme: theme }));
+  }, [theme, remembered]); // eslint-disable-line react-hooks/exhaustive-deps -- update is stable
   useEffect(() => { document.documentElement.classList.toggle("compact", state.settings.density === "compact"); }, [state.settings.density]);
   useEffect(() => { document.documentElement.classList.toggle("ambient-off", state.settings.ambient === false); }, [state.settings.ambient]);
   return null;
