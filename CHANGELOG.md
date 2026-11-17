@@ -25,7 +25,7 @@ Videos › 168 more 2024 matches play as clips: the Australian Championship in f
 - [history] Carolinas Premier Event and South Australia Qualifier clips added
 
 ### Added
-- Frame-read match starts for 6 more 2024 recordings (5 events), each start checked against two timer reads and each clip's opening against a paused frame naming its match: AUCMP 77 of 77 played matches (two days), CAONSCQ2 50 of 55 (4 to review, 1 missing), FPECA 31 of 71 (the linked recording is Day 2), AUTOQ 10 of 24 (Q11–Q24 have no confirmed frame read yet), and CABCSUQ1's recording checked (its 2 readable matches had no confirmed start). (`server/data/frameTimings/2024.ts`) (#PRNUM)
+- Frame-read match starts for 6 more 2024 recordings (5 events), each start checked against two timer reads and each clip's opening against a paused frame naming its match: AUCMP 77 of 77 played matches (two days), CAONSCQ2 50 of 55 (4 to review, 1 missing), FPECA 31 of 71 (the linked recording is Day 2), AUTOQ 10 of 24 (Q11–Q24 have no confirmed frame read yet), and CABCSUQ1's recording checked (its 2 readable matches had no confirmed start). (`server/data/frameTimings/2024.ts`) (#1663)
 
 ## 7.2.9 — 2026-11-17
 
