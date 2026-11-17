@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.4.6 — 2026-11-17
+
+Videos › 36 more matches get a clip read off their event's video, each opening on a frame whose overlay names its match.
+
+### Highlights
+- [fixes] 36 more matches get a clip read off the video
+- [fixes] Each opens on a frame whose overlay names its match
+- [fixes] No clip already playing changes
+
+### Fixed
+- Videos (`server/data/frameTimings/`): a re-read of videos already in the data with the current reader adds 36 starts (USMOKSCMP 11, USARBEQ 10, USORPHQ 6, USOHNEOHLT 4, USMNCMPNANO 2, USUTSAS 1 (2024); USMISOQ 1, USMIWMM4 1 (2026)), each checked paused on its clip's opening frame. Only starts are added: no row loses or moves one, and no clip already playing changes. (part 1 of 3)
+
 ## 7.4.5 — 2026-11-17
 
 Event videos › the official-video watcher and its channel audit now run on time on a day of many deploys.
