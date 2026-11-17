@@ -14,9 +14,11 @@ import { plausibleStarts, playableStarts, type FrameTiming } from "../../server/
 import { OPEN_LEADS, SAME_S, dataRows } from "./videoFrames.js";
 
 export type Row = FrameTiming;
-export const rowKey = (r: Pick<Row, "videoId" | "code">) => `${r.videoId}|${r.code}`;
+/** Any data row keyed by its video and event: a frame timing, or a first-frame clip check (server/data/clipChecks.ts). */
+export type Keyed = { videoId: string; code: string };
+export const rowKey = (r: Keyed) => `${r.videoId}|${r.code}`;
 /** A row as its file holds it: one line. */
-export const rowLine = (r: Row) => `  ${JSON.stringify(r)},`;
+export const rowLine = (r: Keyed) => `  ${JSON.stringify(r)},`;
 
 /** The review reason that pulls a live clip: a frame at its opening names another match. */
 const PULLED = /^its clip's first frame shows (.+), not (.+)$/;
@@ -82,21 +84,21 @@ export function rowProblems(next: Row, live?: Row, order?: string[]): string[] {
 }
 
 /** The rows of a frame timings file (one per line under its "// --- Data" mark), in file order. */
-export const fileRows = (text: string): Row[] => dataRows<Row>(text);
+export const fileRows = <T extends Keyed = Row>(text: string): T[] => dataRows<T>(text);
 
 /** The rows `after` holds that `before` doesn't hold the same (new or changed). */
-export function changedRows(before: string, after: string): Row[] {
-  const was = new Map(fileRows(before).map((r) => [rowKey(r), JSON.stringify(r)]));
-  return fileRows(after).filter((r) => was.get(rowKey(r)) !== JSON.stringify(r));
+export function changedRows<T extends Keyed = Row>(before: string, after: string): T[] {
+  const was = new Map(fileRows<T>(before).map((r) => [rowKey(r), JSON.stringify(r)]));
+  return fileRows<T>(after).filter((r) => was.get(rowKey(r)) !== JSON.stringify(r));
 }
 
 /** A frame timings file with these rows in it (each replacing the row of its video and event, or added), every other
  *  row and line as it was, sorted as the reader sorts them (event, then video). */
-export function applyRows(text: string, rows: Row[]): string {
+export function applyRows<T extends Keyed>(text: string, rows: T[]): string {
   const [head, rest] = splitAt(text, "// --- Data");
   const open = rest.indexOf("[\n"), close = rest.lastIndexOf("\n];");
   if (open < 0 || close < 0) throw new Error("no rows array under the data mark");
-  const byKey = new Map(fileRows(text).map((r) => [rowKey(r), r]));
+  const byKey = new Map(fileRows<T>(text).map((r) => [rowKey(r), r]));
   for (const r of rows) byKey.set(rowKey(r), r);
   if (!byKey.size) return text;
   const list = [...byKey.values()].sort((a, b) => a.code.localeCompare(b.code) || a.videoId.localeCompare(b.videoId));
@@ -106,12 +108,12 @@ const splitAt = (s: string, mark: string): [string, string] => { const i = s.ind
 
 /** Rows in PRs of at most `max` bytes of row lines each: an event's rows stay together (the owner reads them as one),
  *  most first; an event bigger than `max` goes in parts by video, a row bigger than `max` alone. */
-export function chunkRows(rows: Row[], max = 15_000): Row[][] {
-  const size = (rs: Row[]) => rs.reduce((s, r) => s + Buffer.byteLength(rowLine(r)) + 1, 0);
-  const events = new Map<string, Row[]>();
+export function chunkRows<T extends Keyed>(rows: T[], max = 15_000): T[][] {
+  const size = (rs: T[]) => rs.reduce((s, r) => s + Buffer.byteLength(rowLine(r)) + 1, 0);
+  const events = new Map<string, T[]>();
   for (const r of rows) (events.get(r.code) ?? events.set(r.code, []).get(r.code)!).push(r);
   const groups = [...events.values()].flatMap((rs) => (size(rs) <= max ? [rs] : rs.map((r) => [r]))).sort((a, b) => size(b) - size(a));
-  const out: Row[][] = [];
+  const out: T[][] = [];
   for (const g of groups) {
     const fit = out.find((c) => size(c) + size(g) <= max);
     if (fit) fit.push(...g); else out.push([...g]);
@@ -119,14 +121,15 @@ export function chunkRows(rows: Row[], max = 15_000): Row[][] {
   return out;
 }
 
-/** The mark an autopilot PR carries in its description: its season and rows (video|event), for the runner's next pass
- *  (an event already in an open PR isn't read again; the PR is rebuilt on main when main moves). */
-export const prMarker = (season: number, rows: Row[]) => `<!-- clip-autopilot ${JSON.stringify({ season, rows: rows.map(rowKey) })} -->`;
-export function readMarker(body: string): { season: number; rows: string[] } | null {
+/** The mark an autopilot PR carries in its description: its season, rows (video|event) and, for a file other than the
+ *  season's frame timings (the first-frame sweep's server/data/clipChecks.ts), that file. For the runner's next pass: an
+ *  event already in an open PR isn't read again, and the PR is rebuilt on main when main moves. */
+export const prMarker = (season: number, rows: Keyed[], file?: string) => `<!-- clip-autopilot ${JSON.stringify({ season, rows: rows.map(rowKey), ...(file ? { file } : {}) })} -->`;
+export function readMarker(body: string): { season: number; rows: string[]; file?: string } | null {
   const m = /<!-- clip-autopilot (\{.*?\}) -->/.exec(body);
   if (!m) return null;
   try {
     const v = JSON.parse(m[1]);
-    return Number.isInteger(v.season) && Array.isArray(v.rows) ? { season: v.season, rows: v.rows.map(String) } : null;
+    return Number.isInteger(v.season) && Array.isArray(v.rows) ? { season: v.season, rows: v.rows.map(String), ...(typeof v.file === "string" ? { file: v.file } : {}) } : null;
   } catch { return null; }
 }
