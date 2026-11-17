@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.6.3 — 2026-11-17
+
+Search › a team's conference place shows this season when the team is in one, going in from the sign-ups, and last season's only when not, saying so; "where was …" shows the last one played out.
+
+### Highlights
+- [fixes] A team's conference place shows this season first
+- [fixes] Last season's place only when this season has none, said so
+- [fixes] "Where was 207 in their conference" shows the last one played
+
+### Fixed
+- Search (`server/api/answers/families/conference.ts`): with no season said, a team's conference place is the newest season it is in one (FIRST's field before the sign-ups within that season), so "where is 207 in their conference" is 207 going into Hudson/East Bergen Conference, 2026–27, where it showed 2025–26. A team in none this season gets last season's, with "No 2026–27 conference for 207 yet; showing 2025–26" first. The past tense with no season said ("where was", "did", "finished") is the newest conference played out. A season said, and a conference's own table, are unchanged. (#1743)
+
 ## 7.6.2 — 2026-11-17
 
 Videos › 105 matches from three 2025 events (Greenwood QT and the NorCal Regional Championship's Gold and Silicon divisions) get a clip, each opening on a frame that names its match and its event.
