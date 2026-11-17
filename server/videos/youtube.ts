@@ -101,8 +101,26 @@ export function isoDuration(d: string | undefined): number | null {
   return s > 0 ? s : null;
 }
 
-/** One videos.list item → its facts. */
-export function apiFacts(item: any): WatchPageFacts {
+/** YouTube lists 249 regions, and a copyright block lists (nearly) all of them: 247 and 249 seen. Blocked in this many,
+ *  a video plays for no one (the watch page: "Video unavailable"). */
+export const BLOCKED_ALL = 240;
+
+/**
+ * Whether a video's region rules stop the people who watch it: blocked (nearly) everywhere, or in a country one of its
+ * events is in (`homes`, ISO alpha-2: most viewers are in the event's own country), or allowed only elsewhere. A video
+ * that plays in its events' countries keeps its clips, however many others block it.
+ */
+export function blockedForViewers(rule: { blocked?: unknown; allowed?: unknown } | undefined, homes: readonly string[] = []): boolean {
+  const blocked = Array.isArray(rule?.blocked) ? rule!.blocked.map(String) : [];
+  if (blocked.length >= BLOCKED_ALL) return true;
+  if (homes.some((h) => blocked.includes(h))) return true;
+  const allowed = Array.isArray(rule?.allowed) ? rule!.allowed.map(String) : null;
+  return !!allowed && (!allowed.length || (homes.length > 0 && !homes.some((h) => allowed.includes(h))));
+}
+
+/** One videos.list item → its facts. `homes`: the countries of its events (blockedForViewers). */
+export function apiFacts(item: any, homes: readonly string[] = []): WatchPageFacts {
+  if (blockedForViewers(item?.contentDetails?.regionRestriction, homes)) return UNAVAILABLE;
   const live = item?.liveStreamingDetails as { actualStartTime?: string; actualEndTime?: string; scheduledStartTime?: string } | undefined;
   const started = iso(live?.actualStartTime);
   return {
@@ -119,7 +137,7 @@ export function apiFacts(item: any): WatchPageFacts {
  * Up to 50 videos from the YouTube Data API. A video missing from the answer is removed or private
  * (unavailable); a failed request leaves every one an error, tried again later. The key never leaves the server.
  */
-export async function fetchFromApi(ids: string[], key: string, fetchImpl: typeof fetch = fetch): Promise<Map<string, WatchPageFacts>> {
+export async function fetchFromApi(ids: string[], key: string, fetchImpl: typeof fetch = fetch, homes?: (id: string) => readonly string[]): Promise<Map<string, WatchPageFacts>> {
   const out = new Map<string, WatchPageFacts>(ids.map((id) => [id, ERROR]));
   try {
     const q = new URLSearchParams({ part: "liveStreamingDetails,contentDetails", id: ids.slice(0, 50).join(","), key, maxResults: "50" });
@@ -129,7 +147,7 @@ export async function fetchFromApi(ids: string[], key: string, fetchImpl: typeof
     // Only a well-formed answer can say a video is gone: anything else leaves them all to try again.
     if (!Array.isArray(body?.items)) return out;
     const read = new Map<string, WatchPageFacts>(ids.map((id) => [id, UNAVAILABLE]));
-    for (const item of body.items) if (item && read.has(String(item.id))) read.set(String(item.id), apiFacts(item));
+    for (const item of body.items) if (item && read.has(String(item.id))) read.set(String(item.id), apiFacts(item, homes?.(String(item.id))));
     return read;
   } catch {
     return out;
