@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.4.6 — 2026-11-17
+
+Videos › ten more of this season's events in Arizona, Michigan, Missouri, Nevada, Oregon and Texas get match clips read off their own recordings: 148 matches, each opening on its own match and event.
+
+### Highlights
+- [fixes] Ten more 2026 events get match clips
+- [fixes] 148 matches placed, each opening on its own match
+- [fixes] Glendale, Iron Mountain, Northern Nevada and NTX among them
+
+### Fixed
+- Videos (`server/data/frameTimings/2026.ts`): frame-read starts for USAZGLQ1 (40 of 42), USMIWMM2 (10 of 12), USMIWMM3 (8 of 8), USMOKSKCMM1 (13 of 14), USMOKSSTLNM7 (8 of 8), USNVNNM1 (12 of 15), USNVRES (5 of 8), USORIRM1 (15 of 15), USORWIN (13 of 13) and USTXNODTQ1 (24 of 35). Each opening was read paused at its second and names its match, and its overlay names the event (and, for meets sharing a venue and day, this meet's start time). Every match left out carries its reason, and keeps any clock clip it had (#1698).
+
 ## 7.4.5 — 2026-11-17
 
 Event videos › the official-video watcher and its channel audit now run on time on a day of many deploys.
