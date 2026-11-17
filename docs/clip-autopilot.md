@@ -60,7 +60,9 @@ Playwright's Chromium), and registers the task "Control Scout clip autopilot", e
 `-RunNow` starts a run at once; `-Remove` takes the task away. Any other always-on computer at home works the same way
 (`node scripts/clip-autopilot-start.mjs` from cron).
 
-A real run always goes through `scripts/clip-autopilot-start.mjs` (plain Node). It holds the run's lock, puts the clone
+A real run always goes through `scripts/clip-autopilot-start.mjs` (plain Node). It first waits, up to 30 minutes, for 3 GB
+of memory free (`AUTOPILOT_MIN_FREE_MB`; with less, processes failed to start and scheduled runs died with nothing
+logged), and skips the run if it never comes. It holds the run's lock, puts the clone
 back to main (a killed run can leave files changed), and runs `npm ci` when main's `package-lock.json` changed, before
 anything runs from `node_modules`. The runner refuses a real run its start didn't begin: on Windows, `npm ci` can't
 replace `node_modules` under the running tsx (its `esbuild.exe` is held open).
