@@ -22,6 +22,7 @@ Videos › The frame reader finds the match timer in its own box on the score ba
 ### Highlights
 - [fixes] Match timers read in their own box on the score bar
 - [history] Nevada 2023's top-bar stream now reads on time
+- [fixes] Tested on three real 2023 score bars
 
 ### Fixed
 - Videos: the frame reader finds the timer's own box in the score bar (`timerDigits`) and reads only its digit rows. It does this first when a match label came from the top row, and before the bar-half fallback. A fixed top-bar crop read the digits' lower half and the robot icon under them on Nevada's 2023 stream, so starts came out ~20 s late. USNVCMP 2023 went from 3 to 20 of 35 placed. Tests use three real 2023 bars. (`scripts/lib/videoFrames.ts`, `scripts/video-frames.ts`) (#1757)
