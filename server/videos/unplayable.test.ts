@@ -5,7 +5,7 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { get, migrate, openDb, run, setDb } from "../db";
 import { backfillVideoMeta, type Recording, type VideoMeta } from "./recordings";
-import { clipCoverage } from "./coverage";
+import { clipCoverage, FRAME_SETTLES, UNPLAYABLE } from "./coverage";
 import { setFrameTimingsForTests } from "../data/frameTimings";
 
 const S = 2025, DAY = 86_400_000;
@@ -70,6 +70,15 @@ describe("Clip coverage for a recording that can't be played", () => {
     const r: Recording = { videoId: ID, code: "DESTQ", meta: { ...short, embeddable: false }, source: "official" };
     expect(clipCoverage(ms, r, r, "UTC", NOW).matches.find((m) => m.label === "Q2")).toMatchObject({ reason: "overlaps-previous", video: { checked: "2026-11-16" } });
     setFrameTimingsForTests([]);
+  });
+
+  it("embedding off: only what a frame read alone would settle becomes can't be read; no reason found stays To review", () => {
+    // "unexplained" (the clock places it, clear of the one before, yet no clip) is a coverage gap: its clock clip may
+    // still be owed (embedding off, clips open on youtube.com), so it's never settled as can't be read.
+    expect(FRAME_SETTLES.has("unexplained")).toBe(false);
+    expect(FRAME_SETTLES.has("gap-unplaced")).toBe(true);
+    expect(FRAME_SETTLES.has("overlaps-previous")).toBe(true);
+    expect(UNPLAYABLE.has("unexplained")).toBe(false);
   });
 
   it("an unavailable video: settled, with since when and its last read", () => {

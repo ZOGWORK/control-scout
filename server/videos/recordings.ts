@@ -508,11 +508,11 @@ export function due(m: VideoMeta | null, now: number, withKey = false): boolean 
   if (m.status === "error") return age > (withKey ? 15 * 60_000 : DAY);
   if (m.live) return age > (m.start ? 5 * 60_000 : 3600_000);
   if (m.status === "ok" && m.end && now - Date.parse(m.end) < 2 * DAY) return age > 6 * 3600_000;
-  // Unplayable here (unavailable, or embedding off), once settled: weekly, so one that plays again is read again (its
-  // frames, its clips). After the live and just-archived rules: a live or settling stream with embedding off still has
-  // clock clips (they open on youtube.com), so its start, end and length are kept fresh like any other.
-  if (unplayable(m)) return age > 7 * DAY;
   if (cutShort(m) && !m.chapters?.length) return age > (m.chapters ? 7 * DAY : DAY);
+  // Unplayable here (unavailable, or embedding off), once settled: weekly, so one that plays again is read again (its
+  // frames, its clips). After the live, just-archived and chapters rules: a stream with embedding off still has clock
+  // clips (they open on youtube.com), so its start, end, length and chapters are kept fresh like any other's.
+  if (unplayable(m)) return age > 7 * DAY;
   return false;
 }
 
