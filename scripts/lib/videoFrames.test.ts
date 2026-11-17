@@ -452,6 +452,15 @@ describe("whose event an overlay names", () => {
     // Left half: FiT-Central North San Antonio League Meet 1, "Qualification 3 of 24"; this event (26 quals) on the right.
     expect(overlayEvent("—E— Qualification 3 of 24 y- ny. FT-Contrl Hil Countittpotionerit 2s [RE", "FiT-Central Hill Country League Meet 1", 26)).toEqual({ event: "other" });
   });
+  it("never takes a logo misread for another event's name (KZCMP 2022's playing frames at 420 s)", () => {
+    // POWERPLAY's "FIRST ENERGIZE" read "FIRST ZN=RGIZ= swe": two words, neither this event's. Its own name follows the match.
+    const kz = "Kazakhstan Central Asia FTC Regional Championship";
+    expect(overlayEvent("FIRST ZN=RGIZ= swe Qualification 2 of 39 { Kazakhstan Central Asia FTC POWERZ)PY Ces", kz, 39)).toEqual({ event: "own", phrase: "Q2" });
+    // A playoff bar has no total to stand by: the short junk words are no name.
+    expect(overlayEvent("FIRST ZN=RGIZ= swe Match 3 { Kazakhstan Central Asia FTC POWERZ)PY Ces", kz, 39)).toEqual({ event: null });
+    // A name read as another's beside this event's own total: the total stands.
+    expect(overlayEvent("Rolling Prairie Robotics Qualification 2 of 39", kz, 39)).toEqual({ event: "own", phrase: "Q2" });
+  });
   it("reads this event's half of a split screen where both halves are read", () => {
     const text = "FiT-Central North San Antonio League Meet 1 Qualification 3 of 24 INTO THE DEEP FiT-Central Hill Country League Meet 1 Qualification 7 of 26";
     expect(overlayEvent(text, "FiT-Central Hill Country League Meet 1", 26)).toEqual({ event: "own", label: "Q7", phrase: "Q7" });
