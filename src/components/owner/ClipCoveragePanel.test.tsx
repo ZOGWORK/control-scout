@@ -72,7 +72,11 @@ describe("clipReview kinds", () => {
     expect(kindOf(miss("Q1", { video: { checked: "x", seenAt: 5 } }))).toBe("seen");
     expect(kindOf(miss("Q1", { video: { checked: "x", earlyStart: { t: 1, previousEnds: 2 } } }))).toBe("early");
     expect(kindOf(miss("Q1", { video: { checked: "x" } }))).toBe("notfound");
-    expect(kindOf(miss("Q1", { video: { checked: "x", outside: "before the video" } }))).toBe("outside");
+    // The same order as the pass log's videoState, so a tile counts what its chips show: an early start before a
+    // sighting, an unread video before anything, and `outside` left to the reason.
+    expect(kindOf(miss("Q1", { video: { checked: "x", seenAt: 5, earlyStart: { t: 1, previousEnds: 2 } } }))).toBe("early");
+    expect(kindOf(miss("Q1", { video: { checked: null, outside: "before the video" } }))).toBe("unchecked");
+    expect(kindOf(miss("Q1", { video: { checked: "x", outside: "before the video" } }))).toBe("notfound");
     expect(kindOf(miss("Q1", { reason: "gap-unplaced" }))).toBe("unplaced");
     expect(kindOf(miss("Q1", { reason: "video-unavailable" }))).toBe("unavailable");
     expect(kindOf(miss("Q1", { video: { checked: "x", seenAt: 5 } }), true)).toBe("pulled");
