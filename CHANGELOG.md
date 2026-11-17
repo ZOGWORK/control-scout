@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.5.6 — 2026-11-17
+
+Videos › 11 more 2022 (POWERPLAY) match clips from Mississippi's Flowood qualifier.
+
+### Highlights
+- [history] Mississippi Flowood Qualifier: clips for 11 of 23 matches
+- [history] Each clip starts just before its match begins
+- [fixes] Every clip opens on a frame naming its match and its own event
+
+### Added
+- Videos: clips read off the recordings' frames (`server/data/frameTimings/2022.ts`): USMSFLQ1 11 of 23 played matches. Each placed start's clip opens on a paused frame whose overlay names that match, and no frame names another event. The matches left out sit in a stretch the reads disagree on and stay without a clip, with the reason. (#1745)
+
 ## 7.5.5 — 2026-11-17
 
 Videos › 23 more 2022 (POWERPLAY) match clips from Indiana's FIN South League Tournament.
