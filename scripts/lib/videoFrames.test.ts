@@ -1,7 +1,7 @@
 // The pure parts of the frame reader (scripts/video-frames.ts): the overlay's match, the timer's elapsed time, and
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
-import { dataRows, divisionOf, elapsed, overlayDivision, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, type M } from "./videoFrames";
+import { dataRows, divisionOf, cropOrder, elapsed, flippedClip, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, type M } from "./videoFrames";
 
 describe("the frame reader", () => {
   // A 1280 × 720 frame: a grey field, and a score bar from `top` to `bottom` with one alliance's colour each side of the
@@ -73,6 +73,8 @@ describe("the frame reader", () => {
     expect(rowLabel("TE FiT-North T-League Meet 1 Qualification 10 of 17 PERS [Ah", null)).toBe("Q10");
     expect(rowLabel("wens SHN— NL Benelux LM Leek Qualification 4 of 23 PUERS TAT", null)).toBe("Q4");
     expect(rowLabel("Playoff Match 1", null)).toBe("M1");
+    // The bar at the top edge (USNVCMP 2024 at 8100 s): its row's match half, read on its own, the logo under it.
+    expect(rowLabel("Qualification 36 of 46\nDEEP", null)).toBe("Q36");
     expect(rowLabel("os 55 pe", null)).toBeNull();
     // A shared stream: the whole row must name this division, never a sibling's or none.
     const ctx = { own: "Solo", others: ["Duo"] };
@@ -128,6 +130,27 @@ describe("the frame reader", () => {
     expect(eventLabel("M6")).toBe("M6");
     expect(eventLabel("F1")).toBe("F1");
     expect(eventLabel("Q11")).toBe("Q11");
+  });
+
+  it("finds a bottom bar's crop in the same bar flipped to the top", () => {
+    // POWERPLAY's timer box, 4 px above the bottom edge of a 720 px frame, is 4 px below the top in Arizona's flipped
+    // bar (USAZCMPGC23 2022: "85" read there at 8640 s); x, width and height stay.
+    expect(flippedClip({ x: 605, y: 686, width: 70, height: 30 })).toEqual({ x: 605, y: 4, width: 70, height: 30 });
+    // Flipping twice is the crop itself; another frame height flips about its own middle.
+    const c = { x: 1, y: 600, width: 2, height: 50 };
+    expect(flippedClip(flippedClip(c))).toEqual(c);
+    expect(flippedClip({ x: 0, y: 1000, width: 10, height: 40 }, 1080)).toEqual({ x: 0, y: 40, width: 10, height: 40 });
+  });
+
+  it("tries the crop whose clock last ran first, then the rest in order", () => {
+    const [a, b, c, d] = [{ n: "a" }, { n: "b" }, { n: "c" }, { n: "d" }];
+    expect(cropOrder([a, b, c, d])).toEqual([a, b, c, d]);
+    // USAZCMPGC23 2022: the flipped bar's crop ran, so it's read before the bottom crops' stray field digits.
+    expect(cropOrder([a, b, c, d], c)).toEqual([c, a, b, d]);
+    expect(cropOrder([a, b, c, d], a)).toEqual([a, b, c, d]);
+    // None, or a crop that isn't one of these (the bar found in the frame): the usual order.
+    expect(cropOrder([a, b, c, d], null)).toEqual([a, b, c, d]);
+    expect(cropOrder([a, b, c, d], { n: "a" })).toEqual([a, b, c, d]);
   });
 
   it("reads a bare-seconds timer (FTC Live's overlay, 2019–2022)", () => {
@@ -425,6 +448,16 @@ describe("a full-screen card naming several matches", () => {
     expect(overlayLabel("onship - VLAICU Division  Romania C  Playoff Match 11")).toBe("M11");
     expect(overlayLabel("Mississauga Qualifier  Match 10  2:30")).toBe("M10");
   });
+  // FIRST DIVE's 2024 playoff bar: the match on screen, with its winner's and loser's next matches beside it (AUCMP
+  // g8Zrl3yxVHM M1 at 16874 s, M2 at 17221 s; FPECA 167irOy-YgY M3 at 14293 s), as tesseract reads them.
+  it("never takes the bar's \"Winner → Match N\" or \"Loser → Match N\" for the match on screen", () => {
+    expect(overlayLabel("er DIVE — | Australia Championship Playoff Match 2\n® Winner-> Match 7 -")).toBe("M2");
+    expect(overlayLabel("eer DIVE Carolinas Premier Event Playoff Match 3\n® Winner-> Match 7 —")).toBe("M3");
+    expect(overlayLabel("Australia Championship  Playoff Match 1\nWinner → Match 7\nLoser → Match 5")).toBe("M1");
+    // The bar's own line lost to the crowd behind it: the next steps alone name no match on screen.
+    expect(overlayLabel("® Winner Match 7 -\nPERL] Barker Biuebacks | J loser © Match5 JESRARLL")).toBeNull();
+    expect(overlayLabel("Winner → Match 7\nLoser → Match 5")).toBeNull();
+  });
 });
 
 describe("FTC Live's count of matches played", () => {
@@ -433,5 +466,95 @@ describe("FTC Live's count of matches played", () => {
     expect(playedCount("ftc.events/CABCVIQ2/rankings  5 matches per team  4 / 23 matches played")).toEqual({ played: 4, of: 23 });
     expect(playedCount("Qualification 21 of 36  2:05")).toBeNull();
     expect(playedCount("40 / 23 matches played")).toBeNull();
+  });
+});
+
+describe("whose event an overlay names", () => {
+  // Read as tesseract reads the saved frames (scripts/video-frames.ts), each with its event's name and qual total.
+  it("tells another event's half of a split screen by its total, its name lost to OCR (USTXCAM1 2024 at 76 s)", () => {
+    // Left half: FiT-Central North San Antonio League Meet 1, "Qualification 3 of 24"; this event (26 quals) on the right.
+    expect(overlayEvent("—E— Qualification 3 of 24 y- ny. FT-Contrl Hil Countittpotionerit 2s [RE", "FiT-Central Hill Country League Meet 1", 26)).toEqual({ event: "other" });
+  });
+  it("never takes a logo misread for another event's name (KZCMP 2022's playing frames at 420 s)", () => {
+    // POWERPLAY's "FIRST ENERGIZE" read "FIRST ZN=RGIZ= swe": two words, neither this event's. Its own name follows the match.
+    const kz = "Kazakhstan Central Asia FTC Regional Championship";
+    expect(overlayEvent("FIRST ZN=RGIZ= swe Qualification 2 of 39 { Kazakhstan Central Asia FTC POWERZ)PY Ces", kz, 39)).toEqual({ event: "own", phrase: "Q2" });
+    // A playoff bar has no total to stand by: the short junk words are no name.
+    expect(overlayEvent("FIRST ZN=RGIZ= swe Match 3 { Kazakhstan Central Asia FTC POWERZ)PY Ces", kz, 39)).toEqual({ event: null });
+    // A name read as another's beside this event's own total: the total stands.
+    expect(overlayEvent("Rolling Prairie Robotics Qualification 2 of 39", kz, 39)).toEqual({ event: "own", phrase: "Q2" });
+  });
+  it("tells nothing by a total whose last digit OCR lost (USNVCMP 2024 at 2700 s: its own \"of 46\" read \"of 4\")", () => {
+    expect(overlayEvent("~~ DIVE — [CC qualification 7 of 4 Ro", "Nevada Championship", 46)).toEqual({ event: null });
+    // Not the start of the total's digits: another event's still.
+    expect(overlayEvent("—E— Qualification 7 of 5 Ro", "Nevada Championship", 46)).toEqual({ event: "other" });
+    // Logo scraps and a cut name beside it: Nevada's own (2509 s, 10021 s).
+    expect(overlayEvent("rer DIVE — Nevada Chan qualification 6 of 4 RB", "Nevada Championship", 46).event).not.toBe("other");
+    expect(overlayEvent("esr DIVE Nevada Cham qualification 7 of 4 WORE", "Nevada Championship", 46).event).not.toBe("other");
+  });
+  it("reads this event's half of a split screen where both halves are read", () => {
+    const text = "FiT-Central North San Antonio League Meet 1 Qualification 3 of 24 INTO THE DEEP FiT-Central Hill Country League Meet 1 Qualification 7 of 26";
+    expect(overlayEvent(text, "FiT-Central Hill Country League Meet 1", 26)).toEqual({ event: "own", label: "Q7", phrase: "Q7" });
+    // Without the total, the names alone tell the halves apart.
+    expect(overlayEvent(text, "FiT-Central Hill Country League Meet 1")).toEqual({ event: "own", label: "Q7", phrase: "Q7" });
+  });
+  it("keeps a single event's frame with its name cut, scrolled or reordered", () => {
+    expect(overlayEvent("ad ! | \'{ B= \ Division Michiana Premier Event - Qualification 21 of 115 \"RDF:", "Michiana Premier Event - Thomson Division", 115)).toEqual({ event: "own", phrase: "Q21" });
+    expect(overlayEvent("rest DIVE Checkpoint Scrimmage Beehive Aca Qualification 1 of 11", "Beehive Academy Checkpoint Scrimmage", 11)).toEqual({ event: "own", phrase: "Q1" });
+    expect(overlayEvent("24 CANOPY | Collegiate Meet @ 9 AM Qualification 2 of 15 BIOBUZZ", "Collegiate Meet @ 9 AM", 15)).toEqual({ event: "own", phrase: "Q2" });
+    expect(overlayEvent("Austin Semi-Area Championship • Qualification 10 of 40", "FiT-Central Semi-Area Championship Austin", 40)).toEqual({ event: "own", phrase: "Q10" });
+  });
+  it("names no match of this event with another total, and tells a playoff by its name alone", () => {
+    expect(overlayEvent("CANOPY | —E— Qualification 2 of 16", "Collegiate Meet @ 9 AM", 15)).toEqual({ event: "other" });
+    // Its name read, a total the db doesn't hold (a schedule changed since) still counts: the name decides.
+    expect(overlayEvent("CANOPY | Collegiate Meet @ 9 AM Qualification 2 of 16", "Collegiate Meet @ 9 AM", 15)).toEqual({ event: "own", phrase: "Q2" });
+    expect(overlayEvent("DIVE Hawaii Championship Playoff Match 3", "Hawaii Championship", 25)).toEqual({ event: "own", phrase: "M3" });
+    expect(overlayEvent("DIVE Western Edge Premier Event Playoff Match 3", "Hawaii Championship", 25)).toEqual({ event: "other" });
+    // Two matches, neither another event's for sure (a split screen's unread half, or one event's bracket card): the
+    // frame gives no match of its own (overlayLabel: several named name none), only the one beside this event's name.
+    expect(overlayEvent("—E— Playoff Match 3 DIVE Hawaii Championship Playoff Match 5", "Hawaii Championship", 25)).toEqual({ event: "own", phrase: "M5" });
+    expect(overlayEvent("DIVE Hawaii Championship Playoff Match 3 Winner Playoff Match 5", "Hawaii Championship", 25)).toEqual({ event: "own", phrase: "M3" });
+    // 2019–2022's best-of-3 semifinals keep their series and number (overlayLabel's M2-1), never F1 or M1.
+    expect(overlayEvent("Hawaii Championship Semifinal 2 Match 1", "Hawaii Championship", 25, true)).toEqual({ event: "own", phrase: "M2-1" });
+    expect(overlayEvent("Hawaii Championship Semi-final 1 Match 2", "Hawaii Championship", 25, true)).toEqual({ event: "own", phrase: "M1-2" });
+    // Its series lost to OCR ("Semifinals Match 1"): no match, as overlayLabel names none.
+    expect(overlayEvent("Hawaii Championship Semifinals Match 1", "Hawaii Championship", 25, true)).toEqual({ event: "own" });
+    // The finals of those years, "Finals Match 2" even with a letter misread.
+    expect(overlayEvent("Hawaii Championship Finais Match 2", "Hawaii Championship", 25, true)).toEqual({ event: "own", phrase: "F2" });
+    // Nothing to tell by: no total, no name.
+    expect(overlayEvent("Playoff Match 3", "Hawaii Championship", 25)).toEqual({ event: null });
+  });
+});
+
+describe("an event's played matches, a time or not", () => {
+  // A stand-in for the zone: the venue's wall clock read as UTC.
+  const f = { utcMs: (t: string) => Date.parse(`${t}Z`), actual: (t: string | null) => !!t && !t.endsWith(":00"), rank: (l: string) => ({ Q1: 1, Q2: 2, M1: 1e6 + 1000 } as Record<string, number>)[l] ?? 4e6 };
+  it("reads one with no time by its frames alone, after the timed ones in its label's order", () => {
+    const ms = playedMatches([
+      { label: "M1", time: null, timezone: null }, { label: "Q2", time: "2025-07-19T10:07:00", timezone: "America/Chicago" },
+      { label: "Q1", time: "2025-07-19T10:01:13", timezone: "America/Chicago" }, { label: "X1", time: null, timezone: null },
+    ], f);
+    expect(ms.map((m) => [m.label, !!m.scheduled])).toEqual([["Q1", false], ["Q2", true], ["M1", true], ["X1", true]]);
+    expect(ms.map((m) => m.time)).toEqual(["2025-07-19T10:01:13", "2025-07-19T10:07:00", null, null]);
+    // Only ordered: no time means no clock, so each epoch is just after the last timed one's.
+    expect(ms[2].epoch).toBeGreaterThan(ms[1].epoch);
+    expect(ms[3].epoch).toBeGreaterThan(ms[2].epoch);
+  });
+  it("Chicago Robotics Invitational's results: none has a time, all are read in label order", () => {
+    const ms = playedMatches([{ label: "M1", time: null, timezone: null }, { label: "Q2", time: null, timezone: null }, { label: "Q1", time: null, timezone: null }], f);
+    expect(ms.map((m) => m.label)).toEqual(["Q1", "Q2", "M1"]);
+    expect(ms.every((m) => m.scheduled)).toBe(true);
+  });
+  it("leaves out a time the event's zone can't place", () => {
+    expect(playedMatches([{ label: "Q1", time: "2025-07-19T10:01:13", timezone: null }], { ...f, utcMs: () => null })).toEqual([]);
+  });
+});
+
+describe("wholeLength", () => {
+  it("times a video by its player when YouTube gave no duration, never a live stream or an empty player", () => {
+    expect(wholeLength(25019.6)).toBe(25020);
+    expect(wholeLength(Infinity)).toBeNull();
+    expect(wholeLength(NaN)).toBeNull();
+    expect(wholeLength(0)).toBeNull();
   });
 });
