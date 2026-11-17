@@ -21,11 +21,11 @@ Videos › 56 more matches get a clip read off their event's video, each opening
 
 ### Highlights
 - [fixes] 56 more matches get a clip read off the video
-- [fixes] Each opens on a frame whose overlay names its match
+- [fixes] No clip that plays now stops playing
 - [fixes] No clip already playing changes
 
 ### Fixed
-- Videos (`server/data/frameTimings/`): a re-read of videos already in the data with the current reader adds 56 2025 starts (USCOSEQ, USIAPOMPM11, USIAWESTLT, USIDKIQ, USILCSNELT, USILSCLT, USMNCMPNANO, USMOKSSTLMM7, USNMCMP, USNYEXHJQ, USORIMM3), each checked paused on its clip's opening frame. Only starts are added: no row loses or moves one, and no clip already playing changes. (part 2 of 3) (#1742)
+- Videos (`server/data/frameTimings/`): a re-read of videos already in the data with the current reader adds 56 2025 starts (USCOSEQ, USIAPOMPM11, USIAWESTLT, USIDKIQ, USILCSNELT, USILSCLT, USMNCMPNANO, USMOKSSTLMM7, USNMCMP, USNYEXHJQ, USORIMM3), each read off the video's frames (a row that already records checked openings gets the new starts' openings too; a row without any keeps none, so its other clips keep playing). Only starts are added: no row loses or moves one, and no clip already playing changes. (part 2 of 3) (#1742)
 
 ## 7.6.2 — 2026-11-17
 
