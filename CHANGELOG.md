@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.5.0 — 2026-11-17
+
+Videos › 179 matches from five more 2023 events get clips, each opening on its own match: Texas's UIL 1A-4A state championship, the FiT-North E&F and U^2 tournaments, Charlottesville's Stage Left qualifier and Mississippi's Meridian qualifier.
+
+### Highlights
+- [fixes] 179 more 2023 matches get a clip
+- [fixes] Every clip opens on a frame naming its match
+- [fixes] Five more 2023 events that had no clips now have them
+
+### Fixed
+- Videos (`server/data/frameTimings/2023.ts`): frame-read starts for USCHSCHQ3 (37 of 37 played), USTXBES (37 of 37), USMSMEQ (33 of 38), USTXNEFLT (37 of 37) and USTXNU2LT (35 of 37). Each clip's opening frame names its match and its event; matches placed out of order are left for review, never shown (#1711).
+
 ## 7.4.9 — 2026-11-17
 
 Event videos › an event's recording can now be found on a day it played that FIRST's dates leave out, and KZCMP 2022's second day plays.
