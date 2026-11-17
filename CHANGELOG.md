@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.4.6 — 2026-11-17
+
+Videos › 104 more 2022 (POWERPLAY) match clips from Virginia's Mechanicsville 2 and Norfolk qualifiers and Maryland's Potomac qualifier.
+
+### Highlights
+- [history] Mechanicsville Qualifier 2: clips for 20 of 31 matches
+- [history] Norfolk Qualifier: clips for 34 of 35 matches
+- [history] Potomac Qualifier: clips for 50 of 51 matches
+
+### Added
+- Videos: clips read off the recordings' frames (`server/data/frameTimings/2022.ts`): USCHSMEQ2 20 of 31 played matches, USCHSNOQ 34 of 35, USCHSPOQ 50 of 51. Each placed start's clip opens on a paused frame whose overlay names that match (20, 12, 5, 2 or 0 s before it), and each frame's event name is this event's own. The matches left out stay without a clip, with the reason. (#1721)
+
 ## 7.4.5 — 2026-11-17
 
 Videos › 84 more 2022 (POWERPLAY) match clips from the Netherlands' Hasselt and Bladel league meets and Virginia's Christiansburg qualifier.
