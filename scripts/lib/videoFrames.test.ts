@@ -30,6 +30,9 @@ describe("the frame reader", () => {
     expect(overlayBand(frame([{ top: 98, bottom: 142, left: "red" }]), 1280, 720)).toEqual({ top: 98, bottom: 142 });
     // Red on the left is a bar too; of two, the taller.
     expect(overlayBand(frame([{ top: 20, bottom: 40 }, { top: 600, bottom: 690, left: "red" }]), 1280, 720)).toEqual({ top: 600, bottom: 690 });
+    // The taller by a single row wins too, whichever comes first.
+    expect(overlayBand(frame([{ top: 100, bottom: 190 }, { top: 500, bottom: 591 }]), 1280, 720)).toEqual({ top: 500, bottom: 591 });
+    expect(overlayBand(frame([{ top: 100, bottom: 191 }, { top: 500, bottom: 590 }]), 1280, 720)).toEqual({ top: 100, bottom: 191 });
     // No bar: a plain frame, or one alliance's colour alone (a results card's half), or a strip too thin to be one.
     expect(overlayBand(frame([]), 1280, 720)).toBeNull();
     // An orange wood floor is neither alliance's colour.
