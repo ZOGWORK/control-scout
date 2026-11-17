@@ -15,18 +15,6 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 7.6.4 — 2026-11-17
-
-Videos › The frame reader finds the match timer in its own box on the score bar, so streams that set it above their bar get clips that start on time: Nevada's 2023 championship went from 3 to 20 matches placed.
-
-### Highlights
-- [fixes] Match timers read in their own box on the score bar
-- [history] Nevada 2023's top-bar stream now reads on time
-- [fixes] Tested on three real 2023 score bars
-
-### Fixed
-- Videos: the frame reader finds the timer's own box in the score bar (`timerDigits`) and reads only its digit rows. It does this first when a match label came from the top row, and before the bar-half fallback. A fixed top-bar crop read the digits' lower half and the robot icon under them on Nevada's 2023 stream, so starts came out ~20 s late. USNVCMP 2023 went from 3 to 20 of 35 placed. Tests use three real 2023 bars. (`scripts/lib/videoFrames.ts`, `scripts/video-frames.ts`) (#1757)
-
 ## 7.6.3 — 2026-11-17
 
 Event videos › a title's "Day 2" can mean the event's second day of play, and two Romanian events get the recordings of the days FIRST's dates left out.
