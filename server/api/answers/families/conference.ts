@@ -46,19 +46,27 @@ export function readConferenceAsk(raw: string): ConferenceAsk | null {
   const { scope, rest: said } = readScope(q);
   // A place in a ranking ("top 10", "#1", "number 2") is the table's ask, never a team's number.
   const rest = said.replace(/\b(?:top|best|first|leading)\s+\d{1,3}\b|(?:^|\s)#\s*\d{1,3}\b|\bnumber\s+\d{1,3}\b/g, " top ");
-  const nums = (rest.match(/\b\d{1,6}\b/g) ?? []).map(Number);
+  // A team's possessive ("4215's", read as "4215s") is its number too.
+  const nums = (rest.match(/\b\d{1,6}(?=s?\b)/g) ?? []).map(Number);
   if (nums.length > 1) return null;
   const team = nums[0] ?? null;
   const won = WON.test(rest);
   if (!won && !TABLE.test(rest) && team == null) return null;
+  // A team and a winner asked together ("who won 4215's conference", "did 4215 win its conference"): not a rank, and
+  // not this reader's to guess which conference; never answered with the team's ranking.
+  if (team != null && won) return null;
   // The words before "conference" may name it (and a team's name before that); the rest is frame.
   // A team "at" a named conference ("4215 rank at east bergen conference") asks about its tournament: the event
   // readers'. "In" it is the conference's. With no team, "at" names the conference ("top teams at …").
-  const at = scope.at && /\bconf(?:erence)?s?\b/.test(scope.at) ? scope.at : null;
+  // A filter the conference table can't answer (playoffs, an alliance, all time, a day, worlds, a place): not this
+  // ask, never the league-meets table as if it were unsaid. "At" a conference is read below.
+  if (scope.championship || scope.states || scope.level || scope.alliance || scope.ever || scope.day || scope.window || scope.place || scope.outOfState) return null;
+  if (scope.at && !/\bconf(?:erence)?s?\b/.test(scope.at)) return null;
+  const at = scope.at ? scope.at : null;
   if (team != null && at) return null;
   // "Essex/Union": two words of a name.
   const before = (at ?? rest).split(/\bconf(?:erence)?s?\b/)[0].replace(/([a-z])[/–-](?=[a-z])/g, "$1 ");
-  const named = (t: string) => t.replace(/([a-z])[/–-](?=[a-z])/g, "$1 ").split(" ").filter((w) => w && !FRAME.has(w) && !/^\d+$/.test(w));
+  const named = (t: string) => t.replace(/([a-z])[/–-](?=[a-z])/g, "$1 ").split(" ").filter((w) => w && !FRAME.has(w) && !/^\d+s?$/.test(w));
   const after = named((at ?? rest).split(/\bconf(?:erence)?s?\b/).slice(1).join(" "));
   // The name before "conference", else after it when a table or winner is asked ("conference rankings for east bergen").
   const lead = named(before);
@@ -239,11 +247,21 @@ export async function conferenceAskAnswer(ask: ConferenceAsk, current: number): 
   // No team and no conference named: which conference? The latest season's winners, never a guess.
   if (!hits.length) {
     const seasons = [...new Set(list.map((c) => c.season))].sort((a, b) => b - a);
-    for (const s of season != null ? [season] : seasons) {
+    const load = async (s: number) => {
       const ds = (await Promise.all(list.filter((c) => c.season === s).map((c) => conferenceByEvent(c.season, c.code)))).filter((d): d is NonNullable<typeof d> => !!d);
-      const done = ds.filter((d) => d.status === "finished" && d.winner);
-      // With no season said: the latest season with a winner on record for "who won", else the latest with conferences.
-      if (season == null && (ask.won ? !done.length : !ds.length)) continue;
+      return { s, ds, done: ds.filter((d) => d.status === "finished" && d.winner) };
+    };
+    // The season asked; else the latest with a winner on record for "who won", and failing that (or for any other
+    // ask) the latest with conferences.
+    let pickS: Awaited<ReturnType<typeof load>> | null = season != null ? await load(season) : null;
+    if (season == null) {
+      for (const want of ask.won ? ["won", "any"] : ["any"]) {
+        for (const x of seasons) { const g = await load(x); if (want === "won" ? g.done.length : g.ds.length) { pickS = g; break; } }
+        if (pickS) break;
+      }
+    }
+    if (pickS) {
+      const { s, ds, done } = pickS;
       if (!ds.length) return { ...base(s), title: `New Jersey's conferences · ${seasonLabel(s)}`, none: `No New Jersey conference tournaments are listed for ${seasonLabel(s)}.` };
       return { ...base(s), title: `Which conference? New Jersey's conferences · ${seasonLabel(s)}`,
         none: !ask.won || done.length ? undefined : `No New Jersey conference tournament has been won in ${seasonLabel(s)} yet.`,
