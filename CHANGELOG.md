@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.2.9 — 2026-11-17
+
+Videos › the frame reader no longer takes a playoff bar's "Winner → Match 7" for the match being played.
+
+### Highlights
+- [fixes] Playoff clips read the right match on FIRST DIVE's 2024 bar
+- [fixes] A bracket's next match is never taken for the one on screen
+- [fixes] More 2024 playoff openings confirmed from their own frame
+
+### Fixed
+- FIRST DIVE's 2024 playoff bar shows the bracket's next steps beside the match on screen ("Winner → Match 7", "Loser → Match 5"). The frame reader counted those as matches named on screen: where tesseract lost the bar's own "Playoff Match 1" line (AUCMP 2024 at 16874 s), the frame read as Match 7, a later match; where it kept it, two numbers named no match and the opening went unread. Like "advances to", a Winner or Loser line's match is now never the one on screen. (`scripts/lib/videoFrames.ts`) (#PRNUM)
+
 ## 7.2.8 — 2026-11-17
 
 Videos › the frame-read match starts are kept one file a season, so a season's recordings can be read alongside another's; every clip plays as before.
