@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 7.5.2 — 2026-11-17
+## 7.5.5 — 2026-11-17
 
 Videos › The frame reader now reads streams whose score bar sits along the top of the frame, as FIRST Nevada's do.
 
@@ -27,6 +27,42 @@ Videos › The frame reader now reads streams whose score bar sits along the top
 ### Fixed
 - The frame reader read nothing on FTC Live's bar moved to the top edge (FIRST Nevada, USNVCMP 2024): its row is now read on its own when the whole frame names no match, and that bar's timer is read first in its own place under it. A dry read of USNVCMP places 33 of 57 matches, from 0. (`scripts/video-frames.ts`)
 - The overlay's event check took this event's own frames for another event's: a total with its last digit lost ("of 46" read "of 4") now tells nothing, and only words of four letters or more weigh against a name ("rer DIVE — Nevada Chan"). (`scripts/lib/videoFrames.ts`) (#1713)
+
+## 7.5.4 — 2026-11-17
+
+Videos › 167 of the İstanbul Premier Event's 168 division match clips now open on a frame naming their match and division, and 16 Valens clips that opened 48 s late now catch the start.
+
+### Highlights
+- [fixes] 167 İstanbul clips open on a frame naming their match
+- [fixes] 16 Valens Division clips no longer miss the start of their match
+- [fixes] No clip is taken away
+
+### Fixed
+- Videos: both divisions of the İstanbul Premier Event (FPEISTRDIV, FPEISTVDIV) are now played from their recordings' own frames, two day videos each, rather than from the clock. Rumeli places 83 of its 84 matches; its Q28 has no readable overlay at its start, so it keeps the clock's clip. Valens places all 84. Each clip opens on a paused frame whose overlay names its match and its own division, never the sibling's, though the two share a stream. 151 openings move 11 to 18 s later, past the clock's early lead-in, to where the match's overlay is up. Valens's first day runs 49 s off the clock from Q36 on, so its Q36–Q51 clips, which opened about 48 s into play, now open before the start. (`server/data/frameTimings/2025.ts`) (#1669)
+
+## 7.5.3 — 2026-11-17
+
+Videos › 200 matches from four 2023 events get clips, each opening on its own match: Toronto's first qualifier, Iowa's Gold championship, Missouri's state championship and Kansas City's West league tournament.
+
+### Highlights
+- [fixes] 200 more 2023 matches get a clip
+- [fixes] Every clip opens on a frame naming its match
+- [fixes] Four 2023 events that had no clips now have them
+
+### Fixed
+- Videos (`server/data/frameTimings/2023.ts`): frame-read starts for CAONTOQ1 (44 of 51 played), USIACMPGOLD (47 of 61), USMOKSCMP (57 of 61) and USMOKSKCWLT (52 of 54). Each clip's opening frame names its match; semifinal matches read before the reader knew CENTERSTAGE's semifinal names are left for review, never shown as clips (#1668).
+
+## 7.5.2 — 2026-11-17
+
+Videos › The first match clips for 2022 (POWERPLAY): 318 matches in 6 events, each clip opening on a frame that names its match.
+
+### Highlights
+- [history] 2022 events get match clips for the first time
+- [history] 318 matches in 6 events, read off the recordings' own frames
+- [fixes] Every clip opens on a frame naming its match
+
+### Added
+- Videos: clips read off the recordings' frames (`server/data/frameTimings/2022.ts`), now that the frame reader reads 2022's overlay (#1651): USCHSHEQ 54 of 54 played matches, USCHSUBQ 53 of 53, USMOKSSWMILT1 48 of 48, USMOKSCMP 61 of 62, USCHSHAQ1 53 of 55, USTXCECCS 49 of 55. Each placed start's clip opens on a paused frame whose overlay names that match (20, 12, 5, 2 or 0 s before it). The matches left out stay without a clip, with the reason. (#1664)
 
 ## 7.5.1 — 2026-11-17
 
