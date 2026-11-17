@@ -115,11 +115,11 @@ export async function leagueConferences(season: number, regionRaw: string, codeR
 }
 
 /** One conference tournament's table, by its (season, code); null when it names no conference. */
-export async function conferenceByEvent(season: number, code: string, o: { now?: string } = {}): Promise<(Conference & { region: string; league: string }) | null> {
+export async function conferenceByEvent(season: number, code: string, o: { now?: string } = {}): Promise<(Conference & { region: string; league: string; leagueName: string | null }) | null> {
   const [c] = await all<ConfRow>(`${CONF_SELECT} WHERE c.season = ? AND c.code = ? COLLATE NOCASE`, [season, code]);
   if (!c) return null;
   const league = await leagueStandings(season, c.region, c.league);
-  return { ...(await buildConference(c, league, o.now ?? today())), region: c.region, league: c.league };
+  return { ...(await buildConference(c, league, o.now ?? today())), region: c.region, league: c.league, leagueName: league?.name ?? null };
 }
 
 /** A team's conference in a season: the conference tournament FIRST lists it in (its latest), with its place there. */
@@ -152,4 +152,34 @@ export async function teamConferenceInfo(team: number, season: number): Promise<
     league: league ? { region: league.region, code: league.code, name: league.name } : null,
     conference,
   };
+}
+
+/** Every stored conference, every season (a few dozen rows): what search reads a conference's name against. */
+export async function allConferences(): Promise<{ season: number; code: string; region: string; league: string; leagueName: string | null; name: string; slug: string; aliases: string[]; start: string | null; end: string | null }[]> {
+  const rows = await all<ConfRow & { league_name: string | null }>(`SELECT c.season, c.code, c.region, c.league, c.name, c.slug, c.first_name, c.aliases, e.name event, e.start, e.end, e.venue, e.city, l.name league_name
+    FROM event_conferences c JOIN events e ON e.season = c.season AND e.code = c.code LEFT JOIN leagues l ON l.season = c.season AND l.region = c.region AND l.code = c.league
+    ORDER BY c.season, e.start, c.code`);
+  return rows.map((r) => ({ season: Number(r.season), code: r.code, region: r.region, league: r.league, leagueName: r.league_name?.trim() || null, name: r.name, slug: r.slug, aliases: aliasesOf(r), start: r.start, end: r.end }));
+}
+
+/** The conference tournament a team is in for a season: FIRST's field first, else FTC New Jersey's sign-ups (`registered`). */
+export async function teamConferenceEvent(season: number, team: number): Promise<{ code: string; registered: boolean } | null> {
+  const [field] = await all<{ code: string }>(
+    `SELECT c.code FROM event_conferences c JOIN event_teams et ON et.season = c.season AND et.code = c.code AND et.team = ? JOIN events e ON e.season = c.season AND e.code = c.code
+     WHERE c.season = ? ORDER BY e.start DESC, c.code LIMIT 1`, [team, season]);
+  if (field) return { code: field.code, registered: false };
+  // Sign-ups only count for a tournament FIRST has no team list for yet.
+  const prov = await all<{ code: string; teams: string }>(
+    `SELECT c.code, p.teams FROM event_conferences c JOIN event_provisional p ON p.season = c.season AND p.code = c.code JOIN events e ON e.season = c.season AND e.code = c.code
+     WHERE c.season = ? AND NOT EXISTS (SELECT 1 FROM event_teams et WHERE et.season = c.season AND et.code = c.code) ORDER BY e.start DESC, c.code`, [season]);
+  for (const p of prov) {
+    try { if ((JSON.parse(p.teams) as { team: number }[]).some((t) => Number(t.team) === team)) return { code: p.code, registered: true }; } catch { /* a damaged row: not this one */ }
+  }
+  return null;
+}
+
+/** The tournament's own rank for a team (its event table), to say beside the league one: two different rankings. */
+export async function tournamentRank(season: number, code: string, team: number): Promise<number | null> {
+  const [r] = await all<{ rank: number | null }>("SELECT rank FROM event_teams WHERE season = ? AND code = ? AND team = ?", [season, code, team]);
+  return r?.rank == null ? null : Number(r.rank);
 }
