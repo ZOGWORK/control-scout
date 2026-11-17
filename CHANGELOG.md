@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.6.6 — 2026-11-17
+
+Search › "thier" is read as "their" again, so "where is 207 in thier conference" answers 207's conference place.
+
+### Highlights
+- [fixes] "Thier" is corrected to "their" in a search
+- [fixes] "Where is 207 in thier conference" answers its conference place
+- [fixes] A short word in a team's name no longer blocks a spelling fix
+
+### Fixed
+- Search spelling (`server/api/spelling.ts`): a word that looks like a plain form of a known word ("winning" of "win") is left as typed, and "Thi", a given name in the stored names, made "thier" read as "Thi" with "-er", so it was never corrected. A three-letter stem now counts only when it is one of search's own words, so "thier" is "their" and the conference question is read; "winning" and the other forms stay as typed. (#PRNUM)
+
 ## 7.6.5 — 2026-11-17
 
 Search › a team's conference place shows this season when the team is in one, going in from the sign-ups, and last season's only when not, saying so; "where was …" shows the last one played out.

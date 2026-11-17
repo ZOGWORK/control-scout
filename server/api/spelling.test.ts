@@ -52,6 +52,13 @@ describe("intent words typed wrong", () => {
     expect(correctWord("lastet", v)?.word).toBe("latest");
     expect(correctWord("jacosn", v)?.word).toBe("jackson");
   });
+  it("never reads a plain word's typo as a form of a short name's word", () => {
+    // "Thi", a given name in the names, seen often: "thier" is still "their", not "Thi" with "-er".
+    const named = buildVocab(Array.from({ length: 4 }, (_, i) => ({ name: `Thi Team ${i}`, city: "Paramus", state: "NJ" })), []);
+    expect(correctWord("thier", named)?.word).toBe("their");
+    // A short word of search's own still has its forms ("winning" of "win").
+    expect(correctWord("winning", named)).toBeNull();
+  });
   it("takes the fewer plain edits between two as close by typing", () => {
     expect(correctWord("lasetest", v)?.word).toBe("latest");
   });
