@@ -22,6 +22,20 @@ describe("rowProblems", () => {
   it("refuses overlapping starts and seconds that aren't in a video", () => {
     expect(rowProblems(row({ starts: { Q1: 600, Q2: 690 }, opens: { Q1: 588, Q2: 685 } }))).toEqual(["Q1: its start overlaps another match's", "Q2: its start overlaps another match's"]);
     expect(rowProblems(row({ starts: { Q1: -3 }, opens: { Q1: -5 } }))[0]).toBe("Q1: start -3 isn't a second in the video");
+    expect(rowProblems(row({ starts: { Q1: 10 }, opens: { Q1: -10 } }))).toEqual(["Q1: opening -10 isn't a second in the video"]);
+  });
+
+  it("refuses starts out of the order the matches were played, by their real starts, not their numbers", () => {
+    const opens = (s: Record<string, number>) => Object.fromEntries(Object.entries(s).map(([l, t]) => [l, t - 5]));
+    const swapped = { Q1: 1000, Q2: 600 };
+    expect(rowProblems(row({ starts: swapped, opens: opens(swapped) }), undefined, ["Q1", "Q2"])).toEqual(["Q2: starts before Q1, out of the order they were played"]);
+    // Played Q2 first (FPEMITHO 2024 played some qualifications out of number order), and a replay after the next
+    // match (TRISQ1 2024's M3-2 after M4): in the order played, so fine.
+    expect(rowProblems(row({ starts: swapped, opens: opens(swapped) }), undefined, ["Q2", "Q1"])).toEqual([]);
+    const replay = { M3: 100, M4: 500, "M3-2": 900 };
+    expect(rowProblems(row({ starts: replay, opens: opens(replay) }), undefined, ["M3", "M4", "M3-2"])).toEqual([]);
+    // Without the order, nothing to check it against.
+    expect(rowProblems(row({ starts: swapped, opens: opens(swapped) }))).toEqual([]);
   });
 
   it("never lets a new placement be unconfirmed: only a live clip whose opening named nothing stays so", () => {
