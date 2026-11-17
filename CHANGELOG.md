@@ -25,7 +25,7 @@ Search › "thier" is read as "their" again, so "where is 207 in thier conferenc
 - [fixes] A short word in a team's name no longer blocks a spelling fix
 
 ### Fixed
-- Search spelling (`server/api/spelling.ts`): a word that looks like a plain form of a known word ("winning" of "win") is left as typed, and "Thi", a given name in the stored names, made "thier" read as "Thi" with "-er", so it was never corrected. A three-letter stem now counts only when it is one of search's own words, so "thier" is "their" and the conference question is read; "winning" and the other forms stay as typed. (#PRNUM)
+- Search spelling (`server/api/spelling.ts`): a word that looks like a plain form of a known word ("winning" of "win") is left as typed, and "Thi", a given name in the stored names, made "thier" read as "Thi" with "-er", so it was never corrected. A three-letter stem now counts only when it is one of search's own words, so "thier" is "their" and the conference question is read; "winning" and the other forms stay as typed. (#1828)
 
 ## 7.6.5 — 2026-11-17
 
