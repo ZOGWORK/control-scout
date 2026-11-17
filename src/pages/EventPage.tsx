@@ -7,6 +7,8 @@ import { pickHelperQuery } from "../shared/scoutSections";
 import { eventOver } from "../shared/eventDay";
 import { Award, CalendarDays, ChevronDown, Clock, ExternalLink, Gavel, Info, ListOrdered, Loader2, MapPin, Radar, Radio, RefreshCw, Search, Sparkles, Swords, Trophy, Tv, Users } from "lucide-react";
 import { leagueHref } from "../shared/leagues";
+import { CONFERENCE_REGION, conferenceHref, type LeagueConferences } from "../shared/conferences";
+import { useConferenceGate } from "../lib/conferenceGate";
 import { BRACKETS, type Slot } from "@control-scout/predict-engine";
 import { advOddsBasis, rankingCoverage, unofficialNote } from "../lib/eventRankingNotes";
 import { useProjections } from "../lib/projections";
@@ -173,6 +175,8 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
         <Button variant="outline" size="sm" asChild><Link to={`/events/${e.season}/${encodeURIComponent(e.code)}/display`} data-pit-display-link><Tv /> Pit display</Link></Button>
         {/* A league's meet or tournament: the league's whole standing is its own page. */}
         {e.league && e.region && <Button variant="outline" size="sm" asChild><Link to={`${leagueHref(e.season, e.region, e.league)}${teamParam ? `?team=${teamParam}` : ""}`} data-league-link><ListOrdered /> League standings</Link></Button>}
+        {/* A New Jersey conference tournament: its conference's table on the league page (src/shared/conferences.ts). */}
+        {e.type === "LeagueTournament" && e.league && e.region?.toUpperCase() === CONFERENCE_REGION && <ConferenceLink season={e.season} region={e.region} league={e.league} code={e.code} team={teamParam} />}
         {/* The question-box quick reference for this season, where one exists (pages/RulesPage.tsx; built in, so it opens offline). */}
         {rulesOn && hasRuleReference(e.season) && <Button variant="outline" size="sm" asChild><Link to={`/rules?season=${e.season}`} data-rules-link><Gavel /> Rules</Link></Button>}
       </HeaderActions>
@@ -837,4 +841,14 @@ function Awards({ d, nameOf }: { d: EventDetail; nameOf: (t: number) => string }
       )}
     </div>
   );
+}
+
+/** A New Jersey conference tournament's link to its conference's league-standing table, for visitors the gate lets see
+ *  it; nothing when the stored data names no conference for this (season, code). */
+function ConferenceLink({ season, region, league, code, team }: { season: number; region: string; league: string; code: string; team: number | null }) {
+  const shown = useConferenceGate(region, season);
+  const r = useApi<LeagueConferences>(shown ? `/api/leagues/${season}/${encodeURIComponent(region)}/${encodeURIComponent(league)}/conferences` : null);
+  const c = r.data?.conferences.find((x) => x.code.toUpperCase() === code.toUpperCase());
+  if (!c) return null;
+  return <Button variant="outline" size="sm" asChild><Link to={conferenceHref(season, region, league, { slug: c.slug, team })} data-conference-link><ListOrdered /> {c.name} rankings</Link></Button>;
 }
