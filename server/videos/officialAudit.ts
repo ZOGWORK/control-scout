@@ -19,8 +19,10 @@ import { all, db, get, run } from "../db.js";
 import { env } from "../env.js";
 import { recordAudit } from "../portal/audit.js";
 import { withDataLock } from "../data/lock.js";
-import { isoDuration } from "./youtube.js";
-import { eventVideosByDay, forgetOfficial, linkAiredOff, localDate } from "./officialVideos.js";
+import { isPlaceholderTitle, isoDuration } from "./youtube.js";
+
+export { isPlaceholderTitle };
+import { eventVideosByDay, forgetOfficial, linkAiredOff, linkTooShort, localDate } from "./officialVideos.js";
 import { LOOKBACK_MS, record, settle, type WatchVerdict } from "./officialWatch.js";
 import { NOT_EVENTS, bestGuess, matchVideo, notCompetition, videoWindow, type ChannelRule, type WatchEvent, type WatchVideo } from "./officialMatch.js";
 import { EVENT_FIRST_DAY, EVENT_LAST_DAY, EVENT_PLAYED_DAYS, playedDays } from "./eventDays.js";
@@ -75,9 +77,9 @@ const DUPLICATE = "a duplicate the watcher logged";
 export interface UnusedLink { season: number; code: string; videoId: string; why: string }
 /**
  * FIRST's event links, a YouTube link or a short link followed to its video: a record of their event only when
- * YouTube's broadcast date fits it (linkAiredOff, the same check the event's recording makes,
- * server/videos/recordings.ts). One aired on another date isn't the event's: its video is decided like any other
- * upload, and the link is listed as unused, with why.
+ * YouTube's broadcast date fits it and it isn't a short upload never broadcast (linkAiredOff, linkTooShort: the same
+ * checks the event's recording makes, server/videos/recordings.ts). One aired on another date, or a clip, isn't the
+ * event's: its video is decided like any other upload, and the link is listed as unused, with why.
  */
 async function firstLinks(): Promise<{ used: { season: number; code: string; videoId: string; short: boolean }[]; unused: UnusedLink[] }> {
   const rows = await all<any>(`SELECT e.season, e.code, e.livestream, ${EVENT_FIRST_DAY} AS start, ${EVENT_LAST_DAY} AS end, e.timezone FROM events e WHERE e.livestream LIKE '%youtu%'`);
@@ -88,15 +90,19 @@ async function firstLinks(): Promise<{ used: { season: number; code: string; vid
     ...shorts.map((r) => ({ r, videoId: String(r.video_id), short: true })),
   ];
   const ids = [...new Set(links.map((l) => l.videoId))];
-  const aired = new Map<string, string>();
+  const facts = new Map<string, { start: string | null; live: number | null; duration: number | null }>();
   for (let i = 0; i < ids.length; i += 200) {
     const part = ids.slice(i, i + 200);
-    for (const m of await all<any>(`SELECT video_id, start FROM video_meta WHERE start IS NOT NULL AND video_id IN (${part.map(() => "?").join(",")})`, part)) aired.set(String(m.video_id), String(m.start));
+    for (const m of await all<any>(`SELECT video_id, start, live, duration FROM video_meta WHERE video_id IN (${part.map(() => "?").join(",")})`, part)) {
+      facts.set(String(m.video_id), { start: m.start == null ? null : String(m.start), live: m.live == null ? null : Number(m.live), duration: m.duration == null ? null : Number(m.duration) });
+    }
   }
   const out: { used: { season: number; code: string; videoId: string; short: boolean }[]; unused: UnusedLink[] } = { used: [], unused: [] };
   for (const { r, videoId, short } of links) {
     const l = { season: Number(r.season), code: String(r.code), videoId };
-    const off = r.start ? linkAiredOff({ code: l.code, start: String(r.start), end: r.end ?? null, timezone: r.timezone ?? null }, aired.get(videoId)) : null;
+    // Not the event's: aired on another date, or a short upload never broadcast (a clip; the same checks as recordings.ts).
+    const off = (r.start ? linkAiredOff({ code: l.code, start: String(r.start), end: r.end ?? null, timezone: r.timezone ?? null }, facts.get(videoId)?.start) : null)
+      ?? linkTooShort(l.code, facts.get(videoId));
     if (off) out.unused.push({ ...l, why: short ? off.replace("FIRST's link", "FIRST's short link's video") : off }); else out.used.push({ ...l, short });
   }
   return out;
@@ -571,7 +577,7 @@ async function readUploads(channelId: string, full: boolean, key: string, fetchI
       await locked(() => db().batch(items.map((i: { id: string; title: string; published: string | null }) => ({
         sql: `INSERT INTO official_audit_videos (video_id, channel_id, title, published, first_seen, last_seen) VALUES (?, ?, ?, ?, ?, ?)
               ON CONFLICT(video_id) DO UPDATE SET channel_id = excluded.channel_id,
-                title = CASE WHEN excluded.title IN ('Deleted video', 'Private video') THEN official_audit_videos.title ELSE excluded.title END, published = COALESCE(excluded.published, official_audit_videos.published), last_seen = excluded.last_seen, gone_at = NULL`,
+                title = CASE WHEN lower(trim(excluded.title)) IN ('deleted video', 'private video') THEN official_audit_videos.title ELSE excluded.title END, published = COALESCE(excluded.published, official_audit_videos.published), last_seen = excluded.last_seen, gone_at = NULL`,
         args: [i.id, channelId, i.title, i.published, startedAt, startedAt],
       })), "write"));
     }
@@ -599,10 +605,6 @@ export async function everyDayPlays(e: WatchEvent): Promise<string | null> {
   return all ? `its event ${e.season} ${e.code} (${e.name}) already plays a video for ${days.length === 1 ? "its one day" : `each of its ${days.length} days`} (${has.map((h) => h.videoId).join(", ")})` : null;
 }
 
-/** What a channel's uploads list gives for a video in place of its title while YouTube hides it there ("Deleted
- *  video", "Private video"): not its title, which YouTube's videos list still gives (NYC FIRST's bjwZWaiMwnc, public,
- *  listed as "Deleted video" on 2026-11-17). Never written over a title, never read as one. */
-export const isPlaceholderTitle = (t: unknown) => /^(deleted|private) video$/i.test(String(t ?? "").trim());
 
 /** Each video the watcher added on its own, checked again: still on its event, playable, an FTC competition stream,
  *  broadcast on the day it's on, the only event the rules fit, and not a second video of that day unless both name
