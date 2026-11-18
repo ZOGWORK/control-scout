@@ -79,18 +79,52 @@ export function parseLanes(s: string | undefined, shard: { k: number; n: number 
   return lanes;
 }
 /** A lane's state (its .data/lane/state.json): idle (or none), queued (a job sent, not started), running, done or
- *  failed (its results to collect). */
+ *  failed (its results to collect). A lane holds no credentials and the coordinator does, so nothing a lane writes is
+ *  trusted: its state only says which step comes next, checked against the coordinator's own record of the job. */
 export interface LaneState { state: "idle" | "queued" | "running" | "done" | "failed"; id?: string; at?: string; why?: string }
+/** A job the coordinator sent (its own record, .data/autopilot/lanes/<K>/job.json): never the lane's word for it. */
+export interface LaneJob { id: string; seasons: { season: number; codes: string[] }[] }
 /** A job sent but not started within this long: the lane is started again. */
 export const LANE_KICK_MS = 3600_000;
-/** What the coordinator does with a lane this run, from its state file's text ("" when it has none). */
-export function laneStep(text: string, now = Date.now()): { do: "collect" | "dispatch" | "wait" | "kick"; state: LaneState } {
+/** The longest a lane's run of `job` can take: per season, its read calls' own limits (12 h a read, 3 h each for
+ *  --verify and --bounds), and an hour more. A lane still "running" after that was killed (a reboot, a power cut) before
+ *  it could say so: what it finished is collected, as for a failed job. */
+export const laneJobMs = (job: LaneJob) => job.seasons.length * 18 * 3600_000 + 3600_000;
+/** A job id the coordinator makes (its run's stamp): used in paths and commands, so nothing else is taken. */
+export const LANE_ID = /^[\w-]{1,64}$/;
+/** What the coordinator does with a lane this run, from its state file's text ("" when it has none) and the job it sent
+ *  that lane (null: none outstanding). "reset": the lane's state names no job sent to it (its results, if any, are
+ *  left), so it's set idle. */
+export function laneStep(text: string, job: LaneJob | null, now = Date.now()): { do: "collect" | "dispatch" | "wait" | "kick" | "reset"; state: LaneState } {
   let state: LaneState;
   try { state = text.trim() ? JSON.parse(text) : { state: "idle" }; } catch { return { do: "wait", state: { state: "failed", why: `its state file isn't JSON: ${text.trim().slice(0, 80)}` } }; }
-  if ((state.state === "done" || state.state === "failed") && state.id) return { do: "collect", state };
-  if (state.state === "queued") return { do: state.at && now - Date.parse(state.at) > LANE_KICK_MS ? "kick" : "wait", state };
-  if (state.state === "running") return { do: "wait", state };
+  if (!state || typeof state !== "object" || typeof state.state !== "string") return { do: "wait", state: { state: "failed", why: "its state file isn't a state" } };
+  if (state.id != null && (typeof state.id !== "string" || !LANE_ID.test(state.id))) return { do: "wait", state: { state: "failed", why: "its state names a job id the coordinator never makes" } };
+  const ours = !!job && state.id === job.id;
+  if (state.state === "done" || state.state === "failed") return { do: ours ? "collect" : "reset", state };
+  if (state.state === "queued") return ours ? { do: state.at && now - Date.parse(state.at) > LANE_KICK_MS ? "kick" : "wait", state } : { do: "reset", state };
+  if (state.state === "running") {
+    if (ours && state.at && now - Date.parse(state.at) > laneJobMs(job!)) return { do: "collect", state: { ...state, state: "failed", why: `still "running" ${Math.round((now - Date.parse(state.at)) / 3600_000)} h after it started, past any read's limits: killed` } };
+    return { do: "wait", state };
+  }
   return { do: "dispatch", state };
+}
+/** One season of a lane's results, as the coordinator ships it. */
+export interface LaneResult { season: number; codes: string[]; changed: Row[]; readFailed: boolean; stopped: Map<string, string | undefined> }
+/** A lane's results for `job` (its files: name and text), kept to the job: only its seasons, only its codes (the job's
+ *  own list, not the lane's), rows that are rows of those codes. A season with no file or one that can't be read is a
+ *  read that failed (its events not counted as tried). The rows still go through rowProblems like any read's. */
+export function laneResults(job: LaneJob, files: { name: string; text: string }[]): LaneResult[] {
+  return job.seasons.map(({ season, codes }) => {
+    const f = files.find((x) => x.name === `${season}.json`);
+    let r: any = null;
+    try { r = f ? JSON.parse(f.text) : null; } catch { /* unreadable: failed */ }
+    if (!r || typeof r !== "object" || r.season !== season) return { season, codes, changed: [], readFailed: true, stopped: new Map() };
+    const ok = (code: unknown): code is string => typeof code === "string" && codes.includes(code);
+    const changed = (Array.isArray(r.changed) ? r.changed : []).filter((x: any) => x && typeof x === "object" && typeof x.videoId === "string" && ok(x.code)) as Row[];
+    const stopped = new Map<string, string | undefined>((Array.isArray(r.stopped) ? r.stopped : []).filter((x: any) => Array.isArray(x) && ok(x[0]) && (x[1] == null || typeof x[1] === "string")).map((x: any) => [x[0], x[1] ?? undefined]));
+    return { season, codes, changed, readFailed: r.readFailed !== false, stopped };
+  });
 }
 
 /** An event's memory after a read: shipped rows clear it; nothing new counts a try. */
