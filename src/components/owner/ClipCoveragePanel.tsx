@@ -45,6 +45,7 @@ const LISTS: { list: List; name: string; swatch: (typeof P)[keyof typeof P] }[] 
   { list: "unchecked", name: "Not yet checked", swatch: P.upcoming },
   { list: "no-timing", name: "No timing", swatch: P.endgame },
   { list: "early-start", name: "Early start", swatch: P.finalist },
+  { list: "unplayable", name: "Can't be played", swatch: P.no },
   { list: "old-season", name: "Old season", swatch: P.no },
   { list: "reviewed", name: "Reviewed", swatch: P.yes },
 ];
@@ -155,7 +156,7 @@ function Progress({ d }: { d: OwnerClipCoverage }) {
 /** The lists as count tiles: pressing one shows it. */
 function ListTiles({ d, list, onList }: { d: OwnerClipCoverage; list: List; onList: (k: List) => void }) {
   return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6" role="group" aria-label="Show" data-coverage-triage>
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7" role="group" aria-label="Show" data-coverage-triage>
       {LISTS.map(({ list: k, name, swatch }) => {
         const count = k === "reviewed" ? d.reviewed : d.categories[k];
         const on = list === k;
@@ -182,7 +183,7 @@ function ReasonTiles({ p, only, onOnly }: { p: CoveragePass | null; only: MissKi
   return (
     <div className="grid gap-2" data-coverage-pass>
       <div className="flex items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold">Why <span className="tabular-nums">{n(p.missing)}</span> matches have no clip</h3>
+        <h3 className="text-sm font-semibold">Why <span className="tabular-nums">{n(p.missing)}</span> matches have no clip{p.unplayable ? <span className="font-normal text-muted-foreground"> · {n(p.unplayable)} more whose recording can't be played</span> : null}</h3>
         {only && <Button size="sm" variant="ghost" className={TOUCH} onClick={() => onOnly(null)} data-coverage-only-clear><X /> Show every kind</Button>}
       </div>
       <div className="flex h-3 overflow-hidden rounded-full bg-muted" aria-hidden>
@@ -416,7 +417,7 @@ function More({ d, onBulk }: { d: OwnerClipCoverage; onBulk: (b: Bulk) => void }
   // A season's Actionable events are marked with it only when the owner ticks this.
   const [withActionable, setWithActionable] = useState(false);
   // A pending video check is never marked reviewed: it's not in any bulk.
-  const other = d.categories["no-timing"] + d.categories["early-start"] + d.categories["old-season"];
+  const other = d.categories["no-timing"] + d.categories["early-start"] + d.categories.unplayable + d.categories["old-season"];
   const seasonOpen = d.seasons.find((s) => s.season === season) ?? d.seasons[0];
   const seasonCount = seasonOpen ? (withActionable ? seasonOpen.open : seasonOpen.open - seasonOpen.actionable) : 0;
   return (
@@ -427,7 +428,7 @@ function More({ d, onBulk }: { d: OwnerClipCoverage; onBulk: (b: Bulk) => void }
         </p>
         {other > 0 && (
           <div>
-            <Button size="sm" variant="outline" className={cn("h-auto min-h-9 whitespace-normal py-1.5 text-left", TOUCH)} onClick={() => onBulk({ category: "non-actionable", count: other, what: "every event that isn't Actionable (No timing, Early start / unsafe, Old season)" })} data-coverage-bulk="non-actionable">
+            <Button size="sm" variant="outline" className={cn("h-auto min-h-9 whitespace-normal py-1.5 text-left", TOUCH)} onClick={() => onBulk({ category: "non-actionable", count: other, what: "every event that isn't Actionable (No timing, Early start / unsafe, Can't be played, Old season)" })} data-coverage-bulk="non-actionable">
               <Check /> Mark all non-actionable as reviewed ({n(other)})
             </Button>
           </div>
@@ -456,7 +457,7 @@ function More({ d, onBulk }: { d: OwnerClipCoverage; onBulk: (b: Bulk) => void }
         <ClipChecks c={d.clipChecks} />
         {d.lastPass && (
           <p className="text-xs text-muted-foreground" data-coverage-last-pass>
-            Last check {ago(d.lastPass.at)}: {events(d.lastPass.checked)} checked · {n(d.lastPass.full)} fully clipped · {n(d.lastPass.clipped)} matches clipped · {n(d.lastPass.missing)} missing.
+            Last check {ago(d.lastPass.at)}: {events(d.lastPass.checked)} checked · {n(d.lastPass.full)} fully clipped · {n(d.lastPass.clipped)} matches clipped · {n(d.lastPass.missing)} missing{d.lastPass.unplayable ? <> · {n(d.lastPass.unplayable)} whose recording can't be played (not counted as missing)</> : null}.
           </p>
         )}
       </div>

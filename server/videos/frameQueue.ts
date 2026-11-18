@@ -14,7 +14,7 @@ import { localToUtcMs } from "../../src/shared/time.js";
 import type { CoverageFrames, CoverageMatch, CoverageReason, FrameQueueSummary } from "../../src/shared/api.js";
 
 /** Reasons a frame read can't change: no video to read, one YouTube won't play, or no start time to place a match by. */
-export const UNREADABLE: ReadonlySet<CoverageReason> = new Set<CoverageReason>(["no-start", "no-zone", "no-recording-day", "video-unavailable", "no-first-video"]);
+export const UNREADABLE: ReadonlySet<CoverageReason> = new Set<CoverageReason>(["no-start", "no-zone", "no-recording-day", "video-unavailable", "video-no-embed", "video-no-overlay", "no-first-video"]);
 /** The video's YouTube facts aren't in yet: the reader waits for them (it reads no video without its facts). */
 const FACTS_PENDING: CoverageReason = "video-unread";
 

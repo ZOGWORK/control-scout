@@ -15,7 +15,7 @@ import { recordAudit } from "../portal/audit.js";
 import { checkedTo } from "../data/checkedTimings.js";
 import { clipCheckFindings, clipCheckTotals } from "../data/clipChecks.js";
 import { seasonRecordings, type Recording, isPartial } from "./recordings.js";
-import { clipCoverage, eventMatchRows } from "./coverage.js";
+import { clipCoverage, eventMatchRows, UNPLAYABLE } from "./coverage.js";
 import { baseTriage, seasonTriage, type BaseTriage } from "./coverageTriage.js";
 import { currentSeason } from "../api/answers/season.js";
 import { frameQueue, queueSummary, type FrameStatus, type Read } from "./frameQueue.js";
@@ -26,11 +26,12 @@ const BOOT = new Date().toISOString();
 
 const sha1 = (s: string) => createHash("sha1").update(s).digest("hex");
 
-/** What an event's coverage depends on: its videos and their YouTube facts (chapters whole), whether it's broadcast a day
+/** What an event's coverage depends on: its videos and their YouTube facts (chapters whole, whether it may be embedded,
+ *  since when it can't be played), whether it's broadcast a day
  *  at a time (which matches each video holds), which of its videos the page plays, the event's time zone, and each of its
  *  matches (played, its time, FIRST's video): any of them moving checks the event again. */
 function fingerprint(r: Recording | null, playable: Recording | null, timezone: string | null, matches: string): string {
-  const videos = r ? [r, ...(r.more ?? [])].map((v) => [v.videoId, v.day ?? null, v.part ?? null, v.meta?.status ?? null, v.meta?.start ?? null, v.meta?.end ?? null, v.meta?.length ?? null, v.meta?.live ?? null, v.meta?.chapters ?? null, checkedTo(v.videoId)]) : [];
+  const videos = r ? [r, ...(r.more ?? [])].map((v) => [v.videoId, v.day ?? null, v.part ?? null, v.meta?.status ?? null, v.meta?.start ?? null, v.meta?.end ?? null, v.meta?.length ?? null, v.meta?.live ?? null, v.meta?.chapters ?? null, checkedTo(v.videoId), v.meta?.embeddable ?? null, v.meta?.unplayableSince ?? null]) : [];
   const plays = playable ? [playable, ...(playable.more ?? [])].map((v) => v.videoId) : [];
   return sha1(JSON.stringify([BOOT, videos, r?.daily ?? false, playable?.daily ?? false, plays, timezone, matches]));
 }
@@ -77,7 +78,8 @@ export async function checkClipCoverage(log: (s: string) => void, now = Date.now
     const seasons = (await all<{ season: number }>("SELECT DISTINCT season FROM events ORDER BY season DESC")).map((r) => Number(r.season));
     let checked = 0, opened = 0;
     // The pass in numbers (zero-error brief, journey 7): every event checked, and why each missing match is missing.
-    const pass = { events: 0, full: 0, clipped: 0, missing: 0, why: {} as Record<string, number> };
+    // A match whose recording can't be played (coverage.ts UNPLAYABLE) is settled: counted apart, never as missing.
+    const pass = { events: 0, full: 0, clipped: 0, missing: 0, unplayable: 0, why: {} as Record<string, number> };
     for (const season of seasons) {
       const [full, recs, firstVideo, known] = await Promise.all([
         seasonRecordings(season, true),
@@ -113,9 +115,10 @@ export async function checkClipCoverage(log: (s: string) => void, now = Date.now
         const missing = c.matches.filter((m) => !m.clip);
         const t = key ? baseTriage(missing) : null;
         if (c.state !== "none") {
-          pass.events++; pass.clipped += c.withClip; pass.missing += missing.length;
+          const dead = missing.filter((m) => UNPLAYABLE.has(m.reason ?? "unexplained")).length;
+          pass.events++; pass.clipped += c.withClip; pass.missing += missing.length - dead; pass.unplayable += dead;
           if (c.played > 0 && c.withClip >= c.played) pass.full++;
-          for (const m of missing) { const k = videoState(m); pass.why[k] = (pass.why[k] ?? 0) + 1; }
+          for (const m of missing) if (!UNPLAYABLE.has(m.reason ?? "unexplained")) { const k = videoState(m); pass.why[k] = (pass.why[k] ?? 0) + 1; }
         }
         // Reviewed stays reviewed while the same matches are missing for the same reasons, and when a new list isn't
         // actionable; only a new actionable list opens it again (and only an actionable one asks the owner at all).
@@ -142,7 +145,7 @@ export async function checkClipCoverage(log: (s: string) => void, now = Date.now
       const why = Object.entries(pass.why).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} ${n}`).join(", ");
       const [pending, before] = await Promise.all([pendingMatches(), kvGet<CoveragePass>(LAST_PASS).catch(() => null)]);
       const pendingBefore = before?.pending ?? null;
-      log(`clip coverage: checked ${checked} event${checked === 1 ? "" : "s"} (${pass.events} recorded) · ${pass.full} fully clipped · ${pass.clipped} matches clipped · ${pass.missing} missing${why ? ` (${why})` : ""}${opened ? ` · ${opened} actionable for owner review` : ""}${pending != null ? ` · ${pending} matches not yet checked against the video${pendingBefore != null ? ` (was ${pendingBefore})` : ""}` : ""}`);
+      log(`clip coverage: checked ${checked} event${checked === 1 ? "" : "s"} (${pass.events} recorded) · ${pass.full} fully clipped · ${pass.clipped} matches clipped · ${pass.missing} missing${why ? ` (${why})` : ""}${pass.unplayable ? ` · ${pass.unplayable} whose recording can't be played` : ""}${opened ? ` · ${opened} actionable for owner review` : ""}${pending != null ? ` · ${pending} matches not yet checked against the video${pendingBefore != null ? ` (was ${pendingBefore})` : ""}` : ""}`);
       const last: CoveragePass = { at: new Date(now).toISOString(), checked, ...pass, opened, pending, pendingBefore };
       await kvSet(LAST_PASS, last).catch(() => {});
     }
@@ -181,7 +184,7 @@ function readDetail(detail: unknown): { videos?: OwnerCoverageEvent["videos"]; d
   try { return JSON.parse(String(detail)) ?? {}; } catch { return {}; }
 }
 
-export const TRIAGES: readonly CoverageTriage[] = ["actionable", "unchecked", "no-timing", "early-start", "old-season"];
+export const TRIAGES: readonly CoverageTriage[] = ["actionable", "unchecked", "no-timing", "early-start", "unplayable", "old-season"];
 /** An event missing a clip (in the owner's lists at all), and one not reviewed yet. */
 const MISSING = "c.with_clip < c.played AND c.state != 'none'";
 /** An event's category now: the stored one (from its reasons; NULL, a row not triaged yet, reads as actionable), made
@@ -189,7 +192,7 @@ const MISSING = "c.with_clip < c.played AND c.state != 'none'";
  *  September rollover moves it without a recheck (seasonTriage, in SQL). */
 const triageSql = (current = currentSeason()) => {
   const last = Math.trunc(current) - 1;
-  return `(CASE WHEN COALESCE(c.triage, 'actionable') IN ('actionable', 'unchecked') THEN COALESCE(c.triage, 'actionable') WHEN c.season < ${last} THEN 'old-season' ELSE c.triage END)`;
+  return `(CASE WHEN COALESCE(c.triage, 'actionable') IN ('actionable', 'unchecked', 'unplayable') THEN COALESCE(c.triage, 'actionable') WHEN c.season < ${last} THEN 'old-season' ELSE c.triage END)`;
 };
 /** A pending video check is never reviewed: it's counted and listed as one whatever reviewed_at holds, and no Reviewed
  *  (one or bulk) marks it. */

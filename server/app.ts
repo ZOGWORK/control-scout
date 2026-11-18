@@ -73,6 +73,7 @@ import { ForecastUnavailable, eventForecast } from "./predict/eventForecast.js";
 import { bonusView } from "../src/shared/bonusOdds.js";
 import { matchExplanation } from "./api/predictMatch.js";
 import { authRouter, meRouter, authProviders } from "./auth/routes.js";
+import { shutdownGate } from "./shutdownGate.js";
 import { avatarsRouter } from "./auth/avatars.js";
 import { contactRouter } from "./contact.js";
 import { bugReportsRouter } from "./bugReports.js";
@@ -306,6 +307,8 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
   const json = express.json({ limit: "2mb" });
   // Same matching as Express routing (case-insensitive, optional trailing slash).
   app.use((req, res, next) => (/^\/api\/(collect(\/vitals|\/onboarding)?|digest\/webhook|csp-report)\/?$/i.test(req.path) ? next() : json(req, res, next)));
+  // The shutdown message (server/shutdownGate.ts): while publicAccess is off, only signed-in accounts get past here.
+  app.use(shutdownGate);
 
   // One search limit for the page and the API (searchLimit): a visit to /search and the app's request for it count as two.
   const searches = searchLimit(opts.searchesPerMinute);
