@@ -2,7 +2,7 @@
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
 import { dataRows, divisionOf, cropOrder, elapsed, flippedClip, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, firstOpening, OPEN_LEADS, shortClash, type M } from "./videoFrames";
-import { between, GAP_READS, TRIES } from "./videoFrames";
+import { between, EVENT_LIMIT_RATIO, eventLimitMs, GAP_READS, TRIES } from "./videoFrames";
 
 describe("the frame reader", () => {
   // A 1280 × 720 frame: a grey field, and a score bar from `top` to `bottom` with one alliance's colour each side of the
@@ -631,5 +631,29 @@ describe("between", () => {
   });
   it("gives each such match both sides' tries and a confirm", () => {
     expect(GAP_READS).toBe(2 * TRIES + 4);
+  });
+});
+
+describe("eventLimitMs: an event's own read limit", () => {
+  const MIN = 60_000, H = 3600;
+  it("is the floor for an event of ordinary length", () => {
+    expect(eventLimitMs(180 * MIN, [3 * H, 4 * H])).toBe(180 * MIN);
+    expect(eventLimitMs(180 * MIN, [])).toBe(180 * MIN);
+  });
+  it("scales with its videos' summed length, so a long event's real read isn't stopped", () => {
+    expect(EVENT_LIMIT_RATIO).toBe(0.25);
+    // 2022 ROBUQ1: three videos, ~27 h, read whole in 68 min at the slowest: its limit is 6.75 h, about six times that.
+    const robuq1 = eventLimitMs(180 * MIN, [9 * H, 9 * H, 9 * H]);
+    expect(robuq1).toBe(405 * MIN);
+    expect(robuq1).toBeGreaterThan(5.9 * 68 * MIN);
+    // 2022 ROBUQ2 (12,205 s + 35,358 s): its second video was still unfinished after 6 h, stuck; still stopped.
+    const robuq2 = eventLimitMs(180 * MIN, [12_205, 35_358]);
+    expect(robuq2).toBe(199 * MIN);
+    expect(robuq2).toBeLessThan(6 * 60 * MIN);
+  });
+  it("counts a length that isn't a real number as none, and rounds up to whole minutes", () => {
+    expect(eventLimitMs(0, [NaN, -5, 100 * 60])).toBe(25 * MIN);
+    expect(eventLimitMs(0, [61], 1)).toBe(2 * MIN);
+    expect(eventLimitMs(10 * MIN, [100 * H], 0.5)).toBe(50 * 60 * MIN);
   });
 });
