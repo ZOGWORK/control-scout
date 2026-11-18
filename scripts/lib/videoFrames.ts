@@ -792,7 +792,7 @@ export function judge(ms: M[], seen: Map<number, number>, shift: number | null, 
 /** How long one event's read may take at most (scripts/video-frames.ts --event-limit is the floor): its videos'
  *  summed length times EVENT_LIMIT_RATIO, never less than the floor, so a long event's legitimate read isn't stopped
  *  and only a stuck one is. A read that takes longer than watching its videos is broken, whatever the computer's load:
- *  1.0. Measured 11-17/18 on amelia: 2022 ROBUQ1 (~27 h of video) read whole in 40 and 68 min, 0.03-0.04 of its
+ *  1.0. Measured 11-17/18 on amelia: 2022 ROBUQ1 (22.9 h of video) read whole in 40 and 68 min, 0.03-0.05 of its
  *  length; 2022 ROBUQ2 (20.5 h) in 203 min, 0.17, its 9.8 h video alone in 141 min, 0.24. On a computer with 8 readers
  *  at once (98% CPU) ROBUQ2's 9.8 h video was still unfinished after 6 h: slow, not stuck, and a quarter (an earlier
  *  ratio) would cut such a read. 1.0 leaves four times the slowest video seen and six times its event. */
