@@ -7,7 +7,7 @@
 // row, so the page plays it like any other link (server/videos/recordings.ts) and the check is noted.
 import { all, writeBatch } from "../db.js";
 import { env } from "../env.js";
-import { onEventDates } from "../../src/shared/eventDay.js";
+import { localDate, onEventDates } from "../../src/shared/eventDay.js";
 import { isYouTubeHost, parseStreamUrl } from "../../src/shared/stream.js";
 import { designators } from "./officialMatch.js";
 import { forgetRecordings } from "./recordings.js";
@@ -141,20 +141,42 @@ export function onDates(list: Broadcast[], e: { start: string; end: string | nul
 
 const DESIGNATORS = ["letter", "meet", "n", "uil", "stage", "ampm"] as const;
 
+/** Words of a name too common to tell one event from another on a channel: the program's, a meet's kind, a region's code. */
+const COMMON = new Set("ftc first tech challenge qualifier qualifiers qualifying tournament meet meets league championship championships champs regional scrimmage the and of at in for state robotics competition event day bc yt usa inc high school".split(" "));
+/** A name's or title's own words: lower case, without accents, three letters or more, not common, not a number. */
+export function ownWords(s: string): string[] {
+  return [...new Set(String(s ?? "").toLowerCase().normalize("NFD").replace(/\p{M}/gu, "").split(/[^a-z0-9]+/)
+    .filter((w) => w.length >= 3 && !COMMON.has(w) && !/^\d+$/.test(w)))];
+}
+
 /**
- * The broadcasts that are this event's, when other events on its dates give FIRST the same channel link (a league's
- * two meets in one day, West Michigan's Meet 5 and Meet 6): one whose title names another of them by its designator
- * ("Meet 6"), where this event's own name says otherwise ("Meet 5"), is that other's. A title naming none of them, or
- * none read, stays with every one of them, as before.
+ * The broadcasts that are this event's.
+ * - Other events on its dates give FIRST the same channel link (a league's two meets in one day, West Michigan's Meet 5
+ *   and Meet 6): one whose title names another of them by its designator ("Meet 6"), where this event's own name says
+ *   otherwise ("Meet 5"), is that other's.
+ * - A day with two or more broadcasts, some of whose titles name this event's own words ("Victoria", "Lower
+ *   Mainland"): those are its, the rest another event's that the channel streamed the same day, listed with FIRST or
+ *   not (2022 CABCVIQ, BC Victoria Qualifier, took FIRST Robotics BC's "Vancouver Qualifier"; FIRST Chesapeake's
+ *   same-day qualifiers each took the other's).
+ * A broadcast whose title wasn't read stays, as do all of a day whose titles name none of its words.
  */
-export function ownBroadcasts(list: Broadcast[], e: { name: string }, siblings: { name: string; start: string; end: string | null; timezone: string | null }[]): Broadcast[] {
-  if (!siblings.length) return list;
+export function ownBroadcasts(list: Broadcast[], e: { name: string; timezone?: string | null }, siblings: { name: string; start: string; end: string | null; timezone: string | null }[]): Broadcast[] {
   const mine = designators(e.name);
-  return list.filter((b) => {
+  const bySibling = !siblings.length ? list : list.filter((b) => {
     if (!b.title) return true;
     const said = designators(b.title);
     const others = siblings.filter((s) => onDates([b], s).length).map((s) => designators(s.name));
     return !DESIGNATORS.some((k) => said[k] != null && mine[k] != null && said[k] !== mine[k] && others.some((o) => o[k] === said[k]));
+  });
+  const own = ownWords(e.name);
+  if (!own.length) return bySibling;
+  const names = (b: Broadcast) => !!b.title && ownWords(b.title).some((w) => own.includes(w));
+  const day = (b: Broadcast) => localDate(Date.parse(b.start), e.timezone ?? "UTC") ?? b.start.slice(0, 10);
+  const days = new Map<string, Broadcast[]>();
+  for (const b of bySibling) days.set(day(b), [...(days.get(day(b)) ?? []), b]);
+  return bySibling.filter((b) => {
+    const same = days.get(day(b))!;
+    return same.length < 2 || !b.title || names(b) || !same.some(names);
   });
 }
 
@@ -174,6 +196,36 @@ export function channelDue(row: { url: string | null; video_id: string | null; c
   if (row.video_id) return Date.parse(row.read_at) - last < 2 * DAY_MS && sinceTry > 2 * 3600_000;
   if (recent) return sinceTry > 2 * 3600_000;
   return sinceTry > 7 * DAY_MS;
+}
+
+/**
+ * The broadcasts found before, weighed again by ownBroadcasts with the titles the channel audit keeps
+ * (official_audit_videos): an event's channel link with a broadcast found isn't read again, so a rule added since
+ * reaches its rows only here. Returns how many events lost a broadcast.
+ */
+export async function reweighBroadcasts(): Promise<number> {
+  const rows = await all<{ season: number; code: string; video_id: string; url: string; start: string; title: string | null; name: string | null; timezone: string | null; ev_start: string; ev_end: string | null; livestream: string | null }>(
+    `SELECT b.season, b.code, b.video_id, b.url, b.start, a.title, e.name, e.timezone, ${EVENT_FIRST_DAY} AS ev_start, ${EVENT_LAST_DAY} AS ev_end, e.livestream
+     FROM event_broadcasts b JOIN events e ON e.season = b.season AND e.code = b.code LEFT JOIN official_audit_videos a ON a.video_id = b.video_id`);
+  const byEvent = new Map<string, typeof rows>();
+  for (const r of rows) { const k = `${r.season}/${r.code}`; byEvent.set(k, [...(byEvent.get(k) ?? []), r]); }
+  const writes: { sql: string; args: (string | number | null)[] }[] = [];
+  let changed = 0;
+  for (const bs of byEvent.values()) {
+    const r = bs[0];
+    // A placeholder the uploads list gave for a title ("Deleted video") is no title: the broadcast is weighed as untitled.
+    const list = bs.map((b) => ({ videoId: String(b.video_id), start: String(b.start), ...(b.title && !/^(deleted|private) video$/i.test(String(b.title).trim()) ? { title: String(b.title) } : {}) }));
+    const siblings = [...byEvent.values()].map((o) => o[0]).filter((o) => o.season === r.season && o.code !== r.code && o.livestream && o.livestream === r.livestream)
+      .map((o) => ({ name: String(o.name ?? ""), start: o.ev_start, end: o.ev_end, timezone: o.timezone }));
+    const keep = ownBroadcasts(list, { name: String(r.name ?? ""), timezone: r.timezone }, siblings).sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
+    if (keep.length === list.length) continue;
+    changed++;
+    const gone = list.filter((b) => !keep.includes(b));
+    for (const b of gone) writes.push({ sql: "DELETE FROM event_broadcasts WHERE season = ? AND code = ? AND video_id = ?", args: [r.season, r.code, b.videoId] });
+    writes.push({ sql: "UPDATE event_stream_links SET video_id = ? WHERE season = ? AND code = ? AND url = ?", args: [keep[0]?.videoId ?? null, r.season, r.code, r.url] });
+  }
+  if (writes.length) await writeBatch(writes);
+  return changed;
 }
 
 let busy = false;
@@ -206,7 +258,8 @@ export async function resolveChannelStreams(log: (s: string) => void, opts: { ma
       .slice(0, opts.max ?? (withKey ? 10 : 3));
     // One read a channel a run: a league's meets share it.
     const read = new Map<string, Promise<Broadcast[] | "error">>();
-    let changed = 0;
+    // Broadcasts found before, weighed again by the rules of today first.
+    let changed = await reweighBroadcasts();
     for (const r of todo) {
       const c = channelRef(r.livestream)!;
       const since = Date.parse(`${r.start.slice(0, 10)}T00:00:00Z`) - LISTED_BEFORE_DAYS * DAY_MS;
@@ -233,7 +286,7 @@ export async function resolveChannelStreams(log: (s: string) => void, opts: { ma
       // Another event on these dates with the same link (the same season's league meets): a broadcast its title gives
       // to that other event leaves this one, the ones found before included (their titles are in this read).
       const siblings = rows.filter((o) => o.season === r.season && o.code !== r.code && o.livestream === r.livestream).map((o) => ({ name: String(o.name ?? ""), start: o.start, end: o.end, timezone: o.timezone }));
-      const keep = ownBroadcasts([...merged.values()], { name: String(r.name ?? "") }, siblings).sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
+      const keep = ownBroadcasts([...merged.values()], { name: String(r.name ?? ""), timezone: r.timezone }, siblings).sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
       const was = before.map((b) => String(b.video_id)).sort().join();
       if (!sameLink || keep.map((b) => b.videoId).sort().join() !== was || (keep[0]?.videoId ?? null) !== r.video_id) changed++;
       // One transaction: an interrupted save keeps the previous set.
