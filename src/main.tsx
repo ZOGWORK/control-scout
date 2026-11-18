@@ -5,6 +5,7 @@ import { MotionConfig } from "motion/react";
 import "./index.css";
 import "./components/arc/arc-theme.css";
 import { PersonalProvider } from "./lib/personal";
+import { ShutdownGate } from "./components/ShutdownScreen";
 import { ThemeSync } from "./hooks/useTheme";
 import { Shell } from "./components/layout/Shell";
 import { SearchProvider } from "./components/layout/Search";
@@ -174,6 +175,8 @@ void ready.catch(() => { /* a failed load is retried (and shown) by the page's o
     <MotionConfig reducedMotion="user">
     <BrowserRouter>
       <PersonalProvider>
+        {/* While the owner has publicAccess off, a visitor who isn't signed in sees only the message (src/lib/shutdown.ts). */}
+        <ShutdownGate>
         <MetaProvider>
           <ThemeSync />
           <SearchProvider>
@@ -266,6 +269,7 @@ void ready.catch(() => { /* a failed load is retried (and shown) by the page's o
             </OptionalParts>
           </SearchProvider>
         </MetaProvider>
+        </ShutdownGate>
       </PersonalProvider>
     </BrowserRouter>
     </MotionConfig>
