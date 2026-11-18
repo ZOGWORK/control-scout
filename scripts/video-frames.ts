@@ -30,7 +30,7 @@
 //   --clips   read no starts: check each clip the live site plays from the clock by its first frame, paused (ok,
 //             pulled when it names another match, unconfirmed when it names none), into server/data/clipChecks.ts
 //   --event-limit <minutes>  the least one event's read may take before it's stopped (default 180; a long event gets
-//             a quarter of its videos' summed length, eventLimitMs): an event still reading then stops, its
+//             its videos' summed length, eventLimitMs): an event still reading then stops, its
 //             unfinished video written nothing, the videos it finished kept; the next run reads the rest
 //   --live <file>  the timings the live site serves (a copy of main's server/data/frameTimings/<season>.ts): a re-read start
 //             that is one of them (same video, match and second, within a read's slack) and whose opening frame names
@@ -1236,7 +1236,7 @@ async function doCode(code: string): Promise<void> {
   // Its own limit, now its videos' lengths are known: a long event gets its time, from when it began.
   deadline.ms = eventLimitMs(EVENT_LIMIT_MS, videos.map((v) => v.meta!.length!));
   deadline.at = began + deadline.ms;
-  if (deadline.ms > EVENT_LIMIT_MS) log(`  limit ${Math.round(deadline.ms / 60_000)} min (a quarter of its videos' length)`);
+  if (deadline.ms > EVENT_LIMIT_MS) log(`  limit ${Math.round(deadline.ms / 60_000)} min (its videos' summed length)`);
   const held = new Set<string>();
   for (const v of videos) {
     if (Date.now() > deadline.at) throw new EventOverTime(code, deadline.ms);
