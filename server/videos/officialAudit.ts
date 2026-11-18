@@ -19,7 +19,9 @@ import { all, db, get, run } from "../db.js";
 import { env } from "../env.js";
 import { recordAudit } from "../portal/audit.js";
 import { withDataLock } from "../data/lock.js";
-import { isoDuration } from "./youtube.js";
+import { isPlaceholderTitle, isoDuration } from "./youtube.js";
+
+export { isPlaceholderTitle };
 import { eventVideosByDay, forgetOfficial, linkAiredOff, localDate } from "./officialVideos.js";
 import { LOOKBACK_MS, record, settle, type WatchVerdict } from "./officialWatch.js";
 import { NOT_EVENTS, bestGuess, matchVideo, notCompetition, videoWindow, type ChannelRule, type WatchEvent, type WatchVideo } from "./officialMatch.js";
@@ -571,7 +573,7 @@ async function readUploads(channelId: string, full: boolean, key: string, fetchI
       await locked(() => db().batch(items.map((i: { id: string; title: string; published: string | null }) => ({
         sql: `INSERT INTO official_audit_videos (video_id, channel_id, title, published, first_seen, last_seen) VALUES (?, ?, ?, ?, ?, ?)
               ON CONFLICT(video_id) DO UPDATE SET channel_id = excluded.channel_id,
-                title = CASE WHEN excluded.title IN ('Deleted video', 'Private video') THEN official_audit_videos.title ELSE excluded.title END, published = COALESCE(excluded.published, official_audit_videos.published), last_seen = excluded.last_seen, gone_at = NULL`,
+                title = CASE WHEN lower(trim(excluded.title)) IN ('deleted video', 'private video') THEN official_audit_videos.title ELSE excluded.title END, published = COALESCE(excluded.published, official_audit_videos.published), last_seen = excluded.last_seen, gone_at = NULL`,
         args: [i.id, channelId, i.title, i.published, startedAt, startedAt],
       })), "write"));
     }
@@ -599,10 +601,6 @@ export async function everyDayPlays(e: WatchEvent): Promise<string | null> {
   return all ? `its event ${e.season} ${e.code} (${e.name}) already plays a video for ${days.length === 1 ? "its one day" : `each of its ${days.length} days`} (${has.map((h) => h.videoId).join(", ")})` : null;
 }
 
-/** What a channel's uploads list gives for a video in place of its title while YouTube hides it there ("Deleted
- *  video", "Private video"): not its title, which YouTube's videos list still gives (NYC FIRST's bjwZWaiMwnc, public,
- *  listed as "Deleted video" on 2026-11-17). Never written over a title, never read as one. */
-export const isPlaceholderTitle = (t: unknown) => /^(deleted|private) video$/i.test(String(t ?? "").trim());
 
 /** Each video the watcher added on its own, checked again: still on its event, playable, an FTC competition stream,
  *  broadcast on the day it's on, the only event the rules fit, and not a second video of that day unless both name
