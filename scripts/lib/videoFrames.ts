@@ -251,7 +251,9 @@ function totalSays(total: number, quals: number): "own" | "other" | null {
  *   more are read and fewer than half of its words are this event's (a cut word matching the start or end of one). A
  *   logo misread beside the match is no name: POWERPLAY's (2022) "FIRST ENERGIZE" read "FIRST ZN=RGIZ= swe" on KZCMP's
  *   playing frames, two words, neither this event's, and every one of its matches was taken for another event's.
- *   Nor can a name read as another's overrule a total that is this event's: it's misread, not another event.
+ *   Nor can a name overrule a total either way: a total that is this event's stands over a name read as another's (a
+ *   misread), and another event's total over a name read as this event's (a sibling meet's name, told apart only by a
+ *   letter too short to be a word).
  * On a split screen the half that is this event's gives its match (`label`); `phrase`, the match beside its name.
  */
 export function overlayEvent(text: string, own: string, quals?: number, semifinals = false): { event: "own" | "other" | null; label?: string; phrase?: string } {
@@ -272,10 +274,12 @@ export function overlayEvent(text: string, own: string, quals?: number, semifina
     for (const m of line.matchAll(MATCH_PHRASE)) {
       const total = m[1] != null ? Number(m[1]) : null;
       const name = verdict(line.slice(from, m.index));
-      // A name read decides; with none, the total (a schedule changed after the db was read can't drop a named frame).
-      // A name read as another's beside this event's own total is a misread: the total stands.
+      // The total, where read, decides: a name read as another's beside this event's own total is a misread, and a name
+      // read as this event's beside another event's total is a sibling's (FiT-North's league meets of one day, each on
+      // its own field's stream: "FiT-North U-League AM Meet 3 · Qualification 5 of 23" reads as FiT-North X-League AM
+      // Meet 3's own name, its league letter too short to be a word, and X-League has 19). With no total, the name.
       const byTotal = quals && total != null ? totalSays(total, quals) : null;
-      const v = name === "other" && byTotal === "own" ? "own" : name ?? byTotal;
+      const v = byTotal ?? name;
       from = m.index! + m[0].length;
       if (v === "other") other = true;
       if (v === "own" && !ownSeen) { ownSeen = true; ownLabel = overlayLabel(m[0], semifinals) ?? undefined; }
