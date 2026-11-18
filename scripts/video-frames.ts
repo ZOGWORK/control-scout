@@ -1207,13 +1207,23 @@ async function doCode(code: string): Promise<void> {
       }
       // Still nothing: two meets split on one stream, each bar too small to read (findSplit). Read again zoomed to this
       // event's half, every crop reading its bar where a full-size one would be.
+      // A split check that fails (a hung read, a seek or zoom the page refuses) keeps the read as it was, nothing read:
+      // the video played, so it isn't one that couldn't be (PLAY_FAILED, read again every run).
       if (!j.placed.size && !j.review.size && [...j.missing.values()].every((w) => w === NOTHING_READ)) {
-        const side = await findSplit(page, m.length!);
-        if (side) {
-          log(`    a split stream: this event's on its ${side} half, read zoomed to it`);
-          await zoom(page, side);
-          unread.clear();
-          j = await placeVideo(page, mine, from == null ? null : -from, m.length!, log, unread, live, liveMedium);
+        try {
+          const side = await findSplit(page, m.length!);
+          if (side) {
+            log(`    a split stream: this event's on its ${side} half, read zoomed to it`);
+            await zoom(page, side);
+            const zoomedUnread = new Set<string>();
+            const zoomed = await placeVideo(page, mine, from == null ? null : -from, m.length!, log, zoomedUnread, live, liveMedium);
+            j = zoomed;
+            unread.clear();
+            for (const l of zoomedUnread) unread.add(l);
+          }
+        } catch (e) {
+          log(`    couldn't check for a split stream: ${(e as Error).message.split("\n")[0]} (kept as nothing read)`);
+          await zoom(page, null).catch(() => {});
         }
       }
       const out = new Map([...j.placed].map(([l, p]) => [l, p.t]));
