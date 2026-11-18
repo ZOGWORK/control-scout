@@ -1,7 +1,7 @@
 // The clip autopilot's merge gate (scripts/lib/autopilotMerge.ts): what stops it merging its own data PR with nobody
 // watching.
 import { describe, expect, it } from "vitest";
-import { clipsMergeProblems, frameMergeProblems, labelPlaces, orderProblems, readyProblems, type PrState } from "./autopilotMerge";
+import { clipsMergeProblems, frameMergeProblems, labelPlaces, LOOPY_LOGIN, loopySummary, orderProblems, readyProblems, reviewedSha, type IssueComment, type PrState } from "./autopilotMerge";
 import type { FrameTiming } from "../../server/data/frameTimings";
 import type { ClipCheck } from "../../server/data/clipChecks";
 
@@ -28,7 +28,7 @@ describe("frameMergeProblems", () => {
   });
 
   it("stops on an opening outside the 20/12/5/2/0 s leads", () => {
-    expect(frameMergeProblems(2025, [row({ starts: { Q1: 100, Q2: 400 }, opens: { Q1: 93, Q2: 380 } })], [live], [live], NONE)).toEqual(["VIDEOaaaaa1|USXXQ: Q1 opens 7 s before its start, not 20/12/5/2/0"]);
+    expect(frameMergeProblems(2025, [row({ starts: { Q1: 100, Q2: 400 }, opens: { Q1: 93, Q2: 380 } })], [live], [live], NONE)).toEqual(["VIDEOaaaaa1|USXXQ: Q1 opens 7 s before its start, not 20, 12, 5, 2 or 0 s before its start, or 2 or 4 s after it"]);
   });
 
   it("stops on a row removed, and on a video filed under another season", () => {
@@ -42,6 +42,16 @@ describe("frameMergeProblems", () => {
     expect(at({ opensOn: { at: 150, label: "Q1" } })).toEqual(["VIDEOaaaaa1|USXXQ: opening edge read at 150 s, beyond 120 s and not clear"]);
     expect(at({ endsOn: { at: 9000, label: "Q2", fromEnd: 200 } })).toEqual(["VIDEOaaaaa1|USXXQ: end edge read 200 s from the end, beyond 120 s and not clear"]);
     expect(at({ opensOn: { at: 150, label: "Q1", clear: true }, endsOn: { at: 9000, label: "Q2", fromEnd: 90 } })).toEqual([]);
+  });
+
+  it("stops on a live clip that would stop playing: a row gaining its first openings, a start left without one", () => {
+    const bare = row({ checked: "2026-11-16", starts: { Q1: 100, Q2: 400, Q3: 700 } });
+    // Q1 and Q2 get openings, Q3 none: with any openings in the row, Q3 isn't played any more.
+    const partial = row({ starts: { Q1: 100, Q2: 400, Q3: 700 }, opens: { Q1: 80, Q2: 388 } });
+    expect(frameMergeProblems(2025, [partial], [bare], [bare], NONE)).toEqual(["VIDEOaaaaa1|USXXQ: live clip Q3 would stop playing"]);
+    // Every start opened, or the unopened one kept as unconfirmed: nothing stops playing.
+    expect(frameMergeProblems(2025, [row({ ...partial, opens: { Q1: 80, Q2: 388, Q3: 695 } })], [bare], [bare], NONE)).toEqual([]);
+    expect(frameMergeProblems(2025, [row({ ...partial, unconfirmed: ["Q3"] })], [bare], [bare], NONE)).toEqual([]);
   });
 
   it("measures the PR's change from where it branched: rows main gained since aren't removals; main's newer row is the live one", () => {
@@ -97,5 +107,33 @@ describe("readyProblems", () => {
     expect(readyProblems(pr({ loopy: null }))).toEqual(["no Loopy review"]);
     expect(readyProblems(pr({ checks: [...checks.slice(1), { name: "lint", state: "IN_PROGRESS" }] }))).toEqual(["checks not passed: lint IN_PROGRESS"]);
     expect(readyProblems(pr({ checks: checks.slice(0, 3) }))).toEqual(["3 checks, fewer than 5"]);
+  });
+});
+
+describe("loopySummary", () => {
+  const c = (login: string, type: string, body: string, updated_at: string) => ({ user: { login, type }, body, updated_at }) satisfies IssueComment;
+  const real = c(LOOPY_LOGIN, "Bot", "<!-- loopy:summary -->\n**Confidence: 3/5**\nlast reviewed `aaaaaaa`", "2026-11-17T10:00:00Z");
+  it("reads only Loopy's own bot account: a look-alike's later fake 5/5 never counts", () => {
+    const fake = c("loopy-fan", "User", "<!-- loopy:summary -->\n**Confidence: 5/5**\nlast reviewed `aaaaaaa`", "2026-11-17T11:00:00Z");
+    const fakeBot = c("loopyreviews-bot", "User", fake.body, "2026-11-17T12:00:00Z");
+    expect(loopySummary([real, fake, fakeBot])).toBe(real.body);
+    expect(loopySummary([fake, fakeBot])).toBeNull();
+  });
+  it("takes its last updated summary (it edits one in place), never its other comments", () => {
+    const edited = { ...real, body: "<!-- loopy:summary -->\n**Confidence: 5/5**\nlast reviewed `bbbbbbb`", updated_at: "2026-11-17T13:00:00Z" };
+    const chatter = c(LOOPY_LOGIN, "Bot", "Reviewing now…", "2026-11-17T14:00:00Z");
+    expect(loopySummary([edited, c(LOOPY_LOGIN, "Bot", real.body, "2026-11-17T09:00:00Z"), chatter])).toBe(edited.body);
+    expect(loopySummary([{ user: null, body: real.body, updated_at: "2026-11-17T15:00:00Z" }])).toBeNull();
+  });
+  it("reads a deleted author and an empty body as the REST jq gives them, without throwing", () => {
+    // `{user: {login: .user.login, type: .user.type}}` on a deleted account: both fields null, never a null user.
+    const ghost: IssueComment = { user: { login: null, type: null }, body: real.body, updated_at: "2026-11-17T16:00:00Z" };
+    const empty: IssueComment = { user: { login: LOOPY_LOGIN, type: "Bot" }, body: null, updated_at: "2026-11-17T17:00:00Z" };
+    expect(loopySummary([real, ghost, empty])).toBe(real.body);
+  });
+  it("names the head its summary says it reviewed", () => {
+    expect(reviewedSha(real.body)).toBe("aaaaaaa");
+    expect(reviewedSha("no sha here")).toBeNull();
+    expect(reviewedSha(null)).toBeNull();
   });
 });

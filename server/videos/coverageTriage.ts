@@ -16,15 +16,18 @@
 //                brief 2026-11-15, journey 5: To review holds only matches the video itself was checked for).
 //   early-start  most missing matches are ones the video's frames show starting while the match before is still on:
 //                a clip would open on the wrong match.
-//   no-timing    everything else: no clock, video unavailable or not read, shorter than its broadcast with nothing to
+//   no-timing    everything else: no clock, video not read, shorter than its broadcast with nothing to
 //                place the gap, past the frames checked by eye, no real start from FIRST, no recording that day.
+//   unplayable   every missing match's recording can't be played here at all (coverage.ts UNPLAYABLE: unavailable on
+//                YouTube, or embedding off with no frame read of it), as YouTube's facts for that video say: settled.
+//                An event with other missing matches too is judged on those, the unplayable ones held aside.
 //   old-season   older than last season and not actionable: applied when read (seasonTriage), never stored, so it
 //                follows the current season when it turns over.
 //
 // Nothing here places or removes a clip: it only decides what the owner is asked to look at.
 import { seasonLabel } from "../../src/shared/format.js";
 import type { CoverageMatch, CoverageReason, CoverageTriage } from "../../src/shared/api.js";
-import { CLOCK_ONLY, WHY } from "./coverage.js";
+import { CLOCK_ONLY, UNPLAYABLE, WHY } from "./coverage.js";
 
 /** Reasons that leave a match unsettled: the clock's alone (the video may still hold it), or none found. */
 export const ACTIONABLE_REASONS: ReadonlySet<CoverageReason> = new Set<CoverageReason>([...CLOCK_ONLY, "between-recordings", "unexplained"]);
@@ -81,6 +84,16 @@ function openWhy(open: Missing[]): string {
 export function baseTriage(missing: Missing[]): { triage: BaseTriage; why: string } {
   // Nothing to judge from (a list lost or not written): it can't be settled, so it's looked at.
   if (!missing.length) return { triage: "actionable", why: "No missing list to judge from: look at the event" };
+  // Recordings that can't be played: settled, and never what the event is judged on while it has other matches missing.
+  const dead = missing.filter((m) => UNPLAYABLE.has(m.reason ?? "unexplained"));
+  if (dead.length === missing.length) return { triage: "unplayable", why: lead(byReason(dead), dead.length) };
+  const aside = dead.length ? `; ${dead.length} more ${dead.length === 1 ? "match" : "matches"} whose recording can't be played` : "";
+  const t = judge(missing.filter((m) => !UNPLAYABLE.has(m.reason ?? "unexplained")));
+  return { ...t, why: t.why + aside };
+}
+
+/** The category of a missing list with no unplayable recording in it. */
+function judge(missing: Missing[]): { triage: BaseTriage; why: string } {
   const open = missing.filter(unsettled);
   const held = (n: number) => (n < missing.length ? ` (${missing.length - n} more held back for other reasons)` : "");
   const checked = open.filter(videoChecked);
@@ -98,10 +111,11 @@ export function baseTriage(missing: Missing[]): { triage: BaseTriage; why: strin
 }
 
 /** The category shown: a stored one, made Old season when it's settled (not actionable, not waiting for its video
- *  check) and older than last season. */
+ *  check, not unplayable) and older than last season. */
 export function seasonTriage(stored: { triage: BaseTriage; why: string }, season: number, current: number): { triage: CoverageTriage; why: string } {
-  // A pending video check stays one in any season: nothing waiting for a check is folded away.
-  return stored.triage !== "actionable" && stored.triage !== "unchecked" && season < current - 1 ? { triage: "old-season", why: `${seasonLabel(season)} season. ${stored.why}` } : stored;
+  // A pending video check stays one in any season: nothing waiting for a check is folded away. Nor is a recording that
+  // can't be played: its own list, in any season, so how many matches no video can reach is always in view.
+  return stored.triage !== "actionable" && stored.triage !== "unchecked" && stored.triage !== "unplayable" && season < current - 1 ? { triage: "old-season", why: `${seasonLabel(season)} season. ${stored.why}` } : stored;
 }
 
 /** Both at once: the category an event shows now. */
