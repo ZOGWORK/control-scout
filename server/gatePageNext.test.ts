@@ -30,7 +30,7 @@ describe("gatePageNext", () => {
     expect(html).not.toMatch(/#ffc700|#ffd633|#eab308|accent/i);
     expect(html).not.toMatch(/box-shadow|drop-shadow|text-shadow/);
     expect(html).not.toMatch(/\.(tape|grid|breath|eyebrow|dot|amb)\b|class="(tape|grid|breath|eyebrow|dot|amb)"|@keyframes|animation/);
-    expect(GATE_NEXT_STYLE).not.toMatch(/linear-gradient\([^)]*90deg/); // no grid lines
+    expect(GATE_NEXT_STYLE).not.toMatch(/\b1px,transparent 1px|background-size/); // no grid lines (1px stops, tiled)
   });
 
   it("shows the mark in white, flat", () => {
