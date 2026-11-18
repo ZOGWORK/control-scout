@@ -135,7 +135,10 @@ The coordinator keeps (rebuilds, labels, asks reviews for) the open PRs of its o
 shard of a PR's first event), and alone runs the clip sweep. A lane needs its own clone, node, Playwright's Chromium
 and tesseract.js, and the coordinator's ssh key; nothing else. With no flags, a computer reads the whole queue alone.
 
-A real run always goes through `scripts/clip-autopilot-start.mjs` (plain Node). It holds the run's lock, puts the clone
+A real run always goes through `scripts/clip-autopilot-start.mjs` (plain Node). It first waits, up to 30 minutes, for 3 GB
+of memory free (`AUTOPILOT_MIN_FREE_MB`; with less, processes failed to start and scheduled runs died with nothing
+logged), and skips the run if it never comes. On macOS memory it can take back at once counts too (`vm_stat`: free,
+inactive, speculative, purgeable). With more than 6 GB it reads in 3 lanes, else 2 (`AUTOPILOT_LANES`). It holds the run's lock, puts the clone
 back to main (a killed run can leave files changed), and runs `npm ci` when main's `package-lock.json` changed, before
 anything runs from `node_modules`. The runner refuses a real run its start didn't begin: on Windows, `npm ci` can't
 replace `node_modules` under the running tsx (its `esbuild.exe` is held open).
