@@ -177,6 +177,15 @@ describe("the shipped list", () => {
       expect(x.season).toBeGreaterThanOrEqual(2019);
     }
   });
+  it("puts FIRST Robotics BC's 2023-01-28 \"Vancouver Qualifier\" on the Lower Mainland Qualifier, never Victoria's", () => {
+    // Two BC qualifiers that day: CABCSUQ (Lower Mainland, L.A. Matheson in Surrey, Metro Vancouver) and CABCVIQ
+    // (Victoria, St. Margaret's). The channel streamed each: Victoria's is TUFDPEuJSpM (its broadcast), the
+    // "Vancouver Qualifier" Y0yrKRUpcJo ran 10:56–18:34 Pacific, over CABCSUQ's 31 matches (11:52–17:40).
+    const rows = data.videos.filter((x) => x.videoId === "Y0yrKRUpcJo");
+    expect(rows).toEqual([expect.objectContaining({ season: 2022, code: "CABCSUQ", kind: "recording", day: "2023-01-28" })]);
+    expect(data.videos.some((x) => x.season === 2022 && x.code === "CABCVIQ")).toBe(false);
+  });
+
   it("keeps one video per event, day and part", () => {
     const k = new Set<string>();
     for (const x of data.videos.filter((y) => y.kind === "recording")) {
@@ -799,5 +808,17 @@ describe("a FIRST link's broadcast date", () => {
     expect(linkAiredOff(som3, "2025-01-14T07:00:00Z")).toMatch(/outside/);
     expect(linkAiredOff(som3, null)).toBeNull();
     expect(linkAiredOff({ code: "TWO", start: "2026-02-06", end: "2026-02-08", timezone: "America/New_York" }, "2026-02-07T15:00:00Z")).toBeNull();
+  });
+
+  it("isn't its event's when its video is a short upload never broadcast; a broadcast, a live one or an unread length is", async () => {
+    const { linkTooShort, MIN_RECORDING_S } = await import("./officialVideos");
+    // 2025 USMOKSSTLMM2's link, lvhcciim1Y4: a 202-second camera clip.
+    expect(linkTooShort("USMOKSSTLMM2", { start: null, live: 0, duration: 202 })).toBe("FIRST's link for USMOKSSTLMM2 is a 3-minute upload, not a broadcast: too short for a day's recording, not used for it");
+    expect(linkTooShort("X", { start: null, live: 0, duration: 20 })).toMatch(/a 1-minute upload/);
+    expect(linkTooShort("X", { start: null, live: 0, duration: MIN_RECORDING_S })).toBeNull();
+    expect(linkTooShort("X", { start: "2025-11-22T15:00:00Z", live: 0, duration: 202 })).toBeNull(); // a short broadcast is still its day's
+    expect(linkTooShort("X", { start: null, live: 1, duration: null })).toBeNull(); // to come
+    expect(linkTooShort("X", { start: null, live: 0, duration: null })).toBeNull();
+    expect(linkTooShort("X", undefined)).toBeNull();
   });
 });

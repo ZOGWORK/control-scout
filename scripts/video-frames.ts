@@ -39,7 +39,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
 import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, playedCount, playedMatches, wholeLength } from "./lib/videoFrames";
-import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, firstOpening, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, cropOrder, elapsed, flippedClip, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M } from "./lib/videoFrames";
+import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, firstOpening, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, cropOrder, elapsed, flippedClip, inPage, titleLeaks, visibleTexts, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M } from "./lib/videoFrames";
 import { between, eventLimitMs, GAP_READS } from "./lib/videoFrames";
 
 // The command line: --name value or --name=value for the value flags, --name alone for the others. Anything else stops
@@ -383,6 +383,7 @@ function stopIfDark(): void {
 async function readAtOnce(page: Page, t: number, labelOnly = false): Promise<Read> {
   if (ocrBroken) throw new Error(ocrBroken);
   await seek(page, Math.max(0, t), labelOnly);
+  if (labelOnly) await hideTitle(page);
   const at = await now(page);
   const shot = await page.screenshot();
   if (reads++ % SHADE_EVERY === 0) {
@@ -1037,7 +1038,29 @@ async function openOnce(page: Page, videoId: string): Promise<void> {
   // #movie_player: hidden too, or the event-name check (overlayEvent) could read the title instead of the overlay.
   // Only the title pieces, never their containers (#player-controls, #player-control-overlay): hiding those turns a
   // PLAYING frame pure black (USNVCMP 2024: 30 of 30 black; this rule: 77 of 77 drawn, top bar clear).
-  await page.addStyleTag({ content: ".ytp-caption-window-container, .caption-window, .ytp-chrome-top, .ytp-pause-overlay, .ytp-show-cards-title, .ytp-ce-element, .ytp-player-content.ytp-iv-player-content, .ytp-large-play-button, .ytp-bezel, .ytp-chrome-bottom, player-top-controls, .ytwPlayerTopControlsHost, embedded-player-video-details, .ytmCuedOverlayGradient { display: none !important; }" });
+  await page.addStyleTag({ content: ".ytp-caption-window-container, .caption-window, .ytp-chrome-top, .ytp-pause-overlay, .ytp-show-cards-title, .ytp-ce-element, .ytp-player-content.ytp-iv-player-content, .ytp-large-play-button, .ytp-bezel, .ytp-chrome-bottom, player-top-controls, .ytwPlayerTopControlsHost, embedded-player-video-details, .ytmCuedOverlayGradient, .ytp-title, .ytp-title-text, .ytp-title-channel, .ytp-title-link, .ytp-gradient-top { display: none !important; }" });
+  await hideTitle(page);
+}
+
+/** YouTube's title or channel name drawn over the frame anyway (a player whose pieces have names no rule above
+ *  hides: the 2023 reads saw .ytp-title's line in their frames, the event-name check reading it as the overlay's):
+ *  each such text, found by what it says (titleLeaks, against the player's own title and channel), is hidden on its
+ *  own, and looked for again. Still there: this video isn't read here, rather than read off a frame that names the
+ *  event whatever its bar says. Called once the video plays, and before each paused read (a pause brings the title
+ *  back). */
+async function hideTitle(page: Page): Promise<void> {
+  const meta = await page.evaluate(() => {
+    const d = (document.querySelector("#movie_player") as any)?.getVideoData?.();
+    return { title: String(d?.title ?? ""), channel: String(d?.author ?? "") };
+  });
+  if (!meta.title && !meta.channel) return;
+  for (let pass = 0; pass < 2; pass++) {
+    const texts = (await page.evaluate(inPage(visibleTexts))) as string[];
+    const leaks = titleLeaks(meta.title, meta.channel, texts);
+    if (!leaks.length) return;
+    if (pass === 1) throw new Error(`YouTube's title shows over the frame ("${texts[leaks[0]]}")`);
+    await page.evaluate((ix) => { for (const i of ix) ((window as any).__texts[i] as HTMLElement).style.setProperty("display", "none", "important"); }, leaks);
+  }
 }
 
 /** A video's length in whole seconds, as its player gives it, or why it has none: a stream that is still live or
