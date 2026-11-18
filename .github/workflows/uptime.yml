@@ -48,6 +48,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           SITE: https://controlscout.org
+          # The site's UPTIME_GATE_KEY (repo secret), so the check gets past the shutdown message. Unset: no header.
+          UPTIME_GATE_KEY: ${{ secrets.UPTIME_GATE_KEY }}
           # Set to 1 to print the issue calls instead of making them.
           DRY_RUN: '0'
         run: bash .github/scripts/uptime.sh

@@ -167,6 +167,10 @@ const TIMERS = [
   // The same white box in a bar across the top (FIRST AGE's top layout, USPAKSN 2026): wider than FIRST Texas's.
   { where: "top" as const, clip: { x: 585, y: 92, width: 110, height: 50 }, loose: true },
   TOP_BAR_TIMER,
+  // FTC Live's audience display streamed whole (USMAWEQ 2025, MA FTC): the timer large in a white card over the middle
+  // of the frame under "Field 2", the bar along the bottom naming the match. Last, so no other layout's field or
+  // crowd is read here first; a number there still counts only as a clock seen running twice.
+  { where: "bottom" as const, clip: { x: 340, y: 110, width: 600, height: 210 } },
 ];
 /** FTC Live's overlay from 2019 to 2022 shows the timer as bare seconds ("30", "112": secondsPlain), in a box over the
  *  scores (SKYSTONE 2019, FREIGHT FRENZY 2021: USCHSCMPCARR) or under the centre graphic (POWERPLAY 2022: AUMPOS1).
