@@ -662,8 +662,11 @@ export function overlayBand(px: ArrayLike<number>, width: number, height: number
  * whose timer box stands above the coloured band), where a crop of the band's upper half reads the robot icon's row.
  * The box is the neutral run (white, and the digits' black) round the centre between the alliance colours; its top and
  * bottom are where the pixels just inside its edges stop being light (the digits never reach the edges). Only round the
- * centre: a field monitor shows the same white timer box off to one side.
+ * centre: a field monitor shows the same white timer box off to one side. Digits over MAX_DIGITS_H rows tall are no
+ * timer's (a timer's are about 45): a white slide or results card at the centre reads as one tall box, and that much
+ * page sent to the one-line digit reader stalled it (a frame read hung on 3 of 4 full 2023 runs).
  */
+export const MAX_DIGITS_H = 90;
 export function timerDigits(px: ArrayLike<number>, width: number, height: number, band: { top: number; bottom: number }, cx = width / 2): { x: number; y: number; width: number; height: number } | null {
   const rgb = (x: number, y: number) => { const i = (y * width + x) * 4; return [px[i], px[i + 1], px[i + 2]]; };
   // Grey, white or black: a dark navy (47, 65, 77) is a colour. Brightness is judged against the box's own (`level`): a
@@ -706,7 +709,7 @@ export function timerDigits(px: ArrayLike<number>, width: number, height: number
       run = -1;
     }
   }
-  if (!best || best.bottom - best.top + 1 < 12) return null;
+  if (!best || best.bottom - best.top + 1 < 12 || best.bottom - best.top + 1 > MAX_DIGITS_H) return null;
   const y = Math.max(top, best.top - 4), y1 = Math.min(bottom, best.bottom + 4);
   return { x: x0, y, width: x1 - x0 + 1, height: y1 - y + 1 };
 }
