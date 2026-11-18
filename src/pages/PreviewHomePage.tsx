@@ -224,9 +224,12 @@ function LiveRow({ e }: { e: EventListItem }) {
               <span className="shrink-0 text-[12px] tabular-nums text-text-muted">{e.matchesPlayed}/{e.matchesTotal} played</span>
             </span>
           ) : (
-            <span className="block truncate text-[12px] text-text-muted">{where ? `${where} · ` : ""}On today, no results yet</span>
+            <span className="block truncate text-[12px] text-text-muted">{where || "Location TBA"}</span>
           )}
         </span>
+        {!(e.matchesTotal > 0 && e.matchesPlayed > 0) && (
+          <span data-no-results className="shrink-0 rounded-md border border-white/10 px-1.5 py-0.5 text-[11px] text-text-muted">No results yet</span>
+        )}
       </Link>
     </li>
   );
@@ -236,14 +239,22 @@ function LiveRow({ e }: { e: EventListItem }) {
 
 const TOP_FIELDS = "teamName,homeRegion,wins,losses,ties,totalPointsOpr";
 
+const topPath = (season: number) => `/api/records/${season}/teams${qs({ scope: "season", sort: "totalPointsOpr", dir: "desc", pageSize: TOP_MAX, fields: TOP_FIELDS })}`;
+
+/** The season's leaders by OPR. Early in a season, before any team has a record, last season's leaders, labelled as
+ *  such, rather than an empty card. */
 function TopTeamsCard({ season }: { season: number }) {
-  const res = useApi<RecordsResponse<TeamSeasonRecord>>(`/api/records/${season}/teams${qs({ scope: "season", sort: "totalPointsOpr", dir: "desc", pageSize: TOP_MAX, fields: TOP_FIELDS })}`);
+  const now = useApi<RecordsResponse<TeamSeasonRecord>>(topPath(season));
+  const empty = !!now.data && now.data.rows.length === 0;
+  const last = useApi<RecordsResponse<TeamSeasonRecord>>(empty ? topPath(season - 1) : null);
+  const res = empty ? last : now;
+  const shown = empty ? season - 1 : season;
   const rows = res.data?.rows.slice(0, TOP_MAX) ?? [];
   return (
     <section data-card="top" aria-labelledby="sample-top" className={card}>
       <div className="flex items-center justify-between gap-3">
         <h2 id="sample-top" className={cardTitle}><Trophy className="size-4 text-text-muted" aria-hidden /> Top teams</h2>
-        <span className="text-[12px] text-text-muted">{seasonLabel(season)} · by OPR</span>
+        <span data-top-season className="text-[12px] text-text-muted">{empty ? "Last season, " : ""}{seasonLabel(shown)} · by OPR</span>
       </div>
       {res.error && !res.data ? <Failed what="Top teams" retry={res.reload} /> : !res.data ? <Loading rows={TOP_MAX} /> : !rows.length ? (
         <p className="text-sm text-text-muted">No team records this season yet.</p>
