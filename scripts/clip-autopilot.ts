@@ -23,16 +23,24 @@
 //   --max N   events read per run (default 12)
 //   --sweep N events whose clock clips are checked per run (default 4; 0: no sweep)
 //   --db F    read this snapshot instead of taking one
+//   --shard K/N  this computer's shard of the queue (default 0/1, all of it): several computers each read only the
+//             events in their own shard (shardOf), keep only the open PRs their shard opened, and only shard 0 sweeps,
+//             so no two read the same event or open PRs for it
+//   --lanes K=user@host,…  computers with no credentials reading shard K for this one (their runs: --lane): each run
+//             collects what a lane read (checked and shipped here, as this computer's own reads) and sends it its next
+//             job, a copy of the snapshot and the events to read, over ssh
+//   --lane    a lane's run: reads the job its coordinator left in .data/lane (no gh, no VM, no PR), its rows and
+//             whether each read stopped or failed left there to collect
 //   --dry     in the current checkout: read and check, print the PRs it would open, leave the files as they were
 //   --no-merge  open and rebuild its PRs, never merge one
 //   AUTOPILOT_SSH (ubuntu@132.145.202.89), AUTOPILOT_SSH_KEY (~/.ssh/oracle-controlpoint), TESSERACT_JS: passed on.
-import { existsSync, mkdirSync, readFileSync, writeFileSync, appendFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync, appendFileSync, copyFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { gunzipSync } from "node:zlib";
 import { applyRows, changedRows, fileRows, prChunks, prMarker, readMarker, rowKey, rowProblems, type Keyed, type Row } from "./lib/autopilotRows";
-import { askDue, forgetSettled, needsRebuild, overLimit, pickEvents, readOutcome, remember, rememberTimeout, rememberWait, rowsDelta, type Memory } from "./lib/autopilotRun";
+import { askDue, forgetSettled, laneResults, laneStep, needsRebuild, overLimit, parseLanes, parseShard, pickEvents, prShard, readOutcome, remember, rememberTimeout, rememberWait, rowsDelta, shardOf, type LaneJob, type Memory } from "./lib/autopilotRun";
 import { loopySummary, reviewedSha, type IssueComment } from "./lib/autopilotMerge";
 import { clipCheckProblems, clipsDelta } from "./lib/autopilotClips";
 import { prGate } from "./lib/autopilotPr";
@@ -41,8 +49,16 @@ import { streamRun } from "./lib/streamRun";
 import type { ClipCheck } from "../server/data/clipChecks";
 
 const argv = process.argv.slice(2);
-const opt = (k: string) => { const i = argv.indexOf(`--${k}`); return i >= 0 ? argv[i + 1] : undefined; };
-for (const a of argv) if (a.startsWith("--") && !["--max", "--sweep", "--db", "--dry", "--no-merge"].includes(a)) { console.error(`${a}: not a flag (--max N, --sweep N, --db F, --dry, --no-merge)`); process.exit(2); }
+// A flag that takes a value and was given none (last, or followed by another flag) is refused, never read as its
+// default: a bare --shard would read the whole queue beside the other computers.
+const opt = (k: string) => {
+  const i = argv.indexOf(`--${k}`);
+  if (i < 0) return undefined;
+  const v = argv[i + 1];
+  if (v == null || v.startsWith("--")) { console.error(`--${k}: needs a value`); process.exit(2); }
+  return v;
+};
+for (const a of argv) if (a.startsWith("--") && !["--max", "--sweep", "--db", "--shard", "--lanes", "--lane", "--dry", "--no-merge"].includes(a)) { console.error(`${a}: not a flag (--max N, --sweep N, --db F, --shard K/N, --lanes K=user@host,…, --lane, --dry, --no-merge)`); process.exit(2); }
 const MAX = Number(opt("max") ?? 12), SWEEP = Number(opt("sweep") ?? 4), DRY = argv.includes("--dry"), DB = opt("db"), MERGE = !argv.includes("--no-merge");
 /** Main's last commit at least this old before a merge (each merge deploys; merges spaced, owner's rule). */
 const MAIN_QUIET_MS = 605_000;
@@ -51,6 +67,11 @@ const LIVE_WAIT_MS = 20 * 60_000;
 const HEALTH_URL = process.env.AUTOPILOT_HEALTH ?? "https://controlscout.org/api/health";
 if (!Number.isInteger(MAX) || MAX < 1) { console.error("--max: a whole number, 1 or more"); process.exit(2); }
 if (!Number.isInteger(SWEEP) || SWEEP < 0) { console.error("--sweep: a whole number, 0 or more"); process.exit(2); }
+const SHARD = parseShard(opt("shard"));
+if (!SHARD) { console.error("--shard: K/N, 0 <= K < N (this computer's shard of N)"); process.exit(2); }
+const LANES = parseLanes(opt("lanes"), SHARD), LANE = argv.includes("--lane");
+if (typeof LANES === "string") { console.error(`--lanes: ${LANES}`); process.exit(2); }
+if (LANE && (LANES.length || DRY || DB)) { console.error("--lane: a lane reads only the job it was sent (no --lanes, --dry or --db)"); process.exit(2); }
 
 const DIR = ".data/autopilot", STAMP = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
 mkdirSync(join(DIR, "runs"), { recursive: true });
@@ -211,6 +232,40 @@ function clipsText(rows: ClipCheck[], live: Map<string, ClipCheck>): PrText {
   };
 }
 
+// --- A lane: reads the job its coordinator sent, for it to collect --------------------------------------------------------
+// No gh, no VM key, no PR: the job's snapshot, its events read (readSeason), and per season the rows the read changed,
+// whether a read failed and the events stopped at their limit, left in .data/lane/results/<job> with the run's log. The
+// coordinator checks and ships them as its own reads (settle) on its next run.
+const LANE_DIR = join(".data", "lane"), LANE_STATE = join(LANE_DIR, "state.json");
+if (LANE) {
+  const state = existsSync(LANE_STATE) ? JSON.parse(readFileSync(LANE_STATE, "utf8")) : { state: "idle" };
+  const job = existsSync(join(LANE_DIR, "job.json")) ? JSON.parse(readFileSync(join(LANE_DIR, "job.json"), "utf8")) as { id: string; seasons: { season: number; codes: string[] }[] } : null;
+  if (state.state !== "queued" || !job || state.id !== job.id) { log(`lane: no job queued (${state.state}${state.id ? ` ${state.id}` : ""})`); process.exit(0); }
+  const out = join(LANE_DIR, "results", job.id), at = () => new Date().toISOString();
+  mkdirSync(out, { recursive: true });
+  let finished = false;
+  // However the run ends before its job is read (a crash, a near-black player): failed, for the coordinator to collect
+  // and send again; its events aren't counted as tried.
+  process.on("exit", (code) => { if (!finished) writeFileSync(LANE_STATE, JSON.stringify({ state: "failed", id: job.id, at: at(), why: `the lane's run ended (exit ${code}) before its job was read: its log ${LOG}` })); });
+  writeFileSync(LANE_STATE, JSON.stringify({ state: "running", id: job.id, at: at() }));
+  const gz = join(LANE_DIR, "snapshot.db.gz"), db = join(LANE_DIR, "snapshot.db");
+  if (existsSync(gz)) { writeFileSync(db, gunzipSync(readFileSync(gz))); rmSync(gz); }
+  process.env.DATABASE_URL = `file:${db.replace(/\\/g, "/")}`;
+  log(`lane: job ${job.id}: ${job.seasons.map((x) => `${x.season} ${x.codes.join(",")}`).join("; ")}`);
+  for (const { season, codes } of job.seasons) {
+    const r = existsSync(seasonFile(season)) ? await readSeason(season, codes) : { changed: [], readFailed: true, stopped: new Map() };
+    writeFileSync(join(out, `${season}.json`), JSON.stringify({ season, codes, changed: r.changed, readFailed: r.readFailed, stopped: [...r.stopped] }));
+    log(`lane: ${season}: ${r.changed.length} rows changed${r.readFailed ? ", a read failed" : ""}`);
+  }
+  copyFileSync(LOG, join(out, "run.log"));
+  finished = true;
+  writeFileSync(LANE_STATE, JSON.stringify({ state: "done", id: job.id, at: at() }));
+  log("lane: done, for its coordinator to collect");
+  process.exit(0);
+}
+/** The shards whose PRs this computer keeps: its own and its lanes'. */
+const KEEPS = new Set([SHARD.k, ...LANES.map((l) => l.k)]);
+
 // --- 1b. Own PRs rebuilt on main --------------------------------------------------------------------------------------
 if (!DRY) sh("gh", ["label", "create", LABEL, "--force", "--color", "0e8a16", "--description", "A data PR the clip autopilot opened (scripts/clip-autopilot.ts)"], { ok: true, quiet: true });
 const open = DRY ? [] : openPrs();
@@ -218,6 +273,9 @@ openNow = new Set(open.map((p) => String(p.number)));
 /** PRs rebuilt on main this run: each waits for Loopy's review of its new head, so none merges this run. */
 const rebuilt = new Set<number>();
 for (const p of open) {
+  // Another computer's PR (its shard opened it) is its to keep: rebuilt, labelled and asked for there. This one keeps its
+  // own shard's and its lanes' (it opened theirs).
+  if (!KEEPS.has(prShard(p, SHARD.n))) continue;
   try {
     // Inside the try: a branch that can't be read (deleted, not fetched) is logged and left, never the whole run.
     // Rebuilt only where main changed one of its rows since it branched (its rows checked again on main's), it
@@ -366,9 +424,18 @@ const { frameQueue } = await import("../server/videos/frameQueue.js");
 const queue = await frameQueue();
 // Events a frame-read PR holds wait for it; a sweep PR (its rows are clipChecks') holds none from the reader.
 const inPr = new Set(open.filter((p) => !p.file).flatMap((p) => p.rows.map((k) => `${p.season}/${k.split("|")[1]}`)));
+// This computer's shard of it: the other computers read the rest (their open PRs still hold their events, above).
+const inShard = (k: number) => (SHARD.n > 1 ? queue.filter((q) => shardOf(`${q.season}/${q.code}`, SHARD.n) === k) : queue);
+const mine = inShard(SHARD.k);
+// What it remembers covers its lanes' events too: forgotten only once an event leaves the whole queue.
 forgetSettled(memory, new Set(queue.filter((q) => q.frames.state === "queued").map((q) => `${q.season}/${q.code}`)));
-const { picked, skipped } = pickEvents(queue, inPr, memory, MAX);
-log(`queue: ${queue.filter((q) => q.frames.state === "queued").length} events queued; reading ${picked.map((q) => `${q.season}/${q.code} (${q.frames.due})`).join(", ") || "none"}`);
+// Events in a job sent to a lane and not collected yet are read there: held like an open PR's. The job file here is
+// this computer's own record of what it sent (written once the send succeeded, removed once its results are in).
+const laneJobFile = (k: number) => join(DIR, "lanes", String(k), "job.json");
+const laneJob = (k: number): LaneJob | null => { try { return JSON.parse(readFileSync(laneJobFile(k), "utf8")); } catch { return null; } };
+for (const lane of LANES) for (const x of laneJob(lane.k)?.seasons ?? []) for (const c of x.codes) inPr.add(`${x.season}/${c}`);
+const { picked, skipped } = pickEvents(mine, inPr, memory, MAX);
+log(`queue: ${queue.filter((q) => q.frames.state === "queued").length} events queued${SHARD.n > 1 ? `, ${mine.filter((q) => q.frames.state === "queued").length} in shard ${SHARD.k}/${SHARD.n}` : ""}; reading ${picked.map((q) => `${q.season}/${q.code} (${q.frames.due})`).join(", ") || "none"}`);
 for (const s of skipped.filter((x) => x.why !== "next run")) log(`  skipped ${s.event}: ${s.why}`);
 
 // --- Shipping: one data PR per chunk of rows -----------------------------------------------------------------------------
@@ -420,15 +487,14 @@ const branchStamp = STAMP.slice(0, 16).replace(/[-T]/g, "");
 const stoppedAtLimit: string[] = [];
 
 // --- 4–6. Read the due events, check, ship, season by season ------------------------------------------------------------------
-const bySeason = new Map<number, typeof picked>();
-for (const q of picked) (bySeason.get(q.season) ?? bySeason.set(q.season, []).get(q.season)!).push(q);
-for (const [season, events] of bySeason) {
+/** Reads `codes` of `season` into its file (those not read yet, then those with rows already whole, then --verify and
+ *  --bounds), and puts the file back: the rows the read changed, whether a read failed, and the events the reader
+ *  stopped at its per-event limit (and the video each was on). This computer's reads and a lane's alike. */
+async function readSeason(season: number, codes: string[]): Promise<{ changed: Row[]; readFailed: boolean; stopped: Map<string, string | undefined> }> {
   const file = seasonFile(season);
-  if (!existsSync(file)) { log(`${season}: no ${file} to write (add the season's file first)`); continue; }
   const before = readFileSync(file, "utf8"), liveFile = join(DIR, `live-${season}.ts`);
   writeFileSync(liveFile, mainText(file));
   restore.set(file, before);
-  const codes = events.map((e) => e.code);
   // An event with rows already (read before it finished, or one of its videos read) is read again whole (--all): the
   // reader otherwise skips an event whose videos all have rows. The others read what isn't read yet.
   const hasRows = new Set(fileRows(before).map((r) => r.code));
@@ -452,6 +518,13 @@ for (const [season, events] of bySeason) {
   for (const p of ["--verify", "--bounds"]) await pass(["--codes", codes.join(","), p], 3 * 3600_000, p);
   const after = readFileSync(file, "utf8");
   writeFileSync(file, before);
+  return { changed: changedRows(before, after).filter((x) => codes.includes(x.code)), readFailed, stopped };
+}
+
+/** Checks the rows a read of `codes` changed against main's, opens their PRs, and remembers what became of each event
+ *  (remember, rememberWait, rememberTimeout): this computer's reads and its lanes' alike. The rows a PR opened with. */
+async function settle(season: number, codes: string[], read: { changed: Row[]; readFailed: boolean; stopped: Map<string, string | undefined> }): Promise<Row[]> {
+  const file = seasonFile(season);
   const live = new Map(fileRows(mainText(file)).map((r) => [rowKey(r), r]));
   // Each event's played matches in the order they were played (FIRST's times are the venue's own, so they sort).
   const order = new Map<string, string[]>();
@@ -459,7 +532,7 @@ for (const [season, events] of bySeason) {
     (order.get(String(m.code)) ?? order.set(String(m.code), []).get(String(m.code))!).push(String(m.label));
   }
   const good: Row[] = [];
-  for (const r of changedRows(before, after).filter((x) => codes.includes(x.code))) {
+  for (const r of read.changed) {
     const problems = rowProblems(r, live.get(rowKey(r)), order.get(r.code));
     if (problems.length) log(`  ${r.code} ${r.videoId}: left out, ${problems.join("; ")}`); else good.push(r);
   }
@@ -471,9 +544,9 @@ for (const [season, events] of bySeason) {
   // The chunk's index keeps two PRs of one event's rows (an event split across chunks) on two branches.
   ship.forEach((chunk, i) => { if (openPr({ file, rows: chunk, branch: `${BRANCH}${season}-${branchStamp}-${chunk[0].code}-${i + 1}`, ...framesText(season, chunk, live) })) opened.push(...chunk); });
   const count = (list: Row[], code: string) => list.filter((r) => r.code === code).length;
-  for (const e of events) {
-    const key = `${season}/${e.code}`;
-    const changed = changedRows(before, after).filter((r) => r.code === e.code).length;
+  for (const code of codes) {
+    const e = { code }, key = `${season}/${code}`, readFailed = read.readFailed, stopped = read.stopped;
+    const changed = count(read.changed, code);
     const outcome = readOutcome({ rows: count(good, e.code), opened: count(opened, e.code), waiting: count(later, e.code), tooBig: count(tooBig, e.code), readFailed, timedOut: stopped.has(e.code), changed });
     if (outcome === "timed out") {
       const video = stopped.get(e.code), counted = rememberTimeout(memory, key, video) === "counted";
@@ -483,15 +556,94 @@ for (const [season, events] of bySeason) {
     else if (outcome === "waits") { rememberWait(memory, key, "rows wait for an open PR's lines or the next PR"); log(`  ${key}: its rows wait for an open PR's lines or the next PR; read again later, not counted as a try`); }
     else if (outcome === "open failed") log(`  ${key}: its PR couldn't be opened; not counted as a try`);
     else if (outcome === "read failed") log(`  ${key}: the read failed; not counted as a try`);
-    else remember(memory, key, outcome === "shipped" ? 1 : 0, outcome === "too big" ? "rows too big for one PR (the owner's)" : outcome === "shipped" ? "shipped" : after === before ? "no new rows" : "rows refused or unchanged");
+    else remember(memory, key, outcome === "shipped" ? 1 : 0, outcome === "too big" ? "rows too big for one PR (the owner's)" : outcome === "shipped" ? "shipped" : changed ? "rows refused or unchanged" : "no new rows");
   }
+  return opened;
+}
+
+// --- 3b. Lanes: what each read is collected and shipped, and its next job sent ------------------------------------------
+// A lane holds no credentials and this computer does, so nothing a lane writes is taken as it is: its state only picks
+// the step (laneStep, against this computer's own job record), and its results are kept to that job's seasons, codes
+// and rows (laneResults) before they're checked like any read's.
+const LANE_HOME = "control-scout-autopilot";
+const laneSsh = (host: string, cmd: string) => sh("ssh", ["-o", "BatchMode=yes", "-o", "ConnectTimeout=20", host, cmd], { timeoutMs: 120_000 });
+const rsync = (from: string, to: string, timeoutMs: number) => sh("rsync", ["-a", "-e", "ssh -o BatchMode=yes", from, to], { timeoutMs });
+for (const lane of DRY ? [] : LANES) {
+  const name = `lane ${lane.k} (${lane.host})`, here = join(DIR, "lanes", String(lane.k)), there = `${LANE_HOME}/.data/lane`;
+  try {
+    const job = laneJob(lane.k), step = laneStep(laneSsh(lane.host, `cat ${there}/state.json 2>/dev/null || true`).out, job);
+    if (step.do === "wait") {
+      log(`${name}: ${step.state.state}${step.state.id ? ` job ${step.state.id}` : ""}${step.state.at ? ` since ${step.state.at}` : ""}${step.state.why ? `: ${step.state.why}` : ""}`);
+      continue;
+    }
+    if (step.do === "kick") {
+      laneSsh(lane.host, "launchctl kickstart gui/$(id -u)/org.controlscout.clip-lane");
+      log(`${name}: job ${job!.id} not started within an hour: started again`);
+      continue;
+    }
+    if (step.do === "reset") {
+      // Its state names no job this computer has outstanding there (one collected already, or never sent): nothing of
+      // it is read; the lane is set idle for its next job.
+      laneSsh(lane.host, `printf '%s' '{"state":"idle"}' > ${there}/state.json`);
+      log(`${name}: its state (${step.state.state}${step.state.id ? ` ${step.state.id}` : ""}) names no job sent to it: set idle`);
+    }
+    if (step.do === "collect") {
+      const id = job!.id, local = join(here, id);
+      mkdirSync(local, { recursive: true });
+      rsync(`${lane.host}:${there}/results/${id}/`, `${local}/`, 600_000);
+      // Collected before anything is shipped: the lane is idle and the job record gone first, so a run that fails while
+      // shipping never collects (and ships) the same rows again. Events it didn't ship are read again later.
+      laneSsh(lane.host, `cd ${there} && rm -rf results/${id} && printf '%s' '{"state":"idle"}' > state.json`);
+      rmSync(laneJobFile(lane.k), { force: true });
+      if (step.state.state === "failed") log(`${name}: job ${id} failed (${step.state.why ?? "no reason given"}); what it finished is shipped, the rest read again, not counted as tried`);
+      const files = readdirSync(local).filter((x) => x.endsWith(".json")).map((x) => ({ name: x, text: readFileSync(join(local, x), "utf8") }));
+      for (const r of laneResults(job!, files)) {
+        log(`${name}: collected ${r.season} ${r.codes.join(",")}: ${r.changed.length} rows changed${r.readFailed ? ", a read failed" : ""}`);
+        if (!existsSync(seasonFile(r.season))) { log(`  ${r.season}: no ${seasonFile(r.season)} here; left`); continue; }
+        try {
+          for (const row of await settle(r.season, r.codes, r)) inPr.add(`${r.season}/${row.code}`);
+        } catch (e) { log(`  ${r.season}: couldn't be shipped (${(e as Error).message}); its events are read again later`); }
+      }
+    }
+    // Idle: its next job, from its own shard (what this computer remembers of each event, and the held set, as its own).
+    const { picked: next } = pickEvents(inShard(lane.k), inPr, memory, MAX);
+    if (!next.length) { log(`${name}: nothing in its shard to read`); continue; }
+    const job2: LaneJob = { id: STAMP, seasons: [...new Set(next.map((q) => q.season))].map((season) => ({ season, codes: next.filter((q) => q.season === season).map((q) => q.code) })) };
+    mkdirSync(here, { recursive: true });
+    const sending = join(here, "job.sending.json");
+    writeFileSync(sending, JSON.stringify(job2));
+    try {
+      // The snapshot goes gzipped when this run took one (a fifth of the size); the lane unpacks it.
+      const gz = join(DIR, "snapshot.db.gz"), send = !DB && existsSync(gz) ? gz : snapshot;
+      laneSsh(lane.host, `mkdir -p ${there} && rm -f ${there}/snapshot.db ${there}/snapshot.db.gz`);
+      rsync(send, `${lane.host}:${there}/${send.endsWith(".gz") ? "snapshot.db.gz" : "snapshot.db"}`, 1_800_000);
+      rsync(sending, `${lane.host}:${there}/job.json`, 120_000);
+      laneSsh(lane.host, `printf '%s' '${JSON.stringify({ state: "queued", id: job2.id, at: new Date().toISOString() })}' > ${there}/state.json`);
+      // Sent: only now is it this computer's record (its events held until collected).
+      writeFileSync(laneJobFile(lane.k), JSON.stringify(job2));
+    } finally { rmSync(sending, { force: true }); }
+    for (const q of next) inPr.add(`${q.season}/${q.code}`);
+    laneSsh(lane.host, "launchctl kickstart gui/$(id -u)/org.controlscout.clip-lane");
+    log(`${name}: sent job ${job2.id}: ${next.map((q) => `${q.season}/${q.code} (${q.frames.due})`).join(", ")}`);
+  } catch (e) { log(`${name}: ${(e as Error).message}; tried again next run`); }
+}
+
+// --- 4–6. This computer's own: read the due events, check, ship, season by season ---------------------------------------
+const bySeason = new Map<number, typeof picked>();
+for (const q of picked) (bySeason.get(q.season) ?? bySeason.set(q.season, []).get(q.season)!).push(q);
+for (const [season, events] of bySeason) {
+  const file = seasonFile(season);
+  if (!existsSync(file)) { log(`${season}: no ${file} to write (add the season's file first)`); continue; }
+  const codes = events.map((e) => e.code);
+  await settle(season, codes, await readSeason(season, codes));
 }
 
 // --- 7. The live clips the clock places, checked by their first frame --------------------------------------------------------
 // Each clip the live site plays from the clock is read paused at its first second (video-frames.ts --clips): its own
 // match there, ok; another match, pulled (never served); nothing, left as it is and read again next sweep. Up to
 // --sweep events a run, newest season first; events whose clips are all checked are passed over without a read.
-if (SWEEP && !open.some((p) => p.file === CLIPS_FILE)) {
+// Shard 0 alone sweeps (the sweep picks its own events, season by season): two computers would check the same clips.
+if (SWEEP && SHARD.k === 0 && !open.some((p) => p.file === CLIPS_FILE)) {
   const before = readFileSync(CLIPS_FILE, "utf8");
   restore.set(CLIPS_FILE, before);
   let budget = SWEEP;
