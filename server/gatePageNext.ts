@@ -18,8 +18,8 @@ export const GATE_NEXT_STYLE = `@font-face{font-family:Inter;src:url(/fonts/Inte
 body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.55 Inter,ui-sans-serif,system-ui,sans-serif;-webkit-font-smoothing:antialiased;overflow-x:hidden}
 .wash{position:absolute;left:0;right:0;top:0;height:38vh;min-height:240px;pointer-events:none;z-index:0;
 -webkit-mask-image:linear-gradient(to bottom,#000 0%,rgb(0 0 0/.55) 40%,transparent 100%);mask-image:linear-gradient(to bottom,#000 0%,rgb(0 0 0/.55) 40%,transparent 100%)}
-.wash .tone{position:absolute;inset:0;opacity:.7;background:linear-gradient(90deg,#26354e 0%,#1f3134 30%,#18302a 50%,#25283e 72%,#322a46 100%)}
-.wash svg{position:absolute;inset:0;width:100%;height:100%;opacity:.16;mix-blend-mode:screen}
+.wash .tone{position:absolute;inset:0;background:linear-gradient(90deg,#3a5379 0%,#304e52 30%,#274d41 50%,#3a4062 72%,#4c406e 100%)}
+.wash svg{position:absolute;inset:0;width:100%;height:100%;opacity:.3;mix-blend-mode:screen}
 main{position:relative;z-index:1;width:100%;max-width:26rem;margin:0 auto;padding:18vh 20px 64px;display:flex;flex-direction:column;align-items:center;text-align:center}
 .mark{width:56px;height:56px;display:block}
 h1{margin:36px 0 0;font:600 clamp(1.6rem,4.6vw,2rem)/1.2 "Space Grotesk",Inter,sans-serif;letter-spacing:-.02em;text-wrap:balance}
@@ -40,8 +40,8 @@ button{background:var(--fill)}button:hover{background:var(--fill-hover);border-c
 :focus-visible{outline:2px solid var(--fg);outline-offset:2px}
 @media (max-width:360px){.row{flex-direction:column}}`;
 
-/** The grain on the wash: fine noise, drawn in the page (no image request, nothing the page's CSP has to allow). */
-const GRAIN = `<svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><filter id="grain"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/></filter><rect width="100%" height="100%" filter="url(#grain)"/></svg>`;
+/** The grain on the wash: coarse, stepped noise (a matte, chalky speckle rather than a smooth haze), drawn in the page (no image request, nothing the page's CSP has to allow). */
+const GRAIN = `<svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><filter id="grain"><feTurbulence type="fractalNoise" baseFrequency=".62" numOctaves="3" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/><feComponentTransfer><feFuncR type="discrete" tableValues="0 0 .35 .7 1"/><feFuncG type="discrete" tableValues="0 0 .35 .7 1"/><feFuncB type="discrete" tableValues="0 0 .35 .7 1"/></feComponentTransfer></filter><rect width="100%" height="100%" filter="url(#grain)"/></svg>`;
 
 /** The page an outsider will see once approved: the mark, the two lines, and a way in for people with an account. */
 export function gatePageNext(closed: boolean): string {
