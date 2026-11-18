@@ -1,7 +1,7 @@
 // The pure parts of the frame reader (scripts/video-frames.ts): the overlay's match, the timer's elapsed time, and
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
-import { dataRows, launchPlayerBrowser, clockReading, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, darkInk, DARK_FILL_MAX, DARK_INK_MAX, inPage, titleLeaks, titleUnchecked, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, firstOpening, OPEN_LEADS, shortClash, type M, eventDivisions, teamsSay, splitSide, splitChecked, splitZoomCss, enteredLater, timerDigits, MAX_DIGITS_H, afterUnreadBox, boxSeconds, timerSteps } from "./videoFrames";
+import { dataRows, launchPlayerBrowser, clockReading, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, darkInk, DARK_FILL_MAX, DARK_INK_MAX, inPage, titleLeaks, titleUnchecked, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, firstOpening, OPEN_LEADS, shortClash, type M, eventDivisions, teamsSay, splitSide, splitChecked, splitZoomCss, enteredLater, timerDigits, afterUnreadBox, boxSeconds, timerSteps } from "./videoFrames";
 import { between, edgeReject, EVENT_LIMIT_RATIO, eventLimitMs, GAP_READS, TRIES } from "./videoFrames";
 import { pngPixels } from "./__fixtures__/png";
 import { fileURLToPath } from "node:url";
@@ -98,11 +98,13 @@ describe("the frame reader", () => {
         const c = ink ? [0, 0, 0] : panel ? [250, 250, 250] : x < 640 ? [30, 60, 200] : [200, 40, 40];
         px[i] = c[0]; px[i + 1] = c[1]; px[i + 2] = c[2]; px[i + 3] = 255;
       }
-      return timerDigits(px, 1280, 720, { top: 200, bottom: 719 });
+      return px;
     };
-    expect(slide(45)).not.toBeNull();
-    expect(slide(MAX_DIGITS_H + 1)).toBeNull();
-    expect(slide(300)).toBeNull();
+    // Run as the reader runs it, from its source in the page (`toString`): an outer name there is a ReferenceError.
+    const paged = new Function("px", `const __name = (f) => f; return (${timerDigits.toString()})(px, 1280, 720, { top: 200, bottom: 719 });`);
+    expect(paged(slide(45))).not.toBeNull();
+    expect(paged(slide(91))).toBeNull();
+    expect(paged(slide(300))).toBeNull();
   });
 
   it("steps the upload scan on past a named match until its timer runs, through a cutaway", () => {

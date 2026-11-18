@@ -662,18 +662,17 @@ export function overlayBand(px: ArrayLike<number>, width: number, height: number
  * whose timer box stands above the coloured band), where a crop of the band's upper half reads the robot icon's row.
  * The box is the neutral run (white, and the digits' black) round the centre between the alliance colours; its top and
  * bottom are where the pixels just inside its edges stop being light (the digits never reach the edges). Only round the
- * centre: a field monitor shows the same white timer box off to one side. Digits over MAX_DIGITS_H rows tall are no
+ * centre: a field monitor shows the same white timer box off to one side. Digits over MAX_H (90) rows tall are no
  * timer's (a timer's are about 45): a white slide or results card at the centre reads as one tall box, and that much
  * page sent to the one-line digit reader stalled it (a frame read hung on 3 of 4 full 2023 runs).
  */
-export const MAX_DIGITS_H = 90;
 export function timerDigits(px: ArrayLike<number>, width: number, height: number, band: { top: number; bottom: number }, cx = width / 2): { x: number; y: number; width: number; height: number } | null {
   const rgb = (x: number, y: number) => { const i = (y * width + x) * 4; return [px[i], px[i + 1], px[i + 2]]; };
   // Grey, white or black: a dark navy (47, 65, 77) is a colour. Brightness is judged against the box's own (`level`): a
   // paused frame's box can be a mid grey (Nevada 2023 about 130, Arizona about 110), not white.
   const neutral = (x: number, y: number) => { const c = rgb(x, y); return Math.max(...c) - Math.min(...c) <= 20; };
   const bright = (x: number, y: number) => { const c = rgb(x, y); return (c[0] + c[1] + c[2]) / 3; };
-  const MIN_W = 60, MAX_W = 260;
+  const MIN_W = 60, MAX_W = 260, MAX_H = 90;
   const mid = Math.round(cx), tall = band.bottom - band.top;
   let box: { x0: number; x1: number; y: number; level: number } | null = null;
   // A row in the band's upper half where the centre is neutral out to a colour on both sides, a box's width apart,
@@ -709,7 +708,7 @@ export function timerDigits(px: ArrayLike<number>, width: number, height: number
       run = -1;
     }
   }
-  if (!best || best.bottom - best.top + 1 < 12 || best.bottom - best.top + 1 > MAX_DIGITS_H) return null;
+  if (!best || best.bottom - best.top + 1 < 12 || best.bottom - best.top + 1 > MAX_H) return null;
   const y = Math.max(top, best.top - 4), y1 = Math.min(bottom, best.bottom + 4);
   return { x: x0, y, width: x1 - x0 + 1, height: y1 - y + 1 };
 }
