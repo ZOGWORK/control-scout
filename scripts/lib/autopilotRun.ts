@@ -152,6 +152,17 @@ export function holdCodes(held: Map<string, number>, season: number, codes: stri
   for (const c of codes) if (!held.has(`${season}/${c}`)) held.set(`${season}/${c}`, number);
 }
 
+/** Events left to someone else by hand (.data/autopilot/skip.txt): one "season/code" a line, "#" starts a comment.
+ *  For another session reading events with no PR open yet, which heldElsewhere can't see. Anything else is ignored. */
+export function parseSkip(text: string): Set<string> {
+  const out = new Set<string>();
+  for (const line of text.split(/\r?\n/)) {
+    const m = /^\s*(\d{4})\/([A-Z0-9]+)\s*(?:#.*)?$/i.exec(line);
+    if (m) out.add(`${m[1]}/${m[2].toUpperCase()}`);
+  }
+  return out;
+}
+
 /** An event's memory after a read: shipped rows clear it; nothing new counts a try. */
 export function remember(memory: Memory, key: string, shipped: number, result: string, now = Date.now()): void {
   if (shipped) { delete memory[key]; return; }
