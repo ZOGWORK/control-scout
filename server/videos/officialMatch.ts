@@ -2,7 +2,7 @@
 // rules the checked list was built with, for one video at a time. Pure: the auto-watcher (./officialWatch.ts) reads
 // the channel's rule, the events around the broadcast date and the video's facts, and this says add, review or ignore.
 // Add only when every check passes and exactly one event fits; anything short of that is for the owner to decide.
-import { localDate } from "./officialVideos.js";
+import { MIN_RECORDING_S, localDate } from "./officialVideos.js";
 
 /** A channel's patch: which events can be its (docs/official-videos.md). Clauses separated by ";", each key=values:
  *  country=Romania · state=VA,MD,DC · type=Premier,OffSeason · name=<regex on the event's name>. All must hold. */
@@ -23,7 +23,6 @@ export type Verdict =
   | { kind: "review"; why: string; event?: WatchEvent; day?: string; part?: string | null }
   | { kind: "ignore"; why: string };
 
-const MIN_RECORDING_S = 45 * 60;
 
 export function parseRule(region: string): ((e: WatchEvent) => boolean) | null {
   const clauses = region.split(";").map((c) => c.trim()).filter(Boolean);
