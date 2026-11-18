@@ -108,7 +108,7 @@ export function changelogEntry(season: number, d: ReturnType<typeof rowsDelta>, 
     : [`[fixes] ${n(d.recordings, "more recording")} checked against their frames`, "[fixes] Each missing match says what the video shows", "[fixes] No clip changes"];
   return [
     `## VERSION — ${date}`, "", lead, "", "### Highlights", ...highlights.map((h) => `- ${h}`), "", "### Fixed",
-    `- Videos: frame-read rows for ${d.events.join(", ")} (${season}): ${n(d.clips, "clip")} added, ${n(d.reasons, "match", "matches")} given a reason from the frames. Every start passed the autopilot's checks (opening frame at 20/12/5/2/0 s naming the match, plausible, no live clip pulled without a frame naming another match). (\`server/data/frameTimings/${season}.ts\`) (#PR)`,
+    `- Videos: frame-read rows for ${d.events.join(", ")} (${season}): ${n(d.clips, "clip")} added, ${n(d.reasons, "match", "matches")} given a reason from the frames. Every start passed the autopilot's checks (opening frame 20/12/5/2/0 s before or 2/4 s after the start, naming the match, plausible, no live clip pulled without a frame naming another match). (\`server/data/frameTimings/${season}.ts\`) (#PR)`,
     "",
   ].join("\n");
 }

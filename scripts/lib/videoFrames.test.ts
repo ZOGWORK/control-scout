@@ -1,7 +1,7 @@
 // The pure parts of the frame reader (scripts/video-frames.ts): the overlay's match, the timer's elapsed time, and
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
-import { dataRows, divisionOf, eventDivisions, cropOrder, elapsed, flippedClip, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, shortClash, type M } from "./videoFrames";
+import { dataRows, divisionOf, eventDivisions, cropOrder, elapsed, flippedClip, inPage, titleLeaks, inkOnly, INK_MAX, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, firstOpening, OPEN_LEADS, shortClash, type M } from "./videoFrames";
 import { between, GAP_READS, TRIES } from "./videoFrames";
 
 describe("the frame reader", () => {
@@ -157,6 +157,29 @@ describe("the frame reader", () => {
     expect(cropOrder([a, b, c, d], { n: "a" })).toEqual([a, b, c, d]);
   });
 
+  it("keeps a plain timer's ink alone, the progress fill behind it gone (USCANOSCQ 2021: 75 over deep blue)", () => {
+    // A digit's black, the blue fill, the light pill, the green fill (USMOKSKNM1), a 6's grey edge, a digit's edge.
+    const px = [18, 22, 40, 255, 34, 66, 150, 255, 205, 207, 212, 255, 20, 140, 40, 255, 60, 60, 70, 255, 30, 30, 35, 128];
+    inkOnly(px, INK_MAX);
+    expect(px).toEqual([0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 255]);
+  });
+
+  it("runs a function in a page that has no __name of tsx's (inPage)", () => {
+    // tsx's own output for a function with an inner named arrow, as the page gets it from toString.
+    const compiled = { toString: () => '() => { const walk = __name((n) => n * 2, "walk"); return walk(21); }' };
+    expect(() => new Function(`return (${compiled.toString()})()`)()).toThrow(/__name/);
+    expect(new Function(`return ${inPage(compiled)}`)()).toBe(42);
+  });
+
+  it("finds YouTube's title and channel among the page's texts, never the overlay's own (2023's .ytp-title leak)", () => {
+    const title = "FTC Harrisonburg 1 Qualifier - February 8th, 2022 FTC Event";
+    const texts = ["FTC Harrisonburg 1 Qualifier - February 8th, 2022 FTC Event", "Qualification 13 of 18", "FTC", "Harrisonburg 1 Qualifier - Febr...", "Chesapeake FIRST", "Harrisonburg 1 Qualifier", "0:30"];
+    expect(titleLeaks(title, "Chesapeake FIRST", texts)).toEqual([0, 3, 4, 5]);
+    // Every text in the page is YouTube's: the overlay is pixels in the video, never a page element. So a piece of the
+    // title counts even when it is the event's name. No title or channel known: nothing counts.
+    expect(titleLeaks("", "", texts)).toEqual([]);
+    expect(titleLeaks(title, "", ["2022", "FTC Event"])).toEqual([1]);
+  });
   it("reads a bare-seconds timer (FTC Live's overlay, 2019–2022)", () => {
     // AUMPOS1 2022: Auto "24", TeleOp "112"; IASQ4 2019 TeleOp "101".
     expect(secondsPlain("24\n")).toBe(24);
@@ -531,6 +554,15 @@ describe("whose event an overlay names", () => {
     expect(overlayEvent("24 CANOPY | Collegiate Meet @ 9 AM Qualification 2 of 15 BIOBUZZ", "Collegiate Meet @ 9 AM", 15)).toEqual({ event: "own", phrase: "Q2" });
     expect(overlayEvent("Austin Semi-Area Championship • Qualification 10 of 40", "FiT-Central Semi-Area Championship Austin", 40)).toEqual({ event: "own", phrase: "Q10" });
   });
+  it("reads FREIGHT FRENZY's name after the match, its logo before it (USCANOSCQ 2021 at 4500 s)", () => {
+    const own = "CA-Northern Santa Clara Qualifying Tournament";
+    // The worker's line: the logo misread before a playoff match (no total to decide by), the event's name cut after it.
+    expect(overlayEvent("rest ronmasn sme Semifinal 2 Match 2 a Clara Qualifying Tournament C FREIGHT SFRENZV go", own, 17, true)).toEqual({ event: "own", phrase: "M2-2" });
+    // Another event's name after it is still another's.
+    expect(overlayEvent("rest ronmasn sme Semifinal 2 Match 2 Western Edge Premier Event FREIGHT FRENZY", own, 17, true)).toEqual({ event: "other" });
+    // Two matches on the line (a split screen): a name after the first is the second's, never read for the first.
+    expect(overlayEvent("rest ronmasn sme Semifinal 2 Match 2 a Clara Qualifying Tournament Semifinal 1 Match 1 Western Edge", own, 17, true)).toEqual({ event: "own", label: "M1-1", phrase: "M1-1" });
+  });
   it("tells sibling meets apart by a short token their names differ in", () => {
     expect(shortClash("FiT-North U-League AM Meet 3", "FiT-North X-League AM Meet 3")).toBe(true);
     expect(shortClash("FiT-North X-League PM Meet 3", "FiT-North X-League AM Meet 3")).toBe(true);
@@ -539,6 +571,8 @@ describe("whose event an overlay names", () => {
     expect(shortClash("FiT-North -League AM Meet 3", "FiT-North X-League AM Meet 3")).toBe(false);
     expect(shortClash("24 CANOPY | Collegiate Meet @ 9 AM", "Collegiate Meet @ 9 AM")).toBe(false);
     expect(shortClash("ad ! | B= Division Michiana Premier Event -", "Michiana Premier Event - Thomson Division")).toBe(false);
+    // Scraps at a cut name, and junk after it, stand in for nothing (USCANOSCQ 2021: "CA-Northern" cut to "C").
+    expect(shortClash("a Clara Qualifying Tournament C FREIGHT SFRENZV go", "CA-Northern Santa Clara Qualifying Tournament")).toBe(false);
   });
   it("names no match of this event with another total, and tells a playoff by its name alone", () => {
     expect(overlayEvent("CANOPY | —E— Qualification 2 of 16", "Collegiate Meet @ 9 AM", 15)).toEqual({ event: "other" });
@@ -606,6 +640,37 @@ describe("wholeLength", () => {
     expect(wholeLength(Infinity)).toBeNull();
     expect(wholeLength(NaN)).toBeNull();
     expect(wholeLength(0)).toBeNull();
+  });
+});
+
+describe("firstOpening", () => {
+  // A frame naming the match at the given seconds; every second read is recorded.
+  const at = (named: number[]) => { const read: number[] = []; return { read, names: async (t: number) => (read.push(t), named.includes(t)) }; };
+  it("every lead-in second before the start is tried before +2 and +4", () => {
+    expect(OPEN_LEADS.slice(0, 5)).toEqual([20, 12, 5, 2, 0]);
+    expect(OPEN_LEADS.slice(5)).toEqual([-2, -4]);
+  });
+  it("never opens after the start when any lead-in frame names the match", async () => {
+    for (const lead of [20, 12, 5, 2, 0]) {
+      const f = at([1000 - lead, 1002, 1004]);
+      expect(await firstOpening(1000, f.names)).toBe(1000 - lead);
+      expect(f.read.some((t) => t > 1000)).toBe(false);
+    }
+  });
+  it("opens 2, then 4 s into the match only where no frame before its start names it (an upload cut from the last results)", async () => {
+    expect(await firstOpening(4656, at([4658, 4660]).names)).toBe(4658);
+    expect(await firstOpening(4656, at([4660]).names)).toBe(4660);
+    const none = at([]);
+    expect(await firstOpening(4656, none.names)).toBeNull();
+    expect(none.read).toEqual([4636, 4644, 4651, 4654, 4656, 4658, 4660]);
+  });
+  it("skips a second before the video's start, and stops at a failed read", async () => {
+    const early = at([]);
+    await firstOpening(6, early.names);
+    expect(early.read).toEqual([1, 4, 6, 8, 10]);
+    let n = 0;
+    expect(await firstOpening(1000, async () => (++n === 2 ? "stop" : false))).toBeNull();
+    expect(n).toBe(2);
   });
 });
 

@@ -36,7 +36,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
 import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, playedCount, playedMatches, wholeLength } from "./lib/videoFrames";
-import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, eventDivisions, cropOrder, elapsed, flippedClip, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M } from "./lib/videoFrames";
+import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, firstOpening, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, eventDivisions, cropOrder, elapsed, flippedClip, inPage, titleLeaks, visibleTexts, inkOnly, INK_MAX, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M } from "./lib/videoFrames";
 import { between, GAP_READS } from "./lib/videoFrames";
 
 // The command line: --name value or --name=value for the value flags, --name alone for the others. Anything else stops
@@ -178,7 +178,8 @@ const TIMERS = [
  *  Read first for those seasons, before the bars whose crops would catch a score there ("150" reads 1:50 loose), and
  *  never for later ones, whose bars have other numbers in those places. */
 const PLAIN_TIMERS = [
-  { where: "plain" as const, clip: { x: 595, y: 594, width: 90, height: 36 }, plain: true },
+  // The box's match progress fills the bar behind it in an alliance's colour: its ink alone is read too (inkOnly).
+  { where: "plain" as const, clip: { x: 595, y: 594, width: 90, height: 36 }, plain: true, ink: true },
   // POWERPLAY's box, inside the bar it sits on: a crop reaching the bar's coloured edge reads it as a "1" (USCHSCMPVIO
   // 2022 at 5664 s, "78" read "178"), every confirmation of the event's matches failing with it.
   { where: "plain" as const, clip: { x: 605, y: 686, width: 70, height: 30 }, plain: true },
@@ -191,7 +192,7 @@ const PLAIN_TIMERS = [
  *  CENTERSTAGE's (2023) too: USMOKSCMP's M2 opens on "Semifinal 2 Match 1", which a read losing "Semifinal" took
  *  for M1, pulling the clip. */
 const SEMIFINALS = season <= 2023;
-const TIMER_CROPS: { where: "bottom" | "top" | "plain"; clip: { x: number; y: number; width: number; height: number }; loose?: boolean; plain?: boolean }[] =
+const TIMER_CROPS: { where: "bottom" | "top" | "plain"; clip: { x: number; y: number; width: number; height: number }; loose?: boolean; plain?: boolean; ink?: boolean }[] =
   season <= 2022 ? [...PLAIN_TIMERS, ...TIMERS] : TIMERS;
 
 /** The timer's reading. `auto`: whether a reading of 0:30 or less is Auto, told by readAt. */
@@ -204,8 +205,16 @@ type TimerCrop = (typeof TIMER_CROPS)[number];
 const timerCrop = new WeakMap<Page, TimerCrop>();
 async function timer(page: Page, first?: TimerCrop | null): Promise<{ where: "bottom" | "top" | "plain"; left: number; auto: boolean; crop: TimerCrop | null } | null> {
   for (const t of cropOrder(TIMER_CROPS, first ?? timerCrop.get(page))) {
-    const text = (await digits.recognize(await page.screenshot({ clip: t.clip }))).data.text;
-    const left = t.plain ? secondsPlain(text) : t.loose ? secondsLoose(text) : secondsOf(text);
+    const shot = await page.screenshot({ clip: t.clip });
+    const text = (await digits.recognize(shot)).data.text;
+    let left = t.plain ? secondsPlain(text) : t.loose ? secondsLoose(text) : secondsOf(text);
+    // Nothing that places a match read off a box with a fill behind it: its ink alone (inkOnly), taken only for a reading
+    // that places one. Only after the crop as shot: inked, POWERPLAY's crops read "68" as "88" (USTXCECMP 2022 at
+    // 4463 s) and a stray colon as "44".
+    if (t.ink && (left == null || left <= SWITCH_S)) {
+      const inkLeft = secondsPlain((await digits.recognize(await inked(page, shot))).data.text);
+      if (inkLeft != null && inkLeft > SWITCH_S) left = inkLeft;
+    }
     if (left == null || left > AUTO_S + SWITCH_S + TELEOP_S) continue;
     return { where: t.where, left, auto: false, crop: t };
   }
@@ -218,6 +227,24 @@ async function timer(page: Page, first?: TimerCrop | null): Promise<{ where: "bo
   const clip = { x: 565, y: top, width: 150, height: Math.min(720, band.top + Math.round((band.bottom - band.top) * 0.55) + 4) - top };
   const left = secondsOf((await digits.recognize(await page.screenshot({ clip }))).data.text);
   return left == null || left > AUTO_S + SWITCH_S + TELEOP_S ? null : { where: "bottom", left, auto: false, crop: null };
+}
+
+/** A crop with its ink alone (inkOnly, run in the page on the shot's own pixels). */
+async function inked(page: Page, png: Buffer): Promise<Buffer> {
+  const b64 = await page.evaluate(`(async () => {
+    const img = new Image();
+    img.src = "data:image/png;base64,${png.toString("base64")}";
+    await img.decode();
+    const c = document.createElement("canvas");
+    c.width = img.width; c.height = img.height;
+    const g = c.getContext("2d");
+    g.drawImage(img, 0, 0);
+    const d = g.getImageData(0, 0, c.width, c.height);
+    (${inkOnly.toString()})(d.data, ${INK_MAX});
+    g.putImageData(d, 0, 0);
+    return c.toDataURL("image/png").split(",")[1];
+  })()`) as string;
+  return Buffer.from(b64, "base64");
 }
 
 /** Where the score bar is in the frame on screen (overlayBand, run in the page on the screenshot's own pixels: a
@@ -365,6 +392,7 @@ function stopIfDark(): void {
 async function readAtOnce(page: Page, t: number, labelOnly = false): Promise<Read> {
   if (ocrBroken) throw new Error(ocrBroken);
   await seek(page, Math.max(0, t), labelOnly);
+  if (labelOnly) await hideTitle(page);
   const at = await now(page);
   const shot = await page.screenshot();
   if (reads++ % SHADE_EVERY === 0) {
@@ -472,7 +500,7 @@ const MISSES = 3;
 
 /**
  * Every placed match's clip must open on that match: its first frame's overlay names it (and, on a stream divisions
- * share, not a sibling division's). Tried 20, 12, 5, 2 and 0 s before its start (OPEN_LEADS); the first that names it
+ * share, not a sibling division's). Tried 20, 12, 5, 2 and 0 s before its start, then 2 and 4 s after it (OPEN_LEADS); the first that names it
  * is where the clip opens. One that names another match there (the previous match's result still up) is tried closer
  * in; a match whose clip can't open on it goes to review, and one whose overlay can't be read there at all is missing
  * with OVERLAY_UNREAD. A read that fails leaves the openings not yet checked unread: a live clip stays unconfirmed, a new
@@ -486,20 +514,19 @@ async function checkOpenings(page: Page, j: Judged, log: (s: string) => void, un
   const isLive = (label: string, t: number) => !live || (live[label] != null && Math.abs(live[label] - t) <= SAME_S);
   for (const [label, p] of [...j.placed]) {
     if (j.opens.has(label)) continue; // checked on an earlier --verify
-    let named: string | null = null, at: number | null = null;
-    for (const lead of broken ? [] : OPEN_LEADS) {
-      const t = p.t - lead;
-      if (t < 0) continue;
+    let named: string | null = null;
+    const at = broken ? null : await firstOpening(p.t, async (t) => {
       let r: Read;
-      try { r = await readAt(page, t, true); } catch (e) { broken = true; log(`    an opening read failed (${(e as Error).message.split("\n")[0]}): the rest are left unchecked`); break; }
+      try { r = await readAt(page, t, true); } catch (e) { broken = true; log(`    an opening read failed (${(e as Error).message.split("\n")[0]}): the rest are left unchecked`); return "stop"; }
       // A seek that never landed shows whatever frame was up before (the last read's): that frame names nothing here.
-      if (Math.abs(r.at - t) > 1) { log(`    ${label}: the opening read at ${t} s landed at ${Math.round(r.at)} s; not counted`); continue; }
-      if (r.division === "other") { named = "another division's match"; continue; }
+      if (Math.abs(r.at - t) > 1) { log(`    ${label}: the opening read at ${t} s landed at ${Math.round(r.at)} s; not counted`); return false; }
+      if (r.division === "other") { named = "another division's match"; return false; }
       // The overlay names a replay (a tiebreak's "M6-2") by its match alone ("M6"), as placeVideo reads it; a
       // semifinal's match by its series and number ("M1-2"), that match only (sameMatch).
-      if (sameMatch(r.label ?? "", label)) { at = t; break; }
+      if (sameMatch(r.label ?? "", label)) return true;
       if (r.label) named = eventLabel(r.label);
-    }
+      return false;
+    });
     if (at != null) { j.opens.set(label, at); continue; }
     if (broken) {
       // Not checked: a live clip stays unconfirmed; a new placement waits for the video's next read.
@@ -1020,7 +1047,29 @@ async function openOnce(page: Page, videoId: string): Promise<void> {
   // #movie_player: hidden too, or the event-name check (overlayEvent) could read the title instead of the overlay.
   // Only the title pieces, never their containers (#player-controls, #player-control-overlay): hiding those turns a
   // PLAYING frame pure black (USNVCMP 2024: 30 of 30 black; this rule: 77 of 77 drawn, top bar clear).
-  await page.addStyleTag({ content: ".ytp-caption-window-container, .caption-window, .ytp-chrome-top, .ytp-pause-overlay, .ytp-show-cards-title, .ytp-ce-element, .ytp-player-content.ytp-iv-player-content, .ytp-large-play-button, .ytp-bezel, .ytp-chrome-bottom, player-top-controls, .ytwPlayerTopControlsHost, embedded-player-video-details, .ytmCuedOverlayGradient { display: none !important; }" });
+  await page.addStyleTag({ content: ".ytp-caption-window-container, .caption-window, .ytp-chrome-top, .ytp-pause-overlay, .ytp-show-cards-title, .ytp-ce-element, .ytp-player-content.ytp-iv-player-content, .ytp-large-play-button, .ytp-bezel, .ytp-chrome-bottom, player-top-controls, .ytwPlayerTopControlsHost, embedded-player-video-details, .ytmCuedOverlayGradient, .ytp-title, .ytp-title-text, .ytp-title-channel, .ytp-title-link, .ytp-gradient-top { display: none !important; }" });
+  await hideTitle(page);
+}
+
+/** YouTube's title or channel name drawn over the frame anyway (a player whose pieces have names no rule above
+ *  hides: the 2023 reads saw .ytp-title's line in their frames, the event-name check reading it as the overlay's):
+ *  each such text, found by what it says (titleLeaks, against the player's own title and channel), is hidden on its
+ *  own, and looked for again. Still there: this video isn't read here, rather than read off a frame that names the
+ *  event whatever its bar says. Called once the video plays, and before each paused read (a pause brings the title
+ *  back). */
+async function hideTitle(page: Page): Promise<void> {
+  const meta = await page.evaluate(() => {
+    const d = (document.querySelector("#movie_player") as any)?.getVideoData?.();
+    return { title: String(d?.title ?? ""), channel: String(d?.author ?? "") };
+  });
+  if (!meta.title && !meta.channel) return;
+  for (let pass = 0; pass < 2; pass++) {
+    const texts = (await page.evaluate(inPage(visibleTexts))) as string[];
+    const leaks = titleLeaks(meta.title, meta.channel, texts);
+    if (!leaks.length) return;
+    if (pass === 1) throw new Error(`YouTube's title shows over the frame ("${texts[leaks[0]]}")`);
+    await page.evaluate((ix) => { for (const i of ix) ((window as any).__texts[i] as HTMLElement).style.setProperty("display", "none", "important"); }, leaks);
+  }
 }
 
 /** A video's length in whole seconds, as its player gives it, or why it has none: a stream that is still live or

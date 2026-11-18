@@ -40,7 +40,7 @@ computer at home, in a clone kept for it alone. Each run:
 5. checks every row it changed against main's (`rowProblems`, scripts/lib/autopilotRows.ts) and leaves out, with its
    reasons in the run's log, any that breaks a rule:
    - every start plausible (in order, a match apart: the server's own `plausibleStarts`);
-   - every start placed or moved opens 20, 12, 5, 2 or 0 s before it on a paused frame naming the match (`opens`);
+   - every start placed or moved opens 20, 12, 5, 2 or 0 s before it (or, where nothing before it names the match, 2 or 4 s after it) on a paused frame naming the match (`opens`);
    - no new placement `unconfirmed` (only a live clip whose opening frame named nothing stays so);
    - a live clip leaves only when a frame at its opening names another match;
    - a re-read is dated after the live row;

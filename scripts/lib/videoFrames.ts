@@ -127,6 +127,60 @@ export const secondsLoose = (s: string) => { const m = /^([0-2]):?([0-5]\d)$/.ex
  *  bottom, is at y 4 in Arizona's flipped bar). */
 export const flippedClip = (c: { x: number; y: number; width: number; height: number }, height = 720) => ({ ...c, y: height - c.y - c.height });
 
+/** The fewest characters a piece of YouTube's title (or channel) shown over the frame must have to count as it: a
+ *  shorter text ("FTC", "2025", a team number) is as likely the overlay's own. */
+export const TITLE_MIN = 8;
+const squash = (s: string) => s.normalize("NFKC").replace(/\s+/g, " ").trim().toLowerCase();
+/**
+ * The texts on screen that are YouTube's title or channel name (`texts`: each visible text in the player page, as
+ * visibleTexts lists them), by their indexes. A text counts when it is the title or channel, or a piece of either at
+ * least TITLE_MIN long (the newer embed cuts a long title to a line). The title often IS the event's name ("FTC
+ * Harrisonburg 1 Qualifier"), so a frame showing it names the event whatever its score bar says: the event-name check
+ * (overlayEvent) took such frames for this event's.
+ */
+export function titleLeaks(title: string, channel: string, texts: string[]): number[] {
+  const whole = [squash(title), squash(channel)].filter((t) => t.length > 0);
+  const out: number[] = [];
+  texts.forEach((raw, i) => {
+    const t = squash(raw).replace(/(?:\.{3}|…)$/, "").trim();
+    if (!t) return;
+    if (whole.some((w) => t === w || (t.length >= TITLE_MIN && w.includes(t)))) out.push(i);
+  });
+  return out;
+}
+
+/** A self-contained function's call, as a script for the page to run. tsx names each function it compiles with a
+ *  helper of its own (`__name(walk, "walk")`), which a page doesn't have: the call brings a do-nothing one along, so it
+ *  runs on any page, not only those the reader's player() gave one (visibleTexts under tsx: "__name is not defined"). */
+export const inPage = (fn: { toString(): string }): string => `(() => { const __name = (f) => f; return (${fn.toString()})(); })()`;
+
+/**
+ * Each visible text in the page (a leaf element's own text, shadow roots included), in document order; the elements
+ * are kept on window.__texts in the same order, so the reader can hide one by its index. Visible: a box on screen,
+ * not hidden by display, visibility or opacity on it or any ancestor. Self-contained (no imports, no outer names): the
+ * reader runs it in the page.
+ */
+export function visibleTexts(): string[] {
+  const els: Element[] = [];
+  const walk = (root: Document | ShadowRoot) => {
+    for (const el of Array.from(root.querySelectorAll("*"))) {
+      if ((el as HTMLElement).shadowRoot) walk((el as HTMLElement).shadowRoot!);
+      if (el.children.length || !(el.textContent ?? "").trim()) continue;
+      const r = el.getBoundingClientRect();
+      if (r.width < 1 || r.height < 1 || r.bottom < 0 || r.top > innerHeight) continue;
+      let shown = true;
+      for (let e: Element | null = el; e && shown; e = e.parentElement ?? ((e.getRootNode() as ShadowRoot).host ?? null)) {
+        const c = getComputedStyle(e);
+        if (c.display === "none" || c.visibility === "hidden" || Number(c.opacity) === 0) shown = false;
+      }
+      if (shown) els.push(el);
+    }
+  };
+  walk(document);
+  (window as any).__texts = els;
+  return els.map((e) => (e.textContent ?? "").trim());
+}
+
 /** The order the timer's crops are tried in: `first` (the crop the frame's bar names, or whose clock last ran) ahead,
  *  the rest in their usual order. A `first` that isn't one of them changes nothing. */
 export const cropOrder = <T>(crops: readonly T[], first?: T | null): T[] =>
@@ -174,9 +228,30 @@ export const SCHEDULED_UNREAD = "no start time from FIRST, and no frame of it re
  *  overlap. */
 export const MATCH_S = AUTO_S + SWITCH_S + TELEOP_S;
 /** Where a clip may open, seconds before its match's start, earliest first: the first whose frame names the match.
- *  The last two open at the start itself: a results card ("Match 6 results", CAONMIQ 2025 M7) or a bracket card
- *  (USIAWESTLT 2025 M3) can stay up until the match's own overlay comes on, seconds before it starts. */
-export const OPEN_LEADS = [20, 12, 5, 2, 0];
+ *  The 2 and 0 open at the start itself: a results card ("Match 6 results", CAONMIQ 2025 M7) or a bracket card
+ *  (USIAWESTLT 2025 M3) can stay up until the match's own overlay comes on, seconds before it starts. The last two open
+ *  just after it, where nothing before the start names the match: an upload cut from one match's results straight into
+ *  the next match's first second (USMOKSKCM2 2021 Q15: Q14's results at 4651 s, Q15's Auto running at 4657 s), so the
+ *  clip opens 2 or 4 s into its match rather than not at all. Still only on a frame that names it. */
+export const OPEN_LEADS = [20, 12, 5, 2, 0, -2, -4];
+/** OPEN_LEADS in words, for checks and summaries. */
+export const OPEN_LEADS_TEXT = "20, 12, 5, 2 or 0 s before its start, or 2 or 4 s after it";
+/** Where a clip opens against its match's start, in words: "12 s before its start", "2 s after its start". */
+export const leadText = (lead: number): string => (lead >= 0 ? `${lead} s before its start` : `${-lead} s after its start`);
+
+/** Where a clip opens: OPEN_LEADS in order, the first second whose frame names the match (`names` reads it: true names
+ *  it, false doesn't, "stop" when the read failed and no more are tried). Every lead-in second (20 … 0 s before) is
+ *  tried before the start's +2 and +4, so a clip opens late only where no frame before its start names it. */
+export async function firstOpening(start: number, names: (t: number) => Promise<boolean | "stop">): Promise<number | null> {
+  for (const lead of OPEN_LEADS) {
+    const t = start - lead;
+    if (t < 0) continue;
+    const r = await names(t);
+    if (r === "stop") return null;
+    if (r) return t;
+  }
+  return null;
+}
 
 /** The reason a placed match whose clip opening couldn't be checked gets: never a clip, never a clock reason. */
 export const OVERLAY_UNREAD = "overlay could not be read at its clip's start";
@@ -251,12 +326,19 @@ const GENERIC = new Set(["LEAGUE", "MEET", "QUALIFIER", "QUALIFIERS", "CHAMPIONS
 const words = (s: string) => (plain(s).match(/[A-Z]{3,}/g) ?? []).filter((w) => !GENERIC.has(w));
 /** The short tokens of a name that `words` drops: a league or stage letter (FiT-North's X-League), AM/PM, a meet's
  *  number or time ("Lawson Meet @ 8 AM"). */
-const shortTokens = (s: string) => new Set((plain(s).match(/[A-Z0-9]+/g) ?? []).filter((t) => t.length <= 2));
-/** Whether a name read beside a match clashes with this event's in a short token: one of this event's is missing and
- *  another stands in the read ("U" for "X", "10 30" for "8"). Sibling meets of one day share every long word. */
+const tokens = (s: string): string[] => plain(s).match(/[A-Z0-9]+/g) ?? [];
+/** Whether a name read beside a match clashes with this event's in a short token (a league or stage letter, AM/PM, a
+ *  meet's number or time), which `words` drops: one of this event's is missing from the read, and another short token
+ *  stands in its place, beside the same long word ("U" for "X" before LEAGUE, "PM" for "AM" after it, "10" for "8"
+ *  after MEET). Sibling meets of one day share every long word. A short token only missing (lost to OCR), or a scrap at
+ *  a name the ticker cut ("C" of "CA-Northern…"), stands in for nothing. */
 export function shortClash(read: string, own: string): boolean {
-  const mine = shortTokens(own), seen = shortTokens(read);
-  return [...mine].some((t) => !seen.has(t)) && [...seen].some((t) => !mine.has(t));
+  const mine = tokens(own), seen = tokens(read);
+  return mine.some((t, i) => t.length <= 2 && !seen.includes(t) && [-1, 1].some((d) => {
+    const next = mine[i + d];
+    if (!next || next.length <= 2) return false;
+    return seen.some((r, j) => r === next && (seen[j - d]?.length ?? 9) <= 2 && seen[j - d] !== t);
+  }));
 }
 /** Where the overlay names a match, and the event name just before it on the same line. */
 // A semifinal (2019–2022's "Semifinal 2 Match 1", or "Semifinals Match 1" with its series lost) is taken whole, before
@@ -306,9 +388,15 @@ export function overlayEvent(text: string, own: string, quals?: number, semifina
   let other = false, ownLabel: string | undefined, ownSeen = false;
   for (const line of text.split("\n")) {
     let from = 0;
-    for (const m of line.matchAll(MATCH_PHRASE)) {
+    const phrases = [...line.matchAll(MATCH_PHRASE)];
+    for (const m of phrases) {
       const total = m[1] != null ? Number(m[1]) : null;
-      const name = verdict(line.slice(from, m.index));
+      const before = verdict(line.slice(from, m.index));
+      // FREIGHT FRENZY's bar (2021) puts the event's name after the match, the season's logo before it, misread as two
+      // words of no event's ("FIRST FORWARD" read "rest ronmasn sme" beside "Semifinal 2 Match 2", USCANOSCQ at 4500 s).
+      // A line with one match whose name after it is this event's is this event's; with more (a split screen), the
+      // name after one match is the next one's, so only the name before counts.
+      const name = before === "other" && phrases.length === 1 && verdict(line.slice(m.index! + m[0].length)) === "own" ? "own" : before;
       // The total, where read, decides: a name read as another's beside this event's own total is a misread, and a name
       // read as this event's beside another event's total is a sibling's (FiT-North's league meets of one day, each on
       // its own field's stream: "FiT-North U-League AM Meet 3 · Qualification 5 of 23" reads as FiT-North X-League AM
@@ -338,6 +426,24 @@ export function rowLabel(half: string, row: string | null, ctx?: { own: string; 
   const label = overlayLabel(half, semifinals);
   if (!label || !ctx) return label;
   return row != null && overlayDivision(row, ctx.own, ctx.others) === "own" ? label : null;
+}
+
+/** The darkest a pixel's brightest channel may be and still count as ink (inkOnly). */
+export const INK_MAX = 50;
+/**
+ * A plain timer's crop (2019–2022: black seconds on a light pill) with its ink alone: each pixel whose brightest channel
+ * is under `under` turns black, every other white, in place (RGBA). During play the match's progress fills the bar
+ * behind the pill in an alliance's colour, and black digits on deep blue or green defeat the OCR (USCANOSCQ 2021 at
+ * 1503 s: "75" read "5", at 1620 s "31" read nothing); a coloured fill keeps one bright channel, the digits none. Up to
+ * 50: higher, the anti-aliasing in a 6's gap turns ink too ("67" read "87" at 80, USMOKSKCM1 2021 at 998 s).
+ * Self-contained (no imports, no outer names): the reader runs it in the page.
+ */
+export function inkOnly(px: { [i: number]: number; length: number }, under: number): void {
+  for (let i = 0; i + 3 < px.length; i += 4) {
+    const v = Math.max(px[i], px[i + 1], px[i + 2]) < under ? 0 : 255;
+    px[i] = px[i + 1] = px[i + 2] = v;
+    px[i + 3] = 255;
+  }
 }
 
 /**

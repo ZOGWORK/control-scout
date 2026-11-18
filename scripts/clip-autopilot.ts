@@ -166,7 +166,7 @@ function framesText(season: number, rows: Row[], live: Map<string, Row>): PrText
     title: `Clips: frame-read ${d.events.join(", ")} (${season}), ${d.clips} new`,
     body: [
       `Read by the clip autopilot (\`scripts/clip-autopilot.ts\`, docs/clip-autopilot.md), with nobody running the reader: ${d.events.length} events from the frame-read queue, ${d.recordings} recordings, ${d.clips} new clips, ${d.reasons} matches given a reason from the frames.`,
-      "", "Every row passed `rowProblems` against main's row: each placed or moved start opens 20/12/5/2/0 s before it on a frame naming its match; starts plausible and in the order played; no new `unconfirmed`; no live clip pulled without a frame at its own second naming another match; re-reads dated after the live row.",
+      "", "Every row passed `rowProblems` against main's row: each placed or moved start opens 20/12/5/2/0 s before it (or 2/4 s after it) on a frame naming its match; starts plausible and in the order played; no new `unconfirmed`; no live clip pulled without a frame at its own second naming another match; re-reads dated after the live row.",
       "", ...rows.map((r) => `- ${r.code} \`${r.videoId}\`: ${Object.keys(r.starts).length} starts, ${Object.keys(r.missing ?? {}).length} missing, ${Object.keys(r.review ?? {}).length} for review`),
     ],
     marker: prMarker(season, rows),

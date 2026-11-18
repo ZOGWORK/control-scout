@@ -5,7 +5,7 @@
 // scripts/autopilot-merge-check.ts (the same check on any PR, by hand).
 import { EDGE_S, playableStarts, type FrameTiming } from "../../server/data/frameTimings.js";
 import type { ClipCheck } from "../../server/data/clipChecks.js";
-import { OPEN_LEADS } from "./videoFrames.js";
+import { OPEN_LEADS, OPEN_LEADS_TEXT, leadText } from "./videoFrames.js";
 import { rowKey, type Keyed } from "./autopilotRows.js";
 import { clipCheckProblems } from "./autopilotClips.js";
 
@@ -83,7 +83,7 @@ export function frameMergeProblems(season: number, next: FrameTiming[], base: Fr
     if (was) for (const l of Object.keys(r.starts)) if (was.starts[l] == null && was.missing?.[l] == null && was.review?.[l] == null) out.push(`${key}: new start ${l} wasn't missing or for review`);
     for (const [l, t] of Object.entries(r.starts)) {
       const o = r.opens?.[l];
-      if (o != null && !OPEN_LEADS.includes(t - o)) out.push(`${key}: ${l} opens ${t - o} s before its start, not ${OPEN_LEADS.join("/")}`);
+      if (o != null && !OPEN_LEADS.includes(t - o)) out.push(`${key}: ${l} opens ${leadText(t - o)}, not ${OPEN_LEADS_TEXT}`);
     }
     // An edge read far inside the recording proves nothing about what's outside it unless every frame between was clear.
     if (r.opensOn && !r.opensOn.clear && r.opensOn.at > EDGE_S) out.push(`${key}: opening edge read at ${r.opensOn.at} s, beyond ${EDGE_S} s and not clear`);
