@@ -149,6 +149,13 @@ export function titleLeaks(title: string, channel: string, texts: string[]): num
   return out;
 }
 
+/** Why YouTube's title can't be checked for on this player, or null when it can: the player gave neither a title nor
+ *  a channel (a video still processing, or an embed that hasn't its details yet), so titleLeaks has nothing to look
+ *  for. Not a fault: the reader goes on, and says once that this video's frames went unchecked. */
+export function titleUnchecked(title: string, channel: string): string | null {
+  return squash(title) || squash(channel) ? null : "YouTube gave no title or channel: its title can't be checked for over the frame";
+}
+
 /** A self-contained function's call, as a script for the page to run. tsx names each function it compiles with a
  *  helper of its own (`__name(walk, "walk")`), which a page doesn't have: the call brings a do-nothing one along, so it
  *  runs on any page, not only those the reader's player() gave one (visibleTexts under tsx: "__name is not defined"). */
@@ -305,6 +312,39 @@ export function divisionOf(name: string): string | null {
   return m ? m[1] : null;
 }
 
+/**
+ * The divisions of an event whose divisions share a stream: this one's and its siblings', from their names. Either
+ * "… - X Division" (divisionOf), or, as 2019's are named, the words after the name they share ("Iowa Championship
+ * BLACK" and "Iowa Championship GOLD": BLACK, GOLD). Null when a name has neither, or two divisions come out the same.
+ */
+export function eventDivisions(own: string, siblings: string[]): { own: string; others: string[] } | null {
+  if (!siblings.length) return null;
+  const named = [own, ...siblings].map(divisionOf);
+  if (named.every((d): d is string => d != null)) return new Set(named).size === named.length ? { own: named[0], others: named.slice(1) } : null;
+  const ws = [own, ...siblings].map((n) => n.trim().split(/\s+/));
+  let shared = 0;
+  while (ws.every((w) => w.length > shared + 1 && w[shared].toUpperCase() === ws[0][shared].toUpperCase())) shared++;
+  const tails = ws.map((w) => w.slice(shared).join(" "));
+  // A tail must be a name, not a number or a letter, and each its own.
+  if (!shared || tails.some((t) => !/[A-Za-z]{3,}/.test(t)) || new Set(tails.map((t) => t.toUpperCase())).size !== tails.length) return null;
+  return { own: tails[0], others: tails.slice(1) };
+}
+
+/**
+ * Whose match the team numbers on a frame are, where divisions share a stream and the bar's division name has scrolled
+ * off (SKYSTONE's event half, Iowa 2019): "own" when 3 or more of this division's teams for the match are read and at
+ * most 1 of any sibling's same-numbered match, "other" the reverse, else null (too few read, or both).
+ */
+export function teamsSay(text: string, own: number[] | undefined, others: (number[] | undefined)[]): "own" | "other" | null {
+  if (!own?.length) return null;
+  const read = new Set((text.match(/\d{3,5}/g) ?? []).map(Number));
+  const hits = (ts: number[] | undefined) => (ts ?? []).filter((t) => read.has(t)).length;
+  const mine = hits(own), theirs = Math.max(0, ...others.map(hits));
+  if (mine >= 3 && theirs <= 1) return "own";
+  if (theirs >= 3 && mine <= 1) return "other";
+  return null;
+}
+
 const plain = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase();
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -314,7 +354,10 @@ const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
  */
 export function overlayDivision(text: string, own: string, others: string[]): "own" | "other" | null {
   const t = plain(text);
-  const has = (d: string) => new RegExp(`(^|[^A-Z])${escape(plain(d)).replace(/\s+/g, "\\s+")}([^A-Z]|$)`).test(t);
+  // A one-word name the event's data runs together ("MARIECURIE", "WOODIEFLOWERS") may be spaced on the overlay ("Marie
+  // Curie Division"): from six letters, a space may fall between any two.
+  const pattern = (d: string) => (/\s/.test(d) || d.length < 6 ? escape(plain(d)).replace(/\s+/g, "\\s+") : [...plain(d)].map(escape).join("\\s?"));
+  const has = (d: string) => new RegExp(`(^|[^A-Z])${pattern(d)}([^A-Z]|$)`).test(t);
   if (others.some(has)) return "other";
   return has(own) ? "own" : null;
 }
