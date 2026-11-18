@@ -29,6 +29,20 @@ export function linkAiredOff(ev: { code: string; start: string; end?: string | n
   return day < from || day > to ? `FIRST's link for ${ev.code} was broadcast on ${day}, outside ${ev.code}'s dates (${ev.start.slice(0, 10)}${ev.end && ev.end.slice(0, 10) !== ev.start.slice(0, 10) ? ` to ${ev.end.slice(0, 10)}` : ""}): not used for it` : null;
 }
 
+/** The shortest a day's recording runs: an upload shorter than this, with no broadcast of its own, is a clip. */
+export const MIN_RECORDING_S = 45 * 60;
+
+/**
+ * FIRST's link isn't its event's recording when YouTube says its video is an upload (never broadcast, not live or
+ * to come) shorter than a day's recording runs: a camera clip, which can't hold a meet's matches. The watcher sets the
+ * same uploads aside (officialMatch.ts). FIRST in Missouri's 3-minute clips linked for Lafayette Meet #1 AM and PM
+ * (2025 USMOKSSTLMM2 lvhcciim1Y4, USMOKSSTLMM3 -r3PgmLHlHs) are the cases. A length not read yet proves nothing.
+ */
+export function linkTooShort(code: string, m: { start?: string | null; live?: boolean | number | null; duration?: number | null } | null | undefined): string | null {
+  if (!m || m.start || m.live || m.duration == null || m.duration >= MIN_RECORDING_S) return null;
+  return `FIRST's link for ${code} is a ${Math.max(1, Math.round(m.duration / 60))}-minute upload, not a broadcast: too short for a day's recording, not used for it`;
+}
+
 export type OfficialKind = "recording" | "highlight";
 export interface OfficialVideo {
   season: number; code: string; videoId: string; kind: OfficialKind;

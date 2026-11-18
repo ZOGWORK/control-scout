@@ -27,7 +27,7 @@ export const KIND = Object.fromEntries(MISS_KINDS.map((k) => [k.kind, k])) as Re
 const BY_REASON: Record<CoverageReason, MissKind> = {
   "no-clock": "noclock", "video-unread": "noclock",
   "gap-unplaced": "unplaced", "between-recordings": "unplaced",
-  "video-unavailable": "unavailable", "video-no-embed": "unavailable",
+  "video-unavailable": "unavailable", "video-no-embed": "unavailable", "video-no-overlay": "unavailable",
   "no-recording-day": "novideo", "no-first-video": "novideo",
   "outside-span": "outside", "before-broadcast": "outside", "after-broadcast": "outside", "before-cut": "outside",
   "past-video-end": "outside", "past-chapters": "outside", "before-chapters": "outside", "past-checked": "outside",

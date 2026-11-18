@@ -22,7 +22,7 @@ import { withDataLock } from "../data/lock.js";
 import { isPlaceholderTitle, isoDuration } from "./youtube.js";
 
 export { isPlaceholderTitle };
-import { eventVideosByDay, forgetOfficial, linkAiredOff, localDate } from "./officialVideos.js";
+import { eventVideosByDay, forgetOfficial, linkAiredOff, linkTooShort, localDate } from "./officialVideos.js";
 import { LOOKBACK_MS, record, settle, type WatchVerdict } from "./officialWatch.js";
 import { NOT_EVENTS, bestGuess, matchVideo, notCompetition, videoWindow, type ChannelRule, type WatchEvent, type WatchVideo } from "./officialMatch.js";
 import { EVENT_FIRST_DAY, EVENT_LAST_DAY, EVENT_PLAYED_DAYS, playedDays } from "./eventDays.js";
@@ -77,9 +77,9 @@ const DUPLICATE = "a duplicate the watcher logged";
 export interface UnusedLink { season: number; code: string; videoId: string; why: string }
 /**
  * FIRST's event links, a YouTube link or a short link followed to its video: a record of their event only when
- * YouTube's broadcast date fits it (linkAiredOff, the same check the event's recording makes,
- * server/videos/recordings.ts). One aired on another date isn't the event's: its video is decided like any other
- * upload, and the link is listed as unused, with why.
+ * YouTube's broadcast date fits it and it isn't a short upload never broadcast (linkAiredOff, linkTooShort: the same
+ * checks the event's recording makes, server/videos/recordings.ts). One aired on another date, or a clip, isn't the
+ * event's: its video is decided like any other upload, and the link is listed as unused, with why.
  */
 async function firstLinks(): Promise<{ used: { season: number; code: string; videoId: string; short: boolean }[]; unused: UnusedLink[] }> {
   const rows = await all<any>(`SELECT e.season, e.code, e.livestream, ${EVENT_FIRST_DAY} AS start, ${EVENT_LAST_DAY} AS end, e.timezone FROM events e WHERE e.livestream LIKE '%youtu%'`);
@@ -90,15 +90,19 @@ async function firstLinks(): Promise<{ used: { season: number; code: string; vid
     ...shorts.map((r) => ({ r, videoId: String(r.video_id), short: true })),
   ];
   const ids = [...new Set(links.map((l) => l.videoId))];
-  const aired = new Map<string, string>();
+  const facts = new Map<string, { start: string | null; live: number | null; duration: number | null }>();
   for (let i = 0; i < ids.length; i += 200) {
     const part = ids.slice(i, i + 200);
-    for (const m of await all<any>(`SELECT video_id, start FROM video_meta WHERE start IS NOT NULL AND video_id IN (${part.map(() => "?").join(",")})`, part)) aired.set(String(m.video_id), String(m.start));
+    for (const m of await all<any>(`SELECT video_id, start, live, duration FROM video_meta WHERE video_id IN (${part.map(() => "?").join(",")})`, part)) {
+      facts.set(String(m.video_id), { start: m.start == null ? null : String(m.start), live: m.live == null ? null : Number(m.live), duration: m.duration == null ? null : Number(m.duration) });
+    }
   }
   const out: { used: { season: number; code: string; videoId: string; short: boolean }[]; unused: UnusedLink[] } = { used: [], unused: [] };
   for (const { r, videoId, short } of links) {
     const l = { season: Number(r.season), code: String(r.code), videoId };
-    const off = r.start ? linkAiredOff({ code: l.code, start: String(r.start), end: r.end ?? null, timezone: r.timezone ?? null }, aired.get(videoId)) : null;
+    // Not the event's: aired on another date, or a short upload never broadcast (a clip; the same checks as recordings.ts).
+    const off = (r.start ? linkAiredOff({ code: l.code, start: String(r.start), end: r.end ?? null, timezone: r.timezone ?? null }, facts.get(videoId)?.start) : null)
+      ?? linkTooShort(l.code, facts.get(videoId));
     if (off) out.unused.push({ ...l, why: short ? off.replace("FIRST's link", "FIRST's short link's video") : off }); else out.used.push({ ...l, short });
   }
   return out;
