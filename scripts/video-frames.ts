@@ -40,6 +40,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
 import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, launchPlayerBrowser, clockReading, playedCount, playedMatches, wholeLength } from "./lib/videoFrames";
 import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, firstOpening, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, inPage, titleLeaks, titleUnchecked, visibleTexts, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M, eventDivisions, teamsSay } from "./lib/videoFrames";
+import { cornerBox, zoomCss } from "./lib/frameZoom";
 import { between, edgeReject, eventLimitMs, GAP_READS } from "./lib/videoFrames";
 
 // The command line: --name value or --name=value for the value flags, --name alone for the others. Anything else stops
@@ -1123,8 +1124,17 @@ async function openOnce(page: Page, videoId: string): Promise<void> {
   // Only the title pieces, never their containers (#player-controls, #player-control-overlay): hiding those turns a
   // PLAYING frame pure black (USNVCMP 2024: 30 of 30 black; this rule: 77 of 77 drawn, top bar clear).
   await page.addStyleTag({ content: ".ytp-caption-window-container, .caption-window, .ytp-chrome-top, .ytp-pause-overlay, .ytp-show-cards-title, .ytp-ce-element, .ytp-player-content.ytp-iv-player-content, .ytp-large-play-button, .ytp-bezel, .ytp-chrome-bottom, player-top-controls, .ytwPlayerTopControlsHost, embedded-player-video-details, .ytmCuedOverlayGradient, .ytp-title, .ytp-title-text, .ytp-title-channel, .ytp-title-link, .ytp-gradient-top { display: none !important; }" });
+  // FTC Live's screen drawn small in a box over the camera (scripts/lib/frameZoom.ts): scaled up to fill the frame, so
+  // every crop reads it as a full-frame overlay.
+  const box = cornerBox(videoId);
+  if (box) {
+    await page.addStyleTag({ content: zoomCss(box.box, box.shift) });
+    if (!zoomSaid.has(videoId)) { zoomSaid.add(videoId); console.error(`    ${videoId}: overlay in a box at ${box.box.join(", ")}, zoomed to the frame`); }
+  }
   await hideTitle(page);
 }
+/** The videos whose zoom the run has said, so it says so once each (a video opens in several players). */
+const zoomSaid = new Set<string>();
 
 /** The players hideTitle has said can't be checked for YouTube's title (titleUnchecked), so it says so once each. */
 const titleNoted = new WeakSet<Page>();
