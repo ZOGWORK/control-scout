@@ -1,7 +1,7 @@
 // The pure parts of the frame reader (scripts/video-frames.ts): the overlay's match, the timer's elapsed time, and
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
-import { dataRows, launchPlayerBrowser, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, inPage, titleLeaks, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, firstOpening, OPEN_LEADS, shortClash, type M } from "./videoFrames";
+import { dataRows, launchPlayerBrowser, clockReading, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, inPage, titleLeaks, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, firstOpening, OPEN_LEADS, shortClash, type M } from "./videoFrames";
 import { between, GAP_READS, lookAgain, MISREAD, onSwitch, timerDigits, TRIES } from "./videoFrames";
 import { pngPixels } from "./__fixtures__/png";
 import { fileURLToPath } from "node:url";
@@ -720,6 +720,49 @@ describe("wholeLength", () => {
     expect(wholeLength(Infinity)).toBeNull();
     expect(wholeLength(NaN)).toBeNull();
     expect(wholeLength(0)).toBeNull();
+  });
+});
+
+describe("an event whose scoring clock kept UTC", () => {
+  // 2021 USIAJOM2 (Johnston, Iowa; America/Chicago): FIRST's actual starts Q1 16:42:01 … Q21 20:34:53, its broadcast
+  // PnYwXxwdOcY 2021-11-13 16:01:52–20:45:40 UTC (10:01–14:45 at the venue). As local time every start is after the
+  // video ends; as UTC every one is inside it.
+  const utcMs = (time: string, timezone: string | null) => Date.parse(`${time}${timezone === "America/Chicago" ? "-06:00" : "Z"}`);
+  const times = { Q1: "2021-11-13T16:42:01.562", Q2: "2021-11-13T16:56:53.803", Q3: "2021-11-13T17:13:40.704", Q4: "2021-11-13T17:26:22.219", Q21: "2021-11-13T20:34:53.435" };
+  const rows = Object.entries(times).map(([label, time]) => ({ label, time, timezone: "America/Chicago" }));
+  const played = playedMatches(rows, { utcMs, actual: () => true, rank: (l) => Number(l.slice(1)) });
+  const broadcast = { start: Date.parse("2021-11-13T16:01:52Z") / 1000, end: Date.parse("2021-11-13T20:45:40Z") / 1000 };
+  const asUtc = (t: string) => Date.parse(`${t}Z`) / 1000;
+
+  it("USIAJOM2: none inside its broadcast as Chicago time, every one as UTC, so UTC is used", () => {
+    const r = clockReading(played, [broadcast], asUtc);
+    expect(r.utc).toBe(true);
+    expect(r.played.map((m) => m.label)).toEqual(["Q1", "Q2", "Q3", "Q4", "Q21"]);
+    expect(r.played[0].epoch).toBe(asUtc(times.Q1));
+    expect(r.played.every((m) => broadcast.start <= m.epoch && m.epoch <= broadcast.end)).toBe(true);
+  });
+
+  it("a scheduled time moves to UTC with the actual ones, so the played order and the untimed tail use one clock", () => {
+    // Q3 has only its scheduled time (17:10 on the same clock) and Q22 no time at all.
+    const mixed = playedMatches([...rows, { label: "Q22", time: null, timezone: "America/Chicago" }], { utcMs, actual: (t) => t !== times.Q3, rank: (l) => Number(l.slice(1)) });
+    const r = clockReading(mixed, [broadcast], asUtc);
+    expect(r.utc).toBe(true);
+    expect(r.played.map((m) => m.label)).toEqual(["Q1", "Q2", "Q3", "Q4", "Q21", "Q22"]);
+    expect(r.played.find((m) => m.label === "Q3")!.epoch).toBe(asUtc(times.Q3));
+    expect(r.played.find((m) => m.label === "Q22")!.epoch).toBe(asUtc(times.Q21) + 1);
+  });
+
+  it("local time kept when any start is inside a broadcast, when UTC places only some, or with no broadcast start", () => {
+    // One start inside as local time: the clock is the venue's.
+    const early = { start: broadcast.start, end: Date.parse("2021-11-13T23:00:00Z") / 1000 };
+    expect(clockReading(played, [early], asUtc).utc).toBe(false);
+    // As UTC only some are inside (the broadcast ends at 18:00 UTC): not a clock kept in UTC, so nothing changes.
+    expect(clockReading(played, [{ start: broadcast.start, end: Date.parse("2021-11-13T18:00:00Z") / 1000 }], asUtc).utc).toBe(false);
+    // An upload (no broadcast start) never decides it.
+    expect(clockReading(played, [{ start: null, end: null }], asUtc)).toEqual({ played, utc: false });
+    // A scheduled-only time (2019's qualifications) isn't an actual start: with none actual, nothing changes.
+    const scheduled = played.map((m) => ({ ...m, scheduled: true }));
+    expect(clockReading(scheduled, [broadcast], asUtc).utc).toBe(false);
   });
 });
 

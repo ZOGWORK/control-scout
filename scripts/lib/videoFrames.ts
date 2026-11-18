@@ -713,6 +713,32 @@ export function judge(ms: M[], seen: Map<number, number>, shift: number | null, 
 }
 
 
+/** A broadcast's window, epoch seconds (an upload: no start, so no window). */
+export interface ClockWindow { start: number | null; end: number | null }
+
+/**
+ * FIRST's actual starts are the venue's local time. An event whose scoring clock kept UTC instead (2021 USIAJOM2:
+ * Chicago, its 21 starts 16:42–20:34 "local", its broadcast 10:01–14:45 local) has every match after its videos end,
+ * so none is read. When the local reading puts none of the event's actual starts inside any of its broadcasts while
+ * the same times read as UTC put every one inside them, the UTC reading is used. A wrong guess places nothing: each
+ * start is still confirmed by its frames. Uploads (no broadcast start) give no window, so they never decide it.
+ */
+export function clockReading<T extends M & { time: string | null }>(played: T[], windows: ClockWindow[], utcEpoch: (time: string) => number | null): { played: T[]; utc: boolean } {
+  const timed = played.filter((m) => m.time != null && !m.scheduled);
+  const broadcasts = windows.filter((w): w is { start: number; end: number | null } => w.start != null);
+  if (!timed.length || !broadcasts.length) return { played, utc: false };
+  const inside = (at: number) => broadcasts.some((w) => w.start <= at && at <= (w.end ?? Infinity));
+  if (timed.some((m) => inside(m.epoch))) return { played, utc: false };
+  const utc = new Map(timed.map((m) => [m.label, utcEpoch(m.time!)]));
+  if (![...utc.values()].every((e) => e != null && inside(e))) return { played, utc: false };
+  // The clock is UTC for the whole event, so a scheduled time moves with the actual ones: one clock for every timed
+  // match, or a scheduled one would sort among them by the venue's clock and the untimed ones' "after" would mix both.
+  const moved = played.map((m) => (m.time == null ? m : { ...m, epoch: utc.get(m.label) ?? utcEpoch(m.time) ?? m.epoch }));
+  // Same order as playedMatches: the timed ones by time, the untimed after them.
+  const after = Math.max(...moved.filter((m) => m.time != null).map((m) => m.epoch));
+  const untimed = moved.filter((m) => m.time == null).map((m, i) => ({ ...m, epoch: after + 1 + i }));
+  return { played: [...moved.filter((m) => m.time != null).sort((a, b) => a.epoch - b.epoch), ...untimed], utc: true };
+}
 /**
  * The browser that plays the videos: the installed Google Chrome when there is one, else Playwright's own Chromium.
  * Playwright's Chromium has no H.264, and YouTube serves some older uploads only in it (2021 NLCMP PLJpwQuE-a0,

@@ -35,7 +35,7 @@
 //   TESSERACT_JS=<path to tesseract.js's entry>  where tesseract.js is, when it isn't in node_modules
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
-import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, launchPlayerBrowser, playedCount, playedMatches, wholeLength } from "./lib/videoFrames";
+import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, launchPlayerBrowser, clockReading, playedCount, playedMatches, wholeLength } from "./lib/videoFrames";
 import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, firstOpening, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, inPage, titleLeaks, visibleTexts, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M } from "./lib/videoFrames";
 import { between, GAP_READS, lookAgain, onSwitch, timerDigits } from "./lib/videoFrames";
 
@@ -1185,7 +1185,18 @@ async function doCode(code: string): Promise<void> {
   // A match FIRST gives only its scheduled time for (2019's qualifications) is read too, by its frames alone (M.scheduled):
   // its time orders it among the others and places nothing.
   // A match with no time at all is read the same way, after the timed ones in its label's order (playedMatches).
-  const played = playedMatches(rows, { utcMs: localToUtcMs, actual: actualStart, rank: labelRank });
+  const local = playedMatches(rows, { utcMs: localToUtcMs, actual: actualStart, rank: labelRank });
+  // An event whose scoring clock kept UTC (none of its starts inside its broadcasts as local time, every one as UTC):
+  // read as UTC, said in the run and its report, and each start still confirmed by its frames (clockReading).
+  const windows = [rec, ...(rec.more ?? [])].filter((v) => v.meta?.status === "ok")
+    .map((v) => ({ start: v.meta!.start ? Date.parse(v.meta!.start) / 1000 : null, end: v.meta!.end ? Date.parse(v.meta!.end) / 1000 : null }));
+  const clock = clockReading(local, windows, (t) => { const ms = localToUtcMs(t, "UTC"); return ms == null ? null : ms / 1000; });
+  const played = clock.played;
+  if (clock.utc) {
+    const said = `${code}: FIRST's starts read as UTC, not ${rows[0]?.timezone ?? "local time"}: as local time none is inside its broadcasts, as UTC every one is (its frames confirm each)`;
+    console.error(said);
+    report.push(said);
+  }
   // A played match with no time the clock can place (the event has no timezone) can't be read: said, not skipped quietly.
   const timeless = rows.length - played.length;
   if (timeless) report.push(`${code}: ${timeless} played matches not read: no timezone for the event, so their start can't be placed`);
