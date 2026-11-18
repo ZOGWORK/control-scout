@@ -397,6 +397,11 @@ function openPr(o: { file: string; rows: Keyed[]; branch: string } & PrText): bo
   if (DRY) { log(`would open "${o.title}" on ${o.branch}: ${o.rows.length} rows, ${o.rows.map(rowKey).join(" ")}`); return true; }
   let pushed = false;
   try {
+    // Its one commit on the main its file is read from: anything that fetched since the clone was put on main (a merge
+    // step, a check by hand) moves origin/main but not HEAD, and a commit on the older HEAD would carry every row main
+    // changed since as its own (2024 USMNCMPGLXY's #1925: 9 other events' rows, a 58 KB diff on a 252-commit-old base).
+    sh("git", ["reset", "--quiet", "--hard"], { ok: true });
+    git("switch", "--quiet", "--detach", "origin/main");
     writeFileSync(o.file, applyRows(mainText(o.file), o.rows));
     commitEach([[o.file, `${o.file}: ${o.what}`]]);
     push(o.branch);
