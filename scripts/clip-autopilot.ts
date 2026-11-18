@@ -21,6 +21,9 @@
 //   --max N   events read per run (default 12)
 //   --sweep N events whose clock clips are checked per run (default 4; 0: no sweep)
 //   --db F    read this snapshot instead of taking one
+//   --shard K/N  this computer's shard of the queue (default 0/1, all of it): several computers each read only the
+//             events in their own shard (shardOf), keep only the open PRs their shard opened, and only shard 0 sweeps,
+//             so no two read the same event or open PRs for it
 //   --dry     in the current checkout: read and check, print the PRs it would open, leave the files as they were
 //   AUTOPILOT_SSH (ubuntu@132.145.202.89), AUTOPILOT_SSH_KEY (~/.ssh/oracle-controlpoint), TESSERACT_JS: passed on.
 import { existsSync, mkdirSync, readFileSync, writeFileSync, appendFileSync } from "node:fs";
@@ -29,7 +32,7 @@ import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { gunzipSync } from "node:zlib";
 import { applyRows, changedRows, fileRows, prChunks, prMarker, readMarker, rowKey, rowProblems, type Keyed, type Row } from "./lib/autopilotRows";
-import { askDue, forgetSettled, needsRebuild, overLimit, pickEvents, readOutcome, remember, rememberTimeout, rememberWait, rowsDelta, type Memory } from "./lib/autopilotRun";
+import { askDue, forgetSettled, needsRebuild, overLimit, parseShard, pickEvents, prShard, readOutcome, remember, rememberTimeout, rememberWait, rowsDelta, shardOf, type Memory } from "./lib/autopilotRun";
 import { loopySummary, reviewedSha, type IssueComment } from "./lib/autopilotMerge";
 import { clipCheckProblems, clipsDelta } from "./lib/autopilotClips";
 import { streamRun } from "./lib/streamRun";
@@ -37,10 +40,12 @@ import type { ClipCheck } from "../server/data/clipChecks";
 
 const argv = process.argv.slice(2);
 const opt = (k: string) => { const i = argv.indexOf(`--${k}`); return i >= 0 ? argv[i + 1] : undefined; };
-for (const a of argv) if (a.startsWith("--") && !["--max", "--sweep", "--db", "--dry"].includes(a)) { console.error(`${a}: not a flag (--max N, --sweep N, --db F, --dry)`); process.exit(2); }
+for (const a of argv) if (a.startsWith("--") && !["--max", "--sweep", "--db", "--shard", "--dry"].includes(a)) { console.error(`${a}: not a flag (--max N, --sweep N, --db F, --shard K/N, --dry)`); process.exit(2); }
 const MAX = Number(opt("max") ?? 12), SWEEP = Number(opt("sweep") ?? 4), DRY = argv.includes("--dry"), DB = opt("db");
 if (!Number.isInteger(MAX) || MAX < 1) { console.error("--max: a whole number, 1 or more"); process.exit(2); }
 if (!Number.isInteger(SWEEP) || SWEEP < 0) { console.error("--sweep: a whole number, 0 or more"); process.exit(2); }
+const SHARD = parseShard(opt("shard"));
+if (!SHARD) { console.error("--shard: K/N, 0 <= K < N (this computer's shard of N)"); process.exit(2); }
 
 const DIR = ".data/autopilot", STAMP = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
 mkdirSync(join(DIR, "runs"), { recursive: true });
@@ -206,6 +211,8 @@ if (!DRY) sh("gh", ["label", "create", LABEL, "--force", "--color", "0e8a16", "-
 const open = DRY ? [] : openPrs();
 openNow = new Set(open.map((p) => String(p.number)));
 for (const p of open) {
+  // Another computer's PR (its shard opened it) is its to keep: rebuilt, labelled and asked for there.
+  if (prShard(p, SHARD.n) !== SHARD.k) continue;
   try {
     // Inside the try: a branch that can't be read (deleted, not fetched) is logged and left, never the whole run.
     // Rebuilt only where main changed one of its rows since it branched (its rows checked again on main's), it
@@ -279,9 +286,11 @@ const { frameQueue } = await import("../server/videos/frameQueue.js");
 const queue = await frameQueue();
 // Events a frame-read PR holds wait for it; a sweep PR (its rows are clipChecks') holds none from the reader.
 const inPr = new Set(open.filter((p) => !p.file).flatMap((p) => p.rows.map((k) => `${p.season}/${k.split("|")[1]}`)));
-forgetSettled(memory, new Set(queue.filter((q) => q.frames.state === "queued").map((q) => `${q.season}/${q.code}`)));
-const { picked, skipped } = pickEvents(queue, inPr, memory, MAX);
-log(`queue: ${queue.filter((q) => q.frames.state === "queued").length} events queued; reading ${picked.map((q) => `${q.season}/${q.code} (${q.frames.due})`).join(", ") || "none"}`);
+// This computer's shard of it: the other computers read the rest (their open PRs still hold their events, above).
+const mine = SHARD.n > 1 ? queue.filter((q) => shardOf(`${q.season}/${q.code}`, SHARD.n) === SHARD.k) : queue;
+forgetSettled(memory, new Set(mine.filter((q) => q.frames.state === "queued").map((q) => `${q.season}/${q.code}`)));
+const { picked, skipped } = pickEvents(mine, inPr, memory, MAX);
+log(`queue: ${queue.filter((q) => q.frames.state === "queued").length} events queued${SHARD.n > 1 ? `, ${mine.filter((q) => q.frames.state === "queued").length} in shard ${SHARD.k}/${SHARD.n}` : ""}; reading ${picked.map((q) => `${q.season}/${q.code} (${q.frames.due})`).join(", ") || "none"}`);
 for (const s of skipped.filter((x) => x.why !== "next run")) log(`  skipped ${s.event}: ${s.why}`);
 
 // --- Shipping: one data PR per chunk of rows -----------------------------------------------------------------------------
@@ -404,7 +413,8 @@ for (const [season, events] of bySeason) {
 // Each clip the live site plays from the clock is read paused at its first second (video-frames.ts --clips): its own
 // match there, ok; another match, pulled (never served); nothing, left as it is and read again next sweep. Up to
 // --sweep events a run, newest season first; events whose clips are all checked are passed over without a read.
-if (SWEEP && !open.some((p) => p.file === CLIPS_FILE)) {
+// Shard 0 alone sweeps (the sweep picks its own events, season by season): two computers would check the same clips.
+if (SWEEP && SHARD.k === 0 && !open.some((p) => p.file === CLIPS_FILE)) {
   const before = readFileSync(CLIPS_FILE, "utf8");
   restore.set(CLIPS_FILE, before);
   let budget = SWEEP;
