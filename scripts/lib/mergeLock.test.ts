@@ -1,6 +1,6 @@
 // The merge lock every merger to main takes (scripts/merge-lock.mjs): its message, who holds it, and when it's stale.
 import { describe, expect, it } from "vitest";
-import { LOCK_REF, LOCK_STALE_MS, lockMessage, lockStale, readLock } from "../merge-lock.mjs";
+import { LOCK_REF, LOCK_STALE_MS, lockMessage, lockStale, readLock, take } from "../merge-lock.mjs";
 
 const NOW = Date.parse("2026-11-18T12:00:00Z");
 
@@ -22,4 +22,11 @@ describe("merge lock", () => {
     for (const bad of ["", "hello", "merge lock yesterday main-driver #1", "merge lock 2026-11-18T12:00:00Z main-driver"]) expect(lockStale(bad, NOW)).toBe(true);
     expect(readLock("merge lock 2026-11-18T12:00:00Z main-driver")).toBeNull();
   });
+  it("takes 0 for a driver's pass of several merges, and refuses a word there (a lock it couldn't read back)", () => {
+    expect(readLock(lockMessage("main-driver", 0, NOW))).toEqual({ at: NOW, holder: "main-driver", pr: 0 });
+    // "#pass" would read as no lock's message: stale at once, so any taker would remove it. take() refuses it first.
+    expect(lockStale(lockMessage("main-driver", "pass", NOW), NOW)).toBe(true);
+    expect(() => take("main-driver", "pass")).toThrow(/a PR number/);
+  });
 });
+
