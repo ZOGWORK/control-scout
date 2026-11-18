@@ -44,6 +44,16 @@ describe("frameMergeProblems", () => {
     expect(at({ opensOn: { at: 150, label: "Q1", clear: true }, endsOn: { at: 9000, label: "Q2", fromEnd: 90 } })).toEqual([]);
   });
 
+  it("stops on a live clip that would stop playing: a row gaining its first openings, a start left without one", () => {
+    const bare = row({ checked: "2026-11-16", starts: { Q1: 100, Q2: 400, Q3: 700 } });
+    // Q1 and Q2 get openings, Q3 none: with any openings in the row, Q3 isn't played any more.
+    const partial = row({ starts: { Q1: 100, Q2: 400, Q3: 700 }, opens: { Q1: 80, Q2: 388 } });
+    expect(frameMergeProblems(2025, [partial], [bare], [bare], NONE)).toEqual(["VIDEOaaaaa1|USXXQ: live clip Q3 would stop playing"]);
+    // Every start opened, or the unopened one kept as unconfirmed: nothing stops playing.
+    expect(frameMergeProblems(2025, [row({ ...partial, opens: { Q1: 80, Q2: 388, Q3: 695 } })], [bare], [bare], NONE)).toEqual([]);
+    expect(frameMergeProblems(2025, [row({ ...partial, unconfirmed: ["Q3"] })], [bare], [bare], NONE)).toEqual([]);
+  });
+
   it("measures the PR's change from where it branched: rows main gained since aren't removals; main's newer row is the live one", () => {
     const gained = row({ videoId: "VIDEOeeeee5", starts: { Q1: 7 } });
     const next = row({ starts: { Q1: 100, Q2: 400, Q3: 700 }, opens: { Q1: 80, Q2: 380, Q3: 680 } });
