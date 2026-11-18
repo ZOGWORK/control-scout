@@ -15,7 +15,7 @@ for (const n of prs) {
   try {
     const g = prGate(n);
     if (g.problems.length) blocked++;
-    console.log(`#${n} ${g.head.slice(0, 7)} ${g.file} ${g.version}: ${g.problems.length ? "may NOT merge" : "may merge"}`);
+    console.log(`#${n} ${g.head.slice(0, 7)} ${g.file}: ${g.problems.length ? "may NOT merge" : "may merge"}`);
     for (const p of g.problems) console.log(`  - ${p}`);
   } catch (e) {
     blocked++;
