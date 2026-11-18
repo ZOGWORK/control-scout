@@ -2,7 +2,7 @@
 // nothing new is tried again, and what its data PR's CHANGELOG entry says.
 import { describe, expect, it } from "vitest";
 import { nextRelease, parseChangelog } from "../../src/lib/changelog";
-import { ASK_EVERY_MS, GIVE_UP, RETRY_MS, TIMEOUTS_TO_TRY, WAIT_MS, askDue, changelogEntry, forgetSettled, needsRebuild, nextVersion, overLimit, pickEvents, readOutcome, remember, rememberTimeout, rememberWait, rowsDelta, waitBackoff, type Memory, type Queued } from "./autopilotRun";
+import { ASK_EVERY_MS, GIVE_UP, RETRY_MS, TIMEOUTS_TO_TRY, WAIT_MS, askDue, changelogEntry, forgetSettled, needsRebuild, nextVersion, overLimit, parseShard, pickEvents, prShard, readOutcome, remember, rememberTimeout, rememberWait, rowsDelta, shardOf, waitBackoff, type Memory, type Queued } from "./autopilotRun";
 import type { Row } from "./autopilotRows";
 
 const NOW = Date.parse("2026-11-17T12:00:00Z");
@@ -186,3 +186,32 @@ describe("the data PR", () => {
     for (const v of ["7.2.8", "7.2.9", "7.9.9", "1.0.0"]) expect(nextVersion(v)).toBe(nextRelease(v));
   });
 });
+
+describe("shards: several computers, each its own part of the queue", () => {
+  const keys = Array.from({ length: 600 }, (_, i) => `${2019 + (i % 7)}/US${i}X`);
+  it("puts every event in exactly one shard, the same on every run, and spreads them", () => {
+    const counts = [0, 0, 0];
+    for (const k of keys) { const s = shardOf(k, 3); expect(s).toBe(shardOf(k, 3)); counts[s]++; }
+    expect(counts.reduce((a, b) => a + b)).toBe(600);
+    for (const c of counts) expect(c).toBeGreaterThan(150);
+    // The same code in two seasons is two events: each has its own shard, by its own key.
+    expect(shardOf("2022/ROBUQ1", 3)).toBe(shardOf("2022/ROBUQ1", 3));
+    expect(keys.every((k) => shardOf(k, 1) === 0)).toBe(true);
+  });
+  it("reads --shard K/N, every event without it, and refuses anything else", () => {
+    expect(parseShard(undefined)).toEqual({ k: 0, n: 1 });
+    expect(parseShard("2/3")).toEqual({ k: 2, n: 3 });
+    for (const bad of ["3/3", "1/0", "-1/3", "a/3", "1", "1/3/5", ""]) expect(parseShard(bad)).toBeNull();
+  });
+  it("a PR is kept by the shard that opened it (its first event's), a sweep PR by shard 0", () => {
+    const pr = { season: 2024, rows: ["vidB|USTXB", "vidA|USMIA"] };
+    expect(prShard(pr, 3)).toBe(shardOf("2024/USMIA", 3));
+    expect(prShard({ ...pr, file: "server/data/clipChecks.ts" }, 3)).toBe(0);
+    expect(prShard({ season: 2024, rows: [] }, 3)).toBe(0);
+    // A PR one shard opened holds only its events, so whichever row is first, it's that shard's.
+    const codes = Array.from({ length: 60 }, (_, i) => `US${i}Y`).filter((c) => shardOf(`2024/${c}`, 3) === 1).slice(0, 3);
+    expect(codes).toHaveLength(3);
+    for (const order of [codes, [...codes].reverse()]) expect(prShard({ season: 2024, rows: order.map((c) => `v${c}|${c}`) }, 3)).toBe(1);
+  });
+});
+
