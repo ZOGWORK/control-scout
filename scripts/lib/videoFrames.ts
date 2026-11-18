@@ -99,6 +99,23 @@ export function sameMatch(named: string, label: string): boolean {
  *  finds the match in the event's order. */
 export const eventLabel = (named: string) => named.replace(/^(M\d+)-1$/, "$1");
 
+/**
+ * Why a frame can't be a recording's edge (readEdges), or null where it can: an edge is what this event's recording
+ * opens or ends on, so it must be this event's overlay.
+ * - Another division's or event's overlay (readAt's `division` "other", its `why` saying whose).
+ * - A bar whose qualification total isn't this event's (`quals`): "Qualification 4 of 5" on an event of 14 is another
+ *   event's match, or a setup or test schedule's (CABCVAS1 2023 opens on a setup screen naming "Qualification 4 of 5";
+ *   recorded as Q4, its edge put Q1-Q3 "before the recording" though all three are in it). Only a total read decides:
+ *   a bar with none (a playoff's "Match 1", a cut ticker) says nothing either way.
+ */
+export function edgeReject(text: string, division: "own" | "other" | null | undefined, why: string | undefined, quals: number | undefined): string | null {
+  if (division === "other") return why ?? "another division's overlay";
+  if (!quals) return null;
+  const totals = [...text.matchAll(/\bQualification\s+\d{1,3}\s+of\s+(\d{1,3})\b/gi)].map((m) => Number(m[1]));
+  if (!totals.length || totals.includes(quals)) return null;
+  return `its bar reads "of ${totals[0]}", not this event's ${quals} qualifications (another event's, or a setup or test schedule's)`;
+}
+
 /** FTC Live's rankings card counts the matches played so far ("4 / 23 matches played"): the count and the total. */
 export function playedCount(text: string): { played: number; of: number } | null {
   const m = /(\d{1,3})\s*\/\s*(\d{1,3})\s+matches\s+played/i.exec(text);

@@ -2,7 +2,7 @@
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
 import { dataRows, launchPlayerBrowser, clockReading, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, inPage, titleLeaks, titleUnchecked, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, firstOpening, OPEN_LEADS, shortClash, type M, eventDivisions, teamsSay } from "./videoFrames";
-import { between, EVENT_LIMIT_RATIO, eventLimitMs, GAP_READS, TRIES } from "./videoFrames";
+import { between, edgeReject, EVENT_LIMIT_RATIO, eventLimitMs, GAP_READS, TRIES } from "./videoFrames";
 
 describe("the frame reader", () => {
   // A 1280 × 720 frame: a grey field, and a score bar from `top` to `bottom` with one alliance's colour each side of the
@@ -840,5 +840,25 @@ describe("eventLimitMs: an event's own read limit", () => {
     expect(eventLimitMs(0, [NaN, -5, 100 * 60])).toBe(100 * MIN);
     expect(eventLimitMs(0, [61], 1)).toBe(2 * MIN);
     expect(eventLimitMs(10 * MIN, [100 * H], 0.5)).toBe(50 * 60 * MIN);
+  });
+});
+
+describe("edgeReject", () => {
+  it("rejects a bar whose qualification total isn't this event's, saying whose it may be", () => {
+    // CABCVAS1 2023 (14 qualifications) opens on a setup screen naming a 5-match schedule's Q4.
+    const why = edgeReject("FIRST in SHOW — BC Lower Mainland Scrimmage 1 Qualification 4 of 5 CENTERSTAGE", null, undefined, 14);
+    expect(why).toMatch(/"of 5", not this event's 14 qualifications/);
+    expect(edgeReject("Up Next\nQualification 4 of 5", "own", undefined, 14)).not.toBeNull();
+  });
+  it("takes this event's total, a bar with none, and an event whose count isn't known", () => {
+    expect(edgeReject("BC Lower Mainland Scrimmage 1 Qualification 4 of 14", null, undefined, 14)).toBeNull();
+    expect(edgeReject("Semifinal 1 Match 2", null, undefined, 14)).toBeNull();
+    expect(edgeReject("Qualification 4 of 5", null, undefined, undefined)).toBeNull();
+    // A split screen: one of the totals read is this event's.
+    expect(edgeReject("Qualification 3 of 18 | Qualification 7 of 14", null, undefined, 14)).toBeNull();
+  });
+  it("rejects another division's or event's overlay with readAt's reason", () => {
+    expect(edgeReject("Qualification 4 of 14", "other", "another event's overlay", 14)).toBe("another event's overlay");
+    expect(edgeReject("Qualification 4 of 14", "other", undefined, 14)).toBe("another division's overlay");
   });
 });

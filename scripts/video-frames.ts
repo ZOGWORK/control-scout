@@ -40,7 +40,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
 import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, launchPlayerBrowser, clockReading, playedCount, playedMatches, wholeLength } from "./lib/videoFrames";
 import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, firstOpening, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, inPage, titleLeaks, titleUnchecked, visibleTexts, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M, eventDivisions, teamsSay } from "./lib/videoFrames";
-import { between, eventLimitMs, GAP_READS } from "./lib/videoFrames";
+import { between, edgeReject, eventLimitMs, GAP_READS } from "./lib/videoFrames";
 
 // The command line: --name value or --name=value for the value flags, --name alone for the others. Anything else stops
 // the run before it reads: a misspelt flag mustn't quietly read (and write) every recording of the season.
@@ -660,14 +660,17 @@ type Edge = { at: number; label?: string; played?: number; of?: number; fromEnd?
  *  match (this division's; another's names none) or counts the matches played. None does, and none shows a timer: read
  *  on every CLEAR_STEP_S (up to CLEAR_MAX_S, or half the video) while each frame shows no match at all, and the first
  *  that names one is the edge, "clear" of matches before it. A timer on screen with no match named: no edge. */
-async function readEdges(page: Page, length: number): Promise<{ opensOn?: Edge; endsOn?: Edge }> {
+async function readEdges(page: Page, length: number, log?: (s: string) => void): Promise<{ opensOn?: Edge; endsOn?: Edge }> {
   // A seek that never landed shows the frame that was up before (as in checkOpenings): it is no edge, and the stretch
   // it stood for wasn't seen, so it can't count toward "clear" either.
   const named = async (t: number): Promise<Edge | null | "missed"> => {
     const r = await readAt(page, t, true);
     if (Math.abs(r.at - t) > 1) return "missed";
-    // A sibling division's frame on a shared stream is never this event's edge: neither its match nor its count.
-    if (r.division === "other") return null;
+    // Never this event's edge, neither its match nor its count: a sibling division's or another event's overlay, or a bar
+    // whose qualification total isn't this event's (another event's, a setup or test schedule's). Logged, so a recording
+    // with no edge says why.
+    const no = edgeReject(r.text, r.division, r.why, pageEvent.get(page)?.quals);
+    if (no) { log?.(`    no edge at ${Math.round(t)} s: ${no}`); return null; }
     const n = playedCount(r.text);
     // Stored as the event names the match (a semifinal's first match "M2-1" is the event's M2), so outsideRecording
     // finds it among the event's matches.
@@ -722,7 +725,7 @@ async function boundsRow(row: FrameTiming, length: number, division: { own: stri
     if (division) divisions.set(page, division);
     { const e = eventNames.get(row.code); if (e) pageEvent.set(page, e); }
     await open(page, row.videoId);
-    const { opensOn, endsOn } = await readEdges(page, length);
+    const { opensOn, endsOn } = await readEdges(page, length, log);
     log(`  ${row.videoId}: opens on ${saidEdge(opensOn)}, ends on ${saidEdge(endsOn, "after")}`);
     // An edge this read didn't find keeps the one read before: a retry never erases a proven edge.
     keep(`${row.videoId}|${row.code}`, { ...row, ...(opensOn ? { opensOn } : {}), ...(endsOn ? { endsOn } : {}) });
@@ -1346,7 +1349,7 @@ async function doCode(code: string): Promise<void> {
         else {
           // The edges are read after the matches are placed: one that fails keeps the placed row, without edges (a
           // later --bounds reads them).
-          const edges = await readEdges(page, m.length!).catch((e: Error) => {
+          const edges = await readEdges(page, m.length!, log).catch((e: Error) => {
             if (e instanceof EventOverTime) throw e;
             log(`    couldn't read its edges: ${e.message.split("\n")[0]} (the row is kept without them)`);
             return {} as { opensOn?: Edge; endsOn?: Edge };
