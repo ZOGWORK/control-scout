@@ -29,19 +29,22 @@
 //             was played before it starts or after it ends (outsideRecording); a normal read reads them too
 //   --clips   read no starts: check each clip the live site plays from the clock by its first frame, paused (ok,
 //             pulled when it names another match, unconfirmed when it names none), into server/data/clipChecks.ts
+//   --event-limit <minutes>  the least one event's read may take before it's stopped (default 180; a long event gets
+//             a quarter of its videos' summed length, eventLimitMs): an event still reading then stops, its
+//             unfinished video written nothing, the videos it finished kept; the next run reads the rest
 //   --live <file>  the timings the live site serves (a copy of main's server/data/frameTimings/<season>.ts): a re-read start
 //             that is one of them (same video, match and second, within a read's slack) and whose opening frame names
 //             nothing stays, unconfirmed, as --verify keeps it; only an overlay naming another match pulls a live clip
 //   TESSERACT_JS=<path to tesseract.js's entry>  where tesseract.js is, when it isn't in node_modules
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
-import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, playedCount, playedMatches, wholeLength } from "./lib/videoFrames";
-import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, firstOpening, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, eventDivisions, teamsSay, cropOrder, elapsed, flippedClip, inPage, titleLeaks, visibleTexts, inkOnly, INK_MAX, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M } from "./lib/videoFrames";
-import { between, GAP_READS } from "./lib/videoFrames";
+import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, launchPlayerBrowser, clockReading, playedCount, playedMatches, wholeLength } from "./lib/videoFrames";
+import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, firstOpening, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, inPage, titleLeaks, visibleTexts, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M, eventDivisions, teamsSay } from "./lib/videoFrames";
+import { between, eventLimitMs, GAP_READS } from "./lib/videoFrames";
 
 // The command line: --name value or --name=value for the value flags, --name alone for the others. Anything else stops
 // the run before it reads: a misspelt flag mustn't quietly read (and write) every recording of the season.
-const VALUE_FLAGS = new Set(["season", "codes", "limit", "lanes", "live"]), BOOL_FLAGS = new Set(["all", "bounds", "check", "clips", "dry", "trace", "verify"]);
+const VALUE_FLAGS = new Set(["season", "codes", "limit", "lanes", "live", "event-limit"]), BOOL_FLAGS = new Set(["all", "bounds", "check", "clips", "dry", "trace", "verify"]);
 const args = new Map<string, string | true>();
 {
   const argv = process.argv.slice(2);
@@ -53,7 +56,7 @@ const args = new Map<string, string | true>();
       if (v == null || v === "" || v.startsWith("--")) { console.error(`--${name}: give it a value`); process.exit(2); }
       args.set(name, v);
     } else if (m && BOOL_FLAGS.has(name) && m[2] == null) args.set(name, true);
-    else { console.error(`${argv[i]}: not a flag this script takes (--season, --codes, --limit, --lanes, --all, --check, --dry, --trace, --verify, --clips, --live <file>)`); process.exit(2); }
+    else { console.error(`${argv[i]}: not a flag this script takes (--season, --codes, --limit, --lanes, --event-limit, --all, --check, --dry, --trace, --verify, --clips, --live <file>)`); process.exit(2); }
   }
 }
 const arg = (k: string) => { const v = args.get(k); return typeof v === "string" ? v : undefined; };
@@ -70,6 +73,19 @@ const season = count("season", 2025);
 const only = arg("codes")?.split(",").map((c) => c.trim().toUpperCase()).filter(Boolean);
 const limit = arg("limit") == null ? Infinity : count("limit", 1);
 const lanes = count("lanes", 3);
+/** The least one event's read may take (--event-limit, minutes); an event's own limit scales with its videos' length
+ *  (eventLimitMs), so a slow or stuck event can't hold a whole run but a long one gets its time. Checked at every
+ *  frame read and before each video (each wait inside a read has its own limit already: READ_LIMIT_S, open's 90 s). */
+const EVENT_LIMIT_MS = count("event-limit", 180) * 60_000;
+/** An event's deadline: its code, its limit and when its time is up. */
+type Deadline = { code: string; ms: number; at: number };
+/** An event's read past its limit: thrown through every per-read and per-video catch, so the event stops whole (its
+ *  finished videos' rows kept, the unfinished one written nothing) and the lane goes on to the next event. */
+class EventOverTime extends Error {
+  constructor(readonly code: string, readonly ms: number, readonly video?: string) { super(`over its ${Math.round(ms / 60_000)} min limit${video ? ` with video ${video} unfinished` : ""}: stopped part way, the videos it finished kept, the rest read on the next run`); }
+}
+/** Each player page's event deadline. */
+const pageDeadline = new WeakMap<Page, Deadline>();
 /** The season's own file of rows: the only file a run writes (a season with no file yet needs one, imported in
  *  server/data/frameTimings.ts, before it can be read). */
 const FRAMES_FILE = `server/data/frameTimings/${season}.ts`;
@@ -153,7 +169,8 @@ let failedVideos = 0;
  *  2:00 TeleOp (elapsed, scripts/lib/videoFrames.ts). */
 /** FTC Live's whole bar moved to the top of the frame, its timer row under the event/match row (FIRST Nevada's stream,
  *  USNVCMP 2024: "Nevada Championship | Qualification 21 of 46" on top, "0:44" beneath): the bottom bar's timer, 68 px
- *  from the top. Last in TIMERS, so no other layout's numbers are read here first; read first where the frame's match
+ *  from the top. Last of the bars in TIMERS (only the audience display's card comes after it), so no other bar's
+ *  numbers are read here first; read first where the frame's match
  *  came from the top bar's row (TOP_ROW), as FIRST Texas's crops catch part of its digits there ("2" then "110" for
  *  1:22, which reads as no running timer). */
 const TOP_BAR_TIMER = { where: "bottom" as const, clip: { x: 565, y: 68, width: 150, height: 86 } };
@@ -173,8 +190,11 @@ const TIMERS = [
   TOP_BAR_TIMER,
   // FTC Live's audience display streamed whole (USMAWEQ 2025, MA FTC): the timer large in a white card over the middle
   // of the frame under "Field 2", the bar along the bottom naming the match. Last, so no other layout's field or
-  // crowd is read here first; a number there still counts only as a clock seen running twice.
-  { where: "bottom" as const, clip: { x: 340, y: 110, width: 600, height: 210 } },
+  // crowd is read here first; a number there still counts only as a clock seen running twice. Being in TIMERS, it's
+  // read before timer()'s own fallback (the bar found in the frame, barBand), and a running clock in it counts as a
+  // "timer on screen" for readEdges too. The card counts other things down as well (a timeout, a field reset): a
+  // start read off it is checked for one countdown running through it (`card`, confirmed: countsThrough).
+  { where: "bottom" as const, clip: { x: 340, y: 110, width: 600, height: 210 }, card: true },
 ];
 /** FTC Live's overlay from 2019 to 2022 shows the timer as bare seconds ("30", "112": secondsPlain), in a box over the
  *  scores (SKYSTONE 2019, FREIGHT FRENZY 2021: USCHSCMPCARR) or under the centre graphic (POWERPLAY 2022: AUMPOS1).
@@ -195,7 +215,7 @@ const PLAIN_TIMERS = [
  *  CENTERSTAGE's (2023) too: USMOKSCMP's M2 opens on "Semifinal 2 Match 1", which a read losing "Semifinal" took
  *  for M1, pulling the clip. */
 const SEMIFINALS = season <= 2023;
-const TIMER_CROPS: { where: "bottom" | "top" | "plain"; clip: { x: number; y: number; width: number; height: number }; loose?: boolean; plain?: boolean; ink?: boolean }[] =
+const TIMER_CROPS: { where: "bottom" | "top" | "plain"; clip: { x: number; y: number; width: number; height: number }; loose?: boolean; plain?: boolean; card?: boolean; ink?: boolean }[] =
   season <= 2022 ? [...PLAIN_TIMERS, ...TIMERS] : TIMERS;
 
 /** The timer's reading. `auto`: whether a reading of 0:30 or less is Auto, told by readAt. */
@@ -350,6 +370,8 @@ const READ_LIMIT_S = 120;
  *  counts. Per page, so lanes reading side by side never spend each other's budget. */
 const pageReads = new WeakMap<Page, number>();
 function readAt(page: Page, t: number, labelOnly = false): Promise<Read> {
+  const due = pageDeadline.get(page);
+  if (due && Date.now() > due.at) return Promise.reject(new EventOverTime(due.code, due.ms));
   pageReads.set(page, (pageReads.get(page) ?? 0) + 1);
   let timer: ReturnType<typeof setTimeout> | undefined;
   return Promise.race([
@@ -487,11 +509,50 @@ async function confirmed(page: Page, label: string, start: number, own = false, 
     why = at.label ? `${CONFIRM_AFTER.join(", ")} s on its timer wasn't read running (last: ${at.why})` : `${CONFIRM_AFTER.join(", ")} s on the overlay read nothing`;
   }
   if (why) return why;
+  // The crop the confirming reads ran in, taken now: the read 25 s before may change the page's crop.
+  const card = timerCrop.get(page)?.card ? timerCrop.get(page)! : null;
   const before = await readAt(page, start - 25);
   if (before.label === label) { own ||= before.division === "own"; byTeams ||= teams(before.text) === "own"; }
   if (before.label === label && before.start != null) return `25 s before it was already running (start ${Math.round(before.start - start)} s off)`;
+  // A start read off an audience display's card: the card counts timeouts and field resets down too, under a bar
+  // already naming the next match. The same card running one countdown through it (over a match's 2:38, reaching
+  // 2:30–2:38 at the start) is no match (countsThrough). A 3:00 timeout taken for a match began only 22 s before the
+  // start it gives, so the card is read close in (5, 10 s) as well as further out (a 5:00 reset).
+  // A card no check could read proves nothing: the start stays unconfirmed. A card standing still (a match's 2:30, or
+  // the last match's 0:00) close in counts nothing down through the start, so the reads further out are skipped.
+  if (card) {
+    let read = false;
+    for (const ahead of COUNTDOWN_CHECK) {
+      if (start - ahead < 0) continue;
+      const left = await cardAt(page, start - ahead, card.clip);
+      if (left == null) continue;
+      read = true;
+      if (countsThrough(left, ahead)) return `${ahead} s before it the card counted ${left} s down through its start (a timeout or reset, not a match)`;
+      if (ahead <= 10 && cardStill(left)) break;
+    }
+    if (!read) return `the card read nothing ${COUNTDOWN_CHECK.join(", ")} s before it, so no countdown through it was ruled out`;
+  }
   if (divisions.has(page) && !own && !byTeams) return "no read of it showed its division's name (the stream carries another division too)";
   return null;
+}
+/** Seconds before a start read off an audience display's card that the card is read for a countdown running through it.
+ *  At 5 and 10 s, a real match's card stands at 2:30 or shows the last match's 0:00: never over 2:38. */
+const COUNTDOWN_CHECK = [5, 10, 25, 90, 170];
+/** The clock on an audience display's card at second t (secondsOf, as the start reads take it), as a frame read: counted in the page's
+ *  budget, traced, and failed after READ_LIMIT_S like readAt. */
+function cardAt(page: Page, t: number, clip: TimerCrop["clip"]): Promise<number | null> {
+  pageReads.set(page, (pageReads.get(page) ?? 0) + 1);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  return Promise.race([
+    (async () => {
+      await seek(page, t);
+      const text = (await digits.recognize(await page.screenshot({ clip: cardClip(clip) }))).data.text;
+      const left = secondsOf(text);
+      if (TRACE) console.error(`    card ${Math.round(t)} s: ${left ?? "-"} (read ${JSON.stringify(text)})`);
+      return left;
+    })().finally(() => clearTimeout(timer)),
+    new Promise<never>((_, no) => { timer = setTimeout(() => { void renewOcr(); no(new Error(`a card read at ${Math.round(t)} s hung over ${READ_LIMIT_S} s`)); }, READ_LIMIT_S * 1000); }),
+  ]);
 }
 
 /** An Auto read early in the match (AUTO_CONFIRM) gives the same start: the frames right after it agree with it. */
@@ -528,7 +589,7 @@ async function checkOpenings(page: Page, j: Judged, log: (s: string) => void, un
     let named: string | null = null;
     const at = broken ? null : await firstOpening(p.t, async (t) => {
       let r: Read;
-      try { r = await readAt(page, t, true); } catch (e) { broken = true; log(`    an opening read failed (${(e as Error).message.split("\n")[0]}): the rest are left unchecked`); return "stop"; }
+      try { r = await readAt(page, t, true); } catch (e) { if (e instanceof EventOverTime) throw e; broken = true; log(`    an opening read failed (${(e as Error).message.split("\n")[0]}): the rest are left unchecked`); return "stop"; }
       // A seek that never landed shows whatever frame was up before (the last read's): that frame names nothing here.
       if (Math.abs(r.at - t) > 1) { log(`    ${label}: the opening read at ${t} s landed at ${Math.round(r.at)} s; not counted`); return false; }
       if (r.division === "other") { named = "another division's match"; return false; }
@@ -906,7 +967,7 @@ const kept = new Map<string, FrameTiming>(dataRows<FrameTiming>(readFileSync(FRA
 // run with other --codes, a merge bringing a data PR) aren't overwritten by the start-of-run copy.
 const touched = new Set<string>();
 const keep = (key: string, row: FrameTiming) => { kept.set(key, row); touched.add(key); };
-const browser = await chromium.launch({ args: ["--autoplay-policy=no-user-gesture-required"] });
+const browser = await launchPlayerBrowser((o) => chromium.launch(o), (s) => console.error(s));
 const today = new Date().toISOString().slice(0, 10);
 let done = 0;
 const report: string[] = [];
@@ -1104,13 +1165,24 @@ async function playerLength(videoId: string): Promise<{ length: number } | { why
 }
 
 async function doCode(code: string): Promise<void> {
-  const rec = recs.get(code)!;
+  const rec = recs.get(code)!, began = Date.now(), deadline: Deadline = { code, ms: EVENT_LIMIT_MS, at: began + EVENT_LIMIT_MS };
   const rows = await all<{ label: string; time: string | null; timezone: string | null; played: number }>(
     "SELECT m.label, m.time, e.timezone, m.played FROM matches m JOIN events e ON e.season = m.season AND e.code = m.code WHERE m.season = ? AND m.code = ? AND m.played = 1", [season, code]);
   // A match FIRST gives only its scheduled time for (2019's qualifications) is read too, by its frames alone (M.scheduled):
   // its time orders it among the others and places nothing.
   // A match with no time at all is read the same way, after the timed ones in its label's order (playedMatches).
-  const played = playedMatches(rows, { utcMs: localToUtcMs, actual: actualStart, rank: labelRank });
+  const local = playedMatches(rows, { utcMs: localToUtcMs, actual: actualStart, rank: labelRank });
+  // An event whose scoring clock kept UTC (none of its starts inside its broadcasts as local time, every one as UTC):
+  // read as UTC, said in the run and its report, and each start still confirmed by its frames (clockReading).
+  const windows = [rec, ...(rec.more ?? [])].filter((v) => v.meta?.status === "ok")
+    .map((v) => ({ start: v.meta!.start ? Date.parse(v.meta!.start) / 1000 : null, end: v.meta!.end ? Date.parse(v.meta!.end) / 1000 : null }));
+  const clock = clockReading(local, windows, (t) => { const ms = localToUtcMs(t, "UTC"); return ms == null ? null : ms / 1000; });
+  const played = clock.played;
+  if (clock.utc) {
+    const said = `${code}: FIRST's starts read as UTC, not ${rows[0]?.timezone ?? "local time"}: as local time none is inside its broadcasts, as UTC every one is (its frames confirm each)`;
+    console.error(said);
+    report.push(said);
+  }
   // A played match with no time the clock can place (the event has no timezone) can't be read: said, not skipped quietly.
   const timeless = rows.length - played.length;
   if (timeless) report.push(`${code}: ${timeless} played matches not read: no timezone for the event, so their start can't be placed`);
@@ -1180,8 +1252,13 @@ async function doCode(code: string): Promise<void> {
     else log(`  ${v.videoId}: no duration from YouTube, not read: ${p.why}`);
   }
   const videos = [rec, ...(rec.more ?? [])].filter((v) => v.meta?.status === "ok" && v.meta.length);
+  // Its own limit, now its videos' lengths are known: a long event gets its time, from when it began.
+  deadline.ms = eventLimitMs(EVENT_LIMIT_MS, videos.map((v) => v.meta!.length!));
+  deadline.at = began + deadline.ms;
+  if (deadline.ms > EVENT_LIMIT_MS) log(`  limit ${Math.round(deadline.ms / 60_000)} min (a quarter of its videos' length)`);
   const held = new Set<string>();
   for (const v of videos) {
+    if (Date.now() > deadline.at) throw new EventOverTime(code, deadline.ms);
     const m = v.meta!;
     const from = m.start ? Date.parse(m.start) / 1000 : null;
     // The matches this video holds: inside its broadcast, or, with no broadcast start (an upload), every match no other video holds.
@@ -1225,6 +1302,7 @@ async function doCode(code: string): Promise<void> {
       page = await player();
       if (division) divisions.set(page, division);
       { const e = eventNames.get(code); if (e) pageEvent.set(page, e); }
+      pageDeadline.set(page, deadline);
       await open(page, v.videoId);
       log(`  ${v.videoId}: ${mine.length} matches`);
       console.error(`${new Date().toISOString().slice(11, 19)} ${code} ${v.videoId}: ${mine.length} matches`);
@@ -1239,6 +1317,7 @@ async function doCode(code: string): Promise<void> {
         page = await player();
         if (division) divisions.set(page, division);
         { const e = eventNames.get(code); if (e) pageEvent.set(page, e); }
+      pageDeadline.set(page, deadline);
         await open(page, v.videoId);
         unread.clear();
         j = await placeVideo(page, mine, from == null ? null : -from, m.length!, log, unread, live, liveMedium);
@@ -1260,6 +1339,7 @@ async function doCode(code: string): Promise<void> {
           // The edges are read after the matches are placed: one that fails keeps the placed row, without edges (a
           // later --bounds reads them).
           const edges = await readEdges(page, m.length!).catch((e: Error) => {
+            if (e instanceof EventOverTime) throw e;
             log(`    couldn't read its edges: ${e.message.split("\n")[0]} (the row is kept without them)`);
             return {} as { opensOn?: Edge; endsOn?: Edge };
           });
@@ -1277,7 +1357,10 @@ async function doCode(code: string): Promise<void> {
           });
         }
       }
+      console.error(`${new Date().toISOString().slice(11, 19)} ${code} ${v.videoId}: done, ${j.placed.size} placed, ${j.review.size} for review, ${j.missing.size} missing`);
     } catch (e) {
+      // Over the event's limit: no row for this video (its reads stopped part way); the event stops here, naming it.
+      if (e instanceof EventOverTime) throw e.video ? e : new EventOverTime(code, e.ms, v.videoId);
       const why = (e as Error).message.split("\n")[0];
       log(`    couldn't play: ${why}`);
       failedVideos++;
@@ -1300,11 +1383,15 @@ async function doCode(code: string): Promise<void> {
 // A few events at a time: most of a read is waiting for YouTube to seek.
 const queue = [...codes];
 // One event that fails (a database read before its videos) is reported and the lane goes on to the next.
-let failedEvents = 0;
+let failedEvents = 0, overTime = 0;
 const lane = async () => {
   while (queue.length && done < limit) {
     const code = queue.shift()!;
-    try { await doCode(code); } catch (e) { failedEvents++; console.error(`${code}: ${(e as Error).message.split("\n")[0]} (not read)`); }
+    try { await doCode(code); } catch (e) {
+      // Over its limit: stopped part way (EventOverTime says so), not failed before its videos.
+      if (e instanceof EventOverTime) { overTime++; console.error(`${code}: ${e.message}`); }
+      else { failedEvents++; console.error(`${code}: ${(e as Error).message.split("\n")[0]} (not read)`); }
+    }
   }
 };
 await Promise.all(Array.from({ length: lanes }, lane));
@@ -1316,6 +1403,8 @@ await worker.terminate().catch(() => {});
 await digits.terminate().catch(() => {});
 await rowOcr.terminate().catch(() => {});
 if (failedEvents) { console.error(`${failedEvents} events failed before their videos were read`); process.exitCode = 1; }
+// An event stopped at its limit wasn't read whole: the run fails, so the autopilot doesn't count it as tried.
+if (overTime) { console.error(`${overTime} events stopped at their limit (their finished videos written)`); process.exitCode = 1; }
 // Videos that couldn't be played are written as such and read again on the next run, but this run didn't finish them.
 if (failedVideos) { console.error(`${failedVideos} videos couldn't be played (written with the reason; the next run reads them again)`); process.exitCode = 1; }
 if (!CHECK && !DRY) {

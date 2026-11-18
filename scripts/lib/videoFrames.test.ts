@@ -1,8 +1,8 @@
 // The pure parts of the frame reader (scripts/video-frames.ts): the overlay's match, the timer's elapsed time, and
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
-import { dataRows, divisionOf, eventDivisions, teamsSay, cropOrder, elapsed, flippedClip, inPage, titleLeaks, inkOnly, INK_MAX, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, firstOpening, OPEN_LEADS, shortClash, type M } from "./videoFrames";
-import { between, GAP_READS, TRIES } from "./videoFrames";
+import { dataRows, launchPlayerBrowser, clockReading, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, inPage, titleLeaks, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, firstOpening, OPEN_LEADS, shortClash, type M, eventDivisions, teamsSay } from "./videoFrames";
+import { between, EVENT_LIMIT_RATIO, eventLimitMs, GAP_READS, TRIES } from "./videoFrames";
 
 describe("the frame reader", () => {
   // A 1280 × 720 frame: a grey field, and a score bar from `top` to `bottom` with one alliance's colour each side of the
@@ -253,6 +253,48 @@ describe("the frame reader", () => {
     // The end of TeleOp ("0:20") leads to a finished match: no TeleOp reading 45 s on is its.
     expect(autoLeadsTo(20, 45, 30)).toBe(false);
     expect(autoLeadsTo(30, 30, 120)).toBe(false);
+  });
+
+  it("tells a timeout's countdown through a start from a match's card", () => {
+    // A 3:00 timeout on an audience display's card, read at 2:00 or less under a bar naming the next match, gives a
+    // start where it shows 2:38, 22 s after it began: 10 s before that start it shows 2:48, 5 s before 2:43, and 25 s
+    // before it hasn't begun, standing at its full 3:00 (still more than a match, reaching the start's 2:35).
+    expect(countsThrough(168, 10)).toBe(true);
+    expect(countsThrough(163, 5)).toBe(true);
+    expect(countsThrough(180, 25)).toBe(true);
+    // A 2:40 countdown is 2 s in at the start: 5 s before, it stands at its full 2:40.
+    expect(countsThrough(160, 5)).toBe(true);
+    // Longer ones (a 5:00 reset) are caught further out.
+    expect(countsThrough(183, 25)).toBe(true);
+    expect(countsThrough(248, 90)).toBe(true);
+    // Taken as a whole-match count (2:30 at the start), a few seconds' OCR either way.
+    expect(countsThrough(175, 25)).toBe(true);
+    expect(countsThrough(186, 25)).toBe(true);
+    // A real match: its card stands at 2:30 before it (never over 2:38), or shows the last match's 0:00.
+    expect(countsThrough(150, 25)).toBe(false);
+    expect(countsThrough(0, 25)).toBe(false);
+    // A long countdown that doesn't reach the start's 2:30–2:38 is something else (a break timer ending elsewhere).
+    expect(countsThrough(300, 25)).toBe(false);
+    expect(countsThrough(170, 25)).toBe(false);
+    // A real match's card 5 or 10 s before its start: 2:30 standing, the last match's 0:00.
+    expect(countsThrough(150, 5)).toBe(false);
+    expect(countsThrough(150, 10)).toBe(false);
+  });
+
+  it("reads an audience display's card for the countdown check", () => {
+    // What the digits worker read off USMAWEQ's card (Aj0stAP3EwM, 2:30 standing before Q37): cut close, "7:20"; with
+    // the margin, "2:30". Cut close, a card standing still read as more than a match, far from the start: no check.
+    expect(secondsOf("2:30\n")).toBe(150);
+    expect(cardStill(secondsOf("2:30\n")!)).toBe(true);
+    expect(countsThrough(secondsOf("7:20\n")!, 5)).toBe(false);
+    // Reads of nothing it could take ("0:99" off a blank card, or no text): no clock, so no check passed on them.
+    expect(secondsOf("0:99\n")).toBeNull();
+    expect(secondsOf("")).toBeNull();
+    expect(cardStill(0)).toBe(true);
+    expect(cardStill(163)).toBe(false);
+    // The margin: 40 px each side, kept inside the frame.
+    expect(cardClip({ x: 340, y: 110, width: 600, height: 210 })).toEqual({ x: 300, y: 70, width: 680, height: 290 });
+    expect(cardClip({ x: 10, y: 0, width: 1260, height: 700 })).toEqual({ x: 0, y: 0, width: 1280, height: 720 });
   });
 
   it("reads a timer", () => {
@@ -659,6 +701,70 @@ describe("wholeLength", () => {
   });
 });
 
+describe("an event whose scoring clock kept UTC", () => {
+  // 2021 USIAJOM2 (Johnston, Iowa; America/Chicago): FIRST's actual starts Q1 16:42:01 … Q21 20:34:53, its broadcast
+  // PnYwXxwdOcY 2021-11-13 16:01:52–20:45:40 UTC (10:01–14:45 at the venue). As local time every start is after the
+  // video ends; as UTC every one is inside it.
+  const utcMs = (time: string, timezone: string | null) => Date.parse(`${time}${timezone === "America/Chicago" ? "-06:00" : "Z"}`);
+  const times = { Q1: "2021-11-13T16:42:01.562", Q2: "2021-11-13T16:56:53.803", Q3: "2021-11-13T17:13:40.704", Q4: "2021-11-13T17:26:22.219", Q21: "2021-11-13T20:34:53.435" };
+  const rows = Object.entries(times).map(([label, time]) => ({ label, time, timezone: "America/Chicago" }));
+  const played = playedMatches(rows, { utcMs, actual: () => true, rank: (l) => Number(l.slice(1)) });
+  const broadcast = { start: Date.parse("2021-11-13T16:01:52Z") / 1000, end: Date.parse("2021-11-13T20:45:40Z") / 1000 };
+  const asUtc = (t: string) => Date.parse(`${t}Z`) / 1000;
+
+  it("USIAJOM2: none inside its broadcast as Chicago time, every one as UTC, so UTC is used", () => {
+    const r = clockReading(played, [broadcast], asUtc);
+    expect(r.utc).toBe(true);
+    expect(r.played.map((m) => m.label)).toEqual(["Q1", "Q2", "Q3", "Q4", "Q21"]);
+    expect(r.played[0].epoch).toBe(asUtc(times.Q1));
+    expect(r.played.every((m) => broadcast.start <= m.epoch && m.epoch <= broadcast.end)).toBe(true);
+  });
+
+  it("a scheduled time moves to UTC with the actual ones, so the played order and the untimed tail use one clock", () => {
+    // Q3 has only its scheduled time (17:10 on the same clock) and Q22 no time at all.
+    const mixed = playedMatches([...rows, { label: "Q22", time: null, timezone: "America/Chicago" }], { utcMs, actual: (t) => t !== times.Q3, rank: (l) => Number(l.slice(1)) });
+    const r = clockReading(mixed, [broadcast], asUtc);
+    expect(r.utc).toBe(true);
+    expect(r.played.map((m) => m.label)).toEqual(["Q1", "Q2", "Q3", "Q4", "Q21", "Q22"]);
+    expect(r.played.find((m) => m.label === "Q3")!.epoch).toBe(asUtc(times.Q3));
+    expect(r.played.find((m) => m.label === "Q22")!.epoch).toBe(asUtc(times.Q21) + 1);
+  });
+
+  it("local time kept when any start is inside a broadcast, when UTC places only some, or with no broadcast start", () => {
+    // One start inside as local time: the clock is the venue's.
+    const early = { start: broadcast.start, end: Date.parse("2021-11-13T23:00:00Z") / 1000 };
+    expect(clockReading(played, [early], asUtc).utc).toBe(false);
+    // As UTC only some are inside (the broadcast ends at 18:00 UTC): not a clock kept in UTC, so nothing changes.
+    expect(clockReading(played, [{ start: broadcast.start, end: Date.parse("2021-11-13T18:00:00Z") / 1000 }], asUtc).utc).toBe(false);
+    // An upload (no broadcast start) never decides it.
+    expect(clockReading(played, [{ start: null, end: null }], asUtc)).toEqual({ played, utc: false });
+    // A scheduled-only time (2019's qualifications) isn't an actual start: with none actual, nothing changes.
+    const scheduled = played.map((m) => ({ ...m, scheduled: true }));
+    expect(clockReading(scheduled, [broadcast], asUtc).utc).toBe(false);
+  });
+});
+
+describe("the browser that plays the videos", () => {
+  it("Google Chrome when installed (it plays H.264-only videos: 2021 NLCMP, USMSBILT), else Playwright's Chromium", async () => {
+    const asked: (string | undefined)[] = [], said: string[] = [];
+    const chrome = await launchPlayerBrowser(async (o) => { asked.push(o.channel); return `browser:${o.channel ?? "chromium"}`; }, (s) => said.push(s));
+    expect(chrome).toBe("browser:chrome");
+    expect(asked).toEqual(["chrome"]);
+    expect(said[0]).toMatch(/Google Chrome/);
+    const none: (string | undefined)[] = [];
+    const fallback = await launchPlayerBrowser(async (o) => { none.push(o.channel); if (o.channel) throw new Error("Chromium distribution 'chrome' is not found"); return "browser:chromium"; }, (s) => said.push(s));
+    expect(fallback).toBe("browser:chromium");
+    expect(none).toEqual(["chrome", undefined]);
+    expect(said[1]).toMatch(/Playwright's Chromium/);
+  });
+  it("any other failure to start Chrome is an error, not a quiet fall back to Chromium", async () => {
+    const asked: (string | undefined)[] = [];
+    const crash = launchPlayerBrowser(async (o) => { asked.push(o.channel); throw new Error("Browser closed unexpectedly"); });
+    await expect(crash).rejects.toThrow("Browser closed unexpectedly");
+    expect(asked).toEqual(["chrome"]);
+  });
+});
+
 describe("firstOpening", () => {
   // A frame naming the match at the given seconds; every second read is recorded.
   const at = (named: number[]) => { const read: number[] = []; return { read, names: async (t: number) => (read.push(t), named.includes(t)) }; };
@@ -704,5 +810,29 @@ describe("between", () => {
   });
   it("gives each such match both sides' tries and a confirm", () => {
     expect(GAP_READS).toBe(2 * TRIES + 4);
+  });
+});
+
+describe("eventLimitMs: an event's own read limit", () => {
+  const MIN = 60_000, H = 3600;
+  it("is the floor for an event of ordinary length", () => {
+    expect(eventLimitMs(180 * MIN, [3 * H, 4 * H])).toBe(180 * MIN);
+    expect(eventLimitMs(180 * MIN, [])).toBe(180 * MIN);
+  });
+  it("scales with its videos' summed length, so a long event's real read isn't stopped", () => {
+    expect(EVENT_LIMIT_RATIO).toBe(0.25);
+    // 2022 ROBUQ1: three videos, ~27 h, read whole in 68 min at the slowest: its limit is 6.75 h, about six times that.
+    const robuq1 = eventLimitMs(180 * MIN, [9 * H, 9 * H, 9 * H]);
+    expect(robuq1).toBe(405 * MIN);
+    expect(robuq1).toBeGreaterThan(5.9 * 68 * MIN);
+    // 2022 ROBUQ2 (12,205 s + 35,358 s): its second video was still unfinished after 6 h, stuck; still stopped.
+    const robuq2 = eventLimitMs(180 * MIN, [12_205, 35_358]);
+    expect(robuq2).toBe(199 * MIN);
+    expect(robuq2).toBeLessThan(6 * 60 * MIN);
+  });
+  it("counts a length that isn't a real number as none, and rounds up to whole minutes", () => {
+    expect(eventLimitMs(0, [NaN, -5, 100 * 60])).toBe(25 * MIN);
+    expect(eventLimitMs(0, [61], 1)).toBe(2 * MIN);
+    expect(eventLimitMs(10 * MIN, [100 * H], 0.5)).toBe(50 * 60 * MIN);
   });
 });

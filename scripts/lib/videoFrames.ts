@@ -204,6 +204,29 @@ export function elapsed(t: { where: "bottom" | "top" | "plain"; left: number; au
   return t.left >= TELEOP_S ? null : AUTO_S + SWITCH_S + TELEOP_S - t.left;
 }
 
+/** A card's crop with a margin round it, for the countdown check: cut close, its big clock reads wrong (USMAWEQ's 2:30
+ *  read "7:20", the glyphs touching the crop's edge); 40 px more each side reads it right. Kept inside the 1280 × 720
+ *  frame. */
+export const CARD_MARGIN = 40;
+export function cardClip(clip: { x: number; y: number; width: number; height: number }) {
+  const x = Math.max(0, clip.x - CARD_MARGIN), y = Math.max(0, clip.y - CARD_MARGIN);
+  return { x, y, width: Math.min(1280, clip.x + clip.width + CARD_MARGIN) - x, height: Math.min(720, clip.y + clip.height + CARD_MARGIN) - y };
+}
+/** A card standing still before a match: at 2:30 (the match to come, waiting) or 0:00 (the last one, over). Read just
+ *  before a start, it counts nothing down through it. */
+export const cardStill = (left: number) => left === AUTO_S + TELEOP_S || left === 0;
+
+/** Whether a timer reading `left` seconds, `before` s ahead of a start read off the same timer, is one countdown running
+ *  through that start: longer than any match's (2:38: Auto, the switch, TeleOp), and reaching 2:30–2:38 at the start
+ *  (a reading there taken as TeleOp's or as a whole-match count's, elapsed). An audience display's card counts other
+ *  things down too (a timeout, a field reset, 3:00 and more) under a bar already naming the next match: read at 2:00 or
+ *  less, such a countdown gives a start that every later frame agrees with, before the match is played. A real match's
+ *  card shows 2:30 standing, or the last match's 0:00, before it starts: never this. */
+export function countsThrough(left: number, before: number): boolean {
+  const atStart = left - before;
+  return left > AUTO_S + SWITCH_S + TELEOP_S && atStart >= AUTO_S + TELEOP_S - 3 && atStart <= AUTO_S + SWITCH_S + TELEOP_S + 3;
+}
+
 /** A match's start in the video, and how sure: "high" (a confirmed read, with another read or the broadcast's own
  *  clock agreeing on how far the video sits from the clock), "medium" (between two reads that agree). */
 export type Placed = { t: number; confidence: "high" | "medium" };
@@ -655,6 +678,67 @@ export function judge(ms: M[], seen: Map<number, number>, shift: number | null, 
   });
   return { placed: placedAt, review, missing, earlyStart, opens: new Map() };
 }
+
+/** How long one event's read may take at most (scripts/video-frames.ts --event-limit is the floor): its videos'
+ *  summed length times EVENT_LIMIT_RATIO, never less than the floor, so a long event's legitimate read isn't stopped
+ *  and only a stuck one is. Measured 11-17/18: 2022 ROBUQ1 (3 videos, ~27 h) read whole in 40 and 68 min, 0.025-0.042
+ *  of its length; four 2024 events together in 37 min. 2022 ROBUQ2's 9.8 h video was still unfinished after 6 h
+ *  (over 0.45 of the event's 13.2 h): stuck. 0.25 leaves about six times the slowest real read and still stops that one. */
+export const EVENT_LIMIT_RATIO = 0.25;
+export function eventLimitMs(floorMs: number, videoSeconds: number[], ratio = EVENT_LIMIT_RATIO): number {
+  const total = videoSeconds.reduce((s, x) => s + (Number.isFinite(x) && x > 0 ? x : 0), 0);
+  return Math.max(floorMs, Math.ceil((ratio * total) / 60) * 60_000);
+}
+
+/** A broadcast's window, epoch seconds (an upload: no start, so no window). */
+export interface ClockWindow { start: number | null; end: number | null }
+
+/**
+ * FIRST's actual starts are the venue's local time. An event whose scoring clock kept UTC instead (2021 USIAJOM2:
+ * Chicago, its 21 starts 16:42–20:34 "local", its broadcast 10:01–14:45 local) has every match after its videos end,
+ * so none is read. When the local reading puts none of the event's actual starts inside any of its broadcasts while
+ * the same times read as UTC put every one inside them, the UTC reading is used. A wrong guess places nothing: each
+ * start is still confirmed by its frames. Uploads (no broadcast start) give no window, so they never decide it.
+ */
+export function clockReading<T extends M & { time: string | null }>(played: T[], windows: ClockWindow[], utcEpoch: (time: string) => number | null): { played: T[]; utc: boolean } {
+  const timed = played.filter((m) => m.time != null && !m.scheduled);
+  const broadcasts = windows.filter((w): w is { start: number; end: number | null } => w.start != null);
+  if (!timed.length || !broadcasts.length) return { played, utc: false };
+  const inside = (at: number) => broadcasts.some((w) => w.start <= at && at <= (w.end ?? Infinity));
+  if (timed.some((m) => inside(m.epoch))) return { played, utc: false };
+  const utc = new Map(timed.map((m) => [m.label, utcEpoch(m.time!)]));
+  if (![...utc.values()].every((e) => e != null && inside(e))) return { played, utc: false };
+  // The clock is UTC for the whole event, so a scheduled time moves with the actual ones: one clock for every timed
+  // match, or a scheduled one would sort among them by the venue's clock and the untimed ones' "after" would mix both.
+  const moved = played.map((m) => (m.time == null ? m : { ...m, epoch: utc.get(m.label) ?? utcEpoch(m.time) ?? m.epoch }));
+  // Same order as playedMatches: the timed ones by time, the untimed after them.
+  const after = Math.max(...moved.filter((m) => m.time != null).map((m) => m.epoch));
+  const untimed = moved.filter((m) => m.time == null).map((m, i) => ({ ...m, epoch: after + 1 + i }));
+  return { played: [...moved.filter((m) => m.time != null).sort((a, b) => a.epoch - b.epoch), ...untimed], utc: true };
+}
+/**
+ * The browser that plays the videos: the installed Google Chrome when there is one, else Playwright's own Chromium.
+ * Playwright's Chromium has no H.264, and YouTube serves some older uploads only in it (2021 NLCMP PLJpwQuE-a0,
+ * USMSBILT I4FaWi_rtrc): there the player stays black ("Your browser can't play this video") and every frame reads
+ * nothing. Chrome plays them. `launch` is Playwright's chromium.launch; `say` is told which one is used.
+ */
+export async function launchPlayerBrowser<B>(launch: (o: { channel?: string; args: string[] }) => Promise<B>, say: (s: string) => void = () => {}): Promise<B> {
+  const args = ["--autoplay-policy=no-user-gesture-required"];
+  try {
+    const b = await launch({ channel: "chrome", args });
+    say("player: Google Chrome (plays H.264-only videos)");
+    return b;
+  } catch (e) {
+    // Only Chrome not being installed falls back ("Chromium distribution 'chrome' is not found"): any other failure to
+    // start it (a crash, a bad flag) is a real error, and Chromium in its place would quietly read H.264-only videos as
+    // black.
+    if (!CHROME_MISSING.test((e as Error)?.message ?? "")) throw e;
+    say("player: Playwright's Chromium (no Google Chrome found; a video YouTube serves only in H.264 won't play)");
+    return launch({ args });
+  }
+}
+/** Playwright's error when the Chrome channel isn't installed. */
+export const CHROME_MISSING = /distribution '?chrome'? is not found|chrome.*(not found|is not installed)/i;
 
 /** A match with reads on both sides of it (a scheduled match's read says nothing of the clock): it is in the recording
  *  unless a cut took it out, so it is still looked for once the video's read budget is spent (GAP_READS). */
