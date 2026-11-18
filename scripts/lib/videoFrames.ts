@@ -179,6 +179,20 @@ export const MATCH_S = AUTO_S + SWITCH_S + TELEOP_S;
  *  clip opens 2 or 4 s into its match rather than not at all. Still only on a frame that names it. */
 export const OPEN_LEADS = [20, 12, 5, 2, 0, -2, -4];
 
+/** Where a clip opens: OPEN_LEADS in order, the first second whose frame names the match (`names` reads it: true names
+ *  it, false doesn't, "stop" when the read failed and no more are tried). Every lead-in second (20 … 0 s before) is
+ *  tried before the start's +2 and +4, so a clip opens late only where no frame before its start names it. */
+export async function firstOpening(start: number, names: (t: number) => Promise<boolean | "stop">): Promise<number | null> {
+  for (const lead of OPEN_LEADS) {
+    const t = start - lead;
+    if (t < 0) continue;
+    const r = await names(t);
+    if (r === "stop") return null;
+    if (r) return t;
+  }
+  return null;
+}
+
 /** The reason a placed match whose clip opening couldn't be checked gets: never a clip, never a clock reason. */
 export const OVERLAY_UNREAD = "overlay could not be read at its clip's start";
 

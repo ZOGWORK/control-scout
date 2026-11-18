@@ -36,7 +36,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
 import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, playedCount, playedMatches, wholeLength } from "./lib/videoFrames";
-import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, cropOrder, elapsed, flippedClip, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M } from "./lib/videoFrames";
+import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, firstOpening, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, cropOrder, elapsed, flippedClip, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M } from "./lib/videoFrames";
 
 // The command line: --name value or --name=value for the value flags, --name alone for the others. Anything else stops
 // the run before it reads: a misspelt flag mustn't quietly read (and write) every recording of the season.
@@ -485,20 +485,20 @@ async function checkOpenings(page: Page, j: Judged, log: (s: string) => void, un
   const isLive = (label: string, t: number) => !live || (live[label] != null && Math.abs(live[label] - t) <= SAME_S);
   for (const [label, p] of [...j.placed]) {
     if (j.opens.has(label)) continue; // checked on an earlier --verify
-    let named: string | null = null, at: number | null = null;
-    for (const lead of broken ? [] : OPEN_LEADS) {
-      const t = p.t - lead;
-      if (t < 0) continue;
+    let named: string | null = null;
+    const at = broken ? null : await firstOpening(p.t, async (t) => {
       let r: Read;
-      try { r = await readAt(page, t, true); } catch (e) { broken = true; log(`    an opening read failed (${(e as Error).message.split("\n")[0]}): the rest are left unchecked`); break; }
+      try { r = await readAt(page, t, true); } catch (e) { broken = true; log(`    an opening read failed (${(e as Error).message.split("
+")[0]}): the rest are left unchecked`); return "stop"; }
       // A seek that never landed shows whatever frame was up before (the last read's): that frame names nothing here.
-      if (Math.abs(r.at - t) > 1) { log(`    ${label}: the opening read at ${t} s landed at ${Math.round(r.at)} s; not counted`); continue; }
-      if (r.division === "other") { named = "another division's match"; continue; }
+      if (Math.abs(r.at - t) > 1) { log(`    ${label}: the opening read at ${t} s landed at ${Math.round(r.at)} s; not counted`); return false; }
+      if (r.division === "other") { named = "another division's match"; return false; }
       // The overlay names a replay (a tiebreak's "M6-2") by its match alone ("M6"), as placeVideo reads it; a
       // semifinal's match by its series and number ("M1-2"), that match only (sameMatch).
-      if (sameMatch(r.label ?? "", label)) { at = t; break; }
+      if (sameMatch(r.label ?? "", label)) return true;
       if (r.label) named = eventLabel(r.label);
-    }
+      return false;
+    });
     if (at != null) { j.opens.set(label, at); continue; }
     if (broken) {
       // Not checked: a live clip stays unconfirmed; a new placement waits for the video's next read.
