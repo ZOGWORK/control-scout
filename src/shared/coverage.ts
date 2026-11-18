@@ -41,18 +41,20 @@ export function missingGroups(matches: CoverageMatch[]): { why: string; videoId:
 
 /** Owner › Clip coverage triage categories (server/videos/coverageTriage.ts), in the order shown: names and one line
  *  each on what lands there. Only Actionable is "To review". */
-export const TRIAGE_ORDER = ["actionable", "unchecked", "no-timing", "early-start", "old-season"] as const satisfies readonly CoverageTriage[];
+export const TRIAGE_ORDER = ["actionable", "unchecked", "no-timing", "early-start", "unplayable", "old-season"] as const satisfies readonly CoverageTriage[];
 export const TRIAGE_LABEL: Record<CoverageTriage, string> = {
   actionable: "Actionable",
   unchecked: "Not yet checked against the video",
   "no-timing": "No timing",
   "early-start": "Early start / unsafe",
+  unplayable: "Can't be played",
   "old-season": "Old season",
 };
 export const TRIAGE_ABOUT: Record<CoverageTriage, string> = {
   actionable: "Checked against the video itself (its frames read) and still without a clip, or no reason found: each says what was checked in the video and what was missing there.",
   unchecked: "Left out by the clock alone, and the video hasn't been checked for them yet: a pending check, not a reason. Never marked reviewed; each moves to To review, or settles, once its video's frames are read.",
-  "no-timing": "Nothing to place a clip from: no clock, video unavailable, shorter than its broadcast with nothing to place the gap, no real start from FIRST, or no recording that day.",
+  "no-timing": "Nothing to place a clip from: no clock, shorter than its broadcast with nothing to place the gap, no real start from FIRST, or no recording that day.",
   "early-start": "Checked in the video: each starts while the match before is still on, so a clip would open on the wrong match.",
+  unplayable: "Settled: the recording can't be played here at all (unavailable on YouTube, or its owner turned off playing it on other sites), as YouTube's facts for it say, with the date first seen. Read again weekly: one that plays again comes back for its frames and clips.",
   "old-season": "Older than last season, and nothing actionable.",
 };
