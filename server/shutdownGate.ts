@@ -11,7 +11,7 @@ import { publicAccessOpen } from "./flags.js";
 import { CSP_REPORT_PATH, cspHeaderName } from "./securityHeaders.js";
 import { gateSessions as sessions, readCookie, SESSION_COOKIE, sha256 } from "./auth/session.js";
 import { authProviders } from "./auth/routes.js";
-import { SHUTDOWN_BACK_SOON, SHUTDOWN_EYEBROW, SHUTDOWN_HEADLINE, SIGNUPS_CLOSED_MESSAGE } from "../src/shared/shutdown.js";
+import { SHUTDOWN_BACK_SOON, SHUTDOWN_HEADLINE, SIGNUPS_CLOSED_MESSAGE } from "../src/shared/shutdown.js";
 
 export { SIGNUPS_CLOSED_MESSAGE };
 
@@ -25,7 +25,7 @@ const ALWAYS = [
   /^\/api\/(auth\/.+|flags|health|digest\/(unsubscribe|webhook))\/?$/,
   new RegExp(`^${CSP_REPORT_PATH}/?$`),
   /^\/(assets|fonts)\/[A-Za-z0-9._/-]+$/,
-  /^\/(mark\.webp|logo-56\.webp|favicon\.ico|favicon-48\.png|apple-touch-icon\.png|icon-(192|512)\.png|manifest\.webmanifest|sw\.js|robots\.txt)$/,
+  /^\/(mark\.webp|mark-white\.webp|logo-56\.webp|favicon\.ico|favicon-48\.png|apple-touch-icon\.png|icon-(192|512)\.png|manifest\.webmanifest|sw\.js|robots\.txt)$/,
   /^\/[A-Za-z0-9-]{8,128}\.txt$/,
 ];
 const alwaysThrough = (path: string) => !/\.\.|%|\\/.test(path) && ALWAYS.some((re) => re.test(path));
@@ -77,77 +77,62 @@ function post(u,b){return fetch(u,{method:"POST",credentials:"same-origin",heade
 function fail(r){m.textContent=(r&&r.j&&(r.j.message||r.j.error))||"Something went wrong. Try again.";}
 if(e)e.addEventListener("submit",function(ev){ev.preventDefault();addr=e.elements.email.value.trim();m.textContent="Sending a code...";post("/api/auth/email/start",{email:addr}).then(function(r){if(!r.ok)return fail(r);e.hidden=true;c.hidden=false;m.textContent="We sent a 6-digit code to "+addr+".";c.elements.code.focus();},fail);});
 if(c)c.addEventListener("submit",function(ev){ev.preventDefault();m.textContent="Signing in...";post("/api/auth/email/verify",{email:addr,code:c.elements.code.value.trim()}).then(function(r){if(!r.ok)return fail(r);location.reload();},fail);});})();`;
-/** Before anything paints, the visitor's saved theme (the same keys as index.html): light, dim or midnight. */
-export const THEME_SCRIPT = `try{var s=JSON.parse(localStorage.getItem("cs-personal:settings")||"null"),t=s&&s.value&&s.value.theme,d=document.documentElement;if(t==="light"||(t==="system"&&matchMedia("(prefers-color-scheme: light)").matches))d.classList.add("light");if(t==="dim"||t==="midnight")d.classList.add(t);}catch(e){}`;
 const hash = (s: string) => `'sha256-${createHash("sha256").update(s, "utf8").digest("base64")}'`;
-export const GATE_CSP = `default-src 'none'; script-src ${hash(THEME_SCRIPT)} ${hash(GATE_SCRIPT)}; connect-src 'self'; style-src 'unsafe-inline'; img-src 'self'; font-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'self'`;
+export const GATE_CSP = `default-src 'none'; script-src ${hash(GATE_SCRIPT)}; connect-src 'self'; style-src 'unsafe-inline'; img-src 'self'; font-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'self'`;
 
-/** The app's own look (src/index.css): graphite by default, the saved theme's colours, Space Grotesk and Inter, the
- *  brand yellow, and the drifting grid with its breathing glow behind everything. */
-const GATE_STYLE = `@font-face{font-family:Inter;src:url(/fonts/Inter.woff2) format("woff2");font-weight:100 900;font-display:swap}
+/** Always dark: white for the words, grey for what's secondary, nothing else. */
+export const GATE_STYLE = `@font-face{font-family:Inter;src:url(/fonts/Inter.woff2) format("woff2");font-weight:100 900;font-display:swap}
 @font-face{font-family:"Space Grotesk";src:url(/fonts/SpaceGrotesk.woff2) format("woff2");font-weight:300 700;font-display:swap}
-:root{--bg:#0a0a0b;--fg:#f4f4f5;--muted:#a1a1aa;--card:#111113;--border:#ffffff14;--input:#ffffff1c;--accent:#ffc700;--accent-hover:#ffd633;--accent-ink:#231a00;--accent-text:#ffc700;--tint:255 199 0;--line:.05;--breath:.06;color-scheme:dark}
-html.light{--bg:#fff;--fg:#09090b;--muted:#52525b;--card:#fff;--border:#e4e4e7;--input:#e4e4e7;--accent:#eab308;--accent-hover:#ca8a04;--accent-ink:#231a00;--accent-text:#875200;--tint:234 179 8;--line:.045;--breath:.08;color-scheme:light}
-html.dim{--bg:#1e1f23;--fg:#e4e4e7;--muted:#b4b4bd;--card:#232428;--border:#ffffff1a;--input:#ffffff26}
-html.midnight{--bg:#000;--card:#08080a;--border:#ffffff12;--input:#ffffff1a}
-*{box-sizing:border-box}html,body{height:100%}
+:root{--bg:#0a0a0b;--fg:#f4f4f5;--muted:#a1a1aa;--card:#121214;--line:#ffffff14;--field:#ffffff1f;--fill:#1c1c1f;--fill-hover:#242428;color-scheme:dark}
+*{box-sizing:border-box}html,body{min-height:100%}
 body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.55 Inter,ui-sans-serif,system-ui,sans-serif;-webkit-font-smoothing:antialiased;overflow-x:hidden}
-.amb{position:fixed;inset:0;overflow:hidden;pointer-events:none;z-index:0}
-.grid{position:absolute;inset:-32px;background-image:radial-gradient(130% 95% at 50% 32px,transparent 35%,var(--bg) 100%),linear-gradient(rgb(var(--tint)/var(--line)) 1px,transparent 1px),linear-gradient(90deg,rgb(var(--tint)/var(--line)) 1px,transparent 1px);background-size:100% 100%,32px 32px,32px 32px;animation:drift 48s linear infinite}
-.breath{position:absolute;inset:0;background:radial-gradient(45vw 35vh at 0% 0%,rgb(var(--tint)/var(--breath)),transparent 70%),radial-gradient(45vw 35vh at 100% 0%,rgb(var(--tint)/var(--breath)),transparent 70%);animation:breathe 9s ease-in-out infinite}
-@keyframes drift{to{transform:translate3d(32px,32px,0)}}@keyframes breathe{0%,100%{opacity:.35}50%{opacity:1}}
-.page{position:relative;z-index:1;min-height:100%;display:flex;flex-direction:column}
-header{display:flex;align-items:center;gap:.6rem;padding:18px 20px;font:600 1.0625rem/1 "Space Grotesk",sans-serif;letter-spacing:-.01em}
-header img{width:28px;height:28px}
-main{flex:1;width:100%;max-width:34rem;margin:0 auto;padding:6vh 16px 48px;display:flex;flex-direction:column;align-items:center;text-align:center}
-.hero{position:relative;width:132px;height:132px;display:grid;place-items:center;margin-bottom:28px}
-.hero:before{content:"";position:absolute;inset:-24px;border-radius:50%;background:radial-gradient(circle,rgb(var(--tint)/.22),transparent 68%)}
-.hero img{position:relative;width:112px;height:112px;filter:drop-shadow(0 10px 30px rgb(var(--tint)/.25))}
-.tape{position:absolute;left:-46px;right:-46px;bottom:6px;height:22px;transform:rotate(-8deg);border-radius:3px;box-shadow:0 6px 18px -6px rgb(0 0 0/.5);background:repeating-linear-gradient(-45deg,var(--accent) 0 14px,#111 14px 28px);background-size:39.6px 100%;animation:tape 1.6s linear infinite}
-@keyframes tape{to{background-position:39.6px 0}}
-.eyebrow{display:inline-flex;align-items:center;gap:.5rem;padding:.3rem .7rem;border:1px solid rgb(var(--tint)/.35);border-radius:999px;background:rgb(var(--tint)/.08);color:var(--accent-text);font-size:.72rem;font-weight:600;letter-spacing:.14em;text-transform:uppercase}
-.dot{width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 0 rgb(var(--tint)/.6);animation:pulse 2s ease-out infinite}
-@keyframes pulse{70%{box-shadow:0 0 0 8px rgb(var(--tint)/0)}100%{box-shadow:0 0 0 0 rgb(var(--tint)/0)}}
-h1{margin:16px 0 0;font:700 clamp(1.9rem,6vw,2.6rem)/1.1 "Space Grotesk",sans-serif;letter-spacing:-.025em;text-wrap:balance}
-.lead{margin:12px 0 0;color:var(--muted);font-size:1.0625rem}
-.note{margin:14px 0 0;color:var(--accent-text);font-size:.9rem}
-.card{width:100%;margin-top:40px;padding:22px;border:1px solid var(--border);border-radius:16px;background:color-mix(in srgb,var(--card) 80%,transparent);backdrop-filter:blur(8px);text-align:left;box-shadow:0 12px 40px -16px rgb(var(--tint)/.18)}
-.card h2{margin:0 0 4px;font:600 1.05rem/1.3 "Space Grotesk",sans-serif}.card .sub{margin:0 0 16px;color:var(--muted);font-size:.875rem}
-label{display:block;margin-bottom:6px;color:var(--muted);font-size:.8125rem;font-weight:500}
+.wash{position:absolute;left:0;right:0;top:0;height:38vh;min-height:240px;pointer-events:none;z-index:0;
+-webkit-mask-image:linear-gradient(to bottom,#000 0%,rgb(0 0 0/.55) 40%,transparent 100%);mask-image:linear-gradient(to bottom,#000 0%,rgb(0 0 0/.55) 40%,transparent 100%)}
+.wash .tone{position:absolute;inset:0;background:linear-gradient(90deg,#3a5379 0%,#304e52 30%,#274d41 50%,#3a4062 72%,#4c406e 100%)}
+.wash svg{position:absolute;inset:0;width:100%;height:100%;opacity:.3;mix-blend-mode:screen}
+main{position:relative;z-index:1;width:100%;max-width:26rem;margin:0 auto;padding:18vh 20px 64px;display:flex;flex-direction:column;align-items:center;text-align:center}
+.mark{width:56px;height:56px;display:block}
+h1{margin:36px 0 0;font:600 clamp(1.6rem,4.6vw,2rem)/1.2 "Space Grotesk",Inter,sans-serif;letter-spacing:-.02em;text-wrap:balance}
+.lead{margin:10px 0 0;color:var(--muted);font-size:1rem}
+.note{margin:12px 0 0;color:var(--muted);font-size:.875rem}
+.card{width:100%;margin-top:48px;padding:24px;border:1px solid var(--line);border-radius:20px;background:var(--card);text-align:left}
+.card h2{margin:0;font:600 1rem/1.3 Inter,sans-serif}.card .sub{margin:4px 0 20px;color:var(--muted);font-size:.875rem}
+.sr{position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 .row{display:flex;gap:8px}
-input{flex:1;min-width:0;height:44px;padding:0 14px;border:1px solid var(--input);border-radius:10px;background:transparent;color:var(--fg);font:inherit;outline:none;transition:border-color .15s,box-shadow .15s}
-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgb(var(--tint)/.2)}
-button,.btn{height:44px;padding:0 16px;border-radius:10px;font:600 .9375rem/1 Inter,sans-serif;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;text-decoration:none;transition:background .15s,border-color .15s,transform .1s}
-button{border:0;background:var(--accent);color:var(--accent-ink)}button:hover{background:var(--accent-hover)}button:active,.btn:active{transform:translateY(1px)}
-.or{display:flex;align-items:center;gap:12px;margin:18px 0;color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:.12em}.or:before,.or:after{content:"";flex:1;height:1px;background:var(--border)}
-.links{display:grid;gap:8px}.btn{width:100%;border:1px solid var(--input);background:transparent;color:var(--fg)}.btn:hover{border-color:var(--accent)}
-#msg{margin:10px 0 0;color:var(--muted);font-size:.85rem}#msg:empty{display:none}
-footer{position:relative;z-index:1;padding:20px;text-align:center;color:var(--muted);font-size:.8rem}
-:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-@media (prefers-reduced-motion:reduce){.grid,.breath,.tape,.dot{animation:none}}`;
+input{flex:1;min-width:0;height:44px;padding:0 14px;border:1px solid var(--field);border-radius:12px;background:transparent;color:var(--fg);font:inherit;outline:none;transition:border-color .15s}
+input::placeholder{color:#71717a}input:focus{border-color:#ffffff59}
+button,.btn{height:44px;padding:0 18px;border:1px solid var(--field);border-radius:12px;color:var(--fg);font:500 .9375rem/1 Inter,sans-serif;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;text-decoration:none;transition:background .15s,border-color .15s}
+button{background:var(--fill)}button:hover{background:var(--fill-hover);border-color:#ffffff33}
+.btn{width:100%;background:transparent}.btn:hover{background:#ffffff0a;border-color:#ffffff33}
+.or{display:flex;align-items:center;gap:12px;margin:20px 0;color:var(--muted);font-size:.75rem;letter-spacing:.12em}.or:before,.or:after{content:"";flex:1;height:1px;background:var(--line)}
+.links{display:grid;gap:8px}
+#msg{margin:12px 0 0;color:var(--muted);font-size:.85rem}#msg:empty{display:none}
+:focus-visible{outline:2px solid var(--fg);outline-offset:2px}
+@media (max-width:360px){.row{flex-direction:column}}`;
 
-/** The page an outsider sees: Control Scout's own look, the two lines, and a way in for people who already have an
- *  account. */
+/** The grain on the wash: coarse, stepped noise (a matte, chalky speckle rather than a smooth haze), drawn in the page (no image request, nothing the page's CSP has to allow). */
+const GRAIN = `<svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><filter id="grain"><feTurbulence type="fractalNoise" baseFrequency=".62" numOctaves="3" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/><feComponentTransfer><feFuncR type="discrete" tableValues="0 0 .35 .7 1"/><feFuncG type="discrete" tableValues="0 0 .35 .7 1"/><feFuncB type="discrete" tableValues="0 0 .35 .7 1"/></feComponentTransfer></filter><rect width="100%" height="100%" filter="url(#grain)"/></svg>`;
+
+/** The page an outsider sees: the mark in white, the two lines, and a way in for people who already have an account.
+ *  Always dark: near-black, a soft grainy wash across the top, white and grey type; no yellow, glow, tape or grid. */
 export function gatePage(closed: boolean): string {
   const p = authProviders();
   const links = [
     p.controlPoint ? `<a class="btn" href="/api/auth/control-point/start?back=%2F">Sign in with Control Point</a>` : "",
     p.google ? `<a class="btn" href="/api/auth/google/start">Sign in with Google</a>` : "",
   ].filter(Boolean).join("");
-  const email = p.email ? `<form id="email-form" method="post"><label for="email">Email</label><div class="row"><input id="email" name="email" type="email" autocomplete="email" placeholder="you@example.com" required><button type="submit">Send code</button></div></form>
-<form id="code-form" method="post" hidden><label for="code">6-digit code</label><div class="row"><input id="code" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" required><button type="submit">Sign in</button></div></form>
+  const email = p.email ? `<form id="email-form" method="post"><label class="sr" for="email">Email</label><div class="row"><input id="email" name="email" type="email" autocomplete="email" placeholder="you@example.com" required><button type="submit">Send code</button></div></form>
+<form id="code-form" method="post" hidden><label class="sr" for="code">6-digit code</label><div class="row"><input id="code" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6-digit code" required><button type="submit">Sign in</button></div></form>
 <p id="msg" role="status"></p>` : "";
-  const signIn = email || links ? `<section class="card" aria-labelledby="signin"><h2 id="signin">Have an account?</h2><p class="sub">Sign in to keep using Control Scout.</p>${email}${email && links ? `<div class="or">or</div>` : ""}${links ? `<div class="links">${links}</div>` : ""}</section>` : "";
+  const signIn = email || links ? `<section class="card" aria-labelledby="signin"><h2 id="signin">Have an account?</h2><p class="sub">Sign in to keep using Control Scout.</p>${email}${email && links ? `<div class="or">OR</div>` : ""}${links ? `<div class="links">${links}</div>` : ""}</section>` : "";
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex">
 <meta name="theme-color" content="#0a0a0b"><title>${esc(SHUTDOWN_HEADLINE)}</title><link rel="icon" href="/favicon.ico">
 <link rel="preload" href="/fonts/SpaceGrotesk.woff2" as="font" type="font/woff2" crossorigin><link rel="preload" href="/fonts/Inter.woff2" as="font" type="font/woff2" crossorigin>
-<script>${THEME_SCRIPT}</script><style>${GATE_STYLE}</style></head>
-<body><div class="amb" aria-hidden="true"><div class="grid"></div><div class="breath"></div></div>
-<div class="page"><header><img src="/logo-56.webp" alt="" width="28" height="28">Control Scout</header>
-<main><div class="hero" aria-hidden="true"><img src="/mark.webp" alt="" width="112" height="112"><div class="tape"></div></div>
-<span class="eyebrow"><span class="dot"></span>${esc(SHUTDOWN_EYEBROW)}</span>
+<style>${GATE_STYLE}</style></head>
+<body><div class="wash" aria-hidden="true"><div class="tone"></div>${GRAIN}</div>
+<main><img class="mark" src="/mark-white.webp" alt="Control Scout" width="56" height="56">
 <h1>${esc(SHUTDOWN_HEADLINE)}</h1><p class="lead">${esc(SHUTDOWN_BACK_SOON)}</p>${closed ? `<p class="note">${esc(SIGNUPS_CLOSED_MESSAGE)}</p>` : ""}
-${signIn}</main><footer>controlscout.org</footer></div>${email ? `<script>${GATE_SCRIPT}</script>` : ""}</body></html>`;
+${signIn}</main>${email ? `<script>${GATE_SCRIPT}</script>` : ""}</body></html>`;
 }
 
 function shut(req: Request, res: Response): void {
