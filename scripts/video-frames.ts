@@ -309,13 +309,23 @@ async function barBand(page: Page): Promise<{ top: number; bottom: number } | nu
   return page.evaluate(`(${overlayBand.toString()})(window.__frame.data, window.__frame.width, window.__frame.height)`) as Promise<{ top: number; bottom: number } | null>;
 }
 
+/** The most one timer box read may take (boxTimer). */
+const BOX_LIMIT_S = 20;
 /** The timer read in its own box in the bar found in the frame (overlayBand, timerDigits): only the digits' rows, so
  *  neither the icon under them nor the bar round them is read (boxSeconds). Its crop is "box" (found again on each
  *  frame); "unread": a box whose digits didn't read. */
 async function boxTimer(page: Page, band: { top: number; bottom: number }): Promise<{ where: "bottom" | "plain"; left: number; auto: boolean; crop: "box" } | "unread" | null> {
   const clip = await page.evaluate(`(${timerDigits.toString()})(window.__frame.data, window.__frame.width, window.__frame.height, ${JSON.stringify(band)})`) as { x: number; y: number; width: number; height: number } | null;
   if (!clip) return null;
-  const r = boxSeconds((await digits.recognize(await page.screenshot({ clip }))).data.text, season <= 2022);
+  // Bounded on its own (BOX_LIMIT_S), well inside the frame read's READ_LIMIT_S: a box read that stalls the digit
+  // worker replaces the workers (waited on, so the next crop reads on the new ones) and counts as a box that didn't read.
+  const shot = await page.screenshot({ clip });
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const text = await Promise.race([
+    digits.recognize(shot).then((o) => o.data.text),
+    new Promise<null>((ok) => { timer = setTimeout(() => { console.error(`a timer box read hung over ${BOX_LIMIT_S} s`); void renewOcr().then(() => ok(null)); }, BOX_LIMIT_S * 1000); }),
+  ]).finally(() => clearTimeout(timer));
+  const r = text == null ? null : boxSeconds(text, season <= 2022);
   return r ? { ...r, auto: false, crop: "box" } : "unread";
 }
 
