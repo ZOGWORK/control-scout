@@ -5,7 +5,7 @@
 // scripts/autopilot-merge-check.ts (the same check on any PR, by hand).
 import { EDGE_S, playableStarts, type FrameTiming } from "../../server/data/frameTimings.js";
 import type { ClipCheck } from "../../server/data/clipChecks.js";
-import { OPEN_LEADS } from "./videoFrames.js";
+import { OPEN_LEADS, OPEN_LEADS_TEXT, leadText } from "./videoFrames.js";
 import { rowKey, type Keyed } from "./autopilotRows.js";
 import { clipCheckProblems } from "./autopilotClips.js";
 
@@ -83,7 +83,7 @@ export function frameMergeProblems(season: number, next: FrameTiming[], base: Fr
     if (was) for (const l of Object.keys(r.starts)) if (was.starts[l] == null && was.missing?.[l] == null && was.review?.[l] == null) out.push(`${key}: new start ${l} wasn't missing or for review`);
     for (const [l, t] of Object.entries(r.starts)) {
       const o = r.opens?.[l];
-      if (o != null && !OPEN_LEADS.includes(t - o)) out.push(`${key}: ${l} opens ${t - o} s before its start, not ${OPEN_LEADS.join("/")}`);
+      if (o != null && !OPEN_LEADS.includes(t - o)) out.push(`${key}: ${l} opens ${leadText(t - o)}, not ${OPEN_LEADS_TEXT}`);
     }
     // An edge read far inside the recording proves nothing about what's outside it unless every frame between was clear.
     if (r.opensOn && !r.opensOn.clear && r.opensOn.at > EDGE_S) out.push(`${key}: opening edge read at ${r.opensOn.at} s, beyond ${EDGE_S} s and not clear`);
@@ -101,6 +101,20 @@ export function clipsMergeProblems(next: ClipCheck[], base: ClipCheck[], live: C
   return [...removed(next, base), ...changed(next, base).flatMap((r) => clipCheckProblems(r, liveBy.get(rowKey(r))).map((p) => `${rowKey(r)}: ${p}`))];
 }
 
+/** Loopy's own GitHub account: the only author whose summary counts. The repository is public, so anyone can post a
+ *  comment that looks like a 5/5 summary, even from an account named like it. */
+export const LOOPY_LOGIN = "loopyreviews-bot[bot]";
+/** A PR conversation comment as GitHub's REST API reports it (the fields the gate reads). */
+export interface IssueComment { user: { login: string | null; type: string | null } | null; body: string | null; updated_at: string }
+/** Loopy's latest summary among a PR's comments: only by its bot account, carrying its summary mark; of those the
+ *  last updated (it edits its summary in place). null: none. */
+export function loopySummary(comments: IssueComment[]): string | null {
+  const mine = comments.filter((c) => c.user?.login === LOOPY_LOGIN && c.user.type === "Bot" && (c.body ?? "").includes("loopy:summary"));
+  return mine.sort((a, b) => a.updated_at.localeCompare(b.updated_at)).at(-1)?.body ?? null;
+}
+/** The head Loopy's summary says it last reviewed (a short or full sha); null: none named. */
+export const reviewedSha = (loopy: string | null) => /last reviewed `([0-9a-f]{7,40})`/.exec(loopy ?? "")?.[1] ?? null;
+
 /** A PR's review and checks as GitHub reports them. `loopy`: Loopy's latest summary comment's body. */
 export interface PrState { head: string; loopy: string | null; checks: { name: string; state: string }[] }
 
@@ -108,7 +122,7 @@ export interface PrState { head: string; loopy: string | null; checks: { name: s
  *  check (at least MIN_CHECKS) passed. */
 export function readyProblems(pr: PrState): string[] {
   const out: string[] = [];
-  const conf = /Confidence: (\d)\/5/.exec(pr.loopy ?? "")?.[1], sha = /last reviewed `([0-9a-f]{7,40})`/.exec(pr.loopy ?? "")?.[1];
+  const conf = /Confidence: (\d)\/5/.exec(pr.loopy ?? "")?.[1], sha = reviewedSha(pr.loopy);
   if (!pr.loopy) out.push("no Loopy review");
   else {
     if (conf !== "5") out.push(`Loopy ${conf ?? "?"}/5, not 5/5`);

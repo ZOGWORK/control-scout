@@ -1,17 +1,22 @@
 // The clip autopilot's choices (scripts/clip-autopilot.ts), kept apart so they're tested: which queued events a run
 // reads, when an event that gave nothing new is tried again, and what a data PR says (its CHANGELOG entry).
 import { playableStarts } from "../../server/data/frameTimings.js";
-import { rowKey, type Row } from "./autopilotRows.js";
+import { rowKey, type Keyed, type Row } from "./autopilotRows.js";
 
 /** What the runner remembers of each event between runs (by "season/code"): how often it read it with nothing new to
  *  ship, and when it last tried. */
-export interface EventMemory { tries: number; last: string; result: string }
+export interface EventMemory { tries: number; last: string; result: string; waits?: number }
 export type Memory = Record<string, EventMemory>;
 
 /** After a read that gave nothing new, an event waits this long before it's read again; after GIVE_UP such reads it's
  *  left (said in the run's log and the owner console's own reasons) until its recording or matches change. */
 export const RETRY_MS = 3 * 24 * 3600_000;
 export const GIVE_UP = 3;
+/** An event whose good rows waited (they touch an open PR's lines, or didn't fit this run's PRs) is read again after
+ *  WAIT_MS, doubling with each wait in a row up to RETRY_MS: the PR in its way usually merges within hours, and the
+ *  waits never count toward GIVE_UP (its rows were good). */
+export const WAIT_MS = 6 * 3600_000;
+export const waitBackoff = (waits: number) => Math.min(RETRY_MS, WAIT_MS * 2 ** Math.max(0, waits - 1));
 
 export interface Queued { season: number; code: string; name: string; frames: { state: string; due: number; rank?: number } }
 
@@ -23,8 +28,9 @@ export function pickEvents(queue: Queued[], inPr: Set<string>, memory: Memory, m
   for (const q of queued) {
     const key = `${q.season}/${q.code}`, m = memory[key];
     if (inPr.has(key)) skipped.push({ event: key, why: "read, in an open autopilot PR" });
+    else if (m?.waits && now - Date.parse(m.last) < waitBackoff(m.waits)) skipped.push({ event: key, why: `its rows waited ${m.waits} time${m.waits === 1 ? "" : "s"} (${m.result}): read again after ${new Date(Date.parse(m.last) + waitBackoff(m.waits)).toISOString().slice(0, 16)}Z` });
     else if (m && m.tries >= GIVE_UP) skipped.push({ event: key, why: `read ${m.tries} times with nothing new (${m.result}): left until its recording or matches change` });
-    else if (m && now - Date.parse(m.last) < RETRY_MS) skipped.push({ event: key, why: `read ${m.last.slice(0, 10)} with nothing new (${m.result}): tried again after ${new Date(Date.parse(m.last) + RETRY_MS).toISOString().slice(0, 10)}` });
+    else if (m && !m.waits && now - Date.parse(m.last) < RETRY_MS) skipped.push({ event: key, why: `read ${m.last.slice(0, 10)} with nothing new (${m.result}): tried again after ${new Date(Date.parse(m.last) + RETRY_MS).toISOString().slice(0, 10)}` });
     else if (picked.length >= max) skipped.push({ event: key, why: "next run" });
     else picked.push(q);
   }
@@ -35,6 +41,41 @@ export function pickEvents(queue: Queued[], inPr: Set<string>, memory: Memory, m
 export function remember(memory: Memory, key: string, shipped: number, result: string, now = Date.now()): void {
   if (shipped) { delete memory[key]; return; }
   memory[key] = { tries: (memory[key]?.tries ?? 0) + 1, last: new Date(now).toISOString(), result };
+}
+/** An event's memory after a read whose good rows all waited: one more wait in a row, its tries left as they were. */
+export function rememberWait(memory: Memory, key: string, result: string, now = Date.now()): void {
+  const m = memory[key];
+  memory[key] = { tries: m?.tries ?? 0, last: new Date(now).toISOString(), result, waits: (m?.waits ?? 0) + 1 };
+}
+
+/** What became of one event's read this run, and so what the runner remembers of it (remember / rememberWait / nothing).
+ *  `rows`: its good rows; `opened`: those a PR opened with; `waiting`: those that wait (prChunks later); `tooBig`: those
+ *  no PR Loopy can review holds (the owner's). */
+export type Outcome = "shipped" | "waits" | "open failed" | "read failed" | "too big" | "nothing new";
+export function readOutcome(o: { rows: number; opened: number; waiting: number; tooBig: number; readFailed: boolean }): Outcome {
+  if (o.opened) return "shipped";
+  if (o.waiting) return "waits";
+  if (o.rows && o.tooBig >= o.rows) return "too big";
+  if (o.rows) return "open failed";
+  return o.readFailed ? "read failed" : "nothing new";
+}
+
+/** Why an open autopilot PR is rebuilt on main (none: it's left as it is; never to renumber): it conflicts; main
+ *  changed or removed one of its rows since it branched (`baseRows`: its file at the merge base, [] where it didn't
+ *  exist); or it still carries a release file (`changedFiles`: its files changed since the merge base). */
+export function needsRebuild(o: { mergeable: string; want: Set<string>; baseRows: Keyed[]; mainRows: Keyed[]; changedFiles: string[]; releaseFiles: string[] }): string[] {
+  const was = new Map(o.baseRows.map((r) => [rowKey(r), JSON.stringify(r)])), now = new Map(o.mainRows.map((r) => [rowKey(r), JSON.stringify(r)]));
+  const mainMoved = [...o.want].some((k) => was.get(k) !== now.get(k));
+  const release = o.changedFiles.some((f) => o.releaseFiles.includes(f.trim()));
+  return [o.mergeable === "CONFLICTING" && "conflict", mainMoved && "main changed its rows", release && "release dropped"].filter((x): x is string => !!x);
+}
+
+/** Whether to ask Loopy to review a PR's `head`: not while Loopy's latest summary already names it (`reviewed`), and at
+ *  most once a day for the same head (`asked`: the last ask). A new head (a rebuild) asks at once. */
+export const ASK_EVERY_MS = 24 * 3600_000;
+export function askDue(asked: { head: string; at: string } | undefined, head: string, reviewed: string | null, now = Date.now()): boolean {
+  if (reviewed && head.startsWith(reviewed)) return false;
+  return !asked || asked.head !== head || now - Date.parse(asked.at) >= ASK_EVERY_MS;
 }
 
 /** A memory from before a change to the event (its recording or matches) is forgotten: the queue only queues it again
@@ -67,7 +108,7 @@ export function changelogEntry(season: number, d: ReturnType<typeof rowsDelta>, 
     : [`[fixes] ${n(d.recordings, "more recording")} checked against their frames`, "[fixes] Each missing match says what the video shows", "[fixes] No clip changes"];
   return [
     `## VERSION — ${date}`, "", lead, "", "### Highlights", ...highlights.map((h) => `- ${h}`), "", "### Fixed",
-    `- Videos: frame-read rows for ${d.events.join(", ")} (${season}): ${n(d.clips, "clip")} added, ${n(d.reasons, "match", "matches")} given a reason from the frames. Every start passed the autopilot's checks (opening frame at 20/12/5/2/0 s naming the match, plausible, no live clip pulled without a frame naming another match). (\`server/data/frameTimings/${season}.ts\`) (#PR)`,
+    `- Videos: frame-read rows for ${d.events.join(", ")} (${season}): ${n(d.clips, "clip")} added, ${n(d.reasons, "match", "matches")} given a reason from the frames. Every start passed the autopilot's checks (opening frame 20/12/5/2/0 s before or 2/4 s after the start, naming the match, plausible, no live clip pulled without a frame naming another match). (\`server/data/frameTimings/${season}.ts\`) (#PR)`,
     "",
   ].join("\n");
 }
