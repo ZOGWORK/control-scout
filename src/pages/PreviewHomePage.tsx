@@ -3,7 +3,8 @@
 // (src/shared/routes.ts isBareRoute), so nothing yellow from the old nav shows around it.
 //   - Search is the centre of the page: the biggest thing on it, with three fixed examples under it.
 //   - Below it, three cards of the same weight: Events live now, Top teams, Your team.
-//   - Near-black, a grainy wash across the top (slate blue, a very dark green, muted purple), the mark in white.
+//   - A top bar (mark, the main places, the app's own tools), then near-black with a short, smooth tint under it
+//     (navy, blue-teal, soft indigo; the faintest grain). The mark is white.
 //   - One accent, mint, scoped to this page (data-theme-next): the primary button, the live dot and progress, the
 //     search focus, the #1 rank, links on hover. Numbers and names are white, labels grey; red and blue stay alliances.
 // No headline of any kind (no H1), no slogan, no globe. Every number comes from the same APIs the live Home uses.
@@ -24,6 +25,10 @@ import { SearchBox, hitHref, searchPagePick } from "../components/search/SearchB
 import { addRecentSearch } from "../components/search/discover";
 import { nextMatch } from "../components/home/HomeSections";
 import { myTeamsOf } from "../lib/myTeams";
+import { ClockWeather } from "../components/layout/TopBarExtras";
+import { BugReportButton } from "../components/layout/BugReport";
+import { ThemeToggle } from "../components/layout/ThemeToggle";
+import { InboxBell } from "../components/layout/InboxBell";
 import { cn } from "../components/cn";
 
 /** How many example searches show under the field. */
@@ -98,15 +103,12 @@ export default function PreviewHomePage() {
   const team = myTeamsOf(user).teams[0]?.teamNumber ?? state.myTeam ?? null;
   return (
     <div data-sample-home data-theme-next style={THEME_NEXT} className="relative min-h-dvh overflow-x-clip bg-[#0a0a0b] text-text-base">
+      <TopNav />
+      <div className="relative">
       <Wash />
       <div className="relative z-10 mx-auto flex max-w-[72rem] flex-col px-5 pb-16 sm:px-8">
-        {/* A slim bar: the mark in white and the name. Nothing else competes with search. */}
-        <Link to="/" className="flex min-h-11 items-center gap-2.5 self-start pt-5 font-display text-[1.0625rem] font-semibold tracking-tight">
-          <img src="/mark-white.webp" alt="" width={28} height={28} className="size-7" /> Control Scout
-        </Link>
-
         {/* Search, alone in the middle: the biggest thing on the page. */}
-        <section aria-label="Search" className="mx-auto mt-[14vh] w-full max-w-[44rem] max-sm:mt-[9vh]">
+        <section aria-label="Search" className="mx-auto mt-[11vh] w-full max-w-[44rem] max-sm:mt-[7vh]">
           <SearchBox
             inputRef={searchRef} onEscape={search.restoreFocus} hint={SEARCH_HINT} initialQuery={query} discover size="lg"
             label="Search teams, events and matches"
@@ -135,26 +137,63 @@ export default function PreviewHomePage() {
 
         <p className="mt-10 text-center text-[12px] text-text-muted">{HOME_ABOUT}</p>
       </div>
+      </div>
     </div>
   );
 }
 
-/** The wash across the top: one soft gradient, close in tone, with a chalky grain; gone by a third of the way down. */
-function Wash() {
-  const fade = "linear-gradient(to bottom,#000 0%,rgb(0 0 0/.55) 40%,transparent 100%)";
+/** The main places, in the bar. Home is this page. */
+export const NAV = [
+  { to: "/", label: "Home" },
+  { to: "/events", label: "Events" },
+  { to: "/teams", label: "Teams" },
+  { to: "/scout", label: "Scout" },
+  { to: "/predict", label: "Predict" },
+] as const;
+
+/** The top bar: an opaque near-black strip with a hairline under it. The mark and name left; the main places; then
+ *  the app's own tools (clock · weather, Report a bug, light/dark, the inbox), the same components the app's top bar
+ *  uses. On a phone the places drop to a second row that scrolls sideways. */
+function TopNav() {
   return (
-    <div aria-hidden data-wash className="pointer-events-none absolute inset-x-0 top-0 h-[38vh] min-h-[240px]" style={{ maskImage: fade, WebkitMaskImage: fade }}>
-      <div className="absolute inset-0 bg-[linear-gradient(90deg,#3a5379_0%,#304e52_30%,#274d41_50%,#3a4062_72%,#4c406e_100%)]" />
-      <svg className="absolute inset-0 size-full opacity-30 mix-blend-screen" xmlns="http://www.w3.org/2000/svg">
-        <filter id="sample-grain">
-          <feTurbulence type="fractalNoise" baseFrequency=".62" numOctaves={3} stitchTiles="stitch" />
-          <feColorMatrix type="saturate" values="0" />
-          <feComponentTransfer>
-            <feFuncR type="discrete" tableValues="0 0 .35 .7 1" />
-            <feFuncG type="discrete" tableValues="0 0 .35 .7 1" />
-            <feFuncB type="discrete" tableValues="0 0 .35 .7 1" />
-          </feComponentTransfer>
-        </filter>
+    <header data-top-nav className="relative z-20 border-b border-white/[0.07] bg-[#0a0a0b]">
+      <div className="mx-auto flex max-w-[72rem] flex-wrap items-center gap-x-6 px-5 sm:px-8">
+        <Link to="/" aria-label="Control Scout home" className="flex h-14 shrink-0 items-center gap-2.5 font-display text-[1.0625rem] font-semibold tracking-tight">
+          <img src="/mark-white.webp" alt="" width={28} height={28} className="size-7" /> Control Scout
+        </Link>
+        <nav aria-label="Main" className="flex gap-6 max-md:order-last max-md:-mx-5 max-md:w-[calc(100%+2.5rem)] max-md:overflow-x-auto max-md:border-t max-md:border-white/[0.06] max-md:px-5 md:ml-auto">
+          {NAV.map((n) => {
+            const here = n.to === "/";
+            return (
+              <Link
+                key={n.to} to={n.to} aria-current={here ? "page" : undefined}
+                className={cn("flex h-11 shrink-0 items-center text-sm font-semibold transition-colors md:h-14", here ? "text-text-base" : "text-text-muted hover:text-text-base")}
+              >{n.label}</Link>
+            );
+          })}
+        </nav>
+        <div data-top-tools className="ml-auto flex shrink-0 items-center gap-1 md:ml-0 md:gap-2">
+          <span className="max-lg:hidden"><ClockWeather /></span>
+          <BugReportButton />
+          <ThemeToggle />
+          <InboxBell />
+        </div>
+      </div>
+    </header>
+  );
+}
+
+/** The dashboard's wash, under the top bar: quieter than the shutdown page's. Short (gone about a fifth of the way
+ *  down, above the search), three neighbouring hues (navy, blue-teal, soft indigo) blended as soft overlapping glows so
+ *  it reads as one tint rather than bands, and only the faintest fine grain. A working page should feel calm; the
+ *  colour only sets the tone. */
+function Wash() {
+  const fade = "linear-gradient(to bottom,#000 0%,rgb(0 0 0/.6) 45%,transparent 100%)";
+  return (
+    <div aria-hidden data-wash className="pointer-events-none absolute inset-x-0 top-0 h-[22vh] min-h-[150px] max-h-[240px] overflow-hidden" style={{ maskImage: fade, WebkitMaskImage: fade }}>
+      <div className="absolute -inset-x-[10%] -top-1/2 bottom-0 opacity-90 blur-2xl bg-[radial-gradient(45%_90%_at_15%_0%,#33558c_0%,transparent_70%),radial-gradient(40%_85%_at_50%_0%,#2a6070_0%,transparent_70%),radial-gradient(45%_90%_at_85%_0%,#47488c_0%,transparent_70%)]" />
+      <svg data-grain className="absolute inset-0 size-full opacity-[0.07] mix-blend-overlay" xmlns="http://www.w3.org/2000/svg">
+        <filter id="sample-grain"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves={2} stitchTiles="stitch" /><feColorMatrix type="saturate" values="0" /></filter>
         <rect width="100%" height="100%" filter="url(#sample-grain)" />
       </svg>
     </div>
