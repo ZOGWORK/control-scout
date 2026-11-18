@@ -62,6 +62,37 @@ export function prShard(p: { season: number; rows: string[]; file?: string }, n:
   return events.length ? shardOf(events[0], n) : 0;
 }
 
+/** A computer with no credentials (no gh, no VM key) that reads one shard for the computer that has them (--lanes
+ *  "K=user@host,…" there): that one sends it a job (a snapshot and the events to read), collects what it read, and
+ *  opens the PRs itself. Each lane's shard and ssh address, or why the list isn't one. */
+export interface Lane { k: number; host: string }
+export function parseLanes(s: string | undefined, shard: { k: number; n: number }): Lane[] | string {
+  if (!s) return [];
+  const lanes: Lane[] = [];
+  for (const part of s.split(",")) {
+    const m = /^(\d+)=([\w.-]+@[\w.-]+)$/.exec(part.trim());
+    if (!m) return `"${part}": not K=user@host`;
+    const k = Number(m[1]);
+    if (k >= shard.n || k === shard.k || lanes.some((l) => l.k === k)) return `shard ${k}: not one of the ${shard.n} other than this computer's own (${shard.k}), or given twice`;
+    lanes.push({ k, host: m[2] });
+  }
+  return lanes;
+}
+/** A lane's state (its .data/lane/state.json): idle (or none), queued (a job sent, not started), running, done or
+ *  failed (its results to collect). */
+export interface LaneState { state: "idle" | "queued" | "running" | "done" | "failed"; id?: string; at?: string; why?: string }
+/** A job sent but not started within this long: the lane is started again. */
+export const LANE_KICK_MS = 3600_000;
+/** What the coordinator does with a lane this run, from its state file's text ("" when it has none). */
+export function laneStep(text: string, now = Date.now()): { do: "collect" | "dispatch" | "wait" | "kick"; state: LaneState } {
+  let state: LaneState;
+  try { state = text.trim() ? JSON.parse(text) : { state: "idle" }; } catch { return { do: "wait", state: { state: "failed", why: `its state file isn't JSON: ${text.trim().slice(0, 80)}` } }; }
+  if ((state.state === "done" || state.state === "failed") && state.id) return { do: "collect", state };
+  if (state.state === "queued") return { do: state.at && now - Date.parse(state.at) > LANE_KICK_MS ? "kick" : "wait", state };
+  if (state.state === "running") return { do: "wait", state };
+  return { do: "dispatch", state };
+}
+
 /** An event's memory after a read: shipped rows clear it; nothing new counts a try. */
 export function remember(memory: Memory, key: string, shipped: number, result: string, now = Date.now()): void {
   if (shipped) { delete memory[key]; return; }
