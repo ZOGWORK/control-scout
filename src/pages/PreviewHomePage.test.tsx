@@ -150,24 +150,7 @@ describe("Sample home", () => {
     expect(rows[0].textContent).toContain("Sat 21");
     expect(screen.getByRole("link", { name: /All events/ }).getAttribute("href")).toBe("/weekend");
     expect(dayChip("2026-11-22")).toBe("Sun 22");
-    expect(dayChip("2026-11-22", "2026-11-22")).toBe("Sun 22");
-    // A Friday–Saturday event under a Saturday–Sunday heading says both days, not just "Fri 20".
-    expect(dayChip("2026-11-20", "2026-11-21")).toBe("Fri 20–21");
-    expect(dayChip("2026-10-30", "2026-11-01")).toBe("Fri 30–Sun 1");
     expect(dayChip(null)).toBeNull();
-  });
-
-  it("with a team but no schedule, keeps the next-match block's two lines", () => {
-    personal = { user: null, state: st(4215) };
-    data = {
-      "/api/teams/4215/matches": { matches: [] },
-      "/api/teams-summary": { teams: [{ team: 4215, name: "Hypnotic Robotics", place: "Oradell, NJ, USA", nextEvent: null }] },
-    };
-    const { container } = mount();
-    const next = container.querySelector("[data-team-next]")!;
-    expect(next.children).toHaveLength(2);
-    expect(next.children[0].textContent).toBe("Next match");
-    expect(next.children[1].textContent).toBe("No match schedule published yet");
   });
 
   it("puts the season in a stat row, each number a link named with its label", () => {

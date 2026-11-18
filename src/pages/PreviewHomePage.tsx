@@ -47,18 +47,12 @@ export function fixedExamples(pool: readonly HomeSuggestion[] = HOME_SUGGESTIONS
   return out;
 }
 
-/** An event's days as a date chip, read in UTC like the calendar's dates: "Sat 22" for one day, "Fri 20–21" for an
- *  event that spans days (so a Friday start under a Saturday–Sunday heading reads as what it is), "Fri 30–Sat 1"
- *  across a month's end. Null without a start date. */
-export function dayChip(start: string | null, end: string | null = null): string | null {
-  const at = (s: string | null) => { const d = s ? new Date(`${s.slice(0, 10)}T00:00:00Z`) : null; return d && !Number.isNaN(d.getTime()) ? d : null; };
-  const a = at(start);
-  if (!a) return null;
-  const wd = (d: Date) => d.toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" });
-  const first = `${wd(a)} ${a.getUTCDate()}`;
-  const b = at(end);
-  if (!b || b.getTime() <= a.getTime()) return first;
-  return b.getUTCMonth() === a.getUTCMonth() ? `${first}–${b.getUTCDate()}` : `${first}–${wd(b)} ${b.getUTCDate()}`;
+/** An event's first day as a date chip ("Sat 22"), read in UTC like the calendar's dates; null without a date. */
+export function dayChip(start: string | null): string | null {
+  if (!start) return null;
+  const d = new Date(`${start.slice(0, 10)}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) return null;
+  return `${d.toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" })} ${d.getUTCDate()}`;
 }
 
 const fmt = (n: number) => n.toLocaleString("en-US");
@@ -160,15 +154,10 @@ function TeamCard({ team, season }: { team: number; season: number }) {
               </span>
             )}
           </div>
+        ) : !sched.data ? (
+          <span className="text-text-muted">{sched.error ? "The schedule couldn’t load." : "Checking the schedule…"}</span>
         ) : (
-          // Every state keeps the same two lines as a scheduled match, so the card never shrinks below the cards under it.
-          <span data-team-next className="block min-w-0">
-            <span className="block text-text-muted">Next match</span>
-            <span className="block font-medium text-text-base">
-              {!sched.data ? (sched.error ? "The schedule couldn’t load." : "Checking the schedule…")
-                : `No match schedule published yet${t?.nextEvent ? ` · next event: ${t.nextEvent.name}` : ""}`}
-            </span>
-          </span>
+          <span className="text-text-muted">No match schedule published yet.{t?.nextEvent ? ` Next event: ${t.nextEvent.name}.` : ""}</span>
         )}
       </div>
     </Card>
@@ -218,11 +207,11 @@ function WeekendCard() {
 }
 
 function WeekendRow({ e }: { e: WeekendEvent }) {
-  const day = dayChip(e.start, e.end);
+  const day = dayChip(e.start);
   return (
     <li data-weekend-event>
       <Link to={e.href} className="group flex min-h-8 items-center gap-3 py-0.5 text-sm pointer-coarse:min-h-11">
-        <span className="min-w-14 shrink-0 whitespace-nowrap rounded-md border border-line bg-text-base/[0.04] px-1.5 py-0.5 text-center text-[12px] font-medium tabular-nums text-text-base">{day ?? "TBA"}</span>
+        <span className="w-14 shrink-0 rounded-md border border-line bg-text-base/[0.04] py-0.5 text-center text-[12px] font-medium tabular-nums text-text-base">{day ?? "TBA"}</span>
         <span className="min-w-0 flex-1 truncate font-medium text-text-base group-hover:underline" title={e.name}>{e.name}</span>
         {e.place && <span className="max-w-[40%] shrink-0 truncate text-text-muted max-sm:hidden">{e.place}</span>}
       </Link>
