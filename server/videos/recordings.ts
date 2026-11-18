@@ -17,7 +17,7 @@ import { env } from "../env.js";
 import { fetchFromApi, fetchWatchPage, type WatchPageFacts } from "./youtube.js";
 import { youtubeId } from "../../src/shared/personal.js";
 import { countryOf } from "../../src/shared/countries.js";
-import { linkAiredOff, officialRecordingIds, seasonOfficial } from "./officialVideos.js";
+import { linkAiredOff, linkTooShort, officialRecordingIds, seasonOfficial } from "./officialVideos.js";
 import { checkedTo } from "../data/checkedTimings.js";
 import { frameOpen, frameStart, hasFrames } from "../data/frameTimings.js";
 import { clipPulled } from "../data/clipChecks.js";
@@ -107,14 +107,15 @@ function seasonData(season: number, now = Date.now()) {
          WHERE b.season = ? AND e.livestream = b.url ORDER BY b.code, b.start`, [season]),
     ]);
     // FIRST's link (or its short link's video) is the event's video only when YouTube's broadcast date fits the event:
-    // one broadcast on another date is another event's stream or a test (linkAiredOff), and is left out.
+    // one broadcast on another date is another event's stream or a test (linkAiredOff), and is left out. So is a
+    // short upload that was never broadcast, a clip that can't hold the meet (linkTooShort).
     const linkIds = [...new Set([...links.map((l) => firstVideoId(l.livestream)), ...short.map((l) => String(l.video_id))].filter((x): x is string => !!x))];
-    const aired = new Map<string, string | null>();
+    const aired = new Map<string, { start: string | null; live: number | null; duration: number | null }>();
     for (let i = 0; i < linkIds.length; i += 200) {
       const part = linkIds.slice(i, i + 200);
-      for (const r of await all<{ video_id: string; start: string | null }>(`SELECT video_id, start FROM video_meta WHERE video_id IN (${part.map(() => "?").join(",")})`, part)) aired.set(String(r.video_id), r.start ?? null);
+      for (const r of await all<{ video_id: string; start: string | null; live: number | null; duration: number | null }>(`SELECT video_id, start, live, duration FROM video_meta WHERE video_id IN (${part.map(() => "?").join(",")})`, part)) aired.set(String(r.video_id), { start: r.start ?? null, live: r.live == null ? null : Number(r.live), duration: r.duration == null ? null : Number(r.duration) });
     }
-    const fits = (code: string, id: string, e: { start: string; end: string | null; timezone: string | null }) => !linkAiredOff({ code, ...e }, aired.get(id));
+    const fits = (code: string, id: string, e: { start: string; end: string | null; timezone: string | null }) => !linkAiredOff({ code, ...e }, aired.get(id)?.start) && !linkTooShort(code, aired.get(id));
     const first = new Map<string, string>();
     for (const l of links) { const id = firstVideoId(l.livestream); if (id && fits(String(l.code), id, l)) first.set(String(l.code), id); }
     for (const l of short) if (fits(String(l.code), String(l.video_id), l)) first.set(String(l.code), String(l.video_id));
@@ -299,10 +300,14 @@ export async function eventRecording(season: number, code: string): Promise<Reco
   return (await seasonRecordings(season)).get(code) ?? null;
 }
 
+/** A clip's mark for a video whose owner turned off playing on other sites: it opens on YouTube (MatchClip.youtubeOnly). */
+export const youtubeOnly = (meta: Pick<VideoMeta, "embeddable"> | null | undefined): { youtubeOnly?: true } => (meta?.embeddable === false ? { youtubeOnly: true } : {});
+
 export const recordingStream = (r: Recording, timezone?: string | null): EventStream => ({
   videoId: r.videoId, streamUrl: embedUrl(r.videoId), ...(r.source !== "owner" ? { source: r.source } : {}),
   // A day at a time: each day's video, named by its weekday at the venue (the broadcast's start).
   // A day with a second video (the awards) names it: "Sunday · Awards".
+  ...(() => { const ids = [r, ...(r.more ?? [])].filter((d) => d.meta?.embeddable === false).map((d) => d.videoId); return ids.length ? { youtubeOnly: ids } : {}; })(),
   ...(r.more?.length ? { days: [r, ...r.more].map((d) => ({ videoId: d.videoId, label: dayLabel(d.meta?.start ?? (d.day ? `${d.day}T12:00:00Z` : null), d.meta?.start ? timezone : "UTC") + (d.part ? ` · ${d.part}` : "") })) } : {}),
 });
 
@@ -381,7 +386,7 @@ export function withClips<M extends Pick<MatchView, "label" | "time" | "startsAt
         let next: number | null = null;
         for (const o of starts.values()) if (o > s && (next == null || o < next)) next = o;
         const end = frameClipEnd(s, next, v.meta?.length ?? null);
-        return { videoId: v.videoId, t, url: watchUrl(v.videoId, t), ...(end > t ? { end } : {}) };
+        return { videoId: v.videoId, t, url: watchUrl(v.videoId, t), ...(end > t ? { end } : {}), ...youtubeOnly(v.meta) };
       }
     }
     return null;
@@ -395,7 +400,7 @@ export function withClips<M extends Pick<MatchView, "label" | "time" | "startsAt
     const slack = gapSlack(timing);
     // Its matches' starts in order: an early clip must be clear of the one before (clearOfPrevious).
     const starts = held.starts.map((s) => (s.startsAt ? Date.parse(s.startsAt) : NaN)).filter(Number.isFinite).sort((a, b) => a - b);
-    return slack == null ? [] : [{ videoId: v.videoId, timing, slack, starts }];
+    return slack == null ? [] : [{ videoId: v.videoId, meta, timing, slack, starts }];
   });
   if (!videos.length && !framed.length) return matches;
   return matches.map((x) => {
@@ -410,7 +415,7 @@ export function withClips<M extends Pick<MatchView, "label" | "time" | "startsAt
       // Its first frame was read and names another match (scripts/clip-checks.ts): never served.
       if (r.code && clipPulled(v.videoId, r.code, x.label)) continue;
       const end = clipEnd(x.startsAt, v.timing, nextStart(v.starts, x.startsAt), now);
-      return { ...x, clip: { videoId: v.videoId, t, url: watchUrl(v.videoId, t), ...(v.slack ? { early: v.slack } : {}), ...(end != null && end > t ? { end } : {}) } };
+      return { ...x, clip: { videoId: v.videoId, t, url: watchUrl(v.videoId, t), ...(v.slack ? { early: v.slack } : {}), ...(end != null && end > t ? { end } : {}), ...youtubeOnly(v.meta) } };
     }
     return x;
   });
