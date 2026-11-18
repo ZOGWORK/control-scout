@@ -1,7 +1,7 @@
 // The pure parts of the frame reader (scripts/video-frames.ts): the overlay's match, the timer's elapsed time, and
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
-import { dataRows, divisionOf, cropOrder, elapsed, flippedClip, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, splitSide, splitZoomCss, type M } from "./videoFrames";
+import { dataRows, divisionOf, cropOrder, elapsed, flippedClip, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, shortClash, splitSide, splitZoomCss, type M } from "./videoFrames";
 
 describe("the frame reader", () => {
   // A 1280 × 720 frame: a grey field, and a score bar from `top` to `bottom` with one alliance's colour each side of the
@@ -507,10 +507,33 @@ describe("whose event an overlay names", () => {
     expect(overlayEvent("24 CANOPY | Collegiate Meet @ 9 AM Qualification 2 of 15 BIOBUZZ", "Collegiate Meet @ 9 AM", 15)).toEqual({ event: "own", phrase: "Q2" });
     expect(overlayEvent("Austin Semi-Area Championship • Qualification 10 of 40", "FiT-Central Semi-Area Championship Austin", 40)).toEqual({ event: "own", phrase: "Q10" });
   });
+  it("tells sibling meets apart by a short token their names differ in", () => {
+    expect(shortClash("FiT-North U-League AM Meet 3", "FiT-North X-League AM Meet 3")).toBe(true);
+    expect(shortClash("FiT-North X-League PM Meet 3", "FiT-North X-League AM Meet 3")).toBe(true);
+    expect(shortClash("Lawson Meet @ 10:30 AM", "Lawson Meet @ 8 AM")).toBe(true);
+    // A short token lost to OCR, or noise beside a name with none, is no clash.
+    expect(shortClash("FiT-North -League AM Meet 3", "FiT-North X-League AM Meet 3")).toBe(false);
+    expect(shortClash("24 CANOPY | Collegiate Meet @ 9 AM", "Collegiate Meet @ 9 AM")).toBe(false);
+    expect(shortClash("ad ! | B= Division Michiana Premier Event -", "Michiana Premier Event - Thomson Division")).toBe(false);
+  });
   it("names no match of this event with another total, and tells a playoff by its name alone", () => {
     expect(overlayEvent("CANOPY | —E— Qualification 2 of 16", "Collegiate Meet @ 9 AM", 15)).toEqual({ event: "other" });
-    // Its name read, a total the db doesn't hold (a schedule changed since) still counts: the name decides.
-    expect(overlayEvent("CANOPY | Collegiate Meet @ 9 AM Qualification 2 of 16", "Collegiate Meet @ 9 AM", 15)).toEqual({ event: "own", phrase: "Q2" });
+    // Its name read beside another total: the total decides. FiT-North's league meets of 2026-01-10 each streamed their
+    // own field, every name but the league letter the same (frames of k1u8I_NLMdM at 740 s, I96iSxbO_TY at 7640 s).
+    expect(overlayEvent("CANOPY | Collegiate Meet @ 9 AM Qualification 2 of 16", "Collegiate Meet @ 9 AM", 15)).toEqual({ event: "other" });
+    expect(overlayEvent("FiT-North U-League AM Meet 3 Qualification 5 of 23", "FiT-North X-League AM Meet 3", 19)).toEqual({ event: "other" });
+    expect(overlayEvent("FiT-North A-League Meet 3 Qualification 2 of 35", "FiT-North X-League AM Meet 3", 19)).toEqual({ event: "other" });
+    // The same frames for their own events.
+    expect(overlayEvent("FiT-North U-League AM Meet 3 Qualification 5 of 23", "FiT-North U-League AM Meet 3", 23)).toEqual({ event: "own", phrase: "Q5" });
+    // A total OCR cut short ("of 2" for 23) tells nothing: a sibling's name, its league letter another's, is no
+    // match of this event's; this event's own name with it is.
+    expect(overlayEvent("FiT-North U-League AM Meet 3 Qualification 5 of 2", "FiT-North X-League AM Meet 3", 23)).toEqual({ event: "other" });
+    expect(overlayEvent("FiT-North X-League AM Meet 3 Qualification 5 of 1", "FiT-North X-League AM Meet 3", 19)).toEqual({ event: "own", phrase: "Q5" });
+    // A full total of this event's still decides over the clash (a misread letter).
+    expect(overlayEvent("FiT-North U-League AM Meet 3 Qualification 5 of 19", "FiT-North X-League AM Meet 3", 19)).toEqual({ event: "own", phrase: "Q5" });
+    // Kansas City's meets of one day, told by their times (frames of d7aikgA0fcA and clFcWK19XOY, 2025).
+    expect(overlayEvent("Lawson Meet @ 10:30 AM Qualification 2 of 1", "Lawson Meet @ 8 AM", 12)).toEqual({ event: "other" });
+    expect(overlayEvent("Lawson Meet @ 8 AM Qualification 1 of 1", "Lawson Meet @ 8 AM", 12)).toEqual({ event: "own", phrase: "Q1" });
     expect(overlayEvent("DIVE Hawaii Championship Playoff Match 3", "Hawaii Championship", 25)).toEqual({ event: "own", phrase: "M3" });
     expect(overlayEvent("DIVE Western Edge Premier Event Playoff Match 3", "Hawaii Championship", 25)).toEqual({ event: "other" });
     // Two matches, neither another event's for sure (a split screen's unread half, or one event's bracket card): the
