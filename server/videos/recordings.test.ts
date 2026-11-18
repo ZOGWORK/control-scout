@@ -22,7 +22,7 @@ const FIRST_ID = "WQUBVjbh-hM", GONE_ID = "SXVDvK3XiOM", UPLOAD_ID = "dQw4w9WgXc
 const pages: Record<string, string> = {
   [FIRST_ID]: `"playabilityStatus":{"status":"OK"},"lengthSeconds":"16541","liveBroadcastDetails":{"isLiveNow":false,"startTimestamp":"${DAY}T12:58:13+00:00","endTimestamp":"${DAY}T17:33:56+00:00"}`,
   [GONE_ID]: `"playabilityStatus":{"status":"ERROR"}`,
-  [UPLOAD_ID]: `"playabilityStatus":{"status":"OK"},"lengthSeconds":"213"`,
+  [UPLOAD_ID]: `"playabilityStatus":{"status":"OK"},"lengthSeconds":"2913"`,
   [GAPPED_ID]: `"playabilityStatus":{"status":"OK"},"lengthSeconds":"30807","liveBroadcastDetails":{"isLiveNow":false,"startTimestamp":"${DAY}T10:00:00+00:00","endTimestamp":"${DAY}T20:12:31+00:00"}`,
   // Left running 7 h after the event, the archive cut 10 min after the last match: 11 h broadcast, 4 h 10 min video.
   [TRIMMED_ID]: `"playabilityStatus":{"status":"OK"},"lengthSeconds":"15000","liveBroadcastDetails":{"isLiveNow":false,"startTimestamp":"${DAY}T12:00:00+00:00","endTimestamp":"${DAY}T23:00:00+00:00"}`,
@@ -198,19 +198,19 @@ describe("event recordings", () => {
 describe("matches read off a recording's own frames", () => {
   it("play from there, for an upload and for a video with a gap the clock can't place", async () => {
     setFrameTimingsForTests([
-      { videoId: UPLOAD_ID, code: "UPLOAD", checked: "2026-11-13", starts: { Q1: 100 } },
+      { videoId: UPLOAD_ID, code: "UPLOAD", checked: "2026-11-13", starts: { Q1: 2813 } },
       { videoId: GAPPED_ID, code: "GAPPED", checked: "2026-11-13", starts: { Q1: 1500 } },
       // Another event's timings on the same video are never this event's: ELSEWHEN's Q1 never moves CLIPS's Q1.
       { videoId: FIRST_ID, code: "ELSEWHEN", checked: "2026-11-13", starts: { Q1: 50 } },
     ]);
     try {
       clearAllCaches();
-      // A 213 s upload: the clip stops at the video's end.
-      expect((await getJson(`/api/events/${S}/UPLOAD`)).matches[0].clip).toEqual({ videoId: UPLOAD_ID, t: 80, url: `https://www.youtube.com/watch?v=${UPLOAD_ID}&t=80s`, end: 213 });
+      // A 2913 s upload (an upload under 45 minutes is a clip, not a recording: linkTooShort): the clip stops at the video's end.
+      expect((await getJson(`/api/events/${S}/UPLOAD`)).matches[0].clip).toEqual({ videoId: UPLOAD_ID, t: 2793, url: `https://www.youtube.com/watch?v=${UPLOAD_ID}&t=2793s`, end: 2913 });
       // Its timer starts at 1500 s: the clip stops at 1710 s, its play over (+160) and its final score up (+50).
       expect((await getJson(`/api/events/${S}/GAPPED`)).matches[0].clip).toMatchObject({ videoId: GAPPED_ID, t: 1480, end: 1710 });
       // A match's own page: the same second.
-      expect((await getJson(`/api/events/${S}/UPLOAD/matches/qual:0:1`)).match.clip.t).toBe(80);
+      expect((await getJson(`/api/events/${S}/UPLOAD/matches/qual:0:1`)).match.clip.t).toBe(2793);
       // The clock's clips elsewhere are untouched.
       expect((await getJson(`/api/events/${S}/CLIPS`)).matches[0].clip.t).toBe(120 - 20);
       const { events } = await getJson(`/api/events?season=${S}`);
