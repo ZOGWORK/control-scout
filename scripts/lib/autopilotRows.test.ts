@@ -1,8 +1,11 @@
 // The clip autopilot's row checks (scripts/lib/autopilotRows.ts): a row the frame reader wrote ships only when it keeps
 // the strict rules against the row live now, and the rows that pass go out applied to main's season file, at most
 // 15 KB a PR.
+import { readdirSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { applyRows, changedRows, chunkRows, fileRows, prMarker, readMarker, rowLine, rowProblems, type Row } from "./autopilotRows";
+import { applyRows, changedRows, chunkRows, diffBytes, fileRows, LOOPY_DIFF_MAX, prChunks, prMarker, readMarker, rowGroups, rowKey, rowLine, rowProblems, type Row } from "./autopilotRows";
 
 const row = (o: Partial<Row> = {}): Row => ({ videoId: "VIDEOaaaaa1", code: "USXXQ", checked: "2026-11-17", starts: {}, ...o });
 // Q1 and Q2 placed, each opening checked (12 s and 5 s before its start).
@@ -105,6 +108,143 @@ describe("season files", () => {
     // The empty season file of a season not read yet.
     expect(applyRows("// --- Data\nexport const ROWS: FrameTiming[] = [\n];\n", [A])).toBe(`// --- Data\nexport const ROWS: FrameTiming[] = [\n${rowLine(A)}\n];\n`);
     expect(() => applyRows("no mark", [A])).toThrow('no "// --- Data" mark');
+  });
+
+  it("puts a new row before the first row whose code sorts after it, never re-sorting or appending what's there", () => {
+    const D = row({ code: "DDQ", videoId: "v4" }), C2 = row({ code: "CCQ", videoId: "v0" });
+    // A file other sources left out of order: its lines stay where they are; only the PR's own lines change.
+    const before = FILE([C, A, D]);
+    expect(applyRows(before, [B])).toBe(FILE([B, C, A, D]));
+    // Same code as rows already there: after them, before the next code (DDQ), not re-sorted by video.
+    expect(applyRows(before, [C2])).toBe(FILE([C, A, C2, D]));
+    // Nothing sorts after it: the only case it goes last.
+    expect(applyRows(FILE([A, B]), [D])).toBe(FILE([A, B, D]));
+    // A replaced row keeps its own line's place.
+    expect(applyRows(before, [{ ...A, checked: "2026-11-18" }])).toBe(FILE([C, { ...A, checked: "2026-11-18" }, D]));
+    expect(applyRows(before, [])).toBe(before);
+  });
+
+  it("measures a diff as git shows it: lines added and removed, three lines of context either side, its headers", () => {
+    const lines = Array.from({ length: 20 }, (_, i) => `line ${String(i).padStart(2, "0")}`);
+    const before = lines.join("\n"), after = [...lines.slice(0, 10), "added", ...lines.slice(10)].join("\n");
+    // The file's header (160) and one hunk's (32), 6 context lines and the added one, each with its "+"/" " and newline.
+    expect(diffBytes(before, after)).toBe(160 + 32 + 6 * 9 + 7);
+    expect(diffBytes(before, before.replace("line 05", "line X5"))).toBe(160 + 32 + 6 * 9 + 9 + 9); // context, the new line, the old one
+    // Two changes far apart: two hunks.
+    expect(diffBytes(before, before.replace("line 01", "line X1").replace("line 18", "line X8"))).toBe(160 + 2 * 32 + (4 + 4) * 9 + 2 * (9 + 9));
+    expect(diffBytes(before, before)).toBe(0);
+  });
+
+  it("ships rows as PRs whose diffs on main's file each stay under the cap, every row shipped or left for later", () => {
+    // Rows of about 1 KB each, 10 events of 3 videos, against a file holding a row of every other event.
+    const big = (code: string, v: string) => row({ code, videoId: v, starts: Object.fromEntries(Array.from({ length: 40 }, (_, i) => [`Q${i + 1}`, 1000 + i * 400])) });
+    const main = FILE(Array.from({ length: 10 }, (_, e) => big(`E${e}Q`, "live" + e)));
+    const rows = Array.from({ length: 10 }, (_, e) => [0, 1, 2].map((v) => big(`E${e}Q`, `v${e}${v}`))).flat();
+    const { ship, later } = prChunks(main, rows, 6_000);
+    expect([...ship.flat(), ...later].map(rowKey).sort()).toEqual(rows.map(rowKey).sort());
+    expect(later).toEqual([]);
+    for (const c of ship) expect(diffBytes(main, applyRows(main, c))).toBeLessThanOrEqual(6_000);
+    // A row bigger than the cap alone: shipped alone, never dropped or split.
+    expect(prChunks(main, [big("E1Q", "solo")], 500)).toEqual({ ship: [[big("E1Q", "solo")]], later: [], tooBig: [] });
+  });
+
+  it("never splits rows whose changes touch (one gap, neighbouring lines) across PRs: git would conflict", () => {
+    const big = (code: string, v: string) => row({ code, videoId: v, starts: Object.fromEntries(Array.from({ length: 40 }, (_, i) => [`Q${i + 1}`, 1000 + i * 400])) });
+    const live = ["AQ", "CQ", "EQ", "GQ", "IQ"].map((c) => big(c, "live"));
+    const main = FILE(live);
+    // Two new BQ rows share the gap before CQ's line, which the changed CQ row replaces, and a new CQ row goes right
+    // after it (before EQ): all four touch, so one PR.
+    const b1 = big("BQ", "b1"), b2 = big("BQ", "b2"), c2 = big("CQ", "c2"), cMoved = { ...live[1], checked: "2026-11-18" };
+    // Far apart: a new HQ row (before IQ). A cap that fits them all: the touching four in one PR.
+    expect(rowGroups(main, [b1, c2, b2, cMoved, big("HQ", "h1")]).map((g) => g.map(rowKey))).toEqual([[rowKey(b1), rowKey(b2), rowKey(cMoved), rowKey(c2)], [rowKey(big("HQ", "h1"))]]);
+    // A cap that fits one row a PR: the touching group ships its first row now and the rest wait (never a second PR
+    // into the same lines); the HQ group, apart, ships too.
+    expect(prChunks(main, [b1, c2, b2, cMoved, big("HQ", "h1")], 1_000)).toEqual({ ship: [[b1], [big("HQ", "h1")]], later: [b2, cMoved, c2], tooBig: [] });
+    // One unchanged line between two changes keeps them apart: a new BQ row (before CQ) and a new DQ row (before EQ).
+    expect(rowGroups(main, [b1, big("DQ", "d1"), big("HQ", "h1"), b2]).map((g) => g.map(rowKey))).toEqual([[rowKey(b1), rowKey(b2)], [rowKey(big("DQ", "d1"))], [rowKey(big("HQ", "h1"))]]);
+  });
+
+  it("in a sparse file (new events sharing one gap) ships what fits under the cap and leaves the rest for later", () => {
+    // 2026.ts has a handful of rows: 8 new events of 3 videos each all go before the one row that sorts after them.
+    const big = (code: string, v: string) => row({ code, videoId: v, starts: Object.fromEntries(Array.from({ length: 40 }, (_, i) => [`Q${i + 1}`, 1000 + i * 400])) });
+    const main = FILE([big("AAQ", "live"), big("ZZQ", "live")]);
+    const rows = ["USCA", "USFL", "USGA", "USIL", "USMI", "USNJ", "USNY", "USTX"].flatMap((e) => [1, 2, 3].map((v) => big(`${e}Q`, `${e}v${v}`)));
+    expect(rowGroups(main, rows)).toHaveLength(1);
+    const { ship, later } = prChunks(main, rows, 12_000);
+    expect(ship).toHaveLength(1);
+    expect(diffBytes(main, applyRows(main, ship[0]))).toBeLessThanOrEqual(12_000);
+    expect(ship[0].length).toBeGreaterThan(1);
+    expect([...ship[0], ...later].map(rowKey).sort()).toEqual(rows.map(rowKey).sort());
+    // The first rows in file order ship: the next run reads the rest on the main this PR leaves.
+    expect(ship[0].map(rowKey)).toEqual(rows.slice(0, ship[0].length).map(rowKey));
+  });
+
+  it("leaves for later any rows touching an open PR's rows: a second PR into the same lines would conflict", () => {
+    const big = (code: string, v: string) => row({ code, videoId: v, starts: { Q1: 100 } });
+    const main = FILE([big("AQ", "live"), big("CQ", "live"), big("EQ", "live"), big("GQ", "live")]);
+    const open = [big("BQ", "inpr")];
+    // BQ's gap is the open PR's; DQ's (before EQ) is one unchanged line away: free.
+    expect(prChunks(main, [big("BQ", "new"), big("DQ", "new")], 12_000, open)).toEqual({ ship: [[big("DQ", "new")]], later: [big("BQ", "new")], tooBig: [] });
+    // A row the open PR changes too waits, even given as new: never two PRs into the same line.
+    expect(prChunks(main, [big("BQ", "inpr"), big("DQ", "new")], 12_000, open)).toEqual({ ship: [[big("DQ", "new")]], later: [big("BQ", "inpr")], tooBig: [] });
+  });
+
+  it("splits an over-cap group at whole events, stopping at the first that doesn't fit", () => {
+    const r = (code: string, v: string, n: number) => row({ code, videoId: v, starts: Object.fromEntries(Array.from({ length: n }, (_, i) => [`Q${i + 1}`, 1000 + i * 400])) });
+    const main = FILE([r("AAQ", "live", 1), r("ZZQ", "live", 1)]);
+    // One gap: events BQ (2 rows), CQ (2 rows). A cap fitting three rows ships BQ whole, not BQ and half of CQ.
+    const bq = [r("BQ", "b1", 40), r("BQ", "b2", 40)], cq = [r("CQ", "c1", 40), r("CQ", "c2", 40)];
+    const three = diffBytes(main, applyRows(main, [...bq, cq[0]]));
+    expect(prChunks(main, [...bq, ...cq], three)).toEqual({ ship: [bq], later: cq, tooBig: [] });
+    // Events DQ (small), EQ (large), FQ (small): DQ ships, and EQ stops it there: FQ waits too, never skipped past EQ.
+    const dq = r("DQ", "d", 5), eq = r("EQ", "e", 400), fq = r("FQ", "f", 5);
+    expect(prChunks(main, [dq, eq, fq], diffBytes(main, applyRows(main, [dq, fq])))).toEqual({ ship: [[dq]], later: [eq, fq], tooBig: [] });
+  });
+
+  it("never ships a row Loopy can't review at all: over the hard limit it's refused, for the owner", () => {
+    const huge = row({ code: "MQ", videoId: "huge", missing: Object.fromEntries(Array.from({ length: 400 }, (_, i) => [`Q${i}`, "no frame read of it, and no agreeing reads on both sides"])) });
+    const main = FILE([A, C]);
+    expect(diffBytes(main, applyRows(main, [huge]))).toBeGreaterThan(LOOPY_DIFF_MAX);
+    expect(prChunks(main, [huge, B], 12_000)).toEqual({ ship: [[B]], later: [], tooBig: [huge] });
+  });
+
+  it("a row too big for Loopy holds no lines: the new rows sharing its gap still ship, run after run", () => {
+    const r = (code: string, v: string, n: number) => row({ code, videoId: v, starts: Object.fromEntries(Array.from({ length: n }, (_, i) => [`Q${i + 1}`, 1000 + i * 400])) });
+    const huge = row({ code: "BQ", videoId: "huge", missing: Object.fromEntries(Array.from({ length: 400 }, (_, i) => [`Q${i}`, "no frame read of it, and no agreeing reads on both sides"])) });
+    const main = FILE([r("AAQ", "live", 1), r("ZZQ", "live", 1)]);
+    // One gap: the huge BQ row first in file order, then events CQ and DQ, over the cap together.
+    const cq = [r("CQ", "c1", 40), r("CQ", "c2", 40)], dq = [r("DQ", "d1", 40), r("DQ", "d2", 40)];
+    const cap = diffBytes(main, applyRows(main, [...cq, dq[0]]));
+    expect(rowGroups(main, [huge, ...cq, ...dq])).toHaveLength(1);
+    expect(prChunks(main, [huge, ...cq, ...dq], cap)).toEqual({ ship: [cq], later: dq, tooBig: [huge] });
+    // The next run, on the main CQ's PR leaves (its rows now DQ's context): DQ ships, the huge row still the owner's.
+    const next = applyRows(main, cq);
+    expect(prChunks(next, [huge, ...dq], diffBytes(next, applyRows(next, dq)))).toEqual({ ship: [dq], later: [], tooBig: [huge] });
+  });
+
+  it("adds the first rows to a season not read yet without a blank line above them", () => {
+    expect(applyRows("// --- Data\nexport const ROWS: FrameTiming[] = [\n\n];\n", [A])).toBe(`// --- Data\nexport const ROWS: FrameTiming[] = [\n${rowLine(A)}\n];\n`);
+  });
+
+  it("leaves every real data file byte for byte as it is when all its rows are applied again", () => {
+    // From this file's own place, so the test reads the same files whatever directory vitest is started in.
+    const data = join(dirname(fileURLToPath(import.meta.url)), "../../server/data");
+    const files = [...readdirSync(join(data, "frameTimings")).filter((f) => /^\d{4}\.ts$/.test(f)).map((f) => join(data, "frameTimings", f)), join(data, "clipChecks.ts")];
+    expect(files.length).toBeGreaterThan(5);
+    for (const f of files) {
+      const text = readFileSync(f, "utf8");
+      expect(applyRows(text, fileRows(text)), f).toBe(text);
+    }
+  });
+
+  it("one row a key: given twice, the last counts; a file holding a key twice is refused", () => {
+    expect(applyRows(FILE([A]), [B, { ...B, checked: "2026-11-18" }])).toBe(FILE([A, { ...B, checked: "2026-11-18" }]));
+    expect(() => applyRows(FILE([A, A]), [B])).toThrow("v1|AAQ is in the file twice");
+  });
+
+  it("puts a comma on a hand-written last row that lacks one before rows after it", () => {
+    const text = FILE([A]).replace(`${rowLine(A)}`, rowLine(A).replace(/,$/, ""));
+    expect(applyRows(text, [C])).toBe(FILE([A, C]));
   });
 
   it("splits rows into PRs of at most 15 KB, an event's rows together", () => {
