@@ -6,6 +6,7 @@
 import { describe, expect, it } from "vitest";
 import type { CoverageMatch, CoverageReason, CoverageVideoCheck } from "../../src/shared/api";
 import { baseTriage, seasonTriage, triageCoverage } from "./coverageTriage";
+import { WHY } from "./coverage";
 
 const CURRENT = 2026;
 const many = (reason: CoverageReason, n: number, video?: CoverageVideoCheck, from = 1): Pick<CoverageMatch, "reason" | "label" | "video">[] =>
@@ -66,9 +67,34 @@ describe("clip coverage triage", () => {
     expect(t).toEqual({ triage: "actionable", why: "1 match checked in the video, no start found there (Q19); 2 matches not yet checked against the video (Q40, Q41)" });
   });
 
-  it("Glendale 2026 USAZGLQ1, 0 of 42 (its video unavailable): No timing, not To review", () => {
+  it("Glendale 2026 USAZGLQ1, 0 of 42 (its video unavailable): Can't be played, settled, not To review", () => {
     const t = triageCoverage(2026, many("video-unavailable", 42), CURRENT);
-    expect(t).toEqual({ triage: "no-timing", why: "42 matches: Video unavailable or private" });
+    expect(t).toEqual({ triage: "unplayable", why: "42 matches: Recording can't be played: unavailable on YouTube (private or removed)" });
+  });
+
+  it("a gap-unplaced match its video's frames read stays settled (seen ones show as findings, not To review)", () => {
+    const seen = { checked: "2026-11-17", seenAt: 5400, found: "its clip's opening frame doesn't name it" };
+    const mixed = triageCoverage(2025, [...many("gap-unplaced", 1, seen), ...many("gap-unplaced", 4, undefined, 2)], CURRENT);
+    expect(mixed.triage).toBe("no-timing");
+    // Its why says the frames were read for some, and where what they saw is, never only the clock's shortfall.
+    expect(mixed.why).toBe(`5 matches: ${WHY["gap-unplaced"]}; 1 of them checked in the video (1 seen there, under Found in the video)`);
+    const outside = triageCoverage(2025, many("gap-unplaced", 8, { checked: "2026-11-17", outside: "played before the recording starts" }), CURRENT);
+    expect(outside).toEqual({ triage: "no-timing", why: `8 matches: ${WHY["gap-unplaced"]}; all checked in the video` });
+    // Not read: the shortfall alone, as before.
+    expect(triageCoverage(2025, many("gap-unplaced", 3), CURRENT).why).toBe(`3 matches: ${WHY["gap-unplaced"]}`);
+  });
+
+  it("DESTQ 2025, its video's owner turned embedding off: Can't be played, in any season (never folded into Old season)", () => {
+    expect(triageCoverage(2025, many("video-no-embed", 32), CURRENT).triage).toBe("unplayable");
+    expect(triageCoverage(2021, many("video-unavailable", 12), CURRENT).triage).toBe("unplayable");
+  });
+
+  it("an event with other matches missing too is judged on those, the unplayable ones held aside and counted", () => {
+    // A day unavailable, another day's early starts not checked yet: still a pending video check.
+    const t = triageCoverage(2025, [...many("video-unavailable", 30), ...many("before-broadcast", 2, UNREAD, 31)], CURRENT);
+    expect(t).toEqual({ triage: "unchecked", why: "2 matches not yet checked against the video (Q31, Q32); 30 more matches whose recording can't be played" });
+    // And one checked in the video with no start found stays To review.
+    expect(triageCoverage(2025, [...many("video-no-embed", 5), ...many("before-broadcast", 1, { checked: "2026-11-17" }, 6)], CURRENT).triage).toBe("actionable");
   });
 
   it("most matches clipped, a few missing that the video may still hold: a pending video check (AUSYQ2 2025, 42 of 53)", () => {
@@ -82,7 +108,7 @@ describe("clip coverage triage", () => {
     for (const reason of clock) {
       for (const season of [2026, 2025, 2021]) {
         const t = triageCoverage(season, [...many(reason, 2, UNREAD), ...many("video-unavailable", 30, undefined, 3)], CURRENT);
-        expect(t).toEqual({ triage: "unchecked", why: "2 matches not yet checked against the video (Q1, Q2) (30 more held back for other reasons)" });
+        expect(t).toEqual({ triage: "unchecked", why: "2 matches not yet checked against the video (Q1, Q2); 30 more matches whose recording can't be played" });
       }
     }
   });
@@ -93,7 +119,7 @@ describe("clip coverage triage", () => {
   });
 
   it("what the video itself shows isn't Actionable: past the frames checked, no video, no recording that day", () => {
-    for (const r of ["past-checked", "video-unavailable", "no-recording-day", "gap-unplaced"] as CoverageReason[]) {
+    for (const r of ["past-checked", "no-recording-day", "gap-unplaced"] as CoverageReason[]) {
       expect(triageCoverage(2026, many(r, 3), CURRENT).triage).toBe("no-timing");
     }
   });

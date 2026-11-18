@@ -22,7 +22,7 @@ const EVENTS = (): Record<string, OwnerCoverageEvent[]> => ({
     season: 2025, version: h.ver,
     missing: [
       miss("Q1", { video: { checked: null } }),
-      miss("Q2", { video: { checked: "2026-11-15", seenAt: 580 } }),
+      miss("Q2", { reason: "gap-unplaced", why: "Checked in the video (2026-11-15): seen at 0:09:40, not yet confirmed", clock: "Video 4 h shorter than its broadcast, no chapters to confirm the clock", video: { checked: "2026-11-15", seenAt: 580 } }),
       miss("Q6", { reason: "no-clock", why: "Video has no broadcast clock (an upload, not a live stream)" }),
       miss("M9", { videoId: null, reason: "no-recording-day" }),
       miss("Q3", { clip: true }),
@@ -36,11 +36,11 @@ const EVENTS = (): Record<string, OwnerCoverageEvent[]> => ({
 });
 const page = (list: string): OwnerClipCoverage => ({
   events: list === "actionable" && !h.actionable ? [] : EVENTS()[list] ?? [], list: list as OwnerClipCoverage["list"], open: h.actionable, reviewed: 1,
-  categories: { actionable: h.actionable, unchecked: 4, "no-timing": 1, "early-start": 1, "old-season": 0 },
+  categories: { actionable: h.actionable, unchecked: 4, "no-timing": 1, "early-start": 1, unplayable: 0, "old-season": 0 },
   clipChecks: { checked: 120, ok: 117, pulled: 1, unconfirmed: 2, noOverlayVideos: 3 },
   findings: [{ kind: "pulled", season: 2026, code: "USAZFLQ", name: "Flagstaff", label: "Q7", videoId: "flagVideo01", at: 3600, why: "Clip pulled: its first frame shows Q6, not Q7" },
     { kind: "seen", season: 2025, code: "ROCMPCND", name: "Romania COANDA", label: "Q2", videoId: "pvmxbH8YW-k", at: 9952, why: "Checked in the video (2026-11-15): seen at 2:45:52, not yet confirmed" }],
-  lastPass: { at: new Date().toISOString(), checked: 1397, events: 1397, full: 770, clipped: 31981, missing: 13947, why: { "not yet checked against the video": 2400, "video-unavailable": 900, "no-clock": 300, "video-unread": 50 }, opened: 0, pending: 2323, pendingBefore: 2400 },
+  lastPass: { at: new Date().toISOString(), checked: 1397, events: 1397, full: 770, clipped: 31981, missing: 13947, why: { "not yet checked against the video": 2400, "no-clock": 300, "video-unread": 50 }, unplayable: 900, opened: 0, pending: 2323, pendingBefore: 2400 },
   seasons: [{ season: 2026, open: 2, actionable: 0 }, { season: 2025, open: 3, actionable: 1 }],
   totals: { events: 1392, played: 45695, withClip: 29333, full: 708 },
 });
@@ -74,10 +74,14 @@ describe("clipReview kinds", () => {
     expect(kindOf(miss("Q1", { video: { checked: "x", earlyStart: { t: 1, previousEnds: 2 } } }))).toBe("early");
     expect(kindOf(miss("Q1", { video: { checked: "x" } }))).toBe("notfound");
     // The same order as the pass log's videoState, so a tile counts what its chips show: an early start before a
-    // sighting, an unread video before anything, and `outside` left to the reason.
+    // sighting, an unread video before anything; one its frames show outside the recording is Outside video, whatever
+    // its reason (a gap-unplaced match read in its video: the clock's shortfall is only why the clock couldn't place it).
     expect(kindOf(miss("Q1", { video: { checked: "x", seenAt: 5, earlyStart: { t: 1, previousEnds: 2 } } }))).toBe("early");
     expect(kindOf(miss("Q1", { video: { checked: null, outside: "before the video" } }))).toBe("unchecked");
-    expect(kindOf(miss("Q1", { video: { checked: "x", outside: "before the video" } }))).toBe("notfound");
+    expect(kindOf(miss("Q1", { video: { checked: "x", outside: "before the video" } }))).toBe("outside");
+    expect(kindOf(miss("Q1", { reason: "gap-unplaced", video: { checked: "x", outside: "played before the recording starts" } }))).toBe("outside");
+    expect(kindOf(miss("Q1", { reason: "gap-unplaced", video: { checked: "x", found: "its frames didn't confirm a start" } }))).toBe("notfound");
+    expect(kindTotals({ "checked in the video, not in the recording": 2, "checked in the video, no start found": 1 })).toEqual([{ kind: "outside", n: 2 }, { kind: "notfound", n: 1 }]);
     expect(kindOf(miss("Q1", { reason: "gap-unplaced" }))).toBe("unplaced");
     expect(kindOf(miss("Q1", { reason: "video-unavailable" }))).toBe("unavailable");
     expect(kindOf(miss("Q1", { video: { checked: "x", seenAt: 5 } }), true)).toBe("pulled");
@@ -104,6 +108,8 @@ describe("ClipCoveragePanel, a review screen", () => {
     expect(document.querySelector("[data-triage-why]")).toBeNull();
     fireEvent.click(document.querySelector("[data-coverage-details]")!);
     expect(document.querySelector("[data-triage-why]")?.textContent).toMatch(/^Actionable1 match not yet checked against the video \(Q1\)/);
+    // What the frames showed, with the clock's own reason kept beside it.
+    expect(screen.getByText(/· Checked in the video \(2026-11-15\): seen at 0:09:40, not yet confirmed\. The clock: Video 4 h shorter than its broadcast/)).toBeTruthy();
   });
 
   it("a chip opens the app's video dialog at its second, with the match's label", () => {
@@ -133,14 +139,13 @@ describe("ClipCoveragePanel, a review screen", () => {
   it("the reason tiles count every missing match by kind and show only that kind's chips", () => {
     show();
     const tiles = [...document.querySelectorAll("[data-coverage-kind]")].map((t) => `${t.getAttribute("data-coverage-kind")} ${t.textContent}`);
-    expect(tiles).toEqual(["unchecked Not checked2,400", "unavailable Unavailable900", "noclock No clock350"]);
+    // A match whose recording can't be played isn't missing (the pass counts it apart): no tile, a count in the heading.
+    expect(tiles).toEqual(["unchecked Not checked2,400", "noclock No clock350"]);
+    expect(document.querySelector("[data-coverage-pass] h3")?.textContent).toContain("900 more whose recording can't be played");
     fireEvent.click(document.querySelector('[data-coverage-kind="noclock"]')!);
     expect(chips()).toEqual(["Q6:noclock"]);
     // No finding is that kind: the findings step aside.
     expect(document.querySelector("[data-coverage-findings]")).toBeNull();
-    fireEvent.click(document.querySelector('[data-coverage-kind="unavailable"]')!);
-    expect(rows()).toEqual([]);
-    expect(screen.getByText("No event shown here has a Unavailable match.")).toBeTruthy();
     fireEvent.click(document.querySelector("[data-coverage-only-clear]")!);
     expect(chips()).toHaveLength(4);
   });
@@ -220,7 +225,7 @@ describe("ClipCoveragePanel, a review screen", () => {
     expect(document.querySelector("[data-coverage-clip-checks]")).toBeNull();
     openMore();
     expect(document.querySelector("[data-coverage-clip-checks]")?.textContent).toBe("Clips checked by their first frame120Checked117Confirmed1Pulled2Read again3No overlay");
-    expect(document.querySelector("[data-coverage-last-pass]")?.textContent).toMatch(/: 1,397 events checked · 770 fully clipped · 31,981 matches clipped · 13,947 missing\.$/);
+    expect(document.querySelector("[data-coverage-last-pass]")?.textContent).toMatch(/: 1,397 events checked · 770 fully clipped · 31,981 matches clipped · 13,947 missing · 900 whose recording can't be played \(not counted as missing\)\.$/);
   });
 
   it("says 0 to review plainly when nothing is actionable", () => {
