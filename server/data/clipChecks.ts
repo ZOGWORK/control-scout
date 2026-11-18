@@ -76,4 +76,6 @@ export function setClipChecksForTests(list: ClipCheck[]) {
 
 // --- Data (scripts/clip-checks.ts writes from here on) ---
 export const CLIP_CHECKS: ClipCheck[] = [
+  {"videoId":"DDWy6YpjRpU","code":"AUBRQ1","season":2026,"checked":"2026-11-17","ok":["Q15","Q16","Q17","Q18","Q19","Q20","Q21","Q22","Q23","Q24","Q25","Q26","M1","M2","M3","M4","M5","M6","M7"]},
+  {"videoId":"o9GDkl0h5es","code":"AUBRQ1","season":2026,"checked":"2026-11-17","ok":["Q1","Q2","Q3","Q4","Q5","Q6","Q7","Q8","Q9","Q11","Q12","Q14"],"unconfirmed":{"Q10":{"t":21509,"why":"its first frame names no match"},"Q13":{"t":23040,"why":"its first frame names no match"}}},
 ];

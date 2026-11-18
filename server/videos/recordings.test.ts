@@ -123,6 +123,25 @@ describe("event recordings", () => {
     expect(m.match.clip).toMatchObject({ t: 100, end: 340 }); // the match's own route: the same end
   });
 
+  it("marks the clips and the page's stream of a video that plays on YouTube only (embedding off)", async () => {
+    const was = await get<{ embeddable: number | null }>("SELECT embeddable FROM video_meta WHERE video_id = ?", [FIRST_ID]);
+    await run("UPDATE video_meta SET embeddable = 0 WHERE video_id = ?", [FIRST_ID]);
+    try {
+      clearAllCaches();
+      const d = await getJson(`/api/events/${S}/CLIPS`);
+      expect(d.event.stream.youtubeOnly).toEqual([FIRST_ID]);
+      // The same second and end, marked so every player opens it on YouTube (src/lib/streamSeek.ts).
+      expect(d.matches.find((m: any) => m.number === 1).clip).toEqual({ videoId: FIRST_ID, t: 100, url: `https://www.youtube.com/watch?v=${FIRST_ID}&t=100s`, end: 340, youtubeOnly: true });
+    } finally {
+      await run("UPDATE video_meta SET embeddable = ? WHERE video_id = ?", [was?.embeddable ?? null, FIRST_ID]);
+      clearAllCaches();
+    }
+    // A video that may be embedded: no mark.
+    const d = await getJson(`/api/events/${S}/CLIPS`);
+    expect(d.event.stream).not.toHaveProperty("youtubeOnly");
+    expect(d.matches.find((m: any) => m.number === 1).clip).not.toHaveProperty("youtubeOnly");
+  });
+
   it("the owner's stream wins, with its own timing", async () => {
     const d = await getJson(`/api/events/${S}/OWNER`);
     expect(d.event.stream.videoId).toBe(OWNER_ID);
@@ -245,6 +264,8 @@ describe("matches read off a recording's own frames", () => {
       const clips = withClips(m, rec);
       expect(clips[0].clip?.t).toBe(988);
       expect(clips[1].clip?.t ?? null).not.toBe(1580);
+      // A frame-read clip of a video that plays on YouTube only is marked too.
+      expect(withClips(m, { ...rec, meta: { ...rec.meta!, embeddable: false } })[0].clip).toMatchObject({ t: 988, youtubeOnly: true });
     } finally {
       setFrameTimingsForTests([]);
     }

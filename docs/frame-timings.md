@@ -26,7 +26,10 @@ point, and reads two things with tesseract.js:
    a bar across the top (FTC Ontario), or the bar along the top (FIRST in Texas). FTC Live's overlay from 2019 to 2022
    shows it as bare seconds ("30", "112": `secondsPlain`), in a box over the scores (SKYSTONE, FREIGHT FRENZY) or
    under POWERPLAY's centre graphic; for those seasons those places are read first, then POWERPLAY's bar flipped to
-   the top of the frame (Arizona's 2022 championship), its box at the same crop mirrored (`flippedClip`). A timer's two
+   the top of the frame (Arizona's 2022 championship), its box at the same crop mirrored (`flippedClip`), and last
+   POWERPLAY's bar shrunk inside black side bars and raised off the bottom edge (NTX FTC's league meets, USTXNODLM3
+   2022). Where POWERPLAY's box goes black late in a match behind faint grey digits, the box is also read with only
+   the pixels just brighter than that black as ink (`darkInk`), since the plain shot misreads them ("38" as "238"). A timer's two
    readings come from one crop, and the crop whose clock last ran is read first for the rest of the video (`cropOrder`).
    Past those places, and first after a label read off a top bar, the timer is read in its own box: the light box
    between the two alliances' scores in the bar found in the frame, cut to the digits' rows alone (`timerDigits`), so

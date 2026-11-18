@@ -6,6 +6,7 @@
 import { describe, expect, it } from "vitest";
 import type { CoverageMatch, CoverageReason, CoverageVideoCheck } from "../../src/shared/api";
 import { baseTriage, seasonTriage, triageCoverage } from "./coverageTriage";
+import { WHY } from "./coverage";
 
 const CURRENT = 2026;
 const many = (reason: CoverageReason, n: number, video?: CoverageVideoCheck, from = 1): Pick<CoverageMatch, "reason" | "label" | "video">[] =>
@@ -69,6 +70,18 @@ describe("clip coverage triage", () => {
   it("Glendale 2026 USAZGLQ1, 0 of 42 (its video unavailable): Can't be played, settled, not To review", () => {
     const t = triageCoverage(2026, many("video-unavailable", 42), CURRENT);
     expect(t).toEqual({ triage: "unplayable", why: "42 matches: Recording can't be played: unavailable on YouTube (private or removed)" });
+  });
+
+  it("a gap-unplaced match its video's frames read stays settled (seen ones show as findings, not To review)", () => {
+    const seen = { checked: "2026-11-17", seenAt: 5400, found: "its clip's opening frame doesn't name it" };
+    const mixed = triageCoverage(2025, [...many("gap-unplaced", 1, seen), ...many("gap-unplaced", 4, undefined, 2)], CURRENT);
+    expect(mixed.triage).toBe("no-timing");
+    // Its why says the frames were read for some, and where what they saw is, never only the clock's shortfall.
+    expect(mixed.why).toBe(`5 matches: ${WHY["gap-unplaced"]}; 1 of them checked in the video (1 seen there, under Found in the video)`);
+    const outside = triageCoverage(2025, many("gap-unplaced", 8, { checked: "2026-11-17", outside: "played before the recording starts" }), CURRENT);
+    expect(outside).toEqual({ triage: "no-timing", why: `8 matches: ${WHY["gap-unplaced"]}; all checked in the video` });
+    // Not read: the shortfall alone, as before.
+    expect(triageCoverage(2025, many("gap-unplaced", 3), CURRENT).why).toBe(`3 matches: ${WHY["gap-unplaced"]}`);
   });
 
   it("DESTQ 2025, its video's owner turned embedding off: Can't be played, in any season (never folded into Old season)", () => {
