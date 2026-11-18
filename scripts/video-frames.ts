@@ -38,7 +38,7 @@
 //   TESSERACT_JS=<path to tesseract.js's entry>  where tesseract.js is, when it isn't in node_modules
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
-import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, launchPlayerBrowser, clockReading, playedCount, playedMatches, wholeLength, splitSide, splitZoomCss, SPLIT_SIDES, type SplitSide } from "./lib/videoFrames";
+import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, launchPlayerBrowser, clockReading, playedCount, playedMatches, wholeLength, splitSide, splitChecked, splitZoomCss, SPLIT_SIDES, type SplitSide } from "./lib/videoFrames";
 import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, firstOpening, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, inPage, titleLeaks, titleUnchecked, visibleTexts, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M, eventDivisions, teamsSay } from "./lib/videoFrames";
 import { between, edgeReject, eventLimitMs, GAP_READS } from "./lib/videoFrames";
 
@@ -1378,23 +1378,25 @@ async function doCode(code: string): Promise<void> {
       // A split check that fails (a hung read, a seek or zoom the page refuses) keeps the read as it was, nothing read:
       // the video played, so it isn't one that couldn't be (PLAY_FAILED, read again every run).
       if (!j.placed.size && !j.review.size && [...j.missing.values()].every((w) => w === NOTHING_READ)) {
-        try {
-          const side = await findSplit(page, m.length!);
+        // The page as it is here (non-null), for the check's callbacks.
+        const pg = page;
+        await splitChecked(async () => {
+          const side = await findSplit(pg, m.length!);
           if (side) {
             log(`    a split stream: this event's on its ${side} half, read zoomed to it`);
-            await zoom(page, side);
+            await zoom(pg, side);
             const zoomedUnread = new Set<string>();
-            const zoomed = await placeVideo(page, mine, from == null ? null : -from, m.length!, log, zoomedUnread, live, liveMedium);
+            const zoomed = await placeVideo(pg, mine, from == null ? null : -from, m.length!, log, zoomedUnread, live, liveMedium);
             j = zoomed;
             unread.clear();
             for (const l of zoomedUnread) unread.add(l);
           }
-        } catch (e) {
-          await zoom(page, null).catch(() => {});
+        }, {
+          cleanup: () => zoom(pg, null),
           // The event's own limit passed during the check: it stops the event as anywhere else (no row kept).
-          if (e instanceof EventOverTime) throw e;
-          log(`    couldn't check for a split stream: ${(e as Error).message.split("\n")[0]} (kept as nothing read)`);
-        }
+          stops: (e) => e instanceof EventOverTime,
+          failed: (e) => log(`    couldn't check for a split stream: ${e.message.split("\n")[0]} (kept as nothing read)`),
+        });
       }
       const out = new Map([...j.placed].map(([l, p]) => [l, p.t]));
       for (const l of out.keys()) held.add(l);

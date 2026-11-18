@@ -1,7 +1,7 @@
 // The pure parts of the frame reader (scripts/video-frames.ts): the overlay's match, the timer's elapsed time, and
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
-import { dataRows, launchPlayerBrowser, clockReading, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, inPage, titleLeaks, titleUnchecked, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, firstOpening, OPEN_LEADS, shortClash, type M, eventDivisions, teamsSay, splitSide, splitZoomCss } from "./videoFrames";
+import { dataRows, launchPlayerBrowser, clockReading, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, inPage, titleLeaks, titleUnchecked, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, firstOpening, OPEN_LEADS, shortClash, type M, eventDivisions, teamsSay, splitSide, splitChecked, splitZoomCss } from "./videoFrames";
 import { between, edgeReject, EVENT_LIMIT_RATIO, eventLimitMs, GAP_READS, TRIES } from "./videoFrames";
 
 describe("the frame reader", () => {
@@ -735,6 +735,26 @@ describe("split streams (two meets side by side, each with a half-size bar)", ()
     expect(splitZoomCss("left")).toContain("transform-origin: 0 50%");
     expect(splitZoomCss("right")).toContain("transform-origin: 100% 50%");
     expect(splitZoomCss("left")).toContain("scale(2)");
+  });
+
+  it("a failed check keeps the read, but the event's time limit stops the event (splitChecked)", async () => {
+    class OverTime extends Error {}
+    const calls: string[] = [];
+    const o = { cleanup: async () => { calls.push("cleanup"); }, stops: (e: unknown) => e instanceof OverTime, failed: (e: Error) => { calls.push(`failed: ${e.message}`); } };
+    // The limit passing during findSplit or the zoomed read: the zoom cleared, then thrown on (no row kept).
+    await expect(splitChecked(async () => { throw new OverTime("over its limit"); }, o)).rejects.toBeInstanceOf(OverTime);
+    expect(calls).toEqual(["cleanup"]);
+    // Any other failure (a hung read, a seek the page refuses): cleared, said, and nothing returned.
+    calls.length = 0;
+    expect(await splitChecked(async () => { throw new Error("seek refused"); }, o)).toBeNull();
+    expect(calls).toEqual(["cleanup", "failed: seek refused"]);
+    // A cleanup that fails itself doesn't hide the limit.
+    const bad = { ...o, cleanup: async () => { throw new Error("page closed"); } };
+    await expect(splitChecked(async () => { throw new OverTime("over"); }, bad)).rejects.toBeInstanceOf(OverTime);
+    // No failure: the check's own result, nothing cleared.
+    calls.length = 0;
+    expect(await splitChecked(async () => "left", o)).toBe("left");
+    expect(calls).toEqual([]);
   });
 });
 

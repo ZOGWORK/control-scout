@@ -157,6 +157,23 @@ export function splitSide(reads: readonly { side: SplitSide; event: "own" | "oth
   if (r >= 2 && l === 0) return "right";
   return null;
 }
+
+/**
+ * The split-stream check (findSplit, then a zoomed read) run so that its failure keeps the read as it was: on any error
+ * `cleanup` (the zoom cleared) runs first, then an error `stops` says ends the event (the reader's EventOverTime: its
+ * time limit, which must stop the event as anywhere else, no row kept) is thrown on, and any other is handed to
+ * `failed` (logged, the video kept as nothing read) and null returned.
+ */
+export async function splitChecked<T>(run: () => Promise<T>, o: { cleanup: () => Promise<void>; stops: (e: unknown) => boolean; failed: (e: Error) => void }): Promise<T | null> {
+  try {
+    return await run();
+  } catch (e) {
+    await o.cleanup().catch(() => {});
+    if (o.stops(e)) throw e;
+    o.failed(e as Error);
+    return null;
+  }
+}
 /** A crop of a bottom bar, for the same bar flipped to the top of a `height`-tall frame: the bar's rows in reverse, so
  *  what sat `n` px off the bottom edge sits `n` px off the top (POWERPLAY's timer at y 686 of 720, 4 px above the
  *  bottom, is at y 4 in Arizona's flipped bar). */
