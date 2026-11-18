@@ -204,6 +204,29 @@ export function elapsed(t: { where: "bottom" | "top" | "plain"; left: number; au
   return t.left >= TELEOP_S ? null : AUTO_S + SWITCH_S + TELEOP_S - t.left;
 }
 
+/** A card's crop with a margin round it, for the countdown check: cut close, its big clock reads wrong (USMAWEQ's 2:30
+ *  read "7:20", the glyphs touching the crop's edge); 40 px more each side reads it right. Kept inside the 1280 × 720
+ *  frame. */
+export const CARD_MARGIN = 40;
+export function cardClip(clip: { x: number; y: number; width: number; height: number }) {
+  const x = Math.max(0, clip.x - CARD_MARGIN), y = Math.max(0, clip.y - CARD_MARGIN);
+  return { x, y, width: Math.min(1280, clip.x + clip.width + CARD_MARGIN) - x, height: Math.min(720, clip.y + clip.height + CARD_MARGIN) - y };
+}
+/** A card standing still before a match: at 2:30 (the match to come, waiting) or 0:00 (the last one, over). Read just
+ *  before a start, it counts nothing down through it. */
+export const cardStill = (left: number) => left === AUTO_S + TELEOP_S || left === 0;
+
+/** Whether a timer reading `left` seconds, `before` s ahead of a start read off the same timer, is one countdown running
+ *  through that start: longer than any match's (2:38: Auto, the switch, TeleOp), and reaching 2:30–2:38 at the start
+ *  (a reading there taken as TeleOp's or as a whole-match count's, elapsed). An audience display's card counts other
+ *  things down too (a timeout, a field reset, 3:00 and more) under a bar already naming the next match: read at 2:00 or
+ *  less, such a countdown gives a start that every later frame agrees with, before the match is played. A real match's
+ *  card shows 2:30 standing, or the last match's 0:00, before it starts: never this. */
+export function countsThrough(left: number, before: number): boolean {
+  const atStart = left - before;
+  return left > AUTO_S + SWITCH_S + TELEOP_S && atStart >= AUTO_S + TELEOP_S - 3 && atStart <= AUTO_S + SWITCH_S + TELEOP_S + 3;
+}
+
 /** A match's start in the video, and how sure: "high" (a confirmed read, with another read or the broadcast's own
  *  clock agreeing on how far the video sits from the clock), "medium" (between two reads that agree). */
 export type Placed = { t: number; confidence: "high" | "medium" };

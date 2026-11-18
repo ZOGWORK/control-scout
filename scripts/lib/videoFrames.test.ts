@@ -1,7 +1,7 @@
 // The pure parts of the frame reader (scripts/video-frames.ts): the overlay's match, the timer's elapsed time, and
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
-import { dataRows, divisionOf, cropOrder, elapsed, flippedClip, inPage, titleLeaks, inkOnly, INK_MAX, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, firstOpening, OPEN_LEADS, shortClash, type M } from "./videoFrames";
+import { dataRows, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, inPage, titleLeaks, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, firstOpening, OPEN_LEADS, shortClash, type M } from "./videoFrames";
 import { between, GAP_READS, TRIES } from "./videoFrames";
 
 describe("the frame reader", () => {
@@ -253,6 +253,48 @@ describe("the frame reader", () => {
     // The end of TeleOp ("0:20") leads to a finished match: no TeleOp reading 45 s on is its.
     expect(autoLeadsTo(20, 45, 30)).toBe(false);
     expect(autoLeadsTo(30, 30, 120)).toBe(false);
+  });
+
+  it("tells a timeout's countdown through a start from a match's card", () => {
+    // A 3:00 timeout on an audience display's card, read at 2:00 or less under a bar naming the next match, gives a
+    // start where it shows 2:38, 22 s after it began: 10 s before that start it shows 2:48, 5 s before 2:43, and 25 s
+    // before it hasn't begun, standing at its full 3:00 (still more than a match, reaching the start's 2:35).
+    expect(countsThrough(168, 10)).toBe(true);
+    expect(countsThrough(163, 5)).toBe(true);
+    expect(countsThrough(180, 25)).toBe(true);
+    // A 2:40 countdown is 2 s in at the start: 5 s before, it stands at its full 2:40.
+    expect(countsThrough(160, 5)).toBe(true);
+    // Longer ones (a 5:00 reset) are caught further out.
+    expect(countsThrough(183, 25)).toBe(true);
+    expect(countsThrough(248, 90)).toBe(true);
+    // Taken as a whole-match count (2:30 at the start), a few seconds' OCR either way.
+    expect(countsThrough(175, 25)).toBe(true);
+    expect(countsThrough(186, 25)).toBe(true);
+    // A real match: its card stands at 2:30 before it (never over 2:38), or shows the last match's 0:00.
+    expect(countsThrough(150, 25)).toBe(false);
+    expect(countsThrough(0, 25)).toBe(false);
+    // A long countdown that doesn't reach the start's 2:30–2:38 is something else (a break timer ending elsewhere).
+    expect(countsThrough(300, 25)).toBe(false);
+    expect(countsThrough(170, 25)).toBe(false);
+    // A real match's card 5 or 10 s before its start: 2:30 standing, the last match's 0:00.
+    expect(countsThrough(150, 5)).toBe(false);
+    expect(countsThrough(150, 10)).toBe(false);
+  });
+
+  it("reads an audience display's card for the countdown check", () => {
+    // What the digits worker read off USMAWEQ's card (Aj0stAP3EwM, 2:30 standing before Q37): cut close, "7:20"; with
+    // the margin, "2:30". Cut close, a card standing still read as more than a match, far from the start: no check.
+    expect(secondsOf("2:30\n")).toBe(150);
+    expect(cardStill(secondsOf("2:30\n")!)).toBe(true);
+    expect(countsThrough(secondsOf("7:20\n")!, 5)).toBe(false);
+    // Reads of nothing it could take ("0:99" off a blank card, or no text): no clock, so no check passed on them.
+    expect(secondsOf("0:99\n")).toBeNull();
+    expect(secondsOf("")).toBeNull();
+    expect(cardStill(0)).toBe(true);
+    expect(cardStill(163)).toBe(false);
+    // The margin: 40 px each side, kept inside the frame.
+    expect(cardClip({ x: 340, y: 110, width: 600, height: 210 })).toEqual({ x: 300, y: 70, width: 680, height: 290 });
+    expect(cardClip({ x: 10, y: 0, width: 1260, height: 700 })).toEqual({ x: 0, y: 0, width: 1280, height: 720 });
   });
 
   it("reads a timer", () => {
