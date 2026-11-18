@@ -1,7 +1,7 @@
 // The pure parts of the frame reader (scripts/video-frames.ts): the overlay's match, the timer's elapsed time, and
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
-import { dataRows, launchPlayerBrowser, clockReading, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, inPage, titleLeaks, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, firstOpening, OPEN_LEADS, shortClash, type M } from "./videoFrames";
+import { dataRows, launchPlayerBrowser, clockReading, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, inPage, titleLeaks, titleUnchecked, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, firstOpening, OPEN_LEADS, shortClash, type M } from "./videoFrames";
 import { between, GAP_READS, TRIES } from "./videoFrames";
 
 describe("the frame reader", () => {
@@ -179,6 +179,12 @@ describe("the frame reader", () => {
     // title counts even when it is the event's name. No title or channel known: nothing counts.
     expect(titleLeaks("", "", texts)).toEqual([]);
     expect(titleLeaks(title, "", ["2022", "FTC Event"])).toEqual([1]);
+  });
+  it("says the title can't be checked only when the player gave neither a title nor a channel", () => {
+    expect(titleUnchecked("", "")).toMatch(/can't be checked/);
+    expect(titleUnchecked("  ", "\n")).toMatch(/can't be checked/);
+    expect(titleUnchecked("FTC Harrisonburg 1 Qualifier", "")).toBeNull();
+    expect(titleUnchecked("", "Chesapeake FIRST")).toBeNull();
   });
   it("reads a bare-seconds timer (FTC Live's overlay, 2019–2022)", () => {
     // AUMPOS1 2022: Auto "24", TeleOp "112"; IASQ4 2019 TeleOp "101".
