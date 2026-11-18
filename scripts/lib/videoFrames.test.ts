@@ -782,7 +782,7 @@ describe("eventLimitMs: an event's own read limit", () => {
   });
   it("scales with its videos' summed length, so a long event's real read isn't stopped", () => {
     expect(EVENT_LIMIT_RATIO).toBe(1);
-    // 2022 ROBUQ1: three videos, ~27 h, read whole in 68 min at the slowest.
+    // Three 9 h videos (27 h; 2022 ROBUQ1's three are 22.9 h, read whole in 68 min at the slowest).
     expect(eventLimitMs(180 * MIN, [9 * H, 9 * H, 9 * H])).toBe(27 * 60 * MIN);
     // 2022 ROBUQ2: three videos, 20.5 h, read in 203 min on amelia, more than twice that with 8 readers on one computer.
     // A quarter (308 min) would have cut that slow read; its own length is six times the real one.
