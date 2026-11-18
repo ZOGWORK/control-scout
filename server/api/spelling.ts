@@ -177,14 +177,17 @@ function slip(a: string, b: string): boolean {
 }
 
 /** A plain form of a word the vocabulary keeps ("winning" of "win", "placed" of "place", "partners" of "partner"). */
-function formOfKnown(w: string, keep: Set<string>): boolean {
+function formOfKnown(w: string, keep: Set<string>, own: Map<string, 1 | 2>): boolean {
   const m = /^(.{3,}?)(s|es|ed|d|ing|er|ers|est|ly)$/.exec(w);
   if (!m) return false;
   const stem = m[1];
   // "worldes" is "worlds" mistyped, not a form of "world": "-es" only follows s, x, z, ch, sh or o.
   if (m[2] === "es" && keep.has(`${stem}s`) && !/(?:s|x|z|ch|sh|o)$/.test(stem)) return false;
+  // A stem of three letters only when it is one of search's own words ("win"): a short word of the names' ("Thi", a
+  // given name) never makes a typo of a plain word a form of it ("thier" is "their", never "Thi" with "-er").
+  const known = (x: string) => keep.has(x) && (x.length > 3 || own.has(x));
   // "winning" → "win", "placed" → "place", "scouting" → "scout".
-  return keep.has(stem) || keep.has(`${stem}e`) || (/(.)\1$/.test(stem) && keep.has(stem.slice(0, -1)));
+  return known(stem) || known(`${stem}e`) || (/(.)\1$/.test(stem) && known(stem.slice(0, -1)));
 }
 
 /** `w` is `c` with one letter added before its last, where no ending goes ("lastest", "latest"). */
@@ -292,7 +295,7 @@ export function correctWord(w: string, v: Vocab, last = false): WordFix | null {
   if (!max || v.keep.has(w)) return null;
   // A plain form of a known word ("winning") is left as typed, unless it is one of search's own words with a letter
   // added inside it, which no ending makes ("lastest" is "latest", never "last" with "-est").
-  const form = formOfKnown(w, v.keep);
+  const form = formOfKnown(w, v.keep, v.own);
   const seen = v.count.get(w) ?? 0;
   const found: { word: string; d: number; own: number; slip: boolean; n: number }[] = [];
   const set = charSet(w);
@@ -350,7 +353,7 @@ const PARSER_WORDS = new Set(LEXICON.filter((e) => e.syms.some((x) => x.k !== "f
  *  apart, when only one split reads so (the fewest fixes), else null. */
 export function splitWord(w: string, v: Vocab): WordFix | null {
   // A plain form of a known word ("partnered", "scouted") is that word, never two run together ("partner red").
-  if (w.length < 7 || v.keep.has(w) || v.count.has(w) || formOfKnown(w, v.keep)) return null;
+  if (w.length < 7 || v.keep.has(w) || v.count.has(w) || formOfKnown(w, v.keep, v.own)) return null;
   const asked = (x: string) => v.own.get(x) === 2 || PARSER_WORDS.has(x);
   const part = (x: string) => (asked(x) ? { word: x, fixed: 0 } : ((f) => (f?.own && asked(f.word) ? { word: f.word, fixed: 1 } : null))(correctWord(x, v)));
   let best: { word: string; fixed: number }[] = [];
