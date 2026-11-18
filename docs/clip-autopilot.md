@@ -81,6 +81,14 @@ Playwright's Chromium), and registers the task "Control Scout clip autopilot", e
 `-RunNow` starts a run at once; `-Remove` takes the task away. Any other always-on computer at home works the same way
 (`node scripts/clip-autopilot-start.mjs` from cron).
 
+Several computers can share the queue: each runs with `--shard K/N` (0 ≤ K < N, the same N on all of them), for
+example amelia `0/3`, derek `1/3` and lexie `2/3`. An event (`season/code`) belongs to shard FNV-1a(key) mod N (`shardOf`,
+scripts/lib/autopilotRun.ts), the same on every computer and every run. Each computer reads only its own shard's events
+and keeps (rebuilds, labels and asks reviews for) only the open PRs its shard opened (`prShard`: the shard of the PR's
+first event). Only shard 0 runs the clip sweep. Every open autopilot PR, whichever computer opened it, still holds its
+events and lines for all of them. Each keeps its own `.data/autopilot` (memory, logs, lock). With no flag, a computer
+reads the whole queue.
+
 A real run always goes through `scripts/clip-autopilot-start.mjs` (plain Node). It holds the run's lock, puts the clone
 back to main (a killed run can leave files changed), and runs `npm ci` when main's `package-lock.json` changed, before
 anything runs from `node_modules`. The runner refuses a real run its start didn't begin: on Windows, `npm ci` can't
