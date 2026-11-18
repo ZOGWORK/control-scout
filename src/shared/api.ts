@@ -571,7 +571,7 @@ export interface MatchView {
 export interface MatchClip { videoId: string; t: number; url: string; early?: number; end?: number }
 
 /** Why a played match has no clip (server/videos/coverage.ts), each said in plain words beside it (`why`). */
-export type CoverageReason = "no-start" | "no-zone" | "no-recording-day" | "outside-span" | "before-broadcast" | "after-broadcast" | "video-unavailable"
+export type CoverageReason = "no-start" | "no-zone" | "no-recording-day" | "outside-span" | "before-broadcast" | "after-broadcast" | "video-unavailable" | "video-no-embed" | "video-no-overlay"
   | "video-unread" | "no-clock" | "gap-unplaced" | "past-chapters" | "past-checked" | "past-video-end" | "before-cut" | "before-chapters" | "overlaps-previous" | "between-recordings" | "no-first-video" | "unexplained";
 /** One played match's clip, or why it has none. `basis`: what a clip's place stands on (the clock, chapters, frames). */
 /**
@@ -615,14 +615,17 @@ export interface CoverageFinding { kind: "seen" | "pulled"; season: number; code
  *  again later (a blank or transition frame), and videos whose overlay can't be read anywhere (never pulled). */
 export interface ClipCheckTotals { checked: number; ok: number; pulled: number; unconfirmed: number; noOverlayVideos: number }
 /** One clip coverage check pass (server/videos/coverageCheck.ts): events it checked (`events` of them recorded), how
- *  many are fully clipped, matches clipped and missing, and the missing by what their video check found (`why`). */
+ *  many are fully clipped, matches clipped and missing, and the missing by what their video check found (`why`).
+ *  `unplayable`: matches whose recording can't be played at all (coverage.ts UNPLAYABLE), settled and not counted in
+ *  `missing` (nor `why`). */
 export interface CoveragePass { at: string; checked: number; events: number; full: number; clipped: number; missing: number; why: Record<string, number>; opened: number;
+  unplayable?: number;
   /** Every stored event's matches still waiting for their video check after this pass, and after the pass before (null: none
    *  recorded): how the pending work shrinks. */
   pending?: number; pendingBefore?: number | null }
 
 /** An event's triage category (server/videos/coverageTriage.ts): only actionable events are the owner's "To review". */
-export type CoverageTriage = "actionable" | "unchecked" | "no-timing" | "early-start" | "old-season";
+export type CoverageTriage = "actionable" | "unchecked" | "no-timing" | "early-start" | "unplayable" | "old-season";
 
 /** Owner > Clip coverage (server/videos/coverageCheck.ts): one event with a played match missing a clip, as last checked. */
 export interface OwnerCoverageEvent {
