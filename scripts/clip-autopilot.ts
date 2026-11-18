@@ -4,7 +4,9 @@
 // YouTube refuses data-centre addresses (GitHub's runners and the VM both get its "confirm you're not a bot" page), so
 // this runs on a computer at home, from a clone of its own, on a schedule (scripts/clip-autopilot-task.ps1). Each run:
 //   1. (its start, scripts/clip-autopilot-start.mjs: one run at a time, the clone and its dependencies at main) rebuilds
-//      its own open PRs on main when main changed their rows, they conflict, or they still carry a release;
+//      its own open PRs on main when main changed their rows, they conflict, or they still carry a release, then
+//      merges one of them that passes the merge gate (scripts/lib/autopilotMerge.ts: Loopy 5/5 on its head, every check
+//      passed, its rows safe) and waits for it live;
 //   2. takes a read-only snapshot of the live database (VACUUM INTO over ssh: the VM's database is never written);
 //   3. takes the queue from that snapshot (server/videos/frameQueue.ts), most missing first;
 //   4. reads each picked event with scripts/video-frames.ts (--live main's season file), then --verify, then --bounds;
@@ -30,6 +32,7 @@
 //   --lane    a lane's run: reads the job its coordinator left in .data/lane (no gh, no VM, no PR), its rows and
 //             whether each read stopped or failed left there to collect
 //   --dry     in the current checkout: read and check, print the PRs it would open, leave the files as they were
+//   --no-merge  open and rebuild its PRs, never merge one
 //   AUTOPILOT_SSH (ubuntu@132.145.202.89), AUTOPILOT_SSH_KEY (~/.ssh/oracle-controlpoint), TESSERACT_JS: passed on.
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync, appendFileSync, copyFileSync } from "node:fs";
 import { homedir } from "node:os";
@@ -40,6 +43,8 @@ import { applyRows, changedRows, fileRows, prChunks, prMarker, readMarker, rowKe
 import { askDue, forgetSettled, laneJobMs, laneResults, readCallMs, laneStep, needsRebuild, overLimit, parseLanes, parseShard, pickEvents, prShard, readOutcome, remember, rememberTimeout, rememberWait, rowsDelta, shardOf, type LaneJob, type Memory, frameFileSeason, heldElsewhere, holdCodes } from "./lib/autopilotRun";
 import { loopySummary, reviewedSha, type IssueComment } from "./lib/autopilotMerge";
 import { clipCheckProblems, clipsDelta } from "./lib/autopilotClips";
+import { prGate } from "./lib/autopilotPr";
+import { mainQuiet, mainStill, pickMerge, servesMerge } from "./lib/autopilotMergeStep";
 import { streamRun } from "./lib/streamRun";
 import { eventLimitMs } from "./lib/videoFrames";
 import type { ClipCheck } from "../server/data/clipChecks";
@@ -54,8 +59,13 @@ const opt = (k: string) => {
   if (v == null || v.startsWith("--")) { console.error(`--${k}: needs a value`); process.exit(2); }
   return v;
 };
-for (const a of argv) if (a.startsWith("--") && !["--max", "--sweep", "--db", "--shard", "--lanes", "--lane", "--dry"].includes(a)) { console.error(`${a}: not a flag (--max N, --sweep N, --db F, --shard K/N, --lanes K=user@host,…, --lane, --dry)`); process.exit(2); }
-const MAX = Number(opt("max") ?? 12), SWEEP = Number(opt("sweep") ?? 4), DRY = argv.includes("--dry"), DB = opt("db");
+for (const a of argv) if (a.startsWith("--") && !["--max", "--sweep", "--db", "--shard", "--lanes", "--lane", "--dry", "--no-merge"].includes(a)) { console.error(`${a}: not a flag (--max N, --sweep N, --db F, --shard K/N, --lanes K=user@host,…, --lane, --dry, --no-merge)`); process.exit(2); }
+const MAX = Number(opt("max") ?? 12), SWEEP = Number(opt("sweep") ?? 4), DRY = argv.includes("--dry"), DB = opt("db"), MERGE = !argv.includes("--no-merge");
+/** Main's last commit at least this old before a merge (each merge deploys; merges spaced, owner's rule). */
+const MAIN_QUIET_MS = 605_000;
+/** How long a merge is waited for on the live site. */
+const LIVE_WAIT_MS = 20 * 60_000;
+const HEALTH_URL = process.env.AUTOPILOT_HEALTH ?? "https://controlscout.org/api/health";
 if (!Number.isInteger(MAX) || MAX < 1) { console.error("--max: a whole number, 1 or more"); process.exit(2); }
 if (!Number.isInteger(SWEEP) || SWEEP < 0) { console.error("--sweep: a whole number, 0 or more"); process.exit(2); }
 const SHARD = parseShard(opt("shard"));
@@ -296,6 +306,8 @@ const KEEPS = new Set([SHARD.k, ...LANES.map((l) => l.k)]);
 if (!DRY) sh("gh", ["label", "create", LABEL, "--force", "--color", "0e8a16", "--description", "A data PR the clip autopilot opened (scripts/clip-autopilot.ts)"], { ok: true, quiet: true });
 const open = DRY ? [] : openPrs();
 openNow = new Set(open.map((p) => String(p.number)));
+/** PRs rebuilt on main this run: each waits for Loopy's review of its new head, so none merges this run. */
+const rebuilt = new Set<number>();
 for (const p of open) {
   // Another computer's PR (its shard opened it) is its to keep: rebuilt, labelled and asked for there. This one keeps its
   // own shard's and its lanes' (it opened theirs).
@@ -331,6 +343,7 @@ for (const p of open) {
     git("commit", "--quiet", "--no-edit", "-m", `Merge main; ${file}: its rows on main's`);
     push(p.branch);
     const head = git("rev-parse", "HEAD");
+    rebuilt.add(p.number);
     log(`#${p.number}: rebuilt on main (${why.join(", ")})${keep.length < rows.length ? ` (${rows.length - keep.length} rows main changed meanwhile left out)` : ""}`);
     // Pushed: its words, label and review ask follow, each going ahead if another fails. Words that failed are made
     // again at its next rebuild; the label and ask on every run (followUps).
@@ -346,6 +359,80 @@ for (const p of open) {
     if (!DRY) { sh("git", ["reset", "--quiet", "--hard"], { ok: true }); git("switch", "--quiet", "--detach", "origin/main"); }
   }
 }
+
+// --- 1c. One of its own PRs merged, where nothing stops it ------------------------------------------------------------
+// The owner's standing rule: a data PR merges at Loopy 5/5 on its exact head with every check passed. With nobody
+// watching, the autopilot merges its own data PRs only (its label, branch and mark), each through the gate
+// (scripts/lib/autopilotMerge.ts: anything a person should look at first stops it), at most one a run, never within
+// MAIN_QUIET of main's last commit (each merge deploys and restarts the site), never deleting its branch. Then it
+// waits for /api/health to serve the merge. --no-merge: open and rebuild PRs only. Called below its helpers: a `const`
+// read before its line runs throws (the step would stop every run with nothing merged).
+/** main's head as GitHub has it now: its sha and when main last moved, from GitHub's own record of the push (a commit
+ *  pushed straight to main keeps the date it was made, which can be long before). Without that record, the commit's. */
+function mainHead(): { sha: string; at: number } {
+  const [sha, at] = sh("gh", ["api", "repos/{owner}/{repo}/activity?ref=refs/heads/main&per_page=1", "--jq", ".[0] | .after + \" \" + .timestamp"], { quiet: true, ok: true }).out.trim().split(" ");
+  if (/^[0-9a-f]{40}$/.test(sha ?? "") && Number.isFinite(Date.parse(at ?? ""))) return { sha, at: Date.parse(at) };
+  const [s, date] = sh("gh", ["api", "repos/{owner}/{repo}/commits/main", "--jq", ".sha + \" \" + .commit.committer.date"], { quiet: true }).out.trim().split(" ");
+  return { sha: s, at: Date.parse(date) };
+}
+/** The merge commit GitHub made for `pr`, asked a few times (it can take a moment to report it); "" if never. */
+function mergeCommitOf(pr: number): string {
+  for (let i = 0; i < 4; i++) {
+    const sha = sh("gh", ["api", `repos/{owner}/{repo}/pulls/${pr}`, "--jq", ".merge_commit_sha // \"\""], { quiet: true, ok: true }).out.trim();
+    if (/^[0-9a-f]{40}$/.test(sha)) return sha;
+    sh(process.execPath, ["-e", "setTimeout(() => {}, 10000)"], { quiet: true, ok: true });
+  }
+  return "";
+}
+function mergeOne(): void {
+  let pick: { number: number; head: string } | null = null, done = false;
+  try {
+    const before = mainHead();
+    const why = mainQuiet(before.at, Date.now(), MAIN_QUIET_MS);
+    if (why) { log(`merge: ${why}: none this run`); return; }
+    const me = sh("gh", ["api", "user", "--jq", ".login"], { quiet: true }).out.trim();
+    git("fetch", "--quiet", "origin");
+    const gatedOn = git("rev-parse", "origin/main");
+    const picked = pickMerge(open, {
+      rebuilt, me, gate: prGate,
+      author: (n) => sh("gh", ["pr", "view", String(n), "--json", "author", "--jq", ".author.login"], { quiet: true }).out.trim(),
+    });
+    for (const p of picked.passed) log(`merge: ${p}`);
+    pick = picked.pick;
+    if (!pick) return;
+    // Gating took minutes: main read again, the merge only on the main the rows were checked against, still quiet.
+    const moved = mainStill(gatedOn, mainHead(), Date.now(), MAIN_QUIET_MS);
+    if (moved) { log(`merge: #${pick.number} waits: ${moved}`); return; }
+    // The exact head the gate passed, or no merge: a push since then means another review.
+    const r = sh("gh", ["pr", "merge", String(pick.number), "--merge", "--match-head-commit", pick.head], { ok: true });
+    if (r.code) { log(`merge: #${pick.number} refused by GitHub (exit ${r.code}): left open`); return; }
+    done = true;
+    let merged = mergeCommitOf(pick.number);
+    // Never reported: main's head now, which holds the merge (a later commit only makes the live check stricter).
+    if (!merged) { git("fetch", "--quiet", "origin"); merged = git("rev-parse", "origin/main"); log(`merge: #${pick.number}'s merge commit not reported; waiting on main's head`); }
+    log(`merge: #${pick.number} merged as ${merged.slice(0, 9)}; waiting for it live`);
+    waitLive(merged, `#${pick.number}`);
+    // main moved: what this run opens next is made on main as it is now, live or not.
+    git("fetch", "--quiet", "origin");
+  } catch (e) {
+    log(`merge: stopped (${(e as Error).message}); ${done && pick ? `#${pick.number} was merged: check it went live` : "nothing merged this run"}`);
+  }
+}
+/** Waits (up to LIVE_WAIT_MS) for the site's /api/health to serve `merged` (the merge commit) or a later main commit. */
+function waitLive(merged: string, what: string): void {
+  const until = Date.now() + LIVE_WAIT_MS;
+  const isAncestor = (older: string, newer: string) => {
+    sh("git", ["fetch", "--quiet", "origin"], { ok: true, quiet: true });
+    return sh("git", ["merge-base", "--is-ancestor", older, newer], { ok: true, quiet: true }).code === 0;
+  };
+  while (Date.now() < until) {
+    sh(process.execPath, ["-e", "setTimeout(() => {}, 60000)"], { quiet: true, ok: true });
+    const health = sh("curl", ["-s", "--max-time", "20", HEALTH_URL], { quiet: true, ok: true }).out;
+    if (servesMerge(health, merged, isAncestor)) { log(`merge: ${what} live (${merged.slice(0, 9)})`); return; }
+  }
+  log(`merge: ${what} (${merged.slice(0, 9)}) not live after ${LIVE_WAIT_MS / 60_000} min: check the deploy`);
+}
+if (!DRY && MERGE) mergeOne();
 
 // --- 2. A snapshot of the live database ---------------------------------------------------------------------------------
 let snapshot = DB;
@@ -459,6 +546,9 @@ async function eventLimits(season: number): Promise<Map<string, number>> {
     return new Map();
   }
 }
+/** Reader lanes (a browser and OCR each) per read call: the start sets AUTOPILOT_LANES by the memory free (3 over 6 GB,
+ *  else 2). Not the coordinator's --lanes (other computers' lanes). */
+const READER_LANES = /^[1-4]$/.test(process.env.AUTOPILOT_LANES ?? "") ? process.env.AUTOPILOT_LANES! : "2";
 /** Reads `codes` of `season` into its file (those not read yet, then those with rows already whole, then --verify and
  *  --bounds), and puts the file back: the rows the read changed, whether a read failed, and the events the reader
  *  stopped at its per-event limit (and the video each was on). This computer's reads and a lane's alike. */
@@ -473,7 +563,7 @@ async function readSeason(season: number, codes: string[]): Promise<{ changed: R
   const again = codes.filter((c) => hasRows.has(c)), fresh = codes.filter((c) => !hasRows.has(c));
   // --live keeps the clips main plays from being dropped on a frame that names nothing; a season with no rows yet has
   // none to keep (and the reader refuses an empty --live file).
-  const base = ["scripts/video-frames.ts", "--season", String(season), ...(fileRows(mainText(file)).length ? ["--live", liveFile] : []), "--lanes", "2"];
+  const base = ["scripts/video-frames.ts", "--season", String(season), ...(fileRows(mainText(file)).length ? ["--live", liveFile] : []), "--lanes", READER_LANES];
   // A read that crashed, timed out or was killed read nothing for sure: its events aren't counted as tried (remember).
   let readFailed = false;
   // Events the reader stopped at its per-event limit, and the video each was on (overLimit).
@@ -633,7 +723,7 @@ if (SWEEP && SHARD.k === 0 && !open.some((p) => p.file === CLIPS_FILE)) {
   for (const season of seasons) {
     if (budget <= 0) break;
     if (!existsSync(seasonFile(season))) continue;
-    const r = await reader(["scripts/video-frames.ts", "--season", String(season), "--clips", "--limit", String(budget), "--lanes", "2"], 4 * 3600_000);
+    const r = await reader(["scripts/video-frames.ts", "--season", String(season), "--clips", "--limit", String(budget), "--lanes", READER_LANES], 4 * 3600_000);
     const checked = (r.out.match(/^\S+: \d+ clock clips to check by their first frame$/gm) ?? []).length;
     log(`${season} sweep: ${checked} events checked, exit ${r.code}`);
     budget -= checked;

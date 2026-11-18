@@ -6,7 +6,7 @@ import { Play, WifiOff } from "lucide-react";
 import { Button } from "./ui/button";
 import { cn } from "./cn";
 import { WATCH_ID } from "./WatchLive";
-import { scrollToElement, smoothBehavior } from "../lib/pageScroll";
+import { scrollToElement } from "../lib/pageScroll";
 import { shownOffline, useConnection } from "../lib/connection";
 import type { EventDetail } from "../shared/api";
 
@@ -33,7 +33,7 @@ export function LivestreamButton({ watch, className, offline }: { watch: WatchTa
     );
   }
   if (watch.stream) {
-    const go = () => { const el = document.getElementById(WATCH_ID); if (el) scrollToElement(el, smoothBehavior()); };
+    const go = () => { const el = document.getElementById(WATCH_ID); if (el) scrollToElement(el); };
     return <Button size="sm" onClick={go} className={className} data-watch-button><Play /> {watch.finished ? "Watch the stream" : "Watch livestream"}</Button>;
   }
   if (!watch.url) return null;
