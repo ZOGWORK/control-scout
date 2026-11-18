@@ -401,9 +401,6 @@ const branchStamp = STAMP.slice(0, 16).replace(/[-T]/g, "");
 const stoppedAtLimit: string[] = [];
 
 // --- 4–6. Read the due events, check, ship, season by season ------------------------------------------------------------------
-/** Reads `codes` of `season` into its file (those not read yet, then those with rows already whole, then --verify and
- *  --bounds), and puts the file back: the rows the read changed, whether a read failed, and the events the reader
- *  stopped at its per-event limit (and the video each was on). This computer's reads and a lane's alike. */
 /** Each event's read limit in `season`, as the reader works it out (eventLimitMs on its playable videos' lengths, the
  *  reader's default 180 min floor). The season's recordings can't be read: none (each call's backstop is then a day). */
 async function eventLimits(season: number): Promise<Map<string, number>> {
@@ -419,6 +416,9 @@ async function eventLimits(season: number): Promise<Map<string, number>> {
     return new Map();
   }
 }
+/** Reads `codes` of `season` into its file (those not read yet, then those with rows already whole, then --verify and
+ *  --bounds), and puts the file back: the rows the read changed, whether a read failed, and the events the reader
+ *  stopped at its per-event limit (and the video each was on). This computer's reads and a lane's alike. */
 async function readSeason(season: number, codes: string[]): Promise<{ changed: Row[]; readFailed: boolean; stopped: Map<string, string | undefined> }> {
   const file = seasonFile(season);
   const before = readFileSync(file, "utf8"), liveFile = join(DIR, `live-${season}.ts`);
