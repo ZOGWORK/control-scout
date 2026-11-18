@@ -39,8 +39,8 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
 import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, launchPlayerBrowser, clockReading, playedCount, playedMatches, wholeLength } from "./lib/videoFrames";
-import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, firstOpening, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, inPage, titleLeaks, visibleTexts, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M } from "./lib/videoFrames";
-import { between, eventLimitMs, GAP_READS } from "./lib/videoFrames";
+import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, firstOpening, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, inPage, titleLeaks, titleUnchecked, visibleTexts, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M, eventDivisions, teamsSay } from "./lib/videoFrames";
+import { between, edgeReject, eventLimitMs, GAP_READS } from "./lib/videoFrames";
 
 // The command line: --name value or --name=value for the value flags, --name alone for the others. Anything else stops
 // the run before it reads: a misspelt flag mustn't quietly read (and write) every recording of the season.
@@ -122,7 +122,10 @@ type Read = { label: string | null; start: number | null; at: number; text: stri
 /** The video's event, when its divisions share a stream: its division's name and its siblings'. Each read says whose
  *  overlay it saw; a sibling's is never this event's match, and a start stands only when a read of it showed this
  *  division's name. */
-const divisions = new WeakMap<Page, { own: string; others: string[] }>();
+const divisions = new WeakMap<Page, DivisionCtx>();
+/** A shared stream's divisions, and each one's qualification teams by match ("Q8" → its four), own then its siblings'
+ *  in the same order: where the bar's division name has scrolled off, the teams on it say whose match it is (teamsSay). */
+type DivisionCtx = { own: string; others: string[]; teams?: { own: Map<string, number[]>; others: Map<string, number[]>[] } };
 /** Each event's name (events.name), and the event a page reads: a frame whose overlay names another event is never
  *  this one's (overlayEvent: two league meets split on one stream, USTXCAM1 2024). */
 const eventNames = new Map<string, { name: string; quals: number }>();
@@ -476,9 +479,17 @@ async function confirmed(page: Page, label: string, start: number, own = false, 
   // A frame that reads nothing (the player still buffering after a long seek, the timer not caught running) says
   // nothing either way, so a later point of TeleOp is tried; a frame that reads another match or start disagrees.
   let why = "";
+  // The teams on the bar, where the division's name isn't read: this division's match's teams stand in for its name,
+  // the sibling division's same-numbered match's rule it out.
+  const ctx = divisions.get(page);
+  const teams = (text: string) => (ctx?.teams ? teamsSay(text, ctx.teams.own.get(label), ctx.teams.others.map((m) => m.get(label))) : null);
+  let byTeams = false;
   for (const after of CONFIRM_AFTER) {
     const at = await readAt(page, start + after);
     if (at.division === "other") return `${after} s on the overlay named another division`;
+    const team = teams(at.text);
+    if (team === "other") return `${after} s on the bar its teams are another division's ${label}`;
+    byTeams ||= team === "own";
     own ||= at.division === "own";
     if (at.label && at.label !== label) return `${after} s on the overlay read ${at.label}`;
     if (at.label && at.start != null) {
@@ -501,7 +512,7 @@ async function confirmed(page: Page, label: string, start: number, own = false, 
   // The crop the confirming reads ran in, taken now: the read 25 s before may change the page's crop.
   const card = timerCrop.get(page)?.card ? timerCrop.get(page)! : null;
   const before = await readAt(page, start - 25);
-  if (before.label === label) own ||= before.division === "own";
+  if (before.label === label) { own ||= before.division === "own"; byTeams ||= teams(before.text) === "own"; }
   if (before.label === label && before.start != null) return `25 s before it was already running (start ${Math.round(before.start - start)} s off)`;
   // A start read off an audience display's card: the card counts timeouts and field resets down too, under a bar
   // already naming the next match. The same card running one countdown through it (over a match's 2:38, reaching
@@ -521,7 +532,7 @@ async function confirmed(page: Page, label: string, start: number, own = false, 
     }
     if (!read) return `the card read nothing ${COUNTDOWN_CHECK.join(", ")} s before it, so no countdown through it was ruled out`;
   }
-  if (divisions.has(page) && !own) return "no read of it showed its division's name (the stream carries another division too)";
+  if (divisions.has(page) && !own && !byTeams) return "no read of it showed its division's name (the stream carries another division too)";
   return null;
 }
 /** Seconds before a start read off an audience display's card that the card is read for a countdown running through it.
@@ -649,14 +660,17 @@ type Edge = { at: number; label?: string; played?: number; of?: number; fromEnd?
  *  match (this division's; another's names none) or counts the matches played. None does, and none shows a timer: read
  *  on every CLEAR_STEP_S (up to CLEAR_MAX_S, or half the video) while each frame shows no match at all, and the first
  *  that names one is the edge, "clear" of matches before it. A timer on screen with no match named: no edge. */
-async function readEdges(page: Page, length: number): Promise<{ opensOn?: Edge; endsOn?: Edge }> {
+async function readEdges(page: Page, length: number, log?: (s: string) => void): Promise<{ opensOn?: Edge; endsOn?: Edge }> {
   // A seek that never landed shows the frame that was up before (as in checkOpenings): it is no edge, and the stretch
   // it stood for wasn't seen, so it can't count toward "clear" either.
   const named = async (t: number): Promise<Edge | null | "missed"> => {
     const r = await readAt(page, t, true);
     if (Math.abs(r.at - t) > 1) return "missed";
-    // A sibling division's frame on a shared stream is never this event's edge: neither its match nor its count.
-    if (r.division === "other") return null;
+    // Never this event's edge, neither its match nor its count: a sibling division's or another event's overlay, or a bar
+    // whose qualification total isn't this event's (another event's, a setup or test schedule's). Logged, so a recording
+    // with no edge says why.
+    const no = edgeReject(r.text, r.division, r.why, pageEvent.get(page)?.quals);
+    if (no) { log?.(`    no edge at ${Math.round(t)} s: ${no}`); return null; }
     const n = playedCount(r.text);
     // Stored as the event names the match (a semifinal's first match "M2-1" is the event's M2), so outsideRecording
     // finds it among the event's matches.
@@ -711,7 +725,7 @@ async function boundsRow(row: FrameTiming, length: number, division: { own: stri
     if (division) divisions.set(page, division);
     { const e = eventNames.get(row.code); if (e) pageEvent.set(page, e); }
     await open(page, row.videoId);
-    const { opensOn, endsOn } = await readEdges(page, length);
+    const { opensOn, endsOn } = await readEdges(page, length, log);
     log(`  ${row.videoId}: opens on ${saidEdge(opensOn)}, ends on ${saidEdge(endsOn, "after")}`);
     // An edge this read didn't find keeps the one read before: a retry never erases a proven edge.
     keep(`${row.videoId}|${row.code}`, { ...row, ...(opensOn ? { opensOn } : {}), ...(endsOn ? { endsOn } : {}) });
@@ -1112,6 +1126,9 @@ async function openOnce(page: Page, videoId: string): Promise<void> {
   await hideTitle(page);
 }
 
+/** The players hideTitle has said can't be checked for YouTube's title (titleUnchecked), so it says so once each. */
+const titleNoted = new WeakSet<Page>();
+
 /** YouTube's title or channel name drawn over the frame anyway (a player whose pieces have names no rule above
  *  hides: the 2023 reads saw .ytp-title's line in their frames, the event-name check reading it as the overlay's):
  *  each such text, found by what it says (titleLeaks, against the player's own title and channel), is hidden on its
@@ -1123,7 +1140,12 @@ async function hideTitle(page: Page): Promise<void> {
     const d = (document.querySelector("#movie_player") as any)?.getVideoData?.();
     return { title: String(d?.title ?? ""), channel: String(d?.author ?? "") };
   });
-  if (!meta.title && !meta.channel) return;
+  const why = titleUnchecked(meta.title, meta.channel);
+  if (why) {
+    // Said once a player: hideTitle runs before every opening's check.
+    if (!titleNoted.has(page)) { titleNoted.add(page); console.error(`    ${page.url().match(/embed\/([\w-]{11})/)?.[1] ?? "this video"}: ${why}`); }
+    return;
+  }
   for (let pass = 0; pass < 2; pass++) {
     const texts = (await page.evaluate(inPage(visibleTexts))) as string[];
     const leaks = titleLeaks(meta.title, meta.channel, texts);
@@ -1181,9 +1203,17 @@ async function doCode(code: string): Promise<void> {
   // Its name and qualification total, to tell its overlay from another event's on the same stream (overlayEvent).
   const [q] = await all<{ n: number }>("SELECT COUNT(*) AS n FROM matches WHERE season = ? AND code = ? AND label LIKE 'Q%'", [season, code]);
   if (ev?.name) eventNames.set(code, { name: ev.name, quals: Number(q?.n ?? 0) });
-  const siblings = ev?.division_code ? await all<{ name: string }>("SELECT name FROM events WHERE season = ? AND division_code = ? AND code != ?", [season, ev.division_code, code]) : [];
-  const ownDiv = ev ? divisionOf(ev.name) : null, others = siblings.map((x) => divisionOf(x.name));
-  const division = ownDiv && others.length && others.every((x): x is string => x != null) ? { own: ownDiv, others: others as string[] } : null;
+  const siblings = ev?.division_code ? await all<{ code: string; name: string }>("SELECT code, name FROM events WHERE season = ? AND division_code = ? AND code != ?", [season, ev.division_code, code]) : [];
+  // "… - X Division", or (2019's) the words after the name the divisions share: "Iowa Championship BLACK" / "… GOLD".
+  const division: DivisionCtx | null = ev ? eventDivisions(ev.name, siblings.map((x) => x.name)) : null;
+  if (division) {
+    const teamsOf = async (c: string) => {
+      const m = new Map<string, number[]>();
+      for (const r of await all<{ number: number; team: number }>("SELECT number, team FROM match_teams WHERE season = ? AND code = ? AND level = 'qual'", [season, c])) m.set(`Q${r.number}`, [...(m.get(`Q${r.number}`) ?? []), Number(r.team)]);
+      return m;
+    };
+    division.teams = { own: await teamsOf(code), others: await Promise.all(siblings.map((x) => teamsOf(x.code))) };
+  }
   const span = await R.eventMatchSpan(season, code);
   const views = played.map((m) => ({ label: m.label, time: m.time, played: true, startsAt: m.time == null ? null : new Date(m.epoch * 1000).toISOString(), clip: undefined as any }));
   // Without this script's own timings: what YouTube's facts alone give.
@@ -1319,7 +1349,7 @@ async function doCode(code: string): Promise<void> {
         else {
           // The edges are read after the matches are placed: one that fails keeps the placed row, without edges (a
           // later --bounds reads them).
-          const edges = await readEdges(page, m.length!).catch((e: Error) => {
+          const edges = await readEdges(page, m.length!, log).catch((e: Error) => {
             if (e instanceof EventOverTime) throw e;
             log(`    couldn't read its edges: ${e.message.split("\n")[0]} (the row is kept without them)`);
             return {} as { opensOn?: Edge; endsOn?: Edge };
