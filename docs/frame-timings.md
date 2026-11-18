@@ -31,10 +31,6 @@ point, and reads two things with tesseract.js:
    2022). Where POWERPLAY's box goes black late in a match behind faint grey digits, the box is also read with only
    the pixels just brighter than that black as ink (`darkInk`), since the plain shot misreads them ("38" as "238"). A timer's two
    readings come from one crop, and the crop whose clock last ran is read first for the rest of the video (`cropOrder`).
-   Past those places, and first after a label read off a top bar, the timer is read in its own box: the light box
-   between the two alliances' scores in the bar found in the frame, cut to the digits' rows alone (`timerDigits`), so
-   neither the icon under them nor a field monitor's copy of the box off to one side is read (USNVCMP 2023's top bar,
-   whose fixed crop caught the digits' lower half and the robot icon: placements ~20 s late).
    Each counts Auto down from 0:30,
    then 8 s to pick up the controllers ("0:05" under a hand), then TeleOp from 2:00. Some bottom bars instead
    count the whole match down from 2:30: Auto reads 2:30 to 2:00 there, so a bottom-bar reading above 2:00 is that

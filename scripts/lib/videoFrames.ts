@@ -590,64 +590,6 @@ export function overlayBand(px: ArrayLike<number>, width: number, height: number
 }
 
 /**
- * The timer's digits in a score bar found in the frame (overlayBand): the light box between the two alliances' scores,
- * and in it the tallest run of inked rows, the digits (the icon over or under them, a robot or a gamepad, is shorter).
- * Null where no such box stands at the bar's centre (`cx`). Self-contained, as it runs in the page too (`toString`).
- *
- * Found from the bar, not at a fixed place: the band overlayBand finds can be only the bar's lower half (Nevada 2023,
- * whose timer box stands above the coloured band), where a crop of the band's upper half reads the robot icon's row.
- * The box is the neutral run (white, and the digits' black) round the centre between the alliance colours; its top and
- * bottom are where the pixels just inside its edges stop being light (the digits never reach the edges). Only round the
- * centre: a field monitor shows the same white timer box off to one side.
- */
-export function timerDigits(px: ArrayLike<number>, width: number, height: number, band: { top: number; bottom: number }, cx = width / 2): { x: number; y: number; width: number; height: number } | null {
-  const rgb = (x: number, y: number) => { const i = (y * width + x) * 4; return [px[i], px[i + 1], px[i + 2]]; };
-  // Grey, white or black: a dark navy (47, 65, 77) is a colour. Brightness is judged against the box's own (`level`): a
-  // paused frame's box can be a mid grey (Nevada 2023 about 130, Arizona about 110), not white.
-  const neutral = (x: number, y: number) => { const c = rgb(x, y); return Math.max(...c) - Math.min(...c) <= 20; };
-  const bright = (x: number, y: number) => { const c = rgb(x, y); return (c[0] + c[1] + c[2]) / 3; };
-  const MIN_W = 60, MAX_W = 260;
-  const mid = Math.round(cx), tall = band.bottom - band.top;
-  let box: { x0: number; x1: number; y: number; level: number } | null = null;
-  // A row in the band's upper half where the centre is neutral out to a colour on both sides, a box's width apart,
-  // with lighter edges (not a dark grey strip: the box's edges are its ground, never ink).
-  for (let y = Math.max(0, band.top + 2); !box && y < Math.min(height, band.top + Math.max(3, Math.round(tall / 2))); y++) {
-    if (!neutral(mid, y)) continue;
-    let x0 = mid, x1 = mid;
-    while (x0 - 1 >= 0 && mid - x0 < MAX_W && neutral(x0 - 1, y)) x0--;
-    while (x1 + 1 < width && x1 - mid < MAX_W && neutral(x1 + 1, y)) x1++;
-    const w = x1 - x0 + 1;
-    if (w < MIN_W || w > MAX_W || x0 === 0 || x1 === width - 1) continue;
-    const edges = [2, 3, 4, 5, 6].flatMap((d) => [bright(x0 + d, y), bright(x1 - d, y)]);
-    const level = edges.reduce((a, b) => a + b, 0) / edges.length;
-    if (level >= 80) box = { x0, x1, y, level };
-  }
-  if (!box) return null;
-  const { x0, x1, level } = box;
-  const light = (x: number, y: number) => neutral(x, y) && bright(x, y) >= level * 0.75;
-  const dark = (x: number, y: number) => bright(x, y) < level * 0.6;
-  // Its rows: on from the seed row while the pixels just inside both edges stay light.
-  const inside = (y: number) => [x0 + 2, x0 + 4, x1 - 2, x1 - 4].filter((x) => light(x, y)).length >= 3;
-  let top = box.y, bottom = box.y;
-  while (top - 1 >= 0 && inside(top - 1)) top--;
-  while (bottom + 1 < height && inside(bottom + 1)) bottom++;
-  if (bottom - top + 1 < 20) return null;
-  // The tallest run of inked rows across the box (gaps of up to 2 rows bridged).
-  const ink = (y: number) => { let n = 0; for (let x = x0 + 6; x <= x1 - 6; x++) if (dark(x, y)) n++; return n / (x1 - x0 - 11) >= 0.04; };
-  let best: { top: number; bottom: number } | null = null, run = -1, last = -1;
-  for (let y = top; y <= bottom + 1; y++) {
-    if (y <= bottom && ink(y)) { if (run < 0 || y - last > 3) run = y; last = y; continue; }
-    if (run >= 0 && (y - last > 2 || y > bottom)) {
-      if (!best || last - run > best.bottom - best.top) best = { top: run, bottom: last };
-      run = -1;
-    }
-  }
-  if (!best || best.bottom - best.top + 1 < 12) return null;
-  const y = Math.max(top, best.top - 4), y1 = Math.min(bottom, best.bottom + 4);
-  return { x: x0, y, width: x1 - x0 + 1, height: y1 - y + 1 };
-}
-
-/**
  * The row over a score bar found in the frame (overlayBand), where FTC Live names the match: as tall as the usual row
  * (`usual`, over the bottom bar), cut at the frame's top. Null where it would be the usual row again (a bar where the
  * bottom bar always is), or there's no room over the bar for a line of text.
