@@ -25,7 +25,7 @@ const DIR = "server/data/frameTimings";
 const PINS = "server/data/frameTimings.split.json";
 const MARK = "// --- Data";
 /** Seasons that always have a file, empty or not: the ones the readers write. */
-const SEASONS = [2019, 2021, 2022, 2023, 2024, 2025, 2026];
+const SEASONS = [2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026];
 
 const at = process.argv.indexOf("--db");
 const dbFile = at > 0 ? process.argv[at + 1] : undefined;

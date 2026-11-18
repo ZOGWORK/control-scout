@@ -16,6 +16,7 @@
 // match of the video the reason it has no start.
 
 import { ROWS as S2019 } from "./frameTimings/2019.js";
+import { ROWS as S2020 } from "./frameTimings/2020.js";
 import { ROWS as S2021 } from "./frameTimings/2021.js";
 import { ROWS as S2022 } from "./frameTimings/2022.js";
 import { ROWS as S2023 } from "./frameTimings/2023.js";
@@ -197,4 +198,4 @@ export function setFrameTimingsForTests(list: FrameTiming[]) {
 
 // --- Data: one file a season (frameTimings/<season>.ts, the season of the row's event), which scripts/video-frames.ts
 // writes, so readers of different seasons never touch the same file. Every caller reads this one list.
-export const FRAME_TIMINGS: FrameTiming[] = [...S2019, ...S2021, ...S2022, ...S2023, ...S2024, ...S2025, ...S2026];
+export const FRAME_TIMINGS: FrameTiming[] = [...S2019, ...S2020, ...S2021, ...S2022, ...S2023, ...S2024, ...S2025, ...S2026];

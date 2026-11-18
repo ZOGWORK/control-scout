@@ -8,7 +8,7 @@
 
 export const FLAGS = [
   "livePredictions", "advancementOdds", "bracketOdds", "powerRankings", "coinFlips", "factorSheet", "offlinePacks", "eventBundle", "discordBot", "workspaceScouting", "scoutingAlliances", "scoutingCommons", "rulesReference", "venueLightMode", "scheduleDifficulty",
-  "realtime", "errorReporting", "failedSearchReports", "photos", "push", "autoPowerRankings", "dailyPowerRankings", "weeklyDigest",
+  "realtime", "errorReporting", "failedSearchReports", "photos", "push", "autoPowerRankings", "dailyPowerRankings", "weeklyDigest", "publicAccess",
   "seasonRoadMap", "brunoSearch", "brunoAnswers", "searchLearning", "dogTheme", "discordBruno", "statusPage",
 ] as const;
 export type Flag = (typeof FLAGS)[number];
@@ -52,6 +52,7 @@ export const FLAG_META: Record<Flag, { group: FlagGroup; scope: FlagScope }> = {
   autoPowerRankings: { group: "kill", scope: "global" },
   dailyPowerRankings: { group: "kill", scope: "global" },
   weeklyDigest: { group: "kill", scope: "global" },
+  publicAccess: { group: "kill", scope: "global" },
   seasonRoadMap: { group: "feature", scope: "global" },
   brunoSearch: { group: "feature", scope: "global" },
   brunoAnswers: { group: "feature", scope: "global" },
@@ -253,5 +254,10 @@ export const FLAG_INFO: Record<Flag, { label: string; on: string; off: string; p
     label: "Email digest",
     on: "Three times a week, at random times between 9:00 and 20:00 New York time on days that are never back to back, people who turned on the email digest get one email with their followed teams' results, the prediction check-in and upcoming events, when there's something to report (needs RESEND_API_KEY; without it nothing is sent either way).",
     off: "No digests are sent, a batch already going stops, and Settings stops offering to turn it on. Everyone's choice is kept, so switching back on resumes with the next send.",
+  },
+  publicAccess: {
+    label: "Public access",
+    on: "Anyone can browse Control Scout and make an account.",
+    off: "New visitors see only the under-construction page; signed-in accounts keep working; no new accounts can be made. Nothing is deleted or hidden, and every address stays the same (server/shutdownGate.ts, docs/settings.md).",
   },
 };
