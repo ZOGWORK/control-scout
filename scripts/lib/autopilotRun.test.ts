@@ -2,7 +2,7 @@
 // nothing new is tried again, and what its data PR's CHANGELOG entry says.
 import { describe, expect, it } from "vitest";
 import { nextRelease, parseChangelog } from "../../src/lib/changelog";
-import { ASK_EVERY_MS, GIVE_UP, RETRY_MS, TIMEOUTS_TO_TRY, WAIT_MS, askDue, changelogEntry, forgetSettled, needsRebuild, nextVersion, LANE_KICK_MS, laneJobMs, laneResults, laneStep, overLimit, parseLanes, parseShard, pickEvents, prShard, readOutcome, remember, rememberTimeout, rememberWait, rowsDelta, shardOf, waitBackoff, type Memory, type Queued } from "./autopilotRun";
+import { ASK_EVERY_MS, GIVE_UP, RETRY_MS, TIMEOUTS_TO_TRY, WAIT_MS, askDue, changelogEntry, forgetSettled, needsRebuild, nextVersion, LANE_KICK_MS, frameFileSeason, heldElsewhere, holdCodes, laneJobMs, laneResults, laneStep, overLimit, parseLanes, parseShard, pickEvents, prShard, readOutcome, remember, rememberTimeout, rememberWait, rowsDelta, shardOf, waitBackoff, type Memory, type Queued } from "./autopilotRun";
 import type { Row } from "./autopilotRows";
 
 const NOW = Date.parse("2026-11-17T12:00:00Z");
@@ -276,5 +276,49 @@ describe("lanes: computers with no credentials, each reading a shard for the one
     expect(laneResults(job, [])[0].readFailed).toBe(true);
     // readFailed only false when the lane says so plainly.
     expect(laneResults(job, [{ name: "2024.json", text: JSON.stringify({ season: 2024, changed: [] }) }])[0].readFailed).toBe(true);
+  });
+});
+
+describe("heldElsewhere: events other open PRs carry frame-read rows for", () => {
+  // #1829's patch to 2021.ts (the 2019–2022 session's PR), as GitHub's pulls/N/files gives it: rows cut short here.
+  const patch1829 = [
+    '@@ -6,4 +6,14 @@ import type { FrameTiming } from "../frameTimings.js";',
+    " // --- Data (scripts/video-frames.ts writes from here on) ---",
+    " export const ROWS: FrameTiming[] = [",
+    " ",
+    '+  {"videoId":"bSt7xUNsbUQ","code":"USCHSCMPCARR","checked":"2026-11-17","starts":{"Q1":834,"Q2":1265}},',
+    '+  {"videoId":"8tJSxyVZmwg","code":"USCHSCMPSUBS","checked":"2026-11-17","starts":{"Q8":76,"Q9":406}},',
+  ].join("\n");
+  it("holds each code a PR adds rows for, in the season its file names", () => {
+    const { held, unread } = heldElsewhere([{ number: 1829, files: [{ filename: "server/data/frameTimings/2021.ts", patch: patch1829 }] }]);
+    expect([...held]).toEqual([["2021/USCHSCMPCARR", 1829], ["2021/USCHSCMPSUBS", 1829]]);
+    expect(unread).toEqual([]);
+  });
+  it("takes a re-read's replacement row, never a removed or unchanged line, and keeps the first PR an event is in", () => {
+    const reread = ['-  {"videoId":"a","code":"USOLD","checked":"2026-11-15"},', '+  {"videoId":"a","code":"USNEW","checked":"2026-11-18"},', '   {"videoId":"b","code":"USKEPT"},'].join("\n");
+    const { held } = heldElsewhere([
+      { number: 7, files: [{ filename: "server/data/frameTimings/2024.ts", patch: reread }] },
+      { number: 8, files: [{ filename: "server/data/frameTimings/2024.ts", patch: '+  {"videoId":"c","code":"USNEW"},' }] },
+    ]);
+    expect([...held]).toEqual([["2024/USNEW", 7]]);
+  });
+  it("holds nothing from other files or a clip-check sweep", () => {
+    const { held, unread } = heldElsewhere([{ number: 9, files: [
+      { filename: "server/data/clipChecks.ts", patch: '+  { season: 2025, code: "USOKTUS", videoId: "x" },' },
+      { filename: "CHANGELOG.md", patch: '+ "code":"USX"' },
+    ] }]);
+    expect(held.size).toBe(0);
+    expect(unread).toEqual([]);
+    expect(frameFileSeason("server/data/frameTimings/2019.ts")).toBe(2019);
+    expect(frameFileSeason("server/data/frameTimings.ts")).toBeNull();
+  });
+  it("names a season's file whose patch GitHub left out, for the caller to read; holdCodes keeps the first PR", () => {
+    // A 1,500-row bundle's patch is past what GitHub shows: its file comes with no patch.
+    const { held, unread } = heldElsewhere([{ number: 11, files: [{ filename: "server/data/frameTimings/2025.ts" }] }]);
+    expect(held.size).toBe(0);
+    expect(unread).toEqual([{ number: 11, filename: "server/data/frameTimings/2025.ts" }]);
+    const h = new Map([["2025/USA", 3]]);
+    holdCodes(h, 2025, ["USA", "USB"], 11);
+    expect([...h]).toEqual([["2025/USA", 3], ["2025/USB", 11]]);
   });
 });
