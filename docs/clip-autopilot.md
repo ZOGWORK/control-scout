@@ -94,8 +94,10 @@ run. Those last seconds are closed by the merge lock every merger to main takes 
 `refs/locks/merge`): the runner takes it as `clip-autopilot` after the pick, waits 15 s, reads main again, merges, and
 releases it once the live site serves the merge (or nothing merged). GitHub creates a ref only once, so of two takers
 one gets it; a lock held over 45 minutes (its holder died) is taken over. Another holder's lock means nothing merges
-this run. The main session's driver takes it the same way (`node scripts/merge-lock.mjs take main-driver <pr>`, exit 3
-when held; `release main-driver`; `status`). A PR whose gate can't be read (gh, git, a malformed file) waits without
+this run. The main session's driver takes it once per pass of merges (`node scripts/merge-lock.mjs take main-driver 0`:
+it merges on exit 0 only; 3 is held, 1 not taken), renews it before each merge (`renew main-driver`, so a pass longer
+than 45 minutes isn't taken over; 3 means it isn't the driver's any more), and releases it at the end, whatever
+happened (`release main-driver`). `status` says who holds it. A PR whose gate can't be read (gh, git, a malformed file) waits without
 stopping the PRs after it. A PR the gate stops waits, its reasons in the run's log, for the next run or the owner. `npx tsx scripts/autopilot-merge-check.ts <PR…>` prints the same gate for any PR, changing nothing;
 `--no-merge` runs the autopilot without merging.
 
