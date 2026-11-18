@@ -86,16 +86,18 @@ export interface LaneState { state: "idle" | "queued" | "running" | "done" | "fa
 export interface LaneJob { id: string; seasons: { season: number; codes: string[] }[] }
 /** A job sent but not started within this long: the lane is started again. */
 export const LANE_KICK_MS = 3600_000;
-/** The longest a lane's run of `job` can take: per season, its read calls' own limits (24 h a read, 3 h each for
- *  --verify and --bounds), and an hour more. A lane still "running" after that was killed (a reboot, a power cut) before
- *  it could say so: what it finished is collected, as for a failed job. */
-export const laneJobMs = (job: LaneJob) => job.seasons.length * 30 * 3600_000 + 3600_000;
+/** The longest a lane's run of `job` can take: per season, its read calls' own limits (two reads, those not read yet
+ *  and those read again, each readCallMs of the season's events; 3 h each for --verify and --bounds), and an hour more.
+ *  `limitOf`: an event's own read limit (eventLimitMs; unknown: 0, a day's call). A lane still "running" after that was
+ *  killed (a reboot, a power cut) before it could say so: what it finished is collected, as for a failed job. */
+export const laneJobMs = (job: LaneJob, limitOf: (season: number, code: string) => number = () => 0) =>
+  job.seasons.reduce((s, x) => s + 2 * readCallMs(x.codes.map((c) => limitOf(x.season, c))) + 6 * 3600_000, 0) + 3600_000;
 /** A job id the coordinator makes (its run's stamp): used in paths and commands, so nothing else is taken. */
 export const LANE_ID = /^[\w-]{1,64}$/;
 /** What the coordinator does with a lane this run, from its state file's text ("" when it has none) and the job it sent
  *  that lane (null: none outstanding). "reset": the lane's state names no job sent to it (its results, if any, are
  *  left), so it's set idle. */
-export function laneStep(text: string, job: LaneJob | null, now = Date.now()): { do: "collect" | "dispatch" | "wait" | "kick" | "reset"; state: LaneState } {
+export function laneStep(text: string, job: LaneJob | null, now = Date.now(), jobMs = job ? laneJobMs(job) : 0): { do: "collect" | "dispatch" | "wait" | "kick" | "reset"; state: LaneState } {
   let state: LaneState;
   try { state = text.trim() ? JSON.parse(text) : { state: "idle" }; } catch { return { do: "wait", state: { state: "failed", why: `its state file isn't JSON: ${text.trim().slice(0, 80)}` } }; }
   if (!state || typeof state !== "object" || typeof state.state !== "string") return { do: "wait", state: { state: "failed", why: "its state file isn't a state" } };
@@ -104,7 +106,7 @@ export function laneStep(text: string, job: LaneJob | null, now = Date.now()): {
   if (state.state === "done" || state.state === "failed") return { do: ours ? "collect" : "reset", state };
   if (state.state === "queued") return ours ? { do: state.at && now - Date.parse(state.at) > LANE_KICK_MS ? "kick" : "wait", state } : { do: "reset", state };
   if (state.state === "running") {
-    if (ours && state.at && now - Date.parse(state.at) > laneJobMs(job!)) return { do: "collect", state: { ...state, state: "failed", why: `still "running" ${Math.round((now - Date.parse(state.at)) / 3600_000)} h after it started, past any read's limits: killed` } };
+    if (ours && state.at && now - Date.parse(state.at) > jobMs) return { do: "collect", state: { ...state, state: "failed", why: `still "running" ${Math.round((now - Date.parse(state.at)) / 3600_000)} h after it started, past any read's limits: killed` } };
     return { do: "wait", state };
   }
   return { do: "dispatch", state };
@@ -126,6 +128,13 @@ export function laneResults(job: LaneJob, files: { name: string; text: string }[
     return { season, codes, changed, readFailed: r.readFailed !== false, stopped };
   });
 }
+
+/** A read call's own limit, a backstop over its events' (the reader's eventLimitMs, as long as each event's videos):
+ *  at least READ_CALL_MS, and never under the sum of the events it reads plus an hour (opening players, the OCR's start),
+ *  so an event with more than a day of video (or a call of several long ones) is stopped by its own limit, which keeps its finished
+ *  videos and says which video it was on, never by this one first. */
+export const READ_CALL_MS = 24 * 3600_000;
+export const readCallMs = (eventLimits: number[]) => Math.max(READ_CALL_MS, eventLimits.reduce((s, x) => s + (Number.isFinite(x) && x > 0 ? x : 0), 0) + 3600_000);
 
 /** A season's frame-read data file, as a PR's file list names it (its season), or null. */
 export const frameFileSeason = (path: string): number | null => {

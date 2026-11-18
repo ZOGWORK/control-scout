@@ -13,7 +13,6 @@ import { PageHeader, Section, EmptyState } from "../components/page";
 import { StatTile, Meter } from "../components/StatTile";
 import { Async, LoadingBlock } from "../components/states";
 import { m } from "../components/motion";
-import { smoothBehavior } from "../lib/pageScroll";
 import { Badge, Input, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/basic";
 import { Button } from "../components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "../components/ui/overlay";
@@ -112,7 +111,7 @@ export default function OwnerPage() {
   const navRef = useRef<HTMLUListElement>(null);
   useEffect(() => {
     const el = navRef.current?.querySelector<HTMLElement>("[aria-current=page]");
-    if (el && window.matchMedia?.("(max-width: 1023px)").matches) el.scrollIntoView?.({ block: "nearest", inline: "center", behavior: smoothBehavior() });
+    if (el && window.matchMedia?.("(max-width: 1023px)").matches) el.scrollIntoView?.({ block: "nearest", inline: "center" });
   }, [panel]);
   // Refresh: every owner request on screen loads again, and the open panel starts afresh (panels that read on open).
   const [refreshKey, setRefreshKey] = useState(0);

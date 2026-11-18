@@ -16,6 +16,7 @@ import { dropWrongLinks } from "./videos/linkCheck.js";
 import "./env.js";
 import { env } from "./env.js";
 import { migrate, all, openReplicaIfRemote } from "./db.js";
+import { loadManualStarts } from "./videos/manualStarts.js";
 import { packsDir } from "./packs/routes.js";
 import { backfillDue } from "./data/cycle.js";
 import { childCycle, cycleRunning, runDataCycle } from "./data/jobs.js";
@@ -86,6 +87,8 @@ log(`data: ${await restoreSnapshotIfEmpty().catch((e) => `snapshot restore faile
 log(`packs: ${(() => { try { return installShippedPacks(packsDir()); } catch (e) { return `shipped packs failed: ${(e as Error).message}`; } })()}`);
 await openReplicaIfRemote(log);
 await migrate();
+// The owner's typed match starts (Owner › Official videos) into memory before any page plays a clip.
+await loadManualStarts().catch((e) => console.warn(`manual starts: ${(e as Error).message}`));
 // Clip coverage rows from before triage get their category from what they hold, in the background (a few hundred rows).
 void triageUntriaged(log).catch((e) => log(`clip coverage triage: ${(e as Error).message}`));
 
