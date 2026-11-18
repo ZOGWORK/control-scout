@@ -133,6 +133,14 @@ that day, whether or not that event gave FIRST the same link. 2022 CABCVIQ (BC V
 BC's "Vancouver Qualifier" beside its own; FIRST Chesapeake's same-day qualifiers each had the other's. A broadcast
 whose title wasn't read stays. Broadcasts found before are weighed again by these rules on each run
 (`reweighBroadcasts`, with the titles the channel audit keeps), since a link with a broadcast found isn't read again.
+A broadcast that is another event's official recording (`official_videos`) isn't this event's, whatever its day:
+2023 USAZTSQ (Tsalie) took FIRST Tech Challenge Arizona's "Red Rock Qualifier", USAZCHQ's checked recording and its
+only broadcast that day. It stays with this event when the other is this event's own division (the parent's playoffs
+are on its divisions' streams; a sibling division's recording still comes off), or a joint meet with it: the same day
+at the same venue, or a title naming this event too, by a word of its name the other's lacks ("Hill Country & North
+SA League Meet 1") or by its meet number ("NTX FTC C-League meet #2 and #3") (`officialOwners`, `notOthers`). A
+removed row or a highlight is no owner. With the API key a link with no broadcast left is read again weekly, so a
+broadcast whose owning row is removed later comes back.
 
 FIRST's link (or the video its short link led to) is the event's video only when YouTube's broadcast date fits the
 event, a day either side at the venue (`linkAiredOff`, `server/videos/officialVideos.ts`). One broadcast on another
@@ -142,6 +150,13 @@ like any other upload; the event plays its kept recording if it has one. Owner â
 under "FIRST links not used", with why (nothing to do: FIRST's data, not a decision). A link whose broadcast start
 isn't known yet (an upload, facts not read) is kept. Measured on a copy of the live database (2026-11-16): 6 of 480
 links, among 413 with a known start; a championship's link to one of its divisions' streams that day fits and is kept.
+
+Nor is a link whose video is an upload that was never broadcast (no start, not live or to come) and runs under 45
+minutes (`linkTooShort`, the same limit the watcher sets such uploads aside by): a camera clip can't hold a meet's
+matches. FIRST in Missouri's 3-minute clips linked for 2025 Lafayette Meet #1 AM and PM (USMOKSSTLMM2 `lvhcciim1Y4`,
+USMOKSSTLMM3 `-r3PgmLHlHs`) were the only two of 636 FIRST links (2026-11-18). The channel posted no full recording
+of either meet (its only other upload of that day's meets is a 34-second "pt 2"), so they have none. A length not read
+yet keeps the link; it's listed under "FIRST links not used", with why, like a link aired off its dates.
 
 A removed row (`removed_at`) is never written again, so taking a video out sticks.
 
@@ -338,6 +353,30 @@ channel's whole uploads list, video by video, with Scout's records. It reads onl
 - **Placeholder titles.** A channel's uploads list can give "Deleted video" or "Private video" in place of a public
   video's title (NYC FIRST's `bjwZWaiMwnc`, 2026-11-17). That's never written over a title or read as one: the
   video's own title is read from YouTube's videos list, and a watcher's add is checked by its own title.
+- **The link check** (`server/videos/linkCheck.ts`, before each of the watcher's 30-minute checks). Every recording
+  linked by the checked list or the watcher is checked again against YouTube's facts (`video_meta`) and its title on
+  its channel today (`official_audit_videos`). It's taken off its event when:
+  - it never aired: YouTube's facts, read after a day past the event's last day, still list it as live or to come
+    with no start, and the event played (facts read before then prove nothing; a postponed event whose dates aren't
+    moved yet keeps its stream);
+  - it was linked under a title naming the event's meet number, its title now names another, and it didn't air on the
+    event's days ("Meet #1a" counts as meet 1; a title naming two meets, a pair like "Meet 3/4", a date like
+    "Meet 11/14" or a year like "Meet 2026" is no call; a stream that aired on the event's days and was renamed since
+    is still that day's recording; so a wrong link to a stream that aired that day, two meets on one channel the same
+    date, isn't caught by this rule and stays for the owner to remove).
+
+  A channel can reuse a scheduled stream for a later meet: FIRST in Missouri's `qM3qo5rrmyc` was listed for
+  Camdenton Meet #1 (2026 USMOKSSWM1) while still to come, never aired that day, and became its "Southwest League
+  Meet #2 â€¦ November 21" stream. The owner's links and links from evidence are decisions on what the video shows, and
+  stay. A video taken off is freed, under the data lock, one transaction a video, each step only if the one before took
+  effect: its link row goes (the owner's Remove meanwhile leaves nothing to do); the drop is logged (`owner_audit`,
+  "link check", `officialVideo.remove`, with its event, day, part and source), and the checked list's seed never
+  writes that video back onto that event, whatever is decided of it later (listed for another event, it's written
+  there; the entries it skips are logged); and it's set aside in the watcher's list (decided by "link check"), unless
+  the owner or evidence decided its row. The channel audit decides that list again each run: while it's still to come
+  it stays set aside, once it airs as the meet it names it's added there (or, if another video already holds that
+  day, put in the owner's review like any clash), and one the rules would send to review stays set aside for the
+  owner to approve.
 - **Best guesses in review.** Every video in review or set aside whose verdict names no event gets a best guess
   (`official_watch.guess_why`). New rows get it when the watcher reads them; older rows get it at the next audit.
 - **Runs** (`official_audit_runs`): units, channels read and read in full, uploads, those with a Scout record, set

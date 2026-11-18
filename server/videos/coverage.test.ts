@@ -1,6 +1,6 @@
 // Clip coverage: every played match gets a clip or a reason in plain words, read off withClips' own decisions; a day
 // with no video is named; an event with no recording at all is "none" (stats only).
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, describe, expect, it } from "vitest";
 import { clipCoverage, hms, span, type CoverageInput } from "./coverage";
 import { FRAME_TIMINGS, setFrameTimingsForTests, type FrameTiming } from "../data/frameTimings";
 import type { Recording, VideoMeta } from "./recordings";
@@ -13,6 +13,9 @@ const m = (label: string, at: string, o: Partial<CoverageInput> = {}): CoverageI
 const NOW = Date.parse("2026-11-13T00:00:00Z");
 
 describe("clipCoverage", () => {
+  // A test that stubs the frame timings never leaks them into the next, even when an assertion fails.
+  const shipped = [...FRAME_TIMINGS];
+  afterEach(() => setFrameTimingsForTests(shipped));
   // Friday's video follows the clock; Saturday's is 4 h short with no chapters; Sunday has no video.
   const fri = meta("FRIDAYvid01", "2026-03-06T13:00:00Z", "2026-03-06T18:00:00Z", 18_000);
   const sat = meta("SATURDAYv01", "2026-03-07T13:00:00Z", "2026-03-07T22:00:00Z", 18_000);
@@ -47,6 +50,50 @@ describe("clipCoverage", () => {
     expect(c.videos.map((v) => [v.label, v.matches, v.clipped])).toEqual([["Friday", 3, 2], ["Saturday", 2, 0]]);
     expect(c.videos[1].why).toMatch(/shorter than its broadcast/);
     expect(c.daysMissing).toEqual([{ date: "2026-03-08", label: "Sunday", matches: 1 }]);
+  });
+
+  it("a video too short for the clock whose frames were read says what they showed, the shortfall kept as the clock's (AUSYQ1 Q1–Q8)", () => {
+    // Saturday's video was read: it opens on Q4 already under way, so Q3 was played before it.
+    setFrameTimingsForTests([{ videoId: sat.videoId, code: "TWODAY", checked: "2026-11-17", starts: {}, missing: { Q4: "its frames didn't confirm a start" }, opensOn: { at: 3, label: "Q4", underway: true } }]);
+    const g = clipCoverage(matches, { ...rec, code: "TWODAY" }, { ...rec, code: "TWODAY" }, "UTC", NOW);
+    const by = Object.fromEntries(g.matches.map((x) => [x.label, x]));
+    expect(by.Q3).toMatchObject({ reason: "gap-unplaced", video: { checked: "2026-11-17", outside: expect.stringMatching(/before/) }, clock: expect.stringMatching(/shorter than its broadcast/) });
+    expect(by.Q3.why).toMatch(/^Checked in the video \(2026-11-17\): not in the recording/);
+    // Q4, under way when the recording opens: settled as outside it too.
+    expect(by.Q4).toMatchObject({ reason: "gap-unplaced", video: { checked: "2026-11-17", outside: expect.stringMatching(/^under way/) } });
+    // Not read: the shortfall stays the reason, with no video check.
+    setFrameTimingsForTests([]);
+    const n = clipCoverage(matches, { ...rec, code: "TWODAY" }, { ...rec, code: "TWODAY" }, "UTC", NOW);
+    expect(n.matches.find((x) => x.label === "Q3")).toMatchObject({ reason: "gap-unplaced", why: expect.stringMatching(/shorter than its broadcast/) });
+    expect(n.matches.find((x) => x.label === "Q3")?.video).toBeUndefined();
+  });
+
+  describe("a gap-unplaced match whose video's frames were read in the middle of the day (the 419 rows: seen, not found, couldn't play)", () => {
+    // Saturday: Q3, Q4, Q8, Q9 ten minutes apart; the frames place Q3 and Q9, see Q8 once, and confirm no start for Q4.
+    const day = [m("Q3", "2026-03-07T14:00:00"), m("Q4", "2026-03-07T14:10:00"), m("Q8", "2026-03-07T14:20:00"), m("Q9", "2026-03-07T14:30:00")];
+    const r = { ...rec, code: "TWODAY" };
+    const row = (o: Partial<FrameTiming>): FrameTiming => ({ videoId: sat.videoId, code: "TWODAY", checked: "2026-11-17", starts: { Q3: 3000, Q9: 4800 }, ...o });
+    const at = (rows: FrameTiming[]) => { setFrameTimingsForTests(rows); return Object.fromEntries(clipCoverage(day, r, r, "UTC", NOW).matches.map((x) => [x.label, x])); };
+
+    it("seen once with no clip: where the frames saw it, not the shortfall", () => {
+      const by = at([row({ review: { Q8: { t: 4200, why: "one frame read, and nothing else agrees where the video sits" } } })]);
+      expect(by.Q8).toMatchObject({ clip: false, reason: "gap-unplaced", clock: expect.stringMatching(/shorter than its broadcast/),
+        video: { checked: "2026-11-17", seenAt: 4200, found: "one frame read, and nothing else agrees where the video sits" } });
+      expect(by.Q8.why).toBe("Checked in the video (2026-11-17): seen at 1:10:00, not yet confirmed (one frame read, and nothing else agrees where the video sits)");
+    });
+
+    it("read and not found: what the frames said, with the placed matches either side", () => {
+      const by = at([row({ missing: { Q4: "its frames didn't confirm a start" } })]);
+      expect(by.Q4).toMatchObject({ clip: false, reason: "gap-unplaced", video: { checked: "2026-11-17", found: "its frames didn't confirm a start", before: { label: "Q3", at: 3000 }, after: { label: "Q9", at: 4800 } } });
+      expect(by.Q4.why).toBe("Checked in the video (2026-11-17): no start found for it (its frames didn't confirm a start); in the video, Q3 at 0:50:00, Q9 at 1:20:00");
+    });
+
+    it("a read that couldn't play the video: the shortfall as before, no video check (read again next run)", () => {
+      const by = at([row({ missing: { Q4: "the video couldn't be played (a frame read at 0:10:00 failed)" } })]);
+      expect(by.Q4).toMatchObject({ clip: false, reason: "gap-unplaced", why: expect.stringMatching(/^Video 4 h shorter than its broadcast/) });
+      expect(by.Q4.video).toBeUndefined();
+      expect(by.Q4.clock).toBeUndefined();
+    });
   });
 
   it("says a video YouTube won't play is why its day has none", () => {
