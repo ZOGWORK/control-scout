@@ -2,7 +2,7 @@
 // nothing new is tried again, and what its data PR's CHANGELOG entry says.
 import { describe, expect, it } from "vitest";
 import { nextRelease, parseChangelog } from "../../src/lib/changelog";
-import { ASK_EVERY_MS, GIVE_UP, RETRY_MS, TIMEOUTS_TO_TRY, WAIT_MS, askDue, changelogEntry, forgetSettled, needsRebuild, nextVersion, LANE_KICK_MS, laneStep, overLimit, parseLanes, parseShard, pickEvents, prShard, readOutcome, remember, rememberTimeout, rememberWait, rowsDelta, shardOf, waitBackoff, type Memory, type Queued } from "./autopilotRun";
+import { ASK_EVERY_MS, GIVE_UP, RETRY_MS, TIMEOUTS_TO_TRY, WAIT_MS, askDue, changelogEntry, forgetSettled, needsRebuild, nextVersion, LANE_KICK_MS, laneJobMs, laneResults, laneStep, overLimit, parseLanes, parseShard, pickEvents, prShard, readOutcome, remember, rememberTimeout, rememberWait, rowsDelta, shardOf, waitBackoff, type Memory, type Queued } from "./autopilotRun";
 import type { Row } from "./autopilotRows";
 
 const NOW = Date.parse("2026-11-17T12:00:00Z");
@@ -222,19 +222,59 @@ describe("lanes: computers with no credentials, each reading a shard for the one
     expect(parseLanes("1=lexie@100.77.36.51, 2=derek@100.64.169.42", shard)).toEqual([{ k: 1, host: "lexie@100.77.36.51" }, { k: 2, host: "derek@100.64.169.42" }]);
     for (const bad of ["0=a@b", "3=a@b", "1=a@b,1=c@d", "1=lexie", "x=a@b", "1=a@b;rm -rf ~"]) expect(typeof parseLanes(bad, shard)).toBe("string");
   });
-  it("collects a finished or failed job, waits on one running, starts again one queued too long, sends one to an idle lane", () => {
+  const job = { id: "2026-11-18T10-00-00", seasons: [{ season: 2024, codes: ["USMIAVLT", "USTXWYQ"] }] };
+  const st = (o: object) => JSON.stringify(o);
+  it("collects the job it sent when done or failed, waits on one running, starts again one queued too long, sends to an idle lane", () => {
+    const at = new Date(NOW).toISOString(), id = job.id;
+    expect(laneStep("", null).do).toBe("dispatch");
+    expect(laneStep(st({ state: "idle" }), job).do).toBe("dispatch");
+    expect(laneStep(st({ state: "done", id, at }), job)).toEqual({ do: "collect", state: { state: "done", id, at } });
+    expect(laneStep(st({ state: "failed", id, at, why: "exit 3" }), job).do).toBe("collect");
+    expect(laneStep(st({ state: "running", id, at }), job, NOW + 10 * 3600_000).do).toBe("wait");
+    expect(laneStep(st({ state: "queued", id, at }), job, NOW + LANE_KICK_MS).do).toBe("wait");
+    expect(laneStep(st({ state: "queued", id, at }), job, NOW + LANE_KICK_MS + 1).do).toBe("kick");
+  });
+  it("trusts nothing the lane writes: a state naming no job it was sent is reset, a strange id or file waited on", () => {
     const at = new Date(NOW).toISOString();
-    expect(laneStep("").do).toBe("dispatch");
-    expect(laneStep('{"state":"idle"}').do).toBe("dispatch");
-    expect(laneStep(JSON.stringify({ state: "done", id: "J1", at }))).toEqual({ do: "collect", state: { state: "done", id: "J1", at } });
-    expect(laneStep(JSON.stringify({ state: "failed", id: "J1", at, why: "exit 3" })).do).toBe("collect");
-    expect(laneStep(JSON.stringify({ state: "running", id: "J1", at }), NOW + 30 * 3600_000).do).toBe("wait");
-    expect(laneStep(JSON.stringify({ state: "queued", id: "J1", at }), NOW + LANE_KICK_MS).do).toBe("wait");
-    expect(laneStep(JSON.stringify({ state: "queued", id: "J1", at }), NOW + LANE_KICK_MS + 1).do).toBe("kick");
-    // A state file that can't be read is waited on (logged), never taken for idle: its job may still be reading.
-    expect(laneStep("{oops").do).toBe("wait");
-    // Done with no job named: nothing to collect, so idle.
-    expect(laneStep('{"state":"done"}').do).toBe("dispatch");
+    // Done or queued for another job (one collected already, or never sent): set idle, its results never read.
+    for (const state of ["done", "failed", "queued"]) {
+      expect(laneStep(st({ state, id: "2026-11-17T01-00-00", at }), job).do).toBe("reset");
+      expect(laneStep(st({ state, id: job.id, at }), null).do).toBe("reset");
+    }
+    // An id that could reach a path or a command: never used.
+    for (const id of ["../../.ssh", "x; rm -rf ~", "a b", "", 5]) expect(laneStep(st({ state: "done", id, at }), { ...job, id: String(id) }).do).toBe("wait");
+    expect(laneStep("{oops", job).do).toBe("wait");
+    expect(laneStep("[1]", job).do).toBe("wait");
+  });
+  it("a lane still running past every read's limits was killed: what it finished is collected", () => {
+    const at = new Date(NOW).toISOString();
+    expect(laneJobMs(job)).toBe(19 * 3600_000);
+    expect(laneStep(st({ state: "running", id: job.id, at }), job, NOW + laneJobMs(job)).do).toBe("wait");
+    const late = laneStep(st({ state: "running", id: job.id, at }), job, NOW + laneJobMs(job) + 1);
+    expect(late.do).toBe("collect");
+    expect(late.state.state).toBe("failed");
+    // Running some other job (not this computer's): waited on, never collected.
+    expect(laneStep(st({ state: "running", id: "2026-11-17T01-00-00", at }), job, NOW + 100 * 3600_000).do).toBe("wait");
+  });
+  it("keeps a lane's results to the job: its seasons, its codes, rows of them; a missing or broken file is a failed read", () => {
+    const row = (code: string, videoId = "v1") => ({ videoId, code, starts: {} });
+    const files = [
+      { name: "2024.json", text: JSON.stringify({ season: 2024, codes: ["USMIAVLT", "USEVIL"], changed: [row("USMIAVLT"), row("USEVIL"), { code: "USTXWYQ" }, null], readFailed: false, stopped: [["USTXWYQ", "vid9"], ["USEVIL", "x"], ["USMIAVLT", 7]] }) },
+      { name: "2019.json", text: JSON.stringify({ season: 2019, codes: ["X"], changed: [row("X")], readFailed: false, stopped: [] }) },
+    ];
+    const [r] = laneResults(job, files);
+    expect(laneResults(job, files)).toHaveLength(1);
+    expect(r.season).toBe(2024);
+    expect(r.codes).toEqual(["USMIAVLT", "USTXWYQ"]);
+    expect(r.changed).toEqual([row("USMIAVLT")]);
+    expect(r.readFailed).toBe(false);
+    expect([...r.stopped]).toEqual([["USTXWYQ", "vid9"]]);
+    for (const text of ["", "{", JSON.stringify({ season: "2024" }), JSON.stringify({ season: 2023 })]) {
+      const [x] = laneResults(job, [{ name: "2024.json", text }]);
+      expect(x).toEqual({ season: 2024, codes: job.seasons[0].codes, changed: [], readFailed: true, stopped: new Map() });
+    }
+    expect(laneResults(job, [])[0].readFailed).toBe(true);
+    // readFailed only false when the lane says so plainly.
+    expect(laneResults(job, [{ name: "2024.json", text: JSON.stringify({ season: 2024, changed: [] }) }])[0].readFailed).toBe(true);
   });
 });
-
