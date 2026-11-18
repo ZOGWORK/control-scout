@@ -81,13 +81,24 @@ Playwright's Chromium), and registers the task "Control Scout clip autopilot", e
 `-RunNow` starts a run at once; `-Remove` takes the task away. Any other always-on computer at home works the same way
 (`node scripts/clip-autopilot-start.mjs` from cron).
 
-Several computers can share the queue: each runs with `--shard K/N` (0 ≤ K < N, the same N on all of them), for
-example amelia `0/3`, derek `1/3` and lexie `2/3`. An event (`season/code`) belongs to shard FNV-1a(key) mod N (`shardOf`,
-scripts/lib/autopilotRun.ts), the same on every computer and every run. Each computer reads only its own shard's events
-and keeps (rebuilds, labels and asks reviews for) only the open PRs its shard opened (`prShard`: the shard of the PR's
-first event). Only shard 0 runs the clip sweep. Every open autopilot PR, whichever computer opened it, still holds its
-events and lines for all of them. Each keeps its own `.data/autopilot` (memory, logs, lock). With no flag, a computer
-reads the whole queue.
+Several computers can share the queue. An event (`season/code`) belongs to shard FNV-1a(key) mod N (`shardOf`,
+scripts/lib/autopilotRun.ts), the same on every computer and every run. Only one computer needs credentials (gh signed
+in, the VM's key): it runs with `--shard 0/N --lanes 1=user@host,2=user@host…` and reads shard 0 itself. The others
+are **lanes**, with no credentials at all. A lane runs `--lane` (from launchd, `org.controlscout.clip-lane`, started by
+its coordinator) and only reads. Each coordinator run, for every lane, over ssh:
+
+- **collects** a finished (or failed) job: the rows each season's read changed, whether a read failed, and the events
+  stopped at their limit (`.data/lane/results/<job>` there, copied to `.data/autopilot/lanes/<K>/` here). They're checked
+  and shipped as the coordinator's own reads (`settle`: `rowProblems`, `prChunks`, its memory), so every PR opens in
+  one place;
+- **sends** an idle lane its next job: up to `--max` events of its shard (`pickEvents`, with the coordinator's memory),
+  a copy of this run's snapshot (gzipped), and `job.json`, then starts it. Events in a job not yet collected are held
+  like an open PR's;
+- **waits** on one still reading, and starts again a job not started within an hour (`laneStep`).
+
+The coordinator keeps (rebuilds, labels, asks reviews for) the open PRs of its own shard and its lanes' (`prShard`: the
+shard of a PR's first event), and alone runs the clip sweep. A lane needs its own clone, node, Playwright's Chromium
+and tesseract.js, and the coordinator's ssh key; nothing else. With no flags, a computer reads the whole queue alone.
 
 A real run always goes through `scripts/clip-autopilot-start.mjs` (plain Node). It holds the run's lock, puts the clone
 back to main (a killed run can leave files changed), and runs `npm ci` when main's `package-lock.json` changed, before
