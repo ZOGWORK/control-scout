@@ -27,7 +27,7 @@ export function pickEvents(queue: Queued[], inPr: Set<string>, memory: Memory, m
   const queued = queue.filter((q) => q.frames.state === "queued").sort((a, b) => (a.frames.rank ?? Infinity) - (b.frames.rank ?? Infinity));
   for (const q of queued) {
     const key = `${q.season}/${q.code}`, m = memory[key];
-    if (inPr.has(key)) skipped.push({ event: key, why: "read, in an open autopilot PR" });
+    if (inPr.has(key)) skipped.push({ event: key, why: "read, in an open PR" });
     else if (m?.waits && now - Date.parse(m.last) < waitBackoff(m.waits)) skipped.push({ event: key, why: `its rows waited ${m.waits} time${m.waits === 1 ? "" : "s"} (${m.result}): read again after ${new Date(Date.parse(m.last) + waitBackoff(m.waits)).toISOString().slice(0, 16)}Z` });
     else if (m?.timeouts && now - Date.parse(m.last) < WAIT_MS) skipped.push({ event: key, why: `stopped at the reader's per-event limit with nothing new (${m.result}): read again after ${new Date(Date.parse(m.last) + WAIT_MS).toISOString().slice(0, 16)}Z` });
     else if (m && m.tries >= GIVE_UP) skipped.push({ event: key, why: `read ${m.tries} times with nothing new (${m.result}): left until its recording or matches change` });
@@ -125,6 +125,28 @@ export function laneResults(job: LaneJob, files: { name: string; text: string }[
     const stopped = new Map<string, string | undefined>((Array.isArray(r.stopped) ? r.stopped : []).filter((x: any) => Array.isArray(x) && ok(x[0]) && (x[1] == null || typeof x[1] === "string")).map((x: any) => [x[0], x[1] ?? undefined]));
     return { season, codes, changed, readFailed: r.readFailed !== false, stopped };
   });
+}
+
+/** A season's frame-read data file, as a PR's file list names it (its season), or null. */
+export const frameFileSeason = (path: string): number | null => {
+  const m = /^server\/data\/frameTimings\/(\d{4})\.ts$/.exec(path);
+  return m ? Number(m[1]) : null;
+};
+/** Events ("season/code") other open PRs bring frame-read rows for, each with the first PR that does: the codes on the
+ *  "+" lines of each PR's patch to a season's frame-read file. Another session's data PR holds its events as the
+ *  autopilot's own do, so no two PRs carry one event (#1932 and #1933 repeated #1829's USCHSCMPSUBS and USMOKSCMP).
+ *  A file whose patch GitHub left out (too big) holds nothing here: the caller logs it. */
+export function heldElsewhere(prs: { number: number; files: { filename: string; patch?: string }[] }[]): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const p of prs) for (const f of p.files) {
+    const season = frameFileSeason(f.filename);
+    if (season == null || !f.patch) continue;
+    for (const line of f.patch.split("\n")) {
+      const code = line.startsWith("+") ? /"code":"([^"]+)"/.exec(line)?.[1] : undefined;
+      if (code && !out.has(`${season}/${code}`)) out.set(`${season}/${code}`, p.number);
+    }
+  }
+  return out;
 }
 
 /** An event's memory after a read: shipped rows clear it; nothing new counts a try. */
