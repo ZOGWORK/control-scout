@@ -17,12 +17,14 @@ import { env } from "../env.js";
 import { fetchFromApi, fetchWatchPage, type WatchPageFacts } from "./youtube.js";
 import { youtubeId } from "../../src/shared/personal.js";
 import { countryOf } from "../../src/shared/countries.js";
-import { linkAiredOff, officialRecordingIds, seasonOfficial } from "./officialVideos.js";
+import { linkAiredOff, linkTooShort, officialRecordingIds, seasonOfficial } from "./officialVideos.js";
 import { checkedTo } from "../data/checkedTimings.js";
 import { frameOpen, frameStart, hasFrames } from "../data/frameTimings.js";
 import { clipPulled } from "../data/clipChecks.js";
 
-export interface VideoMeta extends WatchPageFacts { videoId: string; checkedAt: string }
+/** unplayableSince: when it was first read as one no one can play here (unavailable, or embedding off), kept while it
+ *  stays so (migration 96); absent while it plays. */
+export interface VideoMeta extends WatchPageFacts { videoId: string; checkedAt: string; unplayableSince?: string }
 /** One of a recording's videos. day: its broadcast's date at the venue, when an official list gave it; part: a named
  *  part of a day that has more than one video ("Awards"). */
 export interface RecordingVideo { videoId: string; meta: VideoMeta | null; day?: string | null; part?: string | null }
@@ -65,12 +67,13 @@ export function firstVideoId(url: string | null | undefined): string | null {
 }
 
 /** The video_meta columns metaOf reads (all of them). */
-const META_COLUMNS = "video_id, status, start, end, duration, live, checked_at, chapters, embeddable";
+const META_COLUMNS = "video_id, status, start, end, duration, live, checked_at, chapters, embeddable, unplayable_since";
 const metaOf = (r: any): VideoMeta => ({
   videoId: String(r.video_id), status: r.status, start: r.start ?? null, end: r.end ?? null,
   length: r.duration == null ? null : Number(r.duration), live: !!r.live, checkedAt: String(r.checked_at),
   ...(r.chapters == null ? {} : { chapters: readChapters(r.chapters) }),
   ...(r.embeddable == null ? {} : { embeddable: !!Number(r.embeddable) }),
+  ...(r.unplayable_since == null ? {} : { unplayableSince: String(r.unplayable_since) }),
 });
 function readChapters(json: string): Chapter[] {
   try {
@@ -104,14 +107,15 @@ function seasonData(season: number, now = Date.now()) {
          WHERE b.season = ? AND e.livestream = b.url ORDER BY b.code, b.start`, [season]),
     ]);
     // FIRST's link (or its short link's video) is the event's video only when YouTube's broadcast date fits the event:
-    // one broadcast on another date is another event's stream or a test (linkAiredOff), and is left out.
+    // one broadcast on another date is another event's stream or a test (linkAiredOff), and is left out. So is a
+    // short upload that was never broadcast, a clip that can't hold the meet (linkTooShort).
     const linkIds = [...new Set([...links.map((l) => firstVideoId(l.livestream)), ...short.map((l) => String(l.video_id))].filter((x): x is string => !!x))];
-    const aired = new Map<string, string | null>();
+    const aired = new Map<string, { start: string | null; live: number | null; duration: number | null }>();
     for (let i = 0; i < linkIds.length; i += 200) {
       const part = linkIds.slice(i, i + 200);
-      for (const r of await all<{ video_id: string; start: string | null }>(`SELECT video_id, start FROM video_meta WHERE video_id IN (${part.map(() => "?").join(",")})`, part)) aired.set(String(r.video_id), r.start ?? null);
+      for (const r of await all<{ video_id: string; start: string | null; live: number | null; duration: number | null }>(`SELECT video_id, start, live, duration FROM video_meta WHERE video_id IN (${part.map(() => "?").join(",")})`, part)) aired.set(String(r.video_id), { start: r.start ?? null, live: r.live == null ? null : Number(r.live), duration: r.duration == null ? null : Number(r.duration) });
     }
-    const fits = (code: string, id: string, e: { start: string; end: string | null; timezone: string | null }) => !linkAiredOff({ code, ...e }, aired.get(id));
+    const fits = (code: string, id: string, e: { start: string; end: string | null; timezone: string | null }) => !linkAiredOff({ code, ...e }, aired.get(id)?.start) && !linkTooShort(code, aired.get(id));
     const first = new Map<string, string>();
     for (const l of links) { const id = firstVideoId(l.livestream); if (id && fits(String(l.code), id, l)) first.set(String(l.code), id); }
     for (const l of short) if (fits(String(l.code), String(l.video_id), l)) first.set(String(l.code), String(l.video_id));
@@ -462,14 +466,24 @@ export function within(startsAt: string | null | undefined, m: VideoMeta, now: n
 }
 
 /** Store one video's facts and drop the season maps that read them. */
-async function saveMeta(videoId: string, f: WatchPageFacts, now: number) {
+/** Facts no one can play here from: unavailable on YouTube, or its owner turned off playing it on other sites. */
+export const unplayable = (f: Pick<WatchPageFacts, "status" | "embeddable">) => f.status === "unavailable" || (f.status === "ok" && f.embeddable === false);
+
+async function saveMeta(videoId: string, f: WatchPageFacts & { unplayableSince?: string }, now: number) {
+  const since = f.unplayableSince ?? new Date(now).toISOString();
   // Chapters not read this time (the Data API, a watch page that failed), or a page served without them, keep the ones read before.
   await run(
     // Embedding not read this time (a page that didn't say) keeps what was read before.
-    `INSERT INTO video_meta (video_id, status, start, end, duration, live, checked_at, chapters, embeddable) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    // Unplayable here (unavailable, or embedding off, read now or before): the first read that saw it so is kept; one
+    // that plays again clears it; an error (nothing learnt) keeps it. A re-save of facts read before keeps their date.
+    `INSERT INTO video_meta (video_id, status, start, end, duration, live, checked_at, chapters, embeddable, unplayable_since) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(video_id) DO UPDATE SET status = excluded.status, start = excluded.start, end = excluded.end, duration = excluded.duration, live = excluded.live, checked_at = excluded.checked_at,
-       chapters = COALESCE(NULLIF(excluded.chapters, '[]'), video_meta.chapters, excluded.chapters), embeddable = COALESCE(excluded.embeddable, video_meta.embeddable)`,
-    [videoId, f.status, f.start, f.end, f.length, f.live ? 1 : 0, new Date(now).toISOString(), f.chapters ? JSON.stringify(f.chapters) : null, f.embeddable == null ? null : f.embeddable ? 1 : 0]);
+       chapters = COALESCE(NULLIF(excluded.chapters, '[]'), video_meta.chapters, excluded.chapters), embeddable = COALESCE(excluded.embeddable, video_meta.embeddable),
+       unplayable_since = CASE
+         WHEN excluded.status = 'unavailable' OR (excluded.status = 'ok' AND COALESCE(excluded.embeddable, video_meta.embeddable) = 0) THEN COALESCE(video_meta.unplayable_since, ?)
+         WHEN excluded.status = 'ok' THEN NULL ELSE video_meta.unplayable_since END`,
+    [videoId, f.status, f.start, f.end, f.length, f.live ? 1 : 0, new Date(now).toISOString(), f.chapters ? JSON.stringify(f.chapters) : null, f.embeddable == null ? null : f.embeddable ? 1 : 0,
+      unplayable(f) ? since : null, since]);
 }
 
 const DAY = 86_400_000;
@@ -478,7 +492,7 @@ const DAY = 86_400_000;
  * one not started yet (live, no start: youtube.ts) after an hour; a broadcast archived within 2 days (its length
  * still settling) after 6 hours. A video cut far short of its broadcast whose chapters were never read: after a day
  * (at once for one read before chapters were kept); one read with none (none yet, or a page served without them): weekly.
- * A video YouTube called unavailable (private, removed, embedding off) after a week: an owner can make it public again
+ * A settled video (not live, not archived within 2 days) YouTube called unavailable (private, removed), or one whose owner turned embedding off, after a week: an owner can make it public again
  * (USILCSSLT 2024's recording, unavailable since 2026-10-24, played again by 11-17), and until it's read again none of
  * its matches gets a clip or a frame read.
  * With an API key, a video that plays is read again weekly: one deleted or blocked for its viewers since (youtube.ts
@@ -493,10 +507,13 @@ export function due(m: VideoMeta | null, now: number, withKey = false): boolean 
   // With the API key an error is rare (network, quota) and the API answers servers, so it's tried again soon:
   // that also picks up, within minutes, every video the watch page refused before the key was set.
   if (m.status === "error") return age > (withKey ? 15 * 60_000 : DAY);
-  if (m.status === "unavailable") return age > 7 * DAY;
   if (m.live) return age > (m.start ? 5 * 60_000 : 3600_000);
   if (m.status === "ok" && m.end && now - Date.parse(m.end) < 2 * DAY) return age > 6 * 3600_000;
   if (cutShort(m) && !m.chapters?.length) return age > (m.chapters ? 7 * DAY : DAY);
+  // Unplayable here (unavailable, or embedding off), once settled: weekly, so one that plays again is read again (its
+  // frames, its clips). After the live, just-archived and chapters rules: a stream with embedding off still has clock
+  // clips (they open on youtube.com), so its start, end, length and chapters are kept fresh like any other's.
+  if (unplayable(m)) return age > 7 * DAY;
   return false;
 }
 
