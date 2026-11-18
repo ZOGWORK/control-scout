@@ -5,4 +5,5 @@ export declare function lockMessage(holder: string, pr: number | string, now?: n
 export declare function readLock(message: string | null | undefined): { at: number; holder: string; pr: number } | null;
 export declare function lockStale(message: string | null | undefined, now?: number, staleMs?: number): boolean;
 export declare function take(holder: string, pr: number | string, now?: number): { taken: boolean; by?: string };
+export declare function renew(holder: string, now?: number): { renewed: boolean; by?: string };
 export declare function release(holder: string): string;
