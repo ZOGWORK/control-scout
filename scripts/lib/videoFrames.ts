@@ -226,6 +226,15 @@ const GENERIC = new Set(["LEAGUE", "MEET", "QUALIFIER", "QUALIFIERS", "CHAMPIONS
   "DIVE", "CANOPY", "INTO", "DEEP", "DECODE", "BIOBUZZ", "CENTERSTAGE", "POWERPLAY", "FREIGHT", "FRENZY", "ULTIMATE", "GOAL",
   "SKYSTONE", "PRESENTED", "QUALCOMM", "RTX", "ENERGIZE"]);
 const words = (s: string) => (plain(s).match(/[A-Z]{3,}/g) ?? []).filter((w) => !GENERIC.has(w));
+/** The short tokens of a name that `words` drops: a league or stage letter (FiT-North's X-League), AM/PM, a meet's
+ *  number or time ("Lawson Meet @ 8 AM"). */
+const shortTokens = (s: string) => new Set((plain(s).match(/[A-Z0-9]+/g) ?? []).filter((t) => t.length <= 2));
+/** Whether a name read beside a match clashes with this event's in a short token: one of this event's is missing and
+ *  another stands in the read ("U" for "X", "10 30" for "8"). Sibling meets of one day share every long word. */
+export function shortClash(read: string, own: string): boolean {
+  const mine = shortTokens(own), seen = shortTokens(read);
+  return [...mine].some((t) => !seen.has(t)) && [...seen].some((t) => !mine.has(t));
+}
 /** Where the overlay names a match, and the event name just before it on the same line. */
 // A semifinal (2019–2022's "Semifinal 2 Match 1", or "Semifinals Match 1" with its series lost) is taken whole, before
 // its "finals Match 1" or "Match 1" could be: overlayLabel names it by series and number (M2-1), or none.
@@ -266,6 +275,9 @@ export function overlayEvent(text: string, own: string, quals?: number, semifina
     // at 2509 s: "rer DIVE — Nevada Chan qualification 6 of 4", its own Nevada one word in three, "Chan" its cut name).
     const telling = read.filter((w) => w.length >= 4);
     if (telling.length >= 2 && telling.filter(ours).length * 2 < telling.length) return "other";
+    // Its long words this event's, but a short one another's: a sibling meet's (FiT-North U-League AM Meet 3 for its
+    // X-League AM Meet 3). Only a total read in full can make it this event's.
+    if (hit && shortClash(name, own)) return "other";
     return hit ? "own" : null;
   };
   let other = false, ownLabel: string | undefined, ownSeen = false;
