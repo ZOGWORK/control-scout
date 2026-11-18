@@ -182,7 +182,6 @@ const STATIC: Record<string, { title: string; description: string; noindex?: boo
   "/shortlist": { title: "Shortlist", description: "Your shortlisted FTC teams on Control Scout.", noindex: true },
   "/scout": { title: "Scout", description: "Your scouting notes on Control Scout.", noindex: true },
   "/settings": { title: "Settings", description: "Control Scout settings: theme, text size and offline data.", noindex: true },
-  "/preview/home": { title: "Sample home", description: "A sample of the new Control Scout home page, for review.", noindex: true },
   "/digest/unsubscribed": { title: "Email digest", description: "Unsubscribe from the Control Scout email digest.", noindex: true },
   "/get-verified": { title: "Get Verified", description: "Apply to add match videos everyone can watch on Control Scout.", noindex: true },
   "/verify-video": { title: "Contributor invite", description: "An invite to add match videos on Control Scout.", noindex: true },
