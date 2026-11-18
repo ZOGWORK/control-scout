@@ -513,6 +513,20 @@ describe("the channel audit", () => {
     delete old.listTitle;
   });
 
+  it("keeps a stored title over a placeholder in any case or spacing, where no read gives its title", async () => {
+    // Both lists give the placeholder, so the stored upsert alone keeps the title.
+    const old = uploads.find((u) => u.id === OLDNONE)!;
+    const title = old.title;
+    for (const placeholder of ["  deleted video ", "PRIVATE VIDEO"]) {
+      old.title = old.listTitle = placeholder;
+      await run("UPDATE official_audit_videos SET facts_at = '2026-03-01T00:00:00Z' WHERE video_id = ?", [OLDNONE]);
+      expect((await audit(Date.parse("2026-03-06T07:00:00Z")))?.error).toBeNull();
+      expect((await get<any>("SELECT title FROM official_audit_videos WHERE video_id = ?", [OLDNONE])).title).toBe(title);
+    }
+    old.title = title;
+    delete old.listTitle;
+  });
+
   it("doesn't put an add back on a day and part another recording holds now, and the audit finishes", async () => {
     // GOOD, taken off by the audit, its day's morning since taken by another recording.
     await run("UPDATE official_videos SET part = 'Morning', removed_at = '2026-03-06T00:00:00Z' WHERE video_id = ?", [GOOD]);

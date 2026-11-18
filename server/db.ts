@@ -2203,7 +2203,9 @@ CREATE INDEX contributor_video_reports_reporter ON contributor_video_reports (re
 -- video a day, a day's second video only as a named part such as the awards) | highlight (a short reel, shown on the
 -- event page as a highlight and never as a match's video). day: the broadcast's date at the venue (recordings).
 -- source: list (server/data/officialVideos.json, checked by hand) | watcher (found on a watched channel) | owner
--- (approved from the owner's review queue). A row is never re-added once removed: removed_at keeps it out.
+-- (approved from the owner's review queue). A row is never re-added once removed: removed_at keeps it out. The link
+-- check (server/videos/linkCheck.ts) deletes the row instead, freeing the video for the meet it names now; its drop is
+-- logged in owner_audit, which keeps the checked list from writing it back onto that event.
 CREATE TABLE official_videos (
   video_id TEXT PRIMARY KEY,
   season INTEGER NOT NULL,

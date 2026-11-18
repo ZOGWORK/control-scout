@@ -131,12 +131,22 @@ export async function eventVideosByDay(season: number, code: string): Promise<{ 
  */
 let seeded = false;
 let waitingWas = -1;
+let dropsLogged = false;
 export async function seedOfficialVideos(log: (s: string) => void, data: OfficialList = list as OfficialList, now = Date.now(), again = false): Promise<number> {
   // Once a process: the list only changes with a deploy, which starts a new one.
   if (seeded && !again) return 0;
   const named = await nameListedParts(data);
   const known = new Set((await all<{ video_id: string }>("SELECT video_id FROM official_videos")).map((r) => String(r.video_id)));
-  const todo = data.videos.filter((v) => isId(v.videoId) && !known.has(v.videoId));
+  // A video the link check took off its event (./linkCheck.ts, logged by "link check" as officialVideo.remove) is never
+  // written back onto that event, whatever is decided of it since; listed for another event, it's written there.
+  const dropped = new Set((await all<{ k: string }>(`SELECT json_extract(details, '$.videoId') || '/' || json_extract(details, '$.season') || '/' || json_extract(details, '$.code') AS k
+    FROM owner_audit WHERE actor = 'link check' AND action = 'officialVideo.remove'`)).map((r) => String(r.k)));
+  const skippedDrops = data.videos.filter((v) => !known.has(v.videoId) && dropped.has(`${v.videoId}/${v.season}/${v.code}`));
+  if (skippedDrops.length && !dropsLogged) {
+    dropsLogged = true;
+    log(`official videos: ${skippedDrops.length} listed video${skippedDrops.length === 1 ? "" : "s"} not written: the link check took ${skippedDrops.length === 1 ? "it" : "them"} off ${skippedDrops.length === 1 ? "that event" : "those events"} (${skippedDrops.slice(0, 5).map((v) => `${v.videoId} ${v.season} ${v.code}`).join(", ")})`);
+  }
+  const todo = data.videos.filter((v) => isId(v.videoId) && !known.has(v.videoId) && !dropped.has(`${v.videoId}/${v.season}/${v.code}`));
   if (!todo.length) { seeded = true; if (named) forgetOfficial(); return named; }
   const keys = [...new Set(todo.map((v) => `${v.season}/${v.code}`))];
   const events = new Set<string>();
