@@ -135,18 +135,21 @@ export const frameFileSeason = (path: string): number | null => {
 /** Events ("season/code") other open PRs bring frame-read rows for, each with the first PR that does: the codes on the
  *  "+" lines of each PR's patch to a season's frame-read file. Another session's data PR holds its events as the
  *  autopilot's own do, so no two PRs carry one event (#1932 and #1933 repeated #1829's USCHSCMPSUBS and USMOKSCMP).
- *  A file whose patch GitHub left out (too big) holds nothing here: the caller logs it. */
-export function heldElsewhere(prs: { number: number; files: { filename: string; patch?: string }[] }[]): Map<string, number> {
-  const out = new Map<string, number>();
+ *  A season's file whose patch GitHub left out (a diff too big to show) is in `unread`, for the caller to read the
+ *  PR's own copy of (holdCodes): never silently nothing. */
+export function heldElsewhere(prs: { number: number; files: { filename: string; patch?: string }[] }[]): { held: Map<string, number>; unread: { number: number; filename: string }[] } {
+  const held = new Map<string, number>(), unread: { number: number; filename: string }[] = [];
   for (const p of prs) for (const f of p.files) {
     const season = frameFileSeason(f.filename);
-    if (season == null || !f.patch) continue;
-    for (const line of f.patch.split("\n")) {
-      const code = line.startsWith("+") ? /"code":"([^"]+)"/.exec(line)?.[1] : undefined;
-      if (code && !out.has(`${season}/${code}`)) out.set(`${season}/${code}`, p.number);
-    }
+    if (season == null) continue;
+    if (!f.patch) { unread.push({ number: p.number, filename: f.filename }); continue; }
+    holdCodes(held, season, f.patch.split("\n").flatMap((line) => (line.startsWith("+") ? [/"code":"([^"]+)"/.exec(line)?.[1]].filter((c): c is string => !!c) : [])), p.number);
   }
-  return out;
+  return { held, unread };
+}
+/** Holds `codes` of `season` for PR `number`, an event already held keeping the first PR that carries it. */
+export function holdCodes(held: Map<string, number>, season: number, codes: string[], number: number): void {
+  for (const c of codes) if (!held.has(`${season}/${c}`)) held.set(`${season}/${c}`, number);
 }
 
 /** An event's memory after a read: shipped rows clear it; nothing new counts a try. */
