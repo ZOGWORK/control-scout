@@ -1,7 +1,8 @@
 // The pure parts of the frame reader (scripts/video-frames.ts): the overlay's match, the timer's elapsed time, and
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
-import { dataRows, divisionOf, cropOrder, elapsed, flippedClip, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, shortClash, clockReading, type M } from "./videoFrames";
+import { dataRows, divisionOf, cropOrder, elapsed, flippedClip, inPage, titleLeaks, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, firstOpening, OPEN_LEADS, shortClash, clockReading, type M } from "./videoFrames";
+import { between, GAP_READS, TRIES } from "./videoFrames";
 
 describe("the frame reader", () => {
   // A 1280 × 720 frame: a grey field, and a score bar from `top` to `bottom` with one alliance's colour each side of the
@@ -156,6 +157,22 @@ describe("the frame reader", () => {
     expect(cropOrder([a, b, c, d], { n: "a" })).toEqual([a, b, c, d]);
   });
 
+  it("runs a function in a page that has no __name of tsx's (inPage)", () => {
+    // tsx's own output for a function with an inner named arrow, as the page gets it from toString.
+    const compiled = { toString: () => '() => { const walk = __name((n) => n * 2, "walk"); return walk(21); }' };
+    expect(() => new Function(`return (${compiled.toString()})()`)()).toThrow(/__name/);
+    expect(new Function(`return ${inPage(compiled)}`)()).toBe(42);
+  });
+
+  it("finds YouTube's title and channel among the page's texts, never the overlay's own (2023's .ytp-title leak)", () => {
+    const title = "FTC Harrisonburg 1 Qualifier - February 8th, 2022 FTC Event";
+    const texts = ["FTC Harrisonburg 1 Qualifier - February 8th, 2022 FTC Event", "Qualification 13 of 18", "FTC", "Harrisonburg 1 Qualifier - Febr...", "Chesapeake FIRST", "Harrisonburg 1 Qualifier", "0:30"];
+    expect(titleLeaks(title, "Chesapeake FIRST", texts)).toEqual([0, 3, 4, 5]);
+    // Every text in the page is YouTube's: the overlay is pixels in the video, never a page element. So a piece of the
+    // title counts even when it is the event's name. No title or channel known: nothing counts.
+    expect(titleLeaks("", "", texts)).toEqual([]);
+    expect(titleLeaks(title, "", ["2022", "FTC Event"])).toEqual([1]);
+  });
   it("reads a bare-seconds timer (FTC Live's overlay, 2019–2022)", () => {
     // AUMPOS1 2022: Auto "24", TeleOp "112"; IASQ4 2019 TeleOp "101".
     expect(secondsPlain("24\n")).toBe(24);
@@ -625,5 +642,53 @@ describe("an event whose scoring clock kept UTC", () => {
     // A scheduled-only time (2019's qualifications) isn't an actual start: with none actual, nothing changes.
     const scheduled = played.map((m) => ({ ...m, scheduled: true }));
     expect(clockReading(scheduled, [broadcast], asUtc).utc).toBe(false);
+  });
+});
+
+describe("firstOpening", () => {
+  // A frame naming the match at the given seconds; every second read is recorded.
+  const at = (named: number[]) => { const read: number[] = []; return { read, names: async (t: number) => (read.push(t), named.includes(t)) }; };
+  it("every lead-in second before the start is tried before +2 and +4", () => {
+    expect(OPEN_LEADS.slice(0, 5)).toEqual([20, 12, 5, 2, 0]);
+    expect(OPEN_LEADS.slice(5)).toEqual([-2, -4]);
+  });
+  it("never opens after the start when any lead-in frame names the match", async () => {
+    for (const lead of [20, 12, 5, 2, 0]) {
+      const f = at([1000 - lead, 1002, 1004]);
+      expect(await firstOpening(1000, f.names)).toBe(1000 - lead);
+      expect(f.read.some((t) => t > 1000)).toBe(false);
+    }
+  });
+  it("opens 2, then 4 s into the match only where no frame before its start names it (an upload cut from the last results)", async () => {
+    expect(await firstOpening(4656, at([4658, 4660]).names)).toBe(4658);
+    expect(await firstOpening(4656, at([4660]).names)).toBe(4660);
+    const none = at([]);
+    expect(await firstOpening(4656, none.names)).toBeNull();
+    expect(none.read).toEqual([4636, 4644, 4651, 4654, 4656, 4658, 4660]);
+  });
+  it("skips a second before the video's start, and stops at a failed read", async () => {
+    const early = at([]);
+    await firstOpening(6, early.names);
+    expect(early.read).toEqual([1, 4, 6, 8, 10]);
+    let n = 0;
+    expect(await firstOpening(1000, async () => (++n === 2 ? "stop" : false))).toBeNull();
+    expect(n).toBe(2);
+  });
+});
+
+describe("between", () => {
+  const ms = [{ label: "Q1", epoch: 0 }, { label: "Q2", epoch: 300 }, { label: "Q3", epoch: 600 }, { label: "Q4", epoch: 900, scheduled: true }, { label: "Q5", epoch: 1200 }];
+  it("is a match with reads on both sides of it", () => {
+    const seen = new Map([[0, 10], [4, 1210]]);
+    expect([1, 2, 3].map((i) => between(ms, seen, i))).toEqual([true, true, true]);
+    expect(between(ms, seen, 0)).toBe(false);
+    expect(between(ms, seen, 4)).toBe(false);
+  });
+  it("needs a read after it, and a scheduled match's read doesn't count", () => {
+    expect(between(ms, new Map([[0, 10], [1, 310]]), 2)).toBe(false);
+    expect(between(ms, new Map([[0, 10], [3, 5000]]), 2)).toBe(false);
+  });
+  it("gives each such match both sides' tries and a confirm", () => {
+    expect(GAP_READS).toBe(2 * TRIES + 4);
   });
 });

@@ -36,7 +36,8 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
 import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, clockReading, playedCount, playedMatches, wholeLength } from "./lib/videoFrames";
-import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, cropOrder, elapsed, flippedClip, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M } from "./lib/videoFrames";
+import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, firstOpening, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, cropOrder, elapsed, flippedClip, inPage, titleLeaks, visibleTexts, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M } from "./lib/videoFrames";
+import { between, GAP_READS } from "./lib/videoFrames";
 
 // The command line: --name value or --name=value for the value flags, --name alone for the others. Anything else stops
 // the run before it reads: a misspelt flag mustn't quietly read (and write) every recording of the season.
@@ -364,6 +365,7 @@ function stopIfDark(): void {
 async function readAtOnce(page: Page, t: number, labelOnly = false): Promise<Read> {
   if (ocrBroken) throw new Error(ocrBroken);
   await seek(page, Math.max(0, t), labelOnly);
+  if (labelOnly) await hideTitle(page);
   const at = await now(page);
   const shot = await page.screenshot();
   if (reads++ % SHADE_EVERY === 0) {
@@ -471,7 +473,7 @@ const MISSES = 3;
 
 /**
  * Every placed match's clip must open on that match: its first frame's overlay names it (and, on a stream divisions
- * share, not a sibling division's). Tried 20, 12, 5, 2 and 0 s before its start (OPEN_LEADS); the first that names it
+ * share, not a sibling division's). Tried 20, 12, 5, 2 and 0 s before its start, then 2 and 4 s after it (OPEN_LEADS); the first that names it
  * is where the clip opens. One that names another match there (the previous match's result still up) is tried closer
  * in; a match whose clip can't open on it goes to review, and one whose overlay can't be read there at all is missing
  * with OVERLAY_UNREAD. A read that fails leaves the openings not yet checked unread: a live clip stays unconfirmed, a new
@@ -485,20 +487,19 @@ async function checkOpenings(page: Page, j: Judged, log: (s: string) => void, un
   const isLive = (label: string, t: number) => !live || (live[label] != null && Math.abs(live[label] - t) <= SAME_S);
   for (const [label, p] of [...j.placed]) {
     if (j.opens.has(label)) continue; // checked on an earlier --verify
-    let named: string | null = null, at: number | null = null;
-    for (const lead of broken ? [] : OPEN_LEADS) {
-      const t = p.t - lead;
-      if (t < 0) continue;
+    let named: string | null = null;
+    const at = broken ? null : await firstOpening(p.t, async (t) => {
       let r: Read;
-      try { r = await readAt(page, t, true); } catch (e) { broken = true; log(`    an opening read failed (${(e as Error).message.split("\n")[0]}): the rest are left unchecked`); break; }
+      try { r = await readAt(page, t, true); } catch (e) { broken = true; log(`    an opening read failed (${(e as Error).message.split("\n")[0]}): the rest are left unchecked`); return "stop"; }
       // A seek that never landed shows whatever frame was up before (the last read's): that frame names nothing here.
-      if (Math.abs(r.at - t) > 1) { log(`    ${label}: the opening read at ${t} s landed at ${Math.round(r.at)} s; not counted`); continue; }
-      if (r.division === "other") { named = "another division's match"; continue; }
+      if (Math.abs(r.at - t) > 1) { log(`    ${label}: the opening read at ${t} s landed at ${Math.round(r.at)} s; not counted`); return false; }
+      if (r.division === "other") { named = "another division's match"; return false; }
       // The overlay names a replay (a tiebreak's "M6-2") by its match alone ("M6"), as placeVideo reads it; a
       // semifinal's match by its series and number ("M1-2"), that match only (sameMatch).
-      if (sameMatch(r.label ?? "", label)) { at = t; break; }
+      if (sameMatch(r.label ?? "", label)) return true;
       if (r.label) named = eventLabel(r.label);
-    }
+      return false;
+    });
     if (at != null) { j.opens.set(label, at); continue; }
     if (broken) {
       // Not checked: a live clip stays unconfirmed; a new placement waits for the video's next read.
@@ -653,6 +654,7 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
   // frames of scanning, then 232 left M1–M5 in a gap unread).
   let budget = Math.max(60, 8 * ms.length);
   let unconfirmed = 0;
+  const extra = new Set<number>(); // matches between two reads given GAP_READS of their own
   const near = (i: number): number | null => {
     // The distance of the read nearest by order, else the broadcast's.
     let best: number | null = null, d = Infinity;
@@ -764,7 +766,11 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
     // A match with only its scheduled time is the walk's (above): its time says nothing of where the video sits.
     if (ms[i].scheduled) return null;
     if (seen.has(i)) return seen.get(i)!;
-    if (blind() || reads() >= budget) return null;
+    if (blind()) return null;
+    // A match between two reads is in the recording unless a cut took it: once the budget is spent it still gets reads of
+    // its own, once (USORRCM2 2023: Q17-Q19, between Q16's and Q20's reads, went unread with 179 frames spent of 176).
+    if (reads() >= budget && between(ms, seen, i) && !extra.has(i)) { extra.add(i); budget = reads() + GAP_READS; }
+    if (reads() >= budget) return null;
     // Where the reads either side put the video, each in turn: where they disagree (a gap where the video lost time),
     // the match sits at one of them, and the nearest read alone may be the wrong side (CAONMIQ 2025's M10, at M9's
     // distance while its tie M11 sits 345 s earlier, was looked for only at M11's).
@@ -806,6 +812,9 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
     for (let i = firstSeen - 1; i >= 0 && Number.isFinite(firstSeen) && !blind() && reads() < budget; i--) if ((await anchor(i)) == null) break;
   };
   await before();
+  // The matches still unread between two reads (span stops calling anchor once the budget is spent): each in turn.
+  const inside = async () => { for (let i = 0; i < ms.length; i++) if (!seen.has(i) && !ms[i].scheduled && between(ms, seen, i)) await anchor(i); };
+  await inside();
   if (blind() && shift != null) {
     await scan();
     if (seen.size) {
@@ -814,6 +823,7 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
       missed = 0;
       await span(0, ms.length - 1);
       await before();
+      await inside();
     }
   }
   if (blind()) log(`    no overlay read in ${reads()} frames`);
@@ -1010,7 +1020,29 @@ async function openOnce(page: Page, videoId: string): Promise<void> {
   // #movie_player: hidden too, or the event-name check (overlayEvent) could read the title instead of the overlay.
   // Only the title pieces, never their containers (#player-controls, #player-control-overlay): hiding those turns a
   // PLAYING frame pure black (USNVCMP 2024: 30 of 30 black; this rule: 77 of 77 drawn, top bar clear).
-  await page.addStyleTag({ content: ".ytp-caption-window-container, .caption-window, .ytp-chrome-top, .ytp-pause-overlay, .ytp-show-cards-title, .ytp-ce-element, .ytp-player-content.ytp-iv-player-content, .ytp-large-play-button, .ytp-bezel, .ytp-chrome-bottom, player-top-controls, .ytwPlayerTopControlsHost, embedded-player-video-details, .ytmCuedOverlayGradient { display: none !important; }" });
+  await page.addStyleTag({ content: ".ytp-caption-window-container, .caption-window, .ytp-chrome-top, .ytp-pause-overlay, .ytp-show-cards-title, .ytp-ce-element, .ytp-player-content.ytp-iv-player-content, .ytp-large-play-button, .ytp-bezel, .ytp-chrome-bottom, player-top-controls, .ytwPlayerTopControlsHost, embedded-player-video-details, .ytmCuedOverlayGradient, .ytp-title, .ytp-title-text, .ytp-title-channel, .ytp-title-link, .ytp-gradient-top { display: none !important; }" });
+  await hideTitle(page);
+}
+
+/** YouTube's title or channel name drawn over the frame anyway (a player whose pieces have names no rule above
+ *  hides: the 2023 reads saw .ytp-title's line in their frames, the event-name check reading it as the overlay's):
+ *  each such text, found by what it says (titleLeaks, against the player's own title and channel), is hidden on its
+ *  own, and looked for again. Still there: this video isn't read here, rather than read off a frame that names the
+ *  event whatever its bar says. Called once the video plays, and before each paused read (a pause brings the title
+ *  back). */
+async function hideTitle(page: Page): Promise<void> {
+  const meta = await page.evaluate(() => {
+    const d = (document.querySelector("#movie_player") as any)?.getVideoData?.();
+    return { title: String(d?.title ?? ""), channel: String(d?.author ?? "") };
+  });
+  if (!meta.title && !meta.channel) return;
+  for (let pass = 0; pass < 2; pass++) {
+    const texts = (await page.evaluate(inPage(visibleTexts))) as string[];
+    const leaks = titleLeaks(meta.title, meta.channel, texts);
+    if (!leaks.length) return;
+    if (pass === 1) throw new Error(`YouTube's title shows over the frame ("${texts[leaks[0]]}")`);
+    await page.evaluate((ix) => { for (const i of ix) ((window as any).__texts[i] as HTMLElement).style.setProperty("display", "none", "important"); }, leaks);
+  }
 }
 
 /** A video's length in whole seconds, as its player gives it, or why it has none: a stream that is still live or

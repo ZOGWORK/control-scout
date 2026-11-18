@@ -30,6 +30,8 @@ export function playedMatches(
 export const SAME_S = 6;
 /** The most frames read looking for one match. */
 export const TRIES = 7;
+/** Reads a match between two reads gets of its own once the video's budget is spent: each side's tries and a confirm. */
+export const GAP_READS = 2 * TRIES + 4;
 /** A DECODE match: 30 s of Auto, 8 s to switch, 2:00 of TeleOp (FTC Live's timer stops between them). */
 export const AUTO_S = 30, SWITCH_S = 8, TELEOP_S = 120;
 
@@ -125,6 +127,60 @@ export const secondsLoose = (s: string) => { const m = /^([0-2]):?([0-5]\d)$/.ex
  *  bottom, is at y 4 in Arizona's flipped bar). */
 export const flippedClip = (c: { x: number; y: number; width: number; height: number }, height = 720) => ({ ...c, y: height - c.y - c.height });
 
+/** The fewest characters a piece of YouTube's title (or channel) shown over the frame must have to count as it: a
+ *  shorter text ("FTC", "2025", a team number) is as likely the overlay's own. */
+export const TITLE_MIN = 8;
+const squash = (s: string) => s.normalize("NFKC").replace(/\s+/g, " ").trim().toLowerCase();
+/**
+ * The texts on screen that are YouTube's title or channel name (`texts`: each visible text in the player page, as
+ * visibleTexts lists them), by their indexes. A text counts when it is the title or channel, or a piece of either at
+ * least TITLE_MIN long (the newer embed cuts a long title to a line). The title often IS the event's name ("FTC
+ * Harrisonburg 1 Qualifier"), so a frame showing it names the event whatever its score bar says: the event-name check
+ * (overlayEvent) took such frames for this event's.
+ */
+export function titleLeaks(title: string, channel: string, texts: string[]): number[] {
+  const whole = [squash(title), squash(channel)].filter((t) => t.length > 0);
+  const out: number[] = [];
+  texts.forEach((raw, i) => {
+    const t = squash(raw).replace(/(?:\.{3}|…)$/, "").trim();
+    if (!t) return;
+    if (whole.some((w) => t === w || (t.length >= TITLE_MIN && w.includes(t)))) out.push(i);
+  });
+  return out;
+}
+
+/** A self-contained function's call, as a script for the page to run. tsx names each function it compiles with a
+ *  helper of its own (`__name(walk, "walk")`), which a page doesn't have: the call brings a do-nothing one along, so it
+ *  runs on any page, not only those the reader's player() gave one (visibleTexts under tsx: "__name is not defined"). */
+export const inPage = (fn: { toString(): string }): string => `(() => { const __name = (f) => f; return (${fn.toString()})(); })()`;
+
+/**
+ * Each visible text in the page (a leaf element's own text, shadow roots included), in document order; the elements
+ * are kept on window.__texts in the same order, so the reader can hide one by its index. Visible: a box on screen,
+ * not hidden by display, visibility or opacity on it or any ancestor. Self-contained (no imports, no outer names): the
+ * reader runs it in the page.
+ */
+export function visibleTexts(): string[] {
+  const els: Element[] = [];
+  const walk = (root: Document | ShadowRoot) => {
+    for (const el of Array.from(root.querySelectorAll("*"))) {
+      if ((el as HTMLElement).shadowRoot) walk((el as HTMLElement).shadowRoot!);
+      if (el.children.length || !(el.textContent ?? "").trim()) continue;
+      const r = el.getBoundingClientRect();
+      if (r.width < 1 || r.height < 1 || r.bottom < 0 || r.top > innerHeight) continue;
+      let shown = true;
+      for (let e: Element | null = el; e && shown; e = e.parentElement ?? ((e.getRootNode() as ShadowRoot).host ?? null)) {
+        const c = getComputedStyle(e);
+        if (c.display === "none" || c.visibility === "hidden" || Number(c.opacity) === 0) shown = false;
+      }
+      if (shown) els.push(el);
+    }
+  };
+  walk(document);
+  (window as any).__texts = els;
+  return els.map((e) => (e.textContent ?? "").trim());
+}
+
 /** The order the timer's crops are tried in: `first` (the crop the frame's bar names, or whose clock last ran) ahead,
  *  the rest in their usual order. A `first` that isn't one of them changes nothing. */
 export const cropOrder = <T>(crops: readonly T[], first?: T | null): T[] =>
@@ -172,9 +228,30 @@ export const SCHEDULED_UNREAD = "no start time from FIRST, and no frame of it re
  *  overlap. */
 export const MATCH_S = AUTO_S + SWITCH_S + TELEOP_S;
 /** Where a clip may open, seconds before its match's start, earliest first: the first whose frame names the match.
- *  The last two open at the start itself: a results card ("Match 6 results", CAONMIQ 2025 M7) or a bracket card
- *  (USIAWESTLT 2025 M3) can stay up until the match's own overlay comes on, seconds before it starts. */
-export const OPEN_LEADS = [20, 12, 5, 2, 0];
+ *  The 2 and 0 open at the start itself: a results card ("Match 6 results", CAONMIQ 2025 M7) or a bracket card
+ *  (USIAWESTLT 2025 M3) can stay up until the match's own overlay comes on, seconds before it starts. The last two open
+ *  just after it, where nothing before the start names the match: an upload cut from one match's results straight into
+ *  the next match's first second (USMOKSKCM2 2021 Q15: Q14's results at 4651 s, Q15's Auto running at 4657 s), so the
+ *  clip opens 2 or 4 s into its match rather than not at all. Still only on a frame that names it. */
+export const OPEN_LEADS = [20, 12, 5, 2, 0, -2, -4];
+/** OPEN_LEADS in words, for checks and summaries. */
+export const OPEN_LEADS_TEXT = "20, 12, 5, 2 or 0 s before its start, or 2 or 4 s after it";
+/** Where a clip opens against its match's start, in words: "12 s before its start", "2 s after its start". */
+export const leadText = (lead: number): string => (lead >= 0 ? `${lead} s before its start` : `${-lead} s after its start`);
+
+/** Where a clip opens: OPEN_LEADS in order, the first second whose frame names the match (`names` reads it: true names
+ *  it, false doesn't, "stop" when the read failed and no more are tried). Every lead-in second (20 … 0 s before) is
+ *  tried before the start's +2 and +4, so a clip opens late only where no frame before its start names it. */
+export async function firstOpening(start: number, names: (t: number) => Promise<boolean | "stop">): Promise<number | null> {
+  for (const lead of OPEN_LEADS) {
+    const t = start - lead;
+    if (t < 0) continue;
+    const r = await names(t);
+    if (r === "stop") return null;
+    if (r) return t;
+  }
+  return null;
+}
 
 /** The reason a placed match whose clip opening couldn't be checked gets: never a clip, never a clock reason. */
 export const OVERLAY_UNREAD = "overlay could not be read at its clip's start";
@@ -538,4 +615,12 @@ export function clockReading<T extends M & { time: string | null }>(played: T[],
   const after = Math.max(...moved.filter((m) => m.time != null).map((m) => m.epoch));
   const untimed = moved.filter((m) => m.time == null).map((m, i) => ({ ...m, epoch: after + 1 + i }));
   return { played: [...moved.filter((m) => m.time != null).sort((a, b) => a.epoch - b.epoch), ...untimed], utc: true };
+}
+
+/** A match with reads on both sides of it (a scheduled match's read says nothing of the clock): it is in the recording
+ *  unless a cut took it out, so it is still looked for once the video's read budget is spent (GAP_READS). */
+export function between(ms: M[], seen: Map<number, number>, i: number): boolean {
+  let lo = false, hi = false;
+  for (const k of seen.keys()) if (!ms[k].scheduled) { if (k < i) lo = true; else if (k > i) hi = true; }
+  return lo && hi;
 }

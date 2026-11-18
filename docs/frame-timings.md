@@ -98,7 +98,7 @@ opens (`opens`); the server starts the clip there (`frameOpen`). The last two ar
 stays up until the match's own overlay comes on (CAONMIQ 2025 M7, USIAWESTLT M3). One whose opening frame shows another
 match goes to review; one whose overlay can't be read there is missing with "overlay could not be read at its clip's
 start". A row with `opens` plays only the starts in it. `--verify` checks the openings of rows read before this, without
-reading their starts again.
+reading their starts again. Where nothing before the start names the match (an upload cut from the last match's results straight into this one's first second), it is tried 2 and then 4 s after the start, and the clip opens there, a few seconds into its match, rather than not at all.
 
 An opening is read paused at its second, so the frame read is the one the clip opens on. A playing read lands about a
 second later by the time it's taken: LTCMP 2024 Q20, asked 8948, read 8948.9 with "Qualification 20 of 40" already in,
