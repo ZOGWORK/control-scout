@@ -79,13 +79,21 @@ const memory: Memory = existsSync(MEMORY_FILE) ? JSON.parse(readFileSync(MEMORY_
 /** The last Loopy ask on each open PR (by number): its head and when (askDue). */
 const ASKED_FILE = join(DIR, "asked.json");
 const asked: Record<string, { head: string; at: string }> = existsSync(ASKED_FILE) ? JSON.parse(readFileSync(ASKED_FILE, "utf8")) : {};
+/** The PRs open this run (listed, and opened by it), by number; null until the list is read. Declared here, before the
+ *  exit handler that reads it, so an early exit finds it set. */
+let openNow: Set<string> | null = null;
 /** Files a read may have written, as they were before it: put back however the run ends. */
 const restore = new Map<string, string>();
 // However the run ends (done, stopped, or thrown): what it tried keeps its retry and give-up counts, and every file a
 // read wrote is put back, so the clone is never left with changes.
 process.on("exit", () => {
   // A dry run opens no PR: what it "would open" or didn't find never counts toward the real runs' retries.
-  if (!DRY) { writeFileSync(MEMORY_FILE, JSON.stringify(memory, null, 1)); writeFileSync(ASKED_FILE, JSON.stringify(asked, null, 1)); }
+  if (!DRY) {
+    writeFileSync(MEMORY_FILE, JSON.stringify(memory, null, 1));
+    // Asks kept for open PRs only: a closed or merged PR's is never read again. Before the list was read: all kept.
+    const keep = openNow;
+    writeFileSync(ASKED_FILE, JSON.stringify(keep ? Object.fromEntries(Object.entries(asked).filter(([n]) => keep.has(n))) : asked, null, 1));
+  }
   for (const [file, text] of restore) writeFileSync(file, text);
 });
 
@@ -182,6 +190,7 @@ function clipsText(rows: ClipCheck[], live: Map<string, ClipCheck>): PrText {
 // --- 1b. Own PRs rebuilt on main --------------------------------------------------------------------------------------
 if (!DRY) sh("gh", ["label", "create", LABEL, "--force", "--color", "0e8a16", "--description", "A data PR the clip autopilot opened (scripts/clip-autopilot.ts)"], { ok: true, quiet: true });
 const open = DRY ? [] : openPrs();
+openNow = new Set(open.map((p) => String(p.number)));
 for (const p of open) {
   try {
     // Inside the try: a branch that can't be read (deleted, not fetched) is logged and left, never the whole run.
@@ -215,8 +224,10 @@ for (const p of open) {
     push(p.branch);
     const head = git("rev-parse", "HEAD");
     log(`#${p.number}: rebuilt on main (${why.join(", ")})${keep.length < rows.length ? ` (${rows.length - keep.length} rows main changed meanwhile left out)` : ""}`);
-    // Pushed: its words, label and review ask follow. One that fails is done next run (followUps, on the next head).
-    sh("gh", ["pr", "edit", String(p.number), "--title", text.title, "--body", [...text.body, "", text.marker].join("\n")]);
+    // Pushed: its words, label and review ask follow, each going ahead if another fails. Words that failed are made
+    // again at its next rebuild; the label and ask on every run (followUps).
+    const edit = sh("gh", ["pr", "edit", String(p.number), "--title", text.title, "--body", [...text.body, "", text.marker].join("\n")], { ok: true });
+    if (edit.code) log(`#${p.number}: its title and description couldn't be updated (gh exit ${edit.code}); its mark names its old rows until its next rebuild`);
     followUps(p.number, head, p.labels);
   } catch (e) {
     log(`#${p.number}: couldn't be rebuilt on main (${(e as Error).message}); left as it is`);
@@ -274,6 +285,7 @@ function openPr(o: { file: string; rows: Keyed[]; branch: string } & PrText): bo
     const url = sh("gh", ["pr", "create", "--base", "main", "--head", o.branch, "--title", o.title, "--label", LABEL, "--label", NO_CHANGELOG, "--body", [...o.body, "", o.marker].join("\n")]).out.trim();
     pushed = false;
     log(`opened ${url}: ${o.title}`);
+    openNow?.add(url.split("/").pop() ?? "");
     // Opened: a review ask that fails is made again next run (followUps).
     askReview(Number(url.split("/").pop()), git("rev-parse", "HEAD"));
     return true;
