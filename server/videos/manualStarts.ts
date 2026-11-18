@@ -23,7 +23,10 @@ export function parseVideoTime(s: string): number | null {
 
 /** Every typed start into memory (at boot, and after each change). */
 export async function loadManualStarts(): Promise<number> {
-  const rows = await all<{ video_id: string; code: string; label: string; seconds: number }>("SELECT video_id, code, label, seconds FROM manual_starts");
+  // Only a video still on its event: one taken off (removeOfficial) keeps its rows on record but plays none.
+  const rows = await all<{ video_id: string; code: string; label: string; seconds: number }>(
+    `SELECT m.video_id, m.code, m.label, m.seconds FROM manual_starts m
+     WHERE EXISTS (SELECT 1 FROM official_videos o WHERE o.video_id = m.video_id AND o.season = m.season AND o.code = m.code AND o.removed_at IS NULL)`);
   setManualStarts(rows.map((r) => ({ videoId: String(r.video_id), code: String(r.code), label: String(r.label), seconds: Number(r.seconds) })));
   return rows.length;
 }
@@ -41,6 +44,8 @@ type Out = { ok: true; starts: ManualStart[] } | { ok: false; error: string };
 export async function setManualStart(videoId: string, body: { season?: unknown; code?: unknown; label?: unknown; at?: unknown }, actor: string, now = Date.now()): Promise<Out> {
   const season = Number(body.season), code = String(body.code ?? "").trim().toUpperCase(), label = String(body.label ?? "").trim().toUpperCase();
   if (!Number.isInteger(season) || !code) return { ok: false, error: "Pick the event first." };
+  const on = await get("SELECT 1 FROM official_videos WHERE video_id = ? AND season = ? AND code = ? AND removed_at IS NULL", [videoId, season, code]);
+  if (!on) return { ok: false, error: `This video isn't on ${season} ${code}.` };
   const seconds = parseVideoTime(String(body.at ?? ""));
   if (seconds == null) return { ok: false, error: "Type the time as 1:42:05, 42:05 or seconds." };
   const match = await get<{ label: string }>("SELECT label FROM matches WHERE season = ? AND code = ? AND UPPER(label) = ?", [season, code, label]);
