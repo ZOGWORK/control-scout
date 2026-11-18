@@ -138,7 +138,7 @@ export function Headline({ d, eventName, href }: { d: MatchDetail; eventName?: s
           button says it needs a connection instead of opening a player that can't load. */}
       {(m.clip || m.video) && (
         <div className="mt-3 flex flex-wrap gap-2" data-testid="match-video-buttons">
-          {m.clip && <ClipLink clip={m.clip} label={m.label} matchKey={m.key} className={WATCH} offline={noVideo}>{noVideo ? "Match video · Needs a connection" : <>Watch the match · {clipTime(m.clip.t)}</>}</ClipLink>}
+          {m.clip && <ClipLink clip={m.clip} label={m.label} matchKey={m.key} className={WATCH} offline={noVideo}>{noVideo ? "Match video · Needs a connection" : <>Watch the match · {clipTime(m.clip.t)}{m.clip.youtubeOnly ? " · on YouTube" : ""}</>}</ClipLink>}
           {m.video && <MatchVideoLink url={m.video} label={m.label} matchKey={m.key} className={WATCH} offline={noVideo}>{noVideo ? (m.clip ? "Official video · Needs a connection" : "Match video · Needs a connection") : m.clip ? "Official video" : "Watch the match"}</MatchVideoLink>}
         </div>
       )}

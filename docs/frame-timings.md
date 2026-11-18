@@ -26,7 +26,10 @@ point, and reads two things with tesseract.js:
    a bar across the top (FTC Ontario), or the bar along the top (FIRST in Texas). FTC Live's overlay from 2019 to 2022
    shows it as bare seconds ("30", "112": `secondsPlain`), in a box over the scores (SKYSTONE, FREIGHT FRENZY) or
    under POWERPLAY's centre graphic; for those seasons those places are read first, then POWERPLAY's bar flipped to
-   the top of the frame (Arizona's 2022 championship), its box at the same crop mirrored (`flippedClip`). A timer's two
+   the top of the frame (Arizona's 2022 championship), its box at the same crop mirrored (`flippedClip`), and last
+   POWERPLAY's bar shrunk inside black side bars and raised off the bottom edge (NTX FTC's league meets, USTXNODLM3
+   2022). Where POWERPLAY's box goes black late in a match behind faint grey digits, the box is also read with only
+   the pixels just brighter than that black as ink (`darkInk`), since the plain shot misreads them ("38" as "238"). A timer's two
    readings come from one crop, and the crop whose clock last ran is read first for the rest of the video (`cropOrder`).
    Each counts Auto down from 0:30,
    then 8 s to pick up the controllers ("0:05" under a hand), then TeleOp from 2:00. Some bottom bars instead
@@ -170,7 +173,7 @@ npm install --prefix ~/frame-ocr tesseract.js
 export TESSERACT_JS=file://$HOME/frame-ocr/node_modules/tesseract.js/src/index.js
 ```
 
-Playwright's Chromium (`npx playwright install chromium`) plays the video.
+The installed Google Chrome plays the video, else Playwright's Chromium (`npx playwright install chromium`). Chromium has no H.264, and YouTube serves some older uploads only in it (2021 NLCMP, USMSBILT): without Chrome those stay black and read nothing. The run's first line says which one it used.
 
 ```bash
 DATABASE_URL=file:/path/to/copy.db npx tsx scripts/video-frames.ts --season 2025
@@ -192,6 +195,12 @@ PR like any other change. A season with no file yet needs one (an empty copy of 
 On GATOR (USOHSHOS, a full recording the server already places from the clock), frames land 9 to 14 s after the
 clock (median 10 s): YouTube's live delay. That's within the 20 s lead-in each clip starts with. On FTC Ontario's
 layout (Sudbury, Bolton), frames land 6 to 8 s after the clock where the video kept its broadcast whole.
+
+A scoring clock kept in UTC: FIRST's actual starts are the venue's local time, but a few events' clocks kept UTC
+(2021 USIAJOM2, 2025 FPECCN: every start after its broadcast ends as local time). When the local reading puts none of an
+event's actual starts inside any of its broadcasts and the UTC reading puts every one inside them, the reader uses
+UTC (`clockReading`) and says so in the run and its report. Each start is still confirmed by its frames, so a wrong
+guess places nothing. Of every 2019–2025 event with a recording, those two are the only ones it changes.
 
 ## Clock clips checked by their first frame
 

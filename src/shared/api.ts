@@ -215,6 +215,8 @@ export interface SearchVideoItem {
   match?: string;
   /** The broadcast is still live (a stream or recording only). */
   live?: boolean;
+  /** Its owner turned off playing on other sites: it opens on YouTube (MatchClip.youtubeOnly). */
+  youtubeOnly?: true;
   /** A contributor video's credit (the actual name, never a username), badge, likes and the viewer's own part. */
   contributor?: { id: number; name: string; verified: boolean; profile: string | null; avatar?: string | null; likes: number; liked: boolean; mine: boolean; tier: "public" | "team" | "self" };
 }
@@ -568,10 +570,11 @@ export interface MatchView {
  *  many seconds (plus the lead-in) before the match, so nothing times the match from it (lib/videoMoment.ts). */
 /** `end`: the second the clip stops at, its match's end (src/shared/recording.ts clipEnd): every player in the app stops
  *  there. */
-export interface MatchClip { videoId: string; t: number; url: string; early?: number; end?: number }
+/** `youtubeOnly`: the video's owner turned off playing on other sites (video_meta.embeddable): it opens on YouTube. */
+export interface MatchClip { videoId: string; t: number; url: string; early?: number; end?: number; youtubeOnly?: true }
 
 /** Why a played match has no clip (server/videos/coverage.ts), each said in plain words beside it (`why`). */
-export type CoverageReason = "no-start" | "no-zone" | "no-recording-day" | "outside-span" | "before-broadcast" | "after-broadcast" | "video-unavailable" | "video-no-embed"
+export type CoverageReason = "no-start" | "no-zone" | "no-recording-day" | "outside-span" | "before-broadcast" | "after-broadcast" | "video-unavailable" | "video-no-embed" | "video-no-overlay" | "video-stutters"
   | "video-unread" | "no-clock" | "gap-unplaced" | "past-chapters" | "past-checked" | "past-video-end" | "before-cut" | "before-chapters" | "overlaps-previous" | "between-recordings" | "no-first-video" | "unexplained";
 /** One played match's clip, or why it has none. `basis`: what a clip's place stands on (the clock, chapters, frames). */
 /**
@@ -720,6 +723,8 @@ export interface EventStream {
    *  recording from its official channel (server/videos/officialVideos.ts); absent: one the owner set. */ source?: "first" | "official";
   /** An event broadcast a day at a time: each day's video in order (the first is videoId), named by its weekday. Absent: one video. */
   days?: { videoId: string; label: string }[];
+  /** Its videos whose owner turned off playing on other sites (video_meta.embeddable): they open on YouTube. */
+  youtubeOnly?: string[];
 }
 
 /** A row of the owner portal's stream list. */
