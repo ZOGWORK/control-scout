@@ -38,6 +38,30 @@ export function pickEvents(queue: Queued[], inPr: Set<string>, memory: Memory, m
   return { picked, skipped };
 }
 
+/** Several computers each run the autopilot on their own shard of the queue (--shard K/N), so no two read the same
+ *  event or open PRs for it. An event ("season/code") is in shard FNV-1a(key) mod N: the same on every computer and
+ *  every run, whatever else is queued. */
+export function shardOf(key: string, n: number): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < key.length; i++) h = Math.imul(h ^ key.charCodeAt(i), 0x01000193) >>> 0;
+  return h % n;
+}
+/** --shard "K/N" (0 <= K < N), or null when it isn't one. No flag: "0/1", every event. */
+export function parseShard(s: string | undefined): { k: number; n: number } | null {
+  const m = /^(\d+)\/(\d+)$/.exec(s ?? "0/1");
+  if (!m) return null;
+  const k = Number(m[1]), n = Number(m[2]);
+  return n >= 1 && k < n ? { k, n } : null;
+}
+/** The shard that keeps an open autopilot PR (rebuilds it, labels it, asks for its review): a frame-read PR's, that of
+ *  its first event (its rows' "season/code", sorted), the one that opened it; a sweep PR's (no events of its own)
+ *  shard 0's, the one that sweeps. */
+export function prShard(p: { season: number; rows: string[]; file?: string }, n: number): number {
+  if (p.file) return 0;
+  const events = p.rows.map((k) => `${p.season}/${k.split("|")[1]}`).sort();
+  return events.length ? shardOf(events[0], n) : 0;
+}
+
 /** An event's memory after a read: shipped rows clear it; nothing new counts a try. */
 export function remember(memory: Memory, key: string, shipped: number, result: string, now = Date.now()): void {
   if (shipped) { delete memory[key]; return; }
