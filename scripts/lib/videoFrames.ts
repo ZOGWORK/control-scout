@@ -602,11 +602,17 @@ export async function launchPlayerBrowser<B>(launch: (o: { channel?: string; arg
     const b = await launch({ channel: "chrome", args });
     say("player: Google Chrome (plays H.264-only videos)");
     return b;
-  } catch {
+  } catch (e) {
+    // Only Chrome not being installed falls back ("Chromium distribution 'chrome' is not found"): any other failure to
+    // start it (a crash, a bad flag) is a real error, and Chromium in its place would quietly read H.264-only videos as
+    // black.
+    if (!CHROME_MISSING.test((e as Error)?.message ?? "")) throw e;
     say("player: Playwright's Chromium (no Google Chrome found; a video YouTube serves only in H.264 won't play)");
     return launch({ args });
   }
 }
+/** Playwright's error when the Chrome channel isn't installed. */
+export const CHROME_MISSING = /distribution '?chrome'? is not found|chrome.*(not found|is not installed)/i;
 
 /** A match with reads on both sides of it (a scheduled match's read says nothing of the clock): it is in the recording
  *  unless a cut took it out, so it is still looked for once the video's read budget is spent (GAP_READS). */

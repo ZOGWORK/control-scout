@@ -615,6 +615,12 @@ describe("the browser that plays the videos", () => {
     expect(none).toEqual(["chrome", undefined]);
     expect(said[1]).toMatch(/Playwright's Chromium/);
   });
+  it("any other failure to start Chrome is an error, not a quiet fall back to Chromium", async () => {
+    const asked: (string | undefined)[] = [];
+    const crash = launchPlayerBrowser(async (o) => { asked.push(o.channel); throw new Error("Browser closed unexpectedly"); });
+    await expect(crash).rejects.toThrow("Browser closed unexpectedly");
+    expect(asked).toEqual(["chrome"]);
+  });
 });
 
 describe("firstOpening", () => {
