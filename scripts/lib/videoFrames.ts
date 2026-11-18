@@ -207,6 +207,24 @@ export function divisionOf(name: string): string | null {
   return m ? m[1] : null;
 }
 
+/**
+ * The divisions of an event whose divisions share a stream: this one's and its siblings', from their names. Either
+ * "… - X Division" (divisionOf), or, as 2019's are named, the words after the name they share ("Iowa Championship
+ * BLACK" and "Iowa Championship GOLD": BLACK, GOLD). Null when a name has neither, or two divisions come out the same.
+ */
+export function eventDivisions(own: string, siblings: string[]): { own: string; others: string[] } | null {
+  if (!siblings.length) return null;
+  const named = [own, ...siblings].map(divisionOf);
+  if (named.every((d): d is string => d != null)) return new Set(named).size === named.length ? { own: named[0], others: named.slice(1) } : null;
+  const ws = [own, ...siblings].map((n) => n.trim().split(/\s+/));
+  let shared = 0;
+  while (ws.every((w) => w.length > shared + 1 && w[shared].toUpperCase() === ws[0][shared].toUpperCase())) shared++;
+  const tails = ws.map((w) => w.slice(shared).join(" "));
+  // A tail must be a name, not a number or a letter, and each its own.
+  if (!shared || tails.some((t) => !/[A-Za-z]{3,}/.test(t)) || new Set(tails.map((t) => t.toUpperCase())).size !== tails.length) return null;
+  return { own: tails[0], others: tails.slice(1) };
+}
+
 const plain = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase();
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -216,7 +234,10 @@ const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
  */
 export function overlayDivision(text: string, own: string, others: string[]): "own" | "other" | null {
   const t = plain(text);
-  const has = (d: string) => new RegExp(`(^|[^A-Z])${escape(plain(d)).replace(/\s+/g, "\\s+")}([^A-Z]|$)`).test(t);
+  // A one-word name the event's data runs together ("MARIECURIE", "WOODIEFLOWERS") may be spaced on the overlay ("Marie
+  // Curie Division"): from six letters, a space may fall between any two.
+  const pattern = (d: string) => (/\s/.test(d) || d.length < 6 ? escape(plain(d)).replace(/\s+/g, "\\s+") : [...plain(d)].map(escape).join("\\s?"));
+  const has = (d: string) => new RegExp(`(^|[^A-Z])${pattern(d)}([^A-Z]|$)`).test(t);
   if (others.some(has)) return "other";
   return has(own) ? "own" : null;
 }
