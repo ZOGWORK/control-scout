@@ -10,7 +10,7 @@ import type { SearchAnswer, SearchVideo, SearchVideoItem } from "../../../shared
 import type { StatAnswer } from "../../../shared/searchStat";
 import { embedUrl, thumbnailUrl } from "../../../shared/stream";
 import { clipTime, watchUrl } from "../../../shared/recording";
-import { clipParams, playMatchVideo } from "../../../lib/streamSeek";
+import { clipParams, playMatchVideo, YOUTUBE_ONLY_NOTE } from "../../../lib/streamSeek";
 import { cn } from "../../cn";
 import { VideoCredit } from "../../contributors/VideoCredit";
 import { Button } from "../../ui/button";
@@ -27,6 +27,11 @@ export function AnswerVideoProvider({ video, children }: { video: SearchVideo | 
 
 /** What the video is, in words: the match once, or the event's stream (the card's title already names the event). */
 export function videoCaption(v: SearchVideoItem): string {
+  const what = caption(v);
+  return v.youtubeOnly ? `${what} · ${YOUTUBE_ONLY_NOTE}` : what;
+}
+
+function caption(v: SearchVideoItem): string {
   if (v.kind === "match") return `${v.match}: official match video`;
   if (v.kind === "contributor") return `${v.match}: video by ${v.contributor?.name ?? "a contributor"}`;
   if (v.kind === "recording") return `${v.match} in the event's ${v.live ? "live stream" : "recording"}, from ${clipTime(v.t)}`;
@@ -69,12 +74,13 @@ function Player({ v, className }: { v: SearchVideoItem; className?: string }) {
           // Loaded by the viewer's click, so autoplay here is their own choice.
           <iframe className="absolute inset-0 size-full" src={src} title={caption} allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen" referrerPolicy="strict-origin-when-cross-origin" />
         ) : (
-          <button type="button" onClick={() => setOn(true)} className="group absolute inset-0 grid place-items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/60" aria-label={`Play: ${caption}`} data-video-facade>
+          // Plays on YouTube only: the click opens it there, from the same second (lib/streamSeek.ts).
+          <button type="button" onClick={() => (v.youtubeOnly ? playMatchVideo({ videoId: v.videoId, t: v.t, label: caption, youtubeOnly: true }) : setOn(true))} className="group absolute inset-0 grid place-items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/60" aria-label={`${v.youtubeOnly ? "Play on YouTube" : "Play"}: ${caption}`} data-video-facade data-youtube-only={v.youtubeOnly ? "" : undefined}>
             {/* The video's picture (a blank player reads as broken); a recording's is its cover, the caption under it
                 saying which match and from when. */}
             <img src={thumbnailUrl(v.videoId)} alt="" loading="lazy" decoding="async" onError={(e) => { e.currentTarget.hidden = true; }} className="absolute inset-0 size-full object-cover opacity-80 transition-opacity group-hover:opacity-100 motion-reduce:transition-none" />
             {/* Neutral, not YouTube's red: on a search card hue means team and red marks the red alliance (the results guide). */}
-            <span className="relative grid size-16 place-items-center rounded-full bg-black/75 text-white shadow-lg ring-1 ring-white/40"><Play className="size-7 translate-x-0.5 fill-current" aria-hidden /></span>
+            <span className="relative grid size-16 place-items-center rounded-full bg-black/75 text-white shadow-lg ring-1 ring-white/40">{v.youtubeOnly ? <ExternalLink className="size-7" aria-hidden /> : <Play className="size-7 translate-x-0.5 fill-current" aria-hidden />}</span>
           </button>
         )}
       </div>
@@ -117,7 +123,7 @@ export function AnswerClip({ about, className }: { about?: string; className?: s
     <section aria-label="Watch this match" className={cn("rounded-xl border border-border bg-card p-4", className)} data-answer-clip={v.kind}>
       <h2 className="text-sm font-semibold text-foreground">Watch this match</h2>
       <p className="mt-0.5 text-xs text-muted-foreground" data-video-caption>{videoCaption(v)}</p>
-      <Button type="button" className="mt-3 w-full" onClick={() => { rowPlayed(); playMatchVideo({ videoId: v.videoId, t: v.t, end: v.end, label }); }}
+      <Button type="button" className="mt-3 w-full" onClick={() => { rowPlayed(); playMatchVideo({ videoId: v.videoId, t: v.t, end: v.end, label, youtubeOnly: v.youtubeOnly }); }}
         aria-label={`View clip: ${label}`} data-video-control>
         <PlayCircle className="size-5" aria-hidden />View clip
       </Button>
@@ -146,7 +152,7 @@ export function useClips(): { clip: (href: string) => SearchVideoItem | undefine
   const { video, rowPlayed } = useContext(Video);
   return {
     clip: (href) => video?.rows?.[href] ?? (video?.mainRow === href ? video.main : undefined),
-    play: (v, label) => { rowPlayed(); playMatchVideo({ videoId: v.videoId, t: v.t, end: v.end, label }); },
+    play: (v, label) => { rowPlayed(); playMatchVideo({ videoId: v.videoId, t: v.t, end: v.end, label, youtubeOnly: v.youtubeOnly }); },
   };
 }
 
@@ -172,7 +178,7 @@ export function RowPlay({ href, label, className }: { href: string; label: strin
     return <span className={cn("shrink-0 whitespace-nowrap text-[11px] text-muted-foreground", className)} data-row-no-video>No video</span>;
   }
   return (
-    <button type="button" onClick={() => { rowPlayed(); playMatchVideo({ videoId: v.videoId, t: v.t, end: v.end, label }); }}
+    <button type="button" onClick={() => { rowPlayed(); playMatchVideo({ videoId: v.videoId, t: v.t, end: v.end, label, youtubeOnly: v.youtubeOnly }); }}
       className={cn("inline-flex size-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-text-base/[0.06] hover:text-foreground max-md:size-[44px] pointer-coarse:size-[44px]", className)}
       aria-label={`Play ${label}: ${v.kind === "match" ? "official match video" : v.kind === "contributor" ? `video by ${v.contributor?.name}` : `the event's recording from ${clipTime(v.t)}`}`} title={videoCaption(v)} data-row-play={v.kind} data-video-control>
       <PlayCircle className="size-5" aria-hidden />
