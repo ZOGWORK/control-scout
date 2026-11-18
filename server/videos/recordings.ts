@@ -17,7 +17,7 @@ import { env } from "../env.js";
 import { fetchFromApi, fetchWatchPage, type WatchPageFacts } from "./youtube.js";
 import { youtubeId } from "../../src/shared/personal.js";
 import { countryOf } from "../../src/shared/countries.js";
-import { linkAiredOff, officialRecordingIds, seasonOfficial } from "./officialVideos.js";
+import { linkAiredOff, linkTooShort, officialRecordingIds, seasonOfficial } from "./officialVideos.js";
 import { checkedTo } from "../data/checkedTimings.js";
 import { frameOpen, frameStart, hasFrames } from "../data/frameTimings.js";
 import { clipPulled } from "../data/clipChecks.js";
@@ -107,14 +107,15 @@ function seasonData(season: number, now = Date.now()) {
          WHERE b.season = ? AND e.livestream = b.url ORDER BY b.code, b.start`, [season]),
     ]);
     // FIRST's link (or its short link's video) is the event's video only when YouTube's broadcast date fits the event:
-    // one broadcast on another date is another event's stream or a test (linkAiredOff), and is left out.
+    // one broadcast on another date is another event's stream or a test (linkAiredOff), and is left out. So is a
+    // short upload that was never broadcast, a clip that can't hold the meet (linkTooShort).
     const linkIds = [...new Set([...links.map((l) => firstVideoId(l.livestream)), ...short.map((l) => String(l.video_id))].filter((x): x is string => !!x))];
-    const aired = new Map<string, string | null>();
+    const aired = new Map<string, { start: string | null; live: number | null; duration: number | null }>();
     for (let i = 0; i < linkIds.length; i += 200) {
       const part = linkIds.slice(i, i + 200);
-      for (const r of await all<{ video_id: string; start: string | null }>(`SELECT video_id, start FROM video_meta WHERE video_id IN (${part.map(() => "?").join(",")})`, part)) aired.set(String(r.video_id), r.start ?? null);
+      for (const r of await all<{ video_id: string; start: string | null; live: number | null; duration: number | null }>(`SELECT video_id, start, live, duration FROM video_meta WHERE video_id IN (${part.map(() => "?").join(",")})`, part)) aired.set(String(r.video_id), { start: r.start ?? null, live: r.live == null ? null : Number(r.live), duration: r.duration == null ? null : Number(r.duration) });
     }
-    const fits = (code: string, id: string, e: { start: string; end: string | null; timezone: string | null }) => !linkAiredOff({ code, ...e }, aired.get(id));
+    const fits = (code: string, id: string, e: { start: string; end: string | null; timezone: string | null }) => !linkAiredOff({ code, ...e }, aired.get(id)?.start) && !linkTooShort(code, aired.get(id));
     const first = new Map<string, string>();
     for (const l of links) { const id = firstVideoId(l.livestream); if (id && fits(String(l.code), id, l)) first.set(String(l.code), id); }
     for (const l of short) if (fits(String(l.code), String(l.video_id), l)) first.set(String(l.code), String(l.video_id));

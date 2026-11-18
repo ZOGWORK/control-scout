@@ -127,6 +127,60 @@ export const secondsLoose = (s: string) => { const m = /^([0-2]):?([0-5]\d)$/.ex
  *  bottom, is at y 4 in Arizona's flipped bar). */
 export const flippedClip = (c: { x: number; y: number; width: number; height: number }, height = 720) => ({ ...c, y: height - c.y - c.height });
 
+/** The fewest characters a piece of YouTube's title (or channel) shown over the frame must have to count as it: a
+ *  shorter text ("FTC", "2025", a team number) is as likely the overlay's own. */
+export const TITLE_MIN = 8;
+const squash = (s: string) => s.normalize("NFKC").replace(/\s+/g, " ").trim().toLowerCase();
+/**
+ * The texts on screen that are YouTube's title or channel name (`texts`: each visible text in the player page, as
+ * visibleTexts lists them), by their indexes. A text counts when it is the title or channel, or a piece of either at
+ * least TITLE_MIN long (the newer embed cuts a long title to a line). The title often IS the event's name ("FTC
+ * Harrisonburg 1 Qualifier"), so a frame showing it names the event whatever its score bar says: the event-name check
+ * (overlayEvent) took such frames for this event's.
+ */
+export function titleLeaks(title: string, channel: string, texts: string[]): number[] {
+  const whole = [squash(title), squash(channel)].filter((t) => t.length > 0);
+  const out: number[] = [];
+  texts.forEach((raw, i) => {
+    const t = squash(raw).replace(/(?:\.{3}|…)$/, "").trim();
+    if (!t) return;
+    if (whole.some((w) => t === w || (t.length >= TITLE_MIN && w.includes(t)))) out.push(i);
+  });
+  return out;
+}
+
+/** A self-contained function's call, as a script for the page to run. tsx names each function it compiles with a
+ *  helper of its own (`__name(walk, "walk")`), which a page doesn't have: the call brings a do-nothing one along, so it
+ *  runs on any page, not only those the reader's player() gave one (visibleTexts under tsx: "__name is not defined"). */
+export const inPage = (fn: { toString(): string }): string => `(() => { const __name = (f) => f; return (${fn.toString()})(); })()`;
+
+/**
+ * Each visible text in the page (a leaf element's own text, shadow roots included), in document order; the elements
+ * are kept on window.__texts in the same order, so the reader can hide one by its index. Visible: a box on screen,
+ * not hidden by display, visibility or opacity on it or any ancestor. Self-contained (no imports, no outer names): the
+ * reader runs it in the page.
+ */
+export function visibleTexts(): string[] {
+  const els: Element[] = [];
+  const walk = (root: Document | ShadowRoot) => {
+    for (const el of Array.from(root.querySelectorAll("*"))) {
+      if ((el as HTMLElement).shadowRoot) walk((el as HTMLElement).shadowRoot!);
+      if (el.children.length || !(el.textContent ?? "").trim()) continue;
+      const r = el.getBoundingClientRect();
+      if (r.width < 1 || r.height < 1 || r.bottom < 0 || r.top > innerHeight) continue;
+      let shown = true;
+      for (let e: Element | null = el; e && shown; e = e.parentElement ?? ((e.getRootNode() as ShadowRoot).host ?? null)) {
+        const c = getComputedStyle(e);
+        if (c.display === "none" || c.visibility === "hidden" || Number(c.opacity) === 0) shown = false;
+      }
+      if (shown) els.push(el);
+    }
+  };
+  walk(document);
+  (window as any).__texts = els;
+  return els.map((e) => (e.textContent ?? "").trim());
+}
+
 /** The order the timer's crops are tried in: `first` (the crop the frame's bar names, or whose clock last ran) ahead,
  *  the rest in their usual order. A `first` that isn't one of them changes nothing. */
 export const cropOrder = <T>(crops: readonly T[], first?: T | null): T[] =>
