@@ -604,6 +604,16 @@ describe("an event whose scoring clock kept UTC", () => {
     expect(r.played.every((m) => broadcast.start <= m.epoch && m.epoch <= broadcast.end)).toBe(true);
   });
 
+  it("a scheduled time moves to UTC with the actual ones, so the played order and the untimed tail use one clock", () => {
+    // Q3 has only its scheduled time (17:10 on the same clock) and Q22 no time at all.
+    const mixed = playedMatches([...rows, { label: "Q22", time: null, timezone: "America/Chicago" }], { utcMs, actual: (t) => t !== times.Q3, rank: (l) => Number(l.slice(1)) });
+    const r = clockReading(mixed, [broadcast], asUtc);
+    expect(r.utc).toBe(true);
+    expect(r.played.map((m) => m.label)).toEqual(["Q1", "Q2", "Q3", "Q4", "Q21", "Q22"]);
+    expect(r.played.find((m) => m.label === "Q3")!.epoch).toBe(asUtc(times.Q3));
+    expect(r.played.find((m) => m.label === "Q22")!.epoch).toBe(asUtc(times.Q21) + 1);
+  });
+
   it("local time kept when any start is inside a broadcast, when UTC places only some, or with no broadcast start", () => {
     // One start inside as local time: the clock is the venue's.
     const early = { start: broadcast.start, end: Date.parse("2021-11-13T23:00:00Z") / 1000 };

@@ -531,9 +531,11 @@ export function clockReading<T extends M & { time: string | null }>(played: T[],
   if (timed.some((m) => inside(m.epoch))) return { played, utc: false };
   const utc = new Map(timed.map((m) => [m.label, utcEpoch(m.time!)]));
   if (![...utc.values()].every((e) => e != null && inside(e))) return { played, utc: false };
-  const moved = played.map((m) => (utc.has(m.label) ? { ...m, epoch: utc.get(m.label)! } : m));
+  // The clock is UTC for the whole event, so a scheduled time moves with the actual ones: one clock for every timed
+  // match, or a scheduled one would sort among them by the venue's clock and the untimed ones' "after" would mix both.
+  const moved = played.map((m) => (m.time == null ? m : { ...m, epoch: utc.get(m.label) ?? utcEpoch(m.time) ?? m.epoch }));
   // Same order as playedMatches: the timed ones by time, the untimed after them.
-  const after = Math.max(...moved.filter((m) => utc.has(m.label) || m.time != null).map((m) => m.epoch));
+  const after = Math.max(...moved.filter((m) => m.time != null).map((m) => m.epoch));
   const untimed = moved.filter((m) => m.time == null).map((m, i) => ({ ...m, epoch: after + 1 + i }));
   return { played: [...moved.filter((m) => m.time != null).sort((a, b) => a.epoch - b.epoch), ...untimed], utc: true };
 }
