@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
-// The v8 sample Home, third round: a scouting dashboard in the new look. No headline, search first and alone, three
-// fixed examples as chips, then three cards in order (Events live now, Top teams, Your team), mint as the page's only
-// accent (scoped to the page), no yellow anywhere, and honest empty states.
+// The v8 sample Home: a scouting dashboard in the new look. No top bar and no headline: the inbox and your profile
+// picture (a guest one signed out) top-right, search first and alone, three fixed examples as chips, then three cards in
+// order (Events live now, Top teams, Your teams), Report a bug as a corner circle, mint as the page's only accent
+// (scoped to the page), no yellow anywhere, and honest empty states.
 import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
@@ -22,10 +23,8 @@ vi.mock("../lib/meta", async (orig) => ({ ...(await orig<typeof import("../lib/m
 const st = (myTeam: number | null) => ({ myTeam, tracked: { teams: [], events: [] }, bookmarks: [] });
 let personal: { user: unknown; state: ReturnType<typeof st> } = { user: null, state: st(null) };
 vi.mock("../lib/personal", () => ({ usePersonal: () => personal, hasAccountOnDevice: () => false }));
-// The top bar's tools are the app's own (tested with the app's top bar); here they only need to be there.
-vi.mock("../components/layout/TopBarExtras", () => ({ ClockWeather: () => <span data-tool="clock" /> }));
-vi.mock("../components/layout/BugReport", () => ({ BugReportButton: () => <button type="button" data-tool="bug">Report a bug</button> }));
-vi.mock("../components/layout/ThemeToggle", () => ({ ThemeToggle: () => <button type="button" data-tool="theme">Theme</button> }));
+// The bell and the bug report are the app's own (tested with the app's top bar); here they only need to be there.
+vi.mock("../components/layout/BugReport", () => ({ BugReportButton: ({ corner }: { corner?: boolean }) => <button type="button" data-tool="bug" data-corner={corner ? "" : undefined}>Report a bug</button> }));
 vi.mock("../components/layout/InboxBell", () => ({ InboxBell: () => <button type="button" data-tool="inbox">Inbox</button> }));
 
 const event = (i: number, status: EventListItem["status"], played = 0, total = 0, start = "2026-11-18"): EventListItem => ({
@@ -40,7 +39,7 @@ const MATCH = {
   played: false, red: side([4215, 1]), blue: side([2, 3]), video: null, prediction: { pRed: 0.64, tier: "moderate", kind: "live" },
 } as unknown as MatchView;
 
-const { default: PreviewHomePage, fixedExamples, liveNow, nextUp, EXAMPLE_COUNT, LIVE_MAX, TOP_MAX, MINT } = await import("./PreviewHomePage");
+const { default: PreviewHomePage, fixedExamples, liveNow, nextUp, yourTeams, EXAMPLE_COUNT, LIVE_MAX, TOP_MAX, TEAMS_MAX, MINT } = await import("./PreviewHomePage");
 const mount = () => render(<MemoryRouter initialEntries={["/preview/home"]}><PreviewHomePage /></MemoryRouter>);
 const cls = (el: Element) => el.getAttribute("class") ?? "";
 
@@ -70,24 +69,42 @@ describe("Sample home dashboard", () => {
     expect(container.querySelector("[aria-label*='by country']")).toBeNull(); // no globe
   });
 
-  it("has a top bar: the mark, the main places with Home current, and the app's tools", () => {
+  it("has no top bar: the inbox and a guest picture top-right, the mark above search, Report a bug in the corner", () => {
     const { container } = mount();
-    const bar = container.querySelector("[data-top-nav]") as HTMLElement;
-    expect(bar).toBeTruthy();
-    expect(bar.compareDocumentPosition(container.querySelector("input")!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    const links = within(within(bar).getByRole("navigation", { name: "Main" })).getAllByRole("link");
-    expect(links.map((a) => a.textContent)).toEqual(["Home", "Events", "Teams", "Scout", "Predict"]);
-    expect(links[0].getAttribute("aria-current")).toBe("page");
-    expect([...bar.querySelectorAll("[data-tool]")].map((t) => t.getAttribute("data-tool"))).toEqual(["clock", "bug", "theme", "inbox"]);
+    expect(container.querySelector("[data-top-nav]")).toBeNull();
+    expect(container.querySelector("nav")).toBeNull();
+    const corner = container.querySelector("[data-corner-tools]") as HTMLElement;
+    expect([...corner.children].map((c) => c.getAttribute("data-tool") ?? (c.hasAttribute("data-profile") ? "profile" : "?"))).toEqual(["inbox", "profile"]);
+    const profile = within(corner).getByRole("link", { name: "Sign in" });
+    expect(profile.getAttribute("href")).toBe("/settings#account");
+    expect(profile.querySelector("[data-guest]")).toBeTruthy();
+    // The white mark sits above the search field.
+    const mark = container.querySelector("[data-mark]")!;
+    expect(mark.getAttribute("src")).toBe("/mark-white.webp");
+    expect(mark.compareDocumentPosition(container.querySelector("input")!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // One bug report, a corner circle, apart from the corner tools.
+    const bugs = container.querySelectorAll("[data-tool='bug']");
+    expect(bugs).toHaveLength(1);
+    expect(bugs[0].hasAttribute("data-corner")).toBe(true);
+    expect(corner.contains(bugs[0])).toBe(false);
+    // No clock and no theme switch on this page.
+    expect(container.querySelector("[data-tool='theme'], [data-clock], time")).toBeNull();
   });
 
-  it("keeps the wash quiet: smooth tint, the faintest grain, under the bar", () => {
+  it("shows your profile picture top-right when signed in", () => {
+    personal = { user: { displayName: "Ada Lovelace", email: "ada@example.test", avatarUrl: "https://example.test/a.png" }, state: st(null) };
+    const { container } = mount();
+    const profile = within(container.querySelector("[data-corner-tools]") as HTMLElement).getByRole("link", { name: "Account: Ada Lovelace" });
+    expect(profile.querySelector("[data-guest]")).toBeNull();
+    expect(profile.querySelector("[data-user-avatar='picture']")).toBeTruthy();
+  });
+
+  it("washes the top a third of the way down, smooth glows under a fine grain", () => {
     const { container } = mount();
     const wash = container.querySelector("[data-wash]") as HTMLElement;
-    expect(cls(wash)).toMatch(/h-\[22vh\]/);
-    expect(cls(wash.querySelector("[data-grain]")!)).toContain("opacity-[0.07]");
+    expect(cls(wash)).toMatch(/h-\[34vh\]/);
+    expect(cls(wash.querySelector("[data-grain]")!)).toContain("opacity-[0.12]");
     expect(wash.innerHTML).not.toMatch(/type="discrete"/); // not the shutdown page's chalky grain
-    expect(container.querySelector("[data-top-nav]")!.contains(wash)).toBe(false);
   });
 
   it("shows the three cards in order: live, top teams, your team", () => {
@@ -149,25 +166,49 @@ describe("Sample home dashboard", () => {
     expect(row.querySelector("[data-no-results]")?.textContent).toBe("No results yet");
   });
 
-  it("asks you to pick a team when none is set, with the one mint button", () => {
+  it("asks you to pick a team when none is set, with the page's one mint button", () => {
     const { container } = mount();
+    expect(container.querySelectorAll("[data-primary-action]")).toHaveLength(1);
     const team = container.querySelector("[data-card='team']")!;
     expect(team.textContent).toContain("Pick your team to see its next match");
     expect(within(team as HTMLElement).getByRole("button", { name: /Pick your team/ })).toBeTruthy();
   });
 
-  it("shows your team's next match and its chance to win, with Predict this match", () => {
+  it("lists your teams in the app's order, each once", () => {
+    expect(yourTeams([7, 4215], 4215, [9, 7, 12])).toEqual([7, 4215, 9, 12]);
+    expect(yourTeams([], null, [])).toEqual([]);
+    expect(yourTeams([], 0, [-1])).toEqual([]);
+  });
+
+  it("shows one team big: its next match and chance to win, a quiet link, no button", () => {
     personal = { user: null, state: st(4215) };
     data = { "/api/teams/4215/matches": { matches: [MATCH] }, "/api/teams-summary": { teams: [{ team: 4215, name: "Team Name", place: "Town, NJ, USA", nextEvent: null }] } };
     const { container } = mount();
     const team = container.querySelector("[data-card='team']") as HTMLElement;
+    expect(within(team).getByRole("heading").textContent).toMatch(/Your team$/);
     expect(team.textContent).toContain("4215");
-    expect(team.textContent).toContain("Q14");
+    expect(team.textContent).toContain("Team Name");
     expect(team.querySelector("[data-team-call]")?.textContent).toBe("64%to win · fair");
-    expect(within(team).getByRole("link", { name: /Predict this match/ }).getAttribute("href")).toBe("/events/2026/USNJQ1/match/qual%3A1%3A14");
+    expect(team.querySelector("a[href='/events/2026/USNJQ1/match/qual%3A1%3A14']")?.textContent).toContain("Q14");
+    expect(within(team).queryByRole("link", { name: /Predict/ })).toBeNull();
+    expect(within(team).queryByRole("button")).toBeNull();
+    expect(within(team).getByRole("link", { name: /Your team page/ }).getAttribute("href")).toBe("/my-team");
   });
 
-  it("uses mint as its only accent: scoped to the page, one solid button, no yellow anywhere", () => {
+  it("lists several teams as rows, at most four, each with its next match", () => {
+    personal = { user: null, state: { ...st(null), tracked: { teams: [4215, 11, 12, 13, 14], events: [] } } as unknown as ReturnType<typeof st> };
+    data = { "/api/teams/4215/matches": { matches: [MATCH] }, "/api/teams-summary": { teams: [] } };
+    const { container } = mount();
+    const team = container.querySelector("[data-card='team']") as HTMLElement;
+    expect(within(team).getByRole("heading").textContent).toMatch(/Your teams$/);
+    const rows = team.querySelectorAll("[data-your-team]");
+    expect(rows).toHaveLength(TEAMS_MAX);
+    expect(rows[0].querySelector("[data-team-next]")?.textContent).toContain("Next: Q14");
+    expect(rows[0].querySelector("[data-team-call]")?.textContent).toContain("64%");
+    expect(within(team).getByRole("link", { name: /All 5 teams/ }).getAttribute("href")).toBe("/my-teams");
+  });
+
+  it("uses mint as its only accent: scoped to the page, no solid button once a team is set, no yellow anywhere", () => {
     personal = { user: null, state: st(4215) };
     data = { "/api/events": { events: [event(1, "live", 10, 60)] }, "/api/records/2026/teams": TOP, "/api/teams/4215/matches": { matches: [MATCH] }, "/api/teams-summary": { teams: [] } };
     const { container } = mount();
@@ -176,11 +217,10 @@ describe("Sample home dashboard", () => {
     const html = container.innerHTML.toLowerCase();
     expect(html).not.toMatch(/#ffc700|#ffd633|#eab308|text-accent-text|text-yellow|bg-yellow/);
     const all = [...container.querySelectorAll("*")];
-    // Mint fills: the one solid button, the live dot and the live progress, nothing else.
+    // Mint fills: the live dot and the live progress, nothing else.
     const fills = all.filter((el) => /(^|\s)bg-accent(\s|$)/.test(cls(el)));
-    expect(fills.filter((el) => el.hasAttribute("data-primary-action"))).toHaveLength(1);
     expect(fills.every((el) => ["data-primary-action", "data-live-dot", "data-progress"].some((a) => el.hasAttribute(a)))).toBe(true);
-    expect(container.querySelectorAll("[data-primary-action]")).toHaveLength(1);
+    expect(container.querySelectorAll("[data-primary-action]")).toHaveLength(0);
     // Text in mint: only the #1 rank and the live icon.
     const mintText = all.filter((el) => /(^|\s)text-accent(\s|$)/.test(cls(el)));
     expect(mintText.every((el) => el.hasAttribute("data-rank") || el.tagName.toLowerCase() === "svg")).toBe(true);

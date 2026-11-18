@@ -2,15 +2,16 @@
 // on its own path so the real Home stays as it is until the owner switches it. Drawn without the site's chrome
 // (src/shared/routes.ts isBareRoute), so nothing yellow from the old nav shows around it.
 //   - Search is the centre of the page: the biggest thing on it, with three fixed examples under it.
-//   - Below it, three cards of the same weight: Events live now, Top teams, Your team.
-//   - A top bar (mark, the main places, the app's own tools), then near-black with a short, smooth tint under it
-//     (navy, blue-teal, soft indigo; the faintest grain). The mark is white.
+//   - Below it, three cards of the same weight: Events live now, Top teams, Your teams (every one, usually one).
+//   - No top bar (the places come back with search results later): the inbox and your profile picture (a guest one
+//     when signed out) float top-right, the white mark sits small above the search, and Report a bug is a quiet
+//     circle in the bottom corner. Near-black, with a dusky purple-grey wash and a fine grain across the top.
 //   - One accent, mint, scoped to this page (data-theme-next): the primary button, the live dot and progress, the
 //     search focus, the #1 rank, links on hover. Numbers and names are white, labels grey; red and blue stay alliances.
 // No headline of any kind (no H1), no slogan, no globe. Every number comes from the same APIs the live Home uses.
-import { useState, type CSSProperties, type ReactNode } from "react";
+import { useState, type CSSProperties } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowRight, Radio, Search, Sparkles, Star, Trophy } from "lucide-react";
+import { ArrowRight, Radio, Search, Star, Trophy, UserRound } from "lucide-react";
 import { useApi, qs } from "../lib/api";
 import { useCurrentSeason, useTitle } from "../lib/meta";
 import { usePersonal } from "../lib/personal";
@@ -25,10 +26,9 @@ import { SearchBox, hitHref, searchPagePick } from "../components/search/SearchB
 import { addRecentSearch } from "../components/search/discover";
 import { nextMatch } from "../components/home/HomeSections";
 import { myTeamsOf } from "../lib/myTeams";
-import { ClockWeather } from "../components/layout/TopBarExtras";
 import { BugReportButton } from "../components/layout/BugReport";
-import { ThemeToggle } from "../components/layout/ThemeToggle";
 import { InboxBell } from "../components/layout/InboxBell";
+import { UserAvatar } from "../components/UserAvatar";
 import { cn } from "../components/cn";
 
 /** How many example searches show under the field. */
@@ -89,6 +89,16 @@ const cardTitle = "flex items-center gap-2 text-sm font-semibold text-text-base"
 const cardLink = "mt-auto inline-flex min-h-11 items-center gap-1 self-start text-sm font-medium text-text-base transition-colors hover:text-accent";
 const rowLink = "group flex min-h-11 items-center gap-3 rounded-lg -mx-2 px-2 transition-colors hover:bg-white/[0.04] focus-visible:outline-2 focus-visible:outline-ring";
 
+/** Your teams, in the app's own order: the teams the account is on (Control Point), this device's My team, then the
+ *  teams you follow; each once. Usually just one. */
+export function yourTeams(cp: readonly number[], mine: number | null, followed: readonly number[]): number[] {
+  const out: number[] = [];
+  for (const n of [...cp, ...(mine != null ? [mine] : []), ...followed]) if (Number.isInteger(n) && n > 0 && !out.includes(n)) out.push(n);
+  return out;
+}
+/** The most teams the card lists; the rest are one link away. */
+export const TEAMS_MAX = 4;
+
 export default function PreviewHomePage() {
   useTitle("Sample home");
   const { state, user } = usePersonal();
@@ -99,16 +109,16 @@ export default function PreviewHomePage() {
   const searchRef = usePageSearch();
   const [sp] = useSearchParams();
   const query = sp.get("q")?.trim().slice(0, 100) || undefined;
-  // The account's Control Point team first, then this device's My team (the live Home's homeTeamOf, src/pages/Home.tsx).
-  const team = myTeamsOf(user).teams[0]?.teamNumber ?? state.myTeam ?? null;
+  const teams = yourTeams(myTeamsOf(user).teams.map((t) => t.teamNumber), state.myTeam ?? null, state.tracked?.teams ?? []);
   return (
     <div data-sample-home data-theme-next style={THEME_NEXT} className="relative min-h-dvh overflow-x-clip bg-[#0a0a0b] text-text-base">
-      <TopNav />
-      <div className="relative">
+      {/* No top bar: on the dashboard, search is the way around (the places come back with search results later). */}
       <Wash />
-      <div className="relative z-10 mx-auto flex max-w-[72rem] flex-col px-5 pb-16 sm:px-8">
-        {/* Search, alone in the middle: the biggest thing on the page. */}
-        <section aria-label="Search" className="mx-auto mt-[11vh] w-full max-w-[44rem] max-sm:mt-[7vh]">
+      <Corner />
+      <div className="relative z-10 mx-auto flex max-w-[72rem] flex-col px-5 pb-24 sm:px-8">
+        {/* Search, alone in the middle: the biggest thing on the page, the white mark small above it. */}
+        <section aria-label="Search" className="mx-auto mt-[15vh] flex w-full max-w-[44rem] flex-col items-center max-sm:mt-[11vh]">
+          <img data-mark src="/mark-white.webp" alt="Control Scout" width={40} height={40} className="mb-7 size-10" />
           <SearchBox
             inputRef={searchRef} onEscape={search.restoreFocus} hint={SEARCH_HINT} initialQuery={query} discover size="lg"
             label="Search teams, events and matches"
@@ -128,72 +138,51 @@ export default function PreviewHomePage() {
           </div>
         </section>
 
-        {/* Three cards of the same weight. On a phone, your team comes first when one is set. */}
+        {/* Three cards of the same weight. On a phone, your teams come first when you have any. */}
         <div className="mt-20 grid gap-4 max-sm:mt-12 lg:grid-cols-3">
           <LiveCard season={season} />
           <TopTeamsCard season={season} />
-          {team ? <TeamCard team={team} season={season} /> : <PickTeamCard onPick={search.open} />}
+          {teams.length ? <TeamsCard teams={teams} season={season} /> : <PickTeamCard onPick={search.open} />}
         </div>
 
         <p className="mt-10 text-center text-[12px] text-text-muted">{HOME_ABOUT}</p>
       </div>
-      </div>
+      {/* Reporting a bug is occasional: a quiet circle in the page's bottom corner (below the cards on a phone). */}
+      <BugReportButton corner />
     </div>
   );
 }
 
-/** The main places, in the bar. Home is this page. */
-export const NAV = [
-  { to: "/", label: "Home" },
-  { to: "/events", label: "Events" },
-  { to: "/teams", label: "Teams" },
-  { to: "/scout", label: "Scout" },
-  { to: "/predict", label: "Predict" },
-] as const;
-
-/** The top bar: an opaque near-black strip with a hairline under it. The mark and name left; the main places; then
- *  the app's own tools (clock · weather, Report a bug, light/dark, the inbox), the same components the app's top bar
- *  uses. On a phone the places drop to a second row that scrolls sideways. */
-function TopNav() {
+/** Top-right, on the wash with no bar behind it: the inbox, then you. Signed in, your profile picture (your initial
+ *  without one); signed out, a guest picture. Either way it opens the account settings, where a guest signs in. */
+function Corner() {
+  const { user } = usePersonal();
+  const name = user?.displayName || user?.email || null;
   return (
-    <header data-top-nav className="relative z-20 border-b border-white/[0.07] bg-[#0a0a0b]">
-      <div className="mx-auto flex max-w-[72rem] flex-wrap items-center gap-x-6 px-5 sm:px-8">
-        <Link to="/" aria-label="Control Scout home" className="flex h-14 shrink-0 items-center gap-2.5 font-display text-[1.0625rem] font-semibold tracking-tight">
-          <img src="/mark-white.webp" alt="" width={28} height={28} className="size-7" /> Control Scout
-        </Link>
-        <nav aria-label="Main" className="flex gap-6 max-md:order-last max-md:-mx-5 max-md:w-[calc(100%+2.5rem)] max-md:overflow-x-auto max-md:border-t max-md:border-white/[0.06] max-md:px-5 md:ml-auto">
-          {NAV.map((n) => {
-            const here = n.to === "/";
-            return (
-              <Link
-                key={n.to} to={n.to} aria-current={here ? "page" : undefined}
-                className={cn("flex h-11 shrink-0 items-center text-sm font-semibold transition-colors md:h-14", here ? "text-text-base" : "text-text-muted hover:text-text-base")}
-              >{n.label}</Link>
-            );
-          })}
-        </nav>
-        <div data-top-tools className="ml-auto flex shrink-0 items-center gap-1 md:ml-0 md:gap-2">
-          <span className="max-lg:hidden"><ClockWeather /></span>
-          <BugReportButton />
-          <ThemeToggle />
-          <InboxBell />
-        </div>
-      </div>
-    </header>
+    <div data-corner-tools className="absolute right-4 top-4 z-20 flex items-center gap-2 sm:right-6 sm:top-5">
+      <InboxBell />
+      <Link to="/settings#account" data-profile aria-label={user ? `Account: ${name ?? "you"}` : "Sign in"} title={user ? (name ?? "Account") : "Sign in"}
+        className="flex size-11 items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
+        {user ? (
+          <UserAvatar url={user.avatarUrl} name={name} className="size-9 bg-white/10 text-text-base ring-1 ring-white/15" />
+        ) : (
+          <span data-guest className="flex size-9 items-center justify-center rounded-full bg-white/[0.08] text-text-muted ring-1 ring-white/15"><UserRound className="size-5" aria-hidden /></span>
+        )}
+      </Link>
+    </div>
   );
 }
 
-/** The dashboard's wash, under the top bar: quieter than the shutdown page's. Short (gone about a fifth of the way
- *  down, above the search), three neighbouring hues (navy, blue-teal, soft indigo) blended as soft overlapping glows so
- *  it reads as one tint rather than bands, and only the faintest fine grain. A working page should feel calm; the
- *  colour only sets the tone. */
+/** The dashboard's wash, across the top: a dusky, muted tint (slate blue into soft mauve, close in tone and low in
+ *  colour, Sushil's reference), smooth glows with a fine grain over them, fading out by about a third of the way down,
+ *  above the cards. Quieter than the shutdown page's: a working page, so the colour only sets the tone. */
 function Wash() {
   const fade = "linear-gradient(to bottom,#000 0%,rgb(0 0 0/.6) 45%,transparent 100%)";
   return (
-    <div aria-hidden data-wash className="pointer-events-none absolute inset-x-0 top-0 h-[22vh] min-h-[150px] max-h-[240px] overflow-hidden" style={{ maskImage: fade, WebkitMaskImage: fade }}>
-      <div className="absolute -inset-x-[10%] -top-1/2 bottom-0 opacity-90 blur-2xl bg-[radial-gradient(45%_90%_at_15%_0%,#33558c_0%,transparent_70%),radial-gradient(40%_85%_at_50%_0%,#2a6070_0%,transparent_70%),radial-gradient(45%_90%_at_85%_0%,#47488c_0%,transparent_70%)]" />
-      <svg data-grain className="absolute inset-0 size-full opacity-[0.07] mix-blend-overlay" xmlns="http://www.w3.org/2000/svg">
-        <filter id="sample-grain"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves={2} stitchTiles="stitch" /><feColorMatrix type="saturate" values="0" /></filter>
+    <div aria-hidden data-wash className="pointer-events-none absolute inset-x-0 top-0 h-[34vh] min-h-[220px] max-h-[380px] overflow-hidden" style={{ maskImage: fade, WebkitMaskImage: fade }}>
+      <div className="absolute -inset-x-[10%] -top-1/2 bottom-0 blur-2xl bg-[radial-gradient(55%_95%_at_12%_0%,#35415b_0%,transparent_72%),radial-gradient(50%_90%_at_52%_0%,#3c3a52_0%,transparent_72%),radial-gradient(55%_95%_at_90%_0%,#4c3f57_0%,transparent_72%)]" />
+      <svg data-grain className="absolute inset-0 size-full opacity-[0.12] mix-blend-overlay" xmlns="http://www.w3.org/2000/svg">
+        <filter id="sample-grain"><feTurbulence type="fractalNoise" baseFrequency=".85" numOctaves={2} stitchTiles="stitch" /><feColorMatrix type="saturate" values="0" /></filter>
         <rect width="100%" height="100%" filter="url(#sample-grain)" />
       </svg>
     </div>
@@ -330,35 +319,62 @@ function TopRow({ r, rank }: { r: TeamSeasonRecord; rank: number }) {
   );
 }
 
-// --- Your team -------------------------------------------------------------------------------------------------------
+// --- Your teams ------------------------------------------------------------------------------------------------------
+
+/** One match's call for a team: its side's chance to win, or null without a prediction. */
+function callFor(m: MatchView, team: number): number | null {
+  if (!m.prediction) return null;
+  return m.red.teams.some((x) => x.number === team) ? m.prediction.pRed : 1 - m.prediction.pRed;
+}
 
 const matchHref = (m: MatchView) => `/events/${m.season}/${encodeURIComponent(m.code)}/match/${encodeURIComponent(m.key)}`;
 
-/** Your team: number and name big, its next match, the call for it (win chance + tier word), and one mint button. */
-function TeamCard({ team, season }: { team: number; season: number }) {
-  const sched = useApi<{ matches: MatchView[] }>(`/api/teams/${team}/matches${qs({ season })}`);
-  const info = useApi<{ teams: TeamSummary[] }>(`/api/teams-summary${qs({ season, teams: String(team) })}`);
-  const t = info.data?.teams[0];
-  const next = sched.data ? nextMatch(sched.data.matches) : undefined;
-  const side = next ? (next.red.teams.some((x) => x.number === team) ? "red" : "blue") : null;
-  const pWin = next?.prediction ? (side === "red" ? next.prediction.pRed : 1 - next.prediction.pRed) : null;
-  const eventName = next && t?.nextEvent?.code === next.code ? t.nextEvent.name : next?.code;
+/** Your teams: one team big (number, name, next match and its call); several as compact rows, each with its next match.
+ *  The card ends like the other two, with a quiet link: no button competing with search. */
+function TeamsCard({ teams, season }: { teams: number[]; season: number }) {
+  const shown = teams.slice(0, TEAMS_MAX);
+  const info = useApi<{ teams: TeamSummary[] }>(`/api/teams-summary${qs({ season, teams: shown.join(",") })}`);
+  const byTeam = new Map((info.data?.teams ?? []).map((t) => [t.team, t]));
+  const one = teams.length === 1;
   return (
     <section data-card="team" aria-labelledby="sample-team" className={cn(card, "max-lg:order-first")}>
-      <h2 id="sample-team" className={cardTitle}><Star className="size-4 fill-text-base text-text-base" aria-hidden /> Your team</h2>
-      <Link to="/my-team" className="group -mt-1 flex items-baseline gap-3 rounded-lg focus-visible:outline-2 focus-visible:outline-ring">
+      <div className="flex items-center justify-between gap-3">
+        <h2 id="sample-team" className={cardTitle}><Star className="size-4 fill-text-base text-text-base" aria-hidden /> {one ? "Your team" : "Your teams"}</h2>
+        {!one && <span className="text-[12px] tabular-nums text-text-muted">{teams.length}</span>}
+      </div>
+      {one ? <OneTeam team={teams[0]} season={season} t={byTeam.get(teams[0])} loaded={!!info.data} /> : (
+        <ul className="flex flex-col gap-0.5">
+          {shown.map((n) => <TeamRow key={n} team={n} season={season} t={byTeam.get(n)} loaded={!!info.data} />)}
+        </ul>
+      )}
+      <Link to={one ? "/my-team" : "/my-teams"} className={cardLink}>
+        {one ? "Your team page" : teams.length > shown.length ? `All ${teams.length} teams` : "All your teams"} <ArrowRight className="size-4" aria-hidden />
+      </Link>
+    </section>
+  );
+}
+
+/** One team: the number big, its name, and the next match with its call. */
+function OneTeam({ team, season, t, loaded }: { team: number; season: number; t: TeamSummary | undefined; loaded: boolean }) {
+  const sched = useApi<{ matches: MatchView[] }>(`/api/teams/${team}/matches${qs({ season })}`);
+  const next = sched.data ? nextMatch(sched.data.matches) : undefined;
+  const pWin = next ? callFor(next, team) : null;
+  const eventName = next && t?.nextEvent?.code === next.code ? t.nextEvent.name : next?.code;
+  return (
+    <>
+      <Link to={`/teams/${team}`} className="group -mt-1 flex items-baseline gap-3 rounded-lg focus-visible:outline-2 focus-visible:outline-ring">
         <span className="font-display text-4xl font-semibold tabular-nums">{team}</span>
         <span className="min-w-0">
-          <span className="block truncate font-medium group-hover:underline">{t?.name ?? (info.data ? `Team ${team}` : " ")}</span>
+          <span className="block truncate font-medium group-hover:underline">{t?.name ?? (loaded ? `Team ${team}` : " ")}</span>
           {t?.place && <span className="block truncate text-[12px] text-text-muted">{t.place}</span>}
         </span>
       </Link>
       <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] px-4 py-3 text-sm">
         {next ? (
-          <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
+          <Link to={matchHref(next)} className="group flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
             <span className="min-w-0">
               <span className="block text-[12px] text-text-muted">Next match</span>
-              <span className="block font-medium">{next.label} · {eventName}</span>
+              <span className="block font-medium group-hover:underline">{next.label} · {eventName}</span>
               <span className="block text-[12px] text-text-muted">{matchTime(next.time)}</span>
             </span>
             {pWin != null && next.prediction && (
@@ -367,32 +383,53 @@ function TeamCard({ team, season }: { team: number; season: number }) {
                 <span className="block text-[12px] text-text-muted">to win · {TIER_WORD[next.prediction.tier].toLowerCase()}</span>
               </span>
             )}
-          </div>
+          </Link>
         ) : !sched.data ? (
           <span className="text-text-muted">{sched.error ? "The schedule couldn’t load." : "Checking the schedule…"}</span>
         ) : (
           <span className="text-text-muted">No match schedule published yet.{t?.nextEvent ? ` Next event: ${t.nextEvent.name}.` : ""}</span>
         )}
       </div>
-      <PrimaryLink to={next ? matchHref(next) : "/predict"}>{next ? "Predict this match" : "Predict a match"}</PrimaryLink>
-    </section>
+    </>
   );
 }
 
-/** No team yet: the same card, one line on what picking does, and the button. */
+/** One of several teams: number and name, then its next match on one quiet line, and its call. */
+function TeamRow({ team, season, t, loaded }: { team: number; season: number; t: TeamSummary | undefined; loaded: boolean }) {
+  const sched = useApi<{ matches: MatchView[] }>(`/api/teams/${team}/matches${qs({ season })}`);
+  const next = sched.data ? nextMatch(sched.data.matches) : undefined;
+  const pWin = next ? callFor(next, team) : null;
+  return (
+    <li data-your-team>
+      <Link to={`/teams/${team}`} className={cn(rowLink, "py-1.5")}>
+        <span className="w-14 shrink-0 font-display text-base font-semibold tabular-nums">{team}</span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-medium group-hover:underline">{t?.name ?? (loaded ? `Team ${team}` : " ")}</span>
+          <span data-team-next className="block truncate text-[12px] text-text-muted">
+            {next ? `Next: ${next.label} · ${matchTime(next.time)}` : !sched.data ? "Checking the schedule…" : t?.nextEvent ? `Next event: ${t.nextEvent.name}` : "No schedule yet"}
+          </span>
+        </span>
+        {pWin != null && next?.prediction && (
+          <span data-team-call className="shrink-0 text-right">
+            <span className="block font-display text-base font-semibold tabular-nums">{oddsPct(pWin)}</span>
+            <span className="block text-[11px] text-text-muted">to win</span>
+          </span>
+        )}
+      </Link>
+    </li>
+  );
+}
+
+/** No team yet: the same card, one line on what picking does, and the page's one solid button. */
 function PickTeamCard({ onPick }: { onPick: () => void }) {
   return (
     <section data-card="team" aria-labelledby="sample-team" className={card}>
-      <h2 id="sample-team" className={cardTitle}><Star className="size-4 text-text-muted" aria-hidden /> Your team</h2>
+      <h2 id="sample-team" className={cardTitle}><Star className="size-4 text-text-muted" aria-hidden /> Your teams</h2>
       <p className="text-sm text-text-muted">Pick your team to see its next match and its chance to win, right here. It stays on this device; no account needed.</p>
       <button type="button" data-primary-action onClick={onPick} className={primary}><Search className="size-4" aria-hidden /> Pick your team</button>
     </section>
   );
 }
 
-/** The page's one solid accent element: mint, dark text, no glow. */
+/** The page's one solid accent element (only while no team is picked): mint, dark text, no glow. */
 const primary = "mt-auto inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-accent px-4 text-sm font-semibold text-accent-ink transition-colors hover:bg-accent-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring";
-
-function PrimaryLink({ to, children }: { to: string; children: ReactNode }) {
-  return <Link to={to} data-primary-action className={primary}><Sparkles className="size-4" aria-hidden /> {children}</Link>;
-}
