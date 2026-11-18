@@ -1,7 +1,7 @@
 // The clip autopilot's merge gate (scripts/lib/autopilotMerge.ts): what stops it merging its own data PR with nobody
 // watching.
 import { describe, expect, it } from "vitest";
-import { clipsMergeProblems, frameMergeProblems, labelPlaces, LOOPY_LOGIN, loopySummary, orderProblems, readyProblems, reviewedSha, type IssueComment, type PrState } from "./autopilotMerge";
+import { clipsMergeProblems, fileProblems, frameMergeProblems, labelPlaces, LOOPY_LOGIN, loopySummary, orderProblems, readyProblems, reviewedSha, type IssueComment, type PrState } from "./autopilotMerge";
 import type { FrameTiming } from "../../server/data/frameTimings";
 import type { ClipCheck } from "../../server/data/clipChecks";
 
@@ -137,3 +137,16 @@ describe("loopySummary", () => {
     expect(reviewedSha(null)).toBeNull();
   });
 });
+
+describe("fileProblems: a data PR changes its data file only", () => {
+  const file = "server/data/frameTimings/2024.ts";
+  it("passes a PR with only its data file, with no version to check", () => {
+    expect(fileProblems([file], file)).toEqual([]);
+  });
+  it("holds one still carrying a release from before (the next run rebuilds it without), and stops a person's file", () => {
+    expect(fileProblems([file, "CHANGELOG.md", "package.json"], file)).toEqual(["still carries CHANGELOG.md, package.json (data PRs carry no version or CHANGELOG): rebuilt without on the next run"]);
+    expect(fileProblems([file, "src/app.ts"], file)).toEqual(["changes more than its data file: src/app.ts"]);
+    expect(fileProblems(["server/data/frameTimings/2023.ts"], file)).toEqual(["changes more than its data file: server/data/frameTimings/2023.ts", `doesn't change its data file ${file}`]);
+  });
+});
+
