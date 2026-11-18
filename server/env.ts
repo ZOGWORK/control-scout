@@ -42,6 +42,9 @@ export const env = {
   get canonicalUrl() { return str("CANONICAL_URL") ?? (this.production ? "https://controlscout.org" : this.appUrl); },
   /** The /status checks (server/uptime.ts) run in production, or anywhere with UPTIME_CHECKS=1; UPTIME_CHECKS=0 stops them. */
   get uptimeChecks() { const v = str("UPTIME_CHECKS"); return v === "1" || (v !== "0" && this.production); },
+  /** The shutdown message (server/shutdownGate.ts) lets the uptime monitor through when it sends this in x-uptime-key
+   *  (deploy/uptime-worker, its UPTIME_GATE_KEY secret). Unset: nothing gets past the message that way. Never logged. */
+  get uptimeGateKey() { return str("UPTIME_GATE_KEY"); },
   /** Control Point's health address, checked for /status. */
   get controlPointHealthUrl() { return str("CONTROL_POINT_HEALTH_URL") ?? "https://tryctrlpoint.org/api/health"; },
   get databaseUrl() { return str("DATABASE_URL") ?? `file:${join(process.cwd(), ".data", "scout.db").replace(/\\/g, "/")}`; },

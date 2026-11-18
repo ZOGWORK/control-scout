@@ -24,6 +24,8 @@
 #   REPEAT_MINUTES  minimum gap between "still down" comments, default 60
 #   DRY_RUN=1       print the gh calls instead of making them (local testing)
 #   CHECK_ONLY=1    only run the check and exit 0 (up) / 1 (down); no issues
+#   UPTIME_GATE_KEY sent as x-uptime-key, so the check gets past the site's
+#                   shutdown message (server/shutdownGate.ts); unset: no header
 #   GH_TOKEN, GH_REPO  for gh (the workflow sets both)
 # Needs bash, curl, gh (gh's built-in --jq is used, so no separate jq).
 
@@ -66,7 +68,9 @@ gh_write() {
 fetch() {
   local tmp errf out
   tmp=$(mktemp); errf=$(mktemp)
-  out=$(curl -sS -o "$tmp" --max-time "$TIMEOUT" -H 'Cache-Control: no-cache' \
+  local key=()
+  [ -n "${UPTIME_GATE_KEY:-}" ] && key=(-H "x-uptime-key: $UPTIME_GATE_KEY")
+  out=$(curl -sS -o "$tmp" --max-time "$TIMEOUT" -H 'Cache-Control: no-cache' ${key[@]+"${key[@]}"} \
     -w '%{http_code} %{time_total} %{content_type}' "$SITE$1" 2>"$errf")
   F_RC=$?
   read -r F_CODE F_TIME F_CTYPE <<<"$out"
