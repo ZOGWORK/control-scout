@@ -151,6 +151,13 @@ under "FIRST links not used", with why (nothing to do: FIRST's data, not a decis
 isn't known yet (an upload, facts not read) is kept. Measured on a copy of the live database (2026-11-16): 6 of 480
 links, among 413 with a known start; a championship's link to one of its divisions' streams that day fits and is kept.
 
+Nor is a link whose video is an upload that was never broadcast (no start, not live or to come) and runs under 45
+minutes (`linkTooShort`, the same limit the watcher sets such uploads aside by): a camera clip can't hold a meet's
+matches. FIRST in Missouri's 3-minute clips linked for 2025 Lafayette Meet #1 AM and PM (USMOKSSTLMM2 `lvhcciim1Y4`,
+USMOKSSTLMM3 `-r3PgmLHlHs`) were the only two of 636 FIRST links (2026-11-18). The channel posted no full recording
+of either meet (its only other upload of that day's meets is a 34-second "pt 2"), so they have none. A length not read
+yet keeps the link; it's listed under "FIRST links not used", with why, like a link aired off its dates.
+
 A removed row (`removed_at`) is never written again, so taking a video out sticks.
 
 ## Highlights
