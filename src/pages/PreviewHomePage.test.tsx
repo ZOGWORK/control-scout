@@ -22,6 +22,11 @@ vi.mock("../lib/meta", async (orig) => ({ ...(await orig<typeof import("../lib/m
 const st = (myTeam: number | null) => ({ myTeam, tracked: { teams: [], events: [] }, bookmarks: [] });
 let personal: { user: unknown; state: ReturnType<typeof st> } = { user: null, state: st(null) };
 vi.mock("../lib/personal", () => ({ usePersonal: () => personal, hasAccountOnDevice: () => false }));
+// The top bar's tools are the app's own (tested with the app's top bar); here they only need to be there.
+vi.mock("../components/layout/TopBarExtras", () => ({ ClockWeather: () => <span data-tool="clock" /> }));
+vi.mock("../components/layout/BugReport", () => ({ BugReportButton: () => <button type="button" data-tool="bug">Report a bug</button> }));
+vi.mock("../components/layout/ThemeToggle", () => ({ ThemeToggle: () => <button type="button" data-tool="theme">Theme</button> }));
+vi.mock("../components/layout/InboxBell", () => ({ InboxBell: () => <button type="button" data-tool="inbox">Inbox</button> }));
 
 const event = (i: number, status: EventListItem["status"], played = 0, total = 0, start = "2026-11-18"): EventListItem => ({
   season: 2026, code: `USXXQ${i}`, name: `Event ${i}`, type: "Qualifier", typeLabel: "Qualifier", city: "Town", state: "NJ", country: "USA",
@@ -63,6 +68,26 @@ describe("Sample home dashboard", () => {
     for (const s of ex) { expect(HOME_SUGGESTIONS).toContain(s); expect(s.q).not.toMatch(/\b\d{3,5}\b/); }
     expect(container.querySelectorAll("[data-example-chip]")).toHaveLength(3);
     expect(container.querySelector("[aria-label*='by country']")).toBeNull(); // no globe
+  });
+
+  it("has a top bar: the mark, the main places with Home current, and the app's tools", () => {
+    const { container } = mount();
+    const bar = container.querySelector("[data-top-nav]") as HTMLElement;
+    expect(bar).toBeTruthy();
+    expect(bar.compareDocumentPosition(container.querySelector("input")!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const links = within(within(bar).getByRole("navigation", { name: "Main" })).getAllByRole("link");
+    expect(links.map((a) => a.textContent)).toEqual(["Home", "Events", "Teams", "Scout", "Predict"]);
+    expect(links[0].getAttribute("aria-current")).toBe("page");
+    expect([...bar.querySelectorAll("[data-tool]")].map((t) => t.getAttribute("data-tool"))).toEqual(["clock", "bug", "theme", "inbox"]);
+  });
+
+  it("keeps the wash quiet: smooth tint, the faintest grain, under the bar", () => {
+    const { container } = mount();
+    const wash = container.querySelector("[data-wash]") as HTMLElement;
+    expect(cls(wash)).toMatch(/h-\[22vh\]/);
+    expect(cls(wash.querySelector("[data-grain]")!)).toContain("opacity-[0.07]");
+    expect(wash.innerHTML).not.toMatch(/type="discrete"/); // not the shutdown page's chalky grain
+    expect(container.querySelector("[data-top-nav]")!.contains(wash)).toBe(false);
   });
 
   it("shows the three cards in order: live, top teams, your team", () => {
