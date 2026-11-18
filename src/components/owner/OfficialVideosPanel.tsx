@@ -17,7 +17,7 @@ import { apiFetch, ApiError, prime, useApi } from "../../lib/api";
 import { ago } from "../../lib/format";
 import { thumbnailUrl } from "../../shared/stream";
 import { watchUrl } from "../../shared/recording";
-import type { OfficialAddTally, OfficialAudit, OfficialAuditFinding, OfficialChannelRow, OfficialWatchRow, OwnerOfficialVideos } from "../../shared/api";
+import type { ManualStart, OfficialAddTally, OfficialAudit, OfficialAuditFinding, OfficialChannelRow, OfficialWatchRow, OwnerOfficialVideos } from "../../shared/api";
 
 const PATH = "/api/owner/official-videos";
 const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "—");
@@ -161,7 +161,56 @@ function Decided({ w }: { w: OfficialWatchRow }) {
       {(w.status === "added" || w.status === "approved") && (
         <Button variant="outline" size="sm" disabled={busy} onClick={async () => { setBusy(true); await act(`/${w.videoId}/remove`, { method: "POST" }, "Removed from its event."); setBusy(false); }}><Trash2 /> Remove</Button>
       )}
+      {(w.status === "added" || w.status === "approved") && w.season && w.code ? <MatchStarts videoId={w.videoId} season={w.season} code={w.code} /> : null}
     </li>
+  );
+}
+
+/** "1:42:05" from seconds. */
+const clock = (t: number) => `${Math.floor(t / 3600)}:${String(Math.floor(t / 60) % 60).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`;
+
+/** Typed match starts on one video (server/videos/manualStarts.ts): "Q12 at 1:42:05". Each one's clip plays from there
+ *  at once, ahead of the frame reader's. Collapsed until opened, so the list stays short. */
+function MatchStarts({ videoId, season, code }: { videoId: string; season: number; code: string }) {
+  const [open, setOpen] = useState(false);
+  const [starts, setStarts] = useState<ManualStart[] | null>(null);
+  const [label, setLabel] = useState("");
+  const [at, setAt] = useState("");
+  const [busy, setBusy] = useState(false);
+  const base = `${PATH}/${videoId}/starts`;
+  const load = async () => {
+    try { setStarts((await apiFetch<{ starts: ManualStart[] }>(`${base}?season=${season}&code=${encodeURIComponent(code)}`)).starts); }
+    catch (e) { toast.error((e as ApiError).message); }
+  };
+  const send = async (method: "POST" | "DELETE", json: Record<string, unknown>, done: string) => {
+    setBusy(true);
+    try { setStarts((await apiFetch<{ starts: ManualStart[] }>(base, { method, json: { season, code, ...json } })).starts); toast.success(done); return true; }
+    catch (e) { toast.error((e as ApiError).message); return false; }
+    finally { setBusy(false); }
+  };
+  if (!open) return <Button variant="ghost" size="sm" className="basis-full justify-start sm:basis-auto" onClick={() => { setOpen(true); void load(); }}><Play /> Match starts</Button>;
+  return (
+    <div className="basis-full rounded-lg border border-border p-3" data-match-starts>
+      <form className="flex flex-wrap items-end gap-2" onSubmit={async (e) => { e.preventDefault(); if (await send("POST", { label, at }, `${label.toUpperCase()} starts at ${at}.`)) { setLabel(""); setAt(""); } }}>
+        <label className="grid gap-1 text-xs text-muted-foreground">Match
+          <Input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Q12" className="h-9 w-24" autoComplete="off" /></label>
+        <label className="grid gap-1 text-xs text-muted-foreground">Starts at
+          <Input value={at} onChange={(e) => setAt(e.target.value)} placeholder="1:42:05" className="h-9 w-28" inputMode="numeric" autoComplete="off" /></label>
+        <Button type="submit" size="sm" className="h-9" disabled={busy || !label.trim() || !at.trim()}><Check /> Save</Button>
+        <a href={watchUrl(videoId)} target="_blank" rel="noreferrer noopener" className="ml-auto inline-flex h-9 items-center gap-1 text-xs text-muted-foreground hover:underline"><ExternalLink className="size-3.5" /> Open video</a>
+      </form>
+      <p className="mt-2 text-xs text-muted-foreground">The second the match's timer starts. Its clip plays from there right away, ahead of the frame reader.</p>
+      {starts == null ? null : starts.length === 0 ? <p className="mt-2 text-xs text-muted-foreground">None typed yet.</p> : (
+        <ul className="mt-2 flex flex-wrap gap-1.5">
+          {starts.map((s) => (
+            <li key={s.label} className="inline-flex items-center gap-1 rounded-full border border-border py-0.5 pl-2.5 pr-1 text-xs">
+              <a href={watchUrl(videoId, s.seconds)} target="_blank" rel="noreferrer noopener" className="hover:underline"><span className="font-medium">{s.label}</span> {clock(s.seconds)}</a>
+              <Button variant="ghost" size="sm" className="size-6 p-0" aria-label={`Remove ${s.label}'s start`} disabled={busy} onClick={() => void send("DELETE", { label: s.label }, `Removed ${s.label}'s start.`)}><X className="size-3.5" /></Button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 

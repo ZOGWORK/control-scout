@@ -4,7 +4,9 @@
 // YouTube refuses data-centre addresses (GitHub's runners and the VM both get its "confirm you're not a bot" page), so
 // this runs on a computer at home, from a clone of its own, on a schedule (scripts/clip-autopilot-task.ps1). Each run:
 //   1. (its start, scripts/clip-autopilot-start.mjs: one run at a time, the clone and its dependencies at main) rebuilds
-//      its own open PRs on main when main changed their rows, they conflict, or they still carry a release;
+//      its own open PRs on main when main changed their rows, they conflict, or they still carry a release, then
+//      merges one of them that passes the merge gate (scripts/lib/autopilotMerge.ts: Loopy 5/5 on its head, every check
+//      passed, its rows safe) and waits for it live;
 //   2. takes a read-only snapshot of the live database (VACUUM INTO over ssh: the VM's database is never written);
 //   3. takes the queue from that snapshot (server/videos/frameQueue.ts), most missing first;
 //   4. reads each picked event with scripts/video-frames.ts (--live main's season file), then --verify, then --bounds;
@@ -30,6 +32,7 @@
 //   --lane    a lane's run: reads the job its coordinator left in .data/lane (no gh, no VM, no PR), its rows and
 //             whether each read stopped or failed left there to collect
 //   --dry     in the current checkout: read and check, print the PRs it would open, leave the files as they were
+//   --no-merge  open and rebuild its PRs, never merge one
 //   AUTOPILOT_SSH (ubuntu@132.145.202.89), AUTOPILOT_SSH_KEY (~/.ssh/oracle-controlpoint), TESSERACT_JS: passed on.
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync, appendFileSync, copyFileSync } from "node:fs";
 import { homedir } from "node:os";
@@ -37,9 +40,11 @@ import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { gunzipSync } from "node:zlib";
 import { applyRows, changedRows, fileRows, prChunks, prMarker, readMarker, rowKey, rowProblems, type Keyed, type Row } from "./lib/autopilotRows";
-import { askDue, forgetSettled, laneResults, laneStep, needsRebuild, overLimit, parseLanes, parseShard, pickEvents, prShard, readOutcome, remember, rememberTimeout, rememberWait, rowsDelta, shardOf, type LaneJob, type Memory } from "./lib/autopilotRun";
+import { askDue, forgetSettled, frameFileSeason, heldElsewhere, holdCodes, laneResults, laneStep, needsRebuild, overLimit, parseLanes, parseShard, pickEvents, prShard, readOutcome, remember, rememberTimeout, rememberWait, rowsDelta, shardOf, type LaneJob, type Memory } from "./lib/autopilotRun";
 import { loopySummary, reviewedSha, type IssueComment } from "./lib/autopilotMerge";
 import { clipCheckProblems, clipsDelta } from "./lib/autopilotClips";
+import { prGate } from "./lib/autopilotPr";
+import { mainQuiet, mainStill, pickMerge, servesMerge } from "./lib/autopilotMergeStep";
 import { streamRun } from "./lib/streamRun";
 import type { ClipCheck } from "../server/data/clipChecks";
 
@@ -53,8 +58,13 @@ const opt = (k: string) => {
   if (v == null || v.startsWith("--")) { console.error(`--${k}: needs a value`); process.exit(2); }
   return v;
 };
-for (const a of argv) if (a.startsWith("--") && !["--max", "--sweep", "--db", "--shard", "--lanes", "--lane", "--dry"].includes(a)) { console.error(`${a}: not a flag (--max N, --sweep N, --db F, --shard K/N, --lanes K=user@host,…, --lane, --dry)`); process.exit(2); }
-const MAX = Number(opt("max") ?? 12), SWEEP = Number(opt("sweep") ?? 4), DRY = argv.includes("--dry"), DB = opt("db");
+for (const a of argv) if (a.startsWith("--") && !["--max", "--sweep", "--db", "--shard", "--lanes", "--lane", "--dry", "--no-merge"].includes(a)) { console.error(`${a}: not a flag (--max N, --sweep N, --db F, --shard K/N, --lanes K=user@host,…, --lane, --dry, --no-merge)`); process.exit(2); }
+const MAX = Number(opt("max") ?? 12), SWEEP = Number(opt("sweep") ?? 4), DRY = argv.includes("--dry"), DB = opt("db"), MERGE = !argv.includes("--no-merge");
+/** Main's last commit at least this old before a merge (each merge deploys; merges spaced, owner's rule). */
+const MAIN_QUIET_MS = 605_000;
+/** How long a merge is waited for on the live site. */
+const LIVE_WAIT_MS = 20 * 60_000;
+const HEALTH_URL = process.env.AUTOPILOT_HEALTH ?? "https://controlscout.org/api/health";
 if (!Number.isInteger(MAX) || MAX < 1) { console.error("--max: a whole number, 1 or more"); process.exit(2); }
 if (!Number.isInteger(SWEEP) || SWEEP < 0) { console.error("--sweep: a whole number, 0 or more"); process.exit(2); }
 const SHARD = parseShard(opt("shard"));
@@ -141,6 +151,41 @@ function openPrs(): { number: number; branch: string; head: string; labels: stri
     const m = readMarker(String(p.body ?? ""));
     return m && String(p.headRefName).startsWith(BRANCH) ? [{ number: p.number, branch: p.headRefName, head: String(p.headRefOid), labels: (p.labels ?? []).map((l: { name: string }) => l.name), ...m, mergeable: String(p.mergeable) }] : [];
   });
+}
+
+/** Events other open PRs (another session's, not the autopilot's) bring frame-read rows for: held like the autopilot's
+ *  own, so no event gets a second PR (heldElsewhere). Read when the queue is picked, and again just before PRs open, as
+ *  a read takes hours and another PR may have opened meanwhile. A file GitHub shows no patch for (too big) is read at
+ *  the PR's head and its rows compared with main's. Whatever can't be read (the list, one PR, one file) is logged, and
+ *  only that holds nothing: the rest still do. */
+function othersHold(): Map<string, number> {
+  if (DRY) return new Map();
+  let list: { number: number; headRefOid: string; files?: { path: string }[] }[];
+  try {
+    list = JSON.parse(sh("gh", ["pr", "list", "--state", "open", "--limit", "200", "--json", "number,headRefOid,files"], { quiet: true }).out || "[]");
+  } catch (e) {
+    log(`other open PRs couldn't be listed (${(e as Error).message}); none held off this time`);
+    return new Map();
+  }
+  const own = new Set(open.map((p) => p.number));
+  const prs: { number: number; files: { filename: string; patch?: string }[] }[] = [];
+  for (const p of list.filter((x) => !own.has(x.number) && (x.files ?? []).some((f) => frameFileSeason(f.path) != null))) {
+    try {
+      prs.push({ number: p.number, files: sh("gh", ["api", `repos/{owner}/{repo}/pulls/${p.number}/files`, "--paginate", "--jq", ".[] | {filename, patch} | @json"], { quiet: true }).out
+        .split("\n").filter(Boolean).map((l) => JSON.parse(l) as { filename: string; patch?: string }) });
+    } catch (e) { log(`#${p.number}: its files couldn't be read (${(e as Error).message}); its events aren't held off this time`); }
+  }
+  const { held, unread } = heldElsewhere(prs);
+  for (const u of unread) {
+    const head = list.find((x) => x.number === u.number)?.headRefOid;
+    try {
+      const text = sh("gh", ["api", "-H", "Accept: application/vnd.github.raw", `repos/{owner}/{repo}/contents/${u.filename}?ref=${head}`], { quiet: true }).out;
+      const codes = [...new Set(changedRows(mainText(u.filename), text).map((r) => r.code))];
+      holdCodes(held, frameFileSeason(u.filename)!, codes, u.number);
+      log(`#${u.number}: GitHub shows no patch for ${u.filename}; its copy read instead, ${codes.length} event${codes.length === 1 ? "" : "s"} held`);
+    } catch (e) { log(`#${u.number}: GitHub shows no patch for ${u.filename} and its copy couldn't be read (${(e as Error).message}); its events aren't held off this time`); }
+  }
+  return held;
 }
 
 /** A data PR changes its data file only (owner's rule, 2026-11-17): no CHANGELOG entry, no version, so PRs never
@@ -260,6 +305,8 @@ const KEEPS = new Set([SHARD.k, ...LANES.map((l) => l.k)]);
 if (!DRY) sh("gh", ["label", "create", LABEL, "--force", "--color", "0e8a16", "--description", "A data PR the clip autopilot opened (scripts/clip-autopilot.ts)"], { ok: true, quiet: true });
 const open = DRY ? [] : openPrs();
 openNow = new Set(open.map((p) => String(p.number)));
+/** PRs rebuilt on main this run: each waits for Loopy's review of its new head, so none merges this run. */
+const rebuilt = new Set<number>();
 for (const p of open) {
   // Another computer's PR (its shard opened it) is its to keep: rebuilt, labelled and asked for there. This one keeps its
   // own shard's and its lanes' (it opened theirs).
@@ -295,6 +342,7 @@ for (const p of open) {
     git("commit", "--quiet", "--no-edit", "-m", `Merge main; ${file}: its rows on main's`);
     push(p.branch);
     const head = git("rev-parse", "HEAD");
+    rebuilt.add(p.number);
     log(`#${p.number}: rebuilt on main (${why.join(", ")})${keep.length < rows.length ? ` (${rows.length - keep.length} rows main changed meanwhile left out)` : ""}`);
     // Pushed: its words, label and review ask follow, each going ahead if another fails. Words that failed are made
     // again at its next rebuild; the label and ask on every run (followUps).
@@ -310,6 +358,80 @@ for (const p of open) {
     if (!DRY) { sh("git", ["reset", "--quiet", "--hard"], { ok: true }); git("switch", "--quiet", "--detach", "origin/main"); }
   }
 }
+
+// --- 1c. One of its own PRs merged, where nothing stops it ------------------------------------------------------------
+// The owner's standing rule: a data PR merges at Loopy 5/5 on its exact head with every check passed. With nobody
+// watching, the autopilot merges its own data PRs only (its label, branch and mark), each through the gate
+// (scripts/lib/autopilotMerge.ts: anything a person should look at first stops it), at most one a run, never within
+// MAIN_QUIET of main's last commit (each merge deploys and restarts the site), never deleting its branch. Then it
+// waits for /api/health to serve the merge. --no-merge: open and rebuild PRs only. Called below its helpers: a `const`
+// read before its line runs throws (the step would stop every run with nothing merged).
+/** main's head as GitHub has it now: its sha and when main last moved, from GitHub's own record of the push (a commit
+ *  pushed straight to main keeps the date it was made, which can be long before). Without that record, the commit's. */
+function mainHead(): { sha: string; at: number } {
+  const [sha, at] = sh("gh", ["api", "repos/{owner}/{repo}/activity?ref=refs/heads/main&per_page=1", "--jq", ".[0] | .after + \" \" + .timestamp"], { quiet: true, ok: true }).out.trim().split(" ");
+  if (/^[0-9a-f]{40}$/.test(sha ?? "") && Number.isFinite(Date.parse(at ?? ""))) return { sha, at: Date.parse(at) };
+  const [s, date] = sh("gh", ["api", "repos/{owner}/{repo}/commits/main", "--jq", ".sha + \" \" + .commit.committer.date"], { quiet: true }).out.trim().split(" ");
+  return { sha: s, at: Date.parse(date) };
+}
+/** The merge commit GitHub made for `pr`, asked a few times (it can take a moment to report it); "" if never. */
+function mergeCommitOf(pr: number): string {
+  for (let i = 0; i < 4; i++) {
+    const sha = sh("gh", ["api", `repos/{owner}/{repo}/pulls/${pr}`, "--jq", ".merge_commit_sha // \"\""], { quiet: true, ok: true }).out.trim();
+    if (/^[0-9a-f]{40}$/.test(sha)) return sha;
+    sh(process.execPath, ["-e", "setTimeout(() => {}, 10000)"], { quiet: true, ok: true });
+  }
+  return "";
+}
+function mergeOne(): void {
+  let pick: { number: number; head: string } | null = null, done = false;
+  try {
+    const before = mainHead();
+    const why = mainQuiet(before.at, Date.now(), MAIN_QUIET_MS);
+    if (why) { log(`merge: ${why}: none this run`); return; }
+    const me = sh("gh", ["api", "user", "--jq", ".login"], { quiet: true }).out.trim();
+    git("fetch", "--quiet", "origin");
+    const gatedOn = git("rev-parse", "origin/main");
+    const picked = pickMerge(open, {
+      rebuilt, me, gate: prGate,
+      author: (n) => sh("gh", ["pr", "view", String(n), "--json", "author", "--jq", ".author.login"], { quiet: true }).out.trim(),
+    });
+    for (const p of picked.passed) log(`merge: ${p}`);
+    pick = picked.pick;
+    if (!pick) return;
+    // Gating took minutes: main read again, the merge only on the main the rows were checked against, still quiet.
+    const moved = mainStill(gatedOn, mainHead(), Date.now(), MAIN_QUIET_MS);
+    if (moved) { log(`merge: #${pick.number} waits: ${moved}`); return; }
+    // The exact head the gate passed, or no merge: a push since then means another review.
+    const r = sh("gh", ["pr", "merge", String(pick.number), "--merge", "--match-head-commit", pick.head], { ok: true });
+    if (r.code) { log(`merge: #${pick.number} refused by GitHub (exit ${r.code}): left open`); return; }
+    done = true;
+    let merged = mergeCommitOf(pick.number);
+    // Never reported: main's head now, which holds the merge (a later commit only makes the live check stricter).
+    if (!merged) { git("fetch", "--quiet", "origin"); merged = git("rev-parse", "origin/main"); log(`merge: #${pick.number}'s merge commit not reported; waiting on main's head`); }
+    log(`merge: #${pick.number} merged as ${merged.slice(0, 9)}; waiting for it live`);
+    waitLive(merged, `#${pick.number}`);
+    // main moved: what this run opens next is made on main as it is now, live or not.
+    git("fetch", "--quiet", "origin");
+  } catch (e) {
+    log(`merge: stopped (${(e as Error).message}); ${done && pick ? `#${pick.number} was merged: check it went live` : "nothing merged this run"}`);
+  }
+}
+/** Waits (up to LIVE_WAIT_MS) for the site's /api/health to serve `merged` (the merge commit) or a later main commit. */
+function waitLive(merged: string, what: string): void {
+  const until = Date.now() + LIVE_WAIT_MS;
+  const isAncestor = (older: string, newer: string) => {
+    sh("git", ["fetch", "--quiet", "origin"], { ok: true, quiet: true });
+    return sh("git", ["merge-base", "--is-ancestor", older, newer], { ok: true, quiet: true }).code === 0;
+  };
+  while (Date.now() < until) {
+    sh(process.execPath, ["-e", "setTimeout(() => {}, 60000)"], { quiet: true, ok: true });
+    const health = sh("curl", ["-s", "--max-time", "20", HEALTH_URL], { quiet: true, ok: true }).out;
+    if (servesMerge(health, merged, isAncestor)) { log(`merge: ${what} live (${merged.slice(0, 9)})`); return; }
+  }
+  log(`merge: ${what} (${merged.slice(0, 9)}) not live after ${LIVE_WAIT_MS / 60_000} min: check the deploy`);
+}
+if (!DRY && MERGE) mergeOne();
 
 // --- 2. A snapshot of the live database ---------------------------------------------------------------------------------
 let snapshot = DB;
@@ -347,6 +469,9 @@ forgetSettled(memory, new Set(queue.filter((q) => q.frames.state === "queued").m
 const laneJobFile = (k: number) => join(DIR, "lanes", String(k), "job.json");
 const laneJob = (k: number): LaneJob | null => { try { return JSON.parse(readFileSync(laneJobFile(k), "utf8")); } catch { return null; } };
 for (const lane of LANES) for (const x of laneJob(lane.k)?.seasons ?? []) for (const c of x.codes) inPr.add(`${x.season}/${c}`);
+// And events another session's open data PR already carries: never read for a second PR.
+const elsewhere = othersHold();
+for (const [k, n] of elsewhere) if (!inPr.has(k)) { inPr.add(k); log(`  held: ${k} is in #${n}, another open PR`); }
 const { picked, skipped } = pickEvents(mine, inPr, memory, MAX);
 log(`queue: ${queue.filter((q) => q.frames.state === "queued").length} events queued${SHARD.n > 1 ? `, ${mine.filter((q) => q.frames.state === "queued").length} in shard ${SHARD.k}/${SHARD.n}` : ""}; reading ${picked.map((q) => `${q.season}/${q.code} (${q.frames.due})`).join(", ") || "none"}`);
 for (const s of skipped.filter((x) => x.why !== "next run")) log(`  skipped ${s.event}: ${s.why}`);
@@ -359,6 +484,11 @@ function openPr(o: { file: string; rows: Keyed[]; branch: string } & PrText): bo
   if (DRY) { log(`would open "${o.title}" on ${o.branch}: ${o.rows.length} rows, ${o.rows.map(rowKey).join(" ")}`); return true; }
   let pushed = false;
   try {
+    // Its one commit on the main its file is read from: anything that fetched since the clone was put on main (a merge
+    // step, a check by hand) moves origin/main but not HEAD, and a commit on the older HEAD would carry every row main
+    // changed since as its own (2024 USMNCMPGLXY's #1925: 9 other events' rows, a 58 KB diff on a 252-commit-old base).
+    sh("git", ["reset", "--quiet", "--hard"], { ok: true });
+    git("switch", "--quiet", "--detach", "origin/main");
     writeFileSync(o.file, applyRows(mainText(o.file), o.rows));
     commitEach([[o.file, `${o.file}: ${o.what}`]]);
     push(o.branch);
@@ -400,6 +530,9 @@ const branchStamp = STAMP.slice(0, 16).replace(/[-T]/g, "");
 const stoppedAtLimit: string[] = [];
 
 // --- 4–6. Read the due events, check, ship, season by season ------------------------------------------------------------------
+/** Reader lanes (a browser and OCR each) per read call: the start sets AUTOPILOT_LANES by the memory free (3 over 6 GB,
+ *  else 2). Not the coordinator's --lanes (other computers' lanes). */
+const READER_LANES = /^[1-4]$/.test(process.env.AUTOPILOT_LANES ?? "") ? process.env.AUTOPILOT_LANES! : "2";
 /** Reads `codes` of `season` into its file (those not read yet, then those with rows already whole, then --verify and
  *  --bounds), and puts the file back: the rows the read changed, whether a read failed, and the events the reader
  *  stopped at its per-event limit (and the video each was on). This computer's reads and a lane's alike. */
@@ -414,7 +547,7 @@ async function readSeason(season: number, codes: string[]): Promise<{ changed: R
   const again = codes.filter((c) => hasRows.has(c)), fresh = codes.filter((c) => !hasRows.has(c));
   // --live keeps the clips main plays from being dropped on a frame that names nothing; a season with no rows yet has
   // none to keep (and the reader refuses an empty --live file).
-  const base = ["scripts/video-frames.ts", "--season", String(season), ...(fileRows(mainText(file)).length ? ["--live", liveFile] : []), "--lanes", "2"];
+  const base = ["scripts/video-frames.ts", "--season", String(season), ...(fileRows(mainText(file)).length ? ["--live", liveFile] : []), "--lanes", READER_LANES];
   // A read that crashed, timed out or was killed read nothing for sure: its events aren't counted as tried (remember).
   let readFailed = false;
   // Events the reader stopped at its per-event limit, and the video each was on (overLimit).
@@ -444,10 +577,14 @@ async function settle(season: number, codes: string[], read: { changed: Row[]; r
   for (const m of await all<{ code: string; label: string }>(`SELECT code, label FROM matches WHERE season = ? AND played = 1 AND time IS NOT NULL AND code IN (${codes.map(() => "?").join(",")}) ORDER BY code, time`, [season, ...codes])) {
     (order.get(String(m.code)) ?? order.set(String(m.code), []).get(String(m.code))!).push(String(m.label));
   }
-  const good: Row[] = [];
+  const good: Row[] = [], heldOther: Row[] = [];
+  // An event another PR took up while this one was read waits for it (as an open PR's lines do): no second PR for it.
+  const other = othersHold();
   for (const r of read.changed) {
-    const problems = rowProblems(r, live.get(rowKey(r)), order.get(r.code));
-    if (problems.length) log(`  ${r.code} ${r.videoId}: left out, ${problems.join("; ")}`); else good.push(r);
+    const problems = rowProblems(r, live.get(rowKey(r)), order.get(r.code)), held = other.get(`${season}/${r.code}`);
+    if (problems.length) log(`  ${r.code} ${r.videoId}: left out, ${problems.join("; ")}`);
+    else if (held != null) { heldOther.push(r); log(`  ${r.code} ${r.videoId}: waits, #${held} (another open PR) carries ${r.code}`); }
+    else good.push(r);
   }
   // Shipped: only events whose rows a PR really opened with (a failed open closes its PR; the rows are read again).
   // Rows that would touch an open PR's lines, or overflow a PR Loopy can review, wait for a later run (prChunks).
@@ -460,7 +597,7 @@ async function settle(season: number, codes: string[], read: { changed: Row[]; r
   for (const code of codes) {
     const e = { code }, key = `${season}/${code}`, readFailed = read.readFailed, stopped = read.stopped;
     const changed = count(read.changed, code);
-    const outcome = readOutcome({ rows: count(good, e.code), opened: count(opened, e.code), waiting: count(later, e.code), tooBig: count(tooBig, e.code), readFailed, timedOut: stopped.has(e.code), changed });
+    const outcome = readOutcome({ rows: count(good, e.code), opened: count(opened, e.code), waiting: count(later, e.code) + count(heldOther, e.code), tooBig: count(tooBig, e.code), readFailed, timedOut: stopped.has(e.code), changed });
     if (outcome === "timed out") {
       const video = stopped.get(e.code), counted = rememberTimeout(memory, key, video) === "counted";
       stoppedAtLimit.push(`${key}${video ? ` (video ${video})` : ""}${counted ? ": nothing new again, counted as a try" : ""}`);
@@ -564,7 +701,7 @@ if (SWEEP && SHARD.k === 0 && !open.some((p) => p.file === CLIPS_FILE)) {
   for (const season of seasons) {
     if (budget <= 0) break;
     if (!existsSync(seasonFile(season))) continue;
-    const r = await reader(["scripts/video-frames.ts", "--season", String(season), "--clips", "--limit", String(budget), "--lanes", "2"], 4 * 3600_000);
+    const r = await reader(["scripts/video-frames.ts", "--season", String(season), "--clips", "--limit", String(budget), "--lanes", READER_LANES], 4 * 3600_000);
     const checked = (r.out.match(/^\S+: \d+ clock clips to check by their first frame$/gm) ?? []).length;
     log(`${season} sweep: ${checked} events checked, exit ${r.code}`);
     budget -= checked;
