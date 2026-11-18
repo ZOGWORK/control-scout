@@ -177,6 +177,15 @@ describe("the shipped list", () => {
       expect(x.season).toBeGreaterThanOrEqual(2019);
     }
   });
+  it("puts FIRST Robotics BC's 2023-01-28 \"Vancouver Qualifier\" on the Lower Mainland Qualifier, never Victoria's", () => {
+    // Two BC qualifiers that day: CABCSUQ (Lower Mainland, L.A. Matheson in Surrey, Metro Vancouver) and CABCVIQ
+    // (Victoria, St. Margaret's). The channel streamed each: Victoria's is TUFDPEuJSpM (its broadcast), the
+    // "Vancouver Qualifier" Y0yrKRUpcJo ran 10:56–18:34 Pacific, over CABCSUQ's 31 matches (11:52–17:40).
+    const rows = data.videos.filter((x) => x.videoId === "Y0yrKRUpcJo");
+    expect(rows).toEqual([expect.objectContaining({ season: 2022, code: "CABCSUQ", kind: "recording", day: "2023-01-28" })]);
+    expect(data.videos.some((x) => x.season === 2022 && x.code === "CABCVIQ")).toBe(false);
+  });
+
   it("keeps one video per event, day and part", () => {
     const k = new Set<string>();
     for (const x of data.videos.filter((y) => y.kind === "recording")) {
