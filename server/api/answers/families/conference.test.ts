@@ -32,6 +32,11 @@ describe("reading a conference ask", () => {
     ["number 2 in east bergen conference", { team: null, words: ["east", "bergen"] }],
     // This season is the current one; a season after every stored one is kept.
     ["4215 conference ranking this season", { team: 4215, season: null, now: true, last: false }],
+    // The past tense with no season said: the latest one played out.
+    ["where was 207 in their conference", { team: 207, season: null, past: true }],
+    ["where 4215 came in its conference", { team: 4215, season: null, past: true }],
+    ["where 207 ended in their conference", { team: 207, season: null, past: true }],
+
     ["East Bergen Conference rankings this season", { team: null, now: true }],
     ["East Bergen Conference rankings in 2027", { season: 2027, now: false }],
     // The name after a bare "conference".
@@ -119,7 +124,7 @@ describe("answering a conference ask", () => {
   const ask = (q: string) => conferenceAskAnswer(readConferenceAsk(q)!, 2026);
 
   it("gives a team's conference place by league RS, beside its league rank, linking the table", async () => {
-    const a = (await ask("4215 conference ranking"))!;
+    const a = (await ask("where did 4215 finish in its conference"))!;
     expect(a.title).toBe("4215 in East Bergen Conference · 2025–26");
     expect(a.headline).toMatchObject({ value: "2nd of 4", href: "/leagues/2025/USNJ/NO/conferences?conference=east-bergen-conference&team=4215" });
     expect(a.headline!.sub).toContain("League rank 12 of 4 · RS 3.8 · TBP 92.4 · 16 played");
@@ -132,7 +137,7 @@ describe("answering a conference ask", () => {
   });
 
   it("gives the dropdown the answer's page to open, so a team's conference place is never an empty result (#1640)", async () => {
-    const q = "where does 4215 rank in East Bergen Conference";
+    const q = "where did 4215 rank in East Bergen Conference";
     const a = (await conferenceSearch(q, { full: false, pages: [] }))!;
     expect(a.understood?.label).toBe("4215 in East Bergen Conference · 2025–26");
     expect(a.stat).toBeUndefined();
@@ -142,6 +147,40 @@ describe("answering a conference ask", () => {
     const f = (await conferenceSearch(q, { full: true, pages: [] }))!;
     expect(f.pages).toEqual([]);
     expect(f.stat?.headline?.value).toBe("2nd of 4");
+  });
+
+  it("answers this season when the team is in a conference, else the last one with a note, and the past tense as played out", async () => {
+    // Only "was" with no season said is the past tense's.
+    expect(readConferenceAsk("where is 207 in their conference")?.past).toBeUndefined();
+    expect(readConferenceAsk("where was 207 in their conference last season")).toMatchObject({ team: 207, season: null, last: true });
+    expect(readConferenceAsk("where was 207 in their conference last season")?.past).toBeUndefined();
+    // This season first, going in from the sign-ups: no season said means now when there is something to show.
+    for (const q of ["4215 conference ranking", "where is 4215 in their conference", "where does 4215 rank in East Bergen Conference"]) {
+      const a = (await ask(q))!;
+      expect(a.title, q).toBe("4215 going into Hudson/East Bergen Conference · 2026–27");
+      expect(a.scope[0], q).toBe("2026–27");
+    }
+    // Not in one this season: the last season's, its absence said first.
+    const b = (await ask("where is 207 in their conference"))!;
+    expect(b.title).toBe("207 in East Bergen Conference · 2025–26");
+    expect(b.scope[0]).toBe("No 2026–27 conference for 207 yet; showing 2025–26");
+    // The past tense: the latest one played out, nothing to explain.
+    for (const q of ["where was 4215 in their conference", "where was 207 in their conference", "where did 4215 rank in East Bergen Conference"]) {
+      const a = (await ask(q))!;
+      expect(a.title, q).toMatch(/^\d+ in East Bergen Conference · 2025–26$/);
+      expect(a.scope[0], q).toBe("2025–26");
+    }
+  });
+
+  it("answers the past tense with the newest conference when none has been played out yet, never \"on no list\"", async () => {
+    // A rookie registered only for this season's tournament.
+    await run("UPDATE event_provisional SET teams = ? WHERE season = 2026 AND code = 'USNJNELT2'", [JSON.stringify([
+      { team: 4215, name: "Hypnotic Robotics", status: "registered", session: null }, { team: 33333, name: "Rookies", status: "registered", session: null }])]);
+    await syncConferences(2026, { now: new Date("2026-11-16T12:00:00Z") });
+    clearAllCaches();
+    const a = (await ask("where was 33333 in their conference"))!;
+    expect(a.none).toBeUndefined();
+    expect(a.title).toBe("33333 going into Hudson/East Bergen Conference · 2026–27");
   });
 
   it("answers the season asked, going in from the sign-ups when FIRST has no field yet", async () => {
@@ -281,7 +320,7 @@ describe("answering a conference ask", () => {
   it("answers this season as the current one, says a later season has none, and never picks between two same-named teams", async () => {
     expect((await ask("4215 conference ranking this season"))!.title).toBe("4215 going into Hudson/East Bergen Conference · 2026–27");
     expect((await ask("East Bergen Conference rankings in 2027"))!.none).toBe("No New Jersey conference by that name in 2027–28.");
-    expect((await ask("where does hypnotic robotics rank in east bergen conference"))!.title).toBe("4215 in East Bergen Conference · 2025–26");
+    expect((await ask("where does hypnotic robotics rank in east bergen conference"))!.title).toBe("4215 going into Hudson/East Bergen Conference · 2026–27");
     await run("INSERT INTO teams (number, name, state, country) VALUES (9999, 'Hypnotic Robotics', 'NJ', 'USA')");
     expect(await ask("where does hypnotic robotics rank in east bergen conference")).toBeNull();
   });
@@ -300,7 +339,8 @@ describe("answering a conference ask", () => {
   it("reads a conference named and nothing more as its table, naming the tournament for its card; a team before it is the tournament's ask", async () => {
     const a = (await ask("east bergen conference"))!;
     expect([a.title, a.events]).toEqual(["East Bergen Conference rankings · 2025–26", [{ season: 2025, code: "USNJNOLT2" }]]);
-    expect((await ask("4215 conference ranking"))!.events).toEqual([{ season: 2025, code: "USNJNOLT2" }]);
+    expect((await ask("4215 conference ranking"))!.events).toEqual([{ season: 2026, code: "USNJNELT2" }]);
+    expect((await ask("where was 4215 in its conference"))!.events).toEqual([{ season: 2025, code: "USNJNOLT2" }]);
     expect((await ask("who won east bergen conference"))!.events).toEqual([{ season: 2025, code: "USNJNOLT2" }]);
     expect(await ask("hypnotic robotics east bergen conference")).toBeNull();
   });
@@ -326,7 +366,7 @@ describe("answering a conference ask", () => {
 
   it("gives plain search (no answer asked) the answer's cards when no name matches a question, never an empty list", async () => {
     const hits = await plainSearch("4215 conference ranking", 12, new Set(), new Set());
-    expect(hits.map((h) => h.ref)).toContain("2025:USNJNOLT2");
+    expect(hits.map((h) => h.ref)).toContain("2026:USNJNELT2");
     // A picker asking for some kinds keeps its plain names only.
     expect(await plainSearch("4215 conference ranking", 12, new Set(), new Set(["event"]))).toEqual([]);
   });
