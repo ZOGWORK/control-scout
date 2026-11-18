@@ -39,7 +39,8 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
 import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, launchPlayerBrowser, clockReading, playedCount, playedMatches, wholeLength, splitSide, splitChecked, splitZoomCss, SPLIT_SIDES, type SplitSide } from "./lib/videoFrames";
-import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, firstOpening, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, inPage, titleLeaks, titleUnchecked, visibleTexts, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M, eventDivisions, teamsSay } from "./lib/videoFrames";
+import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, firstOpening, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, darkInk, DARK_FILL_MAX, DARK_INK_MAX, inPage, titleLeaks, titleUnchecked, visibleTexts, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M, eventDivisions, teamsSay } from "./lib/videoFrames";
+import { cornerBox, zoomCss } from "./lib/frameZoom";
 import { between, edgeReject, eventLimitMs, GAP_READS } from "./lib/videoFrames";
 
 // The command line: --name value or --name=value for the value flags, --name alone for the others. Anything else stops
@@ -204,18 +205,23 @@ const PLAIN_TIMERS = [
   // The box's match progress fills the bar behind it in an alliance's colour: its ink alone is read too (inkOnly).
   { where: "plain" as const, clip: { x: 595, y: 594, width: 90, height: 36 }, plain: true, ink: true },
   // POWERPLAY's box, inside the bar it sits on: a crop reaching the bar's coloured edge reads it as a "1" (USCHSCMPVIO
-  // 2022 at 5664 s, "78" read "178"), every confirmation of the event's matches failing with it.
-  { where: "plain" as const, clip: { x: 605, y: 686, width: 70, height: 30 }, plain: true },
+  // 2022 at 5664 s, "78" read "178"), every confirmation of the event's matches failing with it. Late in a match the
+  // box can go black behind faint grey digits (USTXNONLM1 2022 at 902 s, "38" read "238"): those are read too (darkInk).
+  { where: "plain" as const, clip: { x: 605, y: 686, width: 70, height: 30 }, plain: true, dark: true },
   // The same bar flipped to the top of the frame, its timer flush with the top edge (USAZCMPGC23 2022, Arizona's
   // championship: "85" at 8640 s). Read after the bottom's, so a bottom bar is always read first.
   { where: "plain" as const, clip: flippedClip({ x: 605, y: 686, width: 70, height: 30 }), plain: true },
+  // POWERPLAY's bar shrunk to about 85% inside black side bars and raised off the bottom edge (USTXNODLM3 2022, NTX
+  // FTC's D-League Meet 3: its pill's digits at y 674–692, above the bottom crop's, which reads nothing there; "116" and
+  // "56" here 60 s apart). Last, so a full-size bar is always read first: on one, this crop sees the pill's top edge.
+  { where: "plain" as const, clip: { x: 600, y: 670, width: 80, height: 28 }, plain: true },
 ];
 /** Best-of-3 semifinals and finals (2019–2023; double elimination from 2024, whose playoffs FIRST numbers M1–M13): the
  *  overlay names every playoff "Semifinal 1 Match 2" or "Finals Match 1", never a bare "Match 1" (overlayLabel).
  *  CENTERSTAGE's (2023) too: USMOKSCMP's M2 opens on "Semifinal 2 Match 1", which a read losing "Semifinal" took
  *  for M1, pulling the clip. */
 const SEMIFINALS = season <= 2023;
-const TIMER_CROPS: { where: "bottom" | "top" | "plain"; clip: { x: number; y: number; width: number; height: number }; loose?: boolean; plain?: boolean; card?: boolean; ink?: boolean }[] =
+const TIMER_CROPS: { where: "bottom" | "top" | "plain"; clip: { x: number; y: number; width: number; height: number }; loose?: boolean; plain?: boolean; card?: boolean; ink?: boolean; dark?: boolean }[] =
   season <= 2022 ? [...PLAIN_TIMERS, ...TIMERS] : TIMERS;
 
 /** The timer's reading. `auto`: whether a reading of 0:30 or less is Auto, told by readAt. */
@@ -235,8 +241,15 @@ async function timer(page: Page, first?: TimerCrop | null): Promise<{ where: "bo
     // that places one. Only after the crop as shot: inked, POWERPLAY's crops read "68" as "88" (USTXCECMP 2022 at
     // 4463 s) and a stray colon as "44".
     if (t.ink && (left == null || left <= SWITCH_S)) {
-      const inkLeft = secondsPlain((await digits.recognize(await inked(page, shot))).data.text);
+      const inkLeft = secondsPlain((await digits.recognize((await inked(page, shot, `(d) => (${inkOnly.toString()})(d, ${INK_MAX})`))!)).data.text);
       if (inkLeft != null && inkLeft > SWITCH_S) left = inkLeft;
+    }
+    // A box gone black behind faint digits (darkInk): read only where the crop as shot gave nothing a timer can show,
+    // and only a crop mostly that black fill (inked gives null otherwise).
+    if (t.dark && (left == null || left > AUTO_S + SWITCH_S + TELEOP_S)) {
+      const png = await inked(page, shot, `(d) => (${darkInk.toString()})(d, ${DARK_FILL_MAX}, ${DARK_INK_MAX})`);
+      const darkLeft = png && secondsPlain((await digits.recognize(png)).data.text);
+      if (darkLeft != null) left = darkLeft;
     }
     if (left == null || left > AUTO_S + SWITCH_S + TELEOP_S) continue;
     return { where: t.where, left, auto: false, crop: t };
@@ -252,8 +265,9 @@ async function timer(page: Page, first?: TimerCrop | null): Promise<{ where: "bo
   return left == null || left > AUTO_S + SWITCH_S + TELEOP_S ? null : { where: "bottom", left, auto: false, crop: null };
 }
 
-/** A crop with its ink alone (inkOnly, run in the page on the shot's own pixels). */
-async function inked(page: Page, png: Buffer): Promise<Buffer> {
+/** A crop through `step` (inkOnly or darkInk, as source: run in the page on the shot's own pixels). Null: the step
+ *  returned false (darkInk on a crop that isn't mostly its black fill), so there is nothing new to read. */
+async function inked(page: Page, png: Buffer, step: string): Promise<Buffer | null> {
   const b64 = await page.evaluate(`(async () => {
     const img = new Image();
     img.src = "data:image/png;base64,${png.toString("base64")}";
@@ -263,11 +277,11 @@ async function inked(page: Page, png: Buffer): Promise<Buffer> {
     const g = c.getContext("2d");
     g.drawImage(img, 0, 0);
     const d = g.getImageData(0, 0, c.width, c.height);
-    (${inkOnly.toString()})(d.data, ${INK_MAX});
+    if ((${step})(d.data) === false) return null;
     g.putImageData(d, 0, 0);
     return c.toDataURL("image/png").split(",")[1];
-  })()`) as string;
-  return Buffer.from(b64, "base64");
+  })()`) as string | null;
+  return b64 == null ? null : Buffer.from(b64, "base64");
 }
 
 /** Where the score bar is in the frame on screen (overlayBand, run in the page on the screenshot's own pixels: a
@@ -1163,8 +1177,17 @@ async function openOnce(page: Page, videoId: string): Promise<void> {
   // Only the title pieces, never their containers (#player-controls, #player-control-overlay): hiding those turns a
   // PLAYING frame pure black (USNVCMP 2024: 30 of 30 black; this rule: 77 of 77 drawn, top bar clear).
   await page.addStyleTag({ content: ".ytp-caption-window-container, .caption-window, .ytp-chrome-top, .ytp-pause-overlay, .ytp-show-cards-title, .ytp-ce-element, .ytp-player-content.ytp-iv-player-content, .ytp-large-play-button, .ytp-bezel, .ytp-chrome-bottom, player-top-controls, .ytwPlayerTopControlsHost, embedded-player-video-details, .ytmCuedOverlayGradient, .ytp-title, .ytp-title-text, .ytp-title-channel, .ytp-title-link, .ytp-gradient-top { display: none !important; }" });
+  // FTC Live's screen drawn small in a box over the camera (scripts/lib/frameZoom.ts): scaled up to fill the frame, so
+  // every crop reads it as a full-frame overlay.
+  const box = cornerBox(videoId);
+  if (box) {
+    await page.addStyleTag({ content: zoomCss(box.box, box.shift) });
+    if (!zoomSaid.has(videoId)) { zoomSaid.add(videoId); console.error(`    ${videoId}: overlay in a box at ${box.box.join(", ")}, zoomed to the frame`); }
+  }
   await hideTitle(page);
 }
+/** The videos whose zoom the run has said, so it says so once each (a video opens in several players). */
+const zoomSaid = new Set<string>();
 
 /** The players hideTitle has said can't be checked for YouTube's title (titleUnchecked), so it says so once each. */
 const titleNoted = new WeakSet<Page>();
