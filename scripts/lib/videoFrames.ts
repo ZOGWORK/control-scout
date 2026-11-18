@@ -149,6 +149,13 @@ export function titleLeaks(title: string, channel: string, texts: string[]): num
   return out;
 }
 
+/** Why YouTube's title can't be checked for on this player, or null when it can: the player gave neither a title nor
+ *  a channel (a video still processing, or an embed that hasn't its details yet), so titleLeaks has nothing to look
+ *  for. Not a fault: the reader goes on, and says once that this video's frames went unchecked. */
+export function titleUnchecked(title: string, channel: string): string | null {
+  return squash(title) || squash(channel) ? null : "YouTube gave no title or channel: its title can't be checked for over the frame";
+}
+
 /** A self-contained function's call, as a script for the page to run. tsx names each function it compiles with a
  *  helper of its own (`__name(walk, "walk")`), which a page doesn't have: the call brings a do-nothing one along, so it
  *  runs on any page, not only those the reader's player() gave one (visibleTexts under tsx: "__name is not defined"). */

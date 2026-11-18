@@ -39,7 +39,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
 import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, launchPlayerBrowser, clockReading, playedCount, playedMatches, wholeLength } from "./lib/videoFrames";
-import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, firstOpening, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, inPage, titleLeaks, visibleTexts, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M, eventDivisions, teamsSay } from "./lib/videoFrames";
+import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, firstOpening, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, inPage, titleLeaks, titleUnchecked, visibleTexts, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M, eventDivisions, teamsSay } from "./lib/videoFrames";
 import { between, eventLimitMs, GAP_READS } from "./lib/videoFrames";
 
 // The command line: --name value or --name=value for the value flags, --name alone for the others. Anything else stops
@@ -1123,6 +1123,9 @@ async function openOnce(page: Page, videoId: string): Promise<void> {
   await hideTitle(page);
 }
 
+/** The players hideTitle has said can't be checked for YouTube's title (titleUnchecked), so it says so once each. */
+const titleNoted = new WeakSet<Page>();
+
 /** YouTube's title or channel name drawn over the frame anyway (a player whose pieces have names no rule above
  *  hides: the 2023 reads saw .ytp-title's line in their frames, the event-name check reading it as the overlay's):
  *  each such text, found by what it says (titleLeaks, against the player's own title and channel), is hidden on its
@@ -1134,7 +1137,12 @@ async function hideTitle(page: Page): Promise<void> {
     const d = (document.querySelector("#movie_player") as any)?.getVideoData?.();
     return { title: String(d?.title ?? ""), channel: String(d?.author ?? "") };
   });
-  if (!meta.title && !meta.channel) return;
+  const why = titleUnchecked(meta.title, meta.channel);
+  if (why) {
+    // Said once a player: hideTitle runs before every opening's check.
+    if (!titleNoted.has(page)) { titleNoted.add(page); console.error(`    ${page.url().match(/embed\/([\w-]{11})/)?.[1] ?? "this video"}: ${why}`); }
+    return;
+  }
   for (let pass = 0; pass < 2; pass++) {
     const texts = (await page.evaluate(inPage(visibleTexts))) as string[];
     const leaks = titleLeaks(meta.title, meta.channel, texts);
