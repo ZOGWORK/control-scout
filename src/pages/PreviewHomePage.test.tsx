@@ -109,6 +109,21 @@ describe("Sample home dashboard", () => {
     expect(cls(rows[1].querySelector("[data-rank]")!)).not.toContain("text-accent");
   });
 
+  it("falls back to last season's leaders, labelled, before anyone has a record this season", () => {
+    data = { "/api/records/2026/teams": { ...TOP, rows: [] }, "/api/records/2025/teams": { ...TOP, season: 2025 } };
+    const { container } = mount();
+    expect(container.querySelectorAll("[data-top-team]")).toHaveLength(TOP_MAX);
+    expect(container.querySelector("[data-top-season]")?.textContent).toMatch(/^Last season, 2025/);
+  });
+
+  it("tags a live event with no results yet instead of cutting its place short", () => {
+    data = { "/api/events": { events: [event(1, "live", 0, 0)] } };
+    const { container } = mount();
+    const row = container.querySelector("[data-live-event]")!;
+    expect(row.textContent).toContain("Town, NJ");
+    expect(row.querySelector("[data-no-results]")?.textContent).toBe("No results yet");
+  });
+
   it("asks you to pick a team when none is set, with the one mint button", () => {
     const { container } = mount();
     const team = container.querySelector("[data-card='team']")!;
