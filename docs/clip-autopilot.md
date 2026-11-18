@@ -38,12 +38,14 @@ computer at home, in a clone kept for it alone. Each run:
 4. reads up to `--max` events (12) with `scripts/video-frames.ts --season N --codes … --live <main's season file>`
    (`--all` for an event with rows already), then `--verify`, then `--bounds`. The reader's output goes into the run's
    log as it comes (lines starting `  | `, one when each video starts and when it's done), so a long read shows it's
-   working. One event may take at most 3 hours (`--event-limit`, minutes): past that it stops, the videos it finished
+   working. One event may take at most a quarter of its videos' summed length, and never less than 3 hours (`--event-limit`,
+   minutes, is that floor; `eventLimitMs` in scripts/lib/videoFrames.ts): real reads take 2–4% of the length (2022
+   ROBUQ1's 27 hours of video read in 40 and 68 minutes), so only a stuck read gets there. Past it the event stops, the videos it finished
    keep their rows, the unfinished one gets none, and the next run reads the rest (not counted as a try). A stop with
    no new row at all is read again after 6 hours; the second such stop in a row counts as a try (then the usual 3 days,
    left after 3 tries), so a video that never gets past the limit isn't read every run. The run's log ends with every
    event stopped that way and the video it was on, to look at by hand. A whole
-   reader call past its own limit (6 hours a read, 3 for `--verify` and `--bounds`) is stopped with its whole process
+   reader call past its own limit (12 hours a read, a backstop over the events' own; 3 for `--verify` and `--bounds`) is stopped with its whole process
    tree (`scripts/lib/streamRun.ts`);
 5. checks every row it changed against main's (`rowProblems`, scripts/lib/autopilotRows.ts) and leaves out, with its
    reasons in the run's log, any that breaks a rule:
