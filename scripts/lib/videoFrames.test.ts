@@ -1,7 +1,7 @@
 // The pure parts of the frame reader (scripts/video-frames.ts): the overlay's match, the timer's elapsed time, and
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
-import { dataRows, divisionOf, cropOrder, elapsed, flippedClip, inPage, titleLeaks, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, shortClash, type M } from "./videoFrames";
+import { dataRows, divisionOf, cropOrder, elapsed, flippedClip, inPage, titleLeaks, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, firstOpening, OPEN_LEADS, shortClash, type M } from "./videoFrames";
 import { between, GAP_READS, TRIES } from "./videoFrames";
 
 describe("the frame reader", () => {
@@ -599,6 +599,37 @@ describe("wholeLength", () => {
     expect(wholeLength(Infinity)).toBeNull();
     expect(wholeLength(NaN)).toBeNull();
     expect(wholeLength(0)).toBeNull();
+  });
+});
+
+describe("firstOpening", () => {
+  // A frame naming the match at the given seconds; every second read is recorded.
+  const at = (named: number[]) => { const read: number[] = []; return { read, names: async (t: number) => (read.push(t), named.includes(t)) }; };
+  it("every lead-in second before the start is tried before +2 and +4", () => {
+    expect(OPEN_LEADS.slice(0, 5)).toEqual([20, 12, 5, 2, 0]);
+    expect(OPEN_LEADS.slice(5)).toEqual([-2, -4]);
+  });
+  it("never opens after the start when any lead-in frame names the match", async () => {
+    for (const lead of [20, 12, 5, 2, 0]) {
+      const f = at([1000 - lead, 1002, 1004]);
+      expect(await firstOpening(1000, f.names)).toBe(1000 - lead);
+      expect(f.read.some((t) => t > 1000)).toBe(false);
+    }
+  });
+  it("opens 2, then 4 s into the match only where no frame before its start names it (an upload cut from the last results)", async () => {
+    expect(await firstOpening(4656, at([4658, 4660]).names)).toBe(4658);
+    expect(await firstOpening(4656, at([4660]).names)).toBe(4660);
+    const none = at([]);
+    expect(await firstOpening(4656, none.names)).toBeNull();
+    expect(none.read).toEqual([4636, 4644, 4651, 4654, 4656, 4658, 4660]);
+  });
+  it("skips a second before the video's start, and stops at a failed read", async () => {
+    const early = at([]);
+    await firstOpening(6, early.names);
+    expect(early.read).toEqual([1, 4, 6, 8, 10]);
+    let n = 0;
+    expect(await firstOpening(1000, async () => (++n === 2 ? "stop" : false))).toBeNull();
+    expect(n).toBe(2);
   });
 });
 

@@ -72,10 +72,10 @@ describe("frameStatus", () => {
   });
 
   it("never queues what no frame read can place: no video, a private one, no start time", () => {
-    for (const o of [{ videoId: null, reason: "no-recording-day" as const }, { reason: "video-unavailable" as const }, { reason: "no-start" as const }, { reason: "no-first-video" as const, videoId: null }]) {
+    for (const o of [{ videoId: null, reason: "no-recording-day" as const }, { reason: "video-unavailable" as const }, { reason: "video-no-embed" as const }, { reason: "no-start" as const }, { reason: "no-first-video" as const, videoId: null }]) {
       expect(frameStatus(ev([miss("Q1", o)]), NOW)).toMatchObject({ state: "unreadable", due: 0 });
     }
-    expect(frameStatus(ev([miss("Q1", { reason: "video-unavailable" })]), NOW).why).toBe("Nothing a frame read can place: Video unavailable or private");
+    expect(frameStatus(ev([miss("Q1", { reason: "video-unavailable" })]), NOW).why).toBe("Nothing a frame read can place: Recording can't be played: unavailable on YouTube (private or removed)");
   });
 
   it("waits for a video's YouTube facts before reading it", () => {

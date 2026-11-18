@@ -2203,7 +2203,9 @@ CREATE INDEX contributor_video_reports_reporter ON contributor_video_reports (re
 -- video a day, a day's second video only as a named part such as the awards) | highlight (a short reel, shown on the
 -- event page as a highlight and never as a match's video). day: the broadcast's date at the venue (recordings).
 -- source: list (server/data/officialVideos.json, checked by hand) | watcher (found on a watched channel) | owner
--- (approved from the owner's review queue). A row is never re-added once removed: removed_at keeps it out.
+-- (approved from the owner's review queue). A row is never re-added once removed: removed_at keeps it out. The link
+-- check (server/videos/linkCheck.ts) deletes the row instead, freeing the video for the meet it names now; its drop is
+-- logged in owner_audit, which keeps the checked list from writing it back onto that event.
 CREATE TABLE official_videos (
   video_id TEXT PRIMARY KEY,
   season INTEGER NOT NULL,
@@ -2566,6 +2568,19 @@ CREATE TABLE conference_snapshots (
 -- read with its other facts (server/videos/recordings.ts saveMeta): 0 plays on youtube.com only, so a clip opens there
 -- rather than in the app's player; NULL not read yet.
 ALTER TABLE video_meta ADD COLUMN embeddable INTEGER;
+`,
+  },
+  {
+    version: 96,
+    name: "video unplayable since",
+    sql: `
+-- When a video was first read as one no one can play here (server/videos/recordings.ts saveMeta): unavailable on
+-- YouTube (private, removed), or its owner turned off playing it on other sites (embeddable 0), so neither the app's
+-- player nor the frame reader can show it. Kept while it stays so, cleared the first read it plays again; Clip coverage
+-- gives its matches that settled reason with this date (server/videos/coverage.ts). NULL: it plays.
+ALTER TABLE video_meta ADD COLUMN unplayable_since TEXT;
+-- Videos already read so: the earliest date on record is their last read.
+UPDATE video_meta SET unplayable_since = checked_at WHERE status = 'unavailable' OR (status = 'ok' AND embeddable = 0);
 `,
   },
 ];
