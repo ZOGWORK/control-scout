@@ -524,6 +524,15 @@ describe("whose event an overlay names", () => {
     expect(overlayEvent("24 CANOPY | Collegiate Meet @ 9 AM Qualification 2 of 15 BIOBUZZ", "Collegiate Meet @ 9 AM", 15)).toEqual({ event: "own", phrase: "Q2" });
     expect(overlayEvent("Austin Semi-Area Championship • Qualification 10 of 40", "FiT-Central Semi-Area Championship Austin", 40)).toEqual({ event: "own", phrase: "Q10" });
   });
+  it("reads FREIGHT FRENZY's name after the match, its logo before it (USCANOSCQ 2021 at 4500 s)", () => {
+    const own = "CA-Northern Santa Clara Qualifying Tournament";
+    // The worker's line: the logo misread before a playoff match (no total to decide by), the event's name cut after it.
+    expect(overlayEvent("rest ronmasn sme Semifinal 2 Match 2 a Clara Qualifying Tournament C FREIGHT SFRENZV go", own, 17, true)).toEqual({ event: "own", phrase: "M2-2" });
+    // Another event's name after it is still another's.
+    expect(overlayEvent("rest ronmasn sme Semifinal 2 Match 2 Western Edge Premier Event FREIGHT FRENZY", own, 17, true)).toEqual({ event: "other" });
+    // Two matches on the line (a split screen): a name after the first is the second's, never read for the first.
+    expect(overlayEvent("rest ronmasn sme Semifinal 2 Match 2 a Clara Qualifying Tournament Semifinal 1 Match 1 Western Edge", own, 17, true)).toEqual({ event: "own", label: "M1-1", phrase: "M1-1" });
+  });
   it("tells sibling meets apart by a short token their names differ in", () => {
     expect(shortClash("FiT-North U-League AM Meet 3", "FiT-North X-League AM Meet 3")).toBe(true);
     expect(shortClash("FiT-North X-League PM Meet 3", "FiT-North X-League AM Meet 3")).toBe(true);
@@ -532,6 +541,8 @@ describe("whose event an overlay names", () => {
     expect(shortClash("FiT-North -League AM Meet 3", "FiT-North X-League AM Meet 3")).toBe(false);
     expect(shortClash("24 CANOPY | Collegiate Meet @ 9 AM", "Collegiate Meet @ 9 AM")).toBe(false);
     expect(shortClash("ad ! | B= Division Michiana Premier Event -", "Michiana Premier Event - Thomson Division")).toBe(false);
+    // Scraps at a cut name, and junk after it, stand in for nothing (USCANOSCQ 2021: "CA-Northern" cut to "C").
+    expect(shortClash("a Clara Qualifying Tournament C FREIGHT SFRENZV go", "CA-Northern Santa Clara Qualifying Tournament")).toBe(false);
   });
   it("names no match of this event with another total, and tells a playoff by its name alone", () => {
     expect(overlayEvent("CANOPY | —E— Qualification 2 of 16", "Collegiate Meet @ 9 AM", 15)).toEqual({ event: "other" });
