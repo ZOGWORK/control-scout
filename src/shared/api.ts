@@ -1124,6 +1124,8 @@ export interface OfficialWatchRow {
   /** What season/code/day rest on when the verdict itself named no event (a best guess); null when the verdict did. */
   guessWhy: string | null; seenAt: string; decidedAt: string | null; decidedBy: string | null;
 }
+/** A match's start in a video, typed by the owner (server/videos/manualStarts.ts). */
+export interface ManualStart { label: string; seconds: number; setBy: string; setAt: string }
 export interface OfficialChannelRow { channelId: string; title: string; region: string; words: string | null; titlePattern: string | null; watchFrom: string; checkedAt: string | null; lastError: string | null }
 export interface OfficialWatchRunRow { id: number; startedAt: string; finishedAt: string | null; units: number; channels: number; seen: number; added: number; queued: number; duplicates: number; error: string | null }
 export interface OwnerOfficialVideos {
