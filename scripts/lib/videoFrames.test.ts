@@ -1,7 +1,8 @@
 // The pure parts of the frame reader (scripts/video-frames.ts): the overlay's match, the timer's elapsed time, and
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
-import { dataRows, divisionOf, cropOrder, elapsed, flippedClip, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, timerDigits, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, shortClash, type M } from "./videoFrames";
+import { dataRows, launchPlayerBrowser, clockReading, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, darkInk, DARK_FILL_MAX, DARK_INK_MAX, inPage, titleLeaks, titleUnchecked, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, firstOpening, OPEN_LEADS, shortClash, type M, eventDivisions, teamsSay, timerDigits } from "./videoFrames";
+import { between, edgeReject, EVENT_LIMIT_RATIO, eventLimitMs, GAP_READS, TRIES } from "./videoFrames";
 import { pngPixels } from "./__fixtures__/png";
 import { fileURLToPath } from "node:url";
 
@@ -188,6 +189,50 @@ describe("the frame reader", () => {
     expect(cropOrder([a, b, c, d], { n: "a" })).toEqual([a, b, c, d]);
   });
 
+  it("keeps a plain timer's ink alone, the progress fill behind it gone (USCANOSCQ 2021: 75 over deep blue)", () => {
+    // A digit's black, the blue fill, the light pill, the green fill (USMOKSKNM1), a 6's grey edge, a digit's edge.
+    const px = [18, 22, 40, 255, 34, 66, 150, 255, 205, 207, 212, 255, 20, 140, 40, 255, 60, 60, 70, 255, 30, 30, 35, 128];
+    inkOnly(px, INK_MAX);
+    expect(px).toEqual([0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 255]);
+  });
+
+  it("reads POWERPLAY's box gone black behind faint digits, and leaves a box that isn't (darkInk)", () => {
+    // USTXNONLM1 2022 at 902 s: the fill 0–2, the digits of "38" 5–37 (sampled off the frame).
+    const black = [0, 0, 0, 255, 2, 1, 2, 255, 1, 0, 1, 255, 26, 24, 30, 255, 37, 33, 36, 255, 1, 1, 1, 255];
+    expect(darkInk(black, DARK_FILL_MAX, DARK_INK_MAX)).toBe(true);
+    expect(black).toEqual([255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 255, 0, 0, 0, 255, 255, 255, 255, 255]);
+    // USTXNODLM3 2022 at 6700 s: the light pill (147, 187) and its black digits: not that fill, left for inkOnly.
+    const pill = [147, 147, 147, 255, 187, 187, 187, 255, 0, 0, 0, 255, 190, 190, 190, 255];
+    expect(darkInk(pill, DARK_FILL_MAX, DARK_INK_MAX)).toBe(false);
+    expect(pill).toEqual([147, 147, 147, 255, 187, 187, 187, 255, 0, 0, 0, 255, 190, 190, 190, 255]);
+    // A fill's grey edge brighter than the ink band stays white, not a stray digit stroke.
+    const edge = [0, 0, 0, 255, 0, 0, 0, 255, 120, 120, 120, 255];
+    expect(darkInk(edge, DARK_FILL_MAX, DARK_INK_MAX)).toBe(true);
+    expect(edge.slice(8)).toEqual([255, 255, 255, 255]);
+  });
+
+  it("runs a function in a page that has no __name of tsx's (inPage)", () => {
+    // tsx's own output for a function with an inner named arrow, as the page gets it from toString.
+    const compiled = { toString: () => '() => { const walk = __name((n) => n * 2, "walk"); return walk(21); }' };
+    expect(() => new Function(`return (${compiled.toString()})()`)()).toThrow(/__name/);
+    expect(new Function(`return ${inPage(compiled)}`)()).toBe(42);
+  });
+
+  it("finds YouTube's title and channel among the page's texts, never the overlay's own (2023's .ytp-title leak)", () => {
+    const title = "FTC Harrisonburg 1 Qualifier - February 8th, 2022 FTC Event";
+    const texts = ["FTC Harrisonburg 1 Qualifier - February 8th, 2022 FTC Event", "Qualification 13 of 18", "FTC", "Harrisonburg 1 Qualifier - Febr...", "Chesapeake FIRST", "Harrisonburg 1 Qualifier", "0:30"];
+    expect(titleLeaks(title, "Chesapeake FIRST", texts)).toEqual([0, 3, 4, 5]);
+    // Every text in the page is YouTube's: the overlay is pixels in the video, never a page element. So a piece of the
+    // title counts even when it is the event's name. No title or channel known: nothing counts.
+    expect(titleLeaks("", "", texts)).toEqual([]);
+    expect(titleLeaks(title, "", ["2022", "FTC Event"])).toEqual([1]);
+  });
+  it("says the title can't be checked only when the player gave neither a title nor a channel", () => {
+    expect(titleUnchecked("", "")).toMatch(/can't be checked/);
+    expect(titleUnchecked("  ", "\n")).toMatch(/can't be checked/);
+    expect(titleUnchecked("FTC Harrisonburg 1 Qualifier", "")).toBeNull();
+    expect(titleUnchecked("", "Chesapeake FIRST")).toBeNull();
+  });
   it("reads a bare-seconds timer (FTC Live's overlay, 2019–2022)", () => {
     // AUMPOS1 2022: Auto "24", TeleOp "112"; IASQ4 2019 TeleOp "101".
     expect(secondsPlain("24\n")).toBe(24);
@@ -261,6 +306,48 @@ describe("the frame reader", () => {
     // The end of TeleOp ("0:20") leads to a finished match: no TeleOp reading 45 s on is its.
     expect(autoLeadsTo(20, 45, 30)).toBe(false);
     expect(autoLeadsTo(30, 30, 120)).toBe(false);
+  });
+
+  it("tells a timeout's countdown through a start from a match's card", () => {
+    // A 3:00 timeout on an audience display's card, read at 2:00 or less under a bar naming the next match, gives a
+    // start where it shows 2:38, 22 s after it began: 10 s before that start it shows 2:48, 5 s before 2:43, and 25 s
+    // before it hasn't begun, standing at its full 3:00 (still more than a match, reaching the start's 2:35).
+    expect(countsThrough(168, 10)).toBe(true);
+    expect(countsThrough(163, 5)).toBe(true);
+    expect(countsThrough(180, 25)).toBe(true);
+    // A 2:40 countdown is 2 s in at the start: 5 s before, it stands at its full 2:40.
+    expect(countsThrough(160, 5)).toBe(true);
+    // Longer ones (a 5:00 reset) are caught further out.
+    expect(countsThrough(183, 25)).toBe(true);
+    expect(countsThrough(248, 90)).toBe(true);
+    // Taken as a whole-match count (2:30 at the start), a few seconds' OCR either way.
+    expect(countsThrough(175, 25)).toBe(true);
+    expect(countsThrough(186, 25)).toBe(true);
+    // A real match: its card stands at 2:30 before it (never over 2:38), or shows the last match's 0:00.
+    expect(countsThrough(150, 25)).toBe(false);
+    expect(countsThrough(0, 25)).toBe(false);
+    // A long countdown that doesn't reach the start's 2:30–2:38 is something else (a break timer ending elsewhere).
+    expect(countsThrough(300, 25)).toBe(false);
+    expect(countsThrough(170, 25)).toBe(false);
+    // A real match's card 5 or 10 s before its start: 2:30 standing, the last match's 0:00.
+    expect(countsThrough(150, 5)).toBe(false);
+    expect(countsThrough(150, 10)).toBe(false);
+  });
+
+  it("reads an audience display's card for the countdown check", () => {
+    // What the digits worker read off USMAWEQ's card (Aj0stAP3EwM, 2:30 standing before Q37): cut close, "7:20"; with
+    // the margin, "2:30". Cut close, a card standing still read as more than a match, far from the start: no check.
+    expect(secondsOf("2:30\n")).toBe(150);
+    expect(cardStill(secondsOf("2:30\n")!)).toBe(true);
+    expect(countsThrough(secondsOf("7:20\n")!, 5)).toBe(false);
+    // Reads of nothing it could take ("0:99" off a blank card, or no text): no clock, so no check passed on them.
+    expect(secondsOf("0:99\n")).toBeNull();
+    expect(secondsOf("")).toBeNull();
+    expect(cardStill(0)).toBe(true);
+    expect(cardStill(163)).toBe(false);
+    // The margin: 40 px each side, kept inside the frame.
+    expect(cardClip({ x: 340, y: 110, width: 600, height: 210 })).toEqual({ x: 300, y: 70, width: 680, height: 290 });
+    expect(cardClip({ x: 10, y: 0, width: 1260, height: 700 })).toEqual({ x: 0, y: 0, width: 1280, height: 720 });
   });
 
   it("reads a timer", () => {
@@ -353,6 +440,45 @@ describe("the frame reader", () => {
     expect(overlayDivision("a Division  Romania Championship - (  Qualification 2 of 72", "COANDA", ["VLAICU"])).toBeNull();
     expect(overlayDivision("Western Edge Premier Event - Sea Division", "Sand", ["Sea"])).toBe("other");
     expect(overlayDivision("Seattle Qualifier", "Sand", ["Sea"])).toBeNull();
+  });
+
+  it("tells a division's match by its teams where the bar's division name has scrolled off (Iowa 2019)", () => {
+    // Black's Q8 (4324 6340 11142 16736) and Gold's (367 7259 9925 15523), read off f0WTAt-jFDA at 3307 s.
+    const black = [4324, 6340, 11142, 16736], gold = [367, 7259, 9925, 15523];
+    const frame = "11142 1 0 16736 4324 11 24 6340 Qualification 8 of 36 npionship";
+    expect(teamsSay(frame, black, [gold])).toBe("own");
+    expect(teamsSay(frame, gold, [black])).toBe("other");
+    // Two teams read: too few to say.
+    expect(teamsSay("4324 Qualification 8 of 36 16736", black, [gold])).toBeNull();
+    // Both divisions' teams read (a split screen, a results card listing both): no answer.
+    expect(teamsSay("4324 6340 11142 367 7259 9925", black, [gold])).toBeNull();
+    // No teams known for the match (a playoff label, a missing row).
+    expect(teamsSay(frame, undefined, [gold])).toBeNull();
+    // A score or timer that happens to be a team's number counts once, never as three.
+    expect(teamsSay("367 367 367 Qualification 8 of 36", black, [gold])).toBeNull();
+  });
+
+  it("takes 2019's divisions from the words after the name they share, and reads them off SKYSTONE's bar", () => {
+    expect(eventDivisions("Romania Championship - COANDA Division", ["Romania Championship - VLAICU Division"])).toEqual({ own: "COANDA", others: ["VLAICU"] });
+    expect(eventDivisions("Iowa Championship BLACK", ["Iowa Championship GOLD"])).toEqual({ own: "BLACK", others: ["GOLD"] });
+    expect(eventDivisions("FIRST in Michigan FTC State Championship-Warren MARIECURIE", ["FIRST in Michigan FTC State Championship-Warren WOODIEFLOWERS"]))
+      .toEqual({ own: "MARIECURIE", others: ["WOODIEFLOWERS"] });
+    expect(eventDivisions("Los Angeles Championship Monrovia, CA GALILEO", ["Los Angeles Championship Monrovia, CA ODYSSEY"])).toEqual({ own: "GALILEO", others: ["ODYSSEY"] });
+    // No sibling, nothing shared, the same tail twice, or a tail that is only a number: no division to tell apart.
+    expect(eventDivisions("Iowa Championship BLACK", [])).toBeNull();
+    expect(eventDivisions("Iowa Championship BLACK", ["Nebraska Championship GOLD"])).toBeNull();
+    expect(eventDivisions("Iowa Championship BLACK", ["Iowa Championship Black"])).toBeNull();
+    expect(eventDivisions("Brookline Robo Rally 1", ["Brookline Robo Rally 2"])).toBeNull();
+    // Iowa 2019's streams cut between both fields (juDEJB2wENc, titled Black, shows Gold's Q9 at 3901 s; f0WTAt-jFDA,
+    // titled Gold, shows Black's Q8 at 3307 s): the bar's event half says whose match it is.
+    expect(overlayDivision("Qualification 9 of 36  Gold Division", "BLACK", ["GOLD"])).toBe("other");
+    expect(overlayDivision("Qualification 8 of 36  npionship - Black Division", "BLACK", ["GOLD"])).toBe("own");
+    expect(overlayDivision("Qualification 8 of 36  npionship - Black Division", "GOLD", ["BLACK"])).toBe("other");
+    expect(overlayDivision("Qualification 8 of 36  lowa Championship - Bl", "GOLD", ["BLACK"])).toBeNull();
+    // A name the data runs together, spaced on the overlay; a short one never matched inside a longer word.
+    expect(overlayDivision("Marie Curie Division  Qualification 4 of 40", "MARIECURIE", ["WOODIEFLOWERS"])).toBe("own");
+    expect(overlayDivision("Woodie Flowers Division", "MARIECURIE", ["WOODIEFLOWERS"])).toBe("other");
+    expect(overlayDivision("Golden Bears Qualifier", "BLACK", ["GOLD"])).toBeNull();
   });
 
   it("reads the data file's rows", () => {
@@ -539,6 +665,15 @@ describe("whose event an overlay names", () => {
     expect(overlayEvent("24 CANOPY | Collegiate Meet @ 9 AM Qualification 2 of 15 BIOBUZZ", "Collegiate Meet @ 9 AM", 15)).toEqual({ event: "own", phrase: "Q2" });
     expect(overlayEvent("Austin Semi-Area Championship • Qualification 10 of 40", "FiT-Central Semi-Area Championship Austin", 40)).toEqual({ event: "own", phrase: "Q10" });
   });
+  it("reads FREIGHT FRENZY's name after the match, its logo before it (USCANOSCQ 2021 at 4500 s)", () => {
+    const own = "CA-Northern Santa Clara Qualifying Tournament";
+    // The worker's line: the logo misread before a playoff match (no total to decide by), the event's name cut after it.
+    expect(overlayEvent("rest ronmasn sme Semifinal 2 Match 2 a Clara Qualifying Tournament C FREIGHT SFRENZV go", own, 17, true)).toEqual({ event: "own", phrase: "M2-2" });
+    // Another event's name after it is still another's.
+    expect(overlayEvent("rest ronmasn sme Semifinal 2 Match 2 Western Edge Premier Event FREIGHT FRENZY", own, 17, true)).toEqual({ event: "other" });
+    // Two matches on the line (a split screen): a name after the first is the second's, never read for the first.
+    expect(overlayEvent("rest ronmasn sme Semifinal 2 Match 2 a Clara Qualifying Tournament Semifinal 1 Match 1 Western Edge", own, 17, true)).toEqual({ event: "own", label: "M1-1", phrase: "M1-1" });
+  });
   it("tells sibling meets apart by a short token their names differ in", () => {
     expect(shortClash("FiT-North U-League AM Meet 3", "FiT-North X-League AM Meet 3")).toBe(true);
     expect(shortClash("FiT-North X-League PM Meet 3", "FiT-North X-League AM Meet 3")).toBe(true);
@@ -547,6 +682,8 @@ describe("whose event an overlay names", () => {
     expect(shortClash("FiT-North -League AM Meet 3", "FiT-North X-League AM Meet 3")).toBe(false);
     expect(shortClash("24 CANOPY | Collegiate Meet @ 9 AM", "Collegiate Meet @ 9 AM")).toBe(false);
     expect(shortClash("ad ! | B= Division Michiana Premier Event -", "Michiana Premier Event - Thomson Division")).toBe(false);
+    // Scraps at a cut name, and junk after it, stand in for nothing (USCANOSCQ 2021: "CA-Northern" cut to "C").
+    expect(shortClash("a Clara Qualifying Tournament C FREIGHT SFRENZV go", "CA-Northern Santa Clara Qualifying Tournament")).toBe(false);
   });
   it("names no match of this event with another total, and tells a playoff by its name alone", () => {
     expect(overlayEvent("CANOPY | —E— Qualification 2 of 16", "Collegiate Meet @ 9 AM", 15)).toEqual({ event: "other" });
@@ -614,5 +751,161 @@ describe("wholeLength", () => {
     expect(wholeLength(Infinity)).toBeNull();
     expect(wholeLength(NaN)).toBeNull();
     expect(wholeLength(0)).toBeNull();
+  });
+});
+
+describe("an event whose scoring clock kept UTC", () => {
+  // 2021 USIAJOM2 (Johnston, Iowa; America/Chicago): FIRST's actual starts Q1 16:42:01 … Q21 20:34:53, its broadcast
+  // PnYwXxwdOcY 2021-11-13 16:01:52–20:45:40 UTC (10:01–14:45 at the venue). As local time every start is after the
+  // video ends; as UTC every one is inside it.
+  const utcMs = (time: string, timezone: string | null) => Date.parse(`${time}${timezone === "America/Chicago" ? "-06:00" : "Z"}`);
+  const times = { Q1: "2021-11-13T16:42:01.562", Q2: "2021-11-13T16:56:53.803", Q3: "2021-11-13T17:13:40.704", Q4: "2021-11-13T17:26:22.219", Q21: "2021-11-13T20:34:53.435" };
+  const rows = Object.entries(times).map(([label, time]) => ({ label, time, timezone: "America/Chicago" }));
+  const played = playedMatches(rows, { utcMs, actual: () => true, rank: (l) => Number(l.slice(1)) });
+  const broadcast = { start: Date.parse("2021-11-13T16:01:52Z") / 1000, end: Date.parse("2021-11-13T20:45:40Z") / 1000 };
+  const asUtc = (t: string) => Date.parse(`${t}Z`) / 1000;
+
+  it("USIAJOM2: none inside its broadcast as Chicago time, every one as UTC, so UTC is used", () => {
+    const r = clockReading(played, [broadcast], asUtc);
+    expect(r.utc).toBe(true);
+    expect(r.played.map((m) => m.label)).toEqual(["Q1", "Q2", "Q3", "Q4", "Q21"]);
+    expect(r.played[0].epoch).toBe(asUtc(times.Q1));
+    expect(r.played.every((m) => broadcast.start <= m.epoch && m.epoch <= broadcast.end)).toBe(true);
+  });
+
+  it("a scheduled time moves to UTC with the actual ones, so the played order and the untimed tail use one clock", () => {
+    // Q3 has only its scheduled time (17:10 on the same clock) and Q22 no time at all.
+    const mixed = playedMatches([...rows, { label: "Q22", time: null, timezone: "America/Chicago" }], { utcMs, actual: (t) => t !== times.Q3, rank: (l) => Number(l.slice(1)) });
+    const r = clockReading(mixed, [broadcast], asUtc);
+    expect(r.utc).toBe(true);
+    expect(r.played.map((m) => m.label)).toEqual(["Q1", "Q2", "Q3", "Q4", "Q21", "Q22"]);
+    expect(r.played.find((m) => m.label === "Q3")!.epoch).toBe(asUtc(times.Q3));
+    expect(r.played.find((m) => m.label === "Q22")!.epoch).toBe(asUtc(times.Q21) + 1);
+  });
+
+  it("local time kept when any start is inside a broadcast, when UTC places only some, or with no broadcast start", () => {
+    // One start inside as local time: the clock is the venue's.
+    const early = { start: broadcast.start, end: Date.parse("2021-11-13T23:00:00Z") / 1000 };
+    expect(clockReading(played, [early], asUtc).utc).toBe(false);
+    // As UTC only some are inside (the broadcast ends at 18:00 UTC): not a clock kept in UTC, so nothing changes.
+    expect(clockReading(played, [{ start: broadcast.start, end: Date.parse("2021-11-13T18:00:00Z") / 1000 }], asUtc).utc).toBe(false);
+    // An upload (no broadcast start) never decides it.
+    expect(clockReading(played, [{ start: null, end: null }], asUtc)).toEqual({ played, utc: false });
+    // A scheduled-only time (2019's qualifications) isn't an actual start: with none actual, nothing changes.
+    const scheduled = played.map((m) => ({ ...m, scheduled: true }));
+    expect(clockReading(scheduled, [broadcast], asUtc).utc).toBe(false);
+  });
+});
+
+describe("the browser that plays the videos", () => {
+  it("Google Chrome when installed (it plays H.264-only videos: 2021 NLCMP, USMSBILT), else Playwright's Chromium", async () => {
+    const asked: (string | undefined)[] = [], said: string[] = [];
+    const chrome = await launchPlayerBrowser(async (o) => { asked.push(o.channel); return `browser:${o.channel ?? "chromium"}`; }, (s) => said.push(s));
+    expect(chrome).toBe("browser:chrome");
+    expect(asked).toEqual(["chrome"]);
+    expect(said[0]).toMatch(/Google Chrome/);
+    const none: (string | undefined)[] = [];
+    const fallback = await launchPlayerBrowser(async (o) => { none.push(o.channel); if (o.channel) throw new Error("Chromium distribution 'chrome' is not found"); return "browser:chromium"; }, (s) => said.push(s));
+    expect(fallback).toBe("browser:chromium");
+    expect(none).toEqual(["chrome", undefined]);
+    expect(said[1]).toMatch(/Playwright's Chromium/);
+  });
+  it("any other failure to start Chrome is an error, not a quiet fall back to Chromium", async () => {
+    const asked: (string | undefined)[] = [];
+    const crash = launchPlayerBrowser(async (o) => { asked.push(o.channel); throw new Error("Browser closed unexpectedly"); });
+    await expect(crash).rejects.toThrow("Browser closed unexpectedly");
+    expect(asked).toEqual(["chrome"]);
+  });
+});
+
+describe("firstOpening", () => {
+  // A frame naming the match at the given seconds; every second read is recorded.
+  const at = (named: number[]) => { const read: number[] = []; return { read, names: async (t: number) => (read.push(t), named.includes(t)) }; };
+  it("every lead-in second before the start is tried before +2 and +4", () => {
+    expect(OPEN_LEADS.slice(0, 5)).toEqual([20, 12, 5, 2, 0]);
+    expect(OPEN_LEADS.slice(5)).toEqual([-2, -4]);
+  });
+  it("never opens after the start when any lead-in frame names the match", async () => {
+    for (const lead of [20, 12, 5, 2, 0]) {
+      const f = at([1000 - lead, 1002, 1004]);
+      expect(await firstOpening(1000, f.names)).toBe(1000 - lead);
+      expect(f.read.some((t) => t > 1000)).toBe(false);
+    }
+  });
+  it("opens 2, then 4 s into the match only where no frame before its start names it (an upload cut from the last results)", async () => {
+    expect(await firstOpening(4656, at([4658, 4660]).names)).toBe(4658);
+    expect(await firstOpening(4656, at([4660]).names)).toBe(4660);
+    const none = at([]);
+    expect(await firstOpening(4656, none.names)).toBeNull();
+    expect(none.read).toEqual([4636, 4644, 4651, 4654, 4656, 4658, 4660]);
+  });
+  it("skips a second before the video's start, and stops at a failed read", async () => {
+    const early = at([]);
+    await firstOpening(6, early.names);
+    expect(early.read).toEqual([1, 4, 6, 8, 10]);
+    let n = 0;
+    expect(await firstOpening(1000, async () => (++n === 2 ? "stop" : false))).toBeNull();
+    expect(n).toBe(2);
+  });
+});
+
+describe("between", () => {
+  const ms = [{ label: "Q1", epoch: 0 }, { label: "Q2", epoch: 300 }, { label: "Q3", epoch: 600 }, { label: "Q4", epoch: 900, scheduled: true }, { label: "Q5", epoch: 1200 }];
+  it("is a match with reads on both sides of it", () => {
+    const seen = new Map([[0, 10], [4, 1210]]);
+    expect([1, 2, 3].map((i) => between(ms, seen, i))).toEqual([true, true, true]);
+    expect(between(ms, seen, 0)).toBe(false);
+    expect(between(ms, seen, 4)).toBe(false);
+  });
+  it("needs a read after it, and a scheduled match's read doesn't count", () => {
+    expect(between(ms, new Map([[0, 10], [1, 310]]), 2)).toBe(false);
+    expect(between(ms, new Map([[0, 10], [3, 5000]]), 2)).toBe(false);
+  });
+  it("gives each such match both sides' tries and a confirm", () => {
+    expect(GAP_READS).toBe(2 * TRIES + 4);
+  });
+});
+
+describe("eventLimitMs: an event's own read limit", () => {
+  const MIN = 60_000, H = 3600;
+  it("is the floor for an event of ordinary length", () => {
+    expect(eventLimitMs(180 * MIN, [1 * H, 1.5 * H])).toBe(180 * MIN);
+    expect(eventLimitMs(180 * MIN, [])).toBe(180 * MIN);
+  });
+  it("scales with its videos' summed length, so a long event's real read isn't stopped", () => {
+    expect(EVENT_LIMIT_RATIO).toBe(1);
+    // 2022 ROBUQ1: three videos, ~27 h, read whole in 68 min at the slowest.
+    expect(eventLimitMs(180 * MIN, [9 * H, 9 * H, 9 * H])).toBe(27 * 60 * MIN);
+    // 2022 ROBUQ2: three videos, 20.5 h, read in 203 min on amelia, more than twice that with 8 readers on one computer.
+    // A quarter (308 min) would have cut that slow read; its own length is six times the real one.
+    const robuq2 = eventLimitMs(180 * MIN, [12_205, 35_358, 26_221]);
+    expect(robuq2).toBe(1230 * MIN);
+    expect(robuq2).toBeGreaterThan(6 * 203 * MIN);
+    expect(eventLimitMs(180 * MIN, [12_205, 35_358, 26_221], 0.25)).toBeLessThan(2.5 * 203 * MIN);
+  });
+  it("counts a length that isn't a real number as none, and rounds up to whole minutes", () => {
+    expect(eventLimitMs(0, [NaN, -5, 100 * 60])).toBe(100 * MIN);
+    expect(eventLimitMs(0, [61], 1)).toBe(2 * MIN);
+    expect(eventLimitMs(10 * MIN, [100 * H], 0.5)).toBe(50 * 60 * MIN);
+  });
+});
+
+describe("edgeReject", () => {
+  it("rejects a bar whose qualification total isn't this event's, saying whose it may be", () => {
+    // CABCVAS1 2023 (14 qualifications) opens on a setup screen naming a 5-match schedule's Q4.
+    const why = edgeReject("FIRST in SHOW — BC Lower Mainland Scrimmage 1 Qualification 4 of 5 CENTERSTAGE", null, undefined, 14);
+    expect(why).toMatch(/"of 5", not this event's 14 qualifications/);
+    expect(edgeReject("Up Next\nQualification 4 of 5", "own", undefined, 14)).not.toBeNull();
+  });
+  it("takes this event's total, a bar with none, and an event whose count isn't known", () => {
+    expect(edgeReject("BC Lower Mainland Scrimmage 1 Qualification 4 of 14", null, undefined, 14)).toBeNull();
+    expect(edgeReject("Semifinal 1 Match 2", null, undefined, 14)).toBeNull();
+    expect(edgeReject("Qualification 4 of 5", null, undefined, undefined)).toBeNull();
+    // A split screen: one of the totals read is this event's.
+    expect(edgeReject("Qualification 3 of 18 | Qualification 7 of 14", null, undefined, 14)).toBeNull();
+  });
+  it("rejects another division's or event's overlay with readAt's reason", () => {
+    expect(edgeReject("Qualification 4 of 14", "other", "another event's overlay", 14)).toBe("another event's overlay");
+    expect(edgeReject("Qualification 4 of 14", "other", undefined, 14)).toBe("another division's overlay");
   });
 });
