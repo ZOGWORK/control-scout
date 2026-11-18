@@ -46,6 +46,40 @@ describe("Watch", () => {
     expect(screen.getByRole("button", { name: /^Play:/ })).toBeTruthy();
   });
 
+  it("a video that plays on YouTube only: the link opens it there, never the page's player, and says so", () => {
+    const yt: MatchClip = { ...clip, youtubeOnly: true };
+    render(<MemoryRouter><WatchLive d={d} stream={{ ...stream, youtubeOnly: [clip.videoId] }} /><ClipLink clip={yt}>Watch</ClipLink></MemoryRouter>);
+    const link = screen.getByRole("link", { name: /Watch this match in the recording, from 1:40, on YouTube/ });
+    expect(link.getAttribute("href")).toBe(clip.url);
+    expect(link.getAttribute("title")).toMatch(/^Plays on YouTube only/);
+    expect(fireEvent.click(link)).toBe(true); // followed: YouTube, in a new tab
+    expect(document.querySelector("iframe")).toBeNull();
+    // The page's player is a link to YouTube too, with the note.
+    const facade = screen.getByRole("link", { name: /^Play on YouTube:/ });
+    expect(facade.getAttribute("href")).toBe(`https://www.youtube.com/watch?v=${clip.videoId}`);
+    expect(facade.textContent).toContain("Plays on YouTube only");
+    // Nothing shows over a video that doesn't play here, and the note says where it plays.
+    expect(screen.queryByText("Predictions on video")).toBeNull();
+    expect(screen.getByText(/plays on YouTube only; a match's Watch button opens it there at that match/)).toBeTruthy();
+  });
+
+  it("a button's play of a video that plays on YouTube only opens its watch page from that second, never the dialog", () => {
+    const open = vi.spyOn(window, "open").mockReturnValue(null);
+    const dialog = vi.fn();
+    const off = onVideoDialog(dialog);
+    try {
+      expect(playMatchVideo({ videoId: clip.videoId, t: 100, end: 340, label: "Q1", youtubeOnly: true })).toBe(true);
+      expect(open).toHaveBeenCalledWith(clip.url, "_blank", "noopener,noreferrer");
+      expect(dialog).not.toHaveBeenCalled();
+      playMatchVideo({ videoId: clip.videoId, t: 100, label: "Q1" });
+      expect(dialog).toHaveBeenCalledTimes(1); // one that may be embedded plays in the app
+      expect(open).toHaveBeenCalledTimes(1);
+    } finally {
+      off();
+      open.mockRestore();
+    }
+  });
+
   it("with no player on the page, it's YouTube's link at that second", () => {
     render(<ClipLink clip={clip}>Watch</ClipLink>);
     const link = screen.getByRole("link", { name: /Watch this match/ });

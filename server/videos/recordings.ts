@@ -300,10 +300,14 @@ export async function eventRecording(season: number, code: string): Promise<Reco
   return (await seasonRecordings(season)).get(code) ?? null;
 }
 
+/** A clip's mark for a video whose owner turned off playing on other sites: it opens on YouTube (MatchClip.youtubeOnly). */
+export const youtubeOnly = (meta: Pick<VideoMeta, "embeddable"> | null | undefined): { youtubeOnly?: true } => (meta?.embeddable === false ? { youtubeOnly: true } : {});
+
 export const recordingStream = (r: Recording, timezone?: string | null): EventStream => ({
   videoId: r.videoId, streamUrl: embedUrl(r.videoId), ...(r.source !== "owner" ? { source: r.source } : {}),
   // A day at a time: each day's video, named by its weekday at the venue (the broadcast's start).
   // A day with a second video (the awards) names it: "Sunday · Awards".
+  ...(() => { const ids = [r, ...(r.more ?? [])].filter((d) => d.meta?.embeddable === false).map((d) => d.videoId); return ids.length ? { youtubeOnly: ids } : {}; })(),
   ...(r.more?.length ? { days: [r, ...r.more].map((d) => ({ videoId: d.videoId, label: dayLabel(d.meta?.start ?? (d.day ? `${d.day}T12:00:00Z` : null), d.meta?.start ? timezone : "UTC") + (d.part ? ` · ${d.part}` : "") })) } : {}),
 });
 
@@ -382,7 +386,7 @@ export function withClips<M extends Pick<MatchView, "label" | "time" | "startsAt
         let next: number | null = null;
         for (const o of starts.values()) if (o > s && (next == null || o < next)) next = o;
         const end = frameClipEnd(s, next, v.meta?.length ?? null);
-        return { videoId: v.videoId, t, url: watchUrl(v.videoId, t), ...(end > t ? { end } : {}) };
+        return { videoId: v.videoId, t, url: watchUrl(v.videoId, t), ...(end > t ? { end } : {}), ...youtubeOnly(v.meta) };
       }
     }
     return null;
@@ -396,7 +400,7 @@ export function withClips<M extends Pick<MatchView, "label" | "time" | "startsAt
     const slack = gapSlack(timing);
     // Its matches' starts in order: an early clip must be clear of the one before (clearOfPrevious).
     const starts = held.starts.map((s) => (s.startsAt ? Date.parse(s.startsAt) : NaN)).filter(Number.isFinite).sort((a, b) => a - b);
-    return slack == null ? [] : [{ videoId: v.videoId, timing, slack, starts }];
+    return slack == null ? [] : [{ videoId: v.videoId, meta, timing, slack, starts }];
   });
   if (!videos.length && !framed.length) return matches;
   return matches.map((x) => {
@@ -411,7 +415,7 @@ export function withClips<M extends Pick<MatchView, "label" | "time" | "startsAt
       // Its first frame was read and names another match (scripts/clip-checks.ts): never served.
       if (r.code && clipPulled(v.videoId, r.code, x.label)) continue;
       const end = clipEnd(x.startsAt, v.timing, nextStart(v.starts, x.startsAt), now);
-      return { ...x, clip: { videoId: v.videoId, t, url: watchUrl(v.videoId, t), ...(v.slack ? { early: v.slack } : {}), ...(end != null && end > t ? { end } : {}) } };
+      return { ...x, clip: { videoId: v.videoId, t, url: watchUrl(v.videoId, t), ...(v.slack ? { early: v.slack } : {}), ...(end != null && end > t ? { end } : {}), ...youtubeOnly(v.meta) } };
     }
     return x;
   });
