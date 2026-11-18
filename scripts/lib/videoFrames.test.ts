@@ -1,7 +1,7 @@
 // The pure parts of the frame reader (scripts/video-frames.ts): the overlay's match, the timer's elapsed time, and
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
-import { dataRows, launchPlayerBrowser, clockReading, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, inPage, titleLeaks, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, firstOpening, OPEN_LEADS, shortClash, type M } from "./videoFrames";
+import { dataRows, launchPlayerBrowser, clockReading, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, inPage, titleLeaks, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, firstOpening, OPEN_LEADS, shortClash, type M, eventDivisions, teamsSay } from "./videoFrames";
 import { between, EVENT_LIMIT_RATIO, eventLimitMs, GAP_READS, TRIES } from "./videoFrames";
 
 describe("the frame reader", () => {
@@ -387,6 +387,45 @@ describe("the frame reader", () => {
     expect(overlayDivision("a Division  Romania Championship - (  Qualification 2 of 72", "COANDA", ["VLAICU"])).toBeNull();
     expect(overlayDivision("Western Edge Premier Event - Sea Division", "Sand", ["Sea"])).toBe("other");
     expect(overlayDivision("Seattle Qualifier", "Sand", ["Sea"])).toBeNull();
+  });
+
+  it("tells a division's match by its teams where the bar's division name has scrolled off (Iowa 2019)", () => {
+    // Black's Q8 (4324 6340 11142 16736) and Gold's (367 7259 9925 15523), read off f0WTAt-jFDA at 3307 s.
+    const black = [4324, 6340, 11142, 16736], gold = [367, 7259, 9925, 15523];
+    const frame = "11142 1 0 16736 4324 11 24 6340 Qualification 8 of 36 npionship";
+    expect(teamsSay(frame, black, [gold])).toBe("own");
+    expect(teamsSay(frame, gold, [black])).toBe("other");
+    // Two teams read: too few to say.
+    expect(teamsSay("4324 Qualification 8 of 36 16736", black, [gold])).toBeNull();
+    // Both divisions' teams read (a split screen, a results card listing both): no answer.
+    expect(teamsSay("4324 6340 11142 367 7259 9925", black, [gold])).toBeNull();
+    // No teams known for the match (a playoff label, a missing row).
+    expect(teamsSay(frame, undefined, [gold])).toBeNull();
+    // A score or timer that happens to be a team's number counts once, never as three.
+    expect(teamsSay("367 367 367 Qualification 8 of 36", black, [gold])).toBeNull();
+  });
+
+  it("takes 2019's divisions from the words after the name they share, and reads them off SKYSTONE's bar", () => {
+    expect(eventDivisions("Romania Championship - COANDA Division", ["Romania Championship - VLAICU Division"])).toEqual({ own: "COANDA", others: ["VLAICU"] });
+    expect(eventDivisions("Iowa Championship BLACK", ["Iowa Championship GOLD"])).toEqual({ own: "BLACK", others: ["GOLD"] });
+    expect(eventDivisions("FIRST in Michigan FTC State Championship-Warren MARIECURIE", ["FIRST in Michigan FTC State Championship-Warren WOODIEFLOWERS"]))
+      .toEqual({ own: "MARIECURIE", others: ["WOODIEFLOWERS"] });
+    expect(eventDivisions("Los Angeles Championship Monrovia, CA GALILEO", ["Los Angeles Championship Monrovia, CA ODYSSEY"])).toEqual({ own: "GALILEO", others: ["ODYSSEY"] });
+    // No sibling, nothing shared, the same tail twice, or a tail that is only a number: no division to tell apart.
+    expect(eventDivisions("Iowa Championship BLACK", [])).toBeNull();
+    expect(eventDivisions("Iowa Championship BLACK", ["Nebraska Championship GOLD"])).toBeNull();
+    expect(eventDivisions("Iowa Championship BLACK", ["Iowa Championship Black"])).toBeNull();
+    expect(eventDivisions("Brookline Robo Rally 1", ["Brookline Robo Rally 2"])).toBeNull();
+    // Iowa 2019's streams cut between both fields (juDEJB2wENc, titled Black, shows Gold's Q9 at 3901 s; f0WTAt-jFDA,
+    // titled Gold, shows Black's Q8 at 3307 s): the bar's event half says whose match it is.
+    expect(overlayDivision("Qualification 9 of 36  Gold Division", "BLACK", ["GOLD"])).toBe("other");
+    expect(overlayDivision("Qualification 8 of 36  npionship - Black Division", "BLACK", ["GOLD"])).toBe("own");
+    expect(overlayDivision("Qualification 8 of 36  npionship - Black Division", "GOLD", ["BLACK"])).toBe("other");
+    expect(overlayDivision("Qualification 8 of 36  lowa Championship - Bl", "GOLD", ["BLACK"])).toBeNull();
+    // A name the data runs together, spaced on the overlay; a short one never matched inside a longer word.
+    expect(overlayDivision("Marie Curie Division  Qualification 4 of 40", "MARIECURIE", ["WOODIEFLOWERS"])).toBe("own");
+    expect(overlayDivision("Woodie Flowers Division", "MARIECURIE", ["WOODIEFLOWERS"])).toBe("other");
+    expect(overlayDivision("Golden Bears Qualifier", "BLACK", ["GOLD"])).toBeNull();
   });
 
   it("reads the data file's rows", () => {
