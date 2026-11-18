@@ -99,6 +99,23 @@ export function sameMatch(named: string, label: string): boolean {
  *  finds the match in the event's order. */
 export const eventLabel = (named: string) => named.replace(/^(M\d+)-1$/, "$1");
 
+/**
+ * Why a frame can't be a recording's edge (readEdges), or null where it can: an edge is what this event's recording
+ * opens or ends on, so it must be this event's overlay.
+ * - Another division's or event's overlay (readAt's `division` "other", its `why` saying whose).
+ * - A bar whose qualification total isn't this event's (`quals`): "Qualification 4 of 5" on an event of 14 is another
+ *   event's match, or a setup or test schedule's (CABCVAS1 2023 opens on a setup screen naming "Qualification 4 of 5";
+ *   recorded as Q4, its edge put Q1-Q3 "before the recording" though all three are in it). Only a total read decides:
+ *   a bar with none (a playoff's "Match 1", a cut ticker) says nothing either way.
+ */
+export function edgeReject(text: string, division: "own" | "other" | null | undefined, why: string | undefined, quals: number | undefined): string | null {
+  if (division === "other") return why ?? "another division's overlay";
+  if (!quals) return null;
+  const totals = [...text.matchAll(/\bQualification\s+\d{1,3}\s+of\s+(\d{1,3})\b/gi)].map((m) => Number(m[1]));
+  if (!totals.length || totals.includes(quals)) return null;
+  return `its bar reads "of ${totals[0]}", not this event's ${quals} qualifications (another event's, or a setup or test schedule's)`;
+}
+
 /** FTC Live's rankings card counts the matches played so far ("4 / 23 matches played"): the count and the total. */
 export function playedCount(text: string): { played: number; of: number } | null {
   const m = /(\d{1,3})\s*\/\s*(\d{1,3})\s+matches\s+played/i.exec(text);
@@ -147,6 +164,13 @@ export function titleLeaks(title: string, channel: string, texts: string[]): num
     if (whole.some((w) => t === w || (t.length >= TITLE_MIN && w.includes(t)))) out.push(i);
   });
   return out;
+}
+
+/** Why YouTube's title can't be checked for on this player, or null when it can: the player gave neither a title nor
+ *  a channel (a video still processing, or an embed that hasn't its details yet), so titleLeaks has nothing to look
+ *  for. Not a fault: the reader goes on, and says once that this video's frames went unchecked. */
+export function titleUnchecked(title: string, channel: string): string | null {
+  return squash(title) || squash(channel) ? null : "YouTube gave no title or channel: its title can't be checked for over the frame";
 }
 
 /** A self-contained function's call, as a script for the page to run. tsx names each function it compiles with a
@@ -305,6 +329,39 @@ export function divisionOf(name: string): string | null {
   return m ? m[1] : null;
 }
 
+/**
+ * The divisions of an event whose divisions share a stream: this one's and its siblings', from their names. Either
+ * "… - X Division" (divisionOf), or, as 2019's are named, the words after the name they share ("Iowa Championship
+ * BLACK" and "Iowa Championship GOLD": BLACK, GOLD). Null when a name has neither, or two divisions come out the same.
+ */
+export function eventDivisions(own: string, siblings: string[]): { own: string; others: string[] } | null {
+  if (!siblings.length) return null;
+  const named = [own, ...siblings].map(divisionOf);
+  if (named.every((d): d is string => d != null)) return new Set(named).size === named.length ? { own: named[0], others: named.slice(1) } : null;
+  const ws = [own, ...siblings].map((n) => n.trim().split(/\s+/));
+  let shared = 0;
+  while (ws.every((w) => w.length > shared + 1 && w[shared].toUpperCase() === ws[0][shared].toUpperCase())) shared++;
+  const tails = ws.map((w) => w.slice(shared).join(" "));
+  // A tail must be a name, not a number or a letter, and each its own.
+  if (!shared || tails.some((t) => !/[A-Za-z]{3,}/.test(t)) || new Set(tails.map((t) => t.toUpperCase())).size !== tails.length) return null;
+  return { own: tails[0], others: tails.slice(1) };
+}
+
+/**
+ * Whose match the team numbers on a frame are, where divisions share a stream and the bar's division name has scrolled
+ * off (SKYSTONE's event half, Iowa 2019): "own" when 3 or more of this division's teams for the match are read and at
+ * most 1 of any sibling's same-numbered match, "other" the reverse, else null (too few read, or both).
+ */
+export function teamsSay(text: string, own: number[] | undefined, others: (number[] | undefined)[]): "own" | "other" | null {
+  if (!own?.length) return null;
+  const read = new Set((text.match(/\d{3,5}/g) ?? []).map(Number));
+  const hits = (ts: number[] | undefined) => (ts ?? []).filter((t) => read.has(t)).length;
+  const mine = hits(own), theirs = Math.max(0, ...others.map(hits));
+  if (mine >= 3 && theirs <= 1) return "own";
+  if (theirs >= 3 && mine <= 1) return "other";
+  return null;
+}
+
 const plain = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase();
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -314,7 +371,10 @@ const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
  */
 export function overlayDivision(text: string, own: string, others: string[]): "own" | "other" | null {
   const t = plain(text);
-  const has = (d: string) => new RegExp(`(^|[^A-Z])${escape(plain(d)).replace(/\s+/g, "\\s+")}([^A-Z]|$)`).test(t);
+  // A one-word name the event's data runs together ("MARIECURIE", "WOODIEFLOWERS") may be spaced on the overlay ("Marie
+  // Curie Division"): from six letters, a space may fall between any two.
+  const pattern = (d: string) => (/\s/.test(d) || d.length < 6 ? escape(plain(d)).replace(/\s+/g, "\\s+") : [...plain(d)].map(escape).join("\\s?"));
+  const has = (d: string) => new RegExp(`(^|[^A-Z])${pattern(d)}([^A-Z]|$)`).test(t);
   if (others.some(has)) return "other";
   return has(own) ? "own" : null;
 }
@@ -643,6 +703,18 @@ export function judge(ms: M[], seen: Map<number, number>, shift: number | null, 
   return { placed: placedAt, review, missing, earlyStart, opens: new Map() };
 }
 
+/** How long one event's read may take at most (scripts/video-frames.ts --event-limit is the floor): its videos'
+ *  summed length times EVENT_LIMIT_RATIO, never less than the floor, so a long event's legitimate read isn't stopped
+ *  and only a stuck one is. A read that takes longer than watching its videos is broken, whatever the computer's load:
+ *  1.0. Measured 11-17/18 on amelia: 2022 ROBUQ1 (~27 h of video) read whole in 40 and 68 min, 0.03-0.04 of its
+ *  length; 2022 ROBUQ2 (20.5 h) in 203 min, 0.17, its 9.8 h video alone in 141 min, 0.24. On a computer with 8 readers
+ *  at once (98% CPU) ROBUQ2's 9.8 h video was still unfinished after 6 h: slow, not stuck, and a quarter (an earlier
+ *  ratio) would cut such a read. 1.0 leaves four times the slowest video seen and six times its event. */
+export const EVENT_LIMIT_RATIO = 1;
+export function eventLimitMs(floorMs: number, videoSeconds: number[], ratio = EVENT_LIMIT_RATIO): number {
+  const total = videoSeconds.reduce((s, x) => s + (Number.isFinite(x) && x > 0 ? x : 0), 0);
+  return Math.max(floorMs, Math.ceil((ratio * total) / 60) * 60_000);
+}
 
 /** A broadcast's window, epoch seconds (an upload: no start, so no window). */
 export interface ClockWindow { start: number | null; end: number | null }
