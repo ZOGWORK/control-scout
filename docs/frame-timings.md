@@ -28,6 +28,10 @@ point, and reads two things with tesseract.js:
    under POWERPLAY's centre graphic; for those seasons those places are read first, then POWERPLAY's bar flipped to
    the top of the frame (Arizona's 2022 championship), its box at the same crop mirrored (`flippedClip`). A timer's two
    readings come from one crop, and the crop whose clock last ran is read first for the rest of the video (`cropOrder`).
+   Past those places, and first after a label read off a top bar, the timer is read in its own box: the light box
+   between the two alliances' scores in the bar found in the frame, cut to the digits' rows alone (`timerDigits`), so
+   neither the icon under them nor a field monitor's copy of the box off to one side is read (USNVCMP 2023's top bar,
+   whose fixed crop caught the digits' lower half and the robot icon: placements ~20 s late).
    Each counts Auto down from 0:30,
    then 8 s to pick up the controllers ("0:05" under a hand), then TeleOp from 2:00. Some bottom bars instead
    count the whole match down from 2:30: Auto reads 2:30 to 2:00 there, so a bottom-bar reading above 2:00 is that
@@ -47,7 +51,10 @@ A video can lose time but never gain it, so "video second minus real start" only
 matches the same distance apart (within 6 s) hold every match between them at that distance too. So the script reads
 the first and last match a video holds, and the middle of any stretch whose ends disagree: a video with one gap takes
 about 2 log n reads. `judge` then keeps the longest run of reads that never rise (dropping misreads such as a replay
-or an overlay left on the previous match) and fills each stretch between two reads that agree.
+or an overlay left on the previous match) and fills each stretch between two reads that agree. Once the reads place
+the video, a match whose read judge dropped is looked for again where its neighbours put it, and the matches after
+the last read are looked for in turn (`lookAgain`): the last match is first looked for before anything places the
+video, so one missed then would stay missing (USCHSBAQ3 2023's F2, 16 minutes after F1 past a field timeout).
 
 A match FIRST gives no real start for has no clock to place it by: a schedule's whole minute (2019's qualifications),
 or no time at all (results posted with none, as the Chicago Robotics Invitational's are). The video is walked a frame
@@ -94,7 +101,10 @@ A gap in one stretch doesn't stop the day: the next read that agrees with anothe
 
 A placed start isn't a clip until its opening is checked (`checkOpenings`): the overlay 20, 12, 5, 2 or 0 s before the
 start must name that match (and, on a shared stream, not a sibling division's). The first that does is where the clip
-opens (`opens`); the server starts the clip there (`frameOpen`). The last two are for a results or bracket card that
+opens (`opens`); the server starts the clip there (`frameOpen`). A 20, 12 or 5 s lead whose frame a second earlier
+names another match sits on the overlay's switch to this one, where a paused seek can land either side (USMOKSCMP
+2023 Q9 at 4004 s read Q9 once and Q8 once): it's passed over for the next lead in (`onSwitch`). The 2 and 0 s leads
+are for a results or bracket card that
 stays up until the match's own overlay comes on (CAONMIQ 2025 M7, USIAWESTLT M3). One whose opening frame shows another
 match goes to review; one whose overlay can't be read there is missing with "overlay could not be read at its clip's
 start". A row with `opens` plays only the starts in it. `--verify` checks the openings of rows read before this, without

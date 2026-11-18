@@ -2,9 +2,23 @@
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
 import { dataRows, launchPlayerBrowser, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, inPage, titleLeaks, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, firstOpening, OPEN_LEADS, shortClash, type M } from "./videoFrames";
-import { between, GAP_READS, TRIES } from "./videoFrames";
+import { between, GAP_READS, lookAgain, MISREAD, onSwitch, timerDigits, TRIES } from "./videoFrames";
+import { pngPixels } from "./__fixtures__/png";
+import { fileURLToPath } from "node:url";
 
 describe("the frame reader", () => {
+  it("skips an opening lead that sits on the overlay's switch to its match", () => {
+    // USMOKSCMP 2023 Q9: a second before its 20 s lead the overlay names Q8.
+    expect(onSwitch("Q8", "Q9")).toBe(true);
+    // Nothing named a second before (a transition, a cutaway), or the same match: no switch.
+    expect(onSwitch(null, "Q9")).toBe(false);
+    expect(onSwitch("Q9", "Q9")).toBe(false);
+    // A semifinal's first match names the event's M2 as "M2-1"; a replay's frame names its match alone.
+    expect(onSwitch("M2-1", "M2")).toBe(false);
+    expect(onSwitch("M1-1", "M2")).toBe(true);
+    expect(onSwitch("M6", "M6-2")).toBe(false);
+  });
+
   // A 1280 × 720 frame: a grey field, and a score bar from `top` to `bottom` with one alliance's colour each side of the
   // timer (white digits in a dark box at the centre), its rows broken here and there by white icons and digits.
   const frame = (bars: { top: number; bottom: number; left?: "blue" | "red"; dark?: boolean }[], floor = [120, 115, 110]) => {
@@ -44,6 +58,36 @@ describe("the frame reader", () => {
     expect(overlayBand(frame([{ top: 300, bottom: 310 }]), 1280, 720)).toBeNull();
     // A results card: its blue half and red half fill the frame's height (CENTERSTAGE's "WINNER" card).
     expect(overlayBand(frame([{ top: 60, bottom: 660 }]), 1280, 720)).toBeNull();
+  });
+
+  // Real frames, cut to the bar's centre 480 px with 100 px over and under it (scripts/lib/__fixtures__): the band is
+  // where overlayBand found the bar in the whole frame, and the digits' rows were measured by eye.
+  const real = (name: string) => pngPixels(fileURLToPath(new URL(`./__fixtures__/${name}`, import.meta.url)));
+  it("reads the timer's digits in their own box, wherever the bar is", () => {
+    // Nevada 2023's top bar (USNVCMP, Q4 at 2:03): overlayBand finds only the bar's lower half, the timer box standing
+    // above it; the digits are rows 30–80 and the robot icon under them (rows 88–110) is left out.
+    const nv = real("timer-top-nv2023.png"), nvBox = timerDigits(nv.px, nv.width, nv.height, { top: 100, bottom: 148 })!;
+    expect(nvBox.y).toBeLessThanOrEqual(30);
+    expect(nvBox.y + nvBox.height).toBeGreaterThanOrEqual(80);
+    expect(nvBox.y + nvBox.height).toBeLessThan(88);
+    expect(nvBox.x).toBeGreaterThan(165); expect(nvBox.x + nvBox.width).toBeLessThan(315);
+    // FTC Live's bottom bar, a white box (USAZGLQ 2023, Semifinal 1 Match 1 at 2:30): digits rows 104–148.
+    const glq = real("timer-bottom-azglq2023.png"), glqBox = timerDigits(glq.px, glq.width, glq.height, { top: 100, bottom: 183 })!;
+    expect(glqBox.y).toBeLessThanOrEqual(104);
+    expect(glqBox.y + glqBox.height).toBeGreaterThanOrEqual(148);
+    // Arizona's flush-top dark bar, a mid-grey box on a paused frame (USAZCMPGC1 2023, 2:30): digits rows 55–98.
+    const gc = real("timer-flushtop-azgc2023.png"), gcBox = timerDigits(gc.px, gc.width, gc.height, { top: 48, bottom: 109 })!;
+    expect(gcBox.y).toBeLessThanOrEqual(55);
+    expect(gcBox.y + gcBox.height).toBeGreaterThanOrEqual(98);
+    expect(gcBox.y + gcBox.height).toBeLessThan(110);
+  });
+  it("finds no timer box where there's none at the bar's centre", () => {
+    // A dark box with white digits is no light box.
+    expect(timerDigits(frame([{ top: 612, bottom: 700 }]), 1280, 720, { top: 612, bottom: 700 })).toBeNull();
+    // The field monitor in Nevada's frame shows the same white timer box in rows 170–215, off to the left (x 55–130):
+    // searched round the centre, those rows have none.
+    const nv = real("timer-top-nv2023.png");
+    expect(timerDigits(nv.px, nv.width, nv.height, { top: 168, bottom: 220 })).toBeNull();
   });
 
   it("steps the upload scan on past a named match until its timer runs, through a cutaway", () => {
@@ -231,6 +275,23 @@ describe("the frame reader", () => {
     // A recording cut mid-match (USTXSASQ 2025's kind): two starts 151 s apart, both read off the video, both stand.
     const cut = judge(ms, new Map([[0, 2000], [1, 2151]]), null, 10_000, new Set([0, 1]));
     expect([...cut.placed.keys()]).toEqual(["Q1", "Q2"]);
+  });
+
+  it("looks again for a misread and for the matches after the last read", () => {
+    // USCHSBAQ3 2023 (FIRST's start times, seconds after Q1's): the video sits 7158 s after the clock all day. Q1's one
+    // read sits 300 s early, so judge drops it; F2, 16 minutes after F1 past a field timeout, was looked for before any
+    // read placed the video and never again.
+    const ms: M[] = ([["Q1", 0], ["Q2", 471], ["Q3", 861], ["Q4", 1375], ["F1", 20503], ["F2", 21476]] as const).map(([label, epoch]) => ({ label, epoch }));
+    const seen = new Map([[0, 6858], [1, 7629], [2, 8019], [3, 8533], [4, 27661]]);
+    expect(judge(ms, seen, null, 30_000).missing.get("Q1")).toBe(MISREAD);
+    expect(lookAgain(ms, seen, null, 30_000)).toEqual({ misread: [0], trailing: [5] });
+    // Read where the reads beside them put them (Q1 at 7158, F2 at 28634, as their frames show), both place.
+    const now = new Map([...seen, [0, 7158], [5, 28634]]);
+    expect(lookAgain(ms, now, null, 30_000)).toEqual({ misread: [], trailing: [] });
+    expect([...judge(ms, now, null, 30_000).placed.keys()]).toEqual(["Q1", "Q2", "Q3", "Q4", "F1", "F2"]);
+    // A scheduled-only match after the last read is the walk's; with nothing read there is nothing to look from.
+    expect(lookAgain([...ms, { label: "F3", epoch: 22_000, scheduled: true }], now, null, 30_000).trailing).toEqual([]);
+    expect(lookAgain(ms, new Map(), null, 30_000)).toEqual({ misread: [], trailing: [] });
   });
 
   it("keeps the clock's reads and fills only clock matches when scheduled ones sit between them", () => {

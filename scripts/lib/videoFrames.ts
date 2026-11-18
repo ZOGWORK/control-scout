@@ -93,6 +93,15 @@ export function sameMatch(named: string, label: string): boolean {
   return named === label.replace(/-\d+$/, "");
 }
 
+/** Whether a clip's opening frame sits on the overlay's switch to its match: the frame a second before it names another
+ *  match (`before`, that frame's overlayLabel). A paused seek there can land either side of the switch, so the opening
+ *  can show the match before in one player and its own in another (USMOKSCMP 2023 Q9 at 4004 s: "Qualification 9 of
+ *  54" on one read, "Qualification 8 of 54" on the next). Such a lead isn't used; the next one in, clear of the switch,
+ *  is. A frame before that names nothing (a transition, a cutaway) or the same match is no switch. */
+export function onSwitch(before: string | null, label: string): boolean {
+  return !!before && !sameMatch(before, label);
+}
+
 /** A frame's match (overlayLabel) as the event names it, where that's one match: a semifinal's first match ("M2-1")
  *  is the event's M2; every other name is the event's own already ("M1-2", "Q4", "F1"; "M6" of 2025's overlay, whose
  *  replays it can't tell apart, stays "M6"). What a recording's edge stores (opensOn, endsOn), so outsideRecording
@@ -244,6 +253,8 @@ export type Judged = {
 
 /** Why a match is missing when no frame of its video could be read at all. */
 export const NOTHING_READ = "no frame of the video could be read";
+/** Why a match is missing when its one read sits where the reads around it say the video isn't (judge drops it). */
+export const MISREAD = "its frame read disagrees with the matches around it";
 /** A match FIRST gives only a scheduled time for (M.scheduled) that no frame walked through the video showed running. */
 export const SCHEDULED_UNREAD = "no start time from FIRST, and no frame of it read";
 
@@ -494,6 +505,64 @@ export function overlayBand(px: ArrayLike<number>, width: number, height: number
 }
 
 /**
+ * The timer's digits in a score bar found in the frame (overlayBand): the light box between the two alliances' scores,
+ * and in it the tallest run of inked rows, the digits (the icon over or under them, a robot or a gamepad, is shorter).
+ * Null where no such box stands at the bar's centre (`cx`). Self-contained, as it runs in the page too (`toString`).
+ *
+ * Found from the bar, not at a fixed place: the band overlayBand finds can be only the bar's lower half (Nevada 2023,
+ * whose timer box stands above the coloured band), where a crop of the band's upper half reads the robot icon's row.
+ * The box is the neutral run (white, and the digits' black) round the centre between the alliance colours; its top and
+ * bottom are where the pixels just inside its edges stop being light (the digits never reach the edges). Only round the
+ * centre: a field monitor shows the same white timer box off to one side.
+ */
+export function timerDigits(px: ArrayLike<number>, width: number, height: number, band: { top: number; bottom: number }, cx = width / 2): { x: number; y: number; width: number; height: number } | null {
+  const rgb = (x: number, y: number) => { const i = (y * width + x) * 4; return [px[i], px[i + 1], px[i + 2]]; };
+  // Grey, white or black: a dark navy (47, 65, 77) is a colour. Brightness is judged against the box's own (`level`): a
+  // paused frame's box can be a mid grey (Nevada 2023 about 130, Arizona about 110), not white.
+  const neutral = (x: number, y: number) => { const c = rgb(x, y); return Math.max(...c) - Math.min(...c) <= 20; };
+  const bright = (x: number, y: number) => { const c = rgb(x, y); return (c[0] + c[1] + c[2]) / 3; };
+  const MIN_W = 60, MAX_W = 260;
+  const mid = Math.round(cx), tall = band.bottom - band.top;
+  let box: { x0: number; x1: number; y: number; level: number } | null = null;
+  // A row in the band's upper half where the centre is neutral out to a colour on both sides, a box's width apart,
+  // with lighter edges (not a dark grey strip: the box's edges are its ground, never ink).
+  for (let y = Math.max(0, band.top + 2); !box && y < Math.min(height, band.top + Math.max(3, Math.round(tall / 2))); y++) {
+    if (!neutral(mid, y)) continue;
+    let x0 = mid, x1 = mid;
+    while (x0 - 1 >= 0 && mid - x0 < MAX_W && neutral(x0 - 1, y)) x0--;
+    while (x1 + 1 < width && x1 - mid < MAX_W && neutral(x1 + 1, y)) x1++;
+    const w = x1 - x0 + 1;
+    if (w < MIN_W || w > MAX_W || x0 === 0 || x1 === width - 1) continue;
+    const edges = [2, 3, 4, 5, 6].flatMap((d) => [bright(x0 + d, y), bright(x1 - d, y)]);
+    const level = edges.reduce((a, b) => a + b, 0) / edges.length;
+    if (level >= 80) box = { x0, x1, y, level };
+  }
+  if (!box) return null;
+  const { x0, x1, level } = box;
+  const light = (x: number, y: number) => neutral(x, y) && bright(x, y) >= level * 0.75;
+  const dark = (x: number, y: number) => bright(x, y) < level * 0.6;
+  // Its rows: on from the seed row while the pixels just inside both edges stay light.
+  const inside = (y: number) => [x0 + 2, x0 + 4, x1 - 2, x1 - 4].filter((x) => light(x, y)).length >= 3;
+  let top = box.y, bottom = box.y;
+  while (top - 1 >= 0 && inside(top - 1)) top--;
+  while (bottom + 1 < height && inside(bottom + 1)) bottom++;
+  if (bottom - top + 1 < 20) return null;
+  // The tallest run of inked rows across the box (gaps of up to 2 rows bridged).
+  const ink = (y: number) => { let n = 0; for (let x = x0 + 6; x <= x1 - 6; x++) if (dark(x, y)) n++; return n / (x1 - x0 - 11) >= 0.04; };
+  let best: { top: number; bottom: number } | null = null, run = -1, last = -1;
+  for (let y = top; y <= bottom + 1; y++) {
+    if (y <= bottom && ink(y)) { if (run < 0 || y - last > 3) run = y; last = y; continue; }
+    if (run >= 0 && (y - last > 2 || y > bottom)) {
+      if (!best || last - run > best.bottom - best.top) best = { top: run, bottom: last };
+      run = -1;
+    }
+  }
+  if (!best || best.bottom - best.top + 1 < 12) return null;
+  const y = Math.max(top, best.top - 4), y1 = Math.min(bottom, best.bottom + 4);
+  return { x: x0, y, width: x1 - x0 + 1, height: y1 - y + 1 };
+}
+
+/**
  * The row over a score bar found in the frame (overlayBand), where FTC Live names the match: as tall as the usual row
  * (`usual`, over the bottom bar), cut at the frame's top. Null where it would be the usual row again (a bar where the
  * bottom bar always is), or there's no room over the bar for a line of text.
@@ -633,7 +702,7 @@ export function judge(ms: M[], seen: Map<number, number>, shift: number | null, 
     if (placedAt.has(m.label) || review.has(m.label)) return;
     const before = kept.filter((k) => k < i).at(-1), after = kept.find((k) => k > i);
     missing.set(m.label,
-      dropped.has(i) ? "its frame read disagrees with the matches around it"
+      dropped.has(i) ? MISREAD
       : read.has(i) ? "its frames didn't confirm a start"
       : m.scheduled && (kept.length || sKept.size || read.size) ? SCHEDULED_UNREAD
       : before != null && after != null ? "in a gap: the reads either side disagree where the video sits, so it may not be in the video"
@@ -674,4 +743,22 @@ export function between(ms: M[], seen: Map<number, number>, i: number): boolean 
   let lo = false, hi = false;
   for (const k of seen.keys()) if (!ms[k].scheduled) { if (k < i) lo = true; else if (k > i) hi = true; }
   return lo && hi;
+}
+
+/**
+ * The matches to look for again once the reads have placed the video, each where the reads beside it put it.
+ * - misread: a match whose read judge drops (MISREAD). The reader takes a read match as found, so without this it is
+ *   never looked for where its neighbours say it is (USCHSBAQ3 2023's Q1, played on the clock's distance like Q2-F1).
+ * - trailing: the matches after the last clock read. The reader looks for the last match first, before any read places
+ *   the video, and walks back over the matches before the first read but never on over those after the last, so a
+ *   last match missed at that first try stays missing (USCHSBAQ3 2023's F2, 16 minutes after F1 past a field timeout).
+ * A scheduled-only match (M.scheduled) is the walk's, not the clock's: never in either.
+ */
+export function lookAgain(ms: M[], seen: Map<number, number>, shift: number | null, length: number, read: Set<number> = new Set(seen.keys())): { misread: number[]; trailing: number[] } {
+  const j = judge(ms, seen, shift, length, read);
+  const misread = ms.flatMap((m, i) => (!m.scheduled && seen.has(i) && j.missing.get(m.label) === MISREAD ? [i] : []));
+  const bad = new Set(misread);
+  const last = Math.max(-1, ...[...seen.keys()].filter((k) => !ms[k].scheduled && !bad.has(k)));
+  const trailing = last < 0 ? [] : ms.flatMap((m, i) => (i > last && !m.scheduled && !seen.has(i) ? [i] : []));
+  return { misread, trailing };
 }

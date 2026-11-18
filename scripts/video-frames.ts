@@ -37,7 +37,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
 import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, launchPlayerBrowser, playedCount, playedMatches, wholeLength } from "./lib/videoFrames";
 import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, firstOpening, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, inPage, titleLeaks, visibleTexts, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M } from "./lib/videoFrames";
-import { between, GAP_READS } from "./lib/videoFrames";
+import { between, GAP_READS, lookAgain, onSwitch, timerDigits } from "./lib/videoFrames";
 
 // The command line: --name value or --name=value for the value flags, --name alone for the others. Anything else stops
 // the run before it reads: a misspelt flag mustn't quietly read (and write) every recording of the season.
@@ -208,6 +208,10 @@ type TimerCrop = (typeof TIMER_CROPS)[number];
  *  with the top's "114" and "52", and no start was confirmed. Dropped when its pair doesn't run. */
 const timerCrop = new WeakMap<Page, TimerCrop>();
 async function timer(page: Page, first?: TimerCrop | null): Promise<{ where: "bottom" | "top" | "plain"; left: number; auto: boolean; crop: TimerCrop | null } | null> {
+  // A label read from the top row: the timer box's own digits first (boxTimer), as TOP_BAR_TIMER is one broadcast's
+  // place and on another's top bar it catches the digits' lower half and the icon under them, a wrong time, not none
+  // (USNVCMP 2023: placements ~20 s late, openings on the slide between matches).
+  if ((first ?? timerCrop.get(page)) === TOP_BAR_TIMER) { const boxed = await boxTimer(page); if (boxed) return boxed; }
   for (const t of cropOrder(TIMER_CROPS, first ?? timerCrop.get(page))) {
     const shot = await page.screenshot({ clip: t.clip });
     const text = (await digits.recognize(shot)).data.text;
@@ -226,7 +230,10 @@ async function timer(page: Page, first?: TimerCrop | null): Promise<{ where: "bo
   // Read as a bottom bar: a reading over 2:00 is then a 2:30 count's Auto (elapsed), which a 2:00 TeleOp never shows.
   const band = await barBand(page);
   if (!band) return null;
-  // The digits fill the bar's upper half; the icon under them (a gamepad, a hand) reads as digits too ("1:17" as "127").
+  const boxed = await boxTimer(page, band);
+  if (boxed) return boxed;
+  // No timer box found: the digits fill the bar's upper half; the icon under them (a gamepad, a hand) reads as digits
+  // too ("1:17" as "127").
   const top = Math.max(0, band.top - 4);
   const clip = { x: 565, y: top, width: 150, height: Math.min(720, band.top + Math.round((band.bottom - band.top) * 0.55) + 4) - top };
   const left = secondsOf((await digits.recognize(await page.screenshot({ clip }))).data.text);
@@ -266,6 +273,18 @@ async function barBand(page: Page): Promise<{ top: number; bottom: number } | nu
     (window as any).__frame = g.getImageData(0, 0, c.width, c.height);
   }, png);
   return page.evaluate(`(${overlayBand.toString()})(window.__frame.data, window.__frame.width, window.__frame.height)`) as Promise<{ top: number; bottom: number } | null>;
+}
+
+/** The timer read in its own box in the bar found in the frame (overlayBand, timerDigits): only the digits' rows, so
+ *  neither the icon under them nor the bar round them is read; read as a bottom bar's, as the fallback's crop is. */
+async function boxTimer(page: Page, found?: { top: number; bottom: number } | null): Promise<{ where: "bottom"; left: number; auto: boolean; crop: null } | null> {
+  const band = found ?? await barBand(page);
+  if (!band) return null;
+  const clip = await page.evaluate(`(${timerDigits.toString()})(window.__frame.data, window.__frame.width, window.__frame.height, ${JSON.stringify(band)})`) as { x: number; y: number; width: number; height: number } | null;
+  if (!clip) return null;
+  const text = (await digits.recognize(await page.screenshot({ clip }))).data.text;
+  const left = secondsOf(text) ?? secondsLoose(text);
+  return left == null || left > AUTO_S + SWITCH_S + TELEOP_S ? null : { where: "bottom", left, auto: false, crop: null };
 }
 
 const now = (page: Page) => page.evaluate(() => document.querySelector("video")!.currentTime);
@@ -566,7 +585,22 @@ async function checkOpenings(page: Page, j: Judged, log: (s: string) => void, un
       if (r.division === "other") { named = "another division's match"; return false; }
       // The overlay names a replay (a tiebreak's "M6-2") by its match alone ("M6"), as placeVideo reads it; a
       // semifinal's match by its series and number ("M1-2"), that match only (sameMatch).
-      if (sameMatch(r.label ?? "", label)) return true;
+      if (sameMatch(r.label ?? "", label)) {
+        // On the overlay's switch to it (a second before names another match): not this lead; the next one in. Only for
+        // leads of 5 s or more: the 2 and 0 s leads are for a results card that stays up until the match's own overlay
+        // comes on (CAONMIQ 2025 M7), where the second before names the match before by design, and the later ones
+        // open inside the match itself.
+        const lead = p.t - t;
+        if (lead > 2 && t >= 1) {
+          let before: Read | null = null;
+          try { before = await readAt(page, t - 1, true); } catch { /* unread: no switch seen */ }
+          if (before && Math.abs(before.at - (t - 1)) <= 1 && onSwitch(before.division === "other" ? null : before.label, label)) {
+            log(`    ${label}: its ${lead} s lead sits on the overlay's switch from ${eventLabel(before.label!)}; trying the next lead`);
+            return false;
+          }
+        }
+        return true;
+      }
       if (r.label) named = eventLabel(r.label);
       return false;
     });
@@ -882,6 +916,14 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
     for (let i = firstSeen - 1; i >= 0 && Number.isFinite(firstSeen) && !blind() && reads() < budget; i--) if ((await anchor(i)) == null) break;
   };
   await before();
+  // Once the reads place the video: each misread looked for again where its neighbours put it (kept if nothing better is
+  // read, for judge to drop), then the matches after the last read, until one can't be read (lookAgain).
+  const again = async () => {
+    const { misread, trailing } = lookAgain(ms, seen, shift, length, tried);
+    for (const i of misread) { const was = seen.get(i)!; seen.delete(i); if ((await anchor(i)) == null && !seen.has(i)) seen.set(i, was); }
+    for (const i of trailing) if (!seen.has(i) && (await anchor(i)) == null) break;
+  };
+  await again();
   // The matches still unread between two reads (span stops calling anchor once the budget is spent): each in turn.
   const inside = async () => { for (let i = 0; i < ms.length; i++) if (!seen.has(i) && !ms[i].scheduled && between(ms, seen, i)) await anchor(i); };
   await inside();
@@ -893,6 +935,7 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
       missed = 0;
       await span(0, ms.length - 1);
       await before();
+      await again();
       await inside();
     }
   }
