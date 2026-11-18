@@ -2,6 +2,7 @@
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
 import { dataRows, divisionOf, cropOrder, elapsed, flippedClip, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, shortClash, type M } from "./videoFrames";
+import { between, GAP_READS, TRIES } from "./videoFrames";
 
 describe("the frame reader", () => {
   // A 1280 × 720 frame: a grey field, and a score bar from `top` to `bottom` with one alliance's colour each side of the
@@ -582,5 +583,22 @@ describe("wholeLength", () => {
     expect(wholeLength(Infinity)).toBeNull();
     expect(wholeLength(NaN)).toBeNull();
     expect(wholeLength(0)).toBeNull();
+  });
+});
+
+describe("between", () => {
+  const ms = [{ label: "Q1", epoch: 0 }, { label: "Q2", epoch: 300 }, { label: "Q3", epoch: 600 }, { label: "Q4", epoch: 900, scheduled: true }, { label: "Q5", epoch: 1200 }];
+  it("is a match with reads on both sides of it", () => {
+    const seen = new Map([[0, 10], [4, 1210]]);
+    expect([1, 2, 3].map((i) => between(ms, seen, i))).toEqual([true, true, true]);
+    expect(between(ms, seen, 0)).toBe(false);
+    expect(between(ms, seen, 4)).toBe(false);
+  });
+  it("needs a read after it, and a scheduled match's read doesn't count", () => {
+    expect(between(ms, new Map([[0, 10], [1, 310]]), 2)).toBe(false);
+    expect(between(ms, new Map([[0, 10], [3, 5000]]), 2)).toBe(false);
+  });
+  it("gives each such match both sides' tries and a confirm", () => {
+    expect(GAP_READS).toBe(2 * TRIES + 4);
   });
 });
