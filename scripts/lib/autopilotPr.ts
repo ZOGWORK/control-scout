@@ -5,7 +5,7 @@ import { spawnSync } from "node:child_process";
 import { dataRows } from "./videoFrames.js";
 import { readMarker } from "./autopilotRows.js";
 import { nextVersion } from "./autopilotRun.js";
-import { clipsMergeProblems, frameMergeProblems, readyProblems } from "./autopilotMerge.js";
+import { clipsMergeProblems, frameMergeProblems, loopySummary, readyProblems, type IssueComment } from "./autopilotMerge.js";
 import type { FrameTiming } from "../../server/data/frameTimings.js";
 import type { ClipCheck } from "../../server/data/clipChecks.js";
 
@@ -65,9 +65,11 @@ export function prGate(number: number, main = "origin/main"): Gate {
   problems.push(...(file === CLIPS_FILE
     ? clipsMergeProblems(dataRows<ClipCheck>(next), dataRows<ClipCheck>(was), dataRows<ClipCheck>(live))
     : frameMergeProblems(mark.season, dataRows<FrameTiming>(next), dataRows<FrameTiming>(was), dataRows<FrameTiming>(live), filedVideos(main))));
-  // Loopy's latest summary (it edits one comment in place), and every check: a check run's conclusion, a status's state.
-  const loopy = gh("api", `repos/{owner}/{repo}/issues/${number}/comments`, "--paginate", "--jq", ".[] | select(.user.login | test(\"loopy\"; \"i\")) | select(.body | test(\"loopy:summary\")) | .body | @json")
-    .trim().split("\n").filter(Boolean).map((l) => JSON.parse(l) as string).at(-1) ?? null;
+  // Loopy's latest summary, from its own bot account only (loopySummary), and every check: a check run's conclusion, a
+  // status's state.
+  const comments = gh("api", `repos/{owner}/{repo}/issues/${number}/comments`, "--paginate", "--jq", ".[] | {user: {login: .user.login, type: .user.type}, body, updated_at} | @json")
+    .trim().split("\n").filter(Boolean).map((l) => JSON.parse(l) as IssueComment);
+  const loopy = loopySummary(comments);
   const checks = (pr.statusCheckRollup as { name?: string; context?: string; conclusion?: string; state?: string }[])
     .map((c) => ({ name: String(c.name ?? c.context ?? "?"), state: String(c.conclusion || c.state || "PENDING") }));
   problems.push(...readyProblems({ head, loopy, checks }));

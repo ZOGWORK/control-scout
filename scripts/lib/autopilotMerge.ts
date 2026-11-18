@@ -101,6 +101,20 @@ export function clipsMergeProblems(next: ClipCheck[], base: ClipCheck[], live: C
   return [...removed(next, base), ...changed(next, base).flatMap((r) => clipCheckProblems(r, liveBy.get(rowKey(r))).map((p) => `${rowKey(r)}: ${p}`))];
 }
 
+/** Loopy's own GitHub account: the only author whose summary counts. The repository is public, so anyone can post a
+ *  comment that looks like a 5/5 summary, even from an account named like it. */
+export const LOOPY_LOGIN = "loopyreviews-bot[bot]";
+/** A PR conversation comment as GitHub's REST API reports it (the fields the gate reads). */
+export interface IssueComment { user: { login: string | null; type: string | null } | null; body: string | null; updated_at: string }
+/** Loopy's latest summary among a PR's comments: only by its bot account, carrying its summary mark; of those the
+ *  last updated (it edits its summary in place). null: none. */
+export function loopySummary(comments: IssueComment[]): string | null {
+  const mine = comments.filter((c) => c.user?.login === LOOPY_LOGIN && c.user.type === "Bot" && (c.body ?? "").includes("loopy:summary"));
+  return mine.sort((a, b) => a.updated_at.localeCompare(b.updated_at)).at(-1)?.body ?? null;
+}
+/** The head Loopy's summary says it last reviewed (a short or full sha); null: none named. */
+export const reviewedSha = (loopy: string | null) => /last reviewed `([0-9a-f]{7,40})`/.exec(loopy ?? "")?.[1] ?? null;
+
 /** A PR's review and checks as GitHub reports them. `loopy`: Loopy's latest summary comment's body. */
 export interface PrState { head: string; loopy: string | null; checks: { name: string; state: string }[] }
 
@@ -108,7 +122,7 @@ export interface PrState { head: string; loopy: string | null; checks: { name: s
  *  check (at least MIN_CHECKS) passed. */
 export function readyProblems(pr: PrState): string[] {
   const out: string[] = [];
-  const conf = /Confidence: (\d)\/5/.exec(pr.loopy ?? "")?.[1], sha = /last reviewed `([0-9a-f]{7,40})`/.exec(pr.loopy ?? "")?.[1];
+  const conf = /Confidence: (\d)\/5/.exec(pr.loopy ?? "")?.[1], sha = reviewedSha(pr.loopy);
   if (!pr.loopy) out.push("no Loopy review");
   else {
     if (conf !== "5") out.push(`Loopy ${conf ?? "?"}/5, not 5/5`);

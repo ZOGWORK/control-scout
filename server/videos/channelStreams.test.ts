@@ -6,7 +6,7 @@ import { all, migrate, openDb, run, setDb } from "../db";
 import { clearAllCaches } from "../caches";
 import type { MatchView } from "../../src/shared/api";
 import { eventRecording, recordingStream, withClips } from "./recordings";
-import { apiReader, channelDue, channelRef, onDates, ownBroadcasts, ownWords, pageReader, resolveChannelStreams, reweighBroadcasts, type Broadcast, type ChannelReader } from "./channelStreams";
+import { apiReader, channelDue, channelRef, onDates, ownBroadcasts, ownWords, notOthers, officialOwners, pageReader, resolveChannelStreams, reweighBroadcasts, type Owner, type Broadcast, type ChannelReader } from "./channelStreams";
 
 const S = 2025;
 const CH = "https://youtube.com/@funroboticsnetwork/streams";
@@ -312,5 +312,88 @@ describe("reweighBroadcasts: broadcasts found before, by today's rules", () => {
     await run("INSERT INTO official_audit_videos (video_id, channel_id, title, published, first_seen, last_seen) VALUES ('deletedvide', 'UCjqJ09AW-_NL0e1OKSSqVNA', 'Deleted video', '2023-01-29T05:00:00Z', 'x', 'x')");
     expect(await reweighBroadcasts()).toBe(0);
     expect((await all<{ video_id: string }>("SELECT video_id FROM event_broadcasts WHERE code = 'CABCVIQ' ORDER BY start")).map((r) => r.video_id)).toEqual([VIC, "deletedvide"]);
+  });
+  it("takes off a broadcast that is another event's official recording, its only one that day included", async () => {
+    // 2023 USAZTSQ (Tsalie) took FIRST Tech Challenge Arizona's "Red Rock Qualifier" broadcast: USAZCHQ's checked recording.
+    const AZ = "https://www.youtube.com/@firsttechchallengearizona6515";
+    await run("INSERT INTO seasons (season, name) VALUES (2023, 'Test') ON CONFLICT DO NOTHING");
+    const ev = "INSERT INTO events (season, code, name, type, start, end, timezone, remote, hybrid, livestream, source) VALUES (2023, ?, ?, 'Qualifier', '2024-01-20', '2024-01-20', ?, 0, 0, ?, 'test')";
+    await run(ev, ["USAZTSQ", "AZ Dine' College - Tsalie Qualifier", "America/Denver", AZ]);
+    await run(ev, ["USAZCHQ", "AZ Red Rock - Microchip Qualifier", "America/Phoenix", null]);
+    await run("INSERT INTO event_broadcasts (season, code, video_id, url, start) VALUES (2023, 'USAZTSQ', 'hINDJv2q0Tg', ?, '2024-01-20T16:31:53Z')", [AZ]);
+    await run("INSERT INTO event_stream_links (season, code, url, video_id, checked_at, read_at) VALUES (2023, 'USAZTSQ', ?, 'hINDJv2q0Tg', 'x', 'x')", [AZ]);
+    await run("INSERT INTO official_videos (video_id, season, code, kind, day, part, channel_id, title, source, why, added_at, added_by) VALUES ('hINDJv2q0Tg', 2023, 'USAZCHQ', 'recording', '2024-01-20', NULL, 'UCx', 'Arizona FIRST Tech Challenge 2023-2024 Red Rock Qualifier', 'list', 'x', 'x', NULL)");
+    expect(await reweighBroadcasts()).toBe(1);
+    expect(await all("SELECT video_id FROM event_broadcasts WHERE code = 'USAZTSQ'")).toEqual([]);
+    expect(await all("SELECT video_id FROM event_stream_links WHERE code = 'USAZTSQ'")).toEqual([{ video_id: null }]);
+    // USAZCHQ's own recording is left as it is.
+    expect(await all("SELECT code, removed_at FROM official_videos WHERE video_id = 'hINDJv2q0Tg'")).toEqual([{ code: "USAZCHQ", removed_at: null }]);
+    // A division's recording on its own parent championship stays.
+    const AZC = "https://www.youtube.com/@firsttechchallengearizona6515/streams";
+    await run("INSERT INTO events (season, code, name, type, start, end, timezone, remote, hybrid, livestream, division_code, source) VALUES (2023, 'USAZCMP', 'Arizona Championship', 'Championship', '2024-02-24', '2024-02-24', 'America/Phoenix', 0, 0, ?, NULL, 'test')", [AZC]);
+    await run("INSERT INTO events (season, code, name, type, start, end, timezone, remote, hybrid, livestream, division_code, source) VALUES (2023, 'USAZCMPGC', 'Arizona Championship - Grand Canyon Division', 'Championship', '2024-02-24', '2024-02-24', 'America/Phoenix', 0, 0, NULL, 'USAZCMP', 'test')");
+    await run("INSERT INTO event_broadcasts (season, code, video_id, url, start) VALUES (2023, 'USAZCMP', 'grandcanyon', ?, '2024-02-24T16:00:00Z')", [AZC]);
+    await run("INSERT INTO official_videos (video_id, season, code, kind, day, part, channel_id, title, source, why, added_at, added_by) VALUES ('grandcanyon', 2023, 'USAZCMPGC', 'recording', '2024-02-24', NULL, 'UCx', 'Arizona Championship - Grand Canyon Division', 'list', 'x', 'x', NULL)");
+    expect(await reweighBroadcasts()).toBe(0);
+    expect(await all("SELECT video_id FROM event_broadcasts WHERE code = 'USAZCMP'")).toEqual([{ video_id: "grandcanyon" }]);
+  });
+});
+
+describe("notOthers: another event's official recording", () => {
+  const me = { season: 2025, code: "USTXCHNM1", name: "CTX North SA League Meet 1", venue: "Reagan HS", start: "2025-11-08" };
+  const owner = (o: Partial<Owner>): Map<string, Owner> => new Map([["vid", { key: "2025/USTXCHCM1", parent: null, name: "CTX Hill Country League Meet 1", venue: "Boerne HS", day: "2025-11-08", ...o }]]);
+  const b = (title?: string): Broadcast => ({ videoId: "vid", start: "2025-11-08T15:00:00Z", ...(title ? { title } : {}) });
+  it("takes off another event's, its title naming only that event (or none read)", () => {
+    expect(notOthers([b("CTX Hill Country League Meet 1")], me, owner({}))).toEqual([]);
+    expect(notOthers([b()], me, owner({}))).toEqual([]);
+  });
+  it("keeps a joint meet's stream: same day and venue, or a title naming this event too", () => {
+    expect(notOthers([b("CTX Hill Country League Meet 1")], me, owner({ venue: " reagan hs" }))).toHaveLength(1);
+    // A word of this event's name the other's lacks.
+    expect(notOthers([b("Hill Country & North SA League Meet 1")], me, owner({}))).toHaveLength(1);
+    // This event's meet number, beside the other's ("NTX FTC C-League meet #2 and #3", owned by Meet 2).
+    const m3 = { season: 2023, code: "USTXNCM3", name: "TX-North C-League Meet 3", venue: null, start: "2023-12-02" };
+    const m2 = new Map<string, Owner>([["vid", { key: "2023/USTXNCM2", parent: null, name: "TX-North C-League Meet 2", venue: null, day: "2023-12-02" }]]);
+    expect(notOthers([b("NTX FTC C-League meet #2 and #3 (2023.12.02)")], m3, m2)).toHaveLength(1);
+    expect(notOthers([b("NTX FTC C-League meet #2 (2023.12.02)")], m3, m2)).toEqual([]);
+  });
+  it("keeps a division's recording on its parent, never on a sibling division", () => {
+    const parent = { season: 2022, code: "USAZCMP", name: "Arizona Championship", venue: "Arena", start: "2023-02-25" };
+    // Divisions share their championship's day and building, as in FIRST's data.
+    const sibling = { ...parent, code: "USAZCMPSG23", name: "Arizona Championship - Saguaro Division", parent: "USAZCMP" };
+    const gc = new Map<string, Owner>([["vid", { key: "2022/USAZCMPGC23", parent: "2022/USAZCMP", name: "Arizona Championship - Grand Canyon Division", venue: "Arena", day: "2023-02-25" }]]);
+    expect(notOthers([b("Arizona Championship - Grand Canyon Division")], parent, gc)).toHaveLength(1);
+    // A sibling division at the same venue, the same day: still off, whatever its title or venue says.
+    expect(notOthers([b("Arizona Championship - Grand Canyon Division")], sibling, gc)).toEqual([]);
+    expect(notOthers([b("Arizona Championship - Grand Canyon and Saguaro Divisions")], sibling, gc)).toEqual([]);
+  });
+});
+
+describe("officialOwners and a fresh read", () => {
+  const AZ = "https://www.youtube.com/@firsttechchallengearizona6515/streams";
+  const reader: ChannelReader = async () => [
+    { videoId: "hINDJv2q0Tg", start: "2024-01-20T16:31:53Z", title: "Arizona FIRST Tech Challenge 2023-2024 Red Rock Qualifier" },
+    { videoId: "removedOwnr", start: "2024-01-20T18:00:00Z", title: "Arizona FIRST Tech Challenge 2023-2024 Tsalie Qualifier" },
+  ];
+  beforeAll(async () => {
+    const c = openDb(":memory:");
+    setDb(c);
+    await migrate(c);
+    await run("INSERT INTO seasons (season, name) VALUES (2023, 'Test')");
+    const ev = "INSERT INTO events (season, code, name, type, start, end, timezone, remote, hybrid, livestream, venue, source) VALUES (2023, ?, ?, 'Qualifier', '2024-01-20', '2024-01-20', ?, 0, 0, ?, ?, 'test')";
+    await run(ev, ["USAZTSQ", "AZ Dine' College - Tsalie Qualifier", "America/Denver", AZ, "Dine' College"]);
+    await run(ev, ["USAZCHQ", "AZ Red Rock - Microchip Qualifier", "America/Phoenix", null, "Microchip, Chandler"]);
+    const ov = "INSERT INTO official_videos (video_id, season, code, kind, day, part, channel_id, title, source, why, added_at, added_by, removed_at) VALUES (?, 2023, 'USAZCHQ', ?, ?, NULL, 'UCx', 'x', 'list', 'x', 'x', NULL, ?)";
+    await run(ov, ["hINDJv2q0Tg", "recording", "2024-01-20", null]);
+    // Neither a removed row nor a highlight is an owner.
+    await run(ov, ["removedOwnr", "recording", "2024-01-20", "2026-01-01T00:00:00Z"]);
+    await run(ov, ["highlight01", "highlight", null, null]);
+  });
+  it("counts only recordings still on", async () => {
+    expect([...(await officialOwners()).keys()]).toEqual(["hINDJv2q0Tg"]);
+  });
+  it("a fresh read of the channel leaves out another event's official recording", async () => {
+    expect(await resolveChannelStreams(() => {}, { reader, withKey: true, now: () => Date.parse("2024-01-21T06:00:00Z") })).toBe(1);
+    expect(await all("SELECT video_id FROM event_broadcasts WHERE code = 'USAZTSQ'")).toEqual([{ video_id: "removedOwnr" }]);
   });
 });

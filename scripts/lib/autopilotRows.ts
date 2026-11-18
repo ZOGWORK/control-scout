@@ -201,28 +201,30 @@ export const LOOPY_DIFF_MAX = 16_000;
  *    file order, up to the first that doesn't fit (or, when its first event alone doesn't, that event's first rows up to
  *    the first that doesn't), and the rest wait;
  *  - other groups are packed in file order while the PR's diff fits.
- *  A row over the cap alone ships alone (nothing smaller can carry it), unless its diff is over LOOPY_DIFF_MAX: then it
- *  never ships (`tooBig`, for the owner). */
+ *  A row over the cap alone ships alone (nothing smaller can carry it), unless its own diff is over LOOPY_DIFF_MAX: then
+ *  it never ships (`tooBig`, for the owner), and is set aside before the groups are made, so it holds no lines and
+ *  never stops the rows sharing its gap. */
 export function prChunks<T extends Keyed>(text: string, rows: T[], maxDiff = 12_000, held: Keyed[] = []): { ship: T[][]; later: T[]; tooBig: T[] } {
   const heldKeys = new Set(held.map(rowKey)), ship: T[][] = [], later: T[] = [], tooBig: T[] = [];
   const size = (rs: T[]) => diffBytes(text, applyRows(text, rs)), fits = (rs: T[]) => size(rs) <= maxDiff;
-  const free = rows.filter((r) => !heldKeys.has(rowKey(r)));
   later.push(...rows.filter((r) => heldKeys.has(rowKey(r))));
+  // A row Loopy can't review on its own never ships, so it takes no part in the groups: otherwise it would join the
+  // new rows of its gap and, first in an over-cap group, leave the rest waiting behind it on every run.
+  const free: T[] = [];
+  for (const r of rows) if (!heldKeys.has(rowKey(r))) (size([r]) > LOOPY_DIFF_MAX ? tooBig : free).push(r);
   for (const group of rowGroups(text, [...free, ...held] as T[])) {
     const g = group.filter((r) => !heldKeys.has(rowKey(r)));
     if (g.length < group.length) { later.push(...g); continue; }
-    if (g.length === 1 && size(g) > LOOPY_DIFF_MAX) { tooBig.push(g[0]); continue; }
     if (!fits(g)) {
       // Whole events while they fit; else the first event's rows while they fit. Never past the first that doesn't.
       const events: T[][] = [];
       for (const r of g) { const last = events.at(-1); if (last && last[0].code === r.code) last.push(r); else events.push([r]); }
-      let piece: T[] = [];
+      const piece: T[] = [];
       for (const e of events) { if (fits([...piece, ...e])) piece.push(...e); else break; }
       if (!piece.length) for (const r of events[0]) { if (!piece.length || fits([...piece, r])) piece.push(r); else break; }
-      if (piece.length === 1 && size(piece) > LOOPY_DIFF_MAX) { tooBig.push(piece[0]); piece = []; }
       const shipped = new Set(piece.map(rowKey));
-      later.push(...g.filter((r) => !shipped.has(rowKey(r)) && !tooBig.includes(r)));
-      if (piece.length) ship.push(piece);
+      later.push(...g.filter((r) => !shipped.has(rowKey(r))));
+      ship.push(piece);
       continue;
     }
     const cur = ship.at(-1);
