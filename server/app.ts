@@ -73,8 +73,7 @@ import { ForecastUnavailable, eventForecast } from "./predict/eventForecast.js";
 import { bonusView } from "../src/shared/bonusOdds.js";
 import { matchExplanation } from "./api/predictMatch.js";
 import { authRouter, meRouter, authProviders } from "./auth/routes.js";
-import { GATE_CSP, shutdownGate } from "./shutdownGate.js";
-import { gatePageNext } from "./gatePageNext.js";
+import { shutdownGate } from "./shutdownGate.js";
 import { avatarsRouter } from "./auth/avatars.js";
 import { contactRouter } from "./contact.js";
 import { bugReportsRouter } from "./bugReports.js";
@@ -1087,14 +1086,6 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
   app.get("/sitemap-:n.xml", h(sitemapChunkRoute));
   // The address-bar search descriptor (server/openSearch.ts).
   app.get("/opensearch.xml", openSearchRoute);
-  // The new shutdown page, for review (server/gatePageNext.ts): past the gate above, so while publicAccess is off only
-  // signed-in accounts see it; outsiders keep the current page until it's approved. Never indexed, never cached.
-  app.get("/preview/shutdown", (req, res) => {
-    res.setHeader("Cache-Control", "private, no-store");
-    res.setHeader("X-Robots-Tag", "noindex");
-    res.setHeader(cspHeaderName(), GATE_CSP);
-    res.type("html").send(gatePageNext(req.query.signin === "closed"));
-  });
   // /records was never a page: the records tables live at /teams (and /matches). Old links land there, query and all.
   app.get("/records", (req, res) => {
     const q = req.originalUrl.indexOf("?");
