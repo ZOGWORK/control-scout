@@ -16,6 +16,7 @@
 // match of the video the reason it has no start.
 
 import { ROWS as S2019 } from "./frameTimings/2019.js";
+import { ROWS as S2020 } from "./frameTimings/2020.js";
 import { ROWS as S2021 } from "./frameTimings/2021.js";
 import { ROWS as S2022 } from "./frameTimings/2022.js";
 import { ROWS as S2023 } from "./frameTimings/2023.js";
@@ -147,17 +148,29 @@ export function frameOpen(videoId: string, code: string, label: string): number 
   return opensByKey.get(`${videoId}|${code}`)?.[label] ?? null;
 }
 
-/** The second a match starts at in a video, from its frames, or null when they weren't read for it. */
+/** Starts the owner typed in (Owner › Official videos, server/videos/manualStarts.ts), by video and event: they win
+ *  over a frame read of the same match. Replaced whole on every load. */
+let manual = new Map<string, Record<string, number>>();
+export function setManualStarts(rows: { videoId: string; code: string; label: string; seconds: number }[]): void {
+  const m = new Map<string, Record<string, number>>();
+  for (const r of rows) (m.get(`${r.videoId}|${r.code}`) ?? m.set(`${r.videoId}|${r.code}`, {}).get(`${r.videoId}|${r.code}`)!)[r.label] = r.seconds;
+  manual = m;
+}
+
+/** The second a match starts at in a video: the owner's typed start, else its frames', else null. */
 export function frameStart(videoId: string, code: string, label: string): number | null {
   byKey ??= keyed();
-  return byKey.get(`${videoId}|${code}`)?.[label] ?? null;
+  const k = `${videoId}|${code}`;
+  return manual.get(k)?.[label] ?? byKey.get(k)?.[label] ?? null;
 }
 
 /** Whether any of a video's matches for an event were placed from its frames (a video read with none placed, only
  *  review or missing ones, doesn't count). */
 export function hasFrames(videoId: string, code: string): boolean {
   byKey ??= keyed();
-  const starts = byKey.get(`${videoId}|${code}`);
+  const k = `${videoId}|${code}`;
+  if (Object.keys(manual.get(k) ?? {}).length) return true;
+  const starts = byKey.get(k);
   return !!starts && Object.keys(starts).length > 0;
 }
 
@@ -197,4 +210,4 @@ export function setFrameTimingsForTests(list: FrameTiming[]) {
 
 // --- Data: one file a season (frameTimings/<season>.ts, the season of the row's event), which scripts/video-frames.ts
 // writes, so readers of different seasons never touch the same file. Every caller reads this one list.
-export const FRAME_TIMINGS: FrameTiming[] = [...S2019, ...S2021, ...S2022, ...S2023, ...S2024, ...S2025, ...S2026];
+export const FRAME_TIMINGS: FrameTiming[] = [...S2019, ...S2020, ...S2021, ...S2022, ...S2023, ...S2024, ...S2025, ...S2026];
