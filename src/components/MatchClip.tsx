@@ -2,13 +2,13 @@
 // FIRST's own video of it (MatchView.video). A click plays it in the app (lib/streamSeek.ts: the event page's
 // player, else the video dialog); a modifier or middle click is a plain link to YouTube.
 import type { MouseEvent, ReactNode } from "react";
-import { MonitorPlay, PlayCircle, WifiOff } from "lucide-react";
+import { ExternalLink, MonitorPlay, PlayCircle, WifiOff } from "lucide-react";
 import { useOnline } from "../lib/offline/online";
 import { shownOffline, useConnection } from "../lib/connection";
 import type { MatchClip } from "../shared/api";
 import { clipTime, linkStart } from "../shared/recording";
 import { youtubeId } from "../shared/personal";
-import { playMatchVideo, type MatchPlay } from "../lib/streamSeek";
+import { playMatchVideo, YOUTUBE_ONLY_NOTE, type MatchPlay } from "../lib/streamSeek";
 import { cn } from "./cn";
 
 export { linkStart };
@@ -17,6 +17,8 @@ export { linkStart };
 const inApp = (p: MatchPlay) => (e: MouseEvent<HTMLAnchorElement>) => {
   e.stopPropagation(); // a row that opens on a click stays as it is
   if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+  // Plays on YouTube only: the link itself opens it there.
+  if (p.youtubeOnly) return;
   if (playMatchVideo(p)) e.preventDefault();
 };
 
@@ -45,9 +47,11 @@ export function ClipLink({ clip, label = "this match", matchKey, className, chil
   const online = useVideoOnline();
   if (offline || !online) return <NeedsConnection label={label} kind="clip" className={className}>{children}</NeedsConnection>;
   return (
-    <a href={clip.url} target="_blank" rel="noreferrer noopener" onClick={inApp({ videoId: clip.videoId, t: clip.t, end: clip.end, label, matchKey })} className={cn("inline-flex items-center gap-1", className)}
-      aria-label={`Watch ${label} in the recording, from ${clipTime(clip.t)}`} title={`Watch in the recording from ${clipTime(clip.t)}`} data-clip={clip.t}>
-      <MonitorPlay className="size-3.5 shrink-0" aria-hidden />{children}
+    <a href={clip.url} target="_blank" rel="noreferrer noopener" onClick={inApp({ videoId: clip.videoId, t: clip.t, end: clip.end, label, matchKey, youtubeOnly: clip.youtubeOnly })} className={cn("inline-flex items-center gap-1", className)}
+      aria-label={`Watch ${label} in the recording, from ${clipTime(clip.t)}${clip.youtubeOnly ? ", on YouTube" : ""}`}
+      title={clip.youtubeOnly ? `${YOUTUBE_ONLY_NOTE} only (its owner turned off playing on other sites), from ${clipTime(clip.t)}` : `Watch in the recording from ${clipTime(clip.t)}`}
+      data-clip={clip.t} data-youtube-only={clip.youtubeOnly ? "" : undefined}>
+      {clip.youtubeOnly ? <ExternalLink className="size-3.5 shrink-0" aria-hidden /> : <MonitorPlay className="size-3.5 shrink-0" aria-hidden />}{children}
     </a>
   );
 }
