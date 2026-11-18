@@ -40,12 +40,13 @@ import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { gunzipSync } from "node:zlib";
 import { applyRows, changedRows, fileRows, prChunks, prMarker, readMarker, rowKey, rowProblems, type Keyed, type Row } from "./lib/autopilotRows";
-import { askDue, forgetSettled, frameFileSeason, heldElsewhere, holdCodes, laneResults, laneStep, needsRebuild, overLimit, parseLanes, parseShard, pickEvents, prShard, readOutcome, remember, rememberTimeout, rememberWait, rowsDelta, shardOf, type LaneJob, type Memory } from "./lib/autopilotRun";
+import { askDue, forgetSettled, laneJobMs, laneResults, readCallMs, laneStep, needsRebuild, overLimit, parseLanes, parseShard, pickEvents, prShard, readOutcome, remember, rememberTimeout, rememberWait, rowsDelta, shardOf, type LaneJob, type Memory, frameFileSeason, heldElsewhere, holdCodes } from "./lib/autopilotRun";
 import { loopySummary, reviewedSha, type IssueComment } from "./lib/autopilotMerge";
 import { clipCheckProblems, clipsDelta } from "./lib/autopilotClips";
 import { prGate } from "./lib/autopilotPr";
 import { mainQuiet, mainStill, pickMerge, servesMerge } from "./lib/autopilotMergeStep";
 import { streamRun } from "./lib/streamRun";
+import { eventLimitMs } from "./lib/videoFrames";
 import type { ClipCheck } from "../server/data/clipChecks";
 
 const argv = process.argv.slice(2);
@@ -542,6 +543,21 @@ const branchStamp = STAMP.slice(0, 16).replace(/[-T]/g, "");
 const stoppedAtLimit: string[] = [];
 
 // --- 4–6. Read the due events, check, ship, season by season ------------------------------------------------------------------
+/** Each event's read limit in `season`, as the reader works it out (eventLimitMs on its playable videos' lengths, the
+ *  reader's default 180 min floor). The season's recordings can't be read: none (each call's backstop is then a day). */
+async function eventLimits(season: number): Promise<Map<string, number>> {
+  try {
+    const { seasonRecordings } = await import("../server/videos/recordings.js");
+    const out = new Map<string, number>();
+    for (const [code, rec] of await seasonRecordings(season)) {
+      out.set(code, eventLimitMs(180 * 60_000, [rec, ...(rec.more ?? [])].flatMap((v) => (v.meta?.status === "ok" && v.meta.length ? [v.meta.length] : []))));
+    }
+    return out;
+  } catch (e) {
+    log(`${season}: its recordings couldn't be read for the read calls' limits (${(e as Error).message}); a day each`);
+    return new Map();
+  }
+}
 /** Reader lanes (a browser and OCR each) per read call: the start sets AUTOPILOT_LANES by the memory free (3 over 6 GB,
  *  else 2). Not the coordinator's --lanes (other computers' lanes). */
 const READER_LANES = /^[1-4]$/.test(process.env.AUTOPILOT_LANES ?? "") ? process.env.AUTOPILOT_LANES! : "2";
@@ -570,9 +586,11 @@ async function readSeason(season: number, codes: string[]): Promise<{ changed: R
     for (const [c, v] of overLimit(r.err)) stopped.set(c, v);
     log(`${season} ${what}: exit ${r.code}`);
   };
-  // A read call's own limit is only a backstop: each event has its own, scaled to its videos' length (the reader's
-  // eventLimitMs, as long as its videos, 3 h at least): this one stops only a read call that runs a day, whatever it holds.
-  for (const [list, extra] of [[fresh, []], [again, ["--all"]]] as const) if (list.length) await pass(["--codes", list.join(","), ...extra], 24 * 3600_000, `read ${list.join(",")}`);
+  // A read call's own limit is only a backstop: each event has its own, as long as its videos (the reader's
+  // eventLimitMs, 3 h at least). This one is a day, or the sum of its events' limits and an hour when that's more
+  // (readCallMs), so it never cuts an event before the event's own limit does.
+  const limits = await eventLimits(season);
+  for (const [list, extra] of [[fresh, []], [again, ["--all"]]] as const) if (list.length) await pass(["--codes", list.join(","), ...extra], readCallMs(list.map((c) => limits.get(c) ?? 0)), `read ${list.join(",")}`);
   for (const p of ["--verify", "--bounds"]) await pass(["--codes", codes.join(","), p], 3 * 3600_000, p);
   const after = readFileSync(file, "utf8");
   writeFileSync(file, before);
@@ -633,7 +651,11 @@ const rsync = (from: string, to: string, timeoutMs: number) => sh("rsync", ["-a"
 for (const lane of DRY ? [] : LANES) {
   const name = `lane ${lane.k} (${lane.host})`, here = join(DIR, "lanes", String(lane.k)), there = `${LANE_HOME}/.data/lane`;
   try {
-    const job = laneJob(lane.k), step = laneStep(laneSsh(lane.host, `cat ${there}/state.json 2>/dev/null || true`).out, job);
+    const job = laneJob(lane.k);
+    // How long its job may run before it's called killed: from its events' own limits (eventLimits), as the lane reads them.
+    const limits = new Map<number, Map<string, number>>();
+    for (const x of job?.seasons ?? []) limits.set(x.season, await eventLimits(x.season));
+    const step = laneStep(laneSsh(lane.host, `cat ${there}/state.json 2>/dev/null || true`).out, job, Date.now(), job ? laneJobMs(job, (season, code) => limits.get(season)?.get(code) ?? 0) : 0);
     if (step.do === "wait") {
       log(`${name}: ${step.state.state}${step.state.id ? ` job ${step.state.id}` : ""}${step.state.at ? ` since ${step.state.at}` : ""}${step.state.why ? `: ${step.state.why}` : ""}`);
       continue;
