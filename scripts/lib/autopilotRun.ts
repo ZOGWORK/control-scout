@@ -43,7 +43,6 @@ export function remember(memory: Memory, key: string, shipped: number, result: s
   if (shipped) { delete memory[key]; return; }
   memory[key] = { tries: (memory[key]?.tries ?? 0) + 1, last: new Date(now).toISOString(), result };
 }
-/** An event's memory after a read whose good rows all waited: one more wait in a row, its tries left as they were. */
 /** Timeouts in a row with nothing new before an event stopped at the reader's per-event limit counts a try. */
 export const TIMEOUTS_TO_TRY = 2;
 /** An event's memory after the reader stopped it at its per-event limit with no new row (a timeout that wrote rows is
@@ -67,6 +66,7 @@ export function overLimit(err: string): Map<string, string | undefined> {
   return out;
 }
 
+/** An event's memory after a read whose good rows all waited: one more wait in a row, its tries left as they were. */
 export function rememberWait(memory: Memory, key: string, result: string, now = Date.now()): void {
   const m = memory[key];
   memory[key] = { tries: m?.tries ?? 0, last: new Date(now).toISOString(), result, waits: (m?.waits ?? 0) + 1 };
