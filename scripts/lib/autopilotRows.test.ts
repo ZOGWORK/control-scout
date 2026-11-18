@@ -19,10 +19,10 @@ describe("rowProblems", () => {
 
   it("refuses a start without a checked opening, or one opening at another lead", () => {
     expect(rowProblems(row({ starts: { Q1: 600 } }))).toEqual(["Q1: no opening frame checked for it"]);
-    expect(rowProblems(row({ starts: { Q1: 600 }, opens: { Q1: 590 } }))).toEqual(["Q1: opens 10 s before its start, not 20/12/5/2/0/-2/-4"]);
+    expect(rowProblems(row({ starts: { Q1: 600 }, opens: { Q1: 590 } }))).toEqual(["Q1: opens 10 s before its start, not 20, 12, 5, 2 or 0 s before its start, or 2 or 4 s after it"]);
     // A clip may open 2 or 4 s into its match (an upload cut straight from the last results into it), never later.
     expect(rowProblems(row({ starts: { Q1: 600 }, opens: { Q1: 604 } }))).toEqual([]);
-    expect(rowProblems(row({ starts: { Q1: 600 }, opens: { Q1: 606 } }))).toEqual(["Q1: opens -6 s before its start, not 20/12/5/2/0/-2/-4"]);
+    expect(rowProblems(row({ starts: { Q1: 600 }, opens: { Q1: 606 } }))).toEqual(["Q1: opens 6 s after its start, not 20, 12, 5, 2 or 0 s before its start, or 2 or 4 s after it"]);
   });
 
   it("refuses overlapping starts and seconds that aren't in a video", () => {
@@ -80,7 +80,7 @@ describe("rowProblems", () => {
     expect(rowProblems(row({ checked: "2026-11-14", starts: { Q1: 600, Q2: 1000 }, opensOn: { at: 3, label: "Q1" } }), live)).toEqual(["changed without a newer checked date than the live row's (2026-11-14)"]);
     expect(rowProblems(live, live)).toEqual([]);
     // An opening a re-read adds to an older row's start is checked like a new one's.
-    expect(rowProblems(row({ checked: "2026-11-18", starts: { Q1: 600, Q2: 1000 }, opens: { Q1: 590, Q2: 995 } }), live)).toEqual(["Q1: opens 10 s before its start, not 20/12/5/2/0/-2/-4"]);
+    expect(rowProblems(row({ checked: "2026-11-18", starts: { Q1: 600, Q2: 1000 }, opens: { Q1: 590, Q2: 995 } }), live)).toEqual(["Q1: opens 10 s before its start, not 20, 12, 5, 2 or 0 s before its start, or 2 or 4 s after it"]);
     expect(rowProblems(row({ checked: "2026-11-18", starts: { Q1: 600, Q2: 1000 }, opens: { Q1: 588, Q2: 995 } }), live)).toEqual([]);
     // Openings the live row had can't be dropped.
     const checkedLive = row({ checked: "2026-11-14", starts: { Q1: 600 }, opens: { Q1: 588 } });

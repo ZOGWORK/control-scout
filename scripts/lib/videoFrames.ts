@@ -180,6 +180,10 @@ export const MATCH_S = AUTO_S + SWITCH_S + TELEOP_S;
  *  the next match's first second (USMOKSKCM2 2021 Q15: Q14's results at 4651 s, Q15's Auto running at 4657 s), so the
  *  clip opens 2 or 4 s into its match rather than not at all. Still only on a frame that names it. */
 export const OPEN_LEADS = [20, 12, 5, 2, 0, -2, -4];
+/** OPEN_LEADS in words, for checks and summaries. */
+export const OPEN_LEADS_TEXT = "20, 12, 5, 2 or 0 s before its start, or 2 or 4 s after it";
+/** Where a clip opens against its match's start, in words: "12 s before its start", "2 s after its start". */
+export const leadText = (lead: number): string => (lead >= 0 ? `${lead} s before its start` : `${-lead} s after its start`);
 
 /** Where a clip opens: OPEN_LEADS in order, the first second whose frame names the match (`names` reads it: true names
  *  it, false doesn't, "stop" when the read failed and no more are tried). Every lead-in second (20 … 0 s before) is

@@ -28,7 +28,7 @@ describe("frameMergeProblems", () => {
   });
 
   it("stops on an opening outside the 20/12/5/2/0 s leads", () => {
-    expect(frameMergeProblems(2025, [row({ starts: { Q1: 100, Q2: 400 }, opens: { Q1: 93, Q2: 380 } })], [live], [live], NONE)).toEqual(["VIDEOaaaaa1|USXXQ: Q1 opens 7 s before its start, not 20/12/5/2/0/-2/-4"]);
+    expect(frameMergeProblems(2025, [row({ starts: { Q1: 100, Q2: 400 }, opens: { Q1: 93, Q2: 380 } })], [live], [live], NONE)).toEqual(["VIDEOaaaaa1|USXXQ: Q1 opens 7 s before its start, not 20, 12, 5, 2 or 0 s before its start, or 2 or 4 s after it"]);
   });
 
   it("stops on a row removed, and on a video filed under another season", () => {
