@@ -322,7 +322,7 @@ async function boxTimer(page: Page, band: { top: number; bottom: number }): Prom
   const shot = await page.screenshot({ clip });
   let timer: ReturnType<typeof setTimeout> | undefined;
   const text = await Promise.race([
-    digits.recognize(shot).then((o) => o.data.text),
+    digits.recognize(shot).then((o: { data: { text: string } }) => o.data.text),
     new Promise<null>((ok) => { timer = setTimeout(() => { console.error(`a timer box read hung over ${BOX_LIMIT_S} s`); void renewOcr().then(() => ok(null)); }, BOX_LIMIT_S * 1000); }),
   ]).finally(() => clearTimeout(timer));
   const r = text == null ? null : boxSeconds(text, season <= 2022);
