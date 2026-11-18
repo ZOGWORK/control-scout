@@ -2,7 +2,7 @@
 // nothing new is tried again, and what its data PR's CHANGELOG entry says.
 import { describe, expect, it } from "vitest";
 import { nextRelease, parseChangelog } from "../../src/lib/changelog";
-import { ASK_EVERY_MS, GIVE_UP, RETRY_MS, TIMEOUTS_TO_TRY, WAIT_MS, askDue, changelogEntry, forgetSettled, needsRebuild, nextVersion, LANE_KICK_MS, frameFileSeason, heldElsewhere, holdCodes, laneJobMs, laneResults, laneStep, overLimit, parseLanes, parseShard, pickEvents, prShard, readOutcome, remember, rememberTimeout, rememberWait, rowsDelta, shardOf, waitBackoff, type Memory, type Queued } from "./autopilotRun";
+import { ASK_EVERY_MS, GIVE_UP, RETRY_MS, TIMEOUTS_TO_TRY, WAIT_MS, askDue, changelogEntry, forgetSettled, needsRebuild, nextVersion, LANE_KICK_MS, frameFileSeason, heldElsewhere, holdCodes, laneJobMs, laneResults, laneStep, overLimit, parseLanes, parseShard, parseSkip, pickEvents, prShard, readOutcome, remember, rememberTimeout, rememberWait, rowsDelta, shardOf, waitBackoff, type Memory, type Queued } from "./autopilotRun";
 import type { Row } from "./autopilotRows";
 
 const NOW = Date.parse("2026-11-17T12:00:00Z");
@@ -320,5 +320,13 @@ describe("heldElsewhere: events other open PRs carry frame-read rows for", () =>
     const h = new Map([["2025/USA", 3]]);
     holdCodes(h, 2025, ["USA", "USB"], 11);
     expect([...h]).toEqual([["2025/USA", 3], ["2025/USB", 11]]);
+  });
+});
+
+describe("parseSkip", () => {
+  it("reads one season/code a line, with comments, blank lines and junk left out", () => {
+    const text = "# 2025 A-M session, reading 2026\r\n2026/USIACFN\n  2026/uspaksn   # N-Z session\n\nUSIACONEM1\n2026/US IA\nnot a line\n";
+    expect([...parseSkip(text)]).toEqual(["2026/USIACFN", "2026/USPAKSN"]);
+    expect(parseSkip("").size).toBe(0);
   });
 });
