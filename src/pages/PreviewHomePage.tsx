@@ -257,7 +257,7 @@ function TopTeamsCard({ season }: { season: number }) {
         <span data-top-season className="text-[12px] text-text-muted">{empty ? "Last season, " : ""}{seasonLabel(shown)} · by OPR</span>
       </div>
       {res.error && !res.data ? <Failed what="Top teams" retry={res.reload} /> : !res.data ? <Loading rows={TOP_MAX} /> : !rows.length ? (
-        <p className="text-sm text-text-muted">No team records this season yet.</p>
+        <p className="text-sm text-text-muted">No team records yet.</p>
       ) : (
         <ol className="flex flex-col gap-0.5">
           {rows.map((r, i) => <TopRow key={r.team} r={r} rank={i + 1} />)}
