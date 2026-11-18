@@ -38,6 +38,95 @@ export function pickEvents(queue: Queued[], inPr: Set<string>, memory: Memory, m
   return { picked, skipped };
 }
 
+/** Several computers each run the autopilot on their own shard of the queue (--shard K/N), so no two read the same
+ *  event or open PRs for it. An event ("season/code") is in shard FNV-1a(key) mod N: the same on every computer and
+ *  every run, whatever else is queued. */
+export function shardOf(key: string, n: number): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < key.length; i++) h = Math.imul(h ^ key.charCodeAt(i), 0x01000193) >>> 0;
+  return h % n;
+}
+/** --shard "K/N" (0 <= K < N), or null when it isn't one. No flag: "0/1", every event. */
+export function parseShard(s: string | undefined): { k: number; n: number } | null {
+  const m = /^(\d+)\/(\d+)$/.exec(s ?? "0/1");
+  if (!m) return null;
+  const k = Number(m[1]), n = Number(m[2]);
+  return n >= 1 && k < n ? { k, n } : null;
+}
+/** The shard that keeps an open autopilot PR (rebuilds it, labels it, asks for its review): a frame-read PR's, that of
+ *  its first event (its rows' "season/code", sorted), the one that opened it; a sweep PR's (no events of its own)
+ *  shard 0's, the one that sweeps. */
+export function prShard(p: { season: number; rows: string[]; file?: string }, n: number): number {
+  if (p.file) return 0;
+  const events = p.rows.map((k) => `${p.season}/${k.split("|")[1]}`).sort();
+  return events.length ? shardOf(events[0], n) : 0;
+}
+
+/** A computer with no credentials (no gh, no VM key) that reads one shard for the computer that has them (--lanes
+ *  "K=user@host,…" there): that one sends it a job (a snapshot and the events to read), collects what it read, and
+ *  opens the PRs itself. Each lane's shard and ssh address, or why the list isn't one. */
+export interface Lane { k: number; host: string }
+export function parseLanes(s: string | undefined, shard: { k: number; n: number }): Lane[] | string {
+  if (!s) return [];
+  const lanes: Lane[] = [];
+  for (const part of s.split(",")) {
+    const m = /^(\d+)=([\w.-]+@[\w.-]+)$/.exec(part.trim());
+    if (!m) return `"${part}": not K=user@host`;
+    const k = Number(m[1]);
+    if (k >= shard.n || k === shard.k || lanes.some((l) => l.k === k)) return `shard ${k}: not one of the ${shard.n} other than this computer's own (${shard.k}), or given twice`;
+    lanes.push({ k, host: m[2] });
+  }
+  return lanes;
+}
+/** A lane's state (its .data/lane/state.json): idle (or none), queued (a job sent, not started), running, done or
+ *  failed (its results to collect). A lane holds no credentials and the coordinator does, so nothing a lane writes is
+ *  trusted: its state only says which step comes next, checked against the coordinator's own record of the job. */
+export interface LaneState { state: "idle" | "queued" | "running" | "done" | "failed"; id?: string; at?: string; why?: string }
+/** A job the coordinator sent (its own record, .data/autopilot/lanes/<K>/job.json): never the lane's word for it. */
+export interface LaneJob { id: string; seasons: { season: number; codes: string[] }[] }
+/** A job sent but not started within this long: the lane is started again. */
+export const LANE_KICK_MS = 3600_000;
+/** The longest a lane's run of `job` can take: per season, its read calls' own limits (12 h a read, 3 h each for
+ *  --verify and --bounds), and an hour more. A lane still "running" after that was killed (a reboot, a power cut) before
+ *  it could say so: what it finished is collected, as for a failed job. */
+export const laneJobMs = (job: LaneJob) => job.seasons.length * 18 * 3600_000 + 3600_000;
+/** A job id the coordinator makes (its run's stamp): used in paths and commands, so nothing else is taken. */
+export const LANE_ID = /^[\w-]{1,64}$/;
+/** What the coordinator does with a lane this run, from its state file's text ("" when it has none) and the job it sent
+ *  that lane (null: none outstanding). "reset": the lane's state names no job sent to it (its results, if any, are
+ *  left), so it's set idle. */
+export function laneStep(text: string, job: LaneJob | null, now = Date.now()): { do: "collect" | "dispatch" | "wait" | "kick" | "reset"; state: LaneState } {
+  let state: LaneState;
+  try { state = text.trim() ? JSON.parse(text) : { state: "idle" }; } catch { return { do: "wait", state: { state: "failed", why: `its state file isn't JSON: ${text.trim().slice(0, 80)}` } }; }
+  if (!state || typeof state !== "object" || typeof state.state !== "string") return { do: "wait", state: { state: "failed", why: "its state file isn't a state" } };
+  if (state.id != null && (typeof state.id !== "string" || !LANE_ID.test(state.id))) return { do: "wait", state: { state: "failed", why: "its state names a job id the coordinator never makes" } };
+  const ours = !!job && state.id === job.id;
+  if (state.state === "done" || state.state === "failed") return { do: ours ? "collect" : "reset", state };
+  if (state.state === "queued") return ours ? { do: state.at && now - Date.parse(state.at) > LANE_KICK_MS ? "kick" : "wait", state } : { do: "reset", state };
+  if (state.state === "running") {
+    if (ours && state.at && now - Date.parse(state.at) > laneJobMs(job!)) return { do: "collect", state: { ...state, state: "failed", why: `still "running" ${Math.round((now - Date.parse(state.at)) / 3600_000)} h after it started, past any read's limits: killed` } };
+    return { do: "wait", state };
+  }
+  return { do: "dispatch", state };
+}
+/** One season of a lane's results, as the coordinator ships it. */
+export interface LaneResult { season: number; codes: string[]; changed: Row[]; readFailed: boolean; stopped: Map<string, string | undefined> }
+/** A lane's results for `job` (its files: name and text), kept to the job: only its seasons, only its codes (the job's
+ *  own list, not the lane's), rows that are rows of those codes. A season with no file or one that can't be read is a
+ *  read that failed (its events not counted as tried). The rows still go through rowProblems like any read's. */
+export function laneResults(job: LaneJob, files: { name: string; text: string }[]): LaneResult[] {
+  return job.seasons.map(({ season, codes }) => {
+    const f = files.find((x) => x.name === `${season}.json`);
+    let r: any = null;
+    try { r = f ? JSON.parse(f.text) : null; } catch { /* unreadable: failed */ }
+    if (!r || typeof r !== "object" || r.season !== season) return { season, codes, changed: [], readFailed: true, stopped: new Map() };
+    const ok = (code: unknown): code is string => typeof code === "string" && codes.includes(code);
+    const changed = (Array.isArray(r.changed) ? r.changed : []).filter((x: any) => x && typeof x === "object" && typeof x.videoId === "string" && ok(x.code)) as Row[];
+    const stopped = new Map<string, string | undefined>((Array.isArray(r.stopped) ? r.stopped : []).filter((x: any) => Array.isArray(x) && ok(x[0]) && (x[1] == null || typeof x[1] === "string")).map((x: any) => [x[0], x[1] ?? undefined]));
+    return { season, codes, changed, readFailed: r.readFailed !== false, stopped };
+  });
+}
+
 /** An event's memory after a read: shipped rows clear it; nothing new counts a try. */
 export function remember(memory: Memory, key: string, shipped: number, result: string, now = Date.now()): void {
   if (shipped) { delete memory[key]; return; }
