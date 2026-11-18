@@ -69,7 +69,7 @@ describe("clip coverage check and triage", () => {
     expect(await checkClipCoverage(() => {})).toBe(2);
     const o = await ownerClipCoverage();
     expect([o.list, o.open, o.events]).toEqual(["actionable", 0, []]);
-    expect(o.categories).toEqual({ actionable: 0, unchecked: 0, "no-timing": 1, "early-start": 0, "old-season": 1 });
+    expect(o.categories).toEqual({ actionable: 0, unchecked: 0, "no-timing": 1, "early-start": 0, unplayable: 0, "old-season": 1 });
     const n = await ownerClipCoverage({ list: "no-timing" });
     expect(n.events.map((e) => [e.code, e.withClip, e.played, e.triage])).toEqual([["TWODAY", 0, 3, "no-timing"]]);
     expect(n.events[0].triageWhy).toBe("3 matches: Video's facts not read from YouTube yet");
@@ -163,7 +163,7 @@ describe("clip coverage check and triage", () => {
     await add("BULKOLD", "actionable", OLD);
     await add("BULKOLDNT", "no-timing", OLD);
     const before = await ownerClipCoverage();
-    expect(before.categories).toEqual({ actionable: 2, unchecked: 0, "no-timing": 1, "early-start": 1, "old-season": 1 });
+    expect(before.categories).toEqual({ actionable: 2, unchecked: 0, "no-timing": 1, "early-start": 1, unplayable: 0, "old-season": 1 });
     expect(before.seasons).toEqual([{ season: S, open: 3, actionable: 1 }, { season: OLD, open: 2, actionable: 1 }]);
     // A season's non-actionable ones only (the panel's default): its Actionable one stays To review.
     expect(await markCoverageBulkReviewed({ category: "non-actionable", season: OLD }, 1, "owner@test")).toEqual({ status: "ok", count: 1 });
@@ -171,7 +171,7 @@ describe("clip coverage check and triage", () => {
     // Confirmed on a count that moved: nothing marked.
     expect(await markCoverageBulkReviewed({ category: "non-actionable" }, 5, "owner@test")).toEqual({ status: "changed", count: 2 });
     expect(await markCoverageBulkReviewed({ category: "non-actionable" }, 2, "owner@test")).toEqual({ status: "ok", count: 2 });
-    expect((await ownerClipCoverage()).categories).toEqual({ actionable: 2, unchecked: 0, "no-timing": 0, "early-start": 0, "old-season": 0 });
+    expect((await ownerClipCoverage()).categories).toEqual({ actionable: 2, unchecked: 0, "no-timing": 0, "early-start": 0, unplayable: 0, "old-season": 0 });
     // A season with "include Actionable": every one of that season's.
     expect(await markCoverageBulkReviewed({ season: OLD }, 1, "owner@test")).toEqual({ status: "ok", count: 1 });
     expect((await ownerClipCoverage()).events.map((e) => e.code)).toEqual(["BULKAC"]);
@@ -195,7 +195,7 @@ describe("clip coverage check and triage", () => {
     // One whose detail can't be read: Actionable (nothing says it's settled), and it doesn't stop the others.
     await run("INSERT INTO clip_coverage (season, code, fingerprint, checked_at, state, played, with_clip, missing_key, detail) VALUES (?, 'PRE3', 'x', '2026-11-01T00:00:00Z', 'unplaced', 2, 0, 'k', '{not json')", [S]);
     expect(await triageUntriaged(() => {})).toBe(3);
-    expect(await row("PRE1")).toMatchObject({ triage: "no-timing", triage_why: "2 matches: Video unavailable or private", reviewed_at: null });
+    expect(await row("PRE1")).toMatchObject({ triage: "unplayable", triage_why: "2 matches: Recording can't be played: unavailable on YouTube (private or removed)", reviewed_at: null });
     // A list stored before video checks existed: its clock-only match is a pending check (a stored review doesn't hide it).
     expect(await row("PRE2")).toMatchObject({ triage: "unchecked", reviewed_at: "2026-11-02T00:00:00Z" });
     expect((await ownerClipCoverage({ list: "unchecked" })).events.map((e) => e.code)).toContain("PRE2");

@@ -788,8 +788,14 @@ export async function topSearch(q: string, t: TopMatchesQuestion, opts: { full: 
     understood: { kind: "question", label, ...(t.season != null ? { season: t.season } : {}), ...(t.region ? { place: { key: t.region.key, name: t.region.name } } : {}) },
     intent: { kind: "stat-season-top-matches", pattern: `highest scoring matches${t.region ? " [place]" : t.event ? " [event]" : ""}${t.season != null ? " [season]" : ""}`, met: true, understood: [label] },
   };
-  // The search box keeps the asks' own high-score card.
-  if (!opts.full) return null;
+  // The search box keeps the asks' own high-score card. One period's best ("best teleop videos in romania") has no such
+  // card, so the box gets the answer's page instead of nothing, as a board's does (boardSearch). No season in its label:
+  // the page may step back to the season before (relax.ts), which only it can tell, and names the season it shows.
+  if (!opts.full) {
+    if (!t.phase) return null;
+    const phased = `Highest ${t.phase} scores${t.region ? ` in ${t.region.name}` : t.event ? ` at ${t.event}` : ""}${t.ever ? ", each season" : ""}`;
+    return { ...answer, understood: { ...answer.understood!, label: phased }, pages: [{ title: phased, href: `/search?q=${encodeURIComponent(q)}` }, ...opts.pages] };
+  }
   const matchesAt = (words: string, season: number | null) => findEvent(words, season, { anyPlayed: true });
   const stat = t.ever ? await everTopMatches(t, matchesAt) : await topMatchesAnswer(t, matchesAt);
   if (!stat) return null;
