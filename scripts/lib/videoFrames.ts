@@ -30,6 +30,8 @@ export function playedMatches(
 export const SAME_S = 6;
 /** The most frames read looking for one match. */
 export const TRIES = 7;
+/** Reads a match between two reads gets of its own once the video's budget is spent: each side's tries and a confirm. */
+export const GAP_READS = 2 * TRIES + 4;
 /** A DECODE match: 30 s of Auto, 8 s to switch, 2:00 of TeleOp (FTC Live's timer stops between them). */
 export const AUTO_S = 30, SWITCH_S = 8, TELEOP_S = 120;
 
@@ -529,4 +531,12 @@ export async function launchPlayerBrowser<B>(launch: (o: { channel?: string; arg
     say("player: Playwright's Chromium (no Google Chrome found; a video YouTube serves only in H.264 won't play)");
     return launch({ args });
   }
+}
+
+/** A match with reads on both sides of it (a scheduled match's read says nothing of the clock): it is in the recording
+ *  unless a cut took it out, so it is still looked for once the video's read budget is spent (GAP_READS). */
+export function between(ms: M[], seen: Map<number, number>, i: number): boolean {
+  let lo = false, hi = false;
+  for (const k of seen.keys()) if (!ms[k].scheduled) { if (k < i) lo = true; else if (k > i) hi = true; }
+  return lo && hi;
 }
