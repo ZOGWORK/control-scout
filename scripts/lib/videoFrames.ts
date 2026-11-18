@@ -512,3 +512,21 @@ export function judge(ms: M[], seen: Map<number, number>, shift: number | null, 
   return { placed: placedAt, review, missing, earlyStart, opens: new Map() };
 }
 
+
+/**
+ * The browser that plays the videos: the installed Google Chrome when there is one, else Playwright's own Chromium.
+ * Playwright's Chromium has no H.264, and YouTube serves some older uploads only in it (2021 NLCMP PLJpwQuE-a0,
+ * USMSBILT I4FaWi_rtrc): there the player stays black ("Your browser can't play this video") and every frame reads
+ * nothing. Chrome plays them. `launch` is Playwright's chromium.launch; `say` is told which one is used.
+ */
+export async function launchPlayerBrowser<B>(launch: (o: { channel?: string; args: string[] }) => Promise<B>, say: (s: string) => void = () => {}): Promise<B> {
+  const args = ["--autoplay-policy=no-user-gesture-required"];
+  try {
+    const b = await launch({ channel: "chrome", args });
+    say("player: Google Chrome (plays H.264-only videos)");
+    return b;
+  } catch {
+    say("player: Playwright's Chromium (no Google Chrome found; a video YouTube serves only in H.264 won't play)");
+    return launch({ args });
+  }
+}
