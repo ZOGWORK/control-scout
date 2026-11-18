@@ -33,6 +33,9 @@ export interface Env {
   TIMEOUT_MS?: string;
   /** Secret (`wrangler secret put UPTIME_DISCORD_WEBHOOK`). Unset: alerts are only logged. */
   UPTIME_DISCORD_WEBHOOK?: string;
+  /** Secret (`wrangler secret put UPTIME_GATE_KEY`), the same value as the site's UPTIME_GATE_KEY: sent as x-uptime-key
+   *  so the checks still reach the app while the shutdown message is up. Unset: no header. */
+  UPTIME_GATE_KEY?: string;
 }
 
 const KEY = "state";

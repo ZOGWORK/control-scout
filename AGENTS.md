@@ -6,13 +6,14 @@ both run the shared engine in `packages/predict-engine`.
 
 ## Workflow
 
-1. **Every change goes through a pull request.** Branch from `main`, push, and open the PR against `Control-Point-FTC/control-scout`. Never push to `main` directly.
-2. **Greptile review to 5/5.** Trigger with a `@greptile review` comment, fix every finding, reply on and resolve each thread, push, and re-trigger. Merge only when the latest Greptile review is on the PR's **current head commit**, scores **5/5**, and **0 threads are unresolved**.
+1. **Every change goes through a pull request.** Branch from `main`, push, and open the PR against `ZOGWORK/control-scout`. Never push to `main` directly. The repo sets `push.default=upstream`, so a branch cut from `origin/main` would push to `main`: cut it with `git checkout --no-track -b <branch> origin/main` and push with `git push -u origin HEAD:refs/heads/<branch>`.
+2. **Loopy review to 5/5 — Loopy is the only reviewer.** Trigger with a `@loopyreviews-bot review` comment, fix every finding, reply on and resolve each thread, push, and re-trigger. Merge only when the latest Loopy comment says **Confidence 5/5**, its "last reviewed" commit is the PR's **current head commit**, **0 threads are unresolved**, and CI is green. Read the bot's comment itself, not only the `loopy/review` status. If Loopy is down, stop and ask the owner: there is no self-review fallback. Copilot bot comments are not the gate.
 3. **Tests and types before pushing.** `npm run lint` (tsc) and `npm test` (vitest). A bug fix comes with a test that fails on `main` and passes on the branch.
 4. **Engine changes are special.** Anything under `packages/predict-engine/` that can change a number needs: a version bump (semver), a `CHANGELOG.md` entry, a held-out backtest showing it is at least as good (`npm run stats -- --backtest`, compare the track record), and a matching Control Point PR that updates its vendored tarball — both apps always run the same engine version. A refactor must stay bit-identical (`npm run equivalence`).
 
 4a. **Scout's own version counts in single digits.** A release of the app takes the next number after the newest `CHANGELOG.md` entry: 1.3.7 → 1.3.8 → 1.3.9 → 1.4.0 (`nextRelease` in `src/lib/changelog.ts`), never 1.38.0. Bump `package.json` (and its lockfile) to match. The engine keeps its own semver (rule 4).
 4b. **A PR that changes `src/` or `server/` (tests aside) updates `CHANGELOG.md`**, or writes "No user-visible change." in its description (or carries the `no-changelog` label); the Changelog check (`.github/workflows/changelog.yml`) fails it otherwise.
+4c. **During the v8 UI rework, 4a and 4b are paused.** Rework PRs bump no version and add no `CHANGELOG.md` entry; each carries the `no-changelog` label. The whole rework ships once as 8.0.0, and that release PR rewrites the changelog (nested by major version) and lets `src/lib/changelog.test.ts` accept the 7.x → 8.0.0 jump. Engine changes still follow rule 4.
 
 ## Screenshots and verification
 
