@@ -107,4 +107,12 @@ describe("season top matches", () => {
   it("the search box keeps the asks' own high-score card", async () => {
     expect((await searchAnswer("highest scoring games in decode", { limit: 8 })).intent?.kind).not.toBe("stat-season-top-matches");
   });
+  it("the search box gets one period's best as its page, which no high-score card answers, never nothing", async () => {
+    for (const q of ["best teleop videos in texas decode", "highest teleop score in texas"]) {
+      const a = await searchAnswer(q, { limit: 8 });
+      expect(a.step, q).toBe("deterministic");
+      expect(a.understood?.label, q).toBe("Highest teleop scores in Texas");
+      expect(a.pages[0], q).toEqual({ title: "Highest teleop scores in Texas", href: `/search?q=${encodeURIComponent(q)}` });
+    }
+  });
 });

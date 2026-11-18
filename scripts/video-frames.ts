@@ -37,6 +37,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
 import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, playedCount, playedMatches, wholeLength } from "./lib/videoFrames";
 import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, cropOrder, elapsed, flippedClip, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M } from "./lib/videoFrames";
+import { between, GAP_READS } from "./lib/videoFrames";
 
 // The command line: --name value or --name=value for the value flags, --name alone for the others. Anything else stops
 // the run before it reads: a misspelt flag mustn't quietly read (and write) every recording of the season.
@@ -167,6 +168,10 @@ const TIMERS = [
   // The same white box in a bar across the top (FIRST AGE's top layout, USPAKSN 2026): wider than FIRST Texas's.
   { where: "top" as const, clip: { x: 585, y: 92, width: 110, height: 50 }, loose: true },
   TOP_BAR_TIMER,
+  // FTC Live's audience display streamed whole (USMAWEQ 2025, MA FTC): the timer large in a white card over the middle
+  // of the frame under "Field 2", the bar along the bottom naming the match. Last, so no other layout's field or
+  // crowd is read here first; a number there still counts only as a clock seen running twice.
+  { where: "bottom" as const, clip: { x: 340, y: 110, width: 600, height: 210 } },
 ];
 /** FTC Live's overlay from 2019 to 2022 shows the timer as bare seconds ("30", "112": secondsPlain), in a box over the
  *  scores (SKYSTONE 2019, FREIGHT FRENZY 2021: USCHSCMPCARR) or under the centre graphic (POWERPLAY 2022: AUMPOS1).
@@ -649,6 +654,7 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
   // frames of scanning, then 232 left M1–M5 in a gap unread).
   let budget = Math.max(60, 8 * ms.length);
   let unconfirmed = 0;
+  const extra = new Set<number>(); // matches between two reads given GAP_READS of their own
   const near = (i: number): number | null => {
     // The distance of the read nearest by order, else the broadcast's.
     let best: number | null = null, d = Infinity;
@@ -760,7 +766,11 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
     // A match with only its scheduled time is the walk's (above): its time says nothing of where the video sits.
     if (ms[i].scheduled) return null;
     if (seen.has(i)) return seen.get(i)!;
-    if (blind() || reads() >= budget) return null;
+    if (blind()) return null;
+    // A match between two reads is in the recording unless a cut took it: once the budget is spent it still gets reads of
+    // its own, once (USORRCM2 2023: Q17-Q19, between Q16's and Q20's reads, went unread with 179 frames spent of 176).
+    if (reads() >= budget && between(ms, seen, i) && !extra.has(i)) { extra.add(i); budget = reads() + GAP_READS; }
+    if (reads() >= budget) return null;
     // Where the reads either side put the video, each in turn: where they disagree (a gap where the video lost time),
     // the match sits at one of them, and the nearest read alone may be the wrong side (CAONMIQ 2025's M10, at M9's
     // distance while its tie M11 sits 345 s earlier, was looked for only at M11's).
@@ -802,6 +812,9 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
     for (let i = firstSeen - 1; i >= 0 && Number.isFinite(firstSeen) && !blind() && reads() < budget; i--) if ((await anchor(i)) == null) break;
   };
   await before();
+  // The matches still unread between two reads (span stops calling anchor once the budget is spent): each in turn.
+  const inside = async () => { for (let i = 0; i < ms.length; i++) if (!seen.has(i) && !ms[i].scheduled && between(ms, seen, i)) await anchor(i); };
+  await inside();
   if (blind() && shift != null) {
     await scan();
     if (seen.size) {
@@ -810,6 +823,7 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
       missed = 0;
       await span(0, ms.length - 1);
       await before();
+      await inside();
     }
   }
   if (blind()) log(`    no overlay read in ${reads()} frames`);
