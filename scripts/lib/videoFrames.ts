@@ -172,9 +172,12 @@ export const SCHEDULED_UNREAD = "no start time from FIRST, and no frame of it re
  *  overlap. */
 export const MATCH_S = AUTO_S + SWITCH_S + TELEOP_S;
 /** Where a clip may open, seconds before its match's start, earliest first: the first whose frame names the match.
- *  The last two open at the start itself: a results card ("Match 6 results", CAONMIQ 2025 M7) or a bracket card
- *  (USIAWESTLT 2025 M3) can stay up until the match's own overlay comes on, seconds before it starts. */
-export const OPEN_LEADS = [20, 12, 5, 2, 0];
+ *  The 2 and 0 open at the start itself: a results card ("Match 6 results", CAONMIQ 2025 M7) or a bracket card
+ *  (USIAWESTLT 2025 M3) can stay up until the match's own overlay comes on, seconds before it starts. The last two open
+ *  just after it, where nothing before the start names the match: an upload cut from one match's results straight into
+ *  the next match's first second (USMOKSKCM2 2021 Q15: Q14's results at 4651 s, Q15's Auto running at 4657 s), so the
+ *  clip opens 2 or 4 s into its match rather than not at all. Still only on a frame that names it. */
+export const OPEN_LEADS = [20, 12, 5, 2, 0, -2, -4];
 
 /** The reason a placed match whose clip opening couldn't be checked gets: never a clip, never a clock reason. */
 export const OVERLAY_UNREAD = "overlay could not be read at its clip's start";

@@ -471,7 +471,7 @@ const MISSES = 3;
 
 /**
  * Every placed match's clip must open on that match: its first frame's overlay names it (and, on a stream divisions
- * share, not a sibling division's). Tried 20, 12, 5, 2 and 0 s before its start (OPEN_LEADS); the first that names it
+ * share, not a sibling division's). Tried 20, 12, 5, 2 and 0 s before its start, then 2 and 4 s after it (OPEN_LEADS); the first that names it
  * is where the clip opens. One that names another match there (the previous match's result still up) is tried closer
  * in; a match whose clip can't open on it goes to review, and one whose overlay can't be read there at all is missing
  * with OVERLAY_UNREAD. A read that fails leaves the openings not yet checked unread: a live clip stays unconfirmed, a new
