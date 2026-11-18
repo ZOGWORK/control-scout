@@ -359,7 +359,9 @@ for (const [season, events] of bySeason) {
     for (const [c, v] of overLimit(r.err)) stopped.set(c, v);
     log(`${season} ${what}: exit ${r.code}`);
   };
-  for (const [list, extra] of [[fresh, []], [again, ["--all"]]] as const) if (list.length) await pass(["--codes", list.join(","), ...extra], 6 * 3600_000, `read ${list.join(",")}`);
+  // A read call's own limit is only a backstop: each event has its own, scaled to its videos' length (the reader's
+  // eventLimitMs, a quarter of it, 3 h at least), so a long event (2022 ROBUQ1's 27 h of video: 7 h) isn't cut here.
+  for (const [list, extra] of [[fresh, []], [again, ["--all"]]] as const) if (list.length) await pass(["--codes", list.join(","), ...extra], 12 * 3600_000, `read ${list.join(",")}`);
   for (const p of ["--verify", "--bounds"]) await pass(["--codes", codes.join(","), p], 3 * 3600_000, p);
   const after = readFileSync(file, "utf8");
   writeFileSync(file, before);
