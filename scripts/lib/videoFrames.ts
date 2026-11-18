@@ -300,6 +300,21 @@ export function eventDivisions(own: string, siblings: string[]): { own: string; 
   return { own: tails[0], others: tails.slice(1) };
 }
 
+/**
+ * Whose match the team numbers on a frame are, where divisions share a stream and the bar's division name has scrolled
+ * off (SKYSTONE's event half, Iowa 2019): "own" when 3 or more of this division's teams for the match are read and at
+ * most 1 of any sibling's same-numbered match, "other" the reverse, else null (too few read, or both).
+ */
+export function teamsSay(text: string, own: number[] | undefined, others: (number[] | undefined)[]): "own" | "other" | null {
+  if (!own?.length) return null;
+  const read = new Set((text.match(/\d{3,5}/g) ?? []).map(Number));
+  const hits = (ts: number[] | undefined) => (ts ?? []).filter((t) => read.has(t)).length;
+  const mine = hits(own), theirs = Math.max(0, ...others.map(hits));
+  if (mine >= 3 && theirs <= 1) return "own";
+  if (theirs >= 3 && mine <= 1) return "other";
+  return null;
+}
+
 const plain = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase();
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 

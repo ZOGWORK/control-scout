@@ -1,7 +1,7 @@
 // The pure parts of the frame reader (scripts/video-frames.ts): the overlay's match, the timer's elapsed time, and
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
-import { dataRows, divisionOf, eventDivisions, cropOrder, elapsed, flippedClip, inPage, titleLeaks, inkOnly, INK_MAX, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, firstOpening, OPEN_LEADS, shortClash, type M } from "./videoFrames";
+import { dataRows, divisionOf, eventDivisions, teamsSay, cropOrder, elapsed, flippedClip, inPage, titleLeaks, inkOnly, INK_MAX, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, firstOpening, OPEN_LEADS, shortClash, type M } from "./videoFrames";
 import { between, GAP_READS, TRIES } from "./videoFrames";
 
 describe("the frame reader", () => {
@@ -345,6 +345,22 @@ describe("the frame reader", () => {
     expect(overlayDivision("a Division  Romania Championship - (  Qualification 2 of 72", "COANDA", ["VLAICU"])).toBeNull();
     expect(overlayDivision("Western Edge Premier Event - Sea Division", "Sand", ["Sea"])).toBe("other");
     expect(overlayDivision("Seattle Qualifier", "Sand", ["Sea"])).toBeNull();
+  });
+
+  it("tells a division's match by its teams where the bar's division name has scrolled off (Iowa 2019)", () => {
+    // Black's Q8 (4324 6340 11142 16736) and Gold's (367 7259 9925 15523), read off f0WTAt-jFDA at 3307 s.
+    const black = [4324, 6340, 11142, 16736], gold = [367, 7259, 9925, 15523];
+    const frame = "11142 1 0 16736 4324 11 24 6340 Qualification 8 of 36 npionship";
+    expect(teamsSay(frame, black, [gold])).toBe("own");
+    expect(teamsSay(frame, gold, [black])).toBe("other");
+    // Two teams read: too few to say.
+    expect(teamsSay("4324 Qualification 8 of 36 16736", black, [gold])).toBeNull();
+    // Both divisions' teams read (a split screen, a results card listing both): no answer.
+    expect(teamsSay("4324 6340 11142 367 7259 9925", black, [gold])).toBeNull();
+    // No teams known for the match (a playoff label, a missing row).
+    expect(teamsSay(frame, undefined, [gold])).toBeNull();
+    // A score or timer that happens to be a team's number counts once, never as three.
+    expect(teamsSay("367 367 367 Qualification 8 of 36", black, [gold])).toBeNull();
   });
 
   it("takes 2019's divisions from the words after the name they share, and reads them off SKYSTONE's bar", () => {

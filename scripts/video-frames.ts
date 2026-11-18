@@ -36,7 +36,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
 import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, playedCount, playedMatches, wholeLength } from "./lib/videoFrames";
-import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, firstOpening, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, eventDivisions, cropOrder, elapsed, flippedClip, inPage, titleLeaks, visibleTexts, inkOnly, INK_MAX, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M } from "./lib/videoFrames";
+import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, firstOpening, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, eventDivisions, teamsSay, cropOrder, elapsed, flippedClip, inPage, titleLeaks, visibleTexts, inkOnly, INK_MAX, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M } from "./lib/videoFrames";
 import { between, GAP_READS } from "./lib/videoFrames";
 
 // The command line: --name value or --name=value for the value flags, --name alone for the others. Anything else stops
@@ -106,7 +106,10 @@ type Read = { label: string | null; start: number | null; at: number; text: stri
 /** The video's event, when its divisions share a stream: its division's name and its siblings'. Each read says whose
  *  overlay it saw; a sibling's is never this event's match, and a start stands only when a read of it showed this
  *  division's name. */
-const divisions = new WeakMap<Page, { own: string; others: string[] }>();
+const divisions = new WeakMap<Page, DivisionCtx>();
+/** A shared stream's divisions, and each one's qualification teams by match ("Q8" → its four), own then its siblings'
+ *  in the same order: where the bar's division name has scrolled off, the teams on it say whose match it is (teamsSay). */
+type DivisionCtx = { own: string; others: string[]; teams?: { own: Map<string, number[]>; others: Map<string, number[]>[] } };
 /** Each event's name (events.name), and the event a page reads: a frame whose overlay names another event is never
  *  this one's (overlayEvent: two league meets split on one stream, USTXCAM1 2024). */
 const eventNames = new Map<string, { name: string; quals: number }>();
@@ -454,9 +457,17 @@ async function confirmed(page: Page, label: string, start: number, own = false, 
   // A frame that reads nothing (the player still buffering after a long seek, the timer not caught running) says
   // nothing either way, so a later point of TeleOp is tried; a frame that reads another match or start disagrees.
   let why = "";
+  // The teams on the bar, where the division's name isn't read: this division's match's teams stand in for its name,
+  // the sibling division's same-numbered match's rule it out.
+  const ctx = divisions.get(page);
+  const teams = (text: string) => (ctx?.teams ? teamsSay(text, ctx.teams.own.get(label), ctx.teams.others.map((m) => m.get(label))) : null);
+  let byTeams = false;
   for (const after of CONFIRM_AFTER) {
     const at = await readAt(page, start + after);
     if (at.division === "other") return `${after} s on the overlay named another division`;
+    const team = teams(at.text);
+    if (team === "other") return `${after} s on the bar its teams are another division's ${label}`;
+    byTeams ||= team === "own";
     own ||= at.division === "own";
     if (at.label && at.label !== label) return `${after} s on the overlay read ${at.label}`;
     if (at.label && at.start != null) {
@@ -477,9 +488,9 @@ async function confirmed(page: Page, label: string, start: number, own = false, 
   }
   if (why) return why;
   const before = await readAt(page, start - 25);
-  if (before.label === label) own ||= before.division === "own";
+  if (before.label === label) { own ||= before.division === "own"; byTeams ||= teams(before.text) === "own"; }
   if (before.label === label && before.start != null) return `25 s before it was already running (start ${Math.round(before.start - start)} s off)`;
-  if (divisions.has(page) && !own) return "no read of it showed its division's name (the stream carries another division too)";
+  if (divisions.has(page) && !own && !byTeams) return "no read of it showed its division's name (the stream carries another division too)";
   return null;
 }
 
@@ -1109,9 +1120,17 @@ async function doCode(code: string): Promise<void> {
   // Its name and qualification total, to tell its overlay from another event's on the same stream (overlayEvent).
   const [q] = await all<{ n: number }>("SELECT COUNT(*) AS n FROM matches WHERE season = ? AND code = ? AND label LIKE 'Q%'", [season, code]);
   if (ev?.name) eventNames.set(code, { name: ev.name, quals: Number(q?.n ?? 0) });
-  const siblings = ev?.division_code ? await all<{ name: string }>("SELECT name FROM events WHERE season = ? AND division_code = ? AND code != ?", [season, ev.division_code, code]) : [];
+  const siblings = ev?.division_code ? await all<{ code: string; name: string }>("SELECT code, name FROM events WHERE season = ? AND division_code = ? AND code != ?", [season, ev.division_code, code]) : [];
   // "… - X Division", or (2019's) the words after the name the divisions share: "Iowa Championship BLACK" / "… GOLD".
-  const division = ev ? eventDivisions(ev.name, siblings.map((x) => x.name)) : null;
+  const division: DivisionCtx | null = ev ? eventDivisions(ev.name, siblings.map((x) => x.name)) : null;
+  if (division) {
+    const teamsOf = async (c: string) => {
+      const m = new Map<string, number[]>();
+      for (const r of await all<{ number: number; team: number }>("SELECT number, team FROM match_teams WHERE season = ? AND code = ? AND level = 'qual'", [season, c])) m.set(`Q${r.number}`, [...(m.get(`Q${r.number}`) ?? []), Number(r.team)]);
+      return m;
+    };
+    division.teams = { own: await teamsOf(code), others: await Promise.all(siblings.map((x) => teamsOf(x.code))) };
+  }
   const span = await R.eventMatchSpan(season, code);
   const views = played.map((m) => ({ label: m.label, time: m.time, played: true, startsAt: m.time == null ? null : new Date(m.epoch * 1000).toISOString(), clip: undefined as any }));
   // Without this script's own timings: what YouTube's facts alone give.
