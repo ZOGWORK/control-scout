@@ -149,6 +149,11 @@ export function titleLeaks(title: string, channel: string, texts: string[]): num
   return out;
 }
 
+/** A self-contained function's call, as a script for the page to run. tsx names each function it compiles with a
+ *  helper of its own (`__name(walk, "walk")`), which a page doesn't have: the call brings a do-nothing one along, so it
+ *  runs on any page, not only those the reader's player() gave one (visibleTexts under tsx: "__name is not defined"). */
+export const inPage = (fn: { toString(): string }): string => `(() => { const __name = (f) => f; return (${fn.toString()})(); })()`;
+
 /**
  * Each visible text in the page (a leaf element's own text, shadow roots included), in document order; the elements
  * are kept on window.__texts in the same order, so the reader can hide one by its index. Visible: a box on screen,
