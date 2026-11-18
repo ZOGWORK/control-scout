@@ -13,11 +13,11 @@ export const NO_OVERLAY: NoOverlay[] = [
   { season: 2021, code: "CABCVIS1", videoId: "OrQ_Iitlqe8", checked: "2026-11-18", seen: "frames at 1500 s and 3000 s: the field from a fixed camera, no score bar, timer or match name; a full read found no overlay" },
 ];
 
-/** Reasons a recording with no overlay settles: what only its frames (or a broadcast clock it hasn't) could place. A
- *  match the recording doesn't hold (another day's, between two recordings, after it ends) keeps its own reason. */
+/** Reasons a recording with no overlay settles: a match it holds that only its frames (or a broadcast clock it hasn't)
+ *  could place. A match it doesn't hold keeps its own reason: another day's, between two recordings, or played before
+ *  the broadcast or the video starts, after either ends, or outside every recording's time. */
 const SETTLES: ReadonlySet<CoverageReason> = new Set<CoverageReason>([
-  "no-clock", "gap-unplaced", "unexplained", "overlaps-previous", "before-broadcast", "after-broadcast", "before-cut",
-  "before-chapters", "past-chapters", "past-checked", "outside-span",
+  "no-clock", "gap-unplaced", "unexplained", "overlaps-previous", "before-chapters", "past-chapters", "past-checked",
 ]);
 
 /** The no-overlay entry that settles a match of `code` left by `reason` in recording `videoId`, or null. By event and
