@@ -10,8 +10,7 @@
 // - Back and forward return to where that history entry was left, waiting for the page's data to
 //   render (and the Events list to load enough batches) before giving up.
 // - A change of query or hash on the same page (a tab, a filter, a sort) leaves the scroll alone.
-// - A #hash scrolls to its element once it exists: gliding there for a #link followed on this page, at once
-//   on arrival from another page.
+// - A #hash scrolls to its element once it exists, at once: a #link followed on this page or arrival from another.
 //
 // Nothing glides: every scroll the app makes is an instant jump (no smooth scrolling anywhere, index.css).
 //

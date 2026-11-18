@@ -46,22 +46,17 @@ export default function RecordsPage({ matches }: { matches?: boolean }) {
     if (country && state && (v === "events" || v === "season")) q.set("state", state);
     return { pathname: v === "matches" ? "/matches" : "/teams", search: q.toString() ? `?${q}` : "" };
   };
-  // On a phone the strip scrolls sideways: the current view is brought into it on arrival and on every change.
-  // It jumps there, on arrival and on a change the reader made.
+  // On a phone the strip scrolls sideways: the current view jumps into it on arrival and on every change.
   const strip = useRef<HTMLElement>(null);
-  // The view the strip last showed (undefined before the first): the same view again (a replayed effect) is an arrival.
-  const stripView = useRef<string | undefined>(undefined);
   useLayoutEffect(() => {
     const reveal = () => {
       const el = strip.current?.querySelector<HTMLElement>("[aria-current=page]");
       if (strip.current && el) revealInStrip(strip.current, el, 8);
     };
-    stripView.current = view;
     reveal();
     // Again once the web fonts are in (they change the labels' widths; a view changed before they load cancels
-    // the earlier wait, so each view keeps its own), the same way: after a view change it glides on towards the
-    // view, never cutting that glide short with a jump. And whenever the strip's width changes (a phone turned
-    // to portrait, a narrowed window) so the current view never ends up clipped.
+    // the earlier wait, so each view keeps its own), and whenever the strip's width changes (a phone turned to
+    // portrait, a narrowed window), so the current view never ends up clipped.
     let live = true;
     document.fonts?.ready.then(() => { if (live) reveal(); });
     const widthNow = () => strip.current?.getBoundingClientRect().width;
