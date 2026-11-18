@@ -1,7 +1,7 @@
 // The pure parts of the frame reader (scripts/video-frames.ts): the overlay's match, the timer's elapsed time, and
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
-import { dataRows, launchPlayerBrowser, clockReading, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, darkInk, DARK_FILL_MAX, DARK_INK_MAX, inPage, titleLeaks, titleUnchecked, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, firstOpening, OPEN_LEADS, shortClash, type M, eventDivisions, teamsSay, timerDigits, afterUnreadBox, boxSeconds, timerSteps } from "./videoFrames";
+import { dataRows, launchPlayerBrowser, clockReading, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, darkInk, DARK_FILL_MAX, DARK_INK_MAX, inPage, titleLeaks, titleUnchecked, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, firstOpening, OPEN_LEADS, shortClash, type M, eventDivisions, teamsSay, splitSide, splitChecked, splitZoomCss, enteredLater, timerDigits, afterUnreadBox, boxSeconds, timerSteps } from "./videoFrames";
 import { between, edgeReject, EVENT_LIMIT_RATIO, eventLimitMs, GAP_READS, TRIES } from "./videoFrames";
 import { pngPixels } from "./__fixtures__/png";
 import { fileURLToPath } from "node:url";
@@ -762,6 +762,87 @@ describe("wholeLength", () => {
     expect(wholeLength(Infinity)).toBeNull();
     expect(wholeLength(NaN)).toBeNull();
     expect(wholeLength(0)).toBeNull();
+  });
+});
+
+describe("enteredLater", () => {
+  const utc = (t: string) => Date.parse(`${t}Z`);
+  const days = { start: "2026-04-24", end: "2026-04-25" };
+  const stream = [{ start: utc("2026-04-25T13:26:46"), end: utc("2026-04-25T21:01:16") }];
+  const at = (...ts: string[]) => ts.map((time) => ({ time, timezone: null }));
+  it("reads by frames alone when every match time is weeks off the event's dates and outside its videos (USMIAAS)", () => {
+    expect(enteredLater(at("2026-06-14T17:29:51", "2026-06-14T18:40:27"), days, stream, utc)).toBe(true);
+  });
+  it("keeps the times when any match falls in the event's dates, a day either side, or a video", () => {
+    expect(enteredLater(at("2026-06-14T17:29:51", "2026-04-25T15:00:00"), days, stream, utc)).toBe(false);
+    expect(enteredLater(at("2026-04-26T10:00:00"), days, stream, utc)).toBe(false);
+    expect(enteredLater(at("2026-04-23T10:00:00"), days, stream, utc)).toBe(false);
+    expect(enteredLater(at("2026-05-02T10:00:00"), days, [{ start: utc("2026-05-02T09:00:00"), end: null }], utc)).toBe(false);
+  });
+  it("counts the day after the event's end, never two days after; a match the clock can't place counts as outside", () => {
+    expect(enteredLater(at("2026-04-27T00:30:00"), days, stream, utc)).toBe(true);
+    expect(enteredLater(at("2026-04-26T23:30:00"), days, stream, utc)).toBe(false);
+    expect(enteredLater(at("2026-06-14T17:29:51"), days, stream, () => null)).toBe(true);
+  });
+  it("needs a broadcast to judge by: an upload alone, no videos or none with facts keep the times (a rescheduled event)", () => {
+    expect(enteredLater(at("2026-06-14T17:29:51"), days, [{ start: null, end: null }], utc)).toBe(false);
+    expect(enteredLater(at("2026-06-14T17:29:51"), days, [], utc)).toBe(false);
+    expect(enteredLater(at("2026-06-14T17:29:51"), days, [{ start: utc("2026-04-25T13:00:00"), end: null }], utc)).toBe(false);
+  });
+  it("needs times and dates to judge", () => {
+    expect(enteredLater([{ time: null, timezone: null }], days, stream, utc)).toBe(false);
+    expect(enteredLater(at("2026-06-14T17:29:51"), null, stream, utc)).toBe(false);
+  });
+});
+
+describe("split streams (two meets side by side, each with a half-size bar)", () => {
+  // USTXCENSAM4 2022 (Hill Country Field Meet 2, 23 qualifications) on the left of eLRdyhrd4Ug, North San's Meet 2 (24)
+  // on the right: their bar rows read zoomed to each half at 4688 s. Unzoomed, the row reads nothing.
+  const hill = "TX-Central Hill Country Field Meet 2";
+  const left = "FIRST INSRGI]= —— Qualification 9 of 23 Y( Sountry Field Meet2  TXC POWRZ) PY =\n\n";
+  const right = "FIRST INCRGIJ= .—— Qualification 7 of 24 BC “X-Central North San Field Me POWRE) Py =\n";
+
+  it("a half's row names its own meet and not the other half's", () => {
+    expect(overlayEvent(left, hill, 23).event).toBe("own");
+    expect(overlayEvent(right, hill, 23).event).not.toBe("own");
+    expect(overlayEvent(right, "TX-Central North San Field Meet 2", 24).event).toBe("own");
+  });
+
+  it("picks the half named at two reads or more, the other never", () => {
+    const reads = (l: ("own" | "other" | null)[], r: ("own" | "other" | null)[]) =>
+      [...l.map((event) => ({ side: "left" as const, event })), ...r.map((event) => ({ side: "right" as const, event }))];
+    expect(splitSide(reads(["own", null, "own"], ["other", "other", null]))).toBe("left");
+    expect(splitSide(reads([null, "other"], ["own", "own", "own"]))).toBe("right");
+    // One read alone, or both halves named (two meets alike), or neither (no split): no half.
+    expect(splitSide(reads(["own", null], [null, null]))).toBeNull();
+    expect(splitSide(reads(["own", "own"], ["own", null]))).toBeNull();
+    expect(splitSide(reads([null, null], [null, "other"]))).toBeNull();
+  });
+
+  it("zooms twice from the half's own edge at mid-height", () => {
+    expect(splitZoomCss("left")).toContain("transform-origin: 0 50%");
+    expect(splitZoomCss("right")).toContain("transform-origin: 100% 50%");
+    expect(splitZoomCss("left")).toContain("scale(2)");
+  });
+
+  it("a failed check keeps the read, but the event's time limit stops the event (splitChecked)", async () => {
+    class OverTime extends Error {}
+    const calls: string[] = [];
+    const o = { cleanup: async () => { calls.push("cleanup"); }, stops: (e: unknown) => e instanceof OverTime, failed: (e: Error) => { calls.push(`failed: ${e.message}`); } };
+    // The limit passing during findSplit or the zoomed read: the zoom cleared, then thrown on (no row kept).
+    await expect(splitChecked(async () => { throw new OverTime("over its limit"); }, o)).rejects.toBeInstanceOf(OverTime);
+    expect(calls).toEqual(["cleanup"]);
+    // Any other failure (a hung read, a seek the page refuses): cleared, said, and nothing returned.
+    calls.length = 0;
+    expect(await splitChecked(async () => { throw new Error("seek refused"); }, o)).toBeNull();
+    expect(calls).toEqual(["cleanup", "failed: seek refused"]);
+    // A cleanup that fails itself doesn't hide the limit.
+    const bad = { ...o, cleanup: async () => { throw new Error("page closed"); } };
+    await expect(splitChecked(async () => { throw new OverTime("over"); }, bad)).rejects.toBeInstanceOf(OverTime);
+    // No failure: the check's own result, nothing cleared.
+    calls.length = 0;
+    expect(await splitChecked(async () => "left", o)).toBe("left");
+    expect(calls).toEqual([]);
   });
 });
 

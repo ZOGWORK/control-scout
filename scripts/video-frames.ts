@@ -38,7 +38,7 @@
 //   TESSERACT_JS=<path to tesseract.js's entry>  where tesseract.js is, when it isn't in node_modules
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
-import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, launchPlayerBrowser, clockReading, playedCount, playedMatches, wholeLength, timerDigits, afterUnreadBox, boxSeconds, timerSteps } from "./lib/videoFrames";
+import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, launchPlayerBrowser, clockReading, playedCount, playedMatches, wholeLength, splitSide, splitChecked, splitZoomCss, SPLIT_SIDES, type SplitSide, enteredLater, timerDigits, afterUnreadBox, boxSeconds, timerSteps } from "./lib/videoFrames";
 import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, firstOpening, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, darkInk, DARK_FILL_MAX, DARK_INK_MAX, inPage, titleLeaks, titleUnchecked, visibleTexts, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M, eventDivisions, teamsSay } from "./lib/videoFrames";
 import { cornerBox, zoomCss } from "./lib/frameZoom";
 import { between, edgeReject, eventLimitMs, GAP_READS } from "./lib/videoFrames";
@@ -391,6 +391,46 @@ async function seek(page: Page, t: number, still = false) {
   }), [t, still] as const);
   await page.waitForFunction((still) => document.querySelector("video")!.readyState >= (still ? 2 : 3), still, { timeout: 20000 }).catch(() => {});
   await page.waitForTimeout(900);
+}
+
+/** Zoom the player onto one half of a split stream (splitZoomCss), or back to the whole frame (null). */
+async function zoom(page: Page, side: SplitSide | null) {
+  await within(page.evaluate((css) => {
+    let s = document.getElementById("__split");
+    if (!s) { s = document.createElement("style"); s.id = "__split"; document.head.append(s); }
+    s.textContent = css;
+  }, side ? splitZoomCss(side) : ""), 30, "zooming the player");
+}
+/** Seconds through the video, as fractions of it, the bar's row is read at on each half to find a split stream's. */
+const SPLIT_SAMPLES = [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8];
+/** The bar's row at second t, paused, as a split check reads it: bounded as a frame read is (readAt), a hung OCR
+ *  worker replaced (renewOcr) so no lane waits on it forever. */
+async function splitRow(page: Page, t: number): Promise<string> {
+  if (ocrBroken) throw new Error(ocrBroken);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  return Promise.race([
+    (async () => {
+      await seek(page, t, true);
+      return (await rowOcr.recognize(await page.screenshot({ clip: LABEL_ROW }))).data.text as string;
+    })().finally(() => clearTimeout(timer)),
+    new Promise<never>((_, no) => { timer = setTimeout(() => { void renewOcr(); no(new Error(`a split check at ${t} s hung over ${READ_LIMIT_S} s`)); }, READ_LIMIT_S * 1000); }),
+  ]);
+}
+/** The half of a split stream this event is on (splitSide): its bar's row read zoomed to each half, paused at each of
+ *  SPLIT_SAMPLES. The player is left zoomed to the whole frame. */
+async function findSplit(page: Page, length: number): Promise<SplitSide | null> {
+  const own = pageEvent.get(page);
+  if (!own) return null;
+  const reads: { side: SplitSide; event: "own" | "other" | null }[] = [];
+  for (const side of SPLIT_SIDES) {
+    await zoom(page, side);
+    for (const f of SPLIT_SAMPLES) {
+      const t = Math.round(length * f);
+      reads.push({ side, event: overlayEvent(await splitRow(page, t), own.name, own.quals, SEMIFINALS).event });
+    }
+  }
+  await zoom(page, null);
+  return splitSide(reads);
 }
 
 /** What the frame at second t shows: the match its overlay names and, while that match is being played, the second it
@@ -1225,6 +1265,14 @@ async function doCode(code: string): Promise<void> {
   // A match FIRST gives only its scheduled time for (2019's qualifications) is read too, by its frames alone (M.scheduled):
   // its time orders it among the others and places nothing.
   // A match with no time at all is read the same way, after the timed ones in its label's order (playedMatches).
+  // Results entered after the fact (enteredLater): their times place nothing, so the matches are read by their frames
+  // alone, as an event FIRST gives no times for is.
+  const [ev] = await all<{ name: string; division_code: string | null; start: string | null; end: string | null }>("SELECT name, division_code, start, end FROM events WHERE season = ? AND code = ?", [season, code]);
+  const msWindows = [rec, ...(rec.more ?? [])].map((v) => ({ start: v.meta?.start ? Date.parse(v.meta.start) : null, end: v.meta?.end ? Date.parse(v.meta.end) : null }));
+  if (enteredLater(rows, ev ?? null, msWindows, localToUtcMs)) {
+    report.push(`${code}: every match time is outside the event's dates and its videos (results entered later): read by its frames alone`);
+    for (const r of rows) r.time = null;
+  }
   const local = playedMatches(rows, { utcMs: localToUtcMs, actual: actualStart, rank: labelRank });
   // An event whose scoring clock kept UTC (none of its starts inside its broadcasts as local time, every one as UTC):
   // read as UTC, said in the run and its report, and each start still confirmed by its frames (clockReading).
@@ -1242,7 +1290,6 @@ async function doCode(code: string): Promise<void> {
   if (timeless) report.push(`${code}: ${timeless} played matches not read: no timezone for the event, so their start can't be placed`);
   if (!played.length) return;
   // Divisions of one event can share a stream: each read must be this division's overlay (divisionOf, overlayDivision).
-  const [ev] = await all<{ name: string; division_code: string | null }>("SELECT name, division_code FROM events WHERE season = ? AND code = ?", [season, code]);
   // Its name and qualification total, to tell its overlay from another event's on the same stream (overlayEvent).
   const [q] = await all<{ n: number }>("SELECT COUNT(*) AS n FROM matches WHERE season = ? AND code = ? AND label LIKE 'Q%'", [season, code]);
   if (ev?.name) eventNames.set(code, { name: ev.name, quals: Number(q?.n ?? 0) });
@@ -1375,6 +1422,31 @@ async function doCode(code: string): Promise<void> {
         await open(page, v.videoId);
         unread.clear();
         j = await placeVideo(page, mine, from == null ? null : -from, m.length!, log, unread, live, liveMedium);
+      }
+      // Still nothing: two meets split on one stream, each bar too small to read (findSplit). Read again zoomed to this
+      // event's half, every crop reading its bar where a full-size one would be.
+      // A split check that fails (a hung read, a seek or zoom the page refuses) keeps the read as it was, nothing read:
+      // the video played, so it isn't one that couldn't be (PLAY_FAILED, read again every run).
+      if (!j.placed.size && !j.review.size && [...j.missing.values()].every((w) => w === NOTHING_READ)) {
+        // The page as it is here (non-null), for the check's callbacks.
+        const pg = page;
+        await splitChecked(async () => {
+          const side = await findSplit(pg, m.length!);
+          if (side) {
+            log(`    a split stream: this event's on its ${side} half, read zoomed to it`);
+            await zoom(pg, side);
+            const zoomedUnread = new Set<string>();
+            const zoomed = await placeVideo(pg, mine, from == null ? null : -from, m.length!, log, zoomedUnread, live, liveMedium);
+            j = zoomed;
+            unread.clear();
+            for (const l of zoomedUnread) unread.add(l);
+          }
+        }, {
+          cleanup: () => zoom(pg, null),
+          // The event's own limit passed during the check: it stops the event as anywhere else (no row kept).
+          stops: (e) => e instanceof EventOverTime,
+          failed: (e) => log(`    couldn't check for a split stream: ${e.message.split("\n")[0]} (kept as nothing read)`),
+        });
       }
       const out = new Map([...j.placed].map(([l, p]) => [l, p.t]));
       for (const l of out.keys()) held.add(l);

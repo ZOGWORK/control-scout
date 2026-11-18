@@ -8,7 +8,6 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowRight, CalendarDays, Flag, MapPin } from "lucide-react";
 import { seasonLabel } from "../../../lib/format";
-import { smoothBehavior } from "../../../lib/pageScroll";
 import { cn } from "../../cn";
 import { SEARCH_PALETTE } from "../../../lib/textTones";
 import { AwardChip, TEAM_BAR, TEAM_TEXT } from "./answerCells";
@@ -21,7 +20,7 @@ const nf = new Intl.NumberFormat();
 export function jumpTo(id: string) {
   const el = document.getElementById(id);
   if (!el) return;
-  el.scrollIntoView({ behavior: smoothBehavior(), block: "center" });
+  el.scrollIntoView({ block: "center" });
   el.dataset.highlight = "on";
   el.focus({ preventScroll: true });
   window.setTimeout(() => { if (el.dataset.highlight === "on") delete el.dataset.highlight; }, 2400);
