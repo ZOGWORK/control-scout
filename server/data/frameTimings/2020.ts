@@ -1,0 +1,9 @@
+// The 2020 season's frame-read match starts: one row per recording and event, the rows of the season the event is
+// of. scripts/video-frames.ts --season 2020 writes this file and no other (each season its own file, so readers of
+// different seasons never touch the same file). The row type and everything that reads the rows: ../frameTimings.ts.
+import type { FrameTiming } from "../frameTimings.js";
+
+// --- Data (scripts/video-frames.ts writes from here on) ---
+export const ROWS: FrameTiming[] = [
+  {"videoId":"H2wkzdSp3ak","code":"ROBUOS1","checked":"2026-11-17","starts":{"Q1":3363,"Q2":3627,"Q3":4016,"Q4":4296,"Q5":4979,"Q6":5268,"Q7":5737,"Q8":5966,"Q9":6494,"Q10":6886,"Q11":10912,"Q12":11258,"Q13":11498,"Q14":11799,"Q15":12081,"Q16":12413,"Q20":13534,"Q21":13905,"Q22":14176,"Q24":14820,"Q23":15390,"Q25":15867,"Q28":16578,"Q27":17016,"Q29":17405,"Q30":17622,"Q31":18159,"Q32":18412,"Q33":18774,"Q35":20264,"M1":24890,"M2":25189,"M1-2":25804,"M2-2":26107,"M2-3":27015,"F1":28367,"F2":29174},"medium":["Q4","Q5","Q7","Q8","Q9","Q10","Q12","Q13","Q14","Q15","Q16","Q20","Q21","Q24","Q23","Q25","Q28","Q27","Q29","Q30","Q31","Q32","Q33","Q35","M1","M2","M1-2","M2-2","M2-3","F1"],"missing":{"Q17":"overlay could not be read at its clip's start","Q18":"overlay could not be read at its clip's start","Q19":"overlay could not be read at its clip's start","Q26":"overlay could not be read at its clip's start","Q34":"overlay could not be read at its clip's start","Q36":"overlay could not be read at its clip's start"},"opens":{"Q1":3343,"Q2":3622,"Q3":3996,"Q4":4291,"Q5":4974,"Q6":5263,"Q7":5735,"Q8":5964,"Q9":6494,"Q10":6881,"Q11":10907,"Q12":11256,"Q13":11498,"Q14":11797,"Q15":12081,"Q16":12413,"Q20":13534,"Q21":13905,"Q22":14176,"Q24":14820,"Q23":15390,"Q25":15867,"Q28":16578,"Q27":17016,"Q29":17405,"Q30":17622,"Q31":18159,"Q32":18412,"Q33":18774,"Q35":20264,"M1":24890,"M2":25189,"M1-2":25804,"M2-2":26107,"M2-3":27015,"F1":28367,"F2":29174}},
+];
