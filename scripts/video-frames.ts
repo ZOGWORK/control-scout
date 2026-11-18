@@ -78,7 +78,7 @@ const EVENT_LIMIT_MS = count("event-limit", 180) * 60_000;
 /** An event's read past EVENT_LIMIT_MS: thrown through every per-read and per-video catch, so the event stops whole
  *  (its finished videos' rows kept, the unfinished one written nothing) and the lane goes on to the next event. */
 class EventOverTime extends Error {
-  constructor(readonly code: string) { super(`over its ${EVENT_LIMIT_MS / 60_000} min limit: stopped part way, the videos it finished kept, the rest read on the next run`); }
+  constructor(readonly code: string, readonly video?: string) { super(`over its ${EVENT_LIMIT_MS / 60_000} min limit${video ? ` with video ${video} unfinished` : ""}: stopped part way, the videos it finished kept, the rest read on the next run`); }
 }
 /** Each player page's event deadline: its event's code and when its time is up. */
 const pageDeadline = new WeakMap<Page, { code: string; at: number }>();
@@ -1228,8 +1228,8 @@ async function doCode(code: string): Promise<void> {
       }
       console.error(`${new Date().toISOString().slice(11, 19)} ${code} ${v.videoId}: done, ${j.placed.size} placed, ${j.review.size} for review, ${j.missing.size} missing`);
     } catch (e) {
-      // Over the event's limit: no row for this video (its reads stopped part way); the event stops here.
-      if (e instanceof EventOverTime) throw e;
+      // Over the event's limit: no row for this video (its reads stopped part way); the event stops here, naming it.
+      if (e instanceof EventOverTime) throw e.video ? e : new EventOverTime(code, v.videoId);
       const why = (e as Error).message.split("\n")[0];
       log(`    couldn't play: ${why}`);
       failedVideos++;
