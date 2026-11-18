@@ -174,9 +174,30 @@ export const SCHEDULED_UNREAD = "no start time from FIRST, and no frame of it re
  *  overlap. */
 export const MATCH_S = AUTO_S + SWITCH_S + TELEOP_S;
 /** Where a clip may open, seconds before its match's start, earliest first: the first whose frame names the match.
- *  The last two open at the start itself: a results card ("Match 6 results", CAONMIQ 2025 M7) or a bracket card
- *  (USIAWESTLT 2025 M3) can stay up until the match's own overlay comes on, seconds before it starts. */
-export const OPEN_LEADS = [20, 12, 5, 2, 0];
+ *  The 2 and 0 open at the start itself: a results card ("Match 6 results", CAONMIQ 2025 M7) or a bracket card
+ *  (USIAWESTLT 2025 M3) can stay up until the match's own overlay comes on, seconds before it starts. The last two open
+ *  just after it, where nothing before the start names the match: an upload cut from one match's results straight into
+ *  the next match's first second (USMOKSKCM2 2021 Q15: Q14's results at 4651 s, Q15's Auto running at 4657 s), so the
+ *  clip opens 2 or 4 s into its match rather than not at all. Still only on a frame that names it. */
+export const OPEN_LEADS = [20, 12, 5, 2, 0, -2, -4];
+/** OPEN_LEADS in words, for checks and summaries. */
+export const OPEN_LEADS_TEXT = "20, 12, 5, 2 or 0 s before its start, or 2 or 4 s after it";
+/** Where a clip opens against its match's start, in words: "12 s before its start", "2 s after its start". */
+export const leadText = (lead: number): string => (lead >= 0 ? `${lead} s before its start` : `${-lead} s after its start`);
+
+/** Where a clip opens: OPEN_LEADS in order, the first second whose frame names the match (`names` reads it: true names
+ *  it, false doesn't, "stop" when the read failed and no more are tried). Every lead-in second (20 … 0 s before) is
+ *  tried before the start's +2 and +4, so a clip opens late only where no frame before its start names it. */
+export async function firstOpening(start: number, names: (t: number) => Promise<boolean | "stop">): Promise<number | null> {
+  for (const lead of OPEN_LEADS) {
+    const t = start - lead;
+    if (t < 0) continue;
+    const r = await names(t);
+    if (r === "stop") return null;
+    if (r) return t;
+  }
+  return null;
+}
 
 /** The reason a placed match whose clip opening couldn't be checked gets: never a clip, never a clock reason. */
 export const OVERLAY_UNREAD = "overlay could not be read at its clip's start";

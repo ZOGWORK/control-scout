@@ -2,6 +2,8 @@
 // the strict rules against the row live now, and the rows that pass go out applied to main's season file, at most
 // 15 KB a PR.
 import { readdirSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { applyRows, changedRows, chunkRows, diffBytes, fileRows, LOOPY_DIFF_MAX, prChunks, prMarker, readMarker, rowGroups, rowKey, rowLine, rowProblems, type Row } from "./autopilotRows";
 
@@ -17,7 +19,10 @@ describe("rowProblems", () => {
 
   it("refuses a start without a checked opening, or one opening at another lead", () => {
     expect(rowProblems(row({ starts: { Q1: 600 } }))).toEqual(["Q1: no opening frame checked for it"]);
-    expect(rowProblems(row({ starts: { Q1: 600 }, opens: { Q1: 590 } }))).toEqual(["Q1: opens 10 s before its start, not 20/12/5/2/0"]);
+    expect(rowProblems(row({ starts: { Q1: 600 }, opens: { Q1: 590 } }))).toEqual(["Q1: opens 10 s before its start, not 20, 12, 5, 2 or 0 s before its start, or 2 or 4 s after it"]);
+    // A clip may open 2 or 4 s into its match (an upload cut straight from the last results into it), never later.
+    expect(rowProblems(row({ starts: { Q1: 600 }, opens: { Q1: 604 } }))).toEqual([]);
+    expect(rowProblems(row({ starts: { Q1: 600 }, opens: { Q1: 606 } }))).toEqual(["Q1: opens 6 s after its start, not 20, 12, 5, 2 or 0 s before its start, or 2 or 4 s after it"]);
   });
 
   it("refuses overlapping starts and seconds that aren't in a video", () => {
@@ -75,7 +80,7 @@ describe("rowProblems", () => {
     expect(rowProblems(row({ checked: "2026-11-14", starts: { Q1: 600, Q2: 1000 }, opensOn: { at: 3, label: "Q1" } }), live)).toEqual(["changed without a newer checked date than the live row's (2026-11-14)"]);
     expect(rowProblems(live, live)).toEqual([]);
     // An opening a re-read adds to an older row's start is checked like a new one's.
-    expect(rowProblems(row({ checked: "2026-11-18", starts: { Q1: 600, Q2: 1000 }, opens: { Q1: 590, Q2: 995 } }), live)).toEqual(["Q1: opens 10 s before its start, not 20/12/5/2/0"]);
+    expect(rowProblems(row({ checked: "2026-11-18", starts: { Q1: 600, Q2: 1000 }, opens: { Q1: 590, Q2: 995 } }), live)).toEqual(["Q1: opens 10 s before its start, not 20, 12, 5, 2 or 0 s before its start, or 2 or 4 s after it"]);
     expect(rowProblems(row({ checked: "2026-11-18", starts: { Q1: 600, Q2: 1000 }, opens: { Q1: 588, Q2: 995 } }), live)).toEqual([]);
     // Openings the live row had can't be dropped.
     const checkedLive = row({ checked: "2026-11-14", starts: { Q1: 600 }, opens: { Q1: 588 } });
@@ -206,12 +211,28 @@ describe("season files", () => {
     expect(prChunks(main, [huge, B], 12_000)).toEqual({ ship: [[B]], later: [], tooBig: [huge] });
   });
 
+  it("a row too big for Loopy holds no lines: the new rows sharing its gap still ship, run after run", () => {
+    const r = (code: string, v: string, n: number) => row({ code, videoId: v, starts: Object.fromEntries(Array.from({ length: n }, (_, i) => [`Q${i + 1}`, 1000 + i * 400])) });
+    const huge = row({ code: "BQ", videoId: "huge", missing: Object.fromEntries(Array.from({ length: 400 }, (_, i) => [`Q${i}`, "no frame read of it, and no agreeing reads on both sides"])) });
+    const main = FILE([r("AAQ", "live", 1), r("ZZQ", "live", 1)]);
+    // One gap: the huge BQ row first in file order, then events CQ and DQ, over the cap together.
+    const cq = [r("CQ", "c1", 40), r("CQ", "c2", 40)], dq = [r("DQ", "d1", 40), r("DQ", "d2", 40)];
+    const cap = diffBytes(main, applyRows(main, [...cq, dq[0]]));
+    expect(rowGroups(main, [huge, ...cq, ...dq])).toHaveLength(1);
+    expect(prChunks(main, [huge, ...cq, ...dq], cap)).toEqual({ ship: [cq], later: dq, tooBig: [huge] });
+    // The next run, on the main CQ's PR leaves (its rows now DQ's context): DQ ships, the huge row still the owner's.
+    const next = applyRows(main, cq);
+    expect(prChunks(next, [huge, ...dq], diffBytes(next, applyRows(next, dq)))).toEqual({ ship: [dq], later: [], tooBig: [huge] });
+  });
+
   it("adds the first rows to a season not read yet without a blank line above them", () => {
     expect(applyRows("// --- Data\nexport const ROWS: FrameTiming[] = [\n\n];\n", [A])).toBe(`// --- Data\nexport const ROWS: FrameTiming[] = [\n${rowLine(A)}\n];\n`);
   });
 
   it("leaves every real data file byte for byte as it is when all its rows are applied again", () => {
-    const files = [...readdirSync("server/data/frameTimings").filter((f) => /^\d{4}\.ts$/.test(f)).map((f) => `server/data/frameTimings/${f}`), "server/data/clipChecks.ts"];
+    // From this file's own place, so the test reads the same files whatever directory vitest is started in.
+    const data = join(dirname(fileURLToPath(import.meta.url)), "../../server/data");
+    const files = [...readdirSync(join(data, "frameTimings")).filter((f) => /^\d{4}\.ts$/.test(f)).map((f) => join(data, "frameTimings", f)), join(data, "clipChecks.ts")];
     expect(files.length).toBeGreaterThan(5);
     for (const f of files) {
       const text = readFileSync(f, "utf8");
