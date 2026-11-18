@@ -508,6 +508,31 @@ export function inkOnly(px: { [i: number]: number; length: number }, under: numb
   }
 }
 
+/** darkInk's fill: a pixel whose brightest channel is at most this is the black fill, not ink. */
+export const DARK_FILL_MAX = 3;
+/** darkInk's ink: from just over the fill up to this. Brighter is the pill's light face or grey, not a digit. */
+export const DARK_INK_MAX = 90;
+/**
+ * POWERPLAY's timer box gone black behind its digits, which turn a faint grey on it (USTXNONLM1 2022 at 902 s: digits
+ * 5–37 over a fill of 0–2, read "238" for 38 as shot; inkOnly blackens both alike). Where at least half the crop is
+ * that fill (brightest channel <= `fillMax`), the pixels just brighter than it (up to `inkMax`) turn black and every
+ * other white, in place (RGBA), and true is returned. A crop mostly not black is left as it was (false): the light
+ * pill's black digits are inkOnly's.
+ * Self-contained (no imports, no outer names): the reader runs it in the page.
+ */
+export function darkInk(px: { [i: number]: number; length: number }, fillMax: number, inkMax: number): boolean {
+  let fill = 0, all = 0;
+  for (let i = 0; i + 3 < px.length; i += 4, all++) if (Math.max(px[i], px[i + 1], px[i + 2]) <= fillMax) fill++;
+  if (!all || fill * 2 < all) return false;
+  for (let i = 0; i + 3 < px.length; i += 4) {
+    const m = Math.max(px[i], px[i + 1], px[i + 2]);
+    const v = m > fillMax && m <= inkMax ? 0 : 255;
+    px[i] = px[i + 1] = px[i + 2] = v;
+    px[i + 3] = 255;
+  }
+  return true;
+}
+
 /**
  * Where FTC Live's score bar sits in a frame (RGBA pixels, `width` × `height`): the rows where one alliance's colour
  * fills much of the half left of the timer's column and the other's the half right of it (blue then red, or red then

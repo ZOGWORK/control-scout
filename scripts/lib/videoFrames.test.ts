@@ -1,7 +1,7 @@
 // The pure parts of the frame reader (scripts/video-frames.ts): the overlay's match, the timer's elapsed time, and
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
-import { dataRows, launchPlayerBrowser, clockReading, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, inPage, titleLeaks, titleUnchecked, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, firstOpening, OPEN_LEADS, shortClash, type M, eventDivisions, teamsSay, undetailed, UNDETAILED_EXIT, readFailed } from "./videoFrames";
+import { dataRows, launchPlayerBrowser, clockReading, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, darkInk, DARK_FILL_MAX, DARK_INK_MAX, inPage, titleLeaks, titleUnchecked, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, firstOpening, OPEN_LEADS, shortClash, type M, eventDivisions, teamsSay, undetailed, UNDETAILED_EXIT, readFailed } from "./videoFrames";
 import { between, edgeReject, EVENT_LIMIT_RATIO, eventLimitMs, GAP_READS, TRIES } from "./videoFrames";
 
 describe("the frame reader", () => {
@@ -162,6 +162,21 @@ describe("the frame reader", () => {
     const px = [18, 22, 40, 255, 34, 66, 150, 255, 205, 207, 212, 255, 20, 140, 40, 255, 60, 60, 70, 255, 30, 30, 35, 128];
     inkOnly(px, INK_MAX);
     expect(px).toEqual([0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 255]);
+  });
+
+  it("reads POWERPLAY's box gone black behind faint digits, and leaves a box that isn't (darkInk)", () => {
+    // USTXNONLM1 2022 at 902 s: the fill 0–2, the digits of "38" 5–37 (sampled off the frame).
+    const black = [0, 0, 0, 255, 2, 1, 2, 255, 1, 0, 1, 255, 26, 24, 30, 255, 37, 33, 36, 255, 1, 1, 1, 255];
+    expect(darkInk(black, DARK_FILL_MAX, DARK_INK_MAX)).toBe(true);
+    expect(black).toEqual([255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 255, 0, 0, 0, 255, 255, 255, 255, 255]);
+    // USTXNODLM3 2022 at 6700 s: the light pill (147, 187) and its black digits: not that fill, left for inkOnly.
+    const pill = [147, 147, 147, 255, 187, 187, 187, 255, 0, 0, 0, 255, 190, 190, 190, 255];
+    expect(darkInk(pill, DARK_FILL_MAX, DARK_INK_MAX)).toBe(false);
+    expect(pill).toEqual([147, 147, 147, 255, 187, 187, 187, 255, 0, 0, 0, 255, 190, 190, 190, 255]);
+    // A fill's grey edge brighter than the ink band stays white, not a stray digit stroke.
+    const edge = [0, 0, 0, 255, 0, 0, 0, 255, 120, 120, 120, 255];
+    expect(darkInk(edge, DARK_FILL_MAX, DARK_INK_MAX)).toBe(true);
+    expect(edge.slice(8)).toEqual([255, 255, 255, 255]);
   });
 
   it("runs a function in a page that has no __name of tsx's (inPage)", () => {
