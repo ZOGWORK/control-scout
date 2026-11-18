@@ -15,6 +15,125 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.6.8 — 2026-11-17
+
+Search › one period's best matches ("best teleop videos in romania decode") gets an answer in the search box too, linking to the full list.
+
+### Highlights
+- [fixes] "Best teleop videos in Romania" answers in the search box
+- [fixes] One period's best scores link to their full list
+- [fixes] No more empty box for auto, teleop or endgame bests
+
+### Fixed
+- Search (`server/api/answers/index.ts`): the box left a season's best matches to the asks' high-score card, which reads whole scores only, so a question about one period's best ("best teleop videos in romania decode", "highest teleop score in texas") showed nothing there while the page answered it. The box now shows "Highest teleop scores in Romania", linking to that page, as a board's does. Its label names no season, because the page may step back to the season before. (#1836)
+
+## 7.6.7 — 2026-11-17
+
+Search › "ranked" beside the best team reads as the board's own order, so "best romanian team ranked" lists Romania's top teams.
+
+### Highlights
+- [fixes] "Best romanian team ranked" lists Romania's top teams
+- [fixes] "Best ranked team in NJ" shows New Jersey's rankings
+- [fixes] "Ranked" after the best team no longer stops a search
+
+### Fixed
+- Search (`src/shared/query/intents.ts`, `server/api/searchAsks.ts`): "ranked" read as a rank to sort by, which the best-team board doesn't take, so "best romanian team ranked" read nothing. The best-team board now takes it as its own order (a team's rank is its OPR rank), and the region-rankings reader drops it after "best", "top" or "strongest" and at the end, so "best ranked team in nj" stays New Jersey's rankings. (#1834)
+
+## 7.6.6 — 2026-11-17
+
+Search › "thier" is read as "their" again, so "where is 207 in thier conference" answers 207's conference place.
+
+### Highlights
+- [fixes] "Thier" is corrected to "their" in a search
+- [fixes] "Where is 207 in thier conference" answers its conference place
+- [fixes] A short word in a team's name no longer blocks a spelling fix
+
+### Fixed
+- Search spelling (`server/api/spelling.ts`): a word that looks like a plain form of a known word ("winning" of "win") is left as typed, and "Thi", a given name in the stored names, made "thier" read as "Thi" with "-er", so it was never corrected. A three-letter stem now counts only when it is one of search's own words, so "thier" is "their" and the conference question is read; "winning" and the other forms stay as typed. (#1828)
+
+## 7.6.5 — 2026-11-17
+
+Search › a team's conference place shows this season when the team is in one, going in from the sign-ups, and last season's only when not, saying so; "where was …" shows the last one played out.
+
+### Highlights
+- [fixes] A team's conference place shows this season first
+- [fixes] Last season's place only when this season has none, said so
+- [fixes] "Where was 207 in their conference" shows the last one played
+
+### Fixed
+- Search (`server/api/answers/families/conference.ts`): with no season said, a team's conference place is the newest season it is in one (FIRST's field before the sign-ups within that season), so "where is 207 in their conference" is 207 going into Hudson/East Bergen Conference, 2026–27, where it showed 2025–26. A team in none this season gets last season's, with "No 2026–27 conference for 207 yet; showing 2025–26" first. The past tense with no season said ("where was", "did", "finished") is the newest conference played out. A season said, and a conference's own table, are unchanged. (#1743)
+
+## 7.6.4 — 2026-11-17
+
+Search › "WAC" reads as winning alliance captain, so "nj wac" lists New Jersey's Winning Alliance Captains.
+
+### Highlights
+- [fixes] "WAC" means winning alliance captain in search
+- [fixes] "NJ WACs" lists the state's captains
+- [fixes] "WAC" is never changed by spelling fixes
+
+### Fixed
+- Search (`server/api/answers/families/placeAwards.ts`, `server/api/spelling.ts`): "WAC" and "WACs", the usual short form, read as the words in full ("nj wac", "teams in nj that won wac"), and spelling leaves them as typed. Only the whole word counts ("wacky" doesn't). (#1725)
+
+## 7.6.3 — 2026-11-17
+
+Event videos › a title's "Day 2" can mean the event's second day of play, and two Romanian events get the recordings of the days FIRST's dates left out.
+
+### Highlights
+- [fixes] A title's day number counts the days an event played
+- [fixes] RO #4 Iasi 2024 day 2 recording linked
+- [fixes] Romania's 2021 national championship recording linked
+
+### Fixed
+- Event videos: a title's "Day N" must be the event's own day N, counted by the calendar from its first day or by the days it played a match. RONR4LT 2023 is listed 7 to 9 March 2024 and played on the 9th and 10th: its "DAY 2" broadcast on the 10th read as the event's day 4, and with #1703's wider days the channel audit would have opened it as a finding. Its day-2 recording (Finals Match 1 on a frame) and ROBUOS1 2020's one day of play, 30 Aug 2021 after its listed 27 to 29 (Semifinal 1 Match 1 on a frame), are linked. (`server/videos/officialMatch.ts`, `server/data/videoDecisions.ts`) (#1726)
+
+## 7.6.2 — 2026-11-17
+
+Videos › 105 matches from three 2025 events (Greenwood QT and the NorCal Regional Championship's Gold and Silicon divisions) get a clip, each opening on a frame that names its match and its event.
+
+### Highlights
+- [fixes] 105 more 2025 matches get a clip
+- [fixes] Each opens on a frame naming its match
+- [fixes] No clip already playing changes
+
+### Fixed
+- Videos (`server/data/frameTimings/2025.ts`): Greenwood QT (52 of 52, over its two videos), NorCal Regional Championship Gold Division (27 of 50) and Silicon Division (26 of 50) get frame-checked starts. Each start's opening frame names its match and its own division. The NorCal matches left out had no frame read that confirms a start. (#1731)
+
+## 7.6.1 — 2026-11-17
+
+Videos › The frame reader now reads POWERPLAY's score bar when a stream flips it to the top of the frame, and no longer pairs two numbers from two places as one clock: Arizona's 2022 championship went from 0 to 35 of 37 matches placed.
+
+### Highlights
+- [history] Streams with POWERPLAY's bar flipped to the top can now get match clips
+- [fixes] The reader keeps reading the clock from the place it last saw it run
+- [fixes] Stray numbers on the field are no longer taken for the match clock
+
+### Fixed
+- Videos: the frame reader reads POWERPLAY's timer in its bar flipped to the top of the frame, at the bottom crop mirrored (`flippedClip`), after the bottom's. A timer's two readings come from one crop, and the crop whose clock last ran is read first for the rest of the video (`cropOrder`): on Arizona's flipped bar the bottom crops read robots' and signs' digits off the field, paired with the top's, and no start was confirmed. USAZCMPGC23 2022: 0 → 35 of 37 placed, every clip opening on a frame naming its match. (#1715)
+## 7.6.0 — 2026-11-17
+
+Videos › 85 more 2024 matches play as clips: Indianapolis's qualifier in full and New York's Broadalbin-Perth qualifier.
+
+### Highlights
+- [history] Every 2024 Indianapolis Qualifier match as a clip
+- [history] Broadalbin-Perth Qualifier: 42 of 43 matches as clips
+- [history] 85 more 2024 match clips, each opening checked on its frame
+
+### Added
+- Frame-read match starts for 2 more 2024 recordings, each clip's opening checked against a paused frame naming its match: USININQ 43 of 43 played matches, USNYEXBRQ 42 of 43 (1 missing). (`server/data/frameTimings/2024.ts`) (#1724)
+
+## 7.5.9 — 2026-11-17
+
+Videos › the clip reader now says why a video with no length isn't read (a stream still live, or one that hasn't aired), where before it skipped it without a word.
+
+### Highlights
+- [fixes] A video with no length is timed by its player
+- [fixes] A live or upcoming stream is named, not skipped
+- [fixes] No clip already playing changes
+
+### Fixed
+- Videos (`scripts/video-frames.ts`): the frame reader dropped any video YouTube gave no duration for, with nothing in its report (2026 USMOKSSWM1 and USORSOM1 printed only "15 of 15 matches without a clip"). Such a video is now timed by its player and read; one the player can't time is said: USMOKSSWM1's link is next week's Southwest League Meet #2 stream, not yet aired, and USORSOM1's is still marked live. (#1712)
+
 ## 7.5.8 — 2026-11-17
 
 Videos › 261 matches from seven more 2023 events get clips, each opening on its own match: Indiana's and Louisiana's championships, Chesapeake's Stage Right division and two of its qualifiers, Colorado's Severance qualifier and Southern Nevada's league tournament.

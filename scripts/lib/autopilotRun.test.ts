@@ -2,7 +2,7 @@
 // nothing new is tried again, and what its data PR's CHANGELOG entry says.
 import { describe, expect, it } from "vitest";
 import { nextRelease, parseChangelog } from "../../src/lib/changelog";
-import { GIVE_UP, RETRY_MS, changelogEntry, forgetSettled, nextVersion, pickEvents, remember, rowsDelta, type Memory, type Queued } from "./autopilotRun";
+import { ASK_EVERY_MS, GIVE_UP, RETRY_MS, WAIT_MS, askDue, changelogEntry, forgetSettled, needsRebuild, nextVersion, pickEvents, readOutcome, remember, rememberWait, rowsDelta, waitBackoff, type Memory, type Queued } from "./autopilotRun";
 import type { Row } from "./autopilotRows";
 
 const NOW = Date.parse("2026-11-17T12:00:00Z");
@@ -38,6 +38,72 @@ describe("pickEvents", () => {
     expect(m["2025/A"]).toBeUndefined();
     forgetSettled(m, new Set());
     expect(m).toEqual({});
+  });
+});
+
+describe("events whose rows wait", () => {
+  it("waits WAIT_MS, doubling each wait in a row, never past RETRY_MS", () => {
+    expect([1, 2, 3, 4, 5, 9].map(waitBackoff)).toEqual([WAIT_MS, 2 * WAIT_MS, 4 * WAIT_MS, 8 * WAIT_MS, RETRY_MS, RETRY_MS]);
+  });
+
+  it("isn't read again every run, and its waits never count toward GIVE_UP", () => {
+    const m: Memory = { "2025/A": { tries: GIVE_UP - 1, last: new Date(NOW - RETRY_MS - 1).toISOString(), result: "no new rows" } };
+    for (let i = 0; i < 6; i++) rememberWait(m, "2025/A", "rows wait for an open PR's lines", NOW);
+    expect(m["2025/A"]).toEqual({ tries: GIVE_UP - 1, last: new Date(NOW).toISOString(), result: "rows wait for an open PR's lines", waits: 6 });
+    // Inside its backoff: skipped, saying when it's read again. Past it: read, though it has waited many times.
+    expect(pickEvents([q("A", 1)], new Set(), m, 5, NOW + RETRY_MS - 1).skipped[0].why).toMatch(/^its rows waited 6 times .*: read again after 2026-11-20T12:00Z$/);
+    expect(pickEvents([q("A", 1)], new Set(), m, 5, NOW + RETRY_MS).picked.map((x) => x.code)).toEqual(["A"]);
+    rememberWait(m, "2025/B", "rows wait", NOW);
+    expect(pickEvents([q("B", 1)], new Set(), m, 5, NOW + WAIT_MS - 1).picked).toEqual([]);
+    expect(pickEvents([q("B", 1)], new Set(), m, 5, NOW + WAIT_MS).picked.map((x) => x.code)).toEqual(["B"]);
+  });
+
+  it("a read with nothing new after waits counts a try and ends the waits", () => {
+    const m: Memory = {};
+    rememberWait(m, "2025/A", "rows wait", NOW);
+    remember(m, "2025/A", 0, "no new rows", NOW);
+    expect(m["2025/A"]).toEqual({ tries: 1, last: new Date(NOW).toISOString(), result: "no new rows" });
+  });
+});
+
+describe("readOutcome", () => {
+  const o = (x: Partial<Parameters<typeof readOutcome>[0]>) => readOutcome({ rows: 0, opened: 0, waiting: 0, tooBig: 0, readFailed: false, ...x });
+  it("ships, waits, or counts a try only where the read really gave nothing", () => {
+    expect(o({ rows: 3, opened: 1, waiting: 2 })).toBe("shipped");
+    expect(o({ rows: 3, waiting: 2, tooBig: 1 })).toBe("waits");
+    expect(o({ rows: 2, tooBig: 2 })).toBe("too big");
+    expect(o({ rows: 2 })).toBe("open failed");
+    expect(o({ readFailed: true })).toBe("read failed");
+    expect(o({})).toBe("nothing new");
+  });
+});
+
+describe("needsRebuild", () => {
+  const r = (videoId: string, t: number) => ({ code: "E", videoId, starts: { Q1: t } });
+  const base = { mergeable: "MERGEABLE", want: new Set(["v1|E"]), baseRows: [r("v1", 10), r("v2", 20)], mainRows: [r("v1", 10), r("v2", 25)], changedFiles: ["server/data/frameTimings/2025.ts"], releaseFiles: ["CHANGELOG.md", "package.json", "package-lock.json"] };
+  it("leaves a PR alone when main changed none of its rows, it merges cleanly and carries no release: never to renumber", () => {
+    expect(needsRebuild(base)).toEqual([]);
+  });
+  it("rebuilds on a conflict, on its row changed or removed on main, and on a release it still carries", () => {
+    expect(needsRebuild({ ...base, mergeable: "CONFLICTING" })).toEqual(["conflict"]);
+    expect(needsRebuild({ ...base, mainRows: [r("v1", 11)] })).toEqual(["main changed its rows"]);
+    expect(needsRebuild({ ...base, mainRows: [r("v2", 20)] })).toEqual(["main changed its rows"]);
+    expect(needsRebuild({ ...base, changedFiles: [...base.changedFiles, "CHANGELOG.md", "package.json"] })).toEqual(["release dropped"]);
+  });
+  it("a file the merge base didn't have: a row main has since gained is main's change", () => {
+    expect(needsRebuild({ ...base, baseRows: [], mainRows: [] })).toEqual([]);
+    expect(needsRebuild({ ...base, baseRows: [], mainRows: [r("v1", 10)] })).toEqual(["main changed its rows"]);
+  });
+});
+
+describe("askDue", () => {
+  const head = "abcdef1234567890";
+  it("asks once a head, again only after a day, never once Loopy's summary names the head", () => {
+    expect(askDue(undefined, head, null, NOW)).toBe(true);
+    expect(askDue({ head, at: new Date(NOW - ASK_EVERY_MS + 1).toISOString() }, head, null, NOW)).toBe(false);
+    expect(askDue({ head, at: new Date(NOW - ASK_EVERY_MS).toISOString() }, head, null, NOW)).toBe(true);
+    expect(askDue({ head: "0000000", at: new Date(NOW).toISOString() }, head, "0000000", NOW)).toBe(true);
+    expect(askDue(undefined, head, "abcdef1", NOW)).toBe(false);
   });
 });
 

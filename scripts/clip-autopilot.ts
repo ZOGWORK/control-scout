@@ -4,20 +4,23 @@
 // YouTube refuses data-centre addresses (GitHub's runners and the VM both get its "confirm you're not a bot" page), so
 // this runs on a computer at home, from a clone of its own, on a schedule (scripts/clip-autopilot-task.ps1). Each run:
 //   1. (its start, scripts/clip-autopilot-start.mjs: one run at a time, the clone and its dependencies at main) rebuilds
-//      its own open PRs on main when main moved under them, then merges one of them that passes the merge gate
-//      (scripts/lib/autopilotMerge.ts: Loopy 5/5 on its head, every check passed, its rows safe) and waits for it live;
+//      its own open PRs on main when main changed their rows, they conflict, or they still carry a release, then
+//      merges one of them that passes the merge gate (scripts/lib/autopilotMerge.ts: Loopy 5/5 on its head, every check
+//      passed, its rows safe) and waits for it live;
 //   2. takes a read-only snapshot of the live database (VACUUM INTO over ssh: the VM's database is never written);
 //   3. takes the queue from that snapshot (server/videos/frameQueue.ts), most missing first;
 //   4. reads each picked event with scripts/video-frames.ts (--live main's season file), then --verify, then --bounds;
 //   5. checks every row it changed (scripts/lib/autopilotRows.ts): a row that breaks a rule is left out, logged;
-//   6. opens a data PR per season file, at most 15 KB each, with its CHANGELOG entry, and asks Loopy to review it;
+//   6. opens data PRs per season file, each diff under 12 KB: its data file only (no CHANGELOG, no version; labelled
+//      no-changelog), each new row just before the first row whose code sorts after it; asks Loopy to review it (and
+//      labels and asks again on later runs until that lands: at most once a head a day);
 //   7. sweeps the live clips the clock places (video-frames.ts --clips): each read paused at its first second, pulled
 //      only where that frame names another match, confirmed where it names its own, left as it is where it names none;
 //      shipped as server/data/clipChecks.ts PRs, checked by scripts/lib/autopilotClips.ts.
 //
-//   node scripts/clip-autopilot-start.mjs [--max 6] [--sweep 4] [--db snapshot.db]   (a real run)
+//   node scripts/clip-autopilot-start.mjs [--max 12] [--sweep 4] [--db snapshot.db]   (a real run)
 //   npx tsx scripts/clip-autopilot.ts --dry [--max 1] [--sweep 0] [--db snapshot.db]  (a dry run, any checkout)
-//   --max N   events read per run (default 6)
+//   --max N   events read per run (default 12)
 //   --sweep N events whose clock clips are checked per run (default 4; 0: no sweep)
 //   --db F    read this snapshot instead of taking one
 //   --dry     in the current checkout: read and check, print the PRs it would open, leave the files as they were
@@ -28,9 +31,10 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { gunzipSync } from "node:zlib";
-import { applyRows, changedRows, chunkRows, fileRows, prMarker, readMarker, rowKey, rowProblems, type Keyed, type Row } from "./lib/autopilotRows";
-import { changelogEntry, forgetSettled, nextVersion, pickEvents, remember, rowsDelta, type Memory } from "./lib/autopilotRun";
-import { clipCheckProblems, clipsDelta, clipsEntry } from "./lib/autopilotClips";
+import { applyRows, changedRows, fileRows, prChunks, prMarker, readMarker, rowKey, rowProblems, type Keyed, type Row } from "./lib/autopilotRows";
+import { askDue, forgetSettled, needsRebuild, pickEvents, readOutcome, remember, rememberWait, rowsDelta, type Memory } from "./lib/autopilotRun";
+import { loopySummary, reviewedSha, type IssueComment } from "./lib/autopilotMerge";
+import { clipCheckProblems, clipsDelta } from "./lib/autopilotClips";
 import { prGate } from "./lib/autopilotPr";
 import { mainQuiet, mainStill, pickMerge, servesMerge } from "./lib/autopilotMergeStep";
 import type { ClipCheck } from "../server/data/clipChecks";
@@ -38,7 +42,7 @@ import type { ClipCheck } from "../server/data/clipChecks";
 const argv = process.argv.slice(2);
 const opt = (k: string) => { const i = argv.indexOf(`--${k}`); return i >= 0 ? argv[i + 1] : undefined; };
 for (const a of argv) if (a.startsWith("--") && !["--max", "--sweep", "--db", "--dry", "--no-merge"].includes(a)) { console.error(`${a}: not a flag (--max N, --sweep N, --db F, --dry, --no-merge)`); process.exit(2); }
-const MAX = Number(opt("max") ?? 6), SWEEP = Number(opt("sweep") ?? 4), DRY = argv.includes("--dry"), DB = opt("db"), MERGE = !argv.includes("--no-merge");
+const MAX = Number(opt("max") ?? 12), SWEEP = Number(opt("sweep") ?? 4), DRY = argv.includes("--dry"), DB = opt("db"), MERGE = !argv.includes("--no-merge");
 /** Main's last commit at least this old before a merge (each merge deploys; merges spaced, owner's rule). */
 const MAIN_QUIET_MS = 605_000;
 /** How long a merge is waited for on the live site. */
@@ -82,40 +86,79 @@ if (!DRY) {
 
 const MEMORY_FILE = join(DIR, "memory.json");
 const memory: Memory = existsSync(MEMORY_FILE) ? JSON.parse(readFileSync(MEMORY_FILE, "utf8")) : {};
+/** The last Loopy ask on each open PR (by number): its head and when (askDue). */
+const ASKED_FILE = join(DIR, "asked.json");
+const asked: Record<string, { head: string; at: string }> = existsSync(ASKED_FILE) ? JSON.parse(readFileSync(ASKED_FILE, "utf8")) : {};
+/** The PRs open this run (listed, and opened by it), by number; null until the list is read. Declared here, before the
+ *  exit handler that reads it, so an early exit finds it set. */
+let openNow: Set<string> | null = null;
 /** Files a read may have written, as they were before it: put back however the run ends. */
 const restore = new Map<string, string>();
 // However the run ends (done, stopped, or thrown): what it tried keeps its retry and give-up counts, and every file a
 // read wrote is put back, so the clone is never left with changes.
 process.on("exit", () => {
   // A dry run opens no PR: what it "would open" or didn't find never counts toward the real runs' retries.
-  if (!DRY) writeFileSync(MEMORY_FILE, JSON.stringify(memory, null, 1));
+  if (!DRY) {
+    writeFileSync(MEMORY_FILE, JSON.stringify(memory, null, 1));
+    // Asks kept for open PRs only: a closed or merged PR's is never read again. Before the list was read: all kept.
+    const keep = openNow;
+    writeFileSync(ASKED_FILE, JSON.stringify(keep ? Object.fromEntries(Object.entries(asked).filter(([n]) => keep.has(n))) : asked, null, 1));
+  }
   for (const [file, text] of restore) writeFileSync(file, text);
 });
 
 const mainText = (path: string) => (DRY ? readFileSync(path, "utf8") : git("show", `origin/main:${path}`) + "\n");
-const mainVersion = () => String(JSON.parse(mainText("package.json")).version);
 
 /** Open autopilot PRs: number, branch, and the rows (season, video|event; the file, for a sweep PR) their mark names. */
-function openPrs(): { number: number; branch: string; season: number; rows: string[]; file?: string; mergeable: string }[] {
-  const list = JSON.parse(sh("gh", ["pr", "list", "--state", "open", "--label", LABEL, "--limit", "100", "--json", "number,headRefName,body,mergeable"], { quiet: true }).out || "[]");
-  return list.flatMap((p: any) => { const m = readMarker(String(p.body ?? "")); return m && String(p.headRefName).startsWith(BRANCH) ? [{ number: p.number, branch: p.headRefName, ...m, mergeable: String(p.mergeable) }] : []; });
+function openPrs(): { number: number; branch: string; head: string; labels: string[]; season: number; rows: string[]; file?: string; mergeable: string }[] {
+  const list = JSON.parse(sh("gh", ["pr", "list", "--state", "open", "--label", LABEL, "--limit", "100", "--json", "number,headRefName,headRefOid,labels,body,mergeable"], { quiet: true }).out || "[]");
+  return list.flatMap((p: any) => {
+    const m = readMarker(String(p.body ?? ""));
+    return m && String(p.headRefName).startsWith(BRANCH) ? [{ number: p.number, branch: p.headRefName, head: String(p.headRefOid), labels: (p.labels ?? []).map((l: { name: string }) => l.name), ...m, mergeable: String(p.mergeable) }] : [];
+  });
 }
 
-/** main's CHANGELOG with `entry` on top as main's next release, and package.json/lock at that version (written). */
-function writeRelease(entry: string, pr: number): string {
-  const version = nextVersion(mainVersion());
-  const changelog = mainText("CHANGELOG.md"), at = changelog.indexOf("\n## ") + 1;
-  writeFileSync("CHANGELOG.md", changelog.slice(0, at) + entry.replace("VERSION", version).replace("#PR", `#${pr}`) + "\n" + changelog.slice(at));
-  for (const f of ["package.json", "package-lock.json"]) {
-    let n = 0;
-    writeFileSync(f, mainText(f).replace(/"version": "[^"]+"/g, (m) => (++n <= (f === "package.json" ? 1 : 2) ? `"version": "${version}"` : m)));
-  }
-  return version;
+/** A data PR changes its data file only (owner's rule, 2026-11-17): no CHANGELOG entry, no version, so PRs never
+ *  renumber or conflict on a release. The label the Changelog check passes. Release files a PR opened before carries
+ *  are put back to main's at its next rebuild. */
+const NO_CHANGELOG = "no-changelog", RELEASE_FILES = ["CHANGELOG.md", "package.json", "package-lock.json"];
+/** A data PR's diff at most this (Loopy can't review a diff much over 16 KB). */
+const PR_DIFF_MAX = 12_000;
+/** The rows open autopilot PRs bring to `file` (as their branches have them): a new PR never touches their lines. A
+ *  branch that can't be read holds nothing, logged (its rebuild above logged why too). */
+function heldRows(file: string): Keyed[] {
+  return open.filter((p) => (p.file ?? seasonFile(p.season)) === file).flatMap((p) => {
+    const want = new Set(p.rows);
+    try { return fileRows<Keyed>(git("show", `origin/${p.branch}:${file}`)).filter((r) => want.has(rowKey(r))); } catch (e) {
+      log(`#${p.number}: its branch couldn't be read (${(e as Error).message}); new PRs aren't held off its lines this run`);
+      return [];
+    }
+  });
 }
 const commitEach = (files: [string, string][]) => { for (const [f, msg] of files) { git("add", f); git("commit", "--quiet", "-m", msg); } };
 const push = (branch: string) => git("push", "--quiet", "--no-verify", "origin", `HEAD:refs/heads/${branch}`);
-const askReview = (pr: number) => sh("gh", ["pr", "comment", String(pr), "--body", "@loopyreviews-bot review"], { ok: true });
-const today = new Date().toISOString().slice(0, 10);
+/** Asks Loopy to review `head` when askDue says so (Loopy's summary doesn't name it; not asked for it in a day). */
+function askReview(pr: number, head: string): void {
+  let reviewed: string | null = null;
+  try {
+    const comments = sh("gh", ["api", `repos/{owner}/{repo}/issues/${pr}/comments`, "--paginate", "--jq", ".[] | {user: {login: .user.login, type: .user.type}, body, updated_at} | @json"], { quiet: true }).out
+      .split("\n").filter(Boolean).map((l) => JSON.parse(l) as IssueComment);
+    reviewed = reviewedSha(loopySummary(comments));
+  } catch (e) { log(`#${pr}: its comments couldn't be read (${(e as Error).message}); Loopy asked if due`); }
+  if (!askDue(asked[pr], head, reviewed)) return;
+  const r = sh("gh", ["pr", "comment", String(pr), "--body", "@loopyreviews-bot review"], { ok: true });
+  if (r.code) log(`#${pr}: Loopy couldn't be asked (gh exit ${r.code}); asked again next run`);
+  else asked[pr] = { head, at: new Date().toISOString() };
+}
+/** What every open PR gets each run, whether or not it's rebuilt, so a step that failed once is done on a later run:
+ *  the no-changelog label, and Loopy asked for its head (askReview). */
+function followUps(pr: number, head: string, labels: string[]): void {
+  if (!labels.includes(NO_CHANGELOG)) {
+    const r = sh("gh", ["pr", "edit", String(pr), "--add-label", NO_CHANGELOG], { ok: true });
+    log(r.code ? `#${pr}: couldn't be labelled ${NO_CHANGELOG} (gh exit ${r.code}); tried again next run` : `#${pr}: labelled ${NO_CHANGELOG}`);
+  }
+  askReview(pr, head);
+}
 /** Closes an autopilot PR; false (logged) where GitHub refused or couldn't be reached: the PR is still open. */
 function closePr(pr: number, comment: string): boolean {
   const r = sh("gh", ["pr", "close", String(pr), "--comment", comment], { ok: true });
@@ -123,8 +166,8 @@ function closePr(pr: number, comment: string): boolean {
   return !r.code;
 }
 
-/** A data PR's words: title, description, mark, CHANGELOG entry ("VERSION"/"#PR" filled at release), commit line. */
-type PrText = { title: string; body: string[]; marker: string; entry: string; what: string };
+/** A data PR's words: title, description, mark, commit line. */
+type PrText = { title: string; body: string[]; marker: string; what: string };
 /** A frame-read PR's words, from its rows against main's (opened, or rebuilt on main with fewer rows). */
 function framesText(season: number, rows: Row[], live: Map<string, Row>): PrText {
   const d = rowsDelta(rows, live);
@@ -136,7 +179,7 @@ function framesText(season: number, rows: Row[], live: Map<string, Row>): PrText
       "", "Every row passed `rowProblems` against main's row: each placed or moved start opens 20/12/5/2/0 s before it on a frame naming its match; starts plausible and in the order played; no new `unconfirmed`; no live clip pulled without a frame at its own second naming another match; re-reads dated after the live row.",
       "", ...rows.map((r) => `- ${r.code} \`${r.videoId}\`: ${Object.keys(r.starts).length} starts, ${Object.keys(r.missing ?? {}).length} missing, ${Object.keys(r.review ?? {}).length} for review`),
     ],
-    marker: prMarker(season, rows), entry: changelogEntry(season, d, today),
+    marker: prMarker(season, rows),
   };
 }
 /** A sweep PR's words, from its rows against main's. */
@@ -150,22 +193,29 @@ function clipsText(rows: ClipCheck[], live: Map<string, ClipCheck>): PrText {
       "", "Every row passed `clipCheckProblems` against main's: a pull only where the frame names a different match; no clip in two states; what main's row settled kept (a pull lifts only on a frame naming the match, an ok goes only on one naming another).",
       "", ...d.pulledList.map((x) => `- pulled: ${x}`),
     ],
-    marker: prMarker(0, rows, CLIPS_FILE), entry: clipsEntry(d, today),
+    marker: prMarker(0, rows, CLIPS_FILE),
   };
 }
 
 // --- 1b. Own PRs rebuilt on main --------------------------------------------------------------------------------------
 if (!DRY) sh("gh", ["label", "create", LABEL, "--force", "--color", "0e8a16", "--description", "A data PR the clip autopilot opened (scripts/clip-autopilot.ts)"], { ok: true, quiet: true });
 const open = DRY ? [] : openPrs();
-/** PRs renumbered on main this run: each waits for Loopy's review of its new head, so none merges this run. */
+openNow = new Set(open.map((p) => String(p.number)));
+/** PRs rebuilt on main this run: each waits for Loopy's review of its new head, so none merges this run. */
 const rebuilt = new Set<number>();
 for (const p of open) {
   try {
     // Inside the try: a branch that can't be read (deleted, not fetched) is logged and left, never the whole run.
-    const branchVersion = String(JSON.parse(git("show", `origin/${p.branch}:package.json`)).version);
-    if (p.mergeable !== "CONFLICTING" && nextVersion(mainVersion()) === branchVersion) continue;
-    // A sweep PR's rows are checked as the sweep's are; a frame-read PR's as the reader's.
+    // Rebuilt only where main changed one of its rows since it branched (its rows checked again on main's), it
+    // conflicts, or it still carries a release (opened before data PRs dropped theirs). Never to renumber.
     const file = p.file ?? seasonFile(p.season), want = new Set(p.rows);
+    const base = git("merge-base", `origin/${p.branch}`, "origin/main");
+    // A file the merge base didn't have (the PR's season file was new then) has no rows there.
+    let baseText = "";
+    try { baseText = git("show", `${base}:${file}`) + "\n"; } catch { /* not at the merge base */ }
+    const why = needsRebuild({ mergeable: p.mergeable, want, baseRows: fileRows<Keyed>(baseText), mainRows: fileRows<Keyed>(mainText(file)), changedFiles: git("diff", "--name-only", base, `origin/${p.branch}`).split("\n"), releaseFiles: RELEASE_FILES });
+    if (!why.length) { followUps(p.number, p.head, p.labels); continue; }
+    // A sweep PR's rows are checked as the sweep's are; a frame-read PR's as the reader's.
     const problems = (r: Keyed, was?: Keyed) => (file === CLIPS_FILE ? clipCheckProblems(r as ClipCheck, was as ClipCheck | undefined) : rowProblems(r as Row, was as Row | undefined));
     const rows = fileRows<Keyed>(git("show", `origin/${p.branch}:${file}`)).filter((r) => want.has(rowKey(r)));
     const live = new Map(fileRows<Keyed>(mainText(file)).map((r) => [rowKey(r), r]));
@@ -174,19 +224,24 @@ for (const p of open) {
       if (closePr(p.number, "Main changed these rows since this read (another read reached them first): closed, the next run reads anything still due.")) log(`#${p.number}: closed, main read its rows meanwhile`);
       continue;
     }
-    // Its words made again from the rows it keeps: rows main took meanwhile leave its title, entry and mark too.
+    // Its words made again from the rows it keeps: rows main took meanwhile leave its title and mark too.
     const text = file === CLIPS_FILE ? clipsText(keep as ClipCheck[], live as Map<string, ClipCheck>) : framesText(p.season, keep as Row[], live as Map<string, Row>);
     git("switch", "--quiet", "--detach", `origin/${p.branch}`);
     sh("git", ["merge", "--no-commit", "--no-ff", "origin/main"], { ok: true });
+    // Its rows on main's file; every release file as main has it (an older PR's release leaves).
     writeFileSync(file, applyRows(mainText(file), keep));
-    const version = writeRelease(text.entry, p.number);
-    for (const f of [file, "CHANGELOG.md", "package.json", "package-lock.json"]) git("add", f);
-    git("commit", "--quiet", "--no-edit", "-m", `Merge main; release ${version}`);
+    git("checkout", "origin/main", "--", ...RELEASE_FILES);
+    for (const f of [file, ...RELEASE_FILES]) git("add", f);
+    git("commit", "--quiet", "--no-edit", "-m", `Merge main; ${file}: its rows on main's`);
     push(p.branch);
-    sh("gh", ["pr", "edit", String(p.number), "--title", text.title, "--body", [...text.body, "", text.marker].join("\n")]);
-    askReview(p.number);
+    const head = git("rev-parse", "HEAD");
     rebuilt.add(p.number);
-    log(`#${p.number}: rebuilt on main as ${version}${keep.length < rows.length ? ` (${rows.length - keep.length} rows main changed meanwhile left out)` : ""}`);
+    log(`#${p.number}: rebuilt on main (${why.join(", ")})${keep.length < rows.length ? ` (${rows.length - keep.length} rows main changed meanwhile left out)` : ""}`);
+    // Pushed: its words, label and review ask follow, each going ahead if another fails. Words that failed are made
+    // again at its next rebuild; the label and ask on every run (followUps).
+    const edit = sh("gh", ["pr", "edit", String(p.number), "--title", text.title, "--body", [...text.body, "", text.marker].join("\n")], { ok: true });
+    if (edit.code) log(`#${p.number}: its title and description couldn't be updated (gh exit ${edit.code}); its mark names its old rows until its next rebuild`);
+    followUps(p.number, head, p.labels);
   } catch (e) {
     log(`#${p.number}: couldn't be rebuilt on main (${(e as Error).message}); left as it is`);
     sh("git", ["merge", "--abort"], { ok: true, quiet: true });
@@ -304,29 +359,28 @@ for (const s of skipped.filter((x) => x.why !== "next run")) log(`  skipped ${s.
 
 // --- Shipping: one data PR per chunk of rows -----------------------------------------------------------------------------
 
-/** Opens a data PR with these rows applied to main's `file`: the rows commit, then (once the PR has its number) its
- *  CHANGELOG entry and version, each its own commit; Loopy asked to review. `marker`: the PR's mark (prMarker). */
+/** Opens a data PR with these rows applied to main's `file` (its one commit, its one file), labelled no-changelog; Loopy
+ *  asked to review. `marker`: the PR's mark (prMarker). */
 function openPr(o: { file: string; rows: Keyed[]; branch: string } & PrText): boolean {
-  if (DRY) { log(`would open "${o.title}": ${o.rows.length} rows, ${o.rows.map(rowKey).join(" ")}`); return true; }
-  let pr = 0;
+  if (DRY) { log(`would open "${o.title}" on ${o.branch}: ${o.rows.length} rows, ${o.rows.map(rowKey).join(" ")}`); return true; }
+  let pushed = false;
   try {
     writeFileSync(o.file, applyRows(mainText(o.file), o.rows));
     commitEach([[o.file, `${o.file}: ${o.what}`]]);
     push(o.branch);
-    const url = sh("gh", ["pr", "create", "--base", "main", "--head", o.branch, "--title", o.title, "--label", LABEL, "--body", [...o.body, "", o.marker].join("\n")]).out.trim();
-    pr = Number(url.split("/").pop());
-    const version = writeRelease(o.entry, pr);
-    commitEach([["CHANGELOG.md", `CHANGELOG.md: ${version}`], ["package.json", `package.json: ${version}`], ["package-lock.json", `package-lock.json: ${version}`]]);
-    push(o.branch);
-    askReview(pr);
-    log(`opened ${url} (${version}): ${o.title}`);
+    pushed = true;
+    const url = sh("gh", ["pr", "create", "--base", "main", "--head", o.branch, "--title", o.title, "--label", LABEL, "--label", NO_CHANGELOG, "--body", [...o.body, "", o.marker].join("\n")]).out.trim();
+    pushed = false;
+    log(`opened ${url}: ${o.title}`);
+    openNow?.add(url.split("/").pop() ?? "");
+    // Opened: a review ask that fails is made again next run (followUps).
+    askReview(Number(url.split("/").pop()), git("rev-parse", "HEAD"));
     return true;
   } catch (e) {
-    // A PR without its release would be rebuilt with another release's entry: closed instead, its rows read again
-    // next run. Either way the run goes on to the next PR, season and the sweep.
+    // The run goes on to the next PR, season and the sweep; these rows are read again next run. A branch pushed with no
+    // PR opened on it is removed: nothing else would ever close it.
     log(`"${o.title}": couldn't be opened (${(e as Error).message})`);
-    // Left open where the close fails too: the next run rebuilds it, its release made again from its rows.
-    if (pr && closePr(pr, "The autopilot couldn't finish this PR's release (CHANGELOG and version): closed; the next run reads these rows again.")) log(`#${pr}: closed without its release`);
+    if (pushed && sh("git", ["push", "--quiet", "--no-verify", "origin", "--delete", `refs/heads/${o.branch}`], { ok: true }).code) log(`  its branch ${o.branch} couldn't be removed; remove it by hand`);
     return false;
   } finally {
     // A step that failed halfway leaves its files behind: the clone is the autopilot's own, so put back to main.
@@ -384,16 +438,20 @@ for (const [season, events] of bySeason) {
     if (problems.length) log(`  ${r.code} ${r.videoId}: left out, ${problems.join("; ")}`); else good.push(r);
   }
   // Shipped: only events whose rows a PR really opened with (a failed open closes its PR; the rows are read again).
-  const opened = new Set<string>();
-  for (const chunk of chunkRows(good)) {
-    const ok = openPr({ file, rows: chunk, branch: `${BRANCH}${season}-${branchStamp}-${chunk[0].code}`, ...framesText(season, chunk, live) });
-    if (ok) for (const r of chunk) opened.add(r.code);
-  }
+  // Rows that would touch an open PR's lines, or overflow a PR Loopy can review, wait for a later run (prChunks).
+  // A row too big for any PR Loopy can review is the owner's: logged, never shipped.
+  const opened: Row[] = [], { ship, later, tooBig } = prChunks(mainText(file), good, PR_DIFF_MAX, heldRows(file));
+  for (const r of tooBig) log(`  ${r.code} ${r.videoId}: its diff alone is too big for one PR Loopy can review; left for the owner`);
+  // The chunk's index keeps two PRs of one event's rows (an event split across chunks) on two branches.
+  ship.forEach((chunk, i) => { if (openPr({ file, rows: chunk, branch: `${BRANCH}${season}-${branchStamp}-${chunk[0].code}-${i + 1}`, ...framesText(season, chunk, live) })) opened.push(...chunk); });
+  const count = (list: Row[], code: string) => list.filter((r) => r.code === code).length;
   for (const e of events) {
-    const n = good.filter((r) => r.code === e.code).length;
-    if (n && !opened.has(e.code)) { log(`  ${season}/${e.code}: its PR couldn't be opened; not counted as a try`); continue; }
-    if (!n && readFailed) { log(`  ${season}/${e.code}: the read failed; not counted as a try`); continue; }
-    remember(memory, `${season}/${e.code}`, n, n ? "shipped" : after === before ? "no new rows" : "rows refused or unchanged");
+    const key = `${season}/${e.code}`;
+    const outcome = readOutcome({ rows: count(good, e.code), opened: count(opened, e.code), waiting: count(later, e.code), tooBig: count(tooBig, e.code), readFailed });
+    if (outcome === "waits") { rememberWait(memory, key, "rows wait for an open PR's lines or the next PR"); log(`  ${key}: its rows wait for an open PR's lines or the next PR; read again later, not counted as a try`); }
+    else if (outcome === "open failed") log(`  ${key}: its PR couldn't be opened; not counted as a try`);
+    else if (outcome === "read failed") log(`  ${key}: the read failed; not counted as a try`);
+    else remember(memory, key, outcome === "shipped" ? 1 : 0, outcome === "too big" ? "rows too big for one PR (the owner's)" : outcome === "shipped" ? "shipped" : after === before ? "no new rows" : "rows refused or unchanged");
   }
 }
 
@@ -425,6 +483,10 @@ if (SWEEP && !open.some((p) => p.file === CLIPS_FILE)) {
     const problems = clipCheckProblems(c, live.get(rowKey(c)));
     if (problems.length) log(`  ${c.season} ${c.code} ${c.videoId}: left out, ${problems.join("; ")}`); else good.push(c);
   }
-  for (const chunk of chunkRows(good)) openPr({ file: CLIPS_FILE, rows: chunk, branch: `${BRANCH}clips-${branchStamp}-${chunk[0].code}`, ...clipsText(chunk, live) });
+  // The sweep runs only with no sweep PR open, so nothing is held; what overflows is swept again next run.
+  const { ship, later, tooBig } = prChunks(mainText(CLIPS_FILE), good, PR_DIFF_MAX);
+  for (const c of tooBig) log(`  ${c.season} ${c.code} ${c.videoId}: its diff alone is too big for one PR Loopy can review; left for the owner`);
+  ship.forEach((chunk, i) => openPr({ file: CLIPS_FILE, rows: chunk, branch: `${BRANCH}clips-${branchStamp}-${chunk[0].code}-${i + 1}`, ...clipsText(chunk, live) }));
+  if (later.length) log(`sweep: ${later.length} rows wait for the next run (one PR into the same lines at a time)`);
 }
 log("done");

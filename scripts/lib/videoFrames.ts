@@ -30,6 +30,8 @@ export function playedMatches(
 export const SAME_S = 6;
 /** The most frames read looking for one match. */
 export const TRIES = 7;
+/** Reads a match between two reads gets of its own once the video's budget is spent: each side's tries and a confirm. */
+export const GAP_READS = 2 * TRIES + 4;
 /** A DECODE match: 30 s of Auto, 8 s to switch, 2:00 of TeleOp (FTC Live's timer stops between them). */
 export const AUTO_S = 30, SWITCH_S = 8, TELEOP_S = 120;
 
@@ -64,7 +66,9 @@ export function overlayLabel(text: string, semifinals = false): string | null {
   const named = new Set<number>();
   // FIRST DIVE's 2024 playoff bar puts the bracket's next steps beside the match on screen ("Winner → Match 7",
   // "Loser → Match 5", AUCMP and FPECA 2024): those are later matches too, whatever the arrow reads as.
-  for (const m of text.matchAll(/(advances\s+to:?\s+(?:Playoff\s+)?|\bTest\s+|\b(?:Winner|Lo[s5]er)[^A-Za-z0-9\n]{0,8})?\bMatch\s+(\d{1,2})\b/gi)) if (!m[1]) named.add(Number(m[2]));
+  // A results banner ("Scan for detailed Playoff Match 3 results", USNYEXHJQ 2025 beside its M4) names the match
+  // just played, never the one on screen.
+  for (const m of text.matchAll(/(advances\s+to:?\s+(?:Playoff\s+)?|\bTest\s+|\b(?:Winner|Lo[s5]er)[^A-Za-z0-9\n]{0,8})?\bMatch\s+(\d{1,2})\b(\s+results\b)?/gi)) if (!m[1] && !m[3]) named.add(Number(m[2]));
   return named.size === 1 ? `M${[...named][0]}` : null;
 }
 
@@ -101,6 +105,9 @@ export function playedCount(text: string): { played: number; of: number } | null
   return m && Number(m[1]) <= Number(m[2]) ? { played: Number(m[1]), of: Number(m[2]) } : null;
 }
 
+/** A player's duration as a video length: whole seconds, or null for a live stream (Infinity), nothing loaded (NaN, 0). */
+export const wholeLength = (d: number): number | null => (Number.isFinite(d) && d >= 1 ? Math.round(d) : null);
+
 /** Seconds from a recording's start (or back from its end) its edge is read at, in turn: the first frame that names a
  *  match or counts the matches played is the edge (within EDGE_S, server/data/frameTimings.ts). */
 export const EDGE_AT = [3, 20, 45, 75, 110];
@@ -115,10 +122,20 @@ export const secondsOf = (s: string) => { const m = /(\d):([0-5]\d)/.exec(s); re
 /** secondsOf, where the font's colon is too thin for the OCR to keep ("1:17" read "117", FIRST AGE's white box): the
  *  whole reading is one timer, with or without its colon, at most 2:59. */
 export const secondsLoose = (s: string) => { const m = /^([0-2]):?([0-5]\d)$/.exec(s.replace(/\s/g, "")); return m ? Number(m[1]) * 60 + Number(m[2]) : secondsOf(s); };
+/** A crop of a bottom bar, for the same bar flipped to the top of a `height`-tall frame: the bar's rows in reverse, so
+ *  what sat `n` px off the bottom edge sits `n` px off the top (POWERPLAY's timer at y 686 of 720, 4 px above the
+ *  bottom, is at y 4 in Arizona's flipped bar). */
+export const flippedClip = (c: { x: number; y: number; width: number; height: number }, height = 720) => ({ ...c, y: height - c.y - c.height });
+
+/** The order the timer's crops are tried in: `first` (the crop the frame's bar names, or whose clock last ran) ahead,
+ *  the rest in their usual order. A `first` that isn't one of them changes nothing. */
+export const cropOrder = <T>(crops: readonly T[], first?: T | null): T[] =>
+  first != null && crops.includes(first) ? [first, ...crops.filter((c) => c !== first)] : [...crops];
+
 /** A timer that shows bare seconds (FTC Live's overlay from 2019 to 2022: Auto's "30" down to "0", the switch's "8" to
  *  "0", TeleOp's "120" to "0"): one to three digits and nothing else, at most TeleOp's 120. A colon is another bar's
  *  timer, never this one. */
-export const secondsPlain = (s: string) => { const m = /^\d{1,3}$/.exec(s.replace(/\s/g, "")); return m && Number(m[0]) <= TELEOP_S ? Number(m[0]) : null; };
+export const secondsPlain =(s: string) => { const m = /^\d{1,3}$/.exec(s.replace(/\s/g, "")); return m && Number(m[0]) <= TELEOP_S ? Number(m[0]) : null; };
 
 /** Seconds since the match started, from its timer (where it's running: a timer standing at its full time is a match
  *  not started yet). Either bar counts Auto down from 0:30, then TeleOp from 2:00, so a reading of 0:30 or less is Auto
@@ -211,6 +228,15 @@ const GENERIC = new Set(["LEAGUE", "MEET", "QUALIFIER", "QUALIFIERS", "CHAMPIONS
   "DIVE", "CANOPY", "INTO", "DEEP", "DECODE", "BIOBUZZ", "CENTERSTAGE", "POWERPLAY", "FREIGHT", "FRENZY", "ULTIMATE", "GOAL",
   "SKYSTONE", "PRESENTED", "QUALCOMM", "RTX", "ENERGIZE"]);
 const words = (s: string) => (plain(s).match(/[A-Z]{3,}/g) ?? []).filter((w) => !GENERIC.has(w));
+/** The short tokens of a name that `words` drops: a league or stage letter (FiT-North's X-League), AM/PM, a meet's
+ *  number or time ("Lawson Meet @ 8 AM"). */
+const shortTokens = (s: string) => new Set((plain(s).match(/[A-Z0-9]+/g) ?? []).filter((t) => t.length <= 2));
+/** Whether a name read beside a match clashes with this event's in a short token: one of this event's is missing and
+ *  another stands in the read ("U" for "X", "10 30" for "8"). Sibling meets of one day share every long word. */
+export function shortClash(read: string, own: string): boolean {
+  const mine = shortTokens(own), seen = shortTokens(read);
+  return [...mine].some((t) => !seen.has(t)) && [...seen].some((t) => !mine.has(t));
+}
 /** Where the overlay names a match, and the event name just before it on the same line. */
 // A semifinal (2019–2022's "Semifinal 2 Match 1", or "Semifinals Match 1" with its series lost) is taken whole, before
 // its "finals Match 1" or "Match 1" could be: overlayLabel names it by series and number (M2-1), or none.
@@ -236,7 +262,9 @@ function totalSays(total: number, quals: number): "own" | "other" | null {
  *   more are read and fewer than half of its words are this event's (a cut word matching the start or end of one). A
  *   logo misread beside the match is no name: POWERPLAY's (2022) "FIRST ENERGIZE" read "FIRST ZN=RGIZ= swe" on KZCMP's
  *   playing frames, two words, neither this event's, and every one of its matches was taken for another event's.
- *   Nor can a name read as another's overrule a total that is this event's: it's misread, not another event.
+ *   Nor can a name overrule a total either way: a total that is this event's stands over a name read as another's (a
+ *   misread), and another event's total over a name read as this event's (a sibling meet's name, told apart only by a
+ *   letter too short to be a word).
  * On a split screen the half that is this event's gives its match (`label`); `phrase`, the match beside its name.
  */
 export function overlayEvent(text: string, own: string, quals?: number, semifinals = false): { event: "own" | "other" | null; label?: string; phrase?: string } {
@@ -249,6 +277,9 @@ export function overlayEvent(text: string, own: string, quals?: number, semifina
     // at 2509 s: "rer DIVE — Nevada Chan qualification 6 of 4", its own Nevada one word in three, "Chan" its cut name).
     const telling = read.filter((w) => w.length >= 4);
     if (telling.length >= 2 && telling.filter(ours).length * 2 < telling.length) return "other";
+    // Its long words this event's, but a short one another's: a sibling meet's (FiT-North U-League AM Meet 3 for its
+    // X-League AM Meet 3). Only a total read in full can make it this event's.
+    if (hit && shortClash(name, own)) return "other";
     return hit ? "own" : null;
   };
   let other = false, ownLabel: string | undefined, ownSeen = false;
@@ -257,10 +288,12 @@ export function overlayEvent(text: string, own: string, quals?: number, semifina
     for (const m of line.matchAll(MATCH_PHRASE)) {
       const total = m[1] != null ? Number(m[1]) : null;
       const name = verdict(line.slice(from, m.index));
-      // A name read decides; with none, the total (a schedule changed after the db was read can't drop a named frame).
-      // A name read as another's beside this event's own total is a misread: the total stands.
+      // The total, where read, decides: a name read as another's beside this event's own total is a misread, and a name
+      // read as this event's beside another event's total is a sibling's (FiT-North's league meets of one day, each on
+      // its own field's stream: "FiT-North U-League AM Meet 3 · Qualification 5 of 23" reads as FiT-North X-League AM
+      // Meet 3's own name, its league letter too short to be a word, and X-League has 19). With no total, the name.
       const byTotal = quals && total != null ? totalSays(total, quals) : null;
-      const v = name === "other" && byTotal === "own" ? "own" : name ?? byTotal;
+      const v = byTotal ?? name;
       from = m.index! + m[0].length;
       if (v === "other") other = true;
       if (v === "own" && !ownSeen) { ownSeen = true; ownLabel = overlayLabel(m[0], semifinals) ?? undefined; }
@@ -481,3 +514,10 @@ export function judge(ms: M[], seen: Map<number, number>, shift: number | null, 
   return { placed: placedAt, review, missing, earlyStart, opens: new Map() };
 }
 
+/** A match with reads on both sides of it (a scheduled match's read says nothing of the clock): it is in the recording
+ *  unless a cut took it out, so it is still looked for once the video's read budget is spent (GAP_READS). */
+export function between(ms: M[], seen: Map<number, number>, i: number): boolean {
+  let lo = false, hi = false;
+  for (const k of seen.keys()) if (!ms[k].scheduled) { if (k < i) lo = true; else if (k > i) hi = true; }
+  return lo && hi;
+}

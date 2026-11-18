@@ -45,6 +45,12 @@ const ctx: ParseContext = {
 const parse = (q: string) => parseQuery(q, ctx);
 
 describe("slots", () => {
+  it("reads \"ranked\" beside the best team as the board's own order, a whole leaderboard question", async () => {
+    for (const q of ["best romanian team ranked", "best team ranked in romania", "best ranked team in romania"]) {
+      const p = await parse(q);
+      expect([p.intent, p.complete, p.place?.name], q).toEqual(["leaderboard", true, "Romania"]);
+    }
+  });
   it("a word a question asks about names a team only typed as the team's whole name", async () => {
     const near = { ...ctx, nearTeam: async (w: string) => ctx.names.nearTeam(w) };
     for (const q of ["nj states alliances", "most inspire awards", "inspire award winners"]) expect((await parseQuery(q, near)).teams, q).toEqual([]);
