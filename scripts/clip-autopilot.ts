@@ -37,7 +37,7 @@ import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { gunzipSync } from "node:zlib";
 import { applyRows, changedRows, fileRows, prChunks, prMarker, readMarker, rowKey, rowProblems, type Keyed, type Row } from "./lib/autopilotRows";
-import { askDue, forgetSettled, laneStep, needsRebuild, overLimit, parseLanes, parseShard, pickEvents, prShard, readOutcome, remember, rememberTimeout, rememberWait, rowsDelta, shardOf, type Memory } from "./lib/autopilotRun";
+import { askDue, forgetSettled, laneResults, laneStep, needsRebuild, overLimit, parseLanes, parseShard, pickEvents, prShard, readOutcome, remember, rememberTimeout, rememberWait, rowsDelta, shardOf, type LaneJob, type Memory } from "./lib/autopilotRun";
 import { loopySummary, reviewedSha, type IssueComment } from "./lib/autopilotMerge";
 import { clipCheckProblems, clipsDelta } from "./lib/autopilotClips";
 import { streamRun } from "./lib/streamRun";
@@ -342,12 +342,11 @@ const inShard = (k: number) => (SHARD.n > 1 ? queue.filter((q) => shardOf(`${q.s
 const mine = inShard(SHARD.k);
 // What it remembers covers its lanes' events too: forgotten only once an event leaves the whole queue.
 forgetSettled(memory, new Set(queue.filter((q) => q.frames.state === "queued").map((q) => `${q.season}/${q.code}`)));
-// Events in a job sent to a lane and not collected yet are read there: held like an open PR's (a lane's job file here
-// is removed when its results are collected).
-for (const lane of LANES) {
-  const f = join(DIR, "lanes", String(lane.k), "job.json");
-  if (existsSync(f)) for (const x of (JSON.parse(readFileSync(f, "utf8")) as { seasons: { season: number; codes: string[] }[] }).seasons) for (const c of x.codes) inPr.add(`${x.season}/${c}`);
-}
+// Events in a job sent to a lane and not collected yet are read there: held like an open PR's. The job file here is
+// this computer's own record of what it sent (written once the send succeeded, removed once its results are in).
+const laneJobFile = (k: number) => join(DIR, "lanes", String(k), "job.json");
+const laneJob = (k: number): LaneJob | null => { try { return JSON.parse(readFileSync(laneJobFile(k), "utf8")); } catch { return null; } };
+for (const lane of LANES) for (const x of laneJob(lane.k)?.seasons ?? []) for (const c of x.codes) inPr.add(`${x.season}/${c}`);
 const { picked, skipped } = pickEvents(mine, inPr, memory, MAX);
 log(`queue: ${queue.filter((q) => q.frames.state === "queued").length} events queued${SHARD.n > 1 ? `, ${mine.filter((q) => q.frames.state === "queued").length} in shard ${SHARD.k}/${SHARD.n}` : ""}; reading ${picked.map((q) => `${q.season}/${q.code} (${q.frames.due})`).join(", ") || "none"}`);
 for (const s of skipped.filter((x) => x.why !== "next run")) log(`  skipped ${s.event}: ${s.why}`);
@@ -476,50 +475,69 @@ async function settle(season: number, codes: string[], read: { changed: Row[]; r
 }
 
 // --- 3b. Lanes: what each read is collected and shipped, and its next job sent ------------------------------------------
+// A lane holds no credentials and this computer does, so nothing a lane writes is taken as it is: its state only picks
+// the step (laneStep, against this computer's own job record), and its results are kept to that job's seasons, codes
+// and rows (laneResults) before they're checked like any read's.
 const LANE_HOME = "control-scout-autopilot";
 const laneSsh = (host: string, cmd: string) => sh("ssh", ["-o", "BatchMode=yes", "-o", "ConnectTimeout=20", host, cmd], { timeoutMs: 120_000 });
 const rsync = (from: string, to: string, timeoutMs: number) => sh("rsync", ["-a", "-e", "ssh -o BatchMode=yes", from, to], { timeoutMs });
 for (const lane of DRY ? [] : LANES) {
   const name = `lane ${lane.k} (${lane.host})`, here = join(DIR, "lanes", String(lane.k)), there = `${LANE_HOME}/.data/lane`;
   try {
-    const step = laneStep(laneSsh(lane.host, `cat ${there}/state.json 2>/dev/null || true`).out);
-    if (step.do === "collect") {
-      const id = step.state.id!, local = join(here, id);
-      mkdirSync(local, { recursive: true });
-      rsync(`${lane.host}:${there}/results/${id}/`, `${local}/`, 600_000);
-      if (step.state.state === "failed") log(`${name}: job ${id} failed (${step.state.why}); what it finished is shipped, the rest sent again, not counted as tried`);
-      for (const f of readdirSync(local).filter((x) => /^\d+\.json$/.test(x))) {
-        const r = JSON.parse(readFileSync(join(local, f), "utf8")) as { season: number; codes: string[]; changed: Row[]; readFailed: boolean; stopped: [string, string | undefined][] };
-        log(`${name}: collected ${r.season} ${r.codes.join(",")}: ${r.changed.length} rows changed${r.readFailed ? ", a read failed" : ""}`);
-        if (!existsSync(seasonFile(r.season))) { log(`  ${r.season}: no ${seasonFile(r.season)} here; left`); continue; }
-        await settle(r.season, r.codes, { changed: r.changed, readFailed: r.readFailed, stopped: new Map(r.stopped) });
-      }
-      // Collected: the lane is idle again, and its events leave the held set only now.
-      laneSsh(lane.host, `cd ${there} && rm -rf results/${id} && printf '%s' '{"state":"idle"}' > state.json`);
-      rmSync(join(here, "job.json"), { force: true });
-    } else if (step.do === "wait") {
+    const job = laneJob(lane.k), step = laneStep(laneSsh(lane.host, `cat ${there}/state.json 2>/dev/null || true`).out, job);
+    if (step.do === "wait") {
       log(`${name}: ${step.state.state}${step.state.id ? ` job ${step.state.id}` : ""}${step.state.at ? ` since ${step.state.at}` : ""}${step.state.why ? `: ${step.state.why}` : ""}`);
       continue;
-    } else if (step.do === "kick") {
+    }
+    if (step.do === "kick") {
       laneSsh(lane.host, "launchctl kickstart gui/$(id -u)/org.controlscout.clip-lane");
-      log(`${name}: job ${step.state.id} not started within an hour: started again`);
+      log(`${name}: job ${job!.id} not started within an hour: started again`);
       continue;
+    }
+    if (step.do === "reset") {
+      // Its state names no job this computer has outstanding there (one collected already, or never sent): nothing of
+      // it is read; the lane is set idle for its next job.
+      laneSsh(lane.host, `printf '%s' '{"state":"idle"}' > ${there}/state.json`);
+      log(`${name}: its state (${step.state.state}${step.state.id ? ` ${step.state.id}` : ""}) names no job sent to it: set idle`);
+    }
+    if (step.do === "collect") {
+      const id = job!.id, local = join(here, id);
+      mkdirSync(local, { recursive: true });
+      rsync(`${lane.host}:${there}/results/${id}/`, `${local}/`, 600_000);
+      // Collected before anything is shipped: the lane is idle and the job record gone first, so a run that fails while
+      // shipping never collects (and ships) the same rows again. Events it didn't ship are read again later.
+      laneSsh(lane.host, `cd ${there} && rm -rf results/${id} && printf '%s' '{"state":"idle"}' > state.json`);
+      rmSync(laneJobFile(lane.k), { force: true });
+      if (step.state.state === "failed") log(`${name}: job ${id} failed (${step.state.why ?? "no reason given"}); what it finished is shipped, the rest read again, not counted as tried`);
+      const files = readdirSync(local).filter((x) => x.endsWith(".json")).map((x) => ({ name: x, text: readFileSync(join(local, x), "utf8") }));
+      for (const r of laneResults(job!, files)) {
+        log(`${name}: collected ${r.season} ${r.codes.join(",")}: ${r.changed.length} rows changed${r.readFailed ? ", a read failed" : ""}`);
+        if (!existsSync(seasonFile(r.season))) { log(`  ${r.season}: no ${seasonFile(r.season)} here; left`); continue; }
+        try {
+          for (const row of await settle(r.season, r.codes, r)) inPr.add(`${r.season}/${row.code}`);
+        } catch (e) { log(`  ${r.season}: couldn't be shipped (${(e as Error).message}); its events are read again later`); }
+      }
     }
     // Idle: its next job, from its own shard (what this computer remembers of each event, and the held set, as its own).
     const { picked: next } = pickEvents(inShard(lane.k), inPr, memory, MAX);
     if (!next.length) { log(`${name}: nothing in its shard to read`); continue; }
-    const seasons = [...new Set(next.map((q) => q.season))].map((season) => ({ season, codes: next.filter((q) => q.season === season).map((q) => q.code) }));
-    const job = { id: STAMP, seasons };
+    const job2: LaneJob = { id: STAMP, seasons: [...new Set(next.map((q) => q.season))].map((season) => ({ season, codes: next.filter((q) => q.season === season).map((q) => q.code) })) };
     mkdirSync(here, { recursive: true });
-    writeFileSync(join(here, "job.json"), JSON.stringify(job));
-    // The snapshot goes gzipped when this run took one (a fifth of the size); the lane unpacks it.
-    const gz = join(DIR, "snapshot.db.gz"), send = !DB && existsSync(gz) ? gz : snapshot;
-    laneSsh(lane.host, `mkdir -p ${there} && rm -f ${there}/snapshot.db ${there}/snapshot.db.gz`);
-    rsync(send, `${lane.host}:${there}/${send.endsWith(".gz") ? "snapshot.db.gz" : "snapshot.db"}`, 1_800_000);
-    rsync(join(here, "job.json"), `${lane.host}:${there}/job.json`, 120_000);
-    laneSsh(lane.host, `printf '%s' '${JSON.stringify({ state: "queued", id: job.id, at: new Date().toISOString() })}' > ${there}/state.json && launchctl kickstart gui/$(id -u)/org.controlscout.clip-lane`);
+    const sending = join(here, "job.sending.json");
+    writeFileSync(sending, JSON.stringify(job2));
+    try {
+      // The snapshot goes gzipped when this run took one (a fifth of the size); the lane unpacks it.
+      const gz = join(DIR, "snapshot.db.gz"), send = !DB && existsSync(gz) ? gz : snapshot;
+      laneSsh(lane.host, `mkdir -p ${there} && rm -f ${there}/snapshot.db ${there}/snapshot.db.gz`);
+      rsync(send, `${lane.host}:${there}/${send.endsWith(".gz") ? "snapshot.db.gz" : "snapshot.db"}`, 1_800_000);
+      rsync(sending, `${lane.host}:${there}/job.json`, 120_000);
+      laneSsh(lane.host, `printf '%s' '${JSON.stringify({ state: "queued", id: job2.id, at: new Date().toISOString() })}' > ${there}/state.json`);
+      // Sent: only now is it this computer's record (its events held until collected).
+      writeFileSync(laneJobFile(lane.k), JSON.stringify(job2));
+    } finally { rmSync(sending, { force: true }); }
     for (const q of next) inPr.add(`${q.season}/${q.code}`);
-    log(`${name}: sent job ${job.id}: ${next.map((q) => `${q.season}/${q.code} (${q.frames.due})`).join(", ")}`);
+    laneSsh(lane.host, "launchctl kickstart gui/$(id -u)/org.controlscout.clip-lane");
+    log(`${name}: sent job ${job2.id}: ${next.map((q) => `${q.season}/${q.code} (${q.frames.due})`).join(", ")}`);
   } catch (e) { log(`${name}: ${(e as Error).message}; tried again next run`); }
 }
 
