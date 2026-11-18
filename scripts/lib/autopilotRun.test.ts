@@ -248,7 +248,7 @@ describe("lanes: computers with no credentials, each reading a shard for the one
   });
   it("a lane still running past every read's limits was killed: what it finished is collected", () => {
     const at = new Date(NOW).toISOString();
-    expect(laneJobMs(job)).toBe(19 * 3600_000);
+    expect(laneJobMs(job)).toBe(31 * 3600_000);
     expect(laneStep(st({ state: "running", id: job.id, at }), job, NOW + laneJobMs(job)).do).toBe("wait");
     const late = laneStep(st({ state: "running", id: job.id, at }), job, NOW + laneJobMs(job) + 1);
     expect(late.do).toBe("collect");
