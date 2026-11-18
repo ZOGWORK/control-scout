@@ -105,6 +105,12 @@ export async function fetchWatchPage(videoId: string, fetchImpl: typeof fetch = 
   }
 }
 
+/** What a channel's uploads list gives for a video in place of its title while YouTube hides it there ("Deleted
+ *  video", "Private video"): not its title, which YouTube's videos list still gives (NYC FIRST's bjwZWaiMwnc, public,
+ *  listed as "Deleted video" on 2026-11-17). Never written over a title, never read as one; the
+ *  channel audit and the channel broadcasts both read it here. */
+export const isPlaceholderTitle = (t: unknown) => /^(deleted|private) video$/i.test(String(t ?? "").trim());
+
 /** "PT4H35M41S" → 16541; "P0D" (a broadcast still live) and anything unreadable → null. */
 export function isoDuration(d: string | undefined): number | null {
   const m = d ? /^P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/.exec(d) : null;

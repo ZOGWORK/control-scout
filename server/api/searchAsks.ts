@@ -99,7 +99,9 @@ function leaderWords(t: string): { t: string; opened: boolean } {
   const opener = /^(?:what|who|which)(?: is| are|s)? (?:the )?/;
   const opened = opener.test(t);
   t = t.replace(opener, "").replace(/(?:^| )(?:in |of )?(?:ftc|first tech challenge)(?= |$)/g, " ").replace(SCOPE_WORDS, " ")
-    .replace(/\s+/g, " ").trim();
+    .replace(/\s+/g, " ").trim()
+    // "Ranked" beside the best says the board's own order ("best ranked team in nj", "best nj team ranked").
+    .replace(/^((?:the )?(?:top|best|strongest))[ -]ranked\b/, "$1").replace(/ ranked$/, "");
   return { t, opened };
 }
 
