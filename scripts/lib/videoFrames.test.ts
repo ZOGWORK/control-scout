@@ -1,7 +1,7 @@
 // The pure parts of the frame reader (scripts/video-frames.ts): the overlay's match, the timer's elapsed time, and
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
-import { dataRows, divisionOf, cropOrder, elapsed, flippedClip, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, type M } from "./videoFrames";
+import { dataRows, divisionOf, cropOrder, elapsed, flippedClip, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, splitSide, splitZoomCss, type M } from "./videoFrames";
 
 describe("the frame reader", () => {
   // A 1280 × 720 frame: a grey field, and a score bar from `top` to `bottom` with one alliance's colour each side of the
@@ -559,5 +559,36 @@ describe("wholeLength", () => {
     expect(wholeLength(Infinity)).toBeNull();
     expect(wholeLength(NaN)).toBeNull();
     expect(wholeLength(0)).toBeNull();
+  });
+});
+
+describe("split streams (two meets side by side, each with a half-size bar)", () => {
+  // USTXCENSAM4 2022 (Hill Country Field Meet 2, 23 qualifications) on the left of eLRdyhrd4Ug, North San's Meet 2 (24)
+  // on the right: their bar rows read zoomed to each half at 4688 s. Unzoomed, the row reads nothing.
+  const hill = "TX-Central Hill Country Field Meet 2";
+  const left = "FIRST INSRGI]= —— Qualification 9 of 23 Y( Sountry Field Meet2  TXC POWRZ) PY =\n\n";
+  const right = "FIRST INCRGIJ= .—— Qualification 7 of 24 BC “X-Central North San Field Me POWRE) Py =\n";
+
+  it("a half's row names its own meet and not the other half's", () => {
+    expect(overlayEvent(left, hill, 23).event).toBe("own");
+    expect(overlayEvent(right, hill, 23).event).not.toBe("own");
+    expect(overlayEvent(right, "TX-Central North San Field Meet 2", 24).event).toBe("own");
+  });
+
+  it("picks the half named at two reads or more, the other never", () => {
+    const reads = (l: ("own" | "other" | null)[], r: ("own" | "other" | null)[]) =>
+      [...l.map((event) => ({ side: "left" as const, event })), ...r.map((event) => ({ side: "right" as const, event }))];
+    expect(splitSide(reads(["own", null, "own"], ["other", "other", null]))).toBe("left");
+    expect(splitSide(reads([null, "other"], ["own", "own", "own"]))).toBe("right");
+    // One read alone, or both halves named (two meets alike), or neither (no split): no half.
+    expect(splitSide(reads(["own", null], [null, null]))).toBeNull();
+    expect(splitSide(reads(["own", "own"], ["own", null]))).toBeNull();
+    expect(splitSide(reads([null, null], [null, "other"]))).toBeNull();
+  });
+
+  it("zooms twice from the half's own edge at mid-height", () => {
+    expect(splitZoomCss("left")).toContain("transform-origin: 0 50%");
+    expect(splitZoomCss("right")).toContain("transform-origin: 100% 50%");
+    expect(splitZoomCss("left")).toContain("scale(2)");
   });
 });

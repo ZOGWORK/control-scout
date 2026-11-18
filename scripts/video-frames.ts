@@ -36,7 +36,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
 import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, playedCount, playedMatches, wholeLength } from "./lib/videoFrames";
-import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, cropOrder, elapsed, flippedClip, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M } from "./lib/videoFrames";
+import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, cropOrder, elapsed, flippedClip, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, splitSide, splitZoomCss, SPLIT_SIDES, type SplitSide, type Judged, type M } from "./lib/videoFrames";
 
 // The command line: --name value or --name=value for the value flags, --name alone for the others. Anything else stops
 // the run before it reads: a misspelt flag mustn't quietly read (and write) every recording of the season.
@@ -308,6 +308,34 @@ async function seek(page: Page, t: number, still = false) {
   }), [t, still] as const);
   await page.waitForFunction((still) => document.querySelector("video")!.readyState >= (still ? 2 : 3), still, { timeout: 20000 }).catch(() => {});
   await page.waitForTimeout(900);
+}
+
+/** Zoom the player onto one half of a split stream (splitZoomCss), or back to the whole frame (null). */
+async function zoom(page: Page, side: SplitSide | null) {
+  await within(page.evaluate((css) => {
+    let s = document.getElementById("__split");
+    if (!s) { s = document.createElement("style"); s.id = "__split"; document.head.append(s); }
+    s.textContent = css;
+  }, side ? splitZoomCss(side) : ""), 30, "zooming the player");
+}
+/** Seconds through the video, as fractions of it, the bar's row is read at on each half to find a split stream's. */
+const SPLIT_SAMPLES = [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8];
+/** The half of a split stream this event is on (splitSide): its bar's row read zoomed to each half, paused at each of
+ *  SPLIT_SAMPLES. The player is left zoomed to the whole frame. */
+async function findSplit(page: Page, length: number): Promise<SplitSide | null> {
+  const own = pageEvent.get(page);
+  if (!own) return null;
+  const reads: { side: SplitSide; event: "own" | "other" | null }[] = [];
+  for (const side of SPLIT_SIDES) {
+    await zoom(page, side);
+    for (const f of SPLIT_SAMPLES) {
+      await within(seek(page, Math.round(length * f), true), READ_LIMIT_S, `a split check at ${Math.round(length * f)} s`);
+      const text = (await rowOcr.recognize(await page.screenshot({ clip: LABEL_ROW }))).data.text as string;
+      reads.push({ side, event: overlayEvent(text, own.name, own.quals, SEMIFINALS).event });
+    }
+  }
+  await zoom(page, null);
+  return splitSide(reads);
 }
 
 /** What the frame at second t shows: the match its overlay names and, while that match is being played, the second it
@@ -1164,6 +1192,17 @@ async function doCode(code: string): Promise<void> {
         await open(page, v.videoId);
         unread.clear();
         j = await placeVideo(page, mine, from == null ? null : -from, m.length!, log, unread, live, liveMedium);
+      }
+      // Still nothing: two meets split on one stream, each bar too small to read (findSplit). Read again zoomed to this
+      // event's half, every crop reading its bar where a full-size one would be.
+      if (!j.placed.size && !j.review.size && [...j.missing.values()].every((w) => w === NOTHING_READ)) {
+        const side = await findSplit(page, m.length!);
+        if (side) {
+          log(`    a split stream: this event's on its ${side} half, read zoomed to it`);
+          await zoom(page, side);
+          unread.clear();
+          j = await placeVideo(page, mine, from == null ? null : -from, m.length!, log, unread, live, liveMedium);
+        }
       }
       const out = new Map([...j.placed].map(([l, p]) => [l, p.t]));
       for (const l of out.keys()) held.add(l);
