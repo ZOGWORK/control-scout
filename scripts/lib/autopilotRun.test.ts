@@ -2,7 +2,7 @@
 // nothing new is tried again, and what its data PR's CHANGELOG entry says.
 import { describe, expect, it } from "vitest";
 import { nextRelease, parseChangelog } from "../../src/lib/changelog";
-import { ASK_EVERY_MS, GIVE_UP, RETRY_MS, WAIT_MS, askDue, changelogEntry, forgetSettled, needsRebuild, nextVersion, pickEvents, readOutcome, remember, rememberWait, rowsDelta, waitBackoff, type Memory, type Queued } from "./autopilotRun";
+import { ASK_EVERY_MS, GIVE_UP, RETRY_MS, TIMEOUTS_TO_TRY, WAIT_MS, askDue, changelogEntry, forgetSettled, needsRebuild, nextVersion, LANE_KICK_MS, laneJobMs, laneResults, laneStep, overLimit, parseLanes, parseShard, pickEvents, prShard, readOutcome, remember, rememberTimeout, rememberWait, rowsDelta, shardOf, waitBackoff, type Memory, type Queued } from "./autopilotRun";
 import type { Row } from "./autopilotRows";
 
 const NOW = Date.parse("2026-11-17T12:00:00Z");
@@ -63,6 +63,58 @@ describe("events whose rows wait", () => {
     rememberWait(m, "2025/A", "rows wait", NOW);
     remember(m, "2025/A", 0, "no new rows", NOW);
     expect(m["2025/A"]).toEqual({ tries: 1, last: new Date(NOW).toISOString(), result: "no new rows" });
+  });
+});
+
+describe("events the reader stops at its per-event limit", () => {
+  it("reads which events were stopped, and on which video, from the reader's stderr", () => {
+    const err = [
+      "09:12:03 USMIAVLT CraHqQLvMrw: 68 matches",
+      "USMIAVLT: over its 180 min limit with video CraHqQLvMrw unfinished: stopped part way, the videos it finished kept, the rest read on the next run",
+      "ROBUQ2: over its 180 min limit: stopped part way, the videos it finished kept, the rest read on the next run",
+      "USTXQ: the database read failed (not read)",
+      "1 events stopped at their 180 min limit (their finished videos written)",
+    ].join("\n");
+    expect([...overLimit(err)]).toEqual([["USMIAVLT", "CraHqQLvMrw"], ["ROBUQ2", undefined]]);
+    expect(overLimit("").size).toBe(0);
+  });
+
+  it("a stop with no new row is a timeout; one that wrote rows is progress, as any read that shipped or waited", () => {
+    const o = (x: Partial<Parameters<typeof readOutcome>[0]>) => readOutcome({ rows: 0, opened: 0, waiting: 0, tooBig: 0, readFailed: true, ...x });
+    expect(o({ timedOut: true, changed: 0 })).toBe("timed out");
+    expect(o({ timedOut: true, changed: 3, rows: 3, opened: 3 })).toBe("shipped");
+    expect(o({ timedOut: true, changed: 2, rows: 2, waiting: 2 })).toBe("waits");
+    // Rows written but all refused: progress all the same (not a timeout), and not counted as a try (the read failed).
+    expect(o({ timedOut: true, changed: 2 })).toBe("read failed");
+  });
+
+  it("one that never gets past the limit isn't read every run forever: the second stop in a row with nothing new counts a try", () => {
+    const m: Memory = {};
+    // First stop: read again after WAIT_MS, its tries untouched.
+    expect(rememberTimeout(m, "2024/USX", "vid1", NOW)).toBe("again");
+    expect(m["2024/USX"]).toEqual({ tries: 0, last: new Date(NOW).toISOString(), result: "stopped at the per-event limit on video vid1", timeouts: 1, video: "vid1" });
+    expect(pickEvents([q("USX", 1)].map((x) => ({ ...x, season: 2024 })), new Set(), m, 5, NOW + WAIT_MS - 1).skipped[0].why).toMatch(/^stopped at the reader's per-event limit with nothing new/);
+    expect(pickEvents([q("USX", 1)].map((x) => ({ ...x, season: 2024 })), new Set(), m, 5, NOW + WAIT_MS).picked).toHaveLength(1);
+    // Second in a row: a try, and the usual RETRY_MS from there.
+    expect(TIMEOUTS_TO_TRY).toBe(2);
+    expect(rememberTimeout(m, "2024/USX", "vid1", NOW + WAIT_MS)).toBe("counted");
+    expect(m["2024/USX"]).toEqual({ tries: 1, last: new Date(NOW + WAIT_MS).toISOString(), result: "stopped at the per-event limit on video vid1, 2 runs in a row with nothing new" });
+    expect(pickEvents([q("USX", 1)].map((x) => ({ ...x, season: 2024 })), new Set(), m, 5, NOW + WAIT_MS + RETRY_MS - 1).picked).toEqual([]);
+    // Every two stops count one try: after GIVE_UP tries it's left for the owner, never read every run.
+    for (let i = 0; i < 2 * (GIVE_UP - 1); i++) rememberTimeout(m, "2024/USX", "vid1", NOW);
+    expect(m["2024/USX"].tries).toBe(GIVE_UP);
+    expect(pickEvents([q("USX", 1)].map((x) => ({ ...x, season: 2024 })), new Set(), m, 5, NOW + 10 * RETRY_MS).skipped[0].why).toMatch(/^read 3 times with nothing new/);
+  });
+
+  it("progress between stops starts the streak again", () => {
+    const m: Memory = {};
+    rememberTimeout(m, "2024/USX", "vid1", NOW);
+    remember(m, "2024/USX", 4, "shipped", NOW);
+    expect(m["2024/USX"]).toBeUndefined();
+    expect(rememberTimeout(m, "2024/USX", "vid2", NOW)).toBe("again");
+    rememberWait(m, "2024/USX", "rows wait", NOW);
+    expect(m["2024/USX"].timeouts).toBeUndefined();
+    expect(rememberTimeout(m, "2024/USX", undefined, NOW)).toBe("again");
   });
 });
 
@@ -132,5 +184,97 @@ describe("the data PR", () => {
 
   it("numbers releases as the app does", () => {
     for (const v of ["7.2.8", "7.2.9", "7.9.9", "1.0.0"]) expect(nextVersion(v)).toBe(nextRelease(v));
+  });
+});
+
+describe("shards: several computers, each its own part of the queue", () => {
+  const keys = Array.from({ length: 600 }, (_, i) => `${2019 + (i % 7)}/US${i}X`);
+  it("puts every event in exactly one shard, the same on every run, and spreads them", () => {
+    const counts = [0, 0, 0];
+    for (const k of keys) { const s = shardOf(k, 3); expect(s).toBe(shardOf(k, 3)); counts[s]++; }
+    expect(counts.reduce((a, b) => a + b)).toBe(600);
+    for (const c of counts) expect(c).toBeGreaterThan(150);
+    // The same code in two seasons is two events: each has its own shard, by its own key.
+    expect(shardOf("2022/ROBUQ1", 3)).toBe(shardOf("2022/ROBUQ1", 3));
+    expect(keys.every((k) => shardOf(k, 1) === 0)).toBe(true);
+  });
+  it("reads --shard K/N, every event without it, and refuses anything else", () => {
+    expect(parseShard(undefined)).toEqual({ k: 0, n: 1 });
+    expect(parseShard("2/3")).toEqual({ k: 2, n: 3 });
+    for (const bad of ["3/3", "1/0", "-1/3", "a/3", "1", "1/3/5", ""]) expect(parseShard(bad)).toBeNull();
+  });
+  it("a PR is kept by the shard that opened it (its first event's), a sweep PR by shard 0", () => {
+    const pr = { season: 2024, rows: ["vidB|USTXB", "vidA|USMIA"] };
+    expect(prShard(pr, 3)).toBe(shardOf("2024/USMIA", 3));
+    expect(prShard({ ...pr, file: "server/data/clipChecks.ts" }, 3)).toBe(0);
+    expect(prShard({ season: 2024, rows: [] }, 3)).toBe(0);
+    // A PR one shard opened holds only its events, so whichever row is first, it's that shard's.
+    const codes = Array.from({ length: 60 }, (_, i) => `US${i}Y`).filter((c) => shardOf(`2024/${c}`, 3) === 1).slice(0, 3);
+    expect(codes).toHaveLength(3);
+    for (const order of [codes, [...codes].reverse()]) expect(prShard({ season: 2024, rows: order.map((c) => `v${c}|${c}`) }, 3)).toBe(1);
+  });
+});
+
+describe("lanes: computers with no credentials, each reading a shard for the one that has them", () => {
+  it("reads --lanes K=user@host,… and refuses a shard that's this computer's, out of range, or given twice", () => {
+    const shard = { k: 0, n: 3 };
+    expect(parseLanes(undefined, shard)).toEqual([]);
+    expect(parseLanes("1=lexie@100.77.36.51, 2=derek@100.64.169.42", shard)).toEqual([{ k: 1, host: "lexie@100.77.36.51" }, { k: 2, host: "derek@100.64.169.42" }]);
+    for (const bad of ["0=a@b", "3=a@b", "1=a@b,1=c@d", "1=lexie", "x=a@b", "1=a@b;rm -rf ~"]) expect(typeof parseLanes(bad, shard)).toBe("string");
+  });
+  const job = { id: "2026-11-18T10-00-00", seasons: [{ season: 2024, codes: ["USMIAVLT", "USTXWYQ"] }] };
+  const st = (o: object) => JSON.stringify(o);
+  it("collects the job it sent when done or failed, waits on one running, starts again one queued too long, sends to an idle lane", () => {
+    const at = new Date(NOW).toISOString(), id = job.id;
+    expect(laneStep("", null).do).toBe("dispatch");
+    expect(laneStep(st({ state: "idle" }), job).do).toBe("dispatch");
+    expect(laneStep(st({ state: "done", id, at }), job)).toEqual({ do: "collect", state: { state: "done", id, at } });
+    expect(laneStep(st({ state: "failed", id, at, why: "exit 3" }), job).do).toBe("collect");
+    expect(laneStep(st({ state: "running", id, at }), job, NOW + 10 * 3600_000).do).toBe("wait");
+    expect(laneStep(st({ state: "queued", id, at }), job, NOW + LANE_KICK_MS).do).toBe("wait");
+    expect(laneStep(st({ state: "queued", id, at }), job, NOW + LANE_KICK_MS + 1).do).toBe("kick");
+  });
+  it("trusts nothing the lane writes: a state naming no job it was sent is reset, a strange id or file waited on", () => {
+    const at = new Date(NOW).toISOString();
+    // Done or queued for another job (one collected already, or never sent): set idle, its results never read.
+    for (const state of ["done", "failed", "queued"]) {
+      expect(laneStep(st({ state, id: "2026-11-17T01-00-00", at }), job).do).toBe("reset");
+      expect(laneStep(st({ state, id: job.id, at }), null).do).toBe("reset");
+    }
+    // An id that could reach a path or a command: never used.
+    for (const id of ["../../.ssh", "x; rm -rf ~", "a b", "", 5]) expect(laneStep(st({ state: "done", id, at }), { ...job, id: String(id) }).do).toBe("wait");
+    expect(laneStep("{oops", job).do).toBe("wait");
+    expect(laneStep("[1]", job).do).toBe("wait");
+  });
+  it("a lane still running past every read's limits was killed: what it finished is collected", () => {
+    const at = new Date(NOW).toISOString();
+    expect(laneJobMs(job)).toBe(31 * 3600_000);
+    expect(laneStep(st({ state: "running", id: job.id, at }), job, NOW + laneJobMs(job)).do).toBe("wait");
+    const late = laneStep(st({ state: "running", id: job.id, at }), job, NOW + laneJobMs(job) + 1);
+    expect(late.do).toBe("collect");
+    expect(late.state.state).toBe("failed");
+    // Running some other job (not this computer's): waited on, never collected.
+    expect(laneStep(st({ state: "running", id: "2026-11-17T01-00-00", at }), job, NOW + 100 * 3600_000).do).toBe("wait");
+  });
+  it("keeps a lane's results to the job: its seasons, its codes, rows of them; a missing or broken file is a failed read", () => {
+    const row = (code: string, videoId = "v1") => ({ videoId, code, starts: {} });
+    const files = [
+      { name: "2024.json", text: JSON.stringify({ season: 2024, codes: ["USMIAVLT", "USEVIL"], changed: [row("USMIAVLT"), row("USEVIL"), { code: "USTXWYQ" }, null], readFailed: false, stopped: [["USTXWYQ", "vid9"], ["USEVIL", "x"], ["USMIAVLT", 7]] }) },
+      { name: "2019.json", text: JSON.stringify({ season: 2019, codes: ["X"], changed: [row("X")], readFailed: false, stopped: [] }) },
+    ];
+    const [r] = laneResults(job, files);
+    expect(laneResults(job, files)).toHaveLength(1);
+    expect(r.season).toBe(2024);
+    expect(r.codes).toEqual(["USMIAVLT", "USTXWYQ"]);
+    expect(r.changed).toEqual([row("USMIAVLT")]);
+    expect(r.readFailed).toBe(false);
+    expect([...r.stopped]).toEqual([["USTXWYQ", "vid9"]]);
+    for (const text of ["", "{", JSON.stringify({ season: "2024" }), JSON.stringify({ season: 2023 })]) {
+      const [x] = laneResults(job, [{ name: "2024.json", text }]);
+      expect(x).toEqual({ season: 2024, codes: job.seasons[0].codes, changed: [], readFailed: true, stopped: new Map() });
+    }
+    expect(laneResults(job, [])[0].readFailed).toBe(true);
+    // readFailed only false when the lane says so plainly.
+    expect(laneResults(job, [{ name: "2024.json", text: JSON.stringify({ season: 2024, changed: [] }) }])[0].readFailed).toBe(true);
   });
 });
