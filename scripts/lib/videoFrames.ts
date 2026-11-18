@@ -442,6 +442,24 @@ export function frameDivision(read: { label: string | null; division?: "own" | "
   return null;
 }
 
+/** A frame read that ran past its time limit (READ_LIMIT_S): the OCR workers are replaced when one is thrown. */
+export class ReadHung extends Error {}
+
+/**
+ * Runs a frame read, and once more if it hung: one stuck OCR job late in a six-hour stream (Iowa 2019 at 11207 s
+ * and 21800 s) otherwise fails the whole video, every start in it written "couldn't be played". `ready` waits for
+ * the fresh workers and says whether to try again (false when they couldn't be replaced). A second hang, or any
+ * other error, is thrown as it was.
+ */
+export async function onceMoreIfHung<T>(read: () => Promise<T>, ready: () => Promise<boolean>): Promise<T> {
+  try {
+    return await read();
+  } catch (e) {
+    if (!(e instanceof ReadHung) || !(await ready())) throw e;
+    return read();
+  }
+}
+
 const plain = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase();
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 

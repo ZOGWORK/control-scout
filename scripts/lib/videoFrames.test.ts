@@ -1,7 +1,7 @@
 // The pure parts of the frame reader (scripts/video-frames.ts): the overlay's match, the timer's elapsed time, and
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
-import { dataRows, launchPlayerBrowser, clockReading, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, darkInk, DARK_FILL_MAX, DARK_INK_MAX, inPage, titleLeaks, titleUnchecked, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, firstOpening, OPEN_LEADS, shortClash, type M, eventDivisions, teamsSay, splitSide, splitChecked, splitZoomCss, enteredLater, DIVISION_AFTER, frameDivision, MATCH_S } from "./videoFrames";
+import { dataRows, launchPlayerBrowser, clockReading, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, darkInk, DARK_FILL_MAX, DARK_INK_MAX, inPage, titleLeaks, titleUnchecked, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, firstOpening, OPEN_LEADS, shortClash, type M, eventDivisions, teamsSay, splitSide, splitChecked, splitZoomCss, enteredLater, DIVISION_AFTER, frameDivision, MATCH_S, ReadHung, onceMoreIfHung } from "./videoFrames";
 import { between, edgeReject, EVENT_LIMIT_RATIO, eventLimitMs, GAP_READS, TRIES } from "./videoFrames";
 
 describe("the frame reader", () => {
@@ -440,6 +440,25 @@ describe("the frame reader", () => {
     expect(frameDivision({ label: "Q9", division: "own" }, "Q8", "own")).toBeNull();
     // Nothing read.
     expect(frameDivision({ label: "Q8", division: null }, "Q8", null)).toBeNull();
+  });
+
+  it("reads a frame once more after a hang, and only once", async () => {
+    let tries = 0;
+    const hangsOnce = () => (++tries === 1 ? Promise.reject(new ReadHung("a frame read at 11207 s hung over 120 s")) : Promise.resolve("Q16"));
+    await expect(onceMoreIfHung(hangsOnce, async () => true)).resolves.toBe("Q16");
+    expect(tries).toBe(2);
+    // Workers that couldn't be replaced: no second try.
+    tries = 0;
+    await expect(onceMoreIfHung(hangsOnce, async () => false)).rejects.toBeInstanceOf(ReadHung);
+    expect(tries).toBe(1);
+    // Hangs twice: the second hang is thrown.
+    tries = 0;
+    await expect(onceMoreIfHung(() => (++tries, Promise.reject(new ReadHung("hung"))), async () => true)).rejects.toBeInstanceOf(ReadHung);
+    expect(tries).toBe(2);
+    // Any other error is thrown at once.
+    tries = 0;
+    await expect(onceMoreIfHung(() => (++tries, Promise.reject(new Error("page closed"))), async () => true)).rejects.toThrow("page closed");
+    expect(tries).toBe(1);
   });
 
   it("takes 2019's divisions from the words after the name they share, and reads them off SKYSTONE's bar", () => {
