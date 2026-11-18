@@ -643,6 +643,16 @@ export function judge(ms: M[], seen: Map<number, number>, shift: number | null, 
   return { placed: placedAt, review, missing, earlyStart, opens: new Map() };
 }
 
+/** How long one event's read may take at most (scripts/video-frames.ts --event-limit is the floor): its videos'
+ *  summed length times EVENT_LIMIT_RATIO, never less than the floor, so a long event's legitimate read isn't stopped
+ *  and only a stuck one is. Measured 11-17/18: 2022 ROBUQ1 (3 videos, ~27 h) read whole in 40 and 68 min, 0.025-0.042
+ *  of its length; four 2024 events together in 37 min. 2022 ROBUQ2's 9.8 h video was still unfinished after 6 h
+ *  (over 0.45 of the event's 13.2 h): stuck. 0.25 leaves about six times the slowest real read and still stops that one. */
+export const EVENT_LIMIT_RATIO = 0.25;
+export function eventLimitMs(floorMs: number, videoSeconds: number[], ratio = EVENT_LIMIT_RATIO): number {
+  const total = videoSeconds.reduce((s, x) => s + (Number.isFinite(x) && x > 0 ? x : 0), 0);
+  return Math.max(floorMs, Math.ceil((ratio * total) / 60) * 60_000);
+}
 
 /** A broadcast's window, epoch seconds (an upload: no start, so no window). */
 export interface ClockWindow { start: number | null; end: number | null }

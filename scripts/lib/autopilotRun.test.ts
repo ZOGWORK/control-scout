@@ -2,7 +2,7 @@
 // nothing new is tried again, and what its data PR's CHANGELOG entry says.
 import { describe, expect, it } from "vitest";
 import { nextRelease, parseChangelog } from "../../src/lib/changelog";
-import { ASK_EVERY_MS, GIVE_UP, RETRY_MS, WAIT_MS, askDue, changelogEntry, forgetSettled, needsRebuild, nextVersion, pickEvents, readOutcome, remember, rememberWait, rowsDelta, waitBackoff, type Memory, type Queued } from "./autopilotRun";
+import { ASK_EVERY_MS, GIVE_UP, RETRY_MS, TIMEOUTS_TO_TRY, WAIT_MS, askDue, changelogEntry, forgetSettled, needsRebuild, nextVersion, overLimit, pickEvents, readOutcome, remember, rememberTimeout, rememberWait, rowsDelta, waitBackoff, type Memory, type Queued } from "./autopilotRun";
 import type { Row } from "./autopilotRows";
 
 const NOW = Date.parse("2026-11-17T12:00:00Z");
@@ -63,6 +63,58 @@ describe("events whose rows wait", () => {
     rememberWait(m, "2025/A", "rows wait", NOW);
     remember(m, "2025/A", 0, "no new rows", NOW);
     expect(m["2025/A"]).toEqual({ tries: 1, last: new Date(NOW).toISOString(), result: "no new rows" });
+  });
+});
+
+describe("events the reader stops at its per-event limit", () => {
+  it("reads which events were stopped, and on which video, from the reader's stderr", () => {
+    const err = [
+      "09:12:03 USMIAVLT CraHqQLvMrw: 68 matches",
+      "USMIAVLT: over its 180 min limit with video CraHqQLvMrw unfinished: stopped part way, the videos it finished kept, the rest read on the next run",
+      "ROBUQ2: over its 180 min limit: stopped part way, the videos it finished kept, the rest read on the next run",
+      "USTXQ: the database read failed (not read)",
+      "1 events stopped at their 180 min limit (their finished videos written)",
+    ].join("\n");
+    expect([...overLimit(err)]).toEqual([["USMIAVLT", "CraHqQLvMrw"], ["ROBUQ2", undefined]]);
+    expect(overLimit("").size).toBe(0);
+  });
+
+  it("a stop with no new row is a timeout; one that wrote rows is progress, as any read that shipped or waited", () => {
+    const o = (x: Partial<Parameters<typeof readOutcome>[0]>) => readOutcome({ rows: 0, opened: 0, waiting: 0, tooBig: 0, readFailed: true, ...x });
+    expect(o({ timedOut: true, changed: 0 })).toBe("timed out");
+    expect(o({ timedOut: true, changed: 3, rows: 3, opened: 3 })).toBe("shipped");
+    expect(o({ timedOut: true, changed: 2, rows: 2, waiting: 2 })).toBe("waits");
+    // Rows written but all refused: progress all the same (not a timeout), and not counted as a try (the read failed).
+    expect(o({ timedOut: true, changed: 2 })).toBe("read failed");
+  });
+
+  it("one that never gets past the limit isn't read every run forever: the second stop in a row with nothing new counts a try", () => {
+    const m: Memory = {};
+    // First stop: read again after WAIT_MS, its tries untouched.
+    expect(rememberTimeout(m, "2024/USX", "vid1", NOW)).toBe("again");
+    expect(m["2024/USX"]).toEqual({ tries: 0, last: new Date(NOW).toISOString(), result: "stopped at the per-event limit on video vid1", timeouts: 1, video: "vid1" });
+    expect(pickEvents([q("USX", 1)].map((x) => ({ ...x, season: 2024 })), new Set(), m, 5, NOW + WAIT_MS - 1).skipped[0].why).toMatch(/^stopped at the reader's per-event limit with nothing new/);
+    expect(pickEvents([q("USX", 1)].map((x) => ({ ...x, season: 2024 })), new Set(), m, 5, NOW + WAIT_MS).picked).toHaveLength(1);
+    // Second in a row: a try, and the usual RETRY_MS from there.
+    expect(TIMEOUTS_TO_TRY).toBe(2);
+    expect(rememberTimeout(m, "2024/USX", "vid1", NOW + WAIT_MS)).toBe("counted");
+    expect(m["2024/USX"]).toEqual({ tries: 1, last: new Date(NOW + WAIT_MS).toISOString(), result: "stopped at the per-event limit on video vid1, 2 runs in a row with nothing new" });
+    expect(pickEvents([q("USX", 1)].map((x) => ({ ...x, season: 2024 })), new Set(), m, 5, NOW + WAIT_MS + RETRY_MS - 1).picked).toEqual([]);
+    // Every two stops count one try: after GIVE_UP tries it's left for the owner, never read every run.
+    for (let i = 0; i < 2 * (GIVE_UP - 1); i++) rememberTimeout(m, "2024/USX", "vid1", NOW);
+    expect(m["2024/USX"].tries).toBe(GIVE_UP);
+    expect(pickEvents([q("USX", 1)].map((x) => ({ ...x, season: 2024 })), new Set(), m, 5, NOW + 10 * RETRY_MS).skipped[0].why).toMatch(/^read 3 times with nothing new/);
+  });
+
+  it("progress between stops starts the streak again", () => {
+    const m: Memory = {};
+    rememberTimeout(m, "2024/USX", "vid1", NOW);
+    remember(m, "2024/USX", 4, "shipped", NOW);
+    expect(m["2024/USX"]).toBeUndefined();
+    expect(rememberTimeout(m, "2024/USX", "vid2", NOW)).toBe("again");
+    rememberWait(m, "2024/USX", "rows wait", NOW);
+    expect(m["2024/USX"].timeouts).toBeUndefined();
+    expect(rememberTimeout(m, "2024/USX", undefined, NOW)).toBe("again");
   });
 });
 
