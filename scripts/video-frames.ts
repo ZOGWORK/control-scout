@@ -36,7 +36,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
 import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, playedCount, playedMatches, wholeLength } from "./lib/videoFrames";
-import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, cropOrder, elapsed, flippedClip, titleLeaks, visibleTexts, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M } from "./lib/videoFrames";
+import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, cropOrder, elapsed, flippedClip, inPage, titleLeaks, visibleTexts, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M } from "./lib/videoFrames";
 import { between, GAP_READS } from "./lib/videoFrames";
 
 // The command line: --name value or --name=value for the value flags, --name alone for the others. Anything else stops
@@ -1038,7 +1038,7 @@ async function hideTitle(page: Page): Promise<void> {
   });
   if (!meta.title && !meta.channel) return;
   for (let pass = 0; pass < 2; pass++) {
-    const texts = (await page.evaluate(`(${visibleTexts.toString()})()`)) as string[];
+    const texts = (await page.evaluate(inPage(visibleTexts))) as string[];
     const leaks = titleLeaks(meta.title, meta.channel, texts);
     if (!leaks.length) return;
     if (pass === 1) throw new Error(`YouTube's title shows over the frame ("${texts[leaks[0]]}")`);
