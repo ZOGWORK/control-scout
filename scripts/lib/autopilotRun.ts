@@ -86,10 +86,10 @@ export interface LaneState { state: "idle" | "queued" | "running" | "done" | "fa
 export interface LaneJob { id: string; seasons: { season: number; codes: string[] }[] }
 /** A job sent but not started within this long: the lane is started again. */
 export const LANE_KICK_MS = 3600_000;
-/** The longest a lane's run of `job` can take: per season, its read calls' own limits (12 h a read, 3 h each for
+/** The longest a lane's run of `job` can take: per season, its read calls' own limits (24 h a read, 3 h each for
  *  --verify and --bounds), and an hour more. A lane still "running" after that was killed (a reboot, a power cut) before
  *  it could say so: what it finished is collected, as for a failed job. */
-export const laneJobMs = (job: LaneJob) => job.seasons.length * 18 * 3600_000 + 3600_000;
+export const laneJobMs = (job: LaneJob) => job.seasons.length * 30 * 3600_000 + 3600_000;
 /** A job id the coordinator makes (its run's stamp): used in paths and commands, so nothing else is taken. */
 export const LANE_ID = /^[\w-]{1,64}$/;
 /** What the coordinator does with a lane this run, from its state file's text ("" when it has none) and the job it sent
