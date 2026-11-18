@@ -1,7 +1,7 @@
 // The pure parts of the frame reader (scripts/video-frames.ts): the overlay's match, the timer's elapsed time, and
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
-import { dataRows, divisionOf, cropOrder, elapsed, flippedClip, inPage, titleLeaks, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, firstOpening, OPEN_LEADS, shortClash, type M } from "./videoFrames";
+import { dataRows, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, inPage, titleLeaks, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, firstOpening, OPEN_LEADS, shortClash, type M } from "./videoFrames";
 import { between, GAP_READS, TRIES } from "./videoFrames";
 
 describe("the frame reader", () => {
@@ -155,6 +155,13 @@ describe("the frame reader", () => {
     // None, or a crop that isn't one of these (the bar found in the frame): the usual order.
     expect(cropOrder([a, b, c, d], null)).toEqual([a, b, c, d]);
     expect(cropOrder([a, b, c, d], { n: "a" })).toEqual([a, b, c, d]);
+  });
+
+  it("keeps a plain timer's ink alone, the progress fill behind it gone (USCANOSCQ 2021: 75 over deep blue)", () => {
+    // A digit's black, the blue fill, the light pill, the green fill (USMOKSKNM1), a 6's grey edge, a digit's edge.
+    const px = [18, 22, 40, 255, 34, 66, 150, 255, 205, 207, 212, 255, 20, 140, 40, 255, 60, 60, 70, 255, 30, 30, 35, 128];
+    inkOnly(px, INK_MAX);
+    expect(px).toEqual([0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 255]);
   });
 
   it("runs a function in a page that has no __name of tsx's (inPage)", () => {
@@ -566,6 +573,15 @@ describe("whose event an overlay names", () => {
     expect(overlayEvent("24 CANOPY | Collegiate Meet @ 9 AM Qualification 2 of 15 BIOBUZZ", "Collegiate Meet @ 9 AM", 15)).toEqual({ event: "own", phrase: "Q2" });
     expect(overlayEvent("Austin Semi-Area Championship • Qualification 10 of 40", "FiT-Central Semi-Area Championship Austin", 40)).toEqual({ event: "own", phrase: "Q10" });
   });
+  it("reads FREIGHT FRENZY's name after the match, its logo before it (USCANOSCQ 2021 at 4500 s)", () => {
+    const own = "CA-Northern Santa Clara Qualifying Tournament";
+    // The worker's line: the logo misread before a playoff match (no total to decide by), the event's name cut after it.
+    expect(overlayEvent("rest ronmasn sme Semifinal 2 Match 2 a Clara Qualifying Tournament C FREIGHT SFRENZV go", own, 17, true)).toEqual({ event: "own", phrase: "M2-2" });
+    // Another event's name after it is still another's.
+    expect(overlayEvent("rest ronmasn sme Semifinal 2 Match 2 Western Edge Premier Event FREIGHT FRENZY", own, 17, true)).toEqual({ event: "other" });
+    // Two matches on the line (a split screen): a name after the first is the second's, never read for the first.
+    expect(overlayEvent("rest ronmasn sme Semifinal 2 Match 2 a Clara Qualifying Tournament Semifinal 1 Match 1 Western Edge", own, 17, true)).toEqual({ event: "own", label: "M1-1", phrase: "M1-1" });
+  });
   it("tells sibling meets apart by a short token their names differ in", () => {
     expect(shortClash("FiT-North U-League AM Meet 3", "FiT-North X-League AM Meet 3")).toBe(true);
     expect(shortClash("FiT-North X-League PM Meet 3", "FiT-North X-League AM Meet 3")).toBe(true);
@@ -574,6 +590,8 @@ describe("whose event an overlay names", () => {
     expect(shortClash("FiT-North -League AM Meet 3", "FiT-North X-League AM Meet 3")).toBe(false);
     expect(shortClash("24 CANOPY | Collegiate Meet @ 9 AM", "Collegiate Meet @ 9 AM")).toBe(false);
     expect(shortClash("ad ! | B= Division Michiana Premier Event -", "Michiana Premier Event - Thomson Division")).toBe(false);
+    // Scraps at a cut name, and junk after it, stand in for nothing (USCANOSCQ 2021: "CA-Northern" cut to "C").
+    expect(shortClash("a Clara Qualifying Tournament C FREIGHT SFRENZV go", "CA-Northern Santa Clara Qualifying Tournament")).toBe(false);
   });
   it("names no match of this event with another total, and tells a playoff by its name alone", () => {
     expect(overlayEvent("CANOPY | —E— Qualification 2 of 16", "Collegiate Meet @ 9 AM", 15)).toEqual({ event: "other" });

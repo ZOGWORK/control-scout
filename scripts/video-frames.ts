@@ -36,7 +36,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
 import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, playedCount, playedMatches, wholeLength } from "./lib/videoFrames";
-import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, firstOpening, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, cropOrder, elapsed, flippedClip, inPage, titleLeaks, visibleTexts, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M } from "./lib/videoFrames";
+import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, firstOpening, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, inPage, titleLeaks, visibleTexts, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M } from "./lib/videoFrames";
 import { between, GAP_READS } from "./lib/videoFrames";
 
 // The command line: --name value or --name=value for the value flags, --name alone for the others. Anything else stops
@@ -182,7 +182,8 @@ const TIMERS = [
  *  Read first for those seasons, before the bars whose crops would catch a score there ("150" reads 1:50 loose), and
  *  never for later ones, whose bars have other numbers in those places. */
 const PLAIN_TIMERS = [
-  { where: "plain" as const, clip: { x: 595, y: 594, width: 90, height: 36 }, plain: true },
+  // The box's match progress fills the bar behind it in an alliance's colour: its ink alone is read too (inkOnly).
+  { where: "plain" as const, clip: { x: 595, y: 594, width: 90, height: 36 }, plain: true, ink: true },
   // POWERPLAY's box, inside the bar it sits on: a crop reaching the bar's coloured edge reads it as a "1" (USCHSCMPVIO
   // 2022 at 5664 s, "78" read "178"), every confirmation of the event's matches failing with it.
   { where: "plain" as const, clip: { x: 605, y: 686, width: 70, height: 30 }, plain: true },
@@ -195,7 +196,7 @@ const PLAIN_TIMERS = [
  *  CENTERSTAGE's (2023) too: USMOKSCMP's M2 opens on "Semifinal 2 Match 1", which a read losing "Semifinal" took
  *  for M1, pulling the clip. */
 const SEMIFINALS = season <= 2023;
-const TIMER_CROPS: { where: "bottom" | "top" | "plain"; clip: { x: number; y: number; width: number; height: number }; loose?: boolean; plain?: boolean; card?: boolean }[] =
+const TIMER_CROPS: { where: "bottom" | "top" | "plain"; clip: { x: number; y: number; width: number; height: number }; loose?: boolean; plain?: boolean; card?: boolean; ink?: boolean }[] =
   season <= 2022 ? [...PLAIN_TIMERS, ...TIMERS] : TIMERS;
 
 /** The timer's reading. `auto`: whether a reading of 0:30 or less is Auto, told by readAt. */
@@ -208,8 +209,16 @@ type TimerCrop = (typeof TIMER_CROPS)[number];
 const timerCrop = new WeakMap<Page, TimerCrop>();
 async function timer(page: Page, first?: TimerCrop | null): Promise<{ where: "bottom" | "top" | "plain"; left: number; auto: boolean; crop: TimerCrop | null } | null> {
   for (const t of cropOrder(TIMER_CROPS, first ?? timerCrop.get(page))) {
-    const text = (await digits.recognize(await page.screenshot({ clip: t.clip }))).data.text;
-    const left = t.plain ? secondsPlain(text) : t.loose ? secondsLoose(text) : secondsOf(text);
+    const shot = await page.screenshot({ clip: t.clip });
+    const text = (await digits.recognize(shot)).data.text;
+    let left = t.plain ? secondsPlain(text) : t.loose ? secondsLoose(text) : secondsOf(text);
+    // Nothing that places a match read off a box with a fill behind it: its ink alone (inkOnly), taken only for a reading
+    // that places one. Only after the crop as shot: inked, POWERPLAY's crops read "68" as "88" (USTXCECMP 2022 at
+    // 4463 s) and a stray colon as "44".
+    if (t.ink && (left == null || left <= SWITCH_S)) {
+      const inkLeft = secondsPlain((await digits.recognize(await inked(page, shot))).data.text);
+      if (inkLeft != null && inkLeft > SWITCH_S) left = inkLeft;
+    }
     if (left == null || left > AUTO_S + SWITCH_S + TELEOP_S) continue;
     return { where: t.where, left, auto: false, crop: t };
   }
@@ -222,6 +231,24 @@ async function timer(page: Page, first?: TimerCrop | null): Promise<{ where: "bo
   const clip = { x: 565, y: top, width: 150, height: Math.min(720, band.top + Math.round((band.bottom - band.top) * 0.55) + 4) - top };
   const left = secondsOf((await digits.recognize(await page.screenshot({ clip }))).data.text);
   return left == null || left > AUTO_S + SWITCH_S + TELEOP_S ? null : { where: "bottom", left, auto: false, crop: null };
+}
+
+/** A crop with its ink alone (inkOnly, run in the page on the shot's own pixels). */
+async function inked(page: Page, png: Buffer): Promise<Buffer> {
+  const b64 = await page.evaluate(`(async () => {
+    const img = new Image();
+    img.src = "data:image/png;base64,${png.toString("base64")}";
+    await img.decode();
+    const c = document.createElement("canvas");
+    c.width = img.width; c.height = img.height;
+    const g = c.getContext("2d");
+    g.drawImage(img, 0, 0);
+    const d = g.getImageData(0, 0, c.width, c.height);
+    (${inkOnly.toString()})(d.data, ${INK_MAX});
+    g.putImageData(d, 0, 0);
+    return c.toDataURL("image/png").split(",")[1];
+  })()`) as string;
+  return Buffer.from(b64, "base64");
 }
 
 /** Where the score bar is in the frame on screen (overlayBand, run in the page on the screenshot's own pixels: a
