@@ -289,6 +289,30 @@ describe("the channel audit", () => {
     }
   });
 
+  it("doesn't take FIRST's link as an event's record or video when it's a short upload never broadcast, and lists it", async () => {
+    // FIRST in Missouri's case: 2025 Lafayette Meet #1 AM (USMOKSSTLMM2) linked lvhcciim1Y4, a 3-minute camera clip.
+    const clip = "clip3minxxx", full = "fullupload1";
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, timezone, remote, hybrid, livestream, source) VALUES (2025, 'USTXCLP', 'TX Clip Meet', 'LeagueMeet', 'Waco', 'TX', 'USA', '2026-02-21', '2026-02-21', 'America/Chicago', 0, 0, ?, 'test')", [`https://youtu.be/${clip}`]);
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, timezone, remote, hybrid, livestream, source) VALUES (2025, 'USTXFUL', 'TX Upload Meet', 'LeagueMeet', 'Waco', 'TX', 'USA', '2026-02-21', '2026-02-21', 'America/Chicago', 0, 0, ?, 'test')", [`https://youtu.be/${full}`]);
+    // Uploads, never broadcast: one of 202 seconds, one of 3 hours (a re-uploaded day, kept).
+    for (const [id, s] of [[clip, 202], [full, 3 * 3600]] as const) {
+      await run("INSERT INTO video_meta (video_id, status, start, end, duration, live, checked_at, chapters, embeddable) VALUES (?, 'ok', NULL, NULL, ?, 0, '2026-02-22T00:00:00Z', NULL, 1)", [id, s]);
+    }
+    const { eventRecording, forgetRecordings } = await import("./recordings");
+    try {
+      await audit(Date.parse("2026-02-23T06:00:00Z"));
+      expect((await ownerAudit()).unusedLinks).toEqual([{ season: 2025, code: "USTXCLP", videoId: clip, why: "FIRST's link for USTXCLP is a 3-minute upload, not a broadcast: too short for a day's recording, not used for it" }]);
+      forgetRecordings();
+      expect(await eventRecording(2025, "USTXCLP")).toBeNull();
+      expect((await eventRecording(2025, "USTXFUL"))?.videoId).toBe(full);
+    } finally {
+      await run("DELETE FROM events WHERE season = 2025 AND code IN ('USTXCLP', 'USTXFUL')");
+      await run("DELETE FROM video_meta WHERE video_id IN (?, ?)", [clip, full]);
+      forgetRecordings();
+    }
+    expect((await ownerAudit()).unusedLinks).toEqual([]);
+  });
+
   it("goes on with the run when a facts call fails twice, and reads those facts next run", async () => {
     const id = "fail503xxxx";
     uploads.unshift({ id, title: "FTC Texas Mockingbird Qualifier Day 4", published: "2026-02-22T14:00:00Z", start: "2026-02-22T14:00:00Z" });
@@ -486,6 +510,20 @@ describe("the channel audit", () => {
     old.listTitle = "Deleted video";
     await audit(Date.parse("2026-03-06T06:00:00Z"));
     expect((await get<any>("SELECT title FROM official_audit_videos WHERE video_id = ?", [OLDNONE])).title).toBe("FTC Texas Scrimmage");
+    delete old.listTitle;
+  });
+
+  it("keeps a stored title over a placeholder in any case or spacing, where no read gives its title", async () => {
+    // Both lists give the placeholder, so the stored upsert alone keeps the title.
+    const old = uploads.find((u) => u.id === OLDNONE)!;
+    const title = old.title;
+    for (const placeholder of ["  deleted video ", "PRIVATE VIDEO"]) {
+      old.title = old.listTitle = placeholder;
+      await run("UPDATE official_audit_videos SET facts_at = '2026-03-01T00:00:00Z' WHERE video_id = ?", [OLDNONE]);
+      expect((await audit(Date.parse("2026-03-06T07:00:00Z")))?.error).toBeNull();
+      expect((await get<any>("SELECT title FROM official_audit_videos WHERE video_id = ?", [OLDNONE])).title).toBe(title);
+    }
+    old.title = title;
     delete old.listTitle;
   });
 

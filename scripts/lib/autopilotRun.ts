@@ -5,7 +5,7 @@ import { rowKey, type Keyed, type Row } from "./autopilotRows.js";
 
 /** What the runner remembers of each event between runs (by "season/code"): how often it read it with nothing new to
  *  ship, and when it last tried. */
-export interface EventMemory { tries: number; last: string; result: string; waits?: number }
+export interface EventMemory { tries: number; last: string; result: string; waits?: number; timeouts?: number; video?: string }
 export type Memory = Record<string, EventMemory>;
 
 /** After a read that gave nothing new, an event waits this long before it's read again; after GIVE_UP such reads it's
@@ -29,8 +29,9 @@ export function pickEvents(queue: Queued[], inPr: Set<string>, memory: Memory, m
     const key = `${q.season}/${q.code}`, m = memory[key];
     if (inPr.has(key)) skipped.push({ event: key, why: "read, in an open autopilot PR" });
     else if (m?.waits && now - Date.parse(m.last) < waitBackoff(m.waits)) skipped.push({ event: key, why: `its rows waited ${m.waits} time${m.waits === 1 ? "" : "s"} (${m.result}): read again after ${new Date(Date.parse(m.last) + waitBackoff(m.waits)).toISOString().slice(0, 16)}Z` });
+    else if (m?.timeouts && now - Date.parse(m.last) < WAIT_MS) skipped.push({ event: key, why: `stopped at the reader's per-event limit with nothing new (${m.result}): read again after ${new Date(Date.parse(m.last) + WAIT_MS).toISOString().slice(0, 16)}Z` });
     else if (m && m.tries >= GIVE_UP) skipped.push({ event: key, why: `read ${m.tries} times with nothing new (${m.result}): left until its recording or matches change` });
-    else if (m && !m.waits && now - Date.parse(m.last) < RETRY_MS) skipped.push({ event: key, why: `read ${m.last.slice(0, 10)} with nothing new (${m.result}): tried again after ${new Date(Date.parse(m.last) + RETRY_MS).toISOString().slice(0, 10)}` });
+    else if (m && !m.waits && !m.timeouts && now - Date.parse(m.last) < RETRY_MS) skipped.push({ event: key, why: `read ${m.last.slice(0, 10)} with nothing new (${m.result}): tried again after ${new Date(Date.parse(m.last) + RETRY_MS).toISOString().slice(0, 10)}` });
     else if (picked.length >= max) skipped.push({ event: key, why: "next run" });
     else picked.push(q);
   }
@@ -42,6 +43,29 @@ export function remember(memory: Memory, key: string, shipped: number, result: s
   if (shipped) { delete memory[key]; return; }
   memory[key] = { tries: (memory[key]?.tries ?? 0) + 1, last: new Date(now).toISOString(), result };
 }
+/** Timeouts in a row with nothing new before an event stopped at the reader's per-event limit counts a try. */
+export const TIMEOUTS_TO_TRY = 2;
+/** An event's memory after the reader stopped it at its per-event limit with no new row (a timeout that wrote rows is
+ *  progress, remembered as any read that shipped or waited). The first such stop isn't a try (a slow night): read
+ *  again after WAIT_MS. The TIMEOUTS_TO_TRY-th in a row counts one (remember): the usual RETRY_MS and GIVE_UP follow,
+ *  so a video that always runs past the limit (huge, or broken) stops being read every run. `video`: the one it was
+ *  stopped on, for the run's summary and the owner. "counted": this stop counted a try. */
+export function rememberTimeout(memory: Memory, key: string, video: string | undefined, now = Date.now()): "again" | "counted" {
+  const m = memory[key], timeouts = (m?.timeouts ?? 0) + 1;
+  const what = `stopped at the per-event limit${video ? ` on video ${video}` : ""}`;
+  if (timeouts >= TIMEOUTS_TO_TRY) { remember(memory, key, 0, `${what}, ${timeouts} runs in a row with nothing new`, now); return "counted"; }
+  memory[key] = { tries: m?.tries ?? 0, last: new Date(now).toISOString(), result: what, timeouts, ...(video ? { video } : {}) };
+  return "again";
+}
+
+/** The events the frame reader stopped at its per-event limit (scripts/video-frames.ts: "CODE: over its N min limit
+ *  with video V unfinished: …"), from its stderr, and the video each was on (undefined: stopped between videos). */
+export function overLimit(err: string): Map<string, string | undefined> {
+  const out = new Map<string, string | undefined>();
+  for (const m of err.matchAll(/^(\S+): over its \d+ min limit(?: with video (\S+) unfinished)?:/gm)) out.set(m[1], m[2]);
+  return out;
+}
+
 /** An event's memory after a read whose good rows all waited: one more wait in a row, its tries left as they were. */
 export function rememberWait(memory: Memory, key: string, result: string, now = Date.now()): void {
   const m = memory[key];
@@ -51,10 +75,12 @@ export function rememberWait(memory: Memory, key: string, result: string, now = 
 /** What became of one event's read this run, and so what the runner remembers of it (remember / rememberWait / nothing).
  *  `rows`: its good rows; `opened`: those a PR opened with; `waiting`: those that wait (prChunks later); `tooBig`: those
  *  no PR Loopy can review holds (the owner's). */
-export type Outcome = "shipped" | "waits" | "open failed" | "read failed" | "too big" | "nothing new";
-export function readOutcome(o: { rows: number; opened: number; waiting: number; tooBig: number; readFailed: boolean }): Outcome {
+export type Outcome = "shipped" | "waits" | "timed out" | "open failed" | "read failed" | "too big" | "nothing new";
+export function readOutcome(o: { rows: number; opened: number; waiting: number; tooBig: number; readFailed: boolean; timedOut?: boolean; changed?: number }): Outcome {
   if (o.opened) return "shipped";
   if (o.waiting) return "waits";
+  // Stopped at the reader's per-event limit having written no row (`changed`: its rows the read changed): no progress.
+  if (o.timedOut && !o.changed) return "timed out";
   if (o.rows && o.tooBig >= o.rows) return "too big";
   if (o.rows) return "open failed";
   return o.readFailed ? "read failed" : "nothing new";
@@ -108,7 +134,7 @@ export function changelogEntry(season: number, d: ReturnType<typeof rowsDelta>, 
     : [`[fixes] ${n(d.recordings, "more recording")} checked against their frames`, "[fixes] Each missing match says what the video shows", "[fixes] No clip changes"];
   return [
     `## VERSION — ${date}`, "", lead, "", "### Highlights", ...highlights.map((h) => `- ${h}`), "", "### Fixed",
-    `- Videos: frame-read rows for ${d.events.join(", ")} (${season}): ${n(d.clips, "clip")} added, ${n(d.reasons, "match", "matches")} given a reason from the frames. Every start passed the autopilot's checks (opening frame at 20/12/5/2/0 s naming the match, plausible, no live clip pulled without a frame naming another match). (\`server/data/frameTimings/${season}.ts\`) (#PR)`,
+    `- Videos: frame-read rows for ${d.events.join(", ")} (${season}): ${n(d.clips, "clip")} added, ${n(d.reasons, "match", "matches")} given a reason from the frames. Every start passed the autopilot's checks (opening frame 20/12/5/2/0 s before or 2/4 s after the start, naming the match, plausible, no live clip pulled without a frame naming another match). (\`server/data/frameTimings/${season}.ts\`) (#PR)`,
     "",
   ].join("\n");
 }

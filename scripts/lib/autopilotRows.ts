@@ -4,14 +4,14 @@
 //
 // The rules (docs/frame-timings.md):
 //   - every start is plausible: inside the order, a match apart (plausibleStarts, the server's own reading);
-//   - every start the read placed or moved has its opening checked: the clip opens 20, 12, 5, 2 or 0 s before it,
+//   - every start the read placed or moved has its opening checked: the clip opens 20, 12, 5, 2 or 0 s before it (or 2 or 4 s after it),
 //     where a paused frame named the match (`opens`). A live clip whose opening frame named nothing may stay
 //     `unconfirmed`, never a new one;
 //   - a clip the live site plays leaves only when a frame names another match there ("its clip's first frame shows
 //     Q7, not Q6", the reader's review): a frame that names nothing never pulls one;
 //   - a re-read row carries a newer `checked` date than the live one.
 import { plausibleStarts, playableStarts, type FrameTiming } from "../../server/data/frameTimings.js";
-import { OPEN_LEADS, SAME_S, dataRows } from "./videoFrames.js";
+import { OPEN_LEADS, OPEN_LEADS_TEXT, SAME_S, dataRows, leadText } from "./videoFrames.js";
 
 export type Row = FrameTiming;
 /** Any data row keyed by its video and event: a frame timing, or a first-frame clip check (server/data/clipChecks.ts). */
@@ -60,7 +60,7 @@ export function rowProblems(next: Row, live?: Row, order?: string[]): string[] {
       continue;
     }
     if (open != null) {
-      if (!OPEN_LEADS.includes(t - open)) out.push(`${l}: opens ${t - open} s before its start, not ${OPEN_LEADS.join("/")}`);
+      if (!OPEN_LEADS.includes(t - open)) out.push(`${l}: opens ${leadText(t - open)}, not ${OPEN_LEADS_TEXT}`);
     } else if (!next.unconfirmed?.includes(l)) out.push(`${l}: no opening frame checked for it`);
   }
   // Unconfirmed only ever a live clip, at its live second, whose opening named nothing (so none checked for it).
