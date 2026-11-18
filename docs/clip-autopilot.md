@@ -31,21 +31,25 @@ computer at home, in a clone kept for it alone. Each run:
    Loopy review request for its head unless Loopy's summary already names that head (at most once a head a day:
    `.data/autopilot/asked.json`), so a step that failed once is done on the next run;
 2. takes a read-only snapshot of the live database (`VACUUM INTO` over ssh, copied down, removed from the VM);
-3. takes the queue from it; skips events already in an open autopilot PR, events read lately with nothing new
+3. takes the queue from it; skips events already in an open PR (the autopilot's, or any other PR adding rows for the
+   event to a season's frame-read file: `heldElsewhere`, read again just before PRs open, where such an event's rows
+   wait), events read lately with nothing new
    (tried again after 3 days, left after 3 such reads until their recording or matches change), and events whose good
    rows waited last time (read again after 6 h, doubling each wait in a row up to 3 days; waits never count toward
    the 3);
 4. reads up to `--max` events (12) with `scripts/video-frames.ts --season N --codes … --live <main's season file>`
    (`--all` for an event with rows already), then `--verify`, then `--bounds`. The reader's output goes into the run's
    log as it comes (lines starting `  | `, one when each video starts and when it's done), so a long read shows it's
-   working. One event may take at most a quarter of its videos' summed length, and never less than 3 hours (`--event-limit`,
-   minutes, is that floor; `eventLimitMs` in scripts/lib/videoFrames.ts): real reads take 2–4% of the length (2022
-   ROBUQ1's 27 hours of video read in 40 and 68 minutes), so only a stuck read gets there. Past it the event stops, the videos it finished
+   working. One event may take at most as long as its videos' summed length, and never less than 3 hours (`--event-limit`,
+   minutes, is that floor; `eventLimitMs` in scripts/lib/videoFrames.ts): a read slower than watching is broken. Real
+   reads take 3–24% of the length (2022 ROBUQ1's 27 hours of video in 40 and 68 minutes; ROBUQ2's 20.5 hours in 203
+   minutes, its 9.8-hour video at 24%), more than twice that on a computer running 8 readers at once, so only a stuck
+   read gets there. Past it the event stops, the videos it finished
    keep their rows, the unfinished one gets none, and the next run reads the rest (not counted as a try). A stop with
    no new row at all is read again after 6 hours; the second such stop in a row counts as a try (then the usual 3 days,
    left after 3 tries), so a video that never gets past the limit isn't read every run. The run's log ends with every
    event stopped that way and the video it was on, to look at by hand. A whole
-   reader call past its own limit (12 hours a read, a backstop over the events' own; 3 for `--verify` and `--bounds`) is stopped with its whole process
+   reader call past its own limit (24 hours a read, a backstop over the events' own; 3 for `--verify` and `--bounds`) is stopped with its whole process
    tree (`scripts/lib/streamRun.ts`);
 5. checks every row it changed against main's (`rowProblems`, scripts/lib/autopilotRows.ts) and leaves out, with its
    reasons in the run's log, any that breaks a rule:
@@ -86,9 +90,12 @@ It merges with `gh pr merge --merge --match-head-commit <head>` (never deleting 
 minutes for `/api/health` to serve the merge: `ready`, and its `release` the merge commit or a main commit after it.
 Gating takes minutes, so main is read again just before the merge: if it moved since the gate read it, or isn't 605 s
 quiet any more (when main last moved is GitHub's record of the push, not a commit's own date), nothing merges this
-run. A few seconds still pass between that read and the merge: a merge landing in them can still make two deploys
-close together (the merge itself is safe: `--match-head-commit`, and the rows were checked against main moments
-before). A PR whose gate can't be read (gh, git, a malformed file) waits without
+run. Those last seconds are closed by the merge lock every merger to main takes (`scripts/merge-lock.mjs`, the ref
+`refs/locks/merge`): the runner takes it as `clip-autopilot` after the pick, waits 15 s, reads main again, merges, and
+releases it once the live site serves the merge (or nothing merged). GitHub creates a ref only once, so of two takers
+one gets it; a lock held over 45 minutes (its holder died) is taken over. Another holder's lock means nothing merges
+this run. The main session's driver takes it the same way (`node scripts/merge-lock.mjs take main-driver <pr>`, exit 3
+when held; `release main-driver`; `status`). A PR whose gate can't be read (gh, git, a malformed file) waits without
 stopping the PRs after it. A PR the gate stops waits, its reasons in the run's log, for the next run or the owner. `npx tsx scripts/autopilot-merge-check.ts <PR…>` prints the same gate for any PR, changing nothing;
 `--no-merge` runs the autopilot without merging.
 
