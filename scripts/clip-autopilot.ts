@@ -348,8 +348,11 @@ function mergeCommitOf(pr: number): string {
   }
   return "";
 }
+/** The one lock every merger to main takes (scripts/merge-lock.mjs, refs/locks/merge): the main session's driver and
+ *  this step each see main quiet, so without it they could merge two PRs seconds apart (two deploys back to back). */
+const lockCmd = (...a: string[]) => sh(process.execPath, ["scripts/merge-lock.mjs", ...a], { ok: true });
 function mergeOne(): void {
-  let pick: { number: number; head: string } | null = null, done = false;
+  let pick: { number: number; head: string } | null = null, done = false, locked = false;
   try {
     const before = mainHead();
     const why = mainQuiet(before.at, Date.now(), MAIN_QUIET_MS);
@@ -364,6 +367,12 @@ function mergeOne(): void {
     for (const p of picked.passed) log(`merge: ${p}`);
     pick = picked.pick;
     if (!pick) return;
+    // The merge lock first: another merger holding it is merging now, so this one waits for a later run.
+    const lock = lockCmd("take", "clip-autopilot", String(pick.number));
+    if (lock.code) { log(`merge: #${pick.number} waits: ${lock.code === 3 ? `the merge lock is ${lock.out.trim()}` : `the merge lock couldn't be taken (exit ${lock.code})`}`); return; }
+    locked = true;
+    // A merger that read main just before the lock was taken may still be merging: 15 s, then main read once more.
+    sh(process.execPath, ["-e", "setTimeout(() => {}, 15000)"], { quiet: true, ok: true });
     // Gating took minutes: main read again, the merge only on the main the rows were checked against, still quiet.
     const moved = mainStill(gatedOn, mainHead(), Date.now(), MAIN_QUIET_MS);
     if (moved) { log(`merge: #${pick.number} waits: ${moved}`); return; }
@@ -380,6 +389,9 @@ function mergeOne(): void {
     git("fetch", "--quiet", "origin");
   } catch (e) {
     log(`merge: stopped (${(e as Error).message}); ${done && pick ? `#${pick.number} was merged: check it went live` : "nothing merged this run"}`);
+  } finally {
+    // Released once its merge is live (or none happened); one left behind goes stale for every merger after 45 min.
+    if (locked) { const r = lockCmd("release", "clip-autopilot"); if (r.code) log(`merge: the merge lock couldn't be released (exit ${r.code}); it goes stale in 45 min`); }
   }
 }
 /** Waits (up to LIVE_WAIT_MS) for the site's /api/health to serve `merged` (the merge commit) or a later main commit. */
