@@ -90,9 +90,14 @@ It merges with `gh pr merge --merge --match-head-commit <head>` (never deleting 
 minutes for `/api/health` to serve the merge: `ready`, and its `release` the merge commit or a main commit after it.
 Gating takes minutes, so main is read again just before the merge: if it moved since the gate read it, or isn't 605 s
 quiet any more (when main last moved is GitHub's record of the push, not a commit's own date), nothing merges this
-run. A few seconds still pass between that read and the merge: a merge landing in them can still make two deploys
-close together (the merge itself is safe: `--match-head-commit`, and the rows were checked against main moments
-before). A PR whose gate can't be read (gh, git, a malformed file) waits without
+run. Those last seconds are closed by the merge lock every merger to main takes (`scripts/merge-lock.mjs`, the ref
+`refs/locks/merge`): the runner takes it as `clip-autopilot` after the pick, waits 15 s, reads main again, merges, and
+releases it once the live site serves the merge (or nothing merged). GitHub creates a ref only once, so of two takers
+one gets it; a lock held over 45 minutes (its holder died) is taken over. Another holder's lock means nothing merges
+this run. The main session's driver takes it once per pass of merges (`node scripts/merge-lock.mjs take main-driver 0`:
+it merges on exit 0 only; 3 is held, 1 not taken), renews it before each merge (`renew main-driver`, so a pass longer
+than 45 minutes isn't taken over; 3 means it isn't the driver's any more), and releases it at the end, whatever
+happened (`release main-driver`). `status` says who holds it. A PR whose gate can't be read (gh, git, a malformed file) waits without
 stopping the PRs after it. A PR the gate stops waits, its reasons in the run's log, for the next run or the owner. `npx tsx scripts/autopilot-merge-check.ts <PR…>` prints the same gate for any PR, changing nothing;
 `--no-merge` runs the autopilot without merging.
 
