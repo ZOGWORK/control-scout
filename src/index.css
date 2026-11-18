@@ -264,15 +264,8 @@ html.midnight {
 @media (min-height: 1000px) { :root { --nav-row: 2.75rem; --nav-gap: 0.375rem; --nav-section: 1.25rem; --nav-top: 1rem; --nav-text: 0.9375rem; } }
 @media (min-height: 1100px) { :root { --nav-row: 3rem; --nav-section: 1.5rem; --nav-top: 1.25rem; } }
 html { scrollbar-gutter: stable; }
-/* Smooth scrolling, on desktop only: every jump within the page glides (a #link, the skip link, a "see the odds"
-   button, a scrollIntoView) on a wide screen with a mouse or trackpad. Phones and tablets (touch, or narrower
-   than the desktop layout) keep the browser's native, instant jumps, and so does reduced motion. Wheel,
-   trackpad and touch scrolling stay the browser's own (this only changes jumps). The same query is
-   SMOOTH_SCROLL_QUERY in src/lib/pageScroll.ts, which the app's own scrolls (smoothBehavior) follow. A route
-   change, a back/forward restore and the long lists' windowing still jump at once (jumpPageTo). */
-@media (min-width: 1024px) and (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
-  html { scroll-behavior: smooth; }
-}
+/* No smooth scrolling anywhere: every jump the page makes (a #link, a button, a scrollIntoView) and the wheel are
+   the browser's own, instant steps. */
 /* Sideways strips (tab bars, chips, wide tables) keep a swipe that reaches their end to themselves: it never
    turns into the trackpad's or phone's back/forward gesture. Vertical scrolling still passes to the page. */
 @layer base { :where(.overflow-x-auto) { overscroll-behavior-x: contain; } }
@@ -409,8 +402,7 @@ html.ambient-calm .ambient-breath, html.ambient-calm .ambient-glow { display: no
    pointer reaches the page again 140 ms after the last scroll. Touch never gets it: not on touch-only screens,
    and not for a scroll a finger started on a touchscreen laptop ([data-scrolling="touch"]), so a tap that
    stops a fling, or a swipe on a sideways table, still lands. And once the mouse moves mid-scroll
-   ([data-scrolling="moved"]) it stands aside: the reader is aiming for something (the desktop wheel's glide,
-   src/lib/smoothWheel.ts, eases out over half a second), so a click lands. */
+   ([data-scrolling="moved"]) it stands aside: the reader is aiming for something, so a click lands. */
 .scroll-shield { display: none; }
 @media (hover: hover) and (pointer: fine) {
   [data-scrolling=""] > .scroll-shield { display: block; position: absolute; inset: 0; z-index: 20; }
@@ -623,11 +615,3 @@ html.compact .density-card { padding: 0.875rem; }
   30% { transform: rotate(-18deg) translateY(-2px); }
   60% { transform: rotate(14deg) translateY(1px); }
 }
-/* The shutdown message's construction tape (src/components/ShutdownScreen.tsx; the server's own page draws the same,
-   server/shutdownGate.ts): yellow and black stripes sliding slowly; with reduced motion on, the tape and the dot stand still. */
-.cs-tape { background: repeating-linear-gradient(-45deg, var(--color-accent) 0 14px, #111 14px 28px); background-size: 39.6px 100%;
-  animation: cs-tape 1.6s linear infinite; }
-@keyframes cs-tape { to { background-position: 39.6px 0; } }
-.cs-pulse { animation: cs-pulse 2s ease-out infinite; }
-@keyframes cs-pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-accent) 60%, transparent); } 70%, 100% { box-shadow: 0 0 0 8px transparent; } }
-@media (prefers-reduced-motion: reduce) { .cs-tape, .cs-pulse { animation: none; } }

@@ -7,6 +7,7 @@
 // The checked list ships in server/data/officialVideos.json and is written once per video at boot (seedOfficialVideos).
 // A video already in the table, kept or removed, is never written again, so removing one sticks.
 import { all, db } from "../db.js";
+import { loadManualStarts } from "./manualStarts.js";
 import { registerCache } from "../caches.js";
 import list from "../data/officialVideos.json" with { type: "json" };
 
@@ -58,7 +59,9 @@ const TTL_MS = 60_000;
 let bySeason = new Map<number, { at: number; v: Promise<OfficialVideo[]> }>();
 registerCache("Official event videos", () => { bySeason = new Map(); });
 /** Drop the cached season lists (after a write). */
-export function forgetOfficial() { bySeason = new Map(); }
+/** Every change to official_videos ends here: the season cache goes, and the owner's typed match starts are read
+ *  again, so a video added, removed or restored plays (or stops playing) its typed starts at once. */
+export function forgetOfficial() { bySeason = new Map(); void loadManualStarts().catch(() => 0); }
 
 const rowOf = (r: any): OfficialVideo => ({
   season: Number(r.season), code: String(r.code), videoId: String(r.video_id), kind: r.kind === "highlight" ? "highlight" : "recording",
