@@ -1390,8 +1390,10 @@ async function doCode(code: string): Promise<void> {
             for (const l of zoomedUnread) unread.add(l);
           }
         } catch (e) {
-          log(`    couldn't check for a split stream: ${(e as Error).message.split("\n")[0]} (kept as nothing read)`);
           await zoom(page, null).catch(() => {});
+          // The event's own limit passed during the check: it stops the event as anywhere else (no row kept).
+          if (e instanceof EventOverTime) throw e;
+          log(`    couldn't check for a split stream: ${(e as Error).message.split("\n")[0]} (kept as nothing read)`);
         }
       }
       const out = new Map([...j.placed].map(([l, p]) => [l, p.t]));
