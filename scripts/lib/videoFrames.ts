@@ -228,12 +228,19 @@ const GENERIC = new Set(["LEAGUE", "MEET", "QUALIFIER", "QUALIFIERS", "CHAMPIONS
 const words = (s: string) => (plain(s).match(/[A-Z]{3,}/g) ?? []).filter((w) => !GENERIC.has(w));
 /** The short tokens of a name that `words` drops: a league or stage letter (FiT-North's X-League), AM/PM, a meet's
  *  number or time ("Lawson Meet @ 8 AM"). */
-const shortTokens = (s: string) => new Set((plain(s).match(/[A-Z0-9]+/g) ?? []).filter((t) => t.length <= 2));
-/** Whether a name read beside a match clashes with this event's in a short token: one of this event's is missing and
- *  another stands in the read ("U" for "X", "10 30" for "8"). Sibling meets of one day share every long word. */
+const tokens = (s: string) => plain(s).match(/[A-Z0-9]+/g) ?? [];
+/** Whether a name read beside a match clashes with this event's in a short token (a league or stage letter, AM/PM, a
+ *  meet's number or time), which `words` drops: one of this event's is missing from the read, and another short token
+ *  stands in its place, beside the same long word ("U" for "X" before LEAGUE, "PM" for "AM" after it, "10" for "8"
+ *  after MEET). Sibling meets of one day share every long word. A short token only missing (lost to OCR), or a scrap at
+ *  a name the ticker cut ("C" of "CA-Northern…"), stands in for nothing. */
 export function shortClash(read: string, own: string): boolean {
-  const mine = shortTokens(own), seen = shortTokens(read);
-  return [...mine].some((t) => !seen.has(t)) && [...seen].some((t) => !mine.has(t));
+  const mine = tokens(own), seen = tokens(read);
+  return mine.some((t, i) => t.length <= 2 && !seen.includes(t) && [-1, 1].some((d) => {
+    const next = mine[i + d];
+    if (!next || next.length <= 2) return false;
+    return seen.some((r, j) => r === next && (seen[j - d]?.length ?? 9) <= 2 && seen[j - d] !== t);
+  }));
 }
 /** Where the overlay names a match, and the event name just before it on the same line. */
 // A semifinal (2019–2022's "Semifinal 2 Match 1", or "Semifinals Match 1" with its series lost) is taken whole, before
@@ -283,9 +290,15 @@ export function overlayEvent(text: string, own: string, quals?: number, semifina
   let other = false, ownLabel: string | undefined, ownSeen = false;
   for (const line of text.split("\n")) {
     let from = 0;
-    for (const m of line.matchAll(MATCH_PHRASE)) {
+    const phrases = [...line.matchAll(MATCH_PHRASE)];
+    for (const m of phrases) {
       const total = m[1] != null ? Number(m[1]) : null;
-      const name = verdict(line.slice(from, m.index));
+      const before = verdict(line.slice(from, m.index));
+      // FREIGHT FRENZY's bar (2021) puts the event's name after the match, the season's logo before it, misread as two
+      // words of no event's ("FIRST FORWARD" read "rest ronmasn sme" beside "Semifinal 2 Match 2", USCANOSCQ at 4500 s).
+      // A line with one match whose name after it is this event's is this event's; with more (a split screen), the
+      // name after one match is the next one's, so only the name before counts.
+      const name = before === "other" && phrases.length === 1 && verdict(line.slice(m.index! + m[0].length)) === "own" ? "own" : before;
       // The total, where read, decides: a name read as another's beside this event's own total is a misread, and a name
       // read as this event's beside another event's total is a sibling's (FiT-North's league meets of one day, each on
       // its own field's stream: "FiT-North U-League AM Meet 3 · Qualification 5 of 23" reads as FiT-North X-League AM
