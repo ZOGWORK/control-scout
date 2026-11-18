@@ -139,6 +139,41 @@ export const secondsOf = (s: string) => { const m = /(\d):([0-5]\d)/.exec(s); re
 /** secondsOf, where the font's colon is too thin for the OCR to keep ("1:17" read "117", FIRST AGE's white box): the
  *  whole reading is one timer, with or without its colon, at most 2:59. */
 export const secondsLoose = (s: string) => { const m = /^([0-2]):?([0-5]\d)$/.exec(s.replace(/\s/g, "")); return m ? Number(m[1]) * 60 + Number(m[2]) : secondsOf(s); };
+/** Two meets' streams side by side in one video, each half with its own half-size bar (FIRST in Texas's league meets on
+ *  one stream: USTXCENSAM4 2022, Hill Country on the left, North San on the right). Too small to read as they are: the
+ *  player is zoomed to twice its size from the frame's left or right edge at mid-height, so the half fills the frame
+ *  and its bar sits where a full-size bar does (the row at 548, POWERPLAY's timer at 686), every crop reading it. */
+export const SPLIT_SIDES = ["left", "right"] as const;
+export type SplitSide = (typeof SPLIT_SIDES)[number];
+export const splitZoomCss = (side: SplitSide): string =>
+  `video { transform-origin: ${side === "left" ? "0" : "100%"} 50% !important; transform: scale(2) !important; }`;
+/** The half a split stream shows this event on, from its bar's row read zoomed to each half at a few seconds of the
+ *  video (overlayEvent: "own" where the row names this event or its match total): a half named this event's at two
+ *  reads or more while the other half never was. Null: neither (not a split stream), or both (two meets alike). */
+export function splitSide(reads: readonly { side: SplitSide; event: "own" | "other" | null }[]): SplitSide | null {
+  const own = (side: SplitSide) => reads.filter((r) => r.side === side && r.event === "own").length;
+  const [l, r] = [own("left"), own("right")];
+  if (l >= 2 && r === 0) return "left";
+  if (r >= 2 && l === 0) return "right";
+  return null;
+}
+
+/**
+ * The split-stream check (findSplit, then a zoomed read) run so that its failure keeps the read as it was: on any error
+ * `cleanup` (the zoom cleared) runs first, then an error `stops` says ends the event (the reader's EventOverTime: its
+ * time limit, which must stop the event as anywhere else, no row kept) is thrown on, and any other is handed to
+ * `failed` (logged, the video kept as nothing read) and null returned.
+ */
+export async function splitChecked<T>(run: () => Promise<T>, o: { cleanup: () => Promise<void>; stops: (e: unknown) => boolean; failed: (e: Error) => void }): Promise<T | null> {
+  try {
+    return await run();
+  } catch (e) {
+    await o.cleanup().catch(() => {});
+    if (o.stops(e)) throw e;
+    o.failed(e as Error);
+    return null;
+  }
+}
 /** A crop of a bottom bar, for the same bar flipped to the top of a `height`-tall frame: the bar's rows in reverse, so
  *  what sat `n` px off the bottom edge sits `n` px off the top (POWERPLAY's timer at y 686 of 720, 4 px above the
  *  bottom, is at y 4 in Arizona's flipped bar). */

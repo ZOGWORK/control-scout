@@ -2583,6 +2583,24 @@ ALTER TABLE video_meta ADD COLUMN unplayable_since TEXT;
 UPDATE video_meta SET unplayable_since = checked_at WHERE status = 'unavailable' OR (status = 'ok' AND embeddable = 0);
 `,
   },
+  {
+    version: 97,
+    name: "manual match starts",
+    sql: `
+-- A match's start in a video, typed by the owner (Owner › Official videos, server/videos/manualStarts.ts): its clip
+-- plays from there, ahead of any frame read (server/data/frameTimings.ts frameStart). One per video, event and match.
+CREATE TABLE IF NOT EXISTS manual_starts (
+  video_id TEXT NOT NULL,
+  season INTEGER NOT NULL,
+  code TEXT NOT NULL,
+  label TEXT NOT NULL,
+  seconds INTEGER NOT NULL,
+  set_by TEXT NOT NULL,
+  set_at TEXT NOT NULL,
+  PRIMARY KEY (video_id, season, code, label)
+);
+`,
+  },
 ];
 
 export type Db = Client;
