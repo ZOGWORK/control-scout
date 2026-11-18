@@ -153,12 +153,12 @@ describe("Sample home", () => {
     expect(dayChip(null)).toBeNull();
   });
 
-  it("puts the season in a stat row, each number a link", () => {
+  it("puts the season in a stat row, each number a link named with its label", () => {
     data = { "/api/home/overview": OVERVIEW };
     mount();
-    expect(screen.getByRole("link", { name: /^23/ }).getAttribute("href")).toBe("/teams");
-    expect(screen.getByRole("link", { name: /^4/ }).getAttribute("href")).toBe("/events");
-    expect(screen.getByRole("link", { name: /^9/ }).getAttribute("href")).toBe("/matches");
+    expect(screen.getByRole("link", { name: "23 team listings" }).getAttribute("href")).toBe("/teams");
+    expect(screen.getByRole("link", { name: "4 events" }).getAttribute("href")).toBe("/events");
+    expect(screen.getByRole("link", { name: "9 match scores" }).getAttribute("href")).toBe("/matches");
   });
 
   it("shows only the replay, and a line instead of an empty column, while no live call is decided", () => {
