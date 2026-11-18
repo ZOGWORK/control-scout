@@ -11,7 +11,7 @@ import { localDate, onEventDates } from "../../src/shared/eventDay.js";
 import { isYouTubeHost, parseStreamUrl } from "../../src/shared/stream.js";
 import { designators } from "./officialMatch.js";
 import { forgetRecordings } from "./recordings.js";
-import { fetchFromApi, fetchWatchPage, type WatchPageFacts } from "./youtube.js";
+import { fetchFromApi, fetchWatchPage, isPlaceholderTitle, type WatchPageFacts } from "./youtube.js";
 import { EVENT_FIRST_DAY, EVENT_LAST_DAY } from "./eventDays.js";
 
 const DAY_MS = 86_400_000;
@@ -214,7 +214,7 @@ export async function reweighBroadcasts(): Promise<number> {
   for (const bs of byEvent.values()) {
     const r = bs[0];
     // A placeholder the uploads list gave for a title ("Deleted video") is no title: the broadcast is weighed as untitled.
-    const list = bs.map((b) => ({ videoId: String(b.video_id), start: String(b.start), ...(b.title && !/^(deleted|private) video$/i.test(String(b.title).trim()) ? { title: String(b.title) } : {}) }));
+    const list = bs.map((b) => ({ videoId: String(b.video_id), start: String(b.start), ...(b.title && !isPlaceholderTitle(b.title) ? { title: String(b.title) } : {}) }));
     const siblings = [...byEvent.values()].map((o) => o[0]).filter((o) => o.season === r.season && o.code !== r.code && o.livestream && o.livestream === r.livestream)
       .map((o) => ({ name: String(o.name ?? ""), start: o.ev_start, end: o.ev_end, timezone: o.timezone }));
     const keep = ownBroadcasts(list, { name: String(r.name ?? ""), timezone: r.timezone }, siblings).sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
