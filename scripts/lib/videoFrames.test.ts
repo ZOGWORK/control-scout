@@ -509,8 +509,15 @@ describe("whose event an overlay names", () => {
   });
   it("names no match of this event with another total, and tells a playoff by its name alone", () => {
     expect(overlayEvent("CANOPY | —E— Qualification 2 of 16", "Collegiate Meet @ 9 AM", 15)).toEqual({ event: "other" });
-    // Its name read, a total the db doesn't hold (a schedule changed since) still counts: the name decides.
-    expect(overlayEvent("CANOPY | Collegiate Meet @ 9 AM Qualification 2 of 16", "Collegiate Meet @ 9 AM", 15)).toEqual({ event: "own", phrase: "Q2" });
+    // Its name read beside another total: the total decides. FiT-North's league meets of 2026-01-10 each streamed their
+    // own field, every name but the league letter the same (frames of k1u8I_NLMdM at 740 s, I96iSxbO_TY at 7640 s).
+    expect(overlayEvent("CANOPY | Collegiate Meet @ 9 AM Qualification 2 of 16", "Collegiate Meet @ 9 AM", 15)).toEqual({ event: "other" });
+    expect(overlayEvent("FiT-North U-League AM Meet 3 Qualification 5 of 23", "FiT-North X-League AM Meet 3", 19)).toEqual({ event: "other" });
+    expect(overlayEvent("FiT-North A-League Meet 3 Qualification 2 of 35", "FiT-North X-League AM Meet 3", 19)).toEqual({ event: "other" });
+    // The same frames for their own events.
+    expect(overlayEvent("FiT-North U-League AM Meet 3 Qualification 5 of 23", "FiT-North U-League AM Meet 3", 23)).toEqual({ event: "own", phrase: "Q5" });
+    // A total OCR cut short ("of 2" for 23) tells nothing, so the name stands.
+    expect(overlayEvent("FiT-North U-League AM Meet 3 Qualification 5 of 2", "FiT-North X-League AM Meet 3", 23)).toEqual({ event: "own", phrase: "Q5" });
     expect(overlayEvent("DIVE Hawaii Championship Playoff Match 3", "Hawaii Championship", 25)).toEqual({ event: "own", phrase: "M3" });
     expect(overlayEvent("DIVE Western Edge Premier Event Playoff Match 3", "Hawaii Championship", 25)).toEqual({ event: "other" });
     // Two matches, neither another event's for sure (a split screen's unread half, or one event's bracket card): the
