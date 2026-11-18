@@ -32,6 +32,7 @@ import { applyRows, changedRows, fileRows, prChunks, prMarker, readMarker, rowKe
 import { askDue, forgetSettled, needsRebuild, pickEvents, readOutcome, remember, rememberWait, rowsDelta, type Memory } from "./lib/autopilotRun";
 import { loopySummary, reviewedSha, type IssueComment } from "./lib/autopilotMerge";
 import { clipCheckProblems, clipsDelta } from "./lib/autopilotClips";
+import { streamRun } from "./lib/streamRun";
 import type { ClipCheck } from "../server/data/clipChecks";
 
 const argv = process.argv.slice(2);
@@ -61,7 +62,19 @@ function sh(cmd: string, args: string[], o: { ok?: boolean; timeoutMs?: number; 
   return { code, out: r.stdout ?? "" };
 }
 const git = (...a: string[]) => sh("git", a).out.trim();
-const tsx = (args: string[], timeoutMs: number) => sh(process.execPath, ["node_modules/tsx/dist/cli.mjs", ...args], { ok: true, timeoutMs });
+/** A tsx script (the frame reader), its output into the run's log line by line as it comes ("  | "), so a read that
+ *  takes hours shows it's working (the reader says when each video starts and is done), not only that it's alive. Past
+ *  `timeoutMs` its whole process tree is stopped (streamRun): tsx runs the script in a child process, which a kill of
+ *  tsx alone would leave reading. Its exit is 1 when stopped. */
+async function tsx(args: string[], timeoutMs: number): Promise<{ code: number; out: string }> {
+  appendFileSync(LOG, `$ tsx ${args.join(" ")}\n`);
+  const r = await streamRun(process.execPath, ["node_modules/tsx/dist/cli.mjs", ...args], {
+    timeoutMs,
+    onLine: (l) => appendFileSync(LOG, `  | ${l}\n`),
+    onTimeout: () => log(`  the reader ran past ${Math.round(timeoutMs / 60_000)} min: stopped (${args.slice(1, 5).join(" ")})`),
+  });
+  return { code: r.code, out: r.out };
+}
 
 // --- Run from its start ------------------------------------------------------------------------------------------
 // A real run is started by scripts/clip-autopilot-start.mjs, which holds the run's lock (CLIP_AUTOPILOT_LOCK: its text) and
@@ -303,8 +316,8 @@ function openPr(o: { file: string; rows: Keyed[]; branch: string } & PrText): bo
 }
 /** The frame reader. A read whose frames came up near-black (a player showing no picture) wrote nothing; the run stops
  *  there, every file put back as it was, and opens no PR: rows read off a black player would all say "no frame read". */
-function reader(args: string[], timeoutMs: number): { code: number; out: string } {
-  const r = tsx(args, timeoutMs);
+async function reader(args: string[], timeoutMs: number): Promise<{ code: number; out: string }> {
+  const r = await tsx(args, timeoutMs);
   const dark = r.out.split("\n").find((l) => l.startsWith("NEAR-BLACK FRAMES"));
   if (dark) {
     // The exit puts every file back (restore).
@@ -334,9 +347,9 @@ for (const [season, events] of bySeason) {
   const base = ["scripts/video-frames.ts", "--season", String(season), ...(fileRows(mainText(file)).length ? ["--live", liveFile] : []), "--lanes", "2"];
   // A read that crashed, timed out or was killed read nothing for sure: its events aren't counted as tried (remember).
   let readFailed = false;
-  const pass = (args: string[], ms: number, what: string) => { const code = reader([...base, ...args], ms).code; if (code) readFailed = true; log(`${season} ${what}: exit ${code}`); };
-  for (const [list, extra] of [[fresh, []], [again, ["--all"]]] as const) if (list.length) pass(["--codes", list.join(","), ...extra], 6 * 3600_000, `read ${list.join(",")}`);
-  for (const p of ["--verify", "--bounds"]) pass(["--codes", codes.join(","), p], 3 * 3600_000, p);
+  const pass = async (args: string[], ms: number, what: string) => { const code = (await reader([...base, ...args], ms)).code; if (code) readFailed = true; log(`${season} ${what}: exit ${code}`); };
+  for (const [list, extra] of [[fresh, []], [again, ["--all"]]] as const) if (list.length) await pass(["--codes", list.join(","), ...extra], 6 * 3600_000, `read ${list.join(",")}`);
+  for (const p of ["--verify", "--bounds"]) await pass(["--codes", codes.join(","), p], 3 * 3600_000, p);
   const after = readFileSync(file, "utf8");
   writeFileSync(file, before);
   const live = new Map(fileRows(mainText(file)).map((r) => [rowKey(r), r]));
@@ -380,7 +393,7 @@ if (SWEEP && !open.some((p) => p.file === CLIPS_FILE)) {
   for (const season of seasons) {
     if (budget <= 0) break;
     if (!existsSync(seasonFile(season))) continue;
-    const r = reader(["scripts/video-frames.ts", "--season", String(season), "--clips", "--limit", String(budget), "--lanes", "2"], 4 * 3600_000);
+    const r = await reader(["scripts/video-frames.ts", "--season", String(season), "--clips", "--limit", String(budget), "--lanes", "2"], 4 * 3600_000);
     const checked = (r.out.match(/^\S+: \d+ clock clips to check by their first frame$/gm) ?? []).length;
     log(`${season} sweep: ${checked} events checked, exit ${r.code}`);
     budget -= checked;
