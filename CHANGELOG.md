@@ -15,6 +15,78 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.6.9 — 2026-11-17
+
+Event videos › a clip whose video plays on YouTube only now opens there, at the match's second, instead of an embedded player that can't play it.
+
+### Highlights
+- [fixes] Clips of YouTube-only videos open on YouTube
+- [fixes] A short "Plays on YouTube" note on each
+- [fixes] The event page's player links to YouTube for them
+
+### Fixed
+- Event videos: 20 official recordings have embedding turned off by their owners, so the app's players showed YouTube's "Playback on other websites has been disabled". Their clips and the event page's stream are now marked, and the Watch link, the clips grid, search's card and rows, and the event page's player open them on YouTube from the same second, with a note. The page's player offers no predictions overlay for them. (`src/lib/streamSeek.ts`, `server/videos/recordings.ts`) (#1691)
+
+## 7.6.8 — 2026-11-17
+
+Search › one period's best matches ("best teleop videos in romania decode") gets an answer in the search box too, linking to the full list.
+
+### Highlights
+- [fixes] "Best teleop videos in Romania" answers in the search box
+- [fixes] One period's best scores link to their full list
+- [fixes] No more empty box for auto, teleop or endgame bests
+
+### Fixed
+- Search (`server/api/answers/index.ts`): the box left a season's best matches to the asks' high-score card, which reads whole scores only, so a question about one period's best ("best teleop videos in romania decode", "highest teleop score in texas") showed nothing there while the page answered it. The box now shows "Highest teleop scores in Romania", linking to that page, as a board's does. Its label names no season, because the page may step back to the season before. (#1836)
+
+## 7.6.7 — 2026-11-17
+
+Search › "ranked" beside the best team reads as the board's own order, so "best romanian team ranked" lists Romania's top teams.
+
+### Highlights
+- [fixes] "Best romanian team ranked" lists Romania's top teams
+- [fixes] "Best ranked team in NJ" shows New Jersey's rankings
+- [fixes] "Ranked" after the best team no longer stops a search
+
+### Fixed
+- Search (`src/shared/query/intents.ts`, `server/api/searchAsks.ts`): "ranked" read as a rank to sort by, which the best-team board doesn't take, so "best romanian team ranked" read nothing. The best-team board now takes it as its own order (a team's rank is its OPR rank), and the region-rankings reader drops it after "best", "top" or "strongest" and at the end, so "best ranked team in nj" stays New Jersey's rankings. (#1834)
+
+## 7.6.6 — 2026-11-17
+
+Search › "thier" is read as "their" again, so "where is 207 in thier conference" answers 207's conference place.
+
+### Highlights
+- [fixes] "Thier" is corrected to "their" in a search
+- [fixes] "Where is 207 in thier conference" answers its conference place
+- [fixes] A short word in a team's name no longer blocks a spelling fix
+
+### Fixed
+- Search spelling (`server/api/spelling.ts`): a word that looks like a plain form of a known word ("winning" of "win") is left as typed, and "Thi", a given name in the stored names, made "thier" read as "Thi" with "-er", so it was never corrected. A three-letter stem now counts only when it is one of search's own words, so "thier" is "their" and the conference question is read; "winning" and the other forms stay as typed. (#1828)
+
+## 7.6.5 — 2026-11-17
+
+Search › a team's conference place shows this season when the team is in one, going in from the sign-ups, and last season's only when not, saying so; "where was …" shows the last one played out.
+
+### Highlights
+- [fixes] A team's conference place shows this season first
+- [fixes] Last season's place only when this season has none, said so
+- [fixes] "Where was 207 in their conference" shows the last one played
+
+### Fixed
+- Search (`server/api/answers/families/conference.ts`): with no season said, a team's conference place is the newest season it is in one (FIRST's field before the sign-ups within that season), so "where is 207 in their conference" is 207 going into Hudson/East Bergen Conference, 2026–27, where it showed 2025–26. A team in none this season gets last season's, with "No 2026–27 conference for 207 yet; showing 2025–26" first. The past tense with no season said ("where was", "did", "finished") is the newest conference played out. A season said, and a conference's own table, are unchanged. (#1743)
+
+## 7.6.4 — 2026-11-17
+
+Search › "WAC" reads as winning alliance captain, so "nj wac" lists New Jersey's Winning Alliance Captains.
+
+### Highlights
+- [fixes] "WAC" means winning alliance captain in search
+- [fixes] "NJ WACs" lists the state's captains
+- [fixes] "WAC" is never changed by spelling fixes
+
+### Fixed
+- Search (`server/api/answers/families/placeAwards.ts`, `server/api/spelling.ts`): "WAC" and "WACs", the usual short form, read as the words in full ("nj wac", "teams in nj that won wac"), and spelling leaves them as typed. Only the whole word counts ("wacky" doesn't). (#1725)
+
 ## 7.6.3 — 2026-11-17
 
 Event videos › a title's "Day 2" can mean the event's second day of play, and two Romanian events get the recordings of the days FIRST's dates left out.
