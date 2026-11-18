@@ -1,7 +1,7 @@
 // The pure parts of the frame reader (scripts/video-frames.ts): the overlay's match, the timer's elapsed time, and
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
-import { dataRows, divisionOf, cropOrder, elapsed, flippedClip, inPage, titleLeaks, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, firstOpening, OPEN_LEADS, shortClash, type M } from "./videoFrames";
+import { dataRows, divisionOf, cropOrder, elapsed, flippedClip, inPage, titleLeaks, inkOnly, INK_MAX, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, firstOpening, OPEN_LEADS, shortClash, type M } from "./videoFrames";
 import { between, GAP_READS, TRIES } from "./videoFrames";
 
 describe("the frame reader", () => {
@@ -155,6 +155,13 @@ describe("the frame reader", () => {
     // None, or a crop that isn't one of these (the bar found in the frame): the usual order.
     expect(cropOrder([a, b, c, d], null)).toEqual([a, b, c, d]);
     expect(cropOrder([a, b, c, d], { n: "a" })).toEqual([a, b, c, d]);
+  });
+
+  it("keeps a plain timer's ink alone, the progress fill behind it gone (USCANOSCQ 2021: 75 over deep blue)", () => {
+    // A digit's black, the blue fill, the light pill, the green fill (USMOKSKNM1), a 6's grey edge, a digit's edge.
+    const px = [18, 22, 40, 255, 34, 66, 150, 255, 205, 207, 212, 255, 20, 140, 40, 255, 60, 60, 70, 255, 30, 30, 35, 128];
+    inkOnly(px, INK_MAX);
+    expect(px).toEqual([0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 255]);
   });
 
   it("runs a function in a page that has no __name of tsx's (inPage)", () => {

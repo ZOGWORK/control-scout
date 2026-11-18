@@ -407,6 +407,24 @@ export function rowLabel(half: string, row: string | null, ctx?: { own: string; 
   return row != null && overlayDivision(row, ctx.own, ctx.others) === "own" ? label : null;
 }
 
+/** The darkest a pixel's brightest channel may be and still count as ink (inkOnly). */
+export const INK_MAX = 50;
+/**
+ * A plain timer's crop (2019–2022: black seconds on a light pill) with its ink alone: each pixel whose brightest channel
+ * is under `under` turns black, every other white, in place (RGBA). During play the match's progress fills the bar
+ * behind the pill in an alliance's colour, and black digits on deep blue or green defeat the OCR (USCANOSCQ 2021 at
+ * 1503 s: "75" read "5", at 1620 s "31" read nothing); a coloured fill keeps one bright channel, the digits none. Up to
+ * 50: higher, the anti-aliasing in a 6's gap turns ink too ("67" read "87" at 80, USMOKSKCM1 2021 at 998 s).
+ * Self-contained (no imports, no outer names): the reader runs it in the page.
+ */
+export function inkOnly(px: { [i: number]: number; length: number }, under: number): void {
+  for (let i = 0; i + 3 < px.length; i += 4) {
+    const v = Math.max(px[i], px[i + 1], px[i + 2]) < under ? 0 : 255;
+    px[i] = px[i + 1] = px[i + 2] = v;
+    px[i + 3] = 255;
+  }
+}
+
 /**
  * Where FTC Live's score bar sits in a frame (RGBA pixels, `width` × `height`): the rows where one alliance's colour
  * fills much of the half left of the timer's column and the other's the half right of it (blue then red, or red then
