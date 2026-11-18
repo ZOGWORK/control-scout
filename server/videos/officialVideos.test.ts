@@ -800,4 +800,16 @@ describe("a FIRST link's broadcast date", () => {
     expect(linkAiredOff(som3, null)).toBeNull();
     expect(linkAiredOff({ code: "TWO", start: "2026-02-06", end: "2026-02-08", timezone: "America/New_York" }, "2026-02-07T15:00:00Z")).toBeNull();
   });
+
+  it("isn't its event's when its video is a short upload never broadcast; a broadcast, a live one or an unread length is", async () => {
+    const { linkTooShort, MIN_RECORDING_S } = await import("./officialVideos");
+    // 2025 USMOKSSTLMM2's link, lvhcciim1Y4: a 202-second camera clip.
+    expect(linkTooShort("USMOKSSTLMM2", { start: null, live: 0, duration: 202 })).toBe("FIRST's link for USMOKSSTLMM2 is a 3-minute upload, not a broadcast: too short for a day's recording, not used for it");
+    expect(linkTooShort("X", { start: null, live: 0, duration: 20 })).toMatch(/a 1-minute upload/);
+    expect(linkTooShort("X", { start: null, live: 0, duration: MIN_RECORDING_S })).toBeNull();
+    expect(linkTooShort("X", { start: "2025-11-22T15:00:00Z", live: 0, duration: 202 })).toBeNull(); // a short broadcast is still its day's
+    expect(linkTooShort("X", { start: null, live: 1, duration: null })).toBeNull(); // to come
+    expect(linkTooShort("X", { start: null, live: 0, duration: null })).toBeNull();
+    expect(linkTooShort("X", undefined)).toBeNull();
+  });
 });
