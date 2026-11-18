@@ -299,7 +299,9 @@ export const INTENTS: IntentRule[] = [
   R("leaderboard", 0, ["metric:record"], ["metric:win", "metric:loss", "thing:season", "prep:for", "prep:in", "list", "and"], { noEvent: true }),
   ...["agg:max", "agg:min"].flatMap((agg) => [
     R("leaderboard", 0, [agg, "metric:record"], BOARD_OPT, { noEvent: true }),
-    R("leaderboard", 0, [agg, "thing:team"], BOARD_OPT),
+    // "Ranked" beside the best team ("best romanian team ranked", "top ranked team in nj") is the board's own order:
+    // a team's rank is its OPR rank, so it says nothing the board doesn't.
+    R("leaderboard", 0, [agg, "thing:team"], [...BOARD_OPT, "metric:rank"]),
     // A count of wins asked about everyone: "most wins in nj", "teams with the most wins" ("with" is read as "and"); a
     // win's size with no "team" is a match (./execute.ts).
     R("leaderboard", 0, [agg, "metric:win"], [...BOARD_OPT, "and"], { noEvent: true }),

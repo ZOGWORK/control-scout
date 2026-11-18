@@ -326,6 +326,11 @@ channel's whole uploads list, video by video, with Scout's records. It reads onl
   A wrong add is listed with what's wrong. One that the watcher's title rules set aside today (a rule tightened since,
   such as drone or FRC streams) is taken off its event by the audit, as the watcher would have left it. It's logged as
   `officialVideo.remove` by "channel audit" and still counts as a wrong add. The owner removes any other wrong add.
+  One the audit took off and found right again on a later run comes back on its event (`officialVideo.restore` by
+  "channel audit"); one the owner removed stays off.
+- **Placeholder titles.** A channel's uploads list can give "Deleted video" or "Private video" in place of a public
+  video's title (NYC FIRST's `bjwZWaiMwnc`, 2026-11-17). That's never written over a title or read as one: the
+  video's own title is read from YouTube's videos list, and a watcher's add is checked by its own title.
 - **The link check** (`server/videos/linkCheck.ts`, before each of the watcher's 30-minute checks). Every recording
   linked by the checked list or the watcher is checked again against YouTube's facts (`video_meta`) and its title on
   its channel today (`official_audit_videos`). It's taken off its event when:
