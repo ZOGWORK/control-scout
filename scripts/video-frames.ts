@@ -29,6 +29,8 @@
 //             was played before it starts or after it ends (outsideRecording); a normal read reads them too
 //   --clips   read no starts: check each clip the live site plays from the clock by its first frame, paused (ok,
 //             pulled when it names another match, unconfirmed when it names none), into server/data/clipChecks.ts
+//   --event-limit <minutes>  the most one event's read may take (default 180): an event still reading then stops, its
+//             unfinished video written nothing, the videos it finished kept; the next run reads the rest
 //   --live <file>  the timings the live site serves (a copy of main's server/data/frameTimings/<season>.ts): a re-read start
 //             that is one of them (same video, match and second, within a read's slack) and whose opening frame names
 //             nothing stays, unconfirmed, as --verify keeps it; only an overlay naming another match pulls a live clip
@@ -41,7 +43,7 @@ import { between, GAP_READS } from "./lib/videoFrames";
 
 // The command line: --name value or --name=value for the value flags, --name alone for the others. Anything else stops
 // the run before it reads: a misspelt flag mustn't quietly read (and write) every recording of the season.
-const VALUE_FLAGS = new Set(["season", "codes", "limit", "lanes", "live"]), BOOL_FLAGS = new Set(["all", "bounds", "check", "clips", "dry", "trace", "verify"]);
+const VALUE_FLAGS = new Set(["season", "codes", "limit", "lanes", "live", "event-limit"]), BOOL_FLAGS = new Set(["all", "bounds", "check", "clips", "dry", "trace", "verify"]);
 const args = new Map<string, string | true>();
 {
   const argv = process.argv.slice(2);
@@ -53,7 +55,7 @@ const args = new Map<string, string | true>();
       if (v == null || v === "" || v.startsWith("--")) { console.error(`--${name}: give it a value`); process.exit(2); }
       args.set(name, v);
     } else if (m && BOOL_FLAGS.has(name) && m[2] == null) args.set(name, true);
-    else { console.error(`${argv[i]}: not a flag this script takes (--season, --codes, --limit, --lanes, --all, --check, --dry, --trace, --verify, --clips, --live <file>)`); process.exit(2); }
+    else { console.error(`${argv[i]}: not a flag this script takes (--season, --codes, --limit, --lanes, --event-limit, --all, --check, --dry, --trace, --verify, --clips, --live <file>)`); process.exit(2); }
   }
 }
 const arg = (k: string) => { const v = args.get(k); return typeof v === "string" ? v : undefined; };
@@ -70,6 +72,16 @@ const season = count("season", 2025);
 const only = arg("codes")?.split(",").map((c) => c.trim().toUpperCase()).filter(Boolean);
 const limit = arg("limit") == null ? Infinity : count("limit", 1);
 const lanes = count("lanes", 3);
+/** The most one event's read may take (--event-limit, minutes): a slow event can't hold a whole run. Checked at every
+ *  frame read and before each video (each wait inside a read has its own limit already: READ_LIMIT_S, open's 90 s). */
+const EVENT_LIMIT_MS = count("event-limit", 180) * 60_000;
+/** An event's read past EVENT_LIMIT_MS: thrown through every per-read and per-video catch, so the event stops whole
+ *  (its finished videos' rows kept, the unfinished one written nothing) and the lane goes on to the next event. */
+class EventOverTime extends Error {
+  constructor(readonly code: string) { super(`over its ${EVENT_LIMIT_MS / 60_000} min limit: stopped part way, the videos it finished kept, the rest read on the next run`); }
+}
+/** Each player page's event deadline: its event's code and when its time is up. */
+const pageDeadline = new WeakMap<Page, { code: string; at: number }>();
 /** The season's own file of rows: the only file a run writes (a season with no file yet needs one, imported in
  *  server/data/frameTimings.ts, before it can be read). */
 const FRAMES_FILE = `server/data/frameTimings/${season}.ts`;
@@ -320,6 +332,8 @@ const READ_LIMIT_S = 120;
  *  counts. Per page, so lanes reading side by side never spend each other's budget. */
 const pageReads = new WeakMap<Page, number>();
 function readAt(page: Page, t: number, labelOnly = false): Promise<Read> {
+  const due = pageDeadline.get(page);
+  if (due && Date.now() > due.at) return Promise.reject(new EventOverTime(due.code));
   pageReads.set(page, (pageReads.get(page) ?? 0) + 1);
   let timer: ReturnType<typeof setTimeout> | undefined;
   return Promise.race([
@@ -489,7 +503,7 @@ async function checkOpenings(page: Page, j: Judged, log: (s: string) => void, un
     let named: string | null = null;
     const at = broken ? null : await firstOpening(p.t, async (t) => {
       let r: Read;
-      try { r = await readAt(page, t, true); } catch (e) { broken = true; log(`    an opening read failed (${(e as Error).message.split("\n")[0]}): the rest are left unchecked`); return "stop"; }
+      try { r = await readAt(page, t, true); } catch (e) { if (e instanceof EventOverTime) throw e; broken = true; log(`    an opening read failed (${(e as Error).message.split("\n")[0]}): the rest are left unchecked`); return "stop"; }
       // A seek that never landed shows whatever frame was up before (the last read's): that frame names nothing here.
       if (Math.abs(r.at - t) > 1) { log(`    ${label}: the opening read at ${t} s landed at ${Math.round(r.at)} s; not counted`); return false; }
       if (r.division === "other") { named = "another division's match"; return false; }
@@ -1043,7 +1057,7 @@ async function playerLength(videoId: string): Promise<{ length: number } | { why
 }
 
 async function doCode(code: string): Promise<void> {
-  const rec = recs.get(code)!;
+  const rec = recs.get(code)!, deadline = { code, at: Date.now() + EVENT_LIMIT_MS };
   const rows = await all<{ label: string; time: string | null; timezone: string | null; played: number }>(
     "SELECT m.label, m.time, e.timezone, m.played FROM matches m JOIN events e ON e.season = m.season AND e.code = m.code WHERE m.season = ? AND m.code = ? AND m.played = 1", [season, code]);
   // A match FIRST gives only its scheduled time for (2019's qualifications) is read too, by its frames alone (M.scheduled):
@@ -1113,6 +1127,7 @@ async function doCode(code: string): Promise<void> {
   const videos = [rec, ...(rec.more ?? [])].filter((v) => v.meta?.status === "ok" && v.meta.length);
   const held = new Set<string>();
   for (const v of videos) {
+    if (Date.now() > deadline.at) throw new EventOverTime(code);
     const m = v.meta!;
     const from = m.start ? Date.parse(m.start) / 1000 : null;
     // The matches this video holds: inside its broadcast, or, with no broadcast start (an upload), every match no other video holds.
@@ -1156,6 +1171,7 @@ async function doCode(code: string): Promise<void> {
       page = await player();
       if (division) divisions.set(page, division);
       { const e = eventNames.get(code); if (e) pageEvent.set(page, e); }
+      pageDeadline.set(page, deadline);
       await open(page, v.videoId);
       log(`  ${v.videoId}: ${mine.length} matches`);
       console.error(`${new Date().toISOString().slice(11, 19)} ${code} ${v.videoId}: ${mine.length} matches`);
@@ -1170,6 +1186,7 @@ async function doCode(code: string): Promise<void> {
         page = await player();
         if (division) divisions.set(page, division);
         { const e = eventNames.get(code); if (e) pageEvent.set(page, e); }
+      pageDeadline.set(page, deadline);
         await open(page, v.videoId);
         unread.clear();
         j = await placeVideo(page, mine, from == null ? null : -from, m.length!, log, unread, live, liveMedium);
@@ -1191,6 +1208,7 @@ async function doCode(code: string): Promise<void> {
           // The edges are read after the matches are placed: one that fails keeps the placed row, without edges (a
           // later --bounds reads them).
           const edges = await readEdges(page, m.length!).catch((e: Error) => {
+            if (e instanceof EventOverTime) throw e;
             log(`    couldn't read its edges: ${e.message.split("\n")[0]} (the row is kept without them)`);
             return {} as { opensOn?: Edge; endsOn?: Edge };
           });
@@ -1208,7 +1226,10 @@ async function doCode(code: string): Promise<void> {
           });
         }
       }
+      console.error(`${new Date().toISOString().slice(11, 19)} ${code} ${v.videoId}: done, ${j.placed.size} placed, ${j.review.size} for review, ${j.missing.size} missing`);
     } catch (e) {
+      // Over the event's limit: no row for this video (its reads stopped part way); the event stops here.
+      if (e instanceof EventOverTime) throw e;
       const why = (e as Error).message.split("\n")[0];
       log(`    couldn't play: ${why}`);
       failedVideos++;
@@ -1231,11 +1252,15 @@ async function doCode(code: string): Promise<void> {
 // A few events at a time: most of a read is waiting for YouTube to seek.
 const queue = [...codes];
 // One event that fails (a database read before its videos) is reported and the lane goes on to the next.
-let failedEvents = 0;
+let failedEvents = 0, overTime = 0;
 const lane = async () => {
   while (queue.length && done < limit) {
     const code = queue.shift()!;
-    try { await doCode(code); } catch (e) { failedEvents++; console.error(`${code}: ${(e as Error).message.split("\n")[0]} (not read)`); }
+    try { await doCode(code); } catch (e) {
+      // Over its limit: stopped part way (EventOverTime says so), not failed before its videos.
+      if (e instanceof EventOverTime) { overTime++; console.error(`${code}: ${e.message}`); }
+      else { failedEvents++; console.error(`${code}: ${(e as Error).message.split("\n")[0]} (not read)`); }
+    }
   }
 };
 await Promise.all(Array.from({ length: lanes }, lane));
@@ -1247,6 +1272,8 @@ await worker.terminate().catch(() => {});
 await digits.terminate().catch(() => {});
 await rowOcr.terminate().catch(() => {});
 if (failedEvents) { console.error(`${failedEvents} events failed before their videos were read`); process.exitCode = 1; }
+// An event stopped at its limit wasn't read whole: the run fails, so the autopilot doesn't count it as tried.
+if (overTime) { console.error(`${overTime} events stopped at their ${EVENT_LIMIT_MS / 60_000} min limit (their finished videos written)`); process.exitCode = 1; }
 // Videos that couldn't be played are written as such and read again on the next run, but this run didn't finish them.
 if (failedVideos) { console.error(`${failedVideos} videos couldn't be played (written with the reason; the next run reads them again)`); process.exitCode = 1; }
 if (!CHECK && !DRY) {
