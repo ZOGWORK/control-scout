@@ -2,7 +2,7 @@
 // nothing new is tried again, and what its data PR's CHANGELOG entry says.
 import { describe, expect, it } from "vitest";
 import { nextRelease, parseChangelog } from "../../src/lib/changelog";
-import { ASK_EVERY_MS, GIVE_UP, RETRY_MS, TIMEOUTS_TO_TRY, WAIT_MS, askDue, changelogEntry, forgetSettled, needsRebuild, nextVersion, overLimit, parseShard, pickEvents, prShard, readOutcome, remember, rememberTimeout, rememberWait, rowsDelta, shardOf, waitBackoff, type Memory, type Queued } from "./autopilotRun";
+import { ASK_EVERY_MS, GIVE_UP, RETRY_MS, TIMEOUTS_TO_TRY, WAIT_MS, askDue, changelogEntry, forgetSettled, needsRebuild, nextVersion, LANE_KICK_MS, laneStep, overLimit, parseLanes, parseShard, pickEvents, prShard, readOutcome, remember, rememberTimeout, rememberWait, rowsDelta, shardOf, waitBackoff, type Memory, type Queued } from "./autopilotRun";
 import type { Row } from "./autopilotRows";
 
 const NOW = Date.parse("2026-11-17T12:00:00Z");
@@ -212,6 +212,29 @@ describe("shards: several computers, each its own part of the queue", () => {
     const codes = Array.from({ length: 60 }, (_, i) => `US${i}Y`).filter((c) => shardOf(`2024/${c}`, 3) === 1).slice(0, 3);
     expect(codes).toHaveLength(3);
     for (const order of [codes, [...codes].reverse()]) expect(prShard({ season: 2024, rows: order.map((c) => `v${c}|${c}`) }, 3)).toBe(1);
+  });
+});
+
+describe("lanes: computers with no credentials, each reading a shard for the one that has them", () => {
+  it("reads --lanes K=user@host,… and refuses a shard that's this computer's, out of range, or given twice", () => {
+    const shard = { k: 0, n: 3 };
+    expect(parseLanes(undefined, shard)).toEqual([]);
+    expect(parseLanes("1=lexie@100.77.36.51, 2=derek@100.64.169.42", shard)).toEqual([{ k: 1, host: "lexie@100.77.36.51" }, { k: 2, host: "derek@100.64.169.42" }]);
+    for (const bad of ["0=a@b", "3=a@b", "1=a@b,1=c@d", "1=lexie", "x=a@b", "1=a@b;rm -rf ~"]) expect(typeof parseLanes(bad, shard)).toBe("string");
+  });
+  it("collects a finished or failed job, waits on one running, starts again one queued too long, sends one to an idle lane", () => {
+    const at = new Date(NOW).toISOString();
+    expect(laneStep("").do).toBe("dispatch");
+    expect(laneStep('{"state":"idle"}').do).toBe("dispatch");
+    expect(laneStep(JSON.stringify({ state: "done", id: "J1", at }))).toEqual({ do: "collect", state: { state: "done", id: "J1", at } });
+    expect(laneStep(JSON.stringify({ state: "failed", id: "J1", at, why: "exit 3" })).do).toBe("collect");
+    expect(laneStep(JSON.stringify({ state: "running", id: "J1", at }), NOW + 30 * 3600_000).do).toBe("wait");
+    expect(laneStep(JSON.stringify({ state: "queued", id: "J1", at }), NOW + LANE_KICK_MS).do).toBe("wait");
+    expect(laneStep(JSON.stringify({ state: "queued", id: "J1", at }), NOW + LANE_KICK_MS + 1).do).toBe("kick");
+    // A state file that can't be read is waited on (logged), never taken for idle: its job may still be reading.
+    expect(laneStep("{oops").do).toBe("wait");
+    // Done with no job named: nothing to collect, so idle.
+    expect(laneStep('{"state":"done"}').do).toBe("dispatch");
   });
 });
 
