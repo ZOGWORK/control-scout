@@ -10,7 +10,9 @@ Read off the coverage check's own rows (`clip_coverage`, server/videos/coverageC
 
 - **queued**: the event is over (its venue's last day has ended, counted in UTC days, so an American evening is never
   called over early) and a missing match sits in a video not read for this event yet, or read on or before that day
-  (matches may have come after the read: read once more). Most due matches first.
+  (matches may have come after the read: read once more). The current season's events first, then events with an
+  official video added in the last 7 days, then the backlog of past seasons; most due matches first within each. A new
+  video is read within a run or two, never behind hundreds of older events.
 - **waiting**: the event is still on, or a video's YouTube facts aren't in yet (the reader needs them).
 - **read**: every readable video was read after the event; each missing match keeps its own why (what the video showed).
 - **unreadable**: nothing a frame read can place: no video that day, a private video, no real start from FIRST.
