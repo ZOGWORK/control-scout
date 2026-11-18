@@ -1,18 +1,16 @@
 // An autopilot data PR read from GitHub, and everything that stops its merge (scripts/lib/autopilotMerge.ts holds the
-// rules): its own mark, the files it changes, its version against main, its rows against main's, Loopy and its checks.
+// rules): its own mark, the files it changes (its data file only: no version, no CHANGELOG), its rows against main's,
+// Loopy and its checks.
 // Shared by the runner's merge step (scripts/clip-autopilot.ts) and the by-hand check (scripts/autopilot-merge-check.ts).
 import { spawnSync } from "node:child_process";
 import { dataRows } from "./videoFrames.js";
 import { readMarker } from "./autopilotRows.js";
-import { nextVersion } from "./autopilotRun.js";
-import { clipsMergeProblems, frameMergeProblems, loopySummary, readyProblems, type IssueComment } from "./autopilotMerge.js";
+import { clipsMergeProblems, fileProblems, frameMergeProblems, loopySummary, readyProblems, type IssueComment } from "./autopilotMerge.js";
 import type { FrameTiming } from "../../server/data/frameTimings.js";
 import type { ClipCheck } from "../../server/data/clipChecks.js";
 
 export const CLIPS_FILE = "server/data/clipChecks.ts";
 export const seasonFile = (season: number) => `server/data/frameTimings/${season}.ts`;
-/** The only files an autopilot data PR changes, beside its data file. */
-const RELEASE_FILES = ["CHANGELOG.md", "package.json", "package-lock.json"];
 /** The branch every autopilot PR is opened from (scripts/clip-autopilot.ts). */
 export const BRANCH = "clip-autopilot/";
 
@@ -36,7 +34,7 @@ function filedVideos(ref: string): Map<string, number> {
   return filed;
 }
 
-export interface Gate { number: number; head: string; version: string; file: string; problems: string[] }
+export interface Gate { number: number; head: string; file: string; problems: string[] }
 
 /** An autopilot PR and what stops its merge (none: it may merge), against `main` (a ref, fetched). */
 export function prGate(number: number, main = "origin/main"): Gate {
@@ -49,16 +47,13 @@ export function prGate(number: number, main = "origin/main"): Gate {
   if (pr.mergeable === "CONFLICTING") problems.push("conflicts with main");
   else if (pr.mergeable !== "MERGEABLE") problems.push(`mergeability ${String(pr.mergeable).toLowerCase()}, not worked out yet`);
   if (!String(pr.headRefName ?? "").startsWith(BRANCH)) problems.push(`branch ${pr.headRefName}, not the autopilot's (${BRANCH}…)`);
-  if (!mark) return { number, head: pr.headRefOid, version: "", file: "", problems: [...problems, "no autopilot mark"] };
+  if (!mark) return { number, head: pr.headRefOid, file: "", problems: [...problems, "no autopilot mark"] };
   const file = mark.file ?? seasonFile(mark.season), head = String(pr.headRefOid);
   // The mark is the PR body's: it may name only the autopilot's own data files, never one the gate can't read rows from.
-  if (file !== CLIPS_FILE && file !== seasonFile(mark.season)) return { number, head, version: "", file, problems: [...problems, `its mark names ${file}, not ${seasonFile(mark.season)} or ${CLIPS_FILE}`] };
+  if (file !== CLIPS_FILE && file !== seasonFile(mark.season)) return { number, head, file, problems: [...problems, `its mark names ${file}, not ${seasonFile(mark.season)} or ${CLIPS_FILE}`] };
   git("fetch", "--quiet", "origin", head);
-  // Only its data file and its release: anything else is a person's change.
-  const others = (pr.files as { path: string }[]).map((f) => f.path).filter((p) => p !== file && !RELEASE_FILES.includes(p));
-  if (others.length) problems.push(`changes more than its data and release: ${others.join(", ")}`);
-  const version = String(JSON.parse(git("show", `${head}:package.json`)).version), want = nextVersion(String(JSON.parse(git("show", `${main}:package.json`)).version));
-  if (version !== want) problems.push(`version ${version}, not main's next ${want}`);
+  // Its data file only (data PRs carry no version or CHANGELOG, so there's no version to check): fileProblems.
+  problems.push(...fileProblems((pr.files as { path: string }[]).map((f) => f.path), file));
   // The PR's own change: against where it branched (rows main gained since aren't its); each row checked against main's now.
   const base = git("merge-base", head, main).trim();
   const next = git("show", `${head}:${file}`), was = git("show", `${base}:${file}`), live = git("show", `${main}:${file}`);
@@ -73,5 +68,5 @@ export function prGate(number: number, main = "origin/main"): Gate {
   const checks = (pr.statusCheckRollup as { name?: string; context?: string; conclusion?: string; state?: string }[])
     .map((c) => ({ name: String(c.name ?? c.context ?? "?"), state: String(c.conclusion || c.state || "PENDING") }));
   problems.push(...readyProblems({ head, loopy, checks }));
-  return { number, head, version, file, problems };
+  return { number, head, file, problems };
 }
