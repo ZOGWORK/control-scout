@@ -322,6 +322,19 @@ async function zoom(page: Page, side: SplitSide | null) {
 const SPLIT_SAMPLES = [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8];
 /** The half of a split stream this event is on (splitSide): its bar's row read zoomed to each half, paused at each of
  *  SPLIT_SAMPLES. The player is left zoomed to the whole frame. */
+/** The bar's row at second t, paused, as a split check reads it: bounded as a frame read is (readAt), a hung OCR
+ *  worker replaced (renewOcr) so no lane waits on it forever. */
+async function splitRow(page: Page, t: number): Promise<string> {
+  if (ocrBroken) throw new Error(ocrBroken);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  return Promise.race([
+    (async () => {
+      await seek(page, t, true);
+      return (await rowOcr.recognize(await page.screenshot({ clip: LABEL_ROW }))).data.text as string;
+    })().finally(() => clearTimeout(timer)),
+    new Promise<never>((_, no) => { timer = setTimeout(() => { void renewOcr(); no(new Error(`a split check at ${t} s hung over ${READ_LIMIT_S} s`)); }, READ_LIMIT_S * 1000); }),
+  ]);
+}
 async function findSplit(page: Page, length: number): Promise<SplitSide | null> {
   const own = pageEvent.get(page);
   if (!own) return null;
@@ -329,9 +342,8 @@ async function findSplit(page: Page, length: number): Promise<SplitSide | null> 
   for (const side of SPLIT_SIDES) {
     await zoom(page, side);
     for (const f of SPLIT_SAMPLES) {
-      await within(seek(page, Math.round(length * f), true), READ_LIMIT_S, `a split check at ${Math.round(length * f)} s`);
-      const text = (await rowOcr.recognize(await page.screenshot({ clip: LABEL_ROW }))).data.text as string;
-      reads.push({ side, event: overlayEvent(text, own.name, own.quals, SEMIFINALS).event });
+      const t = Math.round(length * f);
+      reads.push({ side, event: overlayEvent(await splitRow(page, t), own.name, own.quals, SEMIFINALS).event });
     }
   }
   await zoom(page, null);
