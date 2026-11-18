@@ -92,17 +92,67 @@ export function changedRows<T extends Keyed = Row>(before: string, after: string
   return fileRows<T>(after).filter((r) => was.get(rowKey(r)) !== JSON.stringify(r));
 }
 
-/** A frame timings file with these rows in it (each replacing the row of its video and event, or added), every other
- *  row and line as it was, sorted as the reader sorts them (event, then video). */
+/** A season (or clip checks) file with these rows in it: a row of the same video and event replaced on its own line, a
+ *  new row put just before the first row whose event code sorts after its own (at the end only when none does), every
+ *  other line as it was. Never re-sorted or appended: PRs from different sources each touch only their own rows' lines,
+ *  so they don't conflict (owner's rule, 2026-11-17). */
 export function applyRows<T extends Keyed>(text: string, rows: T[]): string {
+  if (!rows.length) { dataLines(text); return text; }
+  const { head, rest, open, close, lines } = dataLines(text);
+  const before = new Map<number, T[]>();
+  for (const p of rowPlaces(lines, rows)) {
+    if (p.replaces) lines[p.at] = rowLine(p.row);
+    else (before.get(p.at) ?? before.set(p.at, []).get(p.at)!).push(p.row);
+  }
+  // Rows put after the last line: that line needs its comma (rowLine writes one; a hand-written last row may lack it).
+  let lastRow = lines.length - 1;
+  while (lastRow >= 0 && rowOf(lines[lastRow]) == null) lastRow--;
+  if (before.has(lines.length) && lastRow >= 0 && !lines[lastRow].trimEnd().endsWith(",")) lines[lastRow] = `${lines[lastRow].trimEnd()},`;
+  const out: string[] = [];
+  for (let i = 0; i <= lines.length; i++) { for (const r of before.get(i) ?? []) out.push(rowLine(r)); if (i < lines.length) out.push(lines[i]); }
+  return `${head}${rest.slice(0, open + 2)}${out.join("\n")}${rest.slice(close)}`;
+}
+/** A data file split around its rows array: the lines between "[" and "];" ("[\n];", a season not read yet, has none). */
+function dataLines(text: string): { head: string; rest: string; open: number; close: number; lines: string[] } {
   const [head, rest] = splitAt(text, "// --- Data");
   const open = rest.indexOf("[\n"), close = rest.lastIndexOf("\n];");
   if (open < 0 || close < 0) throw new Error("no rows array under the data mark");
-  const byKey = new Map(fileRows<T>(text).map((r) => [rowKey(r), r]));
-  for (const r of rows) byKey.set(rowKey(r), r);
-  if (!byKey.size) return text;
-  const list = [...byKey.values()].sort((a, b) => a.code.localeCompare(b.code) || a.videoId.localeCompare(b.videoId));
-  return `${head}${rest.slice(0, open + 2)}${list.map(rowLine).join("\n")}${rest.slice(close)}`;
+  const lines = close >= open + 2 ? rest.slice(open + 2, close).split("\n") : [];
+  // Only blank lines ("[\n\n];", a season not read yet): none, so the first rows don't sit under a blank line.
+  return { head, rest, open, close, lines: lines.every((l) => l.trim() === "") ? [] : lines };
+}
+const rowOf = (line: string): Keyed | null => { const m = /^\s*(\{.*\}),?\s*$/.exec(line); return m ? (JSON.parse(m[1]) as Keyed) : null; };
+/** Where each row goes among the file's lines as they are: replacing its own row's line (`at` that line), or new, in
+ *  the gap before the first row whose code sorts after its own (`at` that line; the end when none does). New rows in
+ *  the same gap in code, then video, order. One row a key: of rows given twice the last counts; a file holding a key
+ *  twice is refused (which copy to replace would be a guess). */
+function rowPlaces<T extends Keyed>(lines: string[], rows: T[]): { row: T; at: number; replaces: boolean }[] {
+  const at = new Map<string, number>();
+  lines.forEach((l, i) => {
+    const r = rowOf(l);
+    if (!r) return;
+    if (at.has(rowKey(r))) throw new Error(`${rowKey(r)} is in the file twice`);
+    at.set(rowKey(r), i);
+  });
+  return [...new Map(rows.map((r) => [rowKey(r), r])).values()].sort((a, b) => a.code.localeCompare(b.code) || a.videoId.localeCompare(b.videoId)).map((row) => {
+    const i = at.get(rowKey(row));
+    if (i != null) return { row, at: i, replaces: true };
+    const gap = lines.findIndex((l) => { const o = rowOf(l); return o != null && o.code.localeCompare(row.code) > 0; });
+    return { row, at: gap < 0 ? lines.length : gap, replaces: false };
+  });
+}
+
+/** Rows that must ship in one PR: git conflicts where two branches change lines that overlap or touch, so rows whose
+ *  changes on `text` do (a replaced line is lines [i, i+1); a new row before line g, the empty [g, g)) go together.
+ *  Groups in file order. Two PRs adding rows into the same gap would conflict; one PR holding them doesn't. */
+export function rowGroups<T extends Keyed>(text: string, rows: T[]): T[][] {
+  const spans = rowPlaces(dataLines(text).lines, rows).map((p) => ({ row: p.row, start: p.at, end: p.at + (p.replaces ? 1 : 0) })).sort((a, b) => a.start - b.start || a.end - b.end);
+  const out: { end: number; rows: T[] }[] = [];
+  for (const s of spans) {
+    const last = out.at(-1);
+    if (last && s.start <= last.end) { last.rows.push(s.row); last.end = Math.max(last.end, s.end); } else out.push({ end: s.end, rows: [s.row] });
+  }
+  return out.map((g) => g.rows);
 }
 const splitAt = (s: string, mark: string): [string, string] => { const i = s.indexOf(mark); if (i < 0) throw new Error(`no "${mark}" mark`); return [s.slice(0, i), s.slice(i)]; };
 
@@ -119,6 +169,68 @@ export function chunkRows<T extends Keyed>(rows: T[], max = 15_000): T[][] {
     if (fit) fit.push(...g); else out.push([...g]);
   }
   return out;
+}
+
+/** A diff's file header ("diff --git", index, ---/+++) and each hunk's "@@ -a,b +c,d @@" line, about. */
+const FILE_HEADER = 160, HUNK_HEADER = 32;
+/** About how big a PR's diff is from `before` to `after` (bytes): every line added or removed, `context` lines either
+ *  side of each added one, as git shows them (lines are whole rows, so context counts), each hunk's header and the
+ *  file's. 0: no change. */
+export function diffBytes(before: string, after: string, context = 3): number {
+  const a = before.split("\n"), b = after.split("\n"), had = new Set(a), has = new Set(b);
+  const shown = new Set<number>();
+  b.forEach((l, i) => { if (!had.has(l)) for (let j = Math.max(0, i - context); j <= Math.min(b.length - 1, i + context); j++) shown.add(j); });
+  const removed = a.filter((l) => !has.has(l));
+  if (!shown.size && !removed.length) return 0;
+  // Hunks: runs of shown lines (a removal sits beside the lines it was replaced by, inside their hunk).
+  const idx = [...shown].sort((x, y) => x - y), hunks = Math.max(1, idx.filter((v, k) => k === 0 || v !== idx[k - 1] + 1).length);
+  return FILE_HEADER + hunks * HUNK_HEADER + idx.reduce((n, i) => n + Buffer.byteLength(b[i]) + 2, 0) + removed.reduce((n, l) => n + Buffer.byteLength(l) + 2, 0);
+}
+
+/** A PR diff Loopy can't review at all: a row whose own diff is bigger never ships (it would never merge, and would hold
+ *  its lines from every other PR). */
+export const LOOPY_DIFF_MAX = 16_000;
+
+/** A season's rows as data PRs to open now (`ship`), each diff on `text` (main's file) at most `maxDiff` bytes (Loopy
+ *  can't review a diff much over 16 KB), none conflicting with another or with an open PR; the rest wait (`later`) for
+ *  the next run, on the main those PRs leave. Rows that must go together (rowGroups: changes that touch) never go in
+ *  two PRs at once:
+ *  - a group touching an open PR's rows (`held`, as main's file would get them) waits whole, a row the open PR also
+ *    changes included;
+ *  - a group whose diff is over the cap (new rows sharing one gap in a sparse file) ships its first whole events, in
+ *    file order, up to the first that doesn't fit (or, when its first event alone doesn't, that event's first rows up to
+ *    the first that doesn't), and the rest wait;
+ *  - other groups are packed in file order while the PR's diff fits.
+ *  A row over the cap alone ships alone (nothing smaller can carry it), unless its own diff is over LOOPY_DIFF_MAX: then
+ *  it never ships (`tooBig`, for the owner), and is set aside before the groups are made, so it holds no lines and
+ *  never stops the rows sharing its gap. */
+export function prChunks<T extends Keyed>(text: string, rows: T[], maxDiff = 12_000, held: Keyed[] = []): { ship: T[][]; later: T[]; tooBig: T[] } {
+  const heldKeys = new Set(held.map(rowKey)), ship: T[][] = [], later: T[] = [], tooBig: T[] = [];
+  const size = (rs: T[]) => diffBytes(text, applyRows(text, rs)), fits = (rs: T[]) => size(rs) <= maxDiff;
+  later.push(...rows.filter((r) => heldKeys.has(rowKey(r))));
+  // A row Loopy can't review on its own never ships, so it takes no part in the groups: otherwise it would join the
+  // new rows of its gap and, first in an over-cap group, leave the rest waiting behind it on every run.
+  const free: T[] = [];
+  for (const r of rows) if (!heldKeys.has(rowKey(r))) (size([r]) > LOOPY_DIFF_MAX ? tooBig : free).push(r);
+  for (const group of rowGroups(text, [...free, ...held] as T[])) {
+    const g = group.filter((r) => !heldKeys.has(rowKey(r)));
+    if (g.length < group.length) { later.push(...g); continue; }
+    if (!fits(g)) {
+      // Whole events while they fit; else the first event's rows while they fit. Never past the first that doesn't.
+      const events: T[][] = [];
+      for (const r of g) { const last = events.at(-1); if (last && last[0].code === r.code) last.push(r); else events.push([r]); }
+      const piece: T[] = [];
+      for (const e of events) { if (fits([...piece, ...e])) piece.push(...e); else break; }
+      if (!piece.length) for (const r of events[0]) { if (!piece.length || fits([...piece, r])) piece.push(r); else break; }
+      const shipped = new Set(piece.map(rowKey));
+      later.push(...g.filter((r) => !shipped.has(rowKey(r))));
+      ship.push(piece);
+      continue;
+    }
+    const cur = ship.at(-1);
+    if (cur && fits([...cur, ...g])) cur.push(...g); else ship.push([...g]);
+  }
+  return { ship, later, tooBig };
 }
 
 /** The mark an autopilot PR carries in its description: its season, rows (video|event) and, for a file other than the

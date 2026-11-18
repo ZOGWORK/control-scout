@@ -53,6 +53,9 @@ describe("reading", () => {
     for (const q of ["top in texas atm", "the strongest in GA right now", "best from ohio rn", "top 5 in new jersey currently"])
       expect(readAsk(q), q).toMatchObject({ kind: "leaderboard", region: { key: expect.stringMatching(/^USA:/) } });
     for (const q of ["best in show", "best in class", "top of the hour"]) expect(readAsk(q), q).toBeNull();
+    // "Ranked" beside the best is the board's own order, before the place or last.
+    for (const q of ["best ranked team in nj", "top-ranked teams in new jersey", "best teams in nj ranked"])
+      expect(readAsk(q), q).toMatchObject({ kind: "leaderboard", region: { key: "USA:NJ" } });
     expect(readAsk("highest opr")).toEqual({ kind: "stat", stat: "opr", region: null });
     expect(readAsk("best auto team")).toEqual({ kind: "stat", stat: "auto", region: null });
     expect(readAsk("who has the most wins")).toEqual({ kind: "stat", stat: "wins", region: null });
