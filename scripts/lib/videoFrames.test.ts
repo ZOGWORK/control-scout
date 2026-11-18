@@ -1,7 +1,7 @@
 // The pure parts of the frame reader (scripts/video-frames.ts): the overlay's match, the timer's elapsed time, and
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
-import { dataRows, divisionOf, cropOrder, elapsed, flippedClip, titleLeaks, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, shortClash, type M } from "./videoFrames";
+import { dataRows, divisionOf, cropOrder, elapsed, flippedClip, inPage, titleLeaks, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, shortClash, type M } from "./videoFrames";
 import { between, GAP_READS, TRIES } from "./videoFrames";
 
 describe("the frame reader", () => {
@@ -155,6 +155,13 @@ describe("the frame reader", () => {
     // None, or a crop that isn't one of these (the bar found in the frame): the usual order.
     expect(cropOrder([a, b, c, d], null)).toEqual([a, b, c, d]);
     expect(cropOrder([a, b, c, d], { n: "a" })).toEqual([a, b, c, d]);
+  });
+
+  it("runs a function in a page that has no __name of tsx's (inPage)", () => {
+    // tsx's own output for a function with an inner named arrow, as the page gets it from toString.
+    const compiled = { toString: () => '() => { const walk = __name((n) => n * 2, "walk"); return walk(21); }' };
+    expect(() => new Function(`return (${compiled.toString()})()`)()).toThrow(/__name/);
+    expect(new Function(`return ${inPage(compiled)}`)()).toBe(42);
   });
 
   it("finds YouTube's title and channel among the page's texts, never the overlay's own (2023's .ytp-title leak)", () => {
