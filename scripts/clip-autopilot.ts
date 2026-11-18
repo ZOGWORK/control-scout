@@ -37,7 +37,7 @@ import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { gunzipSync } from "node:zlib";
 import { applyRows, changedRows, fileRows, prChunks, prMarker, readMarker, rowKey, rowProblems, type Keyed, type Row } from "./lib/autopilotRows";
-import { askDue, forgetSettled, frameFileSeason, heldElsewhere, laneResults, laneStep, needsRebuild, overLimit, parseLanes, parseShard, pickEvents, prShard, readOutcome, remember, rememberTimeout, rememberWait, rowsDelta, shardOf, type LaneJob, type Memory } from "./lib/autopilotRun";
+import { askDue, forgetSettled, frameFileSeason, heldElsewhere, holdCodes, laneResults, laneStep, needsRebuild, overLimit, parseLanes, parseShard, pickEvents, prShard, readOutcome, remember, rememberTimeout, rememberWait, rowsDelta, shardOf, type LaneJob, type Memory } from "./lib/autopilotRun";
 import { loopySummary, reviewedSha, type IssueComment } from "./lib/autopilotMerge";
 import { clipCheckProblems, clipsDelta } from "./lib/autopilotClips";
 import { streamRun } from "./lib/streamRun";
@@ -145,22 +145,37 @@ function openPrs(): { number: number; branch: string; head: string; labels: stri
 
 /** Events other open PRs (another session's, not the autopilot's) bring frame-read rows for: held like the autopilot's
  *  own, so no event gets a second PR (heldElsewhere). Read when the queue is picked, and again just before PRs open, as
- *  a read takes hours and another PR may have opened meanwhile. A list that can't be read holds nothing, logged. */
+ *  a read takes hours and another PR may have opened meanwhile. A file GitHub shows no patch for (too big) is read at
+ *  the PR's head and its rows compared with main's. Whatever can't be read (the list, one PR, one file) is logged, and
+ *  only that holds nothing: the rest still do. */
 function othersHold(): Map<string, number> {
   if (DRY) return new Map();
+  let list: { number: number; headRefOid: string; files?: { path: string }[] }[];
   try {
-    const own = new Set(open.map((p) => p.number));
-    const list = JSON.parse(sh("gh", ["pr", "list", "--state", "open", "--limit", "200", "--json", "number,files"], { quiet: true }).out || "[]") as { number: number; files?: { path: string }[] }[];
-    const touching = list.filter((p) => !own.has(p.number) && (p.files ?? []).some((f) => frameFileSeason(f.path) != null));
-    return heldElsewhere(touching.map((p) => ({
-      number: p.number,
-      files: sh("gh", ["api", `repos/{owner}/{repo}/pulls/${p.number}/files`, "--paginate", "--jq", ".[] | {filename, patch} | @json"], { quiet: true }).out
-        .split("\n").filter(Boolean).map((l) => JSON.parse(l) as { filename: string; patch?: string }),
-    })));
+    list = JSON.parse(sh("gh", ["pr", "list", "--state", "open", "--limit", "200", "--json", "number,headRefOid,files"], { quiet: true }).out || "[]");
   } catch (e) {
-    log(`other open PRs couldn't be read (${(e as Error).message}); none held off this time`);
+    log(`other open PRs couldn't be listed (${(e as Error).message}); none held off this time`);
     return new Map();
   }
+  const own = new Set(open.map((p) => p.number));
+  const prs: { number: number; files: { filename: string; patch?: string }[] }[] = [];
+  for (const p of list.filter((x) => !own.has(x.number) && (x.files ?? []).some((f) => frameFileSeason(f.path) != null))) {
+    try {
+      prs.push({ number: p.number, files: sh("gh", ["api", `repos/{owner}/{repo}/pulls/${p.number}/files`, "--paginate", "--jq", ".[] | {filename, patch} | @json"], { quiet: true }).out
+        .split("\n").filter(Boolean).map((l) => JSON.parse(l) as { filename: string; patch?: string }) });
+    } catch (e) { log(`#${p.number}: its files couldn't be read (${(e as Error).message}); its events aren't held off this time`); }
+  }
+  const { held, unread } = heldElsewhere(prs);
+  for (const u of unread) {
+    const head = list.find((x) => x.number === u.number)?.headRefOid;
+    try {
+      const text = sh("gh", ["api", "-H", "Accept: application/vnd.github.raw", `repos/{owner}/{repo}/contents/${u.filename}?ref=${head}`], { quiet: true }).out;
+      const codes = [...new Set(changedRows(mainText(u.filename), text).map((r) => r.code))];
+      holdCodes(held, frameFileSeason(u.filename)!, codes, u.number);
+      log(`#${u.number}: GitHub shows no patch for ${u.filename}; its copy read instead, ${codes.length} event${codes.length === 1 ? "" : "s"} held`);
+    } catch (e) { log(`#${u.number}: GitHub shows no patch for ${u.filename} and its copy couldn't be read (${(e as Error).message}); its events aren't held off this time`); }
+  }
+  return held;
 }
 
 /** A data PR changes its data file only (owner's rule, 2026-11-17): no CHANGELOG entry, no version, so PRs never
