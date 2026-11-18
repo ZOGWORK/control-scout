@@ -38,6 +38,8 @@ export const SHELL_MARKER = 'id="root"';
 export interface CheckOptions {
   timeoutMs?: number;
   now?: () => number;
+  /** Sent as x-uptime-key, so the site's shutdown message (server/shutdownGate.ts) lets the checks through. */
+  gateKey?: string;
 }
 
 async function timed(
@@ -45,6 +47,7 @@ async function timed(
   url: string,
   timeoutMs: number,
   now: () => number,
+  gateKey?: string,
 ): Promise<{ status: number | null; contentType: string; body: string; latencyMs: number; error?: string }> {
   const started = now();
   const ctrl = new AbortController();
@@ -54,7 +57,7 @@ async function timed(
     const res = await fetchFn(url, {
       signal: ctrl.signal,
       redirect: "follow",
-      headers: { "cache-control": "no-cache", "user-agent": "control-scout-uptime" },
+      headers: { "cache-control": "no-cache", "user-agent": "control-scout-uptime", ...(gateKey ? { "x-uptime-key": gateKey } : {}) },
     });
     // The whole body has to arrive within the same timeout.
     const body = await res.text();
@@ -77,9 +80,9 @@ export function oneLine(s: string, max: number): string {
   return t.length > max ? `${t.slice(0, max - 1)}…` : t;
 }
 
-async function checkApi(fetchFn: FetchLike, site: string, timeoutMs: number, now: () => number): Promise<CheckResult> {
+async function checkApi(fetchFn: FetchLike, site: string, timeoutMs: number, now: () => number, gateKey?: string): Promise<CheckResult> {
   const url = `${site}/api/health`;
-  const r = await timed(fetchFn, url, timeoutMs, now);
+  const r = await timed(fetchFn, url, timeoutMs, now, gateKey);
   const base = { name: "api" as const, label: "API (/api/health)", url, status: r.status, latencyMs: r.latencyMs };
   if (r.error) return { ...base, ok: false, reason: r.error };
   if (r.status !== 200) return { ...base, ok: false, reason: `HTTP ${r.status}` };
@@ -89,9 +92,9 @@ async function checkApi(fetchFn: FetchLike, site: string, timeoutMs: number, now
   return { ...base, ok: true };
 }
 
-async function checkHome(fetchFn: FetchLike, site: string, timeoutMs: number, now: () => number): Promise<CheckResult> {
+async function checkHome(fetchFn: FetchLike, site: string, timeoutMs: number, now: () => number, gateKey?: string): Promise<CheckResult> {
   const url = `${site}/`;
-  const r = await timed(fetchFn, url, timeoutMs, now);
+  const r = await timed(fetchFn, url, timeoutMs, now, gateKey);
   const base = { name: "home" as const, label: "Home page (/)", url, status: r.status, latencyMs: r.latencyMs };
   if (r.error) return { ...base, ok: false, reason: r.error };
   if (r.status !== 200) return { ...base, ok: false, reason: `HTTP ${r.status}` };
@@ -105,7 +108,7 @@ export async function checkSite(fetchFn: FetchLike, site: string, opts: CheckOpt
   const now = opts.now ?? Date.now;
   const timeoutMs = opts.timeoutMs ?? 10_000;
   const at = now();
-  const checks = await Promise.all([checkApi(fetchFn, site, timeoutMs, now), checkHome(fetchFn, site, timeoutMs, now)]);
+  const checks = await Promise.all([checkApi(fetchFn, site, timeoutMs, now, opts.gateKey), checkHome(fetchFn, site, timeoutMs, now, opts.gateKey)]);
   return { ok: checks.every((c) => c.ok), at, checks };
 }
 
@@ -281,6 +284,7 @@ export interface UptimeConfig {
   threshold?: number;
   remindMs?: number;
   timeoutMs?: number;
+  gateKey?: string;
 }
 
 /**
@@ -340,6 +344,7 @@ export function configFrom(env: Record<string, string | undefined>): UptimeConfi
     threshold: num(env.FAIL_THRESHOLD, 2),
     remindMs: num(env.REMIND_MINUTES, 30) * 60_000,
     timeoutMs: num(env.TIMEOUT_MS, 10_000),
+    gateKey: env.UPTIME_GATE_KEY || undefined,
   };
 }
 
@@ -350,7 +355,7 @@ export async function tick(
 ): Promise<{ result: SiteResult; state: MonitorState; alert: Alert | null; delivery: Delivery | null; pending: Queued[] }> {
   const saved: StoredState = (await deps.store.get()) ?? { ...INITIAL_STATE };
   const { outbox = [], ...prev } = saved;
-  const result = await checkSite(deps.fetch, cfg.site, { timeoutMs: cfg.timeoutMs, now: deps.now });
+  const result = await checkSite(deps.fetch, cfg.site, { timeoutMs: cfg.timeoutMs, now: deps.now, gateKey: cfg.gateKey });
   const { state, alert } = step(prev, result, { threshold: cfg.threshold, remindMs: cfg.remindMs });
   const summary = result.checks.map(describeCheck).join(" | ");
   deps.log(`${result.ok ? "UP" : "FAIL"} (${state.failures} in a row): ${summary}`);

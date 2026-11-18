@@ -18,7 +18,7 @@ export const MISS_KINDS: { kind: MissKind; name: string; about: string; swatch: 
   { kind: "noclock", name: "No clock", about: "The video has no broadcast clock to place it from", swatch: P.endgame },
   { kind: "unplaced", name: "Unplaced", about: "The video is missing time, so where it is can't be worked out", swatch: P.auto },
   { kind: "outside", name: "Outside video", about: "Played outside the time the video covers", swatch: P.reference },
-  { kind: "unavailable", name: "Unavailable", about: "The video is private or gone", swatch: P.no },
+  { kind: "unavailable", name: "Can't be played", about: "The video is private or gone, or its owner turned off playing it on other sites: settled until it plays again", swatch: P.no },
   { kind: "novideo", name: "No video", about: "No recording covers it", swatch: P.judged },
   { kind: "other", name: "Other", about: "No start time to place it from, or no reason found", swatch: P.performance },
 ];
@@ -27,7 +27,7 @@ export const KIND = Object.fromEntries(MISS_KINDS.map((k) => [k.kind, k])) as Re
 const BY_REASON: Record<CoverageReason, MissKind> = {
   "no-clock": "noclock", "video-unread": "noclock",
   "gap-unplaced": "unplaced", "between-recordings": "unplaced",
-  "video-unavailable": "unavailable",
+  "video-unavailable": "unavailable", "video-no-embed": "unavailable", "video-no-overlay": "unavailable",
   "no-recording-day": "novideo", "no-first-video": "novideo",
   "outside-span": "outside", "before-broadcast": "outside", "after-broadcast": "outside", "before-cut": "outside",
   "past-video-end": "outside", "past-chapters": "outside", "before-chapters": "outside", "past-checked": "outside",
