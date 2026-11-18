@@ -120,9 +120,6 @@ export const secondsOf = (s: string) => { const m = /(\d):([0-5]\d)/.exec(s); re
 /** secondsOf, where the font's colon is too thin for the OCR to keep ("1:17" read "117", FIRST AGE's white box): the
  *  whole reading is one timer, with or without its colon, at most 2:59. */
 export const secondsLoose = (s: string) => { const m = /^([0-2]):?([0-5]\d)$/.exec(s.replace(/\s/g, "")); return m ? Number(m[1]) * 60 + Number(m[2]) : secondsOf(s); };
-/** A crop of a bottom bar, for the same bar flipped to the top of a `height`-tall frame: the bar's rows in reverse, so
- *  what sat `n` px off the bottom edge sits `n` px off the top (POWERPLAY's timer at y 686 of 720, 4 px above the
- *  bottom, is at y 4 in Arizona's flipped bar). */
 /** Two meets' streams side by side in one video, each half with its own half-size bar (FIRST in Texas's league meets on
  *  one stream: USTXCENSAM4 2022, Hill Country on the left, North San on the right). Too small to read as they are: the
  *  player is zoomed to twice its size from the frame's left or right edge at mid-height, so the half fills the frame
@@ -141,6 +138,9 @@ export function splitSide(reads: readonly { side: SplitSide; event: "own" | "oth
   if (r >= 2 && l === 0) return "right";
   return null;
 }
+/** A crop of a bottom bar, for the same bar flipped to the top of a `height`-tall frame: the bar's rows in reverse, so
+ *  what sat `n` px off the bottom edge sits `n` px off the top (POWERPLAY's timer at y 686 of 720, 4 px above the
+ *  bottom, is at y 4 in Arizona's flipped bar). */
 export const flippedClip = (c: { x: number; y: number; width: number; height: number }, height = 720) => ({ ...c, y: height - c.y - c.height });
 
 /** The order the timer's crops are tried in: `first` (the crop the frame's bar names, or whose clock last ran) ahead,

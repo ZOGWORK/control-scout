@@ -320,8 +320,6 @@ async function zoom(page: Page, side: SplitSide | null) {
 }
 /** Seconds through the video, as fractions of it, the bar's row is read at on each half to find a split stream's. */
 const SPLIT_SAMPLES = [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8];
-/** The half of a split stream this event is on (splitSide): its bar's row read zoomed to each half, paused at each of
- *  SPLIT_SAMPLES. The player is left zoomed to the whole frame. */
 /** The bar's row at second t, paused, as a split check reads it: bounded as a frame read is (readAt), a hung OCR
  *  worker replaced (renewOcr) so no lane waits on it forever. */
 async function splitRow(page: Page, t: number): Promise<string> {
@@ -335,6 +333,8 @@ async function splitRow(page: Page, t: number): Promise<string> {
     new Promise<never>((_, no) => { timer = setTimeout(() => { void renewOcr(); no(new Error(`a split check at ${t} s hung over ${READ_LIMIT_S} s`)); }, READ_LIMIT_S * 1000); }),
   ]);
 }
+/** The half of a split stream this event is on (splitSide): its bar's row read zoomed to each half, paused at each of
+ *  SPLIT_SAMPLES. The player is left zoomed to the whole frame. */
 async function findSplit(page: Page, length: number): Promise<SplitSide | null> {
   const own = pageEvent.get(page);
   if (!own) return null;
