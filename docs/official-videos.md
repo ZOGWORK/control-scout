@@ -127,6 +127,13 @@ When FIRST's link is a channel's page (`server/videos/channelStreams.ts`) and tw
 (West Michigan's Meet 5 and Meet 6, both "@firstalumninetworkgrandvalley/streams"), a broadcast whose title names one
 of them by its designator ("Meet 6") is that event's only. A title naming neither stays with both.
 
+A day with two or more of the channel's broadcasts, some of whose titles name the event's own words (its name's words
+less the common ones: FTC, Qualifier, League, BC…), keeps only those: the rest are another event the channel streamed
+that day, whether or not that event gave FIRST the same link. 2022 CABCVIQ (BC Victoria Qualifier) had FIRST Robotics
+BC's "Vancouver Qualifier" beside its own; FIRST Chesapeake's same-day qualifiers each had the other's. A broadcast
+whose title wasn't read stays. Broadcasts found before are weighed again by these rules on each run
+(`reweighBroadcasts`, with the titles the channel audit keeps), since a link with a broadcast found isn't read again.
+
 FIRST's link (or the video its short link led to) is the event's video only when YouTube's broadcast date fits the
 event, a day either side at the venue (`linkAiredOff`, `server/videos/officialVideos.ts`). One broadcast on another
 date is another event's stream or a test: 2024's USORSOM3 (2025-01-11) was given USORSOM2's stream of 2024-12-14.
@@ -326,6 +333,11 @@ channel's whole uploads list, video by video, with Scout's records. It reads onl
   A wrong add is listed with what's wrong. One that the watcher's title rules set aside today (a rule tightened since,
   such as drone or FRC streams) is taken off its event by the audit, as the watcher would have left it. It's logged as
   `officialVideo.remove` by "channel audit" and still counts as a wrong add. The owner removes any other wrong add.
+  One the audit took off and found right again on a later run comes back on its event (`officialVideo.restore` by
+  "channel audit"); one the owner removed stays off.
+- **Placeholder titles.** A channel's uploads list can give "Deleted video" or "Private video" in place of a public
+  video's title (NYC FIRST's `bjwZWaiMwnc`, 2026-11-17). That's never written over a title or read as one: the
+  video's own title is read from YouTube's videos list, and a watcher's add is checked by its own title.
 - **Best guesses in review.** Every video in review or set aside whose verdict names no event gets a best guess
   (`official_watch.guess_why`). New rows get it when the watcher reads them; older rows get it at the next audit.
 - **Runs** (`official_audit_runs`): units, channels read and read in full, uploads, those with a Scout record, set
