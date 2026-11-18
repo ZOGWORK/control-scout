@@ -18,7 +18,7 @@ import { matchTime, oddsPct, pct } from "../lib/format";
 import { VIDEO_TONE } from "../lib/textTones";
 import { useVideoLinkCount } from "./MatchVideo";
 import { ContributorRowMark, useContributorVideo } from "./contributors/EventClips";
-import { restoredSavedPosition, scrollToElement, smoothBehavior } from "../lib/pageScroll";
+import { restoredSavedPosition, scrollToElement } from "../lib/pageScroll";
 
 const MatchDetails = lazy(() => import("./MatchDetails").then((x) => ({ default: x.MatchDetails })));
 import { useCalibration } from "../lib/calibration";
@@ -541,10 +541,10 @@ export function MatchList({ matches, highlight, empty, eventNames, eventDates, i
   const vr = useVirtualRows<HTMLDivElement>(flat.length, estimate, { key: (i) => flat[i].key, cache: `${loc.pathname}|${newestFirst ? "recent" : "list"}|${eventNames ? "events" : matches[0]?.code ?? ""}` });
   // Brings a match's row into view. Off a long list's window it isn't rendered: the page jumps near it first
   // (so it renders), then places it.
-  const bring = (key: string, behavior?: ScrollBehavior) => requestAnimationFrame(() => {
+  const bring = (key: string) => requestAnimationFrame(() => {
     const find = () => box.current?.querySelector(`[data-match="${CSS.escape(key)}"]`);
     const row = find();
-    if (row) return scrollToElement(row, behavior);
+    if (row) return scrollToElement(row);
     const i = flat.findIndex((x) => x.kind === "match" && x.m.key === key);
     if (i < 0) return;
     vr.jumpTo(i);
@@ -565,7 +565,7 @@ export function MatchList({ matches, highlight, empty, eventNames, eventDates, i
     shownFor.current = visit;
     setOpen((s) => (s.has(id(m)) ? s : new Set(s).add(id(m))));
     if (restoredSavedPosition(loc)) return;
-    bring(m.key, smoothBehavior());
+    bring(m.key);
     // Only when the requested match or the visit changes (not on every refresh of the list).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialOpen, loc.key, matches.length]);

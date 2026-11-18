@@ -31,6 +31,10 @@ point, and reads two things with tesseract.js:
    2022). Where POWERPLAY's box goes black late in a match behind faint grey digits, the box is also read with only
    the pixels just brighter than that black as ink (`darkInk`), since the plain shot misreads them ("38" as "238"). A timer's two
    readings come from one crop, and the crop whose clock last ran is read first for the rest of the video (`cropOrder`).
+   Two meets streamed side by side, each half with its own half-size bar (FIRST in Texas's league meets, USTXCENSAM4
+   2022), read nothing whole: a video that reads nothing twice has its bar's row read zoomed to each half
+   (`splitSide`), and the half naming this event (its name or its match total) is read zoomed to twice its size
+   (`splitZoomCss`), its bar then where a full-size one is.
    Each counts Auto down from 0:30,
    then 8 s to pick up the controllers ("0:05" under a hand), then TeleOp from 2:00. Some bottom bars instead
    count the whole match down from 2:30: Auto reads 2:30 to 2:00 there, so a bottom-bar reading above 2:00 is that
