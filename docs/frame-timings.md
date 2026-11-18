@@ -102,7 +102,7 @@ opens (`opens`); the server starts the clip there (`frameOpen`). The last two ar
 stays up until the match's own overlay comes on (CAONMIQ 2025 M7, USIAWESTLT M3). One whose opening frame shows another
 match goes to review; one whose overlay can't be read there is missing with "overlay could not be read at its clip's
 start". A row with `opens` plays only the starts in it. `--verify` checks the openings of rows read before this, without
-reading their starts again.
+reading their starts again. Where nothing before the start names the match (an upload cut from the last match's results straight into this one's first second), it is tried 2 and then 4 s after the start, and the clip opens there, a few seconds into its match, rather than not at all.
 
 An opening is read paused at its second, so the frame read is the one the clip opens on. A playing read lands about a
 second later by the time it's taken: LTCMP 2024 Q20, asked 8948, read 8948.9 with "Qualification 20 of 40" already in,
@@ -174,7 +174,7 @@ npm install --prefix ~/frame-ocr tesseract.js
 export TESSERACT_JS=file://$HOME/frame-ocr/node_modules/tesseract.js/src/index.js
 ```
 
-Playwright's Chromium (`npx playwright install chromium`) plays the video.
+The installed Google Chrome plays the video, else Playwright's Chromium (`npx playwright install chromium`). Chromium has no H.264, and YouTube serves some older uploads only in it (2021 NLCMP, USMSBILT): without Chrome those stay black and read nothing. The run's first line says which one it used.
 
 ```bash
 DATABASE_URL=file:/path/to/copy.db npx tsx scripts/video-frames.ts --season 2025
@@ -196,6 +196,12 @@ PR like any other change. A season with no file yet needs one (an empty copy of 
 On GATOR (USOHSHOS, a full recording the server already places from the clock), frames land 9 to 14 s after the
 clock (median 10 s): YouTube's live delay. That's within the 20 s lead-in each clip starts with. On FTC Ontario's
 layout (Sudbury, Bolton), frames land 6 to 8 s after the clock where the video kept its broadcast whole.
+
+A scoring clock kept in UTC: FIRST's actual starts are the venue's local time, but a few events' clocks kept UTC
+(2021 USIAJOM2, 2025 FPECCN: every start after its broadcast ends as local time). When the local reading puts none of an
+event's actual starts inside any of its broadcasts and the UTC reading puts every one inside them, the reader uses
+UTC (`clockReading`) and says so in the run and its report. Each start is still confirmed by its frames, so a wrong
+guess places nothing. Of every 2019–2025 event with a recording, those two are the only ones it changes.
 
 ## Clock clips checked by their first frame
 
