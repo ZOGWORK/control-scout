@@ -147,6 +147,8 @@ describe("AnswerVideo", () => {
   it("captions name the match once, or the event's stream", () => {
     expect(videoCaption({ videoId: "ruupjlPEQns", t: 0, kind: "match", match: "M1" })).toBe("M1: official match video");
     expect(videoCaption({ videoId: "Z2ArRHRiwh0", t: 0, kind: "stream" })).toBe("The event's recording");
+    // Its owner turned off playing on other sites: the caption says it plays on YouTube.
+    expect(videoCaption({ videoId: "Z2ArRHRiwh0", t: 100, kind: "recording", match: "Q1", youtubeOnly: true })).toBe("Q1 in the event's recording, from 1:40 · Plays on YouTube");
     expect(videoCaption({ videoId: "Z2ArRHRiwh0", t: 0, kind: "stream", live: true })).toBe("The event's live stream");
   });
 });
