@@ -9,7 +9,7 @@ import { CLIP_LEAD_S, GAP_SLACK_MAX_S, actualStart, clearOfPrevious, clipSecond,
 import { localToUtcMs } from "../../src/shared/time.js";
 import { checkedTo } from "../data/checkedTimings.js";
 import { frameRow, outsideRecording, plausibleStarts, playableStarts } from "../data/frameTimings.js";
-import { noOverlayFor } from "../data/noOverlay.js";
+import { noOverlayFor, noOverlayReason } from "../data/noOverlay.js";
 import { dayLabel, eventSpan, previousStart, seasonRecordings, withClips, withConfirmed, within, type EventSpan, type Recording, type RecordingVideo } from "./recordings.js";
 import type { ClipCoverage, CoverageMatch, CoverageReason, CoverageVideo, CoverageVideoCheck } from "../../src/shared/api.js";
 
@@ -56,6 +56,7 @@ export const WHY: Record<CoverageReason, string> = {
   "video-unavailable": "Recording can't be played: unavailable on YouTube (private or removed)",
   "video-no-embed": "Recording can't be read: its owner turned off playing it on other sites, so its frames can't be read",
   "video-no-overlay": "Recording shows no match overlay (no score bar, timer or match name), so no frame can place its matches",
+  "video-stutters": "Recording stutters (its picture holds still, then skips ahead), so its overlay timer never runs and no frame can confirm where a match starts",
   "video-unread": "Video's facts not read from YouTube yet",
   "no-clock": "Video has no broadcast clock (an upload, not a live stream)",
   "gap-unplaced": "Video shorter than its broadcast, missing time can't be placed",
@@ -79,7 +80,7 @@ export const CLOCK_ONLY: ReadonlySet<CoverageReason> = new Set<CoverageReason>([
 /** Reasons that settle a match because its recording can't be played here at all (video_meta: unavailable, or embedding
  *  off), as recorded per video by the YouTube facts read (server/videos/recordings.ts saveMeta), read again weekly: not
  *  "missing" work, since no frame read or clip can reach it until the video plays again. */
-export const UNPLAYABLE: ReadonlySet<CoverageReason> = new Set<CoverageReason>(["video-unavailable", "video-no-embed", "video-no-overlay"]);
+export const UNPLAYABLE: ReadonlySet<CoverageReason> = new Set<CoverageReason>(["video-unavailable", "video-no-embed", "video-no-overlay", "video-stutters"]);
 
 /** Reasons only a frame read could settle (it would show where the match is): the clock's, and a gap the clock can't
  *  place. A video no frame read can play turns these into video-no-embed. Not "unexplained": no reason found is a
@@ -302,10 +303,10 @@ export function clipCoverage(matches: CoverageInput[], rec: Recording | null, fu
     if (why.videoId && meta?.status === "ok" && meta.embeddable === false && FRAME_SETTLES.has(why.reason) && !(r?.code && frameRow(why.videoId, r.code))) {
       why = { reason: "video-no-embed", why: WHY["video-no-embed"] + unplayableDates(meta), videoId: why.videoId };
     }
-    // A recording whose frames were looked at and show no overlay at all (server/data/noOverlay.ts): what only its frames
-    // could place never can be. Settled, with the day it was looked at.
+    // A recording whose frames were looked at and can't place a match (server/data/noOverlay.ts: no overlay at all, or a
+    // picture that stutters): what only its frames could place never can be. Settled, with the day it was looked at.
     const bare = r?.code ? noOverlayFor(r.code, why.videoId, why.reason) : null;
-    if (bare) why = { reason: "video-no-overlay", why: `${WHY["video-no-overlay"]}; checked ${bare.checked}: ${bare.seen}`, videoId: why.videoId };
+    if (bare) { const reason = noOverlayReason(bare); why = { reason, why: `${WHY[reason]}; checked ${bare.checked}: ${bare.seen}`, videoId: why.videoId }; }
     if (why.videoId) { const c = counts.get(why.videoId) ?? { matches: 0, clipped: 0 }; c.matches++; counts.set(why.videoId, c); }
     // Between two recordings: the gap is the reason, with whether both videos were checked for it.
     if (why.between && r?.code) {
