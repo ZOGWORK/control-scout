@@ -426,8 +426,8 @@ async function readSeason(season: number, codes: string[]): Promise<{ changed: R
     log(`${season} ${what}: exit ${r.code}`);
   };
   // A read call's own limit is only a backstop: each event has its own, scaled to its videos' length (the reader's
-  // eventLimitMs, a quarter of it, 3 h at least), so a long event (2022 ROBUQ1's 27 h of video: 7 h) isn't cut here.
-  for (const [list, extra] of [[fresh, []], [again, ["--all"]]] as const) if (list.length) await pass(["--codes", list.join(","), ...extra], 12 * 3600_000, `read ${list.join(",")}`);
+  // eventLimitMs, as long as its videos, 3 h at least): this one stops only a read call that runs a day, whatever it holds.
+  for (const [list, extra] of [[fresh, []], [again, ["--all"]]] as const) if (list.length) await pass(["--codes", list.join(","), ...extra], 24 * 3600_000, `read ${list.join(",")}`);
   for (const p of ["--verify", "--bounds"]) await pass(["--codes", codes.join(","), p], 3 * 3600_000, p);
   const after = readFileSync(file, "utf8");
   writeFileSync(file, before);
