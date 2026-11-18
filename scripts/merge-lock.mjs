@@ -6,12 +6,17 @@
 // says who holds it and since when. GitHub refuses to create a ref that exists (422), so of two takers exactly one
 // gets it. A lock held past LOCK_STALE_MS (its holder died before releasing) is removed and taken once more.
 //
-//   node scripts/merge-lock.mjs take <holder> <pr>   exit 0: taken; 3: held by another (its message on stderr)
+//   node scripts/merge-lock.mjs take <holder> <pr>   exit 0: taken; 3: held by another (its message on stdout);
+//                                                    1: not taken (a bad argument, gh failing). Merge on exit 0 only.
+//                                                    <pr> a PR number, or 0 for a run of merges (a driver's pass).
+//   node scripts/merge-lock.mjs renew <holder>       restamps this holder's lock now (exit 0), so a hold longer than
+//                                                    LOCK_STALE_MS isn't taken over; 3: not this holder's any more
 //   node scripts/merge-lock.mjs release <holder>     removes it if this holder's (exit 0 either way, said on stderr)
 //   node scripts/merge-lock.mjs status               prints the lock's message, or "free"
 //
 // Take it just before the last check of main, merge with --match-head-commit, and release it once the live site
-// serves the merge (or the merge didn't happen). Needs gh, signed in, in a checkout of the repository.
+// serves the merge (or the merge didn't happen); a holder merging several in a row renews it before each merge.
+// Needs gh, signed in, in a checkout of the repository.
 import { spawnSync } from "node:child_process";
 
 export const LOCK_REF = "locks/merge";
@@ -63,6 +68,21 @@ export function take(holder, pr, now = Date.now()) {
   const held = current();
   return { taken: false, by: held?.message ?? "taken and released meanwhile" };
 }
+/** Restamps this holder's lock with the time now (a new commit, the ref moved to it): another holder's, or none, is
+ *  left as it is. A taker seeing the lock in between sees it held (not stale), so no one else can take it meanwhile. */
+export function renew(holder, now = Date.now()) {
+  const held = current(), l = held && readLock(held.message);
+  if (!l || l.holder !== holder) return { renewed: false, by: held?.message ?? "free" };
+  const tree = gh([`${REPO}/git/commits/${held.sha}`, "--jq", ".tree.sha"]);
+  if (tree.code) throw new Error(`the lock's tree couldn't be read: ${tree.err}`);
+  const commit = gh(["-X", "POST", `${REPO}/git/commits`, "-f", `message=${lockMessage(holder, l.pr, now)}`, "-f", `tree=${tree.out}`, "--jq", ".sha"]);
+  if (commit.code) throw new Error(`the renewed lock's commit couldn't be made: ${commit.err}`);
+  // Only from the lock just read: a ref moved since (released, taken over) is left alone.
+  if (current()?.sha !== held.sha) return { renewed: false, by: current()?.message ?? "free" };
+  const r = gh(["-X", "PATCH", `${REPO}/git/refs/${LOCK_REF}`, "-f", `sha=${commit.out}`, "-F", "force=true"]);
+  if (r.code) throw new Error(`the lock couldn't be renewed: ${r.err}`);
+  return { renewed: true };
+}
 export function release(holder) {
   const held = current();
   if (!held) return "free already";
@@ -78,8 +98,12 @@ if (import.meta.url === `file://${process.argv[1]}` || import.meta.url === `file
       const r = take(holder, pr);
       if (!r.taken) { console.log(`held: ${r.by}`); process.exit(3); }
       console.error(`taken by ${holder} for #${pr}`);
+    } else if (cmd === "renew") {
+      const r = renew(holder);
+      if (!r.renewed) { console.log(`not ${holder}'s: ${r.by}`); process.exit(3); }
+      console.error(`renewed for ${holder}`);
     } else if (cmd === "release") console.error(`${holder}: ${release(holder)}`);
     else if (cmd === "status") console.log(current()?.message ?? "free");
-    else { console.error("merge-lock.mjs take <holder> <pr> | release <holder> | status"); process.exit(2); }
+    else { console.error("merge-lock.mjs take <holder> <pr> | renew <holder> | release <holder> | status"); process.exit(2); }
   } catch (e) { console.error(e.message); process.exit(1); }
 }
