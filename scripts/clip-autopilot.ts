@@ -37,7 +37,7 @@ import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { gunzipSync } from "node:zlib";
 import { applyRows, changedRows, fileRows, prChunks, prMarker, readMarker, rowKey, rowProblems, type Keyed, type Row } from "./lib/autopilotRows";
-import { askDue, forgetSettled, laneJobMs, laneResults, readCallMs, laneStep, needsRebuild, overLimit, parseLanes, parseShard, pickEvents, prShard, readOutcome, remember, rememberTimeout, rememberWait, rowsDelta, shardOf, type LaneJob, type Memory } from "./lib/autopilotRun";
+import { askDue, forgetSettled, laneJobMs, laneResults, readCallMs, laneStep, needsRebuild, overLimit, parseLanes, parseShard, pickEvents, prShard, readOutcome, remember, rememberTimeout, rememberWait, rowsDelta, shardOf, type LaneJob, type Memory, frameFileSeason, heldElsewhere, holdCodes } from "./lib/autopilotRun";
 import { loopySummary, reviewedSha, type IssueComment } from "./lib/autopilotMerge";
 import { clipCheckProblems, clipsDelta } from "./lib/autopilotClips";
 import { streamRun } from "./lib/streamRun";
@@ -142,6 +142,41 @@ function openPrs(): { number: number; branch: string; head: string; labels: stri
     const m = readMarker(String(p.body ?? ""));
     return m && String(p.headRefName).startsWith(BRANCH) ? [{ number: p.number, branch: p.headRefName, head: String(p.headRefOid), labels: (p.labels ?? []).map((l: { name: string }) => l.name), ...m, mergeable: String(p.mergeable) }] : [];
   });
+}
+
+/** Events other open PRs (another session's, not the autopilot's) bring frame-read rows for: held like the autopilot's
+ *  own, so no event gets a second PR (heldElsewhere). Read when the queue is picked, and again just before PRs open, as
+ *  a read takes hours and another PR may have opened meanwhile. A file GitHub shows no patch for (too big) is read at
+ *  the PR's head and its rows compared with main's. Whatever can't be read (the list, one PR, one file) is logged, and
+ *  only that holds nothing: the rest still do. */
+function othersHold(): Map<string, number> {
+  if (DRY) return new Map();
+  let list: { number: number; headRefOid: string; files?: { path: string }[] }[];
+  try {
+    list = JSON.parse(sh("gh", ["pr", "list", "--state", "open", "--limit", "200", "--json", "number,headRefOid,files"], { quiet: true }).out || "[]");
+  } catch (e) {
+    log(`other open PRs couldn't be listed (${(e as Error).message}); none held off this time`);
+    return new Map();
+  }
+  const own = new Set(open.map((p) => p.number));
+  const prs: { number: number; files: { filename: string; patch?: string }[] }[] = [];
+  for (const p of list.filter((x) => !own.has(x.number) && (x.files ?? []).some((f) => frameFileSeason(f.path) != null))) {
+    try {
+      prs.push({ number: p.number, files: sh("gh", ["api", `repos/{owner}/{repo}/pulls/${p.number}/files`, "--paginate", "--jq", ".[] | {filename, patch} | @json"], { quiet: true }).out
+        .split("\n").filter(Boolean).map((l) => JSON.parse(l) as { filename: string; patch?: string }) });
+    } catch (e) { log(`#${p.number}: its files couldn't be read (${(e as Error).message}); its events aren't held off this time`); }
+  }
+  const { held, unread } = heldElsewhere(prs);
+  for (const u of unread) {
+    const head = list.find((x) => x.number === u.number)?.headRefOid;
+    try {
+      const text = sh("gh", ["api", "-H", "Accept: application/vnd.github.raw", `repos/{owner}/{repo}/contents/${u.filename}?ref=${head}`], { quiet: true }).out;
+      const codes = [...new Set(changedRows(mainText(u.filename), text).map((r) => r.code))];
+      holdCodes(held, frameFileSeason(u.filename)!, codes, u.number);
+      log(`#${u.number}: GitHub shows no patch for ${u.filename}; its copy read instead, ${codes.length} event${codes.length === 1 ? "" : "s"} held`);
+    } catch (e) { log(`#${u.number}: GitHub shows no patch for ${u.filename} and its copy couldn't be read (${(e as Error).message}); its events aren't held off this time`); }
+  }
+  return held;
 }
 
 /** A data PR changes its data file only (owner's rule, 2026-11-17): no CHANGELOG entry, no version, so PRs never
@@ -348,6 +383,9 @@ forgetSettled(memory, new Set(queue.filter((q) => q.frames.state === "queued").m
 const laneJobFile = (k: number) => join(DIR, "lanes", String(k), "job.json");
 const laneJob = (k: number): LaneJob | null => { try { return JSON.parse(readFileSync(laneJobFile(k), "utf8")); } catch { return null; } };
 for (const lane of LANES) for (const x of laneJob(lane.k)?.seasons ?? []) for (const c of x.codes) inPr.add(`${x.season}/${c}`);
+// And events another session's open data PR already carries: never read for a second PR.
+const elsewhere = othersHold();
+for (const [k, n] of elsewhere) if (!inPr.has(k)) { inPr.add(k); log(`  held: ${k} is in #${n}, another open PR`); }
 const { picked, skipped } = pickEvents(mine, inPr, memory, MAX);
 log(`queue: ${queue.filter((q) => q.frames.state === "queued").length} events queued${SHARD.n > 1 ? `, ${mine.filter((q) => q.frames.state === "queued").length} in shard ${SHARD.k}/${SHARD.n}` : ""}; reading ${picked.map((q) => `${q.season}/${q.code} (${q.frames.due})`).join(", ") || "none"}`);
 for (const s of skipped.filter((x) => x.why !== "next run")) log(`  skipped ${s.event}: ${s.why}`);
@@ -360,6 +398,11 @@ function openPr(o: { file: string; rows: Keyed[]; branch: string } & PrText): bo
   if (DRY) { log(`would open "${o.title}" on ${o.branch}: ${o.rows.length} rows, ${o.rows.map(rowKey).join(" ")}`); return true; }
   let pushed = false;
   try {
+    // Its one commit on the main its file is read from: anything that fetched since the clone was put on main (a merge
+    // step, a check by hand) moves origin/main but not HEAD, and a commit on the older HEAD would carry every row main
+    // changed since as its own (2024 USMNCMPGLXY's #1925: 9 other events' rows, a 58 KB diff on a 252-commit-old base).
+    sh("git", ["reset", "--quiet", "--hard"], { ok: true });
+    git("switch", "--quiet", "--detach", "origin/main");
     writeFileSync(o.file, applyRows(mainText(o.file), o.rows));
     commitEach([[o.file, `${o.file}: ${o.what}`]]);
     push(o.branch);
@@ -462,10 +505,14 @@ async function settle(season: number, codes: string[], read: { changed: Row[]; r
   for (const m of await all<{ code: string; label: string }>(`SELECT code, label FROM matches WHERE season = ? AND played = 1 AND time IS NOT NULL AND code IN (${codes.map(() => "?").join(",")}) ORDER BY code, time`, [season, ...codes])) {
     (order.get(String(m.code)) ?? order.set(String(m.code), []).get(String(m.code))!).push(String(m.label));
   }
-  const good: Row[] = [];
+  const good: Row[] = [], heldOther: Row[] = [];
+  // An event another PR took up while this one was read waits for it (as an open PR's lines do): no second PR for it.
+  const other = othersHold();
   for (const r of read.changed) {
-    const problems = rowProblems(r, live.get(rowKey(r)), order.get(r.code));
-    if (problems.length) log(`  ${r.code} ${r.videoId}: left out, ${problems.join("; ")}`); else good.push(r);
+    const problems = rowProblems(r, live.get(rowKey(r)), order.get(r.code)), held = other.get(`${season}/${r.code}`);
+    if (problems.length) log(`  ${r.code} ${r.videoId}: left out, ${problems.join("; ")}`);
+    else if (held != null) { heldOther.push(r); log(`  ${r.code} ${r.videoId}: waits, #${held} (another open PR) carries ${r.code}`); }
+    else good.push(r);
   }
   // Shipped: only events whose rows a PR really opened with (a failed open closes its PR; the rows are read again).
   // Rows that would touch an open PR's lines, or overflow a PR Loopy can review, wait for a later run (prChunks).
@@ -478,7 +525,7 @@ async function settle(season: number, codes: string[], read: { changed: Row[]; r
   for (const code of codes) {
     const e = { code }, key = `${season}/${code}`, readFailed = read.readFailed, stopped = read.stopped;
     const changed = count(read.changed, code);
-    const outcome = readOutcome({ rows: count(good, e.code), opened: count(opened, e.code), waiting: count(later, e.code), tooBig: count(tooBig, e.code), readFailed, timedOut: stopped.has(e.code), changed });
+    const outcome = readOutcome({ rows: count(good, e.code), opened: count(opened, e.code), waiting: count(later, e.code) + count(heldOther, e.code), tooBig: count(tooBig, e.code), readFailed, timedOut: stopped.has(e.code), changed });
     if (outcome === "timed out") {
       const video = stopped.get(e.code), counted = rememberTimeout(memory, key, video) === "counted";
       stoppedAtLimit.push(`${key}${video ? ` (video ${video})` : ""}${counted ? ": nothing new again, counted as a try" : ""}`);
