@@ -1,7 +1,7 @@
 // The pure parts of the frame reader (scripts/video-frames.ts): the overlay's match, the timer's elapsed time, and
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
-import { dataRows, clockReading, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, inPage, titleLeaks, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, firstOpening, OPEN_LEADS, shortClash, type M } from "./videoFrames";
+import { dataRows, launchPlayerBrowser, clockReading, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, inPage, titleLeaks, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, firstOpening, OPEN_LEADS, shortClash, type M } from "./videoFrames";
 import { between, GAP_READS, TRIES } from "./videoFrames";
 
 describe("the frame reader", () => {
@@ -702,6 +702,27 @@ describe("an event whose scoring clock kept UTC", () => {
     // A scheduled-only time (2019's qualifications) isn't an actual start: with none actual, nothing changes.
     const scheduled = played.map((m) => ({ ...m, scheduled: true }));
     expect(clockReading(scheduled, [broadcast], asUtc).utc).toBe(false);
+  });
+});
+
+describe("the browser that plays the videos", () => {
+  it("Google Chrome when installed (it plays H.264-only videos: 2021 NLCMP, USMSBILT), else Playwright's Chromium", async () => {
+    const asked: (string | undefined)[] = [], said: string[] = [];
+    const chrome = await launchPlayerBrowser(async (o) => { asked.push(o.channel); return `browser:${o.channel ?? "chromium"}`; }, (s) => said.push(s));
+    expect(chrome).toBe("browser:chrome");
+    expect(asked).toEqual(["chrome"]);
+    expect(said[0]).toMatch(/Google Chrome/);
+    const none: (string | undefined)[] = [];
+    const fallback = await launchPlayerBrowser(async (o) => { none.push(o.channel); if (o.channel) throw new Error("Chromium distribution 'chrome' is not found"); return "browser:chromium"; }, (s) => said.push(s));
+    expect(fallback).toBe("browser:chromium");
+    expect(none).toEqual(["chrome", undefined]);
+    expect(said[1]).toMatch(/Playwright's Chromium/);
+  });
+  it("any other failure to start Chrome is an error, not a quiet fall back to Chromium", async () => {
+    const asked: (string | undefined)[] = [];
+    const crash = launchPlayerBrowser(async (o) => { asked.push(o.channel); throw new Error("Browser closed unexpectedly"); });
+    await expect(crash).rejects.toThrow("Browser closed unexpectedly");
+    expect(asked).toEqual(["chrome"]);
   });
 });
 

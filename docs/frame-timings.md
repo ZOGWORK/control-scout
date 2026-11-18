@@ -170,7 +170,7 @@ npm install --prefix ~/frame-ocr tesseract.js
 export TESSERACT_JS=file://$HOME/frame-ocr/node_modules/tesseract.js/src/index.js
 ```
 
-Playwright's Chromium (`npx playwright install chromium`) plays the video.
+The installed Google Chrome plays the video, else Playwright's Chromium (`npx playwright install chromium`). Chromium has no H.264, and YouTube serves some older uploads only in it (2021 NLCMP, USMSBILT): without Chrome those stay black and read nothing. The run's first line says which one it used.
 
 ```bash
 DATABASE_URL=file:/path/to/copy.db npx tsx scripts/video-frames.ts --season 2025
