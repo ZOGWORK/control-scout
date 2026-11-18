@@ -148,17 +148,29 @@ export function frameOpen(videoId: string, code: string, label: string): number 
   return opensByKey.get(`${videoId}|${code}`)?.[label] ?? null;
 }
 
-/** The second a match starts at in a video, from its frames, or null when they weren't read for it. */
+/** Starts the owner typed in (Owner › Official videos, server/videos/manualStarts.ts), by video and event: they win
+ *  over a frame read of the same match. Replaced whole on every load. */
+let manual = new Map<string, Record<string, number>>();
+export function setManualStarts(rows: { videoId: string; code: string; label: string; seconds: number }[]): void {
+  const m = new Map<string, Record<string, number>>();
+  for (const r of rows) (m.get(`${r.videoId}|${r.code}`) ?? m.set(`${r.videoId}|${r.code}`, {}).get(`${r.videoId}|${r.code}`)!)[r.label] = r.seconds;
+  manual = m;
+}
+
+/** The second a match starts at in a video: the owner's typed start, else its frames', else null. */
 export function frameStart(videoId: string, code: string, label: string): number | null {
   byKey ??= keyed();
-  return byKey.get(`${videoId}|${code}`)?.[label] ?? null;
+  const k = `${videoId}|${code}`;
+  return manual.get(k)?.[label] ?? byKey.get(k)?.[label] ?? null;
 }
 
 /** Whether any of a video's matches for an event were placed from its frames (a video read with none placed, only
  *  review or missing ones, doesn't count). */
 export function hasFrames(videoId: string, code: string): boolean {
   byKey ??= keyed();
-  const starts = byKey.get(`${videoId}|${code}`);
+  const k = `${videoId}|${code}`;
+  if (Object.keys(manual.get(k) ?? {}).length) return true;
+  const starts = byKey.get(k);
   return !!starts && Object.keys(starts).length > 0;
 }
 

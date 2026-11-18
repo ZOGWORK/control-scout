@@ -7,6 +7,7 @@ import { markCoverageBulkReviewed, markCoverageReviewed, openCoverageCount, owne
 import type { CoverageTriage } from "../../src/shared/api.js";
 import { approveWatched, ownerOfficial, pendingCount, rejectWatched, removeChannel, removeOfficial, runNow, saveChannel } from "./officialWatch.js";
 import { dismissFinding, ownerAudit, queueFinding, runChannelAudit } from "./officialAudit.js";
+import { deleteManualStart, manualStarts, setManualStart } from "./manualStarts.js";
 
 type H = (fn: (req: Request, res: Response) => Promise<unknown>) => (req: Request, res: Response, next: NextFunction) => void;
 const str = (v: unknown, max = 300) => (typeof v === "string" ? v.trim().slice(0, max) : "");
@@ -51,6 +52,23 @@ export function officialVideoOwnerRoutes(r: Router, h: H, actor: (req: Request) 
   const full = async () => ({ ...(await ownerOfficial()), audit: await ownerAudit() });
   r.get("/official-videos", h(async () => full()));
   r.get("/official-videos/counts", h(async () => ({ pending: await pendingCount() })));
+
+  // Typed match starts on a video (server/videos/manualStarts.ts): ?season=&code= lists; POST { season, code, label, at }
+  // saves one ("1:42:05"); DELETE { season, code, label } removes one. Each answers with the video's starts for the event.
+  const starts = (fn: (id: string, req: Request) => Promise<{ ok: true; starts: unknown } | { ok: false; error: string }>) => h(async (req, res) => {
+    const id = String(req.params.videoId);
+    if (!VIDEO_ID.test(id)) { res.status(400).json({ error: "Not a YouTube video id." }); return; }
+    const out = await fn(id, req);
+    if (!out.ok) { res.status(400).json({ error: out.error }); return; }
+    return { starts: out.starts };
+  });
+  r.get("/official-videos/:videoId/starts", starts(async (id, req) => {
+    const season = Number(req.query.season), code = str(req.query.code, 40).toUpperCase();
+    if (!Number.isInteger(season) || !isEventCodeParam(code)) return { ok: false, error: "Not an event." };
+    return { ok: true, starts: await manualStarts(id, season, code) };
+  }));
+  r.post("/official-videos/:videoId/starts", starts((id, req) => setManualStart(id, req.body ?? {}, actor(req))));
+  r.delete("/official-videos/:videoId/starts", starts((id, req) => deleteManualStart(id, req.body ?? {}, actor(req))));
 
   const one = (fn: (id: string, req: Request) => Promise<{ ok: true } | { ok: false; error: string }>) => h(async (req, res) => {
     const id = String(req.params.videoId);

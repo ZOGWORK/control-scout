@@ -64,7 +64,6 @@ const PAGES = {
   TeamPage: lazyPage(() => import("./pages/TeamPage")),
   EventsPage: lazyPage(() => import("./pages/EventsPage")),
   WeekendPage: lazyPage(() => import("./pages/WeekendPage")),
-  PreviewHomePage: lazyPage(() => import("./pages/PreviewHomePage")),
   RecordsPage: lazyPage(() => import("./pages/RecordsPage")),
   RankingsPage: lazyPage(() => import("./pages/RankingsPage")),
   RegionsPage: lazyPage(() => import("./pages/RegionsPage")),
@@ -99,6 +98,7 @@ const PAGES = {
   SearchPage: lazyPage(() => import("./pages/SearchPage")),
   RelatedSearchesPage: lazyPage(() => import("./pages/RelatedSearchesPage")),
   LeaguePage: lazyPage(() => import("./pages/LeaguePage")),
+  PreviewHomePage: lazyPage(() => import("./pages/PreviewHomePage")),
   ConferencePage: lazyPage(() => import("./pages/ConferencePage")),
   TeamHighlightsPage: lazyPage(() => import("./pages/TeamHighlightsPage")),
   TeamRecordSplitPage: lazyPage(() => import("./pages/TeamRecordSplitPage")),
@@ -195,8 +195,8 @@ void ready.catch(() => { /* a failed load is retried (and shown) by the page's o
                   <Route path="/rankings/regions" element={<RegionsPage />} />
                   <Route path="/rankings/regions/:country/:state?" element={<RegionRankingsPage />} />
                   <Route path="/events" element={<EventsPage />} />
-                  <Route path="/weekend" element={<WeekendPage />} />
                   <Route path="/preview/home" element={<PreviewHomePage />} />
+                  <Route path="/weekend" element={<WeekendPage />} />
                   <Route path="/events/:code" element={<EventCodeRedirect />} />
                   <Route path="/events/:season/:code" element={<EventPage />} />
                   <Route path="/events/:season/:code/match/:key" element={<MatchReportPage />} />

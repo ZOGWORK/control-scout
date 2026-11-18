@@ -21,7 +21,7 @@ const ROUTES: [RegExp, PageModule | null][] = [
   [/^\/rankings\/regions\/[^/]+(\/[^/]+)?\/?$/i, "RegionRankingsPage"],
   [/^\/events\/?$/i, "EventsPage"],
   [/^\/weekend\/?$/i, "WeekendPage"],
-  [/^\/preview\/home\/?$/i, "PreviewHomePage"], // the v8 sample Home (noindex)
+  [/^\/preview\/home\/?$/i, "PreviewHomePage"], // the v8 sample Home: noindex, linked from nowhere
   // A season alone (/events/2025) is no event: the page not found, as EventCodeRedirect renders it.
   [/^\/events\/(?!\d{4}\/?$)[^/]+\/?$/i, "EventCodeRedirect"],
   [/^\/events\/[^/]+\/[^/]+\/?$/i, "EventPage"],
@@ -92,6 +92,7 @@ export const pageTitle = (path: string) => {
 };
 
 /** Pages drawn without the site's chrome (no sidebar, top bar, footer or prompts): the pit display, a
- *  fullscreen screen for a pit TV. Matched as React Router does (any case, a trailing slash allowed). */
-export const isBareRoute = (path: string) => /^\/events\/[^/]+\/[^/]+\/display\/?$/i.test(path);
+ *  fullscreen screen for a pit TV, and the v8 sample Home, which draws its own slim bar in the new look.
+ *  Matched as React Router does (any case, a trailing slash allowed). */
+export const isBareRoute = (path: string) => /^\/events\/[^/]+\/[^/]+\/display\/?$/i.test(path) || /^\/preview\/home\/?$/i.test(path);
 

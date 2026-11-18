@@ -62,7 +62,7 @@ import { isLiveMode, nextMatch, useEventPoll } from "../lib/liveMode";
 import { TeamsSource } from "../components/TeamsSource";
 import { ResultsSource } from "../components/ResultsSource";
 import { ago, agoSeconds, awardLabel, dateRange, num, place, seasonLabel } from "../lib/format";
-import { scrollToElement, smoothBehavior } from "../lib/pageScroll";
+import { scrollToElement } from "../lib/pageScroll";
 import { eventTab } from "../lib/eventTab";
 import { predictHref } from "../shared/predictUrl";
 import { hasTeamPage } from "../shared/teamPages";
@@ -123,7 +123,7 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
   const [headerEnd, setHeaderEnd] = useState<HTMLDivElement | null>(null);
   const tabsRef = useRef<HTMLDivElement>(null);
   // The bar's "See odds" opens the tab and brings it into view (the header that held the button is off screen).
-  const seeOdds = () => { setTab("odds"); if (tabsRef.current) scrollToElement(tabsRef.current, smoothBehavior()); };
+  const seeOdds = () => { setTab("odds"); if (tabsRef.current) scrollToElement(tabsRef.current); };
   // Phones get a sticky bar only where one action leads: live (the countdown, back to the LIVE panel) or upcoming with predictions (odds / lab).
   // Finished events and history seasons have no bar.
   const sticky = e.status === "live" || (e.status === "upcoming" && predictable);
@@ -131,7 +131,7 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
   const liveMode = isLiveMode(d);
   const target = useLiveTarget(d, liveMode);
   const livePanel = useRef<HTMLDivElement>(null);
-  const toLivePanel = () => { if (livePanel.current) scrollToElement(livePanel.current, smoothBehavior()); };
+  const toLivePanel = () => { if (livePanel.current) scrollToElement(livePanel.current); };
   const oddsOn = useFlag("advancementOdds");
   // Schedule difficulty (the owner's scheduleDifficulty toggle; the server also leaves it out when off): a column of
   // the rankings, live from the event's own data in the standings tables, from the stats cycle in the records table.

@@ -14,7 +14,7 @@ import { thumbnailUrl } from "../../shared/stream";
 import { clipTime, linkStart } from "../../shared/recording";
 import { youtubeId } from "../../shared/personal";
 import { useEventVideos, useReloadOnVideoChange } from "../../lib/contributors";
-import { playMatchVideo } from "../../lib/streamSeek";
+import { playMatchVideo, YOUTUBE_ONLY_NOTE } from "../../lib/streamSeek";
 import { scrollToElement } from "../../lib/pageScroll";
 import { Button } from "../ui/button";
 import { VideoCredit } from "./VideoCredit";
@@ -36,7 +36,7 @@ export const useContributorVideo = (key: string): ContributorVideo | undefined =
 /** Every match's contributor video this viewer can see, by match key. */
 export const useContributorVideos = (): Record<string, ContributorVideo> => useContext(Ctx).byKey;
 
-type Item = { m: MatchView; play: { videoId: string; t: number; end?: number }; kind: "first" | "contributor" | "recording"; c?: ContributorVideo };
+type Item = { m: MatchView; play: { videoId: string; t: number; end?: number; youtubeOnly?: boolean }; kind: "first" | "contributor" | "recording"; c?: ContributorVideo };
 
 /** Every played match with a video this viewer can watch, in the event's order. */
 export function useClipItems(matches: MatchView[]): Item[] {
@@ -47,7 +47,7 @@ export function useClipItems(matches: MatchView[]): Item[] {
     if (!pick) return [];
     if (pick.kind === "contributor") return [{ m, kind: "contributor", play: { videoId: pick.video.videoId, t: pick.video.t }, c: pick.video }];
     if (pick.kind === "first") return [{ m, kind: "first", play: pick.video }];
-    return [{ m, kind: "recording", play: { videoId: pick.video.videoId, t: pick.video.t, end: pick.video.end } }];
+    return [{ m, kind: "recording", play: { videoId: pick.video.videoId, t: pick.video.t, end: pick.video.end, youtubeOnly: pick.video.youtubeOnly } }];
   }), [matches, byKey]);
 }
 
@@ -121,7 +121,7 @@ function ClipTile({ i }: { i: Item }) {
   const { m } = i;
   const r = m.red.score?.total, b = m.blue.score?.total;
   const won = r != null && b != null ? (r > b ? "red" : b > r ? "blue" : null) : null;
-  const what = i.kind === "first" ? "Official match video" : i.kind === "recording" ? `In the recording, from ${clipTime(i.play.t)}` : null;
+  const what = i.kind === "first" ? "Official match video" : i.kind === "recording" ? `In the recording, from ${clipTime(i.play.t)}${i.play.youtubeOnly ? ` · ${YOUTUBE_ONLY_NOTE}` : ""}` : null;
   return (
     <li className="min-w-0" data-clip-tile={m.label}>
       <button type="button" onClick={() => playMatchVideo({ ...i.play, label: m.label, matchKey: m.key })} className="group block w-full rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
