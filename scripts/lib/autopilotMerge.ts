@@ -133,3 +133,17 @@ export function readyProblems(pr: PrState): string[] {
   if (notPassed.length) out.push(`checks not passed: ${notPassed.map((c) => `${c.name} ${c.state}`).join(", ")}`);
   return out;
 }
+
+/** The release files a data PR opened before 2026-11-17 carried (a version and a CHANGELOG entry): data PRs carry none
+ *  now (owner's rule), so there's no version to check, only these to be gone. */
+export const RELEASE_FILES = ["CHANGELOG.md", "package.json", "package-lock.json"];
+/** What a data PR's files stop: it changes its own data file only. A release file left from before waits for the
+ *  runner's rebuild, which puts it back to main's (needsRebuild); any other file is a person's change. */
+export function fileProblems(paths: string[], file: string): string[] {
+  const release = paths.filter((p) => RELEASE_FILES.includes(p)), others = paths.filter((p) => p !== file && !RELEASE_FILES.includes(p));
+  return [
+    ...(release.length ? [`still carries ${release.join(", ")} (data PRs carry no version or CHANGELOG): rebuilt without on the next run`] : []),
+    ...(others.length ? [`changes more than its data file: ${others.join(", ")}`] : []),
+    ...(paths.includes(file) ? [] : [`doesn't change its data file ${file}`]),
+  ];
+}
