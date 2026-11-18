@@ -245,7 +245,7 @@ function SeasonCard({ season }: { season: number }) {
             <div key={s.label} className="min-w-0">
               <dt className="sr-only">{s.label}</dt>
               <dd>
-                <Link to={s.to} className="group block rounded-lg">
+                <Link to={s.to} aria-label={`${fmt(s.n)} ${s.label}`} className="group block rounded-lg">
                   <span className="block font-display text-2xl font-semibold tabular-nums text-text-base group-hover:underline max-sm:text-xl">{fmt(s.n)}</span>
                   <span aria-hidden className="block text-[12px] text-text-muted">{s.label}</span>
                 </Link>
