@@ -36,7 +36,12 @@ computer at home, in a clone kept for it alone. Each run:
    rows waited last time (read again after 6 h, doubling each wait in a row up to 3 days; waits never count toward
    the 3);
 4. reads up to `--max` events (12) with `scripts/video-frames.ts --season N --codes … --live <main's season file>`
-   (`--all` for an event with rows already), then `--verify`, then `--bounds`;
+   (`--all` for an event with rows already), then `--verify`, then `--bounds`. The reader's output goes into the run's
+   log as it comes (lines starting `  | `, one when each video starts and when it's done), so a long read shows it's
+   working. One event may take at most 3 hours (`--event-limit`, minutes): past that it stops, the videos it finished
+   keep their rows, the unfinished one gets none, and the next run reads the rest (not counted as a try). A whole
+   reader call past its own limit (6 hours a read, 3 for `--verify` and `--bounds`) is stopped with its whole process
+   tree (`scripts/lib/streamRun.ts`);
 5. checks every row it changed against main's (`rowProblems`, scripts/lib/autopilotRows.ts) and leaves out, with its
    reasons in the run's log, any that breaks a rule:
    - every start plausible (in order, a match apart: the server's own `plausibleStarts`);
