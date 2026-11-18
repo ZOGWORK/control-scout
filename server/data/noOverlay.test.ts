@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { NO_OVERLAY, noOverlayFor, type NoOverlay } from "./noOverlay";
+import { NO_OVERLAY, noOverlayFor, noOverlayReason, type NoOverlay } from "./noOverlay";
 
 describe("recordings with no match overlay", () => {
   const list: NoOverlay[] = [{ season: 2021, code: "CABCVIS1", videoId: "OrQ_Iitlqe8", checked: "2026-11-18", seen: "no overlay" }];
@@ -20,6 +20,15 @@ describe("recordings with no match overlay", () => {
     expect(noOverlayFor("CABCVIS1", null, "no-clock", list)).toBeNull();
   });
 
+  it("settles a stuttering recording's matches as stuttering, any other entry's as having no overlay", () => {
+    const stutters: NoOverlay = { season: 2021, code: "USCANOSCQ", videoId: "eXfH6cxEfwE", kind: "stutters", checked: "2026-11-18", seen: "timer jumps" };
+    expect(noOverlayReason(stutters)).toBe("video-stutters");
+    expect(noOverlayReason(list[0])).toBe("video-no-overlay");
+    // A stuttering recording settles the same matches a bare one does, and no others.
+    expect(noOverlayFor("USCANOSCQ", "eXfH6cxEfwE", "gap-unplaced", [stutters])).toBe(stutters);
+    expect(noOverlayFor("USCANOSCQ", "eXfH6cxEfwE", "no-recording-day", [stutters])).toBeNull();
+  });
+
   it("lists each recording once, with the day its frames were looked at and what they showed", () => {
     const keys = NO_OVERLAY.map((x) => `${x.season}|${x.code}|${x.videoId}`);
     expect(new Set(keys).size).toBe(keys.length);
@@ -27,6 +36,7 @@ describe("recordings with no match overlay", () => {
       expect(x.checked).toMatch(/^\d{4}-\d{2}-\d{2}$/);
       expect(x.videoId).toMatch(/^[\w-]{11}$/);
       expect(x.seen.length).toBeGreaterThan(10);
+      expect([undefined, "stutters"]).toContain(x.kind);
     }
   });
 });
