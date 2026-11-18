@@ -86,6 +86,16 @@ describe("a place's winning alliance captains (#1642, #1643)", () => {
     // The misspelled word is search's own: its answer is the spelled query's, offered as a correction.
     expect((await full("nj winning allaince captain")).didYouMean).toBe("nj winning alliance captain");
   });
+  it("reads WAC, the usual short form, as a winning alliance captain", async () => {
+    for (const q of ["nj wac", "teams in nj that won wac", "NJ WACs"]) {
+      expect(await readPlaceAwards(q), q).toMatchObject({ place: { name: "New Jersey" }, types: ["Winner"], captain: true });
+      const a = await full(q);
+      expect(a.stat?.title, q).toBe("New Jersey Winning Alliance Captains, 2025–26");
+      expect(a.didYouMean, q).toBeFalsy();
+    }
+    // Only the whole word: a name that starts with it is not a captain ask.
+    expect((await readPlaceAwards("nj wacky winners"))?.captain).toBeUndefined();
+  });
   it("finds the captain where every member got 1st place, from the alliance selection", async () => {
     const a = await placeAwardsAnswer({ ...(await readPlaceAwards("texas winning alliance captains"))!, season: 2025 });
     expect(a.blocks[0].kind === "table" && a.blocks[0].rows.map((r) => r.cells.team)).toEqual(["38702 Mech-dranos", "30030 Exodus"]);
