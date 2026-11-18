@@ -226,6 +226,15 @@ const GENERIC = new Set(["LEAGUE", "MEET", "QUALIFIER", "QUALIFIERS", "CHAMPIONS
   "DIVE", "CANOPY", "INTO", "DEEP", "DECODE", "BIOBUZZ", "CENTERSTAGE", "POWERPLAY", "FREIGHT", "FRENZY", "ULTIMATE", "GOAL",
   "SKYSTONE", "PRESENTED", "QUALCOMM", "RTX", "ENERGIZE"]);
 const words = (s: string) => (plain(s).match(/[A-Z]{3,}/g) ?? []).filter((w) => !GENERIC.has(w));
+/** The short tokens of a name that `words` drops: a league or stage letter (FiT-North's X-League), AM/PM, a meet's
+ *  number or time ("Lawson Meet @ 8 AM"). */
+const shortTokens = (s: string) => new Set((plain(s).match(/[A-Z0-9]+/g) ?? []).filter((t) => t.length <= 2));
+/** Whether a name read beside a match clashes with this event's in a short token: one of this event's is missing and
+ *  another stands in the read ("U" for "X", "10 30" for "8"). Sibling meets of one day share every long word. */
+export function shortClash(read: string, own: string): boolean {
+  const mine = shortTokens(own), seen = shortTokens(read);
+  return [...mine].some((t) => !seen.has(t)) && [...seen].some((t) => !mine.has(t));
+}
 /** Where the overlay names a match, and the event name just before it on the same line. */
 // A semifinal (2019–2022's "Semifinal 2 Match 1", or "Semifinals Match 1" with its series lost) is taken whole, before
 // its "finals Match 1" or "Match 1" could be: overlayLabel names it by series and number (M2-1), or none.
@@ -251,7 +260,9 @@ function totalSays(total: number, quals: number): "own" | "other" | null {
  *   more are read and fewer than half of its words are this event's (a cut word matching the start or end of one). A
  *   logo misread beside the match is no name: POWERPLAY's (2022) "FIRST ENERGIZE" read "FIRST ZN=RGIZ= swe" on KZCMP's
  *   playing frames, two words, neither this event's, and every one of its matches was taken for another event's.
- *   Nor can a name read as another's overrule a total that is this event's: it's misread, not another event.
+ *   Nor can a name overrule a total either way: a total that is this event's stands over a name read as another's (a
+ *   misread), and another event's total over a name read as this event's (a sibling meet's name, told apart only by a
+ *   letter too short to be a word).
  * On a split screen the half that is this event's gives its match (`label`); `phrase`, the match beside its name.
  */
 export function overlayEvent(text: string, own: string, quals?: number, semifinals = false): { event: "own" | "other" | null; label?: string; phrase?: string } {
@@ -264,6 +275,9 @@ export function overlayEvent(text: string, own: string, quals?: number, semifina
     // at 2509 s: "rer DIVE — Nevada Chan qualification 6 of 4", its own Nevada one word in three, "Chan" its cut name).
     const telling = read.filter((w) => w.length >= 4);
     if (telling.length >= 2 && telling.filter(ours).length * 2 < telling.length) return "other";
+    // Its long words this event's, but a short one another's: a sibling meet's (FiT-North U-League AM Meet 3 for its
+    // X-League AM Meet 3). Only a total read in full can make it this event's.
+    if (hit && shortClash(name, own)) return "other";
     return hit ? "own" : null;
   };
   let other = false, ownLabel: string | undefined, ownSeen = false;
@@ -272,10 +286,12 @@ export function overlayEvent(text: string, own: string, quals?: number, semifina
     for (const m of line.matchAll(MATCH_PHRASE)) {
       const total = m[1] != null ? Number(m[1]) : null;
       const name = verdict(line.slice(from, m.index));
-      // A name read decides; with none, the total (a schedule changed after the db was read can't drop a named frame).
-      // A name read as another's beside this event's own total is a misread: the total stands.
+      // The total, where read, decides: a name read as another's beside this event's own total is a misread, and a name
+      // read as this event's beside another event's total is a sibling's (FiT-North's league meets of one day, each on
+      // its own field's stream: "FiT-North U-League AM Meet 3 · Qualification 5 of 23" reads as FiT-North X-League AM
+      // Meet 3's own name, its league letter too short to be a word, and X-League has 19). With no total, the name.
       const byTotal = quals && total != null ? totalSays(total, quals) : null;
-      const v = name === "other" && byTotal === "own" ? "own" : name ?? byTotal;
+      const v = byTotal ?? name;
       from = m.index! + m[0].length;
       if (v === "other") other = true;
       if (v === "own" && !ownSeen) { ownSeen = true; ownLabel = overlayLabel(m[0], semifinals) ?? undefined; }
