@@ -5,8 +5,12 @@ import { createHash, randomBytes } from "node:crypto";
 import type { Request, Response } from "express";
 import { all, get, run } from "../db.js";
 import { env } from "../env.js";
+import { publicAccessOpen } from "../flags.js";
 
 export const SESSION_COOKIE = "cs_session";
+/** The shutdown gate's kept answers (token hash → live session?), cleared whenever a session is deleted, so a
+ *  signed-out or deleted account never passes the gate on a kept answer. */
+export const gateSessions = new Map<string, { ok: boolean; at: number }>();
 const SESSION_DAYS = 30;
 
 export interface User {
@@ -22,7 +26,13 @@ export interface User {
 export const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
 export const token = (bytes = 32) => randomBytes(bytes).toString("base64url");
 
-/** Find or create the user behind a proven identity. */
+/** No account matched and new ones can't be made: the publicAccess kill switch is off (server/shutdownGate.ts). */
+export class SignupsClosedError extends Error {
+  constructor() { super("New accounts can't be made right now."); this.name = "SignupsClosedError"; }
+}
+
+/** Find or create the user behind a proven identity. While publicAccess is off only an existing account is found
+ *  (by identity or by email); a new one throws SignupsClosedError. */
 export async function userForIdentity(provider: string, subject: string, email: string | null, displayName?: string | null): Promise<User> {
   const existing = await get<{ user_id: number }>("SELECT user_id FROM identities WHERE provider = ? AND subject = ?", [provider, subject]);
   let userId = existing?.user_id;
@@ -31,6 +41,7 @@ export async function userForIdentity(provider: string, subject: string, email: 
     userId = (await get<{ id: number }>("SELECT id FROM users WHERE email = ?", [email]))?.id;
   }
   if (!userId) {
+    if (!(await publicAccessOpen())) throw new SignupsClosedError();
     const r = await get<{ id: number }>("INSERT INTO users (email, display_name, created_at) VALUES (?, ?, ?) RETURNING id", [email, displayName ?? null, new Date().toISOString()]);
     userId = r!.id;
   }
@@ -102,6 +113,7 @@ export function sessionMark(req: Request): string | null {
 export async function endSession(req: Request, res: Response): Promise<void> {
   const t = readCookie(req, SESSION_COOKIE);
   if (t) await run("DELETE FROM sessions WHERE id = ?", [sha256(t)]);
+  gateSessions.clear();
   res.clearCookie(SESSION_COOKIE, { path: "/" });
 }
 
@@ -110,6 +122,7 @@ export async function deleteUser(id: number): Promise<void> {
   // The account row goes first: anything written for it from then on checks it exists (the notification inbox
   // does), and whatever was written before is deleted below.
   await run("DELETE FROM users WHERE id = ?", [id]);
+  gateSessions.clear();
   await run("DELETE FROM push_sent WHERE subscription_id IN (SELECT id FROM push_subscriptions WHERE user_id = ?)", [id]);
   for (const t of ["sessions", "identities", "user_state", "scout_entries", "inbox_items", "push_subscriptions", "digest_prefs", "digest_sends", "commons_mutes", "user_avatars"]) await run(`DELETE FROM ${t} WHERE user_id = ?`, [id]);
   // Their reports in the scouting commons (the note is theirs); a report already acted on leaves its outcome in the audit log.
