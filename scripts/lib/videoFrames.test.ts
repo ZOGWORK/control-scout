@@ -1,7 +1,7 @@
 // The pure parts of the frame reader (scripts/video-frames.ts): the overlay's match, the timer's elapsed time, and
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
-import { dataRows, divisionOf, cropOrder, elapsed, flippedClip, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, shortClash, type M } from "./videoFrames";
+import { dataRows, divisionOf, cropOrder, elapsed, flippedClip, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, shortClash, launchPlayerBrowser, type M } from "./videoFrames";
 
 describe("the frame reader", () => {
   // A 1280 × 720 frame: a grey field, and a score bar from `top` to `bottom` with one alliance's colour each side of the
@@ -582,5 +582,20 @@ describe("wholeLength", () => {
     expect(wholeLength(Infinity)).toBeNull();
     expect(wholeLength(NaN)).toBeNull();
     expect(wholeLength(0)).toBeNull();
+  });
+});
+
+describe("the browser that plays the videos", () => {
+  it("Google Chrome when installed (it plays H.264-only videos: 2021 NLCMP, USMSBILT), else Playwright's Chromium", async () => {
+    const asked: (string | undefined)[] = [], said: string[] = [];
+    const chrome = await launchPlayerBrowser(async (o) => { asked.push(o.channel); return `browser:${o.channel ?? "chromium"}`; }, (s) => said.push(s));
+    expect(chrome).toBe("browser:chrome");
+    expect(asked).toEqual(["chrome"]);
+    expect(said[0]).toMatch(/Google Chrome/);
+    const none: (string | undefined)[] = [];
+    const fallback = await launchPlayerBrowser(async (o) => { none.push(o.channel); if (o.channel) throw new Error("Chromium distribution 'chrome' is not found"); return "browser:chromium"; }, (s) => said.push(s));
+    expect(fallback).toBe("browser:chromium");
+    expect(none).toEqual(["chrome", undefined]);
+    expect(said[1]).toMatch(/Playwright's Chromium/);
   });
 });
