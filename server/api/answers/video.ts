@@ -7,7 +7,7 @@
 // the team's own listed matches before the event's recording: the recording from its start shows whatever was on
 // then (another team's match, an award), so it's the fallback only when no listed match has a clip.
 import { all } from "../../db.js";
-import { dayLabel, recordingAt, seasonRecordings, withClips, type Recording } from "../../videos/recordings.js";
+import { dayLabel, recordingAt, seasonRecordings, withClips, youtubeOnly, type Recording } from "../../videos/recordings.js";
 import { linkStart } from "../../../src/shared/recording.js";
 import { youtubeId } from "../../../src/shared/personal.js";
 import { localToUtcMs } from "../../../src/shared/time.js";
@@ -164,7 +164,7 @@ export async function answerVideo(a: SearchAnswer, now = Date.now(), viewer?: Vi
     for (const v of withClips(views, rec, now)) {
       const own = v.video ? youtubeId(v.video) : null;
       const item: SearchVideoItem | null = own ? { videoId: own, t: linkStart(v.video!), kind: "match", match: v.label }
-        : v.clip ? { videoId: v.clip.videoId, t: v.clip.t, ...(v.clip.end != null ? { end: v.clip.end } : {}), kind: "recording", match: v.label, ...(rec?.meta?.live ? { live: true } : {}) } : null;
+        : v.clip ? { videoId: v.clip.videoId, t: v.clip.t, ...(v.clip.end != null ? { end: v.clip.end } : {}), kind: "recording", match: v.label, ...(rec?.meta?.live ? { live: true } : {}), ...(v.clip.youtubeOnly ? { youtubeOnly: true as const } : {}) } : null;
       if (item) items.set(`${k}:${v.key}`, item);
     }
   }
@@ -196,7 +196,7 @@ export async function answerVideo(a: SearchAnswer, now = Date.now(), viewer?: Vi
       if (rec) {
         const day = recordingAt(rec, m?.startsAt, now);
         out.watch = { videoId: day.videoId, t: 0, kind: "stream", ...(m ? { match: m.label } : {}),
-          ...(rec.more?.length && day.meta?.start ? { day: dayLabel(day.meta.start, m?.timezone) } : {}), ...(day.meta?.live ? { live: true } : {}) };
+          ...(rec.more?.length && day.meta?.start ? { day: dayLabel(day.meta.start, m?.timezone) } : {}), ...(day.meta?.live ? { live: true } : {}), ...youtubeOnly(day.meta) };
       }
     } else if (!out.main) {
       if (aboutTeam(a) || rows.length) {
@@ -212,7 +212,7 @@ export async function answerVideo(a: SearchAnswer, now = Date.now(), viewer?: Vi
         const best = theirs.find((r) => items.has(`${evKey(teamAt)}:${r.level}:${r.series}:${r.number}`));
         if (best) out.main = items.get(`${evKey(teamAt)}:${best.level}:${best.series}:${best.number}`);
       }
-      out.main ??= rec ? { videoId: rec.videoId, t: 0, kind: "stream", ...(rec.meta?.live ? { live: true } : {}) } : undefined;
+      out.main ??= rec ? { videoId: rec.videoId, t: 0, kind: "stream", ...(rec.meta?.live ? { live: true } : {}), ...youtubeOnly(rec.meta) } : undefined;
     }
   }
   // The listed match the main video is (not the event's recording standing in for it).

@@ -12,6 +12,7 @@ import { seedOfficialVideos } from "./videos/officialVideos.js";
 import { applyVideoDecisions } from "./videos/videoDecisions.js";
 import { WATCH_CHECK_MS, WATCH_FIRST_MS, watchIfDue } from "./videos/officialWatch.js";
 import { runChannelAudit } from "./videos/officialAudit.js";
+import { dropWrongLinks } from "./videos/linkCheck.js";
 import "./env.js";
 import { env } from "./env.js";
 import { migrate, all, openReplicaIfRemote } from "./db.js";
@@ -260,8 +261,11 @@ if (!process.env.CS_NO_SCHEDULER) {
   // when the last one is less than 6 hours old.
   // A run that added a recording has its event's coverage checked at once (server/videos/coverageCheck.ts). Every run
   // is followed by the channel audit (server/videos/officialAudit.ts): each channel's uploads list against Scout.
+  // Each check first takes off their events the links YouTube's facts and titles now say are wrong
+  // (server/videos/linkCheck.ts): a stream that never aired for a past event, a title naming another meet.
   const watch = () => {
-    watchIfDue(log).then(async (r) => {
+    dropWrongLinks(log).catch((e) => log(`official videos: link check: ${(e as Error).message}`))
+      .then(() => watchIfDue(log)).then(async (r) => {
       if (r) await runChannelAudit(log).catch((e) => log(`official videos: audit: ${(e as Error).message}`));
       return r?.added ? checkClipCoverage(log) : 0;
     })
