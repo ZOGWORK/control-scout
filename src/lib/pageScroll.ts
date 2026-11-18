@@ -13,10 +13,7 @@
 // - A #hash scrolls to its element once it exists: gliding there for a #link followed on this page, at once
 //   on arrival from another page.
 //
-// On desktop the page glides to whatever it's sent to on the page itself (html's scroll-behavior: smooth,
-// index.css, under SMOOTH_SCROLL_QUERY), so a jump this module makes on a route change, a restore or a drag's
-// edge scroll goes through jumpPageTo, which is always instant: a new page never slides up from the old page's
-// position. Phones, tablets and prefers-reduced-motion get instant jumps everywhere (index.css, smoothBehavior).
+// Nothing glides: every scroll the app makes is an instant jump (no smooth scrolling anywhere, index.css).
 //
 // It also marks the page area while it is scrolling (`data-scrolling` on the content's parent), so CSS
 // can hold the ambient background still meanwhile and put a shield over the page that takes a resting
@@ -24,7 +21,7 @@
 import { useEffect, useLayoutEffect, useRef, type RefObject } from "react";
 import { useLocation, useNavigationType } from "react-router-dom";
 
-/** `followed` on a hash plan: a #link on this page was just followed (it glides there; anything else jumps). */
+/** `followed` on a hash plan: a #link on this page was just followed (it jumps there, as everything does). */
 export type ScrollPlan = { kind: "top" } | { kind: "restore"; y: number } | { kind: "hash"; id: string; followed?: boolean } | { kind: "keep" };
 
 /**
@@ -104,26 +101,11 @@ export function pageTop(): number {
  * default, more with scroll-mt-bar-N: index.css). Unlike el.scrollIntoView, a clipping box around it
  * (overflow: hidden, as on a rounded card) can't cut that margin off and leave it under the bar.
  */
-export function scrollToElement(el: Element, behavior: ScrollBehavior = "auto") {
+export function scrollToElement(el: Element) {
   const margin = parseFloat(getComputedStyle(el).scrollMarginTop) || 0;
   const page = pageScroller();
   const y = Math.max(0, Math.round(el.getBoundingClientRect().top + page.scrollTop - margin));
-  if (behavior === "smooth" && smoothScrolling()) {
-    // A wheel glide still on its way would overwrite the browser's own glide frame by frame.
-    smoothWheel?.halt();
-    window.scrollTo({ top: y, behavior });
-  } else jumpPageTo(y);
-}
-
-/**
- * The desktop's eased wheel scrolling (src/lib/smoothWheel.ts, Lenis), while it runs. A jump the app makes stops a
- * wheel glide still on its way, or the glide would carry on from the old position over the jump.
- */
-export type SmoothWheel = { halt(): void };
-let smoothWheel: SmoothWheel | null = null;
-/** Registers (or, with null, clears) the running smooth wheel. */
-export function setSmoothWheel(engine: SmoothWheel | null) {
-  smoothWheel = engine;
+  jumpPageTo(y);
 }
 
 /** Whether the reader asked for reduced motion (then every scroll the app makes is instant). */
@@ -132,28 +114,8 @@ export function prefersReducedMotion(): boolean {
 }
 
 /**
- * The screens that get smooth scrolling: a desktop or laptop (at least the desktop layout's width, with a mouse
- * or trackpad that hovers) whose reader hasn't asked for reduced motion. Phones and tablets (touch first, or
- * narrow) keep native, instant jumps. index.css gives html scroll-behavior: smooth under the same query.
- */
-export const SMOOTH_SCROLL_QUERY = "(min-width: 1024px) and (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference)";
-
-/** Whether scrolls the app makes may glide (SMOOTH_SCROLL_QUERY): desktop only, never under reduced motion. */
-export function smoothScrolling(): boolean {
-  try { return typeof window !== "undefined" && window.matchMedia?.(SMOOTH_SCROLL_QUERY).matches === true && !prefersReducedMotion(); } catch { return false; }
-}
-
-/** The behavior for a jump the reader asked for (a link, a button, a tab): smooth on desktop, otherwise instant. */
-export function smoothBehavior(): ScrollBehavior {
-  return smoothScrolling() ? "smooth" : "auto";
-}
-
-/**
- * Puts the page at `y` (or moves it by `by`) at once. html's scroll-behavior: smooth (index.css, desktop) would make a
- * plain scrollTop write glide, so the root's own style says "auto" for the write: the browser reads the
- * behavior when the write happens, and putting the style back afterwards doesn't animate it. (Not
- * window.scrollTo({ behavior: "instant" }): older Safari rejects that value outright.) It also stops a glide
- * still on its way, the browser's or the desktop's eased wheel (setSmoothWheel).
+ * Puts the page at `y` (or moves it by `by`) at once. The root's own style says "auto" for the write, so no
+ * scroll-behavior set on the page can make it glide.
  */
 export function jumpPageTo(y: number, by = false) {
   const page = pageScroller();
@@ -162,8 +124,6 @@ export function jumpPageTo(y: number, by = false) {
   if (by) page.scrollTop += y;
   else page.scrollTop = y;
   page.style.scrollBehavior = was;
-  // After the write, so the wheel's own idea of where the page is starts from the new position.
-  smoothWheel?.halt();
 }
 
 /** How long a restore keeps chasing its position while the page's content loads in. */
@@ -387,12 +347,10 @@ export function usePageScroll(content: RefObject<HTMLElement | null>) {
       return () => { leaving = true; stop(); };
     }
     const id = plan.id;
-    // A #link followed on this page glides to its section (the browser has already set off, by index.css's
-    // scroll-behavior, and this keeps it on course as the page grows); arriving from elsewhere jumps.
-    const how: ScrollBehavior = plan.followed ? smoothBehavior() : "auto";
+    // A #link jumps to its section, kept on course as the page grows.
     return chase(window, main, () => {
       const target = document.getElementById(id);
-      if (target && main.contains(target)) scrollToElement(target, how);
+      if (target && main.contains(target)) scrollToElement(target);
     });
   }, [loc.key, loc.pathname, loc.search, loc.hash, action, content]);
 }

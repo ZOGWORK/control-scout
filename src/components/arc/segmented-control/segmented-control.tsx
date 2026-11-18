@@ -6,7 +6,6 @@ import { m } from "../../motion";
 import { motionTokens } from "../lib/motion-tokens";
 import styles from "./segmented-control.module.css";
 import { scrollStripTo, stopStripGlide } from "../../../lib/revealInStrip";
-import { smoothBehavior } from "../../../lib/pageScroll";
 
 export interface Segment { value: string; label: string; /** Optional content after the label, such as a badge. */ accessory?: ReactNode; }
 export interface SegmentedControlProps {
@@ -41,18 +40,16 @@ export default function SegmentedControl({ options, value, onValueChange, label,
   }, [options.length]);
 
   // The selected option is always scrolled fully into view, with a little room so it clears the fade.
-  const first = useRef(true);
   useEffect(() => {
     const node = track.current;
     const button = node?.querySelector<HTMLElement>('[aria-pressed="true"]');
-    if (!node || !button || node.scrollWidth <= node.clientWidth) { first.current = false; return; }
+    if (!node || !button || node.scrollWidth <= node.clientWidth) return;
     const room = 20, start = button.offsetLeft - room, end = button.offsetLeft + button.offsetWidth + room - node.clientWidth;
     const left = node.scrollLeft > start ? start : node.scrollLeft < end ? end : node.scrollLeft;
     // Already showing: a glide still heading for the option just left stops here (src/lib/revealInStrip.ts).
-    if (left !== node.scrollLeft) scrollStripTo(node, left, first.current || reduced ? "auto" : smoothBehavior()); // glides on desktop only
+    if (left !== node.scrollLeft) scrollStripTo(node, left, "auto");
     else stopStripGlide(node);
-    first.current = false;
-  }, [value, reduced]);
+  }, [value]);
 
   // Arrow keys, Home and End move the selection like a tab list; only the selected option is a tab stop.
   const selectedIndex = Math.max(0, options.findIndex(option => option.value === value));
