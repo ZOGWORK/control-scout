@@ -228,7 +228,7 @@ const GENERIC = new Set(["LEAGUE", "MEET", "QUALIFIER", "QUALIFIERS", "CHAMPIONS
 const words = (s: string) => (plain(s).match(/[A-Z]{3,}/g) ?? []).filter((w) => !GENERIC.has(w));
 /** The short tokens of a name that `words` drops: a league or stage letter (FiT-North's X-League), AM/PM, a meet's
  *  number or time ("Lawson Meet @ 8 AM"). */
-const tokens = (s: string) => plain(s).match(/[A-Z0-9]+/g) ?? [];
+const tokens = (s: string): string[] => plain(s).match(/[A-Z0-9]+/g) ?? [];
 /** Whether a name read beside a match clashes with this event's in a short token (a league or stage letter, AM/PM, a
  *  meet's number or time), which `words` drops: one of this event's is missing from the read, and another short token
  *  stands in its place, beside the same long word ("U" for "X" before LEAGUE, "PM" for "AM" after it, "10" for "8"
