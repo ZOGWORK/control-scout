@@ -8,7 +8,7 @@ import { all, db, get, run, writeBatch } from "../db.js";
 import { env } from "../env.js";
 import { cleanValue, mergeValue, PERSONAL_KEYS, type PersonalKey, type Stamped } from "../../src/shared/personal.js";
 import { isOwnerEmail } from "../owner.js";
-import { clearMalformedSession, currentUser, deleteUser, endSession, readCookie, sessionMark, startSession, token, userForIdentity, type User } from "./session.js";
+import { clearMalformedSession, currentUser, deleteUser, endSession, readCookie, sessionMark, SignupsClosedError, startSession, token, userForIdentity, type User } from "./session.js";
 import { avatarUrlFor, handleSetAvatar, removeAvatar } from "./avatars.js";
 import { checkUsername, nextUsernameChange, setDisplayName, setUsername } from "./username.js";
 import { emailSignInEnabled, startEmailSignIn, verifyEmailCode } from "./email.js";
@@ -50,6 +50,14 @@ export function safeBack(v: unknown): string | null {
   const rest = q.toString();
   return (path || "/") + (rest ? `?${rest}` : "");
 }
+
+/** A sign-in that came back from Google or Control Point for someone with no account while new ones can't be made:
+ *  back to the home page, which says so (server/shutdownGate.ts). */
+const signupsClosed = (res: Response) => (e: unknown): null => {
+  if (!(e instanceof SignupsClosedError)) throw e;
+  res.redirect("/?signin=closed");
+  return null;
+};
 
 const publicUser = (u: User) => ({ id: u.id, email: u.email, displayName: u.displayName, createdAt: u.createdAt, username: u.username ?? null, usernameChangedAt: u.usernameChangedAt ?? null, usernameNextChange: nextUsernameChange(u), avatarUrl: u.avatarUrl ?? null });
 /** The owner portal's nav item shows only for owners (OWNER_EMAILS): they get isOwner: true, everyone else nothing at all. */
@@ -98,7 +106,12 @@ export function authRouter(): Router {
       res.status(400).json({ error: msg, reason: out.reason });
       return;
     }
-    const user = await userForIdentity("email", out.email, out.email);
+    const user = await userForIdentity("email", out.email, out.email).catch((e) => {
+      if (!(e instanceof SignupsClosedError)) throw e;
+      res.status(403).json({ error: "signups_closed", message: e.message });
+      return null;
+    });
+    if (!user) return;
     const linked = await linkToSharedAccount(user, "scout-email-code", out.email); // the shared account (best effort, 3 s max)
     const session = await startSession(res, user, req.get("user-agent"));
     const id = linked?.id ?? (controlPointEnabled() ? await linkedAccountId(user.id) : null);
@@ -130,7 +143,8 @@ export function authRouter(): Router {
     }).then((x) => x.json()).catch(() => null);
     const info = tok?.access_token ? await fetch("https://openidconnect.googleapis.com/v1/userinfo", { headers: { Authorization: `Bearer ${tok.access_token}` } }).then((x) => x.json()).catch(() => null) : null;
     if (!info?.sub || !info.email || info.email_verified === false) { res.redirect("/settings?section=profile&signin=failed"); return; }
-    const user = await userForIdentity("google", String(info.sub), String(info.email).toLowerCase(), info.name ?? null);
+    const user = await userForIdentity("google", String(info.sub), String(info.email).toLowerCase(), info.name ?? null).catch(signupsClosed(res));
+    if (!user) return;
     await linkToSharedAccount(user, "google", String(info.email).toLowerCase());
     await startSession(res, user, req.get("user-agent"));
     res.redirect("/my-team?signin=ok");
@@ -160,7 +174,8 @@ export function authRouter(): Router {
     if (!controlPointEnabled() || !state || state !== req.query.state || !code) { res.redirect("/settings?signin=failed"); return; }
     const account = await redeemHandoff(code, state).catch((e) => { logFailure("redeem", e); return null; });
     if (!account) { res.redirect("/settings?signin=failed"); return; }
-    const user = await userForIdentity(CP_PROVIDER, String(account.id), account.email.toLowerCase(), account.displayName);
+    const user = await userForIdentity(CP_PROVIDER, String(account.id), account.email.toLowerCase(), account.displayName).catch(signupsClosed(res));
+    if (!user) return;
     await rememberInfo(account); // /me shows the Control Point side (and its shortlist) straight away
     await startSession(res, user, req.get("user-agent"));
     const back = safeBack(readCookie(req, "cs_cp_back"));
