@@ -40,7 +40,7 @@ import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { gunzipSync } from "node:zlib";
 import { applyRows, changedRows, fileRows, prChunks, prMarker, readMarker, rowKey, rowProblems, type Keyed, type Row } from "./lib/autopilotRows";
-import { askDue, forgetSettled, frameFileSeason, heldElsewhere, holdCodes, laneResults, laneStep, needsRebuild, overLimit, parseLanes, parseShard, pickEvents, prShard, readOutcome, remember, rememberTimeout, rememberWait, rowsDelta, shardOf, type LaneJob, type Memory } from "./lib/autopilotRun";
+import { askDue, forgetSettled, frameFileSeason, heldElsewhere, holdCodes, laneResults, laneStep, needsRebuild, overLimit, parseLanes, parseShard, parseSkip, pickEvents, prShard, readOutcome, remember, rememberTimeout, rememberWait, rowsDelta, shardOf, type LaneJob, type Memory } from "./lib/autopilotRun";
 import { loopySummary, reviewedSha, type IssueComment } from "./lib/autopilotMerge";
 import { clipCheckProblems, clipsDelta } from "./lib/autopilotClips";
 import { prGate } from "./lib/autopilotPr";
@@ -484,6 +484,9 @@ for (const lane of LANES) for (const x of laneJob(lane.k)?.seasons ?? []) for (c
 // And events another session's open data PR already carries: never read for a second PR.
 const elsewhere = othersHold();
 for (const [k, n] of elsewhere) if (!inPr.has(k)) { inPr.add(k); log(`  held: ${k} is in #${n}, another open PR`); }
+// And events left by hand to a session reading them with no PR open yet (skip.txt: parseSkip).
+const skipFile = join(DIR, "skip.txt");
+for (const k of existsSync(skipFile) ? parseSkip(readFileSync(skipFile, "utf8")) : []) if (!inPr.has(k)) { inPr.add(k); log(`  held: ${k} is in ${skipFile}, left to another session`); }
 const { picked, skipped } = pickEvents(mine, inPr, memory, MAX);
 log(`queue: ${queue.filter((q) => q.frames.state === "queued").length} events queued${SHARD.n > 1 ? `, ${mine.filter((q) => q.frames.state === "queued").length} in shard ${SHARD.k}/${SHARD.n}` : ""}; reading ${picked.map((q) => `${q.season}/${q.code} (${q.frames.due})`).join(", ") || "none"}`);
 for (const s of skipped.filter((x) => x.why !== "next run")) log(`  skipped ${s.event}: ${s.why}`);
