@@ -27,7 +27,7 @@ export function pickEvents(queue: Queued[], inPr: Set<string>, memory: Memory, m
   const queued = queue.filter((q) => q.frames.state === "queued").sort((a, b) => (a.frames.rank ?? Infinity) - (b.frames.rank ?? Infinity));
   for (const q of queued) {
     const key = `${q.season}/${q.code}`, m = memory[key];
-    if (inPr.has(key)) skipped.push({ event: key, why: "read, in an open autopilot PR" });
+    if (inPr.has(key)) skipped.push({ event: key, why: "read, in an open PR" });
     else if (m?.waits && now - Date.parse(m.last) < waitBackoff(m.waits)) skipped.push({ event: key, why: `its rows waited ${m.waits} time${m.waits === 1 ? "" : "s"} (${m.result}): read again after ${new Date(Date.parse(m.last) + waitBackoff(m.waits)).toISOString().slice(0, 16)}Z` });
     else if (m?.timeouts && now - Date.parse(m.last) < WAIT_MS) skipped.push({ event: key, why: `stopped at the reader's per-event limit with nothing new (${m.result}): read again after ${new Date(Date.parse(m.last) + WAIT_MS).toISOString().slice(0, 16)}Z` });
     else if (m && m.tries >= GIVE_UP) skipped.push({ event: key, why: `read ${m.tries} times with nothing new (${m.result}): left until its recording or matches change` });
@@ -86,10 +86,10 @@ export interface LaneState { state: "idle" | "queued" | "running" | "done" | "fa
 export interface LaneJob { id: string; seasons: { season: number; codes: string[] }[] }
 /** A job sent but not started within this long: the lane is started again. */
 export const LANE_KICK_MS = 3600_000;
-/** The longest a lane's run of `job` can take: per season, its read calls' own limits (12 h a read, 3 h each for
+/** The longest a lane's run of `job` can take: per season, its read calls' own limits (24 h a read, 3 h each for
  *  --verify and --bounds), and an hour more. A lane still "running" after that was killed (a reboot, a power cut) before
  *  it could say so: what it finished is collected, as for a failed job. */
-export const laneJobMs = (job: LaneJob) => job.seasons.length * 18 * 3600_000 + 3600_000;
+export const laneJobMs = (job: LaneJob) => job.seasons.length * 30 * 3600_000 + 3600_000;
 /** A job id the coordinator makes (its run's stamp): used in paths and commands, so nothing else is taken. */
 export const LANE_ID = /^[\w-]{1,64}$/;
 /** What the coordinator does with a lane this run, from its state file's text ("" when it has none) and the job it sent
@@ -125,6 +125,31 @@ export function laneResults(job: LaneJob, files: { name: string; text: string }[
     const stopped = new Map<string, string | undefined>((Array.isArray(r.stopped) ? r.stopped : []).filter((x: any) => Array.isArray(x) && ok(x[0]) && (x[1] == null || typeof x[1] === "string")).map((x: any) => [x[0], x[1] ?? undefined]));
     return { season, codes, changed, readFailed: r.readFailed !== false, stopped };
   });
+}
+
+/** A season's frame-read data file, as a PR's file list names it (its season), or null. */
+export const frameFileSeason = (path: string): number | null => {
+  const m = /^server\/data\/frameTimings\/(\d{4})\.ts$/.exec(path);
+  return m ? Number(m[1]) : null;
+};
+/** Events ("season/code") other open PRs bring frame-read rows for, each with the first PR that does: the codes on the
+ *  "+" lines of each PR's patch to a season's frame-read file. Another session's data PR holds its events as the
+ *  autopilot's own do, so no two PRs carry one event (#1932 and #1933 repeated #1829's USCHSCMPSUBS and USMOKSCMP).
+ *  A season's file whose patch GitHub left out (a diff too big to show) is in `unread`, for the caller to read the
+ *  PR's own copy of (holdCodes): never silently nothing. */
+export function heldElsewhere(prs: { number: number; files: { filename: string; patch?: string }[] }[]): { held: Map<string, number>; unread: { number: number; filename: string }[] } {
+  const held = new Map<string, number>(), unread: { number: number; filename: string }[] = [];
+  for (const p of prs) for (const f of p.files) {
+    const season = frameFileSeason(f.filename);
+    if (season == null) continue;
+    if (!f.patch) { unread.push({ number: p.number, filename: f.filename }); continue; }
+    holdCodes(held, season, f.patch.split("\n").flatMap((line) => (line.startsWith("+") ? [/"code":"([^"]+)"/.exec(line)?.[1]].filter((c): c is string => !!c) : [])), p.number);
+  }
+  return { held, unread };
+}
+/** Holds `codes` of `season` for PR `number`, an event already held keeping the first PR that carries it. */
+export function holdCodes(held: Map<string, number>, season: number, codes: string[], number: number): void {
+  for (const c of codes) if (!held.has(`${season}/${c}`)) held.set(`${season}/${c}`, number);
 }
 
 /** An event's memory after a read: shipped rows clear it; nothing new counts a try. */

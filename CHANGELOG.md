@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.6.9 — 2026-11-17
+
+Event videos › a clip whose video plays on YouTube only now opens there, at the match's second, instead of an embedded player that can't play it.
+
+### Highlights
+- [fixes] Clips of YouTube-only videos open on YouTube
+- [fixes] A short "Plays on YouTube" note on each
+- [fixes] The event page's player links to YouTube for them
+
+### Fixed
+- Event videos: 20 official recordings have embedding turned off by their owners, so the app's players showed YouTube's "Playback on other websites has been disabled". Their clips and the event page's stream are now marked, and the Watch link, the clips grid, search's card and rows, and the event page's player open them on YouTube from the same second, with a note. The page's player offers no predictions overlay for them. (`src/lib/streamSeek.ts`, `server/videos/recordings.ts`) (#1691)
+
 ## 7.6.8 — 2026-11-17
 
 Search › one period's best matches ("best teleop videos in romania decode") gets an answer in the search box too, linking to the full list.

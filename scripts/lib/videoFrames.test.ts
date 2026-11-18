@@ -1,8 +1,8 @@
 // The pure parts of the frame reader (scripts/video-frames.ts): the overlay's match, the timer's elapsed time, and
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
-import { dataRows, launchPlayerBrowser, clockReading, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, inPage, titleLeaks, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, firstOpening, OPEN_LEADS, shortClash, type M } from "./videoFrames";
-import { between, EVENT_LIMIT_RATIO, eventLimitMs, GAP_READS, TRIES } from "./videoFrames";
+import { dataRows, launchPlayerBrowser, clockReading, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, darkInk, DARK_FILL_MAX, DARK_INK_MAX, inPage, titleLeaks, titleUnchecked, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, firstOpening, OPEN_LEADS, shortClash, type M, eventDivisions, teamsSay } from "./videoFrames";
+import { between, edgeReject, EVENT_LIMIT_RATIO, eventLimitMs, GAP_READS, TRIES } from "./videoFrames";
 
 describe("the frame reader", () => {
   // A 1280 × 720 frame: a grey field, and a score bar from `top` to `bottom` with one alliance's colour each side of the
@@ -164,6 +164,21 @@ describe("the frame reader", () => {
     expect(px).toEqual([0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 255]);
   });
 
+  it("reads POWERPLAY's box gone black behind faint digits, and leaves a box that isn't (darkInk)", () => {
+    // USTXNONLM1 2022 at 902 s: the fill 0–2, the digits of "38" 5–37 (sampled off the frame).
+    const black = [0, 0, 0, 255, 2, 1, 2, 255, 1, 0, 1, 255, 26, 24, 30, 255, 37, 33, 36, 255, 1, 1, 1, 255];
+    expect(darkInk(black, DARK_FILL_MAX, DARK_INK_MAX)).toBe(true);
+    expect(black).toEqual([255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 255, 0, 0, 0, 255, 255, 255, 255, 255]);
+    // USTXNODLM3 2022 at 6700 s: the light pill (147, 187) and its black digits: not that fill, left for inkOnly.
+    const pill = [147, 147, 147, 255, 187, 187, 187, 255, 0, 0, 0, 255, 190, 190, 190, 255];
+    expect(darkInk(pill, DARK_FILL_MAX, DARK_INK_MAX)).toBe(false);
+    expect(pill).toEqual([147, 147, 147, 255, 187, 187, 187, 255, 0, 0, 0, 255, 190, 190, 190, 255]);
+    // A fill's grey edge brighter than the ink band stays white, not a stray digit stroke.
+    const edge = [0, 0, 0, 255, 0, 0, 0, 255, 120, 120, 120, 255];
+    expect(darkInk(edge, DARK_FILL_MAX, DARK_INK_MAX)).toBe(true);
+    expect(edge.slice(8)).toEqual([255, 255, 255, 255]);
+  });
+
   it("runs a function in a page that has no __name of tsx's (inPage)", () => {
     // tsx's own output for a function with an inner named arrow, as the page gets it from toString.
     const compiled = { toString: () => '() => { const walk = __name((n) => n * 2, "walk"); return walk(21); }' };
@@ -179,6 +194,12 @@ describe("the frame reader", () => {
     // title counts even when it is the event's name. No title or channel known: nothing counts.
     expect(titleLeaks("", "", texts)).toEqual([]);
     expect(titleLeaks(title, "", ["2022", "FTC Event"])).toEqual([1]);
+  });
+  it("says the title can't be checked only when the player gave neither a title nor a channel", () => {
+    expect(titleUnchecked("", "")).toMatch(/can't be checked/);
+    expect(titleUnchecked("  ", "\n")).toMatch(/can't be checked/);
+    expect(titleUnchecked("FTC Harrisonburg 1 Qualifier", "")).toBeNull();
+    expect(titleUnchecked("", "Chesapeake FIRST")).toBeNull();
   });
   it("reads a bare-seconds timer (FTC Live's overlay, 2019–2022)", () => {
     // AUMPOS1 2022: Auto "24", TeleOp "112"; IASQ4 2019 TeleOp "101".
@@ -387,6 +408,45 @@ describe("the frame reader", () => {
     expect(overlayDivision("a Division  Romania Championship - (  Qualification 2 of 72", "COANDA", ["VLAICU"])).toBeNull();
     expect(overlayDivision("Western Edge Premier Event - Sea Division", "Sand", ["Sea"])).toBe("other");
     expect(overlayDivision("Seattle Qualifier", "Sand", ["Sea"])).toBeNull();
+  });
+
+  it("tells a division's match by its teams where the bar's division name has scrolled off (Iowa 2019)", () => {
+    // Black's Q8 (4324 6340 11142 16736) and Gold's (367 7259 9925 15523), read off f0WTAt-jFDA at 3307 s.
+    const black = [4324, 6340, 11142, 16736], gold = [367, 7259, 9925, 15523];
+    const frame = "11142 1 0 16736 4324 11 24 6340 Qualification 8 of 36 npionship";
+    expect(teamsSay(frame, black, [gold])).toBe("own");
+    expect(teamsSay(frame, gold, [black])).toBe("other");
+    // Two teams read: too few to say.
+    expect(teamsSay("4324 Qualification 8 of 36 16736", black, [gold])).toBeNull();
+    // Both divisions' teams read (a split screen, a results card listing both): no answer.
+    expect(teamsSay("4324 6340 11142 367 7259 9925", black, [gold])).toBeNull();
+    // No teams known for the match (a playoff label, a missing row).
+    expect(teamsSay(frame, undefined, [gold])).toBeNull();
+    // A score or timer that happens to be a team's number counts once, never as three.
+    expect(teamsSay("367 367 367 Qualification 8 of 36", black, [gold])).toBeNull();
+  });
+
+  it("takes 2019's divisions from the words after the name they share, and reads them off SKYSTONE's bar", () => {
+    expect(eventDivisions("Romania Championship - COANDA Division", ["Romania Championship - VLAICU Division"])).toEqual({ own: "COANDA", others: ["VLAICU"] });
+    expect(eventDivisions("Iowa Championship BLACK", ["Iowa Championship GOLD"])).toEqual({ own: "BLACK", others: ["GOLD"] });
+    expect(eventDivisions("FIRST in Michigan FTC State Championship-Warren MARIECURIE", ["FIRST in Michigan FTC State Championship-Warren WOODIEFLOWERS"]))
+      .toEqual({ own: "MARIECURIE", others: ["WOODIEFLOWERS"] });
+    expect(eventDivisions("Los Angeles Championship Monrovia, CA GALILEO", ["Los Angeles Championship Monrovia, CA ODYSSEY"])).toEqual({ own: "GALILEO", others: ["ODYSSEY"] });
+    // No sibling, nothing shared, the same tail twice, or a tail that is only a number: no division to tell apart.
+    expect(eventDivisions("Iowa Championship BLACK", [])).toBeNull();
+    expect(eventDivisions("Iowa Championship BLACK", ["Nebraska Championship GOLD"])).toBeNull();
+    expect(eventDivisions("Iowa Championship BLACK", ["Iowa Championship Black"])).toBeNull();
+    expect(eventDivisions("Brookline Robo Rally 1", ["Brookline Robo Rally 2"])).toBeNull();
+    // Iowa 2019's streams cut between both fields (juDEJB2wENc, titled Black, shows Gold's Q9 at 3901 s; f0WTAt-jFDA,
+    // titled Gold, shows Black's Q8 at 3307 s): the bar's event half says whose match it is.
+    expect(overlayDivision("Qualification 9 of 36  Gold Division", "BLACK", ["GOLD"])).toBe("other");
+    expect(overlayDivision("Qualification 8 of 36  npionship - Black Division", "BLACK", ["GOLD"])).toBe("own");
+    expect(overlayDivision("Qualification 8 of 36  npionship - Black Division", "GOLD", ["BLACK"])).toBe("other");
+    expect(overlayDivision("Qualification 8 of 36  lowa Championship - Bl", "GOLD", ["BLACK"])).toBeNull();
+    // A name the data runs together, spaced on the overlay; a short one never matched inside a longer word.
+    expect(overlayDivision("Marie Curie Division  Qualification 4 of 40", "MARIECURIE", ["WOODIEFLOWERS"])).toBe("own");
+    expect(overlayDivision("Woodie Flowers Division", "MARIECURIE", ["WOODIEFLOWERS"])).toBe("other");
+    expect(overlayDivision("Golden Bears Qualifier", "BLACK", ["GOLD"])).toBeNull();
   });
 
   it("reads the data file's rows", () => {
@@ -777,23 +837,43 @@ describe("between", () => {
 describe("eventLimitMs: an event's own read limit", () => {
   const MIN = 60_000, H = 3600;
   it("is the floor for an event of ordinary length", () => {
-    expect(eventLimitMs(180 * MIN, [3 * H, 4 * H])).toBe(180 * MIN);
+    expect(eventLimitMs(180 * MIN, [1 * H, 1.5 * H])).toBe(180 * MIN);
     expect(eventLimitMs(180 * MIN, [])).toBe(180 * MIN);
   });
   it("scales with its videos' summed length, so a long event's real read isn't stopped", () => {
-    expect(EVENT_LIMIT_RATIO).toBe(0.25);
-    // 2022 ROBUQ1: three videos, ~27 h, read whole in 68 min at the slowest: its limit is 6.75 h, about six times that.
-    const robuq1 = eventLimitMs(180 * MIN, [9 * H, 9 * H, 9 * H]);
-    expect(robuq1).toBe(405 * MIN);
-    expect(robuq1).toBeGreaterThan(5.9 * 68 * MIN);
-    // 2022 ROBUQ2 (12,205 s + 35,358 s): its second video was still unfinished after 6 h, stuck; still stopped.
-    const robuq2 = eventLimitMs(180 * MIN, [12_205, 35_358]);
-    expect(robuq2).toBe(199 * MIN);
-    expect(robuq2).toBeLessThan(6 * 60 * MIN);
+    expect(EVENT_LIMIT_RATIO).toBe(1);
+    // 2022 ROBUQ1: three videos, ~27 h, read whole in 68 min at the slowest.
+    expect(eventLimitMs(180 * MIN, [9 * H, 9 * H, 9 * H])).toBe(27 * 60 * MIN);
+    // 2022 ROBUQ2: three videos, 20.5 h, read in 203 min on amelia, more than twice that with 8 readers on one computer.
+    // A quarter (308 min) would have cut that slow read; its own length is six times the real one.
+    const robuq2 = eventLimitMs(180 * MIN, [12_205, 35_358, 26_221]);
+    expect(robuq2).toBe(1230 * MIN);
+    expect(robuq2).toBeGreaterThan(6 * 203 * MIN);
+    expect(eventLimitMs(180 * MIN, [12_205, 35_358, 26_221], 0.25)).toBeLessThan(2.5 * 203 * MIN);
   });
   it("counts a length that isn't a real number as none, and rounds up to whole minutes", () => {
-    expect(eventLimitMs(0, [NaN, -5, 100 * 60])).toBe(25 * MIN);
+    expect(eventLimitMs(0, [NaN, -5, 100 * 60])).toBe(100 * MIN);
     expect(eventLimitMs(0, [61], 1)).toBe(2 * MIN);
     expect(eventLimitMs(10 * MIN, [100 * H], 0.5)).toBe(50 * 60 * MIN);
+  });
+});
+
+describe("edgeReject", () => {
+  it("rejects a bar whose qualification total isn't this event's, saying whose it may be", () => {
+    // CABCVAS1 2023 (14 qualifications) opens on a setup screen naming a 5-match schedule's Q4.
+    const why = edgeReject("FIRST in SHOW — BC Lower Mainland Scrimmage 1 Qualification 4 of 5 CENTERSTAGE", null, undefined, 14);
+    expect(why).toMatch(/"of 5", not this event's 14 qualifications/);
+    expect(edgeReject("Up Next\nQualification 4 of 5", "own", undefined, 14)).not.toBeNull();
+  });
+  it("takes this event's total, a bar with none, and an event whose count isn't known", () => {
+    expect(edgeReject("BC Lower Mainland Scrimmage 1 Qualification 4 of 14", null, undefined, 14)).toBeNull();
+    expect(edgeReject("Semifinal 1 Match 2", null, undefined, 14)).toBeNull();
+    expect(edgeReject("Qualification 4 of 5", null, undefined, undefined)).toBeNull();
+    // A split screen: one of the totals read is this event's.
+    expect(edgeReject("Qualification 3 of 18 | Qualification 7 of 14", null, undefined, 14)).toBeNull();
+  });
+  it("rejects another division's or event's overlay with readAt's reason", () => {
+    expect(edgeReject("Qualification 4 of 14", "other", "another event's overlay", 14)).toBe("another event's overlay");
+    expect(edgeReject("Qualification 4 of 14", "other", undefined, 14)).toBe("another division's overlay");
   });
 });
