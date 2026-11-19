@@ -36,7 +36,8 @@ export function phaseSegments(withEndgame = false) {
 
 type Sort = { key: TeamSortKey; dir: "asc" | "desc" };
 
-export function TeamTable({ table, label }: { table: Table; label: string }) {
+/** `limit`: draw only the first rows of the sorted list (v8's short ranking; the rest a tap away beside it). */
+export function TeamTable({ table, label, limit }: { table: Table; label: string; limit?: number }) {
   const opening = (): Sort => ({ key: table.by, dir: table.dir ?? firstDir(table.by) });
   const [sort, setSort] = useState<Sort>(opening);
   const [open, setOpen] = useState<ReadonlySet<number>>(new Set());
@@ -44,7 +45,7 @@ export function TeamTable({ table, label }: { table: Table; label: string }) {
   const [shown, setShown] = useState(table);
   if (shown !== table) { setShown(table); setSort(opening()); setOpen(new Set()); }
   const id = useId();
-  const rows = useMemo(() => sortTeamRows(table.rows, sort.key, sort.dir), [table.rows, sort]);
+  const rows = useMemo(() => { const r = sortTeamRows(table.rows, sort.key, sort.dir); return limit != null ? r.slice(0, limit) : r; }, [table.rows, sort, limit]);
   const phases = hasPhases(table.rows);
   const withEndgame = !!table.teleopWithEndgame;
   const columns = teamColumns(withEndgame);

@@ -5,7 +5,8 @@ import { Link } from "react-router-dom";
 import { ArrowRight, BarChart3, CalendarDays, Hash, Info, Medal, Sparkles, Target, Trophy, type LucideIcon } from "lucide-react";
 import { eventTypeLabel } from "../../../shared/labels";
 import { seasonLabel, recordWords } from "../../../shared/format";
-import { Fragment, useMemo, type ReactNode } from "react";
+import { Fragment, useMemo, useState, type ReactNode } from "react";
+import { useIsV8 } from "../../../lib/v8";
 import type { StatAnswer, StatBlock, StatLink, StatRecord } from "../../../shared/searchStat";
 import type { SearchCard } from "../../../shared/api";
 import { teamTableOfLeaderboard } from "../../../shared/teamTable";
@@ -83,6 +84,7 @@ function OneCard({ stat, heading, extra }: { stat: StatAnswer; heading?: string;
   // About one team: its hue on the card's numbers and bars; about none (a season's top matches): ink.
   const one = teams?.length === 1;
   const profile = useTeamProfile(teams?.length === 1 ? teams[0].number : null, season);
+  const v8 = useIsV8();
   // An answer about no team shows its season as the frame's picker (./SeasonPick.tsx): not again among the chips.
   const picked = !!useSeasonPick() && !teams?.length && stated != null;
   const chips = picked ? stat.scope.filter((s) => !(statedSeason(s) != null && s.length <= 7)) : stat.scope;
@@ -96,7 +98,7 @@ function OneCard({ stat, heading, extra }: { stat: StatAnswer; heading?: string;
       data={{ "data-stat-answer": stat.intent, "data-family": stat.family }}>
       {/* A label the page's heading already holds (or that only repeats the title) is for screen readers only, as the
           server's first paint leaves it out (server/seoMeta.ts): never the same words twice. */}
-      {stat.headline && <Headline h={{ ...stat.headline, ...oneContext(stat.headline.label, stat.headline.sub, stat.scope) }} hue={one} tone={headlineTone(stat, teams)}
+      {stat.headline && !(v8 && stat.family === "leaderboard" && stat.blocks.some((b) => b.kind === "leaderboard")) && <Headline h={{ ...stat.headline, ...oneContext(stat.headline.label, stat.headline.sub, stat.scope) }} hue={one} tone={headlineTone(stat, teams)}
         hideLabel={repeats(heading, stat.headline.label, stat.scope) || stat.headline.label === stat.title} />}
       <AnswerVideo />
       <NoVideoLine stat={stat} />
@@ -602,17 +604,30 @@ function Bars({ b }: { b: Extract<StatBlock, { kind: "bars" }> }) {
   );
 }
 
+/** v8's short ranking: the top five. */
+const V8_TOP = 5;
+
 /** A leaderboard: the asked stat's teams as the search's one team table (../TeamTable.tsx), sorted by the stat asked
  *  (the list's own order when it isn't an OPR), with its note above and the small "View more detail" link under it. */
 function Leaderboard({ b }: { b: Extract<StatBlock, { kind: "leaderboard" }> }) {
   const table = useMemo(() => teamTableOfLeaderboard(b.stat.id, b.stat.label, b.rows, b.teleopWithEndgame, b.lowest), [b]);
+  // v8: a ranking is sized to the question, its top five, the rest in place with one tap (the page plan).
+  const v8 = useIsV8();
+  const [all, setAll] = useState(false);
+  const short = v8 && !all && table.rows.length > V8_TOP;
   return (
     <figure data-block="leaderboard">
       <figcaption className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <span className={H3}>{b.title}</span>
         <span className="text-[11px] text-muted-foreground" data-note>{b.note}</span>
       </figcaption>
-      <TeamTable table={table} label={b.title} />
+      <TeamTable table={table} label={b.title} limit={short ? V8_TOP : undefined} />
+      {v8 && table.rows.length > V8_TOP && (
+        <button type="button" onClick={() => setAll((a) => !a)} aria-expanded={all}
+          className="mt-2 inline-flex min-h-9 items-center gap-1 rounded-lg px-2 text-sm text-text-muted hover:bg-white/[0.06] hover:text-foreground max-md:min-h-[44px]" data-show-all>
+          {all ? "Show top 5" : `Show all ${table.rows.length}`}
+        </button>
+      )}
       {b.more && <p className="mt-2"><Link to={b.more.href} className="inline-flex items-center gap-1 text-xs font-medium text-foreground underline decoration-border underline-offset-2 hover:text-accent-text v8:hover:text-foreground max-md:min-h-[44px] pointer-coarse:min-h-[44px]" data-more-detail>{b.more.label}<ArrowRight className="size-3.5" aria-hidden /></Link></p>}
     </figure>
   );

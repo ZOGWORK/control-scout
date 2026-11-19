@@ -63,6 +63,21 @@ describe("search box, v8 on", () => {
     for (const c of ["animate-in", "fade-in-0", "[--tw-enter-scale:0.97]", "duration-[180ms]", "ease-out", "motion-reduce:[--tw-enter-scale:1]", "v8:origin-top", "bg-popover"]) expect(panel.className).toContain(c);
   });
 
+  it("highlights the top hit as soon as results are in, clearly, and Enter goes straight to it", async () => {
+    const onPick = vi.fn();
+    render(<SearchBox onPick={onPick} placeholder="Search" label="Search" />);
+    const input = screen.getByLabelText("Search") as HTMLInputElement;
+    act(() => input.focus());
+    fireEvent.change(input, { target: { value: "bit" } });
+    await waitFor(() => expect(screen.getAllByRole("option")).toHaveLength(4), { timeout: 4000 });
+    const top = screen.getByRole("option", { name: /Bit by Bit/ });
+    await waitFor(() => expect(top.getAttribute("aria-selected")).toBe("true"));
+    expect(top.className).toContain("v8:shadow-[inset_2px_0_0_var(--color-accent)]");
+    expect(input.getAttribute("aria-activedescendant")).toBe(top.id);
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(onPick).toHaveBeenCalledWith(HITS[0]);
+  });
+
   it("drops the bouncing more-below icon", async () => {
     const container = await typed();
     await screen.findByRole("button", { name: /more below/ });
@@ -85,6 +100,11 @@ describe("search box, v8 on", () => {
 });
 
 describe("search box, v8 off", () => {
+  it("highlights nothing until the keys or the pointer pick a row", async () => {
+    await typed();
+    expect(screen.getAllByRole("option").some((o) => o.getAttribute("aria-selected") === "true")).toBe(false);
+  });
+
   it("keeps Motion's drop (no v8 panel) and the bouncing more-below icon", async () => {
     const container = await typed();
     expect(container.querySelector("[data-drop-panel]")).toBeNull();

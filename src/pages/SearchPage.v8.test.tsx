@@ -2,7 +2,7 @@
 // The /search page in v8 (docs/design/v8-revamp-brief.md §7 item 2): the page title at v8's size in Inter, a quiet
 // eyebrow, one entrance stagger on the results column, neutral section heads (the live dot in live red, no coloured
 // fills), calm palette classes after the v8-off ones. v8 off keeps every class it had.
-import { cleanup, render } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SearchAnswer, SearchHit } from "../shared/api";
@@ -21,6 +21,8 @@ vi.mock("../lib/personal", async (orig) => ({ ...(await orig<typeof import("../l
 
 const { default: SearchPage } = await import("./SearchPage");
 const { RankPill, TEAM_BAR, swatchOf } = await import("../components/search/page/answerCells");
+const { TeamTable } = await import("../components/search/TeamTable");
+const { FollowChips } = await import("../components/search/page/V8Results");
 
 const team = (n: number, name: string): SearchHit => ({ kind: "team", ref: String(n), title: `${n} ${name}`, subtitle: "Oradell, NJ, USA", season: 2025 });
 const today = new Date();
@@ -35,13 +37,42 @@ describe("search page, v8 on", () => {
   beforeEach(() => document.documentElement.setAttribute("data-v8", ""));
   afterEach(() => document.documentElement.removeAttribute("data-v8"));
 
-  it("draws the page title at v8's size in Inter, the eyebrow quiet", () => {
-    state.answer = answer([team(4215, "Hypnotic Robotics"), team(6980, "Bad Wolf")]);
+  it("draws the page title at v8's size in Inter, no eyebrow, then one line of how the query was read", () => {
+    state.answer = { ...answer([team(4215, "Hypnotic Robotics"), team(6980, "Bad Wolf")]), understood: { kind: "names", label: "Teams named robotics" } };
     const { container } = show("/search?q=robotics");
     const h1 = container.querySelector("h1")!;
     expect(h1.className).toContain("v8:font-sans");
     expect(h1.className).toContain("v8:text-[1.375rem]");
-    expect(container.querySelector("[data-eyebrow]")!.className).toContain("v8:text-text-faint");
+    expect(container.querySelector("[data-eyebrow]")!.className).toContain("v8:hidden");
+    const line = container.querySelector("[data-understood]")!;
+    expect(line.textContent).toBe("“robotics” read as names: Teams named robotics");
+    // The understood line replaces the reading badge; there is no side column.
+    expect(container.querySelector("[data-context-badge]")).toBeNull();
+    expect(container.querySelector("[data-side]")).toBeNull();
+  });
+
+  it("answers a team asked for by itself with its compact summary, not a team card among the results", () => {
+    state.answer = { ...answer([team(4215, "Hypnotic Robotics"), team(6980, "Bad Wolf")]), understood: { kind: "team", label: "Hypnotic Robotics (4215)" } };
+    const { container } = show("/search?q=4215");
+    const card = container.querySelector('[data-v8-answer="team"]')!;
+    expect(card.querySelector("[data-team-number]")!.textContent).toBe("4215");
+    expect(card.textContent).toContain("Hypnotic Robotics");
+    expect(within(card as HTMLElement).getByRole("link", { name: /Team page/ }).getAttribute("href")).toMatch(/^\/teams\/4215/);
+    // The team isn't listed again below; the other team is a plain row.
+    const rows = [...container.querySelectorAll('[data-row="team"]')].map((r) => r.textContent);
+    expect(rows).toEqual([expect.stringContaining("6980 Bad Wolf")]);
+  });
+
+  it("lists related results as plain rows, grouped, five shown and the rest behind Show N more", () => {
+    state.answer = answer(Array.from({ length: 7 }, (_, i) => team(1000 + i, `Team ${i}`)));
+    const { container } = show("/search?q=team");
+    const group = container.querySelector('[data-v8-group="team"]')!;
+    expect(group.querySelectorAll('[data-row="team"]')).toHaveLength(5);
+    expect(container.querySelector('[data-result="team"]')).toBeNull(); // no stacked cards
+    const more = within(group as HTMLElement).getByRole("button", { name: "Show 2 more" });
+    fireEvent.click(more);
+    expect(group.querySelectorAll('[data-row="team"]')).toHaveLength(7);
+    expect(more.getAttribute("aria-expanded")).toBe("true");
   });
 
   it("gives the results column its one entrance stagger, CSS only, none under reduced motion", () => {
@@ -57,14 +88,15 @@ describe("search page, v8 on", () => {
     expect(new Set(delays.slice(1).map((d, i) => d - delays[i])).size).toBeGreaterThan(1);
   });
 
-  it("heads event sections with no fill, the live dot in live red", () => {
-    state.answer = answer([ev("USNJQ1", "NJ Qualifier", iso(today)), ev("USNJQ2", "NJ Qualifier Two", iso(new Date(today.getTime() + 20 * 864e5)))]);
+  it("lists events as plain rows, the live one first with its dot in live red, no status bands", () => {
+    state.answer = answer([ev("USNJQ2", "NJ Qualifier Two", iso(new Date(today.getTime() + 20 * 864e5))), { ...ev("USNJQ1", "NJ Qualifier", iso(today)), event: { start: iso(today), end: iso(new Date(today.getTime() + 864e5)) } } as SearchHit]);
     const { container } = show("/search?q=nj%20qualifier");
-    const heads = [...container.querySelectorAll("[data-section-tone]")];
-    expect(heads.length).toBeGreaterThan(0);
-    for (const h of heads) expect(h.className).toContain("v8:bg-transparent");
-    const dot = container.querySelector("[data-live-dot]");
-    if (dot) expect(dot.className).toContain("v8:bg-live");
+    expect(container.querySelector("[data-section-tone]")).toBeNull();
+    const rows = [...container.querySelectorAll('[data-row="event"]')];
+    expect(rows.map((r) => r.querySelector("span > span")!.textContent)).toEqual(["NJ Qualifier", "NJ Qualifier Two"]);
+    expect(rows[0].querySelector("[data-live] > span")!.className).toContain("bg-live");
+    // No event code or raw date on a row.
+    expect(rows[1].textContent).not.toContain("USNJQ2");
   });
 
   it("makes every palette meaning calm: neutral fill and words, the v8-off classes still first", () => {
@@ -89,6 +121,22 @@ describe("search page, v8 on", () => {
   });
 });
 
+describe("v8 answer pieces", () => {
+  it("follow-ups: the 2–4 most useful as chips, People also ask first, each once", () => {
+    const f = (q: string) => ({ q, family: "team" as const, preview: q, value: "", rest: "", tone: { count: true as const } });
+    render(<MemoryRouter><FollowChips ask={[f("What is 4215's OPR?"), f("What is 4215's record?"), f("What is 4215's rating?")]} related={[f("what is 4215's opr?"), f("4215 win rate"), f("4215 awards")]} seeAll="4215" /></MemoryRouter>);
+    expect(screen.getAllByRole("link").filter((a) => a.hasAttribute("data-follow-chip")).map((a) => a.textContent)).toEqual(["What is 4215's OPR?", "What is 4215's record?", "What is 4215's rating?", "4215 win rate"]);
+    expect(screen.getByRole("link", { name: /More related searches/ }).getAttribute("href")).toBe("/related-searches?q=4215");
+  });
+
+  it("a ranking is sized to the question: the table draws only the first rows it's limited to, after sorting", () => {
+    const row = (rank: number, opr: number) => ({ rank, team: 100 + rank, name: `T${rank}`, location: null, href: `/teams/${100 + rank}`, opr, auto: null, dc: null, endgame: null, pen: null, wins: 1, losses: 0, ties: 0 });
+    const table = { by: "opr" as const, rows: Array.from({ length: 10 }, (_, i) => row(i + 1, 100 - i)) };
+    const { container } = render(<MemoryRouter><TeamTable table={table} label="Top" limit={5} /></MemoryRouter>);
+    expect([...container.querySelectorAll("[data-team-row]")].map((r) => r.getAttribute("data-team-row"))).toEqual(["101", "102", "103", "104", "105"]);
+  });
+});
+
 describe("search page, v8 off", () => {
   it("keeps today's title and eyebrow classes", () => {
     state.answer = answer([team(4215, "Hypnotic Robotics"), team(6980, "Bad Wolf")]);
@@ -97,6 +145,11 @@ describe("search page, v8 off", () => {
     const h1 = container.querySelector("h1")!;
     for (const c of ["font-display", "text-xl", "md:text-2xl", "lg:text-3xl"]) expect(h1.classList.contains(c)).toBe(true);
     expect(container.querySelector("[data-eyebrow]")!.classList.contains("font-semibold")).toBe(true);
+    // None of v8's layout: no understood line, no compact team answer, no row groups.
+    expect(container.querySelector("[data-understood]")).toBeNull();
+    expect(container.querySelector("[data-v8-results]")).toBeNull();
+    expect(container.querySelector("[data-v8-group]")).toBeNull();
+    expect(container.querySelectorAll('[data-result="team"]').length).toBe(2);
   });
 
   it("keeps the palette's colours as the classes v8 off reads", () => {

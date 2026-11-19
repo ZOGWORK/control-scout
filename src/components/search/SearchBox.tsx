@@ -269,7 +269,7 @@ function CompareRow({ id, h, active, onPick, onHover }: { id: string; h: SearchH
     <div
       id={id} role="option" aria-selected={active} data-compare
       onPointerDown={(e) => e.preventDefault()} onMouseDown={(e) => e.preventDefault()} onClick={onPick} onPointerMove={onHover}
-      className={cn("mx-0.5 flex cursor-pointer items-center gap-2.5 rounded-lg border px-2.5 py-2 text-sm", active ? "border-accent bg-accent/[0.16] v8:border-input v8:bg-white/[0.06]" : "border-accent/40 bg-accent/[0.07] v8:border-line v8:bg-transparent")}
+      className={cn("mx-0.5 flex cursor-pointer items-center gap-2.5 rounded-lg border px-2.5 py-2 text-sm", active ? "border-accent bg-accent/[0.16] v8:border-input v8:bg-white/[0.08] v8:shadow-[inset_2px_0_0_var(--color-accent)]" : "border-accent/40 bg-accent/[0.07] v8:border-line v8:bg-transparent")}
     >
       <span className="grid size-7 shrink-0 place-items-center rounded-md bg-accent text-accent-ink v8:bg-white/10 v8:text-foreground"><ArrowLeftRight className="size-4" aria-hidden /></span>
       <span className="min-w-0 flex-1">
@@ -403,7 +403,9 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
   // The page's own query, unedited: its results are on the page, so the box doesn't ask for them again.
   const idle = syncQuery !== undefined && q === syncQuery;
   // Nothing is highlighted until the arrow keys or the pointer pick a row: plain Enter opens the full results page.
+  // v8 (the page plan): the top hit is highlighted as soon as current results arrive, so Enter goes straight to it.
   const [active, setActive] = useState(-1);
+  const v8 = useIsV8();
   const { hits, answer, ai, refining, busy, error, logPick, stale, searchNow } = useSearchHits(idle ? "" : q, kinds);
   const { sections: answered, notes: answerNotes } = useSections(hits, answer, ai);
   // The page's order, a Compare first in its own group, and the live "we understood" line (Requirement 17).
@@ -438,8 +440,9 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
     const fresh = shownHits.current !== hits;
     shownHits.current = hits;
     const i = !fresh && activeKey.current ? ordered.findIndex((r) => r.key === activeKey.current) : -1;
-    setActive(i >= 0 ? i : -1);
-  }, [ordered, hits]);
+    // v8: with nothing highlighted yet and the results current, the top hit.
+    setActive(i >= 0 ? i : v8 && !activeKey.current && !stale && !busy && ordered.length ? 0 : -1);
+  }, [ordered, hits, v8, stale, busy]);
   useEffect(() => { activeKey.current = ordered[active]?.key ?? null; }, [ordered, active]);
   // Typing again: nothing highlighted (an older query's row is never Enter's pick).
   useEffect(() => { setActive(-1); activeKey.current = null; }, [q]);
@@ -528,7 +531,7 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
           </p>
           {suggestions.slice(0, recentCount).map((x, i) => (
             <div key={x.text} {...suggestion(i)} data-recent
-              className={cn("flex cursor-pointer items-center gap-2.5 rounded-lg px-3 py-1.5 text-sm pointer-coarse:min-h-[44px]", i === active ? "bg-accent/[0.12] text-foreground v8:bg-white/[0.06]" : "text-foreground/90")}>
+              className={cn("flex cursor-pointer items-center gap-2.5 rounded-lg px-3 py-1.5 text-sm pointer-coarse:min-h-[44px]", i === active ? "bg-accent/[0.12] text-foreground v8:bg-white/[0.08] v8:shadow-[inset_2px_0_0_var(--color-accent)]" : "text-foreground/90")}>
               <Clock className="size-4 shrink-0 text-muted-foreground" /><span className="min-w-0 flex-1 truncate">{x.text}</span>
             </div>
           ))}
@@ -555,7 +558,6 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
   useEffect(() => { if (!showList) { setActive(-1); activeKey.current = null; } }, [showList]);
   const room = useRoomAboveKeyboard(list, showList);
   const lg = size === "lg";
-  const v8 = useIsV8();
   return (
     <div ref={box} data-search-box data-opens-search={seeAll && !kinds ? "" : undefined} className={cn("relative", className)} onBlur={(e) => { if (!box.current?.contains(e.relatedTarget as Node | null)) { setOpen(false); onClose?.(); } }}>
       <div className={cn("flex items-center gap-2.5 rounded-xl border border-border bg-card text-foreground v8:border-input v8:bg-muted transition-[border-color,box-shadow] focus-within:border-accent/60 focus-within:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_18%,transparent)]", lg ? "h-14 px-4" : "h-9 px-3", fieldClassName)}>
@@ -623,7 +625,7 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
                           // Keep focus in the field so the list doesn't close before the click lands. Both are needed:
                           // on an iPhone a tap still sends mousedown after a cancelled pointerdown, and that blurs the field.
                           onPointerDown={(e) => e.preventDefault()} onMouseDown={(e) => e.preventDefault()} onClick={() => pick(r.hit)} onPointerMove={() => setActive(i)}
-                          className={cn("flex cursor-pointer items-center gap-2.5 rounded-lg px-3 py-1.5 text-sm", r.sub && "pl-9", i === active ? "bg-accent/[0.12] text-foreground v8:bg-white/[0.06]" : "text-foreground/90")}
+                          className={cn("flex cursor-pointer items-center gap-2.5 rounded-lg px-3 py-1.5 text-sm", r.sub && "pl-9", i === active ? "bg-accent/[0.12] text-foreground v8:bg-white/[0.08] v8:shadow-[inset_2px_0_0_var(--color-accent)]" : "text-foreground/90")}
                         >
                           <Icon className={cn("size-4 shrink-0", r.hit.kind === "place" && !r.hit.href ? "text-accent v8:text-muted-foreground" : "text-muted-foreground")} />
                           {r.hit.kind === "event" && !r.sub ? <EventText h={r.hit} /> : <HitText h={r.hit} opr={r.hit.kind === "team" && !r.sub} />}
@@ -638,7 +640,7 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
             <div
               id={`${listId}-${ordered.length}`} role="option" aria-selected={active === ordered.length} data-see-all
               onPointerDown={(e) => e.preventDefault()} onMouseDown={(e) => e.preventDefault()} onClick={openFull} onPointerMove={() => setActive(ordered.length)}
-              className={cn("mt-1 flex cursor-pointer items-center gap-2.5 rounded-lg border-t border-border px-3 py-2 text-sm font-medium text-accent-text v8:text-foreground", active === ordered.length && "bg-accent/[0.12] v8:bg-white/[0.06]")}
+              className={cn("mt-1 flex cursor-pointer items-center gap-2.5 rounded-lg border-t border-border px-3 py-2 text-sm font-medium text-accent-text v8:text-foreground", active === ordered.length && "bg-accent/[0.12] v8:bg-white/[0.08] v8:shadow-[inset_2px_0_0_var(--color-accent)]")}
             >
               <Search className="size-4 shrink-0" />
               <span className="min-w-0 flex-1 truncate">See all results for “{query}”</span>
