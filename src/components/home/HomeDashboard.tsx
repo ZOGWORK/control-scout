@@ -25,6 +25,8 @@ import { nextMatch } from "./HomeSections";
 import { myTeamsOf } from "../../lib/myTeams";
 import { cn } from "../cn";
 import { V8_NUM } from "../../lib/v8";
+import { v8Rank } from "../../lib/v8colour";
+import { V8_PHASE } from "../../lib/records/describe";
 
 /** How many example searches show under the field. */
 export const EXAMPLE_COUNT = 4;
@@ -253,14 +255,14 @@ function TopRow({ r, rank }: { r: TeamSeasonRecord; rank: number }) {
   return (
     <li data-top-team>
       <Link to={`/teams/${r.team}`} className={rowLink}>
-        <span data-rank className={cn("w-4 shrink-0 text-right font-display text-sm font-semibold tabular-nums", rank === 1 ? "text-accent" : "text-text-muted")}>{rank}</span>
+        <span data-rank className={cn("w-4 shrink-0 text-right font-display text-sm font-semibold tabular-nums text-text-muted", v8Rank(rank))}>{rank}</span>
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm font-medium group-hover:underline"><span className={cn("tabular-nums", V8_NUM)}>{r.team}</span> <span className="text-text-muted">·</span> {name}</span>
           {w != null && l != null && <span className="block text-xs tabular-nums text-text-muted">{w}-{l}-{t ?? 0}</span>}
         </span>
         {opr != null && (
           <span className="shrink-0 text-right">
-            <span className="block font-display text-base font-semibold tabular-nums">{opr.toFixed(1)}</span>
+            <span className={cn("block font-display text-base font-semibold tabular-nums", V8_PHASE.np)}>{opr.toFixed(1)}</span>
             <span className="block text-[0.6875rem] text-text-muted">OPR</span>
           </span>
         )}
@@ -276,6 +278,9 @@ function callFor(m: MatchView, team: number): number | null {
   if (!m.prediction) return null;
   return m.red.teams.some((x) => x.number === team) ? m.prediction.pRed : 1 - m.prediction.pRed;
 }
+
+/** The team's side in a match, as its alliance text colour (so the chance reads as red's or blue's at a glance). */
+const sideText = (m: MatchView, team: number) => (m.red.teams.some((x) => x.number === team) ? "text-red-alliance" : "text-blue-alliance");
 
 const matchHref = (m: MatchView) => `/events/${m.season}/${encodeURIComponent(m.code)}/match/${encodeURIComponent(m.key)}`;
 
@@ -330,7 +335,7 @@ function OneTeam({ team, season, t, loaded }: { team: number; season: number; t:
             </span>
             {pWin != null && next.prediction && (
               <span data-team-call className="text-right">
-                <span className="block font-display text-2xl font-semibold tabular-nums">{oddsPct(pWin)}</span>
+                <span className={cn("block font-display text-2xl font-semibold tabular-nums", sideText(next, team))}>{oddsPct(pWin)}</span>
                 <span className="block text-xs text-text-muted">to win · {TIER_WORD[next.prediction.tier].toLowerCase()}</span>
               </span>
             )}
@@ -403,7 +408,7 @@ function TeamRow({ team, season, t, loaded }: { team: number; season: number; t:
         </span>
         {pWin != null && next?.prediction && (
           <span data-team-call className="shrink-0 text-right">
-            <span className="block font-display text-base font-semibold tabular-nums">{oddsPct(pWin)}</span>
+            <span className={cn("block font-display text-base font-semibold tabular-nums", sideText(next, team))}>{oddsPct(pWin)}</span>
             <span className="block text-[0.6875rem] text-text-muted">to win</span>
           </span>
         )}
