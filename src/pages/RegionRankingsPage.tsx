@@ -25,7 +25,7 @@ import { Move, Pager, SeasonPick, TrendBadge, WeekPick, weekLabel } from "./Rank
 import { MoverCards } from "../components/rankings/MoverCards";
 import { useIsV8 } from "../lib/v8";
 import {
-  Disclosure, RankingsTabs, V8_CAPTION, V8_CARD_LINK, V8_DOWN, V8_EYEBROW, V8_FRAME, V8_HEAD, V8_ICON, V8_LINK, V8_MINE, V8_NOTE, V8_RANK, V8_ROW, V8_TH, V8_TOP,
+  Disclosure, RankingsTabs, V8_CAPTION, V8_CARD_LINK, V8_DOWN, V8_EYEBROW, V8_FRAME, V8_HEAD, V8_ICON, V8_LINK, V8_MINE, V8_NOTE, V8_RANK, V8_ROW, V8_TH, V8_UP, v8Medal,
 } from "../components/rankings/v8";
 
 const SORT_LABEL: Record<RegionSort, string> = { rank: "Rank", rating: "Rating", opr: "OPR", record: "Record", events: "Events played", move: "Move" };
@@ -209,7 +209,7 @@ function RegionTable({ data, team, myTeam, sort, onSort }: { data: RegionRanking
               <tr key={r.team} data-team={r.team} data-marked={asked ? "" : undefined} aria-current={asked ? "true" : undefined}
                 className={cn("border-t border-text-base/10 hover:bg-text-base/[0.03]", V8_ROW, (asked || mine) && cn("bg-accent/[0.09]", V8_MINE), asked && "shadow-[inset_3px_0_0_var(--color-accent)] v8:shadow-[inset_2px_0_0_var(--color-text-base)]")}>
                 <td className={cn(td, "text-right tabular-nums")}>
-                  <span className={cn("font-display text-base font-semibold", V8_RANK, r.rank <= 3 && "text-accent-text", r.rank === 1 && V8_TOP)} data-rank>{r.rank.toLocaleString()}</span>
+                  <span className={cn("font-display text-base font-semibold", V8_RANK, r.rank <= 3 && "text-accent-text", v8Medal(r.rank))} data-rank>{r.rank.toLocaleString()}</span>
                   <span className={cn("block text-[11px] text-text-muted v8:text-[0.6875rem] v8:leading-3", V8_CAPTION)} title="World rank">W{r.world.toLocaleString()}</span>
                 </td>
                 {moves && <td className={td}><Move row={r} /></td>}
@@ -224,7 +224,7 @@ function RegionTable({ data, team, myTeam, sort, onSort }: { data: RegionRanking
                 </td>
                 <td className={cn(td, "text-right tabular-nums")}>
                   <span className="font-semibold v8:font-medium">{r.rating.toFixed(1)}</span>
-                  {r.dRating != null && r.dRating !== 0 && <span className={cn("block text-[11px] v8:text-[0.6875rem] v8:leading-3", r.dRating > 0 ? "text-success v8:text-text-muted" : cn("text-danger", V8_DOWN, "v8:text-text-faint"))}>{r.dRating > 0 ? "+" : ""}{r.dRating.toFixed(1)}</span>}
+                  {r.dRating != null && r.dRating !== 0 && <span className={cn("block text-[11px] v8:text-[0.6875rem] v8:leading-3", r.dRating > 0 ? cn("text-success", V8_UP) : cn("text-danger", V8_DOWN))}>{r.dRating > 0 ? "+" : ""}{r.dRating.toFixed(1)}</span>}
                 </td>
                 {stats && <td className={cn(td, "text-right tabular-nums", sort === "events" && "max-sm:hidden")}>{one(r.opr)}</td>}
                 {stats && <td className={cn(td, "whitespace-nowrap text-right tabular-nums")}>

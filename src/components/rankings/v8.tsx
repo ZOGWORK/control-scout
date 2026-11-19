@@ -1,7 +1,7 @@
 // The rankings area in v8 (docs/design/v8-revamp-brief.md §5 Tables, §7 item 10): world, region, league, conference
 // and power rankings, and the records pages, share one look. The table is the page: a quiet sentence-case head on a
-// hairline, 44px rows split by hairlines (no box around them), numbers in tabular figures, the slate-blue accent only
-// on the #1 rank and the picked sort or tab, and "your team" in white. Every class here is a `v8:` one, so the
+// hairline, 44px rows split by hairlines (no box around them), numbers in tabular figures, gold, silver and bronze
+// on the top three ranks, soft green and red on moves and trends, the slate-blue accent on the picked sort or tab, and "your team" in white. Every class here is a `v8:` one, so the
 // classic look (/legacy) draws exactly as before; the tabs and the disclosure exist in v8 only.
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
@@ -24,11 +24,21 @@ export const V8_TH = "v8:bg-background v8:pb-0 v8:align-middle v8:text-xs v8:fon
 export const V8_ROW = "v8:h-11 v8:border-white/[0.08] v8:hover:bg-white/[0.03]";
 /** Your team's row (or the one a link asked for): white, not the accent. A faint white fill and a white edge. */
 export const V8_MINE = "v8:bg-white/[0.05] v8:shadow-[inset_2px_0_0_var(--color-text-base)]";
-/** A rank: Inter in tabular figures (Space Grotesk is for hero numbers only); `V8_TOP` on #1. */
-export const V8_RANK = "v8:font-sans v8:text-sm v8:font-medium v8:text-text-base";
-export const V8_TOP = "v8:text-accent";
-/** A move or rating change downwards: muted, not red (red means live or the red alliance). */
-export const V8_DOWN = "v8:text-text-muted";
+/** A rank: Inter in tabular figures (Space Grotesk is for hero numbers only); its colour from `v8Medal`. */
+export const V8_RANK = "v8:font-sans v8:text-sm v8:font-medium";
+/** A rank's colour: #1 soft gold, #2 silver, #3 bronze (softened for the dark page, never neon), the rest white. */
+export const v8Medal = (rank: number | null | undefined) =>
+  rank === 1 ? "v8:text-[#fcd34d]" : rank === 2 ? "v8:text-[#cbd5e1]" : rank === 3 ? "v8:text-[#d9a77a]" : "v8:text-text-base";
+/** A move or rating change: up a soft green, down a soft red (the classic's colours, toned down for v8). */
+export const V8_UP = "v8:text-[#86d9a8]";
+export const V8_DOWN = "v8:text-[#f29a9a]";
+/** The "New" chip on a move: a soft blue tint, as in the classic look. */
+export const V8_NEW = "v8:border-sky-300/30 v8:bg-sky-300/10 v8:font-medium v8:text-sky-200";
+/** A trend chip: Rising a soft green chip, Falling a soft red one, Steady neutral. */
+export const v8Trend = (t: "up" | "down" | "flat") =>
+  t === "up" ? "v8:border-[#86d9a8]/30 v8:bg-[#86d9a8]/10 v8:text-[#86d9a8]"
+  : t === "down" ? "v8:border-[#f29a9a]/30 v8:bg-[#f29a9a]/10 v8:text-[#f29a9a]"
+  : "v8:border-white/[0.12] v8:bg-white/[0.04] v8:text-text-muted";
 /** Captions under a number (world rank, matches played): faint. */
 export const V8_CAPTION = "v8:text-text-faint";
 /** A plain text link in v8: muted, white on hover, no accent. */
