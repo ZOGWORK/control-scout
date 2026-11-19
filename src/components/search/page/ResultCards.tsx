@@ -19,7 +19,7 @@ import { eventName } from "./records";
 /** "View event →": where the card goes, as part of the card's own link. */
 function Cta({ children }: { children: string }) {
   return (
-    <span className="inline-flex items-center gap-1 text-xs font-semibold text-accent-text group-hover:underline" data-cta>
+    <span className="inline-flex items-center gap-1 text-xs font-semibold text-accent-text v8:text-foreground group-hover:underline" data-cta>
       {children}<ArrowRight className="size-3.5" aria-hidden />
     </span>
   );
@@ -119,7 +119,7 @@ export function TeamCard({ h, summary, bare, onOpen }: { h: SearchHit; summary?:
     <div data-result="team" className="lift group relative flex min-h-14 items-start gap-3 rounded-xl border border-border bg-card px-3.5 py-3">
       <span className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground"><Shield className="size-4" aria-hidden /></span>
       <span className="min-w-0 flex-1">
-        <Link to={hitHref(h)} onClick={onOpen} className="block break-words text-sm font-medium text-foreground outline-none group-hover:text-accent-text after:absolute after:inset-0 after:content-[''] focus-visible:after:rounded-xl focus-visible:after:outline-2 focus-visible:after:outline-accent max-md:text-base">{teamTitle(h.title)}</Link>
+        <Link to={hitHref(h)} onClick={onOpen} className="block break-words text-sm font-medium text-foreground outline-none group-hover:text-accent-text v8:group-hover:text-foreground after:absolute after:inset-0 after:content-[''] focus-visible:after:rounded-xl focus-visible:after:outline-2 focus-visible:after:outline-accent max-md:text-base">{teamTitle(h.title)}</Link>
         {h.subtitle && <span className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground max-md:text-sm"><MapPin className="size-3.5 shrink-0 md:hidden" aria-hidden /><span className="truncate">{h.subtitle}</span></span>}
         {bare ? null : h.facts?.length ? <HitFacts facts={h.facts} /> : <TeamBadges summary={summary} />}
       </span>
@@ -152,7 +152,7 @@ export function CompareCard({ h, summaries, onOpen, preview }: { h: SearchHit; s
           const { name, place } = side(n, i);
           return (
             <span key={n} className={cn("min-w-0", right && "col-start-3 text-right")} data-compare-side={n}>
-              <span className="block font-display text-3xl font-semibold leading-none tracking-tight tabular-nums text-foreground group-hover:text-accent-text sm:text-4xl">{n}</span>
+              <span className="block font-display text-3xl font-semibold leading-none tracking-tight tabular-nums text-foreground group-hover:text-accent-text v8:group-hover:text-foreground sm:text-4xl">{n}</span>
               <span className="mt-1.5 block break-words text-base text-foreground/90 sm:text-lg">{name}</span>
               {place && <span className="mt-0.5 block truncate text-xs text-muted-foreground">{place}</span>}
             </span>
@@ -227,7 +227,7 @@ export function HeadToHead({ h, now, before, season: current }: { h: SearchHit; 
           ))}
         </dl>
       ) : <p className="mt-3 text-xs text-muted-foreground">No season numbers yet for these teams.</p>}
-      <Link to={hitHref(h)} className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-accent-text hover:underline max-md:min-h-[44px] pointer-coarse:min-h-[44px]">View full comparison<ArrowRight className="size-4" aria-hidden /></Link>
+      <Link to={hitHref(h)} className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-accent-text v8:text-foreground hover:underline max-md:min-h-[44px] pointer-coarse:min-h-[44px]">View full comparison<ArrowRight className="size-4" aria-hidden /></Link>
     </aside>
   );
 }
@@ -239,7 +239,7 @@ export function ResultRow({ h, icon, sub, onOpen }: { h: SearchHit; icon: keyof 
   const Icon = ROW_ICON[icon];
   return (
     <Link to={hitHref(h)} onClick={onOpen} className={cn("group flex min-h-[44px] items-center gap-2.5 px-3 py-2.5 text-sm text-foreground/90 hover:bg-muted/60 hover:text-foreground", sub && "pl-9")}>
-      <Icon className={cn("size-4 shrink-0", icon === "place" && !h.href ? "text-accent" : "text-muted-foreground")} aria-hidden />
+      <Icon className={cn("size-4 shrink-0", icon === "place" && !h.href ? "text-accent v8:text-muted-foreground" : "text-muted-foreground")} aria-hidden />
       <span className="min-w-0 flex-1">
         <span className="line-clamp-2 break-words">{h.title}</span>
         {(h.subtitle || (h.season != null && (h.kind === "match" || h.atEvent))) && (

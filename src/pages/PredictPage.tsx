@@ -8,6 +8,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { ArrowLeftRight, ArrowRight, BookmarkPlus, CalendarDays, ChevronDown, FlaskConical, Link2, MapPin, Search, Sparkles, Star, Swords, Trophy, Users, WifiOff, X } from "lucide-react";
 import { noteOfflineAnswer, useApi, qs, type ApiError } from "../lib/api";
 import { useCurrentSeason, useMeta, useTitle } from "../lib/meta";
+import { isV8 } from "../lib/v8";
 import { useEventCheck } from "../lib/eventSeason";
 import { defaultSeason } from "../lib/myTeamSeason";
 import { callTally } from "../lib/seasonSoFar";
@@ -532,7 +533,7 @@ function MatchResult({ x, offlineAsOf, offlineFrom, onSwap }: { x: MatchExplanat
         <PredictionBasis kind={matchBasis(x.level)} className="mt-1.5" />
         {/* Made to be screenshotted: the card says where it came from. */}
         <div className="mt-5 max-sm:mt-4 flex items-center justify-between border-t border-border pt-3 text-[11px] text-muted-foreground">
-          <span className="flex items-center gap-1.5"><img src="/logo-56.webp" alt="" className="size-4" /> FTC Control Scout · prediction lab</span>
+          <span className="flex items-center gap-1.5"><img src={isV8() ? "/logo-56.webp" : "/legacy/logo-56.webp"} alt="" className="size-4" /> FTC Control Scout · prediction lab</span>
           <span>{seasonLabel(x.season)} · engine v{x.engineVersion}</span>
         </div>
       </div>

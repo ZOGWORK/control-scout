@@ -34,7 +34,7 @@ export function VideoGallery({ b }: { b: Videos }) {
     if (!b.empty) return b.more ? <p className="text-xs text-muted-foreground" data-videos-more>{b.more}</p> : null;
     return b.empty ? (
       <p className="text-sm text-foreground" data-videos-empty>
-        {b.empty.text}{b.empty.href && <> <Link to={b.empty.href} className="font-medium underline decoration-border underline-offset-2 hover:text-accent-text max-md:inline-flex max-md:min-h-11 max-md:items-center">{b.empty.href.startsWith("/teams/") ? "Open the team's page" : "Open the event"}</Link></>}
+        {b.empty.text}{b.empty.href && <> <Link to={b.empty.href} className="font-medium underline decoration-border underline-offset-2 hover:text-accent-text v8:hover:text-foreground max-md:inline-flex max-md:min-h-11 max-md:items-center">{b.empty.href.startsWith("/teams/") ? "Open the team's page" : "Open the event"}</Link></>}
       </p>
     ) : null;
   }

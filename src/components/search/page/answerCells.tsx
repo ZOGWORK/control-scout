@@ -6,11 +6,12 @@
 import { useId, useState, type ReactNode } from "react";
 import { recordWords } from "../../../shared/format";
 import { Award, Info, Medal, Trophy } from "lucide-react";
-import { PODIUM_CHIP, SEARCH_PALETTE, meaningOf } from "../../../lib/textTones";
+import { PODIUM_CHIP, meaningOf } from "../../../lib/textTones";
 import { eventTypeLabel } from "../../../shared/labels";
 import { Badge } from "../../ui/basic";
 import { Meter } from "../../StatTile";
 import { cn } from "../../cn";
+import { TONE, V8_PODIUM, calm } from "./v8tone";
 
 /** The touch rule every search control keeps: at least 44px each way on phones and touch screens (a link in running
  *  text is exempt, WCAG 2.5.8). */
@@ -21,21 +22,22 @@ export const PODIUM: Record<number, true> = { 1: true, 2: true, 3: true };
 
 /** The card's team hue (team A, the colour a team has wherever search compares it) on whatever has no meaning of its
  *  own: its numbers, bars and marks. No data visual is grey (the owner, 11-06). */
-export const TEAM_BAR = "bg-team-a";
-export const TEAM_TEXT = "text-team-a";
+export const TEAM_BAR = "bg-team-a v8:bg-accent"; // v8: mint is the one highlight series
+export const TEAM_TEXT = "text-team-a v8:text-foreground";
 /** A data bar with no meaning of its own (a table's OPR, a rate): the team hue. */
 export const INK_BAR = TEAM_BAR;
 /** The team hue as a palette swatch (the same keys as SEARCH_PALETTE's), and teams B and C's. */
 export const TEAM_SWATCH = [
-  { fill: "bg-team-a text-background", text: TEAM_TEXT, bar: TEAM_BAR, edge: "border-l-team-a", tint: "bg-team-a/10", stroke: "stroke-team-a" },
-  { fill: "bg-team-b text-background", text: "text-team-b-text", bar: "bg-team-b", edge: "border-l-team-b", tint: "bg-team-b/10", stroke: "stroke-team-b" },
-  { fill: "bg-team-c text-background", text: "text-team-c-text", bar: "bg-team-c", edge: "border-l-team-c", tint: "bg-team-c/10", stroke: "stroke-team-c" },
+  // v8: team A's bar is mint (the one highlight series), B and C grey steps; words and fills neutral.
+  { ...calm({ fill: "bg-team-a text-background", text: "text-team-a", bar: "bg-team-a", edge: "border-l-team-a", tint: "bg-team-a/10", stroke: "stroke-team-a" }), bar: TEAM_BAR, stroke: "stroke-team-a v8:stroke-accent" },
+  { ...calm({ fill: "bg-team-b text-background", text: "text-team-b-text", bar: "bg-team-b", edge: "border-l-team-b", tint: "bg-team-b/10", stroke: "stroke-team-b" }), bar: "bg-team-b v8:bg-white/45", stroke: "stroke-team-b v8:stroke-white/45" },
+  { ...calm({ fill: "bg-team-c text-background", text: "text-team-c-text", bar: "bg-team-c", edge: "border-l-team-c", tint: "bg-team-c/10", stroke: "stroke-team-c" }), bar: "bg-team-c v8:bg-white/25", stroke: "stroke-team-c v8:stroke-white/25" },
 ] as const;
 export type Swatch = { fill: string; text: string; bar: string; edge: string; tint: string; stroke: string };
 /** A label's colour: its meaning's (an award, a phase, a status), else team `i`'s hue. */
 export function swatchOf(label: string | null | undefined, i = 0): Swatch {
   const m = label ? meaningOf(label) : null;
-  return m ? SEARCH_PALETTE[m] : TEAM_SWATCH[Math.max(0, Math.min(2, i))];
+  return m ? TONE[m] : TEAM_SWATCH[Math.max(0, Math.min(2, i))];
 }
 
 // One team's tiles in a row (an average, a trend, a highest, a lowest): each its own colour, never the team's blue
@@ -43,7 +45,7 @@ export function swatchOf(label: string | null | undefined, i = 0): Swatch {
 // direction (rising green, falling red, steady slate); a highest, lowest and average keep one colour wherever they
 // show; anything else takes the next colour no other tile in the row has. No sky, cyan, blue or amber: too like the
 // team's hue or each other on one card (answerAudit ALIKE).
-const P = SEARCH_PALETTE;
+const P = TONE;
 const KPI_KINDS: [RegExp, Swatch][] = [
   [/high|best|max|\btop\b|most/i, P.endgame],
   [/low|worst|\bmin|fewest|least/i, P.winning],
@@ -76,7 +78,7 @@ export function kpiSwatches(items: { label: string; value?: unknown; tone?: stri
 /** An award as a filled chip in its kind's colour (Inspire, Winning or Finalist Alliance, a judged award), its name on it. */
 export function AwardChip({ name, className }: { name: string; className?: string }) {
   return (
-    <span className={cn("inline-flex items-start gap-1 rounded-md px-1.5 py-0.5 text-xs font-semibold", SEARCH_PALETTE[meaningOf(name) ?? "judged"].fill, className)} data-award={meaningOf(name) ?? "judged"}>
+    <span className={cn("inline-flex items-start gap-1 rounded-md px-1.5 py-0.5 text-xs font-semibold", TONE[meaningOf(name) ?? "judged"].fill, className)} data-award={meaningOf(name) ?? "judged"}>
       <Award className="mt-0.5 size-3.5 shrink-0" aria-hidden /><span>{name}</span>
     </span>
   );
@@ -95,7 +97,7 @@ export function RankPill({ text, className }: { text: string; className?: string
   return (
     <span className={cn("inline-flex items-center gap-1 whitespace-nowrap", className)} data-rank={rank}>
       {m[1] && <span className="text-muted-foreground">Ranked</span>}
-      <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-bold tabular-nums leading-none", tone ? PODIUM_CHIP[rank] : "bg-team-a/15 text-foreground")} data-rank-pill>
+      <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-bold tabular-nums leading-none", tone ? cn(PODIUM_CHIP[rank], V8_PODIUM[rank]) : "bg-team-a/15 text-foreground v8:bg-white/[0.08]")} data-rank-pill>
         {tone && <Medal className="size-3" aria-hidden />}#{rank.toLocaleString()}
         {/* No fade: on the filled podium pill a faded count fell under 4.5:1. */}
         {m[3] && <span className="font-medium">{` of ${n(m[3]).toLocaleString()}`}</span>}
@@ -123,7 +125,7 @@ export function RecordText({ text, className, win = "text-foreground" }: { text:
 export function ResultChip({ text }: { text: string }) {
   const r = /^w/i.test(text) ? "W" : /^l/i.test(text) ? "L" : /^t/i.test(text) ? "T" : null;
   if (!r) return <>{text}</>;
-  const tone = r === "W" ? SEARCH_PALETTE.yes.fill : r === "L" ? SEARCH_PALETTE.pen.fill : SEARCH_PALETTE.no.fill;
+  const tone = r === "W" ? TONE.yes.fill : r === "L" ? TONE.pen.fill : TONE.no.fill;
   return <span className={cn("inline-flex min-w-6 items-center justify-center rounded-md px-1.5 py-0.5 text-xs font-bold", tone)} data-result={r}>{text}</span>;
 }
 
@@ -216,14 +218,14 @@ export function ResultPill({ text, record }: { text: string; record?: boolean })
   // blue alliance are one colour, and the alliance pill sits beside it. Elsewhere the plain pill.
   if (/\bpenalt|^not an official record\b/i.test(text)) {
     return record
-      ? <span className={cn(box, "items-start border-border bg-card text-foreground")} data-pill data-score-note><Info className="mt-0.5 size-3.5 shrink-0 text-info" aria-hidden /><span>{text}</span></span>
-      : <span className={cn(box, "border-team-a/50 bg-card text-foreground")} data-pill data-score-note>{text}</span>;
+      ? <span className={cn(box, "items-start border-border bg-card text-foreground")} data-pill data-score-note><Info className="mt-0.5 size-3.5 shrink-0 text-info v8:text-muted-foreground" aria-hidden /><span>{text}</span></span>
+      : <span className={cn(box, "border-team-a/50 v8:border-line bg-card text-foreground")} data-pill data-score-note>{text}</span>;
   }
-  if (RECORD.test(text)) return <span className={cn(box, "border-team-a/50 bg-card")} data-pill><RecordText text={text} win={TEAM_TEXT} /></span>;
+  if (RECORD.test(text)) return <span className={cn(box, "border-team-a/50 v8:border-line bg-card")} data-pill><RecordText text={text} win={TEAM_TEXT} /></span>;
   if (/^red\b/i.test(text)) return <span className={cn(box, "border-red-alliance/30 bg-red-alliance/10 text-red-alliance-text")}>{text}</span>;
   if (/^blue\b/i.test(text)) return <span className={cn(box, "border-blue-alliance/30 bg-blue-alliance/10 text-blue-alliance-text")}>{text}</span>;
   if (/\b(award|alliance|winner|finalist|inspire|think|connect|innovate|control|motivate|design|reach|sustain)\b/i.test(text)) return <AwardChip name={text} className="py-0.5" />;
-  return <span className={cn(box, "border-team-a/50 bg-card text-foreground")} data-pill>{text}</span>;
+  return <span className={cn(box, "border-team-a/50 v8:border-line bg-card text-foreground")} data-pill>{text}</span>;
 }
 
 /** Which of two teams' numbers in a row is the better one ("a", "b", or null on a tie or a word): the higher, but

@@ -19,12 +19,12 @@ export function SearchSkeleton({ query }: { query: string }) {
   return (
     // At least a screen tall: the footer stays below, never shown under the loading shapes and then pushed away.
     <div className="min-h-[100dvh] w-full max-w-6xl pt-4 sm:pt-8" data-search-loading aria-busy="true">
-      <p className="text-xs font-semibold text-accent-text max-md:hidden">FTC One Search</p>
+      <p className="text-xs font-semibold text-accent-text v8:font-medium v8:text-text-faint max-md:hidden">FTC One Search</p>
       <h1 className="sr-only">Searching for “{query}”</h1>
       <div className="skeleton mt-2 h-7 w-3/4 max-w-lg md:h-8" aria-hidden />
       <div className="skeleton mt-3 h-6 w-56 max-w-full rounded-full" aria-hidden />
       <p role="status" className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
-        <Loader2 className="size-4 shrink-0 animate-spin text-accent motion-reduce:animate-none" aria-hidden />Searching teams, events and matches…
+        <Loader2 className="size-4 shrink-0 animate-spin text-accent v8:text-muted-foreground motion-reduce:animate-none" aria-hidden />Searching teams, events and matches…
       </p>
       {/* The answer's own grid (SearchPage: results at most 720px, People also ask's column beside them), so nothing
           moves when the answer replaces it. */}

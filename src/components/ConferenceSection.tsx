@@ -161,7 +161,7 @@ export function ConferenceTable({ c, team }: { c: Conference; team: number | nul
               const href = `/teams/${r.team}?season=${c.season}`;
               return (
                 <tr key={r.team} data-marked={mine ? "" : undefined} aria-current={mine ? "true" : undefined} data-team={r.team}
-                  className={cn("border-b border-border last:border-b-0", mine && "bg-muted font-semibold shadow-[inset_3px_0_0_var(--color-text-base)]")}>
+                  className={cn("border-b border-border last:border-b-0", mine && "bg-muted font-semibold shadow-[inset_3px_0_0_var(--color-text-base)] v8:bg-white/[0.04] v8:shadow-[inset_2px_0_0_var(--color-accent)]")}>
                   <td className={cn(TD, "text-right tabular-nums")} data-rank>
                     <span className="max-sm:hidden">{ordinal(r.rank!)} in conference</span><span className="sm:hidden">{ordinal(r.rank!)}</span>
                     {r.leagueRank != null && <span className="block text-[11px] font-normal text-muted-foreground"><span className="max-sm:hidden">{ordinal(r.leagueRank)} in league</span><span className="sm:hidden">{ordinal(r.leagueRank)} lg</span></span>}
@@ -222,7 +222,7 @@ export function ConferenceUnranked({ c, team }: { c: Conference; team: number | 
   );
 }
 
-const TH = "h-9 whitespace-nowrap px-2.5 text-right text-[10px] font-bold uppercase tracking-wider text-text-muted max-sm:px-1.5";
+const TH = "h-9 whitespace-nowrap px-2.5 text-right text-[10px] font-bold uppercase tracking-wider text-text-muted v8:text-xs v8:font-medium v8:normal-case v8:tracking-normal v8:text-text-faint max-sm:px-1.5";
 const TD = "whitespace-nowrap px-2.5 py-1.5 max-sm:px-1.5";
 const NAV = "inline-flex h-9 items-center gap-1 rounded-lg border border-line bg-card px-3 text-sm font-medium hover:border-text-base/25 disabled:pointer-events-none disabled:opacity-40 max-sm:h-10";
 
@@ -231,7 +231,7 @@ function Th({ k, sort, pick, label, title, border }: { k: SortKey; sort: { key: 
   const Arrow = on ? (sort.dir === "asc" ? ArrowUp : ArrowDown) : ArrowUpDown;
   return (
     <th scope="col" aria-sort={on ? (sort.dir === "asc" ? "ascending" : "descending") : "none"} className={cn(TH, border && "border-l border-border")}>
-      <button type="button" onClick={() => pick(k)} title={title} className="group inline-flex items-center gap-1 uppercase hover:text-text-base">
+      <button type="button" onClick={() => pick(k)} title={title} className="group inline-flex items-center gap-1 uppercase hover:text-text-base v8:normal-case">
         {label}<Arrow className={cn("size-3", !on && "opacity-40")} />
       </button>
     </th>

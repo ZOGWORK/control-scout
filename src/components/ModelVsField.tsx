@@ -36,8 +36,8 @@ function basis(v: DisagreementsView): string {
 }
 
 const SIDE = {
-  "model-higher": { title: "The model rates them higher than their seed", icon: ArrowUpRight, chip: "bg-success/15 text-success", bar: "bg-success", box: "border-success/30 bg-success/[0.05]" },
-  "seed-higher": { title: "Seeded higher than the model rates them", icon: ArrowDownRight, chip: "bg-info/15 text-info", bar: "bg-info", box: "border-info/30 bg-info/[0.05]" },
+  "model-higher": { title: "The model rates them higher than their seed", icon: ArrowUpRight, chip: "bg-success/15 text-success v8:bg-white/[0.05] v8:text-text-muted", bar: "bg-success v8:bg-text-base/60", box: "border-success/30 bg-success/[0.05] v8:border-line v8:bg-transparent" },
+  "seed-higher": { title: "Seeded higher than the model rates them", icon: ArrowDownRight, chip: "bg-info/15 text-info v8:bg-white/[0.05] v8:text-text-muted", bar: "bg-info v8:bg-text-base/60", box: "border-info/30 bg-info/[0.05] v8:border-line v8:bg-transparent" },
 } as const;
 
 /** An answer of the right shape (an older server, or a stale cache, answers something else). */
@@ -52,7 +52,7 @@ export function ModelVsField({ season, code, refreshKey }: { season: number; cod
   if (data.hidden) {
     return (
       <section aria-labelledby="model-vs-field" data-model-vs-field="hidden" className="mb-6 max-sm:mb-4 flex items-start gap-3 rounded-xl border border-border bg-card px-4 py-3">
-        <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-accent/15 text-accent-text"><Radar className="size-4" aria-hidden /></span>
+        <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-accent/15 text-accent-text v8:bg-white/[0.05] v8:text-text-muted"><Radar className="size-4" aria-hidden /></span>
         <div className="min-w-0 text-sm">
           <h2 id="model-vs-field" className="font-medium text-foreground">Model vs field</h2>
           <p className="mt-0.5 text-muted-foreground">{data.hidden}</p>
@@ -63,13 +63,13 @@ export function ModelVsField({ season, code, refreshKey }: { season: number; cod
   const up = data.rows.filter((r) => r.direction === "model-higher");
   const down = data.rows.filter((r) => r.direction === "seed-higher");
   return (
-    <section aria-labelledby="model-vs-field" data-model-vs-field className="relative mb-6 max-sm:mb-4 overflow-hidden rounded-2xl border border-border bg-card p-4 sm:p-5">
-      <div aria-hidden className="pointer-events-none absolute -left-16 -top-24 size-60 rounded-full bg-success opacity-10 blur-3xl" />
-      <div aria-hidden className="pointer-events-none absolute -right-16 -bottom-24 size-60 rounded-full bg-info opacity-10 blur-3xl" />
+    <section aria-labelledby="model-vs-field" data-model-vs-field className="relative mb-6 max-sm:mb-4 overflow-hidden rounded-2xl border border-border bg-card p-4 sm:p-5 v8:border-line">
+      <div aria-hidden className="pointer-events-none absolute -left-16 -top-24 size-60 rounded-full bg-success opacity-10 blur-3xl v8:hidden" />
+      <div aria-hidden className="pointer-events-none absolute -right-16 -bottom-24 size-60 rounded-full bg-info opacity-10 blur-3xl v8:hidden" />
       <div className="relative">
         <button type="button" className="group flex w-full flex-wrap items-center gap-x-3 gap-y-2 text-left" aria-expanded={open} aria-controls="model-vs-field-body" onClick={() => setOpen(!open)} data-mvf-toggle>
-          <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-accent/15 text-accent-text"><Radar className="size-4" aria-hidden /></span>
-          <h2 id="model-vs-field" className="font-display text-lg font-semibold text-foreground">Model vs field</h2>
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-accent/15 text-accent-text v8:bg-white/[0.05] v8:text-text-muted"><Radar className="size-4" aria-hidden /></span>
+          <h2 id="model-vs-field" className="font-display text-lg font-semibold text-foreground v8:font-sans v8:text-base">Model vs field</h2>
           <span className="rounded-full border border-border/70 px-2 py-0.5 text-[11px] font-medium text-muted-foreground" data-mvf-mode={data.mode}>{MODE_LABEL[data.mode]}</span>
           <span className="text-sm text-muted-foreground" data-mvf-count>
             {data.rows.length === 0 ? "They agree" : `${data.rows.length} ${data.rows.length === 1 ? "gap" : "gaps"}: ${up.length} rated higher, ${down.length} seeded higher`}

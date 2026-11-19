@@ -42,8 +42,8 @@ const shortDate = (iso: string) => { const t = new Date(iso); return Number.isNa
 function LocalNote({ value, why }: { value: LocalProjection; why: string }) {
   const asOf = shortDate(value.ratingsAsOf);
   return (
-    <div className="relative flex gap-2.5 border-b border-border bg-info/[0.06] px-4 py-3 text-sm sm:px-5">
-      <HardDrive className="mt-0.5 size-4 shrink-0 text-info" aria-hidden />
+    <div className="relative flex gap-2.5 border-b border-border bg-info/[0.06] px-4 py-3 text-sm sm:px-5 v8:border-line v8:bg-white/[0.03]">
+      <HardDrive className="mt-0.5 size-4 shrink-0 text-info v8:text-text-faint" aria-hidden />
       <p className="text-muted-foreground">
         The server's {PROJECTION_RUNS.toLocaleString("en-US")}-simulation projection {why}, so this one was simulated on this device from your offline pack{asOf ? ` (ratings as of ${asOf})` : ""}.
         {value.stopped && <> It stopped after {LOCAL_STOP_MS / 1000} seconds to save battery: <span className="font-medium text-foreground">{value.run.runs.toLocaleString("en-US")} of {value.run.target.toLocaleString("en-US")}</span> simulations ran.</>}
@@ -66,14 +66,14 @@ function LocalUnavailable({ reason, offline }: { reason: string; offline: boolea
 function LocalProgress({ done, target }: { done: number; target: number }) {
   const pct = target ? Math.min(100, Math.round((done / target) * 100)) : 0;
   return (
-    <section aria-labelledby="proj-h" aria-busy="true" className="relative overflow-hidden rounded-2xl border border-info/40 bg-card p-4 sm:p-5">
-      <div aria-hidden className="pointer-events-none absolute -left-16 -top-24 size-64 rounded-full bg-info/10 blur-3xl" />
-      <h2 id="proj-h" className="relative flex flex-wrap items-center gap-2 font-display text-lg font-semibold"><ChartNoAxesGantt className="size-5 text-accent-text" /> Projections<Badge variant="info" className="font-sans"><HardDrive aria-hidden /> Local estimate</Badge></h2>
+    <section aria-labelledby="proj-h" aria-busy="true" className="relative overflow-hidden rounded-2xl border border-info/40 bg-card p-4 sm:p-5 v8:border-line">
+      <div aria-hidden className="pointer-events-none absolute -left-16 -top-24 size-64 rounded-full bg-info/10 blur-3xl v8:hidden" />
+      <h2 id="proj-h" className="relative flex flex-wrap items-center gap-2 font-display text-lg font-semibold v8:font-sans v8:text-base"><ChartNoAxesGantt className="size-5 text-accent-text v8:text-text-muted" /> Projections<Badge variant="info" className="font-sans"><HardDrive aria-hidden /> Local estimate</Badge></h2>
       <p className="relative mt-1 text-sm text-muted-foreground" aria-live="polite">
         {target ? `Simulating the rest of the event on this device: ${done.toLocaleString("en-US")} of ${target.toLocaleString("en-US")}` : "Getting a local estimate ready from your offline pack"}
       </p>
       <div className="relative mt-3 h-2 overflow-hidden rounded-full bg-muted" role="progressbar" aria-label="Local simulations done" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}>
-        <div className="h-full rounded-full bg-info transition-[width] duration-150" style={{ width: `${Math.max(3, pct)}%` }} />
+        <div className="h-full rounded-full bg-info transition-[width] duration-150 v8:bg-accent" style={{ width: `${Math.max(3, pct)}%` }} />
       </div>
     </section>
   );
@@ -161,12 +161,12 @@ function LiveView({ run, baseline, rankNow, names, pinned, local }: { run: Proje
   const slotsNote = run.slots ? `${run.slots} advancement slot${run.slots === 1 ? "" : "s"}${run.slotsSource === "official" ? " (official)" : " (estimated)"}` : null;
 
   return (
-    <section aria-labelledby="proj-h" className={cn("relative overflow-hidden rounded-2xl border bg-card", local ? "border-info/40" : "border-border")} data-local-estimate={local ? "" : undefined}>
-      <div aria-hidden className="pointer-events-none absolute -left-16 -top-24 size-64 rounded-full bg-info/10 blur-3xl" />
-      <div aria-hidden className={cn("pointer-events-none absolute -right-16 -top-20 size-56 rounded-full blur-3xl", local ? "bg-warning/10" : "bg-accent/10")} />
-      <header className="relative flex flex-wrap items-start justify-between gap-3 border-b border-border p-4 sm:p-5">
+    <section aria-labelledby="proj-h" className={cn("relative overflow-hidden rounded-2xl border bg-card", local ? "border-info/40" : "border-border", "v8:border-line")} data-local-estimate={local ? "" : undefined}>
+      <div aria-hidden className="pointer-events-none absolute -left-16 -top-24 size-64 rounded-full bg-info/10 blur-3xl v8:hidden" />
+      <div aria-hidden className={cn("pointer-events-none absolute -right-16 -top-20 size-56 rounded-full blur-3xl v8:hidden", local ? "bg-warning/10" : "bg-accent/10")} />
+      <header className="relative flex flex-wrap items-start justify-between gap-3 border-b border-border p-4 sm:p-5 v8:border-line">
         <div className="min-w-0">
-          <h2 id="proj-h" className="flex flex-wrap items-center gap-2 font-display text-lg font-semibold"><ChartNoAxesGantt className="size-5 text-accent-text" /> Projections{local && <Badge variant="info" className="font-sans"><HardDrive aria-hidden /> Local estimate</Badge>}</h2>
+          <h2 id="proj-h" className="flex flex-wrap items-center gap-2 font-display text-lg font-semibold v8:font-sans v8:text-base"><ChartNoAxesGantt className="size-5 text-accent-text v8:text-text-muted" /> Projections{local && <Badge variant="info" className="font-sans"><HardDrive aria-hidden /> Local estimate</Badge>}</h2>
           <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground" aria-live="polite">
             {local
               ? <span className="inline-flex items-center gap-1.5 font-medium text-foreground"><HardDrive className="size-3.5 text-info" aria-hidden />{localHeadline(run)}</span>
@@ -181,7 +181,7 @@ function LiveView({ run, baseline, rankNow, names, pinned, local }: { run: Proje
         <table className="w-full text-sm">
           <caption className="sr-only">Projected final quals rank (median and 10th–90th percentile range), playoff odds and advancement odds for each team</caption>
           <thead>
-            <tr className="border-b border-border">
+            <tr className="border-b border-border v8:border-line">
               <Th label="Team" k="team" sort={sort} onSort={click} />
               <Th label="Now" k="now" sort={sort} onSort={click} right className="max-sm:hidden" title="Current official rank" />
               <Th label="Projected rank" k="proj" sort={sort} onSort={click} className="w-full min-w-40 max-sm:min-w-24" title="Median final quals rank, with the range it lands in 80% of simulations (10th–90th percentile)" />
@@ -195,7 +195,7 @@ function LiveView({ run, baseline, rankNow, names, pinned, local }: { run: Proje
               const lastPin = pin && !pinned.has(rows[i + 1]?.team ?? -1);
               const move = showMove ? rankMovement(t, before.get(t.team)) : null;
               return (
-                <tr key={t.team} className={cn("border-b border-border last:border-b-0 hover:bg-text-base/[0.03]", pin && "bg-accent/[0.07]", lastPin && "border-b-2 border-b-accent/40")}>
+                <tr key={t.team} className={cn("border-b border-border last:border-b-0 hover:bg-text-base/[0.03] v8:h-11 v8:border-line", pin && "bg-accent/[0.07] v8:bg-white/[0.04]", lastPin && "border-b-2 border-b-accent/40 v8:border-b v8:border-b-white/[0.12]")}>
                   <td className="density-row whitespace-nowrap px-3 py-2 max-sm:px-2">
                     <span className={cn("flex items-center gap-1.5", pin && "border-l-2 border-accent -ml-3 pl-2.5")}>
                       {pin && <Pin className="size-3 shrink-0 text-accent-text" aria-label="Pinned: your team or a tracked team" />}
@@ -210,7 +210,7 @@ function LiveView({ run, baseline, rankNow, names, pinned, local }: { run: Proje
                       <Whisker t={t} n={n} now={rankNow.get(t.team) ?? null} ghost={showMove ? before.get(t.team)?.rank?.p50 ?? null : null} />
                     </div>
                   </td>
-                  <td className="density-row px-3 py-2 text-right max-sm:px-2"><Odds p={t.pPlayoff} decided={decidedPlayoffs} tone="bg-info" /></td>
+                  <td className="density-row px-3 py-2 text-right max-sm:px-2"><Odds p={t.pPlayoff} decided={decidedPlayoffs} tone="bg-info v8:bg-text-base/60" /></td>
                   <td className="density-row px-3 py-2 text-right max-sm:px-2"><AdvanceCell t={t} /></td>
                 </tr>
               );
@@ -218,7 +218,7 @@ function LiveView({ run, baseline, rankNow, names, pinned, local }: { run: Proje
           </tbody>
         </table>
       </div>
-      <footer className="relative space-y-1.5 border-t border-border px-4 py-3 text-xs text-muted-foreground sm:px-5">
+      <footer className="relative space-y-1.5 border-t border-border v8:border-line px-4 py-3 text-xs text-muted-foreground sm:px-5">
         <p className="flex gap-1.5"><Info className="mt-0.5 size-3 shrink-0" /><span><span className="font-medium text-foreground">Advance</span>: {ADVANCE_LABEL}.{slotsNote ? ` ${slotsNote}.` : ""} <span className="font-medium text-foreground">Playoffs</span>: captain or picked; picks follow the fitted pick model (seed and rating).</span></p>
         <PredictionBasis kind="event" />
         {local && <p className="flex gap-1.5"><HardDrive className="mt-0.5 size-3 shrink-0" /><span>{localLabel(run.runs)}: same engine and method as the server, kept on this device only and never mixed with the server's projections.</span></p>}
@@ -237,7 +237,7 @@ function LiveView({ run, baseline, rankNow, names, pinned, local }: { run: Proje
 function Th({ label, k, sort, onSort, right, className, title }: { label: string; k: SortKey; sort: { key: SortKey; asc: boolean }; onSort: (k: SortKey) => void; right?: boolean; className?: string; title?: string }) {
   const on = sort.key === k;
   return (
-    <th scope="col" aria-sort={on ? (sort.asc ? "ascending" : "descending") : "none"} className={cn("h-10 whitespace-nowrap px-3 text-[10px] font-bold uppercase tracking-wider text-text-muted max-sm:px-2", right ? "text-right" : "text-left", className)}>
+    <th scope="col" aria-sort={on ? (sort.asc ? "ascending" : "descending") : "none"} className={cn("h-10 whitespace-nowrap px-3 text-[10px] font-bold uppercase tracking-wider text-text-muted v8:text-xs v8:font-medium v8:normal-case v8:tracking-normal v8:text-text-faint max-sm:px-2", right ? "text-right" : "text-left", className)}>
       <button onClick={() => onSort(k)} title={title} className={cn("inline-flex items-center gap-1 rounded hover:text-text-base", right && "flex-row-reverse")}>
         {label}{on && (sort.asc ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />)}
       </button>
@@ -283,7 +283,7 @@ function Whisker({ t, n, now, ghost, actual }: { t: ProjectionTeam; n: number; n
 /** Advance column: odds, "Qualified" only for a team that already qualified, a neutral "Not eligible" otherwise. */
 export function AdvanceCell({ t }: { t: ProjectionTeam }) {
   const s = advanceStatus(t);
-  if (s === "odds" && t.pAdvance != null) return <Odds p={t.pAdvance} tone="bg-success" />;
+  if (s === "odds" && t.pAdvance != null) return <Odds p={t.pAdvance} tone="bg-success v8:bg-text-base/60" />;
   if (s === "qualified") return <Badge variant="success" title="Already qualified at an earlier event">Qualified</Badge>;
   if (s === "ineligible") return <Badge variant="outline" title="FIRST lists this team as not eligible to advance from this event">Not eligible</Badge>;
   return <span className="text-muted-foreground" title="No advancement odds for this team">—</span>;
@@ -311,10 +311,10 @@ function FinalView({ run, baseline, isLastOpen, actual, names, pinned }: { run: 
   if (!hits.total) return null;
   const when = isLastOpen ? (throughText(run.through) ? `after ${throughText(run.through)}` : "before the first match") : "before the event";
   return (
-    <section aria-labelledby="proj-h" className="relative overflow-hidden rounded-2xl border border-border bg-card">
-      <div aria-hidden className="pointer-events-none absolute -right-16 -top-20 size-56 rounded-full bg-success/10 blur-3xl" />
-      <header className="relative border-b border-border p-4 sm:p-5">
-        <h2 id="proj-h" className="flex items-center gap-2 font-display text-lg font-semibold"><Target className="size-5 text-success" /> Final results vs projections</h2>
+    <section aria-labelledby="proj-h" className="relative overflow-hidden rounded-2xl border border-border bg-card v8:border-line">
+      <div aria-hidden className="pointer-events-none absolute -right-16 -top-20 size-56 rounded-full bg-success/10 blur-3xl v8:hidden" />
+      <header className="relative border-b border-border p-4 sm:p-5 v8:border-line">
+        <h2 id="proj-h" className="flex items-center gap-2 font-display text-lg font-semibold v8:font-sans v8:text-base"><Target className="size-5 text-success v8:text-text-muted" /> Final results vs projections</h2>
         <p className="mt-1 text-sm text-muted-foreground">Each team's final seed against the range it was projected in {when} ({runsText(run.runs)}).</p>
         <div className="mt-4 flex flex-wrap gap-3">
           <Score label={`inside their projected range ${when}`} inside={hits.inside} total={hits.total} tone="text-success" />
@@ -325,7 +325,7 @@ function FinalView({ run, baseline, isLastOpen, actual, names, pinned }: { run: 
         <table className="w-full text-sm">
           <caption className="sr-only">Final quals seed of each team against its projected range</caption>
           <thead>
-            <tr className="border-b border-border text-[10px] font-bold uppercase tracking-wider text-text-muted">
+            <tr className="border-b border-border text-[10px] font-bold uppercase tracking-wider text-text-muted v8:text-xs v8:font-medium v8:normal-case v8:tracking-normal v8:text-text-faint">
               <th scope="col" className="h-10 px-3 text-left">Team</th>
               <th scope="col" className="h-10 px-3 text-right">Seed</th>
               <th scope="col" className="h-10 w-full min-w-40 px-3 max-sm:min-w-24 text-left">Projected range</th>
@@ -337,7 +337,7 @@ function FinalView({ run, baseline, isLastOpen, actual, names, pinned }: { run: 
               const a = actual.get(t.team);
               const inside = a != null && !!t.rank && a >= t.rank.p10 && a <= t.rank.p90;
               return (
-                <tr key={t.team} className={cn("border-b border-border last:border-b-0", pinned.has(t.team) && "bg-accent/[0.07]")}>
+                <tr key={t.team} className={cn("border-b border-border last:border-b-0 v8:h-11 v8:border-line", pinned.has(t.team) && "bg-accent/[0.07] v8:bg-white/[0.04]")}>
                   <td className="density-row whitespace-nowrap px-3 py-2 max-sm:px-2"><Link to={`/teams/${t.team}`} className="font-medium tabular-nums hover:underline">{t.team}</Link> <span className="max-w-36 truncate text-xs text-muted-foreground max-sm:hidden">{names.get(t.team)}</span></td>
                   <td className="density-row px-3 py-2 text-right font-display font-semibold tabular-nums">{a ?? "—"}</td>
                   <td className="density-row px-3 py-2 max-sm:px-2">
@@ -364,7 +364,7 @@ function FinalView({ run, baseline, isLastOpen, actual, names, pinned }: { run: 
 
 function Score({ label, inside, total, tone }: { label: string; inside: number; total: number; tone: string }): ReactNode {
   return (
-    <div className="rounded-xl border border-border bg-background/60 px-4 py-2.5">
+    <div className="rounded-xl border border-border bg-background/60 px-4 py-2.5 v8:border-line v8:bg-transparent">
       <p className={cn("font-display text-2xl font-semibold tabular-nums", tone)}>{inside} <span className="text-base text-muted-foreground">of {total}</span></p>
       <p className="text-xs text-muted-foreground">{label}</p>
     </div>

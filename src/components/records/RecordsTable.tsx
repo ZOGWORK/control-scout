@@ -558,7 +558,9 @@ function TableSkeleton() {
 
 // Header cells carry their own background and draw the line under them as a shadow (the floating copy of the
 // header row, FloatingHead, reuses them).
-const th = "bg-card shadow-[inset_0_-2px_0_color-mix(in_srgb,var(--color-text-base)_20%,transparent)] h-10 whitespace-nowrap px-3 pb-2 align-bottom text-[11px] font-bold uppercase tracking-wider max-sm:h-10 max-sm:px-2.5 max-sm:pb-2";
+const th = "bg-card shadow-[inset_0_-2px_0_color-mix(in_srgb,var(--color-text-base)_20%,transparent)] h-10 whitespace-nowrap px-3 pb-2 align-bottom text-[11px] font-bold uppercase tracking-wider max-sm:h-10 max-sm:px-2.5 max-sm:pb-2" +
+  // v8 (docs/design/v8-revamp-brief.md §5 Tables): a quiet sentence-case head on a hairline.
+  " v8:text-xs v8:font-medium v8:normal-case v8:tracking-normal v8:text-text-faint v8:shadow-[inset_0_-1px_0_var(--color-line)]";
 // Body cells: dense on a laptop too (about twice the rows in the first screen at 1440x900, and more columns before
 // the table scrolls sideways); a phone keeps its own sizes (the max-sm: values). A touch screen wider than a phone
 // (a tablet) keeps rows 44px tall, so one row's compare box can't take a tap meant for the next (tap-44).
@@ -572,8 +574,11 @@ const sticky = "sticky left-0 z-10 bg-card shadow-[1px_0_0_color-mix(in_srgb,var
 // Red alliance scores use the alliance's ink (a lighter red on dark, a deeper one on light): the plain alliance
 // red drops under 4.5:1 on a hovered row's tint (RecordsTable.hover.contrast.test.ts).
 const cellText = (tone: keyof typeof TONE_CLASS) => (tone === "redAlliance" ? "text-red-alliance-ink" : TONE_CLASS[tone].text);
+// v8: the hover is a quiet fill, never the accent (mint marks only the #1 rank, progress and "yours").
 const rowHover = "still-hover:bg-accent/[0.14]";
-const stickyHover = "row-still-hover:bg-[color-mix(in_srgb,var(--color-card)_80%,var(--color-accent))] row-still-hover:shadow-[inset_3px_0_0_var(--color-accent),1px_0_0_color-mix(in_srgb,var(--color-text-base)_22%,transparent)]";
+const rowV8 = "v8:h-11 v8:still-hover:bg-white/[0.03]";
+const stickyHover = "row-still-hover:bg-[color-mix(in_srgb,var(--color-card)_80%,var(--color-accent))] row-still-hover:shadow-[inset_3px_0_0_var(--color-accent),1px_0_0_color-mix(in_srgb,var(--color-text-base)_22%,transparent)]" +
+  " v8:row-still-hover:bg-[color-mix(in_srgb,var(--color-card)_97%,white)] v8:row-still-hover:shadow-[1px_0_0_color-mix(in_srgb,var(--color-text-base)_22%,transparent)]";
 
 function SortHead({ k, label, title, state, sortBy, className, tone, align = "right", lead, iconOnly }: { k: string | null; label: ReactNode; title?: string; state: TableState; sortBy: (k: string) => void; className?: string; tone?: string; align?: "left" | "right"; lead?: ReactNode; iconOnly?: boolean }) {
   const on = k != null && state.sort === k;
@@ -583,8 +588,9 @@ function SortHead({ k, label, title, state, sortBy, className, tone, align = "ri
       {lead}
       {k ? (
         <button type="button" onClick={() => sortBy(k)} title={title} className={cn("tap-44 group inline-flex flex-col gap-1 rounded outline-none focus-visible:ring-2 focus-visible:ring-ring/60", align === "right" ? "items-end" : "items-start")}>
-          <span className={cn("inline-flex items-center gap-1", tone ?? "text-text-muted", "group-hover:brightness-125", align === "right" && "flex-row-reverse")}>
-            {iconOnly ? <span className="sr-only">{label}</span> : label}{Arrow ? <Arrow className="size-3.5 text-accent" strokeWidth={3} /> : <ArrowUpDown className={cn("size-3", iconOnly ? "opacity-60 group-hover:opacity-100" : "opacity-0 group-hover:opacity-60 pointer-coarse:opacity-40")} />}
+          {/* v8: one quiet colour for every column head; the sorted one is marked by its white label and arrow alone. */}
+          <span className={cn("inline-flex items-center gap-1", tone ?? "text-text-muted", "group-hover:brightness-125 v8:text-text-faint v8:group-hover:brightness-100 v8:group-hover:text-text-base", on && "v8:text-text-base", align === "right" && "flex-row-reverse")}>
+            {iconOnly ? <span className="sr-only">{label}</span> : label}{Arrow ? <Arrow className="size-3.5 text-accent v8:text-text-base" strokeWidth={3} /> : <ArrowUpDown className={cn("size-3", iconOnly ? "opacity-60 group-hover:opacity-100" : "opacity-0 group-hover:opacity-60 pointer-coarse:opacity-40")} />}
           </span>
         </button>
       ) : <span className="text-text-muted">{label}</span>}
@@ -716,7 +722,7 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, schedule
               return (
                 <SortHead key={k} k={k} state={state} sortBy={sortBy} tone={tone.text} title={`${d?.label}${d?.description ? ` — ${d.description}` : ""}`}
                   className={cn("relative border-l border-text-base/[0.08]", state.sort === k && "bg-accent/[0.06]")}
-                  label={<>{d?.category === "Control Scout Exclusives" && <Sparkles className="size-3" />}{headerOf(d, k)}<span aria-hidden className={cn("absolute inset-x-2 bottom-0 h-0.5 rounded-full", tone.bar, state.sort === k ? "opacity-100" : "opacity-50")} /></>} />
+                  label={<>{d?.category === "Control Scout Exclusives" && <Sparkles className="size-3" />}{headerOf(d, k)}<span aria-hidden className={cn("absolute inset-x-2 bottom-0 h-0.5 rounded-full v8:hidden", tone.bar, state.sort === k ? "opacity-100" : "opacity-50")} /></>} />
               );
             })}
           </tr>
@@ -742,7 +748,7 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, schedule
               <Fragment key={rowKey(r)}>
               <Spacer height={gapBefore} colSpan={span} />
               <tr {...rowProps} aria-rowindex={vr.windowed ? index + 2 : undefined}
-                className={cn("group/row border-b last:border-b-0", grid, rowHover, hl && "bg-accent/[0.07]", sel && "bg-sky-500/[0.07]")}>
+                className={cn("group/row border-b last:border-b-0", grid, rowHover, rowV8, hl && "bg-accent/[0.07] v8:bg-white/[0.04]", sel && "bg-sky-500/[0.07] v8:bg-white/[0.06]")} data-highlight={hl || undefined}>
                 {"key" in r ? (
                   <>
                     <td className={cn(sticky, td, stickyHover)}>
@@ -757,7 +763,7 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, schedule
                   </>
                 ) : (
                   <>
-                    <td className={cn(sticky, td, hl && "bg-[color-mix(in_srgb,var(--color-card)_92%,var(--color-accent))]", stickyHover)}>
+                    <td className={cn(sticky, td, hl && "bg-[color-mix(in_srgb,var(--color-card)_92%,var(--color-accent))] v8:bg-[color-mix(in_srgb,var(--color-card)_96%,white)] v8:shadow-[inset_2px_0_0_var(--color-accent),1px_0_0_color-mix(in_srgb,var(--color-text-base)_22%,transparent)]", stickyHover)}>
                       <div className="flex items-center gap-2.5 max-sm:gap-2">
                         {selectable && (
                           // In a label so a touch screen's 44px tap area (tap-44) toggles it too.
@@ -793,8 +799,10 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, schedule
                   const tone = toneOf(d);
                   const band = heat.get(k)?.(v);
                   return (
-                    <td key={k} className={cn(td, "whitespace-nowrap border-l border-text-base/[0.08] text-right tabular-nums", d?.type === "text" && "text-left", state.sort === k && "bg-accent/[0.04] font-semibold",
-                      band || (heat.size === 0 && tone !== "slate" && v != null && cellText(tone)))} data-heat={band ? HEAT.indexOf(band) : undefined}>
+                    <td key={k} className={cn(td, "whitespace-nowrap border-l border-text-base/[0.08] text-right tabular-nums", d?.type === "text" && "text-left", state.sort === k && "bg-accent/[0.04] font-semibold v8:bg-transparent",
+                      band || (heat.size === 0 && tone !== "slate" && v != null && cellText(tone)),
+                      // v8: numbers keep the text colour (no heat bands or column tones); mint marks the #1 rank alone.
+                      "v8:border-line v8:font-normal v8:text-text-base", k === "rank" && v === 1 && "v8:font-semibold v8:text-accent")} data-heat={band ? HEAT.indexOf(band) : undefined}>
                       {k === PREDICTION_FIELD ? <PredictionValue text={formatStat(d, v)} tier={(r as MatchRecordRow).predictionTier} className="justify-end" />
                         : SCHEDULE_STATS.has(k) ? <ScheduleValue stat={k} v={v} opponents={r.stats.scheduleOpponents} partners={r.stats.schedulePartners} rank={placeFor(schedulePlaces, team, v)} />
                         : formatStat(d, v)}

@@ -298,11 +298,13 @@ describe("Sample home dashboard", () => {
     // Mint fills: the live progress, nothing else.
     const fills = all.filter((el) => /(^|\s)bg-accent(\s|$)/.test(cls(el)));
     expect(fills.every((el) => ["data-progress"].some((a) => el.hasAttribute(a)))).toBe(true);
-    // Live is red and pulses (motion-reduce stills it).
+    // Live is red with the slow ring (index.css live-ring; motion-reduce stills it).
     const pulse = container.querySelector("[data-live-dot] [data-live-pulse]")!;
-    expect(cls(pulse)).toContain("animate-ping");
+    expect(cls(pulse)).toContain("animate-[live-ring_2s");
+    expect(cls(pulse)).toContain("bg-live");
+    expect(indexCss).toMatch(/@keyframes live-ring \{/);
     expect(cls(pulse)).toContain("motion-reduce:hidden");
-    expect(container.querySelector("[data-live-event] svg")!.getAttribute("class")).toContain("text-[#f2555a]");
+    expect(container.querySelector("[data-live-event] svg")!.getAttribute("class")).toContain("text-live");
     expect(container.querySelector("[data-pick-team]")).toBeNull();
     // Text in mint: only the #1 rank (and icons).
     const mintText = all.filter((el) => /(^|\s)text-accent(\s|$)/.test(cls(el)));

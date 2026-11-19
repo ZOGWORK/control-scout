@@ -5,7 +5,8 @@ import { Link } from "react-router-dom";
 import { ArrowRight, BarChart3, CalendarDays, Hash, Info, Medal, Sparkles, Target, Trophy, type LucideIcon } from "lucide-react";
 import { eventTypeLabel } from "../../../shared/labels";
 import { seasonLabel, recordWords } from "../../../shared/format";
-import { Fragment, useMemo, type ReactNode } from "react";
+import { Fragment, useMemo, useState, type ReactNode } from "react";
+import { useIsV8 } from "../../../lib/v8";
 import type { StatAnswer, StatBlock, StatLink, StatRecord } from "../../../shared/searchStat";
 import type { SearchCard } from "../../../shared/api";
 import { teamTableOfLeaderboard } from "../../../shared/teamTable";
@@ -14,7 +15,8 @@ import { cn } from "../../cn";
 import { Meter, StatTile, TONES, rankPc, type Tone } from "../../StatTile";
 import { Badge } from "../../ui/basic";
 import { OPR_CARDS, oprRankHint } from "../../oprCards";
-import { SEARCH_PALETTE, meaningOf } from "../../../lib/textTones";
+import { meaningOf } from "../../../lib/textTones";
+import { TONE } from "./v8tone";
 import { AnswerFrame, RelatedQuestions, TAP, repeats, statedSeason, useAnswerSeason, useTeamProfile } from "./TeamAnswer";
 import { rangeCaption } from "../../../shared/format";
 import { AnswerVideo, NoVideoLine, RowPlay, useRowPlays } from "./AnswerVideo";
@@ -29,11 +31,11 @@ import { VideoGallery } from "./VideoGallery";
 import { LeagueTable } from "../../LeagueTable";
 
 // Section headers in the team hue (the owner's brief: coloured section headers).
-const H3 = "mb-1.5 text-xs font-semibold text-team-a";
+const H3 = "mb-1.5 text-xs font-semibold text-team-a v8:font-medium v8:text-text-faint";
 /** A tile in search's palette: a thick left bar in its colour over a wash of it (StatTile's border, its left widened). */
 const PAINT = "border-l-[6px] border-y-transparent border-r-transparent";
 /** A phase's swatch; the total (no phase) in the team hue. */
-const sw = (k: string): Swatch => (k in SEARCH_PALETTE ? SEARCH_PALETTE[k as keyof typeof SEARCH_PALETTE] : TEAM_SWATCH[0]);
+const sw = (k: string): Swatch => (k in TONE ? TONE[k as keyof typeof TONE] : TEAM_SWATCH[0]);
 
 /** What the card has already said, read off its scope and headline: a block below says none of it again (the guide's
  *  §8, each fact printed once). `has(x)` is true for a number or a phrase it states. */
@@ -82,6 +84,7 @@ function OneCard({ stat, heading, extra }: { stat: StatAnswer; heading?: string;
   // About one team: its hue on the card's numbers and bars; about none (a season's top matches): ink.
   const one = teams?.length === 1;
   const profile = useTeamProfile(teams?.length === 1 ? teams[0].number : null, season);
+  const v8 = useIsV8();
   // An answer about no team shows its season as the frame's picker (./SeasonPick.tsx): not again among the chips.
   const picked = !!useSeasonPick() && !teams?.length && stated != null;
   const chips = picked ? stat.scope.filter((s) => !(statedSeason(s) != null && s.length <= 7)) : stat.scope;
@@ -95,20 +98,20 @@ function OneCard({ stat, heading, extra }: { stat: StatAnswer; heading?: string;
       data={{ "data-stat-answer": stat.intent, "data-family": stat.family }}>
       {/* A label the page's heading already holds (or that only repeats the title) is for screen readers only, as the
           server's first paint leaves it out (server/seoMeta.ts): never the same words twice. */}
-      {stat.headline && <Headline h={{ ...stat.headline, ...oneContext(stat.headline.label, stat.headline.sub, stat.scope) }} hue={one} tone={headlineTone(stat, teams)}
+      {stat.headline && !(v8 && stat.family === "leaderboard" && stat.blocks.some((b) => b.kind === "leaderboard")) && <Headline h={{ ...stat.headline, ...oneContext(stat.headline.label, stat.headline.sub, stat.scope) }} hue={one} tone={headlineTone(stat, teams)}
         hideLabel={repeats(heading, stat.headline.label, stat.scope) || stat.headline.label === stat.title} />}
       <AnswerVideo />
       <NoVideoLine stat={stat} />
       {stat.none && (
         // Nothing found is the answer "no": No's slate, a thick bar and a filled chip.
-        <p className={cn("mt-3 flex items-start gap-3 rounded-xl border border-l-[6px] border-border px-4 py-3 text-sm font-semibold text-foreground", SEARCH_PALETTE.no.edge, SEARCH_PALETTE.no.tint)} data-none>
-          <span className={cn("grid size-7 shrink-0 place-items-center rounded-lg", SEARCH_PALETTE.no.fill)} data-line-icon><Info className="size-4" aria-hidden /></span><span className="mt-1">{stat.none}</span>
+        <p className={cn("mt-3 flex items-start gap-3 rounded-xl border border-l-[6px] border-border px-4 py-3 text-sm font-semibold text-foreground", TONE.no.edge, TONE.no.tint)} data-none>
+          <span className={cn("grid size-7 shrink-0 place-items-center rounded-lg", TONE.no.fill)} data-line-icon><Info className="size-4" aria-hidden /></span><span className="mt-1">{stat.none}</span>
         </p>
       )}
       <div className="mt-4 space-y-5">{stat.blocks.map((b, i) => <Block key={`${b.kind}-${i}`} b={b} team={stat.team} teams={teams} said={said} hue={one} />)}</div>
       {extra}
       <MethodNote source={stat.source} definition={stat.definition}>
-        {stat.more && <p><Link to={stat.more.href} className="inline-flex items-center text-xs font-medium text-foreground underline decoration-border underline-offset-2 hover:text-accent-text max-md:min-h-[44px] pointer-coarse:min-h-[44px]" data-more>{stat.more.label}</Link></p>}
+        {stat.more && <p><Link to={stat.more.href} className="inline-flex items-center text-xs font-medium text-foreground underline decoration-border underline-offset-2 hover:text-accent-text v8:hover:text-foreground max-md:min-h-[44px] pointer-coarse:min-h-[44px]" data-more>{stat.more.label}</Link></p>}
       </MethodNote>
     </AnswerFrame>
   );
@@ -129,7 +132,7 @@ export function headlineTone(stat: Pick<StatAnswer, "intent" | "headline" | "fam
   }
   if (stat.family === "leaderboard") return TEAM_TEXT;
   const m = /winning/.test(stat.intent) ? "winning" : meaningOf(stat.headline?.label ?? "");
-  return SEARCH_PALETTE[m ?? "count"].text;
+  return TONE[m ?? "count"].text;
 }
 
 /** The number asked for: big and bold, what it is under it; no band behind it (the team page shows its numbers so). */
@@ -258,8 +261,8 @@ function Block({ b: block, team, teams, said, hue }: { b: StatBlock; team?: Stat
           {b.title && <figcaption className={H3}>{b.title}</figcaption>}
           <div className="flex h-1.5 overflow-hidden rounded-full bg-muted" role="img" aria-label={recordWords(b.wins, b.losses, b.ties)}>
             <span className={TEAM_BAR} style={{ width: w(b.wins) }} data-bar data-value={b.wins} data-scale={n} />
-            <span className="bg-team-a/40" style={{ width: w(b.losses) }} data-bar data-value={b.losses} data-scale={n} />
-            <span className="bg-team-a/20" style={{ width: w(b.ties) }} data-bar data-value={b.ties} data-scale={n} />
+            <span className="bg-team-a/40 v8:bg-white/30" style={{ width: w(b.losses) }} data-bar data-value={b.losses} data-scale={n} />
+            <span className="bg-team-a/20 v8:bg-white/15" style={{ width: w(b.ties) }} data-bar data-value={b.ties} data-scale={n} />
           </div>
           <p className="mt-1.5 flex flex-wrap gap-x-4 text-xs tabular-nums text-foreground" aria-hidden>
             <span><b>{b.wins}</b> won</span><span><b>{b.losses}</b> lost</span><span><b>{b.ties}</b> tied</span>
@@ -276,7 +279,7 @@ function Block({ b: block, team, teams, said, hue }: { b: StatBlock; team?: Stat
         <div data-block="matches">
           <h3 className={H3}>
             {b.title}
-            {ev && <> · <Link to={ev.event.href} className={cn("inline-flex items-center text-foreground/90 hover:text-accent-text hover:underline", TAP)}>{ev.event.label}</Link></>}
+            {ev && <> · <Link to={ev.event.href} className={cn("inline-flex items-center text-foreground/90 hover:text-accent-text v8:hover:text-foreground hover:underline", TAP)}>{ev.event.label}</Link></>}
             {ev && !!ev.type && <EventMarker type={ev.type} chip />}
             {ev && !said?.has(ev.season) && <> · {ev.season}</>}
           </h3>
@@ -299,7 +302,7 @@ function Block({ b: block, team, teams, said, hue }: { b: StatBlock; team?: Stat
           {b.title && <h3 className={H3}>{b.title}</h3>}
           <LeagueTable rows={b.rows} season={b.season} team={b.team} maxRows={10} />
           {b.note && <p className="text-xs text-muted-foreground">{b.note}</p>}
-          <p><Link to={b.more.href} className="inline-flex items-center gap-1 text-sm font-medium text-foreground underline decoration-border underline-offset-2 hover:text-accent-text max-md:min-h-[44px] pointer-coarse:min-h-[44px]" data-more-detail>{b.more.label}<ArrowRight className="size-3.5" aria-hidden /></Link></p>
+          <p><Link to={b.more.href} className="inline-flex items-center gap-1 text-sm font-medium text-foreground underline decoration-border underline-offset-2 hover:text-accent-text v8:hover:text-foreground max-md:min-h-[44px] pointer-coarse:min-h-[44px]" data-more-detail>{b.more.label}<ArrowRight className="size-3.5" aria-hidden /></Link></p>
         </div>
       );
     case "series":
@@ -313,7 +316,7 @@ function Block({ b: block, team, teams, said, hue }: { b: StatBlock; team?: Stat
           {b.items.length ? (
             <ul className="flex flex-wrap gap-2">
               {b.items.map((l) => (
-                <li key={l.href}><Link to={l.href} className="inline-flex min-h-9 max-md:min-h-[44px] pointer-coarse:min-h-[44px] items-center gap-1.5 rounded-lg border border-border bg-card px-3 text-sm font-medium text-foreground hover:border-accent/60 hover:text-accent-text">{l.label}{l.sub && <span className="text-[11px] font-normal text-muted-foreground">{l.sub}</span>}<ArrowRight className="size-3.5 text-muted-foreground" aria-hidden /></Link></li>
+                <li key={l.href}><Link to={l.href} className="inline-flex min-h-9 max-md:min-h-[44px] pointer-coarse:min-h-[44px] items-center gap-1.5 rounded-lg border border-border bg-card px-3 text-sm font-medium text-foreground hover:border-accent/60 hover:text-accent-text v8:hover:text-foreground">{l.label}{l.sub && <span className="text-[11px] font-normal text-muted-foreground">{l.sub}</span>}<ArrowRight className="size-3.5 text-muted-foreground" aria-hidden /></Link></li>
               ))}
             </ul>
           ) : <p className="text-sm text-muted-foreground">{b.none}</p>}
@@ -408,13 +411,13 @@ function Table({ b }: { b: Extract<StatBlock, { kind: "table" }> }) {
                     const won = win === c.key;
                     return (
                       <td key={c.key} className={cn("px-2.5 py-1.5 align-middle", c.num && "text-right tabular-nums", j === 0 && meaningOf(String(v ?? "")) && cn("border-l-[6px]", swatchOf(String(v)).edge), j === 0 ? "min-w-[4.5rem] md:min-w-[8rem]" : "whitespace-nowrap max-md:px-1.5", folded.includes(c) && "max-md:hidden", won && "font-bold text-foreground")} data-better={won ? "" : undefined}>
-                        {j === 0 && r.strong && <Trophy className="mr-1 inline size-3.5 align-[-2px] text-team-a" aria-label="Best" />}
+                        {j === 0 && r.strong && <Trophy className="mr-1 inline size-3.5 align-[-2px] text-team-a v8:text-accent" aria-label="Best" />}
                         {j === 0 && r.href
-                          ? <Link to={r.href} className={cn("text-foreground hover:text-accent-text hover:underline max-md:inline-flex max-md:items-center pointer-coarse:inline-flex pointer-coarse:items-center", TAP)}>{c.key === "award" && v != null ? <AwardChip name={String(v)} /> : (v ?? "–")}</Link>
+                          ? <Link to={r.href} className={cn("text-foreground hover:text-accent-text v8:hover:text-foreground hover:underline max-md:inline-flex max-md:items-center pointer-coarse:inline-flex pointer-coarse:items-center", TAP)}>{c.key === "award" && v != null ? <AwardChip name={String(v)} /> : (v ?? "–")}</Link>
                           : j === 0 && c.key === "award" && v != null ? <AwardChip name={String(v)} />
                           : j === 0 ? (v ?? "–") : <Cell col={c} value={v} max={max.get(c.key)} />}
                         {j === 0 && first.key === "event" && !!r.type && <EventMarker type={r.type} chip />}
-                        {won && <Trophy className="ml-1 inline size-3 align-[-1px] text-team-a" aria-label="Better" />}
+                        {won && <Trophy className="ml-1 inline size-3 align-[-1px] text-team-a v8:text-muted-foreground" aria-label="Better" />}
                         {j === 0 && !!folded.length && (
                           <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] font-normal text-muted-foreground md:hidden" data-folded>
                             {folded.map((f) => r.cells[f.key] != null && <span key={f.key}>{f.key === "season" ? <SeasonChip text={String(r.cells[f.key])} /> : r.cells[f.key]}</span>)}
@@ -467,10 +470,10 @@ function MatchTable({ b }: { b: Extract<StatBlock, { kind: "table" }> }) {
               <span className="w-24 shrink-0 text-center tabular-nums" aria-label={`Red ${red}, blue ${blue}`}>
                 <span className={won === "blue" ? "text-muted-foreground" : "font-bold text-red-alliance-text"}>{red}</span><span className="text-muted-foreground">–</span><span className={won === "red" ? "text-muted-foreground" : "font-bold text-blue-alliance-text"}>{blue}</span>
               </span>
-              {r.href ? <Link to={r.href} className={cn("inline-flex w-16 shrink-0 items-center font-medium text-foreground hover:text-accent-text hover:underline", TAP)}>{r.cells.match}</Link> : <span className="w-16 shrink-0">{r.cells.match}</span>}
+              {r.href ? <Link to={r.href} className={cn("inline-flex w-16 shrink-0 items-center font-medium text-foreground hover:text-accent-text v8:hover:text-foreground hover:underline", TAP)}>{r.cells.match}</Link> : <span className="w-16 shrink-0">{r.cells.match}</span>}
               <span className="flex min-w-0 basis-full flex-wrap items-center gap-x-3 gap-y-1 max-md:pl-9 md:basis-0 md:flex-1">
                 <span className="min-w-0 flex-1 basis-48 text-xs">
-                  {r.eventHref ? <Link to={r.eventHref} className={cn("inline-flex items-center font-medium text-foreground/90 hover:text-accent-text hover:underline", TAP)}>{r.cells.event}</Link> : r.cells.event}
+                  {r.eventHref ? <Link to={r.eventHref} className={cn("inline-flex items-center font-medium text-foreground/90 hover:text-accent-text v8:hover:text-foreground hover:underline", TAP)}>{r.cells.event}</Link> : r.cells.event}
                   {!!r.type && <EventMarker type={r.type} chip />}
                   {r.cells.date && <span className="text-muted-foreground"> · {r.cells.date}</span>}
                 </span>
@@ -511,12 +514,12 @@ function Series({ b }: { b: Extract<StatBlock, { kind: "series" }> }) {
       {/* A size container: a point's label is at most half the chart wide (cqw), so it always fits on its side. */}
       <div className="relative h-32 rounded-lg border border-border bg-muted/20" style={{ containerType: "inline-size" }}>
         <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 size-full" aria-hidden>
-          {pts.length > 1 && <polyline points={pts.map((p) => `${x(p.i)},${y(p.y)}`).join(" ")} fill="none" className="stroke-team-a" strokeWidth="3" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />}
+          {pts.length > 1 && <polyline points={pts.map((p) => `${x(p.i)},${y(p.y)}`).join(" ")} fill="none" className="stroke-team-a v8:stroke-accent" strokeWidth="3" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />}
         </svg>
         {pts.map((p) => {
           // In the team hue, the latest point larger and filled.
           const last = p.i === pts[pts.length - 1].i;
-          const dot = <span className={cn("block rounded-full border-2 border-team-a", last ? "size-4 bg-team-a" : "size-3 bg-card")} />;
+          const dot = <span className={cn("block rounded-full border-2 border-team-a v8:border-accent", last ? "size-4 bg-team-a v8:bg-accent" : "size-3 bg-card")} />;
           const style = { left: `${x(p.i)}%`, top: `${y(p.y)}%` };
           const value = `${p.y}${b.unit ? ` ${b.unit}` : ""}${p.note ? ` · ${p.note}` : ""}`;
           const label = `${p.x}: ${value}`;
@@ -548,7 +551,7 @@ function Series({ b }: { b: Extract<StatBlock, { kind: "series" }> }) {
       <ol className="mt-1.5 grid gap-x-4 gap-y-0.5 text-xs sm:grid-cols-2" data-series-values>
         {b.points.map((p, i) => (
           <li key={i} className="flex min-w-0 items-center justify-between gap-2 border-b border-border/60 py-0.5">
-            {p.href ? <Link to={p.href} className="min-w-0 break-words text-muted-foreground hover:text-accent-text hover:underline max-md:flex max-md:min-h-[44px] max-md:min-w-[44px] max-md:items-center pointer-coarse:flex pointer-coarse:min-h-[44px] pointer-coarse:min-w-[44px] pointer-coarse:items-center">{p.x}</Link> : <span className="min-w-0 break-words text-muted-foreground">{p.x}</span>}
+            {p.href ? <Link to={p.href} className="min-w-0 break-words text-muted-foreground hover:text-accent-text v8:hover:text-foreground hover:underline max-md:flex max-md:min-h-[44px] max-md:min-w-[44px] max-md:items-center pointer-coarse:flex pointer-coarse:min-h-[44px] pointer-coarse:min-w-[44px] pointer-coarse:items-center">{p.x}</Link> : <span className="min-w-0 break-words text-muted-foreground">{p.x}</span>}
             <span className="shrink-0 tabular-nums text-foreground">{p.y ?? "–"}{p.note ? <span className="text-muted-foreground"> · {p.note}</span> : null}</span>
           </li>
         ))}
@@ -601,18 +604,34 @@ function Bars({ b }: { b: Extract<StatBlock, { kind: "bars" }> }) {
   );
 }
 
+/** v8's short ranking: the top five. */
+const V8_TOP = 5;
+
 /** A leaderboard: the asked stat's teams as the search's one team table (../TeamTable.tsx), sorted by the stat asked
  *  (the list's own order when it isn't an OPR), with its note above and the small "View more detail" link under it. */
 function Leaderboard({ b }: { b: Extract<StatBlock, { kind: "leaderboard" }> }) {
   const table = useMemo(() => teamTableOfLeaderboard(b.stat.id, b.stat.label, b.rows, b.teleopWithEndgame, b.lowest), [b]);
+  // v8: a ranking is sized to the question, its top five, the rest in place with one tap (the page plan).
+  const v8 = useIsV8();
+  const [all, setAll] = useState(false);
+  // Another answer in the same place (the page stays mounted from one search to the next) opens short again.
+  const [shownFor, setShownFor] = useState(b);
+  if (shownFor !== b) { setShownFor(b); setAll(false); }
+  const short = v8 && !all && table.rows.length > V8_TOP;
   return (
     <figure data-block="leaderboard">
       <figcaption className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <span className={H3}>{b.title}</span>
         <span className="text-[11px] text-muted-foreground" data-note>{b.note}</span>
       </figcaption>
-      <TeamTable table={table} label={b.title} />
-      {b.more && <p className="mt-2"><Link to={b.more.href} className="inline-flex items-center gap-1 text-xs font-medium text-foreground underline decoration-border underline-offset-2 hover:text-accent-text max-md:min-h-[44px] pointer-coarse:min-h-[44px]" data-more-detail>{b.more.label}<ArrowRight className="size-3.5" aria-hidden /></Link></p>}
+      <TeamTable table={table} label={b.title} limit={short ? V8_TOP : undefined} />
+      {v8 && table.rows.length > V8_TOP && (
+        <button type="button" onClick={() => setAll((a) => !a)} aria-expanded={all}
+          className="mt-2 inline-flex min-h-9 items-center gap-1 rounded-lg px-2 text-sm text-text-muted hover:bg-white/[0.06] hover:text-foreground max-md:min-h-[44px]" data-show-all>
+          {all ? "Show top 5" : `Show all ${table.rows.length}`}
+        </button>
+      )}
+      {b.more && <p className="mt-2"><Link to={b.more.href} className="inline-flex items-center gap-1 text-xs font-medium text-foreground underline decoration-border underline-offset-2 hover:text-accent-text v8:hover:text-foreground max-md:min-h-[44px] pointer-coarse:min-h-[44px]" data-more-detail>{b.more.label}<ArrowRight className="size-3.5" aria-hidden /></Link></p>}
     </figure>
   );
 }
