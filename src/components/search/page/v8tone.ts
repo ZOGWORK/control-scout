@@ -66,3 +66,13 @@ export const V8_PODIUM: Record<number, string> = {
   2: "v8:bg-transparent v8:text-foreground v8:ring-1 v8:ring-inset v8:ring-white/12",
   3: "v8:bg-transparent v8:text-foreground v8:ring-1 v8:ring-inset v8:ring-white/12",
 };
+
+/** v8: an event's status as a quiet hint (never a banner or a coloured strip): a soft tint chip and a small dot.
+ *  Finished a soft green, upcoming the slate-blue accent, live the live red. Wins stay white elsewhere. */
+export const V8_STATUS = {
+  finished: { chip: "v8:bg-[#8fd3a6]/10 v8:text-[#a9dcba] v8:ring-[#8fd3a6]/25", dot: "v8:bg-[#8fd3a6]" },
+  upcoming: { chip: "v8:bg-accent/10 v8:text-accent v8:ring-accent/30", dot: "v8:bg-accent" },
+  live: { chip: "v8:bg-live/10 v8:text-live v8:ring-live/35", dot: "v8:bg-live" },
+} as const;
+/** The chip's shape in v8 (a pill with a hairline ring), with V8_STATUS's tint. */
+export const V8_STATUS_CHIP = "v8:rounded-full v8:px-2 v8:py-0.5 v8:text-xs v8:font-medium v8:ring-1 v8:ring-inset";
