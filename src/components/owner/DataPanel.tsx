@@ -2,6 +2,8 @@
 // checks (for triage: nothing here edits match data, the fix for wrong FTC data is a re-sync), and the
 // re-sync and cache jobs behind a confirmation (OpsCards). Read from /api/owner/data.
 import { useCallback, useState } from "react";
+import { isV8 } from "../../lib/v8";
+import { syncTone } from "./syncTone";
 import { Link } from "react-router-dom";
 import { AlertTriangle, BarChart3, CheckCircle2, CloudDownload, PackageOpen, Radio, RefreshCw, XCircle } from "lucide-react";
 import { Section } from "../page";
@@ -38,7 +40,7 @@ export function DataPanel() {
           <>
             <Section title="Sync status" description="Results come from the FIRST Events API on a schedule (often on event days); stats, ratings and live results are rebuilt after each sync.">
               <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-                <StatTile tone="accent" icon={CloudDownload} label="Last sync" value={since(d.timestamps.syncAt)} hint={when(d.timestamps.syncAt)} />
+                <StatTile tone={isV8() ? syncTone(d.timestamps.syncAt) : "accent"} icon={CloudDownload} label="Last sync" value={since(d.timestamps.syncAt)} hint={when(d.timestamps.syncAt)} />
                 <StatTile tone="sky" icon={BarChart3} label="Stats rebuilt" value={since(d.timestamps.statsAt)} hint={when(d.timestamps.statsAt)} />
                 <StatTile tone="emerald" icon={Radio} label="Live results" value={since(d.timestamps.recordsAt)} hint={when(d.timestamps.recordsAt)} />
                 <StatTile tone="violet" icon={PackageOpen} label="Packs built" value={since(d.timestamps.packsAt)} hint={when(d.timestamps.packsAt)} />
@@ -126,9 +128,9 @@ function FlagCard({ f }: { f: DataFlag }) {
   const Icon = f.error ? XCircle : f.count ? AlertTriangle : CheckCircle2;
   return (
     <li className={cn("min-w-0 rounded-xl border p-4",
-      tone === "danger" ? "border-danger/40 bg-danger/[0.05]" : tone === "warning" ? "border-warning/40 bg-warning/[0.06]" : "border-success/30 bg-success/[0.05]")}>
+      tone === "danger" ? "border-danger/40 bg-danger/[0.05]" : tone === "warning" ? "border-warning/40 bg-warning/[0.06]" : "border-success/30 v8:border-emerald-400/30 bg-success/[0.05] v8:bg-emerald-400/[0.05]")}>
       <div className="flex items-start gap-2.5">
-        <Icon className={cn("mt-0.5 size-5 shrink-0", tone === "danger" ? "text-danger" : tone === "warning" ? "text-warning" : "text-success")} aria-hidden />
+        <Icon className={cn("mt-0.5 size-5 shrink-0", tone === "danger" ? "text-danger" : tone === "warning" ? "text-warning" : "text-success v8:text-emerald-400")} aria-hidden />
         <div className="min-w-0 flex-1">
           <h3 className="flex flex-wrap items-center gap-2 font-medium text-foreground">
             {f.title}
