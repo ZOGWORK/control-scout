@@ -11,6 +11,17 @@ Read `docs/design/v8-revamp-brief.md` first. That's the design. This file covers
   - the shell (sidebar, profile corner, wash, page fade off).
   - See `/preview/kit` for all of them.
 
+## A redesign, not a recolour: page plan first
+v8 rebuilds each page around what the visitor came for. Before coding, write a **Page plan** at the top of your PR description, then build to it:
+- **The job:** who comes here and the question they want answered (one sentence).
+- **First screen:** what's above the fold, in order. The answer to the job comes first, on a phone too.
+- **What moves down or collapses:** detail, advanced tools, explanations behind a disclosure.
+- **What's removed or merged:** repeated numbers, boxes that say the same thing twice, equal-weight button rows.
+  - At most one primary action and one or two outline ones; the rest go in a "More" menu.
+- **Where anything dropped went,** so nothing useful disappears silently.
+
+If a page changes with state (live, finished or upcoming; signed in or out; has a team or not), plan the first screen for each state.
+
 ## Rules for every page (brief §2–§5, short form)
 - **Colour:**
   - No yellow, no coloured buttons. Use `Button`'s variants; the default variant is the one primary per screen.
