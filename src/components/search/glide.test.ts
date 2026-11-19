@@ -42,4 +42,26 @@ describe("glideTo", () => {
     await Promise.resolve();
     expect(document.documentElement.hasAttribute("data-search-glide")).toBe(false);
   });
+
+  it("hands focus to the shown box once, leaving no flag behind (focused already, or focused now)", async () => {
+    window.history.pushState({}, "", "/search?q=x");
+    document.body.innerHTML = '<div data-glide-box><input></div><div data-search-loading></div>';
+    const input = document.querySelector("input")!;
+    vi.spyOn(HTMLElement.prototype, "getClientRects").mockReturnValue([{}] as unknown as DOMRectList);
+    window.matchMedia = ((q: string) => ({ matches: q === "(pointer: fine)" })) as unknown as typeof window.matchMedia;
+    const seen: boolean[] = [];
+    input.addEventListener("focus", () => seen.push("quietFocus" in input.dataset));
+    for (let run = 0; run < 2; run++) {
+      let update: (() => Promise<void> | void) | null = null;
+      doc.startViewTransition = (cb: () => Promise<void> | void) => { update = cb; return { finished: new Promise(() => {}), ready: Promise.resolve(), updateCallbackDone: Promise.resolve() }; };
+      glideTo("/search?q=x", () => {});
+      await update!();
+      expect(document.activeElement).toBe(input);
+      expect("quietFocus" in input.dataset).toBe(false);
+    }
+    // The first run focused it quietly; the second found it focused already and set nothing.
+    expect(seen).toEqual([true]);
+    vi.restoreAllMocks();
+    document.body.innerHTML = "";
+  });
 });

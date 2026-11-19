@@ -49,9 +49,12 @@ export function glideTo(href: string, go: () => void): boolean {
     await until(() => location.pathname === "/search" && !!shownBox() && shownResults(), GLIDE_WAIT_MS);
     // Focus stays in the search box (a keyboard's Enter); a touch screen lets go, so its keyboard closes over the results.
     const input = shownBox()?.querySelector("input");
-    if (input && window.matchMedia?.("(pointer: fine)").matches) {
+    if (input && window.matchMedia?.("(pointer: fine)").matches && document.activeElement !== input) {
+      // The flag is for this one focus only: cleared right after, so it can never swallow a later, real focus (an
+      // element that already has focus gets no focus event, and a blocked focus gets none either).
       input.dataset.quietFocus = "";
       input.focus({ preventScroll: true });
+      delete input.dataset.quietFocus;
     }
   });
   const end = () => root.removeAttribute("data-search-glide");
