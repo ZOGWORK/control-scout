@@ -277,6 +277,10 @@ html { --ui-base: 1; --ui-scale: 1; font-size: calc(100% * var(--ui-base) * var(
 html[data-text-size="s"] { --ui-scale: 0.9; }
 html[data-text-size="l"] { --ui-scale: 1.125; }
 html[data-text-size="xl"] { --ui-scale: 1.25; }
+/* The v8 sample Home (src/pages/PreviewHomePage.tsx) on a big screen: the whole page, sidebar included, grows in
+   steps so it never sits small in the middle of a wide monitor. Still times each device's own text size. */
+@media (min-width: 2100px) { html:has([data-sample-home]) { --ui-base: 1.1; } }
+@media (min-width: 2500px) { html:has([data-sample-home]) { --ui-base: 1.23; } }
 /* The phone tab bar's height, border included (Shell MobileTabs); fixed things on phones sit above it. */
 :root { --tabbar-h: 53px; }
 @media (max-width: 767px) { html { scroll-padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom)); } }
