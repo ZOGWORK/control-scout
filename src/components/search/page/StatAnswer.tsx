@@ -10,7 +10,7 @@ import { useIsV8 } from "../../../lib/v8";
 import type { StatAnswer, StatBlock, StatLink, StatRecord } from "../../../shared/searchStat";
 import type { SearchCard } from "../../../shared/api";
 import { teamTableOfLeaderboard } from "../../../shared/teamTable";
-import { TeamTable } from "../TeamTable";
+import { TeamTable, V8_TABLE } from "../TeamTable";
 import { cn } from "../../cn";
 import { Meter, StatTile, TONES, rankPc, type Tone } from "../../StatTile";
 import { Badge } from "../../ui/basic";
@@ -395,22 +395,22 @@ function Table({ b }: { b: Extract<StatBlock, { kind: "table" }> }) {
     <div data-block="table">
       {/* A table that is the whole answer has no heading of its own: the card's title already says it. */}
       {b.title && <h3 className={H3}>{b.title}</h3>}
-      <div className="overflow-x-auto rounded-lg border border-border">
+      <div className={cn("overflow-x-auto rounded-lg border border-border", V8_TABLE.frame)}>
         <table className="w-full text-sm">
-          <thead className="bg-muted/50 text-left text-[11px] text-muted-foreground">
-            <tr>{b.columns.map((c) => <th key={c.key} scope="col" className={cn("px-2.5 py-1.5 font-medium", c.num && "text-right", c !== first && "whitespace-nowrap max-md:px-1.5", folded.includes(c) && "max-md:hidden")}>{c.label}</th>)}{plays && <th scope="col" className="w-0 px-1"><span className="sr-only">Video</span></th>}</tr>
+          <thead className={cn("bg-muted/50 text-left text-[11px] text-muted-foreground v8:bg-transparent v8:text-[0.75rem] v8:text-text-faint", V8_TABLE.head)}>
+            <tr>{b.columns.map((c) => <th key={c.key} scope="col" className={cn("px-2.5 py-1.5 font-medium", V8_TABLE.cell, "v8:h-9 v8:py-0", c.num && "text-right", c !== first && "whitespace-nowrap max-md:px-1.5", folded.includes(c) && "max-md:hidden")}>{c.label}</th>)}{plays && <th scope="col" className="w-0 px-1"><span className="sr-only">Video</span></th>}</tr>
           </thead>
           <tbody>
             {b.rows.map((r, i) => {
               const win = vs ? better(String(r.cells[first.key] ?? ""), r.cells.a, r.cells.b) : null;
               return (
                 // A row that is an award (or a phase): a thick left bar in its colour, its name a filled chip.
-                <tr key={i} className={cn("border-t border-border", r.strong && "font-semibold")} data-strong={r.strong ? "" : undefined} data-meaning={meaningOf(String(r.cells[first.key] ?? "")) ?? undefined}>
+                <tr key={i} className={cn("border-t border-border", V8_TABLE.row, r.strong && "font-semibold")} data-strong={r.strong ? "" : undefined} data-meaning={meaningOf(String(r.cells[first.key] ?? "")) ?? undefined}>
                   {b.columns.map((c, j) => {
                     const v = r.cells[c.key];
                     const won = win === c.key;
                     return (
-                      <td key={c.key} className={cn("px-2.5 py-1.5 align-middle", c.num && "text-right tabular-nums", j === 0 && meaningOf(String(v ?? "")) && cn("border-l-[6px]", swatchOf(String(v)).edge), j === 0 ? "min-w-[4.5rem] md:min-w-[8rem]" : "whitespace-nowrap max-md:px-1.5", folded.includes(c) && "max-md:hidden", won && "font-bold text-foreground")} data-better={won ? "" : undefined}>
+                      <td key={c.key} className={cn("px-2.5 py-1.5 align-middle", V8_TABLE.cell, c.num && "text-right tabular-nums", j === 0 && meaningOf(String(v ?? "")) && cn("border-l-[6px]", swatchOf(String(v)).edge), j === 0 ? "min-w-[4.5rem] md:min-w-[8rem]" : "whitespace-nowrap max-md:px-1.5", folded.includes(c) && "max-md:hidden", won && "font-bold text-foreground")} data-better={won ? "" : undefined}>
                         {j === 0 && r.strong && <Trophy className="mr-1 inline size-3.5 align-[-2px] text-team-a v8:text-accent" aria-label="Best" />}
                         {j === 0 && r.href
                           ? <Link to={r.href} className={cn("text-foreground hover:text-accent-text v8:hover:text-foreground hover:underline max-md:inline-flex max-md:items-center pointer-coarse:inline-flex pointer-coarse:items-center", TAP)}>{c.key === "award" && v != null ? <AwardChip name={String(v)} /> : (v ?? "–")}</Link>
@@ -587,14 +587,14 @@ function Bars({ b }: { b: Extract<StatBlock, { kind: "bars" }> }) {
   return (
     <figure data-block="bars">
       <figcaption className={H3}>{b.title}</figcaption>
-      <div className="overflow-x-auto rounded-lg border border-border">
+      <div className={cn("overflow-x-auto rounded-lg border border-border", V8_TABLE.frame)}>
         <table className="w-full text-sm">
-          <thead className="bg-muted/50 text-[11px] text-muted-foreground"><tr><th scope="col" className="px-2.5 py-1.5 text-left font-medium"><span className="sr-only">Group</span></th>{labels.map((l) => <th key={l} scope="col" className="px-2.5 py-1.5 text-right font-medium">{l}</th>)}</tr></thead>
+          <thead className={cn("bg-muted/50 text-[11px] text-muted-foreground v8:bg-transparent v8:text-[0.75rem] v8:text-text-faint", V8_TABLE.head)}><tr><th scope="col" className="px-2.5 py-1.5 text-left font-medium"><span className="sr-only">Group</span></th>{labels.map((l) => <th key={l} scope="col" className="px-2.5 py-1.5 text-right font-medium">{l}</th>)}</tr></thead>
           <tbody>
             {b.groups.map((g) => (
-              <tr key={g.label} className="border-t border-border">
-                <th scope="row" className="px-2.5 py-1.5 text-left text-xs font-medium text-foreground">{g.label}</th>
-                {labels.map((l) => <td key={l} className="px-2.5 py-1.5 text-right tabular-nums">{fmt(g.items.find((i) => i.label === l)?.value ?? null)}</td>)}
+              <tr key={g.label} className={cn("border-t border-border", V8_TABLE.row)}>
+                <th scope="row" className={cn("px-2.5 py-1.5 text-left text-xs font-medium text-foreground", V8_TABLE.cell)}>{g.label}</th>
+                {labels.map((l) => <td key={l} className={cn("px-2.5 py-1.5 text-right tabular-nums", V8_TABLE.cell)}>{fmt(g.items.find((i) => i.label === l)?.value ?? null)}</td>)}
               </tr>
             ))}
           </tbody>

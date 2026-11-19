@@ -19,6 +19,7 @@ import { BrunoAnswer } from "../components/search/BrunoAnswer";
 import { EventAwardsAnswer } from "../components/search/page/EventAwards";
 import { useSubmittedSearch } from "../components/search/direct";
 import { SearchSkeleton } from "../components/search/SearchSkeleton";
+import { useGliding } from "../components/search/glide";
 import { AnswerNotesView, useSearchHits, useSections } from "../components/search/SearchBox";
 import { SeasonPickContext, pickedSeason, type SeasonPick } from "../components/search/page/SeasonPick";
 import { CompareCard, EventCard, HeadToHead, ResultRow, TeamCard, teamSeasons, type SeasonSummary } from "../components/search/page/ResultCards";
@@ -75,6 +76,8 @@ export default function SearchPage() {
   const filters = readFilters(params, askedTime);
   // Asked at once, and on to the one page a submitted query names (../components/search/direct.ts).
   const leaving = useSubmittedSearch(query, { answer, live, error, searchNow });
+  // Home's glide on its way in (search/glide.ts): the loading shapes until the box lands, then the answer.
+  const gliding = useGliding();
   const phone = useMediaQuery("(max-width: 767px)");
   // v8 (the PR's page plan): one column, the answer first, follow-ups as chips, the rest as plain rows. v8 off: as before.
   const v8 = useIsV8();
@@ -245,7 +248,7 @@ export default function SearchPage() {
   // first in both, so it's the same field when one replaces the other: what's being typed in it (and the keyboard)
   // stays put when a search's results arrive.
   const bar = phone ? <PhoneSearchBar query={query} /> : null;
-  if (query && !error && ((busy && ((stale && !reseason) || !found)) || leaving)) return <>{bar}<SearchSkeleton query={query} /></>;
+  if (query && !error && ((busy && ((stale && !reseason) || !found)) || leaving || gliding)) return <>{bar}<SearchSkeleton query={query} /></>;
   return (
     <>{bar}
     {/* One results column, 640–720px and centred (the search results guide's §9: a line the eye can follow across a
