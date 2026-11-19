@@ -51,7 +51,6 @@ export function headerOf(def: StatDef | undefined, key: string): string {
 
 export { toneOf, type Tone } from "../../shared/statTones";
 
-/** Tailwind classes per tone: header text, header underline, soft chip background. */
 /**
  * v8's take on the scoring categories (Sushil, 11-19: one colour means one category, everywhere): the classic's
  * hues, softened to their 300 shades for the dark page. np / total OPR purple, Auto blue, DC orange, Endgame green,
@@ -80,6 +79,7 @@ export const V8_PHASE = {
 } as const;
 export type V8Phase = keyof typeof V8_PHASE;
 
+/** Tailwind classes per tone: header text, header underline, soft chip background. */
 export const TONE_CLASS: Record<Tone, { text: string; bar: string; chip: string }> = {
   gold: { text: "text-accent-text", bar: "bg-accent", chip: "bg-accent/15 text-accent-text border-accent/30" },
   red: { text: "text-red-700 dark:text-red-400", bar: "bg-red-500", chip: "bg-red-500/12 text-red-700 dark:text-red-400 border-red-500/30" },
