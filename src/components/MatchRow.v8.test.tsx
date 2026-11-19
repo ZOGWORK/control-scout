@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
-// The shared match row in v8 keeps every feature of the classic row, restyled: the alliance boxes (faint tint and a
-// coloured edge) with each team as its own tile (number over name), the playoff lives hearts, the details chevron,
-// the call (Picked % with its bar, the tier, the ledger icon, Right/Upset), and the scout report button (neutral
-// v8: hidden; the open details link to it). v8 also makes the row compact. v8 only changes classes; with v8 off the row is drawn as before.
+// The shared match row in v8, compact: the alliance boxes (faint tint and a coloured edge) with each team as its own
+// tile (number over name), the playoff lives hearts, the details chevron, and the call on one line (Picked % with its
+// bar, Right/Upset, the tier, the ledger icon). The report button is hidden (the open details link to it). v8 only
+// changes classes; with v8 off the row is drawn as before.
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
