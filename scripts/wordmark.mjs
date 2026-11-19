@@ -1,5 +1,6 @@
-// The v8 wordmark and bare mark (docs/design/v8-revamp-brief.md): the letters filled with the v8 wash's hues, lightened
-// so they read on near-black (light slate blue -> lavender -> soft mauve, left to right, a little lighter at the top),
+// The v8 wordmark and bare mark (docs/design/v8-revamp-brief.md): soft white letters with a faint sheen of the v8 wash's
+// hues (pale slate blue -> pale lavender -> pale mauve, left to right, a little lighter at the top), to sit beside the
+// icon's soft-white mark; a stronger gradient read as too deep (Sushil, 11-19),
 // on a transparent background. The shapes are the masters' own alpha, untouched.
 //   brand/wordmark-master.png (2000×667)  ->  brand/wordmark-master.png, public/wordmark.webp (1000 wide)
 //   public/mark.png                        ->  public/mark.png, public/mark.webp
@@ -16,11 +17,11 @@ const fill = async (page, file, width, type) => {
     x.imageSmoothingQuality = "high"; x.drawImage(img, 0, 0, w, h);
     x.globalCompositeOperation = "source-in";
     const g = x.createLinearGradient(0, 0, w, h * 0.35);
-    g.addColorStop(0, "#a9bdf0"); g.addColorStop(0.5, "#bcaeea"); g.addColorStop(1, "#e4acd8");
+    g.addColorStop(0, "#d3dcf6"); g.addColorStop(0.5, "#dcd6f3"); g.addColorStop(1, "#ecd5ea");
     x.fillStyle = g; x.fillRect(0, 0, w, h);
     x.globalCompositeOperation = "source-atop";
     const lift = x.createLinearGradient(0, 0, 0, h);
-    lift.addColorStop(0, "rgba(255,255,255,0.22)"); lift.addColorStop(0.55, "rgba(255,255,255,0)");
+    lift.addColorStop(0, "rgba(255,255,255,0.3)"); lift.addColorStop(0.6, "rgba(255,255,255,0)");
     x.fillStyle = lift; x.fillRect(0, 0, w, h);
     return c.toDataURL(type, 0.92);
   }, { src, width, type });
