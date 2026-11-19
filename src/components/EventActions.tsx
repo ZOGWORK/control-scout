@@ -8,6 +8,7 @@ import { cn } from "./cn";
 import { WATCH_ID } from "./WatchLive";
 import { scrollToElement } from "../lib/pageScroll";
 import { shownOffline, useConnection } from "../lib/connection";
+import { useIsV8 } from "../lib/v8";
 import type { EventDetail } from "../shared/api";
 
 /** Tracking state for an event, and the page's one toggle for it. */
@@ -23,6 +24,8 @@ export interface WatchTarget { url: string | null | undefined; stream: boolean; 
  */
 export function LivestreamButton({ watch, className, offline }: { watch: WatchTarget; className?: string; offline?: boolean }) {
   const noSignal = useNoVideoSignal(offline);
+  // v8 (brief §7 Event header): the stream link is a plain button, so the page keeps at most one primary.
+  const variant = useIsV8() ? "ghost" : "default";
   // No connection: the stream plays from the internet, so instead of a player that can't load or a tab that opens
   // on an error, the button says so.
   if (noSignal && (watch.stream || watch.url)) {
@@ -34,11 +37,11 @@ export function LivestreamButton({ watch, className, offline }: { watch: WatchTa
   }
   if (watch.stream) {
     const go = () => { const el = document.getElementById(WATCH_ID); if (el) scrollToElement(el); };
-    return <Button size="sm" onClick={go} className={className} data-watch-button><Play /> {watch.finished ? "Watch the stream" : "Watch livestream"}</Button>;
+    return <Button size="sm" variant={variant} onClick={go} className={className} data-watch-button><Play /> {watch.finished ? "Watch the stream" : "Watch livestream"}</Button>;
   }
   if (!watch.url) return null;
   return (
-    <Button size="sm" asChild className={className}>
+    <Button size="sm" variant={variant} asChild className={className}>
       <a href={watch.url} target="_blank" rel="noopener noreferrer" data-livestream><Play /> Watch livestream</a>
     </Button>
   );
