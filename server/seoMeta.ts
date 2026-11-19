@@ -62,7 +62,7 @@ import { hasPhases, phaseNote, teamColumns, teamTableOfLeaderboard, type TeamTab
 
 /** The site's link-preview card (scripts/og-image.ts renders public/og-image.png). The version is bumped whenever the
  *  card is redrawn: Discord, Slack and iMessage cache a preview image by its URL, so a new one needs a new address. */
-export const OG_IMAGE_PATH = "/og-image.png?v=2";
+export const OG_IMAGE_PATH = "/og-image.png?v=3";
 /** What the card says, for screen readers in apps that show it. */
 export const OG_IMAGE_ALT = "Control Scout: every FTC match, predicted. Free scouting with OPR, win odds and advancement.";
 import { answerDescription, badgeUnder, contextBadge, headingOver, isQualityQuestion, pageTitle, repeats, unreadNote } from "../src/shared/searchPage.js";

@@ -1,5 +1,6 @@
 // Renders public/og-image.png (1200×630), the link-preview card every page
-// points og:image / twitter:image at (Discord, iMessage, Slack, X). Same look as the site: graphite, gold,
+// points og:image / twitter:image at (Discord, iMessage, Slack, X). Same look as the site (v8): near-black with the
+// wash across the top, white type, mint as the one accent,
 // the brand icon, Space Grotesk + Inter. Re-run after a brand change:
 //   npx playwright install chromium   (once per machine; on Linux: --with-deps)
 //   npx tsx scripts/og-image.ts
@@ -21,9 +22,10 @@ const html = `<!doctype html><html><head><style>
 @font-face { font-family: Inter; src: url(${font("Inter.woff2")}); font-weight: 700; }
 * { margin: 0; box-sizing: border-box; }
 body { width: 1200px; height: 630px; overflow: hidden; background: #0a0a0b; color: #f4f4f5; font-family: Inter, sans-serif; position: relative; }
-.glow { position: absolute; inset: 0; background:
-  radial-gradient(760px 420px at 100% 0%, rgba(255,199,0,.20), transparent 70%),
-  radial-gradient(620px 360px at 0% 100%, rgba(56,189,248,.10), transparent 70%); }
+.glow { position: absolute; inset: 0 0 auto; height: 420px; filter: blur(40px); background:
+  radial-gradient(55% 95% at 12% 0%, #44587f, transparent 72%), radial-gradient(50% 90% at 52% 0%, #4a4462, transparent 72%),
+  radial-gradient(55% 95% at 90% 0%, #6e5076, transparent 72%);
+  -webkit-mask-image: linear-gradient(to bottom, #000, rgba(0,0,0,.75) 45%, transparent); }
 .grid { position: absolute; inset: 0; background-image: linear-gradient(rgba(255,255,255,.04) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.04) 1px, transparent 1px); background-size: 48px 48px;
   -webkit-mask-image: linear-gradient(90deg, transparent, #000 30%, #000 70%, transparent); }
 .bar { position: absolute; top: 0; left: 0; right: 0; height: 10px; background: #ffc700; }
@@ -32,12 +34,12 @@ body { width: 1200px; height: 630px; overflow: hidden; background: #0a0a0b; colo
 .brand img { width: 76px; height: 76px; }
 .name { font-family: SG; font-weight: 700; font-size: 46px; letter-spacing: -.01em; }
 h1 { font-family: SG; font-weight: 700; font-size: 78px; line-height: 1.02; letter-spacing: -.03em; margin-top: 44px; white-space: nowrap; }
-h1 em { font-style: normal; color: #ffc700; }
+h1 em { font-style: normal; color: #7fd1ae; }
 .sub { font-size: 32px; font-weight: 500; color: #c4c4cc; margin-top: 26px; line-height: 1.3; }
-.url { margin-top: auto; font-family: SG; font-weight: 700; font-size: 34px; color: #ffc700; }
+.url { margin-top: auto; font-family: SG; font-weight: 700; font-size: 34px; color: #a1a1aa; }
 .card { position: absolute; right: 52px; top: 118px; width: 392px; border-radius: 28px; padding: 30px 30px 32px; background: rgba(20,20,23,.92);
-  border: 2px solid #2a2a30; box-shadow: 0 30px 80px rgba(0,0,0,.55); }
-.tag { display: inline-block; font-weight: 700; font-size: 30px; color: #ffc700; }
+  border: 2px solid rgba(255,255,255,.08); box-shadow: 0 30px 80px rgba(0,0,0,.55); }
+.tag { display: inline-block; font-weight: 700; font-size: 30px; color: #7fd1ae; }
 .title { font-family: SG; font-weight: 700; font-size: 36px; margin-top: 10px; }
 .odds { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 26px; font-family: SG; font-weight: 700; }
 .odds div { font-size: 64px; line-height: 1; letter-spacing: -.02em; }
@@ -48,7 +50,7 @@ h1 em { font-style: normal; color: #ffc700; }
 .score { margin-top: 26px; padding-top: 22px; border-top: 2px solid #26262b; display: flex; justify-content: space-between; font-size: 30px; font-weight: 500; color: #a1a1aa; }
 .score b { color: #f4f4f5; font-family: SG; font-weight: 700; }
 </style></head><body>
-<div class="glow"></div><div class="grid"></div><div class="bar"></div>
+<div class="glow"></div>
 <div class="left">
   <div class="brand">${logo}<div class="name">Control Scout</div></div>
   <h1>Every FTC match,<br><em>predicted.</em></h1>
