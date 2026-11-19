@@ -84,7 +84,8 @@ function useSecondClock(on: boolean): number {
 }
 
 /** `track`: the page's tracked state and toggle for this event, shown beside the panel's other actions. */
-export function LivePanel({ d, target, refresh, track }: { d: EventDetail; target: LiveTarget; refresh: RefreshControl; track?: TrackControl }) {
+/** `noWatch`: the page's header already has the stream button (v8), so the panel leaves its copy out. */
+export function LivePanel({ d, target, refresh, track, noWatch }: { d: EventDetail; target: LiveTarget; refresh: RefreshControl; track?: TrackControl; noWatch?: boolean }) {
   const e = d.event;
   const live = d.live!;
   const { teams: atEvent, mine, next: any } = target;
@@ -164,7 +165,7 @@ export function LivePanel({ d, target, refresh, track }: { d: EventDetail; targe
               <Link to={matchReportHref(any)} data-live-report><ClipboardList /> Know your match</Link>
             </Button>
           )}
-          <LivestreamButton watch={{ url: e.livestream, stream: !!e.stream, finished: e.status === "finished" }} offline={!!offlineSource(d)} className="max-sm:h-10 max-sm:flex-1" />
+          {!noWatch && <LivestreamButton watch={{ url: e.livestream, stream: !!e.stream, finished: e.status === "finished" }} offline={!!offlineSource(d)} className="max-sm:h-10 max-sm:flex-1" />}
           {track && <TrackEventButton track={track} className="max-sm:h-10 max-sm:flex-1" />}
         </div>
         {!opener && !mine && done.length > 0 && (

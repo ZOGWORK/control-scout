@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useLocation, useNavigationType, useParams, useSearchParams } from "react-router-dom";
 import { pickHelperQuery } from "../shared/scoutSections";
 import { eventOver } from "../shared/eventDay";
-import { Award, CalendarDays, ChevronDown, Clock, ExternalLink, Gavel, Info, ListOrdered, Loader2, MapPin, Radar, Radio, RefreshCw, Search, Sparkles, Swords, Trophy, Tv, Users } from "lucide-react";
+import { Award, CalendarDays, ChevronDown, Clock, ExternalLink, Gavel, Info, ListOrdered, Loader2, MapPin, MoreHorizontal, Radar, Radio, RefreshCw, Search, Sparkles, Swords, Trophy, Tv, Users } from "lucide-react";
 import { leagueHref } from "../shared/leagues";
 import { CONFERENCE_REGION, conferenceHref, type LeagueConferences } from "../shared/conferences";
 import { useConferenceGate } from "../lib/conferenceGate";
@@ -51,7 +51,7 @@ import { callRecord } from "../lib/eventGlance";
 import { NotFoundView } from "../components/NotFoundView";
 import { hasRuleReference } from "../shared/rules/seasons";
 import { LiveCountdownChip, LivePanel, useLiveTarget } from "../components/LivePanel";
-import { HeaderActions, OfflineVideoNote } from "../components/EventActions";
+import { HeaderActions, LivestreamButton, OfflineVideoNote, TrackEventButton } from "../components/EventActions";
 import { offlineSource } from "../lib/offline/saved";
 import { EventStatusChip, EventTypeChip, LiveDot } from "../components/EventChips";
 import { WatchLive } from "../components/WatchLive";
@@ -70,7 +70,10 @@ import { eventRoster, eventStanding } from "../shared/eventStanding";
 import { SWING_LINE, swingText, swingTitle } from "../shared/reliability";
 import { AllianceChip, AllianceOddsCard, BracketAccuracyNote, BracketSeries, OddsHeading } from "../components/PlayoffBracket";
 import { EventPackButton } from "../components/offline/EventPackButton";
-import { isV8 } from "../lib/v8";
+import { isV8, useIsV8 } from "../lib/v8";
+import { Disclosure, eventState, FinishedFocus, LiveFocus, UpcomingFocus, V8_DEFAULT_TAB, V8_TAB_ORDER } from "../components/EventFocus";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../components/ui/overlay";
+import { EVENT_TABS, type EventTab } from "../lib/eventTab";
 
 export default function EventPage() {
   const { season, code } = useParams();
@@ -92,6 +95,9 @@ export default function EventPage() {
 function Event({ d, path }: { d: EventDetail; path: string }) {
   const [sp, setSp] = useSearchParams();
   const e = d.event;
+  // v8: the page is built around the event's state (live / finished / upcoming), components/EventFocus.tsx.
+  const v8 = useIsV8();
+  const st = eventState(e.status);
   // From what's saved on this device (no connection): its videos can't play (components/EventActions.tsx).
   const saved = !!offlineSource(d);
   // The recording the coverage line and gaps read: linked, playable or not (a private one still says why), and its videos.
@@ -109,7 +115,7 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
   // The records tables follow the live results: fetched again whenever the event's results are checked or the stats are rebuilt.
   const statsAt = useMeta()?.statsAt ?? "";
   const recordsKey = `${d.live?.checkedAt ?? ""}|${statsAt}`;
-  const fallback = sp.get("match") ? "matches" : e.status === "upcoming" && !d.matches.length ? (predictable ? "odds" : "teams") : "matches";
+  const fallback: EventTab = sp.get("match") ? "matches" : v8 ? V8_DEFAULT_TAB[st] : e.status === "upcoming" && !d.matches.length ? (predictable ? "odds" : "teams") : "matches";
   const { tab, valid: validTab } = eventTab(sp.get("tab"), { predictable, fallback });
   // An unknown ?tab= (or Odds on a history season) opens the default tab, and leaves the address without it.
   useEffect(() => { if (!validTab) setSp((x) => { x.delete("tab"); return x; }, { replace: true }); }, [validTab, setSp]);
@@ -144,13 +150,14 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
   const packsOn = useFlag("offlinePacks");
   const oddsOpen = predictable && !d.forecastUnsupported;
   // Opened on a panel (?tab= in the address it arrived at): a slim bar, with the summary behind "Event details".
-  const slim = useArrivedOnTab(sp.has("tab") && validTab);
+  // v8 has one compact header for every visit, so no slim bar.
+  const slim = useArrivedOnTab(sp.has("tab") && validTab) && !v8;
   const [detailsOpen, setDetailsOpen] = useDetailsOpen();
   // Labels, not buttons: filled chips without a border (components/EventChips.tsx).
   const statusBadge = <EventStatusChip status={e.status} />;
   const typeChip = <EventTypeChip type={e.type} label={e.typeLabel} />;
   // Right under the name, so the countdown is on a phone's first screen (in the slim bar too).
-  const live = liveMode && <div ref={livePanel} className="scroll-mt-bar-20"><LivePanel d={d} target={target} refresh={refresh} track={track} /></div>;
+  const live = liveMode && <div ref={livePanel} className="scroll-mt-bar-20"><LivePanel d={d} target={target} refresh={refresh} track={v8 ? undefined : track} noWatch={v8} /></div>;
   // The summary: everything about the event but its name, status and dates (the slim bar's).
   const facts = (full: boolean) => (
     <>
@@ -205,11 +212,85 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
   const shared = !d.field.length && !provisionalTeams ? d.sharedSessions ?? null : null;
   const registeredCount = shared ? shared.teams.length : provisionalTeams?.teams.filter((t) => t.status === "registered").length ?? 0;
   const glance = <EventGlance d={d} onTab={setTab} live={liveMode ? { match: target.next, mine: !!target.mine, open: toLivePanel } : undefined} />;
+  // Your team, the teams you follow, and the one picked in the address: marked "yours" (mint) in v8's first screen.
+  const mine = new Set([personal.myTeam, ...personal.tracked.teams, teamParam].filter((t): t is number => t != null));
+  const showTab = (t: string) => { setTab(t); if (tabsRef.current) scrollToElement(tabsRef.current); };
+  const teamsLine = d.registered ? `${e.teams} teams registered` : !e.teams && shared ? `${registeredCount} teams registered for both sessions` : !e.teams && registeredCount ? `${registeredCount} teams registered (provisional)` : `${e.teams} teams`;
+  const triggers: Record<EventTab, ReactNode> = {
+    matches: <TabsTrigger key="matches" value="matches"><MatchesTabIcon />Matches</TabsTrigger>,
+    rankings: <TabsTrigger key="rankings" value="rankings"><RankingsTabIcon />Rankings</TabsTrigger>,
+    insights: <TabsTrigger key="insights" value="insights"><InsightsTabIcon />Insights</TabsTrigger>,
+    teams: <TabsTrigger key="teams" value="teams"><TeamsTabIcon />Teams <span className="rounded-md bg-current/15 px-1.5 text-[11px] tabular-nums">{eventRoster(d.field).length || registeredCount}</span></TabsTrigger>,
+    playoffs: <TabsTrigger key="playoffs" value="playoffs"><PlayoffsTabIcon />Playoffs</TabsTrigger>,
+    awards: <TabsTrigger key="awards" value="awards"><AwardsTabIcon />Awards</TabsTrigger>,
+    odds: <TabsTrigger key="odds" value="odds"><OddsTabIcon />Odds</TabsTrigger>,
+  };
+  // v8: the tabs follow the state's priority (EventFocus.tsx); the old order otherwise.
+  const tabOrder = (v8 ? V8_TAB_ORDER[st] : EVENT_TABS).filter((t) => t !== "odds" || predictable);
+  // v8's actions beyond Stream and Track, in one menu.
+  const more = (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild><Button variant="outline" size="sm" data-more-actions><MoreHorizontal /> More</Button></DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-[13rem]">
+        {predictable && <DropdownMenuItem asChild><Link to={labHref}><Sparkles /> Open in what-if lab</Link></DropdownMenuItem>}
+        {d.highlights && <DropdownMenuItem asChild><Link to={`/events/${e.season}/${encodeURIComponent(e.code)}/highlights`} data-highlights-link><Sparkles /> Highlights</Link></DropdownMenuItem>}
+        <DropdownMenuItem asChild><Link to={`/events/${e.season}/${encodeURIComponent(e.code)}/display`} data-pit-display-link><Tv /> Pit display</Link></DropdownMenuItem>
+        {e.league && e.region && <DropdownMenuItem asChild><Link to={`${leagueHref(e.season, e.region, e.league)}${teamParam ? `?team=${teamParam}` : ""}`} data-league-link><ListOrdered /> League standings</Link></DropdownMenuItem>}
+        {e.type === "LeagueTournament" && e.league && e.region?.toUpperCase() === CONFERENCE_REGION && <ConferenceLink season={e.season} region={e.region} league={e.league} code={e.code} team={teamParam} menu />}
+        {rulesOn && hasRuleReference(e.season) && <DropdownMenuItem asChild><Link to={`/rules?season=${e.season}`} data-rules-link><Gavel /> Rules</Link></DropdownMenuItem>}
+        {e.website && <DropdownMenuItem asChild><a href={e.website} target="_blank" rel="noreferrer noopener"><ExternalLink /> Event website</a></DropdownMenuItem>}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+  // v8's top of the page: a compact header, then what this state's visitor came for, then the details folded away.
+  const v8Top = v8 && (
+    <>
+      <header className="mb-5 max-sm:mb-4" data-event-header="v8">
+        <div className="flex flex-wrap items-start gap-x-6 gap-y-3">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">{statusBadge}<span className="text-xs text-text-faint">{e.typeLabel} · <span className="font-mono">{e.code}</span> · {seasonLabel(e.season)}</span></div>
+            <h1 className="mt-2 text-[1.375rem] font-semibold leading-7 tracking-tight text-text-base">{e.name}</h1>
+            <p className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-text-muted">
+              <span className="inline-flex items-center gap-1.5"><CalendarDays className="size-4" aria-hidden />{dateRange(e.start, e.end)}</span>
+              {(e.venue || e.city) && (
+                <a href={mapsUrl(place(e.venue, e.address, e.city, e.state, e.country))} target="_blank" rel="noreferrer noopener" className="tap-44 inline-flex min-w-0 max-w-full items-center gap-1.5 transition-colors duration-150 still-hover:text-text-base" data-venue-map>
+                  <MapPin className="size-4 shrink-0" aria-hidden /><span className="truncate">{place(e.venue, e.address, e.city, e.state, e.country)}</span>
+                </a>
+              )}
+              <span className="tabular-nums">{teamsLine}</span>
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 max-sm:w-full" data-header-actions>
+            <LivestreamButton watch={{ url: e.livestream, stream: !!e.stream, finished: e.status === "finished" }} offline={saved} variant={st === "live" ? "default" : "outline"} />
+            <WatchClipsButton matches={d.matches} primary={st === "finished"} />
+            <TrackEventButton track={track} label={{ on: "Tracking", off: "Track event" }} />
+            {more}
+          </div>
+        </div>
+        {d.live && !liveMode && <LiveBar live={d.live} r={refresh} />}
+        <OfflineVideoNote d={d} offline={saved} />
+      </header>
+      {st === "live" ? <LiveFocus d={d} panel={live} next={liveMode ? target.next : null} mine={mine} onAll={showTab} />
+        : st === "finished" ? <FinishedFocus d={d} mine={mine} nameOf={nameOf} onAll={showTab} />
+        : <UpcomingFocus d={d} mine={mine} registered={registeredCount} onAll={showTab} />}
+      <Disclosure title="Event details" hint="Recording, sources, offline" className="mb-6 max-sm:mb-4" id="event-details">
+        <div className="text-sm text-text-muted [&>*:first-child]:mt-0">
+          <RecordingCoverageLine {...rec} reserve={d.matches.some((m) => m.played)} playable={!!e.stream} unplayable={!e.stream && !!e.recordingUnavailable?.length} />
+          <RecordingGaps {...rec} />
+          <ResultsSource d={d} />
+          {d.provisional && <ProvisionalDetails p={d.provisional} />}
+          {!predictable && <p className="mt-3 text-xs">{seasonLabel(e.season)} is shown for history: results, rankings and awards, no predictions (those start with 2023–24).</p>}
+          {e.status !== "finished" && bundleOn && packsOn && <EventPackButton season={e.season} code={e.code} field={d.field.map((f) => f.team)} />}
+          <TeamsSource d={d} provisional={!!provisionalTeams} />
+        </div>
+      </Disclosure>
+    </>
+  );
   return (
     <EventClipsProvider season={e.season} code={e.code}>
     <div>
       <OfflineNote data={d} />
-      {slim ? (
+      {v8 ? v8Top : slim ? (
         <Reveal fade={false} className={cn("relative mb-4 overflow-hidden rounded-2xl border border-border bg-card px-4 py-3.5 sm:px-6 sm:py-4", V8_HEADER)} data-event-header="slim">
           <div aria-hidden className="pointer-events-none absolute -right-16 -top-20 size-56 rounded-full bg-accent opacity-15 blur-3xl v8:hidden" />
           <div className="relative flex items-start gap-3">
@@ -272,15 +353,7 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
       {d.highlightVideos && <HighlightVideos videos={d.highlightVideos} />}
       <div ref={tabsRef} className="scroll-mt-bar-4" />
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList>
-          <TabsTrigger value="matches"><MatchesTabIcon />Matches</TabsTrigger>
-          <TabsTrigger value="rankings"><RankingsTabIcon />Rankings</TabsTrigger>
-          <TabsTrigger value="insights"><InsightsTabIcon />Insights</TabsTrigger>
-          <TabsTrigger value="teams"><TeamsTabIcon />Teams <span className="rounded-md bg-current/15 px-1.5 text-[11px] tabular-nums">{eventRoster(d.field).length || registeredCount}</span></TabsTrigger>
-          <TabsTrigger value="playoffs"><PlayoffsTabIcon />Playoffs</TabsTrigger>
-          <TabsTrigger value="awards"><AwardsTabIcon />Awards</TabsTrigger>
-          {predictable && <TabsTrigger value="odds"><OddsTabIcon />Odds</TabsTrigger>}
-        </TabsList>
+        <TabsList>{tabOrder.map((t) => triggers[t])}</TabsList>
         <TabsContent value="matches" className="mt-5 max-sm:mt-4">
           <Matches d={d} team={teamParam} live={liveMode ? nextMatch(d.matches, null)?.key ?? null : null} />
           {/* Official results first posted, corrected or rescheduled (self-contained: its own route). */}
@@ -341,7 +414,10 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
           ) : (
             <>
             {/* The stored Monte Carlo projection of the rest of the event (server/projections), live as results land. */}
-            <div className="mb-10 max-sm:mb-6"><Projections d={d} team={teamParam} /></div>
+            {v8
+              // v8: the full Monte Carlo table is for the curious, behind a disclosure; advancement odds lead.
+              ? <Disclosure title="Projections" hint="Simulated final ranks and playoff odds" className="mb-6 max-sm:mb-4" id="projections-disclosure"><Projections d={d} team={teamParam} /></Disclosure>
+              : <div className="mb-10 max-sm:mb-6"><Projections d={d} team={teamParam} /></div>}
             <section aria-label="Advancement odds" className="mb-10 max-sm:mb-6">
               <h2 className="mb-3 font-display text-lg font-semibold text-foreground v8:font-sans v8:text-base">Advancement odds</h2>
               <AdvancementView season={e.season} code={e.code} team={teamParam} nameOf={nameOf} onPickTeam={setTeam} />
@@ -677,6 +753,7 @@ function TeamsGrid({ field: all, season, team, predictable, registered, syncedAt
   const field = eventRoster(all).map((t) => ({ ...t, ...eventStanding(t) }));
   // v8: no hover lift on the team cards (brief §4.2); a fill on hover instead.
   const v8 = isV8();
+  const anyRank = field.some((t) => t.rank != null);
   const [q, setQ] = useState("");
   const f = q.trim().toLowerCase();
   const list = [...field]
@@ -702,7 +779,8 @@ function TeamsGrid({ field: all, season, team, predictable, registered, syncedAt
             <li key={t.team}>
               <TeamPageLink team={t.team} name={t.name} season={season} className={cn("flex h-full items-center gap-3 rounded-xl border border-border bg-card p-3 v8:border-line v8:transition-colors v8:duration-150 v8:still-hover:bg-white/[0.03]", hasTeamPage(t.team, t.name) && !v8 && "lift", t.team === team && "border-accent/60 bg-accent/[0.06] v8:bg-card")}>
                 {/* Registrations have no rank yet: no empty rank box. */}
-                {!registered && (
+                {/* v8: no column of empty rank boxes before anyone is ranked. */}
+                {!registered && (!v8 || anyRank) && (
                   <span className="flex size-12 shrink-0 flex-col items-center justify-center rounded-lg bg-muted text-center v8:bg-white/[0.04]">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground v8:text-[0.6875rem] v8:font-medium v8:normal-case v8:tracking-normal v8:text-text-faint">Rank</span>
                     {/* v8: mint for the #1 rank only (brief principle 3). */}
@@ -856,10 +934,12 @@ function Awards({ d, nameOf }: { d: EventDetail; nameOf: (t: number) => string }
 
 /** A New Jersey conference tournament's link to its conference's league-standing table, for visitors the gate lets see
  *  it; nothing when the stored data names no conference for this (season, code). */
-function ConferenceLink({ season, region, league, code, team }: { season: number; region: string; league: string; code: string; team: number | null }) {
+/** `menu`: drawn as an item of v8's More menu. */
+function ConferenceLink({ season, region, league, code, team, menu }: { season: number; region: string; league: string; code: string; team: number | null; menu?: boolean }) {
   const shown = useConferenceGate(region, season);
   const r = useApi<LeagueConferences>(shown ? `/api/leagues/${season}/${encodeURIComponent(region)}/${encodeURIComponent(league)}/conferences` : null);
   const c = r.data?.conferences.find((x) => x.code.toUpperCase() === code.toUpperCase());
   if (!c) return null;
+  if (menu) return <DropdownMenuItem asChild><Link to={conferenceHref(season, region, league, { slug: c.slug, team })} data-conference-link><ListOrdered /> {c.name} rankings</Link></DropdownMenuItem>;
   return <Button variant="outline" size="sm" asChild><Link to={conferenceHref(season, region, league, { slug: c.slug, team })} data-conference-link><ListOrdered /> {c.name} rankings</Link></Button>;
 }

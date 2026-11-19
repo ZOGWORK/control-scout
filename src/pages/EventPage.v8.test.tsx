@@ -53,36 +53,86 @@ beforeEach(() => {
   vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ user: null }), { headers: { "Content-Type": "application/json" } })));
   v8(true);
 });
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); current = detail(); v8(false); });
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); current = detail(); v8(false); localStorage.clear(); });
 
 describe("event page in v8", () => {
-  it("draws the header as the page's top, not a card, with the name as the page title and no glow", () => {
+  const selected = () => screen.getAllByRole("tab").filter((t) => t.getAttribute("aria-selected") === "true").map((t) => t.textContent);
+  const tabNames = () => screen.getAllByRole("tab").map((t) => t.textContent?.replace(/\d+$/, "").trim());
+
+  it("draws a compact header (one status badge, name, date and place, Track and More) and no glance card", () => {
     mount("/events/2025/AUBRQ2");
-    const header = document.querySelector<HTMLElement>("[data-event-header=full]")!;
-    expect(header.className).toMatch(/v8:border-0/);
-    expect(header.className).toMatch(/v8:bg-transparent/);
-    expect(header.querySelector(".blur-3xl")!.className).toMatch(/v8:hidden/);
-    expect(screen.getByRole("heading", { level: 1 }).className).toMatch(/v8:text-\[1\.375rem\]/);
+    expect(document.querySelector("[data-event-header=v8]")).not.toBeNull();
+    expect(document.querySelectorAll("[data-event-chip]")).toHaveLength(1);
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Brisbane Qualifier 2");
+    expect(screen.getByRole("button", { name: /more/i }).hasAttribute("data-more-actions")).toBe(true);
+    expect(screen.getByRole("button", { name: /track event/i })).toBeTruthy();
+    expect(screen.queryByText(/at a glance/i)).toBeNull();
+    expect((document.getElementById("event-details") as HTMLDetailsElement).open).toBe(false);
   });
 
-  it("makes the stream link a plain button (the page's one primary is elsewhere); v8 off keeps it filled", () => {
+  it("opens a finished event on Rankings with its tabs in the finished order, and leads with winners, awards and standings", () => {
+    current = { ...detail(), awards: [
+      { type: 1, placement: 1, team: 2222, name: "Connect Award" },
+      { type: 2, placement: 1, team: 1111, name: "Winning Alliance - Captain" },
+      { type: 3, placement: 1, team: 2222, name: "Inspire Award" },
+    ] } as unknown as EventDetail;
     mount("/events/2025/AUBRQ2");
-    const link = document.querySelector<HTMLElement>("[data-livestream]")!;
-    expect(link.className).not.toMatch(/(^| )bg-accent( |$)/);
-    expect(link.className).toMatch(/hover:bg-text-base\/\[0\.06\]/); // the ghost variant
-    cleanup(); v8(false);
-    mount("/events/2025/AUBRQ2");
-    expect(document.querySelector<HTMLElement>("[data-livestream]")!.className).toMatch(/(^| )bg-accent( |$)/);
+    expect(selected()).toEqual([expect.stringContaining("Rankings")]);
+    expect(tabNames().slice(0, 3)).toEqual(["Rankings", "Playoffs", "Awards"]);
+    expect(document.querySelector("[data-event-focus=finished]")).not.toBeNull();
+    const awards = [...document.querySelectorAll("[data-focus-awards] li")].map((li) => li.textContent);
+    expect(awards[0]).toMatch(/^Inspire Award/); // Inspire first
+    expect(awards.some((a) => /alliance/i.test(a ?? ""))).toBe(false); // the Winners card has those
+    const top = [...document.querySelectorAll("[data-top-standings] li")];
+    expect(top.map((li) => li.getAttribute("data-team"))).toEqual(["1111", "2222"]);
+    expect(top[0].querySelector(".text-accent")?.textContent).toBe("1"); // mint on #1 only
   });
 
-  it("gives the glance card's odds button the outline look in v8 and the filled one with v8 off", () => {
+  it("marks your team in mint wherever the first screen lists it", () => {
+    localStorage.setItem("cs-personal:myTeam", JSON.stringify({ value: 2222, updatedAt: 1 }));
+    mount("/events/2025/AUBRQ2");
+    const row = document.querySelector('[data-top-standings] li[data-team="2222"]')!;
+    expect(row.querySelector("[data-yours]")).not.toBeNull();
+    expect(row.className).toMatch(/inset_2px_0_0_var\(--color-accent\)/);
+    expect(document.querySelector('[data-top-standings] li[data-team="1111"] [data-yours]')).toBeNull();
+    localStorage.clear();
+  });
+
+  it("opens an upcoming event on Teams with who's coming first", () => {
     current = detail({ status: "upcoming", start: "2099-11-01", end: "2099-11-01" });
     mount("/events/2025/AUBRQ2");
-    const odds = () => screen.getByRole("button", { name: /who advances/i });
-    expect(odds().className).toMatch(/border-text-base\/25/);
-    cleanup(); v8(false);
+    expect(selected()).toEqual([expect.stringContaining("Teams")]);
+    expect(tabNames().slice(0, 2)).toEqual(["Teams", "Odds"]);
+    expect(document.querySelector("[data-event-focus=upcoming]")).not.toBeNull();
+    expect(screen.getByRole("heading", { name: /who's coming/i })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: /your teams here/i })).toBeTruthy();
+  });
+
+  it("opens a live event on Matches, with the stream as the one primary; a finished event's stream is outlined", () => {
+    current = detail({ status: "live" });
     mount("/events/2025/AUBRQ2");
-    expect(odds().className).toMatch(/(^| )bg-accent( |$)/);
+    expect(selected()).toEqual([expect.stringContaining("Matches")]);
+    expect(document.querySelector("[data-event-focus=live]")).not.toBeNull();
+    expect(document.querySelector<HTMLElement>("[data-livestream]")!.className).toMatch(/v8:bg-white\/10/); // the primary
+    cleanup(); current = detail();
+    mount("/events/2025/AUBRQ2");
+    expect(document.querySelector<HTMLElement>("[data-livestream]")!.className).toMatch(/border-text-base\/25/); // outline
+  });
+
+  it("keeps a ?tab= link's tab", () => {
+    mount("/events/2025/AUBRQ2?tab=awards");
+    expect(selected()).toEqual([expect.stringContaining("Awards")]);
+  });
+
+  it("leaves the page as it was with v8 off: the full header, the glance card, the old tab order and default", () => {
+    v8(false);
+    mount("/events/2025/AUBRQ2");
+    expect(document.querySelector("[data-event-header=full]")).not.toBeNull();
+    expect(screen.queryByText(/at a glance/i)).not.toBeNull();
+    expect(document.querySelector("[data-event-focus]")).toBeNull();
+    expect(tabNames()[0]).toBe("Matches");
+    expect(selected()).toEqual([expect.stringContaining("Matches")]);
+    expect(document.querySelector<HTMLElement>("[data-livestream]")!.className).toMatch(/(^| )bg-accent( |$)/);
   });
 
   it("drops the hover lift on the team cards, marks only the #1 rank in mint, and keeps the lift with v8 off", () => {

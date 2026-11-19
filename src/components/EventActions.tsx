@@ -22,10 +22,12 @@ export interface WatchTarget { url: string | null | undefined; stream: boolean; 
  * "Watch livestream" while the event runs, "Watch the stream" once it's over. Without one (a Twitch link, a
  * channel page) it opens the link in a new tab. Renders nothing with neither.
  */
-export function LivestreamButton({ watch, className, offline }: { watch: WatchTarget; className?: string; offline?: boolean }) {
+/** `variant`: v8's header picks it by state (the primary while live); otherwise plain in v8 and filled as before. */
+export function LivestreamButton({ watch, className, offline, variant: asked }: { watch: WatchTarget; className?: string; offline?: boolean; variant?: "default" | "outline" | "ghost" }) {
   const noSignal = useNoVideoSignal(offline);
   // v8 (brief §7 Event header): the stream link is a plain button, so the page keeps at most one primary.
-  const variant = useIsV8() ? "ghost" : "default";
+  const v8 = useIsV8();
+  const variant = asked ?? (v8 ? "ghost" : "default");
   // No connection: the stream plays from the internet, so instead of a player that can't load or a tab that opens
   // on an error, the button says so.
   if (noSignal && (watch.stream || watch.url)) {
