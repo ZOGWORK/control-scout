@@ -569,9 +569,9 @@ function SyncChip({ status, pending, onSync, signedIn, live }: { status: string;
   );
   return (
     <button onClick={onSync} data-sync-state={status} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground max-sm:min-h-11">
-      {status === "syncing" ? <Loader2 className="size-3.5 animate-spin" /> : offline ? <HardDriveDownload className="size-3.5" /> : status === "error" ? <CloudOff className="size-3.5 text-warning" /> : <Cloud className="size-3.5 text-success" />}
+      {status === "syncing" ? <Loader2 className="size-3.5 animate-spin" /> : offline ? <HardDriveDownload className="size-3.5" /> : status === "error" ? <CloudOff className="size-3.5 text-warning" /> : <Cloud className="size-3.5 text-success v8:text-emerald-400" />}
       {status === "syncing" ? "Syncing…" : offline ? (pending ? `Saved on this device · ${pending} will sync` : "Saved on this device") : status === "error" ? `Sync failed — ${pending} pending · retry` : pending ? `${pending} pending` : "Synced"}
-      {synced && live === "live" && <span className="inline-flex items-center gap-1 text-success"><span aria-hidden className="size-1.5 rounded-full bg-success" />Live</span>}
+      {synced && live === "live" && <span className="inline-flex items-center gap-1 text-success v8:text-emerald-400"><span aria-hidden className="size-1.5 rounded-full bg-success v8:bg-emerald-400" />Live</span>}
       {synced && live === "polling" && <span>· checks every 15 s</span>}
     </button>
   );

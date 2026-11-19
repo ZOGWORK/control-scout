@@ -105,7 +105,7 @@ export function ListRow(p: RowProps) {
           <div className="-ml-1.5 mt-0.5 max-w-md">{p.note}</div>
         </div>
         <OprSpark events={t.events} className="max-md:hidden" />
-        <span className="text-right font-display text-base font-semibold tabular-nums text-accent-text v8:text-text-base">{num(t.opr)}</span>
+        <span className="text-right font-display text-base font-semibold tabular-nums text-accent-text v8:text-violet-400">{num(t.opr)}</span>
         <span className="text-right text-sm tabular-nums text-info max-sm:hidden v8:text-text-muted">{t.oprRank ? `#${t.oprRank.toLocaleString()}` : "—"}</span>
         <span className="text-right text-sm tabular-nums max-lg:hidden">{t.rating ? <>{num(t.rating)}<span className="text-[11px] text-text-muted"> ±{num(t.ratingSd, 0)}</span></> : "—"}</span>
         <span className="text-right text-sm tabular-nums text-success max-sm:hidden v8:text-text-muted">{t.record ?? "—"}</span>
@@ -148,7 +148,7 @@ export function GridCard(p: RowProps) {
           {t.place && <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-text-muted"><MapPin className="size-3 shrink-0" />{t.place}</p>}
         </div>
         <dl className="mt-3 grid grid-cols-2 gap-2 min-[380px]:grid-cols-4">
-          <div className="rounded-lg bg-accent/10 px-2.5 py-1.5 v8:bg-white/[0.03]"><dt className="text-[10px] font-semibold uppercase tracking-wider text-text-muted v8:text-xs v8:font-normal v8:normal-case v8:tracking-normal v8:text-text-faint">OPR</dt><dd className="whitespace-nowrap font-display text-base font-semibold tabular-nums text-accent-text sm:text-lg v8:text-text-base">{num(t.opr)}</dd></div>
+          <div className="rounded-lg bg-accent/10 px-2.5 py-1.5 v8:bg-white/[0.03]"><dt className="text-[10px] font-semibold uppercase tracking-wider text-text-muted v8:text-xs v8:font-normal v8:normal-case v8:tracking-normal v8:text-text-faint">OPR</dt><dd className="whitespace-nowrap font-display text-base font-semibold tabular-nums text-accent-text sm:text-lg v8:text-violet-400">{num(t.opr)}</dd></div>
           <div className="rounded-lg bg-success/10 px-2.5 py-1.5 v8:bg-white/[0.03]" title="Reliability: an estimate from match results, 0–100"><dt className="text-[10px] font-semibold uppercase tracking-wider text-text-muted v8:text-xs v8:font-normal v8:normal-case v8:tracking-normal v8:text-text-faint">Reliab.</dt><dd className="whitespace-nowrap font-display text-base font-semibold tabular-nums sm:text-lg"><ReliabilityCell index={t.reliability} matches={t.reliabilityMatches} /></dd></div>
           <div className="rounded-lg bg-info/10 px-2.5 py-1.5 v8:bg-white/[0.03]"><dt className="text-[10px] font-semibold uppercase tracking-wider text-text-muted v8:text-xs v8:font-normal v8:normal-case v8:tracking-normal v8:text-text-faint">World</dt><dd className="whitespace-nowrap font-display text-base font-semibold tabular-nums text-info sm:text-lg v8:text-text-base">{t.oprRank ? `#${t.oprRank.toLocaleString()}` : "—"}</dd></div>
           <div className="rounded-lg bg-success/10 px-2.5 py-1.5 v8:bg-white/[0.03]"><dt className="text-[10px] font-semibold uppercase tracking-wider text-text-muted v8:text-xs v8:font-normal v8:normal-case v8:tracking-normal v8:text-text-faint">W-L-T</dt><dd className="whitespace-nowrap font-display text-base font-semibold tabular-nums text-success sm:text-lg v8:text-text-base">{t.record ?? "—"}</dd></div>

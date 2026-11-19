@@ -82,11 +82,11 @@ export function BigFieldInput({ f, value, onChange, tone = "default", disabled, 
   if (f.type === "toggleDetail") {
     const on = value === true;
     return (
-      <div className={cn(card, "overflow-hidden", on ? "border-success/50" : "border-input")}>
+      <div className={cn(card, "overflow-hidden", on ? "border-success/50 v8:border-emerald-400/50" : "border-input")}>
         <button type="button" aria-pressed={on} disabled={disabled} onClick={() => onChange(!on)}
-          className={cn(tap, "flex min-h-[56px] w-full items-center justify-between gap-3 px-4 text-left font-semibold", on ? "bg-success/10" : "hover:bg-text-base/[0.04]")}>
+          className={cn(tap, "flex min-h-[56px] w-full items-center justify-between gap-3 px-4 text-left font-semibold", on ? "bg-success/10 v8:bg-emerald-400/10" : "hover:bg-text-base/[0.04]")}>
           <span className="min-w-0 leading-snug">{f.label}</span>
-          <span className={cn("shrink-0 rounded-lg px-2.5 py-1 text-xs font-bold", on ? "bg-success/15 text-success-text" : "bg-muted text-muted-foreground")} aria-hidden>{on ? "Yes" : "No"}</span>
+          <span className={cn("shrink-0 rounded-lg px-2.5 py-1 text-xs font-bold", on ? "bg-success/15 v8:bg-emerald-400/15 text-success-text v8:text-emerald-400" : "bg-muted text-muted-foreground")} aria-hidden>{on ? "Yes" : "No"}</span>
         </button>
         {on && (
           <div className="border-t border-border px-4 py-3">
@@ -124,10 +124,10 @@ export function BigFieldInput({ f, value, onChange, tone = "default", disabled, 
     return (
       <button type="button" aria-pressed={on} disabled={disabled} onClick={() => onChange(!on)}
         className={cn(card, tap, "flex min-h-[56px] w-full items-center justify-between gap-3 px-4 text-left font-semibold v8:active:scale-[0.97] motion-reduce:v8:active:scale-100 v8:transition-[color,background-color,border-color,scale]",
-          !on ? "border-input hover:bg-text-base/[0.04]" : bad ? "border-danger/50 bg-danger/10" : "border-success/50 bg-success/10")}>
+          !on ? "border-input hover:bg-text-base/[0.04]" : bad ? "border-danger/50 bg-danger/10" : "border-success/50 v8:border-emerald-400/50 bg-success/10 v8:bg-emerald-400/10")}>
         <span className="min-w-0 leading-snug">{f.label}</span>
         <span className={cn("shrink-0 rounded-lg px-2.5 py-1 text-xs font-bold",
-          !on ? "bg-muted text-muted-foreground" : bad ? "bg-danger/15 text-danger-text" : "bg-success/15 text-success-text")} aria-hidden>{on ? "Yes" : "No"}</span>
+          !on ? "bg-muted text-muted-foreground" : bad ? "bg-danger/15 text-danger-text" : "bg-success/15 v8:bg-emerald-400/15 text-success-text v8:text-emerald-400")} aria-hidden>{on ? "Yes" : "No"}</span>
       </button>
     );
   }

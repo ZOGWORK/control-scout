@@ -7,9 +7,11 @@ import type { ShortlistEventPoint } from "../../shared/api";
 
 /** The three parts of a score, in the app's chart colours: auto blue, driver-controlled gold, endgame green. */
 export const PARTS = [
-  { k: "auto", label: "Auto", short: "Auto", fill: "var(--color-chart-2)", text: "text-info" },
-  { k: "teleop", label: "Driver-controlled", short: "DC", fill: "var(--color-accent)", text: "text-accent-text" },
-  { k: "endgame", label: "Endgame", short: "End", fill: "var(--color-chart-3)", text: "text-success" },
+  // `v8`: the category colours every v8 page shares (V8_PHASE in src/lib/records/describe.ts: Auto blue, DC orange, Endgame green), over
+  // the inline `fill` (hence important) and the text.
+  { k: "auto", label: "Auto", short: "Auto", fill: "var(--color-chart-2)", text: "text-info v8:text-sky-400", v8: "v8:!bg-sky-400" },
+  { k: "teleop", label: "Driver-controlled", short: "DC", fill: "var(--color-accent)", text: "text-accent-text v8:text-orange-400", v8: "v8:!bg-orange-400" },
+  { k: "endgame", label: "Endgame", short: "End", fill: "var(--color-chart-3)", text: "text-success v8:text-emerald-400", v8: "v8:!bg-emerald-400" },
 ] as const;
 
 /** OPR across this season's events. Rising = green, falling = red, flat = gold. Null when under two events. */
@@ -42,13 +44,13 @@ export function BreakdownBar({ auto, teleop, endgame, className }: { auto: numbe
     <div className={className}>
       <div className="flex h-3 overflow-hidden rounded-full bg-muted" role="img" aria-label={PARTS.map((p) => `${p.label} ${num(raw[p.k])}`).join(", ")}>
         {PARTS.map((p) => sum > 0 && v[p.k] > 0 && (
-          <div key={p.k} className="h-full first:rounded-l-full last:rounded-r-full" style={{ width: `${(v[p.k] / sum) * 100}%`, background: p.fill }} />
+          <div key={p.k} className={cn("h-full first:rounded-l-full last:rounded-r-full", p.v8)} style={{ width: `${(v[p.k] / sum) * 100}%`, background: p.fill }} />
         ))}
       </div>
       <dl className="mt-2.5 grid grid-cols-3 gap-2">
         {PARTS.map((p) => (
           <div key={p.k} className="min-w-0">
-            <dt className="flex items-center gap-1.5 text-[11px] text-text-muted"><span className="size-2 shrink-0 rounded-full" style={{ background: p.fill }} />{p.label}</dt>
+            <dt className="flex items-center gap-1.5 text-[11px] text-text-muted"><span className={cn("size-2 shrink-0 rounded-full", p.v8)} style={{ background: p.fill }} />{p.label}</dt>
             <dd className={cn("font-display text-lg font-semibold tabular-nums", p.text)}>{num(raw[p.k])}<span className="ml-1 text-[11px] font-normal text-text-muted">{sum > 0 && v[p.k] > 0 ? `${Math.round((v[p.k] / sum) * 100)}%` : ""}</span></dd>
           </div>
         ))}
@@ -74,7 +76,7 @@ export function EventPointsChart({ events, className }: { events: ShortlistEvent
             title={`${e.name}: OPR ${num(e.opr)} (auto ${num(e.auto)}, DC ${num(e.teleop)}, endgame ${num(e.endgame)})${e.rank ? `, ranked #${e.rank}` : ""}`}>
             <span className="text-[11px] font-semibold tabular-nums text-text-base">{num(e.opr, 0)}</span>
             <div className="flex w-full max-w-10 flex-col-reverse overflow-hidden rounded-md bg-muted" style={{ height: `${Math.max(4, (height(e) / max) * 100)}px` }}>
-              {PARTS.map((p, i) => ps[i] > 0 && <div key={p.k} style={{ height: `${(ps[i] / sum) * 100}%`, background: p.fill }} />)}
+              {PARTS.map((p, i) => ps[i] > 0 && <div key={p.k} className={p.v8} style={{ height: `${(ps[i] / sum) * 100}%`, background: p.fill }} />)}
             </div>
             <span className="w-full truncate text-center text-[10px] text-text-muted">{e.code}</span>
           </div>

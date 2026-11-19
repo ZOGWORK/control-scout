@@ -12,8 +12,8 @@ const STATUS_TEXT: Record<TeamStatus, string> = { empty: "nothing yet", started:
 export function StatusDot({ status, className }: { status: TeamStatus; className?: string }) {
   return (
     <span aria-hidden data-status={status} className={cn("inline-block size-2.5 shrink-0 rounded-full border-2",
-      // v8: saved is a white dot, started a white ring with a faint fill, nothing yet a grey ring (no orange).
-      status === "done" ? "border-success bg-success" : status === "started" ? "border-warning bg-warning v8:border-text-base v8:bg-white/25" : "border-muted-foreground/60 bg-transparent", className)} />
+      // v8: saved is a green dot, started a white ring with a faint fill, nothing yet a grey ring (no orange).
+      status === "done" ? "border-success bg-success v8:border-emerald-400 v8:bg-emerald-400" : status === "started" ? "border-warning bg-warning v8:border-text-base v8:bg-white/25" : "border-muted-foreground/60 bg-transparent", className)} />
   );
 }
 

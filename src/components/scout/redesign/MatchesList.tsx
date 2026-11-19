@@ -102,7 +102,7 @@ function rowName(r: MatchRowInfo, others: OtherScout[] | undefined, nowLabel: st
 // The same chip the event page's match rows use for a team's result.
 // v8: no coloured fills behind the words; the open match keeps the slate-blue line (picked).
 const PILL: Record<MatchStatus, string> = {
-  done: "bg-success/15 text-success v8:bg-white/[0.08] v8:text-text-base",
+  done: "bg-success/15 text-success v8:bg-white/[0.08] v8:text-emerald-400",
   partial: "bg-accent/15 text-accent-text v8:bg-transparent v8:text-text-muted v8:ring-1 v8:ring-inset v8:ring-white/20",
   skipped: "bg-warning/15 text-warning v8:bg-transparent v8:text-text-muted v8:ring-1 v8:ring-inset v8:ring-white/20",
   now: "bg-accent text-accent-ink v8:bg-transparent v8:text-text-base v8:ring-1 v8:ring-inset v8:ring-accent/70",
