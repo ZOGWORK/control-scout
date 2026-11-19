@@ -213,7 +213,8 @@ function HeroV8({ m, byTeam }: { m: MatchView; byTeam: ReadonlyMap<number, Repor
   const win: Side | null = scored && scored.red !== scored.blue ? (scored.red > scored.blue ? "red" : "blue") : null;
   const flash = useChangeCount(scored ? `${scored.red}:${scored.blue}` : null);
   const fav: Side | null = p ? (p.pRed >= 0.5 ? "red" : "blue") : null;
-  const called = p && scored && win ? (p.pRed > 0.5) === (win === "red") : null;
+  // An exact 50% call favoured no one: no "Called it" or "Upset" verdict for it.
+  const called = p && scored && win && p.pRed !== 0.5 ? (p.pRed > 0.5) === (win === "red") : null;
   const tone = (s: Side) => cn(SIDE[s].text, win === s || !win ? "font-bold" : cn("font-medium", FADED_REPORT[s]));
   return (
     <section className="min-w-0" aria-label={scored ? "Result" : "Prediction"} data-testid="report-hero">

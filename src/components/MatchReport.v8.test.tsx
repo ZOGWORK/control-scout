@@ -66,6 +66,12 @@ describe("match report in v8, played", () => {
     expect(screen.getByTestId("report-call-line").textContent).toMatch(/Called before the match: Red 64%/);
   });
 
+  it("an exact 50% call gets no verdict (it favoured no one)", () => {
+    const m = played();
+    show(report({ ...m, prediction: { ...m.prediction!, pRed: 0.5 } }));
+    expect(screen.queryByTestId("report-called")).toBeNull();
+  });
+
   it("first screen in order: hero, the top three reasons, then the breakdown; lower: teams, then the full why", () => {
     show(report(played()));
     order("report-hero", "report-reasons", "report-breakdown", "report-team");
