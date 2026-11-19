@@ -504,7 +504,7 @@ function MatchLab() {
             <form onSubmit={(e) => { e.preventDefault(); run(); }} noValidate
               className="grid items-start gap-x-3 gap-y-2 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto] md:gap-x-4">
               <fieldset className="min-w-0">{legend("red")}<div className="grid grid-cols-2 gap-2">{[0, 1].map((i) => box("red", i))}</div></fieldset>
-              <div className="flex justify-center md:pt-6">
+              <div className="flex justify-center max-md:-my-1.5 md:pt-6">
                 <Button type="button" variant="ghost" size="icon" onClick={swap} aria-label="Swap alliances" className="text-text-muted max-md:size-9 max-md:rotate-90"><ArrowLeftRight className="size-4" /></Button>
               </div>
               <fieldset className="min-w-0">{legend("blue")}<div className="grid grid-cols-2 gap-2">{[0, 1].map((i) => box("blue", i))}</div></fieldset>
