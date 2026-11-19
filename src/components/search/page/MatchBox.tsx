@@ -8,7 +8,7 @@ import { Info } from "lucide-react";
 import { UNOFFICIAL_NOTE, type StatLink, type StatMatchRow } from "../../../shared/searchStat";
 import { PODIUM_CHIP } from "../../../lib/textTones";
 import { cn } from "../../cn";
-import { SEARCH_PALETTE } from "../../../lib/textTones";
+import { TONE } from "./v8tone";
 import { EventMarker, PODIUM } from "./answerCells";
 import { TAP } from "./TeamAnswer";
 import { RowPlay } from "./AnswerVideo";
@@ -60,10 +60,10 @@ export function MatchBox({ r, team, atEvent, noPlay }: { r: StatMatchRow; team?:
         {r.rank != null && <RankBadge rank={r.rank} />}
         {r.note && <span className="rounded-md border border-border bg-muted/50 px-1.5 py-0.5 text-[11px] font-semibold text-foreground" data-note>{r.note}</span>}
         {r.unofficial && <span className="rounded-md border border-border bg-muted/50 px-1.5 py-0.5 text-[11px] font-semibold text-foreground" title={r.unofficial} data-unofficial>{UNOFFICIAL_NOTE}</span>}
-        <Link to={r.href} className={cn("inline-flex items-center font-display text-base font-semibold text-foreground hover:text-accent-text hover:underline", TAP)}>{r.label}</Link>
+        <Link to={r.href} className={cn("inline-flex items-center font-display text-base font-semibold text-foreground hover:text-accent-text v8:hover:text-foreground hover:underline", TAP)}>{r.label}</Link>
         <span className="min-w-0 flex-1 basis-40 text-xs text-muted-foreground">
           {atEvent ? r.date : <>
-            <Link to={r.event.href} className={cn("inline-flex items-center break-words font-medium text-foreground/90 hover:text-accent-text hover:underline", TAP)}>{r.event.label}</Link>
+            <Link to={r.event.href} className={cn("inline-flex items-center break-words font-medium text-foreground/90 hover:text-accent-text v8:hover:text-foreground hover:underline", TAP)}>{r.event.label}</Link>
             {!!r.type && <EventMarker type={r.type} chip />}
             {` · ${r.season}`}{r.date ? ` · ${r.date}` : ""}
           </>}
@@ -99,10 +99,10 @@ export function MatchBox({ r, team, atEvent, noPlay }: { r: StatMatchRow; team?:
             {phases.map(([k, name]) => { const label = k === "teleop" && r.phases!.teleopWithEndgame ? "TeleOp + end" : name; return (
               // Each scoring phase filled in its colour, the penalties a neutral tile with its note icon; the period a
               // list ranks by gets a ring and a bold label.
-              <div key={k} className={cn("min-w-0 rounded-md px-1.5 py-1", k === "pen" ? "border border-border bg-card text-foreground" : SEARCH_PALETTE[k].fill, r.ranked === k && "ring-2 ring-foreground")} data-phase={k} data-ranked={r.ranked === k ? "" : undefined}>
+              <div key={k} className={cn("min-w-0 rounded-md px-1.5 py-1", k === "pen" ? "border border-border bg-card text-foreground" : TONE[k].fill, r.ranked === k && "ring-2 ring-foreground")} data-phase={k} data-ranked={r.ranked === k ? "" : undefined}>
                 {/* TeleOp as FIRST reports it: with the endgame where the season counts it so. */}
                 <dt className={cn("flex min-w-0 items-center gap-0.5 text-[10px] leading-tight", r.ranked === k ? "font-bold" : "font-medium")}>
-                  {k === "pen" && <Info className="size-3 shrink-0 text-info" aria-hidden data-note-icon />}
+                  {k === "pen" && <Info className="size-3 shrink-0 text-info v8:text-muted-foreground" aria-hidden data-note-icon />}
                   <span className="truncate" title={label}>{label}</span>
                 </dt>
                 <dd className="font-semibold tabular-nums">{r.phases![k]}</dd>
