@@ -289,7 +289,7 @@ export function RecordsTable(p: RecordsTableProps) {
             // v8: a hairline pill, no colour; the picked one is white text on white/10% (brief §5 Chips).
             className={cn("inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs font-semibold transition-colors max-sm:h-10", "v8:font-medium v8:transition-[color,background-color,border-color,scale] v8:duration-150 v8:active:scale-[0.97] v8:motion-reduce:active:scale-100",
               on ? cn(tone.chip, "ring-1 ring-current", "v8:border-white/[0.12] v8:bg-white/10 v8:text-text-base v8:ring-0") : "border-line text-text-muted hover:border-text-base/25 hover:text-text-base v8:border-white/[0.12] v8:hover:border-white/[0.12] v8:hover:bg-white/[0.06]")}>
-            {chipBusy === pr.id ? <Loader2 className="size-3 animate-spin" /> : <span className={cn("size-1.5 rounded-full", tone.bar, V8_CATEGORY[pr.tone]?.dot ?? "v8:hidden")} />}
+            {chipBusy === pr.id ? <Loader2 className="size-3 animate-spin" /> : <span className={cn("size-1.5 rounded-full", tone.bar, (pr.kind === "team" && V8_CATEGORY[pr.tone]?.dot) || "v8:hidden")} />}
             {pr.label}{on && <X className="size-3" />}
           </button>
         </TooltipTrigger>

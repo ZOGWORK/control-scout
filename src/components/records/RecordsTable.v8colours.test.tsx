@@ -10,7 +10,8 @@ const COLS = ["totalPointsNpOpr", "autoPointsOpr", "dcPointsOpr", "endgamePoints
 vi.mock("../../lib/api", async (orig) => ({
   ...(await orig<typeof import("../../lib/api")>()),
   useApi: (path: string | null) => ({
-    data: path && /^\/api\/records\/\d+\/teams\?/.test(path)
+    data: path && /^\/api\/records\/\d+\/matches\?/.test(path) ? { rows: [], total: 0, page: 1, pageSize: 50 }
+      : path && /^\/api\/records\/\d+\/teams\?/.test(path)
       ? { rows: [{ team: 1111, season: 2025, stats: { teamName: "One", totalPointsNpOpr: 120, autoPointsOpr: 30, dcPointsOpr: 80, endgamePointsOpr: 10, penaltyPointsCommittedOpr: 2 } }], total: 1, page: 1, pageSize: 50 }
       : undefined,
     error: undefined, loading: false, reload: () => {},
@@ -57,6 +58,16 @@ describe("records table, v8 category colours", () => {
     expect(dot("Auto specialists")).toContain("v8:bg-blue-300");
     expect(dot("Strong endgame")).toContain("v8:bg-emerald-300");
     expect(dot("Clean drivers")).toContain("v8:bg-red-300");
+  });
+  it("keeps the match presets' dots hidden in v8 (they aren't scoring categories)", () => {
+    render(
+      <MemoryRouter initialEntries={["/matches?season=2025"]}><TooltipProvider>
+        <RecordsTable scope="match" season={2025} predictable defaultCols={["highScore"]} defaultSort="highScore" storageKey="v8m" noun="matches" controls={{ onSeason: () => {} }} />
+      </TooltipProvider></MemoryRouter>,
+    );
+    const chips = [...document.querySelectorAll("button")].filter((b) => /Nail-biters|High scores|Blowouts/.test(b.textContent ?? ""));
+    expect(chips.length).toBeGreaterThan(0);
+    for (const c of chips) expect(c.querySelector("span.rounded-full")!.className).toContain("v8:hidden");
   });
 });
 
