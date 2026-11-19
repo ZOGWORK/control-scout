@@ -20,6 +20,9 @@ import { dateRange } from "../shared/format";
 import { leagueHref, leagueTitle, type LeagueStandings } from "../shared/leagues";
 import { regionHref, regionName } from "../shared/regionRankings";
 import { SeasonPick, weekLabel } from "./RankingsPage";
+import { cn } from "../components/cn";
+import { useIsV8 } from "../lib/v8";
+import { Disclosure, RankingsTabs, V8_CAPTION, V8_EYEBROW, V8_HEAD, V8_ICON, V8_LINK, V8_NOTE } from "../components/rankings/v8";
 
 export default function ConferencePage() {
   const { season: seasonRaw = "", region = "", code = "" } = useParams();
@@ -55,13 +58,14 @@ export default function ConferencePage() {
   };
   const placeKey = league.data?.placeKey ?? null;
   return (
-    <div className="space-y-6">
+    <div className={cn("space-y-6", V8_HEAD)}>
       <PageHeader
-        eyebrow={<span className="text-accent-text"><Link to={back} className="hover:underline">{name}</Link> · Conference rankings · {seasonLabel(season)}</span>}
+        eyebrow={<span className={cn("text-accent-text", V8_EYEBROW)}><Link to={back} className="hover:underline">{name}</Link> · Conference rankings · {seasonLabel(season)}</span>}
         title={picked ? `Rankings: ${picked.name}` : "Conference rankings"}
         description={`Each conference tournament's teams in ${name}, ranked by FIRST's league standing over the league meets only, with Scout's rating, OPR and this week's moves beside it.`}
         phoneDescription="Each conference's teams, by league RS, league meets only."
       >
+        <RankingsTabs at="leagues" season={season} />
         <div className="flex flex-wrap items-center gap-2"><SeasonPick value={season} onChange={toSeason} /></div>
       </PageHeader>
 
@@ -73,12 +77,12 @@ export default function ConferencePage() {
           {unknown && <p className="text-sm text-text-muted" data-conference-unknown>This league has no one conference by that name this season, so no table is shown: pick a conference above.</p>}
           {picked && <ConferenceView c={picked} team={team} />}
           <nav className="flex flex-wrap gap-x-4 gap-y-2 text-sm" aria-label="More rankings" data-conference-links>
-            <Link to={`/rankings${qs({ season })}`} className="text-accent-text hover:underline">World rankings</Link>
-            {placeKey && <Link to={regionHref(placeKey, { season })} className="text-accent-text hover:underline">{regionName(placeKey)} rankings</Link>}
-            <Link to={`/rankings/regions${qs({ season })}`} className="text-accent-text hover:underline">All regions</Link>
-            <Link to={`/leagues${qs({ season })}`} className="text-accent-text hover:underline">All leagues</Link>
-            <Link to={back} className="text-accent-text hover:underline">{name} standings</Link>
-            {picked && <Link to={`/events/${picked.season}/${encodeURIComponent(picked.code)}`} className="text-accent-text hover:underline">{picked.event}</Link>}
+            <Link to={`/rankings${qs({ season })}`} className={cn("text-accent-text hover:underline", V8_LINK)}>World rankings</Link>
+            {placeKey && <Link to={regionHref(placeKey, { season })} className={cn("text-accent-text hover:underline", V8_LINK)}>{regionName(placeKey)} rankings</Link>}
+            <Link to={`/rankings/regions${qs({ season })}`} className={cn("text-accent-text hover:underline", V8_LINK)}>All regions</Link>
+            <Link to={`/leagues${qs({ season })}`} className={cn("text-accent-text hover:underline", V8_LINK)}>All leagues</Link>
+            <Link to={back} className={cn("text-accent-text hover:underline", V8_LINK)}>{name} standings</Link>
+            {picked && <Link to={`/events/${picked.season}/${encodeURIComponent(picked.code)}`} className={cn("text-accent-text hover:underline", V8_LINK)}>{picked.event}</Link>}
           </nav>
         </div>
       )}
@@ -98,29 +102,35 @@ function ConferenceView({ c, team }: { c: Conference; team: number | null }) {
   const movers = conferenceMovers(c);
   const next = c.seasons.filter((o) => o.season > c.season).sort((a, b) => a.season - b.season)[0];
   const prev = c.seasons.filter((o) => o.season < c.season).sort((a, b) => b.season - a.season)[0];
+  const v8 = useIsV8();
+  // The season note: a card above everything in the classic look; v8 has it behind the disclosure under the table.
+  const note = (
+    <p className={cn("rounded-lg border border-line bg-card px-3 py-2 text-sm text-text-muted", "v8:rounded-none v8:border-0 v8:bg-transparent v8:p-0")} data-season-note>
+      <span className="font-semibold text-text-base" data-conference-label>{CONFERENCE_LABEL}</span>{" "}<span data-rs-source>{sourceText(c)}</span>
+      {c.rs.kind === "gone" && <> <Link to={`/events/${c.season}/${encodeURIComponent(c.code)}`} className="text-accent-text hover:underline v8:underline v8:underline-offset-2">The tournament's own ranking</Link>.</>}
+      {" "}Tournament rank and league rank are two different rankings; the tournament's is on <Link to={`/events/${c.season}/${encodeURIComponent(c.code)}`} className="text-accent-text hover:underline v8:underline v8:underline-offset-2">its event page</Link>.
+    </p>
+  );
   return (
-    <div className="space-y-6" data-conference={c.slug}>
+    // v8: the table comes right after the event line and the winner; movers and the unranked follow it.
+    <div className="space-y-6 v8:flex v8:flex-col v8:gap-6 v8:space-y-0" data-conference={c.slug}>
       <div className="space-y-2">
-        <p className="rounded-lg border border-line bg-card px-3 py-2 text-sm text-text-muted" data-season-note>
-          <span className="font-semibold text-text-base" data-conference-label>{CONFERENCE_LABEL}</span>{" "}<span data-rs-source>{sourceText(c)}</span>
-          {c.rs.kind === "gone" && <> <Link to={`/events/${c.season}/${encodeURIComponent(c.code)}`} className="text-accent-text hover:underline">The tournament's own ranking</Link>.</>}
-          {" "}Tournament rank and league rank are two different rankings; the tournament's is on <Link to={`/events/${c.season}/${encodeURIComponent(c.code)}`} className="text-accent-text hover:underline">its event page</Link>.
-        </p>
+        {!v8 && note}
         <p className="flex flex-wrap items-center gap-x-1.5 text-sm text-text-muted" data-conference-event>
-          <CalendarDays className="size-4 shrink-0" aria-hidden />
+          <CalendarDays className={cn("size-4 shrink-0", V8_ICON)} aria-hidden />
           <Link to={`/events/${c.season}/${encodeURIComponent(c.code)}`} className="text-accent-text hover:underline">{c.event}</Link>
           <span>· {dateRange(c.start) || "Date to be set"}{where ? ` · ${where}` : ""}</span>
         </p>
-        {c.firstName && <p className="text-xs text-text-muted">FIRST's event list calls it {c.firstName}; this is FTC New Jersey's name for it.</p>}
+        {c.firstName && <p className={cn("text-xs text-text-muted", V8_CAPTION)}>FIRST's event list calls it {c.firstName}; this is FTC New Jersey's name for it.</p>}
       </div>
 
       {c.winner ? (
-        <p className="flex items-start gap-2 rounded-xl border border-amber-500/40 bg-amber-500/[0.07] px-3 py-2.5 text-sm" data-conference-winner>
-          <Trophy className="mt-0.5 size-4 shrink-0 text-amber-500" aria-hidden />
+        <p className={cn("flex items-start gap-2 rounded-xl border border-amber-500/40 bg-amber-500/[0.07] px-3 py-2.5 text-sm", V8_NOTE, "v8:text-text-base")} data-conference-winner>
+          <Trophy className={cn("mt-0.5 size-4 shrink-0 text-amber-500", V8_ICON)} aria-hidden />
           <span>Won by <TeamLink season={c.season} t={c.winner.captain} /> (Winning Alliance Captain){c.winner.picks.length ? <> with {c.winner.picks.map((p, i) => <span key={p.team}>{i ? ", " : ""}<TeamLink season={c.season} t={p} /></span>)}</> : null}, from FIRST's awards.</span>
         </p>
       ) : going ? (
-        <p className="rounded-xl border border-accent/50 bg-accent/[0.07] px-3 py-2.5 text-sm" data-going-in>
+        <p className={cn("rounded-xl border border-accent/50 bg-accent/[0.07] px-3 py-2.5 text-sm", V8_NOTE, "v8:text-text-base")} data-going-in>
           {c.teamsFrom === "registered" && c.registered ? <>
             Tournament hasn't started yet — {c.registered.count} teams registered via <a href={c.registered.url} target="_blank" rel="noreferrer" className="text-accent-text hover:underline">FTC New Jersey</a>, fetched {asOfDate(c.registered.fetchedAt)}.
             {" "}Registered, not the final field: teams may be added or dropped before FIRST posts it.
@@ -129,35 +139,42 @@ function ConferenceView({ c, team }: { c: Conference; team: number | null }) {
         </p>
       ) : null}
 
-      <p className="text-sm text-text-muted" data-conference-count>
+      <p className="text-sm text-text-muted v8:order-1 v8:-mb-4 v8:text-xs v8:text-text-faint" data-conference-count>
         {ranked} ranked team{ranked === 1 ? "" : "s"} of {c.leagueOf} in the league · {lead}
         {c.moves ? ` · moves by Scout rating since the week of ${weekLabel(c.moves.baseline)}` : ""}
         {asOf ? ` · updated ${ago(asOf)}` : ""}
       </p>
 
       {c.moves ? (
-        <div className="space-y-1.5">
+        <div className="space-y-1.5 v8:order-3">
           <MoverCards season={c.season} {...movers} rankTitle="Rank by Scout rating among this conference's teams · rating" label="The conference's moves" />
-          <p className="text-xs text-text-muted" data-moves-note>
+          <p className={cn("text-xs text-text-muted", V8_CAPTION)} data-moves-note>
             Moves are places by Scout rating among this conference's teams, the {c.moves.week ? `week of ${weekLabel(c.moves.week)}` : "live ranking"} against the week of {weekLabel(c.moves.baseline)}: Scout's ranking, not FIRST's league table, which Scout keeps no history of.
           </p>
         </div>
       ) : (
-        <p className="text-sm text-text-muted" data-movers>No climbers or fallers to show: no Scout ranking saved a week before {c.status === "finished" ? "the tournament" : "this one"} to compare with.</p>
+        <p className={cn("text-sm text-text-muted v8:order-3", V8_CAPTION)} data-movers>No climbers or fallers to show: no Scout ranking saved a week before {c.status === "finished" ? "the tournament" : "this one"} to compare with.</p>
       )}
 
-      <section aria-labelledby="conference-table" className="space-y-2">
+      <section aria-labelledby="conference-table" className="space-y-2 v8:order-2">
         <h2 id="conference-table" className="sr-only">{c.name} table</h2>
         <ConferenceTable c={c} team={team} />
-        <p className="text-xs text-text-muted">Scout rating and OPR are Control Scout's, this season's: ratings only compare within one season, never against another season's.</p>
+        {!v8 && <p className="text-xs text-text-muted">Scout rating and OPR are Control Scout's, this season's: ratings only compare within one season, never against another season's.</p>}
       </section>
 
-      <ConferenceUnranked c={c} team={team} />
+      <div className="v8:order-4"><ConferenceUnranked c={c} team={team} /></div>
+
+      {v8 && (
+        <Disclosure title="How conference rankings work" className="order-6">
+          {note}
+          <p>Scout rating and OPR are Control Scout's, this season's: ratings only compare within one season, never against another season's.</p>
+        </Disclosure>
+      )}
 
       {(next || prev) && (
-        <nav className="flex flex-wrap gap-x-4 gap-y-2 text-sm" aria-label="Other seasons" data-conference-seasons>
-          {prev && <Link to={conferenceHref(prev.season, prev.region, prev.league, { slug: prev.code, team })} className="text-accent-text hover:underline">← Last season: {prev.name}, {seasonLabel(prev.season)} ({leagueTitle(null, prev.league)})</Link>}
-          {next && <Link to={conferenceHref(next.season, next.region, next.league, { slug: next.code, team })} className="text-accent-text hover:underline">Next season: {next.name}, {seasonLabel(next.season)} ({leagueTitle(null, next.league)}) →</Link>}
+        <nav className="flex flex-wrap gap-x-4 gap-y-2 text-sm v8:order-5" aria-label="Other seasons" data-conference-seasons>
+          {prev && <Link to={conferenceHref(prev.season, prev.region, prev.league, { slug: prev.code, team })} className={cn("text-accent-text hover:underline", V8_LINK)}>← Last season: {prev.name}, {seasonLabel(prev.season)} ({leagueTitle(null, prev.league)})</Link>}
+          {next && <Link to={conferenceHref(next.season, next.region, next.league, { slug: next.code, team })} className={cn("text-accent-text hover:underline", V8_LINK)}>Next season: {next.name}, {seasonLabel(next.season)} ({leagueTitle(null, next.league)}) →</Link>}
         </nav>
       )}
     </div>
@@ -165,9 +182,10 @@ function ConferenceView({ c, team }: { c: Conference; team: number | null }) {
 }
 
 function TeamLink({ season, t }: { season: number; t: { team: number; name: string | null } }) {
-  return <Link to={`/teams/${t.team}?season=${season}`} className="font-medium text-accent-text hover:underline">{t.team}{t.name ? ` ${t.name}` : ""}</Link>;
+  return <Link to={`/teams/${t.team}?season=${season}`} className="font-medium text-accent-text hover:underline v8:underline-offset-2">{t.team}{t.name ? ` ${t.name}` : ""}</Link>;
 }
 
 function Skeleton() {
-  return <div className="space-y-3" aria-busy="true"><div className="h-14 animate-pulse rounded-xl bg-muted" /><div className="grid gap-3 sm:grid-cols-3">{[0, 1, 2].map((i) => <div key={i} className="h-28 animate-pulse rounded-xl bg-muted" />)}</div><div className="h-64 animate-pulse rounded-xl bg-muted" /></div>;
+  // v8: no pulse (skeletons stay still), and the table's place comes before the movers', as the page draws them.
+  return <div className="space-y-3 v8:flex v8:flex-col v8:space-y-0 v8:gap-3" aria-busy="true"><div className="h-14 animate-pulse rounded-xl bg-muted v8:animate-none v8:bg-white/[0.04]" /><div className="grid gap-3 sm:grid-cols-3 v8:order-2">{[0, 1, 2].map((i) => <div key={i} className="h-28 animate-pulse rounded-xl bg-muted v8:animate-none v8:bg-white/[0.04]" />)}</div><div className="h-64 animate-pulse rounded-xl bg-muted v8:animate-none v8:bg-white/[0.04]" /></div>;
 }

@@ -11,8 +11,9 @@ import { regionHref } from "../shared/regionRankings";
 const TH = "h-9 whitespace-nowrap px-2.5 text-[10px] font-bold uppercase tracking-wider text-text-muted v8:text-xs v8:font-medium v8:normal-case v8:tracking-normal v8:text-text-faint max-sm:px-1.5";
 const TD = "whitespace-nowrap px-2.5 py-1.5 max-sm:px-1.5";
 
-/** `scout`: Scout's columns after FIRST's (rating, OPR, rank in the team's region, linked), on the league's own page. */
-export function LeagueTable({ rows, season, team, maxRows, scout }: { rows: LeagueStandingRow[]; season: number; team?: number | null; maxRows?: number; scout?: boolean }) {
+/** `scout`: Scout's columns after FIRST's (rating, OPR, rank in the team's region, linked), on the league's own page.
+ *  `frameless`: the table is the page (the league's own page): in v8, no box, 44px rows on hairlines. */
+export function LeagueTable({ rows, season, team, maxRows, scout, frameless }: { rows: LeagueStandingRow[]; season: number; team?: number | null; maxRows?: number; scout?: boolean; frameless?: boolean }) {
   const box = useRef<HTMLDivElement>(null);
   // The marked row in view inside the box (never the page: that stays where the reader is).
   useEffect(() => {
@@ -22,10 +23,10 @@ export function LeagueTable({ rows, season, team, maxRows, scout }: { rows: Leag
   }, [rows, team]);
   const capped = maxRows != null && rows.length > maxRows;
   return (
-    <div ref={box} data-league-table className={cn("custom-scrollbar overflow-auto rounded-xl border border-border bg-card", capped && "max-h-[23rem]")}>
+    <div ref={box} data-league-table className={cn("custom-scrollbar overflow-auto rounded-xl border border-border bg-card", frameless && "v8:rounded-none v8:border-0 v8:bg-transparent", capped && "max-h-[23rem]")}>
       <table className="w-full text-sm">
-        <thead className="sticky top-0 z-[1] bg-card">
-          <tr className="border-b border-border">
+        <thead className={cn("sticky top-0 z-[1] bg-card", frameless && "v8:bg-background")}>
+          <tr className={cn("border-b border-border", frameless && "v8:h-11 v8:border-line")}>
             <th scope="col" className={cn(TH, "text-right")}>Rank</th>
             <th scope="col" className={cn(TH, "text-left")}>Team</th>
             <th scope="col" className={cn(TH, "text-right")} title="Ranking score: FIRST's first sort key, average ranking points per match over the league's meets">RS</th>
@@ -43,11 +44,12 @@ export function LeagueTable({ rows, season, team, maxRows, scout }: { rows: Leag
             const href = `/teams/${r.team}?season=${season}`;
             return (
               <tr key={r.team} data-marked={marked ? "" : undefined} aria-current={marked ? "true" : undefined}
-                className={cn("border-b border-border last:border-b-0", marked && "bg-muted font-semibold shadow-[inset_3px_0_0_var(--color-text-base)] v8:bg-white/[0.04] v8:shadow-[inset_2px_0_0_var(--color-accent)]")}>
-                <td className={cn(TD, "text-right tabular-nums")}>{r.rank}</td>
+                // v8: the marked team (yours, or the one a link asked for) is white: a faint white fill and a white edge.
+                className={cn("border-b border-border last:border-b-0", frameless && "v8:h-11 v8:border-line v8:transition-colors v8:duration-150 v8:hover:bg-white/[0.03]", marked && "bg-muted font-semibold shadow-[inset_3px_0_0_var(--color-text-base)] v8:bg-white/[0.05] v8:shadow-[inset_2px_0_0_var(--color-text-base)]")}>
+                <td className={cn(TD, "text-right tabular-nums", r.rank === 1 && "v8:font-medium v8:text-accent")}>{r.rank}</td>
                 <td className={cn(TD, "max-w-[16rem] truncate")}>
                   <span className="sm:hidden"><TeamNumber team={r.team} name={r.name ?? ""} href={href} /></span>
-                  <Link to={href} className="hover:underline max-sm:hidden"><span className="font-mono font-medium tabular-nums">{r.team}</span> <span className={cn(!marked && "text-muted-foreground")}>{r.name}</span></Link>
+                  <Link to={href} className="hover:underline max-sm:hidden"><span className="font-mono font-medium tabular-nums v8:font-sans">{r.team}</span> <span className={cn(!marked && "text-muted-foreground")}>{r.name}</span></Link>
                 </td>
                 <td className={cn(TD, "text-right tabular-nums")}>{rankingScore(r.rs) ?? "—"}</td>
                 <td className={cn(TD, "text-right tabular-nums")}>{leagueRecord(r) ?? "—"}</td>
@@ -57,7 +59,7 @@ export function LeagueTable({ rows, season, team, maxRows, scout }: { rows: Leag
                 {scout && <td className={cn(TD, "text-right tabular-nums")}>{r.scout?.opr != null ? r.scout.opr.toFixed(1) : "—"}</td>}
                 {scout && <td className={cn(TD, "text-right tabular-nums")}>
                   {r.scout?.region && r.scout.regionRank != null
-                    ? <Link to={regionHref(r.scout.region, { season, team: r.team })} className="text-accent-text hover:underline" data-region-rank title={`${r.team} in ${r.scout.regionName}'s rankings`}>#{r.scout.regionRank} {r.scout.region.split(":")[1] ?? r.scout.regionName}</Link>
+                    ? <Link to={regionHref(r.scout.region, { season, team: r.team })} className="text-accent-text hover:underline v8:text-text-muted v8:hover:text-text-base" data-region-rank title={`${r.team} in ${r.scout.regionName}'s rankings`}>#{r.scout.regionRank} {r.scout.region.split(":")[1] ?? r.scout.regionName}</Link>
                     : <span className="text-muted-foreground">—</span>}
                 </td>}
               </tr>

@@ -12,7 +12,7 @@ export interface NewItem { team: number; name: string | null; rank: number; rati
 function Card({ title, icon: Icon, tone, children }: { title: string; icon: typeof TrendingUp; tone: string; children: React.ReactNode }) {
   return (
     <div className="rounded-xl border border-line bg-card p-3">
-      <h3 className="mb-2 flex items-center gap-1.5 text-sm font-semibold"><Icon className={cn("size-4", tone)} aria-hidden />{title}</h3>
+      <h3 className="mb-2 flex items-center gap-1.5 text-sm font-semibold v8:font-medium"><Icon className={cn("size-4", tone, "v8:text-text-faint")} aria-hidden />{title}</h3>
       {children}
     </div>
   );
@@ -26,15 +26,15 @@ export function MoverCards({ season, climbers, fallers, newcomers, newTotal, ran
   const href = (t: number) => `/teams/${t}?season=${season}`;
   const Who = ({ r }: { r: NewItem }) => (
     <>
-      <Link to={href(r.team)} className="min-w-0 flex-1 truncate hover:underline"><span className="font-mono font-semibold tabular-nums">{r.team}</span> {r.name ?? ""}</Link>
-      <span className="shrink-0 tabular-nums text-text-muted" title={rankTitle}>#{r.rank} · {r.rating.toFixed(1)}</span>
+      <Link to={href(r.team)} className="min-w-0 flex-1 truncate hover:underline"><span className="font-mono font-semibold tabular-nums v8:font-sans">{r.team}</span> {r.name ?? ""}</Link>
+      <span className="shrink-0 tabular-nums text-text-muted v8:text-text-faint" title={rankTitle}>#{r.rank} · {r.rating.toFixed(1)}</span>
     </>
   );
   const MoverList = ({ rows, up }: { rows: MoverItem[]; up: boolean }) => rows.length ? (
     <ol className="space-y-1.5 text-sm">
       {rows.map((r) => (
         <li key={r.team} className="flex items-baseline gap-2" data-mover={r.team}>
-          <span className={cn("inline-flex w-12 shrink-0 items-center gap-0.5 font-semibold tabular-nums", up ? "text-success" : "text-danger")}>
+          <span className={cn("inline-flex w-12 shrink-0 items-center gap-0.5 font-semibold tabular-nums v8:font-medium", up ? "text-success" : "text-danger v8:text-text-muted")}>
             {up ? <ArrowUp className="size-3.5" strokeWidth={2.5} /> : <ArrowDown className="size-3.5" strokeWidth={2.5} />}{Math.abs(r.move)}
             <span className="sr-only"> places {up ? "up" : "down"}</span>
           </span>
