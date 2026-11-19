@@ -11,7 +11,7 @@
 //   - One accent, mint, scoped to this page (data-theme-next): the primary button, the live dot and progress, the
 //     search focus, the #1 rank, links on hover. Numbers and names are white, labels grey; red and blue stay alliances.
 // No headline of any kind (no H1), no slogan, no globe. Every number comes from the same APIs the live Home uses.
-import { useState, type CSSProperties, type ReactElement } from "react";
+import { useState, type CSSProperties } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowRight, LogIn, LogOut, Megaphone, PanelLeft, Radio, Search, Settings, ShieldCheck, Star, Trophy, UserRound } from "lucide-react";
 import { useApi, qs } from "../lib/api";
@@ -172,7 +172,6 @@ function SideBar() {
   const [rail, setRail] = useState(() => { try { return localStorage.getItem(SIDE_KEY) === "1"; } catch { return false; } });
   const fold = () => setRail((r) => { try { localStorage.setItem(SIDE_KEY, r ? "0" : "1"); } catch { /* ignore */ } return !r; });
   const foldLabel = rail ? "Expand sidebar" : "Collapse sidebar";
-  const tip = (label: string, el: ReactElement) => rail ? <Tooltip><TooltipTrigger asChild>{el}</TooltipTrigger><TooltipContent side="right">{label}</TooltipContent></Tooltip> : el;
   return (
     <aside data-sample-sidebar aria-label="Sidebar" data-rail={rail ? "" : undefined}
       className={cn("sticky top-0 z-20 hidden h-dvh shrink-0 flex-col self-start border-r border-white/[0.06] bg-[#0e0e10] transition-[width] duration-150 ease-out motion-reduce:transition-none md:flex", rail ? "w-16" : "w-[15.5rem]")}>
@@ -183,8 +182,14 @@ function SideBar() {
             <span className="truncate font-display text-[0.9375rem] font-semibold tracking-tight">Control Scout</span>
           </Link>
         )}
-        {rail && tip(foldLabel, <button type="button" onClick={fold} aria-label={foldLabel} className={cn(roundButton, "bg-white/[0.06]")}><PanelLeft className="size-[1.125rem]" /></button>)}
-        {!rail && <button type="button" onClick={fold} aria-label={foldLabel} title={foldLabel} className={cn(roundButton, "bg-white/[0.06]")}><PanelLeft className="size-[1.125rem]" /></button>}
+        {/* One fold button in one place, folded or not, so pressing it keeps keyboard focus on it. Its name shows in a
+            tooltip only when folded (open, the name is beside it). */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button type="button" data-fold onClick={fold} aria-label={foldLabel} className={cn(roundButton, "bg-white/[0.06]")}><PanelLeft className="size-[1.125rem]" /></button>
+          </TooltipTrigger>
+          {rail && <TooltipContent side="right">{foldLabel}</TooltipContent>}
+        </Tooltip>
       </div>
       <nav aria-label="Main" className="custom-scrollbar flex-1 space-y-(--nav-section) overflow-y-auto px-2 pt-2 pb-4">
         <MainNav collapsed={rail} />
