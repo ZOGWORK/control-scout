@@ -307,7 +307,7 @@ function Row({ t, readiness, season }: { t: DirectoryTeam; readiness: SeasonRead
     <tr className="border-t border-line hover:bg-text-base/[0.03] v8:h-11 v8:border-white/[0.08] v8:transition-colors v8:duration-150 v8:hover:bg-white/[0.03]">
       <td className="px-3 py-2 v8:py-1">
         <Link to={season == null ? `/teams/${t.team}` : `/teams/${t.team}?season=${season}`} className="group inline-flex min-h-9 flex-col justify-center">
-          <span><span className="font-semibold tabular-nums text-accent-text v8:font-medium">{t.team}</span> <span className="font-medium group-hover:underline v8:font-normal v8:text-text-muted v8:group-hover:text-text-base">{t.name ?? `Team ${t.team}`}</span></span>
+          <span><span className="font-semibold tabular-nums text-accent-text v8:font-medium v8:text-accent">{t.team}</span> <span className="font-medium group-hover:underline v8:font-normal v8:text-text-muted v8:group-hover:text-text-base">{t.name ?? `Team ${t.team}`}</span></span>
           {where && <span className="text-xs text-text-muted md:hidden v8:text-text-faint">{where}</span>}
         </Link>
       </td>

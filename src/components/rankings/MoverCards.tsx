@@ -5,6 +5,7 @@
 import { Link } from "react-router-dom";
 import { ArrowDown, ArrowUp, Sparkles, TrendingDown, TrendingUp } from "lucide-react";
 import { cn } from "../cn";
+import { V8_NUM } from "../../lib/v8";
 
 export interface MoverItem { team: number; name: string | null; rank: number; rating: number; move: number }
 export interface NewItem { team: number; name: string | null; rank: number; rating: number }
@@ -26,7 +27,7 @@ export function MoverCards({ season, climbers, fallers, newcomers, newTotal, ran
   const href = (t: number) => `/teams/${t}?season=${season}`;
   const Who = ({ r }: { r: NewItem }) => (
     <>
-      <Link to={href(r.team)} className="min-w-0 flex-1 truncate hover:underline"><span className="font-mono font-semibold tabular-nums v8:font-sans">{r.team}</span> {r.name ?? ""}</Link>
+      <Link to={href(r.team)} className="min-w-0 flex-1 truncate hover:underline"><span className={cn("font-mono font-semibold tabular-nums v8:font-sans", V8_NUM)}>{r.team}</span> {r.name ?? ""}</Link>
       <span className="shrink-0 tabular-nums text-text-muted v8:text-text-faint" title={rankTitle}>#{r.rank} · {r.rating.toFixed(1)}</span>
     </>
   );

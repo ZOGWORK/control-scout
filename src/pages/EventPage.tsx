@@ -61,7 +61,7 @@ import { RecordingCoverageLine, RecordingGaps } from "../components/contributors
 import { isLiveMode, nextMatch, useEventPoll } from "../lib/liveMode";
 import { TeamsSource } from "../components/TeamsSource";
 import { ResultsSource } from "../components/ResultsSource";
-import { ago, agoSeconds, awardLabel, dateRange, num, place, seasonLabel } from "../lib/format";
+import { ago, agoSeconds, awardLabel, awardTitle, dateRange, num, place, seasonLabel } from "../lib/format";
 import { scrollToElement } from "../lib/pageScroll";
 import { eventTab } from "../lib/eventTab";
 import { predictHref } from "../shared/predictUrl";
@@ -70,7 +70,7 @@ import { eventRoster, eventStanding } from "../shared/eventStanding";
 import { SWING_LINE, swingText, swingTitle } from "../shared/reliability";
 import { AllianceChip, AllianceOddsCard, BracketAccuracyNote, BracketSeries, OddsHeading } from "../components/PlayoffBracket";
 import { EventPackButton } from "../components/offline/EventPackButton";
-import { isV8, useIsV8 } from "../lib/v8";
+import { isV8, useIsV8, V8_NUM } from "../lib/v8";
 import { Disclosure, eventState, FinishedFocus, LiveFocus, UpcomingFocus, V8_DEFAULT_TAB, V8_TAB_ORDER } from "../components/EventFocus";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../components/ui/overlay";
 import { EVENT_TABS, type EventTab } from "../lib/eventTab";
@@ -711,7 +711,7 @@ function RankingTable({ field, season, team, code, schedule }: { field: FieldRow
     { key: "rank", label: "Rank", value: rank, asc: true, align: "right", render: (r) => <span className={cn(rank(r) === 1 && "v8:font-semibold v8:text-accent")} data-rank={rank(r) ?? undefined}>{rank(r) ?? "—"}</span> },
     { key: "team", label: "Team", value: (r) => r.team, render: (r) => phone && hasTeamPage(r.team, r.name)
       ? <TeamNumber team={r.team} name={r.name ?? ""} href={`/teams/${r.team}?season=${season}`} />
-      : <TeamPageLink team={r.team} name={r.name} season={season} className="hover:underline"><span className="font-mono font-medium">{r.team}</span> <span className="text-muted-foreground">{r.name}</span></TeamPageLink> },
+      : <TeamPageLink team={r.team} name={r.name} season={season} className="hover:underline"><span className={cn("font-mono font-medium", V8_NUM)}>{r.team}</span> <span className="text-muted-foreground">{r.name}</span></TeamPageLink> },
     { key: "rs", label: "RS", title: meet ? "Ranking score at this meet (average ranking points per match)" : "Ranking score (average ranking points)", value: rs, align: "right", render: (r) => num(rs(r), 2), heat: true },
     { key: "wlt", label: "W-L-T", value: (r) => { const [w, l] = rec(r); return w == null ? null : w - (l ?? 0); }, align: "right", render: (r) => { const [w, l, t] = rec(r); return `${w ?? "–"}-${l ?? "–"}-${t ?? "–"}`; }, heat: true },
     // Schedule difficulty (src/shared/scheduleDifficulty.ts), next to the record it helps explain (and in view on a
@@ -791,7 +791,7 @@ function TeamsGrid({ field: all, season, team, predictable, registered, syncedAt
                   </span>
                 )}
                 <span className="min-w-0 flex-1">
-                  <span className="flex items-baseline gap-2"><span className="font-mono font-semibold">{t.team}</span><span className="truncate text-sm" title={t.name ?? undefined}>{t.name}</span></span>
+                  <span className="flex items-baseline gap-2"><span className={cn("font-mono font-semibold", t.team !== team && V8_NUM)}>{t.team}</span><span className="truncate text-sm" title={t.name ?? undefined}>{t.name}</span></span>
                   <span className="block truncate text-xs text-muted-foreground">{place(t.city, t.state) || "—"}</span>
                   <span className="mt-1.5 flex flex-wrap gap-1.5 text-[11px] tabular-nums">
                     {t.opr.np != null && <span className={cn("rounded-md px-1.5 py-0.5", ROSTER_CHIP_TONE.npOpr, V8_STAT_CHIP)}>npOPR {num(t.opr.np)}</span>}
@@ -926,7 +926,7 @@ function Awards({ d, nameOf }: { d: EventDetail; nameOf: (t: number) => string }
           {d.awards.map((a) => (
             <li key={`${a.type}${a.placement}${a.team}`} className="flex items-center gap-3 rounded-xl border border-border bg-card p-3 v8:border-line">
               <Award className="size-5 shrink-0 text-accent v8:text-text-muted" />
-              <div className="min-w-0"><p className="text-sm font-medium">{a.name ?? awardLabel(a.type, a.placement)}</p><TeamPageLink team={a.team} name={nameOf(a.team)} season={s} className="text-sm text-muted-foreground hover:underline"><span className="font-mono">{a.team}</span> {nameOf(a.team)}</TeamPageLink></div>
+              <div className="min-w-0"><p className="text-sm font-medium">{awardTitle(a)}</p><TeamPageLink team={a.team} name={nameOf(a.team)} season={s} className="text-sm text-muted-foreground hover:underline"><span className={cn("font-mono", V8_NUM)}>{a.team}</span> {nameOf(a.team)}</TeamPageLink></div>
             </li>
           ))}
         </ul>

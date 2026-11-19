@@ -893,7 +893,7 @@ function V8Header({ p, onSeason, fellBackFrom }: { p: TeamProfile; onSeason: (s:
             <p className="text-xs text-text-faint" data-eyebrow>FTC team</p>
             {/* The heading is the number and name together (what people search for). */}
             <h1 className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-              <span className="font-display text-[2.75rem] font-semibold leading-none tracking-tight tabular-nums sm:text-[3.25rem]" data-team-number>{t.number}</span>
+              <span className="font-display text-[2.75rem] font-semibold leading-none tracking-tight tabular-nums text-accent sm:text-[3.25rem]" data-team-number>{t.number}</span>
               {t.name && <span className="min-w-0 break-words font-sans text-xl font-semibold tracking-tight text-text-base sm:text-[1.375rem]"><span className="sr-only"> </span>{t.name}</span>}
             </h1>
             {!t.name && <p className="mt-1 text-lg text-text-muted">Name not on file</p>}

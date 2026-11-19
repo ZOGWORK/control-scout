@@ -13,6 +13,7 @@ import { asGiven, asOfDate, conferenceHref, CONFERENCE_LABEL, ordinal, type Conf
 import { leagueTitle } from "../shared/leagues";
 import { Move, TrendBadge, active, idle, trigger } from "../pages/RankingsPage";
 import type { MoverItem, NewItem } from "./rankings/MoverCards";
+import { V8_NUM } from "../lib/v8";
 import { v8Medal } from "./rankings/v8";
 
 export const CONFERENCE_PAGE = 50;
@@ -170,7 +171,7 @@ export function ConferenceTable({ c, team }: { c: Conference; team: number | nul
                   </td>
                   <td className={cn(TD, "max-w-[16rem] truncate max-sm:max-w-[9rem]")}>
                     <span className="sm:hidden"><TeamNumber team={r.team} name={r.name ?? ""} href={href} /></span>
-                    <Link to={href} className="hover:underline max-sm:hidden"><span className="font-mono font-medium tabular-nums v8:font-sans">{r.team}</span> <span className={cn(!mine && "text-muted-foreground")}>{r.name}</span></Link>
+                    <Link to={href} className="hover:underline max-sm:hidden"><span className={cn("font-mono font-medium tabular-nums v8:font-sans", !mine && V8_NUM)}>{r.team}</span> <span className={cn(!mine && "text-muted-foreground")}>{r.name}</span></Link>
                     {r.registered === "pending" && <span className="ml-1 text-xs font-normal text-muted-foreground">(waitlist)</span>}
                   </td>
                   <td className={cn(TD, "text-right tabular-nums")}>{asGiven(r.rs) ?? "—"}</td>
@@ -215,7 +216,7 @@ export function ConferenceUnranked({ c, team }: { c: Conference; team: number | 
       <ul className="grid gap-x-4 gap-y-1.5 text-sm sm:grid-cols-2 lg:grid-cols-3">
         {none.map((r) => (
           <li key={r.team} data-team={r.team} data-marked={r.team === team ? "" : undefined} className={cn("flex min-w-0 flex-col", r.team === team && "font-semibold")}>
-            <Link to={`/teams/${r.team}?season=${c.season}`} className="truncate hover:underline"><span className="font-mono tabular-nums v8:font-sans">{r.team}</span> {r.name ?? ""}{r.registered === "pending" ? " (waitlist)" : ""}</Link>
+            <Link to={`/teams/${r.team}?season=${c.season}`} className="truncate hover:underline"><span className={cn("font-mono tabular-nums v8:font-sans", V8_NUM)}>{r.team}</span> {r.name ?? ""}{r.registered === "pending" ? " (waitlist)" : ""}</Link>
             <span className="text-xs font-normal text-text-muted v8:text-text-faint" data-unranked>{label}</span>
           </li>
         ))}

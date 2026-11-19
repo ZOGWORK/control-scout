@@ -34,7 +34,7 @@ import { SWING_LINE, swingText, swingTitle } from "../shared/reliability";
 import { useTeamColors } from "../components/TeamColorPicker";
 import { Reveal, Stagger, StaggerItem, m } from "../components/motion";
 import { predictHref } from "../shared/predictUrl";
-import { useIsV8 } from "../lib/v8";
+import { useIsV8, V8_NUM } from "../lib/v8";
 import { V8Title, V8_LABEL } from "../components/myteams/v8";
 import { COMPARE_MAX as MAX, compareApiPath, compareSeasonOf, compareTeamsOf, compareTitle } from "../shared/compareUrl";
 import { V8_PHASE, type V8Phase } from "../lib/records/describe";
@@ -203,7 +203,7 @@ function SuggestionChip({ s, onPick, big }: { s: Suggestion; onPick: (n: number)
           because a name from content joins inline pieces without them. */}
       <Plus className="size-4 shrink-0 text-accent v8:text-text-faint" aria-hidden /><span className="sr-only">Add</span>{" "}
       {color && <span className="size-2.5 shrink-0 rounded-full" style={{ background: color.css }} title={color.label} aria-hidden />}
-      <span className="font-mono font-semibold tabular-nums v8:font-sans">{s.team}</span>{" "}
+      <span className={cn("font-mono font-semibold tabular-nums v8:font-sans", V8_NUM)}>{s.team}</span>{" "}
       {big ? (
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm" title={name ?? undefined}>{name || (name === undefined ? "…" : "Unnamed team")}</span>{" "}
@@ -611,7 +611,7 @@ function Verdict({ t, colors, season }: { t: CompareTeam[]; colors: string[]; se
               {/* A phone: the team and its count on one line, the stats it leads under them. */}
               <div className="flex items-baseline justify-between gap-3 sm:block">
                 <p className="flex min-w-0 items-baseline gap-2">
-                  <Link to={`/teams/${x.team}?season=${season}`} className="font-display text-lg font-semibold tabular-nums text-text-base hover:underline">{x.team}</Link>
+                  <Link to={`/teams/${x.team}?season=${season}`} className={cn("font-display text-lg font-semibold tabular-nums text-text-base hover:underline", V8_NUM)}>{x.team}</Link>
                   <span className="min-w-0 truncate text-xs text-text-muted" title={name(x.team) ?? undefined}>{name(x.team) ?? ""}</span>
                 </p>
                 <p className="flex shrink-0 items-baseline gap-1.5 sm:mt-1">

@@ -10,7 +10,7 @@ import type { EventTab } from "../lib/eventTab";
 import { eventRoster, eventStanding } from "../shared/eventStanding";
 import { glanceStats } from "../lib/eventGlance";
 import { useProjections } from "../lib/projections";
-import { awardLabel, num } from "../lib/format";
+import { awardLabel, awardTitle, num } from "../lib/format";
 import { hasTeamPage } from "../shared/teamPages";
 import { MatchList } from "./predict";
 import { AdvancedTeams } from "./AdvancedTeams";
@@ -77,8 +77,9 @@ export function ProgressLine({ played, total }: { played: number; total: number 
   );
 }
 
-function TeamName({ team, name, season }: { team: number; name?: string | null; season: number }) {
-  const body = <><span className="font-mono font-semibold tabular-nums text-text-base">{team}</span> <span className="truncate text-text-muted">{name}</span></>;
+/** A team as a label: the number in the slate blue (white when it is yours), the name beside it grey. */
+function TeamName({ team, name, season, yours }: { team: number; name?: string | null; season: number; yours?: boolean }) {
+  const body = <><span className={cn("font-mono font-semibold tabular-nums", yours ? "text-text-base" : "text-accent")}>{team}</span> <span className="truncate text-text-muted">{name}</span></>;
   return hasTeamPage(team, name)
     ? <Link to={`/teams/${team}?season=${season}`} className="flex min-w-0 items-baseline gap-2 still-hover:underline">{body}</Link>
     : <span className="flex min-w-0 items-baseline gap-2">{body}</span>;
@@ -102,7 +103,7 @@ export function TopStandings({ field, season, mine, n = 8 }: { field: FieldRow[]
         return (
           <li key={r.team} className={cn("grid h-11 grid-cols-[2rem_minmax(0,1fr)_auto_3.5rem] items-center gap-3 px-4 text-sm", yours && "bg-white/[0.03] shadow-[inset_2px_0_0_var(--color-accent)]", i === n && "border-t border-white/[0.12]")} data-team={r.team}>
             <span className={cn("text-right tabular-nums text-text-muted", s.rank === 1 && "font-semibold text-accent")}>{s.rank}</span>
-            <span className="flex min-w-0 items-center gap-2">{yours && <YoursMark />}<TeamName team={r.team} name={r.name} season={season} /></span>
+            <span className="flex min-w-0 items-center gap-2">{yours && <YoursMark />}<TeamName team={r.team} name={r.name} season={season} yours={yours} /></span>
             <span className="text-xs tabular-nums text-text-faint">{s.wins != null ? `${s.wins}-${s.losses ?? 0}-${s.ties ?? 0}` : ""}</span>
             <span className="text-right tabular-nums text-text-base" title="np OPR">{num(r.opr.np)}</span>
           </li>
@@ -150,7 +151,7 @@ export function FinishedFocus({ d, mine, nameOf, onAll }: { d: EventDetail; mine
           {won ? (
             <ul className="divide-y divide-line" data-winners>
               {won.teams.map((t) => (
-                <li key={t} className="flex h-11 items-center gap-2 px-4 text-sm">{mine.has(t) && <YoursMark />}<TeamName team={t} name={nameOf(t)} season={season} /></li>
+                <li key={t} className="flex h-11 items-center gap-2 px-4 text-sm">{mine.has(t) && <YoursMark />}<TeamName team={t} name={nameOf(t)} season={season} yours={mine.has(t)} /></li>
               ))}
             </ul>
           ) : <p className="px-4 py-6 text-sm text-text-muted">No playoff result on record for this event.</p>}
@@ -160,8 +161,8 @@ export function FinishedFocus({ d, mine, nameOf, onAll }: { d: EventDetail; mine
             <ul className="divide-y divide-line" data-focus-awards>
               {awards.map((a) => (
                 <li key={`${a.type}${a.placement}${a.team}`} className="grid min-h-11 grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-center gap-3 px-4 py-2 text-sm">
-                  <span className="truncate text-text-muted">{a.name ?? awardLabel(a.type, a.placement)}</span>
-                  <span className="flex min-w-0 items-center gap-2">{mine.has(a.team) && <YoursMark />}<TeamName team={a.team} name={nameOf(a.team)} season={season} /></span>
+                  <span className="truncate text-text-muted">{awardTitle(a)}</span>
+                  <span className="flex min-w-0 items-center gap-2">{mine.has(a.team) && <YoursMark />}<TeamName team={a.team} name={nameOf(a.team)} season={season} yours={mine.has(a.team)} /></span>
                 </li>
               ))}
             </ul>
@@ -201,7 +202,7 @@ export function UpcomingFocus({ d, mine, registered, onAll }: { d: EventDetail; 
                 .map(({ team, lead, row }) => (
                   <li key={team} className="grid h-11 grid-cols-[2.5rem_minmax(0,1fr)_auto] items-center gap-3 px-4 text-sm">
                     <span className="text-right tabular-nums text-text-muted">{lead}</span>
-                    <span className="flex min-w-0 items-center gap-2">{mine.has(team) && <YoursMark />}<TeamName team={team} name={row?.name} season={e.season} /></span>
+                    <span className="flex min-w-0 items-center gap-2">{mine.has(team) && <YoursMark />}<TeamName team={team} name={row?.name} season={e.season} yours={mine.has(team)} /></span>
                     <span className="text-xs tabular-nums text-text-faint">{strength(row)}</span>
                   </li>
                 ))}
@@ -214,7 +215,7 @@ export function UpcomingFocus({ d, mine, registered, onAll }: { d: EventDetail; 
           <ul className="divide-y divide-line" data-your-teams>
             {yours.map((f) => (
               <li key={f.team} className="grid h-11 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 text-sm shadow-[inset_2px_0_0_var(--color-accent)]">
-                <TeamName team={f.team} name={f.name} season={e.season} />
+                <TeamName team={f.team} name={f.name} season={e.season} yours />
                 <span className="text-xs tabular-nums text-text-faint">{strength(f)}</span>
               </li>
             ))}

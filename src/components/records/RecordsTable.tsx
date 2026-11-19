@@ -39,7 +39,7 @@ import { placeFor, SCHEDULE_STATS, ScheduleValue, type SchedulePlaces } from "..
 import { useFlag } from "../../lib/flags";
 import { HEAT_MIN, heatable, heatBand } from "../../shared/statTones";
 import { Spacer, useSteadyColumns, useVirtualRows } from "../ui/windowing";
-import { useIsV8 } from "../../lib/v8";
+import { useIsV8, V8_NUM } from "../../lib/v8";
 import { V8_ICON } from "../rankings/v8";
 
 /** The filter in words, a button that opens the builder: a quiet white line in v8, not the accent. */
@@ -615,7 +615,7 @@ function SortHead({ k, label, title, state, sortBy, className, tone, v8Tone, ali
 export function TeamNumber({ team, name, href }: { team: number; name: string; href: string }) {
   return (
     <Popover>
-      <PopoverTrigger className="tap-44 rounded font-mono font-semibold tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ring/60 still-hover:text-accent-text v8:font-sans"
+      <PopoverTrigger className={cn("tap-44 rounded font-mono font-semibold tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ring/60 still-hover:text-accent-text v8:font-sans", V8_NUM)}
         aria-label={name ? `${team} ${name}` : `Team ${team}`}>
         {team}
       </PopoverTrigger>
@@ -789,7 +789,7 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, schedule
                           ? <TeamNumber team={team!} name={String(r.stats.teamName ?? "")} href={`/teams/${team}?season=${r.season}`} />
                           : (
                             <Link to={`/teams/${team}?season=${r.season}`} className="flex min-w-0 items-baseline gap-2 still-hover:text-accent-text">
-                              <span className="font-mono font-semibold tabular-nums">{team}</span>
+                              <span className={cn("font-mono font-semibold tabular-nums", !hl && V8_NUM)}>{team}</span>
                               <span className="max-w-[13rem] truncate text-text-muted" title={String(r.stats.teamName ?? "") || undefined}>{String(r.stats.teamName ?? "")}</span>
                             </Link>
                           )}

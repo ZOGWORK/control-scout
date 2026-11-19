@@ -23,7 +23,7 @@ import { TeamNumber } from "../components/records/RecordsTable";
 import { cn } from "../components/cn";
 import { Move, Pager, SeasonPick, TrendBadge, WeekPick, weekLabel } from "./RankingsPage";
 import { MoverCards } from "../components/rankings/MoverCards";
-import { useIsV8 } from "../lib/v8";
+import { useIsV8, V8_NUM } from "../lib/v8";
 import {
   Disclosure, RankingsTabs, V8_CAPTION, V8_CARD_LINK, V8_DOWN, V8_EYEBROW, V8_FRAME, V8_HEAD, V8_ICON, V8_LINK, V8_MINE, V8_NOTE, V8_RANK, V8_ROW, V8_TH, V8_UP, v8Medal,
 } from "../components/rankings/v8";
@@ -217,13 +217,13 @@ function RegionTable({ data, team, myTeam, sort, onSort }: { data: RegionRanking
                   <span className="sm:hidden"><TeamNumber team={r.team} name={r.name ?? ""} href={href} /></span>
                   <Link to={href} className="group block min-w-0 max-sm:hidden">
                     <span className="flex items-baseline gap-2">
-                      <span className="font-mono font-semibold tabular-nums group-hover:text-accent-text v8:font-sans">{r.team}</span>
+                      <span className={cn("font-mono font-semibold tabular-nums group-hover:text-accent-text v8:font-sans", !(asked || mine) && V8_NUM)}>{r.team}</span>
                       <span className={cn("truncate group-hover:text-accent-text v8:text-text-muted v8:group-hover:text-text-base", (asked || mine) && "v8:text-text-base")}>{r.name ?? ""}</span>
                     </span>
                   </Link>
                 </td>
                 <td className={cn(td, "text-right tabular-nums")}>
-                  <span className="font-semibold v8:font-medium">{r.rating.toFixed(1)}</span>
+                  <span className={cn("font-semibold v8:font-medium", V8_NUM)}>{r.rating.toFixed(1)}</span>
                   {r.dRating != null && r.dRating !== 0 && <span className={cn("block text-[11px] v8:text-[0.6875rem] v8:leading-3", r.dRating > 0 ? cn("text-success", V8_UP) : cn("text-danger", V8_DOWN))}>{r.dRating > 0 ? "+" : ""}{r.dRating.toFixed(1)}</span>}
                 </td>
                 {stats && <td className={cn(td, "text-right tabular-nums", sort === "events" && "max-sm:hidden")}>{one(r.opr)}</td>}

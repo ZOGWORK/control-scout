@@ -4,6 +4,7 @@
 import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "./cn";
+import { V8_NUM } from "../lib/v8";
 
 // Static class strings (Tailwind only generates classes it can see written out).
 export const TONES = {
@@ -54,7 +55,7 @@ export function StatTile({ tone, icon: Icon, label, value, hint, bar, onClick, s
       <span className="flex items-center gap-2 text-sm leading-tight text-muted-foreground v8:gap-1.5">
         <span className={cn("flex size-7 shrink-0 items-center justify-center rounded-lg", chip ?? t.chip, V8_CHIP)}><Icon className="size-4" aria-hidden /></span>{label}
       </span>
-      <span className="mt-2 block font-display text-3xl font-semibold tabular-nums text-foreground">{value}</span>
+      <span className={cn("mt-2 block font-display text-3xl font-semibold tabular-nums text-foreground", V8_NUM)}>{value}</span>
       {hint && <span className="mt-1 block break-words text-xs text-muted-foreground">{hint}</span>}
       {bar && <span className="mt-auto block pt-2">{bar}</span>}
     </>

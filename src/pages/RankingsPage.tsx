@@ -23,7 +23,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { SWING_LINE, swingText, swingTitle } from "../shared/reliability";
 import { cn } from "../components/cn";
 import { CompactFilters, FilterSection, useCompactFilters, type FilterChip } from "../components/CompactFilters";
-import { useIsV8 } from "../lib/v8";
+import { useIsV8, V8_NUM } from "../lib/v8";
 import {
   Disclosure, RankingsTabs, V8_CAPTION, V8_DOWN, V8_EYEBROW, V8_FRAME, V8_HEAD, V8_ICON, V8_LINK, V8_MINE, V8_RANK, V8_NEW, V8_ROW, V8_TH, V8_UP, v8Medal, v8Trend,
 } from "../components/rankings/v8";
@@ -326,7 +326,7 @@ function RankTable({ data, myTeam }: { data: RankingsResponse; myTeam: number | 
                 <td className={cn(td, "max-w-0 w-full")}>
                   <Link to={`/teams/${r.team}?season=${data.season}`} className="group block min-w-0">
                     <span className="flex items-baseline gap-2">
-                      <span className={cn("font-mono font-semibold tabular-nums group-hover:text-accent-text", "v8:font-sans")}>{r.team}</span>
+                      <span className={cn("font-mono font-semibold tabular-nums group-hover:text-accent-text", "v8:font-sans", !me && V8_NUM)}>{r.team}</span>
                       <span className={cn("truncate group-hover:text-accent-text", "v8:text-text-muted v8:group-hover:text-text-base", me && "v8:text-text-base")}>{r.name ?? ""}</span>
                     </span>
                     <span className={cn("block truncate text-xs text-text-muted md:hidden", V8_CAPTION)}>{homeOf(r)}</span>
@@ -334,7 +334,7 @@ function RankTable({ data, myTeam }: { data: RankingsResponse; myTeam: number | 
                 </td>
                 <td className={cn(td, "max-w-[14rem] truncate text-text-muted max-md:hidden")}>{homeOf(r)}</td>
                 <td className={cn(td, "text-right tabular-nums")}>
-                  <span className="font-semibold v8:font-medium">{r.rating.toFixed(1)}</span>
+                  <span className={cn("font-semibold v8:font-medium", V8_NUM)}>{r.rating.toFixed(1)}</span>
                   {r.dRating != null && r.dRating !== 0 && <span className={cn("block text-[11px] v8:text-[0.6875rem]", r.dRating > 0 ? cn("text-success", V8_UP) : cn("text-danger", V8_DOWN))}>{r.dRating > 0 ? "+" : ""}{r.dRating.toFixed(1)}</span>}
                 </td>
                 {swing && <td className={cn(td, "text-right tabular-nums")} title={swingTitle(r.swing)}>{swingText(r.swing)}</td>}
