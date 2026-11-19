@@ -1,5 +1,6 @@
 <p align="center">
-  <img src="brand/wordmark-master-white.png" alt="Control Scout" width="420" />
+  <img src="brand/wordmark-master-white.png#gh-dark-mode-only" alt="Control Scout" width="420" />
+  <img src="brand/wordmark-master.png#gh-light-mode-only" alt="Control Scout" width="420" />
 </p>
 
 <h3 align="center">Free-forever FTC scouting and predictions for <em>every</em> team.</h3>
