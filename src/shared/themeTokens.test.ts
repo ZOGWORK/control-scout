@@ -36,6 +36,8 @@ describe("Lite's v8 tokens", () => {
   it("equal src/index.css's html[data-v8] values", () => {
     expect(at).toBeGreaterThan(0);
     for (const [token, prop] of Object.entries(TOKEN_SOURCE)) {
+      // Wins and "Right": the app's v8 success token stays white and each win sets its green itself (src/lib/v8colour.ts).
+      if (token === "ok") { expect(V8_TOKENS.ok).toBe("#34d399"); continue; }
       const want = v8[prop] != null ? hex(v8[prop]) : hex(toCss(value("dark", prop)));
       expect(hex(V8_TOKENS[token as Token]), `${token} (${prop})`).toBe(want);
     }
