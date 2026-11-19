@@ -104,9 +104,11 @@ function FoldedSection({ id, also, title, summary, tint: tintIn, icon: Icon, cou
   useEffect(() => { if (linked) { setOpen(true); setOpened(true); } }, [linked]);
   const body = useId();
   const hint = useId();
-  // v8: a neutral card header (icon, title, quiet count), with no colour wash taken from what's inside.
+  // v8: the card header (icon, title, quiet count) keeps the colour wash taken from what's inside, about half as
+  // strong as the classic look's (Sushil, 11-19: "bring back the clean gradients, more faint").
   const v8 = useIsV8();
-  const tint = v8 ? undefined : tintIn;
+  const tint = tintIn;
+  const faint = v8 ? 0.5 : 1;
   // Faint enough to sit under the event cards without competing with them.
   const wash = (pct: number) => tint && `linear-gradient(100deg, ${tint.map((c) => `color-mix(in srgb, ${c} ${pct}%, transparent)`).join(', ')})`;
   return (
@@ -115,7 +117,7 @@ function FoldedSection({ id, also, title, summary, tint: tintIn, icon: Icon, cou
         {also?.map((a) => <span key={a} id={a} aria-hidden className="block scroll-mt-16" />)}
         {/* A closed section is a card that looks pressable: a frame, a hint at what's inside and a "Show details" pill. */}
         <h2 className={cn(open && 'mb-4')}>
-          <button type="button" aria-expanded={open} aria-controls={body} aria-describedby={summary ? hint : undefined} style={tint && { backgroundImage: wash(7) }} onClick={() => { setOpen((o) => !o); setOpened(true); }}
+          <button type="button" aria-expanded={open} aria-controls={body} aria-describedby={summary ? hint : undefined} style={tint && { backgroundImage: wash(7 * faint) }} onClick={() => { setOpen((o) => !o); setOpened(true); }}
             className="group flex w-full items-center justify-between gap-3 rounded-xl border border-border bg-card/60 px-4 py-3 text-left transition-colors hover:border-foreground/25 hover:bg-muted/50 motion-reduce:transition-none v8:min-h-[3.5rem] v8:border-line v8:bg-card v8:hover:border-white/[0.12] v8:hover:bg-white/[0.02]">
             {v8 && Icon && <Icon aria-hidden className="size-4 shrink-0 self-start mt-[0.1875rem] text-text-faint" />}
             <span className="min-w-0 v8:flex-1">
@@ -124,7 +126,7 @@ function FoldedSection({ id, also, title, summary, tint: tintIn, icon: Icon, cou
               {summary && <span id={hint} aria-hidden className="mt-0.5 block text-sm font-normal text-muted-foreground">{summary}</span>}
             </span>
             {/* The words are for the eye; a screen reader hears aria-expanded. */}
-            <span aria-hidden style={tint && { backgroundImage: wash(22), borderColor: `color-mix(in srgb, ${tint[0]} 35%, transparent)` }}
+            <span aria-hidden style={tint && { backgroundImage: wash(22 * faint), borderColor: `color-mix(in srgb, ${tint[0]} ${35 * faint}%, transparent)` }}
               className="flex shrink-0 items-center gap-1 rounded-full border border-border bg-background px-3 py-1 text-sm font-medium text-foreground shadow-sm transition-[filter,transform] group-hover:brightness-125 group-active:scale-95 motion-reduce:transition-none v8:gap-1.5 v8:border-0 v8:bg-transparent v8:px-0 v8:font-normal v8:text-text-faint v8:shadow-none v8:group-hover:brightness-100 v8:group-hover:text-text-muted v8:group-active:scale-100">
               {v8 && count != null && <span className="tabular-nums" data-section-count>{count}<span className="max-sm:hidden" aria-hidden> ·</span></span>}
               <span className={cn(v8 && count != null && 'max-sm:sr-only')}>{open ? 'Hide' : <>Show<span className="max-sm:hidden">&nbsp;details</span></>}</span>

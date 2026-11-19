@@ -133,12 +133,14 @@ describe("team page, v8 on", () => {
     expect(document.querySelectorAll(".lift")).toHaveLength(0);
   });
 
-  it("keeps the folded sections closed, drawn as card headers: icon, title, quiet count, no colour wash", () => {
+  it("keeps the folded sections closed, drawn as card headers: icon, title, quiet count, a faint colour wash", () => {
     mount();
     for (const name of FOLDED) {
       const b = folded(name);
       expect(b.getAttribute("aria-expanded")).toBe("false");
-      for (const el of [b, ...b.querySelectorAll<HTMLElement>("[style]")]) expect(el.style.backgroundImage).toBe("");
+      // The wash from what's inside, at half the classic strength (3.5% on the card, not 7%).
+      expect(b.style.backgroundImage).toContain("gradient");
+      expect(b.style.backgroundImage).toContain(" 3.5%");
       expect(b.querySelectorAll("svg")).toHaveLength(2); // the icon before the title, and the chevron
     }
     expect(folded("Reliability").querySelector("[data-section-count]")!.textContent).toContain("32 matches");
