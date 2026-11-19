@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { act, cleanup, render } from "@testing-library/react";
-import { useIsV8 } from "../lib/v8";
+import { V8_DEFAULT, useIsV8 } from "../lib/v8";
 import { MemoryRouter } from "react-router-dom";
 import KitPage from "./KitPage";
 import { TooltipProvider } from "../components/ui/overlay";
@@ -55,9 +55,11 @@ describe("v8 kit (/preview/kit)", () => {
 });
 
 describe("v8 foundations", () => {
-  it("turns on before first paint from ?v8=1, off from ?v8=0, and is dark only", () => {
+  it("is on by default before first paint, off only for a device that picked the classic look, and dark only", () => {
     expect(html).toContain("/[?&]v8=([01])/");
-    expect(html).toContain("localStorage.getItem('cs-v8') === '1'");
+    // v8 is the default (V8_DEFAULT): only a stored "0" (the classic look, /legacy) turns it off.
+    expect(V8_DEFAULT).toBe(true);
+    expect(html).toContain("localStorage.getItem('cs-v8') !== '0'");
     expect(html).toContain("var t = v8 ? 'dark' :");
   });
 

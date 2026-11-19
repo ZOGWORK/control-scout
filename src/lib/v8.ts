@@ -1,4 +1,4 @@
-// v8, the new look (docs/design/v8-revamp-brief.md). Off by default while it's built page by page.
+// v8, the new look (docs/design/v8-revamp-brief.md), the default since 7.7.0; /legacy picks the classic one.
 // index.html sets <html data-v8> before first paint when this device has it on: `?v8=1` on any URL turns it on
 // (remembered in localStorage cs-v8), `?v8=0` turns it off. CSS opts in with the `v8:` variant (src/index.css).
 
@@ -7,7 +7,7 @@ import { useSyncExternalStore } from "react";
 export const V8_KEY = "cs-v8";
 /** The look a device gets before it picks one (index.html's boot script must match: `=== '1'` while this is false,
  *  `!== '0'` once it's true). The choice itself is stored as "1" (v8) or "0" (the classic look, /legacy). */
-export const V8_DEFAULT = false;
+export const V8_DEFAULT = true;
 
 /** Whether this page load is drawn in v8 (fixed for the load: index.html decides before anything paints). */
 export const isV8 = () => typeof document !== "undefined" && document.documentElement.hasAttribute("data-v8");

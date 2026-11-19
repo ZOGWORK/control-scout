@@ -26,10 +26,10 @@
       // static first paint the server puts in #root (server/bootShell.ts). Dark graphite is the default.
       try {
         // v8 (src/lib/v8.ts): ?v8=1 turns it on for this device, ?v8=0 picks the classic look (/legacy does the same);
-        // with neither, the site's default (V8_DEFAULT there, kept equal to the `=== '1'` here). On, it's dark only.
+        // with neither, the site's default (V8_DEFAULT there: on, so only a stored '0' gives the classic look). On, it's dark only.
         var q = /[?&]v8=([01])/.exec(location.search);
         if (q) localStorage.setItem('cs-v8', q[1]);
-        var v8 = localStorage.getItem('cs-v8') === '1';
+        var v8 = localStorage.getItem('cs-v8') !== '0';
         if (v8) document.documentElement.setAttribute('data-v8', '');
         var s = JSON.parse(localStorage.getItem('cs-personal:settings') || 'null');
         var t = v8 ? 'dark' : s && s.value && s.value.theme;
