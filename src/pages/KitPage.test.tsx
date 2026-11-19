@@ -2,7 +2,8 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { cleanup, render } from "@testing-library/react";
+import { act, cleanup, render } from "@testing-library/react";
+import { useIsV8 } from "../lib/v8";
 import { MemoryRouter } from "react-router-dom";
 import KitPage from "./KitPage";
 import { TooltipProvider } from "../components/ui/overlay";
@@ -26,15 +27,23 @@ describe("v8 kit (/preview/kit)", () => {
     expect([...container.querySelectorAll("[data-kit]")].map((s) => s.getAttribute("data-kit"))).toEqual(["colour", "type", "buttons", "inputs", "tabs", "cards", "overlays"]);
   });
 
-  it("draws in v8 while open and puts the device's own look back after", () => {
+  it("draws in v8 while open and takes it off after, touching no theme class itself", () => {
     const root = document.documentElement;
     root.classList.add("light");
     const { unmount } = mount();
     expect(root.hasAttribute("data-v8")).toBe(true);
-    expect(root.classList.contains("light")).toBe(false);
     unmount();
     expect(root.hasAttribute("data-v8")).toBe(false);
     expect(root.classList.contains("light")).toBe(true);
+  });
+
+  it("the theme follows the switch live: dark while v8 is on, the saved one once it's off", async () => {
+    const seen: string[] = [];
+    function Probe() { seen.push(useIsV8() ? "v8" : "off"); return null; }
+    render(<Probe />);
+    await act(async () => { document.documentElement.setAttribute("data-v8", ""); });
+    await act(async () => { document.documentElement.removeAttribute("data-v8"); });
+    expect(seen.filter((x, i) => x !== seen[i - 1])).toEqual(["off", "v8", "off"]);
   });
 
   it("leaves v8 on when the device already has it", () => {
