@@ -323,7 +323,7 @@ export default function SearchPage() {
                 {!answer?.stat && !answer?.card && !teamAnswer && <AnswerVideo className="mt-0 max-sm:mx-0" />}
                 <FollowChips ask={follow.ask} related={follow.related} seeAll={follow.asked ?? query} className="mt-4" />
                 {/* Going deeper: plain rows, grouped, five each. */}
-                {standout && <RowGroup id="standout" title={standout.title} count={standout.rows.length}>{[<MatchRows key="m" rows={standout.rows} />]}</RowGroup>}
+                {standout && <RowGroup key={standout.rows.map((r) => r.href).join("|")} id="standout" title={standout.title} count={standout.rows.length}>{[<MatchRows key="m" rows={standout.rows} />]}</RowGroup>}
                 {!!compares.length && (
                   <section aria-label="Compare" className="mt-6" data-section="compare">
                     <div className="space-y-2">{compares.map((c) => <CompareCard key={c.href ?? c.ref} h={c} summaries={summaries} onOpen={() => open(c)} preview={phone && compareTeams(c).length >= 2 ? (from) => { if (!stale) setSheet({ hit: c, from, of: answer }); } : undefined} />)}</div>
@@ -540,7 +540,8 @@ function V8Group({ s, statuses, summaries, skip, fuzzyWord, picks, onPick, phone
     if (h.kind === "event") return <EventRow key={h.ref} h={h} onOpen={() => onOpen(h)} />;
     return <PlainRow key={`${h.kind}:${h.ref}`} h={h} onOpen={() => onOpen(h)} icon={s.id === "pages" || s.id === "browse" ? "page" : h.kind === "match" ? "match" : "place"} />;
   });
-  return <RowGroup id={s.id} title={title} count={ordered.length}>{rows}</RowGroup>;
+  // Keyed by its rows: the next search's group (the page stays mounted) opens capped again, never expanded.
+  return <RowGroup key={ordered.map((h) => `${h.kind}:${h.ref}`).join("|")} id={s.id} title={title} count={ordered.length}>{rows}</RowGroup>;
 }
 
 /** The events, grouped before any card is drawn: by status (Live now, Upcoming, Finished), then by date

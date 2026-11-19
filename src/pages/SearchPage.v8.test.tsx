@@ -75,6 +75,32 @@ describe("search page, v8 on", () => {
     expect(more.getAttribute("aria-expanded")).toBe("true");
   });
 
+  it("opens the next search's groups capped again (the page stays mounted between searches)", () => {
+    state.answer = answer(Array.from({ length: 7 }, (_, i) => team(1000 + i, `Team ${i}`)));
+    const { container, rerender } = show("/search?q=team");
+    fireEvent.click(within(container.querySelector('[data-v8-group="team"]') as HTMLElement).getByRole("button", { name: "Show 2 more" }));
+    state.answer = answer(Array.from({ length: 8 }, (_, i) => team(2000 + i, `Other ${i}`)));
+    rerender(<MemoryRouter initialEntries={["/search?q=team"]}><SearchPage /></MemoryRouter>);
+    const group = container.querySelector('[data-v8-group="team"]') as HTMLElement;
+    expect(group.querySelectorAll('[data-row="team"]')).toHaveLength(5);
+    expect(within(group).getByRole("button", { name: "Show 3 more" }).getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("opens the next ranking at its top 5 again after Show all on the last one", () => {
+    const lb = (base: number) => ({
+      family: "leaderboard", intent: "top-opr", title: "Top 10 teams by OPR", scope: [], source: "From the season", definition: "",
+      blocks: [{ kind: "leaderboard", title: "Top 10 by OPR", stat: { id: "opr", label: "OPR" }, note: "",
+        rows: Array.from({ length: 10 }, (_, i) => ({ rank: i + 1, team: { label: `${base + i} T${i}`, href: `/teams/${base + i}` }, location: null, record: "1-0-0", opr: 100 - i, value: 100 - i, display: String(100 - i) })) }],
+    }) as unknown as SearchAnswer["stat"];
+    state.answer = { ...answer([]), stat: lb(100) };
+    const { container, rerender } = show("/search?q=top%20teams");
+    fireEvent.click(within(container.querySelector('[data-block="leaderboard"]') as HTMLElement).getByRole("button", { name: "Show all 10" }));
+    expect(container.querySelectorAll("[data-team-row]")).toHaveLength(10);
+    state.answer = { ...answer([]), stat: lb(500) };
+    rerender(<MemoryRouter initialEntries={["/search?q=top%20teams"]}><SearchPage /></MemoryRouter>);
+    expect([...container.querySelectorAll("[data-team-row]")].map((r) => r.getAttribute("data-team-row"))).toEqual(["500", "501", "502", "503", "504"]);
+  });
+
   it("gives the results column its one entrance stagger, CSS only, none under reduced motion", () => {
     state.answer = answer([team(4215, "Hypnotic Robotics"), team(6980, "Bad Wolf")]);
     const { container } = show("/search?q=robotics");

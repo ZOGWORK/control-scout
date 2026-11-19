@@ -614,6 +614,9 @@ function Leaderboard({ b }: { b: Extract<StatBlock, { kind: "leaderboard" }> }) 
   // v8: a ranking is sized to the question, its top five, the rest in place with one tap (the page plan).
   const v8 = useIsV8();
   const [all, setAll] = useState(false);
+  // Another answer in the same place (the page stays mounted from one search to the next) opens short again.
+  const [shownFor, setShownFor] = useState(b);
+  if (shownFor !== b) { setShownFor(b); setAll(false); }
   const short = v8 && !all && table.rows.length > V8_TOP;
   return (
     <figure data-block="leaderboard">
