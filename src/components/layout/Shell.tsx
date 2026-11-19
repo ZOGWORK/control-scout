@@ -81,7 +81,8 @@ function useSections() {
 export function BrandMark({ className }: { className?: string }) {
   // v8: the white mark (no yellow anywhere, docs/design/v8-revamp-brief.md §3.1).
   if (isV8()) return <img src="/mark-white.webp" alt="" aria-hidden width={40} height={40} className={cn("size-5 shrink-0", className)} />;
-  return <img src="/logo-56.webp" alt="" aria-hidden width={56} height={56} className={cn("size-7 shrink-0", className)} />;
+  // The classic look keeps the yellow logo it always had (public/legacy/, kept when the icon changed).
+  return <img src="/legacy/logo-56.webp" alt="" aria-hidden width={56} height={56} className={cn("size-7 shrink-0", className)} />;
 }
 
 /** `dense`: the sidebar's rows, sized to the screen's height (--nav-row in index.css: they fit a laptop screen and

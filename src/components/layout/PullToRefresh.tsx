@@ -12,6 +12,7 @@
 // The reload is a full page reload: the page's data, the app's code (a new deploy) and the service worker's
 // copy all come fresh, which is what reloading means in a browser tab too.
 import { useEffect, useRef, useState } from "react";
+import { isV8 } from "../../lib/v8";
 import { IDLE, PULL_MEDIA, PULL_THRESHOLD, pageAtTop, pullBlocked, pullEnd, pullMove, pullStart, pullToRefreshEnabled, type PullState } from "../../lib/pullToRefresh";
 
 const reducedMotion = () => { try { return window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true; } catch { return false; } };
@@ -155,7 +156,7 @@ export function PullToRefresh({ reload = () => window.location.reload() }: { rel
             <circle ref={ring} cx="22" cy="22" r={R} fill="none" strokeWidth="2.5" strokeLinecap="round" className="stroke-accent"
               style={{ strokeDasharray: RING, strokeDashoffset: RING }} />
           </svg>
-          <img data-pull-mark src="/logo-56.webp" alt="" aria-hidden width={56} height={56} className="size-[22px]" />
+          <img data-pull-mark src={isV8() ? "/logo-56.webp" : "/legacy/logo-56.webp"} alt="" aria-hidden width={56} height={56} className="size-[22px]" />
         </div>
         <span ref={label} role="status" aria-live="polite" className="sr-only" />
       </div>
