@@ -138,10 +138,29 @@ describe("team page, v8 on", () => {
     expect(within(next).getByRole("link", { name: /Advancement odds/ })).toBeTruthy();
   });
 
-  it("picks the season from one quiet select beside the label, not a row of pills", () => {
+  it("picks the season from one clearly visible select at the end of the action row, not a row of pills", () => {
     mount();
-    expect(within(hero()).getByRole("combobox", { name: /Season 2025/ })).toBeTruthy();
-    expect(within(hero()).queryAllByRole("radio")).toHaveLength(0);
+    const actions = document.querySelector<HTMLElement>("[data-hero-actions]")!;
+    const select = within(actions).getByRole("combobox", { name: /Season 2025/ });
+    expect(select.className).toContain("text-text-base");
+    expect(select.className).toContain("border-white/30");
+    expect(within(hero()).queryByRole("combobox")).toBeNull();
+    expect(hero().querySelector("[data-eyebrow]")!.textContent).toBe("FTC team");
+    expect(within(actions).queryAllByRole("radio")).toHaveLength(0);
+  });
+
+  it("shows each phase's OPR above the fold with its world rank and percentile, in its own colour", () => {
+    mount();
+    const quick = document.querySelector<HTMLElement>("[data-standing] [data-quick-stats]")!;
+    const cells = [...quick.querySelectorAll<HTMLElement>("[data-quick-stat]")];
+    expect(cells.map((c) => c.querySelector("dt")!.textContent)).toEqual(["NP OPR", "Auto OPR", "TeleOp OPR", "Endgame OPR"]);
+    expect(cells[0].textContent).toContain("80");
+    expect(cells[0].textContent).toContain("#600 · top 8%");
+    const colours = ["#c4a7e7", "#7dd3fc", "#fdba74", "#86efac"];
+    cells.forEach((c, i) => {
+      expect(c.querySelector("dd")!.className).toContain(colours[i]);
+      expect(c.querySelector("[data-bar]")).not.toBeNull();
+    });
   });
 
   it("merges OPR and the rating into one Strength table, mint only on its bars, how it's computed behind a disclosure", () => {
