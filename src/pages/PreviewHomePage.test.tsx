@@ -44,7 +44,7 @@ const MATCH = {
   played: false, red: side([4215, 1]), blue: side([2, 3]), video: null, prediction: { pRed: 0.64, tier: "moderate", kind: "live" },
 } as unknown as MatchView;
 
-const { default: PreviewHomePage, fixedExamples, liveNow, nextUp, yourTeams, EXAMPLE_COUNT, LIVE_MAX, TOP_MAX, TEAMS_MAX, MINT } = await import("./PreviewHomePage");
+const { default: PreviewHomePage, rotatedExamples, liveNow, nextUp, yourTeams, EXAMPLE_COUNT, LIVE_MAX, TOP_MAX, TEAMS_MAX, MINT } = await import("./PreviewHomePage");
 const { TooltipProvider } = await import("../components/ui/overlay");
 // The app's Shell gives every page a TooltipProvider (the folded sidebar's names are tooltips).
 const mount = () => render(<TooltipProvider><MemoryRouter initialEntries={["/preview/home"]}><PreviewHomePage /></MemoryRouter></TooltipProvider>);
@@ -63,15 +63,22 @@ describe("Sample home dashboard", () => {
     expect(isBareRoute("/events/2025/USNJQ1/display")).toBe(true);
   });
 
-  it("has no headline and starts with the search field, then four fixed chips", () => {
+  it("has no headline and starts with the search field, then four chips, a fresh set each visit", () => {
     const { container } = mount();
     expect(container.querySelector("h1")).toBeNull();
     const field = screen.getByLabelText("Search teams, events and matches");
     expect(container.querySelector("input")).toBe(field);
     expect(field.getAttribute("placeholder")).toBe("Search teams, events, matches…");
-    const ex = fixedExamples();
-    expect(ex).toHaveLength(EXAMPLE_COUNT);
-    for (const s of ex) { expect(HOME_SUGGESTIONS).toContain(s); expect(s.q).not.toMatch(/\b\d{3,5}\b/); }
+    // A fresh set each visit, from the live Home's rotation: four, the leaderboard first, no two of one family, no team's own.
+    for (const hour of [0, 1, 2, 77, 4321]) {
+      const ex = rotatedExamples(hour);
+      expect(ex).toHaveLength(EXAMPLE_COUNT);
+      expect(ex[0].kind).toBe("leaderboard");
+      expect(new Set(ex.map((s) => s.kind)).size).toBe(EXAMPLE_COUNT);
+      for (const s of ex) { expect(HOME_SUGGESTIONS).toContain(s); expect(s.mine).toBeUndefined(); }
+    }
+    expect(rotatedExamples(5)).toEqual(rotatedExamples(5));
+    expect(new Set([0, 1, 2, 3, 4, 5, 6, 7].map((h) => rotatedExamples(h).map((s) => s.q).join("|"))).size).toBeGreaterThan(1);
     expect(container.querySelectorAll("[data-example-chip]")).toHaveLength(EXAMPLE_COUNT);
     expect(EXAMPLE_COUNT).toBe(4);
     expect(container.querySelector("[aria-label*='by country']")).toBeNull(); // no globe
@@ -221,9 +228,12 @@ describe("Sample home dashboard", () => {
     expect(row.querySelector("[data-no-results]")?.textContent).toBe("No results yet");
   });
 
-  it("asks you to pick a team when none is set, with the page's one mint button", () => {
+  it("asks you to pick a team when none is set, with a plain button", () => {
     const { container } = mount();
-    expect(container.querySelectorAll("[data-primary-action]")).toHaveLength(1);
+    // A plain icon-and-label button like the sidebar's rows: no colour, no fill, no border.
+    const pick = container.querySelector("[data-pick-team]")!;
+    expect(cls(pick)).not.toMatch(/accent|border|(^|\s)bg-/);
+    expect(cls(pick.querySelector("svg")!)).not.toContain("accent");
     const team = container.querySelector("[data-card='team']")!;
     expect(team.textContent).toContain("Pick your team to see its next match");
     expect(within(team as HTMLElement).getByRole("button", { name: /Pick your team/ })).toBeTruthy();
@@ -287,13 +297,13 @@ describe("Sample home dashboard", () => {
     const all = [...container.querySelectorAll("*")];
     // Mint fills: the live progress, nothing else.
     const fills = all.filter((el) => /(^|\s)bg-accent(\s|$)/.test(cls(el)));
-    expect(fills.every((el) => ["data-primary-action", "data-progress"].some((a) => el.hasAttribute(a)))).toBe(true);
+    expect(fills.every((el) => ["data-progress"].some((a) => el.hasAttribute(a)))).toBe(true);
     // Live is red and pulses (motion-reduce stills it).
     const pulse = container.querySelector("[data-live-dot] [data-live-pulse]")!;
     expect(cls(pulse)).toContain("animate-ping");
     expect(cls(pulse)).toContain("motion-reduce:hidden");
     expect(container.querySelector("[data-live-event] svg")!.getAttribute("class")).toContain("text-[#f2555a]");
-    expect(container.querySelectorAll("[data-primary-action]")).toHaveLength(0);
+    expect(container.querySelector("[data-pick-team]")).toBeNull();
     // Text in mint: only the #1 rank (and icons).
     const mintText = all.filter((el) => /(^|\s)text-accent(\s|$)/.test(cls(el)));
     expect(mintText.every((el) => el.hasAttribute("data-rank") || el.tagName.toLowerCase() === "svg")).toBe(true);
