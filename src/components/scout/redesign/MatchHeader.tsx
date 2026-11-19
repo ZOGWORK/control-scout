@@ -31,12 +31,14 @@ export function clockTime(t: string | null | undefined): string | null {
 
 const STATE_WORDS: Record<ChipState, string> = { current: "current", done: "done", partial: "partly scouted", skipped: "skipped", upcoming: "" };
 // The same tints as MatchRow's status chips (Right / Upset) and its highlighted team (accent ring).
+// v8: the open match is white on a faint fill with the slate-blue line (picked); done is plain white, partly done
+// and skipped a dashed hairline, upcoming muted. No green or orange.
 const CHIP: Record<ChipState, string> = {
-  current: "border-transparent bg-accent/15 font-semibold text-accent-text ring-1 ring-accent/60",
-  done: "border-transparent bg-success/12 text-success",
-  partial: "border-transparent bg-warning/12 text-warning",
-  skipped: "border-transparent bg-warning/12 text-warning",
-  upcoming: "border-border text-text-muted still-hover:bg-text-base/[0.06]",
+  current: "border-transparent bg-accent/15 font-semibold text-accent-text ring-1 ring-accent/60 v8:bg-white/10 v8:text-text-base v8:ring-accent/70",
+  done: "border-transparent bg-success/12 text-success v8:bg-white/[0.06] v8:text-text-base",
+  partial: "border-transparent bg-warning/12 text-warning v8:border-dashed v8:border-white/25 v8:bg-transparent v8:text-text-muted",
+  skipped: "border-transparent bg-warning/12 text-warning v8:border-dashed v8:border-white/25 v8:bg-transparent v8:text-text-muted",
+  upcoming: "border-border text-text-muted still-hover:bg-text-base/[0.06] v8:border-line",
 };
 
 /** A horizontal swipe this far (px), and clearly more sideways than up or down, steps a match. */
@@ -98,9 +100,9 @@ export function MatchHeader({ schedule, index, watching, progress, onIndex, next
         const mine = watched.has(`${side}:${i + 1}`), where = `${side === "red" ? "Red" : "Blue"} ${i + 1}`;
         return (
           <div key={`${side}${i}`} data-watched={mine || undefined}
-            className={cn("flex min-w-0 flex-col rounded-md px-1.5 py-0.5 leading-tight", side === "blue" && "items-end text-right", mine && "bg-accent/15 ring-1 ring-accent/60")}>
-            <span className={cn("tabular font-mono text-[0.8125rem]", mine ? "font-bold text-accent-text" : "text-text-muted")}>{team}</span>
-            <span className={cn("text-[11px]", mine ? "text-text-base" : "text-text-muted")}>{where}{mine && <span className="sr-only">, watching</span>}</span>
+            className={cn("flex min-w-0 flex-col rounded-md px-1.5 py-0.5 leading-tight", side === "blue" && "items-end text-right", mine && "bg-accent/15 ring-1 ring-accent/60 v8:bg-white/10 v8:ring-white/20")}>
+            <span className={cn("tabular font-mono text-[0.8125rem] v8:text-[0.875rem]", mine ? "font-bold text-accent-text" : "text-text-muted")}>{team}</span>
+            <span className={cn("text-[11px] v8:text-[0.6875rem]", mine ? "text-text-base" : "text-text-muted")}>{where}{mine && <span className="sr-only">, watching</span>}</span>
           </div>
         );
       })}
@@ -117,7 +119,7 @@ export function MatchHeader({ schedule, index, watching, progress, onIndex, next
             dir > 0 ? "motion-safe:slide-in-from-right-4" : "motion-safe:slide-in-from-left-4")}>{m.label}</h2>
           <p className="mt-1 text-xs text-muted-foreground">
             {done ? <><span className="font-semibold text-success">Saved</span> · tap to edit</>
-              : index === nextIndex ? <><span className="font-semibold text-success">Next up</span>{time && <> · ~{time}</>}</>
+              : index === nextIndex ? <><span className="font-semibold text-success v8:font-medium v8:text-text-base">Next up</span>{time && <> · ~{time}</>}</>
                 : time ? `~${time}` : m.played ? "Played" : "No time yet"}
           </p>
         </div>
@@ -165,8 +167,8 @@ export function ScheduleState({ status, fromDevice, error, onManual, onRetry, cl
   if (status === "ready") {
     return fromDevice ? (
       // OfflineNote's look: the same note wherever data comes from this device instead of the server.
-      <p role="status" className={cn("flex items-start gap-2 rounded-lg border border-info/30 bg-info/[0.06] px-3 py-2 text-xs", className)}>
-        <WifiOff className="mt-px size-3.5 shrink-0 text-info" />
+      <p role="status" className={cn("flex items-start gap-2 rounded-lg border border-info/30 bg-info/[0.06] px-3 py-2 text-xs v8:border-0 v8:bg-transparent v8:px-0 v8:py-0 v8:text-text-muted", className)}>
+        <WifiOff className="mt-px size-3.5 shrink-0 text-info v8:text-text-muted" />
         <span>Showing the schedule saved on this phone</span>
       </p>
     ) : null;

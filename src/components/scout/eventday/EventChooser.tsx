@@ -20,6 +20,7 @@ import { cn } from "../../cn";
 import { chooserEventsPath } from "../../../lib/offline/warm";
 import { useSavedBundles } from "../../../lib/offline/bundleMeta";
 import { OfflineNote } from "../../OfflineNote";
+import { useIsV8 } from "../../../lib/v8";
 
 /** Today's date on this device, as event dates are written (YYYY-MM-DD, event-local). */
 export function localToday(now = new Date()): string {
@@ -60,6 +61,7 @@ export function EventChooser({ season, currentSeason, onSeason, entries, ourTeam
   const today = localToday();
   const start = (current ?? "").trim().toUpperCase();
   const titleId = useId();
+  const v8 = useIsV8();
   const teamsKey = [...new Set(ourTeams)].sort((a, b) => a - b).join(",");
   // Every event type, practice days and the like too: a pit can be scouted at any of them. The list shows the
   // Events page's own set (no kickoffs, workshops, practice days…) until the Event type filter picks one of those,
@@ -123,13 +125,14 @@ export function EventChooser({ season, currentSeason, onSeason, entries, ourTeam
           {(pit.done > 0 || matches.done > 0) && <p className="text-xs text-muted-foreground">
             Scouted: <span className="tabular-nums text-foreground">{count(pit)}</span> pits · <span className="tabular-nums text-foreground">{count(matches)}</span> matches
           </p>}
-          <Button size="sm" variant={strong ? "default" : "outline"} className="w-full max-sm:min-h-11" onClick={() => onPick(e.code)} aria-label={`Scout ${e.name}`}>
+          {/* v8: at most one primary on the screen, the event already picked (or none); every other card's is outline. */}
+          <Button size="sm" variant={(v8 ? picked : strong) ? "default" : "outline"} className="w-full max-sm:min-h-11 v8:h-10" onClick={() => onPick(e.code)} aria-label={`Scout ${e.name}`}>
             {picked ? "Keep scouting this event" : "Scout this event"} <ArrowRight />
           </Button>
         </div>
       ),
     };
-  }, [start, ours, byEvent, today, onPick]);
+  }, [start, ours, byEvent, today, onPick, v8]);
 
   const allEvents = state.data?.events;
   const events = useMemo(() => (allEvents && !isNoMatchType(type) ? allEvents.filter((e) => !isNoMatchType(e.type)) : allEvents), [allEvents, type]);
@@ -141,8 +144,8 @@ export function EventChooser({ season, currentSeason, onSeason, entries, ourTeam
     <section aria-labelledby={titleId}>
       <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
-          <h2 id={titleId} className="text-lg font-semibold text-foreground">Which event are you scouting?</h2>
-          <p className="text-sm text-muted-foreground">Pick it once. Scout stays on it until you change it. Tap a card to open the event, or Scout to start.</p>
+          <h2 id={titleId} className="text-lg font-semibold text-foreground v8:text-[1.0625rem]">Which event are you scouting?</h2>
+          <p className="text-sm text-muted-foreground v8:mt-0.5">Pick it once. Scout stays on it until you change it. Tap a card to open the event, or Scout to start.</p>
         </div>
         {onCancel && <Button variant="outline" onClick={onCancel} className="max-sm:h-11">Back to {start || "the event"}</Button>}
       </div>
@@ -152,9 +155,9 @@ export function EventChooser({ season, currentSeason, onSeason, entries, ourTeam
           <p className="mb-2 flex items-center gap-1.5 text-sm font-semibold"><Users className="size-4 text-accent-text" aria-hidden />Your teams are at</p>
           <div className="flex flex-wrap gap-2">
             {mineSoon.slice(0, 6).map((e) => (
-              <Button key={e.code} variant="outline" size="sm" onClick={() => onPick(e.code)} aria-label={`Scout ${e.name}`} className={cn("h-auto max-w-full flex-col items-start gap-0 py-1.5 text-left", e.code === start && "border-accent/70")}>
+              <Button key={e.code} variant="outline" size="sm" onClick={() => onPick(e.code)} aria-label={`Scout ${e.name}`} className={cn("h-auto max-w-full flex-col items-start gap-0 py-1.5 text-left", e.code === start && "border-accent/70", "v8:min-h-11")}>
                 <span className="max-w-[16rem] truncate">{e.name}</span>
-                <span className="inline-flex items-center gap-1 text-[11px] font-normal text-muted-foreground"><CalendarDays className="size-3" aria-hidden />{dateRange(e.start, e.end)} · {(ours.get(e.code) ?? []).join(", ")}</span>
+                <span className="inline-flex items-center gap-1 text-[11px] font-normal text-muted-foreground v8:text-[0.6875rem]"><CalendarDays className="size-3" aria-hidden />{dateRange(e.start, e.end)} · {(ours.get(e.code) ?? []).join(", ")}</span>
               </Button>
             ))}
           </div>
@@ -167,7 +170,7 @@ export function EventChooser({ season, currentSeason, onSeason, entries, ourTeam
             {bundles.map((b) => (
               <Button key={b.code} variant="outline" size="sm" onClick={() => onPick(b.code)} aria-label={`Scout ${b.name}`} className={cn("h-auto min-h-11 max-w-full flex-col items-start gap-0 py-1.5 text-left", b.code.toUpperCase() === start && "border-accent/70")}>
                 <span className="max-w-[16rem] truncate">{b.name}</span>
-                <span className="text-[11px] font-normal text-muted-foreground">Works with no signal{b.teams?.length ? ` · ${b.teams.length} teams` : ""}</span>
+                <span className="text-[11px] font-normal text-muted-foreground v8:text-[0.6875rem]">Works with no signal{b.teams?.length ? ` · ${b.teams.length} teams` : ""}</span>
               </Button>
             ))}
           </div>
