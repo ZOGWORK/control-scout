@@ -284,7 +284,11 @@ function CompareRow({ id, h, active, onPick, onHover }: { id: string; h: SearchH
 }
 
 export interface SearchBoxProps {
-  onPick: (h: SearchHit) => void;
+  /** A pick. Returning true says the page is leaving with this box's query still showing (Home's glide to /search,
+   *  search/glide.ts): the field keeps its text and focus for the moment it's pictured, instead of clearing. */
+  onPick: (h: SearchHit) => unknown;
+  /** v8: this is one of the boxes Home's search glides between (search/glide.ts). */
+  glide?: boolean;
   kinds?: HitKind[];
   placeholder: string;
   label: string;
@@ -390,7 +394,7 @@ export function AnswerCard({ card, compact, onOpen }: { card: SearchCard; compac
   );
 }
 
-export function SearchBox({ onPick, kinds, placeholder, label, size = "md", className, fieldClassName, inputRef, emptyHint, autoFocus, onClose, onEscape, hint, initialQuery, seeAll = true, discover, examples, syncQuery }: SearchBoxProps) {
+export function SearchBox({ onPick, kinds, placeholder, label, size = "md", className, fieldClassName, inputRef, emptyHint, autoFocus, onClose, onEscape, hint, initialQuery, seeAll = true, discover, examples, syncQuery, glide }: SearchBoxProps) {
   const [q, setQ] = useState(initialQuery ?? syncQuery ?? "");
   const [open, setOpen] = useState(!!initialQuery);
   const synced = useRef(syncQuery);
@@ -464,7 +468,13 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
     return () => document.removeEventListener("pointerdown", away);
   }, [open]);
   // A box holding the page's query keeps it (a pick that lands back on that page shows it again).
-  const go = (h: SearchHit) => { onPick(h); setQ(syncQuery ?? ""); setOpen(false); (document.activeElement as HTMLElement | null)?.blur?.(); onClose?.(); };
+  const go = (h: SearchHit) => {
+    const leaving = onPick(h) === true;
+    if (!leaving) setQ(syncQuery ?? "");
+    setOpen(false);
+    if (!leaving) (document.activeElement as HTMLElement | null)?.blur?.();
+    onClose?.();
+  };
   // A search of everything (not a picker, not a box limited to some kinds): what was searched is remembered on
   // this device, for the recent searches list.
   const remember = seeAll && !kinds;
@@ -560,7 +570,7 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
   const lg = size === "lg";
   return (
     <div ref={box} data-search-box data-opens-search={seeAll && !kinds ? "" : undefined} className={cn("relative", className)} onBlur={(e) => { if (!box.current?.contains(e.relatedTarget as Node | null)) { setOpen(false); onClose?.(); } }}>
-      <div className={cn("flex items-center gap-2.5 rounded-xl border border-border bg-card text-foreground v8:border-input v8:bg-muted transition-[border-color,box-shadow] focus-within:border-accent/60 focus-within:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_18%,transparent)]", lg ? "h-14 px-4" : "h-9 px-3", fieldClassName)}>
+      <div data-glide-box={glide ? "" : undefined} className={cn("flex items-center gap-2.5 rounded-xl border border-border bg-card text-foreground v8:border-input v8:bg-muted transition-[border-color,box-shadow] focus-within:border-accent/60 focus-within:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_18%,transparent)]", lg ? "h-14 px-4" : "h-9 px-3", fieldClassName)}>
         {/* The magnifier searches, like Enter: it never just focuses the field (only an empty one, with nothing to
             search). The press keeps focus in the field so the list stays open until the search goes; going closes
             the keyboard. */}
@@ -575,7 +585,11 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
         <input
           ref={setField} value={q} autoFocus={autoFocus} enterKeyHint={full ? "search" : "go"}
           onChange={(e) => { setQ(e.target.value); setOpen(true); }}
-          onFocus={() => setOpen(true)}
+          onFocus={(e) => {
+            // Focus handed over by Home's glide (search/glide.ts): the caret lands here, the list stays shut over the results.
+            if ("quietFocus" in e.currentTarget.dataset) { delete e.currentTarget.dataset.quietFocus; return; }
+            setOpen(true);
+          }}
           onKeyDown={(e) => {
             // Escape: closes the list and stays in the field; again clears it; on an empty, closed field, leaves it.
             if (e.key === "Escape") { if (showList) setOpen(false); else if (q) setQ(""); else { (e.target as HTMLInputElement).blur(); onClose?.(); onEscape?.(); } return; }

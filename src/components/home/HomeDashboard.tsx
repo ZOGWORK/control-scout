@@ -19,6 +19,7 @@ import { SUGGESTION_HOUR_MS, suggestionLabel, suggestionsAt, type HomeSuggestion
 import { TIER_WORD } from "../../shared/tierWords";
 import { SEARCH_HINT, usePageSearch, useSearch } from "../layout/Search";
 import { SearchBox, hitHref, searchPagePick } from "../search/SearchBox";
+import { glideTo, preloadSearchPage } from "../search/glide";
 import { addRecentSearch } from "../search/discover";
 import { nextMatch } from "./HomeSections";
 import { myTeamsOf } from "../../lib/myTeams";
@@ -99,13 +100,14 @@ export function HomeDashboard({ framed = false }: { framed?: boolean }) {
   return (
     <div data-home-dashboard className={cn("relative z-10 mx-auto flex w-full max-w-[72rem] flex-col", framed && "px-5 pb-24 sm:px-8")}>
       {/* Search, alone in the middle: the biggest thing on the page, the white mark small above it. */}
-      <section aria-label="Search" className={cn("mx-auto flex w-full max-w-[44rem] flex-col items-center", framed ? "mt-[15vh] max-sm:mt-[11vh]" : "mt-[9vh] max-sm:mt-[5vh]")}>
+      <section aria-label="Search" onFocusCapture={preloadSearchPage} className={cn("mx-auto flex w-full max-w-[44rem] flex-col items-center", framed ? "mt-[15vh] max-sm:mt-[11vh]" : "mt-[9vh] max-sm:mt-[5vh]")}>
         <img data-mark src="/mark-white.webp" alt="Control Scout" width={40} height={40} className="mb-7 size-10" />
         <SearchBox
           inputRef={searchRef} onEscape={search.restoreFocus} hint={SEARCH_HINT} initialQuery={query} discover size="lg"
           label="Search teams, events and matches"
           placeholder="Search teams, events, matches…"
-          onPick={(h: SearchHit) => nav(hitHref(h))}
+          onPick={(h: SearchHit) => { const to = hitHref(h); return glideTo(to, () => nav(to)); }}
+          glide
           className="w-full"
           fieldClassName="h-14 rounded-2xl border-white/15 bg-[#121214]/85 px-5 text-lg shadow-none backdrop-blur max-sm:text-base focus-within:border-accent focus-within:shadow-[0_0_0_3px_rgb(127_209_174/0.18)] [&_[data-search-submit]_svg]:text-text-muted [&_[data-search-submit]:hover]:bg-white/[0.08]"
         />
