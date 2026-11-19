@@ -126,6 +126,8 @@ export const BOOT_STYLE = `<style>
       .csbc-btns{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
       .csbc-btns button{height:32px;padding:0 12px;border:1px solid var(--b-line);border-radius:8px;background:var(--b-pop);color:var(--b-fg);font:600 12px/1 Inter,ui-sans-serif,system-ui,sans-serif;cursor:pointer}
       @media (min-width:768px){.csbc{left:16px;right:auto;bottom:7rem;width:22rem}}
+      .csbc-b i.csbc-a{font-style:normal;color:inherit}
+      @media (max-width:767px){html[data-v8] .csbc{padding:12px}html[data-v8] .csbc-ico,html[data-v8] .csbc-h,html[data-v8] .csbc-a{display:none}html[data-v8] .csbc-btns{margin-top:8px}}
       html[data-v8] .csb{--b-side:#0e0e10;--b-line:#ffffff0f;--b-acc:#a3b6e0}
       html[data-v8] .csb-brand img,html[data-v8] .csb-top>a img{content:url(/mark-white.webp)}
       html[data-v8] .csb-brand{height:56px;padding:0 16px;font-size:13.5px;font-weight:600}
@@ -165,7 +167,7 @@ export function bootConsent(): string {
     + `b.addEventListener('keydown',function(e){if(e.key==='Escape')set(false)})})()</script>`;
   return `<section id="${CONSENT_ID}" class="csbc" role="region" aria-label="Privacy choices" aria-describedby="${CONSENT_ID}-text" data-nosnippet>`
     + `<div class="csbc-row"><span class="csbc-ico">${shield}</span><div class="csbc-txt"><p class="csbc-h">Your privacy</p>`
-    + `<p id="${CONSENT_ID}-text" class="csbc-b">Sign-in, preferences and offline data are stored on this device so the app works. That's always on. `
+    + `<p id="${CONSENT_ID}-text" class="csbc-b"><i class="csbc-a">Sign-in, preferences and offline data are stored on this device so the app works. That's always on. </i>`
     + `May we also count <span>anonymous page views</span>? No cookies, no IDs, no third parties. <a href="/privacy">Privacy policy</a></p></div></div>`
     + `<div class="csbc-btns"><button type="button" data-a="0">No thanks</button><button type="button" data-a="1">Allow</button></div></section>${script}`;
 }
