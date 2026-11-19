@@ -314,15 +314,16 @@ html[data-v8] {
   --color-accent-ink: #141a2b;
   --color-accent-soft: rgb(163 182 224 / 0.1);
   /* Text that used the accent (your team's number, picked labels) is white; the slate blue stays for fills, lines
-     and the #1 rank. Wins and "Right" are white too, not green, and the alliances are a lighter red and blue. */
+     and the #1 rank. Wins and "Right" are white too. The alliances are the bright FTC red and blue (classic's rose 500 /
+     sky 400): they are the one colour pair everyone reads at once, so they never fade or desaturate. */
   --color-accent-text: #f4f4f5;
   --color-success: #f4f4f5;
   --color-success-text: #f4f4f5;
-  --color-red-alliance: #fb7185;
-  --color-red-alliance-text: #fb7185;
-  --color-red-alliance-ink: #fda4af;
-  --color-blue-alliance: #7dd3fc;
-  --color-blue-alliance-text: #7dd3fc;
+  --color-red-alliance: #f43f5e;
+  --color-red-alliance-text: #f43f5e;
+  --color-red-alliance-ink: #fb7185;
+  --color-blue-alliance: #38bdf8;
+  --color-blue-alliance-text: #38bdf8;
   /* No teal anywhere in v8: the third compared team is the wash's soft purple. */
   --color-team-c: #c4a7e7;
   --color-team-c-text: #c4a7e7;
