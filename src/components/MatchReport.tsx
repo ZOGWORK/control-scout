@@ -14,7 +14,12 @@ import type { WorkspaceAnswer } from "../lib/consensus";
 import { scoutTeamHref } from "../lib/consensus";
 import { workspaceLabel } from "../lib/scoutSpace";
 import { agoShort, int, num, oddsPct } from "../lib/format";
-import { ConfidenceBadge, FactorList, KIND_LABEL, PairHistoryLine, TierMark, WinBar, useChangeCount } from "./predict";
+import { ConfidenceBadge, FactorList, KIND_LABEL, PairHistoryLine, TierMark, WinBar, useChangeCount, useFollowedTeams } from "./predict";
+import { ClipLink, MatchVideoLink } from "./MatchClip";
+import { clipTime } from "../shared/recording";
+import { sheetWinner } from "../shared/factorSheet";
+import { useFlag } from "../lib/flags";
+import { factorLabel } from "../lib/factorLabel";
 import { PairedBar, barMax, rowLead, type BreakdownRow } from "./MatchDetails";
 import { useIsV8 } from "../lib/v8";
 import { OprSpark, PARTS } from "./shortlist/charts";
@@ -49,30 +54,7 @@ export function MatchReportView({ r, ws, watch }: { r: MatchReport } & ReportWor
   // A refusal (not a member any more, paused) or a failure: OPR-only, as for anyone without a workspace.
   const workspace = ws && !ws.state.error ? ws : null;
   const v8 = useIsV8();
-  if (v8) {
-    const scored = m.played && !!m.red.score && !!m.blue.score;
-    // v8 (brief §7.5): two columns on wide screens, the match on the left and the call on the right. In the
-    // markup (and so on a phone, one column) the call comes right after the result, before the breakdown and the teams.
-    return (
-      <div className="grid gap-x-10 gap-y-6 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,22rem)] lg:grid-rows-[auto_auto_1fr]" data-report-layout="v8">
-        {scored && <Result m={m} />}
-        <aside className="min-w-0 self-start lg:sticky lg:top-6 lg:col-start-2 lg:row-span-3 lg:row-start-1" aria-label="The call">
-          <CallV8 m={m} earned={r.bonus} />
-        </aside>
-        {scored && <ScorePairs m={m} />}
-        <div className={cn("min-w-0 space-y-5 lg:col-start-1", !scored && "lg:row-start-1")}>
-          <WorkspaceLine ws={ws} />
-          {(["red", "blue"] as const).map((side) => (
-            <Alliance key={side} side={side} m={m} remote={r.event.remote} byTeam={byTeam} ws={workspace} watch={watch} />
-          ))}
-          <p className="text-xs text-text-faint">
-            OPR is the points a robot adds to its alliance's score, worked out from every match it played (without penalties). The split is
-            auto, driver-controlled and endgame. Tap a flag to see why it's there.
-          </p>
-        </div>
-      </div>
-    );
-  }
+  if (v8) return <ReportV8 r={r} ws={ws} workspace={workspace} watch={watch} byTeam={byTeam} />;
   return (
     <div className="space-y-5 max-sm:space-y-4">
       <Call m={m} earned={r.bonus} />
@@ -142,25 +124,6 @@ function Call({ m, earned }: { m: MatchView; earned?: MatchReport["bonus"] }) {
   );
 }
 
-/** v8: the result as the page's biggest type, the winner bolder, the margin beside it. A live score that changes
- *  swaps with the shared crossfade (index.css cs-score-flash). */
-function Result({ m }: { m: MatchView }) {
-  const red = m.red.score!.total, blue = m.blue.score!.total;
-  const win: Side | null = red === blue ? null : red > blue ? "red" : "blue";
-  const flash = useChangeCount(`${red}:${blue}`);
-  const tone = (s: Side) => cn(SIDE[s].text, win === s || !win ? "font-bold" : "font-medium opacity-70");
-  return (
-    <section className="min-w-0 lg:col-start-1 lg:row-start-1" aria-label="Result" data-testid="report-result">
-      <p className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-        <span key={flash} className={cn("font-display text-[3rem] leading-none tabular-nums", flash > 0 && "cs-score-flash")}>
-          <span className={tone("red")}>{red}</span><span className="px-2 font-normal text-text-faint">–</span><span className={tone("blue")}>{blue}</span>
-        </span>
-        <span className={cn("text-lg font-semibold", win ? SIDE[win].text : "text-text-base")}>{win ? `${SIDE[win].name} won by ${Math.abs(red - blue)}` : "Tie"}</span>
-      </p>
-    </section>
-  );
-}
-
 /** v8: the score by phase as paired bars in the alliance colours, red from the middle leftward and blue rightward,
  *  every phase on one zero-based scale; the total under them as numbers. */
 function ScorePairs({ m }: { m: MatchView }) {
@@ -178,7 +141,7 @@ function ScorePairs({ m }: { m: MatchView }) {
     return <span className={cn("text-sm tabular-nums", s === "red" ? "text-right" : "text-left", lead === s ? cn("font-semibold", SIDE[s].text) : "text-text-muted")} data-testid={`pair-${s}`}>{x[s] ?? "—"}</span>;
   };
   return (
-    <section className="min-w-0 lg:col-start-1 lg:row-start-2" aria-label="Score breakdown" data-testid="report-breakdown">
+    <section className="min-w-0" aria-label="Score breakdown" data-testid="report-breakdown">
       <div className={cn(grid, "pb-1.5 text-xs text-text-faint")}>
         <span className="sr-only">Phase</span><span className="text-right text-red-alliance">Red</span><span /><span className="text-blue-alliance">Blue</span>
       </div>
@@ -202,58 +165,219 @@ function ScorePairs({ m }: { m: MatchView }) {
   );
 }
 
-/** v8: the call, with the favourite's chance to win as the hero number, the slim two-colour bar under it, then the
- *  predicted score, the bonus odds, the reasons and the full factor sheet as a quiet table. */
-function CallV8({ m, earned }: { m: MatchView; earned?: MatchReport["bonus"] }) {
-  const cov = useRangeCoverage();
+/** v8's report (page plan in PR #1976). The job: played, "who won and why"; not played, "who's favoured, by how much,
+ *  and why". First screen: the hero (both alliances side by side, the score or the win chance big), then the two or
+ *  three biggest reasons beside the score breakdown (played) or the predicted score (not played). Lower down: the
+ *  video, the teams as plain rows, then the full why breakdown and what the call learns from, in a disclosure. */
+function ReportV8({ r, ws, workspace, watch, byTeam }: { r: MatchReport; workspace: ReportWorkspaceProps["ws"]; byTeam: ReadonlyMap<number, ReportTeam> } & ReportWorkspaceProps) {
+  const m = r.match;
+  const scored = m.played && !!m.red.score && !!m.blue.score;
+  const sheetOn = useFlag("factorSheet");
+  const winner = scored ? sheetWinner(m.red.score!.total, m.blue.score!.total) : null;
+  return (
+    <div className="space-y-10 max-sm:space-y-8" data-report-layout="v8">
+      <HeroV8 m={m} byTeam={byTeam} />
+      <div className="grid gap-x-12 gap-y-8 lg:grid-cols-2">
+        <ReasonsV8 m={m} />
+        <div className="min-w-0 space-y-6">
+          {scored ? <ScorePairs m={m} /> : <PredictedV8 m={m} />}
+          {m.prediction?.bonus && <BonusOdds season={m.season} bonus={m.prediction.bonus} actual={scored ? r.bonus : null} compact className="rounded-none border-0 bg-transparent p-0 sm:p-0" />}
+        </div>
+      </div>
+      <VideoV8 m={m} />
+      <section className="min-w-0 space-y-4" aria-label="Teams">
+        <h2 className="text-base font-semibold">Teams</h2>
+        <WorkspaceLine ws={ws} />
+        <div className="grid gap-x-12 gap-y-6 lg:grid-cols-2">
+          {(["red", "blue"] as const).map((side) => <TeamsV8 key={side} side={side} m={m} remote={r.event.remote} byTeam={byTeam} ws={workspace} watch={watch} />)}
+        </div>
+        <p className="text-xs text-text-faint">OPR is the points a robot adds to its alliance's score, worked out from every match it played (without penalties). Tap a flag to see why it's there.</p>
+      </section>
+      {m.prediction && (
+        <section className="min-w-0 border-t border-line pt-2" aria-label="Full why breakdown">
+          {m.prediction.sheet && sheetOn
+            ? <FactorSheetPanel sheet={m.prediction.sheet} level={m.level} winner={winner} quiet />
+            : <PredictionBasis kind={matchBasis(m.level)} className="py-3" />}
+        </section>
+      )}
+    </div>
+  );
+}
+
+/** The hero: both alliances side by side, the score between them (the winner bold, the margin under it), or before the
+ *  match the favourite's chance to win as the big number with the slim two-colour bar under the row. One line under it
+ *  says what the call was and how sure it is (a prediction is never shown without its tier). */
+function HeroV8({ m, byTeam }: { m: MatchView; byTeam: ReadonlyMap<number, ReportTeam> }) {
   const p = m.prediction;
   const scored = m.played && m.red.score && m.blue.score ? { red: m.red.score.total, blue: m.blue.score.total } : null;
-  const winner: Side | "tie" | null = scored ? (scored.red === scored.blue ? "tie" : scored.red > scored.blue ? "red" : "blue") : null;
-  const called = p && winner && winner !== "tie" ? (p.pRed > 0.5) === (winner === "red") : null;
-  const full = [m.red, m.blue].every((a) => a.teams.filter((t) => t.onField).length === 2);
-  if (!p) {
-    return (
-      <section className="rounded-xl border border-line bg-card p-5" aria-label="Prediction">
-        <p className="text-sm text-text-muted">{!full ? "No prediction: the engine predicts full 2-against-2 matches only." : scored ? "No prediction was recorded before this match." : "No prediction for this match yet."}</p>
-      </section>
-    );
-  }
-  const fav: Side = p.pRed >= 0.5 ? "red" : "blue";
-  const favP = fav === "red" ? p.pRed : 1 - p.pRed;
+  const win: Side | null = scored && scored.red !== scored.blue ? (scored.red > scored.blue ? "red" : "blue") : null;
+  const flash = useChangeCount(scored ? `${scored.red}:${scored.blue}` : null);
+  const fav: Side | null = p ? (p.pRed >= 0.5 ? "red" : "blue") : null;
+  const called = p && scored && win ? (p.pRed > 0.5) === (win === "red") : null;
+  const tone = (s: Side) => cn(SIDE[s].text, win === s || !win ? "font-bold" : cn("font-medium", FADED_REPORT[s]));
   return (
-    <section className="space-y-5 rounded-xl border border-line bg-card p-5" aria-label={scored ? "Result and prediction" : "Prediction"} data-testid="report-call">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs text-text-faint">{KIND_LABEL[p.kind]}</p>
-        <ConfidenceBadge tier={p.tier} className="border-line bg-transparent text-text-muted" />
-      </div>
-      <div>
-        <p className="flex items-baseline gap-2" data-testid="report-hero">
-          <span className={cn("font-display text-[2.5rem] font-semibold leading-none tabular-nums", SIDE[fav].text)}>{oddsPct(favP)}</span>
-          <span className="text-sm text-text-muted">{SIDE[fav].name} to win</span>
-        </p>
-        <WinBar pRed={p.pRed} className="mt-3" />
-        <p className="mt-1.5 flex justify-between text-xs tabular-nums">
-          <span className="text-red-alliance">Red {oddsPct(p.pRed)}</span><span className="text-blue-alliance">Blue {oddsPct(1 - p.pRed)}</span>
-        </p>
-      </div>
-      {!p.noScoreBasis && (
-        <p className="text-sm text-text-muted">Predicted <ScoreRange mean={p.redMean} range={p.redRange} level={p.rangeLevel} className="font-medium text-red-alliance" /> – <ScoreRange mean={p.blueMean} range={p.blueRange} level={p.rangeLevel} className="font-medium text-blue-alliance" />
-          {p.redRange && p.blueRange && <span className="mt-0.5 block text-xs text-text-faint">± is the {levelPct(p.rangeLevel)} range: red {p.redRange[0]}–{p.redRange[1]}, blue {p.blueRange[0]}–{p.blueRange[1]}. {rangeCoverageLine(cov) ?? ""}</span>}</p>
-      )}
-      {called != null && (
-        <p className={cn("text-sm font-medium", called ? "text-success" : "text-text-base")} data-testid="report-called">{called ? "Called it" : "Upset"}<span className="font-normal text-text-muted">: {SIDE[winner as Side].name} won</span></p>
-      )}
-      {p.bonus && <BonusOdds season={m.season} bonus={p.bonus} actual={scored ? earned : null} compact className="border-line bg-transparent p-0 sm:p-0 border-0" />}
-      {p.factors?.length ? (
-        <div aria-label="Why">
-          <p className="mb-1.5 text-xs text-text-faint">Why</p>
-          <FactorList factors={p.factors.slice(0, 3)} reasons={p.reasons} />
-          {p.history ? <PairHistoryLine history={p.history} className="mt-1.5" /> : null}
+    <section className="min-w-0" aria-label={scored ? "Result" : "Prediction"} data-testid="report-hero">
+      <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-x-4 sm:gap-x-10">
+        <HeroTeams side="red" m={m} byTeam={byTeam} />
+        <div className="text-center">
+          {scored ? (
+            <div data-testid="report-result">
+              <p key={flash} className={cn("whitespace-nowrap font-display text-[2.75rem] leading-none tabular-nums sm:text-[4rem]", flash > 0 && "cs-score-flash")}>
+                <span className={tone("red")}>{scored.red}</span><span className="px-1.5 font-normal text-text-faint sm:px-3">–</span><span className={tone("blue")}>{scored.blue}</span>
+              </p>
+              <p className={cn("mt-2 text-sm font-medium", win ? SIDE[win].text : "text-text-muted")}>{win ? `${SIDE[win].name} won by ${Math.abs(scored.red - scored.blue)}` : "Tie"}</p>
+            </div>
+          ) : p && fav ? (
+            <div data-testid="report-chance">
+              <p className={cn("font-display text-[2.75rem] font-semibold leading-none tabular-nums sm:text-[4rem]", SIDE[fav].text)}>{oddsPct(fav === "red" ? p.pRed : 1 - p.pRed)}</p>
+              <p className="mt-2 text-sm text-text-muted">{SIDE[fav].name} to win</p>
+            </div>
+          ) : <p className="font-display text-2xl text-text-faint">vs</p>}
         </div>
-      ) : null}
-      {p.sheet && <FactorSheetPanel sheet={p.sheet} level={m.level} winner={winner ? (winner === "tie" ? "tie" : winner === "red" ? "A" : "B") : null} quiet />}
-      <PredictionBasis kind={matchBasis(m.level)} />
+        <HeroTeams side="blue" m={m} byTeam={byTeam} />
+      </div>
+      {!scored && p && <WinBar pRed={p.pRed} className="mx-auto mt-5 max-w-md" />}
+      <p className="mt-4 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center text-xs text-text-muted" data-testid="report-call-line">
+        {p ? (
+          <>
+            {called != null && <span className={cn("font-medium", called ? "text-success" : "text-text-base")} data-testid="report-called">{called ? "Called it" : "Upset"}</span>}
+            {called != null && <span aria-hidden>·</span>}
+            <span>{scored ? `${p.kind === "live" ? "Called before the match" : "Replayed call"}: ${SIDE[fav!].name} ${oddsPct(fav === "red" ? p.pRed : 1 - p.pRed)}` : KIND_LABEL[p.kind]}</span>
+            <ConfidenceBadge tier={p.tier} className="border-line bg-transparent text-text-muted" />
+          </>
+        ) : (
+          <span>{[m.red, m.blue].some((a) => a.teams.filter((t) => t.onField).length !== 2) ? "No prediction: the engine predicts full 2-against-2 matches only." : scored ? "No prediction was recorded before this match." : "No prediction for this match yet."}</span>
+        )}
+      </p>
     </section>
+  );
+}
+
+/** The loser's score fades back toward muted text (still 4.5:1 on the page). */
+const FADED_REPORT: Record<Side, string> = {
+  red: "text-[color-mix(in_srgb,var(--color-red-alliance-text)_55%,var(--color-text-muted))]",
+  blue: "text-[color-mix(in_srgb,var(--color-blue-alliance-text)_55%,var(--color-text-muted))]",
+};
+
+/** One alliance in the hero: each team's number (mint if it's one this visitor follows) and its name, at the
+ *  alliance's own edge. */
+function HeroTeams({ side, m, byTeam }: { side: Side; m: MatchView; byTeam: ReadonlyMap<number, ReportTeam> }) {
+  const followed = useFollowedTeams();
+  const teams = m[side].teams;
+  return (
+    <div className={cn("min-w-0 space-y-1.5 border-l-2 pl-3", side === "red" ? "border-red-alliance" : "border-l-0 border-r-2 border-blue-alliance pl-0 pr-3 text-right")} aria-label={`${SIDE[side].name} alliance`} data-hero-teams={side}>
+      {teams.length ? teams.map((t) => {
+        const mine = followed.has(t.number);
+        return (
+          <p key={t.number} className={cn("min-w-0 leading-tight", !t.onField && "opacity-60")}>
+            <Link to={`/teams/${t.number}?season=${m.season}`} className={cn("tap-44 font-mono text-base font-semibold tabular-nums hover:underline", mine ? "text-accent-text" : "text-text-base")} data-mine={mine || undefined}>{t.number}</Link>
+            <span className="block truncate text-xs text-text-muted" title={byTeam.get(t.number)?.name ?? t.name}>{byTeam.get(t.number)?.name ?? t.name ?? ""}</span>
+          </p>
+        );
+      }) : <p className="text-xs text-text-muted">Lineup not published yet</p>}
+    </div>
+  );
+}
+
+/** The two or three biggest reasons behind the call, in plain words, each marked with the side it helps. */
+function ReasonsV8({ m }: { m: MatchView }) {
+  const p = m.prediction;
+  const top = p?.factors?.slice(0, 3) ?? [];
+  return (
+    <section className="min-w-0" aria-label="Why" data-testid="report-reasons">
+      <h2 className="text-base font-semibold">{m.played ? "Why it went this way" : "Why"}</h2>
+      {top.length ? (
+        <ol className="mt-3 divide-y divide-line border-y border-line">
+          {top.map((f) => (
+            <li key={f.id} className="flex gap-3 py-3 text-sm leading-snug">
+              <span className={cn("mt-1 h-3.5 w-0.5 shrink-0 rounded-full", f.favors === "A" ? "bg-red-alliance" : f.favors === "B" ? "bg-blue-alliance" : "bg-text-faint")} aria-hidden />
+              <span>{factorLabel(f.label)}<span className="sr-only">{f.favors === "A" ? " (helps red)" : f.favors === "B" ? " (helps blue)" : ""}</span></span>
+            </li>
+          ))}
+        </ol>
+      ) : <p className="mt-3 text-sm text-text-muted">{p ? "No reasons were recorded with this call." : "No call, so no reasons."}</p>}
+      {p?.history ? <PairHistoryLine history={p.history} className="mt-3" /> : null}
+    </section>
+  );
+}
+
+/** Before the match: the predicted scores as one paired bar (zero-based), with their stated ranges. */
+function PredictedV8({ m }: { m: MatchView }) {
+  const cov = useRangeCoverage();
+  const p = m.prediction;
+  if (!p || p.noScoreBasis) return null;
+  const max = Math.max(p.redMean, p.blueMean, 1);
+  return (
+    <section className="min-w-0" aria-label="Predicted score" data-testid="report-predicted">
+      <h2 className="text-base font-semibold">Predicted score</h2>
+      <div className="mt-3 grid grid-cols-[3.75rem_minmax(0,1fr)_3.75rem] items-center gap-x-3 border-y border-line py-3">
+        <ScoreRange mean={p.redMean} range={p.redRange} level={p.rangeLevel} className="text-right text-base font-semibold text-red-alliance" pmClassName="text-[0.7rem] font-normal text-text-faint" />
+        <PairedBar red={p.redMean} blue={p.blueMean} max={max} />
+        <ScoreRange mean={p.blueMean} range={p.blueRange} level={p.rangeLevel} className="text-base font-semibold text-blue-alliance" pmClassName="text-[0.7rem] font-normal text-text-faint" />
+      </div>
+      {p.redRange && p.blueRange && <p className="mt-2 text-xs text-text-faint">± is the {levelPct(p.rangeLevel)} range: red {p.redRange[0]}–{p.redRange[1]}, blue {p.blueRange[0]}–{p.blueRange[1]}. {rangeCoverageLine(cov) ?? ""}</p>}
+    </section>
+  );
+}
+
+/** The match's video, when there is one: plain buttons (no coloured fills in v8). */
+function VideoV8({ m }: { m: MatchView }) {
+  if (!m.clip && !m.video) return null;
+  const btn = "inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-white/[0.08] bg-white/10 px-3 text-sm font-medium text-text-base transition-[background-color,scale] duration-150 hover:bg-white/[0.14] active:scale-[0.97] motion-reduce:active:scale-100 max-sm:min-h-11 [&_svg]:size-4";
+  return (
+    <section className="flex flex-wrap items-center gap-2" aria-label="Match video" data-testid="report-video">
+      {m.clip && <ClipLink clip={m.clip} label={m.label} matchKey={m.key} className={btn}>Watch the match · {clipTime(m.clip.t)}</ClipLink>}
+      {m.video && <MatchVideoLink url={m.video} label={m.label} matchKey={m.key} className={btn}>{m.clip ? "Official video" : "Watch the match"}</MatchVideoLink>}
+    </section>
+  );
+}
+
+/** One alliance's teams as plain rows (no boxed cards): number and name, standing here, the OPR that says most about
+ *  this match, flags, and the workspace's take for members. */
+function TeamsV8({ side, m, remote, byTeam, ws, watch }: { side: Side; m: MatchView; remote: boolean; byTeam: ReadonlyMap<number, ReportTeam> } & ReportWorkspaceProps) {
+  const a = m[side];
+  const missing = 2 - a.teams.length;
+  return (
+    <section className="min-w-0" aria-label={`${SIDE[side].name} alliance`}>
+      <h3 className={cn("text-sm font-medium", SIDE[side].text)}>{SIDE[side].name} alliance</h3>
+      <ul className="mt-2 divide-y divide-line border-y border-line">
+        {a.teams.map((t) => <TeamRowV8 key={t.number} side={side} season={m.season} t={t} info={byTeam.get(t.number) ?? null} ws={ws} watch={watch.get(t.number) ?? []} />)}
+        {missing > 0 && Array.from({ length: missing }, (_, i) => (
+          <li key={`missing-${i}`} className="py-3 text-sm text-text-muted" data-testid="missing-team">
+            {a.teams.length === 0 ? (remote ? "No alliance here: remote events score one robot at a time." : "Lineup not published yet.") : (remote ? "Remote event: this robot plays on its own." : "No second robot on this alliance.")}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function TeamRowV8({ side, season, t, info, ws, watch }: { side: Side; season: number; t: MatchView["red"]["teams"][number]; info: ReportTeam | null; ws: ReportWorkspaceProps["ws"]; watch: WatchFlag[] }) {
+  const ev = info?.event ?? null, se = info?.season ?? null;
+  const here = ev && ev.opr.np != null && (ev.qualPlayed ?? 0) >= MIN_EVENT_MATCHES;
+  const opr = here ? ev!.opr : se?.opr ?? null;
+  const flags: (DataFlag | WatchFlag)[] = [...watch, ...(info?.flags ?? [])];
+  return (
+    <li className={cn("min-w-0 py-3", !t.onField && "opacity-75")} data-testid="report-team" data-team={t.number} data-side={side}>
+      <div className="flex items-baseline gap-x-3">
+        <Link to={`/teams/${t.number}?season=${season}`} className="tap-44 shrink-0 font-mono text-base font-semibold tabular-nums hover:underline">{t.number}</Link>
+        <span className="min-w-0 flex-1 truncate text-sm">{info?.name ?? ""}</span>
+        <span className="shrink-0 text-right">
+          <span className="font-display text-lg font-semibold tabular-nums">{num(opr?.np)}</span>
+          <span className="ml-1 text-xs text-text-faint">{here ? "OPR here" : "season OPR"}</span>
+        </span>
+      </div>
+      <p className="mt-0.5 text-xs text-text-muted">
+        {ev?.rank ? <>#{ev.rank} here{ev.wins != null && <> · {ev.wins}-{ev.losses ?? 0}-{ev.ties ?? 0}</>}</> : "Unranked here"}
+        {here && se ? <> · season {num(se.opr.np)}</> : null}
+        {se?.rank && se.of ? <> · #{int(se.rank)} of {int(se.of)} this season</> : null}
+        {opr?.pen != null && opr.pen >= 0.5 && <> · gives away {num(opr.pen)} pen. pts a match</>}
+        {t.surrogate && <> · surrogate</>}{t.dq && <> · <span className="text-destructive">DQ</span></>}{!t.onField && <> · not on field</>}
+      </p>
+      {flags.length > 0 && <div className="mt-2 flex flex-wrap gap-1.5" aria-label={`${t.number} flags`}>{flags.map((f) => <FlagChip key={f.kind} f={f} />)}</div>}
+      {info?.reliability && <ReliabilityLine r={info.reliability} />}
+      <TeamTake team={t.number} season={season} ws={ws} reliability={info?.reliability ?? null} />
+    </li>
   );
 }
 
@@ -293,16 +417,15 @@ function Alliance({ side, m, remote, byTeam, ws, watch }: {
   const score = m.played && a.score ? a.score.total : null;
   const missing = 2 - a.teams.length;
   return (
-    // v8: no coloured card; the alliance is its coloured heading and its teams' edges.
-    <section aria-label={`${s.name} alliance`} className={cn("min-w-0 rounded-xl border p-3 sm:p-4", s.card, "v8:rounded-none v8:border-0 v8:bg-transparent v8:p-0 v8:sm:p-0")}>
+    <section aria-label={`${s.name} alliance`} className={cn("min-w-0 rounded-xl border p-3 sm:p-4", s.card)}>
       <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-3">
-        <h2 className={cn("font-display text-lg font-semibold v8:font-sans v8:text-base", s.text)}>{s.name} alliance</h2>
+        <h2 className={cn("font-display text-lg font-semibold", s.text)}>{s.name} alliance</h2>
         <p className="text-sm tabular-nums text-muted-foreground">
           {score != null ? <>Scored <span className={cn("font-semibold", s.text)}>{score}</span></>
             : p ? <>{oddsPct(side === "red" ? p.pRed : 1 - p.pRed)} to win{!p.noScoreBasis && <> · <ScoreRange mean={side === "red" ? p.redMean : p.blueMean} range={side === "red" ? p.redRange : p.blueRange} level={p.rangeLevel} approx /> pts</>} <TierMark tier={p.tier} className="align-middle" /></> : null}
         </p>
       </div>
-      <ul className="space-y-3 v8:grid v8:gap-3 v8:space-y-0 v8:xl:grid-cols-2">
+      <ul className="space-y-3">
         {a.teams.map((t) => {
           const info = byTeam.get(t.number);
           return (
@@ -364,7 +487,7 @@ function TeamCard({ side, season, t, info, ws, watch }: {
   const opr = here ? ev!.opr : se?.opr ?? null;
   const flags: (DataFlag | WatchFlag)[] = [...watch, ...(info?.flags ?? [])];
   return (
-    <article className={cn("min-w-0 rounded-lg border border-l-[3px] border-border bg-card p-3 v8:rounded-xl v8:border-l-2 v8:p-4", SIDE[side].edge, !t.onField && "opacity-75")} data-testid="report-team" data-team={t.number}>
+    <article className={cn("min-w-0 rounded-lg border border-l-[3px] border-border bg-card p-3", SIDE[side].edge, !t.onField && "opacity-75")} data-testid="report-team" data-team={t.number}>
       <header className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
         <Link to={`/teams/${t.number}?season=${season}`} className="tap-44 font-mono text-lg font-bold hover:underline">{t.number}</Link>
         <span className="min-w-0 flex-1 truncate text-sm">{info?.name ?? ""}</span>
@@ -375,7 +498,7 @@ function TeamCard({ side, season, t, info, ws, watch }: {
       {(t.surrogate || t.dq || !t.onField) && (
         <p className="mt-1 flex gap-1.5 text-[11px]">
           {t.surrogate && <span className="rounded bg-muted px-1">Surrogate</span>}
-          {t.dq && <span className="rounded bg-destructive/15 px-1 text-destructive v8:bg-transparent v8:px-0">DQ</span>}
+          {t.dq && <span className="rounded bg-destructive/15 px-1 text-destructive">DQ</span>}
           {!t.onField && <span className="rounded bg-muted px-1">Not on field</span>}
         </p>
       )}

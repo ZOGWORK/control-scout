@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
-// The match report in v8 (docs/design/v8-revamp-brief.md §7.5): two columns on wide screens (the match left, the
-// call right), the favourite's win chance as the hero number, the score breakdown as zero-based paired bars in the
-// alliance colours, no coloured card fills. With v8 off the report is drawn exactly as before.
+// The match report in v8 (page plan, PR #1976). Played: "who won and why"; not played: "who's favoured, by how much,
+// and why". First screen: the hero (both alliances side by side, the score or the win chance big), then the top
+// reasons, then the score breakdown as paired bars. Lower: video, teams as plain rows, the full why in a disclosure.
+// v8 off: the report as before.
 import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
@@ -18,15 +19,21 @@ const { TooltipProvider } = await import("./ui/overlay");
 
 const side = (ts: number[], s?: { total: number; auto: number; teleop: number; endgame: number; pen: number }) =>
   ({ teams: ts.map((number) => ({ number, surrogate: false, dq: false, onField: true })), score: s ? { ...s, np: s.total - s.pen } : null });
+const factors = [
+  { id: "f1", label: "Blue's TeleOp scoring is worth about 30 more points", favors: "B" },
+  { id: "f2", label: "Blue's autonomous is worth about 13 more points", favors: "B" },
+  { id: "f3", label: "Red's endgame is worth about 3 more points", favors: "A" },
+  { id: "f4", label: "A fourth, smaller factor", favors: "A" },
+] as never;
 function match(o: Partial<MatchView> = {}): MatchView {
   return { season: 2025, code: "RPTQ1", key: "qual:0:12", level: "qual", series: 0, number: 12, label: "Q12", time: null, startsAt: null, played: false,
     red: side([11, 12]), blue: side([13, 14]), video: null,
-    prediction: { pRed: 0.36, redMean: 98, blueMean: 120, tier: "confident", kind: "now", predictedAt: null, factors: [{ id: "f1", label: "Blue's auto is stronger", favors: "B" } as never] }, ...o };
+    prediction: { pRed: 0.36, redMean: 98, blueMean: 120, tier: "confident", kind: "now", predictedAt: null, factors }, ...o };
 }
-const played = () => match({ played: true,
+const played = (o: Partial<MatchView> = {}) => match({ played: true,
   red: side([11, 12], { total: 130, auto: 30, teleop: 60, endgame: 30, pen: 10 }),
   blue: side([13, 14], { total: 90, auto: 20, teleop: 50, endgame: 20, pen: 0 }),
-  prediction: { pRed: 0.64, redMean: 120, blueMean: 98, tier: "moderate", kind: "live", predictedAt: null } });
+  prediction: { pRed: 0.64, redMean: 120, blueMean: 98, tier: "moderate", kind: "live", predictedAt: null, factors }, ...o });
 const team = (n: number): ReportTeam => ({
   team: n, name: `Team ${n}`, city: null, state: null,
   event: { rank: n - 10, wins: 3, losses: 1, ties: 0, qualPlayed: 2, opr: { np: 40, auto: 10, teleop: 20, endgame: 10, pen: 2 } },
@@ -35,6 +42,10 @@ const team = (n: number): ReportTeam => ({
 });
 const report = (m: MatchView): MatchReport => ({ event: { season: 2025, code: "RPTQ1", name: "Report Qualifier", remote: false } as MatchReport["event"], live: null, match: m, description: null, bonus: null, teams: [11, 12, 13, 14].map(team), prev: null, next: null });
 const show = (r: MatchReport) => render(<MemoryRouter><TooltipProvider><MatchReportView r={r} ws={null} watch={new Map<number, WatchFlag[]>()} /></TooltipProvider></MemoryRouter>);
+const order = (...ids: string[]) => {
+  const els = ids.map((id) => screen.getAllByTestId(id)[0]);
+  for (let i = 1; i < els.length; i++) expect(els[i - 1].compareDocumentPosition(els[i]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+};
 
 beforeEach(() => {
   document.documentElement.setAttribute("data-v8", "");
@@ -43,50 +54,60 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); document.documentElement.removeAttribute("data-v8"); });
 
-describe("match report in v8", () => {
-  it("two columns on wide screens: the call in the right column; on a phone it follows the result", () => {
+describe("match report in v8, played", () => {
+  it("the hero: both alliances side by side with the score between them, the winner, and the call's verdict", () => {
     show(report(played()));
-    const layout = document.querySelector<HTMLElement>('[data-report-layout="v8"]')!;
-    expect(layout.className).toMatch(/lg:grid-cols-\[minmax\(0,1fr\)_minmax\(18rem,22rem\)\]/);
-    const call = screen.getByRole("complementary", { name: "The call" });
-    expect(call.className).toMatch(/lg:col-start-2/);
-    // Markup order: result, call, breakdown, teams.
-    const kids = Array.from(layout.children);
-    expect(kids.indexOf(screen.getByTestId("report-result"))).toBeLessThan(kids.indexOf(call));
-    expect(kids.indexOf(call)).toBeLessThan(kids.indexOf(screen.getByTestId("report-breakdown")));
-  });
-
-  it("an unplayed match: the favourite's win chance is the hero number, with the slim bar and no result", () => {
-    show(report(match()));
     const hero = screen.getByTestId("report-hero");
-    expect(hero.textContent).toMatch(/64%\s*Blue to win/);
-    expect(within(hero).getByText("64%").className).toMatch(/font-display/);
-    expect(screen.queryByTestId("report-result")).toBeNull();
-    expect(screen.queryByTestId("report-breakdown")).toBeNull();
-    expect(screen.getByTestId("report-call").querySelector("[data-winbar]")).toBeTruthy();
+    expect(within(hero).getByTestId("report-result").textContent).toMatch(/130–90\s*Red won by 40/);
+    const [red, blue] = Array.from(hero.querySelectorAll("[data-hero-teams]"));
+    expect(red.textContent).toMatch(/11.*12/);
+    expect(blue.textContent).toMatch(/13.*14/);
+    expect(within(hero).getByTestId("report-called").textContent).toBe("Called it");
+    expect(screen.getByTestId("report-call-line").textContent).toMatch(/Called before the match: Red 64%/);
   });
 
-  it("a played match: the result, the call's verdict, and the breakdown as paired bars on one zero-based scale", () => {
+  it("first screen in order: hero, the top three reasons, then the breakdown; lower: teams, then the full why", () => {
     show(report(played()));
-    expect(screen.getByTestId("report-result").textContent).toMatch(/130–90\s*Red won by 40/);
-    expect(screen.getByTestId("report-called").textContent).toMatch(/Called it/);
+    order("report-hero", "report-reasons", "report-breakdown", "report-team");
+    const reasons = within(screen.getByTestId("report-reasons")).getAllByRole("listitem");
+    expect(reasons).toHaveLength(3);
+    expect(reasons[0].textContent).toMatch(/TeleOp scoring/);
+  });
+
+  it("the breakdown is paired bars on one zero-based scale; the total is numbers only", () => {
+    show(report(played()));
     const rows = screen.getByTestId("report-breakdown").querySelectorAll("li[data-label]");
     expect(Array.from(rows).map((r) => r.getAttribute("data-label"))).toEqual(["Auto", "TeleOp", "Endgame", "Fouls given away", "Total"]);
-    // TeleOp red 60 is the largest phase value: its bar is full; blue's 50 is 5/6 of it.
-    const teleop = rows[1];
-    expect((teleop.querySelector('[data-bar="red"]') as HTMLElement).style.width).toBe("100%");
-    expect(parseFloat((teleop.querySelector('[data-bar="blue"]') as HTMLElement).style.width)).toBeCloseTo(83.33, 1);
-    // A zero gets no bar at all (zero-based), and the total has numbers only.
+    expect((rows[1].querySelector('[data-bar="red"]') as HTMLElement).style.width).toBe("100%");
+    expect(parseFloat((rows[1].querySelector('[data-bar="blue"]') as HTMLElement).style.width)).toBeCloseTo(83.33, 1);
     expect((rows[3].querySelector('[data-bar="blue"]') as HTMLElement).style.width).toBe("0%");
     expect(rows[4].querySelector("[data-paired-bar]")).toBeNull();
   });
 
-  it("no coloured card fills: the alliance is a heading over plain cards", () => {
-    show(report(played()));
-    const red = screen.getByRole("region", { name: "Red alliance" });
-    expect(red.className).toMatch(/v8:bg-transparent/);
-    expect(red.className).toMatch(/v8:border-0/);
+  it("teams are plain rows (no boxed cards, no OPR split bar), the video sits above them", () => {
+    show(report(played({ clip: { t: 95, youtubeOnly: false } as never })));
     expect(screen.getAllByTestId("report-team")).toHaveLength(4);
+    expect(document.querySelector("article")).toBeNull();
+    expect(screen.queryByRole("img", { name: /Auto .*DC|auto/i })).toBeNull();
+    order("report-video", "report-team");
+  });
+});
+
+describe("match report in v8, not played", () => {
+  it("the favourite's chance is the hero number with the slim bar, then why, then the predicted score as a paired bar", () => {
+    show(report(match()));
+    expect(screen.getByTestId("report-chance").textContent).toMatch(/64%\s*Blue to win/);
+    expect(screen.getByTestId("report-hero").querySelector("[data-winbar]")).toBeTruthy();
+    expect(screen.queryByTestId("report-result")).toBeNull();
+    expect(screen.queryByTestId("report-breakdown")).toBeNull();
+    order("report-hero", "report-reasons", "report-predicted");
+    expect(screen.getByTestId("report-predicted").querySelector("[data-paired-bar]")).toBeTruthy();
+  });
+
+  it("no prediction: says why, with no reasons to list", () => {
+    show(report(match({ prediction: null })));
+    expect(screen.getByTestId("report-call-line").textContent).toMatch(/No prediction for this match yet/);
+    expect(screen.getByTestId("report-reasons").textContent).toMatch(/No call/);
   });
 });
 
@@ -101,10 +122,11 @@ describe("paired bar", () => {
 
 describe("match report with v8 off", () => {
   beforeEach(() => document.documentElement.removeAttribute("data-v8"));
-  it("is the old one-column report: no v8 layout, the call card on top", () => {
+  it("is the old report: the call card on top, team cards, no v8 layout", () => {
     show(report(played()));
     expect(document.querySelector("[data-report-layout]")).toBeNull();
     expect(screen.queryByTestId("report-hero")).toBeNull();
     expect(screen.getByTestId("report-result").textContent).toMatch(/Called it/);
+    expect(document.querySelectorAll("article")).toHaveLength(4);
   });
 });
