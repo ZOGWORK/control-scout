@@ -1,13 +1,13 @@
 import { useEffect, useRef } from "react";
 
-const PALETTE = ["121,163,209", "154,178,213", "174,175,210", "183,160,195", "199,160,177", "208,169,153"];
+const PALETTE = ["110,158,208", "138,169,207", "168,179,207", "183,172,195", "198,166,164", "214,171,138"];
 const FRAME_MS = 1000 / 30;
 
 function particleGroups(count: number) {
   // Repeatable across renders and sizes, without the regular spacing of a grid.
   let seed = 51091;
   const random = () => ((seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 4294967296);
-  const groups = PALETTE.flatMap((color) => [0.12, 0.25, 0.44, 0.68].map((alpha) => ({
+  const groups = PALETTE.flatMap((color) => [0.15, 0.28, 0.47, 0.70].map((alpha) => ({
     color: `rgba(${color},${alpha})`,
     dots: [] as { x: number; depth: number; phase: number; speed: number; size: number; strand: number }[],
   })));
@@ -17,8 +17,8 @@ function particleGroups(count: number) {
     const color = Math.min(PALETTE.length - 1, Math.max(0, Math.floor(x * PALETTE.length + random() - 0.5)));
     const tone = Math.min(3, Math.floor(random() ** 2 * (4 - Math.abs(depth))));
     groups[color * 4 + tone].dots.push({
-      x, depth, phase: random() * Math.PI * 2, speed: 0.025 + random() * 0.035,
-      size: 0.45 + random() ** 2 * 1.05, strand: random() < 0.24 ? 1 : 0,
+      x, depth, phase: random() * Math.PI * 2, speed: 0.004 + random() * 0.007,
+      size: 0.52 + random() ** 2 * 1.13, strand: random() < 0.24 ? 1 : 0,
     });
   }
   return groups;
@@ -49,12 +49,12 @@ export function DotWave() {
         for (const dot of group.dots) {
           // Wrap off both sides. Vary the speed and phase so the ribbon ripples as particles flow through it.
           const x = ((dot.x + 0.12 + time * dot.speed) % 1.24) - 0.12;
-          const phase = x * 5.6 - time * 0.95;
-          const rise = 0.41 / (1 + Math.exp(-9 * (x - 0.48)));
-          const center = 0.79 - rise + Math.sin(phase) * 0.074;
-          const spread = 0.27 + Math.cos(phase + 0.6) * 0.08;
-          const strand = dot.strand * Math.sin(phase - 0.7) * 0.11;
-          const flutter = Math.sin(time * 1.7 + dot.phase) * 0.024;
+          const phase = x * 7.5 - time * 0.18;
+          const rise = 0.58 / (1 + Math.exp(-12 * (x - 0.49)));
+          const center = 0.83 - rise + Math.sin(phase) * 0.029;
+          const spread = 0.25 + Math.cos(x * 6.5) * 0.035;
+          const strand = dot.strand * Math.sin(phase - 0.7) * 0.054;
+          const flutter = Math.sin(time * 0.29 + dot.phase) * 0.008;
           const y = (center + dot.depth * spread + strand + flutter) * height;
           ctx.fillRect(x * width, y, dot.size, dot.size * 0.82);
         }
@@ -80,7 +80,7 @@ export function DotWave() {
       canvas.width = Math.round(width * scale);
       canvas.height = Math.round(height * scale);
       ctx.setTransform(scale, 0, 0, scale, 0, 0);
-      groups = particleGroups(Math.min(38_000, Math.round(width * 24)));
+      groups = particleGroups(Math.min(66_000, Math.round(width * 48)));
       paint(reduced.matches ? 0 : performance.now() / 1000);
     });
     const intersection = new IntersectionObserver(([entry]) => {
@@ -100,5 +100,5 @@ export function DotWave() {
     };
   }, []);
 
-  return <canvas ref={ref} data-dot-wave aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-[36vh] h-[64vh] w-full [mask-image:linear-gradient(transparent,#000_19%,#000_82%,transparent)]" />;
+  return <canvas ref={ref} data-dot-wave aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-[13vh] h-[87vh] w-full [mask-image:linear-gradient(transparent,#000_13%,#000_85%,transparent)]" />;
 }
