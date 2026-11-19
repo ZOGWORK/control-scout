@@ -36,6 +36,7 @@ import { PowerRankingsPanel } from "../components/owner/PowerRankingsPanel";
 import { StreamsPanel } from "../components/owner/StreamsPanel";
 import { PredictionEnginePanel, TierCalibrationList } from "../components/owner/PredictionEnginePanel";
 import { HeroLinesPanel } from "../components/owner/HeroLinesPanel";
+import { WashPanel } from "../components/owner/WashPanel";
 import { WhatsNewPanel } from "../components/owner/WhatsNewPanel";
 import { VitalsTable } from "../components/owner/VitalsTable";
 import { OnboardingFunnel } from "../components/owner/OnboardingFunnel";
@@ -170,6 +171,7 @@ export default function OwnerPage() {
             <div className="space-y-8">
               <PowerRankingsPanel onOpenSwitches={() => go("features")} />
               <HeroLinesPanel />
+              <WashPanel />
               <StreamsPanel />
               <DigestPanel />
               <WhatsNewPanel />

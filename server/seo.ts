@@ -15,6 +15,8 @@ import { env } from "./env.js";
 import { BOOT_STYLE, bootConsent, bootShell } from "./bootShell.js";
 import { criticalCss } from "./criticalCss.js";
 import { liveHeroLines } from "./heroLines.js";
+import { liveWash } from "./wash.js";
+import { WASH_STYLE_ID, washCss, type WashResponse } from "../src/shared/wash.js";
 import { isBareRoute, pageModule } from "../src/shared/routes.js";
 import { APP_CSS_ID } from "../src/shared/boot.js";
 import { COIN_FLIPS_META, hasFlips } from "../src/shared/coinFlips.js";
@@ -178,14 +180,15 @@ export async function renderPage(file: string, path: string, query: Record<strin
   // And on /events, whether today has coin flips (coinFlipsHint).
   // And whether the light version is on (the first paint offers it on a slow load: server/bootShell.ts).
   // And whether the rules reference is on (the footer links Rules only then).
-  const [meta, hero, flips, lite, rules, status] = await Promise.all([pageMeta(path, query), liveHeroLines(), coinFlipsHint(path), isEnabled("venueLightMode").catch(() => false), isEnabled("rulesReference").catch(() => false), isEnabled("statusPage").catch(() => false)]);
+  // And the owner's wash, if they changed it (washStyle): in the head, so the first frame has it.
+  const [meta, hero, flips, lite, rules, status, wash] = await Promise.all([pageMeta(path, query), liveHeroLines(), coinFlipsHint(path), isEnabled("venueLightMode").catch(() => false), isEnabled("rulesReference").catch(() => false), isEnabled("statusPage").catch(() => false), liveWash()]);
   // A page the server drew whole (meta.firstPaint) is the app's own markup: its first paint carries the part of the app's
   // stylesheet that markup uses, inline (server/criticalCss.ts), and waits for its text fonts (FIRST_PAINT_FONTS), so it
   // paints once, styled, never as unstyled text that then changes. Nothing else downloads until those fonts are here
   // (afterFirstPaint): on venue Wi-Fi the whole stylesheet and the app's code shared the line with them and held the
   // page back for seconds (2026-11-02: 400 kbps, team page first paint 8.5 s live).
   const drawn = !!meta.firstPaint && !meta.notFound;
-  const head = [headTags(path, meta), flips, routePreloads(file, path), BOOT_STYLE, drawn ? FIRST_PAINT_FONTS : ""].filter(Boolean).join("\n    ");
+  const head = [headTags(path, meta), flips, routePreloads(file, path), BOOT_STYLE, washStyle(wash), drawn ? FIRST_PAINT_FONTS : ""].filter(Boolean).join("\n    ");
   const shell = indexHtml(file).replace("</head>", () => `    ${head}\n  </head>`);
   const deferred = drawn ? deferCss(shell) : null;
   // Callbacks, so $', $`, $& in a team or event name are inserted literally (a replacement string would expand them).
@@ -196,6 +199,15 @@ export async function renderPage(file: string, path: string, query: Record<strin
   if (deferred) html = inlineCriticalCss(html, [join(dirname(file), deferred.href), ...pageStylesheets(file, path)]);
   // A search's intent goes out with the page, for the route to count per visit (PageMeta.intent).
   return { status: meta.notFound ? 404 : 200, html, ...(meta.intent ? { intent: meta.intent } : {}) };
+}
+
+/**
+ * The owner's wash (server/wash.ts) as an inline <style> for the head, so neither the first paint (server/bootShell.ts)
+ * nor the app ever draws the default wash first; none when it is the default (index.css has those). The app keeps the
+ * tag (React renders inside #root only) and the console replaces it after a save (src/lib/wash.ts).
+ */
+export function washStyle(w: WashResponse): string {
+  return w.custom ? `<style id="${WASH_STYLE_ID}">${washCss(w.wash)}</style>` : "";
 }
 
 /** The id of a drawn page's inline critical CSS (inlineCriticalCss). */
