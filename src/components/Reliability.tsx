@@ -86,5 +86,5 @@ export function BlendedTile({ r, notes, workspaceName }: { r: Reliability; notes
 /** Compact "84" for tables and pick rows, with the sample in its title. */
 export function ReliabilityCell({ index, matches, className }: { index: number | null | undefined; matches?: number | null; className?: string }) {
   if (index == null) return <span className={className}>—</span>;
-  return <span className={cn("tabular-nums text-success", className)} title={`Reliability estimate ${index}/100 from ${matches ?? 0} qualification matches`}>{index}</span>;
+  return <span className={cn("tabular-nums text-success v8:text-emerald-400", className)} title={`Reliability estimate ${index}/100 from ${matches ?? 0} qualification matches`}>{index}</span>;
 }
