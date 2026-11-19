@@ -74,6 +74,7 @@ import { isV8, useIsV8, V8_NUM } from "../lib/v8";
 import { Disclosure, eventState, FinishedFocus, LiveFocus, UpcomingFocus, V8_DEFAULT_TAB, V8_TAB_ORDER } from "../components/EventFocus";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../components/ui/overlay";
 import { EVENT_TABS, type EventTab } from "../lib/eventTab";
+import { V8_PHASE } from "../lib/records/describe";
 
 export default function EventPage() {
   const { season, code } = useParams();
@@ -722,14 +723,14 @@ function RankingTable({ field, season, team, code, schedule }: { field: FieldRow
       value: (r: FieldRow) => sched.get(r.team)?.remaining?.difficulty ?? null, asc: true, align: "right" as const, heat: true,
       render: (r: FieldRow) => { const x = sched.get(r.team)?.remaining; return <ScheduleValue stat="scheduleDifficulty" v={x?.difficulty} opponents={x?.opponents} partners={x?.partners} rank={x ?? undefined} />; } }] : []),
     ...(meet ? [{ key: "avg", label: season >= 2025 ? "npAVG" : "Auto AVG", title: season >= 2025 ? "Average non-penalty points (the first tiebreaker)" : "Average auto points (the first tiebreaker)", value: (r: FieldRow) => r.meet?.tb[0] ?? null, align: "right" as const, render: (r: FieldRow) => num(r.meet?.tb[0] ?? null, 2), heat: true }] : []),
-    { key: "opr", label: "OPR", value: (r) => r.opr.np, align: "right", render: (r) => num(r.opr.np), heat: true },
+    { key: "opr", label: "OPR", value: (r) => r.opr.np, align: "right", render: (r) => num(r.opr.np), heat: true, v8Tone: V8_PHASE.np },
     // Swing at this event, the consistency stat (src/shared/reliability.ts): lower = steadier, "—" below the minimum.
     ...(field.some((r) => r.swing) ? [{ key: "swing", label: "Swing", title: SWING_LINE, value: (r: FieldRow) => r.swing?.value ?? null, asc: true, align: "right" as const, heat: true,
       render: (r: FieldRow) => <span title={swingTitle(r.swing)}>{swingText(r.swing)}</span> }] : []),
-    { key: "auto", label: "Auto", value: (r) => r.opr.auto, align: "right", render: (r) => num(r.opr.auto), hideOnMobile: true, heat: true },
-    { key: "teleop", label: "TeleOp", value: (r) => r.opr.teleop, align: "right", render: (r) => num(r.opr.teleop), hideOnMobile: true, heat: true },
-    { key: "endgame", label: "Endgame", value: (r) => r.opr.endgame, align: "right", render: (r) => num(r.opr.endgame), hideOnMobile: true, heat: true },
-    { key: "pen", label: "Pen.", title: "Penalty points given away per match (OPR)", value: (r) => r.opr.pen, asc: true, align: "right", render: (r) => num(r.opr.pen), hideOnMobile: true, heat: true },
+    { key: "auto", label: "Auto", value: (r) => r.opr.auto, align: "right", render: (r) => num(r.opr.auto), hideOnMobile: true, heat: true, v8Tone: V8_PHASE.auto },
+    { key: "teleop", label: "TeleOp", value: (r) => r.opr.teleop, align: "right", render: (r) => num(r.opr.teleop), hideOnMobile: true, heat: true, v8Tone: V8_PHASE.teleop },
+    { key: "endgame", label: "Endgame", value: (r) => r.opr.endgame, align: "right", render: (r) => num(r.opr.endgame), hideOnMobile: true, heat: true, v8Tone: V8_PHASE.endgame },
+    { key: "pen", label: "Pen.", title: "Penalty points given away per match (OPR)", value: (r) => r.opr.pen, asc: true, align: "right", render: (r) => num(r.opr.pen), hideOnMobile: true, heat: true, v8Tone: V8_PHASE.pen },
     { key: "rating", label: "Rating", title: "Prediction rating now (± uncertainty)", value: (r) => r.rating?.np ?? null, align: "right", render: (r) => r.rating ? <span>{num(r.rating.np)} <span className="text-muted-foreground">±{num(r.rating.sd, 0)}</span></span> : "—" },
   ];
   return (

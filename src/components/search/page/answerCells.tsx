@@ -23,13 +23,13 @@ export const PODIUM: Record<number, true> = { 1: true, 2: true, 3: true };
 /** The card's team hue (team A, the colour a team has wherever search compares it) on whatever has no meaning of its
  *  own: its numbers, bars and marks. No data visual is grey (the owner, 11-06). */
 export const TEAM_BAR = "bg-team-a v8:bg-accent"; // v8: mint is the one highlight series
-export const TEAM_TEXT = "text-team-a v8:text-foreground";
+export const TEAM_TEXT = "text-team-a v8:text-accent"; // v8: the team's numbers in the accent (owner 11-19)
 /** A data bar with no meaning of its own (a table's OPR, a rate): the team hue. */
 export const INK_BAR = TEAM_BAR;
 /** The team hue as a palette swatch (the same keys as SEARCH_PALETTE's), and teams B and C's. */
 export const TEAM_SWATCH = [
-  // v8: team A's bar is mint (the one highlight series), B and C grey steps; words and fills neutral.
-  { ...calm({ fill: "bg-team-a text-background", text: "text-team-a", bar: "bg-team-a", edge: "border-l-team-a", tint: "bg-team-a/10", stroke: "stroke-team-a" }), bar: TEAM_BAR, stroke: "stroke-team-a v8:stroke-accent" },
+  // v8: team A in the accent (its words, bar and bracket), B and C grey steps.
+  { ...calm({ fill: "bg-team-a text-background", text: "text-team-a", bar: "bg-team-a", edge: "border-l-team-a", tint: "bg-team-a/10", stroke: "stroke-team-a" }, undefined, "accent"), bar: TEAM_BAR, stroke: "stroke-team-a v8:stroke-accent" },
   { ...calm({ fill: "bg-team-b text-background", text: "text-team-b-text", bar: "bg-team-b", edge: "border-l-team-b", tint: "bg-team-b/10", stroke: "stroke-team-b" }), bar: "bg-team-b v8:bg-white/45", stroke: "stroke-team-b v8:stroke-white/45" },
   { ...calm({ fill: "bg-team-c text-background", text: "text-team-c-text", bar: "bg-team-c", edge: "border-l-team-c", tint: "bg-team-c/10", stroke: "stroke-team-c" }), bar: "bg-team-c v8:bg-white/25", stroke: "stroke-team-c v8:stroke-white/25" },
 ] as const;
@@ -175,7 +175,7 @@ export function Cell({ col, value, max }: { col: Col; value: string | number | n
   if (max && Number.isFinite(v)) {
     return (
       <span className="inline-flex flex-col items-end gap-0.5" data-opr-cell>
-        <span className="font-semibold text-foreground">{text}</span>
+        <span className="font-semibold text-foreground v8:text-violet-300">{text}</span>
         <span className="block w-12" data-opr-bar><Meter parts={[{ pc: Math.max(0, Math.min(100, (100 * v) / max)), cls: INK_BAR, value: v, scale: max }]} /></span>
       </span>
     );

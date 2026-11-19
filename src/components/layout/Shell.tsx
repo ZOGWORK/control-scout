@@ -27,6 +27,7 @@ import { BugReportButton } from "./BugReport";
 import { usePersonal } from "../../lib/personal";
 import { isBareRoute, pageTitle } from "../../shared/routes";
 import { SiteFooter } from "./SiteFooter";
+import { SidebarLinks } from "./SidebarLinks";
 import { useYoursRow, FOLLOWED_TEAM_PATH } from "../../lib/yoursRow";
 import { HEADER_ID, usePageScroll } from "../../lib/pageScroll";
 import { tabDef, useTabBar } from "../../lib/tabBar";
@@ -292,6 +293,8 @@ function Sidebar({ rail, wide, onToggle, onMenu }: { rail: boolean; wide: boolea
       <nav className="custom-scrollbar flex-1 space-y-(--nav-section) overflow-y-auto px-2 pt-(--nav-top) pb-1.5" aria-label="Main">
         <MainNav collapsed={rail} />
       </nav>
+      {/* About, Donate, Privacy and the round links, pinned under the scrolling nav (not on the icon rail). */}
+      {!rail && <SidebarLinks />}
       {/* What's new (always in view) beside the fold button, then who's signed in (Control Point's footer: avatar, name, status, Settings, Sign out). */}
       <div className="shrink-0 space-y-1 border-t border-line p-2">
         <div className={cn("flex items-center gap-1", rail && "flex-col")}>
@@ -310,8 +313,9 @@ function Sidebar({ rail, wide, onToggle, onMenu }: { rail: boolean; wide: boolea
 }
 
 /** v8's sidebar (docs/design/v8-revamp-brief.md §6), Gemini-like: the white mark and name with one round fold button
- *  beside them (over the icons when folded), the pages below, nothing at its foot: you, Settings, What's new, the
- *  owner console and signing out are in the menu under your profile picture, top-right. Below 1280px it's the rail and
+ *  beside them (over the icons when folded), the pages below, and at its foot only the quiet About / Donate / Privacy
+ *  links (SidebarLinks): you, Settings, What's new, the owner console and signing out are in the menu under your
+ *  profile picture, top-right. Below 1280px it's the rail and
  *  the button opens the labelled menu sheet instead, as before. */
 function V8Sidebar({ rail, wide, onToggle, onMenu }: { rail: boolean; wide: boolean; onToggle: () => void; onMenu: (from: HTMLElement) => void }) {
   const label = !wide ? "Show page names" : rail ? "Expand sidebar" : "Collapse sidebar";
@@ -339,6 +343,7 @@ function V8Sidebar({ rail, wide, onToggle, onMenu }: { rail: boolean; wide: bool
       <nav className="custom-scrollbar flex-1 space-y-(--nav-section) overflow-y-auto px-2 pb-4 pt-2" aria-label="Main">
         <MainNav collapsed={rail} />
       </nav>
+      {!rail && <SidebarLinks />}
     </aside>
   );
 }
@@ -498,6 +503,7 @@ export function Shell({ children }: { children: ReactNode }) {
                   </div>
                 ))}
               </nav>
+              <SidebarLinks place="sheet" onNavigate={() => setMenu(false)} />
               {/* What's new, then the same account footer as the sidebar's, at the foot of the sheet. */}
               {/* v8: nothing at the foot; you and What's new are under your picture in the top row. */}
               {!v8 && <div className="mt-auto space-y-1 border-t border-line pt-3">

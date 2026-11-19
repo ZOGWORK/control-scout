@@ -7,7 +7,7 @@ import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SearchAnswer, SearchHit } from "../shared/api";
 import { SEARCH_PALETTE } from "../lib/textTones";
-import { TONE, V8_PODIUM, V8_STAGGER } from "../components/search/page/v8tone";
+import { TONE, V8_PODIUM, V8_STAGGER, v8Tile, v8TileColour } from "../components/search/page/v8tone";
 
 const state = vi.hoisted(() => ({ answer: undefined as SearchAnswer | undefined }));
 vi.mock("../components/search/SearchBox", async (orig) => ({
@@ -114,29 +114,63 @@ describe("search page, v8 on", () => {
     expect(new Set(delays.slice(1).map((d, i) => d - delays[i])).size).toBeGreaterThan(1);
   });
 
-  it("lists events as plain rows, the live one first with its dot in live red, no status bands", () => {
+  it("groups events as the classic look did (live, then upcoming, each its own section), status a quiet dot, no bands", () => {
     state.answer = answer([ev("USNJQ2", "NJ Qualifier Two", iso(new Date(today.getTime() + 20 * 864e5))), { ...ev("USNJQ1", "NJ Qualifier", iso(today)), event: { start: iso(today), end: iso(new Date(today.getTime() + 864e5)) } } as SearchHit]);
     const { container } = show("/search?q=nj%20qualifier");
-    expect(container.querySelector("[data-section-tone]")).toBeNull();
-    const rows = [...container.querySelectorAll('[data-row="event"]')];
-    expect(rows.map((r) => r.querySelector("span > span")!.textContent)).toEqual(["NJ Qualifier", "NJ Qualifier Two"]);
-    expect(rows[0].querySelector("[data-live] > span")!.className).toContain("bg-live");
-    // No event code or raw date on a row.
-    expect(rows[1].textContent).not.toContain("USNJQ2");
+    expect([...container.querySelectorAll("[data-status-section]")].map((s) => s.getAttribute("data-status-section"))).toEqual(["live", "upcoming"]);
+    // The heading is plain words with a dot: no coloured bar behind it, no coloured strip on a card.
+    for (const h of container.querySelectorAll("[data-section-tone]")) expect(h.className).toContain("v8:bg-transparent");
+    expect(container.querySelector('[data-status-section="upcoming"] [data-status-dot]')!.className).toContain("v8:bg-accent");
+    expect(container.querySelector('[data-status-section="live"] [data-live-dot]')!.className).toContain("v8:bg-live");
+    const cards = [...container.querySelectorAll('[data-result="event"]')];
+    expect(cards.map((c) => c.querySelector("a")!.textContent)).toEqual(["NJ Qualifier", "NJ Qualifier Two"]);
+    expect(cards[0].querySelector("span[aria-hidden]")!.className).toContain("v8:hidden");
+    // No event code on a card.
+    expect(cards[1].textContent).not.toContain("USNJQ2");
   });
 
-  it("makes every palette meaning calm: neutral fill and words, the v8-off classes still first", () => {
+  it("an event with divisions is one card with its divisions inside (never a row each that reads as duplicates)", () => {
+    const parent = ev("USNJCMP", "New Jersey Championship", "2026-03-15");
+    const divs = ["Parkway", "Turnpike"].map((d) => ({ ...ev(`USNJCMP${d[0]}`, `New Jersey Championship - ${d} Division`, "2026-03-15"), parent: "USNJCMP" }));
+    state.answer = answer([parent, ...divs]);
+    const { container } = show("/search?q=nj%20states");
+    const fams = container.querySelectorAll("[data-event-family]");
+    expect(fams).toHaveLength(1);
+    expect(container.querySelectorAll('[data-row="event"]')).toHaveLength(0);
+    expect([...fams[0].querySelectorAll('[data-division] a:not([href*="?tab"])')].map((a) => a.textContent)).toEqual(["Parkway Division", "Turnpike Division", "Finals"]);
+    // Quiet: no coloured strip, a soft status chip, neutral division tiles.
+    expect(fams[0].querySelector(":scope > span[aria-hidden]")!.className).toContain("v8:hidden");
+    expect(fams[0].querySelector('[data-event-chip="status"]')!.className).toContain("v8:ring-inset");
+  });
+
+  it("gives every palette meaning a soft v8 colour: text and thin accents, never a solid block, the v8-off classes first", () => {
     for (const m of Object.keys(SEARCH_PALETTE) as (keyof typeof SEARCH_PALETTE)[]) {
       expect(TONE[m].fill.startsWith(SEARCH_PALETTE[m].fill)).toBe(true);
-      expect(TONE[m].fill).toContain("v8:bg-white/[0.08]");
-      expect(TONE[m].text).toContain("v8:text-foreground");
       expect(TONE[m].tint).toContain("v8:bg-transparent");
+      // A chip is a light tint (at most 10%) or the neutral white/8%: no full-colour fill.
+      expect(TONE[m].fill).toMatch(/v8:bg-(?:[a-z]+-\d00|accent|live)\/10|v8:bg-white\/\[0\.08\]/);
     }
-    // RP's yellow chip of words loses its chip.
+    // The category colours: Auto blue, TeleOp orange, Endgame green, Penalties red.
+    expect(TONE.auto.text).toContain("v8:text-sky-300");
+    expect(TONE.teleop.text).toContain("v8:text-orange-300");
+    expect(TONE.endgame.text).toContain("v8:text-emerald-300");
+    expect(TONE.pen.text).toContain("v8:text-rose-300");
+    // RP's yellow chip of words loses its chip and its yellow.
     expect(TONE.rp.text).toContain("v8:bg-transparent");
-    // Mint is the one highlight series: team A's bar; awards go neutral.
+    expect(TONE.rp.text).toContain("v8:text-foreground");
+    // The team hue is the accent.
     expect(TEAM_BAR).toContain("v8:bg-accent");
     expect(swatchOf("Inspire Award").fill).toContain("v8:bg-white/[0.08]");
+  });
+
+  it("colours a stat tile by what its number is: without penalties blue, a result won green or lost red, a highest purple", () => {
+    expect(v8TileColour("Without penalties", 296)).toBe("blue");
+    expect(v8TileColour("Result", "Won 306-251")).toBe("green");
+    expect(v8TileColour("Result", "Lost 120-140")).toBe("red");
+    expect(v8TileColour("Result", "Tied 90-90")).toBe("neutral");
+    expect(v8TileColour("Highest official score", 313)).toBe("purple");
+    expect(v8TileColour("Events played", 6)).toBeNull();
+    expect(v8Tile("blue").tile).toMatch(/v8:border-l-2 .*v8:border-l-sky-400\/70 .*v8:\[&_svg\]:text-sky-300/);
   });
 
   it("marks the #1 rank in mint words on a hairline, never a fill", () => {

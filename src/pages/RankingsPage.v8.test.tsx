@@ -62,19 +62,22 @@ describe("rankings in v8", () => {
     expect([...tabs.querySelectorAll("a")].map((a) => a.getAttribute("href"))).toEqual(["/rankings", "/rankings/regions", "/leagues", "/power-rankings"]);
   });
 
-  it("draws the table with no box, 44px rows, #1 alone in the accent and your team in white", () => {
+  it("draws the table with no box, 44px rows, gold, silver and bronze on the top three, your team in white", () => {
     region();
     const frame = document.querySelector("[data-region-table]");
     expect(cls(frame)).toEqual(expect.arrayContaining(["v8:border-0", "v8:bg-transparent"]));
     const row = (t: number) => document.querySelector(`[data-region-table] tr[data-team="${t}"]`)!;
     expect(cls(row(17670))).toContain("v8:h-11");
-    expect(cls(row(17670).querySelector("[data-rank]"))).toContain("v8:text-accent");
-    expect(cls(row(4215).querySelector("[data-rank]"))).not.toContain("v8:text-accent");
+    expect(cls(row(17670).querySelector("[data-rank]"))).toContain("v8:text-[#fcd34d]"); // #1 gold
+    expect(cls(row(4215).querySelector("[data-rank]"))).toContain("v8:text-[#cbd5e1]"); // #2 silver
+    expect(cls(row(23314).querySelector("[data-rank]"))).toContain("v8:text-[#d9a77a]"); // #3 bronze
     // Yours: a white edge (text-base), never the accent.
     expect(cls(row(4215))).toContain("v8:shadow-[inset_2px_0_0_var(--color-text-base)]");
     expect(row(4215).className).not.toMatch(/v8:shadow-\[inset_2px_0_0_var\(--color-accent\)\]/);
-    // Falling is muted, not red.
-    expect(cls(row(4215).querySelector("td:nth-child(2) span"))).toContain("v8:text-text-muted");
+    // Moves: up a soft green, down a soft red, "New" a soft blue chip.
+    expect(cls(row(17670).querySelector("td:nth-child(2) span"))).toContain("v8:text-[#86d9a8]");
+    expect(cls(row(4215).querySelector("td:nth-child(2) span"))).toContain("v8:text-[#f29a9a]");
+    expect(row(23314).querySelector("td:nth-child(2)")!.innerHTML).toContain("v8:text-sky-200");
   });
 
   it("puts the explanations behind one disclosure under the table", () => {

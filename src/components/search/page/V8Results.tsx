@@ -93,7 +93,7 @@ export function V8TeamAnswer({ team, name, place, summary, stat }: { team: numbe
     <section aria-label={`Team ${team}`} className="rounded-xl border border-line bg-card p-5" data-v8-answer="team">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <p className="font-display text-[2.5rem] font-semibold leading-none tracking-tight tabular-nums text-foreground v8:text-accent" data-team-number>{team}</p>
+          <p className="font-display text-[2.5rem] font-semibold leading-none tracking-tight tabular-nums text-accent" data-team-number>{team}</p>
           <p className="mt-1.5 break-words text-base font-medium text-foreground">{name}</p>
           {(place || s?.place) && <p className="mt-0.5 flex items-center gap-1 text-sm text-text-muted"><MapPin className="size-3.5 shrink-0" aria-hidden />{place || s?.place}</p>}
         </div>
@@ -184,7 +184,7 @@ export function TeamRow({ h, summary, onOpen }: { h: SearchHit; summary?: Season
     <Link to={hitHref(h)} onClick={onOpen} className={ROW} data-row="team">
       <Shield className="size-4 shrink-0 text-text-muted" aria-hidden />
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-foreground"><span className="tabular-nums">{p?.number ?? h.ref}</span>{p?.name && <span> {p.name}</span>}</span>
+        <span className="block truncate text-foreground"><span className="font-medium tabular-nums text-accent">{p?.number ?? h.ref}</span>{p?.name && <span> {p.name}</span>}</span>
         {h.subtitle && <span className="block truncate text-xs text-text-muted">{h.subtitle}</span>}
       </span>
       {s && (s.record || s.opr != null) && (

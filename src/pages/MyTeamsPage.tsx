@@ -2,7 +2,7 @@
 // each with its season at a glance: OPR and rank, prediction rating, record, events, and its next and
 // latest matches. Every team links to its full team page; each workspace to its shared scout space.
 // Tapping a team's number and name folds its card down to the header, remembered per team on this device.
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { recordWords } from "../shared/format";
 import { Link } from "react-router-dom";
 import { ArrowRight, CalendarDays, ChevronDown, ClipboardList, ExternalLink, Hash, LogIn, RefreshCw, Sparkles, Star, Target, Trophy, Users } from "lucide-react";
@@ -25,11 +25,10 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../componen
 import { MatchList } from "../components/predict";
 import { DiscordCard } from "../components/DiscordCard";
 import { dateRange, num, rankPct, seasonLabel } from "../lib/format";
-import { pct } from "../lib/seasonSoFar";
 import { OFFICIAL_ONLY } from "../shared/eventRecord";
 import { useIsV8 } from "../lib/v8";
 import { cn } from "../components/cn";
-import { V8Empty, V8Figures, V8Title, V8_LABEL, V8_ROW } from "../components/myteams/v8";
+import { V8Empty, V8Title, V8_LABEL, V8_ROW } from "../components/myteams/v8";
 
 const CP_FALLBACK = "https://tryctrlpoint.org";
 
@@ -343,14 +342,89 @@ function V8Workspace({ w }: { w: WorkspaceSpace }) {
   return <Link to={scoutSpaceHref(w.id)} className={cn(pill, "transition-colors hover:bg-white/[0.04] hover:text-text-base")}><ClipboardList className="size-3.5" aria-hidden />{body}<span className="sr-only"> (open its scout space)</span></Link>;
 }
 
+/** v8 colours the owner asked for on this strip (Nov 19): OPR in soft gold, the rating in the slate-blue accent, wins
+ *  green and losses red (the v8 tokens draw wins white elsewhere, so these are this strip's own). Deeper on light. */
+const GOLD = "text-[#fcd34d] [html.light_&]:text-amber-700";
+const WIN = "text-emerald-400 [html.light_&]:text-emerald-700";
+const LOSS = "text-[#fb7185] [html.light_&]:text-rose-700";
+
+/** A thin line under a figure (no box): the classic tiles' bars, drawn as hairlines. */
+function Line({ children, label }: { children: ReactNode; label?: string }) {
+  return <span className="mt-1.5 flex h-1 overflow-hidden rounded-full bg-white/[0.06] [html.light_&]:bg-black/[0.06]" role={label ? "img" : undefined} aria-label={label} aria-hidden={label ? undefined : true} data-glance-line>{children}</span>;
+}
+
+/** The rating's ± as a marker: a band as wide as its uncertainty (relative to the rating) around a tick at the
+ *  middle, so a narrow band reads as a sure number and a wide one as a guess. */
+function SpreadMarker({ np, sd }: { np: number; sd: number }) {
+  const w = Math.max(6, Math.min(100, np > 0 ? (2 * sd / np) * 100 : 100));
+  return (
+    <Line label={`± ${num(sd)} uncertainty`}>
+      <span className="relative h-full w-full">
+        <span className="absolute inset-y-0 rounded-full bg-accent/40" style={{ left: `${50 - w / 2}%`, width: `${w}%` }} />
+        <span className="absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2 bg-accent" />
+      </span>
+    </Line>
+  );
+}
+
+/**
+ * The answer while folded, as one clean strip (no boxed, tinted tiles): standing, OPR, rating, record and what's next,
+ * every number the classic tiles showed (OPR rank, the rating's ± and world rank, matches and events), each with a thin
+ * line under it like the classic bars. Five columns on a wide card; two a row on a phone.
+ */
+function V8Glance({ p, next, isCurrent }: { p: TeamProfile; next: TeamEventRow | undefined; isCurrent: boolean }) {
+  const s = p.stats!;
+  const r = s.record;
+  const decided = r.wins + r.losses + r.ties;
+  const top = rankPct(s.opr.np.rank, s.opr.np.of, true);
+  const cell = "min-w-0 sm:border-l sm:border-line sm:px-4 sm:first:border-l-0 sm:first:pl-0";
+  const dd = "mt-0.5 whitespace-nowrap text-2xl font-semibold tracking-tight tabular-nums";
+  const sub = "text-[0.6875rem] leading-snug text-text-faint";
+  return (
+    <dl className="grid min-w-0 grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-5 sm:gap-x-0" data-glance-strip>
+      <div className={cell}>
+        <dt className={V8_LABEL}>World</dt>
+        <dd className={cn(dd, "text-text-base")}>{top ?? "—"}</dd>
+        <dd className={sub}>{s.opr.np.rank ? "by OPR" : "not ranked"}</dd>
+      </div>
+      <div className={cell} data-glance="opr">
+        <dt className={V8_LABEL}>OPR</dt>
+        <dd className={cn(dd, GOLD)}>{num(s.opr.np.value)}</dd>
+        <dd className={sub}>{s.opr.np.rank ? `#${s.opr.np.rank.toLocaleString()} of ${s.opr.np.of?.toLocaleString()}` : "not ranked"}</dd>
+        {s.opr.np.rank ? <Line><span className="h-full rounded-full bg-[#fcd34d] [html.light_&]:bg-amber-500" style={{ width: `${rankPc(s.opr.np.rank, s.opr.np.of)}%` }} data-bar /></Line> : null}
+      </div>
+      <div className={cell} data-glance="rating">
+        <dt className={V8_LABEL}>Rating</dt>
+        <dd className={cn(dd, "text-accent")}>{s.rating ? <>{num(s.rating.np)}<span className="ml-0.5 text-xs font-normal text-text-faint">±{num(s.rating.sd)}</span></> : "—"}</dd>
+        <dd className={sub}>{s.rating ? `${s.rating.rank ? `#${s.rating.rank.toLocaleString()} worldwide · ` : ""}${s.rating.matches} match${s.rating.matches === 1 ? "" : "es"}` : p.season < 2023 ? "no ratings that season" : "not rated yet"}</dd>
+        {s.rating && <SpreadMarker np={s.rating.np} sd={s.rating.sd} />}
+      </div>
+      <div className={cell} title={OFFICIAL_ONLY} data-glance="record">
+        <dt className={V8_LABEL}>Record</dt>
+        <dd className={dd}>{decided ? <span aria-label={recordWords(r.wins, r.losses, r.ties)}><span className={WIN}>{r.wins}</span><span className="text-text-faint">-</span><span className={LOSS}>{r.losses}</span><span className="text-text-faint">-</span><span className="text-text-muted">{r.ties}</span></span> : <span className="text-text-base">—</span>}</dd>
+        <dd className={sub}>{decided ? `${r.matches} match${r.matches === 1 ? "" : "es"} · ${r.events} event${r.events === 1 ? "" : "s"}` : "no official results"}</dd>
+        {decided > 0 && (
+          <Line>
+            <span className="h-full bg-emerald-400 [html.light_&]:bg-emerald-600" style={{ width: `${(r.wins / decided) * 100}%` }} data-bar />
+            <span className="h-full bg-[#fb7185] [html.light_&]:bg-rose-600" style={{ width: `${(r.losses / decided) * 100}%` }} data-bar />
+            <span className="h-full bg-text-muted/50" style={{ width: `${(r.ties / decided) * 100}%` }} data-bar />
+          </Line>
+        )}
+      </div>
+      <div className={cn(cell, "max-sm:col-span-2")} title={next?.name}>
+        <dt className={V8_LABEL}>{next ? "Next event" : "Events"}</dt>
+        <dd className={cn(dd, "text-text-base")}>{next ? dateRange(next.start, next.end).split(",")[0] : String(p.events.length)}</dd>
+        <dd className={cn(sub, "truncate")}>{next ? next.name : isCurrent ? "none scheduled" : "that season"}</dd>
+      </div>
+    </dl>
+  );
+}
+
 function V8TeamCard({ mine }: { mine: MyTeam }) {
   const { team, current, season, open, toggle, profile, matches, p, name, isCurrent, probe } = useTeamCard(mine);
   const s = p?.stats;
-  const r = s?.record;
   const today = new Date().toISOString().slice(0, 10);
   const next = p && isCurrent ? p.events.find((e) => (e.end ?? e.start ?? "") >= today) : undefined;
-  const top = rankPct(s?.opr.np.rank, s?.opr.np.of, true);
-  const decided = r ? r.wins + r.losses + r.ties : 0;
   const href = season != null ? `/teams/${team}?season=${season}` : `/teams/${team}`;
   return (
     <Collapsible asChild open={open} onOpenChange={toggle}>
@@ -369,15 +443,10 @@ function V8TeamCard({ mine }: { mine: MyTeam }) {
             <div className="mt-2.5 flex flex-wrap gap-1.5 pl-6">{mine.workspaces.map((w) => <V8Workspace key={w.id} w={w} />)}</div>
           </div>
           {/* The answer while folded: standing, OPR, record, and what's next. */}
-          <div className="min-w-0 flex-[2] basis-[24rem] max-sm:basis-full" data-team-glance>
+          <div className="min-w-0 flex-[3] basis-[30rem] max-sm:basis-full" data-team-glance>
             {!p ? (probe.error ? <p className="text-sm text-text-muted">Couldn't load this team's season.</p> : <div className="skeleton h-12 rounded-lg" aria-hidden />)
               : !s || s.record.matches === 0 ? <p className="text-sm text-text-muted">No results {isCurrent ? "this season" : `in ${seasonLabel(p.season)}`} yet.{next ? <> Next: <span className="text-text-base">{next.name}</span>, {dateRange(next.start, next.end)}.</> : ""}</p>
-              : <V8Figures items={[
-                  { label: "World", value: top ?? "—", sub: s.opr.np.rank ? `#${s.opr.np.rank.toLocaleString()} by OPR` : "not ranked" },
-                  { label: "OPR", value: num(s.opr.np.value) },
-                  { label: "Record", value: decided ? `${r!.wins}-${r!.losses}-${r!.ties}` : "—", sub: decided ? `${pct(r!.wins, decided)}% won` : "no official results", title: OFFICIAL_ONLY },
-                  { label: next ? "Next event" : "Events", value: next ? dateRange(next.start, next.end).split(",")[0] : String(p.events.length), sub: next ? next.name : isCurrent ? "none scheduled" : "that season", title: next?.name },
-                ]} />}
+              : <V8Glance p={p} next={next} isCurrent={isCurrent} />}
           </div>
           <div className="flex items-center gap-1 max-sm:w-full" data-print-hide>
             {season != null && !isCurrent && <span className="rounded-full border border-line px-2.5 py-0.5 text-xs text-text-muted">{seasonLabel(season)} · latest played</span>}
@@ -424,7 +493,7 @@ function V8Events({ events, isCurrent, today }: { events: TeamEventRow[]; isCurr
                 {next ? <span className="text-xs text-text-muted">Upcoming</span> : onNow ? <span className="inline-flex items-center gap-1.5 text-xs text-text-muted"><span className="size-1.5 rounded-full bg-live" aria-hidden />On now</span> : (
                   <span className="flex items-center gap-3 text-xs tabular-nums text-text-muted">
                     {e.rank != null && <span>#{e.rank}<span className="sr-only"> rank</span></span>}
-                    {rec && <span>{rec}</span>}
+                    {e.wins != null && <span aria-label={recordWords(e.wins, e.losses ?? 0, e.ties ?? 0)}><span className={WIN}>{e.wins}</span>-<span className={LOSS}>{e.losses ?? 0}</span>-{e.ties ?? 0}</span>}
                     {e.opr.np != null && <span><span className="text-text-faint">OPR</span> {num(e.opr.np)}</span>}
                   </span>
                 )}

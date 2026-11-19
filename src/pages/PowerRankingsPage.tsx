@@ -18,7 +18,7 @@ import { NotFoundView } from "../components/NotFoundView";
 import { Button } from "../components/ui/button";
 import { cn } from "../components/cn";
 import { useIsV8, V8_NUM } from "../lib/v8";
-import { RankingsTabs, V8_CAPTION, V8_DOWN, V8_EYEBROW, V8_HEAD, V8_ICON, V8_LINK, V8_NOTE } from "../components/rankings/v8";
+import { RankingsTabs, V8_CAPTION, V8_DOWN, V8_EYEBROW, V8_HEAD, V8_ICON, V8_LINK, V8_NOTE, V8_UP, v8Medal } from "../components/rankings/v8";
 import {
   generatedNote, isWeekId, publishedLine, statsLine, weekLabel,
   type Movement, type PowerRankingsEntry, type PowerRankingsResponse, type PowerRankingsSummary, type PowerRankingsWeek,
@@ -49,7 +49,7 @@ function MovementBadge({ m, comparedWith }: { m: Movement | null; comparedWith: 
   const Icon = up ? ArrowUp : ArrowDown;
   const label = `${up ? "Up" : "Down"} ${m.by} ${m.by === 1 ? "place" : "places"}${since}`;
   return (
-    <span className={cn("inline-flex items-center gap-0.5 text-xs font-semibold tabular-nums v8:font-medium", up ? "text-success" : cn("text-danger", V8_DOWN))} aria-label={label} title={label}>
+    <span className={cn("inline-flex items-center gap-0.5 text-xs font-semibold tabular-nums v8:font-medium", up ? cn("text-success", V8_UP) : cn("text-danger", V8_DOWN))} aria-label={label} title={label}>
       <Icon className="size-3.5" aria-hidden />{m.by}
     </span>
   );
@@ -70,7 +70,7 @@ function Entry({ e, comparedWith, onLink, tagTemplate }: { e: PowerRankingsEntry
     // v8: a list on hairlines, not a stack of cards; #1's number is the slate blue, the rest white.
     <li className="flex gap-3 rounded-2xl border border-line bg-elevated/60 p-4 sm:gap-5 sm:p-5 v8:rounded-none v8:border-0 v8:border-b v8:bg-transparent v8:px-0 v8:py-5 v8:sm:px-0">
       <div className="flex w-9 shrink-0 flex-col items-center gap-1 pt-0.5 sm:w-11">
-        <span className={cn("font-display text-2xl font-semibold leading-none tabular-nums sm:text-[1.75rem]", e.rank <= 3 ? "text-accent-text v8:text-text-base" : "text-foreground", e.rank === 1 && "v8:text-accent")} data-rank>{e.rank}</span>
+        <span className={cn("font-display text-2xl font-semibold leading-none tabular-nums sm:text-[1.75rem]", e.rank <= 3 ? "text-accent-text" : "text-foreground", v8Medal(e.rank))} data-rank>{e.rank}</span>
         <MovementBadge m={e.movement} comparedWith={comparedWith} />
       </div>
       <div className="min-w-0 flex-1">

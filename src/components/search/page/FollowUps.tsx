@@ -31,7 +31,8 @@ export function toneOf(t: FollowUpTone, value: string, rest: string): string {
 function Line({ x, className }: { x: SearchFollowUp; className?: string }) {
   return (
     <span className={cn("break-words", className)} data-preview>
-      <span className={cn("font-semibold tabular-nums", toneOf(x.tone, x.value, x.rest))} data-value>{x.value}</span>
+      {/* v8: the answer's headline number in the accent, as on its card; a yes or no keeps its own colour. */}
+      <span className={cn("font-semibold tabular-nums", toneOf(x.tone, x.value, x.rest), !("verdict" in x.tone) && "v8:text-accent")} data-value>{x.value}</span>
       {x.rest && <span className="text-muted-foreground"> · {x.rest}</span>}
     </span>
   );

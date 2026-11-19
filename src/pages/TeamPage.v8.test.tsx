@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // The team page in v8 (docs/design/v8-revamp-brief.md, <html data-v8>), rebuilt around "how good is this team right
-// now, and what's next?": identity, the standing in one row and what's next first, then the matches; one primary
-// action, two outline, the rest in More; OPR and the rating as one quiet Strength table (mint only on its bars), how
+// now, and what's next?": identity, the standing in one row (numbers in the slate-blue accent) and what's next first,
+// every action in a row under the standing (one primary), then the matches; OPR and the rating as one quiet Strength table (mint only on its bars), how
 // it's computed behind a disclosure; no hover lift or glow; the closed sections as card headers with no colour wash.
 // With v8 off the page is drawn exactly as before.
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
@@ -24,6 +24,9 @@ const profile = {
   highlights: true, recordSplit: null,
 } as unknown as TeamProfile;
 
+/** The viewer's flags on the team (My team, tracked, shortlisted); a test may set them. */
+const flags = vi.hoisted(() => ({ isMine: false, tracked: false, bookmarked: false }));
+
 vi.mock("../lib/api", async (orig) => ({
   ...(await orig<typeof import("../lib/api")>()),
   useApi: (path: string | null) => {
@@ -36,7 +39,7 @@ vi.mock("../lib/afterPaint", () => ({ useAfterFirstPaint: () => true }));
 vi.mock("../lib/flags", async (orig) => ({ ...(await orig<typeof import("../lib/flags")>()), useFlag: () => true }));
 vi.mock("../lib/personal", () => ({
   usePersonal: () => ({ user: null, syncReady: false, state: { myTeam: null, tracked: { teams: [], events: [] }, bookmarks: [], settings: { notify: {} } }, update: () => {}, set: () => {} }),
-  useTeamFlags: () => ({ isMine: false, tracked: false, bookmarked: false, toggleTracked: () => {}, toggleBookmark: () => {}, setMine: () => {} }),
+  useTeamFlags: () => ({ ...flags, toggleTracked: () => {}, toggleBookmark: () => {}, setMine: () => {} }),
 }));
 vi.mock("../lib/yoursRow", () => ({ FOLLOWED_TEAM_PATH: "/my-teams", useYoursRow: () => ({ row: { kind: "followed" } }) }));
 vi.mock("../lib/scouting", () => ({ useScouting: () => ({ entries: [], notes: {}, setNote: () => {}, ready: true }) }));
@@ -55,7 +58,7 @@ const FOLDED = ["Reliability", "Prediction report card", "Schedule difficulty"];
 const primaries = (root: ParentNode) => [...root.querySelectorAll('[data-slot="button"]')].filter((b) => b.className.includes("bg-accent text-accent-ink"));
 const follows = (a: Element, b: Element) => !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
 
-afterEach(() => { cleanup(); document.documentElement.removeAttribute("data-v8"); });
+afterEach(() => { cleanup(); document.documentElement.removeAttribute("data-v8"); Object.assign(flags, { isMine: false, tracked: false, bookmarked: false }); });
 
 describe("team page, v8 on", () => {
   beforeEach(() => { document.documentElement.setAttribute("data-v8", ""); });
@@ -75,40 +78,89 @@ describe("team page, v8 on", () => {
     expect(follows(matches, folded("Reliability"))).toBe(true);
   });
 
-  it("shows the standing as one row: the percentile and the stats in the slate blue: OPR, rating, record and reliability", () => {
+  it("shows the standing as one row: the percentile and each number in the slate-blue accent, labels grey", () => {
     mount();
     const figure = document.querySelector("[data-hero-figure]")!;
     expect(figure.textContent).toMatch(/^Top \d+%$/);
-    // Numbers carry the accent in v8 (Sushil, 11-19); their labels stay grey.
-    expect(figure.className).toMatch(/\btext-accent\b/);
-    expect(document.querySelector("[data-glance-stats] dd")!.className).toMatch(/\btext-accent\b/);
-    expect(document.querySelector("[data-team-number]")!.className).toMatch(/\btext-accent\b/);
-    const terms = [...document.querySelectorAll("[data-glance-stats] dt")].map((d) => d.textContent);
-    expect(terms).toEqual(["OPR", "Rating", "Record", "Reliability"]);
+    expect(figure.className).toContain("text-accent");
+    const terms = [...document.querySelectorAll("[data-glance-stats] dt")];
+    expect(terms.map((d) => d.textContent)).toEqual(["OPR", "Rating", "Record", "Reliability"]);
+    for (const dt of terms) {
+      expect(dt.className).toContain("text-text-faint");
+      expect((dt.nextElementSibling as HTMLElement).className).toContain("text-accent");
+    }
+    // The name stays white.
+    expect(screen.getByRole("heading", { level: 1 }).querySelector(".text-text-base")!.textContent).toContain("Hypnotic Robotics");
     expect(document.querySelector("[data-opr-tiles]")).toBeNull();
     expect(document.querySelector("[data-hero-glow]")).toBeNull();
   });
 
-  it("keeps one primary action, Track and Compare outlined, the rest in More", () => {
+  it("shows every action in one row under the standing: My team primary, the rest outlined or quiet, rare ones as links", () => {
     mount();
     const actions = document.querySelector<HTMLElement>("[data-hero-actions]")!;
-    expect(primaries(hero())).toHaveLength(1);
+    // Under the standing, in the left column beside What's next (not in the header).
+    expect(hero().contains(actions)).toBe(false);
+    expect(follows(document.querySelector("[data-standing]")!, actions)).toBe(true);
+    expect(follows(actions, document.querySelector("[data-whats-next]")!)).toBe(true);
+    expect(primaries(actions)).toHaveLength(1);
+    expect(primaries(hero())).toHaveLength(0);
     expect(within(actions).getByRole("button", { name: /Mark as my team/ }).className).toContain("bg-accent text-accent-ink");
-    expect(within(actions).getByRole("button", { name: /Track/ }).className).toContain("border-text-base/25");
-    expect(within(actions).getByRole("link", { name: /Compare/ }).className).toContain("border-text-base/25");
-    // Shortlist, share and Control Point are in More, not buttons in the header.
-    expect(within(actions).queryByRole("button", { name: /Shortlist|Share/ })).toBeNull();
-    expect(within(hero()).queryByRole("link", { name: /Control Point/ })).toBeNull();
-    expect(within(actions).getByRole("button", { name: "More actions" })).toBeTruthy();
-    // Highlights moved to the Matches header.
-    expect(within(hero()).queryByRole("link", { name: /Highlights/ })).toBeNull();
-    expect(document.querySelector("#matches [data-highlights-link]")).not.toBeNull();
+    for (const b of [within(actions).getByRole("button", { name: /^Track/ }), within(actions).getByRole("button", { name: /^Shortlist/ }), within(actions).getByRole("link", { name: /Compare/ }), within(actions).getByRole("link", { name: /Highlights/ })]) {
+      expect(b.className).toContain("border-text-base/25");
+    }
+    expect(within(actions).getByRole("button", { name: /Share/ })).toBeTruthy();
+    // Highlights is an action now, not a link on the Matches header.
+    expect(document.querySelector("#matches [data-highlights-link]")).toBeNull();
+    // The rare ones as quiet links under the row, as on classic; no More button left in the row.
+    expect(within(actions).queryByRole("button", { name: "More actions" })).toBeNull();
+    const links = document.querySelector<HTMLElement>("[data-hero-links]")!;
+    expect(follows(actions, links)).toBe(true);
+    expect(within(links).getByRole("link", { name: /Manage this team in Control Point/ })).toBeTruthy();
   });
 
-  it("picks the season from one quiet select beside the label, not a row of pills", () => {
+  it("draws My team filled once it's set, with no primary left, and Tracking and Shortlisted pressed", () => {
+    Object.assign(flags, { isMine: true, tracked: true, bookmarked: true });
     mount();
-    expect(within(hero()).getByRole("combobox", { name: /Season 2025/ })).toBeTruthy();
-    expect(within(hero()).queryAllByRole("radio")).toHaveLength(0);
+    const actions = document.querySelector<HTMLElement>("[data-hero-actions]")!;
+    expect(primaries(actions)).toHaveLength(0);
+    for (const name of [/^My team$/, /^Tracking$/, /^Shortlisted$/]) {
+      const b = within(actions).getByRole("button", { name });
+      expect(b.getAttribute("aria-pressed")).toBe("true");
+      expect(b.className).toContain("bg-text-base/[0.1]");
+    }
+  });
+
+  it("keeps Advancement odds beside Predict in What's next", () => {
+    mount();
+    const next = document.querySelector<HTMLElement>("[data-whats-next]")!;
+    expect(within(next).getByRole("link", { name: /Predict a match with 4215/ })).toBeTruthy();
+    // The next event is over (2025-11-01), so the glance links the season's advancement odds.
+    expect(within(next).getByRole("link", { name: /Advancement odds/ })).toBeTruthy();
+  });
+
+  it("picks the season from one clearly visible select at the end of the action row, not a row of pills", () => {
+    mount();
+    const actions = document.querySelector<HTMLElement>("[data-hero-actions]")!;
+    const select = within(actions).getByRole("combobox", { name: /Season 2025/ });
+    expect(select.className).toContain("text-text-base");
+    expect(select.className).toContain("border-white/30");
+    expect(within(hero()).queryByRole("combobox")).toBeNull();
+    expect(hero().querySelector("[data-eyebrow]")!.textContent).toBe("FTC team");
+    expect(within(actions).queryAllByRole("radio")).toHaveLength(0);
+  });
+
+  it("shows each phase's OPR above the fold with its world rank and percentile, in its own colour", () => {
+    mount();
+    const quick = document.querySelector<HTMLElement>("[data-standing] [data-quick-stats]")!;
+    const cells = [...quick.querySelectorAll<HTMLElement>("[data-quick-stat]")];
+    expect(cells.map((c) => c.querySelector("dt")!.textContent)).toEqual(["NP OPR", "Auto OPR", "TeleOp OPR", "Endgame OPR"]);
+    expect(cells[0].textContent).toContain("80");
+    expect(cells[0].textContent).toContain("#600 · top 8%");
+    const colours = ["#c4a7e7", "#7dd3fc", "#fdba74", "#86efac"];
+    cells.forEach((c, i) => {
+      expect(c.querySelector("dd")!.className).toContain(colours[i]);
+      expect(c.querySelector("[data-bar]")).not.toBeNull();
+    });
   });
 
   it("merges OPR and the rating into one Strength table, mint only on its bars, how it's computed behind a disclosure", () => {
@@ -118,7 +170,13 @@ describe("team page, v8 on", () => {
     const bars = document.querySelectorAll("[data-strength] [data-bar]");
     expect(bars).toHaveLength(4);
     for (const b of bars) expect(b.className).toContain("bg-accent");
-    expect(document.querySelector("[data-strength]")!.querySelectorAll("[class*='bg-info'], [class*='bg-success'], [class*='violet']")).toHaveLength(0);
+    expect(document.querySelector("[data-strength]")!.querySelectorAll("[class*='bg-info'], [class*='bg-success'], [class*='bg-violet']")).toHaveLength(0);
+    // Each phase's OPR in its category colour (OPR purple, Auto blue, TeleOp orange, Endgame green).
+    const val = (k: string) => document.querySelector("[data-strength-row=\"" + k + "\"] td:nth-child(2)")!.className;
+    expect(val("np")).toContain("v8:text-violet-300");
+    expect(val("auto")).toContain("v8:text-blue-300");
+    expect(val("teleop")).toContain("v8:text-orange-300");
+    expect(val("endgame")).toContain("v8:text-emerald-300");
     // The explanation stays closed until asked for.
     expect(document.querySelector("[data-strength-how]")?.textContent ?? "").not.toMatch(/least squares/);
     fireEvent.click(screen.getByRole("button", { name: /How it's computed/ }));
@@ -128,6 +186,15 @@ describe("team page, v8 on", () => {
     fireEvent.click(teleop);
     expect(teleop.getAttribute("aria-expanded")).toBe("true");
     expect(document.querySelector("[data-opr-breakdown]")).not.toBeNull();
+  });
+
+  it("draws each award's icon and name in gold, the event line grey", () => {
+    mount();
+    const name = document.querySelector<HTMLElement>("#awards [data-award-name]")!;
+    expect(name.textContent).toBe("Inspire");
+    expect(name.className).toContain("v8:text-[#fcd34d]");
+    expect(name.previousElementSibling!.getAttribute("class")).toContain("v8:text-[#fcd34d]");
+    expect(name.closest("a")!.lastElementChild!.className).toContain("text-muted-foreground");
   });
 
   it("leaves the hover lift off every row and card", () => {

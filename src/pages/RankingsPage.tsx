@@ -25,7 +25,7 @@ import { cn } from "../components/cn";
 import { CompactFilters, FilterSection, useCompactFilters, type FilterChip } from "../components/CompactFilters";
 import { useIsV8, V8_NUM } from "../lib/v8";
 import {
-  Disclosure, RankingsTabs, V8_CAPTION, V8_DOWN, V8_EYEBROW, V8_FRAME, V8_HEAD, V8_ICON, V8_LINK, V8_MINE, V8_RANK, V8_ROW, V8_TH, V8_TOP,
+  Disclosure, RankingsTabs, V8_CAPTION, V8_DOWN, V8_EYEBROW, V8_FRAME, V8_HEAD, V8_ICON, V8_LINK, V8_MINE, V8_RANK, V8_NEW, V8_ROW, V8_TH, V8_UP, v8Medal, v8Trend,
 } from "../components/rankings/v8";
 
 // v8: the filter row's buttons are plain hairline pills; a filter that's on is white text on white/10% (no accent).
@@ -321,7 +321,7 @@ function RankTable({ data, myTeam }: { data: RankingsResponse; myTeam: number | 
             const me = r.team === myTeam;
             return (
               <tr key={r.team} data-team={r.team} data-mine={me ? "" : undefined} className={cn("border-t border-text-base/10 hover:bg-text-base/[0.03]", V8_ROW, me && cn("bg-accent/[0.07]", V8_MINE))}>
-                <td className={cn(td, "text-right font-display text-base font-semibold tabular-nums", V8_RANK, r.rank <= 3 && "text-accent-text", r.rank === 1 && V8_TOP)} data-rank>{r.rank.toLocaleString()}</td>
+                <td className={cn(td, "text-right font-display text-base font-semibold tabular-nums", V8_RANK, r.rank <= 3 && "text-accent-text", v8Medal(r.rank))} data-rank>{r.rank.toLocaleString()}</td>
                 {moves && <td className={td}><Move row={r} /></td>}
                 <td className={cn(td, "max-w-0 w-full")}>
                   <Link to={`/teams/${r.team}?season=${data.season}`} className="group block min-w-0">
@@ -335,7 +335,7 @@ function RankTable({ data, myTeam }: { data: RankingsResponse; myTeam: number | 
                 <td className={cn(td, "max-w-[14rem] truncate text-text-muted max-md:hidden")}>{homeOf(r)}</td>
                 <td className={cn(td, "text-right tabular-nums")}>
                   <span className={cn("font-semibold v8:font-medium", V8_NUM)}>{r.rating.toFixed(1)}</span>
-                  {r.dRating != null && r.dRating !== 0 && <span className={cn("block text-[11px] v8:text-[0.6875rem]", r.dRating > 0 ? "text-success v8:text-text-muted" : cn("text-danger", V8_DOWN, "v8:text-text-faint"))}>{r.dRating > 0 ? "+" : ""}{r.dRating.toFixed(1)}</span>}
+                  {r.dRating != null && r.dRating !== 0 && <span className={cn("block text-[11px] v8:text-[0.6875rem]", r.dRating > 0 ? cn("text-success", V8_UP) : cn("text-danger", V8_DOWN))}>{r.dRating > 0 ? "+" : ""}{r.dRating.toFixed(1)}</span>}
                 </td>
                 {swing && <td className={cn(td, "text-right tabular-nums")} title={swingTitle(r.swing)}>{swingText(r.swing)}</td>}
                 {moves && <td className={cn(td, "max-sm:hidden")}><TrendBadge row={r} /></td>}
@@ -351,13 +351,13 @@ function RankTable({ data, myTeam }: { data: RankingsResponse; myTeam: number | 
 }
 
 export function Move({ row }: { row: Pick<RankingRow, "move"> }) {
-  if (row.move === "new") return <Badge variant="beta" title="Not ranked last week" className="v8:border-white/[0.12] v8:bg-transparent v8:font-medium v8:text-text-muted">New</Badge>;
+  if (row.move === "new") return <Badge variant="beta" title="Not ranked last week" className={V8_NEW}>New</Badge>;
   if (row.move == null) return null;
   if (row.move === 0) return <span className="inline-flex items-center text-text-muted" title="Same place as last week"><Minus className="size-3.5" /><span className="sr-only">No change</span></span>;
   const up = row.move > 0;
   const Icon = up ? ArrowUp : ArrowDown;
   return (
-    <span className={cn("inline-flex items-center gap-0.5 font-semibold tabular-nums v8:font-medium", up ? "text-success" : cn("text-danger", V8_DOWN))} title={`${up ? "Up" : "Down"} ${Math.abs(row.move)} since last week`}>
+    <span className={cn("inline-flex items-center gap-0.5 font-semibold tabular-nums v8:font-medium", up ? cn("text-success", V8_UP) : cn("text-danger", V8_DOWN))} title={`${up ? "Up" : "Down"} ${Math.abs(row.move)} since last week`}>
       <Icon className="size-3.5" strokeWidth={2.5} />{Math.abs(row.move).toLocaleString()}<span className="sr-only"> {up ? "up" : "down"}</span>
     </span>
   );
@@ -366,9 +366,9 @@ export function Move({ row }: { row: Pick<RankingRow, "move"> }) {
 export function TrendBadge({ row }: { row: Pick<RankingRow, "trend"> }) {
   if (!row.trend) return null;
   return (
-    // v8: words and an arrow, no coloured pill (red is for live and the red alliance only).
+    // v8: a soft chip, green rising, red falling, neutral steady (the classic's colours, toned down).
     <Badge variant={row.trend === "flat" ? "secondary" : row.trend === "up" ? "success" : "destructive"}
-      className={cn("v8:border-0 v8:bg-transparent v8:px-0 v8:font-normal", row.trend === "up" ? "v8:text-text-base" : "v8:text-text-muted")}>
+      className={cn("v8:font-medium", v8Trend(row.trend))}>
       {row.trend === "up" ? <TrendingUp /> : row.trend === "down" ? <TrendingDown /> : null}{trendLabel(row.trend)}
     </Badge>
   );

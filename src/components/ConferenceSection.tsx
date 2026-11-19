@@ -14,6 +14,7 @@ import { leagueTitle } from "../shared/leagues";
 import { Move, TrendBadge, active, idle, trigger } from "../pages/RankingsPage";
 import type { MoverItem, NewItem } from "./rankings/MoverCards";
 import { V8_NUM } from "../lib/v8";
+import { v8Medal } from "./rankings/v8";
 
 export const CONFERENCE_PAGE = 50;
 
@@ -164,7 +165,7 @@ export function ConferenceTable({ c, team }: { c: Conference; team: number | nul
               return (
                 <tr key={r.team} data-marked={mine ? "" : undefined} aria-current={mine ? "true" : undefined} data-team={r.team}
                   className={cn("border-b border-border last:border-b-0 v8:h-11 v8:border-white/[0.08] v8:transition-colors v8:duration-150 v8:hover:bg-white/[0.03]", mine && "bg-muted font-semibold shadow-[inset_3px_0_0_var(--color-text-base)] v8:bg-white/[0.05] v8:shadow-[inset_2px_0_0_var(--color-text-base)]")}>
-                  <td className={cn(TD, "text-right tabular-nums", r.rank === 1 && "v8:font-medium v8:text-accent")} data-rank>
+                  <td className={cn(TD, "text-right tabular-nums", r.rank != null && r.rank <= 3 && cn("v8:font-medium", v8Medal(r.rank)))} data-rank>
                     <span className="max-sm:hidden">{ordinal(r.rank!)} in conference</span><span className="sm:hidden">{ordinal(r.rank!)}</span>
                     {r.leagueRank != null && <span className="block text-[11px] font-normal text-muted-foreground v8:text-[0.6875rem] v8:leading-3 v8:text-text-faint"><span className="max-sm:hidden">{ordinal(r.leagueRank)} in league</span><span className="sm:hidden">{ordinal(r.leagueRank)} lg</span></span>}
                   </td>

@@ -239,8 +239,8 @@ describe("the look: v8 unless this device picked the classic one", () => {
     expect(v8).toContain(`<meta name="theme-color" content="#0a0a0b">`);
     expect(v8).toContain(`<style>${LITE_V8_STYLE}</style>`);
     expect(LITE_V8_STYLE).toContain("--acc:#a3b6e0");
-    expect(LITE_V8_STYLE).toContain("--red:#fb7185");
-    expect(LITE_V8_STYLE).toContain("--blue:#7dd3fc");
+    expect(LITE_V8_STYLE).toContain("--red:#f43f5e");
+    expect(LITE_V8_STYLE).toContain("--blue:#38bdf8");
     // Wins, "Right" and "yours" are white; the brand mark too.
     expect(LITE_V8_STYLE).toContain("--at:#f4f4f5");
     expect(LITE_V8_STYLE).toContain("--ok:#f4f4f5");
