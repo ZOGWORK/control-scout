@@ -293,42 +293,86 @@ function usePersonalOrNull() {
   try { return usePersonal(); } catch { return null; }
 }
 
-/** v8's match row (page plan: "who's playing, who won or who's favoured" at a glance, in a list of 60): one line,
- *  the label, red's teams, red's score (or chance), blue's score (or chance), blue's teams. Nothing else: the whole
- *  row opens the match report, where the details live. The teams this visitor follows (and the page's own team)
- *  are marked in mint. */
-function MatchRowV8({ m, highlight, live, rowProps }: MatchRowProps) {
+/** v8's match row: everything today's row says, laid out as one clean line across the full width on a desktop. In
+ *  order: the label and time, red's teams (names too on wide rows), the scores (the winner full colour and bold, the
+ *  loser muted), blue's teams, the call (picked side and %, a thin bar, its tier, Right or Upset), and the page's
+ *  team's own result in white. On a phone it's two lines: teams and scores, then time, call and result. The whole
+ *  row opens the match report; each team number and the tier sit above that link, each its own tap. The page's team
+ *  gets the slate-blue edge, the one place the accent is used. */
+function MatchRowV8({ m, highlight, showEvent, live, rowProps }: MatchRowProps) {
   const followed = useFollowedTeams();
+  const predictable = usePredictable(m.season);
   const p = m.prediction;
   const scored = m.played && !!m.red.score && !!m.blue.score;
   const total = (s: Side) => m[s].score!.total;
   const winner: Side | "tie" | null = scored ? (total("red") === total("blue") ? "tie" : total("red") > total("blue") ? "red" : "blue") : null;
-  const chance = (s: Side) => (p ? (s === "red" ? p.pRed : 1 - p.pRed) : null);
-  const fav: Side | null = !scored && p ? (p.pRed >= 0.5 ? "red" : "blue") : null;
+  const mySide: Side | null = highlight ? (m.red.teams.some((t) => t.number === highlight) ? "red" : m.blue.teams.some((t) => t.number === highlight) ? "blue" : null) : null;
+  const mine = mySide && winner ? (winner === "tie" ? "tied" : winner === mySide ? "won" : "lost") : null;
+  const when = showEvent ?? matchTime(m.time);
   const said = scored
     ? `red ${total("red")}, blue ${total("blue")}${winner === "tie" ? ", tie" : `, ${winner} won`}`
     : p ? `red ${oddsPct(p.pRed)} to win, blue ${oddsPct(1 - p.pRed)}` : "not played yet";
   const value = (s: Side) => {
-    const tone = s === "red" ? "text-red-alliance-ink" : "text-blue-alliance";
     if (scored) return <ScoreV8 score={total(s)} side={s} result={winner === "tie" ? "tie" : winner === s ? "win" : "loss"} />;
-    const c = chance(s);
-    if (c == null) return <span className="text-sm text-text-faint" aria-hidden>–</span>;
-    return <span className={cn("font-display text-[1.0625rem] leading-none tabular-nums", fav === s ? cn("font-semibold", tone) : cn("font-normal", FADED[s]))} data-chance>{oddsPct(c)}</span>;
+    // Not played: the predicted score, muted (an estimate, never a result).
+    if (p && !p.noScoreBasis) return <span className={cn("font-display text-base leading-none tabular-nums", FADED[s])} title="Predicted score" data-predicted>~{Math.round(s === "red" ? p.redMean : p.blueMean)}</span>;
+    return <span className="text-sm text-text-faint" aria-hidden>–</span>;
   };
+  const time = (cls: string) => when ? <span className={cn("min-w-0 truncate text-xs text-text-faint", cls)} title={when} data-when>{when}</span> : null;
   return (
-    <div {...rowProps} className="@container border-b border-border last:border-b-0" data-match={m.key} data-live={live || undefined}>
-      <div className="relative grid min-h-11 grid-cols-[2.75rem_minmax(0,1fr)_3rem_3rem_minmax(0,1fr)] items-center gap-x-2 px-3 py-1.5 @md:grid-cols-[4rem_minmax(0,1fr)_3.75rem_3.75rem_minmax(0,1fr)] @md:gap-x-3 @4xl:grid-cols-[4rem_minmax(0,13rem)_3.75rem_3.75rem_minmax(0,13rem)_1fr]"
-        data-row data-v8-row>
-        {/* The label is the row's link: stretched over the whole row (the teams sit above it, each its own tap). */}
-        <Link to={matchReportHref(m)} className="font-mono text-sm font-semibold outline-none after:absolute after:inset-0 after:content-[''] focus-visible:after:rounded-md focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-ring/60" data-report-link>
-          {m.label}<span className="sr-only">: {said}. Open the match report</span>
-        </Link>
+    <div {...rowProps} className={cn("@container border-b border-border last:border-b-0", mySide && "relative before:absolute before:inset-y-0 before:left-0 before:z-[2] before:w-0.5 before:bg-accent")}
+      data-match={m.key} data-live={live || undefined} data-mine-side={mySide ?? undefined}>
+      <div className="relative grid min-h-11 grid-cols-[2.75rem_minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-x-2 gap-y-1 px-3 py-2
+        @3xl:grid-cols-[5.5rem_minmax(0,1fr)_auto_minmax(0,1fr)_minmax(10rem,13rem)_4.5rem] @3xl:gap-x-5 @3xl:px-4" data-row data-v8-row>
+        <div className="min-w-0">
+          {/* The label is the row's link, stretched over the whole row. */}
+          <Link to={matchReportHref(m)} className="block font-mono text-sm font-semibold outline-none after:absolute after:inset-0 after:content-[''] focus-visible:after:rounded-md focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-ring/60" data-report-link>
+            {m.label}<span className="sr-only">: {said}. Open the match report</span>
+          </Link>
+          {time("hidden @3xl:block")}
+        </div>
         <RowTeams side="red" m={m} highlight={highlight} followed={followed} />
-        <span className="text-right" data-side="red">{value("red")}</span>
-        <span className="text-left" data-side="blue">{value("blue")}</span>
+        <span className="flex items-baseline justify-center gap-1.5 @3xl:gap-2.5" data-scores>
+          <span className="min-w-[2.25rem] text-right" data-side="red">{value("red")}</span>
+          <span className="text-xs text-text-faint" aria-hidden>–</span>
+          <span className="min-w-[2.25rem] text-left" data-side="blue">{value("blue")}</span>
+        </span>
         <RowTeams side="blue" m={m} highlight={highlight} followed={followed} />
+        {/* Phone: the second line (time, call, result). Desktop: its parts become the row's last columns. */}
+        <div className="col-span-full flex min-w-0 items-center gap-x-3 @3xl:contents" data-row-meta>
+          {time("@3xl:hidden")}
+          <span className="relative z-[1] flex min-w-0 items-center gap-2 text-xs @3xl:justify-end" data-call>
+            {p ? <CallV8 m={m} p={p} winner={winner} /> : predictable ? (
+              <span className="text-text-faint">{m.played && [m.red, m.blue].some((a) => a.teams.filter((t) => t.onField).length !== 2) ? "No call · a robot sat out" : m.played ? "No call" : "—"}</span>
+            ) : null}
+          </span>
+          <span className="ml-auto text-right text-xs @3xl:ml-0" data-mine={mine ?? undefined}>
+            {mine && highlight ? <span className={cn("whitespace-nowrap font-medium", mine === "won" ? "text-text-base" : "text-text-muted")}>{highlight} {mine}</span> : null}
+          </span>
+        </div>
       </div>
     </div>
+  );
+}
+
+/** The call in a v8 row: the picked side and its chance, a thin two-colour bar, the tier (never a call without it),
+ *  and once played whether it was right (white) or an upset (the quieter warning orange). */
+function CallV8({ m, p, winner }: { m: MatchView; p: MatchPredictionView; winner: Side | "tie" | null }) {
+  const fav: Side = p.pRed >= 0.5 ? "red" : "blue";
+  const called = winner && winner !== "tie" && p.pRed !== 0.5 ? (p.pRed > 0.5) === (winner === "red") : null;
+  return (
+    <>
+      <span className="whitespace-nowrap text-text-muted" title={KIND_LABEL[p.kind]}>
+        Picked <span className={cn("font-semibold tabular-nums", fav === "red" ? "text-red-alliance" : "text-blue-alliance")}>{fav === "red" ? "Red" : "Blue"} {oddsPct(fav === "red" ? p.pRed : 1 - p.pRed)}</span>
+      </span>
+      <WinBar pRed={p.pRed} size="sm" className="w-10 shrink-0 @3xl:w-12" decorative />
+      <TierIcon tier={p.tier} />
+      {called != null && (
+        <span className={cn("inline-flex items-center gap-0.5 whitespace-nowrap font-medium", called ? "text-text-base" : "text-warning")} data-outcome={called ? "right" : "upset"}>
+          {called ? <Check className="size-3" aria-hidden /> : <X className="size-3" aria-hidden />}{called ? "Right" : "Upset"}
+        </span>
+      )}
+    </>
   );
 }
 
@@ -348,20 +392,27 @@ function ScoreV8({ score, side, result }: { score: number; side: Side; result: "
  *  to the team card in a match list (TeamSnack), else links to the team page; it sits above the row's link. */
 function RowTeams({ side, m, highlight, followed }: { side: Side; m: MatchView; highlight?: number; followed: ReadonlySet<number> }) {
   const snack = useTeamSnack();
+  // The number in mono; the name beside it only on a wide row (truncated to the room it has).
+  const body = (t: MatchView["red"]["teams"][number], mine: boolean) => (
+    <>
+      <span className={cn("shrink-0 font-mono tabular-nums", mine && "font-semibold")}>{t.number}</span>
+      {t.name && <span className={cn("hidden min-w-0 truncate", mine ? "text-text-base" : "text-text-muted", "@4xl:inline")} data-team-name>{t.name}</span>}
+    </>
+  );
   return (
     // Each alliance sits against its own score (red's numbers end at it, blue's start from it), so a wide row reads
     // as one unit from the middle instead of spreading to both edges.
-    <span className={cn("flex min-w-0 flex-col gap-y-0.5 @md:flex-row @md:flex-wrap @md:gap-x-3", side === "red" ? "items-end @md:justify-end" : "items-start @md:justify-start")} data-teams={side}>
+    <span className={cn("flex min-w-0 flex-col gap-y-0.5 @xl:flex-row @xl:flex-wrap @xl:gap-x-3 @4xl:flex-col @4xl:flex-nowrap", side === "red" ? "items-end @xl:justify-end" : "items-start @xl:justify-start")} data-teams={side}>
       {m[side].teams.map((t) => {
         const mine = t.number === highlight || followed.has(t.number);
         const off = t.surrogate || !t.onField;
-        const cls = cn("relative z-[1] rounded font-mono text-[0.8125rem] leading-tight tabular-nums outline-none tap-44 focus-visible:ring-2 focus-visible:ring-ring/60 still-hover:underline",
+        const cls = cn("relative z-[1] flex min-w-0 max-w-full items-baseline gap-1.5 rounded text-[0.8125rem] leading-tight outline-none tap-44 focus-visible:ring-2 focus-visible:ring-ring/60 still-hover:underline", side === "red" && "@4xl:flex-row-reverse",
           mine ? "font-semibold text-accent-text" : off ? "text-text-faint" : "text-text-base", snack?.team === t.number && "underline decoration-2 underline-offset-2");
         const title = `${t.number}${t.name ? ` ${t.name}` : ""}${off ? " (surrogate or didn't play)" : ""}${mine ? " · yours" : ""}`;
-        if (!hasTeamPage(t.number, t.name)) return <span key={t.number} title={title} className={cls}>{t.number}</span>;
+        if (!hasTeamPage(t.number, t.name)) return <span key={t.number} title={title} className={cls}>{body(t, mine)}</span>;
         return snack
-          ? <button key={t.number} type="button" onClick={() => snack.toggle(t.number)} aria-pressed={snack.team === t.number} aria-label={`${title}: show team card`} title={title} className={cls} data-mine={mine || undefined}>{t.number}</button>
-          : <Link key={t.number} to={`/teams/${t.number}?season=${m.season}`} title={title} className={cls} data-mine={mine || undefined}>{t.number}</Link>;
+          ? <button key={t.number} type="button" onClick={() => snack.toggle(t.number)} aria-pressed={snack.team === t.number} aria-label={`${title}: show team card`} title={title} className={cls} data-mine={mine || undefined}>{body(t, mine)}</button>
+          : <Link key={t.number} to={`/teams/${t.number}?season=${m.season}`} title={title} className={cls} data-mine={mine || undefined}>{body(t, mine)}</Link>;
       })}
     </span>
   );
@@ -559,8 +610,8 @@ const scheduleOrder = (a: MatchView, b: MatchView) => (a.level === b.level ? 0 :
 type Group = { key: string; title: string; date?: string; href?: string; ms: MatchView[] };
 type ListItem = { kind: "head"; gi: number; key: string } | { kind: "match"; gi: number; m: MatchView; key: string };
 /** Heights for rows not measured yet (desktop / phone, measured on real rows): a match, a level heading, an event's heading. */
-/** v8's one-line row: 45 px on a wide row; a phone stacks each alliance's numbers, 2 lines (3 in a playoff). */
-const V8_ROW_H = 45, V8_ROW_H_PHONE = 53;
+/** v8's row: one line on a wide row (two team lines with names, 57 px); a phone adds a second line (time, call, result). */
+const V8_ROW_H = 57, V8_ROW_H_PHONE = 82;
 const ROW_H = 71, ROW_H_PHONE = 105, HEAD_H = 29, EVENT_HEAD_H = 41, EVENT_HEAD_H_PHONE = 57;
 /** A touch screen's match row is taller: its team chips and status row are 44 px (measured: 142 px a row at 390 px). */
 const ROW_TOUCH_EXTRA = 38;
@@ -704,7 +755,7 @@ export function MatchList({ matches, highlight, empty, eventNames, eventDates, i
     <div ref={box} className="match-list space-y-2">
       {rec && rec.played > 0 && (
         <p className="text-sm text-text-muted">
-          <span className="font-semibold text-accent-text">{highlight}</span> in these matches: <span className={cn("font-semibold", rec.w ? "text-success" : "text-text-muted")}>{rec.w} won</span> · <span className={cn("font-semibold", rec.l ? "text-destructive" : "text-text-muted")}>{rec.l} lost</span>{rec.t > 0 && <> · {rec.t} tied</>}{rec.upcoming > 0 && <> · {rec.upcoming} to play</>}
+          <span className="font-semibold text-accent-text">{highlight}</span> in these matches: <span className={cn("font-semibold", rec.w ? "text-success" : "text-text-muted")}>{rec.w} won</span> · <span className={cn("font-semibold", rec.l ? "text-destructive v8:text-text-muted" : "text-text-muted")}>{rec.l} lost</span>{rec.t > 0 && <> · {rec.t} tied</>}{rec.upcoming > 0 && <> · {rec.upcoming} to play</>}
         </p>
       )}
       {/* Not overflow-hidden: a row standing forward (index.css .match-list) reaches past the box's sides. */}
