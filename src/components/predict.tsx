@@ -61,7 +61,7 @@ export function TierMark({ tier, className, chip }: { tier: ConfidenceTier; clas
   const t = TIER[tier];
   const color = t.cls.split(" ").find((c) => c.startsWith("text-"));
   return (
-    <span className={cn("inline-flex items-center gap-0.5 whitespace-nowrap [&_svg]:size-3", chip ? cn(STATUS_CHIP, "border", t.cls) : color, className)} title={`Confidence: ${t.label.toLowerCase()}. ${t.blurb}`}>
+    <span className={cn("inline-flex items-center gap-0.5 whitespace-nowrap [&_svg]:size-3", chip ? cn(STATUS_CHIP, "border", t.cls, "v8:border-white/[0.12] v8:bg-transparent") : color, className)} title={`Confidence: ${t.label.toLowerCase()}. ${t.blurb}`}>
       <t.icon aria-hidden /><span className="sr-only">confidence: </span>{t.label.toLowerCase()}
     </span>
   );

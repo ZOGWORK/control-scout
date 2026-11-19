@@ -172,7 +172,7 @@ function ScorePairs({ m }: { m: MatchView }) {
     { label: "Fouls given away", red: r.pen, blue: b.pen, fouls: true },
   ];
   const max = barMax(rows);
-  const grid = "grid grid-cols-[minmax(0,6.5rem)_2.75rem_minmax(0,1fr)_2.75rem] items-center gap-x-3";
+  const grid = "grid grid-cols-[minmax(0,5.5rem)_2.5rem_minmax(0,1fr)_2.5rem] items-center gap-x-3 sm:grid-cols-[8.5rem_2.75rem_minmax(0,1fr)_2.75rem]";
   const value = (x: BreakdownRow, s: Side) => {
     const lead = rowLead(x).side;
     return <span className={cn("text-sm tabular-nums", s === "red" ? "text-right" : "text-left", lead === s ? cn("font-semibold", SIDE[s].text) : "text-text-muted")} data-testid={`pair-${s}`}>{x[s] ?? "—"}</span>;
