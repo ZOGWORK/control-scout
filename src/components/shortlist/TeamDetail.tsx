@@ -17,8 +17,8 @@ import { cn } from "../cn";
 
 function Block({ title, children, className, aside }: { title: string; children: React.ReactNode; className?: string; aside?: React.ReactNode }) {
   return (
-    <section className={cn("min-w-0 rounded-xl border border-border bg-background/40 p-3.5", className)} aria-label={title}>
-      <h4 className="mb-3 flex items-center justify-between gap-2 text-[11px] font-semibold uppercase tracking-wider text-text-muted">{title}{aside}</h4>
+    <section className={cn("min-w-0 rounded-xl border border-border bg-background/40 p-3.5 v8:border-line v8:bg-transparent", className)} aria-label={title}>
+      <h4 className="mb-3 flex items-center justify-between gap-2 text-[11px] font-semibold uppercase tracking-wider text-text-muted v8:text-xs v8:font-normal v8:normal-case v8:tracking-normal v8:text-text-faint">{title}{aside}</h4>
       {children}
     </section>
   );
@@ -26,9 +26,9 @@ function Block({ title, children, className, aside }: { title: string; children:
 
 function Tile({ label, value, hint, tone, children }: { label: string; value: string; hint?: React.ReactNode; tone: string; children?: React.ReactNode }) {
   return (
-    <div className="min-w-0 rounded-lg bg-muted/50 px-3 py-2.5">
-      <p className="text-[11px] text-text-muted">{label}</p>
-      <p className={cn("font-display text-2xl font-semibold tabular-nums leading-tight", tone)}>{value}</p>
+    <div className="min-w-0 rounded-lg bg-muted/50 px-3 py-2.5 v8:bg-white/[0.03]">
+      <p className="text-[11px] text-text-muted v8:text-xs v8:text-text-faint">{label}</p>
+      <p className={cn("font-display text-2xl font-semibold tabular-nums leading-tight", tone, "v8:text-text-base")}>{value}</p>
       {hint && <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-[11px] text-text-muted">{hint}</p>}
       {children}
     </div>
@@ -108,9 +108,9 @@ export function TeamDetail({ t, season, rank, total, topPicks, onMove, onRemove,
   const others = topPicks.filter((x) => x !== t.team).slice(0, 3);
   const top = rankPct(t.oprRank, t.of);
   return (
-    <div className="grid gap-3 border-t border-border bg-accent/[0.03] p-3 sm:p-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+    <div className="grid gap-3 border-t border-border bg-accent/[0.03] p-3 sm:p-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] v8:border-line v8:bg-white/[0.015]">
       <div className="grid min-w-0 content-start gap-3">
-        <Block title="OPR breakdown" aside={<span className="normal-case tracking-normal text-text-base"><span className="font-display text-base font-semibold text-accent-text">{num(t.opr)}</span> total{t.oprRank ? <span className="text-text-muted"> · #{t.oprRank.toLocaleString()} world{top ? ` (${top})` : ""}</span> : null}</span>}>
+        <Block title="OPR breakdown" aside={<span className="normal-case tracking-normal text-text-base"><span className="font-display text-base font-semibold text-accent-text v8:text-text-base">{num(t.opr)}</span> total{t.oprRank ? <span className="text-text-muted"> · #{t.oprRank.toLocaleString()} world{top ? ` (${top})` : ""}</span> : null}</span>}>
           <BreakdownBar auto={t.breakdown.auto} teleop={t.breakdown.teleop} endgame={t.breakdown.endgame} />
           {t.breakdown.event && <p className="mt-2 text-[11px] text-text-muted">Split from {t.breakdown.event.name}, the event behind the season OPR.</p>}
         </Block>
@@ -126,7 +126,7 @@ export function TeamDetail({ t, season, rank, total, topPicks, onMove, onRemove,
           {m.error ? <p className="text-sm text-text-muted">{m.error.message}</p>
             : !m.data ? <div className="space-y-1.5">{[0, 1, 2].map((i) => <div key={i} className="skeleton h-14 rounded-lg" />)}</div>
             : !recent.length ? <p className="text-sm text-text-muted">No played matches this season yet.</p>
-            : <div className="-mx-3.5 -mb-3.5 overflow-hidden rounded-b-xl border-t border-border">{recent.map((x) => <MatchRow key={`${x.code}:${x.key}`} m={x} highlight={t.team} showEvent={names[x.code] ?? x.code} />)}</div>}
+            : <div className="-mx-3.5 -mb-3.5 overflow-hidden rounded-b-xl border-t border-border v8:border-line">{recent.map((x) => <MatchRow key={`${x.code}:${x.key}`} m={x} highlight={t.team} showEvent={names[x.code] ?? x.code} />)}</div>}
         </Block>
         <div className="flex flex-wrap gap-2" role="group" aria-label={`Actions for ${t.team}`}>
           <Button variant="secondary" size="sm" asChild><Link to={compareHref([t.team, ...others], season)}><Scale /> {others.length ? `Compare with top ${others.length}` : "Compare"}</Link></Button>
