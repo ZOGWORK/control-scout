@@ -255,7 +255,7 @@ function TopRow({ r, rank }: { r: TeamSeasonRecord; rank: number }) {
   return (
     <li data-top-team>
       <Link to={`/teams/${r.team}`} className={rowLink}>
-        <span data-rank className={cn("w-4 shrink-0 text-right font-display text-sm font-semibold tabular-nums text-text-muted", v8Rank(rank))}>{rank}</span>
+        <span data-rank className={cn("w-4 shrink-0 text-right font-display text-sm font-semibold tabular-nums", rank === 1 ? "text-accent" : "text-text-muted", v8Rank(rank) ?? "v8:text-text-muted")}>{rank}</span>
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm font-medium group-hover:underline"><span className={cn("tabular-nums", V8_NUM)}>{r.team}</span> <span className="text-text-muted">·</span> {name}</span>
           {w != null && l != null && <span className="block text-xs tabular-nums text-text-muted">{w}-{l}-{t ?? 0}</span>}
