@@ -28,6 +28,9 @@ import { factorLabel } from "../lib/factorLabel";
 import { TeamSnack, TeamSnackContext, nameIn, useTeamSnack, useTeamSnackState } from "./TeamSnack";
 import { hasTeamPage } from "../shared/teamPages";
 import { Spacer, useVirtualRows } from "./ui/windowing";
+import { isV8, useIsV8 } from "../lib/v8";
+import { usePersonal } from "../lib/personal";
+import { myTeamsOf } from "../lib/myTeams";
 
 const TIER: Record<ConfidenceTier, { label: string; cls: string; icon: typeof Gauge; blurb: string }> = {
   provisional: { label: TIER_WORD.provisional, cls: "border-warning/40 bg-warning/10 text-warning", icon: CircleDashed, blurb: "Mostly prior-season data — treat as a rough guess." },
@@ -61,7 +64,7 @@ export function TierMark({ tier, className, chip }: { tier: ConfidenceTier; clas
   const t = TIER[tier];
   const color = t.cls.split(" ").find((c) => c.startsWith("text-"));
   return (
-    <span className={cn("inline-flex items-center gap-0.5 whitespace-nowrap [&_svg]:size-3", chip ? cn(STATUS_CHIP, "border", t.cls) : color, className)} title={`Confidence: ${t.label.toLowerCase()}. ${t.blurb}`}>
+    <span className={cn("inline-flex items-center gap-0.5 whitespace-nowrap [&_svg]:size-3", chip ? cn(STATUS_CHIP, "border", t.cls, "v8:border-white/[0.12] v8:bg-transparent") : color, className)} title={`Confidence: ${t.label.toLowerCase()}. ${t.blurb}`}>
       <t.icon aria-hidden /><span className="sr-only">confidence: </span>{t.label.toLowerCase()}
     </span>
   );
@@ -74,7 +77,7 @@ export function TierIcon({ tier }: { tier: ConfidenceTier }) {
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <button type="button" className={cn(STATUS_CHIP, "tap-44 w-[18px] justify-center border px-0 outline-none focus-visible:ring-2 focus-visible:ring-ring/60 [&_svg]:size-3", t.cls)} data-tier={tier}>
+        <button type="button" className={cn(STATUS_CHIP, "tap-44 w-[18px] justify-center border px-0 outline-none focus-visible:ring-2 focus-visible:ring-ring/60 [&_svg]:size-3", t.cls, "v8:border-transparent v8:bg-transparent")} data-tier={tier}>
           <t.icon aria-hidden /><span className="sr-only">Confidence: {t.label.toLowerCase()}</span>
         </button>
       </PopoverTrigger>
@@ -93,10 +96,11 @@ export function TierIcon({ tier }: { tier: ConfidenceTier }) {
 export function WinBar({ pRed, className, size = "md", decorative }: { pRed: number; className?: string; size?: "sm" | "md"; decorative?: boolean }) {
   const r = Math.max(0.02, Math.min(0.98, pRed));
   return (
-    <div className={cn("flex w-full overflow-hidden rounded-full bg-muted", size === "sm" ? "h-1.5" : "h-2.5", className)}
-      {...(decorative ? { "aria-hidden": true } : { role: "img", "aria-label": `Red ${oddsPct(pRed)} to win, blue ${oddsPct(1 - pRed)}` })}>
-      <div className="h-full bg-red-alliance transition-[width] duration-500" style={{ width: `${r * 100}%` }} />
-      <div className="h-full flex-1 bg-blue-alliance" />
+    // v8: slimmer, the two colours split by a hairline gap, and no width animation (brief §4: never animate width).
+    <div className={cn("flex w-full overflow-hidden rounded-full bg-muted v8:gap-px v8:bg-transparent", size === "sm" ? "h-1.5 v8:h-1" : "h-2.5 v8:h-1.5", className)}
+      {...(decorative ? { "aria-hidden": true } : { role: "img", "aria-label": `Red ${oddsPct(pRed)} to win, blue ${oddsPct(1 - pRed)}` })} data-winbar>
+      <div className="h-full bg-red-alliance transition-[width] duration-500 v8:rounded-l-full v8:transition-none" style={{ width: `${r * 100}%` }} />
+      <div className="h-full flex-1 bg-blue-alliance v8:rounded-r-full" />
     </div>
   );
 }
@@ -193,7 +197,7 @@ function TeamChip({ t, side, season, highlight }: { t: AllianceScore["teams"][nu
 
 /** How many times `value` has changed since the first render (0: never): a new score arriving
  *  (live auto-refresh) restarts its flash; a row that mounts with its score doesn't flash. */
-function useChangeCount<T>(value: T): number {
+export function useChangeCount<T>(value: T): number {
   const prev = useRef(value);
   const [n, setN] = useState(0);
   useEffect(() => {
@@ -270,7 +274,100 @@ function AllianceBox({ side, m, score, forecast, outcome, highlight }: {
 /** `outcomeAccent`: the highlighted team's rows get a left edge in its result's colour (green won, red lost) instead of gold. */
 /** `live`: the match being played now; its row stands forward (index.css .match-list) until another row is hovered. */
 /** `rowProps`: a windowed list's props for the row's element (useVirtualRows: it measures the row). */
-export function MatchRow({ m, highlight, showEvent, eventName, open, onToggle, outcomeAccent, live, rowProps }: { m: MatchView; highlight?: number; showEvent?: string; eventName?: string; open?: boolean; onToggle?: () => void; outcomeAccent?: boolean; live?: boolean; rowProps?: Record<string, unknown> }) {
+type MatchRowProps = { m: MatchView; highlight?: number; showEvent?: string; eventName?: string; open?: boolean; onToggle?: () => void; outcomeAccent?: boolean; live?: boolean; rowProps?: Record<string, unknown> };
+
+/** One match in a list. v8 draws the one-line scan row (MatchRowV8); otherwise today's row. */
+export function MatchRow(props: MatchRowProps) {
+  return useIsV8() ? <MatchRowV8 {...props} /> : <MatchRowClassic {...props} />;
+}
+
+/** The teams this visitor follows: their Control Point teams, their own team and the teams they track. */
+export function useFollowedTeams(): ReadonlySet<number> {
+  const personal = usePersonalOrNull();
+  const user = personal?.user ?? null, myTeam = personal?.state.myTeam ?? null, tracked = personal?.state.tracked?.teams;
+  return useMemo(() => new Set([...myTeamsOf(user).teams.map((t) => t.teamNumber), ...(myTeam != null ? [myTeam] : []), ...(tracked ?? [])]), [user, myTeam, tracked]);
+}
+/** usePersonal, or null outside a PersonalProvider (a row drawn on its own: a test, a static render). The context
+ *  is read either way, so the hook order never changes. */
+function usePersonalOrNull() {
+  try { return usePersonal(); } catch { return null; }
+}
+
+/** v8's match row (page plan: "who's playing, who won or who's favoured" at a glance, in a list of 60): one line,
+ *  the label, red's teams, red's score (or chance), blue's score (or chance), blue's teams. Nothing else: the whole
+ *  row opens the match report, where the details live. The teams this visitor follows (and the page's own team)
+ *  are marked in mint. */
+function MatchRowV8({ m, highlight, live, rowProps }: MatchRowProps) {
+  const followed = useFollowedTeams();
+  const p = m.prediction;
+  const scored = m.played && !!m.red.score && !!m.blue.score;
+  const total = (s: Side) => m[s].score!.total;
+  const winner: Side | "tie" | null = scored ? (total("red") === total("blue") ? "tie" : total("red") > total("blue") ? "red" : "blue") : null;
+  const chance = (s: Side) => (p ? (s === "red" ? p.pRed : 1 - p.pRed) : null);
+  const fav: Side | null = !scored && p ? (p.pRed >= 0.5 ? "red" : "blue") : null;
+  const said = scored
+    ? `red ${total("red")}, blue ${total("blue")}${winner === "tie" ? ", tie" : `, ${winner} won`}`
+    : p ? `red ${oddsPct(p.pRed)} to win, blue ${oddsPct(1 - p.pRed)}` : "not played yet";
+  const value = (s: Side) => {
+    const tone = s === "red" ? "text-red-alliance-ink" : "text-blue-alliance";
+    if (scored) return <ScoreV8 score={total(s)} side={s} result={winner === "tie" ? "tie" : winner === s ? "win" : "loss"} />;
+    const c = chance(s);
+    if (c == null) return <span className="text-sm text-text-faint" aria-hidden>–</span>;
+    return <span className={cn("font-display text-[1.0625rem] leading-none tabular-nums", fav === s ? cn("font-semibold", tone) : cn("font-normal", FADED[s]))} data-chance>{oddsPct(c)}</span>;
+  };
+  return (
+    <div {...rowProps} className="@container border-b border-border last:border-b-0" data-match={m.key} data-live={live || undefined}>
+      <div className="relative grid min-h-11 grid-cols-[2.75rem_minmax(0,1fr)_3rem_3rem_minmax(0,1fr)] items-center gap-x-2 px-3 py-1.5 @md:grid-cols-[4rem_minmax(0,1fr)_3.75rem_3.75rem_minmax(0,1fr)] @md:gap-x-3 @4xl:grid-cols-[4rem_minmax(0,13rem)_3.75rem_3.75rem_minmax(0,13rem)_1fr]"
+        data-row data-v8-row>
+        {/* The label is the row's link: stretched over the whole row (the teams sit above it, each its own tap). */}
+        <Link to={matchReportHref(m)} className="font-mono text-sm font-semibold outline-none after:absolute after:inset-0 after:content-[''] focus-visible:after:rounded-md focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-ring/60" data-report-link>
+          {m.label}<span className="sr-only">: {said}. Open the match report</span>
+        </Link>
+        <RowTeams side="red" m={m} highlight={highlight} followed={followed} />
+        <span className="text-right" data-side="red">{value("red")}</span>
+        <span className="text-left" data-side="blue">{value("blue")}</span>
+        <RowTeams side="blue" m={m} highlight={highlight} followed={followed} />
+      </div>
+    </div>
+  );
+}
+
+/** A v8 row's score: big and tabular, the winner bold in its colour, the loser lighter. A score that changes while
+ *  the row is on screen (a live refresh) swaps with the 200ms crossfade (index.css cs-score-flash); a row that
+ *  mounts with its score doesn't animate. */
+function ScoreV8({ score, side, result }: { score: number; side: Side; result: "win" | "loss" | "tie" }) {
+  const flash = useChangeCount(score);
+  const tone = side === "red" ? "text-red-alliance-ink" : "text-blue-alliance";
+  return (
+    <span key={flash} className={cn("font-display text-[1.375rem] leading-none tabular-nums", result === "loss" ? cn("font-medium", FADED[side]) : cn("font-bold", tone), flash > 0 && "cs-score-flash")}
+      data-score data-result={result}>{score}</span>
+  );
+}
+
+/** One alliance's team numbers in a v8 row: side by side where the row is wide, stacked on a phone. A number taps
+ *  to the team card in a match list (TeamSnack), else links to the team page; it sits above the row's link. */
+function RowTeams({ side, m, highlight, followed }: { side: Side; m: MatchView; highlight?: number; followed: ReadonlySet<number> }) {
+  const snack = useTeamSnack();
+  return (
+    // Each alliance sits against its own score (red's numbers end at it, blue's start from it), so a wide row reads
+    // as one unit from the middle instead of spreading to both edges.
+    <span className={cn("flex min-w-0 flex-col gap-y-0.5 @md:flex-row @md:flex-wrap @md:gap-x-3", side === "red" ? "items-end @md:justify-end" : "items-start @md:justify-start")} data-teams={side}>
+      {m[side].teams.map((t) => {
+        const mine = t.number === highlight || followed.has(t.number);
+        const off = t.surrogate || !t.onField;
+        const cls = cn("relative z-[1] rounded font-mono text-[0.8125rem] leading-tight tabular-nums outline-none tap-44 focus-visible:ring-2 focus-visible:ring-ring/60 still-hover:underline",
+          mine ? "font-semibold text-accent-text" : off ? "text-text-faint" : "text-text-base", snack?.team === t.number && "underline decoration-2 underline-offset-2");
+        const title = `${t.number}${t.name ? ` ${t.name}` : ""}${off ? " (surrogate or didn't play)" : ""}${mine ? " · yours" : ""}`;
+        if (!hasTeamPage(t.number, t.name)) return <span key={t.number} title={title} className={cls}>{t.number}</span>;
+        return snack
+          ? <button key={t.number} type="button" onClick={() => snack.toggle(t.number)} aria-pressed={snack.team === t.number} aria-label={`${title}: show team card`} title={title} className={cls} data-mine={mine || undefined}>{t.number}</button>
+          : <Link key={t.number} to={`/teams/${t.number}?season=${m.season}`} title={title} className={cls} data-mine={mine || undefined}>{t.number}</Link>;
+      })}
+    </span>
+  );
+}
+
+function MatchRowClassic({ m, highlight, showEvent, eventName, open, onToggle, outcomeAccent, live, rowProps }: MatchRowProps) {
   const videos = useVideoLinkCount(`${m.season}:${m.code}:${m.level}:${m.series}:${m.number}`);
   // A video someone added, when it is the one this match plays (docs/contributors.md).
   const added = useContributorVideo(m.key);
@@ -462,6 +559,8 @@ const scheduleOrder = (a: MatchView, b: MatchView) => (a.level === b.level ? 0 :
 type Group = { key: string; title: string; date?: string; href?: string; ms: MatchView[] };
 type ListItem = { kind: "head"; gi: number; key: string } | { kind: "match"; gi: number; m: MatchView; key: string };
 /** Heights for rows not measured yet (desktop / phone, measured on real rows): a match, a level heading, an event's heading. */
+/** v8's one-line row: 45 px on a wide row; a phone stacks each alliance's numbers, 2 lines (3 in a playoff). */
+const V8_ROW_H = 45, V8_ROW_H_PHONE = 53;
 const ROW_H = 71, ROW_H_PHONE = 105, HEAD_H = 29, EVENT_HEAD_H = 41, EVENT_HEAD_H_PHONE = 57;
 /** A touch screen's match row is taller: its team chips and status row are 44 px (measured: 142 px a row at 390 px). */
 const ROW_TOUCH_EXTRA = 38;
@@ -479,16 +578,16 @@ const ListRow = memo(function ListRow({ k, index, measure, toggle, ...row }: Omi
 function GroupHeading({ g, rowProps }: { g: Group; rowProps: Record<string, unknown> }) {
   return g.date ? (
     // A dated event heading reads as a heading: the event's full name, then its dates (under it on phones).
-    <h3 {...rowProps} className="flex items-center gap-2 border-b border-border bg-muted/40 px-3 py-2">
+    <h3 {...rowProps} className="flex items-center gap-2 border-b border-border bg-muted/40 px-3 py-2 v8:bg-transparent">
       <span className="flex min-w-0 flex-1 flex-col sm:flex-row sm:items-baseline sm:gap-2">
-        <Link to={g.href!} className="truncate text-base font-semibold text-text-base hover:text-accent-text hover:underline">{g.title}</Link>
+        <Link to={g.href!} className="truncate text-base font-semibold text-text-base hover:text-accent-text hover:underline v8:hover:text-text-base">{g.title}</Link>
         <span className="shrink-0 text-xs font-normal text-text-muted">{g.date}</span>
       </span>
       <span className="shrink-0 rounded-full bg-muted px-2 py-px text-[11px] font-medium tabular-nums text-text-base/80">{g.ms.length}<span className="sr-only"> matches</span></span>
     </h3>
   ) : (
-    <h3 {...rowProps} className="flex items-center gap-2 border-b border-border bg-muted/40 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-text-muted">
-      {g.href ? <Link to={g.href} className="truncate normal-case tracking-normal text-base text-text-base hover:text-accent-text hover:underline pointer-coarse:leading-[44px]">{g.title}</Link> : g.title}
+    <h3 {...rowProps} className="flex items-center gap-2 border-b border-border bg-muted/40 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-text-muted v8:bg-transparent v8:text-[0.75rem] v8:font-medium v8:normal-case v8:tracking-normal v8:text-text-faint" data-group-head>
+      {g.href ? <Link to={g.href} className="truncate normal-case tracking-normal text-base text-text-base hover:text-accent-text hover:underline pointer-coarse:leading-[44px] v8:hover:text-text-base">{g.title}</Link> : g.title}
       <span className="shrink-0 rounded-full bg-muted px-1.5 py-px text-[10px] tabular-nums text-text-base/80">{g.ms.length}</span>
     </h3>
   );
@@ -534,7 +633,7 @@ export function MatchList({ matches, highlight, empty, eventNames, eventDates, i
   const [touch] = useState(() => typeof window !== "undefined" && !!window.matchMedia?.("(pointer: coarse)").matches);
   const estimate = (i: number) => {
     const x = flat[i];
-    return x.kind === "match" ? (phone ? ROW_H_PHONE : ROW_H) + (touch ? ROW_TOUCH_EXTRA : 0) : groups[x.gi].date ? (phone ? EVENT_HEAD_H_PHONE : EVENT_HEAD_H) : touch && groups[x.gi].href ? HEAD_TOUCH_H : HEAD_H;
+    return x.kind === "match" ? (isV8() ? (phone ? V8_ROW_H_PHONE : V8_ROW_H) : (phone ? ROW_H_PHONE : ROW_H) + (touch ? ROW_TOUCH_EXTRA : 0)) : groups[x.gi].date ? (phone ? EVENT_HEAD_H_PHONE : EVENT_HEAD_H) : touch && groups[x.gi].href ? HEAD_TOUCH_H : HEAD_H;
   };
   const loc = useLocation();
   // Named by page and kind of list, so coming Back to it finds its rows' measured heights.
