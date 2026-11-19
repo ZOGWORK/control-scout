@@ -7,6 +7,7 @@ import { cn } from "./cn";
 import { TeamNumber } from "./records/RecordsTable";
 import { leagueRecord, rankingScore, type LeagueStandingRow } from "../shared/leagues";
 import { regionHref } from "../shared/regionRankings";
+import { v8Medal } from "./rankings/v8";
 
 const TH = "h-9 whitespace-nowrap px-2.5 text-[10px] font-bold uppercase tracking-wider text-text-muted v8:text-xs v8:font-medium v8:normal-case v8:tracking-normal v8:text-text-faint max-sm:px-1.5";
 const TD = "whitespace-nowrap px-2.5 py-1.5 max-sm:px-1.5";
@@ -46,7 +47,7 @@ export function LeagueTable({ rows, season, team, maxRows, scout, frameless }: {
               <tr key={r.team} data-marked={marked ? "" : undefined} aria-current={marked ? "true" : undefined}
                 // v8: the marked team (yours, or the one a link asked for) is white: a faint white fill and a white edge.
                 className={cn("border-b border-border last:border-b-0", frameless && "v8:h-11 v8:border-white/[0.08] v8:transition-colors v8:duration-150 v8:hover:bg-white/[0.03]", marked && "bg-muted font-semibold shadow-[inset_3px_0_0_var(--color-text-base)] v8:bg-white/[0.05] v8:shadow-[inset_2px_0_0_var(--color-text-base)]")}>
-                <td className={cn(TD, "text-right tabular-nums", r.rank === 1 && "v8:font-medium v8:text-accent")}>{r.rank}</td>
+                <td className={cn(TD, "text-right tabular-nums", r.rank <= 3 && "v8:font-medium", r.rank <= 3 && v8Medal(r.rank))}>{r.rank}</td>
                 <td className={cn(TD, "max-w-[16rem] truncate")}>
                   <span className="sm:hidden"><TeamNumber team={r.team} name={r.name ?? ""} href={href} /></span>
                   <Link to={href} className="hover:underline max-sm:hidden"><span className="font-mono font-medium tabular-nums v8:font-sans">{r.team}</span> <span className={cn(!marked && "text-muted-foreground")}>{r.name}</span></Link>
