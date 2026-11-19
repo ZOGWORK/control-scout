@@ -4,7 +4,7 @@
 import type { FilterGroup, FilterNode } from "../../shared/filterDsl";
 import { STAT_BY_KEY, type RecordScope, type StatDef } from "../../shared/statCatalog";
 import { num, oddsPct } from "../format";
-import type { Tone } from "../../shared/statTones";
+import { toneOf, type Tone } from "../../shared/statTones";
 
 const OP_WORDS: Record<string, string> = { lt: "under", lte: "at most", gt: "over", gte: "at least", eq: "exactly", ne: "not", contains: "containing" };
 const TEXT_OP_WORDS: Record<string, string> = { eq: "is", ne: "is not", contains: "contains" };
@@ -65,6 +65,14 @@ export const V8_CATEGORY: Partial<Record<Tone, { text: string; dot: string }>> =
   rose: { text: "v8:text-red-300", dot: "v8:bg-red-300" },
   pink: { text: "v8:text-pink-300", dot: "v8:bg-pink-300" },
 };
+
+/** A stat column's v8 colour: only a scoring category's own stats (OPR, average, max… of total / np, auto, DC,
+ *  endgame or penalty points) take one. Stats that share a classic tone by key alone (winning margin, high score,
+ *  combined score, rank, RS, counts) stay white, so purple always means total points. */
+export function v8CategoryOf(def: StatDef | undefined): string | undefined {
+  if (!def?.base || def.category === "Control Scout Exclusives") return undefined;
+  return V8_CATEGORY[toneOf(def)]?.text;
+}
 
 /** The same colours by OPR phase, for tables that list phases (event rankings, team page, compare). */
 export const V8_PHASE = {

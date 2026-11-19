@@ -13,7 +13,7 @@ import { NoPageTeam } from "./NoPageTeam";
 import { countryByCode } from "../../shared/countries";
 import { stateName } from "../../shared/regions";
 import { clampPage, clearFilters, defaultDir, hasFilters, parseTableState, recordsUrl, searchString, writeTableState, type TableState } from "../../lib/records/urlState";
-import { describeFilter, formatStat, headerOf, TONE_CLASS, toneOf, V8_CATEGORY } from "../../lib/records/describe";
+import { describeFilter, formatStat, headerOf, TONE_CLASS, toneOf, v8CategoryOf, V8_CATEGORY } from "../../lib/records/describe";
 import { RECORDS_CAP_NOTE_TONE } from "../../lib/textTones";
 import { addPreset, hasPreset, presetGroup, presetsFor, removePreset, type ThresholdLookup } from "../../lib/records/presets";
 import type { FilterPreset } from "../../config/filterPresets";
@@ -732,7 +732,7 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, schedule
               const d = STAT_BY_KEY.get(k);
               const tone = TONE_CLASS[toneOf(d)];
               return (
-                <SortHead key={k} k={k} state={state} sortBy={sortBy} tone={tone.text} v8Tone={V8_CATEGORY[toneOf(d)]?.text} title={`${d?.label}${d?.description ? ` — ${d.description}` : ""}`}
+                <SortHead key={k} k={k} state={state} sortBy={sortBy} tone={tone.text} v8Tone={v8CategoryOf(d)} title={`${d?.label}${d?.description ? ` — ${d.description}` : ""}`}
                   className={cn("relative border-l border-text-base/[0.08]", state.sort === k && "bg-accent/[0.06]")}
                   label={<>{d?.category === "Control Scout Exclusives" && <Sparkles className="size-3" />}{headerOf(d, k)}<span aria-hidden className={cn("absolute inset-x-2 bottom-0 h-0.5 rounded-full v8:hidden", tone.bar, state.sort === k ? "opacity-100" : "opacity-50")} /></>} />
               );
@@ -816,7 +816,7 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, schedule
                       band || (heat.size === 0 && tone !== "slate" && v != null && cellText(tone)),
                       // v8: no heat bands; a scoring category's numbers in its colour (V8_CATEGORY), the rest white; the
                       // accent marks the #1 rank alone.
-                      "v8:border-line v8:font-normal", V8_CATEGORY[tone]?.text ?? "v8:text-text-base", k === "rank" && v === 1 && "v8:font-semibold v8:text-accent")} data-heat={band ? HEAT.indexOf(band) : undefined}>
+                      "v8:border-line v8:font-normal", v8CategoryOf(d) ?? "v8:text-text-base", k === "rank" && v === 1 && "v8:font-semibold v8:text-accent")} data-heat={band ? HEAT.indexOf(band) : undefined}>
                       {k === PREDICTION_FIELD ? <PredictionValue text={formatStat(d, v)} tier={(r as MatchRecordRow).predictionTier} className="justify-end" />
                         : SCHEDULE_STATS.has(k) ? <ScheduleValue stat={k} v={v} opponents={r.stats.scheduleOpponents} partners={r.stats.schedulePartners} rank={placeFor(schedulePlaces, team, v)} />
                         : formatStat(d, v)}

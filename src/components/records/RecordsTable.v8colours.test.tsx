@@ -59,3 +59,13 @@ describe("records table, v8 category colours", () => {
     expect(dot("Clean drivers")).toContain("v8:bg-red-300");
   });
 });
+
+describe("v8CategoryOf", () => {
+  it("colours a scoring category's stats only; stats that share a tone by key alone stay white", async () => {
+    const { v8CategoryOf } = await import("../../lib/records/describe");
+    const { STAT_BY_KEY } = await import("../../shared/statCatalog");
+    expect(v8CategoryOf(STAT_BY_KEY.get("totalPointsNpOpr"))).toBe("v8:text-violet-300");
+    expect(v8CategoryOf(STAT_BY_KEY.get("autoPointsOpr"))).toBe("v8:text-blue-300");
+    for (const k of ["winningMargin", "highScore", "combinedScore", "rank", "qualMatchesPlayed"]) expect(v8CategoryOf(STAT_BY_KEY.get(k))).toBeUndefined();
+  });
+});
