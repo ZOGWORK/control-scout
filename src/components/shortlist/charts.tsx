@@ -7,7 +7,7 @@ import type { ShortlistEventPoint } from "../../shared/api";
 
 /** The three parts of a score, in the app's chart colours: auto blue, driver-controlled gold, endgame green. */
 export const PARTS = [
-  // `v8`: the category colours every v8 page shares (src/lib/v8colour.ts: Auto blue, DC orange, Endgame green), over
+  // `v8`: the category colours every v8 page shares (V8_PHASE in src/lib/records/describe.ts: Auto blue, DC orange, Endgame green), over
   // the inline `fill` (hence important) and the text.
   { k: "auto", label: "Auto", short: "Auto", fill: "var(--color-chart-2)", text: "text-info v8:text-sky-400", v8: "v8:!bg-sky-400" },
   { k: "teleop", label: "Driver-controlled", short: "DC", fill: "var(--color-accent)", text: "text-accent-text v8:text-orange-400", v8: "v8:!bg-orange-400" },
