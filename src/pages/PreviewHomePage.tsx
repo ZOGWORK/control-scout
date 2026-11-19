@@ -10,7 +10,7 @@
 //     across the top of the page (not the sidebar).
 //   - One accent, mint, scoped to this page (data-theme-next): the live progress, the
 //     search focus, the #1 rank, links on hover. Numbers and names are white, labels grey; red and blue stay alliances.
-// The home lead uses a two-tone heading above search; there is no globe. Every number comes from the same APIs the live Home uses.
+// The Control Scout mark sits above search. Every number comes from the same APIs the live Home uses.
 import { useState, type CSSProperties } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { LogIn, LogOut, Megaphone, PanelLeft, Settings, ShieldCheck, UserRound } from "lucide-react";

@@ -63,9 +63,9 @@ describe("Sample home dashboard", () => {
     expect(isBareRoute("/events/2025/USNJQ1/display")).toBe(true);
   });
 
-  it("shows the two-tone headline above search, then four chips, a fresh set each visit", () => {
+  it("has no headline and starts with the search field, then four chips, a fresh set each visit", () => {
     const { container } = mount();
-    expect(screen.getByRole("heading", { level: 1, name: /See the whole field.*Know your next move/ })).toBeTruthy();
+    expect(container.querySelector("h1")).toBeNull();
     const field = screen.getByLabelText("Search teams, events and matches");
     expect(container.querySelector("input")).toBe(field);
     expect(field.getAttribute("placeholder")).toBe("Search teams, events, matches…");
@@ -84,7 +84,7 @@ describe("Sample home dashboard", () => {
     expect(container.querySelector("[aria-label*='by country']")).toBeNull(); // no globe
   });
 
-  it("has no top bar: the inbox and a guest picture top-right, the headline above search, Report a bug in the corner", () => {
+  it("has no top bar: the inbox and a guest picture top-right, the mark above search, Report a bug in the corner", () => {
     const { container } = mount();
     expect(container.querySelector("[data-top-nav]")).toBeNull();
     expect(container.querySelector("header")).toBeNull();
@@ -92,8 +92,11 @@ describe("Sample home dashboard", () => {
     expect([...corner.children].map((c) => c.getAttribute("data-tool") ?? (c.hasAttribute("data-profile") ? "profile" : "?"))).toEqual(["inbox", "profile"]);
     const profile = within(corner).getByRole("button", { name: "Sign in" });
     expect(profile.querySelector("[data-guest]")).toBeTruthy();
-    const headline = container.querySelector("h1")!;
-    expect(headline.compareDocumentPosition(container.querySelector("input")!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // The white mark sits above the search field, on every screen.
+    const mark = container.querySelector("[data-mark]")!;
+    expect(mark.getAttribute("src")).toBe("/mark-white.webp");
+    expect(cls(mark)).not.toContain("hidden");
+    expect(mark.compareDocumentPosition(container.querySelector("input")!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     // One bug report, a corner circle, apart from the corner tools.
     const bugs = container.querySelectorAll("[data-tool='bug']");
     expect(bugs).toHaveLength(1);
@@ -158,10 +161,10 @@ describe("Sample home dashboard", () => {
     expect(container.innerHTML).not.toContain("zoom");
   });
 
-  it("draws a moving dotted wave behind the page", () => {
+  it("places the decorative particle canvas behind the dashboard", () => {
     const { container } = mount();
     const wash = container.querySelector("[data-wash]") as HTMLElement;
-    expect(wash.querySelector("[data-dot-wave] [data-dot-band]")).toBeTruthy();
+    expect(container.querySelector("canvas[data-dot-wave]")?.getAttribute("aria-hidden")).toBe("true");
     expect(cls(wash.querySelector("[data-grain]")!)).toContain("opacity-[0.12]");
     expect(wash.innerHTML).not.toMatch(/type="discrete"/); // not the shutdown page's chalky grain
   });

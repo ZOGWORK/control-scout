@@ -292,13 +292,6 @@ html[data-text-size="xl"] { --ui-scale: 1.25; }
 @media (min-width: 2100px) { html:has([data-sample-home]) { --ui-base: 1.1; } }
 @media (min-width: 2500px) { html:has([data-sample-home]) { --ui-base: 1.23; } }
 
-/* The moving pinpoints sit behind v8 content, with no pointer or layout cost. */
-[data-dot-wave] { opacity: .95; }
-[data-dot-wave] [data-dot-band] { transform-origin: center; animation: dot-drift 16s ease-in-out infinite alternate; }
-[data-dot-wave] [data-dot-band="near"] { animation-duration: 20s; animation-direction: alternate-reverse; }
-@keyframes dot-drift { from { transform: translate3d(-1.5%, 1.5%, 0); } to { transform: translate3d(1.5%, -1.5%, 0); } }
-@media (prefers-reduced-motion: reduce) { [data-dot-wave] [data-dot-band] { animation: none; } }
-
 /* ---- v8 (docs/design/v8-revamp-brief.md) ------------------------------------------------------------------
    Dark only (Q1), the wash's light slate blue as the accent, the "90% zoom" root as the new 100% (Q3) with the big-screen steps on top, three
    radii, and strong easing curves for every ease-* utility. Phones keep their 14px base. */

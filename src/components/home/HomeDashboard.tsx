@@ -2,7 +2,7 @@
 // four examples under it, a fresh set each visit; then three cards of the same weight: Events live now, Top teams,
 // Your teams (or Pick your team). The real Home draws it under v8 (src/pages/Home.tsx), inside the v8 shell; the sample
 // home (/preview/home, src/pages/PreviewHomePage.tsx) draws it with its own sidebar, corner and wash.
-// The home lead uses a two-tone heading above search; there is no globe. Every number comes from the same APIs the live Home uses.
+// No headline of any kind (no H1), no slogan, no globe. Every number comes from the same APIs the live Home uses.
 //   - One accent, mint: the live progress, the search focus, the #1 rank, links on hover. Live is red, with the slow
 //     ring (index.css live-ring). Numbers and names are white, labels grey; red and blue stay alliances.
 import { useState } from "react";
@@ -102,12 +102,9 @@ export function HomeDashboard({ framed = false }: { framed?: boolean }) {
   const teams = yourTeams(myTeamsOf(user).teams.map((t) => t.teamNumber), state.myTeam ?? null, state.tracked?.teams ?? []);
   return (
     <div data-home-dashboard className={cn("relative z-10 mx-auto flex w-full max-w-[72rem] flex-col", framed && "px-5 pb-24 sm:px-8")}>
-      {/* A clear two-tone lead, with search still the main action. */}
+      {/* Search, alone in the middle: the biggest thing on the page, the white mark small above it. */}
       <section aria-label="Search" onFocusCapture={preloadSearchPage} className={cn("mx-auto flex w-full max-w-[44rem] flex-col items-center", framed ? "mt-[15vh] max-sm:mt-[11vh]" : "mt-[9vh] max-sm:mt-[5vh]")}>
-        <h1 className="mb-2 text-center font-display text-[clamp(2.1rem,3.2vw,3.25rem)] font-semibold leading-[1.04] tracking-[-0.045em]">
-          See the whole field.<span className="block font-normal text-text-muted">Know your next move.</span>
-        </h1>
-        <p className="mb-8 text-center text-sm text-text-muted sm:text-base">Teams, events and match predictions in one search.</p>
+        <img data-mark src="/mark-white.webp" alt="Control Scout" width={40} height={40} className="mb-7 size-10" />
         <SearchBox
           inputRef={searchRef} onEscape={search.restoreFocus} hint={SEARCH_HINT} initialQuery={query} discover size="lg"
           label="Search teams, events and matches"
