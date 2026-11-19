@@ -33,7 +33,7 @@ import { tabDef, useTabBar } from "../../lib/tabBar";
 import { watchTextSize } from "../../lib/textSize";
 import { useFlag } from "../../lib/flags";
 import { PAGE_FRAME } from "../../shared/boot";
-import { isV8 } from "../../lib/v8";
+import { isV8, useIsV8 } from "../../lib/v8";
 import { Wash, washSize } from "./Wash";
 
 /** `children`: a row that opens to its own pages instead of being one (How it works: Predictions, FTC One Search).
@@ -149,13 +149,19 @@ function SectionRows({ items, ...opts }: RowOpts & { items: NavItem[] }) {
 }
 
 /** A page row with an arrow beside it that folds out its sub-pages (Rankings: Region rankings, Leagues, Power
- *  rankings). Shut until the arrow is pressed: arriving on the page, or on one of the sub-pages, never opens it (the
- *  row's icon lights instead, so you can still tell where you are). In the icon rail the arrow sits under the icon. */
+ *  rankings). In v8, arriving on the page or one of its sub-pages opens the list (the arrow still folds it). In the
+ *  classic look it stays shut until the arrow is pressed, and the row's icon lights instead, so you can still tell
+ *  where you are. In the icon rail the arrow sits under the icon. */
 function SubPagesRow({ item, collapsed, dense, onNavigate }: RowOpts & { item: NavItem }) {
   const { pathname } = useLocation();
   const kids = item.sub ?? [];
   const inSub = kids.some((k) => isUnder(pathname.toLowerCase(), k.to));
-  const [open, setOpen] = useState(false);
+  // v8: on the page or one of its sub-pages the list is open (Sushil 11-19: "when I click Rankings, auto open the
+  // sub-pages"); the arrow still folds it. The classic look keeps it shut until the arrow is pressed.
+  const v8 = useIsV8();
+  const here = v8 && (inSub || isUnder(pathname.toLowerCase(), item.to.toLowerCase()));
+  const [open, setOpen] = useState(here);
+  useEffect(() => { if (here) setOpen(true); }, [here, pathname]);
   const button = useRef<HTMLButtonElement>(null);
   const id = useId();
   const label = `${open ? "Hide" : "Show"} more ${item.label.toLowerCase()}`;
