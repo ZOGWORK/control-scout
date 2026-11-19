@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { usePersonal } from "../lib/personal";
 import type { Settings, ThemeChoice } from "../shared/personal";
 import { useFlag } from "../lib/flags";
-import { takeLitePick, writeThemeCookie } from "../lib/liteCookies";
+import { takeLitePick, writeThemeCookie, writeV8Cookie } from "../lib/liteCookies";
 import { useIsV8 } from "../lib/v8";
 
 const prefersLight = () => typeof window !== "undefined" && window.matchMedia?.("(prefers-color-scheme: light)").matches;
@@ -64,6 +64,9 @@ export function ThemeSync() {
     if (waiting.current) { if (theme !== fromLite) return; waiting.current = false; }
     writeThemeCookie(theme);
   }, [theme, fromLite]);
+  // The look too (v8 or the classic one), so Lite draws in the same one.
+  const v8 = useIsV8();
+  useEffect(() => { writeV8Cookie(v8); }, [v8]);
   // The dark theme in use, however it was picked (Settings or the top bar's switch), is the one the switch comes back
   // to from Light. Only a change is written: Dark, the default, is what a missing value already means.
   const remembered = state.settings.darkTheme ?? "dark";
