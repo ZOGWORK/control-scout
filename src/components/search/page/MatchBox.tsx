@@ -78,8 +78,8 @@ export function MatchBox({ r, team, atEvent, noPlay }: { r: StatMatchRow; team?:
             const won = winner === s, lost = winner != null && !won;
             const sc = score[s];
             return (
-              // v8: the shared match row's look (brief §5): no tinted box, the side a 2px edge in its colour, the winner
-              // said by its bolder score rather than a W badge.
+              // v8: the shared match row's look (brief §5): no tinted box, the side a 2px edge in its colour; the winner's
+              // score bold in its colour with the W mark (owner 11-19), the loser's quieter.
               <div key={s} className={cn("flex min-w-0 items-center gap-2 rounded-lg px-2.5 py-1.5 v8:rounded-none v8:border-l-2 v8:bg-transparent v8:py-1", s === "red" ? "bg-red-alliance/[0.08] v8:border-red-alliance" : "bg-blue-alliance/[0.08] v8:border-blue-alliance")} data-alliance={s} data-won={won ? "" : undefined}>
                 <span className="sr-only">{s === "red" ? "Red" : "Blue"} alliance{won ? ", won" : lost ? ", lost" : ""}: </span>
                 <span className="flex min-w-0 flex-1 flex-wrap gap-1">
@@ -87,8 +87,8 @@ export function MatchBox({ r, team, atEvent, noPlay }: { r: StatMatchRow; team?:
                 </span>
                 <span className="shrink-0 text-right">
                   <span className="flex items-center justify-end gap-1.5">
-                    {won && <span className="rounded bg-foreground px-1 text-[10px] font-bold text-background v8:hidden" aria-hidden>W</span>}
-                    <b className={cn("font-display text-2xl font-semibold leading-none tabular-nums", won ? "v8:font-bold" : lost ? "v8:font-medium" : undefined, lost ? "text-muted-foreground" : s === "red" ? "text-red-alliance-ink" : "text-blue-alliance-text")}>{sc.shown}</b>
+                    {won && <span className="rounded bg-foreground px-1 text-[10px] font-bold text-background" aria-hidden data-won-mark>W</span>}
+                    <b className={cn("font-display text-2xl font-semibold leading-none tabular-nums", won ? "v8:font-bold" : lost ? "v8:font-medium v8:text-text-muted" : undefined, lost ? "text-muted-foreground" : s === "red" ? "text-red-alliance-ink" : "text-blue-alliance-text")}>{sc.shown}</b>
                   </span>
                   {sc.total !== sc.shown && !r.noPenalties && <span className="block text-[11px] text-muted-foreground">{sc.total} with penalties</span>}
                 </span>
@@ -101,10 +101,10 @@ export function MatchBox({ r, team, atEvent, noPlay }: { r: StatMatchRow; team?:
             {phases.map(([k, name]) => { const label = k === "teleop" && r.phases!.teleopWithEndgame ? "TeleOp + end" : name; return (
               // Each scoring phase filled in its colour, the penalties a neutral tile with its note icon; the period a
               // list ranks by gets a ring and a bold label.
-              <div key={k} className={cn("min-w-0 rounded-md px-1.5 py-1", k === "pen" ? "border border-border bg-card text-foreground" : TONE[k].fill, r.ranked === k && "ring-2 ring-foreground")} data-phase={k} data-ranked={r.ranked === k ? "" : undefined}>
+              <div key={k} className={cn("min-w-0 rounded-md px-1.5 py-1", k === "pen" ? "border border-border bg-card text-foreground v8:border-transparent v8:bg-rose-400/10 v8:text-rose-300" : TONE[k].fill, r.ranked === k && "ring-2 ring-foreground")} data-phase={k} data-ranked={r.ranked === k ? "" : undefined}>
                 {/* TeleOp as FIRST reports it: with the endgame where the season counts it so. */}
                 <dt className={cn("flex min-w-0 items-center gap-0.5 text-[10px] leading-tight", r.ranked === k ? "font-bold" : "font-medium")}>
-                  {k === "pen" && <Info className="size-3 shrink-0 text-info v8:text-muted-foreground" aria-hidden data-note-icon />}
+                  {k === "pen" && <Info className="size-3 shrink-0 text-info v8:text-rose-300" aria-hidden data-note-icon />}
                   <span className="truncate" title={label}>{label}</span>
                 </dt>
                 <dd className="font-semibold tabular-nums">{r.phases![k]}</dd>

@@ -153,7 +153,7 @@ export function CompareCard({ h, summaries, onOpen, preview }: { h: SearchHit; s
           const { name, place } = side(n, i);
           return (
             <span key={n} className={cn("min-w-0", right && "col-start-3 text-right")} data-compare-side={n}>
-              <span className="block font-display text-3xl font-semibold leading-none tracking-tight tabular-nums text-foreground group-hover:text-accent-text v8:group-hover:text-foreground sm:text-4xl">{n}</span>
+              <span className="block font-display text-3xl font-semibold leading-none tracking-tight tabular-nums text-foreground group-hover:text-accent-text v8:text-accent v8:group-hover:text-accent-hover sm:text-4xl">{n}</span>
               <span className="mt-1.5 block break-words text-base text-foreground/90 sm:text-lg">{name}</span>
               {place && <span className="mt-0.5 block truncate text-xs text-muted-foreground">{place}</span>}
             </span>
@@ -200,7 +200,7 @@ export function HeadToHead({ h, now, before, season: current }: { h: SearchHit; 
       <div className={cn("mt-3 grid gap-3", cols)}>
         {sides.map(({ n, s }) => (
           <div key={n} className="min-w-0">
-            <p className={cn("font-display font-semibold leading-none tabular-nums text-foreground", nums.length > 2 ? "text-xl" : "text-2xl")}>{n}</p>
+            <p className={cn("font-display font-semibold leading-none tabular-nums text-foreground v8:text-accent", nums.length > 2 ? "text-xl" : "text-2xl")}>{n}</p>
             <p className={cn("mt-1 text-sm text-foreground/90", nums.length > 2 ? "break-words" : "truncate")}>{s?.name ?? " "}</p>
           </div>
         ))}
