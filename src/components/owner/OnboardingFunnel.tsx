@@ -36,7 +36,7 @@ export function OnboardingFunnel({ s }: { s: OnboardingSummary }) {
       <dl className="mt-4 grid grid-cols-3 gap-3 max-sm:grid-cols-1">
         <div className="rounded-xl border border-line p-3">
           <dt className="text-xs text-text-muted">Finished</dt>
-          <dd className="mt-0.5 font-mono text-lg tabular-nums text-success-text">{s.finished.toLocaleString("en-US")} <span className="text-sm text-text-muted">({pct(s.finished, s.shown)})</span></dd>
+          <dd className="mt-0.5 font-mono text-lg tabular-nums text-success-text v8:text-emerald-400">{s.finished.toLocaleString("en-US")} <span className="text-sm text-text-muted">({pct(s.finished, s.shown)})</span></dd>
         </div>
         <div className="rounded-xl border border-line p-3">
           <dt className="text-xs text-text-muted">Skipped</dt>
@@ -44,7 +44,7 @@ export function OnboardingFunnel({ s }: { s: OnboardingSummary }) {
         </div>
         <div className="rounded-xl border border-line p-3">
           <dt className="text-xs text-text-muted">Picked a team</dt>
-          <dd className="mt-0.5 font-mono text-lg tabular-nums text-accent-text">{s.withTeam.toLocaleString("en-US")} <span className="text-sm text-text-muted">({pct(s.withTeam, s.finished)} of finished)</span></dd>
+          <dd className="mt-0.5 font-mono text-lg tabular-nums text-accent-text v8:text-accent">{s.withTeam.toLocaleString("en-US")} <span className="text-sm text-text-muted">({pct(s.withTeam, s.finished)} of finished)</span></dd>
         </div>
       </dl>
     </div>
