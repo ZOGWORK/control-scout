@@ -61,6 +61,12 @@ import { matchQueueProgress } from "../shared/scoutProgress";
 import { workspaceExportUrl } from "../shared/scoutExport";
 import { useScoutSession } from "../lib/scoutSession";
 import { myMatchAssignment, useMatchAssignments } from "../lib/slotAssignments";
+import { useIsV8 } from "../lib/v8";
+import { cn } from "../components/cn";
+
+/** v8 (docs/design/v8-revamp-brief.md): notices are a neutral card with a muted icon, never an orange fill. */
+const NOTICE = "mb-4 flex items-start gap-3 rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-sm v8:border-line v8:bg-card";
+const NOTICE_ICON = "mt-0.5 size-4 shrink-0 text-warning v8:text-text-muted";
 
 /** What Export CSV sends: the page URL's filters (the entry list's), for the season on screen. */
 export function dataExportUrl(workspaceId: string, sp: URLSearchParams, season: number): string {
@@ -314,7 +320,7 @@ export default function ScoutPage() {
   const manualForm = (back: string) => manual && (
     <div className="grid gap-3">
       <Button variant="ghost" size="sm" className="-ml-2 justify-self-start text-muted-foreground max-sm:h-10" onClick={() => setManual(null)}><ChevronLeft /> {back}</Button>
-      <h3 className="text-xl font-bold text-foreground">Type a match in</h3>
+      <h3 className="text-xl font-bold text-foreground v8:text-[1.0625rem] v8:font-semibold">Type a match in</h3>
       <EntryEditor key={manual.nonce} kind="match" season={season} initial={null} team={manual.team} space={space} spaceName={spaceName} workspaceTemplate={wt.template} templatePending={templatePending}
         readOnly={!!readOnly} sync={sync} savedHere={savedHere}
         event={manualEvent ? { code: manualEvent, name: manualEvent === session?.eventCode ? scoutEvent.info?.name ?? null : null } : null}
@@ -347,29 +353,33 @@ export default function ScoutPage() {
   const syncChip = spaces.resolving ? undefined : <SyncChip status={offlineAccount ? "offline" : status} pending={pendingCount} onSync={syncNow} signedIn={!!user} live={live} />;
   const exportHref = workspace ? dataExportUrl(workspace.id, sp, season) : null;
   const seasonRow = <SeasonToggle predictOnly value={season} onChange={(s) => setSp((x) => { x.set("season", String(s)); return x; })} />;
+  const v8 = useIsV8();
+  // v8: the page title at the top of the content with where saving stands on its right (on every screen, so the
+  // event bar under it is only the event); the classic header otherwise.
+  const Header = v8 ? V8Header : PageHeader;
   return (
     <div>
-      <PageHeader title="Scout" actions={session && !picking ? undefined : syncChip}>
+      <Header title="Scout" actions={v8 ? syncChip : session && !picking ? undefined : syncChip}>
         {spaces.switchable && <ScoutSpaceSwitcher workspaces={spaces.workspaces} space={space} pending={pending} onSelect={selectSpace} onRefresh={syncReady ? refreshSpace : undefined} className="mb-4" />}
         {/* Edits this device lost to newer ones from other members (Task 16): each until dismissed, with its diff. */}
         {space != null && !spaces.resolving && <ConflictNotices space={space} me={me && { ...me, readOnly: !!readOnly }} />}
         {/* This account's shared work that hasn't reached its workspace (E4), in any workspace: only while there is some. */}
         {user?.controlPoint && !spaces.resolving && <RecoverableChanges account={user.controlPoint.accountId} workspaces={user.controlPoint.workspaces ?? []} />}
         {spaces.notice && (
-          <div role="status" className="mb-4 flex items-start gap-3 rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-sm">
-            <Info className="mt-0.5 size-4 shrink-0 text-warning" />
+          <div role="status" className={NOTICE}>
+            <Info className={NOTICE_ICON} />
             <p className="min-w-0 flex-1">{spaces.notice}</p>
             <button type="button" onClick={spaces.dismissNotice} aria-label="Dismiss" className="-m-2 grid size-9 shrink-0 place-items-center rounded-lg text-muted-foreground hover:text-foreground"><X className="size-4" /></button>
           </div>
         )}
         {readOnly && !spaces.resolving && <ReadOnlyBanner state={readOnly} />}
         {space != null && !scoutingOn && !spaces.resolving && (
-          <div role="status" className="mb-4 flex items-start gap-3 rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-sm">
-            <Pause className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
+          <div role="status" className={NOTICE}>
+            <Pause className={NOTICE_ICON} aria-hidden />
             <p className="min-w-0 flex-1">{featureOffMessage("workspaceScouting")}</p>
           </div>
         )}
-      </PageHeader>
+      </Header>
       {spaces.resolving ? <LoadingBlock rows={3} label="Loading scout space" /> : <>
         {/* No event yet (or Change event): the picker is the page, with no sections above it. What's under it stays
             mounted (hidden), so an entry being filled in keeps its answers through Change event and back. */}
@@ -378,14 +388,15 @@ export default function ScoutPage() {
             onCancel={session ? () => setSp((x) => { x.delete("pick"); return x; }) : undefined} />
           {!session && (
             <p className="mt-6 text-sm text-muted-foreground">
-              Looking for what's already scouted? <button type="button" className="font-medium text-accent-text hover:underline" onClick={() => openView("entries", null)}>Open entries</button>
-              {workspace && <> or the <button type="button" className="font-medium text-accent-text hover:underline" onClick={() => openView("planning", null)}>pick list &amp; planning</button></>}.
+              Looking for what's already scouted? <button type="button" className="tap-44 font-medium text-accent-text hover:underline v8:underline-offset-4" onClick={() => openView("entries", null)}>Open entries</button>
+              {workspace && <> or the <button type="button" className="tap-44 font-medium text-accent-text hover:underline v8:underline-offset-4" onClick={() => openView("planning", null)}>pick list &amp; planning</button></>}.
             </p>
           )}
         </>}
         <div hidden={picking}>
-        {session && <EventBar event={scoutEvent} status={syncChip} onChange={readOnly ? null : () => setSp((x) => { x.set("pick", "1"); return x; })} onStop={readOnly ? null : stopScouting} />}
-        <ScoutSections section={section} onSection={setSection} sections={sections}>
+        {/* v8 on a phone: while a match is open, the match comes first; the event bar and tabs fold away. */}
+        {session && <div className={scoutingMatch ? "v8:max-md:hidden" : undefined}><EventBar event={scoutEvent} status={v8 ? undefined : syncChip} onChange={readOnly ? null : () => setSp((x) => { x.set("pick", "1"); return x; })} onStop={readOnly ? null : stopScouting} /></div>}
+        <ScoutSections section={section} onSection={setSection} sections={sections} folded={scoutingMatch}>
           {/* A match typed in stays mounted (hidden in other sections) until Save or Cancel, so stepping to another
               section and back keeps its team, match, answers and notes. */}
           {manual && <div hidden={section !== manual.from}>{manualForm(manual.from === "event" ? "Event day" : "Entries")}</div>}
@@ -400,7 +411,7 @@ export default function ScoutPage() {
           {editEntry && <div hidden={section !== "entries"} className="mb-4">
                 <div className="grid gap-3">
                   <Button variant="ghost" size="sm" className="-ml-2 justify-self-start text-muted-foreground max-sm:h-10" onClick={closeEdit}><ChevronLeft /> Entries</Button>
-                  <h3 className="text-xl font-bold text-foreground">{editEntry.kind === "pit" ? "Pit entry" : `Match ${editEntry.matchLabel ?? ""}`}</h3>
+                  <h3 className="text-xl font-bold text-foreground v8:text-[1.0625rem] v8:font-semibold">{editEntry.kind === "pit" ? "Pit entry" : `Match ${editEntry.matchLabel ?? ""}`}</h3>
                   <EntryEditor key={editEntry.uuid} kind={editEntry.kind} season={season} initial={editEntry} space={space} spaceName={spaceName} workspaceTemplate={wt.template} templatePending={templatePending}
                     readOnly={!!readOnly} sync={sync} savedHere={savedHere} event={editEntry.eventCode ? { code: editEntry.eventCode } : null}
                     teams={session && editEntry.eventCode?.toUpperCase() === session.eventCode ? scoutEvent.teams : []}
@@ -465,7 +476,7 @@ export default function ScoutPage() {
                       <EmptyState icon={SearchX} title="No entries match" description={`None of the ${entries.length} entries in this space match these filters.`}
                         action={<Button variant="outline" onClick={feed.clear}>Clear filters</Button>} />
                     ) : (
-                      <ul aria-label={`Entries (${feed.shown.length})`} className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">
+                      <ul aria-label={`Entries (${feed.shown.length})`} className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card v8:divide-line v8:border-line">
                         {feed.shown.map((e) => <EntryRow key={e.uuid} e={e} signedIn={!!user} assigned={badgeFor(e.team, e.eventCode)} canDelete={!readOnly && canDeleteScoutEntry(e, me)} readOnly={!!readOnly} comments={commentCounts[e.uuid] ?? 0} onEdit={() => setSp((x) => { x.set("entry", e.uuid); return x; })} onHistory={() => setHistoryFor(e.uuid)} />)}
                       </ul>
                     )}
@@ -521,12 +532,41 @@ export default function ScoutPage() {
   );
 }
 
+/** v8's page title row: the title at the top of the content, the page's sync line on its right, then what's under it. */
+function V8Header({ title, actions, children }: { title: string; actions?: React.ReactNode; children?: React.ReactNode }) {
+  return (
+    <div className="mb-5 max-sm:mb-4" data-scout-header="v8">
+      <div className="flex min-h-9 flex-wrap items-center justify-between gap-x-4 gap-y-1">
+        <h1 className="text-[1.375rem] font-semibold leading-7 tracking-tight text-text-base">{title}</h1>
+        {actions && <div className="flex min-w-0 items-center">{actions}</div>}
+      </div>
+      {children && <div className="mt-4 max-sm:mt-3 empty:hidden">{children}</div>}
+    </div>
+  );
+}
+
 function SyncChip({ status, pending, onSync, signedIn, live }: { status: string; pending: number; onSync: () => void; signedIn: boolean; live: LiveMode }) {
+  const v8 = useIsV8();
   // Signed out: personal scouting lives on this device (nothing to sync to).
-  if (!signedIn) return <Badge variant="secondary" data-sync-state="device"><HardDriveDownload /> Saved on this device</Badge>;
+  if (!signedIn) return v8
+    ? <span data-sync-state="device" className="inline-flex items-center gap-1.5 text-xs text-text-muted"><HardDriveDownload className="size-3.5" aria-hidden /> Saved on this device</span>
+    : <Badge variant="secondary" data-sync-state="device"><HardDriveDownload /> Saved on this device</Badge>;
   const synced = status !== "syncing" && status !== "offline" && status !== "error" && !pending;
   // No signal is calm, not a warning: every entry is saved here and goes up by itself once the signal is back.
   const offline = status === "offline";
+  // v8: small text, not a box (brief §7.7 "saving and syncing are shown with small text"); still a button that syncs.
+  if (v8) return (
+    <button type="button" onClick={onSync} data-sync-state={status}
+      className="tap-44 -mr-1.5 inline-flex min-w-0 items-center gap-1.5 rounded-md px-1.5 py-1 text-xs text-text-muted transition-colors duration-150 still-hover:text-text-base">
+      {status === "syncing" ? <Loader2 className="size-3.5 shrink-0 animate-spin [animation-duration:0.6s]" aria-hidden /> : offline ? <HardDriveDownload className="size-3.5 shrink-0" aria-hidden />
+        : status === "error" ? <CloudOff className="size-3.5 shrink-0" aria-hidden /> : <Cloud className="size-3.5 shrink-0" aria-hidden />}
+      <span className={cn("truncate", status === "error" && "text-text-base")}>
+        {status === "syncing" ? "Syncing…" : offline ? (pending ? `Saved on this device · ${pending} will sync` : "Saved on this device") : status === "error" ? `Sync failed · ${pending} to sync · Retry` : pending ? `${pending} to sync` : "Synced"}
+      </span>
+      {synced && live === "live" && <span className="inline-flex shrink-0 items-center gap-1"><span aria-hidden className="size-1.5 rounded-full bg-text-base" />Live</span>}
+      {synced && live === "polling" && <span className="shrink-0 max-sm:hidden">· checks every 15 s</span>}
+    </button>
+  );
   return (
     <button onClick={onSync} data-sync-state={status} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground max-sm:min-h-11">
       {status === "syncing" ? <Loader2 className="size-3.5 animate-spin" /> : offline ? <HardDriveDownload className="size-3.5" /> : status === "error" ? <CloudOff className="size-3.5 text-warning" /> : <Cloud className="size-3.5 text-success" />}
@@ -540,8 +580,8 @@ function SyncChip({ status, pending, onSync, signedIn, live }: { status: string;
 /** The banner on a read-only space (Task 19). */
 function ReadOnlyBanner({ state }: { state: OrphanState }) {
   return (
-    <div role="status" className="mb-4 flex items-start gap-3 rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-sm">
-      <Lock className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
+    <div role="status" className={NOTICE}>
+      <Lock className={NOTICE_ICON} aria-hidden />
       <div className="min-w-0 flex-1">
         <p className="font-medium text-foreground">{orphanBanner(state.reason)}</p>
         <p className="mt-0.5 text-muted-foreground">
