@@ -4,6 +4,7 @@ import { usePersonal } from "../lib/personal";
 import type { Settings, ThemeChoice } from "../shared/personal";
 import { useFlag } from "../lib/flags";
 import { takeLitePick, writeThemeCookie } from "../lib/liteCookies";
+import { isV8 } from "../lib/v8";
 
 const prefersLight = () => typeof window !== "undefined" && window.matchMedia?.("(prefers-color-scheme: light)").matches;
 
@@ -32,7 +33,8 @@ export function useTheme() {
     mq.addEventListener("change", fn);
     return () => mq.removeEventListener("change", fn);
   }, []);
-  const palette: Palette = theme === "system" ? (systemLight ? "light" : "dark") : theme;
+  // v8 is dark only for now (docs/design/v8-revamp-brief.md, Q1): the saved choice waits until Light comes back.
+  const palette: Palette = isV8() ? "dark" : theme === "system" ? (systemLight ? "light" : "dark") : theme;
   /** Light or dark, for anything that only knows the two (the toaster, color-scheme). */
   const resolved: "dark" | "light" = palette === "light" ? "light" : "dark";
   return { theme, palette, resolved };
