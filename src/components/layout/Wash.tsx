@@ -3,6 +3,7 @@
 import { useEffect, useId } from "react";
 import { DotWave } from "./DotWave";
 import { cn } from "../cn";
+import { useServerFlag } from "../../lib/flags";
 import { loadWashOnce } from "../../lib/wash";
 
 const FADE = "linear-gradient(to bottom,#000 0%,rgb(0 0 0/.85) 50%,transparent 100%)";
@@ -10,8 +11,9 @@ const FADE = "linear-gradient(to bottom,#000 0%,rgb(0 0 0/.85) 50%,transparent 1
 const GLOWS = "radial-gradient(55% 95% at 12% 0%,var(--wash-a) 0%,transparent 72%),radial-gradient(50% 90% at 52% 0%,var(--wash-b) 0%,transparent 72%),radial-gradient(55% 95% at 90% 0%,var(--wash-c) 0%,transparent 72%)";
 const HEIGHT = { tall: "clamp(16rem, calc(42vh * var(--wash-spread, 1)), calc(30rem * var(--wash-spread, 1)))", short: "clamp(13rem, calc(34vh * var(--wash-spread, 1)), calc(23rem * var(--wash-spread, 1)))" } as const;
 
-export function Wash({ size = "tall", className }: { size?: "tall" | "short"; className?: string }) {
+export function Wash({ size = "tall", className, includeParticleWave = true }: { size?: "tall" | "short"; className?: string; includeParticleWave?: boolean }) {
   const grain = `grain-${useId().replace(/:/g, "")}`;
+  const waveOn = useServerFlag("particleWave");
   // The owner's wash is in the page's head already (server/seo.ts); only a page without the server's HTML asks for it.
   useEffect(() => { loadWashOnce(); }, []);
   return (
@@ -25,7 +27,7 @@ export function Wash({ size = "tall", className }: { size?: "tall" | "short"; cl
           <rect width="100%" height="100%" filter={`url(#${grain})`} />
         </svg>
       </div>
-      <DotWave />
+      {includeParticleWave && waveOn && <DotWave />}
     </>
   );
 }

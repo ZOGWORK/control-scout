@@ -1,6 +1,6 @@
 // Runtime feature flags, shared by the server and the web app. One registry, two groups:
-// - "feature": the owner console's feature toggles (its Features tab). Every one's routes are gated on the
-//   server (403 {error: "feature_disabled", feature}); public team and event data is never behind one.
+// - "feature": the owner console's feature toggles (its Features tab). Gated routes return
+//   403 {error: "feature_disabled", feature}; public team and event data is never behind one.
 // - "kill": operational kill switches (live updates, error reports, photos, ...), listed below the toggles.
 // Scope "workspace" flags also take per-workspace overrides (migration 53). Resolution: the workspace's
 // override, else the global switch, else its default: on, except the few in OFF_BY_DEFAULT. A key that isn't registered here is never gated.
@@ -9,7 +9,7 @@
 export const FLAGS = [
   "livePredictions", "advancementOdds", "bracketOdds", "powerRankings", "coinFlips", "factorSheet", "offlinePacks", "eventBundle", "discordBot", "workspaceScouting", "scoutingAlliances", "scoutingCommons", "rulesReference", "venueLightMode", "scheduleDifficulty",
   "realtime", "errorReporting", "failedSearchReports", "photos", "push", "autoPowerRankings", "dailyPowerRankings", "weeklyDigest", "publicAccess",
-  "seasonRoadMap", "brunoSearch", "brunoAnswers", "searchLearning", "dogTheme", "discordBruno", "statusPage",
+  "seasonRoadMap", "brunoSearch", "brunoAnswers", "searchLearning", "dogTheme", "discordBruno", "statusPage", "particleWave",
 ] as const;
 export type Flag = (typeof FLAGS)[number];
 export type FlagSet = Record<Flag, boolean>;
@@ -43,6 +43,7 @@ export const FLAG_META: Record<Flag, { group: FlagGroup; scope: FlagScope }> = {
   rulesReference: { group: "feature", scope: "global" },
   venueLightMode: { group: "feature", scope: "global" },
   statusPage: { group: "feature", scope: "global" },
+  particleWave: { group: "feature", scope: "global" },
   dogTheme: { group: "feature", scope: "global" },
   realtime: { group: "kill", scope: "global" },
   errorReporting: { group: "kill", scope: "global" },
@@ -105,6 +106,11 @@ export interface FlagsAnswer { flags: FlagSet; workspaces?: Record<string, Parti
 /** What each switch does, for the owner console. `pending`: the feature it guards hasn't shipped yet, so
  *  the switch is stored but nothing reads it (said in the console, never implied otherwise). */
 export const FLAG_INFO: Record<Flag, { label: string; on: string; off: string; pending?: string }> = {
+  particleWave: {
+    label: "Particle wave",
+    on: "The particle wave appears behind pages in the v8 look. It stays still for visitors who prefer reduced motion.",
+    off: "The v8 background keeps its color wash and removes the particle wave for everyone.",
+  },
   livePredictions: {
     label: "Live predictions",
     on: "Anyone can ask for a match prediction, the upcoming matches list, an event forecast, partner scenarios and match share cards.",

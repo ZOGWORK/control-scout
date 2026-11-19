@@ -8,6 +8,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import type { EventListItem, MatchView } from "../shared/api";
 import type { RecordsResponse, TeamSeasonRecord } from "../shared/statCatalog";
+import { resetFlags } from "../lib/flags";
+import { DEFAULT_FLAGS } from "../shared/flags";
 import { HOME_SUGGESTIONS } from "../shared/homeSuggestions";
 import { isBareRoute, pageModule, pageTitle } from "../shared/routes";
 import { readFileSync } from "node:fs";
@@ -51,7 +53,7 @@ const mount = () => render(<TooltipProvider><MemoryRouter initialEntries={["/pre
 const cls = (el: Element) => el.getAttribute("class") ?? "";
 
 beforeEach(() => { data = {}; personal = { user: null, state: st(null) }; localStorage.clear(); });
-afterEach(cleanup);
+afterEach(() => { cleanup(); resetFlags(); });
 
 describe("Sample home dashboard", () => {
   it("is its own bare route, titled and kept apart from the real Home", () => {
@@ -162,6 +164,7 @@ describe("Sample home dashboard", () => {
   });
 
   it("places the decorative particle canvas behind the dashboard", () => {
+    resetFlags({ ...DEFAULT_FLAGS }, true);
     const { container } = mount();
     const wash = container.querySelector("[data-wash]") as HTMLElement;
     expect(container.querySelector("canvas[data-dot-wave]")?.getAttribute("aria-hidden")).toBe("true");
