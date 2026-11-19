@@ -13,7 +13,7 @@ import { NoPageTeam } from "./NoPageTeam";
 import { countryByCode } from "../../shared/countries";
 import { stateName } from "../../shared/regions";
 import { clampPage, clearFilters, defaultDir, hasFilters, parseTableState, recordsUrl, searchString, writeTableState, type TableState } from "../../lib/records/urlState";
-import { describeFilter, formatStat, headerOf, TONE_CLASS, toneOf } from "../../lib/records/describe";
+import { describeFilter, formatStat, headerOf, TONE_CLASS, toneOf, V8_CATEGORY } from "../../lib/records/describe";
 import { RECORDS_CAP_NOTE_TONE } from "../../lib/textTones";
 import { addPreset, hasPreset, presetGroup, presetsFor, removePreset, type ThresholdLookup } from "../../lib/records/presets";
 import type { FilterPreset } from "../../config/filterPresets";
@@ -289,7 +289,7 @@ export function RecordsTable(p: RecordsTableProps) {
             // v8: a hairline pill, no colour; the picked one is white text on white/10% (brief §5 Chips).
             className={cn("inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs font-semibold transition-colors max-sm:h-10", "v8:font-medium v8:transition-[color,background-color,border-color,scale] v8:duration-150 v8:active:scale-[0.97] v8:motion-reduce:active:scale-100",
               on ? cn(tone.chip, "ring-1 ring-current", "v8:border-white/[0.12] v8:bg-white/10 v8:text-text-base v8:ring-0") : "border-line text-text-muted hover:border-text-base/25 hover:text-text-base v8:border-white/[0.12] v8:hover:border-white/[0.12] v8:hover:bg-white/[0.06]")}>
-            {chipBusy === pr.id ? <Loader2 className="size-3 animate-spin" /> : <span className={cn("size-1.5 rounded-full", tone.bar, "v8:hidden")} />}
+            {chipBusy === pr.id ? <Loader2 className="size-3 animate-spin" /> : <span className={cn("size-1.5 rounded-full", tone.bar, V8_CATEGORY[pr.tone]?.dot ?? "v8:hidden")} />}
             {pr.label}{on && <X className="size-3" />}
           </button>
         </TooltipTrigger>
@@ -591,7 +591,7 @@ const rowV8 = "v8:h-11 v8:border-white/[0.08] v8:still-hover:bg-white/[0.03]";
 const stickyHover = "row-still-hover:bg-[color-mix(in_srgb,var(--color-card)_80%,var(--color-accent))] row-still-hover:shadow-[inset_3px_0_0_var(--color-accent),1px_0_0_color-mix(in_srgb,var(--color-text-base)_22%,transparent)]" +
   " v8:row-still-hover:bg-[color-mix(in_srgb,var(--color-card)_97%,white)] v8:row-still-hover:shadow-[1px_0_0_color-mix(in_srgb,var(--color-text-base)_22%,transparent)]";
 
-function SortHead({ k, label, title, state, sortBy, className, tone, align = "right", lead, iconOnly }: { k: string | null; label: ReactNode; title?: string; state: TableState; sortBy: (k: string) => void; className?: string; tone?: string; align?: "left" | "right"; lead?: ReactNode; iconOnly?: boolean }) {
+function SortHead({ k, label, title, state, sortBy, className, tone, v8Tone, align = "right", lead, iconOnly }: { k: string | null; label: ReactNode; title?: string; state: TableState; sortBy: (k: string) => void; className?: string; tone?: string; v8Tone?: string; align?: "left" | "right"; lead?: ReactNode; iconOnly?: boolean }) {
   const on = k != null && state.sort === k;
   const Arrow = on ? (state.dir === "asc" ? ArrowUp : ArrowDown) : null;
   return (
@@ -599,8 +599,9 @@ function SortHead({ k, label, title, state, sortBy, className, tone, align = "ri
       {lead}
       {k ? (
         <button type="button" onClick={() => sortBy(k)} title={title} className={cn("tap-44 group inline-flex flex-col gap-1 rounded outline-none focus-visible:ring-2 focus-visible:ring-ring/60", align === "right" ? "items-end" : "items-start")}>
-          {/* v8: one quiet colour for every column head; the sorted one is marked by its white label and arrow alone. */}
-          <span className={cn("inline-flex items-center gap-1", tone ?? "text-text-muted", "group-hover:brightness-125 v8:text-text-faint v8:group-hover:brightness-100 v8:group-hover:text-text-base", on && "v8:text-text-base", align === "right" && "flex-row-reverse")}>
+          {/* v8: a scoring category's head in its colour (V8_CATEGORY), the rest one quiet grey; the sorted one also
+              has its arrow (and a plain head turns white). */}
+          <span className={cn("inline-flex items-center gap-1", tone ?? "text-text-muted", "group-hover:brightness-125 v8:group-hover:brightness-100", v8Tone ? cn(v8Tone, "v8:group-hover:brightness-125") : cn("v8:text-text-faint v8:group-hover:text-text-base", on && "v8:text-text-base"), align === "right" && "flex-row-reverse")}>
             {iconOnly ? <span className="sr-only">{label}</span> : label}{Arrow ? <Arrow className="size-3.5 text-accent v8:text-text-base" strokeWidth={3} /> : <ArrowUpDown className={cn("size-3", iconOnly ? "opacity-60 group-hover:opacity-100" : "opacity-0 group-hover:opacity-60 pointer-coarse:opacity-40")} />}
           </span>
         </button>
@@ -731,7 +732,7 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, schedule
               const d = STAT_BY_KEY.get(k);
               const tone = TONE_CLASS[toneOf(d)];
               return (
-                <SortHead key={k} k={k} state={state} sortBy={sortBy} tone={tone.text} title={`${d?.label}${d?.description ? ` — ${d.description}` : ""}`}
+                <SortHead key={k} k={k} state={state} sortBy={sortBy} tone={tone.text} v8Tone={V8_CATEGORY[toneOf(d)]?.text} title={`${d?.label}${d?.description ? ` — ${d.description}` : ""}`}
                   className={cn("relative border-l border-text-base/[0.08]", state.sort === k && "bg-accent/[0.06]")}
                   label={<>{d?.category === "Control Scout Exclusives" && <Sparkles className="size-3" />}{headerOf(d, k)}<span aria-hidden className={cn("absolute inset-x-2 bottom-0 h-0.5 rounded-full v8:hidden", tone.bar, state.sort === k ? "opacity-100" : "opacity-50")} /></>} />
               );
@@ -813,8 +814,9 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, schedule
                   return (
                     <td key={k} className={cn(td, "whitespace-nowrap border-l border-text-base/[0.08] text-right tabular-nums", d?.type === "text" && "text-left", state.sort === k && "bg-accent/[0.04] font-semibold v8:bg-transparent",
                       band || (heat.size === 0 && tone !== "slate" && v != null && cellText(tone)),
-                      // v8: numbers keep the text colour (no heat bands or column tones); mint marks the #1 rank alone.
-                      "v8:border-line v8:font-normal v8:text-text-base", k === "rank" && v === 1 && "v8:font-semibold v8:text-accent")} data-heat={band ? HEAT.indexOf(band) : undefined}>
+                      // v8: no heat bands; a scoring category's numbers in its colour (V8_CATEGORY), the rest white; the
+                      // accent marks the #1 rank alone.
+                      "v8:border-line v8:font-normal", V8_CATEGORY[tone]?.text ?? "v8:text-text-base", k === "rank" && v === 1 && "v8:font-semibold v8:text-accent")} data-heat={band ? HEAT.indexOf(band) : undefined}>
                       {k === PREDICTION_FIELD ? <PredictionValue text={formatStat(d, v)} tier={(r as MatchRecordRow).predictionTier} className="justify-end" />
                         : SCHEDULE_STATS.has(k) ? <ScheduleValue stat={k} v={v} opponents={r.stats.scheduleOpponents} partners={r.stats.schedulePartners} rank={placeFor(schedulePlaces, team, v)} />
                         : formatStat(d, v)}

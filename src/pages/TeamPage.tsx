@@ -55,6 +55,7 @@ import { ReliabilitySection } from "../components/Reliability";
 import { TeamScheduleSection } from "../components/ScheduleDifficulty";
 import { predictHref } from "../shared/predictUrl";
 import { useIsV8 } from "../lib/v8";
+import { V8_PHASE } from "../lib/records/describe";
 
 /** v8 (docs/design/v8-revamp-brief.md): a small label, sentence case and faint (the uppercase tracked eyebrows today). */
 const V8_LABEL = "v8:text-xs v8:font-normal v8:normal-case v8:tracking-normal v8:text-text-faint";
@@ -366,12 +367,12 @@ function OprBreakdown({ events, k }: { events: TeamEventRow[]; k: "np" | "auto" 
   return (
     <div className={cn("mt-3 overflow-x-auto rounded-xl border border-t-2 border-border bg-card", tone.edge, "v8:border-t v8:border-line")} data-opr-breakdown>
       <table className="w-full text-sm">
-        <thead><tr className={cn("text-left text-[10px] font-bold uppercase tracking-wider text-text-muted", V8_LABEL, "v8:font-medium")}><th className="h-10 px-3">Event</th>{BREAKDOWN_COLS.map(([c, label]) => <th key={c} className={cn("px-3 text-right", c === k && cn(tone.text, "v8:text-text-base"))}>{label}</th>)}</tr></thead>
+        <thead><tr className={cn("text-left text-[10px] font-bold uppercase tracking-wider text-text-muted", V8_LABEL, "v8:font-medium")}><th className="h-10 px-3">Event</th>{BREAKDOWN_COLS.map(([c, label]) => <th key={c} className={cn("px-3 text-right", c === k && tone.text, V8_PHASE[c])}>{label}</th>)}</tr></thead>
         <tbody>
           {events.map((e) => (
             <tr key={e.code} className="border-t border-border v8:border-line">
               <td className="px-3 py-2 v8:h-11"><Link to={`/events/${e.season}/${e.code}`} className="hover:underline">{e.name}</Link></td>
-              {BREAKDOWN_COLS.map(([c]) => <td key={c} className={cn("px-3 text-right tabular-nums", c === k && cn("font-semibold", tone.text, "v8:text-text-base"))}>{num(e.opr[c])}</td>)}
+              {BREAKDOWN_COLS.map(([c]) => <td key={c} className={cn("px-3 text-right tabular-nums", c === k && cn("font-semibold", tone.text), V8_PHASE[c])}>{num(e.opr[c])}</td>)}
             </tr>
           ))}
         </tbody>
@@ -1011,7 +1012,7 @@ export function StrengthSection({ p }: { p: TeamProfile }) {
                       <span className="sr-only">. Show event by event</span>
                     </button>
                   </td>
-                  <td className="px-4 text-right font-semibold tabular-nums">{num(stat?.value)}</td>
+                  <td className={cn("px-4 text-right font-semibold tabular-nums", V8_PHASE[k])}>{num(stat?.value)}</td>
                   <td className="px-4 text-right tabular-nums text-text-muted max-sm:hidden">{stat?.rank ? `#${stat.rank.toLocaleString()} of ${stat.of?.toLocaleString()}` : "—"}</td>
                   <td className="whitespace-nowrap px-4 text-right tabular-nums text-text-muted">{top ?? "Unranked"}</td>
                   <td className="px-4 max-sm:hidden"><Meter parts={[{ pc: rankPc(stat?.rank, stat?.of), cls: "bg-accent" }]} /></td>

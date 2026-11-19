@@ -116,7 +116,13 @@ describe("team page, v8 on", () => {
     const bars = document.querySelectorAll("[data-strength] [data-bar]");
     expect(bars).toHaveLength(4);
     for (const b of bars) expect(b.className).toContain("bg-accent");
-    expect(document.querySelector("[data-strength]")!.querySelectorAll("[class*='bg-info'], [class*='bg-success'], [class*='violet']")).toHaveLength(0);
+    expect(document.querySelector("[data-strength]")!.querySelectorAll("[class*='bg-info'], [class*='bg-success'], [class*='bg-violet']")).toHaveLength(0);
+    // Each phase's OPR in its category colour (OPR purple, Auto blue, TeleOp orange, Endgame green).
+    const val = (k: string) => document.querySelector("[data-strength-row=\"" + k + "\"] td:nth-child(2)")!.className;
+    expect(val("np")).toContain("v8:text-violet-300");
+    expect(val("auto")).toContain("v8:text-blue-300");
+    expect(val("teleop")).toContain("v8:text-orange-300");
+    expect(val("endgame")).toContain("v8:text-emerald-300");
     // The explanation stays closed until asked for.
     expect(document.querySelector("[data-strength-how]")?.textContent ?? "").not.toMatch(/least squares/);
     fireEvent.click(screen.getByRole("button", { name: /How it's computed/ }));

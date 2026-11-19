@@ -37,6 +37,7 @@ import { predictHref } from "../shared/predictUrl";
 import { useIsV8 } from "../lib/v8";
 import { V8Title, V8_LABEL } from "../components/myteams/v8";
 import { COMPARE_MAX as MAX, compareApiPath, compareSeasonOf, compareTeamsOf, compareTitle } from "../shared/compareUrl";
+import { V8_PHASE, type V8Phase } from "../lib/records/describe";
 
 // The team hues (src/index.css --color-team-a…d, Okabe–Ito), as search's compare card has them: never the accent gold.
 const COLORS = ["var(--color-team-a)", "var(--color-team-b)", "var(--color-team-c)", "var(--color-team-d)"];
@@ -259,7 +260,7 @@ function Start({ suggestions, onPick, onPickAll }: { suggestions: Suggestion[]; 
 }
 
 type Better = "high" | "low" | null;
-interface Metric { label: string; /** v8 phones: a short label, so the row stays one line. */ short?: string; better: Better; value: (x: CompareTeam) => number | null; show: (x: CompareTeam) => string; sub?: (x: CompareTeam) => string | null; title?: (x: CompareTeam | null) => string }
+interface Metric { label: string; /** v8: the OPR phase whose colour the row takes. */ phase?: V8Phase; /** v8 phones: a short label, so the row stays one line. */ short?: string; better: Better; value: (x: CompareTeam) => number | null; show: (x: CompareTeam) => string; sub?: (x: CompareTeam) => string | null; title?: (x: CompareTeam | null) => string }
 
 const winRate = (x: CompareTeam) => {
   const r = x.stats?.record;
@@ -267,20 +268,20 @@ const winRate = (x: CompareTeam) => {
   return r && n ? r.wins / n : null;
 };
 const METRICS: Metric[] = [
-  { label: "OPR", better: "high", value: (x) => x.stats?.opr.np.value ?? null, show: (x) => num(x.stats?.opr.np.value), sub: (x) => rankPct(x.stats?.opr.np.rank, x.stats?.opr.np.of) },
+  { label: "OPR", phase: "np", better: "high", value: (x) => x.stats?.opr.np.value ?? null, show: (x) => num(x.stats?.opr.np.value), sub: (x) => rankPct(x.stats?.opr.np.rank, x.stats?.opr.np.of) },
   // An estimate from match results (src/shared/reliability.ts), right under OPR: captains pick on both.
   { label: "Reliability (est.)", short: "Reliab.", better: "high", value: (x) => x.stats?.reliability?.index ?? null, show: (x) => (x.stats?.reliability ? String(x.stats.reliability.index) : "—"), sub: (x) => (x.stats?.reliability ? `${x.stats.reliability.matches} quals` : null) },
   // Swing, the consistency stat (the engine's, same number as the reliability index's part): lower = steadier.
   { label: "Swing", better: "low", value: (x) => x.stats?.reliability?.consistency?.value ?? null, show: (x) => swingText(x.stats?.reliability?.consistency),
     sub: (x) => (x.stats?.reliability?.consistency?.value != null ? `${x.stats.reliability.consistency.matches} quals` : null), title: (x) => (x ? swingTitle(x.stats?.reliability?.consistency) : SWING_LINE) },
-  { label: "Auto", better: "high", value: (x) => x.stats?.opr.auto.value ?? null, show: (x) => num(x.stats?.opr.auto.value) },
-  { label: "TeleOp", better: "high", value: (x) => x.stats?.opr.teleop.value ?? null, show: (x) => num(x.stats?.opr.teleop.value) },
-  { label: "Endgame", better: "high", value: (x) => x.stats?.opr.endgame.value ?? null, show: (x) => num(x.stats?.opr.endgame.value) },
+  { label: "Auto", phase: "auto", better: "high", value: (x) => x.stats?.opr.auto.value ?? null, show: (x) => num(x.stats?.opr.auto.value) },
+  { label: "TeleOp", phase: "teleop", better: "high", value: (x) => x.stats?.opr.teleop.value ?? null, show: (x) => num(x.stats?.opr.teleop.value) },
+  { label: "Endgame", phase: "endgame", better: "high", value: (x) => x.stats?.opr.endgame.value ?? null, show: (x) => num(x.stats?.opr.endgame.value) },
   { label: "Rating", better: "high", value: (x) => x.stats?.rating?.np ?? null, show: (x) => (x.stats?.rating ? `${num(x.stats.rating.np)} ±${num(x.stats.rating.sd, 0)}` : "—"), sub: (x) => (x.stats?.rating?.rank ? `#${x.stats.rating.rank.toLocaleString()}` : null) },
   { label: "Record", better: "high", value: winRate, show: (x) => (x.stats ? `${x.stats.record.wins}-${x.stats.record.losses}-${x.stats.record.ties}` : "—"), sub: (x) => { const w = winRate(x); return w == null ? null : `${Math.round(w * 100)}% won`; } },
   { label: "Events", better: null, value: (x) => x.stats?.record.events ?? null, show: (x) => (x.stats ? String(x.stats.record.events) : "—") },
   { label: "Avg score", better: "high", value: (x) => x.stats?.avg.score ?? null, show: (x) => num(x.stats?.avg.score) },
-  { label: "Pen. given", better: null, value: (x) => x.stats?.opr.pen ?? null, show: (x) => num(x.stats?.opr.pen), sub: (x) => (x.stats?.opr.pen != null ? "per match" : null) },
+  { label: "Pen. given", phase: "pen", better: null, value: (x) => x.stats?.opr.pen ?? null, show: (x) => num(x.stats?.opr.pen), sub: (x) => (x.stats?.opr.pen != null ? "per match" : null) },
 ];
 
 /** Which teams lead a row: only with two or more values, every team tied at the top. */
@@ -430,14 +431,14 @@ function StatsTable({ d, onRemove, onMove }: { d: CompareView; onRemove: (n: num
             const best = leaders(metric, t);
             return (
               <Tr key={metric.label} className="border-t border-border v8:border-white/[0.08] v8:first:border-t-0" {...fade({ initial: { opacity: 0 }, animate: { opacity: 1 }, transition: { ...CELL, delay: 0.05 + row * 0.03 } })}>
-                <th scope="row" className="px-3 py-2 text-left font-normal text-muted-foreground v8:h-11 v8:truncate v8:py-0 v8:text-text-muted" title={metric.title?.(null) ?? metric.label}>{v8 && metric.short ? <><span className="sm:hidden" aria-hidden>{metric.short}</span><span className="max-sm:sr-only">{metric.label}</span></> : metric.label}</th>
+                <th scope="row" className={cn("px-3 py-2 text-left font-normal text-muted-foreground v8:h-11 v8:truncate v8:py-0", metric.phase ? V8_PHASE[metric.phase] : "v8:text-text-muted")} title={metric.title?.(null) ?? metric.label}>{v8 && metric.short ? <><span className="sm:hidden" aria-hidden>{metric.short}</span><span className="max-sm:sr-only">{metric.label}</span></> : metric.label}</th>
                 {t.map((x, i) => {
                   const lead = best.has(x.team.number);
                   const sub = metric.sub?.(x);
                   return (
                     <Td key={x.team.number} data-col={i} data-lead={lead || undefined} title={metric.title?.(x)} className={cn("border-l border-border px-3 py-2 tabular-nums transition-colors duration-300 v8:h-11 v8:whitespace-nowrap v8:border-line v8:py-0 v8:text-right v8:duration-150", colClass(i), lead && "bg-foreground/[0.07] v8:bg-white/[0.06]")}
                       {...fade({ initial: { opacity: 0 }, animate: { opacity: 1 }, transition: CELL })}>
-                      <span className={cn("whitespace-nowrap font-medium", lead ? "font-bold text-foreground v8:font-semibold v8:text-text-base" : best.size > 0 && "v8:text-text-muted")}>{metric.show(x)}</span>
+                      <span className={cn("whitespace-nowrap font-medium", lead ? cn("font-bold text-foreground v8:font-semibold", metric.phase ? V8_PHASE[metric.phase] : "v8:text-text-base") : best.size > 0 ? "v8:text-text-muted" : metric.phase && V8_PHASE[metric.phase])}>{metric.show(x)}</span>
                       {lead && <span className="sr-only"> (best)</span>}
                       {sub && <span className="whitespace-nowrap text-xs text-muted-foreground max-sm:block sm:ml-1.5 max-sm:v8:hidden v8:text-text-faint">{sub}</span>}
                     </Td>

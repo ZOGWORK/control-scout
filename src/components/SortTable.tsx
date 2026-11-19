@@ -23,6 +23,8 @@ export interface Col<T> {
   className?: string;
   hideOnMobile?: boolean;
   title?: string;
+  /** v8: the column's category colour (head and numbers), e.g. V8_PHASE.auto; v8 has no heat bands. */
+  v8Tone?: string;
   /** Colour each number by where the row stands in this column (green top fifth … red bottom fifth); `asc` flips it. */
   heat?: boolean;
 }
@@ -86,7 +88,7 @@ export function SortTable<T>({ rows, cols, initial, csvName, rowKey, highlight, 
             <tr className="border-b border-border v8:border-line" aria-rowindex={vr.windowed ? 1 : undefined}>
               {cols.map((c) => (
                 <th key={c.key} scope="col" aria-sort={sort.key === c.key ? (sort.dir === "asc" ? "ascending" : "descending") : "none"}
-                  className={cn("h-10 whitespace-nowrap px-3 text-[10px] font-bold uppercase tracking-wider text-text-muted v8:text-xs v8:font-medium v8:normal-case v8:tracking-normal v8:text-text-faint", sort.key === c.key && "v8:text-text-base", c.align === "right" ? "text-right" : "text-left", c.hideOnMobile && "max-sm:hidden")}>
+                  className={cn("h-10 whitespace-nowrap px-3 text-[10px] font-bold uppercase tracking-wider text-text-muted v8:text-xs v8:font-medium v8:normal-case v8:tracking-normal", c.v8Tone ?? cn("v8:text-text-faint", sort.key === c.key && "v8:text-text-base"), c.align === "right" ? "text-right" : "text-left", c.hideOnMobile && "max-sm:hidden")}>
                   <button onClick={() => click(c)} title={c.title} className={cn("inline-flex items-center gap-1 rounded hover:text-text-base", c.align === "right" && "flex-row-reverse")}>
                     {c.label}{sort.key === c.key && (sort.dir === "asc" ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />)}
                   </button>
@@ -100,7 +102,7 @@ export function SortTable<T>({ rows, cols, initial, csvName, rowKey, highlight, 
               <Fragment key={rowKey(r)}>
                 <Spacer height={gapBefore} colSpan={cols.length} />
                 <tr {...rowProps} aria-rowindex={vr.windowed ? index + 2 : undefined} className={cn("border-b border-border last:border-b-0 hover:bg-text-base/[0.03] v8:h-11 v8:border-line v8:transition-colors v8:duration-150 v8:hover:bg-white/[0.03]", highlight?.(r) && "bg-accent/[0.06] v8:bg-white/[0.04] v8:shadow-[inset_2px_0_0_var(--color-accent)]")} data-highlight={highlight?.(r) || undefined}>
-                  {cols.map((c) => <td key={c.key} className={cn("density-row whitespace-nowrap px-3 py-2", c.align === "right" && "text-right tabular-nums", c.hideOnMobile && "max-sm:hidden", c.className, c.heat && !v8 && bandOf(heatVals.get(c.key)!, c.value(r), c.asc), v8 && "v8:py-0")}>{c.render ? c.render(r) : (c.value(r) ?? "—")}</td>)}
+                  {cols.map((c) => <td key={c.key} className={cn("density-row whitespace-nowrap px-3 py-2", c.align === "right" && "text-right tabular-nums", c.hideOnMobile && "max-sm:hidden", c.className, c.heat && !v8 && bandOf(heatVals.get(c.key)!, c.value(r), c.asc), v8 && cn("v8:py-0", c.v8Tone))}>{c.render ? c.render(r) : (c.value(r) ?? "—")}</td>)}
                 </tr>
               </Fragment>
             ))}
