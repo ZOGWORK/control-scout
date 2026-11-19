@@ -3,6 +3,8 @@
 // season's teams; then today's coin flips (the closest calls at every event on today), what's on the calendar, the public prediction record and Control Scout's own
 // opt-in usage. On a phone it reads in task order: search, the season, your team
 // and events come before the atlas. The brand lives in the shell's chrome.
+// Under v8 (src/lib/v8.ts) Home is the dashboard instead (src/components/home/HomeDashboard.tsx): search in the
+// middle, then live events, top teams and your teams, inside the v8 shell.
 import { useEffect, useRef, useState } from "react";
 import { UsernameBanner } from "../components/AccountSetup";
 import { Link, useSearchParams } from "react-router-dom";
@@ -23,6 +25,8 @@ import { CompetitionAtlas, preloadAtlas } from "../components/home/CompetitionAt
 import { FindYourTeam, OnTheCalendar, PredictionRecord, PublicUsagePanel, SeasonCoverage, YourTeam } from "../components/home/HomeSections";
 import { HOME_ABOUT, HOME_HEADLINE_MS, HOME_HEADLINES, HOME_LEAD, homeHeadlineAt } from "../shared/boot";
 import { cn } from "../components/cn";
+import { HomeDashboard } from "../components/home/HomeDashboard";
+import { useIsV8 } from "../lib/v8";
 import { readBootLines, useHeroLines } from "../lib/heroLines";
 import { dateRange, place } from "../lib/format";
 
@@ -41,6 +45,21 @@ function useHomeCountry(team: number | null, season: number): string | null {
 
 export default function Home() {
   useTitle(null);
+  return useIsV8() ? <V8Home /> : <ClassicHome />;
+}
+
+/** v8's Home: the dashboard. The shell draws the sidebar, your picture, the wash and Report a bug around it. */
+function V8Home() {
+  return (
+    <div data-v8-home>
+      <UsernameBanner />
+      <HomeDashboard />
+    </div>
+  );
+}
+
+/** Home as it is without v8. */
+function ClassicHome() {
   // Home stays Home for everyone: your team shows here, it never redirects to My team.
   const { state, user } = usePersonal();
   const season = useCurrentSeason();
