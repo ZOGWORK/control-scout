@@ -571,7 +571,7 @@ function TableSkeleton() {
 // header row, FloatingHead, reuses them).
 const th = "bg-card shadow-[inset_0_-2px_0_color-mix(in_srgb,var(--color-text-base)_20%,transparent)] h-10 whitespace-nowrap px-3 pb-2 align-bottom text-[11px] font-bold uppercase tracking-wider max-sm:h-10 max-sm:px-2.5 max-sm:pb-2" +
   // v8 (docs/design/v8-revamp-brief.md §5 Tables): a quiet sentence-case head on a hairline.
-  " v8:text-xs v8:font-medium v8:normal-case v8:tracking-normal v8:text-text-faint v8:shadow-[inset_0_-1px_0_var(--color-line)]";
+  " v8:text-xs v8:font-medium v8:normal-case v8:tracking-normal v8:text-text-faint v8:shadow-[inset_0_-1px_0_rgb(255_255_255/0.12)]";
 // Body cells: dense on a laptop too (about twice the rows in the first screen at 1440x900, and more columns before
 // the table scrolls sideways); a phone keeps its own sizes (the max-sm: values). A touch screen wider than a phone
 // (a tablet) keeps rows 44px tall, so one row's compare box can't take a tap meant for the next (tap-44).
@@ -587,7 +587,7 @@ const sticky = "sticky left-0 z-10 bg-card shadow-[1px_0_0_color-mix(in_srgb,var
 const cellText = (tone: keyof typeof TONE_CLASS) => (tone === "redAlliance" ? "text-red-alliance-ink" : TONE_CLASS[tone].text);
 // v8: the hover is a quiet fill, never the accent (mint marks only the #1 rank, progress and "yours").
 const rowHover = "still-hover:bg-accent/[0.14]";
-const rowV8 = "v8:h-11 v8:still-hover:bg-white/[0.03]";
+const rowV8 = "v8:h-11 v8:border-white/[0.08] v8:still-hover:bg-white/[0.03]";
 const stickyHover = "row-still-hover:bg-[color-mix(in_srgb,var(--color-card)_80%,var(--color-accent))] row-still-hover:shadow-[inset_3px_0_0_var(--color-accent),1px_0_0_color-mix(in_srgb,var(--color-text-base)_22%,transparent)]" +
   " v8:row-still-hover:bg-[color-mix(in_srgb,var(--color-card)_97%,white)] v8:row-still-hover:shadow-[1px_0_0_color-mix(in_srgb,var(--color-text-base)_22%,transparent)]";
 

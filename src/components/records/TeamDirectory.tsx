@@ -165,7 +165,7 @@ export function TeamDirectory({ season, onSeason }: { season: number; onSeason: 
           <div className={cn("overflow-hidden rounded-xl border border-line", "v8:rounded-none v8:border-0", data.q ? "mt-2" : "mt-4 max-md:mt-2", api.loading && "opacity-70")} aria-busy={api.loading}>
             <table className="w-full text-sm">
               <caption className="sr-only">Teams listed for {seasonLabel(season)} from {where}{data.q ? `, matching “${data.q}”` : ""}, sorted by {SORTS.find((s) => s.key === state.sort)?.label.toLowerCase()}</caption>
-              <thead className="bg-text-base/[0.03] text-left text-xs uppercase tracking-wide text-text-muted v8:bg-transparent v8:normal-case v8:tracking-normal v8:text-text-faint v8:shadow-[inset_0_-1px_0_var(--color-line)]">
+              <thead className="bg-text-base/[0.03] text-left text-xs uppercase tracking-wide text-text-muted v8:bg-transparent v8:normal-case v8:tracking-normal v8:text-text-faint v8:shadow-[inset_0_-1px_0_rgb(255_255_255/0.12)]">
                 <tr>
                   <SortHead label="Team" k="team" also="name" state={state} onSort={sortBy} />
                   <SortHead label="Location" k="location" state={state} onSort={sortBy} className="max-md:hidden" />
@@ -303,7 +303,7 @@ function Row({ t, readiness, season }: { t: DirectoryTeam; readiness: SeasonRead
   const flags = useTeamFlags(t.team);
   const where = place(t.city, t.state, t.country);
   return (
-    <tr className="border-t border-line hover:bg-text-base/[0.03] v8:h-11 v8:transition-colors v8:duration-150 v8:hover:bg-white/[0.03]">
+    <tr className="border-t border-line hover:bg-text-base/[0.03] v8:h-11 v8:border-white/[0.08] v8:transition-colors v8:duration-150 v8:hover:bg-white/[0.03]">
       <td className="px-3 py-2 v8:py-1">
         <Link to={season == null ? `/teams/${t.team}` : `/teams/${t.team}?season=${season}`} className="group inline-flex min-h-9 flex-col justify-center">
           <span><span className="font-semibold tabular-nums text-accent-text v8:font-medium">{t.team}</span> <span className="font-medium group-hover:underline v8:font-normal v8:text-text-muted v8:group-hover:text-text-base">{t.name ?? `Team ${t.team}`}</span></span>

@@ -17,10 +17,11 @@ export const V8_HEAD = "v8:[&_h1]:font-sans v8:[&_h1]:text-[1.375rem] v8:[&_h1]:
 export const V8_EYEBROW = "v8:font-normal v8:normal-case v8:tracking-normal v8:text-text-faint";
 /** A table's frame: no box in v8, the rows' hairlines are the structure. */
 export const V8_FRAME = "v8:rounded-none v8:border-0 v8:bg-transparent";
-/** A column head: small, faint, sentence case, on one hairline; opaque so a sticky head hides the rows under it. */
-export const V8_TH = "v8:bg-background v8:pb-0 v8:align-middle v8:text-xs v8:font-medium v8:normal-case v8:tracking-normal v8:text-text-faint v8:shadow-[inset_0_-1px_0_var(--color-line)]";
+/** A column head: small, faint, sentence case, on a visible rule (white 12%; rows are split by white 8%, which reads
+ *  on near-black where the 6% `line` token fades); opaque so a sticky head hides the rows under it. */
+export const V8_TH = "v8:bg-background v8:pb-0 v8:align-middle v8:text-xs v8:font-medium v8:normal-case v8:tracking-normal v8:text-text-faint v8:shadow-[inset_0_-1px_0_rgb(255_255_255/0.12)]";
 /** A row: 44px, a hairline above, a quiet fill on hover (hover-capable devices only). */
-export const V8_ROW = "v8:h-11 v8:border-line v8:hover:bg-white/[0.03]";
+export const V8_ROW = "v8:h-11 v8:border-white/[0.08] v8:hover:bg-white/[0.03]";
 /** Your team's row (or the one a link asked for): white, not the accent. A faint white fill and a white edge. */
 export const V8_MINE = "v8:bg-white/[0.05] v8:shadow-[inset_2px_0_0_var(--color-text-base)]";
 /** A rank: Inter in tabular figures (Space Grotesk is for hero numbers only); `V8_TOP` on #1. */
