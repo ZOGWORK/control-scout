@@ -428,7 +428,7 @@ export function Shell({ children }: { children: ReactNode }) {
             {/* v8's only texture: the wash across the top, under the bar (tall on a top-level page, short inside one). */}
             {!bare && v8 && <Wash size={washSize(loc.pathname)} />}
             {/* Sticky over the scrolling page: opaque, and --header-h tall (index.css: anchors land below it). */}
-            {!bare && <header id={HEADER_ID} className="sticky top-0 z-30 flex h-(--header-h) shrink-0 items-center gap-1 border-b border-line bg-primary px-3 sm:px-6 md:gap-3 lg:px-8 v8:static v8:h-14 v8:border-transparent v8:bg-transparent">
+            {!bare && <header id={HEADER_ID} className="sticky top-0 z-30 flex h-(--header-h) shrink-0 items-center gap-1 border-b border-line bg-primary px-3 sm:px-6 md:gap-3 lg:px-8 v8:relative v8:h-14 v8:border-transparent v8:bg-transparent">
               {/* Phones: the menu (every page) top left with search beside it, the logo centred, and the bell right. On a
                   touch screen the menu and search buttons are 44px boxes (side by side, a widened tap area would overlap). */}
               <div className="flex items-center gap-0.5 md:hidden">
