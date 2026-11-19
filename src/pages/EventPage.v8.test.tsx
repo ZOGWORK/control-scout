@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // The event page in v8 (docs/design/v8-revamp-brief.md, <html data-v8>): the header is the top of the page with the
 // name as the page title, the stream link is a plain button so the page keeps at most one primary, live is the red
-// dot with its slow ring, tables have a quiet head and no heat colours, mint marks only #1 and "your team", the team
+// dot with its slow ring, tables have a quiet head and no heat colours, the podium ranks are gold, silver and bronze, awards gold, OPR purple, "your team" slate blue, the team
 // cards don't lift, and alliance chips are neutral. With v8 off, every branch draws as before.
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -87,7 +87,10 @@ describe("event page in v8", () => {
     expect(awards.some((a) => /alliance/i.test(a ?? ""))).toBe(false); // the Winners card has those
     const top = [...document.querySelectorAll("[data-top-standings] li")];
     expect(top.map((li) => li.getAttribute("data-team"))).toEqual(["1111", "2222"]);
-    expect(top[0].querySelector(".text-accent")?.textContent).toBe("1"); // mint on #1 only
+    // The podium in gold, silver and bronze (lib/v8colour.ts); awards in gold.
+    expect(top[0].querySelector(String.raw`.v8\:text-yellow-400`)?.textContent).toBe("1");
+    expect(top[1].querySelector(String.raw`.v8\:text-slate-300`)?.textContent).toBe("2");
+    expect(document.querySelector("[data-focus-awards] li span")!.className).toMatch(/v8:text-yellow-400/);
   });
 
   it("marks your team in mint wherever the first screen lists it", () => {
@@ -161,14 +164,14 @@ describe("event page in v8", () => {
     expect(document.querySelector<HTMLElement>("[data-livestream]")!.className).toMatch(/(^| )bg-accent( |$)/);
   });
 
-  it("drops the hover lift on the team cards, marks only the #1 rank in mint, and keeps the lift with v8 off", () => {
+  it("drops the hover lift on the team cards, marks the podium ranks gold, silver and bronze, and keeps the lift with v8 off", () => {
     mount("/events/2025/AUBRQ2?tab=teams");
     const cards = () => [...document.querySelectorAll<HTMLAnchorElement>('a[href^="/teams/"]')].filter((a) => a.textContent?.includes("Rank"));
     expect(cards()).toHaveLength(2);
     for (const c of cards()) expect(c.className).not.toMatch(/(^| )lift( |$)/);
     const rankOf = (team: number) => cards().find((c) => c.textContent?.includes(String(team)))!.querySelector(".font-display")!;
-    expect(rankOf(1111).className).not.toMatch(/v8:text-text-base/); // #1 stays mint
-    expect(rankOf(2222).className).toMatch(/v8:text-text-base/);
+    expect(rankOf(1111).className).toMatch(/v8:text-yellow-400/); // #1 gold
+    expect(rankOf(2222).className).toMatch(/v8:text-slate-300/); // #2 silver
     cleanup(); v8(false);
     mount("/events/2025/AUBRQ2?tab=teams");
     for (const c of cards()) expect(c.className).toMatch(/(^| )lift( |$)/);

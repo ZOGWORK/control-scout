@@ -71,6 +71,7 @@ import { SWING_LINE, swingText, swingTitle } from "../shared/reliability";
 import { AllianceChip, AllianceOddsCard, BracketAccuracyNote, BracketSeries, OddsHeading } from "../components/PlayoffBracket";
 import { EventPackButton } from "../components/offline/EventPackButton";
 import { isV8, useIsV8, V8_NUM } from "../lib/v8";
+import { V8_AWARD, v8Rank } from "../lib/v8colour";
 import { Disclosure, eventState, FinishedFocus, LiveFocus, UpcomingFocus, V8_DEFAULT_TAB, V8_TAB_ORDER } from "../components/EventFocus";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../components/ui/overlay";
 import { EVENT_TABS, type EventTab } from "../lib/eventTab";
@@ -707,8 +708,8 @@ function RankingTable({ field, season, team, code, schedule }: { field: FieldRow
   const rs = (r: FieldRow) => (meet ? r.meet?.rs ?? null : r.rp);
   const rec = (r: FieldRow): (number | null)[] => (meet ? (r.meet ? [r.meet.wins, r.meet.losses, r.meet.ties] : [null, null, null]) : [r.wins, r.losses, r.ties]);
   const cols: Col<FieldRow>[] = [
-    // v8: mint marks the #1 rank only (brief principle 3).
-    { key: "rank", label: "Rank", value: rank, asc: true, align: "right", render: (r) => <span className={cn(rank(r) === 1 && "v8:font-semibold v8:text-accent")} data-rank={rank(r) ?? undefined}>{rank(r) ?? "—"}</span> },
+    // v8: gold, silver and bronze for the top three ranks (lib/v8colour.ts).
+    { key: "rank", label: "Rank", value: rank, asc: true, align: "right", render: (r) => <span className={cn((rank(r) ?? 9) <= 3 && "v8:font-semibold", v8Rank(rank(r)))} data-rank={rank(r) ?? undefined}>{rank(r) ?? "—"}</span> },
     { key: "team", label: "Team", value: (r) => r.team, render: (r) => phone && hasTeamPage(r.team, r.name)
       ? <TeamNumber team={r.team} name={r.name ?? ""} href={`/teams/${r.team}?season=${season}`} />
       : <TeamPageLink team={r.team} name={r.name} season={season} className="hover:underline"><span className={cn("font-mono font-medium", V8_NUM)}>{r.team}</span> <span className="text-muted-foreground">{r.name}</span></TeamPageLink> },
@@ -731,7 +732,7 @@ function RankingTable({ field, season, team, code, schedule }: { field: FieldRow
     { key: "teleop", label: "TeleOp", value: (r) => r.opr.teleop, align: "right", render: (r) => num(r.opr.teleop), hideOnMobile: true, heat: true, v8Tone: V8_PHASE.teleop },
     { key: "endgame", label: "Endgame", value: (r) => r.opr.endgame, align: "right", render: (r) => num(r.opr.endgame), hideOnMobile: true, heat: true, v8Tone: V8_PHASE.endgame },
     { key: "pen", label: "Pen.", title: "Penalty points given away per match (OPR)", value: (r) => r.opr.pen, asc: true, align: "right", render: (r) => num(r.opr.pen), hideOnMobile: true, heat: true, v8Tone: V8_PHASE.pen },
-    { key: "rating", label: "Rating", title: "Prediction rating now (± uncertainty)", value: (r) => r.rating?.np ?? null, align: "right", render: (r) => r.rating ? <span>{num(r.rating.np)} <span className="text-muted-foreground">±{num(r.rating.sd, 0)}</span></span> : "—" },
+    { key: "rating", label: "Rating", title: "Prediction rating now (± uncertainty)", value: (r) => r.rating?.np ?? null, align: "right", render: (r) => r.rating ? <span>{num(r.rating.np)} <span className="text-muted-foreground">±{num(r.rating.sd, 0)}</span></span> : "—", v8Tone: V8_PHASE.np },
   ];
   return (
     <div className="space-y-2">
@@ -786,17 +787,17 @@ function TeamsGrid({ field: all, season, team, predictable, registered, syncedAt
                 {!registered && (!v8 || anyRank) && (
                   <span className="flex size-12 shrink-0 flex-col items-center justify-center rounded-lg bg-muted text-center v8:bg-white/[0.04]">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground v8:text-[0.6875rem] v8:font-medium v8:normal-case v8:tracking-normal v8:text-text-faint">Rank</span>
-                    {/* v8: mint for the #1 rank only (brief principle 3). */}
-                    <span className={cn("font-display text-lg font-semibold leading-none tabular-nums", t.rank != null && t.rank <= 4 && "text-accent-text", t.rank !== 1 && "v8:text-text-base")}>{t.rank ?? "–"}</span>
+                    {/* v8: gold, silver and bronze for the top three ranks, white below (lib/v8colour.ts). */}
+                    <span className={cn("font-display text-lg font-semibold leading-none tabular-nums", t.rank != null && t.rank <= 4 && "text-accent-text", "v8:text-text-base", v8Rank(t.rank))}>{t.rank ?? "–"}</span>
                   </span>
                 )}
                 <span className="min-w-0 flex-1">
                   <span className="flex items-baseline gap-2"><span className={cn("font-mono font-semibold", t.team !== team && V8_NUM)}>{t.team}</span><span className="truncate text-sm" title={t.name ?? undefined}>{t.name}</span></span>
                   <span className="block truncate text-xs text-muted-foreground">{place(t.city, t.state) || "—"}</span>
                   <span className="mt-1.5 flex flex-wrap gap-1.5 text-[11px] tabular-nums">
-                    {t.opr.np != null && <span className={cn("rounded-md px-1.5 py-0.5", ROSTER_CHIP_TONE.npOpr, V8_STAT_CHIP)}>npOPR {num(t.opr.np)}</span>}
+                    {t.opr.np != null && <span className={cn("rounded-md px-1.5 py-0.5", ROSTER_CHIP_TONE.npOpr, V8_STAT_CHIP, V8_PHASE.np)}>npOPR {num(t.opr.np)}</span>}
                     {t.wins != null && <span className={cn("rounded-md px-1.5 py-0.5", ROSTER_CHIP_TONE.record, V8_STAT_CHIP)}>{t.wins}-{t.losses ?? 0}-{t.ties ?? 0}</span>}
-                    {predictable && t.rating && <span className={cn("rounded-md bg-accent/15 px-1.5 py-0.5 text-accent-text", V8_STAT_CHIP)}>Rating {num(t.rating.np)} ±{num(t.rating.sd, 0)}</span>}
+                    {predictable && t.rating && <span className={cn("rounded-md bg-accent/15 px-1.5 py-0.5 text-accent-text", V8_STAT_CHIP, V8_PHASE.np)}>Rating {num(t.rating.np)} ±{num(t.rating.sd, 0)}</span>}
                   </span>
                 </span>
               </TeamPageLink>
@@ -925,8 +926,8 @@ function Awards({ d, nameOf }: { d: EventDetail; nameOf: (t: number) => string }
         <ul className="grid gap-2 sm:grid-cols-2">
           {d.awards.map((a) => (
             <li key={`${a.type}${a.placement}${a.team}`} className="flex items-center gap-3 rounded-xl border border-border bg-card p-3 v8:border-line">
-              <Award className="size-5 shrink-0 text-accent v8:text-text-muted" />
-              <div className="min-w-0"><p className="text-sm font-medium">{awardTitle(a)}</p><TeamPageLink team={a.team} name={nameOf(a.team)} season={s} className="text-sm text-muted-foreground hover:underline"><span className={cn("font-mono", V8_NUM)}>{a.team}</span> {nameOf(a.team)}</TeamPageLink></div>
+              <Award className={cn("size-5 shrink-0 text-accent v8:text-text-muted", V8_AWARD)} />
+              <div className="min-w-0"><p className={cn("text-sm font-medium", V8_AWARD)}>{awardTitle(a)}</p><TeamPageLink team={a.team} name={nameOf(a.team)} season={s} className="text-sm text-muted-foreground hover:underline"><span className={cn("font-mono", V8_NUM)}>{a.team}</span> {nameOf(a.team)}</TeamPageLink></div>
             </li>
           ))}
         </ul>

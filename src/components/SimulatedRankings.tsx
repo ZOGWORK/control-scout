@@ -103,7 +103,7 @@ export function SimulatedRankings({ d, team }: { d: EventDetail; team: number | 
               </thead>
               <tbody>
                 {ok.teams.map((t, i) => (
-                  <tr key={t.team} className={cn("border-t border-border v8:h-11 v8:border-line", team === t.team && "bg-accent/[0.08] v8:bg-white/[0.04] v8:shadow-[inset_2px_0_0_var(--color-accent)]")} data-team={t.team}>
+                  <tr key={t.team} className={cn("border-t border-border v8:h-11 v8:border-line", team === t.team && "bg-accent/[0.08] v8:bg-accent/[0.08] v8:shadow-[inset_2px_0_0_var(--color-accent)]")} data-team={t.team}>
                     <td className="py-2 pr-2 tabular-nums text-muted-foreground max-sm:hidden">{i + 1}</td>
                     <td className="py-2 pr-2 max-sm:w-full max-sm:max-w-0">
                       <Link to={`/teams/${t.team}`} className="hover:text-accent-text max-sm:block max-sm:truncate"><span className="font-mono font-semibold">{t.team}</span> <span className="text-foreground/85">{names.get(t.team) ?? ""}</span></Link>

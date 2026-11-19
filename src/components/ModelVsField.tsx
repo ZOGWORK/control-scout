@@ -36,8 +36,8 @@ function basis(v: DisagreementsView): string {
 }
 
 const SIDE = {
-  "model-higher": { title: "The model rates them higher than their seed", icon: ArrowUpRight, chip: "bg-success/15 text-success v8:bg-white/[0.05] v8:text-text-muted", bar: "bg-success v8:bg-text-base/60", box: "border-success/30 bg-success/[0.05] v8:border-line v8:bg-transparent" },
-  "seed-higher": { title: "Seeded higher than the model rates them", icon: ArrowDownRight, chip: "bg-info/15 text-info v8:bg-white/[0.05] v8:text-text-muted", bar: "bg-info v8:bg-text-base/60", box: "border-info/30 bg-info/[0.05] v8:border-line v8:bg-transparent" },
+  "model-higher": { title: "The model rates them higher than their seed", icon: ArrowUpRight, chip: "bg-success/15 text-success v8:bg-white/[0.05] v8:text-emerald-400", bar: "bg-success v8:bg-emerald-400", box: "border-success/30 bg-success/[0.05] v8:border-line v8:bg-transparent" },
+  "seed-higher": { title: "Seeded higher than the model rates them", icon: ArrowDownRight, chip: "bg-info/15 text-info v8:bg-white/[0.05] v8:text-rose-400", bar: "bg-info v8:bg-rose-400", box: "border-info/30 bg-info/[0.05] v8:border-line v8:bg-transparent" },
 } as const;
 
 /** An answer of the right shape (an older server, or a stale cache, answers something else). */
@@ -145,7 +145,7 @@ function Row({ r, v }: { r: DisagreementRow; v: DisagreementsView }) {
           <p className="mt-0.5 text-sm text-muted-foreground">{sentence}</p>
         </div>
         <div className="shrink-0 text-right">
-          <p className={cn("font-display text-2xl font-semibold leading-none tabular-nums", r.direction === "model-higher" ? "text-success" : "text-info")}>{r.gap}</p>
+          <p className={cn("font-display text-2xl font-semibold leading-none tabular-nums", r.direction === "model-higher" ? "text-success v8:text-emerald-400" : "text-info v8:text-rose-400")}>{r.gap}</p>
           <p className="mt-0.5 text-[11px] text-muted-foreground">places</p>
         </div>
       </div>
@@ -185,7 +185,7 @@ function Footer({ v }: { v: DisagreementsView }) {
   return (
     <div className="mt-4 flex flex-col gap-2 border-t border-border/60 pt-3 text-xs text-muted-foreground">
       <Link to="/methodology#accuracy" className="group hover:text-foreground" data-mvf-track-record>
-        <span className="mr-1.5 inline-block size-1.5 rounded-full bg-success align-middle" aria-hidden />
+        <span className="mr-1.5 inline-block size-1.5 rounded-full bg-success align-middle v8:bg-emerald-400" aria-hidden />
         {block
           ? <>The same ratings called the winner of {Math.round(block.accuracy * 100)}% of {block.decided.toLocaleString()} {live ? "matches before they were played" : "matches replayed from earlier data (not live calls)"} this season.</>
           : <>Every call the model makes is scored afterwards in public.</>}

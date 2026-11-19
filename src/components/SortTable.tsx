@@ -101,7 +101,7 @@ export function SortTable<T>({ rows, cols, initial, csvName, rowKey, highlight, 
             {vr.rows(sorted).map(({ item: r, index, rowProps, gapBefore }) => (
               <Fragment key={rowKey(r)}>
                 <Spacer height={gapBefore} colSpan={cols.length} />
-                <tr {...rowProps} aria-rowindex={vr.windowed ? index + 2 : undefined} className={cn("border-b border-border last:border-b-0 hover:bg-text-base/[0.03] v8:h-11 v8:border-line v8:transition-colors v8:duration-150 v8:hover:bg-white/[0.03]", highlight?.(r) && "bg-accent/[0.06] v8:bg-white/[0.04] v8:shadow-[inset_2px_0_0_var(--color-accent)]")} data-highlight={highlight?.(r) || undefined}>
+                <tr {...rowProps} aria-rowindex={vr.windowed ? index + 2 : undefined} className={cn("border-b border-border last:border-b-0 hover:bg-text-base/[0.03] v8:h-11 v8:border-line v8:transition-colors v8:duration-150 v8:hover:bg-white/[0.03]", highlight?.(r) && "bg-accent/[0.06] v8:bg-accent/[0.08] v8:shadow-[inset_2px_0_0_var(--color-accent)]")} data-highlight={highlight?.(r) || undefined}>
                   {cols.map((c) => <td key={c.key} className={cn("density-row whitespace-nowrap px-3 py-2", c.align === "right" && "text-right tabular-nums", c.hideOnMobile && "max-sm:hidden", c.className, c.heat && !v8 && bandOf(heatVals.get(c.key)!, c.value(r), c.asc), v8 && cn("v8:py-0", c.v8Tone))}>{c.render ? c.render(r) : (c.value(r) ?? "—")}</td>)}
                 </tr>
               </Fragment>

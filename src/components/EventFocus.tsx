@@ -15,6 +15,8 @@ import { hasTeamPage } from "../shared/teamPages";
 import { MatchList } from "./predict";
 import { AdvancedTeams } from "./AdvancedTeams";
 import { cn } from "./cn";
+import { V8_AWARD, v8Rank } from "../lib/v8colour";
+import { V8_PHASE } from "../lib/records/describe";
 
 export type EventState = "live" | "finished" | "upcoming";
 
@@ -90,7 +92,8 @@ const YoursMark = () => <span className="size-1.5 shrink-0 rounded-full bg-accen
 
 /**
  * The standings' top `n` (the meet's own at a league meet), then any of your teams below them, each a 44px row:
- * rank, team, record and OPR. Mint marks the #1 rank and your teams; nothing else is coloured.
+ * rank, team, record and OPR. The top three ranks are gold, silver and bronze, OPR is the rating purple and your
+ * teams sit on a slate-blue highlight (lib/v8colour.ts).
  */
 export function TopStandings({ field, season, mine, n = 8 }: { field: FieldRow[]; season: number; mine: ReadonlySet<number>; n?: number }) {
   const rows = eventRoster(field).map((r) => ({ r, s: eventStanding(r) })).filter((x) => x.s.rank != null).sort((a, b) => a.s.rank! - b.s.rank!);
@@ -101,11 +104,11 @@ export function TopStandings({ field, season, mine, n = 8 }: { field: FieldRow[]
       {shown.map(({ r, s }, i) => {
         const yours = mine.has(r.team);
         return (
-          <li key={r.team} className={cn("grid h-11 grid-cols-[2rem_minmax(0,1fr)_auto_3.5rem] items-center gap-3 px-4 text-sm", yours && "bg-white/[0.03] shadow-[inset_2px_0_0_var(--color-accent)]", i === n && "border-t border-white/[0.12]")} data-team={r.team}>
-            <span className={cn("text-right tabular-nums text-text-muted", s.rank === 1 && "font-semibold text-accent")}>{s.rank}</span>
+          <li key={r.team} className={cn("grid h-11 grid-cols-[2rem_minmax(0,1fr)_auto_3.5rem] items-center gap-3 px-4 text-sm", yours && "bg-accent/[0.08] shadow-[inset_2px_0_0_var(--color-accent)]", i === n && "border-t border-white/[0.12]")} data-team={r.team}>
+            <span className={cn("text-right tabular-nums text-text-muted", s.rank != null && s.rank <= 3 && "font-semibold", v8Rank(s.rank))}>{s.rank}</span>
             <span className="flex min-w-0 items-center gap-2">{yours && <YoursMark />}<TeamName team={r.team} name={r.name} season={season} yours={yours} /></span>
             <span className="text-xs tabular-nums text-text-faint">{s.wins != null ? `${s.wins}-${s.losses ?? 0}-${s.ties ?? 0}` : ""}</span>
-            <span className="text-right tabular-nums text-text-base" title="np OPR">{num(r.opr.np)}</span>
+            <span className={cn("text-right tabular-nums text-text-base", V8_PHASE.np)} title="np OPR">{num(r.opr.np)}</span>
           </li>
         );
       })}
@@ -147,7 +150,7 @@ export function FinishedFocus({ d, mine, nameOf, onAll }: { d: EventDetail; mine
     // On a phone the order reads winners, awards, standings, advancing; on a wide screen standings sit on the right.
     <div className="mb-6 grid gap-4 max-sm:mb-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)]" data-event-focus="finished">
       <div className="min-w-0 space-y-4 lg:col-start-1">
-        <FocusCard title={<span className="inline-flex items-center gap-2"><Crown className="size-4 text-text-muted" aria-hidden />Winners</span>} aside={won?.alliance != null ? `Alliance ${won.alliance}` : undefined} label="Winners">
+        <FocusCard title={<span className="inline-flex items-center gap-2"><Crown className={cn("size-4 text-text-muted", V8_AWARD)} aria-hidden />Winners</span>} aside={won?.alliance != null ? `Alliance ${won.alliance}` : undefined} label="Winners">
           {won ? (
             <ul className="divide-y divide-line" data-winners>
               {won.teams.map((t) => (
@@ -156,12 +159,12 @@ export function FinishedFocus({ d, mine, nameOf, onAll }: { d: EventDetail; mine
             </ul>
           ) : <p className="px-4 py-6 text-sm text-text-muted">No playoff result on record for this event.</p>}
         </FocusCard>
-        <FocusCard title={<span className="inline-flex items-center gap-2"><Award className="size-4 text-text-muted" aria-hidden />Awards</span>} aside={d.awards.length > awards.length ? <CardLink onClick={() => onAll("awards")}>All {d.awards.length} awards</CardLink> : undefined} label="Awards">
+        <FocusCard title={<span className="inline-flex items-center gap-2"><Award className={cn("size-4 text-text-muted", V8_AWARD)} aria-hidden />Awards</span>} aside={d.awards.length > awards.length ? <CardLink onClick={() => onAll("awards")}>All {d.awards.length} awards</CardLink> : undefined} label="Awards">
           {awards.length ? (
             <ul className="divide-y divide-line" data-focus-awards>
               {awards.map((a) => (
                 <li key={`${a.type}${a.placement}${a.team}`} className="grid min-h-11 grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-center gap-3 px-4 py-2 text-sm">
-                  <span className="truncate text-text-muted">{awardTitle(a)}</span>
+                  <span className={cn("truncate text-text-muted", V8_AWARD)}>{awardTitle(a)}</span>
                   <span className="flex min-w-0 items-center gap-2">{mine.has(a.team) && <YoursMark />}<TeamName team={a.team} name={nameOf(a.team)} season={season} yours={mine.has(a.team)} /></span>
                 </li>
               ))}
