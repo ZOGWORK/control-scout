@@ -394,8 +394,9 @@ export default function ScoutPage() {
           )}
         </>}
         <div hidden={picking}>
-        {session && <EventBar event={scoutEvent} status={v8 ? undefined : syncChip} onChange={readOnly ? null : () => setSp((x) => { x.set("pick", "1"); return x; })} onStop={readOnly ? null : stopScouting} />}
-        <ScoutSections section={section} onSection={setSection} sections={sections}>
+        {/* v8 on a phone: while a match is open, the match comes first; the event bar and tabs fold away. */}
+        {session && <div className={scoutingMatch ? "v8:max-md:hidden" : undefined}><EventBar event={scoutEvent} status={v8 ? undefined : syncChip} onChange={readOnly ? null : () => setSp((x) => { x.set("pick", "1"); return x; })} onStop={readOnly ? null : stopScouting} /></div>}
+        <ScoutSections section={section} onSection={setSection} sections={sections} folded={scoutingMatch}>
           {/* A match typed in stays mounted (hidden in other sections) until Save or Cancel, so stepping to another
               section and back keeps its team, match, answers and notes. */}
           {manual && <div hidden={section !== manual.from}>{manualForm(manual.from === "event" ? "Event day" : "Entries")}</div>}

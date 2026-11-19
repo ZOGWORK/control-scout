@@ -150,7 +150,7 @@ export function PhaseForm({ template, value, onChange, notes, onNotes, notesLabe
     <Tabs value={shown} onValueChange={(p) => onPhase(p as FieldPhase)} className="gap-3">
       <TabsList aria-label="Match phase" className="grid w-full sm:w-full" style={{ gridTemplateColumns: `repeat(${phases.length}, minmax(0, 1fr))` }}>
         {phases.map((p) => (
-          <TabsTrigger key={p} value={p} className="min-h-[44px] sm:flex-1 v8:min-h-12">
+          <TabsTrigger key={p} value={p} className="min-h-[44px] sm:flex-1 v8:min-h-12 v8:after:top-auto v8:after:bottom-0 v8:after:left-3 v8:after:w-auto v8:after:h-0.5 v8:after:transform-none">
             {formPhaseLabel(p)}
             {live === p && <><span className="size-1.5 rounded-full bg-current" aria-hidden /><span className="sr-only">(now)</span></>}
           </TabsTrigger>

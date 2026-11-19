@@ -48,7 +48,7 @@ export function EventBar({ event, onChange, onStop, status }: {
         {status && <div className="mt-1.5">{status}</div>}
       </div>
       {(onChange || onStop) && <div className="flex shrink-0 items-center gap-1.5">
-        {onChange && <Button variant="outline" size="sm" onClick={onChange} aria-label="Change event"><ArrowLeftRight /> Change<span className="max-sm:hidden">&nbsp;event</span></Button>}
+        {onChange && <Button variant="outline" size="sm" onClick={onChange} aria-label="Change event"><ArrowLeftRight /><span>Change<span className="max-sm:hidden"> event</span></span></Button>}
         {onStop && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild><Button variant="ghost" size="icon-sm" aria-label="More event options" data-more-actions><MoreHorizontal /></Button></DropdownMenuTrigger>
