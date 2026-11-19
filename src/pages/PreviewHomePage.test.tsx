@@ -228,11 +228,12 @@ describe("Sample home dashboard", () => {
     expect(row.querySelector("[data-no-results]")?.textContent).toBe("No results yet");
   });
 
-  it("asks you to pick a team when none is set, with a quiet pill", () => {
+  it("asks you to pick a team when none is set, with a plain button", () => {
     const { container } = mount();
-    const pick = container.querySelector("[data-pick-team]")!; // a quiet outlined pill, not a solid mint slab
-    expect(cls(pick)).toContain("rounded-full");
-    expect(cls(pick)).not.toContain("bg-accent");
+    // A plain icon-and-label button like the sidebar's rows: no colour, no fill, no border.
+    const pick = container.querySelector("[data-pick-team]")!;
+    expect(cls(pick)).not.toMatch(/accent|border|(^|\s)bg-/);
+    expect(cls(pick.querySelector("svg")!)).not.toContain("accent");
     const team = container.querySelector("[data-card='team']")!;
     expect(team.textContent).toContain("Pick your team to see its next match");
     expect(within(team as HTMLElement).getByRole("button", { name: /Pick your team/ })).toBeTruthy();
