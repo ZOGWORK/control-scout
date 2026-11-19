@@ -1,6 +1,7 @@
 // /preview/kit: every v8 token and shared component on one page (docs/design/v8-revamp-brief.md §8, step 1), for
 // review and for the Figma capture. Noindex, linked from nowhere. It draws in v8 while it's open even when this device
-// hasn't turned v8 on (it sets <html data-v8> and puts the device's own look back on the way out).
+// hasn't turned v8 on: it sets <html data-v8> for the visit and takes it off on the way out; the theme follows the
+// attribute (useIsV8 in src/hooks/useTheme.ts), so the device's own theme comes back by itself, never a stale copy.
 import { useEffect, useLayoutEffect, useState } from "react";
 import { ArrowRight, Bell, MoreHorizontal, Radio, Search, Settings, Star, Trash2 } from "lucide-react";
 import { Button } from "../components/ui/button";
@@ -16,11 +17,8 @@ function useV8WhileOpen() {
   const [was] = useState(isV8);
   useLayoutEffect(() => {
     if (was) return;
-    const html = document.documentElement;
-    const themes = ["light", "dim", "midnight"].filter((c) => html.classList.contains(c));
-    html.setAttribute("data-v8", "");
-    html.classList.remove(...themes);
-    return () => { html.removeAttribute("data-v8"); html.classList.add(...themes); };
+    document.documentElement.setAttribute("data-v8", "");
+    return () => document.documentElement.removeAttribute("data-v8");
   }, [was]);
 }
 
