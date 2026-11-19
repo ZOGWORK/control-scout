@@ -57,7 +57,7 @@ export const THEME_TOKENS: Record<Palette, Record<Token, string>> = {
  *  lines and the #1 rank; the alliances are the lighter red and blue. */
 export const V8_TOKENS: Record<Token, string> = {
   bg: "#0a0a0b", fg: "#f4f4f5", card: "#0e0e10", muted: "#1b1b1e", mutedFg: "#a1a1aa", line: "#ffffff0f",
-  acc: "#a3b6e0", accText: "#f4f4f5", accInk: "#141a2b", red: "#fb7185", blue: "#7dd3fc", ok: "#f4f4f5",
+  acc: "#a3b6e0", accText: "#f4f4f5", accInk: "#141a2b", red: "#f43f5e", blue: "#38bdf8", ok: "#f4f4f5",
 };
 
 /** Which look this device picked (src/lib/v8.ts), mirrored by the app for Lite (src/lib/liteCookies.ts): "0" is the
