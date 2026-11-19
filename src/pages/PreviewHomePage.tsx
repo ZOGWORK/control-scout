@@ -137,7 +137,7 @@ export default function PreviewHomePage() {
             {examples.map((s) => (
               <Link
                 key={s.q} data-example-chip to={hitHref(searchPagePick(s.q))} onClick={() => addRecentSearch(s.q)}
-                className="tap-44 inline-flex h-8 items-center rounded-full border border-white/15 bg-white/[0.03] px-3 text-sm text-text-base transition-colors hover:border-white/30 hover:bg-white/[0.07]"
+                data-press className="tap-44 inline-flex h-8 items-center rounded-full border border-white/15 bg-white/[0.03] px-3 text-sm text-text-base transition-[color,background-color,border-color,scale] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] active:scale-[0.97] motion-reduce:active:scale-100 hover:border-white/30 hover:bg-white/[0.07]"
               >{suggestionLabel(s)}</Link>
             ))}
           </div>
@@ -160,7 +160,9 @@ export default function PreviewHomePage() {
 }
 
 const SIDE_KEY = "cs-sample-side";
-const roundButton = "flex size-9 shrink-0 items-center justify-center rounded-full text-text-muted outline-none transition-colors hover:bg-white/[0.08] hover:text-text-base focus-visible:ring-2 focus-visible:ring-ring/60";
+// Pressables shrink a touch while held (0.97, 150ms, strong ease-out) so a tap feels physical; not under reduced motion.
+const press = "transition-[color,background-color,border-color,scale] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] active:scale-[0.97] motion-reduce:active:scale-100";
+const roundButton = cn("flex size-9 shrink-0 items-center justify-center rounded-full text-text-muted outline-none", press, "hover:bg-white/[0.08] hover:text-text-base focus-visible:ring-2 focus-visible:ring-ring/60");
 
 /** The app's pages, Gemini-like: the mark and name with a round fold button beside them; folded, the fold button
  *  sits over the page icons (no search button: the page's own search is the way in). Nothing at its foot (that's all in the profile menu). Wide
@@ -171,7 +173,7 @@ function SideBar() {
   const foldLabel = rail ? "Expand sidebar" : "Collapse sidebar";
   return (
     <aside data-sample-sidebar aria-label="Sidebar" data-rail={rail ? "" : undefined}
-      className={cn("sticky top-0 z-20 hidden h-dvh shrink-0 flex-col self-start border-r border-white/[0.06] bg-[#0e0e10] transition-[width] duration-150 ease-out motion-reduce:transition-none md:flex", rail ? "w-16" : "w-[15.5rem]")}>
+      className={cn("sticky top-0 z-20 hidden h-dvh shrink-0 flex-col self-start border-r border-white/[0.06] bg-[#0e0e10] transition-[width] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none md:flex", rail ? "w-16" : "w-[15.5rem]")}>
       <div className={cn("flex shrink-0 items-center gap-1 pt-3 pb-2", rail ? "flex-col px-0" : "h-14 pl-4 pr-2.5")}>
         {!rail && (
           <Link to="/" aria-label="Control Scout home" className="mr-auto flex min-w-0 items-center gap-2.5 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
@@ -217,7 +219,7 @@ function Corner() {
             )}
           </button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" data-profile-menu className="w-64 border-white/10 bg-[#141416] p-1.5">
+        <DropdownMenuContent align="end" data-profile-menu className="w-64 origin-(--radix-dropdown-menu-content-transform-origin) border-white/10 bg-[#141416] p-1.5 duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] [--tw-enter-scale:0.97] [--tw-exit-scale:0.97] motion-reduce:[--tw-enter-scale:1] motion-reduce:[--tw-exit-scale:1]">
           {user ? (
             <DropdownMenuLabel className="px-2 py-2 font-normal">
               <span className="block truncate text-sm font-medium text-text-base">{user.displayName || user.email}</span>
@@ -282,7 +284,7 @@ function LiveCard({ season }: { season: number }) {
         <h2 id="sample-live" className={cardTitle}>
           {/* Live is red, the one place it is (the universal on-air colour), pulsing while something is on; still for anyone who turns motion off. */}
           <span data-live-dot className="relative flex size-2" aria-hidden>
-            {count > 0 && <span data-live-pulse className="absolute inset-0 animate-ping rounded-full bg-[#f2555a] opacity-70 motion-reduce:hidden" />}
+            {count > 0 && <span data-live-pulse className="absolute inset-0 animate-[live-ring_2s_cubic-bezier(0.23,1,0.32,1)_infinite] rounded-full bg-[#f2555a] motion-reduce:hidden" />}
             <span className={cn("relative size-2 rounded-full", count ? "bg-[#f2555a]" : "bg-white/25")} />
           </span> Events live now
         </h2>
@@ -548,4 +550,4 @@ function PickTeamCard({ onPick }: { onPick: () => void }) {
 
 /** Picking a team: a plain icon-and-label button like the sidebar's rows (no colour, no fill, no border; a faint
  *  wash on hover), where the other cards' links sit. */
-const pickTeam = "mt-auto -ml-2.5 inline-flex h-10 items-center gap-2.5 self-start rounded-lg px-2.5 text-sm font-medium text-text-base transition-colors hover:bg-white/[0.06] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring";
+const pickTeam = cn("mt-auto -ml-2.5 inline-flex h-10 items-center gap-2.5 self-start rounded-lg px-2.5 text-sm font-medium text-text-base", press, "hover:bg-white/[0.06] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring");
