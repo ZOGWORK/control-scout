@@ -25,8 +25,13 @@
       // Apply the saved theme before anything paints (no flash): here in <head>, ahead of the
       // static first paint the server puts in #root (server/bootShell.ts). Dark graphite is the default.
       try {
+        // v8 (src/lib/v8.ts): ?v8=1 turns it on for this device, ?v8=0 off; on, it's dark only (no saved theme).
+        var q = /[?&]v8=([01])/.exec(location.search);
+        if (q) { if (q[1] === '1') localStorage.setItem('cs-v8', '1'); else localStorage.removeItem('cs-v8'); }
+        var v8 = localStorage.getItem('cs-v8') === '1';
+        if (v8) document.documentElement.setAttribute('data-v8', '');
         var s = JSON.parse(localStorage.getItem('cs-personal:settings') || 'null');
-        var t = s && s.value && s.value.theme;
+        var t = v8 ? 'dark' : s && s.value && s.value.theme;
         if (t === 'light' || (t === 'system' && window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches)) document.documentElement.classList.add('light');
         // Dim and Midnight (src/hooks/useTheme.ts) and their bar colour.
         if (t === 'dim' || t === 'midnight') {

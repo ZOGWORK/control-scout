@@ -280,7 +280,7 @@ export function RecordsTable(p: RecordsTableProps) {
       <Tooltip key={pr.id}>
         <TooltipTrigger asChild>
           <button type="button" aria-pressed={on} onClick={() => void toggleChip(pr)} disabled={chipBusy === pr.id}
-            className={cn("inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs font-semibold transition-all max-sm:h-10", on ? cn(tone.chip, "ring-1 ring-current") : "border-line text-text-muted hover:border-text-base/25 hover:text-text-base")}>
+            className={cn("inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs font-semibold transition-colors max-sm:h-10", on ? cn(tone.chip, "ring-1 ring-current") : "border-line text-text-muted hover:border-text-base/25 hover:text-text-base")}>
             {chipBusy === pr.id ? <Loader2 className="size-3 animate-spin" /> : <span className={cn("size-1.5 rounded-full", tone.bar)} />}
             {pr.label}{on && <X className="size-3" />}
           </button>

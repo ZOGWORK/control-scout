@@ -92,7 +92,7 @@ export function LatestCalls({ className, still: stillCount = 3, compact = false 
       )}
       {calls.length > 1 && !(reduced && paused === null) && (
         <div className={cn("relative flex items-center gap-1.5", compact ? "mt-2.5" : "mt-4")} aria-hidden>
-          {calls.map((m, k) => <span key={`${m.code}:${m.key}`} className={cn("h-1 rounded-full transition-all duration-300 motion-reduce:transition-none", k === i % calls.length ? "w-5 bg-accent" : "w-1.5 bg-text-base/20")} />)}
+          {calls.map((m, k) => <span key={`${m.code}:${m.key}`} className={cn("h-1 rounded-full transition-[width,background-color] duration-300 ease-out motion-reduce:transition-none", k === i % calls.length ? "w-5 bg-accent" : "w-1.5 bg-text-base/20")} />)}
         </div>
       )}
       {!compact && scored}
