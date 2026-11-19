@@ -52,6 +52,19 @@ export const THEME_TOKENS: Record<Palette, Record<Token, string>> = {
   midnight: { ...DARK, bg: "#000000", fg: "#f4f4f5", card: "#08080a", muted: "#121215", mutedFg: "#a1a1aa", line: "#ffffff12" },
 };
 
+/** v8, the new look (docs/design/v8-revamp-brief.md): dark only, each value the one src/index.css's `html[data-v8]`
+ *  block gives the same property. Text that used the accent, wins and "Right" are white; the slate blue is for bars,
+ *  lines and the #1 rank; the alliances are the lighter red and blue. */
+export const V8_TOKENS: Record<Token, string> = {
+  bg: "#0a0a0b", fg: "#f4f4f5", card: "#0e0e10", muted: "#1b1b1e", mutedFg: "#a1a1aa", line: "#ffffff0f",
+  acc: "#a3b6e0", accText: "#f4f4f5", accInk: "#141a2b", red: "#fb7185", blue: "#7dd3fc", ok: "#f4f4f5",
+};
+
+/** Which look this device picked (src/lib/v8.ts), mirrored by the app for Lite (src/lib/liteCookies.ts): "0" is the
+ *  classic look (/legacy), anything else (no cookie included) v8, the default. */
+export const V8_COOKIE = "cs-v8";
+export const v8FromCookie = (v: string) => v !== "0";
+
 /** A cookie header's value for `name` ("" when absent). */
 export function cookieValue(header: string | undefined, name: string): string {
   if (!header) return "";
