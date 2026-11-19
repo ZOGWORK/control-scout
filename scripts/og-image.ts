@@ -1,6 +1,6 @@
 // Renders public/og-image.png (1200×630), the link-preview card every page
 // points og:image / twitter:image at (Discord, iMessage, Slack, X). Same look as the site (v8): near-black with the
-// wash across the top, white type, mint as the one accent,
+// wash across the top, white type, the wash's light slate blue as the one accent,
 // the brand icon, Space Grotesk + Inter. Re-run after a brand change:
 //   npx playwright install chromium   (once per machine; on Linux: --with-deps)
 //   npx tsx scripts/og-image.ts
@@ -34,12 +34,12 @@ body { width: 1200px; height: 630px; overflow: hidden; background: #0a0a0b; colo
 .brand img { width: 76px; height: 76px; }
 .name { font-family: SG; font-weight: 700; font-size: 46px; letter-spacing: -.01em; }
 h1 { font-family: SG; font-weight: 700; font-size: 78px; line-height: 1.02; letter-spacing: -.03em; margin-top: 44px; white-space: nowrap; }
-h1 em { font-style: normal; color: #7fd1ae; }
+h1 em { font-style: normal; color: #a3b6e0; }
 .sub { font-size: 32px; font-weight: 500; color: #c4c4cc; margin-top: 26px; line-height: 1.3; }
 .url { margin-top: auto; font-family: SG; font-weight: 700; font-size: 34px; color: #a1a1aa; }
 .card { position: absolute; right: 52px; top: 118px; width: 392px; border-radius: 28px; padding: 30px 30px 32px; background: rgba(20,20,23,.92);
   border: 2px solid rgba(255,255,255,.08); box-shadow: 0 30px 80px rgba(0,0,0,.55); }
-.tag { display: inline-block; font-weight: 700; font-size: 30px; color: #7fd1ae; }
+.tag { display: inline-block; font-weight: 700; font-size: 30px; color: #a3b6e0; }
 .title { font-family: SG; font-weight: 700; font-size: 36px; margin-top: 10px; }
 .odds { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 26px; font-family: SG; font-weight: 700; }
 .odds div { font-size: 64px; line-height: 1; letter-spacing: -.02em; }
