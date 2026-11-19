@@ -7,13 +7,13 @@ import { cn } from "../cn";
 const FADE = "linear-gradient(to bottom,#000 0%,rgb(0 0 0/.85) 50%,transparent 100%)";
 // The colours, strength and reach are CSS variables (index.css, html[data-v8]); the owner console can change them.
 const GLOWS = "radial-gradient(55% 95% at 12% 0%,var(--wash-a) 0%,transparent 72%),radial-gradient(50% 90% at 52% 0%,var(--wash-b) 0%,transparent 72%),radial-gradient(55% 95% at 90% 0%,var(--wash-c) 0%,transparent 72%)";
-const HEIGHT = { tall: "clamp(16rem, calc(42vh * var(--wash-spread, 1)), calc(30rem * var(--wash-spread, 1)))", short: "clamp(10rem, calc(24vh * var(--wash-spread, 1)), calc(16rem * var(--wash-spread, 1)))" } as const;
+const HEIGHT = { tall: "clamp(16rem, calc(42vh * var(--wash-spread, 1)), calc(30rem * var(--wash-spread, 1)))", short: "clamp(13rem, calc(34vh * var(--wash-spread, 1)), calc(23rem * var(--wash-spread, 1)))" } as const;
 
 export function Wash({ size = "tall", className }: { size?: "tall" | "short"; className?: string }) {
   const grain = `grain-${useId().replace(/:/g, "")}`;
   return (
     <div aria-hidden data-wash={size}
-      style={{ maskImage: FADE, WebkitMaskImage: FADE, height: HEIGHT[size], opacity: size === "tall" ? "var(--wash-strength, 1)" : "calc(var(--wash-strength, 1) * .85)" }}
+      style={{ maskImage: FADE, WebkitMaskImage: FADE, height: HEIGHT[size], opacity: "var(--wash-strength, 1)" }}
       className={cn("pointer-events-none absolute inset-x-0 top-0 overflow-hidden", className)}>
       <div className="absolute -inset-x-[10%] -top-1/2 bottom-0 blur-2xl" style={{ backgroundImage: GLOWS }} />
       <svg data-grain className="absolute inset-0 size-full opacity-[0.12] mix-blend-overlay" xmlns="http://www.w3.org/2000/svg">
