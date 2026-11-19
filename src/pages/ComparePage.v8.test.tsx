@@ -64,13 +64,17 @@ describe("Compare, v8 on", () => {
     expect(screen.getByRole("heading", { level: 1 }).className).toContain("text-[1.375rem]");
   });
 
-  it("marks each row's winner in white and greys the rest", async () => {
+  it("marks each row's winner (bold, in its category colour: OPR purple) and greys the rest", async () => {
     page();
     await waitFor(() => expect(document.querySelector("[data-stats-table] tbody")).not.toBeNull());
     const opr = screen.getByRole("rowheader", { name: "OPR" }).parentElement!;
     const [a, b] = [...opr.querySelectorAll("td")];
     expect(a.hasAttribute("data-lead")).toBe(true);
-    expect(a.querySelector("span")!.className).toContain("v8:text-text-base");
+    expect(a.querySelector("span")!.className).toContain("v8:text-violet-300");
+    expect(opr.querySelector("th")!.className).toContain("v8:text-violet-300");
+    // A row with no category (Record) keeps the winner white.
+    const rec = screen.getByRole("rowheader", { name: "Record" }).parentElement!;
+    expect(rec.querySelector("td[data-lead] span")?.className ?? "v8:text-text-base").toContain("v8:text-text-base");
     expect(b.hasAttribute("data-lead")).toBe(false);
     expect(b.querySelector("span")!.className).toContain("v8:text-text-muted");
   });
