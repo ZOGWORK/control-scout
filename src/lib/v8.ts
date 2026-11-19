@@ -37,3 +37,9 @@ export function setV8(on: boolean, to?: string) {
   if (to) location.assign(to);
   else location.reload();
 }
+
+/** v8's colour for numbers and event data (team numbers, a row's key stat, headline stat values): the wash's light
+ *  slate blue, the accent (#a3b6e0, 9.7:1 on the page). Ordinary text stays white or grey; scores keep their
+ *  alliance colours, live its red, and "yours" and wins stay white, so leave this off those. The classic look
+ *  ignores it (the `v8:` variant). */
+export const V8_NUM = "v8:text-accent";

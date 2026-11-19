@@ -98,7 +98,7 @@ export function ListRow(p: RowProps) {
         <div className="min-w-0">
           <div className="flex min-w-0 items-center gap-2">
             {p.color}
-            <Link to={`/teams/${t.team}?season=${p.season}`} className="font-mono text-sm font-semibold hover:text-accent-text hover:underline v8:font-display v8:tabular-nums v8:hover:text-text-base">{t.team}</Link>
+            <Link to={`/teams/${t.team}?season=${p.season}`} className="font-mono text-sm font-semibold hover:text-accent-text hover:underline v8:font-display v8:tabular-nums v8:text-accent v8:hover:text-text-base">{t.team}</Link>
             <span className="truncate text-sm">{t.name ?? "Unknown team"}</span>
             {t.place && <span className="hidden truncate text-xs text-text-muted xl:inline">{t.place}</span>}
           </div>
@@ -141,7 +141,7 @@ export function GridCard(p: RowProps) {
           <div className="flex min-w-0 items-center gap-1.5">
           {p.color}
           <Link to={`/teams/${t.team}?season=${p.season}`} className="group/name flex min-w-0 items-baseline">
-            <span className="font-mono text-xl font-bold tabular-nums text-text-base group-hover/name:text-accent-text v8:font-display v8:font-semibold v8:group-hover/name:text-text-base">{t.team}</span>
+            <span className="font-mono text-xl font-bold tabular-nums text-text-base group-hover/name:text-accent-text v8:font-display v8:font-semibold v8:text-accent v8:group-hover/name:text-text-base">{t.team}</span>
             <span className="ml-2 min-w-0 truncate text-sm font-medium group-hover/name:underline">{t.name ?? "Unknown team"}</span>
           </Link>
           </div>

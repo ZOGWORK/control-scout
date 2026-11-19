@@ -4,6 +4,7 @@
 import { Link } from "react-router-dom";
 import type { EventDetail } from "../shared/api";
 import { cn } from "./cn";
+import { V8_NUM } from "../lib/v8";
 
 type Adv = NonNullable<EventDetail["advancement"]>;
 
@@ -52,7 +53,7 @@ export function AdvancedTeams({ adv, season, nameOf, className }: { adv: Adv; se
                   "v8:border-line v8:bg-card v8:hover:border-line v8:hover:bg-white/[0.03]")}>
                 {took && <span className="mt-0.5 grid size-6 shrink-0 place-items-center rounded-full border border-success/60 bg-success/20 text-xs font-bold text-foreground tabular-nums v8:border-white/[0.12] v8:bg-transparent" aria-label={`Advancement order ${order}`}>{order}</span>}
                 <span className="min-w-0">
-                  <span className="block break-words text-sm font-semibold text-foreground"><span className="font-mono">{r.team}</span>{name && name !== String(r.team) ? ` ${name}` : ""}</span>
+                  <span className="block break-words text-sm font-semibold text-foreground"><span className={cn("font-mono", V8_NUM)}>{r.team}</span>{name && name !== String(r.team) ? ` ${name}` : ""}</span>
                   {(r.points != null || note) && (
                     <span className="block text-xs text-muted-foreground tabular-nums">{[r.points != null ? points(r.points) : "", note ?? ""].filter(Boolean).join(" · ")}</span>
                   )}

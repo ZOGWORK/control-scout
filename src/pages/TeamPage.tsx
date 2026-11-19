@@ -830,7 +830,7 @@ function V8Header({ p, onSeason, fellBackFrom }: { p: TeamProfile; onSeason: (s:
             </div>
             {/* The heading is the number and name together (what people search for). */}
             <h1 className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-              <span className="font-display text-[2.75rem] font-semibold leading-none tracking-tight tabular-nums sm:text-[3.25rem]" data-team-number>{t.number}</span>
+              <span className="font-display text-[2.75rem] font-semibold leading-none tracking-tight tabular-nums text-accent sm:text-[3.25rem]" data-team-number>{t.number}</span>
               {t.name && <span className="min-w-0 break-words font-sans text-xl font-semibold tracking-tight text-text-base sm:text-[1.375rem]"><span className="sr-only"> </span>{t.name}</span>}
             </h1>
             {!t.name && <p className="mt-1 text-lg text-text-muted">Name not on file</p>}
@@ -916,7 +916,8 @@ function V8Standing({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => 
   const top = rankPct(s?.opr.np.rank, s?.opr.np.of, true);
   const cell = "min-w-0 px-4 first:pl-0 max-sm:px-3 [&_dd]:whitespace-nowrap";
   const dt = "text-xs text-text-faint";
-  const dd = "mt-0.5 text-xl font-semibold tracking-tight tabular-nums text-text-base";
+  // The headline values in the slate blue (numbers carry the accent in v8; their labels stay grey).
+  const dd = "mt-0.5 text-xl font-semibold tracking-tight tabular-nums text-accent";
   return (
     <section aria-labelledby={`standing-${p.team.number}`} className="rounded-xl border border-line bg-card p-4 sm:p-5" data-standing>
       <h2 id={`standing-${p.team.number}`} className="font-sans text-xs font-normal tracking-normal text-text-faint" data-eyebrow>Standing · {seasonLabel(p.season)}</h2>
@@ -933,7 +934,7 @@ function V8Standing({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => 
         <>
           <div className="mt-2 flex flex-wrap items-end gap-x-8 gap-y-4">
             <div>
-              <p className="font-display text-[2.5rem] font-semibold leading-none tabular-nums text-text-base" data-hero-figure>{top ?? "Unranked"}</p>
+              <p className="font-display text-[2.5rem] font-semibold leading-none tabular-nums text-accent" data-hero-figure>{top ?? "Unranked"}</p>
               <p className="mt-1.5 text-xs text-text-muted">worldwide by OPR{s.opr.np.rank ? ` · #${s.opr.np.rank.toLocaleString()} of ${s.opr.np.of?.toLocaleString()}` : ""}</p>
             </div>
             {/* Beside the figure on a wide card; its own full-width row under it on a phone. */}

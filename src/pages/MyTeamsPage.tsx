@@ -157,7 +157,7 @@ function TeamCard({ mine, delay = 0 }: { mine: MyTeam; delay?: number }) {
           <div className="min-w-0">
             <CollapsibleTrigger className="group block max-w-full rounded-md text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
               <span className="flex items-center gap-2">
-                <span className="font-display text-4xl font-semibold leading-none tracking-tight transition-colors group-hover:text-accent-text">{team}</span>
+                <span className="font-display text-4xl font-semibold leading-none tracking-tight transition-colors group-hover:text-accent-text v8:text-accent">{team}</span>
                 <ChevronDown className="size-5 shrink-0 text-muted-foreground transition-transform duration-200 group-data-[state=closed]:-rotate-90 motion-reduce:transition-none" aria-hidden />
               </span>
               <span className="mt-1.5 block break-words text-lg text-foreground/90">
@@ -360,7 +360,7 @@ function V8TeamCard({ mine }: { mine: MyTeam }) {
             <CollapsibleTrigger className="group flex max-w-full items-start gap-2 rounded-md text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
               <ChevronDown className="mt-1.5 size-4 shrink-0 text-text-faint transition-transform duration-200 ease-out group-data-[state=closed]:-rotate-90 motion-reduce:transition-none" aria-hidden />
               <span className="min-w-0">
-                <span className="block font-display text-[1.75rem] font-semibold leading-none tracking-tight tabular-nums text-text-base">{team}</span>
+                <span className="block font-display text-[1.75rem] font-semibold leading-none tracking-tight tabular-nums text-text-base v8:text-accent">{team}</span>
                 <span className="mt-1 block break-words text-sm font-medium text-text-base">
                   {name === undefined ? (probe.error ? <span className="text-text-muted">Name not loaded</span> : <span className="skeleton inline-block h-4 w-40 rounded align-middle" />) : name ?? <span className="text-text-muted">Name not on file</span>}
                 </span>

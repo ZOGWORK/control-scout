@@ -129,7 +129,7 @@ export function EventGlance({ d, onTab, live }: { d: EventDetail; onTab: (t: str
         <button type="button" onClick={() => onTab("matches")} className="mt-2 block w-full space-y-1 text-left">
           {s.record.map((x, i) => (
             <span key={x.kind} className="block">
-              <span className={cn("font-display font-semibold tabular-nums", i === 0 ? "text-3xl text-accent-text v8:text-text-base" : "text-lg")}>{Math.round((x.right / x.n) * 100)}%</span>
+              <span className={cn("font-display font-semibold tabular-nums", i === 0 ? "text-3xl text-accent-text v8:text-accent" : "text-lg")}>{Math.round((x.right / x.n) * 100)}%</span>
               <span className="ml-2 text-sm text-muted-foreground">of {x.n} {x.kind === "live" ? "calls made before the match" : "matches predicted from earlier data (replayed)"}</span>
             </span>
           ))}

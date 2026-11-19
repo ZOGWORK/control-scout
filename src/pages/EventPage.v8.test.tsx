@@ -100,6 +100,21 @@ describe("event page in v8", () => {
     localStorage.clear();
   });
 
+  it("draws team numbers in the slate blue (yours stay white) and award names as plain text, never raw HTML", () => {
+    localStorage.setItem("cs-personal:myTeam", JSON.stringify({ value: 2222, updatedAt: 1 }));
+    current = { ...detail(), awards: [{ type: "Winner", placement: 1, team: 1111, name: "<i>FIRST</i>&reg; Leadership Award Finalists" }] } as unknown as EventDetail;
+    mount("/events/2025/AUBRQ2");
+    const no = (team: number) => document.querySelector(`[data-top-standings] li[data-team="${team}"] a > span, [data-top-standings] li[data-team="${team}"] span > span.font-mono`)!;
+    expect(no(1111).textContent).toBe("1111");
+    expect(no(1111).className).toMatch(/\btext-accent\b/);
+    expect(no(2222).className).toMatch(/\btext-text-base\b/);
+    expect(no(2222).className).not.toMatch(/\btext-accent\b/);
+    const award = document.querySelector("[data-focus-awards] li")!.textContent!;
+    expect(award).toMatch(/^FIRST® Leadership Award Finalists/);
+    expect(award).not.toMatch(/<i>|&reg;/);
+    localStorage.clear();
+  });
+
   it("opens an upcoming event on Teams with who's coming first", () => {
     current = detail({ status: "upcoming", start: "2099-11-01", end: "2099-11-01" });
     mount("/events/2025/AUBRQ2");

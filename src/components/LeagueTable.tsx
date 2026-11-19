@@ -7,6 +7,7 @@ import { cn } from "./cn";
 import { TeamNumber } from "./records/RecordsTable";
 import { leagueRecord, rankingScore, type LeagueStandingRow } from "../shared/leagues";
 import { regionHref } from "../shared/regionRankings";
+import { V8_NUM } from "../lib/v8";
 
 const TH = "h-9 whitespace-nowrap px-2.5 text-[10px] font-bold uppercase tracking-wider text-text-muted v8:text-xs v8:font-medium v8:normal-case v8:tracking-normal v8:text-text-faint max-sm:px-1.5";
 const TD = "whitespace-nowrap px-2.5 py-1.5 max-sm:px-1.5";
@@ -49,7 +50,7 @@ export function LeagueTable({ rows, season, team, maxRows, scout, frameless }: {
                 <td className={cn(TD, "text-right tabular-nums", r.rank === 1 && "v8:font-medium v8:text-accent")}>{r.rank}</td>
                 <td className={cn(TD, "max-w-[16rem] truncate")}>
                   <span className="sm:hidden"><TeamNumber team={r.team} name={r.name ?? ""} href={href} /></span>
-                  <Link to={href} className="hover:underline max-sm:hidden"><span className="font-mono font-medium tabular-nums v8:font-sans">{r.team}</span> <span className={cn(!marked && "text-muted-foreground")}>{r.name}</span></Link>
+                  <Link to={href} className="hover:underline max-sm:hidden"><span className={cn("font-mono font-medium tabular-nums v8:font-sans", !marked && V8_NUM)}>{r.team}</span> <span className={cn(!marked && "text-muted-foreground")}>{r.name}</span></Link>
                 </td>
                 <td className={cn(TD, "text-right tabular-nums")}>{rankingScore(r.rs) ?? "—"}</td>
                 <td className={cn(TD, "text-right tabular-nums")}>{leagueRecord(r) ?? "—"}</td>

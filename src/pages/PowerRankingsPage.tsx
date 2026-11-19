@@ -17,7 +17,7 @@ import { useFlag } from "../lib/flags";
 import { NotFoundView } from "../components/NotFoundView";
 import { Button } from "../components/ui/button";
 import { cn } from "../components/cn";
-import { useIsV8 } from "../lib/v8";
+import { useIsV8, V8_NUM } from "../lib/v8";
 import { RankingsTabs, V8_CAPTION, V8_DOWN, V8_EYEBROW, V8_HEAD, V8_ICON, V8_LINK, V8_NOTE } from "../components/rankings/v8";
 import {
   generatedNote, isWeekId, publishedLine, statsLine, weekLabel,
@@ -76,7 +76,7 @@ function Entry({ e, comparedWith, onLink, tagTemplate }: { e: PowerRankingsEntry
       <div className="min-w-0 flex-1">
         <h2 className="text-base font-semibold leading-snug text-foreground">
           <Link to={`/teams/${e.team}`} className="rounded-sm hover:underline hover:underline-offset-2">
-            <span className="tabular-nums">{e.team}</span>{e.name && <span className="text-text-muted"> · </span>}{e.name}
+            <span className={cn("tabular-nums", V8_NUM)}>{e.team}</span>{e.name && <span className="text-text-muted"> · </span>}{e.name}
           </Link>
         </h2>
         {e.place && <p className={cn("mt-0.5 text-xs text-text-muted", V8_CAPTION)}>{e.place}</p>}

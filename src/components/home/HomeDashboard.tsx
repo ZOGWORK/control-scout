@@ -24,6 +24,7 @@ import { addRecentSearch } from "../search/discover";
 import { nextMatch } from "./HomeSections";
 import { myTeamsOf } from "../../lib/myTeams";
 import { cn } from "../cn";
+import { V8_NUM } from "../../lib/v8";
 
 /** How many example searches show under the field. */
 export const EXAMPLE_COUNT = 4;
@@ -254,7 +255,7 @@ function TopRow({ r, rank }: { r: TeamSeasonRecord; rank: number }) {
       <Link to={`/teams/${r.team}`} className={rowLink}>
         <span data-rank className={cn("w-4 shrink-0 text-right font-display text-sm font-semibold tabular-nums", rank === 1 ? "text-accent" : "text-text-muted")}>{rank}</span>
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-medium group-hover:underline"><span className="tabular-nums">{r.team}</span> <span className="text-text-muted">·</span> {name}</span>
+          <span className="block truncate text-sm font-medium group-hover:underline"><span className={cn("tabular-nums", V8_NUM)}>{r.team}</span> <span className="text-text-muted">·</span> {name}</span>
           {w != null && l != null && <span className="block text-xs tabular-nums text-text-muted">{w}-{l}-{t ?? 0}</span>}
         </span>
         {opr != null && (
@@ -313,7 +314,7 @@ function OneTeam({ team, season, t, loaded }: { team: number; season: number; t:
     <>
       <Link to={`/teams/${team}`} className="group -mt-1 flex items-center gap-3 rounded-lg focus-visible:outline-2 focus-visible:outline-ring">
         {/* The name and place sit centred on the big number, not hung from its baseline. */}
-        <span className="font-display text-4xl leading-none font-semibold tabular-nums">{team}</span>
+        <span className={cn("font-display text-4xl leading-none font-semibold tabular-nums", V8_NUM)}>{team}</span>
         <span className="min-w-0">
           <span className="block truncate font-medium group-hover:underline">{t?.name ?? (loaded ? `Team ${team}` : " ")}</span>
           {t?.place && <span className="block truncate text-xs text-text-muted">{t.place}</span>}
@@ -393,7 +394,7 @@ function TeamRow({ team, season, t, loaded }: { team: number; season: number; t:
   return (
     <li data-your-team>
       <Link to={`/teams/${team}`} className={cn(rowLink, "py-1.5")}>
-        <span className="w-14 shrink-0 font-display text-base font-semibold tabular-nums">{team}</span>
+        <span className={cn("w-14 shrink-0 font-display text-base font-semibold tabular-nums", V8_NUM)}>{team}</span>
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm font-medium group-hover:underline">{t?.name ?? (loaded ? `Team ${team}` : " ")}</span>
           <span data-team-next className="block truncate text-xs text-text-muted">

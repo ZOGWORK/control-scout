@@ -10,6 +10,7 @@ import { cn } from "../cn";
 import { INK_BAR, RecordText, TAP } from "./page/answerCells";
 import { PODIUM_CHIP } from "../../lib/textTones";
 import { TONE, V8_PODIUM } from "./page/v8tone";
+import { V8_NUM } from "../../lib/v8";
 
 // Each phase column in search's palette colour for it, header and numbers (the same colours as every other card).
 const P = TONE;
@@ -123,14 +124,14 @@ export function TeamTable({ table, label, limit }: { table: Table; label: string
                     </td>
                     <td className={cn("px-2 py-1.5 max-md:w-full max-md:max-w-0 max-md:px-1.5", V8_TABLE.cell, "v8:md:w-full v8:md:min-w-[12rem] v8:md:max-w-0")}>
                       {/* The clamp on the text, not the link: the link's tap padding would show a third line over the town. */}
-                      <Link to={r.href} className="block font-medium text-foreground hover:text-accent-text v8:hover:text-foreground hover:underline max-md:min-w-[44px] pointer-coarse:min-w-[44px] max-md:-my-[13px] max-md:py-[13px] pointer-coarse:-my-[13px] pointer-coarse:py-[13px]"><span className="line-clamp-2 break-words v8:md:block v8:md:truncate" title={name}><span className="tabular-nums">{r.team}</span>{r.name && ` ${r.name}`}</span></Link>
+                      <Link to={r.href} className="block font-medium text-foreground hover:text-accent-text v8:hover:text-foreground hover:underline max-md:min-w-[44px] pointer-coarse:min-w-[44px] max-md:-my-[13px] max-md:py-[13px] pointer-coarse:-my-[13px] pointer-coarse:py-[13px]"><span className="line-clamp-2 break-words v8:md:block v8:md:truncate" title={name}><span className={cn("tabular-nums", V8_NUM)}>{r.team}</span>{r.name && ` ${r.name}`}</span></Link>
                       {r.location && <span className="block break-words text-[11px] text-muted-foreground v8:text-[0.75rem] v8:text-text-faint v8:md:truncate">{r.location}</span>}
                     </td>
                     {table.asked && <td className={cn("whitespace-nowrap px-2 py-1.5 text-right font-medium tabular-nums text-foreground", V8_TABLE.cell)} data-asked>{r.asked?.display ?? "–"}</td>}
                     <td className={cn("relative px-2 py-1.5 text-right font-semibold tabular-nums text-foreground", V8_TABLE.cell, byPhase && "max-md:hidden")} data-opr>
                       {/* The bar inset in its own track, so its length is exactly OPR / max of the track. */}
                       {r.opr != null && r.opr > 0 && <span aria-hidden className="absolute inset-x-1 bottom-1 h-1 v8:hidden"><span className={cn("block h-full rounded-full", INK_BAR)} style={{ width: `${(r.opr / oprMax) * 100}%` }} data-opr-bar data-bar data-value={r.opr} data-scale={oprMax} /></span>}
-                      <span className="relative">{oneDp(r.opr)}</span>
+                      <span className={cn("relative", V8_NUM)}>{oneDp(r.opr)}</span>
                     </td>
                     {phases && <>
                       <td className={cn("px-2 py-1.5 text-right font-medium tabular-nums", V8_TABLE.cell, P.auto.text, onPhone("auto"))} data-phase="auto">{oneDp(r.auto)}</td>

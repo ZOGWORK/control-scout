@@ -144,7 +144,7 @@ function TeamsHeader({ teams, split, season }: { teams: Who[]; split?: number; s
               <div className={cn("min-w-0 space-y-2", i === 1 && "col-start-3 text-right")} aria-label={side.map((t) => t.name ? `${t.name} (${t.number})` : `Team ${t.number}`).join(" and ")}>
                 {side.map((t) => (
                   <Link key={t.number} to={`/teams/${t.number}${q}`} className={cn("group block min-w-0 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring/60", TAP)}>
-                    <span className="block font-display text-2xl font-semibold leading-none tracking-tight tabular-nums text-foreground transition-colors group-hover:text-accent-text v8:group-hover:text-foreground sm:text-3xl">{t.number}</span>
+                    <span className="block font-display text-2xl font-semibold leading-none tracking-tight tabular-nums text-foreground transition-colors group-hover:text-accent-text v8:text-accent v8:group-hover:text-foreground sm:text-3xl">{t.number}</span>
                     <span className="mt-1 block break-words text-sm text-foreground/90 sm:text-base">{t.name ?? "Name not on file"}</span>
                   </Link>
                 ))}
@@ -181,7 +181,7 @@ function TeamSide({ t, q, right, first, i }: { t: Who; q: string; right: boolean
   return (
     <>
       <Link to={`/teams/${t.number}${q}`} aria-label={t.name ? `${t.name} (${t.number})` : `Team ${t.number}`} className={cn("group block min-w-0 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring/60", right && "col-start-3 text-right")}>
-        <span className="block font-display text-3xl font-semibold leading-none tracking-tight tabular-nums text-foreground transition-colors group-hover:text-accent-text v8:group-hover:text-foreground sm:text-4xl">{t.number}</span>
+        <span className="block font-display text-3xl font-semibold leading-none tracking-tight tabular-nums text-foreground transition-colors group-hover:text-accent-text v8:text-accent v8:group-hover:text-foreground sm:text-4xl">{t.number}</span>
         <span className="mt-1.5 block break-words text-base text-foreground/90 sm:text-lg">{t.name ?? "Name not on file"}</span>
         <span aria-hidden className={cn("mt-2 block h-1 w-10 rounded-full", teamFill(i), right && "ml-auto")} data-side-mark={i} />
       </Link>
