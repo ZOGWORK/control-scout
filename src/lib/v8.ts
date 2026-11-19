@@ -5,6 +5,9 @@
 import { useSyncExternalStore } from "react";
 
 export const V8_KEY = "cs-v8";
+/** The look a device gets before it picks one (index.html's boot script must match: `=== '1'` while this is false,
+ *  `!== '0'` once it's true). The choice itself is stored as "1" (v8) or "0" (the classic look, /legacy). */
+export const V8_DEFAULT = false;
 
 /** Whether this page load is drawn in v8 (fixed for the load: index.html decides before anything paints). */
 export const isV8 = () => typeof document !== "undefined" && document.documentElement.hasAttribute("data-v8");
@@ -20,11 +23,17 @@ function subscribe(onChange: () => void) {
   return () => mo.disconnect();
 }
 
-/** Turns v8 on or off on this device, then reloads so the whole page is drawn in the chosen look. */
-export function setV8(on: boolean) {
+/** Picks v8 or the classic look on this device (remembered, so it holds after v8 becomes the default), then loads
+ *  `to` (this page when left out) so the whole page is drawn in the chosen look. */
+export function setV8(on: boolean, to?: string) {
   try {
-    if (on) localStorage.setItem(V8_KEY, "1");
-    else localStorage.removeItem(V8_KEY);
-  } catch { /* storage blocked: the ?v8= link still works for this load */ }
-  location.reload();
+    localStorage.setItem(V8_KEY, on ? "1" : "0");
+  } catch {
+    // Storage blocked: load the page with ?v8=, which index.html obeys for that load without storage.
+    const dest = to ?? location.pathname + location.search;
+    location.assign(`${dest}${dest.includes("?") ? "&" : "?"}v8=${on ? 1 : 0}`);
+    return;
+  }
+  if (to) location.assign(to);
+  else location.reload();
 }

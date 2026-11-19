@@ -178,6 +178,7 @@ const STATIC: Record<string, { title: string; description: string; noindex?: boo
   "/contact": { title: "Contact", description: "Contact the Control Scout team: report a bug, ask for a data correction, suggest a feature or ask a question about your data or the site." },
   "/donate": { title: "Support Control Scout", description: "Control Scout is free and stays free. Donations through GitHub Sponsors help pay for the domain, hosting and email. Not tax-deductible, and they unlock nothing." },
   "/preview/home": { title: "Sample home", description: "A sample of the new Control Scout home page, for review.", noindex: true },
+  "/legacy": { title: "Classic look", description: "Switch between Control Scout's new look and the classic one on this device.", noindex: true },
   "/preview/kit": { title: "Kit", description: "Every part of the new Control Scout look, for review.", noindex: true },
   "/my-team": { title: "My team", description: "Your team's dashboard on Control Scout.", noindex: true },
   "/my-teams": { title: "My teams", description: "The FTC teams you're on or manage, with their stats.", noindex: true },

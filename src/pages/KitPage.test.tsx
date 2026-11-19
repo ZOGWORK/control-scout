@@ -57,7 +57,7 @@ describe("v8 kit (/preview/kit)", () => {
 describe("v8 foundations", () => {
   it("turns on before first paint from ?v8=1, off from ?v8=0, and is dark only", () => {
     expect(html).toContain("/[?&]v8=([01])/");
-    expect(html).toContain("localStorage.getItem('cs-v8') === '1'");
+    expect(html).toContain("var v8 = q ? q[1] === '1' : stored === '1';");
     expect(html).toContain("var t = v8 ? 'dark' :");
   });
 
