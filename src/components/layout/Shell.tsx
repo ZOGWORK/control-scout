@@ -33,7 +33,7 @@ import { tabDef, useTabBar } from "../../lib/tabBar";
 import { watchTextSize } from "../../lib/textSize";
 import { useFlag } from "../../lib/flags";
 import { PAGE_FRAME } from "../../shared/boot";
-import { isV8 } from "../../lib/v8";
+import { isV8, useIsV8 } from "../../lib/v8";
 import { Wash, washSize } from "./Wash";
 
 /** `children`: a row that opens to its own pages instead of being one (How it works: Predictions, FTC One Search).
@@ -155,7 +155,12 @@ function SubPagesRow({ item, collapsed, dense, onNavigate }: RowOpts & { item: N
   const { pathname } = useLocation();
   const kids = item.sub ?? [];
   const inSub = kids.some((k) => isUnder(pathname.toLowerCase(), k.to));
-  const [open, setOpen] = useState(false);
+  // v8: on the page or one of its sub-pages the list is open (Sushil 11-19: "when I click Rankings, auto open the
+  // sub-pages"); the arrow still folds it. The classic look keeps it shut until the arrow is pressed.
+  const v8 = useIsV8();
+  const here = v8 && (inSub || isUnder(pathname.toLowerCase(), item.to.toLowerCase()));
+  const [open, setOpen] = useState(here);
+  useEffect(() => { if (here) setOpen(true); }, [here, pathname]);
   const button = useRef<HTMLButtonElement>(null);
   const id = useId();
   const label = `${open ? "Hide" : "Show"} more ${item.label.toLowerCase()}`;

@@ -94,3 +94,20 @@ describe("without v8", () => {
     expect(container.querySelector("header [data-profile]")).toBeNull();
   });
 });
+
+describe("v8 Rankings in the sidebar", () => {
+  beforeEach(() => document.documentElement.setAttribute("data-v8", ""));
+  it("opens its sub-pages on the Rankings page and on a sub-page", () => {
+    for (const at of ["/rankings", "/rankings/regions"]) {
+      const { container } = shell(at);
+      const side = container.querySelector("[data-v8-sidebar]") as HTMLElement;
+      expect(within(side).getByRole("group", { name: "More rankings" }).hidden).toBe(false);
+      cleanup();
+    }
+  });
+  it("stays shut elsewhere", () => {
+    const { container } = shell("/events");
+    const side = container.querySelector("[data-v8-sidebar]") as HTMLElement;
+    expect((side.querySelector("[aria-label='More rankings']") as HTMLElement).hidden).toBe(true);
+  });
+});
