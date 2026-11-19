@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useLocation, useNavigationType, useParams, useSearchParams } from "react-router-dom";
 import { pickHelperQuery } from "../shared/scoutSections";
 import { eventOver } from "../shared/eventDay";
-import { Award, CalendarDays, ChevronDown, Clock, ExternalLink, Gavel, Info, ListOrdered, Loader2, MapPin, Radar, Radio, RefreshCw, Search, Sparkles, Swords, Trophy, Tv, Users } from "lucide-react";
+import { Award, CalendarDays, ChevronDown, Clock, ExternalLink, Gavel, Info, ListOrdered, Loader2, MapPin, MoreHorizontal, Radar, Radio, RefreshCw, Search, Sparkles, Swords, Trophy, Tv, Users } from "lucide-react";
 import { leagueHref } from "../shared/leagues";
 import { CONFERENCE_REGION, conferenceHref, type LeagueConferences } from "../shared/conferences";
 import { useConferenceGate } from "../lib/conferenceGate";
@@ -51,7 +51,7 @@ import { callRecord } from "../lib/eventGlance";
 import { NotFoundView } from "../components/NotFoundView";
 import { hasRuleReference } from "../shared/rules/seasons";
 import { LiveCountdownChip, LivePanel, useLiveTarget } from "../components/LivePanel";
-import { HeaderActions, OfflineVideoNote } from "../components/EventActions";
+import { HeaderActions, LivestreamButton, OfflineVideoNote, TrackEventButton } from "../components/EventActions";
 import { offlineSource } from "../lib/offline/saved";
 import { EventStatusChip, EventTypeChip, LiveDot } from "../components/EventChips";
 import { WatchLive } from "../components/WatchLive";
@@ -70,6 +70,10 @@ import { eventRoster, eventStanding } from "../shared/eventStanding";
 import { SWING_LINE, swingText, swingTitle } from "../shared/reliability";
 import { AllianceChip, AllianceOddsCard, BracketAccuracyNote, BracketSeries, OddsHeading } from "../components/PlayoffBracket";
 import { EventPackButton } from "../components/offline/EventPackButton";
+import { isV8, useIsV8 } from "../lib/v8";
+import { Disclosure, eventState, FinishedFocus, LiveFocus, UpcomingFocus, V8_DEFAULT_TAB, V8_TAB_ORDER } from "../components/EventFocus";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../components/ui/overlay";
+import { EVENT_TABS, type EventTab } from "../lib/eventTab";
 
 export default function EventPage() {
   const { season, code } = useParams();
@@ -91,6 +95,9 @@ export default function EventPage() {
 function Event({ d, path }: { d: EventDetail; path: string }) {
   const [sp, setSp] = useSearchParams();
   const e = d.event;
+  // v8: the page is built around the event's state (live / finished / upcoming), components/EventFocus.tsx.
+  const v8 = useIsV8();
+  const st = eventState(e.status);
   // From what's saved on this device (no connection): its videos can't play (components/EventActions.tsx).
   const saved = !!offlineSource(d);
   // The recording the coverage line and gaps read: linked, playable or not (a private one still says why), and its videos.
@@ -108,7 +115,7 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
   // The records tables follow the live results: fetched again whenever the event's results are checked or the stats are rebuilt.
   const statsAt = useMeta()?.statsAt ?? "";
   const recordsKey = `${d.live?.checkedAt ?? ""}|${statsAt}`;
-  const fallback = sp.get("match") ? "matches" : e.status === "upcoming" && !d.matches.length ? (predictable ? "odds" : "teams") : "matches";
+  const fallback: EventTab = sp.get("match") ? "matches" : v8 ? V8_DEFAULT_TAB[st] : e.status === "upcoming" && !d.matches.length ? (predictable ? "odds" : "teams") : "matches";
   const { tab, valid: validTab } = eventTab(sp.get("tab"), { predictable, fallback });
   // An unknown ?tab= (or Odds on a history season) opens the default tab, and leaves the address without it.
   useEffect(() => { if (!validTab) setSp((x) => { x.delete("tab"); return x; }, { replace: true }); }, [validTab, setSp]);
@@ -143,13 +150,14 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
   const packsOn = useFlag("offlinePacks");
   const oddsOpen = predictable && !d.forecastUnsupported;
   // Opened on a panel (?tab= in the address it arrived at): a slim bar, with the summary behind "Event details".
-  const slim = useArrivedOnTab(sp.has("tab") && validTab);
+  // v8 has one compact header for every visit, so no slim bar.
+  const slim = useArrivedOnTab(sp.has("tab") && validTab) && !v8;
   const [detailsOpen, setDetailsOpen] = useDetailsOpen();
   // Labels, not buttons: filled chips without a border (components/EventChips.tsx).
   const statusBadge = <EventStatusChip status={e.status} />;
   const typeChip = <EventTypeChip type={e.type} label={e.typeLabel} />;
   // Right under the name, so the countdown is on a phone's first screen (in the slim bar too).
-  const live = liveMode && <div ref={livePanel} className="scroll-mt-bar-20"><LivePanel d={d} target={target} refresh={refresh} track={track} /></div>;
+  const live = liveMode && <div ref={livePanel} className="scroll-mt-bar-20"><LivePanel d={d} target={target} refresh={refresh} track={v8 ? undefined : track} noWatch={v8} /></div>;
   // The summary: everything about the event but its name, status and dates (the slim bar's).
   const facts = (full: boolean) => (
     <>
@@ -204,16 +212,92 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
   const shared = !d.field.length && !provisionalTeams ? d.sharedSessions ?? null : null;
   const registeredCount = shared ? shared.teams.length : provisionalTeams?.teams.filter((t) => t.status === "registered").length ?? 0;
   const glance = <EventGlance d={d} onTab={setTab} live={liveMode ? { match: target.next, mine: !!target.mine, open: toLivePanel } : undefined} />;
+  // Your team, the teams you follow, and the one picked in the address: marked "yours" (mint) in v8's first screen.
+  const mine = new Set([personal.myTeam, ...personal.tracked.teams, teamParam].filter((t): t is number => t != null));
+  const showTab = (t: string) => { setTab(t); if (tabsRef.current) scrollToElement(tabsRef.current); };
+  const teamsLine = d.registered ? `${e.teams} teams registered` : !e.teams && shared ? `${registeredCount} teams registered for both sessions` : !e.teams && registeredCount ? `${registeredCount} teams registered (provisional)` : `${e.teams} teams`;
+  const triggers: Record<EventTab, ReactNode> = {
+    matches: <TabsTrigger key="matches" value="matches"><MatchesTabIcon />Matches</TabsTrigger>,
+    rankings: <TabsTrigger key="rankings" value="rankings"><RankingsTabIcon />Rankings</TabsTrigger>,
+    insights: <TabsTrigger key="insights" value="insights"><InsightsTabIcon />Insights</TabsTrigger>,
+    teams: <TabsTrigger key="teams" value="teams"><TeamsTabIcon />Teams <span className="rounded-md bg-current/15 px-1.5 text-[11px] tabular-nums">{eventRoster(d.field).length || registeredCount}</span></TabsTrigger>,
+    playoffs: <TabsTrigger key="playoffs" value="playoffs"><PlayoffsTabIcon />Playoffs</TabsTrigger>,
+    awards: <TabsTrigger key="awards" value="awards"><AwardsTabIcon />Awards</TabsTrigger>,
+    odds: <TabsTrigger key="odds" value="odds"><OddsTabIcon />Odds</TabsTrigger>,
+  };
+  // v8: the tabs follow the state's priority (EventFocus.tsx); the old order otherwise.
+  const tabOrder = (v8 ? V8_TAB_ORDER[st] : EVENT_TABS).filter((t) => t !== "odds" || predictable);
+  // v8's actions beyond Stream and Track, in one menu.
+  const more = (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild><Button variant="outline" size="sm" data-more-actions><MoreHorizontal /> More</Button></DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-[13rem]">
+        {predictable && <DropdownMenuItem asChild><Link to={labHref}><Sparkles /> Open in what-if lab</Link></DropdownMenuItem>}
+        {d.highlights && <DropdownMenuItem asChild><Link to={`/events/${e.season}/${encodeURIComponent(e.code)}/highlights`} data-highlights-link><Sparkles /> Highlights</Link></DropdownMenuItem>}
+        <DropdownMenuItem asChild><Link to={`/events/${e.season}/${encodeURIComponent(e.code)}/display`} data-pit-display-link><Tv /> Pit display</Link></DropdownMenuItem>
+        {e.league && e.region && <DropdownMenuItem asChild><Link to={`${leagueHref(e.season, e.region, e.league)}${teamParam ? `?team=${teamParam}` : ""}`} data-league-link><ListOrdered /> League standings</Link></DropdownMenuItem>}
+        {e.type === "LeagueTournament" && e.league && e.region?.toUpperCase() === CONFERENCE_REGION && <ConferenceLink season={e.season} region={e.region} league={e.league} code={e.code} team={teamParam} menu />}
+        {rulesOn && hasRuleReference(e.season) && <DropdownMenuItem asChild><Link to={`/rules?season=${e.season}`} data-rules-link><Gavel /> Rules</Link></DropdownMenuItem>}
+        {e.website && <DropdownMenuItem asChild><a href={e.website} target="_blank" rel="noreferrer noopener"><ExternalLink /> Event website</a></DropdownMenuItem>}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+  // v8's top of the page: a compact header, then what this state's visitor came for, then the details folded away.
+  const v8Top = v8 && (
+    <>
+      <header className="mb-5 max-sm:mb-4" data-event-header="v8">
+        <div className="flex flex-wrap items-start gap-x-6 gap-y-3">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">{statusBadge}<span className="text-xs text-text-faint">{e.typeLabel} · <span className="font-mono">{e.code}</span> · {seasonLabel(e.season)}</span></div>
+            <h1 className="mt-2 text-[1.375rem] font-semibold leading-7 tracking-tight text-text-base">{e.name}</h1>
+            <p className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-text-muted">
+              <span className="inline-flex items-center gap-1.5"><CalendarDays className="size-4" aria-hidden />{dateRange(e.start, e.end)}</span>
+              {(e.venue || e.city) && (
+                <a href={mapsUrl(place(e.venue, e.address, e.city, e.state, e.country))} target="_blank" rel="noreferrer noopener" className="tap-44 inline-flex min-w-0 max-w-full items-center gap-1.5 transition-colors duration-150 still-hover:text-text-base" data-venue-map>
+                  <MapPin className="size-4 shrink-0" aria-hidden /><span className="truncate">{place(e.venue, e.address, e.city, e.state, e.country)}</span>
+                </a>
+              )}
+              <span className="tabular-nums">{teamsLine}</span>
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 max-sm:w-full" data-header-actions>
+            <LivestreamButton watch={{ url: e.livestream, stream: !!e.stream, finished: e.status === "finished" }} offline={saved} variant={st === "live" ? "default" : "outline"} />
+            <WatchClipsButton matches={d.matches} primary={st === "finished"} />
+            <TrackEventButton track={track} label={{ on: "Tracking", off: "Track event" }} />
+            {more}
+          </div>
+        </div>
+        {d.live && !liveMode && <LiveBar live={d.live} r={refresh} />}
+        <OfflineVideoNote d={d} offline={saved} />
+        {/* The end of the header: the phone's sticky action bar shows once it has scrolled away. */}
+        <div ref={setHeaderEnd} aria-hidden />
+      </header>
+      {st === "live" ? <LiveFocus d={d} panel={live} next={liveMode ? target.next : null} mine={mine} onAll={showTab} />
+        : st === "finished" ? <FinishedFocus d={d} mine={mine} nameOf={nameOf} onAll={showTab} />
+        : <UpcomingFocus d={d} mine={mine} registered={registeredCount} onAll={showTab} />}
+      <Disclosure title="Event details" hint="Recording, sources, offline" className="mb-6 max-sm:mb-4" id="event-details">
+        <div className="text-sm text-text-muted [&>*:first-child]:mt-0">
+          <RecordingCoverageLine {...rec} reserve={d.matches.some((m) => m.played)} playable={!!e.stream} unplayable={!e.stream && !!e.recordingUnavailable?.length} />
+          <RecordingGaps {...rec} />
+          <ResultsSource d={d} />
+          {d.provisional && <ProvisionalDetails p={d.provisional} />}
+          {!predictable && <p className="mt-3 text-xs">{seasonLabel(e.season)} is shown for history: results, rankings and awards, no predictions (those start with 2023–24).</p>}
+          {e.status !== "finished" && bundleOn && packsOn && <EventPackButton season={e.season} code={e.code} field={d.field.map((f) => f.team)} />}
+          <TeamsSource d={d} provisional={!!provisionalTeams} />
+        </div>
+      </Disclosure>
+    </>
+  );
   return (
     <EventClipsProvider season={e.season} code={e.code}>
     <div>
       <OfflineNote data={d} />
-      {slim ? (
-        <Reveal fade={false} className="relative mb-4 overflow-hidden rounded-2xl border border-border bg-card px-4 py-3.5 sm:px-6 sm:py-4" data-event-header="slim">
-          <div aria-hidden className="pointer-events-none absolute -right-16 -top-20 size-56 rounded-full bg-accent opacity-15 blur-3xl" />
+      {v8 ? v8Top : slim ? (
+        <Reveal fade={false} className={cn("relative mb-4 overflow-hidden rounded-2xl border border-border bg-card px-4 py-3.5 sm:px-6 sm:py-4", V8_HEADER)} data-event-header="slim">
+          <div aria-hidden className="pointer-events-none absolute -right-16 -top-20 size-56 rounded-full bg-accent opacity-15 blur-3xl v8:hidden" />
           <div className="relative flex items-start gap-3">
             <div className="min-w-0 flex-1">
-              <h1 className="font-display text-xl font-semibold tracking-tight sm:text-2xl">{e.name}</h1>
+              <h1 className={cn("font-display text-xl font-semibold tracking-tight sm:text-2xl", V8_TITLE)}>{e.name}</h1>
               <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
                 {statusBadge}
                 <span className="flex items-center gap-1.5"><CalendarDays className="size-4" />{dateRange(e.start, e.end)}</span>
@@ -224,7 +308,7 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
             </Button>
           </div>
           <div className="relative">{live}</div>
-          <div id="event-details" hidden={!detailsOpen} className="relative mt-4 border-t border-border pt-4">
+          <div id="event-details" hidden={!detailsOpen} className="relative mt-4 border-t border-border pt-4 v8:border-line">
             {detailsOpen && (
               <div className="grid gap-6 max-sm:gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,28rem)] lg:gap-10">
                 <div className="min-w-0">{facts(false)}</div>
@@ -235,16 +319,16 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
           <div ref={setHeaderEnd} aria-hidden />
         </Reveal>
       ) : (
-        <Reveal fade={false} className="relative mb-6 max-sm:mb-4 overflow-hidden rounded-2xl border border-border bg-card p-4 sm:p-8" data-event-header="full">
-          <div aria-hidden className="pointer-events-none absolute -right-20 -top-24 size-72 rounded-full bg-accent opacity-15 blur-3xl" />
+        <Reveal fade={false} className={cn("relative mb-6 max-sm:mb-4 overflow-hidden rounded-2xl border border-border bg-card p-4 sm:p-8", V8_HEADER)} data-event-header="full">
+          <div aria-hidden className="pointer-events-none absolute -right-20 -top-24 size-72 rounded-full bg-accent opacity-15 blur-3xl v8:hidden" />
           <div className="relative grid gap-6 max-sm:gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,28rem)] lg:gap-10">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               {statusBadge}
               {typeChip}
-              <span className="font-mono text-xs text-muted-foreground">{e.code} · {seasonLabel(e.season)}</span>
+              <span className="font-mono text-xs text-muted-foreground v8:text-text-faint">{e.code} · {seasonLabel(e.season)}</span>
             </div>
-            <h1 className="mt-3 font-display text-3xl font-semibold tracking-tight sm:text-4xl">{e.name}</h1>
+            <h1 className={cn("mt-3 font-display text-3xl font-semibold tracking-tight sm:text-4xl", V8_TITLE)}>{e.name}</h1>
             {live}
             {facts(true)}
           </div>
@@ -271,15 +355,7 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
       {d.highlightVideos && <HighlightVideos videos={d.highlightVideos} />}
       <div ref={tabsRef} className="scroll-mt-bar-4" />
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList>
-          <TabsTrigger value="matches"><MatchesTabIcon />Matches</TabsTrigger>
-          <TabsTrigger value="rankings"><RankingsTabIcon />Rankings</TabsTrigger>
-          <TabsTrigger value="insights"><InsightsTabIcon />Insights</TabsTrigger>
-          <TabsTrigger value="teams"><TeamsTabIcon />Teams <span className="rounded-md bg-current/15 px-1.5 text-[11px] tabular-nums">{eventRoster(d.field).length || registeredCount}</span></TabsTrigger>
-          <TabsTrigger value="playoffs"><PlayoffsTabIcon />Playoffs</TabsTrigger>
-          <TabsTrigger value="awards"><AwardsTabIcon />Awards</TabsTrigger>
-          {predictable && <TabsTrigger value="odds"><OddsTabIcon />Odds</TabsTrigger>}
-        </TabsList>
+        <TabsList>{tabOrder.map((t) => triggers[t])}</TabsList>
         <TabsContent value="matches" className="mt-5 max-sm:mt-4">
           <Matches d={d} team={teamParam} live={liveMode ? nextMatch(d.matches, null)?.key ?? null : null} />
           {/* Official results first posted, corrected or rescheduled (self-contained: its own route). */}
@@ -340,9 +416,12 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
           ) : (
             <>
             {/* The stored Monte Carlo projection of the rest of the event (server/projections), live as results land. */}
-            <div className="mb-10 max-sm:mb-6"><Projections d={d} team={teamParam} /></div>
+            {v8
+              // v8: the full Monte Carlo table is for the curious, behind a disclosure; advancement odds lead.
+              ? <Disclosure title="Projections" hint="Simulated final ranks and playoff odds" className="mb-6 max-sm:mb-4" id="projections-disclosure"><Projections d={d} team={teamParam} /></Disclosure>
+              : <div className="mb-10 max-sm:mb-6"><Projections d={d} team={teamParam} /></div>}
             <section aria-label="Advancement odds" className="mb-10 max-sm:mb-6">
-              <h2 className="mb-3 font-display text-lg font-semibold text-foreground">Advancement odds</h2>
+              <h2 className="mb-3 font-display text-lg font-semibold text-foreground v8:font-sans v8:text-base">Advancement odds</h2>
               <AdvancementView season={e.season} code={e.code} team={teamParam} nameOf={nameOf} onPickTeam={setTeam} />
             </section>
             </>
@@ -357,6 +436,12 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
     </EventClipsProvider>
   );
 }
+
+// v8 (docs/design/v8-revamp-brief.md §6-7): the header is the top of the page, not a card (the shell's wash sits
+// behind it); the name is the page title; chips and stat tags carry no colour of their own.
+const V8_HEADER = "v8:overflow-visible v8:rounded-none v8:border-0 v8:bg-transparent v8:p-0 v8:sm:p-0";
+const V8_TITLE = "v8:font-sans v8:text-[1.375rem] v8:font-semibold v8:leading-7 v8:tracking-tight v8:sm:text-[1.375rem]";
+const V8_STAT_CHIP = "v8:bg-white/[0.05] v8:text-text-muted";
 
 /** Google Maps' search for a place, the address form that opens the Maps app on a phone. */
 export const mapsUrl = (q: string) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
@@ -419,7 +504,7 @@ function LiveBar({ live, r }: { live: NonNullable<EventDetail["live"]>; r: Retur
   const { busy, note } = r;
   return (
     <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2">
-      <span className="inline-flex items-center gap-2 rounded-full border border-destructive/30 bg-destructive/10 px-3 py-1 text-xs font-medium text-foreground">
+      <span className="inline-flex items-center gap-2 rounded-full border border-destructive/30 bg-destructive/10 px-3 py-1 text-xs font-medium text-foreground v8:border-white/[0.12] v8:bg-transparent">
         <LiveDot />
         {live.checkedAt ? <>Results updated <time dateTime={live.checkedAt} className="tabular-nums">{agoSeconds(live.checkedAt, now)}</time></> : "Results not checked yet today"}
       </span>
@@ -463,7 +548,7 @@ function MatchOdds({ d, team, onTab }: { d: EventDetail; team: number | null; on
             : "No schedule published yet. Every match gets win odds and a predicted score as soon as it is (usually the morning of the event).";
   return (
     <section aria-label="Match predictions">
-      <h2 className="mb-1 font-display text-lg font-semibold text-foreground">Match predictions</h2>
+      <h2 className="mb-1 font-display text-lg font-semibold text-foreground v8:font-sans v8:text-base">Match predictions</h2>
       <p className="mb-3 text-sm text-muted-foreground">{message}</p>
       {!ended && unplayed.length > 0 && <MatchList matches={unplayed} highlight={team ?? undefined} />}
     </section>
@@ -530,7 +615,7 @@ const NOTE_NO_RECORDS = "Filters, every stat and CSV export arrive here after th
 const NOTE_OFFLINE = "You're offline, so here is the ranking saved on this device. Filters, every stat and export need a connection.";
 /** An unofficial event (a scrimmage…): its records are real, but the ratings never learn from them. */
 function UnofficialNote({ text }: { text: string }) {
-  return <p className="mb-3 flex items-start gap-2 rounded-lg border border-info/30 bg-info/[0.06] px-3 py-2 text-xs text-muted-foreground" data-unofficial-note><Info className="mt-0.5 size-3.5 shrink-0 text-info" aria-hidden /><span>{text}</span></p>;
+  return <p className="mb-3 flex items-start gap-2 rounded-lg border border-info/30 bg-info/[0.06] px-3 py-2 text-xs text-muted-foreground v8:border-line v8:bg-card" data-unofficial-note><Info className="mt-0.5 size-3.5 shrink-0 text-info v8:text-text-faint" aria-hidden /><span>{text}</span></p>;
 }
 /** Why an event table's column can be empty for every team (RecordsTable shows the line only when it is). */
 const EMPTY_COLUMN_NOTES: Partial<Record<string, string>> = {
@@ -550,9 +635,9 @@ function RankingNotes({ d, advOdds, refreshKey }: { d: EventDetail; advOdds: boo
   if (!coverage && !advOdds && !swing) return null;
   return (
     <ul className="mb-3 space-y-1.5 text-xs text-muted-foreground" data-ranking-notes>
-      {coverage && <li className="flex items-start gap-2"><Users className="mt-0.5 size-3.5 shrink-0 text-accent-text" aria-hidden /><span>{coverage}</span></li>}
+      {coverage && <li className="flex items-start gap-2"><Users className="mt-0.5 size-3.5 shrink-0 text-accent-text v8:text-text-faint" aria-hidden /><span>{coverage}</span></li>}
       {advOdds && <AdvOddsBasis season={d.event.season} code={d.event.code} refreshKey={refreshKey} />}
-      {swing && <li className="flex items-start gap-2" data-swing-line><Info className="mt-0.5 size-3.5 shrink-0 text-accent-text" aria-hidden /><span>{SWING_LINE} <Link to="/methodology#swing" className="underline">How it's computed</Link></span></li>}
+      {swing && <li className="flex items-start gap-2" data-swing-line><Info className="mt-0.5 size-3.5 shrink-0 text-accent-text v8:text-text-faint" aria-hidden /><span>{SWING_LINE} <Link to="/methodology#swing" className="underline">How it's computed</Link></span></li>}
     </ul>
   );
 }
@@ -561,7 +646,7 @@ function AdvOddsBasis({ season, code, refreshKey }: { season: number; code: stri
   const proj = useProjections(season, code, { live: false, refreshKey });
   const statsAt = useMeta()?.statsAt ?? null;
   if (!proj.data && !proj.error) return null;
-  return <li className="flex items-start gap-2"><Trophy className="mt-0.5 size-3.5 shrink-0 text-amber-500" aria-hidden /><span>{advOddsBasis(proj.data?.current ?? null, statsAt)}</span></li>;
+  return <li className="flex items-start gap-2"><Trophy className="mt-0.5 size-3.5 shrink-0 text-amber-500 v8:text-text-faint" aria-hidden /><span>{advOddsBasis(proj.data?.current ?? null, statsAt)}</span></li>;
 }
 /** Insights tab: where the points come from. */
 const INSIGHT_COLS = ["totalPointsNpOpr", "autoPointsOpr", "dcPointsOpr", "endgamePointsOpr", "penaltyPointsCommittedOpr", "autoPointsAvg", "dcPointsAvg", "endgamePointsAvg", "totalPointsNpMax", "predictedScoreAvg"];
@@ -573,9 +658,9 @@ const INSIGHT_COLS = ["totalPointsNpOpr", "autoPointsOpr", "dcPointsOpr", "endga
  */
 function LiveStandings({ field, season, team, code, schedule }: { field: FieldRow[]; season: number; team: number | null; code: string; schedule: ScheduleDifficulty | null }) {
   return (
-    <section aria-label="Live standings" className="mb-8 max-sm:mb-5 rounded-xl border border-danger/30 bg-danger/[0.04] p-3 sm:p-4">
+    <section aria-label="Live standings" className="mb-8 max-sm:mb-5 rounded-xl border border-danger/30 bg-danger/[0.04] p-3 sm:p-4 v8:border-line v8:bg-card" data-live-standings>
       <h2 className="mb-3 flex flex-wrap items-center gap-2 text-sm font-semibold">
-        <Radio className="size-4 text-danger" /> Live standings
+        <Radio className="size-4 text-danger v8:text-live" /> Live standings
         <span className="font-normal text-muted-foreground">· updated as matches are scored</span>
       </h2>
       <Rankings field={field} season={season} team={team} code={code} schedule={schedule} />
@@ -621,7 +706,8 @@ function RankingTable({ field, season, team, code, schedule }: { field: FieldRow
   const rs = (r: FieldRow) => (meet ? r.meet?.rs ?? null : r.rp);
   const rec = (r: FieldRow): (number | null)[] => (meet ? (r.meet ? [r.meet.wins, r.meet.losses, r.meet.ties] : [null, null, null]) : [r.wins, r.losses, r.ties]);
   const cols: Col<FieldRow>[] = [
-    { key: "rank", label: "Rank", value: rank, asc: true, align: "right", render: (r) => rank(r) ?? "—" },
+    // v8: mint marks the #1 rank only (brief principle 3).
+    { key: "rank", label: "Rank", value: rank, asc: true, align: "right", render: (r) => <span className={cn(rank(r) === 1 && "v8:font-semibold v8:text-accent")} data-rank={rank(r) ?? undefined}>{rank(r) ?? "—"}</span> },
     { key: "team", label: "Team", value: (r) => r.team, render: (r) => phone && hasTeamPage(r.team, r.name)
       ? <TeamNumber team={r.team} name={r.name ?? ""} href={`/teams/${r.team}?season=${season}`} />
       : <TeamPageLink team={r.team} name={r.name} season={season} className="hover:underline"><span className="font-mono font-medium">{r.team}</span> <span className="text-muted-foreground">{r.name}</span></TeamPageLink> },
@@ -667,6 +753,9 @@ function RankingTable({ field, season, team, code, schedule }: { field: FieldRow
  *  the teams at this meet, with the meet's own rank and record (src/shared/eventStanding.ts). */
 function TeamsGrid({ field: all, season, team, predictable, registered, syncedAt }: { field: FieldRow[]; season: number; team: number | null; predictable: boolean; registered: EventDetail["registered"]; syncedAt?: string | null }) {
   const field = eventRoster(all).map((t) => ({ ...t, ...eventStanding(t) }));
+  // v8: no hover lift on the team cards (brief §4.2); a fill on hover instead.
+  const v8 = isV8();
+  const anyRank = field.some((t) => t.rank != null);
   const [q, setQ] = useState("");
   const f = q.trim().toLowerCase();
   const list = [...field]
@@ -690,21 +779,23 @@ function TeamsGrid({ field: all, season, team, predictable, registered, syncedAt
         <ul className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
           {list.map((t) => (
             <li key={t.team}>
-              <TeamPageLink team={t.team} name={t.name} season={season} className={cn("flex h-full items-center gap-3 rounded-xl border border-border bg-card p-3", hasTeamPage(t.team, t.name) && "lift", t.team === team && "border-accent/60 bg-accent/[0.06]")}>
+              <TeamPageLink team={t.team} name={t.name} season={season} className={cn("flex h-full items-center gap-3 rounded-xl border border-border bg-card p-3 v8:border-line v8:transition-colors v8:duration-150 v8:still-hover:bg-white/[0.03]", hasTeamPage(t.team, t.name) && !v8 && "lift", t.team === team && "border-accent/60 bg-accent/[0.06] v8:bg-card")}>
                 {/* Registrations have no rank yet: no empty rank box. */}
-                {!registered && (
-                  <span className="flex size-12 shrink-0 flex-col items-center justify-center rounded-lg bg-muted text-center">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Rank</span>
-                    <span className={cn("font-display text-lg font-semibold leading-none tabular-nums", t.rank != null && t.rank <= 4 && "text-accent-text")}>{t.rank ?? "–"}</span>
+                {/* v8: no column of empty rank boxes before anyone is ranked. */}
+                {!registered && (!v8 || anyRank) && (
+                  <span className="flex size-12 shrink-0 flex-col items-center justify-center rounded-lg bg-muted text-center v8:bg-white/[0.04]">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground v8:text-[0.6875rem] v8:font-medium v8:normal-case v8:tracking-normal v8:text-text-faint">Rank</span>
+                    {/* v8: mint for the #1 rank only (brief principle 3). */}
+                    <span className={cn("font-display text-lg font-semibold leading-none tabular-nums", t.rank != null && t.rank <= 4 && "text-accent-text", t.rank !== 1 && "v8:text-text-base")}>{t.rank ?? "–"}</span>
                   </span>
                 )}
                 <span className="min-w-0 flex-1">
                   <span className="flex items-baseline gap-2"><span className="font-mono font-semibold">{t.team}</span><span className="truncate text-sm" title={t.name ?? undefined}>{t.name}</span></span>
                   <span className="block truncate text-xs text-muted-foreground">{place(t.city, t.state) || "—"}</span>
                   <span className="mt-1.5 flex flex-wrap gap-1.5 text-[11px] tabular-nums">
-                    {t.opr.np != null && <span className={cn("rounded-md px-1.5 py-0.5", ROSTER_CHIP_TONE.npOpr)}>npOPR {num(t.opr.np)}</span>}
-                    {t.wins != null && <span className={cn("rounded-md px-1.5 py-0.5", ROSTER_CHIP_TONE.record)}>{t.wins}-{t.losses ?? 0}-{t.ties ?? 0}</span>}
-                    {predictable && t.rating && <span className="rounded-md bg-accent/15 px-1.5 py-0.5 text-accent-text">Rating {num(t.rating.np)} ±{num(t.rating.sd, 0)}</span>}
+                    {t.opr.np != null && <span className={cn("rounded-md px-1.5 py-0.5", ROSTER_CHIP_TONE.npOpr, V8_STAT_CHIP)}>npOPR {num(t.opr.np)}</span>}
+                    {t.wins != null && <span className={cn("rounded-md px-1.5 py-0.5", ROSTER_CHIP_TONE.record, V8_STAT_CHIP)}>{t.wins}-{t.losses ?? 0}-{t.ties ?? 0}</span>}
+                    {predictable && t.rating && <span className={cn("rounded-md bg-accent/15 px-1.5 py-0.5 text-accent-text", V8_STAT_CHIP)}>Rating {num(t.rating.np)} ±{num(t.rating.sd, 0)}</span>}
                   </span>
                 </span>
               </TeamPageLink>
@@ -764,7 +855,7 @@ function Playoffs({ d }: { d: EventDetail }) {
           Absolutely placed, so the stack's spacing doesn't change. */}
       <h2 className="sr-only">Playoffs</h2>
       {bracket && !playoff.length && (
-        <p className="rounded-lg border border-accent/30 bg-accent/[0.06] px-3 py-2 text-sm">Alliances are set; the playoff schedule isn't posted yet. The odds below come from the alliances alone and update after every series.</p>
+        <p className="rounded-lg border border-accent/30 bg-accent/[0.06] px-3 py-2 text-sm v8:border-line v8:bg-card">Alliances are set; the playoff schedule isn't posted yet. The odds below come from the alliances alone and update after every series.</p>
       )}
       <div className="space-y-3">
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -774,10 +865,10 @@ function Playoffs({ d }: { d: EventDetail }) {
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {al.map((a) => (
             <AllianceOddsCard key={a.number} odds={oddsBy.get(a.number)}>
-              <p className="flex items-center gap-1.5 text-xs text-muted-foreground">{bracket ? <AllianceChip alliance={a.number} /> : null}Alliance {a.number}</p>
+              <p className="flex items-center gap-1.5 text-xs text-muted-foreground v8:text-text-faint">{bracket ? <AllianceChip alliance={a.number} /> : null}Alliance {a.number}</p>
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {[a.captain, a.pick1, a.pick2, a.backup].filter((t): t is number => t != null).map((t, i) => (
-                  <TeamPageLink key={t} team={t} name={d.field.find((f) => f.team === t)?.name} season={d.event.season} className={cn("rounded-md px-2 py-0.5 font-mono text-sm", i === 0 ? "bg-accent text-accent-ink" : "bg-muted")}>{t}</TeamPageLink>
+                  <TeamPageLink key={t} team={t} name={d.field.find((f) => f.team === t)?.name} season={d.event.season} className={cn("rounded-md px-2 py-0.5 font-mono text-sm", i === 0 ? "bg-accent text-accent-ink v8:bg-white/10 v8:font-semibold v8:text-text-base" : "bg-muted v8:bg-white/[0.04]")}>{t}</TeamPageLink>
                 ))}
               </div>
             </AllianceOddsCard>
@@ -807,7 +898,7 @@ function LegacyBracket({ d, bySeries }: { d: EventDetail; bySeries: Map<number, 
           const winnerAl = last && last.red.score && last.blue.score ? allianceOf((last.red.score.total > last.blue.score.total ? last.red : last.blue).teams.map((t) => t.number)) : null;
           const isFinal = i === bracket.matches.length - 1;
           return (
-            <div key={i} className={cn("rounded-xl border border-border bg-card p-3", isFinal && "border-accent/40")}>
+            <div key={i} className={cn("rounded-xl border border-border bg-card p-3 v8:border-line", isFinal && "border-accent/40 v8:border-white/[0.12]")}>
               <p className="text-xs font-medium text-muted-foreground">M{i + 1}{isFinal ? " · Grand final" : ""}</p>
               <p className="mt-1 text-sm">{slotLabel(bm.red)} <span className="text-muted-foreground">vs</span> {slotLabel(bm.blue)}</p>
               {ms.length ? ms.map((m) => (
@@ -832,8 +923,8 @@ function Awards({ d, nameOf }: { d: EventDetail; nameOf: (t: number) => string }
       {!d.awards.length ?<EmptyState icon={Award} title="No awards published yet" description="Awards appear after the closing ceremony." /> : (
         <ul className="grid gap-2 sm:grid-cols-2">
           {d.awards.map((a) => (
-            <li key={`${a.type}${a.placement}${a.team}`} className="flex items-center gap-3 rounded-xl border border-border bg-card p-3">
-              <Award className="size-5 shrink-0 text-accent" />
+            <li key={`${a.type}${a.placement}${a.team}`} className="flex items-center gap-3 rounded-xl border border-border bg-card p-3 v8:border-line">
+              <Award className="size-5 shrink-0 text-accent v8:text-text-muted" />
               <div className="min-w-0"><p className="text-sm font-medium">{a.name ?? awardLabel(a.type, a.placement)}</p><TeamPageLink team={a.team} name={nameOf(a.team)} season={s} className="text-sm text-muted-foreground hover:underline"><span className="font-mono">{a.team}</span> {nameOf(a.team)}</TeamPageLink></div>
             </li>
           ))}
@@ -845,10 +936,12 @@ function Awards({ d, nameOf }: { d: EventDetail; nameOf: (t: number) => string }
 
 /** A New Jersey conference tournament's link to its conference's league-standing table, for visitors the gate lets see
  *  it; nothing when the stored data names no conference for this (season, code). */
-function ConferenceLink({ season, region, league, code, team }: { season: number; region: string; league: string; code: string; team: number | null }) {
+/** `menu`: drawn as an item of v8's More menu. */
+function ConferenceLink({ season, region, league, code, team, menu }: { season: number; region: string; league: string; code: string; team: number | null; menu?: boolean }) {
   const shown = useConferenceGate(region, season);
   const r = useApi<LeagueConferences>(shown ? `/api/leagues/${season}/${encodeURIComponent(region)}/${encodeURIComponent(league)}/conferences` : null);
   const c = r.data?.conferences.find((x) => x.code.toUpperCase() === code.toUpperCase());
   if (!c) return null;
+  if (menu) return <DropdownMenuItem asChild><Link to={conferenceHref(season, region, league, { slug: c.slug, team })} data-conference-link><ListOrdered /> {c.name} rankings</Link></DropdownMenuItem>;
   return <Button variant="outline" size="sm" asChild><Link to={conferenceHref(season, region, league, { slug: c.slug, team })} data-conference-link><ListOrdered /> {c.name} rankings</Link></Button>;
 }

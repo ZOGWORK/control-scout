@@ -8,7 +8,7 @@ import { TeamNumber } from "./records/RecordsTable";
 import { leagueRecord, rankingScore, type LeagueStandingRow } from "../shared/leagues";
 import { regionHref } from "../shared/regionRankings";
 
-const TH = "h-9 whitespace-nowrap px-2.5 text-[10px] font-bold uppercase tracking-wider text-text-muted max-sm:px-1.5";
+const TH = "h-9 whitespace-nowrap px-2.5 text-[10px] font-bold uppercase tracking-wider text-text-muted v8:text-xs v8:font-medium v8:normal-case v8:tracking-normal v8:text-text-faint max-sm:px-1.5";
 const TD = "whitespace-nowrap px-2.5 py-1.5 max-sm:px-1.5";
 
 /** `scout`: Scout's columns after FIRST's (rating, OPR, rank in the team's region, linked), on the league's own page. */
@@ -43,7 +43,7 @@ export function LeagueTable({ rows, season, team, maxRows, scout }: { rows: Leag
             const href = `/teams/${r.team}?season=${season}`;
             return (
               <tr key={r.team} data-marked={marked ? "" : undefined} aria-current={marked ? "true" : undefined}
-                className={cn("border-b border-border last:border-b-0", marked && "bg-muted font-semibold shadow-[inset_3px_0_0_var(--color-text-base)]")}>
+                className={cn("border-b border-border last:border-b-0", marked && "bg-muted font-semibold shadow-[inset_3px_0_0_var(--color-text-base)] v8:bg-white/[0.04] v8:shadow-[inset_2px_0_0_var(--color-accent)]")}>
                 <td className={cn(TD, "text-right tabular-nums")}>{r.rank}</td>
                 <td className={cn(TD, "max-w-[16rem] truncate")}>
                   <span className="sm:hidden"><TeamNumber team={r.team} name={r.name ?? ""} href={href} /></span>
