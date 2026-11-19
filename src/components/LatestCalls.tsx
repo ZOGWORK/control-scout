@@ -119,8 +119,8 @@ function CallRow({ m }: { m: Call }) {
       <WinBar pRed={p} size="sm" className="mt-2" />
       <p className="mt-2 flex flex-wrap items-center justify-between gap-x-3 text-xs">
         <span className="text-text-muted">{pick ? <>Called <span className={pick === "red" ? "text-red-alliance" : "text-blue-alliance"}>{pick === "red" ? "Red" : "Blue"} {pickPct(pick === "red" ? p : 1 - p)}</span> before the match</> : "A 50:50 call before the match"}</span>
-        {o === "right" ? <span className="inline-flex items-center gap-1 font-semibold text-success v8:text-text-base"><Check className="size-3.5" aria-hidden /> Right</span>
-          : o === "missed" ? <span className="inline-flex items-center gap-1 font-semibold text-danger v8:font-medium v8:text-text-muted"><X className="size-3.5" aria-hidden /> Missed</span>
+        {o === "right" ? <span className="inline-flex items-center gap-1 font-semibold text-success v8:text-emerald-400"><Check className="size-3.5" aria-hidden /> Right</span>
+          : o === "missed" ? <span className="inline-flex items-center gap-1 font-semibold text-danger v8:font-medium v8:text-rose-400"><X className="size-3.5" aria-hidden /> Missed</span>
           : <span className="text-text-muted">{o === "tie" ? "Tied match" : "No pick"}</span>}
       </p>
     </li>

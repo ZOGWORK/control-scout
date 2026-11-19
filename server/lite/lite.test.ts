@@ -239,11 +239,12 @@ describe("the look: v8 unless this device picked the classic one", () => {
     expect(v8).toContain(`<meta name="theme-color" content="#0a0a0b">`);
     expect(v8).toContain(`<style>${LITE_V8_STYLE}</style>`);
     expect(LITE_V8_STYLE).toContain("--acc:#a3b6e0");
+    // The bright alliance pair (never faded) and wins and "Right" green, as in the app.
     expect(LITE_V8_STYLE).toContain("--red:#f43f5e");
     expect(LITE_V8_STYLE).toContain("--blue:#38bdf8");
-    // Wins, "Right" and "yours" are white; the brand mark too.
+    expect(LITE_V8_STYLE).toContain("--ok:#34d399");
+    // Accent text and the brand mark are white.
     expect(LITE_V8_STYLE).toContain("--at:#f4f4f5");
-    expect(LITE_V8_STYLE).toContain("--ok:#f4f4f5");
     expect(LITE_V8_STYLE).toContain(".brand path{fill:var(--fg)}");
     // No yellow, mint or teal in what v8 paints (the mark's inline gold is painted over).
     for (const c of ["#ffc700", "#eab308", "#7fd1ae", "#14b8a6", "#2dd4bf"]) expect(LITE_V8_STYLE, c).not.toContain(c);
