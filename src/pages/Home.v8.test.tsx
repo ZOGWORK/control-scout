@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-// Home under v8 is the dashboard (src/components/home/HomeDashboard.tsx): the mark and search first, four Try chips,
-// then Events live now, Top teams and Your teams, in that order, with no headline. The v8 shell draws the sidebar,
+// Home under v8 is the dashboard (src/components/home/HomeDashboard.tsx): the headline and search first, four Try chips,
+// then Events live now, Top teams and Your teams, in that order, with a two-tone headline. The v8 shell draws the sidebar,
 // your picture, the wash and Report a bug, so Home draws none of them. Without v8, Home is the old one.
 import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -35,14 +35,14 @@ afterEach(() => { cleanup(); document.documentElement.removeAttribute("data-v8")
 describe("Home under v8", () => {
   beforeEach(() => document.documentElement.setAttribute("data-v8", ""));
 
-  it("is the dashboard: the mark and search first, four chips, then the three cards in order, no headline", () => {
+  it("is the dashboard: the headline and search first, four chips, then the three cards in order, no headline", () => {
     const { container } = mount();
     const dash = container.querySelector("[data-home-dashboard]") as HTMLElement;
     expect(dash).toBeTruthy();
-    expect(container.querySelector("h1")).toBeNull();
-    // Search comes before every card, with the mark above it.
+    expect(screen.getByRole("heading", { level: 1, name: /See the whole field/ })).toBeTruthy();
+    // Search comes before every card, with the headline above it.
     const searchSection = screen.getByRole("region", { name: "Search" });
-    expect(searchSection.querySelector("[data-mark]")).toBeTruthy();
+    expect(searchSection.querySelector("h1")).toBeTruthy();
     expect(within(searchSection).getByRole("combobox", { name: /Search teams, events and matches/ })).toBeTruthy();
     const firstCard = container.querySelector("[data-card]")!;
     expect(searchSection.compareDocumentPosition(firstCard) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();

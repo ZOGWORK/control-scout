@@ -292,51 +292,12 @@ html[data-text-size="xl"] { --ui-scale: 1.25; }
 @media (min-width: 2100px) { html:has([data-sample-home]) { --ui-base: 1.1; } }
 @media (min-width: 2500px) { html:has([data-sample-home]) { --ui-base: 1.23; } }
 
-/* Home lighting study. Scoped to the sample route so it can be reviewed before
-   changing the shared v8 shell or its owner-adjustable wash. The brighter upper
-   atmosphere gives way to quiet, readable cards instead of lighting every row. */
-[data-sample-home] {
-  --wash-a: #477fa0;
-  --wash-b: #786b9c;
-  --wash-c: #b77870;
-  --wash-strength: 1;
-  --wash-spread: 1.35;
-}
-[data-sample-home] [data-sample-main] {
-  isolation: isolate;
-  background: radial-gradient(ellipse 52% 25% at 53% 9%, rgb(161 180 216 / .075), transparent 78%), #0b0d11;
-}
-[data-sample-home] [data-wash] {
-  filter: saturate(.82);
-}
-[data-sample-home] [data-wash]::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(180deg, rgb(255 255 255 / .075), transparent 60%);
-  mix-blend-mode: screen;
-}
-[data-sample-home] [data-home-dashboard] [data-mark] {
-  filter: drop-shadow(0 0 24px rgb(219 232 255 / .3));
-}
-[data-sample-home] [data-home-dashboard] [data-card] {
-  background: linear-gradient(145deg, rgb(39 43 53 / .92), rgb(19 21 27 / .96) 48%, rgb(16 18 23 / .98));
-  border-color: rgb(223 228 245 / .14);
-  box-shadow: inset 0 1px rgb(255 255 255 / .08), 0 16px 48px rgb(0 0 0 / .18);
-}
-[data-sample-home] [data-home-dashboard] [data-card="live"] {
-  background: radial-gradient(ellipse 100% 75% at 0 0, rgb(124 162 186 / .13), transparent 75%), linear-gradient(145deg, #252933, #14161c 56%, #111319);
-}
-[data-sample-home] [data-home-dashboard] [data-card="team"] {
-  background: radial-gradient(ellipse 100% 75% at 100% 0, rgb(164 129 154 / .12), transparent 75%), linear-gradient(145deg, #252630, #14161c 56%, #111319);
-}
-[data-sample-home] [data-home-dashboard] [data-card] :is(h2, a, button) {
-  position: relative;
-}
-@media (max-width: 767px) {
-  [data-sample-home] { --wash-spread: 1.05; }
-  [data-sample-home] [data-home-dashboard] [data-card] { box-shadow: inset 0 1px rgb(255 255 255 / .07); }
-}
+/* The moving pinpoints sit behind v8 content, with no pointer or layout cost. */
+[data-dot-wave] { opacity: .95; }
+[data-dot-wave] [data-dot-band] { transform-origin: center; animation: dot-drift 16s ease-in-out infinite alternate; }
+[data-dot-wave] [data-dot-band="near"] { animation-duration: 20s; animation-direction: alternate-reverse; }
+@keyframes dot-drift { from { transform: translate3d(-1.5%, 1.5%, 0); } to { transform: translate3d(1.5%, -1.5%, 0); } }
+@media (prefers-reduced-motion: reduce) { [data-dot-wave] [data-dot-band] { animation: none; } }
 
 /* ---- v8 (docs/design/v8-revamp-brief.md) ------------------------------------------------------------------
    Dark only (Q1), the wash's light slate blue as the accent, the "90% zoom" root as the new 100% (Q3) with the big-screen steps on top, three
