@@ -122,7 +122,7 @@ describe("the match screen in v8", () => {
     expect(cur.className).toContain("v8:ring-accent/70");
     expect(own(cur.className)).toContain("bg-accent/15");
     const done = screen.getByRole("button", { name: /Q1, done/ });
-    expect(done.className).toContain("v8:text-text-base");
+    expect(done.className).toContain("v8:text-emerald-400"); // a scouted match keeps its green (done)
   });
   it("gives the form's controls 48px and the 0.97 press", () => {
     render(<BigFieldInput f={{ id: "c", label: "Samples", type: "choice", options: ["Low", "High"] } as never} value={undefined} onChange={() => {}} />);

@@ -162,7 +162,7 @@ function QuickRow({ t, q, onChange, onOpenFull, disabled }: { t: TeamState; q: Q
                 return (
                   <button key={field.id} type="button" aria-pressed={on} aria-label={`${team} ${field.label}`} title={field.label} disabled={disabled}
                     onClick={() => set(field.id, !on)}
-                    className={cn(tap, pill, !on ? "border-border text-muted-foreground hover:text-foreground" : bad ? "border-danger/50 bg-danger/10 text-danger-text" : "border-success/50 bg-success/10 text-success-text")}>{short}</button>
+                    className={cn(tap, pill, !on ? "border-border text-muted-foreground hover:text-foreground" : bad ? "border-danger/50 bg-danger/10 text-danger-text" : "border-success/50 v8:border-emerald-400/50 bg-success/10 v8:bg-emerald-400/10 text-success-text v8:text-emerald-400")}>{short}</button>
                 );
               })}
             </div>

@@ -462,6 +462,11 @@ const FLAG_TONE: Record<DataFlag["kind"] | WatchFlag["kind"], string> = {
   inconsistent: "border-warning/40 bg-warning/10 text-warning",
   rising: "border-success/40 bg-success/10 text-success",
 };
+/** v8: the pill stays outlined and quiet; its text keeps the flag's meaning where it has one of v8's colours
+ *  (yours slate blue, penalties red, rising green). */
+const FLAG_TONE_V8: Partial<Record<DataFlag["kind"] | WatchFlag["kind"], string>> = {
+  mine: "v8:text-accent", assigned: "v8:text-accent", penalties: "v8:text-rose-400", rising: "v8:text-emerald-400",
+};
 
 /** One flag: a chip that opens its reason on tap or click. */
 function FlagChip({ f }: { f: DataFlag | WatchFlag }) {
@@ -471,7 +476,7 @@ function FlagChip({ f }: { f: DataFlag | WatchFlag }) {
       <PopoverTrigger asChild>
         <button type="button" className={cn("inline-flex min-h-8 items-center gap-1 rounded-full border px-2.5 text-xs font-medium pointer-coarse:min-h-[44px]", FLAG_TONE[f.kind],
           // v8: a quiet outlined pill (brief §5 Status); the icon says the kind.
-          "v8:border-white/[0.12] v8:bg-transparent v8:text-text-base")} aria-label={`${f.label}: ${f.detail}`} data-flag={f.kind}>
+          "v8:border-white/[0.12] v8:bg-transparent v8:text-text-base", FLAG_TONE_V8[f.kind])} aria-label={`${f.label}: ${f.detail}`} data-flag={f.kind}>
           <Icon className="size-3.5" aria-hidden />{f.label}
         </button>
       </PopoverTrigger>
@@ -544,11 +549,11 @@ function OprSplitBar({ opr }: { opr: OprSplit | null }) {
   return (
     <div className="min-w-0">
       <div className="flex h-2 overflow-hidden rounded-full bg-muted" role="img" aria-label={PARTS.map((p) => `${p.label} ${num(opr[p.k])}`).join(", ")}>
-        {sum > 0 && PARTS.map((p) => v[p.k] > 0 && <div key={p.k} className="h-full" style={{ width: `${(v[p.k] / sum) * 100}%`, background: p.fill }} />)}
+        {sum > 0 && PARTS.map((p) => v[p.k] > 0 && <div key={p.k} className={cn("h-full", p.v8)} style={{ width: `${(v[p.k] / sum) * 100}%`, background: p.fill }} />)}
       </div>
       <p className="mt-1 flex flex-wrap gap-x-2.5 text-[11px] tabular-nums text-muted-foreground">
         {PARTS.map((p) => (
-          <span key={p.k} className="inline-flex items-center gap-1"><span aria-hidden className="size-1.5 rounded-full" style={{ background: p.fill }} />{p.short} <span className="text-foreground">{num(opr[p.k])}</span></span>
+          <span key={p.k} className="inline-flex items-center gap-1"><span aria-hidden className={cn("size-1.5 rounded-full", p.v8)} style={{ background: p.fill }} />{p.short} <span className="text-foreground">{num(opr[p.k])}</span></span>
         ))}
       </p>
     </div>
@@ -604,7 +609,7 @@ function TeamTake({ team, season, ws, reliability }: { team: number; season: num
           ))}
         </dl>
       )}
-      <TagRow icon={<ThumbsUp className="size-3.5 text-success" aria-hidden />} label="Strengths" tags={d.strengths} tone="border-success/30 bg-success/[0.08]" />
+      <TagRow icon={<ThumbsUp className="size-3.5 text-success v8:text-emerald-400" aria-hidden />} label="Strengths" tags={d.strengths} tone="border-success/30 bg-success/[0.08]" />
       <TagRow icon={<ThumbsDown className="size-3.5 text-danger" aria-hidden />} label="Weaknesses" tags={d.weaknesses} tone="border-danger/30 bg-danger/[0.08]" />
       {!d.strengths.length && !d.weaknesses.length && d.tags.length > 0 && <TagRow label="Most noted" tags={d.tags} tone="border-border bg-muted/50" />}
       <div className="flex justify-end">{scout}</div>

@@ -35,7 +35,7 @@ const STATE_WORDS: Record<ChipState, string> = { current: "current", done: "done
 // and skipped a dashed hairline, upcoming muted. No green or orange.
 const CHIP: Record<ChipState, string> = {
   current: "border-transparent bg-accent/15 font-semibold text-accent-text ring-1 ring-accent/60 v8:bg-white/10 v8:text-text-base v8:ring-accent/70",
-  done: "border-transparent bg-success/12 text-success v8:bg-white/[0.06] v8:text-text-base",
+  done: "border-transparent bg-success/12 text-success v8:bg-white/[0.06] v8:text-emerald-400",
   partial: "border-transparent bg-warning/12 text-warning v8:border-dashed v8:border-white/25 v8:bg-transparent v8:text-text-muted",
   skipped: "border-transparent bg-warning/12 text-warning v8:border-dashed v8:border-white/25 v8:bg-transparent v8:text-text-muted",
   upcoming: "border-border text-text-muted still-hover:bg-text-base/[0.06] v8:border-line",
@@ -100,7 +100,7 @@ export function MatchHeader({ schedule, index, watching, progress, onIndex, next
         const mine = watched.has(`${side}:${i + 1}`), where = `${side === "red" ? "Red" : "Blue"} ${i + 1}`;
         return (
           <div key={`${side}${i}`} data-watched={mine || undefined}
-            className={cn("flex min-w-0 flex-col rounded-md px-1.5 py-0.5 leading-tight", side === "blue" && "items-end text-right", mine && "bg-accent/15 ring-1 ring-accent/60 v8:bg-white/10 v8:ring-white/20")}>
+            className={cn("flex min-w-0 flex-col rounded-md px-1.5 py-0.5 leading-tight", side === "blue" && "items-end text-right", mine && "bg-accent/15 ring-1 ring-accent/60")}>
             <span className={cn("tabular font-mono text-[0.8125rem] v8:text-[0.875rem]", mine ? "font-bold text-accent-text" : "text-text-muted")}>{team}</span>
             <span className={cn("text-[11px] v8:text-[0.6875rem]", mine ? "text-text-base" : "text-text-muted")}>{where}{mine && <span className="sr-only">, watching</span>}</span>
           </div>

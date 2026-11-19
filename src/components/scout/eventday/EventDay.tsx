@@ -198,7 +198,7 @@ export function PitQueue({ event, entries, readOnly, onPit, current, className }
                 const isDone = done.has(t.team), isNext = t.team === nextTeam, isCurrent = t.team === current;
                 const body = (
                   <>
-                    {isDone ? <span className="grid size-6 shrink-0 place-items-center rounded-full bg-success text-background v8:bg-white/10 v8:text-text-base"><Check className="size-3.5" aria-hidden /></span>
+                    {isDone ? <span className="grid size-6 shrink-0 place-items-center rounded-full bg-success text-background v8:bg-white/10 v8:text-emerald-400"><Check className="size-3.5" aria-hidden /></span>
                       : <CircleDashed className={cn("size-6 shrink-0", isNext || isCurrent ? "text-accent" : "text-muted-foreground/60")} aria-hidden />}
                     <span className="min-w-0 flex-1 truncate"><span className="font-mono font-semibold text-foreground">{t.team}</span>{t.name && <span className="ml-2 text-sm text-muted-foreground">{t.name}</span>}</span>
                     {v8 ? (isCurrent || isDone || isNext) && <span className={cn("shrink-0 text-xs", isCurrent || isNext ? "text-text-base" : "text-text-faint")}>{isCurrent ? "Open" : isDone ? "Done" : "Next"}</span>

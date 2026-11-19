@@ -52,7 +52,7 @@ function Advance({ t, season }: { t: ShortlistTeam; season: number }) {
     const s = advanceStatus(mine);
     const value = advanceText(mine, (p) => oddsPct(p));
     return (
-      <Tile label={`Advance from ${ev.name}`} value={value} tone={s === "odds" || s === "qualified" ? "text-success" : "text-text-muted"}
+      <Tile label={`Advance from ${ev.name}`} value={value} tone={s === "odds" || s === "qualified" ? "text-success v8:text-emerald-400" : "text-text-muted"}
         hint={<><span title={ADVANCE_LABEL}>performance-based</span><span>· playoffs {oddsPct(mine.pPlayoff, run.stage === "selected")}</span><TierMark tier={conf.tier} /><Link to={`/events/${season}/${ev.code}?tab=odds`} className="underline hover:text-text-base">odds</Link></>} />
     );
   }
@@ -63,7 +63,7 @@ function Advance({ t, season }: { t: ShortlistTeam; season: number }) {
   const pre = fc.data.prequalified.includes(t.team);
   const conf = forecastTier(fc.data, t.team);
   return (
-    <Tile label={`Advance from ${ev.name}`} value={pre ? "Qualified" : oddsPct(me.pAdvance)} tone="text-success"
+    <Tile label={`Advance from ${ev.name}`} value={pre ? "Qualified" : oddsPct(me.pAdvance)} tone="text-success v8:text-emerald-400"
       hint={<><span>win event {oddsPct(me.pWin)}</span><TierMark tier={conf.tier} /><Link to={`/events/${season}/${ev.code}?tab=odds`} className="underline hover:text-text-base">odds</Link></>} />
   );
 }
@@ -110,7 +110,7 @@ export function TeamDetail({ t, season, rank, total, topPicks, onMove, onRemove,
   return (
     <div className="grid gap-3 border-t border-border bg-accent/[0.03] p-3 sm:p-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] v8:border-line v8:bg-white/[0.015]">
       <div className="grid min-w-0 content-start gap-3">
-        <Block title="OPR breakdown" aside={<span className="normal-case tracking-normal text-text-base"><span className="font-display text-base font-semibold text-accent-text v8:text-text-base">{num(t.opr)}</span> total{t.oprRank ? <span className="text-text-muted"> · #{t.oprRank.toLocaleString()} world{top ? ` (${top})` : ""}</span> : null}</span>}>
+        <Block title="OPR breakdown" aside={<span className="normal-case tracking-normal text-text-base"><span className="font-display text-base font-semibold text-accent-text v8:text-violet-400">{num(t.opr)}</span> total{t.oprRank ? <span className="text-text-muted"> · #{t.oprRank.toLocaleString()} world{top ? ` (${top})` : ""}</span> : null}</span>}>
           <BreakdownBar auto={t.breakdown.auto} teleop={t.breakdown.teleop} endgame={t.breakdown.endgame} />
           {t.breakdown.event && <p className="mt-2 text-[11px] text-text-muted">Split from {t.breakdown.event.name}, the event behind the season OPR.</p>}
         </Block>
