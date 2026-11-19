@@ -132,10 +132,10 @@ export const BOOT_STYLE = `<style>
       html[data-v8] .csb-brand img{width:18px;height:18px}
       html[data-v8] .csb-top>a img{width:20px;height:20px}
       html[data-v8] .csb-nav a[aria-current] .csb-ico{background:var(--b-fg);opacity:.9}
-      html[data-v8] .csb-top{border-bottom-color:transparent;background:transparent}
+      html[data-v8] .csb-top{position:static;height:56px;border-bottom-color:transparent;background:transparent}
       html[data-v8] .csb .csb-crumb{display:none}
       html[data-v8] .csb-main{background:none}
-      html[data-v8] .csb-col{background-repeat:no-repeat;background-image:radial-gradient(60% 34vh at 12% 0,#44587f80,transparent 72%),radial-gradient(55% 32vh at 52% 0,#4a446280,transparent 72%),radial-gradient(60% 34vh at 90% 0,#6e507680,transparent 72%)}
+      html[data-v8] .csb-col{background-repeat:no-repeat;background-image:radial-gradient(60% 42vh at 12% 0,#5a76adcc,transparent 72%),radial-gradient(55% 40vh at 52% 0,#5f5785cc,transparent 72%),radial-gradient(60% 42vh at 90% 0,#91689ccc,transparent 72%)}
       html[data-v8] .csb-home .csb-hl,html[data-v8] .csb-home>p{display:none}
       html[data-v8] .csb-home{display:flex;flex-direction:column;align-items:center;padding-top:15vh}
       html[data-v8] .csb-home>div:not(.csb-hl){width:100%;max-width:40rem;height:50px;margin:0;border-color:#ffffff1f;border-radius:13px;background:#1b1b1e}

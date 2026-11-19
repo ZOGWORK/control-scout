@@ -338,6 +338,16 @@ html[data-v8] {
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-in: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  /* No top bar in v8: the wash runs from the very top and the corner items (search, time, bell, you) sit on it and
+     scroll away with the page, so nothing is sticky under a bar: anchors and sticky parts start at the top. */
+  --header-h: 0px;
+  /* The wash (src/components/layout/Wash.tsx, server/bootShell.ts): left, middle and right colours, how strong
+     (0–1) and how far down it reaches (1 = default). The owner can change them (owner console). */
+  --wash-a: #5a76ad;
+  --wash-b: #5f5785;
+  --wash-c: #91689c;
+  --wash-strength: 1;
+  --wash-spread: 1;
 }
 @media (max-width: 767px) { html[data-v8] { --ui-base: 0.875; } }
 @media (min-width: 2100px) { html[data-v8] { --ui-base: 0.99; } }
