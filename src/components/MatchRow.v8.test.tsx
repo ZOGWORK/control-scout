@@ -2,7 +2,7 @@
 // The shared match row in v8 keeps every feature of the classic row, restyled: the alliance boxes (faint tint and a
 // coloured edge) with each team as its own tile (number over name), the playoff lives hearts, the details chevron,
 // the call (Picked % with its bar, the tier, the ledger icon, Right/Upset), and the scout report button (neutral
-// outline in v8). v8 only changes classes; with v8 off the row is drawn as before.
+// v8: hidden; the open details link to it). v8 also makes the row compact. v8 only changes classes; with v8 off the row is drawn as before.
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
@@ -56,11 +56,20 @@ describe("match row in v8: every classic feature, restyled", () => {
     expect(q('[data-outcome="right"]')).toBeTruthy();
   });
 
-  it("the scout report button is a neutral outline in v8", () => {
+  it("compact in v8: no report button in the row (the open details link to it), half the padding, the call on one line", () => {
     show(match());
-    const link = screen.getByRole("link", { name: "Pre-match report for Q3" });
-    expect(link.className).toMatch(/v8:border-white\/\[0\.14\]/);
-    expect(link.className).toMatch(/v8:bg-transparent/);
+    expect(q("[data-report-link]").className).toMatch(/v8:hidden/);
+    const row = q("[data-row]");
+    expect(row.className).toMatch(/v8:py-1\.5/);
+    expect(row.className).toMatch(/v8:@3xl:grid-cols-\[6\.5rem_minmax\(0,1fr\)_minmax\(0,1fr\)_20rem]/); // no report track
+    expect(q("[data-call]").className).toMatch(/v8:flex-row/);
+  });
+
+  it("your result chip says only won or lost in v8 (the number stays for screen readers)", () => {
+    show(match({}, 130, 90), 31065);
+    const chip = q("[data-mine]");
+    expect(chip.textContent).toBe("31065 won");
+    expect(within(chip).getByText("31065").className).toMatch(/v8:sr-only/);
   });
 
   it("your team's tile takes the slate-blue accent ring and tint, on either side; other numbers are accent, names white", () => {
