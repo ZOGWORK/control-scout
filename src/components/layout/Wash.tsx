@@ -1,8 +1,9 @@
 // v8's only texture (docs/design/v8-revamp-brief.md §3.1): a dusky slate-blue → mauve wash across the top of the page
 // under a fine grain, fading to the page colour. `tall` on the top-level pages (as on the sample home), `short` on a
 // page inside one (a team, an event, a match), so the content starts high. Decorative, still, and behind everything.
-import { useId } from "react";
+import { useEffect, useId } from "react";
 import { cn } from "../cn";
+import { loadWashOnce } from "../../lib/wash";
 
 const FADE = "linear-gradient(to bottom,#000 0%,rgb(0 0 0/.85) 50%,transparent 100%)";
 // The colours, strength and reach are CSS variables (index.css, html[data-v8]); the owner console can change them.
@@ -11,6 +12,8 @@ const HEIGHT = { tall: "clamp(16rem, calc(42vh * var(--wash-spread, 1)), calc(30
 
 export function Wash({ size = "tall", className }: { size?: "tall" | "short"; className?: string }) {
   const grain = `grain-${useId().replace(/:/g, "")}`;
+  // The owner's wash is in the page's head already (server/seo.ts); only a page without the server's HTML asks for it.
+  useEffect(() => { loadWashOnce(); }, []);
   return (
     <div aria-hidden data-wash={size}
       style={{ maskImage: FADE, WebkitMaskImage: FADE, height: HEIGHT[size], opacity: size === "tall" ? "var(--wash-strength, 1)" : "calc(var(--wash-strength, 1) * .85)" }}
