@@ -26,4 +26,12 @@ describe("LegacyPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Use classic look" }));
     expect(localStorage.getItem(V8_KEY)).toBe("0");
   });
+
+  it("with storage blocked, still switches for the next load through ?v8=", () => {
+    const set = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("blocked"); });
+    page();
+    fireEvent.click(screen.getByRole("button", { name: "Use new look" }));
+    expect(assign).toHaveBeenCalledWith("/?v8=1");
+    set.mockRestore();
+  });
 });

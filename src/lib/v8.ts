@@ -28,7 +28,12 @@ function subscribe(onChange: () => void) {
 export function setV8(on: boolean, to?: string) {
   try {
     localStorage.setItem(V8_KEY, on ? "1" : "0");
-  } catch { /* storage blocked: the ?v8= link still works for this load */ }
+  } catch {
+    // Storage blocked: load the page with ?v8=, which index.html obeys for that load without storage.
+    const dest = to ?? location.pathname + location.search;
+    location.assign(`${dest}${dest.includes("?") ? "&" : "?"}v8=${on ? 1 : 0}`);
+    return;
+  }
   if (to) location.assign(to);
   else location.reload();
 }
