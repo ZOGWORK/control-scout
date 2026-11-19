@@ -78,15 +78,17 @@ export function MatchBox({ r, team, atEvent, noPlay }: { r: StatMatchRow; team?:
             const won = winner === s, lost = winner != null && !won;
             const sc = score[s];
             return (
-              <div key={s} className={cn("flex min-w-0 items-center gap-2 rounded-lg px-2.5 py-1.5", s === "red" ? "bg-red-alliance/[0.08]" : "bg-blue-alliance/[0.08]")} data-alliance={s} data-won={won ? "" : undefined}>
+              // v8: the shared match row's look (brief §5): no tinted box, the side a 2px edge in its colour, the winner
+              // said by its bolder score rather than a W badge.
+              <div key={s} className={cn("flex min-w-0 items-center gap-2 rounded-lg px-2.5 py-1.5 v8:rounded-none v8:border-l-2 v8:bg-transparent v8:py-1", s === "red" ? "bg-red-alliance/[0.08] v8:border-red-alliance" : "bg-blue-alliance/[0.08] v8:border-blue-alliance")} data-alliance={s} data-won={won ? "" : undefined}>
                 <span className="sr-only">{s === "red" ? "Red" : "Blue"} alliance{won ? ", won" : lost ? ", lost" : ""}: </span>
                 <span className="flex min-w-0 flex-1 flex-wrap gap-1">
                   {sides[s].length ? sides[s].map((t) => <TeamChip key={t.href} t={t} side={s} self={!!self.length && path(t) === path(self[0])} />) : <span className="text-xs text-muted-foreground">Teams not listed</span>}
                 </span>
                 <span className="shrink-0 text-right">
                   <span className="flex items-center justify-end gap-1.5">
-                    {won && <span className="rounded bg-foreground px-1 text-[10px] font-bold text-background" aria-hidden>W</span>}
-                    <b className={cn("font-display text-2xl font-semibold leading-none tabular-nums", lost ? "text-muted-foreground" : s === "red" ? "text-red-alliance-ink" : "text-blue-alliance-text")}>{sc.shown}</b>
+                    {won && <span className="rounded bg-foreground px-1 text-[10px] font-bold text-background v8:hidden" aria-hidden>W</span>}
+                    <b className={cn("font-display text-2xl font-semibold leading-none tabular-nums", won ? "v8:font-bold" : lost ? "v8:font-medium" : undefined, lost ? "text-muted-foreground" : s === "red" ? "text-red-alliance-ink" : "text-blue-alliance-text")}>{sc.shown}</b>
                   </span>
                   {sc.total !== sc.shown && !r.noPenalties && <span className="block text-[11px] text-muted-foreground">{sc.total} with penalties</span>}
                 </span>

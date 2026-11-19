@@ -556,6 +556,19 @@ html[data-capturing-screen] :is([data-slot="dialog-overlay"], [data-slot="dialog
 .match-list [data-match-box] > section:last-child > [data-match]:last-child,
 .match-list [data-match-box] > section:last-child > [data-match]:last-child > :last-child { border-bottom-left-radius: 0.75rem; border-bottom-right-radius: 0.75rem; }
 @media (prefers-reduced-motion: reduce) { .match-list [data-row] { transition: none; } }
+/* v8 (docs/design/v8-revamp-brief.md §5 Match row): rows are separated by hairlines and nothing stands forward.
+   The hover is a plain fill (colour only, 150ms); the live match keeps a faint fill and a 2px live-red edge, on
+   its outer element so it stays while another row is hovered. With no row reaching past the box, the box
+   clips its rows to its corners. */
+html[data-v8] .match-list [data-match-box] { overflow: clip; }
+html[data-v8] .match-list [data-row] { transition: background-color 150ms ease; }
+html[data-v8] .match-list [data-live] > [data-row],
+html[data-v8] .match-list [data-row][data-focus] { z-index: auto; transform: none; box-shadow: none; border-radius: 0; background-color: rgb(255 255 255 / 0.03); }
+html[data-v8] .match-list [data-live] { box-shadow: inset 2px 0 0 var(--color-live); }
+/* v8: a live score that changes swaps with a 200ms crossfade and a 2px blur (brief §4.2), no tint, no count-up. */
+@keyframes cs-v8-score-in { from { opacity: 0; filter: blur(2px); } to { opacity: 1; filter: blur(0); } }
+html[data-v8] .cs-score-flash { animation: cs-v8-score-in 200ms var(--ease-out); background: none; }
+@media (prefers-reduced-motion: reduce) { html[data-v8] .cs-score-flash { animation: none; } }
 
 /* Compact density: tighter tables and cards. */
 html.compact .density-row { padding-top: 0.375rem; padding-bottom: 0.375rem; }

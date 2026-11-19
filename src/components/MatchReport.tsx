@@ -14,7 +14,9 @@ import type { WorkspaceAnswer } from "../lib/consensus";
 import { scoutTeamHref } from "../lib/consensus";
 import { workspaceLabel } from "../lib/scoutSpace";
 import { agoShort, int, num, oddsPct } from "../lib/format";
-import { ConfidenceBadge, FactorList, KIND_LABEL, PairHistoryLine, TierMark, WinBar } from "./predict";
+import { ConfidenceBadge, FactorList, KIND_LABEL, PairHistoryLine, TierMark, WinBar, useChangeCount } from "./predict";
+import { PairedBar, barMax, rowLead, type BreakdownRow } from "./MatchDetails";
+import { useIsV8 } from "../lib/v8";
 import { OprSpark, PARTS } from "./shortlist/charts";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/overlay";
 import { Skeleton } from "./ui/basic";
@@ -46,6 +48,31 @@ export function MatchReportView({ r, ws, watch }: { r: MatchReport } & ReportWor
   const byTeam = new Map(r.teams.map((t) => [t.team, t]));
   // A refusal (not a member any more, paused) or a failure: OPR-only, as for anyone without a workspace.
   const workspace = ws && !ws.state.error ? ws : null;
+  const v8 = useIsV8();
+  if (v8) {
+    const scored = m.played && !!m.red.score && !!m.blue.score;
+    // v8 (brief §7.5): two columns on wide screens, the match on the left and the call on the right. In the
+    // markup (and so on a phone, one column) the call comes right after the result, before the breakdown and the teams.
+    return (
+      <div className="grid gap-x-10 gap-y-6 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,22rem)] lg:grid-rows-[auto_auto_1fr]" data-report-layout="v8">
+        {scored && <Result m={m} />}
+        <aside className="min-w-0 self-start lg:sticky lg:top-6 lg:col-start-2 lg:row-span-3 lg:row-start-1" aria-label="The call">
+          <CallV8 m={m} earned={r.bonus} />
+        </aside>
+        {scored && <ScorePairs m={m} />}
+        <div className={cn("min-w-0 space-y-5 lg:col-start-1", !scored && "lg:row-start-1")}>
+          <WorkspaceLine ws={ws} />
+          {(["red", "blue"] as const).map((side) => (
+            <Alliance key={side} side={side} m={m} remote={r.event.remote} byTeam={byTeam} ws={workspace} watch={watch} />
+          ))}
+          <p className="text-xs text-text-faint">
+            OPR is the points a robot adds to its alliance's score, worked out from every match it played (without penalties). The split is
+            auto, driver-controlled and endgame. Tap a flag to see why it's there.
+          </p>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="space-y-5 max-sm:space-y-4">
       <Call m={m} earned={r.bonus} />
@@ -115,6 +142,121 @@ function Call({ m, earned }: { m: MatchView; earned?: MatchReport["bonus"] }) {
   );
 }
 
+/** v8: the result as the page's biggest type, the winner bolder, the margin beside it. A live score that changes
+ *  swaps with the shared crossfade (index.css cs-score-flash). */
+function Result({ m }: { m: MatchView }) {
+  const red = m.red.score!.total, blue = m.blue.score!.total;
+  const win: Side | null = red === blue ? null : red > blue ? "red" : "blue";
+  const flash = useChangeCount(`${red}:${blue}`);
+  const tone = (s: Side) => cn(SIDE[s].text, win === s || !win ? "font-bold" : "font-medium opacity-70");
+  return (
+    <section className="min-w-0 lg:col-start-1 lg:row-start-1" aria-label="Result" data-testid="report-result">
+      <p className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+        <span key={flash} className={cn("font-display text-[3rem] leading-none tabular-nums", flash > 0 && "cs-score-flash")}>
+          <span className={tone("red")}>{red}</span><span className="px-2 font-normal text-text-faint">–</span><span className={tone("blue")}>{blue}</span>
+        </span>
+        <span className={cn("text-lg font-semibold", win ? SIDE[win].text : "text-text-base")}>{win ? `${SIDE[win].name} won by ${Math.abs(red - blue)}` : "Tie"}</span>
+      </p>
+    </section>
+  );
+}
+
+/** v8: the score by phase as paired bars in the alliance colours, red from the middle leftward and blue rightward,
+ *  every phase on one zero-based scale; the total under them as numbers. */
+function ScorePairs({ m }: { m: MatchView }) {
+  const r = m.red.score!, b = m.blue.score!;
+  const rows: BreakdownRow[] = [
+    { label: "Auto", red: r.auto, blue: b.auto },
+    { label: "TeleOp", red: r.teleop, blue: b.teleop },
+    { label: "Endgame", red: r.endgame, blue: b.endgame },
+    { label: "Fouls given away", red: r.pen, blue: b.pen, fouls: true },
+  ];
+  const max = barMax(rows);
+  const grid = "grid grid-cols-[minmax(0,6.5rem)_2.75rem_minmax(0,1fr)_2.75rem] items-center gap-x-3";
+  const value = (x: BreakdownRow, s: Side) => {
+    const lead = rowLead(x).side;
+    return <span className={cn("text-sm tabular-nums", s === "red" ? "text-right" : "text-left", lead === s ? cn("font-semibold", SIDE[s].text) : "text-text-muted")} data-testid={`pair-${s}`}>{x[s] ?? "—"}</span>;
+  };
+  return (
+    <section className="min-w-0 lg:col-start-1 lg:row-start-2" aria-label="Score breakdown" data-testid="report-breakdown">
+      <div className={cn(grid, "pb-1.5 text-xs text-text-faint")}>
+        <span className="sr-only">Phase</span><span className="text-right text-red-alliance">Red</span><span /><span className="text-blue-alliance">Blue</span>
+      </div>
+      <ul className="divide-y divide-line border-y border-line">
+        {rows.map((x) => (
+          <li key={x.label} className={cn(grid, "min-h-11 py-2")} data-label={x.label}>
+            <span className="truncate text-sm text-text-muted">{x.label}</span>
+            {value(x, "red")}
+            <PairedBar red={x.red} blue={x.blue} max={max} />
+            {value(x, "blue")}
+          </li>
+        ))}
+        <li className={cn(grid, "min-h-11 py-2")} data-label="Total">
+          <span className="text-sm font-semibold">Total</span>
+          <span className={cn("text-right text-base font-bold tabular-nums", SIDE.red.text)}>{r.total}</span>
+          <span className="text-center text-xs text-text-faint">{r.np !== r.total || b.np !== b.total ? `${r.np} – ${b.np} without penalties` : ""}</span>
+          <span className={cn("text-base font-bold tabular-nums", SIDE.blue.text)}>{b.total}</span>
+        </li>
+      </ul>
+    </section>
+  );
+}
+
+/** v8: the call, with the favourite's chance to win as the hero number, the slim two-colour bar under it, then the
+ *  predicted score, the bonus odds, the reasons and the full factor sheet as a quiet table. */
+function CallV8({ m, earned }: { m: MatchView; earned?: MatchReport["bonus"] }) {
+  const cov = useRangeCoverage();
+  const p = m.prediction;
+  const scored = m.played && m.red.score && m.blue.score ? { red: m.red.score.total, blue: m.blue.score.total } : null;
+  const winner: Side | "tie" | null = scored ? (scored.red === scored.blue ? "tie" : scored.red > scored.blue ? "red" : "blue") : null;
+  const called = p && winner && winner !== "tie" ? (p.pRed > 0.5) === (winner === "red") : null;
+  const full = [m.red, m.blue].every((a) => a.teams.filter((t) => t.onField).length === 2);
+  if (!p) {
+    return (
+      <section className="rounded-xl border border-line bg-card p-5" aria-label="Prediction">
+        <p className="text-sm text-text-muted">{!full ? "No prediction: the engine predicts full 2-against-2 matches only." : scored ? "No prediction was recorded before this match." : "No prediction for this match yet."}</p>
+      </section>
+    );
+  }
+  const fav: Side = p.pRed >= 0.5 ? "red" : "blue";
+  const favP = fav === "red" ? p.pRed : 1 - p.pRed;
+  return (
+    <section className="space-y-5 rounded-xl border border-line bg-card p-5" aria-label={scored ? "Result and prediction" : "Prediction"} data-testid="report-call">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs text-text-faint">{KIND_LABEL[p.kind]}</p>
+        <ConfidenceBadge tier={p.tier} className="border-line bg-transparent text-text-muted" />
+      </div>
+      <div>
+        <p className="flex items-baseline gap-2" data-testid="report-hero">
+          <span className={cn("font-display text-[2.5rem] font-semibold leading-none tabular-nums", SIDE[fav].text)}>{oddsPct(favP)}</span>
+          <span className="text-sm text-text-muted">{SIDE[fav].name} to win</span>
+        </p>
+        <WinBar pRed={p.pRed} className="mt-3" />
+        <p className="mt-1.5 flex justify-between text-xs tabular-nums">
+          <span className="text-red-alliance">Red {oddsPct(p.pRed)}</span><span className="text-blue-alliance">Blue {oddsPct(1 - p.pRed)}</span>
+        </p>
+      </div>
+      {!p.noScoreBasis && (
+        <p className="text-sm text-text-muted">Predicted <ScoreRange mean={p.redMean} range={p.redRange} level={p.rangeLevel} className="font-medium text-red-alliance" /> – <ScoreRange mean={p.blueMean} range={p.blueRange} level={p.rangeLevel} className="font-medium text-blue-alliance" />
+          {p.redRange && p.blueRange && <span className="mt-0.5 block text-xs text-text-faint">± is the {levelPct(p.rangeLevel)} range: red {p.redRange[0]}–{p.redRange[1]}, blue {p.blueRange[0]}–{p.blueRange[1]}. {rangeCoverageLine(cov) ?? ""}</span>}</p>
+      )}
+      {called != null && (
+        <p className={cn("text-sm font-medium", called ? "text-success" : "text-text-base")} data-testid="report-called">{called ? "Called it" : "Upset"}<span className="font-normal text-text-muted">: {SIDE[winner as Side].name} won</span></p>
+      )}
+      {p.bonus && <BonusOdds season={m.season} bonus={p.bonus} actual={scored ? earned : null} compact className="border-line bg-transparent p-0 sm:p-0 border-0" />}
+      {p.factors?.length ? (
+        <div aria-label="Why">
+          <p className="mb-1.5 text-xs text-text-faint">Why</p>
+          <FactorList factors={p.factors.slice(0, 3)} reasons={p.reasons} />
+          {p.history ? <PairHistoryLine history={p.history} className="mt-1.5" /> : null}
+        </div>
+      ) : null}
+      {p.sheet && <FactorSheetPanel sheet={p.sheet} level={m.level} winner={winner ? (winner === "tie" ? "tie" : winner === "red" ? "A" : "B") : null} quiet />}
+      <PredictionBasis kind={matchBasis(m.level)} />
+    </section>
+  );
+}
+
 /** Whose scouting this is (members), or what's missing for it. */
 function WorkspaceLine({ ws }: { ws: ReportWorkspaceProps["ws"] }) {
   if (!ws) {
@@ -151,15 +293,16 @@ function Alliance({ side, m, remote, byTeam, ws, watch }: {
   const score = m.played && a.score ? a.score.total : null;
   const missing = 2 - a.teams.length;
   return (
-    <section aria-label={`${s.name} alliance`} className={cn("min-w-0 rounded-xl border p-3 sm:p-4", s.card)}>
+    // v8: no coloured card; the alliance is its coloured heading and its teams' edges.
+    <section aria-label={`${s.name} alliance`} className={cn("min-w-0 rounded-xl border p-3 sm:p-4", s.card, "v8:rounded-none v8:border-0 v8:bg-transparent v8:p-0 v8:sm:p-0")}>
       <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-3">
-        <h2 className={cn("font-display text-lg font-semibold", s.text)}>{s.name} alliance</h2>
+        <h2 className={cn("font-display text-lg font-semibold v8:font-sans v8:text-base", s.text)}>{s.name} alliance</h2>
         <p className="text-sm tabular-nums text-muted-foreground">
           {score != null ? <>Scored <span className={cn("font-semibold", s.text)}>{score}</span></>
             : p ? <>{oddsPct(side === "red" ? p.pRed : 1 - p.pRed)} to win{!p.noScoreBasis && <> · <ScoreRange mean={side === "red" ? p.redMean : p.blueMean} range={side === "red" ? p.redRange : p.blueRange} level={p.rangeLevel} approx /> pts</>} <TierMark tier={p.tier} className="align-middle" /></> : null}
         </p>
       </div>
-      <ul className="space-y-3">
+      <ul className="space-y-3 v8:grid v8:gap-3 v8:space-y-0 v8:xl:grid-cols-2">
         {a.teams.map((t) => {
           const info = byTeam.get(t.number);
           return (
@@ -200,7 +343,9 @@ function FlagChip({ f }: { f: DataFlag | WatchFlag }) {
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <button type="button" className={cn("inline-flex min-h-8 items-center gap-1 rounded-full border px-2.5 text-xs font-medium pointer-coarse:min-h-[44px]", FLAG_TONE[f.kind])} aria-label={`${f.label}: ${f.detail}`} data-flag={f.kind}>
+        <button type="button" className={cn("inline-flex min-h-8 items-center gap-1 rounded-full border px-2.5 text-xs font-medium pointer-coarse:min-h-[44px]", FLAG_TONE[f.kind],
+          // v8: a quiet outlined pill (brief §5 Status); the icon says the kind.
+          "v8:border-white/[0.12] v8:bg-transparent v8:text-text-base")} aria-label={`${f.label}: ${f.detail}`} data-flag={f.kind}>
           <Icon className="size-3.5" aria-hidden />{f.label}
         </button>
       </PopoverTrigger>
@@ -219,7 +364,7 @@ function TeamCard({ side, season, t, info, ws, watch }: {
   const opr = here ? ev!.opr : se?.opr ?? null;
   const flags: (DataFlag | WatchFlag)[] = [...watch, ...(info?.flags ?? [])];
   return (
-    <article className={cn("min-w-0 rounded-lg border border-l-[3px] border-border bg-card p-3", SIDE[side].edge, !t.onField && "opacity-75")} data-testid="report-team" data-team={t.number}>
+    <article className={cn("min-w-0 rounded-lg border border-l-[3px] border-border bg-card p-3 v8:rounded-xl v8:border-l-2 v8:p-4", SIDE[side].edge, !t.onField && "opacity-75")} data-testid="report-team" data-team={t.number}>
       <header className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
         <Link to={`/teams/${t.number}?season=${season}`} className="tap-44 font-mono text-lg font-bold hover:underline">{t.number}</Link>
         <span className="min-w-0 flex-1 truncate text-sm">{info?.name ?? ""}</span>
@@ -230,7 +375,7 @@ function TeamCard({ side, season, t, info, ws, watch }: {
       {(t.surrogate || t.dq || !t.onField) && (
         <p className="mt-1 flex gap-1.5 text-[11px]">
           {t.surrogate && <span className="rounded bg-muted px-1">Surrogate</span>}
-          {t.dq && <span className="rounded bg-destructive/15 px-1 text-destructive">DQ</span>}
+          {t.dq && <span className="rounded bg-destructive/15 px-1 text-destructive v8:bg-transparent v8:px-0">DQ</span>}
           {!t.onField && <span className="rounded bg-muted px-1">Not on field</span>}
         </p>
       )}
@@ -301,7 +446,7 @@ function TeamTake({ team, season, ws, reliability }: { team: number; season: num
   if (!ws) return null;
   const d: TeamConsensus | undefined = ws.state.data?.teams.find((x) => x.team === team);
   const scout = (
-    <Link to={scoutTeamHref(ws.workspace.id, team, season)} className="inline-flex min-h-8 items-center gap-1 text-xs font-medium text-accent-text underline-offset-4 hover:underline">
+    <Link to={scoutTeamHref(ws.workspace.id, team, season)} className="inline-flex min-h-8 items-center gap-1 text-xs font-medium text-accent-text underline-offset-4 hover:underline v8:text-text-base">
       <ClipboardList className="size-3.5" aria-hidden /> Scout this team
     </Link>
   );
@@ -348,7 +493,7 @@ function TagRow({ icon, label, tags, tone }: { icon?: ReactNode; label: string; 
       <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">{icon}{label}</span>
       <ul className="contents" aria-label={label}>
         {tags.slice(0, 3).map((x) => (
-          <li key={x.label} className={cn("inline-flex min-h-7 items-center gap-1 rounded-md border px-2 text-xs", tone)}>
+          <li key={x.label} className={cn("inline-flex min-h-7 items-center gap-1 rounded-md border px-2 text-xs", tone, "v8:border-white/[0.12] v8:bg-transparent")}>
             <span className="break-words">{x.label}</span><span className="font-mono text-[10px] text-muted-foreground" aria-label={`${x.count} ${x.count === 1 ? "entry" : "entries"}`}>×{x.count}</span>
           </li>
         ))}

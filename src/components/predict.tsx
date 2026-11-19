@@ -74,7 +74,7 @@ export function TierIcon({ tier }: { tier: ConfidenceTier }) {
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <button type="button" className={cn(STATUS_CHIP, "tap-44 w-[18px] justify-center border px-0 outline-none focus-visible:ring-2 focus-visible:ring-ring/60 [&_svg]:size-3", t.cls)} data-tier={tier}>
+        <button type="button" className={cn(STATUS_CHIP, "tap-44 w-[18px] justify-center border px-0 outline-none focus-visible:ring-2 focus-visible:ring-ring/60 [&_svg]:size-3", t.cls, "v8:border-transparent v8:bg-transparent")} data-tier={tier}>
           <t.icon aria-hidden /><span className="sr-only">Confidence: {t.label.toLowerCase()}</span>
         </button>
       </PopoverTrigger>
@@ -93,10 +93,11 @@ export function TierIcon({ tier }: { tier: ConfidenceTier }) {
 export function WinBar({ pRed, className, size = "md", decorative }: { pRed: number; className?: string; size?: "sm" | "md"; decorative?: boolean }) {
   const r = Math.max(0.02, Math.min(0.98, pRed));
   return (
-    <div className={cn("flex w-full overflow-hidden rounded-full bg-muted", size === "sm" ? "h-1.5" : "h-2.5", className)}
-      {...(decorative ? { "aria-hidden": true } : { role: "img", "aria-label": `Red ${oddsPct(pRed)} to win, blue ${oddsPct(1 - pRed)}` })}>
-      <div className="h-full bg-red-alliance transition-[width] duration-500" style={{ width: `${r * 100}%` }} />
-      <div className="h-full flex-1 bg-blue-alliance" />
+    // v8: slimmer, the two colours split by a hairline gap, and no width animation (brief §4: never animate width).
+    <div className={cn("flex w-full overflow-hidden rounded-full bg-muted v8:gap-px v8:bg-transparent", size === "sm" ? "h-1.5 v8:h-1" : "h-2.5 v8:h-1.5", className)}
+      {...(decorative ? { "aria-hidden": true } : { role: "img", "aria-label": `Red ${oddsPct(pRed)} to win, blue ${oddsPct(1 - pRed)}` })} data-winbar>
+      <div className="h-full bg-red-alliance transition-[width] duration-500 v8:rounded-l-full v8:transition-none" style={{ width: `${r * 100}%` }} />
+      <div className="h-full flex-1 bg-blue-alliance v8:rounded-r-full" />
     </div>
   );
 }
@@ -173,13 +174,14 @@ function TeamChip({ t, side, season, highlight }: { t: AllianceScore["teams"][nu
   // Touch screens: 44px tall, the row growing with it (src/index.css tap-44: stacked rows grow rather than overlap).
   const cls = cn("flex min-w-0 flex-col rounded-md px-1.5 py-0.5 text-left leading-tight outline-none pointer-coarse:min-h-[44px] pointer-coarse:justify-center focus-visible:ring-2 focus-visible:ring-ring/60",
     side === "blue" && "@min-[330px]:items-end @min-[330px]:text-right",
-    picked ? (side === "red" ? "bg-red-alliance/30 ring-1 ring-red-alliance/70" : "bg-blue-alliance/30 ring-1 ring-blue-alliance/70")
-      : me ? "bg-accent/15 ring-1 ring-accent/60" : "still-hover:bg-text-base/[0.06]");
+    picked ? (side === "red" ? "bg-red-alliance/30 ring-1 ring-red-alliance/70 v8:bg-red-alliance/15 v8:ring-red-alliance/50" : "bg-blue-alliance/30 ring-1 ring-blue-alliance/70 v8:bg-blue-alliance/15 v8:ring-blue-alliance/50")
+      // v8: mint is never a fill behind text; "yours" is the mint number alone.
+      : me ? "bg-accent/15 ring-1 ring-accent/60 v8:bg-transparent v8:ring-0" : "still-hover:bg-text-base/[0.06]");
   const body = (
     <>
       <span className={cn("tabular font-mono text-[0.8125rem]", me ? "font-bold text-accent-text" : picked ? "font-bold text-text-base" : sub ? "text-text-muted" : "text-text-base")}>{n}</span>
       {/* The space keeps number and name apart in the text, so the button's label ("207 Critical Mass: …") contains it (WCAG 2.5.3). */}
-      {t.name && <>{" "}<span className={cn("block max-w-full truncate text-[11px] italic", picked || me ? "text-text-base" : "text-text-muted")} data-team-name>{t.name}</span></>}
+      {t.name && <>{" "}<span className={cn("block max-w-full truncate text-[11px] italic v8:text-[0.75rem] v8:not-italic", picked || me ? "text-text-base" : "text-text-muted")} data-team-name>{t.name}</span></>}
       {sub && <span className="sr-only"> (surrogate)</span>}
     </>
   );
@@ -193,7 +195,7 @@ function TeamChip({ t, side, season, highlight }: { t: AllianceScore["teams"][nu
 
 /** How many times `value` has changed since the first render (0: never): a new score arriving
  *  (live auto-refresh) restarts its flash; a row that mounts with its score doesn't flash. */
-function useChangeCount<T>(value: T): number {
+export function useChangeCount<T>(value: T): number {
   const prev = useRef(value);
   const [n, setN] = useState(0);
   useEffect(() => {
@@ -243,7 +245,10 @@ function AllianceBox({ side, m, score, forecast, outcome, highlight }: {
       "flex min-w-0 items-center justify-between gap-2 rounded-lg border-l-[3px] px-2 py-1.5",
       side === "red" ? "border-red-alliance bg-red-alliance/[0.06]" : "border-blue-alliance bg-blue-alliance/[0.06] @min-[330px]:flex-row-reverse @min-[330px]:border-l-0 @min-[330px]:border-r-[3px]",
       outcome === "win" && (side === "red" ? "bg-red-alliance/[0.14]" : "bg-blue-alliance/[0.14]"),
-    )}>
+      // v8: no tinted box. The side is a 2px edge in its colour; the winner is said by its bolder score.
+      "v8:rounded-none v8:border-l-2 v8:bg-transparent v8:py-1",
+      side === "blue" && "v8:@min-[330px]:border-l-0 v8:@min-[330px]:border-r-2",
+    )} data-side={side} data-result={outcome ?? undefined}>
       {/* A double-elimination playoff: the alliance's lives first, at the box's left (the blue box faces the red from
           the right on wider rows, so its hearts go last in its reversed row: still its left edge). */}
       {m.lives && <span className={cn(side === "blue" && "@min-[330px]:order-last")}><LivesHearts side={side} l={m.lives[side]} /></span>}
@@ -252,13 +257,14 @@ function AllianceBox({ side, m, score, forecast, outcome, highlight }: {
         {a.teams.map((t) => <TeamChip key={t.number} t={t} side={side} season={m.season} highlight={highlight} />)}
       </div>
       {score != null ? (
-        <span key={flash} className={cn("shrink-0 font-display text-lg font-bold tabular-nums", flash > 0 && "cs-score-flash -mx-1 px-1", outcome === "loss" ? FADED[side] : side === "red" ? "text-red-alliance-ink" : "text-blue-alliance")}>
+        <span key={flash} data-score className={cn("shrink-0 font-display text-lg font-bold tabular-nums v8:text-[1.625rem] v8:leading-none",
+          outcome === "loss" ? "v8:font-medium" : outcome === "tie" ? "v8:font-semibold" : "v8:font-bold", flash > 0 && "cs-score-flash -mx-1 px-1", outcome === "loss" ? FADED[side] : side === "red" ? "text-red-alliance-ink" : "text-blue-alliance")}>
           {score}{outcome === "win" && <span className="sr-only"> (won)</span>}
         </span>
       ) : forecast != null ? (
         forecast.range
-          ? <span className={cn("shrink-0 whitespace-nowrap font-display text-base font-semibold", FADED[side])}><span className="sr-only">Predicted score </span><ScoreRange mean={forecast.mean} range={forecast.range} level={forecast.level} pmClassName="text-[11px] font-medium" /></span>
-          : <span className={cn("shrink-0 font-display text-base font-semibold tabular-nums", FADED[side])} title="Predicted score">~{Math.round(forecast.mean)}</span>
+          ? <span className={cn("shrink-0 whitespace-nowrap font-display text-base font-semibold v8:text-[1.125rem] v8:font-medium", FADED[side])}><span className="sr-only">Predicted score </span><ScoreRange mean={forecast.mean} range={forecast.range} level={forecast.level} pmClassName="text-[11px] font-medium" /></span>
+          : <span className={cn("shrink-0 font-display text-base font-semibold tabular-nums v8:text-[1.125rem] v8:font-medium", FADED[side])} title="Predicted score">~{Math.round(forecast.mean)}</span>
       ) : null}
     </div>
   );
@@ -308,22 +314,24 @@ export function MatchRow({ m, highlight, showEvent, eventName, open, onToggle, o
       className={cn("group/row density-row grid grid-cols-[minmax(min-content,1fr)_auto_auto] items-center gap-x-3 gap-y-1.5 px-3 py-3 transition-[background-color]",
         // Wide rows: label | red | blue | the call | report. Fixed tracks either side, so every row lines up.
         "@3xl:grid-cols-[5.5rem_minmax(0,1fr)_minmax(0,1fr)_11.5rem_2rem]",
-        onToggle ? "cursor-pointer still-hover:bg-accent/[0.07]" : "still-hover:bg-text-base/[0.03]", open && "bg-accent/[0.05]")}
+        onToggle ? "cursor-pointer still-hover:bg-accent/[0.07]" : "still-hover:bg-text-base/[0.03]", open && "bg-accent/[0.05]",
+        // v8: a plain fill on hover (never a lift or a tint), the same fill while open.
+        "v8:still-hover:bg-white/[0.03]", open && "v8:bg-white/[0.03]")}
       onClick={onToggle ? (e) => { if (!(e.target as HTMLElement).closest("a, button, input")) onToggle(); } : undefined}
       data-row
     >
       <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5 @3xl:block" data-match-label>
         {onToggle ? (
-          <button type="button" onClick={onToggle} aria-expanded={!!open} aria-controls={detailsId} aria-label={`${m.label} details`} className={cn("tap-44 flex items-center gap-0.5 rounded font-mono text-sm font-semibold outline-none row-still-hover:text-accent-text focus-visible:ring-2 focus-visible:ring-ring/60", open && "text-accent-text")}>
-            {m.label}<ChevronDown className={cn("size-3.5 text-text-muted transition-transform row-still-hover:text-accent-text", open && "rotate-180 text-accent-text")} />
+          <button type="button" onClick={onToggle} aria-expanded={!!open} aria-controls={detailsId} aria-label={`${m.label} details`} className={cn("tap-44 flex items-center gap-0.5 rounded font-mono text-sm font-semibold outline-none row-still-hover:text-accent-text focus-visible:ring-2 focus-visible:ring-ring/60 v8:row-still-hover:text-text-base", open && "text-accent-text v8:text-text-base")}>
+            {m.label}<ChevronDown className={cn("size-3.5 text-text-muted transition-transform row-still-hover:text-accent-text v8:row-still-hover:text-text-base", open && "rotate-180 text-accent-text v8:text-text-base")} />
           </button>
         ) : <p className="font-mono text-sm font-semibold">{m.label}</p>}
         {/* An event name (a team's season, the shortlist drawer) can be long: on its own line, truncated, and with no
             intrinsic width (contain), so it never makes the label column reserve its full length. */}
-        <p className={cn("min-w-0 text-[11px] text-text-muted", showEvent ? "basis-full truncate [contain:inline-size]" : "whitespace-nowrap")} title={when} data-when>{when}</p>
+        <p className={cn("min-w-0 text-[11px] text-text-muted v8:text-[0.75rem] v8:text-text-faint", showEvent ? "basis-full truncate [contain:inline-size]" : "whitespace-nowrap")} title={when} data-when>{when}</p>
         {/* The highlighted team's own result goes with the match, not the call. */}
         {mine && (
-          <span className={cn("mt-0.5 inline-block whitespace-nowrap rounded-full px-2 py-px text-[11px] font-semibold",
+          <span className={cn("mt-0.5 inline-block whitespace-nowrap rounded-full px-2 py-px text-[11px] font-semibold v8:bg-transparent v8:px-0 v8:text-[0.75rem] v8:font-medium",
             mine === "win" ? "bg-success/15 text-success" : mine === "loss" ? "bg-destructive/15 text-destructive" : "bg-muted text-text-muted")} data-mine>
             {highlight} {mine === "win" ? "won" : mine === "loss" ? "lost" : "tied"}
           </span>
@@ -360,8 +368,8 @@ export function MatchRow({ m, highlight, showEvent, eventName, open, onToggle, o
         {(p || m.video || m.clip || videos > 0 || addedPlays) && (
           <div className="relative z-[1] flex flex-wrap items-center justify-end gap-1 text-[11px] text-text-muted pointer-coarse:min-h-[44px] pointer-coarse:gap-y-[26px]" data-call-status>
             {/* Right and Upset share one width, so the chips after them line up from row to row. */}
-            {called === true && <span className={cn(STATUS_CHIP, "min-w-[3.25rem] justify-center bg-success/12 text-success")} data-outcome="right"><Check className="size-3" aria-hidden /> Right</span>}
-            {called === false && <span className={cn(STATUS_CHIP, "min-w-[3.25rem] justify-center bg-warning/12 text-warning")} data-outcome="upset"><X className="size-3" aria-hidden /> Upset</span>}
+            {called === true && <span className={cn(STATUS_CHIP, "min-w-[3.25rem] justify-center bg-success/12 text-success v8:bg-transparent")} data-outcome="right"><Check className="size-3" aria-hidden /> Right</span>}
+            {called === false && <span className={cn(STATUS_CHIP, "min-w-[3.25rem] justify-center bg-warning/12 text-warning v8:bg-transparent")} data-outcome="upset"><X className="size-3" aria-hidden /> Upset</span>}
             {p && <TierIcon tier={p.tier} />}
             {/* Which ledger a played match's call came from, as an icon chip (a word never fits beside the others): the words
                 stay in its title and for screen readers. Live and replayed calls are never blended, so both are marked. */}
@@ -374,7 +382,7 @@ export function MatchRow({ m, highlight, showEvent, eventName, open, onToggle, o
             {m.clip && <ClipLink clip={m.clip} label={m.label} matchKey={m.key} className={cn(STATUS_CHIP, "tap-44", VIDEO_TONE.chip, "still-hover:bg-video/20")}><span className="text-[10px]">Watch</span></ClipLink>}
             {addedPlays && <ContributorRowMark m={m} className={cn(STATUS_CHIP, "tap-44", VIDEO_TONE.chip, "still-hover:bg-video/20")} />}
             {m.video && !(addedPlays && added?.overFirst) && <MatchVideoLink url={m.video} label={m.label} matchKey={m.key} className={cn(STATUS_CHIP, "tap-44", "still-hover:text-text-base", m.clip && "pointer-coarse:ml-[10px]")} />}
-            {videos > 0 && <span className={cn(STATUS_CHIP, "text-accent-text")} title={`${videos} saved video link${videos > 1 ? "s" : ""}`}><Video className="size-3.5" /><span className="text-[10px]">{videos}</span></span>}
+            {videos > 0 && <span className={cn(STATUS_CHIP, "text-accent-text v8:text-text-muted")} title={`${videos} saved video link${videos > 1 ? "s" : ""}`}><Video className="size-3.5" /><span className="text-[10px]">{videos}</span></span>}
           </div>
         )}
       </div>
@@ -382,7 +390,7 @@ export function MatchRow({ m, highlight, showEvent, eventName, open, onToggle, o
           call's width. 32px to look at, 44px to tap on a touch screen (tap-44). */}
       <Tooltip>
         <TooltipTrigger asChild>
-          <Link to={matchReportHref(m)} className="relative col-start-3 row-start-1 inline-flex size-8 items-center justify-center justify-self-end rounded-md border border-accent bg-card text-text-muted outline-none transition-colors tap-44 still-hover:bg-accent-soft still-hover:text-accent-text focus-visible:ring-2 focus-visible:ring-ring/60 @3xl:col-start-5" aria-label={`Pre-match report for ${m.label}`} data-report-link>
+          <Link to={matchReportHref(m)} className="relative col-start-3 row-start-1 inline-flex size-8 items-center justify-center justify-self-end rounded-md border border-accent bg-card text-text-muted outline-none transition-colors tap-44 still-hover:bg-accent-soft still-hover:text-accent-text focus-visible:ring-2 focus-visible:ring-ring/60 @3xl:col-start-5 v8:border-white/[0.12] v8:bg-transparent v8:transition-[color,background-color,scale] v8:duration-150 v8:still-hover:bg-white/[0.06] v8:still-hover:text-text-base v8:active:scale-[0.97] motion-reduce:active:scale-100" aria-label={`Pre-match report for ${m.label}`} data-report-link>
             <ClipboardList className="size-4" aria-hidden />
           </Link>
         </TooltipTrigger>
@@ -479,16 +487,16 @@ const ListRow = memo(function ListRow({ k, index, measure, toggle, ...row }: Omi
 function GroupHeading({ g, rowProps }: { g: Group; rowProps: Record<string, unknown> }) {
   return g.date ? (
     // A dated event heading reads as a heading: the event's full name, then its dates (under it on phones).
-    <h3 {...rowProps} className="flex items-center gap-2 border-b border-border bg-muted/40 px-3 py-2">
+    <h3 {...rowProps} className="flex items-center gap-2 border-b border-border bg-muted/40 px-3 py-2 v8:bg-transparent">
       <span className="flex min-w-0 flex-1 flex-col sm:flex-row sm:items-baseline sm:gap-2">
-        <Link to={g.href!} className="truncate text-base font-semibold text-text-base hover:text-accent-text hover:underline">{g.title}</Link>
+        <Link to={g.href!} className="truncate text-base font-semibold text-text-base hover:text-accent-text hover:underline v8:hover:text-text-base">{g.title}</Link>
         <span className="shrink-0 text-xs font-normal text-text-muted">{g.date}</span>
       </span>
       <span className="shrink-0 rounded-full bg-muted px-2 py-px text-[11px] font-medium tabular-nums text-text-base/80">{g.ms.length}<span className="sr-only"> matches</span></span>
     </h3>
   ) : (
-    <h3 {...rowProps} className="flex items-center gap-2 border-b border-border bg-muted/40 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-text-muted">
-      {g.href ? <Link to={g.href} className="truncate normal-case tracking-normal text-base text-text-base hover:text-accent-text hover:underline pointer-coarse:leading-[44px]">{g.title}</Link> : g.title}
+    <h3 {...rowProps} className="flex items-center gap-2 border-b border-border bg-muted/40 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-text-muted v8:bg-transparent v8:text-[0.75rem] v8:font-medium v8:normal-case v8:tracking-normal v8:text-text-faint" data-group-head>
+      {g.href ? <Link to={g.href} className="truncate normal-case tracking-normal text-base text-text-base hover:text-accent-text hover:underline pointer-coarse:leading-[44px] v8:hover:text-text-base">{g.title}</Link> : g.title}
       <span className="shrink-0 rounded-full bg-muted px-1.5 py-px text-[10px] tabular-nums text-text-base/80">{g.ms.length}</span>
     </h3>
   );
