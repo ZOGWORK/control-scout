@@ -522,7 +522,7 @@ function MatchLab() {
         {result === "loading" ? <div className="skeleton h-72 rounded-xl" data-call-loading />
           : result === "error" ? <ErrorState error={state.error!} onRetry={state.reload} />
           : result ? <CallV8 x={result.x} offlineAsOf={result.asOf} offlineFrom={result.from} onSwap={swapResult} whatIfOpen={!!sp.get("whatif")} />
-          : <EmptyState icon={Swords} title="Pick the teams" description="One or two a side, any teams, any season. You get who's favoured and by how much, the called score, and the biggest reasons." />}
+          : <EmptyState icon={Swords} title="Pick the teams" description="One or two a side, any teams, any season. You get who's favoured and by how much, the called score, and the biggest reasons." className="py-7" />}
         <SavedPredictions />
       </div>
     );
