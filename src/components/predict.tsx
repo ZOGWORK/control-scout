@@ -317,7 +317,7 @@ function MatchRowV8({ m, highlight, live, rowProps }: MatchRowProps) {
   };
   return (
     <div {...rowProps} className="@container border-b border-border last:border-b-0" data-match={m.key} data-live={live || undefined}>
-      <div className="relative grid min-h-11 grid-cols-[2.75rem_minmax(0,1fr)_3rem_3rem_minmax(0,1fr)] items-center gap-x-2 px-3 py-1.5 @md:grid-cols-[4rem_minmax(0,1fr)_3.75rem_3.75rem_minmax(0,1fr)] @md:gap-x-3"
+      <div className="relative grid min-h-11 grid-cols-[2.75rem_minmax(0,1fr)_3rem_3rem_minmax(0,1fr)] items-center gap-x-2 px-3 py-1.5 @md:grid-cols-[4rem_minmax(0,1fr)_3.75rem_3.75rem_minmax(0,1fr)] @md:gap-x-3 @4xl:grid-cols-[4rem_minmax(0,13rem)_3.75rem_3.75rem_minmax(0,13rem)_1fr]"
         data-row data-v8-row>
         {/* The label is the row's link: stretched over the whole row (the teams sit above it, each its own tap). */}
         <Link to={matchReportHref(m)} className="font-mono text-sm font-semibold outline-none after:absolute after:inset-0 after:content-[''] focus-visible:after:rounded-md focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-ring/60" data-report-link>
@@ -349,7 +349,9 @@ function ScoreV8({ score, side, result }: { score: number; side: Side; result: "
 function RowTeams({ side, m, highlight, followed }: { side: Side; m: MatchView; highlight?: number; followed: ReadonlySet<number> }) {
   const snack = useTeamSnack();
   return (
-    <span className={cn("flex min-w-0 flex-col gap-y-0.5 @md:flex-row @md:flex-wrap @md:gap-x-3", side === "blue" && "items-end @md:justify-end")} data-teams={side}>
+    // Each alliance sits against its own score (red's numbers end at it, blue's start from it), so a wide row reads
+    // as one unit from the middle instead of spreading to both edges.
+    <span className={cn("flex min-w-0 flex-col gap-y-0.5 @md:flex-row @md:flex-wrap @md:gap-x-3", side === "red" ? "items-end @md:justify-end" : "items-start @md:justify-start")} data-teams={side}>
       {m[side].teams.map((t) => {
         const mine = t.number === highlight || followed.has(t.number);
         const off = t.surrogate || !t.onField;

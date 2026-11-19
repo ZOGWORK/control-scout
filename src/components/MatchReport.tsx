@@ -282,7 +282,9 @@ function HeroTeams({ side, m, byTeam }: { side: Side; m: MatchView; byTeam: Read
 /** The two or three biggest reasons behind the call, in plain words, each marked with the side it helps. */
 function ReasonsV8({ m }: { m: MatchView }) {
   const p = m.prediction;
-  const top = p?.factors?.slice(0, 3) ?? [];
+  // The call's own top factors; a call stored without them (a replayed one) falls back to its factor sheet's biggest.
+  const fromSheet = p?.sheet ? [...p.sheet.phases, ...p.sheet.model].filter((f) => f.favors !== "even" && f.weight > 0).sort((x, y) => y.weight - x.weight) : [];
+  const top: { id: string; label: string; favors: string }[] = p?.factors?.length ? p.factors.slice(0, 3) : fromSheet.slice(0, 3).map((f) => ({ id: f.id, label: f.label || f.name, favors: f.favors }));
   return (
     <section className="min-w-0" aria-label="Why" data-testid="report-reasons">
       <h2 className="text-base font-semibold">{m.played ? "Why it went this way" : "Why"}</h2>
