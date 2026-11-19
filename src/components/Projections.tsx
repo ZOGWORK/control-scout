@@ -6,6 +6,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { ArrowDown, ArrowUp, ChartNoAxesGantt, HardDrive, HardDriveDownload, Info, Pin, Radio, Target } from "lucide-react";
 import { cn } from "./cn";
+import { V8_LOSS, V8_WIN } from "../lib/v8colour";
 import { Badge } from "./ui/basic";
 import { EmptyState } from "./page";
 import { Button } from "./ui/button";
@@ -195,7 +196,7 @@ function LiveView({ run, baseline, rankNow, names, pinned, local }: { run: Proje
               const lastPin = pin && !pinned.has(rows[i + 1]?.team ?? -1);
               const move = showMove ? rankMovement(t, before.get(t.team)) : null;
               return (
-                <tr key={t.team} className={cn("border-b border-border last:border-b-0 hover:bg-text-base/[0.03] v8:h-11 v8:border-line", pin && "bg-accent/[0.07] v8:bg-white/[0.04]", lastPin && "border-b-2 border-b-accent/40 v8:border-b v8:border-b-white/[0.12]")}>
+                <tr key={t.team} className={cn("border-b border-border last:border-b-0 hover:bg-text-base/[0.03] v8:h-11 v8:border-line", pin && "bg-accent/[0.07] v8:bg-accent/[0.08]", lastPin && "border-b-2 border-b-accent/40 v8:border-b v8:border-b-white/[0.12]")}>
                   <td className="density-row whitespace-nowrap px-3 py-2 max-sm:px-2">
                     <span className={cn("flex items-center gap-1.5", pin && "border-l-2 border-accent -ml-3 pl-2.5")}>
                       {pin && <Pin className="size-3 shrink-0 text-accent-text" aria-label="Pinned: your team or a tracked team" />}
@@ -252,7 +253,7 @@ function RankText({ t, move }: { t: ProjectionTeam; move: number | null }) {
     <span className="w-24 shrink-0 leading-tight max-sm:w-auto">
       <span className="font-display text-base font-semibold tabular-nums">#{p50}</span>
       {move != null && move !== 0 && (
-        <span className={cn("ml-1 inline-flex items-center text-[11px] font-medium tabular-nums", move > 0 ? "text-success" : "text-destructive")} title={`${move > 0 ? "Up" : "Down"} ${Math.abs(move)} since the pre-event projection`}>
+        <span className={cn("ml-1 inline-flex items-center text-[11px] font-medium tabular-nums", move > 0 ? cn("text-success", V8_WIN) : cn("text-destructive", V8_LOSS))} title={`${move > 0 ? "Up" : "Down"} ${Math.abs(move)} since the pre-event projection`}>
           {move > 0 ? <ArrowUp className="size-3" aria-hidden /> : <ArrowDown className="size-3" aria-hidden />}{Math.abs(move)}
           <span className="sr-only">{move > 0 ? " places up" : " places down"} since the pre-event projection</span>
         </span>
@@ -275,7 +276,7 @@ function Whisker({ t, n, now, ghost, actual }: { t: ProjectionTeam; n: number; n
       {ghost != null && ghost !== p50 && <span className="absolute top-1/2 size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-muted-foreground/60 bg-card" style={{ left: `${x(ghost)}%` }} />}
       <span className="absolute top-1/2 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-accent ring-2 ring-card" style={{ left: `${x(p50)}%` }} />
       {now != null && !actual && <span className="absolute top-0 h-5 w-0.5 -translate-x-1/2 rounded bg-foreground/80" style={{ left: `${x(now)}%` }} />}
-      {actual && <span className={cn("absolute top-1/2 size-3 -translate-x-1/2 -translate-y-1/2 rotate-45 ring-2 ring-card", actual.inside ? "bg-success" : "bg-warning")} style={{ left: `${x(actual.rank)}%` }} />}
+      {actual && <span className={cn("absolute top-1/2 size-3 -translate-x-1/2 -translate-y-1/2 rotate-45 ring-2 ring-card", actual.inside ? "bg-success v8:bg-emerald-400" : "bg-warning")} style={{ left: `${x(actual.rank)}%` }} />}
     </span>
   );
 }
@@ -314,10 +315,10 @@ function FinalView({ run, baseline, isLastOpen, actual, names, pinned }: { run: 
     <section aria-labelledby="proj-h" className="relative overflow-hidden rounded-2xl border border-border bg-card v8:border-line">
       <div aria-hidden className="pointer-events-none absolute -right-16 -top-20 size-56 rounded-full bg-success/10 blur-3xl v8:hidden" />
       <header className="relative border-b border-border p-4 sm:p-5 v8:border-line">
-        <h2 id="proj-h" className="flex items-center gap-2 font-display text-lg font-semibold v8:font-sans v8:text-base"><Target className="size-5 text-success v8:text-text-muted" /> Final results vs projections</h2>
+        <h2 id="proj-h" className="flex items-center gap-2 font-display text-lg font-semibold v8:font-sans v8:text-base"><Target className="size-5 text-success v8:text-emerald-400" /> Final results vs projections</h2>
         <p className="mt-1 text-sm text-muted-foreground">Each team's final seed against the range it was projected in {when} ({runsText(run.runs)}).</p>
         <div className="mt-4 flex flex-wrap gap-3">
-          <Score label={`inside their projected range ${when}`} inside={hits.inside} total={hits.total} tone="text-success" />
+          <Score label={`inside their projected range ${when}`} inside={hits.inside} total={hits.total} tone={cn("text-success", V8_WIN)} />
           {pre && pre.total > 0 && <Score label="inside their pre-event range" inside={pre.inside} total={pre.total} tone="text-info" />}
         </div>
       </header>
@@ -337,7 +338,7 @@ function FinalView({ run, baseline, isLastOpen, actual, names, pinned }: { run: 
               const a = actual.get(t.team);
               const inside = a != null && !!t.rank && a >= t.rank.p10 && a <= t.rank.p90;
               return (
-                <tr key={t.team} className={cn("border-b border-border last:border-b-0 v8:h-11 v8:border-line", pinned.has(t.team) && "bg-accent/[0.07] v8:bg-white/[0.04]")}>
+                <tr key={t.team} className={cn("border-b border-border last:border-b-0 v8:h-11 v8:border-line", pinned.has(t.team) && "bg-accent/[0.07] v8:bg-accent/[0.08]")}>
                   <td className="density-row whitespace-nowrap px-3 py-2 max-sm:px-2"><Link to={`/teams/${t.team}`} className="font-medium tabular-nums hover:underline">{t.team}</Link> <span className="max-w-36 truncate text-xs text-muted-foreground max-sm:hidden">{names.get(t.team)}</span></td>
                   <td className="density-row px-3 py-2 text-right font-display font-semibold tabular-nums">{a ?? "—"}</td>
                   <td className="density-row px-3 py-2 max-sm:px-2">
@@ -354,7 +355,7 @@ function FinalView({ run, baseline, isLastOpen, actual, names, pinned }: { run: 
         </table>
       </div>
       <footer className="relative border-t border-border px-4 py-3 text-xs text-muted-foreground sm:px-5">
-        <span className="inline-flex items-center gap-1.5"><span className="inline-block size-2.5 rotate-45 bg-success" /> final seed inside the range</span>
+        <span className="inline-flex items-center gap-1.5"><span className="inline-block size-2.5 rotate-45 bg-success v8:bg-emerald-400" /> final seed inside the range</span>
         <span className="ml-3 inline-flex items-center gap-1.5"><span className="inline-block size-2.5 rotate-45 bg-warning" /> outside</span>
         <span className="ml-3">An 80% range should hold about 8 teams in 10. <Link to="/methodology#projections" className="underline">How projections work</Link></span>
       </footer>

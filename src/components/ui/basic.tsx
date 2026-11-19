@@ -83,7 +83,8 @@ export const badgeVariants = cva(
         info: 'border-info/30 bg-info/[0.08] text-info',
         new: 'border-transparent bg-red-600 text-white',
         destructive: 'border-danger/30 bg-danger/15 text-danger',
-        success: 'border-success/30 bg-success/15 text-success',
+        // v8's success token is white: a good outcome keeps its green there (src/lib/v8colour.ts).
+        success: 'border-success/30 bg-success/15 text-success v8:border-emerald-400/30 v8:bg-emerald-400/10 v8:text-emerald-400',
       },
     },
     defaultVariants: { variant: 'default' },

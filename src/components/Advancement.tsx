@@ -25,6 +25,7 @@ import { ADVANCE_LABEL, advanceStatus, type ProjectionRun, type ProjectionsView 
 import { oddsTabBasis } from "../lib/eventRankingNotes";
 import { eventStanding } from "../shared/eventStanding";
 import { forecastTier } from "../shared/forecastTier";
+import { V8_NUM } from "../lib/v8";
 export { forecastTier };
 
 const ease = [0.2, 0.8, 0.2, 1] as const;
@@ -235,7 +236,7 @@ function Outlook({ fc, team, name, onPeek }: { fc: Shown; team: number | null; n
           ) : (
             <>
               <p className="text-sm text-muted-foreground">Team {me.team}'s chance to advance</p>
-              <p className="mt-1 font-display text-6xl font-semibold tabular-nums tracking-tight sm:text-7xl">{pct(me.pAdvance)}</p>
+              <p className={cn("mt-1 font-display text-6xl font-semibold tabular-nums tracking-tight sm:text-7xl", V8_NUM)}>{pct(me.pAdvance)}</p>
               <div className="mt-4 h-2 overflow-hidden rounded-full bg-muted"><GrowBar value={me.pAdvance} className="bg-accent" /></div>
               {fc.projection ? (
                 <p className="mt-3 text-sm text-muted-foreground">
@@ -312,7 +313,7 @@ function AlliancePanel({ season, code, fc, team, mode, nameOf, onPeek }: { seaso
           <h3 className="text-base font-semibold">{data.role === "captain" ? `Who should ${team} pick?` : `Best captains for ${team}`}</h3>
           <p className="mt-0.5 max-w-2xl text-sm text-muted-foreground">{data.role === "captain" ? `${team} is likely a captain (${pct(data.baseline.pCaptain)}). Each option simulates the event with that partner on the alliance.` : `${team} is more likely to be picked than to captain. Each option simulates the event with that captain picking ${team}.`}{pre && " As it stood the day before the event: ratings from earlier matches only, none of this event's results."}</p>
         </div>
-        <div className="text-right"><p className="text-xs text-muted-foreground">{pre ? "Before the event" : "Right now"}</p><p className="font-display text-2xl font-semibold tabular-nums">{pct(data.baseline.pAdvance)}</p></div>
+        <div className="text-right"><p className="text-xs text-muted-foreground">{pre ? "Before the event" : "Right now"}</p><p className={cn("font-display text-2xl font-semibold tabular-nums", V8_NUM)}>{pct(data.baseline.pAdvance)}</p></div>
       </div>
       <Stagger as="ol" className="grid gap-3 md:grid-cols-2">
         {data.options.map((o, i) => {

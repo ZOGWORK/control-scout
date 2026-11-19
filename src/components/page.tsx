@@ -187,7 +187,8 @@ export function Stat({ label, value, hint, tone, icon: Icon, onClick }: {
       </p>
       <p className={cn(
         'mt-1 font-display text-3xl font-semibold tabular-nums tracking-tight',
-        tone === 'good' ? 'text-success' : tone === 'bad' ? 'text-destructive' : 'text-foreground',
+        // v8's success token is white: good keeps its green there (src/lib/v8colour.ts).
+        tone === 'good' ? 'text-success v8:text-emerald-400' : tone === 'bad' ? 'text-destructive' : 'text-foreground',
       )}>
         {value}
       </p>

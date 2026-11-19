@@ -9,6 +9,7 @@ import { oddsPct, seasonLabel } from "../lib/format";
 import { bracketLayout, type BracketLayout } from "../lib/bracketLayout";
 import { ConfidenceBadge, TierMark } from "./predict";
 import { cn } from "./cn";
+import { V8_AWARD, V8_LOSS, V8_WIN } from "../lib/v8colour";
 import { PredictionBasis } from "./PredictionBasis";
 
 /** One hue per alliance number (chip tint, text, bar), the same in every card. Chip text reaches 4.5:1 on its tint in both themes (textTones.test.ts). */
@@ -57,7 +58,7 @@ export function BracketAccuracyNote() {
     <PredictionBasis kind="bracket" />
     <p className="text-xs text-muted-foreground">
       Measured on {s.n.toLocaleString()} past playoff series ({seasons}, replayed with only what was known before each one): the favourite won{" "}
-      <span className="font-semibold text-success v8:text-text-base">{Math.round(s.accuracy * 100)}%</span>, Brier score <span className="font-semibold text-foreground tabular-nums">{s.brier.toFixed(3)}</span>.
+      <span className={cn("font-semibold text-success v8:text-text-base", V8_WIN)}>{Math.round(s.accuracy * 100)}%</span>, Brier score <span className="font-semibold text-foreground tabular-nums">{s.brier.toFixed(3)}</span>.
     </p>
     </>
   );
@@ -71,7 +72,7 @@ export function AllianceOddsCard({ odds, children }: { odds: BracketAllianceOdds
       {odds && (
         <div className="mt-3">
           {odds.status === "champion" ? (
-            <p className="flex items-center gap-1.5 font-display text-lg font-semibold text-accent-text"><Crown className="size-4" aria-hidden /> Champions</p>
+            <p className={cn("flex items-center gap-1.5 font-display text-lg font-semibold text-accent-text", V8_AWARD)}><Crown className="size-4" aria-hidden /> Champions</p>
           ) : odds.status === "out" ? (
             <p className="text-sm text-muted-foreground">Out of the playoffs</p>
           ) : (
@@ -117,7 +118,7 @@ function BeforeLine({ b, compact }: { b: NonNullable<BracketSeriesView["before"]
     <span data-before={b.right == null ? "even" : b.right ? "held" : "missed"} className="flex flex-wrap items-center gap-1 text-[11px] text-muted-foreground"
       title={b.kind === "live" ? "The engine's call logged before the series' first match" : "The season replay's call: predicted with only earlier matches, not logged in advance"}>
       {kind}{compact ? "" : ":"} <AllianceChip alliance={b.alliance} className="px-1 py-0 text-[11px]" /> <span className="font-semibold text-foreground tabular-nums">{oddsPct(b.p)}</span>
-      <span className={cn("font-medium", b.right === true ? "text-foreground" : "")}>· {held}</span>
+      <span className={cn("font-medium", b.right === true ? cn("text-foreground", V8_WIN) : b.right === false && V8_LOSS)}>· {held}</span>
     </span>
   );
 }
@@ -136,7 +137,7 @@ export function SeriesCard({ s, matches, final }: { s: BracketSeriesView; matche
         // Decided: one line, so a played-through bracket stays short on a phone, and the call it had before.
         <>
         <p className="mt-2 flex items-center gap-1.5 text-sm">
-          <Trophy className="size-3.5 text-accent v8:text-text-muted" aria-hidden /> <AllianceChip alliance={s.winner!} /> <span className="text-muted-foreground">beat</span> {loser != null && <AllianceChip alliance={loser} muted />}
+          <Trophy className={cn("size-3.5 text-accent v8:text-text-muted", V8_AWARD)} aria-hidden /> <AllianceChip alliance={s.winner!} /> <span className="text-muted-foreground">beat</span> {loser != null && <AllianceChip alliance={loser} muted />}
           {s.bestOf > 1 && <span className="ml-auto text-xs tabular-nums text-muted-foreground">{Math.max(...s.wins)}–{Math.min(...s.wins)}</span>}
         </p>
         {s.before && <div className="mt-1"><BeforeLine b={s.before} /></div>}
@@ -210,7 +211,7 @@ function TreeSide({ slot, s, wins, score, teams, side }: { slot: BracketSlotView
         </span>
       )}
       <span className="ml-auto flex items-center gap-1 text-sm tabular-nums">
-        {won && <Trophy className="size-3.5 text-accent v8:text-text-muted" aria-label="Winner" />}
+        {won && <Trophy className={cn("size-3.5 text-accent v8:text-text-muted", V8_AWARD)} aria-label="Winner" />}
         {s.bestOf === 1 ? score != null && <span className={cn(lost && "text-muted-foreground")}>{score}</span> : slot.alliance != null && <span>{wins}</span>}
       </span>
     </div>
