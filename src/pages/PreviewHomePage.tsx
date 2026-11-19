@@ -8,7 +8,7 @@
 //     sit in the menu under your profile picture, top-right beside the inbox (a guest picture when signed out).
 //     Report a bug is a quiet circle in the bottom corner. Near-black, with a dusky purple-grey wash and a fine grain
 //     across the top of the page (not the sidebar).
-//   - One accent, mint, scoped to this page (data-theme-next): the live progress, the pick-a-team icon, the
+//   - One accent, mint, scoped to this page (data-theme-next): the live progress, the
 //     search focus, the #1 rank, links on hover. Numbers and names are white, labels grey; red and blue stay alliances.
 // No headline of any kind (no H1), no slogan, no globe. Every number comes from the same APIs the live Home uses.
 import { useState, type CSSProperties } from "react";
@@ -535,17 +535,17 @@ function TeamRow({ team, season, t, loaded }: { team: number; season: number; t:
   );
 }
 
-/** No team yet: the same card, one line on what picking does, and a quiet pill to pick one. */
+/** No team yet: the same card, one line on what picking does, and a plain button to pick one. */
 function PickTeamCard({ onPick }: { onPick: () => void }) {
   return (
     <section data-card="team" aria-labelledby="sample-team" className={card}>
       <h2 id="sample-team" className={cardTitle}><Star className="size-4 text-text-muted" aria-hidden /> Your teams</h2>
       <p className="text-sm text-text-muted">Pick your team to see its next match and its chance to win, right here. It stays on this device; no account needed.</p>
-      <button type="button" data-pick-team onClick={onPick} className={pickTeam}><Search className="size-4 text-accent" aria-hidden /> Pick your team</button>
+      <button type="button" data-pick-team onClick={onPick} className={pickTeam}><Search className="size-4" aria-hidden /> Pick your team</button>
     </section>
   );
 }
 
-/** Picking a team: an outlined pill like the example chips (the card's one action, not a slab across it), the
- *  search icon in mint. Sits where the other cards' links sit. */
-const pickTeam = "mt-auto inline-flex h-10 items-center gap-2 self-start rounded-full border border-white/15 bg-white/[0.03] px-4 text-sm font-medium text-text-base transition-colors hover:border-white/30 hover:bg-white/[0.07] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring";
+/** Picking a team: a plain icon-and-label button like the sidebar's rows (no colour, no fill, no border; a faint
+ *  wash on hover), where the other cards' links sit. */
+const pickTeam = "mt-auto -ml-2.5 inline-flex h-10 items-center gap-2.5 self-start rounded-lg px-2.5 text-sm font-medium text-text-base transition-colors hover:bg-white/[0.06] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring";
