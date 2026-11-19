@@ -149,13 +149,13 @@ function Row({ f, top, winner }: { f: SheetFactor; top: number; winner: "A" | "B
   const Icon = ICON[f.id] ?? Gauge;
   return (
     <li className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-2.5 gap-y-1 v8:py-2.5" data-factor={f.id}>
-      {/* v8: the icon plain and faint (no coloured chip); the share and its bar keep the side's colour. */}
-      <span className={cn("row-span-2 mt-0.5 flex size-8 items-center justify-center rounded-lg", tone.chip, "v8:size-5 v8:bg-transparent v8:text-text-faint")} aria-hidden><Icon className="size-4" /></span>
+      {/* v8: the icon plain (no chip) in its side's colour, like the share and its bar. */}
+      <span className={cn("row-span-2 mt-0.5 flex size-8 items-center justify-center rounded-lg", tone.chip, "v8:size-5 v8:bg-transparent")} aria-hidden><Icon className="size-4" /></span>
       <div className="min-w-0">
         <p className="flex flex-wrap items-center gap-x-2 text-sm font-medium">
           {f.name}
           {right != null && (
-            <span className={cn("inline-flex items-center gap-0.5 rounded-full px-1.5 py-px text-[11px] font-medium v8:bg-transparent v8:px-0 v8:text-[0.75rem]", right ? "bg-success/15 text-success" : "bg-warning/15 text-warning")}>
+            <span className={cn("inline-flex items-center gap-0.5 rounded-full px-1.5 py-px text-[11px] font-medium v8:bg-transparent v8:px-0 v8:text-[0.75rem]", right ? "bg-success/15 text-success v8:text-emerald-400" : "bg-warning/15 text-warning v8:text-rose-400")}>
               {right ? <Check className="size-3" aria-hidden /> : <X className="size-3" aria-hidden />}{right ? "Pointed right" : "Pointed wrong"}
             </span>
           )}

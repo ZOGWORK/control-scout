@@ -174,7 +174,7 @@ function Picker({ onPick }: { onPick: (p: PredictPick) => void }) {
   const chip = (t: number, small?: boolean) => (
     <button key={t} type="button" onPointerDown={(e) => e.preventDefault()} onClick={() => onPick({ kind: "team", team: t })}
       className={cn("inline-flex items-center gap-1 rounded-full border border-border font-mono text-foreground hover:border-accent/60 hover:text-accent-text v8:hover:border-white/25 v8:hover:text-text-base v8:active:scale-[0.97] v8:motion-reduce:active:scale-100 v8:transition-[border-color,color,scale] v8:duration-150", small ? "px-2.5 py-0.5 text-xs max-sm:min-h-8" : "px-3 py-1 text-sm max-sm:min-h-9")}>
-      {t === state.myTeam && <Star className={cn("fill-accent text-accent v8:fill-text-base v8:text-text-base", small ? "size-3" : "size-3.5")} />}{t}
+      {t === state.myTeam && <Star className={cn("fill-accent text-accent", small ? "size-3" : "size-3.5")} />}{t}
     </button>
   );
   return (
