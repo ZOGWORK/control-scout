@@ -12,6 +12,7 @@ import { dateRange, seasonLabel } from "../../../lib/format";
 import { EventStatusChip } from "../../EventChips";
 import { HitFacts } from "../SearchBox";
 import { cn } from "../../cn";
+import { V8_STATUS } from "./v8tone";
 import { RecordText, better } from "./answerCells";
 import { compareSides, compareTeams, eventFacts, teamParts } from "./results";
 import { eventName } from "./records";
@@ -65,14 +66,14 @@ export function EventCard({ h, onOpen }: { h: SearchHit; onOpen: (h: SearchHit) 
   const { title, badges } = eventName(h.title);
   const [s, c] = h.ref.split(":");
   return (
-    <div data-result="event" className="lift group relative flex h-full flex-col overflow-hidden rounded-xl border border-border bg-card p-4 pl-5 max-sm:py-3">
-      <span aria-hidden className={cn("absolute inset-y-0 left-0 w-1", tone?.bar ?? "bg-text-base/25")} />
+    <div data-result="event" className="lift group relative flex h-full flex-col overflow-hidden rounded-xl border border-border bg-card p-4 pl-5 max-sm:py-3 v8:border-line v8:p-5">
+      <span aria-hidden className={cn("absolute inset-y-0 left-0 w-1 v8:hidden", tone?.bar ?? "bg-text-base/25")} />
       <div className="flex flex-wrap items-center gap-2 text-xs">
         {e.status === "started"
           ? <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-xs font-semibold text-foreground/80" data-event-chip="status">Started</span>
-          : <EventStatusChip status={e.status} className="px-2 py-0.5" />}
-        {e.type && <span className={cn("truncate font-semibold", tone?.text ?? "text-muted-foreground")}>{e.typeLabel ?? eventTypeLabel(e.type)}</span>}
-        {e.teams != null && e.teams > 0 && <span className="ml-auto inline-flex shrink-0 items-center gap-1 tabular-nums text-muted-foreground"><Users className="size-3.5" aria-hidden />{e.teams}<span className="sr-only"> teams registered</span></span>}
+          : <EventStatusChip status={e.status} className={cn("px-2 py-0.5", V8_STATUS[e.status === "upcoming" ? "upcoming" : e.status === "live" ? "live" : "finished"].chip)} />}
+        {e.type && <span className={cn("truncate font-semibold", tone?.text ?? "text-muted-foreground", "v8:font-normal v8:text-text-muted")}>{e.typeLabel ?? eventTypeLabel(e.type)}</span>}
+        {e.teams != null && e.teams > 0 && <span className="ml-auto inline-flex shrink-0 items-center gap-1 tabular-nums text-muted-foreground"><Users className="size-3.5" aria-hidden /><span className="v8:text-accent">{e.teams}</span><span className="sr-only"> teams registered</span></span>}
       </div>
       <Link to={hitHref(h)} onClick={() => onOpen(h)} className="mt-2 line-clamp-2 font-medium leading-snug text-foreground outline-none group-hover:underline after:absolute after:inset-0 after:content-[''] focus-visible:after:rounded-xl focus-visible:after:outline-2 focus-visible:after:outline-accent">{title}</Link>
       <p className="mt-1.5 flex flex-wrap gap-1 text-[11px]">

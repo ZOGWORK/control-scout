@@ -373,7 +373,7 @@ function BugReportForm({ phone = false, onDone }: { phone?: boolean; onDone: () 
     return (
       <div role="status" className="flex flex-col items-center py-6 text-center" data-testid="bug-report-sent" data-filed={filed.state}>
         <Header className="sr-only"><Title>Bug report sent</Title><Desc>Thanks for the report.</Desc></Header>
-        <span className={cn("mb-3 flex size-12 items-center justify-center rounded-full", filed.state === "failed" ? "bg-warning/12 text-warning" : "bg-success/12 text-success")}>
+        <span className={cn("mb-3 flex size-12 items-center justify-center rounded-full", filed.state === "failed" ? "bg-warning/12 text-warning" : "bg-success/12 text-success v8:bg-emerald-400/12 v8:text-emerald-400")}>
           {filed.state === "asking" ? <Loader2 className="size-6 animate-spin" aria-hidden /> : filed.state === "failed" ? <AlertCircle className="size-6" aria-hidden /> : <CheckCircle2 className="size-6" aria-hidden />}
         </span>
         <p className="font-display text-lg font-semibold text-foreground">{heading}</p>
@@ -384,7 +384,7 @@ function BugReportForm({ phone = false, onDone }: { phone?: boolean; onDone: () 
           </a>
         )}
         <p className="mt-1 max-w-sm text-sm text-text-muted">{email.trim() ? <>If we need more, we'll write to <strong className="text-foreground">{email.trim()}</strong>.</> : "We'll look into it."}</p>
-        <div className="mt-3 max-w-md"><PublicNotice /></div>
+        {/* The "this is public" warning belongs before sending; once it's sent it only adds noise. */}
         {failure && <p className="mt-3 max-w-sm text-xs text-warning">{failure}</p>}
         <Button className="mt-5" onClick={onDone}>Done</Button>
       </div>
