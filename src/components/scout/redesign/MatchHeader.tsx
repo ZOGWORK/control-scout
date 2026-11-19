@@ -31,8 +31,8 @@ export function clockTime(t: string | null | undefined): string | null {
 
 const STATE_WORDS: Record<ChipState, string> = { current: "current", done: "done", partial: "partly scouted", skipped: "skipped", upcoming: "" };
 // The same tints as MatchRow's status chips (Right / Upset) and its highlighted team (accent ring).
-// v8: the open match is white on a faint fill with the slate-blue line (picked); done is plain white, partly done
-// and skipped a dashed hairline, upcoming muted. No green or orange.
+// v8: the open match is white on a faint fill with the slate-blue line (picked); done is green, partly done
+// and skipped a dashed hairline, upcoming muted. No orange.
 const CHIP: Record<ChipState, string> = {
   current: "border-transparent bg-accent/15 font-semibold text-accent-text ring-1 ring-accent/60 v8:bg-white/10 v8:text-text-base v8:ring-accent/70",
   done: "border-transparent bg-success/12 text-success v8:bg-white/[0.06] v8:text-emerald-400",
