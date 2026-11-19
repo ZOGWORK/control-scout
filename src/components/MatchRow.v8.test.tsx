@@ -63,11 +63,23 @@ describe("match row in v8: every classic feature, restyled", () => {
     expect(link.className).toMatch(/v8:bg-transparent/);
   });
 
-  it("your team's tile is outlined (white in v8, no accent fill)", () => {
+  it("your team's tile takes the slate-blue accent ring and tint, on either side; other numbers are accent, names white", () => {
+    show(match({}, 130, 90), 19612);
+    const mine = within(q('[data-alliance-box="blue"]')).getByRole("link", { name: /19612/ });
+    expect(mine.className).toMatch(/v8:ring-accent\/70/);
+    expect(mine.className).toMatch(/v8:bg-accent\/\[0\.14\]/);
+    expect(within(mine).getByText("19612").className).not.toMatch(/v8:text-accent/); // yours stays white
+    const other = within(q('[data-alliance-box="red"]')).getByRole("link", { name: /31065/ });
+    expect(within(other).getByText("31065").className).toMatch(/v8:text-accent/);
+    expect(within(other).getByText("Team 31065").className).toMatch(/v8:text-text-base/);
+  });
+
+  it("your result in the row is a soft chip: green when won, red when lost", () => {
     show(match({}, 130, 90), 31065);
-    const mine = within(q('[data-alliance-box="red"]')).getByRole("link", { name: /31065/ });
-    expect(mine.className).toMatch(/v8:ring-white\/45/);
-    expect(mine.className).toMatch(/v8:bg-white\/\[0\.07\]/);
+    expect(q("[data-mine]").className).toMatch(/v8:text-emerald-400/);
+    cleanup();
+    show(match({}, 130, 90), 19612);
+    expect(q("[data-mine]").className).toMatch(/text-destructive/);
   });
 
   it("a double-elimination playoff keeps its lives hearts", () => {
@@ -84,9 +96,12 @@ describe("match row in v8: every classic feature, restyled", () => {
     expect(toggle).toHaveBeenCalled();
   });
 
-  it("the loser's score is lighter in v8", () => {
+  it("both scores keep their alliance colour in v8; the loser is only lighter in weight", () => {
     show(match({}, 130, 90));
     const blueScore = within(q('[data-alliance-box="blue"]')).getByText("90");
     expect(blueScore.className).toMatch(/v8:font-medium/);
+    expect(blueScore.className).toMatch(/v8:text-blue-alliance/);
+    expect(blueScore.className).not.toMatch(/opacity/);
+    expect(within(q('[data-alliance-box="red"]')).getByText("130").className).toMatch(/v8:text-red-alliance/);
   });
 });

@@ -177,12 +177,12 @@ function TeamChip({ t, side, season, highlight }: { t: AllianceScore["teams"][nu
   const cls = cn("flex min-w-0 flex-col rounded-md px-1.5 py-0.5 text-left leading-tight outline-none pointer-coarse:min-h-[44px] pointer-coarse:justify-center focus-visible:ring-2 focus-visible:ring-ring/60",
     side === "blue" && "@min-[330px]:items-end @min-[330px]:text-right",
     picked ? (side === "red" ? "bg-red-alliance/30 ring-1 ring-red-alliance/70" : "bg-blue-alliance/30 ring-1 ring-blue-alliance/70")
-      : me ? "bg-accent/15 ring-1 ring-accent/60 v8:bg-white/[0.07] v8:ring-white/45" : "still-hover:bg-text-base/[0.06]");
+      : me ? "bg-accent/15 ring-1 ring-accent/60 v8:bg-accent/[0.14] v8:ring-accent/70" : "still-hover:bg-text-base/[0.06]");
   const body = (
     <>
-      <span className={cn("tabular font-mono text-[0.8125rem]", me ? "font-bold text-accent-text" : picked ? "font-bold text-text-base" : sub ? "text-text-muted" : "text-text-base")}>{n}</span>
+      <span className={cn("tabular font-mono text-[0.8125rem]", me ? "font-bold text-accent-text" : picked ? "font-bold text-text-base" : sub ? "text-text-muted" : "text-text-base v8:text-accent")}>{n}</span>
       {/* The space keeps number and name apart in the text, so the button's label ("207 Critical Mass: …") contains it (WCAG 2.5.3). */}
-      {t.name && <>{" "}<span className={cn("block max-w-full truncate text-[11px] italic v8:text-[0.75rem] v8:not-italic", picked || me ? "text-text-base" : "text-text-muted")} data-team-name>{t.name}</span></>}
+      {t.name && <>{" "}<span className={cn("block max-w-full truncate text-[11px] italic v8:text-[0.75rem] v8:not-italic", picked || me ? "text-text-base" : "text-text-muted v8:text-text-base")} data-team-name>{t.name}</span></>}
       {sub && <span className="sr-only"> (surrogate)</span>}
     </>
   );
@@ -258,7 +258,9 @@ function AllianceBox({ side, m, score, forecast, outcome, highlight }: {
         {a.teams.map((t) => <TeamChip key={t.number} t={t} side={side} season={m.season} highlight={highlight} />)}
       </div>
       {score != null ? (
-        <span key={flash} className={cn("shrink-0 font-display text-lg font-bold tabular-nums v8:text-xl", outcome === "loss" && "v8:font-medium", flash > 0 && "cs-score-flash -mx-1 px-1", outcome === "loss" ? FADED[side] : side === "red" ? "text-red-alliance-ink" : "text-blue-alliance")}>
+        <span key={flash} className={cn("shrink-0 font-display text-lg font-bold tabular-nums v8:text-xl", outcome === "loss" && "v8:font-medium", flash > 0 && "cs-score-flash -mx-1 px-1", outcome === "loss" ? FADED[side] : side === "red" ? "text-red-alliance-ink" : "text-blue-alliance",
+          // v8: both scores in the alliance colour itself, never faded toward grey; the loser is only lighter in weight.
+          side === "red" ? "v8:text-red-alliance" : "v8:text-blue-alliance")}>
           {score}{outcome === "win" && <span className="sr-only"> (won)</span>}
         </span>
       ) : forecast != null ? (
@@ -353,7 +355,7 @@ function MatchRowClassic({ m, highlight, showEvent, eventName, open, onToggle, o
         {/* The highlighted team's own result goes with the match, not the call. */}
         {mine && (
           <span className={cn("mt-0.5 inline-block whitespace-nowrap rounded-full px-2 py-px text-[11px] font-semibold",
-            mine === "win" ? "bg-success/15 text-success" : mine === "loss" ? "bg-destructive/15 text-destructive" : "bg-muted text-text-muted")} data-mine>
+            mine === "win" ? "bg-success/15 text-success v8:bg-emerald-400/[0.12] v8:text-emerald-400" : mine === "loss" ? "bg-destructive/15 text-destructive" : "bg-muted text-text-muted")} data-mine>
             {highlight} {mine === "win" ? "won" : mine === "loss" ? "lost" : "tied"}
           </span>
         )}
@@ -634,7 +636,7 @@ export function MatchList({ matches, highlight, empty, eventNames, eventDates, i
     <div ref={box} className="match-list space-y-2">
       {rec && rec.played > 0 && (
         <p className="text-sm text-text-muted">
-          <span className="font-semibold text-accent-text">{highlight}</span> in these matches: <span className={cn("font-semibold", rec.w ? "text-success" : "text-text-muted")}>{rec.w} won</span> · <span className={cn("font-semibold", rec.l ? "text-destructive v8:text-text-muted" : "text-text-muted")}>{rec.l} lost</span>{rec.t > 0 && <> · {rec.t} tied</>}{rec.upcoming > 0 && <> · {rec.upcoming} to play</>}
+          <span className="font-semibold text-accent-text v8:text-accent">{highlight}</span> in these matches: <span className={cn("font-semibold", rec.w ? "text-success v8:text-emerald-400" : "text-text-muted")}>{rec.w} won</span> · <span className={cn("font-semibold", rec.l ? "text-destructive" : "text-text-muted")}>{rec.l} lost</span>{rec.t > 0 && <> · {rec.t} tied</>}{rec.upcoming > 0 && <> · {rec.upcoming} to play</>}
         </p>
       )}
       {/* Not overflow-hidden: a row standing forward (index.css .match-list) reaches past the box's sides. */}
