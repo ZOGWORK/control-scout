@@ -7,6 +7,7 @@ import { useLocation } from 'react-router-dom';
 import { ChevronDown } from 'lucide-react';
 import { cn } from './cn';
 import { Reveal } from './motion';
+import { useIsV8 } from '../lib/v8';
 
 /** Page body: max width 1200 (unless fullBleed), brief's gutters. */
 export function Page({ children, className, fullBleed }: { children: ReactNode; className?: string; fullBleed?: boolean }) {
@@ -49,7 +50,7 @@ export function PageHeader({ title, description, phoneDescription, actions, eyeb
   );
 }
 
-export function Section({ title, description, action, stackAction = false, children, className, delay = 0, collapsible = false, summary, tint, id, also }: {
+export function Section({ title, description, action, stackAction = false, children, className, delay = 0, collapsible = false, summary, tint, icon, count, id, also }: {
   title?: ReactNode;
   description?: ReactNode;
   action?: ReactNode;
@@ -65,12 +66,16 @@ export function Section({ title, description, action, stackAction = false, child
   summary?: string;
   /** A collapsible section's colours (CSS colours, left to right): a faint gradient on its card and its button, taken from what's inside. */
   tint?: string[];
+  /** v8 only (docs/design/v8-revamp-brief.md §5, card header): a collapsible section's icon before its title. */
+  icon?: ComponentType<{ className?: string }>;
+  /** v8 only: a collapsible section's quiet count on the right of its header ("32 matches"). */
+  count?: ReactNode;
   /** The section's anchor: a link to #id opens a collapsible section. */
   id?: string;
   /** More anchors for the same section (search's deep links: #ranking and #history land on the season road map). */
   also?: string[];
 }) {
-  if (collapsible) return <FoldedSection id={id} also={also} title={title} summary={summary} tint={tint} description={description} className={className} delay={delay}>{children}</FoldedSection>;
+  if (collapsible) return <FoldedSection id={id} also={also} title={title} summary={summary} tint={tint} icon={icon} count={count} description={description} className={className} delay={delay}>{children}</FoldedSection>;
   return (
     <Reveal delay={delay} className={cn('mb-8', className)}>
       <section id={id} className={id ? 'scroll-mt-16' : undefined}>
@@ -90,7 +95,7 @@ export function Section({ title, description, action, stackAction = false, child
   );
 }
 
-function FoldedSection({ id, also, title, summary, tint, description, children, className, delay }: { id?: string; also?: string[]; title?: ReactNode; summary?: string; tint?: string[]; description?: ReactNode; children: ReactNode; className?: string; delay: number }) {
+function FoldedSection({ id, also, title, summary, tint: tintIn, icon: Icon, count, description, children, className, delay }: { id?: string; also?: string[]; title?: ReactNode; summary?: string; tint?: string[]; icon?: ComponentType<{ className?: string }>; count?: ReactNode; description?: ReactNode; children: ReactNode; className?: string; delay: number }) {
   const { hash } = useLocation();
   const linked = !!id && [id, ...(also ?? [])].some((a) => hash === `#${a}`);
   const [open, setOpen] = useState(linked);
@@ -99,6 +104,9 @@ function FoldedSection({ id, also, title, summary, tint, description, children, 
   useEffect(() => { if (linked) { setOpen(true); setOpened(true); } }, [linked]);
   const body = useId();
   const hint = useId();
+  // v8: a neutral card header (icon, title, quiet count), with no colour wash taken from what's inside.
+  const v8 = useIsV8();
+  const tint = v8 ? undefined : tintIn;
   // Faint enough to sit under the event cards without competing with them.
   const wash = (pct: number) => tint && `linear-gradient(100deg, ${tint.map((c) => `color-mix(in srgb, ${c} ${pct}%, transparent)`).join(', ')})`;
   return (
@@ -108,16 +116,18 @@ function FoldedSection({ id, also, title, summary, tint, description, children, 
         {/* A closed section is a card that looks pressable: a frame, a hint at what's inside and a "Show details" pill. */}
         <h2 className={cn(open && 'mb-4')}>
           <button type="button" aria-expanded={open} aria-controls={body} aria-describedby={summary ? hint : undefined} style={tint && { backgroundImage: wash(7) }} onClick={() => { setOpen((o) => !o); setOpened(true); }}
-            className="group flex w-full items-center justify-between gap-3 rounded-xl border border-border bg-card/60 px-4 py-3 text-left transition-colors hover:border-foreground/25 hover:bg-muted/50 motion-reduce:transition-none">
-            <span className="min-w-0">
-              <span className="block text-base font-semibold text-foreground">{title}</span>
+            className="group flex w-full items-center justify-between gap-3 rounded-xl border border-border bg-card/60 px-4 py-3 text-left transition-colors hover:border-foreground/25 hover:bg-muted/50 motion-reduce:transition-none v8:min-h-[3.5rem] v8:border-line v8:bg-card v8:hover:border-white/[0.12] v8:hover:bg-white/[0.02]">
+            {v8 && Icon && <Icon aria-hidden className="size-4 shrink-0 self-start mt-[0.1875rem] text-text-faint" />}
+            <span className="min-w-0 v8:flex-1">
+              <span className="block text-base font-semibold text-foreground v8:text-[0.9375rem] v8:leading-snug">{title}</span>
               {/* Its name stays the title; the hint is read as its description. */}
               {summary && <span id={hint} aria-hidden className="mt-0.5 block text-sm font-normal text-muted-foreground">{summary}</span>}
             </span>
             {/* The words are for the eye; a screen reader hears aria-expanded. */}
             <span aria-hidden style={tint && { backgroundImage: wash(22), borderColor: `color-mix(in srgb, ${tint[0]} 35%, transparent)` }}
-              className="flex shrink-0 items-center gap-1 rounded-full border border-border bg-background px-3 py-1 text-sm font-medium text-foreground shadow-sm transition-[filter,transform] group-hover:brightness-125 group-active:scale-95 motion-reduce:transition-none">
-              {open ? 'Hide' : <>Show<span className="max-sm:hidden">&nbsp;details</span></>}
+              className="flex shrink-0 items-center gap-1 rounded-full border border-border bg-background px-3 py-1 text-sm font-medium text-foreground shadow-sm transition-[filter,transform] group-hover:brightness-125 group-active:scale-95 motion-reduce:transition-none v8:gap-1.5 v8:border-0 v8:bg-transparent v8:px-0 v8:font-normal v8:text-text-faint v8:shadow-none v8:group-hover:brightness-100 v8:group-hover:text-text-muted v8:group-active:scale-100">
+              {v8 && count != null && <span className="tabular-nums" data-section-count>{count}<span className="max-sm:hidden" aria-hidden> ·</span></span>}
+              <span className={cn(v8 && count != null && 'max-sm:sr-only')}>{open ? 'Hide' : <>Show<span className="max-sm:hidden">&nbsp;details</span></>}</span>
               <ChevronDown className={cn('size-4 transition-transform motion-reduce:transition-none', open && 'rotate-180')} />
             </span>
           </button>
