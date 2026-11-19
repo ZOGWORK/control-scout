@@ -7,7 +7,7 @@ import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SearchAnswer, SearchHit } from "../shared/api";
 import { SEARCH_PALETTE } from "../lib/textTones";
-import { TONE, V8_PODIUM, V8_STAGGER } from "../components/search/page/v8tone";
+import { TONE, V8_PODIUM, V8_STAGGER, v8Tile, v8TileColour } from "../components/search/page/v8tone";
 
 const state = vi.hoisted(() => ({ answer: undefined as SearchAnswer | undefined }));
 vi.mock("../components/search/SearchBox", async (orig) => ({
@@ -125,18 +125,34 @@ describe("search page, v8 on", () => {
     expect(rows[1].textContent).not.toContain("USNJQ2");
   });
 
-  it("makes every palette meaning calm: neutral fill and words, the v8-off classes still first", () => {
+  it("gives every palette meaning a soft v8 colour: text and thin accents, never a solid block, the v8-off classes first", () => {
     for (const m of Object.keys(SEARCH_PALETTE) as (keyof typeof SEARCH_PALETTE)[]) {
       expect(TONE[m].fill.startsWith(SEARCH_PALETTE[m].fill)).toBe(true);
-      expect(TONE[m].fill).toContain("v8:bg-white/[0.08]");
-      expect(TONE[m].text).toContain("v8:text-foreground");
       expect(TONE[m].tint).toContain("v8:bg-transparent");
+      // A chip is a light tint (at most 10%) or the neutral white/8%: no full-colour fill.
+      expect(TONE[m].fill).toMatch(/v8:bg-(?:[a-z]+-\d00|accent|live)\/10|v8:bg-white\/\[0\.08\]/);
     }
-    // RP's yellow chip of words loses its chip.
+    // The category colours: Auto blue, TeleOp orange, Endgame green, Penalties red.
+    expect(TONE.auto.text).toContain("v8:text-sky-300");
+    expect(TONE.teleop.text).toContain("v8:text-orange-300");
+    expect(TONE.endgame.text).toContain("v8:text-emerald-300");
+    expect(TONE.pen.text).toContain("v8:text-rose-300");
+    // RP's yellow chip of words loses its chip and its yellow.
     expect(TONE.rp.text).toContain("v8:bg-transparent");
-    // Mint is the one highlight series: team A's bar; awards go neutral.
+    expect(TONE.rp.text).toContain("v8:text-foreground");
+    // The team hue is the accent.
     expect(TEAM_BAR).toContain("v8:bg-accent");
     expect(swatchOf("Inspire Award").fill).toContain("v8:bg-white/[0.08]");
+  });
+
+  it("colours a stat tile by what its number is: without penalties blue, a result won green or lost red, a highest purple", () => {
+    expect(v8TileColour("Without penalties", 296)).toBe("blue");
+    expect(v8TileColour("Result", "Won 306-251")).toBe("green");
+    expect(v8TileColour("Result", "Lost 120-140")).toBe("red");
+    expect(v8TileColour("Result", "Tied 90-90")).toBe("neutral");
+    expect(v8TileColour("Highest official score", 313)).toBe("purple");
+    expect(v8TileColour("Events played", 6)).toBeNull();
+    expect(v8Tile("blue").tile).toMatch(/v8:border-l-2 .*v8:border-l-sky-400\/70 .*v8:\[&_svg\]:text-sky-300/);
   });
 
   it("marks the #1 rank in mint words on a hairline, never a fill", () => {

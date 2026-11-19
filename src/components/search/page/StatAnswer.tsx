@@ -16,7 +16,7 @@ import { Meter, StatTile, TONES, rankPc, type Tone } from "../../StatTile";
 import { Badge } from "../../ui/basic";
 import { OPR_CARDS, oprRankHint } from "../../oprCards";
 import { meaningOf } from "../../../lib/textTones";
-import { TONE } from "./v8tone";
+import { TONE, V8_SOFT, v8Tile, v8TileColour, type SoftColour } from "./v8tone";
 import { AnswerFrame, RelatedQuestions, TAP, repeats, statedSeason, useAnswerSeason, useTeamProfile } from "./TeamAnswer";
 import { rangeCaption } from "../../../shared/format";
 import { AnswerVideo, NoVideoLine, RowPlay, useRowPlays } from "./AnswerVideo";
@@ -31,9 +31,11 @@ import { VideoGallery } from "./VideoGallery";
 import { LeagueTable } from "../../LeagueTable";
 
 // Section headers in the team hue (the owner's brief: coloured section headers).
-const H3 = "mb-1.5 text-xs font-semibold text-team-a v8:font-medium v8:text-text-faint";
+const H3 = "mb-1.5 text-xs font-semibold text-team-a v8:font-medium v8:text-accent"; // v8: section labels in the accent
 /** A tile in search's palette: a thick left bar in its colour over a wash of it (StatTile's border, its left widened). */
 const PAINT = "border-l-[6px] border-y-transparent border-r-transparent";
+/** v8: the soft colour a swatch's words are in (to colour its tile's icon and bracket the same), if any. */
+const softOf = (s: Swatch): SoftColour | null => (Object.keys(V8_SOFT) as SoftColour[]).find((k) => k !== "neutral" && s.text.split(" ").includes(V8_SOFT[k].text)) ?? null;
 /** A phase's swatch; the total (no phase) in the team hue. */
 const sw = (k: string): Swatch => (k in TONE ? TONE[k as keyof typeof TONE] : TEAM_SWATCH[0]);
 
@@ -147,7 +149,7 @@ function Headline({ h, hue, tone, hideLabel }: { h: NonNullable<StatAnswer["head
   const sub = h.sub && season != null ? h.sub.split(" · ").filter((x) => x !== seasonLabel(season)).join(" · ") : h.sub;
   const body = (
     <>
-      {!named && <p className={cn("break-words font-display text-4xl font-semibold leading-tight tabular-nums group-hover:underline", tone)}><HeadlineValue value={h.value} win={hue ? TEAM_TEXT : tone} /></p>}
+      {!named && <p className={cn("break-words font-display text-4xl font-semibold leading-tight tabular-nums group-hover:underline", tone, "v8:text-accent")} data-headline-value><HeadlineValue value={h.value} win={hue ? TEAM_TEXT : tone} /></p>}
       <p className={hideLabel ? "sr-only" : named ? "text-sm text-foreground" : "mt-1 text-sm text-foreground"}><RichText text={h.label} /></p>
       {sub && <p className="mt-0.5 text-xs text-muted-foreground"><RichText text={sub} /></p>}
       {ev && (h.type || season != null) && (
@@ -165,7 +167,7 @@ function Headline({ h, hue, tone, hideLabel }: { h: NonNullable<StatAnswer["head
       <div className="min-w-0 flex-1">
         {named && (
           <>
-            <p className={cn("text-sm font-semibold", tone)} data-headline-word>{h.value}</p>
+            <p className={cn("text-sm font-semibold", tone, "v8:text-accent")} data-headline-word>{h.value}</p>
             <p className="mt-1.5 flex flex-wrap gap-2" aria-label={`${h.value}: ${h.alliance === "red" ? "red" : "blue"} alliance`} data-headline-teams>
               {h.teams!.map((t) => <TeamChip key={t.href} t={t} side={h.alliance!} large />)}
             </p>
@@ -223,8 +225,9 @@ function Block({ b: block, team, teams, said, hue }: { b: StatBlock; team?: Stat
               // A tile about one team in that team's hue (its name never read as an award or a phase: "Control Freaks");
               // one about both in its meaning's colour, else team A's.
               const sw = s >= 0 ? TEAM_SWATCH[Math.min(s, 2)] : swatchOf(k.label);
-              const value = <span className={sw.text}>{k.value}</span>;
-              const tile = <StatTile tone={tone} icon={icon} label={k.label} value={value} hint={k.sub} chip={sw.fill} className={cn(PAINT, sw.edge, sw.tint, right && "items-end text-right")} />;
+              const v8c = v8Tile(s >= 0 ? softOf(sw) : v8TileColour(k.label, k.value) ?? softOf(sw));
+              const value = <span className={cn(sw.text, v8c.value)}>{k.value}</span>;
+              const tile = <StatTile tone={tone} icon={icon} label={k.label} value={value} hint={k.sub} chip={sw.fill} className={cn(PAINT, sw.edge, sw.tint, v8c.tile, right && "items-end text-right")} />;
               const phase = meaningOf(k.label) ?? undefined;
               return k.href
                 ? <Link key={k.label} to={k.href} className="block rounded-xl transition-transform hover:-translate-y-0.5 motion-reduce:hover:translate-y-0" data-kpi data-side={s} data-phase={phase}>{tile}</Link>
@@ -241,8 +244,11 @@ function Block({ b: block, team, teams, said, hue }: { b: StatBlock; team?: Stat
             // Each tile its own colour (answerCells kpiSwatches): a thick left bar, a filled icon, the number in it.
             const phase = meaningOf(k.label) ?? undefined;
             const sw = rowSw[j];
-            const value = <span className={sw.text}>{k.value}</span>;
-            const tile = <StatTile tone={tone} icon={icon} label={k.label} value={value} hint={k.sub} chip={sw.fill} className={cn(PAINT, sw.edge, sw.tint)} />;
+            // v8: by what the number is (without penalties blue, a result won green or lost red, a highest purple),
+            // else the row's own colour; text, a thin bracket and the icon only.
+            const v8c = v8Tile(v8TileColour(k.label, k.value) ?? softOf(sw));
+            const value = <span className={cn(sw.text, v8c.value)}>{k.value}</span>;
+            const tile = <StatTile tone={tone} icon={icon} label={k.label} value={value} hint={k.sub} chip={sw.fill} className={cn(PAINT, sw.edge, sw.tint, v8c.tile)} />;
             return k.href
               ? <Link key={k.label} to={k.href} className="block rounded-xl transition-transform hover:-translate-y-0.5 motion-reduce:hover:translate-y-0" data-kpi data-phase={phase}>{tile}</Link>
               : <div key={k.label} data-kpi data-phase={phase}>{tile}</div>;
@@ -329,6 +335,9 @@ function Block({ b: block, team, teams, said, hue }: { b: StatBlock; team?: Stat
   }
 }
 
+/** v8: an OPR tile's category colour: the total (np OPR) purple, Auto blue, TeleOp orange, Endgame green. */
+const phaseSoft = (k: string): SoftColour => (k === "auto" ? "blue" : k === "teleop" ? "orange" : k === "endgame" ? "green" : k === "pen" ? "red" : "purple");
+
 /** A season OPR and its phases as the team page's OPR tiles, each in that page's colour for it, with its rank line and bar. */
 function OprTiles({ items, teams }: { items: Extract<StatBlock, { kind: "kpis" }>["items"]; teams?: { number: number }[] }) {
   // Two teams' tiles for one phase: one column each, under its own header (A left, B right).
@@ -342,10 +351,10 @@ function OprTiles({ items, teams }: { items: Extract<StatBlock, { kind: "kpis" }
         return its.map((it, n) => (
           // Each phase in search's palette colour for it: a thick left bar, a filled icon, the number and bar in it.
           <div key={`${k}-${n}`} className="min-w-0" data-phase={k}><StatTile tone={tone} icon={Icon} label={its.length > 1 ? `${label} · ${it.label}` : label}
-            chip={sw(k).fill} className={cn(PAINT, sw(k).edge, sw(k).tint)}
-            value={<span className={sw(k).text}>{it.value}</span>}
+            chip={sw(k).fill} className={cn(PAINT, sw(k).edge, sw(k).tint, v8Tile(phaseSoft(k)).tile)}
+            value={<span className={cn(sw(k).text, V8_SOFT[phaseSoft(k)].text)}>{it.value}</span>}
             hint={it.rank == null && it.pc != null ? it.sub : oprRankHint(it.rank, it.of)}
-            bar={<Meter parts={[{ pc: it.rank == null && it.pc != null ? it.pc : rankPc(it.rank, it.of), cls: sw(k).bar }]} />} /></div>
+            bar={<Meter parts={[{ pc: it.rank == null && it.pc != null ? it.pc : rankPc(it.rank, it.of), cls: cn(sw(k).bar, V8_SOFT[phaseSoft(k)].bar) }]} />} /></div>
         ));
       })}
     </div>
