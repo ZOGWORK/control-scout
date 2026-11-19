@@ -3,7 +3,7 @@
 // Works with no account (saved on this device); signed in, it syncs.
 import { OFFICIAL_ONLY } from "../shared/eventRecord";
 import { recordWords } from "../shared/format";
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type RefObject } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { ArrowRight, CalendarDays, Crosshair, Eye, History, Sparkles, Star, Swords, Target, Trophy, X } from "lucide-react";
 import { useApi, qs } from "../lib/api";
@@ -26,6 +26,10 @@ import { callTally, pct } from "../lib/seasonSoFar";
 import { DiscordCard } from "../components/DiscordCard";
 import { defaultSeason } from "../lib/myTeamSeason";
 import { PROFILE_PERCENTILE_TEXT } from "../lib/textTones";
+import { useIsV8 } from "../lib/v8";
+import { oddsPct } from "../shared/share";
+import { cn } from "../components/cn";
+import { V8Empty, V8Figures, V8Heading, V8Title, V8_CARD, V8_LABEL, V8_PRESS, V8_ROW } from "../components/myteams/v8";
 
 export default function MyTeamPage() {
   useTitle("My team");
@@ -48,6 +52,11 @@ export default function MyTeamPage() {
     if (err) { setError(err); input.current?.focus(); return; }
     set("myTeam", Number(team));
   };
+  const v8 = useIsV8();
+  if (!state.myTeam && v8) {
+    return <V8Pick draft={draft} error={error} checking={checking} input={input} onDraft={(v) => { setDraft(v); setError(null); }} onSubmit={submit}
+      user={!!user} tracked={state.tracked.teams.length + state.tracked.events.length > 0} season={current} />;
+  }
   if (!state.myTeam) {
     return (
       <div>
@@ -80,10 +89,11 @@ export default function MyTeamPage() {
       </div>
     );
   }
-  return <Dashboard team={state.myTeam} />;
+  return v8 ? <V8Dashboard team={state.myTeam} /> : <Dashboard team={state.myTeam} />;
 }
 
-function Dashboard({ team }: { team: number }) {
+/** Everything the dashboard shows for a team, the season chosen the same way for both looks. */
+function useDashboard(team: number) {
   // ?season= shows a chosen season (kept in the URL, so it's linkable and Back works). Without it: the current
   // season once the team has played in it, else the latest season it played (decided before anything renders).
   const current = useCurrentSeason();
@@ -125,6 +135,11 @@ function Dashboard({ team }: { team: number }) {
   }, [prof]);
   // The latest earlier season the toggle offers (it lists predictable seasons only), so the button never opens one without a tab.
   const earlier = knownSeasons?.find((x) => x < season && offered(x));
+  return { current, season, isCurrent, when, setSeason, set, deciding, profile, matches, knownSeasons, prof, eventInfo, earlier };
+}
+
+function Dashboard({ team }: { team: number }) {
+  const { season, isCurrent, when, setSeason, set, deciding, profile, matches, knownSeasons, eventInfo, earlier } = useDashboard(team);
   return (
     <div>
       {/* Hero: who this is (big number, gold), and how the season is going. */}
@@ -319,6 +334,266 @@ function TrackedFeed({ season }: { season: number }) {
           </Async>
         )}
       </Section>
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// v8 (docs/design/v8-revamp-brief.md): the page rebuilt around "what's my team's next match, and our chances?".
+// First screen: who the team is, then the next match with its chance to win as the hero number (or the next event
+// and its odds), then the season's standing in one row. The match lists, tracked teams and events, and the Discord
+// card follow. Without a team: one box to pick it, and a quiet list of what the dashboard will show.
+// Drawn only while <html data-v8> is set; the functions above are the page without it.
+// ---------------------------------------------------------------------------
+
+const V8_PROMISE = [
+  { icon: Swords, title: "Your next match", body: "The chance to win and the reasons why, before every match." },
+  { icon: Trophy, title: "Your next event's odds", body: "Chance to advance, to captain, to win." },
+  { icon: History, title: "Recent results", body: "Every match this season, with the call made before it." },
+  { icon: Eye, title: "Teams you track", body: "Rivals and partners: their latest events and OPR." },
+];
+
+function V8Pick({ draft, error, checking, input, onDraft, onSubmit, user, tracked, season }: {
+  draft: string; error: string | null; checking: boolean; input: RefObject<HTMLInputElement | null>; onDraft: (v: string) => void;
+  onSubmit: (e: FormEvent) => void; user: boolean; tracked: boolean; season: number;
+}) {
+  return (
+    <div className="min-w-0" data-myteam-v8>
+      <V8Title title="My team" line="Pick your team to see its next match and its chances." />
+      <div className="grid items-start gap-3 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]">
+        <section aria-label="Pick your team" className={V8_CARD} data-pick-team>
+          <form onSubmit={onSubmit} noValidate className="flex items-start gap-2">
+            <div className="min-w-0 flex-1"><TeamInput label="Your team number" value={draft} onChange={onDraft} autoFocus error={error} inputRef={input} /></div>
+            <Button type="submit" className="h-11" disabled={!draft || checking}><Star /> Set</Button>
+          </form>
+          <p className="mt-2 text-xs text-text-faint">{user ? "Saved to your account." : <>Saved on this device. <Link to="/settings?section=profile" className="text-text-muted underline underline-offset-2 hover:text-text-base">Sign in</Link> to sync it.</>}</p>
+        </section>
+        <ul className="divide-y divide-line rounded-xl border border-line bg-card" aria-label="What your dashboard shows">
+          {V8_PROMISE.map((x) => (
+            <li key={x.title} className="flex gap-3 px-4 py-3 sm:px-5">
+              <x.icon className="mt-0.5 size-4 shrink-0 text-text-faint" aria-hidden />
+              <div className="min-w-0"><p className="text-sm font-medium text-text-base">{x.title}</p><p className="text-sm text-text-muted">{x.body}</p></div>
+            </li>
+          ))}
+        </ul>
+      </div>
+      {tracked && <div className="mt-8 max-sm:mt-6"><V8Tracked season={season} /></div>}
+    </div>
+  );
+}
+
+function V8Dashboard({ team }: { team: number }) {
+  const { season, isCurrent, when, setSeason, set, deciding, profile, matches, knownSeasons, prof, eventInfo, earlier } = useDashboard(team);
+  const name = profile.data?.team.number === team ? profile.data.team.name : undefined;
+  const ready = !deciding && !!prof;
+  return (
+    <div className="min-w-0" data-myteam-v8>
+      <header className="mb-5 max-sm:mb-4" data-myteam-hero>
+        <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+          <div className="min-w-0">
+            <p className="flex items-center gap-1 text-xs text-text-faint"><Star className="size-3 fill-current text-accent" aria-hidden />My team</p>
+            <h1 className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+              <Link to={`/teams/${team}?season=${season}`} className="font-display text-[2.75rem] font-semibold leading-none tracking-tight tabular-nums hover:underline sm:text-[3.25rem]" data-team-number>{team}</Link>
+              <span className="min-w-0 break-words text-xl font-semibold tracking-tight text-text-base sm:text-[1.375rem]">
+                {name === undefined ? <span className="skeleton inline-block h-6 w-44 rounded-md align-middle" /> : name ?? <span className="text-text-muted">Name not on file</span>}
+              </span>
+            </h1>
+          </div>
+          <div className="flex items-center gap-2" data-print-hide>
+            <Button variant="outline" asChild><Link to={`/teams/${team}?season=${season}`}>Team page <ArrowRight /></Link></Button>
+            <Button variant="ghost" onClick={() => set("myTeam", null)}><X /> Change team</Button>
+          </div>
+        </div>
+        <div className="mt-4">{knownSeasons ? <SeasonToggle predictOnly seasons={knownSeasons} value={season} onChange={setSeason} /> : <div className="skeleton h-9 w-72 max-w-full rounded-lg" />}</div>
+      </header>
+      {profile.error && !deciding ? <div className="mb-8"><Async state={profile}>{() => null}</Async></div> : (
+        <div className="mb-8 grid gap-3 max-sm:mb-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] lg:items-start">
+          {ready && (matches.data || matches.error) ? <V8Next team={team} p={prof} matches={matches.data?.matches ?? null} isCurrent={isCurrent} names={eventInfo.names} />
+            : <div className="skeleton h-48 rounded-xl" aria-hidden />}
+          {ready ? <V8Standing p={prof} team={team} matches={matches.data?.matches} matchesFailed={!!matches.error} when={when} earlier={earlier} onSeason={setSeason} />
+            : <div className="skeleton h-48 rounded-xl" aria-hidden />}
+        </div>
+      )}
+      <Async state={matches} loading={<div className="skeleton h-40 rounded-xl" />}>
+        {(d) => {
+          const upcoming = d.matches.filter((m) => !m.played);
+          const played = d.matches.filter((m) => m.played).reverse();
+          const recent = isCurrent ? played.slice(0, 6) : [...d.matches].reverse();
+          return (
+            <>
+              {isCurrent && (
+                <section className="mb-8 max-sm:mb-6" aria-labelledby="v8-upcoming">
+                  <V8Heading id="v8-upcoming" title={`Upcoming matches${upcoming.length ? ` (${upcoming.length})` : ""}`} line="With the chance to win from today's ratings, or the call already logged." />
+                  <MatchList matches={upcoming} highlight={team} eventNames={eventInfo.names} eventDates={eventInfo.dates} empty="No scheduled matches yet. Schedules usually appear the morning of an event." />
+                </section>
+              )}
+              <section className="mb-8 max-sm:mb-6" aria-labelledby="v8-recent">
+                <V8Heading id="v8-recent" title={isCurrent ? "Recent results" : `Every match (${d.matches.length})`} line="Was each one called right before it was played?" />
+                <MatchList matches={recent} highlight={team} eventNames={eventInfo.names} eventDates={eventInfo.dates} outcomeAccent newestFirst empty={`No matches played ${when}.`} />
+              </section>
+            </>
+          );
+        }}
+      </Async>
+      {!deciding && <V8Tracked season={season} />}
+      <div className="mt-8"><DiscordCard teams={[team]} /></div>
+    </div>
+  );
+}
+
+/** The side a team is on in a match, who's with and against it, and its chance to win there. */
+export function sideOf(m: MatchView, team: number) {
+  const red = m.red.teams.some((t) => t.number === team);
+  const blue = m.blue.teams.some((t) => t.number === team);
+  if (!red && !blue) return null;
+  const mine = red ? m.red : m.blue, theirs = red ? m.blue : m.red;
+  const p = m.prediction ? (red ? m.prediction.pRed : 1 - m.prediction.pRed) : null;
+  return { color: red ? "red" as const : "blue" as const, partners: mine.teams.filter((t) => t.number !== team), opponents: theirs.teams, p };
+}
+
+/** The answer first: the next match and the chance to win it, else the next event and its odds, else what's known. */
+function V8Next({ team, p, matches, isCurrent, names }: { team: number; p: TeamProfile; matches: MatchView[] | null; isCurrent: boolean; names: Record<string, string> }) {
+  const today = new Date().toISOString().slice(0, 10);
+  // A match never posted at an event that has ended isn't next: it would hide the real next one.
+  const ended = new Set(p.events.filter((e) => (e.end ?? e.start ?? "9999") < today).map((e) => e.code));
+  const nextMatch = isCurrent && matches ? matches.find((m) => !m.played && !ended.has(m.code)) ?? null : null;
+  const nextEvent = isCurrent ? p.events.find((e) => (e.end ?? e.start ?? "") >= today) ?? null : null;
+  const side = nextMatch ? sideOf(nextMatch, team) : null;
+  const oddsHref = nextEvent ? `/events/${nextEvent.season}/${nextEvent.code}?tab=odds&team=${team}` : null;
+  const last = p.events[p.events.length - 1];
+  return (
+    <section aria-labelledby="v8-next" className={V8_CARD} data-next>
+      <h2 id="v8-next" className={V8_LABEL}>{nextMatch && side ? "Next match" : nextEvent ? "Next event" : isCurrent ? "What's next" : `Last event · ${seasonLabel(p.season)}`}</h2>
+      {nextMatch && side ? (
+        <div data-next-match>
+          <div className="mt-2 flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+            <div className="min-w-0">
+              <p className="font-display text-[2.5rem] font-semibold leading-none tabular-nums text-text-base" data-next-chance>{side.p == null ? "—" : oddsPct(side.p)}</p>
+              <p className="mt-1.5 text-xs text-text-muted">{side.p == null ? "no call yet for this match" : "chance to win"}</p>
+            </div>
+            <div className="min-w-0 text-right max-sm:basis-full max-sm:text-left">
+              <p className="text-sm font-medium tabular-nums text-text-base">{nextMatch.label}<span className={cn("ml-2 text-xs font-normal", side.color === "red" ? "text-red-alliance" : "text-blue-alliance")}>{side.color === "red" ? "Red" : "Blue"} alliance</span></p>
+              <p className="truncate text-xs text-text-faint" title={names[nextMatch.code]}>{names[nextMatch.code] ?? nextMatch.code}{nextMatch.time ? ` · ${nextMatch.time.slice(11, 16)}` : ""}</p>
+            </div>
+          </div>
+          <dl className="mt-4 grid grid-cols-2 gap-3 border-t border-line pt-3 text-sm">
+            <div className="min-w-0"><dt className={V8_LABEL}>With</dt><dd className="truncate tabular-nums text-text-base">{side.partners.length ? side.partners.map((t) => t.number).join(", ") : "—"}</dd></div>
+            <div className="min-w-0"><dt className={V8_LABEL}>Against</dt><dd className="truncate tabular-nums text-text-base">{side.opponents.map((t) => t.number).join(", ") || "—"}</dd></div>
+          </dl>
+          {oddsHref && <div className="mt-3 -ml-2"><Button variant="ghost" size="sm" asChild><Link to={oddsHref}><Trophy /> Chance to advance at {nextEvent!.name}</Link></Button></div>}
+        </div>
+      ) : nextEvent ? (
+        <div className="mt-2" data-next-event>
+          <p className="text-lg font-semibold tracking-tight text-text-base">{nextEvent.name}</p>
+          <p className="mt-0.5 text-sm text-text-muted">{dateRange(nextEvent.start, nextEvent.end)}</p>
+          <p className="mt-2 text-xs text-text-faint">{matches === null ? "Couldn't load the matches, so the next one isn't shown. The list below can retry." : "No schedule yet: it usually appears the morning of the event."}</p>
+          {oddsHref && <div className="mt-3"><Button variant="outline" size="sm" asChild><Link to={oddsHref}><Trophy /> Chance to advance</Link></Button></div>}
+        </div>
+      ) : (
+        <div className="mt-2 text-sm" data-next-none>
+          {isCurrent ? <p className="text-text-muted">No event scheduled in our data yet. It shows here once {team} is registered for one.</p>
+            : last ? <Link to={`/events/${last.season}/${last.code}?team=${team}`} className="block hover:underline"><span className="font-medium text-text-base">{last.name}</span><span className="block text-text-muted">{dateRange(last.start, last.end)}{last.rank ? ` · ranked #${last.rank}` : ""}</span></Link>
+            : <p className="text-text-muted">No events in our data for {seasonLabel(p.season)}.</p>}
+        </div>
+      )}
+    </section>
+  );
+}
+
+/** How the season is going: the world standing by OPR as the figure, then OPR, rating, record and the calls. */
+function V8Standing({ p, team, matches, matchesFailed, when, earlier, onSeason }: { p: TeamProfile; team: number; matches?: MatchView[]; matchesFailed: boolean; when: string; earlier?: number; onSeason: (s: number) => void }) {
+  const s = p.stats;
+  const predictable = usePredictable(p.season);
+  const calls = useMemo(() => (matches ? callTally(matches, team) : null), [matches, team]);
+  if (!s || s.record.matches === 0) {
+    return (
+      <section aria-labelledby="v8-standing" className={V8_CARD} data-standing>
+        <h2 id="v8-standing" className={V8_LABEL}>Season so far · {seasonLabel(p.season)}</h2>
+        <p className="mt-2 text-sm text-text-muted">No results {when} yet.</p>
+        {earlier && (
+          <button type="button" onClick={() => onSeason(earlier)} className={cn(V8_ROW, V8_PRESS, "mt-3 w-full justify-between rounded-lg border border-line px-3 text-left text-sm")}>
+            <span>See how {team} did in {seasonLabel(earlier)}</span><ArrowRight className="size-4 shrink-0 text-text-muted" aria-hidden />
+          </button>
+        )}
+      </section>
+    );
+  }
+  const r = s.record;
+  const top = rankPct(s.opr.np.rank, s.opr.np.of, true);
+  const decided = r.wins + r.losses + r.ties;
+  // Live calls first; replayed ones only when there are no live ones, and labelled as replayed.
+  const shown = calls ? (calls.live.of ? { ...calls.live, live: true } : calls.backtest.of ? { ...calls.backtest, live: false } : null) : null;
+  const items = [
+    { label: "OPR", value: num(s.opr.np.value) },
+    { label: "Rating", value: s.rating ? <>{num(s.rating.np)}<span className="text-xs font-normal text-text-faint"> ±{num(s.rating.sd, 0)}</span></> : "—" },
+    { label: "Record", value: decided ? <span aria-label={recordWords(r.wins, r.losses, r.ties)}>{r.wins}-{r.losses}-{r.ties}</span> : "—", sub: decided ? `${pct(r.wins, decided)}% won` : "no official results", title: OFFICIAL_ONLY },
+    ...(predictable ? [{
+      label: "Our calls",
+      value: matchesFailed ? "—" : !calls ? <span className="skeleton inline-block h-5 w-10 rounded align-middle" /> : shown ? `${pct(shown.right, shown.of)}%` : "—",
+      sub: matchesFailed ? "matches didn't load" : shown ? `${shown.right} of ${shown.of} right${shown.live ? "" : ", replayed"}` : calls ? "none decided yet" : undefined,
+    }] : []),
+  ];
+  return (
+    <section aria-labelledby="v8-standing" className={V8_CARD} data-standing>
+      <h2 id="v8-standing" className={V8_LABEL}>Season so far · {seasonLabel(p.season)}</h2>
+      <div className="mt-2 flex flex-wrap items-end gap-x-8 gap-y-4">
+        <div>
+          <p className="font-display text-[2.5rem] font-semibold leading-none tabular-nums text-text-base" data-hero-figure>{top ?? "Unranked"}</p>
+          <p className="mt-1.5 text-xs text-text-muted">worldwide by OPR{s.opr.np.rank ? ` · #${s.opr.np.rank.toLocaleString()} of ${s.opr.np.of?.toLocaleString()}` : ""}</p>
+        </div>
+        <V8Figures items={items} className="flex-1 basis-[20rem] max-sm:basis-full max-sm:border-t max-sm:border-line max-sm:pt-3" />
+      </div>
+      {decided === 0 && <p className="mt-3 text-xs text-text-faint" data-no-official>{r.matches} match{r.matches === 1 ? "" : "es"} at off-season events and scrimmages, not in the record.</p>}
+    </section>
+  );
+}
+
+/** Tracked teams as quiet rows in one card, then tracked events. */
+function V8Tracked({ season }: { season: number }) {
+  const { state, update } = usePersonal();
+  const teams = state.tracked.teams;
+  const events = state.tracked.events.filter((e) => e.startsWith(`${season}:`));
+  const summary = useApi<{ teams: TeamSummary[] }>(teams.length ? `/api/teams-summary${qs({ teams: teams.slice(0, 100).join(","), season })}` : null);
+  const evList = useApi<{ events: EventListItem[] }>(events.length ? `/api/events${qs({ season })}` : null);
+  return (
+    <>
+      <section className="mb-8 max-sm:mb-6" aria-labelledby="v8-tracked">
+        <V8Heading id="v8-tracked" title={`Tracked teams${teams.length ? ` (${teams.length})` : ""}`} line="Teams you follow: press Track on any team's page." />
+        {!teams.length ? <V8Empty icon={Eye} title="Not tracking any teams" line="Open a team and press Track. Tracked teams show up here and come first in search." /> : (
+          <Async state={summary} loading={<div className="skeleton h-32 rounded-xl" />}>
+            {(d) => (
+              <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-card" data-tracked-teams>
+                {d.teams.map((t) => (
+                  <li key={t.team} className={cn(V8_ROW, "gap-2 pl-3 pr-1.5 sm:pl-4")}>
+                    <Link to={`/teams/${t.team}?season=${season}`} className="grid min-w-0 flex-1 grid-cols-[3.75rem_minmax(0,1fr)] items-baseline gap-x-3 py-2 sm:grid-cols-[3.75rem_minmax(0,1fr)_minmax(0,16rem)_4.5rem_4.5rem]">
+                      <span className="font-display font-semibold tabular-nums text-text-base">{t.team}</span>
+                      <span className="truncate text-sm text-text-base">{t.name ?? "Name not on file"}</span>
+                      <span className="col-start-2 truncate text-xs text-text-faint sm:col-start-auto" title={t.nextEvent?.name ?? t.lastEvent?.name}>
+                        {t.nextEvent ? <>Next: {t.nextEvent.name}, {dateRange(t.nextEvent.start, t.nextEvent.end)}</> : t.lastEvent ? <>Last: {t.lastEvent.name}{t.lastEvent.rank ? `, ranked #${t.lastEvent.rank}` : ""}</> : null}
+                      </span>
+                      <span className="text-right text-sm tabular-nums text-text-muted max-sm:hidden"><span className="text-xs text-text-faint">OPR </span>{num(t.opr)}</span>
+                      <span className="text-right text-sm tabular-nums text-text-muted max-sm:hidden">{t.record ?? "—"}</span>
+                    </Link>
+                    <Button variant="ghost" size="icon-sm" aria-label={`Stop tracking ${t.team}`} onClick={() => update("tracked", (x) => ({ ...x, teams: x.teams.filter((n) => n !== t.team) }))}><X /></Button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Async>
+        )}
+      </section>
+      <section className="mb-8 max-sm:mb-6" aria-labelledby="v8-tracked-events">
+        <V8Heading id="v8-tracked-events" title="Tracked events" line={`Events you follow in ${seasonLabel(season)}.`} />
+        {!events.length ? <V8Empty icon={CalendarDays} title="Not tracking any events" line="Open an event and press Track event." /> : (
+          <Async state={evList} loading={<div className="skeleton h-28 rounded-xl" />}>
+            {(d) => {
+              const evs = d.events.filter((e) => events.includes(`${e.season}:${e.code}`));
+              return evs.length ? <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">{evs.map((e) => <EventCard key={e.code} e={e} />)}</div>
+                : <p className="text-sm text-text-muted">Your tracked events aren't in this season's list.</p>;
+            }}
+          </Async>
+        )}
+      </section>
     </>
   );
 }

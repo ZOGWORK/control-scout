@@ -25,6 +25,11 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../componen
 import { MatchList } from "../components/predict";
 import { DiscordCard } from "../components/DiscordCard";
 import { dateRange, num, rankPct, seasonLabel } from "../lib/format";
+import { pct } from "../lib/seasonSoFar";
+import { OFFICIAL_ONLY } from "../shared/eventRecord";
+import { useIsV8 } from "../lib/v8";
+import { cn } from "../components/cn";
+import { V8Empty, V8Figures, V8Title, V8_LABEL, V8_ROW } from "../components/myteams/v8";
 
 const CP_FALLBACK = "https://tryctrlpoint.org";
 
@@ -46,6 +51,8 @@ export default function MyTeamsPage() {
   const { user, providers, refreshUser } = usePersonal();
   const mine = useMemo(() => myTeamsOf(user), [user]);
   const cpUrl = user?.controlPoint?.url || CP_FALLBACK;
+  const v8 = useIsV8();
+  if (v8) return <V8MyTeams mine={mine} cpUrl={cpUrl} providers={!!providers} signedIn={!!user} onRetry={() => void refreshUser()} />;
   const header = <PageHeader title="My teams" description="The FTC teams you're on or manage in Control Point, with how each one's season is going." />;
 
   if (!providers) return <div>{header}<div className="skeleton h-64 rounded-2xl" /></div>;
@@ -118,7 +125,8 @@ function WorkspaceChip({ w }: { w: WorkspaceSpace }) {
   );
 }
 
-function TeamCard({ mine, delay = 0 }: { mine: MyTeam; delay?: number }) {
+/** One team's card data (both looks): the season shown, folded or open (remembered), and what's fetched for it. */
+function useTeamCard(mine: MyTeam) {
   const team = mine.teamNumber;
   const current = useCurrentSeason();
   const meta = useMeta();
@@ -136,7 +144,11 @@ function TeamCard({ mine, delay = 0 }: { mine: MyTeam; delay?: number }) {
   const p = profile.data?.team.number === team ? profile.data : undefined;
   const name = probe.data?.team.number === team ? probe.data.team.name : undefined;
   const isCurrent = season === current;
+  return { team, current, season, open, toggle, profile, matches, p, name, isCurrent, probe };
+}
 
+function TeamCard({ mine, delay = 0 }: { mine: MyTeam; delay?: number }) {
+  const { team, current, season, open, toggle, profile, matches, p, name, isCurrent, probe } = useTeamCard(mine);
   return (
     <Reveal fade={false} delay={delay} className="overflow-hidden rounded-2xl border border-border bg-card">
       <Collapsible asChild open={open} onOpenChange={toggle}>
@@ -279,6 +291,164 @@ function UnnumberedCard({ w, cpUrl }: { w: WorkspaceSpace; cpUrl: string }) {
       <div className="flex flex-wrap gap-2">
         {scouting && <Button variant="secondary" size="sm" asChild><Link to={scoutSpaceHref(w.id)}><ClipboardList /> Scout space</Link></Button>}
         <Button variant="secondary" size="sm" asChild><a href={cpUrl} target="_blank" rel="noreferrer noopener"><ExternalLink /> Control Point</a></Button>
+      </div>
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// v8 (docs/design/v8-revamp-brief.md): the page rebuilt around "how are the teams I'm on doing?". Each team is one
+// card whose header already answers it: number and name, the world standing by OPR, OPR, record and what's next,
+// all visible while folded. Opened, it shows the season's events and the upcoming and latest matches. The states
+// without teams are one quiet empty state each: one primary action, one outline.
+// Drawn only while <html data-v8> is set; the functions above are the page without it.
+// ---------------------------------------------------------------------------
+
+function V8MyTeams({ mine, cpUrl, providers, signedIn, onRetry }: { mine: ReturnType<typeof myTeamsOf>; cpUrl: string; providers: boolean; signedIn: boolean; onRetry: () => void }) {
+  const count = mine.teams.length + mine.unnumbered.length;
+  const title = <V8Title title="My teams" line={signedIn && mine.known && count ? `${count} team${count === 1 ? "" : "s"} from your Control Point workspaces` : "The FTC teams you're on or manage in Control Point."} />;
+  const body = !providers ? <div className="skeleton h-64 rounded-xl" aria-hidden />
+    : !signedIn ? (
+      <V8Empty icon={LogIn} title="Sign in to see your teams" line="Your teams come from your Control Point account. Browsing, search and predictions need no account."
+        action={<><Button asChild><Link to="/settings?section=profile"><LogIn /> Sign in</Link></Button><Button variant="outline" asChild><Link to={FOLLOWED_TEAM_PATH}><Star /> Follow a team on this device</Link></Button></>} />
+    ) : !mine.known ? (
+      <V8Empty icon={RefreshCw} title="Couldn't reach Control Point" line="Your teams come from Control Point, and it didn't answer just now."
+        action={<><Button onClick={onRetry}><RefreshCw /> Try again</Button><Button variant="outline" asChild><Link to={FOLLOWED_TEAM_PATH}><Star /> Followed team</Link></Button></>} />
+    ) : !count ? (
+      <V8Empty icon={Users} title="You're not on a team yet" line="Teams you join or create in Control Point show up here with their season. You can also follow any team on this device."
+        action={<><Button asChild><a href={cpUrl} target="_blank" rel="noreferrer noopener"><ExternalLink /> Join or create a team</a></Button><Button variant="outline" asChild><Link to={FOLLOWED_TEAM_PATH}><Star /> Follow a team</Link></Button></>} />
+    ) : (
+      <>
+        <div className="space-y-3">
+          {mine.teams.map((t) => <V8TeamCard key={t.teamNumber} mine={t} />)}
+          {mine.unnumbered.map((w) => <V8Unnumbered key={w.id} w={w} cpUrl={cpUrl} />)}
+        </div>
+        <div className="mt-8"><DiscordCard teams={mine.teams.map((t) => t.teamNumber)} /></div>
+        <p className="mt-6 text-sm text-text-muted">
+          Missing a team? Teams come from your Control Point workspaces.{" "}
+          <a href={cpUrl} target="_blank" rel="noreferrer noopener" className="text-text-base underline underline-offset-2">Join or create one there</a>, or{" "}
+          <Link to={FOLLOWED_TEAM_PATH} className="text-text-base underline underline-offset-2">follow any team on this device</Link>.
+        </p>
+      </>
+    );
+  return <div className="min-w-0" data-myteams-v8>{title}{body}</div>;
+}
+
+/** A workspace's role there: a quiet pill, linking to its shared scout space when workspace scouting is on. */
+function V8Workspace({ w }: { w: WorkspaceSpace }) {
+  const scouting = useFlag("workspaceScouting");
+  const body = <>{workspaceLabel(w)}<span className="text-text-faint">{w.role === "admin" ? "Admin" : "Member"}</span></>;
+  const pill = "inline-flex min-h-7 items-center gap-1.5 rounded-full border border-line px-2.5 text-xs text-text-muted pointer-coarse:min-h-[44px]";
+  if (!scouting) return <span className={pill}>{body}</span>;
+  return <Link to={scoutSpaceHref(w.id)} className={cn(pill, "transition-colors hover:bg-white/[0.04] hover:text-text-base")}><ClipboardList className="size-3.5" aria-hidden />{body}<span className="sr-only"> (open its scout space)</span></Link>;
+}
+
+function V8TeamCard({ mine }: { mine: MyTeam }) {
+  const { team, current, season, open, toggle, profile, matches, p, name, isCurrent, probe } = useTeamCard(mine);
+  const s = p?.stats;
+  const r = s?.record;
+  const today = new Date().toISOString().slice(0, 10);
+  const next = p && isCurrent ? p.events.find((e) => (e.end ?? e.start ?? "") >= today) : undefined;
+  const top = rankPct(s?.opr.np.rank, s?.opr.np.of, true);
+  const decided = r ? r.wins + r.losses + r.ties : 0;
+  const href = season != null ? `/teams/${team}?season=${season}` : `/teams/${team}`;
+  return (
+    <Collapsible asChild open={open} onOpenChange={toggle}>
+      <article aria-label={`Team ${team}`} className="overflow-hidden rounded-xl border border-line bg-card" data-team-card>
+        <header className="flex flex-wrap items-start gap-x-6 gap-y-3 p-4 sm:p-5">
+          <div className="min-w-0 flex-1 basis-[16rem]">
+            <CollapsibleTrigger className="group flex max-w-full items-start gap-2 rounded-md text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
+              <ChevronDown className="mt-1.5 size-4 shrink-0 text-text-faint transition-transform duration-200 ease-out group-data-[state=closed]:-rotate-90 motion-reduce:transition-none" aria-hidden />
+              <span className="min-w-0">
+                <span className="block font-display text-[1.75rem] font-semibold leading-none tracking-tight tabular-nums text-text-base">{team}</span>
+                <span className="mt-1 block break-words text-sm font-medium text-text-base">
+                  {name === undefined ? (probe.error ? <span className="text-text-muted">Name not loaded</span> : <span className="skeleton inline-block h-4 w-40 rounded align-middle" />) : name ?? <span className="text-text-muted">Name not on file</span>}
+                </span>
+              </span>
+            </CollapsibleTrigger>
+            <div className="mt-2.5 flex flex-wrap gap-1.5 pl-6">{mine.workspaces.map((w) => <V8Workspace key={w.id} w={w} />)}</div>
+          </div>
+          {/* The answer while folded: standing, OPR, record, and what's next. */}
+          <div className="min-w-0 flex-[2] basis-[24rem] max-sm:basis-full" data-team-glance>
+            {!p ? (probe.error ? <p className="text-sm text-text-muted">Couldn't load this team's season.</p> : <div className="skeleton h-12 rounded-lg" aria-hidden />)
+              : !s || s.record.matches === 0 ? <p className="text-sm text-text-muted">No results {isCurrent ? "this season" : `in ${seasonLabel(p.season)}`} yet.{next ? <> Next: <span className="text-text-base">{next.name}</span>, {dateRange(next.start, next.end)}.</> : ""}</p>
+              : <V8Figures items={[
+                  { label: "World", value: top ?? "—", sub: s.opr.np.rank ? `#${s.opr.np.rank.toLocaleString()} by OPR` : "not ranked" },
+                  { label: "OPR", value: num(s.opr.np.value) },
+                  { label: "Record", value: decided ? `${r!.wins}-${r!.losses}-${r!.ties}` : "—", sub: decided ? `${pct(r!.wins, decided)}% won` : "no official results", title: OFFICIAL_ONLY },
+                  { label: next ? "Next event" : "Events", value: next ? dateRange(next.start, next.end).split(",")[0] : String(p.events.length), sub: next ? next.name : isCurrent ? "none scheduled" : "that season", title: next?.name },
+                ]} />}
+          </div>
+          <div className="flex items-center gap-1 max-sm:w-full" data-print-hide>
+            {season != null && !isCurrent && <span className="rounded-full border border-line px-2.5 py-0.5 text-xs text-text-muted">{seasonLabel(season)} · latest played</span>}
+            <Button variant="ghost" size="sm" asChild className="max-sm:ml-auto"><Link to={href}>Team page <ArrowRight /></Link></Button>
+          </div>
+        </header>
+        <CollapsibleContent className="border-t border-line p-4 sm:p-5 data-[state=open]:animate-in data-[state=open]:fade-in-0 motion-reduce:animate-none">
+          <Async state={profile} loading={<div className="skeleton h-28 rounded-xl" />}>
+            {() => (p ? (
+              <>
+                {!isCurrent && <p className="mb-3 text-sm text-text-muted">No results in {seasonLabel(current)} yet, so this is {seasonLabel(p.season)}, the latest season it played.</p>}
+                {p.events.length > 0 ? <V8Events events={p.events} isCurrent={isCurrent} today={today} /> : <p className="text-sm text-text-muted">No events in our data for {seasonLabel(p.season)}.</p>}
+              </>
+            ) : <div className="skeleton h-28 rounded-xl" />)}
+          </Async>
+          {season != null && (
+            <Async state={matches} loading={<div className="skeleton mt-5 h-32 rounded-xl" />}>
+              {(d) => <Matches team={team} matches={d.matches} events={p?.events ?? []} isCurrent={isCurrent} />}
+            </Async>
+          )}
+        </CollapsibleContent>
+      </article>
+    </Collapsible>
+  );
+}
+
+/** The season's events as hairline rows: ones not started yet, then the latest started, with rank and record there. */
+function V8Events({ events, isCurrent, today }: { events: TeamEventRow[]; isCurrent: boolean; today: string }) {
+  const upcoming = isCurrent ? events.filter((e) => (e.start ?? e.end ?? "") > today) : [];
+  const played = events.filter((e) => !upcoming.includes(e)).reverse();
+  const rows = [...upcoming.slice(0, 2).map((e) => ({ e, next: true })), ...played.slice(0, 3).map((e) => ({ e, next: false }))];
+  return (
+    <>
+      <h3 className={cn(V8_LABEL, "mb-1.5")}>Events</h3>
+      <ul className="divide-y divide-line rounded-lg border border-line" aria-label="Events">
+        {rows.map(({ e, next }) => {
+          const rec = e.wins != null ? `${e.wins}-${e.losses ?? 0}-${e.ties ?? 0}` : null;
+          const onNow = !next && e.rank == null && rec == null && (e.end ?? e.start ?? "") >= today;
+          return (
+            <li key={e.code}>
+              <Link to={`/events/${e.season}/${e.code}`} className={cn(V8_ROW, "flex-wrap gap-x-3 gap-y-0.5 px-3 py-2 text-sm")}>
+                <span className="min-w-0 basis-full truncate font-medium text-text-base sm:basis-0 sm:flex-1" title={e.name}>{e.name}</span>
+                <span className="text-xs text-text-faint">{dateRange(e.start, e.end)}</span>
+                {next ? <span className="text-xs text-text-muted">Upcoming</span> : onNow ? <span className="inline-flex items-center gap-1.5 text-xs text-text-muted"><span className="size-1.5 rounded-full bg-live" aria-hidden />On now</span> : (
+                  <span className="flex items-center gap-3 text-xs tabular-nums text-text-muted">
+                    {e.rank != null && <span>#{e.rank}<span className="sr-only"> rank</span></span>}
+                    {rec && <span>{rec}</span>}
+                    {e.opr.np != null && <span><span className="text-text-faint">OPR</span> {num(e.opr.np)}</span>}
+                  </span>
+                )}
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </>
+  );
+}
+
+/** A workspace whose Control Point team has no FTC number: nothing to show, and how to fix it. */
+function V8Unnumbered({ w, cpUrl }: { w: WorkspaceSpace; cpUrl: string }) {
+  const scouting = useFlag("workspaceScouting");
+  return (
+    <section aria-label={workspaceLabel(w)} className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-dashed border-line p-4 sm:p-5">
+      <div className="min-w-0">
+        <p className="text-sm font-semibold text-text-base">{workspaceLabel(w)} <span className="ml-1 font-normal text-text-faint">{w.role === "admin" ? "Admin" : "Member"}</span></p>
+        <p className="mt-1 text-sm text-text-muted">No FTC team number is set for this team in Control Point, so there's no season to show. {w.role === "admin" ? "Add it in Control Point's team settings." : "An admin can add it in Control Point's team settings."}</p>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {scouting && <Button variant="ghost" size="sm" asChild><Link to={scoutSpaceHref(w.id)}><ClipboardList /> Scout space</Link></Button>}
+        <Button variant="outline" size="sm" asChild><a href={cpUrl} target="_blank" rel="noreferrer noopener"><ExternalLink /> Control Point</a></Button>
       </div>
     </section>
   );

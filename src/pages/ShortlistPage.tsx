@@ -8,7 +8,7 @@
 // empty list and wait behind "How it works" once there are picks.
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { ArrowDownWideNarrow, Bookmark, CalendarDays, Download, LayoutGrid, List, Scale } from "lucide-react";
+import { ArrowDownWideNarrow, Bookmark, CalendarDays, Download, HelpCircle, LayoutGrid, List, MoreHorizontal, Scale } from "lucide-react";
 import { useApi, qs } from "../lib/api";
 import { useCurrentSeason, useTitle } from "../lib/meta";
 import { usePersonal } from "../lib/personal";
@@ -17,7 +17,9 @@ import { PageHeader, EmptyState } from "../components/page";
 import { Async } from "../components/states";
 import { Button } from "../components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "../components/ui/controls";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "../components/ui/overlay";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "../components/ui/overlay";
+import { useIsV8 } from "../lib/v8";
+import { V8Empty, V8Title } from "../components/myteams/v8";
 import { toast } from "../components/ui/sonner";
 import { SeasonToggle } from "../components/SeasonToggle";
 import { downloadCsv } from "../lib/csv";
@@ -123,7 +125,86 @@ export default function ShortlistPage() {
   });
 
   // No signal: the change is on this device and goes up by itself once it's back (lib/personal.tsx's queue).
+  const v8 = useIsV8();
   const synced = user ? (offlineAccount || sync === "offline" ? "Saved on this device · syncs when you're back online." : "Synced to your account.") : <>Saved on this device; <Link to="/settings?section=profile" className="underline">sign in</Link> to sync.</>;
+  const seasonPick = <SeasonToggle predictOnly value={season} onChange={(s) => setSp((x) => { x.set("season", String(s)); return x; }, { replace: true })} />;
+  const viewToggle = (
+    <ToggleGroup type="single" aria-label="View" value={view} onValueChange={(v) => { if (v) setView(v as ShortlistView); }}>
+      <ToggleGroupItem value="list" aria-label="List view"><List /> <span className="max-sm:sr-only">List</span></ToggleGroupItem>
+      <ToggleGroupItem value="grid" aria-label="Grid view"><LayoutGrid /> <span className="max-sm:sr-only">Grid</span></ToggleGroupItem>
+    </ToggleGroup>
+  );
+  const csv = () => data.data && downloadCsv(`shortlist-${season}`, shortlistCsvRows(rowsFor(data.data), notes));
+  const listBody = (
+    <>
+      <p className="sr-only" aria-live="polite" aria-atomic="true">{reorder.message}</p>
+      <OfflineNote data={data.data} />
+      <Async state={data}>{(d) => {
+        const rows = rowsFor(d);
+        return view === "list" ? (
+          <div className="overflow-hidden rounded-2xl border border-border bg-card v8:rounded-xl v8:border-line">
+            <ListHeader />
+            <ol ref={reorder.container as RefObject<HTMLOListElement>} className="relative" aria-label="Pick list">
+              {rows.map((t) => <ListRow key={t.team} {...common(t, reorder.rankOf(t.team))} />)}
+            </ol>
+          </div>
+        ) : (
+          <ol ref={reorder.container as RefObject<HTMLOListElement>} className="relative grid gap-3 sm:grid-cols-2 xl:grid-cols-3" aria-label="Pick list">
+            {rows.map((t) => <GridCard key={t.team} {...common(t, reorder.rankOf(t.team))} />)}
+          </ol>
+        );
+      }}</Async>
+    </>
+  );
+
+  if (v8) {
+    // v8 (docs/design/v8-revamp-brief.md): "who do we pick?". The ranked list is the first thing under the title;
+    // Compare is the one primary; ordering, CSV and the instructions wait in More; adding a team and the season
+    // sit in one quiet toolbar. An empty list is one empty state with the add box as its action.
+    if (!list.length) {
+      return (
+        <div className="min-w-0" data-shortlist-v8>
+          <V8Title title="Shortlist" line={<>Your pick list for alliance selection. {synced}</>} />
+          <V8Empty icon={Bookmark} title="Your shortlist is empty" line="Type a team number or name to add it, or press Shortlist on any team page. An event's Rankings tab is a good place to start."
+            action={<div className="flex w-full max-w-md flex-col items-center gap-3">{addBox("w-full text-left")}<Button variant="outline" asChild><Link to="/events"><CalendarDays /> Browse events</Link></Button></div>} />
+          <HowItWorks className="mt-6 max-sm:mt-4" />
+        </div>
+      );
+    }
+    return (
+      <div className="min-w-0" data-shortlist-v8>
+        <V8Title title="Shortlist" line={<>{list.length} {list.length === 1 ? "pick" : "picks"} for alliance selection. {synced}</>}
+          actions={<>
+            {shown.length >= 2 && <Button asChild className="max-sm:flex-1"><Link to={compareHref(compareTeams, season)}><Scale /> {compareLabel}</Link></Button>}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild><Button variant="outline" size="icon" aria-label="More shortlist actions" data-shortlist-more><MoreHorizontal /></Button></DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="min-w-[14rem]">
+                <DropdownMenuLabel>Reorder the whole list by</DropdownMenuLabel>
+                <DropdownMenuItem disabled={!data.data} onSelect={() => sortBy("OPR", (r) => r.opr)}><ArrowDownWideNarrow /> OPR (highest first)</DropdownMenuItem>
+                <DropdownMenuItem disabled={!data.data} onSelect={() => sortBy("rating", (r) => r.rating)}><ArrowDownWideNarrow /> Rating (highest first)</DropdownMenuItem>
+                <DropdownMenuItem disabled={!data.data} onSelect={() => sortBy("auto OPR", (r) => r.breakdown.auto)}><ArrowDownWideNarrow /> Auto OPR</DropdownMenuItem>
+                <DropdownMenuItem disabled={!data.data} onSelect={() => sortBy("endgame OPR", (r) => r.breakdown.endgame)}><ArrowDownWideNarrow /> Endgame OPR</DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem disabled={!data.data} onSelect={csv}><Download /> Download CSV</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setHelp((v) => !v)}><HelpCircle /> {help ? "Hide how it works" : "How it works"}</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </>}>
+          <HowItWorks title={false} hidden={!help} className="mb-3" />
+          {list.length > MAX_SHOWN && <p className="mb-2 text-sm text-text-muted">Showing the first {MAX_SHOWN} of {list.length}.</p>}
+          <div className="flex flex-wrap items-center gap-2" data-print-hide>
+            {seasonPick}
+            <div className="flex flex-wrap items-center gap-2 max-sm:w-full sm:ml-auto">
+              {addBox("max-sm:min-w-0 max-sm:flex-1 sm:w-72")}
+              {viewToggle}
+            </div>
+          </div>
+        </V8Title>
+        {listBody}
+      </div>
+    );
+  }
+
   if (!list.length) {
     // A first visit: what the list is for, how to fill it, and everything it can do once it has picks.
     return (
