@@ -4,9 +4,10 @@
 // console and your account, there's no light/dark switch, Report a bug is a corner circle, and the wash is tall on a
 // top-level page and short inside one. Without it, the shell is as it was.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { resetFlags } from "../../lib/flags";
+import { DEFAULT_FLAGS } from "../../shared/flags";
 import { washSize } from "./Wash";
 
 type User = { id: number; email: string; displayName: string | null; createdAt: string; isOwner?: boolean; avatarUrl?: string | null };
@@ -81,6 +82,25 @@ describe("v8 shell", () => {
     cleanup();
     expect(shell("/teams/4215").container.querySelector("[data-wash]")!.getAttribute("data-wash")).toBe("short");
     expect([washSize("/"), washSize("/teams"), washSize("/teams/4215"), washSize("/events/2026/USNJ/")]).toEqual(["tall", "tall", "short", "short"]);
+  });
+
+  it("mounts the particle wave only after the server confirms the feature is on, and removes it when switched off", () => {
+    const { container } = shell();
+    expect(container.querySelector("[data-dot-wave]")).toBeNull();
+    act(() => resetFlags({ ...DEFAULT_FLAGS }, true));
+    expect(container.querySelector("[data-dot-wave]")).toBeTruthy();
+    act(() => resetFlags({ ...DEFAULT_FLAGS, particleWave: false }, true));
+    expect(container.querySelector("[data-dot-wave]")).toBeNull();
+    expect(container.querySelector("[data-wash]")).toBeTruthy();
+  });
+
+  it("uses the three-stream particle background throughout the v8 app", () => {
+    act(() => resetFlags({ ...DEFAULT_FLAGS }, true));
+    for (const path of ["/", "/events", "/events/2026/USNJQ1", "/teams", "/teams/4215", "/rankings", "/predict", "/my-team", "/scout", "/compare", "/shortlist", "/rules", "/download", "/settings"]) {
+      const { container } = shell(path);
+      expect(container.querySelector("canvas[data-dot-wave]")?.getAttribute("data-dot-streams"), path).toBe("3");
+      cleanup();
+    }
   });
 });
 
