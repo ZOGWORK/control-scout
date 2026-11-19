@@ -5,6 +5,7 @@
 // a database that can't be read keeps the last known wash (or the defaults): a page never fails over it.
 import { db, get } from "./db.js";
 import { registerCache } from "./caches.js";
+import { dropKeptPages } from "./api/searchReads.js";
 import { DEFAULT_WASH, parseWash, type OwnerWash, type WashResponse, type WashSettings } from "../src/shared/wash.js";
 
 export const WASH_TTL_MS = 10_000;
@@ -55,7 +56,7 @@ export async function setWash(wash: WashSettings, by: string, at = new Date()): 
       args: [KEY, JSON.stringify(wash), at.toISOString(), by.slice(0, 200)],
     },
   ], "write");
-  invalidateWash();
+  changed();
   return wasOf(before.rows[0]);
 }
 
@@ -65,7 +66,7 @@ export async function resetWash(): Promise<WashSettings | null> {
     { sql: "SELECT value FROM owner_settings WHERE key = ?", args: [KEY] },
     { sql: "DELETE FROM owner_settings WHERE key = ?", args: [KEY] },
   ], "write");
-  invalidateWash();
+  changed();
   return wasOf(before.rows[0]);
 }
 
@@ -79,4 +80,8 @@ function wasOf(row: unknown): WashSettings | null {
 
 /** Drop the cache (tests, a save, and the console's "clear caches"). */
 export function invalidateWash(): void { cached = null; }
+
+/** After a save or reset: this host's kept pages (server/pageCache.ts) carry the old wash in their head, so they go
+ *  too. Another host sees the change within WASH_TTL_MS plus its own page time (PAGE_TTL_MS). */
+function changed(): void { invalidateWash(); dropKeptPages(); }
 registerCache("Wash", invalidateWash);

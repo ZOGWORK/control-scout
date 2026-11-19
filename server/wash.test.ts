@@ -34,6 +34,18 @@ describe("the saved wash", () => {
     expect(await resetWash()).toBeNull();
   });
 
+  it("a save or reset drops the kept pages, which carry the old wash in their head", async () => {
+    const { keptPage } = await import("./api/searchReads");
+    let draws = 0;
+    const draw = () => keptPage("/wash-test", async () => ++draws);
+    expect(await draw()).toBe(1);
+    expect(await draw()).toBe(1);
+    await setWash(MINE, "o");
+    expect(await draw()).toBe(2);
+    await resetWash();
+    expect(await draw()).toBe(3);
+  });
+
   it("a row that no longer reads as a wash counts as none (never reaches a page)", async () => {
     const { run } = await import("./db");
     await run("INSERT INTO owner_settings (key, value, updated_at, updated_by) VALUES ('wash', ?, 'x', 'x')", [JSON.stringify({ ...MINE, a: "</style><script>" })]);

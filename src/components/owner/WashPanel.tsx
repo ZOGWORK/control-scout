@@ -88,7 +88,7 @@ function WashEditor({ saved, onSaved }: { saved: OwnerWash; onSaved: (p: OwnerWa
       return false;
     } finally { setBusy(false); }
   };
-  const save = () => valid && void run(() => apiFetch<OwnerWash>(PATH, { method: "PUT", json: { wash: valid } }), "Wash saved. Every page uses it now.");
+  const save = () => valid && void run(() => apiFetch<OwnerWash>(PATH, { method: "PUT", json: { wash: valid } }), "Wash saved. Pages show it within a minute.");
   const reset = async () => { if (await run(() => apiFetch<OwnerWash>(`${PATH}/reset`, { method: "POST", json: { confirm: true } }), "Back to the default wash.")) setAsking(false); };
   return (
     <div className="grid gap-4">
