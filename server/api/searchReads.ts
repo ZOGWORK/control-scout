@@ -148,10 +148,11 @@ export const keptAnswer = <T>(key: string, make: () => Promise<T>): Promise<T> =
 /** A whole page, kept PAGE_TTL_MS under `key` (its address: path and query). Shared by every visitor: never changed. */
 export const keptPage = <T>(key: string, make: () => Promise<T>): Promise<T> => keep("pages", key, PAGE_TTL_MS, PAGES_KEPT, make);
 
-/** How many of each are kept right now, and how many copies from before the last data move (tests). */
 /** Drop every kept page and every page carried over a data move: something every page carries changed (the owner's
  *  wash, server/wash.ts), so the next ask draws each page again. Answers and reads stay. */
 export function dropKeptPages(): void { kept.pages.clear(); kept.before.pages.clear(); }
+
+/** How many of each are kept right now, and how many copies from before the last data move (tests). */
 export const keptCounts = () => ({ rows: kept.rows.size, answers: kept.answers.size, pages: kept.pages.size, carried: kept.before.answers.size + kept.before.pages.size });
 
 registerCache("Search reads, answers and pages", () => { kept = fresh(); version = null; });
