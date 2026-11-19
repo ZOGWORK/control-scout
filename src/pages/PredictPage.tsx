@@ -663,7 +663,7 @@ function MatchResult({ x, offlineAsOf, offlineFrom, onSwap }: { x: MatchExplanat
         <PredictionBasis kind={matchBasis(x.level)} className="mt-1.5" />
         {/* Made to be screenshotted: the card says where it came from. */}
         <div className="mt-5 max-sm:mt-4 flex items-center justify-between border-t border-border pt-3 text-[11px] text-muted-foreground">
-          <span className="flex items-center gap-1.5"><img src={isV8() ? "/logo-56.webp" : "/legacy/logo-56.webp"} alt="" className="size-4" /> FTC Control Scout · prediction lab</span>
+          <span className="flex items-center gap-1.5"><img src={isV8() ? "/mark-white.webp" : "/legacy/logo-56.webp"} alt="" className="size-4" /> FTC Control Scout · prediction lab</span>
           <span>{seasonLabel(x.season)} · engine v{x.engineVersion}</span>
         </div>
       </div>
@@ -707,7 +707,7 @@ function QuickTeams({ taken, onAdd }: { taken: string[]; onAdd: (t: number) => v
 }
 
 /**
- * v8's call: the answer first (each side's chance to win, the favourite in its colour, the other faded, and the called
+ * v8's call: the answer first (each side's chance to win, both sides in their full colour (the favourite bolder), and the called
  * score), the reasons under it, then everything else behind two disclosures: the detail (ranges, bonus points, ratings,
  * every factor) and the what-if tool. Nothing from the classic card is dropped, only moved down.
  */
@@ -726,7 +726,7 @@ function CallV8({ x, offlineAsOf, offlineFrom, onSwap, whatIfOpen }: { x: MatchE
     return (
       <div className={cn("min-w-0", s === "blue" && "text-right")} data-side={s} data-favourite={fav && !even ? "" : undefined}>
         <p className={cn("font-mono text-sm tabular-nums [overflow-wrap:anywhere]", tone)}><span className="sr-only">{s === "red" ? "Red" : "Blue"} </span>{(s === "red" ? x.red : x.blue).join(" + ")}</p>
-        <p className={cn("mt-1 font-display text-[2.5rem] leading-none tabular-nums sm:text-[3.25rem]", tone, fav ? "font-semibold" : "font-medium opacity-55")}>{oddsPct(s === "red" ? x.winProbRed : x.winProbBlue)}</p>
+        <p className={cn("mt-1 font-display text-[2.5rem] leading-none tabular-nums sm:text-[3.25rem]", tone, fav ? "font-semibold" : "font-medium")}>{oddsPct(s === "red" ? x.winProbRed : x.winProbBlue)}</p>
       </div>
     );
   };
@@ -756,7 +756,7 @@ function CallV8({ x, offlineAsOf, offlineFrom, onSwap, whatIfOpen }: { x: MatchE
         </div>
         {/* Made to be screenshotted: the card says where it came from. */}
         <div className="mt-4 flex items-center justify-between gap-3 border-t border-line pt-3 text-[0.6875rem] text-text-faint">
-          <span className="flex items-center gap-1.5"><img src="/logo-56.webp" alt="" className="size-4" /> FTC Control Scout</span>
+          <span className="flex items-center gap-1.5"><img src="/mark-white.webp" alt="" className="size-4" /> FTC Control Scout</span>
           <span className="tabular-nums">{seasonLabel(x.season)} · engine v{x.engineVersion}</span>
         </div>
       </section>

@@ -156,7 +156,7 @@ export function PullToRefresh({ reload = () => window.location.reload() }: { rel
             <circle ref={ring} cx="22" cy="22" r={R} fill="none" strokeWidth="2.5" strokeLinecap="round" className="stroke-accent"
               style={{ strokeDasharray: RING, strokeDashoffset: RING }} />
           </svg>
-          <img data-pull-mark src={isV8() ? "/logo-56.webp" : "/legacy/logo-56.webp"} alt="" aria-hidden width={56} height={56} className="size-[22px]" />
+          <img data-pull-mark src={isV8() ? "/mark-white.webp" : "/legacy/logo-56.webp"} alt="" aria-hidden width={56} height={56} className="size-[22px]" />
         </div>
         <span ref={label} role="status" aria-live="polite" className="sr-only" />
       </div>
