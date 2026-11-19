@@ -198,7 +198,7 @@ export default function PowerRankingsPage() {
   if (!on) {
     return (
       <Page>
-        <div className={V8_HEAD}><PageHeader title="FTC power rankings" description="A weekly top 25 of FTC teams, each with a short written take and the team's live numbers." /></div>
+        <div className={V8_HEAD}><PageHeader title="FTC power rankings" description="A weekly top 25 of FTC teams, each with a short written take and the team's live numbers."><RankingsTabs at="power" /></PageHeader></div>
         <FeatureOffState feature="powerRankings" />
       </Page>
     );
@@ -220,7 +220,7 @@ export default function PowerRankingsPage() {
         state={state}
         empty={(d) => !d.week && (
           <>
-            <div className={V8_HEAD}><PageHeader title="FTC power rankings" description="A weekly top 25 of FTC teams, each with a short written take and the team's live numbers." /></div>
+            <div className={V8_HEAD}><PageHeader title="FTC power rankings" description="A weekly top 25 of FTC teams, each with a short written take and the team's live numbers."><RankingsTabs at="power" /></PageHeader></div>
             <EmptyState icon={Trophy} title="No power rankings published yet"
               description="The first weekly top 25 will be published here during the season. Until then, the world rankings list every rated team by its prediction rating."
               action={<Button variant="secondary" asChild><Link to="/rankings"><ListOrdered /> World rankings</Link></Button>} />

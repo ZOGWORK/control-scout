@@ -413,7 +413,7 @@ export function RecordsTable(p: RecordsTableProps) {
           <ListFilter className={cn(conditions ? "" : "text-accent", V8_ICON)} /> Filters{conditions > 0 && <span className="rounded bg-accent-ink/15 px-1.5 text-[11px] tabular-nums v8:bg-white/10 v8:text-[0.6875rem]">{conditions}</span>}
         </Button>
         {presets.length > 0 && (
-          <div className="no-scrollbar flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto border-l border-line pl-2 max-sm:order-last max-sm:basis-full max-sm:border-l-0 max-sm:border-t max-sm:pl-0 max-sm:pt-1.5 v8:min-w-[12rem]" aria-label="Quick filters">
+          <div className="no-scrollbar flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto border-l border-line pl-2 max-sm:order-last max-sm:basis-full max-sm:border-l-0 max-sm:border-t max-sm:pl-0 max-sm:pt-1.5 v8:order-last v8:basis-full v8:border-0 v8:pl-0 max-sm:v8:pt-0" aria-label="Quick filters">
             {presetChips}
           </div>
         )}
@@ -614,7 +614,7 @@ function SortHead({ k, label, title, state, sortBy, className, tone, align = "ri
 export function TeamNumber({ team, name, href }: { team: number; name: string; href: string }) {
   return (
     <Popover>
-      <PopoverTrigger className="tap-44 rounded font-mono font-semibold tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ring/60 still-hover:text-accent-text"
+      <PopoverTrigger className="tap-44 rounded font-mono font-semibold tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ring/60 still-hover:text-accent-text v8:font-sans"
         aria-label={name ? `${team} ${name}` : `Team ${team}`}>
         {team}
       </PopoverTrigger>
