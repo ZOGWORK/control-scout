@@ -279,8 +279,8 @@ function callFor(m: MatchView, team: number): number | null {
   return m.red.teams.some((x) => x.number === team) ? m.prediction.pRed : 1 - m.prediction.pRed;
 }
 
-/** The team's side in a match, as its alliance text colour (so the chance reads as red's or blue's at a glance). */
-const sideText = (m: MatchView, team: number) => (m.red.teams.some((x) => x.number === team) ? "text-red-alliance" : "text-blue-alliance");
+/** v8: the team's side in a match, as its alliance text colour (so the chance reads as red's or blue's at a glance). */
+const sideText = (m: MatchView, team: number) => (m.red.teams.some((x) => x.number === team) ? "v8:text-red-alliance" : "v8:text-blue-alliance");
 
 const matchHref = (m: MatchView) => `/events/${m.season}/${encodeURIComponent(m.code)}/match/${encodeURIComponent(m.key)}`;
 
