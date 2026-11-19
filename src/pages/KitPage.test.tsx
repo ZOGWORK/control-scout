@@ -59,7 +59,7 @@ describe("v8 foundations", () => {
     expect(html).toContain("/[?&]v8=([01])/");
     // v8 is the default (V8_DEFAULT): only a stored "0" (the classic look, /legacy) turns it off.
     expect(V8_DEFAULT).toBe(true);
-    expect(html).toContain("localStorage.getItem('cs-v8') !== '0'");
+    expect(html).toContain("var v8 = q ? q[1] === '1' : stored !== '0';");
     expect(html).toContain("var t = v8 ? 'dark' :");
   });
 
