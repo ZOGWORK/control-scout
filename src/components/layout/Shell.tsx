@@ -149,8 +149,9 @@ function SectionRows({ items, ...opts }: RowOpts & { items: NavItem[] }) {
 }
 
 /** A page row with an arrow beside it that folds out its sub-pages (Rankings: Region rankings, Leagues, Power
- *  rankings). Shut until the arrow is pressed: arriving on the page, or on one of the sub-pages, never opens it (the
- *  row's icon lights instead, so you can still tell where you are). In the icon rail the arrow sits under the icon. */
+ *  rankings). In v8, arriving on the page or one of its sub-pages opens the list (the arrow still folds it). In the
+ *  classic look it stays shut until the arrow is pressed, and the row's icon lights instead, so you can still tell
+ *  where you are. In the icon rail the arrow sits under the icon. */
 function SubPagesRow({ item, collapsed, dense, onNavigate }: RowOpts & { item: NavItem }) {
   const { pathname } = useLocation();
   const kids = item.sub ?? [];
