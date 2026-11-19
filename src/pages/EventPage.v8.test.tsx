@@ -39,6 +39,8 @@ vi.mock("../lib/meta", async (orig) => ({
 vi.mock("../lib/liveMode", async (orig) => ({ ...(await orig<typeof import("../lib/liveMode")>()), isLiveMode: () => false, useEventPoll: () => {} }));
 vi.mock("../components/records/RecordsTable", async (orig) => ({ ...(await orig<typeof import("../components/records/RecordsTable")>()), RecordsTable: () => <div>records table</div> }));
 vi.mock("../components/Advancement", () => ({ AdvancementView: () => <div>advancement</div> }));
+// The phone's sticky bar shows once the header's end has scrolled away: here, only whether it got that anchor.
+vi.mock("../components/StickyActions", () => ({ StickyActions: ({ after, children }: { after: HTMLElement | null; children: unknown }) => <div data-sticky-after={after ? "set" : "null"}>{children as never}</div> }));
 
 const { default: EventPage } = await import("./EventPage");
 const mount = (url: string) => render(
@@ -117,6 +119,15 @@ describe("event page in v8", () => {
     cleanup(); current = detail();
     mount("/events/2025/AUBRQ2");
     expect(document.querySelector<HTMLElement>("[data-livestream]")!.className).toMatch(/border-text-base\/25/); // outline
+  });
+
+  it("gives the phone's sticky action bar the header's end to watch (live and upcoming)", () => {
+    for (const over of [{ status: "live" as const }, { status: "upcoming" as const, start: "2099-11-01", end: "2099-11-01" }]) {
+      current = detail(over);
+      mount("/events/2025/AUBRQ2");
+      expect(document.querySelector("[data-sticky-after]")?.getAttribute("data-sticky-after")).toBe("set");
+      cleanup();
+    }
   });
 
   it("keeps a ?tab= link's tab", () => {

@@ -269,6 +269,8 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
         </div>
         {d.live && !liveMode && <LiveBar live={d.live} r={refresh} />}
         <OfflineVideoNote d={d} offline={saved} />
+        {/* The end of the header: the phone's sticky action bar shows once it has scrolled away. */}
+        <div ref={setHeaderEnd} aria-hidden />
       </header>
       {st === "live" ? <LiveFocus d={d} panel={live} next={liveMode ? target.next : null} mine={mine} onAll={showTab} />
         : st === "finished" ? <FinishedFocus d={d} mine={mine} nameOf={nameOf} onAll={showTab} />
