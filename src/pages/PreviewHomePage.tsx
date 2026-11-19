@@ -1,14 +1,14 @@
 // The v8 sample Home, third round: a scouting dashboard in the new look (the shutdown page's: server/gatePageNext.ts),
 // on its own path so the real Home stays as it is until the owner switches it. Drawn without the site's chrome
 // (src/shared/routes.ts isBareRoute), so nothing yellow from the old nav shows around it.
-//   - Search is the centre of the page: the biggest thing on it, with three fixed examples under it.
+//   - Search is the centre of the page: the biggest thing on it, with four examples under it, a fresh set each visit.
 //   - Below it, three cards of the same weight: Events live now, Top teams, Your teams (every one, usually one).
 //   - The app's pages in a sidebar on the left (Gemini-like: the mark and name, then a round button that folds it to
 //     icons), with nothing at its foot: you, Settings, What's new, the owner console and signing out all
 //     sit in the menu under your profile picture, top-right beside the inbox (a guest picture when signed out).
 //     Report a bug is a quiet circle in the bottom corner. Near-black, with a dusky purple-grey wash and a fine grain
 //     across the top of the page (not the sidebar).
-//   - One accent, mint, scoped to this page (data-theme-next): the primary button, the live dot and progress, the
+//   - One accent, mint, scoped to this page (data-theme-next): the live progress, the pick-a-team icon, the
 //     search focus, the #1 rank, links on hover. Numbers and names are white, labels grey; red and blue stay alliances.
 // No headline of any kind (no H1), no slogan, no globe. Every number comes from the same APIs the live Home uses.
 import { useState, type CSSProperties } from "react";
@@ -21,7 +21,7 @@ import { matchTime, oddsPct, place, seasonLabel } from "../lib/format";
 import type { EventListItem, MatchView, SearchHit, TeamSummary } from "../shared/api";
 import type { RecordsResponse, TeamSeasonRecord } from "../shared/statCatalog";
 import { HOME_ABOUT } from "../shared/boot";
-import { HOME_SUGGESTIONS, suggestionLabel, type HomeSuggestion } from "../shared/homeSuggestions";
+import { SUGGESTION_HOUR_MS, suggestionLabel, suggestionsAt, type HomeSuggestion } from "../shared/homeSuggestions";
 import { TIER_WORD } from "../shared/tierWords";
 import { SEARCH_HINT, usePageSearch, useSearch } from "../components/layout/Search";
 import { SearchBox, hitHref, searchPagePick } from "../components/search/SearchBox";
@@ -50,19 +50,15 @@ const THEME_NEXT = {
   "--color-accent-text": MINT.accent, "--color-accent-soft": "rgb(127 209 174 / 0.10)", "--color-ring": MINT.accent,
 } as CSSProperties;
 
-/** The fixed examples: the first query of each kind in the shared pool, in pool order, none of them a team's own
- *  (the pool holds no team numbers, src/shared/homeSuggestions.ts). The same on every visit: no clock picks them. */
-export function fixedExamples(pool: readonly HomeSuggestion[] = HOME_SUGGESTIONS, count = EXAMPLE_COUNT): HomeSuggestion[] {
-  const seen = new Set<string>();
-  const out: HomeSuggestion[] = [];
-  for (const s of pool) {
-    if (s.mine || seen.has(s.kind)) continue;
-    seen.add(s.kind);
-    out.push(s);
-    if (out.length === count) break;
-  }
-  return out;
+/** The examples under the field, a fresh set each visit: one hour's set from the live Home's own rotation
+ *  (suggestionsAt: a leaderboard query and other families, never two of a family or two of one place, sized to fit a
+ *  desktop), the leaderboard first, then the next ones. None is a team's own. `hour` picks the set; a visit draws one. */
+export function rotatedExamples(hour: number, count = EXAMPLE_COUNT): HomeSuggestion[] {
+  const six = suggestionsAt(hour * SUGGESTION_HOUR_MS);
+  return [...six.filter((s) => s.kind === "leaderboard"), ...six.filter((s) => s.kind !== "leaderboard")].slice(0, count);
 }
+/** A visit's set: any of a long run of hours, so reloading shows another. */
+const visitHour = () => Math.floor(Math.random() * 1_000_000);
 
 /** Live first (most matches played first), then nothing else: the card is for what's on now. */
 export function liveNow(events: readonly EventListItem[], max = LIVE_MAX): EventListItem[] {
@@ -114,6 +110,7 @@ export default function PreviewHomePage() {
   const searchRef = usePageSearch();
   const [sp] = useSearchParams();
   const query = sp.get("q")?.trim().slice(0, 100) || undefined;
+  const [examples] = useState(() => rotatedExamples(visitHour()));
   const teams = yourTeams(myTeamsOf(user).teams.map((t) => t.teamNumber), state.myTeam ?? null, state.tracked?.teams ?? []);
   return (
     <div data-sample-home data-theme-next style={THEME_NEXT} className="flex min-h-dvh overflow-x-clip bg-[#0a0a0b] text-text-base">
@@ -137,7 +134,7 @@ export default function PreviewHomePage() {
           />
           <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
             <span className="text-sm text-text-muted">Try:</span>
-            {fixedExamples().map((s) => (
+            {examples.map((s) => (
               <Link
                 key={s.q} data-example-chip to={hitHref(searchPagePick(s.q))} onClick={() => addRecentSearch(s.q)}
                 className="tap-44 inline-flex h-8 items-center rounded-full border border-white/15 bg-white/[0.03] px-3 text-sm text-text-base transition-colors hover:border-white/30 hover:bg-white/[0.07]"
@@ -538,16 +535,17 @@ function TeamRow({ team, season, t, loaded }: { team: number; season: number; t:
   );
 }
 
-/** No team yet: the same card, one line on what picking does, and the page's one solid button. */
+/** No team yet: the same card, one line on what picking does, and a quiet pill to pick one. */
 function PickTeamCard({ onPick }: { onPick: () => void }) {
   return (
     <section data-card="team" aria-labelledby="sample-team" className={card}>
       <h2 id="sample-team" className={cardTitle}><Star className="size-4 text-text-muted" aria-hidden /> Your teams</h2>
       <p className="text-sm text-text-muted">Pick your team to see its next match and its chance to win, right here. It stays on this device; no account needed.</p>
-      <button type="button" data-primary-action onClick={onPick} className={primary}><Search className="size-4" aria-hidden /> Pick your team</button>
+      <button type="button" data-pick-team onClick={onPick} className={pickTeam}><Search className="size-4 text-accent" aria-hidden /> Pick your team</button>
     </section>
   );
 }
 
-/** The page's one solid accent element (only while no team is picked): mint, dark text, no glow. */
-const primary = "mt-auto inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-accent px-4 text-sm font-semibold text-accent-ink transition-colors hover:bg-accent-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring";
+/** Picking a team: an outlined pill like the example chips (the card's one action, not a slab across it), the
+ *  search icon in mint. Sits where the other cards' links sit. */
+const pickTeam = "mt-auto inline-flex h-10 items-center gap-2 self-start rounded-full border border-white/15 bg-white/[0.03] px-4 text-sm font-medium text-text-base transition-colors hover:border-white/30 hover:bg-white/[0.07] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring";
