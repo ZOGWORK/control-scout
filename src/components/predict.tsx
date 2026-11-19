@@ -28,7 +28,6 @@ import { factorLabel } from "../lib/factorLabel";
 import { TeamSnack, TeamSnackContext, nameIn, useTeamSnack, useTeamSnackState } from "./TeamSnack";
 import { hasTeamPage } from "../shared/teamPages";
 import { Spacer, useVirtualRows } from "./ui/windowing";
-import { isV8, useIsV8 } from "../lib/v8";
 import { usePersonal } from "../lib/personal";
 import { myTeamsOf } from "../lib/myTeams";
 
@@ -178,12 +177,12 @@ function TeamChip({ t, side, season, highlight }: { t: AllianceScore["teams"][nu
   const cls = cn("flex min-w-0 flex-col rounded-md px-1.5 py-0.5 text-left leading-tight outline-none pointer-coarse:min-h-[44px] pointer-coarse:justify-center focus-visible:ring-2 focus-visible:ring-ring/60",
     side === "blue" && "@min-[330px]:items-end @min-[330px]:text-right",
     picked ? (side === "red" ? "bg-red-alliance/30 ring-1 ring-red-alliance/70" : "bg-blue-alliance/30 ring-1 ring-blue-alliance/70")
-      : me ? "bg-accent/15 ring-1 ring-accent/60" : "still-hover:bg-text-base/[0.06]");
+      : me ? "bg-accent/15 ring-1 ring-accent/60 v8:bg-white/[0.07] v8:ring-white/45" : "still-hover:bg-text-base/[0.06]");
   const body = (
     <>
       <span className={cn("tabular font-mono text-[0.8125rem]", me ? "font-bold text-accent-text" : picked ? "font-bold text-text-base" : sub ? "text-text-muted" : "text-text-base")}>{n}</span>
       {/* The space keeps number and name apart in the text, so the button's label ("207 Critical Mass: …") contains it (WCAG 2.5.3). */}
-      {t.name && <>{" "}<span className={cn("block max-w-full truncate text-[11px] italic", picked || me ? "text-text-base" : "text-text-muted")} data-team-name>{t.name}</span></>}
+      {t.name && <>{" "}<span className={cn("block max-w-full truncate text-[11px] italic v8:text-[0.75rem] v8:not-italic", picked || me ? "text-text-base" : "text-text-muted")} data-team-name>{t.name}</span></>}
       {sub && <span className="sr-only"> (surrogate)</span>}
     </>
   );
@@ -247,7 +246,10 @@ function AllianceBox({ side, m, score, forecast, outcome, highlight }: {
       "flex min-w-0 items-center justify-between gap-2 rounded-lg border-l-[3px] px-2 py-1.5",
       side === "red" ? "border-red-alliance bg-red-alliance/[0.06]" : "border-blue-alliance bg-blue-alliance/[0.06] @min-[330px]:flex-row-reverse @min-[330px]:border-l-0 @min-[330px]:border-r-[3px]",
       outcome === "win" && (side === "red" ? "bg-red-alliance/[0.14]" : "bg-blue-alliance/[0.14]"),
-    )}>
+      // v8: the same box, quieter: a fainter tint (a little stronger for the winner) and a 2px edge.
+      side === "red" ? "v8:border-l-2 v8:bg-red-alliance/[0.05]" : "v8:border-l-2 v8:bg-blue-alliance/[0.05] v8:@min-[330px]:border-l-0 v8:@min-[330px]:border-r-2",
+      outcome === "win" && (side === "red" ? "v8:bg-red-alliance/[0.09]" : "v8:bg-blue-alliance/[0.09]"),
+    )} data-alliance-box={side}>
       {/* A double-elimination playoff: the alliance's lives first, at the box's left (the blue box faces the red from
           the right on wider rows, so its hearts go last in its reversed row: still its left edge). */}
       {m.lives && <span className={cn(side === "blue" && "@min-[330px]:order-last")}><LivesHearts side={side} l={m.lives[side]} /></span>}
@@ -256,7 +258,7 @@ function AllianceBox({ side, m, score, forecast, outcome, highlight }: {
         {a.teams.map((t) => <TeamChip key={t.number} t={t} side={side} season={m.season} highlight={highlight} />)}
       </div>
       {score != null ? (
-        <span key={flash} className={cn("shrink-0 font-display text-lg font-bold tabular-nums", flash > 0 && "cs-score-flash -mx-1 px-1", outcome === "loss" ? FADED[side] : side === "red" ? "text-red-alliance-ink" : "text-blue-alliance")}>
+        <span key={flash} className={cn("shrink-0 font-display text-lg font-bold tabular-nums v8:text-xl", outcome === "loss" && "v8:font-medium", flash > 0 && "cs-score-flash -mx-1 px-1", outcome === "loss" ? FADED[side] : side === "red" ? "text-red-alliance-ink" : "text-blue-alliance")}>
           {score}{outcome === "win" && <span className="sr-only"> (won)</span>}
         </span>
       ) : forecast != null ? (
@@ -276,9 +278,11 @@ function AllianceBox({ side, m, score, forecast, outcome, highlight }: {
 /** `rowProps`: a windowed list's props for the row's element (useVirtualRows: it measures the row). */
 type MatchRowProps = { m: MatchView; highlight?: number; showEvent?: string; eventName?: string; open?: boolean; onToggle?: () => void; outcomeAccent?: boolean; live?: boolean; rowProps?: Record<string, unknown> };
 
-/** One match in a list. v8 draws the one-line scan row (MatchRowV8); otherwise today's row. */
+/** One match in a list. v8 keeps every part of the classic row (the alliance boxes with their team tiles, lives
+ *  hearts, the details chevron, the call with its bar, tier, ledger and Right/Upset chips, the videos and the report
+ *  button) and restyles it through `v8:` classes: neutral surfaces, white wins, the lighter alliance colours. */
 export function MatchRow(props: MatchRowProps) {
-  return useIsV8() ? <MatchRowV8 {...props} /> : <MatchRowClassic {...props} />;
+  return <MatchRowClassic {...props} />;
 }
 
 /** The teams this visitor follows: their Control Point teams, their own team and the teams they track. */
@@ -291,131 +295,6 @@ export function useFollowedTeams(): ReadonlySet<number> {
  *  is read either way, so the hook order never changes. */
 function usePersonalOrNull() {
   try { return usePersonal(); } catch { return null; }
-}
-
-/** v8's match row: everything today's row says, laid out as one clean line across the full width on a desktop. In
- *  order: the label and time, red's teams (names too on wide rows), the scores (the winner full colour and bold, the
- *  loser muted), blue's teams, the call (picked side and %, a thin bar, its tier, Right or Upset), and the page's
- *  team's own result in white. On a phone it's two lines: teams and scores, then time, call and result. The whole
- *  row opens the match report; each team number and the tier sit above that link, each its own tap. The page's team
- *  gets the slate-blue edge, the one place the accent is used. */
-function MatchRowV8({ m, highlight, showEvent, live, rowProps }: MatchRowProps) {
-  const followed = useFollowedTeams();
-  const predictable = usePredictable(m.season);
-  const p = m.prediction;
-  const scored = m.played && !!m.red.score && !!m.blue.score;
-  const total = (s: Side) => m[s].score!.total;
-  const winner: Side | "tie" | null = scored ? (total("red") === total("blue") ? "tie" : total("red") > total("blue") ? "red" : "blue") : null;
-  const mySide: Side | null = highlight ? (m.red.teams.some((t) => t.number === highlight) ? "red" : m.blue.teams.some((t) => t.number === highlight) ? "blue" : null) : null;
-  const mine = mySide && winner ? (winner === "tie" ? "tied" : winner === mySide ? "won" : "lost") : null;
-  const when = showEvent ?? matchTime(m.time);
-  const said = scored
-    ? `red ${total("red")}, blue ${total("blue")}${winner === "tie" ? ", tie" : `, ${winner} won`}`
-    : p ? `red ${oddsPct(p.pRed)} to win, blue ${oddsPct(1 - p.pRed)}` : "not played yet";
-  const value = (s: Side) => {
-    if (scored) return <ScoreV8 score={total(s)} side={s} result={winner === "tie" ? "tie" : winner === s ? "win" : "loss"} />;
-    // Not played: the predicted score, muted (an estimate, never a result).
-    if (p && !p.noScoreBasis) return <span className={cn("font-display text-base leading-none tabular-nums", FADED[s])} title="Predicted score" data-predicted>~{Math.round(s === "red" ? p.redMean : p.blueMean)}</span>;
-    return <span className="text-sm text-text-faint" aria-hidden>–</span>;
-  };
-  const time = (cls: string) => when ? <span className={cn("min-w-0 truncate text-xs text-text-faint", cls)} title={when} data-when>{when}</span> : null;
-  return (
-    <div {...rowProps} className={cn("@container border-b border-border last:border-b-0", mySide && "relative before:absolute before:inset-y-0 before:left-0 before:z-[2] before:w-0.5 before:bg-accent")}
-      data-match={m.key} data-live={live || undefined} data-mine-side={mySide ?? undefined}>
-      <div className="relative grid min-h-11 grid-cols-[2.75rem_minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-x-2 gap-y-1 px-3 py-2
-        @3xl:grid-cols-[5.5rem_minmax(0,1fr)_auto_minmax(0,1fr)_minmax(10rem,13rem)_4.5rem] @3xl:gap-x-5 @3xl:px-4" data-row data-v8-row>
-        <div className="min-w-0">
-          {/* The label is the row's link, stretched over the whole row. */}
-          <Link to={matchReportHref(m)} className="block font-mono text-sm font-semibold outline-none after:absolute after:inset-0 after:content-[''] focus-visible:after:rounded-md focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-ring/60" data-report-link>
-            {m.label}<span className="sr-only">: {said}. Open the match report</span>
-          </Link>
-          {time("hidden @3xl:block")}
-        </div>
-        <RowTeams side="red" m={m} highlight={highlight} followed={followed} />
-        <span className="flex items-baseline justify-center gap-1.5 @3xl:gap-2.5" data-scores>
-          <span className="min-w-[2.25rem] text-right" data-side="red">{value("red")}</span>
-          <span className="text-xs text-text-faint" aria-hidden>–</span>
-          <span className="min-w-[2.25rem] text-left" data-side="blue">{value("blue")}</span>
-        </span>
-        <RowTeams side="blue" m={m} highlight={highlight} followed={followed} />
-        {/* Phone: the second line (time, call, result). Desktop: its parts become the row's last columns. */}
-        <div className="col-span-full flex min-w-0 items-center gap-x-3 @3xl:contents" data-row-meta>
-          {time("@3xl:hidden")}
-          <span className="relative z-[1] flex min-w-0 items-center gap-2 text-xs @3xl:justify-end" data-call>
-            {p ? <CallV8 m={m} p={p} winner={winner} /> : predictable ? (
-              <span className="text-text-faint">{m.played && [m.red, m.blue].some((a) => a.teams.filter((t) => t.onField).length !== 2) ? "No call · a robot sat out" : m.played ? "No call" : "—"}</span>
-            ) : null}
-          </span>
-          <span className="ml-auto text-right text-xs @3xl:ml-0" data-mine={mine ?? undefined}>
-            {mine && highlight ? <span className={cn("whitespace-nowrap font-medium", mine === "won" ? "text-text-base" : "text-text-muted")}>{highlight} {mine}</span> : null}
-          </span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/** The call in a v8 row: the picked side and its chance, a thin two-colour bar, the tier (never a call without it),
- *  and once played whether it was right (white) or an upset (the quieter warning orange). */
-function CallV8({ m, p, winner }: { m: MatchView; p: MatchPredictionView; winner: Side | "tie" | null }) {
-  const fav: Side = p.pRed >= 0.5 ? "red" : "blue";
-  const called = winner && winner !== "tie" && p.pRed !== 0.5 ? (p.pRed > 0.5) === (winner === "red") : null;
-  return (
-    <>
-      <span className="whitespace-nowrap text-text-muted" title={KIND_LABEL[p.kind]}>
-        Picked <span className={cn("font-semibold tabular-nums", fav === "red" ? "text-red-alliance" : "text-blue-alliance")}>{fav === "red" ? "Red" : "Blue"} {oddsPct(fav === "red" ? p.pRed : 1 - p.pRed)}</span>
-      </span>
-      <WinBar pRed={p.pRed} size="sm" className="w-10 shrink-0 @3xl:w-12" decorative />
-      <TierIcon tier={p.tier} />
-      {called != null && (
-        <span className={cn("inline-flex items-center gap-0.5 whitespace-nowrap font-medium", called ? "text-text-base" : "text-warning")} data-outcome={called ? "right" : "upset"}>
-          {called ? <Check className="size-3" aria-hidden /> : <X className="size-3" aria-hidden />}{called ? "Right" : "Upset"}
-        </span>
-      )}
-    </>
-  );
-}
-
-/** A v8 row's score: big and tabular, the winner bold in its colour, the loser lighter. A score that changes while
- *  the row is on screen (a live refresh) swaps with the 200ms crossfade (index.css cs-score-flash); a row that
- *  mounts with its score doesn't animate. */
-function ScoreV8({ score, side, result }: { score: number; side: Side; result: "win" | "loss" | "tie" }) {
-  const flash = useChangeCount(score);
-  const tone = side === "red" ? "text-red-alliance-ink" : "text-blue-alliance";
-  return (
-    <span key={flash} className={cn("font-display text-[1.375rem] leading-none tabular-nums", result === "loss" ? cn("font-medium", FADED[side]) : cn("font-bold", tone), flash > 0 && "cs-score-flash")}
-      data-score data-result={result}>{score}</span>
-  );
-}
-
-/** One alliance's team numbers in a v8 row: side by side where the row is wide, stacked on a phone. A number taps
- *  to the team card in a match list (TeamSnack), else links to the team page; it sits above the row's link. */
-function RowTeams({ side, m, highlight, followed }: { side: Side; m: MatchView; highlight?: number; followed: ReadonlySet<number> }) {
-  const snack = useTeamSnack();
-  // The number in mono; the name beside it only on a wide row (truncated to the room it has).
-  const body = (t: MatchView["red"]["teams"][number], mine: boolean) => (
-    <>
-      <span className={cn("shrink-0 font-mono tabular-nums", mine && "font-semibold")}>{t.number}</span>
-      {t.name && <span className={cn("hidden min-w-0 truncate", mine ? "text-text-base" : "text-text-muted", "@4xl:inline")} data-team-name>{t.name}</span>}
-    </>
-  );
-  return (
-    // Each alliance sits against its own score (red's numbers end at it, blue's start from it), so a wide row reads
-    // as one unit from the middle instead of spreading to both edges.
-    <span className={cn("flex min-w-0 flex-col gap-y-0.5 @xl:flex-row @xl:flex-wrap @xl:gap-x-3 @4xl:flex-col @4xl:flex-nowrap", side === "red" ? "items-end @xl:justify-end" : "items-start @xl:justify-start")} data-teams={side}>
-      {m[side].teams.map((t) => {
-        const mine = t.number === highlight || followed.has(t.number);
-        const off = t.surrogate || !t.onField;
-        const cls = cn("relative z-[1] flex min-w-0 max-w-full items-baseline gap-1.5 rounded text-[0.8125rem] leading-tight outline-none tap-44 focus-visible:ring-2 focus-visible:ring-ring/60 still-hover:underline", side === "red" && "@4xl:flex-row-reverse",
-          mine ? "font-semibold text-accent-text" : off ? "text-text-faint" : "text-text-base", snack?.team === t.number && "underline decoration-2 underline-offset-2");
-        const title = `${t.number}${t.name ? ` ${t.name}` : ""}${off ? " (surrogate or didn't play)" : ""}${mine ? " · yours" : ""}`;
-        if (!hasTeamPage(t.number, t.name)) return <span key={t.number} title={title} className={cls}>{body(t, mine)}</span>;
-        return snack
-          ? <button key={t.number} type="button" onClick={() => snack.toggle(t.number)} aria-pressed={snack.team === t.number} aria-label={`${title}: show team card`} title={title} className={cls} data-mine={mine || undefined}>{body(t, mine)}</button>
-          : <Link key={t.number} to={`/teams/${t.number}?season=${m.season}`} title={title} className={cls} data-mine={mine || undefined}>{body(t, mine)}</Link>;
-      })}
-    </span>
-  );
 }
 
 function MatchRowClassic({ m, highlight, showEvent, eventName, open, onToggle, outcomeAccent, live, rowProps }: MatchRowProps) {
@@ -456,7 +335,9 @@ function MatchRowClassic({ m, highlight, showEvent, eventName, open, onToggle, o
       className={cn("group/row density-row grid grid-cols-[minmax(min-content,1fr)_auto_auto] items-center gap-x-3 gap-y-1.5 px-3 py-3 transition-[background-color]",
         // Wide rows: label | red | blue | the call | report. Fixed tracks either side, so every row lines up.
         "@3xl:grid-cols-[5.5rem_minmax(0,1fr)_minmax(0,1fr)_11.5rem_2rem]",
-        onToggle ? "cursor-pointer still-hover:bg-accent/[0.07]" : "still-hover:bg-text-base/[0.03]", open && "bg-accent/[0.05]")}
+        onToggle ? "cursor-pointer still-hover:bg-accent/[0.07]" : "still-hover:bg-text-base/[0.03]", open && "bg-accent/[0.05]",
+        // v8: a plain white fill on hover and while open, never an accent tint.
+        "v8:still-hover:bg-white/[0.03]", open && "v8:bg-white/[0.035]")}
       onClick={onToggle ? (e) => { if (!(e.target as HTMLElement).closest("a, button, input")) onToggle(); } : undefined}
       data-row
     >
@@ -530,7 +411,7 @@ function MatchRowClassic({ m, highlight, showEvent, eventName, open, onToggle, o
           call's width. 32px to look at, 44px to tap on a touch screen (tap-44). */}
       <Tooltip>
         <TooltipTrigger asChild>
-          <Link to={matchReportHref(m)} className="relative col-start-3 row-start-1 inline-flex size-8 items-center justify-center justify-self-end rounded-md border border-accent bg-card text-text-muted outline-none transition-colors tap-44 still-hover:bg-accent-soft still-hover:text-accent-text focus-visible:ring-2 focus-visible:ring-ring/60 @3xl:col-start-5" aria-label={`Pre-match report for ${m.label}`} data-report-link>
+          <Link to={matchReportHref(m)} className="relative col-start-3 row-start-1 inline-flex size-8 items-center justify-center justify-self-end rounded-md border border-accent bg-card text-text-muted outline-none transition-colors tap-44 still-hover:bg-accent-soft still-hover:text-accent-text focus-visible:ring-2 focus-visible:ring-ring/60 @3xl:col-start-5 v8:border-white/[0.14] v8:bg-transparent v8:still-hover:bg-white/[0.06] v8:still-hover:text-text-base" aria-label={`Pre-match report for ${m.label}`} data-report-link>
             <ClipboardList className="size-4" aria-hidden />
           </Link>
         </TooltipTrigger>
@@ -610,8 +491,6 @@ const scheduleOrder = (a: MatchView, b: MatchView) => (a.level === b.level ? 0 :
 type Group = { key: string; title: string; date?: string; href?: string; ms: MatchView[] };
 type ListItem = { kind: "head"; gi: number; key: string } | { kind: "match"; gi: number; m: MatchView; key: string };
 /** Heights for rows not measured yet (desktop / phone, measured on real rows): a match, a level heading, an event's heading. */
-/** v8's row: one line on a wide row (two team lines with names, 57 px); a phone adds a second line (time, call, result). */
-const V8_ROW_H = 57, V8_ROW_H_PHONE = 82;
 const ROW_H = 71, ROW_H_PHONE = 105, HEAD_H = 29, EVENT_HEAD_H = 41, EVENT_HEAD_H_PHONE = 57;
 /** A touch screen's match row is taller: its team chips and status row are 44 px (measured: 142 px a row at 390 px). */
 const ROW_TOUCH_EXTRA = 38;
@@ -684,7 +563,7 @@ export function MatchList({ matches, highlight, empty, eventNames, eventDates, i
   const [touch] = useState(() => typeof window !== "undefined" && !!window.matchMedia?.("(pointer: coarse)").matches);
   const estimate = (i: number) => {
     const x = flat[i];
-    return x.kind === "match" ? (isV8() ? (phone ? V8_ROW_H_PHONE : V8_ROW_H) : (phone ? ROW_H_PHONE : ROW_H) + (touch ? ROW_TOUCH_EXTRA : 0)) : groups[x.gi].date ? (phone ? EVENT_HEAD_H_PHONE : EVENT_HEAD_H) : touch && groups[x.gi].href ? HEAD_TOUCH_H : HEAD_H;
+    return x.kind === "match" ? (phone ? ROW_H_PHONE : ROW_H) + (touch ? ROW_TOUCH_EXTRA : 0) : groups[x.gi].date ? (phone ? EVENT_HEAD_H_PHONE : EVENT_HEAD_H) : touch && groups[x.gi].href ? HEAD_TOUCH_H : HEAD_H;
   };
   const loc = useLocation();
   // Named by page and kind of list, so coming Back to it finds its rows' measured heights.
