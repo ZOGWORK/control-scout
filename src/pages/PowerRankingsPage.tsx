@@ -70,7 +70,7 @@ function Entry({ e, comparedWith, onLink, tagTemplate }: { e: PowerRankingsEntry
     // v8: a list on hairlines, not a stack of cards; #1's number is the slate blue, the rest white.
     <li className="flex gap-3 rounded-2xl border border-line bg-elevated/60 p-4 sm:gap-5 sm:p-5 v8:rounded-none v8:border-0 v8:border-b v8:bg-transparent v8:px-0 v8:py-5 v8:sm:px-0">
       <div className="flex w-9 shrink-0 flex-col items-center gap-1 pt-0.5 sm:w-11">
-        <span className={cn("font-display text-2xl font-semibold leading-none tabular-nums sm:text-[1.75rem]", e.rank <= 3 ? "text-accent-text" : "text-foreground", e.rank === 1 && "v8:text-accent")} data-rank>{e.rank}</span>
+        <span className={cn("font-display text-2xl font-semibold leading-none tabular-nums sm:text-[1.75rem]", e.rank <= 3 ? "text-accent-text v8:text-text-base" : "text-foreground", e.rank === 1 && "v8:text-accent")} data-rank>{e.rank}</span>
         <MovementBadge m={e.movement} comparedWith={comparedWith} />
       </div>
       <div className="min-w-0 flex-1">

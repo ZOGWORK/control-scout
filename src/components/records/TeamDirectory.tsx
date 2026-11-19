@@ -195,9 +195,10 @@ export function TeamDirectory({ season, onSeason }: { season: number; onSeason: 
   );
 }
 
-/** The country's totals, what a listing means, and where teams without a country are. */
 /** v8: a label above a number, sentence case and faint (the classic look draws it uppercase and tracked). */
 const V8_LABEL = "v8:font-normal v8:normal-case v8:tracking-normal v8:text-text-faint";
+
+/** The country's totals, what a listing means, and where teams without a country are. */
 
 function Summary({ data, season, where, resultsHref, onRetry }: { data: DirectoryPage | undefined; season: number; where: string; resultsHref: string; onRetry: () => Promise<void> }) {
   const ready = data?.readiness.state === "ready";
