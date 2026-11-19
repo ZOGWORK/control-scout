@@ -26,7 +26,7 @@ const SURFACES = [
   ["bg", "bg-background", "#0a0a0b"], ["surface-1", "bg-card", "#0e0e10"], ["surface-2", "bg-popover", "#141416"], ["surface-3", "bg-muted", "#1b1b1e"],
 ] as const;
 const INKS = [
-  ["text", "bg-text-base"], ["text-muted", "bg-text-muted"], ["text-faint", "bg-text-faint"], ["accent (mint)", "bg-accent"], ["live", "bg-live"], ["red alliance", "bg-red-alliance"], ["blue alliance", "bg-blue-alliance"],
+  ["text", "bg-text-base"], ["text-muted", "bg-text-muted"], ["text-faint", "bg-text-faint"], ["accent (slate blue)", "bg-accent"], ["live", "bg-live"], ["red alliance", "bg-red-alliance"], ["blue alliance", "bg-blue-alliance"],
 ] as const;
 const TYPE = [
   ["Caption", "text-[0.6875rem] font-medium", "11 / 14 · 500"], ["Small", "text-xs", "12 / 16 · 400"], ["Body", "text-sm", "14 / 20 · 400"],
@@ -57,7 +57,7 @@ export default function KitPage() {
         <p className="mt-1 text-sm text-text-muted">Every token and shared component in the new look. Press, open and hover things: the motion is part of the kit.</p>
       </header>
 
-      <Section id="colour" title="Colour" note="Near-black surfaces in four steps, three greys of text, one mint accent, red only for live and the red alliance. No yellow.">
+      <Section id="colour" title="Colour" note="Near-black surfaces in four steps, three greys of text, one slate-blue accent, red only for live and the red alliance. No yellow.">
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           {SURFACES.map(([name, cls, hex]) => (
             <div key={name} className={`${cls} rounded-xl border border-line p-4`}>
@@ -126,7 +126,7 @@ export default function KitPage() {
         </ToggleGroup>
       </Section>
 
-      <Section id="tabs" title="Tabs" note="Plain labels, muted to white, with a mint line under the picked one.">
+      <Section id="tabs" title="Tabs" note="Plain labels, muted to white, with a slate-blue line under the picked one.">
         <Tabs defaultValue="matches">
           <TabsList><TabsTrigger value="matches">Matches</TabsTrigger><TabsTrigger value="events">Events</TabsTrigger><TabsTrigger value="stats">Stats</TabsTrigger><TabsTrigger value="highlights">Highlights</TabsTrigger></TabsList>
           <TabsContent value="matches" className="text-sm text-text-muted">Matches go here.</TabsContent>

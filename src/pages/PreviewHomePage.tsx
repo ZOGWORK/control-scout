@@ -28,11 +28,11 @@ import { cn } from "../components/cn";
 // The dashboard itself (search, chips, the three cards) is shared with the real Home under v8.
 export { EXAMPLE_COUNT, LIVE_MAX, TOP_MAX, TEAMS_MAX, rotatedExamples, liveNow, nextUp, yourTeams } from "../components/home/HomeDashboard";
 
-/** The accent for the new look, scoped to this page: mint, from the wash's green middle. */
-export const MINT = { accent: "#7fd1ae", hover: "#95dcbd", ink: "#062b1d" } as const;
+/** The accent for the new look, scoped to this page: the wash's light slate blue (left side). */
+export const MINT = { accent: "#a3b6e0", hover: "#b8c8ea", ink: "#141a2b" } as const;
 const THEME_NEXT = {
   "--color-accent": MINT.accent, "--color-accent-hover": MINT.hover, "--color-accent-ink": MINT.ink,
-  "--color-accent-text": MINT.accent, "--color-accent-soft": "rgb(127 209 174 / 0.10)", "--color-ring": MINT.accent,
+  "--color-accent-text": MINT.accent, "--color-accent-soft": "rgb(163 182 224 / 0.10)", "--color-ring": MINT.accent,
 } as CSSProperties;
 
 export default function PreviewHomePage() {

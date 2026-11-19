@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { act, cleanup, render } from "@testing-library/react";
-import { useIsV8 } from "../lib/v8";
+import { V8_DEFAULT, useIsV8 } from "../lib/v8";
 import { MemoryRouter } from "react-router-dom";
 import KitPage from "./KitPage";
 import { TooltipProvider } from "../components/ui/overlay";
@@ -55,15 +55,17 @@ describe("v8 kit (/preview/kit)", () => {
 });
 
 describe("v8 foundations", () => {
-  it("turns on before first paint from ?v8=1, off from ?v8=0, and is dark only", () => {
+  it("is on by default before first paint, off only for a device that picked the classic look, and dark only", () => {
     expect(html).toContain("/[?&]v8=([01])/");
-    expect(html).toContain("var v8 = q ? q[1] === '1' : stored === '1';");
+    // v8 is the default (V8_DEFAULT): only a stored "0" (the classic look, /legacy) turns it off.
+    expect(V8_DEFAULT).toBe(true);
+    expect(html).toContain("var v8 = q ? q[1] === '1' : stored !== '0';");
     expect(html).toContain("var t = v8 ? 'dark' :");
   });
 
-  it("sets the 90% root, mint, three radii and the strong curves under html[data-v8]", () => {
+  it("sets the 90% root, the slate-blue accent, three radii and the strong curves under html[data-v8]", () => {
     const block = css.slice(css.indexOf("html[data-v8] {"), css.indexOf("}", css.indexOf("html[data-v8] {")));
-    for (const rule of ["--ui-base: 0.9;", "--color-accent: #7fd1ae;", "--radius-xl: 0.875rem;", "--radius-lg: 0.5rem;", "--ease-out: cubic-bezier(0.23, 1, 0.32, 1);", "--ease-in: cubic-bezier(0.23, 1, 0.32, 1);"]) expect(block).toContain(rule);
+    for (const rule of ["--ui-base: 0.9;", "--color-accent: #a3b6e0;", "--radius-xl: 0.875rem;", "--radius-lg: 0.5rem;", "--ease-out: cubic-bezier(0.23, 1, 0.32, 1);", "--ease-in: cubic-bezier(0.23, 1, 0.32, 1);"]) expect(block).toContain(rule);
     expect(css).toContain("@custom-variant v8 (&:where(html[data-v8], html[data-v8] *));");
     expect(css).toMatch(/@media \(min-width: 2100px\) \{ html\[data-v8\] \{ --ui-base: 0\.99; \} \}/);
     expect(css).toMatch(/@media \(max-width: 767px\) \{ html\[data-v8\] \{ --ui-base: 0\.875; \} \}/);

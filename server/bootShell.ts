@@ -126,7 +126,7 @@ export const BOOT_STYLE = `<style>
       .csbc-btns{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
       .csbc-btns button{height:32px;padding:0 12px;border:1px solid var(--b-line);border-radius:8px;background:var(--b-pop);color:var(--b-fg);font:600 12px/1 Inter,ui-sans-serif,system-ui,sans-serif;cursor:pointer}
       @media (min-width:768px){.csbc{left:16px;right:auto;bottom:7rem;width:22rem}}
-      html[data-v8] .csb{--b-side:#0e0e10;--b-line:#ffffff0f;--b-acc:#7fd1ae}
+      html[data-v8] .csb{--b-side:#0e0e10;--b-line:#ffffff0f;--b-acc:#a3b6e0}
       html[data-v8] .csb-brand img,html[data-v8] .csb-top>a img{content:url(/mark-white.webp)}
       html[data-v8] .csb-brand{height:56px;padding:0 16px;font-size:13.5px;font-weight:600}
       html[data-v8] .csb-brand img{width:18px;height:18px}
