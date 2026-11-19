@@ -37,7 +37,7 @@ export const LIST_COLS = "grid items-center gap-x-2 grid-cols-[2.5rem_1.75rem_mi
 /** The list view's column headings (aligned with ListRow's grid). */
 export function ListHeader() {
   return (
-    <div aria-hidden className={cn(LIST_COLS, "border-b border-border bg-muted/40 px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-text-muted sm:px-3 v8:border-line v8:bg-transparent v8:py-2.5 v8:text-xs v8:font-normal v8:normal-case v8:tracking-normal v8:text-text-faint")}>
+    <div aria-hidden className={cn(LIST_COLS, "border-b border-border bg-muted/40 px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-text-muted sm:px-3 v8:border-white/[0.12] v8:bg-transparent v8:py-2.5 v8:text-xs v8:font-normal v8:normal-case v8:tracking-normal v8:text-text-faint")}>
       <span /><span>Pick</span><span className="max-sm:hidden" /><span>Team</span><span className="max-md:hidden">Trend</span>
       <span className="text-right">OPR</span><span className="text-right max-sm:hidden">World</span><span className="text-right max-lg:hidden">Rating</span><span className="text-right max-sm:hidden">W-L-T</span><span />
     </div>
@@ -89,7 +89,7 @@ export function ListRow(p: RowProps) {
   const { t, rank, open, dragging } = p;
   const detailsId = `${p.idPrefix ?? "shortlist"}-${t.team}`;
   return (
-    <li data-reorder-key={t.team} className={cn("relative border-b border-border bg-card last:border-b-0 v8:border-line", dragging && "z-20 rounded-xl border-transparent shadow-2xl ring-2 ring-accent/70 v8:ring-white/25")}>
+    <li data-reorder-key={t.team} className={cn("relative border-b border-border bg-card last:border-b-0 v8:border-white/[0.08]", dragging && "z-20 rounded-xl border-transparent shadow-2xl ring-2 ring-accent/70 v8:ring-white/25")}>
       <div className={cn(LIST_COLS, "density-row cursor-pointer px-2 py-2 transition-colors hover:bg-accent/[0.06] sm:px-3 v8:min-h-11 v8:hover:bg-white/[0.03]", open && "bg-accent/[0.05] v8:bg-white/[0.02]")}
         onClick={(e) => { if (!interactive(e)) p.onToggle(); }}>
         {p.readOnly ? <span aria-hidden /> : <Grip t={t} rank={rank} handle={p.handle} />}

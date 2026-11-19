@@ -259,7 +259,7 @@ function Start({ suggestions, onPick, onPickAll }: { suggestions: Suggestion[]; 
 }
 
 type Better = "high" | "low" | null;
-interface Metric { label: string; better: Better; value: (x: CompareTeam) => number | null; show: (x: CompareTeam) => string; sub?: (x: CompareTeam) => string | null; title?: (x: CompareTeam | null) => string }
+interface Metric { label: string; /** v8 phones: a short label, so the row stays one line. */ short?: string; better: Better; value: (x: CompareTeam) => number | null; show: (x: CompareTeam) => string; sub?: (x: CompareTeam) => string | null; title?: (x: CompareTeam | null) => string }
 
 const winRate = (x: CompareTeam) => {
   const r = x.stats?.record;
@@ -269,7 +269,7 @@ const winRate = (x: CompareTeam) => {
 const METRICS: Metric[] = [
   { label: "OPR", better: "high", value: (x) => x.stats?.opr.np.value ?? null, show: (x) => num(x.stats?.opr.np.value), sub: (x) => rankPct(x.stats?.opr.np.rank, x.stats?.opr.np.of) },
   // An estimate from match results (src/shared/reliability.ts), right under OPR: captains pick on both.
-  { label: "Reliability (est.)", better: "high", value: (x) => x.stats?.reliability?.index ?? null, show: (x) => (x.stats?.reliability ? String(x.stats.reliability.index) : "—"), sub: (x) => (x.stats?.reliability ? `${x.stats.reliability.matches} quals` : null) },
+  { label: "Reliability (est.)", short: "Reliab.", better: "high", value: (x) => x.stats?.reliability?.index ?? null, show: (x) => (x.stats?.reliability ? String(x.stats.reliability.index) : "—"), sub: (x) => (x.stats?.reliability ? `${x.stats.reliability.matches} quals` : null) },
   // Swing, the consistency stat (the engine's, same number as the reliability index's part): lower = steadier.
   { label: "Swing", better: "low", value: (x) => x.stats?.reliability?.consistency?.value ?? null, show: (x) => swingText(x.stats?.reliability?.consistency),
     sub: (x) => (x.stats?.reliability?.consistency?.value != null ? `${x.stats.reliability.consistency.matches} quals` : null), title: (x) => (x ? swingTitle(x.stats?.reliability?.consistency) : SWING_LINE) },
@@ -375,14 +375,35 @@ function StatsTable({ d, onRemove, onMove }: { d: CompareView; onRemove: (n: num
   return (
     <Reveal className="min-w-0 self-start overflow-x-auto rounded-2xl border border-border bg-card v8:rounded-xl v8:border-line" data-stats-table>
       <p className="sr-only" aria-live="polite">{said}</p>
-      <table ref={table} className="w-full table-fixed border-collapse text-sm" style={{ minWidth: `${5 + t.length * 8}rem` }}>
+      {/* v8 (Sushil's table note): visible hairlines, a header rule, 44px rows, numbers right-aligned, the team on one
+          line, and narrow enough that three teams fit a phone without scrolling sideways. */}
+      <table ref={table} className="w-full table-fixed border-collapse text-sm" style={{ minWidth: v8 ? `${4.75 + t.length * 6.5}rem` : `${5 + t.length * 8}rem` }}>
         <caption className="sr-only">Season stats; the best in each row is marked</caption>
         <thead>
-          <tr>
-            <th scope="col" className="w-20 p-3 sm:w-24"><span className="sr-only">Stat</span></th>
+          <tr className="v8:border-b v8:border-white/[0.12]">
+            <th scope="col" className="w-20 p-3 sm:w-24 v8:w-[4.75rem] sm:v8:w-32"><span className="sr-only">Stat</span></th>
             {t.map((x, i) => (
               <Th key={x.team.number} scope="col" data-col={i} className={cn("border-l border-border p-3 text-left align-top font-normal v8:border-line", colClass(i))} style={{ boxShadow: `inset 0 ${v8 ? 2 : 3}px 0 ${COLORS[i]}` }}
                 {...fade({ initial: { opacity: 0, y: -4 }, animate: { opacity: 1, y: 0 }, transition: CELL })}>
+                {v8 ? (
+                  <>
+                    <Link to={`/teams/${x.team.number}?season=${d.season}`} className="flex min-w-0 items-baseline gap-2 hover:underline" title={x.team.name ?? undefined}>
+                      <span className="shrink-0 font-display text-lg font-semibold tabular-nums text-text-base">{x.team.number}</span>
+                      <span className="min-w-0 truncate text-xs text-text-muted max-sm:hidden">{x.team.name ?? ""}</span>
+                    </Link>
+                    <div className="-mb-1 -ml-2 mt-1 flex items-center gap-1">
+                      {t.length > 1 && (
+                        <button type="button" {...gripProps(x.team.number, i)}
+                          aria-label={`Reorder ${x.team.number}, ${ORDINAL[i]} of ${t.length}: drag, or use the arrow keys`} title="Drag to reorder: the first team is the one the others are measured against"
+                          className="flex size-8 shrink-0 cursor-grab touch-none items-center justify-center rounded-md text-text-faint hover:bg-white/[0.06] hover:text-text-base focus-visible:outline-2 focus-visible:outline-ring active:cursor-grabbing pointer-coarse:size-[44px]">
+                          <GripVertical className="size-4" aria-hidden />
+                        </button>
+                      )}
+                      {i === 0 && t.length > 1 && <span className="truncate text-[0.6875rem] text-text-faint max-sm:sr-only">Baseline</span>}
+                      <Button variant="ghost" size="icon-sm" className="ml-auto shrink-0 text-text-faint pointer-coarse:size-[44px]" aria-label={`Remove ${x.team.number}`} onClick={() => onRemove(x.team.number)}><X /></Button>
+                    </div>
+                  </>
+                ) : (
                 <div className="flex items-start justify-between gap-1 pointer-coarse:flex-wrap pointer-coarse:gap-0">
                   {t.length > 1 && (
                     <button type="button" {...gripProps(x.team.number, i)}
@@ -398,7 +419,8 @@ function StatsTable({ d, onRemove, onMove }: { d: CompareView; onRemove: (n: num
                   </Link>
                   <Button variant="ghost" size="icon-sm" className="-mr-1.5 -mt-1 shrink-0 max-sm:size-10 pointer-coarse:ml-auto pointer-coarse:mt-0 pointer-coarse:size-[44px]" aria-label={`Remove ${x.team.number}`} onClick={() => onRemove(x.team.number)}><X /></Button>
                 </div>
-                {!x.stats && <span className="mt-1 block text-xs text-muted-foreground">No results this season</span>}
+                )}
+                {!x.stats && <span className="mt-1 block text-xs text-muted-foreground v8:truncate v8:text-text-faint">No results this season</span>}
               </Th>
             ))}
           </tr>
@@ -407,17 +429,17 @@ function StatsTable({ d, onRemove, onMove }: { d: CompareView; onRemove: (n: num
           {METRICS.map((metric, row) => {
             const best = leaders(metric, t);
             return (
-              <Tr key={metric.label} className="border-t border-border v8:border-line" {...fade({ initial: { opacity: 0 }, animate: { opacity: 1 }, transition: { ...CELL, delay: 0.05 + row * 0.03 } })}>
-                <th scope="row" className="px-3 py-2 text-left font-normal text-muted-foreground v8:h-11 v8:text-text-faint" title={metric.title?.(null)}>{metric.label}</th>
+              <Tr key={metric.label} className="border-t border-border v8:border-white/[0.08] v8:first:border-t-0" {...fade({ initial: { opacity: 0 }, animate: { opacity: 1 }, transition: { ...CELL, delay: 0.05 + row * 0.03 } })}>
+                <th scope="row" className="px-3 py-2 text-left font-normal text-muted-foreground v8:h-11 v8:truncate v8:py-0 v8:text-text-muted" title={metric.title?.(null) ?? metric.label}>{v8 && metric.short ? <><span className="sm:hidden" aria-hidden>{metric.short}</span><span className="max-sm:sr-only">{metric.label}</span></> : metric.label}</th>
                 {t.map((x, i) => {
                   const lead = best.has(x.team.number);
                   const sub = metric.sub?.(x);
                   return (
-                    <Td key={x.team.number} data-col={i} data-lead={lead || undefined} title={metric.title?.(x)} className={cn("border-l border-border px-3 py-2 tabular-nums transition-colors duration-300 v8:border-line v8:duration-150", colClass(i), lead && "bg-foreground/[0.07] v8:bg-white/[0.06]")}
+                    <Td key={x.team.number} data-col={i} data-lead={lead || undefined} title={metric.title?.(x)} className={cn("border-l border-border px-3 py-2 tabular-nums transition-colors duration-300 v8:h-11 v8:whitespace-nowrap v8:border-line v8:py-0 v8:text-right v8:duration-150", colClass(i), lead && "bg-foreground/[0.07] v8:bg-white/[0.06]")}
                       {...fade({ initial: { opacity: 0 }, animate: { opacity: 1 }, transition: CELL })}>
                       <span className={cn("whitespace-nowrap font-medium", lead ? "font-bold text-foreground v8:font-semibold v8:text-text-base" : best.size > 0 && "v8:text-text-muted")}>{metric.show(x)}</span>
                       {lead && <span className="sr-only"> (best)</span>}
-                      {sub && <span className="whitespace-nowrap text-xs text-muted-foreground max-sm:block sm:ml-1.5">{sub}</span>}
+                      {sub && <span className="whitespace-nowrap text-xs text-muted-foreground max-sm:block sm:ml-1.5 max-sm:v8:hidden v8:text-text-faint">{sub}</span>}
                     </Td>
                   );
                 })}
@@ -426,7 +448,15 @@ function StatsTable({ d, onRemove, onMove }: { d: CompareView; onRemove: (n: num
           })}
         </tbody>
       </table>
-      <p className="border-t border-border px-3 py-2 text-xs text-muted-foreground v8:border-line v8:text-text-faint" data-swing-line>{SWING_LINE} <Link to="/methodology#swing" className="underline">How it's computed</Link></p>
+      {v8 ? (
+        // v8: the explanation waits behind a disclosure.
+        <details className="group border-t border-white/[0.08] text-xs text-text-faint" data-swing-line>
+          <summary className="flex min-h-11 cursor-pointer list-none items-center gap-1.5 px-3 hover:text-text-muted [&::-webkit-details-marker]:hidden">
+            <Info className="size-3.5" aria-hidden />About these numbers
+          </summary>
+          <p className="px-3 pb-3">{SWING_LINE} <Link to="/methodology#swing" className="underline">How it's computed</Link></p>
+        </details>
+      ) : <p className="border-t border-border px-3 py-2 text-xs text-muted-foreground" data-swing-line>{SWING_LINE} <Link to="/methodology#swing" className="underline">How it's computed</Link></p>}
     </Reveal>
   );
 }
