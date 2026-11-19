@@ -83,7 +83,7 @@ function Row({ r, season, myTeam, country }: { r: RegionListItem; season: number
       <span className="min-w-0 flex-1">
         <span className={cn("block truncate", country ? "font-display text-base font-semibold v8:font-sans v8:text-[0.9375rem]" : "text-sm font-medium v8:font-normal")}>{r.name}</span>
         <span className={cn("block truncate text-xs text-text-muted", V8_CAPTION)}>
-          #1 <span className={cn("font-mono tabular-nums v8:font-sans", r.top.team === myTeam && "font-semibold text-accent-text")}>{r.top.team}</span> {r.top.name ?? ""} · <span className="tabular-nums">{r.top.rating.toFixed(1)}</span>
+          #1 <span className={cn("font-mono tabular-nums v8:font-sans", r.top.team === myTeam && "font-semibold text-accent-text v8:font-medium v8:text-text-base")}>{r.top.team}</span> {r.top.name ?? ""} · <span className="tabular-nums">{r.top.rating.toFixed(1)}</span>
           {r.leagues ? ` · ${r.leagues} league${r.leagues === 1 ? "" : "s"}` : ""}
         </span>
       </span>

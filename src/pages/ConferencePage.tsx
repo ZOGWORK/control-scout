@@ -182,7 +182,7 @@ function ConferenceView({ c, team }: { c: Conference; team: number | null }) {
 }
 
 function TeamLink({ season, t }: { season: number; t: { team: number; name: string | null } }) {
-  return <Link to={`/teams/${t.team}?season=${season}`} className="font-medium text-accent-text hover:underline v8:underline-offset-2">{t.team}{t.name ? ` ${t.name}` : ""}</Link>;
+  return <Link to={`/teams/${t.team}?season=${season}`} className="font-medium text-accent-text hover:underline v8:text-text-base v8:underline-offset-2">{t.team}{t.name ? ` ${t.name}` : ""}</Link>;
 }
 
 function Skeleton() {
