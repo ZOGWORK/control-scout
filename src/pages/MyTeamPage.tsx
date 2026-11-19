@@ -421,10 +421,11 @@ function V8Dashboard({ team }: { team: number }) {
           const recent = isCurrent ? played.slice(0, 6) : [...d.matches].reverse();
           return (
             <>
-              {isCurrent && (
+              {/* One match ahead is already the hero above: the list shows once there's more than one. */}
+              {isCurrent && upcoming.length > 1 && (
                 <section className="mb-8 max-sm:mb-6" aria-labelledby="v8-upcoming">
-                  <V8Heading id="v8-upcoming" title={`Upcoming matches${upcoming.length ? ` (${upcoming.length})` : ""}`} line="With the chance to win from today's ratings, or the call already logged." />
-                  <MatchList matches={upcoming} highlight={team} eventNames={eventInfo.names} eventDates={eventInfo.dates} empty="No scheduled matches yet. Schedules usually appear the morning of an event." />
+                  <V8Heading id="v8-upcoming" title={`Upcoming matches (${upcoming.length})`} line="With the chance to win from today's ratings, or the call already logged." />
+                  <MatchList matches={upcoming} highlight={team} eventNames={eventInfo.names} eventDates={eventInfo.dates} />
                 </section>
               )}
               <section className="mb-8 max-sm:mb-6" aria-labelledby="v8-recent">

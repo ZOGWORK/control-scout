@@ -563,23 +563,31 @@ function Verdict({ t, colors, season }: { t: CompareTeam[]; colors: string[]; se
   const headline = !v.rows ? "Not enough results to call a leader yet."
     : top.length === 1 ? `${top[0].team} leads on ${most} of ${v.rows} stats.`
     : `${top.map((x) => x.team).join(" and ")} are level, ${most} of ${v.rows} stats each.`;
+  // Level on count: the higher OPR (the stat captains pick on first) breaks it, said as a second line.
+  const opr = (n: number) => t.find((x) => x.team.number === n)?.stats?.opr.np.value ?? null;
+  const byOpr = top.length > 1 ? [...top].filter((x) => opr(x.team) != null).sort((a, b) => opr(b.team)! - opr(a.team)!) : [];
+  const tieBreak = byOpr.length > 1 && opr(byOpr[0].team) !== opr(byOpr[1].team) ? `${byOpr[0].team} has the higher OPR.` : null;
   return (
     <section aria-labelledby="compare-verdict" className="rounded-xl border border-line bg-card p-4 sm:p-5" data-verdict>
       <h2 id="compare-verdict" className={V8_LABEL}>Who's ahead · {seasonLabel(season)}</h2>
       <p className="mt-1 text-lg font-semibold tracking-tight text-text-base" data-verdict-line>{headline}</p>
-      <ul className={cn("mt-4 grid gap-3", t.length === 2 ? "sm:grid-cols-2" : t.length === 3 ? "sm:grid-cols-3" : "grid-cols-2 lg:grid-cols-4")}>
+      {tieBreak && <p className="text-sm text-text-muted" data-verdict-tiebreak>{tieBreak}</p>}
+      <ul className={cn("mt-4 grid gap-3 max-sm:gap-2.5", t.length === 2 ? "sm:grid-cols-2" : t.length === 3 ? "sm:grid-cols-3" : "grid-cols-2 lg:grid-cols-4")}>
         {v.teams.map((x, i) => {
           const ahead = top.length === 1 && top[0].team === x.team;
           return (
-            <li key={x.team} className="min-w-0 border-t-2 pt-3" style={{ borderTopColor: colors[i] }} data-verdict-team={x.team}>
-              <p className="flex min-w-0 items-baseline gap-2">
-                <Link to={`/teams/${x.team}?season=${season}`} className="font-display text-lg font-semibold tabular-nums text-text-base hover:underline">{x.team}</Link>
-                <span className="min-w-0 truncate text-xs text-text-muted" title={name(x.team) ?? undefined}>{name(x.team) ?? ""}</span>
-              </p>
-              <p className="mt-1 flex items-baseline gap-1.5">
-                <span className={cn("font-display text-[2rem] font-semibold leading-none tabular-nums", ahead ? "text-accent" : "text-text-base")} data-verdict-count>{x.leads.length}</span>
-                <span className="text-xs text-text-faint">of {v.rows} stats led{ahead ? " · ahead on most" : ""}</span>
-              </p>
+            <li key={x.team} className="min-w-0 border-t-2 pt-3 max-sm:pt-2.5" style={{ borderTopColor: colors[i] }} data-verdict-team={x.team}>
+              {/* A phone: the team and its count on one line, the stats it leads under them. */}
+              <div className="flex items-baseline justify-between gap-3 sm:block">
+                <p className="flex min-w-0 items-baseline gap-2">
+                  <Link to={`/teams/${x.team}?season=${season}`} className="font-display text-lg font-semibold tabular-nums text-text-base hover:underline">{x.team}</Link>
+                  <span className="min-w-0 truncate text-xs text-text-muted" title={name(x.team) ?? undefined}>{name(x.team) ?? ""}</span>
+                </p>
+                <p className="flex shrink-0 items-baseline gap-1.5 sm:mt-1">
+                  <span className={cn("font-display text-[1.5rem] font-semibold leading-none tabular-nums sm:text-[2rem]", ahead ? "text-accent" : "text-text-base")} data-verdict-count>{x.leads.length}</span>
+                  <span className="text-xs text-text-faint">of {v.rows}<span className="max-sm:hidden"> stats led</span>{ahead ? <span className="max-sm:hidden"> · ahead on most</span> : ""}</span>
+                </p>
+              </div>
               <p className="mt-1.5 text-xs leading-relaxed text-text-muted">{x.leads.length ? x.leads.join(" · ") : "Leads none of them"}</p>
             </li>
           );

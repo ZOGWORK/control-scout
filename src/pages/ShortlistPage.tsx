@@ -195,7 +195,7 @@ export default function ShortlistPage() {
           <div className="flex flex-wrap items-center gap-2" data-print-hide>
             {seasonPick}
             <div className="flex flex-wrap items-center gap-2 max-sm:w-full sm:ml-auto">
-              {addBox("max-sm:min-w-0 max-sm:flex-1 sm:w-72")}
+              {addBox("max-sm:min-w-0 max-sm:flex-1 sm:w-80")}
               {viewToggle}
             </div>
           </div>

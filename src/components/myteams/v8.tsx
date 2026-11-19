@@ -62,7 +62,7 @@ export function V8Figures({ items, className }: { items: { label: ReactNode; val
         <div key={i} className="min-w-0 px-4 first:pl-0 max-sm:px-3 max-sm:first:pl-0" title={x.title}>
           <dt className={V8_LABEL}>{x.label}</dt>
           <dd className="mt-0.5 whitespace-nowrap text-xl font-semibold tracking-tight tabular-nums text-text-base">{x.value}</dd>
-          {x.sub && <dd className="truncate text-[0.6875rem] text-text-faint">{x.sub}</dd>}
+          {x.sub && <dd className="text-[0.6875rem] leading-snug text-text-faint">{x.sub}</dd>}
         </div>
       ))}
     </dl>
