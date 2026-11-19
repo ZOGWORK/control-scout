@@ -39,6 +39,11 @@ import { placeFor, SCHEDULE_STATS, ScheduleValue, type SchedulePlaces } from "..
 import { useFlag } from "../../lib/flags";
 import { HEAT_MIN, heatable, heatBand } from "../../shared/statTones";
 import { Spacer, useSteadyColumns, useVirtualRows } from "../ui/windowing";
+import { useIsV8 } from "../../lib/v8";
+import { V8_ICON } from "../rankings/v8";
+
+/** The filter in words, a button that opens the builder: a quiet white line in v8, not the accent. */
+const V8_FILTER_LINE = "v8:border-white/20 v8:bg-white/[0.04] v8:hover:bg-white/[0.08]";
 
 type Row = TeamEventRecord | TeamSeasonRecord | MatchRecordRow;
 type Resp = RecordsResponse<Row>;
@@ -90,6 +95,7 @@ const writeCols = (k: string, cols: string[] | null) => { try { if (cols) localS
 const thresholds = new Map<string, Promise<number | null>>();
 
 export function RecordsTable(p: RecordsTableProps) {
+  const v8 = useIsV8();
   const { scope, season, predictable, code } = p;
   const defaultSort = p.defaultSort ?? (scope === "match" ? "highScore" : "totalPointsOpr");
   const [sp] = useSearchParams();
@@ -258,7 +264,7 @@ export function RecordsTable(p: RecordsTableProps) {
       const text = regionsText(state.regions, regionNames.label);
       chips.push({ id: "region", label: text, name: `Region: ${text}`, onRemove: () => setState({ ...state, regions: [], page: 1 }) });
     }
-    if (teamScope && countryName) chips.push({ id: "country", label: <><MapPin className="inline size-3.5 text-accent" aria-hidden /> {countryName}</>, name: `Teams from ${countryName}`, onRemove: () => setState({ ...state, ...noPlace }) });
+    if (teamScope && countryName) chips.push({ id: "country", label: <><MapPin className={cn("inline size-3.5 text-accent", V8_ICON)} aria-hidden /> {countryName}</>, name: `Teams from ${countryName}`, onRemove: () => setState({ ...state, ...noPlace }) });
     if (c?.eventType && state.eventType) chips.push({ id: "type", label: eventTypeText(state.eventType), name: `Event type: ${eventTypeText(state.eventType)}`, onRemove: () => setState({ ...state, eventType: null, page: 1 }) });
     if (c?.dates && (state.from || state.to)) chips.push({ id: "dates", label: dateRangeText(state.from, state.to), name: `Dates: ${dateRangeText(state.from, state.to)}`, onRemove: () => setState({ ...state, from: null, to: null, page: 1 }) });
     // The stat filter: a chip per quick filter when it's made of them alone, else one chip for the whole of it.
@@ -280,8 +286,10 @@ export function RecordsTable(p: RecordsTableProps) {
       <Tooltip key={pr.id}>
         <TooltipTrigger asChild>
           <button type="button" aria-pressed={on} onClick={() => void toggleChip(pr)} disabled={chipBusy === pr.id}
-            className={cn("inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs font-semibold transition-colors max-sm:h-10", on ? cn(tone.chip, "ring-1 ring-current") : "border-line text-text-muted hover:border-text-base/25 hover:text-text-base")}>
-            {chipBusy === pr.id ? <Loader2 className="size-3 animate-spin" /> : <span className={cn("size-1.5 rounded-full", tone.bar)} />}
+            // v8: a hairline pill, no colour; the picked one is white text on white/10% (brief §5 Chips).
+            className={cn("inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs font-semibold transition-colors max-sm:h-10", "v8:font-medium v8:transition-[color,background-color,border-color,scale] v8:duration-150 v8:active:scale-[0.97] v8:motion-reduce:active:scale-100",
+              on ? cn(tone.chip, "ring-1 ring-current", "v8:border-white/[0.12] v8:bg-white/10 v8:text-text-base v8:ring-0") : "border-line text-text-muted hover:border-text-base/25 hover:text-text-base v8:border-white/[0.12] v8:hover:border-white/[0.12] v8:hover:bg-white/[0.06]")}>
+            {chipBusy === pr.id ? <Loader2 className="size-3 animate-spin" /> : <span className={cn("size-1.5 rounded-full", tone.bar, "v8:hidden")} />}
             {pr.label}{on && <X className="size-3" />}
           </button>
         </TooltipTrigger>
@@ -289,10 +297,10 @@ export function RecordsTable(p: RecordsTableProps) {
       </Tooltip>
     );
   });
-  const countLine = data ? <><span className="font-semibold tabular-nums text-text-base">{total.toLocaleString()}</span> {p.noun}</> : state.filterError || state.countryUnknown || state.stateUnknown || api.error ? null : "Loading…"; // a failed load says so below, not "Loading…" too
+  const countLine = data ? <><span className="font-semibold tabular-nums text-text-base v8:font-medium">{total.toLocaleString()}</span> {p.noun}</> : state.filterError || state.countryUnknown || state.stateUnknown || api.error ? null : "Loading…"; // a failed load says so below, not "Loading…" too
   // The cap note takes its own line (under the toolbar; under Compare on phones), so it never squeezes the quick filters.
   const capStatus = selectable && (
-    <span role="status" className={cn(capNote ? ["order-last inline-flex min-w-0 basis-full items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium max-sm:order-1", RECORDS_CAP_NOTE_TONE] : "sr-only")}>
+    <span role="status" className={cn(capNote ? ["order-last inline-flex min-w-0 basis-full items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium max-sm:order-1", RECORDS_CAP_NOTE_TONE, "v8:bg-white/[0.05] v8:text-text-muted"] : "sr-only")}>
       {capNote && <><Info className="size-3.5 shrink-0" />{capNote}</>}
     </span>
   );
@@ -302,7 +310,7 @@ export function RecordsTable(p: RecordsTableProps) {
     </Button>
   );
   const sortedBy = (
-    <span className="ml-auto inline-flex items-center gap-1 text-xs text-text-muted">
+    <span className="ml-auto inline-flex items-center gap-1 text-xs text-text-muted v8:text-text-faint">
       <ArrowUpDown className="size-3.5" /> Sorted by <span className="font-medium text-text-base">{STAT_BY_KEY.get(state.sort)?.label}</span> {state.dir === "asc" ? "(low → high)" : "(high → low)"}
     </span>
   );
@@ -323,7 +331,7 @@ export function RecordsTable(p: RecordsTableProps) {
                     {teamScope && countryName && (
                       <Button variant="secondary" size="sm" className="max-sm:h-10" onClick={() => setState({ ...state, ...noPlace })}
                         aria-label={`Teams from ${countryName}: show every country`}>
-                        <MapPin className="text-accent" /> Teams from {countryName} <X className="text-text-muted" />
+                        <MapPin className={cn("text-accent", V8_ICON)} /> Teams from {countryName} <X className="text-text-muted" />
                       </Button>
                     )}
                     {c.eventType && <EventTypeSelect value={state.eventType} onChange={(eventType) => setState({ ...state, eventType, page: 1 })} />}
@@ -333,15 +341,15 @@ export function RecordsTable(p: RecordsTableProps) {
                 <FilterSection label="Stat filters">
                   {presetChips.length > 0 && <div className="flex w-full flex-wrap gap-1.5" role="group" aria-label="Quick filters">{presetChips}</div>}
                   {state.filter && state.filter.children.length > 0 && (
-                    <button type="button" onClick={() => close(() => openBuilder())} className="w-full rounded-md border-l-2 border-accent bg-accent/[0.07] px-2 py-1.5 text-left text-sm text-text-base hover:bg-accent/[0.12]" title="Edit filters">
+                    <button type="button" onClick={() => close(() => openBuilder())} className={cn("w-full rounded-md border-l-2 border-accent bg-accent/[0.07] px-2 py-1.5 text-left text-sm text-text-base hover:bg-accent/[0.12]", V8_FILTER_LINE)} title="Edit filters">
                       {describeFilter(state.filter, scope)}
                     </button>
                   )}
                   <Button variant="secondary" className="h-11" onClick={() => close(() => openBuilder())}>
-                    <ListFilter className="text-accent" /> {conditions ? `Edit conditions (${conditions})` : "Add a condition"}
+                    <ListFilter className={cn("text-accent", V8_ICON)} /> {conditions ? `Edit conditions (${conditions})` : "Add a condition"}
                   </Button>
                   <Button variant="secondary" className="h-11" onClick={() => close(() => openBuilder("saved"))}>
-                    <Bookmark className="text-violet-500" /> Saved filters{saved.length > 0 && <span className="tabular-nums text-text-muted">{saved.length}</span>}
+                    <Bookmark className={cn("text-violet-500", V8_ICON)} /> Saved filters{saved.length > 0 && <span className="tabular-nums text-text-muted">{saved.length}</span>}
                   </Button>
                 </FilterSection>
                 {phoneSummary && (
@@ -354,7 +362,7 @@ export function RecordsTable(p: RecordsTableProps) {
                 )}
                 <FilterSection label="Table">
                   <Button variant="secondary" className="h-11" onClick={() => close(() => { setBuilder(false); setColumns(true); })}>
-                    <Columns3 className="text-sky-500" /> Statistics <span className="rounded bg-text-base/10 px-1.5 text-[11px] tabular-nums">{cols.length}{" "}<span className="sr-only">columns</span></span>
+                    <Columns3 className={cn("text-sky-500", V8_ICON)} /> Statistics <span className="rounded bg-text-base/10 px-1.5 text-[11px] tabular-nums v8:text-[0.6875rem]">{cols.length}{" "}<span className="sr-only">columns</span></span>
                   </Button>
                   <ExportButtons xlsx={xlsx} csv={csv} total={total} className="h-11" />
                 </FilterSection>
@@ -374,36 +382,38 @@ export function RecordsTable(p: RecordsTableProps) {
         </>
       ) : (
         <>
+      {/* v8: the pickers and the toolbar are one compact row above the table (both lose their own rows and box). */}
+      <div className="space-y-3 v8:flex v8:flex-wrap v8:items-center v8:gap-2 v8:space-y-0" data-records-filters>
       {c && (
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 v8:contents">
           {c.onSeason && <SeasonSelect value={season} onChange={c.onSeason} />}
           {c.extra}
           {c.region && <RegionPicker season={season} value={state.regions} onChange={(regions) => setState({ ...state, regions, page: 1 })} />}
           {teamScope && countryName && (
             <Button variant="secondary" size="sm" className="max-sm:h-10" onClick={() => setState({ ...state, ...noPlace })}
               aria-label={`Teams from ${countryName}: show every country`}>
-              <MapPin className="text-accent" /> Teams from {countryName} <X className="text-text-muted" />
+              <MapPin className={cn("text-accent", V8_ICON)} /> Teams from {countryName} <X className="text-text-muted" />
             </Button>
           )}
           {c.eventType && <EventTypeSelect value={state.eventType} onChange={(eventType) => setState({ ...state, eventType, page: 1 })} />}
           {c.dates && <DateRangePicker from={state.from} to={state.to} onChange={(from, to) => setState({ ...state, from, to, page: 1 })} />}
           {filtered && (
-            <Button variant="ghost" size="sm" className="text-danger hover:text-danger max-sm:h-10" onClick={() => setState(clearFilters(state))}><X /> Clear filters</Button>
+            <Button variant="ghost" size="sm" className="text-danger hover:text-danger max-sm:h-10 v8:text-text-muted v8:hover:text-text-base" onClick={() => setState(clearFilters(state))}><X /> Clear filters</Button>
           )}
         </div>
       )}
 
       {/* Toolbar */}
-      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-line bg-card p-1.5">
-        <Button variant="secondary" size="sm" className="shrink-0 max-sm:h-10" onClick={() => { setBuilder(false); setColumns(!columns); }} aria-pressed={columns}>
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-line bg-card p-1.5 v8:contents">
+        <Button variant={v8 ? "outline" : "secondary"} size="sm" className="shrink-0 max-sm:h-10" onClick={() => { setBuilder(false); setColumns(!columns); }} aria-pressed={columns}>
           {/* The name is the visible text (plus words a phone hides): "Statistics 12 columns". */}
-          <Columns3 className="text-sky-500" /> <span className="max-sm:sr-only">Statistics</span> <span className="rounded bg-text-base/10 px-1.5 text-[11px] tabular-nums">{cols.length}{" "}<span className="sr-only">columns</span></span>
+          <Columns3 className={cn("text-sky-500", V8_ICON)} /> <span className="max-sm:sr-only">Statistics</span> <span className="rounded bg-text-base/10 px-1.5 text-[11px] tabular-nums v8:text-[0.6875rem]">{cols.length}{" "}<span className="sr-only">columns</span></span>
         </Button>
-        <Button variant={conditions ? "default" : "secondary"} size="sm" className="shrink-0 max-sm:h-10" onClick={() => { if (builder) setBuilder(false); else openBuilder(); }} aria-pressed={builder} aria-label={`Filters${conditions ? `: ${conditions} conditions` : ""}`}>
-          <ListFilter className={conditions ? "" : "text-accent"} /> Filters{conditions > 0 && <span className="rounded bg-accent-ink/15 px-1.5 text-[11px] tabular-nums">{conditions}</span>}
+        <Button variant={conditions ? "default" : v8 ? "outline" : "secondary"} size="sm" className="shrink-0 max-sm:h-10" onClick={() => { if (builder) setBuilder(false); else openBuilder(); }} aria-pressed={builder} aria-label={`Filters${conditions ? `: ${conditions} conditions` : ""}`}>
+          <ListFilter className={cn(conditions ? "" : "text-accent", V8_ICON)} /> Filters{conditions > 0 && <span className="rounded bg-accent-ink/15 px-1.5 text-[11px] tabular-nums v8:bg-white/10 v8:text-[0.6875rem]">{conditions}</span>}
         </Button>
         {presets.length > 0 && (
-          <div className="no-scrollbar flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto border-l border-line pl-2 max-sm:order-last max-sm:basis-full max-sm:border-l-0 max-sm:border-t max-sm:pl-0 max-sm:pt-1.5" aria-label="Quick filters">
+          <div className="no-scrollbar flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto border-l border-line pl-2 max-sm:order-last max-sm:basis-full max-sm:border-l-0 max-sm:border-t max-sm:pl-0 max-sm:pt-1.5 v8:order-last v8:basis-full v8:border-0 v8:pl-0 max-sm:v8:pt-0" aria-label="Quick filters">
             {presetChips}
           </div>
         )}
@@ -413,15 +423,16 @@ export function RecordsTable(p: RecordsTableProps) {
           <ExportButtons xlsx={xlsx} csv={csv} total={total} size="sm" className="max-sm:h-10" short />
         </div>
       </div>
+      </div>
 
       {/* What's showing, in words */}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-1 text-sm">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-1 text-sm v8:px-0">
         <span className="text-text-muted" aria-live="polite">
           {countLine}
           {refreshing && <Loader2 className="ml-1.5 inline size-3.5 animate-spin" />}
         </span>
         {state.filter && state.filter.children.length > 0 && (
-          <button type="button" onClick={() => openBuilder()} className="min-w-0 max-w-full truncate rounded-md border-l-2 border-accent max-sm:whitespace-normal max-sm:line-clamp-3 bg-accent/[0.07] px-2 py-0.5 text-left text-text-base hover:bg-accent/[0.12]" title="Edit filters">
+          <button type="button" onClick={() => openBuilder()} className={cn("min-w-0 max-w-full truncate rounded-md border-l-2 border-accent max-sm:whitespace-normal max-sm:line-clamp-3 bg-accent/[0.07] px-2 py-0.5 text-left text-text-base hover:bg-accent/[0.12]", V8_FILTER_LINE)} title="Edit filters">
             {describeFilter(state.filter, scope)}
           </button>
         )}
@@ -462,7 +473,7 @@ export function RecordsTable(p: RecordsTableProps) {
       ) : !data.rows.length ? (
         !filtered && p.emptyFallback ? p.emptyFallback : (
           <div className="flex flex-col items-center rounded-xl border border-dashed border-line px-6 max-sm:px-4 py-12 text-center">
-            <span className="mb-3 flex size-11 items-center justify-center rounded-full bg-accent/15"><SearchX className="size-5 text-accent" /></span>
+            <span className="mb-3 flex size-11 items-center justify-center rounded-full bg-accent/15 v8:bg-white/[0.06]"><SearchX className="size-5 text-accent v8:text-text-muted" /></span>
             <p className="font-medium">{filtered ? `No ${p.noun} match these filters` : `No ${p.noun} yet`}</p>
             <p className="mt-1 max-w-md text-sm text-text-muted">{filtered ? (state.filter ? describeFilter(state.filter, scope) : "Try another region, country, event type or date range.") : "Records appear once matches have been played and the stats have been updated."}</p>
             {filtered && <Button className="mt-4" onClick={() => setState(clearFilters(state))}><X /> Clear filters</Button>}
@@ -502,7 +513,7 @@ export function RecordsTable(p: RecordsTableProps) {
       <FilterBuilder open={builder} onOpenChange={setBuilder} scope={scope} predictable={predictable} value={state.filter} noun={p.noun} initialView={builderView.view} viewRequest={builderView.n}
         onApply={(filter) => setState({ ...state, filter, filterError: null, filterRaw: null, page: 1 })} countFor={countFor} />
       <Panel open={columns} onOpenChange={setColumns}
-        title={<span className="flex items-center gap-2"><Columns3 className="size-5 text-sky-500" /> Choose statistics</span>}
+        title={<span className="flex items-center gap-2"><Columns3 className={cn("size-5 text-sky-500", V8_ICON)} /> Choose statistics</span>}
         description="Tick any stat to show it as a column. Your choice is remembered for this table on this device."
         footer={(
           <div className="flex items-center gap-2">
@@ -560,7 +571,7 @@ function TableSkeleton() {
 // header row, FloatingHead, reuses them).
 const th = "bg-card shadow-[inset_0_-2px_0_color-mix(in_srgb,var(--color-text-base)_20%,transparent)] h-10 whitespace-nowrap px-3 pb-2 align-bottom text-[11px] font-bold uppercase tracking-wider max-sm:h-10 max-sm:px-2.5 max-sm:pb-2" +
   // v8 (docs/design/v8-revamp-brief.md §5 Tables): a quiet sentence-case head on a hairline.
-  " v8:text-xs v8:font-medium v8:normal-case v8:tracking-normal v8:text-text-faint v8:shadow-[inset_0_-1px_0_var(--color-line)]";
+  " v8:text-xs v8:font-medium v8:normal-case v8:tracking-normal v8:text-text-faint v8:shadow-[inset_0_-1px_0_rgb(255_255_255/0.12)]";
 // Body cells: dense on a laptop too (about twice the rows in the first screen at 1440x900, and more columns before
 // the table scrolls sideways); a phone keeps its own sizes (the max-sm: values). A touch screen wider than a phone
 // (a tablet) keeps rows 44px tall, so one row's compare box can't take a tap meant for the next (tap-44).
@@ -576,7 +587,7 @@ const sticky = "sticky left-0 z-10 bg-card shadow-[1px_0_0_color-mix(in_srgb,var
 const cellText = (tone: keyof typeof TONE_CLASS) => (tone === "redAlliance" ? "text-red-alliance-ink" : TONE_CLASS[tone].text);
 // v8: the hover is a quiet fill, never the accent (mint marks only the #1 rank, progress and "yours").
 const rowHover = "still-hover:bg-accent/[0.14]";
-const rowV8 = "v8:h-11 v8:still-hover:bg-white/[0.03]";
+const rowV8 = "v8:h-11 v8:border-white/[0.08] v8:still-hover:bg-white/[0.03]";
 const stickyHover = "row-still-hover:bg-[color-mix(in_srgb,var(--color-card)_80%,var(--color-accent))] row-still-hover:shadow-[inset_3px_0_0_var(--color-accent),1px_0_0_color-mix(in_srgb,var(--color-text-base)_22%,transparent)]" +
   " v8:row-still-hover:bg-[color-mix(in_srgb,var(--color-card)_97%,white)] v8:row-still-hover:shadow-[1px_0_0_color-mix(in_srgb,var(--color-text-base)_22%,transparent)]";
 
@@ -603,7 +614,7 @@ function SortHead({ k, label, title, state, sortBy, className, tone, align = "ri
 export function TeamNumber({ team, name, href }: { team: number; name: string; href: string }) {
   return (
     <Popover>
-      <PopoverTrigger className="tap-44 rounded font-mono font-semibold tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ring/60 still-hover:text-accent-text"
+      <PopoverTrigger className="tap-44 rounded font-mono font-semibold tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ring/60 still-hover:text-accent-text v8:font-sans"
         aria-label={name ? `${team} ${name}` : `Team ${team}`}>
         {team}
       </PopoverTrigger>
@@ -626,7 +637,7 @@ function SelectAll({ state, onToggle }: { state: PageSelection; onToggle: () => 
     <label className="tap-44 mr-1.5 inline-flex cursor-pointer items-center gap-2.5 max-sm:mr-1 pointer-coarse:mr-[28px]! align-middle text-sm font-semibold normal-case tracking-normal text-text-base"
       title={state === "none" ? `Select the teams on this page (Compare takes up to ${COMPARE_MAX})` : "Clear the teams on this page"}>
       <input ref={ref} type="checkbox" checked={state === "all"} aria-checked={state === "some" ? "mixed" : undefined} onChange={onToggle}
-        aria-label="Select all teams on this page" className="size-[18px] shrink-0 cursor-pointer accent-[var(--color-accent)] max-sm:size-5" />
+        aria-label="Select all teams on this page" className="size-[18px] shrink-0 cursor-pointer accent-[var(--color-accent)] max-sm:size-5 v8:accent-text-base" />
       <span aria-hidden className="max-sm:hidden">Select all</span>
     </label>
   );
@@ -647,7 +658,7 @@ function ExportButtons({ xlsx, csv, total, size, className, short }: { xlsx: str
   );
   return (
     <>
-      {one(xlsx, <FileSpreadsheet className="text-emerald-500" />, "(coloured like the table)", "Excel")}
+      {one(xlsx, <FileSpreadsheet className={cn("text-emerald-500", V8_ICON)} />, "(coloured like the table)", "Excel")}
       {one(csv, <Download />, "(plain text)", "CSV")}
     </>
   );
@@ -748,7 +759,7 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, schedule
               <Fragment key={rowKey(r)}>
               <Spacer height={gapBefore} colSpan={span} />
               <tr {...rowProps} aria-rowindex={vr.windowed ? index + 2 : undefined}
-                className={cn("group/row border-b last:border-b-0", grid, rowHover, rowV8, hl && "bg-accent/[0.07] v8:bg-white/[0.04]", sel && "bg-sky-500/[0.07] v8:bg-white/[0.06]")} data-highlight={hl || undefined}>
+                className={cn("group/row border-b last:border-b-0", grid, rowHover, rowV8, hl && "bg-accent/[0.07] v8:bg-white/[0.05]", sel && "bg-sky-500/[0.07] v8:bg-white/[0.06]")} data-highlight={hl || undefined}>
                 {"key" in r ? (
                   <>
                     <td className={cn(sticky, td, stickyHover)}>
@@ -763,13 +774,14 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, schedule
                   </>
                 ) : (
                   <>
-                    <td className={cn(sticky, td, hl && "bg-[color-mix(in_srgb,var(--color-card)_92%,var(--color-accent))] v8:bg-[color-mix(in_srgb,var(--color-card)_96%,white)] v8:shadow-[inset_2px_0_0_var(--color-accent),1px_0_0_color-mix(in_srgb,var(--color-text-base)_22%,transparent)]", stickyHover)}>
+                    {/* v8: your team (the highlighted row) is white: a white edge, never the accent. */}
+                    <td className={cn(sticky, td, hl && "bg-[color-mix(in_srgb,var(--color-card)_92%,var(--color-accent))] v8:bg-[color-mix(in_srgb,var(--color-card)_95%,white)] v8:shadow-[inset_2px_0_0_var(--color-text-base),1px_0_0_color-mix(in_srgb,var(--color-text-base)_22%,transparent)]", stickyHover)}>
                       <div className="flex items-center gap-2.5 max-sm:gap-2">
                         {selectable && (
                           // In a label so a touch screen's 44px tap area (tap-44) toggles it too.
                           <label className="tap-44 inline-flex shrink-0 cursor-pointer">
                             <input type="checkbox" checked={sel} onChange={() => onSelect(team!)} aria-label={`Select ${team} to compare`}
-                              className="size-4 shrink-0 cursor-pointer accent-[var(--color-accent)] max-sm:size-5" />
+                              className="size-4 shrink-0 cursor-pointer accent-[var(--color-accent)] max-sm:size-5 v8:accent-text-base" />
                           </label>
                         )}
                         {phone
