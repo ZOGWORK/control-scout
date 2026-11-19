@@ -496,12 +496,12 @@ function EventHistory({ events, team }: { events: TeamEventRow[]; team: number }
   );
 }
 
-function MatchesSection({ team, season, events, predictable, action }: { team: number; season: number; events: TeamEventRow[]; predictable: boolean; action?: ReactNode }) {
+function MatchesSection({ team, season, events, predictable }: { team: number; season: number; events: TeamEventRow[]; predictable: boolean }) {
   const state = useApi<{ matches: MatchView[] }>(`/api/teams/${team}/matches?season=${season}`);
   const names = Object.fromEntries(events.map((e) => [e.code, e.name]));
   const [all, setAll] = useState(false);
   return (
-    <Section id="matches" title="Matches" action={action} stackAction description={predictable ? "Every match this season with the prediction made for it. Hover a bar for details." : "Every match this season with its score breakdown."}>
+    <Section id="matches" title="Matches" description={predictable ? "Every match this season with the prediction made for it. Hover a bar for details." : "Every match this season with its score breakdown."}>
       <Async state={state} loading={<div className="skeleton h-40 rounded-xl" />}>
         {(d) => {
           const ms = [...d.matches].reverse();
@@ -518,6 +518,9 @@ function MatchesSection({ team, season, events, predictable, action }: { team: n
   );
 }
 
+/** v8: awards mean gold (the owner's call), a soft gold on dark and a deep amber that stays readable on light. */
+const V8_GOLD = "v8:text-[#fcd34d] v8:[html.light_&]:text-amber-700";
+
 export function AwardsAllTime({ p }: { p: TeamProfile }) {
   const v8 = useIsV8();
   if (!p.awardsAllTime.length) return null;
@@ -528,7 +531,7 @@ export function AwardsAllTime({ p }: { p: TeamProfile }) {
         {p.awardsAllTime.map((a, i) => (
           // The event on its own muted line: a tooltip never opens on a tap.
           <Link key={i} to={`/events/${a.season}/${a.code}`} className={cn("tap-44", v8Row(v8), "inline-flex max-w-[18rem] flex-col rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs")}>
-            <span className="inline-flex items-center gap-1.5"><Award className="size-3.5 shrink-0 text-accent v8:text-text-faint" />{awardLabel(a.type, a.placement)}<span className="text-muted-foreground">· {seasonLabel(a.season)}</span></span>
+            <span className="inline-flex items-center gap-1.5"><Award className={cn("size-3.5 shrink-0 text-accent", V8_GOLD)} /><span className={cn("v8:font-medium", V8_GOLD)} data-award-name>{awardLabel(a.type, a.placement)}</span><span className="text-muted-foreground">· {seasonLabel(a.season)}</span></span>
             <span className="truncate pl-5 text-muted-foreground" title={a.event}>{a.event}</span>
           </Link>
         ))}
@@ -757,8 +760,12 @@ function V8Profile({ p, drawn, asked, onSeason }: { p: TeamProfile; drawn: boole
     <div className="min-w-0" data-team-v8>
       <OfflineNote data={p} />
       <V8Header p={p} onSeason={onSeason} fellBackFrom={fellBackFrom} />
-      <div className="mb-8 grid gap-3 max-sm:mb-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:items-start">
-        <V8Standing p={p} onSeason={onSeason} />
+      <div className="mb-8 grid gap-3 max-sm:mb-6 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] lg:items-start">
+        {/* The left column: the standing, then every action in one row under it (beside the taller What's next). */}
+        <div className="min-w-0 space-y-3">
+          <V8Standing p={p} onSeason={onSeason} />
+          <V8Actions p={p} onSeason={onSeason} />
+        </div>
         <V8Next p={p} asked={asked} />
       </div>
       {!rest ? null : !hasResults ? (
@@ -769,7 +776,7 @@ function V8Profile({ p, drawn, asked, onSeason }: { p: TeamProfile; drawn: boole
         </>
       ) : (
         <>
-          <MatchesSection team={p.team.number} season={p.season} events={p.events} predictable={predictable} action={<V8MatchLinks p={p} />} />
+          <MatchesSection team={p.team.number} season={p.season} events={p.events} predictable={predictable} />
           <Section id="events" also={["ranking", "history"]} title={`Events (${p.events.length})`} description={`Season road map, ${seasonLabel(p.season)}, newest first`}>
             <EventHistory events={p.events} team={p.team.number} />
             {p.events.some((e) => e.played) && <p className="mt-2 text-xs text-text-faint">Records count {RECORD_RULE_LOWER}</p>}
@@ -796,45 +803,105 @@ function V8Profile({ p, drawn, asked, onSeason }: { p: TeamProfile; drawn: boole
   );
 }
 
-/** Highlights and quals vs playoffs: about the team's matches, so they sit on the Matches header. */
-function V8MatchLinks({ p }: { p: TeamProfile }) {
-  if (!p.highlights && !p.recordSplit) return null;
-  return (
-    <div className="flex flex-wrap gap-1">
-      {p.highlights && <Button variant="ghost" size="sm" asChild><Link to={`/teams/${p.team.number}/highlights`} data-highlights-link><Sparkles /> Highlights</Link></Button>}
-      {p.recordSplit && <Button variant="ghost" size="sm" asChild><Link to={`/teams/${p.team.number}/record-split`} data-record-split-link><Trophy /> Quals vs playoffs</Link></Button>}
-    </div>
-  );
-}
+/** A team's website as a link (some are stored without the scheme). */
+const websiteHref = (w: string) => (w.startsWith("http") ? w : `https://${w}`);
 
-/** Who this is: the number and name, one muted line (school, place, rookie year), the season quietly beside the label,
- *  and the actions: one primary, two outline, the rest in More. */
-function V8Header({ p, onSeason, fellBackFrom }: { p: TeamProfile; onSeason: (s: number) => void; fellBackFrom: number | null }) {
+/**
+ * Every action, visible (as classic's row): My team (the one primary until it's set, then filled), Track, Shortlist,
+ * Compare, Highlights outlined; quals vs playoffs and Share quiet; the rare ones (Manage in Control Point, the followed
+ * team dashboard) as small links under the row. Under the standing, in the space beside the taller What's next. On a phone the
+ * sticky bar keeps Predict and Track in reach once this row has scrolled away, and its More holds all the rest.
+ */
+function V8Actions({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => void }) {
   const t = p.team;
   const a = useTeamActions(t.number);
   const flags = a.flags;
   const predictable = usePredictable(p.season);
+  // The end of the action row: the phone action bar shows once it has scrolled away.
+  const [rowEnd, setRowEnd] = useState<HTMLDivElement | null>(null);
+  const matchHref = predictHref({ mode: "match", season: p.season, red: [t.number] });
+  // A step smaller than the default sm button, so all six and the season fit one row on a desktop.
+  const tap = "h-7 gap-1.5 px-2.5 max-sm:h-10 max-sm:px-3";
+  const trackTitle = flags.tracked ? "Tracked: on My team, first in search. Click to stop." : "Follow this team: it goes on My team and comes first in search";
+  const dashboard = a.workspaceUser && flags.isMine;
+  return (
+    <>
+      <div className="flex flex-wrap items-center gap-1.5 max-sm:gap-2" data-hero-actions>
+        {/* "My team" in both states so the row fits one line: primary until set, then filled; the name says what it does. */}
+        <Button size="sm" variant={flags.isMine ? "secondary" : "default"} aria-pressed={flags.isMine} aria-label={flags.isMine ? undefined : "Mark as my team"} title={flags.isMine ? "Your team. Click to unmark." : "Mark as my team"} onClick={() => flags.setMine(!flags.isMine)} className={tap} data-hero-action>
+          <Star className={cn(flags.isMine && "fill-accent text-accent")} /> My team
+        </Button>
+        <Button size="sm" variant={flags.tracked ? "secondary" : "outline"} aria-pressed={flags.tracked} onClick={a.track} className={tap} title={trackTitle} data-hero-action>
+          <Eye className={cn(flags.tracked && "text-accent")} /> {flags.tracked ? "Tracking" : "Track"}
+        </Button>
+        <Button size="sm" variant={flags.bookmarked ? "secondary" : "outline"} aria-pressed={flags.bookmarked} onClick={a.shortlist} className={tap} data-hero-action>
+          {flags.bookmarked ? <BookmarkCheck className="text-accent" /> : <Bookmark />} {flags.bookmarked ? "Shortlisted" : "Shortlist"}
+        </Button>
+        <Button size="sm" variant="outline" asChild className={tap} data-hero-action><Link to={`/compare?teams=${t.number}`}><Scale /> Compare</Link></Button>
+        {p.highlights && <Button size="sm" variant="outline" asChild className={tap} data-hero-action><Link to={`/teams/${t.number}/highlights`} data-highlights-link><Sparkles /> Highlights</Link></Button>}
+        {p.recordSplit && <Button size="sm" variant="ghost" asChild className={tap} data-hero-action><Link to={`/teams/${t.number}/record-split`} data-record-split-link><Trophy /> Quals vs playoffs</Link></Button>}
+        <Button size="sm" variant="ghost" onClick={() => copyLink()} className={tap} data-hero-action><Link2 /> Share</Button>
+        {/* The season, clearly visible at the row's end (the label "FTC team" stays above the number). */}
+        <span className="ml-auto max-sm:ml-0"><V8SeasonSelect seasons={p.seasons} value={p.season} onChange={onSeason} /></span>
+      </div>
+      {/* The rare ones as quiet links under the row, as on classic (a lone More button wrapped onto a line of its own). */}
+      <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-text-faint" data-hero-links>
+        <a href="https://tryctrlpoint.org" target="_blank" rel="noreferrer noopener" className="tap-44 inline-flex items-center gap-1.5 underline decoration-current/40 underline-offset-2 hover:text-text-base">Manage this team in Control Point <ExternalLink className="size-3" aria-hidden /></a>
+        {dashboard && <Link to={FOLLOWED_TEAM_PATH} className="tap-44 inline-flex items-center gap-1.5 hover:text-text-base"><Star className="size-3" aria-hidden /> My followed team dashboard</Link>}
+      </p>
+      <div ref={setRowEnd} aria-hidden />
+      {/* Phones: once the row has scrolled away, Predict and Track stay in reach, and More holds every other action. */}
+      <StickyActions after={rowEnd} label={`Actions for team ${t.number}`}>
+        {predictable && <Button asChild><Link to={matchHref}><Sparkles /> <span className="truncate">Predict with {t.number}</span></Link></Button>}
+        <Button variant={flags.tracked ? "secondary" : "outline"} aria-pressed={flags.tracked} onClick={a.track} className={cn(predictable && "!flex-none")}>
+          <Eye className={cn(flags.tracked && "text-accent")} /> {flags.tracked ? "Tracking" : "Track"}
+        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="icon" aria-label="All actions" className="!flex-none" data-sticky-more><MoreHorizontal /></Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" side="top" className="min-w-[14rem]">
+            <DropdownMenuItem onSelect={() => flags.setMine(!flags.isMine)}><Star className={cn(flags.isMine && "fill-accent text-accent")} /> {flags.isMine ? "Unmark as my team" : "Mark as my team"}</DropdownMenuItem>
+            <DropdownMenuItem onSelect={a.shortlist}>{flags.bookmarked ? <BookmarkCheck /> : <Bookmark />} {flags.bookmarked ? "Remove from shortlist" : "Add to shortlist"}</DropdownMenuItem>
+            <DropdownMenuItem asChild><Link to={`/compare?teams=${t.number}`}><Scale /> Compare</Link></DropdownMenuItem>
+            {p.highlights && <DropdownMenuItem asChild><Link to={`/teams/${t.number}/highlights`}><Sparkles /> Highlights</Link></DropdownMenuItem>}
+            {p.recordSplit && <DropdownMenuItem asChild><Link to={`/teams/${t.number}/record-split`}><Trophy /> Quals vs playoffs</Link></DropdownMenuItem>}
+            {predictable && <DropdownMenuItem asChild><Link to={predictHref({ mode: "advancement", season: p.season, team: t.number })}><Trophy /> Advancement odds</Link></DropdownMenuItem>}
+            <DropdownMenuItem onSelect={() => copyLink()}><Link2 /> Share</DropdownMenuItem>
+            <DropdownMenuSeparator />
+            {dashboard && <DropdownMenuItem asChild><Link to={FOLLOWED_TEAM_PATH}><Star /> My followed team dashboard</Link></DropdownMenuItem>}
+            <DropdownMenuItem asChild><a href="https://tryctrlpoint.org" target="_blank" rel="noreferrer noopener"><ExternalLink /> Manage this team in Control Point</a></DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </StickyActions>
+    </>
+  );
+}
+
+/** Who this is: the number and name, one muted line (school, place, rookie year, website), the season quietly
+ *  beside the label, and the sponsors folded. The actions sit under the standing (V8Actions). */
+function V8Header({ p, onSeason, fellBackFrom }: { p: TeamProfile; onSeason: (s: number) => void; fellBackFrom: number | null }) {
+  const t = p.team;
   const loc = place(t.city, t.state, t.country);
   const line = [t.school, loc, t.rookieYear ? `Rookie year ${t.rookieYear}` : null].filter(Boolean) as string[];
-  // The end of the header: the phone action bar shows once it has scrolled away.
-  const [headerEnd, setHeaderEnd] = useState<HTMLDivElement | null>(null);
-  const matchHref = predictHref({ mode: "match", season: p.season, red: [t.number] });
   return (
     <>
       <header className="mb-5 max-sm:mb-4" data-team-hero>
         <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
           <div className="min-w-0">
-            <div className="flex items-center gap-2 text-xs text-text-faint">
-              <span data-eyebrow>FTC team</span>
-              <V8SeasonSelect seasons={p.seasons} value={p.season} onChange={onSeason} />
-            </div>
+            <p className="text-xs text-text-faint" data-eyebrow>FTC team</p>
             {/* The heading is the number and name together (what people search for). */}
             <h1 className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1">
               <span className="font-display text-[2.75rem] font-semibold leading-none tracking-tight tabular-nums sm:text-[3.25rem]" data-team-number>{t.number}</span>
               {t.name && <span className="min-w-0 break-words font-sans text-xl font-semibold tracking-tight text-text-base sm:text-[1.375rem]"><span className="sr-only"> </span>{t.name}</span>}
             </h1>
             {!t.name && <p className="mt-1 text-lg text-text-muted">Name not on file</p>}
-            {line.length > 0 && <p className="mt-2 text-sm text-text-muted" data-identity-line>{line.join(" · ")}</p>}
+            {(line.length > 0 || t.website) && (
+              <p className="mt-2 text-sm text-text-muted">
+                <span data-identity-line>{line.join(" · ")}</span>
+                {t.website && <>{line.length > 0 && " · "}<a href={websiteHref(t.website)} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 underline-offset-2 hover:text-text-base hover:underline" data-team-website>Website <ExternalLink className="size-3" aria-hidden /></a></>}
+              </p>
+            )}
             {t.sponsors.length > 0 && (
               <Collapsible className="mt-1.5">
                 <CollapsibleTrigger className="group inline-flex min-h-8 max-w-full items-center gap-1.5 rounded text-left text-xs text-text-faint hover:text-text-muted pointer-coarse:min-h-[44px]">
@@ -852,46 +919,13 @@ function V8Header({ p, onSeason, fellBackFrom }: { p: TeamProfile; onSeason: (s:
               </p>
             )}
           </div>
-          {/* One row on a phone too: the primary stretches, and Compare joins More there. */}
-          <div className="flex items-center gap-2 max-sm:w-full [&>:first-child]:max-sm:flex-1" data-hero-actions>
-            <Button variant={flags.isMine ? "secondary" : "default"} aria-pressed={flags.isMine} onClick={() => flags.setMine(!flags.isMine)} data-hero-action>
-              <Star className={cn(flags.isMine && "fill-accent text-accent")} /> {flags.isMine ? "My team" : "Mark as my team"}
-            </Button>
-            <Button variant="outline" aria-pressed={flags.tracked} onClick={a.track} data-hero-action title={flags.tracked ? "Tracked: on My team, first in search. Click to stop." : "Follow this team: it goes on My team and comes first in search"}>
-              <Eye className={cn(flags.tracked && "text-accent")} /> {flags.tracked ? "Tracking" : "Track"}
-            </Button>
-            <Button variant="outline" asChild className="max-sm:hidden" data-hero-action><Link to={`/compare?teams=${t.number}`}><Scale /> Compare</Link></Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" aria-label="More actions" data-hero-more><MoreHorizontal /></Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="min-w-[14rem]">
-                <DropdownMenuItem asChild className="sm:hidden"><Link to={`/compare?teams=${t.number}`}><Scale /> Compare</Link></DropdownMenuItem>
-                <DropdownMenuItem onSelect={a.shortlist}>{flags.bookmarked ? <BookmarkCheck /> : <Bookmark />} {flags.bookmarked ? "Remove from shortlist" : "Add to shortlist"}</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => copyLink()}><Link2 /> Copy link</DropdownMenuItem>
-                {predictable && <DropdownMenuItem asChild><Link to={predictHref({ mode: "advancement", season: p.season, team: t.number })}><Trophy /> Advancement odds</Link></DropdownMenuItem>}
-                {a.workspaceUser && flags.isMine && <DropdownMenuItem asChild><Link to={FOLLOWED_TEAM_PATH}><Star /> My followed team dashboard</Link></DropdownMenuItem>}
-                <DropdownMenuSeparator />
-                {t.website && <DropdownMenuItem asChild><a href={t.website.startsWith("http") ? t.website : `https://${t.website}`} target="_blank" rel="noreferrer noopener"><ExternalLink /> Team website</a></DropdownMenuItem>}
-                <DropdownMenuItem asChild><a href="https://tryctrlpoint.org" target="_blank" rel="noreferrer noopener"><ExternalLink /> Manage in Control Point</a></DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
         </div>
-        <div ref={setHeaderEnd} aria-hidden />
       </header>
-      {/* Phones: once the header has scrolled away, its main actions stay in reach. */}
-      <StickyActions after={headerEnd} label={`Actions for team ${t.number}`}>
-        {predictable && <Button asChild><Link to={matchHref}><Sparkles /> <span className="truncate">Predict with {t.number}</span></Link></Button>}
-        <Button variant="outline" aria-pressed={flags.tracked} onClick={a.track} className={cn(predictable && "!flex-none")}>
-          <Eye className={cn(flags.tracked && "text-accent")} /> {flags.tracked ? "Tracking" : "Track"}
-        </Button>
-      </StickyActions>
     </>
   );
 }
 
-/** The season, quietly beside "FTC team": one small select (every season the team has, newest first). */
+/** The season, at the end of the action row: one clearly visible select (every season the team has, newest first). */
 function V8SeasonSelect({ seasons, value, onChange }: { seasons: number[]; value: number; onChange: (s: number) => void }) {
   const meta = useMeta();
   const game = (s: number) => meta?.seasons.find((x) => x.season === s)?.game ?? "";
@@ -899,7 +933,7 @@ function V8SeasonSelect({ seasons, value, onChange }: { seasons: number[]; value
   return (
     <Select value={String(value)} onValueChange={(v) => onChange(Number(v))}>
       <SelectTrigger size="sm" aria-label={`Season ${seasonLabel(value)}${game(value) ? ` ${game(value)}` : ""}`} data-season-select
-        className="tap-44 h-7 w-auto gap-1 rounded-full border-white/[0.12] bg-transparent px-2.5 text-xs font-medium text-text-muted shadow-none hover:bg-white/[0.06] hover:text-text-base">
+        className="tap-44 h-7 w-auto gap-1 rounded-lg border-white/30 bg-transparent px-2.5 text-xs font-semibold text-text-base shadow-none hover:bg-white/[0.06] max-sm:h-10 max-sm:px-3">
         <span className="tabular-nums">{seasonLabel(value)}</span>
       </SelectTrigger>
       <SelectContent align="start" className="min-w-[12rem]">
@@ -916,7 +950,8 @@ function V8Standing({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => 
   const top = rankPct(s?.opr.np.rank, s?.opr.np.of, true);
   const cell = "min-w-0 px-4 first:pl-0 max-sm:px-3 [&_dd]:whitespace-nowrap";
   const dt = "text-xs text-text-faint";
-  const dd = "mt-0.5 text-xl font-semibold tracking-tight tabular-nums text-text-base";
+  // The numbers in the slate-blue accent (the figure and each value), the labels grey: the page's one colour.
+  const dd = "mt-0.5 text-xl font-semibold tracking-tight tabular-nums text-accent";
   return (
     <section aria-labelledby={`standing-${p.team.number}`} className="rounded-xl border border-line bg-card p-4 sm:p-5" data-standing>
       <h2 id={`standing-${p.team.number}`} className="font-sans text-xs font-normal tracking-normal text-text-faint" data-eyebrow>Standing · {seasonLabel(p.season)}</h2>
@@ -933,7 +968,7 @@ function V8Standing({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => 
         <>
           <div className="mt-2 flex flex-wrap items-end gap-x-8 gap-y-4">
             <div>
-              <p className="font-display text-[2.5rem] font-semibold leading-none tabular-nums text-text-base" data-hero-figure>{top ?? "Unranked"}</p>
+              <p className="font-display text-[2.5rem] font-semibold leading-none tabular-nums text-accent" data-hero-figure>{top ?? "Unranked"}</p>
               <p className="mt-1.5 text-xs text-text-muted">worldwide by OPR{s.opr.np.rank ? ` · #${s.opr.np.rank.toLocaleString()} of ${s.opr.np.of?.toLocaleString()}` : ""}</p>
             </div>
             {/* Beside the figure on a wide card; its own full-width row under it on a phone. */}
@@ -946,10 +981,42 @@ function V8Standing({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => 
               {s.reliability && <div className={cell}><dt className={dt} title="An estimate from match results: no-shows, DQs, near-zero matches, swing, penalties">Reliability</dt><dd className={dd}>{s.reliability.index}<span className="text-xs font-normal text-text-faint"> /100</span></dd></div>}
             </dl>
           </div>
+          <V8QuickStats s={s} />
           <OffSeasonLine events={p.events} />
         </>
       )}
     </section>
+  );
+}
+
+/** Each phase's OPR in its own colour (the owner's call): total purple, auto blue, TeleOp orange, endgame green. Deeper on light. */
+const PHASE_TEXT: Record<(typeof OPR_CARDS)[number][0], string> = {
+  np: "text-[#c4a7e7] [html.light_&]:text-purple-700", auto: "text-[#7dd3fc] [html.light_&]:text-sky-700",
+  teleop: "text-[#fdba74] [html.light_&]:text-orange-700", endgame: "text-[#86efac] [html.light_&]:text-green-700",
+};
+const PHASE_BAR: Record<(typeof OPR_CARDS)[number][0], string> = {
+  np: "bg-[#c4a7e7] [html.light_&]:bg-purple-500", auto: "bg-[#7dd3fc] [html.light_&]:bg-sky-500", teleop: "bg-[#fdba74] [html.light_&]:bg-orange-500", endgame: "bg-[#86efac] [html.light_&]:bg-green-500",
+};
+const PHASE_LABEL: Record<(typeof OPR_CARDS)[number][0], string> = { np: "NP OPR", auto: "Auto OPR", teleop: "TeleOp OPR", endgame: "Endgame OPR" };
+
+/** Quick stats under the standing: each phase's OPR with its world rank and percentile and a thin bar, above the fold.
+ *  From the season stats the page already has (the Strength table further down has the same numbers in full). */
+function V8QuickStats({ s }: { s: NonNullable<TeamProfile["stats"]> }) {
+  return (
+    <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 border-t border-line pt-3 sm:grid-cols-4" data-quick-stats>
+      {OPR_CARDS.map(([k]) => {
+        const stat = s.opr[k];
+        const top = rankPct(stat.rank, stat.of);
+        return (
+          <div key={k} className="min-w-0" data-quick-stat={k}>
+            <dt className="text-xs text-text-faint">{PHASE_LABEL[k]}</dt>
+            <dd className={cn("mt-0.5 text-lg font-semibold tabular-nums", PHASE_TEXT[k])}>{num(stat.value)}</dd>
+            <dd className="whitespace-nowrap text-[0.6875rem] tabular-nums text-text-faint">{stat.rank ? `#${stat.rank.toLocaleString()}${top ? ` · ${top}` : ""}` : "Unranked"}</dd>
+            <span aria-hidden className="mt-1 flex h-0.5 overflow-hidden rounded-full bg-white/[0.06] [html.light_&]:bg-black/[0.06]"><span className={cn("h-full rounded-full", PHASE_BAR[k])} style={{ width: `${rankPc(stat.rank, stat.of)}%` }} data-bar /></span>
+          </div>
+        );
+      })}
+    </dl>
   );
 }
 
@@ -961,6 +1028,8 @@ function V8Next({ p, asked }: { p: TeamProfile; asked: boolean }) {
   const last = [...p.events].reverse().find((e) => eventOver(e, clock)) ?? null;
   const current = useCurrentSeason();
   const predictable = usePredictable(p.season);
+  // As on the classic glance: Advancement odds beside Predict, unless the next event's own odds row already links them.
+  const odds = !(next && ADVANCING.has(next.type ?? ""));
   return (
     <section aria-label="What's next" className="rounded-xl border border-line bg-card p-4 sm:p-5" data-whats-next>
       {!asked || p.season >= current ? <Upcoming p={p} next={next} last={last} title="What's next" /> : (
@@ -975,6 +1044,7 @@ function V8Next({ p, asked }: { p: TeamProfile; asked: boolean }) {
       {predictable ? (
         <div className="mt-3 flex flex-wrap gap-1">
           <Button variant="ghost" size="sm" asChild><Link to={predictHref({ mode: "match", season: p.season, red: [t.number] })}><Sparkles /> Predict a match with {t.number}</Link></Button>
+          {odds && <Button variant="ghost" size="sm" asChild><Link to={predictHref({ mode: "advancement", season: p.season, team: t.number })} data-advancement-odds><Trophy /> Advancement odds</Link></Button>}
         </div>
       ) : <p className="mt-3 text-xs text-text-faint">{seasonLabel(p.season)} is shown for history: results and stats, no predictions (those start with 2023–24).</p>}
     </section>
