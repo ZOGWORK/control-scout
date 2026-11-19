@@ -75,12 +75,14 @@ describe("team page, v8 on", () => {
     expect(follows(matches, folded("Reliability"))).toBe(true);
   });
 
-  it("shows the standing as one row: the percentile in white, then OPR, rating, record and reliability", () => {
+  it("shows the standing as one row: the percentile and the stats in the slate blue: OPR, rating, record and reliability", () => {
     mount();
     const figure = document.querySelector("[data-hero-figure]")!;
     expect(figure.textContent).toMatch(/^Top \d+%$/);
-    expect(figure.className).toContain("text-text-base");
-    expect(figure.className).not.toMatch(/accent/);
+    // Numbers carry the accent in v8 (Sushil, 11-19); their labels stay grey.
+    expect(figure.className).toMatch(/\btext-accent\b/);
+    expect(document.querySelector("[data-glance-stats] dd")!.className).toMatch(/\btext-accent\b/);
+    expect(document.querySelector("[data-team-number]")!.className).toMatch(/\btext-accent\b/);
     const terms = [...document.querySelectorAll("[data-glance-stats] dt")].map((d) => d.textContent);
     expect(terms).toEqual(["OPR", "Rating", "Record", "Reliability"]);
     expect(document.querySelector("[data-opr-tiles]")).toBeNull();
