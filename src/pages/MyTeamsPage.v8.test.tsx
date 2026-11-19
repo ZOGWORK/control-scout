@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 // My teams in v8 (docs/design/v8-revamp-brief.md, <html data-v8>), rebuilt around "how are my teams doing?": each team's
-// card header carries the answer (world standing, OPR, record, what's next), visible while folded; the states without
+// card header carries the answer (world standing, OPR in gold, rating, record in green and red, what's next, each with a
+// thin line under it), visible while folded; the states without
 // teams are one quiet empty state, one primary and one outline action. With v8 off the page is drawn as before.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
@@ -25,7 +26,7 @@ const stat = (value: number, rank: number) => ({ value, rank, of: 8000 });
 const profile = {
   team: { number: 18360, name: "Hypnotic Robotics" }, season: 2026, seasons: [2026],
   stats: { opr: { np: stat(101.6, 80), auto: stat(28.3, 883), teleop: stat(73.4, 644), endgame: stat(6.7, 5027), pen: -5 },
-    rating: null, record: { wins: 26, losses: 6, ties: 0, matches: 32, events: 5 }, avg: { np: 90, score: 95, pen: 5 } },
+    rating: { np: 30.3, sd: 3.2, auto: 8, teleop: 20, endgame: 2, pen: 1, rank: 966, matches: 32 }, record: { wins: 26, losses: 6, ties: 0, matches: 32, events: 5 }, avg: { np: 90, score: 95, pen: 5 } },
   events: [{ season: 2026, code: "USCAQ1", name: "Bay Area Qualifier", type: "Qualifier", start: "2026-01-10", end: "2026-01-10", rank: 2, wins: 5, losses: 1, ties: 0, opr: { np: 99.5 }, awards: [] }],
   awardsAllTime: [],
 } as unknown as TeamProfile;
@@ -57,10 +58,26 @@ describe("My teams, v8 on", () => {
     expect(document.querySelector("[data-myteams-v8]")).not.toBeNull();
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("My teams");
     const card = within(await screen.findByRole("article", { name: "Team 18360" }));
-    const glance = await waitFor(() => { const e = document.querySelector("[data-team-glance] [data-v8-figures]"); if (!e) throw new Error("not yet"); return e as HTMLElement; });
+    const glance = await waitFor(() => { const e = document.querySelector("[data-team-glance] [data-glance-strip]"); if (!e) throw new Error("not yet"); return e as HTMLElement; });
     expect(glance.textContent).toContain("Top 1%");
     expect(glance.textContent).toContain("101.6");
     expect(glance.textContent).toContain("26-6-0");
+    // Every number the classic tiles showed: OPR rank, the rating with its ± and world rank, matches and events.
+    const col = (k: string) => glance.querySelector<HTMLElement>(`[data-glance="${k}"]`)!;
+    expect(col("opr").textContent).toContain("#80 of 8,000");
+    expect(col("rating").textContent).toContain("30.3±3.2");
+    expect(col("rating").textContent).toContain("#966 worldwide · 32 matches");
+    expect(col("record").textContent).toContain("32 matches · 5 events");
+    // Coloured text, no boxes: OPR gold, the rating slate blue, wins green and losses red, a thin line under each.
+    expect(col("opr").querySelector("dd")!.className).toContain("text-[#fcd34d]");
+    expect(col("rating").querySelector("dd")!.className).toContain("text-accent");
+    const rec = col("record").querySelector("dd [aria-label]")!;
+    expect(rec.getAttribute("aria-label")).toMatch(/26 wins/);
+    expect(rec.children[0].className).toContain("text-emerald-400");
+    expect(rec.children[2].className).toContain("text-[#fb7185]");
+    for (const k of ["opr", "rating", "record"]) expect(col(k).querySelector("[data-glance-line]")).not.toBeNull();
+    expect(col("record").querySelectorAll("[data-bar]")).toHaveLength(3);
+    expect(glance.querySelectorAll("[class*='bg-card'], [class*='rounded-xl']")).toHaveLength(0);
     expect(card.getByRole("link", { name: /Team page/ }).getAttribute("href")).toBe("/teams/18360?season=2026");
     fireEvent.click(card.getByRole("button", { name: /18360/ }));
     expect(card.getByRole("button", { name: /18360/ }).getAttribute("aria-expanded")).toBe("false");
