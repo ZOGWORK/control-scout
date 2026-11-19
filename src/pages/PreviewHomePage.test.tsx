@@ -121,6 +121,12 @@ describe("Sample home dashboard", () => {
     expect(within(side).queryByRole("link", { name: "Control Scout home" })).toBeNull();
     fireEvent.click(within(side).getByRole("button", { name: "Expand sidebar" }));
     expect(side.hasAttribute("data-rail")).toBe(false);
+    // Folding and opening keep the keyboard on the same button.
+    const button = within(side).getByRole("button", { name: "Collapse sidebar" });
+    button.focus();
+    fireEvent.click(button);
+    expect(document.activeElement).toBe(within(side).getByRole("button", { name: "Expand sidebar" }));
+    expect(document.activeElement).toBe(button);
   });
 
   it("puts settings, what's new, the owner console and sign out in the profile menu", () => {
