@@ -293,7 +293,7 @@ html[data-text-size="xl"] { --ui-scale: 1.25; }
 @media (min-width: 2500px) { html:has([data-sample-home]) { --ui-base: 1.23; } }
 
 /* ---- v8 (docs/design/v8-revamp-brief.md) ------------------------------------------------------------------
-   Dark only (Q1), mint accent, the "90% zoom" root as the new 100% (Q3) with the big-screen steps on top, three
+   Dark only (Q1), the wash's light slate blue as the accent, the "90% zoom" root as the new 100% (Q3) with the big-screen steps on top, three
    radii, and strong easing curves for every ease-* utility. Phones keep their 14px base. */
 html[data-v8] {
   --ui-base: 0.9;
@@ -309,14 +309,26 @@ html[data-v8] {
   --sh-border: #ffffff0f;
   --sh-input: #ffffff1f;
   --color-secondary: #0e0e10;
-  --color-accent: #7fd1ae;
-  --color-accent-hover: #95dcbd;
-  --color-accent-ink: #062b1d;
-  --color-accent-soft: rgb(127 209 174 / 0.1);
-  --color-accent-text: #7fd1ae;
-  --color-accent-display: #7fd1ae;
-  --color-ring: #7fd1ae;
-  --grid-rgb: 127 209 174;
+  --color-accent: #a3b6e0;
+  --color-accent-hover: #b8c8ea;
+  --color-accent-ink: #141a2b;
+  --color-accent-soft: rgb(163 182 224 / 0.1);
+  /* Text that used the accent (your team's number, picked labels) is white; the slate blue stays for fills, lines
+     and the #1 rank. Wins and "Right" are white too, not green, and the alliances are a lighter red and blue. */
+  --color-accent-text: #f4f4f5;
+  --color-success: #f4f4f5;
+  --color-success-text: #f4f4f5;
+  --color-red-alliance: #fb7185;
+  --color-red-alliance-text: #fb7185;
+  --color-red-alliance-ink: #fda4af;
+  --color-blue-alliance: #7dd3fc;
+  --color-blue-alliance-text: #7dd3fc;
+  /* No teal anywhere in v8: the third compared team is the wash's soft purple. */
+  --color-team-c: #c4a7e7;
+  --color-team-c-text: #c4a7e7;
+  --color-accent-display: #a3b6e0;
+  --color-ring: #a3b6e0;
+  --grid-rgb: 163 182 224;
   --radius-sm: 0.375rem;
   --radius-md: 0.5rem;
   --radius-lg: 0.5rem;

@@ -138,7 +138,7 @@ describe("static first paint", () => {
   it("draws v8's look when <html data-v8> is on (set before this paints): the white mark, no yellow, Home's search alone", () => {
     const v8 = BOOT_STYLE.split("\n").filter((l) => l.includes("html[data-v8]")).join("\n");
     expect(v8).toContain("content:url(/mark-white.webp)");
-    expect(v8).toContain("--b-acc:#7fd1ae");
+    expect(v8).toContain("--b-acc:#a3b6e0");
     expect(v8).toMatch(/html\[data-v8\] \.csb-home \.csb-hl,html\[data-v8\] \.csb-home>p\{display:none\}/);
     expect(v8).toMatch(/html\[data-v8\] \.csb \.csb-crumb\{display:none\}/);
     expect(v8.toLowerCase()).not.toContain("#ffc700");

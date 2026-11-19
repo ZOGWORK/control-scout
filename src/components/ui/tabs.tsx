@@ -82,7 +82,7 @@ export function TabsTrigger({ className, ...props }: React.ComponentProps<typeof
         'border border-text-base/10 bg-text-base/[0.05] text-text-base/80 transition-colors hover:bg-text-base/[0.1] hover:text-text-base outline-none focus-visible:ring-2 focus-visible:ring-ring/60',
         'data-[state=active]:border-transparent',
         'data-[state=active]:bg-accent data-[state=active]:text-accent-ink disabled:pointer-events-none disabled:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0',
-        // v8 (brief §5): plain labels, muted to white, with a mint underline under the picked one.
+        // v8 (brief §5): plain labels, muted to white, with a slate-blue underline under the picked one.
         'v8:relative v8:rounded-none v8:border-0 v8:bg-transparent v8:px-3 v8:text-text-muted v8:hover:bg-transparent v8:hover:text-text-base',
         'v8:data-[state=active]:bg-transparent v8:data-[state=active]:text-text-base',
         "v8:after:absolute v8:after:inset-x-3 v8:after:-bottom-px v8:after:h-0.5 v8:after:rounded-full v8:after:bg-accent v8:after:opacity-0 v8:after:transition-opacity v8:after:duration-150 v8:after:content-[''] v8:data-[state=active]:after:opacity-100",

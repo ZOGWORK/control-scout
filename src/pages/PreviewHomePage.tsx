@@ -43,11 +43,11 @@ export const LIVE_MAX = 4;
 /** How many teams the Top teams card lists. */
 export const TOP_MAX = 5;
 
-/** The accent for the new look, scoped to this page: mint, from the wash's green middle. */
-export const MINT = { accent: "#7fd1ae", hover: "#95dcbd", ink: "#062b1d" } as const;
+/** The accent for the new look, scoped to this page: the wash's light slate blue (left side). */
+export const MINT = { accent: "#a3b6e0", hover: "#b8c8ea", ink: "#141a2b" } as const;
 const THEME_NEXT = {
   "--color-accent": MINT.accent, "--color-accent-hover": MINT.hover, "--color-accent-ink": MINT.ink,
-  "--color-accent-text": MINT.accent, "--color-accent-soft": "rgb(127 209 174 / 0.10)", "--color-ring": MINT.accent,
+  "--color-accent-text": MINT.accent, "--color-accent-soft": "rgb(163 182 224 / 0.10)", "--color-ring": MINT.accent,
 } as CSSProperties;
 
 /** The examples under the field, a fresh set each visit: one hour's set from the live Home's own rotation

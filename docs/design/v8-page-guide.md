@@ -6,7 +6,7 @@ Read `docs/design/v8-revamp-brief.md` first. That's the design. This file covers
 - v8 is on when `<html data-v8>` is set. Turn it on in a browser with `?v8=1` on any URL; `?v8=0` turns it off.
 - Style a page for v8 **only with the `v8:` Tailwind variant** (for example `v8:bg-white/10`, `v8:hidden`), or with `isV8()` / `useIsV8()` from `src/lib/v8.ts` when the markup itself must differ. **The old look must not change.** Tests and screenshots with v8 off must stay as they are.
 - These are already done; don't redo them:
-  - tokens (surfaces, mint accent, radii, strong easing, the 90% root);
+  - tokens (surfaces, slate-blue accent, radii, strong easing, the 90% root);
   - shared components (`src/components/ui/*`: Button, Tabs, chips, menus, dialogs, sheets, tooltips, table head, skeleton);
   - the shell (sidebar, profile corner, wash, page fade off).
   - See `/preview/kit` for all of them.
@@ -25,7 +25,7 @@ If a page changes with state (live, finished or upcoming; signed in or out; has 
 ## Rules for every page (brief §2–§5, short form)
 - **Colour:**
   - No yellow, no coloured buttons. Use `Button`'s variants; the default variant is the one primary per screen.
-  - Mint (`accent`) only for: the #1 rank, progress, the picked tab or line, "yours". Never as a fill behind text.
+  - The accent (`accent`, the wash's light slate blue) only for: the #1 rank, progress, the picked tab or line, "yours". Never as a fill behind text.
   - Red and blue only for alliances; `live` red only for live.
   - Stat tiles, cards and badges are neutral (`bg-card`, `border-line`). Drop coloured tile backgrounds, coloured borders and coloured icon chips in v8.
 - **Type:**

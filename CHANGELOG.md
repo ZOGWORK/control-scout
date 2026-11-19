@@ -28,7 +28,8 @@ A new look for Control Scout: calmer and darker, with each page built around wha
 ### Appearance
 - A quieter sidebar; your picture top-right holds Settings, What's new and your account.
 - Everything a little more compact, with quick, light presses and menus.
-- The new look is dark only for now; the classic look keeps your saved theme.
+- One quiet colour: white for wins and your team, a light slate blue for progress and the #1 rank, lighter red and blue for the alliances.
+- The new look is dark only for now; the classic look keeps your saved theme. (#1981)
 
 ## 7.6.9 — 2026-11-17
 
