@@ -3,13 +3,16 @@
 // picture (a guest one signed out) top-right, search first and alone, three fixed examples as chips, then three cards in
 // order (Events live now, Top teams, Your teams), Report a bug as a corner circle, mint as the page's only accent
 // (scoped to the page), no yellow anywhere, and honest empty states.
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import type { EventListItem, MatchView } from "../shared/api";
 import type { RecordsResponse, TeamSeasonRecord } from "../shared/statCatalog";
 import { HOME_SUGGESTIONS } from "../shared/homeSuggestions";
 import { isBareRoute, pageModule, pageTitle } from "../shared/routes";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+const indexCss = readFileSync(join(process.cwd(), "src", "index.css"), "utf8");
 
 let data: Record<string, unknown> = {};
 vi.mock("../lib/api", async (orig) => ({
@@ -25,6 +28,8 @@ let personal: { user: unknown; state: ReturnType<typeof st> } = { user: null, st
 vi.mock("../lib/personal", () => ({ usePersonal: () => personal, hasAccountOnDevice: () => false }));
 // The bell and the bug report are the app's own (tested with the app's top bar); here they only need to be there.
 vi.mock("../components/layout/BugReport", () => ({ BugReportButton: ({ corner }: { corner?: boolean }) => <button type="button" data-tool="bug" data-corner={corner ? "" : undefined}>Report a bug</button> }));
+// The sidebar's pages are the app's own (tested with the app's sidebar); here a stand-in that says whether it's folded.
+vi.mock("../components/layout/Shell", () => ({ MainNav: ({ collapsed }: { collapsed?: boolean }) => <div data-main-nav={collapsed ? "rail" : "full"}><a href="/events">Events</a></div> }));
 vi.mock("../components/layout/InboxBell", () => ({ InboxBell: () => <button type="button" data-tool="inbox">Inbox</button> }));
 
 const event = (i: number, status: EventListItem["status"], played = 0, total = 0, start = "2026-11-18"): EventListItem => ({
@@ -40,10 +45,12 @@ const MATCH = {
 } as unknown as MatchView;
 
 const { default: PreviewHomePage, fixedExamples, liveNow, nextUp, yourTeams, EXAMPLE_COUNT, LIVE_MAX, TOP_MAX, TEAMS_MAX, MINT } = await import("./PreviewHomePage");
-const mount = () => render(<MemoryRouter initialEntries={["/preview/home"]}><PreviewHomePage /></MemoryRouter>);
+const { TooltipProvider } = await import("../components/ui/overlay");
+// The app's Shell gives every page a TooltipProvider (the folded sidebar's names are tooltips).
+const mount = () => render(<TooltipProvider><MemoryRouter initialEntries={["/preview/home"]}><PreviewHomePage /></MemoryRouter></TooltipProvider>);
 const cls = (el: Element) => el.getAttribute("class") ?? "";
 
-beforeEach(() => { data = {}; personal = { user: null, state: st(null) }; });
+beforeEach(() => { data = {}; personal = { user: null, state: st(null) }; localStorage.clear(); });
 afterEach(cleanup);
 
 describe("Sample home dashboard", () => {
@@ -56,7 +63,7 @@ describe("Sample home dashboard", () => {
     expect(isBareRoute("/events/2025/USNJQ1/display")).toBe(true);
   });
 
-  it("has no headline and starts with the search field, then three fixed chips", () => {
+  it("has no headline and starts with the search field, then four fixed chips", () => {
     const { container } = mount();
     expect(container.querySelector("h1")).toBeNull();
     const field = screen.getByLabelText("Search teams, events and matches");
@@ -65,22 +72,23 @@ describe("Sample home dashboard", () => {
     const ex = fixedExamples();
     expect(ex).toHaveLength(EXAMPLE_COUNT);
     for (const s of ex) { expect(HOME_SUGGESTIONS).toContain(s); expect(s.q).not.toMatch(/\b\d{3,5}\b/); }
-    expect(container.querySelectorAll("[data-example-chip]")).toHaveLength(3);
+    expect(container.querySelectorAll("[data-example-chip]")).toHaveLength(EXAMPLE_COUNT);
+    expect(EXAMPLE_COUNT).toBe(4);
     expect(container.querySelector("[aria-label*='by country']")).toBeNull(); // no globe
   });
 
   it("has no top bar: the inbox and a guest picture top-right, the mark above search, Report a bug in the corner", () => {
     const { container } = mount();
     expect(container.querySelector("[data-top-nav]")).toBeNull();
-    expect(container.querySelector("nav")).toBeNull();
+    expect(container.querySelector("header")).toBeNull();
     const corner = container.querySelector("[data-corner-tools]") as HTMLElement;
     expect([...corner.children].map((c) => c.getAttribute("data-tool") ?? (c.hasAttribute("data-profile") ? "profile" : "?"))).toEqual(["inbox", "profile"]);
-    const profile = within(corner).getByRole("link", { name: "Sign in" });
-    expect(profile.getAttribute("href")).toBe("/settings#account");
+    const profile = within(corner).getByRole("button", { name: "Sign in" });
     expect(profile.querySelector("[data-guest]")).toBeTruthy();
-    // The white mark sits above the search field.
+    // The white mark sits above the search field, on every screen.
     const mark = container.querySelector("[data-mark]")!;
     expect(mark.getAttribute("src")).toBe("/mark-white.webp");
+    expect(cls(mark)).not.toContain("hidden");
     expect(mark.compareDocumentPosition(container.querySelector("input")!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     // One bug report, a corner circle, apart from the corner tools.
     const bugs = container.querySelectorAll("[data-tool='bug']");
@@ -94,9 +102,56 @@ describe("Sample home dashboard", () => {
   it("shows your profile picture top-right when signed in", () => {
     personal = { user: { displayName: "Ada Lovelace", email: "ada@example.test", avatarUrl: "https://example.test/a.png" }, state: st(null) };
     const { container } = mount();
-    const profile = within(container.querySelector("[data-corner-tools]") as HTMLElement).getByRole("link", { name: "Account: Ada Lovelace" });
+    const profile = within(container.querySelector("[data-corner-tools]") as HTMLElement).getByRole("button", { name: "Account: Ada Lovelace" });
     expect(profile.querySelector("[data-guest]")).toBeNull();
     expect(profile.querySelector("[data-user-avatar='picture']")).toBeTruthy();
+  });
+
+  it("has the app's pages in a sidebar with nothing at its foot, folding to icons", () => {
+    const { container } = mount();
+    const side = container.querySelector("[data-sample-sidebar]") as HTMLElement;
+    expect(side.querySelector("[data-main-nav='full']")).toBeTruthy();
+    expect(within(side).getByRole("link", { name: "Control Scout home" })).toBeTruthy();
+    // No search button (the page's search is the way in) and no foot: no What's new, owner console, account or sign-out.
+    expect(within(side).queryByRole("button", { name: /search/i })).toBeNull();
+    expect(side.textContent).not.toMatch(/What.s new|Owner console|Sign (in|out)|Settings/);
+    fireEvent.click(within(side).getByRole("button", { name: "Collapse sidebar" }));
+    expect(side.hasAttribute("data-rail")).toBe(true);
+    expect(side.querySelector("[data-main-nav='rail']")).toBeTruthy();
+    expect(within(side).queryByRole("link", { name: "Control Scout home" })).toBeNull();
+    fireEvent.click(within(side).getByRole("button", { name: "Expand sidebar" }));
+    expect(side.hasAttribute("data-rail")).toBe(false);
+    // Folding and opening keep the keyboard on the same button.
+    const button = within(side).getByRole("button", { name: "Collapse sidebar" });
+    button.focus();
+    fireEvent.click(button);
+    expect(document.activeElement).toBe(within(side).getByRole("button", { name: "Expand sidebar" }));
+    expect(document.activeElement).toBe(button);
+  });
+
+  it("puts settings, what's new, the owner console and sign out in the profile menu", () => {
+    personal = { user: { displayName: "Ada Lovelace", email: "ada@example.test", avatarUrl: null, isOwner: true }, state: st(null) };
+    const { container } = mount();
+    const trigger = within(container.querySelector("[data-corner-tools]") as HTMLElement).getByRole("button", { name: "Account: Ada Lovelace" });
+    fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false, pointerType: "mouse" });
+    const menu = document.querySelector("[data-profile-menu]") as HTMLElement;
+    expect(within(menu).getAllByRole("menuitem").map((i) => i.textContent?.trim())).toEqual(["Settings", "What’s new", "Owner console", "Sign out"]);
+    expect(menu.textContent).toContain("ada@example.test");
+  });
+
+  it("keeps the owner console out of anyone else's menu, and offers a guest Sign in", () => {
+    const { container } = mount();
+    fireEvent.pointerDown(within(container.querySelector("[data-corner-tools]") as HTMLElement).getByRole("button", { name: "Sign in" }), { button: 0, ctrlKey: false, pointerType: "mouse" });
+    const menu = document.querySelector("[data-profile-menu]") as HTMLElement;
+    expect(within(menu).getAllByRole("menuitem").map((i) => i.textContent?.trim())).toEqual(["Sign in", "Settings", "What’s new"]);
+  });
+
+  it("grows the whole page on big screens, in steps, by the root size (so it multiplies the text-size setting)", () => {
+    const steps = [...indexCss.matchAll(/min-width: (\d+)px\) \{ html:has\(\[data-sample-home\]\) \{ --ui-base: ([\d.]+); \}/g)].map((m) => [Number(m[1]), Number(m[2])]);
+    expect(steps).toEqual([[2100, 1.1], [2500, 1.23]]);
+    const { container } = mount();
+    expect(container.querySelector("[data-sample-home]")).toBeTruthy();
+    expect(container.innerHTML).not.toContain("zoom");
   });
 
   it("washes the top a third of the way down, smooth glows under a fine grain", () => {
@@ -195,6 +250,19 @@ describe("Sample home dashboard", () => {
     expect(within(team).getByRole("link", { name: /Your team page/ }).getAttribute("href")).toBe("/my-team");
   });
 
+  it("shows the team's last event and how it went when no schedule is posted", () => {
+    personal = { user: null, state: st(4215) };
+    const last = { code: "USNJNEM3", name: "P1-5 PM Northeast League Meet", start: "2026-11-07", end: "2026-11-07", rank: 7, record: "2-3-1" };
+    data = { "/api/teams/4215/matches": { matches: [] }, "/api/teams-summary": { teams: [{ team: 4215, name: "Team Name", place: "Town, NJ, USA", opr: 16.02, oprRank: 2221, of: 3264, lastEvent: last, nextEvent: null }] } };
+    const { container } = mount();
+    const box = container.querySelector("[data-last-event]") as HTMLElement;
+    expect(box.textContent).toContain("Last event");
+    expect(within(box).getByRole("link", { name: /P1-5 PM Northeast League Meet/ }).getAttribute("href")).toBe("/events/2026/USNJNEM3");
+    expect(box.querySelector("[data-stat='Rank']")?.textContent).toContain("7th");
+    expect(box.querySelector("[data-stat='Record']")?.textContent).toContain("2-3-1");
+    expect(box.querySelector("[data-stat='OPR']")?.textContent).toContain("16.0#2221 of 3264");
+  });
+
   it("lists several teams as rows, at most four, each with its next match", () => {
     personal = { user: null, state: { ...st(null), tracked: { teams: [4215, 11, 12, 13, 14], events: [] } } as unknown as ReturnType<typeof st> };
     data = { "/api/teams/4215/matches": { matches: [MATCH] }, "/api/teams-summary": { teams: [] } };
@@ -217,11 +285,16 @@ describe("Sample home dashboard", () => {
     const html = container.innerHTML.toLowerCase();
     expect(html).not.toMatch(/#ffc700|#ffd633|#eab308|text-accent-text|text-yellow|bg-yellow/);
     const all = [...container.querySelectorAll("*")];
-    // Mint fills: the live dot and the live progress, nothing else.
+    // Mint fills: the live progress, nothing else.
     const fills = all.filter((el) => /(^|\s)bg-accent(\s|$)/.test(cls(el)));
-    expect(fills.every((el) => ["data-primary-action", "data-live-dot", "data-progress"].some((a) => el.hasAttribute(a)))).toBe(true);
+    expect(fills.every((el) => ["data-primary-action", "data-progress"].some((a) => el.hasAttribute(a)))).toBe(true);
+    // Live is red and pulses (motion-reduce stills it).
+    const pulse = container.querySelector("[data-live-dot] [data-live-pulse]")!;
+    expect(cls(pulse)).toContain("animate-ping");
+    expect(cls(pulse)).toContain("motion-reduce:hidden");
+    expect(container.querySelector("[data-live-event] svg")!.getAttribute("class")).toContain("text-[#f2555a]");
     expect(container.querySelectorAll("[data-primary-action]")).toHaveLength(0);
-    // Text in mint: only the #1 rank and the live icon.
+    // Text in mint: only the #1 rank (and icons).
     const mintText = all.filter((el) => /(^|\s)text-accent(\s|$)/.test(cls(el)));
     expect(mintText.every((el) => el.hasAttribute("data-rank") || el.tagName.toLowerCase() === "svg")).toBe(true);
   });

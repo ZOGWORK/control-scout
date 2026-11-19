@@ -245,10 +245,27 @@ function MoreGroup({ items, collapsed }: { items: NavItem[]; collapsed?: boolean
   );
 }
 
+/** The sidebar's pages, section by section (More folded away): the app's sidebar and the v8 sample Home's share it.
+ *  `collapsed`: icons only, names in tooltips. */
+export function MainNav({ collapsed }: { collapsed?: boolean }) {
+  const sections = useSections();
+  return (
+    <>
+      {sections.map((s, i) => s.more ? <MoreGroup key={i} items={s.items} collapsed={collapsed} /> : (
+        <div key={i} className="space-y-(--nav-gap)">
+          {s.title && (collapsed
+            ? <div className="mx-auto mb-1 h-px w-6 bg-line" aria-hidden />
+            : <p className="px-2.5 pb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-text-muted">{s.title}</p>)}
+          <SectionRows items={s.items} collapsed={collapsed} dense />
+        </div>
+      ))}
+    </>
+  );
+}
+
 /** `rail`: icons only (a narrow desktop, or folded by hand). `wide`: the screen has room for the full sidebar, so its
  *  button folds it in and out (remembered); below that the button opens the labelled menu sheet instead. */
 function Sidebar({ rail, wide, onToggle, onMenu }: { rail: boolean; wide: boolean; onToggle: () => void; onMenu: (from: HTMLElement) => void }) {
-  const sections = useSections();
   const toggleLabel = !wide ? "Show page names" : rail ? "Expand sidebar" : "Collapse sidebar";
   return (
     // Held in place while the page scrolls under it. Its rows fit the screen's height (index.css --nav-row); the nav still scrolls on one under 768 px.
@@ -261,14 +278,7 @@ function Sidebar({ rail, wide, onToggle, onMenu }: { rail: boolean; wide: boolea
         </Link>
       </div>
       <nav className="custom-scrollbar flex-1 space-y-(--nav-section) overflow-y-auto px-2 pt-(--nav-top) pb-1.5" aria-label="Main">
-        {sections.map((s, i) => s.more ? <MoreGroup key={i} items={s.items} collapsed={rail} /> : (
-          <div key={i} className="space-y-(--nav-gap)">
-            {s.title && (rail
-              ? <div className="mx-auto mb-1 h-px w-6 bg-line" aria-hidden />
-              : <p className="px-2.5 pb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-text-muted">{s.title}</p>)}
-            <SectionRows items={s.items} collapsed={rail} dense />
-          </div>
-        ))}
+        <MainNav collapsed={rail} />
       </nav>
       {/* What's new (always in view) beside the fold button, then who's signed in (Control Point's footer: avatar, name, status, Settings, Sign out). */}
       <div className="shrink-0 space-y-1 border-t border-line p-2">
