@@ -232,7 +232,8 @@ describe("Sample home dashboard", () => {
     const { container } = mount();
     // A plain icon-and-label button like the sidebar's rows: no colour, no fill, no border.
     const pick = container.querySelector("[data-pick-team]")!;
-    expect(cls(pick)).not.toMatch(/accent|border|(^|\s)bg-/);
+    // (border-color in the transition list is fine: it's the press/hover fade, not a border.)
+    expect(cls(pick)).not.toMatch(/accent|(^|\s)border(-[a-z0-9]|\s|$)|(^|\s)bg-/);
     expect(cls(pick.querySelector("svg")!)).not.toContain("accent");
     const team = container.querySelector("[data-card='team']")!;
     expect(team.textContent).toContain("Pick your team to see its next match");
@@ -300,12 +301,41 @@ describe("Sample home dashboard", () => {
     expect(fills.every((el) => ["data-progress"].some((a) => el.hasAttribute(a)))).toBe(true);
     // Live is red and pulses (motion-reduce stills it).
     const pulse = container.querySelector("[data-live-dot] [data-live-pulse]")!;
-    expect(cls(pulse)).toContain("animate-ping");
+    expect(cls(pulse)).toContain("animate-[live-ring_2s_");
     expect(cls(pulse)).toContain("motion-reduce:hidden");
     expect(container.querySelector("[data-live-event] svg")!.getAttribute("class")).toContain("text-[#f2555a]");
     expect(container.querySelector("[data-pick-team]")).toBeNull();
     // Text in mint: only the #1 rank (and icons).
     const mintText = all.filter((el) => /(^|\s)text-accent(\s|$)/.test(cls(el)));
     expect(mintText.every((el) => el.hasAttribute("data-rank") || el.tagName.toLowerCase() === "svg")).toBe(true);
+  });
+
+  it("moves with a strong ease-out: the fold, a slow live ring, menus from the picture, a light press", () => {
+    const EASE = "ease-[cubic-bezier(0.23,1,0.32,1)]";
+    expect(indexCss).toMatch(/@keyframes live-ring \{ 0% \{ transform: scale\(1\); opacity: 0\.6; \} 70%, 100% \{ transform: scale\(2\); opacity: 0; \} \}/);
+    personal = { user: { displayName: "Ada Lovelace", email: "ada@example.test", avatarUrl: null, isOwner: false }, state: st(null) };
+    const { container } = mount();
+    const side = container.querySelector("[data-sample-sidebar]")!;
+    expect(cls(side)).toContain("transition-[width] duration-200 " + EASE);
+    expect(cls(side)).toContain("motion-reduce:transition-none");
+    // Pressables shrink to 0.97 while held, not under reduced motion.
+    const pressables = [within(side as HTMLElement).getByRole("button", { name: "Collapse sidebar" }), container.querySelector("[data-press]")!];
+    for (const el of pressables) {
+      expect(cls(el)).toContain("active:scale-[0.97]");
+      expect(cls(el)).toContain("motion-reduce:active:scale-100");
+      expect(cls(el)).toContain(EASE);
+    }
+    // The profile menu grows out of the picture (Radix's origin), from 0.97, not from the middle.
+    fireEvent.pointerDown(within(container.querySelector("[data-corner-tools]") as HTMLElement).getByRole("button", { name: "Account: Ada Lovelace" }), { button: 0, ctrlKey: false, pointerType: "mouse" });
+    const menu = document.querySelector("[data-profile-menu]")!;
+    expect(cls(menu)).toContain("origin-(--radix-dropdown-menu-content-transform-origin)");
+    expect(cls(menu)).toContain("[--tw-enter-scale:0.97]");
+    expect(cls(menu)).toContain("motion-reduce:[--tw-enter-scale:1]");
+    expect(cls(menu)).toContain(EASE);
+  });
+
+  it("presses Pick your team like the other buttons", () => {
+    const { container } = mount();
+    expect(cls(container.querySelector("[data-pick-team]")!)).toContain("active:scale-[0.97]");
   });
 });

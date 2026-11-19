@@ -279,6 +279,8 @@ html[data-text-size="l"] { --ui-scale: 1.125; }
 html[data-text-size="xl"] { --ui-scale: 1.25; }
 /* The v8 sample Home (src/pages/PreviewHomePage.tsx) on a big screen: the whole page, sidebar included, grows in
    steps so it never sits small in the middle of a wide monitor. Still times each device's own text size. */
+/* Sample home: the live dot's ring, one slow breath every 2s (calmer than Tailwind's 1s ping). */
+@keyframes live-ring { 0% { transform: scale(1); opacity: 0.6; } 70%, 100% { transform: scale(2); opacity: 0; } }
 @media (min-width: 2100px) { html:has([data-sample-home]) { --ui-base: 1.1; } }
 @media (min-width: 2500px) { html:has([data-sample-home]) { --ui-base: 1.23; } }
 /* The phone tab bar's height, border included (Shell MobileTabs); fixed things on phones sit above it. */
