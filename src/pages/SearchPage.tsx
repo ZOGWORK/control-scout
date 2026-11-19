@@ -37,7 +37,7 @@ import { appearanceStats, appearances, isQualityQuestion, hasNumbers, standing }
 import { SearchFilters } from "../components/search/page/SearchFilters";
 import { openFamilies, type FamilyStatus } from "../components/search/page/eventFamilies";
 import { eventSections, eventStatuses, localDay } from "../components/search/page/eventSections";
-import { SEARCH_PALETTE } from "../lib/textTones";
+import { TONE, V8_STAGGER } from "../components/search/page/v8tone";
 import { EventTree } from "../components/search/page/EventTree";
 import { answerTeams, anyFilter, askedWhen, filteredTitle, filterAlternatives, whenCounts, compareSeason, compareSides, compareTeams, filterChoices, cardTeamName, isCompare, isFuzzy, keeps, pageTitle, contextBadge, badgeUnder, readingOf, fuzzyWords, readFilters, teamParts, withFilters, type AnswerExtra, type PageFilters, type Statuses } from "../components/search/page/results";
 import { headingOver, unreadNote } from "../shared/searchPage";
@@ -236,13 +236,13 @@ export default function SearchPage() {
           The query itself lives in the top bar (refine there): the page never repeats it. */}
       {/* Phones: the bar (above the column), then a short header ("Results: …"), no eyebrow. */}
       {/* The accent is the selected control's alone on this page (the active time tab): the eyebrow is plain. */}
-      <p className="text-xs font-semibold text-muted-foreground max-md:hidden" data-eyebrow>FTC One Search</p>
-      <h1 className="mt-1 font-display text-xl font-semibold tracking-tight text-foreground max-md:mt-0 md:text-2xl lg:text-3xl">
+      <p className="text-xs font-semibold text-muted-foreground v8:font-medium v8:text-text-faint max-md:hidden" data-eyebrow>FTC One Search</p>
+      <h1 className="mt-1 font-display text-xl font-semibold tracking-tight text-foreground max-md:mt-0 md:text-2xl lg:text-3xl v8:font-sans v8:text-[1.375rem] v8:leading-7 v8:md:text-[1.375rem] v8:lg:text-[1.375rem]" data-page-title>
         {/* Nothing answered (a question search can't answer yet, or nothing found): the page says sorry, once, here. */}
         {!query ? "Search" : ax?.notInPack && !busy && !error ? "Not in your downloaded pack" : ax?.sorry && !busy && !error ? SORRY_SENTENCE : found ? <>{phone && "Results: "}{shownTitle}</> : busy || error ? "Search results" : SORRY_SENTENCE}
       </h1>
       {badge && (
-        <p className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-full border border-border bg-muted/50 px-2.5 py-1 text-xs font-medium text-foreground" data-context-badge>
+        <p className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-full border border-border bg-muted/50 px-2.5 py-1 text-xs font-medium text-foreground v8:bg-transparent v8:text-muted-foreground" data-context-badge>
           <ScanSearch className="size-3.5 shrink-0 text-muted-foreground" aria-hidden /><span className="min-w-0 break-words">{badge}</span>
         </p>
       )}
@@ -269,7 +269,7 @@ export default function SearchPage() {
                   {notes.didYouMean && <AnswerNotesView notes={{ didYouMean: notes.didYouMean, corrected: false, understood: [] }} className="mb-4 text-sm" onDidYouMean={runFix} />}
                   <div className={cn(side && "lg:grid lg:grid-cols-[minmax(0,720px)_minmax(20rem,1fr)] lg:items-start lg:gap-6")}>
                     {sideColumn}
-                    <div className="min-w-0 lg:col-start-1 lg:row-start-1">
+                    <div className={cn("min-w-0 lg:col-start-1 lg:row-start-1", V8_STAGGER)} data-stagger>
                       <NoResults
                         query={query} onOpen={open}
                         understood={readingOf(ax) ? [readingOf(ax)!] : notes.understood}
@@ -286,8 +286,8 @@ export default function SearchPage() {
               <AnswerNotesView notes={{ ...notes, understood: [] }} query={query} className="mb-4 text-sm" onDidYouMean={runFix} />
               {/* The server found nothing for all of it and shows the nearest set instead: said plainly, above that set. */}
               {ax?.understood?.fallback && (
-                <p className="mb-4 flex items-start gap-1.5 rounded-lg border border-warning/40 bg-warning/[0.08] px-3 py-2 text-sm text-foreground" data-fallback-label>
-                  <Info className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />{ax.understood.fallback}
+                <p className="mb-4 flex items-start gap-1.5 rounded-lg border border-warning/40 bg-warning/[0.08] px-3 py-2 text-sm text-foreground v8:border-line v8:bg-card" data-fallback-label>
+                  <Info className="mt-0.5 size-4 shrink-0 text-warning v8:text-muted-foreground" aria-hidden />{ax.understood.fallback}
                 </p>
               )}
               {/* The team was found but not the answer: what search can answer about it, one tap each. */}
@@ -303,7 +303,7 @@ export default function SearchPage() {
                   the summary first (H1, badge, summary, cards). */}
               <div className={cn(side && "lg:grid lg:grid-cols-[minmax(0,720px)_minmax(20rem,1fr)] lg:items-start lg:gap-6")} data-layout={panel ?? "single"}>
                 {sideColumn}
-                <div className="min-w-0 lg:col-start-1 lg:row-start-1">
+                <div className={cn("min-w-0 lg:col-start-1 lg:row-start-1", V8_STAGGER)} data-stagger>
                   {!panel && summary}
                   {/* A stat question's answer ("4215 highest score in worlds"): ./search/page/StatAnswer.tsx. */}
                   {/* A word's explainer with it ("how is OPR calculated, with 4215") is drawn inside its card: one answer card. */}
@@ -319,7 +319,7 @@ export default function SearchPage() {
                   {!answer?.stat && !answer?.card && <AnswerVideo className="mb-5 mt-0 max-sm:mx-0" />}
                   {!!compares.length && (
                     <section aria-label="Compare" className="mb-5" data-section="compare">
-                      <h2 className="mb-1.5 text-xs font-semibold text-muted-foreground">Compare</h2>
+                      <h2 className="mb-1.5 text-xs font-semibold text-muted-foreground v8:font-medium v8:text-text-faint">Compare</h2>
                       <div className="space-y-2">{compares.map((c) => <CompareCard key={c.href ?? c.ref} h={c} summaries={summaries} onOpen={() => open(c)} preview={phone && compareTeams(c).length >= 2 ? (from) => { if (!stale) setSheet({ hit: c, from, of: answer }); } : undefined} />)}</div>
                     </section>
                   )}
@@ -412,9 +412,9 @@ function ResultSection({ s, statuses, summaries, covered, picks, onPick, fuzzyWo
   if (teamish) for (const r of s.rows) { if (!r.sub || !teamGroups.length) teamGroups.push({ head: r, subs: [] }); else teamGroups[teamGroups.length - 1].subs.push(r); }
   return (
     <section aria-label={title} className="mb-5" data-section={s.id}>
-      <h2 className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+      <h2 className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground v8:font-medium v8:text-text-faint">
         {title}
-        {s.id !== "pages" && s.id !== "browse" && <span className="rounded-full bg-muted px-1.5 py-px text-[10px] tabular-nums text-foreground/80">{count}</span>}
+        {s.id !== "pages" && s.id !== "browse" && <span className="rounded-full bg-muted px-1.5 py-px text-[10px] tabular-nums text-foreground/80 v8:bg-transparent v8:px-0 v8:text-[0.75rem] v8:text-text-faint">{count}</span>}
       </h2>
       {s.id === "event" ? (
         <EventResults hits={s.rows.map((r) => r.hit)} statuses={statuses} twoCol={twoCol} onOpen={onOpen} />
@@ -461,18 +461,18 @@ function EventResults({ hits, statuses, twoCol, onOpen }: { hits: SearchHit[]; s
     <div className="space-y-8 max-sm:space-y-6" data-event-sections>
       {sections.map((s) => (
         <section key={s.status} aria-label={`${s.title}, ${s.count} ${s.count === 1 ? "event" : "events"}`} data-status-section={s.status}>
-          {/* The status in its palette colour (lib/textTones SEARCH_PALETTE: live rose, upcoming cyan, finished lime), the
+          {/* The status in its palette colour (lib/textTones TONE: live rose, upcoming cyan, finished lime), the
               same as the trees' bars and chips; the words and order say it without the colour. */}
-          <h3 className={cn("mb-3 flex items-center gap-2 rounded-lg px-3 py-2 font-display text-base font-bold", SEARCH_PALETTE[s.status].fill)} data-section-tone={s.status}>
-            {s.status === "live" && <span aria-hidden className="size-2 shrink-0 animate-pulse rounded-full bg-white motion-reduce:animate-none" data-live-dot />}
-            {s.title}<span className="sr-only">, </span><span className="rounded-full bg-black/25 px-2 text-sm tabular-nums" data-section-count>{s.count}</span>
+          <h3 className={cn("mb-3 flex items-center gap-2 rounded-lg px-3 py-2 font-display text-base font-bold", TONE[s.status].fill, "v8:bg-transparent v8:px-0 v8:py-1 v8:font-sans v8:font-semibold")} data-section-tone={s.status}>
+            {s.status === "live" && <span aria-hidden className="size-2 shrink-0 animate-pulse rounded-full bg-white motion-reduce:animate-none v8:bg-live" data-live-dot />}
+            {s.title}<span className="sr-only">, </span><span className="rounded-full bg-black/25 px-2 text-sm tabular-nums v8:bg-transparent v8:px-0 v8:font-normal v8:text-muted-foreground" data-section-count>{s.count}</span>
           </h3>
           <div className="space-y-5">
             {s.dates.map((d) => (
               <div key={d.key} data-date-section={d.key}>
                 {d.title && (
-                  <h4 className={cn("mb-2 flex min-w-0 items-baseline gap-1.5 border-l-4 pl-2 text-sm font-semibold text-foreground", SEARCH_PALETTE[s.status].edge)}>
-                    <span className="truncate">{d.title}</span><span className={cn("shrink-0 tabular-nums", SEARCH_PALETTE[s.status].text)}>· {d.count}</span>
+                  <h4 className={cn("mb-2 flex min-w-0 items-baseline gap-1.5 border-l-4 pl-2 text-sm font-semibold text-foreground", TONE[s.status].edge)}>
+                    <span className="truncate">{d.title}</span><span className={cn("shrink-0 tabular-nums", TONE[s.status].text)}>· {d.count}</span>
                   </h4>
                 )}
                 <div className={grid}>
@@ -501,8 +501,8 @@ function TeamLinks({ team, season }: { team: number; season?: number | null }) {
     { label: "Compare with another team", to: `/compare?teams=${team}${season != null ? `&season=${season}` : ""}` },
   ];
   return (
-    <nav aria-label={`Team ${team} pages`} className="rounded-xl border border-border bg-card p-3" data-team-links>
-      <p className="px-1 text-xs font-semibold text-muted-foreground">Team {team}</p>
+    <nav aria-label={`Team ${team} pages`} className="rounded-xl border border-border bg-card p-3 v8:border-line" data-team-links>
+      <p className="px-1 text-xs font-semibold text-muted-foreground v8:font-medium v8:text-text-faint">Team {team}</p>
       <ul className="mt-1.5">
         {links.map((l) => <li key={l.to}><Link to={l.to} className="flex min-h-[44px] items-center justify-between rounded-lg px-2 py-2 text-sm text-foreground hover:bg-muted/60">{l.label}<ArrowRight className="size-4 text-muted-foreground" aria-hidden /></Link></li>)}
       </ul>

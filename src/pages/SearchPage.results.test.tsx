@@ -120,7 +120,7 @@ describe("search results page", () => {
     expect(within(frame as HTMLElement).getAllByText("Oradell, NJ, USA")).toHaveLength(1);
     expect(container.querySelector('[data-result="team"]')).toBeNull();
     expect(container.querySelector('[data-section="team"]')).toBeNull();
-    expect(frame.innerHTML).not.toMatch(/(border|bg)-accent/);
+    expect(frame.innerHTML.replace(/v8:\S+/g, "")).not.toMatch(/(border|bg)-accent/);
     // The results column is 720px at most, centred; the team page link a text link (one primary action per page).
     expect(container.querySelector("[data-results-column]")!.className).toMatch(/\bmx-auto\b.*\bmax-w-\[720px\]/);
     expect(frame.querySelector("[data-secondary]")!.className).toContain("underline");

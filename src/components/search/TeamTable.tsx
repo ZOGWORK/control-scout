@@ -8,13 +8,16 @@ import { ArrowDown, ArrowUp, ChevronDown } from "lucide-react";
 import { firstDir, hasPhases, phaseNote, sortTeamRows, teamColumns, type TeamSortKey, type TeamTable as Table, type TeamTableRow } from "../../shared/teamTable";
 import { cn } from "../cn";
 import { INK_BAR, RecordText, TAP } from "./page/answerCells";
-import { PODIUM_CHIP, SEARCH_PALETTE } from "../../lib/textTones";
+import { PODIUM_CHIP } from "../../lib/textTones";
+import { TONE, V8_PODIUM } from "./page/v8tone";
 
 // Each phase column in search's palette colour for it, header and numbers (the same colours as every other card).
-const P = SEARCH_PALETTE;
+const P = TONE;
 
 /** The top three's rank badges: bordered and bold, no hue. */
-const TOP3: Record<number, string> = PODIUM_CHIP;
+const TOP3: Record<number, string> = { 1: `${PODIUM_CHIP[1]} ${V8_PODIUM[1]}`, 2: `${PODIUM_CHIP[2]} ${V8_PODIUM[2]}`, 3: `${PODIUM_CHIP[3]} ${V8_PODIUM[3]}` };
+/** v8: the phase headers read like every other header (faint, sentence case); the numbers are the data. */
+const V8_HEAD = "v8:font-medium v8:text-text-faint";
 
 const oneDp = (v: number | null) => (v == null ? "–" : (Math.round(v * 10) / 10).toFixed(1));
 const record = (r: TeamTableRow) => `${r.wins}-${r.losses}-${r.ties}`;
@@ -76,9 +79,9 @@ export function TeamTable({ table, label }: { table: Table; label: string }) {
 
   return (
     <figure data-team-table data-sort-key={sort.key} data-sort-dir={sort.dir}>
-      <div className="overflow-x-auto rounded-lg border border-border bg-card">
+      <div className="overflow-x-auto rounded-lg border border-border bg-card v8:border-line">
         <table className="w-full text-sm" aria-label={label}>
-          <thead className="bg-muted/50 text-left text-[11px] text-muted-foreground">
+          <thead className="bg-muted/50 text-left text-[11px] text-muted-foreground v8:bg-transparent v8:text-[0.75rem] v8:text-text-faint">
             <tr>
               <th scope="col" aria-sort={sort.key === "rank" ? "ascending" : "none"} className={cn(th, "w-8 text-right")}>
                 <button type="button" onClick={() => setSort({ key: "rank", dir: "asc" })} title="The list's own order" data-sort="rank" className={cn("rounded hover:text-foreground", TAP, sort.key === "rank" && "text-foreground")}>#</button>
@@ -87,10 +90,10 @@ export function TeamTable({ table, label }: { table: Table; label: string }) {
               {table.asked && sortTh("asked", table.asked.label, "max-md:whitespace-normal max-md:leading-tight", table.asked.label)}
               {sortTh("opr", "OPR", cn("md:w-28", byPhase && "max-md:hidden"))}
               {phases && <>
-                {sortTh("auto", "Auto", cn(onPhone("auto"), "font-semibold", P.auto.text))}
-                {sortTh("dc", withEndgame ? "TeleOp" : "DC", cn(onPhone("dc"), "font-semibold", P.teleop.text))}
-                {sortTh("endgame", "Endgame", cn(onPhone("endgame"), "font-semibold", P.endgame.text))}
-                {sortTh("pen", "Pen", cn("max-md:hidden font-semibold", P.pen.text))}
+                {sortTh("auto", "Auto", cn(onPhone("auto"), "font-semibold", P.auto.text, V8_HEAD))}
+                {sortTh("dc", withEndgame ? "TeleOp" : "DC", cn(onPhone("dc"), "font-semibold", P.teleop.text, V8_HEAD))}
+                {sortTh("endgame", "Endgame", cn(onPhone("endgame"), "font-semibold", P.endgame.text, V8_HEAD))}
+                {sortTh("pen", "Pen", cn("max-md:hidden font-semibold", P.pen.text, V8_HEAD))}
               </>}
               {sortTh("record", "W-L-T", recordAside ? "max-md:hidden" : undefined)}
               {phases && <th scope="col" className="w-8 md:hidden"><span className="sr-only">Phases</span></th>}
@@ -111,8 +114,8 @@ export function TeamTable({ table, label }: { table: Table; label: string }) {
                     </td>
                     <td className="px-2 py-1.5 max-md:w-full max-md:max-w-0 max-md:px-1.5">
                       {/* The clamp on the text, not the link: the link's tap padding would show a third line over the town. */}
-                      <Link to={r.href} className="block font-medium text-foreground hover:text-accent-text hover:underline max-md:min-w-[44px] pointer-coarse:min-w-[44px] max-md:-my-[13px] max-md:py-[13px] pointer-coarse:-my-[13px] pointer-coarse:py-[13px]"><span className="line-clamp-2 break-words"><span className="tabular-nums">{r.team}</span>{r.name && ` ${r.name}`}</span></Link>
-                      {r.location && <span className="block break-words text-[11px] text-muted-foreground">{r.location}</span>}
+                      <Link to={r.href} className="block font-medium text-foreground hover:text-accent-text v8:hover:text-foreground hover:underline max-md:min-w-[44px] pointer-coarse:min-w-[44px] max-md:-my-[13px] max-md:py-[13px] pointer-coarse:-my-[13px] pointer-coarse:py-[13px]"><span className="line-clamp-2 break-words"><span className="tabular-nums">{r.team}</span>{r.name && ` ${r.name}`}</span></Link>
+                      {r.location && <span className="block break-words text-[11px] text-muted-foreground v8:text-[0.75rem]">{r.location}</span>}
                     </td>
                     {table.asked && <td className="whitespace-nowrap px-2 py-1.5 text-right font-medium tabular-nums text-foreground" data-asked>{r.asked?.display ?? "–"}</td>}
                     <td className={cn("relative px-2 py-1.5 text-right font-semibold tabular-nums text-foreground", byPhase && "max-md:hidden")} data-opr>
@@ -139,7 +142,7 @@ export function TeamTable({ table, label }: { table: Table; label: string }) {
                   {phases && (
                     <tr id={more} hidden={!isOpen} className="md:hidden" data-phases-row={r.team}>
                       <td colSpan={cols} className="px-3 pb-2.5 pt-0.5">
-                        <dl className={cn("grid gap-1 text-[11px]", recordAside ? "grid-cols-5" : "grid-cols-4")}>
+                        <dl className={cn("grid gap-1 text-[11px] v8:text-[0.75rem]", recordAside ? "grid-cols-5" : "grid-cols-4")}>
                           {segments.map((p) => (
                             <div key={p.key}>
                               <dt className="text-muted-foreground">{p.key === "pen" ? "Pen" : p.label}</dt>
@@ -163,11 +166,11 @@ export function TeamTable({ table, label }: { table: Table; label: string }) {
         </table>
       </div>
       {phases && (
-        <figcaption className="mt-1.5 space-y-1 text-[11px] text-muted-foreground" data-legend>
+        <figcaption className="mt-1.5 space-y-1 text-[11px] text-muted-foreground v8:text-[0.75rem] v8:text-text-faint" data-legend>
           <span className="block" data-phase-note>{phaseNote(withEndgame)}</span>
         </figcaption>
       )}
-      <details className="mt-1 text-[11px] text-muted-foreground" data-column-defs>
+      <details className="mt-1 text-[11px] text-muted-foreground v8:text-[0.75rem] v8:text-text-faint" data-column-defs>
         <summary className="cursor-pointer select-none hover:text-foreground max-md:min-h-[44px] max-md:py-[13px] pointer-coarse:min-h-[44px] pointer-coarse:py-[13px]">What the columns mean</summary>
         <dl className="mt-1 space-y-0.5">
           {columns.filter((c) => phases || !["auto", "dc", "endgame", "pen"].includes(c.key)).map((c) => (
