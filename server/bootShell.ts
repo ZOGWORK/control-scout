@@ -5,6 +5,9 @@
 // of it in one step. Self-contained: inline styles, no icons, plain links that
 // work without JS. The theme comes from the class the inline <head> script sets
 // on <html> (index.html): dark by default, html.light, html.dim or html.midnight otherwise.
+// v8 (docs/design/v8-revamp-brief.md: <html data-v8>, set by the same script before this paints) gets its own layer at the end of
+// BOOT_STYLE: the white mark, the wash, a borderless top row, and on Home the search alone in the middle, so the old look
+// never flashes before the app.
 //
 // Offline, the service worker answers every page with the cached "/" HTML, so
 // the page block carries the path it was made for and hides itself on another.
@@ -123,6 +126,20 @@ export const BOOT_STYLE = `<style>
       .csbc-btns{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
       .csbc-btns button{height:32px;padding:0 12px;border:1px solid var(--b-line);border-radius:8px;background:var(--b-pop);color:var(--b-fg);font:600 12px/1 Inter,ui-sans-serif,system-ui,sans-serif;cursor:pointer}
       @media (min-width:768px){.csbc{left:16px;right:auto;bottom:7rem;width:22rem}}
+      html[data-v8] .csb{--b-side:#0e0e10;--b-line:#ffffff0f;--b-acc:#7fd1ae}
+      html[data-v8] .csb-brand img,html[data-v8] .csb-top>a img{content:url(/mark-white.webp)}
+      html[data-v8] .csb-brand{height:56px;padding:0 16px;font-size:13.5px;font-weight:600}
+      html[data-v8] .csb-brand img{width:18px;height:18px}
+      html[data-v8] .csb-top>a img{width:20px;height:20px}
+      html[data-v8] .csb-nav a[aria-current] .csb-ico{background:var(--b-fg);opacity:.9}
+      html[data-v8] .csb-top{border-bottom-color:transparent;background:transparent}
+      html[data-v8] .csb .csb-crumb{display:none}
+      html[data-v8] .csb-main{background:none}
+      html[data-v8] .csb-col{background-repeat:no-repeat;background-image:radial-gradient(60% 34vh at 12% 0,#44587f80,transparent 72%),radial-gradient(55% 32vh at 52% 0,#4a446280,transparent 72%),radial-gradient(60% 34vh at 90% 0,#6e507680,transparent 72%)}
+      html[data-v8] .csb-home .csb-hl,html[data-v8] .csb-home>p{display:none}
+      html[data-v8] .csb-home{display:flex;flex-direction:column;align-items:center;padding-top:15vh}
+      html[data-v8] .csb-home>div:not(.csb-hl){width:100%;max-width:40rem;height:50px;margin:0;border-color:#ffffff1f;border-radius:13px;background:#1b1b1e}
+      @media (min-width:768px){html[data-v8] .csb-side{width:223px}}
     </style>`;
 
 // The app's ConsentBanner (src/components/layout/ConsentBanner.tsx) takes over from the static banner by
