@@ -12,6 +12,7 @@ import { useApi } from "../../../lib/api";
 import { dateRange, seasonLabel } from "../../../lib/format";
 import { cn } from "../../cn";
 import { RecordText } from "./answerCells";
+import { V8_SOFT, v8Tile, type SoftColour } from "./v8tone";
 import { eventFacts, teamParts } from "./results";
 import type { SeasonSummary } from "./ResultCards";
 
@@ -77,12 +78,17 @@ function when(m: MatchView): string | null {
   return m.time;
 }
 
+/** Each fact tile's soft colour on the team card (issue #2014: the classic KPI tiles were coloured, each its own;
+ *  v8 had drawn them all plain): the record's wins green, OPR in its purple (as on every answer), the rank in the
+ *  slate-blue accent, the best score orange, so no two tiles share one. Text, a thin bracket and nothing else. */
+export const TEAM_FACT_COLOUR: Record<string, SoftColour> = { Record: "green", OPR: "purple", "OPR rank": "accent", "Best score": "orange" };
+
 /** A team asked for by itself: its summary in one compact card, its next match (else its last) in it, the team page a tap away. */
 export function V8TeamAnswer({ team, name, place, summary, stat }: { team: number; name: string; place?: string; summary?: SeasonSummary; stat?: StatAnswer }) {
   const s = summary?.s;
   const next = useNextMatch(team, summary?.season ?? null);
   const facts: { label: string; value: ReactNode }[] = [];
-  if (s?.record) facts.push({ label: "Record", value: <RecordText text={s.record} /> });
+  if (s?.record) facts.push({ label: "Record", value: <RecordText text={s.record} win={V8_SOFT.green.text} /> });
   if (s?.opr != null) facts.push({ label: "OPR", value: s.opr.toFixed(1) });
   if (s?.oprRank != null) facts.push({ label: "OPR rank", value: <>#{s.oprRank.toLocaleString()}{s.of != null && <span className="text-text-faint"> of {s.of.toLocaleString()}</span>}</> });
   if (stat?.intent === "team-highlights" && stat.headline) facts.push({ label: "Best score", value: stat.headline.value.replace(/\s*points?$/i, "") });
@@ -104,9 +110,9 @@ export function V8TeamAnswer({ team, name, place, summary, stat }: { team: numbe
       {facts.length > 0 && (
         <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 border-t border-line pt-4 sm:grid-cols-4" data-team-facts>
           {facts.map((f) => (
-            <div key={f.label} className="min-w-0">
+            <div key={f.label} className={cn("min-w-0 pl-3", v8Tile(TEAM_FACT_COLOUR[f.label] ?? "neutral").tile)} data-fact={f.label} data-colour={TEAM_FACT_COLOUR[f.label] ?? "neutral"}>
               <dt className="text-xs text-text-faint">{f.label}{f.label === "Record" && summary ? `, ${seasonLabel(summary.season)}` : ""}</dt>
-              <dd className="mt-0.5 text-lg font-semibold tabular-nums text-foreground">{f.value}</dd>
+              <dd className={cn("mt-0.5 text-lg font-semibold tabular-nums text-foreground", v8Tile(TEAM_FACT_COLOUR[f.label] ?? "neutral").value)}>{f.value}</dd>
             </div>
           ))}
         </dl>
@@ -120,11 +126,21 @@ export function V8TeamAnswer({ team, name, place, summary, stat }: { team: numbe
             <span className="text-text-muted"> · {at}{next.kind === "next" && when(next.m) ? ` · ${when(next.m)}` : ""}</span>
           </span>
           {next.kind === "last" && next.m.red.score && next.m.blue.score && us && (
-            <span className="shrink-0 tabular-nums text-foreground">{(us === "red" ? next.m.red : next.m.blue).score!.total}–{(us === "red" ? next.m.blue : next.m.red).score!.total}</span>
+            <LastScore own={(us === "red" ? next.m.red : next.m.blue).score!.total} opp={(us === "red" ? next.m.blue : next.m.red).score!.total} />
           )}
         </Link>
       )}
     </section>
+  );
+}
+
+/** The last match's score in its result's soft tint: won green, lost red, tied plain. */
+export function LastScore({ own, opp }: { own: number; opp: number }) {
+  const c = own > opp ? "green" : own < opp ? "red" : null;
+  return (
+    <span className="shrink-0 tabular-nums text-foreground" data-last-result={c === "green" ? "won" : c === "red" ? "lost" : "tied"}>
+      <span className={cn("font-semibold", c && V8_SOFT[c].text)}>{own}</span><span className="text-text-muted">–{opp}</span>
+    </span>
   );
 }
 
