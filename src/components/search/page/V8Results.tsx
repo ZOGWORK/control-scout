@@ -184,7 +184,7 @@ export function TeamRow({ h, summary, onOpen }: { h: SearchHit; summary?: Season
     <Link to={hitHref(h)} onClick={onOpen} className={ROW} data-row="team">
       <Shield className="size-4 shrink-0 text-text-muted" aria-hidden />
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-foreground"><span className="tabular-nums">{p?.number ?? h.ref}</span>{p?.name && <span> {p.name}</span>}</span>
+        <span className="block truncate text-foreground"><span className="font-medium tabular-nums text-accent">{p?.number ?? h.ref}</span>{p?.name && <span> {p.name}</span>}</span>
         {h.subtitle && <span className="block truncate text-xs text-text-muted">{h.subtitle}</span>}
       </span>
       {s && (s.record || s.opr != null) && (
