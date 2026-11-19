@@ -28,7 +28,7 @@ import { factorLabel } from "../lib/factorLabel";
 import { TeamSnack, TeamSnackContext, nameIn, useTeamSnack, useTeamSnackState } from "./TeamSnack";
 import { hasTeamPage } from "../shared/teamPages";
 import { Spacer, useVirtualRows } from "./ui/windowing";
-import { isV8, useIsV8, V8_NUM } from "../lib/v8";
+import { isV8, useIsV8 } from "../lib/v8";
 import { usePersonal } from "../lib/personal";
 import { myTeamsOf } from "../lib/myTeams";
 
@@ -395,7 +395,7 @@ function RowTeams({ side, m, highlight, followed }: { side: Side; m: MatchView; 
   // The number in mono; the name beside it only on a wide row (truncated to the room it has).
   const body = (t: MatchView["red"]["teams"][number], mine: boolean) => (
     <>
-      <span className={cn("shrink-0 font-mono tabular-nums", mine ? "font-semibold" : V8_NUM)}>{t.number}</span>
+      <span className={cn("shrink-0 font-mono tabular-nums", mine && "font-semibold")}>{t.number}</span>
       {t.name && <span className={cn("hidden min-w-0 truncate", mine ? "text-text-base" : "text-text-muted", "@4xl:inline")} data-team-name>{t.name}</span>}
     </>
   );
