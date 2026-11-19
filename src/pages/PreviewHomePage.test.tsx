@@ -211,6 +211,11 @@ describe("Sample home dashboard", () => {
     expect(rows[0].textContent).toContain("200.0");
     expect(cls(rows[0].querySelector("[data-rank]")!)).toContain("text-accent");
     expect(cls(rows[1].querySelector("[data-rank]")!)).not.toContain("text-accent");
+    // v8: the podium, gold / silver / bronze (lib/v8colour.ts), then grey.
+    expect(cls(rows[0].querySelector("[data-rank]")!)).toContain("v8:text-yellow-400");
+    expect(cls(rows[1].querySelector("[data-rank]")!)).toContain("v8:text-slate-300");
+    expect(cls(rows[2].querySelector("[data-rank]")!)).toContain("v8:text-amber-600");
+    expect(cls(rows[3].querySelector("[data-rank]")!)).toContain("v8:text-text-muted");
   });
 
   it("falls back to last season's leaders, labelled, before anyone has a record this season", () => {
@@ -293,7 +298,10 @@ describe("Sample home dashboard", () => {
     const root = container.querySelector("[data-theme-next]") as HTMLElement;
     expect(root.style.getPropertyValue("--color-accent")).toBe(MINT.accent);
     const html = container.innerHTML.toLowerCase();
-    expect(html).not.toMatch(/#ffc700|#ffd633|#eab308|text-accent-text|text-yellow|bg-yellow/);
+    // No yellow chrome. The one gold is v8's #1 rank in Top teams (a podium colour, lib/v8colour.ts).
+    const rankGold = [...container.querySelectorAll("[data-rank]")].filter((el) => cls(el).includes("v8:text-yellow-400"));
+    expect(rankGold).toHaveLength(1);
+    expect(html.replaceAll("v8:text-yellow-400", "")).not.toMatch(/#ffc700|#ffd633|#eab308|text-accent-text|text-yellow|bg-yellow/);
     const all = [...container.querySelectorAll("*")];
     // Mint fills: the live progress, nothing else.
     const fills = all.filter((el) => /(^|\s)bg-accent(\s|$)/.test(cls(el)));
