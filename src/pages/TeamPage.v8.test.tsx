@@ -95,7 +95,7 @@ describe("team page, v8 on", () => {
     expect(document.querySelector("[data-hero-glow]")).toBeNull();
   });
 
-  it("shows every action in one row under the standing: My team primary, the rest outlined or quiet, More for rare ones", () => {
+  it("shows every action in one row under the standing: My team primary, the rest outlined or quiet, rare ones as links", () => {
     mount();
     const actions = document.querySelector<HTMLElement>("[data-hero-actions]")!;
     // Under the standing, in the left column beside What's next (not in the header).
@@ -111,10 +111,11 @@ describe("team page, v8 on", () => {
     expect(within(actions).getByRole("button", { name: /Share/ })).toBeTruthy();
     // Highlights is an action now, not a link on the Matches header.
     expect(document.querySelector("#matches [data-highlights-link]")).toBeNull();
-    // More keeps only the rare ones.
-    fireEvent.pointerDown(within(actions).getByRole("button", { name: "More actions" }), { button: 0, ctrlKey: false });
-    const menu = screen.getByRole("menu");
-    expect(within(menu).getAllByRole("menuitem").map((m) => m.textContent?.trim())).toEqual(["Manage this team in Control Point"]);
+    // The rare ones as quiet links under the row, as on classic; no More button left in the row.
+    expect(within(actions).queryByRole("button", { name: "More actions" })).toBeNull();
+    const links = document.querySelector<HTMLElement>("[data-hero-links]")!;
+    expect(follows(actions, links)).toBe(true);
+    expect(within(links).getByRole("link", { name: /Manage this team in Control Point/ })).toBeTruthy();
   });
 
   it("draws My team filled once it's set, with no primary left, and Tracking and Shortlisted pressed", () => {
@@ -160,6 +161,15 @@ describe("team page, v8 on", () => {
     fireEvent.click(teleop);
     expect(teleop.getAttribute("aria-expanded")).toBe("true");
     expect(document.querySelector("[data-opr-breakdown]")).not.toBeNull();
+  });
+
+  it("draws each award's icon and name in gold, the event line grey", () => {
+    mount();
+    const name = document.querySelector<HTMLElement>("#awards [data-award-name]")!;
+    expect(name.textContent).toBe("Inspire");
+    expect(name.className).toContain("v8:text-[#fcd34d]");
+    expect(name.previousElementSibling!.getAttribute("class")).toContain("v8:text-[#fcd34d]");
+    expect(name.closest("a")!.lastElementChild!.className).toContain("text-muted-foreground");
   });
 
   it("leaves the hover lift off every row and card", () => {

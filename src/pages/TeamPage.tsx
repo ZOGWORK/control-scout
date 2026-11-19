@@ -518,6 +518,9 @@ function MatchesSection({ team, season, events, predictable }: { team: number; s
   );
 }
 
+/** v8: awards mean gold (the owner's call), a soft gold on dark and a deep amber that stays readable on light. */
+const V8_GOLD = "v8:text-[#fcd34d] v8:[html.light_&]:text-amber-700";
+
 export function AwardsAllTime({ p }: { p: TeamProfile }) {
   const v8 = useIsV8();
   if (!p.awardsAllTime.length) return null;
@@ -528,7 +531,7 @@ export function AwardsAllTime({ p }: { p: TeamProfile }) {
         {p.awardsAllTime.map((a, i) => (
           // The event on its own muted line: a tooltip never opens on a tap.
           <Link key={i} to={`/events/${a.season}/${a.code}`} className={cn("tap-44", v8Row(v8), "inline-flex max-w-[18rem] flex-col rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs")}>
-            <span className="inline-flex items-center gap-1.5"><Award className="size-3.5 shrink-0 text-accent v8:text-text-faint" />{awardLabel(a.type, a.placement)}<span className="text-muted-foreground">· {seasonLabel(a.season)}</span></span>
+            <span className="inline-flex items-center gap-1.5"><Award className={cn("size-3.5 shrink-0 text-accent", V8_GOLD)} /><span className={cn("v8:font-medium", V8_GOLD)} data-award-name>{awardLabel(a.type, a.placement)}</span><span className="text-muted-foreground">· {seasonLabel(a.season)}</span></span>
             <span className="truncate pl-5 text-muted-foreground" title={a.event}>{a.event}</span>
           </Link>
         ))}
@@ -805,8 +808,8 @@ const websiteHref = (w: string) => (w.startsWith("http") ? w : `https://${w}`);
 
 /**
  * Every action, visible (as classic's row): My team (the one primary until it's set, then filled), Track, Shortlist,
- * Compare, Highlights outlined; quals vs playoffs and Share quiet; More keeps only the rare ones (the followed team
- * dashboard, Manage in Control Point). Under the standing, in the space beside the taller What's next. On a phone the
+ * Compare, Highlights outlined; quals vs playoffs and Share quiet; the rare ones (Manage in Control Point, the followed
+ * team dashboard) as small links under the row. Under the standing, in the space beside the taller What's next. On a phone the
  * sticky bar keeps Predict and Track in reach once this row has scrolled away, and its More holds all the rest.
  */
 function V8Actions({ p }: { p: TeamProfile }) {
@@ -836,16 +839,12 @@ function V8Actions({ p }: { p: TeamProfile }) {
         {p.highlights && <Button size="sm" variant="outline" asChild className={tap} data-hero-action><Link to={`/teams/${t.number}/highlights`} data-highlights-link><Sparkles /> Highlights</Link></Button>}
         {p.recordSplit && <Button size="sm" variant="ghost" asChild className={tap} data-hero-action><Link to={`/teams/${t.number}/record-split`} data-record-split-link><Trophy /> Quals vs playoffs</Link></Button>}
         <Button size="sm" variant="ghost" onClick={() => copyLink()} className={tap} data-hero-action><Link2 /> Share</Button>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon-sm" aria-label="More actions" className="max-sm:size-10" data-hero-more><MoreHorizontal /></Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="min-w-[14rem]">
-            {dashboard && <DropdownMenuItem asChild><Link to={FOLLOWED_TEAM_PATH}><Star /> My followed team dashboard</Link></DropdownMenuItem>}
-            <DropdownMenuItem asChild><a href="https://tryctrlpoint.org" target="_blank" rel="noreferrer noopener"><ExternalLink /> Manage this team in Control Point</a></DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
       </div>
+      {/* The rare ones as quiet links under the row, as on classic (a lone More button wrapped onto a line of its own). */}
+      <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-text-faint" data-hero-links>
+        <a href="https://tryctrlpoint.org" target="_blank" rel="noreferrer noopener" className="tap-44 inline-flex items-center gap-1.5 underline decoration-current/40 underline-offset-2 hover:text-text-base">Manage this team in Control Point <ExternalLink className="size-3" aria-hidden /></a>
+        {dashboard && <Link to={FOLLOWED_TEAM_PATH} className="tap-44 inline-flex items-center gap-1.5 hover:text-text-base"><Star className="size-3" aria-hidden /> My followed team dashboard</Link>}
+      </p>
       <div ref={setRowEnd} aria-hidden />
       {/* Phones: once the row has scrolled away, Predict and Track stay in reach, and More holds every other action. */}
       <StickyActions after={rowEnd} label={`Actions for team ${t.number}`}>
