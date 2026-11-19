@@ -6,7 +6,7 @@ const EDGE_PADDING = 0.08;
 const TRAVEL_WIDTH = 1 + EDGE_PADDING * 2;
 const SAMPLES = 320;
 
-type Particle = { x: number; depth: number; travel: number; size: number; phase: number };
+type Particle = { x: number; depth: number; travel: number; size: number; phase: number; stream: -1 | 0 | 1 };
 
 function particleGroups(count: number) {
   // Repeatable across renders and sizes, without the regular spacing of a grid.
@@ -28,6 +28,7 @@ function particleGroups(count: number) {
     groups[color * 4 + tone].dots.push({
       x, depth, phase: random() * Math.PI * 2, travel: 0.016 + random() * 0.022,
       size: 0.44 + random() ** 1.8 * 0.84,
+      stream: (random() < 0.22 ? -1 : random() < 0.29 ? 1 : 0),
     });
   }
   return groups;
@@ -83,8 +84,10 @@ export function DotWave() {
           const mix = index - column;
           const center = centers[column] + (centers[column + 1] - centers[column]) * mix;
           const spread = widths[column] + (widths[column + 1] - widths[column]) * mix;
+          // Two quieter streams cross the broad central ribbon at shallow opposing angles.
+          const angle = dot.stream * ((x - 0.5) * 0.15 + Math.sin(x * 5.2 + dot.stream) * 0.012);
           const drift = Math.sin(time * 0.2 + dot.phase) * 0.0035;
-          const y = (center + dot.depth * spread + drift) * height;
+          const y = (center + dot.depth * spread + angle + drift) * height;
           ctx.fillRect(x * width, y, dot.size, dot.size * 0.88);
         }
       }
@@ -136,5 +139,5 @@ export function DotWave() {
     };
   }, []);
 
-  return <canvas ref={ref} data-dot-wave aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-dvh w-full [mask-image:linear-gradient(transparent,#000_18%,#000_89%,transparent)]" />;
+  return <canvas ref={ref} data-dot-wave data-dot-streams="3" aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-dvh w-full [mask-image:linear-gradient(transparent,#000_18%,#000_89%,transparent)]" />;
 }

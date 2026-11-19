@@ -163,7 +163,7 @@ describe("Sample home dashboard", () => {
     expect(container.innerHTML).not.toContain("zoom");
   });
 
-  it("places the decorative particle canvas behind the dashboard", () => {
+  it("marks the particle canvas as decorative", () => {
     resetFlags({ ...DEFAULT_FLAGS }, true);
     const { container } = mount();
     const wash = container.querySelector("[data-wash]") as HTMLElement;

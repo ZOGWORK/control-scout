@@ -93,6 +93,15 @@ describe("v8 shell", () => {
     expect(container.querySelector("[data-dot-wave]")).toBeNull();
     expect(container.querySelector("[data-wash]")).toBeTruthy();
   });
+
+  it("uses the three-stream particle background throughout the v8 app", () => {
+    act(() => resetFlags({ ...DEFAULT_FLAGS }, true));
+    for (const path of ["/", "/events", "/events/2026/USNJQ1", "/teams", "/teams/4215", "/rankings", "/predict", "/my-team", "/scout", "/compare", "/shortlist", "/rules", "/download", "/settings"]) {
+      const { container } = shell(path);
+      expect(container.querySelector("canvas[data-dot-wave]")?.getAttribute("data-dot-streams"), path).toBe("3");
+      cleanup();
+    }
+  });
 });
 
 describe("without v8", () => {
