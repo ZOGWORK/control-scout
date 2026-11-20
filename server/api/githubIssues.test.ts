@@ -3,6 +3,7 @@ import { migrate, openDb, run, setDb } from "../db";
 import { rebuildSearch } from "../stats/job";
 import { CURRENT_SEASON as S } from "../data/seasons";
 import { searchAnswer } from "./searchAnswer";
+import { parseIntent } from "./searchIntents";
 
 beforeAll(async () => {
   setDb(openDb(":memory:"));
@@ -16,6 +17,12 @@ beforeAll(async () => {
 });
 
 const ask = (q: string) => searchAnswer(q, { limit: 40, full: true, learn: false });
+
+it("does not turn ordinary lowercase words into state codes (Loopy review)", () => {
+  for (const q of ["teams around me", "events in or", "rank in hi"])
+    expect(parseIntent(q)?.region).toBeFalsy();
+  expect(parseIntent("4215 ranking in nj state")?.region?.state).toBe("NJ");
+});
 
 it("finds a named event with a game season and no event-kind word (#2021)", async () => {
   expect((await ask("seneca valley bio buzz")).hits.map(h => h.ref)).toContain(`${S}:Q1`);

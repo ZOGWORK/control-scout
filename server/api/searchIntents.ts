@@ -92,10 +92,10 @@ function seasonIn(q: string): { season: number; game: string | null; rest: strin
 /** The region a query names: "state of New Jersey", "in Texas", "from NJ", "New Jersey state", or (with a ranking
  *  word) a region's full name anywhere. Only exact names: "new" is no region. */
 function regionIn(q: string, ranking: boolean): { region: Region; rest: string; bare: boolean } | null {
-  const exact = (cand: string): Region | null => {
+  const exact = (cand: string, stateAfter = false): Region | null => {
     const c = cand.trim();
     if (!c) return null;
-    return findRegions(c).find((r) => fold(r.name) === fold(c) || (c.length === 2 && r.state === c.toUpperCase())) ?? null;
+    return findRegions(c).find((r) => fold(r.name) === fold(c) || (c.length === 2 && (stateAfter || /^[A-Z]{2}$/.test(c)) && r.state === c.toUpperCase())) ?? null;
   };
   const tokens = q.split(" ");
   for (let i = 0; i < tokens.length; i++) {
@@ -103,15 +103,15 @@ function regionIn(q: string, ranking: boolean): { region: Region; rest: string; 
     if (!marker) continue;
     for (let n = 4; n >= 1; n--) {
       const cand = tokens.slice(i + marker, i + marker + n).join(" ");
-      const r = exact(cand);
+      const r = exact(cand, /^state$/i.test(tokens[i + marker + n] ?? ""));
       if (r) return { region: r, rest: squash([...tokens.slice(0, i), ...tokens.slice(i + marker + n)].join(" ")), bare: false };
     }
   }
   for (let i = 0; i < tokens.length; i++) for (let n = 3; n >= 1; n--) {
     const cand = tokens.slice(i, i + n).join(" ");
     const stateAfter = /^state$/i.test(tokens[i + n] ?? "");
-    if ((stateAfter || (ranking && cand.length >= 4)) && exact(cand)) {
-      return { region: exact(cand)!, rest: squash([...tokens.slice(0, i), ...tokens.slice(i + n + (stateAfter ? 1 : 0))].join(" ")), bare: !stateAfter };
+    if ((stateAfter || (ranking && cand.length >= 4)) && exact(cand, stateAfter)) {
+      return { region: exact(cand, stateAfter)!, rest: squash([...tokens.slice(0, i), ...tokens.slice(i + n + (stateAfter ? 1 : 0))].join(" ")), bare: !stateAfter };
     }
   }
   return null;
