@@ -34,6 +34,15 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); resetFlags(); document.documentElement.removeAttribute("data-v8"); });
 
 describe("v8 shell", () => {
+  it("shows the dog photograph when the owner enables Dog Mode, and removes it when disabled", () => {
+    const { container } = shell("/teams/4215");
+    expect(container.querySelector("[data-dog-bg]")).toBeNull();
+    act(() => resetFlags({ ...DEFAULT_FLAGS, dogTheme: true }, true));
+    expect(container.querySelector("[data-dog-bg]")?.classList.contains("dog-bg")).toBe(true);
+    expect(container.querySelector("[data-ambient]")).toBeNull();
+    act(() => resetFlags({ ...DEFAULT_FLAGS, dogTheme: false }, true));
+    expect(container.querySelector("[data-dog-bg]")).toBeNull();
+  });
   it("has the Gemini-like sidebar: the mark and name, one fold button, the pages, nothing at its foot", () => {
     const { container } = shell();
     const side = container.querySelector("[data-v8-sidebar]") as HTMLElement;

@@ -469,8 +469,8 @@ export function Shell({ children }: { children: ReactNode }) {
               {/* The ambient layer fills the screen under the top bar and stays there while the page scrolls
                   over it (sticky, and pulled out of the flow by its negative margin). svh, not dvh: a phone's
                   toolbar folding away must not resize it mid-scroll. */}
-              {!bare && !v8 && <div className="pointer-events-none sticky top-(--header-h) -mb-[calc(100svh-var(--header-h))] h-[calc(100svh-var(--header-h))]">
-                <Ambient target={mainRef} />
+              {!bare && (!v8 || dog) && <div className="pointer-events-none sticky top-(--header-h) -mb-[calc(100svh-var(--header-h))] h-[calc(100svh-var(--header-h))]">
+                {!v8 && <Ambient target={mainRef} />}
                 {dog && <div aria-hidden className="dog-bg" data-dog-bg />}
               </div>}
               <main id="main" ref={mainRef} className={bare ? "relative" : "m-canvas relative z-10"}>

@@ -19,6 +19,7 @@ import type { StatAnswer, StatBlock, StatLink, StatMatchRow } from "../src/share
 import { SEARCH_PAGE_LIMIT, SORRY_SENTENCE, hitHref } from "../src/shared/search.js";
 import { FOOTER, VOLT, teamLink } from "./views.js";
 import type { BrunoChatTurn } from "../server/auth/controlPoint.js";
+import { productFacts } from "./productFacts.js";
 
 /** The credit an answer Bruno helped with carries, in the footer above Control Scout's own line. */
 export const BRUNO_CREDIT = "Bruno AI, from Control Point";
@@ -89,10 +90,12 @@ export async function realAskDeps(): Promise<AskDeps> {
     facts: (a) => answerFacts(a),
     chat: async (message, facts, history) => {
       if (!brunoAvailable() || !(await isEnabled("discordBruno").catch(() => false))) return null;
-      const r = await brunoDiscordChat(message, facts, history, CHAT_TIMEOUT_MS);
+      const product = productFacts(await isEnabled("dogTheme").catch(() => null));
+      const context = [...product, ...fit(facts, CHAT_FACTS - product.length, CHAT_FACTS_CHARS - chars(product))];
+      const r = await brunoDiscordChat(message, context, history, CHAT_TIMEOUT_MS);
       if (!r || typeof r.text !== "string" || !r.text.trim()) return null;
       // Every number his: the facts', the message's or the thread's, or nothing posts from him.
-      const unknown = ungrounded(r.text, [...facts, ...history.map((t) => t.text)], message);
+      const unknown = ungrounded(r.text, [...context, ...history.map((t) => t.text)], message);
       // Logged (the numbers only, never who asked) so a dropped reply can be traced to the number that failed.
       if (unknown.length) { console.info(`[bot] chat dropped: numbers not in the facts: ${unknown.slice(0, 8).join(", ")}`); return null; }
       return { text: r.text.trim(), search: r.search === true };
