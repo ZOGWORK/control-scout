@@ -60,7 +60,7 @@
   --color-success: #34d399;
   /* Compared teams' hues (the search results guide, Okabe–Ito, safe for every colour vision): team A, B, C on bars
      and swatches, never a phase or a winner. A card about one team takes team A on its numbers too (answerCells
-     TEAM_TEXT, held to 4.5:1). Dark's are the light-on-dark steps; Dim and Midnight keep them. textTones.test.ts
+     TEAM_TEXT, held to 4.5:1). Dark's are the light-on-dark steps; Dim keeps them. textTones.test.ts
      holds each to 3:1 against the card as a graphic. */
   --color-team-a: #56b4e9;
   --color-team-b: #f0763a;
@@ -209,9 +209,8 @@ html.light {
   color-scheme: light;
 }
 
-/* Dim and Midnight are dark themes (the `dark:` variant applies, and every status, alliance and accent colour is
-   dark's), so each one swaps only the surfaces, text and lines. Dim: soft dark grey, text a step down from white,
-   so nothing glares. Midnight: true black for night and OLED screens, cards one step up so they still read. */
+/* Dim is a dark theme (the `dark:` variant applies, and every status, alliance and accent colour is dark's), so it
+   swaps only the surfaces, text and lines: soft dark grey, text a step down from white, so nothing glares. */
 html.dim {
   --sh-background: #1e1f23;
   --sh-foreground: #e4e4e7;
@@ -237,21 +236,6 @@ html.dim {
   --color-red-alliance-text: #fb7185;
 }
 
-html.midnight {
-  --sh-background: #000000;
-  --sh-foreground: #f4f4f5;
-  --sh-card: #08080a;
-  --sh-card-foreground: #f4f4f5;
-  --sh-popover: #0e0e11;
-  --sh-popover-foreground: #f4f4f5;
-  --sh-muted: #121215;
-  --sh-muted-foreground: #a1a1aa;
-  --sh-border: #ffffff12;
-  --sh-input: #ffffff1a;
-  --color-secondary: #000000;
-  --color-scrollbar: #222227;
-  --color-scrollbar-hover: #33333a;
-}
 
 /* The page scrolls the document (src/lib/pageScroll.ts), under the shell's sticky top bar (Shell.tsx):
    --header-h is that bar's height. Whatever the page scrolls to (#anchors, scrollIntoView) stops below
@@ -433,7 +417,6 @@ html.light { --amb-line: 0.045; --amb-glow: 0.14; --amb-breath: 0.08; --amb-tint
 html.dog { --sh-background: #17130a; --color-secondary: #120f07; }
 html.dog.light { --sh-background: #fff8dc; --color-secondary: #fff8dc; }
 html.dog.dim { --sh-background: #2a2513; --color-secondary: #241f10; }
-html.dog.midnight { --sh-background: #0b0903; --color-secondary: #080602; }
 .dog-bg { position: absolute; inset: 0; z-index: 0; pointer-events: none; opacity: 0.24;
   background: url("/dog.jpg") 0 0 / 200px 200px repeat; }
 html.light .dog-bg { opacity: 0.18; }

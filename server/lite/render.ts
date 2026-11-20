@@ -23,11 +23,11 @@ const vars = (p: Palette) => tokenVars(THEME_TOKENS[p]);
 /** The classes a link may carry; each is a tap target at least 44px tall. */
 export const LITE_TAP_CLASSES = ["btn", "cell", "row", "chip"] as const;
 
-// The app's five themes (src/shared/themeTokens.ts, the values of src/index.css): dark on :root, the others on
+// The app's themes (src/shared/themeTokens.ts, the values of src/index.css): dark on :root, the others on
 // html's class as in the app, System following the device. Text size as the app's (index.css): rem sizes, the root
 // font 14px on phones and 16px wider, times this device's choice. Tap targets are in px, so they stay 44px at any size.
 const CLASSIC_THEMES = `:root{color-scheme:dark;${vars("dark")}}`
-  + `html.light{color-scheme:light;${vars("light")}}html.dim{${vars("dim")}}html.midnight{${vars("midnight")}}`
+  + `html.light{color-scheme:light;${vars("light")}}html.dim{${vars("dim")}}`
   + `html.sys{color-scheme:dark light}@media(prefers-color-scheme:light){html.sys{${vars("light")}}}`;
 const BASE = `html{--b:1;--s:1;font-size:calc(100% * var(--b) * var(--s))}@media(max-width:767px){html{--b:.875}}`
   + `html[data-text-size=s]{--s:.9}html[data-text-size=l]{--s:1.125}html[data-text-size=xl]{--s:1.25}`
@@ -130,7 +130,7 @@ export interface LiteView {
 }
 export const DEFAULT_VIEW: LiteView = { theme: "dark", textSize: null, sticky: false, here: "/lite", v8: true };
 
-const THEME_COLOR: Record<Palette, string> = { dark: THEME_TOKENS.dark.bg, light: THEME_TOKENS.light.bg, dim: THEME_TOKENS.dim.bg, midnight: THEME_TOKENS.midnight.bg };
+const THEME_COLOR: Record<Palette, string> = { dark: THEME_TOKENS.dark.bg, light: THEME_TOKENS.light.bg, dim: THEME_TOKENS.dim.bg };
 
 /** A link that is a button: `primary` is the page's one main action (gold). */
 export const button = (href: string, text: string, primary = false, cls = "") =>
