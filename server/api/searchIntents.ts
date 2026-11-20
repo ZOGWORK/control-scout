@@ -95,7 +95,7 @@ function regionIn(q: string, ranking: boolean): { region: Region; rest: string; 
   const exact = (cand: string): Region | null => {
     const c = cand.trim();
     if (!c) return null;
-    return findRegions(c).find((r) => fold(r.name) === fold(c) || (c.length === 2 && /^[A-Z]{2}$/.test(c) && r.state === c)) ?? null;
+    return findRegions(c).find((r) => fold(r.name) === fold(c) || (c.length === 2 && r.state === c.toUpperCase())) ?? null;
   };
   const tokens = q.split(" ");
   for (let i = 0; i < tokens.length; i++) {

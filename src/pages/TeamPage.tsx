@@ -951,8 +951,7 @@ function V8Standing({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => 
   const top = rankPct(s?.opr.np.rank, s?.opr.np.of, true);
   const cell = "min-w-0 px-4 first:pl-0 max-sm:px-3 [&_dd]:whitespace-nowrap";
   const dt = "text-xs text-text-faint";
-  // The numbers in the slate-blue accent (the figure and each value), the labels grey: the page's one colour.
-  const dd = "mt-0.5 text-xl font-semibold tracking-tight tabular-nums text-accent";
+  const dd = "mt-0.5 text-xl font-semibold tracking-tight tabular-nums text-foreground";
   return (
     <section aria-labelledby={`standing-${p.team.number}`} className="rounded-xl border border-line bg-card p-4 sm:p-5" data-standing>
       <h2 id={`standing-${p.team.number}`} className="font-sans text-xs font-normal tracking-normal text-text-faint" data-eyebrow>Standing · {seasonLabel(p.season)}</h2>
@@ -973,12 +972,11 @@ function V8Standing({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => 
               <p className="mt-1.5 text-xs text-text-muted">worldwide by OPR{s.opr.np.rank ? ` · #${s.opr.np.rank.toLocaleString()} of ${s.opr.np.of?.toLocaleString()}` : ""}</p>
             </div>
             {/* Beside the figure on a wide card; its own full-width row under it on a phone. */}
-            <dl className={cn("grid min-w-0 flex-1 basis-[20rem] divide-x divide-line max-sm:basis-full max-sm:border-t max-sm:border-line max-sm:pt-3", s.reliability ? "grid-cols-4" : "grid-cols-3")} data-glance-stats>
-              <div className={cell}><dt className={dt} title={OPR_TERM}>OPR</dt><dd className={dd}>{num(s.opr.np.value)}</dd></div>
+            <dl className={cn("grid min-w-0 flex-1 basis-[20rem] divide-x divide-line max-sm:basis-full max-sm:border-t max-sm:border-line max-sm:pt-3", s.reliability ? "grid-cols-3" : "grid-cols-2")} data-glance-stats>
               {predictable
                 ? <div className={cell}><dt className={dt} title={RATING_TERM}>Rating</dt><dd className={dd}>{s.rating ? num(s.rating.np) : "—"}{s.rating && <span className="text-xs font-normal text-text-faint"> ±{num(s.rating.sd, 0)}</span>}</dd></div>
                 : <div className={cell}><dt className={dt}>Avg score</dt><dd className={dd}>{num(s.avg.np)}</dd></div>}
-              <div className={cell}><dt className={dt} title={`${OFFICIAL_RULE} ${RECORD_RULE}`}>Record</dt><dd className={dd} title={`${OFFICIAL_RULE} ${RECORD_RULE}`}>{s.record.wins}-{s.record.losses}-{s.record.ties}</dd><dd className="text-[0.6875rem] text-text-faint" data-record-scope>{OFFICIAL_ONLY}</dd></div>
+              <div className={cell}><dt className={dt} title={`${OFFICIAL_RULE} ${RECORD_RULE}`}>Record</dt><dd className={dd} title={`${OFFICIAL_RULE} ${RECORD_RULE}`}><span className="text-emerald-400">{s.record.wins}</span>-<span className="text-red-400">{s.record.losses}</span>-<span className="text-yellow-300">{s.record.ties}</span></dd><dd className="text-[0.6875rem] text-text-faint" data-record-scope>{OFFICIAL_ONLY}</dd></div>
               {s.reliability && <div className={cell}><dt className={dt} title="An estimate from match results: no-shows, DQs, near-zero matches, swing, penalties">Reliability</dt><dd className={dd}>{s.reliability.index}<span className="text-xs font-normal text-text-faint"> /100</span></dd></div>}
             </dl>
           </div>
