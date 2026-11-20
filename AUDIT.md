@@ -1,5 +1,17 @@
 # Self-audit log
 
+## Search issue follow-ups (2026-11-20)
+
+- #2025: whole recognized "good teams" questions now use the best-teams reader; regression cases include "rn", "right now" and a state scope. Stored team/event names remain ordinary name searches.
+- #2026: leaderboard answers render the requested rows immediately, including all ten for "top 10", and preserve that behavior on a subsequent search.
+- #1997: explicit video searches over large match scopes now select up to 200 matches with known recordings instead of dropping the gallery above the whole-read threshold. Tests cover a recording after match 4,000, event isolation and the 200-row disclosure. The earlier score-headline fix remains intact.
+- #2031–2033: phase OPR questions at a team's state championship now show the requested Auto/TeleOp/Endgame OPR in the headline, retaining the event's other statistics. Tests cover all three phases with and without "OPR".
+- Inspected rendered desktop/mobile search captures from `npm run shots` in `/workspace/scratch/search-issue-final/`; the video page offers actual external recordings, and the ranking shows ten rows. State-championship captures are in `/workspace/scratch/search-issue-state-opr/`. Images stay outside the repository.
+- Production browser verification confirmed the Worlds appearance answer (#2019) and NJ regional ranking answer (#2015), so those reports were closed. The new fixes' issues remain open pending deployment and live verification. #2014 lacks a precise color target; #2034 and the mixed query variants in #1012 still need further work, and are not dismissed as user mistakes.
+- Production screenshot capture could not pass the site's readiness check. The route audit does not include `/search` (its `--only /search` rejects the selection). The targeted search flow still times out on its legacy combobox selector; this is not a successful audit or a full-app sign-off. Fresh local screenshots and focused regression tests verify the changed paths instead.
+- TypeScript passed; six focused suites passed (162 tests). The production build passed before the added event-phase changes; CI checks the final build. Search evaluation passed its answer checks but exceeded one unrelated latency budget under concurrent local work. The full test run encountered three existing process-tree cleanup failures in `scripts/lib/streamRun.test.ts`; its final result and CI are reported on the PR.
+
+
 ## Discord remodel knowledge and Zog Mode (PR #2023)
 
 - Owner correction: the public name is Zog Mode, and Discord describes it as an existing, available feature rather than reporting the wallpaper's enabled/disabled status. The Discord adapter no longer reads the dogTheme flag. Explicit Zog Mode questions and "where is the dog?" use a deterministic informational reply, bypassing team search and AI. Enable/disable requests perform no actions and explain that only the website owner console can change the setting. Focused bot tests cover this read-only boundary and leave dog-named robotics queries with ordinary search.

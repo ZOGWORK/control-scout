@@ -175,6 +175,16 @@ describe("states, worlds and a team's own events (complex queries file)", () => 
     expect((await ask("4215 state championship rank")).headline).toMatchObject({ value: "#2 of 2" });
     expect((await ask("4215 states wins and losses")).intent).toBe("record");
   });
+  it("answers the requested OPR phase at states, with or without the word OPR (#2031–2033)", async () => {
+    for (const [phase, label, value] of [["auto", "Auto", "30.0"], ["teleop", "TeleOp", "60.0"], ["endgame", "Endgame", "10.0"]]) {
+      for (const suffix of ["", " opr"]) {
+        const q = `hypnotic robotics ${phase}${suffix} in nj states`;
+        const a = await ask(q);
+        expect(a?.title, q).toBe(`${label} OPR at New Jersey Championship - Parkway Division`);
+        expect(a?.headline?.value, q).toBe(`${label} OPR ${value}`);
+      }
+    }
+  });
   it("D8: every answer at states is one named event, its season on the card; \"all\" or \"ever\" is every season", async () => {
     for (const q of ["4215 record at states", "4215 quals matches at states", "how did 4215 do at states", "4215 highest score at states"]) {
       const r = await ask(q);

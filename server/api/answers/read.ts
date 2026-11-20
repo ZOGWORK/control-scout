@@ -264,6 +264,8 @@ export interface StatQuestion {
   schedule?: boolean;
   /** "12345 latest event ranking": the team's rank at that event leads, not its OPR. */
   rank?: boolean;
+  /** The requested part of event OPR, when a single phase is named. */
+  phase?: "auto" | "teleop" | "endgame";
   /** "penalties per event", "penalty rate": which figure leads a penalties answer; "at least 200": a limit that
    *  includes itself. */
   variant?: "per-event" | "rate" | "at-least" | "total" | null;
