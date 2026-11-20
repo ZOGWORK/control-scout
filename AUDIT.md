@@ -1,5 +1,15 @@
 # Self-audit log
 
+## Discord remodel knowledge and Dog Mode (PR #2023)
+
+- Root cause: v8 excluded the legacy ambient container that also held the dog photograph. The dog layer now renders independently; the old grid/glow remains excluded. The default/global production flag was not changed.
+- Inspected desktop Home and mobile team screenshots with Dog Mode enabled using an isolated local database (`/workspace/scratch/dog-mode-on/`), plus an off-state Home capture (`dog-mode-off/`). The existing `/dog.jpg` asset is clearly visible when enabled.
+- Browser verification loaded the actual photo successfully and exercised on → off → on via the isolated database's owner flag and browser flag refresh, without reloading. The image mounted, disappeared, and returned as expected.
+- TypeScript and production build passed. Focused bot/product/standing-shell tests passed, including the real Discord context adapter and full ask path with saturated search facts.
+- Targeted `npm run audit -- --only /teams` completed on separate local ports: four slow-load findings, no other findings. Images/report: `/workspace/scratch/dog-mode-audit-final/`. This was a targeted sweep, not a new full-app sign-off. The first attempt lost its shared local server; the isolated-port retry completed.
+- Post-build `npm run audit:flows -- --only 'Team page buttons'` passed (1/1), with Dog Mode enabled locally. The image remains decorative and does not intercept controls.
+- GitHub rejected screenshot attachments with its repository-write permission error again. Live Discord output was not tested or posted, and the bot must be deployed/restarted to use the new product facts.
+
 ## GitHub issue fixes and team standings (PR #2022)
 
 - Captured and inspected desktop/mobile team standings with `npm run shots -- --both --viewport /teams/4215?v8=1`. The upper duplicate OPR is absent, Rating is neutral, wins/losses/ties are green/red/yellow, and the percentile remains blue. Full-page capture initially produced a blank image; viewport capture rendered correctly. Images remain outside the repository in `/workspace/scratch/github-team-final/`.

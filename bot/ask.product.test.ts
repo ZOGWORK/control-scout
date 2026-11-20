@@ -1,5 +1,5 @@
 import { expect, it, vi } from "vitest";
-import { realAskDeps } from "./ask";
+import { ask, realAskDeps } from "./ask";
 
 const state = vi.hoisted(() => ({ dog: false, chat: vi.fn(async () => ({ text: "The v8 remodel is complete. Dog Mode exists.", search: false })) }));
 vi.mock("../server/flags", () => ({ isEnabled: async (flag: string) => flag === "dogTheme" ? state.dog : true }));
@@ -20,4 +20,17 @@ it("sends current product knowledge with Discord chats, reserving room beside se
   await deps.chat!("is Dog Mode enabled?", [], []);
   const enabled = state.chat.mock.calls[1] as unknown as [string, string[]];
   expect(enabled[1].join(" ")).toContain("currently enabled globally");
+
+  // Exercise the outer ask/chatWith fit too: the real chat must still trim the
+  // already-fitted search facts against the smaller product-reserved budget.
+  await ask("what changed?", {
+    ...deps,
+    search: async (q) => ({ q, hits: [], pages: [], step: "deterministic", weak: false }),
+    facts: async () => facts,
+  }, "https://controlscout.org");
+  const throughAsk = state.chat.mock.calls[2] as unknown as [string, string[]];
+  expect(throughAsk[1].length).toBeLessThanOrEqual(40);
+  expect(throughAsk[1].join("\n").length).toBeLessThan(7500);
+  expect(throughAsk[1].join(" ")).toContain("remodel is complete");
+  expect(throughAsk[1].join(" ")).toContain("Search record 0");
 });
