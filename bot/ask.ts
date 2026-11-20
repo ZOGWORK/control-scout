@@ -19,7 +19,7 @@ import type { StatAnswer, StatBlock, StatLink, StatMatchRow } from "../src/share
 import { SEARCH_PAGE_LIMIT, SORRY_SENTENCE, hitHref } from "../src/shared/search.js";
 import { FOOTER, VOLT, teamLink } from "./views.js";
 import type { BrunoChatTurn } from "../server/auth/controlPoint.js";
-import { productFacts } from "./productFacts.js";
+import { productFacts, zogModeReply } from "./productFacts.js";
 
 /** The credit an answer Bruno helped with carries, in the footer above Control Scout's own line. */
 export const BRUNO_CREDIT = "Bruno AI, from Control Point";
@@ -90,7 +90,7 @@ export async function realAskDeps(): Promise<AskDeps> {
     facts: (a) => answerFacts(a),
     chat: async (message, facts, history) => {
       if (!brunoAvailable() || !(await isEnabled("discordBruno").catch(() => false))) return null;
-      const product = productFacts(await isEnabled("dogTheme").catch(() => null));
+      const product = productFacts();
       const context = [...product, ...fit(facts, CHAT_FACTS - product.length, CHAT_FACTS_CHARS - chars(product))];
       const r = await brunoDiscordChat(message, context, history, CHAT_TIMEOUT_MS);
       if (!r || typeof r.text !== "string" || !r.text.trim()) return null;
@@ -106,6 +106,11 @@ export async function realAskDeps(): Promise<AskDeps> {
 /** The website's answer to `q`, with Bruno's help where the site would use it: his chat reply first (the reply
  *  thread before it in `history`), else the card. */
 export async function ask(q: string, deps: AskDeps, site: string, history: BrunoChatTurn[] = []): Promise<AskReply> {
+  const zog = zogModeReply(q);
+  if (zog) return {
+    embed: { title: "Zog Mode", description: zog, footer: FOOTER },
+    meta: { step: "deterministic", refined: false, sentence: false },
+  };
   let answer = await deps.search(q);
   let refined = false;
   if ((answer.step === "did-you-mean" || answer.step === "recovery") && deps.available() && (await deps.enabled())) {

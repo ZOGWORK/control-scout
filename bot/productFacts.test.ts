@@ -1,16 +1,19 @@
 import { expect, it } from "vitest";
-import { productFacts } from "./productFacts";
+import { productFacts, zogModeReply } from "./productFacts";
 import { ungrounded } from "../server/api/searchBrunoAnswer";
 
-it("grounds the completed remodel and Dog Mode without claiming it is on", () => {
-  const facts = productFacts(false);
+it("grounds the completed remodel and available Zog Mode without claiming its background is on", () => {
+  const facts = productFacts();
   expect(facts.join(" ")).toContain("remodel is complete");
   expect(facts.join(" ")).toContain("yellow/gold");
   expect(facts.join(" ")).toContain("multiple angled streams");
-  expect(facts.at(-1)).toContain("currently disabled globally");
-  expect(ungrounded("The v8 remodel is complete. Dog Mode exists but is disabled.", facts, "what changed?")).toEqual([]);
+  expect(facts.join(" ")).toContain("existing, available");
+  expect(facts.join(" ")).not.toMatch(/currently (?:enabled|disabled)|Dog Mode/);
+  expect(ungrounded("The v8 remodel is complete. Zog Mode exists and is available.", facts, "what changed?")).toEqual([]);
 });
-it("reports the live flag, and does not turn a failed flag read into a status claim", () => {
-  expect(productFacts(true).at(-1)).toContain("currently enabled globally");
-  expect(productFacts(null).at(-1)).toContain("could not be read");
+it("recognizes the screenshot's question but leaves actual dog-named teams to search", () => {
+  expect(zogModeReply("where is the dog")).toContain("Zog Mode");
+  expect(zogModeReply("turn on zog mode")).toContain("Discord users cannot turn it on or off");
+  expect(zogModeReply("Sea Dog Robotics scores")).toBeNull();
+  expect(zogModeReply("team zog rankings")).toBeNull();
 });

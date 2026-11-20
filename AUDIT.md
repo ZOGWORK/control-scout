@@ -1,6 +1,8 @@
 # Self-audit log
 
-## Discord remodel knowledge and Dog Mode (PR #2023)
+## Discord remodel knowledge and Zog Mode (PR #2023)
+
+- Owner correction: the public name is Zog Mode, and Discord describes it as an existing, available feature rather than reporting the wallpaper's enabled/disabled status. The Discord adapter no longer reads the dogTheme flag. Explicit Zog Mode questions and "where is the dog?" use a deterministic informational reply, bypassing team search and AI. Enable/disable requests perform no actions and explain that only the website owner console can change the setting. Focused bot tests cover this read-only boundary and leave dog-named robotics queries with ordinary search.
 
 - Root cause: v8 excluded the legacy ambient container that also held the dog photograph. The dog layer now renders independently; the old grid/glow remains excluded. The default/global production flag was not changed.
 - Inspected desktop Home and mobile team screenshots with Dog Mode enabled using an isolated local database (`/workspace/scratch/dog-mode-on/`), plus an off-state Home capture (`dog-mode-off/`). The existing `/dog.jpg` asset is clearly visible when enabled.
