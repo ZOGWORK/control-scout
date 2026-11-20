@@ -53,8 +53,7 @@ export const THEME_TOKENS: Record<Palette, Record<Token, string>> = {
 };
 
 /** v8, the new look (docs/design/v8-revamp-brief.md): dark only, each value the one src/index.css's `html[data-v8]`
- *  block gives the same property, except `ok`: wins and "Right" are green (the app sets that green per element
- *  with `v8:text-emerald-400`, since its success token stays white). Text that used the accent is white; the slate blue is
+ *  block gives the same property. Wins and "Right" use the green success colour. Text that used the accent is white; the slate blue is
  *  for bars, lines and the #1 rank; the alliances are the bright red and blue. */
 export const V8_TOKENS: Record<Token, string> = {
   bg: "#0a0a0b", fg: "#f4f4f5", card: "#0e0e10", muted: "#1b1b1e", mutedFg: "#a1a1aa", line: "#ffffff0f",

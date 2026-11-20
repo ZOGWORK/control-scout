@@ -1,5 +1,12 @@
 # Self-audit log
 
+## Team season placement and green Right badges
+
+- Moved the v8 season selector below Sponsors and above Standing, removing its old action-row placement. Captured and inspected desktop/mobile `/teams/4215?v8=1` with `npm run shots`; files remain outside the repository at `/workspace/scratch/team-season-position/`. The desktop capture also shows real Right badges in green.
+- Restored the shared v8 success colour to green and aligned the Lite token parity test; rating/reliability foreground and percentile styling are unchanged.
+- 164 focused layout, match, token/contrast and text-tone tests passed. TypeScript and the production build passed.
+- Targeted desktop/mobile team-route audit completed with one slow-load finding only (`/workspace/scratch/team-season-audit/`). Post-build team-page interaction flow passed 1/1. This was a targeted check, not a new full-app audit.
+
 ## Discord remodel knowledge and Zog Mode (PR #2023)
 
 - Owner correction: the public name is Zog Mode, and Discord describes it as an existing, available feature rather than reporting the wallpaper's enabled/disabled status. The Discord adapter no longer reads the dogTheme flag. Explicit Zog Mode questions and "where is the dog?" use a deterministic informational reply, bypassing team search and AI. Enable/disable requests perform no actions and explain that only the website owner console can change the setting. Focused bot tests cover this read-only boundary and leave dog-named robotics queries with ordinary search.
