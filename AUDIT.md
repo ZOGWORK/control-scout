@@ -1,5 +1,13 @@
 # Self-audit log
 
+## GitHub issue fixes and team standings (PR #2022)
+
+- Captured and inspected desktop/mobile team standings with `npm run shots -- --both --viewport /teams/4215?v8=1`. The upper duplicate OPR is absent, Rating is neutral, wins/losses/ties are green/red/yellow, and the percentile remains blue. Full-page capture initially produced a blank image; viewport capture rendered correctly. Images remain outside the repository in `/workspace/scratch/github-team-final/`.
+- `npm run audit:flows` completed: 3/15 passed (team-page actions, advancement simulator, offline pack checksums). Failures include stale/missing selectors in search, settings, scouting, sign-in and video; prediction text expectations; match-details text; methodology target sizes; light-theme setup; offline labels; and the animation fallback flow. The service-worker flow also reports Chromium's unrecognized bluetooth Permissions-Policy warning. These failures are recorded, not claimed fixed by the search/card patch.
+- The desktop/mobile route audit was started and reported search/home/team/events findings, including 49 findings on the event rankings tab. Its full report is generated outside the repository under `/tmp/control-scout-audit/`; the broader sweep remains separate from the confirmed GitHub search fixes.
+- Search evaluation exposed an overlapping alias bug (`of The Bot Patrol` → `Out of the Bot Robotics`), fixed by giving whole stored names priority. The next evaluation passed all answer checks but exceeded its slowest-answer budget under concurrent local tests/audits; CI provides an independent run.
+- GitHub attachment upload returned HTTP 404 / repository-write permission error despite ADMIN repository permission. The production site's readiness check also timed out, so live verification and an embedded PR screenshot remain outstanding.
+
 Running [docs/self-audit.md](docs/self-audit.md) after the build met spec
 (PRs #1–#5 merged, 2026-10-13). Every finding is logged here as it is found,
 then fixed and re-checked with the exact check that failed. Final sign-off is
