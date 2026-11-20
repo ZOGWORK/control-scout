@@ -15,8 +15,7 @@ export function productFacts(): string[] {
 /** Unambiguous product questions bypass team-name search, even when Bruno is unavailable.
  * This is information only: there is deliberately no flag read/write or Discord action. */
 export function zogModeReply(q: string): string | null {
-  const named = /\b(?:zog|dog)\s+mode\b/i.test(q)
-    || (/\bzog\b/i.test(q) && !/\b(?:teams?|robotics|scores?|rankings?|matches?)\b/i.test(q));
+  const named = /\b(?:zog|dog)\s+mode\b/i.test(q);
   const dog = /^\s*where(?:\s+is|['’]s)\s+(?:the\s+)?dog(?:\s+(?:in|on)\s+control\s*scout)?[?!.\s]*$/i.test(q);
   if (!named && !dog) return null;
   return "Zog Mode is Control Scout's available dog-photo theme—the masked dog appears behind the app's pages when the owner chooses to show it. Only the owner can change it in the website's owner console. Discord users cannot turn it on or off, and I can't change it through Discord.";

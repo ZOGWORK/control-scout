@@ -16,4 +16,7 @@ it("recognizes the screenshot's question but leaves actual dog-named teams to se
   expect(zogModeReply("turn on zog mode")).toContain("Discord users cannot turn it on or off");
   expect(zogModeReply("Sea Dog Robotics scores")).toBeNull();
   expect(zogModeReply("team zog rankings")).toBeNull();
+  expect(zogModeReply("zog 1234")).toBeNull();
+  expect(zogModeReply("who is zog")).toBeNull();
+  expect(zogModeReply("zog stats")).toBeNull();
 });
