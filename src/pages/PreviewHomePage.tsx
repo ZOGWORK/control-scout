@@ -55,7 +55,7 @@ export default function PreviewHomePage() {
 }
 
 const SIDE_KEY = "cs-sample-side";
-const roundButton = "flex size-9 shrink-0 items-center justify-center rounded-full text-text-muted outline-none transition-colors hover:bg-white/[0.08] hover:text-text-base focus-visible:ring-2 focus-visible:ring-ring/60";
+const roundButton = "flex size-9 shrink-0 items-center justify-center rounded-full text-text-muted outline-none transition-colors hover:bg-ink/[0.08] hover:text-text-base focus-visible:ring-2 focus-visible:ring-ring/60";
 
 /** The app's pages, Gemini-like: the mark and name with a round fold button beside them; folded, the fold button
  *  sits over the page icons (no search button: the page's own search is the way in). Nothing at its foot (that's all in the profile menu). Wide
@@ -66,7 +66,7 @@ function SideBar() {
   const foldLabel = rail ? "Expand sidebar" : "Collapse sidebar";
   return (
     <aside data-sample-sidebar aria-label="Sidebar" data-rail={rail ? "" : undefined}
-      className={cn("sticky top-0 z-20 hidden h-dvh shrink-0 flex-col self-start border-r border-white/[0.06] bg-[#0e0e10] transition-[width] duration-150 ease-out motion-reduce:transition-none md:flex", rail ? "w-16" : "w-[15.5rem]")}>
+      className={cn("sticky top-0 z-20 hidden h-dvh shrink-0 flex-col self-start border-r border-ink/[0.06] bg-[#0e0e10] transition-[width] duration-150 ease-out motion-reduce:transition-none md:flex", rail ? "w-16" : "w-[15.5rem]")}>
       <div className={cn("flex shrink-0 items-center gap-1 pt-3 pb-2", rail ? "flex-col px-0" : "h-14 pl-4 pr-2.5")}>
         {!rail && (
           <Link to="/" aria-label="Control Scout home" className="mr-auto flex min-w-0 items-center gap-2.5 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
@@ -78,7 +78,7 @@ function SideBar() {
             tooltip only when folded (open, the name is beside it). */}
         <Tooltip>
           <TooltipTrigger asChild>
-            <button type="button" data-fold onClick={fold} aria-label={foldLabel} className={cn(roundButton, "bg-white/[0.06]")}><PanelLeft className="size-[1.125rem]" /></button>
+            <button type="button" data-fold onClick={fold} aria-label={foldLabel} className={cn(roundButton, "bg-ink/[0.06]")}><PanelLeft className="size-[1.125rem]" /></button>
           </TooltipTrigger>
           {rail && <TooltipContent side="right">{foldLabel}</TooltipContent>}
         </Tooltip>
@@ -106,13 +106,13 @@ function Corner() {
           <button type="button" data-profile aria-label={user ? `Account: ${name ?? "you"}` : "Sign in"} title={user ? (name ?? "Account") : "Sign in"}
             className="flex size-11 items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
             {user ? (
-              <UserAvatar url={user.avatarUrl} name={name} className="size-9 bg-white/10 text-text-base ring-1 ring-white/15" />
+              <UserAvatar url={user.avatarUrl} name={name} className="size-9 bg-ink/10 text-text-base ring-1 ring-ink/15" />
             ) : (
-              <span data-guest className="flex size-9 items-center justify-center rounded-full bg-white/[0.08] text-text-muted ring-1 ring-white/15"><UserRound className="size-5" aria-hidden /></span>
+              <span data-guest className="flex size-9 items-center justify-center rounded-full bg-ink/[0.08] text-text-muted ring-1 ring-ink/15"><UserRound className="size-5" aria-hidden /></span>
             )}
           </button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" data-profile-menu className="w-64 border-white/10 bg-[#141416] p-1.5">
+        <DropdownMenuContent align="end" data-profile-menu className="w-64 border-ink/10 bg-[#141416] p-1.5">
           {user ? (
             <DropdownMenuLabel className="px-2 py-2 font-normal">
               <span className="block truncate text-sm font-medium text-text-base">{user.displayName || user.email}</span>
@@ -121,13 +121,13 @@ function Corner() {
           ) : (
             <DropdownMenuItem className={item} onSelect={() => nav("/settings#account")}><LogIn className="size-4" /> Sign in</DropdownMenuItem>
           )}
-          <DropdownMenuSeparator className="bg-white/10" />
+          <DropdownMenuSeparator className="bg-ink/10" />
           <DropdownMenuItem className={item} onSelect={() => nav("/settings")}><Settings className="size-4" /> Settings</DropdownMenuItem>
           <DropdownMenuItem className={item} onSelect={() => openWhatsNew()}><Megaphone className="size-4" /> What’s new</DropdownMenuItem>
           {user?.isOwner && <DropdownMenuItem data-owner-console className={item} onSelect={() => nav("/owner")}><ShieldCheck className="size-4" /> Owner console</DropdownMenuItem>}
           {user && (
             <>
-              <DropdownMenuSeparator className="bg-white/10" />
+              <DropdownMenuSeparator className="bg-ink/10" />
               <DropdownMenuItem className={item} onSelect={() => { void signOut(); }}><LogOut className="size-4" /> Sign out</DropdownMenuItem>
             </>
           )}

@@ -564,7 +564,7 @@ function V8Group({ s, statuses, summaries, skip, fuzzyWord, picks, onPick, phone
       return (
         <div key={h.ref} data-team-group={h.ref}>
           {card}
-          <ul className="mb-2 ml-10 border-l border-white/[0.12] pl-1" data-team-events>
+          <ul className="mb-2 ml-10 border-l border-ink/[0.12] pl-1" data-team-events>
             {subs.map((e) => <li key={e.ref}><EventRow h={e} onOpen={() => onOpen(e)} /></li>)}
           </ul>
         </div>

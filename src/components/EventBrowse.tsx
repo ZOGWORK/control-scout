@@ -40,8 +40,8 @@ const STATUS: { v: Status; label: string; dot: string }[] = [
 ];
 // v8 (docs/design/v8-revamp-brief.md §5): pickers are quiet outlines; a picker in use reads white on a faint white fill,
 // never the accent. Icons inherit the text colour. Status is a row of underline tabs, the picked one on the accent line.
-const V8_PICK = "v8:border-white/[0.12] v8:bg-transparent v8:still-hover:bg-white/[0.04] v8:[&_svg]:text-text-faint";
-const V8_PICK_ON = "v8:border-white/20 v8:bg-white/[0.08]";
+const V8_PICK = "v8:border-ink/[0.12] v8:bg-transparent v8:still-hover:bg-ink/[0.04] v8:[&_svg]:text-text-faint";
+const V8_PICK_ON = "v8:border-ink/20 v8:bg-ink/[0.08]";
 const V8_STATUS = "v8:relative v8:h-11 v8:gap-1.5 v8:rounded-none v8:border-0 v8:bg-transparent v8:px-3 v8:text-sm v8:font-medium v8:text-text-muted v8:hover:text-text-base v8:active:scale-[0.97] v8:motion-reduce:active:scale-100 v8:max-sm:h-11";
 const V8_STATUS_ON = "v8:text-text-base v8:after:absolute v8:after:inset-x-3 v8:after:-bottom-px v8:after:h-0.5 v8:after:rounded-full v8:after:bg-accent";
 const VIDEO_LABEL: Record<"recording" | "clips", string> = { recording: "Has a recording", clips: "Match clips" };
@@ -228,7 +228,7 @@ function PlacePicker({ events, value, onChange }: { events: EventListItem[]; val
 
 function PlaceRow({ on, name, n, onClick }: { on: boolean; name: string; n: number; onClick: () => void }) {
   return (
-    <button type="button" role="option" aria-selected={on} onClick={onClick} className={cn("flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-text-base/[0.06] max-sm:py-2.5", on && "bg-accent/[0.08] v8:bg-white/[0.06]")}>
+    <button type="button" role="option" aria-selected={on} onClick={onClick} className={cn("flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-text-base/[0.06] max-sm:py-2.5", on && "bg-accent/[0.08] v8:bg-ink/[0.06]")}>
       <span className="min-w-0 flex-1 truncate" title={name}>{name}</span>
       <span className="text-xs tabular-nums text-muted-foreground">{n}</span>
       {on && <Check className="size-4 text-accent" />}
@@ -269,7 +269,7 @@ export const EventWeeks = memo(function EventWeeks({ events, region, type, statu
           <section key={w} aria-label={w === "TBA" ? "Date to be announced" : `Week of ${fmtDay(w, true)}`}>
             <div className="mb-2 flex items-baseline gap-2 px-1">
               <h2 className="font-sans text-sm font-semibold text-text-base">{w === "TBA" ? "Date TBA" : `${fmtDay(w)} – ${fmtDay(addDays(w, 6), true)}`}</h2>
-              {w === thisWeek && <span className="rounded-full px-2 py-0.5 text-xs font-medium text-text-muted ring-1 ring-inset ring-white/[0.12]">This week</span>}
+              {w === thisWeek && <span className="rounded-full px-2 py-0.5 text-xs font-medium text-text-muted ring-1 ring-inset ring-ink/[0.12]">This week</span>}
               <span className="ml-auto text-xs tabular-nums text-text-faint">{all} event{all === 1 ? "" : "s"}</span>
             </div>
             <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-card">
@@ -332,7 +332,7 @@ export function RowStatus({ e }: { e: EventListItem }) {
         <span className="inline-flex items-center gap-1.5 text-sm font-medium text-live"><LiveDot />Live{e.stream && <span className="sr-only"> with a stream</span>}</span>
         {e.matchesTotal > 0 && (
           <span className="flex items-center gap-1.5" data-match-bar>
-            <span className="h-0.5 w-12 overflow-hidden rounded-full bg-white/10"><span className="block h-full rounded-full bg-accent" style={{ width: `${pct}%` }} /></span>
+            <span className="h-0.5 w-12 overflow-hidden rounded-full bg-ink/10"><span className="block h-full rounded-full bg-accent" style={{ width: `${pct}%` }} /></span>
             <span className="text-xs tabular-nums text-text-faint">{e.matchesPlayed}/{e.matchesTotal}</span>
           </span>
         )}
@@ -349,7 +349,7 @@ const EventRowV8 = memo(function EventRowV8({ e, action }: { e: EventListItem; a
   const href = `/events/${e.season}/${e.code}`;
   const act = action?.(e);
   const link = (
-    <Link to={href} className="group flex min-h-14 min-w-0 flex-1 items-center gap-4 px-4 py-2.5 transition-colors duration-150 still-hover:bg-white/[0.03]" data-event-row={e.code}>
+    <Link to={href} className="group flex min-h-14 min-w-0 flex-1 items-center gap-4 px-4 py-2.5 transition-colors duration-150 still-hover:bg-ink/[0.03]" data-event-row={e.code}>
       <span className="w-[4.75rem] shrink-0 text-sm tabular-nums text-text-muted max-sm:hidden">{shortDates(e.start, e.end)}</span>
       <span className="min-w-0 flex-1">
         <span className="block truncate font-medium text-text-base" title={e.name}>{e.name}</span>
@@ -361,7 +361,7 @@ const EventRowV8 = memo(function EventRowV8({ e, action }: { e: EventListItem; a
   );
   if (!act) return <li>{link}</li>;
   return (
-    <li aria-label={e.name} className={cn("relative flex items-center max-sm:flex-col max-sm:items-stretch", act.ring && "bg-white/[0.04] before:absolute before:inset-y-0 before:left-0 before:w-0.5 before:bg-accent")} data-picked={act.ring || undefined}>
+    <li aria-label={e.name} className={cn("relative flex items-center max-sm:flex-col max-sm:items-stretch", act.ring && "bg-ink/[0.04] before:absolute before:inset-y-0 before:left-0 before:w-0.5 before:bg-accent")} data-picked={act.ring || undefined}>
       {link}
       <div className="shrink-0 pr-4 max-sm:px-4 max-sm:pb-3">{act.node}</div>
     </li>

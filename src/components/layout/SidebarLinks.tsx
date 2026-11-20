@@ -47,21 +47,21 @@ const ring = "outline-none focus-visible:ring-2 focus-visible:ring-ring/60";
 export function SidebarLinks({ place = "sidebar", onNavigate }: { place?: "sidebar" | "sheet"; onNavigate?: () => void }) {
   const socials = sidebarSocials({ status: useFlag("statusPage") });
   return (
-    <div data-sidebar-links="" className={cn("shrink-0 border-t border-line v8:border-white/10", place === "sidebar" ? "px-2 py-2" : "mt-auto pt-3")}>
+    <div data-sidebar-links="" className={cn("shrink-0 border-t border-line v8:border-ink/10", place === "sidebar" ? "px-2 py-2" : "mt-auto pt-3")}>
       <nav aria-label="About Control Scout" className="space-y-0.5">
         {SIDEBAR_LINKS.map(({ to, label, icon: I }) => (
           <Link key={to} to={to} onClick={onNavigate}
-            className={cn("tap-44 flex h-9 items-center gap-3 rounded-lg px-3 text-sm text-text-muted transition-colors duration-150 hover:bg-text-base/[0.06] hover:text-text-base v8:hover:bg-white/[0.06]", ring)}>
+            className={cn("tap-44 flex h-9 items-center gap-3 rounded-lg px-3 text-sm text-text-muted transition-colors duration-150 hover:bg-text-base/[0.06] hover:text-text-base v8:hover:bg-ink/[0.06]", ring)}>
             <I className="size-4 shrink-0" aria-hidden />
             <span className="truncate">{label}</span>
           </Link>
         ))}
       </nav>
-      <div className="mt-2 flex items-center justify-between border-t border-line pt-1.5 v8:border-white/10">
+      <div className="mt-2 flex items-center justify-between border-t border-line pt-1.5 v8:border-ink/10">
         {socials.map((s) => {
           // A 44px link around a 36px ring, so the tap target is full size on every pointer.
           const cls = cn("group flex size-11 shrink-0 items-center justify-center rounded-full", ring);
-          const disc = <span className="flex size-9 items-center justify-center rounded-full border border-line text-text-muted transition-colors duration-150 group-hover:bg-text-base/[0.06] group-hover:text-text-base v8:border-white/12 v8:group-hover:bg-white/[0.08]">{s.icon}</span>;
+          const disc = <span className="flex size-9 items-center justify-center rounded-full border border-line text-text-muted transition-colors duration-150 group-hover:bg-text-base/[0.06] group-hover:text-text-base v8:border-ink/12 v8:group-hover:bg-ink/[0.08]">{s.icon}</span>;
           return s.external
             ? <a key={s.label} href={s.href} aria-label={s.label} title={s.label} className={cls} {...(s.href.startsWith("mailto:") ? {} : { target: "_blank", rel: "noreferrer noopener" })}>{disc}</a>
             : <Link key={s.label} to={s.href} aria-label={s.label} title={s.label} onClick={onNavigate} className={cls}>{disc}</Link>;

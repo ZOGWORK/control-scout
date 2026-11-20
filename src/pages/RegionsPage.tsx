@@ -65,11 +65,11 @@ function RegionList({ d, q, myTeam }: { d: RegionsResponse; q: string; myTeam: n
   if (!shown.length) return <EmptyState icon={Search} title="No region by that name" description={`None of the ${d.regions.length.toLocaleString()} regions with rated teams matches “${q.trim()}”.`} />;
   return (
     // v8: one hairline list, no boxes: a country is a stronger row, its states indented under it.
-    <div className="space-y-4 v8:space-y-0 v8:border-t v8:border-white/[0.08]" data-regions>
+    <div className="space-y-4 v8:space-y-0 v8:border-t v8:border-ink/[0.08]" data-regions>
       {shown.map(({ c, kids }) => (
-        <section key={c.key} aria-label={c.name} className="overflow-hidden rounded-xl border border-text-base/15 bg-card v8:rounded-none v8:border-0 v8:border-b v8:border-white/[0.08] v8:bg-transparent">
+        <section key={c.key} aria-label={c.name} className="overflow-hidden rounded-xl border border-text-base/15 bg-card v8:rounded-none v8:border-0 v8:border-b v8:border-ink/[0.08] v8:bg-transparent">
           <Row r={c} season={d.season} myTeam={myTeam} country />
-          {kids.length > 0 && <ul className="border-t border-text-base/10 v8:border-white/[0.08]">{kids.map((s) => <li key={s.key} className="border-b border-text-base/10 last:border-b-0 v8:border-white/[0.08]"><Row r={s} season={d.season} myTeam={myTeam} /></li>)}</ul>}
+          {kids.length > 0 && <ul className="border-t border-text-base/10 v8:border-ink/[0.08]">{kids.map((s) => <li key={s.key} className="border-b border-text-base/10 last:border-b-0 v8:border-ink/[0.08]"><Row r={s} season={d.season} myTeam={myTeam} /></li>)}</ul>}
         </section>
       ))}
     </div>
@@ -79,7 +79,7 @@ function RegionList({ d, q, myTeam }: { d: RegionsResponse; q: string; myTeam: n
 function Row({ r, season, myTeam, country }: { r: RegionListItem; season: number; myTeam: number | null; country?: boolean }) {
   return (
     <Link to={regionHref(r.key, { season })} data-region={r.key}
-      className={cn("flex items-center gap-3 px-3 py-2.5 hover:bg-text-base/[0.04] pointer-coarse:min-h-[44px]", "v8:min-h-11 v8:py-2 v8:transition-colors v8:duration-150 v8:hover:bg-white/[0.03]", country ? "bg-text-base/[0.02] v8:bg-transparent v8:px-0 v8:pr-3" : "pl-6 v8:pl-4")}>
+      className={cn("flex items-center gap-3 px-3 py-2.5 hover:bg-text-base/[0.04] pointer-coarse:min-h-[44px]", "v8:min-h-11 v8:py-2 v8:transition-colors v8:duration-150 v8:hover:bg-ink/[0.03]", country ? "bg-text-base/[0.02] v8:bg-transparent v8:px-0 v8:pr-3" : "pl-6 v8:pl-4")}>
       <span className="min-w-0 flex-1">
         <span className={cn("block truncate", country ? "font-display text-base font-semibold v8:font-sans v8:text-[0.9375rem]" : "text-sm font-medium v8:font-normal")}>{r.name}</span>
         <span className={cn("block truncate text-xs text-text-muted", V8_CAPTION)}>

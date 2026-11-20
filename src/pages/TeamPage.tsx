@@ -61,7 +61,7 @@ import { V8_PHASE } from "../lib/records/describe";
 const V8_LABEL = "v8:text-xs v8:font-normal v8:normal-case v8:tracking-normal v8:text-text-faint";
 /** A row or card that answers the pointer: the .lift class today (rise and glow); in v8 a faint hover fill only.
  *  .lift is plain CSS outside the layers, so no v8: class can undo it: it's left off in v8. */
-const v8Row = (v8: boolean) => (v8 ? "transition-colors hover:bg-white/[0.03] border-line" : "lift");
+const v8Row = (v8: boolean) => (v8 ? "transition-colors hover:bg-ink/[0.03] border-line" : "lift");
 
 /** Track and stop-tracking notes share one toast, so tapping Track twice replaces the note rather than stacking two. */
 const TRACK_NOTE = "team-track-note";
@@ -442,7 +442,7 @@ function TrendChart({ events, season }: { events: TeamEventRow[]; season: number
 function RankMedal({ rank }: { rank: number | null }) {
   if (!rank) return <span className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-border text-xs text-muted-foreground v8:rounded-lg v8:border-line">—</span>;
   // v8: the #1 rank is mint text on a hairline (mint marks "best", never as a fill behind text).
-  return <span className={cn("flex size-10 shrink-0 flex-col items-center justify-center rounded-xl border font-display text-sm font-bold tabular-nums v8:rounded-lg v8:font-semibold", rank === 1 ? "border-accent/50 bg-accent/15 text-accent-text v8:border-accent/40 v8:bg-transparent" : rank <= 4 ? "border-border bg-muted v8:border-line v8:bg-white/[0.04]" : "border-border v8:border-line")}>
+  return <span className={cn("flex size-10 shrink-0 flex-col items-center justify-center rounded-xl border font-display text-sm font-bold tabular-nums v8:rounded-lg v8:font-semibold", rank === 1 ? "border-accent/50 bg-accent/15 text-accent-text v8:border-accent/40 v8:bg-transparent" : rank <= 4 ? "border-border bg-muted v8:border-line v8:bg-ink/[0.04]" : "border-border v8:border-line")}>
     <span className="text-[10px] font-medium uppercase leading-none text-muted-foreground v8:text-[0.625rem] v8:normal-case v8:text-text-faint">rank</span>{rank}
   </span>;
 }
@@ -520,7 +520,7 @@ function MatchesSection({ team, season, events, predictable }: { team: number; s
 }
 
 /** v8: awards mean gold (the owner's call), a soft gold on dark and a deep amber that stays readable on light. */
-const V8_GOLD = "v8:text-[#fcd34d] v8:[html.light_&]:text-amber-700";
+const V8_GOLD = "v8:text-[#fcd34d] v8light:text-amber-700";
 
 export function AwardsAllTime({ p }: { p: TeamProfile }) {
   const v8 = useIsV8();
@@ -696,7 +696,7 @@ export function Upcoming({ p, next: first, last: before, title = "Upcoming" }: {
     <section aria-labelledby={`upcoming-${n}`} className="mt-5 max-sm:mt-4 space-y-2 text-sm v8:mt-0" data-upcoming>
       <h2 id={`upcoming-${n}`} className={cn("text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground", V8_LABEL)} data-eyebrow>{title}</h2>
       {m && mEvent && (
-        <div className="rounded-xl border border-accent/30 bg-accent/[0.05] p-3 v8:border-line v8:bg-white/[0.02]" data-next-match>
+        <div className="rounded-xl border border-accent/30 bg-accent/[0.05] p-3 v8:border-line v8:bg-ink/[0.02]" data-next-match>
           <Link to={`/events/${m.season}/${m.code}?team=${n}&match=${m.key}`} className="flex items-baseline justify-between gap-3 hover:underline pointer-coarse:min-h-[44px] pointer-coarse:items-center">
             <span className="min-w-0"><span className="font-semibold">Next match · {m.label}</span> <span className="text-muted-foreground">{m.time ? matchTime(m.time) : "time not posted yet"}</span></span>
             {chance != null && m.prediction && <NextChance chance={chance} tier={m.prediction.tier} />}
@@ -711,7 +711,7 @@ export function Upcoming({ p, next: first, last: before, title = "Upcoming" }: {
         </div>
       )}
       {next && !m && (
-        <Link to={ADVANCING.has(next.type ?? "") ? `/events/${next.season}/${next.code}?tab=odds&team=${n}` : `/events/${next.season}/${next.code}?team=${n}`} className={cn(row, "border-accent/30 bg-accent/[0.05] v8:border-line v8:bg-white/[0.02]")}>
+        <Link to={ADVANCING.has(next.type ?? "") ? `/events/${next.season}/${next.code}?tab=odds&team=${n}` : `/events/${next.season}/${next.code}?team=${n}`} className={cn(row, "border-accent/30 bg-accent/[0.05] v8:border-line v8:bg-ink/[0.02]")}>
           {away ? (
             // Its next event isn't this weekend: said as the "This weekend" page and search say it (server/api/weekend.ts).
             <span className="min-w-0" data-no-weekend-match><span className="block">No matches this weekend — next event is <span className="font-medium">{next.name}</span> on {dateRange(next.start, next.end)}.</span></span>
@@ -724,7 +724,7 @@ export function Upcoming({ p, next: first, last: before, title = "Upcoming" }: {
       )}
       {!next && reg?.event ? (
         // An event it's registered for, not yet in its event list: the "This weekend" page's own line and link.
-        <Link to={reg.event.href} className={cn(row, "border-accent/30 bg-accent/[0.05] v8:border-line v8:bg-white/[0.02]")} data-no-weekend-match>
+        <Link to={reg.event.href} className={cn(row, "border-accent/30 bg-accent/[0.05] v8:border-line v8:bg-ink/[0.02]")} data-no-weekend-match>
           <span className="min-w-0">{reg.line}</span>
           <span className="shrink-0 font-medium text-accent-text v8:text-text-muted">Schedule →</span>
         </Link>
@@ -934,7 +934,7 @@ function V8SeasonSelect({ seasons, value, onChange }: { seasons: number[]; value
   return (
     <Select value={String(value)} onValueChange={(v) => onChange(Number(v))}>
       <SelectTrigger size="sm" aria-label={`Season ${seasonLabel(value)}${game(value) ? ` ${game(value)}` : ""}`} data-season-select
-        className="tap-44 h-7 w-auto gap-1 rounded-lg border-white/30 bg-transparent px-2.5 text-xs font-semibold text-text-base shadow-none hover:bg-white/[0.06] max-sm:h-10 max-sm:px-3">
+        className="tap-44 h-7 w-auto gap-1 rounded-lg border-ink/30 bg-transparent px-2.5 text-xs font-semibold text-text-base shadow-none hover:bg-ink/[0.06] max-sm:h-10 max-sm:px-3">
         <span className="tabular-nums">{seasonLabel(value)}</span>
       </SelectTrigger>
       <SelectContent align="start" className="min-w-[12rem]">
@@ -959,7 +959,7 @@ function V8Standing({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => 
         <div className="mt-3 space-y-3 text-sm">
           <p className="text-text-muted">No results this season yet.</p>
           {p.seasons.filter((x) => x < p.season).slice(0, 1).map((prev) => (
-            <button key={prev} type="button" onClick={() => onSeason(prev)} className="flex min-h-11 w-full items-center justify-between gap-3 rounded-lg border border-line px-3 text-left transition-colors hover:bg-white/[0.03] active:scale-[0.99] motion-reduce:active:scale-100">
+            <button key={prev} type="button" onClick={() => onSeason(prev)} className="flex min-h-11 w-full items-center justify-between gap-3 rounded-lg border border-line px-3 text-left transition-colors hover:bg-ink/[0.03] active:scale-[0.99] motion-reduce:active:scale-100">
               <span>See how {p.team.number} did in {seasonLabel(prev)}</span><span className="text-text-muted">→</span>
             </button>
           ))}
@@ -1011,7 +1011,7 @@ function V8QuickStats({ s }: { s: NonNullable<TeamProfile["stats"]> }) {
             <dt className="text-xs text-text-faint">{PHASE_LABEL[k]}</dt>
             <dd className={cn("mt-0.5 text-lg font-semibold tabular-nums", PHASE_TEXT[k])}>{num(stat.value)}</dd>
             <dd className="whitespace-nowrap text-[0.6875rem] tabular-nums text-text-faint">{stat.rank ? `#${stat.rank.toLocaleString()}${top ? ` · ${top}` : ""}` : "Unranked"}</dd>
-            <span aria-hidden className="mt-1 flex h-0.5 overflow-hidden rounded-full bg-white/[0.06] [html.light_&]:bg-black/[0.06]"><span className={cn("h-full rounded-full", PHASE_BAR[k])} style={{ width: `${rankPc(stat.rank, stat.of)}%` }} data-bar /></span>
+            <span aria-hidden className="mt-1 flex h-0.5 overflow-hidden rounded-full bg-ink/[0.06] [html.light_&]:bg-black/[0.06]"><span className={cn("h-full rounded-full", PHASE_BAR[k])} style={{ width: `${rankPc(stat.rank, stat.of)}%` }} data-bar /></span>
           </div>
         );
       })}
@@ -1073,7 +1073,7 @@ export function StrengthSection({ p }: { p: TeamProfile }) {
               const stat = s?.opr[k];
               const top = rankPct(stat?.rank, stat?.of);
               return (
-                <tr key={k} className={cn("border-t border-line", open === k && "bg-white/[0.03]")} data-strength-row={k}>
+                <tr key={k} className={cn("border-t border-line", open === k && "bg-ink/[0.03]")} data-strength-row={k}>
                   <td className="px-4 py-1">
                     <button type="button" aria-expanded={open === k} onClick={() => setOpen(open === k ? null : k)} className="tap-44 inline-flex min-h-9 items-center gap-1.5 rounded text-left font-medium text-text-base hover:underline underline-offset-2">
                       {label}<ChevronDown aria-hidden className={cn("size-3.5 text-text-faint transition-transform duration-200 ease-out motion-reduce:transition-none", open === k && "rotate-180")} />
