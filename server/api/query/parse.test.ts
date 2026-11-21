@@ -51,6 +51,13 @@ describe("slots", () => {
       expect([p.intent, p.complete, p.place?.name], q).toEqual(["leaderboard", true, "Romania"]);
     }
   });
+  it("reads \"good teams\" as the best teams, a whole leaderboard question (bug report #2025)", async () => {
+    for (const q of ["good teams rn", "good teams", "good teams in romania"]) {
+      const p = await parse(q);
+      expect([p.intent, p.agg, p.complete], q).toEqual(["leaderboard", "max", true]);
+    }
+    expect((await parse("good teams in romania")).place?.name).toBe("Romania");
+  });
   it("a word a question asks about names a team only typed as the team's whole name", async () => {
     const near = { ...ctx, nearTeam: async (w: string) => ctx.names.nearTeam(w) };
     for (const q of ["nj states alliances", "most inspire awards", "inspire award winners"]) expect((await parseQuery(q, near)).teams, q).toEqual([]);
