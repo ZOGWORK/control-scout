@@ -33,9 +33,11 @@ export function workerEntry(moduleUrl = import.meta.url, execArgv: readonly stri
   return { url: new URL("./simWorker.ts", moduleUrl), execArgv: flags };
 }
 
-let started = 0;
+let started = 0, live = 0;
 /** Worker runs started in this process (tests). */
 export const offThreadRuns = () => started;
+/** Workers started and not yet finished, stopped or failed (tests). */
+export const liveWorkers = () => live;
 
 /** simulateProjection on a worker thread of its own; resolves with the same result it would give here. */
 export function simulateOffThread(input: SimInput, options: SimOptions, timeoutMs = WORKER_TIMEOUT_MS): Promise<CoreResult> {
@@ -43,10 +45,12 @@ export function simulateOffThread(input: SimInput, options: SimOptions, timeoutM
   const { url, execArgv } = workerEntry();
   return new Promise<CoreResult>((resolve, reject) => {
     const worker = new Worker(url, execArgv ? { execArgv } : {});
+    live++;
     let settled = false;
     const finish = (f: () => void) => {
       if (settled) return;
       settled = true;
+      live--;
       clearTimeout(timer);
       void worker.terminate();
       f();
@@ -55,7 +59,12 @@ export function simulateOffThread(input: SimInput, options: SimOptions, timeoutM
     worker.on("message", (m: FromSimWorker) => finish(() => ("error" in m ? reject(new Error(m.error)) : resolve(m.result))));
     worker.once("error", (e) => finish(() => reject(e)));
     worker.once("exit", (code) => finish(() => reject(new Error(`projection worker exited with code ${code}`))));
-    // Awards are a sampling function (it can't be cloned) and the core leaves them out anyway.
-    worker.postMessage({ id: 1, input: { ...input, awards: { mode: "none" } }, options } satisfies ToSimWorker);
+    // Awards are a sampling function (it can't be cloned) and the core leaves them out anyway. Anything else that
+    // can't be cloned throws here: the worker and the timer go with it.
+    try {
+      worker.postMessage({ id: 1, input: { ...input, awards: { mode: "none" } }, options } satisfies ToSimWorker);
+    } catch (e) {
+      finish(() => reject(e));
+    }
   });
 }
