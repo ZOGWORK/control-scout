@@ -108,7 +108,7 @@ A gap in one stretch doesn't stop the day: the next read that agrees with anothe
 
 A placed start isn't a clip until its opening is checked (`checkOpenings`): the overlay 20, 12, 5, 2 or 0 s before the
 start must name that match (and, on a shared stream, not a sibling division's). The first that does is where the clip
-opens (`opens`); the server starts the clip there (`frameOpen`). The last two are for a results or bracket card that
+opens (`opens`); the server starts the clip there (`frameOpen`). A 20, 12 or 5 s lead whose frame a second earlier names another match sits on the overlay's switch to this one, where a paused seek can land either side (USMOKSCMP 2023 Q9 at 4004 s read Q9 once and Q8 once): it's passed over for the next lead in (`onSwitch`). The last two are for a results or bracket card that
 stays up until the match's own overlay comes on (CAONMIQ 2025 M7, USIAWESTLT M3). One whose opening frame shows another
 match goes to review; one whose overlay can't be read there is missing with "overlay could not be read at its clip's
 start". A row with `opens` plays only the starts in it. `--verify` checks the openings of rows read before this, without
