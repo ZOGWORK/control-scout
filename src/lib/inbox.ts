@@ -10,6 +10,7 @@
 // stream lets go after the tab has been hidden for a minute.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { apiFetch, ApiError } from "./api";
+import { onBackOnline } from "./connection";
 import { INBOX_PAGE, INBOX_PAGE_MAX, type InboxFilter, type InboxItem, type InboxPage } from "../shared/inbox";
 
 export type InboxMode = "off" | "connecting" | "live" | "polling";
@@ -94,12 +95,12 @@ export function followInbox(onNotice: (n: InboxNotice) => void, onMode: (m: Inbo
 
   const online = () => { if (!stopped && !es) { failures = 0; clearRetry(); connect(); } };
   const focus = () => { if (!stopped) poll(); };
-  window.addEventListener("online", online);
+  const offBack = onBackOnline(online); // the online event, or the connection check finding internet again
   window.addEventListener("focus", focus);
   connect();
   return () => {
     stopped = true;
-    window.removeEventListener("online", online);
+    offBack();
     window.removeEventListener("focus", focus);
     close(); clearRetry(); stopPolling();
     setMode("off");

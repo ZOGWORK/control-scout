@@ -40,6 +40,7 @@ import { WhatIf } from "../components/predict/WhatIf";
 import { marginCalibration, marginText, marginWords, matchBasis, scoreSum, scoreTotal } from "../shared/predictionBasis";
 import { snapshotClock } from "../shared/eventBundle";
 import type { OfflineSource } from "../lib/offline/predict";
+import { shownOffline, useConnection } from "../lib/connection";
 import { Reveal, m } from "../components/motion";
 import { dateRange, dayDate, num, oddsPct, place, seasonLabel } from "../lib/format";
 import { copyLink } from "../lib/clipboard";
@@ -623,8 +624,16 @@ function RatingsTable({ x }: { x: MatchExplanationView }) {
   );
 }
 
+/** A call made on this device: "Offline" only when the connection check found no internet; else the server is only
+ *  slow, and its call replaces this one when it arrives (lib/api.ts awaitLate). */
+function usePredictedHereWords(): { offline: boolean; lead: string } {
+  const offline = shownOffline(useConnection());
+  return { offline, lead: offline ? "Offline" : "Slow connection" };
+}
+
 function MatchResult({ x, offlineAsOf, offlineFrom, onSwap }: { x: MatchExplanationView; offlineAsOf?: string | null; offlineFrom?: OfflineSource | null; onSwap?: () => void }) {
   const { update } = usePersonal();
+  const saved = usePredictedHereWords();
   const cov = useRangeCoverage();
   const fav = x.winProbRed >= 0.5 ? "Red" : "Blue";
   const save = () => {
@@ -635,7 +644,7 @@ function MatchResult({ x, offlineAsOf, offlineFrom, onSwap }: { x: MatchExplanat
   return (
     <div className="space-y-4">
       <div className="relative overflow-hidden rounded-2xl border border-border bg-card p-6 max-sm:p-4">
-        {offlineAsOf && <p className="mb-3 flex items-center gap-2 rounded-lg border border-info/30 bg-info/[0.06] px-3 py-2 text-xs"><WifiOff className="size-3.5 text-info" />Offline — predicted on this device from {offlineFrom?.kind === "bundle" ? `your ${offlineFrom.name} pack` : "your lite pack"} (data as of {snapshotClock(offlineAsOf)}).</p>}
+        {offlineAsOf && <p className="mb-3 flex items-center gap-2 rounded-lg border border-info/30 bg-info/[0.06] px-3 py-2 text-xs"><WifiOff className="size-3.5 text-info" />{saved.lead}: predicted on this device from {offlineFrom?.kind === "bundle" ? `your ${offlineFrom.name} pack` : "your lite pack"} (data as of {snapshotClock(offlineAsOf)}).{saved.offline ? "" : " The server's call replaces it when it arrives."}</p>}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <ConfidenceBadge tier={x.confidence.tier} reason={x.confidence.reason} />
           <div className="flex flex-wrap gap-2">
@@ -713,6 +722,7 @@ function QuickTeams({ taken, onAdd }: { taken: string[]; onAdd: (t: number) => v
  */
 function CallV8({ x, offlineAsOf, offlineFrom, onSwap, whatIfOpen }: { x: MatchExplanationView; offlineAsOf?: string | null; offlineFrom?: OfflineSource | null; onSwap?: () => void; whatIfOpen: boolean }) {
   const { update } = usePersonal();
+  const saved = usePredictedHereWords();
   const cov = useRangeCoverage();
   const redFav = x.winProbRed >= 0.5;
   const even = x.winProbRed === 0.5;
@@ -733,7 +743,7 @@ function CallV8({ x, offlineAsOf, offlineFrom, onSwap, whatIfOpen }: { x: MatchE
   return (
     <div className="space-y-4" data-call-v8>
       <section aria-label="The call" className="rounded-xl border border-line bg-card p-5 max-sm:p-4">
-        {offlineAsOf && <p className="mb-3 flex items-center gap-2 rounded-lg border border-line bg-ink/[0.03] px-3 py-2 text-xs text-text-muted"><WifiOff className="size-3.5" aria-hidden />Offline: predicted on this device from {offlineFrom?.kind === "bundle" ? `your ${offlineFrom.name} pack` : "your lite pack"} (data as of {snapshotClock(offlineAsOf)}).</p>}
+        {offlineAsOf && <p className="mb-3 flex items-center gap-2 rounded-lg border border-line bg-ink/[0.03] px-3 py-2 text-xs text-text-muted"><WifiOff className="size-3.5" aria-hidden />{saved.lead}: predicted on this device from {offlineFrom?.kind === "bundle" ? `your ${offlineFrom.name} pack` : "your lite pack"} (data as of {snapshotClock(offlineAsOf)}).{saved.offline ? "" : " The server's call replaces it when it arrives."}</p>}
         <div className="flex flex-wrap items-center justify-between gap-2">
           <ConfidenceBadge tier={x.confidence.tier} reason={x.confidence.reason} />
           <div className="flex flex-wrap items-center gap-1.5">

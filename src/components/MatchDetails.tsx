@@ -12,7 +12,7 @@ import type { MatchDetail, MatchView } from "../shared/api";
 import { matchReportHref } from "../shared/matchReport";
 import { useApi } from "../lib/api";
 import { offlineSource } from "../lib/offline/saved";
-import { useOnline } from "../lib/offline/online";
+import { useNoVideoSignal } from "../lib/offline/online";
 import { matchTime, oddsPct } from "../lib/format";
 import { Async } from "./states";
 import { CalibrationLine, ConfidenceBadge, FactorList, KIND_LABEL, PairHistoryLine, WinBar } from "./predict";
@@ -123,8 +123,7 @@ export function Headline({ d, eventName, href }: { d: MatchDetail; eventName?: s
   const win: Side | null = played && diff !== 0 ? (diff > 0 ? "red" : "blue") : null;
   const num = (s: Side) => cn("tabular-nums", win === s || !win ? cn("font-bold", TONE[s].text) : cn("font-normal", FADED[s]));
   const penalties = played && win && Math.sign(r!.np - b!.np) !== Math.sign(diff);
-  const online = useOnline();
-  const noVideo = !online || !!offlineSource(d);
+  const noVideo = useNoVideoSignal(!!offlineSource(d));
   const nav = "inline-flex items-center rounded px-1.5 py-0.5 tap-44 hover:bg-text-base/[0.06] hover:text-text-base";
   return (
     <header data-testid="match-headline">
