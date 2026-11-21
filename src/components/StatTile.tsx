@@ -4,6 +4,7 @@
 import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "./cn";
+import { V8_NUM } from "../lib/v8";
 
 // Static class strings (Tailwind only generates classes it can see written out).
 export const TONES = {
@@ -19,6 +20,32 @@ export const TONES = {
   orange: { box: "border-orange-500/30 bg-orange-500/[0.06]", hover: "hover:border-orange-500/60", selected: "border-orange-500 ring-2 ring-orange-500/50 bg-orange-500/[0.12]", chip: "bg-orange-500/15 text-orange-600 dark:text-orange-400", bar: "bg-orange-500", text: "text-orange-600 dark:text-orange-400", edge: "border-t-orange-500" },
 } as const;
 export type Tone = keyof typeof TONES;
+
+// v8 (docs/design/v8-revamp-brief.md §2, §5): the card surface and its hairline, no filled tint, no hover lift. The
+// tile's meaning colour stays in three thin places (src/lib/v8colour.ts): a 2px bracket on its left edge, the icon
+// (plain, no chip) and the value. Written after the tone's classes, so these win while <html data-v8> is set and
+// nothing changes without it.
+const V8_BOX = "v8:border-line v8:bg-card";
+const V8_HOVER = "v8:hover:border-white/[0.12] v8:hover:bg-white/[0.02] v8:hover:translate-y-0";
+const V8_SELECTED = "v8:border-white/25 v8:bg-white/[0.04] v8:ring-1 v8:ring-white/10";
+const V8_CHIP = "v8:size-4 v8:rounded-none v8:bg-transparent v8:text-text-faint";
+/** Each tone in v8's palette: `text` for the icon and value, `edge` for the left bracket. No teal in v8 (it takes the
+ *  accent); a neutral tile keeps the faint icon and the slate-blue number. */
+export const V8_TONES: Record<Tone, { text: string; edge: string }> = {
+  accent: { text: "v8:text-accent", edge: "v8:border-l-accent" },
+  sky: { text: "v8:text-sky-400", edge: "v8:border-l-sky-400" },
+  emerald: { text: "v8:text-emerald-400", edge: "v8:border-l-emerald-400" },
+  violet: { text: "v8:text-violet-400", edge: "v8:border-l-violet-400" },
+  amber: { text: "v8:text-amber-400", edge: "v8:border-l-amber-400" },
+  rose: { text: "v8:text-rose-400", edge: "v8:border-l-rose-400" },
+  teal: { text: "v8:text-accent", edge: "v8:border-l-accent" },
+  neutral: { text: V8_NUM, edge: "" },
+  orange: { text: "v8:text-orange-400", edge: "v8:border-l-orange-400" },
+};
+/** The bracket's width, on toned tiles only. */
+const V8_EDGE = "v8:border-l-2";
+/** A meter part in v8: progress is the one place mint shows on a tile. */
+export const V8_BAR = "v8:bg-accent";
 
 export function StatTile({ tone, icon: Icon, label, value, hint, bar, onClick, selected, action, className, chip }: {
   tone: Tone;
@@ -39,21 +66,23 @@ export function StatTile({ tone, icon: Icon, label, value, hint, bar, onClick, s
   chip?: string;
 }) {
   const t = TONES[tone];
+  const v8t = V8_TONES[tone];
+  const v8Edge = tone === "neutral" ? "" : cn(V8_EDGE, v8t.edge);
   const body = (
     <>
-      <span className="flex items-center gap-2 text-sm leading-tight text-muted-foreground">
-        <span className={cn("flex size-7 shrink-0 items-center justify-center rounded-lg", chip ?? t.chip)}><Icon className="size-4" aria-hidden /></span>{label}
+      <span className="flex items-center gap-2 text-sm leading-tight text-muted-foreground v8:gap-1.5">
+        <span className={cn("flex size-7 shrink-0 items-center justify-center rounded-lg", chip ?? t.chip, V8_CHIP, !chip && tone !== "neutral" && v8t.text)}><Icon className="size-4" aria-hidden /></span>{label}
       </span>
-      <span className="mt-2 block font-display text-3xl font-semibold tabular-nums text-foreground">{value}</span>
+      <span className={cn("mt-2 block font-display text-3xl font-semibold tabular-nums text-foreground", v8t.text)}>{value}</span>
       {hint && <span className="mt-1 block break-words text-xs text-muted-foreground">{hint}</span>}
       {bar && <span className="mt-auto block pt-2">{bar}</span>}
     </>
   );
   const base = "flex h-full w-full min-w-0 flex-col rounded-xl border p-4 text-left";
-  if (!onClick) return <div className={cn(base, t.box, className)}>{body}</div>;
+  if (!onClick) return <div className={cn(base, t.box, V8_BOX, v8Edge, className)}>{body}</div>;
   return (
     <button type="button" onClick={onClick} aria-expanded={!!selected} data-selected={selected ? "true" : undefined}
-      className={cn(base, "transition-[border-color,transform,box-shadow,background-color] hover:-translate-y-0.5 motion-reduce:hover:translate-y-0", selected ? t.selected : cn(t.box, t.hover), className)}>
+      className={cn(base, "transition-[border-color,transform,box-shadow,background-color] hover:-translate-y-0.5 motion-reduce:hover:translate-y-0 v8:active:scale-[0.99] motion-reduce:v8:active:scale-100", selected ? cn(t.selected, V8_SELECTED, v8Edge) : cn(t.box, t.hover, V8_BOX, V8_HOVER, v8Edge), className)}>
       {body}
       {action && <span className="sr-only">. {action}</span>}
     </button>
@@ -64,8 +93,8 @@ export function StatTile({ tone, icon: Icon, label, value, hint, bar, onClick, s
  *  `value` and `scale`: the number a part stands for and its whole (marked for the answer-card audit), else the pc. */
 export function Meter({ parts }: { parts: { pc: number; cls: string; value?: number; scale?: number }[] }) {
   return (
-    <span aria-hidden className="flex h-1.5 overflow-hidden rounded-full bg-muted">
-      {parts.map((x, i) => <span key={i} className={cn("h-full transition-[width] duration-700 motion-reduce:transition-none", x.cls)} style={{ width: `${x.pc}%` }} data-bar data-value={x.value ?? x.pc} data-scale={x.scale ?? 100} />)}
+    <span aria-hidden className="flex h-1.5 overflow-hidden rounded-full bg-muted v8:h-1 v8:bg-white/[0.06]">
+      {parts.map((x, i) => <span key={i} className={cn("h-full transition-[width] duration-700 motion-reduce:transition-none v8:transition-none", x.cls)} style={{ width: `${x.pc}%` }} data-bar data-value={x.value ?? x.pc} data-scale={x.scale ?? 100} />)}
     </span>
   );
 }

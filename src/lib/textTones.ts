@@ -113,12 +113,14 @@ export type Meaning = keyof typeof SEARCH_PALETTE;
 /** A team card's season-at-a-glance tiles (components/search/page/TeamAnswer.tsx SeasonTiles): the tiles plain, each
  *  number in its own colour (the owner, 11-06: colour on the text, not the block). OPR yellow, the prediction rating
  *  purple, a record's wins green and losses red, events blue. Only on those tiles (the audit lets them by there). */
+// v8 (owner 11-19, search answers' category colours): OPR purple, the rating and events the slate-blue accent, wins
+// soft green and losses soft red; never yellow.
 export const GLANCE_TONE = {
-  opr: { text: "text-yellow-700 dark:text-yellow-400", bar: "bg-yellow-700 dark:bg-yellow-400" },
-  rating: { text: "text-purple-700 dark:text-purple-400" },
-  win: { text: "text-green-700 dark:text-green-400", bar: "bg-green-600 dark:bg-green-500" },
-  loss: { text: "text-red-700 dark:text-red-400", bar: "bg-red-600 dark:bg-red-500" },
-  events: { text: "text-blue-700 dark:text-blue-400" },
+  opr: { text: "text-yellow-700 dark:text-yellow-400 v8:text-violet-300", bar: "bg-yellow-700 dark:bg-yellow-400 v8:bg-violet-400" },
+  rating: { text: "text-purple-700 dark:text-purple-400 v8:text-accent" },
+  win: { text: "text-green-700 dark:text-green-400 v8:text-emerald-300", bar: "bg-green-600 dark:bg-green-500 v8:bg-emerald-400" },
+  loss: { text: "text-red-700 dark:text-red-400 v8:text-rose-300", bar: "bg-red-600 dark:bg-red-500 v8:bg-rose-400" },
+  events: { text: "text-blue-700 dark:text-blue-400 v8:text-accent" },
 } as const;
 
 /** The meaning a label names, read the same way on every card: a phase ("Auto", "TeleOp + end", "Pen given", "Avg

@@ -15,6 +15,34 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.7.1 — 2026-11-21
+
+Search keeps the thread: a follow-up like "and last season?" or "who beat them?" is answered about the team you just asked about.
+
+### Highlights
+- [scout] "And last season?" asks about the team you just asked about
+- [scout] "Who beat them?" knows who "them" is
+- [scout] A question about many teams carries nothing to the next
+
+### Search
+- The results page and the header's search keep the team the last answer was about (`src/components/search/thread.ts`): a follow-up naming no team of its own ("and last season?", "who beat them?", "what about at Worlds?") is asked about that team, so search answers the question instead of reading one with no subject. A question's card team, a stat answer's single team or the one team its results name is carried, for half an hour in that tab; a set of teams or a place leaves nothing, and the question asked is the one in the address and the heading. (#2041)
+
+## 7.7.0 — 2026-11-19
+
+A new look for Control Scout: calmer and darker, with each page built around what you came for. The classic look is one click away at Settings › Display › Look.
+
+### Highlights
+- [appearance] A new look: near-black, a soft wash up top, a soft-white logo
+- [home] Home is search first, with live events, top teams and your team below
+- [teams] Team, event and match pages lead with the answer you came for
+- [appearance] Prefer the old one? Settings › Display › Look switches back
+
+### Appearance
+- A quieter sidebar; your picture top-right holds Settings, What's new and your account.
+- Everything a little more compact, with quick, light presses and menus.
+- One quiet colour: white for wins and your team, a light slate blue for progress and the #1 rank, lighter red and blue for the alliances.
+- The new look is dark only for now; the classic look keeps your saved theme. (#1981)
+
 ## 7.6.9 — 2026-11-17
 
 Event videos › a clip whose video plays on YouTube only now opens there, at the match's second, instead of an embedded player that can't play it.
