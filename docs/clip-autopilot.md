@@ -96,7 +96,7 @@ minute (`startAutoReadsInbox`; off with the rest of the schedule under `CS_NO_SC
 before the first change), what the read changes against what's live (matches added, moved and pulled, as chips that
 play that second, and the clip counts), and the rules it broke. **Approve** puts it live as read; **Reject** drops it
 (what's live stays, and the event can be read again). Both name the read the owner saw, so one replaced meanwhile is
-refused ("look again"), and both are audited (`autoReads.approve`, `autoReads.reject`). The menu's Clip coverage badge
+refused ("look again"), and both are audited (`autoReads.approve`, `autoReads.reject`). Every owner decision is written under the same data lock as the inbox (busy over 15 s: "try again"). The menu's Clip coverage badge
 counts what waits. Rows live in the database are never in the shipped snapshot (`auto_reads` is private).
 
 Below them, **Seen in the video, kept off the site** lists every frame row's `review` entry: a match the frames saw at
