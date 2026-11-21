@@ -559,6 +559,9 @@ export interface LeaderboardQuestion {
   school?: boolean;
   /** The state or country said with the town ("teams in Springfield IL"): the town's teams from there only. */
   cityIn?: Region;
+  /** Words naming New Jersey conferences as a place ("best auto in nj bergen"): the teams of the conferences they name
+   *  in the board's season (families/leaderboard.ts conferenceGroup). */
+  conference?: string[];
   /** One event's teams (its divisions' too): the board of the teams there. */
   event?: { season: number; code: string; codes: string[]; name: string; home?: Region | null; rookies?: boolean };
   /** Part of the teams' names, as typed ("Robot"): only the teams whose name has it. */

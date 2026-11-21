@@ -16,6 +16,9 @@ import { predictHref } from "../../../src/shared/predictUrl.js";
 import { boardSearch, statAnswer, statAnswerOf, topSearch, twoTeamSearch, type Resolve } from "../answers/index.js";
 import { currentSeason, defaultSeason, lastSeason, seasonWhy, teamSeason } from "../answers/season.js";
 import { BOARD_STATS } from "../answers/families/leaderboard.js";
+import { conferencesNamed } from "../answers/families/conference.js";
+import { allConferences } from "../conferences.js";
+import { CONFERENCE_REGION } from "../../../src/shared/conferences.js";
 import type { Phase, TopMatchesQuestion } from "../answers/families/topMatches.js";
 import { defaultSteps, isEmpty, relaxed, windowSteps } from "./relax.js";
 import { eventsNamed, heldInYear, highlightsAnswer, latestPlayed, recentWindow, scopeEvents, type HighlightFind } from "./highlights.js";
@@ -82,6 +85,14 @@ export async function pipelineAnswer(q: string, opts: PipelineOptions): Promise<
   // about matches, answered as one below (periodMatches). Nothing else may be left unread.
   if (!p.complete && p.intent === "leaderboard" && !p.teams.length && !p.leftover.length && periodMatches(p)
     && p.unexplained.every((s) => MATCH_WORDS.includes(s))) p = { ...p, complete: true };
+  // A board whose left-over words name New Jersey conferences, with New Jersey or no place said ("best auto in nj
+  // bergen": every conference with Bergen in its name): the board of those conferences' teams (families/leaderboard.ts
+  // conferenceGroup), the conferences read in the board's own season.
+  if (!p.complete && p.intent === "leaderboard" && !p.teams.length && p.leftover.length && !p.unexplained.length && !p.event && !p.worlds && !p.states
+    && (!p.place || (p.place.kind === "region" && p.place.country === "USA" && `US${p.place.state}` === CONFERENCE_REGION))) {
+    const list = await allConferences();
+    if ([...new Set(list.map((c) => c.season))].some((s) => conferencesNamed(p.leftover, list, s).length)) p = { ...p, complete: true, conference: p.leftover, leftover: [] };
+  }
   // One team's question in two time windows set against each other ("12345 record this month, versus last month"):
   // asked in each, exactly as said, side by side.
   if (!p.complete) {
@@ -701,7 +712,9 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   if (!p.teams.length && intent === "leaderboard") {
     // A board only this reader reads: the teams at Worlds, a filter on the teams (part of their name, no award ever won,
     // unbeaten at a kind of event) or a number's gain over the season. An event named keeps the box's event results.
-    const own = !!(p.worlds || p.nameHas || (p.undefeated && p.eventKind)) || p.symbols.includes("no-award") || p.symbols.includes("gain");
+    // Conferences as the place, or an event named ("best auto in east bergen conference"): no ask reads those, so the
+    // box gets its link to the page too.
+    const own = !!(p.worlds || p.nameHas || (p.undefeated && p.eventKind) || p.conference || p.event) || p.symbols.includes("no-award") || p.symbols.includes("gain");
     // A board of teams the asks don't read ("nj teams ranked by opr"), with no event, Worlds or state championship said.
     const teamsBoard = p.symbols.includes("thing:team") && !p.event && !p.worlds && !p.states && !readAsk(p.q);
     // The search box keeps the asks' own short card; the page draws the list. A board only this reader reads, or a board
@@ -746,6 +759,7 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
       ...(one ? { best: true } : {}), ...((p.agg === "min") !== goodWord ? { asc: true } : {}),
       ...(p.nameHas ? { nameHas: p.nameHas.typed } : {}), ...(p.symbols.includes("no-award") ? { noAward: true } : {}),
       ...(atKind ? { atKind, ...(p.recordSaid ? { recordSaid: p.recordSaid } : {}) } : {}),
+      ...(p.conference ? { conference: p.conference } : {}),
     };
     // A fewer-is-better board (penalties) is titled by its card on the page ("… with the most penalties"), never here.
     if (!opts.full && !own && BOARD_STATS[b.stat]?.fewerBetter) return null;
@@ -764,7 +778,7 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     if (!opts.full && !own) return a;
     // No season said, or "this season": the current one, then the one before when nobody has played enough yet.
     if (scope.season != null || !(p.time == null || (p.time.kind === "season" && p.time.relative === "this"))) return asked(a);
-    return asked(await relaxed(a, defaultSteps(b.season!, town ? ` in ${town.city}` : region ? ` in ${region.name}` : "", b.atKind ? `teams unbeaten at ${b.atKind.label.replace(/ \(.*\)$/, "")}` : b.undefeated ? "undefeated teams" : b.kind === "top" ? "ranked teams" : "teams"), (season) => board({ ...b, season })));
+    return asked(await relaxed(a, defaultSteps(b.season!, p.conference ? ` in New Jersey's “${p.conference.join(" ")}” conferences` : town ? ` in ${town.city}` : region ? ` in ${region.name}` : "", b.atKind ? `teams unbeaten at ${b.atKind.label.replace(/ \(.*\)$/, "")}` : b.undefeated ? "undefeated teams" : b.kind === "top" ? "ranked teams" : "teams"), (season) => board({ ...b, season })));
   }
   return null;
 }
