@@ -43,7 +43,7 @@ export function SimulatedRankings({ d, team }: { d: EventDetail; team: number | 
 
   if (!on) return (
     <section aria-labelledby="sim-rank-h" className="mb-6 flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-card p-4 max-sm:mb-4 v8:border-line" data-sim-rankings>
-      <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-accent/15 text-accent-text v8:bg-white/[0.05] v8:text-text-muted"><Dices className="size-5" aria-hidden /></span>
+      <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-accent/15 text-accent-text v8:bg-ink/[0.05] v8:text-text-muted"><Dices className="size-5" aria-hidden /></span>
       <div className="min-w-0 flex-1">
         <h2 id="sim-rank-h" className="font-display text-base font-semibold text-foreground v8:font-sans">Simulated rankings</h2>
         <p className="text-sm text-muted-foreground">How the model thinks qualification could end, before a match is played. A rough guess: open it knowing that.</p>
@@ -64,13 +64,13 @@ export function SimulatedRankings({ d, team }: { d: EventDetail; team: number | 
               {PER_TEAM_CHOICES.map((n) => (
                 <button key={n} type="button" role="radio" aria-checked={perTeam === n} onClick={() => setPerTeam(n)}
                   className={cn("h-8 min-w-8 rounded-md border px-2 text-xs font-semibold tabular-nums max-sm:h-9 max-sm:min-w-9",
-                    perTeam === n ? "border-accent bg-accent text-accent-ink v8:border-white/[0.12] v8:bg-white/10 v8:text-text-base" : "border-line bg-background text-muted-foreground hover:text-foreground v8:bg-transparent")}>{n}</button>
+                    perTeam === n ? "border-accent bg-accent text-accent-ink v8:border-ink/[0.12] v8:bg-ink/10 v8:text-text-base" : "border-line bg-background text-muted-foreground hover:text-foreground v8:bg-transparent")}>{n}</button>
               ))}
             </div>
           </div>
         )}
       </div>
-      <p className="mb-4 flex items-start gap-2 rounded-xl border border-warning/40 bg-warning/10 px-3 py-2.5 text-sm text-foreground v8:border-line v8:bg-white/[0.03]" role="note" data-sim-warning>
+      <p className="mb-4 flex items-start gap-2 rounded-xl border border-warning/40 bg-warning/10 px-3 py-2.5 text-sm text-foreground v8:border-line v8:bg-ink/[0.03]" role="note" data-sim-warning>
         <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
         <span>
           <b>Highly uncertain.</b> No match here has been played yet. Each team's strength comes from its matches so far

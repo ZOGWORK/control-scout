@@ -112,7 +112,7 @@ function FlipCard({ r, closest }: { r: CoinFlipRow; closest: boolean }) {
   return (
     <li className="min-w-0">
       <Link to={coinFlipHref(r)} aria-label={label}
-        className={cn("lift group flex h-full flex-col gap-2.5 rounded-xl border bg-card p-3.5 focus-visible:outline-2 focus-visible:outline-ring", closest ? "border-accent/60 bg-accent/[0.05] v8:bg-transparent" : "border-line", "v8:transition-colors v8:duration-150 v8:hover:translate-y-0 v8:hover:shadow-none v8:still-hover:bg-white/[0.02]")}>
+        className={cn("lift group flex h-full flex-col gap-2.5 rounded-xl border bg-card p-3.5 focus-visible:outline-2 focus-visible:outline-ring", closest ? "border-accent/60 bg-accent/[0.05] v8:bg-transparent" : "border-line", "v8:transition-colors v8:duration-150 v8:hover:translate-y-0 v8:hover:shadow-none v8:still-hover:bg-ink/[0.02]")}>
         <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
           <span className="rounded-md bg-text-base/10 px-1.5 py-0.5 font-mono font-semibold text-text-base">{r.label}</span>
           {clock && <span className="text-text-muted">{clock} venue time</span>}
@@ -186,7 +186,7 @@ export function CoinFlipRadarSection({ className }: { className?: string }) {
           </p>
         </div>
         {r && (
-          <span className="shrink-0 rounded-lg border border-accent/40 bg-accent/10 px-2.5 py-1 text-xs font-medium tabular-nums text-accent-text v8:rounded-full v8:border-white/[0.12] v8:bg-transparent v8:text-text-muted">
+          <span className="shrink-0 rounded-lg border border-accent/40 bg-accent/10 px-2.5 py-1 text-xs font-medium tabular-nums text-accent-text v8:rounded-full v8:border-ink/[0.12] v8:bg-transparent v8:text-text-muted">
             {r.upcoming.length} to play
           </span>
         )}

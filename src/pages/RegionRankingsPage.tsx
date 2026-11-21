@@ -259,7 +259,7 @@ function Unranked({ data, team }: { data: RegionRankingsResponse; team: number |
       <p className="text-sm text-text-muted">A team is ranked after its third rated match this season.</p>
       <ul className="grid gap-x-4 gap-y-1 text-sm sm:grid-cols-2 lg:grid-cols-3">
         {data.unranked.map((u: UnrankedTeam) => (
-          <li key={u.team} data-team={u.team} className={cn("flex min-w-0 items-baseline gap-2 rounded-md px-1.5 py-1", u.team === team && "bg-accent/[0.09] font-semibold v8:bg-white/[0.06]")}>
+          <li key={u.team} data-team={u.team} className={cn("flex min-w-0 items-baseline gap-2 rounded-md px-1.5 py-1", u.team === team && "bg-accent/[0.09] font-semibold v8:bg-ink/[0.06]")}>
             <Link to={`/teams/${u.team}?season=${data.season}`} className="min-w-0 truncate hover:underline"><span className="font-mono tabular-nums">{u.team}</span> {u.name ?? ""}</Link>
             <span className={cn("ml-auto shrink-0 text-xs text-text-muted", V8_CAPTION)}>{unrankedLabel(u.ratedMatches)}</span>
           </li>
