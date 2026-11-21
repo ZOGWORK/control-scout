@@ -37,7 +37,7 @@ export default function RelatedSearchesPage() {
             <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card v8:border-line">
               {g.items.map((x) => (
                 <li key={x.q}>
-                  <Link to={searchHref(x.q)} className="flex min-h-[44px] items-start gap-3 px-4 py-2.5 text-sm hover:bg-muted/50 v8:hover:bg-white/[0.04]">
+                  <Link to={searchHref(x.q)} className="flex min-h-[44px] items-start gap-3 px-4 py-2.5 text-sm hover:bg-muted/50 v8:hover:bg-ink/[0.04]">
                     <Search className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" aria-hidden />
                     <span className="min-w-0">
                       <span className="block break-words font-medium text-foreground">{x.q}</span>

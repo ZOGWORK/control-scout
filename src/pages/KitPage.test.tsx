@@ -78,6 +78,6 @@ describe("v8 foundations", () => {
     expect(b).not.toContain("transition-all");
     expect(b).toContain("active:scale-[0.97]");
     expect(b).toContain("motion-reduce:active:scale-100");
-    expect(b).toContain("v8:bg-white/10");
+    expect(b).toContain("v8:bg-ink/10");
   });
 });

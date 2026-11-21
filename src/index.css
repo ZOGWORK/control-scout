@@ -44,6 +44,9 @@
   /* v8 text ladder's third step (captions, units) and the live red (live dot and live icons only). */
   --color-text-faint: #71717a;
   --color-live: #f2555a;
+  /* v8's hairlines, hover fills and "your row" tints (v8:border-ink/[0.12], v8:bg-ink/[0.06]…): white on dark,
+     the page's ink on Light (html[data-v8].light), so one class reads in every theme. */
+  --color-ink: #ffffff;
 
   /* Volt & Carbon (Control Point modern, dark) */
   --color-primary: var(--sh-background);
@@ -363,6 +366,7 @@ html[data-v8].light {
   --color-secondary: #ffffff;
   --color-text-faint: #71717a;
   --color-live: #c81e1e;
+  --color-ink: #18181b;
   --color-accent: #3f5a96;
   --color-accent-hover: #344b7f;
   --color-accent-ink: #ffffff;
@@ -401,7 +405,14 @@ html[data-v8].light {
   --color-violet-400: #7c3aed;
   --color-orange-300: #c2410c;
   --color-orange-400: #c2410c;
+  --color-yellow-300: #b45309;
   --color-yellow-400: #b45309;
+  --color-amber-300: #b45309;
+  --color-emerald-200: #047857;
+  --color-green-300: #15803d;
+  --color-green-400: #15803d;
+  --color-purple-300: #7e22ce;
+  --color-purple-400: #7e22ce;
   --color-amber-400: #b45309;
   --color-amber-600: #92400e;
   --color-slate-300: #64748b;
@@ -425,7 +436,7 @@ html[data-v8].dim {
   --wash-mix: 82%;
 }
 /* The white mark (Shell, Home, the pull-to-refresh, Predict's card) on Light: the same mark in ink. */
-html[data-v8].light img[src$="/mark-white.webp"] { filter: invert(0.9); }
+html[data-v8].light img:is([src$="/mark-white.webp"], [src="/mark.webp"]) { filter: invert(0.9); }
 /* The particle wave's slate and peach grains read as grey specks on near-white: quieter there. */
 html[data-v8].light canvas[data-dot-wave] { opacity: 0.55; }
 /* The phone tab bar's height, border included (Shell MobileTabs); fixed things on phones sit above it. */

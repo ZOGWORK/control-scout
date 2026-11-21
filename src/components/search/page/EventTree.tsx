@@ -51,7 +51,7 @@ export function EventTree({ f, open: first, onOpen }: { f: EventFamily; open: bo
         <header className="min-w-0" data-family-parent>
           <div className="flex items-start gap-3">
             {/* The tree's root. */}
-            <span aria-hidden className={cn("grid size-11 shrink-0 place-items-center rounded-xl text-white shadow-sm", tone.chip, "v8:size-10 v8:bg-white/[0.06] v8:text-text-muted v8:shadow-none")} data-family-root><Trophy className="size-5" /></span>
+            <span aria-hidden className={cn("grid size-11 shrink-0 place-items-center rounded-xl text-white shadow-sm", tone.chip, "v8:size-10 v8:bg-ink/[0.06] v8:text-text-muted v8:shadow-none")} data-family-root><Trophy className="size-5" /></span>
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <StatusChip status={status} />
@@ -82,11 +82,11 @@ export function EventTree({ f, open: first, onOpen }: { f: EventFamily; open: bo
               return (
                 <li key={m.hit.ref} className="relative pb-2 last:pb-0" data-division>
                   {/* The line through every node (to the last one's), its node, and the branch to the row. */}
-                  <span aria-hidden className={cn("absolute -left-[19px] top-0 w-0.5", tone.bar, "v8:w-px v8:bg-white/[0.12]", last ? "h-[26px]" : "bottom-0", i === 0 && "top-[26px]")} />
+                  <span aria-hidden className={cn("absolute -left-[19px] top-0 w-0.5", tone.bar, "v8:w-px v8:bg-ink/[0.12]", last ? "h-[26px]" : "bottom-0", i === 0 && "top-[26px]")} />
                   <span aria-hidden className={cn("absolute -left-[24px] top-[20px] size-3 rounded-full ring-4 ring-card", node.bar, "v8:-left-[23px] v8:top-[22px] v8:size-2", V8_STATUS[own].dot)} data-node />
-                  <span aria-hidden className={cn("absolute -left-[12px] top-[25px] h-0.5 w-3", tone.bar, "v8:h-px v8:bg-white/[0.12]")} />
-                  <div className={cn("grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 rounded-lg border px-3 py-1.5", finals ? cn("border-transparent", node.tint, "v8:border-line v8:bg-white/[0.03]") : "border-border bg-background/40 v8:border-line v8:bg-transparent")}>
-                    <span aria-hidden className={cn("grid size-8 place-items-center rounded-lg", node.tint, node.icon, "v8:bg-white/[0.06] v8:text-text-muted")}>{finals ? <Trophy className="size-4" /> : <Layers className="size-4" />}</span>
+                  <span aria-hidden className={cn("absolute -left-[12px] top-[25px] h-0.5 w-3", tone.bar, "v8:h-px v8:bg-ink/[0.12]")} />
+                  <div className={cn("grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 rounded-lg border px-3 py-1.5", finals ? cn("border-transparent", node.tint, "v8:border-line v8:bg-ink/[0.03]") : "border-border bg-background/40 v8:border-line v8:bg-transparent")}>
+                    <span aria-hidden className={cn("grid size-8 place-items-center rounded-lg", node.tint, node.icon, "v8:bg-ink/[0.06] v8:text-text-muted")}>{finals ? <Trophy className="size-4" /> : <Layers className="size-4" />}</span>
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-x-2">
                         <Link to={hitHref(m.hit)} onClick={() => onOpen(m.hit)} className={cn("flex min-h-[44px] min-w-[44px] items-center text-foreground hover:underline md:min-h-8 md:min-w-0", finals ? "font-bold" : "font-medium")}>{m.label}</Link>
