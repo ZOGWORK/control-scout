@@ -100,7 +100,7 @@ describe("match row in v8: every classic feature, restyled", () => {
   it("the hover and open fills are plain white, never an accent tint; the details still open", () => {
     const toggle = vi.fn();
     render(<MemoryRouter><TooltipProvider><MatchRow m={match()} onToggle={toggle} /></TooltipProvider></MemoryRouter>);
-    expect(q("[data-row]").className).toMatch(/v8:still-hover:bg-white\/\[0\.03\]/);
+    expect(q("[data-row]").className).toMatch(/v8:still-hover:bg-ink\/\[0\.03\]/);
     fireEvent.click(screen.getByRole("button", { name: "Q3 details" }));
     expect(toggle).toHaveBeenCalled();
   });
