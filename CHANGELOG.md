@@ -27,6 +27,25 @@ Search keeps the thread: a follow-up like "and last season?" or "who beat them?"
 ### Search
 - The results page and the header's search keep the team the last answer was about (`src/components/search/thread.ts`): a follow-up naming no team of its own ("and last season?", "who beat them?", "what about at Worlds?") is asked about that team, so search answers the question instead of reading one with no subject. A question's card team, a stat answer's single team or the one team its results name is carried, for half an hour in that tab; a set of teams or a place leaves nothing, and the question asked is the one in the address and the heading. (#2041)
 
+## 7.7.2 — 2026-11-21
+
+The Discord bot's mentions are a conversation first: Bruno's chat answers them, and when no model can, one honest line says so instead of a canned persona.
+
+### Highlights
+- [alerts] Mentions get Bruno's chat, not a canned reply
+- [alerts] One honest fallback when the AI can't answer
+- [fixes] Discord chats reach Bruno again: the facts were over his cap
+- [fixes] A chat that didn't happen says why in the bot's log
+
+### Changed
+- `@Control Scout …`, a reply to its answer and `/ask` ask Bruno's chat first, before search's query rewrite, so the model leads and the website's card is the fallback. A chat waits up to 30 s, with the mention's typing indicator kept up. (`bot/ask.ts`, `bot/handler.ts`)
+- A short message that isn't a records question and that no chat answered gets one line from `bot/smallTalk.ts` — "I can't chat right now — my AI answers aren't reachable…" — credited to Control Scout, in place of eleven keyword replies that read as canned. A message with a number in it, or a long one search couldn't answer, keeps the honest card. (`bot/smallTalk.ts`, `bot/ask.ts`)
+
+### Fixed
+- Bruno's Discord chats were refused by Control Point: it caps one fact line at 400 characters, and two of the product facts the bot always sent were longer (434 and 470), so every packet got a 400 `facts[i]` and the card posted instead. Both facts now fit under the cap as whole sentences — Zog Mode keeps its owner-only rule — and every line is still cut to the cap as a guard. (`bot/ask.ts`, `bot/productFacts.ts`)
+- A chat that wasn't configured, was refused, timed out or came back empty now says why in the bot's log (`[bot] chat off: …`, `[bot] chat failed: …`, `[bot] chat empty: …`), so a deployment is diagnosed from `journalctl -u control-scout-bot` without a code change. (`bot/ask.ts`)
+- `bot/README.md` lists the Control Point settings Bruno's chat needs, and how the bot says a chat didn't happen.
+
 ## 7.7.0 — 2026-11-19
 
 A new look for Control Scout: calmer and darker, with each page built around what you came for. The classic look is one click away at Settings › Display › Look.
