@@ -1,6 +1,6 @@
 // The top bar's light/dark switch, beside the notification bell (src/components/layout/Shell.tsx). It flips between
-// Light and the dark theme last used (Dim, Dark or Midnight: Settings.darkTheme), so a Midnight user comes back to
-// Midnight, never the default. Settings still picks any theme, System included.
+// Light and the dark theme last used (Dim or Dark: Settings.darkTheme), so a Dim user comes back to Dim, never the
+// default. Settings still picks any theme, System included.
 import { Moon, Sun } from "lucide-react";
 import { toggledTheme, useTheme } from "../../hooks/useTheme";
 import { usePersonal } from "../../lib/personal";

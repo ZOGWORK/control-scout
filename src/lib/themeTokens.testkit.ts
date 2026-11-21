@@ -6,9 +6,9 @@ import { createRequire } from "node:module";
 import { resolve } from "node:path";
 import { contrast, over, parseColor, toHex, type RGBA } from "./contrast";
 
-export type Theme = "dark" | "light" | "dim" | "midnight";
+export type Theme = "dark" | "light" | "dim";
 /** The dark family: Tailwind's `dark:` variant applies (index.css's `html:not(.light)`) and they share dark's status colours. */
-export const DARK_FAMILY = new Set<Theme>(["dim", "dark", "midnight"]);
+export const DARK_FAMILY = new Set<Theme>(["dim", "dark"]);
 
 // From the repo root, not import.meta.url: under jsdom a module's URL isn't a file: URL.
 export const css = readFileSync(resolve(process.cwd(), "src/index.css"), "utf8");
@@ -27,7 +27,6 @@ const vars: Record<Theme, Record<string, string>> = {
   dark,
   light: { ...dark, ...block(css, "html.light {") },
   dim: { ...dark, ...block(css, "html.dim {") },
-  midnight: { ...dark, ...block(css, "html.midnight {") },
 };
 
 export function value(theme: Theme, name: string, depth = 0): RGBA {

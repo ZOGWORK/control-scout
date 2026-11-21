@@ -81,7 +81,7 @@ export function StoragePanel() {
               <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
                 <StatTile tone={s.level === "ok" ? "emerald" : s.level === "notice" ? "sky" : "amber"} icon={HardDrive} label="Used" value={s.usedBytes < 1e8 ? mb(s.usedBytes) : gb(s.usedBytes)}
                   hint={`of 10 GB · uploads stop at ${gb(s.softCapBytes)}`}
-                  bar={<Meter parts={[{ pc: Math.min(100, (s.usedBytes / s.limitBytes) * 100), cls: s.level === "ok" ? "bg-success" : s.level === "notice" ? "bg-info" : s.level === "warning" ? "bg-warning" : "bg-danger" }]} />} />
+                  bar={<Meter parts={[{ pc: Math.min(100, (s.usedBytes / s.limitBytes) * 100), cls: s.level === "ok" ? "bg-success v8:bg-emerald-400" : s.level === "notice" ? "bg-info" : s.level === "warning" ? "bg-warning" : "bg-danger" }]} />} />
                 <StatTile tone="accent" icon={Images} label="Photos" value={int(s.photos)} hint={s.enabled ? "Stored, plus uploads in progress" : "The photos switch is off"} />
                 <StatTile tone="violet" icon={CalendarClock} label="Events" value={int(s.events.length)} hint="With photos stored" />
                 <StatTile tone="sky" icon={Brush} label="Last cleanup" value={s.lastRun ? ago(s.lastRun.at) : "—"}

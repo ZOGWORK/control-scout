@@ -1,7 +1,7 @@
 // Team profile — any team, any season. Control Point's Team Stats design
 // (hero, OPR cards with world rank, one trend chart, event history),
 // generalised from "my team" to every team.
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState, type ReactNode } from "react";
 import { recordWords } from "../shared/format";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { leagueHref, leagueTitle } from "../shared/leagues";
@@ -10,7 +10,7 @@ import { useConferenceGate } from "../lib/conferenceGate";
 import { regionHref } from "../shared/regionRankings";
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 import {
-  Award, Bookmark, BookmarkCheck, CalendarDays, ChevronDown, ClipboardList, ExternalLink, Eye, GraduationCap, Info, Link2, MapPin, Scale, Sparkles, Star, TrendingDown, TrendingUp, Trophy,
+  Award, Bookmark, BookmarkCheck, CalendarDays, ChevronDown, ClipboardList, ExternalLink, Eye, GraduationCap, Info, Link2, MapPin, MoreHorizontal, Scale, Sparkles, Star, TrendingDown, TrendingUp, Trophy,
 } from "lucide-react";
 import { type ApiError, useApi, qs } from "../lib/api";
 import { NotFoundView } from "../components/NotFoundView";
@@ -27,7 +27,8 @@ import { Async } from "../components/states";
 import { Reveal, Stagger, StaggerItem } from "../components/motion";
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/basic";
-import { ToggleGroup, ToggleGroupItem, Collapsible, CollapsibleContent, CollapsibleTrigger } from "../components/ui/controls";
+import { ToggleGroup, ToggleGroupItem, Collapsible, CollapsibleContent, CollapsibleTrigger, Select, SelectContent, SelectItem, SelectTrigger } from "../components/ui/controls";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "../components/ui/overlay";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "../components/ui/chart";
 import { MatchList, TierMark } from "../components/predict";
 import { SeasonToggle } from "../components/SeasonToggle";
@@ -53,6 +54,14 @@ import { ReportCardSection } from "../components/ReportCard";
 import { ReliabilitySection } from "../components/Reliability";
 import { TeamScheduleSection } from "../components/ScheduleDifficulty";
 import { predictHref } from "../shared/predictUrl";
+import { useIsV8 } from "../lib/v8";
+import { V8_PHASE } from "../lib/records/describe";
+
+/** v8 (docs/design/v8-revamp-brief.md): a small label, sentence case and faint (the uppercase tracked eyebrows today). */
+const V8_LABEL = "v8:text-xs v8:font-normal v8:normal-case v8:tracking-normal v8:text-text-faint";
+/** A row or card that answers the pointer: the .lift class today (rise and glow); in v8 a faint hover fill only.
+ *  .lift is plain CSS outside the layers, so no v8: class can undo it: it's left off in v8. */
+const v8Row = (v8: boolean) => (v8 ? "transition-colors hover:bg-white/[0.03] border-line" : "lift");
 
 /** Track and stop-tracking notes share one toast, so tapping Track twice replaces the note rather than stacking two. */
 const TRACK_NOTE = "team-track-note";
@@ -88,7 +97,12 @@ export default function TeamPage() {
   );
 }
 
-function Profile({ p, drawn = false, asked, onSeason }: { p: TeamProfile; drawn?: boolean; asked: boolean; onSeason: (s: number) => void }) {
+function Profile(props: { p: TeamProfile; drawn?: boolean; asked: boolean; onSeason: (s: number) => void }) {
+  // v8 is a page of its own (V8Profile below); without it the page is drawn as it always was.
+  return useIsV8() ? <V8Profile {...props} drawn={props.drawn ?? false} /> : <ClassicProfile {...props} />;
+}
+
+function ClassicProfile({ p, drawn = false, asked, onSeason }: { p: TeamProfile; drawn?: boolean; asked: boolean; onSeason: (s: number) => void }) {
   const hasResults = p.events.length > 0;
   // 2019–2022: results and stats only (no ratings, predictions or scouting templates).
   const predictable = usePredictable(p.season);
@@ -157,28 +171,7 @@ function useFellBackFrom(p: TeamProfile, asked: boolean): number | null {
 
 function Hero({ p, onSeason, fellBackFrom, asked = false }: { p: TeamProfile; onSeason: (s: number) => void; fellBackFrom: number | null; asked?: boolean }) {
   const t = p.team;
-  const flags = useTeamFlags(t.number);
-  const { state: personal } = usePersonal();
-  const nav = useNavigate();
-  // With Control Point workspaces, "My team" in the nav opens the workspace: the followed-team dashboard is linked from here.
-  const workspaceUser = useYoursRow().row.kind !== "followed";
-  // Say what each button did and where to see it: tracking and shortlisting change other pages, not this one.
-  const track = () => {
-    const on = !flags.tracked;
-    flags.toggleTracked();
-    if (!on) { toast(`Stopped tracking ${t.number}`, { id: TRACK_NOTE }); return; }
-    toast.success(`Tracking ${t.number}`, {
-      id: TRACK_NOTE,
-      description: `It's on My team under Tracked teams, comes first in search and in Predict's quick picks.${personal.settings.notify.trackedTeams ? " While Control Scout is open in a tab, you'll get an alert before its matches." : " Turn on alerts for tracked teams in Settings › Notifications to hear before its matches (while Control Scout is open in a tab)."}`,
-      action: { label: workspaceUser ? "Followed team" : "My team", onClick: () => nav(FOLLOWED_TEAM_PATH) },
-    });
-  };
-  const shortlist = () => {
-    const on = !flags.bookmarked;
-    flags.toggleBookmark();
-    if (!on) { toast(`Removed ${t.number} from your shortlist`); return; }
-    toast.success(`${t.number} added to your shortlist`, { description: "Your shortlist compares the teams you're considering side by side.", action: { label: "Shortlist", onClick: () => nav("/shortlist") } });
-  };
+  const { flags, track, shortlist, workspaceUser } = useTeamActions(t.number);
   const loc = place(t.city, t.state, t.country);
   const s = p.stats;
   // Over or not on the event's own calendar (a California event's last evening is already tomorrow in UTC).
@@ -372,14 +365,14 @@ function OprBreakdown({ events, k }: { events: TeamEventRow[]; k: "np" | "auto" 
   // Tied to the open tile: a top edge in its colour, and its column (header and values) in that colour too.
   const tone = TONES[OPR_TONE[k]];
   return (
-    <div className={cn("mt-3 overflow-x-auto rounded-xl border border-t-2 border-border bg-card", tone.edge)}>
+    <div className={cn("mt-3 overflow-x-auto rounded-xl border border-t-2 border-border bg-card", tone.edge, "v8:border-t v8:border-line")} data-opr-breakdown>
       <table className="w-full text-sm">
-        <thead><tr className="text-left text-[10px] font-bold uppercase tracking-wider text-text-muted"><th className="h-10 px-3">Event</th>{BREAKDOWN_COLS.map(([c, label]) => <th key={c} className={cn("px-3 text-right", c === k && tone.text)}>{label}</th>)}</tr></thead>
+        <thead><tr className={cn("text-left text-[10px] font-bold uppercase tracking-wider text-text-muted", V8_LABEL, "v8:font-medium")}><th className="h-10 px-3">Event</th>{BREAKDOWN_COLS.map(([c, label]) => <th key={c} className={cn("px-3 text-right", c === k && tone.text, V8_PHASE[c])}>{label}</th>)}</tr></thead>
         <tbody>
           {events.map((e) => (
-            <tr key={e.code} className="border-t border-border">
-              <td className="px-3 py-2"><Link to={`/events/${e.season}/${e.code}`} className="hover:underline">{e.name}</Link></td>
-              {BREAKDOWN_COLS.map(([c]) => <td key={c} className={cn("px-3 text-right tabular-nums", c === k && cn("font-semibold", tone.text))}>{num(e.opr[c])}</td>)}
+            <tr key={e.code} className="border-t border-border v8:border-line">
+              <td className="px-3 py-2 v8:h-11"><Link to={`/events/${e.season}/${e.code}`} className="hover:underline">{e.name}</Link></td>
+              {BREAKDOWN_COLS.map(([c]) => <td key={c} className={cn("px-3 text-right tabular-nums", c === k && cn("font-semibold", tone.text), V8_PHASE[c])}>{num(e.opr[c])}</td>)}
             </tr>
           ))}
         </tbody>
@@ -406,6 +399,8 @@ const TRENDS: { key: TrendKey; label: string; suffix?: string; lowerIsBetter?: b
 
 function TrendChart({ events, season }: { events: TeamEventRow[]; season: number }) {
   const [key, setKey] = useState<TrendKey>("opr");
+  // v8: mint is the chart's one highlight series (brief §5, charts).
+  const v8 = useIsV8();
   const t = TRENDS.find((x) => x.key === key)!;
   const rows = useMemo(() => events.map((e, i) => ({ i, name: e.name, value: t.get(e) == null ? null : Math.round(t.get(e)! * 10) / 10 })), [events, t]);
   const vals = rows.map((r) => r.value);
@@ -414,7 +409,7 @@ function TrendChart({ events, season }: { events: TeamEventRow[]; season: number
   const last = [...vals].reverse().find((v) => v != null) ?? null;
   return (
     <Section title="Trends" description={`${seasonLabel(season)}, event by event`}>
-      <div className="rounded-xl border border-border bg-card p-4 sm:p-5">
+      <div className="rounded-xl border border-border bg-card p-4 sm:p-5 v8:border-line">
         <ToggleGroup type="single" variant="chips" aria-label="Trend metric" value={key} onValueChange={(v) => { if (v) setKey(v as TrendKey); }} className="mb-4 flex w-full justify-start gap-1.5 overflow-x-auto pb-1">
           {TRENDS.map((x) => <ToggleGroupItem key={x.key} value={x.key} className="shrink-0">{x.label}</ToggleGroupItem>)}
         </ToggleGroup>
@@ -424,7 +419,7 @@ function TrendChart({ events, season }: { events: TeamEventRow[]; season: number
           {dir && <Badge variant={good == null ? "secondary" : good ? "success" : "destructive"}>{dir === "up" ? <TrendingUp /> : dir === "down" ? <TrendingDown /> : null}{trendLabel(dir)}</Badge>}
         </div>
         {rows.length < 2 ? <p className="py-8 max-sm:py-5 text-center text-sm text-muted-foreground">One event so far — the trend line appears after a second event.</p> : (
-          <ChartContainer config={{ value: { label: t.label, color: "var(--color-chart-1)" } }} className="h-56 w-full">
+          <ChartContainer config={{ value: { label: t.label, color: v8 ? "var(--color-accent)" : "var(--color-chart-1)" } }} className="h-56 w-full">
             <LineChart data={rows} margin={{ top: 8, right: 12, left: 4, bottom: 14 }}>
               <CartesianGrid vertical={false} strokeDasharray="3 3" />
               <XAxis dataKey="i" tickLine={false} axisLine={false} tickMargin={8} tickFormatter={(i: number) => `E${i + 1}`} label={{ value: "Event, oldest to newest", position: "insideBottom", offset: -12, className: "fill-muted-foreground text-xs" }} />
@@ -445,9 +440,10 @@ function TrendChart({ events, season }: { events: TeamEventRow[]; season: number
 // ---------------------------------------------------------------------------
 
 function RankMedal({ rank }: { rank: number | null }) {
-  if (!rank) return <span className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-border text-xs text-muted-foreground">—</span>;
-  return <span className={cn("flex size-10 shrink-0 flex-col items-center justify-center rounded-xl border font-display text-sm font-bold tabular-nums", rank === 1 ? "border-accent/50 bg-accent/15 text-accent-text" : rank <= 4 ? "border-border bg-muted" : "border-border")}>
-    <span className="text-[10px] font-medium uppercase leading-none text-muted-foreground">rank</span>{rank}
+  if (!rank) return <span className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-border text-xs text-muted-foreground v8:rounded-lg v8:border-line">—</span>;
+  // v8: the #1 rank is mint text on a hairline (mint marks "best", never as a fill behind text).
+  return <span className={cn("flex size-10 shrink-0 flex-col items-center justify-center rounded-xl border font-display text-sm font-bold tabular-nums v8:rounded-lg v8:font-semibold", rank === 1 ? "border-accent/50 bg-accent/15 text-accent-text v8:border-accent/40 v8:bg-transparent" : rank <= 4 ? "border-border bg-muted v8:border-line v8:bg-white/[0.04]" : "border-border v8:border-line")}>
+    <span className="text-[10px] font-medium uppercase leading-none text-muted-foreground v8:text-[0.625rem] v8:normal-case v8:text-text-faint">rank</span>{rank}
   </span>;
 }
 
@@ -473,10 +469,11 @@ export function RowRecord({ e }: { e: TeamEventRow }) {
 }
 
 function EventHistory({ events, team }: { events: TeamEventRow[]; team: number }) {
+  const v8 = useIsV8();
   return (
     <div className="space-y-2">
       {[...events].reverse().map((e) => (
-        <Link key={e.code} to={`/events/${e.season}/${e.code}?team=${team}`} className="lift flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card p-3 sm:flex-nowrap">
+        <Link key={e.code} to={`/events/${e.season}/${e.code}?team=${team}`} className={cn(v8Row(v8), "flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card p-3 sm:flex-nowrap")}>
           <RankMedal rank={e.rank} />
           <div className="min-w-0 flex-1">
             {/* Two lines on a phone before it cuts off: long event names are the norm, and a tooltip needs a mouse. */}
@@ -490,9 +487,9 @@ function EventHistory({ events, team }: { events: TeamEventRow[]; team: number }
             )}
           </div>
           <div className="grid grid-cols-3 gap-4 text-right text-sm tabular-nums max-sm:w-full max-sm:pl-[3.25rem] max-sm:text-left">
-            <div><p className="text-[10px] uppercase tracking-wider text-muted-foreground">Record</p><RowRecord e={e} /></div>
-            <div><p className="text-[10px] uppercase tracking-wider text-muted-foreground">RS</p><p className="font-medium">{num(e.rp, 2)}</p></div>
-            <div><p className="text-[10px] uppercase tracking-wider text-muted-foreground">OPR</p><p className="font-medium">{num(e.opr.np)}</p></div>
+            <div><p className={cn("text-[10px] uppercase tracking-wider text-muted-foreground", V8_LABEL)}>Record</p><RowRecord e={e} /></div>
+            <div><p className={cn("text-[10px] uppercase tracking-wider text-muted-foreground", V8_LABEL)}>RS</p><p className="font-medium">{num(e.rp, 2)}</p></div>
+            <div><p className={cn("text-[10px] uppercase tracking-wider text-muted-foreground", V8_LABEL)}>OPR</p><p className="font-medium">{num(e.opr.np)}</p></div>
           </div>
         </Link>
       ))}
@@ -522,7 +519,11 @@ function MatchesSection({ team, season, events, predictable }: { team: number; s
   );
 }
 
+/** v8: awards mean gold (the owner's call), a soft gold on dark and a deep amber that stays readable on light. */
+const V8_GOLD = "v8:text-[#fcd34d] v8:[html.light_&]:text-amber-700";
+
 export function AwardsAllTime({ p }: { p: TeamProfile }) {
+  const v8 = useIsV8();
   if (!p.awardsAllTime.length) return null;
   return (
     <Section id="awards" title={`Awards (${p.awardsAllTime.length})`} description="Every award in the seasons we cover">
@@ -530,8 +531,8 @@ export function AwardsAllTime({ p }: { p: TeamProfile }) {
       <div className="flex flex-wrap gap-2 pointer-coarse:gap-y-[10px]">
         {p.awardsAllTime.map((a, i) => (
           // The event on its own muted line: a tooltip never opens on a tap.
-          <Link key={i} to={`/events/${a.season}/${a.code}`} className="tap-44 lift inline-flex max-w-[18rem] flex-col rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs">
-            <span className="inline-flex items-center gap-1.5"><Award className="size-3.5 shrink-0 text-accent" />{awardLabel(a.type, a.placement)}<span className="text-muted-foreground">· {seasonLabel(a.season)}</span></span>
+          <Link key={i} to={`/events/${a.season}/${a.code}`} className={cn("tap-44", v8Row(v8), "inline-flex max-w-[18rem] flex-col rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs")}>
+            <span className="inline-flex items-center gap-1.5"><Award className={cn("size-3.5 shrink-0 text-accent", V8_GOLD)} /><span className={cn("v8:font-medium", V8_GOLD)} data-award-name>{awardLabel(a.type, a.placement)}</span><span className="text-muted-foreground">· {seasonLabel(a.season)}</span></span>
             <span className="truncate pl-5 text-muted-foreground" title={a.event}>{a.event}</span>
           </Link>
         ))}
@@ -543,13 +544,14 @@ export function AwardsAllTime({ p }: { p: TeamProfile }) {
 function ScoutNotes({ team, season }: { team: number; season: number }) {
   const { syncReady } = usePersonal();
   const { entries } = useScouting({ season, team }, syncReady);
+  const v8 = useIsV8();
   return (
     <Section title="My scouting notes" description="Only you see these. They're saved on this device and sync to your account when you're signed in."
       action={<Button variant="secondary" size="sm" asChild><Link to={`/scout?team=${team}&season=${season}&new=1`}><ClipboardList /> Scout this team</Link></Button>}>
       {!entries.length ? <p className="rounded-xl border border-dashed border-border px-4 py-6 max-sm:py-4 text-center text-sm text-muted-foreground">No notes for {team} in {seasonLabel(season)} yet.</p> : (
         <div className="grid gap-2 sm:grid-cols-2">
           {entries.slice(0, 6).map((e) => (
-            <Link key={e.uuid} to={`/scout?team=${team}&season=${season}&space=personal&entry=${e.uuid}`} className="lift rounded-xl border border-border bg-card p-3 text-sm">
+            <Link key={e.uuid} to={`/scout?team=${team}&season=${season}&space=personal&entry=${e.uuid}`} className={cn(v8Row(v8), "rounded-xl border border-border bg-card p-3 text-sm")}>
               <p className="font-medium">{e.kind === "pit" ? "Pit scouting" : `Match ${e.matchLabel ?? ""}`} {e.eventCode && <span className="text-muted-foreground">· {e.eventCode}</span>}</p>
               <p className="mt-1 line-clamp-2 text-muted-foreground">{e.notes || `${Object.keys(e.data).length} fields recorded`}</p>
               <p className="mt-1 text-[11px] text-muted-foreground">{int(Object.keys(e.data).length)} fields · {dayDate(e.updatedAt)}</p>
@@ -563,17 +565,20 @@ function ScoutNotes({ team, season }: { team: number; season: number }) {
 
 /** The next match's call for this team: its chance to win with the call's confidence tier, as on every prediction. */
 export function NextChance({ chance, tier }: { chance: number; tier: ConfidenceTier }) {
-  return <span className="flex shrink-0 flex-col items-end tabular-nums font-medium text-accent-text">{oddsPct(chance)} to win<TierMark tier={tier} className="text-xs font-normal" /></span>;
+  return <span className="flex shrink-0 flex-col items-end tabular-nums font-medium text-accent-text v8:text-text-base">{oddsPct(chance)} to win<TierMark tier={tier} className="text-xs font-normal" /></span>;
 }
 
-const ROW = "lift flex items-center justify-between gap-3 rounded-xl border px-3 py-2 text-sm pointer-coarse:min-h-[44px]";
+const ROW_BASE = "flex items-center justify-between gap-3 rounded-xl border px-3 py-2 text-sm pointer-coarse:min-h-[44px] v8:border-line";
+/** A row under the glance (standings, last and next event), drawn for this page load's look (v8: no lift). */
+const useRow = () => cn(v8Row(useIsV8()), ROW_BASE);
 
 /** The team's last event, one tap to its page: where it ranked and what it won. */
 /** The team's place in its league (FIRST's league rankings, every meet so far), linking to the league's standings
  *  with its row marked. Out of the teams that have played; a member with no match yet is "Not ranked yet". */
 function LeagueStanding({ league, season, team }: { league: NonNullable<TeamProfile["league"]>; season: number; team: number }) {
+  const row = useRow();
   return (
-    <Link to={`${leagueHref(season, league.region, league.code)}?team=${team}`} data-league-standing className={cn(ROW, "mt-2 border-border bg-card text-sm")}>
+    <Link to={`${leagueHref(season, league.region, league.code)}?team=${team}`} data-league-standing className={cn(row, "mt-2 border-border bg-card text-sm")}>
       <span className="min-w-0 truncate"><span className="font-semibold tabular-nums">{league.played ? `#${league.rank} of ${league.of}` : "Not ranked yet"}</span> <span className="text-muted-foreground">in the {leagueTitle(league.name, league.code)}</span></span>
       <span className="shrink-0 text-muted-foreground">Standings →</span>
     </Link>
@@ -584,12 +589,13 @@ function LeagueStanding({ league, season, team }: { league: NonNullable<TeamProf
  *  tournament: by league standing among that tournament's teams, linking to the league page's conference table with
  *  its row marked. Nothing for a team with no conference, or for a visitor whose My team is based elsewhere. */
 function ConferenceStanding({ season, team }: { season: number; team: number }) {
+  const row = useRow();
   const shown = useConferenceGate(CONFERENCE_REGION, season);
   const r = useApi<TeamConferenceInfo>(shown ? `/api/teams/${team}/conference?season=${season}` : null);
   const c = r.data?.nj ? r.data.conference : null;
   if (!c) return null;
   return (
-    <Link to={c.href} data-conference-standing className={cn(ROW, "mt-2 border-border bg-card text-sm")}>
+    <Link to={c.href} data-conference-standing className={cn(row, "mt-2 border-border bg-card text-sm")}>
       <span className="min-w-0 truncate"><span className="font-semibold">Rank in {c.name}</span> <span className="text-muted-foreground">{c.rank != null ? `${ordinal(c.rank)} of ${c.of} by league RS` : c.available ? "Not ranked yet: no league meets played" : "Going-in standing no longer available"}</span></span>
       <span className="shrink-0 text-muted-foreground">Table →</span>
     </Link>
@@ -599,8 +605,9 @@ function ConferenceStanding({ season, team }: { season: number; team: number }) 
 /** The team's place in its home region's rankings (src/shared/regionRankings.ts), linking to that region's table on the
  *  page its row is on, the row marked. A team not ranked yet says so, never a rank. */
 function RegionStanding({ region, season, team }: { region: NonNullable<TeamProfile["region"]>; season: number; team: number }) {
+  const row = useRow();
   return (
-    <Link to={regionHref(region.key, { season, team })} data-region-standing className={cn(ROW, "mt-2 border-border bg-card text-sm")}>
+    <Link to={regionHref(region.key, { season, team })} data-region-standing className={cn(row, "mt-2 border-border bg-card text-sm")}>
       <span className="min-w-0 truncate"><span className="font-semibold tabular-nums">{region.rank != null ? `#${region.rank} of ${region.of}` : "Not ranked yet"}</span> <span className="text-muted-foreground">in {region.name}</span></span>
       <span className="shrink-0 text-muted-foreground">Rank in {region.name} →</span>
     </Link>
@@ -608,10 +615,12 @@ function RegionStanding({ region, season, team }: { region: NonNullable<TeamProf
 }
 
 function LastEvent({ last, team, className }: { last: TeamEventRow; team: number; className?: string }) {
+  const row = useRow();
+  const v8 = useIsV8();
   return (
-    <Link to={`/events/${last.season}/${last.code}?team=${team}`} className={cn(ROW, "border-border bg-card", className)}>
+    <Link to={`/events/${last.season}/${last.code}?team=${team}`} className={cn(row, "border-border bg-card", className)}>
       <span className="min-w-0 truncate" title={last.name}><span className="text-muted-foreground">Last · </span>{last.name}</span>
-      <span className="shrink-0 tabular-nums text-muted-foreground">{last.rank ? `ranked #${last.rank}` : ""}{last.awards.length ? ` · ${last.awards.length} award${last.awards.length > 1 ? "s" : ""}` : ""}</span>
+      <span className="shrink-0 tabular-nums text-muted-foreground">{last.rank ? `ranked #${last.rank}` : ""}{v8 && last.wins != null ? ` · ${last.wins}-${last.losses ?? 0}-${last.ties ?? 0}` : ""}{last.awards.length ? ` · ${last.awards.length} award${last.awards.length > 1 ? "s" : ""}` : ""}</span>
     </Link>
   );
 }
@@ -660,7 +669,7 @@ export function nextMatch(matches: MatchView[], events: TeamEventRow[], now = Da
  * alliances filled in) once a schedule is posted; else its next event, saying the match list comes at the event; else
  * plainly that none is published, with its last event. Drawn in the first paint from the answers the page already has.
  */
-export function Upcoming({ p, next: first, last: before }: { p: TeamProfile; next: TeamEventRow | null; last: TeamEventRow | null }) {
+export function Upcoming({ p, next: first, last: before, title = "Upcoming" }: { p: TeamProfile; next: TeamEventRow | null; last: TeamEventRow | null; title?: string }) {
   const n = p.team.number;
   // The page's own matches request (MatchesSection asks for the same): no second request, and in the drawn page's data.
   const ms = useApi<{ matches: MatchView[] }>(first ? `/api/teams/${n}/matches?season=${p.season}` : null);
@@ -682,12 +691,12 @@ export function Upcoming({ p, next: first, last: before }: { p: TeamProfile; nex
   // them (GET /api/teams/:number/next), so the two never disagree.
   const wk = useApi<NextMatchAnswer>(!next && p.season === current ? `/api/teams/${n}/next` : null);
   const reg = wk.data && (wk.data.kind === "next-event" || wk.data.kind === "no-schedule") ? wk.data : null;
-  const row = ROW;
+  const row = useRow();
   return (
-    <section aria-labelledby={`upcoming-${n}`} className="mt-5 max-sm:mt-4 space-y-2 text-sm" data-upcoming>
-      <h2 id={`upcoming-${n}`} className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Upcoming</h2>
+    <section aria-labelledby={`upcoming-${n}`} className="mt-5 max-sm:mt-4 space-y-2 text-sm v8:mt-0" data-upcoming>
+      <h2 id={`upcoming-${n}`} className={cn("text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground", V8_LABEL)} data-eyebrow>{title}</h2>
       {m && mEvent && (
-        <div className="rounded-xl border border-accent/30 bg-accent/[0.05] p-3">
+        <div className="rounded-xl border border-accent/30 bg-accent/[0.05] p-3 v8:border-line v8:bg-white/[0.02]" data-next-match>
           <Link to={`/events/${m.season}/${m.code}?team=${n}&match=${m.key}`} className="flex items-baseline justify-between gap-3 hover:underline pointer-coarse:min-h-[44px] pointer-coarse:items-center">
             <span className="min-w-0"><span className="font-semibold">Next match · {m.label}</span> <span className="text-muted-foreground">{m.time ? matchTime(m.time) : "time not posted yet"}</span></span>
             {chance != null && m.prediction && <NextChance chance={chance} tier={m.prediction.tier} />}
@@ -702,7 +711,7 @@ export function Upcoming({ p, next: first, last: before }: { p: TeamProfile; nex
         </div>
       )}
       {next && !m && (
-        <Link to={ADVANCING.has(next.type ?? "") ? `/events/${next.season}/${next.code}?tab=odds&team=${n}` : `/events/${next.season}/${next.code}?team=${n}`} className={cn(row, "border-accent/30 bg-accent/[0.05]")}>
+        <Link to={ADVANCING.has(next.type ?? "") ? `/events/${next.season}/${next.code}?tab=odds&team=${n}` : `/events/${next.season}/${next.code}?team=${n}`} className={cn(row, "border-accent/30 bg-accent/[0.05] v8:border-line v8:bg-white/[0.02]")}>
           {away ? (
             // Its next event isn't this weekend: said as the "This weekend" page and search say it (server/api/weekend.ts).
             <span className="min-w-0" data-no-weekend-match><span className="block">No matches this weekend — next event is <span className="font-medium">{next.name}</span> on {dateRange(next.start, next.end)}.</span></span>
@@ -710,14 +719,14 @@ export function Upcoming({ p, next: first, last: before }: { p: TeamProfile; nex
             <span className="min-w-0"><span className="block truncate" title={next.name}><span className="text-muted-foreground">Next event · </span>{next.name}</span>
               <span className="block text-xs text-muted-foreground">{[dateRange(next.start, next.end), ms.data ? "match list is posted at the event" : ms.error ? "match list couldn't be checked just now" : null].filter(Boolean).join(" · ")}</span></span>
           )}
-          <span className="shrink-0 font-medium text-accent-text">{ADVANCING.has(next.type ?? "") ? "Odds to advance →" : "Schedule →"}</span>
+          <span className="shrink-0 font-medium text-accent-text v8:text-text-muted">{ADVANCING.has(next.type ?? "") ? "Odds to advance →" : "Schedule →"}</span>
         </Link>
       )}
       {!next && reg?.event ? (
         // An event it's registered for, not yet in its event list: the "This weekend" page's own line and link.
-        <Link to={reg.event.href} className={cn(row, "border-accent/30 bg-accent/[0.05]")} data-no-weekend-match>
+        <Link to={reg.event.href} className={cn(row, "border-accent/30 bg-accent/[0.05] v8:border-line v8:bg-white/[0.02]")} data-no-weekend-match>
           <span className="min-w-0">{reg.line}</span>
-          <span className="shrink-0 font-medium text-accent-text">Schedule →</span>
+          <span className="shrink-0 font-medium text-accent-text v8:text-text-muted">Schedule →</span>
         </Link>
       ) : !next && <p className="text-muted-foreground">{p.season === current ? `No matches this weekend — ${n} has no upcoming event in ${seasonLabel(p.season)}` : `No upcoming event is published for ${n} yet`}{last ? "; its last event:" : "."}</p>}
       {last && <LastEvent last={last} team={n} />}
@@ -734,4 +743,400 @@ function OffSeasonLine({ events }: { events: TeamEventRow[] }) {
       Off-season and scrimmages, not in the record: <span className="font-medium tabular-nums text-foreground">{wltText(off)}</span> at {off.events} event{off.events === 1 ? "" : "s"}
     </p>
   );
+}
+
+// ---------------------------------------------------------------------------
+// v8 (docs/design/v8-revamp-brief.md): the page rebuilt around its question, "how good is this team right now,
+// and what's next for them?". First screen: who it is, its standing in one row, what's next; then its matches.
+// The rest moves down (events, strength, trends), the closed sections stay closed, and the secondary actions sit
+// in one More menu. Drawn only while <html data-v8> is set; Profile above is the page without it.
+// ---------------------------------------------------------------------------
+
+function V8Profile({ p, drawn, asked, onSeason }: { p: TeamProfile; drawn: boolean; asked: boolean; onSeason: (s: number) => void }) {
+  const hasResults = p.events.length > 0;
+  const predictable = usePredictable(p.season);
+  const rest = useAfterFirstPaint(drawn);
+  const fellBackFrom = useFellBackFrom(p, asked);
+  return (
+    <div className="min-w-0" data-team-v8>
+      <OfflineNote data={p} />
+      <V8Header p={p} onSeason={onSeason} fellBackFrom={fellBackFrom} />
+      <div className="mb-8 grid gap-3 max-sm:mb-6 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] lg:items-start">
+        {/* The left column: the standing, then every action in one row under it (beside the taller What's next). */}
+        <div className="min-w-0 space-y-3">
+          <V8Standing p={p} onSeason={onSeason} />
+          <V8Actions p={p} />
+        </div>
+        <V8Next p={p} asked={asked} />
+      </div>
+      {!rest ? null : !hasResults ? (
+        // No results: the Standing card above already says so, with the way to the season before.
+        <>
+          <AwardsAllTime p={p} />
+          {predictable && <ScoutNotes team={p.team.number} season={p.season} />}
+        </>
+      ) : (
+        <>
+          <MatchesSection team={p.team.number} season={p.season} events={p.events} predictable={predictable} />
+          <Section id="events" also={["ranking", "history"]} title={`Events (${p.events.length})`} description={`Season road map, ${seasonLabel(p.season)}, newest first`}>
+            <EventHistory events={p.events} team={p.team.number} />
+            {p.events.some((e) => e.played) && <p className="mt-2 text-xs text-text-faint">Records count {RECORD_RULE_LOWER}</p>}
+          </Section>
+          <div className="min-[1700px]:grid min-[1700px]:grid-cols-2 min-[1700px]:items-start min-[1700px]:gap-x-8">
+            <StrengthSection p={p} />
+            <TrendChart events={p.events} season={p.season} />
+          </div>
+          {/* Closed at first, each asked for only when opened; closed again for another team or season. */}
+          <Fragment key={`${p.team.number}-${p.season}`}>
+            {p.stats?.reliability !== undefined && <ReliabilitySection r={p.stats.reliability} />}
+            {predictable && <ReportCardSection team={p.team.number} season={p.season} />}
+            {predictable && <TeamScheduleSection team={p.team.number} season={p.season} events={p.events} />}
+          </Fragment>
+          <div className="mt-8 min-[1700px]:grid min-[1700px]:grid-cols-2 min-[1700px]:items-start min-[1700px]:gap-x-8">
+            <AwardsAllTime p={p} />
+            {predictable && <ScoutNotes team={p.team.number} season={p.season} />}
+          </div>
+        </>
+      )}
+      {rest && predictable && <TeamConsensusSection team={p.team.number} season={p.season} reliability={p.stats?.reliability} />}
+      {rest && predictable && <CommonsSection team={p.team.number} season={p.season} />}
+    </div>
+  );
+}
+
+/** A team's website as a link (some are stored without the scheme). */
+const websiteHref = (w: string) => (w.startsWith("http") ? w : `https://${w}`);
+
+/**
+ * Every action, visible (as classic's row): My team (the one primary until it's set, then filled), Track, Shortlist,
+ * Compare, Highlights outlined; quals vs playoffs and Share quiet; the rare ones (Manage in Control Point, the followed
+ * team dashboard) as small links under the row. Under the standing, in the space beside the taller What's next. On a phone the
+ * sticky bar keeps Predict and Track in reach once this row has scrolled away, and its More holds all the rest.
+ */
+function V8Actions({ p }: { p: TeamProfile }) {
+  const t = p.team;
+  const a = useTeamActions(t.number);
+  const flags = a.flags;
+  const predictable = usePredictable(p.season);
+  // The end of the action row: the phone action bar shows once it has scrolled away.
+  const [rowEnd, setRowEnd] = useState<HTMLDivElement | null>(null);
+  const matchHref = predictHref({ mode: "match", season: p.season, red: [t.number] });
+  // A step smaller than the default sm button, so the actions fit one row on a desktop.
+  const tap = "h-7 gap-1.5 px-2.5 max-sm:h-10 max-sm:px-3";
+  const trackTitle = flags.tracked ? "Tracked: on My team, first in search. Click to stop." : "Follow this team: it goes on My team and comes first in search";
+  const dashboard = a.workspaceUser && flags.isMine;
+  return (
+    <>
+      <div className="flex flex-wrap items-center gap-1.5 max-sm:gap-2" data-hero-actions>
+        {/* "My team" in both states so the row fits one line: primary until set, then filled; the name says what it does. */}
+        <Button size="sm" variant={flags.isMine ? "secondary" : "default"} aria-pressed={flags.isMine} aria-label={flags.isMine ? undefined : "Mark as my team"} title={flags.isMine ? "Your team. Click to unmark." : "Mark as my team"} onClick={() => flags.setMine(!flags.isMine)} className={tap} data-hero-action>
+          <Star className={cn(flags.isMine && "fill-accent text-accent")} /> My team
+        </Button>
+        <Button size="sm" variant={flags.tracked ? "secondary" : "outline"} aria-pressed={flags.tracked} onClick={a.track} className={tap} title={trackTitle} data-hero-action>
+          <Eye className={cn(flags.tracked && "text-accent")} /> {flags.tracked ? "Tracking" : "Track"}
+        </Button>
+        <Button size="sm" variant={flags.bookmarked ? "secondary" : "outline"} aria-pressed={flags.bookmarked} onClick={a.shortlist} className={tap} data-hero-action>
+          {flags.bookmarked ? <BookmarkCheck className="text-accent" /> : <Bookmark />} {flags.bookmarked ? "Shortlisted" : "Shortlist"}
+        </Button>
+        <Button size="sm" variant="outline" asChild className={tap} data-hero-action><Link to={`/compare?teams=${t.number}`}><Scale /> Compare</Link></Button>
+        {p.highlights && <Button size="sm" variant="outline" asChild className={tap} data-hero-action><Link to={`/teams/${t.number}/highlights`} data-highlights-link><Sparkles /> Highlights</Link></Button>}
+        {p.recordSplit && <Button size="sm" variant="ghost" asChild className={tap} data-hero-action><Link to={`/teams/${t.number}/record-split`} data-record-split-link><Trophy /> Quals vs playoffs</Link></Button>}
+        <Button size="sm" variant="ghost" onClick={() => copyLink()} className={tap} data-hero-action><Link2 /> Share</Button>
+      </div>
+      {/* The rare ones as quiet links under the row, as on classic (a lone More button wrapped onto a line of its own). */}
+      <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-text-faint" data-hero-links>
+        <a href="https://tryctrlpoint.org" target="_blank" rel="noreferrer noopener" className="tap-44 inline-flex items-center gap-1.5 underline decoration-current/40 underline-offset-2 hover:text-text-base">Manage this team in Control Point <ExternalLink className="size-3" aria-hidden /></a>
+        {dashboard && <Link to={FOLLOWED_TEAM_PATH} className="tap-44 inline-flex items-center gap-1.5 hover:text-text-base"><Star className="size-3" aria-hidden /> My followed team dashboard</Link>}
+      </p>
+      <div ref={setRowEnd} aria-hidden />
+      {/* Phones: once the row has scrolled away, Predict and Track stay in reach, and More holds every other action. */}
+      <StickyActions after={rowEnd} label={`Actions for team ${t.number}`}>
+        {predictable && <Button asChild><Link to={matchHref}><Sparkles /> <span className="truncate">Predict with {t.number}</span></Link></Button>}
+        <Button variant={flags.tracked ? "secondary" : "outline"} aria-pressed={flags.tracked} onClick={a.track} className={cn(predictable && "!flex-none")}>
+          <Eye className={cn(flags.tracked && "text-accent")} /> {flags.tracked ? "Tracking" : "Track"}
+        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="icon" aria-label="All actions" className="!flex-none" data-sticky-more><MoreHorizontal /></Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" side="top" className="min-w-[14rem]">
+            <DropdownMenuItem onSelect={() => flags.setMine(!flags.isMine)}><Star className={cn(flags.isMine && "fill-accent text-accent")} /> {flags.isMine ? "Unmark as my team" : "Mark as my team"}</DropdownMenuItem>
+            <DropdownMenuItem onSelect={a.shortlist}>{flags.bookmarked ? <BookmarkCheck /> : <Bookmark />} {flags.bookmarked ? "Remove from shortlist" : "Add to shortlist"}</DropdownMenuItem>
+            <DropdownMenuItem asChild><Link to={`/compare?teams=${t.number}`}><Scale /> Compare</Link></DropdownMenuItem>
+            {p.highlights && <DropdownMenuItem asChild><Link to={`/teams/${t.number}/highlights`}><Sparkles /> Highlights</Link></DropdownMenuItem>}
+            {p.recordSplit && <DropdownMenuItem asChild><Link to={`/teams/${t.number}/record-split`}><Trophy /> Quals vs playoffs</Link></DropdownMenuItem>}
+            {predictable && <DropdownMenuItem asChild><Link to={predictHref({ mode: "advancement", season: p.season, team: t.number })}><Trophy /> Advancement odds</Link></DropdownMenuItem>}
+            <DropdownMenuItem onSelect={() => copyLink()}><Link2 /> Share</DropdownMenuItem>
+            <DropdownMenuSeparator />
+            {dashboard && <DropdownMenuItem asChild><Link to={FOLLOWED_TEAM_PATH}><Star /> My followed team dashboard</Link></DropdownMenuItem>}
+            <DropdownMenuItem asChild><a href="https://tryctrlpoint.org" target="_blank" rel="noreferrer noopener"><ExternalLink /> Manage this team in Control Point</a></DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </StickyActions>
+    </>
+  );
+}
+
+/** Who this is: identity, folded sponsors, then the season above the standing.
+ * The actions sit under the standing (V8Actions). */
+function V8Header({ p, onSeason, fellBackFrom }: { p: TeamProfile; onSeason: (s: number) => void; fellBackFrom: number | null }) {
+  const t = p.team;
+  const loc = place(t.city, t.state, t.country);
+  const line = [t.school, loc, t.rookieYear ? `Rookie year ${t.rookieYear}` : null].filter(Boolean) as string[];
+  return (
+    <>
+      <header className="mb-5 max-sm:mb-4" data-team-hero>
+        <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
+          <div className="min-w-0">
+            <p className="text-xs text-text-faint" data-eyebrow>FTC team</p>
+            {/* The heading is the number and name together (what people search for). */}
+            <h1 className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+              <span className="font-display text-[2.75rem] font-semibold leading-none tracking-tight tabular-nums text-accent sm:text-[3.25rem]" data-team-number>{t.number}</span>
+              {t.name && <span className="min-w-0 break-words font-sans text-xl font-semibold tracking-tight text-text-base sm:text-[1.375rem]"><span className="sr-only"> </span>{t.name}</span>}
+            </h1>
+            {!t.name && <p className="mt-1 text-lg text-text-muted">Name not on file</p>}
+            {(line.length > 0 || t.website) && (
+              <p className="mt-2 text-sm text-text-muted">
+                <span data-identity-line>{line.join(" · ")}</span>
+                {t.website && <>{line.length > 0 && " · "}<a href={websiteHref(t.website)} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 underline-offset-2 hover:text-text-base hover:underline" data-team-website>Website <ExternalLink className="size-3" aria-hidden /></a></>}
+              </p>
+            )}
+            {t.sponsors.length > 0 && (
+              <Collapsible className="mt-1.5">
+                <CollapsibleTrigger className="group inline-flex min-h-8 max-w-full items-center gap-1.5 rounded text-left text-xs text-text-faint hover:text-text-muted pointer-coarse:min-h-[44px]">
+                  <span className="shrink-0 whitespace-nowrap">Sponsors ({t.sponsors.length})</span>
+                  <ChevronDown className="size-3.5 shrink-0 transition-transform duration-200 ease-out group-data-[state=open]:rotate-180 motion-reduce:transition-none" />
+                </CollapsibleTrigger>
+                <CollapsibleContent className="mt-1 max-w-2xl text-xs text-text-muted">{t.sponsors.join(" · ")}</CollapsibleContent>
+              </Collapsible>
+            )}
+            <div className="mt-3">
+              <V8SeasonSelect seasons={p.seasons} value={p.season} onChange={onSeason} />
+            </div>
+            {fellBackFrom != null && (
+              <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-text-muted" data-season-fallback>
+                <Info className="size-3.5 shrink-0 text-text-faint" aria-hidden />
+                <span>No {seasonLabel(fellBackFrom)} results yet, so this shows {seasonLabel(p.season)}.</span>
+                <button type="button" onClick={() => onSeason(fellBackFrom)} className="tap-44 -my-1 py-1 font-medium text-text-base underline-offset-2 hover:underline">See {seasonLabel(fellBackFrom)}</button>
+              </p>
+            )}
+          </div>
+        </div>
+      </header>
+    </>
+  );
+}
+
+/** One clearly visible select below sponsors (every season the team has, newest first). */
+function V8SeasonSelect({ seasons, value, onChange }: { seasons: number[]; value: number; onChange: (s: number) => void }) {
+  const meta = useMeta();
+  const game = (s: number) => meta?.seasons.find((x) => x.season === s)?.game ?? "";
+  const list = [...new Set([value, ...seasons])].sort((a, b) => b - a);
+  return (
+    <Select value={String(value)} onValueChange={(v) => onChange(Number(v))}>
+      <SelectTrigger size="sm" aria-label={`Season ${seasonLabel(value)}${game(value) ? ` ${game(value)}` : ""}`} data-season-select
+        className="tap-44 h-7 w-auto gap-1 rounded-lg border-white/30 bg-transparent px-2.5 text-xs font-semibold text-text-base shadow-none hover:bg-white/[0.06] max-sm:h-10 max-sm:px-3">
+        <span className="tabular-nums">{seasonLabel(value)}</span>
+      </SelectTrigger>
+      <SelectContent align="start" className="min-w-[12rem]">
+        {list.map((s) => <SelectItem key={s} value={String(s)}><span className="tabular-nums">{seasonLabel(s)}</span>{game(s) && <span className="text-text-faint"> · {game(s)}</span>}</SelectItem>)}
+      </SelectContent>
+    </Select>
+  );
+}
+
+/** The standing in one compact row: the percentile as the hero figure, then OPR, rating, record (and reliability). */
+function V8Standing({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => void }) {
+  const s = p.stats;
+  const predictable = usePredictable(p.season);
+  const top = rankPct(s?.opr.np.rank, s?.opr.np.of, true);
+  const cell = "min-w-0 px-4 first:pl-0 max-sm:px-3 [&_dd]:whitespace-nowrap";
+  const dt = "text-xs text-text-faint";
+  const dd = "mt-0.5 text-xl font-semibold tracking-tight tabular-nums text-foreground";
+  return (
+    <section aria-labelledby={`standing-${p.team.number}`} className="rounded-xl border border-line bg-card p-4 sm:p-5" data-standing>
+      <h2 id={`standing-${p.team.number}`} className="font-sans text-xs font-normal tracking-normal text-text-faint" data-eyebrow>Standing · {seasonLabel(p.season)}</h2>
+      {!s ? (
+        <div className="mt-3 space-y-3 text-sm">
+          <p className="text-text-muted">No results this season yet.</p>
+          {p.seasons.filter((x) => x < p.season).slice(0, 1).map((prev) => (
+            <button key={prev} type="button" onClick={() => onSeason(prev)} className="flex min-h-11 w-full items-center justify-between gap-3 rounded-lg border border-line px-3 text-left transition-colors hover:bg-white/[0.03] active:scale-[0.99] motion-reduce:active:scale-100">
+              <span>See how {p.team.number} did in {seasonLabel(prev)}</span><span className="text-text-muted">→</span>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <>
+          <div className="mt-2 flex flex-wrap items-end gap-x-8 gap-y-4">
+            <div>
+              <p className="font-display text-[2.5rem] font-semibold leading-none tabular-nums text-accent" data-hero-figure>{top ?? "Unranked"}</p>
+              <p className="mt-1.5 text-xs text-text-muted">worldwide by OPR{s.opr.np.rank ? ` · #${s.opr.np.rank.toLocaleString()} of ${s.opr.np.of?.toLocaleString()}` : ""}</p>
+            </div>
+            {/* Beside the figure on a wide card; its own full-width row under it on a phone. */}
+            <dl className={cn("grid min-w-0 flex-1 basis-[20rem] divide-x divide-line max-sm:basis-full max-sm:border-t max-sm:border-line max-sm:pt-3", s.reliability ? "grid-cols-3" : "grid-cols-2")} data-glance-stats>
+              {predictable
+                ? <div className={cell}><dt className={dt} title={RATING_TERM}>Rating</dt><dd className={dd}>{s.rating ? num(s.rating.np) : "—"}{s.rating && <span className="text-xs font-normal text-text-faint"> ±{num(s.rating.sd, 0)}</span>}</dd></div>
+                : <div className={cell}><dt className={dt}>Avg score</dt><dd className={dd}>{num(s.avg.np)}</dd></div>}
+              <div className={cell}><dt className={dt} title={`${OFFICIAL_RULE} ${RECORD_RULE}`}>Record</dt><dd className={dd} title={`${OFFICIAL_RULE} ${RECORD_RULE}`}><span className="text-emerald-400">{s.record.wins}</span>-<span className="text-red-400">{s.record.losses}</span>-<span className="text-yellow-300">{s.record.ties}</span></dd><dd className="text-[0.6875rem] text-text-faint" data-record-scope>{OFFICIAL_ONLY}</dd></div>
+              {s.reliability && <div className={cell}><dt className={dt} title="An estimate from match results: no-shows, DQs, near-zero matches, swing, penalties">Reliability</dt><dd className={dd}>{s.reliability.index}<span className="text-xs font-normal text-text-faint"> /100</span></dd></div>}
+            </dl>
+          </div>
+          <V8QuickStats s={s} />
+          <OffSeasonLine events={p.events} />
+        </>
+      )}
+    </section>
+  );
+}
+
+/** Each phase's OPR in its own colour (the owner's call): total purple, auto blue, TeleOp orange, endgame green. Deeper on light. */
+const PHASE_TEXT: Record<(typeof OPR_CARDS)[number][0], string> = {
+  np: "text-[#c4a7e7] [html.light_&]:text-purple-700", auto: "text-[#7dd3fc] [html.light_&]:text-sky-700",
+  teleop: "text-[#fdba74] [html.light_&]:text-orange-700", endgame: "text-[#86efac] [html.light_&]:text-green-700",
+};
+const PHASE_BAR: Record<(typeof OPR_CARDS)[number][0], string> = {
+  np: "bg-[#c4a7e7] [html.light_&]:bg-purple-500", auto: "bg-[#7dd3fc] [html.light_&]:bg-sky-500", teleop: "bg-[#fdba74] [html.light_&]:bg-orange-500", endgame: "bg-[#86efac] [html.light_&]:bg-green-500",
+};
+const PHASE_LABEL: Record<(typeof OPR_CARDS)[number][0], string> = { np: "NP OPR", auto: "Auto OPR", teleop: "TeleOp OPR", endgame: "Endgame OPR" };
+
+/** Quick stats under the standing: each phase's OPR with its world rank and percentile and a thin bar, above the fold.
+ *  From the season stats the page already has (the Strength table further down has the same numbers in full). */
+function V8QuickStats({ s }: { s: NonNullable<TeamProfile["stats"]> }) {
+  return (
+    <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 border-t border-line pt-3 sm:grid-cols-4" data-quick-stats>
+      {OPR_CARDS.map(([k]) => {
+        const stat = s.opr[k];
+        const top = rankPct(stat.rank, stat.of);
+        return (
+          <div key={k} className="min-w-0" data-quick-stat={k}>
+            <dt className="text-xs text-text-faint">{PHASE_LABEL[k]}</dt>
+            <dd className={cn("mt-0.5 text-lg font-semibold tabular-nums", PHASE_TEXT[k])}>{num(stat.value)}</dd>
+            <dd className="whitespace-nowrap text-[0.6875rem] tabular-nums text-text-faint">{stat.rank ? `#${stat.rank.toLocaleString()}${top ? ` · ${top}` : ""}` : "Unranked"}</dd>
+            <span aria-hidden className="mt-1 flex h-0.5 overflow-hidden rounded-full bg-white/[0.06] [html.light_&]:bg-black/[0.06]"><span className={cn("h-full rounded-full", PHASE_BAR[k])} style={{ width: `${rankPc(stat.rank, stat.of)}%` }} data-bar /></span>
+          </div>
+        );
+      })}
+    </dl>
+  );
+}
+
+/** What's next: the next match and its call, else the next or last event, and the team's standings. */
+function V8Next({ p, asked }: { p: TeamProfile; asked: boolean }) {
+  const t = p.team;
+  const clock = Date.now();
+  const next = p.events.find((e) => !eventOver(e, clock)) ?? null;
+  const last = [...p.events].reverse().find((e) => eventOver(e, clock)) ?? null;
+  const current = useCurrentSeason();
+  const predictable = usePredictable(p.season);
+  // As on the classic glance: Advancement odds beside Predict, unless the next event's own odds row already links them.
+  const odds = !(next && ADVANCING.has(next.type ?? ""));
+  return (
+    <section aria-label="What's next" className="rounded-xl border border-line bg-card p-4 sm:p-5" data-whats-next>
+      {!asked || p.season >= current ? <Upcoming p={p} next={next} last={last} title="What's next" /> : (
+        <div className="space-y-2 text-sm">
+          <h2 className="font-sans text-xs font-normal tracking-normal text-text-faint" data-eyebrow>{last ? "Last event" : "Events"}</h2>
+          {last ? <LastEvent last={last} team={t.number} /> : <p className="text-text-muted">No events for {t.number} in {seasonLabel(p.season)}.</p>}
+        </div>
+      )}
+      {p.league && <LeagueStanding league={p.league} season={p.season} team={t.number} />}
+      {p.league?.region.toUpperCase() === CONFERENCE_REGION && <ConferenceStanding season={p.season} team={t.number} />}
+      {p.region && <RegionStanding region={p.region} season={p.season} team={t.number} />}
+      {predictable ? (
+        <div className="mt-3 flex flex-wrap gap-1">
+          <Button variant="ghost" size="sm" asChild><Link to={predictHref({ mode: "match", season: p.season, red: [t.number] })}><Sparkles /> Predict a match with {t.number}</Link></Button>
+          {odds && <Button variant="ghost" size="sm" asChild><Link to={predictHref({ mode: "advancement", season: p.season, team: t.number })} data-advancement-odds><Trophy /> Advancement odds</Link></Button>}
+        </div>
+      ) : <p className="mt-3 text-xs text-text-faint">{seasonLabel(p.season)} is shown for history: results and stats, no predictions (those start with 2023–24).</p>}
+    </section>
+  );
+}
+
+/** Strength: the best event OPR by phase in one quiet table (value, world rank, standing, a thin mint bar), the
+ *  prediction rating as its last row, and how both are computed behind one disclosure. A phase's row opens its
+ *  event-by-event numbers. Exported for its test. */
+export function StrengthSection({ p }: { p: TeamProfile }) {
+  const s = p.stats;
+  const [open, setOpen] = useState<(typeof OPR_CARDS)[number][0] | null>(null);
+  const predictable = usePredictable(p.season);
+  const metaStatsAt = useMeta()?.statsAt;
+  const current = useCurrentSeason();
+  const statsAt = offlineSource(p) || p.season !== current ? null : metaStatsAt;
+  const th = "px-4 font-normal";
+  return (
+    <Section id="opr" also={["strength"]} title="Strength" description={`Best event OPR in ${seasonLabel(p.season)}, by phase, and its world rank`}>
+      <div className="overflow-x-auto rounded-xl border border-line bg-card" data-strength>
+        <table className="w-full text-sm">
+          <thead><tr className="text-left text-xs text-text-faint">
+            <th className={cn(th, "h-10")}>Phase</th><th className={cn(th, "text-right")}>OPR</th><th className={cn(th, "text-right max-sm:hidden")}>World rank</th><th className={cn(th, "text-right")}>Standing</th><th className={cn(th, "w-[26%] max-sm:hidden")}><span className="sr-only">Standing as a bar</span></th>
+          </tr></thead>
+          <tbody>
+            {OPR_CARDS.map(([k, label]) => {
+              const stat = s?.opr[k];
+              const top = rankPct(stat?.rank, stat?.of);
+              return (
+                <tr key={k} className={cn("border-t border-line", open === k && "bg-white/[0.03]")} data-strength-row={k}>
+                  <td className="px-4 py-1">
+                    <button type="button" aria-expanded={open === k} onClick={() => setOpen(open === k ? null : k)} className="tap-44 inline-flex min-h-9 items-center gap-1.5 rounded text-left font-medium text-text-base hover:underline underline-offset-2">
+                      {label}<ChevronDown aria-hidden className={cn("size-3.5 text-text-faint transition-transform duration-200 ease-out motion-reduce:transition-none", open === k && "rotate-180")} />
+                      <span className="sr-only">. Show event by event</span>
+                    </button>
+                  </td>
+                  <td className={cn("px-4 text-right font-semibold tabular-nums", V8_PHASE[k])}>{num(stat?.value)}</td>
+                  <td className="px-4 text-right tabular-nums text-text-muted max-sm:hidden">{stat?.rank ? `#${stat.rank.toLocaleString()} of ${stat.of?.toLocaleString()}` : "—"}</td>
+                  <td className="whitespace-nowrap px-4 text-right tabular-nums text-text-muted">{top ?? "Unranked"}</td>
+                  <td className="px-4 max-sm:hidden"><Meter parts={[{ pc: rankPc(stat?.rank, stat?.of), cls: "bg-accent" }]} /></td>
+                </tr>
+              );
+            })}
+            {s?.rating && (
+              <tr className="border-t border-line" data-strength-row="rating">
+                <td className="h-11 px-4 font-medium" title={RATING_TERM}>Prediction rating</td>
+                <td className="whitespace-nowrap px-4 text-right font-semibold tabular-nums">{num(s.rating.np)}<span className="text-xs font-normal text-text-faint"> ±{num(s.rating.sd)}</span></td>
+                <td className="px-4 text-right tabular-nums text-text-muted max-sm:hidden">{s.rating.rank ? `#${s.rating.rank.toLocaleString()}` : "—"}</td>
+                <td className="whitespace-nowrap px-4 text-right tabular-nums text-text-muted">{s.rating.matches} matches</td>
+                <td className="px-4 max-sm:hidden" />
+              </tr>
+            )}
+          </tbody>
+        </table>
+        {s?.rating && <p className="border-t border-line px-4 py-2.5 text-xs text-text-muted">Rating by phase: auto {num(s.rating.auto)} · TeleOp {num(s.rating.teleop)} · endgame {num(s.rating.endgame)} · gives away ~{num(s.rating.pen)} penalty pts a match</p>}
+      </div>
+      {open && <OprBreakdown events={p.events} k={open} />}
+      <Collapsible className="mt-2">
+        <CollapsibleTrigger className="group tap-44 inline-flex min-h-9 items-center gap-1.5 rounded text-sm text-text-muted hover:text-text-base">
+          <Info className="size-4" aria-hidden /> How it's computed<ChevronDown className="size-4 transition-transform duration-200 ease-out group-data-[state=open]:rotate-180 motion-reduce:transition-none" aria-hidden />
+        </CollapsibleTrigger>
+        <CollapsibleContent className="mt-2 space-y-2 rounded-xl border border-line bg-card p-4 text-sm text-text-muted" data-strength-how>
+          <p>OPR is the best event OPR this season, with its rank among teams with an OPR. Non-penalty points, computed with standard least squares{p.season >= 2024 ? "; TeleOp includes the endgame, as FIRST reports it" : ""}. <Link to="/methodology#opr" className="underline">How OPR is computed</Link>{statsAt && <span className="whitespace-nowrap"> · Stats updated {ago(statsAt)}</span>}</p>
+          {s?.rating && <p>The rating is what the prediction engine expects this robot to add to its alliance <em>now</em>. Unlike OPR it updates after every match and carries over from last season, so it's what drives win odds. It's read from alliance scores: random qualification partners let a team's share show, and playoffs (fixed partners) count half. Ranked among teams rated on 3+ matches. <Link to="/methodology#rating-assumption" className="underline">How ratings work</Link></p>}
+          {s && s.record.matches > 0 && <p className="text-xs">Season record {s.record.wins}-{s.record.losses}-{s.record.ties} at official events · avg alliance score {num(s.avg.score)}{!predictable ? ` (${num(s.avg.np)} without penalties)` : ""}</p>}
+        </CollapsibleContent>
+      </Collapsible>
+    </Section>
+  );
+}
+
+/** Track and shortlist with the notes that say what each did, shared by both headers. */
+function useTeamActions(n: number) {
+  const flags = useTeamFlags(n);
+  const { state: personal } = usePersonal();
+  const nav = useNavigate();
+  const workspaceUser = useYoursRow().row.kind !== "followed";
+  const track = () => {
+    const on = !flags.tracked;
+    flags.toggleTracked();
+    if (!on) { toast(`Stopped tracking ${n}`, { id: TRACK_NOTE }); return; }
+    toast.success(`Tracking ${n}`, {
+      id: TRACK_NOTE,
+      description: `It's on My team under Tracked teams, comes first in search and in Predict's quick picks.${personal.settings.notify.trackedTeams ? " While Control Scout is open in a tab, you'll get an alert before its matches." : " Turn on alerts for tracked teams in Settings › Notifications to hear before its matches (while Control Scout is open in a tab)."}`,
+      action: { label: workspaceUser ? "Followed team" : "My team", onClick: () => nav(FOLLOWED_TEAM_PATH) },
+    });
+  };
+  const shortlist = () => {
+    const on = !flags.bookmarked;
+    flags.toggleBookmark();
+    if (!on) { toast(`Removed ${n} from your shortlist`); return; }
+    toast.success(`${n} added to your shortlist`, { description: "Your shortlist compares the teams you're considering side by side.", action: { label: "Shortlist", onClick: () => nav("/shortlist") } });
+  };
+  return { flags, track, shortlist, workspaceUser };
 }

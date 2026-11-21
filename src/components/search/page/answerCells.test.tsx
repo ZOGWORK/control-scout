@@ -9,6 +9,9 @@ import type { StatAnswer, StatMatchRow } from "../../../shared/searchStat";
 import { RankPill, RecordText, ResultPill, RichText, better, kpiSwatches } from "./answerCells";
 import { SEARCH_PALETTE } from "../../../lib/textTones";
 import { MatchBox } from "./MatchBox";
+
+/** A class list as v8 off reads it (v8 adds its own `v8:` classes after these: ./v8tone.ts). */
+const offV8 = (c: string) => c.split(" ").filter((t) => !t.startsWith("v8:")).join(" ");
 import { StatAnswerCard } from "./StatAnswer";
 
 afterEach(cleanup);
@@ -164,11 +167,11 @@ describe("one team's tiles, each its own colour (the owner, 11-09)", () => {
   it("a falling trend red, a rising one green, and no two tiles in a row the same", () => {
     const row = [{ label: "Average, last 6", value: "78.3" }, { label: "Trend", value: "Falling", tone: "bad" }, { label: "Highest", value: "99" }, { label: "Lowest", value: "57" }];
     const sw = kpiSwatches(row);
-    expect(sw[1]).toBe(SEARCH_PALETTE.pen);
-    expect(sw[0].bar).toBe("bg-team-a");
+    expect(offV8(sw[1].fill)).toBe(SEARCH_PALETTE.pen.fill);
+    expect(offV8(sw[0].bar)).toBe("bg-team-a");
     expect(new Set(sw.map((s) => s.bar)).size).toBe(4);
-    expect(kpiSwatches([{ label: "Trend", value: "Rising", tone: "good" }])[0]).toBe(SEARCH_PALETTE.yes);
-    expect(kpiSwatches([{ label: "Trend", value: "Steady" }])[0]).toBe(SEARCH_PALETTE.no);
+    expect(offV8(kpiSwatches([{ label: "Trend", value: "Rising", tone: "good" }])[0].fill)).toBe(SEARCH_PALETTE.yes.fill);
+    expect(offV8(kpiSwatches([{ label: "Trend", value: "Steady" }])[0].fill)).toBe(SEARCH_PALETTE.no.fill);
     // Tiles with no kind of their own still never share a colour.
     expect(new Set(kpiSwatches([{ label: "Wins" }, { label: "Losses" }, { label: "Ties" }, { label: "Events" }]).map((s) => s.bar)).size).toBe(4);
   });

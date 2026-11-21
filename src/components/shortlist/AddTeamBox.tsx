@@ -2,7 +2,6 @@
 // number) and the team joins the end of the list. Suggestions come from the site's team search (useSearchHits, the
 // header box's hook, limited to teams); a team already listed says so and is never added twice.
 import { useEffect, useId, useRef, useState } from "react";
-import { smoothBehavior } from "../../lib/pageScroll";
 import { Check, Loader2, Plus, Search, Users } from "lucide-react";
 import type { SearchHit } from "../../shared/api";
 import { useSearchHits, HitText } from "../search/SearchBox";
@@ -48,7 +47,7 @@ export function AddTeamBox({ listed, onAdd, className, autoFocus }: {
     return () => document.removeEventListener("pointerdown", away);
   }, [open]);
 
-  useEffect(() => { if (open) document.getElementById(`${listId}-${active}`)?.scrollIntoView({ block: "nearest", behavior: smoothBehavior() }); }, [active, open, listId]);
+  useEffect(() => { if (open) document.getElementById(`${listId}-${active}`)?.scrollIntoView({ block: "nearest" }); }, [active, open, listId]);
 
   // Nothing added: the list closes so the reason under the field shows.
   const refuse = (why: string) => { setNote(why); setOpen(false); };
@@ -129,7 +128,7 @@ export function AddTeamBox({ listed, onAdd, className, autoFocus }: {
                   <Users className="size-4 shrink-0 text-muted-foreground" />
                   <HitText h={h} />
                   {added
-                    ? <span className="inline-flex shrink-0 items-center gap-1 text-xs text-success"><Check className="size-3.5" /> Added</span>
+                    ? <span className="inline-flex shrink-0 items-center gap-1 text-xs text-success v8:text-emerald-400"><Check className="size-3.5" /> Added</span>
                     : <span className="inline-flex shrink-0 items-center gap-1 text-xs text-accent-text"><Plus className="size-3.5" /> Add</span>}
                 </div>
               );
