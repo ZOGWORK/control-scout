@@ -34,7 +34,7 @@ import { myTeamsOf } from "../lib/myTeams";
 const TIER: Record<ConfidenceTier, { label: string; cls: string; icon: typeof Gauge; blurb: string }> = {
   provisional: { label: TIER_WORD.provisional, cls: "border-warning/40 bg-warning/10 text-warning", icon: CircleDashed, blurb: "Mostly prior-season data — treat as a rough guess." },
   moderate: { label: TIER_WORD.moderate, cls: "border-info/40 bg-info/10 text-info", icon: Gauge, blurb: "Some matches this season; still settling." },
-  confident: { label: TIER_WORD.confident, cls: "border-success/40 bg-success/10 text-success", icon: ShieldCheck, blurb: "Every robot has a real sample this season." },
+  confident: { label: TIER_WORD.confident, cls: "border-success/40 v8:border-emerald-400/40 bg-success/10 v8:bg-emerald-400/10 text-success v8:text-emerald-400", icon: ShieldCheck, blurb: "Every robot has a real sample this season." },
 };
 
 /** `quiet`: the tier as a small muted word (no box, no icon), for a page that keeps its words to a minimum. */
@@ -61,7 +61,8 @@ const STATUS_CHIP = "inline-flex h-[18px] shrink-0 items-center gap-0.5 whitespa
  *  the rule is a confidence tier on every prediction surface, never hover-only. */
 export function TierMark({ tier, className, chip }: { tier: ConfidenceTier; className?: string; chip?: boolean }) {
   const t = TIER[tier];
-  const color = t.cls.split(" ").find((c) => c.startsWith("text-"));
+  // The tier's text colour, with its v8 twin (v8's success token is white, so "Solid" carries its own green).
+  const color = t.cls.split(" ").filter((c) => /^(v8:)?text-/.test(c)).join(" ");
   return (
     <span className={cn("inline-flex items-center gap-0.5 whitespace-nowrap [&_svg]:size-3", chip ? cn(STATUS_CHIP, "border", t.cls, "v8:border-ink/[0.12] v8:bg-transparent") : color, className)} title={`Confidence: ${t.label.toLowerCase()}. ${t.blurb}`}>
       <t.icon aria-hidden /><span className="sr-only">confidence: </span>{t.label.toLowerCase()}
@@ -150,7 +151,7 @@ export function CalibrationLine({ pRed, className, compact }: { pRed: number; cl
   const said = Math.round(c.said * 100), won = Math.round(c.won * 100);
   return (
     <Link to="/methodology#accuracy" title="A tie counts as half a win" className={cn("group inline-flex items-center gap-1.5 text-xs text-text-muted hover:text-text-base pointer-coarse:min-h-[44px]", className)}>
-      <span className="size-1.5 shrink-0 rounded-full bg-success" aria-hidden />
+      <span className="size-1.5 shrink-0 rounded-full bg-success v8:bg-emerald-400" aria-hidden />
       {compact
         ? <>Calls near {said}% came true {won}% of the time</>
         : <>When we say about {said}%, the favourite wins {won}% of the time (ties count half) — {c.n.toLocaleString()} {c.kind === "live" ? "live calls" : `${c.seasonLabel} matches predicted from earlier data`}.</>}
@@ -327,7 +328,7 @@ function MatchRowClassic({ m, highlight, showEvent, eventName, open, onToggle, o
   return (
     // @container: the row lays itself out by its own width (an event's tab, a team's season, a narrow drawer), not the window's.
     <div {...rowProps} className={cn("@container border-b border-border last:border-b-0", mySide && "relative before:absolute before:inset-y-0 before:left-0 before:w-[3px]",
-      mySide && (outcomeAccent && mine === "win" ? "before:bg-success" : outcomeAccent && mine === "loss" ? "before:bg-destructive" : "before:bg-accent/70"), live && "scroll-mt-bar-2")} data-match={m.key} data-live={live || undefined}>
+      mySide && (outcomeAccent && mine === "win" ? "before:bg-success v8:before:bg-emerald-400" : outcomeAccent && mine === "loss" ? "before:bg-destructive" : "before:bg-accent/70"), live && "scroll-mt-bar-2")} data-match={m.key} data-live={live || undefined}>
     <div
       // Narrow rows: the label keeps at least its own width (time, the team's won/lost chip), and the call's
       // chips wrap under it instead of pushing into the label.
@@ -395,8 +396,8 @@ function MatchRowClassic({ m, highlight, showEvent, eventName, open, onToggle, o
         {(p || m.video || m.clip || videos > 0 || addedPlays) && (
           <div className="relative z-[1] flex flex-wrap items-center justify-end gap-1 text-[11px] text-text-muted pointer-coarse:min-h-[44px] pointer-coarse:gap-y-[26px] v8:flex-nowrap" data-call-status>
             {/* Right and Upset share one width, so the chips after them line up from row to row. */}
-            {called === true && <span className={cn(STATUS_CHIP, "min-w-[3.25rem] justify-center bg-success/12 text-success")} data-outcome="right"><Check className="size-3" aria-hidden /> Right</span>}
-            {called === false && <span className={cn(STATUS_CHIP, "min-w-[3.25rem] justify-center bg-warning/12 text-warning")} data-outcome="upset"><X className="size-3" aria-hidden /> Upset</span>}
+            {called === true && <span className={cn(STATUS_CHIP, "min-w-[3.25rem] justify-center bg-success/12 v8:bg-emerald-400/12 text-success v8:text-emerald-400")} data-outcome="right"><Check className="size-3" aria-hidden /> Right</span>}
+            {called === false && <span className={cn(STATUS_CHIP, "min-w-[3.25rem] justify-center bg-warning/12 text-warning v8:bg-rose-400/12 v8:text-rose-400")} data-outcome="upset"><X className="size-3" aria-hidden /> Upset</span>}
             {p && <TierIcon tier={p.tier} />}
             {/* Which ledger a played match's call came from, as an icon chip (a word never fits beside the others): the words
                 stay in its title and for screen readers. Live and replayed calls are never blended, so both are marked. */}
