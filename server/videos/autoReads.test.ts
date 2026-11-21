@@ -289,6 +289,18 @@ describe("the frames' review entries: matches seen in the video, kept off the si
     expect(frameStart(V1, "XXAUTO", "Q3")).toBeNull();
   });
 
+  it("approving a read that came in before a review approval keeps the approved start", async () => {
+    setFrameTimingsForTests([reviewed()]);
+    // A read waiting for the owner (it drops Q2), then the owner approves Q3 from the review list.
+    await applyDelivery({ kind: "frames", season: 2025, rows: [frame({ checked: "2026-11-22", starts: { Q1: 600 }, opens: { Q1: 588 } })] });
+    expect((await post("/auto-reads/review/approve", { videoId: V1, code: "XXAUTO", label: "Q3", t: 1400 })).status).toBe(200);
+    const p = (await ownerAutoReads()).pending[0];
+    expect((await post("/auto-reads/approve", { kind: p.kind, videoId: p.videoId, code: p.code, pendingAt: p.pendingAt })).status).toBe(200);
+    expect(frameStart(V1, "XXAUTO", "Q2")).toBeNull();
+    expect(frameStart(V1, "XXAUTO", "Q3")).toBe(1400);
+    expect(frameRow(V1, "XXAUTO")?.approved).toEqual(["Q3"]);
+  });
+
   it("a read can't approve a start itself", async () => {
     setFrameTimingsForTests([frame()]);
     const r = await applyDelivery({ kind: "frames", season: 2025, rows: [frame({ checked: "2026-11-22", starts: { Q1: 600, Q2: 1000, Q3: 1050 }, opens: { Q1: 588, Q2: 995, Q3: 1045 }, approved: ["Q3"] })] });

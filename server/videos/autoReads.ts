@@ -480,10 +480,17 @@ function decideKey(b: Decide): { kind: AutoReadKind; videoId: string; code: stri
 export async function approveAutoRead(body: Decide, actor: string, now = Date.now()): Promise<Out> {
   const k = decideKey(body);
   if (!k) return { ok: false, status: 400, error: "Not a read waiting for approval." };
-  const row = await get<{ season: number; pending_problems: string | null }>("SELECT season, pending_problems FROM auto_reads WHERE kind = ? AND video_id = ? AND code = ? AND pending_at = ? AND pending_json IS NOT NULL", [k.kind, k.videoId, k.code, k.pendingAt]);
+  const row = await get<{ season: number; pending_json: string; pending_problems: string | null }>("SELECT season, pending_json, pending_problems FROM auto_reads WHERE kind = ? AND video_id = ? AND code = ? AND pending_at = ? AND pending_json IS NOT NULL", [k.kind, k.videoId, k.code, k.pendingAt]);
   if (!row) return { ok: false, status: 409, error: "This read changed or was decided since you opened it: look again." };
-  const n = await run(`UPDATE auto_reads SET live_json = pending_json, live_at = ?, decided_by = ?, pending_json = NULL, pending_problems = NULL, pending_at = NULL
-    WHERE kind = ? AND video_id = ? AND code = ? AND pending_at = ? AND pending_json IS NOT NULL`, [new Date(now).toISOString(), actor, k.kind, k.videoId, k.code, k.pendingAt]);
+  // A frame read keeps the starts the owner approved on the row live now (one approved after this read came in, too):
+  // approving the read never takes a match the owner put on the site off it.
+  if ((await liveSig()) !== loadedSig) await loadAutoReads();
+  let json = String(row.pending_json);
+  if (k.kind === "frames") {
+    try { json = JSON.stringify(carryApproved(JSON.parse(json) as FrameTiming, frameRow(k.videoId, k.code))); } catch { /* not JSON: loadAutoReads never serves it */ }
+  }
+  const n = await run(`UPDATE auto_reads SET live_json = ?, live_at = ?, decided_by = ?, pending_json = NULL, pending_problems = NULL, pending_at = NULL
+    WHERE kind = ? AND video_id = ? AND code = ? AND pending_at = ? AND pending_json IS NOT NULL`, [json, new Date(now).toISOString(), actor, k.kind, k.videoId, k.code, k.pendingAt]);
   if (!n) return { ok: false, status: 409, error: "This read changed or was decided since you opened it: look again." };
   await recordAudit(actor, "autoReads.approve", { kind: k.kind, videoId: k.videoId, season: Number(row.season), code: k.code, problems: JSON.parse(String(row.pending_problems ?? "[]")) });
   await loadAutoReads();
