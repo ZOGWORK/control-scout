@@ -496,8 +496,8 @@ describe("a slow search while the server answers isn't offline (owner bug: 'high
     const settled = expect(p).rejects.toMatchObject({ message: SEARCH_SLOW, offline: false });
     await vi.advanceTimersByTimeAsync(SEARCH_SLOW_MS * 2);
     await settled;
-    // One request a try: each try's 15-second wait was cut at its 10 seconds.
-    expect(fetch).toHaveBeenCalledTimes(2);
+    // Each try asks again after every 15-second wait until its deadline, and the wait running then is cut at it.
+    expect(fetch).toHaveBeenCalledTimes(2 * Math.ceil(SEARCH_SLOW_MS / 15_000));
   });
   it("a newer search cancelling it fails as cancelled, with no retry", async () => {
     writeSaved([saved]);
