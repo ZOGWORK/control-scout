@@ -5,7 +5,7 @@ import { migrate, openDb, run, setDb } from "../db";
 import { rebuildSearch } from "../stats/job";
 import { CURRENT_SEASON } from "../data/seasons";
 import { searchAnswer } from "./searchAnswer";
-import { buildVocab, correctQuery, correctWord, looseWord, splitWord, strength } from "./spelling";
+import { buildVocab, correctQuery, correctWord, joinWords, looseWord, splitWord, strength } from "./spelling";
 import type { SearchAnswer } from "../../src/shared/api";
 
 const S = CURRENT_SEASON;
@@ -51,6 +51,17 @@ describe("intent words typed wrong", () => {
   it("reads six letters jumbled, all of them kept, and a common name's word the same way", () => {
     expect(correctWord("lastet", v)?.word).toBe("latest");
     expect(correctWord("jacosn", v)?.word).toBe("jackson");
+  });
+  it("joins two words typed apart that names have as one, never a word of search's own or a rare one", () => {
+    const named = buildVocab([], Array.from({ length: 3 }, (_, i) => ({ code: `L${i}`, name: `Longhorn Roundup Scrimmage ${i}`, city: "Austin", state: "TX" })));
+    const parts = (q: string) => joinWords(q.split(/(\s+)/), named);
+    expect(parts("long horn round up scrimmage videos").parts.join("")).toBe("longhorn roundup scrimmage videos");
+    expect(parts("Long Horn round up").parts.join("")).toBe("Longhorn roundup");
+    expect(parts("long horn round up scrimmage videos").fixes).toEqual([["long horn", "longhorn"], ["round up", "roundup"]]);
+    // Seen once or twice only, or search's own word ("high lights" is left to the word readers): as typed.
+    const rare = buildVocab([], [{ code: "R0", name: "Longhorn Event", city: "Austin", state: "TX" }]);
+    expect(joinWords("long horn".split(/(\s+)/), rare).fixes).toEqual([]);
+    expect(parts("high lights").fixes).toEqual([]);
   });
   it("never reads a plain word's typo as a form of a short name's word", () => {
     // "Thi", a given name in the names, seen often: "thier" is still "their", not "Thi" with "-er".
