@@ -54,9 +54,11 @@ export function usePreferKey(): string {
   ])].slice(0, 100).join(","), [state.myTeam, state.tracked, state.bookmarks]);
 }
 
-/** `season`: the season the answer's picker chose (/search?in=), sent as ?season= (server/api/answers/season.ts
- *  withSeason); results remember it with their query. */
-export function useSearchHits(q: string, kinds?: HitKind[], limit = 15, initial?: { q: string; hits: SearchHit[] } | null, refine = true, season: number | null = null) {
+/* *  `season`: the season the answer's picker chose (/search?in=), sent as ?season= (server/api/answers/season.ts
+ *  withSeason); results remember it with their query.
+ *  `thread`: this answer is a question asked (the results page's), so it becomes the thread's latest (./thread.ts). A
+ *  box's dropdown answers the words as they are typed, a letter at a time, and none of those is a question asked. */
+export function useSearchHits(q: string, kinds?: HitKind[], limit = 15, initial?: { q: string; hits: SearchHit[] } | null, refine = true, season: number | null = null, thread = false) {
   // Results remember the query they answer, so a pick can never come from a previous query.
   const [res, setRes] = useState<Answered>(() => (initial ? { q: initial.q, hits: initial.hits, answer: isAnswer(initial) ? initial : undefined } : { q: "", hits: [] }));
   const [ai, setAi] = useState<{ q: string; answer: SearchAnswer | null } | null>(null);
@@ -99,9 +101,8 @@ export function useSearchHits(q: string, kinds?: HitKind[], limit = 15, initial?
           const answer = !kindKey && isAnswer(r) ? r : undefined;
           setRes({ q: query, season, hits: kindKey ? r.hits.filter((h) => kindKey.split(",").includes(h.kind)) : r.hits, answer, live: true, saved: offlineSource(r) != null });
           setError(null);
-          // The thread (./thread.ts): what this answer was about, for the next question's follow-up. A picker's list
-          // names teams a whole search doesn't, so it never becomes one.
-          if (answer && !kindKey) rememberTurn({ q: query, answer, hits: r.hits });
+          // The thread (./thread.ts): what this question was about, for the next one's follow-up.
+          if (thread && answer) rememberTurn({ q: query, answer, hits: r.hits });
           offlineError.current = false;
           if (answer?.weak && brunoOn && refine) {
             setRefining(true);
@@ -120,7 +121,7 @@ export function useSearchHits(q: string, kinds?: HitKind[], limit = 15, initial?
     const t = setTimeout(run, typed ? SEARCH_DEBOUNCE_MS : 0);
     waiting.current = { q: query, run: () => { clearTimeout(t); run(); } };
     return () => { clearTimeout(t); ctrl.abort(); waiting.current = null; };
-  }, [q, prefer, myTeam, kindKey, limit, brunoOn, refine, attempt, season]);
+  }, [q, prefer, myTeam, kindKey, limit, brunoOn, refine, attempt, season, thread]);
   const retry = useCallback(() => setAttempt((n) => n + 1), []);
   // "You're offline" stays only while it's true: the connection check finding internet again asks again by itself, as
   // pages loaded through the cache are (api.ts refetchOffline). Before, the error stayed up until Try again (#1557).

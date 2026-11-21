@@ -23,6 +23,11 @@ describe("resolveFollowUp", () => {
     expect(resolveFollowUp("how many events have they been to", 6980)).toBe("how many events have 6980 been to");
   });
 
+  it("reads a whole season as when, not as a team number", () => {
+    expect(resolveFollowUp("and 2025?", 6980)).toBe("6980 2025");
+    expect(resolveFollowUp("what about 2024-25?", 6980)).toBe("6980 2024-25");
+  });
+
   it("leaves a question alone when it names a team, a place or anything else of its own", () => {
     expect(resolveFollowUp("and 4215?", 6980)).toBeNull();
     expect(resolveFollowUp("what about team 12345 at worlds", 6980)).toBeNull();
