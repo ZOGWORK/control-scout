@@ -80,7 +80,7 @@ exceptions rules 2 and 7 name for the checked list only, and the auto-watcher us
    a venue holds several meets that day, its session (FIRST MOKS's "FTC Meet @ Belton 8AM (2026-11-7)" is "Belton
    Meet @ 8 AM"), an upload of a one-day event its title names, or an upload of an event that played every match on
    one day (Scout's match times say which; FTC Louisiana's two-day qualifiers play on the Saturday).
-3. Its title names the event: a distinctive word of the event's name or city (the league, the venue, "Mockingbird"),
+3. Its title names the event: a distinctive word of the event's name, city or venue (the league, "Mockingbird", "Pius X-College"),
    or the event's designators (an NTX league letter, a meet number, a qualifier or ILT number, a UIL class, a stage). An event named by an
    acronym ("APOC") also fits a title spelling it out in words in a row ("Asia Pacific Open Championship"); a common
    one ("FTC") never counts. A state or region name alone counts only for that region's one championship on that date.
