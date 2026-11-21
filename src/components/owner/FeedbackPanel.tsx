@@ -77,7 +77,7 @@ export function MessageCard({ m, children }: { m: FeedbackMessage; children?: Re
         <Badge variant={topicVariant(m.topic)}>{TOPIC[m.topic] ?? m.topic}</Badge>
         <TriageBadge m={m} />
         <span className="font-medium text-foreground">{m.name ?? "No name given"}</span>
-        <a className="inline-flex min-w-0 items-center gap-1 truncate text-accent-text underline-offset-4 hover:underline" href={`mailto:${m.email}`}><Mail className="size-3.5 shrink-0" aria-hidden />{m.email}</a>
+        <a className="inline-flex min-w-0 items-center gap-1 truncate text-accent-text v8:text-accent underline-offset-4 hover:underline" href={`mailto:${m.email}`}><Mail className="size-3.5 shrink-0" aria-hidden />{m.email}</a>
         <span className="ml-auto text-xs text-muted-foreground" title={when(m.createdAt)}>#{m.id} · {ago(m.createdAt)}</span>
       </div>
       <p className="mt-2 whitespace-pre-wrap break-words text-sm text-foreground">{m.message}</p>

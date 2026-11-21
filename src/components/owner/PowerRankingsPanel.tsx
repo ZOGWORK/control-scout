@@ -253,9 +253,9 @@ export function PowerRankingsPanel({ onOpenSwitches }: { onOpenSwitches: () => v
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card p-4">
               <ul className="grid gap-1.5 text-sm">
                 <li className="flex items-center gap-2">
-                  <span className={cn("size-2 rounded-full", p.enabled ? "bg-success" : "bg-danger")} aria-hidden />
+                  <span className={cn("size-2 rounded-full", p.enabled ? "bg-success v8:bg-emerald-400" : "bg-danger")} aria-hidden />
                   {p.enabled ? "Automatic weeks are on." : "Automatic weeks are off: nothing new is generated."}
-                  <button type="button" className="text-xs text-accent-text underline underline-offset-2" onClick={onOpenSwitches}>Switches</button>
+                  <button type="button" className="text-xs text-accent-text v8:text-accent underline underline-offset-2" onClick={onOpenSwitches}>Switches</button>
                 </li>
                 <li className="flex items-start gap-2 text-muted-foreground"><CalendarClock className="mt-0.5 size-4 shrink-0" aria-hidden /> Next run {nextRun(p.nextRun)}</li>
                 <li className="flex flex-wrap items-start gap-x-2 gap-y-1 text-muted-foreground">
@@ -263,7 +263,7 @@ export function PowerRankingsPanel({ onOpenSwitches }: { onOpenSwitches: () => v
                   {!p.daily.enabled ? "Daily refresh is off: the current week stays as it is."
                     : p.enabled ? `Daily refresh is on. Next check ${nextRun(p.daily.nextRun)}.`
                       : "Daily refresh is on, but waits for automatic weeks to be switched on."}
-                  <button type="button" className="text-xs text-accent-text underline underline-offset-2" onClick={() => daily(!p.daily.enabled)}>
+                  <button type="button" className="text-xs text-accent-text v8:text-accent underline underline-offset-2" onClick={() => daily(!p.daily.enabled)}>
                     {p.daily.enabled ? "Turn off" : "Turn on"}
                   </button>
                 </li>

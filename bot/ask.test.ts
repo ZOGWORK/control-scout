@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { SearchAnswer, SearchHit } from "../src/shared/api";
 import { BRUNO_CREDIT, DESCRIPTION_MAX, ask, askEmbed, chatPost, fitLines, videoLinks, type AskDeps } from "./ask";
 import { grounded } from "../server/api/searchBrunoAnswer";
+import { SORRY_SENTENCE } from "../src/shared/search";
 
 const SITE = "https://controlscout.org";
 const hit = (n: number, extra: Partial<SearchHit> = {}): SearchHit => ({ kind: "team", ref: String(n), title: `${n} | Team ${n}`, subtitle: "Oradell, NJ", season: 2025, ...extra });
@@ -275,5 +276,46 @@ describe("ungrounded numbers", () => {
     const { ungrounded } = await import("../server/api/searchBrunoAnswer");
     expect(ungrounded("OPR 16, ranked #1,378 of 2,227 in 2026–27", ["16 OPR (#1,378 of 2,227 worldwide · 2026–27)"], "4215 opr")).toEqual([]);
     expect(ungrounded("OPR 16.4, bottom 38%", ["16 OPR · top 62%"], "4215 opr")).toEqual(["16.4", "38"]);
+  });
+});
+
+describe("small talk when the search finds nothing", () => {
+  const nothing = (q: string) => base({ q, hits: [], step: "recovery", recovery: { understood: ["no team, event or match"], closest: [], browse: [] } });
+  /** Search finds nothing and Bruno's rewrite finds nothing either: the card is the website's sorry. */
+  const plain = (q: string) => deps(nothing(q), { refine: vi.fn(async () => null) });
+
+  it("a mention with a favourite asks the bot, not the search: a chat reply credited to Control Scout", async () => {
+    const q = "who's your favorite person in this server";
+    const r = await ask(q, plain(q), SITE);
+    expect(r.chat?.by).toBe("scout");
+    expect(r.chat?.text).toMatch(/don't have favourites/);
+    expect(r.chat?.text).not.toMatch(/\d/);
+    const post = chatPost(q, r.chat!, { quote: true });
+    expect(post).toContain("-# Control Scout · [more on controlscout.org]");
+    expect(post).not.toContain("Bruno AI");
+  });
+
+  it("a greeting with no model gets a greeting, never the sorry card", async () => {
+    const r = await ask("hi", plain("hi"), SITE);
+    expect(r.chat?.text).toMatch(/I'm Control Scout/);
+    // What posts is the chat, not the card (the card only stands in for a chat that didn't happen).
+    expect(r.meta.chat).toBe(true);
+    expect(chatPost("hi", r.chat!, { quote: false })).not.toContain(SORRY_SENTENCE);
+  });
+
+  it("the model's chat still speaks first when it has something to say", async () => {
+    const facts = vi.fn(async () => []);
+    const chat = vi.fn(async () => ({ text: "Hey! Ask me about a team.", search: false }));
+    const r = await ask("hi", deps(nothing("hi"), { chat, facts, refine: vi.fn(async () => null) }), SITE);
+    expect(chat).toHaveBeenCalled();
+    expect(r.chat?.by).toBeUndefined();
+    expect(r.chat?.text).toBe("Hey! Ask me about a team.");
+  });
+
+  it("a real question search couldn't answer keeps the honest card", async () => {
+    const q = "what is the meaning of a clean sweep in this game";
+    const r = await ask(q, plain(q), SITE);
+    expect(r.chat).toBeUndefined();
+    expect(r.embed.title).toBe(SORRY_SENTENCE);
   });
 });

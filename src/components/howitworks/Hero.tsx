@@ -135,7 +135,7 @@ function MatchCard() {
             key={x.label} type="button" aria-label={x.label} aria-pressed={i === idx} onClick={() => pick(i)}
             className="group grid size-[44px] shrink-0 place-items-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring md:size-6"
           >
-            <span className={cn("block h-2 rounded-full transition-all duration-500", i === idx ? "w-6 bg-accent" : "w-2 bg-border group-hover:bg-muted-foreground")} />
+            <span className={cn("block h-2 rounded-full transition-[width,background-color] duration-300 ease-out", i === idx ? "w-6 bg-accent" : "w-2 bg-border group-hover:bg-muted-foreground")} />
           </button>
         ))}
         {!reduced && (
