@@ -264,7 +264,7 @@ describe("a stream link page that lists a broadcast a day", () => {
 
   it("an event over with the practice video kept is followed once more and gets Day 1", async () => {
     await mi("FRQ5", "2026-11-20", "2026-11-21");
-    await run("INSERT INTO event_stream_links (season, code, url, video_id, checked_at) VALUES (?, 'FRQ5', ?, ?, '2026-11-21T20:37:00.000Z')", [S, fimav("FRQ5"), PRACTICE]);
+    await run("INSERT INTO event_stream_links (season, code, url, video_id, checked_at) VALUES (?, 'FRQ5', ?, ?, '2026-11-22T01:30:00.000Z')", [S, fimav("FRQ5"), PRACTICE]); // 8:30 pm on the 21st in Fruitport, the 22nd in UTC
     started = STARTS;
     const MON = Date.parse("2026-11-23T15:00:00Z");
     // A failed follow (the page down, or YouTube unread) doesn't use up the one follow after the dates.
