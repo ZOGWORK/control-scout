@@ -73,8 +73,8 @@ export function NoResults({ query, understood, closest, summaries, onOpen, sorry
       {!!related.length && <RelatedQuestions queries={related} title="Searches that answer about them" className="" />}
       <section aria-label="Browse">
         <div className="flex flex-wrap gap-2">
-          <Link to="/events" className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-foreground hover:border-accent/60 v8:hover:border-white/25"><CalendarDays className="size-4 text-muted-foreground" aria-hidden />Browse all events</Link>
-          <Link to="/teams" className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-foreground hover:border-accent/60 v8:hover:border-white/25"><Shield className="size-4 text-muted-foreground" aria-hidden />Browse all teams</Link>
+          <Link to="/events" className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-foreground hover:border-accent/60 v8:hover:border-ink/25"><CalendarDays className="size-4 text-muted-foreground" aria-hidden />Browse all events</Link>
+          <Link to="/teams" className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-foreground hover:border-accent/60 v8:hover:border-ink/25"><Shield className="size-4 text-muted-foreground" aria-hidden />Browse all teams</Link>
         </div>
       </section>
     </div>

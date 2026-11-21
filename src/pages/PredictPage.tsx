@@ -173,7 +173,7 @@ function Picker({ onPick }: { onPick: (p: PredictPick) => void }) {
   const quick = [...new Set([...(state.myTeam ? [state.myTeam] : []), ...state.tracked.teams, ...state.bookmarks])].slice(0, 6);
   const chip = (t: number, small?: boolean) => (
     <button key={t} type="button" onPointerDown={(e) => e.preventDefault()} onClick={() => onPick({ kind: "team", team: t })}
-      className={cn("inline-flex items-center gap-1 rounded-full border border-border font-mono text-foreground hover:border-accent/60 hover:text-accent-text v8:hover:border-white/25 v8:hover:text-text-base v8:active:scale-[0.97] v8:motion-reduce:active:scale-100 v8:transition-[border-color,color,scale] v8:duration-150", small ? "px-2.5 py-0.5 text-xs max-sm:min-h-8" : "px-3 py-1 text-sm max-sm:min-h-9")}>
+      className={cn("inline-flex items-center gap-1 rounded-full border border-border font-mono text-foreground hover:border-accent/60 hover:text-accent-text v8:hover:border-ink/25 v8:hover:text-text-base v8:active:scale-[0.97] v8:motion-reduce:active:scale-100 v8:transition-[border-color,color,scale] v8:duration-150", small ? "px-2.5 py-0.5 text-xs max-sm:min-h-8" : "px-3 py-1 text-sm max-sm:min-h-9")}>
       {t === state.myTeam && <Star className={cn("fill-accent text-accent", small ? "size-3" : "size-3.5")} />}{t}
     </button>
   );
@@ -200,7 +200,7 @@ function Picker({ onPick }: { onPick: (p: PredictPick) => void }) {
 function PickedHeader({ icon: Icon, number, title, sub, to, openLabel, onClear }: { icon: typeof Users; number?: number; title: string; sub?: string; to: string; openLabel: string; onClear: () => void }) {
   return (
     <div className="mb-4 grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-3 gap-y-2 sm:grid-cols-[auto_minmax(0,1fr)_auto_auto]">
-      <span className="col-start-1 row-start-1 grid size-10 shrink-0 place-items-center rounded-xl bg-accent/[0.12] text-accent v8:rounded-lg v8:bg-white/[0.06] v8:text-text-muted"><Icon className="size-5" /></span>
+      <span className="col-start-1 row-start-1 grid size-10 shrink-0 place-items-center rounded-xl bg-accent/[0.12] text-accent v8:rounded-lg v8:bg-ink/[0.06] v8:text-text-muted"><Icon className="size-5" /></span>
       <div className="col-start-2 row-start-1 min-w-0 self-center">
         <h2 className="font-display text-lg font-semibold leading-snug text-foreground sm:text-xl [overflow-wrap:anywhere] v8:font-sans v8:text-base v8:tracking-tight v8:sm:text-lg">
           {number != null && <span className="whitespace-nowrap font-mono tabular-nums">{number}</span>}
@@ -698,7 +698,7 @@ function QuickTeams({ taken, onAdd }: { taken: string[]; onAdd: (t: number) => v
       <span className="mr-1 text-xs text-text-faint">Your teams</span>
       {left.map((t) => (
         <button key={t} type="button" onClick={() => onAdd(t)} aria-label={`Add ${t} to the next empty box`}
-          className="tap-44 inline-flex h-7 items-center gap-1 rounded-full border border-white/[0.12] px-2.5 font-mono text-xs tabular-nums text-text-base transition-[border-color,background-color,scale] duration-150 ease-out hover:bg-white/[0.06] active:scale-[0.97] motion-reduce:active:scale-100">
+          className="tap-44 inline-flex h-7 items-center gap-1 rounded-full border border-ink/[0.12] px-2.5 font-mono text-xs tabular-nums text-text-base transition-[border-color,background-color,scale] duration-150 ease-out hover:bg-ink/[0.06] active:scale-[0.97] motion-reduce:active:scale-100">
           {t === state.myTeam && <Star className="size-3 fill-text-base" aria-hidden />}{t}
         </button>
       ))}
@@ -733,7 +733,7 @@ function CallV8({ x, offlineAsOf, offlineFrom, onSwap, whatIfOpen }: { x: MatchE
   return (
     <div className="space-y-4" data-call-v8>
       <section aria-label="The call" className="rounded-xl border border-line bg-card p-5 max-sm:p-4">
-        {offlineAsOf && <p className="mb-3 flex items-center gap-2 rounded-lg border border-line bg-white/[0.03] px-3 py-2 text-xs text-text-muted"><WifiOff className="size-3.5" aria-hidden />Offline: predicted on this device from {offlineFrom?.kind === "bundle" ? `your ${offlineFrom.name} pack` : "your lite pack"} (data as of {snapshotClock(offlineAsOf)}).</p>}
+        {offlineAsOf && <p className="mb-3 flex items-center gap-2 rounded-lg border border-line bg-ink/[0.03] px-3 py-2 text-xs text-text-muted"><WifiOff className="size-3.5" aria-hidden />Offline: predicted on this device from {offlineFrom?.kind === "bundle" ? `your ${offlineFrom.name} pack` : "your lite pack"} (data as of {snapshotClock(offlineAsOf)}).</p>}
         <div className="flex flex-wrap items-center justify-between gap-2">
           <ConfidenceBadge tier={x.confidence.tier} reason={x.confidence.reason} />
           <div className="flex flex-wrap items-center gap-1.5">
@@ -791,7 +791,7 @@ function CallV8({ x, offlineAsOf, offlineFrom, onSwap, whatIfOpen }: { x: MatchE
 function Disclosure({ title, hint, open, testid, icon: Icon, children }: { title: string; hint?: string; open?: boolean; testid?: string; icon?: typeof Users; children: React.ReactNode }) {
   return (
     <details className="group rounded-xl border border-line bg-card" open={open} data-testid={testid}>
-      <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-xl px-5 py-3 text-sm transition-colors duration-150 hover:bg-white/[0.02] max-sm:px-4 [&::-webkit-details-marker]:hidden">
+      <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-xl px-5 py-3 text-sm transition-colors duration-150 hover:bg-ink/[0.02] max-sm:px-4 [&::-webkit-details-marker]:hidden">
         {Icon && <Icon className="size-4 shrink-0 text-text-muted" aria-hidden />}
         <span className="font-semibold text-text-base">{title}</span>
         {hint && <span className="min-w-0 truncate text-text-faint max-sm:hidden">{hint}</span>}
@@ -813,7 +813,7 @@ function SavedPredictions() {
       <ul className="grid gap-2 sm:grid-cols-2">
         {h.slice(0, all ? 12 : 4).map((p) => (
           <li key={p.id}>
-            <Link to={predictHref({ mode: "match", season: p.season, red: p.red, blue: p.blue })} className={cn("block rounded-xl border border-border bg-card p-3 text-sm", isV8() ? "border-line transition-colors duration-150 hover:bg-white/[0.03]" : "lift")}>
+            <Link to={predictHref({ mode: "match", season: p.season, red: p.red, blue: p.blue })} className={cn("block rounded-xl border border-border bg-card p-3 text-sm", isV8() ? "border-line transition-colors duration-150 hover:bg-ink/[0.03]" : "lift")}>
               <div className="flex items-center justify-between gap-2"><span><span className="text-red-alliance">{p.red.join("+")}</span> vs <span className="text-blue-alliance">{p.blue.join("+")}</span></span><span className="text-xs text-muted-foreground">{seasonLabel(p.season)}</span></div>
               <WinBar pRed={p.winProbRed} size="sm" className="mt-2" />
               <p className="mt-1 text-xs text-muted-foreground">Red {oddsPct(p.winProbRed)} · {p.predictedRed}–{p.predictedBlue} · {p.tier} · saved {dayDate(p.savedAt)}</p>
@@ -936,7 +936,7 @@ function AdvancementResult({ season, code, team, askedSeason, onSeason, onClearE
   return (
     <section aria-label={`Advancement odds at ${e.name}`} className="space-y-4">
       {moved?.code === code && moved.to === season && (
-        <p role="status" className="rounded-lg border border-info/30 bg-info/[0.06] px-3 py-2 text-sm v8:border-line v8:bg-white/[0.03] v8:text-text-muted">{code} is a {seasonLabel(season)} event, so this shows {seasonLabel(season)}.</p>
+        <p role="status" className="rounded-lg border border-info/30 bg-info/[0.06] px-3 py-2 text-sm v8:border-line v8:bg-ink/[0.03] v8:text-text-muted">{code} is a {seasonLabel(season)} event, so this shows {seasonLabel(season)}.</p>
       )}
       {/* The picker above already shows the event in full (name, dates, place, type): no second copy here, just the way to its page. */}
       <div className="flex items-center justify-between gap-3">
