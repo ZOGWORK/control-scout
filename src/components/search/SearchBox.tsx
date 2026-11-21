@@ -101,8 +101,9 @@ export function useSearchHits(q: string, kinds?: HitKind[], limit = 15, initial?
           const answer = !kindKey && isAnswer(r) ? r : undefined;
           setRes({ q: query, season, hits: kindKey ? r.hits.filter((h) => kindKey.split(",").includes(h.kind)) : r.hits, answer, live: true, saved: offlineSource(r) != null });
           setError(null);
-          // The thread (./thread.ts): what this question was about, for the next one's follow-up.
-          if (thread && answer) rememberTurn({ q: query, answer, hits: r.hits });
+          // The thread (./thread.ts): what this question was about, for the next one's follow-up. A plain list too (offline,
+          // or no whole answer): it replaces the last question, so an old team is never borrowed.
+          if (thread) rememberTurn({ q: query, answer: answer ?? null, hits: r.hits });
           offlineError.current = false;
           if (answer?.weak && brunoOn && refine) {
             setRefining(true);

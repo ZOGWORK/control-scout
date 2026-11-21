@@ -76,13 +76,19 @@ describe("the box keeps the thread", () => {
     expect(onPick.mock.calls[0][0].href).toBe("/search?q=and%204215%3F");
   });
 
-  it("the dropdown answering the words as typed doesn't wipe the team the thread holds", async () => {
+  it("typing a follow-up letter by letter doesn't wipe the team the thread holds", async () => {
     rememberTurn({ q: "6980 worlds", hits: [t()] });
-    const { input } = mount();
-    fireEvent.change(input, { target: { value: "who beat them?" } });
+    const { input, onPick } = mount();
+    // A half-typed question isn't a follow-up, and the dropdown answers the words as typed: that answer must not take
+    // the team away before Enter (a dropdown writes no turn).
+    fireEvent.change(input, { target: { value: "who bea" } });
     await pause();
-    await reply(/q=who%20beat%20them/, answer("who beat them?", [place()]));
+    await reply(/q=who%20bea/, answer("who bea", [place()]));
     expect(lastTurn()?.team).toBe(6980);
+    fireEvent.change(input, { target: { value: "who beat them?" } });
+    await act(async () => {});
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(onPick.mock.calls[0][0].href).toBe("/search?q=who%20beat%206980%3F");
   });
 
   it("the results page's own answer is what becomes the thread", async () => {
@@ -94,5 +100,25 @@ describe("the box keeps the thread", () => {
     const p = pending.shift()!;
     await act(async () => { p.resolve(answer("6980 worlds", [t()])); });
     expect(lastTurn()).toMatchObject({ q: "6980 worlds", team: 6980 });
+  });
+
+  it("a follow-up answered as its own question keeps the team it refers to", async () => {
+    vi.useRealTimers();
+    rememberTurn({ q: "6980 worlds", hits: [t()] });
+    renderHook(() => useSearchHits("who beat them?", undefined, 25, null, false, null, true));
+    await act(async () => { await new Promise((r) => setTimeout(r, 20)); });
+    const p = pending.shift()!;
+    await act(async () => { p.resolve(answer("who beat them?", [place()])); });
+    expect(lastTurn()?.team).toBe(6980);
+  });
+
+  it("a plain list (offline, no whole answer) replaces the thread, so no old team is borrowed", async () => {
+    vi.useRealTimers();
+    rememberTurn({ q: "6980 worlds", hits: [t()] });
+    renderHook(() => useSearchHits("some event", undefined, 25, null, false, null, true));
+    await act(async () => { await new Promise((r) => setTimeout(r, 20)); });
+    const p = pending.shift()!;
+    await act(async () => { p.resolve({ hits: [place()] }); });
+    expect(lastTurn()).toMatchObject({ q: "some event", team: null });
   });
 });
