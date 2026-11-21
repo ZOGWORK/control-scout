@@ -295,6 +295,20 @@ export const cropOrder = <T>(crops: readonly T[], first?: T | null): T[] =>
  *  "0", TeleOp's "120" to "0"): one to three digits and nothing else, at most TeleOp's 120. A colon is another bar's
  *  timer, never this one. */
 export const secondsPlain =(s: string) => { const m = /^\d{1,3}$/.exec(s.replace(/\s/g, "")); return m && Number(m[0]) <= TELEOP_S ? Number(m[0]) : null; };
+/** The places timer() reads in, in turn: the box (timerDigits) first where the label came from the top row or the box ran
+ *  last (`first` the top bar's crop or "box"; that crop reads the icon on USNVCMP 2023's top bar); else the crops
+ *  (cropOrder), the box, then the bar's upper half ("band"). */
+export function timerSteps<C>(crops: readonly C[], first: C | "box" | null | undefined, topBar: C): (C | "box" | "band")[] {
+  const ordered = cropOrder(crops, first === "box" ? null : first);
+  return first === "box" || first === topBar ? ["box", ...ordered, "band"] : [...ordered, "box", "band"];
+}
+/** After a box whose digits didn't read: not the top bar's crop nor the band half, which read the icon under them. */
+export const afterUnreadBox = <C>(step: C | "box" | "band", topBar: C) => step !== topBar && step !== "band";
+/** The box's digits: bare seconds up to 2022 ("112" is 112 s, not the loose 1:12), a clock after; a score ("150"): none. */
+export function boxSeconds(text: string, plain: boolean): { where: "bottom" | "plain"; left: number } | null {
+  const left = plain ? secondsPlain(text) : secondsOf(text) ?? secondsLoose(text);
+  return left == null || left > AUTO_S + SWITCH_S + TELEOP_S ? null : { where: plain ? "plain" : "bottom", left };
+}
 
 /** Seconds since the match started, from its timer (where it's running: a timer standing at its full time is a match
  *  not started yet). Either bar counts Auto down from 0:30, then TeleOp from 2:00, so a reading of 0:30 or less is Auto
