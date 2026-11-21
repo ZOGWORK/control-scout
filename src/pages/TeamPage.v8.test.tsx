@@ -147,7 +147,7 @@ describe("team page, v8 on", () => {
     const actions = document.querySelector<HTMLElement>("[data-hero-actions]")!;
     const select = within(hero()).getByRole("combobox", { name: /Season 2025/ });
     expect(select.className).toContain("text-text-base");
-    expect(select.className).toContain("border-white/30");
+    expect(select.className).toContain("border-ink/30");
     expect(within(actions).queryByRole("combobox")).toBeNull();
     expect(follows(select, document.querySelector("[data-standing]")!)).toBe(true);
     expect(hero().querySelector("[data-eyebrow]")!.textContent).toBe("FTC team");

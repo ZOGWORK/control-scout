@@ -531,7 +531,7 @@ export function readTeamSet(raw: string): TeamSetQuestion | null {
 /** Family 7: a ranked list ("top 10 teams by OPR in NJ", "best rookie team in New Jersey", "most improved team in
  *  New Jersey") or a city's teams ("teams in Oradell"). */
 export interface LeaderboardQuestion {
-  kind: "top" | "rookie" | "improved" | "gain" | "steady" | "phases" | "city" | "city-best" | "career" | "oldest";
+  kind: "top" | "rookie" | "improved" | "gain" | "steady" | "phases" | "city" | "city-best" | "career" | "oldest" | "number";
   /** BOARD_STATS key (families/leaderboard.ts); a career board's count ("matches", "events", "wins", "seasons"). */
   stat: string;
   n: number;
@@ -657,7 +657,7 @@ export function readLeaderboard(raw: string): LeaderboardQuestion | null {
   // A season or a date said ("this season", "last year", "this week") is that season's board, never every season.
   if (!scope.championship && !scope.states && !scope.level && !scope.alliance && !scope.at && !scope.place && !scope.outOfState && scope.season == null && !scope.day
     && !scope.latest && !scope.lastYear && !scope.window
-    && (scope.ever || /\b(?:seasons|oldest)\b/.test(rest))) {
+    && (scope.ever || /\b(?:seasons|oldest|numbers?)\b/.test(rest))) {
     const c = readCareer(rest);
     if (c) return c;
   }
@@ -790,6 +790,12 @@ function readCareer(rest: string): LeaderboardQuestion | null {
   const t = rest.replace(/^(?:(?:what|which|who)(?: is|s)? )?(?:the )?/, "").replace(/\b(?:worldwide|world ?wide|globally|in the world|of all time|all[- ]time|in history)\b/g, " ").replace(/\s+/g, " ").trim();
   const place = (s: string | undefined): Region | null | false => (s ? regionOf(s) ?? false : null);
   let m: RegExpExecArray | null;
+  // "team with the lowest team number", "the highest team number in nj": the active teams (as the oldest are) by their
+  // team number, the lowest (or the highest) first.
+  if ((m = new RegExp(`^(?:${TEAMS} )?(?:(?:with|that has|who has|having) )?(?:the )?(lowest|smallest|highest|biggest|largest) (?:team )?numbers?(?: (?:in|from) (.+?))?$`).exec(t))) {
+    const region = place(m[2]);
+    if (region !== false) return { kind: "number", stat: "seasons", n: 10, region, city: null, season: null, best: true, ...(/^(?:lowest|smallest)$/.test(m[1]) ? { asc: true } : {}) };
+  }
   // "the oldest team still active in new jersey by rookie year": active teams (a match in one of the two latest seasons
   // played), the earliest rookie year first.
   if ((m = new RegExp(`^oldest (?:active |still active )?${TEAMS}(?: (?:that is |that's |who is |which is )?(?:still )?(?:active|playing|competing|around))?(?: (?:in|from) (.+?))?(?: by rookie year)?$`).exec(t))) {

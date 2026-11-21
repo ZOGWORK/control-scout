@@ -275,6 +275,20 @@ export const cropOrder = <T>(crops: readonly T[], first?: T | null): T[] =>
  *  "0", TeleOp's "120" to "0"): one to three digits and nothing else, at most TeleOp's 120. A colon is another bar's
  *  timer, never this one. */
 export const secondsPlain =(s: string) => { const m = /^\d{1,3}$/.exec(s.replace(/\s/g, "")); return m && Number(m[0]) <= TELEOP_S ? Number(m[0]) : null; };
+/** The places timer() reads in, in turn: the box (timerDigits) first where the label came from the top row or the box ran
+ *  last (`first` the top bar's crop or "box"; that crop reads the icon on USNVCMP 2023's top bar); else the crops
+ *  (cropOrder), the box, then the bar's upper half ("band"). */
+export function timerSteps<C>(crops: readonly C[], first: C | "box" | null | undefined, topBar: C): (C | "box" | "band")[] {
+  const ordered = cropOrder(crops, first === "box" ? null : first);
+  return first === "box" || first === topBar ? ["box", ...ordered, "band"] : [...ordered, "box", "band"];
+}
+/** After a box whose digits didn't read: not the top bar's crop nor the band half, which read the icon under them. */
+export const afterUnreadBox = <C>(step: C | "box" | "band", topBar: C) => step !== topBar && step !== "band";
+/** The box's digits: bare seconds up to 2022 ("112" is 112 s, not the loose 1:12), a clock after; a score ("150"): none. */
+export function boxSeconds(text: string, plain: boolean): { where: "bottom" | "plain"; left: number } | null {
+  const left = plain ? secondsPlain(text) : secondsOf(text) ?? secondsLoose(text);
+  return left == null || left > AUTO_S + SWITCH_S + TELEOP_S ? null : { where: plain ? "plain" : "bottom", left };
+}
 
 /** Seconds since the match started, from its timer (where it's running: a timer standing at its full time is a match
  *  not started yet). Either bar counts Auto down from 0:30, then TeleOp from 2:00, so a reading of 0:30 or less is Auto
@@ -677,6 +691,66 @@ export function overlayBand(px: ArrayLike<number>, width: number, height: number
 }
 
 /**
+ * The timer's digits in a score bar found in the frame (overlayBand): the light box between the two alliances' scores,
+ * and in it the tallest run of inked rows, the digits (the icon over or under them, a robot or a gamepad, is shorter).
+ * Null where no such box stands at the bar's centre (`cx`). Self-contained, as it runs in the page too (`toString`).
+ *
+ * Found from the bar, not at a fixed place: the band overlayBand finds can be only the bar's lower half (Nevada 2023,
+ * whose timer box stands above the coloured band), where a crop of the band's upper half reads the robot icon's row.
+ * The box is the neutral run (white, and the digits' black) round the centre between the alliance colours; its top and
+ * bottom are where the pixels just inside its edges stop being light (the digits never reach the edges). Only round the
+ * centre: a field monitor shows the same white timer box off to one side. Digits over MAX_H (90) rows tall are no
+ * timer's (a timer's are about 45): a white slide or results card at the centre reads as one tall box, and that much
+ * page sent to the one-line digit reader stalled it (a frame read hung on 3 of 4 full 2023 runs).
+ */
+export function timerDigits(px: ArrayLike<number>, width: number, height: number, band: { top: number; bottom: number }, cx = width / 2): { x: number; y: number; width: number; height: number } | null {
+  const rgb = (x: number, y: number) => { const i = (y * width + x) * 4; return [px[i], px[i + 1], px[i + 2]]; };
+  // Grey, white or black: a dark navy (47, 65, 77) is a colour. Brightness is judged against the box's own (`level`): a
+  // paused frame's box can be a mid grey (Nevada 2023 about 130, Arizona about 110), not white.
+  const neutral = (x: number, y: number) => { const c = rgb(x, y); return Math.max(...c) - Math.min(...c) <= 20; };
+  const bright = (x: number, y: number) => { const c = rgb(x, y); return (c[0] + c[1] + c[2]) / 3; };
+  const MIN_W = 60, MAX_W = 260, MAX_H = 90;
+  const mid = Math.round(cx), tall = band.bottom - band.top;
+  let box: { x0: number; x1: number; y: number; level: number } | null = null;
+  // A row in the band's upper half where the centre is neutral out to a colour on both sides, a box's width apart,
+  // with lighter edges (not a dark grey strip: the box's edges are its ground, never ink).
+  for (let y = Math.max(0, band.top + 2); !box && y < Math.min(height, band.top + Math.max(3, Math.round(tall / 2))); y++) {
+    if (!neutral(mid, y)) continue;
+    let x0 = mid, x1 = mid;
+    while (x0 - 1 >= 0 && mid - x0 < MAX_W && neutral(x0 - 1, y)) x0--;
+    while (x1 + 1 < width && x1 - mid < MAX_W && neutral(x1 + 1, y)) x1++;
+    const w = x1 - x0 + 1;
+    if (w < MIN_W || w > MAX_W || x0 === 0 || x1 === width - 1) continue;
+    const edges = [2, 3, 4, 5, 6].flatMap((d) => [bright(x0 + d, y), bright(x1 - d, y)]);
+    const level = edges.reduce((a, b) => a + b, 0) / edges.length;
+    if (level >= 80) box = { x0, x1, y, level };
+  }
+  if (!box) return null;
+  const { x0, x1, level } = box;
+  const light = (x: number, y: number) => neutral(x, y) && bright(x, y) >= level * 0.75;
+  const dark = (x: number, y: number) => bright(x, y) < level * 0.6;
+  // Its rows: on from the seed row while the pixels just inside both edges stay light.
+  const inside = (y: number) => [x0 + 2, x0 + 4, x1 - 2, x1 - 4].filter((x) => light(x, y)).length >= 3;
+  let top = box.y, bottom = box.y;
+  while (top - 1 >= 0 && inside(top - 1)) top--;
+  while (bottom + 1 < height && inside(bottom + 1)) bottom++;
+  if (bottom - top + 1 < 20) return null;
+  // The tallest run of inked rows across the box (gaps of up to 2 rows bridged).
+  const ink = (y: number) => { let n = 0; for (let x = x0 + 6; x <= x1 - 6; x++) if (dark(x, y)) n++; return n / (x1 - x0 - 11) >= 0.04; };
+  let best: { top: number; bottom: number } | null = null, run = -1, last = -1;
+  for (let y = top; y <= bottom + 1; y++) {
+    if (y <= bottom && ink(y)) { if (run < 0 || y - last > 3) run = y; last = y; continue; }
+    if (run >= 0 && (y - last > 2 || y > bottom)) {
+      if (!best || last - run > best.bottom - best.top) best = { top: run, bottom: last };
+      run = -1;
+    }
+  }
+  if (!best || best.bottom - best.top + 1 < 12 || best.bottom - best.top + 1 > MAX_H) return null;
+  const y = Math.max(top, best.top - 4), y1 = Math.min(bottom, best.bottom + 4);
+  return { x: x0, y, width: x1 - x0 + 1, height: y1 - y + 1 };
+}
+
+/**
  * The row over a score bar found in the frame (overlayBand), where FTC Live names the match: as tall as the usual row
  * (`usual`, over the bottom bar), cut at the frame's top. Null where it would be the usual row again (a bar where the
  * bottom bar always is), or there's no room over the bar for a line of text.
@@ -712,6 +786,41 @@ export function leadIn(at: number, i: number, windows: { start: number | null; e
   if (windows.some((w) => w.start != null && w.start <= at && (w.end == null || at <= w.end))) return false;
   return !windows.some((w, k) => k !== i && w.start != null && at < w.start && w.start < from);
 }
+
+/**
+ * An event's linked recordings the reader can't read, each said, never dropped quietly (KZCMP 2022's two day-2 videos
+ * were linked with no details, and the read went over day 1 alone as if it were the whole event).
+ * `fixable`: fetching YouTube's details again would let it be read: none on file, or the fetch failed. A video YouTube
+ * says is unavailable (removed or private), or one with no length (a live stream the player can't time: looked at again
+ * next run), is said but isn't fixable by fetching.
+ * `fails`: none of the event's videos can be read and at least one is fixable; never for an event whose only video is
+ * gone or still live, which would fail every run.
+ */
+export function undetailed(videos: readonly { videoId: string; meta?: { status?: string; length?: number | null } | null }[]): { skipped: { videoId: string; why: string; fixable: boolean }[]; fails: boolean } {
+  const skipped = videos.filter((v) => v.meta?.status !== "ok" || !v.meta.length).map((v) => {
+    const m = v.meta;
+    if (!m) return { videoId: v.videoId, why: "no details on file (fetch them, then read again)", fixable: true };
+    if (m.status === "error") return { videoId: v.videoId, why: "fetching its details failed (fetch again, then read again)", fixable: true };
+    if (m.status === "unavailable") return { videoId: v.videoId, why: "unavailable on YouTube (removed or private)", fixable: false };
+    if (m.status !== "ok") return { videoId: v.videoId, why: `its details say ${m.status ?? "no status"}`, fixable: false };
+    return { videoId: v.videoId, why: "no length: a live stream or one the player can't time (looked at again next run)", fixable: false };
+  });
+  return { skipped, fails: skipped.length > 0 && skipped.length === videos.length && skipped.some((s) => s.fixable) };
+}
+
+/**
+ * The reader's exit when its only trouble is events left unread for want of details a fetch would give (undetailed
+ * `fails`): it ran, nothing crashed, and no video it could read was left unfinished. Not 1, so a caller can tell it
+ * from a crash, a timeout or a video that couldn't be played. (2 is a usage error, 3 a dark player.)
+ */
+export const UNDETAILED_EXIT = 4;
+
+/**
+ * Whether a reader run's exit means the read itself failed (crashed, killed, timed out, a video unplayed): its events
+ * then aren't counted as tried. Exit 0 and UNDETAILED_EXIT both mean it read what it could; scripts/clip-autopilot.ts
+ * otherwise re-picked a whole season every run while one event's details were missing.
+ */
+export const readFailed = (code: number | null): boolean => code !== 0 && code !== UNDETAILED_EXIT;
 
 /** The rows of a server/data/frameTimings/<season>.ts file as written (one JSON row a line after the data marker). */
 export function dataRows<T>(text: string): T[] {

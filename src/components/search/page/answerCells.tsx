@@ -30,8 +30,8 @@ export const INK_BAR = TEAM_BAR;
 export const TEAM_SWATCH = [
   // v8: team A in the accent (its words, bar and bracket), B and C grey steps.
   { ...calm({ fill: "bg-team-a text-background", text: "text-team-a", bar: "bg-team-a", edge: "border-l-team-a", tint: "bg-team-a/10", stroke: "stroke-team-a" }, undefined, "accent"), bar: TEAM_BAR, stroke: "stroke-team-a v8:stroke-accent" },
-  { ...calm({ fill: "bg-team-b text-background", text: "text-team-b-text", bar: "bg-team-b", edge: "border-l-team-b", tint: "bg-team-b/10", stroke: "stroke-team-b" }), bar: "bg-team-b v8:bg-white/45", stroke: "stroke-team-b v8:stroke-white/45" },
-  { ...calm({ fill: "bg-team-c text-background", text: "text-team-c-text", bar: "bg-team-c", edge: "border-l-team-c", tint: "bg-team-c/10", stroke: "stroke-team-c" }), bar: "bg-team-c v8:bg-white/25", stroke: "stroke-team-c v8:stroke-white/25" },
+  { ...calm({ fill: "bg-team-b text-background", text: "text-team-b-text", bar: "bg-team-b", edge: "border-l-team-b", tint: "bg-team-b/10", stroke: "stroke-team-b" }), bar: "bg-team-b v8:bg-ink/45", stroke: "stroke-team-b v8:stroke-ink/45" },
+  { ...calm({ fill: "bg-team-c text-background", text: "text-team-c-text", bar: "bg-team-c", edge: "border-l-team-c", tint: "bg-team-c/10", stroke: "stroke-team-c" }), bar: "bg-team-c v8:bg-ink/25", stroke: "stroke-team-c v8:stroke-ink/25" },
 ] as const;
 export type Swatch = { fill: string; text: string; bar: string; edge: string; tint: string; stroke: string };
 /** A label's colour: its meaning's (an award, a phase, a status), else team `i`'s hue. */
@@ -97,7 +97,7 @@ export function RankPill({ text, className }: { text: string; className?: string
   return (
     <span className={cn("inline-flex items-center gap-1 whitespace-nowrap", className)} data-rank={rank}>
       {m[1] && <span className="text-muted-foreground">Ranked</span>}
-      <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-bold tabular-nums leading-none", tone ? cn(PODIUM_CHIP[rank], V8_PODIUM[rank]) : "bg-team-a/15 text-foreground v8:bg-white/[0.08]")} data-rank-pill>
+      <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-bold tabular-nums leading-none", tone ? cn(PODIUM_CHIP[rank], V8_PODIUM[rank]) : "bg-team-a/15 text-foreground v8:bg-ink/[0.08]")} data-rank-pill>
         {tone && <Medal className="size-3" aria-hidden />}#{rank.toLocaleString()}
         {/* No fade: on the filled podium pill a faded count fell under 4.5:1. */}
         {m[3] && <span className="font-medium">{` of ${n(m[3]).toLocaleString()}`}</span>}

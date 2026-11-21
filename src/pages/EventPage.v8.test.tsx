@@ -133,7 +133,7 @@ describe("event page in v8", () => {
     mount("/events/2025/AUBRQ2");
     expect(selected()).toEqual([expect.stringContaining("Matches")]);
     expect(document.querySelector("[data-event-focus=live]")).not.toBeNull();
-    expect(document.querySelector<HTMLElement>("[data-livestream]")!.className).toMatch(/v8:bg-white\/10/); // the primary
+    expect(document.querySelector<HTMLElement>("[data-livestream]")!.className).toMatch(/v8:bg-ink\/10/); // the primary
     cleanup(); current = detail();
     mount("/events/2025/AUBRQ2");
     expect(document.querySelector<HTMLElement>("[data-livestream]")!.className).toMatch(/border-text-base\/25/); // outline
@@ -193,7 +193,7 @@ describe("event page in v8", () => {
 
   it("keeps alliance chips neutral in v8 (no hue per alliance)", () => {
     render(<AllianceChip alliance={1} />);
-    expect(screen.getByText("A1").className).toMatch(/v8:bg-white\/\[0\.06\] v8:text-text-base/);
+    expect(screen.getByText("A1").className).toMatch(/v8:bg-ink\/\[0\.06\] v8:text-text-base/);
   });
 });
 
