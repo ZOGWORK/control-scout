@@ -257,6 +257,11 @@ describe("the look: v8 unless this device picked the classic one", () => {
     expect(LITE_V8_STYLE).toMatch(/html\.light\{color-scheme:light;--bg:#fafafa;--fg:#18181b;[^}]*--acc:#3f5a96/);
     expect(await html("/lite/teams/10005", "cs-theme=dim")).toContain(`<html lang="en" class="dim" data-v8>`);
     expect(LITE_V8_STYLE).toContain("@media(prefers-color-scheme:light){html.sys{");
+    // Every light-only value is set for Light and for System on a light device alike: the live red included.
+    const lightBlock = /html\.light\{--wn[^}]*\}/.exec(LITE_V8_STYLE)![0].replace("html.light", "");
+    expect(LITE_V8_STYLE).toContain(`@media(prefers-color-scheme:light){html.sys${lightBlock}}`);
+    expect(lightBlock).toContain("--lv:#c81e1e");
+    expect(LITE_V8_STYLE).toContain(".lv{color:var(--lv)}");
     // The retired Midnight is Dark.
     expect(await html("/lite/teams/10005", "cs-theme=midnight")).toMatch(/<html lang="en" data-v8><head>/);
   });

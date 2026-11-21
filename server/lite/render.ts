@@ -86,7 +86,7 @@ export const LITE_STYLE = CLASSIC_THEMES + BASE;
 // v8 (docs/design/v8-revamp-brief.md §3, §6): near-black surfaces and hairlines (or near-white ones on Light), no yellow, the slate
 // blue only for bars, lines and the #1 rank, Inter when the device has it (no font download: one bar of signal),
 // big tabular numbers, the 90% root, plain buttons that answer a press.
-const V8_LAYER = `:root{--wn:#fb923c;--h1:#ffffff1f;--h2:#ffffff1a;--h3:#ffffff33}html.light{--wn:#c2410c;--h1:#0000001f;--h2:#0000000d;--h3:#00000033}@media(prefers-color-scheme:light){html.sys{--wn:#c2410c;--h1:#0000001f;--h2:#0000000d;--h3:#00000033}}html{--b:.9}@media(max-width:767px){html{--b:.875}}`
+const V8_LAYER = `:root{--wn:#fb923c;--lv:#f2555a;--h1:#ffffff1f;--h2:#ffffff1a;--h3:#ffffff33}html.light{--wn:#c2410c;--lv:#c81e1e;--h1:#0000001f;--h2:#0000000d;--h3:#00000033}@media(prefers-color-scheme:light){html.sys{--wn:#c2410c;--lv:#c81e1e;--h1:#0000001f;--h2:#0000000d;--h3:#00000033}}html{--b:.9}@media(max-width:767px){html{--b:.875}}`
   + `body{font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;letter-spacing:-.003em}`
   + `.top{background:var(--bg)}.top .in{min-height:56px}.brand{gap:8px;font-weight:600;font-size:.9375rem}.brand svg{width:22px;height:22px}.brand rect{fill:none}.brand path{fill:var(--fg)}.brand i{color:var(--mf);font-weight:500}`
   + `.btn,.chip{border-color:var(--h1);border-radius:8px;background:transparent;font-weight:500;transition:transform 160ms cubic-bezier(.23,1,.32,1)}`
@@ -96,7 +96,7 @@ const V8_LAYER = `:root{--wn:#fb923c;--h1:#ffffff1f;--h2:#ffffff1a;--h3:#ffffff3
   + `h1{margin-top:20px;font-size:1.375rem;font-weight:600;letter-spacing:-.015em;line-height:1.27}h2{margin-bottom:10px;font-size:1rem;font-weight:600}`
   + `th{font-size:.75rem;font-weight:500}.card,.tbl,.list,.stat{border-radius:14px}.in{max-width:62rem}@media(max-width:639px){.stats{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.stat{padding:10px 12px}.stat b{font-size:1.375rem}}`
   + `.stat b{font-size:1.75rem;font-weight:600;letter-spacing:-.02em;line-height:1.2}.stat span{font-size:.75rem}`
-  + `.bar{color:var(--acc)}.top1{color:var(--acc);font-weight:600}.lv{color:#f2555a}html.light .lv{color:#dc2626}`
+  + `.bar{color:var(--acc)}.top1{color:var(--acc);font-weight:600}.lv{color:var(--lv)}`
   + `.ml b,.mt{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace}.ml b{font-size:.875rem}.ms>span{font-size:1.25rem}`;
 
 /** Lite in v8, the app's default look. */
