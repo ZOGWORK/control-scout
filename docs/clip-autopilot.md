@@ -10,7 +10,9 @@ Read off the coverage check's own rows (`clip_coverage`, server/videos/coverageC
 
 - **queued**: the event is over (its venue's last day has ended, counted in UTC days, so an American evening is never
   called over early) and a missing match sits in a video not read for this event yet, or read on or before that day
-  (matches may have come after the read: read once more). Most due matches first.
+  (matches may have come after the read: read once more). The current season's events first, then events with an
+  official video added in the last 7 days, then the backlog of past seasons; most due matches first within each. A new
+  video is read within a run or two, never behind hundreds of older events.
 - **waiting**: the event is still on, or a video's YouTube facts aren't in yet (the reader needs them).
 - **read**: every readable video was read after the event; each missing match keeps its own why (what the video showed).
 - **unreadable**: nothing a frame read can place: no video that day, a private video, no real start from FIRST.
@@ -31,7 +33,10 @@ computer at home, in a clone kept for it alone. Each run:
    Loopy review request for its head unless Loopy's summary already names that head (at most once a head a day:
    `.data/autopilot/asked.json`), so a step that failed once is done on the next run;
 2. takes a read-only snapshot of the live database (`VACUUM INTO` over ssh, copied down, removed from the VM);
-3. takes the queue from it; skips events already in an open autopilot PR, events read lately with nothing new
+3. takes the queue from it; skips events already in an open PR (the autopilot's, or any other PR adding rows for the
+   event to a season's frame-read file: `heldElsewhere`, read again just before PRs open, where such an event's rows
+   wait), events listed in `.data/autopilot/skip.txt` (one `season/code` a line, `#` comments: left by hand to a session
+   reading them with no PR open yet), events read lately with nothing new
    (tried again after 3 days, left after 3 such reads until their recording or matches change), and events whose good
    rows waited last time (read again after 6 h, doubling each wait in a row up to 3 days; waits never count toward
    the 3);
@@ -40,14 +45,14 @@ computer at home, in a clone kept for it alone. Each run:
    log as it comes (lines starting `  | `, one when each video starts and when it's done), so a long read shows it's
    working. One event may take at most as long as its videos' summed length, and never less than 3 hours (`--event-limit`,
    minutes, is that floor; `eventLimitMs` in scripts/lib/videoFrames.ts): a read slower than watching is broken. Real
-   reads take 3–24% of the length (2022 ROBUQ1's 27 hours of video in 40 and 68 minutes; ROBUQ2's 20.5 hours in 203
+   reads take 3–24% of the length (2022 ROBUQ1's 22.9 hours of video in 40 and 68 minutes; ROBUQ2's 20.5 hours in 203
    minutes, its 9.8-hour video at 24%), more than twice that on a computer running 8 readers at once, so only a stuck
    read gets there. Past it the event stops, the videos it finished
    keep their rows, the unfinished one gets none, and the next run reads the rest (not counted as a try). A stop with
    no new row at all is read again after 6 hours; the second such stop in a row counts as a try (then the usual 3 days,
    left after 3 tries), so a video that never gets past the limit isn't read every run. The run's log ends with every
    event stopped that way and the video it was on, to look at by hand. A whole
-   reader call past its own limit (24 hours a read, a backstop over the events' own; 3 for `--verify` and `--bounds`) is stopped with its whole process
+   reader call past its own limit (a backstop over the events' own: a day a read, or the sum of its events' limits and an hour when that's more; 3 for `--verify` and `--bounds`) is stopped with its whole process
    tree (`scripts/lib/streamRun.ts`);
 5. checks every row it changed against main's (`rowProblems`, scripts/lib/autopilotRows.ts) and leaves out, with its
    reasons in the run's log, any that breaks a rule:
@@ -63,8 +68,41 @@ computer at home, in a clone kept for it alone. Each run:
    (`prChunks`, scripts/lib/autopilotRows.ts). Rows that would touch an open PR's lines, and those that don't fit under
    12 KB, wait for a later run, on the main those PRs leave; their events aren't counted as tried. A group too big
    for one PR is split at whole events. A single row whose own diff is too big for Loopy (16 KB) is never shipped:
-   it's logged for the owner, and its event counts a try. Each PR gets a review request, and merges like any other:
-   the main session merges it once Loopy gives 5/5 on the exact head and CI is green.
+   it's logged for the owner, and its event counts a try. Each PR gets a review request. It merges once Loopy gives 5/5 on the exact head and CI is
+   green: by the runner itself at a later run (below), or by the main session.
+
+## Merging its own PRs
+
+At the start of each run, after rebuilding any of its PRs whose rows main changed (a rebuilt PR waits for the review
+of its new head), the runner merges at most one of its own data PRs (its label, branch and mark; it runs as the
+owner's GitHub account, so who opened a PR is no safeguard: the gate is), and only when nothing stops it (`scripts/lib/autopilotPr.ts` and `scripts/lib/autopilotMerge.ts`):
+
+- Loopy's latest summary says `Confidence: 5/5` and last reviewed the PR's exact head; every check passed (5 or more);
+- it changes its data file only: data PRs carry no CHANGELOG entry and no version (owner's rule, 2026-11-17), so
+  there's no version to check; one opened before, still carrying CHANGELOG.md or package.json/lock, waits;
+- its rows, measured from where it branched and checked against main's now: no row removed; no live start moved more
+  than 2 s or dropped; a new start only where the live row had the match missing or for review; every opening 20, 12,
+  5, 2 or 0 s before its start; no opening or end edge read more than 120 s from the recording's edge unless every
+  frame between was clear; no video already filed under another season; starts in order within each group (quals,
+  each semifinal series, a double-elimination bracket with replays after their own match, finals); every clip the
+  site plays now still plays (a row gaining its first openings stops playing every start left without one). A sweep
+  PR keeps the sweep's rules (`clipCheckProblems`);
+- main's last commit is at least 605 s old (every merge deploys; the same spacing the main driver keeps).
+
+It merges with `gh pr merge --merge --match-head-commit <head>` (never deleting the branch), then waits up to 20
+minutes for `/api/health` to serve the merge: `ready`, and its `release` the merge commit or a main commit after it.
+Gating takes minutes, so main is read again just before the merge: if it moved since the gate read it, or isn't 605 s
+quiet any more (when main last moved is GitHub's record of the push, not a commit's own date), nothing merges this
+run. Those last seconds are closed by the merge lock every merger to main takes (`scripts/merge-lock.mjs`, the ref
+`refs/locks/merge`): the runner takes it as `clip-autopilot` after the pick, waits 15 s, reads main again, merges, and
+releases it once the live site serves the merge (or nothing merged). GitHub creates a ref only once, so of two takers
+one gets it; a lock held over 45 minutes (its holder died) is taken over. Another holder's lock means nothing merges
+this run. The main session's driver takes it once per pass of merges (`node scripts/merge-lock.mjs take main-driver 0`:
+it merges on exit 0 only; 3 is held, 1 not taken), renews it before each merge (`renew main-driver`, so a pass longer
+than 45 minutes isn't taken over; 3 means it isn't the driver's any more), and releases it at the end, whatever
+happened (`release main-driver`). `status` says who holds it. A PR whose gate can't be read (gh, git, a malformed file) waits without
+stopping the PRs after it. A PR the gate stops waits, its reasons in the run's log, for the next run or the owner. `npx tsx scripts/autopilot-merge-check.ts <PR…>` prints the same gate for any PR, changing nothing;
+`--no-merge` runs the autopilot without merging.
 
 Logs: `.data/autopilot/runs/<time>.log` in the clone (every command and its output), `.data/autopilot/task.log` (the
 schedule's). What it remembers between runs: `.data/autopilot/memory.json`.
@@ -102,7 +140,10 @@ The coordinator keeps (rebuilds, labels, asks reviews for) the open PRs of its o
 shard of a PR's first event), and alone runs the clip sweep. A lane needs its own clone, node, Playwright's Chromium
 and tesseract.js, and the coordinator's ssh key; nothing else. With no flags, a computer reads the whole queue alone.
 
-A real run always goes through `scripts/clip-autopilot-start.mjs` (plain Node). It holds the run's lock, puts the clone
+A real run always goes through `scripts/clip-autopilot-start.mjs` (plain Node). It first waits, up to 30 minutes, for 3 GB
+of memory free (`AUTOPILOT_MIN_FREE_MB`; with less, processes failed to start and scheduled runs died with nothing
+logged), and skips the run if it never comes. On macOS memory it can take back at once counts too (`vm_stat`: free,
+inactive, speculative, purgeable). With more than 6 GB it reads in 3 lanes, else 2 (`AUTOPILOT_LANES`). It holds the run's lock, puts the clone
 back to main (a killed run can leave files changed), and runs `npm ci` when main's `package-lock.json` changed, before
 anything runs from `node_modules`. The runner refuses a real run its start didn't begin: on Windows, `npm ci` can't
 replace `node_modules` under the running tsx (its `esbuild.exe` is held open).

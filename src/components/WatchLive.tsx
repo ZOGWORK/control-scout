@@ -8,14 +8,14 @@
 // live refresh: the match being called, its result and verdict for a minute once it's in, then the next one.
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { Check, Play, X } from "lucide-react";
+import { Check, ExternalLink, Play, X } from "lucide-react";
 import type { EventDetail, EventStream, MatchView } from "../shared/api";
 import { embedUrl, thumbnailUrl } from "../shared/stream";
-import { clipParams, onStreamSeek } from "../lib/streamSeek";
+import { clipParams, onStreamSeek, YOUTUBE_ONLY_NOTE } from "../lib/streamSeek";
+import { watchUrl } from "../shared/recording";
 import { bridgedSrc, useVideoClock } from "../lib/ytBridge";
 import { MATCH_S, videoMoment } from "../lib/videoMoment";
 import { VideoPredictions, useVideoPredictions, type OverlayCall } from "./VideoPredictions";
-import { smoothBehavior } from "../lib/pageScroll";
 import { oddsPct } from "../shared/share";
 import { nextFlip, railModel, verdict, type Calling, type Flip } from "../lib/watchRail";
 import { venueClock } from "../lib/liveMode";
@@ -36,7 +36,7 @@ export function WatchLive({ d, stream }: { d: EventDetail; stream: EventStream }
       <div className={cn("grid gap-4", !finished && "lg:grid-cols-3")}>
         <div className={cn("min-w-0", finished ? "max-w-4xl" : "lg:col-span-2")}>
           <Player stream={stream} title={`${d.event.name} live stream`} matches={d.matches} liveCall={liveCall} recording={finished} />
-          {finished && <p className="mt-2 text-sm text-muted-foreground">{d.matches.some((m) => m.clip) ? "Event finished: this is the recording. A match's Watch button starts it at that match." : d.matches.some((m) => m.video) ? "Event finished: this is the recording. A match's video button plays that match here." : "Event finished: this is the recording."}</p>}
+          {finished && <p className="mt-2 text-sm text-muted-foreground">{stream.youtubeOnly?.includes(stream.videoId) ? `Event finished: this is the recording. Its owner turned off playing on other sites, so it plays on YouTube only${d.matches.some((m) => m.clip) ? "; a match's Watch button opens it there at that match" : ""}.` : d.matches.some((m) => m.clip) ? "Event finished: this is the recording. A match's Watch button starts it at that match." : d.matches.some((m) => m.video) ? "Event finished: this is the recording. A match's video button plays that match here." : "Event finished: this is the recording."}</p>}
         </div>
         {!finished && <PredictionRail d={d} rail={rail} />}
       </div>
@@ -83,7 +83,7 @@ function Player({ stream, title, matches, liveCall, recording }: { stream: Event
     else if (videoId !== dayRef.current) { setDay(videoId); setPlay((p) => ({ t, end, n: (p?.n ?? 0) + 1 })); }
     // Within the open recording: that match's clip, from its start to its end (a loaded clip, not a seek: see ClipLoad).
     else if (ownRef.current || !seekRef.current(t, { videoId, end })) setPlay((p) => ({ t, end, n: (p?.n ?? 0) + 1 }));
-    box.current?.scrollIntoView({ block: "center", behavior: smoothBehavior() });
+    box.current?.scrollIntoView({ block: "center" });
   }), [dayIds]);
   // What the overlay shows: a recording follows the player's second; live, the match being called.
   // A match's own video: that match, its result once the video stops past the match's length (from where its link starts).
@@ -94,11 +94,22 @@ function Player({ stream, title, matches, liveCall, recording }: { stream: Event
   const call: OverlayCall | null = start == null || !overlay ? null
     : own ? (ownMatch ? { match: ownMatch, phase: clock && !clock.playing && clock.t - (start ?? 0) >= MATCH_S ? "after" : "playing" } : null)
     : timed ? (clock ? videoMoment(matches.filter((m) => m.clip?.videoId === day), clock.t) : null) : liveVideo ? liveCall : null;
-  const offerOverlay = timed || liveVideo || !!ownMatch;
+  // The day's video plays on YouTube only (its owner turned off playing on other sites): no player here, a link there,
+  // and nothing to show over it.
+  const youtubeOnly = !own && !!stream.youtubeOnly?.includes(day);
+  const offerOverlay = !youtubeOnly && (timed || liveVideo || !!ownMatch);
   return (
     <>
     <div ref={box} className="relative aspect-video w-full overflow-hidden rounded-2xl border border-border bg-black">
-      {start != null ? (
+      {youtubeOnly ? (
+        <a href={watchUrl(day)} target="_blank" rel="noreferrer noopener" className="group absolute inset-0 grid place-items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60" aria-label={`Play on YouTube: ${title}`} data-stream-facade data-youtube-only>
+          <img src={thumbnailUrl(day)} alt="" loading="lazy" decoding="async" onError={(e) => { e.currentTarget.hidden = true; }} className="absolute inset-0 size-full object-cover opacity-80 transition-opacity group-hover:opacity-100 motion-reduce:transition-none" />
+          <span className="relative grid justify-items-center gap-2">
+            <span className="grid size-16 place-items-center rounded-full bg-video-fill text-white shadow-lg sm:size-20"><ExternalLink className="size-7 sm:size-9" aria-hidden /></span>
+            <span className="rounded-md bg-black/75 px-2 py-1 text-sm font-medium text-white">{YOUTUBE_ONLY_NOTE} only</span>
+          </span>
+        </a>
+      ) : start != null ? (
         // Loaded by a click (the facade, or a match's Watch), so autoplay here is the viewer's own choice.
         <>
           <iframe ref={frame} key={play!.n} className="absolute inset-0 size-full" src={bridgedSrc(own ? embedUrl(own.videoId) : day === stream.videoId ? stream.streamUrl : embedUrl(day), { autoplay: 1, rel: 0, ...clipParams({ t: start, end: own ? undefined : play!.end }) })} title={own ? `${own.label}: official match video` : title}

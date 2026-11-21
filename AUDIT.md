@@ -1,5 +1,25 @@
 # Self-audit log
 
+## Discord remodel knowledge and Zog Mode (PR #2023)
+
+- Owner correction: the public name is Zog Mode, and Discord describes it as an existing, available feature rather than reporting the wallpaper's enabled/disabled status. The Discord adapter no longer reads the dogTheme flag. Explicit Zog Mode questions and "where is the dog?" use a deterministic informational reply, bypassing team search and AI. Enable/disable requests perform no actions and explain that only the website owner console can change the setting. Focused bot tests cover this read-only boundary and leave dog-named robotics queries with ordinary search.
+
+- Root cause: v8 excluded the legacy ambient container that also held the dog photograph. The dog layer now renders independently; the old grid/glow remains excluded. The default/global production flag was not changed.
+- Inspected desktop Home and mobile team screenshots with Dog Mode enabled using an isolated local database (`/workspace/scratch/dog-mode-on/`), plus an off-state Home capture (`dog-mode-off/`). The existing `/dog.jpg` asset is clearly visible when enabled.
+- Browser verification loaded the actual photo successfully and exercised on → off → on via the isolated database's owner flag and browser flag refresh, without reloading. The image mounted, disappeared, and returned as expected.
+- TypeScript and production build passed. Focused bot/product/standing-shell tests passed, including the real Discord context adapter and full ask path with saturated search facts.
+- Targeted `npm run audit -- --only /teams` completed on separate local ports: four slow-load findings, no other findings. Images/report: `/workspace/scratch/dog-mode-audit-final/`. This was a targeted sweep, not a new full-app sign-off. The first attempt lost its shared local server; the isolated-port retry completed.
+- Post-build `npm run audit:flows -- --only 'Team page buttons'` passed (1/1), with Dog Mode enabled locally. The image remains decorative and does not intercept controls.
+- GitHub rejected screenshot attachments with its repository-write permission error again. Live Discord output was not tested or posted, and the bot must be deployed/restarted to use the new product facts.
+
+## GitHub issue fixes and team standings (PR #2022)
+
+- Captured and inspected desktop/mobile team standings with `npm run shots -- --both --viewport /teams/4215?v8=1`. The upper duplicate OPR is absent, Rating is neutral, wins/losses/ties are green/red/yellow, and the percentile remains blue. Full-page capture initially produced a blank image; viewport capture rendered correctly. Images remain outside the repository in `/workspace/scratch/github-team-final/`.
+- `npm run audit:flows` completed: 3/15 passed (team-page actions, advancement simulator, offline pack checksums). Failures include stale/missing selectors in search, settings, scouting, sign-in and video; prediction text expectations; match-details text; methodology target sizes; light-theme setup; offline labels; and the animation fallback flow. The service-worker flow also reports Chromium's unrecognized bluetooth Permissions-Policy warning. These failures are recorded, not claimed fixed by the search/card patch.
+- The desktop/mobile route audit reported search/home/team/events findings, including 49 findings on the event rankings tab, then stopped with `ERR_CONNECTION_REFUSED` when the shared local dev server exited before the upcoming-event route. It did not finish or write its final JSON report; captured images are under `/tmp/control-scout-audit/`. The broader sweep is incomplete.
+- Search evaluation exposed an overlapping alias bug (`of The Bot Patrol` → `Out of the Bot Robotics`), fixed by giving whole stored names priority. The next evaluation passed all answer checks but exceeded its slowest-answer budget under concurrent local tests/audits; CI provides an independent run.
+- GitHub attachment upload returned HTTP 404 / repository-write permission error despite ADMIN repository permission. The production site's readiness check also timed out, so live verification and an embedded PR screenshot remain outstanding.
+
 Running [docs/self-audit.md](docs/self-audit.md) after the build met spec
 (PRs #1–#5 merged, 2026-10-13). Every finding is logged here as it is found,
 then fixed and re-checked with the exact check that failed. Final sign-off is

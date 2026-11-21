@@ -19,6 +19,7 @@ import { BrunoAnswer } from "../components/search/BrunoAnswer";
 import { EventAwardsAnswer } from "../components/search/page/EventAwards";
 import { useSubmittedSearch } from "../components/search/direct";
 import { SearchSkeleton } from "../components/search/SearchSkeleton";
+import { useGliding } from "../components/search/glide";
 import { AnswerNotesView, useSearchHits, useSections } from "../components/search/SearchBox";
 import { SeasonPickContext, pickedSeason, type SeasonPick } from "../components/search/page/SeasonPick";
 import { CompareCard, EventCard, HeadToHead, ResultRow, TeamCard, teamSeasons, type SeasonSummary } from "../components/search/page/ResultCards";
@@ -37,7 +38,9 @@ import { appearanceStats, appearances, isQualityQuestion, hasNumbers, standing }
 import { SearchFilters } from "../components/search/page/SearchFilters";
 import { openFamilies, type FamilyStatus } from "../components/search/page/eventFamilies";
 import { eventSections, eventStatuses, localDay } from "../components/search/page/eventSections";
-import { SEARCH_PALETTE } from "../lib/textTones";
+import { TONE, V8_STAGGER, V8_STATUS } from "../components/search/page/v8tone";
+import { useIsV8 } from "../lib/v8";
+import { EventRow, FollowChips, MatchRows, PlainRow, RowGroup, TeamRow, UnderstoodLine, V8TeamAnswer, standoutRows } from "../components/search/page/V8Results";
 import { EventTree } from "../components/search/page/EventTree";
 import { answerTeams, anyFilter, askedWhen, filteredTitle, filterAlternatives, whenCounts, compareSeason, compareSides, compareTeams, filterChoices, cardTeamName, isCompare, isFuzzy, keeps, pageTitle, contextBadge, badgeUnder, readingOf, fuzzyWords, readFilters, teamParts, withFilters, type AnswerExtra, type PageFilters, type Statuses } from "../components/search/page/results";
 import { headingOver, unreadNote } from "../shared/searchPage";
@@ -73,7 +76,11 @@ export default function SearchPage() {
   const filters = readFilters(params, askedTime);
   // Asked at once, and on to the one page a submitted query names (../components/search/direct.ts).
   const leaving = useSubmittedSearch(query, { answer, live, error, searchNow });
+  // Home's glide on its way in (search/glide.ts): the loading shapes until the box lands, then the answer.
+  const gliding = useGliding();
   const phone = useMediaQuery("(max-width: 767px)");
+  // v8 (the PR's page plan): one column, the answer first, follow-ups as chips, the rest as plain rows. v8 off: as before.
+  const v8 = useIsV8();
   const meta = useMeta();
   const season = useCurrentSeason();
   useTitle(query ? `Search: ${query}` : "Search");
@@ -184,6 +191,21 @@ export default function SearchPage() {
   // Search answered it directly (a card or a stat answer, not a guess): Bruno isn't asked, so the page never shows his
   // card and the answer saying the same thing twice.
   const answered = !!answer && !answer.weak && !!(answer.card || answer.stat);
+  // v8: a team asked for by itself (its highlights answer, or a team reading with nothing else to answer) is answered
+  // with its compact summary; its standout matches go below as rows.
+  const teamAnswer = useMemo(() => {
+    if (!v8) return null;
+    const st = answer?.stat;
+    if (st?.intent === "team-highlights" && st.team) {
+      const hit = hits.find((h) => h.kind === "team" && !isCompare(h) && Number(h.ref) === st.team!.number);
+      return { number: st.team.number, name: st.team.name ?? teamParts(hit?.title ?? "")?.name ?? "", place: hit?.subtitle };
+    }
+    if (!st && !answer?.card && ax?.understood?.kind === "team" && topTeam && /^\d+$/.test(topTeam.ref) && !compares.length) {
+      return { number: Number(topTeam.ref), name: teamParts(topTeam.title)?.name ?? "", place: topTeam.subtitle };
+    }
+    return null;
+  }, [v8, answer, hits, ax, topTeam, compares.length]);
+  const standout = v8 ? standoutRows(answer?.stat) : null;
   const summary = (
     <BrunoAnswer q={q} prefer={prefer} ready={!busy && !stale} answered={answered} className="mb-4 lg:mb-0">
       {apps.length ? <><StatBanner stats={appearanceStats(apps, answer?.card?.kind === "worlds" ? "Worlds" : "states")} /><Timeline apps={apps} /></> : quality ? <QualityBanner s={quality} /> : null}
@@ -201,20 +223,24 @@ export default function SearchPage() {
   // Any search does (answered or not): the loading screen has the same two columns, so the answer replacing it moves
   // nothing either.
   const askAside = wide && (follow.ask.length > 0 || (follow.pending && !!query && !error));
+  // v8 on a wide screen: the places go beside the results too (with People also ask), as the classic look had them.
+  const placesAside = v8 && wide ? view.find((x) => x.id === "place") : undefined;
   // A card or stat answer's one match, to watch under People also ask (./search/page/AnswerVideo.tsx clipLabel).
   const clipFor = clipLabel(answer);
-  const side = !!panel || askAside;
+  // v8: the side column holds People also ask and the places only (a summary or head-to-head stays in the results).
+  const side = v8 ? askAside || !!placesAside : !!panel || askAside;
   // The right-hand column: the panel, kept in view while scrolling (beside the results, or beside "nothing found").
   const sideColumn = side ? (
     <div className="space-y-5 lg:sticky lg:top-[calc(var(--header-h)+1rem)] lg:col-start-2 lg:row-start-1" data-side>
-      {panel === "summary" && (
+      {!v8 && panel === "summary" && (
         <aside aria-label="Summary" className="mb-4 space-y-3 lg:mb-0" data-panel="summary">
           {summary}
           {aboutTeam && <TeamLinks team={aboutTeam} season={apps.length ? null : quality?.season} />}
         </aside>
       )}
-      {panel === "versus" && shownH2h && <aside aria-label="Head-to-head" className="max-lg:hidden" data-panel="versus"><HeadToHead h={shownH2h} now={now.data?.teams} before={asked == null ? before.data?.teams : undefined} season={base} /></aside>}
+      {!v8 && panel === "versus" && shownH2h && <aside aria-label="Head-to-head" className="max-lg:hidden" data-panel="versus"><HeadToHead h={shownH2h} now={now.data?.teams} before={asked == null ? before.data?.teams : undefined} season={base} /></aside>}
       {askAside && (follow.ask.length ? <PeopleAlsoAsk ask={follow.ask} /> : follow.pending ? <PeopleAlsoAskPending /> : null)}
+      {placesAside && <V8Group s={placesAside} statuses={statuses} summaries={summaries} skip={null} picks={picks} onPick={pick} phone={false} twoCol={false} onOpen={open} />}
       {/* The match a card or stat answer is about, to watch: under People also ask (./search/page/AnswerVideo.tsx). */}
       {wide && clipFor && <AnswerClip about={clipFor} />}
     </div>
@@ -225,24 +251,25 @@ export default function SearchPage() {
   // first in both, so it's the same field when one replaces the other: what's being typed in it (and the keyboard)
   // stays put when a search's results arrive.
   const bar = phone ? <PhoneSearchBar query={query} /> : null;
-  if (query && !error && ((busy && ((stale && !reseason) || !found)) || leaving)) return <>{bar}<SearchSkeleton query={query} /></>;
+  if (query && !error && ((busy && ((stale && !reseason) || !found)) || leaving || gliding)) return <>{bar}<SearchSkeleton query={query} /></>;
   return (
     <>{bar}
     {/* One results column, 640–720px and centred (the search results guide's §9: a line the eye can follow across a
     // card); a page with a side panel keeps that column and puts the panel beside it. */}
     <SeasonPickContext.Provider value={seasonPick}>
-    <div className={cn("w-full pt-4 sm:pt-8", side ? "max-w-6xl" : "mx-auto max-w-[720px]")} data-results-column={side ? "with-panel" : ""}>
+    <div className={cn("w-full pt-4 sm:pt-8", side ? cn("max-w-6xl", v8 && "mx-auto") : "mx-auto max-w-[720px]")} data-results-column={side ? "with-panel" : ""}>
       {/* The feature's name sits above the title; the title names what was found, the badge what the query was read as.
           The query itself lives in the top bar (refine there): the page never repeats it. */}
       {/* Phones: the bar (above the column), then a short header ("Results: …"), no eyebrow. */}
       {/* The accent is the selected control's alone on this page (the active time tab): the eyebrow is plain. */}
-      <p className="text-xs font-semibold text-muted-foreground max-md:hidden" data-eyebrow>FTC One Search</p>
-      <h1 className="mt-1 font-display text-xl font-semibold tracking-tight text-foreground max-md:mt-0 md:text-2xl lg:text-3xl">
+      <p className="text-xs font-semibold text-muted-foreground v8:hidden max-md:hidden" data-eyebrow>FTC One Search</p>
+      <h1 className="mt-1 font-display text-xl font-semibold tracking-tight text-foreground max-md:mt-0 md:text-2xl lg:text-3xl v8:font-sans v8:text-[1.375rem] v8:leading-7 v8:md:text-[1.375rem] v8:lg:text-[1.375rem]" data-page-title>
         {/* Nothing answered (a question search can't answer yet, or nothing found): the page says sorry, once, here. */}
         {!query ? "Search" : ax?.notInPack && !busy && !error ? "Not in your downloaded pack" : ax?.sorry && !busy && !error ? SORRY_SENTENCE : found ? <>{phone && "Results: "}{shownTitle}</> : busy || error ? "Search results" : SORRY_SENTENCE}
       </h1>
-      {badge && (
-        <p className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-full border border-border bg-muted/50 px-2.5 py-1 text-xs font-medium text-foreground" data-context-badge>
+      {v8 && query && found && !busy && !error && <UnderstoodLine query={query} understood={ax?.understood} className="mt-2" />}
+      {badge && !v8 && (
+        <p className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-full border border-border bg-muted/50 px-2.5 py-1 text-xs font-medium text-foreground v8:bg-transparent v8:text-muted-foreground" data-context-badge>
           <ScanSearch className="size-3.5 shrink-0 text-muted-foreground" aria-hidden /><span className="min-w-0 break-words">{badge}</span>
         </p>
       )}
@@ -269,7 +296,7 @@ export default function SearchPage() {
                   {notes.didYouMean && <AnswerNotesView notes={{ didYouMean: notes.didYouMean, corrected: false, understood: [] }} className="mb-4 text-sm" onDidYouMean={runFix} />}
                   <div className={cn(side && "lg:grid lg:grid-cols-[minmax(0,720px)_minmax(20rem,1fr)] lg:items-start lg:gap-6")}>
                     {sideColumn}
-                    <div className="min-w-0 lg:col-start-1 lg:row-start-1">
+                    <div className={cn("min-w-0 lg:col-start-1 lg:row-start-1", V8_STAGGER)} data-stagger>
                       <NoResults
                         query={query} onOpen={open}
                         understood={readingOf(ax) ? [readingOf(ax)!] : notes.understood}
@@ -279,6 +306,56 @@ export default function SearchPage() {
                   </div>
                 </>
               )
+          ) : v8 ? (
+            <AnswerVideoProvider video={answer?.video}>
+            <div className={cn("transition-opacity", stale && "opacity-60")} aria-busy={stale || undefined} data-v8-results>
+              <AnswerNotesView notes={{ ...notes, understood: [] }} query={query} className="mb-4 text-sm" onDidYouMean={runFix} />
+              {ax?.understood?.fallback && (
+                <p className="mb-4 flex items-start gap-1.5 rounded-lg border border-line bg-card px-3 py-2 text-sm text-foreground" data-fallback-label>
+                  <Info className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />{ax.understood.fallback}
+                </p>
+              )}
+              {ax?.sorry ? <SorryNote sorry={ax.sorry} className="mb-5" />
+                : !!ax?.suggest?.length && <RelatedQuestions queries={ax.suggest} title="Search can answer these about them" className="mb-5" />}
+              {answer?.verdict && <Verdict v={answer.verdict} />}
+              <div className={cn(side && "lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(18rem,22rem)] lg:items-start lg:gap-8")} data-layout={side ? "aside" : "single"}>
+              {sideColumn}
+              <div className={cn("min-w-0 lg:col-start-1 lg:row-start-1", V8_STAGGER)} data-stagger>
+                {/* The answer, sized to the question: a team asked for by itself is its compact summary. */}
+                {teamAnswer ? <V8TeamAnswer team={teamAnswer.number} name={teamAnswer.name} place={teamAnswer.place} summary={summaries.get(teamAnswer.number)} stat={answer?.stat} />
+                  : answer?.stat ? <StatAnswerCard stat={answer.stat} heading={title ?? undefined} explain={inStat ? answer.card : undefined} />
+                  : apps.length ? <AppearancesAnswer team={answer!.card!.team} title={answer!.card!.title} heading={title} headline={answer!.card!.headline} trip={answer!.card!.trip} apps={apps} />
+                  : answer?.card?.kind === "event-awards" ? <EventAwardsAnswer card={answer.card} heading={title ?? undefined} />
+                  : answer?.card && !inStat ? <FactCard card={answer.card} heading={title ?? undefined} season={hits.find((h) => h.kind === "team" && !isCompare(h) && Number(h.ref) === answer.card!.team?.number)?.linkSeason} />
+                  : null}
+                {!answer?.stat && !answer?.card && !teamAnswer && <AnswerVideo className="mt-0 max-sm:mx-0" />}
+                <FollowChips ask={askAside ? [] : follow.ask} related={follow.related} seeAll={follow.asked ?? query} className="mt-4" />
+                {/* Going deeper: plain rows, grouped, five each. */}
+                {standout && <RowGroup key={standout.rows.map((r) => r.href).join("|")} id="standout" title={standout.title} count={standout.rows.length}>{[<MatchRows key="m" rows={standout.rows} />]}</RowGroup>}
+                {!!compares.length && (
+                  <section aria-label="Compare" className="mt-6" data-section="compare">
+                    <div className="space-y-2">{compares.map((c) => <CompareCard key={c.href ?? c.ref} h={c} summaries={summaries} onOpen={() => open(c)} preview={phone && compareTeams(c).length >= 2 ? (from) => { if (!stale) setSheet({ hit: c, from, of: answer }); } : undefined} />)}</div>
+                    {shownH2h && <div className="mt-3"><HeadToHead h={shownH2h} now={now.data?.teams} before={asked == null ? before.data?.teams : undefined} season={base} /></div>}
+                  </section>
+                )}
+                {(events >= 2 || choices.seasons.length > 1 || filtersOn) && <div className="mt-6"><SearchFilters f={filters} seasons={choices.seasons} types={choices.types} counts={events ? counts : undefined} asked={askedTime} onChange={setFilters} /></div>}
+                {view.filter((x) => x !== placesAside).map((s) => <V8Group key={s.id} s={s} statuses={statuses} summaries={summaries} skip={teamAnswer?.number ?? null} fuzzyWord={fuzzyWords(hits) ?? undefined} picks={picks} onPick={pick} phone={phone} twoCol={side} onOpen={open} />)}
+                {filtersOn && !view.some((s) => RESULT_KINDS.has(s.id) || s.id === "top" || s.id === "fuzzy") && (
+                  <div className="mt-4 rounded-xl border border-line bg-card px-4 py-3.5 text-sm" data-filtered-empty>
+                    <p className="text-foreground">{emptyLine(filters, hits)}</p>
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      {filterAlternatives(hits, filters, undefined, statusesFor).map((a) => <Button key={a.label} size="sm" variant="secondary" onClick={() => setFilters(a.f)} data-alternative>Show {a.label}</Button>)}
+                      <button type="button" onClick={() => setFilters({ when: askedTime, season: null, type: null })} className="text-sm font-medium text-foreground underline-offset-2 hover:underline">Clear filters</button>
+                    </div>
+                  </div>
+                )}
+                {(apps.length > 0 || !!quality) && <div className="mt-6">{summary}</div>}
+                {!(apps.length > 0 || !!quality) && <BrunoAnswer q={q} prefer={prefer} ready={!busy && !stale} answered={answered} className="mt-6" />}
+                {clipFor && <AnswerClip about={clipFor} className="mt-6" />}
+              </div>
+              </div>
+            </div>
+            </AnswerVideoProvider>
           ) : (
             <AnswerVideoProvider video={answer?.video}>
             <div className={cn("transition-opacity", stale && "opacity-60")} aria-busy={stale || undefined}>
@@ -286,8 +363,8 @@ export default function SearchPage() {
               <AnswerNotesView notes={{ ...notes, understood: [] }} query={query} className="mb-4 text-sm" onDidYouMean={runFix} />
               {/* The server found nothing for all of it and shows the nearest set instead: said plainly, above that set. */}
               {ax?.understood?.fallback && (
-                <p className="mb-4 flex items-start gap-1.5 rounded-lg border border-warning/40 bg-warning/[0.08] px-3 py-2 text-sm text-foreground" data-fallback-label>
-                  <Info className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />{ax.understood.fallback}
+                <p className="mb-4 flex items-start gap-1.5 rounded-lg border border-warning/40 bg-warning/[0.08] px-3 py-2 text-sm text-foreground v8:border-line v8:bg-card" data-fallback-label>
+                  <Info className="mt-0.5 size-4 shrink-0 text-warning v8:text-muted-foreground" aria-hidden />{ax.understood.fallback}
                 </p>
               )}
               {/* The team was found but not the answer: what search can answer about it, one tap each. */}
@@ -303,7 +380,7 @@ export default function SearchPage() {
                   the summary first (H1, badge, summary, cards). */}
               <div className={cn(side && "lg:grid lg:grid-cols-[minmax(0,720px)_minmax(20rem,1fr)] lg:items-start lg:gap-6")} data-layout={panel ?? "single"}>
                 {sideColumn}
-                <div className="min-w-0 lg:col-start-1 lg:row-start-1">
+                <div className={cn("min-w-0 lg:col-start-1 lg:row-start-1", V8_STAGGER)} data-stagger>
                   {!panel && summary}
                   {/* A stat question's answer ("4215 highest score in worlds"): ./search/page/StatAnswer.tsx. */}
                   {/* A word's explainer with it ("how is OPR calculated, with 4215") is drawn inside its card: one answer card. */}
@@ -319,7 +396,7 @@ export default function SearchPage() {
                   {!answer?.stat && !answer?.card && <AnswerVideo className="mb-5 mt-0 max-sm:mx-0" />}
                   {!!compares.length && (
                     <section aria-label="Compare" className="mb-5" data-section="compare">
-                      <h2 className="mb-1.5 text-xs font-semibold text-muted-foreground">Compare</h2>
+                      <h2 className="mb-1.5 text-xs font-semibold text-muted-foreground v8:font-medium v8:text-text-faint">Compare</h2>
                       <div className="space-y-2">{compares.map((c) => <CompareCard key={c.href ?? c.ref} h={c} summaries={summaries} onOpen={() => open(c)} preview={phone && compareTeams(c).length >= 2 ? (from) => { if (!stale) setSheet({ hit: c, from, of: answer }); } : undefined} />)}</div>
                     </section>
                   )}
@@ -412,9 +489,9 @@ function ResultSection({ s, statuses, summaries, covered, picks, onPick, fuzzyWo
   if (teamish) for (const r of s.rows) { if (!r.sub || !teamGroups.length) teamGroups.push({ head: r, subs: [] }); else teamGroups[teamGroups.length - 1].subs.push(r); }
   return (
     <section aria-label={title} className="mb-5" data-section={s.id}>
-      <h2 className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+      <h2 className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground v8:font-medium v8:text-text-faint">
         {title}
-        {s.id !== "pages" && s.id !== "browse" && <span className="rounded-full bg-muted px-1.5 py-px text-[10px] tabular-nums text-foreground/80">{count}</span>}
+        {s.id !== "pages" && s.id !== "browse" && <span className="rounded-full bg-muted px-1.5 py-px text-[10px] tabular-nums text-foreground/80 v8:bg-transparent v8:px-0 v8:text-[0.75rem] v8:text-text-faint">{count}</span>}
       </h2>
       {s.id === "event" ? (
         <EventResults hits={s.rows.map((r) => r.hit)} statuses={statuses} twoCol={twoCol} onOpen={onOpen} />
@@ -449,6 +526,57 @@ function ResultSection({ s, statuses, summaries, covered, picks, onPick, fuzzyWo
   );
 }
 
+/** v8: one section of results. Events keep the classic structure (Live, Upcoming, Finished, by week; an event with
+ *  divisions one card with its divisions inside), restyled quietly (EventResults, ./search/page/EventTree.tsx). Teams
+ *  are rows with their own events under them; anything else plain rows (five shown, "Show N more"). A team the answer
+ *  already is, is left out. On a phone a team row keeps its quick actions (VS Compare, Shortlist, Matches). */
+function V8Group({ s, statuses, summaries, skip, fuzzyWord, picks, onPick, phone, twoCol, onOpen }: { s: ViewSection; statuses: Statuses; summaries: Map<number, SeasonSummary>; skip: number | null; fuzzyWord?: string; picks: number[]; onPick: (team: number) => void; phone: boolean; twoCol: boolean; onOpen: (h: SearchHit) => void }) {
+  const current = useCurrentSeason();
+  // Each head row with the rows under it (a team's events), the answer's own team left out with its events.
+  const groups = useMemo(() => {
+    const out: { head: SearchHit; subs: SearchHit[] }[] = [];
+    let dropped = false;
+    for (const r of s.rows) {
+      if (!r.sub) { dropped = skip != null && r.hit.kind === "team" && Number(r.hit.ref) === skip; if (!dropped) out.push({ head: r.hit, subs: [] }); }
+      else if (!dropped && out.length) out[out.length - 1].subs.push(r.hit);
+    }
+    return out;
+  }, [s.rows, skip]);
+  if (!groups.length) return null;
+  const title = s.id === "fuzzy" && fuzzyWord ? `Other teams matching “${fuzzyWord}”` : s.title;
+  if (s.id === "event") {
+    const hits = groups.map((g) => g.head);
+    return (
+      <section aria-label={title} className="mt-8" data-v8-group="event">
+        <h2 className="mb-3 flex items-baseline gap-1.5 text-xs text-text-faint">{title}<span className="tabular-nums">{hits.length}</span></h2>
+        <EventResults hits={hits} statuses={statuses} twoCol={twoCol} onOpen={onOpen} />
+      </section>
+    );
+  }
+  const rows = groups.map(({ head: h, subs }) => {
+    if (h.kind === "team" && /^\d+$/.test(h.ref)) {
+      const row = <TeamRow key={h.ref} h={h} summary={summaries.get(Number(h.ref))} onOpen={() => onOpen(h)} />;
+      const card = phone
+        ? <PhoneTeamCard key={h.ref} team={Number(h.ref)} name={teamParts(h.title)?.name ?? ""} season={h.linkSeason ?? summaries.get(Number(h.ref))?.season ?? h.season ?? current} picked={picks.includes(Number(h.ref))} onPick={() => onPick(Number(h.ref))}>{row}</PhoneTeamCard>
+        : row;
+      if (!subs.length) return card;
+      // Its events, inset under it: the team is the parent, as in the classic look.
+      return (
+        <div key={h.ref} data-team-group={h.ref}>
+          {card}
+          <ul className="mb-2 ml-10 border-l border-white/[0.12] pl-1" data-team-events>
+            {subs.map((e) => <li key={e.ref}><EventRow h={e} onOpen={() => onOpen(e)} /></li>)}
+          </ul>
+        </div>
+      );
+    }
+    if (h.kind === "event") return <EventRow key={h.ref} h={h} onOpen={() => onOpen(h)} />;
+    return <PlainRow key={`${h.kind}:${h.ref}`} h={h} onOpen={() => onOpen(h)} icon={s.id === "pages" || s.id === "browse" ? "page" : h.kind === "match" ? "match" : "place"} />;
+  });
+  // Keyed by its rows: the next search's group (the page stays mounted) opens capped again, never expanded.
+  return <RowGroup key={groups.map((g) => `${g.head.kind}:${g.head.ref}`).join("|")} id={s.id} title={title} count={groups.length}>{rows}</RowGroup>;
+}
+
 /** The events, grouped before any card is drawn: by status (Live now, Upcoming, Finished), then by date
  *  (../components/search/page/eventSections.ts), then an event split in divisions as a tree a season, full width
  *  (../components/search/page/eventFamilies.ts), any other event a card in the grid. Every heading says how many
@@ -456,23 +584,26 @@ function ResultSection({ s, statuses, summaries, covered, picks, onPick, fuzzyWo
 function EventResults({ hits, statuses, twoCol, onOpen }: { hits: SearchHit[]; statuses: Statuses; twoCol: boolean; onOpen: (h: SearchHit) => void }) {
   const sections = useMemo(() => eventSections(hits, localDay(), statuses as ReadonlyMap<string, FamilyStatus>), [hits, statuses]);
   const open = useMemo(() => openFamilies(sections.flatMap((s) => s.dates.flatMap((d) => d.groups))), [sections]);
-  const grid = cn("grid gap-3 sm:grid-cols-2", twoCol ? "2xl:grid-cols-3" : "xl:grid-cols-3");
+  // v8: two cards a row at most (the results column is narrower), with room between them.
+  const grid = cn("grid gap-3 sm:grid-cols-2", twoCol ? "2xl:grid-cols-3" : "xl:grid-cols-3", "v8:xl:grid-cols-2 v8:2xl:grid-cols-2");
   return (
-    <div className="space-y-8 max-sm:space-y-6" data-event-sections>
+    <div className="space-y-8 max-sm:space-y-6 v8:space-y-7" data-event-sections>
       {sections.map((s) => (
         <section key={s.status} aria-label={`${s.title}, ${s.count} ${s.count === 1 ? "event" : "events"}`} data-status-section={s.status}>
-          {/* The status in its palette colour (lib/textTones SEARCH_PALETTE: live rose, upcoming cyan, finished lime), the
+          {/* The status in its palette colour (lib/textTones TONE: live rose, upcoming cyan, finished lime), the
               same as the trees' bars and chips; the words and order say it without the colour. */}
-          <h3 className={cn("mb-3 flex items-center gap-2 rounded-lg px-3 py-2 font-display text-base font-bold", SEARCH_PALETTE[s.status].fill)} data-section-tone={s.status}>
-            {s.status === "live" && <span aria-hidden className="size-2 shrink-0 animate-pulse rounded-full bg-white motion-reduce:animate-none" data-live-dot />}
-            {s.title}<span className="sr-only">, </span><span className="rounded-full bg-black/25 px-2 text-sm tabular-nums" data-section-count>{s.count}</span>
+          <h3 className={cn("mb-3 flex items-center gap-2 rounded-lg px-3 py-2 font-display text-base font-bold", TONE[s.status].fill, "v8:mb-2 v8:bg-transparent v8:px-0 v8:py-1 v8:font-sans v8:font-semibold v8:text-foreground")} data-section-tone={s.status}>
+            {s.status === "live" && <span aria-hidden className="size-2 shrink-0 animate-pulse rounded-full bg-white motion-reduce:animate-none v8:bg-live" data-live-dot />}
+            {/* v8: the status as a small soft dot, never a coloured bar. */}
+            {s.status !== "live" && <span aria-hidden className={cn("hidden size-2 shrink-0 rounded-full v8:inline-block", V8_STATUS[s.status].dot)} data-status-dot />}
+            {s.title}<span className="sr-only">, </span><span className="rounded-full bg-black/25 px-2 text-sm tabular-nums v8:bg-transparent v8:px-0 v8:font-normal v8:text-muted-foreground" data-section-count>{s.count}</span>
           </h3>
-          <div className="space-y-5">
+          <div className="space-y-5 v8:space-y-4">
             {s.dates.map((d) => (
               <div key={d.key} data-date-section={d.key}>
                 {d.title && (
-                  <h4 className={cn("mb-2 flex min-w-0 items-baseline gap-1.5 border-l-4 pl-2 text-sm font-semibold text-foreground", SEARCH_PALETTE[s.status].edge)}>
-                    <span className="truncate">{d.title}</span><span className={cn("shrink-0 tabular-nums", SEARCH_PALETTE[s.status].text)}>· {d.count}</span>
+                  <h4 className={cn("mb-2 flex min-w-0 items-baseline gap-1.5 border-l-4 pl-2 text-sm font-semibold text-foreground", TONE[s.status].edge, "v8:border-l-0 v8:pl-0 v8:text-xs v8:font-medium v8:text-text-muted")}>
+                    <span className="truncate">{d.title}</span><span className={cn("shrink-0 tabular-nums", TONE[s.status].text, "v8:text-text-faint")}>· {d.count}</span>
                   </h4>
                 )}
                 <div className={grid}>
@@ -501,8 +632,8 @@ function TeamLinks({ team, season }: { team: number; season?: number | null }) {
     { label: "Compare with another team", to: `/compare?teams=${team}${season != null ? `&season=${season}` : ""}` },
   ];
   return (
-    <nav aria-label={`Team ${team} pages`} className="rounded-xl border border-border bg-card p-3" data-team-links>
-      <p className="px-1 text-xs font-semibold text-muted-foreground">Team {team}</p>
+    <nav aria-label={`Team ${team} pages`} className="rounded-xl border border-border bg-card p-3 v8:border-line" data-team-links>
+      <p className="px-1 text-xs font-semibold text-muted-foreground v8:font-medium v8:text-text-faint">Team {team}</p>
       <ul className="mt-1.5">
         {links.map((l) => <li key={l.to}><Link to={l.to} className="flex min-h-[44px] items-center justify-between rounded-lg px-2 py-2 text-sm text-foreground hover:bg-muted/60">{l.label}<ArrowRight className="size-4 text-muted-foreground" aria-hidden /></Link></li>)}
       </ul>
