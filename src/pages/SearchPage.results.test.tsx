@@ -688,6 +688,22 @@ describe("search results page, phone (Part B 3b)", () => {
     expect(loc).toBe("/search?q=simply%20complex%20in%20nj");
   });
 
+  it("sits on the page's wash in v8: no solid panel behind the bar, only a translucent frosted veil once scrolled", () => {
+    state.answer = answer([team(18061, "Simply Complex", "Plainsboro, NJ")]);
+    const { container } = withTopBar("/search?q=simply%20complex");
+    const bar = container.querySelector("[data-phone-search]") as HTMLElement;
+    const v8Bg = () => bar.className.split(/\s+/).filter((c) => c.startsWith("v8:bg-"));
+    // At the top: see-through, so the wash runs on behind the field (the classic look keeps its own bg-primary).
+    expect(v8Bg()).toEqual(["v8:bg-transparent"]);
+    // Scrolled: a translucent, blurred veil, never the opaque page colour.
+    Object.defineProperty(window, "scrollY", { value: 200, configurable: true });
+    act(() => { window.dispatchEvent(new Event("scroll")); });
+    expect(bar.getAttribute("data-phone-search")).toBe("compact");
+    expect(v8Bg()).toEqual(["v8:bg-primary/45"]);
+    expect(bar.className).toContain("v8:backdrop-blur-lg");
+    Object.defineProperty(window, "scrollY", { value: 0, configurable: true });
+  });
+
   it("what's typed in the bar while a search loads is still there, in the same field, when its results arrive", () => {
     state.busy = true;
     const { container, rerender } = withTopBar("/search?q=how%20good%20is%20simply%20complex");

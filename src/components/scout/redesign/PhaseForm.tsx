@@ -110,7 +110,7 @@ export function PhaseForm({ template, value, onChange, notes, onNotes, notesLabe
     <>
         {showTimer && (
           <div data-cue={t.cue ?? undefined} className={cn("flex min-h-[52px] items-center gap-3 rounded-xl border px-3 py-1.5 motion-safe:transition-colors motion-safe:duration-300",
-            t.cue ? "border-accent/60 bg-accent/10 v8:bg-white/[0.04]" : "border-border bg-card v8:border-line")}>
+            t.cue ? "border-accent/60 bg-accent/10 v8:bg-ink/[0.04]" : "border-border bg-card v8:border-line")}>
             <div className="min-w-0 flex-1">
               <div className="text-xs text-muted-foreground">{t.cue ? `${phaseLabel(t.cue)} now` : "Match timer"}</div>
               <div className="font-mono text-base font-bold tabular-nums v8:font-display v8:text-lg v8:font-semibold" role="timer" aria-live="off">

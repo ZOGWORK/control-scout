@@ -196,7 +196,7 @@ function Lineup({ m, reasons }: { m: MatchView; reasons: ReadonlyMap<number, Rel
       {(["red", "blue"] as const).map((side) => (
         <div key={side} className={cn("flex min-w-0 flex-wrap items-center gap-1.5 rounded-lg border-l-[3px] px-2.5 py-1.5",
           // v8: the alliance colour stays on the cue (the left edge and the label) only; the box itself is neutral.
-          side === "red" ? "border-red-alliance bg-red-alliance/[0.08]" : "border-blue-alliance bg-blue-alliance/[0.08]", "v8:border-l-2 v8:bg-white/[0.03]")}>
+          side === "red" ? "border-red-alliance bg-red-alliance/[0.08]" : "border-blue-alliance bg-blue-alliance/[0.08]", "v8:border-l-2 v8:bg-ink/[0.03]")}>
           <span className={cn("text-[11px] font-semibold", side === "red" ? "text-red-alliance" : "text-blue-alliance")}>{side === "red" ? "Red" : "Blue"}</span>
           {m[side].teams.length ? m[side].teams.map((t) => {
             const why = reasons.get(t.number);

@@ -52,7 +52,7 @@ function PublicNotice() {
     </div>
   );
 }
-const PALETTE_NAME = { light: "Light", dim: "Dim", dark: "Dark", midnight: "Midnight" } as const;
+const PALETTE_NAME = { light: "Light", dim: "Dim", dark: "Dark" } as const;
 const ACCEPT = [...IMAGE_TYPES, ...VIDEO_TYPES].join(",");
 /** ⌘V on Apple keyboards, Ctrl+V elsewhere. */
 const pasteKeys = () => (/Mac|iPhone|iPad/.test(typeof navigator !== "undefined" ? navigator.platform || navigator.userAgent : "") ? "⌘V" : "Ctrl+V");
@@ -151,7 +151,7 @@ export function BugReportButton({ corner = false }: { corner?: boolean } = {}) {
   const back = () => ref.current;
   const button = corner ? (
     <button ref={ref} type="button" onClick={() => setOpen(phone ? "sheet" : "dialog")} aria-label="Report a bug" aria-haspopup="dialog" title="Report a bug"
-      className="absolute right-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-20 flex size-11 items-center justify-center rounded-full border border-white/10 bg-[#121214] text-text-muted shadow-[0_4px_16px_rgb(0_0_0/0.35)] outline-none transition-colors hover:border-danger/40 hover:text-danger focus-visible:ring-2 focus-visible:ring-ring/60 sm:right-6 sm:bottom-6"
+      className="absolute right-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-20 flex size-11 items-center justify-center rounded-full border border-ink/10 bg-[#121214] v8light:bg-card [html.dim_&]:bg-card text-text-muted shadow-[0_4px_16px_rgb(0_0_0/0.35)] outline-none transition-colors hover:border-danger/40 hover:text-danger focus-visible:ring-2 focus-visible:ring-ring/60 sm:right-6 sm:bottom-6"
       data-testid="bug-report-button" data-corner>
       <Bug className="size-5" aria-hidden />
     </button>

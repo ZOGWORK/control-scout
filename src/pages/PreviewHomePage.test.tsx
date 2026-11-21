@@ -168,7 +168,7 @@ describe("Sample home dashboard", () => {
     const { container } = mount();
     const wash = container.querySelector("[data-wash]") as HTMLElement;
     expect(container.querySelector("canvas[data-dot-wave]")?.getAttribute("aria-hidden")).toBe("true");
-    expect(cls(wash.querySelector("[data-grain]")!)).toContain("opacity-[0.12]");
+    expect(cls(wash.querySelector("[data-grain]")!)).toContain("opacity-[var(--wash-grain,0.12)]");
     expect(wash.innerHTML).not.toMatch(/type="discrete"/); // not the shutdown page's chalky grain
   });
 

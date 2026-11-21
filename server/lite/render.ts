@@ -8,7 +8,7 @@
 // 44px tall (LITE_TAP_CLASSES; lite.test.ts holds the stylesheet to it).
 import { awardLabel, dateRange, int, matchTime, num, oddsPct, place, rankPct, seasonLabel } from "../../src/shared/format.js";
 import { TIER_WORD } from "../../src/shared/tierWords.js";
-import { THEME_TOKENS, V8_TOKENS, type Palette, type TextSizeCookie, type ThemeCookie, type Token } from "../../src/shared/themeTokens.js";
+import { THEME_TOKENS, V8_THEME_TOKENS, type Palette, type TextSizeCookie, type ThemeCookie, type Token } from "../../src/shared/themeTokens.js";
 import type { LiteCall, LiteEvent, LiteMatch, LiteMatchRow, LitePicks, LiteSide, LiteTeam } from "./trim.js";
 
 export const esc = (s: string | number | null | undefined) =>
@@ -23,11 +23,11 @@ const vars = (p: Palette) => tokenVars(THEME_TOKENS[p]);
 /** The classes a link may carry; each is a tap target at least 44px tall. */
 export const LITE_TAP_CLASSES = ["btn", "cell", "row", "chip"] as const;
 
-// The app's five themes (src/shared/themeTokens.ts, the values of src/index.css): dark on :root, the others on
+// The app's themes (src/shared/themeTokens.ts, the values of src/index.css): dark on :root, the others on
 // html's class as in the app, System following the device. Text size as the app's (index.css): rem sizes, the root
 // font 14px on phones and 16px wider, times this device's choice. Tap targets are in px, so they stay 44px at any size.
 const CLASSIC_THEMES = `:root{color-scheme:dark;${vars("dark")}}`
-  + `html.light{color-scheme:light;${vars("light")}}html.dim{${vars("dim")}}html.midnight{${vars("midnight")}}`
+  + `html.light{color-scheme:light;${vars("light")}}html.dim{${vars("dim")}}`
   + `html.sys{color-scheme:dark light}@media(prefers-color-scheme:light){html.sys{${vars("light")}}}`;
 const BASE = `html{--b:1;--s:1;font-size:calc(100% * var(--b) * var(--s))}@media(max-width:767px){html{--b:.875}}`
   + `html[data-text-size=s]{--s:.9}html[data-text-size=l]{--s:1.125}html[data-text-size=xl]{--s:1.25}`
@@ -83,24 +83,27 @@ const BASE = `html{--b:1;--s:1;font-size:calc(100% * var(--b) * var(--s))}@media
 /** Lite in the classic look (a device that picked /legacy): the app's five themes. */
 export const LITE_STYLE = CLASSIC_THEMES + BASE;
 
-// v8 (docs/design/v8-revamp-brief.md §3, §6): dark only, near-black surfaces and hairlines, no yellow, the slate
+// v8 (docs/design/v8-revamp-brief.md §3, §6): near-black surfaces and hairlines (or near-white ones on Light), no yellow, the slate
 // blue only for bars, lines and the #1 rank, Inter when the device has it (no font download: one bar of signal),
 // big tabular numbers, the 90% root, plain buttons that answer a press.
-const V8_LAYER = `:root{--wn:#fb923c}html{--b:.9}@media(max-width:767px){html{--b:.875}}`
+const V8_LAYER = `:root{--wn:#fb923c;--lv:#f2555a;--h1:#ffffff1f;--h2:#ffffff1a;--h3:#ffffff33}html.light{--wn:#c2410c;--lv:#c81e1e;--h1:#0000001f;--h2:#0000000d;--h3:#00000033}@media(prefers-color-scheme:light){html.sys{--wn:#c2410c;--lv:#c81e1e;--h1:#0000001f;--h2:#0000000d;--h3:#00000033}}html{--b:.9}@media(max-width:767px){html{--b:.875}}`
   + `body{font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;letter-spacing:-.003em}`
   + `.top{background:var(--bg)}.top .in{min-height:56px}.brand{gap:8px;font-weight:600;font-size:.9375rem}.brand svg{width:22px;height:22px}.brand rect{fill:none}.brand path{fill:var(--fg)}.brand i{color:var(--mf);font-weight:500}`
-  + `.btn,.chip{border-color:#ffffff1f;border-radius:8px;background:transparent;font-weight:500;transition:transform 160ms cubic-bezier(.23,1,.32,1)}`
-  + `.btn.p{border-color:#ffffff1f;background:#ffffff1a;color:var(--fg);font-weight:600}.chip.cur{border-color:#ffffff33;background:#ffffff1a;color:var(--fg)}`
+  + `.btn,.chip{border-color:var(--h1);border-radius:8px;background:transparent;font-weight:500;transition:transform 160ms cubic-bezier(.23,1,.32,1)}`
+  + `.btn.p{border-color:var(--h1);background:var(--h2);color:var(--fg);font-weight:600}.chip.cur{border-color:var(--h3);background:var(--h2);color:var(--fg)}`
   + `.btn:active,.chip:active{transform:scale(.97)}@media(prefers-reduced-motion:reduce){.btn:active,.chip:active{transform:none}}`
-  + `input{border-color:#ffffff1f;border-radius:8px;background:var(--mu)}`
+  + `input{border-color:var(--h1);border-radius:8px;background:var(--mu)}`
   + `h1{margin-top:20px;font-size:1.375rem;font-weight:600;letter-spacing:-.015em;line-height:1.27}h2{margin-bottom:10px;font-size:1rem;font-weight:600}`
   + `th{font-size:.75rem;font-weight:500}.card,.tbl,.list,.stat{border-radius:14px}.in{max-width:62rem}@media(max-width:639px){.stats{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.stat{padding:10px 12px}.stat b{font-size:1.375rem}}`
   + `.stat b{font-size:1.75rem;font-weight:600;letter-spacing:-.02em;line-height:1.2}.stat span{font-size:.75rem}`
-  + `.bar{color:var(--acc)}.top1{color:var(--acc);font-weight:600}.lv{color:#f2555a}`
+  + `.bar{color:var(--acc)}.top1{color:var(--acc);font-weight:600}.lv{color:var(--lv)}`
   + `.ml b,.mt{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace}.ml b{font-size:.875rem}.ms>span{font-size:1.25rem}`;
 
 /** Lite in v8, the app's default look. */
-export const LITE_V8_STYLE = `:root{color-scheme:dark;${tokenVars(V8_TOKENS)}}` + BASE + V8_LAYER;
+export const LITE_V8_STYLE = `:root{color-scheme:dark;${tokenVars(V8_THEME_TOKENS.dark)}}`
+  + `html.light{color-scheme:light;${tokenVars(V8_THEME_TOKENS.light)}}html.dim{${tokenVars(V8_THEME_TOKENS.dim)}}`
+  + `html.sys{color-scheme:dark light}@media(prefers-color-scheme:light){html.sys{${tokenVars(V8_THEME_TOKENS.light)}}}`
+  + BASE + V8_LAYER;
 
 // The C-mark (public/mark.png, traced; on the app icon's black tile, as the app's top bar shows it).
 const MARK = `<svg viewBox="0 0 256 256" aria-hidden="true"><rect width="256" height="256" rx="60" fill="#0a0a0b"/>`
@@ -124,13 +127,13 @@ export interface LiteView {
   sticky: boolean;
   /** This page's own address (path and query), for "Always open Lite". */
   here: string;
-  /** Drawn in v8 (the app's default look; false when this device picked the classic one: the cs-v8 cookie). v8 is
-   *  dark only, as in the app: the theme choice waits until Light comes back. */
+  /** Drawn in v8 (the app's default look; false when this device picked the classic one: the cs-v8 cookie). Both
+   *  looks take the theme choice, as in the app. */
   v8: boolean;
 }
 export const DEFAULT_VIEW: LiteView = { theme: "dark", textSize: null, sticky: false, here: "/lite", v8: true };
 
-const THEME_COLOR: Record<Palette, string> = { dark: THEME_TOKENS.dark.bg, light: THEME_TOKENS.light.bg, dim: THEME_TOKENS.dim.bg, midnight: THEME_TOKENS.midnight.bg };
+const THEME_COLOR: Record<Palette, string> = { dark: THEME_TOKENS.dark.bg, light: THEME_TOKENS.light.bg, dim: THEME_TOKENS.dim.bg };
 
 /** A link that is a button: `primary` is the page's one main action (gold). */
 export const button = (href: string, text: string, primary = false, cls = "") =>
@@ -153,12 +156,13 @@ export const stickyNote = (full: string) =>
 /** The whole document. `canonical`: the full page's absolute URL (search engines index that one, not this).
  *  `noindex`: the full page is noindex (nothing on it yet but a name: server/indexable.ts), so this twin is too. */
 export function liteDocument(p: LitePage, canonical: string | null, view: LiteView = DEFAULT_VIEW, noindex = false): string {
-  const theme = view.v8 ? "dark" : view.theme;
+  const theme = view.theme;
+  const bar = view.v8 ? (p: Palette) => V8_THEME_TOKENS[p].bg : (p: Palette) => THEME_COLOR[p];
   const cls = theme === "system" ? "sys" : theme === "dark" ? "" : theme;
   const scheme = theme === "system" ? "dark light" : theme === "light" ? "light" : "dark";
   const color = theme === "system"
-    ? `<meta name="theme-color" content="${THEME_COLOR.dark}" media="(prefers-color-scheme: dark)"><meta name="theme-color" content="${THEME_COLOR.light}" media="(prefers-color-scheme: light)">`
-    : `<meta name="theme-color" content="${view.v8 ? V8_TOKENS.bg : THEME_COLOR[theme]}">`;
+    ? `<meta name="theme-color" content="${bar("dark")}" media="(prefers-color-scheme: dark)"><meta name="theme-color" content="${bar("light")}" media="(prefers-color-scheme: light)">`
+    : `<meta name="theme-color" content="${bar(theme)}">`;
   const keep = view.sticky ? ""
     : `<p>${button(`/lite/on?next=${encodeURIComponent(view.here)}`, "Always open Lite")}</p><p>Pages with a Lite version then open in Lite every time, until you turn it off.</p>`;
   return `<!doctype html><html lang="en"${cls ? ` class="${cls}"` : ""}${view.v8 ? " data-v8" : ""}${view.textSize ? ` data-text-size="${view.textSize}"` : ""}><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">`

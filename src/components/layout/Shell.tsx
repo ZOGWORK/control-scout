@@ -108,7 +108,7 @@ function RailTip({ on, label, children }: { on?: boolean; label: string; childre
 function RowInner({ item, on, pill = on, collapsed, dense }: { item: NavItem; on: boolean; pill?: boolean; collapsed?: boolean; dense?: boolean }) {
   return (
     <>
-      {pill && (isV8() ? <span data-nav-pill className="absolute inset-0 rounded-lg bg-white/[0.07]" />
+      {pill && (isV8() ? <span data-nav-pill className="absolute inset-0 rounded-lg bg-ink/[0.07]" />
         : <m.span layoutId="cs-nav-active" transition={{ type: "spring", stiffness: 500, damping: 38 }} className="absolute inset-0 rounded-lg bg-text-base/[0.08]" />)}
       <item.icon className={cn("relative shrink-0", dense ? "size-[18px]" : "size-5", on && "text-accent v8:text-text-base")} />
       <span className={collapsed ? "sr-only" : "relative truncate"}>{item.label}</span>
@@ -203,6 +203,8 @@ function NavRowLit({ item, collapsed, dense, onNavigate, lit, roomForArrow }: Ro
   );
 }
 
+/** Home ("/", a trailing slash or query aside). */
+export const isHomePath = (path: string) => path.replace(/\/+$/, "") === "";
 const MORE_KEY = "cs-nav-more";
 const isUnder = (path: string, to: string) => path === to || path.startsWith(`${to}/`);
 
@@ -334,7 +336,7 @@ function V8Sidebar({ rail, wide, onToggle, onMenu }: { rail: boolean; wide: bool
         <Tooltip>
           <TooltipTrigger asChild>
             <button type="button" data-fold onClick={(e) => (wide ? onToggle() : onMenu(e.currentTarget))} aria-label={label}
-              className="flex size-9 shrink-0 items-center justify-center rounded-full bg-white/[0.06] text-text-muted outline-none transition-[color,background-color,scale] duration-150 ease-out hover:bg-white/[0.1] hover:text-text-base active:scale-[0.97] motion-reduce:active:scale-100 focus-visible:ring-2 focus-visible:ring-ring/60">
+              className="flex size-9 shrink-0 items-center justify-center rounded-full bg-ink/[0.06] text-text-muted outline-none transition-[color,background-color,scale] duration-150 ease-out hover:bg-ink/[0.1] hover:text-text-base active:scale-[0.97] motion-reduce:active:scale-100 focus-visible:ring-2 focus-visible:ring-ring/60">
               <PanelLeft className="size-[1.125rem]" />
             </button>
           </TooltipTrigger>
@@ -452,7 +454,8 @@ export function Shell({ children }: { children: ReactNode }) {
                 </button>
                 <GlobalSearch part="button" />
               </div>
-              {offline ? <ConnectionPill place="phone" /> : <Link to="/" className="tap-44 absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring/60 md:hidden" aria-label="Control Scout home"><BrandMark /></Link>}
+              {/* v8 Home has its own big mark above the search box, so the bar leaves the centred one out there. */}
+              {offline ? <ConnectionPill place="phone" /> : !(v8 && isHomePath(loc.pathname)) && <Link to="/" className="tap-44 absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring/60 md:hidden" aria-label="Control Scout home"><BrandMark /></Link>}
               <p className="hidden truncate text-sm text-text-muted md:block v8:md:hidden"><span>Control Scout / </span><span className="text-text-base">{title}</span></p>
               <div className="flex flex-1 justify-end md:justify-center"><GlobalSearch part="field" /></div>
               {/* Far right, against the bar's edge: connection, clock · weather, Report a bug, the light/dark switch and the

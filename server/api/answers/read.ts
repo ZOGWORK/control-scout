@@ -191,7 +191,10 @@ const RULES: IntentRule[] = [
   { id: "losses", family: "aggregate", season: "all", re: new RegExp(`(?<!\\bwins?\\s+and\\s+)\\blosses\\b|\\blost\\s+${MATCHES}\\b|\\b${MATCHES}\\s+(?:(?:they|it|the\\s+team)\\s+)?lost\\b`) },
   { id: "results", family: "event", season: "all", needsEvent: true, re: /\b(?:results?|matches|match|how\s+did\s+(?<team>.+?)\s+do)\b/ },
   { id: "event-rank", family: "event", season: "all", needsEvent: true, re: /\b(?:rank(?:ed|ing)?|placement|place|placed|finish(?:ed)?|seed(?:ed)?)\b/ },
-  { id: "event-opr", family: "event", season: "all", needsEvent: true, re: /\bopr\b/ },
+  // A phase said before it ("auto opr at nj states") is the phase's part of the event OPR, its word never the team's.
+  // A phase alone beside a team at an event ("hypnotic robotics auto in nj states") is the same: that phase's OPR there
+  // (only with the event said; below).
+  { id: "event-opr", family: "event", season: "all", needsEvent: true, re: /\b(?:(auto(?:nomous)?|tele[\s-]?op|driver[\s-]controlled|end[\s-]?game)\s+)?opr\b|\b(auto(?:nomous)?|tele[\s-]?op|end[\s-]?game)\b(?!\s+(?:points?|pts|scores?|average|avg|rank(?:ing)?|record))/ },
   { id: "awards", family: "awards", season: "all", re: /\bawards?\b/ },
   { id: "record", family: "aggregate", season: "all", alone: "latest", re: /\b(?:win[\s-]+loss(?:[\s-]+tie)?\s+)?record\b|\bwins?\s+and\s+loss(?:es)?\b/ },
 ];
@@ -267,6 +270,8 @@ export interface StatQuestion {
   /** "penalties per event", "penalty rate": which figure leads a penalties answer; "at least 200": a limit that
    *  includes itself. */
   variant?: "per-event" | "rate" | "at-least" | "total" | null;
+  /** "12345 auto opr at nj states": the phase of the event OPR asked for. */
+  phase?: "auto" | "teleop" | "endgame";
   /** No team: what's left (an event's name, or "" for the season's championship). */
   noTeam: boolean;
   /** No "at": the event may be named anywhere in `core` beside the team ("what rank did 4215 get in the east bergen
@@ -528,7 +533,7 @@ export function readTeamSet(raw: string): TeamSetQuestion | null {
 /** Family 7: a ranked list ("top 10 teams by OPR in NJ", "best rookie team in New Jersey", "most improved team in
  *  New Jersey") or a city's teams ("teams in Oradell"). */
 export interface LeaderboardQuestion {
-  kind: "top" | "rookie" | "improved" | "gain" | "steady" | "phases" | "city" | "city-best" | "career" | "oldest";
+  kind: "top" | "rookie" | "improved" | "gain" | "steady" | "phases" | "city" | "city-best" | "career" | "oldest" | "number";
   /** BOARD_STATS key (families/leaderboard.ts); a career board's count ("matches", "events", "wins", "seasons"). */
   stat: string;
   n: number;
@@ -554,6 +559,9 @@ export interface LeaderboardQuestion {
   school?: boolean;
   /** The state or country said with the town ("teams in Springfield IL"): the town's teams from there only. */
   cityIn?: Region;
+  /** Words naming New Jersey conferences as a place ("best auto in nj bergen"): the teams of the conferences they name
+   *  in the board's season (families/leaderboard.ts conferenceGroup). */
+  conference?: string[];
   /** One event's teams (its divisions' too): the board of the teams there. */
   event?: { season: number; code: string; codes: string[]; name: string; home?: Region | null; rookies?: boolean };
   /** Part of the teams' names, as typed ("Robot"): only the teams whose name has it. */
@@ -654,7 +662,7 @@ export function readLeaderboard(raw: string): LeaderboardQuestion | null {
   // A season or a date said ("this season", "last year", "this week") is that season's board, never every season.
   if (!scope.championship && !scope.states && !scope.level && !scope.alliance && !scope.at && !scope.place && !scope.outOfState && scope.season == null && !scope.day
     && !scope.latest && !scope.lastYear && !scope.window
-    && (scope.ever || /\b(?:seasons|oldest)\b/.test(rest))) {
+    && (scope.ever || /\b(?:seasons|oldest|numbers?)\b/.test(rest))) {
     const c = readCareer(rest);
     if (c) return c;
   }
@@ -787,6 +795,12 @@ function readCareer(rest: string): LeaderboardQuestion | null {
   const t = rest.replace(/^(?:(?:what|which|who)(?: is|s)? )?(?:the )?/, "").replace(/\b(?:worldwide|world ?wide|globally|in the world|of all time|all[- ]time|in history)\b/g, " ").replace(/\s+/g, " ").trim();
   const place = (s: string | undefined): Region | null | false => (s ? regionOf(s) ?? false : null);
   let m: RegExpExecArray | null;
+  // "team with the lowest team number", "the highest team number in nj": the active teams (as the oldest are) by their
+  // team number, the lowest (or the highest) first.
+  if ((m = new RegExp(`^(?:${TEAMS} )?(?:(?:with|that has|who has|having) )?(?:the )?(lowest|smallest|highest|biggest|largest) (?:team )?numbers?(?: (?:in|from) (.+?))?$`).exec(t))) {
+    const region = place(m[2]);
+    if (region !== false) return { kind: "number", stat: "seasons", n: 10, region, city: null, season: null, best: true, ...(/^(?:lowest|smallest)$/.test(m[1]) ? { asc: true } : {}) };
+  }
   // "the oldest team still active in new jersey by rookie year": active teams (a match in one of the two latest seasons
   // played), the earliest rookie year first.
   if ((m = new RegExp(`^oldest (?:active |still active )?${TEAMS}(?: (?:that is |that's |who is |which is )?(?:still )?(?:active|playing|competing|around))?(?: (?:in|from) (.+?))?(?: by rookie year)?$`).exec(t))) {
@@ -919,6 +933,8 @@ export function readStatQuestion(raw: string): StatQuestion | null {
       }
     }
     const { scope, rest } = readScope(said);
+    // A phase word with no "opr" names the phase's OPR only at an event said outright (at …, states).
+    if (r.id === "event-opr" && m[2] && !(scope.at || scope.states)) continue;
     let bare = false;
     if (r.id === "winning-alliance") {
       if (/^world\s/.test(m[0])) scope.championship = true;
@@ -1000,7 +1016,9 @@ export function readStatQuestion(raw: string): StatQuestion | null {
     // An event's own number with only the team said ("4215 rank"): no event, so it's search's team answer.
     if (eventInCore && r.needsEvent && !/\s/.test(core)) return null;
     const byRecord = (r.id === "best-finish" || r.id === "worst-finish") && /\b(?:event|competition|tournament)$/.test(m[0]);
-    return { id: r.id, family: r.family, defaultSeason: defaultOf(), scope, leadEvent, n, outcome: outcome ?? boundOutcome, count, variant, noTeam: false, core, ...(under != null ? { under } : {}), ...(eventInCore ? { eventInCore } : {}), ...(award ? { award } : {}), ...(pick ? { pick } : {}), ...(byRecord ? { byRecord } : {}), ...(rank ? { rank } : {}), ...(r.id === "total-events" && /schedule|calendar/.test(m[0]) ? { schedule: true } : {}) };
+    const ph = r.id === "event-opr" ? m[1] ?? m[2] : undefined;
+    const phase = ph ? (/^a/.test(ph) ? "auto" as const : /^e/.test(ph) ? "endgame" as const : "teleop" as const) : null;
+    return { id: r.id, family: r.family, defaultSeason: defaultOf(), scope, leadEvent, n, outcome: outcome ?? boundOutcome, count, variant, noTeam: false, core, ...(under != null ? { under } : {}), ...(phase ? { phase } : {}), ...(eventInCore ? { eventInCore } : {}), ...(award ? { award } : {}), ...(pick ? { pick } : {}), ...(byRecord ? { byRecord } : {}), ...(rank ? { rank } : {}), ...(r.id === "total-events" && /schedule|calendar/.test(m[0]) ? { schedule: true } : {}) };
   }
   // "12345 at states": its results there.
   const { scope, rest } = readScope(q);

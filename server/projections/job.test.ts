@@ -24,6 +24,7 @@ import { CURRENT_SEASON } from "../data/seasons";
 import { createApp } from "../app";
 import { DEBOUNCE_MS, Debouncer, MAX_WAIT_MS, jobIo, newJobState, projectEvent, projectionTick } from "./job";
 import { readProjections } from "./store";
+import { offThreadRuns } from "./offThread";
 import { closeProjectionStreams } from "./routes";
 
 const S = CURRENT_SEASON;
@@ -244,6 +245,7 @@ describe("no request runs a simulation", () => {
   it("projections, the event page, its records and team pages only read stored results", async () => {
     await projectEvent(S, CODE, { runs: 200, floor: 200 }); // the job's run (counted, then reset)
     sims.engine = 0; sims.core = 0;
+    const threads = offThreadRuns(); // the job's simulations run on a worker thread (offThread.ts): none may start either
     // A visit with nothing stored for another event, and with a stored run for this one.
     for (const path of [
       `/api/projections/${S}/${CODE}`, `/api/projections/${S}/NOPE`, `/api/events/${S}/${CODE}`,
@@ -258,5 +260,6 @@ describe("no request runs a simulation", () => {
     await stream.body!.getReader().read();
     ac.abort();
     expect(sims).toEqual({ engine: 0, core: 0 });
+    expect(offThreadRuns()).toBe(threads);
   });
 });

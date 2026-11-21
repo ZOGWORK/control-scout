@@ -189,7 +189,7 @@ export const FLAG_INFO: Record<Flag, { label: string; on: string; off: string; p
   },
   dogTheme: {
     label: "Dog theme",
-    on: "Every page is tinted yellow in every theme (Light, Dim, Dark and Midnight), with the dog's photo faintly across the background. Cards, text and answer colours stay as they are.",
+    on: "Every page is tinted yellow in every theme (Light, Dim and Dark), with the dog's photo faintly across the background. Cards, text and answer colours stay as they are.",
     off: "The usual page colours, no photo.",
   },
   statusPage: {

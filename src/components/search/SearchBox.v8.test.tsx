@@ -95,7 +95,7 @@ describe("search box, v8 on", () => {
     // The example chips: picked is white on white/10, never mint.
     fireEvent.keyDown(input, { key: "ArrowDown" });
     const picked = container.querySelector('[data-example][aria-selected="true"]');
-    if (picked) expect(picked.className).toContain("v8:bg-white/10");
+    if (picked) expect(picked.className).toContain("v8:bg-ink/10");
   });
 });
 
