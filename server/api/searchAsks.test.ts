@@ -98,6 +98,12 @@ describe("test 16: each intent returns its stated surface", () => {
     // The dropdown keeps the short card.
     expect((await searchAnswer("best auto team", { limit: 8, learn: false })).card?.lines[0]).toMatchObject({ text: "20265 Heart of RoBots", results: ["auto OPR 80.2"] });
   });
+  it("who leads a stat (failed search #1012: \"Who leads auto in Texas\"): its leaderboard in the dropdown too", async () => {
+    for (const q of ["Who leads auto in Texas", "who is leading in auto in texas", "who leads in auto"]) {
+      expect((await searchAnswer(q, { limit: 8, learn: false })).card?.lines[0], q).toMatchObject({ text: "20265 Heart of RoBots", results: ["auto OPR 80.2"] });
+    }
+    expect(teams(await ask("who leads opr in nj"))).toEqual(["23268 Ultraviolet", "4215 Hypnotic Robotics", "6980 Bad Wolf"]);
+  });
   it("will 4215 win their next match: its next match, and Predict opened on its matches", async () => {
     const a = await ask("will 4215 win their next match");
     expect(a.card).toMatchObject({ kind: "next-match" });
@@ -427,6 +433,8 @@ describe("stat leaderboards: scope words and places (owner bug: best teleop in t
     expect(readAsk("what is the best auto in new jersey")).toMatchObject({ kind: "stat", stat: "auto", region: { key: "USA:NJ" } });
     expect(readAsk("best teleop team in the world")).toEqual({ kind: "stat", stat: "teleop", region: null });
     expect(readAsk("which team has the most wins this season")).toEqual({ kind: "stat", stat: "wins", region: null });
+    expect(readAsk("who leads auto in texas")).toMatchObject({ kind: "stat", stat: "auto", region: { key: "USA:TX" } });
+    expect(readAsk("who is leading in opr")).toEqual({ kind: "stat", stat: "opr", region: null });
   });
   it("a place that isn't one is never a leaderboard", () => {
     expect(readAsk("best teleop in narnia")).toBeNull();
