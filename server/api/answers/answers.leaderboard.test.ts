@@ -124,6 +124,11 @@ describe("the lists", () => {
     expect(t.more).toEqual({ label: "View more detail on the Teams page (qualification matches)", href: "/teams?view=season&season=2025&country=US&state=NJ&sort=totalPointsNpOpr&filter=and-qualMatchesPlayed.gte.3-" });
     expect(a.pages[0]).toMatchObject({ href: t.more!.href });
   });
+  it("a count said is shown whole; a list with no count opens short (bug report #2026)", async () => {
+    const whole = async (q: string) => (await searchAnswer(q, { limit: 25, full: true })).stat?.blocks.find((b) => b.kind === "leaderboard");
+    for (const q of ["top 10 team", "Top 10 teams by OPR in NJ", "top 3 teams in nj"]) expect(await whole(q), q).toMatchObject({ whole: true });
+    for (const q of ["top teams in nj", "Top teams by OPR in NJ"]) expect(await whole(q), q).not.toHaveProperty("whole");
+  });
   it("win rate, rookies, the most improved by standing", async () => {
     const w = await searchAnswer("Top teams by win rate in New Jersey", { limit: 25 });
     expect(w.stat!.headline).toMatchObject({ value: "31814 Quantum Core", label: "Win rate 83%, 20-4-0 · Hillsborough" });
