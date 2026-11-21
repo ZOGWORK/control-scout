@@ -103,6 +103,15 @@ describe("v8 shell", () => {
     expect(container.querySelector("[data-wash]")).toBeTruthy();
   });
 
+  it("shows the page-end glow in v8, and takes it away when the owner switches it off", () => {
+    const { container } = shell();
+    expect(container.querySelector("[data-page-end-glow]")).toBeTruthy();
+    act(() => resetFlags({ ...DEFAULT_FLAGS, pageEndGlow: false }, true));
+    expect(container.querySelector("[data-page-end-glow]")).toBeNull();
+    act(() => resetFlags({ ...DEFAULT_FLAGS, pageEndGlow: true }, true));
+    expect(container.querySelector("[data-page-end-glow]")).toBeTruthy();
+  });
+
   it("uses the three-stream particle background throughout the v8 app", () => {
     act(() => resetFlags({ ...DEFAULT_FLAGS }, true));
     for (const path of ["/", "/events", "/events/2026/USNJQ1", "/teams", "/teams/4215", "/rankings", "/predict", "/my-team", "/scout", "/compare", "/shortlist", "/rules", "/download", "/settings"]) {

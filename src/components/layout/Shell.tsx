@@ -394,6 +394,8 @@ export function Shell({ children }: { children: ReactNode }) {
   const [menu, setMenu] = useState(false);
   // The owner's dog theme (dogTheme, off by default): the dog's photo faintly across the page (src/index.css).
   const dog = useFlag("dogTheme");
+  // The glow at the page's end (pageEndGlow, on by default): the owner can switch it off for everyone.
+  const glow = useFlag("pageEndGlow");
   // The menu sheet and anything opened from it (What's new) hand focus back to the button that opened it (the
   // phone's menu button, or the narrow desktop's rail button) when they close, even when their own opener has
   // gone (a row in the closed sheet) or never had focus (Safari doesn't focus a tapped button).
@@ -467,7 +469,7 @@ export function Shell({ children }: { children: ReactNode }) {
               </div>
             </header>}
             <div className="relative flex-1">
-              {!bare && v8 && <PageEndGlow />}
+              {!bare && v8 && glow && <PageEndGlow />}
               {/* The ambient layer fills the screen under the top bar and stays there while the page scrolls
                   over it (sticky, and pulled out of the flow by its negative margin). svh, not dvh: a phone's
                   toolbar folding away must not resize it mid-scroll. */}
