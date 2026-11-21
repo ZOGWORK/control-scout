@@ -7,6 +7,7 @@ import { migrate, openDb, run, setDb } from "../../db";
 import { rebuildSearch } from "../../stats/job";
 import { syncConferences } from "../../data/conferences";
 import { searchAnswer } from "../searchAnswer";
+import { BOARD_STATS, leaderboardAnswer, type BoardKind } from "./families/leaderboard";
 
 const NOW = new Date("2026-11-21T12:00:00Z");
 const box = (q: string) => searchAnswer(q, { now: NOW.getTime() });
@@ -64,6 +65,15 @@ describe("a board whose place is New Jersey conferences (#1012)", () => {
     const b = await box("best auto in nj bergen");
     expect(b.step).toBe("deterministic");
     expect(b.pages[0]).toEqual({ title: "Top 10 teams by Auto OPR in the W Central/Bergen and Hudson/East Bergen Conferences", href: "/search?q=best%20auto%20in%20nj%20bergen" });
+  });
+});
+
+describe("every board kind over conferences as the place", () => {
+  it("reads its teams by the teams table, whatever the board's own alias (a gain board's is never `s`)", async () => {
+    for (const kind of ["top", "gain", "improved", "steady", "phases"] as BoardKind[]) {
+      const a = await leaderboardAnswer({ kind, stat: BOARD_STATS.opr, n: 10, region: null, city: null, season: 2026, conference: ["bergen"] });
+      expect(a.title, kind).toContain("the W Central/Bergen and Hudson/East Bergen Conferences");
+    }
   });
 });
 
