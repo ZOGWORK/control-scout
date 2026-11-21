@@ -20,6 +20,7 @@ import { SEARCH_PAGE_LIMIT, SORRY_SENTENCE, hitHref } from "../src/shared/search
 import { FOOTER, VOLT, teamLink } from "./views.js";
 import type { BrunoChatTurn } from "../server/auth/controlPoint.js";
 import { productFacts, zogModeReply } from "./productFacts.js";
+import { smallTalk } from "./smallTalk.js";
 
 /** The credit an answer Bruno helped with carries, in the footer above Control Scout's own line. */
 export const BRUNO_CREDIT = "Bruno AI, from Control Point";
@@ -64,9 +65,10 @@ const CHAT_FACTS_CHARS = 7500;
 export interface AskMeta { step: SearchAnswer["step"]; refined: boolean; sentence: boolean; chat?: boolean }
 /**
  * `content`: the main video's YouTube link as the message's text, so Discord shows it as a player under the answer.
- * `chat`: Bruno's chat reply, posted as text (chatPost) with no embed; `embed` is then the card it stands in for.
+ * `chat`: a chat reply, posted as text (chatPost) with no embed; `embed` is then the card it stands in for. `by`: whose
+ * words they are — Bruno's, or the bot's own when it answers a greeting without a model (bot/smallTalk.ts).
  */
-export interface AskReply { embed: APIEmbed; meta: AskMeta; content?: string; chat?: { text: string; video?: string; page?: string } }
+export interface AskReply { embed: APIEmbed; meta: AskMeta; content?: string; chat?: { text: string; video?: string; page?: string; by?: "bruno" | "scout" } }
 
 /** How long a chat waits for Bruno before the card posts instead. */
 export const CHAT_TIMEOUT_MS = 15_000;
@@ -132,6 +134,17 @@ export async function ask(q: string, deps: AskDeps, site: string, history: Bruno
       };
     }
   }
+  // No model, or it had nothing to say, and search found nothing either: a greeting still gets an answer, in the bot's
+  // own words, rather than "Sorry — I can't answer that yet" with the closest matches. Only short messages with nothing
+  // search-like in them reach here (bot/smallTalk.ts).
+  if (!answer.hits.length && !answer.card && !answer.stat) {
+    const talk = smallTalk(q);
+    if (talk) return {
+      embed: askEmbed(q, answer, null, site),
+      meta: { step: answer.step, refined, sentence: false, chat: true },
+      chat: { text: talk, by: "scout", page: searchHref(q, site) },
+    };
+  }
   const sentence = !chatting && deps.available() && (await deps.enabled()) ? await deps.bruno(q).catch(() => null) : null;
   const video = deps.video ? await deps.video(answer).catch(() => undefined) : undefined;
   const watch = videoLinks(video);
@@ -180,7 +193,7 @@ export function chatPost(q: string, chat: NonNullable<AskReply["chat"]>, opts: {
     opts.quote ? `> **${md(question.length > 200 ? `${question.slice(0, 199)}…` : question)}**` : null,
     chat.text,
     chat.video ?? null,
-    `-# Bruno AI · ${chat.page ? `[more on controlscout.org](<${chat.page}>)` : "controlscout.org"}`,
+    `-# ${chat.by === "scout" ? "Control Scout" : "Bruno AI"} · ${chat.page ? `[more on controlscout.org](<${chat.page}>)` : "controlscout.org"}`,
   ].filter((x): x is string => !!x);
   const text = lines.join("\n");
   return text.length > 2000 ? `${text.slice(0, 1999)}…` : text;
