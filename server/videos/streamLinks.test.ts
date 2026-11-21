@@ -266,8 +266,15 @@ describe("a stream link page that lists a broadcast a day", () => {
     await mi("FRQ5", "2026-11-20", "2026-11-21");
     await run("INSERT INTO event_stream_links (season, code, url, video_id, checked_at) VALUES (?, 'FRQ5', ?, ?, '2026-11-21T20:37:00.000Z')", [S, fimav("FRQ5"), PRACTICE]);
     started = STARTS;
-    hops = { [fimav("FRQ5")]: page([PRACTICE, "Practice Day"], [DAY1, "Day 1"]) };
     const MON = Date.parse("2026-11-23T15:00:00Z");
+    // A failed follow (the page down, or YouTube unread) doesn't use up the one follow after the dates.
+    hops = { [fimav("FRQ5")]: "error" };
+    await follow(MON - 2 * 3600_000);
+    hops = { [fimav("FRQ5")]: page([PRACTICE, "Practice Day"], [DAY1, "Day 1"]) };
+    started = { [PRACTICE]: STARTS[PRACTICE], [DAY1]: "error" };
+    await follow(MON - 3600_000);
+    expect(await recording("FRQ5")).toMatchObject({ videoId: PRACTICE });
+    started = STARTS;
     await follow(MON);
     expect(await recording("FRQ5")).toMatchObject({ videoId: DAY1, daily: true });
     // Once: its follow after the dates was the last.
