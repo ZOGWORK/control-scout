@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // The v8 shell (docs/design/v8-revamp-brief.md §6): with <html data-v8> the sidebar is the Gemini-like one (mark, name,
 // one round fold button, the pages, nothing at its foot), your picture top-right opens Settings, What's new, the owner
-// console and your account, there's no light/dark switch, Report a bug is a corner circle, and the wash is tall on a
+// console and your account, the light/dark switch sits beside the bell, Report a bug is a corner circle, and the wash is tall on a
 // top-level page and short inside one. Without it, the shell is as it was.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
@@ -79,9 +79,9 @@ describe("v8 shell", () => {
     expect(container.querySelector("[data-corner-links] [data-owner-console]")).toBeTruthy();
   });
 
-  it("drops the light/dark switch and the old ambient layer, and puts Report a bug in the corner", () => {
+  it("keeps the light/dark switch beside the bell, drops the old ambient layer, and puts Report a bug in the corner", () => {
     const { container } = shell();
-    expect(screen.queryByRole("button", { name: /light|dark/i })).toBeNull();
+    expect(container.querySelector("header [data-theme-toggle]")).toBeTruthy();
     expect(container.querySelector("[data-ambient]")).toBeNull();
     expect(container.querySelector("[data-corner][data-testid='bug-report-button']")).toBeTruthy();
   });
