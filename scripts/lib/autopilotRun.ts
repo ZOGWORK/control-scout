@@ -2,6 +2,7 @@
 // reads, when an event that gave nothing new is tried again, and what a data PR says (its CHANGELOG entry).
 import { playableStarts } from "../../server/data/frameTimings.js";
 import { rowKey, type Keyed, type Row } from "./autopilotRows.js";
+import { NOTHING_READ } from "./videoFrames.js";
 
 /** What the runner remembers of each event between runs (by "season/code"): how often it read it with nothing new to
  *  ship, and when it last tried. */
@@ -170,6 +171,14 @@ export function parseSkip(text: string): Set<string> {
     if (m) out.add(`${m[1]}/${m[2].toUpperCase()}`);
   }
   return out;
+}
+
+/** A row whose video showed the reader no frame at all: no start, and every match missing because "no frame of the
+ *  video could be read". That's the player failing (no picture, a codec this computer's browser can't play), not
+ *  what the video shows: never shipped (it would mark every match read, with no clip), the event read again later. */
+export function nothingRead(r: Pick<Row, "starts" | "missing">): boolean {
+  const why = Object.values(r.missing ?? {});
+  return Object.keys(r.starts ?? {}).length === 0 && why.length > 0 && why.every((w) => w === NOTHING_READ);
 }
 
 /** An event's memory after a read: shipped rows clear it; nothing new counts a try. */
