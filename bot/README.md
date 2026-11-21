@@ -18,14 +18,15 @@ an embed that links back to controlscout.org:
 
 ## /ask
 
-`bot/ask.ts` takes the same path `/search` does, in the same order, in the bot's own process:
+`bot/ask.ts` takes the same path `/search` does, in the bot's own process, with the chat first:
 
-1. `searchAnswer(q, { learn: false })`: the deterministic answer, always. Numbers only from stored data.
-2. Only when that answer is weak (`did-you-mean`, `recovery`), the bot's `discordBruno` switch is on and Control
-   Point is configured: `refine(q)`. Bruno rewrites the query; search runs again on his words.
-3. Every ask (/ask is a question however it's typed; sent with a "?" so the site's question check passes),
-   `discordBruno` on and Control Point configured:
-   `brunoAnswer(q)`. A sentence from search's facts; dropped by the site's `grounded()` check if any number isn't in them.
+1. `searchAnswer(q, { learn: false })`: the deterministic facts Bruno reads, always. Numbers only from stored data.
+   Its answer is also the card that stands in when no chat replies.
+2. Every ask, when the bot's `discordBruno` switch is on and Control Point is configured: Bruno's chat (below). His
+   reply is the post; search's rewrite isn't asked for first.
+3. Only when that chat gives nothing: `refine(q)` for a weak answer (`did-you-mean`, `recovery`), and (for callers
+   without the chat) `brunoAnswer(q)`, his one sentence from search's facts, dropped by the site's `grounded()` check
+   if any number isn't in them.
 
 **Bruno is the bot's own switch.** `discordBruno` (owner console, "Bruno AI in the Discord bot", on by default) is
 the only one /ask reads. The website's `brunoSearch` and `brunoAnswers` only ever affect /search, so Bruno can
@@ -51,13 +52,21 @@ answer's video and a small "more on controlscout.org" link only when the records
 carries the thread on (the bot remembers its last 2,000 threads in memory, up to 6 turns each; a restart forgets
 them). `/ask` answers the same way, with the question quoted. Every number in his reply must be in the facts, the
 message or the thread, or the website's answer card posts instead, as it does when Bruno is off (`discordBruno`),
-unconfigured, slow (15 s) or failing. Same cache and 3-second pace as every command.
+unconfigured, slow (30 s: a model reply takes about 11 s on the live deployment) or failing. Same cache and 3-second
+pace as every command. While a mention waits, the typing indicator is kept up.
 
-**Small talk when there's no model.** A short message that isn't a records question and that search found nothing for
-("hi", "who are you", "who's your favourite person here", "thanks", "what can you do") gets a reply in the bot's own
-words (`bot/smallTalk.ts`), credited to Control Scout rather than Bruno, instead of "Sorry — I can't answer that yet"
-with the closest matches. It names no number and claims no favourite, so nothing in it can be read as data. A message
-with a number in it, or a longer one search couldn't answer, is still a real question and keeps the honest card.
+**Why a chat didn't happen** is in the bot's log, never the message or the key: `[bot] chat off: Control Point isn't
+configured (…)`, `[bot] chat off: the discordBruno switch is off`, `[bot] chat failed: Control Point answered 404` (or
+a timeout), `[bot] chat dropped: numbers not in the facts: …`, `[bot] chat empty: Bruno sent no reply`. Control Point
+caps one fact line at 400 characters and refuses the whole packet past it, so every fact is cut to that before it's
+sent.
+
+**One honest fallback.** A short message that isn't a records question and that no chat answered ("hi", "who are
+you", "who's your favourite person here", "thanks") gets one line from `bot/smallTalk.ts`, credited to Control Scout
+rather than Bruno: it can't chat right now, its AI answers aren't reachable, and it can still read the records. There
+are no keyword replies, so it never guesses a favourite or invents a fact, and it says plainly when the model is
+missing instead of answering in character. A message with a number in it, or a longer one search couldn't answer, is
+still a real question and keeps the honest card.
 
 Only a message from a person in a
 server that mentions the bot itself, or replies to its post: not @everyone or a role. Discord sends a bot the text of
@@ -119,6 +128,7 @@ https://discord.com/oauth2/authorize?client_id=<APPLICATION_ID>&scope=bot+applic
 | --- | --- |
 | `DISCORD_BOT_TOKEN` | Required. Missing or wrong: the bot logs one line and exits with code 78, which systemd doesn't restart. |
 | `DISCORD_DEV_GUILD_ID` | Optional. A test server's ID (Discord: Developer Mode → right-click the server → Copy Server ID). Commands register there instantly instead of globally (global registration can take up to an hour to appear). |
+| `CONTROL_POINT_INTERNAL_URL`, `CONTROL_POINT_INTERNAL_KEY` | Required for Bruno's chat (and his query rewrite and one-sentence answer): `http://127.0.0.1:3000` on the VM, and the same secret as Control Point's `CONTROL_SCOUT_INTERNAL_KEY`. The bot reads the site's own `.env` (systemd `EnvironmentFile`), so when Control Point sign-in works on controlscout.org these are already set. Unset: every mention gets the card, and the log says `chat off: Control Point isn't configured`. |
 | `DATABASE_URL`, `DATA_DIR`, `CANONICAL_URL` … | The site's own settings, read from the same `.env` (links use `CANONICAL_URL`, controlscout.org in production). |
 
 ## Run it locally
