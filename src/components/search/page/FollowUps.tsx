@@ -110,7 +110,7 @@ export function RelatedSearches({ related, seeAll, className }: { related: Searc
       <ul className="flex flex-wrap gap-2 max-sm:flex-col">
         {related.map((x) => (
           <li key={x.q} className="min-w-0">
-            <Link to={searchHref(x.q)} title={x.preview} className="inline-flex min-h-[44px] max-w-full items-center gap-1.5 rounded-full border border-border bg-background px-3.5 text-sm font-medium text-foreground hover:border-foreground/30 hover:bg-muted/50 v8:border-input v8:bg-transparent v8:hover:border-white/25 v8:hover:bg-white/[0.06] v8:active:scale-[0.97] v8:motion-reduce:active:scale-100 v8:transition-[background-color,border-color,transform] v8:duration-150 v8:ease-out max-sm:w-full" data-follow-chip>
+            <Link to={searchHref(x.q)} title={x.preview} className="inline-flex min-h-[44px] max-w-full items-center gap-1.5 rounded-full border border-border bg-background px-3.5 text-sm font-medium text-foreground hover:border-foreground/30 hover:bg-muted/50 v8:border-input v8:bg-transparent v8:hover:border-ink/25 v8:hover:bg-ink/[0.06] v8:active:scale-[0.97] v8:motion-reduce:active:scale-100 v8:transition-[background-color,border-color,transform] v8:duration-150 v8:ease-out max-sm:w-full" data-follow-chip>
               <Search className="size-3.5 shrink-0 text-muted-foreground" aria-hidden /><span className="min-w-0 truncate">{x.q}</span>
             </Link>
           </li>
