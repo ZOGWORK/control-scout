@@ -22,6 +22,7 @@ import { SEARCH_EXAMPLES, addRecentSearch, clearRecentSearches, useRecentSearche
 import { dateRange, seasonLabel } from "../../lib/format";
 import { EventStatusChip } from "../EventChips";
 import { directHit, markDirect } from "./direct";
+import { lastTurn, rememberTurn, resolveFollowUp } from "./thread";
 import { dropdownNotes, dropdownSections, groupCount, teamOpr, type DropId } from "./dropdown";
 import { compareSides, compareTeams, eventFacts, teamParts } from "./page/results";
 import { answerSections, isAnswer, plainSections, type AnswerNotes, type AnswerRow, type AnswerSection, type SectionId } from "../../shared/searchSections";
@@ -98,6 +99,9 @@ export function useSearchHits(q: string, kinds?: HitKind[], limit = 15, initial?
           const answer = !kindKey && isAnswer(r) ? r : undefined;
           setRes({ q: query, season, hits: kindKey ? r.hits.filter((h) => kindKey.split(",").includes(h.kind)) : r.hits, answer, live: true, saved: offlineSource(r) != null });
           setError(null);
+          // The thread (./thread.ts): what this answer was about, for the next question's follow-up. A picker's list
+          // names teams a whole search doesn't, so it never becomes one.
+          if (answer && !kindKey) rememberTurn({ q: query, answer, hits: r.hits });
           offlineError.current = false;
           if (answer?.weak && brunoOn && refine) {
             setRefining(true);
@@ -502,14 +506,23 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
   const count = query ? ordered.length + (full ? 1 : 0) : suggestions.length;
   /** The full results page for a query: the one typed, or a recent search or example tapped. */
   const runQuery = (text: string) => { if (remember) addRecentSearch(text); go(searchPagePick(text.trim())); };
-  const openFull = () => runQuery(query);
+  // A follow-up that names no team of its own ("and last season?", "who beat them?") is asked about the team the last
+  // question named (./thread.ts), so it keeps the thread; the question asked is that one, on screen as ever.
+  const askedQuery = () => resolveFollowUp(query, lastTurn()?.team ?? null) ?? query;
+  const openResults = (asked: string) => runQuery(asked);
+  const openFull = () => openResults(askedQuery());
   // A query that names one thing exactly (a team number, "team 6980", one team's whole name, an event code), as the
   // server's answer for it reads: straight to its page. Anything else, the full results page. With the answer not in
   // yet, /search at once (never a wait here), which goes on to that one page itself when its answer names one (direct.ts).
   const openDirectOrFull = () => {
     const d = !idle && !busy && !stale ? directHit(answer, query) : null;
     if (d) pick(d);
-    else { markDirect(query); openFull(); }
+    else {
+      // A follow-up is nobody's page: only a question standing on its own words is marked for /search to open one.
+      const asked = askedQuery();
+      if (asked === query) markDirect(query);
+      openResults(asked);
+    }
   };
   // Enter, the keyboard's Search key and the magnifier: the highlighted row (Enter only); with none, the full results
   // page (a picker box: its top result, once it's current).
