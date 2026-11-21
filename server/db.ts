@@ -3,6 +3,7 @@
 // applied once each, in order, inside a transaction.
 import { createClient, type Client, type InArgs, type InStatement, type Row } from "@libsql/client";
 import { mkdirSync } from "node:fs";
+import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
 import { env } from "./env.js";
 
@@ -2686,6 +2687,17 @@ const WRITES = /^\s*(?:INSERT|UPDATE|DELETE|REPLACE|CREATE|DROP|ALTER|VACUUM|REI
 const TX_CONTROL = /^\s*(?:BEGIN|COMMIT|END|ROLLBACK|SAVEPOINT|RELEASE)\b/i;
 const sqlOf = (s: unknown) => (typeof s === "string" ? s : Array.isArray(s) ? String(s[0] ?? "") : String((s as { sql?: unknown })?.sql ?? ""));
 
+/** The driver's own connection (the libsql package @libsql/client opens its connections with), for the lock probe:
+ *  only exec on it, so no statement is ever left open on it, and closing it closes the file at once (a client's pool
+ *  keeps its first check's statement, and with it the file, until collected: the file then can't leave WAL). */
+type LockProbe = { exec(sql: string): unknown; close(): unknown };
+function openProbe(path: string): LockProbe {
+  const req = createRequire(createRequire(import.meta.url).resolve("@libsql/client"));
+  const Database = req("libsql") as new (path: string, opts: { timeout: number }) => LockProbe;
+  // The driver's errors carry SQLite's code as `code` ("SQLITE_BUSY"), as lockBusy reads.
+  return new Database(path, { timeout: 0 });
+}
+
 /**
  * `c` with each write first waiting, with the event loop free, until no other connection holds the write lock.
  *
@@ -2696,19 +2708,20 @@ const sqlOf = (s: unknown) => (typeof s === "string" ? s : Array.isArray(s) ? St
  * connection's next COMMIT fails ("SQL statements in progress") until it is collected: waiting by retrying the write
  * itself would break the writes after it.
  *
- * So the lock is asked about on a connection of its own (`probe`): BEGIN IMMEDIATE, then ROLLBACK, run as one script
+ * So the lock is asked about on a connection of its own (openProbe): BEGIN IMMEDIATE, then ROLLBACK, run as one script
  * (the driver's exec finalizes its statements even when one fails), no busy timeout. Free: the write runs, at once
  * after. Held: asked again in a few ms, up to LOCK_WAIT_MS, then the write runs anyway with the busy timeout as before.
  * Reads never wait (WAL: a reader never waits for a writer).
  */
 function patient(c: Client, url: string): Client {
-  let probe: Client | null = null;
+  let probe: LockProbe | null = null;
   const free = async (): Promise<void> => {
     try {
-      probe ??= createClient({ url });
-      await lockWait(() => probe!.executeMultiple("BEGIN IMMEDIATE; ROLLBACK"));
+      probe ??= openProbe(url.slice(5).replace(/\?.*$/, ""));
+      await lockWait(async () => { probe!.exec("BEGIN IMMEDIATE; ROLLBACK"); });
     } catch { /* still held after LOCK_WAIT_MS, or the probe can't open: the write goes ahead as before */ }
   };
+  const dropProbe = () => { try { probe?.close(); } catch { /* already closed */ } probe = null; };
   const execute = c.execute.bind(c) as (...a: unknown[]) => Promise<unknown>;
   const batch = c.batch.bind(c) as (...a: unknown[]) => Promise<unknown>;
   const transaction = c.transaction.bind(c) as (...a: unknown[]) => Promise<unknown>;
@@ -2716,6 +2729,8 @@ function patient(c: Client, url: string): Client {
   Object.assign(c, {
     execute: async (...a: unknown[]) => {
       const sql = sqlOf(a[0]);
+      // Leaving write-ahead logging needs the file to itself: the probe's idle connection would keep it busy.
+      if (/^\s*PRAGMA\s+(?:main\.)?journal_mode\s*=/i.test(sql)) dropProbe();
       if (WRITES.test(sql) && !TX_CONTROL.test(sql)) await free();
       return execute(...a);
     },
@@ -2728,7 +2743,7 @@ function patient(c: Client, url: string): Client {
       if ((a[0] ?? "write") === "write") await free();
       return transaction(...a);
     },
-    close: () => { try { probe?.close(); } catch { /* already closed */ } probe = null; close(); },
+    close: () => { dropProbe(); close(); },
   });
   return c;
 }
