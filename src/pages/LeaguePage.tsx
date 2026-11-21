@@ -62,7 +62,7 @@ export default function LeaguePage() {
                 {d.placeKey && <Link to={regionHref(d.placeKey, { season: d.season })} className={cn("text-accent-text hover:underline", V8_LINK)}>{regionName(d.placeKey)} rankings</Link>}
                 <Link to={`/leagues?season=${d.season}`} className={cn("text-accent-text hover:underline", V8_LINK, "v8:hidden")}>All leagues</Link>
                 {conf.data && (
-                  <Link to={conferenceHref(d.season, d.region, d.code, { team })} className={cn(trigger, active, "v8:bg-transparent v8:hover:bg-white/[0.06]")} data-conference-button>
+                  <Link to={conferenceHref(d.season, d.region, d.code, { team })} className={cn(trigger, active, "v8:bg-transparent v8:hover:bg-ink/[0.06]")} data-conference-button>
                     <ListOrdered className={cn("size-4 text-accent-text", V8_ICON)} aria-hidden />View Conference Rankings
                   </Link>
                 )}
@@ -82,7 +82,7 @@ export default function LeaguePage() {
                     {d.meets.map((m) => (
                       <li key={m.code}>
                         {/* v8 overrides the lift (no hover lifts) with `!` classes, since .lift is plain CSS and this page's markup is server-drawn. */}
-                        <Link to={`/events/${d.season}/${encodeURIComponent(m.code)}`} className={cn("lift flex h-full items-center gap-3 rounded-xl border border-border bg-card p-3 hover:border-accent/60 v8:transition-colors! v8:duration-150! v8:hover:transform-none! v8:hover:shadow-none! v8:hover:border-white/[0.12]!", V8_CARD_LINK)}>
+                        <Link to={`/events/${d.season}/${encodeURIComponent(m.code)}`} className={cn("lift flex h-full items-center gap-3 rounded-xl border border-border bg-card p-3 hover:border-accent/60 v8:transition-colors! v8:duration-150! v8:hover:transform-none! v8:hover:shadow-none! v8:hover:border-ink/[0.12]!", V8_CARD_LINK)}>
                           <CalendarDays className={cn("size-4 shrink-0 text-muted-foreground", V8_ICON)} aria-hidden />
                           <span className="min-w-0">
                             <span className="block truncate text-sm font-medium">{m.name}</span>

@@ -30,8 +30,8 @@ import {
 
 // v8: the filter row's buttons are plain hairline pills; a filter that's on is white text on white/10% (no accent).
 export const trigger = "inline-flex h-9 max-w-full items-center gap-2 rounded-lg border px-3 text-sm font-medium transition-colors max-sm:h-10 v8:transition-[color,background-color,border-color,scale] v8:duration-150 v8:active:scale-[0.97] v8:motion-reduce:active:scale-100";
-export const idle = "border-line bg-card text-text-base hover:border-text-base/25 v8:border-white/[0.12] v8:bg-transparent v8:hover:border-white/[0.12] v8:hover:bg-white/[0.06]";
-export const active = "border-accent/60 bg-accent/[0.08] text-text-base v8:border-white/[0.12] v8:bg-white/10";
+export const idle = "border-line bg-card text-text-base hover:border-text-base/25 v8:border-ink/[0.12] v8:bg-transparent v8:hover:border-ink/[0.12] v8:hover:bg-ink/[0.06]";
+export const active = "border-accent/60 bg-accent/[0.08] text-text-base v8:border-ink/[0.12] v8:bg-ink/10";
 /** A picker's icon: coloured in the classic look, faint in v8. */
 const icon = (tone: string) => cn("size-4", tone, V8_ICON);
 
@@ -244,7 +244,7 @@ export function PlacePicker({ info, loading, value, onChange }: { info: RankingP
     const on = value.includes(k);
     return (
       <button type="button" role="option" aria-selected={on} onClick={() => toggle(k)}
-        className={cn("flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-text-base/[0.06] max-sm:py-2.5", indent && "pl-7", on && "bg-accent/[0.08] v8:bg-white/[0.06]")}>
+        className={cn("flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-text-base/[0.06] max-sm:py-2.5", indent && "pl-7", on && "bg-accent/[0.08] v8:bg-ink/[0.06]")}>
         <span className={cn("flex size-4 shrink-0 items-center justify-center rounded border", on ? "border-accent bg-accent text-accent-ink v8:border-text-base v8:bg-text-base v8:text-background" : "border-text-base/30")}>{on && <Check className="size-3" strokeWidth={3} />}</span>
         <span className="min-w-0 flex-1 truncate">{label}</span>
         <span className="text-[11px] tabular-nums text-text-muted">{teams.toLocaleString()}</span>
@@ -378,7 +378,7 @@ export function Pager({ data, sp }: { data: Pick<RankingsResponse, "total" | "pa
   if (data.pages <= 1) return null;
   const href = (p: number) => { const q = new URLSearchParams(sp); if (p > 1) q.set("page", String(p)); else q.delete("page"); const s = q.toString(); return s ? `?${s}` : "?"; };
   const from = (data.page - 1) * data.pageSize + 1, to = Math.min(data.total, data.page * data.pageSize);
-  const nav = "inline-flex h-9 items-center gap-1 rounded-lg border border-line bg-card px-3 text-sm font-medium hover:border-text-base/25 max-sm:h-10 max-sm:v8:h-11 v8:border-white/[0.12] v8:bg-transparent v8:transition-[background-color,scale] v8:duration-150 v8:hover:border-white/[0.12] v8:hover:bg-white/[0.06] v8:active:scale-[0.97] v8:motion-reduce:active:scale-100";
+  const nav = "inline-flex h-9 items-center gap-1 rounded-lg border border-line bg-card px-3 text-sm font-medium hover:border-text-base/25 max-sm:h-10 max-sm:v8:h-11 v8:border-ink/[0.12] v8:bg-transparent v8:transition-[background-color,scale] v8:duration-150 v8:hover:border-ink/[0.12] v8:hover:bg-ink/[0.06] v8:active:scale-[0.97] v8:motion-reduce:active:scale-100";
   const off = "pointer-events-none opacity-40";
   return (
     <nav className="mt-4 flex flex-wrap items-center justify-between gap-3" aria-label="Pages">
