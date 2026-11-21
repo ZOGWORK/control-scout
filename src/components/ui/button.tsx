@@ -21,12 +21,12 @@ export const buttonVariants = cva(
       variant: {
         default: 'bg-accent text-accent-ink font-bold shadow-[0_4px_16px_color-mix(in_srgb,var(--color-accent)_25%,transparent)] hover:brightness-105 ' +
           // v8 primary (Q2): white text on a faint white fill with a hairline, at most one per screen.
-          'v8:bg-white/10 v8:text-text-base v8:font-semibold v8:shadow-none v8:ring-1 v8:ring-inset v8:ring-white/[0.12] v8:hover:bg-white/[0.14] v8:hover:brightness-100',
+          'v8:bg-ink/10 v8:text-text-base v8:font-semibold v8:shadow-none v8:ring-1 v8:ring-inset v8:ring-ink/[0.12] v8:hover:bg-ink/[0.14] v8:hover:brightness-100',
         // Secondary and outline carry their own edge and a faint fill, so they read as buttons on any surface:
         // the hairline (border-line, 8% white on dark) vanished on a card. Secondary (e.g. "Tracking") is the
         // filled, pressed-looking one; outline the lighter one beside it.
-        secondary: 'bg-text-base/[0.1] text-text-base border border-text-base/20 hover:bg-text-base/[0.14] active:bg-text-base/[0.18] v8:bg-white/[0.06] v8:border-white/10',
-        outline: 'border border-text-base/25 bg-text-base/[0.05] text-text-base hover:bg-text-base/[0.09] hover:border-text-base/35 active:bg-text-base/[0.12] v8:border-white/[0.12] v8:bg-transparent v8:hover:bg-white/[0.06]',
+        secondary: 'bg-text-base/[0.1] text-text-base border border-text-base/20 hover:bg-text-base/[0.14] active:bg-text-base/[0.18] v8:bg-ink/[0.06] v8:border-ink/10',
+        outline: 'border border-text-base/25 bg-text-base/[0.05] text-text-base hover:bg-text-base/[0.09] hover:border-text-base/35 active:bg-text-base/[0.12] v8:border-ink/[0.12] v8:bg-transparent v8:hover:bg-ink/[0.06]',
         ghost: 'text-text-muted hover:text-text-base hover:bg-text-base/[0.06] v8:text-text-base v8:font-medium',
         destructive: 'bg-danger/15 text-danger border border-danger/30 hover:bg-danger/25 v8:bg-transparent v8:border-transparent v8:hover:bg-danger/10',
         link: 'text-accent-text underline-offset-4 hover:underline px-0 active:scale-100 v8:text-text-base',

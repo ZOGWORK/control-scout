@@ -23,8 +23,8 @@ const V8_HEAD = "v8:font-medium v8:text-text-faint";
  *  shows on near-black, 44px+ rows with a hover fill, numbers on the right. */
 export const V8_TABLE = {
   frame: "v8:rounded-none v8:border-0 v8:bg-transparent",
-  head: "v8:[&_tr]:border-b v8:[&_tr]:border-white/[0.12]",
-  row: "v8:h-12 v8:border-white/[0.07] v8:first:border-t-0 v8:hover:bg-white/[0.03]",
+  head: "v8:[&_tr]:border-b v8:[&_tr]:border-ink/[0.12]",
+  row: "v8:h-12 v8:border-ink/[0.07] v8:first:border-t-0 v8:hover:bg-ink/[0.03]",
   cell: "v8:px-2.5 v8:max-md:px-1.5 v8:py-2 v8:first:pl-1 v8:last:pr-1",
 } as const;
 
