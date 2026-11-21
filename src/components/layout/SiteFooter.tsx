@@ -23,7 +23,7 @@ export function SiteFooter({ discordInvite = discordInviteUrl(), release = curre
   const rules = useFlag("rulesReference");
   const status = useFlag("statusPage");
   return (
-    <footer className="mt-16 flex flex-col gap-3 border-t border-line pt-6 max-sm:pt-4 text-xs text-text-muted sm:flex-row sm:items-center sm:justify-between">
+    <footer className="mt-16 flex flex-col gap-3 border-t border-line pt-6 max-sm:pt-4 text-xs text-text-muted v8:text-text-base sm:flex-row sm:items-center sm:justify-between">
       <nav aria-label="Site" className="flex flex-wrap gap-x-5 gap-y-2">
         {footerLinks(footerFlagOn({ rulesReference: rules, statusPage: status })).map((l) => (
           <Link key={l.to} to={l.to} className={LINK}>{l.label}</Link>

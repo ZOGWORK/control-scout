@@ -10,6 +10,7 @@ import { approveWatched, ownerOfficial, pendingCount, rejectWatched, removeChann
 import { dismissFinding, ownerAudit, queueFinding, runChannelAudit } from "./officialAudit.js";
 import { deleteManualStart, manualStarts, setManualStart } from "./manualStarts.js";
 import { approveAutoRead, approveReview, ownerAutoReads, pendingAutoReadCount, rejectAutoRead, rejectReview } from "./autoReads.js";
+import { addEventRecording, ownerEventRecordings, removeEventRecording, replaceEventRecording } from "./ownerRecordings.js";
 
 type H = (fn: (req: Request, res: Response) => Promise<unknown>) => (req: Request, res: Response, next: NextFunction) => void;
 const str = (v: unknown, max = 300) => (typeof v === "string" ? v.trim().slice(0, max) : "");
@@ -117,4 +118,28 @@ export function officialVideoOwnerRoutes(r: Router, h: H, actor: (req: Request) 
     void runChannelAudit(log).catch((e) => log(`official videos: audit: ${(e as Error).message}`));
     return { run: out.run, ...(await full()) };
   }));
+}
+
+/** /api/owner/event-recordings/:season/:code: the owner's corrections to an event's recordings from its own page
+ *  (server/videos/ownerRecordings.ts). GET lists; POST add { video, day }, replace { from, video, day }, remove
+ *  { videoId }. Each answers with the event's list again, and is audited where it's made. */
+export function eventRecordingOwnerRoutes(r: Router, h: H, actor: (req: Request) => string): void {
+  const event = (req: Request) => ({ season: Number(req.params.season), code: String(req.params.code).toUpperCase() });
+  r.get("/event-recordings/:season/:code", h(async (req, res) => {
+    const { season, code } = event(req);
+    const out = Number.isInteger(season) && isEventCodeParam(code) ? await ownerEventRecordings(season, code) : null;
+    if (!out) { res.status(404).json({ error: "No such event." }); return; }
+    return out;
+  }));
+  type Change = (season: number, code: string, body: Record<string, unknown>, who: string) => Promise<{ ok: true } | { ok: false; error: string }>;
+  const change = (fn: Change) => h(async (req, res) => {
+    const { season, code } = event(req);
+    if (!Number.isInteger(season) || !isEventCodeParam(code)) { res.status(400).json({ error: "Not an event." }); return; }
+    const out = await fn(season, code, req.body ?? {}, actor(req));
+    if (!out.ok) { res.status(400).json({ error: out.error }); return; }
+    return ownerEventRecordings(season, code);
+  });
+  r.post("/event-recordings/:season/:code/add", change(addEventRecording));
+  r.post("/event-recordings/:season/:code/replace", change(replaceEventRecording));
+  r.post("/event-recordings/:season/:code/remove", change(removeEventRecording));
 }

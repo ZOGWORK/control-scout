@@ -6,6 +6,7 @@
 // its width; the rail's button opens the full labelled menu.
 import { useEffect, useId, useRef, useState, type ComponentType, type ReactNode } from "react";
 import { Ambient } from "./Ambient";
+import { PageEndGlow } from "./PageEndGlow";
 import { Link, NavLink, useLocation, useMatch } from "react-router-dom";
 import { MotionConfig } from "motion/react";
 import { m } from "../motion";
@@ -395,6 +396,8 @@ export function Shell({ children }: { children: ReactNode }) {
   const [menu, setMenu] = useState(false);
   // The owner's dog theme (dogTheme, off by default): the dog's photo faintly across the page (src/index.css).
   const dog = useFlag("dogTheme");
+  // The glow at the page's end (pageEndGlow, on by default): the owner can switch it off for everyone.
+  const glow = useFlag("pageEndGlow");
   // The menu sheet and anything opened from it (What's new) hand focus back to the button that opened it (the
   // phone's menu button, or the narrow desktop's rail button) when they close, even when their own opener has
   // gone (a row in the closed sheet) or never had focus (Safari doesn't focus a tapped button).
@@ -438,7 +441,7 @@ export function Shell({ children }: { children: ReactNode }) {
           {!bare && (v8 ? <V8Sidebar rail={collapsed || !wide} wide={wide} onToggle={toggle} onMenu={openMenu} />
             : <Sidebar rail={collapsed || !wide} wide={wide} onToggle={toggle} onMenu={openMenu} />)}
           <div className="relative flex min-w-0 flex-1 flex-col">
-            {/* v8's only texture: the wash across the top, under the bar (tall on a top-level page, short inside one). */}
+            {/* The top wash sits under the bar; a separate glow marks the page's end below. */}
             {!bare && v8 && <Wash size={washSize(loc.pathname)} />}
             {/* Sticky over the scrolling page: opaque, and --header-h tall (index.css: anchors land below it). */}
             {!bare && <header id={HEADER_ID} className="sticky top-0 z-30 flex h-(--header-h) shrink-0 items-center gap-1 border-b border-line bg-primary px-3 sm:px-6 md:gap-3 lg:px-8 v8:relative v8:h-14 v8:border-transparent v8:bg-transparent">
@@ -469,6 +472,7 @@ export function Shell({ children }: { children: ReactNode }) {
               </div>
             </header>}
             <div className="relative flex-1">
+              {!bare && v8 && glow && <PageEndGlow />}
               {/* The ambient layer fills the screen under the top bar and stays there while the page scrolls
                   over it (sticky, and pulled out of the flow by its negative margin). svh, not dvh: a phone's
                   toolbar folding away must not resize it mid-scroll. */}
