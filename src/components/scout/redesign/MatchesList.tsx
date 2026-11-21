@@ -102,9 +102,9 @@ function rowName(r: MatchRowInfo, others: OtherScout[] | undefined, nowLabel: st
 // The same chip the event page's match rows use for a team's result.
 // v8: no coloured fills behind the words; the open match keeps the slate-blue line (picked).
 const PILL: Record<MatchStatus, string> = {
-  done: "bg-success/15 text-success v8:bg-white/[0.08] v8:text-emerald-400",
-  partial: "bg-accent/15 text-accent-text v8:bg-transparent v8:text-text-muted v8:ring-1 v8:ring-inset v8:ring-white/20",
-  skipped: "bg-warning/15 text-warning v8:bg-transparent v8:text-text-muted v8:ring-1 v8:ring-inset v8:ring-white/20",
+  done: "bg-success/15 text-success v8:bg-ink/[0.08] v8:text-emerald-400",
+  partial: "bg-accent/15 text-accent-text v8:bg-transparent v8:text-text-muted v8:ring-1 v8:ring-inset v8:ring-ink/20",
+  skipped: "bg-warning/15 text-warning v8:bg-transparent v8:text-text-muted v8:ring-1 v8:ring-inset v8:ring-ink/20",
   now: "bg-accent text-accent-ink v8:bg-transparent v8:text-text-base v8:ring-1 v8:ring-inset v8:ring-accent/70",
   upcoming: "bg-muted text-text-muted v8:bg-transparent v8:font-medium v8:tabular-nums",
 };
@@ -140,9 +140,9 @@ const MatchRow = memo(function MatchRow({ row, others, current, mark, nowLabel, 
         aria-current={current ? "true" : undefined}
         className={cn(
           "relative grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 px-3 py-3 text-left outline-none",
-          onOpen && "transition-[background-color] still-hover:bg-accent/[0.07] v8:still-hover:bg-white/[0.03] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/60 v8:active:bg-white/[0.05]",
+          onOpen && "transition-[background-color] still-hover:bg-accent/[0.07] v8:still-hover:bg-ink/[0.03] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/60 v8:active:bg-ink/[0.05]",
           "@3xl:grid-cols-[5.5rem_minmax(0,1fr)_minmax(0,1fr)_7rem]",
-          current && "bg-accent/[0.05] before:absolute before:inset-y-0 before:left-0 before:w-[3px] before:bg-accent/70 v8:bg-white/[0.03] v8:before:w-0.5",
+          current && "bg-accent/[0.05] before:absolute before:inset-y-0 before:left-0 before:w-[3px] before:bg-accent/70 v8:bg-ink/[0.03] v8:before:w-0.5",
         )}
       >
         <span className="font-mono text-sm font-semibold">{m.label}</span>
