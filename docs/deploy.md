@@ -142,7 +142,9 @@ https://controlscout.org.
   the build succeeds, and the existing certificate is re-applied.
 - **Custom port:** set `PORT` in `shared/.env`; every deploy reads it from there.
 - **Schedule (built in):** current-season sync daily, and on event days every 15 min on the VM (`DATA_CYCLE=child`; hourly on Render; `EVENT_DAY_SYNC_MINUTES` overrides);
-  stats + prediction ledger after each sync; offline packs rebuilt daily.
+  stats + prediction ledger after each sync; offline packs rebuilt daily. The live lane's follow-up after new
+  results (stats, records, live calls, report cards, coin flips) runs in a child process too with `DATA_CYCLE=child`
+  (`LIVE_FOLLOW_UP=inline` keeps it in the server process).
 - **Usage statistics** (anonymous page views from visitors who chose "Allow"; daily
   aggregates in `analytics_daily`, no IPs, user agents, cookies or IDs): on the VM,
   `cd /opt/control-scout/current && sudo -u controlscout bash -c 'set -a; . /opt/control-scout/shared/.env; set +a; npm run stats:report'`

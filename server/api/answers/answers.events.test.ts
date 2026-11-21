@@ -84,6 +84,13 @@ describe("one team at one event", () => {
     // No phase said: the whole OPR, as before.
     expect(readStatQuestion("4215 opr at nj states")).not.toHaveProperty("phase");
   });
+  it("a phase alone beside the team at an event is that phase's OPR there (failed search #2032)", () => {
+    expect(readStatQuestion("hypnotic robotics auto in nj states")).toMatchObject({ id: "event-opr", phase: "auto", core: "hypnotic robotics nj", scope: { states: true } });
+    // With no event said, a phase word is never an event's OPR.
+    expect(readStatQuestion("hypnotic robotics auto")?.id).not.toBe("event-opr");
+    // Its points are still the points' answer, not the OPR's.
+    expect(readStatQuestion("4215 auto points at nj states")?.id).not.toBe("event-opr");
+  });
   it("one match there, or its own matches when it didn't play that one", async () => {
     expect((await searchAnswer("4215 score in match 12 at New Jersey Championship", { limit: 25 })).stat!.headline).toMatchObject({ value: "Lost 80–120", label: "Q12 at New Jersey Championship - Parkway Division" });
     expect((await searchAnswer("4215 score in match 7 at New Jersey Championship", { limit: 25 })).stat!.none).toMatch(/didn't play a match 7/);
