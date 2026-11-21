@@ -244,7 +244,7 @@ export function SharedPicklist({ workspaceId, workspaceName, season, live, me, s
               {!readOnly && <span><GripVertical className="inline size-3.5 align-[-3px] text-accent" /> Drag the grip (or focus it and use the arrow keys) to rank the picks.</span>}
               {!readOnly && <SaveStatus state={pl.orderState} what="Pick list order"
                 text={pl.orderState === "attention" ? `${pl.failed.length + pl.damaged.length} change${pl.failed.length + pl.damaged.length === 1 ? "" : "s"} not saved` : undefined} />}
-              {live === "live" && <span className="inline-flex items-center gap-1 text-success"><span aria-hidden className="size-1.5 rounded-full bg-success" />Live</span>}
+              {live === "live" && <span className="inline-flex items-center gap-1 text-success v8:text-emerald-400"><span aria-hidden className="size-1.5 rounded-full bg-success v8:bg-emerald-400" />Live</span>}
             </p>
             {/* Picks whose stats haven't arrived (one just added by someone): never hidden without saying so. */}
             {missing.length > 0 && (data.error ? (

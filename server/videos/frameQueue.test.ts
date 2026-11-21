@@ -121,6 +121,16 @@ describe("rankQueue", () => {
     const s = queueSummary(list.map((x) => ({ ...x, name: x.code })), 2);
     expect(s).toEqual({ queued: 4, matches: 55, waiting: 1, next: [{ season: 2023, code: "Z", name: "Z", matches: 40 }, { season: 2025, code: "A", name: "A", matches: 5 }] });
   });
+
+  it("reads the current season first, then a video added this week, then the backlog, however much the backlog misses", () => {
+    // 2026-11-18: USPAKSN (21 due) sat 247th, behind hundreds of past-season events with more missing.
+    const e = (season: number, code: string, n: number, added: string | null = null) =>
+      ({ season, code, added, frames: { state: "queued", matches: n, due: n, why: "w" } as any });
+    const list = [e(2022, "OLD", 91), e(2024, "NEWVID", 3, "2026-11-15T10:00:00Z"), e(2026, "PAKSN", 21, "2026-11-13T00:00:00Z"),
+      e(2023, "STALEVID", 60, "2026-11-01T00:00:00Z"), e(2026, "NODT", 25), e(2025, "MID", 40)];
+    expect(rankQueue(list, NOW, 2026).map((x) => `${x.code}#${x.frames.rank}`))
+      .toEqual(["NODT#1", "PAKSN#2", "NEWVID#3", "OLD#4", "STALEVID#5", "MID#6"]);
+  });
 });
 
 describe("a recording the watcher links becomes due", () => {

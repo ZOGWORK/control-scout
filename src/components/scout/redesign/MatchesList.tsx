@@ -4,7 +4,6 @@
 // page can pass who has the other teams (`others`), shown under each row.
 // Built for 30–120 rows: statuses are worked out once per input change, rows are memoized and skip
 // layout off screen (content-visibility), and "Jump to now" scrolls to the current match.
-import { smoothBehavior } from "../../../lib/pageScroll";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LocateFixed } from "lucide-react";
 import { Button } from "../../ui/button";
@@ -101,12 +100,13 @@ function rowName(r: MatchRowInfo, others: OtherScout[] | undefined, nowLabel: st
 }
 
 // The same chip the event page's match rows use for a team's result.
+// v8: no coloured fills behind the words; the open match keeps the slate-blue line (picked).
 const PILL: Record<MatchStatus, string> = {
-  done: "bg-success/15 text-success",
-  partial: "bg-accent/15 text-accent-text",
-  skipped: "bg-warning/15 text-warning",
-  now: "bg-accent text-accent-ink",
-  upcoming: "bg-muted text-text-muted",
+  done: "bg-success/15 text-success v8:bg-white/[0.08] v8:text-emerald-400",
+  partial: "bg-accent/15 text-accent-text v8:bg-transparent v8:text-text-muted v8:ring-1 v8:ring-inset v8:ring-white/20",
+  skipped: "bg-warning/15 text-warning v8:bg-transparent v8:text-text-muted v8:ring-1 v8:ring-inset v8:ring-white/20",
+  now: "bg-accent text-accent-ink v8:bg-transparent v8:text-text-base v8:ring-1 v8:ring-inset v8:ring-accent/70",
+  upcoming: "bg-muted text-text-muted v8:bg-transparent v8:font-medium v8:tabular-nums",
 };
 
 /** One alliance as the event page's match rows show it: a tinted box with a coloured edge. Watched teams
@@ -115,7 +115,7 @@ function AllianceBox({ side, teams, watched, mark }: { side: AllianceSide; teams
   return (
     <span className={cn(
       "grid min-w-0 auto-cols-fr grid-flow-col gap-x-1 rounded-lg border-l-[3px] px-2 py-1.5",
-      side === "red" ? "border-red-alliance bg-red-alliance/[0.06]" : "border-blue-alliance bg-blue-alliance/[0.06] @min-[330px]:border-l-0 @min-[330px]:border-r-[3px] @min-[330px]:text-right",
+      side === "red" ? "border-red-alliance bg-red-alliance/[0.06] v8:border-l-2" : "border-blue-alliance bg-blue-alliance/[0.06] v8:border-l-2 @min-[330px]:border-l-0 @min-[330px]:border-r-[3px] @min-[330px]:text-right @min-[330px]:v8:border-r-2",
     )}>
       {teams.length ? teams.map((t) => {
         const me = mark && watched.has(t);
@@ -133,21 +133,21 @@ const MatchRow = memo(function MatchRow({ row, others, current, mark, nowLabel, 
   const pill = status === "upcoming" ? (time ? `~${time}` : "To do") : status === "now" ? nowLabel : STATUS_WORDS[status];
   return (
     // Off-screen rows skip layout and paint, so a 120-match event scrolls like a short one.
-    <li className="@container border-b border-border [contain-intrinsic-size:auto_76px] [content-visibility:auto] last:border-b-0" data-index={row.index}>
+    <li className="@container border-b border-border [contain-intrinsic-size:auto_76px] [content-visibility:auto] last:border-b-0 v8:border-line" data-index={row.index}>
       <Row
         {...(onOpen ? { type: "button" as const, onClick: () => onOpen(row.index) } : { role: "group" })}
         aria-label={rowName(row, others, nowLabel)}
         aria-current={current ? "true" : undefined}
         className={cn(
           "relative grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 px-3 py-3 text-left outline-none",
-          onOpen && "transition-[background-color] still-hover:bg-accent/[0.07] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/60",
+          onOpen && "transition-[background-color] still-hover:bg-accent/[0.07] v8:still-hover:bg-white/[0.03] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/60 v8:active:bg-white/[0.05]",
           "@3xl:grid-cols-[5.5rem_minmax(0,1fr)_minmax(0,1fr)_7rem]",
-          current && "bg-accent/[0.05] before:absolute before:inset-y-0 before:left-0 before:w-[3px] before:bg-accent/70",
+          current && "bg-accent/[0.05] before:absolute before:inset-y-0 before:left-0 before:w-[3px] before:bg-accent/70 v8:bg-white/[0.03] v8:before:w-0.5",
         )}
       >
         <span className="font-mono text-sm font-semibold">{m.label}</span>
         <span className="col-start-2 row-start-1 justify-self-end @3xl:col-start-4">
-          <span className={cn("inline-block whitespace-nowrap rounded-full px-2 py-px text-[11px] font-semibold", PILL[status])}>{pill}</span>
+          <span className={cn("inline-block whitespace-nowrap rounded-full px-2 py-px text-[11px] font-semibold v8:text-[0.6875rem]", PILL[status])}>{pill}</span>
         </span>
         <span className="col-span-2 row-start-2 grid gap-1 @min-[330px]:grid-cols-2 @min-[330px]:gap-1.5 @3xl:col-span-2 @3xl:col-start-2 @3xl:row-start-1">
           <AllianceBox side="red" teams={m.red} watched={row.watched} mark={mark} />
@@ -184,7 +184,7 @@ export function MatchesList({ schedule, watching, scouted, currentIndex, nextInd
     setJumps((n) => n + 1);
   };
   useEffect(() => {
-    if (jumps) listRef.current?.querySelector<HTMLElement>(`[data-index="${currentIndex}"]`)?.scrollIntoView?.({ block: "center", behavior: smoothBehavior() });
+    if (jumps) listRef.current?.querySelector<HTMLElement>(`[data-index="${currentIndex}"]`)?.scrollIntoView?.({ block: "center" });
     // Only a tap scrolls; a new current match doesn't move the list under the scout's finger.
   }, [jumps]);
   // A list that scrolls inside its own box opens on the current match. Only the box moves, never the page.
@@ -205,7 +205,7 @@ export function MatchesList({ schedule, watching, scouted, currentIndex, nextInd
         {now && <Button variant="outline" size="sm" className="max-sm:h-[44px]" onClick={jump}><LocateFixed /> Jump to {now.match.label}</Button>}
       </div>
       {shown.length ? (
-        <ol ref={listRef} className={cn("relative rounded-xl border border-border bg-card", listClassName)} aria-label="Matches">
+        <ol ref={listRef} className={cn("relative rounded-xl border border-border bg-card v8:rounded-lg v8:border-line", listClassName)} aria-label="Matches">
           {shown.map((r) => <MatchRow key={r.match.key} row={r} others={othersOf(r.match)} current={r.index === currentIndex} mark={mark} nowLabel={nowLabel} onOpen={onOpen} />)}
         </ol>
       ) : (

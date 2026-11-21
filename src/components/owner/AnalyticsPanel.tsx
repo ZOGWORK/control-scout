@@ -62,7 +62,7 @@ function PublishUsage({ s }: { s: PublishUsageSetting }) {
   };
   return (
     <div className="flex flex-wrap items-center gap-4 rounded-xl border border-accent/30 bg-accent/[0.06] p-4">
-      <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-accent/15 text-accent-text"><Globe className="size-4" aria-hidden /></span>
+      <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-accent/15 text-accent-text v8:text-accent"><Globe className="size-4" aria-hidden /></span>
       <div className="min-w-0 flex-1 basis-56">
         <p className="font-medium text-foreground" id="publish-usage-label">Publish the "in use" section on the homepage</p>
         <p className="mt-0.5 text-sm text-muted-foreground">
@@ -72,7 +72,7 @@ function PublishUsage({ s }: { s: PublishUsageSetting }) {
         </p>
       </div>
       <div className="flex items-center gap-2">
-        <span className={cn("text-sm font-medium", s.enabled ? "text-success" : "text-muted-foreground")}>{s.enabled ? "Published" : "Hidden"}</span>
+        <span className={cn("text-sm font-medium", s.enabled ? "text-success v8:text-emerald-400" : "text-muted-foreground")}>{s.enabled ? "Published" : "Hidden"}</span>
         <Switch checked={s.enabled} aria-labelledby="publish-usage-label" disabled={busy} onCheckedChange={(v) => setAsking(v)} />
       </div>
       <Dialog open={asking != null} onOpenChange={(v) => { if (!v && !busy) setAsking(null); }}>
