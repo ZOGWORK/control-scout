@@ -8,6 +8,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import type { EventListItem, MatchView } from "../shared/api";
 import type { RecordsResponse, TeamSeasonRecord } from "../shared/statCatalog";
+import { resetFlags } from "../lib/flags";
+import { DEFAULT_FLAGS } from "../shared/flags";
 import { HOME_SUGGESTIONS } from "../shared/homeSuggestions";
 import { isBareRoute, pageModule, pageTitle } from "../shared/routes";
 import { readFileSync } from "node:fs";
@@ -51,7 +53,7 @@ const mount = () => render(<TooltipProvider><MemoryRouter initialEntries={["/pre
 const cls = (el: Element) => el.getAttribute("class") ?? "";
 
 beforeEach(() => { data = {}; personal = { user: null, state: st(null) }; localStorage.clear(); });
-afterEach(cleanup);
+afterEach(() => { cleanup(); resetFlags(); });
 
 describe("Sample home dashboard", () => {
   it("is its own bare route, titled and kept apart from the real Home", () => {
@@ -161,10 +163,11 @@ describe("Sample home dashboard", () => {
     expect(container.innerHTML).not.toContain("zoom");
   });
 
-  it("washes the top a third of the way down, smooth glows under a fine grain", () => {
+  it("marks the particle canvas as decorative", () => {
+    resetFlags({ ...DEFAULT_FLAGS }, true);
     const { container } = mount();
     const wash = container.querySelector("[data-wash]") as HTMLElement;
-    expect(cls(wash)).toMatch(/h-\[34vh\]/);
+    expect(container.querySelector("canvas[data-dot-wave]")?.getAttribute("aria-hidden")).toBe("true");
     expect(cls(wash.querySelector("[data-grain]")!)).toContain("opacity-[0.12]");
     expect(wash.innerHTML).not.toMatch(/type="discrete"/); // not the shutdown page's chalky grain
   });
@@ -211,6 +214,11 @@ describe("Sample home dashboard", () => {
     expect(rows[0].textContent).toContain("200.0");
     expect(cls(rows[0].querySelector("[data-rank]")!)).toContain("text-accent");
     expect(cls(rows[1].querySelector("[data-rank]")!)).not.toContain("text-accent");
+    // v8: the podium, gold / silver / bronze (lib/v8colour.ts), then grey.
+    expect(cls(rows[0].querySelector("[data-rank]")!)).toContain("v8:text-yellow-400");
+    expect(cls(rows[1].querySelector("[data-rank]")!)).toContain("v8:text-slate-300");
+    expect(cls(rows[2].querySelector("[data-rank]")!)).toContain("v8:text-amber-600");
+    expect(cls(rows[3].querySelector("[data-rank]")!)).toContain("v8:text-text-muted");
   });
 
   it("falls back to last season's leaders, labelled, before anyone has a record this season", () => {
@@ -293,7 +301,10 @@ describe("Sample home dashboard", () => {
     const root = container.querySelector("[data-theme-next]") as HTMLElement;
     expect(root.style.getPropertyValue("--color-accent")).toBe(MINT.accent);
     const html = container.innerHTML.toLowerCase();
-    expect(html).not.toMatch(/#ffc700|#ffd633|#eab308|text-accent-text|text-yellow|bg-yellow/);
+    // No yellow chrome. The one gold is v8's #1 rank in Top teams (a podium colour, lib/v8colour.ts).
+    const rankGold = [...container.querySelectorAll("[data-rank]")].filter((el) => cls(el).includes("v8:text-yellow-400"));
+    expect(rankGold).toHaveLength(1);
+    expect(html.replaceAll("v8:text-yellow-400", "")).not.toMatch(/#ffc700|#ffd633|#eab308|text-accent-text|text-yellow|bg-yellow/);
     const all = [...container.querySelectorAll("*")];
     // Mint fills: the live progress, nothing else.
     const fills = all.filter((el) => /(^|\s)bg-accent(\s|$)/.test(cls(el)));

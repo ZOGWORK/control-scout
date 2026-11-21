@@ -51,7 +51,7 @@ export function FeaturesPanel() {
     try {
       const r = await apiFetch<OwnerFlags>(`${FLAGS_PATH}/${f.name}`, { method: "PUT", json: { enabled, confirm: true } });
       prime(FLAGS_PATH, r);
-      void refreshFlags();
+      void refreshFlags({ fresh: true });
       toast.success(`${FLAG_INFO[f.name].label} ${enabled ? "on" : "off"} everywhere. Every server has it within a few seconds.`);
       setAsk(null);
     } catch (e) {
@@ -69,7 +69,7 @@ export function FeaturesPanel() {
           return (
             <>
               <Section title="Feature toggles"
-                description={<>Switch a feature off for everyone, and back on, without a deploy. The server refuses it while it's off (pages say it's switched off for now), and nothing is deleted: switching back on brings everything back as it was. {off ? <strong className="text-foreground">{off} of {features.length} off right now.</strong> : `All ${features.length} on.`}</>}>
+                description={<>Switch a feature off for everyone, and back on, without a deploy. Your data stays available when you switch a feature back on. {off ? <strong className="text-foreground">{off} of {features.length} off right now.</strong> : `All ${features.length} on.`}</>}>
                 <ul className="grid gap-3 lg:grid-cols-2">
                   {features.map((f) => (
                     <FeatureCard key={f.name} f={f} busy={busy === f.name} onFlip={(enabled) => setAsk({ flag: f, enabled })}>

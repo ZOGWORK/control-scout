@@ -11,7 +11,7 @@ const n0 = (x: number) => x.toLocaleString("en-US");
 
 type Verdict = "ship" | "no" | "off";
 const TAG: Record<Verdict, { text: string; cls: string }> = {
-  ship: { text: "Shipped", cls: "text-success" },
+  ship: { text: "Shipped", cls: "text-success v8:text-emerald-400" },
   no: { text: "Rejected", cls: "text-red-alliance" },
   off: { text: "Built, switched off", cls: "hiw-gold-text" },
 };
