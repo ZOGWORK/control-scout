@@ -18,6 +18,7 @@ describe("the app's folder", () => {
     expect(existsSync(join(APP_ROOT, "package.json"))).toBe(true);
     expect(existsSync(appPath("scripts", "data-cycle.ts"))).toBe(true);
     expect(existsSync(appPath("scripts", "build-packs.ts"))).toBe(true);
+    expect(existsSync(appPath("scripts", "live-follow-up.ts"))).toBe(true);
     expect(existsSync(appPath("server", "share", "fonts"))).toBe(true);
   });
   it("is found walking up from where the bundle lives, and outside the app it falls back to the working directory", () => {
