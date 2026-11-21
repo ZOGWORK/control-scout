@@ -3,11 +3,13 @@
 // day (FIRST in Michigan's fimav.us/live/<season>/<code>: "Practice Day", "Day 1", each a youtube.com/watch link).
 // Followed in the background only on the event's own dates (at the venue), every 15 minutes (each day can add a
 // stream), and the video it lands on kept per event (event_stream_links, migration 66), so the event page plays it
-// like any other FIRST YouTube link (server/videos/recordings.ts). A page that lists videos gives all of them, each
-// placed on the event day YouTube says its broadcast started on and kept a day at a time in event_broadcasts
-// (migration 77, as a channel's broadcasts are), the first of them also the link's row: a practice day's video (its
-// title says so) holds no match and is never kept. Only redirects are followed and only the last hop's page read (up
-// to PAGE_MAX bytes of HTML); YouTube is asked only for a listed video's broadcast start. Every connection goes to
+// like any other FIRST YouTube link (server/videos/recordings.ts). A page that lists videos gives those whose title
+// names this event and no other around its dates (namesOnly), each placed on the event day YouTube says its
+// broadcast started on and kept a day at a time in event_broadcasts (migration 77, as a channel's broadcasts are),
+// the first of them also the link's row: a practice day's video (its title says so) holds no match and is never
+// kept. Only redirects are followed and only the last hop's page read (up to PAGE_MAX bytes of HTML), never one of
+// YouTube's own: a redirect to a watch link is that one video, and YouTube is asked only for a video's broadcast
+// start. Every connection goes to
 // a public address checked at connect time, so a redirect (or a name resolving) to a private one is refused.
 // Once the event's dates are over its video stays: the same short link is pointed at the next meet's broadcast.
 // An event whose dates passed with no video kept (the link wasn't followed then, or led nowhere yet) is followed
@@ -22,7 +24,7 @@ import { all, run, writeBatch } from "../db.js";
 import { eventToday, onEventDates } from "../../src/shared/eventDay.js";
 import { isYouTubeHost } from "../../src/shared/stream.js";
 import { firstVideoId, forgetRecordings } from "./recordings.js";
-import { onDates, type Broadcast } from "./channelStreams.js";
+import { onDates, ownWords, type Broadcast } from "./channelStreams.js";
 import { env } from "../env.js";
 import { fetchFromApi, fetchWatchPage, isPlaceholderTitle, type WatchPageFacts } from "./youtube.js";
 
@@ -161,7 +163,9 @@ export async function resolveLink(link: string, hop: Hop = netHop): Promise<Link
     const to = await hop(u);
     if (to === "error") return to;
     if (to == null) return none;
-    if (typeof to === "object") return { videos: pageVideos(to.page), page: true };
+    // A page is read as a list only off YouTube: its own pages (a watch page's recommendations, other streams of the
+    // weekend) never are. A redirect to a watch link is that one video (below), and YouTube is never asked.
+    if (typeof to === "object") return isYouTubeHost(u.hostname) ? none : { videos: pageVideos(to.page), page: true };
     try { u = new URL(to, u); } catch { return none; }
     if (isYouTubeHost(u.hostname)) {
       const id = firstVideoId(u.href);
@@ -217,7 +221,7 @@ export async function broadcastOnDates(id: string, e: { start: string; end: stri
   return f.status === "ok" && Number.isFinite(at) && onEventDates({ start: e.start.slice(0, 10), end: (e.end ?? e.start).slice(0, 10), timezone: e.timezone }, at);
 }
 
-type LinkRow = { season: number; code: string; start: string; end: string | null; timezone: string | null; livestream: string; url: string | null; video_id: string | null; checked_at: string | null };
+type LinkRow = { season: number; code: string; name: string | null; start: string; end: string | null; timezone: string | null; livestream: string; url: string | null; video_id: string | null; checked_at: string | null };
 
 /** The titles the channel audit read for these videos (official_audit_videos), for a video a link gives without words of its own. */
 async function auditTitles(ids: string[]): Promise<Map<string, string>> {
@@ -226,6 +230,33 @@ async function auditTitles(ids: string[]): Promise<Map<string, string>> {
   return new Map(rows.filter((r) => r.title && !isPlaceholderTitle(r.title)).map((r) => [String(r.video_id), String(r.title)]));
 }
 const practiceVideo = async (id: string) => practiceOnly((await auditTitles([id])).get(id));
+
+/** A title's words as ownWords reads them (lower case, no accents, common words left out); a code it names (USMIFRQ2) is one. */
+const titleWords = (t: string) => new Set(ownWords(t));
+/** Whether a title names an event: its code, or every word of its name that tells it from others (ownWords). */
+const names = (words: Set<string>, e: { code: string; name: string | null }) => {
+  if (words.has(e.code.toLowerCase())) return true;
+  const own = ownWords(String(e.name ?? ""));
+  return own.length > 0 && own.every((w) => words.has(w));
+};
+/**
+ * Whether a listed video's title names this event ("2026 MI FTC Fruitport Qualifier - Day 1" for Fruitport Qualifier)
+ * and no other event around its dates (another qualifier's Day 1 the same weekend): an untitled one names none.
+ */
+export function namesOnly(title: string | null | undefined, e: { code: string; name: string | null }, others: { code: string; name: string | null }[]): boolean {
+  if (!title) return false;
+  const words = titleWords(title);
+  if (!names(words, e)) return false;
+  const mine = new Set(ownWords(String(e.name ?? "")));
+  return !others.some((o) => names(words, o) && !ownWords(String(o.name ?? "")).every((w) => mine.has(w)));
+}
+/** The season's other events within 3 days of this one's dates: the ones a region's page could list a stream of. */
+async function nearbyEvents(r: LinkRow): Promise<{ code: string; name: string | null }[]> {
+  const shift = (d: string, n: number) => new Date(Date.parse(`${d.slice(0, 10)}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
+  return all<{ code: string; name: string | null }>(
+    "SELECT code, name FROM events WHERE season = ? AND code != ? AND substr(start, 1, 10) <= ? AND substr(COALESCE(end, start), 1, 10) >= ?",
+    [r.season, r.code, shift(r.end ?? r.start, 3), shift(r.start, -3)]);
+}
 
 /** Whether another event with the same link keeps this video (its row or one of its days): theirs, never this one's. */
 async function keptByOther(id: string, r: LinkRow): Promise<boolean> {
@@ -244,21 +275,26 @@ const saveLink = (r: LinkRow, id: string | null, now: number) => { const w = lin
 
 /**
  * An event's days from the videos its link gives (a page listing them, or a link read a day at a time before): each
- * one not a practice day's (by its title), not another event's with the same link, and whose broadcast YouTube says
+ * one not a practice day's (by its title), a page's only by a title naming this event and no other (namesOnly), not
+ * another event's with the same link, and whose broadcast YouTube says
  * started on the event's dates, with the days found before by the same link (a page can drop a day). Kept in
  * event_broadcasts, the first also the link's video, so the event's recording holds each day's matches in that day's
  * video (recordings.ts). A video not started yet waits for its start (the next follow); one YouTube couldn't be read
  * for, when no day is found, leaves the event's videos as they were (`noteFailed` false: the try isn't noted either, so
  * it doesn't use up a follow that comes only once). Returns whether they changed.
  */
-async function keepDays(r: LinkRow, videos: LinkVideo[], now: number, facts: Facts, noteFailed = true): Promise<boolean> {
+async function keepDays(r: LinkRow, got: LinkAnswer, now: number, facts: Facts, noteFailed = true): Promise<boolean> {
   const sameLink = r.url === r.livestream;
+  const videos = got.videos;
+  // A page's videos only by a title naming this event and no other (a region's page can list a neighbour's stream).
+  const others = got.page ? await nearbyEvents(r) : [];
   const before = sameLink ? await all<{ video_id: string; start: string }>("SELECT video_id, start FROM event_broadcasts WHERE season = ? AND code = ? AND url = ?", [r.season, r.code, r.livestream]) : [];
   const titles = await auditTitles(videos.filter((v) => !v.title).map((v) => v.videoId));
   const days = new Map<string, Broadcast>(before.map((b) => [String(b.video_id), { videoId: String(b.video_id), start: String(b.start) }]));
   let unread = false;
   for (const v of videos) {
-    if (practiceOnly(v.title ?? titles.get(v.videoId))) { days.delete(v.videoId); continue; }
+    const title = v.title ?? titles.get(v.videoId);
+    if (practiceOnly(title) || (got.page && !namesOnly(title, r, others))) { days.delete(v.videoId); continue; }
     if (days.has(v.videoId) || await keptByOther(v.videoId, r)) continue;
     const f = await facts(v.videoId);
     if (f.status === "error") unread = true;
@@ -305,7 +341,7 @@ export async function resolveStreamLinks(log: (s: string) => void, opts: { max?:
     const day = (ms: number) => new Date(ms).toISOString().slice(0, 10);
     // Today somewhere on Earth (a 2-day UTC window); each event's own calendar decides below.
     const rows = await all<LinkRow>(
-      `SELECT e.season, e.code, e.start, e.end, e.timezone, e.livestream, l.url, l.video_id, l.checked_at FROM events e
+      `SELECT e.season, e.code, e.name, e.start, e.end, e.timezone, e.livestream, l.url, l.video_id, l.checked_at FROM events e
        LEFT JOIN event_stream_links l ON l.season = e.season AND l.code = e.code
        WHERE e.livestream LIKE 'http%'
          AND substr(e.start, 1, 10) <= ? AND substr(COALESCE(e.end, e.start), 1, 10) >= ?
@@ -319,7 +355,7 @@ export async function resolveStreamLinks(log: (s: string) => void, opts: { max?:
       const got = await resolveLink(r.livestream, opts.hop);
       if (got === "error") continue;
       if (await byDays(got, r)) {
-        if (await keepDays(r, got.videos, now, facts)) changed++;
+        if (await keepDays(r, got, now, facts)) changed++;
         continue;
       }
       let id: string | null = got.videos[0]?.videoId ?? null;
@@ -350,7 +386,7 @@ export async function resolveStreamLinks(log: (s: string) => void, opts: { max?:
 async function resolveLate(now: number, opts: { max?: number; hop?: Hop; facts: Facts }): Promise<number> {
   const day = (ms: number) => new Date(ms).toISOString().slice(0, 10);
   const rows = await all<LinkRow>(
-    `SELECT e.season, e.code, e.start, e.end, e.timezone, e.livestream, l.url, l.video_id, l.checked_at FROM events e
+    `SELECT e.season, e.code, e.name, e.start, e.end, e.timezone, e.livestream, l.url, l.video_id, l.checked_at FROM events e
      LEFT JOIN event_stream_links l ON l.season = e.season AND l.code = e.code
      WHERE e.livestream LIKE 'http%'
        AND substr(COALESCE(e.end, e.start), 1, 10) >= ? AND substr(e.start, 1, 10) <= ?
@@ -377,7 +413,7 @@ async function resolveLate(now: number, opts: { max?: number; hop?: Hop; facts: 
     const got = await resolveLink(r.livestream, opts.hop);
     if (got === "error" && once) continue;
     if (got !== "error" && await byDays(got, r)) {
-      if (await keepDays(r, got.videos, now, opts.facts, !once)) changed++;
+      if (await keepDays(r, got, now, opts.facts, !once)) changed++;
       continue;
     }
     // A video a redirect led to on the event's dates stays: the link has moved on to the next meet's since.
