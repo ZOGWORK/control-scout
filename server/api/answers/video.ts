@@ -22,7 +22,7 @@ export interface VideoRef { season: number; code: string; key?: string }
  *  qualification and playoffs: its finals last; a video page's tiles: more), and most events in one read. */
 const MAX_ROWS = 200;
 const MAX_TILES = 220;
-const MAX_EVENTS = 30;
+export const MAX_EVENTS = 30;
 
 /** An answer's link to an event or one of its matches → which; anything else null. */
 export function refOfHref(href: string | null | undefined): VideoRef | null {
