@@ -8,6 +8,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { ArrowLeftRight, ArrowRight, BookmarkPlus, CalendarDays, ChevronDown, FlaskConical, Link2, MapPin, Search, Sparkles, Star, Swords, Trophy, Users, WifiOff, X } from "lucide-react";
 import { noteOfflineAnswer, useApi, qs, type ApiError } from "../lib/api";
 import { useCurrentSeason, useMeta, useTitle } from "../lib/meta";
+import { isV8, useIsV8 } from "../lib/v8";
 import { useEventCheck } from "../lib/eventSeason";
 import { defaultSeason } from "../lib/myTeamSeason";
 import { callTally } from "../lib/seasonSoFar";
@@ -36,7 +37,7 @@ import { canonicalPredict, matchApiPath, matchupOf, parsePick, predictHref, pred
 import { cn } from "../components/cn";
 import { PredictionBasis } from "../components/PredictionBasis";
 import { WhatIf } from "../components/predict/WhatIf";
-import { marginCalibration, marginText, matchBasis, scoreSum, scoreTotal } from "../shared/predictionBasis";
+import { marginCalibration, marginText, marginWords, matchBasis, scoreSum, scoreTotal } from "../shared/predictionBasis";
 import { snapshotClock } from "../shared/eventBundle";
 import type { OfflineSource } from "../lib/offline/predict";
 import { Reveal, m } from "../components/motion";
@@ -56,6 +57,16 @@ const MODES: { v: PredictMode; label: string; short: string; icon: typeof Trophy
   { v: "scheduled", label: "Scheduled", short: "Scheduled", icon: CalendarDays },
   { v: "match", label: "Custom matchup", short: "Matchup", icon: Swords },
 ];
+/** v8's order: the matchup (the page's job) first. */
+const V8_MODES = [MODES[2], MODES[1], MODES[0]];
+
+/** v8's page title (brief §3.2: 22/28, 600, tight), as the other v8 pages draw it. */
+const V8_TITLE = "v8:font-sans v8:text-[1.375rem] v8:font-semibold v8:leading-7 v8:tracking-tight v8:max-sm:text-[1.375rem] v8:text-text-base";
+/** v8's card: surface-1, 14px corners, a hairline. */
+const V8_CARD = "v8:rounded-xl v8:border-line v8:bg-card";
+
+/** A /predict link with no mode and nothing picked (v8 opens it on the matchup). */
+export const bareLink = (sp: URLSearchParams) => !["mode", "view", "for", "code", "red", "blue", "team"].some((k) => sp.has(k));
 
 export default function PredictPage() {
   useTitle("Predict");
@@ -66,13 +77,18 @@ export default function PredictPage() {
   }, []);
   const [sp, setSp] = useSearchParams();
   const current = useCurrentSeason();
-  const state = readPredict(sp);
+  const v8 = useIsV8();
+  const read = readPredict(sp);
+  // v8 is built around "who wins this match, and why?": a bare /predict opens on the matchup. Links that name a mode
+  // or carry picks open as before, and the classic look keeps Advancement as its first screen.
+  const state = v8 && bareLink(sp) ? { ...read, mode: "match" as const } : read;
   const { mode, pick } = state;
   // Old links (?view=, a lab link carrying for=) become the canonical form, in place: Back doesn't return to them.
+  // In v8 a bare link's canonical form is the matchup (other params, utm_* and the like, ride along).
   useEffect(() => {
-    const c = canonicalPredict(sp);
+    const c = canonicalPredict(v8 && bareLink(sp) ? new URLSearchParams([["mode", "match"], ...sp]) : sp);
     if (c) setSp(c, { replace: true });
-  }, [sp, setSp]);
+  }, [sp, setSp, v8]);
   // A new mode is its own history entry, so Back returns to the one before, picks and all.
   const setMode = (to: string) => {
     if (to === mode) return;
@@ -87,9 +103,35 @@ export default function PredictPage() {
   if (!on) {
     return (
       <div className="space-y-6">
-        <h1 className="font-display text-3xl font-semibold tracking-tight text-foreground max-sm:text-2xl">Predict</h1>
+        <h1 className={cn("font-display text-3xl font-semibold tracking-tight text-foreground max-sm:text-2xl", V8_TITLE)}>Predict</h1>
         <FeatureOffState feature="livePredictions" />
       </div>
+    );
+  }
+  if (v8) {
+    return (
+      <Tabs value={mode} onValueChange={setMode} className="max-w-5xl space-y-5 max-sm:space-y-4" data-predict-v8>
+        <div>
+          <h1 className={V8_TITLE}>Predict</h1>
+          <p className="mt-1 text-sm text-text-muted">Who wins, and why.<span className="max-sm:hidden"> Pick the teams for any matchup, a team or event for its scheduled matches, or an event for who advances.</span></p>
+          <TabsList aria-label="Predict mode" className="mt-3 max-sm:grid max-sm:w-full max-sm:grid-cols-3">
+            {V8_MODES.map(({ v, label, short, icon: Icon }) => (
+              <TabsTrigger key={v} value={v} aria-label={label} className="max-sm:px-1.5"><Icon className="size-4 max-sm:hidden" /><span className="max-sm:hidden">{label}</span><span className="sm:hidden">{short}</span></TabsTrigger>
+            ))}
+          </TabsList>
+        </div>
+        <TabsContent value="match" className="mt-0"><MatchLab /></TabsContent>
+        <TabsContent value="scheduled" className="mt-0 space-y-6 max-sm:space-y-5">
+          <Picker onPick={setPick} />
+          <TrackedPicks season={current} picked={pick?.kind === "event" ? `${pick.season}:${pick.code}` : null} onPick={(season, code) => setPick({ kind: "event", season, code })} />
+          {pick?.kind === "team" && <TeamPredictions team={pick.team} onClear={() => setPick(null)} />}
+          {pick?.kind === "event" && <EventPredictions season={pick.season} code={pick.code} onClear={() => setPick(null)} />}
+          <ThisWeek onPick={setPick} picked={pick?.kind === "event" ? pick.code : null} />
+        </TabsContent>
+        <TabsContent value="advancement" className="mt-0"><AdvancementLab /></TabsContent>
+        {/* The track record, once the page's own job is done: it was the header's side card. */}
+        <LatestCalls className="max-w-xl" />
+      </Tabs>
     );
   }
   return (
@@ -131,7 +173,7 @@ function Picker({ onPick }: { onPick: (p: PredictPick) => void }) {
   const quick = [...new Set([...(state.myTeam ? [state.myTeam] : []), ...state.tracked.teams, ...state.bookmarks])].slice(0, 6);
   const chip = (t: number, small?: boolean) => (
     <button key={t} type="button" onPointerDown={(e) => e.preventDefault()} onClick={() => onPick({ kind: "team", team: t })}
-      className={cn("inline-flex items-center gap-1 rounded-full border border-border font-mono text-foreground hover:border-accent/60 hover:text-accent-text", small ? "px-2.5 py-0.5 text-xs max-sm:min-h-8" : "px-3 py-1 text-sm max-sm:min-h-9")}>
+      className={cn("inline-flex items-center gap-1 rounded-full border border-border font-mono text-foreground hover:border-accent/60 hover:text-accent-text v8:hover:border-white/25 v8:hover:text-text-base v8:active:scale-[0.97] v8:motion-reduce:active:scale-100 v8:transition-[border-color,color,scale] v8:duration-150", small ? "px-2.5 py-0.5 text-xs max-sm:min-h-8" : "px-3 py-1 text-sm max-sm:min-h-9")}>
       {t === state.myTeam && <Star className={cn("fill-accent text-accent", small ? "size-3" : "size-3.5")} />}{t}
     </button>
   );
@@ -143,7 +185,7 @@ function Picker({ onPick }: { onPick: (p: PredictPick) => void }) {
         onPick={(h) => onPick(parsePick(h.kind === "team" ? `team:${h.ref}` : `event:${h.ref}`))}
         emptyHint={quick.length ? (
           <div className="p-2">
-            <p className="px-1 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Your teams</p>
+            <p className="px-1 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground v8:text-xs v8:font-medium v8:normal-case v8:tracking-normal v8:text-text-faint">Your teams</p>
             <div className="flex flex-wrap gap-1.5">{quick.map((t) => chip(t))}</div>
           </div>
         ) : undefined}
@@ -158,16 +200,16 @@ function Picker({ onPick }: { onPick: (p: PredictPick) => void }) {
 function PickedHeader({ icon: Icon, number, title, sub, to, openLabel, onClear }: { icon: typeof Users; number?: number; title: string; sub?: string; to: string; openLabel: string; onClear: () => void }) {
   return (
     <div className="mb-4 grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-3 gap-y-2 sm:grid-cols-[auto_minmax(0,1fr)_auto_auto]">
-      <span className="col-start-1 row-start-1 grid size-10 shrink-0 place-items-center rounded-xl bg-accent/[0.12] text-accent"><Icon className="size-5" /></span>
+      <span className="col-start-1 row-start-1 grid size-10 shrink-0 place-items-center rounded-xl bg-accent/[0.12] text-accent v8:rounded-lg v8:bg-white/[0.06] v8:text-text-muted"><Icon className="size-5" /></span>
       <div className="col-start-2 row-start-1 min-w-0 self-center">
-        <h2 className="font-display text-lg font-semibold leading-snug text-foreground sm:text-xl [overflow-wrap:anywhere]">
+        <h2 className="font-display text-lg font-semibold leading-snug text-foreground sm:text-xl [overflow-wrap:anywhere] v8:font-sans v8:text-base v8:tracking-tight v8:sm:text-lg">
           {number != null && <span className="whitespace-nowrap font-mono tabular-nums">{number}</span>}
           {number != null && title && " "}{title}
         </h2>
         {sub && <p className="mt-0.5 text-sm text-muted-foreground [overflow-wrap:anywhere]">{sub}</p>}
       </div>
       {/* Before Close in the DOM, so Tab goes identity → Open page → Close wherever the grid draws them. */}
-      <Button variant="secondary" size="sm" asChild className="col-start-2 row-start-2 justify-self-start max-sm:h-10 sm:col-start-3 sm:row-start-1 sm:self-center">
+      <Button variant={isV8() ? "outline" : "secondary"} size="sm" asChild className="col-start-2 row-start-2 justify-self-start max-sm:h-10 sm:col-start-3 sm:row-start-1 sm:self-center">
         <Link to={to}>{openLabel} <ArrowRight /></Link>
       </Button>
       <Button variant="ghost" size="icon" onClick={onClear} aria-label="Clear selection" className="col-start-3 row-start-1 -mr-1.5 size-11 sm:col-start-4"><X /></Button>
@@ -212,18 +254,18 @@ function TeamPredictions({ team, onClear }: { team: number; onClear: () => void 
     return { names, dates };
   }, [profile.data, team]);
   return (
-    <section aria-label={`Predictions for team ${team}`} className="rounded-2xl border border-border bg-card/60 p-4 sm:p-6">
+    <section aria-label={`Predictions for team ${team}`} className={cn("rounded-2xl border border-border bg-card/60 p-4 sm:p-6", V8_CARD, "v8:sm:p-5")}>
       <PickedHeader icon={Users} number={team} title={t?.name ?? ""} sub={t ? place(t.city, t.state, t.country) : undefined} to={`/teams/${team}?season=${s}`} openLabel="Open team page" onClear={onClear} />
       {probe.error?.status === 404 ? <EmptyState icon={Users} title={`No team ${team}`} description="No FTC team with that number in the seasons we hold." /> : (
-        <div className="space-y-8 max-sm:space-y-5">
+        <div className="space-y-8 max-sm:space-y-5 v8:space-y-5">
           <div className="flex flex-wrap items-center gap-3">
             {seasons ? <SeasonToggle predictOnly seasons={seasons} value={s} onChange={setSeason} /> : <div className="skeleton h-9 w-72 max-w-full rounded-lg" />}
             {season != null && !isCurrent && <span className="text-xs text-muted-foreground">{asked ? `Predictions from ${seasonLabel(season)}` : `No results in ${seasonLabel(current)} yet, so this is ${seasonLabel(season)}`}</span>}
           </div>
           {/* People pick one team expecting a matchup: the other modes, with this team already in. Both ways in carry the same weight. */}
           <div className="flex flex-wrap gap-2">
-            <Button size="sm" variant="secondary" asChild><Link to={labMatchHref(team, s)}><Swords /> Predict a matchup</Link></Button>
-            <Button size="sm" variant="secondary" asChild><Link to={labAdvancementHref(team, s)}><Trophy /> Odds at an event</Link></Button>
+            <Button size="sm" variant={isV8() ? "outline" : "secondary"} asChild><Link to={labMatchHref(team, s)}><Swords /> Predict a matchup</Link></Button>
+            <Button size="sm" variant={isV8() ? "outline" : "secondary"} asChild><Link to={labAdvancementHref(team, s)}><Trophy /> Odds at an event</Link></Button>
           </div>
           {season == null ? <div className="skeleton h-40 rounded-xl" /> : isCurrent ? (
             <>
@@ -246,7 +288,7 @@ function TeamPredictions({ team, onClear }: { team: number; onClear: () => void 
                 </div>
               )}
               {played.length > 0 && (
-                <details className="group rounded-xl border border-border bg-card px-4 py-3 open:pb-4">
+                <details className="group rounded-xl border border-border bg-card px-4 py-3 open:pb-4 v8:border-line v8:bg-transparent">
                   <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-sm font-semibold text-foreground [&::-webkit-details-marker]:hidden">
                     <span>Earlier {seasonLabel(season)} matches and how the calls did <span className="font-normal text-muted-foreground">· {played.length}</span></span> <ChevronDown className="size-4 text-muted-foreground transition-transform group-open:rotate-180 motion-reduce:transition-none" aria-hidden />
                   </summary>
@@ -269,8 +311,10 @@ function PastCalls({ team, season, played, calls, ev }: { team: number; season: 
   const line = (t: { right: number; of: number }, what: string) => (
     <li><span className="font-medium text-foreground">{t.right} of {t.of}</span> {what} right ({Math.round((t.right / t.of) * 100)}%)</li>
   );
+  // v8: no entrance motion here (brief §4.2: entrances only on Home and search results).
+  const Wrap = isV8() ? "div" : Reveal;
   return (
-    <Reveal>
+    <Wrap>
       <h3 className="mb-1 text-sm font-semibold text-foreground">How the calls did in {seasonLabel(season)}</h3>
       {calls.live.of || calls.backtest.of ? (
         <ul className="mb-3 space-y-0.5 text-sm text-muted-foreground" aria-label="Calls right">
@@ -280,7 +324,7 @@ function PastCalls({ team, season, played, calls, ev }: { team: number; season: 
       ) : <p className="mb-3 text-sm text-muted-foreground">No called matches for {team} in {seasonLabel(season)}.</p>}
       <MatchList matches={played.slice(0, 20)} highlight={team} eventNames={ev.names} eventDates={ev.dates} outcomeAccent newestFirst empty={`No matches played in ${seasonLabel(season)}.`} />
       {played.length > 20 && <p className="mt-2 text-xs text-muted-foreground">Showing the latest 20 of {played.length}. Every match is on the <Link to={`/teams/${team}?season=${season}`} className="underline">team page</Link>.</p>}
-    </Reveal>
+    </Wrap>
   );
 }
 
@@ -293,10 +337,10 @@ function EventPredictions({ season, code, onClear }: { season: number; code: str
   const upcoming = over ? [] : unplayed;
   const played = (state.data?.matches ?? []).filter((m) => m.played);
   return (
-    <section aria-label={`Predictions for ${e?.name ?? code}`} className="rounded-2xl border border-border bg-card/60 p-4 sm:p-6">
+    <section aria-label={`Predictions for ${e?.name ?? code}`} className={cn("rounded-2xl border border-border bg-card/60 p-4 sm:p-6", V8_CARD, "v8:sm:p-5")}>
       <PickedHeader icon={CalendarDays} title={e?.name ?? code} sub={e ? `${dateRange(e.start, e.end)} · ${place(e.city, e.state, e.country)}` : undefined} to={`/events/${season}/${code}`} openLabel="Open event page" onClear={onClear} />
       <Async state={state}>{(d) => (
-        <div className="space-y-8 max-sm:space-y-5">
+        <div className="space-y-8 max-sm:space-y-5 v8:space-y-5">
           <div>
             <h3 className="mb-2 text-sm font-semibold text-foreground">{upcoming.length ? `Upcoming matches (${upcoming.length})` : over ? "This event is over" : played.length ? "All matches have been played" : "Matches"}</h3>
             {over && unplayed.length > 0 && <p className="mb-3 text-sm text-muted-foreground">{unplayed.length} scheduled {unplayed.length === 1 ? "match has" : "matches have"} no result from FIRST, so {unplayed.length === 1 ? "it isn't" : "they aren't"} shown as upcoming.</p>}
@@ -306,8 +350,8 @@ function EventPredictions({ season, code, onClear }: { season: number; code: str
             {upcoming.length > 16 && <p className="mt-2 text-xs text-muted-foreground">Showing 16 of {upcoming.length}. The rest are on the <Link to={`/events/${season}/${code}?tab=matches`} className="underline">event page</Link>.</p>}
           </div>
           {!d.forecastUnsupported && ADVANCING.has(d.event.type ?? "") && (
-            <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card px-4 py-3">
-              <Trophy className="size-5 shrink-0 text-accent" aria-hidden />
+            <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 v8:border-line v8:bg-transparent">
+              <Trophy className="size-5 shrink-0 text-accent v8:text-text-muted" aria-hidden />
               <p className="min-w-0 flex-1 text-sm"><span className="font-medium text-foreground">Advancement odds</span> <span className="text-muted-foreground">for every team at this event, or one team's chance to advance.</span></p>
               <Button size="sm" asChild><Link to={predictHref({ mode: "advancement", season, code })}>See advancement odds <ArrowRight /></Link></Button>
             </div>
@@ -404,10 +448,15 @@ function MatchLab() {
     const m = parse(red.join(","), blue.join(","));
     if (!m) { const first = [...red, ...blue].findIndex((v) => v.trim()); setErrors((e) => e.map((x, i) => (i === first ? "Pick different teams, one a side or two a side." : x))); inputs.current[first]?.focus(); return; }
     setSubmittedTeams(m);
+    setEditing(false);
     // A new matchup starts without the last one's what-if.
     setSp((x) => { x.set("mode", "match"); x.set("season", String(season)); x.set("red", m.red.join(",")); x.set("blue", m.blue.join(",")); x.delete("whatif"); return x; }, { replace: true });
   };
   const swap = () => { edits.current++; setRed(blue); setBlue(red); setErrors((e) => [e[2], e[3], e[0], e[1]]); };
+  const v8 = useIsV8();
+  // v8 on a phone: once a matchup is predicted its teams fold to one line, so the call is the first thing under the pick.
+  const [editing, setEditing] = useState(false);
+  useEffect(() => { setEditing(false); }, [urlRed, urlBlue]);
   // From the result: the same four teams with the alliances swapped, predicted straight away (they're already checked).
   const swapResult = () => {
     if (!submittedTeams) return;
@@ -419,6 +468,65 @@ function MatchLab() {
     setSubmittedTeams(m);
     setSp((x) => { x.set("mode", "match"); x.set("season", String(season)); x.set("red", m.red.join(",")); x.set("blue", m.blue.join(",")); return x; }, { replace: true });
   };
+  const setSeason = (s: number) => setSp((x) => { x.set("season", String(s)); return x; }, { replace: true });
+  const result = submitted && (state.error
+    ? (offline.data ? { x: offline.data, asOf: offline.asOf, from: offline.from } : offline.loading ? "loading" as const : "error" as const)
+    : state.data ? { x: state.data, asOf: null, from: null } : "loading" as const);
+  if (v8) {
+    const folded = !!submittedTeams && !editing && !errors.some(Boolean);
+    const box = (side: "red" | "blue", i: number) => {
+      const vals = side === "red" ? red : blue, set = side === "red" ? setRed : setBlue, k = (side === "red" ? 0 : 2) + i;
+      return <TeamInput key={k} label={`${side === "red" ? "Red" : "Blue"} team ${i + 1}`} tone={side} value={vals[i]}
+        onChange={(x) => { set((r) => r.map((y, j) => (j === i ? x : y))); clearError(k); }}
+        autoFocus={side === "red" && grab && !submittedTeams && !vals[i] && i === red.indexOf("")} error={errors[k]} inputRef={(el) => { inputs.current[k] = el; }} />;
+    };
+    const legend = (side: "red" | "blue") => (
+      <legend className={cn("mb-1.5 flex items-center gap-1.5 text-xs font-medium", side === "red" ? "text-red-alliance" : "text-blue-alliance")}>
+        <span aria-hidden className={cn("size-1.5 rounded-full", side === "red" ? "bg-red-alliance" : "bg-blue-alliance")} />{side === "red" ? "Red alliance" : "Blue alliance"}
+      </legend>
+    );
+    return (
+      <div className="space-y-4">
+        <div className="rounded-xl border border-line bg-card p-4 sm:p-5" data-matchup-pick>
+          {folded && submittedTeams && (
+            <div className="flex items-center gap-3 sm:hidden" data-matchup-summary>
+              <p className="min-w-0 flex-1 font-mono text-sm tabular-nums [overflow-wrap:anywhere]">
+                <span className="text-red-alliance">{submittedTeams.red.join(" + ")}</span> <span className="font-sans text-text-faint">vs</span> <span className="text-blue-alliance">{submittedTeams.blue.join(" + ")}</span>
+              </p>
+              <Button variant="outline" size="sm" onClick={() => setEditing(true)}>Change teams</Button>
+            </div>
+          )}
+          <div className={cn(folded && "max-sm:hidden")}>
+            <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2">
+              <SeasonToggle predictOnly value={season} onChange={setSeason} />
+              <span className="text-xs text-text-faint">Ratings as of now</span>
+            </div>
+            <form onSubmit={(e) => { e.preventDefault(); run(); }} noValidate
+              className="grid items-start gap-x-3 gap-y-2 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto] md:gap-x-4">
+              <fieldset className="min-w-0">{legend("red")}<div className="grid grid-cols-2 gap-2">{[0, 1].map((i) => box("red", i))}</div></fieldset>
+              <div className="flex justify-center max-md:-my-1.5 md:pt-6">
+                <Button type="button" variant="ghost" size="icon" onClick={swap} aria-label="Swap alliances" className="text-text-muted max-md:size-9 max-md:rotate-90"><ArrowLeftRight className="size-4" /></Button>
+              </div>
+              <fieldset className="min-w-0">{legend("blue")}<div className="grid grid-cols-2 gap-2">{[0, 1].map((i) => box("blue", i))}</div></fieldset>
+              <div className="max-md:mt-1 md:pt-6"><Button type="submit" disabled={!canCheck || checking} className="h-11 w-full md:w-auto"><Sparkles /> Predict</Button></div>
+            </form>
+            <QuickTeams taken={[...red, ...blue]} onAdd={(t) => {
+              const all = [...red, ...blue], k = all.findIndex((v) => !v.trim());
+              if (k < 0) return;
+              const v = String(t);
+              if (k < 2) setRed((r) => r.map((y, j) => (j === k ? v : y))); else setBlue((b) => b.map((y, j) => (j === k - 2 ? v : y)));
+              clearError(k);
+            }} />
+          </div>
+        </div>
+        {result === "loading" ? <div className="skeleton h-72 rounded-xl" data-call-loading />
+          : result === "error" ? <ErrorState error={state.error!} onRetry={state.reload} />
+          : result ? <CallV8 x={result.x} offlineAsOf={result.asOf} offlineFrom={result.from} onSwap={swapResult} whatIfOpen={!!sp.get("whatif")} />
+          : <EmptyState icon={Swords} title="Pick the teams" description="One or two a side, any teams, any season. You get who's favoured and by how much, the called score, and the biggest reasons." className="py-7" />}
+        <SavedPredictions />
+      </div>
+    );
+  }
   return (
     <div className="space-y-6 max-sm:space-y-4">
       <div className="rounded-2xl border border-border bg-card p-4 sm:p-6">
@@ -492,6 +600,29 @@ function ScoreSumLines({ x, overlapRed, overlapBlue }: { x: MatchExplanationView
   );
 }
 
+/** Each robot's rating split (Adds ± spread, by phase, penalties given away), then the by-hand score lines. */
+function RatingsTable({ x }: { x: MatchExplanationView }) {
+  return (
+    <>
+      <table className="mt-3 w-full text-sm">
+        <thead><tr className="text-left text-[10px] font-bold uppercase tracking-wider text-muted-foreground v8:text-xs v8:font-medium v8:normal-case v8:tracking-normal v8:text-text-faint"><th className="pb-2">Team</th><th className="pb-2 text-right">Adds</th><th className="pb-2 text-right">Auto</th><th className="pb-2 text-right">Tele</th><th className="pb-2 text-right">End</th><th className="pb-2 text-right" title="Penalty points it gives away per match (they count for the other alliance)">Pen</th><th className="pb-2 text-right">Matches</th></tr></thead>
+        <tbody>
+          {[...x.teamsRed.map((t) => ({ ...t, side: "red" })), ...x.teamsBlue.map((t) => ({ ...t, side: "blue" }))].map((t) => (
+            <tr key={t.team} className="border-t border-border v8:border-line v8:h-11">
+              <td className="py-1.5"><Link to={`/teams/${t.team}?season=${x.season}`} className={cn("font-mono hover:underline", t.side === "red" ? "text-red-alliance" : "text-blue-alliance")}>{t.team}</Link> <span className="text-xs text-muted-foreground">{t.name}</span></td>
+              <td className="text-right tabular-nums">{num(t.np, 0)}<span className="text-xs text-muted-foreground"> ±{num(t.sd, 0)}</span></td>
+              <td className="text-right tabular-nums">{num(t.auto, 0)}</td><td className="text-right tabular-nums">{num(t.teleop, 0)}</td><td className="text-right tabular-nums">{num(t.endgame, 0)}</td>
+              <td className="text-right tabular-nums">{num(t.pen, 1)}</td>
+              <td className="text-right tabular-nums">{t.matches}{t.matches < 3 && <Badge variant="outline" className="ml-1">few</Badge>}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {x.overlapRed != null && x.overlapBlue != null && <ScoreSumLines x={x} overlapRed={x.overlapRed} overlapBlue={x.overlapBlue} />}
+    </>
+  );
+}
+
 function MatchResult({ x, offlineAsOf, offlineFrom, onSwap }: { x: MatchExplanationView; offlineAsOf?: string | null; offlineFrom?: OfflineSource | null; onSwap?: () => void }) {
   const { update } = usePersonal();
   const cov = useRangeCoverage();
@@ -532,7 +663,7 @@ function MatchResult({ x, offlineAsOf, offlineFrom, onSwap }: { x: MatchExplanat
         <PredictionBasis kind={matchBasis(x.level)} className="mt-1.5" />
         {/* Made to be screenshotted: the card says where it came from. */}
         <div className="mt-5 max-sm:mt-4 flex items-center justify-between border-t border-border pt-3 text-[11px] text-muted-foreground">
-          <span className="flex items-center gap-1.5"><img src="/logo-56.webp" alt="" className="size-4" /> FTC Control Scout · prediction lab</span>
+          <span className="flex items-center gap-1.5"><img src={isV8() ? "/mark-white.webp" : "/legacy/logo-56.webp"} alt="" className="size-4" /> FTC Control Scout · prediction lab</span>
           <span>{seasonLabel(x.season)} · engine v{x.engineVersion}</span>
         </div>
       </div>
@@ -547,26 +678,127 @@ function MatchResult({ x, offlineAsOf, offlineFrom, onSwap }: { x: MatchExplanat
           <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-base font-semibold pointer-coarse:min-h-[44px] [&::-webkit-details-marker]:hidden">
             <span>The robots' ratings <span className="text-sm font-normal text-muted-foreground">· {x.teamsRed.length + x.teamsBlue.length} robots</span></span> <ChevronDown className="size-4 text-muted-foreground transition-transform group-open:rotate-180 motion-reduce:transition-none" aria-hidden />
           </summary>
-          <table className="mt-3 w-full text-sm">
-            <thead><tr className="text-left text-[10px] font-bold uppercase tracking-wider text-muted-foreground"><th className="pb-2">Team</th><th className="pb-2 text-right">Adds</th><th className="pb-2 text-right">Auto</th><th className="pb-2 text-right">Tele</th><th className="pb-2 text-right">End</th><th className="pb-2 text-right" title="Penalty points it gives away per match (they count for the other alliance)">Pen</th><th className="pb-2 text-right">Matches</th></tr></thead>
-            <tbody>
-              {[...x.teamsRed.map((t) => ({ ...t, side: "red" })), ...x.teamsBlue.map((t) => ({ ...t, side: "blue" }))].map((t) => (
-                <tr key={t.team} className="border-t border-border">
-                  <td className="py-1.5"><Link to={`/teams/${t.team}?season=${x.season}`} className={cn("font-mono hover:underline", t.side === "red" ? "text-red-alliance" : "text-blue-alliance")}>{t.team}</Link> <span className="text-xs text-muted-foreground">{t.name}</span></td>
-                  <td className="text-right tabular-nums">{num(t.np, 0)}<span className="text-xs text-muted-foreground"> ±{num(t.sd, 0)}</span></td>
-                  <td className="text-right tabular-nums">{num(t.auto, 0)}</td><td className="text-right tabular-nums">{num(t.teleop, 0)}</td><td className="text-right tabular-nums">{num(t.endgame, 0)}</td>
-                  <td className="text-right tabular-nums">{num(t.pen, 1)}</td>
-                  <td className="text-right tabular-nums">{t.matches}{t.matches < 3 && <Badge variant="outline" className="ml-1">few</Badge>}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {x.overlapRed != null && x.overlapBlue != null && <ScoreSumLines x={x} overlapRed={x.overlapRed} overlapBlue={x.overlapBlue} />}
+          <RatingsTable x={x} />
         </details>
       </div>
       {/* Full width under both cards: on a wide screen its sections sit side by side (it sizes by its container). */}
       {x.factorSheet && <FactorSheetPanel sheet={x.factorSheet} level={x.level ?? "qual"} className="rounded-2xl bg-card" />}
     </div>
+  );
+}
+
+/** v8: your teams (My team, followed, bookmarked) as chips that fill the next empty box, so a usual matchup is a few taps. */
+function QuickTeams({ taken, onAdd }: { taken: string[]; onAdd: (t: number) => void }) {
+  const { state } = usePersonal();
+  const mine = [...new Set([...(state.myTeam ? [state.myTeam] : []), ...state.tracked.teams, ...state.bookmarks])].slice(0, 8);
+  const left = mine.filter((t) => !taken.includes(String(t)));
+  if (!left.length || !taken.some((v) => !v.trim())) return null;
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-line pt-3" data-quick-teams>
+      <span className="mr-1 text-xs text-text-faint">Your teams</span>
+      {left.map((t) => (
+        <button key={t} type="button" onClick={() => onAdd(t)} aria-label={`Add ${t} to the next empty box`}
+          className="tap-44 inline-flex h-7 items-center gap-1 rounded-full border border-white/[0.12] px-2.5 font-mono text-xs tabular-nums text-text-base transition-[border-color,background-color,scale] duration-150 ease-out hover:bg-white/[0.06] active:scale-[0.97] motion-reduce:active:scale-100">
+          {t === state.myTeam && <Star className="size-3 fill-text-base" aria-hidden />}{t}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * v8's call: the answer first (each side's chance to win, both sides in their full colour (the favourite bolder), and the called
+ * score), the reasons under it, then everything else behind two disclosures: the detail (ranges, bonus points, ratings,
+ * every factor) and the what-if tool. Nothing from the classic card is dropped, only moved down.
+ */
+function CallV8({ x, offlineAsOf, offlineFrom, onSwap, whatIfOpen }: { x: MatchExplanationView; offlineAsOf?: string | null; offlineFrom?: OfflineSource | null; onSwap?: () => void; whatIfOpen: boolean }) {
+  const { update } = usePersonal();
+  const cov = useRangeCoverage();
+  const redFav = x.winProbRed >= 0.5;
+  const even = x.winProbRed === 0.5;
+  const save = () => {
+    update("predictionHistory", (h) => dedupePredictions([{ id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, season: x.season, red: x.red, blue: x.blue, winProbRed: x.winProbRed, predictedRed: x.predictedRed, predictedBlue: x.predictedBlue, tier: x.confidence.tier, savedAt: Date.now() }, ...h]).slice(0, 200));
+    toast.success("Saved to your predictions");
+  };
+  const side = (s: "red" | "blue") => {
+    const fav = even || (s === "red") === redFav;
+    const tone = s === "red" ? "text-red-alliance" : "text-blue-alliance";
+    return (
+      <div className={cn("min-w-0", s === "blue" && "text-right")} data-side={s} data-favourite={fav && !even ? "" : undefined}>
+        <p className={cn("font-mono text-sm tabular-nums [overflow-wrap:anywhere]", tone)}><span className="sr-only">{s === "red" ? "Red" : "Blue"} </span>{(s === "red" ? x.red : x.blue).join(" + ")}</p>
+        <p className={cn("mt-1 font-display text-[2.5rem] leading-none tabular-nums sm:text-[3.25rem]", tone, fav ? "font-semibold" : "font-medium")}>{oddsPct(s === "red" ? x.winProbRed : x.winProbBlue)}</p>
+      </div>
+    );
+  };
+  return (
+    <div className="space-y-4" data-call-v8>
+      <section aria-label="The call" className="rounded-xl border border-line bg-card p-5 max-sm:p-4">
+        {offlineAsOf && <p className="mb-3 flex items-center gap-2 rounded-lg border border-line bg-white/[0.03] px-3 py-2 text-xs text-text-muted"><WifiOff className="size-3.5" aria-hidden />Offline: predicted on this device from {offlineFrom?.kind === "bundle" ? `your ${offlineFrom.name} pack` : "your lite pack"} (data as of {snapshotClock(offlineAsOf)}).</p>}
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <ConfidenceBadge tier={x.confidence.tier} reason={x.confidence.reason} />
+          <div className="flex flex-wrap items-center gap-1.5">
+            {onSwap && <Button variant="ghost" size="sm" onClick={onSwap} aria-label="Swap sides"><ArrowLeftRight className="size-4" /><span className="max-sm:hidden">Swap sides</span></Button>}
+            {offlineAsOf ? <Button variant="outline" size="sm" onClick={() => copyLink()}><Link2 /> Share</Button>
+              : <ShareMatch query={{ season: x.season, red: x.red, blue: x.blue }} pRed={x.winProbRed} pBlue={x.winProbBlue} tier={x.confidence.tier} />}
+            <Button variant="outline" size="sm" onClick={save}><BookmarkPlus /> Save</Button>
+          </div>
+        </div>
+        <div className="mt-4 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-end gap-3">
+          {side("red")}
+          <p className="pb-1.5 text-xs text-text-faint">to win</p>
+          {side("blue")}
+        </div>
+        <WinBar pRed={x.winProbRed} className="mt-3" />
+        <div className="mt-4 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 border-t border-line pt-4" data-called-score>
+          <p className="font-display text-2xl font-semibold tabular-nums text-text-base"><span className="sr-only">Red </span><ScoreRange mean={x.predictedRed} range={x.rangeRed} level={x.rangeLevel} pmClassName="text-sm font-medium text-text-faint" /></p>
+          <p className="text-center text-xs text-text-muted"><span className="block text-text-faint">Called score</span>{marginWords(x.predictedRed, x.predictedBlue)}</p>
+          <p className="text-right font-display text-2xl font-semibold tabular-nums text-text-base"><span className="sr-only">Blue </span><ScoreRange mean={x.predictedBlue} range={x.rangeBlue} level={x.rangeLevel} pmClassName="text-sm font-medium text-text-faint" /></p>
+        </div>
+        {/* Made to be screenshotted: the card says where it came from. */}
+        <div className="mt-4 flex items-center justify-between gap-3 border-t border-line pt-3 text-[0.6875rem] text-text-faint">
+          <span className="flex items-center gap-1.5"><img src="/mark-white.webp" alt="" className="size-4" /> FTC Control Scout</span>
+          <span className="tabular-nums">{seasonLabel(x.season)} · engine v{x.engineVersion}</span>
+        </div>
+      </section>
+      <section aria-labelledby="call-why" className="rounded-xl border border-line bg-card p-5 max-sm:p-4" data-call-why>
+        <h2 id="call-why" className="mb-3 text-base font-semibold text-text-base">Why</h2>
+        <FactorList factors={x.factors} reasons={x.reasons} />
+        {x.history ? <PairHistoryLine history={x.history} className="mt-1.5" /> : null}
+        <p className="mt-3 text-xs text-text-faint">{even ? "An even call" : `${redFav ? "Red" : "Blue"} is favoured, not certain`}: a probability from current ratings, including the penalties each side tends to give away.</p>
+        <CalibrationLine pRed={x.winProbRed} className="mt-1.5" />
+        <PredictionBasis kind={matchBasis(x.level)} className="mt-1.5" />
+      </section>
+      <Disclosure title="More detail" hint="ranges, bonus points, each robot's rating, every factor" testid="call-detail">
+        <div className="space-y-5">
+          <p className="text-xs text-text-muted">Called margin: <span className="tabular-nums" data-testid="lab-margin">{marginText(x.predictedRed, x.predictedBlue)}</span>. <span className="tabular-nums">{levelPct(x.rangeLevel)} ranges: Red {x.rangeRed[0]}–{x.rangeRed[1]}, Blue {x.rangeBlue[0]}–{x.rangeBlue[1]}.</span> <span data-testid="range-coverage">{rangeCoverageLine(cov) ?? `± is the stated ${levelPct(x.rangeLevel)} range.`}</span> <Link to="/methodology#ranges" className="underline">How often it holds</Link></p>
+          {x.bonus && <BonusOdds season={x.season} bonus={x.bonus} />}
+          <div>
+            <h3 className="text-sm font-semibold text-text-base">The robots' ratings</h3>
+            <div className="overflow-x-auto"><RatingsTable x={x} /></div>
+            <p className="mt-3 text-xs text-text-faint">Factors are an exact split of the rating gap by game phase{x.marginScale != null && x.marginScale !== 1 ? `; the called margin is ${x.marginScale} of that gap (margin calibration)` : ""}{x.history ? "; the history line is these robots' real record together or against each other" : ""}. <Link to="/methodology#factors" className="underline">More</Link></p>
+          </div>
+          {x.factorSheet && <FactorSheetPanel sheet={x.factorSheet} level={x.level ?? "qual"} className="rounded-xl" />}
+        </div>
+      </Disclosure>
+      <Disclosure title="What if?" hint="swap one robot and see the call move" open={whatIfOpen} testid="call-what-if" icon={FlaskConical}>
+        <WhatIf base={x} offline={offlineFrom} bare />
+      </Disclosure>
+    </div>
+  );
+}
+
+/** v8's quiet disclosure: a card whose header row opens it (44px), the chevron turning; the body under a hairline. */
+function Disclosure({ title, hint, open, testid, icon: Icon, children }: { title: string; hint?: string; open?: boolean; testid?: string; icon?: typeof Users; children: React.ReactNode }) {
+  return (
+    <details className="group rounded-xl border border-line bg-card" open={open} data-testid={testid}>
+      <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-xl px-5 py-3 text-sm transition-colors duration-150 hover:bg-white/[0.02] max-sm:px-4 [&::-webkit-details-marker]:hidden">
+        {Icon && <Icon className="size-4 shrink-0 text-text-muted" aria-hidden />}
+        <span className="font-semibold text-text-base">{title}</span>
+        {hint && <span className="min-w-0 truncate text-text-faint max-sm:hidden">{hint}</span>}
+        <ChevronDown className="ml-auto size-4 shrink-0 text-text-muted transition-transform duration-200 ease-out group-open:rotate-180 motion-reduce:transition-none" aria-hidden />
+      </summary>
+      <div className="border-t border-line p-5 max-sm:p-4">{children}</div>
+    </details>
   );
 }
 
@@ -581,7 +813,7 @@ function SavedPredictions() {
       <ul className="grid gap-2 sm:grid-cols-2">
         {h.slice(0, all ? 12 : 4).map((p) => (
           <li key={p.id}>
-            <Link to={predictHref({ mode: "match", season: p.season, red: p.red, blue: p.blue })} className="lift block rounded-xl border border-border bg-card p-3 text-sm">
+            <Link to={predictHref({ mode: "match", season: p.season, red: p.red, blue: p.blue })} className={cn("block rounded-xl border border-border bg-card p-3 text-sm", isV8() ? "border-line transition-colors duration-150 hover:bg-white/[0.03]" : "lift")}>
               <div className="flex items-center justify-between gap-2"><span><span className="text-red-alliance">{p.red.join("+")}</span> vs <span className="text-blue-alliance">{p.blue.join("+")}</span></span><span className="text-xs text-muted-foreground">{seasonLabel(p.season)}</span></div>
               <WinBar pRed={p.winProbRed} size="sm" className="mt-2" />
               <p className="mt-1 text-xs text-muted-foreground">Red {oddsPct(p.winProbRed)} · {p.predictedRed}–{p.predictedBlue} · {p.tier} · saved {dayDate(p.savedAt)}</p>
@@ -632,7 +864,7 @@ function AdvancementLab() {
   const focusEvent = () => requestAnimationFrame(() => document.getElementById("advancement-event")?.focus());
   return (
     <div className="space-y-6 max-sm:space-y-4">
-      <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+      <div className={cn("rounded-2xl border border-border bg-card p-4 sm:p-5", V8_CARD)}>
         <SeasonToggle predictOnly value={season} onChange={(s) => set({ season: String(s), code: null }, true)} />
         <div className="mt-4 grid items-start gap-4 md:grid-cols-[minmax(0,1fr)_13rem]">
           <div className="min-w-0">
@@ -644,7 +876,7 @@ function AdvancementLab() {
             <TeamInput label="Team (optional)" value={teamText} onChange={(v) => { setTeamText(v); set({ team: v || null }); }} />
             {teamFailed && (
               <p role="alert" className="mt-1.5 text-xs text-muted-foreground">
-                Couldn't load {teamNo}'s events. <button type="button" className="font-medium text-accent-text underline underline-offset-2" onClick={() => teamEvents.reload()}>Try again</button>
+                Couldn't load {teamNo}'s events. <button type="button" className="font-medium text-accent-text underline underline-offset-2 v8:text-text-base" onClick={() => teamEvents.reload()}>Try again</button>
               </p>
             )}
           </div>
@@ -687,7 +919,7 @@ function AdvancementResult({ season, code, team, askedSeason, onSeason, onClearE
   if (check.status === "error") return <ErrorState error={check.error} onRetry={check.reload} />;
   if (check.status !== "ok") {
     return (
-      <div role="alert" className="rounded-2xl border border-border bg-card p-5 max-sm:p-4">
+      <div role="alert" className={cn("rounded-2xl border border-border bg-card p-5 max-sm:p-4", V8_CARD)}>
         <p className="font-medium text-foreground">{check.status === "elsewhere" ? `${code} isn't a ${seasonLabel(season)} event` : `No event ${code} in a season with predictions`}</p>
         <p className="mt-1 text-sm text-muted-foreground">
           {check.status === "elsewhere" ? `It's from ${seasonLabel(check.season)}.` : `Predictions cover ${seasonLabel(Math.min(...searched))} onward. The code may be mistyped, or the event is from an earlier season (its page still has results).`}
@@ -704,7 +936,7 @@ function AdvancementResult({ season, code, team, askedSeason, onSeason, onClearE
   return (
     <section aria-label={`Advancement odds at ${e.name}`} className="space-y-4">
       {moved?.code === code && moved.to === season && (
-        <p role="status" className="rounded-lg border border-info/30 bg-info/[0.06] px-3 py-2 text-sm">{code} is a {seasonLabel(season)} event, so this shows {seasonLabel(season)}.</p>
+        <p role="status" className="rounded-lg border border-info/30 bg-info/[0.06] px-3 py-2 text-sm v8:border-line v8:bg-white/[0.03] v8:text-text-muted">{code} is a {seasonLabel(season)} event, so this shows {seasonLabel(season)}.</p>
       )}
       {/* The picker above already shows the event in full (name, dates, place, type): no second copy here, just the way to its page. */}
       <div className="flex items-center justify-between gap-3">

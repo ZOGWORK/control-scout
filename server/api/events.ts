@@ -40,6 +40,7 @@ const SUMMARY_SQL = `SELECT e.season, e.code, e.name, e.type, e.division_code, e
 /** Listed event types that have no matches (kept out of event lists and counts unless asked for). */
 export { NO_MATCH_TYPES } from "../../src/shared/labels.js";
 import { NO_MATCH_TYPES } from "../../src/shared/labels.js";
+import { plainText } from "../../src/shared/format.js";
 
 export interface EventListFilter { season: number; from?: string; to?: string; q?: string; type?: string; region?: string; limit?: number; hideNoMatch?: boolean }
 
@@ -150,7 +151,8 @@ export async function eventDetail(season: number, code: string): Promise<EventDe
     matches,
     alliances: alliances.map((a) => ({ number: a.number, name: a.name, captain: a.captain, pick1: a.pick1, pick2: a.pick2, backup: a.backup })),
     bracket: f ? eventBracket(season, code, f, await liveVersion(season), field, matches, alliances) : null,
-    awards: awards.map((a) => ({ type: a.type, placement: a.placement, team: a.team, name: a.name })),
+    // FIRST's names can carry markup ("<i>FIRST</i>®"): plain text out, for rows stored before ingest cleaned them.
+    awards: awards.map((a) => ({ type: a.type, placement: a.placement, team: a.team, name: a.name == null ? null : plainText(a.name) || null })),
     advancement: adv ? advancementOf(adv) : null,
     forecastUnsupported: isLegacy(season) ? LEGACY_NOTE : f ? f.unsupportedReason(input) : "Predictions are still loading.",
     // Without FIRST credentials only the 5-minute FTC Scout fetch runs, so that's the cadence the page shows.

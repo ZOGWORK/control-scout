@@ -26,8 +26,9 @@ function serviceWorker(): Plugin {
       // then cached) when it's first used, never downloaded up front for everyone.
       const optional = Object.values(bundle).filter((b) => b.type === "chunk" && b.name === "web-vitals").map((b) => `/${b.fileName}`);
       const built = all.filter((f) => !offline.includes(f) && !optional.includes(f));
-      // The brand images the shell shows (sidebar logo, the bare mark on the 404 page, home wordmark, favicon): offline too.
-      const brand = ["/logo-56.webp", "/mark.webp", "/wordmark.webp", "/favicon.ico"];
+      // The brand images the shell shows (sidebar logo, the bare mark on the 404 page, home wordmark, favicon): offline too,
+      // the new look's and the classic look's (public/legacy/) alike.
+      const brand = ["/logo-56.webp", "/mark.webp", "/mark-white.webp", "/wordmark.webp", "/favicon.ico", "/legacy/logo-56.webp", "/legacy/mark.webp"];
       // Not /index.html: the server redirects it to the canonical "/" (a redirect can't be precached cross-host, nor answer a navigation).
       const files = [...new Set(["/", ...built, ...pub("fonts"), "/manifest.webmanifest", ...brand])];
       const hash = createHash("sha256");

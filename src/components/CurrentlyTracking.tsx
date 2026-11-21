@@ -11,6 +11,7 @@ import { dateRange, seasonLabel } from "../lib/format";
 import type { EventListItem } from "../shared/api";
 import { EventStatusChip, LiveDot } from "./EventChips";
 import { cn } from "./cn";
+import { isV8 } from "../lib/v8";
 import { lookupPath, resolveTracked, TRACKED_LOOKUPS, TRACKED_SHOWN, type TrackedRef } from "../pages/trackedEvents";
 
 type Answer = (path: string, events: EventListItem[] | null) => void;
@@ -70,12 +71,13 @@ export function CurrentlyTracking({ season, current, events, listSettled, classN
     ...unknown.map((r) => ({ kind: "unknown" as const, r })),
   ];
   const shown = all ? items : items.slice(0, TRACKED_SHOWN);
+  const v8 = isV8();
   const more = items.length - shown.length;
   return (
     <section aria-label="Currently tracking" className={cn("min-w-0", className)} data-currently-tracking>
       {lookupEls}
-      <h2 className="mb-2 flex items-center gap-1.5 text-sm font-semibold">
-        <Eye className="size-4 text-accent-text" aria-hidden />Currently tracking:
+      <h2 className="mb-2 flex items-center gap-1.5 text-sm font-semibold v8:text-text-base">
+        <Eye className="size-4 text-accent-text v8:text-text-faint" aria-hidden />{v8 ? "Tracking" : "Currently tracking:"}
         <span className="font-normal tabular-nums text-muted-foreground">{total} event{total === 1 ? "" : "s"}</span>
       </h2>
       {/* A phone scrolls the row sideways (edge to edge); wider screens lay it out as a grid. No scroll snapping:
@@ -91,7 +93,7 @@ export function CurrentlyTracking({ season, current, events, listSettled, classN
         {more > 0 && (
           <li className="shrink-0 sm:justify-self-start">
             <button type="button" onClick={() => setAll(true)}
-              className="flex h-full min-h-[4.75rem] items-center rounded-xl border border-dashed border-line px-4 text-sm font-semibold text-muted-foreground hover:border-accent/60 hover:text-foreground">
+              className="flex h-full min-h-[4.75rem] items-center rounded-xl border border-dashed border-line px-4 text-sm font-semibold text-muted-foreground hover:border-accent/60 hover:text-foreground v8:hover:border-white/20">
               and {more} more
             </button>
           </li>
@@ -101,10 +103,13 @@ export function CurrentlyTracking({ season, current, events, listSettled, classN
   );
 }
 
+// v8: no hover lift (brief §4.2), a neutral hairline (live is the red dot, not a red frame), and a faint fill on hover.
+const V8_CARD = "v8:border-line v8:transition-colors v8:duration-150 v8:hover:translate-y-0 v8:hover:shadow-none v8:hover:border-white/[0.12] v8:still-hover:bg-white/[0.02]";
+
 /** A link to the event's page, or (quick-pick mode) a button that picks it, pressed while it's the one picked. */
 function CardShell({ season, code, onPick, picked, className, children }: { season: number; code: string; onPick?: (season: number, code: string) => void; picked?: boolean; className: string; children: ReactNode }) {
   return onPick
-    ? <button type="button" aria-pressed={!!picked} onClick={() => onPick(season, code)} className={cn(className, "w-full text-left", picked && "border-accent/70 bg-accent/[0.08]")}>{children}</button>
+    ? <button type="button" aria-pressed={!!picked} onClick={() => onPick(season, code)} className={cn(className, "w-full text-left", picked && "border-accent/70 bg-accent/[0.08] v8:border-accent/60 v8:bg-white/[0.04]")}>{children}</button>
     : <Link to={`/events/${season}/${code}`} className={className}>{children}</Link>;
 }
 
@@ -112,14 +117,14 @@ function TrackedCard({ e, current, onPick, picked }: { e: EventListItem; current
   const live = e.status === "live";
   return (
     <CardShell season={e.season} code={e.code} onPick={onPick} picked={picked}
-      className={cn("lift group flex h-full flex-col gap-1.5 rounded-xl border bg-card px-3 py-2.5", live ? "border-danger/40" : "border-border")}>
+      className={cn("lift group flex h-full flex-col gap-1.5 rounded-xl border bg-card px-3 py-2.5", live ? "border-danger/40" : "border-border", V8_CARD)}>
       <span className="flex items-center gap-2 text-xs">
         <EventStatusChip status={e.status} className="px-2 py-0.5" />
         {/* On now with a stream to watch on its page, as on the cards below. */}
         {live && e.stream && <span className="inline-flex items-center gap-1 font-bold text-danger" title="Live stream on the event page" data-stream-live><LiveDot />LIVE<span className="sr-only"> stream</span></span>}
         {e.season !== current && <span className="ml-auto tabular-nums text-muted-foreground">{seasonLabel(e.season)}</span>}
       </span>
-      <span className="truncate text-sm font-medium leading-snug group-hover:text-accent-text" title={e.name}>{e.name}</span>
+      <span className="truncate text-sm font-medium leading-snug group-hover:text-accent-text v8:group-hover:text-text-base" title={e.name}>{e.name}</span>
       <span className="flex items-center gap-1.5 text-xs text-muted-foreground"><CalendarDays className="size-3.5 shrink-0" aria-hidden />{dateRange(e.start, e.end)}</span>
     </CardShell>
   );
@@ -128,7 +133,7 @@ function TrackedCard({ e, current, onPick, picked }: { e: EventListItem; current
 /** A tracked event we couldn't find in any list: still a link to its page. */
 function UnknownCard({ r, onPick, picked }: { r: TrackedRef; onPick?: (season: number, code: string) => void; picked?: boolean }) {
   return (
-    <CardShell season={r.season} code={r.code} onPick={onPick} picked={picked} className="lift group flex h-full flex-col justify-center gap-1 rounded-xl border border-border bg-card px-3 py-2.5">
+    <CardShell season={r.season} code={r.code} onPick={onPick} picked={picked} className={cn("lift group flex h-full flex-col justify-center gap-1 rounded-xl border border-border bg-card px-3 py-2.5", V8_CARD)}>
       <span className="truncate font-mono text-sm font-medium group-hover:text-accent-text">{r.code}</span>
       <span className="text-xs text-muted-foreground">{seasonLabel(r.season)} season</span>
     </CardShell>

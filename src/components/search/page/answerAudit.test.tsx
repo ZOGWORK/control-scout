@@ -11,6 +11,9 @@ import type { SearchCard, SearchVideo, TeamProfile } from "../../../shared/api";
 import type { StatAnswer, StatBlock, StatMatchRow } from "../../../shared/searchStat";
 import { SEARCH_PALETTE } from "../../../lib/textTones";
 import type { Appearance } from "./records";
+/** A class list as v8 off reads it (v8 adds its own `v8:` classes after these: ./v8tone.ts). */
+const offV8 = (c: string) => c.split(" ").filter((t) => !t.startsWith("v8:")).join(" ");
+
 
 // A team's page data, loaded (the card's team header, season tiles and events draw with it).
 const profile = (team: number, season: number): TeamProfile => ({
@@ -252,13 +255,13 @@ describe("every card kind and block kind has its colour", () => {
   it("a headline in its colour: the team it leads with, its alliance's side, a winning alliance, a ranked list's top team, a count", () => {
     const h = (value: string, over: Partial<StatAnswer> = {}) => ({ intent: "x", family: "stat" as const, headline: { value, label: "" }, ...over });
     const two = [{ number: 4215 }, { number: 7149 }], four = [...two, { number: 23268 }, { number: 6980 }];
-    expect(headlineTone(h("7149 favoured"), two)).toBe("text-team-b-text");
-    expect(headlineTone(h("23268 & 6980 favoured", { split: 2 }), four)).toBe("text-team-b-text");
-    expect(headlineTone(h("4215 & 7149 favoured", { split: 2 }), four)).toBe("text-team-a");
-    expect(headlineTone(h("Even"), two)).toBe("text-foreground");
-    expect(headlineTone(h("30030 Exodus", { intent: "winning-alliance", family: "event" }))).toBe(SEARCH_PALETTE.winning.text);
-    expect(headlineTone(h("19163 NIS 2", { family: "leaderboard" }))).toBe("text-team-a");
-    expect(headlineTone(h("190 points", { family: "superlative" }))).toBe(SEARCH_PALETTE.count.text);
+    expect(offV8(headlineTone(h("7149 favoured"), two)!)).toBe("text-team-b-text");
+    expect(offV8(headlineTone(h("23268 & 6980 favoured", { split: 2 }), four)!)).toBe("text-team-b-text");
+    expect(offV8(headlineTone(h("4215 & 7149 favoured", { split: 2 }), four)!)).toBe("text-team-a");
+    expect(offV8(headlineTone(h("Even"), two)!)).toBe("text-foreground");
+    expect(offV8(headlineTone(h("30030 Exodus", { intent: "winning-alliance", family: "event" }))!)).toBe(SEARCH_PALETTE.winning.text);
+    expect(offV8(headlineTone(h("19163 NIS 2", { family: "leaderboard" }))!)).toBe("text-team-a");
+    expect(offV8(headlineTone(h("190 points", { family: "superlative" }))!)).toBe(SEARCH_PALETTE.count.text);
   });
   it("a colour on the card itself counts: an amber card of plain words isn't grey", () => {
     const d = document.createElement("article");
