@@ -49,7 +49,8 @@ export function videoState(m: CoverageMatch): string {
   if (!v) return m.reason ?? "unexplained";
   if (v.earlyStart) return "starts inside the match before, in the video";
   if (!v.checked) return "not yet checked against the video";
-  return v.seenAt != null ? "seen in the video, no clip (a finding)" : "checked in the video, no start found";
+  if (v.seenAt != null) return "seen in the video, no clip (a finding)";
+  return v.outside ? "checked in the video, not in the recording" : "checked in the video, no start found";
 }
 
 /** The last check pass, as the owner console shows it (kv). */

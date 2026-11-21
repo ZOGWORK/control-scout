@@ -100,7 +100,7 @@ describe("with publicAccess off", () => {
     expect((await call("/assets/index-AAAA1111.js")).status).toBe(200);
     expect((await call("/robots.txt")).status).toBe(200);
     // The page's own look: the logo, the mark and the fonts it draws with.
-    for (const p of ["/logo-56.webp", "/mark.webp", "/fonts/Inter.woff2"]) expect((await call(p)).status, p).not.toBe(503);
+    for (const p of ["/logo-56.webp", "/legacy/logo-56.webp", "/legacy/mark.webp", "/mark.webp", "/mark-white.webp", "/fonts/Inter.woff2"]) expect((await call(p)).status, p).not.toBe(503);
   });
 
   it("a signed-in account gets the site, every answer private", async () => {

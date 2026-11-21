@@ -31,6 +31,7 @@ import { tierPhrase } from "../shared/tierWords";
 import { cn } from "./cn";
 import { hasTeamPage } from "../shared/teamPages";
 import { rowIcon, rpIcon } from "./BreakdownIcons";
+import { useIsV8 } from "../lib/v8";
 
 type Side = "red" | "blue";
 const SIDES: Side[] = ["red", "blue"];
@@ -109,7 +110,9 @@ const FADED: Record<Side, string> = {
 const NAME: Record<Side, string> = { red: "Red", blue: "Blue" };
 
 /** A match video's button: filled in the video colour, 44 px tall on a touch screen. */
-const WATCH = "min-h-9 gap-1.5 rounded-lg bg-video px-3 text-sm font-semibold text-on-video shadow-sm hover:opacity-90 max-sm:min-h-11 [&_svg]:size-4";
+const WATCH = "min-h-9 gap-1.5 rounded-lg bg-video px-3 text-sm font-semibold text-on-video shadow-sm hover:opacity-90 max-sm:min-h-11 [&_svg]:size-4"
+  // v8: no coloured buttons (brief §5): the primary look, a white/10% fill with a hairline, and the 0.97 press.
+  + " v8:border v8:border-white/[0.08] v8:bg-white/10 v8:font-medium v8:text-text-base v8:shadow-none v8:transition-[background-color,scale] v8:duration-150 v8:hover:opacity-100 v8:hover:bg-white/[0.14] v8:active:scale-[0.97] motion-reduce:active:scale-100";
 
 /** The whole match in one glance: the score and the margin in the biggest type on the page, then which match
  *  and when, muted, with its links as icons (their names on hover, and for screen readers). */
@@ -138,7 +141,7 @@ export function Headline({ d, eventName, href }: { d: MatchDetail; eventName?: s
           button says it needs a connection instead of opening a player that can't load. */}
       {(m.clip || m.video) && (
         <div className="mt-3 flex flex-wrap gap-2" data-testid="match-video-buttons">
-          {m.clip && <ClipLink clip={m.clip} label={m.label} matchKey={m.key} className={WATCH} offline={noVideo}>{noVideo ? "Match video · Needs a connection" : <>Watch the match · {clipTime(m.clip.t)}</>}</ClipLink>}
+          {m.clip && <ClipLink clip={m.clip} label={m.label} matchKey={m.key} className={WATCH} offline={noVideo}>{noVideo ? "Match video · Needs a connection" : <>Watch the match · {clipTime(m.clip.t)}{m.clip.youtubeOnly ? " · on YouTube" : ""}</>}</ClipLink>}
           {m.video && <MatchVideoLink url={m.video} label={m.label} matchKey={m.key} className={WATCH} offline={noVideo}>{noVideo ? (m.clip ? "Official video · Needs a connection" : "Match video · Needs a connection") : m.clip ? "Official video" : "Watch the match"}</MatchVideoLink>}
         </div>
       )}
@@ -153,7 +156,7 @@ export function Headline({ d, eventName, href }: { d: MatchDetail; eventName?: s
         <span className="ml-auto flex items-center gap-1">
           <Tooltip>
             <TooltipTrigger asChild>
-              <Link to={matchReportHref(m)} className={cn(nav, "text-accent-text")} aria-label={`Know your match: the pre-match report for ${m.label}`}><ClipboardList className="size-4" aria-hidden /></Link>
+              <Link to={matchReportHref(m)} className={cn(nav, "text-accent-text v8:text-text-muted")} aria-label={`Know your match: the pre-match report for ${m.label}`}><ClipboardList className="size-4" aria-hidden /></Link>
             </TooltipTrigger>
             <TooltipContent>Know your match: the pre-match report</TooltipContent>
           </Tooltip>
@@ -172,8 +175,8 @@ function MatchVideoSection({ m }: { m: MatchView }) {
     // Mounted only while open: closing it unmounts the recorder, which stops (and saves) any recording and releases the camera.
     <details className="group mt-6" onToggle={(e) => setOpen((e.currentTarget as HTMLDetailsElement).open)}>
       {/* Saved videos of this match: as loud as the watch button; none yet: a quiet row to add one. */}
-      <summary className={cn("flex min-h-11 w-fit cursor-pointer select-none items-center gap-2 [&::-webkit-details-marker]:hidden", saved > 0 ? "rounded-lg bg-video px-3 text-sm font-semibold text-on-video" : "text-xs text-text-muted hover:text-text-base")} title="Record, add a file or a YouTube link">
-        <Video className={cn("size-4", saved > 0 ? "" : "text-accent-text")} aria-hidden />{saved > 0 ? `Your videos (${saved})` : "Video"}<span className="sr-only"> for {m.label}: record, add a file or a YouTube link</span><ChevronDown className="size-3.5 transition-transform group-open:rotate-180 motion-reduce:transition-none" aria-hidden />
+      <summary className={cn("flex min-h-11 w-fit cursor-pointer select-none items-center gap-2 [&::-webkit-details-marker]:hidden", saved > 0 ? "rounded-lg bg-video px-3 text-sm font-semibold text-on-video v8:bg-white/10 v8:font-medium v8:text-text-base" : "text-xs text-text-muted hover:text-text-base")} title="Record, add a file or a YouTube link">
+        <Video className={cn("size-4", saved > 0 ? "" : "text-accent-text v8:text-text-muted")} aria-hidden />{saved > 0 ? `Your videos (${saved})` : "Video"}<span className="sr-only"> for {m.label}: record, add a file or a YouTube link</span><ChevronDown className="size-3.5 transition-transform group-open:rotate-180 motion-reduce:transition-none" aria-hidden />
       </summary>
       {open && <div className="pt-2"><VideoPanel matchRef={matchRef(m)} label={`${m.code} ${m.label}`} /></div>}
     </details>
@@ -270,6 +273,23 @@ export function rowLead(x: BreakdownRow): { side: Side | null; text: string } {
   return { side, text: `${who} +${by}` };
 }
 
+/** v8's paired bar for one breakdown row (brief §7.5): red grows left and blue grows right from a shared zero in the
+ *  middle, each as long as its value against `max` (the largest value the table's bars share), so phases compare
+ *  across rows as well as across the two sides. Decoration only: the numbers beside it carry the values. */
+export function PairedBar({ red, blue, max, className }: { red: number | null; blue: number | null; max: number; className?: string }) {
+  const w = (v: number | null) => `${max > 0 && v != null && v > 0 ? Math.min(100, (v / max) * 100) : 0}%`;
+  return (
+    <span aria-hidden className={cn("grid grid-cols-2 items-center gap-px", className)} data-paired-bar>
+      <span className="flex h-1.5 justify-end overflow-hidden rounded-l-full bg-white/[0.04]"><span className="h-full rounded-l-full bg-red-alliance" style={{ width: w(red) }} data-bar="red" /></span>
+      <span className="flex h-1.5 overflow-hidden rounded-r-full bg-white/[0.04]"><span className="h-full rounded-r-full bg-blue-alliance" style={{ width: w(blue) }} data-bar="blue" /></span>
+    </span>
+  );
+}
+
+/** The largest value a table's bars share: its top-level rows that aren't the total, counts or derived sums. */
+export const barMax = (rows: BreakdownRow[]) =>
+  Math.max(0, ...rows.filter((x) => !x.total && !x.count && (x.depth ?? 0) === 0 && x.label !== "No penalties").flatMap((x) => [x.red ?? 0, x.blue ?? 0]));
+
 /** A sheet's rows grouped by phase: each top-level row (Auto, TeleOp, fouls, the total) with what it's made of. */
 export type BreakdownGroup = { row: BreakdownRow; parts: BreakdownRow[] };
 export function groupRows(rows: BreakdownRow[]): BreakdownGroup[] {
@@ -288,7 +308,10 @@ const GRID = "grid grid-cols-[minmax(0,1fr)_3.5rem_6.5rem_3.5rem] items-center g
  *  colour of the side it favours. No bars: for two numbers, the difference says it faster. What each phase is
  *  made of sits under it, one tap away (collapsed on load). */
 export function Breakdown({ d }: { d: MatchDetail }) {
-  const groups = groupRows(breakdownRows(d));
+  const rows = breakdownRows(d);
+  const groups = groupRows(rows);
+  // v8 only: each phase's paired bar (with v8 off the table is exactly today's: no bars, the difference compares).
+  const max = useIsV8() ? barMax(rows) : undefined;
   const [open, setOpen] = useState<ReadonlySet<number>>(() => new Set());
   const toggle = (i: number) => setOpen((o) => { const n = new Set(o); if (n.has(i)) n.delete(i); else n.add(i); return n; });
   const id = `breakdown-${d.match.code}-${d.match.key.replace(/:/g, "-")}`;
@@ -297,7 +320,7 @@ export function Breakdown({ d }: { d: MatchDetail }) {
       {/* The column names say what the table is: no title. */}
       <TableHead first="Phase" middle="Difference" />
       <ul className={TABLE}>
-        {groups.map((g, i) => <Phase key={`${g.row.label}:${i}`} g={g} open={open.has(i)} onToggle={() => toggle(i)} id={`${id}-${i}`} />)}
+        {groups.map((g, i) => <Phase key={`${g.row.label}:${i}`} g={g} open={open.has(i)} onToggle={() => toggle(i)} id={`${id}-${i}`} max={max} />)}
       </ul>
     </section>
   );
@@ -338,7 +361,7 @@ const ROW = cn(GRID, "min-h-[44px] py-2");
 
 const rowData = (r: BreakdownRow) => ({ title: r.note, "data-depth": r.depth ?? 0, "data-label": r.label, "data-red": r.red ?? "", "data-blue": r.blue ?? "" });
 
-function Phase({ g, open, onToggle, id }: { g: BreakdownGroup; open: boolean; onToggle: () => void; id: string }) {
+function Phase({ g, open, onToggle, id, max }: { g: BreakdownGroup; open: boolean; onToggle: () => void; id: string; max?: number }) {
   const x = g.row;
   const row = cn(GRID, "min-h-[44px] w-full py-2 text-left");
   return (
@@ -346,9 +369,9 @@ function Phase({ g, open, onToggle, id }: { g: BreakdownGroup; open: boolean; on
       {g.parts.length ? (
         <button type="button" onClick={onToggle} aria-expanded={open} aria-controls={id}
           className={cn(row, "cursor-pointer outline-none hover:bg-text-base/[0.03] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/60")} {...rowData(x)}>
-          <Cells x={x} open={open} />
+          <Cells x={x} open={open} max={max} />
         </button>
-      ) : <div className={row} {...rowData(x)}><Cells x={x} /></div>}
+      ) : <div className={row} {...rowData(x)}><Cells x={x} max={max} /></div>}
       {g.parts.length > 0 && open && (
         <ul id={id} className="divide-y divide-border/60 border-t border-border/60" aria-label={`${x.label}, what it's made of`}>
           {g.parts.map((p, i) => <li key={`${p.label}:${i}`} className={cn(GRID, "min-h-9 py-1.5 pl-6")} {...rowData(p)}><Cells x={p} /></li>)}
@@ -358,7 +381,7 @@ function Phase({ g, open, onToggle, id }: { g: BreakdownGroup; open: boolean; on
   );
 }
 
-function Cells({ x, open }: { x: BreakdownRow; open?: boolean }) {
+function Cells({ x, open, max }: { x: BreakdownRow; open?: boolean; max?: number }) {
   const sub = x.depth === 1;
   const Icon = rowIcon(x.label);
   const lead = rowLead(x);
@@ -380,6 +403,8 @@ function Cells({ x, open }: { x: BreakdownRow; open?: boolean }) {
       {value("red")}
       <span className={cn("text-center tabular-nums", sub ? "text-[11px]" : "text-xs", lead.side ? cn(TONE[lead.side].text, !sub && "font-semibold") : "text-text-muted")} data-testid="lead">{lead.text}</span>
       {value("blue")}
+      {/* v8: the row's paired bar under its cells, the phases on one zero-based scale. */}
+      {max != null && !sub && !x.total && !x.count && x.label !== "No penalties" && <PairedBar red={x.red} blue={x.blue} max={max} className="col-span-4 pt-1" />}
     </>
   );
 }

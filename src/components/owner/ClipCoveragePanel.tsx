@@ -147,7 +147,7 @@ function Progress({ d }: { d: OwnerClipCoverage }) {
       <p className="text-xs text-muted-foreground" data-coverage-pending>
         {p ? <>Checked {ago(p.at)}</> : "No check pass yet: the next one runs within 5 minutes"}
         {p?.pending != null && <> · <span className="tabular-nums font-medium text-text-base">{n(p.pending)}</span> waiting for their video check
-          {moved != null && moved !== 0 && <span className={cn("ml-1 font-medium tabular-nums", moved > 0 ? "text-success" : "text-text-muted")}>{moved > 0 ? `↓ ${n(moved)}` : `↑ ${n(-moved)}`}</span>}</>}
+          {moved != null && moved !== 0 && <span className={cn("ml-1 font-medium tabular-nums", moved > 0 ? "text-success v8:text-emerald-400" : "text-text-muted")}>{moved > 0 ? `↓ ${n(moved)}` : `↑ ${n(-moved)}`}</span>}</>}
       </p>
     </div>
   );
@@ -368,7 +368,9 @@ function EventCard({ e, only, byLabel, onReview }: { e: OwnerCoverageEvent; only
 
 /** A card's long words, opened on request: its category and why, its videos and days, the matches by reason. */
 function Details({ e }: { e: OwnerCoverageEvent }) {
-  const groups = missingGroups(e.missing);
+  // A match its video's frames were read for says what they showed; the clock's own reason (a video shorter than its
+  // broadcast …) is kept beside it, so the owner still sees why the clock alone couldn't place it.
+  const groups = missingGroups(e.missing.map((m) => (m.clock && m.clock !== m.why ? { ...m, why: `${m.why}. The clock: ${m.clock}` } : m)));
   return (
     <div className="grid gap-2 border-t border-line pt-2 text-xs">
       <p data-triage-why><span className="mr-1.5 inline-flex items-center rounded-full border border-line px-2 py-0.5 font-medium">{TRIAGE_LABEL[e.triage]}</span><span className="text-muted-foreground">{e.triageWhy}</span></p>
@@ -379,7 +381,7 @@ function Details({ e }: { e: OwnerCoverageEvent }) {
             <li key={v.videoId}>
               <a href={watchUrl(v.videoId)} target="_blank" rel="noreferrer noopener" title={v.why ?? v.basis}
                 className={cn("inline-flex min-h-7 items-center gap-1 rounded-full border px-2.5 hover:underline", TOUCH, tone === "short" ? "border-warning/50 bg-warning/[0.07]" : "border-line")}>
-                {tone === "done" && <Check className="size-3.5 text-success" aria-hidden />}
+                {tone === "done" && <Check className="size-3.5 text-success v8:text-emerald-400" aria-hidden />}
                 {v.label} <span className="tabular-nums">{v.clipped}/{v.matches}</span><ExternalLink className="size-3" aria-hidden />
               </a>
             </li>

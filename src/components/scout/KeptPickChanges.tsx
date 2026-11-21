@@ -48,7 +48,7 @@ function Row({ f, readOnly, onRetry, onDiscard }: { f: FailedChange; readOnly: b
         <p className="text-xs text-text-muted">{rowNote(f)}</p>
         {c?.kind === "changed" && (
           <p className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
-            <Chips teams={c.added} sign="+" tone="bg-success/15 text-success" what="Added since" />
+            <Chips teams={c.added} sign="+" tone="bg-success/15 v8:bg-emerald-400/15 text-success v8:text-emerald-400" what="Added since" />
             <Chips teams={c.removed} sign="−" tone="bg-destructive/15 text-destructive" what="Removed since" />
             <Chips teams={c.moved} sign="↕" tone="bg-accent/15 text-accent-text" what="Moved since" />
           </p>
