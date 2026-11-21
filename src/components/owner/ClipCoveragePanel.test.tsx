@@ -53,6 +53,8 @@ const AUTO = (): OwnerAutoReads => ({
     source: "amelia 2026-11-21T10-00-00", checked: "2026-11-21", problems: ["Q7: a live clip dropped without a frame naming another match"],
     changes: [{ label: "Q7", what: "pulled", from: 4200, to: null }, { label: "Q12", what: "added", from: null, to: 6000 }], before: 20, after: 20, at: 4195, liveFrom: "code",
   }],
+  reviewTotal: 1,
+  reviews: [{ videoId: "revVideo001", season: 2025, code: "USTXHOQ", eventName: "Houston Qualifier", label: "Q14", t: 5400, why: "its clip's opening shows Q13, the match before", checked: "2026-11-18" }],
 });
 vi.mock("../../lib/api", async (orig) => ({
   ...(await orig<typeof import("../../lib/api")>()),
@@ -117,6 +119,15 @@ describe("ClipCoveragePanel, a review screen", () => {
     expect(document.querySelector("[data-auto-reads-last]")!.textContent).toContain("5 rows live");
     fireEvent.click(card.querySelector("[data-auto-read-approve]")!);
     await waitFor(() => expect(h.sent.at(-1)).toEqual({ path: "/api/owner/auto-reads/approve", json: { kind: "frames", videoId: "autoVideo01", code: "USCOLIQ", pendingAt: "2026-11-21T10:05:00.000Z" } }));
+  });
+  it("lists the matches the frames saw but kept off the site: plays the second in the app's player, Approve and Reject send it", async () => {
+    show();
+    const card = document.querySelector('[data-auto-review="revVideo001/USTXHOQ/Q14"]')!;
+    expect(card.querySelector("[data-review-why]")!.textContent).toBe("its clip's opening shows Q13, the match before");
+    fireEvent.click(card.querySelector("[data-review-play]")!);
+    expect(played.at(-1)).toMatchObject({ videoId: "revVideo001", t: 5400 });
+    fireEvent.click(card.querySelector("[data-review-reject]")!);
+    await waitFor(() => expect(h.sent.at(-1)).toEqual({ path: "/api/owner/auto-reads/review/reject", json: { videoId: "revVideo001", code: "USTXHOQ", label: "Q14", t: 5400 } }));
   });
   it("shows the two meters and opens on To review, one card per event with a chip per missing match", () => {
     show();

@@ -99,6 +99,21 @@ play that second, and the clip counts), and the rules it broke. **Approve** puts
 refused ("look again"), and both are audited (`autoReads.approve`, `autoReads.reject`). The menu's Clip coverage badge
 counts what waits. Rows live in the database are never in the shipped snapshot (`auto_reads` is private).
 
+Below them, **Seen in the video, kept off the site** lists every frame row's `review` entry: a match the frames saw at
+second `t` that a rule kept from being a clip (its opening frame shows another match, one frame read only, out of order
+or overlapping, played twice). They're listed from the frame rows themselves, code and database alike (not through
+Clip coverage, which checks videos only for some matches, so none is hidden), less those already served and those
+rejected at that second. Each shows the event, the match, a button that plays the video at `t` in the app's player,
+and the reason. **Approve** (`approveReview`) writes `t` into the event's live row in the database as the match's start
+(the code's row copied there first), with an opening `CLIP_LEAD_S` before it where the row checks openings, out of
+`review` and `missing`, and marks it `approved` (with the reason approved over, `approvedWhy`). An approved start is
+served whatever the plausibility check says and never makes a neighbour implausible (`playableStarts`). A later re-read
+keeps it (`carryApproved`, server/data/frameRowRules.ts, which the autopilot runs too): a re-read that drops it or
+leaves it for review again gets it back, unless a frame at its opening names another match, other than the one the
+owner approved it over. A read can't mark a start approved itself. **Reject** records the decision
+(`review_decisions`), and the entry isn't listed again at that second. Both are audited (`autoReads.reviewApprove`,
+`autoReads.reviewReject`).
+
 Logs: `.data/autopilot/runs/<time>.log` in the clone (every command and its output), `.data/autopilot/task.log` (the
 schedule's). What it remembers between runs: `.data/autopilot/memory.json`.
 

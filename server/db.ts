@@ -2626,6 +2626,19 @@ CREATE TABLE IF NOT EXISTS auto_reads (
   PRIMARY KEY (kind, video_id, code)
 );
 CREATE INDEX IF NOT EXISTS auto_reads_pending ON auto_reads (pending_at) WHERE pending_json IS NOT NULL;
+-- The owner's word on a frame row's review entry (a match the frames saw at second t, kept off the site): approved (its
+-- start written into the event's live row in auto_reads, owner-approved) or rejected (no longer listed for that t).
+CREATE TABLE IF NOT EXISTS review_decisions (
+  video_id TEXT NOT NULL,
+  code TEXT NOT NULL,
+  label TEXT NOT NULL,
+  season INTEGER NOT NULL,
+  t INTEGER NOT NULL,
+  decision TEXT NOT NULL,
+  decided_by TEXT NOT NULL,
+  decided_at TEXT NOT NULL,
+  PRIMARY KEY (video_id, code, label)
+);
 `,
   },
 ];

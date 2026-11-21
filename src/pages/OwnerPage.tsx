@@ -108,7 +108,7 @@ export default function OwnerPage() {
     accounts: [{ n: o.orphanedWorkspaces ?? 0, what: "orphaned spaces" }],
     moderation: [{ n: o.commonsReports ?? 0, what: "reported commons entries", urgent: true }],
     ...(ov ? { officialVideos: [{ n: ov.pending, what: "to review" }] } : {}),
-    ...(cc ? { clipCoverage: [{ n: cc.approvals ?? 0, what: "autopilot reads waiting for approval", urgent: true }, { n: cc.open, what: "actionable events to review" }] } : {}),
+    ...(cc ? { clipCoverage: [{ n: cc.approvals ?? 0, what: "clip reads and matches waiting for approval", urgent: true }, { n: cc.open, what: "actionable events to review" }] } : {}),
     ...(vc ? { contributors: [{ n: vc.requests, what: "verification requests" }, { n: vc.reports, what: "reported videos", urgent: true }] } : {}),
   } : {};
   // Phones and tablets: keep the open section's chip in view in the scrolling row.

@@ -47,6 +47,13 @@ export interface FrameTiming {
   /** Starts already live before openings were checked whose opening frame named nothing (blank, a transition): they
    *  keep playing at the usual lead-in until a re-read confirms or pulls them. Never set on a new placement. */
   unconfirmed?: string[];
+  /** Starts the owner approved from the frames' review (Owner › Clip coverage, Waiting for approval;
+   *  server/videos/autoReads.ts approveReview): served whatever the plausibility check says, and kept through later
+   *  re-reads unless a frame at the clip's opening names another match (carryApproved, server/data/frameRowRules.ts). */
+  approved?: string[];
+  /** For each approved start, the review reason the owner approved it over ("its clip's first frame shows Q6, not Q7"):
+   *  a re-read giving the same reason again doesn't pull it; a frame naming a different match still does. */
+  approvedWhy?: Record<string, string>;
   /** What the recording's first frames show (within EDGE_S of its start): the match its overlay names, or FTC Live's
    *  "N / M matches played" count. The proof that a match was played before the recording starts (outsideRecording). */
   opensOn?: RecordingEdge;
@@ -134,10 +141,14 @@ export function plausibleStarts(starts: Record<string, number>, opens?: Record<s
 }
 
 /** A row's starts that can be clips: plausible, and, where its clip openings were checked, only those that open on
- *  their match. The one reading the server plays from and Owner › Clip coverage reports (server/videos/coverage.ts). */
+ *  their match. The one reading the server plays from and Owner › Clip coverage reports (server/videos/coverage.ts).
+ *  Starts the owner approved (`approved`) are served as they are, and never make a neighbour implausible. */
 export const playableStarts = (f: FrameTiming): Record<string, number> => {
-  const s = plausibleStarts(f.starts, f.opens);
-  return f.opens ? Object.fromEntries(Object.entries(s).filter(([l]) => f.opens![l] != null || f.unconfirmed?.includes(l))) : s;
+  const ap = new Set((f.approved ?? []).filter((l) => f.starts[l] != null));
+  const s = plausibleStarts(ap.size ? Object.fromEntries(Object.entries(f.starts).filter(([l]) => !ap.has(l))) : f.starts, f.opens);
+  const kept = f.opens ? Object.entries(s).filter(([l]) => f.opens![l] != null || f.unconfirmed?.includes(l)) : Object.entries(s);
+  if (!ap.size) return Object.fromEntries(kept);
+  return Object.fromEntries([...kept, ...[...ap].map((l) => [l, f.starts[l]] as [string, number])].sort((a, b) => a[1] - b[1]));
 };
 const keyed = () => new Map(FRAME_TIMINGS.map((f) => [`${f.videoId}|${f.code}`, playableStarts(f)]));
 let opensByKey: Map<string, Record<string, number>> | null = null;
@@ -219,6 +230,14 @@ export function overlayRows<T extends { videoId: string; code: string; checked: 
 /** The code's rows (the season files), taken before the first overlay; the database's live rows laid over them. */
 let codeRows: FrameTiming[] | null = null;
 let dbRows: FrameTiming[] = [];
+/** Each row's season (video|event → season): the season files', then the database rows'. */
+const SEASON_OF = new Map<string, number>();
+let dbSeasons = new Map<string, number>();
+/** The season a video's frame row for an event belongs to (its file's, or its database row's), or null. */
+export function frameRowSeason(videoId: string, code: string): number | null {
+  const k = `${videoId}|${code}`;
+  return dbSeasons.get(k) ?? SEASON_OF.get(k) ?? null;
+}
 function relay(): void {
   FRAME_TIMINGS.splice(0, FRAME_TIMINGS.length, ...overlayRows(codeRows ?? [], dbRows));
   byKey = null;
@@ -228,9 +247,10 @@ function relay(): void {
 /** The autopilot's reads the server put live (auto_reads, server/videos/autoReads.ts loadAutoReads): every reader of
  *  FRAME_TIMINGS (frameStart, frameRow, coverage, the frame-read queue) sees them over the code's rows from now on.
  *  Replaced whole on every load. */
-export function setAutoFrameRows(rows: FrameTiming[]): void {
+export function setAutoFrameRows(rows: FrameTiming[], seasons: number[] = []): void {
   codeRows ??= [...FRAME_TIMINGS];
   dbRows = [...rows];
+  dbSeasons = new Map(rows.flatMap((r, i) => (seasons[i] != null ? [[`${r.videoId}|${r.code}`, seasons[i]] as [string, number]] : [])));
   relay();
 }
 
@@ -249,3 +269,6 @@ export function setFrameTimingsForTests(list: FrameTiming[]) {
 // writes, so readers of different seasons never touch the same file. Every caller reads this one list (the database's
 // live rows laid over it: setAutoFrameRows).
 export const FRAME_TIMINGS: FrameTiming[] = [...S2019, ...S2020, ...S2021, ...S2022, ...S2023, ...S2024, ...S2025, ...S2026];
+for (const [season, rows] of [[2019, S2019], [2020, S2020], [2021, S2021], [2022, S2022], [2023, S2023], [2024, S2024], [2025, S2025], [2026, S2026]] as const) {
+  for (const r of rows) SEASON_OF.set(`${r.videoId}|${r.code}`, season);
+}
