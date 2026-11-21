@@ -10,7 +10,7 @@ import { useApi } from "../../../lib/api";
 import { ASK_MAX, followApiPath } from "../../../shared/search";
 import { fromFirstPaint } from "../../../lib/pageData";
 import type { FollowUpTone, SearchFollowUp, SearchFollowUps } from "../../../shared/api";
-import { SEARCH_PALETTE } from "../../../lib/textTones";
+import { TONE } from "./v8tone";
 import { cn } from "../../cn";
 import { PART } from "./TeamAnswer";
 import { headlineTone } from "./StatAnswer";
@@ -23,15 +23,16 @@ const NONE: SearchFollowUps = { ask: [], related: [] };
 export function toneOf(t: FollowUpTone, value: string, rest: string): string {
   if ("stat" in t) return headlineTone({ ...t.stat, headline: { value, label: rest } }, t.stat.teams.map((number) => ({ number })));
   if ("card" in t) return lineSwatch(t.card, { text: value }).text;
-  if ("verdict" in t) return SEARCH_PALETTE[t.verdict === "Yes" ? "yes" : "no"].text;
-  return SEARCH_PALETTE.count.text;
+  if ("verdict" in t) return TONE[t.verdict === "Yes" ? "yes" : "no"].text;
+  return TONE.count.text;
 }
 
 /** A follow-up's line: its number in colour, then the rest. */
 function Line({ x, className }: { x: SearchFollowUp; className?: string }) {
   return (
     <span className={cn("break-words", className)} data-preview>
-      <span className={cn("font-semibold tabular-nums", toneOf(x.tone, x.value, x.rest))} data-value>{x.value}</span>
+      {/* v8: the answer's headline number in the accent, as on its card; a yes or no keeps its own colour. */}
+      <span className={cn("font-semibold tabular-nums", toneOf(x.tone, x.value, x.rest), !("verdict" in x.tone) && "v8:text-accent")} data-value>{x.value}</span>
       {x.rest && <span className="text-muted-foreground"> · {x.rest}</span>}
     </span>
   );
@@ -109,7 +110,7 @@ export function RelatedSearches({ related, seeAll, className }: { related: Searc
       <ul className="flex flex-wrap gap-2 max-sm:flex-col">
         {related.map((x) => (
           <li key={x.q} className="min-w-0">
-            <Link to={searchHref(x.q)} title={x.preview} className="inline-flex min-h-[44px] max-w-full items-center gap-1.5 rounded-full border border-border bg-background px-3.5 text-sm font-medium text-foreground hover:border-foreground/30 hover:bg-muted/50 max-sm:w-full">
+            <Link to={searchHref(x.q)} title={x.preview} className="inline-flex min-h-[44px] max-w-full items-center gap-1.5 rounded-full border border-border bg-background px-3.5 text-sm font-medium text-foreground hover:border-foreground/30 hover:bg-muted/50 v8:border-input v8:bg-transparent v8:hover:border-white/25 v8:hover:bg-white/[0.06] v8:active:scale-[0.97] v8:motion-reduce:active:scale-100 v8:transition-[background-color,border-color,transform] v8:duration-150 v8:ease-out max-sm:w-full" data-follow-chip>
               <Search className="size-3.5 shrink-0 text-muted-foreground" aria-hidden /><span className="min-w-0 truncate">{x.q}</span>
             </Link>
           </li>

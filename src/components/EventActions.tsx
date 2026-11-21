@@ -6,8 +6,9 @@ import { Play, WifiOff } from "lucide-react";
 import { Button } from "./ui/button";
 import { cn } from "./cn";
 import { WATCH_ID } from "./WatchLive";
-import { scrollToElement, smoothBehavior } from "../lib/pageScroll";
+import { scrollToElement } from "../lib/pageScroll";
 import { shownOffline, useConnection } from "../lib/connection";
+import { useIsV8 } from "../lib/v8";
 import type { EventDetail } from "../shared/api";
 
 /** Tracking state for an event, and the page's one toggle for it. */
@@ -21,8 +22,12 @@ export interface WatchTarget { url: string | null | undefined; stream: boolean; 
  * "Watch livestream" while the event runs, "Watch the stream" once it's over. Without one (a Twitch link, a
  * channel page) it opens the link in a new tab. Renders nothing with neither.
  */
-export function LivestreamButton({ watch, className, offline }: { watch: WatchTarget; className?: string; offline?: boolean }) {
+/** `variant`: v8's header picks it by state (the primary while live); otherwise plain in v8 and filled as before. */
+export function LivestreamButton({ watch, className, offline, variant: asked }: { watch: WatchTarget; className?: string; offline?: boolean; variant?: "default" | "outline" | "ghost" }) {
   const noSignal = useNoVideoSignal(offline);
+  // v8 (brief §7 Event header): the stream link is a plain button, so the page keeps at most one primary.
+  const v8 = useIsV8();
+  const variant = asked ?? (v8 ? "ghost" : "default");
   // No connection: the stream plays from the internet, so instead of a player that can't load or a tab that opens
   // on an error, the button says so.
   if (noSignal && (watch.stream || watch.url)) {
@@ -33,12 +38,12 @@ export function LivestreamButton({ watch, className, offline }: { watch: WatchTa
     );
   }
   if (watch.stream) {
-    const go = () => { const el = document.getElementById(WATCH_ID); if (el) scrollToElement(el, smoothBehavior()); };
-    return <Button size="sm" onClick={go} className={className} data-watch-button><Play /> {watch.finished ? "Watch the stream" : "Watch livestream"}</Button>;
+    const go = () => { const el = document.getElementById(WATCH_ID); if (el) scrollToElement(el); };
+    return <Button size="sm" variant={variant} onClick={go} className={className} data-watch-button><Play /> {watch.finished ? "Watch the stream" : "Watch livestream"}</Button>;
   }
   if (!watch.url) return null;
   return (
-    <Button size="sm" asChild className={className}>
+    <Button size="sm" variant={variant} asChild className={className}>
       <a href={watch.url} target="_blank" rel="noopener noreferrer" data-livestream><Play /> Watch livestream</a>
     </Button>
   );
