@@ -44,7 +44,6 @@ Before calling a milestone done, run [docs/self-audit.md](docs/self-audit.md) us
 13. **Migrations** are numbered entries in `server/db.ts` (`MIGRATIONS`), applied once each in a transaction. Never edit a migration that has shipped; add a new one.
 14. **Season-specific game knowledge lives in one place:** `server/data/seasons.ts` (score breakdown → engine components). Everything else is season-blind.
 15. **Shared types** between server and web live in `src/shared/`. The server may import from `src/shared`; the web app never imports from `server/`.
-16. **Design language is Control Point's.** Tokens in `src/index.css`, components in `src/components/ui` (ported from Control Point's ui-kit). Vendored Arc UI pieces live in `src/components/arc` (add more with `node scripts/arc-add.mjs <name>`), themed via `arc-theme.css`. Secondary buttons must look like buttons.
 17. **Secrets** only in `.env` (gitignored) and read only in `server/env.ts`. Never log them.
 18. **Line endings:** LF (see `.gitattributes`). No spaces in file names.
 
