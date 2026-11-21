@@ -10,7 +10,7 @@ import express, { type NextFunction, type Request, type Response } from "express
 import { all, get, migrate, openDb, run, setDb } from "../db";
 import { FRAME_TIMINGS, frameRow, frameStart, setAutoFrameRows, setFrameTimingsForTests, type FrameTiming } from "../data/frameTimings";
 import { CLIP_CHECKS, clipCheck, setAutoClipChecks, setClipChecksForTests, type ClipCheck } from "../data/clipChecks";
-import { applyDelivery, claimInbox, CLAIM_STALE_MS, judgeClips, judgeFrames, loadAutoReads, ownerAutoReads, processInbox } from "./autoReads";
+import { APPLY_TRIES, applyDelivery, claimInbox, CLAIM_STALE_MS, triesOf, withTries, judgeClips, judgeFrames, loadAutoReads, ownerAutoReads, processInbox } from "./autoReads";
 import { clipCoverageOwnerRoutes } from "./officialOwnerRoutes";
 import { release, tryAcquire } from "../data/lock";
 
@@ -146,6 +146,20 @@ describe("the inbox", () => {
     const old = (Date.now() - CLAIM_STALE_MS - 60_000) / 1000;
     utimesSync(first[0].path, old, old);
     expect(claimInbox(dir).map((c) => c.name)).toEqual(["a.json"]);
+  });
+
+  it("puts back a delivery that couldn't be applied, its tries counted; sets it aside after APPLY_TRIES", async () => {
+    writeFileSync(join(dir, "d.json"), JSON.stringify({ kind: "frames", season: 2025, rows: [frame()] }));
+    await run("ALTER TABLE auto_reads RENAME TO auto_reads_gone");
+    try {
+      await processInbox({ dir });
+      expect(readdirSync(dir).filter((f) => f.endsWith(".json"))).toEqual(["d.try1.json"]);
+      for (let i = 2; i <= APPLY_TRIES; i++) await processInbox({ dir });
+      expect(readdirSync(dir).filter((f) => f.endsWith(".json"))).toEqual([]);
+      expect(readdirSync(join(dir, "rejected")).sort()).toEqual([`d.try${APPLY_TRIES - 1}.json`, `d.try${APPLY_TRIES - 1}.json.error.txt`]);
+    } finally { await run("ALTER TABLE auto_reads_gone RENAME TO auto_reads"); }
+    expect(withTries("d.try3.json", 4)).toBe("d.try4.json");
+    expect(triesOf("d.json")).toBe(0);
   });
 
   it("applies each delivery and removes it; sets aside a file that isn't one, with why", async () => {

@@ -191,6 +191,11 @@ export async function applyDelivery(d: Delivery, now = Date.now(), log: (s: stri
 
 // ---- The inbox ---------------------------------------------------------------------------------------------------------
 
+/** A delivery that fails to apply this many times goes to rejected/. Its tries so far are in its name (x.try2.json). */
+export const APPLY_TRIES = 5;
+export const triesOf = (name: string) => Number(/\.try(\d+)\.json$/.exec(name)?.[1] ?? 0);
+export const withTries = (name: string, tries: number) => `${name.replace(/(\.try\d+)?\.json$/, "")}.try${tries}.json`;
+
 /** Where the autopilot drops its deliveries (scripts/clip-autopilot.ts: <data dir>/auto-reads-inbox on the VM). */
 export const inboxDir = () => process.env.AUTO_READS_INBOX ?? join(env.dataDir, "auto-reads-inbox");
 /** A claim left this long (its server stopped mid-file) goes back into the inbox for the next poll. */
@@ -263,9 +268,21 @@ export async function processInbox(o: { dir?: string; now?: number; log?: (s: st
           totals.files++; totals.live += r.live.length; totals.pending += r.pending.length; totals.dropped += r.dropped.length;
           log(`auto reads: ${c.name}: ${r.live.length} live, ${r.pending.length} waiting for the owner, ${r.same} as served, ${r.dropped.length} dropped`);
         } catch (e) {
-          // Back into the inbox, whole, for the next poll (a row written already is written again the same).
-          try { renameSync(c.path, join(dir, c.name)); } catch { /* left claimed: put back once stale */ }
-          log(`auto reads: ${c.name}: couldn't be applied (${(e as Error).message}); read again next poll`);
+          // Back into the inbox, whole, for the next poll (a row written already is written again the same), its tries
+          // counted in its name; after APPLY_TRIES it goes to rejected/ with why, so a file that always fails isn't
+          // claimed every minute for ever.
+          const why = (e as Error).message, tries = triesOf(c.name) + 1;
+          try {
+            if (tries >= APPLY_TRIES) {
+              renameSync(c.path, join(dir, "rejected", c.name));
+              writeFileSync(join(dir, "rejected", `${c.name}.error.txt`), `${new Date(now).toISOString()} couldn't be applied ${tries} times: ${why}\n`);
+              totals.rejected++;
+              log(`auto reads: ${c.name}: couldn't be applied ${tries} times (${why}); moved to rejected/`);
+            } else {
+              renameSync(c.path, join(dir, withTries(c.name, tries)));
+              log(`auto reads: ${c.name}: couldn't be applied (${why}); read again next poll (try ${tries} of ${APPLY_TRIES})`);
+            }
+          } catch { log(`auto reads: ${c.name}: couldn't be applied (${why}), and couldn't be put back; left claimed until stale`); }
         }
       }
     }, { ttlMs: 120_000 });
