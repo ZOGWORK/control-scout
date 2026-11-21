@@ -463,10 +463,10 @@ export function Shell({ children }: { children: ReactNode }) {
               <div className="relative -mr-1.5 flex shrink-0 items-center gap-1 md:-mr-3 md:gap-2 lg:-mr-5">
                 <ConnectionPill place="wide" />
                 {showsClockWeather(loc.pathname) && <ClockWeather />}
-                {/* v8: dark only (no light/dark switch), Report a bug is the quiet corner circle, and your picture opens
-                    your menu (AccountFooter "corner"). */}
+                {/* v8: Report a bug is the quiet corner circle and your picture opens your menu (AccountFooter "corner");
+                    the light/dark switch sits beside the bell in both looks. */}
                 {!v8 && <BugReportButton />}
-                {!v8 && <ThemeToggle />}
+                <ThemeToggle />
                 <InboxBell />
                 {v8 && <AccountFooter place="corner" />}
               </div>
