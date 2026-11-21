@@ -246,10 +246,15 @@ export async function processInbox(o: { dir?: string; now?: number; log?: (s: st
           if (bad) throw new Error(bad);
         } catch (e) {
           const why = (e as Error).message;
-          renameSync(c.path, join(dir, "rejected", c.name));
-          writeFileSync(join(dir, "rejected", `${c.name}.error.txt`), `${new Date(now).toISOString()} ${why}\n`);
-          totals.rejected++;
-          log(`auto reads: ${c.name}: not a delivery (${why}); moved to rejected/`);
+          // Set aside on its own: a rejected/ that can't be written never stops the files claimed after this one.
+          try {
+            renameSync(c.path, join(dir, "rejected", c.name));
+            writeFileSync(join(dir, "rejected", `${c.name}.error.txt`), `${new Date(now).toISOString()} ${why}\n`);
+            totals.rejected++;
+            log(`auto reads: ${c.name}: not a delivery (${why}); moved to rejected/`);
+          } catch (e2) {
+            log(`auto reads: ${c.name}: not a delivery (${why}), and it couldn't be set aside (${(e2 as Error).message}); left claimed`);
+          }
           continue;
         }
         try {
@@ -410,6 +415,9 @@ const reviewGone = { ok: false as const, status: 409, error: "This match changed
  *  code's row copied there first), with its opening CLIP_LEAD_S before it where the row checks openings, out of review
  *  and missing, owner-approved. Only the entry the owner saw (its second `t`). */
 export async function approveReview(body: ReviewBody, actor: string, now = Date.now()): Promise<Out> {
+  return ownerWrite(() => approveReviewLocked(body, actor, now));
+}
+async function approveReviewLocked(body: ReviewBody, actor: string, now = Date.now()): Promise<Out> {
   const k = reviewKey(body);
   if (!k) return { ok: false, status: 400, error: "Not a match waiting for approval." };
   if ((await liveSig()) !== loadedSig) await loadAutoReads();
@@ -437,6 +445,9 @@ export async function approveReview(body: ReviewBody, actor: string, now = Date.
 
 /** Reject a review entry: no longer listed at that second (a re-read that sees it elsewhere lists it again). */
 export async function rejectReview(body: ReviewBody, actor: string, now = Date.now()): Promise<Out> {
+  return ownerWrite(() => rejectReviewLocked(body, actor, now));
+}
+async function rejectReviewLocked(body: ReviewBody, actor: string, now = Date.now()): Promise<Out> {
   const k = reviewKey(body);
   if (!k) return { ok: false, status: 400, error: "Not a match waiting for approval." };
   const e = frameRow(k.videoId, k.code)?.review?.[k.label];
@@ -465,6 +476,18 @@ async function ownerReviews(limit: number): Promise<{ reviews: PendingReview[]; 
   };
 }
 
+/** An owner's Approve or Reject, under the data lock the inbox writes under: a delivery can't land between what the
+ *  decision read and what it writes (a newer read overwritten, or an approval dropped). Busy past a few seconds (a sync
+ *  holding the lock): try again. */
+async function ownerWrite(fn: () => Promise<Out>): Promise<Out> {
+  try {
+    return await withDataLock("owner: auto reads", fn, { ttlMs: 60_000, waitMs: 15_000, pollMs: 250 });
+  } catch (e) {
+    if (e instanceof LockBusy) return { ok: false, status: 503, error: "The site's data is being written right now: try again in a minute." };
+    throw e;
+  }
+}
+
 type Decide = { kind?: unknown; videoId?: unknown; code?: unknown; pendingAt?: unknown };
 type Out = { ok: true } | { ok: false; status: number; error: string };
 function decideKey(b: Decide): { kind: AutoReadKind; videoId: string; code: string; pendingAt: string } | null {
@@ -478,6 +501,9 @@ function decideKey(b: Decide): { kind: AutoReadKind; videoId: string; code: stri
 /** Approve: the waiting read goes live as it was read. Only the read the owner saw (`pendingAt`): a newer one that came
  *  in meanwhile is refused (look again). */
 export async function approveAutoRead(body: Decide, actor: string, now = Date.now()): Promise<Out> {
+  return ownerWrite(() => approveAutoReadLocked(body, actor, now));
+}
+async function approveAutoReadLocked(body: Decide, actor: string, now = Date.now()): Promise<Out> {
   const k = decideKey(body);
   if (!k) return { ok: false, status: 400, error: "Not a read waiting for approval." };
   const row = await get<{ season: number; pending_json: string; pending_problems: string | null }>("SELECT season, pending_json, pending_problems FROM auto_reads WHERE kind = ? AND video_id = ? AND code = ? AND pending_at = ? AND pending_json IS NOT NULL", [k.kind, k.videoId, k.code, k.pendingAt]);
@@ -500,6 +526,9 @@ export async function approveAutoRead(body: Decide, actor: string, now = Date.no
 
 /** Reject: the waiting read is dropped; what's live stays; the event can be read again. */
 export async function rejectAutoRead(body: Decide, actor: string): Promise<Out> {
+  return ownerWrite(() => rejectAutoReadLocked(body, actor));
+}
+async function rejectAutoReadLocked(body: Decide, actor: string): Promise<Out> {
   const k = decideKey(body);
   if (!k) return { ok: false, status: 400, error: "Not a read waiting for approval." };
   const row = await get<{ season: number }>("SELECT season FROM auto_reads WHERE kind = ? AND video_id = ? AND code = ? AND pending_at = ? AND pending_json IS NOT NULL", [k.kind, k.videoId, k.code, k.pendingAt]);

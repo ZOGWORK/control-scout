@@ -12,6 +12,7 @@ import { FRAME_TIMINGS, frameRow, frameStart, setAutoFrameRows, setFrameTimingsF
 import { CLIP_CHECKS, clipCheck, setAutoClipChecks, setClipChecksForTests, type ClipCheck } from "../data/clipChecks";
 import { applyDelivery, claimInbox, CLAIM_STALE_MS, judgeClips, judgeFrames, loadAutoReads, ownerAutoReads, processInbox } from "./autoReads";
 import { clipCoverageOwnerRoutes } from "./officialOwnerRoutes";
+import { release, tryAcquire } from "../data/lock";
 
 const V1 = "aaaaaaaaaa1", V2 = "bbbbbbbbbb2", V3 = "ccccccccccc";
 const frame = (o: Partial<FrameTiming> = {}): FrameTiming => ({ videoId: V1, code: "XXAUTO", checked: "2026-11-20", starts: { Q1: 600, Q2: 1000 }, opens: { Q1: 588, Q2: 995 }, ...o });
@@ -300,6 +301,17 @@ describe("the frames' review entries: matches seen in the video, kept off the si
     expect(frameStart(V1, "XXAUTO", "Q3")).toBe(1400);
     expect(frameRow(V1, "XXAUTO")?.approved).toEqual(["Q3"]);
   });
+
+  it("decides under the data lock the inbox writes under: busy, it asks to try again and writes nothing", async () => {
+    setFrameTimingsForTests([reviewed()]);
+    const held = (await tryAcquire("a sync", 60_000))!;
+    try {
+      const out = await post("/auto-reads/review/approve", { videoId: V1, code: "XXAUTO", label: "Q3", t: 1400 });
+      expect(out.status).toBe(503);
+      expect(frameStart(V1, "XXAUTO", "Q3")).toBeNull();
+    } finally { await release(held); }
+    expect((await post("/auto-reads/review/approve", { videoId: V1, code: "XXAUTO", label: "Q3", t: 1400 })).status).toBe(200);
+  }, 30_000);
 
   it("a read can't approve a start itself", async () => {
     setFrameTimingsForTests([frame()]);
