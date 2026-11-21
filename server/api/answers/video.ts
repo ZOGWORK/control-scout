@@ -9,6 +9,7 @@
 import { all } from "../../db.js";
 import { dayLabel, recordingAt, seasonRecordings, withClips, youtubeOnly, type Recording } from "../../videos/recordings.js";
 import { linkStart } from "../../../src/shared/recording.js";
+import { watchHref } from "../../../src/shared/stream.js";
 import { youtubeId } from "../../../src/shared/personal.js";
 import { localToUtcMs } from "../../../src/shared/time.js";
 import type { MatchView, SearchAnswer, SearchVideo, SearchVideoItem } from "../../../src/shared/api.js";
@@ -195,7 +196,7 @@ export async function answerVideo(a: SearchAnswer, now = Date.now(), viewer?: Vi
       const m = mainMatch;
       if (rec) {
         const day = recordingAt(rec, m?.startsAt, now);
-        out.watch = { videoId: day.videoId, t: 0, kind: "stream", ...(m ? { match: m.label } : {}),
+        out.watch = { videoId: day.videoId, t: 0, kind: "stream", href: watchHref(main.season, main.code, day.videoId), ...(m ? { match: m.label } : {}),
           ...(rec.more?.length && day.meta?.start ? { day: dayLabel(day.meta.start, m?.timezone) } : {}), ...(day.meta?.live ? { live: true } : {}), ...youtubeOnly(day.meta) };
       }
     } else if (!out.main) {

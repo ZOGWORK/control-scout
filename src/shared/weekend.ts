@@ -41,7 +41,7 @@ export interface WeekendEvent {
   status: "upcoming" | "live" | "finished";
   /** The event's page (live standings while it's under way). */
   href: string;
-  /** Its recording on YouTube, when one is on record. */
+  /** Its recording (or live stream) on record: the event page's own player for it (watchHref), never a YouTube link. */
   recording?: string;
 }
 

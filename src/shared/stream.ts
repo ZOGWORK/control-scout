@@ -44,3 +44,16 @@ export function parseStreamUrl(input: string): StreamParse {
   if (!id || !ID.test(id)) return { ok: false, error: `That YouTube link doesn't name a video. ${STREAM_HELP}` };
   return { ok: true, videoId: id, embedUrl: embedUrl(id) };
 }
+
+/** The event page's own player for an event's recording or live stream, opened on arrival (components/WatchLive.tsx):
+ *  `/events/<season>/<code>?watch` plays the event's video, `?watch=<videoId>` that day's. Every in-app "Recording" or
+ *  "Watch live" link goes here, never out to YouTube. */
+export const watchHref = (season: number, code: string, videoId?: string | null) =>
+  `/events/${season}/${encodeURIComponent(code)}?watch${videoId && ID.test(videoId) ? `=${videoId}` : ""}`;
+
+/** The event page's ?watch: null when it isn't asked; "" for the event's own video; else the video id asked for. */
+export function watchParam(sp: URLSearchParams): string | null {
+  if (!sp.has("watch")) return null;
+  const v = sp.get("watch") ?? "";
+  return ID.test(v) ? v : "";
+}

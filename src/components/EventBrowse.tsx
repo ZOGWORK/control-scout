@@ -19,6 +19,8 @@ import { dateRange, place } from "../lib/format";
 import { useIsV8 } from "../lib/v8";
 import { eventTypeLabel } from "../shared/labels";
 import { regionLabel, regionNames } from "../shared/regions";
+import { WatchChip } from "./WatchChip";
+import { watchHref } from "../shared/stream";
 import { applyFilters, FIRST_EVENTS, statusPick, videoPick, groupWeeks, MORE_EVENTS, placeKey, takeBatch, weekOf, type Filters, type Status, type VideoFilter } from "../pages/eventsList";
 
 const addDays = (d: string, n: number) => { const x = new Date(`${d}T00:00:00Z`); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); };
@@ -324,7 +326,7 @@ export const where = (e: EventListItem) => place(e.city, e.state ? regionLabel(`
 
 /** An event's status at the end of its row (v8): live with the red dot and matches played, the recording of a
  *  finished one, or the plain word. */
-export function RowStatus({ e }: { e: EventListItem }) {
+export function RowStatus({ e, chip }: { e: EventListItem; /** The Recording chip is drawn beside the row (EventWatch). */ chip?: boolean }) {
   if (e.status === "live") {
     const pct = e.matchesTotal ? Math.round((e.matchesPlayed / e.matchesTotal) * 100) : 0;
     return (
@@ -339,8 +341,20 @@ export function RowStatus({ e }: { e: EventListItem }) {
       </span>
     );
   }
-  if (e.status === "finished" && e.video) return <span className="inline-flex items-center gap-1.5 text-sm text-text-muted" data-video={e.video}><MonitorPlay className="size-4" aria-hidden />{e.video === "clips" ? "Clips" : "Video"}</span>;
+  // A recording on record has its own chip beside the row (EventWatch); the status says only what that doesn't: clips.
+  if (e.status === "finished" && e.video && (e.video === "clips" || !chip || !hasWatch(e))) return <span className="inline-flex items-center gap-1.5 text-sm text-text-muted" data-video={e.video}><MonitorPlay className="size-4" aria-hidden />{e.video === "clips" ? "Clips" : "Video"}</span>;
   return <span className="text-sm text-text-faint">{e.status === "finished" ? "Finished" : "Upcoming"}</span>;
+}
+
+/** Whether a list row gets the Recording / Watch live chip: a stream or recording is on record (EventListItem.stream,
+ *  from the list's own payload) and the event has begun. */
+export const hasWatch = (e: Pick<EventListItem, "stream" | "status">) => !!e.stream && e.status !== "upcoming";
+
+/** The row's Recording / Watch live chip: the event page's own player (watchHref), never YouTube. Beside the row's
+ *  link, never inside it. */
+export function EventWatch({ e, pill, className }: { e: EventListItem; pill?: boolean; className?: string }) {
+  if (!hasWatch(e)) return null;
+  return <WatchChip href={watchHref(e.season, e.code)} status={e.status} name={e.name} pill={pill} className={className} />;
 }
 
 /** One event as a v8 row: day, name with type and place, teams, status. With an action (Scout's picker), the link
@@ -356,10 +370,10 @@ const EventRowV8 = memo(function EventRowV8({ e, action }: { e: EventListItem; a
         <span className="block truncate text-xs text-text-faint"><span className="sm:hidden">{shortDates(e.start, e.end)} · </span>{e.typeLabel} · {where(e)}</span>
       </span>
       {e.teams > 0 && <span className="hidden w-12 shrink-0 items-center justify-end gap-1 text-xs tabular-nums text-text-faint sm:inline-flex" title={`${e.teams} teams`}><Users className="size-3.5" aria-hidden />{e.teams}</span>}
-      <span className="flex w-[5.5rem] shrink-0 justify-end max-sm:w-auto"><RowStatus e={e} /></span>
+      <span className="flex w-[5.5rem] shrink-0 justify-end max-sm:w-auto"><RowStatus e={e} chip={!act} /></span>
     </Link>
   );
-  if (!act) return <li>{link}</li>;
+  if (!act) return <li className="flex items-center">{link}<EventWatch e={e} className="mr-3" /></li>;
   return (
     <li aria-label={e.name} className={cn("relative flex items-center max-sm:flex-col max-sm:items-stretch", act.ring && "bg-ink/[0.04] before:absolute before:inset-y-0 before:left-0 before:w-0.5 before:bg-accent")} data-picked={act.ring || undefined}>
       {link}
@@ -371,7 +385,15 @@ const EventRowV8 = memo(function EventRowV8({ e, action }: { e: EventListItem; a
 const EventTile = memo(function EventTile({ e, action }: { e: EventListItem; action?: TileAction }) {
   const href = `/events/${e.season}/${e.code}`;
   const bar = <span aria-hidden className={cn("absolute inset-y-0 left-0 w-1", toneOfType(e.type).bar)} />;
-  if (!action) return <Link to={href} className="lift group relative flex h-full flex-col overflow-hidden rounded-xl border border-border bg-card p-4 pl-5">{bar}<TileBody e={e} /></Link>;
+  if (!action && !hasWatch(e)) return <Link to={href} className="lift group relative flex h-full flex-col overflow-hidden rounded-xl border border-border bg-card p-4 pl-5">{bar}<TileBody e={e} /></Link>;
+  // A recording on record: its chip under the card's link, never inside it.
+  if (!action) return (
+    <div className="lift relative flex h-full flex-col overflow-hidden rounded-xl border border-border bg-card">
+      {bar}
+      <Link to={href} className="group flex flex-1 flex-col p-4 pb-3 pl-5"><TileBody e={e} /></Link>
+      <div className="px-4 pb-4 pl-5"><EventWatch e={e} pill /></div>
+    </div>
+  );
   // With an action the card is a list item: the link to the event on top, the action (a button) under it, never inside it.
   const { node, ring } = action(e);
   return (

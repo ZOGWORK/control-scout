@@ -76,7 +76,7 @@ describe("answerVideo: the one match or event an answer is about", () => {
   it("a match the recording doesn't hold: no player, a link to the event's recording (Chesapeake F1, the next day)", async () => {
     const v = await answerVideo(stat({ headline: { value: "216–218", label: "F1", href: href("USCHSCMP", "playoff:0:1") } }), NOW);
     expect(v?.main).toBeUndefined();
-    expect(v?.watch).toEqual({ videoId: "Z2ArRHRiwh0", t: 0, kind: "stream", match: "F1" });
+    expect(v?.watch).toEqual({ videoId: "Z2ArRHRiwh0", t: 0, kind: "stream", match: "F1", href: "/events/2025/USCHSCMP?watch=Z2ArRHRiwh0" });
   });
 
   it("an event answer plays the event's stream: a headline's event, a card's event", async () => {
@@ -162,14 +162,14 @@ describe("answerVideo: an answer about a team plays one of its own matches", () 
     const v = await answerVideo(theirs([row("USCHSCMP", "playoff:0:1", "F1"), row("USCHSCMP", "playoff:0:2", "F2"), row("FTCCMP1EDIS", "playoff:1:1", "M1")]), NOW);
     expect(v?.main).toBeUndefined();
     expect(v?.mainRow).toBeUndefined();
-    expect(v?.watch).toEqual({ videoId: "Z2ArRHRiwh0", t: 0, kind: "stream", match: "F1" });
+    expect(v?.watch).toEqual({ videoId: "Z2ArRHRiwh0", t: 0, kind: "stream", href: expect.stringMatching(/^\/events\/\d+\/[A-Z0-9]+\?watch=Z2ArRHRiwh0$/), match: "F1" });
     expect(v?.rows?.[href("FTCCMP1EDIS", "playoff:1:1")]).toEqual({ videoId: "ruupjlPEQns", t: 0, kind: "match", match: "M1" });
   });
 
   it("none of its matches has a clip: a link to the event's recording, no player", async () => {
     const v = await answerVideo(theirs([row("USCHSCMP", "playoff:0:1", "F1"), row("USCHSCMP", "playoff:0:2", "F2")]), NOW);
     expect(v?.main).toBeUndefined();
-    expect(v?.watch).toEqual({ videoId: "Z2ArRHRiwh0", t: 0, kind: "stream", match: "F1" });
+    expect(v?.watch).toEqual({ videoId: "Z2ArRHRiwh0", t: 0, kind: "stream", href: expect.stringMatching(/^\/events\/\d+\/[A-Z0-9]+\?watch=Z2ArRHRiwh0$/), match: "F1" });
   });
 
   it("about the team at an event, no match listed (\"<team> opr at worlds\"): its best-scoring match there with a clip", async () => {
@@ -197,7 +197,7 @@ describe("answerVideo: an answer about a team plays one of its own matches", () 
     const v = await answerVideo(highlights([row("USCHSCMP", "playoff:0:1", "F1"), row("USCHSCMP", "playoff:0:2", "F2")]), NOW);
     expect(v?.main).toBeUndefined();
     expect(v?.mainRow).toBeUndefined();
-    expect(v?.watch).toEqual({ videoId: "Z2ArRHRiwh0", t: 0, kind: "stream", match: "F1" });
+    expect(v?.watch).toEqual({ videoId: "Z2ArRHRiwh0", t: 0, kind: "stream", href: expect.stringMatching(/^\/events\/\d+\/[A-Z0-9]+\?watch=Z2ArRHRiwh0$/), match: "F1" });
     // A highlight with a clip doesn't stand in either: it keeps its own button.
     const w = await answerVideo(highlights([row("USCHSCMP", "playoff:0:1", "F1"), row("FTCCMP1EDIS", "playoff:1:1", "M1")]), NOW);
     expect(w?.main).toBeUndefined();
@@ -227,7 +227,7 @@ describe("answerVideo: a video page whose lead has no clip", () => {
     const v = await answerVideo(stat({ headline: { value: "x", label: "x", href: href("USMACMP", "playoff:9:9") },
       blocks: [{ kind: "videos", title: "Every match", tiles: [tile("USMACMP", "playoff:9:9", "M9"), tile("USMACMP", "qual:0:12", "Q12")] }] }), NOW);
     expect(v?.main).toBeUndefined();
-    expect(v?.watch).toEqual({ videoId: "xnQFL9T27fY", t: 0, kind: "stream" });
+    expect(v?.watch).toEqual({ videoId: "xnQFL9T27fY", t: 0, kind: "stream", href: expect.stringMatching(/^\/events\/\d+\/[A-Z0-9]+\?watch=xnQFL9T27fY$/) });
     expect(v?.rows?.[href("USMACMP", "qual:0:12")]).toMatchObject({ kind: "recording", match: "Q12" });
   });
 
@@ -235,7 +235,7 @@ describe("answerVideo: a video page whose lead has no clip", () => {
     const v = await answerVideo(stat({ headline: { value: "x", label: "x", href: href("USCHSCMP", "playoff:0:2") },
       blocks: [{ kind: "videos", title: "Every match", tiles: [tile("USCHSCMP", "playoff:0:2", "F2"), tile("FTCCMP1EDIS", "playoff:1:1", "M1")] }] }), NOW);
     expect(v?.main).toBeUndefined();
-    expect(v?.watch).toEqual({ videoId: "Z2ArRHRiwh0", t: 0, kind: "stream", match: "F2" });
+    expect(v?.watch).toEqual({ videoId: "Z2ArRHRiwh0", t: 0, kind: "stream", href: expect.stringMatching(/^\/events\/\d+\/[A-Z0-9]+\?watch=Z2ArRHRiwh0$/), match: "F2" });
     // The grid's match keeps its own button.
     expect(v?.rows?.[href("FTCCMP1EDIS", "playoff:1:1")]).toMatchObject({ kind: "match", match: "M1" });
   });
@@ -282,7 +282,7 @@ describe("answerVideo: a headline match whose day's video can't be placed (23268
     const v = await answerVideo(highlights, NOW);
     expect(v?.main).toBeUndefined();
     expect(v?.mainRow).toBeUndefined();
-    expect(v?.watch).toEqual({ videoId: "uncheckedxx", t: 0, kind: "stream", match: "Q85", day: "Sunday" });
+    expect(v?.watch).toEqual({ videoId: "uncheckedxx", t: 0, kind: "stream", href: expect.stringMatching(/^\/events\/\d+\/[A-Z0-9]+\?watch=uncheckedxx$/), match: "Q85", day: "Sunday" });
     // 14:40:49.95 EDT is 18:40:49.95Z, 2 h 10 min 43 s into the Saturday broadcast, less the 20 s lead-in.
     expect(v?.rows?.[href("USCHSLAOS", "qual:0:18")]).toEqual({ videoId: "a7WJBT3RHZU", t: 7823, end: 8063, kind: "recording", match: "Q18" });
     expect(v?.rows?.[href("USCHSLAOS", "qual:0:85")]).toBeUndefined();
