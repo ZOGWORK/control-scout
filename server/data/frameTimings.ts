@@ -201,13 +201,51 @@ export function frameConfidence(videoId: string, code: string, label: string): "
   return f.medium?.includes(label) ? "medium" : "high";
 }
 
-/** Tests only: these timings in place of the file's. */
-export function setFrameTimingsForTests(list: FrameTiming[]) {
-  FRAME_TIMINGS.splice(0, FRAME_TIMINGS.length, ...list);
+/** Whether a row from the database (an autopilot read the server put live, server/videos/autoReads.ts) is served over
+ *  the code's row of the same video and event: always, unless the code's row was read later (a read merged by hand
+ *  after the database's). The one rule the server and the autopilot (scripts/clip-autopilot.ts) both lay rows by. */
+export const dbRowWins = (code: { checked: string } | undefined, db: { checked: string }): boolean => !code || !(code.checked > db.checked);
+
+/** `code` with `db`'s rows laid over it: a db row replaces the code row of the same video and event where it wins
+ *  (dbRowWins), in that row's place; db rows of a video and event the code has no row for follow, in the order given. */
+export function overlayRows<T extends { videoId: string; code: string; checked: string }>(code: readonly T[], db: readonly T[]): T[] {
+  const key = (r: T) => `${r.videoId}|${r.code}`;
+  const over = new Map(db.map((r) => [key(r), r]));
+  const out = code.map((r) => { const d = over.get(key(r)); return d && dbRowWins(r, d) ? d : r; });
+  const had = new Set(code.map(key));
+  return [...out, ...[...over.values()].filter((r) => !had.has(key(r)))];
+}
+
+/** The code's rows (the season files), taken before the first overlay; the database's live rows laid over them. */
+let codeRows: FrameTiming[] | null = null;
+let dbRows: FrameTiming[] = [];
+function relay(): void {
+  FRAME_TIMINGS.splice(0, FRAME_TIMINGS.length, ...overlayRows(codeRows ?? [], dbRows));
   byKey = null;
   opensByKey = null;
 }
 
+/** The autopilot's reads the server put live (auto_reads, server/videos/autoReads.ts loadAutoReads): every reader of
+ *  FRAME_TIMINGS (frameStart, frameRow, coverage, the frame-read queue) sees them over the code's rows from now on.
+ *  Replaced whole on every load. */
+export function setAutoFrameRows(rows: FrameTiming[]): void {
+  codeRows ??= [...FRAME_TIMINGS];
+  dbRows = [...rows];
+  relay();
+}
+
+/** The code's own row for a video and event (no database row over it), or null. */
+export function codeFrameRow(videoId: string, code: string): FrameTiming | null {
+  return (codeRows ?? FRAME_TIMINGS).find((f) => f.videoId === videoId && f.code === code) ?? null;
+}
+
+/** Tests only: these timings in place of the file's (any database rows still laid over them). */
+export function setFrameTimingsForTests(list: FrameTiming[]) {
+  codeRows = [...list];
+  relay();
+}
+
 // --- Data: one file a season (frameTimings/<season>.ts, the season of the row's event), which scripts/video-frames.ts
-// writes, so readers of different seasons never touch the same file. Every caller reads this one list.
+// writes, so readers of different seasons never touch the same file. Every caller reads this one list (the database's
+// live rows laid over it: setAutoFrameRows).
 export const FRAME_TIMINGS: FrameTiming[] = [...S2019, ...S2020, ...S2021, ...S2022, ...S2023, ...S2024, ...S2025, ...S2026];
