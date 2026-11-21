@@ -51,7 +51,7 @@ export function EventsNow({ events, loading, onLive, className }: {
       <ul className="grid border-t border-line lg:grid-cols-2">
         {items.map((e, i) => (
           <li key={e.code} className={cn("min-w-0 border-b border-line lg:odd:border-r", phoneHidden(i))}>
-            <Link to={`/events/${e.season}/${e.code}`} className={cn(ROW, "transition-colors duration-150 still-hover:bg-white/[0.03]")} data-now-row={e.status}>
+            <Link to={`/events/${e.season}/${e.code}`} className={cn(ROW, "transition-colors duration-150 still-hover:bg-ink/[0.03]")} data-now-row={e.status}>
               <span className="w-[4.75rem] shrink-0 text-sm tabular-nums text-text-muted max-sm:hidden">{shortDates(e.start, e.end)}</span>
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-medium text-text-base" title={e.name}>{e.name}</span>

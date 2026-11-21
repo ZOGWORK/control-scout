@@ -21,7 +21,7 @@ import { StatPicker } from "./StatPicker";
 
 const OP_WORDS: Record<FilterOp, string> = { eq: "equals", ne: "is not", gt: "more than", gte: "at least", lt: "less than", lte: "at most", contains: "contains" };
 // v8: a nested group is told apart by its white edge alone, not by a colour per depth.
-const DEPTH_BORDER = ["border-accent/60", "border-violet-500/60", "border-sky-400/60", "border-emerald-400/60", "border-orange-400/60", "border-pink-400/60"].map((c) => `${c} v8:border-l-white/20 v8:border-l-2`);
+const DEPTH_BORDER = ["border-accent/60", "border-violet-500/60", "border-sky-400/60", "border-emerald-400/60", "border-orange-400/60", "border-pink-400/60"].map((c) => `${c} v8:border-l-ink/20 v8:border-l-2`);
 
 export interface FilterBuilderProps {
   open: boolean;
@@ -149,7 +149,7 @@ export function FilterBuilder({ open, onOpenChange, scope, predictable, value, o
         </div>
       ) : view === "build" ? (
         <div className="custom-scrollbar -mr-2 min-h-0 flex-1 space-y-3 overflow-y-auto pr-2">
-          <div className="rounded-xl border border-accent/30 border-l-4 border-l-accent bg-accent/[0.06] px-3 py-2.5 v8:border-line v8:border-l-2 v8:border-l-white/20 v8:bg-white/[0.03]">
+          <div className="rounded-xl border border-accent/30 border-l-4 border-l-accent bg-accent/[0.06] px-3 py-2.5 v8:border-line v8:border-l-2 v8:border-l-ink/20 v8:bg-ink/[0.03]">
             <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-accent-text v8:text-xs v8:font-normal v8:normal-case v8:tracking-normal v8:text-text-faint">In plain English</p>
             <p className="mt-0.5 text-sm leading-snug" data-testid="filter-sentence">{sentence}</p>
             {incomplete > 0 && <p className="mt-1 text-xs text-warning">{incomplete} unfinished condition{incomplete === 1 ? " isn't" : "s aren't"} counted yet.</p>}
@@ -180,7 +180,7 @@ function GroupEditor({ g, depth, scope, predictable, errors, ops, maxed, tooMany
         {depth > 0 && <CornerDownRight className="size-4 shrink-0 text-text-muted" />}
         <span className="text-sm text-text-muted">{depth ? "Where" : "Show rows where"}</span>
         <Select value={g.type} onValueChange={(v) => ops.setType(g.id, v as "and" | "or")}>
-          <SelectTrigger className={cn("h-8 w-auto gap-1.5 font-semibold max-sm:h-10", g.type === "and" ? "border-accent/50 text-accent-text" : "border-violet-500/50 text-violet-600 dark:text-violet-400", "v8:border-white/[0.12] v8:text-text-base")} aria-label="Combine conditions with"><SelectValue /></SelectTrigger>
+          <SelectTrigger className={cn("h-8 w-auto gap-1.5 font-semibold max-sm:h-10", g.type === "and" ? "border-accent/50 text-accent-text" : "border-violet-500/50 text-violet-600 dark:text-violet-400", "v8:border-ink/[0.12] v8:text-text-base")} aria-label="Combine conditions with"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="and">All (AND)</SelectItem>
             <SelectItem value="or">Any (OR)</SelectItem>
@@ -214,7 +214,7 @@ function ConditionRow({ c, scope, predictable, error, ops }: { c: BCond; scope: 
   return (
     <div className={cn("rounded-lg border bg-card p-2", shown ? "border-danger/50" : "border-line")} data-condition>
       <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 @min-[27rem]:grid-cols-[minmax(0,1fr)_8.5rem_9rem_auto]">
-        <button type="button" onClick={() => ops.pick(c.id)} className={cn("flex h-9 min-w-0 items-center gap-2 rounded-lg border px-2.5 text-left text-sm max-sm:h-10", def ? "border-line hover:border-text-base/30" : "border-dashed border-accent/60 text-accent-text v8:border-white/20 v8:text-text-muted")} aria-label={def ? `Statistic: ${def.label}. Change` : "Choose a statistic"}>
+        <button type="button" onClick={() => ops.pick(c.id)} className={cn("flex h-9 min-w-0 items-center gap-2 rounded-lg border px-2.5 text-left text-sm max-sm:h-10", def ? "border-line hover:border-text-base/30" : "border-dashed border-accent/60 text-accent-text v8:border-ink/20 v8:text-text-muted")} aria-label={def ? `Statistic: ${def.label}. Change` : "Choose a statistic"}>
           {def ? <span className={cn("size-2 shrink-0 rounded-full", tone.bar)} /> : <Plus className="size-4 shrink-0" />}
           <span className="min-w-0 flex-1 truncate font-medium">{def?.label ?? "Choose a statistic"}</span>
           <Pencil className="size-3.5 shrink-0 text-text-muted" />

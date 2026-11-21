@@ -713,6 +713,41 @@ export function leadIn(at: number, i: number, windows: { start: number | null; e
   return !windows.some((w, k) => k !== i && w.start != null && at < w.start && w.start < from);
 }
 
+/**
+ * An event's linked recordings the reader can't read, each said, never dropped quietly (KZCMP 2022's two day-2 videos
+ * were linked with no details, and the read went over day 1 alone as if it were the whole event).
+ * `fixable`: fetching YouTube's details again would let it be read: none on file, or the fetch failed. A video YouTube
+ * says is unavailable (removed or private), or one with no length (a live stream the player can't time: looked at again
+ * next run), is said but isn't fixable by fetching.
+ * `fails`: none of the event's videos can be read and at least one is fixable; never for an event whose only video is
+ * gone or still live, which would fail every run.
+ */
+export function undetailed(videos: readonly { videoId: string; meta?: { status?: string; length?: number | null } | null }[]): { skipped: { videoId: string; why: string; fixable: boolean }[]; fails: boolean } {
+  const skipped = videos.filter((v) => v.meta?.status !== "ok" || !v.meta.length).map((v) => {
+    const m = v.meta;
+    if (!m) return { videoId: v.videoId, why: "no details on file (fetch them, then read again)", fixable: true };
+    if (m.status === "error") return { videoId: v.videoId, why: "fetching its details failed (fetch again, then read again)", fixable: true };
+    if (m.status === "unavailable") return { videoId: v.videoId, why: "unavailable on YouTube (removed or private)", fixable: false };
+    if (m.status !== "ok") return { videoId: v.videoId, why: `its details say ${m.status ?? "no status"}`, fixable: false };
+    return { videoId: v.videoId, why: "no length: a live stream or one the player can't time (looked at again next run)", fixable: false };
+  });
+  return { skipped, fails: skipped.length > 0 && skipped.length === videos.length && skipped.some((s) => s.fixable) };
+}
+
+/**
+ * The reader's exit when its only trouble is events left unread for want of details a fetch would give (undetailed
+ * `fails`): it ran, nothing crashed, and no video it could read was left unfinished. Not 1, so a caller can tell it
+ * from a crash, a timeout or a video that couldn't be played. (2 is a usage error, 3 a dark player.)
+ */
+export const UNDETAILED_EXIT = 4;
+
+/**
+ * Whether a reader run's exit means the read itself failed (crashed, killed, timed out, a video unplayed): its events
+ * then aren't counted as tried. Exit 0 and UNDETAILED_EXIT both mean it read what it could; scripts/clip-autopilot.ts
+ * otherwise re-picked a whole season every run while one event's details were missing.
+ */
+export const readFailed = (code: number | null): boolean => code !== 0 && code !== UNDETAILED_EXIT;
+
 /** The rows of a server/data/frameTimings/<season>.ts file as written (one JSON row a line after the data marker). */
 export function dataRows<T>(text: string): T[] {
   const data = text.split("// --- Data")[1] ?? "";

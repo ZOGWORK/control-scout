@@ -28,7 +28,7 @@ export function LeagueTable({ rows, season, team, maxRows, scout, frameless }: {
     <div ref={box} data-league-table className={cn("custom-scrollbar overflow-auto rounded-xl border border-border bg-card", frameless && "v8:rounded-none v8:border-0 v8:bg-transparent", capped && "max-h-[23rem]")}>
       <table className="w-full text-sm">
         <thead className={cn("sticky top-0 z-[1] bg-card", frameless && "v8:bg-background")}>
-          <tr className={cn("border-b border-border", frameless && "v8:h-11 v8:border-white/[0.12]")}>
+          <tr className={cn("border-b border-border", frameless && "v8:h-11 v8:border-ink/[0.12]")}>
             <th scope="col" className={cn(TH, "text-right")}>Rank</th>
             <th scope="col" className={cn(TH, "text-left")}>Team</th>
             <th scope="col" className={cn(TH, "text-right")} title="Ranking score: FIRST's first sort key, average ranking points per match over the league's meets">RS</th>
@@ -47,7 +47,7 @@ export function LeagueTable({ rows, season, team, maxRows, scout, frameless }: {
             return (
               <tr key={r.team} data-marked={marked ? "" : undefined} aria-current={marked ? "true" : undefined}
                 // v8: the marked team (yours, or the one a link asked for) is white: a faint white fill and a white edge.
-                className={cn("border-b border-border last:border-b-0", frameless && "v8:h-11 v8:border-white/[0.08] v8:transition-colors v8:duration-150 v8:hover:bg-white/[0.03]", marked && "bg-muted font-semibold shadow-[inset_3px_0_0_var(--color-text-base)] v8:bg-white/[0.05] v8:shadow-[inset_2px_0_0_var(--color-text-base)]")}>
+                className={cn("border-b border-border last:border-b-0", frameless && "v8:h-11 v8:border-ink/[0.08] v8:transition-colors v8:duration-150 v8:hover:bg-ink/[0.03]", marked && "bg-muted font-semibold shadow-[inset_3px_0_0_var(--color-text-base)] v8:bg-ink/[0.05] v8:shadow-[inset_2px_0_0_var(--color-text-base)]")}>
                 <td className={cn(TD, "text-right tabular-nums", r.rank <= 3 && "v8:font-medium", r.rank <= 3 && v8Medal(r.rank))}>{r.rank}</td>
                 <td className={cn(TD, "max-w-[16rem] truncate")}>
                   <span className="sm:hidden"><TeamNumber team={r.team} name={r.name ?? ""} href={href} /></span>
