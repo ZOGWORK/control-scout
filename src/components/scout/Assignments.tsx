@@ -185,7 +185,7 @@ function AssignmentCard({ a, progress, busy, canDone, canReopen, canScout, onDon
         <StatusBadge a={a} />
       </div>
       <p className="mt-3 flex items-center gap-2 text-sm" aria-live="polite">
-        <span className={cn("grid size-8 place-items-center rounded-full text-sm font-semibold tabular-nums", progress ? "bg-success/15 text-success" : "bg-muted text-muted-foreground")}>{progress}</span>
+        <span className={cn("grid size-8 place-items-center rounded-full text-sm font-semibold tabular-nums", progress ? "bg-success/15 v8:bg-emerald-400/15 text-success v8:text-emerald-400" : "bg-muted text-muted-foreground")}>{progress}</span>
         <span className="text-muted-foreground">{progress === 1 ? "entry" : "entries"} by you for this team here</span>
       </p>
       <div className="mt-4 flex flex-wrap gap-2">

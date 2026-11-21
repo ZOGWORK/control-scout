@@ -21,7 +21,7 @@ import { factorLabel } from "../../src/shared/factorLabel";
 import { sharePct } from "../../src/shared/factorSheet";
 import type { RankingsResponse } from "../../src/shared/rankings";
 import { liteEvent, nextMatches } from "./trim";
-import { LITE_STYLE, LITE_TAP_CLASSES, esc, eventPage } from "./render";
+import { LITE_STYLE, LITE_TAP_CLASSES, LITE_V8_STYLE, esc, eventPage, matchList } from "./render";
 import { searchPage, textBar } from "./pages";
 import { LITE_CSP, LITE_NET_CSP, pageVary, safeNext } from "./routes";
 import { NET_SCRIPT } from "./network";
@@ -102,9 +102,15 @@ describe("light pages", () => {
     // Names are escaped, never markup.
     expect(html).toContain("Robo &lt;Team&gt; 10000");
     expect(html).toContain(`href="/lite/events/${S}/NJQ1/match/qual:0:80"`);
-    expect(html).toMatch(/<span class="r w">115<\/span>–<span class="b">90<\/span>/);
+    // The v8 match row: red's teams, the scores (the winner bold in its colour, the loser muted), blue's teams.
+    expect(html).toMatch(/<span class="ms"><span class="r w">115<\/span><i aria-hidden="true">–<\/i><span class="lo">90<\/span><\/span>/);
     // Each alliance is named, not told by colour alone.
-    expect(html).toMatch(/<span class="r"><span class="vh">Red: <\/span>\d+ \d+<\/span><br><span class="b"><span class="vh">Blue: <\/span>/);
+    expect(html).toMatch(/<span class="mt r"><span class="vh">Red: <\/span><span>\d+<\/span><span>\d+<\/span><\/span><span class="ms">/);
+    expect(html).toMatch(/<\/span><span class="mt b"><span class="vh">Blue: <\/span>/);
+    // The call: the picked side and its chance, a thin bar, the tier, and once played Right or Upset.
+    expect(html).toMatch(/<span class="mc"><span>Picked <span class="[rb]">(Red|Blue) \d+%<\/span><\/span><span class="wb" aria-hidden="true"><i style="width:\d+%"><\/i><\/span><span>[A-Z][a-z]+<\/span>/);
+    // The #1 rank is the one place the accent marks.
+    expect(html).toContain(`<td class="n top1">1</td>`);
     // On today: revalidated every time (results move), like the API on an event day.
     expect(r.headers.get("cache-control")).toBe("no-cache");
     expect(html).toContain(`<link rel="canonical" href="https://controlscout.org/events/${S}/NJQ1">`);
@@ -198,15 +204,18 @@ describe("light pages", () => {
 });
 
 describe("the app's theme and text size (cookies)", () => {
+  // The classic look (a device that picked /legacy) draws the app's five themes; v8 is dark only (below).
   const page = async (cookie: string) => {
-    const r = await get(`/lite/teams/10005`, { headers: { cookie } });
+    const r = await get(`/lite/teams/10005`, { headers: { cookie: `cs-v8=0; ${cookie}` } });
     expect(r.headers.get("vary")).toMatch(/Cookie/);
     return r.text();
   };
   it("draws each theme as the app does: a class on <html>, System following the device", async () => {
     expect(await page("")).toMatch(/<html lang="en"><head>/);
     expect(await page("cs-theme=dark")).toMatch(/<html lang="en"><head>/);
-    for (const t of ["light", "dim", "midnight"]) expect(await page(`a=1; cs-theme=${t}`)).toContain(`<html lang="en" class="${t}">`);
+    for (const t of ["light", "dim"]) expect(await page(`a=1; cs-theme=${t}`)).toContain(`<html lang="en" class="${t}">`);
+    // The retired Midnight draws as Dark, the default.
+    expect(await page("cs-theme=midnight")).toMatch(/<html lang="en"><head>/);
     const sys = await page("cs-theme=system");
     expect(sys).toContain(`<html lang="en" class="sys">`);
     expect(sys).toContain(`<meta name="color-scheme" content="dark light">`);
@@ -221,6 +230,64 @@ describe("the app's theme and text size (cookies)", () => {
     expect(await page("cs-theme=dim; cs-text-size=xl")).toContain(`<html lang="en" class="dim" data-text-size="xl">`);
     expect(LITE_STYLE).toContain("html[data-text-size=xl]{--s:1.25}");
     expect(LITE_STYLE).toContain("font-size:calc(100% * var(--b) * var(--s))");
+  });
+});
+
+describe("the look: v8 unless this device picked the classic one", () => {
+  const html = async (path: string, cookie = "") => (await get(path, cookie ? { headers: { cookie } } : {})).text();
+  it("draws v8 by default: dark only, its own stylesheet, no gold anywhere", async () => {
+    const v8 = await html("/lite/teams/10005");
+    expect(v8).toMatch(/<html lang="en" data-v8><head>/);
+    expect(v8).toContain(`<meta name="theme-color" content="#0a0a0b">`);
+    expect(v8).toContain(`<style>${LITE_V8_STYLE}</style>`);
+    expect(LITE_V8_STYLE).toContain("--acc:#a3b6e0");
+    // The bright alliance pair (never faded) and wins and "Right" green, as in the app.
+    expect(LITE_V8_STYLE).toContain("--red:#f43f5e");
+    expect(LITE_V8_STYLE).toContain("--blue:#38bdf8");
+    expect(LITE_V8_STYLE).toContain("--ok:#34d399");
+    // Accent text and the brand mark are white.
+    expect(LITE_V8_STYLE).toContain("--at:#f4f4f5");
+    expect(LITE_V8_STYLE).toContain(".brand path{fill:var(--fg)}");
+    // No yellow, mint or teal in what v8 paints (the mark's inline gold is painted over).
+    for (const c of ["#ffc700", "#eab308", "#7fd1ae", "#14b8a6", "#2dd4bf"]) expect(LITE_V8_STYLE, c).not.toContain(c);
+    // The theme cookie waits (v8 is dark only, as in the app); the text size still applies.
+    expect(await html("/lite/teams/10005", "cs-theme=light; cs-text-size=l")).toContain(`<html lang="en" data-v8 data-text-size="l">`);
+  });
+  it("the classic look from the app's cookie, or ?v8= for this load", async () => {
+    const classic = await html("/lite/teams/10005", "cs-v8=0");
+    expect(classic).toMatch(/<html lang="en"><head>/);
+    expect(classic).toContain(`<style>${LITE_STYLE}</style>`);
+    expect(await html("/lite/teams/10005", "cs-v8=1")).toContain("data-v8");
+    expect(await html("/lite/teams/10005?v8=0")).toMatch(/<html lang="en"><head>/);
+    expect(await html("/lite/teams/10005?v8=1", "cs-v8=0")).toContain("<html lang=\"en\" data-v8>");
+  });
+  it("every v8 link class is a 44px tap target too", () => {
+    for (const c of LITE_TAP_CLASSES) {
+      const rules = [...LITE_V8_STYLE.matchAll(new RegExp(`(?:^|})\\.${c}\\{([^}]*)\\}`, "g"))];
+      expect(rules.length, c).toBeGreaterThan(0);
+      for (const r of rules) {
+        const h = /min-height:(\d+)px/.exec(r[1]);
+        if (h) expect(Number(h[1]), `.${c}`).toBeGreaterThanOrEqual(44);
+      }
+    }
+    expect(LITE_V8_STYLE).toMatch(/\.mr\{[^}]*min-height:44px/);
+  });
+  it("a played call says Right or Upset; an unplayed one shows the predicted score, muted", () => {
+    const call = { pRed: 0.7, tier: "confident" as const, kind: "live" as const, red: 120.4, blue: 88, redRange: null, blueRange: null };
+    const row = (score: { red: number; blue: number } | null) => ({ key: "qual:0:1", label: "Q1", time: null, played: !!score, red: [1, 2], blue: [3, 4], off: [], score, call });
+    const right = matchList([row({ red: 130, blue: 90 })], 2025, "X", "", false, 3);
+    expect(right).toContain(`<span class="rt">✓ Right</span>`);
+    expect(right).toContain(`<span class="mm lo">3 lost</span>`);
+    expect(right).toContain(`<i style="width:70%"></i>`);
+    expect(matchList([row({ red: 80, blue: 90 })], 2025, "X", "")).toContain(`<span class="up">✗ Upset</span>`);
+    const ahead = matchList([row(null)], 2025, "X", "");
+    expect(ahead).toContain(`<span class="pr" title="Predicted score">~120</span>`);
+    expect(ahead).not.toMatch(/Right|Upset/);
+  });
+  it("a team's matches end with its own result, white when won", async () => {
+    const t = await html(`/lite/teams/10005?season=${S}`);
+    expect(t).toMatch(/<a class="row mr my" href="\/lite\/events\//);
+    expect(t).toMatch(/<span class="mm( lo)?">10005 (won|lost|tied)<\/span>/);
   });
 });
 
@@ -470,7 +537,7 @@ describe("the rest of Lite: the same answers as the API", () => {
     const r = await json<RankingsResponse>(`/api/rankings?season=${S}`);
     expect(r.total).toBe(70);
     const { html } = await lightPage("/lite/rankings", `/rankings?season=${S}`);
-    const shown = [...html.matchAll(/<td class="n">(\d+)<\/td><td><a class="cell" href="\/lite\/teams\/(\d+)\?season=\d+"><b>\d+<\/b>/g)].map((m) => [Number(m[1]), Number(m[2])]);
+    const shown = [...html.matchAll(/<td class="n(?: top1)?">(\d+)<\/td><td><a class="cell" href="\/lite\/teams\/(\d+)\?season=\d+"><b>\d+<\/b>/g)].map((m) => [Number(m[1]), Number(m[2])]);
     expect(shown).toEqual(r.rows.map((x) => [x.rank, x.team]));
     for (const x of r.rows) expect(html).toContain(`<td class="n">${x.rating.toFixed(1)}</td>`);
     expect(html).toContain(`href="/lite/rankings?season=${S}&amp;page=2">Next page →</a>`);
@@ -490,14 +557,18 @@ describe("the rest of Lite: the same answers as the API", () => {
   });
 
   it("settings: theme and text size as links that set the app's cookies, Lite on or off, and the network settings", async () => {
-    const { html, r } = await lightPage("/lite/settings", "/settings");
+    const { html: v8 } = await lightPage("/lite/settings", "/settings");
+    expect(v8).toContain("The new look is dark only for now.");
+    expect(v8).not.toContain(`href="/lite/theme?set=`);
+    const { html, r } = await lightPage("/lite/settings?v8=0", "/settings");
     expect(r.headers.get("cache-control")).toBe("private, no-store");
-    for (const t of ["light", "dim", "dark", "midnight", "system"]) expect(html).toContain(`href="/lite/theme?set=${t}&amp;next=%2Flite%2Fsettings"`);
+    for (const t of ["light", "dim", "dark", "system"]) expect(html).toContain(`href="/lite/theme?set=${t}&amp;next=%2Flite%2Fsettings"`);
     expect(html).toContain(`<a class="chip cur" href="/lite/theme?set=dark&amp;next=%2Flite%2Fsettings" aria-current="true">Dark</a>`);
     expect(html).toContain(`<a class="chip cur" href="/lite/size?set=m&amp;next=%2Flite%2Fsettings" aria-current="true">Default</a>`);
     expect(html).toContain(`<a class="btn" href="/lite/network">Network &amp; offline</a>`);
-    const lit = await (await get("/lite/settings", { headers: { cookie: "cs-theme=midnight; cs-text-size=xl; cs-lite=1" } })).text();
-    expect(lit).toContain(`<a class="chip cur" href="/lite/theme?set=midnight&amp;next=%2Flite%2Fsettings" aria-current="true">Midnight</a>`);
+    const lit = await (await get("/lite/settings", { headers: { cookie: "cs-v8=0; cs-theme=dim; cs-text-size=xl; cs-lite=1" } })).text();
+    expect(lit).toContain(`<a class="chip cur" href="/lite/theme?set=dim&amp;next=%2Flite%2Fsettings" aria-current="true">Dim</a>`);
+    expect(lit).not.toContain("Midnight");
     expect(lit).toContain(`aria-current="true">Largest</a>`);
     expect(lit).toContain(`href="/lite/network"`);
     const t = await get("/lite/theme?set=light&next=%2Flite%2Fsettings");
@@ -614,7 +685,7 @@ describe("network & offline (journey 10)", () => {
   });
 
   it("Lite on: its switch turns it off, back to the full screen; Settings links here", async () => {
-    const html = await (await get("/lite/network", { headers: { cookie: "cs-lite=1; cs-theme=light" } })).text();
+    const html = await (await get("/lite/network", { headers: { cookie: "cs-v8=0; cs-lite=1; cs-theme=light" } })).text();
     expect(html).toContain(`<b id="n-lite">Lite is on</b>`);
     expect(html).toContain(`<a class="btn" href="/lite/off?next=%2Flite%2Fnetwork">Turn off Lite</a>`);
     // The full pages it links open this once (Lite would bring them straight back).

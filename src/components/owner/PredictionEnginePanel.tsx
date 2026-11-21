@@ -12,6 +12,7 @@ import { cn } from "../cn";
 import { useApi } from "../../lib/api";
 import { ago, int, pct, seasonLabel } from "../../lib/format";
 import { TIER_WORD } from "../../shared/tierWords";
+import { isV8 } from "../../lib/v8";
 import type { OwnerLedgerScore, OwnerPredictionEngine, TierCalibration } from "../../shared/ownerPredictions";
 
 export const ENGINE_PATH = "/api/owner/predictions/engine";
@@ -22,7 +23,7 @@ function Score({ s, tone }: { s: OwnerLedgerScore | null; tone: "live" | "replay
   return (
     <dl className="grid grid-cols-3 gap-2 text-sm">
       <div><dt className="text-xs text-muted-foreground">Calls</dt><dd className="font-semibold tabular-nums text-foreground">{int(s.n)}</dd></div>
-      <div><dt className="text-xs text-muted-foreground">Called right</dt><dd className={cn("font-semibold tabular-nums", tone === "live" ? "text-success" : "text-info")}>{pct(s.accuracy, 1)}</dd></div>
+      <div><dt className="text-xs text-muted-foreground">Called right</dt><dd className={cn("font-semibold tabular-nums", tone === "live" ? "text-success" : "text-info", "v8:text-violet-400")}>{pct(s.accuracy, 1)}</dd></div>
       <div><dt className="text-xs text-muted-foreground">Brier</dt><dd className="font-semibold tabular-nums text-foreground">{s.brier.toFixed(3)} <span className="text-xs font-normal text-muted-foreground">({skill >= 0 ? "+" : ""}{pct(skill, 0)} on 50%)</span></dd></div>
     </dl>
   );
@@ -33,8 +34,8 @@ function SeasonCard({ s }: { s: OwnerPredictionEngine["seasons"][number] }) {
     <li className="min-w-0 rounded-xl border border-border bg-card p-4">
       <h3 className="font-medium text-foreground">{s.label}</h3>
       <div className="mt-3 grid gap-4 sm:grid-cols-2">
-        <div className="rounded-lg border border-success/30 bg-success/[0.05] p-3">
-          <p className="mb-2 flex items-center gap-1.5 text-xs font-medium text-success"><Radio className="size-3.5" aria-hidden /> Live, logged before each match</p>
+        <div className="rounded-lg border border-success/30 v8:border-emerald-400/30 bg-success/[0.05] v8:bg-emerald-400/[0.05] p-3">
+          <p className="mb-2 flex items-center gap-1.5 text-xs font-medium text-success v8:text-emerald-400"><Radio className="size-3.5" aria-hidden /> Live, logged before each match</p>
           <Score s={s.live} tone="live" />
         </div>
         <div className="rounded-lg border border-info/30 bg-info/[0.05] p-3">
@@ -102,7 +103,7 @@ export function PredictionEnginePanel() {
               <StatTile tone="accent" icon={Crown} label="Champion" value={<span className="font-mono">v{e.engineVersion}</span>} hint="The engine this server runs" />
               <StatTile tone="emerald" icon={Cpu} label="Served model" value={<span className="break-all font-mono text-base">{e.servedModel ?? "—"}</span>} hint={e.lastLiveCall ? `Newest live call ${ago(e.lastLiveCall)}` : "No live call logged yet"} />
               <StatTile tone="violet" icon={FlaskConical} label="Shadow model" value={<span className="break-all font-mono text-base">{e.shadowModel ?? "None"}</span>} hint="Scored beside each live call, never shown" />
-              <StatTile tone="sky" icon={ShieldCheck} label="Public headline" value={e.headline ? pct(e.headline.accuracy, 1) : "—"}
+              <StatTile tone={isV8() ? "violet" : "sky"} icon={ShieldCheck} label="Public headline" value={e.headline ? pct(e.headline.accuracy, 1) : "—"}
                 hint={e.headline ? `${e.headline.kind === "live" ? "Live" : "Replay"}, ${seasonLabel(e.headline.season)}, ${int(e.headline.n)} calls` : `Waiting for ${int(e.liveThreshold)} calls`} />
             </div>
           </Section>
@@ -134,7 +135,7 @@ export function PredictionEnginePanel() {
 const TIER_TONE: Record<TierCalibration["tier"], { said: string; won: string; chip: string }> = {
   provisional: { said: "bg-warning/70", won: "bg-warning", chip: "bg-warning/15 text-warning" },
   moderate: { said: "bg-info/70", won: "bg-info", chip: "bg-info/15 text-info" },
-  confident: { said: "bg-success/70", won: "bg-success", chip: "bg-success/15 text-success" },
+  confident: { said: "bg-success/70 v8:bg-emerald-400/70", won: "bg-success v8:bg-emerald-400", chip: "bg-success/15 v8:bg-emerald-400/15 text-success v8:text-emerald-400" },
 };
 
 /** Calibration by the confidence tier each call shows publicly: how sure the favourite was against how often it won. */
@@ -152,7 +153,7 @@ export function TierCalibrationList({ tiers }: { tiers: TierCalibration[] }) {
                 <span className={cn("rounded-md px-2 py-0.5 text-xs font-medium", tone.chip)}>{TIER_WORD[t.tier]}</span>
                 <span className="tabular-nums text-muted-foreground">{int(t.n)} calls · Brier {t.brier.toFixed(3)}</span>
               </p>
-              <p className={cn("text-sm tabular-nums", Math.abs(gap) < 0.03 ? "text-success" : "text-warning")}>
+              <p className={cn("text-sm tabular-nums", Math.abs(gap) < 0.03 ? "text-success v8:text-emerald-400" : "text-warning")}>
                 {Math.abs(gap) < 0.005 ? "On the line" : `${gap > 0 ? "Won more" : "Won less"} than said by ${pct(Math.abs(gap), 1)}`}
               </p>
             </div>

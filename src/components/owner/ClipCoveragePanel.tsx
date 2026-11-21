@@ -147,7 +147,7 @@ function Progress({ d }: { d: OwnerClipCoverage }) {
       <p className="text-xs text-muted-foreground" data-coverage-pending>
         {p ? <>Checked {ago(p.at)}</> : "No check pass yet: the next one runs within 5 minutes"}
         {p?.pending != null && <> · <span className="tabular-nums font-medium text-text-base">{n(p.pending)}</span> waiting for their video check
-          {moved != null && moved !== 0 && <span className={cn("ml-1 font-medium tabular-nums", moved > 0 ? "text-success" : "text-text-muted")}>{moved > 0 ? `↓ ${n(moved)}` : `↑ ${n(-moved)}`}</span>}</>}
+          {moved != null && moved !== 0 && <span className={cn("ml-1 font-medium tabular-nums", moved > 0 ? "text-success v8:text-emerald-400" : "text-text-muted")}>{moved > 0 ? `↓ ${n(moved)}` : `↑ ${n(-moved)}`}</span>}</>}
       </p>
     </div>
   );
@@ -381,7 +381,7 @@ function Details({ e }: { e: OwnerCoverageEvent }) {
             <li key={v.videoId}>
               <a href={watchUrl(v.videoId)} target="_blank" rel="noreferrer noopener" title={v.why ?? v.basis}
                 className={cn("inline-flex min-h-7 items-center gap-1 rounded-full border px-2.5 hover:underline", TOUCH, tone === "short" ? "border-warning/50 bg-warning/[0.07]" : "border-line")}>
-                {tone === "done" && <Check className="size-3.5 text-success" aria-hidden />}
+                {tone === "done" && <Check className="size-3.5 text-success v8:text-emerald-400" aria-hidden />}
                 {v.label} <span className="tabular-nums">{v.clipped}/{v.matches}</span><ExternalLink className="size-3" aria-hidden />
               </a>
             </li>

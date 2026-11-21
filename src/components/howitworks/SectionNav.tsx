@@ -5,7 +5,7 @@ import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { m } from "../motion";
 import { cn } from "../cn";
 import { useReduced } from "./ui";
-import { pageScroller, pageTop, scrollToElement, smoothBehavior } from "../../lib/pageScroll";
+import { pageScroller, pageTop, scrollToElement } from "../../lib/pageScroll";
 import { scrollStripTo, stopStripGlide } from "../../lib/revealInStrip";
 
 export const SECTIONS = [
@@ -37,10 +37,10 @@ export function activeSection(tops: readonly SectionTop[], y: number, line: numb
   return cur;
 }
 
-export function scrollToId(id: string, reduced: boolean) {
+export function scrollToId(id: string) {
   const el = document.getElementById(id);
   if (!el) return;
-  scrollToElement(el, reduced ? "auto" : smoothBehavior());
+  scrollToElement(el);
   history.replaceState(history.state, "", `#${id}`);
 }
 
@@ -90,11 +90,11 @@ export function SectionNav({ sections = SECTIONS }: { sections?: readonly NavSec
     if (!box || !a) return;
     const l = a.offsetLeft, r = l + a.offsetWidth;
     // Already showing: a glide still heading for the section just left stops here (src/lib/revealInStrip.ts).
-    if (l < box.scrollLeft || r > box.scrollLeft + box.clientWidth) scrollStripTo(box, l - 12, reduced ? "auto" : smoothBehavior()); // glides on desktop only
+    if (l < box.scrollLeft || r > box.scrollLeft + box.clientWidth) scrollStripTo(box, l - 12, "auto");
     else stopStripGlide(box);
   }, [active, reduced]);
 
-  const go = (e: MouseEvent<HTMLAnchorElement>, id: string) => { e.preventDefault(); scrollToId(id, reduced); };
+  const go = (e: MouseEvent<HTMLAnchorElement>, id: string) => { e.preventDefault(); scrollToId(id); };
 
   return (
     <nav aria-label="On this page" className="sticky top-[calc(var(--header-h)+0.5rem)] z-30 mb-10 max-sm:mb-6 mt-2">

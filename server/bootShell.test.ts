@@ -78,7 +78,7 @@ describe("static first paint", () => {
     expect(home.match(/<h1[\s>]/g)).toHaveLength(1);
     // Every line holds its place, hidden from screen readers, so the app's hero is the same height.
     for (const [x, y] of HOME_HEADLINES) expect(home).toContain(`<i aria-hidden="true">${x} <b>${y}</b></i>`);
-    expect(home).toContain('<a class="csb-brand" href="/" aria-label="Control Scout home"><img src="/logo-56.webp" alt="" /><span>Control Scout</span></a>');
+    expect(home).toContain('<a class="csb-brand" href="/" aria-label="Control Scout home"><img src="/legacy/logo-56.webp" alt="" /><span>Control Scout</span></a>');
     expect(home).toContain('<a href="/" aria-current="page">');
     const lost = root(await renderIndex(file, "/no-such-page"));
     expect(lost).toContain('class="csb"');
@@ -134,6 +134,16 @@ describe("static first paint", () => {
     // How it works' two pages sit level with the other rows in the rail, as the app's do.
     expect(narrow).toContain(".csb-sub>div{margin-left:0;padding-left:0;border-left:0}");
     expect(narrow).not.toMatch(/\.csb-nav a span[^{]*\{display:none/);
+  });
+  it("draws v8's look when <html data-v8> is on (set before this paints): the white mark, no yellow, Home's search alone", () => {
+    const v8 = BOOT_STYLE.split("\n").filter((l) => l.includes("html[data-v8]")).join("\n");
+    expect(v8).toContain("content:url(/mark-white.webp)");
+    expect(v8).toContain("--b-acc:#a3b6e0");
+    expect(v8).toMatch(/html\[data-v8\] \.csb-home \.csb-hl,html\[data-v8\] \.csb-home>p\{display:none\}/);
+    expect(v8).toMatch(/html\[data-v8\] \.csb \.csb-crumb\{display:none\}/);
+    expect(v8.toLowerCase()).not.toContain("#ffc700");
+    // Every v8 rule is scoped to html[data-v8], so the old first paint is unchanged.
+    expect(BOOT_STYLE.indexOf("html[data-v8]")).toBeGreaterThan(BOOT_STYLE.indexOf(".csbc{"));
   });
 });
 

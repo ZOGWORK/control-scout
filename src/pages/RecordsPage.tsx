@@ -11,12 +11,12 @@ import { RecordsTable } from "../components/records/RecordsTable";
 import { TeamDirectory } from "../components/records/TeamDirectory";
 import { cn } from "../components/cn";
 import { revealInStrip } from "../lib/revealInStrip";
-import { smoothBehavior } from "../lib/pageScroll";
 import { useApi } from "../lib/api";
 import { MATCHES_TABLE_NOTE, SEASON_RECORD_LABEL, SEASON_RECORD_RULE, recordMarks, seasonRecordPath } from "../shared/seasonRecord";
 import type { SearchCardLine } from "../shared/api";
 // The default sorts are the view a saved season pack holds (src/shared/recordsBoard.ts).
 import { RECORDS_PAGE_SORT } from "../shared/recordsBoard";
+import { V8_EYEBROW, V8_HEAD } from "../components/rankings/v8";
 
 type View = "events" | "season" | "listed" | "matches";
 
@@ -47,26 +47,19 @@ export default function RecordsPage({ matches }: { matches?: boolean }) {
     if (country && state && (v === "events" || v === "season")) q.set("state", state);
     return { pathname: v === "matches" ? "/matches" : "/teams", search: q.toString() ? `?${q}` : "" };
   };
-  // On a phone the strip scrolls sideways: the current view is brought into it on arrival and on every change.
-  // It jumps there on arrival and glides on a change the reader made.
+  // On a phone the strip scrolls sideways: the current view jumps into it on arrival and on every change.
   const strip = useRef<HTMLElement>(null);
-  // The view the strip last showed (undefined before the first): the same view again (a replayed effect) is an arrival.
-  const stripView = useRef<string | undefined>(undefined);
   useLayoutEffect(() => {
-    const reveal = (behavior: ScrollBehavior = "auto") => {
+    const reveal = () => {
       const el = strip.current?.querySelector<HTMLElement>("[aria-current=page]");
-      if (strip.current && el) revealInStrip(strip.current, el, 8, behavior);
+      if (strip.current && el) revealInStrip(strip.current, el, 8);
     };
-    const arriving = stripView.current === undefined || stripView.current === view;
-    stripView.current = view;
-    const how: ScrollBehavior = arriving ? "auto" : smoothBehavior();
-    reveal(how);
+    reveal();
     // Again once the web fonts are in (they change the labels' widths; a view changed before they load cancels
-    // the earlier wait, so each view keeps its own), the same way: after a view change it glides on towards the
-    // view, never cutting that glide short with a jump. And whenever the strip's width changes (a phone turned
-    // to portrait, a narrowed window) so the current view never ends up clipped.
+    // the earlier wait, so each view keeps its own), and whenever the strip's width changes (a phone turned to
+    // portrait, a narrowed window), so the current view never ends up clipped.
     let live = true;
-    document.fonts?.ready.then(() => { if (live) reveal(how); });
+    document.fonts?.ready.then(() => { if (live) reveal(); });
     const widthNow = () => strip.current?.getBoundingClientRect().width;
     let width = widthNow();
     const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => {
@@ -96,9 +89,9 @@ export default function RecordsPage({ matches }: { matches?: boolean }) {
   ];
 
   return (
-    <div>
+    <div className={V8_HEAD}>
       <PageHeader
-        eyebrow={<span className="text-accent-text">{view === "listed" ? "Directory" : "Records"} · {seasonLabel(season)}</span>}
+        eyebrow={<span className={cn("text-accent-text", V8_EYEBROW)}>{view === "listed" ? "Directory" : "Records"} · {seasonLabel(season)}</span>}
         title={matches ? "Match records" : "Teams"}
         description={matches
           ? "Every played match of the season: filter by score, margin, phase or event, sort any column, export it."
@@ -108,13 +101,15 @@ export default function RecordsPage({ matches }: { matches?: boolean }) {
         phoneDescription={matches ? "Every played match of the season." : view === "listed" ? "Every team registered for the season." : "Every team's numbers for the season."}
       >
         {/* Each view has its own address, so these are links (the current one aria-current), not tabs. */}
-        <nav ref={strip} className="inline-flex max-w-full gap-1 overflow-x-auto rounded-xl border border-line bg-card p-1" aria-label="Records">
+        {/* v8: an underline tab strip (white label, slate-blue line under the current view), not filled segments. */}
+        <nav ref={strip} className="inline-flex max-w-full gap-1 overflow-x-auto rounded-xl border border-line bg-card p-1 v8:flex v8:gap-0 v8:rounded-none v8:border-0 v8:border-b v8:bg-transparent v8:p-0 v8:[scrollbar-width:none]" aria-label="Records">
           {views.map(({ v, label, icon: Icon, hint }) => (
             // The current view links to itself as it stands (its filters kept), like the button it replaced.
             <Link key={v} to={view === v ? { pathname, search: sp.toString() ? `?${sp}` : "" } : hrefFor(v)} aria-current={view === v ? "page" : undefined} title={hint}
               className={cn("inline-flex h-9 shrink-0 items-center gap-2 rounded-lg px-3.5 text-sm font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/60 max-sm:h-10",
-                view === v ? "bg-accent text-accent-ink shadow-[0_4px_16px_color-mix(in_srgb,var(--color-accent)_25%,transparent)]" : "text-text-muted hover:bg-text-base/[0.06] hover:text-text-base")}>
-              <Icon className="size-4" aria-hidden />{label}
+                "v8:h-10 v8:rounded-none v8:px-3 v8:font-medium v8:duration-150 v8:first:pl-0 max-sm:v8:h-11",
+                view === v ? "bg-accent text-accent-ink shadow-[0_4px_16px_color-mix(in_srgb,var(--color-accent)_25%,transparent)] v8:bg-transparent v8:text-text-base v8:shadow-[inset_0_-2px_0_var(--color-accent)]" : "text-text-muted hover:bg-text-base/[0.06] hover:text-text-base v8:hover:bg-transparent")}>
+              <Icon className="size-4 v8:hidden" aria-hidden />{label}
             </Link>
           ))}
         </nav>
@@ -146,10 +141,10 @@ function SeasonRecord({ season }: { season: number }) {
   if (!line) return null;
   return (
     <p className="mb-3 text-sm text-text-muted" data-season-record>
-      <span className="font-semibold text-foreground">{SEASON_RECORD_LABEL} {seasonLabel(season)}:</span>{" "}
+      <span className="font-semibold text-foreground v8:font-medium">{SEASON_RECORD_LABEL} {seasonLabel(season)}:</span>{" "}
       {line.href ? <Link to={line.href} className="font-medium text-foreground underline underline-offset-2 hover:text-accent-text">{line.text}</Link> : line.text}
-      {recordMarks(line) && <span className="text-warning"> ({recordMarks(line)})</span>}
-      <span className="block text-xs sm:ml-1.5 sm:inline">{SEASON_RECORD_RULE} {MATCHES_TABLE_NOTE}</span>
+      {recordMarks(line) && <span className="text-warning v8:text-text-muted"> ({recordMarks(line)})</span>}
+      <span className="block text-xs sm:ml-1.5 sm:inline v8:text-text-faint">{SEASON_RECORD_RULE} {MATCHES_TABLE_NOTE}</span>
     </p>
   );
 }
