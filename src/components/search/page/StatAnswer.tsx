@@ -630,7 +630,8 @@ function Leaderboard({ b }: { b: Extract<StatBlock, { kind: "leaderboard" }> }) 
   // Another answer in the same place (the page stays mounted from one search to the next) opens short again.
   const [shownFor, setShownFor] = useState(b);
   if (shownFor !== b) { setShownFor(b); setAll(false); }
-  const short = v8 && !all && table.rows.length > V8_TOP;
+  // A count asked for ("top 10 teams") is shown whole: the question sized it.
+  const short = v8 && !all && !b.whole && table.rows.length > V8_TOP;
   return (
     <figure data-block="leaderboard">
       <figcaption className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
@@ -638,7 +639,7 @@ function Leaderboard({ b }: { b: Extract<StatBlock, { kind: "leaderboard" }> }) 
         <span className="text-[11px] text-muted-foreground" data-note>{b.note}</span>
       </figcaption>
       <TeamTable table={table} label={b.title} limit={short ? V8_TOP : undefined} />
-      {v8 && table.rows.length > V8_TOP && (
+      {v8 && !b.whole && table.rows.length > V8_TOP && (
         <button type="button" onClick={() => setAll((a) => !a)} aria-expanded={all}
           className="mt-2 inline-flex min-h-9 items-center gap-1 rounded-lg px-2 text-sm text-text-muted hover:bg-ink/[0.06] hover:text-foreground max-md:min-h-[44px]" data-show-all>
           {all ? "Show top 5" : `Show all ${table.rows.length}`}
