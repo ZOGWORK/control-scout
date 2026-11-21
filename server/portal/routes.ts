@@ -38,7 +38,7 @@ import { predictionEngine } from "./predictionEngine.js";
 import { StreamError, listStreams, setEventStream } from "./streams.js";
 import { commonsOwnerRoutes } from "../scout/commons.js";
 import { contributorOwnerRoutes } from "../videos/ownerRoutes.js";
-import { clipCoverageOwnerRoutes, officialVideoOwnerRoutes } from "../videos/officialOwnerRoutes.js";
+import { clipCoverageOwnerRoutes, eventRecordingOwnerRoutes, officialVideoOwnerRoutes } from "../videos/officialOwnerRoutes.js";
 
 const h = (fn: (req: Request, res: Response) => Promise<unknown>) => (req: Request, res: Response, next: NextFunction) => {
   fn(req, res).then((b) => { if (!res.headersSent && b !== undefined) res.json(b); }).catch(next);
@@ -114,6 +114,8 @@ export function ownerRouter(): Router {
   // Official event videos (server/videos/officialWatch.ts): the auto-watcher's review queue, runs and watched channels.
   officialVideoOwnerRoutes(r, h, actor, (s) => console.log(`[${new Date().toISOString()}] ${s}`));
   clipCoverageOwnerRoutes(r, h, actor);
+  // An event's recordings, corrected from its own page (server/videos/ownerRecordings.ts).
+  eventRecordingOwnerRoutes(r, h, actor);
 
   // Event live streams (server/portal/streams.ts): the list, and set / remove one (an empty url removes it).
   r.get("/streams", h(async () => ({ streams: await listStreams() })));
