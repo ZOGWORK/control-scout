@@ -8,6 +8,7 @@ import { m } from "../components/motion";
 import { AlertCircle, Bug, CheckCircle2, DatabaseZap, ExternalLink, Lightbulb, Loader2, MessageCircle, Send } from "lucide-react";
 import { useTitle } from "../lib/meta";
 import { usePersonal } from "../lib/personal";
+import { offlineNow } from "../lib/connection";
 import { PageHeader } from "../components/page";
 import { Button } from "../components/ui/button";
 import { Input, Label, RequiredMark, Textarea } from "../components/ui/basic";
@@ -93,7 +94,7 @@ export default function ContactPage() {
       setFailure("We couldn't send your message just now. Please try again in a minute.");
     } catch {
       setStatus("idle");
-      setFailure(navigator.onLine === false ? "You're offline. Your message is still here, so send it once you're back online." : "We couldn't reach Control Scout. Please try again in a minute.");
+      setFailure(offlineNow() ? "You're offline. Your message is still here, so send it once you're back online." : "We couldn't reach Control Scout. Please try again in a minute.");
     }
   };
 

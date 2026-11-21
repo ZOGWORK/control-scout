@@ -108,7 +108,7 @@ least 44 px tall; `lite.test.ts` checks the stylesheet and every link on every p
 2. "Control Scout Lite" in the footer of a page with a twin.
 3. The static first paint (before the app's code runs) shows "Slow connection? Open Control Scout Lite" after
    `LITE_BOOT_S` (10 s), by CSS alone. The app's first render removes it.
-4. In the app (`liteSuggest.ts`), while `navigator.onLine` is true: the page's own data (event, team, match,
+4. In the app (`liteSuggest.ts`), while the connection check hasn't found the internet gone (never `navigator.onLine`): the page's own data (event, team, match,
    pick list, Home's calendar, a search's answer, a matchup, a comparison, the ranking) still missing after
    `LITE_SLOW_MS` (8 s), or `LITE_FAILS` (3) requests that couldn't reach the server within a minute. A page with
    no data of its own (Settings, a search not asked yet) is never timed. Never on scouting's forms (`liteOffer`):

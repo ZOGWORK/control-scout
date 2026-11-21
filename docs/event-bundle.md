@@ -119,5 +119,7 @@ plain warning to check the live version first.
 
 ## The rule
 
-Live data always wins. A bundle answers only when the server can't be reached (or doesn't answer in
-`OFFLINE_TIMEOUT_MS`); the first live answer replaces it (`lib/api.ts`).
+Live data always wins. A bundle answers only when the server can't be reached, or meanwhile when it doesn't answer
+in `OFFLINE_TIMEOUT_MS` (a slow connection: the request keeps going and its answer replaces the bundle's the moment it
+arrives, `lib/api.ts` awaitLate). The app says "Offline" only once the connection check found no internet; until
+then it says "Slow connection" (`lib/connection.ts` networkState).

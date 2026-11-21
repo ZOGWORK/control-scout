@@ -138,17 +138,27 @@ describe("our own server busy, not the line gone (issue #1557)", () => {
     expect(await p).toBe("no");
   });
 
-  it("the browser going offline while a check waits on a busy server ends the wait at once", async () => {
+  it("the browser going offline while a check waits on a busy server: not believed on its word, but the line really going ends it at once", async () => {
     vi.useFakeTimers();
     stop = startConnectionWatch();
     noteServerAnswer();
     await vi.advanceTimersByTimeAsync(1000);
-    const net = hanging();
+    let failWaiting!: (e: unknown) => void;
+    const net = { fetch: vi.fn((_p: string, init?: RequestInit) => new Promise<Response>((_r, rej) => {
+      failWaiting = rej;
+      init?.signal?.addEventListener("abort", () => rej(new DOMException("aborted", "AbortError")));
+    })) };
+    vi.stubGlobal("fetch", net.fetch);
     const p = checkInternet();
     await vi.advanceTimersByTimeAsync(CHECK_TIMEOUT_MS + 1000); // waiting on the busy server
     expect(connection().internet).toBe("yes");
     window.dispatchEvent(new Event("offline"));
     await vi.advanceTimersByTimeAsync(0);
+    // iOS sends "offline" while online: the event alone changes nothing.
+    expect(connection().internet).toBe("yes");
+    // The line really gone: the browser fails the waiting request, and a fresh check runs and fails too.
+    vi.stubGlobal("fetch", net.fetch);
+    failWaiting(new TypeError("Failed to fetch"));
     expect(await p).toBe("no");
     expect(connection().internet).toBe("no");
     // The back-off runs from now: the next check comes by the first step, not after BUSY_TIMEOUT_MS.
@@ -372,10 +382,11 @@ describe("watching", () => {
       const net = scripted();
       stop = startConnectionWatch();
       window.dispatchEvent(new Event("offline"));
-      expect(connection().internet).toBe("no");
       await vi.advanceTimersByTimeAsync(0);
       expect(net.fetch).toHaveBeenCalledTimes(1);
       net.last().fail(new TypeError("Failed to fetch")); // the offline event's check fails
+      await vi.advanceTimersByTimeAsync(0);
+      expect(connection().internet).toBe("no");
       await vi.advanceTimersByTimeAsync(1000); // the online event comes 1 s later: well inside EVENT_GAP_MS
       window.dispatchEvent(new Event("online"));
       await vi.advanceTimersByTimeAsync(0);
@@ -490,16 +501,35 @@ describe("watching", () => {
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 
-  it("the browser's offline event is believed at once, then checked", async () => {
+  it("the browser's offline event is checked at once, never believed on its word: a failing check is offline", async () => {
     vi.useFakeTimers();
     const fetch = vi.fn(async () => { throw new TypeError("Failed to fetch"); });
     vi.stubGlobal("fetch", fetch);
     stop = startConnectionWatch();
     const { result } = renderHook(() => useConnection());
     act(() => { window.dispatchEvent(new Event("offline")); });
-    expect(result.current.internet).toBe("no");
+    expect(result.current.internet).not.toBe("no");
     await act(async () => { await vi.advanceTimersByTimeAsync(0); });
     expect(fetch).toHaveBeenCalled();
+    expect(result.current.internet).toBe("no");
+  });
+
+  it("iOS: the browser says offline (and sends the event) while the check answers: online, and it stays so", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+    resetConnection(); // a page opened with navigator.onLine false
+    expect(connection().internet).toBe("unknown");
+    expect(offlineNow()).toBe(false);
+    const fetch = vi.fn(async () => json({ ok: true }));
+    vi.stubGlobal("fetch", fetch);
+    stop = startConnectionWatch();
+    await vi.advanceTimersByTimeAsync(0); // the browser says offline: checked at once
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(connection().internet).toBe("yes");
+    window.dispatchEvent(new Event("offline"));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(connection().internet).toBe("yes");
+    expect(offlineNow()).toBe(false);
   });
 
   it("a server answer counts as internet with no check", () => {

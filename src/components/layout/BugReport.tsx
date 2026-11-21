@@ -15,6 +15,7 @@ import { Button } from "../ui/button";
 import { Input, Label, RequiredMark, Textarea } from "../ui/basic";
 import { cn } from "../cn";
 import { apiFetch, ApiError } from "../../lib/api";
+import { offlineNow } from "../../lib/connection";
 import { useTheme } from "../../hooks/useTheme";
 import { APP_VERSION } from "../../lib/errorReporting";
 import { sanitizeText } from "../../shared/errorReport";
@@ -357,7 +358,7 @@ function BugReportForm({ phone = false, onDone }: { phone?: boolean; onDone: () 
       if (skipped.length) setFailure(`Your report was sent, but ${skipped.length === 1 ? "one attachment" : `${skipped.length} attachments`} didn't upload. ${skipped.join(" ")}`);
     } catch (err) {
       setStatus("idle");
-      setFailure((err as ApiError)?.offline ? "You're offline. Your report is still here: send it again once you're back online." : (err as ApiError)?.message || "Couldn't send your report. Try again in a moment.");
+      setFailure((err as ApiError)?.offline ? (offlineNow() ? "You're offline. Your report is still here: send it again once you're back online." : "Couldn't reach the server. Your report is still here: send it again in a moment.") : (err as ApiError)?.message || "Couldn't send your report. Try again in a moment.");
     } finally { setProgress(""); }
   };
 

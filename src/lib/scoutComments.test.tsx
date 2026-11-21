@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import { announceComment, announceCommentsResync, applyCommentEvent, CommentWriteError, SCOUT_COMMENT, SCOUT_COMMENTS_RESYNC, Seen, useCommentCounts, useEntryComments } from "./scoutComments";
 import { followWorkspace } from "./scoutLive";
+import { checkInternet, resetConnection } from "./connection";
 import type { CommentEvent, EntryComment } from "../shared/comments";
 
 const c = (id: number, over: Partial<EntryComment> = {}): EntryComment => ({
@@ -142,11 +143,13 @@ describe("useEntryComments", () => {
     routes[`GET ${THREAD}`] = () => ({ body: { comments: [], entryDeleted: false } });
     const { result } = renderHook(() => useEntryComments("41", "aaaaaaaaaaaa"));
     await waitFor(() => expect(result.current.loading).toBe(false));
-    const onLine = vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
-    // The device says offline and the request fails: not sent, and said so.
+    // The connection check found no internet (never navigator.onLine alone: iOS says offline while online) and the
+    // request fails: not sent, and said so.
+    routes["GET /api/health"] = () => { throw new TypeError("Failed to fetch"); };
+    expect(await checkInternet()).toBe("no");
     routes[`POST ${THREAD}`] = () => { throw new TypeError("Failed to fetch"); };
     const offline = await result.current.post("x", "op-test-0003").catch((e) => e);
-    onLine.mockRestore();
+    resetConnection();
     expect(offline).toBeInstanceOf(CommentWriteError);
     expect(offline).toMatchObject({ uncertain: false, message: expect.stringMatching(/offline/) });
     routes[`POST ${THREAD}`] = () => { throw new TypeError("Failed to fetch"); };

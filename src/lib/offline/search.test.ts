@@ -190,7 +190,8 @@ describe("search with no signal, from a saved event pack", () => {
     const took = performance.now() - t0;
     expect(took).toBeGreaterThanOrEqual(SEARCH_SLOW_MS - 50);
     expect(took).toBeLessThan(SEARCH_SLOW_MS + 3000);
-    expect(aborted).toEqual([`/api/teams-summary?season=${S}&teams=12,4215`]);
+    // Kept going (lib/api.ts awaitLate): the server's answer, should it come, still replaces the pack's cards.
+    expect(aborted).toEqual([]);
   }, 30_000);
 
   // A search the saved pack gives nothing for, while it lists searches: the server waited for as before any pack was

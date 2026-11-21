@@ -7,7 +7,7 @@ import { Button } from "./ui/button";
 import { cn } from "./cn";
 import { WATCH_ID } from "./WatchLive";
 import { scrollToElement } from "../lib/pageScroll";
-import { shownOffline, useConnection } from "../lib/connection";
+import { useNoVideoSignal } from "../lib/offline/online";
 import { useIsV8 } from "../lib/v8";
 import type { EventDetail } from "../shared/api";
 
@@ -49,12 +49,10 @@ export function LivestreamButton({ watch, className, offline, variant: asked }: 
   );
 }
 
-/** No connection for video: the page's data came from what's saved on this device (`offline`), or the connection check
- *  finds no internet (lib/connection.ts). Videos and streams play from YouTube and are never saved for offline. */
-export function useNoVideoSignal(offline?: boolean): boolean {
-  const conn = useConnection();
-  return !!offline || shownOffline(conn);
-}
+/** No connection for video: the connection check finds no internet, or the page's data came from what's saved on this
+ *  device (`offline`) before the check found internet (lib/offline/online.ts). Videos and streams play from YouTube
+ *  and are never saved for offline. */
+export { useNoVideoSignal };
 
 /** Does the event have anything to watch: its stream, a livestream link, or a match with a clip or FIRST's video. */
 export function hasEventVideo(d: Pick<EventDetail, "event" | "matches">): boolean {
