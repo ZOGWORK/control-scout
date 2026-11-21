@@ -44,7 +44,10 @@ export function PhoneSearchBar({ query }: { query: string }) {
   const ref = usePhoneSearchHeight();
   return (
     <div ref={ref} data-phone-search={small ? "compact" : "full"}
-      className={cn("sticky top-(--header-h) z-20 -mx-4 -mb-1 border-b bg-primary px-4 sm:-mx-6 sm:-mb-5 sm:px-6 transition-[padding,border-color] duration-150 md:hidden", small ? "border-line py-1.5" : "border-transparent py-2")}>
+      className={cn("sticky top-(--header-h) z-20 -mx-4 -mb-1 border-b bg-primary px-4 sm:-mx-6 sm:-mb-5 sm:px-6 transition-[padding,border-color,background-color] duration-150 md:hidden",
+        // v8: no panel of its own: the bar sits on the page's wash. Once it has scrolled, a light frosted veil keeps the
+        // field readable over the rows passing under it, never a solid black band across the wash.
+        small ? "border-line py-1.5 v8:border-transparent v8:bg-primary/45 v8:backdrop-blur-lg" : "border-transparent py-2 v8:bg-transparent")}>
       <SearchBox
         inputRef={pageRef}
         label="Search teams, events and matches"
