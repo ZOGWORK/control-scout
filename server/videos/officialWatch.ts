@@ -496,7 +496,7 @@ export async function removeOfficial(videoId: string, actor: string, now = Date.
     { sql: "UPDATE official_videos SET removed_at = ? WHERE video_id = ?", args: [at, videoId] },
     { sql: "UPDATE official_watch SET status = 'rejected', decided_at = ?, decided_by = ? WHERE video_id = ?", args: [at, actor, videoId] },
   ], "write");
-  forgetOfficial();
+  forgetOfficial(); // also reloads the typed match starts: this video's stop playing (kept on record)
   await recordAudit(actor, "officialVideo.remove", { videoId, season: Number(v.season), code: String(v.code), kind: String(v.kind), source: String(v.source) });
   return { ok: true };
 }

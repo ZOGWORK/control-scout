@@ -40,7 +40,7 @@ export function ReliabilityTile({ r, className }: { r: Reliability; className?: 
 /** The team page's section, closed at first: the index, its parts, and (for a workspace's members) the blend with their notes. */
 export function ReliabilitySection({ r, notes, workspaceName }: { r: Reliability | null | undefined; notes?: ReliabilityNotes | null; workspaceName?: string | null }) {
   return (
-    <Section collapsible id="reliability" title="Reliability" summary="No-shows, DQs, near-zero matches, swing and penalties"
+    <Section collapsible id="reliability" title="Reliability" summary="No-shows, DQs, near-zero matches, swing and penalties" icon={ShieldCheck} count={r ? plural(r.matches, "match") : undefined}
       tint={['var(--color-success)', 'var(--color-muted-foreground)', 'var(--color-warning)']} description={<>How dependable this robot has been: no-shows, DQs, near-zero matches, swing, penalties and how predictable its matches are. An estimate from match results only. <Link to="/methodology#reliability" className="underline">How it's computed</Link></>}>
       {!r ? (
         <p className="rounded-xl border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground max-sm:py-4">No qualification matches to estimate reliability from this season yet.</p>
@@ -50,17 +50,17 @@ export function ReliabilitySection({ r, notes, workspaceName }: { r: Reliability
             <ReliabilityTile r={r} />
             {notes && notes.matchEntries > 0 && <BlendedTile r={r} notes={notes} workspaceName={workspaceName ?? null} />}
           </div>
-          <div className="rounded-xl border border-border bg-card p-4 text-sm">
+          <div className="rounded-xl border border-border bg-card p-4 text-sm v8:border-line">
             <dl className="grid gap-x-4 gap-y-2 sm:grid-cols-2">
               {reliabilityParts(r).map((x) => (
                 <div key={x.label} className="min-w-0">
                   <dt className="text-xs text-muted-foreground">{x.label}</dt>
                   <dd className="font-medium tabular-nums">{x.value}</dd>
-                  <dd className="text-[11px] text-muted-foreground">{x.note}</dd>
+                  <dd className="text-[11px] text-muted-foreground v8:text-[0.6875rem] v8:text-text-faint">{x.note}</dd>
                 </div>
               ))}
             </dl>
-            <p className={cn("mt-3 rounded-lg p-2 text-xs text-muted-foreground", r.matches < RELIABILITY_SMALL ? "bg-warning/[0.08]" : "bg-muted/40")}>
+            <p className={cn("mt-3 rounded-lg p-2 text-xs text-muted-foreground v8:bg-white/[0.03]", r.matches < RELIABILITY_SMALL ? "bg-warning/[0.08]" : "bg-muted/40")}>
               Every part is pulled toward the season average as if the team had {RELIABILITY_PRIOR} more matches at it{r.matches < RELIABILITY_SMALL ? ": with this few matches, the index says more about the field than about this team" : ""}. Last {r.recent.matches}: {plural(r.recent.noShows, "no-show")}, {plural(r.recent.nearZero, "near-zero match", )}.
             </p>
           </div>
@@ -73,7 +73,7 @@ export function ReliabilitySection({ r, notes, workspaceName }: { r: Reliability
 /** Members of a workspace only: the index with their own match notes (broken / disabled / no-show) folded in. */
 export function BlendedTile({ r, notes, workspaceName }: { r: Reliability; notes: ReliabilityNotes; workspaceName: string | null }) {
   return (
-    <div data-testid="reliability-blended" className="rounded-xl border border-violet-500/30 bg-violet-500/[0.06] p-4">
+    <div data-testid="reliability-blended" className="rounded-xl border border-violet-500/30 bg-violet-500/[0.06] p-4 v8:border-line v8:bg-card">
       <p className="text-sm text-muted-foreground">With {workspaceName ? `${workspaceName}'s` : "your workspace's"} notes</p>
       <p className="mt-1 font-display text-3xl font-semibold tabular-nums">{blendedIndex(r, notes)}<span className="text-base font-medium text-muted-foreground"> / 100</span></p>
       <p className="mt-1 text-xs text-muted-foreground">
