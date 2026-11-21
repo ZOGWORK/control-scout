@@ -222,7 +222,7 @@ function Summary({ data, season, where, resultsHref, onRetry }: { data: Director
           <p className="text-xs text-text-muted v8:text-text-faint">{preparing ? "counted once statistics are ready" : ready ? "played scored qualification matches" : "from the last statistics"}</p>
         </div>
         {data && data.withResults > 0 && !preparing && (
-          <Link to={resultsHref} className="inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-success hover:underline v8:font-medium">
+          <Link to={resultsHref} className="inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-success v8:text-emerald-400 hover:underline v8:font-medium">
             Their statistics <ArrowRight className="size-4" aria-hidden />
           </Link>
         )}
@@ -252,17 +252,17 @@ function CompactSummary({ data, season, where, resultsHref, onRetry }: { data: D
   const preparing = data?.readiness.state === "preparing";
   const [about, setAbout] = useState(false);
   const id = useId();
-  const withResults = <span><Trophy className="mr-1 inline size-3.5 text-success" aria-hidden /><span className="font-semibold tabular-nums text-success">{data ? fmt(data.withResults) : "—"}</span> with results</span>;
+  const withResults = <span><Trophy className="mr-1 inline size-3.5 text-success v8:text-emerald-400" aria-hidden /><span className="font-semibold tabular-nums text-success v8:text-emerald-400">{data ? fmt(data.withResults) : "—"}</span> with results</span>;
   return (
     <div className="mt-1">
       <div className="flex items-start gap-2 px-1 text-sm text-text-muted">
       <div className="flex min-h-11 min-w-0 flex-1 flex-wrap items-center gap-x-3" aria-live="polite">
         <span><Users className="mr-1 inline size-3.5 text-accent v8:text-text-faint" aria-hidden /><span className="font-semibold tabular-nums text-accent-text">{data ? fmt(data.total) : "—"}</span> listed<span className="sr-only"> for {seasonLabel(season)} from {where}</span></span>
         {preparing ? (
-          <span><Trophy className="mr-1 inline size-3.5 text-success" aria-hidden /><span className="font-semibold text-warning">Being prepared</span></span>
+          <span><Trophy className="mr-1 inline size-3.5 text-success v8:text-emerald-400" aria-hidden /><span className="font-semibold text-warning">Being prepared</span></span>
         ) : data && data.withResults > 0 ? (
           <Link to={resultsHref} className="inline-flex min-h-11 items-center hover:underline">
-            {withResults}<span className="sr-only">: their statistics</span><ArrowRight className="ml-1 size-4 text-success" aria-hidden />
+            {withResults}<span className="sr-only">: their statistics</span><ArrowRight className="ml-1 size-4 text-success v8:text-emerald-400" aria-hidden />
           </Link>
         ) : withResults}
       </div>

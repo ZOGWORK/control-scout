@@ -51,13 +51,13 @@ function CountryPaths({ country, overview, currentSeason, side }: { country: Cou
         <ArrowRight className="size-4 shrink-0 text-accent-text transition-transform group-hover:translate-x-0.5 motion-reduce:transition-none" aria-hidden />
       </Link>
       {line.kind === "link" ? (
-        <Link to={countryHref(country.code, overview.season, currentSeason)} className={cn(path, "border-success/30 bg-success/[0.07] hover:bg-success/[0.12]")}>
-          <Trophy className="size-4 shrink-0 text-success" aria-hidden />
+        <Link to={countryHref(country.code, overview.season, currentSeason)} className={cn(path, "border-success/30 v8:border-emerald-400/30 bg-success/[0.07] v8:bg-emerald-400/[0.07] hover:bg-success/[0.12]")}>
+          <Trophy className="size-4 shrink-0 text-success v8:text-emerald-400" aria-hidden />
           <span className="min-w-0 flex-1">
-            <span className="block font-semibold text-success">{fmt(line.count)} {line.count === 1 ? "team" : "teams"} with results</span>
+            <span className="block font-semibold text-success v8:text-emerald-400">{fmt(line.count)} {line.count === 1 ? "team" : "teams"} with results</span>
             <span className="block text-xs text-text-muted">{line.behind ? "So far: newer results are still being added" : "Ranked by this season’s statistics"}</span>
           </span>
-          <ArrowRight className="size-4 shrink-0 text-success transition-transform group-hover:translate-x-0.5 motion-reduce:transition-none" aria-hidden />
+          <ArrowRight className="size-4 shrink-0 text-success v8:text-emerald-400 transition-transform group-hover:translate-x-0.5 motion-reduce:transition-none" aria-hidden />
         </Link>
       ) : line.kind === "none" ? (
         <p className={cn(path, "border-line text-text-muted")}>

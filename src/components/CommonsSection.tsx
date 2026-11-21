@@ -21,7 +21,7 @@ import type { ConsensusNumber } from "../shared/consensus";
 const avg = (x: ConsensusNumber) => (Number.isInteger(x.avg) ? String(x.avg) : x.avg.toFixed(1));
 
 const AGE_STYLE: Record<PitAgeTone, string> = {
-  fresh: "border-success/40 bg-success/10 text-success",
+  fresh: "border-success/40 v8:border-emerald-400/40 bg-success/10 v8:bg-emerald-400/10 text-success v8:text-emerald-400",
   aging: "border-warning/50 bg-warning/15 text-warning",
   stale: "border-danger/40 bg-danger/10 text-danger",
 };

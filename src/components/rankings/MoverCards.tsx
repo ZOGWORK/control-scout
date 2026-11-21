@@ -52,7 +52,7 @@ export function MoverCards({ season, climbers, fallers, newcomers, newTotal, ran
   ) : <p className="text-sm text-text-muted">No team is new to the table.</p>;
   return (
     <section aria-label={label} className="grid gap-3 sm:grid-cols-3" data-movers>
-      <Card title="Biggest climbers" icon={TrendingUp} tone="text-success"><MoverList rows={climbers} up /></Card>
+      <Card title="Biggest climbers" icon={TrendingUp} tone="text-success v8:text-emerald-400"><MoverList rows={climbers} up /></Card>
       <Card title="Biggest fallers" icon={TrendingDown} tone="text-danger"><MoverList rows={fallers} up={false} /></Card>
       <Card title={`New to the table${newTotal ? ` (${newTotal.toLocaleString()})` : ""}`} icon={Sparkles} tone="text-accent"><NewList rows={newcomers} /></Card>
     </section>

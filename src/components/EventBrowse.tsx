@@ -405,13 +405,13 @@ function TileBody({ e }: { e: EventListItem }) {
       </div>
       {e.matchesPlayed > 0 && e.status !== "upcoming" ? (
         <div className="mt-3 flex items-center gap-2" title={`${e.matchesPlayed} of ${e.matchesTotal} matches played`} data-match-bar>
-          <div className="h-1 flex-1 overflow-hidden rounded-full bg-muted"><div className={cn("h-full rounded-full", e.status === "live" ? "bg-danger" : "bg-success")} style={{ width: `${e.status === "finished" ? 100 : played}%` }} /></div>
+          <div className="h-1 flex-1 overflow-hidden rounded-full bg-muted"><div className={cn("h-full rounded-full", e.status === "live" ? "bg-danger" : "bg-success v8:bg-emerald-400")} style={{ width: `${e.status === "finished" ? 100 : played}%` }} /></div>
           <span className="text-[11px] tabular-nums text-muted-foreground">{e.matchesPlayed}/{e.matchesTotal}</span>
         </div>
       ) : e.status === "finished" ? (
         // Finished with no results posted (most scrimmages, some meets): still a full bar, so every finished card reads as done.
         <div className="mt-3 flex items-center gap-2" title="Finished; no match results posted" data-match-bar>
-          <div className="h-1 flex-1 rounded-full bg-success" />
+          <div className="h-1 flex-1 rounded-full bg-success v8:bg-emerald-400" />
           <span className="text-[11px] text-muted-foreground">Done</span>
         </div>
       ) : e.status === "live" && e.matchesTotal > 0 && (

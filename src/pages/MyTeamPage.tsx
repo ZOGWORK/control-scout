@@ -188,7 +188,7 @@ function Dashboard({ team }: { team: number }) {
                   value={s?.rating ? <>{num(s.rating.np)}<span className="ml-1 text-base font-medium text-muted-foreground">±{num(s.rating.sd)}</span></> : "—"}
                   hint={s?.rating ? `${s.rating.rank ? `#${s.rating.rank.toLocaleString()} worldwide · ` : ""}${s.rating.matches} matches` : `no matches ${when}`} /></StaggerItem>
                 <StaggerItem><StatTile tone="emerald" icon={Trophy} label="Record"
-                  value={r ? <span aria-label={recordWords(r.wins, r.losses, r.ties)}><span className="text-success">{r.wins}</span><span className="text-muted-foreground">-</span><span className="text-destructive">{r.losses}</span><span className="text-muted-foreground">-{r.ties}</span></span> : "—"}
+                  value={r ? <span aria-label={recordWords(r.wins, r.losses, r.ties)}><span className="text-success v8:text-emerald-400">{r.wins}</span><span className="text-muted-foreground">-</span><span className="text-destructive">{r.losses}</span><span className="text-muted-foreground">-{r.ties}</span></span> : "—"}
                   // The record is official events only; the matches and events counted beside it are every one played.
                   hint={r ? `${OFFICIAL_ONLY} · ${r.matches} matches at ${r.events} event${r.events === 1 ? "" : "s"} in all` : `no matches ${when}`}
                   bar={r && r.wins + r.losses + r.ties > 0 ? <RecordMeter w={r.wins} l={r.losses} t={r.ties} /> : null} /></StaggerItem>
@@ -265,14 +265,14 @@ function SeasonSoFar({ p, team, matches, matchesFailed, when, earlier, onSeason 
       <p className={`mt-3 font-display text-5xl font-semibold tabular-nums ${PROFILE_PERCENTILE_TEXT}`}>{top ?? "Unranked"}</p>
       <p className="text-sm text-muted-foreground">worldwide by OPR{s.opr.np.rank ? ` · #${s.opr.np.rank.toLocaleString()} of ${s.opr.np.of?.toLocaleString()}` : ""}</p>
       <div className="mt-5 max-sm:mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <div className="rounded-xl border border-success/30 bg-success/[0.07] p-3">
-          <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><Trophy className="size-3.5 text-success" aria-hidden />Win rate</p>
+        <div className="rounded-xl border border-success/30 v8:border-emerald-400/30 bg-success/[0.07] v8:bg-emerald-400/[0.07] p-3">
+          <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><Trophy className="size-3.5 text-success v8:text-emerald-400" aria-hidden />Win rate</p>
           {/* Off-season matches and scrimmages only: no official result to make a win rate from (the record counts
               official events only), said so instead of an empty rate. */}
           {r.wins + r.losses + r.ties === 0 ? <p className="mt-1 text-sm text-muted-foreground" data-no-official>No official results yet: {r.matches} match{r.matches === 1 ? "" : "es"} at off-season events and scrimmages, not in the record.</p> : <>
-          <p className="mt-1 font-display text-2xl font-semibold tabular-nums text-success">{winRate}%</p>
+          <p className="mt-1 font-display text-2xl font-semibold tabular-nums text-success v8:text-emerald-400">{winRate}%</p>
           <div className="mt-2"><RecordMeter w={r.wins} l={r.losses} t={r.ties} /></div>
-          <p className="mt-1.5 text-xs text-muted-foreground"><span className="font-medium text-success">{r.wins} won</span> · <span className="font-medium text-destructive">{r.losses} lost</span>{r.ties > 0 && <> · {r.ties} tied</>}</p>
+          <p className="mt-1.5 text-xs text-muted-foreground"><span className="font-medium text-success v8:text-emerald-400">{r.wins} won</span> · <span className="font-medium text-destructive">{r.losses} lost</span>{r.ties > 0 && <> · {r.ties} tied</>}</p>
           </>}
         </div>
         {predictable && (

@@ -39,7 +39,7 @@ export function SeasonCoverage({ state }: { state: ApiState<HomeOverview> }) {
   const items = [
     { n: o?.coverage.teamListings, label: "team listings this season", hint: "Teams registered for the season, each counted once", tone: "text-accent-text" },
     { n: o?.coverage.events, label: "events on the calendar", hint: "Competition events listed for the season (kickoffs and workshops left out)", tone: "text-info" },
-    { n: o?.coverage.matchScores, label: "match scores recorded", hint: "Matches with a published score this season", tone: "text-success" },
+    { n: o?.coverage.matchScores, label: "match scores recorded", hint: "Matches with a published score this season", tone: "text-success v8:text-emerald-400" },
   ];
   return (
     // Sized by its own width: on a wide screen it sits under the hero's search, half the page wide.

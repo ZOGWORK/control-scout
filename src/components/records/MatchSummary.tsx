@@ -173,7 +173,7 @@ function MatchCard({ r, cols, open, onToggle }: { r: MatchRecordRow; cols: strin
       {p && (
         <p className="mx-3 mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs" title="Predicted using only the matches before it (replayed afterward; not a live call)">
           <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-bold",
-            p.verdict === "called" ? "bg-success/15 text-success" : p.verdict === "upset" ? "bg-warning/15 text-warning" : "bg-accent/15 text-accent-text")}>
+            p.verdict === "called" ? "bg-success/15 v8:bg-emerald-400/15 text-success v8:text-emerald-400" : p.verdict === "upset" ? "bg-warning/15 text-warning" : "bg-accent/15 text-accent-text")}>
             <Sparkles className="size-3" aria-hidden />{VERDICT_LABEL[p.verdict]}
           </span>
           <span className="text-text-base"><span className="sr-only">Result versus prediction: </span>{p.text}</span>
