@@ -199,8 +199,8 @@ export function AccountFooter({ place, onNavigate }: { place: "corner" | "sideba
         // v8 (docs/design/v8-revamp-brief.md §6): just the picture (a guest one signed out), beside the inbox.
         <button type="button" {...toggle} data-profile aria-label={user ? `Account: ${name}` : "Sign in"} title={user ? name : "Sign in"}
           className="flex size-11 items-center justify-center rounded-full outline-none transition-[scale] duration-150 ease-out active:scale-[0.97] motion-reduce:active:scale-100 focus-visible:ring-2 focus-visible:ring-ring/60">
-          {user ? <UserAvatar url={user.avatarUrl} name={name} className="size-8 bg-white/10 text-text-base ring-1 ring-white/15" />
-            : <span data-guest className="flex size-8 items-center justify-center rounded-full bg-white/[0.08] text-text-muted ring-1 ring-white/15"><UserRound className="size-[1.125rem]" aria-hidden /></span>}
+          {user ? <UserAvatar url={user.avatarUrl} name={name} className="size-8 bg-ink/10 text-text-base ring-1 ring-ink/15" />
+            : <span data-guest className="flex size-8 items-center justify-center rounded-full bg-ink/[0.08] text-text-muted ring-1 ring-ink/15"><UserRound className="size-[1.125rem]" aria-hidden /></span>}
         </button>
       ) : rail ? (
         <div className="flex flex-col items-center gap-1">
@@ -255,7 +255,7 @@ export function AccountFooter({ place, onNavigate }: { place: "corner" | "sideba
 
 /** The corner panel's own rows, above the account: what used to sit at the sidebar's foot. */
 function CornerLinks({ owner, onLeave }: { owner: boolean; onLeave: () => void }) {
-  const row = "flex h-10 items-center gap-2.5 rounded-lg px-2.5 text-sm font-medium text-text-base outline-none transition-colors hover:bg-white/[0.06] focus-visible:ring-2 focus-visible:ring-ring/60 [&_svg]:size-4 [&_svg]:text-text-muted";
+  const row = "flex h-10 items-center gap-2.5 rounded-lg px-2.5 text-sm font-medium text-text-base outline-none transition-colors hover:bg-ink/[0.06] focus-visible:ring-2 focus-visible:ring-ring/60 [&_svg]:size-4 [&_svg]:text-text-muted";
   return (
     <nav aria-label="Account" data-corner-links className="-mx-2 -mt-2 mb-3 flex flex-col border-b border-line pb-2">
       <Link to="/settings" onClick={onLeave} className={row}><Settings aria-hidden /> Settings</Link>
