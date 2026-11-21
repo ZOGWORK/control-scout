@@ -23,8 +23,8 @@ export default function RelatedSearchesPage() {
   useTitle(q ? `Related searches: ${q}` : "Popular FTC searches");
   return (
     <div className="mx-auto w-full max-w-[720px] pt-4 sm:pt-8">
-      <p className="text-xs font-semibold text-muted-foreground max-md:hidden">FTC One Search</p>
-      <h1 className="mt-1 break-words font-display text-xl font-semibold tracking-tight text-foreground md:text-2xl lg:text-3xl">
+      <p className="text-xs font-semibold text-muted-foreground v8:font-medium v8:text-text-faint max-md:hidden">FTC One Search</p>
+      <h1 className="mt-1 break-words font-display text-xl font-semibold tracking-tight text-foreground md:text-2xl lg:text-3xl v8:font-sans v8:text-[1.375rem] v8:leading-7 v8:md:text-[1.375rem] v8:lg:text-[1.375rem]">
         {q ? <>Related searches: {q}</> : "Popular FTC searches"}
       </h1>
       {q && <p className="mt-2 text-sm"><Link to={searchHref(q)} className="inline-flex min-h-[44px] items-center font-medium text-foreground underline underline-offset-2 hover:no-underline">Back to the answer for “{q}” →</Link></p>}
@@ -34,10 +34,10 @@ export default function RelatedSearchesPage() {
         : page.groups.map((g) => (
           <section key={g.title || "searches"} aria-label={g.title || "Related searches"} className="mt-6" data-group>
             {g.title && <h2 className="mb-2 text-base font-semibold text-foreground">{g.title}</h2>}
-            <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">
+            <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card v8:border-line">
               {g.items.map((x) => (
                 <li key={x.q}>
-                  <Link to={searchHref(x.q)} className="flex min-h-[44px] items-start gap-3 px-4 py-2.5 text-sm hover:bg-muted/50">
+                  <Link to={searchHref(x.q)} className="flex min-h-[44px] items-start gap-3 px-4 py-2.5 text-sm hover:bg-muted/50 v8:hover:bg-white/[0.04]">
                     <Search className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" aria-hidden />
                     <span className="min-w-0">
                       <span className="block break-words font-medium text-foreground">{x.q}</span>

@@ -15,7 +15,7 @@ import { ago } from "../../lib/format";
 import type { OpName, OpsStatus } from "../../shared/owner";
 
 export const OPS: { op: OpName; title: string; icon: typeof RefreshCw; does: string; confirm: string; tone: string }[] = [
-  { op: "resync", title: "Re-sync now", icon: RefreshCw, tone: "bg-accent/15 text-accent-text",
+  { op: "resync", title: "Re-sync now", icon: RefreshCw, tone: "bg-accent/15 text-accent-text v8:text-accent",
     does: "Fetches the current season from FIRST, then rebuilds stats, ratings and the prediction ledger. Takes a few minutes.",
     confirm: "Live results for events on today wait until it finishes. The scheduled sync won't start while it runs. Match data only ever changes to what FIRST publishes." },
   { op: "packs", title: "Rebuild offline packs", icon: PackageOpen, tone: "bg-info/15 text-info",
@@ -74,7 +74,7 @@ export function OpsCards({ ops, title = "Data jobs", description, onDone }: { op
         {(s) => (
           <>
             <p className="mb-3 flex items-center gap-2 text-sm text-muted-foreground">
-              <span className={cn("size-2 shrink-0 rounded-full", s.writer || s.cycle ? "bg-warning" : "bg-success")} aria-hidden />
+              <span className={cn("size-2 shrink-0 rounded-full", s.writer || s.cycle ? "bg-warning" : "bg-success v8:bg-emerald-400")} aria-hidden />
               {s.cycle ? `A data update (${s.cycle.reason}) is running on this server.` : s.writer ? `The data writer is busy: ${s.writer.what}.` : "The data writer is free."}
             </p>
             <div className={cn("grid gap-3", shown.length > 1 && "lg:grid-cols-2", shown.length > 2 && "lg:grid-cols-3")}>
@@ -90,7 +90,7 @@ export function OpsCards({ ops, title = "Data jobs", description, onDone }: { op
                     <p className="mt-2 text-sm text-muted-foreground">{o.does}</p>
                     {job && (
                       <div role="status" className={cn("mt-3 rounded-lg border px-3 py-2 text-xs",
-                        job.state === "running" ? "border-info/40 bg-info/[0.06]" : job.state === "done" ? "border-success/40 bg-success/[0.06]" : "border-danger/40 bg-danger/[0.06]")}>
+                        job.state === "running" ? "border-info/40 bg-info/[0.06]" : job.state === "done" ? "border-success/40 v8:border-emerald-400/40 bg-success/[0.06] v8:bg-emerald-400/[0.06]" : "border-danger/40 bg-danger/[0.06]")}>
                         <p className="font-medium text-foreground">
                           {job.state === "running" ? `Running since ${ago(job.startedAt)}` : job.state === "done" ? `Finished ${ago(job.finishedAt)}` : `Failed ${ago(job.finishedAt)}`}
                         </p>

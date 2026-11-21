@@ -20,7 +20,7 @@ export function HowItWorksToggle({ open, onToggle, className }: { open: boolean;
 function Step({ icon, tone, children }: { icon: ReactNode; tone: string; children: ReactNode }) {
   return (
     <li className="flex items-start gap-2.5">
-      <span aria-hidden className={cn("mt-0.5 inline-flex size-6 shrink-0 items-center justify-center rounded-md [&_svg]:size-3.5", tone)}>{icon}</span>
+      <span aria-hidden className={cn("mt-0.5 inline-flex size-6 shrink-0 items-center justify-center rounded-md [&_svg]:size-3.5", tone, "v8:bg-transparent v8:text-text-faint")}>{icon}</span>
       <span className="min-w-0">{children}</span>
     </li>
   );
@@ -29,8 +29,8 @@ function Step({ icon, tone, children }: { icon: ReactNode; tone: string; childre
 /** What a pick list can do, step by step (with each step's keyboard way where it has one). */
 export function HowItWorks({ className, title = true, hidden }: { className?: string; title?: boolean; hidden?: boolean }) {
   return (
-    <section id={HOW_IT_WORKS_ID} hidden={hidden} aria-label="How the shortlist works" className={cn("rounded-2xl border border-border bg-card p-4 text-sm", className)}>
-      {title && <h2 className="mb-3 font-display text-base font-semibold">How it works</h2>}
+    <section id={HOW_IT_WORKS_ID} hidden={hidden} aria-label="How the shortlist works" className={cn("rounded-2xl border border-border bg-card p-4 text-sm v8:rounded-xl v8:border-line sm:v8:p-5", className)}>
+      {title && <h2 className="mb-3 font-display text-base font-semibold v8:font-sans">How it works</h2>}
       <ul className="grid gap-2.5 text-text-muted sm:grid-cols-2">
         <Step icon={<Bookmark />} tone="bg-accent/15 text-accent-text">Type a team number or name in the <span className="font-medium text-text-base">Add team</span> box, or press <span className="font-medium text-text-base">Shortlist</span> on any team page. An event’s Rankings tab is a good place to start.</Step>
         <Step icon={<GripVertical />} tone="bg-accent/15 text-accent-text">Drag the grip to rank your picks, or focus it and use the arrow keys. <span className="font-medium text-text-base">Order picks</span> ranks the whole list by OPR or rating.</Step>

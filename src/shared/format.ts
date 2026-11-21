@@ -74,6 +74,23 @@ const AWARD_LABEL: Record<string, string> = {
   Reach: "Reach", Sustain: "Sustain", JudgesChoice: "Judges' Choice", Compass: "Compass", DeansList: "Dean's List", Winner: "Winning Alliance",
   Finalist: "Finalist Alliance", Volunteer: "Volunteer",
 };
+const ENTITY: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ", reg: "®", trade: "™", copy: "©" };
+/** Text from FIRST that may carry markup ("<i>FIRST</i>® Leadership Award Finalists") as plain text: tags dropped,
+ *  common entities decoded, spaces collapsed. Never rendered as HTML; React escapes whatever is left. */
+export function plainText(s: string): string {
+  return s.replace(/<\/?[a-z][^<>]*>/gi, "")
+    .replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (m, e: string) => {
+      if (e[0] === "#") {
+        const n = e[1] === "x" || e[1] === "X" ? parseInt(e.slice(2), 16) : Number(e.slice(1));
+        return n > 0 && n < 0x110000 ? String.fromCodePoint(n) : m;
+      }
+      return ENTITY[e.toLowerCase()] ?? m;
+    })
+    .replace(/\s+/g, " ").trim();
+}
+/** An award's name as shown: FIRST's own name as plain text, else the label from its type and placement. */
+export const awardTitle = (a: { type: string; placement: number; name?: string | null }): string =>
+  (a.name ? plainText(a.name) : "") || awardLabel(a.type, a.placement);
 export function awardLabel(type: string, placement: number): string {
   const base = AWARD_LABEL[type] ?? type;
   if (type === "Winner" || type === "Finalist") return base;
