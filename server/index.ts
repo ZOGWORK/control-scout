@@ -97,11 +97,6 @@ void triageUntriaged(log).catch((e) => log(`clip coverage triage: ${(e as Error)
 // rebuilt here, once, not on a visitor's search; its names and typo index after it, since a rebuild resets them.
 const indexed = ensureSearchIndex(rebuildSearch);
 const afterIndex = () => indexed.catch(() => { /* its own step says it failed */ });
-// The current season's ratings, so the first prediction is fast: in the background, never held for (about 20 s cold,
-// and only predictions need them; held for, every queued search would wait on them).
-// Then the season a search with none named reads (the latest completed one, server/api/answers/season.ts): its
-// predictions ("4215 vs 7149 who wins") otherwise built the whole season on a visitor's request, 10–20 s cold.
-const rated = warmUp([["ratings", () => forecasterFor(CURRENT_SEASON).then(() => refreshSearchSeason()).then((s) => (s !== CURRENT_SEASON ? forecasterFor(s) : null))]], log, Infinity, Date.now, "warm (background)");
 const warming = await warmUp([
   // The track record (every scored prediction: about a second and a half cold), then the match report's flag
   // cutoffs (two scans of a season) for this season and last.
@@ -115,6 +110,15 @@ const warming = await warmUp([
   // The server-side page render (server/firstPaint.ts): its bundle compiled before the first team or event page asks.
   ["page renderer", () => warmPageRenderer()],
 ], log);
+// The current season's ratings, so the first prediction is fast: in the background, never held for (about 20 s cold,
+// and only predictions need them; held for, every queued search would wait on them).
+// Then the season a search with none named reads (the latest completed one, server/api/answers/season.ts): its
+// predictions ("4215 vs 7149 who wins") otherwise built the whole season on a visitor's request, 10–20 s cold.
+// Started once the steps above are done, not beside them: the two shared the one event loop, so the held steps took
+// about twice as long (18 s on the VM, measured on a copy of its data: 43 s beside the build, 22 s before it) while a
+// deploy's requests waited in the socket's queue, and searches asked meanwhile ran out of time ("Search is slow right
+// now"). The build yields to requests as it goes.
+const rated = warmUp([["ratings", () => forecasterFor(CURRENT_SEASON).then(() => refreshSearchSeason()).then((s) => (s !== CURRENT_SEASON ? forecasterFor(s) : null))]], log, Infinity, Date.now, "warm (background)");
 void Promise.all([warming.settled, rated.then((r) => r.settled)]).then(() => { warm = true; });
 ready = true;
 if (socket) http = server.listen(socket, listening("the systemd socket"));
