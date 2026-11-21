@@ -396,6 +396,10 @@ function RecordSplit({ split, bar = INK_BAR }: { split: { quals: StatRecord; pla
  *  teams side by side (columns `a` and `b`): each row's better number is bold with a trophy (no hue). */
 function Table({ b }: { b: Extract<StatBlock, { kind: "table" }> }) {
   const first = b.columns[0];
+  // A list's place ("#") first is a narrow index: the next column (the team, the event) leads the row, wide and linked,
+  // so the numbers line up under the card's own left edge (bug report #2040).
+  const index = first.key === "rank" && !!first.num && b.columns.length > 1;
+  const lead = index ? 1 : 0;
   const max = new Map(b.columns.map((c) => [c.key, columnMax(c, b.rows.map((r) => r.cells[c.key]))]));
   const folded = b.columns.filter((c) => foldsOnPhone(c, first));
   const vs = b.columns.some((c) => c.key === "a") && b.columns.some((c) => c.key === "b");
@@ -407,7 +411,7 @@ function Table({ b }: { b: Extract<StatBlock, { kind: "table" }> }) {
       <div className={cn("overflow-x-auto rounded-lg border border-border", V8_TABLE.frame)}>
         <table className="w-full text-sm">
           <thead className={cn("bg-muted/50 text-left text-[11px] text-muted-foreground v8:bg-transparent v8:text-[0.75rem] v8:text-text-faint", V8_TABLE.head)}>
-            <tr>{b.columns.map((c) => <th key={c.key} scope="col" className={cn("px-2.5 py-1.5 font-medium", V8_TABLE.cell, "v8:h-9 v8:py-0", c.num && "text-right", c !== first && "whitespace-nowrap max-md:px-1.5", folded.includes(c) && "max-md:hidden")}>{c.label}</th>)}{plays && <th scope="col" className="w-0 px-1"><span className="sr-only">Video</span></th>}</tr>
+            <tr>{b.columns.map((c) => <th key={c.key} scope="col" className={cn("px-2.5 py-1.5 font-medium", V8_TABLE.cell, "v8:h-9 v8:py-0", c.num && "text-right", c !== first && "whitespace-nowrap max-md:px-1.5", index && c === first && "w-px whitespace-nowrap", folded.includes(c) && "max-md:hidden")}>{c.label}</th>)}{plays && <th scope="col" className="w-0 px-1"><span className="sr-only">Video</span></th>}</tr>
           </thead>
           <tbody>
             {b.rows.map((r, i) => {
@@ -419,12 +423,12 @@ function Table({ b }: { b: Extract<StatBlock, { kind: "table" }> }) {
                     const v = r.cells[c.key];
                     const won = win === c.key;
                     return (
-                      <td key={c.key} className={cn("px-2.5 py-1.5 align-middle", V8_TABLE.cell, c.num && "text-right tabular-nums", j === 0 && meaningOf(String(v ?? "")) && cn("border-l-[6px]", swatchOf(String(v)).edge), j === 0 ? "min-w-[4.5rem] md:min-w-[8rem]" : "whitespace-nowrap max-md:px-1.5", folded.includes(c) && "max-md:hidden", won && "font-bold text-foreground")} data-better={won ? "" : undefined}>
+                      <td key={c.key} className={cn("px-2.5 py-1.5 align-middle", V8_TABLE.cell, c.num && "text-right tabular-nums", j === 0 && meaningOf(String(v ?? "")) && cn("border-l-[6px]", swatchOf(String(v)).edge), j === lead ? "min-w-[4.5rem] md:min-w-[8rem]" : cn("whitespace-nowrap max-md:px-1.5", index && j === 0 && "w-px"), folded.includes(c) && "max-md:hidden", won && "font-bold text-foreground")} data-better={won ? "" : undefined}>
                         {j === 0 && r.strong && <Trophy className="mr-1 inline size-3.5 align-[-2px] text-team-a v8:text-accent" aria-label="Best" />}
-                        {j === 0 && r.href
+                        {j === lead && r.href
                           ? <Link to={r.href} className={cn("text-foreground hover:text-accent-text v8:hover:text-foreground hover:underline max-md:inline-flex max-md:items-center pointer-coarse:inline-flex pointer-coarse:items-center", TAP)}>{c.key === "award" && v != null ? <AwardChip name={String(v)} /> : (v ?? "–")}</Link>
                           : j === 0 && c.key === "award" && v != null ? <AwardChip name={String(v)} />
-                          : j === 0 ? (v ?? "–") : <Cell col={c} value={v} max={max.get(c.key)} />}
+                          : j <= lead ? (v ?? "–") : <Cell col={c} value={v} max={max.get(c.key)} />}
                         {j === 0 && first.key === "event" && !!r.type && <EventMarker type={r.type} chip />}
                         {won && <Trophy className="ml-1 inline size-3 align-[-1px] text-team-a v8:text-muted-foreground" aria-label="Better" />}
                         {j === 0 && !!folded.length && (
