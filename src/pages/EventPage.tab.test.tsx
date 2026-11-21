@@ -94,7 +94,8 @@ describe("who advanced: first on the Awards tab, and on the Odds tab with no tea
     expect(panel.textContent).not.toContain("USNJCMP");
     expect(section.compareDocumentPosition(panel.querySelector("ul.grid")!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(chips()).toEqual(["14215 Hypnotic Robotics136 advancement points", "2207 Critical Mass105 advancement points", "315762 Pandamonium55 advancement points", "412853 Mechanical Mayhem49 advancement points", "513617 Bectobots48 advancement points"]);
-    expect(section.innerHTML).not.toMatch(/accent|gold|amber|orange|yellow|warning/);
+    // No gold in the classic look; v8's slate-blue team numbers (v8:text-accent) don't count.
+    expect(section.innerHTML.replace(/v8:[^\s"]+/g, "")).not.toMatch(/accent|gold|amber|orange|yellow|warning/);
   });
   it("Odds with no team picked shows the same section; with a team picked it's left to that team's odds", () => {
     current = advanced();

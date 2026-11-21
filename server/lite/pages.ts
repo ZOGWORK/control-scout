@@ -74,7 +74,7 @@ export function homePage(season: number, events: EventListItem[], to: string): L
   const shown = calendar(events);
   const rows = shown.slice(0, HOME_EVENTS).map((e) => listRow(liteEventPath(e.season, e.code),
     `<span><b>${esc(e.name)}</b><small>${esc([dateRange(e.start, e.end), place(e.city, e.state, e.country)].filter(Boolean).join(" · "))}</small></span>`
-    + `<span class="res${e.status === "live" ? " ok" : " m"}">${e.status === "live" ? "On now" : "Soon"}</span>`, true));
+    + `<span class="res${e.status === "live" ? " ok lv" : " m"}">${e.status === "live" ? "On now" : "Soon"}</span>`, true));
   const more = (shown.length > HOME_EVENTS ? note(`${shown.length - HOME_EVENTS} more this week.`) : "") + `<p class="sec">${button("/events", "All events (full version)")}</p>`;
   const body = title("Control Scout Lite", "FTC teams, events, predictions and search, for a weak signal.")
     + `<div class="sec">${searchBox()}</div>`
@@ -119,7 +119,7 @@ function statBlock(b: StatBlock): string {
     case "bars": return section(esc(b.title), table(`<th></th><th></th><th class="n">${esc(b.unit ?? "")}</th>`,
       b.groups.flatMap((g) => g.items.map((i, k) => `<tr><td>${k ? "" : esc(g.label)}</td><td>${esc(i.label)}</td><td class="n">${esc(num(i.value))}</td></tr>`)), ""));
     case "leaderboard": return section(esc(b.title), table(`<th class="n">#</th><th>Team</th><th class="n">${esc(b.stat.label)}</th>`,
-      b.rows.slice(0, SEARCH_ROWS).map((r) => `<tr><td class="n">${r.rank}</td><td>${cellLink(liteLink(r.team.href), esc(r.team.label), esc([r.location, r.record].filter(Boolean).join(" · ")))}</td><td class="n">${esc(r.display)}</td></tr>`), "")
+      b.rows.slice(0, SEARCH_ROWS).map((r) => `<tr><td class="n${r.rank === 1 ? " top1" : ""}">${r.rank}</td><td>${cellLink(liteLink(r.team.href), esc(r.team.label), esc([r.location, r.record].filter(Boolean).join(" · ")))}</td><td class="n">${esc(r.display)}</td></tr>`), "")
       + note(esc(b.note)) + more(SEARCH_ROWS, b.rows.length));
     case "compare": return section(esc(b.title), table(`<th></th>${b.teams.map((t) => `<th class="n">${cellLink(liteLink(t.href), esc(t.label))}</th>`).join("")}`,
       b.rows.map((r) => `<tr><td>${esc(r.label)}</td>${r.values.map((v, i) => `<td class="n${r.best === i ? " w" : ""}">${esc(v)}</td>`).join("")}</tr>`), ""));
@@ -310,7 +310,7 @@ export function rankingsPage(r: RankingsResponse): LitePage {
     if (page > 1) p.set("page", String(page));
     return p.toString().replace(/%2C/g, ",").replace(/%3A/g, ":");
   };
-  const rows = r.rows.map((x) => `<tr><td class="n">${x.rank}</td><td>${cellLink(liteTeamPath(x.team, r.season), String(x.team), esc([x.name, place(null, x.state, x.country)].filter(Boolean).join(" · ")))}</td>`
+  const rows = r.rows.map((x) => `<tr><td class="n${x.rank === 1 ? " top1" : ""}">${x.rank}</td><td>${cellLink(liteTeamPath(x.team, r.season), String(x.team), esc([x.name, place(null, x.state, x.country)].filter(Boolean).join(" · ")))}</td>`
     + `<td class="n">${esc(x.rating.toFixed(1))}</td><td class="n${typeof x.move === "number" && x.move > 0 ? " ok" : ""}">${esc(moveText(x.move))}</td></tr>`);
   const where = r.places.length ? r.places.map(placeName).join(", ") : "the world";
   const body = title("Rankings", `${esc(seasonLabel(r.season))} · ${int(r.total)} rated teams in ${esc(where)}`)
@@ -335,7 +335,7 @@ export function scoutPage(full: string, view: LiteView, signedIn: boolean): Lite
 
 // ── Settings ───────────────────────────────────────────────────────────────────────────────────────────────
 
-const THEME_NAMES: Record<ThemeCookie, string> = { light: "Light", dim: "Dim", dark: "Dark", midnight: "Midnight", system: "System" };
+const THEME_NAMES: Record<ThemeCookie, string> = { light: "Light", dim: "Dim", dark: "Dark", system: "System" };
 export const TEXT_SIZE_NAMES: [TextSizeCookie | "m", string][] = [["s", "Smaller"], ["m", "Default"], ["l", "Larger"], ["xl", "Largest"]];
 
 /** A setting's choices: links that set it (a cookie) and come back here; the current one gold. */
@@ -345,8 +345,11 @@ const choices = (items: { href: string; text: string; cur: boolean }[]) =>
 export function settingsPage(view: LiteView): LitePage {
   const back = encodeURIComponent("/lite/settings");
   const body = title("Settings", "The same settings as the full version, on this device.")
-    + section("Theme", choices(THEME_COOKIES.map((t) => ({ href: `/lite/theme?set=${t}&next=${back}`, text: THEME_NAMES[t], cur: view.theme === t })))
-      + note("System follows your phone's light or dark mode."))
+    + section("Theme", view.v8
+      // v8 is dark only for now, as in the app: the choice is kept for when Light comes back.
+      ? card(`<p>The new look is dark only for now. Your theme choice comes back with Light.</p>`)
+      : choices(THEME_COOKIES.map((t) => ({ href: `/lite/theme?set=${t}&next=${back}`, text: THEME_NAMES[t], cur: view.theme === t })))
+        + note("System follows your phone's light or dark mode."))
     + section("Text size", choices(TEXT_SIZE_NAMES.map(([k, name]) => ({ href: `/lite/size?set=${k}&next=${back}`, text: name, cur: (view.textSize ?? "m") === k }))))
     + section("Control Scout Lite", card(view.sticky
       ? `<p>Lite is on: pages with a Lite version open in Lite, on this device, until you turn it off.</p><p>${button(`/lite/off?next=${encodeURIComponent("/settings")}`, "Turn off Lite")}</p>`

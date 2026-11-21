@@ -105,3 +105,22 @@ export function takeBatch(weeks: Week[], budget: number): { shown: [week: string
   }
   return { shown, hidden: total - rendered };
 }
+
+/** Rows in v8's "On now and next" card: always this many when the season has them, so the card's height is known
+ *  before the list arrives (the page's first paint stays still). A phone shows the first NOW_ROWS_PHONE. */
+export const NOW_ROWS = 6;
+export const NOW_ROWS_PHONE = 4;
+
+/**
+ * v8's "On now and next": the live events (earliest start first), then the next to start (by date, then name), and,
+ * late in the season when too few are left to start, the latest finished. `live` is how many of the season's events
+ * are live (the card's "All N live" link), which can be more than the rows shown.
+ */
+export function nowAndNext(events: EventListItem[], rows = NOW_ROWS): { items: EventListItem[]; live: number; soon: number } {
+  const byStart = (a: EventListItem, b: EventListItem) => cmp(a.start ?? "9999", b.start ?? "9999") || byName.compare(a.name, b.name);
+  const live = events.filter((e) => e.status === "live").sort(byStart);
+  const next = events.filter((e) => e.status === "upcoming" && e.start).sort(byStart);
+  const done = events.filter((e) => e.status === "finished").sort((a, b) => cmp(b.end ?? b.start ?? "", a.end ?? a.start ?? "") || byName.compare(a.name, b.name));
+  const items = [...live, ...next, ...done].slice(0, rows);
+  return { items, live: live.length, soon: Math.max(0, Math.min(next.length, rows - live.length)) };
+}
