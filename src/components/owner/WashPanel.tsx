@@ -56,7 +56,7 @@ function RangeField({ id, label, hint, value, range, onChange }: { id: string; l
 export function WashPreview({ wash }: { wash: WashSettings }) {
   return (
     <div data-testid="wash-preview" className="relative h-72 overflow-hidden rounded-xl border border-border bg-background" style={washVars(wash) as CSSProperties}>
-      <Wash size="tall" />
+      <Wash size="tall" includeParticleWave={false} />
       <div className="relative p-5">
         <p className="font-display text-2xl font-semibold tracking-[-0.02em] text-foreground">Control Scout</p>
         <p className="mt-1 text-sm text-muted-foreground">The top of every page, as visitors see it.</p>
