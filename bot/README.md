@@ -51,7 +51,15 @@ answer's video and a small "more on controlscout.org" link only when the records
 carries the thread on (the bot remembers its last 2,000 threads in memory, up to 6 turns each; a restart forgets
 them). `/ask` answers the same way, with the question quoted. Every number in his reply must be in the facts, the
 message or the thread, or the website's answer card posts instead, as it does when Bruno is off (`discordBruno`),
-unconfigured, slow (15 s) or failing. Same cache and 3-second pace as every command. Only a message from a person in a
+unconfigured, slow (15 s) or failing. Same cache and 3-second pace as every command.
+
+**Small talk when there's no model.** A short message that isn't a records question and that search found nothing for
+("hi", "who are you", "who's your favourite person here", "thanks", "what can you do") gets a reply in the bot's own
+words (`bot/smallTalk.ts`), credited to Control Scout rather than Bruno, instead of "Sorry — I can't answer that yet"
+with the closest matches. It names no number and claims no favourite, so nothing in it can be read as data. A message
+with a number in it, or a longer one search couldn't answer, is still a real question and keeps the honest card.
+
+Only a message from a person in a
 server that mentions the bot itself, or replies to its post: not @everyone or a role. Discord sends a bot the text of
 messages that mention it (a reply pings it) without the Message Content intent, so the bot reads nothing else; a
 reply that arrives without its text is left alone.

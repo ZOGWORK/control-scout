@@ -9,11 +9,13 @@ it("grounds the completed remodel and available Zog Mode without claiming its ba
   expect(facts.join(" ")).toContain("multiple angled streams");
   expect(facts.join(" ")).toContain("existing, available");
   expect(facts.join(" ")).not.toMatch(/currently (?:enabled|disabled)|Dog Mode/);
+  expect(facts.join(" ")).not.toMatch(/owner|console|dogTheme/i);
   expect(ungrounded("The v8 remodel is complete. Zog Mode exists and is available.", facts, "what changed?")).toEqual([]);
 });
 it("recognizes the screenshot's question but leaves actual dog-named teams to search", () => {
   expect(zogModeReply("where is the dog")).toContain("Zog Mode");
-  expect(zogModeReply("turn on zog mode")).toContain("Discord users cannot turn it on or off");
+  expect(zogModeReply("turn on zog mode")).toContain("Zog Mode exists");
+  expect(zogModeReply("turn on zog mode")).not.toMatch(/owner|console|flag|settings|enabled|disabled|turned on/i);
   expect(zogModeReply("Sea Dog Robotics scores")).toBeNull();
   expect(zogModeReply("team zog rankings")).toBeNull();
   expect(zogModeReply("zog 1234")).toBeNull();
