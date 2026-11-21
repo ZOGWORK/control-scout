@@ -12,7 +12,8 @@ const STATUS_TEXT: Record<TeamStatus, string> = { empty: "nothing yet", started:
 export function StatusDot({ status, className }: { status: TeamStatus; className?: string }) {
   return (
     <span aria-hidden data-status={status} className={cn("inline-block size-2.5 shrink-0 rounded-full border-2",
-      status === "done" ? "border-success bg-success" : status === "started" ? "border-warning bg-warning" : "border-muted-foreground/60 bg-transparent", className)} />
+      // v8: saved is a green dot, started a white ring with a faint fill, nothing yet a grey ring (no orange).
+      status === "done" ? "border-success bg-success v8:border-emerald-400 v8:bg-emerald-400" : status === "started" ? "border-warning bg-warning v8:border-text-base v8:bg-white/25" : "border-muted-foreground/60 bg-transparent", className)} />
   );
 }
 
@@ -53,8 +54,9 @@ export function TeamTabs({ teams, active, onSelect, renderForm, className }: {
                 aria-label={`${t.watched.team}, ${red ? "red" : "blue"} ${t.watched.station}, ${STATUS_TEXT[t.status]}`}
                 onClick={() => onSelect(t.watched.team)} onKeyDown={(e) => onKey(e, i)}
                 className={cn("flex h-11 min-w-0 flex-1 items-center justify-center gap-2 rounded-xl border font-mono text-sm font-semibold tabular-nums transition-colors max-sm:h-12",
+                  "v8:h-12 v8:rounded-lg v8:text-[0.9375rem] v8:transition-[color,background-color,border-color,scale] v8:duration-150 v8:ease-out v8:active:scale-[0.97] motion-reduce:v8:active:scale-100",
                   on ? (red ? "border-red-alliance bg-red-alliance/10 text-red-alliance-text" : "border-blue-alliance bg-blue-alliance/10 text-blue-alliance-text")
-                    : "border-text-base/25 bg-text-base/[0.05] text-text-muted hover:bg-text-base/[0.09] hover:text-text-base")}>
+                    : "border-text-base/25 bg-text-base/[0.05] text-text-muted hover:bg-text-base/[0.09] hover:text-text-base v8:border-white/[0.12] v8:bg-transparent")}>
                 <StatusDot status={t.status} />{t.watched.team}
               </button>
             );

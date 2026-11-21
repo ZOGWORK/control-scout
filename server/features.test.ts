@@ -111,10 +111,10 @@ beforeEach(async () => {
 
 describe("the registry", () => {
   it("has exactly the registered feature toggles, the kill switches apart, and only the workspace features per workspace", () => {
-    expect([...FEATURE_FLAGS]).toEqual(["livePredictions", "advancementOdds", "bracketOdds", "powerRankings", "coinFlips", "factorSheet", "offlinePacks", "eventBundle", "discordBot", "workspaceScouting", "scoutingAlliances", "scoutingCommons", "rulesReference", "venueLightMode", "scheduleDifficulty", "seasonRoadMap", "brunoSearch", "brunoAnswers", "searchLearning", "dogTheme", "discordBruno", "statusPage"]);
+    expect([...FEATURE_FLAGS]).toEqual(["livePredictions", "advancementOdds", "bracketOdds", "powerRankings", "coinFlips", "factorSheet", "offlinePacks", "eventBundle", "discordBot", "workspaceScouting", "scoutingAlliances", "scoutingCommons", "rulesReference", "venueLightMode", "scheduleDifficulty", "seasonRoadMap", "brunoSearch", "brunoAnswers", "searchLearning", "dogTheme", "discordBruno", "statusPage", "particleWave"]);
     expect([...KILL_SWITCHES]).toEqual(["realtime", "errorReporting", "failedSearchReports", "photos", "push", "autoPowerRankings", "dailyPowerRankings", "weeklyDigest", "publicAccess"]);
     expect([...WORKSPACE_FLAGS]).toEqual(["workspaceScouting", "scoutingAlliances", "scoutingCommons"]);
-    expect(FLAGS.length).toBe(31);
+    expect(FLAGS.length).toBe(32);
   });
 
   it("keeps the stored values of the switches that already existed", async () => {
@@ -294,6 +294,18 @@ describe("switching off and back on keeps everything", () => {
 });
 
 describe("owner routes", () => {
+  it("publishes the owner's particle wave switch to signed-out visitors", async () => {
+    const flag = async () => (await call("GET", "/api/flags")).json.flags.particleWave;
+    expect(await flag()).toBe(true);
+    for (const enabled of [false, true]) {
+      const r = await call("PUT", "/api/owner/flags/particleWave", { cookie: ownerCookie, body: { enabled, confirm: true } });
+      expect(r.status).toBe(200);
+      expect(r.json.flags.find((f: { name: Flag }) => f.name === "particleWave")).toMatchObject({ enabled, scope: "global" });
+      invalidateFlags(); // Re-read the persisted value instead of relying on this process's cache.
+      expect(await flag()).toBe(enabled);
+    }
+  });
+
   it("GET lists groups, scopes, values, overrides and the workspaces (ids and names only)", async () => {
     await setWorkspaceOverride("workspaceScouting", "ws-b", false, "owner@example.com");
     const r = await call("GET", "/api/owner/flags", { cookie: ownerCookie });
