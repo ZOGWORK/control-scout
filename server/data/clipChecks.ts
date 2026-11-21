@@ -4,6 +4,7 @@
 // whose first frame names nothing (blank, a transition, a cutaway) is unconfirmed and read again, never pulled; a video
 // whose overlay can't be read anywhere (older seasons' layouts) can't be checked by frame, and is counted, not pulled.
 // Frame-placed clips are checked when they're placed (server/data/frameTimings.ts `opens`), not here.
+import { overlayRows } from "./frameTimings.js";
 
 export interface ClipCheck {
   videoId: string;
@@ -68,10 +69,32 @@ export function clipCheckTotals(): { checked: number; ok: number; pulled: number
   return { checked: ok + pulled + unconfirmed, ok, pulled, unconfirmed, noOverlayVideos };
 }
 
-/** Tests only: these checks in place of the file's. */
-export function setClipChecksForTests(list: ClipCheck[]) {
-  CLIP_CHECKS.splice(0, CLIP_CHECKS.length, ...list);
+/** The code's rows (this file's), taken before the first overlay; the database's live rows laid over them. */
+let codeRows: ClipCheck[] | null = null;
+let dbRows: ClipCheck[] = [];
+function relay(): void {
+  CLIP_CHECKS.splice(0, CLIP_CHECKS.length, ...overlayRows(codeRows ?? [], dbRows));
   byKey = null;
+}
+
+/** The autopilot's sweeps the server put live (auto_reads, server/videos/autoReads.ts loadAutoReads), laid over this
+ *  file's rows (overlayRows: a db row wins unless the file's was checked later). Replaced whole on every load. */
+export function setAutoClipChecks(rows: ClipCheck[]): void {
+  codeRows ??= [...CLIP_CHECKS];
+  dbRows = [...rows];
+  relay();
+}
+
+/** The live row for a video and event (the database's over the file's), or null. */
+export function clipCheckRow(videoId: string, code: string): ClipCheck | null {
+  byKey ??= keyed();
+  return byKey.get(`${videoId}|${code}`) ?? null;
+}
+
+/** Tests only: these checks in place of the file's (any database rows still laid over them). */
+export function setClipChecksForTests(list: ClipCheck[]) {
+  codeRows = [...list];
+  relay();
 }
 
 // --- Data (scripts/clip-checks.ts writes from here on) ---

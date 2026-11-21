@@ -1139,6 +1139,35 @@ export interface OfficialWatchRow {
 }
 /** A match's start in a video, typed by the owner (server/videos/manualStarts.ts). */
 export interface ManualStart { label: string; seconds: number; setBy: string; setAt: string }
+/** What the clip autopilot hands the live server (server/videos/autoReads.ts): frame-read rows, or first-frame clip checks. */
+export type AutoReadKind = "frames" | "clips";
+/** One match a waiting read changes against the live row: its clip added, moved or pulled (frames); confirmed, pulled,
+ *  restored, left unconfirmed or dropped (clips). `from` / `to`: seconds in the video, before and after. */
+export interface AutoReadChange { label: string; what: "added" | "moved" | "pulled" | "confirmed" | "restored" | "unconfirmed" | "dropped"; from: number | null; to: number | null; showed?: string }
+/** A read that broke a rule against the live row, waiting for the owner's Approve or Reject (Owner › Clip coverage). */
+export interface PendingAutoRead {
+  kind: AutoReadKind; videoId: string; season: number; code: string; eventName: string | null;
+  /** When it came in: Approve and Reject name it, so a newer read that replaced it is never decided unseen. */
+  pendingAt: string; source: string | null; checked: string;
+  /** The rules it broke, in plain words. */
+  problems: string[];
+  changes: AutoReadChange[];
+  /** Clips served before and after (frames), or clips confirmed by their first frame before and after (clips). */
+  before: number; after: number;
+  /** The second worth opening the video at (just before the first change), or null. */
+  at: number | null;
+  /** Where the live row comes from: the code's data files, an earlier auto read, or none (new). */
+  liveFrom: "code" | "auto" | null;
+}
+/** A match a frame read saw at second `t` but kept off the site (its row's `review`: one signal only, its opening shows
+ *  the previous match, out of order…), for the owner: Approve makes `t` its clip start, Reject stops listing it. */
+export interface PendingReview { videoId: string; season: number; code: string; eventName: string | null; label: string; t: number; why: string; checked: string }
+export interface OwnerAutoReads {
+  pending: PendingAutoRead[]; total: number;
+  /** The frames' review entries waiting (the newest seasons first), and how many in all. */
+  reviews: PendingReview[]; reviewTotal: number;
+  lastDelivery: { at: string; source: string | null; kind: AutoReadKind; live: number; pending: number; dropped: number } | null;
+}
 export interface OfficialChannelRow { channelId: string; title: string; region: string; words: string | null; titlePattern: string | null; watchFrom: string; checkedAt: string | null; lastError: string | null }
 export interface OfficialWatchRunRow { id: number; startedAt: string; finishedAt: string | null; units: number; channels: number; seen: number; added: number; queued: number; duplicates: number; error: string | null }
 export interface OwnerOfficialVideos {

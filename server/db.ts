@@ -2602,6 +2602,45 @@ CREATE TABLE IF NOT EXISTS manual_starts (
 );
 `,
   },
+  {
+    version: 98,
+    name: "auto reads",
+    sql: `
+-- What the clip autopilot read, handed to the live server (server/videos/autoReads.ts) instead of a data PR: one row per
+-- kind ('frames': a frame-read row of server/data/frameTimings; 'clips': a first-frame check of server/data/clipChecks),
+-- video and event. live_json: the row served now, laid over the code's row of the same video and event; pending_json:
+-- a read that broke a rule against it, waiting for the owner (Owner › Clip coverage, Waiting for approval), with its
+-- problems (a JSON list of plain-words strings). A later read replaces a pending one; approve puts it live, reject drops it.
+CREATE TABLE IF NOT EXISTS auto_reads (
+  kind TEXT NOT NULL,
+  video_id TEXT NOT NULL,
+  code TEXT NOT NULL,
+  season INTEGER NOT NULL,
+  live_json TEXT,
+  live_at TEXT,
+  pending_json TEXT,
+  pending_problems TEXT,
+  pending_at TEXT,
+  decided_by TEXT,
+  source TEXT,
+  PRIMARY KEY (kind, video_id, code)
+);
+CREATE INDEX IF NOT EXISTS auto_reads_pending ON auto_reads (pending_at) WHERE pending_json IS NOT NULL;
+-- The owner's word on a frame row's review entry (a match the frames saw at second t, kept off the site): approved (its
+-- start written into the event's live row in auto_reads, owner-approved) or rejected (no longer listed for that t).
+CREATE TABLE IF NOT EXISTS review_decisions (
+  video_id TEXT NOT NULL,
+  code TEXT NOT NULL,
+  label TEXT NOT NULL,
+  season INTEGER NOT NULL,
+  t INTEGER NOT NULL,
+  decision TEXT NOT NULL,
+  decided_by TEXT NOT NULL,
+  decided_at TEXT NOT NULL,
+  PRIMARY KEY (video_id, code, label)
+);
+`,
+  },
 ];
 
 export type Db = Client;

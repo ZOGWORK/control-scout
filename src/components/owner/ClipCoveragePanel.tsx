@@ -6,7 +6,8 @@
 // server says no). Matches the video showed with no clip (findings) are cards of chips too. Only Actionable events are
 // "To review"; "Not yet checked against the video" is a pending check, never reviewed. Bulk Reviewed (a category or a
 // season, confirmed with its count, audited) and the check pass in numbers are folded under "Bulk review and check
-// details". Nothing here changes a clip.
+// details". Nothing here changes a clip, except Waiting for approval on top (./AutoReadsPanel.tsx): the clip
+// autopilot's reads that broke a rule, for the owner to approve (live as read) or reject.
 import { Link } from "react-router-dom";
 import { Check, ChevronDown, CircleSlash, ExternalLink, Film, Play, X } from "lucide-react";
 import { Section, EmptyState } from "../page";
@@ -27,6 +28,7 @@ import { chipTone } from "../contributors/RecordingGaps";
 import { SEARCH_PALETTE } from "../../lib/textTones";
 import { hms, KIND, kindOf, kindTotals, MISS_KINDS, secondOf, type MissKind } from "./clipReview";
 import { cn } from "../cn";
+import { AutoReadsPanel } from "./AutoReadsPanel";
 
 const PATH = "/api/owner/clip-coverage";
 type List = CoverageTriage | "reviewed";
@@ -92,6 +94,7 @@ export function ClipCoveragePanel() {
         const shown = list === "reviewed" ? d.reviewed : d.categories[list];
         return (
           <div className="grid gap-5">
+            <AutoReadsPanel />
             <Progress d={d} />
             <ListTiles d={d} list={list} onList={(k) => { setList(k); setOnly(null); done(); }} />
             <ReasonTiles p={d.lastPass} only={only} onOnly={setOnly} />

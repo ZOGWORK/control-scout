@@ -1,8 +1,7 @@
 // The clip autopilot's choices (scripts/lib/autopilotRun.ts): which queued events a run reads, when one that gave
-// nothing new is tried again, and what its data PR's CHANGELOG entry says.
+// nothing new is tried again, and what a delivery's rows change.
 import { describe, expect, it } from "vitest";
-import { nextRelease, parseChangelog } from "../../src/lib/changelog";
-import { ASK_EVERY_MS, GIVE_UP, RETRY_MS, TIMEOUTS_TO_TRY, WAIT_MS, askDue, changelogEntry, forgetSettled, needsRebuild, nextVersion, LANE_KICK_MS, READ_CALL_MS, laneJobMs, readCallMs, laneResults, laneStep, overLimit, nothingRead, parseLanes, parseShard, parseSkip, pickEvents, prShard, readOutcome, remember, rememberTimeout, rememberWait, rowsDelta, shardOf, waitBackoff, type Memory, type Queued, frameFileSeason, heldElsewhere, holdCodes } from "./autopilotRun";
+import { GIVE_UP, RETRY_MS, TIMEOUTS_TO_TRY, WAIT_MS, forgetSettled, LANE_KICK_MS, READ_CALL_MS, laneJobMs, readCallMs, laneResults, laneStep, overLimit, nothingRead, parseLanes, parseShard, parseSkip, pickEvents, readOutcome, remember, rememberTimeout, rememberWait, rowsDelta, shardOf, waitBackoff, type Memory, type Queued, frameFileSeason, heldElsewhere, holdCodes } from "./autopilotRun";
 import type { Row } from "./autopilotRows";
 
 const NOW = Date.parse("2026-11-17T12:00:00Z");
@@ -130,36 +129,7 @@ describe("readOutcome", () => {
   });
 });
 
-describe("needsRebuild", () => {
-  const r = (videoId: string, t: number) => ({ code: "E", videoId, starts: { Q1: t } });
-  const base = { mergeable: "MERGEABLE", want: new Set(["v1|E"]), baseRows: [r("v1", 10), r("v2", 20)], mainRows: [r("v1", 10), r("v2", 25)], changedFiles: ["server/data/frameTimings/2025.ts"], releaseFiles: ["CHANGELOG.md", "package.json", "package-lock.json"] };
-  it("leaves a PR alone when main changed none of its rows, it merges cleanly and carries no release: never to renumber", () => {
-    expect(needsRebuild(base)).toEqual([]);
-  });
-  it("rebuilds on a conflict, on its row changed or removed on main, and on a release it still carries", () => {
-    expect(needsRebuild({ ...base, mergeable: "CONFLICTING" })).toEqual(["conflict"]);
-    expect(needsRebuild({ ...base, mainRows: [r("v1", 11)] })).toEqual(["main changed its rows"]);
-    expect(needsRebuild({ ...base, mainRows: [r("v2", 20)] })).toEqual(["main changed its rows"]);
-    expect(needsRebuild({ ...base, changedFiles: [...base.changedFiles, "CHANGELOG.md", "package.json"] })).toEqual(["release dropped"]);
-  });
-  it("a file the merge base didn't have: a row main has since gained is main's change", () => {
-    expect(needsRebuild({ ...base, baseRows: [], mainRows: [] })).toEqual([]);
-    expect(needsRebuild({ ...base, baseRows: [], mainRows: [r("v1", 10)] })).toEqual(["main changed its rows"]);
-  });
-});
-
-describe("askDue", () => {
-  const head = "abcdef1234567890";
-  it("asks once a head, again only after a day, never once Loopy's summary names the head", () => {
-    expect(askDue(undefined, head, null, NOW)).toBe(true);
-    expect(askDue({ head, at: new Date(NOW - ASK_EVERY_MS + 1).toISOString() }, head, null, NOW)).toBe(false);
-    expect(askDue({ head, at: new Date(NOW - ASK_EVERY_MS).toISOString() }, head, null, NOW)).toBe(true);
-    expect(askDue({ head: "0000000", at: new Date(NOW).toISOString() }, head, "0000000", NOW)).toBe(true);
-    expect(askDue(undefined, head, "abcdef1", NOW)).toBe(false);
-  });
-});
-
-describe("the data PR", () => {
+describe("what a delivery changes", () => {
   const live = new Map<string, Row>([["v1|AAQ", { videoId: "v1", code: "AAQ", checked: "2026-11-15", starts: { Q1: 600 } }]]);
   const rows: Row[] = [
     { videoId: "v1", code: "AAQ", checked: "2026-11-17", starts: { Q1: 600, Q2: 1000 }, opens: { Q1: 588, Q2: 995 }, missing: { Q3: "its frames didn't confirm a start" } },
@@ -170,21 +140,6 @@ describe("the data PR", () => {
     expect(rowsDelta(rows, live)).toEqual({ clips: 1, recordings: 2, events: ["AAQ", "BBQ"], reasons: 2 });
   });
 
-  it("writes a CHANGELOG entry the What's new dialog reads: 3 short tagged highlights", () => {
-    for (const d of [rowsDelta(rows, live), rowsDelta([rows[1]], live)]) {
-      const text = changelogEntry(2025, d, "2026-11-17").replace("VERSION", "9.9.9").replace("#PR", "#1");
-      const [e] = parseChangelog(text);
-      expect(e.version).toBe("9.9.9");
-      expect(e.highlights).toHaveLength(3);
-      for (const h of e.highlights) { expect(h.tag).toBe("fixes"); expect(h.text.length).toBeLessThanOrEqual(72); }
-    }
-    expect(changelogEntry(2025, rowsDelta(rows, live), "2026-11-17")).toContain("Videos › 1 more match get clips");
-    expect(changelogEntry(2025, rowsDelta([rows[1]], live), "2026-11-17")).toContain("no new clip");
-  });
-
-  it("numbers releases as the app does", () => {
-    for (const v of ["7.2.8", "7.2.9", "7.9.9", "1.0.0"]) expect(nextVersion(v)).toBe(nextRelease(v));
-  });
 });
 
 describe("shards: several computers, each its own part of the queue", () => {
@@ -202,16 +157,6 @@ describe("shards: several computers, each its own part of the queue", () => {
     expect(parseShard(undefined)).toEqual({ k: 0, n: 1 });
     expect(parseShard("2/3")).toEqual({ k: 2, n: 3 });
     for (const bad of ["3/3", "1/0", "-1/3", "a/3", "1", "1/3/5", ""]) expect(parseShard(bad)).toBeNull();
-  });
-  it("a PR is kept by the shard that opened it (its first event's), a sweep PR by shard 0", () => {
-    const pr = { season: 2024, rows: ["vidB|USTXB", "vidA|USMIA"] };
-    expect(prShard(pr, 3)).toBe(shardOf("2024/USMIA", 3));
-    expect(prShard({ ...pr, file: "server/data/clipChecks.ts" }, 3)).toBe(0);
-    expect(prShard({ season: 2024, rows: [] }, 3)).toBe(0);
-    // A PR one shard opened holds only its events, so whichever row is first, it's that shard's.
-    const codes = Array.from({ length: 60 }, (_, i) => `US${i}Y`).filter((c) => shardOf(`2024/${c}`, 3) === 1).slice(0, 3);
-    expect(codes).toHaveLength(3);
-    for (const order of [codes, [...codes].reverse()]) expect(prShard({ season: 2024, rows: order.map((c) => `v${c}|${c}`) }, 3)).toBe(1);
   });
 });
 
@@ -359,6 +304,12 @@ describe("nothingRead", () => {
     expect(nothingRead({ starts: {}, missing: { Q1: N, Q2: "its frames didn't confirm a start" } })).toBe(false);
     expect(nothingRead({ starts: {}, missing: {} })).toBe(false);
     expect(nothingRead({ starts: {} })).toBe(false);
+  });
+  it("is also a video that couldn't be played at all (closed #1962, FRCMP: every match \"the video couldn't be played: ...\")", () => {
+    const P = "the video couldn't be played: its player showed an error";
+    expect(nothingRead({ starts: {}, missing: { Q1: P, Q2: P } })).toBe(true);
+    expect(nothingRead({ starts: {}, missing: { Q1: P, Q2: N } })).toBe(true);
+    expect(nothingRead({ starts: {}, missing: { Q1: P, Q2: "its frames didn't confirm a start" } })).toBe(false);
   });
   it("makes its event a failed read: not shipped, not counted as tried", () => {
     expect(readOutcome({ rows: 0, opened: 0, waiting: 0, tooBig: 0, readFailed: true, changed: 1 })).toBe("read failed");
