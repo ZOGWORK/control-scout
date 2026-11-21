@@ -765,7 +765,7 @@ function V8Profile({ p, drawn, asked, onSeason }: { p: TeamProfile; drawn: boole
         {/* The left column: the standing, then every action in one row under it (beside the taller What's next). */}
         <div className="min-w-0 space-y-3">
           <V8Standing p={p} onSeason={onSeason} />
-          <V8Actions p={p} onSeason={onSeason} />
+          <V8Actions p={p} />
         </div>
         <V8Next p={p} asked={asked} />
       </div>
@@ -813,7 +813,7 @@ const websiteHref = (w: string) => (w.startsWith("http") ? w : `https://${w}`);
  * team dashboard) as small links under the row. Under the standing, in the space beside the taller What's next. On a phone the
  * sticky bar keeps Predict and Track in reach once this row has scrolled away, and its More holds all the rest.
  */
-function V8Actions({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => void }) {
+function V8Actions({ p }: { p: TeamProfile }) {
   const t = p.team;
   const a = useTeamActions(t.number);
   const flags = a.flags;
@@ -821,7 +821,7 @@ function V8Actions({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => v
   // The end of the action row: the phone action bar shows once it has scrolled away.
   const [rowEnd, setRowEnd] = useState<HTMLDivElement | null>(null);
   const matchHref = predictHref({ mode: "match", season: p.season, red: [t.number] });
-  // A step smaller than the default sm button, so all six and the season fit one row on a desktop.
+  // A step smaller than the default sm button, so the actions fit one row on a desktop.
   const tap = "h-7 gap-1.5 px-2.5 max-sm:h-10 max-sm:px-3";
   const trackTitle = flags.tracked ? "Tracked: on My team, first in search. Click to stop." : "Follow this team: it goes on My team and comes first in search";
   const dashboard = a.workspaceUser && flags.isMine;
@@ -842,8 +842,6 @@ function V8Actions({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => v
         {p.highlights && <Button size="sm" variant="outline" asChild className={tap} data-hero-action><Link to={`/teams/${t.number}/highlights`} data-highlights-link><Sparkles /> Highlights</Link></Button>}
         {p.recordSplit && <Button size="sm" variant="ghost" asChild className={tap} data-hero-action><Link to={`/teams/${t.number}/record-split`} data-record-split-link><Trophy /> Quals vs playoffs</Link></Button>}
         <Button size="sm" variant="ghost" onClick={() => copyLink()} className={tap} data-hero-action><Link2 /> Share</Button>
-        {/* The season, clearly visible at the row's end (the label "FTC team" stays above the number). */}
-        <span className="ml-auto max-sm:ml-0"><V8SeasonSelect seasons={p.seasons} value={p.season} onChange={onSeason} /></span>
       </div>
       {/* The rare ones as quiet links under the row, as on classic (a lone More button wrapped onto a line of its own). */}
       <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-text-faint" data-hero-links>
@@ -879,8 +877,8 @@ function V8Actions({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => v
   );
 }
 
-/** Who this is: the number and name, one muted line (school, place, rookie year, website), the season quietly
- *  beside the label, and the sponsors folded. The actions sit under the standing (V8Actions). */
+/** Who this is: identity, folded sponsors, then the season above the standing.
+ * The actions sit under the standing (V8Actions). */
 function V8Header({ p, onSeason, fellBackFrom }: { p: TeamProfile; onSeason: (s: number) => void; fellBackFrom: number | null }) {
   const t = p.team;
   const loc = place(t.city, t.state, t.country);
@@ -912,6 +910,9 @@ function V8Header({ p, onSeason, fellBackFrom }: { p: TeamProfile; onSeason: (s:
                 <CollapsibleContent className="mt-1 max-w-2xl text-xs text-text-muted">{t.sponsors.join(" · ")}</CollapsibleContent>
               </Collapsible>
             )}
+            <div className="mt-3">
+              <V8SeasonSelect seasons={p.seasons} value={p.season} onChange={onSeason} />
+            </div>
             {fellBackFrom != null && (
               <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-text-muted" data-season-fallback>
                 <Info className="size-3.5 shrink-0 text-text-faint" aria-hidden />
@@ -926,7 +927,7 @@ function V8Header({ p, onSeason, fellBackFrom }: { p: TeamProfile; onSeason: (s:
   );
 }
 
-/** The season, at the end of the action row: one clearly visible select (every season the team has, newest first). */
+/** One clearly visible select below sponsors (every season the team has, newest first). */
 function V8SeasonSelect({ seasons, value, onChange }: { seasons: number[]; value: number; onChange: (s: number) => void }) {
   const meta = useMeta();
   const game = (s: number) => meta?.seasons.find((x) => x.season === s)?.game ?? "";
