@@ -1151,8 +1151,13 @@ export interface PendingAutoRead {
   /** Where the live row comes from: the code's data files, an earlier auto read, or none (new). */
   liveFrom: "code" | "auto" | null;
 }
+/** A match a frame read saw at second `t` but kept off the site (its row's `review`: one signal only, its opening shows
+ *  the previous match, out of order…), for the owner: Approve makes `t` its clip start, Reject stops listing it. */
+export interface PendingReview { videoId: string; season: number; code: string; eventName: string | null; label: string; t: number; why: string; checked: string }
 export interface OwnerAutoReads {
   pending: PendingAutoRead[]; total: number;
+  /** The frames' review entries waiting (the newest seasons first), and how many in all. */
+  reviews: PendingReview[]; reviewTotal: number;
   lastDelivery: { at: string; source: string | null; kind: AutoReadKind; live: number; pending: number; dropped: number } | null;
 }
 export interface OfficialChannelRow { channelId: string; title: string; region: string; words: string | null; titlePattern: string | null; watchFrom: string; checkedAt: string | null; lastError: string | null }

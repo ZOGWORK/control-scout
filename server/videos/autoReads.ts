@@ -13,13 +13,14 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, s
 import { join } from "node:path";
 import { all, get, run } from "../db.js";
 import { env } from "../env.js";
-import { frameRow, playableStarts, setAutoFrameRows, type FrameTiming } from "../data/frameTimings.js";
+import { FRAME_TIMINGS, frameRow, frameRowSeason, frameStart, playableStarts, setAutoFrameRows, type FrameTiming } from "../data/frameTimings.js";
 import { clipCheckRow, setAutoClipChecks, type ClipCheck } from "../data/clipChecks.js";
-import { clipCheckProblems, nothingRead, rowProblems, SAME_S } from "../data/frameRowRules.js";
+import { carryApproved, clipCheckProblems, nothingRead, rowProblems, SAME_S } from "../data/frameRowRules.js";
+import { CLIP_LEAD_S } from "../../src/shared/recording.js";
 import { LockBusy, withDataLock } from "../data/lock.js";
 import { recordAudit } from "../portal/audit.js";
 import { clearAllCaches } from "../caches.js";
-import type { AutoReadChange, AutoReadKind, OwnerAutoReads, PendingAutoRead } from "../../src/shared/api.js";
+import type { AutoReadChange, AutoReadKind, OwnerAutoReads, PendingAutoRead, PendingReview } from "../../src/shared/api.js";
 
 /** Who the audit names for what the autopilot hands over. */
 export const AUTOPILOT_ACTOR = "clip autopilot";
@@ -41,15 +42,15 @@ async function liveSig(): Promise<string> {
 /** Every live auto read into memory, laid over the code's rows (at boot, and after each change). The rows loaded. */
 export async function loadAutoReads(): Promise<number> {
   const sig = await liveSig();
-  const rows = await all<{ kind: string; live_json: string }>("SELECT kind, live_json FROM auto_reads WHERE live_json IS NOT NULL ORDER BY kind, code, video_id");
-  const frames: FrameTiming[] = [], clips: ClipCheck[] = [];
+  const rows = await all<{ kind: string; season: number; live_json: string }>("SELECT kind, season, live_json FROM auto_reads WHERE live_json IS NOT NULL ORDER BY kind, code, video_id");
+  const frames: FrameTiming[] = [], seasons: number[] = [], clips: ClipCheck[] = [];
   for (const r of rows) {
     try {
       const row = JSON.parse(String(r.live_json));
-      if (r.kind === "frames") frames.push(row); else if (r.kind === "clips") clips.push(row);
+      if (r.kind === "frames") { frames.push(row); seasons.push(Number(r.season)); } else if (r.kind === "clips") clips.push(row);
     } catch { /* a row that isn't JSON is never served */ }
   }
-  setAutoFrameRows(frames);
+  setAutoFrameRows(frames, seasons);
   setAutoClipChecks(clips);
   loadedSig = sig;
   return frames.length + clips.length;
@@ -77,6 +78,7 @@ export type Verdict = { to: "same" } | { to: "live" } | { to: "pending"; problem
 
 /** The decision for a frame-read row against the row served now (`live`: the database's, else the code's; none: new). */
 export function judgeFrames(next: FrameTiming, live: FrameTiming | null, order: string[] | undefined): Verdict {
+  // The caller lays the live row's owner-approved starts on first (carryApproved): judged with them.
   if (nothingRead(next)) return { to: "drop", why: "no frame of the video could be read or the video couldn't be played: a failed read, the event read again later" };
   if (live && JSON.stringify(live) === JSON.stringify(next)) return { to: "same" };
   const problems = rowProblems(next, live ?? undefined, order);
@@ -149,7 +151,10 @@ export async function applyDelivery(d: Delivery, now = Date.now(), log: (s: stri
     valid.push(r as FrameTiming | ClipCheck);
   }
   const order = d.kind === "frames" ? await playedOrder(d.season, [...new Set(valid.map((r) => r.code))]) : new Map<string, string[]>();
-  for (const r of valid) {
+  for (const read of valid) {
+    // A frame-read row keeps the starts the owner approved on the live row (carryApproved), unless a frame names
+    // another match there; and never approves anything itself.
+    const r = d.kind === "frames" ? carryApproved(read as FrameTiming, frameRow(read.videoId, read.code)) : read;
     const key = `${r.videoId}|${r.code}`;
     const season = d.kind === "clips" ? (r as ClipCheck).season : d.season;
     const v = d.kind === "frames"
@@ -351,10 +356,114 @@ export async function ownerAutoReads(limit = 200): Promise<OwnerAutoReads> {
       lastDelivery = { at: String(last.at), source: x.source ?? null, kind: x.kind === "clips" ? "clips" : "frames", live: (x.live ?? []).length, pending: (x.pending ?? []).length, dropped: (x.dropped ?? []).length };
     } catch { /* an entry cut short: no summary */ }
   }
-  return { pending, total, lastDelivery };
+  return { pending, total, lastDelivery, ...(await ownerReviews(Math.max(limit, 500))) };
 }
 
-export const pendingAutoReadCount = async () => Number((await get<{ n: number }>("SELECT COUNT(*) AS n FROM auto_reads WHERE pending_json IS NOT NULL"))?.n ?? 0);
+/** What waits for the owner: auto reads held back, and the frames' review entries not yet decided. */
+export const pendingAutoReadCount = async () => Number((await get<{ n: number }>("SELECT COUNT(*) AS n FROM auto_reads WHERE pending_json IS NOT NULL"))?.n ?? 0) + (await reviewEntries()).length;
+
+// ---- The frames' review entries: matches the frames saw at a second, kept off the site ---------------------------------
+// A frame row's `review` ({ t, why }) is a start the reader saw with one signal only, or found implausible (its opening
+// shows the previous match, out of order, outside the video, played twice). Never a clip on its own. Listed for the
+// owner from the frame rows themselves (code and database alike, so a video with no clock is never hidden), less
+// those already served (a typed start, a frame start) and those rejected at that second. Approve writes the start into
+// the event's live row in the database, owner-approved (served whatever the plausibility check says, kept through
+// re-reads: carryApproved); Reject stops listing it.
+
+type ReviewEntry = { videoId: string; code: string; label: string; t: number; why: string; row: FrameTiming };
+/** Every undecided review entry, in season files' order. */
+export async function reviewEntries(): Promise<ReviewEntry[]> {
+  const rejected = new Map<string, number>();
+  for (const d of await all<{ video_id: string; code: string; label: string; t: number }>("SELECT video_id, code, label, t FROM review_decisions WHERE decision = 'rejected'")) {
+    rejected.set(`${d.video_id}|${d.code}|${d.label}`, Number(d.t));
+  }
+  const out: ReviewEntry[] = [];
+  for (const row of FRAME_TIMINGS) {
+    for (const [label, e] of Object.entries(row.review ?? {})) {
+      if (!e || !Number.isFinite(e.t) || e.t < 0) continue;
+      // Already served: a start typed by the owner, or one the frames placed.
+      if (frameStart(row.videoId, row.code, label) != null) continue;
+      const no = rejected.get(`${row.videoId}|${row.code}|${label}`);
+      if (no != null && Math.abs(no - e.t) <= SAME_S) continue;
+      out.push({ videoId: row.videoId, code: row.code, label, t: Math.round(e.t), why: String(e.why ?? ""), row });
+    }
+  }
+  return out;
+}
+
+/** A season for a row the files don't place (a test's): the event's latest season of that code. */
+async function seasonOf(videoId: string, code: string): Promise<number> {
+  return frameRowSeason(videoId, code) ?? Number((await get<{ season: number }>("SELECT MAX(season) AS season FROM events WHERE code = ?", [code]))?.season ?? 0);
+}
+
+type ReviewBody = { videoId?: unknown; code?: unknown; label?: unknown; t?: unknown };
+function reviewKey(b: ReviewBody): { videoId: string; code: string; label: string; t: number } | null {
+  const videoId = typeof b.videoId === "string" && VIDEO_ID.test(b.videoId) ? b.videoId : null;
+  const code = typeof b.code === "string" && CODE.test(b.code) ? b.code : null;
+  const label = typeof b.label === "string" && /^[A-Za-z0-9-]{1,12}$/.test(b.label) ? b.label : null;
+  const t = Number.isInteger(b.t) && (b.t as number) >= 0 ? (b.t as number) : null;
+  return videoId && code && label && t != null ? { videoId, code, label, t } : null;
+}
+const reviewGone = { ok: false as const, status: 409, error: "This match changed or was decided since you opened it: look again." };
+
+/** Approve a review entry: `t` becomes the match's clip start, written into the event's live row in the database (the
+ *  code's row copied there first), with its opening CLIP_LEAD_S before it where the row checks openings, out of review
+ *  and missing, owner-approved. Only the entry the owner saw (its second `t`). */
+export async function approveReview(body: ReviewBody, actor: string, now = Date.now()): Promise<Out> {
+  const k = reviewKey(body);
+  if (!k) return { ok: false, status: 400, error: "Not a match waiting for approval." };
+  if ((await liveSig()) !== loadedSig) await loadAutoReads();
+  const row = frameRow(k.videoId, k.code), e = row?.review?.[k.label];
+  if (!row || !e || Math.round(e.t) !== k.t || frameStart(k.videoId, k.code, k.label) != null) return reviewGone;
+  const next: FrameTiming = { ...row, starts: { ...row.starts, [k.label]: k.t } };
+  if (row.opens) next.opens = { ...row.opens, [k.label]: Math.max(0, k.t - CLIP_LEAD_S) };
+  const review = { ...row.review }; delete review[k.label];
+  if (Object.keys(review).length) next.review = review; else delete next.review;
+  if (row.missing?.[k.label] != null) { const missing = { ...row.missing }; delete missing[k.label]; if (Object.keys(missing).length) next.missing = missing; else delete next.missing; }
+  next.approved = [...new Set([...(row.approved ?? []), k.label])];
+  next.approvedWhy = { ...(row.approvedWhy ?? {}), [k.label]: e.why };
+  const season = await seasonOf(k.videoId, k.code), at = new Date(now).toISOString();
+  await run(`INSERT INTO auto_reads (kind, video_id, code, season, live_json, live_at, decided_by, source) VALUES ('frames', ?, ?, ?, ?, ?, ?, 'owner')
+    ON CONFLICT (kind, video_id, code) DO UPDATE SET live_json = excluded.live_json, live_at = excluded.live_at, decided_by = excluded.decided_by`,
+  [k.videoId, k.code, season, JSON.stringify(next), at, actor]);
+  await run(`INSERT INTO review_decisions (video_id, code, label, season, t, decision, decided_by, decided_at) VALUES (?, ?, ?, ?, ?, 'approved', ?, ?)
+    ON CONFLICT (video_id, code, label) DO UPDATE SET t = excluded.t, decision = excluded.decision, decided_by = excluded.decided_by, decided_at = excluded.decided_at`,
+  [k.videoId, k.code, k.label, season, k.t, actor, at]);
+  await recordAudit(actor, "autoReads.reviewApprove", { videoId: k.videoId, season, code: k.code, label: k.label, t: k.t, why: e.why });
+  await loadAutoReads();
+  clearAllCaches();
+  return { ok: true };
+}
+
+/** Reject a review entry: no longer listed at that second (a re-read that sees it elsewhere lists it again). */
+export async function rejectReview(body: ReviewBody, actor: string, now = Date.now()): Promise<Out> {
+  const k = reviewKey(body);
+  if (!k) return { ok: false, status: 400, error: "Not a match waiting for approval." };
+  const e = frameRow(k.videoId, k.code)?.review?.[k.label];
+  if (!e || Math.round(e.t) !== k.t) return reviewGone;
+  const season = await seasonOf(k.videoId, k.code);
+  await run(`INSERT INTO review_decisions (video_id, code, label, season, t, decision, decided_by, decided_at) VALUES (?, ?, ?, ?, ?, 'rejected', ?, ?)
+    ON CONFLICT (video_id, code, label) DO UPDATE SET t = excluded.t, decision = excluded.decision, decided_by = excluded.decided_by, decided_at = excluded.decided_at`,
+  [k.videoId, k.code, k.label, season, k.t, actor, new Date(now).toISOString()]);
+  await recordAudit(actor, "autoReads.reviewReject", { videoId: k.videoId, season, code: k.code, label: k.label, t: k.t, why: e.why });
+  return { ok: true };
+}
+
+/** The review entries for the owner's list, newest season first, with each event's name. */
+async function ownerReviews(limit: number): Promise<{ reviews: PendingReview[]; reviewTotal: number }> {
+  const all_ = await reviewEntries();
+  const withSeason = await Promise.all(all_.map(async (e) => ({ e, season: await seasonOf(e.videoId, e.code) })));
+  withSeason.sort((a, b) => b.season - a.season || a.e.code.localeCompare(b.e.code) || a.e.t - b.e.t);
+  const shown = withSeason.slice(0, limit), names = new Map<string, string>();
+  for (const { e, season } of shown) {
+    const k = `${season}/${e.code}`;
+    if (!names.has(k)) names.set(k, String((await get<{ name: string }>("SELECT name FROM events WHERE season = ? AND code = ?", [season, e.code]))?.name ?? ""));
+  }
+  return {
+    reviewTotal: all_.length,
+    reviews: shown.map(({ e, season }) => ({ videoId: e.videoId, season, code: e.code, eventName: names.get(`${season}/${e.code}`) || null, label: e.label, t: e.t, why: e.why, checked: e.row.checked })),
+  };
+}
 
 type Decide = { kind?: unknown; videoId?: unknown; code?: unknown; pendingAt?: unknown };
 type Out = { ok: true } | { ok: false; status: number; error: string };

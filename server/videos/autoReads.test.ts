@@ -25,6 +25,7 @@ beforeAll(async () => {
 });
 beforeEach(async () => {
   await run("DELETE FROM auto_reads");
+  await run("DELETE FROM review_decisions");
   setFrameTimingsForTests([]);
   setClipChecksForTests([]);
   await loadAutoReads();
@@ -208,5 +209,101 @@ describe("the owner's Approve and Reject", () => {
     expect(frameStart(V1, "XXAUTO", "Q1")).toBe(600);
     expect(await get("SELECT actor FROM owner_audit WHERE action = 'autoReads.reject'")).toEqual({ actor: "owner@example.test" });
     expect((await post("/auto-reads/reject", { kind: "nope" })).status).toBe(400);
+  });
+});
+
+describe("the frames' review entries: matches seen in the video, kept off the site", () => {
+  const ONE = "one frame read only, nothing else agrees";
+  const reviewed = (o: Partial<FrameTiming> = {}) => frame({ checked: "2026-11-10", review: { Q3: { t: 1400, why: ONE } }, missing: { Q3: "its frames didn't confirm a start" }, ...o });
+  let base = "", server: ReturnType<ReturnType<typeof express>["listen"]> | null = null;
+  beforeAll(async () => {
+    const app = express(), r = express.Router();
+    app.use(express.json());
+    const h = (fn: (req: Request, res: Response) => Promise<unknown>) => (req: Request, res: Response, next: NextFunction) => { fn(req, res).then((b) => { if (!res.headersSent && b !== undefined) res.json(b); }).catch(next); };
+    clipCoverageOwnerRoutes(r, h, () => "owner@example.test");
+    app.use("/api/owner", r);
+    server = app.listen(0);
+    await new Promise((ok) => server!.once("listening", ok));
+    base = `http://127.0.0.1:${(server!.address() as AddressInfo).port}/api/owner`;
+  });
+  afterAll(() => { server?.close(); });
+  const post = async (path: string, json: unknown) => { const res = await fetch(`${base}${path}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(json) }); return { status: res.status, body: await res.json() }; };
+  const list = async () => (await (await fetch(`${base}/auto-reads`)).json()) as { reviews: { videoId: string; code: string; label: string; t: number; why: string }[]; reviewTotal: number };
+
+  it("lists each review entry from the frame rows themselves (code and database alike), and counts it", async () => {
+    setFrameTimingsForTests([reviewed()]);
+    await applyDelivery({ kind: "frames", season: 2025, rows: [reviewed({ videoId: V2, checked: "2026-11-20", review: { Q3: { t: 2000, why: "its opening shows the previous match" } }, missing: undefined })] });
+    const l = await list();
+    expect(l.reviews.map((r) => `${r.videoId}/${r.label}@${r.t}: ${r.why}`).sort()).toEqual([`${V1}/Q3@1400: ${ONE}`, `${V2}/Q3@2000: its opening shows the previous match`].sort());
+    expect(l.reviewTotal).toBe(2);
+    expect((await fetch(`${base}/clip-coverage/counts`).then((x) => x.json())).approvals).toBe(2);
+  });
+
+  it("Approve makes t the match's clip start, owner-approved, with its opening the clip lead before; a stale t is refused", async () => {
+    setFrameTimingsForTests([reviewed()]);
+    expect((await post("/auto-reads/review/approve", { videoId: V1, code: "XXAUTO", label: "Q3", t: 1399 })).status).toBe(409);
+    const ok = await post("/auto-reads/review/approve", { videoId: V1, code: "XXAUTO", label: "Q3", t: 1400 });
+    expect(ok.status).toBe(200);
+    expect(ok.body.reviewTotal).toBe(0);
+    expect(frameStart(V1, "XXAUTO", "Q3")).toBe(1400);
+    const row = frameRow(V1, "XXAUTO")!;
+    expect(row).toMatchObject({ approved: ["Q3"], opens: { Q1: 588, Q2: 995, Q3: 1380 } });
+    expect(row.review).toBeUndefined();
+    expect(row.missing).toBeUndefined();
+    expect(await get("SELECT decision, decided_by FROM review_decisions WHERE label = 'Q3'")).toEqual({ decision: "approved", decided_by: "owner@example.test" });
+    expect(await get("SELECT actor FROM owner_audit WHERE action = 'autoReads.reviewApprove'")).toEqual({ actor: "owner@example.test" });
+  });
+
+  it("an approved start overlapping its neighbour is served, and the neighbour stays", async () => {
+    setFrameTimingsForTests([reviewed({ review: { Q3: { t: 1050, why: "its opening shows the previous match" } } })]);
+    expect((await post("/auto-reads/review/approve", { videoId: V1, code: "XXAUTO", label: "Q3", t: 1050 })).status).toBe(200);
+    expect(frameStart(V1, "XXAUTO", "Q3")).toBe(1050);
+    expect(frameStart(V1, "XXAUTO", "Q2")).toBe(1000);
+  });
+
+  it("survives a re-read that leaves it for review again; leaves only on a frame naming another match", async () => {
+    setFrameTimingsForTests([reviewed()]);
+    await post("/auto-reads/review/approve", { videoId: V1, code: "XXAUTO", label: "Q3", t: 1400 });
+    // The reader sees it once more, one frame only: back for review in its row. The approval stands, and goes live.
+    const again = await applyDelivery({ kind: "frames", season: 2025, rows: [frame({ checked: "2026-11-22", review: { Q3: { t: 1401, why: ONE } } })] });
+    expect(again.live).toEqual([`${V1}|XXAUTO`]);
+    expect(frameStart(V1, "XXAUTO", "Q3")).toBe(1400);
+    expect(frameRow(V1, "XXAUTO")?.approved).toEqual(["Q3"]);
+    // A re-read that drops it with no reason: still kept.
+    await applyDelivery({ kind: "frames", season: 2025, rows: [frame({ checked: "2026-11-23" })] });
+    expect(frameStart(V1, "XXAUTO", "Q3")).toBe(1400);
+    // A frame at its opening names another match: pulled, as any live clip.
+    const pulled = await applyDelivery({ kind: "frames", season: 2025, rows: [frame({ checked: "2026-11-24", review: { Q3: { t: 1400, why: "its clip's first frame shows Q4, not Q3" } } })] });
+    expect(pulled.live).toEqual([`${V1}|XXAUTO`]);
+    expect(frameStart(V1, "XXAUTO", "Q3")).toBeNull();
+  });
+
+  it("approved over its opening frame (it shows the match before): a re-read seeing that same frame keeps it", async () => {
+    const SHOWS_Q2 = "its clip's first frame shows Q2, not Q3";
+    setFrameTimingsForTests([reviewed({ review: { Q3: { t: 1400, why: SHOWS_Q2 } } })]);
+    expect((await post("/auto-reads/review/approve", { videoId: V1, code: "XXAUTO", label: "Q3", t: 1400 })).status).toBe(200);
+    expect(frameRow(V1, "XXAUTO")?.approvedWhy).toEqual({ Q3: SHOWS_Q2 });
+    await applyDelivery({ kind: "frames", season: 2025, rows: [frame({ checked: "2026-11-22", review: { Q3: { t: 1400, why: SHOWS_Q2 } } })] });
+    expect(frameStart(V1, "XXAUTO", "Q3")).toBe(1400);
+    await applyDelivery({ kind: "frames", season: 2025, rows: [frame({ checked: "2026-11-23", review: { Q3: { t: 1400, why: "its clip's first frame shows Q9, not Q3" } } })] });
+    expect(frameStart(V1, "XXAUTO", "Q3")).toBeNull();
+  });
+
+  it("a read can't approve a start itself", async () => {
+    setFrameTimingsForTests([frame()]);
+    const r = await applyDelivery({ kind: "frames", season: 2025, rows: [frame({ checked: "2026-11-22", starts: { Q1: 600, Q2: 1000, Q3: 1050 }, opens: { Q1: 588, Q2: 995, Q3: 1045 }, approved: ["Q3"] })] });
+    expect(r.pending).toEqual([`${V1}|XXAUTO`]);
+    expect(frameStart(V1, "XXAUTO", "Q3")).toBeNull();
+  });
+
+  it("Reject stops listing it at that second; nothing goes live", async () => {
+    setFrameTimingsForTests([reviewed()]);
+    const out = await post("/auto-reads/review/reject", { videoId: V1, code: "XXAUTO", label: "Q3", t: 1400 });
+    expect(out.status).toBe(200);
+    expect(out.body.reviewTotal).toBe(0);
+    expect(frameStart(V1, "XXAUTO", "Q3")).toBeNull();
+    expect(await get("SELECT 1 FROM auto_reads")).toBeUndefined();
+    expect(await get("SELECT actor FROM owner_audit WHERE action = 'autoReads.reviewReject'")).toEqual({ actor: "owner@example.test" });
+    expect((await post("/auto-reads/review/reject", { videoId: V1, code: "XXAUTO", label: "Q3" })).status).toBe(400);
   });
 });

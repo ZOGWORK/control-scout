@@ -9,7 +9,7 @@ import type { CoverageTriage } from "../../src/shared/api.js";
 import { approveWatched, ownerOfficial, pendingCount, rejectWatched, removeChannel, removeOfficial, runNow, saveChannel } from "./officialWatch.js";
 import { dismissFinding, ownerAudit, queueFinding, runChannelAudit } from "./officialAudit.js";
 import { deleteManualStart, manualStarts, setManualStart } from "./manualStarts.js";
-import { approveAutoRead, ownerAutoReads, pendingAutoReadCount, rejectAutoRead } from "./autoReads.js";
+import { approveAutoRead, approveReview, ownerAutoReads, pendingAutoReadCount, rejectAutoRead, rejectReview } from "./autoReads.js";
 
 type H = (fn: (req: Request, res: Response) => Promise<unknown>) => (req: Request, res: Response, next: NextFunction) => void;
 const str = (v: unknown, max = 300) => (typeof v === "string" ? v.trim().slice(0, max) : "");
@@ -49,6 +49,10 @@ export function clipCoverageOwnerRoutes(r: Router, h: H, actor: (req: Request) =
   });
   r.post("/auto-reads/approve", decide(approveAutoRead));
   r.post("/auto-reads/reject", decide((b, a) => rejectAutoRead(b, a)));
+  // A frame row's review entry (a match the frames saw at second t, kept off the site), { videoId, code, label, t }:
+  // Approve makes t its clip start (owner-approved), Reject stops listing it.
+  r.post("/auto-reads/review/approve", decide((b, a) => approveReview(b, a)));
+  r.post("/auto-reads/review/reject", decide((b, a) => rejectReview(b, a)));
   r.post("/clip-coverage/:season/:code/reviewed", h(async (req, res) => {
     const season = Number(req.params.season), code = String(req.params.code), version = str(req.body?.version, 64);
     if (!Number.isInteger(season) || !isEventCodeParam(code)) { res.status(400).json({ error: "Not an event." }); return; }

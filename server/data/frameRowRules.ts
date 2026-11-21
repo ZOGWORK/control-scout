@@ -37,7 +37,7 @@ export const PLAY_FAILED = "the video couldn't be played";
 /** The review reason that pulls a live clip: a frame at its opening names another match. */
 const PULLED = /^its clip's first frame shows (.+), not (.+)$/;
 /** Whether a review reason is the reader's pull of this match: its opening frame names a different match. */
-const namesAnother = (label: string, why: string | undefined) => { const m = PULLED.exec(why ?? ""); return !!m && m[2] === label && m[1] !== label; };
+export const namesAnother = (label: string, why: string | undefined) => { const m = PULLED.exec(why ?? ""); return !!m && m[2] === label && m[1] !== label; };
 /** A calendar date, YYYY-MM-DD, that exists ("2026-02-30" doesn't). */
 const isDate = (s: string) => {
   const t = /^\d{4}-\d\d-\d\d$/.test(s) ? Date.parse(`${s}T00:00:00Z`) : NaN;
@@ -49,18 +49,22 @@ const isDate = (s: string) => {
  *  check. Empty: it can go live. */
 export function rowProblems(next: FrameTiming, live?: FrameTiming, order?: string[]): string[] {
   const out: string[] = [];
+  // Starts the owner approved (only the live row's word counts): served as they are, so never implausible or out of
+  // order here, and never making a neighbour so.
+  const ap = new Set((next.approved ?? []).filter((l) => live?.approved?.includes(l)));
+  for (const l of next.approved ?? []) if (!ap.has(l)) out.push(`${l}: marked owner-approved, but the live row doesn't have it so`);
   if (!isDate(next.checked)) out.push(`checked "${next.checked}" isn't a date`);
   if (live && JSON.stringify(live) !== JSON.stringify(next) && !(next.checked > live.checked)) out.push(`changed without a newer checked date than the live row's (${live.checked})`);
   for (const [l, t] of Object.entries(next.starts)) if (!Number.isInteger(t) || t < 0) out.push(`${l}: start ${t} isn't a second in the video`);
   for (const [l, t] of Object.entries(next.opens ?? {})) if (!Number.isInteger(t) || t < 0) out.push(`${l}: opening ${t} isn't a second in the video`);
-  const plausible = plausibleStarts(next.starts, next.opens);
-  for (const l of Object.keys(next.starts)) if (plausible[l] == null) out.push(`${l}: its start overlaps another match's`);
+  const plausible = plausibleStarts(Object.fromEntries(Object.entries(next.starts).filter(([l]) => !ap.has(l))), next.opens);
+  for (const l of Object.keys(next.starts)) if (!ap.has(l) && plausible[l] == null) out.push(`${l}: its start overlaps another match's`);
   // In the order the matches were played (their real starts: a match played late, a replay, keeps its place in time,
   // not its number's), as the reader judges them.
   if (order) {
     const at = new Map(order.map((l, i) => [l, i]));
     for (const l of Object.keys(next.starts)) if (!at.has(l)) out.push(`${l}: not a match the event played`);
-    const byOrder = Object.entries(next.starts).filter(([l]) => at.has(l)).sort((a, b) => at.get(a[0])! - at.get(b[0])!);
+    const byOrder = Object.entries(next.starts).filter(([l]) => at.has(l) && !ap.has(l)).sort((a, b) => at.get(a[0])! - at.get(b[0])!);
     for (let i = 1; i < byOrder.length; i++) if (byOrder[i][1] <= byOrder[i - 1][1]) out.push(`${byOrder[i][0]}: starts before ${byOrder[i - 1][0]}, out of the order they were played`);
   }
   const was = live ? live.starts : {};
@@ -94,6 +98,35 @@ export function rowProblems(next: FrameTiming, live?: FrameTiming, order?: strin
     }
   }
   for (const [l, e] of Object.entries(next.earlyStart ?? {})) if (!(e.previousEnds > e.t)) out.push(`${l}: early start ${e.t} isn't before the previous match's end ${e.previousEnds}`);
+  return out;
+}
+
+/** `next` (a re-read) with the starts the owner approved on the live row kept: a re-read that has one where it was
+ *  (a read's slack) keeps it approved, with the live opening where it has none; one that dropped it, or left it for
+ *  review again, gets it back as live, unless a frame at its opening names another match (the one way any live clip
+ *  leaves). Approval comes only from the live row: whatever `approved` the re-read itself carries is set aside. */
+export function carryApproved(next: FrameTiming, live: FrameTiming | null | undefined): FrameTiming {
+  const out: FrameTiming = { ...next, starts: { ...next.starts }, ...(next.opens ? { opens: { ...next.opens } } : {}), ...(next.review ? { review: { ...next.review } } : {}), ...(next.missing ? { missing: { ...next.missing } } : {}) };
+  delete out.approved;
+  delete out.approvedWhy;
+  const kept: string[] = [], why: Record<string, string> = {};
+  for (const l of live?.approved ?? []) {
+    const t = live!.starts[l];
+    if (t == null) continue;
+    const now = out.starts[l];
+    if (now != null && Math.abs(now - t) > SAME_S) continue; // moved: judged as any moved live clip
+    const pull = out.review?.[l];
+    // Pulled by its frame, unless that's the very frame the owner approved it over.
+    if (now == null && pull && Math.abs(pull.t - t) <= SAME_S && namesAnother(l, pull.why) && pull.why !== live!.approvedWhy?.[l]) continue;
+    if (now == null) out.starts[l] = t;
+    if (out.opens && out.opens[l] == null && live!.opens?.[l] != null) out.opens[l] = live!.opens[l];
+    if (out.review) { delete out.review[l]; if (!Object.keys(out.review).length) delete out.review; }
+    if (out.missing) { delete out.missing[l]; if (!Object.keys(out.missing).length) delete out.missing; }
+    kept.push(l);
+    if (live!.approvedWhy?.[l] != null) why[l] = live!.approvedWhy[l];
+  }
+  if (kept.length) out.approved = kept;
+  if (Object.keys(why).length) out.approvedWhy = why;
   return out;
 }
 

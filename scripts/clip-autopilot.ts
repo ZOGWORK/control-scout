@@ -395,7 +395,9 @@ async function settle(season: number, codes: string[], read: { changed: Row[]; r
   const send: Row[] = [], clean: Row[] = [], heldOther: Row[] = [], blind: Row[] = [];
   // An event another PR took up while this one was read waits for it: no read handed over to race it.
   const other = othersHold();
-  for (const r of read.changed) {
+  // Each read keeps the starts the owner approved on the live row (carryApproved: the server does the same).
+  const { carryApproved } = await import("../server/data/frameRowRules.js");
+  for (const r of read.changed.map((x) => carryApproved(x, live.get(rowKey(x))))) {
     const held = other.get(`${season}/${r.code}`);
     // The player showed nothing, or the video couldn't be played (nothingRead): a failed read, never a row that marks
     // every match read. The server refuses it too.
