@@ -304,7 +304,7 @@ async function workOut(f0: HighlightFind): Promise<StatAnswer> {
   // A video page with too many matches to list them all lists its matches with video (issue #1997: "bio buzz videos",
   // a whole season, listed none and kept its standout matches, none with video); a smaller one lists every match.
   const keyed = f.videos && count > GALLERY ? await withVideo(f) : null;
-  const gallery = await galleryOf(whole ? scored : null, events, f.videos ? (f.named && ev ? "No recording for this event — stats only." : `No match videos${where2} yet.`) : null, ev ? f.eventName : undefined, keyed);
+  const gallery = await galleryOf(whole ? scored : null, events, f.videos ? (f.named && ev ? "No recording for this event — stats only." : `No match videos${where2} yet.`) : null, ev ? f.eventName : undefined, keyed, f);
   // A video page leads with the scope's latest playoff match (a recap ends on the final, whatever reason it was
   // listed under), highlights with the best score.
   const last = f.videos ? (scored?.filter((r) => r.level === "playoff").at(-1) ?? picks.find((p) => p.note === "Latest playoff match")?.r) : undefined;
@@ -329,7 +329,7 @@ async function workOut(f0: HighlightFind): Promise<StatAnswer> {
 /** A video page's list: the scope's matches in the events' order (read whole), each with both alliances' team
  *  numbers, and each event's stream. A scope with more than GALLERY matches lists its playoffs, more still none. */
 async function galleryOf(xs: Scored[] | null, events: { season: number; code: string }[] | undefined, empty: string | null,
-  named?: HighlightFind["eventName"], keyed?: { rows: Scored[]; count: number } | null): Promise<StatBlock> {
+  named?: HighlightFind["eventName"], keyed?: { rows: Scored[]; count: number } | null, scope?: HighlightFind): Promise<StatBlock> {
   const playoffs = xs?.filter((r) => r.level === "playoff") ?? [];
   const listed = keyed ? keyed.rows : !xs ? [] : xs.length <= GALLERY ? xs : playoffs.length <= GALLERY ? playoffs : [];
   const more = keyed ? (keyed.rows.length < keyed.count ? `The ${keyed.rows.length.toLocaleString("en-US")} best-scoring of ${keyed.count.toLocaleString("en-US")} matches with video.` : undefined)
@@ -350,6 +350,11 @@ async function galleryOf(xs: Scored[] | null, events: { season: number; code: st
   const at = listed.length ? listed : xs ?? [];
   const streams: StatLink[] = [...new Map(at.map((r) => [`${r.season}|${r.code}`, { label: shortEvent(r.name, r.type), href: eventHref(r.season, r.code) }])).values()].slice(0, STREAMS);
   const first = events?.[0];
+  // "No match videos yet" only when no listed match has one (the same keys as each Play button): 2 of 2026–27's 158
+  // matches with video said there were none.
+  const anyVideo = !!empty && !more && !!scope && listed.length > 0
+    && await videoKeys(scope).then((ks) => { const has = new Set(ks); return listed.some((r) => has.has(key(r))); }, () => false);
+  if (anyVideo) empty = null;
   return { kind: "videos", title: keyed ? "Matches with video" : "Every match", tiles, ...(streams.length ? { streams } : {}), ...(more ? { more } : {}),
     // Nothing with a video says so only when every match was listed; a list cut short says why instead.
     ...(empty && !more ? { empty: { text: empty, ...(named && first ? { href: eventHref(first.season, first.code) } : {}) } } : {}) };
