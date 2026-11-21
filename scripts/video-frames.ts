@@ -39,7 +39,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
 import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, launchPlayerBrowser, clockReading, playedCount, playedMatches, wholeLength, splitSide, splitChecked, splitZoomCss, SPLIT_SIDES, type SplitSide, enteredLater, DIVISION_AFTER, frameDivision, ReadHung, onceMoreIfHung, undetailed, UNDETAILED_EXIT, timerDigits, afterUnreadBox, boxSeconds, timerSteps } from "./lib/videoFrames";
-import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, firstOpening, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, darkInk, DARK_FILL_MAX, DARK_INK_MAX, inPage, titleLeaks, titleUnchecked, visibleTexts, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M, eventDivisions, teamsSay } from "./lib/videoFrames";
+import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, firstOpening, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, darkInk, DARK_FILL_MAX, DARK_INK_MAX, inPage, titleLeaks, titleUnchecked, visibleTexts, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, beforeLead, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M, eventDivisions, teamsSay } from "./lib/videoFrames";
 import { cornerBox, zoomCss } from "./lib/frameZoom";
 import { between, edgeReject, eventLimitMs, GAP_READS } from "./lib/videoFrames";
 
@@ -698,7 +698,25 @@ async function checkOpenings(page: Page, j: Judged, log: (s: string) => void, un
       if (r.division === "other") { named = "another division's match"; return false; }
       // The overlay names a replay (a tiebreak's "M6-2") by its match alone ("M6"), as placeVideo reads it; a
       // semifinal's match by its series and number ("M1-2"), that match only (sameMatch).
-      if (sameMatch(r.label ?? "", label)) return true;
+      if (sameMatch(r.label ?? "", label)) {
+        // On the overlay's switch to it (a second before names another match): not this lead; the next one in. Only for
+        // the leads of 5 s or more: the 2 and 0 s leads are for a results card that stays up until the match's own
+        // overlay comes on (CAONMIQ 2025 M7), where the second before names the match before by design.
+        const lead = p.t - t;
+        if (lead > 2 && t >= 1) {
+          let before: Read | null = null;
+          let why = "";
+          try { before = await readAt(page, t - 1, true); } catch (e) { if (e instanceof EventOverTime) throw e; why = (e as Error).message.split("\n")[0]; }
+          const b = beforeLead(before, t - 1, label);
+          // A failed read here is a failed opening read: the rest are left unchecked, never taken as no switch.
+          if (b === "failed") { broken = true; log(`    an opening read failed (${why}): the rest are left unchecked`); return "stop"; }
+          if (b === "switch") {
+            log(`    ${label}: its ${lead} s lead sits on the overlay's switch from ${before!.division === "other" ? "another division's match" : eventLabel(before!.label!)}; trying the next lead`);
+            return false;
+          }
+        }
+        return true;
+      }
       if (r.label) named = eventLabel(r.label);
       return false;
     });

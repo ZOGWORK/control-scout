@@ -1,12 +1,38 @@
 // The pure parts of the frame reader (scripts/video-frames.ts): the overlay's match, the timer's elapsed time, and
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
-import { dataRows, launchPlayerBrowser, clockReading, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, darkInk, DARK_FILL_MAX, DARK_INK_MAX, inPage, titleLeaks, titleUnchecked, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, firstOpening, OPEN_LEADS, shortClash, type M, eventDivisions, teamsSay, splitSide, splitChecked, splitZoomCss, enteredLater, DIVISION_AFTER, frameDivision, MATCH_S, ReadHung, onceMoreIfHung, undetailed, UNDETAILED_EXIT, readFailed, timerDigits, afterUnreadBox, boxSeconds, timerSteps } from "./videoFrames";
+import { dataRows, launchPlayerBrowser, clockReading, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, darkInk, DARK_FILL_MAX, DARK_INK_MAX, inPage, titleLeaks, titleUnchecked, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, onSwitch, beforeLead, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, firstOpening, OPEN_LEADS, shortClash, type M, eventDivisions, teamsSay, splitSide, splitChecked, splitZoomCss, enteredLater, DIVISION_AFTER, frameDivision, MATCH_S, ReadHung, onceMoreIfHung, undetailed, UNDETAILED_EXIT, readFailed, timerDigits, afterUnreadBox, boxSeconds, timerSteps } from "./videoFrames";
 import { between, edgeReject, EVENT_LIMIT_RATIO, eventLimitMs, GAP_READS, TRIES } from "./videoFrames";
 import { pngPixels } from "./__fixtures__/png";
 import { fileURLToPath } from "node:url";
 
 describe("the frame reader", () => {
+  it("skips an opening lead that sits on the overlay's switch to its match", () => {
+    // USMOKSCMP 2023 Q9: a second before its 20 s lead the overlay names Q8.
+    expect(onSwitch("Q8", "Q9")).toBe(true);
+    // Nothing named a second before (a transition, a cutaway), or the same match: no switch.
+    expect(onSwitch(null, "Q9")).toBe(false);
+    expect(onSwitch("Q9", "Q9")).toBe(false);
+    // A semifinal's first match names the event's M2 as "M2-1"; a replay's frame names its match alone.
+    expect(onSwitch("M2-1", "M2")).toBe(false);
+    expect(onSwitch("M1-1", "M2")).toBe(true);
+    expect(onSwitch("M6", "M6-2")).toBe(false);
+  });
+
+  it("judges the frame a second before an opening lead: a switch, a failed read, or kept", () => {
+    // Another match named there: the overlay's switch onto Q9.
+    expect(beforeLead({ at: 4003, label: "Q8" }, 4003, "Q9")).toBe("switch");
+    // On a stream two divisions share, a sibling division's match there is the overlay switching onto this match too.
+    expect(beforeLead({ at: 4003, label: "Q8", division: "other" }, 4003, "Q9")).toBe("switch");
+    expect(beforeLead({ at: 4003, label: null, division: "other" }, 4003, "Q9")).toBe("switch");
+    // The read failed: not "no switch", the opening is left unchecked.
+    expect(beforeLead(null, 4003, "Q9")).toBe("failed");
+    // Nothing named, the same match, or a seek that didn't land there: the lead stands.
+    expect(beforeLead({ at: 4003, label: null }, 4003, "Q9")).toBe("kept");
+    expect(beforeLead({ at: 4003, label: "Q9", division: "own" }, 4003, "Q9")).toBe("kept");
+    expect(beforeLead({ at: 3990, label: "Q8" }, 4003, "Q9")).toBe("kept");
+  });
+
   // A 1280 × 720 frame: a grey field, and a score bar from `top` to `bottom` with one alliance's colour each side of the
   // timer (white digits in a dark box at the centre), its rows broken here and there by white icons and digits.
   const frame = (bars: { top: number; bottom: number; left?: "blue" | "red"; dark?: boolean }[], floor = [120, 115, 110]) => {

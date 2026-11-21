@@ -12,19 +12,16 @@
 // Last-Modified there), does it fetch the event in full. Then the minimum
 // follow-up: that event's OPR and its teams' season rows, a new data version
 // (pages and ratings pick it up), results attached to logged live calls, and
-// pre-match calls logged for newly scheduled matches.
+// pre-match calls logged for newly scheduled matches. That follow-up (liveFollowUp.ts) runs in a child
+// process where the data cycle does (DATA_CYCLE=child): it is seconds of CPU on a busy weekend.
 //
 // It shares the writer lease (lock.ts) with the cycle: when the cycle holds it,
 // a tick is skipped (the cycle is syncing these events anyway).
-import { all, get, kvSet, run } from "../db.js";
+import { all, get, run } from "../db.js";
 import { hasFirst } from "../env.js";
 import { NO_MATCH_TYPES, pool, syncEvent } from "../sync.js";
 import { firstProbe } from "../sources/first.js";
-import { refreshEventStats, logLivePredictions, scoreLivePredictions } from "../stats/job.js";
-import { refreshReportCards } from "../stats/reportCards.js";
-import { computeRecords } from "../stats/records.js";
-import { loadSeason } from "../stats/load.js";
-import { resultsAtKey } from "../api/readiness.js";
+import { childFollowUp, runFollowUp, runFollowUpInChild } from "./liveFollowUp.js";
 import type { EventRow } from "./bundle.js";
 import { CURRENT_SEASON } from "./seasons.js";
 import { localDate, onEventDates } from "../../src/shared/eventDay.js";
@@ -189,27 +186,16 @@ export async function refreshEvents(events: EventRow[], o: { minFullMs?: number;
   for (const e of events) if (report.fetched.includes(e.code)) followUp.set(keyOf(e), { season: e.season, code: e.code });
   if (followUp.size) await writing(async () => {
     const due = [...followUp.values()];
-    // New data version first: the season rows read ratings, and the live calls must use the newest ones.
-    await kvSet("data:version", new Date(now()).toISOString());
-    const bySeason = new Map<number, string[]>();
-    for (const e of due) bySeason.set(e.season, [...(bySeason.get(e.season) ?? []), e.code]);
-    for (const [s, codes] of bySeason) {
-      // New results are stored for this season: until its records are rebuilt (below, or by a later tick
-      // when that's throttled) the season reads as catching up (api/readiness.ts).
-      await kvSet(resultsAtKey(s), { at: new Date(now()).toISOString() });
-      await refreshEventStats(s, codes, log);
-      // The record tables (/api/records, CSV) are season-wide rewrites: at most every 5 minutes while
-      // results come in (the 15-minute cycle rewrites them too); the engine's exclusives carry over.
-      if (now() - (recordsAt.get(s) ?? 0) >= RECORDS_EVERY_MS) { recordsAt.set(s, now()); await computeRecords(s, await loadSeason(s), log); await kvSet("records:last", { at: new Date(now()).toISOString() }); }
-    }
-    report.scored = await scoreLivePredictions(log);
-    // Newly scored live calls: the report cards of every season they changed (a per-season rewrite of a few thousand rows at most).
-    if (report.scored) await refreshReportCards(log);
-    report.logged = await logLivePredictions(log);
-    // New results (and any schedule changes) at today's events: the home page's coin flips follow.
-    await (await import("../api/coinFlips.js")).refreshCoinFlips(log);
-    // The follow-up's writes are done (see runStats: caches keyed by the data version are keyed by this too).
-    await kvSet("data:settled", new Date(now()).toISOString());
+    // Seasons whose record tables are due (at most every RECORDS_EVERY_MS); the throttle counts from the start of a rebuild.
+    const records = [...new Set(due.map((e) => e.season))].filter((s) => now() - (recordsAt.get(s) ?? 0) >= RECORDS_EVERY_MS);
+    const onRecords = (s: number) => { recordsAt.set(s, now()); };
+    // Seconds of CPU at a busy weekend: in a child process where the data cycle has one (liveFollowUp.ts), so
+    // searches and pages keep answering meanwhile.
+    const r = childFollowUp()
+      ? await runFollowUpInChild({ due, records }, { onRecords })
+      : await runFollowUp({ due, records }, { log, now, onRecords });
+    report.scored = r.scored;
+    report.logged = r.logged;
     for (const e of due) followUp.delete(keyOf(e));
   });
   return report;
