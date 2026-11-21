@@ -156,32 +156,36 @@ function seasonData(season: number, now = Date.now()) {
 }
 
 /** The owner's corrections to an event's recordings, made on its page (server/videos/ownerRecordings.ts): the videos
- *  taken off it, and the days a video was picked for, with the event's time zone to read other videos' days in. */
-export interface OwnerPicks { blocked: Set<string>; days: Map<string, string>; timezone: string | null }
+ *  taken off it, and each day's picked videos with their part ("Part 1", "Awards"; null for the whole day), with the
+ *  event's time zone to read other videos' days in. */
+export interface OwnerPicks { blocked: Set<string>; days: Map<string, { videoId: string; part: string | null }[]>; timezone: string | null }
 export async function ownerPicks(season: number): Promise<Map<string, OwnerPicks>> {
-  const rows = await all<{ code: string; video_id: string; day: string | null; removed_at: string | null; timezone: string | null }>(
-    `SELECT o.code, o.video_id, o.day, o.removed_at, e.timezone FROM official_videos o LEFT JOIN events e ON e.season = o.season AND e.code = o.code
+  const rows = await all<{ code: string; video_id: string; day: string | null; part: string | null; removed_at: string | null; timezone: string | null }>(
+    `SELECT o.code, o.video_id, o.day, o.part, o.removed_at, e.timezone FROM official_videos o LEFT JOIN events e ON e.season = o.season AND e.code = o.code
      WHERE o.season = ? AND o.source = 'owner-page' AND o.kind = 'recording'`, [season]);
   const out = new Map<string, OwnerPicks>();
   for (const r of rows) {
     const p = out.get(String(r.code)) ?? out.set(String(r.code), { blocked: new Set(), days: new Map(), timezone: r.timezone ?? null }).get(String(r.code))!;
     if (r.removed_at) p.blocked.add(String(r.video_id));
-    else if (r.day) p.days.set(String(r.day), String(r.video_id));
+    else if (r.day) (p.days.get(String(r.day)) ?? p.days.set(String(r.day), []).get(String(r.day))!).push({ videoId: String(r.video_id), part: r.part ?? null });
   }
   return out;
 }
 
-/** An event's videos with the owner's picks applied: one taken off is left out, and a day the owner picked a video for
- *  keeps that video only (another read as that day's, by its listed day or YouTube's broadcast start at the venue, is
- *  left out). A video whose day isn't known stays. */
+/** An event's videos with the owner's picks applied: one taken off is left out, and a day (and part) the owner picked a
+ *  video for keeps that video only: another read as that day's, by its listed day or YouTube's broadcast start at the
+ *  venue, with the same part (none, for FIRST's link and the other automatic ones) is left out; the day's other parts
+ *  stay. A video whose day isn't known stays. */
 export function picked(videos: RecordingVideo[], p: OwnerPicks | undefined): RecordingVideo[] {
   if (!p) return videos;
   return videos.filter((v) => {
     if (p.blocked.has(v.videoId)) return false;
     const day = v.day ?? (v.meta?.start ? localDate(v.meta.start, p.timezone) : null);
-    return !day || !p.days.has(day) || p.days.get(day) === v.videoId;
+    const ps = day ? p.days.get(day) : undefined;
+    return !ps || ps.some((x) => x.videoId === v.videoId) || !ps.some((x) => x.part === (v.part ?? null));
   });
 }
+
 
 /** When a recording's video was broadcast, for ordering its days: the broadcast's start, else the list's day. */
 const dayKey = (v: RecordingVideo) => v.meta?.start ?? (v.day ? `${v.day}T12:00:00Z` : "9999");

@@ -113,16 +113,36 @@ describe("the owner's recording controls", () => {
   });
 });
 
+describe("replacing one part of a day", () => {
+  it("replaces that part only: the day's other part stays, and the new video takes the replaced one's part", async () => {
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, timezone, remote, hybrid, livestream, source) VALUES (2026, 'USMIPARTS', 'MI Parts', 'Qualifier', 'Detroit', 'MI', 'USA', '2026-11-14', '2026-11-14', 'America/Detroit', 0, 0, NULL, 'test')");
+    const off = `INSERT INTO official_videos (video_id, season, code, kind, day, part, channel_id, title, source, why, added_at, added_by) VALUES (?, 2026, 'USMIPARTS', 'recording', '2026-11-14', ?, 'UCx', 't', 'list', 'w', 'x', NULL)`;
+    await run(off, ["partOneAAAA", "Part 1"]);
+    await run(off, ["partTwoBBBB", "Part 2"]);
+    forgetOfficial(); forgetRecordings();
+    const res = await fetch(`${base}/api/owner/event-recordings/2026/USMIPARTS/replace`, { method: "POST", headers: { Cookie: ownerCookie, "Content-Type": "application/json" }, body: JSON.stringify({ from: "partOneAAAA", video: "partOneNEWW", day: "2026-11-14" }) });
+    expect(res.status).toBe(200);
+    const r = (await seasonRecordings(2026)).get("USMIPARTS")!;
+    expect([r, ...(r.more ?? [])].map((x) => [x.videoId, x.part ?? null]).sort()).toEqual([["partOneNEWW", "Part 1"], ["partTwoBBBB", "Part 2"]]);
+    expect(await get("SELECT removed_at FROM official_videos WHERE video_id = 'partTwoBBBB'")).toEqual({ removed_at: null });
+  });
+});
+
 describe("the owner's picks over automatic links", () => {
   const v = (videoId: string, start: string | null, day?: string): RecordingVideo => ({ videoId, meta: start ? { videoId, start } as RecordingVideo["meta"] : null, ...(day ? { day } : {}) });
   it("leave out what was removed, and keep only the owner's video on a day they picked", () => {
-    const picks = { blocked: new Set(["gonegonegon"]), days: new Map([["2026-11-14", DAY1]]), timezone: "America/Detroit" };
+    const picks = { blocked: new Set(["gonegonegon"]), days: new Map([["2026-11-14", [{ videoId: DAY1, part: null }]]]), timezone: "America/Detroit" };
     const list = [v("gonegonegon", "2026-11-15T14:00:00Z"), v("autoSatAAAA", "2026-11-14T14:00:00Z"), v(DAY1, null, "2026-11-14"), v("autoSunBBBB", "2026-11-15T14:00:00Z"), v("untimedCCCC", null)];
     expect(picked(list, picks).map((x) => x.videoId)).toEqual([DAY1, "autoSunBBBB", "untimedCCCC"]);
     expect(picked(list, undefined)).toBe(list);
   });
+  it("keep a day's other parts: a pick for one part leaves out only that part's other videos", () => {
+    const picks = { blocked: new Set<string>(), days: new Map([["2026-11-14", [{ videoId: "pickPart1AA", part: "Part 1" }]]]), timezone: "America/Detroit" };
+    const list = [v("pickPart1AA", null, "2026-11-14"), { ...v("oldPart1AAA", null, "2026-11-14"), part: "Part 1" }, { ...v("keptPart2AA", null, "2026-11-14"), part: "Part 2" }, v("autoWholeDA", "2026-11-14T14:00:00Z")];
+    expect(picked(list, picks).map((x) => x.videoId)).toEqual(["pickPart1AA", "keptPart2AA", "autoWholeDA"]);
+  });
   it("read a day at the venue (a broadcast after midnight UTC is still the evening before in Detroit)", () => {
-    const picks = { blocked: new Set<string>(), days: new Map([["2026-11-14", DAY1]]), timezone: "America/Detroit" };
+    const picks = { blocked: new Set<string>(), days: new Map([["2026-11-14", [{ videoId: DAY1, part: null }]]]), timezone: "America/Detroit" };
     expect(picked([v("lateSatAAAA", "2026-11-15T02:00:00Z")], picks)).toEqual([]);
   });
 });

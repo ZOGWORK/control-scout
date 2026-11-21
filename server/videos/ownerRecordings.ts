@@ -84,23 +84,25 @@ async function removeWrites(ev: { season: number; code: string }, videoId: strin
 
 /** The writes that put `videoId` on the event for `day`: an owner-page row, kept (one there before for this event, or
  *  removed from any, is turned into it), and its watcher row marked approved so no audit takes it off. */
-async function addWrites(ev: { season: number; code: string }, videoId: string, day: string, actor: string, at: string): Promise<Writes> {
+async function addWrites(ev: { season: number; code: string }, videoId: string, day: string, part: string | null, actor: string, at: string): Promise<Writes> {
   const row = await get<any>("SELECT season, code, removed_at FROM official_videos WHERE video_id = ?", [videoId]);
   if (row && (Number(row.season) !== ev.season || String(row.code) !== ev.code) && !row.removed_at) return { error: `That video is already ${row.season} ${row.code}'s recording.` };
   return { was: row ? "kept" : null, writes: [
     { sql: `INSERT INTO official_videos (video_id, season, code, kind, day, part, channel_id, title, source, why, added_at, added_by, removed_at)
-            VALUES (?, ?, ?, 'recording', ?, NULL, '', '', ?, ?, ?, ?, NULL)
-            ON CONFLICT(video_id) DO UPDATE SET season = excluded.season, code = excluded.code, kind = 'recording', day = excluded.day, part = NULL,
+            VALUES (?, ?, ?, 'recording', ?, ?, '', '', ?, ?, ?, ?, NULL)
+            ON CONFLICT(video_id) DO UPDATE SET season = excluded.season, code = excluded.code, kind = 'recording', day = excluded.day, part = excluded.part,
               source = excluded.source, why = excluded.why, added_at = excluded.added_at, added_by = excluded.added_by, removed_at = NULL`,
-      args: [videoId, ev.season, ev.code, day, OWNER_PAGE, `added by ${actor} on the event page`, at, actor] },
-    { sql: "UPDATE official_watch SET status = 'approved', season = ?, code = ?, day = ?, part = NULL, decided_at = ?, decided_by = ? WHERE video_id = ?", args: [ev.season, ev.code, day, at, actor, videoId] },
+      args: [videoId, ev.season, ev.code, day, part, OWNER_PAGE, `added by ${actor} on the event page`, at, actor] },
+    { sql: "UPDATE official_watch SET status = 'approved', season = ?, code = ?, day = ?, part = ?, decided_at = ?, decided_by = ? WHERE video_id = ?", args: [ev.season, ev.code, day, part, at, actor, videoId] },
   ] };
 }
 
-/** The kept official recordings (any source) that hold `day` on the event: the day's slot (official_videos_day) must be
- *  free before an add, so a Replace takes them off in the same write. */
-const dayHolders = (ev: { season: number; code: string }, day: string) =>
-  all<{ video_id: string }>("SELECT video_id FROM official_videos WHERE season = ? AND code = ? AND kind = 'recording' AND removed_at IS NULL AND day = ?", [ev.season, ev.code, day]).then((r) => r.map((x) => String(x.video_id)));
+/** The kept official recordings (any source) that hold `day` on the event, or only that day's `part` when one is given
+ *  (null: the whole-day slot): the slot (official_videos_day) must be free before an add, so a Replace takes its holders
+ *  off in the same write, and never the day's other parts. */
+const dayHolders = (ev: { season: number; code: string }, day: string, part?: string | null) =>
+  all<{ video_id: string }>(`SELECT video_id FROM official_videos WHERE season = ? AND code = ? AND kind = 'recording' AND removed_at IS NULL AND day = ?${part !== undefined ? " AND COALESCE(part, '') = COALESCE(?, '')" : ""}`,
+    [ev.season, ev.code, day, ...(part !== undefined ? [part] : [])]).then((r) => r.map((x) => String(x.video_id)));
 
 function done() { forgetOfficial(); forgetRecordings(); clearAllCaches(); }
 
@@ -123,7 +125,7 @@ export async function addEventRecording(season: number, code: string, body: { vi
   const holders = (await dayHolders(ev, day.day)).filter((v) => v !== id.videoId);
   if (holders.length) return { ok: false, error: `${ev.code} already has ${holders[0]} for ${day.day}: replace it instead.` };
   const at = new Date(now).toISOString();
-  const add = await addWrites(ev, id.videoId, day.day, actor, at);
+  const add = await addWrites(ev, id.videoId, day.day, null, actor, at);
   if (!add.writes) return { ok: false, error: add.error };
   await db().batch([...add.writes], "write");
   done();
@@ -143,8 +145,11 @@ export async function replaceEventRecording(season: number, code: string, body: 
   const day = validDay(ev, body.day);
   if (!day.ok) return day;
   const at = new Date(now).toISOString();
-  // Every video holding that day comes off with it (the slot must be free), the one replaced first.
-  const others = (await dayHolders(ev, day.day)).filter((v) => v !== from && v !== id.videoId);
+  // The replacement takes the replaced video's part of the day ("Part 1", "Awards"; none: the whole day), and only
+  // that part's holders come off with it (the slot must be free): the day's other parts stay.
+  const kept = await get<{ part: string | null }>("SELECT part FROM official_videos WHERE video_id = ? AND season = ? AND code = ? AND removed_at IS NULL", [from, ev.season, ev.code]);
+  const part = kept ? kept.part ?? null : (await ownerEventRecordings(ev.season, ev.code))?.videos.find((v) => v.videoId === from)?.part ?? null;
+  const others = (await dayHolders(ev, day.day, part)).filter((v) => v !== from && v !== id.videoId);
   const offs: Write[][] = [];
   let was: string | null = null;
   for (const v of [from, ...others]) {
@@ -153,11 +158,11 @@ export async function replaceEventRecording(season: number, code: string, body: 
     if (!offs.length) was = off.was;
     offs.push(off.writes);
   }
-  const add = await addWrites(ev, id.videoId, day.day, actor, at);
+  const add = await addWrites(ev, id.videoId, day.day, part, actor, at);
   if (!add.writes) return { ok: false, error: add.error };
   await db().batch([...offs.flat(), ...add.writes], "write");
   done();
-  await recordAudit(actor, "eventRecording.replace", { season: ev.season, code: ev.code, from, videoId: id.videoId, day: day.day, was, alsoOff: others });
+  await recordAudit(actor, "eventRecording.replace", { season: ev.season, code: ev.code, from, videoId: id.videoId, day: day.day, part, was, alsoOff: others });
   return { ok: true };
 }
 
