@@ -30,6 +30,9 @@ import { seasonOfDate } from "../../query/time.js";
 import { searchToday } from "../../searchEvents.js";
 import { OFFICIAL_TYPES } from "../clauses.js";
 import { place } from "../../../../src/shared/format.js";
+import { allConferences, conferenceTeams } from "../../conferences.js";
+import { conferencesNamed } from "./conference.js";
+import { leagueTitle } from "../../../../src/shared/leagues.js";
 
 export const LEADERBOARD_MAX = 25;
 
@@ -96,6 +99,9 @@ export interface BoardQuestion { kind: BoardKind; stat: BoardStat; n: number; re
   climb?: { from: number; to: number };
   /** A date window ("this week"): a count of matches played, wins or events in it, from the match rows. */
   window?: { from: string; to: string; label: string };
+  /** Words naming New Jersey conferences as a place ("best auto in nj bergen"): the teams of those conferences that
+   *  season (conferenceGroup). */
+  conference?: string[];
   /** One event's teams, its divisions' too ("east bergen conference best teams", "top teams at nj states"). */
   /** `home`: the teams from that place only ("nj teams at worlds"). */
   event?: { season: number; code: string; codes: string[]; name: string; home?: Region | null; rookies?: boolean };
@@ -138,6 +144,25 @@ const rankingsHref = (season: number, region: Region | null) => (region ? region
 const RANKED = `A team is ranked once it has played ${RANKED_MIN_MATCHES} matches that season, as on Rankings, from the season numbers each team page shows (OPR and averages without penalties).`;
 const record = (r: { wins: number; losses: number; ties: number }) => `${r.wins}-${r.losses}-${r.ties}`;
 
+/** The teams of the New Jersey conferences some words name in one season ("bergen": W Central/Bergen and Hudson/East
+ *  Bergen), each conference's teams as its table lists them (FIRST's team list, else FTC New Jersey's sign-ups), with
+ *  the words the board says them in. Null when the words name no conference that season. */
+export async function conferenceGroup(words: string[], season: number) {
+  const named = conferencesNamed(words, await allConferences(), season);
+  if (!named.length) return null;
+  const lists = await Promise.all(named.map((c) => conferenceTeams(c.season, c.code)));
+  const teams = [...new Set(lists.flatMap((l) => l.teams))].sort((x, y) => x - y);
+  const names = named.map((c) => c.name);
+  // "the W Central/Bergen and Hudson/East Bergen Conferences", "the East Bergen Conference".
+  const bare = names.map((n) => n.replace(/ Conference$/, ""));
+  const label = names.length === 1 ? `the ${names[0]}` : `the ${bare.slice(0, -1).join(", ")} and ${bare[bare.length - 1]} Conferences`;
+  const leagues = [...new Set(named.map((c) => leagueTitle(c.leagueName, c.league)))];
+  const said = words.join(" ");
+  const from = lists.some((l) => l.from === "registered") ? (lists.every((l) => l.from === "registered") ? "FTC New Jersey's sign-ups (registered, not the final field)" : "FIRST's team list, else FTC New Jersey's sign-ups (registered, not the final field)") : "FIRST's team list";
+  const rule = `“${said}” read as New Jersey's ${names.length === 1 ? "conference" : "conferences"} with it in the name in ${seasonLabel(season)}: ${names.join(" and ")} (${leagues.join(", ")}). A conference's teams are its tournament's, from ${from}.`;
+  return { label, names, teams, rule, empty: lists.every((l) => !l.teams.length) };
+}
+
 export async function leaderboardAnswer(b: BoardQuestion): Promise<StatAnswer> {
   if (b.kind === "city") return cityAnswer(b.city!, !!b.school, b.cityIn ?? null);
   if (b.event) return eventBoardAnswer(b, b.event);
@@ -145,10 +170,18 @@ export async function leaderboardAnswer(b: BoardQuestion): Promise<StatAnswer> {
   const why = b.season == null ? ` ${searchSeasonWhy(season)}` : b.seasonWhy ? ` ${b.seasonWhy}` : "";
   if (b.kind === "city-best") return b.season == null ? cityBestNow(b) : cityBestAnswer(b, season, why);
   // A region, or a whole country (no state); a town in it narrows to the teams from there.
-  const where = b.teams ? " named" : b.town ? ` in ${b.town}` : b.region ? ` in ${b.region.name}` : " worldwide";
-  const regionSql = `${b.region ? ` AND t.country = ?${b.region.state ? " AND t.state = ?" : ""}` : ""}${b.town ? " AND lower(t.city) = lower(?)" : ""}`;
-  const regionArgs = [...(b.region ? [b.region.country, ...(b.region.state ? [b.region.state] : [])] : []), ...(b.town ? [b.town] : [])];
-  const chips = b.teams ? [`${b.teams.length} teams named`, seasonLabel(season)] : [...(b.town ? [b.town] : []), b.region?.name ?? "Worldwide", seasonLabel(season)];
+  // Conferences named as the place ("nj bergen"): their teams only, wherever FIRST lists each team's home.
+  const group = b.conference ? await conferenceGroup(b.conference, season) : null;
+  if (b.conference && (!group || group.empty)) {
+    const said = b.conference.join(" ");
+    return { family: "leaderboard", intent: `top-${b.stat.id}`, title: `Top teams by ${statWords(b.stat)} in ${group ? group.label : `“${said}”`} · ${seasonLabel(season)}`, scope: [...(group ? group.names : []), "New Jersey", seasonLabel(season)],
+      definition: `${group ? group.rule : `“${said}” names no New Jersey conference in ${seasonLabel(season)}.`}${why}`, source: `New Jersey's ${seasonLabel(season)} conferences`, blocks: [],
+      none: group ? `No team list yet for ${group.label}: neither FIRST nor FTC New Jersey has posted one.` : `No New Jersey conference in ${seasonLabel(season)} has “${said}” in its name.` };
+  }
+  const where = b.teams ? " named" : group ? ` in ${group.label}` : b.town ? ` in ${b.town}` : b.region ? ` in ${b.region.name}` : " worldwide";
+  const regionSql = `${group ? "" : b.region ? ` AND t.country = ?${b.region.state ? " AND t.state = ?" : ""}` : ""}${b.town ? " AND lower(t.city) = lower(?)" : ""}${group ? ` AND s.team IN (${group.teams.map(() => "?").join(", ")})` : ""}`;
+  const regionArgs = [...(b.region && !group ? [b.region.country, ...(b.region.state ? [b.region.state] : [])] : []), ...(b.town ? [b.town] : []), ...(group ? group.teams.map(String) : [])];
+  const chips = b.teams ? [`${b.teams.length} teams named`, seasonLabel(season)] : group ? [...group.names, "New Jersey", seasonLabel(season)] : [...(b.town ? [b.town] : []), b.region?.name ?? "Worldwide", seasonLabel(season)];
   if (b.kind === "improved") return improvedAnswer(b, season, where, regionSql, regionArgs, chips, why);
   if (b.kind === "career" || b.kind === "oldest" || b.kind === "number") return careerAnswer(b, where, regionSql, regionArgs);
   if (b.kind === "steady") return steadyAnswer(b, season, where, regionSql, regionArgs, chips, why);
@@ -182,9 +215,9 @@ export async function leaderboardAnswer(b: BoardQuestion): Promise<StatAnswer> {
   const titled = filters ? `${title}: ${filters}` : title;
   // A link opens the same list or none: Rankings has no rookie filter and no lowest-first order, and neither page
   // takes a town or undefeated teams, so those get no link rather than one to a different list.
-  const href = b.town || b.undefeated || b.teams || filters ? null : st.teamsSort ? teamsHref(season, st, b.region, rookie, !!b.asc)
+  const href = group || b.town || b.undefeated || b.teams || filters ? null : st.teamsSort ? teamsHref(season, st, b.region, rookie, !!b.asc)
     : st.id === "rating" && !rookie && !b.asc ? rankingsHref(season, b.region) : null;
-  const definition = `${b.nameHas ? `Name includes “${b.nameHas}”: the team's name has those letters anywhere in it, any case. ` : ""}${b.noAward ? `No award ever won: no award on record for the team in any season${firstAward != null ? ` (awards are on record from ${seasonLabel(Number(firstAward))})` : ""}, winning and finalist alliances counted as awards. ` : ""}${b.undefeated ? "Undefeated: no losses in the season's matches (ties allowed). " : ""}${RANKED}${rookie ? ` A rookie team's rookie year is ${seasonLabel(season)}.` : ""}${st.id === "win-rate" ? " Win rate: wins over matches played, ties counted as played." : ""}${st.id === "record" ? " Record: wins-losses-ties, the best win rate first (wins over matches played, ties counted as played), then the most wins." : ""}${st.id === "penalties" ? " Penalties a match: penalty points the robot alone gives away a match, its prediction rating's estimate as the team page shows it; a tie goes to the points its alliances gave away a match; ranked once 3 matches are rated." : ""}${st.id === "awards" ? " Awards won: every award the team's events gave it that season, winning and finalist alliances included." : ""}${st.id === "matches" || st.id === "events" ? ` ${st.label}: at every event of the season, scrimmages included, as the team page counts them.` : ""}${st.id === "reliability" ? " Reliability: the team page's index out of 100, from no-shows, disqualifications, near-zero matches and how steady its scoring is." : ""}${st.id === "rating" ? " The prediction rating is the engine's points-per-match strength; ranked once 3 matches are rated, as on Rankings." : ""}${st.id.includes("+") ? ` ${st.label}: each phase's OPR added, as the team page shows them.` : ""}${bottom ? " Lowest first: the bottom of the ranked list, each team's place counted from the top." : ""}${why}`;
+  const definition = `${group ? `${group.rule} ` : ""}${b.nameHas ? `Name includes “${b.nameHas}”: the team's name has those letters anywhere in it, any case. ` : ""}${b.noAward ? `No award ever won: no award on record for the team in any season${firstAward != null ? ` (awards are on record from ${seasonLabel(Number(firstAward))})` : ""}, winning and finalist alliances counted as awards. ` : ""}${b.undefeated ? "Undefeated: no losses in the season's matches (ties allowed). " : ""}${RANKED}${rookie ? ` A rookie team's rookie year is ${seasonLabel(season)}.` : ""}${st.id === "win-rate" ? " Win rate: wins over matches played, ties counted as played." : ""}${st.id === "record" ? " Record: wins-losses-ties, the best win rate first (wins over matches played, ties counted as played), then the most wins." : ""}${st.id === "penalties" ? " Penalties a match: penalty points the robot alone gives away a match, its prediction rating's estimate as the team page shows it; a tie goes to the points its alliances gave away a match; ranked once 3 matches are rated." : ""}${st.id === "awards" ? " Awards won: every award the team's events gave it that season, winning and finalist alliances included." : ""}${st.id === "matches" || st.id === "events" ? ` ${st.label}: at every event of the season, scrimmages included, as the team page counts them.` : ""}${st.id === "reliability" ? " Reliability: the team page's index out of 100, from no-shows, disqualifications, near-zero matches and how steady its scoring is." : ""}${st.id === "rating" ? " The prediction rating is the engine's points-per-match strength; ranked once 3 matches are rated, as on Rankings." : ""}${st.id.includes("+") ? ` ${st.label}: each phase's OPR added, as the team page shows them.` : ""}${bottom ? " Lowest first: the bottom of the ranked list, each team's place counted from the top." : ""}${why}`;
   const total = Number(count?.n ?? 0);
   // The teams named that aren't on the list (too few matches, or no number yet): said, never dropped silently.
   const unranked = b.teams?.filter((t) => !rows.some((r) => Number(r.team) === t)) ?? [];

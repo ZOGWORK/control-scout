@@ -40,7 +40,7 @@ import { readOverview } from "./families/overview.js";
 import { counts, matchAnswer, whoOf } from "./families/matches.js";
 import { changeAnswer, readChange, resolveChange, shiftChange, type ChangeQuestion } from "./families/seasonChange.js";
 import { MATCH_STAT_IDS, matchStatAnswer } from "./families/matchStats.js";
-import { BOARD_STATS, LEADERBOARD_MAX, boardFilterWords, boardStatFor, careerBoardTitle, leaderboardAnswer, statWords, windowBoardAnswer } from "./families/leaderboard.js";
+import { BOARD_STATS, LEADERBOARD_MAX, boardFilterWords, conferenceGroup, boardStatFor, careerBoardTitle, leaderboardAnswer, statWords, windowBoardAnswer } from "./families/leaderboard.js";
 import { readTime } from "../query/time.js";
 import { biggestEventsAnswer, readBiggestEvents } from "./families/biggestEvents.js";
 import { readTopCities, storedCountry, topCitiesAnswer } from "./families/topCities.js";
@@ -1309,7 +1309,9 @@ export async function boardSearch(q: string, said: LeaderboardQuestion, opts: { 
   if (isCity && !city) return null;
   const st = boardStatFor(b.stat, b.season ?? defaultSeason());
   if (!st) return null;
-  const where = b.town ? ` in ${b.town}` : b.region ? ` in ${b.region.name}` : city ? ` ${b.school ? "at" : "in"} ${city.city}${b.cityIn ? `, ${b.cityIn.state || b.cityIn.name}` : ""}` : "";
+  // Conferences as the place ("nj bergen"): named as the card names them, in the board's season.
+  const group = b.conference ? await conferenceGroup(b.conference, b.season ?? defaultSeason()) : null;
+  const where = group ? ` in ${group.label}` : b.town ? ` in ${b.town}` : b.region ? ` in ${b.region.name}` : city ? ` ${b.school ? "at" : "in"} ${city.city}${b.cityIn ? `, ${b.cityIn.state || b.cityIn.name}` : ""}` : "";
   let label = b.event ? `${b.event.home ? `${b.event.home.name} teams` : "Best teams"} at ${b.event.name}` : b.kind === "oldest" || b.kind === "career" || b.kind === "number" ? careerBoardTitle({ kind: b.kind, stat: st, asc: b.asc }, where || " worldwide"): b.kind === "city" ? `Teams${where}` : b.kind === "city-best" ? `Best team${where} by OPR` : b.kind === "gain" ? `Most ${st.id === "rating" ? "prediction rating" : "OPR"} gained${where} between first and last event`: b.undefeated && b.atKind ? `Teams${where} unbeaten at ${b.atKind.label.replace(/ \(.*\)$/, "")}` : b.teams ? `${b.teams.length} teams by ${statWords(st)}` : b.undefeated ? `Undefeated teams${where}` : (st.count || b.window) && b.best ? `Team${where} with the most ${statWords(st)}${b.window ? ` ${b.window.label}` : ""}` : b.window ? `Top ${b.n} teams${where} by ${statWords(st)} ${b.window.label}` : b.kind === "rookie" && b.asc ? `Lowest rookie teams${where} by ${statWords(st)}` : b.asc ? `Lowest ${b.n > 1 ? `${b.n} teams` : "team"} by ${statWords(st)}${where}` : b.best ? `Best team${where} by ${statWords(st)}` : b.kind === "rookie" ? `Best rookie teams${where}` : b.kind === "improved" ? (b.climb ? `Teams${where} that climbed from OPR rank ${b.climb.from}+ to the top ${b.climb.to}` : `Most improved teams${where}`) : b.kind === "steady" ? `Most stable OPR${where}: the fewest ups and downs` : b.kind === "phases" ? `Strongest in every phase${where}` : `Top ${b.n} teams by ${statWords(st)}${where}`;
   // A filter on the teams ("name includes “Robot”", "no award ever won") is said in the heading, as on the card.
   const filters = boardFilterWords(b);
