@@ -91,6 +91,9 @@ export interface Parsed {
   recordSaid?: string;
   /** A score an alliance had to reach ("where the losing alliance scored over 200"): the match finder's filter. */
   scoreCond?: ScoreCond;
+  /** Words left over that name New Jersey conferences as a board's place ("best auto in nj bergen"): set by the server's
+   *  executor (server/api/query/execute.ts), never by the parser. */
+  conference?: string[];
   /** Every word explained and an intent found. */
   complete: boolean;
 }
