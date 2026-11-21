@@ -1,7 +1,7 @@
 // The pure parts of the frame reader (scripts/video-frames.ts): the overlay's match, the timer's elapsed time, and
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
-import { dataRows, launchPlayerBrowser, clockReading, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, darkInk, DARK_FILL_MAX, DARK_INK_MAX, inPage, titleLeaks, titleUnchecked, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, onSwitch, beforeLead, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, firstOpening, OPEN_LEADS, shortClash, type M, eventDivisions, teamsSay, splitSide, splitChecked, splitZoomCss, enteredLater, DIVISION_AFTER, frameDivision, MATCH_S, ReadHung, onceMoreIfHung, undetailed, UNDETAILED_EXIT, readFailed, timerDigits } from "./videoFrames";
+import { dataRows, launchPlayerBrowser, clockReading, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, darkInk, DARK_FILL_MAX, DARK_INK_MAX, inPage, titleLeaks, titleUnchecked, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, onSwitch, beforeLead, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, firstOpening, OPEN_LEADS, shortClash, type M, eventDivisions, teamsSay, splitSide, splitChecked, splitZoomCss, enteredLater, DIVISION_AFTER, frameDivision, MATCH_S, ReadHung, onceMoreIfHung, undetailed, UNDETAILED_EXIT, readFailed, timerDigits, afterUnreadBox, boxSeconds, timerSteps } from "./videoFrames";
 import { between, edgeReject, EVENT_LIMIT_RATIO, eventLimitMs, GAP_READS, TRIES } from "./videoFrames";
 import { pngPixels } from "./__fixtures__/png";
 import { fileURLToPath } from "node:url";
@@ -95,6 +95,17 @@ describe("the frame reader", () => {
     expect(gcBox.y + gcBox.height).toBeGreaterThanOrEqual(98);
     expect(gcBox.y + gcBox.height).toBeLessThan(110);
   });
+  it("orders the timer's places (box first on a top-row label or where it ran last) and reads the box", () => {
+    const crops = ["bottom", "top", "topBar"];
+    expect(timerSteps(crops, "topBar", "topBar")).toEqual(["box", "topBar", "bottom", "top", "band"]);
+    expect(timerSteps(crops, "box", "topBar")).toEqual(["box", "bottom", "top", "topBar", "band"]);
+    expect(timerSteps(crops, null, "topBar")).toEqual(["bottom", "top", "topBar", "box", "band"]);
+    expect(timerSteps(crops, "topBar", "topBar").filter((s) => afterUnreadBox(s, "topBar"))).toEqual(["box", "bottom", "top"]);
+    expect(boxSeconds("112", true)).toEqual({ where: "plain", left: 112 });
+    expect(boxSeconds("112", false)).toEqual({ where: "bottom", left: 72 });
+    expect(boxSeconds("150", true)).toBeNull();
+  });
+
   it("finds no timer box where there's none at the bar's centre", () => {
     // A dark box with white digits is no light box.
     expect(timerDigits(frame([{ top: 612, bottom: 700 }]), 1280, 720, { top: 612, bottom: 700 })).toBeNull();
