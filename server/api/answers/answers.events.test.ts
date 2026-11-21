@@ -76,6 +76,14 @@ describe("one team at one event", () => {
     const o = await searchAnswer("4215 OPR at New Jersey Championship", { limit: 25 });
     expect(o.stat!.headline).toMatchObject({ value: "OPR 101.6" });
   });
+  it("a phase's OPR at the event: the phase's part leads, its word never the team's (bug report #2031)", async () => {
+    expect(readStatQuestion("hypnotic robotics auto opr in nj states")).toMatchObject({ id: "event-opr", phase: "auto", core: "hypnotic robotics nj", scope: { states: true } });
+    const a = await searchAnswer("4215 auto opr at New Jersey Championship", { limit: 25 });
+    expect(a.stat).toMatchObject({ title: "Auto OPR at New Jersey Championship - Parkway Division", headline: { value: "Auto OPR 30.2", sub: expect.stringMatching(/^OPR 101\.6 · /) } });
+    expect((await searchAnswer("4215 endgame opr at New Jersey Championship", { limit: 25 })).stat!.headline).toMatchObject({ value: "Endgame OPR 11.3" });
+    // No phase said: the whole OPR, as before.
+    expect(readStatQuestion("4215 opr at nj states")).not.toHaveProperty("phase");
+  });
   it("one match there, or its own matches when it didn't play that one", async () => {
     expect((await searchAnswer("4215 score in match 12 at New Jersey Championship", { limit: 25 })).stat!.headline).toMatchObject({ value: "Lost 80–120", label: "Q12 at New Jersey Championship - Parkway Division" });
     expect((await searchAnswer("4215 score in match 7 at New Jersey Championship", { limit: 25 })).stat!.none).toMatch(/didn't play a match 7/);
