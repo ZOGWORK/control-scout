@@ -84,6 +84,8 @@ const TABLE: [string, Sym | Sym[]][] = [
   ["by the least|by the least points|by the fewest points", [{ k: "metric", v: "margin" }, { k: "agg", v: "min" }]],
   // Aggregations.
   ["highest|high|best|top|max|maximum|biggest|largest|greatest|most|record high|world record|peak|strongest|winningest|career high|personal best|longest|most times|the most times", { k: "agg", v: "max" }],
+  // "Good teams" (plural: never one team's name, nor "is 12345 a good team") asks for the strong ones, the best first.
+  ["good teams|great teams|strong teams|good robots|great robots|strong robots", [{ k: "thing", v: "team" }, { k: "agg", v: "max" }]],
   // The ones worth watching are the best: "what team should i watch at nj states".
   // Who is first by a stat ("who leads auto in texas", "who is leading in opr"): the highest.
   ["leads|leads in|is leading|is leading in|leading in", { k: "agg", v: "max" }],
