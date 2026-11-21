@@ -40,7 +40,7 @@ import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { gunzipSync } from "node:zlib";
 import { applyRows, changedRows, fileRows, prChunks, prMarker, readMarker, rowKey, rowProblems, type Keyed, type Row } from "./lib/autopilotRows";
-import { askDue, forgetSettled, laneJobMs, laneResults, readCallMs, laneStep, needsRebuild, overLimit, parseLanes, parseShard, parseSkip, pickEvents, prShard, readOutcome, remember, rememberTimeout, rememberWait, rowsDelta, shardOf, type LaneJob, type Memory, frameFileSeason, heldElsewhere, holdCodes } from "./lib/autopilotRun";
+import { askDue, forgetSettled, laneJobMs, laneResults, readCallMs, laneStep, needsRebuild, nothingRead, overLimit, parseLanes, parseShard, parseSkip, pickEvents, prShard, readOutcome, remember, rememberTimeout, rememberWait, rowsDelta, shardOf, type LaneJob, type Memory, frameFileSeason, heldElsewhere, holdCodes } from "./lib/autopilotRun";
 import { loopySummary, reviewedSha, type IssueComment } from "./lib/autopilotMerge";
 import { clipCheckProblems, clipsDelta } from "./lib/autopilotClips";
 import { prGate } from "./lib/autopilotPr";
@@ -613,12 +613,14 @@ async function settle(season: number, codes: string[], read: { changed: Row[]; r
   for (const m of await all<{ code: string; label: string }>(`SELECT code, label FROM matches WHERE season = ? AND played = 1 AND time IS NOT NULL AND code IN (${codes.map(() => "?").join(",")}) ORDER BY code, time`, [season, ...codes])) {
     (order.get(String(m.code)) ?? order.set(String(m.code), []).get(String(m.code))!).push(String(m.label));
   }
-  const good: Row[] = [], heldOther: Row[] = [];
+  const good: Row[] = [], heldOther: Row[] = [], blind: Row[] = [];
   // An event another PR took up while this one was read waits for it (as an open PR's lines do): no second PR for it.
   const other = othersHold();
   for (const r of read.changed) {
     const problems = rowProblems(r, live.get(rowKey(r)), order.get(r.code)), held = other.get(`${season}/${r.code}`);
-    if (problems.length) log(`  ${r.code} ${r.videoId}: left out, ${problems.join("; ")}`);
+    // The player showed nothing (nothingRead): a failed read, never a row that marks every match read.
+    if (nothingRead(r)) { blind.push(r); log(`  ${r.code} ${r.videoId}: left out, no frame of the video could be read (the player showed nothing): a failed read, the event read again later`); }
+    else if (problems.length) log(`  ${r.code} ${r.videoId}: left out, ${problems.join("; ")}`);
     else if (held != null) { heldOther.push(r); log(`  ${r.code} ${r.videoId}: waits, #${held} (another open PR) carries ${r.code}`); }
     else good.push(r);
   }
@@ -633,7 +635,8 @@ async function settle(season: number, codes: string[], read: { changed: Row[]; r
   for (const code of codes) {
     const e = { code }, key = `${season}/${code}`, readFailed = read.readFailed, stopped = read.stopped;
     const changed = count(read.changed, code);
-    const outcome = readOutcome({ rows: count(good, e.code), opened: count(opened, e.code), waiting: count(later, e.code) + count(heldOther, e.code), tooBig: count(tooBig, e.code), readFailed, timedOut: stopped.has(e.code), changed });
+    // A video the player showed nothing of is a failed read for its event (when nothing else of it shipped or waits).
+    const outcome = readOutcome({ rows: count(good, e.code), opened: count(opened, e.code), waiting: count(later, e.code) + count(heldOther, e.code), tooBig: count(tooBig, e.code), readFailed: readFailed || count(blind, e.code) > 0, timedOut: stopped.has(e.code), changed });
     if (outcome === "timed out") {
       const video = stopped.get(e.code), counted = rememberTimeout(memory, key, video) === "counted";
       stoppedAtLimit.push(`${key}${video ? ` (video ${video})` : ""}${counted ? ": nothing new again, counted as a try" : ""}`);
