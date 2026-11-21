@@ -170,7 +170,8 @@ export async function leaderboardAnswer(b: BoardQuestion): Promise<StatAnswer> {
   const why = b.season == null ? ` ${searchSeasonWhy(season)}` : b.seasonWhy ? ` ${b.seasonWhy}` : "";
   if (b.kind === "city-best") return b.season == null ? cityBestNow(b) : cityBestAnswer(b, season, why);
   // A region, or a whole country (no state); a town in it narrows to the teams from there.
-  // Conferences named as the place ("nj bergen"): their teams only, wherever FIRST lists each team's home.
+  // Conferences named as the place ("nj bergen"): their teams only, wherever FIRST lists each team's home; by the
+  // teams table's own column, which every board here reads as `t`.
   const group = b.conference ? await conferenceGroup(b.conference, season) : null;
   if (b.conference && (!group || group.empty)) {
     const said = b.conference.join(" ");
@@ -179,7 +180,7 @@ export async function leaderboardAnswer(b: BoardQuestion): Promise<StatAnswer> {
       none: group ? `No team list yet for ${group.label}: neither FIRST nor FTC New Jersey has posted one.` : `No New Jersey conference in ${seasonLabel(season)} has “${said}” in its name.` };
   }
   const where = b.teams ? " named" : group ? ` in ${group.label}` : b.town ? ` in ${b.town}` : b.region ? ` in ${b.region.name}` : " worldwide";
-  const regionSql = `${group ? "" : b.region ? ` AND t.country = ?${b.region.state ? " AND t.state = ?" : ""}` : ""}${b.town ? " AND lower(t.city) = lower(?)" : ""}${group ? ` AND s.team IN (${group.teams.map(() => "?").join(", ")})` : ""}`;
+  const regionSql = `${group ? "" : b.region ? ` AND t.country = ?${b.region.state ? " AND t.state = ?" : ""}` : ""}${b.town ? " AND lower(t.city) = lower(?)" : ""}${group ? ` AND t.number IN (${group.teams.map(() => "?").join(", ")})` : ""}`;
   const regionArgs = [...(b.region && !group ? [b.region.country, ...(b.region.state ? [b.region.state] : [])] : []), ...(b.town ? [b.town] : []), ...(group ? group.teams.map(String) : [])];
   const chips = b.teams ? [`${b.teams.length} teams named`, seasonLabel(season)] : group ? [...group.names, "New Jersey", seasonLabel(season)] : [...(b.town ? [b.town] : []), b.region?.name ?? "Worldwide", seasonLabel(season)];
   if (b.kind === "improved") return improvedAnswer(b, season, where, regionSql, regionArgs, chips, why);
