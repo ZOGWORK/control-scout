@@ -17,10 +17,10 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 
 ## 7.7.2 — 2026-11-21
 
-The Discord bot's mentions are a conversation first: Bruno's chat answers them, and when no model can, one honest line says so instead of a canned persona. (#2071)
+The Discord bot's mentions are a conversation first: Bruno's chat answers them, and when no model can, one honest line says so instead of a canned persona.
 
 ### Highlights
-- [alerts] Mentions get Bruno's chat, not a canned reply
+- [alerts] Mentions get Bruno's chat, not a canned reply (#2071)
 - [alerts] One honest fallback when the AI can't answer
 - [fixes] Discord chats reach Bruno again: the facts were over his cap
 - [fixes] A chat that didn't happen says why in the bot's log
