@@ -1,17 +1,15 @@
-// /ask: a question in plain words, answered with the website's own search answer (docs/search.md), as one embed.
-// The same path /search takes, in the same order, called in this process (no HTTP to the site):
-//   1. searchAnswer(q, { learn: false })  deterministic, always (learn off: a Discord ask never teaches search)
-//   2. refine(q)                          only when that answer is weak (did-you-mean, recovery), the bot's own
-//                                         discordBruno switch is on and Bruno is configured: he rewrites the QUERY, search runs again
-//   3. brunoAnswer(q)                     only where the chat below isn't wired (tests, older callers), discordBruno on and Bruno
-//                                         configured: a sentence from search's facts, dropped if any number isn't in them
-// Every number in the embed is search's own (or a sentence the grounded check passed). Bruno off, unconfigured,
-// failing or slow: the deterministic answer still posts, with no credit line. An answer that used him says so.
-//
-// A chat first: with Bruno on, the message (and the reply thread before it) goes to Control Point's Bruno chat
-// (/internal/bruno/discord-chat) with search's facts, and his reply is the post: plain text like a chat, the
-// answer's video and a link to the website under it only when the facts answer the message. Any number in his
-// reply that isn't in the facts, the message or the thread drops it, and the card above posts instead.
+// /ask and a mention: a chat first, then the website's own search answer (docs/search.md) as one post.
+//   1. searchAnswer(q, { learn: false })  the facts he reads, deterministic and always (learning off: a Discord ask
+//                                         never teaches search). Its answer is also the card that stands in for him.
+//   2. Bruno's chat                       whenever the chat is wired (discordBruno on and Control Point configured):
+//                                         the message and the reply thread before it go to /internal/bruno/discord-chat
+//                                         with search's facts, and his reply is the post: plain text like a chat, the
+//                                         answer's video and a link to the website only when the facts answer it.
+//   3. refine(q) / brunoAnswer(q)         only when that chat gives nothing: search's own answer, with his rewrite of
+//                                         a weak query and (older callers) his one sentence, as the website posts it.
+// Every number in a post is search's own or passed the grounded check. The chat leads; a chat that's off,
+// unconfigured, failing, slow or naming a number not in the facts falls back to the card, and says why in the log
+// (`[bot] chat off: …`, `[bot] chat failed: …`), so a deployment can be diagnosed from the bot's journal.
 import type { APIEmbed } from "discord.js";
 import type { SearchAnswer, SearchCardLine, SearchHit, SearchVideo } from "../src/shared/api.js";
 import { watchUrl } from "../src/shared/recording.js";
@@ -57,9 +55,11 @@ export interface AskDeps {
 
 /** Bruno's chat reply; `search`: the facts answer the message, so the answer's video and page go with it. */
 export interface ChatReply { text: string; search: boolean }
-/** Facts sent with a chat, at most (Control Point's caps: 40 lines, 8,000 characters). */
+/** Facts sent with a chat, at most (Control Point's caps: 40 lines of at most 400 characters, 8,000 in all). One
+ *  longer line and it refuses the whole packet with a 400, so every line is cut to its cap (clip, below). */
 const CHAT_FACTS = 40;
 const CHAT_FACTS_CHARS = 7500;
+const CHAT_FACT_CHARS = 400;
 
 /** What one ask did, for the log (never who asked). */
 export interface AskMeta { step: SearchAnswer["step"]; refined: boolean; sentence: boolean; chat?: boolean }
@@ -70,8 +70,9 @@ export interface AskMeta { step: SearchAnswer["step"]; refined: boolean; sentenc
  */
 export interface AskReply { embed: APIEmbed; meta: AskMeta; content?: string; chat?: { text: string; video?: string; page?: string; by?: "bruno" | "scout" } }
 
-/** How long a chat waits for Bruno before the card posts instead. */
-export const CHAT_TIMEOUT_MS = 15_000;
+/** How long a chat waits for Bruno before the card posts instead. Generous: a model reply takes a while (Control
+ *  Point's one-sentence answers take about 11 s on the live deployment), and the mention's typing indicator stays up. */
+export const CHAT_TIMEOUT_MS = 30_000;
 
 export async function realAskDeps(): Promise<AskDeps> {
   // The search index is the site's (it builds and refreshes it); the bot only reads it, like every other table but its own.
@@ -91,11 +92,27 @@ export async function realAskDeps(): Promise<AskDeps> {
     video: (a) => answerVideo(a),
     facts: (a) => answerFacts(a),
     chat: async (message, facts, history) => {
-      if (!brunoAvailable() || !(await isEnabled("discordBruno").catch(() => false))) return null;
-      const product = productFacts();
+      // Why a chat didn't happen is logged (never the message or the key): a deployment is diagnosed from these lines.
+      if (!brunoAvailable()) {
+        console.info("[bot] chat off: Control Point isn't configured (CONTROL_POINT_INTERNAL_URL and CONTROL_POINT_INTERNAL_KEY)");
+        return null;
+      }
+      if (!(await isEnabled("discordBruno").catch(() => false))) {
+        console.info("[bot] chat off: the discordBruno switch is off");
+        return null;
+      }
+      // Product knowledge first, every line inside Control Point's per-fact cap: one longer line and it refuses the
+      // whole packet (400 `facts[i]`), which used to fall back to the card with nothing in the log.
+      const product = productFacts().map(clip);
       const context = [...product, ...fit(facts, CHAT_FACTS - product.length, CHAT_FACTS_CHARS - chars(product))];
-      const r = await brunoDiscordChat(message, context, history, CHAT_TIMEOUT_MS);
-      if (!r || typeof r.text !== "string" || !r.text.trim()) return null;
+      let r: { text: string; search: boolean };
+      try { r = await brunoDiscordChat(message, context, history, CHAT_TIMEOUT_MS); }
+      catch (e) {
+        // "Control Point answered 404", "timeout", a network error: enough to fix a deployment, and no secret in it.
+        console.info(`[bot] chat failed: ${(e as Error)?.message ?? String(e)}`);
+        return null;
+      }
+      if (!r || typeof r.text !== "string" || !r.text.trim()) { console.info("[bot] chat empty: Bruno sent no reply"); return null; }
       // Every number his: the facts', the message's or the thread's, or nothing posts from him.
       const unknown = ungrounded(r.text, [...context, ...history.map((t) => t.text)], message);
       // Logged (the numbers only, never who asked) so a dropped reply can be traced to the number that failed.
@@ -114,13 +131,9 @@ export async function ask(q: string, deps: AskDeps, site: string, history: Bruno
     meta: { step: "deterministic", refined: false, sentence: false },
   };
   let answer = await deps.search(q);
-  let refined = false;
-  if ((answer.step === "did-you-mean" || answer.step === "recovery") && deps.available() && (await deps.enabled())) {
-    const r = await deps.refine(q).catch(() => null);
-    if (r) { answer = r; refined = r.step === "ai"; }
-  }
-  // With the chat wired, he's asked once: a chat that's off, failed, timed out or named a number not in the facts is
-  // never followed by a second call for a sentence; the card posts at once (bounded by the chat's own timeout).
+  // AI first: with the chat wired, the model answers the message before search's own rewrite is asked for. A chat
+  // that's off, failed, timed out or named a number not in the facts is never followed by a second call to him for a
+  // sentence; the deterministic answer then posts, bounded by the chat's own timeout.
   const chatting = !!(deps.chat && deps.facts);
   if (chatting) {
     const reply = await chatWith(q, answer, history, deps).catch(() => null);
@@ -129,14 +142,19 @@ export async function ask(q: string, deps: AskDeps, site: string, history: Bruno
       const watch = videoLinks(video);
       return {
         embed: askEmbed(q, answer, null, site, video),
-        meta: { step: answer.step, refined, sentence: false, chat: true },
+        meta: { step: answer.step, refined: false, sentence: false, chat: true },
         chat: { text: reply.text, ...(watch[0] ? { video: watch[0].url } : {}), ...(reply.search ? { page: searchHref(q, site) } : {}) },
       };
     }
   }
-  // No model, or it had nothing to say, and search found nothing either: a greeting still gets an answer, in the bot's
-  // own words, rather than "Sorry — I can't answer that yet" with the closest matches. Only short messages with nothing
-  // search-like in them reach here (bot/smallTalk.ts).
+  // No chat, or it had nothing to say: the website's answer, with his rewrite where it would use one.
+  let refined = false;
+  if ((answer.step === "did-you-mean" || answer.step === "recovery") && deps.available() && (await deps.enabled())) {
+    const r = await deps.refine(q).catch(() => null);
+    if (r) { answer = r; refined = r.step === "ai"; }
+  }
+  // Search found nothing and no chat answered either: one honest line rather than "Sorry — I can't answer that yet"
+  // with the closest matches. Only a short message that isn't a records question reaches here (bot/smallTalk.ts).
   if (!answer.hits.length && !answer.card && !answer.stat) {
     const talk = smallTalk(q);
     if (talk) return {
@@ -170,11 +188,15 @@ async function chatWith(q: string, answer: SearchAnswer, history: BrunoChatTurn[
 
 /** Characters `lines` take as sent (one line each). */
 const chars = (lines: string[]) => lines.reduce((n, f) => n + f.length + 1, 0);
-/** The first of `lines` that fit in `max` lines and `maxChars` characters. */
+/** One fact line inside Control Point's cap: longer, and it refuses the whole chat packet. */
+const clip = (s: string) => s.trim().slice(0, CHAT_FACT_CHARS);
+/** The first of `lines` that fit in `max` lines and `maxChars` characters, each clipped to Control Point's cap. */
 function fit(lines: string[], max: number, maxChars: number): string[] {
   const kept: string[] = [];
   let size = 0;
-  for (const f of lines.slice(0, Math.max(0, max))) {
+  for (const line of lines.slice(0, Math.max(0, max))) {
+    const f = clip(line);
+    if (!f) continue;
     if (size + f.length + 1 > maxChars) break;
     kept.push(f);
     size += f.length + 1;
