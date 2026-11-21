@@ -32,7 +32,7 @@ function Attachments({ r }: { r: BugReportItem }) {
         if (!f.url) {
           return f.githubUrl ? (
             <a key={f.n} href={f.githubUrl} target="_blank" rel="noopener noreferrer"
-              className="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-border px-3 text-xs font-medium text-accent-text outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring/60">
+              className="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-border px-3 text-xs font-medium text-accent-text v8:text-accent outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring/60">
               <Github className="size-3.5" aria-hidden />{what} on GitHub<ExternalLink className="size-3" aria-hidden />
             </a>
           ) : <span key={f.n} className="self-center text-xs text-muted-foreground">{what}: no copy left</span>;
@@ -61,7 +61,7 @@ function Issue({ r }: { r: BugReportItem }) {
   if (r.issue) {
     return (
       <a href={r.issue.url} target="_blank" rel="noopener noreferrer" data-testid="bug-report-issue"
-        className="inline-flex min-h-8 items-center gap-1.5 font-medium text-accent-text underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring/60 max-sm:min-h-11">
+        className="inline-flex min-h-8 items-center gap-1.5 font-medium text-accent-text v8:text-accent underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring/60 max-sm:min-h-11">
         <Github className="size-3.5" aria-hidden />Issue #{r.issue.number}<ExternalLink className="size-3" aria-hidden />
       </a>
     );
@@ -94,7 +94,7 @@ function ReportCard({ r, onChanged }: { r: BugReportItem; onChanged: () => void 
         {r.status === "done" && <Badge variant="success">Closed</Badge>}
         <span className="text-muted-foreground">#{r.id} · {ago(r.createdAt)}</span>
         {r.email
-          ? <a className="inline-flex min-w-0 items-center gap-1 truncate text-accent-text underline-offset-4 hover:underline" href={`mailto:${r.email}`}><Mail className="size-3.5 shrink-0" aria-hidden />{r.email}</a>
+          ? <a className="inline-flex min-w-0 items-center gap-1 truncate text-accent-text v8:text-accent underline-offset-4 hover:underline" href={`mailto:${r.email}`}><Mail className="size-3.5 shrink-0" aria-hidden />{r.email}</a>
           : <span className="text-muted-foreground">No email given</span>}
       </div>
       <div className="mt-2 text-sm"><Issue r={r} /></div>

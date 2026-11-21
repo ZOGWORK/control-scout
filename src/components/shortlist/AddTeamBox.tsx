@@ -128,7 +128,7 @@ export function AddTeamBox({ listed, onAdd, className, autoFocus }: {
                   <Users className="size-4 shrink-0 text-muted-foreground" />
                   <HitText h={h} />
                   {added
-                    ? <span className="inline-flex shrink-0 items-center gap-1 text-xs text-success"><Check className="size-3.5" /> Added</span>
+                    ? <span className="inline-flex shrink-0 items-center gap-1 text-xs text-success v8:text-emerald-400"><Check className="size-3.5" /> Added</span>
                     : <span className="inline-flex shrink-0 items-center gap-1 text-xs text-accent-text"><Plus className="size-3.5" /> Add</span>}
                 </div>
               );
