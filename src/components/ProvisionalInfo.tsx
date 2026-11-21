@@ -9,6 +9,7 @@ import { Badge, Input } from "./ui/basic";
 import { EmptyState } from "./page";
 import { ago, place } from "../lib/format";
 import { cn } from "./cn";
+import { isV8 } from "../lib/v8";
 
 /** "From FTC New Jersey (newjerseyftc.com), read 2 h ago. Not FIRST's official list yet." */
 function SourceNote({ p, what }: { p: ProvisionalInfo; what: string }) {
@@ -61,14 +62,14 @@ function TeamCards({ teams, season, team, label }: { teams: CardTeam[]; season: 
   return (
     <ul className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3" aria-label={label}>
       {teams.map((t) => {
-        const box = cn("flex h-full items-center gap-3 rounded-xl border border-border bg-card p-3", t.team === team && "border-accent/60 bg-accent/[0.06]");
+        const box = cn("flex h-full items-center gap-3 rounded-xl border border-border bg-card p-3 v8:border-line", t.team === team && "border-accent/60 bg-accent/[0.06] v8:bg-card");
         const body = (
           <span className="min-w-0 flex-1">
             <span className="flex items-baseline gap-2"><span className="font-mono font-semibold">{t.team}</span><span className="truncate text-sm" title={t.name ?? undefined}>{t.name}</span></span>
             <span className="block truncate text-xs text-muted-foreground">{place(t.city, t.state) || "—"}</span>
           </span>
         );
-        return <li key={t.team}>{t.known ? <Link to={`/teams/${t.team}?season=${season}`} className={cn("lift", box)}>{body}</Link> : <div className={box} data-team-unknown>{body}</div>}</li>;
+        return <li key={t.team}>{t.known ? <Link to={`/teams/${t.team}?season=${season}`} className={cn(!isV8() && "lift", box, "v8:transition-colors v8:duration-150 v8:still-hover:bg-white/[0.03]")}>{body}</Link> : <div className={box} data-team-unknown>{body}</div>}</li>;
       })}
     </ul>
   );

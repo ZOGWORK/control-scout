@@ -45,7 +45,7 @@ export function CompareCard({ stat, b, extra }: { stat: StatAnswer; b: Compare; 
       <h3 className="mt-1 break-words font-display text-xl font-bold leading-snug text-foreground sm:text-2xl" data-answer-title>{title}</h3>
       {h && (
         <>
-          <p className="mt-3 flex flex-wrap items-baseline gap-x-3 font-display text-[28px] font-semibold leading-tight tabular-nums text-foreground sm:text-4xl" data-headline>
+          <p className="mt-3 flex flex-wrap items-baseline gap-x-3 font-display text-[28px] font-semibold leading-tight tabular-nums text-foreground sm:text-4xl v8:text-accent" data-headline>
             {h.href ? <Link to={h.href} className={cn("inline-flex items-center hover:underline", TAP)}>{h.value}</Link> : <span>{h.value}</span>}
             {h.label && <span className="text-xl font-bold sm:text-2xl">{h.label}</span>}
           </p>
@@ -78,7 +78,7 @@ export function CompareCard({ stat, b, extra }: { stat: StatAnswer; b: Compare; 
         {(primary || rest.length > 0) && (
           <p className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
             {primary && <Link to={primary.href} className={cn(buttonVariants(), "min-h-[44px]", TAP)} data-primary-cta>{primary.label}</Link>}
-            {rest.map((l) => <Link key={l.href} to={l.href} className="inline-flex min-h-[44px] items-center font-medium text-foreground underline decoration-border underline-offset-2 hover:text-accent-text">{l.label}</Link>)}
+            {rest.map((l) => <Link key={l.href} to={l.href} className="inline-flex min-h-[44px] items-center font-medium text-foreground underline decoration-border underline-offset-2 hover:text-accent-text v8:hover:text-foreground">{l.label}</Link>)}
           </p>
         )}
       </MethodNote>

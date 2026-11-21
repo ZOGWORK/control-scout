@@ -16,7 +16,7 @@ type CssNode =
   | { kind: "raw"; text: string };
 
 /** Classes index.html's head script may put on <html> before the first paint. */
-export const HTML_CLASSES = ["light", "dim", "midnight", "compact", "cs-sb-min", "cs-nav-more"];
+export const HTML_CLASSES = ["light", "dim", "compact", "cs-sb-min", "cs-nav-more"];
 
 /** At-rules whose block holds rules (filtered rule by rule); any other at-rule with a block is kept whole. */
 const GROUPING = /^@(media|supports|layer|container|scope|starting-style)\b/i;

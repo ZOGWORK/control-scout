@@ -22,7 +22,7 @@ export function WhatsNewPanel() {
       <ol className="mb-4 grid gap-2 sm:grid-cols-2" aria-label="How a release is published">
         {STEPS.map((s, i) => (
           <li key={i} className="flex min-w-0 gap-3 rounded-xl border border-border bg-card p-3 text-sm text-muted-foreground">
-            <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-accent/15 text-xs font-semibold text-accent-text" aria-hidden>{i + 1}</span>
+            <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-accent/15 text-xs font-semibold text-accent-text v8:text-accent" aria-hidden>{i + 1}</span>
             <span className="min-w-0">{s}</span>
           </li>
         ))}
