@@ -26,6 +26,32 @@ export function playedMatches(
   return [...timed, ...untimed];
 }
 
+/**
+ * Results typed in after the event (2025 USMIAAS: all 26 matches stamped seven weeks after its livestream, within one
+ * hour): every timed match more than a day outside the event's listed dates, and inside none of its videos' broadcasts.
+ * Then the times say when the results were entered, not when the matches were played, and the event is read by its
+ * frames alone. All or nothing: some matches off the listed dates is a day FIRST's dates leave out (#1703), not this.
+ * And only with a broadcast to judge by: a rescheduled event (all its matches really played off its listed dates) with
+ * just an upload, or videos whose facts haven't come, keeps its times.
+ */
+export function enteredLater(
+  rows: { time: string | null; timezone: string | null }[],
+  days: { start: string | null; end: string | null } | null,
+  videos: { start: number | null; end: number | null }[],
+  utcMs: (time: string, timezone: string | null) => number | null,
+): boolean {
+  const timed = rows.filter((r) => r.time != null);
+  if (!timed.length || !days?.start || !videos.some((v) => v.start != null)) return false;
+  const DAY = 86400000;
+  const from = Date.parse(days.start.slice(0, 10)) - DAY, to = Date.parse((days.end ?? days.start).slice(0, 10)) + 2 * DAY;
+  return timed.every((r) => {
+    const d = Date.parse(r.time!.slice(0, 10));
+    if (d >= from && d < to) return false;
+    const ms = utcMs(r.time!, r.timezone);
+    return ms == null || !videos.some((v) => v.start != null && v.start <= ms && (v.end == null || ms <= v.end));
+  });
+}
+
 /** Two reads closer than this (seconds) are the same distance: the timer reads to the second, and the frame read lags it. */
 export const SAME_S = 6;
 /** The most frames read looking for one match. */
@@ -139,6 +165,41 @@ export const secondsOf = (s: string) => { const m = /(\d):([0-5]\d)/.exec(s); re
 /** secondsOf, where the font's colon is too thin for the OCR to keep ("1:17" read "117", FIRST AGE's white box): the
  *  whole reading is one timer, with or without its colon, at most 2:59. */
 export const secondsLoose = (s: string) => { const m = /^([0-2]):?([0-5]\d)$/.exec(s.replace(/\s/g, "")); return m ? Number(m[1]) * 60 + Number(m[2]) : secondsOf(s); };
+/** Two meets' streams side by side in one video, each half with its own half-size bar (FIRST in Texas's league meets on
+ *  one stream: USTXCENSAM4 2022, Hill Country on the left, North San on the right). Too small to read as they are: the
+ *  player is zoomed to twice its size from the frame's left or right edge at mid-height, so the half fills the frame
+ *  and its bar sits where a full-size bar does (the row at 548, POWERPLAY's timer at 686), every crop reading it. */
+export const SPLIT_SIDES = ["left", "right"] as const;
+export type SplitSide = (typeof SPLIT_SIDES)[number];
+export const splitZoomCss = (side: SplitSide): string =>
+  `video { transform-origin: ${side === "left" ? "0" : "100%"} 50% !important; transform: scale(2) !important; }`;
+/** The half a split stream shows this event on, from its bar's row read zoomed to each half at a few seconds of the
+ *  video (overlayEvent: "own" where the row names this event or its match total): a half named this event's at two
+ *  reads or more while the other half never was. Null: neither (not a split stream), or both (two meets alike). */
+export function splitSide(reads: readonly { side: SplitSide; event: "own" | "other" | null }[]): SplitSide | null {
+  const own = (side: SplitSide) => reads.filter((r) => r.side === side && r.event === "own").length;
+  const [l, r] = [own("left"), own("right")];
+  if (l >= 2 && r === 0) return "left";
+  if (r >= 2 && l === 0) return "right";
+  return null;
+}
+
+/**
+ * The split-stream check (findSplit, then a zoomed read) run so that its failure keeps the read as it was: on any error
+ * `cleanup` (the zoom cleared) runs first, then an error `stops` says ends the event (the reader's EventOverTime: its
+ * time limit, which must stop the event as anywhere else, no row kept) is thrown on, and any other is handed to
+ * `failed` (logged, the video kept as nothing read) and null returned.
+ */
+export async function splitChecked<T>(run: () => Promise<T>, o: { cleanup: () => Promise<void>; stops: (e: unknown) => boolean; failed: (e: Error) => void }): Promise<T | null> {
+  try {
+    return await run();
+  } catch (e) {
+    await o.cleanup().catch(() => {});
+    if (o.stops(e)) throw e;
+    o.failed(e as Error);
+    return null;
+  }
+}
 /** A crop of a bottom bar, for the same bar flipped to the top of a `height`-tall frame: the bar's rows in reverse, so
  *  what sat `n` px off the bottom edge sits `n` px off the top (POWERPLAY's timer at y 686 of 720, 4 px above the
  *  bottom, is at y 4 in Arizona's flipped bar). */
@@ -360,6 +421,43 @@ export function teamsSay(text: string, own: number[] | undefined, others: (numbe
   if (mine >= 3 && theirs <= 1) return "own";
   if (theirs >= 3 && mine <= 1) return "other";
   return null;
+}
+
+/**
+ * Seconds into a match that its frames are read again for its division, when the reads that confirmed its start
+ * showed none. A shared stream's bar scrolls the division's name off for most of a match (Iowa 2019: "Iowa
+ * Championship - Black Division" is wider than the bar), and the confirming reads usually stop at the first one,
+ * 70 s on. These spread over Auto and TeleOp, all inside the match (MATCH_S).
+ */
+export const DIVISION_AFTER = [20, 35, 50, 60, 95, 110, 125, 140];
+
+/**
+ * What one more frame of a match says of its division: the overlay's division name, else its teams (teamsSay).
+ * A frame naming another match says nothing of this one (the stream cut to the other field between matches).
+ */
+export function frameDivision(read: { label: string | null; division?: "own" | "other" | null }, label: string, team: "own" | "other" | null): "own" | "other" | null {
+  if (read.label && read.label !== label) return null;
+  if (read.division === "other" || team === "other") return "other";
+  if (read.division === "own" || team === "own") return "own";
+  return null;
+}
+
+/** A frame read that ran past its time limit (READ_LIMIT_S): the OCR workers are replaced when one is thrown. */
+export class ReadHung extends Error {}
+
+/**
+ * Runs a frame read, and once more if it hung: one stuck OCR job late in a six-hour stream (Iowa 2019 at 11207 s
+ * and 21800 s) otherwise fails the whole video, every start in it written "couldn't be played". `ready` waits for
+ * the fresh workers and says whether to try again (false when they couldn't be replaced). A second hang, or any
+ * other error, is thrown as it was.
+ */
+export async function onceMoreIfHung<T>(read: () => Promise<T>, ready: () => Promise<boolean>): Promise<T> {
+  try {
+    return await read();
+  } catch (e) {
+    if (!(e instanceof ReadHung) || !(await ready())) throw e;
+    return read();
+  }
 }
 
 const plain = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase();
@@ -615,6 +713,41 @@ export function leadIn(at: number, i: number, windows: { start: number | null; e
   return !windows.some((w, k) => k !== i && w.start != null && at < w.start && w.start < from);
 }
 
+/**
+ * An event's linked recordings the reader can't read, each said, never dropped quietly (KZCMP 2022's two day-2 videos
+ * were linked with no details, and the read went over day 1 alone as if it were the whole event).
+ * `fixable`: fetching YouTube's details again would let it be read: none on file, or the fetch failed. A video YouTube
+ * says is unavailable (removed or private), or one with no length (a live stream the player can't time: looked at again
+ * next run), is said but isn't fixable by fetching.
+ * `fails`: none of the event's videos can be read and at least one is fixable; never for an event whose only video is
+ * gone or still live, which would fail every run.
+ */
+export function undetailed(videos: readonly { videoId: string; meta?: { status?: string; length?: number | null } | null }[]): { skipped: { videoId: string; why: string; fixable: boolean }[]; fails: boolean } {
+  const skipped = videos.filter((v) => v.meta?.status !== "ok" || !v.meta.length).map((v) => {
+    const m = v.meta;
+    if (!m) return { videoId: v.videoId, why: "no details on file (fetch them, then read again)", fixable: true };
+    if (m.status === "error") return { videoId: v.videoId, why: "fetching its details failed (fetch again, then read again)", fixable: true };
+    if (m.status === "unavailable") return { videoId: v.videoId, why: "unavailable on YouTube (removed or private)", fixable: false };
+    if (m.status !== "ok") return { videoId: v.videoId, why: `its details say ${m.status ?? "no status"}`, fixable: false };
+    return { videoId: v.videoId, why: "no length: a live stream or one the player can't time (looked at again next run)", fixable: false };
+  });
+  return { skipped, fails: skipped.length > 0 && skipped.length === videos.length && skipped.some((s) => s.fixable) };
+}
+
+/**
+ * The reader's exit when its only trouble is events left unread for want of details a fetch would give (undetailed
+ * `fails`): it ran, nothing crashed, and no video it could read was left unfinished. Not 1, so a caller can tell it
+ * from a crash, a timeout or a video that couldn't be played. (2 is a usage error, 3 a dark player.)
+ */
+export const UNDETAILED_EXIT = 4;
+
+/**
+ * Whether a reader run's exit means the read itself failed (crashed, killed, timed out, a video unplayed): its events
+ * then aren't counted as tried. Exit 0 and UNDETAILED_EXIT both mean it read what it could; scripts/clip-autopilot.ts
+ * otherwise re-picked a whole season every run while one event's details were missing.
+ */
+export const readFailed = (code: number | null): boolean => code !== 0 && code !== UNDETAILED_EXIT;
+
 /** The rows of a server/data/frameTimings/<season>.ts file as written (one JSON row a line after the data marker). */
 export function dataRows<T>(text: string): T[] {
   const data = text.split("// --- Data")[1] ?? "";
@@ -731,7 +864,7 @@ export function judge(ms: M[], seen: Map<number, number>, shift: number | null, 
 /** How long one event's read may take at most (scripts/video-frames.ts --event-limit is the floor): its videos'
  *  summed length times EVENT_LIMIT_RATIO, never less than the floor, so a long event's legitimate read isn't stopped
  *  and only a stuck one is. A read that takes longer than watching its videos is broken, whatever the computer's load:
- *  1.0. Measured 11-17/18 on amelia: 2022 ROBUQ1 (~27 h of video) read whole in 40 and 68 min, 0.03-0.04 of its
+ *  1.0. Measured 11-17/18 on amelia: 2022 ROBUQ1 (22.9 h of video) read whole in 40 and 68 min, 0.03-0.05 of its
  *  length; 2022 ROBUQ2 (20.5 h) in 203 min, 0.17, its 9.8 h video alone in 141 min, 0.24. On a computer with 8 readers
  *  at once (98% CPU) ROBUQ2's 9.8 h video was still unfinished after 6 h: slow, not stuck, and a quarter (an earlier
  *  ratio) would cut such a read. 1.0 leaves four times the slowest video seen and six times its event. */

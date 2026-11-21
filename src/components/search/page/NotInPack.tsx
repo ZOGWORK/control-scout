@@ -24,7 +24,7 @@ export function notInPackSentence(n: NotInPack): string {
   return `This needs data that isn't in your downloaded pack${n.about.length ? ` (it's about ${aboutText(n.about)})` : ""}.`;
 }
 
-const LINK = "inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-foreground hover:border-accent/60";
+const LINK = "inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-foreground hover:border-accent/60 v8:hover:border-white/25";
 
 export function NotInPackCard({ notInPack: n, now = new Date() }: { notInPack: NotInPack; now?: Date }) {
   return (
