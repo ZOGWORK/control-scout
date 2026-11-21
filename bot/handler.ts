@@ -104,7 +104,8 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
     let fresh = false;
     const k = [question, ...history.map((t) => `${t.role}:${t.text}`)].join("\u0000").trim().replace(/\s+/g, " ").toUpperCase();
     const r = await asks.get(k, () => { fresh = true; return lookups.ask(question, history); });
-    const bruno = [r.meta.chat ? "chat" : null, r.meta.refined ? "rewrite" : null, r.meta.sentence ? "sentence" : null].filter(Boolean).join("+") || "no";
+    // The bot's own small talk (bot/smallTalk.ts) is a chat too, but not Bruno's: the log says `talk`.
+    const bruno = [r.chat?.by === "scout" ? "talk" : r.meta.chat ? "chat" : null, r.meta.refined ? "rewrite" : null, r.meta.sentence ? "sentence" : null].filter(Boolean).join("+") || "no";
     log(`${key} step=${r.meta.step} bruno=${bruno}${history.length ? ` thread=${history.length}` : ""}${r.content || r.chat?.video ? " video" : ""} ${fresh ? "" : "cached "}${Date.now() - t0}ms`);
     return r;
   }
@@ -115,7 +116,9 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
   /** The thread a post of the bot's carries on, by its message id: every turn up to and including that answer. */
   const threads = new Map<string, BrunoChatTurn[]>();
   function remember(id: string | undefined, history: BrunoChatTurn[], question: string, r: AskReply) {
-    if (!id || !r.chat) return;
+    // The bot's own words aren't his: a reply to a greeting starts a new thread instead of handing the model turns it
+    // never said (bot/smallTalk.ts).
+    if (!id || !r.chat || r.chat.by === "scout") return;
     if (threads.size >= THREADS_MAX) threads.delete(threads.keys().next().value!);
     threads.set(id, [...history, turn("user", question), turn("bruno", r.chat.text)].slice(-THREAD_TURNS));
   }

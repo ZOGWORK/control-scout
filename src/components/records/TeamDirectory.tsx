@@ -74,7 +74,7 @@ export function TeamDirectory({ season, onSeason }: { season: number; onSeason: 
   const countryPicker = (
     <label className="inline-flex items-center gap-2">
       <span className="sr-only">Country</span>
-      <MapPin className="size-4 text-accent" aria-hidden />
+      <MapPin className="size-4 text-accent v8:text-text-faint" aria-hidden />
       <select value={state.country ?? ""} onChange={(e) => setState({ ...state, country: e.target.value || null, countryUnknown: null, page: 1 })} className={field} aria-label="Country">
         <option value="">All countries</option>
         {BY_NAME.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
@@ -90,12 +90,12 @@ export function TeamDirectory({ season, onSeason }: { season: number; onSeason: 
     </label>
   );
   const sortLabel = SORTS.find((s) => s.key === state.sort)?.label ?? "Best first";
-  const chips: FilterChip[] = country ? [{ id: "country", label: <><MapPin className="inline size-3.5 text-accent" aria-hidden /> {country.name}</>, name: `Country: ${country.name}`, onRemove: () => setState({ ...state, country: null, countryUnknown: null, page: 1 }) }] : [];
+  const chips: FilterChip[] = country ? [{ id: "country", label: <><MapPin className="inline size-3.5 text-accent v8:text-text-faint" aria-hidden /> {country.name}</>, name: `Country: ${country.name}`, onRemove: () => setState({ ...state, country: null, countryUnknown: null, page: 1 }) }] : [];
   // A sort other than the default (best first) shows as a chip too; removing it goes back to the default.
   const defaultOrder = state.sort === DIRECTORY_DEFAULT_SORT && state.dir === directoryDefaultDir(DIRECTORY_DEFAULT_SORT);
   if (!defaultOrder) {
     const dirWords = state.dir === "asc" ? "low → high" : "high → low";
-    chips.push({ id: "sort", label: <>{state.dir === "asc" ? <ArrowUp className="inline size-3.5 text-accent" aria-hidden /> : <ArrowDown className="inline size-3.5 text-accent" aria-hidden />} {sortLabel}</>,
+    chips.push({ id: "sort", label: <>{state.dir === "asc" ? <ArrowUp className="inline size-3.5 text-accent v8:text-text-faint" aria-hidden /> : <ArrowDown className="inline size-3.5 text-accent v8:text-text-faint" aria-hidden />} {sortLabel}</>,
       name: `Sorted by ${sortLabel.toLowerCase()}, ${dirWords}`, onRemove: () => setState({ ...state, sort: DIRECTORY_DEFAULT_SORT, dir: directoryDefaultDir(DIRECTORY_DEFAULT_SORT), page: 1 }) });
   }
 
@@ -161,10 +161,11 @@ export function TeamDirectory({ season, onSeason }: { season: number; onSeason: 
               <span className="font-semibold tabular-nums text-text-base">{fmt(matched)}</span> of {fmt(data.total)} {data.total === 1 ? "team" : "teams"} match “<span className="font-medium text-text-base">{data.q}</span>”
             </p>
           )}
-          <div className={cn("overflow-hidden rounded-xl border border-line", data.q ? "mt-2" : "mt-4 max-md:mt-2", api.loading && "opacity-70")} aria-busy={api.loading}>
+          {/* v8: the table is the page: no box, a quiet sentence-case head on a hairline, 44px rows. */}
+          <div className={cn("overflow-hidden rounded-xl border border-line", "v8:rounded-none v8:border-0", data.q ? "mt-2" : "mt-4 max-md:mt-2", api.loading && "opacity-70")} aria-busy={api.loading}>
             <table className="w-full text-sm">
               <caption className="sr-only">Teams listed for {seasonLabel(season)} from {where}{data.q ? `, matching “${data.q}”` : ""}, sorted by {SORTS.find((s) => s.key === state.sort)?.label.toLowerCase()}</caption>
-              <thead className="bg-text-base/[0.03] text-left text-xs uppercase tracking-wide text-text-muted">
+              <thead className="bg-text-base/[0.03] text-left text-xs uppercase tracking-wide text-text-muted v8:bg-transparent v8:normal-case v8:tracking-normal v8:text-text-faint v8:shadow-[inset_0_-1px_0_rgb(255_255_255/0.12)]">
                 <tr>
                   <SortHead label="Team" k="team" also="name" state={state} onSort={sortBy} />
                   <SortHead label="Location" k="location" state={state} onSort={sortBy} className="max-md:hidden" />
@@ -179,7 +180,7 @@ export function TeamDirectory({ season, onSeason }: { season: number; onSeason: 
             </table>
           </div>
           <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-sm text-text-muted">
-            <span className="tabular-nums">{fmt((data.page - 1) * data.pageSize + 1)}–{fmt(Math.min(matched, data.page * data.pageSize))} of {fmt(matched)}</span>
+            <span className="tabular-nums v8:text-text-faint">{fmt((data.page - 1) * data.pageSize + 1)}–{fmt(Math.min(matched, data.page * data.pageSize))} of {fmt(matched)}</span>
             {pages > 1 && (
               <span className="flex items-center gap-1">
                 <Button variant="outline" size="sm" className="max-sm:h-10 max-sm:w-11" disabled={state.page <= 1} onClick={() => setState({ ...state, page: state.page - 1 })} aria-label="Previous page"><ChevronLeft /></Button>
@@ -194,29 +195,34 @@ export function TeamDirectory({ season, onSeason }: { season: number; onSeason: 
   );
 }
 
+/** v8: a label above a number, sentence case and faint (the classic look draws it uppercase and tracked). */
+const V8_LABEL = "v8:font-normal v8:normal-case v8:tracking-normal v8:text-text-faint";
+
 /** The country's totals, what a listing means, and where teams without a country are. */
+
 function Summary({ data, season, where, resultsHref, onRetry }: { data: DirectoryPage | undefined; season: number; where: string; resultsHref: string; onRetry: () => Promise<void> }) {
   const ready = data?.readiness.state === "ready";
   const preparing = data?.readiness.state === "preparing";
   return (
-    <div className="mt-4 rounded-2xl border border-accent/25 bg-gradient-to-br from-accent/[0.08] via-transparent to-success/[0.06] p-4 sm:p-5">
+    // v8: a neutral card (no tinted wash), sentence-case labels, white numbers.
+    <div className="mt-4 rounded-2xl border border-accent/25 bg-gradient-to-br from-accent/[0.08] via-transparent to-success/[0.06] p-4 sm:p-5 v8:border-line v8:bg-card v8:bg-none">
       <div className="flex flex-wrap items-end gap-x-8 gap-y-3">
         <div>
-          <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-text-muted"><Users className="size-3.5 text-accent" aria-hidden /> Listed</p>
-          <p className="font-display text-3xl font-semibold tabular-nums text-accent-text">{data ? fmt(data.total) : "—"}</p>
-          <p className="text-xs text-text-muted">registered for {seasonLabel(season)} · {where}</p>
+          <p className={cn("flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-text-muted", V8_LABEL)}><Users className="size-3.5 text-accent v8:text-text-faint" aria-hidden /> Listed</p>
+          <p className="font-display text-3xl font-semibold tabular-nums text-accent-text v8:text-[2rem]">{data ? fmt(data.total) : "—"}</p>
+          <p className="text-xs text-text-muted v8:text-text-faint">registered for {seasonLabel(season)} · {where}</p>
         </div>
         <div>
-          <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-text-muted"><Trophy className="size-3.5 text-success" aria-hidden /> With results</p>
+          <p className={cn("flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-text-muted", V8_LABEL)}><Trophy className="size-3.5 text-success v8:text-text-faint" aria-hidden /> With results</p>
           {preparing ? (
             <p className="flex items-center gap-2 py-1.5 text-sm font-semibold text-warning"><Hourglass className="size-4" aria-hidden /> Being prepared</p>
           ) : (
-            <p className="font-display text-3xl font-semibold tabular-nums text-success">{data ? fmt(data.withResults) : "—"}</p>
+            <p className="font-display text-3xl font-semibold tabular-nums text-success v8:text-[2rem]">{data ? fmt(data.withResults) : "—"}</p>
           )}
-          <p className="text-xs text-text-muted">{preparing ? "counted once statistics are ready" : ready ? "played scored qualification matches" : "from the last statistics"}</p>
+          <p className="text-xs text-text-muted v8:text-text-faint">{preparing ? "counted once statistics are ready" : ready ? "played scored qualification matches" : "from the last statistics"}</p>
         </div>
         {data && data.withResults > 0 && !preparing && (
-          <Link to={resultsHref} className="inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-success hover:underline">
+          <Link to={resultsHref} className="inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-success hover:underline v8:font-medium">
             Their statistics <ArrowRight className="size-4" aria-hidden />
           </Link>
         )}
@@ -251,7 +257,7 @@ function CompactSummary({ data, season, where, resultsHref, onRetry }: { data: D
     <div className="mt-1">
       <div className="flex items-start gap-2 px-1 text-sm text-text-muted">
       <div className="flex min-h-11 min-w-0 flex-1 flex-wrap items-center gap-x-3" aria-live="polite">
-        <span><Users className="mr-1 inline size-3.5 text-accent" aria-hidden /><span className="font-semibold tabular-nums text-accent-text">{data ? fmt(data.total) : "—"}</span> listed<span className="sr-only"> for {seasonLabel(season)} from {where}</span></span>
+        <span><Users className="mr-1 inline size-3.5 text-accent v8:text-text-faint" aria-hidden /><span className="font-semibold tabular-nums text-accent-text">{data ? fmt(data.total) : "—"}</span> listed<span className="sr-only"> for {seasonLabel(season)} from {where}</span></span>
         {preparing ? (
           <span><Trophy className="mr-1 inline size-3.5 text-success" aria-hidden /><span className="font-semibold text-warning">Being prepared</span></span>
         ) : data && data.withResults > 0 ? (
@@ -261,7 +267,7 @@ function CompactSummary({ data, season, where, resultsHref, onRetry }: { data: D
         ) : withResults}
       </div>
         <button type="button" onClick={() => setAbout(!about)} aria-expanded={about} aria-controls={id} aria-label="What a listing means" title="What a listing means"
-          className="inline-flex size-11 shrink-0 items-center justify-center rounded-md text-accent outline-none hover:bg-text-base/[0.06] focus-visible:ring-2 focus-visible:ring-ring/60">
+          className="inline-flex size-11 shrink-0 items-center justify-center rounded-md text-accent outline-none hover:bg-text-base/[0.06] focus-visible:ring-2 focus-visible:ring-ring/60 v8:text-text-muted">
           <Info className="size-4" aria-hidden />
         </button>
       </div>
@@ -286,8 +292,8 @@ function SortHead({ label, k, also, state, onSort, className }: { label: string;
   const on = state.sort === k || state.sort === also;
   const Icon = state.dir === "asc" ? ArrowUp : ArrowDown;
   return (
-    <th scope="col" aria-sort={on ? (state.dir === "asc" ? "ascending" : "descending") : "none"} className={cn("px-3 py-2 font-semibold", className)}>
-      <button type="button" onClick={() => onSort(on ? state.sort : k)} className={cn("inline-flex min-h-8 items-center gap-1 rounded-md uppercase hover:text-text-base focus-visible:outline-2 focus-visible:outline-ring", on && "text-accent-text")}>
+    <th scope="col" aria-sort={on ? (state.dir === "asc" ? "ascending" : "descending") : "none"} className={cn("px-3 py-2 font-semibold v8:py-0 v8:font-medium", className)}>
+      <button type="button" onClick={() => onSort(on ? state.sort : k)} className={cn("inline-flex min-h-8 items-center gap-1 rounded-md uppercase hover:text-text-base focus-visible:outline-2 focus-visible:outline-ring v8:min-h-11 v8:normal-case v8:transition-colors v8:duration-150", on && "text-accent-text v8:text-accent")}>
         {label}{on && <Icon className="size-3.5" aria-hidden />}
       </button>
     </th>
@@ -298,24 +304,24 @@ function Row({ t, readiness, season }: { t: DirectoryTeam; readiness: SeasonRead
   const flags = useTeamFlags(t.team);
   const where = place(t.city, t.state, t.country);
   return (
-    <tr className="border-t border-line hover:bg-text-base/[0.03]">
-      <td className="px-3 py-2">
+    <tr className="border-t border-line hover:bg-text-base/[0.03] v8:h-11 v8:border-white/[0.08] v8:transition-colors v8:duration-150 v8:hover:bg-white/[0.03]">
+      <td className="px-3 py-2 v8:py-1">
         <Link to={season == null ? `/teams/${t.team}` : `/teams/${t.team}?season=${season}`} className="group inline-flex min-h-9 flex-col justify-center">
-          <span><span className="font-semibold tabular-nums text-accent-text">{t.team}</span> <span className="font-medium group-hover:underline">{t.name ?? `Team ${t.team}`}</span></span>
-          {where && <span className="text-xs text-text-muted md:hidden">{where}</span>}
+          <span><span className="font-semibold tabular-nums text-accent-text v8:font-medium v8:text-accent">{t.team}</span> <span className="font-medium group-hover:underline v8:font-normal v8:text-text-muted v8:group-hover:text-text-base">{t.name ?? `Team ${t.team}`}</span></span>
+          {where && <span className="text-xs text-text-muted md:hidden v8:text-text-faint">{where}</span>}
         </Link>
       </td>
       <td className="px-3 py-2 text-text-muted max-md:hidden">{where || <span className="italic">Not reported</span>}</td>
       <td className="px-3 py-2 tabular-nums text-text-muted max-sm:hidden">{t.rookieYear ?? "—"}</td>
       <td className="px-3 py-2">
-        {t.hasResults ? <Badge variant="success"><Trophy /> Has results</Badge>
+        {t.hasResults ? <Badge variant="success" className="v8:border-white/[0.12] v8:bg-transparent v8:font-medium v8:text-text-base"><Trophy /> Has results</Badge>
           : readiness.state === "ready" ? <Badge variant="outline">No results yet</Badge>
           : <Badge variant="outline" className="border-warning/40 text-warning"><Hourglass /> {readiness.state === "preparing" ? "Being prepared" : "None counted yet"}</Badge>}
       </td>
       <td className="px-2 py-1 text-right">
         <button type="button" onClick={flags.toggleTracked} aria-pressed={flags.tracked} aria-label={flags.tracked ? `Stop tracking ${t.team}` : `Track ${t.team}`} title={flags.tracked ? "Tracked" : "Track this team"}
           className="inline-flex size-9 items-center justify-center rounded-lg text-text-muted hover:bg-text-base/[0.06] hover:text-text-base focus-visible:outline-2 focus-visible:outline-ring max-sm:size-10">
-          <Star className={cn("size-4", flags.tracked && "fill-accent text-accent")} aria-hidden />
+          <Star className={cn("size-4", flags.tracked && "fill-accent text-accent v8:fill-text-base v8:text-text-base")} aria-hidden />
         </button>
       </td>
     </tr>
