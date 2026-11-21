@@ -367,4 +367,21 @@ describe("the watcher's matcher", () => {
     expect(parseRule("")).toBeNull();
     expect(partOf("Day 2 Matches 6-14")).toBe("Matches 6–14");
   });
+
+  it("tells two of a region's events apart by the venue a title names", () => {
+    // FTC Benelux uploads "Qualifier 05 - Pius X-College" two days after the Bladel qualifier held there; the Wassenaar
+    // qualifier a week earlier is also in reach of the upload. Neither event's name says "Pius": its venue does.
+    const NL = { region: "country=Netherlands,Belgium,Luxembourg", words: "benelux", titlePattern: "benelux" };
+    const at = { season: 2024, type: "Qualifier", state: null, country: "Netherlands", timezone: "Europe/Brussels" };
+    const events = [
+      ev("NLBLQ", "NL Qualifier Bladel", { ...at, city: "Bladel", venue: "Pius X-College", start: "2025-01-25", end: "2025-01-25" }),
+      ev("NLWAQ", "NL Qualifier Wassenaar", { ...at, city: "Wassenaar", venue: "American School of The Hague", start: "2025-01-19", end: "2025-01-19" }),
+    ];
+    const up = { start: null, published: "2025-01-27T07:09:28Z", durationS: 21540 };
+    const v = matchVideo(vid("FTC Benelux Qualifier 05 - Pius X-College - LIVESTREAM", up), NL, events);
+    expect(v.why).not.toMatch(/fits both/);
+    expect(v.kind !== "ignore" && v.event?.code).toBe("NLBLQ");
+    // Naming neither venue nor town, both still fit: the owner tells them apart.
+    expect(matchVideo(vid("FTC Benelux Qualifier - LIVESTREAM", up), NL, events)).toMatchObject({ kind: "review", why: /fits both/ });
+  });
 });

@@ -385,7 +385,8 @@ export function CoverageLine({ c }: { c: ReplayCoverage }) {
 
 type Tone = "gold" | "good" | "bad" | "blue";
 // Gold as text uses the text shade (deep amber in light, where the bright fill fails contrast).
-const TONE: Record<Tone, string> = { gold: "text-accent-text", good: "text-success", bad: "text-destructive", blue: "text-blue-alliance" };
+// v8: the headline in the slate-blue accent and a good result green (v8's accent text and success tokens are white; src/lib/v8colour.ts).
+const TONE: Record<Tone, string> = { gold: "text-accent-text v8:text-accent", good: "text-success v8:text-emerald-400", bad: "text-destructive", blue: "text-blue-alliance" };
 
 /** Margin error (src/shared/api.ts MarginError): average points between the predicted margin and the real one,
  *  named as live calls or the replay like every other figure in the block. */

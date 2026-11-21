@@ -1,0 +1,47 @@
+/* v8: Home's search → /search (glide.ts). Names exist only while html[data-search-glide] is set, so this is the one
+   navigation that moves.
+   Timeline: the box (lead) glides 400ms on the strong ease-out from the first frame; Home's cards (the old root) are
+   gone in 150ms; the results (support) fade and rise 8px over 320ms, starting 90ms in, so they land as the box settles. */
+html[data-search-glide] [data-glide-box] { view-transition-name: cs-search-box; }
+/* The page's content area: the shell's one <main>, kept from Home to the results. (Not the loading shapes or the
+   results column themselves: one replaces the other mid-glide, and a named element that leaves ends the transition.) */
+html[data-search-glide] #main { view-transition-name: cs-search-results; }
+
+html[data-search-glide]::view-transition-group(cs-search-box) {
+  animation-duration: 400ms;
+  animation-timing-function: cubic-bezier(0.23, 1, 0.32, 1);
+}
+/* The two boxes differ in size: each picture keeps its own shape (scaled by height, pinned left) rather than being
+   stretched, and the swap is a quick crossfade inside the moving frame. */
+html[data-search-glide]::view-transition-image-pair(cs-search-box) { overflow: clip; border-radius: 1rem; }
+html[data-search-glide]::view-transition-old(cs-search-box),
+html[data-search-glide]::view-transition-new(cs-search-box) {
+  inset: 0 auto 0 0;
+  height: 100%;
+  width: auto;
+}
+/* The two pictures barely overlap (the same words at two sizes would ghost): the old one is gone in 100ms, the new
+   one comes in from 60ms. */
+html[data-search-glide]::view-transition-old(cs-search-box) { animation: cs-glide-out 100ms cubic-bezier(0.23, 1, 0.32, 1) both; }
+html[data-search-glide]::view-transition-new(cs-search-box) { animation: cs-glide-fade 220ms cubic-bezier(0.23, 1, 0.32, 1) 60ms both; }
+
+html[data-search-glide]::view-transition-old(root) { animation: cs-glide-out 150ms cubic-bezier(0.23, 1, 0.32, 1) both; }
+html[data-search-glide]::view-transition-new(root) { animation: cs-glide-fade 200ms cubic-bezier(0.23, 1, 0.32, 1) both; }
+
+/* The content area: Home's cards go with the rest of Home; the results fade and rise in. No size morph between them. */
+html[data-search-glide]::view-transition-group(cs-search-results) { animation: none; }
+html[data-search-glide]::view-transition-old(cs-search-results) { animation: cs-glide-out 150ms cubic-bezier(0.23, 1, 0.32, 1) both; }
+html[data-search-glide]::view-transition-new(cs-search-results) { animation: cs-glide-rise 320ms cubic-bezier(0.23, 1, 0.32, 1) 90ms both; }
+
+@keyframes cs-glide-out { to { opacity: 0; } }
+@keyframes cs-glide-fade { from { opacity: 0; } }
+@keyframes cs-glide-rise { from { opacity: 0; transform: translateY(8px); } }
+
+/* Reduced motion: nothing moves. The box keeps no name (it isn't carried across), and everything is one short fade. */
+@media (prefers-reduced-motion: reduce) {
+  html[data-search-glide] [data-glide-box] { view-transition-name: none; }
+  html[data-search-glide]::view-transition-old(root) { animation: cs-glide-out 120ms ease both; }
+  html[data-search-glide]::view-transition-new(root) { animation: cs-glide-fade 120ms ease both; }
+  html[data-search-glide]::view-transition-old(cs-search-results) { animation: cs-glide-out 120ms ease both; }
+  html[data-search-glide]::view-transition-new(cs-search-results) { animation: cs-glide-fade 120ms ease both; }
+}

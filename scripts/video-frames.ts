@@ -38,7 +38,7 @@
 //   TESSERACT_JS=<path to tesseract.js's entry>  where tesseract.js is, when it isn't in node_modules
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
-import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, launchPlayerBrowser, clockReading, playedCount, playedMatches, wholeLength } from "./lib/videoFrames";
+import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, launchPlayerBrowser, clockReading, playedCount, playedMatches, wholeLength, splitSide, splitChecked, splitZoomCss, SPLIT_SIDES, type SplitSide, enteredLater, DIVISION_AFTER, frameDivision, ReadHung, onceMoreIfHung, undetailed, UNDETAILED_EXIT } from "./lib/videoFrames";
 import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, firstOpening, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, darkInk, DARK_FILL_MAX, DARK_INK_MAX, inPage, titleLeaks, titleUnchecked, visibleTexts, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M, eventDivisions, teamsSay } from "./lib/videoFrames";
 import { cornerBox, zoomCss } from "./lib/frameZoom";
 import { between, edgeReject, eventLimitMs, GAP_READS } from "./lib/videoFrames";
@@ -375,6 +375,46 @@ async function seek(page: Page, t: number, still = false) {
   await page.waitForTimeout(900);
 }
 
+/** Zoom the player onto one half of a split stream (splitZoomCss), or back to the whole frame (null). */
+async function zoom(page: Page, side: SplitSide | null) {
+  await within(page.evaluate((css) => {
+    let s = document.getElementById("__split");
+    if (!s) { s = document.createElement("style"); s.id = "__split"; document.head.append(s); }
+    s.textContent = css;
+  }, side ? splitZoomCss(side) : ""), 30, "zooming the player");
+}
+/** Seconds through the video, as fractions of it, the bar's row is read at on each half to find a split stream's. */
+const SPLIT_SAMPLES = [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8];
+/** The bar's row at second t, paused, as a split check reads it: bounded as a frame read is (readAt), a hung OCR
+ *  worker replaced (renewOcr) so no lane waits on it forever. */
+async function splitRow(page: Page, t: number): Promise<string> {
+  if (ocrBroken) throw new Error(ocrBroken);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  return Promise.race([
+    (async () => {
+      await seek(page, t, true);
+      return (await rowOcr.recognize(await page.screenshot({ clip: LABEL_ROW }))).data.text as string;
+    })().finally(() => clearTimeout(timer)),
+    new Promise<never>((_, no) => { timer = setTimeout(() => { void renewOcr(); no(new Error(`a split check at ${t} s hung over ${READ_LIMIT_S} s`)); }, READ_LIMIT_S * 1000); }),
+  ]);
+}
+/** The half of a split stream this event is on (splitSide): its bar's row read zoomed to each half, paused at each of
+ *  SPLIT_SAMPLES. The player is left zoomed to the whole frame. */
+async function findSplit(page: Page, length: number): Promise<SplitSide | null> {
+  const own = pageEvent.get(page);
+  if (!own) return null;
+  const reads: { side: SplitSide; event: "own" | "other" | null }[] = [];
+  for (const side of SPLIT_SIDES) {
+    await zoom(page, side);
+    for (const f of SPLIT_SAMPLES) {
+      const t = Math.round(length * f);
+      reads.push({ side, event: overlayEvent(await splitRow(page, t), own.name, own.quals, SEMIFINALS).event });
+    }
+  }
+  await zoom(page, null);
+  return splitSide(reads);
+}
+
 /** What the frame at second t shows: the match its overlay names and, while that match is being played, the second it
  *  started at (its timer read twice, 1.5 s apart, must run). */
 /** The most a frame read may take (seconds): a page that stops answering (a frozen player, OCR that never returns)
@@ -384,6 +424,12 @@ const READ_LIMIT_S = 120;
  *  counts. Per page, so lanes reading side by side never spend each other's budget. */
 const pageReads = new WeakMap<Page, number>();
 function readAt(page: Page, t: number, labelOnly = false): Promise<Read> {
+  return onceMoreIfHung(() => readAtLimited(page, t, labelOnly), async () => {
+    await (renewing ?? renewOcr());
+    return !ocrBroken;
+  });
+}
+function readAtLimited(page: Page, t: number, labelOnly: boolean): Promise<Read> {
   const due = pageDeadline.get(page);
   if (due && Date.now() > due.at) return Promise.reject(new EventOverTime(due.code, due.ms));
   pageReads.set(page, (pageReads.get(page) ?? 0) + 1);
@@ -393,7 +439,7 @@ function readAt(page: Page, t: number, labelOnly = false): Promise<Read> {
       if (TRACE) console.error(`    read ${Math.round(t)} s: ${r.label ?? "-"}${r.start != null ? ` from ${r.start}` : ""}${r.division ? ` (${r.division} division)` : ""}${r.why ? `: ${r.why}` : ""}`);
       return r;
     }),
-    new Promise<never>((_, no) => { timer = setTimeout(() => { void renewOcr(); no(new Error(`a frame read at ${Math.round(t)} s hung over ${READ_LIMIT_S} s`)); }, READ_LIMIT_S * 1000); }),
+    new Promise<never>((_, no) => { timer = setTimeout(() => { void renewOcr(); no(new ReadHung(`a frame read at ${Math.round(t)} s hung over ${READ_LIMIT_S} s`)); }, READ_LIMIT_S * 1000); }),
   ]);
 }
 
@@ -498,7 +544,9 @@ async function confirmed(page: Page, label: string, start: number, own = false, 
   const ctx = divisions.get(page);
   const teams = (text: string) => (ctx?.teams ? teamsSay(text, ctx.teams.own.get(label), ctx.teams.others.map((m) => m.get(label))) : null);
   let byTeams = false;
+  const seen = new Set<number>();
   for (const after of CONFIRM_AFTER) {
+    seen.add(after);
     const at = await readAt(page, start + after);
     if (at.division === "other") return `${after} s on the overlay named another division`;
     const team = teams(at.text);
@@ -546,7 +594,18 @@ async function confirmed(page: Page, label: string, start: number, own = false, 
     }
     if (!read) return `the card read nothing ${COUNTDOWN_CHECK.join(", ")} s before it, so no countdown through it was ruled out`;
   }
-  if (divisions.has(page) && !own && !byTeams) return "no read of it showed its division's name (the stream carries another division too)";
+  if (divisions.has(page) && !own && !byTeams) {
+    // The bar scrolls the division's name off for most of a match: before giving up, more of the same match is read
+    // for it (DIVISION_AFTER). Any frame of it naming the other division, or showing its teams, still rules it out.
+    for (const after of DIVISION_AFTER) {
+      if (seen.has(after)) continue;
+      const at = await readAt(page, start + after);
+      const says = frameDivision(at, label, teams(at.text));
+      if (says === "other") return `${after} s on the overlay named another division or showed its teams`;
+      if (says === "own") { own = true; break; }
+    }
+    if (!own) return "no read of it showed its division's name (the stream carries another division too)";
+  }
   return null;
 }
 /** Seconds before a start read off an audience display's card that the card is read for a countdown running through it.
@@ -988,6 +1047,10 @@ const browser = await launchPlayerBrowser((o) => chromium.launch(o), (s) => cons
 const today = new Date().toISOString().slice(0, 10);
 let done = 0;
 const report: string[] = [];
+// Linked recordings skipped (undetailed): for want of details a fetch would give, or gone/still live; and the events
+// left with nothing to read until their details are fetched.
+let undetailedVideos = 0, unreadableVideos = 0;
+const undetailedEvents: string[] = [];
 
 /** Write the timings kept so far (after each event, so a run cut short keeps what it read). A file another program
  *  holds open for a moment (an editor, git, a test run reading it) only delays the write: it's tried again, and if it
@@ -1205,6 +1268,14 @@ async function doCode(code: string): Promise<void> {
   // A match FIRST gives only its scheduled time for (2019's qualifications) is read too, by its frames alone (M.scheduled):
   // its time orders it among the others and places nothing.
   // A match with no time at all is read the same way, after the timed ones in its label's order (playedMatches).
+  // Results entered after the fact (enteredLater): their times place nothing, so the matches are read by their frames
+  // alone, as an event FIRST gives no times for is.
+  const [ev] = await all<{ name: string; division_code: string | null; start: string | null; end: string | null }>("SELECT name, division_code, start, end FROM events WHERE season = ? AND code = ?", [season, code]);
+  const msWindows = [rec, ...(rec.more ?? [])].map((v) => ({ start: v.meta?.start ? Date.parse(v.meta.start) : null, end: v.meta?.end ? Date.parse(v.meta.end) : null }));
+  if (enteredLater(rows, ev ?? null, msWindows, localToUtcMs)) {
+    report.push(`${code}: every match time is outside the event's dates and its videos (results entered later): read by its frames alone`);
+    for (const r of rows) r.time = null;
+  }
   const local = playedMatches(rows, { utcMs: localToUtcMs, actual: actualStart, rank: labelRank });
   // An event whose scoring clock kept UTC (none of its starts inside its broadcasts as local time, every one as UTC):
   // read as UTC, said in the run and its report, and each start still confirmed by its frames (clockReading).
@@ -1222,7 +1293,6 @@ async function doCode(code: string): Promise<void> {
   if (timeless) report.push(`${code}: ${timeless} played matches not read: no timezone for the event, so their start can't be placed`);
   if (!played.length) return;
   // Divisions of one event can share a stream: each read must be this division's overlay (divisionOf, overlayDivision).
-  const [ev] = await all<{ name: string; division_code: string | null }>("SELECT name, division_code FROM events WHERE season = ? AND code = ?", [season, code]);
   // Its name and qualification total, to tell its overlay from another event's on the same stream (overlayEvent).
   const [q] = await all<{ n: number }>("SELECT COUNT(*) AS n FROM matches WHERE season = ? AND code = ? AND label LIKE 'Q%'", [season, code]);
   if (ev?.name) eventNames.set(code, { name: ev.name, quals: Number(q?.n ?? 0) });
@@ -1285,7 +1355,17 @@ async function doCode(code: string): Promise<void> {
     if ("length" in p) { v.meta = { ...v.meta, length: p.length }; log(`  ${v.videoId}: no duration from YouTube, ${p.length} s from the player`); }
     else log(`  ${v.videoId}: no duration from YouTube, not read: ${p.why}`);
   }
-  const videos = [rec, ...(rec.more ?? [])].filter((v) => v.meta?.status === "ok" && v.meta.length);
+  // A linked recording that can't be read is said now (stderr, not only in the event's lines) and counted: one a fetch
+  // of its details would fix apart from one that's gone or still live (undetailed).
+  const unread = undetailed(own);
+  for (const s of unread.skipped) {
+    const line = `${code}: linked recording ${s.videoId} skipped: ${s.why}`;
+    log(`  ${line}`);
+    console.error(`!! ${line}`);
+  }
+  for (const s of unread.skipped) if (s.fixable) undetailedVideos++; else unreadableVideos++;
+  if (unread.fails) undetailedEvents.push(code);
+  const videos = own.filter((v) => v.meta?.status === "ok" && v.meta.length);
   // Its own limit, now its videos' lengths are known: a long event gets its time, from when it began.
   deadline.ms = eventLimitMs(EVENT_LIMIT_MS, videos.map((v) => v.meta!.length!));
   deadline.at = began + deadline.ms;
@@ -1355,6 +1435,31 @@ async function doCode(code: string): Promise<void> {
         await open(page, v.videoId);
         unread.clear();
         j = await placeVideo(page, mine, from == null ? null : -from, m.length!, log, unread, live, liveMedium);
+      }
+      // Still nothing: two meets split on one stream, each bar too small to read (findSplit). Read again zoomed to this
+      // event's half, every crop reading its bar where a full-size one would be.
+      // A split check that fails (a hung read, a seek or zoom the page refuses) keeps the read as it was, nothing read:
+      // the video played, so it isn't one that couldn't be (PLAY_FAILED, read again every run).
+      if (!j.placed.size && !j.review.size && [...j.missing.values()].every((w) => w === NOTHING_READ)) {
+        // The page as it is here (non-null), for the check's callbacks.
+        const pg = page;
+        await splitChecked(async () => {
+          const side = await findSplit(pg, m.length!);
+          if (side) {
+            log(`    a split stream: this event's on its ${side} half, read zoomed to it`);
+            await zoom(pg, side);
+            const zoomedUnread = new Set<string>();
+            const zoomed = await placeVideo(pg, mine, from == null ? null : -from, m.length!, log, zoomedUnread, live, liveMedium);
+            j = zoomed;
+            unread.clear();
+            for (const l of zoomedUnread) unread.add(l);
+          }
+        }, {
+          cleanup: () => zoom(pg, null),
+          // The event's own limit passed during the check: it stops the event as anywhere else (no row kept).
+          stops: (e) => e instanceof EventOverTime,
+          failed: (e) => log(`    couldn't check for a split stream: ${e.message.split("\n")[0]} (kept as nothing read)`),
+        });
       }
       const out = new Map([...j.placed].map(([l, p]) => [l, p.t]));
       for (const l of out.keys()) held.add(l);
@@ -1441,6 +1546,12 @@ if (failedEvents) { console.error(`${failedEvents} events failed before their vi
 if (overTime) { console.error(`${overTime} events stopped at their limit (their finished videos written)`); process.exitCode = 1; }
 // Videos that couldn't be played are written as such and read again on the next run, but this run didn't finish them.
 if (failedVideos) { console.error(`${failedVideos} videos couldn't be played (written with the reason; the next run reads them again)`); process.exitCode = 1; }
+// Linked recordings skipped (undetailed): counted by kind. Only an event left with nothing to read for want of details
+// a fetch would give is flagged in the exit, and with its own code (UNDETAILED_EXIT), not 1: the read ran, so a caller
+// (clip-autopilot's readFailed) doesn't take it for a crash. Any real failure above or below still exits 1.
+if (undetailedVideos) console.error(`${undetailedVideos} linked recordings skipped: no details on file, or the fetch failed (fetch them, then read again)`);
+if (unreadableVideos) console.error(`${unreadableVideos} linked recordings not read: removed or private on YouTube, or no length (a live stream the player can't time) (said per event above)`);
+if (undetailedEvents.length) { console.error(`${undetailedEvents.join(", ")}: no linked recording could be read for want of details (exit ${UNDETAILED_EXIT})`); if (!process.exitCode) process.exitCode = UNDETAILED_EXIT; }
 if (!CHECK && !DRY) {
   // The last save may have failed with no save after it (retried above): the run then says so and fails.
   if (unsaved) { console.error(`${FRAMES_FILE} could not be written: this run's timings are lost`); process.exitCode = 1; }

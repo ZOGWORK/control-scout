@@ -18,8 +18,8 @@ export default function WhatsNewReleases({ live }: { live: string | null }) {
   return (
     <div className="grid gap-4">
       {newest && (
-        <div className={cn("flex items-start gap-3 rounded-xl border p-3 text-sm", problems.length ? "border-warning/40 bg-warning/[0.06]" : "border-success/40 bg-success/[0.06]")}>
-          {problems.length ? <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden /> : <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-success" aria-hidden />}
+        <div className={cn("flex items-start gap-3 rounded-xl border p-3 text-sm", problems.length ? "border-warning/40 bg-warning/[0.06]" : "border-success/40 v8:border-emerald-400/40 bg-success/[0.06] v8:bg-emerald-400/[0.06]")}>
+          {problems.length ? <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden /> : <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-success v8:text-emerald-400" aria-hidden />}
           <div className="min-w-0">
             <p className="font-medium text-foreground">
               Newest entry <span className="font-mono">v{newest.version}</span>{live && live !== newest.version ? <> · this server runs <span className="font-mono">v{live}</span></> : null}
@@ -46,7 +46,7 @@ export default function WhatsNewReleases({ live }: { live: string | null }) {
                     {e.highlights.length ? <span className="line-clamp-2">{e.highlights.map((h) => h.text).join(" · ")}</span> : <span className="text-muted-foreground">Full notes only</span>}
                   </TableCell>
                   <TableCell className="whitespace-nowrap text-right text-xs">
-                    {prs.slice(-2).map((n) => <a key={n} href={`${REPO}${n}`} target="_blank" rel="noreferrer" className="ml-1 text-accent-text underline underline-offset-2">#{n}</a>)}
+                    {prs.slice(-2).map((n) => <a key={n} href={`${REPO}${n}`} target="_blank" rel="noreferrer" className="ml-1 text-accent-text v8:text-accent underline underline-offset-2">#{n}</a>)}
                   </TableCell>
                 </TableRow>
               );

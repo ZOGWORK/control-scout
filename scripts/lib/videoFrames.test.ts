@@ -1,7 +1,7 @@
 // The pure parts of the frame reader (scripts/video-frames.ts): the overlay's match, the timer's elapsed time, and
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
-import { dataRows, launchPlayerBrowser, clockReading, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, darkInk, DARK_FILL_MAX, DARK_INK_MAX, inPage, titleLeaks, titleUnchecked, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, firstOpening, OPEN_LEADS, shortClash, type M, eventDivisions, teamsSay } from "./videoFrames";
+import { dataRows, launchPlayerBrowser, clockReading, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, darkInk, DARK_FILL_MAX, DARK_INK_MAX, inPage, titleLeaks, titleUnchecked, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, firstOpening, OPEN_LEADS, shortClash, type M, eventDivisions, teamsSay, splitSide, splitChecked, splitZoomCss, enteredLater, DIVISION_AFTER, frameDivision, MATCH_S, ReadHung, onceMoreIfHung, undetailed, UNDETAILED_EXIT, readFailed } from "./videoFrames";
 import { between, edgeReject, EVENT_LIMIT_RATIO, eventLimitMs, GAP_READS, TRIES } from "./videoFrames";
 
 describe("the frame reader", () => {
@@ -426,6 +426,41 @@ describe("the frame reader", () => {
     expect(teamsSay("367 367 367 Qualification 8 of 36", black, [gold])).toBeNull();
   });
 
+  it("reads more of a match for its division where the confirming reads showed none, all inside the match", () => {
+    expect(DIVISION_AFTER.every((a) => a > 0 && a < MATCH_S)).toBe(true);
+    expect([...DIVISION_AFTER].sort((a, b) => a - b)).toEqual(DIVISION_AFTER);
+    // Its own division named on the bar, or its own teams read: the start stands.
+    expect(frameDivision({ label: "Q8", division: "own" }, "Q8", null)).toBe("own");
+    expect(frameDivision({ label: null, division: null }, "Q8", "own")).toBe("own");
+    // The other division named, or its teams read: ruled out, even with this division's name read too.
+    expect(frameDivision({ label: "Q8", division: "other" }, "Q8", null)).toBe("other");
+    expect(frameDivision({ label: "Q8", division: "own" }, "Q8", "other")).toBe("other");
+    // Another match on screen (the stream cut to the other field between matches): says nothing of this one.
+    expect(frameDivision({ label: "Q9", division: "other" }, "Q8", null)).toBeNull();
+    expect(frameDivision({ label: "Q9", division: "own" }, "Q8", "own")).toBeNull();
+    // Nothing read.
+    expect(frameDivision({ label: "Q8", division: null }, "Q8", null)).toBeNull();
+  });
+
+  it("reads a frame once more after a hang, and only once", async () => {
+    let tries = 0;
+    const hangsOnce = () => (++tries === 1 ? Promise.reject(new ReadHung("a frame read at 11207 s hung over 120 s")) : Promise.resolve("Q16"));
+    await expect(onceMoreIfHung(hangsOnce, async () => true)).resolves.toBe("Q16");
+    expect(tries).toBe(2);
+    // Workers that couldn't be replaced: no second try.
+    tries = 0;
+    await expect(onceMoreIfHung(hangsOnce, async () => false)).rejects.toBeInstanceOf(ReadHung);
+    expect(tries).toBe(1);
+    // Hangs twice: the second hang is thrown.
+    tries = 0;
+    await expect(onceMoreIfHung(() => (++tries, Promise.reject(new ReadHung("hung"))), async () => true)).rejects.toBeInstanceOf(ReadHung);
+    expect(tries).toBe(2);
+    // Any other error is thrown at once.
+    tries = 0;
+    await expect(onceMoreIfHung(() => (++tries, Promise.reject(new Error("page closed"))), async () => true)).rejects.toThrow("page closed");
+    expect(tries).toBe(1);
+  });
+
   it("takes 2019's divisions from the words after the name they share, and reads them off SKYSTONE's bar", () => {
     expect(eventDivisions("Romania Championship - COANDA Division", ["Romania Championship - VLAICU Division"])).toEqual({ own: "COANDA", others: ["VLAICU"] });
     expect(eventDivisions("Iowa Championship BLACK", ["Iowa Championship GOLD"])).toEqual({ own: "BLACK", others: ["GOLD"] });
@@ -713,12 +748,129 @@ describe("an event's played matches, a time or not", () => {
   });
 });
 
+describe("undetailed", () => {
+  const ok = (videoId: string) => ({ videoId, meta: { status: "ok", length: 6552 } });
+  const none = "no details on file (fetch them, then read again)";
+  it("says each linked recording with no details on file (KZCMP 2022's day-2 videos)", () => {
+    const r = undetailed([ok("1VAGi4X7hWA"), { videoId: "w0H2auno5c8" }, { videoId: "ZXdoZmDoHp0", meta: null }]);
+    expect(r.skipped).toEqual([{ videoId: "w0H2auno5c8", why: none, fixable: true }, { videoId: "ZXdoZmDoHp0", why: none, fixable: true }]);
+    expect(r.fails).toBe(false);
+  });
+  it("says a failed fetch, a removed video and an untimed live stream apart, and only the fetch as fixable", () => {
+    const r = undetailed([{ videoId: "a", meta: { status: "error" } }, { videoId: "b", meta: { status: "unavailable" } }, { videoId: "c", meta: { status: "ok", length: 0 } }]);
+    expect(r.skipped.map((s) => [s.why, s.fixable])).toEqual([
+      ["fetching its details failed (fetch again, then read again)", true],
+      ["unavailable on YouTube (removed or private)", false],
+      ["no length: a live stream or one the player can't time (looked at again next run)", false],
+    ]);
+  });
+  it("fails when no video can be read for want of details a fetch would give, and empty when all can be read", () => {
+    expect(undetailed([{ videoId: "w0H2auno5c8" }]).fails).toBe(true);
+    expect(undetailed([{ videoId: "a", meta: { status: "error" } }, { videoId: "b", meta: { status: "unavailable" } }]).fails).toBe(true);
+    expect(undetailed([ok("a"), ok("b")])).toEqual({ skipped: [], fails: false });
+  });
+  it("tells the reader's undetailed exit apart from a failed read, so the autopilot doesn't forget a season", () => {
+    // A live video with no length beside one whose details fetch errored: nothing readable, a fetch would fix it.
+    expect(undetailed([{ videoId: "live", meta: { status: "ok", length: null } }, { videoId: "err", meta: { status: "error" } }]).fails).toBe(true);
+    expect(UNDETAILED_EXIT).not.toBe(1);
+    expect(readFailed(0)).toBe(false);
+    expect(readFailed(UNDETAILED_EXIT)).toBe(false);
+    for (const code of [1, 2, 3, null]) expect(readFailed(code)).toBe(true);
+  });
+  it("never fails for an event whose only video is removed or still live: it would fail every run", () => {
+    expect(undetailed([{ videoId: "gone", meta: { status: "unavailable" } }]).fails).toBe(false);
+    expect(undetailed([{ videoId: "live", meta: { status: "ok", length: null } }]).fails).toBe(false);
+    expect(undetailed([{ videoId: "gone", meta: { status: "unavailable" } }, { videoId: "live", meta: { status: "ok" } }]).fails).toBe(false);
+  });
+});
+
 describe("wholeLength", () => {
   it("times a video by its player when YouTube gave no duration, never a live stream or an empty player", () => {
     expect(wholeLength(25019.6)).toBe(25020);
     expect(wholeLength(Infinity)).toBeNull();
     expect(wholeLength(NaN)).toBeNull();
     expect(wholeLength(0)).toBeNull();
+  });
+});
+
+describe("enteredLater", () => {
+  const utc = (t: string) => Date.parse(`${t}Z`);
+  const days = { start: "2026-04-24", end: "2026-04-25" };
+  const stream = [{ start: utc("2026-04-25T13:26:46"), end: utc("2026-04-25T21:01:16") }];
+  const at = (...ts: string[]) => ts.map((time) => ({ time, timezone: null }));
+  it("reads by frames alone when every match time is weeks off the event's dates and outside its videos (USMIAAS)", () => {
+    expect(enteredLater(at("2026-06-14T17:29:51", "2026-06-14T18:40:27"), days, stream, utc)).toBe(true);
+  });
+  it("keeps the times when any match falls in the event's dates, a day either side, or a video", () => {
+    expect(enteredLater(at("2026-06-14T17:29:51", "2026-04-25T15:00:00"), days, stream, utc)).toBe(false);
+    expect(enteredLater(at("2026-04-26T10:00:00"), days, stream, utc)).toBe(false);
+    expect(enteredLater(at("2026-04-23T10:00:00"), days, stream, utc)).toBe(false);
+    expect(enteredLater(at("2026-05-02T10:00:00"), days, [{ start: utc("2026-05-02T09:00:00"), end: null }], utc)).toBe(false);
+  });
+  it("counts the day after the event's end, never two days after; a match the clock can't place counts as outside", () => {
+    expect(enteredLater(at("2026-04-27T00:30:00"), days, stream, utc)).toBe(true);
+    expect(enteredLater(at("2026-04-26T23:30:00"), days, stream, utc)).toBe(false);
+    expect(enteredLater(at("2026-06-14T17:29:51"), days, stream, () => null)).toBe(true);
+  });
+  it("needs a broadcast to judge by: an upload alone, no videos or none with facts keep the times (a rescheduled event)", () => {
+    expect(enteredLater(at("2026-06-14T17:29:51"), days, [{ start: null, end: null }], utc)).toBe(false);
+    expect(enteredLater(at("2026-06-14T17:29:51"), days, [], utc)).toBe(false);
+    expect(enteredLater(at("2026-06-14T17:29:51"), days, [{ start: utc("2026-04-25T13:00:00"), end: null }], utc)).toBe(false);
+  });
+  it("needs times and dates to judge", () => {
+    expect(enteredLater([{ time: null, timezone: null }], days, stream, utc)).toBe(false);
+    expect(enteredLater(at("2026-06-14T17:29:51"), null, stream, utc)).toBe(false);
+  });
+});
+
+describe("split streams (two meets side by side, each with a half-size bar)", () => {
+  // USTXCENSAM4 2022 (Hill Country Field Meet 2, 23 qualifications) on the left of eLRdyhrd4Ug, North San's Meet 2 (24)
+  // on the right: their bar rows read zoomed to each half at 4688 s. Unzoomed, the row reads nothing.
+  const hill = "TX-Central Hill Country Field Meet 2";
+  const left = "FIRST INSRGI]= —— Qualification 9 of 23 Y( Sountry Field Meet2  TXC POWRZ) PY =\n\n";
+  const right = "FIRST INCRGIJ= .—— Qualification 7 of 24 BC “X-Central North San Field Me POWRE) Py =\n";
+
+  it("a half's row names its own meet and not the other half's", () => {
+    expect(overlayEvent(left, hill, 23).event).toBe("own");
+    expect(overlayEvent(right, hill, 23).event).not.toBe("own");
+    expect(overlayEvent(right, "TX-Central North San Field Meet 2", 24).event).toBe("own");
+  });
+
+  it("picks the half named at two reads or more, the other never", () => {
+    const reads = (l: ("own" | "other" | null)[], r: ("own" | "other" | null)[]) =>
+      [...l.map((event) => ({ side: "left" as const, event })), ...r.map((event) => ({ side: "right" as const, event }))];
+    expect(splitSide(reads(["own", null, "own"], ["other", "other", null]))).toBe("left");
+    expect(splitSide(reads([null, "other"], ["own", "own", "own"]))).toBe("right");
+    // One read alone, or both halves named (two meets alike), or neither (no split): no half.
+    expect(splitSide(reads(["own", null], [null, null]))).toBeNull();
+    expect(splitSide(reads(["own", "own"], ["own", null]))).toBeNull();
+    expect(splitSide(reads([null, null], [null, "other"]))).toBeNull();
+  });
+
+  it("zooms twice from the half's own edge at mid-height", () => {
+    expect(splitZoomCss("left")).toContain("transform-origin: 0 50%");
+    expect(splitZoomCss("right")).toContain("transform-origin: 100% 50%");
+    expect(splitZoomCss("left")).toContain("scale(2)");
+  });
+
+  it("a failed check keeps the read, but the event's time limit stops the event (splitChecked)", async () => {
+    class OverTime extends Error {}
+    const calls: string[] = [];
+    const o = { cleanup: async () => { calls.push("cleanup"); }, stops: (e: unknown) => e instanceof OverTime, failed: (e: Error) => { calls.push(`failed: ${e.message}`); } };
+    // The limit passing during findSplit or the zoomed read: the zoom cleared, then thrown on (no row kept).
+    await expect(splitChecked(async () => { throw new OverTime("over its limit"); }, o)).rejects.toBeInstanceOf(OverTime);
+    expect(calls).toEqual(["cleanup"]);
+    // Any other failure (a hung read, a seek the page refuses): cleared, said, and nothing returned.
+    calls.length = 0;
+    expect(await splitChecked(async () => { throw new Error("seek refused"); }, o)).toBeNull();
+    expect(calls).toEqual(["cleanup", "failed: seek refused"]);
+    // A cleanup that fails itself doesn't hide the limit.
+    const bad = { ...o, cleanup: async () => { throw new Error("page closed"); } };
+    await expect(splitChecked(async () => { throw new OverTime("over"); }, bad)).rejects.toBeInstanceOf(OverTime);
+    // No failure: the check's own result, nothing cleared.
+    calls.length = 0;
+    expect(await splitChecked(async () => "left", o)).toBe("left");
+    expect(calls).toEqual([]);
   });
 });
 
@@ -842,7 +994,7 @@ describe("eventLimitMs: an event's own read limit", () => {
   });
   it("scales with its videos' summed length, so a long event's real read isn't stopped", () => {
     expect(EVENT_LIMIT_RATIO).toBe(1);
-    // 2022 ROBUQ1: three videos, ~27 h, read whole in 68 min at the slowest.
+    // Three 9 h videos (27 h; 2022 ROBUQ1's three are 22.9 h, read whole in 68 min at the slowest).
     expect(eventLimitMs(180 * MIN, [9 * H, 9 * H, 9 * H])).toBe(27 * 60 * MIN);
     // 2022 ROBUQ2: three videos, 20.5 h, read in 203 min on amelia, more than twice that with 8 readers on one computer.
     // A quarter (308 min) would have cut that slow read; its own length is six times the real one.
