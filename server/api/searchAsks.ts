@@ -165,7 +165,8 @@ export function readAsk(q: string): Ask | null {
   m = /^(.+?) (?:rankings?|standings|leaderboard|top teams|best teams?)$/.exec(lw.t);
   if (m) { const region = regionIn(m[1]); if (region) return { kind: "leaderboard", region }; }
   // Stat leaders, the whole season (scope words like "in the world" or "this season" change nothing) or a place's.
-  m = /^(?:(?:who )?(?:has|had|is) (?:the )?)?(?:the )?(?:highest|best|top|most|biggest|strongest|greatest|number one|no 1|1) (opr|auto(?:nomous)?|tele ?op|driver(?: ?controlled)?|end ?game|wins)(?: opr| scores?| scoring| points| period)?(?: teams?| robots?)?(?: (?:in|from|of) (.+))?$/.exec(lw.t)
+  // Leading it is the same ask ("who leads auto in texas", "who is leading in opr"), as the parser's lexicon reads it.
+  m = /^(?:(?:who )?(?:has|had|is) (?:the )?)?(?:the )?(?:highest|best|top|most|biggest|strongest|greatest|number one|no 1|1|leads(?: in)?|(?:is )?leading(?: in)?) (opr|auto(?:nomous)?|tele ?op|driver(?: ?controlled)?|end ?game|wins)(?: opr| scores?| scoring| points| period)?(?: teams?| robots?)?(?: (?:in|from|of) (.+))?$/.exec(lw.t)
     ?? /^(?:which|what) team has (?:the )?(?:highest|best|most) (opr|wins)(?: in (.+))?$/.exec(t.replace(SCOPE_WORDS, " ").replace(/\s+/g, " ").trim());
   if (m) {
     const stat = statOf(m[1]);
