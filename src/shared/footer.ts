@@ -21,3 +21,6 @@ export const footerFlagOn = (on: Partial<Record<Flag, boolean>>) => (flag: Flag)
 
 /** The footer's links with the owner's switched-off features left out. */
 export const footerLinks = (on: (flag: Flag) => boolean) => FOOTER_LINKS.filter((l) => !l.flag || on(l.flag));
+
+/** The public repository: the lab notes' reports and the sidebar's GitHub button. */
+export const REPO_URL = "https://github.com/ZOGWORK/control-scout";

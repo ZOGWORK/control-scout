@@ -58,7 +58,7 @@ function Side({ side, p, got }: { side: "red" | "blue"; p: number; got: boolean 
   const red = side === "red";
   const pct = oddsPct(p);
   const mark = got == null ? null : got
-    ? <Check className="size-3.5 shrink-0 text-success" aria-label="earned" />
+    ? <Check className="size-3.5 shrink-0 text-success v8:text-emerald-400" aria-label="earned" />
     : <X className="size-3.5 shrink-0 text-text-muted" aria-label="missed" />;
   return (
     <span className={cn("flex min-w-0 items-center gap-1.5", red ? "flex-row" : "flex-row-reverse")}>

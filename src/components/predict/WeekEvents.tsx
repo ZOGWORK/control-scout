@@ -239,7 +239,7 @@ function WeekRow({ e, picked, onPick }: { e: EventListItem; picked: boolean; onP
         </span>
       </span>
       <span className="flex shrink-0 flex-col items-end gap-1">
-        {now && <Badge variant="soft">On now</Badge>}
+        {now && <Badge variant="soft" className="v8:border-live/30 v8:bg-transparent v8:text-live">On now</Badge>}
         {s.kind === "toPlay" ? <Badge variant="success">{s.n} to play</Badge>
           : s.kind === "finished" ? <Badge variant="secondary">Finished</Badge>
             : <Badge variant="outline">No schedule yet</Badge>}

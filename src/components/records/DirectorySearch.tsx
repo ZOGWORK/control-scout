@@ -76,7 +76,7 @@ export function DirectorySearch({ value, onSearch, where, draft, className }: {
 
   return (
     <form role="search" className={cn("relative min-w-0", className)} onSubmit={(e) => { e.preventDefault(); commit(text); }}>
-      <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-accent" aria-hidden />
+      <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-accent v8:text-text-faint" aria-hidden />
       <Input type="search" value={text} maxLength={DIRECTORY_QUERY_MAX} enterKeyHint="search" autoComplete="off" spellCheck={false}
         placeholder="Number, name or town" aria-label={`Search teams listed from ${where}`}
         onChange={(e) => change(e.target.value)}
