@@ -1271,6 +1271,9 @@ async function teamSetSearch(q: string, set: TeamSetQuestion, resolve: Resolve, 
   return teamSetAnswer(q, found, found0, season, set.season, opts.pages, opts.full ? await compareAnswer(teams, { season: set.season }) : undefined);
 }
 
+/** A list's length said in the question: "top 10", "best 5", "the 3 best", "bottom 10". */
+const COUNT_SAID = /\b(?:top|best|bottom|worst|lowest|highest|strongest|first)\s+\d{1,2}\b|\b\d{1,2}\s+(?:best|top|worst|strongest|highest)\b/i;
+
 /** The asks' own leaderboards ("top teams in the world", "best auto team", "highest opr in texas": ../searchAsks.ts
  *  readAsk) drawn as this leaderboard: the world's or a place's rankings by prediction rating, as Rankings orders
  *  them, or a stat's leaders; the top 10 unless a number is asked. */
@@ -1318,7 +1321,9 @@ export async function boardSearch(q: string, said: LeaderboardQuestion, opts: { 
   };
   // The search box gets a link to the answer page, never an empty answer.
   if (!opts.full) return { ...answer, pages: [{ title: label, href: `/search?q=${encodeURIComponent(q)}` }, ...opts.pages] };
-  const stat = await leaderboardAnswer({ ...b, stat: st });
+  const board = await leaderboardAnswer({ ...b, stat: st });
+  // A count said ("top 10 teams", "best 5 rookies") sizes the list: every row shown at once (bug report #2026).
+  const stat = COUNT_SAID.test(q) ? { ...board, blocks: board.blocks.map((x) => (x.kind === "leaderboard" ? { ...x, whole: true } : x)) } : board;
   // An event's board is headed by its card's own title less its season (what it's ranked by is said there), so the
   // page says it once: the card's title under a heading that holds it is hidden.
   const heading = b.event ? stat.title.replace(/ · [^·]+$/, "") : null;

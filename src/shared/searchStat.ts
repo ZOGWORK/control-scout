@@ -125,7 +125,9 @@ export type StatBlock =
       /** The season's TeleOp OPR includes the endgame, as FIRST reports it (server/data/seasons.ts, teleopAsReported). */
       teleopWithEndgame?: boolean;
       /** The lowest first: drawn in the list's own order, never re-sorted highest first. */
-      lowest?: boolean }
+      lowest?: boolean;
+      /** The question said how many ("top 10 teams"): v8 shows every row at once, not its top five. */
+      whole?: boolean }
   /** Two or more teams compared (server/api/answers/compareBlock.ts): a row per metric, Total first and then by the
    *  gap, each on its own scale from zero. `scale`: what each row's max is, for the footnote ("100", "the 2025–26 high, rounded up"). */
   | { kind: "compare"; title: string; teams: StatLink[]; rows: CompareRow[]; scale?: string }
