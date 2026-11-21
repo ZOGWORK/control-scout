@@ -202,6 +202,8 @@ function NavRowLit({ item, collapsed, dense, onNavigate, lit, roomForArrow }: Ro
   );
 }
 
+/** Home ("/", a trailing slash or query aside). */
+export const isHomePath = (path: string) => path.replace(/\/+$/, "") === "";
 const MORE_KEY = "cs-nav-more";
 const isUnder = (path: string, to: string) => path === to || path.startsWith(`${to}/`);
 
@@ -449,7 +451,8 @@ export function Shell({ children }: { children: ReactNode }) {
                 </button>
                 <GlobalSearch part="button" />
               </div>
-              {offline ? <ConnectionPill place="phone" /> : <Link to="/" className="tap-44 absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring/60 md:hidden" aria-label="Control Scout home"><BrandMark /></Link>}
+              {/* v8 Home has its own big mark above the search box, so the bar leaves the centred one out there. */}
+              {offline ? <ConnectionPill place="phone" /> : !(v8 && isHomePath(loc.pathname)) && <Link to="/" className="tap-44 absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring/60 md:hidden" aria-label="Control Scout home"><BrandMark /></Link>}
               <p className="hidden truncate text-sm text-text-muted md:block v8:md:hidden"><span>Control Scout / </span><span className="text-text-base">{title}</span></p>
               <div className="flex flex-1 justify-end md:justify-center"><GlobalSearch part="field" /></div>
               {/* Far right, against the bar's edge: connection, clock · weather, Report a bug, the light/dark switch and the
