@@ -54,7 +54,11 @@ function seasonIn(words: string): number | null | undefined {
  *  one. */
 export function readChange(raw: string): ChangeQuestion | null {
   const q = raw.toLowerCase().replace(/['’]s\b/g, "").replace(/[?!,.]/g, " ").replace(/\s+/g, " ").trim();
-  const m = new RegExp(String.raw`^(?:how much (?:did|has|have|does) |what (?:was|is|are) )?(?:the )?(?:(.+?) )?(opr|(?:prediction |predicted )?rating|predicted|prediction|predictions) (?:${CHANGE})(?: by)?(?: (.+))?$`).exec(q);
+  // The stat said before the team reads the same ("predict hypnotic changes", "opr 12345 change this season").
+  const led = new RegExp(String.raw`^(?:the )?(opr|(?:prediction |predicted )?rating|predict|predicted|prediction|predictions)(?: (?:of|for))? (?!(?:opr|rating|predicted|prediction|predictions)\b)(.+?) (?:${CHANGE})(?: by)?(?: (.+))?$`).exec(q);
+  // Laid out as the usual reading's groups: the team, the stat, what follows.
+  const m = led ? Object.assign([led[0], led[2], led[1] === "predict" ? "prediction" : led[1], led[3]], { index: 0, input: q }) as RegExpExecArray
+    : new RegExp(String.raw`^(?:how much (?:did|has|have|does) |what (?:was|is|are) )?(?:the )?(?:(.+?) )?(opr|(?:prediction |predicted )?rating|predicted|prediction|predictions) (?:${CHANGE})(?: by)?(?: (.+))?$`).exec(q);
   // The prediction's own words never name a team ("prediction rating change" isn't Post-Production Team's).
   if (m) m[1] = (m[1] ?? "").replace(/\b(?:the|predicted|prediction|predictions)\b/g, " ").replace(/\s+/g, " ").trim();
   if (!m || /\b(?:vs|versus|and|or)\b/.test(m[1])) return null;
