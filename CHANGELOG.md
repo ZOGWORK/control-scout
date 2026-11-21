@@ -22,7 +22,7 @@ Search keeps the thread: a follow-up like "and last season?" or "who beat them?"
 ### Highlights
 - [scout] "And last season?" asks about the team you just asked about
 - [scout] "Who beat them?" knows who "them" is
-- [scout] A question about many teams leaves nothing behind, so the next stands alone
+- [scout] A question about many teams carries nothing to the next
 
 ### Search
 - The results page and the header's search keep the team the last answer was about (`src/components/search/thread.ts`): a follow-up naming no team of its own ("and last season?", "who beat them?", "what about at Worlds?") is asked about that team, so search answers the question instead of reading one with no subject. A question's card team, a stat answer's single team or the one team its results name is carried, for half an hour in that tab; a set of teams or a place leaves nothing, and the question asked is the one in the address and the heading. (#2041)
