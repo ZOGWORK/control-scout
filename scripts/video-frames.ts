@@ -38,7 +38,7 @@
 //   TESSERACT_JS=<path to tesseract.js's entry>  where tesseract.js is, when it isn't in node_modules
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
-import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, launchPlayerBrowser, clockReading, playedCount, playedMatches, wholeLength, splitSide, splitChecked, splitZoomCss, SPLIT_SIDES, type SplitSide, enteredLater, DIVISION_AFTER, frameDivision, ReadHung, onceMoreIfHung, timerDigits, afterUnreadBox, boxSeconds, timerSteps } from "./lib/videoFrames";
+import { CLEAR_MAX_S, CLEAR_STEP_S, EDGE_AT, launchPlayerBrowser, clockReading, playedCount, playedMatches, wholeLength, splitSide, splitChecked, splitZoomCss, SPLIT_SIDES, type SplitSide, enteredLater, DIVISION_AFTER, frameDivision, ReadHung, onceMoreIfHung, undetailed, UNDETAILED_EXIT, timerDigits, afterUnreadBox, boxSeconds, timerSteps } from "./lib/videoFrames";
 import { AUTO_S, LOSS_S, MATCH_S, OPEN_LEADS, firstOpening, startOffset, OVERLAY_UNREAD, SAME_S, SWITCH_S, TELEOP_S, TRIES, dataRows, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, darkInk, DARK_FILL_MAX, DARK_INK_MAX, inPage, titleLeaks, titleUnchecked, visibleTexts, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, judge, NOTHING_READ, overlayBand, overlayLabel, rowAbove, rowLabel, stepOn, autoLeadsTo, eventLabel, timerRan, sameMatch, secondsLoose, secondsOf, secondsPlain, type Judged, type M, eventDivisions, teamsSay } from "./lib/videoFrames";
 import { cornerBox, zoomCss } from "./lib/frameZoom";
 import { between, edgeReject, eventLimitMs, GAP_READS } from "./lib/videoFrames";
@@ -1077,6 +1077,10 @@ const browser = await launchPlayerBrowser((o) => chromium.launch(o), (s) => cons
 const today = new Date().toISOString().slice(0, 10);
 let done = 0;
 const report: string[] = [];
+// Linked recordings skipped (undetailed): for want of details a fetch would give, or gone/still live; and the events
+// left with nothing to read until their details are fetched.
+let undetailedVideos = 0, unreadableVideos = 0;
+const undetailedEvents: string[] = [];
 
 /** Write the timings kept so far (after each event, so a run cut short keeps what it read). A file another program
  *  holds open for a moment (an editor, git, a test run reading it) only delays the write: it's tried again, and if it
@@ -1381,7 +1385,17 @@ async function doCode(code: string): Promise<void> {
     if ("length" in p) { v.meta = { ...v.meta, length: p.length }; log(`  ${v.videoId}: no duration from YouTube, ${p.length} s from the player`); }
     else log(`  ${v.videoId}: no duration from YouTube, not read: ${p.why}`);
   }
-  const videos = [rec, ...(rec.more ?? [])].filter((v) => v.meta?.status === "ok" && v.meta.length);
+  // A linked recording that can't be read is said now (stderr, not only in the event's lines) and counted: one a fetch
+  // of its details would fix apart from one that's gone or still live (undetailed).
+  const unread = undetailed(own);
+  for (const s of unread.skipped) {
+    const line = `${code}: linked recording ${s.videoId} skipped: ${s.why}`;
+    log(`  ${line}`);
+    console.error(`!! ${line}`);
+  }
+  for (const s of unread.skipped) if (s.fixable) undetailedVideos++; else unreadableVideos++;
+  if (unread.fails) undetailedEvents.push(code);
+  const videos = own.filter((v) => v.meta?.status === "ok" && v.meta.length);
   // Its own limit, now its videos' lengths are known: a long event gets its time, from when it began.
   deadline.ms = eventLimitMs(EVENT_LIMIT_MS, videos.map((v) => v.meta!.length!));
   deadline.at = began + deadline.ms;
@@ -1562,6 +1576,12 @@ if (failedEvents) { console.error(`${failedEvents} events failed before their vi
 if (overTime) { console.error(`${overTime} events stopped at their limit (their finished videos written)`); process.exitCode = 1; }
 // Videos that couldn't be played are written as such and read again on the next run, but this run didn't finish them.
 if (failedVideos) { console.error(`${failedVideos} videos couldn't be played (written with the reason; the next run reads them again)`); process.exitCode = 1; }
+// Linked recordings skipped (undetailed): counted by kind. Only an event left with nothing to read for want of details
+// a fetch would give is flagged in the exit, and with its own code (UNDETAILED_EXIT), not 1: the read ran, so a caller
+// (clip-autopilot's readFailed) doesn't take it for a crash. Any real failure above or below still exits 1.
+if (undetailedVideos) console.error(`${undetailedVideos} linked recordings skipped: no details on file, or the fetch failed (fetch them, then read again)`);
+if (unreadableVideos) console.error(`${unreadableVideos} linked recordings not read: removed or private on YouTube, or no length (a live stream the player can't time) (said per event above)`);
+if (undetailedEvents.length) { console.error(`${undetailedEvents.join(", ")}: no linked recording could be read for want of details (exit ${UNDETAILED_EXIT})`); if (!process.exitCode) process.exitCode = UNDETAILED_EXIT; }
 if (!CHECK && !DRY) {
   // The last save may have failed with no save after it (retried above): the run then says so and fails.
   if (unsaved) { console.error(`${FRAMES_FILE} could not be written: this run's timings are lost`); process.exitCode = 1; }
