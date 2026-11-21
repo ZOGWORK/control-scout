@@ -44,8 +44,8 @@ export function DataStatus({ readiness, fallbackResultsAt, onRetry, className }:
     <div className={cn("text-xs text-text-muted", className)}>
       <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <span className={cn("inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 font-medium",
-          v.tone === "ok" ? "bg-success/12 text-success" : "bg-warning/15 text-warning")}>
-          <span className={cn("size-1.5 rounded-full", v.tone === "ok" ? "bg-success" : "bg-warning motion-safe:animate-pulse")} aria-hidden />
+          v.tone === "ok" ? "bg-success/12 v8:bg-emerald-400/12 text-success v8:text-emerald-400" : "bg-warning/15 text-warning")}>
+          <span className={cn("size-1.5 rounded-full", v.tone === "ok" ? "bg-success v8:bg-emerald-400" : "bg-warning motion-safe:animate-pulse")} aria-hidden />
           {v.label}
         </span>
         <span>Results synced {resultsAt ? <Stamp iso={resultsAt} /> : "not yet"}</span>

@@ -50,7 +50,7 @@ export function EventPackButton({ season, code, field }: { season: number; code:
   if (saved) {
     return (
       <Link to={`/download?event=${season}:${encodeURIComponent(code)}`} className={CHIP} data-bundle-link data-pack-saved>
-        <CheckCircle2 className="size-4 text-success" aria-hidden />Saved for offline · {fmtBytes(saved.bytes)}
+        <CheckCircle2 className="size-4 text-success v8:text-emerald-400" aria-hidden />Saved for offline · {fmtBytes(saved.bytes)}
       </Link>
     );
   }

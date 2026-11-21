@@ -156,7 +156,7 @@ function Builder({ saved }: { saved: SavedBundle[] }) {
               <ul className="grid gap-1 text-xs" aria-label="Bundle contents">
                 {manifest.sections.map((s) => (
                   <li key={s.id} className="flex items-baseline justify-between gap-3">
-                    <span className={cn(s.items ? "text-foreground" : "text-muted-foreground")}>{s.items ? <CheckCircle2 className="mr-1.5 inline size-3.5 text-success" /> : <span className="mr-1.5 inline-block size-3.5" />}{s.label}{s.id === "reports" && s.items ? ` (${s.items})` : ""}</span>
+                    <span className={cn(s.items ? "text-foreground" : "text-muted-foreground")}>{s.items ? <CheckCircle2 className="mr-1.5 inline size-3.5 text-success v8:text-emerald-400" /> : <span className="mr-1.5 inline-block size-3.5" />}{s.label}{s.id === "reports" && s.items ? ` (${s.items})` : ""}</span>
                     <span className="shrink-0 text-muted-foreground">{s.items ? fmtBytes(s.bytes) : s.note ?? "none"}</span>
                   </li>
                 ))}
@@ -165,7 +165,7 @@ function Builder({ saved }: { saved: SavedBundle[] }) {
               {got != null ? (
                 <div role="status"><Progress value={Math.min(100, (got.done / Math.max(1, got.total)) * 100)} aria-label="Downloading the bundle" /><p className="mt-1 text-xs tabular-nums text-muted-foreground">Downloading… {fmtBytes(got.done)} of {fmtBytes(got.total)}</p></div>
               ) : upToDate ? (
-                <p className="inline-flex items-center gap-1.5 text-sm text-success"><CheckCircle2 className="size-4" />On this device and current. <Link to={`/bundle/${have!.season}/${encodeURIComponent(have!.code)}`} className="underline">Open it</Link></p>
+                <p className="inline-flex items-center gap-1.5 text-sm text-success v8:text-emerald-400"><CheckCircle2 className="size-4" />On this device and current. <Link to={`/bundle/${have!.season}/${encodeURIComponent(have!.code)}`} className="underline">Open it</Link></p>
               ) : (
                 <Button size="lg" onClick={() => void download()} data-bundle-download><HardDriveDownload /> {have ? "Update" : "Download for offline"} · {fmtBytes(manifest.bytes)}</Button>
               )}
@@ -253,7 +253,7 @@ function SavedList({ saved, canUpdate }: { saved: SavedBundle[]; canUpdate: bool
 }
 
 const CHIP = {
-  current: { label: "Current", cls: "border-success/40 bg-success/10 text-success" },
+  current: { label: "Current", cls: "border-success/40 v8:border-emerald-400/40 bg-success/10 v8:bg-emerald-400/10 text-success v8:text-emerald-400" },
   update: { label: "Update available", cls: "border-warning/40 bg-warning/10 text-warning" },
   updating: { label: "Updating…", cls: "border-border text-muted-foreground" },
   finished: { label: "Event over", cls: "border-border text-muted-foreground" },

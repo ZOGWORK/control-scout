@@ -258,7 +258,7 @@ function WholeSeason({ m, local }: { m: PackManifest; local: PackMeta | null }) 
                 <p className="font-medium">{p.name}</p>
                 <p className="text-xs text-muted-foreground">{p.what} · {p.done ? `${fmtBytes(p.onDevice)} on this device` : `takes ${fmtBytes(p.onDevice)} on this device`}</p>
               </div>
-              {p.done ? <span className="inline-flex shrink-0 items-center gap-1 text-xs text-success"><CheckCircle2 className="size-3.5" />Saved</span>
+              {p.done ? <span className="inline-flex shrink-0 items-center gap-1 text-xs text-success v8:text-emerald-400"><CheckCircle2 className="size-3.5" />Saved</span>
                 : <span className="shrink-0 text-sm font-semibold tabular-nums">{fmtBytes(p.bytes)}</span>}
             </div>
             {p.a && <Downloading a={p.a} label="Downloading" />}
@@ -271,7 +271,7 @@ function WholeSeason({ m, local }: { m: PackManifest; local: PackMeta | null }) 
               {running ? <Loader2 className="animate-spin" /> : <HardDriveDownload />} Download · {fmtBytes(total)}
             </Button>
           : file
-            ? <p className="inline-flex items-center gap-1.5 text-sm text-success"><CheckCircle2 className="size-4" />All of {label} is on this device and current.</p>
+            ? <p className="inline-flex items-center gap-1.5 text-sm text-success v8:text-emerald-400"><CheckCircle2 className="size-4" />All of {label} is on this device and current.</p>
             : <p className="text-sm text-muted-foreground">No season pack in this release yet, so there's nothing to save for {label}.</p>}
       </div>
     </section>
@@ -332,7 +332,7 @@ function SeasonsSection({ m }: { m: PackManifest }) {
             </Button>
           )}
           {!plan.toUpdate.length && !plan.toDownload.length && plan.rows.length > 0 && (
-            <span className="inline-flex h-11 items-center gap-1.5 text-sm text-success"><CheckCircle2 className="size-4" /> Every season is saved and current</span>
+            <span className="inline-flex h-11 items-center gap-1.5 text-sm text-success v8:text-emerald-400"><CheckCircle2 className="size-4" /> Every season is saved and current</span>
           )}
         </div>
       </div>
@@ -351,7 +351,7 @@ function SeasonsSection({ m }: { m: PackManifest }) {
 
 const STATE_CHIP: Record<SeasonRow["state"], { label: string; cls: string }> = {
   update: { label: "Update available", cls: "border-warning/40 bg-warning/10 text-warning" },
-  saved: { label: "Saved", cls: "border-success/40 bg-success/10 text-success" },
+  saved: { label: "Saved", cls: "border-success/40 v8:border-emerald-400/40 bg-success/10 v8:bg-emerald-400/10 text-success v8:text-emerald-400" },
   available: { label: "Not saved", cls: "border-border text-muted-foreground" },
 };
 
@@ -557,7 +557,7 @@ function OnDevice({ m, local }: { m: PackManifest | null; local: PackMeta | null
         </ul>
       )}
       {freedNote && (
-        <p role="status" className="flex items-center gap-1.5 border-t border-border px-4 py-3 text-sm text-success sm:px-6" data-freed>
+        <p role="status" className="flex items-center gap-1.5 border-t border-border px-4 py-3 text-sm text-success v8:text-emerald-400 sm:px-6" data-freed>
           <CheckCircle2 className="size-4 shrink-0" /><span>{freedWords(freedNote.what, freedNote.bytes, noteDrop).line}</span>
         </p>
       )}

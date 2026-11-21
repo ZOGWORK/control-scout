@@ -40,7 +40,7 @@ const ROLE: Record<Role, { label: string; cls: string }> = {
   stat: { label: "what to find", cls: "border-blue-alliance bg-blue-alliance/15 text-blue-alliance-text" },
   scope: { label: "which events", cls: "border-red-alliance bg-red-alliance/15 text-red-alliance-text" },
   kind: { label: "kind", cls: "border-red-alliance bg-red-alliance/15 text-red-alliance-text" },
-  place: { label: "place", cls: "border-success bg-success/15 text-success" },
+  place: { label: "place", cls: "border-success v8:border-emerald-400 bg-success/15 v8:bg-emerald-400/15 text-success v8:text-emerald-400" },
   time: { label: "time", cls: "border-border bg-muted text-foreground" },
   filler: { label: "skipped", cls: "border-dashed border-border text-muted-foreground line-through" },
 };

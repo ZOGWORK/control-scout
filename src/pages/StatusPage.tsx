@@ -14,12 +14,12 @@ const ICONS: Record<ServiceKey, ComponentType<{ className?: string }>> = { site:
 const ICON_TONE: Record<ServiceKey, string> = {
   site: "bg-info/12 text-info",
   api: "bg-accent-soft text-accent-text",
-  controlPoint: "bg-success/12 text-success",
+  controlPoint: "bg-success/12 v8:bg-emerald-400/12 text-success v8:text-emerald-400",
   bot: "bg-[#8b5cf6]/15 text-[#a78bfa]",
 };
 
 const BANNER: Record<StatusResponse["overall"], { title: string; body: string; icon: ComponentType<{ className?: string }>; tone: string }> = {
-  up: { title: "Everything is running", body: "Every part of Control Scout passed its last check.", icon: CheckCircle2, tone: "border-success/40 bg-success/10 text-success" },
+  up: { title: "Everything is running", body: "Every part of Control Scout passed its last check.", icon: CheckCircle2, tone: "border-success/40 v8:border-emerald-400/40 bg-success/10 v8:bg-emerald-400/10 text-success v8:text-emerald-400" },
   partial: { title: "Some parts are down", body: "The rest is working. Each part below says which.", icon: CircleAlert, tone: "border-warning/40 bg-warning/10 text-warning" },
   down: { title: "Control Scout is down", body: "No part passed its last check. We're on it.", icon: XCircle, tone: "border-danger/40 bg-danger/10 text-danger" },
   stale: { title: "Checks have paused", body: "The newest results below are from the last check that ran.", icon: CircleHelp, tone: "border-warning/40 bg-warning/10 text-warning" },
@@ -35,7 +35,7 @@ const clock = (at: number) => new Date(at).toLocaleTimeString([], { hour: "numer
 /** The badge colour for an uptime: green at 99.5 % and up, orange from 95 %, red below. */
 export function uptimeTone(p: number | null): string {
   if (p === null) return "bg-surface text-text-muted";
-  return p >= 99.5 ? "bg-success/15 text-success" : p >= 95 ? "bg-warning/15 text-warning" : "bg-danger/15 text-danger";
+  return p >= 99.5 ? "bg-success/15 v8:bg-emerald-400/15 text-success v8:text-emerald-400" : p >= 95 ? "bg-warning/15 text-warning" : "bg-danger/15 text-danger";
 }
 const fmt = (p: number | null) => (p === null ? "—" : `${p >= 99.995 ? 100 : p.toFixed(p >= 99 ? 2 : 1)}%`);
 
@@ -49,7 +49,7 @@ function Bars({ bars, label }: { bars: StatusBar[]; label: string }) {
         {bars.map((b) => (
           <span key={b.at} title={`${clock(b.at)}: ${b.ok === null ? "not checked" : b.ok ? "up" : "down"}`}
             className={cn("min-w-0 flex-1 rounded-[3px] transition-transform hover:scale-y-110",
-              b.ok === null ? "bg-line" : b.ok ? "bg-success" : "bg-danger")} />
+              b.ok === null ? "bg-line" : b.ok ? "bg-success v8:bg-emerald-400" : "bg-danger")} />
         ))}
       </div>
       <div className="mt-1.5 flex justify-between text-xs text-text-muted">
@@ -70,8 +70,8 @@ function ServiceCard({ s }: { s: ServiceStatus }) {
           <p className="text-sm text-text-muted">{s.about}</p>
         </div>
         <span className={cn("inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold",
-          s.up === null ? "bg-line text-text-muted" : s.up ? "bg-success/15 text-success" : "bg-danger/15 text-danger")}>
-          <span className={cn("size-2 rounded-full", s.up === null ? "bg-text-muted" : s.up ? "bg-success animate-pulse motion-reduce:animate-none" : "bg-danger")} aria-hidden />
+          s.up === null ? "bg-line text-text-muted" : s.up ? "bg-success/15 v8:bg-emerald-400/15 text-success v8:text-emerald-400" : "bg-danger/15 text-danger")}>
+          <span className={cn("size-2 rounded-full", s.up === null ? "bg-text-muted" : s.up ? "bg-success v8:bg-emerald-400 animate-pulse motion-reduce:animate-none" : "bg-danger")} aria-hidden />
           {s.up === null ? "Not checked" : s.up ? "Up" : "Down"}
         </span>
       </div>
@@ -122,7 +122,7 @@ export default function StatusPage() {
                 {d.services.map((s) => <ServiceCard key={s.key} s={s} />)}
               </ul>
               <p className="mt-6 flex flex-wrap gap-x-4 gap-y-1 text-xs text-text-muted">
-                <span className="inline-flex items-center gap-1.5"><span className="size-2.5 rounded-sm bg-success" aria-hidden /> Up</span>
+                <span className="inline-flex items-center gap-1.5"><span className="size-2.5 rounded-sm bg-success v8:bg-emerald-400" aria-hidden /> Up</span>
                 <span className="inline-flex items-center gap-1.5"><span className="size-2.5 rounded-sm bg-danger" aria-hidden /> Down</span>
                 <span className="inline-flex items-center gap-1.5"><span className="size-2.5 rounded-sm bg-line" aria-hidden /> Not checked</span>
               </p>
