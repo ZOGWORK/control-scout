@@ -26,7 +26,7 @@ A rebuild can be **started** by a page request when the data version has moved. 
 | `GET /predict/accuracy`, home track record | Stored `predictions` ledger (backtest + live) | Aggregation | Kept per data version and stats run, warmed in the background | **OK** |
 | Teams, Compare, world rankings, Power Rankings | `team_season_stats`, `ranking_snapshots` (weekly replays done by the stats job, `server/stats/rankings.ts`) | None | Rankings limited to 120/min, ETag | **OK** |
 | Match report | `team_season_stats`, `team_season_records`, `team_event_stats` | None | n/a | **OK** |
-| Search answers (`/search?answer=1`, `server/api/answers/*`, `searchTeamStats`) | Search index, stats tables | None from ratings | 1 s input debounce (`SEARCH_DEBOUNCE_MS`); results capped at 25 (default 12); Bruno and refine limited to 20/min | **OK** |
+| Search answers (`/search?answer=1`, `server/api/answers/*`, `searchTeamStats`) | Search index, stats tables | None from ratings | 300 ms input debounce (`SEARCH_DEBOUNCE_MS`); results capped at 25 (default 12); Bruno and refine limited to 20/min | **OK** |
 | Records (`/records`), advancement odds there | Records tables; pre-event odds filled by the stats job (`fillAdvancementOdds` → `preEventForecasts`, one replay per season) | None | Limited to 120/min (CSV 10/min) | **OK** |
 | Lite pages (`/lite/…`) | `cachedEventDetail`, `matchViews` (same as above) | Same as the rich pages | Cached like the API | **OK** |
 | Event-day bundle (`/api/bundles`) | The live build's book, cut to the event's teams (`sliceBook`) | A slice of the book, no replay | Built bundles cached; limited to 30/min | **OK** |

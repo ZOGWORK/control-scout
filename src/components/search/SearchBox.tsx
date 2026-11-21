@@ -30,9 +30,10 @@ export type HitKind = SearchHit["kind"];
 
 export { hitHref } from "../../shared/search";
 
-/** How long typing pauses before search asks (each key doesn't send a request). */
-/** How long typing must pause before results are asked for: nothing is searched letter by letter. Enter skips it. */
-export const SEARCH_DEBOUNCE_MS = 1000;
+/** How long typing must pause before results are asked for: nothing is searched letter by letter, and Enter skips
+ *  the wait. The same pause the team directory uses (DIRECTORY_SEARCH_DEBOUNCE_MS): long enough not to ask once per
+ *  keystroke, short enough that the wait is not what a search feels like. */
+export const SEARCH_DEBOUNCE_MS = 300;
 
 type Answered = { q: string; /** The picked season it was asked with (useSearchHits season). */ season?: number | null; hits: SearchHit[]; answer?: SearchAnswer; /** Fetched here (not the first paint's): only these stay on screen for a newer query. */ live?: boolean; /** Answered from data saved on this device (it may not know every team). */ saved?: boolean };
 

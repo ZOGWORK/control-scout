@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.7.1 — 2026-11-21
+
+Search answers sooner: typing pauses 300 ms before results are asked for, not a full second.
+
+### Highlights
+- [speed] Search asks 300 ms after you stop typing, not a full second
+- [speed] Enter still searches at once, and the answers are the same
+- [speed] Team, event and match pickers feel as quick as the directory
+
+### Search
+- The wait before a typed search fires (`SEARCH_DEBOUNCE_MS`) is 300 ms, the pause the team directory already uses; it was 1000 ms, which was most of the wait on an answer the server returns in 4–15 ms warm. Typing on still cancels the older request, and Enter still asks at once.
+
 ## 7.7.0 — 2026-11-19
 
 A new look for Control Scout: calmer and darker, with each page built around what you came for. The classic look is one click away at Settings › Display › Look.
