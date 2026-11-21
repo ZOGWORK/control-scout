@@ -419,6 +419,23 @@ a.underline:visited:where(.text-accent-text), .prose-links a:visited { color: co
   background-attachment: local;
 }
 
+/* A warm, grainy horizon at the end of v8 pages. Anchored to the content, not
+   the viewport: it enters naturally near the footer without scroll listeners,
+   animation, extra page height or an overlay over controls. */
+[data-page-end-glow] {
+  position: absolute;
+  pointer-events: none;
+  inset-inline: 0;
+  bottom: 0;
+  height: min(32rem, 55svh, 100%);
+  overflow: hidden;
+  background-image:
+    radial-gradient(ellipse 38% 100% at 43% 115%, rgb(190 105 55 / 0.75), transparent 75%),
+    radial-gradient(ellipse 36% 95% at 65% 110%, rgb(121 95 167 / 0.65), transparent 75%),
+    radial-gradient(ellipse 30% 80% at 52% 100%, rgb(85 100 150 / 0.3), transparent 80%);
+  mask-image: radial-gradient(ellipse 65% 110% at 50% 110%, #000 25%, transparent 78%);
+}
+
 /* ---------- Ambient background (always on) ----------
    Control Point's line grid, alive: lines drift one cell every ~48 s, a soft
    glow breathes at the top corners, and a light follows the pointer. Tuned to

@@ -1,5 +1,14 @@
 # Self-audit log
 
+## Page-end gradient (2026-11-20)
+
+- Added a still, grainy orange/purple glow at the bottom of the shared v8 shell, behind the content. It follows the content's height and reveals itself naturally at the end of a long page; short pages show it at their footer. It adds no scroll listener, animation, request, extra page height or focus target. Bare display routes and the legacy shell are excluded.
+- Rendered desktop/mobile `npm run shots` previews cover Rules (long) and Shortlist (short), before and after. Images are outside the repo in `/workspace/scratch/page-end-before/` and `/workspace/scratch/page-end-reviewed/`. Strengthened v8 footer text to the normal foreground after pixel sampling showed muted text could lose contrast against the brightest orange/purple area.
+- Browser checks at 1440px and 390px confirmed the glow is below the viewport at the top of Rules, ends at the document's bottom, creates no horizontal overflow and leaves footer links hittable after scrolling. The first hit-target probe was covered by the existing first-visit consent banner; the check passed with the banner answered, matching the screenshots.
+- TypeScript, production build and 57 existing shell/menu/inbox tests passed. Full `npm test` also ran; it encountered the same three process-tree cleanup failures in unchanged `scripts/lib/streamRun.test.ts` as the previous task. Final CI results are reported on the PR.
+- Targeted desktop/mobile `npm run audit -- --only /shortlist` completed with one slow-load warning (15.2s under concurrent local builds), no other findings. Post-build `npm run audit:flows -- --only 'Team page buttons'` passed 1/1. This is a targeted check, not a full-app audit or live verification. No deployment was performed.
+
+
 ## Discord remodel knowledge and Zog Mode (PR #2023)
 
 - Owner correction: the public name is Zog Mode, and Discord describes it as an existing, available feature rather than reporting the wallpaper's enabled/disabled status. The Discord adapter no longer reads the dogTheme flag. Explicit Zog Mode questions and "where is the dog?" use a deterministic informational reply, bypassing team search and AI. Enable/disable requests perform no actions and explain that only the website owner console can change the setting. Focused bot tests cover this read-only boundary and leave dog-named robotics queries with ordinary search.
