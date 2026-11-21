@@ -8,7 +8,6 @@
 // ones that set your view, inside a workspace too) and Workspace (shared by a Control Point
 // workspace, changed by its admins; shown only to its members).
 import { useEffect, useRef, useState, type ComponentType } from "react";
-import { smoothBehavior } from "../lib/pageScroll";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { vouchPending } from "../lib/cpVouch";
 import { AnimatePresence } from "motion/react";
@@ -114,7 +113,7 @@ export default function SettingsPage() {
   const navRef = useRef<HTMLUListElement>(null);
   useEffect(() => {
     const el = navRef.current?.querySelector<HTMLElement>("[aria-current=page]");
-    if (el && window.matchMedia?.("(max-width: 1023px)").matches) el.scrollIntoView({ block: "nearest", inline: "center", behavior: smoothBehavior() });
+    if (el && window.matchMedia?.("(max-width: 1023px)").matches) el.scrollIntoView({ block: "nearest", inline: "center" });
   }, [active]);
 
   return (
@@ -332,6 +331,9 @@ function Appearance() {
             <ToggleGroupItem value="comfortable">Comfortable</ToggleGroupItem>
             <ToggleGroupItem value="compact">Compact</ToggleGroupItem>
           </ToggleGroup>
+        </Row>
+        <Row label="Look" description="The new look or the classic one. Kept on this device.">
+          <Button variant="outline" size="sm" className="max-sm:h-[44px]" asChild><Link to="/legacy">Change</Link></Button>
         </Row>
         <Row label="Text size" description="Everything scales together: text, boxes and buttons. Kept on this device, so your phone and laptop can differ.">
           <ToggleGroup type="single" value={textSize} onValueChange={(v) => { if (isTextSize(v)) setTextSize(v); }} aria-label="Text size">

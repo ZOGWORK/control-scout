@@ -12,6 +12,7 @@ import { createHash } from "node:crypto";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
+import { freeMb } from "./lib/freeMemory.mjs";
 
 const DIR = ".data/autopilot", LOCK = join(DIR, "lock"), HASH = join(DIR, "lock-hash");
 mkdirSync(DIR, { recursive: true });
@@ -24,6 +25,25 @@ const run = (cmd, args, o = {}) => {
   return (o.shell ? spawnSync([cmd, ...args].join(" "), { ...opts, shell: true }) : spawnSync(cmd, args, opts)).status ?? 1;
 };
 const git = (...args) => { if (run("git", args, { timeout: 600_000 })) { log(`git ${args[0]} failed: no run`); process.exit(1); } };
+
+// --- Room to run -----------------------------------------------------------------------------------------------------
+// A run starts a browser and OCR per lane, and the computer is shared: with too little memory free, processes failed to
+// start and the scheduled task died with nothing logged (2026-11-17: under 1 GB free, exit 0xC000013A). So it waits,
+// checking each minute, until enough is free, and after WAIT_MIN_MS gives up this run (the next one tries again).
+const MIN_FREE_MB = Number(process.env.AUTOPILOT_MIN_FREE_MB ?? 3072), WAIT_MIN_MS = Number(process.env.AUTOPILOT_MEM_WAIT_MIN ?? 30) * 60_000;
+// freeMb (scripts/lib/freeMemory.mjs): on macOS what vm_stat says it can take back at once, elsewhere os.freemem().
+if (freeMb() < MIN_FREE_MB) {
+  log(`${freeMb()} MB free, under ${MIN_FREE_MB}: waiting`);
+  const until = Date.now() + WAIT_MIN_MS;
+  while (freeMb() < MIN_FREE_MB && Date.now() < until) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 60_000);
+  if (freeMb() < MIN_FREE_MB) { log(`still ${freeMb()} MB free after ${WAIT_MIN_MS / 60_000} min: no run`); process.exit(0); }
+  log(`${freeMb()} MB free: starting`);
+}
+// Lanes (a browser and OCR each) by the room there is: 3 with more than LANES3_MB free, else 2. The runner passes it
+// to the reader (AUTOPILOT_LANES); set it to choose.
+const LANES3_MB = 6144;
+if (!process.env.AUTOPILOT_LANES) process.env.AUTOPILOT_LANES = freeMb() > LANES3_MB ? "3" : "2";
+log(`${freeMb()} MB free: ${process.env.AUTOPILOT_LANES} lanes`);
 
 // --- One run at a time ----------------------------------------------------------------------------------------------
 /** A lock a killed run left (shutdown, power cut, the task stopped): its process is gone, or it's older than any run. */

@@ -23,10 +23,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { SWING_LINE, swingText, swingTitle } from "../shared/reliability";
 import { cn } from "../components/cn";
 import { CompactFilters, FilterSection, useCompactFilters, type FilterChip } from "../components/CompactFilters";
+import { useIsV8, V8_NUM } from "../lib/v8";
+import {
+  Disclosure, RankingsTabs, V8_CAPTION, V8_DOWN, V8_EYEBROW, V8_FRAME, V8_HEAD, V8_ICON, V8_LINK, V8_MINE, V8_RANK, V8_NEW, V8_ROW, V8_TH, V8_UP, v8Medal, v8Trend,
+} from "../components/rankings/v8";
 
-export const trigger = "inline-flex h-9 max-w-full items-center gap-2 rounded-lg border px-3 text-sm font-medium transition-colors max-sm:h-10";
-export const idle = "border-line bg-card text-text-base hover:border-text-base/25";
-export const active = "border-accent/60 bg-accent/[0.08] text-text-base";
+// v8: the filter row's buttons are plain hairline pills; a filter that's on is white text on white/10% (no accent).
+export const trigger = "inline-flex h-9 max-w-full items-center gap-2 rounded-lg border px-3 text-sm font-medium transition-colors max-sm:h-10 v8:transition-[color,background-color,border-color,scale] v8:duration-150 v8:active:scale-[0.97] v8:motion-reduce:active:scale-100";
+export const idle = "border-line bg-card text-text-base hover:border-text-base/25 v8:border-white/[0.12] v8:bg-transparent v8:hover:border-white/[0.12] v8:hover:bg-white/[0.06]";
+export const active = "border-accent/60 bg-accent/[0.08] text-text-base v8:border-white/[0.12] v8:bg-white/10";
+/** A picker's icon: coloured in the classic look, faint in v8. */
+const icon = (tone: string) => cn("size-4", tone, V8_ICON);
 
 /** "USA:TX" → "Texas", "Canada" → "Canada". */
 export const placeName = (key: string) => (key.includes(":") ? regionLabel(key) : key);
@@ -108,25 +115,26 @@ export default function RankingsPage() {
   const mineButton = mine && (
     <button type="button" onClick={() => setPlaces(mineOn ? [] : [mine])} aria-pressed={mineOn}
       className={cn(trigger, mineOn ? active : idle)} title={`Teams from ${placeName(mine)}, where team ${myTeam} is from`}>
-      <Star className="size-4 text-accent" />My region<span className="text-text-muted max-sm:hidden">· {placeName(mine)}</span>
+      <Star className={icon("text-accent")} />My region<span className="text-text-muted max-sm:hidden">· {placeName(mine)}</span>
     </button>
   );
   const liveLabel = season === current ? "This week" : "Season end";
   const weekPick = data && data.weeks.length > 0 && <WeekPick weeks={data.weeks} value={week} liveLabel={liveLabel} onChange={(w) => go({ week: w })} />;
   const keys = places.map(placeKey);
   const chips: FilterChip[] = [
-    ...keys.map((k) => ({ id: `place:${k}`, label: <><MapPin className="inline size-3.5 text-sky-500" aria-hidden /> {placeName(k)}</>, name: `Place: ${placeName(k)}`, onRemove: () => setPlaces(keys.filter((x) => x !== k)) })),
+    ...keys.map((k) => ({ id: `place:${k}`, label: <><MapPin className={cn("inline size-3.5 text-sky-500", V8_ICON)} aria-hidden /> {placeName(k)}</>, name: `Place: ${placeName(k)}`, onRemove: () => setPlaces(keys.filter((x) => x !== k)) })),
     ...(week ? [{ id: "week", label: `Week of ${weekLabel(week, false)}`, name: `Week of ${weekLabel(week)}`, onRemove: () => go({ week: null }) }] : []),
   ];
 
   return (
-    <div>
+    <div className={V8_HEAD}>
       <PageHeader
-        eyebrow={<span className="text-accent-text">World rankings{data || seasonParam ? ` · ${seasonLabel(season)}` : ""}</span>}
+        eyebrow={<span className={cn("text-accent-text", V8_EYEBROW)}>World rankings{data || seasonParam ? ` · ${seasonLabel(season)}` : ""}</span>}
         title={regionText ? `Rankings: ${regionText}` : "World rankings"}
         description="Every rated FTC team by prediction rating, with each team's move since last week."
         phoneDescription="Rated teams and their weekly moves."
       >
+        <RankingsTabs at="world" season={seasonParam} />
         {compact ? (
           // Phones: one row that wraps (every chip and its × in view, nothing hidden off to the side).
           <CompactFilters lead={seasonPick} chips={chips}
@@ -152,7 +160,7 @@ export default function RankingsPage() {
         <div className={cn("transition-opacity", res.loading && "opacity-60")} aria-busy={res.loading}>
           <OfflineNote data={data} what="Rankings" at={data.week ? null : data.asOf} />
           <Summary data={data} />
-          <RegionLinks data={data} />
+          <RegionLinks data={data} mine={mine} myTeam={myTeam} />
           {data.total === 0 ? (
             <EmptyState icon={ListOrdered}
               title={data.ranked === 0 ? `No team is rated yet in ${seasonLabel(data.season)}` : "No ranked team from there"}
@@ -166,7 +174,7 @@ export default function RankingsPage() {
               <Pager data={data} sp={sp} />
             </>
           )}
-          <Explainer />
+          <Explainer swing={data.rows.some((r) => r.swing !== undefined)} />
         </div>
       )}
     </div>
@@ -179,16 +187,20 @@ function Summary({ data }: { data: RankingsResponse }) {
     data.baseline ? `moves since the week of ${weekLabel(data.baseline)}` : null,
     data.week ? `as of ${weekLabel(data.week)}, 00:00 UTC` : data.asOf ? `updated ${ago(data.asOf)}` : null,
   ].filter(Boolean);
-  return <p className="mb-3 text-sm text-text-muted">{parts.join(" · ")}</p>;
+  return <p className="mb-3 text-sm text-text-muted v8:mb-1 v8:text-xs v8:text-text-faint">{parts.join(" · ")}</p>;
 }
 
-/** The way to the region pages: the one place filtered on (its own table: record, OPR, movers), and the regions list. */
-function RegionLinks({ data }: { data: RankingsResponse }) {
+/** The way to the region pages: the one place filtered on (its own table: record, OPR, movers), and the regions list.
+ *  v8: the regions list is a tab, and "where does my team stand" gets its own link, to its row in its region's table. */
+function RegionLinks({ data, mine, myTeam }: { data: RankingsResponse; mine: string | null; myTeam: number | null }) {
+  const v8 = useIsV8();
   const one = data.places.length === 1 ? data.places[0] : null;
+  const findMine = v8 && myTeam != null && mine != null && !data.rows.some((r) => r.team === myTeam);
   return (
-    <p className="-mt-1 mb-3 flex flex-wrap gap-x-4 gap-y-1 text-sm" data-region-links>
-      {one && <Link to={regionHref(one, { season: data.season })} className="font-medium text-accent-text hover:underline">{placeName(one)} page: record, OPR and this week's movers →</Link>}
-      <Link to={`/rankings/regions?season=${data.season}`} className="text-accent-text hover:underline">Rankings by region</Link>
+    <p className="-mt-1 mb-3 flex flex-wrap gap-x-4 gap-y-1 text-sm v8:mt-0 v8:mb-4" data-region-links>
+      {one && <Link to={regionHref(one, { season: data.season })} className={cn("font-medium text-accent-text hover:underline", V8_LINK)}>{placeName(one)} page: record, OPR and this week's movers →</Link>}
+      {findMine && <Link to={regionHref(mine, { season: data.season, team: myTeam })} className={cn("text-accent-text hover:underline", V8_LINK)} data-find-mine>Where {myTeam} stands in {placeName(mine)} →</Link>}
+      <Link to={`/rankings/regions?season=${data.season}`} className="text-accent-text hover:underline v8:hidden">Rankings by region</Link>
     </p>
   );
 }
@@ -199,7 +211,7 @@ export function SeasonPick({ value, onChange }: { value: number; onChange: (s: n
   const list = seasons.some((s) => s.season === value) ? seasons : [{ season: value, game: "" }, ...seasons];
   return (
     <Select value={String(value)} onValueChange={(v) => onChange(Number(v))}>
-      <SelectTrigger className={cn(trigger, idle, "w-auto")} aria-label="Season"><Trophy data-season-icon="" className="size-4 text-accent" /><SelectValue /></SelectTrigger>
+      <SelectTrigger className={cn(trigger, idle, "w-auto")} aria-label="Season"><Trophy data-season-icon="" className={icon("text-accent")} /><SelectValue /></SelectTrigger>
       <SelectContent className="min-w-[14rem]">
         {list.map((s) => <SelectItem key={s.season} value={String(s.season)}><span className="font-semibold tabular-nums">{seasonLabel(s.season)}</span>{s.game && <span data-game="" className="text-text-muted"> · {s.game}</span>}</SelectItem>)}
       </SelectContent>
@@ -232,8 +244,8 @@ export function PlacePicker({ info, loading, value, onChange }: { info: RankingP
     const on = value.includes(k);
     return (
       <button type="button" role="option" aria-selected={on} onClick={() => toggle(k)}
-        className={cn("flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-text-base/[0.06] max-sm:py-2.5", indent && "pl-7", on && "bg-accent/[0.08]")}>
-        <span className={cn("flex size-4 shrink-0 items-center justify-center rounded border", on ? "border-accent bg-accent text-accent-ink" : "border-text-base/30")}>{on && <Check className="size-3" strokeWidth={3} />}</span>
+        className={cn("flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-text-base/[0.06] max-sm:py-2.5", indent && "pl-7", on && "bg-accent/[0.08] v8:bg-white/[0.06]")}>
+        <span className={cn("flex size-4 shrink-0 items-center justify-center rounded border", on ? "border-accent bg-accent text-accent-ink v8:border-text-base v8:bg-text-base v8:text-background" : "border-text-base/30")}>{on && <Check className="size-3" strokeWidth={3} />}</span>
         <span className="min-w-0 flex-1 truncate">{label}</span>
         <span className="text-[11px] tabular-nums text-text-muted">{teams.toLocaleString()}</span>
       </button>
@@ -243,7 +255,7 @@ export function PlacePicker({ info, loading, value, onChange }: { info: RankingP
     <Popover onOpenChange={(o) => { if (!o) setQ(""); }}>
       <PopoverTrigger asChild>
         <button type="button" className={cn(trigger, value.length ? active : idle)} aria-label={`Region: ${text}`}>
-          <MapPin className="size-4 text-sky-500" /><span className="max-w-[12rem] truncate">{text}</span><ChevronDown className="size-4 opacity-60" />
+          <MapPin className={icon("text-sky-500")} /><span className="max-w-[12rem] truncate">{text}</span><ChevronDown className="size-4 opacity-60" />
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" className="flex max-h-[min(28rem,70dvh)] w-[min(92vw,20rem)] flex-col gap-2 p-2">
@@ -282,15 +294,16 @@ export function PlacePicker({ info, loading, value, onChange }: { info: RankingP
   );
 }
 
-const th = "sticky top-(--header-h) z-10 h-11 whitespace-nowrap bg-card px-2 align-bottom pb-2 text-[11px] font-bold uppercase tracking-wider text-text-muted shadow-[inset_0_-2px_0_color-mix(in_srgb,var(--color-text-base)_20%,transparent)] sm:px-4";
-const td = "px-2 py-2.5 sm:px-4";
+const th = cn("sticky top-(--header-h) z-10 h-11 whitespace-nowrap bg-card px-2 align-bottom pb-2 text-[11px] font-bold uppercase tracking-wider text-text-muted shadow-[inset_0_-2px_0_color-mix(in_srgb,var(--color-text-base)_20%,transparent)] sm:px-4", V8_TH);
+const td = "px-2 py-2.5 sm:px-4 v8:py-1.5";
 
 function RankTable({ data, myTeam }: { data: RankingsResponse; myTeam: number | null }) {
+  const v8 = useIsV8();
   const moves = data.baseline != null;
   // Swing (the consistency stat) comes with the live ranking only (today's number, not a past week's), on rows that have one.
   const swing = data.rows.some((r) => r.swing !== undefined);
   return (
-    <div className="rounded-xl border border-text-base/15 bg-card">
+    <div className={cn("rounded-xl border border-text-base/15 bg-card", V8_FRAME)}>
       <table className="w-full border-collapse text-sm">
         <thead>
           <tr>
@@ -307,22 +320,22 @@ function RankTable({ data, myTeam }: { data: RankingsResponse; myTeam: number | 
           {data.rows.map((r) => {
             const me = r.team === myTeam;
             return (
-              <tr key={r.team} className={cn("border-t border-text-base/10 hover:bg-text-base/[0.03]", me && "bg-accent/[0.07]")}>
-                <td className={cn(td, "text-right font-display text-base font-semibold tabular-nums", r.rank <= 3 && "text-accent-text")}>{r.rank.toLocaleString()}</td>
+              <tr key={r.team} data-team={r.team} data-mine={me ? "" : undefined} className={cn("border-t border-text-base/10 hover:bg-text-base/[0.03]", V8_ROW, me && cn("bg-accent/[0.07]", V8_MINE))}>
+                <td className={cn(td, "text-right font-display text-base font-semibold tabular-nums", V8_RANK, r.rank <= 3 && "text-accent-text", v8Medal(r.rank))} data-rank>{r.rank.toLocaleString()}</td>
                 {moves && <td className={td}><Move row={r} /></td>}
                 <td className={cn(td, "max-w-0 w-full")}>
                   <Link to={`/teams/${r.team}?season=${data.season}`} className="group block min-w-0">
                     <span className="flex items-baseline gap-2">
-                      <span className="font-mono font-semibold tabular-nums group-hover:text-accent-text">{r.team}</span>
-                      <span className="truncate group-hover:text-accent-text">{r.name ?? ""}</span>
+                      <span className={cn("font-mono font-semibold tabular-nums group-hover:text-accent-text", "v8:font-sans", !me && V8_NUM)}>{r.team}</span>
+                      <span className={cn("truncate group-hover:text-accent-text", "v8:text-text-muted v8:group-hover:text-text-base", me && "v8:text-text-base")}>{r.name ?? ""}</span>
                     </span>
-                    <span className="block truncate text-xs text-text-muted md:hidden">{homeOf(r)}</span>
+                    <span className={cn("block truncate text-xs text-text-muted md:hidden", V8_CAPTION)}>{homeOf(r)}</span>
                   </Link>
                 </td>
                 <td className={cn(td, "max-w-[14rem] truncate text-text-muted max-md:hidden")}>{homeOf(r)}</td>
                 <td className={cn(td, "text-right tabular-nums")}>
-                  <span className="font-semibold">{r.rating.toFixed(1)}</span>
-                  {r.dRating != null && r.dRating !== 0 && <span className={cn("block text-[11px]", r.dRating > 0 ? "text-success" : "text-danger")}>{r.dRating > 0 ? "+" : ""}{r.dRating.toFixed(1)}</span>}
+                  <span className={cn("font-semibold v8:font-medium", V8_NUM)}>{r.rating.toFixed(1)}</span>
+                  {r.dRating != null && r.dRating !== 0 && <span className={cn("block text-[11px] v8:text-[0.6875rem]", r.dRating > 0 ? cn("text-success", V8_UP) : cn("text-danger", V8_DOWN))}>{r.dRating > 0 ? "+" : ""}{r.dRating.toFixed(1)}</span>}
                 </td>
                 {swing && <td className={cn(td, "text-right tabular-nums")} title={swingTitle(r.swing)}>{swingText(r.swing)}</td>}
                 {moves && <td className={cn(td, "max-sm:hidden")}><TrendBadge row={r} /></td>}
@@ -331,19 +344,20 @@ function RankTable({ data, myTeam }: { data: RankingsResponse; myTeam: number | 
           })}
         </tbody>
       </table>
-      {swing && <p className="border-t border-text-base/10 px-2 py-2 text-xs text-text-muted sm:px-4" data-swing-line>{SWING_LINE} <Link to="/methodology#swing" className="underline">How it's computed</Link></p>}
+      {/* v8: the swing line is part of the explanation, behind the disclosure under the table. */}
+      {swing && !v8 && <p className="border-t border-text-base/10 px-2 py-2 text-xs text-text-muted sm:px-4" data-swing-line>{SWING_LINE} <Link to="/methodology#swing" className="underline">How it's computed</Link></p>}
     </div>
   );
 }
 
 export function Move({ row }: { row: Pick<RankingRow, "move"> }) {
-  if (row.move === "new") return <Badge variant="beta" title="Not ranked last week">New</Badge>;
+  if (row.move === "new") return <Badge variant="beta" title="Not ranked last week" className={V8_NEW}>New</Badge>;
   if (row.move == null) return null;
   if (row.move === 0) return <span className="inline-flex items-center text-text-muted" title="Same place as last week"><Minus className="size-3.5" /><span className="sr-only">No change</span></span>;
   const up = row.move > 0;
   const Icon = up ? ArrowUp : ArrowDown;
   return (
-    <span className={cn("inline-flex items-center gap-0.5 font-semibold tabular-nums", up ? "text-success" : "text-danger")} title={`${up ? "Up" : "Down"} ${Math.abs(row.move)} since last week`}>
+    <span className={cn("inline-flex items-center gap-0.5 font-semibold tabular-nums v8:font-medium", up ? cn("text-success", V8_UP) : cn("text-danger", V8_DOWN))} title={`${up ? "Up" : "Down"} ${Math.abs(row.move)} since last week`}>
       <Icon className="size-3.5" strokeWidth={2.5} />{Math.abs(row.move).toLocaleString()}<span className="sr-only"> {up ? "up" : "down"}</span>
     </span>
   );
@@ -352,7 +366,9 @@ export function Move({ row }: { row: Pick<RankingRow, "move"> }) {
 export function TrendBadge({ row }: { row: Pick<RankingRow, "trend"> }) {
   if (!row.trend) return null;
   return (
-    <Badge variant={row.trend === "flat" ? "secondary" : row.trend === "up" ? "success" : "destructive"}>
+    // v8: a soft chip, green rising, red falling, neutral steady (the classic's colours, toned down).
+    <Badge variant={row.trend === "flat" ? "secondary" : row.trend === "up" ? "success" : "destructive"}
+      className={cn("v8:font-medium", v8Trend(row.trend))}>
       {row.trend === "up" ? <TrendingUp /> : row.trend === "down" ? <TrendingDown /> : null}{trendLabel(row.trend)}
     </Badge>
   );
@@ -362,11 +378,11 @@ export function Pager({ data, sp }: { data: Pick<RankingsResponse, "total" | "pa
   if (data.pages <= 1) return null;
   const href = (p: number) => { const q = new URLSearchParams(sp); if (p > 1) q.set("page", String(p)); else q.delete("page"); const s = q.toString(); return s ? `?${s}` : "?"; };
   const from = (data.page - 1) * data.pageSize + 1, to = Math.min(data.total, data.page * data.pageSize);
-  const nav = "inline-flex h-9 items-center gap-1 rounded-lg border border-line bg-card px-3 text-sm font-medium hover:border-text-base/25 max-sm:h-10";
+  const nav = "inline-flex h-9 items-center gap-1 rounded-lg border border-line bg-card px-3 text-sm font-medium hover:border-text-base/25 max-sm:h-10 max-sm:v8:h-11 v8:border-white/[0.12] v8:bg-transparent v8:transition-[background-color,scale] v8:duration-150 v8:hover:border-white/[0.12] v8:hover:bg-white/[0.06] v8:active:scale-[0.97] v8:motion-reduce:active:scale-100";
   const off = "pointer-events-none opacity-40";
   return (
     <nav className="mt-4 flex flex-wrap items-center justify-between gap-3" aria-label="Pages">
-      <p className="text-sm text-text-muted">{from.toLocaleString()}–{to.toLocaleString()} of {data.total.toLocaleString()}</p>
+      <p className="text-sm tabular-nums text-text-muted v8:text-text-faint">{from.toLocaleString()}–{to.toLocaleString()} of {data.total.toLocaleString()}</p>
       <div className="flex items-center gap-2">
         <Link to={href(data.page - 1)} className={cn(nav, data.page <= 1 && off)} aria-disabled={data.page <= 1} rel="prev"><ChevronLeft className="size-4" />Previous</Link>
         <span className="px-1 text-sm tabular-nums text-text-muted">{data.page} / {data.pages}</span>
@@ -376,13 +392,26 @@ export function Pager({ data, sp }: { data: Pick<RankingsResponse, "total" | "pa
   );
 }
 
-function Explainer() {
+function Explainer({ swing }: { swing: boolean }) {
+  const v8 = useIsV8();
+  const body = (
+    <>
+      <p>The rating is the prediction engine's estimate of the points a team's robot adds to its alliance in a match (auto, TeleOp and endgame, penalties left out). It updates after every rated match, and a team is ranked once it has played three. It's read from alliance scores, which works because qualification partners are random; playoff matches, with fixed partners, count half. Equal ratings are ordered by team number.</p>
+      <p>Each Monday at 00:00 UTC the ranking is saved. The arrows compare today's ranking with the one saved at least a week ago: ↑3 means three places higher, "New" means the team wasn't ranked then. Rising, Falling and Steady follow the same rule as the trends on team pages: a rating change under 8% is Steady.</p>
+      <p>The rating is the same one behind every match prediction. <Link to="/methodology" className="text-accent-text hover:underline v8:underline v8:underline-offset-2">How predictions work</Link>.</p>
+    </>
+  );
+  // v8: the explanation sits behind one quiet row under the table, the swing line with it.
+  if (v8) return (
+    <Disclosure title="How the rankings work" className="mt-6">
+      {body}
+      {swing && <p data-swing-line>{SWING_LINE} <Link to="/methodology#swing" className="underline underline-offset-2">How it's computed</Link></p>}
+    </Disclosure>
+  );
   return (
     <div className="mt-8 max-sm:mt-5 max-w-3xl space-y-2 text-sm text-text-muted">
       <h2 className="font-display text-base font-semibold text-text-base">How the rankings work</h2>
-      <p>The rating is the prediction engine's estimate of the points a team's robot adds to its alliance in a match (auto, TeleOp and endgame, penalties left out). It updates after every rated match, and a team is ranked once it has played three. It's read from alliance scores, which works because qualification partners are random; playoff matches, with fixed partners, count half. Equal ratings are ordered by team number.</p>
-      <p>Each Monday at 00:00 UTC the ranking is saved. The arrows compare today's ranking with the one saved at least a week ago: ↑3 means three places higher, "New" means the team wasn't ranked then. Rising, Falling and Steady follow the same rule as the trends on team pages: a rating change under 8% is Steady.</p>
-      <p>The rating is the same one behind every match prediction. <Link to="/methodology" className="text-accent-text hover:underline">How predictions work</Link>.</p>
+      {body}
     </div>
   );
 }
@@ -391,9 +420,10 @@ function TableSkeleton() {
   return (
     // As tall as a page of rows (with the summary line above), so the footer doesn't jump when they arrive.
     <div aria-busy="true" aria-label="Loading rankings">
-      <div className="skeleton mb-3 h-5 w-64 max-w-full rounded-md" />
-      <div className="space-y-2 rounded-xl border border-line bg-card p-3">
-        {Array.from({ length: 20 }, (_, i) => <div key={i} className="skeleton h-10 rounded-md" />)}
+      <div className="skeleton mb-3 h-5 w-64 max-w-full rounded-md v8:h-4" />
+      {/* v8: no box; bars as tall as a 44px row less the gap, so the rows land where the bars were. */}
+      <div className="space-y-2 rounded-xl border border-line bg-card p-3 v8:rounded-none v8:border-0 v8:bg-transparent v8:p-0">
+        {Array.from({ length: 20 }, (_, i) => <div key={i} className="skeleton h-10 rounded-md v8:h-9" />)}
       </div>
     </div>
   );
