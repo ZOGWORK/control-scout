@@ -3,7 +3,7 @@
 import { pathToFileURL } from "node:url";
 import { join } from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { kvSet, migrate, openDb, run, setDb } from "../db";
+import { all, kvGet, kvSet, migrate, openDb, run, setDb } from "../db";
 import { CURRENT_SEASON } from "../data/seasons";
 import { ScoutForecaster, buildForecaster, forecasterFor, resetForecasters } from "./engine";
 import { partnershipPrefix } from "./partnerships";
@@ -71,15 +71,31 @@ describe("the forecaster rebuilt on the worker", () => {
   }, 120_000);
 
   it("is rebuilt once the worker's pair history is ready, when it went ahead without it", async () => {
-    await kvSet("data:version", `pairs-${Date.now()}`);
-    // A season before the window synced again: its pair history (the prefix) is stale everywhere, so the first
-    // build goes ahead with the window's pairs only and the worker builds the history meanwhile.
-    await run("INSERT OR REPLACE INTO seasons (season, name, frozen, last_sync) VALUES (?, 'older', 0, ?)", [WINDOW[0] - 1, new Date().toISOString()]);
-    const first = await forecasterFor(S);
-    expect(first.partnershipComplete).toBe(false);
-    let f = first;
-    for (let i = 0; i < 200 && !f.partnershipComplete; i++) { await new Promise((r) => setTimeout(r, 50)); f = await forecasterFor(S); }
-    expect(f.partnershipComplete).toBe(true);
+    // This test changes the shared database: the data version and a season row before the window. Both are put
+    // back afterwards, so later tests never build from this test's stale pair-history prefix.
+    const version = await kvGet<string>("data:version");
+    const prefixKv = `partnership:prefix:${WINDOW[0]}`, prefix = await kvGet<unknown>(prefixKv);
+    const older = await all<{ season: number; name: string; frozen: number; last_sync: string | null; last_complete: string | null }>("SELECT season, name, frozen, last_sync, last_complete FROM seasons WHERE season = ?", [WINDOW[0] - 1]);
+    try {
+      await kvSet("data:version", `pairs-${Date.now()}`);
+      // A season before the window synced again: its pair history (the prefix) is stale everywhere, so the first
+      // build goes ahead with the window's pairs only and the worker builds the history meanwhile.
+      await run("INSERT OR REPLACE INTO seasons (season, name, frozen, last_sync) VALUES (?, 'older', 0, ?)", [WINDOW[0] - 1, new Date().toISOString()]);
+      const first = await forecasterFor(S);
+      expect(first.partnershipComplete).toBe(false);
+      let f = first;
+      for (let i = 0; i < 200 && !f.partnershipComplete; i++) { await new Promise((r) => setTimeout(r, 50)); f = await forecasterFor(S); }
+      expect(f.partnershipComplete).toBe(true);
+    } finally {
+      // The worker may still be writing this test's prefix: stopped first, so nothing overwrites the restored one.
+      await stopRebuildWorker();
+      await run("DELETE FROM seasons WHERE season = ?", [WINDOW[0] - 1]);
+      for (const r of older) await run("INSERT INTO seasons (season, name, frozen, last_sync, last_complete) VALUES (?, ?, ?, ?, ?)", [r.season, r.name, r.frozen, r.last_sync, r.last_complete]);
+      await kvSet("data:version", version);
+      // The worker stored a prefix built with that row: the one beforeAll left is put back.
+      await kvSet(prefixKv, prefix);
+      resetForecasters();
+    }
   }, 120_000);
 });
 
