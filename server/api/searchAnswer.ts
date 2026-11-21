@@ -113,6 +113,13 @@ export function withoutContrast(q: string): string {
   return q.replace(new RegExp(String.raw`\s*,\s*not\s+(?:(?:just|only)\s+[^,]*?|${SEASON})\s*(?=,|[?.!]*\s*$)`, "gi"), "");
 }
 
+/** `q` without a bracket of examples ("team with the lowest team number (ex 310, 23777)", "(e.g. …)", "(like …)"): what
+ *  it gives are instances of what is asked, never more of the ask, so its numbers are no teams and its words no names. */
+export function withoutExamples(q: string): string {
+  if (q.includes('"')) return q;
+  return q.replace(/\s*\(\s*(?:ex|e\.?\s?g|for\s+example|for\s+instance|such\s+as|like)\b\.?[^()]*\)/gi, " ").replace(/\s+/g, " ").trim();
+}
+
 /** `q` without the words at its end that only talk around the question, when the parser reads every word before them:
  *  a last comma clause of ordinary words (./query/ordinary.ts) that names no number, place, time, event or question
  *  word ("who won inspire at <event>, i forgot"; a team named by such words is no team there), or the same said with
@@ -267,7 +274,7 @@ async function answerOf(raw: string, opts: AnswerOptions): Promise<SearchAnswer>
   // Informal short forms said in full first ("events happening rn"), in the query as typed (its quotes and operators
   // kept), the answer keeping the query as typed.
   // A clause saying what isn't asked ("…, not just one number", "in 2024-25, not this season") goes; the rest is the ask.
-  const plain = withoutContrast(String(raw ?? ""));
+  const plain = withoutContrast(withoutExamples(String(raw ?? "")));
   if (plain !== String(raw ?? "")) {
     const b = await searchAnswer(plain, opts);
     return carryOutcome(b, { ...b, q: cleanQuery(raw) });

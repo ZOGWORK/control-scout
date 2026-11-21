@@ -329,6 +329,14 @@ describe("a climb in rank from one season to the next", () => {
     const none = await searchAnswer("which nj teams climbed from rank 7000 to the top 50 in 2025-26", { limit: 25, full: true });
     expect(none.stat?.none).toBe("No team in New Jersey climbed from OPR rank 7,000+ to the top 50 from 2024–25 to 2025–26.");
   });
+  it("shows last season's OPR beside this one's, each under its season (bug report #2039)", async () => {
+    const a = await searchAnswer("Most improved teams in nj 2025-26", { limit: 25, full: true });
+    const t = a.stat!.blocks[0];
+    if (t.kind !== "table") throw new Error(t.kind);
+    expect(t.columns.map((c) => c.label)).toEqual(["#", "Team", "OPR rank", "OPR"]);
+    // 23268: OPR 80 → 157.9 (#6000 → #30), the biggest climb in New Jersey: the OPR then and now, as the rank.
+    expect(t.rows[0].cells).toMatchObject({ team: "23268 Ultraviolet", climb: "#6000 → #30", opr: "80.0 → 157.9" });
+  });
 });
 
 describe("OPR gained within a season", () => {

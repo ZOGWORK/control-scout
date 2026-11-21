@@ -2,7 +2,7 @@
 // nothing new is tried again, and what its data PR's CHANGELOG entry says.
 import { describe, expect, it } from "vitest";
 import { nextRelease, parseChangelog } from "../../src/lib/changelog";
-import { ASK_EVERY_MS, GIVE_UP, RETRY_MS, TIMEOUTS_TO_TRY, WAIT_MS, askDue, changelogEntry, forgetSettled, needsRebuild, nextVersion, LANE_KICK_MS, READ_CALL_MS, laneJobMs, readCallMs, laneResults, laneStep, overLimit, parseLanes, parseShard, parseSkip, pickEvents, prShard, readOutcome, remember, rememberTimeout, rememberWait, rowsDelta, shardOf, waitBackoff, type Memory, type Queued, frameFileSeason, heldElsewhere, holdCodes } from "./autopilotRun";
+import { ASK_EVERY_MS, GIVE_UP, RETRY_MS, TIMEOUTS_TO_TRY, WAIT_MS, askDue, changelogEntry, forgetSettled, needsRebuild, nextVersion, LANE_KICK_MS, READ_CALL_MS, laneJobMs, readCallMs, laneResults, laneStep, overLimit, nothingRead, parseLanes, parseShard, parseSkip, pickEvents, prShard, readOutcome, remember, rememberTimeout, rememberWait, rowsDelta, shardOf, waitBackoff, type Memory, type Queued, frameFileSeason, heldElsewhere, holdCodes } from "./autopilotRun";
 import type { Row } from "./autopilotRows";
 
 const NOW = Date.parse("2026-11-17T12:00:00Z");
@@ -345,5 +345,22 @@ describe("parseSkip", () => {
     const text = "# 2025 A-M session, reading 2026\r\n2026/USIACFN\n  2026/uspaksn   # N-Z session\n\nUSIACONEM1\n2026/US IA\nnot a line\n";
     expect([...parseSkip(text)]).toEqual(["2026/USIACFN", "2026/USPAKSN"]);
     expect(parseSkip("").size).toBe(0);
+  });
+});
+
+describe("nothingRead", () => {
+  const N = "no frame of the video could be read";
+  it("is a video the player showed nothing of: no start, every match missing for that reason", () => {
+    // 2026-11-21 #2052: USCALACAS2 KPBst56_Nxs, all 17 "no frame of the video could be read", while the video plays.
+    expect(nothingRead({ starts: {}, missing: { Q1: N, Q2: N, Q17: N } })).toBe(true);
+  });
+  it("isn't one with a start, another reason, or nothing missing", () => {
+    expect(nothingRead({ starts: { Q3: 900 }, missing: { Q1: N, Q2: N } })).toBe(false);
+    expect(nothingRead({ starts: {}, missing: { Q1: N, Q2: "its frames didn't confirm a start" } })).toBe(false);
+    expect(nothingRead({ starts: {}, missing: {} })).toBe(false);
+    expect(nothingRead({ starts: {} })).toBe(false);
+  });
+  it("makes its event a failed read: not shipped, not counted as tried", () => {
+    expect(readOutcome({ rows: 0, opened: 0, waiting: 0, tooBig: 0, readFailed: true, changed: 1 })).toBe("read failed");
   });
 });

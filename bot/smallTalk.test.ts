@@ -1,42 +1,44 @@
-// Small talk (bot/smallTalk.ts): a short message that isn't a records question gets the bot's own reply, and a real
-// question — a number, a long one, or one of the data phrasings — is left to search.
+// One honest fallback (bot/smallTalk.ts): when no model answered and search found nothing, every short message that
+// isn't a records question gets the same plain line — no canned greeting, no guessed favourite, no fact.
 import { describe, expect, it } from "vitest";
-import { SMALL_TALK_WORDS, smallTalk } from "./smallTalk";
+import { NO_CHAT, SMALL_TALK_WORDS, smallTalk } from "./smallTalk";
 
-describe("small talk", () => {
-  it("answers the message from the screenshot: a favourite person, with no favourite and no invented fact", () => {
-    const said = smallTalk("who's your favorite person in this server");
-    expect(said).toMatch(/don't have favourites/);
-    expect(said).not.toMatch(/\d/);
+describe("the one fallback", () => {
+  it("answers the screenshot's favourite, a greeting, thanks, a joke and a goodbye the same honest way", () => {
+    for (const q of [
+      "who's your favorite person in this server",
+      "hi",
+      "hey there",
+      "who are you",
+      "are you a bot",
+      "thanks!",
+      "bye",
+      "tell me a joke",
+      "what can you do",
+    ]) expect(smallTalk(q)).toBe(NO_CHAT);
   });
 
-  it("greets, introduces itself, says thanks and goodbye", () => {
-    expect(smallTalk("hi")).toMatch(/^Hey — I'm Control Scout/);
-    expect(smallTalk("hey there")).toBeTruthy();
-    expect(smallTalk("who are you")).toMatch(/I'm Control Scout/);
-    expect(smallTalk("are you a bot")).toMatch(/Not a person/);
-    expect(smallTalk("thanks!")).toMatch(/^Anytime/);
-    expect(smallTalk("bye")).toMatch(/^See you/);
+  it("says what's wrong and what still works, and names no favourite, fact or number", () => {
+    expect(NO_CHAT).toMatch(/can't chat right now/);
+    expect(NO_CHAT).toMatch(/records/);
+    expect(NO_CHAT).toMatch(/a team, an event or a match/);
+    expect(NO_CHAT).not.toMatch(/\d/);
+    expect(NO_CHAT).not.toMatch(/favourite|favorite|opinion|I think/i);
   });
 
-  it("says what it can do, and turns a joke into a records offer", () => {
-    expect(smallTalk("what can you do")).toMatch(/look up any team/);
-    expect(smallTalk("tell me a joke")).toMatch(/penalty/);
-  });
-
-  it("leaves every real question alone: numbers, data phrasings and anything long", () => {
+  it("leaves a records question alone: a number in it, or anything long", () => {
     expect(smallTalk("6980")).toBeNull();
     expect(smallTalk("2025 worlds")).toBeNull();
-    expect(smallTalk("who won decode")).toBeNull();
-    expect(smallTalk("highest score in new jersey")).toBeNull();
     expect(smallTalk("is it true that 4215 hypnotic robotics beat 6980 bad wolf at worlds this season")).toBeNull();
     expect(smallTalk("hello, which teams from romania are going to worlds this year and how are they ranked")).toBeNull();
+    // Only reached when search found nothing either, so a records question with no number still reads as chat otherwise.
+    expect(smallTalk("highest score in new jersey")).toBe(NO_CHAT);
   });
 
   it("counts words, so the length rule is the one the bot documents", () => {
     const words = (n: number) => Array.from({ length: n }, () => "word").join(" ");
     expect(SMALL_TALK_WORDS).toBe(12);
-    expect(smallTalk(`${words(SMALL_TALK_WORDS - 1)} hi`)).toBeTruthy();
+    expect(smallTalk(`${words(SMALL_TALK_WORDS - 1)} hi`)).toBe(NO_CHAT);
     expect(smallTalk(`${words(SMALL_TALK_WORDS + 1)} hi`)).toBeNull();
   });
 });
