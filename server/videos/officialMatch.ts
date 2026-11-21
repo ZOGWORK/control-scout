@@ -8,7 +8,7 @@ import { MIN_RECORDING_S, localDate } from "./officialVideos.js";
  *  country=Romania · state=VA,MD,DC · type=Premier,OffSeason · name=<regex on the event's name>. All must hold. */
 export interface ChannelRule { region: string; /** Words of the region itself, too common in its titles to count as evidence. */ words?: string | null; /** A title naming this regex is about the region's own events (its championship). */ titlePattern?: string | null }
 export interface WatchEvent {
-  season: number; code: string; name: string; type: string; city: string | null; state: string | null; country: string | null;
+  season: number; code: string; name: string; type: string; city: string | null; /** Where it is held ("Pius X-College"): a title may name the venue rather than the event. */ venue?: string | null; state: string | null; country: string | null;
   start: string; end: string | null; timezone: string | null; divisionCode: string | null; /** Other events name this one as their parent. */ parent: boolean;
   /** Played remotely: each team on its own field, scored from its own videos (2020-21). */ remote?: boolean;
   /** The venue-local days it played a match, in order (eventDays.ts): a title's day number may count these. */ playedDays?: string[];
@@ -251,7 +251,7 @@ export function matchVideo(v: WatchVideo, rule: ChannelRule, events: WatchEvent[
     const divName = isDiv ? norm(DIVRE.exec(e.name)?.[1] ?? "").split(" ").pop() : null;
     if (isDiv && divName && !norm(v.title).split(" ").includes(divName)) why.push("division");
     if (!isDiv && e.parent && /\bdivi(?:sion|zia|sione|sie)\b/i.test(v.title)) why.push("parent-but-division");
-    const et = toks(`${e.name} ${e.city ?? ""}`, extra);
+    const et = toks(`${e.name} ${e.city ?? ""} ${e.venue ?? ""}`, extra);
     // Evidence beyond the event type: a designator or a distinctive word of its name or city that agree; or, for a
     // title naming the region itself (its championship), the type alone.
     let score = 0, real = false;
@@ -262,7 +262,8 @@ export function matchVideo(v: WatchVideo, rule: ChannelRule, events: WatchEvent[
     for (const a of acronyms(e.name, extra)) if (!vt.has(a) && spelledOut.has(a)) { score++; real = true; }
     const strong = real;
     if (!real && idHit && score > 0) real = true;
-    cands.push({ e, d, score, real, strong, words: toks(e.name, extra), why });
+    // Its venue words count as its own: a title naming the venue ("Qualifier 05 - Pius X-College") names this event over another the region holds near then.
+    cands.push({ e, d, score, real, strong, words: toks(`${e.name} ${e.venue ?? ""}`, extra), why });
   }
   if (!cands.length && lagged) {
     // Went up within two weeks of a multi-day event its title names in full: which of its days it is can't be told
