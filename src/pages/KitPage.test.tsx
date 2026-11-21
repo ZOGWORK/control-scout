@@ -55,12 +55,14 @@ describe("v8 kit (/preview/kit)", () => {
 });
 
 describe("v8 foundations", () => {
-  it("is on by default before first paint, off only for a device that picked the classic look, and dark only", () => {
+  it("is on by default before first paint, off only for a device that picked the classic look, and takes the saved theme", () => {
     expect(html).toContain("/[?&]v8=([01])/");
     // v8 is the default (V8_DEFAULT): only a stored "0" (the classic look, /legacy) turns it off.
     expect(V8_DEFAULT).toBe(true);
     expect(html).toContain("var v8 = q ? q[1] === '1' : stored !== '0';");
-    expect(html).toContain("var t = v8 ? 'dark' :");
+    // v8 has its own Light and Dim now (index.css html[data-v8].light / .dim): the saved theme applies in both looks.
+    expect(html).toContain("var t = s && s.value && s.value.theme;");
+    expect(html).not.toContain("v8 ? 'dark'");
   });
 
   it("sets the 90% root, the slate-blue accent, three radii and the strong curves under html[data-v8]", () => {
@@ -76,6 +78,6 @@ describe("v8 foundations", () => {
     expect(b).not.toContain("transition-all");
     expect(b).toContain("active:scale-[0.97]");
     expect(b).toContain("motion-reduce:active:scale-100");
-    expect(b).toContain("v8:bg-white/10");
+    expect(b).toContain("v8:bg-ink/10");
   });
 });

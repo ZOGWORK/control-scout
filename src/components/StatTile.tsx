@@ -26,8 +26,8 @@ export type Tone = keyof typeof TONES;
 // (plain, no chip) and the value. Written after the tone's classes, so these win while <html data-v8> is set and
 // nothing changes without it.
 const V8_BOX = "v8:border-line v8:bg-card";
-const V8_HOVER = "v8:hover:border-white/[0.12] v8:hover:bg-white/[0.02] v8:hover:translate-y-0";
-const V8_SELECTED = "v8:border-white/25 v8:bg-white/[0.04] v8:ring-1 v8:ring-white/10";
+const V8_HOVER = "v8:hover:border-ink/[0.12] v8:hover:bg-ink/[0.02] v8:hover:translate-y-0";
+const V8_SELECTED = "v8:border-ink/25 v8:bg-ink/[0.04] v8:ring-1 v8:ring-ink/10";
 const V8_CHIP = "v8:size-4 v8:rounded-none v8:bg-transparent v8:text-text-faint";
 /** Each tone in v8's palette: `text` for the icon and value, `edge` for the left bracket. No teal in v8 (it takes the
  *  accent); a neutral tile keeps the faint icon and the slate-blue number. */
@@ -93,7 +93,7 @@ export function StatTile({ tone, icon: Icon, label, value, hint, bar, onClick, s
  *  `value` and `scale`: the number a part stands for and its whole (marked for the answer-card audit), else the pc. */
 export function Meter({ parts }: { parts: { pc: number; cls: string; value?: number; scale?: number }[] }) {
   return (
-    <span aria-hidden className="flex h-1.5 overflow-hidden rounded-full bg-muted v8:h-1 v8:bg-white/[0.06]">
+    <span aria-hidden className="flex h-1.5 overflow-hidden rounded-full bg-muted v8:h-1 v8:bg-ink/[0.06]">
       {parts.map((x, i) => <span key={i} className={cn("h-full transition-[width] duration-700 motion-reduce:transition-none v8:transition-none", x.cls)} style={{ width: `${x.pc}%` }} data-bar data-value={x.value ?? x.pc} data-scale={x.scale ?? 100} />)}
     </span>
   );

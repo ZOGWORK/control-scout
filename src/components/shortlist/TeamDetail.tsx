@@ -26,7 +26,7 @@ function Block({ title, children, className, aside }: { title: string; children:
 
 function Tile({ label, value, hint, tone, children }: { label: string; value: string; hint?: React.ReactNode; tone: string; children?: React.ReactNode }) {
   return (
-    <div className="min-w-0 rounded-lg bg-muted/50 px-3 py-2.5 v8:bg-white/[0.03]">
+    <div className="min-w-0 rounded-lg bg-muted/50 px-3 py-2.5 v8:bg-ink/[0.03]">
       <p className="text-[11px] text-text-muted v8:text-xs v8:text-text-faint">{label}</p>
       <p className={cn("font-display text-2xl font-semibold tabular-nums leading-tight", tone, "v8:text-text-base")}>{value}</p>
       {hint && <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-[11px] text-text-muted">{hint}</p>}
@@ -108,7 +108,7 @@ export function TeamDetail({ t, season, rank, total, topPicks, onMove, onRemove,
   const others = topPicks.filter((x) => x !== t.team).slice(0, 3);
   const top = rankPct(t.oprRank, t.of);
   return (
-    <div className="grid gap-3 border-t border-border bg-accent/[0.03] p-3 sm:p-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] v8:border-line v8:bg-white/[0.015]">
+    <div className="grid gap-3 border-t border-border bg-accent/[0.03] p-3 sm:p-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] v8:border-line v8:bg-ink/[0.015]">
       <div className="grid min-w-0 content-start gap-3">
         <Block title="OPR breakdown" aside={<span className="normal-case tracking-normal text-text-base"><span className="font-display text-base font-semibold text-accent-text v8:text-violet-400">{num(t.opr)}</span> total{t.oprRank ? <span className="text-text-muted"> · #{t.oprRank.toLocaleString()} world{top ? ` (${top})` : ""}</span> : null}</span>}>
           <BreakdownBar auto={t.breakdown.auto} teleop={t.breakdown.teleop} endgame={t.breakdown.endgame} />

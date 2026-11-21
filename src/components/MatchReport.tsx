@@ -326,7 +326,7 @@ function PredictedV8({ m }: { m: MatchView }) {
 /** The match's video, when there is one: plain buttons (no coloured fills in v8). */
 function VideoV8({ m }: { m: MatchView }) {
   if (!m.clip && !m.video) return null;
-  const btn = "inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-white/[0.08] bg-white/10 px-3 text-sm font-medium text-text-base transition-[background-color,scale] duration-150 hover:bg-white/[0.14] active:scale-[0.97] motion-reduce:active:scale-100 max-sm:min-h-11 [&_svg]:size-4";
+  const btn = "inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-ink/[0.08] bg-ink/10 px-3 text-sm font-medium text-text-base transition-[background-color,scale] duration-150 hover:bg-ink/[0.14] active:scale-[0.97] motion-reduce:active:scale-100 max-sm:min-h-11 [&_svg]:size-4";
   return (
     <section className="flex flex-wrap items-center gap-2" aria-label="Match video" data-testid="report-video">
       {m.clip && <ClipLink clip={m.clip} label={m.label} matchKey={m.key} className={btn}>Watch the match · {clipTime(m.clip.t)}</ClipLink>}
@@ -476,7 +476,7 @@ function FlagChip({ f }: { f: DataFlag | WatchFlag }) {
       <PopoverTrigger asChild>
         <button type="button" className={cn("inline-flex min-h-8 items-center gap-1 rounded-full border px-2.5 text-xs font-medium pointer-coarse:min-h-[44px]", FLAG_TONE[f.kind],
           // v8: a quiet outlined pill (brief §5 Status); the icon says the kind.
-          "v8:border-white/[0.12] v8:bg-transparent v8:text-text-base", FLAG_TONE_V8[f.kind])} aria-label={`${f.label}: ${f.detail}`} data-flag={f.kind}>
+          "v8:border-ink/[0.12] v8:bg-transparent v8:text-text-base", FLAG_TONE_V8[f.kind])} aria-label={`${f.label}: ${f.detail}`} data-flag={f.kind}>
           <Icon className="size-3.5" aria-hidden />{f.label}
         </button>
       </PopoverTrigger>
@@ -624,7 +624,7 @@ function TagRow({ icon, label, tags, tone }: { icon?: ReactNode; label: string; 
       <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">{icon}{label}</span>
       <ul className="contents" aria-label={label}>
         {tags.slice(0, 3).map((x) => (
-          <li key={x.label} className={cn("inline-flex min-h-7 items-center gap-1 rounded-md border px-2 text-xs", tone, "v8:border-white/[0.12] v8:bg-transparent")}>
+          <li key={x.label} className={cn("inline-flex min-h-7 items-center gap-1 rounded-md border px-2 text-xs", tone, "v8:border-ink/[0.12] v8:bg-transparent")}>
             <span className="break-words">{x.label}</span><span className="font-mono text-[10px] text-muted-foreground" aria-label={`${x.count} ${x.count === 1 ? "entry" : "entries"}`}>×{x.count}</span>
           </li>
         ))}

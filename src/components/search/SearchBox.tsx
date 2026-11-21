@@ -275,16 +275,16 @@ function CompareRow({ id, h, active, onPick, onHover }: { id: string; h: SearchH
     <div
       id={id} role="option" aria-selected={active} data-compare
       onPointerDown={(e) => e.preventDefault()} onMouseDown={(e) => e.preventDefault()} onClick={onPick} onPointerMove={onHover}
-      className={cn("mx-0.5 flex cursor-pointer items-center gap-2.5 rounded-lg border px-2.5 py-2 text-sm", active ? "border-accent bg-accent/[0.16] v8:border-input v8:bg-white/[0.08] v8:shadow-[inset_2px_0_0_var(--color-accent)]" : "border-accent/40 bg-accent/[0.07] v8:border-line v8:bg-transparent")}
+      className={cn("mx-0.5 flex cursor-pointer items-center gap-2.5 rounded-lg border px-2.5 py-2 text-sm", active ? "border-accent bg-accent/[0.16] v8:border-input v8:bg-ink/[0.08] v8:shadow-[inset_2px_0_0_var(--color-accent)]" : "border-accent/40 bg-accent/[0.07] v8:border-line v8:bg-transparent")}
     >
-      <span className="grid size-7 shrink-0 place-items-center rounded-md bg-accent text-accent-ink v8:bg-white/10 v8:text-foreground"><ArrowLeftRight className="size-4" aria-hidden /></span>
+      <span className="grid size-7 shrink-0 place-items-center rounded-md bg-accent text-accent-ink v8:bg-ink/10 v8:text-foreground"><ArrowLeftRight className="size-4" aria-hidden /></span>
       <span className="min-w-0 flex-1">
         <span className="block break-words font-medium text-foreground">{who.map((w, i) => <span key={i}>{i > 0 && <span className="px-1 text-accent-text v8:text-muted-foreground">vs</span>}{w}</span>)}</span>
         {/* The server's own line: it says when some of the teams named were left out of the comparison. */}
         <span className="block break-words text-xs text-muted-foreground">{h.subtitle || "Compare side by side: records, OPR and event history"}</span>
         <span className="mt-0.5 block truncate font-mono text-[11px] text-accent-text/80 v8:text-[0.75rem] v8:text-text-faint" data-path>{shownPath(h)}</span>
       </span>
-      <span className="inline-flex shrink-0 items-center gap-0.5 rounded-md bg-accent px-2 py-0.5 text-xs font-semibold text-accent-ink v8:bg-white/10 v8:text-foreground max-[380px]:hidden">Compare<ArrowRight className="size-3.5" aria-hidden /></span>
+      <span className="inline-flex shrink-0 items-center gap-0.5 rounded-md bg-accent px-2 py-0.5 text-xs font-semibold text-accent-ink v8:bg-ink/10 v8:text-foreground max-[380px]:hidden">Compare<ArrowRight className="size-3.5" aria-hidden /></span>
     </div>
   );
 }
@@ -365,7 +365,7 @@ export function AnswerCard({ card, compact, onOpen }: { card: SearchCard; compac
       <p className={cn("flex flex-wrap items-center gap-x-1.5 gap-y-1 font-semibold text-foreground", compact ? "text-xs" : "text-sm")}>
         {/* A rule's answer (the game manual) has a book; records have the trophy. */}
         {card.kind === "rule" ? <BookOpen className="size-3.5 shrink-0 text-accent v8:text-muted-foreground" data-card-icon="rule" /> : <Trophy className="size-3.5 shrink-0 text-accent v8:text-muted-foreground" />}{card.title}{who && ` · ${who}`}
-        {!!card.count && <span className="rounded-full bg-accent/15 px-2 py-px text-[11px] font-semibold tabular-nums text-accent-text v8:bg-white/[0.08] v8:text-[0.75rem] v8:text-foreground">{card.count} {card.count === 1 ? "time" : "times"}</span>}
+        {!!card.count && <span className="rounded-full bg-accent/15 px-2 py-px text-[11px] font-semibold tabular-nums text-accent-text v8:bg-ink/[0.08] v8:text-[0.75rem] v8:text-foreground">{card.count} {card.count === 1 ? "time" : "times"}</span>}
       </p>
       {card.none && <p className={cn("mt-1 text-foreground/90", compact ? "text-xs" : "text-sm")}>{card.none}</p>}
       {/* A list of teams on the full page: one table of their season numbers (./TeamTable.tsx); the dropdown keeps lines. */}
@@ -379,8 +379,8 @@ export function AnswerCard({ card, compact, onOpen }: { card: SearchCard; compac
                 {l.href
                   ? /^https?:\/\//.test(l.href)
                     // Another site (FIRST's manual): an ordinary link, in a new tab.
-                    ? <a href={l.href} target="_blank" rel="noopener noreferrer" onPointerDown={(e) => e.preventDefault()} onMouseDown={(e) => e.preventDefault()} className="font-medium text-accent-text hover:underline v8:text-foreground v8:underline v8:decoration-white/25 v8:underline-offset-2 v8:hover:decoration-white/60">{l.text}</a>
-                    : <a href={l.href} onPointerDown={(e) => e.preventDefault()} onMouseDown={(e) => e.preventDefault()} onClick={(e) => { e.preventDefault(); onOpen(l.href!); }} className="font-medium text-accent-text hover:underline v8:text-foreground v8:underline v8:decoration-white/25 v8:underline-offset-2 v8:hover:decoration-white/60">{l.text}</a>
+                    ? <a href={l.href} target="_blank" rel="noopener noreferrer" onPointerDown={(e) => e.preventDefault()} onMouseDown={(e) => e.preventDefault()} className="font-medium text-accent-text hover:underline v8:text-foreground v8:underline v8:decoration-ink/25 v8:underline-offset-2 v8:hover:decoration-ink/60">{l.text}</a>
+                    : <a href={l.href} onPointerDown={(e) => e.preventDefault()} onMouseDown={(e) => e.preventDefault()} onClick={(e) => { e.preventDefault(); onOpen(l.href!); }} className="font-medium text-accent-text hover:underline v8:text-foreground v8:underline v8:decoration-ink/25 v8:underline-offset-2 v8:hover:decoration-ink/60">{l.text}</a>
                   : <span className="font-medium text-foreground">{l.text}</span>}
                 {l.detail && <span className={cn("block text-muted-foreground", !compact && "mt-0.5 text-xs")}>{l.detail}</span>}
                 {!!l.results?.length && (compact
@@ -556,7 +556,7 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
           </p>
           {suggestions.slice(0, recentCount).map((x, i) => (
             <div key={x.text} {...suggestion(i)} data-recent
-              className={cn("flex cursor-pointer items-center gap-2.5 rounded-lg px-3 py-1.5 text-sm pointer-coarse:min-h-[44px]", i === active ? "bg-accent/[0.12] text-foreground v8:bg-white/[0.08] v8:shadow-[inset_2px_0_0_var(--color-accent)]" : "text-foreground/90")}>
+              className={cn("flex cursor-pointer items-center gap-2.5 rounded-lg px-3 py-1.5 text-sm pointer-coarse:min-h-[44px]", i === active ? "bg-accent/[0.12] text-foreground v8:bg-ink/[0.08] v8:shadow-[inset_2px_0_0_var(--color-accent)]" : "text-foreground/90")}>
               <Clock className="size-4 shrink-0 text-muted-foreground" /><span className="min-w-0 flex-1 truncate">{x.text}</span>
             </div>
           ))}
@@ -569,7 +569,7 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
             const i = recentCount + j;
             return (
               <span key={x.text} {...suggestion(i)} data-example
-                className={cn("inline-flex cursor-pointer items-center rounded-full border px-3 py-1 text-foreground max-md:min-h-[44px] pointer-coarse:min-h-[44px]", i === active ? "border-accent bg-accent/[0.12] v8:border-input v8:bg-white/10" : "border-border hover:border-accent/60 v8:hover:border-white/25")}>
+                className={cn("inline-flex cursor-pointer items-center rounded-full border px-3 py-1 text-foreground max-md:min-h-[44px] pointer-coarse:min-h-[44px]", i === active ? "border-accent bg-accent/[0.12] v8:border-input v8:bg-ink/10" : "border-border hover:border-accent/60 v8:hover:border-ink/25")}>
                 {x.text}
               </span>
             );
@@ -593,7 +593,7 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
           type="button" aria-label="Run search" data-search-submit
           onPointerDown={(e) => e.preventDefault()} onMouseDown={(e) => e.preventDefault()}
           onClick={() => { if (query) submit(false); else field.current?.focus(); }}
-          className={cn("-ml-1 flex shrink-0 items-center justify-center rounded-lg outline-none hover:bg-accent/10 v8:hover:bg-white/[0.06] focus-visible:ring-2 focus-visible:ring-ring/60 pointer-coarse:size-[44px] pointer-coarse:-my-1", lg ? "size-9 -mr-1" : "size-7 -mr-1.5")}
+          className={cn("-ml-1 flex shrink-0 items-center justify-center rounded-lg outline-none hover:bg-accent/10 v8:hover:bg-ink/[0.06] focus-visible:ring-2 focus-visible:ring-ring/60 pointer-coarse:size-[44px] pointer-coarse:-my-1", lg ? "size-9 -mr-1" : "size-7 -mr-1.5")}
         >
           {busy ? <Loader2 className={cn("animate-spin text-muted-foreground", lg ? "size-5" : "size-4")} /> : <Search className={cn("text-accent v8:text-muted-foreground", lg ? "size-5" : "size-4")} />}
         </button>
@@ -642,7 +642,7 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
                   <div key={s.id} role="group" aria-label={s.title}>
                     <p className={cn("flex items-center gap-1.5 px-3 pb-1 pt-2 text-xs font-semibold", s.id === "ai" ? "text-accent-text v8:text-muted-foreground" : "text-muted-foreground")}>
                       {s.id === "ai" && <Sparkles className="size-3" />}{s.title}
-                      {s.id !== "pages" && s.id !== "browse" && s.id !== "compare" && <span className="rounded-full bg-muted px-1.5 py-px text-[10px] tabular-nums text-foreground/80 v8:bg-white/[0.06] v8:text-[0.6875rem]" data-count>{groupCount(s, answer)}</span>}
+                      {s.id !== "pages" && s.id !== "browse" && s.id !== "compare" && <span className="rounded-full bg-muted px-1.5 py-px text-[10px] tabular-nums text-foreground/80 v8:bg-ink/[0.06] v8:text-[0.6875rem]" data-count>{groupCount(s, answer)}</span>}
                     </p>
                     {s.rows.map((r) => {
                       const i = ordered.indexOf(r);
@@ -654,7 +654,7 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
                           // Keep focus in the field so the list doesn't close before the click lands. Both are needed:
                           // on an iPhone a tap still sends mousedown after a cancelled pointerdown, and that blurs the field.
                           onPointerDown={(e) => e.preventDefault()} onMouseDown={(e) => e.preventDefault()} onClick={() => pick(r.hit)} onPointerMove={() => setActive(i)}
-                          className={cn("flex cursor-pointer items-center gap-2.5 rounded-lg px-3 py-1.5 text-sm", r.sub && "pl-9", i === active ? "bg-accent/[0.12] text-foreground v8:bg-white/[0.08] v8:shadow-[inset_2px_0_0_var(--color-accent)]" : "text-foreground/90")}
+                          className={cn("flex cursor-pointer items-center gap-2.5 rounded-lg px-3 py-1.5 text-sm", r.sub && "pl-9", i === active ? "bg-accent/[0.12] text-foreground v8:bg-ink/[0.08] v8:shadow-[inset_2px_0_0_var(--color-accent)]" : "text-foreground/90")}
                         >
                           <Icon className={cn("size-4 shrink-0", r.hit.kind === "place" && !r.hit.href ? "text-accent v8:text-muted-foreground" : "text-muted-foreground")} />
                           {r.hit.kind === "event" && !r.sub ? <EventText h={r.hit} /> : <HitText h={r.hit} opr={r.hit.kind === "team" && !r.sub} />}
@@ -669,7 +669,7 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
             <div
               id={`${listId}-${ordered.length}`} role="option" aria-selected={active === ordered.length} data-see-all
               onPointerDown={(e) => e.preventDefault()} onMouseDown={(e) => e.preventDefault()} onClick={openFull} onPointerMove={() => setActive(ordered.length)}
-              className={cn("mt-1 flex cursor-pointer items-center gap-2.5 rounded-lg border-t border-border px-3 py-2 text-sm font-medium text-accent-text v8:text-foreground", active === ordered.length && "bg-accent/[0.12] v8:bg-white/[0.08] v8:shadow-[inset_2px_0_0_var(--color-accent)]")}
+              className={cn("mt-1 flex cursor-pointer items-center gap-2.5 rounded-lg border-t border-border px-3 py-2 text-sm font-medium text-accent-text v8:text-foreground", active === ordered.length && "bg-accent/[0.12] v8:bg-ink/[0.08] v8:shadow-[inset_2px_0_0_var(--color-accent)]")}
             >
               <Search className="size-4 shrink-0" />
               <span className="min-w-0 flex-1 truncate">See all results for “{query}”</span>
@@ -681,7 +681,7 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
           // The cue: results continue below. Fades the last row and offers a one-tap scroll.
           <div className="pointer-events-none absolute inset-x-0 bottom-0 flex h-14 items-end justify-center bg-gradient-to-t from-popover via-popover/85 to-transparent pb-2">
             <button type="button" tabIndex={-1} onPointerDown={(e) => e.preventDefault()} onMouseDown={(e) => e.preventDefault()} onClick={() => list.current?.scrollBy({ top: list.current.clientHeight * 0.8 })}
-              className="pointer-events-auto inline-flex items-center gap-1 rounded-full border border-accent/40 bg-popover px-3 py-1 text-xs font-medium text-accent-text shadow-sm hover:border-accent v8:border-input v8:text-foreground v8:hover:border-white/25">
+              className="pointer-events-auto inline-flex items-center gap-1 rounded-full border border-accent/40 bg-popover px-3 py-1 text-xs font-medium text-accent-text shadow-sm hover:border-accent v8:border-input v8:text-foreground v8:hover:border-ink/25">
               {below} more below <ChevronDown className={cn("size-3.5", !v8 && "motion-safe:animate-bounce")} data-more-chevron />
             </button>
           </div>
