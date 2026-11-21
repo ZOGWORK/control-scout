@@ -6,7 +6,7 @@
 // work without JS. The theme comes from the class the inline <head> script sets
 // on <html> (index.html): dark by default, html.light or html.dim otherwise.
 // v8 (docs/design/v8-revamp-brief.md: <html data-v8>, set by the same script before this paints) gets its own layer at the end of
-// BOOT_STYLE: the white mark, the wash, a borderless top row, and on Home the search alone in the middle, so the old look
+// BOOT_STYLE: the white mark (in ink on Light), the wash (a pale tint of it on Light), a borderless top row, and on Home the search alone in the middle, so the old look
 // never flashes before the app.
 //
 // Offline, the service worker answers every page with the cached "/" HTML, so
@@ -135,11 +135,18 @@ export const BOOT_STYLE = `<style>
       html[data-v8] .csb-top{position:static;height:56px;border-bottom-color:transparent;background:transparent}
       html[data-v8] .csb .csb-crumb{display:none}
       html[data-v8] .csb-main{background:none}
-      html[data-v8] .csb-col{background-repeat:no-repeat;background-image:radial-gradient(60% calc(42vh * var(--wash-spread,1)) at 12% 0,color-mix(in srgb,var(--wash-a,#5a76ad) calc(80% * var(--wash-strength,1)),transparent),transparent 72%),radial-gradient(55% calc(40vh * var(--wash-spread,1)) at 52% 0,color-mix(in srgb,var(--wash-b,#5f5785) calc(80% * var(--wash-strength,1)),transparent),transparent 72%),radial-gradient(60% calc(42vh * var(--wash-spread,1)) at 90% 0,color-mix(in srgb,var(--wash-c,#91689c) calc(80% * var(--wash-strength,1)),transparent),transparent 72%)}
+      html[data-v8] .csb-col{background-repeat:no-repeat;background-image:radial-gradient(60% calc(42vh * var(--wash-spread,1)) at 12% 0,color-mix(in srgb,color-mix(in srgb,var(--wash-a,#5a76ad) var(--wash-mix,100%),var(--b-bg)) calc(80% * var(--wash-strength,1)),transparent),transparent 72%),radial-gradient(55% calc(40vh * var(--wash-spread,1)) at 52% 0,color-mix(in srgb,color-mix(in srgb,var(--wash-b,#5f5785) var(--wash-mix,100%),var(--b-bg)) calc(80% * var(--wash-strength,1)),transparent),transparent 72%),radial-gradient(60% calc(42vh * var(--wash-spread,1)) at 90% 0,color-mix(in srgb,color-mix(in srgb,var(--wash-c,#91689c) var(--wash-mix,100%),var(--b-bg)) calc(80% * var(--wash-strength,1)),transparent),transparent 72%)}
       html[data-v8] .csb-home .csb-hl,html[data-v8] .csb-home>p{display:none}
       html[data-v8] .csb-home{display:flex;flex-direction:column;align-items:center;padding-top:15vh}
       html[data-v8] .csb-home>div:not(.csb-hl){width:100%;max-width:40rem;height:50px;margin:0;border-color:#ffffff1f;border-radius:13px;background:#1b1b1e}
       @media (min-width:768px){html[data-v8] .csb-side{width:223px}}
+      html[data-v8].light{background:#fafafa;--wash-mix:42%}html[data-v8].dim{--wash-mix:82%}
+      html[data-v8].light .csb{--b-bg:#fafafa;--b-side:#fff;--b-fg:#18181b;--b-mut:#52525b;--b-line:#00000017;--b-acc:#3f5a96;--b-tab:#fffffff2}
+      html[data-v8].light .csbc{--b-fg:#18181b;--b-line:#00000017;--b-acc:#3f5a96;--b-soft:#3f5a961a}
+      html[data-v8].light .csb-brand img,html[data-v8].light .csb-top>a img{filter:invert(.9)}
+      html[data-v8].light .csb-home>div:not(.csb-hl){border-color:#00000017;background:#fff}
+      html[data-v8].dim .csb{--b-side:#232428;--b-line:#ffffff14}
+      html[data-v8].dim .csb-home>div:not(.csb-hl){border-color:#ffffff26;background:#2d2e33}
     </style>`;
 
 // The app's ConsentBanner (src/components/layout/ConsentBanner.tsx) takes over from the static banner by
