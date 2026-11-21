@@ -46,7 +46,7 @@ import { clipCheckProblems, clipsDelta } from "./lib/autopilotClips";
 import { prGate } from "./lib/autopilotPr";
 import { mainQuiet, mainStill, pickMerge, servesMerge } from "./lib/autopilotMergeStep";
 import { streamRun } from "./lib/streamRun";
-import { eventLimitMs } from "./lib/videoFrames";
+import { eventLimitMs, readFailed as readFailedExit } from "./lib/videoFrames";
 import type { ClipCheck } from "../server/data/clipChecks";
 
 const argv = process.argv.slice(2);
@@ -75,6 +75,10 @@ if (typeof LANES === "string") { console.error(`--lanes: ${LANES}`); process.exi
 if (LANE && (LANES.length || DRY || DB)) { console.error("--lane: a lane reads only the job it was sent (no --lanes, --dry or --db)"); process.exit(2); }
 
 const DIR = ".data/autopilot", STAMP = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+/** Reader lanes (a browser and OCR each) per read call: the start sets AUTOPILOT_LANES by the memory free (3 over 6 GB,
+ *  else 2). Not the coordinator's --lanes (other computers' lanes).
+ *  Declared up here: a lane's run (if (LANE), below) reads (readSeason) before the rest of the file runs. */
+const READER_LANES = /^[1-4]$/.test(process.env.AUTOPILOT_LANES ?? "") ? process.env.AUTOPILOT_LANES! : "2";
 mkdirSync(join(DIR, "runs"), { recursive: true });
 const LOG = join(DIR, "runs", `${STAMP}.log`);
 const log = (s: string) => { const line = `${new Date().toISOString()} ${s}`; console.log(line); appendFileSync(LOG, `${line}\n`); };
@@ -561,9 +565,6 @@ async function eventLimits(season: number): Promise<Map<string, number>> {
     return new Map();
   }
 }
-/** Reader lanes (a browser and OCR each) per read call: the start sets AUTOPILOT_LANES by the memory free (3 over 6 GB,
- *  else 2). Not the coordinator's --lanes (other computers' lanes). */
-const READER_LANES = /^[1-4]$/.test(process.env.AUTOPILOT_LANES ?? "") ? process.env.AUTOPILOT_LANES! : "2";
 /** Reads `codes` of `season` into its file (those not read yet, then those with rows already whole, then --verify and
  *  --bounds), and puts the file back: the rows the read changed, whether a read failed, and the events the reader
  *  stopped at its per-event limit (and the video each was on). This computer's reads and a lane's alike. */
@@ -580,12 +581,14 @@ async function readSeason(season: number, codes: string[]): Promise<{ changed: R
   // none to keep (and the reader refuses an empty --live file).
   const base = ["scripts/video-frames.ts", "--season", String(season), ...(fileRows(mainText(file)).length ? ["--live", liveFile] : []), "--lanes", READER_LANES];
   // A read that crashed, timed out or was killed read nothing for sure: its events aren't counted as tried (remember).
+  // The reader's UNDETAILED_EXIT (an event left unread for want of details a fetch would give) isn't one: it read the
+  // rest, so the season's events are remembered as usual instead of re-picked every run (readFailedExit).
   let readFailed = false;
   // Events the reader stopped at its per-event limit, and the video each was on (overLimit).
   const stopped = new Map<string, string | undefined>();
   const pass = async (args: string[], ms: number, what: string) => {
     const r = await reader([...base, ...args], ms);
-    if (r.code) readFailed = true;
+    if (readFailedExit(r.code)) readFailed = true;
     for (const [c, v] of overLimit(r.err)) stopped.set(c, v);
     log(`${season} ${what}: exit ${r.code}`);
   };
