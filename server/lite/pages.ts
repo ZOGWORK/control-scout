@@ -345,10 +345,7 @@ const choices = (items: { href: string; text: string; cur: boolean }[]) =>
 export function settingsPage(view: LiteView): LitePage {
   const back = encodeURIComponent("/lite/settings");
   const body = title("Settings", "The same settings as the full version, on this device.")
-    + section("Theme", view.v8
-      // v8 is dark only for now, as in the app: the choice is kept for when Light comes back.
-      ? card(`<p>The new look is dark only for now. Your theme choice comes back with Light.</p>`)
-      : choices(THEME_COOKIES.map((t) => ({ href: `/lite/theme?set=${t}&next=${back}`, text: THEME_NAMES[t], cur: view.theme === t })))
+    + section("Theme", choices(THEME_COOKIES.map((t) => ({ href: `/lite/theme?set=${t}&next=${back}`, text: THEME_NAMES[t], cur: view.theme === t })))
         + note("System follows your phone's light or dark mode."))
     + section("Text size", choices(TEXT_SIZE_NAMES.map(([k, name]) => ({ href: `/lite/size?set=${k}&next=${back}`, text: name, cur: (view.textSize ?? "m") === k }))))
     + section("Control Scout Lite", card(view.sticky
