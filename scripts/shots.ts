@@ -2,7 +2,7 @@
 //
 //   npm run shots -- /teams/18360 "/events/2025/AUSYQ1?tab=odds"
 //   npm run shots -- --mobile --light /predict
-//   npm run shots -- --theme dim /       (--theme light|dim|dark|midnight; --light is --theme light)
+//   npm run shots -- --theme dim /       (--theme light|dim|dark; --light is --theme light)
 //   npm run shots -- --out C:/tmp/shots /
 //   npm run shots -- --steps flow.json --name builder /teams
 //
@@ -64,9 +64,9 @@ const STEPS: Step[] = (() => {
 })();
 /** A route as a file-name part (long filter URLs cut to a readable length). */
 const slug = (route: string) => (route.replace(/^\//, "").replace(/[^\w-]+/g, "_") || "home").slice(0, 80);
-/** The theme the shot is in: --theme light|dim|dark|midnight (--light is light); dark, the default, when neither. */
+/** The theme the shot is in: --theme light|dim|dark (--light is light); dark, the default, when neither. */
 const THEME = opt("theme") ?? (flag("light") ? "light" : "dark");
-if (!["light", "dim", "dark", "midnight"].includes(THEME)) throw new Error(`--theme ${THEME}: light, dim, dark or midnight`);
+if (!["light", "dim", "dark"].includes(THEME)) throw new Error(`--theme ${THEME}: light, dim or dark`);
 const LABEL = opt("name") ? `-${opt("name")!.replace(/[^\w-]+/g, "_")}` : "";
 /** Run --steps in order (a pause after each, so a video shows what happened). */
 async function runSteps(page: Page, slow: boolean) {

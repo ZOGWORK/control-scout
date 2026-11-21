@@ -19,14 +19,17 @@ export function dedupePredictions(list: readonly SavedPrediction[]): SavedPredic
   const key = (p: SavedPrediction) => `${p.season}|${[...p.red].sort((a, b) => a - b).join(",")}|${[...p.blue].sort((a, b) => a - b).join(",")}`;
   return [...list].sort((x, y) => (y.savedAt ?? 0) - (x.savedAt ?? 0)).filter((p) => { const k = key(p); if (seen.has(k)) return false; seen.add(k); return true; });
 }
-/** The built-in themes, in the order Settings lists them. Dim and Midnight are dark themes (html.dim / html.midnight
- *  swap only surfaces and text, src/index.css); System follows the device's light or dark setting. */
-export const THEMES = ["light", "dim", "dark", "midnight", "system"] as const;
+/** The built-in themes, in the order Settings lists them. Dim is a dark theme (html.dim swaps only surfaces and text,
+ *  src/index.css); System follows the device's light or dark setting. Midnight (true black) was retired on
+ *  2026-11-19: a value saved as "midnight" reads as Dark (cleanValue below, themeFromCookie, index.html). */
+export const THEMES = ["light", "dim", "dark", "system"] as const;
 export type ThemeChoice = (typeof THEMES)[number];
 
 /** The dark themes: the top bar's light/dark switch returns to the one last used (Settings.darkTheme). */
-export const DARK_THEMES = ["dim", "dark", "midnight"] as const;
+export const DARK_THEMES = ["dim", "dark"] as const;
 export type DarkTheme = (typeof DARK_THEMES)[number];
+/** The theme that no longer exists: read as Dark wherever a saved choice comes in. */
+export const RETIRED_THEME = "midnight";
 
 export interface Settings {
   theme: ThemeChoice;
@@ -109,7 +112,8 @@ export function cleanValue<K extends PersonalKey>(key: K, v: unknown): PersonalS
     case "settings": {
       const o = (v ?? {}) as Partial<Settings>;
       return {
-        theme: (THEMES as readonly string[]).includes(o.theme as string) ? o.theme : DEFAULT_SETTINGS.theme,
+        // The retired Midnight is Dark now; anything else unknown is the default.
+        theme: (o.theme as string) === RETIRED_THEME ? "dark" : (THEMES as readonly string[]).includes(o.theme as string) ? o.theme : DEFAULT_SETTINGS.theme,
         density: o.density === "compact" ? "compact" : "comfortable",
         ambient: o.ambient !== false,
         // Known switches only, booleans only. The inbox's are kept only when present (missing: on).

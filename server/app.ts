@@ -110,6 +110,7 @@ import { abuseMonitor } from "./moderation.js";
 import { homeOverview } from "./api/home.js";
 import { coinFlips, radarEtag } from "./api/coinFlips.js";
 import { liveHeroLines } from "./heroLines.js";
+import { liveWash } from "./wash.js";
 import { listRecords, recordRegions, recordsQuery, RecordsQueryError, streamRecordsCsv, streamRecordsXlsx } from "./api/records.js";
 import { seasonRecordLine } from "./api/searchHighScores.js";
 import { directoryQuery, DirectoryQueryError, listDirectory } from "./api/directory.js";
@@ -376,6 +377,12 @@ export function createApp(opts: { dist?: string; /** Earlier releases' hashed as
   api.get("/home/headlines", h(async (_req, res) => {
     res.setHeader("Cache-Control", "public, max-age=60");
     return liveHeroLines();
+  }));
+  // The v8 wash (server/wash.ts): the owner's, else the defaults. Every page's HTML already carries the owner's as an
+  // inline <style>; this is for a copy of the app without that first paint (development, tests).
+  api.get("/wash", h(async (_req, res) => {
+    res.setHeader("Cache-Control", "public, max-age=60");
+    return liveWash();
   }));
 
   // Today's coin flips: the closest calls on today's schedules, every event at its own venue date (server/api/coinFlips.ts).

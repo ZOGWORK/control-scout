@@ -87,7 +87,7 @@ export function parseQuestion(q: string): ParsedQuestion | null {
   for (const [kind, words] of [["worlds", WORLDS], ["states", STATES]] as const) {
     if (!words.test(unasked)) continue;
     const y = YEAR.exec(unasked);
-    const core = coreOf((y ? unasked.replace(y[0], " ") : unasked).replace(new RegExp(words.source, "gi"), " "));
+    const core = coreOf((y ? unasked.replace(y[0], " ") : unasked).replace(new RegExp(words.source, "gi"), " ").replace(/\s+(?:like\s+)?(?:once|twice|\d+\s+times)\s*[?.!]*$/i, " "));
     // A question needs its frame ("when did … go to worlds", "did … make worlds", "… worlds appearances", "how many
     // times did … go to states"): "worlds" on its own beside a name stays search's ("worlds" is the championship's events).
     const asked = !!w || /\b(?:when|how\s+many|how\s+often|did|does|has|have|was|were|go|went|make|made|qualif\w*|attend\w*|appearances?|history)\b/i.test(unasked);
