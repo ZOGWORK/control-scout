@@ -4,7 +4,10 @@
 // loaded and run. React's first render (createRoot, no hydration) replaces all
 // of it in one step. Self-contained: inline styles, no icons, plain links that
 // work without JS. The theme comes from the class the inline <head> script sets
-// on <html> (index.html): dark by default, html.light, html.dim or html.midnight otherwise.
+// on <html> (index.html): dark by default, html.light or html.dim otherwise.
+// v8 (docs/design/v8-revamp-brief.md: <html data-v8>, set by the same script before this paints) gets its own layer at the end of
+// BOOT_STYLE: the white mark (in ink on Light), the wash (a pale tint of it on Light), a borderless top row, and on Home the search alone in the middle, so the old look
+// never flashes before the app.
 //
 // Offline, the service worker answers every page with the cached "/" HTML, so
 // the page block carries the path it was made for and hides itself on another.
@@ -33,14 +36,13 @@ const rail = (on: string) => `${on}.csb-side{width:60px}${on}.csb-brand{justify-
   // Rankings' arrow sits under its icon in the rail, a slim row, as the app draws it there.
   + `${on}.csb-rk .csb-rks>summary{position:static;width:auto;height:16px;margin:0}`;
 export const BOOT_STYLE = `<style>
-      html{background:#0a0a0b;scrollbar-gutter:stable}html.light{background:#fff}html.dim{background:#1e1f23}html.midnight{background:#000}body{margin:0}
-      html::-webkit-scrollbar{width:6px;height:6px}html::-webkit-scrollbar-thumb{background:#2e2e35;border-radius:999px}html.light::-webkit-scrollbar-thumb{background:#d4d4d8}html.dim::-webkit-scrollbar-thumb{background:#45464e}html.midnight::-webkit-scrollbar-thumb{background:#222227}
+      html{background:#0a0a0b;scrollbar-gutter:stable}html.light{background:#fff}html.dim{background:#1e1f23}body{margin:0}
+      html::-webkit-scrollbar{width:6px;height:6px}html::-webkit-scrollbar-thumb{background:#2e2e35;border-radius:999px}html.light::-webkit-scrollbar-thumb{background:#d4d4d8}html.dim::-webkit-scrollbar-thumb{background:#45464e}
       .csb,.csb *{box-sizing:border-box}
       .csb{line-height:1.5}
       .csb{--b-bg:#0a0a0b;--b-side:#0c0c0e;--b-fg:#f4f4f5;--b-mut:#a1a1aa;--b-line:#ffffff14;--b-acc:#ffc700;--b-tab:#0e0e10f2;display:flex;min-height:100vh;min-height:100dvh;overflow-x:clip;background:var(--b-bg);color:var(--b-fg);font-family:Inter,ui-sans-serif,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
       html.light .csb{--b-bg:#fff;--b-side:#fcfcfc;--b-fg:#09090b;--b-mut:#52525b;--b-line:#e4e4e7;--b-acc:#eab308;--b-tab:#fafafaf2}
       html.dim .csb{--b-bg:#1e1f23;--b-side:#19191c;--b-fg:#e4e4e7;--b-mut:#b4b4bd;--b-line:#ffffff1a;--b-tab:#19191cf2}
-      html.midnight .csb{--b-bg:#000;--b-side:#000;--b-line:#ffffff12;--b-tab:#000000f2}
       .csb a:not(.csb-app a){color:inherit;text-decoration:none}
       .csb-side{display:none;position:sticky;top:0;align-self:flex-start;height:100vh;height:100dvh;flex-direction:column;flex-shrink:0;width:232px;border-right:1px solid var(--b-line);background:var(--b-side)}
       .csb-brand{display:flex;align-items:center;gap:10px;height:48px;padding:0 14px;font:700 16px/1 "Space Grotesk",sans-serif;letter-spacing:-.025em}
@@ -108,7 +110,6 @@ export const BOOT_STYLE = `<style>
       .csbc{--b-pop:#141416;--b-fg:#f4f4f5;--b-mut:#a1a1aa;--b-line:#ffffff14;--b-acc:#ffc700;--b-soft:#ffc7001f;position:fixed;left:12px;right:12px;bottom:calc(53px + env(safe-area-inset-bottom) + .75rem);z-index:60;box-sizing:border-box;padding:16px;border:1px solid var(--b-line);border-radius:12px;background:var(--b-pop);color:var(--b-fg);box-shadow:0 18px 40px -16px rgba(0,0,0,.55);font-family:Inter,ui-sans-serif,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
       html.light .csbc{--b-pop:#fff;--b-fg:#09090b;--b-mut:#52525b;--b-line:#e4e4e7;--b-acc:#a16207;--b-soft:#eab3081f}
       html.dim .csbc{--b-pop:#2a2b30;--b-fg:#e4e4e7;--b-mut:#b4b4bd;--b-line:#ffffff1a}
-      html.midnight .csbc{--b-pop:#0e0e11;--b-line:#ffffff12}
       .csbc *{box-sizing:border-box}
       .csbc-row{display:flex;align-items:flex-start;gap:12px}
       .csbc-ico{display:grid;place-items:center;flex-shrink:0;width:28px;height:28px;margin-top:2px;border-radius:8px;background:var(--b-soft);color:var(--b-acc)}
@@ -123,6 +124,29 @@ export const BOOT_STYLE = `<style>
       .csbc-btns{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
       .csbc-btns button{height:32px;padding:0 12px;border:1px solid var(--b-line);border-radius:8px;background:var(--b-pop);color:var(--b-fg);font:600 12px/1 Inter,ui-sans-serif,system-ui,sans-serif;cursor:pointer}
       @media (min-width:768px){.csbc{left:16px;right:auto;bottom:7rem;width:22rem}}
+      .csbc-b i.csbc-a{font-style:normal;color:inherit}
+      @media (max-width:767px){html[data-v8] .csbc{padding:12px}html[data-v8] .csbc-ico,html[data-v8] .csbc-h,html[data-v8] .csbc-a{display:none}html[data-v8] .csbc-btns{margin-top:8px}}
+      html[data-v8] .csb{--b-side:#0e0e10;--b-line:#ffffff0f;--b-acc:#a3b6e0}
+      html[data-v8] .csb-brand img,html[data-v8] .csb-top>a img{content:url(/mark-white.webp)}
+      html[data-v8] .csb-brand{height:56px;padding:0 16px;font-size:13.5px;font-weight:600}
+      html[data-v8] .csb-brand img{width:18px;height:18px}
+      html[data-v8] .csb-top>a img{width:20px;height:20px}
+      html[data-v8] .csb-nav a[aria-current] .csb-ico{background:var(--b-fg);opacity:.9}
+      html[data-v8] .csb-top{position:static;height:56px;border-bottom-color:transparent;background:transparent}
+      html[data-v8] .csb .csb-crumb{display:none}
+      html[data-v8] .csb-main{background:none}
+      html[data-v8] .csb-col{background-repeat:no-repeat;background-image:radial-gradient(60% calc(42vh * var(--wash-spread,1)) at 12% 0,color-mix(in srgb,color-mix(in srgb,var(--wash-a,#5a76ad) var(--wash-mix,100%),var(--b-bg)) calc(80% * var(--wash-strength,1)),transparent),transparent 72%),radial-gradient(55% calc(40vh * var(--wash-spread,1)) at 52% 0,color-mix(in srgb,color-mix(in srgb,var(--wash-b,#5f5785) var(--wash-mix,100%),var(--b-bg)) calc(80% * var(--wash-strength,1)),transparent),transparent 72%),radial-gradient(60% calc(42vh * var(--wash-spread,1)) at 90% 0,color-mix(in srgb,color-mix(in srgb,var(--wash-c,#91689c) var(--wash-mix,100%),var(--b-bg)) calc(80% * var(--wash-strength,1)),transparent),transparent 72%)}
+      html[data-v8] .csb-home .csb-hl,html[data-v8] .csb-home>p{display:none}
+      html[data-v8] .csb-home{display:flex;flex-direction:column;align-items:center;padding-top:15vh}
+      html[data-v8] .csb-home>div:not(.csb-hl){width:100%;max-width:40rem;height:50px;margin:0;border-color:#ffffff1f;border-radius:13px;background:#1b1b1e}
+      @media (min-width:768px){html[data-v8] .csb-side{width:223px}}
+      html[data-v8].light{background:#fafafa;--wash-mix:42%}html[data-v8].dim{--wash-mix:82%}
+      html[data-v8].light .csb{--b-bg:#fafafa;--b-side:#fff;--b-fg:#18181b;--b-mut:#52525b;--b-line:#00000017;--b-acc:#3f5a96;--b-tab:#fffffff2}
+      html[data-v8].light .csbc{--b-fg:#18181b;--b-line:#00000017;--b-acc:#3f5a96;--b-soft:#3f5a961a}
+      html[data-v8].light .csb-brand img,html[data-v8].light .csb-top>a img{filter:invert(.9)}
+      html[data-v8].light .csb-home>div:not(.csb-hl){border-color:#00000017;background:#fff}
+      html[data-v8].dim .csb{--b-side:#232428;--b-line:#ffffff14}
+      html[data-v8].dim .csb-home>div:not(.csb-hl){border-color:#ffffff26;background:#2d2e33}
     </style>`;
 
 // The app's ConsentBanner (src/components/layout/ConsentBanner.tsx) takes over from the static banner by
@@ -148,7 +172,7 @@ export function bootConsent(): string {
     + `b.addEventListener('keydown',function(e){if(e.key==='Escape')set(false)})})()</script>`;
   return `<section id="${CONSENT_ID}" class="csbc" role="region" aria-label="Privacy choices" aria-describedby="${CONSENT_ID}-text" data-nosnippet>`
     + `<div class="csbc-row"><span class="csbc-ico">${shield}</span><div class="csbc-txt"><p class="csbc-h">Your privacy</p>`
-    + `<p id="${CONSENT_ID}-text" class="csbc-b">Sign-in, preferences and offline data are stored on this device so the app works. That's always on. `
+    + `<p id="${CONSENT_ID}-text" class="csbc-b"><i class="csbc-a">Sign-in, preferences and offline data are stored on this device so the app works. That's always on. </i>`
     + `May we also count <span>anonymous page views</span>? No cookies, no IDs, no third parties. <a href="/privacy">Privacy policy</a></p></div></div>`
     + `<div class="csbc-btns"><button type="button" data-a="0">No thanks</button><button type="button" data-a="1">Allow</button></div></section>${script}`;
 }
@@ -220,8 +244,8 @@ export function bootShell(path: string, meta: PageMeta, hero: HeroLinesResponse 
   const guard = `<script>(function(){var b=document.getElementById('cs-boot-page'),p=location.pathname.replace(/\\/+$/,'')||'/';if(b&&b.getAttribute('data-path').toLowerCase()!==p.toLowerCase())b.hidden=true})()</script>`;
   return [
     `<div class="csb">`,
-    `<aside class="csb-side"><a class="csb-brand" href="/" aria-label="Control Scout home"><img src="/logo-56.webp" alt="" /><span>Control Scout</span></a><nav class="csb-nav" aria-label="Main">${nav}</nav></aside>`,
-    `<div class="csb-col"><header class="csb-top"><span class="csb-menu" aria-hidden="true"></span><a href="/" aria-label="Control Scout home"><img src="/logo-56.webp" alt="" /></a><p class="csb-crumb"><i>Control Scout / </i><b>${esc(pageTitle(p))}</b></p>${home ? "" : `<div class="csb-search"><span>Search teams, events, matches…</span></div>`}</header>`,
+    `<aside class="csb-side"><a class="csb-brand" href="/" aria-label="Control Scout home"><img src="/legacy/logo-56.webp" alt="" /><span>Control Scout</span></a><nav class="csb-nav" aria-label="Main">${nav}</nav></aside>`,
+    `<div class="csb-col"><header class="csb-top"><span class="csb-menu" aria-hidden="true"></span><a href="/" aria-label="Control Scout home"><img src="/legacy/logo-56.webp" alt="" /></a><p class="csb-crumb"><i>Control Scout / </i><b>${esc(pageTitle(p))}</b></p>${home ? "" : `<div class="csb-search"><span>Search teams, events, matches…</span></div>`}</header>`,
     // A page with content in full scrolls with the document (before the app loads, or with no JavaScript at all).
     `<main class="csb-main${meta.bodyHtml && !meta.firstPaint && page ? " csb-scroll" : ""}">${page}${isBareRoute(p) ? "" : foot}${guard}${heroJson}</main></div>`,
     `<nav class="csb-tabs" aria-label="Main">${TABS.map((it) => link(p, it)).join("")}</nav>`,

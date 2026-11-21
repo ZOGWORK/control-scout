@@ -71,13 +71,13 @@ export function ConnectionPill({ place }: { place: "phone" | "wide" }) {
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <button type="button" aria-label={`${text.long}. Show what's on this device`} data-connection-pill={portal ? "portal" : "offline"}
-            className="tap-44 pointer-events-auto inline-flex h-7 items-center gap-1.5 whitespace-nowrap rounded-full border border-info/30 bg-primary px-2.5 text-xs font-medium text-info shadow-sm outline-none transition-colors hover:bg-info/[0.08] focus-visible:ring-2 focus-visible:ring-ring/60">
+            className="tap-44 pointer-events-auto inline-flex h-7 items-center gap-1.5 whitespace-nowrap rounded-full border border-info/30 bg-primary px-2.5 text-xs font-medium text-info shadow-sm outline-none transition-colors hover:bg-info/[0.08] v8:border-ink/15 v8:bg-ink/[0.06] v8:text-text-base v8:shadow-none v8:hover:bg-ink/10 focus-visible:ring-2 focus-visible:ring-ring/60">
             <WifiOff className="size-3.5 shrink-0" aria-hidden />
             {/* Tablet and small laptop widths: the icon alone, in the bar's own flow (the centred search box leaves
                 no spare room beside it); the words from xl up, floating in the space left of the bar's buttons. */}
             <span aria-hidden className={cn(place === "wide" && "max-xl:hidden")}>{text.short}</span>
             {/* The time: "updated" from a laptop up; just the time on a phone, and nothing on the narrowest. */}
-            {text.time && <span aria-hidden className={cn("text-info/80", place === "phone" ? "max-[359px]:hidden" : "max-xl:hidden")}>· {place === "wide" && "updated "}{text.time}</span>}
+            {text.time && <span aria-hidden className={cn("text-info/80 v8:text-text-muted", place === "phone" ? "max-[359px]:hidden" : "max-xl:hidden")}>· {place === "wide" && "updated "}{text.time}</span>}
           </button>
         </PopoverTrigger>
         <PopoverContent align={place === "phone" ? "center" : "end"} className="w-[min(92vw,20rem)] space-y-3 text-sm">

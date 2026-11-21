@@ -19,8 +19,10 @@ import { all, db, get, run } from "../db.js";
 import { env } from "../env.js";
 import { recordAudit } from "../portal/audit.js";
 import { withDataLock } from "../data/lock.js";
-import { isoDuration } from "./youtube.js";
-import { eventVideosByDay, forgetOfficial, linkAiredOff, localDate } from "./officialVideos.js";
+import { isPlaceholderTitle, isoDuration } from "./youtube.js";
+
+export { isPlaceholderTitle };
+import { eventVideosByDay, forgetOfficial, linkAiredOff, linkTooShort, localDate } from "./officialVideos.js";
 import { LOOKBACK_MS, record, settle, type WatchVerdict } from "./officialWatch.js";
 import { NOT_EVENTS, bestGuess, matchVideo, notCompetition, videoWindow, type ChannelRule, type WatchEvent, type WatchVideo } from "./officialMatch.js";
 import { EVENT_FIRST_DAY, EVENT_LAST_DAY, EVENT_PLAYED_DAYS, playedDays } from "./eventDays.js";
@@ -75,9 +77,9 @@ const DUPLICATE = "a duplicate the watcher logged";
 export interface UnusedLink { season: number; code: string; videoId: string; why: string }
 /**
  * FIRST's event links, a YouTube link or a short link followed to its video: a record of their event only when
- * YouTube's broadcast date fits it (linkAiredOff, the same check the event's recording makes,
- * server/videos/recordings.ts). One aired on another date isn't the event's: its video is decided like any other
- * upload, and the link is listed as unused, with why.
+ * YouTube's broadcast date fits it and it isn't a short upload never broadcast (linkAiredOff, linkTooShort: the same
+ * checks the event's recording makes, server/videos/recordings.ts). One aired on another date, or a clip, isn't the
+ * event's: its video is decided like any other upload, and the link is listed as unused, with why.
  */
 async function firstLinks(): Promise<{ used: { season: number; code: string; videoId: string; short: boolean }[]; unused: UnusedLink[] }> {
   const rows = await all<any>(`SELECT e.season, e.code, e.livestream, ${EVENT_FIRST_DAY} AS start, ${EVENT_LAST_DAY} AS end, e.timezone FROM events e WHERE e.livestream LIKE '%youtu%'`);
@@ -88,15 +90,19 @@ async function firstLinks(): Promise<{ used: { season: number; code: string; vid
     ...shorts.map((r) => ({ r, videoId: String(r.video_id), short: true })),
   ];
   const ids = [...new Set(links.map((l) => l.videoId))];
-  const aired = new Map<string, string>();
+  const facts = new Map<string, { start: string | null; live: number | null; duration: number | null }>();
   for (let i = 0; i < ids.length; i += 200) {
     const part = ids.slice(i, i + 200);
-    for (const m of await all<any>(`SELECT video_id, start FROM video_meta WHERE start IS NOT NULL AND video_id IN (${part.map(() => "?").join(",")})`, part)) aired.set(String(m.video_id), String(m.start));
+    for (const m of await all<any>(`SELECT video_id, start, live, duration FROM video_meta WHERE video_id IN (${part.map(() => "?").join(",")})`, part)) {
+      facts.set(String(m.video_id), { start: m.start == null ? null : String(m.start), live: m.live == null ? null : Number(m.live), duration: m.duration == null ? null : Number(m.duration) });
+    }
   }
   const out: { used: { season: number; code: string; videoId: string; short: boolean }[]; unused: UnusedLink[] } = { used: [], unused: [] };
   for (const { r, videoId, short } of links) {
     const l = { season: Number(r.season), code: String(r.code), videoId };
-    const off = r.start ? linkAiredOff({ code: l.code, start: String(r.start), end: r.end ?? null, timezone: r.timezone ?? null }, aired.get(videoId)) : null;
+    // Not the event's: aired on another date, or a short upload never broadcast (a clip; the same checks as recordings.ts).
+    const off = (r.start ? linkAiredOff({ code: l.code, start: String(r.start), end: r.end ?? null, timezone: r.timezone ?? null }, facts.get(videoId)?.start) : null)
+      ?? linkTooShort(l.code, facts.get(videoId));
     if (off) out.unused.push({ ...l, why: short ? off.replace("FIRST's link", "FIRST's short link's video") : off }); else out.used.push({ ...l, short });
   }
   return out;
@@ -129,12 +135,12 @@ async function scoutRecords(unused?: UnusedLink[]): Promise<Map<string, Record_>
 /** Every event with a date, for matching in memory, bucketed by month so a window reads two or three buckets. */
 async function eventIndex(): Promise<(lo: string, hi: string) => WatchEvent[]> {
   // Its days: the listed ones and the days it played (eventDays.ts).
-  const rows = await all<any>(`SELECT e.season, e.code, e.name, e.type, e.city, e.state, e.country, ${EVENT_FIRST_DAY} AS start, ${EVENT_LAST_DAY} AS end, e.timezone, e.division_code, e.remote, ${EVENT_PLAYED_DAYS} AS played_days FROM events e WHERE e.start IS NOT NULL`);
+  const rows = await all<any>(`SELECT e.season, e.code, e.name, e.type, e.city, e.venue, e.state, e.country, ${EVENT_FIRST_DAY} AS start, ${EVENT_LAST_DAY} AS end, e.timezone, e.division_code, e.remote, ${EVENT_PLAYED_DAYS} AS played_days FROM events e WHERE e.start IS NOT NULL`);
   const parents = new Set(rows.filter((r) => r.division_code && r.division_code !== r.code).map((r) => `${r.season}/${r.division_code}`));
   const buckets = new Map<string, WatchEvent[]>();
   for (const r of rows) {
     const e: WatchEvent = {
-      season: Number(r.season), code: String(r.code), name: String(r.name ?? ""), type: String(r.type ?? ""), city: r.city ?? null, state: r.state ?? null,
+      season: Number(r.season), code: String(r.code), name: String(r.name ?? ""), type: String(r.type ?? ""), city: r.city ?? null, venue: r.venue ?? null, state: r.state ?? null,
       country: r.country ?? null, start: String(r.start).slice(0, 10), end: r.end ? String(r.end).slice(0, 10) : null, timezone: r.timezone ?? null,
       divisionCode: r.division_code ?? null, parent: parents.has(`${r.season}/${r.code}`), remote: !!Number(r.remote), playedDays: playedDays(r.played_days),
     };
@@ -217,7 +223,9 @@ export async function runChannelAudit(log: (s: string) => void, opts: { apiKey?:
     // A watcher's duplicate is read every run, as its adds are: it may be added the run its day's video goes, and must
     // be added on facts read then (one made private or blocked since isn't).
     const copy = (id: string) => records.get(id)?.record === DUPLICATE;
-    const needFacts = rows.filter((r) => ((!records.has(String(r.video_id)) || again(String(r.video_id))) && !r.facts_at && !notCompetition(String(r.title))) || adds.has(String(r.video_id)) || copy(String(r.video_id))).map((r) => String(r.video_id));
+    const needFacts = rows.filter((r) => ((!records.has(String(r.video_id)) || again(String(r.video_id))) && !r.facts_at && !notCompetition(String(r.title))) || adds.has(String(r.video_id)) || copy(String(r.video_id))
+      // A placeholder for a title ("Deleted video") on a video not known to be gone: its own title is read.
+      || (isPlaceholderTitle(r.title) && r.privacy !== "unavailable")).map((r) => String(r.video_id));
     const facts = new Map<string, any>();
     let factsError: string | null = null;
     for (let i = 0; i < needFacts.length && out.units < maxUnits; i += 50) {
@@ -255,11 +263,17 @@ export async function runChannelAudit(log: (s: string) => void, opts: { apiKey?:
           privacy: String(item?.status?.privacyStatus ?? "public"), embeddable: item?.status?.embeddable !== false ? 1 : 0,
           blocked_in: Array.isArray(item?.contentDetails?.regionRestriction?.blocked) ? item.contentDetails.regionRestriction.blocked.length : 0,
           live: String(item?.snippet?.liveBroadcastContent ?? "none"), end: item?.liveStreamingDetails?.actualEndTime ?? null,
+          // The video's own title: the one to read where the uploads list gives a placeholder.
+          ...(typeof item?.snippet?.title === "string" && item.snippet.title && !isPlaceholderTitle(item.snippet.title) ? { title: String(item.snippet.title).slice(0, 300) } : {}),
         });
       }
       // Listed but not answered for: private or deleted since.
       for (const vid of ids) if (!got.has(vid)) facts.set(vid, { start: null, duration: null, privacy: "unavailable", embeddable: 0, blocked_in: 0, live: "none" });
     }
+    // A placeholder the uploads list gave ("Deleted video") replaced by the title the videos list gives.
+    const titled = rows.filter((r) => isPlaceholderTitle(r.title) && facts.get(String(r.video_id))?.title);
+    for (const r of titled) r.title = facts.get(String(r.video_id))!.title;
+    if (titled.length) await locked(() => db().batch(titled.map((r) => ({ sql: "UPDATE official_audit_videos SET title = ? WHERE video_id = ?", args: [r.title, String(r.video_id)] })), "write"));
     // Each upload against Scout, the watcher's rules on what Scout has nothing for, and the findings.
     const events = await eventIndex();
     const rules = new Map<string, ChannelRule & { floor: string; title: string }>(channels.map((c) => {
@@ -287,6 +301,43 @@ export async function runChannelAudit(log: (s: string) => void, opts: { apiKey?:
       forgetOfficial();
       for (const c of off) { const rec = records.get(c.videoId); if (rec) records.set(c.videoId, { ...rec, record: "taken off its event by the channel audit", plays: false }); }
       for (const c of off) await recordAudit("channel audit", "officialVideo.remove", { videoId: c.videoId, why: c.setAside });
+    }
+    // An add the audit took off before, right again today (a title it misread, a rule since put right): back on its
+    // event, logged as officialVideo.restore by "channel audit".
+    const back = checks.filter((c) => c.back);
+    if (back.length) {
+      // One transaction each, every step guarded again in SQL: put back only while its row is still the audit's own
+      // rejection (the owner's Remove meanwhile stands) and no other recording now holds its day and part (the
+      // official_videos_day index). One that can't be put back stays off and is weighed again next run.
+      const restored = await locked(async () => {
+        const done: typeof back = [];
+        for (const c of back) {
+          const tx = await db().transaction("write");
+          try {
+            const put = await tx.execute({
+              sql: `UPDATE official_videos SET removed_at = NULL WHERE video_id = ? AND source = 'watcher' AND removed_at IS NOT NULL
+                      AND EXISTS (SELECT 1 FROM official_watch w WHERE w.video_id = official_videos.video_id AND w.status = 'rejected' AND w.decided_by = 'channel audit')
+                      AND NOT EXISTS (SELECT 1 FROM official_videos o WHERE o.kind = 'recording' AND o.removed_at IS NULL AND o.video_id != official_videos.video_id
+                        AND o.season = official_videos.season AND o.code = official_videos.code AND o.day IS official_videos.day AND COALESCE(o.part, '') = COALESCE(official_videos.part, ''))`,
+              args: [c.videoId],
+            });
+            if (!put.rowsAffected) { await tx.rollback(); continue; }
+            await tx.execute({ sql: "UPDATE official_watch SET status = 'added', decided_at = ?, decided_by = 'channel audit', why = ? WHERE video_id = ? AND status = 'rejected' AND decided_by = 'channel audit'",
+              args: [at, `back on its event: the channel audit's check passes again (${c.why})`.slice(0, 500), c.videoId] });
+            await tx.commit();
+            done.push(c);
+          } catch (e) {
+            await tx.rollback().catch(() => {});
+            log(`official videos: audit: ${c.videoId} not put back: ${(e as Error).message}`);
+          } finally {
+            tx.close();
+          }
+        }
+        return done;
+      });
+      if (restored.length) forgetOfficial();
+      for (const c of restored) { const rec = records.get(c.videoId); if (rec) records.set(c.videoId, { ...rec, record: "added by the watcher", plays: true }); }
+      for (const c of restored) await recordAudit("channel audit", "officialVideo.restore", { videoId: c.videoId, why: c.why });
     }
     // The watcher's rules on one upload, before its event's videos are weighed (settle): null for one Scout has a record
     // of that isn't decided again.
@@ -525,7 +576,8 @@ async function readUploads(channelId: string, full: boolean, key: string, fetchI
       fresh = items.filter((i: { id: string }) => !known.has(i.id)).length;
       await locked(() => db().batch(items.map((i: { id: string; title: string; published: string | null }) => ({
         sql: `INSERT INTO official_audit_videos (video_id, channel_id, title, published, first_seen, last_seen) VALUES (?, ?, ?, ?, ?, ?)
-              ON CONFLICT(video_id) DO UPDATE SET channel_id = excluded.channel_id, title = excluded.title, published = COALESCE(excluded.published, official_audit_videos.published), last_seen = excluded.last_seen, gone_at = NULL`,
+              ON CONFLICT(video_id) DO UPDATE SET channel_id = excluded.channel_id,
+                title = CASE WHEN lower(trim(excluded.title)) IN ('deleted video', 'private video') THEN official_audit_videos.title ELSE excluded.title END, published = COALESCE(excluded.published, official_audit_videos.published), last_seen = excluded.last_seen, gone_at = NULL`,
         args: [i.id, channelId, i.title, i.published, startedAt, startedAt],
       })), "write"));
     }
@@ -553,23 +605,28 @@ export async function everyDayPlays(e: WatchEvent): Promise<string | null> {
   return all ? `its event ${e.season} ${e.code} (${e.name}) already plays a video for ${days.length === 1 ? "its one day" : `each of its ${days.length} days`} (${has.map((h) => h.videoId).join(", ")})` : null;
 }
 
+
 /** Each video the watcher added on its own, checked again: still on its event, playable, an FTC competition stream,
  *  broadcast on the day it's on, the only event the rules fit, and not a second video of that day unless both name
- *  their parts. An add the owner has since removed counts as wrong (it was). */
-async function checkAdds(rows: any[], facts: Map<string, any>, rules: Map<string, ChannelRule & { floor: string }>, events: (lo: string, hi: string) => WatchEvent[], at: string): Promise<{ videoId: string; ok: boolean; why: string; setAside: string | null }[]> {
-  const adds = await all<any>(`SELECT o.video_id, o.season, o.code, o.day, o.part, o.channel_id, o.title, o.removed_at, ${EVENT_FIRST_DAY} AS e_start, ${EVENT_LAST_DAY} AS e_end, e.timezone, e.type, e.name
-    FROM official_videos o LEFT JOIN events e ON e.season = o.season AND e.code = o.code WHERE o.source = 'watcher'`);
+ *  their parts. An add the owner has since removed counts as wrong (it was). One the channel audit itself took off
+ *  is checked as if on its event: found right again, it comes back (back). */
+async function checkAdds(rows: any[], facts: Map<string, any>, rules: Map<string, ChannelRule & { floor: string }>, events: (lo: string, hi: string) => WatchEvent[], at: string): Promise<{ videoId: string; ok: boolean; why: string; setAside: string | null; back?: boolean }[]> {
+  const adds = await all<any>(`SELECT o.video_id, o.season, o.code, o.day, o.part, o.channel_id, o.title, o.removed_at, w.decided_by, ${EVENT_FIRST_DAY} AS e_start, ${EVENT_LAST_DAY} AS e_end, e.timezone, e.type, e.name
+    FROM official_videos o LEFT JOIN events e ON e.season = o.season AND e.code = o.code LEFT JOIN official_watch w ON w.video_id = o.video_id WHERE o.source = 'watcher'`);
   const byId = new Map(rows.map((r) => [String(r.video_id), r]));
-  const out: { videoId: string; ok: boolean; why: string; setAside: string | null }[] = [];
+  const out: { videoId: string; ok: boolean; why: string; setAside: string | null; back?: boolean }[] = [];
   for (const a of adds) {
     const vid = String(a.video_id), r = byId.get(vid);
     // Facts not read this run (a failed call): the last ones read stand, so an add found unplayable isn't cleared by a failure.
     const f = facts.get(vid) ?? (r?.privacy != null ? { privacy: String(r.privacy), embeddable: r.embeddable, blocked_in: Number(r.blocked_in ?? 0), start: r.start ?? null, duration: r.duration ?? null } : undefined);
     const wrong: string[] = [];
-    if (a.removed_at) wrong.push("the owner removed it from its event");
+    // Taken off by the channel audit, not the owner: weighed as if on its event.
+    const byAudit = !!a.removed_at && a.decided_by === "channel audit";
+    const off = !!a.removed_at && !byAudit;
+    if (off) wrong.push("the owner removed it from its event");
     if (!a.e_start) wrong.push(`its event ${a.season} ${a.code} isn't in Scout`);
     else if (NOT_EVENTS.has(String(a.type))) wrong.push(`its event is a ${a.type}, not a competition`);
-    const title = String(r?.title ?? a.title);
+    const title = String(r?.title && !isPlaceholderTitle(r.title) ? r.title : a.title);
     const nc = notCompetition(title);
     if (nc) wrong.push(nc);
     if (f) {
@@ -592,13 +649,13 @@ async function checkAdds(rows: any[], facts: Map<string, any>, rules: Map<string
       if (m.kind !== "add") wrong.push(`the rules no longer pick it alone: ${m.why}`);
       else if (m.event.code !== String(a.code) || m.event.season !== Number(a.season)) wrong.push(`the rules now pick ${m.event.season} ${m.event.code}, not ${a.season} ${a.code}`);
     }
-    if (!a.removed_at && a.e_start) {
-      const others = (await eventVideosByDay(Number(a.season), String(a.code))).filter((h) => h.videoId !== vid && !h.gone && h.day === a.day && (h.part == null || a.part == null));
-      if (others.length) wrong.push(`a second video of ${a.day} (${others[0].videoId} plays it too) and not both name their part`);
+    if (!off && a.e_start) {
+      const others = (await eventVideosByDay(Number(a.season), String(a.code))).filter((h) => h.videoId !== vid && !h.gone && h.day === a.day && (h.part == null || a.part == null || h.part === a.part));
+      if (others.length) wrong.push(`a second video of ${a.day} (${others[0].videoId} plays it too) and ${others[0].part != null && others[0].part === a.part ? `both are its ${a.part}` : "not both name their part"}`);
     }
     // Nothing known of its playability and no other fault: no verdict this run, its last check stands.
     if (!f && !wrong.length) continue;
-    out.push({ videoId: vid, ok: !wrong.length, why: wrong.length ? wrong.join("; ") : `checked ${at.slice(0, 10)}: playable, on ${a.season} ${a.code} ${a.day}, the only event the rules fit`, setAside: !a.removed_at && !!nc ? nc : null });
+    out.push({ videoId: vid, ok: !wrong.length, why: wrong.length ? wrong.join("; ") : `checked ${at.slice(0, 10)}: playable, on ${a.season} ${a.code} ${a.day}, the only event the rules fit`, setAside: !a.removed_at && !!nc ? nc : null, ...(byAudit && !wrong.length ? { back: true } : {}) });
   }
   return out;
 }

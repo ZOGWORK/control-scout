@@ -73,7 +73,7 @@ function Report({ r }: { r: MatchReport }) {
   const watch = useWatchFlags(teams, ws?.state.data);
   const back = `/events/${m.season}/${encodeURIComponent(m.code)}?tab=matches&match=${encodeURIComponent(m.key)}`;
   const step = (x: { key: string; label: string } | null, dir: "prev" | "next") => x && (
-    <Link to={matchReportHref({ season: m.season, code: m.code, key: x.key })} className="inline-flex min-h-9 pointer-coarse:min-h-[44px] items-center rounded-md border border-border bg-card px-2 text-sm hover:border-accent/50"
+    <Link to={matchReportHref({ season: m.season, code: m.code, key: x.key })} className="inline-flex min-h-9 pointer-coarse:min-h-[44px] items-center rounded-md border border-border bg-card px-2 text-sm hover:border-accent/50 v8:border-ink/[0.12] v8:bg-transparent v8:transition-[background-color,scale] v8:duration-150 v8:hover:border-ink/[0.12] v8:hover:bg-ink/[0.06] v8:active:scale-[0.97] motion-reduce:active:scale-100"
       aria-label={`${dir === "prev" ? "Previous" : "Next"} match, ${x.label}`}>
       {dir === "prev" && <ChevronLeft className="size-4" aria-hidden />}{x.label}{dir === "next" && <ChevronRight className="size-4" aria-hidden />}
     </Link>
@@ -87,8 +87,9 @@ function Report({ r }: { r: MatchReport }) {
         <span className="ml-auto flex gap-1.5">{step(r.prev, "prev")}{step(r.next, "next")}</span>
       </div>
       <header className="mb-5 max-sm:mb-4">
-        <p className="text-xs text-muted-foreground">Know your match · {seasonLabel(m.season)}</p>
-        <h1 className="mt-1 font-display text-2xl font-semibold tracking-tight sm:text-3xl">
+        <p className="text-xs text-muted-foreground v8:text-text-faint">Know your match · {seasonLabel(m.season)}</p>
+        {/* v8: the page title at the content's top (v8-page-guide: 1.375rem, semibold, tight), in Inter. */}
+        <h1 className="mt-1 font-display text-2xl font-semibold tracking-tight sm:text-3xl v8:font-sans v8:text-[1.375rem] v8:sm:text-[1.375rem]">
           {r.description ?? m.label}
           {m.time && <span className="ml-3 align-middle text-sm font-normal text-muted-foreground">{matchTime(m.time)}</span>}
         </h1>

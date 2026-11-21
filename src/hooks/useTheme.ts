@@ -3,16 +3,19 @@ import { useEffect, useRef, useState } from "react";
 import { usePersonal } from "../lib/personal";
 import type { Settings, ThemeChoice } from "../shared/personal";
 import { useFlag } from "../lib/flags";
-import { takeLitePick, writeThemeCookie } from "../lib/liteCookies";
+import { takeLitePick, writeThemeCookie, writeV8Cookie } from "../lib/liteCookies";
+import { useIsV8 } from "../lib/v8";
 
 const prefersLight = () => typeof window !== "undefined" && window.matchMedia?.("(prefers-color-scheme: light)").matches;
 
-/** The palette a choice paints (System: Light or Dark, from the device). Dim and Midnight are dark themes. */
+/** The palette a choice paints (System: Light or Dark, from the device). Dim is a dark theme. */
 export type Palette = Exclude<ThemeChoice, "system">;
 /** The browser's bar colour per palette: each one's page background (src/index.css). */
-export const THEME_COLOR: Record<Palette, string> = { light: "#ffffff", dim: "#1e1f23", dark: "#0a0a0b", midnight: "#000000" };
+export const THEME_COLOR: Record<Palette, string> = { light: "#ffffff", dim: "#1e1f23", dark: "#0a0a0b" };
+/** The same in v8 (src/index.css, html[data-v8] and its .light / .dim): Light's page is near-white there. */
+export const V8_THEME_COLOR: Record<Palette, string> = { light: "#fafafa", dim: "#1e1f23", dark: "#0a0a0b" };
 /** The same with the owner's dog theme on (dogTheme): each palette's yellow-tinted page (src/index.css, html.dog). */
-export const DOG_THEME_COLOR: Record<Palette, string> = { light: "#fff8dc", dim: "#2a2513", dark: "#17130a", midnight: "#0b0903" };
+export const DOG_THEME_COLOR: Record<Palette, string> = { light: "#fff8dc", dim: "#2a2513", dark: "#17130a" };
 
 /** The top bar's light/dark switch (src/components/layout/ThemeToggle.tsx): from any dark theme (System showing dark
  *  included) to Light, remembering that dark theme; from Light back to it (Dark when none was remembered). */
@@ -43,12 +46,13 @@ export function ThemeSync() {
   const { palette, theme } = useTheme();
   const { state, update } = usePersonal();
   const dog = useFlag("dogTheme");
+  const v8 = useIsV8();
   useEffect(() => {
     const root = document.documentElement.classList;
-    for (const p of ["light", "dim", "midnight"] as const) root.toggle(p, palette === p);
+    for (const p of ["light", "dim"] as const) root.toggle(p, palette === p);
     root.toggle("dog", dog);
-    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", (dog ? DOG_THEME_COLOR : THEME_COLOR)[palette]);
-  }, [palette, dog]);
+    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", (dog ? DOG_THEME_COLOR : v8 ? V8_THEME_COLOR : THEME_COLOR)[palette]);
+  }, [palette, dog, v8]);
   // A theme picked on Lite's Settings page since the app last ran (only its cookie changed there): taken once, as this
   // device's choice, before the app's older one is written back over it (src/lib/liteCookies.ts).
   const [fromLite] = useState(() => takeLitePick("theme"));
@@ -61,11 +65,13 @@ export function ThemeSync() {
     if (waiting.current) { if (theme !== fromLite) return; waiting.current = false; }
     writeThemeCookie(theme);
   }, [theme, fromLite]);
+  // The look too (v8 or the classic one), so Lite draws in the same one.
+  useEffect(() => { writeV8Cookie(v8); }, [v8]);
   // The dark theme in use, however it was picked (Settings or the top bar's switch), is the one the switch comes back
   // to from Light. Only a change is written: Dark, the default, is what a missing value already means.
   const remembered = state.settings.darkTheme ?? "dark";
   useEffect(() => {
-    if ((theme === "dim" || theme === "dark" || theme === "midnight") && theme !== remembered) update("settings", (s) => ({ ...s, darkTheme: theme }));
+    if ((theme === "dim" || theme === "dark") && theme !== remembered) update("settings", (s) => ({ ...s, darkTheme: theme }));
   }, [theme, remembered]); // eslint-disable-line react-hooks/exhaustive-deps -- update is stable
   useEffect(() => { document.documentElement.classList.toggle("compact", state.settings.density === "compact"); }, [state.settings.density]);
   useEffect(() => { document.documentElement.classList.toggle("ambient-off", state.settings.ambient === false); }, [state.settings.ambient]);

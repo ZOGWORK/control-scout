@@ -33,7 +33,7 @@ import { AWARDS, FILLER, INTENTS, LEADER_STAT_WORDS, PARAPHRASES, PHASES, SCAFFO
 const ASKED_WORDS = [
   "opr", "oprs", "record", "records", "awards", "award", "worlds", "inspire", "playoffs", "playoff", "qualifiers", "qualifier", "qualifying",
   "quals", "championship", "championships", "champion", "champions", "league", "leagues", "meet", "meets", "premier", "scrimmage",
-  "division", "divisions", "finals", "final", "semifinal", "semifinals", "alliance", "alliances", "captain", "captains", "rank", "ranked",
+  "division", "divisions", "finals", "final", "semifinal", "semifinals", "alliance", "alliances", "captain", "captains", "wac", "wacs", "rank", "ranked",
   "ranking", "rankings", "score", "scores", "scored", "scoring", "highest", "lowest", "average", "total", "points", "auto", "autonomous",
   "teleop", "endgame", "penalty", "penalties", "foul", "fouls", "match", "matches", "event", "events", "team", "teams", "season",
   "seasons", "rookie", "veteran", "school", "sponsor", "sponsors", "website", "location", "upcoming", "latest", "previous", "winner",
@@ -177,14 +177,17 @@ function slip(a: string, b: string): boolean {
 }
 
 /** A plain form of a word the vocabulary keeps ("winning" of "win", "placed" of "place", "partners" of "partner"). */
-function formOfKnown(w: string, keep: Set<string>): boolean {
+function formOfKnown(w: string, keep: Set<string>, own: Map<string, 1 | 2>): boolean {
   const m = /^(.{3,}?)(s|es|ed|d|ing|er|ers|est|ly)$/.exec(w);
   if (!m) return false;
   const stem = m[1];
   // "worldes" is "worlds" mistyped, not a form of "world": "-es" only follows s, x, z, ch, sh or o.
   if (m[2] === "es" && keep.has(`${stem}s`) && !/(?:s|x|z|ch|sh|o)$/.test(stem)) return false;
+  // A stem of three letters only when it is one of search's own words ("win"): a short word of the names' ("Thi", a
+  // given name) never makes a typo of a plain word a form of it ("thier" is "their", never "Thi" with "-er").
+  const known = (x: string) => keep.has(x) && (x.length > 3 || own.has(x));
   // "winning" → "win", "placed" → "place", "scouting" → "scout".
-  return keep.has(stem) || keep.has(`${stem}e`) || (/(.)\1$/.test(stem) && keep.has(stem.slice(0, -1)));
+  return known(stem) || known(`${stem}e`) || (/(.)\1$/.test(stem) && known(stem.slice(0, -1)));
 }
 
 /** `w` is `c` with one letter added before its last, where no ending goes ("lastest", "latest"). */
@@ -292,7 +295,7 @@ export function correctWord(w: string, v: Vocab, last = false): WordFix | null {
   if (!max || v.keep.has(w)) return null;
   // A plain form of a known word ("winning") is left as typed, unless it is one of search's own words with a letter
   // added inside it, which no ending makes ("lastest" is "latest", never "last" with "-est").
-  const form = formOfKnown(w, v.keep);
+  const form = formOfKnown(w, v.keep, v.own);
   const seen = v.count.get(w) ?? 0;
   const found: { word: string; d: number; own: number; slip: boolean; n: number }[] = [];
   const set = charSet(w);
@@ -350,7 +353,7 @@ const PARSER_WORDS = new Set(LEXICON.filter((e) => e.syms.some((x) => x.k !== "f
  *  apart, when only one split reads so (the fewest fixes), else null. */
 export function splitWord(w: string, v: Vocab): WordFix | null {
   // A plain form of a known word ("partnered", "scouted") is that word, never two run together ("partner red").
-  if (w.length < 7 || v.keep.has(w) || v.count.has(w) || formOfKnown(w, v.keep)) return null;
+  if (w.length < 7 || v.keep.has(w) || v.count.has(w) || formOfKnown(w, v.keep, v.own)) return null;
   const asked = (x: string) => v.own.get(x) === 2 || PARSER_WORDS.has(x);
   const part = (x: string) => (asked(x) ? { word: x, fixed: 0 } : ((f) => (f?.own && asked(f.word) ? { word: f.word, fixed: 1 } : null))(correctWord(x, v)));
   let best: { word: string; fixed: number }[] = [];
@@ -385,16 +388,35 @@ export function looseWord(w: string, v: Vocab): WordFix | null {
   return found.length === 1 ? { word: found[0], own: true } : null;
 }
 
+/** Two words typed apart that a stored name has as one ("long horn round up" for "Longhorn Roundup"): joined when
+ *  the joined word is a name's word seen three times or more and isn't one of search's own. Search reads both
+ *  queries and keeps the better answer (spelled), so "Long Horn" as a team's own two words still reads as typed. */
+export function joinWords(parts: string[], v: Vocab): { parts: string[]; fixes: [string, string][] } {
+  const out = [...parts];
+  const fixes: [string, string][] = [];
+  for (let i = 0; i + 2 < out.length; i += 2) {
+    const a = out[i], b = out[i + 2];
+    if (!/^\p{L}{2,}$/u.test(a) || !/^\p{L}{2,}$/u.test(b) || a === a.toUpperCase() || b === b.toUpperCase()) continue;
+    const joined = (a + b).toLowerCase();
+    if (joined.length < 6 || v.own.has(joined) || (v.count.get(joined) ?? 0) < 3) continue;
+    fixes.push([`${a} ${b}`.toLowerCase(), joined]);
+    out.splice(i, 3, a[0] === a[0].toUpperCase() ? joined[0].toUpperCase() + joined.slice(1) : joined);
+  }
+  return { parts: out, fixes };
+}
+
 /** A query with its misspelled words corrected, each in the case it was typed in ("Hypnotc" → "Hypnotic"), or null
  *  when nothing needs correcting, with each fix (typed, corrected; lower case). `own`: every fix is to one of search's own words ("oper" → "opr"), so it may be
  *  offered even when the query as typed found something. Only whole words of letters are read: numbers, codes and
  *  punctuation stay as typed. */
 export async function correctQuery(q: string, loose = false): Promise<{ q: string; own: boolean; fixes: [string, string][] } | null> {
-  const parts = q.split(/(\s+)/);
-  if (!parts.some((p) => (loose ? /^\p{L}{3,}$/u : /^\p{L}{4,}$/u).test(p))) return null;
+  const typed = q.split(/(\s+)/);
+  if (!typed.some((p) => (loose ? /^\p{L}{3,}$/u : /^\p{L}{4,}$/u).test(p)) && typed.length < 3) return null;
   const v = await vocab();
-  let own = true;
-  const fixes: [string, string][] = [];
+  const joins = loose ? { parts: typed, fixes: [] as [string, string][] } : joinWords(typed, v);
+  const parts = joins.parts;
+  let own = !joins.fixes.length;
+  const fixes: [string, string][] = [...joins.fixes];
   let lastWord = parts.length - 1;
   while (lastWord > 0 && !parts[lastWord].trim()) lastWord--;
   const out = parts.map((p, i) => {

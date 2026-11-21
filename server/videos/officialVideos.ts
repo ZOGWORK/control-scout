@@ -7,6 +7,7 @@
 // The checked list ships in server/data/officialVideos.json and is written once per video at boot (seedOfficialVideos).
 // A video already in the table, kept or removed, is never written again, so removing one sticks.
 import { all, db } from "../db.js";
+import { loadManualStarts } from "./manualStarts.js";
 import { registerCache } from "../caches.js";
 import list from "../data/officialVideos.json" with { type: "json" };
 
@@ -29,6 +30,20 @@ export function linkAiredOff(ev: { code: string; start: string; end?: string | n
   return day < from || day > to ? `FIRST's link for ${ev.code} was broadcast on ${day}, outside ${ev.code}'s dates (${ev.start.slice(0, 10)}${ev.end && ev.end.slice(0, 10) !== ev.start.slice(0, 10) ? ` to ${ev.end.slice(0, 10)}` : ""}): not used for it` : null;
 }
 
+/** The shortest a day's recording runs: an upload shorter than this, with no broadcast of its own, is a clip. */
+export const MIN_RECORDING_S = 45 * 60;
+
+/**
+ * FIRST's link isn't its event's recording when YouTube says its video is an upload (never broadcast, not live or
+ * to come) shorter than a day's recording runs: a camera clip, which can't hold a meet's matches. The watcher sets the
+ * same uploads aside (officialMatch.ts). FIRST in Missouri's 3-minute clips linked for Lafayette Meet #1 AM and PM
+ * (2025 USMOKSSTLMM2 lvhcciim1Y4, USMOKSSTLMM3 -r3PgmLHlHs) are the cases. A length not read yet proves nothing.
+ */
+export function linkTooShort(code: string, m: { start?: string | null; live?: boolean | number | null; duration?: number | null } | null | undefined): string | null {
+  if (!m || m.start || m.live || m.duration == null || m.duration >= MIN_RECORDING_S) return null;
+  return `FIRST's link for ${code} is a ${Math.max(1, Math.round(m.duration / 60))}-minute upload, not a broadcast: too short for a day's recording, not used for it`;
+}
+
 export type OfficialKind = "recording" | "highlight";
 export interface OfficialVideo {
   season: number; code: string; videoId: string; kind: OfficialKind;
@@ -44,7 +59,9 @@ const TTL_MS = 60_000;
 let bySeason = new Map<number, { at: number; v: Promise<OfficialVideo[]> }>();
 registerCache("Official event videos", () => { bySeason = new Map(); });
 /** Drop the cached season lists (after a write). */
-export function forgetOfficial() { bySeason = new Map(); }
+/** Every change to official_videos ends here: the season cache goes, and the owner's typed match starts are read
+ *  again, so a video added, removed or restored plays (or stops playing) its typed starts at once. */
+export function forgetOfficial() { bySeason = new Map(); void loadManualStarts().catch(() => 0); }
 
 const rowOf = (r: any): OfficialVideo => ({
   season: Number(r.season), code: String(r.code), videoId: String(r.video_id), kind: r.kind === "highlight" ? "highlight" : "recording",
@@ -117,12 +134,22 @@ export async function eventVideosByDay(season: number, code: string): Promise<{ 
  */
 let seeded = false;
 let waitingWas = -1;
+let dropsLogged = false;
 export async function seedOfficialVideos(log: (s: string) => void, data: OfficialList = list as OfficialList, now = Date.now(), again = false): Promise<number> {
   // Once a process: the list only changes with a deploy, which starts a new one.
   if (seeded && !again) return 0;
   const named = await nameListedParts(data);
   const known = new Set((await all<{ video_id: string }>("SELECT video_id FROM official_videos")).map((r) => String(r.video_id)));
-  const todo = data.videos.filter((v) => isId(v.videoId) && !known.has(v.videoId));
+  // A video the link check took off its event (./linkCheck.ts, logged by "link check" as officialVideo.remove) is never
+  // written back onto that event, whatever is decided of it since; listed for another event, it's written there.
+  const dropped = new Set((await all<{ k: string }>(`SELECT json_extract(details, '$.videoId') || '/' || json_extract(details, '$.season') || '/' || json_extract(details, '$.code') AS k
+    FROM owner_audit WHERE actor = 'link check' AND action = 'officialVideo.remove'`)).map((r) => String(r.k)));
+  const skippedDrops = data.videos.filter((v) => !known.has(v.videoId) && dropped.has(`${v.videoId}/${v.season}/${v.code}`));
+  if (skippedDrops.length && !dropsLogged) {
+    dropsLogged = true;
+    log(`official videos: ${skippedDrops.length} listed video${skippedDrops.length === 1 ? "" : "s"} not written: the link check took ${skippedDrops.length === 1 ? "it" : "them"} off ${skippedDrops.length === 1 ? "that event" : "those events"} (${skippedDrops.slice(0, 5).map((v) => `${v.videoId} ${v.season} ${v.code}`).join(", ")})`);
+  }
+  const todo = data.videos.filter((v) => isId(v.videoId) && !known.has(v.videoId) && !dropped.has(`${v.videoId}/${v.season}/${v.code}`));
   if (!todo.length) { seeded = true; if (named) forgetOfficial(); return named; }
   const keys = [...new Set(todo.map((v) => `${v.season}/${v.code}`))];
   const events = new Set<string>();

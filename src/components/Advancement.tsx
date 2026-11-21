@@ -25,6 +25,7 @@ import { ADVANCE_LABEL, advanceStatus, type ProjectionRun, type ProjectionsView 
 import { oddsTabBasis } from "../lib/eventRankingNotes";
 import { eventStanding } from "../shared/eventStanding";
 import { forecastTier } from "../shared/forecastTier";
+import { V8_NUM } from "../lib/v8";
 export { forecastTier };
 
 const ease = [0.2, 0.8, 0.2, 1] as const;
@@ -132,8 +133,8 @@ export function AdvancementView({ season, code, team, nameOf, onPickTeam }: { se
       {/* The Rankings tab's Adv. odds column, reconciled: the same projection, or the pre-event forecast (no hindsight). */}
       <p className="-mt-2 text-xs text-muted-foreground" data-odds-basis>{oddsTabBasis(!!proj.data?.current, mode)}</p>
       <PredictionBasis kind="event" className="mb-4 mt-1" />
-      {fc.hindsightNote && <p className="mb-4 flex gap-2 rounded-xl border border-warning/30 bg-warning/[0.06] px-4 py-3 text-sm"><Info className="mt-0.5 size-4 shrink-0 text-warning" />{fc.hindsightNote}</p>}
-      {mode === "pre-event" && <p className="mb-4 flex gap-2 rounded-xl border border-info/30 bg-info/[0.06] px-4 py-3 text-sm"><History className="mt-0.5 size-4 shrink-0 text-info" />These are the odds as they stood the day before the event: ratings from earlier matches only, and none of this event's results.</p>}
+      {fc.hindsightNote && <p className="mb-4 flex gap-2 rounded-xl border border-warning/30 bg-warning/[0.06] px-4 py-3 text-sm v8:border-line v8:bg-card"><Info className="mt-0.5 size-4 shrink-0 text-warning v8:text-text-faint" />{fc.hindsightNote}</p>}
+      {mode === "pre-event" && <p className="mb-4 flex gap-2 rounded-xl border border-info/30 bg-info/[0.06] px-4 py-3 text-sm v8:border-line v8:bg-card"><History className="mt-0.5 size-4 shrink-0 text-info v8:text-text-faint" />These are the odds as they stood the day before the event: ratings from earlier matches only, and none of this event's results.</p>}
       {fc.assumptions.length > 0 && (
         <ul className="mb-5 max-sm:mb-4 space-y-1 text-xs text-muted-foreground">{fc.assumptions.map((a) => <li key={a} className="flex gap-1.5"><Info className="mt-0.5 size-3 shrink-0" />{a}</li>)}</ul>
       )}
@@ -151,7 +152,7 @@ export function AdvancementView({ season, code, team, nameOf, onPickTeam }: { se
           )}
         </div>
         {switchFailed && (
-          <div role="alert" className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-destructive/30 bg-destructive/[0.06] px-4 py-3 text-sm">
+          <div role="alert" className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-destructive/30 bg-destructive/[0.06] px-4 py-3 text-sm v8:border-line v8:bg-card">
             <span className="min-w-0 flex-1">Couldn't simulate the event for {team ?? "this view"}: {state.error!.message} The numbers below are from before.</span>
             <Button variant="secondary" size="sm" onClick={state.reload}><RefreshCw /> Try again</Button>
           </div>
@@ -177,7 +178,7 @@ export function AdvancementView({ season, code, team, nameOf, onPickTeam }: { se
 function StageStrip({ fc, onRefresh }: { fc: ForecastView; onRefresh: () => void }) {
   const at = STAGES.findIndex((s) => s.k === fc.stage);
   return (
-    <div className="mb-5 max-sm:mb-4 rounded-xl border border-border bg-card p-4">
+    <div className="mb-5 max-sm:mb-4 rounded-xl border border-border bg-card p-4 v8:border-line">
       <ol className="grid grid-cols-4 gap-2" aria-label="Event stage">
         {STAGES.map((s, i) => {
           const done = i < at, now = i === at;
@@ -194,7 +195,7 @@ function StageStrip({ fc, onRefresh }: { fc: ForecastView; onRefresh: () => void
           );
         })}
       </ol>
-      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-border pt-3 text-xs text-muted-foreground">
+      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-border pt-3 text-xs text-muted-foreground v8:border-line">
         <span><span className="font-medium text-foreground">{fc.slots}</span> advancement slot{fc.slots === 1 ? "" : "s"}{fc.slotsSource !== "official" ? " (estimated)" : " (official)"}</span>
         <span>Updated {ago(fc.generatedAt)}</span>
         <Button variant="ghost" size="sm" onClick={onRefresh} className="ml-auto max-sm:h-10"><RefreshCw /> Refresh</Button>
@@ -210,9 +211,9 @@ function Outlook({ fc, team, name, onPeek }: { fc: Shown; team: number | null; n
   const p = me.points;
   const parts = [
     { k: "Quals rank", v: p.quals, cls: "bg-accent" },
-    { k: "Alliance selection", v: p.alliance, cls: "bg-amber-500" },
-    { k: "Playoffs", v: p.playoffs, cls: "bg-sky-500" },
-    { k: "Awards", v: p.awards ?? 0, cls: "bg-fuchsia-500" },
+    { k: "Alliance selection", v: p.alliance, cls: "bg-amber-500 v8:bg-text-base/70" },
+    { k: "Playoffs", v: p.playoffs, cls: "bg-sky-500 v8:bg-text-base/45" },
+    { k: "Awards", v: p.awards ?? 0, cls: "bg-fuchsia-500 v8:bg-text-base/25" },
   ];
   const sum = parts.reduce((s, x) => s + x.v, 0) || 1;
   const n = fc.teams.length;
@@ -226,8 +227,8 @@ function Outlook({ fc, team, name, onPeek }: { fc: Shown; team: number | null; n
         <Button variant="outline" size="sm" onClick={() => onPeek(me.team)}><PanelRight /> Team stats</Button>
       </div>
       <div className="grid gap-6 max-sm:gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
-        <section className="relative overflow-hidden rounded-2xl border border-border bg-card p-6 max-sm:p-4" aria-label="Chance to advance">
-          <div aria-hidden className="pointer-events-none absolute -right-16 -top-16 size-56 rounded-full bg-accent/10 blur-3xl" />
+        <section className="relative overflow-hidden rounded-2xl border border-border bg-card p-6 max-sm:p-4 v8:border-line" aria-label="Chance to advance">
+          <div aria-hidden className="pointer-events-none absolute -right-16 -top-16 size-56 rounded-full bg-accent/10 blur-3xl v8:hidden" />
           {pre ? (
             <><Badge variant="success">Already qualified</Badge><p className="mt-3 font-display text-2xl font-semibold">Team {me.team} has already qualified for the next level.</p></>
           ) : fc.ineligible?.has(me.team) ? (
@@ -235,7 +236,7 @@ function Outlook({ fc, team, name, onPeek }: { fc: Shown; team: number | null; n
           ) : (
             <>
               <p className="text-sm text-muted-foreground">Team {me.team}'s chance to advance</p>
-              <p className="mt-1 font-display text-6xl font-semibold tabular-nums tracking-tight sm:text-7xl">{pct(me.pAdvance)}</p>
+              <p className={cn("mt-1 font-display text-6xl font-semibold tabular-nums tracking-tight sm:text-7xl", V8_NUM)}>{pct(me.pAdvance)}</p>
               <div className="mt-4 h-2 overflow-hidden rounded-full bg-muted"><GrowBar value={me.pAdvance} className="bg-accent" /></div>
               {fc.projection ? (
                 <p className="mt-3 text-sm text-muted-foreground">
@@ -312,13 +313,13 @@ function AlliancePanel({ season, code, fc, team, mode, nameOf, onPeek }: { seaso
           <h3 className="text-base font-semibold">{data.role === "captain" ? `Who should ${team} pick?` : `Best captains for ${team}`}</h3>
           <p className="mt-0.5 max-w-2xl text-sm text-muted-foreground">{data.role === "captain" ? `${team} is likely a captain (${pct(data.baseline.pCaptain)}). Each option simulates the event with that partner on the alliance.` : `${team} is more likely to be picked than to captain. Each option simulates the event with that captain picking ${team}.`}{pre && " As it stood the day before the event: ratings from earlier matches only, none of this event's results."}</p>
         </div>
-        <div className="text-right"><p className="text-xs text-muted-foreground">{pre ? "Before the event" : "Right now"}</p><p className="font-display text-2xl font-semibold tabular-nums">{pct(data.baseline.pAdvance)}</p></div>
+        <div className="text-right"><p className="text-xs text-muted-foreground">{pre ? "Before the event" : "Right now"}</p><p className={cn("font-display text-2xl font-semibold tabular-nums", V8_NUM)}>{pct(data.baseline.pAdvance)}</p></div>
       </div>
       <Stagger as="ol" className="grid gap-3 md:grid-cols-2">
         {data.options.map((o, i) => {
           const delta = o.pAdvance - data.baseline.pAdvance;
           return (
-            <StaggerItem as="li" key={o.team} className={cn("rounded-xl border border-border bg-card p-4", i === 0 && "border-accent/50 ring-1 ring-accent/20")}>
+            <StaggerItem as="li" key={o.team} className={cn("rounded-xl border border-border bg-card p-4 v8:border-line", i === 0 && "border-accent/50 ring-1 ring-accent/20 v8:border-ink/[0.12] v8:ring-0")}>
               <div className="flex items-start gap-3">
                 <span className="font-display text-2xl font-semibold tabular-nums text-muted-foreground/70">{i + 1}</span>
                 <div className="min-w-0 flex-1">
@@ -360,7 +361,7 @@ function Field({ fc, team, nameOf, field, season, onPick, onPrefetch, onPeek }: 
         </div>
         <p className="text-xs text-muted-foreground">Tap a team for its odds and numbers.</p>
       </div>
-      <ul className="overflow-hidden rounded-xl border border-border bg-card">
+      <ul className="overflow-hidden rounded-xl border border-border bg-card v8:border-line">
         {rows.map((t) => {
           const isOpen = open === t.team;
           const status = pre.has(t.team) ? "qualified" : fc.ineligible?.has(t.team) ? "ineligible" : null;
@@ -369,8 +370,8 @@ function Field({ fc, team, nameOf, field, season, onPick, onPrefetch, onPeek }: 
           return (
             <li key={t.team} className={cn("border-b border-border last:border-b-0", t.team === team && "relative before:absolute before:inset-y-0 before:left-0 before:w-[3px] before:bg-accent")}>
               <button type="button" aria-expanded={isOpen} aria-controls={id} onClick={() => toggle(t.team)}
-                className={cn("group/f flex w-full items-center gap-3 px-4 py-3 text-left transition-colors max-sm:px-3 hover:bg-accent/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/60",
-                  isOpen && "bg-accent/[0.05]")}>
+                className={cn("group/f flex w-full items-center gap-3 px-4 py-3 text-left transition-colors max-sm:px-3 hover:bg-accent/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/60 v8:hover:bg-ink/[0.03]",
+                  isOpen && "bg-accent/[0.05] v8:bg-ink/[0.03]")}>
                 <span className="min-w-0 flex-1">
                   <span className="flex min-w-0 items-baseline gap-2">
                     <span className="shrink-0 text-sm font-semibold tabular-nums">{t.team}</span>
@@ -382,7 +383,7 @@ function Field({ fc, team, nameOf, field, season, onPick, onPrefetch, onPeek }: 
                 {status === "qualified" ? <Badge variant="success">Qualified</Badge>
                   : status === "ineligible" ? <Badge variant="outline">Not eligible</Badge>
                   : <span className="w-12 shrink-0 text-right text-sm font-semibold tabular-nums">{pct(t.pAdvance)}</span>}
-                <ChevronDown aria-hidden className={cn("size-4 shrink-0 text-muted-foreground transition-transform group-hover/f:text-accent-text", isOpen && "rotate-180 text-accent-text")} />
+                <ChevronDown aria-hidden className={cn("size-4 shrink-0 text-muted-foreground transition-transform group-hover/f:text-accent-text v8:group-hover/f:text-text-base", isOpen && "rotate-180 text-accent-text v8:text-text-base")} />
               </button>
               {isOpen && <FieldDetails id={id} t={t} row={field.get(t.team)} fc={fc} season={season} isTeam={t.team === team} onPick={onPick} onPrefetch={onPrefetch} onPeek={onPeek} />}
             </li>
@@ -411,7 +412,7 @@ function FieldDetails({ id, t, row, fc, season, isTeam, onPick, onPrefetch, onPe
   if (row?.opr.np != null) facts.push(["OPR here", row.opr.np.toFixed(1)]);
   else if (row?.seasonOpr != null) facts.push(["Season OPR", row.seasonOpr.toFixed(1)]);
   return (
-    <m.div id={id} initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} transition={{ duration: 0.2, ease }} className="overflow-hidden bg-accent/[0.03]">
+    <m.div id={id} initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} transition={{ duration: 0.2, ease }} className="overflow-hidden bg-accent/[0.03] v8:bg-transparent">
       <div className="space-y-3 border-t border-border/60 px-4 pb-4 pt-3 max-sm:px-3">
         <dl className="grid grid-cols-2 gap-x-4 gap-y-2.5 sm:grid-cols-4">
           {facts.map(([k, v]) => (

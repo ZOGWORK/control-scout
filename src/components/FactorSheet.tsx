@@ -54,16 +54,16 @@ export function FactorSheetPanel({ sheet, winner = null, defaultOpen = false, cl
   const top = Math.max(...all.map((f) => f.weight), 0.0001);
   const review = sheetReview(sheet, winner);
   return (
-    <details className={cn("@container group", !quiet && "rounded-xl border border-border bg-text-base/[0.02]", className)} open={defaultOpen || undefined} data-testid="factor-sheet">
+    <details className={cn("@container group", !quiet && "rounded-xl border border-border bg-text-base/[0.02] v8:bg-transparent", className)} open={defaultOpen || undefined} data-testid="factor-sheet">
       {quiet ? (
         <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 text-xs text-text-muted hover:text-text-base [&::-webkit-details-marker]:hidden">
-          <ChartBarBig className="size-4 text-accent-text" aria-hidden />
+          <ChartBarBig className="size-4 text-accent-text v8:text-text-muted" aria-hidden />
           <span>Full why breakdown · {all.length} factors</span>
           <ChevronDown className="size-3.5 transition-transform group-open:rotate-180 motion-reduce:transition-none" aria-hidden />
         </summary>
       ) : (
       <summary className="flex cursor-pointer list-none items-center gap-2.5 px-3 py-2.5 text-sm font-medium pointer-coarse:min-h-[44px] [&::-webkit-details-marker]:hidden">
-        <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-accent/15 text-accent-text" aria-hidden><ChartBarBig className="size-4" /></span>
+        <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-accent/15 text-accent-text v8:bg-transparent v8:text-text-muted" aria-hidden><ChartBarBig className="size-4" /></span>
         <span className="min-w-0 flex-1">Full why breakdown <span className="font-normal text-text-muted">· {all.length} factors</span></span>
         <ChevronDown className="size-4 shrink-0 text-text-muted transition-transform group-open:rotate-180 motion-reduce:transition-none" aria-hidden />
       </summary>
@@ -71,13 +71,13 @@ export function FactorSheetPanel({ sheet, winner = null, defaultOpen = false, cl
       <div className={cn("space-y-4", quiet ? "pb-2 pt-2" : "border-t border-border px-3 pb-3 pt-3 @2xl:px-4 @2xl:pb-4")}>
         <TugOfWar sheet={sheet} />
         {review && (
-          <p className="rounded-lg bg-success/10 px-3 py-2 text-sm" data-testid="sheet-review">
+          <p className="rounded-lg bg-success/10 px-3 py-2 text-sm v8:bg-transparent v8:p-0" data-testid="sheet-review">
             <span className="font-semibold text-success">{review.right} of {review.leaning}</span> factors that leaned one way pointed to the winner, carrying{" "}
             <span className="font-semibold tabular-nums">{pctOf(review.rightWeight)}</span> of the call.
           </p>
         )}
         {Math.abs(sheet.logit) < COIN_FLIP && (
-          <p className="rounded-lg bg-warning/10 px-3 py-2 text-sm" data-testid="sheet-coin-flip">
+          <p className="rounded-lg bg-warning/10 px-3 py-2 text-sm v8:bg-transparent v8:p-0 v8:text-text-muted" data-testid="sheet-coin-flip">
             This call is close to a coin flip. Strong factors can pull in opposite directions and cancel each other.
           </p>
         )}
@@ -137,7 +137,8 @@ function Section({ title, note, children }: { title: string; note?: string; chil
   return (
     <section>
       <h4 className="text-xs font-semibold text-text-base">{title}{note && <span className="font-normal text-text-muted"> · {note}</span>}</h4>
-      <ul className="mt-2 space-y-2.5">{children}</ul>
+      {/* v8: a quiet table, one hairline-ruled row per factor. */}
+      <ul className="mt-2 space-y-2.5 v8:space-y-0 v8:divide-y v8:divide-line v8:border-y v8:border-line">{children}</ul>
     </section>
   );
 }
@@ -147,13 +148,14 @@ function Row({ f, top, winner }: { f: SheetFactor; top: number; winner: "A" | "B
   const right = pointedRight(f, winner);
   const Icon = ICON[f.id] ?? Gauge;
   return (
-    <li className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-2.5 gap-y-1">
-      <span className={cn("row-span-2 mt-0.5 flex size-8 items-center justify-center rounded-lg", tone.chip)} aria-hidden><Icon className="size-4" /></span>
+    <li className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-2.5 gap-y-1 v8:py-2.5" data-factor={f.id}>
+      {/* v8: the icon plain (no chip) in its side's colour, like the share and its bar. */}
+      <span className={cn("row-span-2 mt-0.5 flex size-8 items-center justify-center rounded-lg", tone.chip, "v8:size-5 v8:bg-transparent")} aria-hidden><Icon className="size-4" /></span>
       <div className="min-w-0">
         <p className="flex flex-wrap items-center gap-x-2 text-sm font-medium">
           {f.name}
           {right != null && (
-            <span className={cn("inline-flex items-center gap-0.5 rounded-full px-1.5 py-px text-[11px] font-medium", right ? "bg-success/15 text-success" : "bg-warning/15 text-warning")}>
+            <span className={cn("inline-flex items-center gap-0.5 rounded-full px-1.5 py-px text-[11px] font-medium v8:bg-transparent v8:px-0 v8:text-[0.75rem]", right ? "bg-success/15 text-success v8:text-emerald-400" : "bg-warning/15 text-warning v8:text-rose-400")}>
               {right ? <Check className="size-3" aria-hidden /> : <X className="size-3" aria-hidden />}{right ? "Pointed right" : "Pointed wrong"}
             </span>
           )}
@@ -161,7 +163,7 @@ function Row({ f, top, winner }: { f: SheetFactor; top: number; winner: "A" | "B
         <p className="text-xs text-text-muted">{factorLabel(f.label)}</p>
       </div>
       <span className={cn("text-sm font-semibold tabular-nums", tone.text)} title={f.kind === "reason" ? "Words only: this never moves the odds" : undefined}>{pctOf(f.weight)}</span>
-      <div className="col-span-2 col-start-2 h-1.5 overflow-hidden rounded-full bg-muted" aria-hidden>
+      <div className="col-span-2 col-start-2 h-1.5 overflow-hidden rounded-full bg-muted v8:h-1 v8:bg-ink/[0.04]" aria-hidden>
         <div className={cn("h-full rounded-full", tone.bar)} style={{ width: `${(f.weight / top) * 100}%` }} />
       </div>
     </li>

@@ -15,6 +15,12 @@
    it scrolls the page area ignores the mouse ([data-scrolling] below, src/lib/pageScroll.ts), so none of them
    lights up mid-scroll. Nothing here keys off a scroll attribute: hover styles hung on a flag on <html> restyled
    every element using them each time scrolling started or stopped (over a second a flip on a big event). */
+/* v8 (docs/design/v8-revamp-brief.md): on while <html data-v8> is set (src/lib/v8.ts sets it before first paint).
+   A component opts in class by class (v8:bg-white/10), so the current look is untouched until v8 is the default. */
+@custom-variant v8 (&:where(html[data-v8], html[data-v8] *));
+/* v8 in Light only, for the few places a v8 colour needs its own light value (it comes after v8:, so it wins). */
+@custom-variant v8light (&:where(html[data-v8].light, html[data-v8].light *));
+
 @custom-variant still-hover {
   @media (hover: hover) {
     &:hover { @slot; }
@@ -33,6 +39,15 @@
   --font-display: "Space Grotesk", sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
 
+  /* v8 motion (brief §4): strong curves; no ease-in on UI anywhere. ease-drawer is for phone sheets. */
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  /* v8 text ladder's third step (captions, units) and the live red (live dot and live icons only). */
+  --color-text-faint: #71717a;
+  --color-live: #f2555a;
+  /* v8's hairlines, hover fills and "your row" tints (v8:border-ink/[0.12], v8:bg-ink/[0.06]…): white on dark,
+     the page's ink on Light (html[data-v8].light), so one class reads in every theme. */
+  --color-ink: #ffffff;
+
   /* Volt & Carbon (Control Point modern, dark) */
   --color-primary: var(--sh-background);
   --color-secondary: #0e0e10;
@@ -50,7 +65,7 @@
   --color-success: #34d399;
   /* Compared teams' hues (the search results guide, Okabe–Ito, safe for every colour vision): team A, B, C on bars
      and swatches, never a phase or a winner. A card about one team takes team A on its numbers too (answerCells
-     TEAM_TEXT, held to 4.5:1). Dark's are the light-on-dark steps; Dim and Midnight keep them. textTones.test.ts
+     TEAM_TEXT, held to 4.5:1). Dark's are the light-on-dark steps; Dim keeps them. textTones.test.ts
      holds each to 3:1 against the card as a graphic. */
   --color-team-a: #56b4e9;
   --color-team-b: #f0763a;
@@ -199,9 +214,8 @@ html.light {
   color-scheme: light;
 }
 
-/* Dim and Midnight are dark themes (the `dark:` variant applies, and every status, alliance and accent colour is
-   dark's), so each one swaps only the surfaces, text and lines. Dim: soft dark grey, text a step down from white,
-   so nothing glares. Midnight: true black for night and OLED screens, cards one step up so they still read. */
+/* Dim is a dark theme (the `dark:` variant applies, and every status, alliance and accent colour is dark's), so it
+   swaps only the surfaces, text and lines: soft dark grey, text a step down from white, so nothing glares. */
 html.dim {
   --sh-background: #1e1f23;
   --sh-foreground: #e4e4e7;
@@ -227,21 +241,6 @@ html.dim {
   --color-red-alliance-text: #fb7185;
 }
 
-html.midnight {
-  --sh-background: #000000;
-  --sh-foreground: #f4f4f5;
-  --sh-card: #08080a;
-  --sh-card-foreground: #f4f4f5;
-  --sh-popover: #0e0e11;
-  --sh-popover-foreground: #f4f4f5;
-  --sh-muted: #121215;
-  --sh-muted-foreground: #a1a1aa;
-  --sh-border: #ffffff12;
-  --sh-input: #ffffff1a;
-  --color-secondary: #000000;
-  --color-scrollbar: #222227;
-  --color-scrollbar-hover: #33333a;
-}
 
 /* The page scrolls the document (src/lib/pageScroll.ts), under the shell's sticky top bar (Shell.tsx):
    --header-h is that bar's height. Whatever the page scrolls to (#anchors, scrollIntoView) stops below
@@ -264,15 +263,8 @@ html.midnight {
 @media (min-height: 1000px) { :root { --nav-row: 2.75rem; --nav-gap: 0.375rem; --nav-section: 1.25rem; --nav-top: 1rem; --nav-text: 0.9375rem; } }
 @media (min-height: 1100px) { :root { --nav-row: 3rem; --nav-section: 1.5rem; --nav-top: 1.25rem; } }
 html { scrollbar-gutter: stable; }
-/* Smooth scrolling, on desktop only: every jump within the page glides (a #link, the skip link, a "see the odds"
-   button, a scrollIntoView) on a wide screen with a mouse or trackpad. Phones and tablets (touch, or narrower
-   than the desktop layout) keep the browser's native, instant jumps, and so does reduced motion. Wheel,
-   trackpad and touch scrolling stay the browser's own (this only changes jumps). The same query is
-   SMOOTH_SCROLL_QUERY in src/lib/pageScroll.ts, which the app's own scrolls (smoothBehavior) follow. A route
-   change, a back/forward restore and the long lists' windowing still jump at once (jumpPageTo). */
-@media (min-width: 1024px) and (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
-  html { scroll-behavior: smooth; }
-}
+/* No smooth scrolling anywhere: every jump the page makes (a #link, a button, a scrollIntoView) and the wheel are
+   the browser's own, instant steps. */
 /* Sideways strips (tab bars, chips, wide tables) keep a swipe that reaches their end to themselves: it never
    turns into the trackpad's or phone's back/forward gesture. Vertical scrolling still passes to the page. */
 @layer base { :where(.overflow-x-auto) { overscroll-behavior-x: contain; } }
@@ -284,6 +276,169 @@ html { --ui-base: 1; --ui-scale: 1; font-size: calc(100% * var(--ui-base) * var(
 html[data-text-size="s"] { --ui-scale: 0.9; }
 html[data-text-size="l"] { --ui-scale: 1.125; }
 html[data-text-size="xl"] { --ui-scale: 1.25; }
+/* The v8 sample Home (src/pages/PreviewHomePage.tsx) on a big screen: the whole page, sidebar included, grows in
+   steps so it never sits small in the middle of a wide monitor. Still times each device's own text size. */
+@media (min-width: 2100px) { html:has([data-sample-home]) { --ui-base: 1.1; } }
+@media (min-width: 2500px) { html:has([data-sample-home]) { --ui-base: 1.23; } }
+
+/* ---- v8 (docs/design/v8-revamp-brief.md) ------------------------------------------------------------------
+   Dark by default (Light and Dim below), the wash's light slate blue as the accent, the "90% zoom" root as the new 100% (Q3) with the big-screen steps on top, three
+   radii, and strong easing curves for every ease-* utility. Phones keep their 14px base. */
+html[data-v8] {
+  --ui-base: 0.9;
+  color-scheme: dark;
+  --sh-background: #0a0a0b;
+  --sh-foreground: #f4f4f5;
+  --sh-card: #0e0e10;
+  --sh-card-foreground: #f4f4f5;
+  --sh-popover: #141416;
+  --sh-popover-foreground: #f4f4f5;
+  --sh-muted: #1b1b1e;
+  --sh-muted-foreground: #a1a1aa;
+  --sh-border: #ffffff0f;
+  --sh-input: #ffffff1f;
+  --color-secondary: #0e0e10;
+  --color-accent: #a3b6e0;
+  --color-accent-hover: #b8c8ea;
+  --color-accent-ink: #141a2b;
+  --color-accent-soft: rgb(163 182 224 / 0.1);
+  /* Text that used the accent (your team's number, picked labels) is white; the slate blue stays for fills, lines
+     and the #1 rank. Successful outcomes keep their green. The alliances are the bright FTC red and blue (classic's rose 500 /
+     sky 400): they are the one colour pair everyone reads at once, so they never fade or desaturate. */
+  --color-accent-text: #f4f4f5;
+  --color-success: #34d399;
+  --color-success-text: #34d399;
+  --color-red-alliance: #f43f5e;
+  --color-red-alliance-text: #f43f5e;
+  --color-red-alliance-ink: #fb7185;
+  --color-blue-alliance: #38bdf8;
+  --color-blue-alliance-text: #38bdf8;
+  /* No teal anywhere in v8: the third compared team is the wash's soft purple. */
+  --color-team-c: #c4a7e7;
+  --color-team-c-text: #c4a7e7;
+  --color-accent-display: #a3b6e0;
+  --color-ring: #a3b6e0;
+  --grid-rgb: 163 182 224;
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.875rem;
+  --radius-2xl: 0.875rem;
+  --radius-3xl: 0.875rem;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  /* No top bar in v8: the wash runs from the very top and the corner items (search, time, bell, you) sit on it and
+     scroll away with the page, so nothing is sticky under a bar: anchors and sticky parts start at the top. */
+  --header-h: 0px;
+  /* The wash (src/components/layout/Wash.tsx, server/bootShell.ts): left, middle and right colours, how strong
+     (0–1) and how far down it reaches (1 = default). The owner can change them (owner console). */
+  --wash-a: #5a76ad;
+  --wash-b: #5f5785;
+  --wash-c: #91689c;
+  --wash-strength: 1;
+  --wash-spread: 1;
+  /* How much of each wash colour is laid over the page (100%: as is; Light mixes it into the near-white page) and
+     how strong the grain over it is. */
+  --wash-mix: 100%;
+  --wash-grain: 0.12;
+}
+@media (max-width: 767px) { html[data-v8] { --ui-base: 0.875; } }
+@media (min-width: 2100px) { html[data-v8] { --ui-base: 0.99; } }
+@media (min-width: 2500px) { html[data-v8] { --ui-base: 1.107; } }
+/* v8 Light and Dim (2026-11-19). `html[data-v8].light` outranks both `html.light` and `html[data-v8]`, so classic
+   Light's status, chart and team colours still come through and only what v8 itself sets is restated here.
+   Light: a near-white page, white cards, hairline lines, ink text; the accent a deeper slate blue that reads on white
+   (#3f5a96, 6.6:1), the alliances rose 600 and sky 600 as fills with a step deeper for small text, and the wash a pale
+   dawn tint of the same colours. Every text pairing is measured at 4.5:1 (v8Light.contrast.test.ts). */
+html[data-v8].light {
+  color-scheme: light;
+  --sh-background: #fafafa;
+  --sh-foreground: #18181b;
+  --sh-card: #ffffff;
+  --sh-card-foreground: #18181b;
+  --sh-popover: #ffffff;
+  --sh-popover-foreground: #18181b;
+  --sh-muted: #f4f4f5;
+  --sh-muted-foreground: #52525b;
+  --sh-border: #00000017;
+  --sh-input: #00000026;
+  --color-secondary: #ffffff;
+  --color-text-faint: #71717a;
+  --color-live: #c81e1e;
+  --color-ink: #18181b;
+  --color-accent: #3f5a96;
+  --color-accent-hover: #344b7f;
+  --color-accent-ink: #ffffff;
+  --color-accent-soft: rgb(63 90 150 / 0.1);
+  --color-accent-text: #18181b;
+  --color-accent-display: #3f5a96;
+  --color-ring: #3f5a96;
+  --color-success: #059669;
+  --color-success-text: #047857;
+  --color-red-alliance: #e11d48;
+  --color-red-alliance-text: #be123c;
+  --color-red-alliance-ink: #be123c;
+  --color-blue-alliance: #0284c7;
+  --color-blue-alliance-text: #0369a1;
+  --color-team-c: #7c5cb0;
+  --color-team-c-text: #6b4a9f;
+  --grid-rgb: 63 90 150;
+  /* The wash: the same three colours, mixed this far into the page colour (pale, like a dawn tint), and the grain
+     a step quieter, so nothing over it muddies. The owner's colours are mixed the same way. */
+  --wash-mix: 42%;
+  --wash-grain: 0.05;
+  /* The colours v8 draws with Tailwind's light-on-dark steps (wins in emerald 400, the stat categories in 300/400, gold
+     in yellow 400): on white each one is the deeper step of the same hue that reaches 4.5:1 as text. */
+  --color-emerald-300: #047857;
+  --color-emerald-400: #047857;
+  --color-sky-200: #0369a1;
+  --color-sky-300: #0369a1;
+  --color-sky-400: #0369a1;
+  --color-blue-300: #2563eb;
+  --color-blue-400: #2563eb;
+  --color-rose-300: #e11d48;
+  --color-rose-400: #e11d48;
+  --color-red-300: #dc2626;
+  --color-red-400: #dc2626;
+  --color-violet-300: #7c3aed;
+  --color-violet-400: #7c3aed;
+  --color-orange-300: #c2410c;
+  --color-orange-400: #c2410c;
+  --color-yellow-300: #b45309;
+  --color-yellow-400: #b45309;
+  --color-amber-300: #b45309;
+  --color-emerald-200: #047857;
+  --color-green-300: #15803d;
+  --color-green-400: #15803d;
+  --color-purple-300: #7e22ce;
+  --color-purple-400: #7e22ce;
+  --color-amber-400: #b45309;
+  --color-amber-600: #92400e;
+  --color-slate-300: #64748b;
+  --color-pink-300: #be185d;
+}
+/* Dim: v8's dark colours on Dim's softer grey, the text a step down from white, and the wash a little quieter. */
+html[data-v8].dim {
+  --sh-background: #1e1f23;
+  --sh-foreground: #e4e4e7;
+  --sh-card: #232428;
+  --sh-card-foreground: #e4e4e7;
+  --sh-popover: #2a2b30;
+  --sh-popover-foreground: #e4e4e7;
+  --sh-muted: #2d2e33;
+  --sh-muted-foreground: #b4b4bd;
+  --sh-border: #ffffff14;
+  --sh-input: #ffffff26;
+  --color-secondary: #232428;
+  --color-accent-text: #e4e4e7;
+  --color-red-alliance-text: #fb7185;
+  --wash-mix: 82%;
+}
+/* The white mark (Shell, Home, the pull-to-refresh, Predict's card) on Light: the same mark in ink. */
+html[data-v8].light img:is([src$="/mark-white.webp"], [src="/mark.webp"]) { filter: invert(0.9); }
+/* The particle wave's slate and peach grains read as grey specks on near-white: quieter there. */
+html[data-v8].light canvas[data-dot-wave] { opacity: 0.55; }
 /* The phone tab bar's height, border included (Shell MobileTabs); fixed things on phones sit above it. */
 :root { --tabbar-h: 53px; }
 @media (max-width: 767px) { html { scroll-padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom)); } }
@@ -364,8 +519,7 @@ html.light { --amb-line: 0.045; --amb-glow: 0.14; --amb-breath: 0.08; --amb-tint
 html.dog { --sh-background: #17130a; --color-secondary: #120f07; }
 html.dog.light { --sh-background: #fff8dc; --color-secondary: #fff8dc; }
 html.dog.dim { --sh-background: #2a2513; --color-secondary: #241f10; }
-html.dog.midnight { --sh-background: #0b0903; --color-secondary: #080602; }
-.dog-bg { position: absolute; inset: 0; z-index: 0; pointer-events: none; opacity: 0.13;
+.dog-bg { position: absolute; inset: 0; z-index: 0; pointer-events: none; opacity: 0.24;
   background: url("/dog.jpg") 0 0 / 200px 200px repeat; }
 html.light .dog-bg { opacity: 0.18; }
 /* The fade towards the bottom is drawn into the layers themselves, not a mask-image over them: the page
@@ -373,6 +527,9 @@ html.light .dog-bg { opacity: 0.18; }
    times doubled). The grid lays the page colour over its lines (the same picture over the plain page),
    and the pointer light's strength follows the same curve (--amb-fade, set by Ambient.tsx). */
 .ambient { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; }
+/* v8 has no ambient layer (drifting grid, breathing corners, pointer glow): decoration always in motion. The wash
+   at the top of each page is v8's only texture (docs/design/v8-revamp-brief.md §3.1). */
+html[data-v8] .ambient { display: none; }
 .ambient-grid { position: absolute; inset: -32px; will-change: transform;
   background-image:
     radial-gradient(130% 95% at 50% 32px, transparent 35%, var(--color-primary) 100%),
@@ -409,8 +566,7 @@ html.ambient-calm .ambient-breath, html.ambient-calm .ambient-glow { display: no
    pointer reaches the page again 140 ms after the last scroll. Touch never gets it: not on touch-only screens,
    and not for a scroll a finger started on a touchscreen laptop ([data-scrolling="touch"]), so a tap that
    stops a fling, or a swipe on a sideways table, still lands. And once the mouse moves mid-scroll
-   ([data-scrolling="moved"]) it stands aside: the reader is aiming for something (the desktop wheel's glide,
-   src/lib/smoothWheel.ts, eases out over half a second), so a click lands. */
+   ([data-scrolling="moved"]) it stands aside: the reader is aiming for something, so a click lands. */
 .scroll-shield { display: none; }
 @media (hover: hover) and (pointer: fine) {
   [data-scrolling=""] > .scroll-shield { display: block; position: absolute; inset: 0; z-index: 20; }
@@ -443,6 +599,8 @@ html[data-capturing-screen] :is([data-slot="dialog-overlay"], [data-slot="dialog
   opacity: 0 !important; transition: none !important; animation: none !important;
 }
 /* A thin bar sweeping across while a table refreshes. */
+/* v8 live dot (brief §4.2): one slow red ring every 2s, the only constant animation; callers hide it under reduced motion. */
+@keyframes live-ring { 0% { transform: scale(1); opacity: 0.7; } 70%, 100% { transform: scale(2.75); opacity: 0; } }
 @keyframes cs-progress { 0% { transform: translateX(-100%); } 100% { transform: translateX(300%); } }
 .cs-progress { animation: cs-progress 1s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) { .cs-progress { animation: none; } }
@@ -508,6 +666,19 @@ html[data-capturing-screen] :is([data-slot="dialog-overlay"], [data-slot="dialog
 .match-list [data-match-box] > section:last-child > [data-match]:last-child,
 .match-list [data-match-box] > section:last-child > [data-match]:last-child > :last-child { border-bottom-left-radius: 0.75rem; border-bottom-right-radius: 0.75rem; }
 @media (prefers-reduced-motion: reduce) { .match-list [data-row] { transition: none; } }
+/* v8 (docs/design/v8-revamp-brief.md §5 Match row): rows are separated by hairlines and nothing stands forward.
+   The hover is a plain fill (colour only, 150ms); the live match keeps a faint fill and a 2px live-red edge, on
+   its outer element so it stays while another row is hovered. With no row reaching past the box, the box
+   clips its rows to its corners. */
+html[data-v8] .match-list [data-match-box] { overflow: clip; }
+html[data-v8] .match-list [data-row] { transition: background-color 150ms ease; }
+html[data-v8] .match-list [data-live] > [data-row],
+html[data-v8] .match-list [data-row][data-focus] { z-index: auto; transform: none; box-shadow: none; border-radius: 0; background-color: rgb(255 255 255 / 0.03); }
+html[data-v8] .match-list [data-live] { box-shadow: inset 2px 0 0 var(--color-live); }
+/* v8: a live score that changes swaps with a 200ms crossfade and a 2px blur (brief §4.2), no tint, no count-up. */
+@keyframes cs-v8-score-in { from { opacity: 0; filter: blur(2px); } to { opacity: 1; filter: blur(0); } }
+html[data-v8] .cs-score-flash { animation: cs-v8-score-in 200ms var(--ease-out); background: none; }
+@media (prefers-reduced-motion: reduce) { html[data-v8] .cs-score-flash { animation: none; } }
 
 /* Compact density: tighter tables and cards. */
 html.compact .density-row { padding-top: 0.375rem; padding-bottom: 0.375rem; }
