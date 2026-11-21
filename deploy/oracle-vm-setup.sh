@@ -2,7 +2,8 @@
 # Control Scout — install / update on the Oracle VM next to Control Point.
 #
 # Touches ONLY Control Scout: user `controlscout`, /opt/control-scout, the
-# systemd units `control-scout` and `control-scout-bot`, and the nginx site `control-scout`. Control
+# systemd units `control-scout` (or its lanes `control-scout@a`/`@b`, deploy/lanes.sh) and `control-scout-bot`,
+# and the nginx site `control-scout`. Control
 # Point's files, .env, database, service and nginx site are never read or
 # changed. Safe to re-run (idempotent).
 #
@@ -35,6 +36,9 @@ SITE_CONF="/etc/nginx/sites-available/control-scout"
 UNIT="/etc/systemd/system/control-scout.service"
 SOCKET_UNIT="/etc/systemd/system/control-scout.socket"
 BOT_UNIT="/etc/systemd/system/control-scout-bot.service"
+# The zero-gap hand-off between two lanes (deploy/lanes.sh), used once `bin/lanes enable` has made its template.
+# shellcheck source=deploy/lanes.sh
+. "$REL_DIR/deploy/lanes.sh"
 
 [ "$(id -u)" = 0 ] || { echo "Run with sudo"; exit 1; }
 [ -f "$REL_DIR/package.json" ] || { echo "No release at $REL_DIR — run deploy/deploy.sh from your machine"; exit 1; }
@@ -125,6 +129,8 @@ NoDelay=true
 
 [Install]
 WantedBy=sockets.target"
+# With the lanes on, lane a is the socket's own service (deploy/lanes.sh lanes_socket).
+if lanes_on; then SOCKET_NEW="$(printf '%s\n' "$SOCKET_NEW" | lanes_socket)"; fi
 SOCKET_CHANGED=0
 [ "$(cat "$SOCKET_UNIT" 2>/dev/null)" = "$SOCKET_NEW" ] || { printf '%s\n' "$SOCKET_NEW" > "$SOCKET_UNIT"; SOCKET_CHANGED=1; }
 
@@ -159,20 +165,57 @@ PrivateTmp=true
 [Install]
 WantedBy=multi-user.target
 EOF
-systemctl daemon-reload
-systemctl enable control-scout control-scout.socket >/dev/null
+# With the lanes on, the template is made from this unit (deploy/lanes.sh); lane a or b is what runs, and
+# control-scout.service stays off.
+if lanes_on; then
+  lanes_write_template
+  systemctl daemon-reload
+  systemctl enable control-scout.socket >/dev/null
+else
+  systemctl daemon-reload
+  systemctl enable control-scout control-scout.socket >/dev/null
+fi
 # The socket can only take the port once nothing else holds it: the first time
 # (the server used to open the port itself) or when PORT changed, stop the
-# server first. That one switch has a short gap; every restart after it has none.
+# server first. That one switch has a short gap.
+SWITCH=handoff
 if [ "$SOCKET_CHANGED" = 1 ] || ! systemctl is-active --quiet control-scout.socket; then
   systemctl stop control-scout || true
+  if lanes_on; then systemctl stop control-scout@a control-scout@b || true; fi
   systemctl restart control-scout.socket
+  SWITCH=restart
+fi
+
+# With the lanes on: may this release run beside the live server for a moment (deploy/handoff-gate.mjs)? Read
+# before anything changes, as the app user, from this release (its own migrations and search index schema).
+if lanes_on && [ "$SWITCH" = handoff ]; then
+  GATE="$(sudo -u "$APP_USER" HOME="$SHARED/data" bash -c "cd '$REL_DIR' && node deploy/handoff-gate.mjs '$REL_DIR' '$SHARED/.env'" 2>&1 | tail -n1 || true)"
+  echo "hand-off: ${GATE:-restart: no answer}"
+  [ "$GATE" = handoff ] || SWITCH=restart
 fi
 
 # Switch to the new build only now that it succeeded (atomic rename), then restart.
+PREVIOUS="$(readlink "$APP_DIR/current" 2>/dev/null || true)"
 ln -sfn "releases/$RELEASE" "$APP_DIR/current.new"
 mv -Tf "$APP_DIR/current.new" "$APP_DIR/current"
-systemctl restart control-scout
+if lanes_on; then
+  # handoff: the idle lane warms up from this release while the live one keeps serving, then takes over.
+  # restart: the live lane stops first (a migration or an index rebuild must not run beside the old code).
+  if ! lanes_switch "$SWITCH"; then
+    # The new release never got ready. After a failed handoff the old lane is still serving: put `current` back
+    # under it (so its own restarts keep its release) and fail the deploy.
+    if [ "$SWITCH" = handoff ] && [ -n "$PREVIOUS" ] && [ -n "$(lanes_live)" ]; then
+      ln -sfn "$PREVIOUS" "$APP_DIR/current.new"
+      mv -Tf "$APP_DIR/current.new" "$APP_DIR/current"
+      echo ">>> $RELEASE never got ready; the previous release ($PREVIOUS) is still serving. Deploy FAILED."
+    else
+      echo ">>> $RELEASE never got ready (journalctl -u 'control-scout@*'). Deploy FAILED."
+    fi
+    exit 1
+  fi
+else
+  systemctl restart control-scout
+fi
 
 # The Discord bot (bot/README.md): its own unit, so a bot crash or restart never touches the site. It
 # reads the site's database (WAL needs its -shm file writable, hence the data directory) and never
@@ -221,6 +264,8 @@ chmod 644 "$SHARED/deploy.conf"
 install -d -o root -g root -m 755 "$APP_DIR/bin"
 install -o root -g root -m 755 "$REL_DIR/deploy/vm-update.sh" "$APP_DIR/bin/update"
 install -o root -g root -m 755 "$REL_DIR/deploy/vm-rollback.sh" "$APP_DIR/bin/rollback"
+install -o root -g root -m 755 "$REL_DIR/deploy/vm-lanes.sh" "$APP_DIR/bin/lanes"
+install -o root -g root -m 644 "$REL_DIR/deploy/lanes.sh" "$APP_DIR/bin/lanes.sh"
 
 # Keep the three newest releases for rollback.
 ls -1dt "$APP_DIR"/releases/*/ | tail -n +4 | while read -r old; do
