@@ -192,7 +192,9 @@ const RULES: IntentRule[] = [
   { id: "results", family: "event", season: "all", needsEvent: true, re: /\b(?:results?|matches|match|how\s+did\s+(?<team>.+?)\s+do)\b/ },
   { id: "event-rank", family: "event", season: "all", needsEvent: true, re: /\b(?:rank(?:ed|ing)?|placement|place|placed|finish(?:ed)?|seed(?:ed)?)\b/ },
   // A phase said before it ("auto opr at nj states") is the phase's part of the event OPR, its word never the team's.
-  { id: "event-opr", family: "event", season: "all", needsEvent: true, re: /\b(?:(auto(?:nomous)?|tele[\s-]?op|driver[\s-]controlled|end[\s-]?game)\s+)?opr\b/ },
+  // A phase alone beside a team at an event ("hypnotic robotics auto in nj states") is the same: that phase's OPR there
+  // (only with the event said; below).
+  { id: "event-opr", family: "event", season: "all", needsEvent: true, re: /\b(?:(auto(?:nomous)?|tele[\s-]?op|driver[\s-]controlled|end[\s-]?game)\s+)?opr\b|\b(auto(?:nomous)?|tele[\s-]?op|end[\s-]?game)\b(?!\s+(?:points?|pts|scores?|average|avg|rank(?:ing)?|record))/ },
   { id: "awards", family: "awards", season: "all", re: /\bawards?\b/ },
   { id: "record", family: "aggregate", season: "all", alone: "latest", re: /\b(?:win[\s-]+loss(?:[\s-]+tie)?\s+)?record\b|\bwins?\s+and\s+loss(?:es)?\b/ },
 ];
@@ -928,6 +930,8 @@ export function readStatQuestion(raw: string): StatQuestion | null {
       }
     }
     const { scope, rest } = readScope(said);
+    // A phase word with no "opr" names the phase's OPR only at an event said outright (at …, states).
+    if (r.id === "event-opr" && m[2] && !(scope.at || scope.states)) continue;
     let bare = false;
     if (r.id === "winning-alliance") {
       if (/^world\s/.test(m[0])) scope.championship = true;
@@ -1009,7 +1013,8 @@ export function readStatQuestion(raw: string): StatQuestion | null {
     // An event's own number with only the team said ("4215 rank"): no event, so it's search's team answer.
     if (eventInCore && r.needsEvent && !/\s/.test(core)) return null;
     const byRecord = (r.id === "best-finish" || r.id === "worst-finish") && /\b(?:event|competition|tournament)$/.test(m[0]);
-    const phase = r.id === "event-opr" && m[1] ? (/^a/.test(m[1]) ? "auto" as const : /^e/.test(m[1]) ? "endgame" as const : "teleop" as const) : null;
+    const ph = r.id === "event-opr" ? m[1] ?? m[2] : undefined;
+    const phase = ph ? (/^a/.test(ph) ? "auto" as const : /^e/.test(ph) ? "endgame" as const : "teleop" as const) : null;
     return { id: r.id, family: r.family, defaultSeason: defaultOf(), scope, leadEvent, n, outcome: outcome ?? boundOutcome, count, variant, noTeam: false, core, ...(under != null ? { under } : {}), ...(phase ? { phase } : {}), ...(eventInCore ? { eventInCore } : {}), ...(award ? { award } : {}), ...(pick ? { pick } : {}), ...(byRecord ? { byRecord } : {}), ...(rank ? { rank } : {}), ...(r.id === "total-events" && /schedule|calendar/.test(m[0]) ? { schedule: true } : {}) };
   }
   // "12345 at states": its results there.
