@@ -260,7 +260,7 @@ function Result({ m }: { m: MatchView }) {
   const v = verdict(m);
   return (
     <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
-      {v === "called" && <span className="inline-flex items-center gap-1 rounded-md bg-success/12 px-2 py-0.5 font-medium text-success"><Check className="size-3.5" aria-hidden /> Called it</span>}
+      {v === "called" && <span className="inline-flex items-center gap-1 rounded-md bg-success/12 v8:bg-emerald-400/12 px-2 py-0.5 font-medium text-success v8:text-emerald-400"><Check className="size-3.5" aria-hidden /> Called it</span>}
       {v === "upset" && <span className="inline-flex items-center gap-1 rounded-md bg-warning/12 px-2 py-0.5 font-medium text-warning"><X className="size-3.5" aria-hidden /> Upset</span>}
       {p ? <span className="text-muted-foreground">Predicted {p.pRed === 0.5 ? "an even match" : p.pRed > 0.5 ? `red ${oddsPct(p.pRed)}` : `blue ${oddsPct(1 - p.pRed)}`}{p.kind === "backtest" ? " (replayed)" : ""}</span>
         : <span className="text-muted-foreground">No call was logged for this match.</span>}

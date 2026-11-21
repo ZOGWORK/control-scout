@@ -68,7 +68,7 @@ export function RecordingGaps(rec: RecordingProps) {
           const tone = chipTone(v);
           return (
             <li key={v.videoId} className={cn("inline-flex min-h-7 items-center gap-1 rounded-full border px-2.5 text-xs", tone === "short" ? "border-warning/50 bg-warning/[0.07]" : "border-line text-text-muted")} data-day-video={v.videoId} data-tone={tone}>
-              {tone === "done" ? <Check className="size-3.5 text-success" aria-hidden /> : tone === "short" ? <TriangleAlert className="size-3.5 text-warning" aria-hidden /> : null}
+              {tone === "done" ? <Check className="size-3.5 text-success v8:text-emerald-400" aria-hidden /> : tone === "short" ? <TriangleAlert className="size-3.5 text-warning" aria-hidden /> : null}
               {v.label} <span className="tabular-nums">{v.matches ? `${v.clipped}/${v.matches}` : "no matches"}</span>
             </li>
           );

@@ -42,7 +42,7 @@ function Side({ parts, label, empty }: { parts: DiffPart[]; label: string; empty
           <p dir="auto" className="whitespace-pre-wrap [overflow-wrap:anywhere] [unicode-bidi:isolate]">
             {parts.map((p, i) => p.type === "same" ? <span key={i}>{p.text}</span>
               : p.type === "added" ? (
-                <ins key={i} className="rounded-sm bg-success/15 text-foreground decoration-success decoration-2 underline-offset-2 [text-decoration-line:underline]">
+                <ins key={i} className="rounded-sm bg-success/15 v8:bg-emerald-400/15 text-foreground decoration-success decoration-2 underline-offset-2 [text-decoration-line:underline]">
                   <span dir="ltr" className="sr-only">added: </span>{p.text}<span dir="ltr" className="sr-only"> (end added)</span>
                 </ins>
               ) : (

@@ -74,7 +74,7 @@ export function DiffTable({ rows, beforeLabel, afterLabel, caption }: { rows: Di
             <tr key={r.key} className="align-top">
               <th scope="row" className="break-words px-3 py-2 text-left font-medium">{r.label}</th>
               <td className="break-words px-3 py-2 text-muted-foreground">{r.beforeEmpty ? <EmptySide /> : <span className="rounded bg-destructive/10 px-1 line-through decoration-destructive/50">{r.before}</span>}</td>
-              <td className="break-words px-3 py-2">{r.afterEmpty ? <EmptySide /> : <span className="rounded bg-success/15 px-1">{r.after}</span>}</td>
+              <td className="break-words px-3 py-2">{r.afterEmpty ? <EmptySide /> : <span className="rounded bg-success/15 v8:bg-emerald-400/15 px-1">{r.after}</span>}</td>
             </tr>
           ))}
         </tbody>
@@ -107,11 +107,11 @@ function StackedDiff({ rows, beforeLabel, afterLabel, caption }: { rows: DiffRow
 function DiffSide({ side, version, value, empty }: { side: "Before" | "After"; version: string; value: string; empty: boolean }) {
   const before = side === "Before";
   return (
-    <div data-side={side.toLowerCase()} className={cn("rounded-md border-l-2 py-1 pl-2.5", before ? "border-destructive/50" : "border-success/60")}>
+    <div data-side={side.toLowerCase()} className={cn("rounded-md border-l-2 py-1 pl-2.5", before ? "border-destructive/50" : "border-success/60 v8:border-emerald-400/60")}>
       <p className="text-xs font-medium text-muted-foreground">{side} <span className="font-normal">({version})</span>{empty && <span className="font-normal">: empty</span>}</p>
       {!empty && (before
         ? <p className="mt-0.5 break-words text-muted-foreground"><span className="rounded bg-destructive/10 px-1 line-through decoration-destructive/50 [box-decoration-break:clone]">{value}</span></p>
-        : <p className="mt-0.5 break-words"><span className="rounded bg-success/15 px-1 [box-decoration-break:clone]">{value}</span></p>)}
+        : <p className="mt-0.5 break-words"><span className="rounded bg-success/15 v8:bg-emerald-400/15 px-1 [box-decoration-break:clone]">{value}</span></p>)}
     </div>
   );
 }

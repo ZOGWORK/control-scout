@@ -22,7 +22,7 @@ export const MAX_COMPARE = 4;
 export function RankBadge({ rank, className }: { rank: number; className?: string }) {
   const tone = rank === 1 ? "bg-accent text-accent-ink shadow-[0_2px_10px_color-mix(in_srgb,var(--color-accent)_35%,transparent)]"
     : rank === 2 ? "bg-info/20 text-info ring-1 ring-info/40"
-    : rank === 3 ? "bg-success/20 text-success ring-1 ring-success/40"
+    : rank === 3 ? "bg-success/20 v8:bg-emerald-400/20 text-success v8:text-emerald-400 ring-1 ring-success/40 v8:ring-emerald-400/40"
     : "bg-muted text-text-base/80 ring-1 ring-border";
   const v8 = rank === 1 ? "v8:bg-transparent v8:text-accent v8:shadow-none v8:ring-1 v8:ring-accent/45" : "v8:bg-transparent v8:text-text-muted v8:ring-1 v8:ring-ink/[0.08]";
   return <span className={cn("inline-flex size-7 shrink-0 items-center justify-center rounded-lg font-mono text-xs font-bold tabular-nums v8:rounded-md v8:font-semibold", tone, v8, className)} role="img" aria-label={`Pick ${rank}`}>{rank}</span>;

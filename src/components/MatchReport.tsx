@@ -87,7 +87,7 @@ function Call({ m, earned }: { m: MatchView; earned?: MatchReport["bonus"] }) {
           <span className="text-sm text-muted-foreground">Final</span>
           <span className="font-display text-3xl font-bold tabular-nums"><span className="text-red-alliance">{scored.red}</span><span className="px-1.5 text-muted-foreground">–</span><span className="text-blue-alliance">{scored.blue}</span></span>
           <span className={cn("text-sm font-semibold", winner === "red" ? "text-red-alliance" : winner === "blue" ? "text-blue-alliance" : "text-muted-foreground")}>{winner === "tie" ? "Tie" : `${SIDE[winner!].name} won`}</span>
-          {called != null && <span className={cn("rounded-full px-2 py-px text-xs font-medium", called ? "bg-success/15 text-success" : "bg-warning/15 text-warning")}>{called ? "Called it" : "Upset"}</span>}
+          {called != null && <span className={cn("rounded-full px-2 py-px text-xs font-medium", called ? "bg-success/15 v8:bg-emerald-400/15 text-success v8:text-emerald-400" : "bg-warning/15 text-warning")}>{called ? "Called it" : "Upset"}</span>}
         </div>
       )}
       {p ? (
@@ -241,7 +241,7 @@ function HeroV8({ m, byTeam }: { m: MatchView; byTeam: ReadonlyMap<number, Repor
       <p className="mt-4 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center text-xs text-text-muted" data-testid="report-call-line">
         {p ? (
           <>
-            {called != null && <span className={cn("font-medium", called ? "text-success" : "text-text-base")} data-testid="report-called">{called ? "Called it" : "Upset"}</span>}
+            {called != null && <span className={cn("font-medium", called ? "text-success v8:text-emerald-400" : "text-text-base")} data-testid="report-called">{called ? "Called it" : "Upset"}</span>}
             {called != null && <span aria-hidden>·</span>}
             <span>{scored ? `${p.kind === "live" ? "Called before the match" : "Replayed call"}: ${SIDE[fav!].name} ${oddsPct(fav === "red" ? p.pRed : 1 - p.pRed)}` : KIND_LABEL[p.kind]}</span>
             <ConfidenceBadge tier={p.tier} className="border-line bg-transparent text-text-muted" />
@@ -460,7 +460,7 @@ const FLAG_TONE: Record<DataFlag["kind"] | WatchFlag["kind"], string> = {
   tracked: "border-border bg-muted text-foreground",
   penalties: "border-danger/40 bg-danger/10 text-danger",
   inconsistent: "border-warning/40 bg-warning/10 text-warning",
-  rising: "border-success/40 bg-success/10 text-success",
+  rising: "border-success/40 v8:border-emerald-400/40 bg-success/10 v8:bg-emerald-400/10 text-success v8:text-emerald-400",
 };
 /** v8: the pill stays outlined and quiet; its text keeps the flag's meaning where it has one of v8's colours
  *  (yours slate blue, penalties red, rising green). */
@@ -609,7 +609,7 @@ function TeamTake({ team, season, ws, reliability }: { team: number; season: num
           ))}
         </dl>
       )}
-      <TagRow icon={<ThumbsUp className="size-3.5 text-success v8:text-emerald-400" aria-hidden />} label="Strengths" tags={d.strengths} tone="border-success/30 bg-success/[0.08]" />
+      <TagRow icon={<ThumbsUp className="size-3.5 text-success v8:text-emerald-400" aria-hidden />} label="Strengths" tags={d.strengths} tone="border-success/30 v8:border-emerald-400/30 bg-success/[0.08] v8:bg-emerald-400/[0.08]" />
       <TagRow icon={<ThumbsDown className="size-3.5 text-danger" aria-hidden />} label="Weaknesses" tags={d.weaknesses} tone="border-danger/30 bg-danger/[0.08]" />
       {!d.strengths.length && !d.weaknesses.length && d.tags.length > 0 && <TagRow label="Most noted" tags={d.tags} tone="border-border bg-muted/50" />}
       <div className="flex justify-end">{scout}</div>

@@ -118,7 +118,7 @@ export function MatchHeader({ schedule, index, watching, progress, onIndex, next
           <h2 key={m.key} className={cn("truncate font-display text-3xl font-semibold tabular-nums leading-none tracking-tight motion-safe:animate-in motion-safe:fade-in motion-safe:duration-200",
             dir > 0 ? "motion-safe:slide-in-from-right-4" : "motion-safe:slide-in-from-left-4")}>{m.label}</h2>
           <p className="mt-1 text-xs text-muted-foreground">
-            {done ? <><span className="font-semibold text-success">Saved</span> · tap to edit</>
+            {done ? <><span className="font-semibold text-success v8:text-emerald-400">Saved</span> · tap to edit</>
               : index === nextIndex ? <><span className="font-semibold text-success v8:font-medium v8:text-text-base">Next up</span>{time && <> · ~{time}</>}</>
                 : time ? `~${time}` : m.played ? "Played" : "No time yet"}
           </p>

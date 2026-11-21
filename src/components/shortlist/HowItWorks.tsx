@@ -36,7 +36,7 @@ export function HowItWorks({ className, title = true, hidden }: { className?: st
         <Step icon={<GripVertical />} tone="bg-accent/15 text-accent-text">Drag the grip to rank your picks, or focus it and use the arrow keys. <span className="font-medium text-text-base">Order picks</span> ranks the whole list by OPR or rating.</Step>
         <Step icon={<Scale />} tone="bg-info/15 text-info">Tick up to {MAX_COMPARE} teams to compare them (in the phone’s list view, open a pick to tick it). With none ticked, Compare takes your top {MAX_COMPARE}.</Step>
         <Step icon={<Palette />} tone="bg-violet-500/15 text-violet-600 dark:text-violet-300">Give a team one of eight named colours with the dot beside its number; Compare draws the team in it too.</Step>
-        <Step icon={<PencilLine />} tone="bg-success/15 text-success">Write a private note under any team. Open a pick for its OPR split, event by event chart and last matches.</Step>
+        <Step icon={<PencilLine />} tone="bg-success/15 v8:bg-emerald-400/15 text-success v8:text-emerald-400">Write a private note under any team. Open a pick for its OPR split, event by event chart and last matches.</Step>
         <Step icon={<Download />} tone="bg-warning/15 text-warning"><span className="font-medium text-text-base">CSV</span> downloads the list with your notes, for a spreadsheet or print-out.</Step>
       </ul>
     </section>

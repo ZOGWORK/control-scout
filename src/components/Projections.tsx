@@ -171,7 +171,7 @@ function LiveView({ run, baseline, rankNow, names, pinned, local }: { run: Proje
           <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground" aria-live="polite">
             {local
               ? <span className="inline-flex items-center gap-1.5 font-medium text-foreground"><HardDrive className="size-3.5 text-info" aria-hidden />{localHeadline(run)}</span>
-              : <span className="inline-flex items-center gap-1.5 font-medium text-foreground"><Radio className="size-3.5 text-success" aria-hidden />{projectionHeadline(run)}</span>}
+              : <span className="inline-flex items-center gap-1.5 font-medium text-foreground"><Radio className="size-3.5 text-success v8:text-emerald-400" aria-hidden />{projectionHeadline(run)}</span>}
             {!local && run.runs < run.target && <span className="text-xs">(of {run.target.toLocaleString("en-US")}: this event is big, so it's simulated fewer times to stay quick)</span>}
           </p>
         </div>

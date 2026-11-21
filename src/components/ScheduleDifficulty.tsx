@@ -20,7 +20,7 @@ const WORD_TONE: Record<ReturnType<typeof scheduleWord>, { chip: string; bar: st
   Tough: { chip: "bg-warning/15 text-warning-text", bar: "bg-warning", text: "text-warning-text" },
   Average: { chip: "bg-muted text-muted-foreground", bar: "bg-muted-foreground/60", text: "text-foreground" },
   Kind: { chip: "bg-info/15 text-info-text", bar: "bg-info", text: "text-info-text" },
-  Easy: { chip: "bg-success/15 text-success-text", bar: "bg-success", text: "text-success-text" },
+  Easy: { chip: "bg-success/15 v8:bg-emerald-400/15 text-success-text v8:text-emerald-400", bar: "bg-success v8:bg-emerald-400", text: "text-success-text v8:text-emerald-400" },
 };
 
 /** What the measurement on past seasons found (docs/schedule-difficulty.md), said once under the card. */

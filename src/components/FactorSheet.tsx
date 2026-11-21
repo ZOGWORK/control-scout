@@ -72,7 +72,7 @@ export function FactorSheetPanel({ sheet, winner = null, defaultOpen = false, cl
         <TugOfWar sheet={sheet} />
         {review && (
           <p className="rounded-lg bg-success/10 px-3 py-2 text-sm v8:bg-transparent v8:p-0" data-testid="sheet-review">
-            <span className="font-semibold text-success">{review.right} of {review.leaning}</span> factors that leaned one way pointed to the winner, carrying{" "}
+            <span className="font-semibold text-success v8:text-emerald-400">{review.right} of {review.leaning}</span> factors that leaned one way pointed to the winner, carrying{" "}
             <span className="font-semibold tabular-nums">{pctOf(review.rightWeight)}</span> of the call.
           </p>
         )}

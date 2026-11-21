@@ -217,7 +217,7 @@ function Alliance({ d, side }: { d: MatchDetail; side: Side }) {
         })}
       </ul>
       {expected != null && (
-        <p className="mt-1.5 text-[11px] text-text-muted" title="What the robots' event OPRs add up to, then the points scored without penalties"><span className="sr-only">Event OPRs add up to </span><span aria-hidden>OPRs </span>{r1(expected)}{a.score ? <><span className="sr-only">, scored without penalties </span><span aria-hidden> → </span>{a.score.np} (<span className={cn(a.score.np - expected >= 0 ? "text-success" : "text-warning")}>{signed(a.score.np - expected)}</span>)</> : null}</p>
+        <p className="mt-1.5 text-[11px] text-text-muted" title="What the robots' event OPRs add up to, then the points scored without penalties"><span className="sr-only">Event OPRs add up to </span><span aria-hidden>OPRs </span>{r1(expected)}{a.score ? <><span className="sr-only">, scored without penalties </span><span aria-hidden> → </span>{a.score.np} (<span className={cn(a.score.np - expected >= 0 ? "text-success v8:text-emerald-400" : "text-warning")}>{signed(a.score.np - expected)}</span>)</> : null}</p>
       )}
     </section>
   );
@@ -466,7 +466,7 @@ export function Prediction({ d }: { d: MatchDetail }) {
               <RowLabel icon={Flag} label="Actual" />
               <span className={sideValue("red")}>{m.red.score!.total}</span>
               {/* Whether the favoured side won: a right call in the success green, an upset in the theme's info blue (never a warning colour: nothing to act on). */}
-              <span className={middleCell(called == null ? undefined : called ? "text-success" : "text-info")} title="Whether the side the call favoured won" data-called={called == null ? "tie" : called ? "right" : "upset"}>{called == null ? "Tie" : called ? "Called it" : "Upset"}</span>
+              <span className={middleCell(called == null ? undefined : called ? "text-success v8:text-emerald-400" : "text-info")} title="Whether the side the call favoured won" data-called={called == null ? "tie" : called ? "right" : "upset"}>{called == null ? "Tie" : called ? "Called it" : "Upset"}</span>
               <span className={sideValue("blue")}>{m.blue.score!.total}</span>
             </li>
           )}
@@ -520,7 +520,7 @@ export function BonusRows({ season, odds, actual, tier }: {
     return (
       <span className={sideValue(s, cn("inline-flex items-center gap-1", s === "red" ? "justify-end" : "justify-start"))}>
         {odds && <span>{oddsPct(odds[s][i])}</span>}
-        {g != null && <span className={g ? "text-success" : "font-normal text-text-muted"} aria-hidden>{g ? "✓" : "✗"}</span>}
+        {g != null && <span className={g ? "text-success v8:text-emerald-400" : "font-normal text-text-muted"} aria-hidden>{g ? "✓" : "✗"}</span>}
         {g == null && !odds && <span className="text-text-muted">—</span>}
         {g != null && <span className="sr-only">{g ? "earned" : "missed"}</span>}
       </span>

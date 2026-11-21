@@ -48,7 +48,7 @@ export function AdvancedTeams({ adv, season, nameOf, className }: { adv: Adv; se
             <li key={r.team} className="min-w-0 max-w-full" data-advanced={took ? order : undefined}>
               <Link to={`/teams/${r.team}?season=${season}`}
                 className={cn("tap-44 flex min-w-0 items-start gap-2.5 rounded-xl border px-3 py-2 transition-colors",
-                  took ? "border-success/50 bg-success/10 hover:border-success" : "border-border bg-card hover:border-foreground/30",
+                  took ? "border-success/50 v8:border-emerald-400/50 bg-success/10 v8:bg-emerald-400/10 hover:border-success" : "border-border bg-card hover:border-foreground/30",
                   // v8: neutral cards; the order number says who advanced.
                   "v8:border-line v8:bg-card v8:hover:border-line v8:hover:bg-ink/[0.03]")}>
                 {took && <span className="mt-0.5 grid size-6 shrink-0 place-items-center rounded-full border border-success/60 bg-success/20 text-xs font-bold text-foreground tabular-nums v8:border-emerald-400/50 v8:bg-transparent v8:text-emerald-400" aria-label={`Advancement order ${order}`}>{order}</span>}
