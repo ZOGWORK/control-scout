@@ -1,8 +1,10 @@
 // The pure parts of the frame reader (scripts/video-frames.ts): the overlay's match, the timer's elapsed time, and
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
-import { dataRows, launchPlayerBrowser, clockReading, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, darkInk, DARK_FILL_MAX, DARK_INK_MAX, inPage, titleLeaks, titleUnchecked, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, firstOpening, OPEN_LEADS, shortClash, type M, eventDivisions, teamsSay, splitSide, splitChecked, splitZoomCss, enteredLater, DIVISION_AFTER, frameDivision, MATCH_S, ReadHung, onceMoreIfHung, undetailed, UNDETAILED_EXIT, readFailed } from "./videoFrames";
+import { dataRows, launchPlayerBrowser, clockReading, divisionOf, cropOrder, elapsed, flippedClip, inkOnly, INK_MAX, darkInk, DARK_FILL_MAX, DARK_INK_MAX, inPage, titleLeaks, titleUnchecked, cardClip, cardStill, countsThrough, overlayDivision, overlayEvent, leadIn, LEAD_IN_S, judge, NOTHING_READ, SCHEDULED_UNREAD, autoLeadsTo, overlayBand, overlayLabel, rowAbove, rowLabel, SCAN_AHEAD, stepOn, eventLabel, sameMatch, timerRan, secondsLoose, secondsOf, secondsPlain, startOffset, playedCount, playedMatches, wholeLength, firstOpening, OPEN_LEADS, shortClash, type M, eventDivisions, teamsSay, splitSide, splitChecked, splitZoomCss, enteredLater, DIVISION_AFTER, frameDivision, MATCH_S, ReadHung, onceMoreIfHung, undetailed, UNDETAILED_EXIT, readFailed, timerDigits } from "./videoFrames";
 import { between, edgeReject, EVENT_LIMIT_RATIO, eventLimitMs, GAP_READS, TRIES } from "./videoFrames";
+import { pngPixels } from "./__fixtures__/png";
+import { fileURLToPath } from "node:url";
 
 describe("the frame reader", () => {
   // A 1280 × 720 frame: a grey field, and a score bar from `top` to `bottom` with one alliance's colour each side of the
@@ -44,6 +46,54 @@ describe("the frame reader", () => {
     expect(overlayBand(frame([{ top: 300, bottom: 310 }]), 1280, 720)).toBeNull();
     // A results card: its blue half and red half fill the frame's height (CENTERSTAGE's "WINNER" card).
     expect(overlayBand(frame([{ top: 60, bottom: 660 }]), 1280, 720)).toBeNull();
+  });
+
+  // Real frames, cut to the bar's centre 480 px with 100 px over and under it (scripts/lib/__fixtures__): the band is
+  // where overlayBand found the bar in the whole frame, and the digits' rows were measured by eye.
+  const real = (name: string) => pngPixels(fileURLToPath(new URL(`./__fixtures__/${name}`, import.meta.url)));
+  it("reads the timer's digits in their own box, wherever the bar is", () => {
+    // Nevada 2023's top bar (USNVCMP, Q4 at 2:03): overlayBand finds only the bar's lower half, the timer box standing
+    // above it; the digits are rows 30–80 and the robot icon under them (rows 88–110) is left out.
+    const nv = real("timer-top-nv2023.png"), nvBox = timerDigits(nv.px, nv.width, nv.height, { top: 100, bottom: 148 })!;
+    expect(nvBox.y).toBeLessThanOrEqual(30);
+    expect(nvBox.y + nvBox.height).toBeGreaterThanOrEqual(80);
+    expect(nvBox.y + nvBox.height).toBeLessThan(88);
+    expect(nvBox.x).toBeGreaterThan(165); expect(nvBox.x + nvBox.width).toBeLessThan(315);
+    // FTC Live's bottom bar, a white box (USAZGLQ 2023, Semifinal 1 Match 1 at 2:30): digits rows 104–148.
+    const glq = real("timer-bottom-azglq2023.png"), glqBox = timerDigits(glq.px, glq.width, glq.height, { top: 100, bottom: 183 })!;
+    expect(glqBox.y).toBeLessThanOrEqual(104);
+    expect(glqBox.y + glqBox.height).toBeGreaterThanOrEqual(148);
+    // Arizona's flush-top dark bar, a mid-grey box on a paused frame (USAZCMPGC1 2023, 2:30): digits rows 55–98.
+    const gc = real("timer-flushtop-azgc2023.png"), gcBox = timerDigits(gc.px, gc.width, gc.height, { top: 48, bottom: 109 })!;
+    expect(gcBox.y).toBeLessThanOrEqual(55);
+    expect(gcBox.y + gcBox.height).toBeGreaterThanOrEqual(98);
+    expect(gcBox.y + gcBox.height).toBeLessThan(110);
+  });
+  it("finds no timer box where there's none at the bar's centre", () => {
+    // A dark box with white digits is no light box.
+    expect(timerDigits(frame([{ top: 612, bottom: 700 }]), 1280, 720, { top: 612, bottom: 700 })).toBeNull();
+    // The field monitor in Nevada's frame shows the same white timer box in rows 170–215, off to the left (x 55–130):
+    // searched round the centre, those rows have none.
+    const nv = real("timer-top-nv2023.png");
+    expect(timerDigits(nv.px, nv.width, nv.height, { top: 168, bottom: 220 })).toBeNull();
+  });
+  it("finds no timer box in a white slide's text at the centre (too tall for a timer's digits)", () => {
+    // A 1280 × 720 frame: blue left, red right, a white panel 160 px wide at the centre from row 200 down, and in it a
+    // black block `inkRows` tall from row 240. A timer's digits are found; a slide's text block is not.
+    const slide = (inkRows: number) => {
+      const px = new Uint8Array(1280 * 720 * 4);
+      for (let y = 0; y < 720; y++) for (let x = 0; x < 1280; x++) {
+        const i = (y * 1280 + x) * 4, panel = y >= 200 && x >= 560 && x < 720, ink = panel && y >= 240 && y < 240 + inkRows && x >= 590 && x < 690;
+        const c = ink ? [0, 0, 0] : panel ? [250, 250, 250] : x < 640 ? [30, 60, 200] : [200, 40, 40];
+        px[i] = c[0]; px[i + 1] = c[1]; px[i + 2] = c[2]; px[i + 3] = 255;
+      }
+      return px;
+    };
+    // Run as the reader runs it, from its source in the page (`toString`): an outer name there is a ReferenceError.
+    const paged = new Function("px", `const __name = (f) => f; return (${timerDigits.toString()})(px, 1280, 720, { top: 200, bottom: 719 });`);
+    expect(paged(slide(45))).not.toBeNull();
+    expect(paged(slide(91))).toBeNull();
+    expect(paged(slide(300))).toBeNull();
   });
 
   it("steps the upload scan on past a named match until its timer runs, through a cutaway", () => {
