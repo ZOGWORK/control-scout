@@ -78,17 +78,21 @@ describe("team page, v8 on", () => {
     expect(follows(matches, folded("Reliability"))).toBe(true);
   });
 
-  it("shows the standing as one row: the percentile and each number in the slate-blue accent, labels grey", () => {
+  it("keeps the percentile blue, glance values neutral, and record outcomes colored without duplicating OPR", () => {
     mount();
     const figure = document.querySelector("[data-hero-figure]")!;
     expect(figure.textContent).toMatch(/^Top \d+%$/);
     expect(figure.className).toContain("text-accent");
     const terms = [...document.querySelectorAll("[data-glance-stats] dt")];
-    expect(terms.map((d) => d.textContent)).toEqual(["OPR", "Rating", "Record", "Reliability"]);
+    expect(terms.map((d) => d.textContent)).toEqual(["Rating", "Record", "Reliability"]);
     for (const dt of terms) {
       expect(dt.className).toContain("text-text-faint");
-      expect((dt.nextElementSibling as HTMLElement).className).toContain("text-accent");
+      expect((dt.nextElementSibling as HTMLElement).className).toContain("text-foreground");
     }
+    const record = terms.find((d) => d.textContent === "Record")!.nextElementSibling!;
+    expect(record.querySelector(".text-emerald-400")?.textContent).toBe("4");
+    expect(record.querySelector(".text-red-400")?.textContent).toBe("1");
+    expect(record.querySelector(".text-yellow-300")?.textContent).toBe("0");
     // The name stays white.
     expect(screen.getByRole("heading", { level: 1 }).querySelector(".text-text-base")!.textContent).toContain("Hypnotic Robotics");
     expect(document.querySelector("[data-opr-tiles]")).toBeNull();
@@ -138,13 +142,14 @@ describe("team page, v8 on", () => {
     expect(within(next).getByRole("link", { name: /Advancement odds/ })).toBeTruthy();
   });
 
-  it("picks the season from one clearly visible select at the end of the action row, not a row of pills", () => {
+  it("picks the season in the header above the standing, outside the action row", () => {
     mount();
     const actions = document.querySelector<HTMLElement>("[data-hero-actions]")!;
-    const select = within(actions).getByRole("combobox", { name: /Season 2025/ });
+    const select = within(hero()).getByRole("combobox", { name: /Season 2025/ });
     expect(select.className).toContain("text-text-base");
     expect(select.className).toContain("border-white/30");
-    expect(within(hero()).queryByRole("combobox")).toBeNull();
+    expect(within(actions).queryByRole("combobox")).toBeNull();
+    expect(follows(select, document.querySelector("[data-standing]")!)).toBe(true);
     expect(hero().querySelector("[data-eyebrow]")!.textContent).toBe("FTC team");
     expect(within(actions).queryAllByRole("radio")).toHaveLength(0);
   });

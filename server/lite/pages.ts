@@ -335,7 +335,7 @@ export function scoutPage(full: string, view: LiteView, signedIn: boolean): Lite
 
 // ── Settings ───────────────────────────────────────────────────────────────────────────────────────────────
 
-const THEME_NAMES: Record<ThemeCookie, string> = { light: "Light", dim: "Dim", dark: "Dark", midnight: "Midnight", system: "System" };
+const THEME_NAMES: Record<ThemeCookie, string> = { light: "Light", dim: "Dim", dark: "Dark", system: "System" };
 export const TEXT_SIZE_NAMES: [TextSizeCookie | "m", string][] = [["s", "Smaller"], ["m", "Default"], ["l", "Larger"], ["xl", "Largest"]];
 
 /** A setting's choices: links that set it (a cookie) and come back here; the current one gold. */

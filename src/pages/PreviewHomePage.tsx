@@ -10,13 +10,14 @@
 //     across the top of the page (not the sidebar).
 //   - One accent, mint, scoped to this page (data-theme-next): the live progress, the
 //     search focus, the #1 rank, links on hover. Numbers and names are white, labels grey; red and blue stay alliances.
-// No headline of any kind (no H1), no slogan, no globe. Every number comes from the same APIs the live Home uses.
+// The Control Scout mark sits above search. Every number comes from the same APIs the live Home uses.
 import { useState, type CSSProperties } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { LogIn, LogOut, Megaphone, PanelLeft, Settings, ShieldCheck, UserRound } from "lucide-react";
 import { useTitle } from "../lib/meta";
 import { usePersonal } from "../lib/personal";
 import { HomeDashboard } from "../components/home/HomeDashboard";
+import { Wash } from "../components/layout/Wash";
 import { BugReportButton } from "../components/layout/BugReport";
 import { InboxBell } from "../components/layout/InboxBell";
 import { UserAvatar } from "../components/UserAvatar";
@@ -132,22 +133,6 @@ function Corner() {
           )}
         </DropdownMenuContent>
       </DropdownMenu>
-    </div>
-  );
-}
-
-/** The dashboard's wash, across the top: a dusky, muted tint (slate blue into soft mauve, close in tone and low in
- *  colour, Sushil's reference), smooth glows with a fine grain over them, fading out by about a third of the way down,
- *  above the cards. Quieter than the shutdown page's: a working page, so the colour only sets the tone. */
-function Wash() {
-  const fade = "linear-gradient(to bottom,#000 0%,rgb(0 0 0/.75) 45%,transparent 100%)";
-  return (
-    <div aria-hidden data-wash className="pointer-events-none absolute inset-x-0 top-0 h-[34vh] min-h-[13.75rem] max-h-[23.75rem] overflow-hidden" style={{ maskImage: fade, WebkitMaskImage: fade }}>
-      <div className="absolute -inset-x-[10%] -top-1/2 bottom-0 blur-2xl bg-[radial-gradient(55%_95%_at_12%_0%,#44587f_0%,transparent_72%),radial-gradient(50%_90%_at_52%_0%,#4a4462_0%,transparent_72%),radial-gradient(55%_95%_at_90%_0%,#6e5076_0%,transparent_72%)]" />
-      <svg data-grain className="absolute inset-0 size-full opacity-[0.12] mix-blend-overlay" xmlns="http://www.w3.org/2000/svg">
-        <filter id="sample-grain"><feTurbulence type="fractalNoise" baseFrequency=".85" numOctaves={2} stitchTiles="stitch" /><feColorMatrix type="saturate" values="0" /></filter>
-        <rect width="100%" height="100%" filter="url(#sample-grain)" />
-      </svg>
     </div>
   );
 }

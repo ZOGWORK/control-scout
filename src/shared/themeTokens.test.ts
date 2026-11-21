@@ -5,7 +5,7 @@ import { contrast, parseColor, toHex } from "../lib/contrast";
 import { css, value, type Theme } from "../lib/themeTokens.testkit";
 import { THEME_TOKENS, TOKEN_SOURCE, V8_TOKENS, v8FromCookie, cookieValue, textSizeFromCookie, themeFromCookie, type Token } from "./themeTokens";
 
-const THEMES: Theme[] = ["light", "dim", "dark", "midnight"];
+const THEMES: Theme[] = ["light", "dim", "dark"];
 const hex = (s: string) => toHex(parseColor(s)!) + (parseColor(s)![3] < 1 ? Math.round(parseColor(s)![3] * 255).toString(16).padStart(2, "0") : "");
 
 describe("Lite's theme tokens", () => {
@@ -36,8 +36,6 @@ describe("Lite's v8 tokens", () => {
   it("equal src/index.css's html[data-v8] values", () => {
     expect(at).toBeGreaterThan(0);
     for (const [token, prop] of Object.entries(TOKEN_SOURCE)) {
-      // Wins and "Right": the app's v8 success token stays white and each win sets its green itself (src/lib/v8colour.ts).
-      if (token === "ok") { expect(V8_TOKENS.ok).toBe("#34d399"); continue; }
       const want = v8[prop] != null ? hex(v8[prop]) : hex(toCss(value("dark", prop)));
       expect(hex(V8_TOKENS[token as Token]), `${token} (${prop})`).toBe(want);
     }
@@ -60,7 +58,7 @@ describe("the cookies Lite reads", () => {
     expect(cookieValue("a=1; cs-theme=dim; b=2", "cs-theme")).toBe("dim");
     expect(cookieValue(undefined, "cs-theme")).toBe("");
     expect(cookieValue("xcs-theme=dim", "cs-theme")).toBe("");
-    expect(themeFromCookie("midnight")).toBe("midnight");
+    expect(themeFromCookie("midnight")).toBe("dark"); // retired 2026-11-19
     expect(themeFromCookie("system")).toBe("system");
     expect(themeFromCookie("<b>")).toBe("dark");
     expect(textSizeFromCookie("xl")).toBe("xl");
