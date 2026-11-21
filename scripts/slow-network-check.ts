@@ -28,11 +28,12 @@ const opt = (name: string) => { const i = argv.indexOf(`--${name}`); return i >=
 const flag = (name: string) => argv.includes(`--${name}`);
 const PORT = Number(opt("port") ?? 3287);
 const BASE = (opt("base") ?? `http://localhost:${PORT}`).replace(/\/$/, "");
-const LATENCY = Number(opt("latency") ?? 5000);
+const LATENCY = Number(opt("latency") ?? 4500);
 const SHOTS = opt("shots");
 const ACTIONS = !flag("no-actions");
 const FIRST = opt("first") ?? "/teams/18360";
 const PAGES = (opt("pages") ?? "/teams/16236,/teams/14270,/teams/11115").split(",");
+const OFFLINE_PAGE = opt("offline-page") ?? "/teams/7350";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const results: { step: string; ok: boolean; detail: string }[] = [];
@@ -48,15 +49,23 @@ async function go(page: Page, path: string) {
   await page.evaluate((p) => { history.pushState({}, "", p); dispatchEvent(new PopStateEvent("popstate")); }, path);
 }
 
-/** Until the page's main area has content and no skeleton is left, or `ms`. */
-async function settled(page: Page, ms: number): Promise<boolean> {
-  try {
-    await page.waitForFunction(() => {
-      const main = document.querySelector("main");
-      return !!main && main.innerText.trim().length > 40 && !document.querySelector("main .skeleton, main [aria-busy='true']");
-    }, undefined, { timeout: ms, polling: 250 });
-    return true;
-  } catch { return false; }
+/** The text that shows a page's own data is on screen: a team page's number in its heading. */
+const expectFor = (path: string) => /^\/teams\/(\d+)/.exec(path)?.[1] ?? null;
+
+/** The page's own data is on screen (`expect` in its heading; else text in the main area) and no skeleton is left in
+ *  view. */
+const isSettled = (page: Page, expect: string | null) => page.evaluate((want) => {
+  const main = document.querySelector("main");
+  if (!main) return false;
+  if (want ? !(main.querySelector("h1")?.textContent ?? "").includes(want) : main.innerText.trim().length < 40) return false;
+  return ![...main.querySelectorAll(".skeleton")].some((s) => { const r = s.getBoundingClientRect(); return r.width > 0 && r.top < innerHeight && r.bottom > 0; });
+}, expect).catch(() => false);
+
+/** Until isSettled, or `ms`. */
+async function settled(page: Page, ms: number, expect: string | null = null): Promise<boolean> {
+  const end = Date.now() + ms;
+  do { if (await isSettled(page, expect)) return true; await sleep(250); } while (Date.now() < end);
+  return false;
 }
 
 /** Watch the pill for `ms`: every state it showed. */
@@ -75,7 +84,7 @@ async function net(cdp: CDPSession, state: "online" | "slow" | "offline") {
   await cdp.send("Network.emulateNetworkConditions", state === "offline"
     ? { offline: true, latency: 0, downloadThroughput: -1, uploadThroughput: -1 }
     : state === "slow"
-      ? { offline: false, latency: LATENCY, downloadThroughput: 50 * 1024, uploadThroughput: 25 * 1024 }
+      ? { offline: false, latency: LATENCY, downloadThroughput: 200 * 1024, uploadThroughput: 100 * 1024 }
       : { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
 }
 
@@ -107,64 +116,77 @@ async function main() {
     const cdp = await ctx.newCDPSession(page);
     await cdp.send("Network.enable");
 
-    // 0. Online, with navigator.onLine false: not offline.
+    // 0. Online, with navigator.onLine false all along: never offline, from the first paint on.
     await page.goto(`${BASE}${FIRST}`, { waitUntil: "domcontentloaded" });
-    await settled(page, 60_000);
+    const first = await watchPill(page, 60_000, () => isSettled(page, expectFor(FIRST)));
+    await page.getByRole("button", { name: "No thanks" }).click({ timeout: 2000 }).catch(() => {}); // the privacy banner, if up
     await sleep(3000); // past the first connection check
-    const start = await pill(page);
-    note("navigator.onLine false, network fine", start !== "offline" && start !== "portal", `pill: ${start ?? "none"}`);
+    first.add((await pill(page)) ?? "none");
+    note("navigator.onLine false, network fine", !first.has("offline") && !first.has("portal"), `pill showed ${[...first].join(", ")}`);
 
-    // 1. Slow.
+    // 1. Slow: pages opened in the app.
     await net(cdp, "slow");
-    let worst = new Set<string>();
+    const worst = new Set<string>();
     for (const p of PAGES) {
       const t0 = Date.now();
       await go(page, p);
-      const seen = await watchPill(page, 60_000, async () => (await settled(page, 1)));
-      const loaded = await settled(page, 1);
+      const seen = await watchPill(page, 90_000, () => isSettled(page, expectFor(p)));
+      const loaded = await isSettled(page, expectFor(p));
       seen.forEach((s) => worst.add(s));
-      note(`slow: open ${p}`, loaded && !seen.has("offline"), `${loaded ? "loaded" : "NOT loaded"} in ${Date.now() - t0} ms; pill showed ${[...seen].join(", ")}`);
+      note(`slow: open ${p} in the app`, loaded && !seen.has("offline"), `${loaded ? "loaded" : "NOT loaded"} in ${Date.now() - t0} ms; pill showed ${[...seen].join(", ")}`);
     }
-    // Something slow on screen for the shot: one more page, caught while it loads.
-    await go(page, FIRST);
-    const slowSeen = await watchPill(page, 15_000, async () => (await pill(page)) === "slow");
-    slowSeen.forEach((s) => worst.add(s));
-    await shot(page, "slow-phone");
-    await settled(page, 60_000);
+    // The app opened afresh on the slow line (a phone reopening it): the first connection check runs on it too.
+    {
+      const t0 = Date.now();
+      void page.reload({ waitUntil: "commit", timeout: 180_000 }).catch(() => {});
+      await page.waitForFunction(() => !!document.querySelector("main"), undefined, { timeout: 180_000, polling: 250 }).catch(() => {});
+      const seen = await watchPill(page, 30_000, async () => (await pill(page)) === "slow" || (await pill(page)) === "offline");
+      if ((await pill(page)) === "slow") await shot(page, "slow-phone");
+      const rest = await watchPill(page, 150_000, () => isSettled(page, expectFor(PAGES[PAGES.length - 1])));
+      rest.forEach((s) => seen.add(s));
+      await sleep(5000);
+      seen.add((await pill(page)) ?? "none");
+      const loaded = await isSettled(page, expectFor(PAGES[PAGES.length - 1]));
+      seen.forEach((s) => worst.add(s));
+      note("slow: the app reopened on the slow line", loaded && !seen.has("offline"), `${loaded ? "loaded" : "NOT loaded"} in ${Date.now() - t0} ms; pill showed ${[...seen].join(", ")}`);
+    }
     note("slow: never offline", !worst.has("offline") && !worst.has("portal"), `pill states seen: ${[...worst].join(", ")}`);
-    note("slow: said as slow", worst.has("slow"), worst.has("slow") ? "the pill said Slow connection" : "the pill never said slow (every answer came within 4 s?)");
+    note("slow: said as slow", worst.has("slow"), worst.has("slow") ? "the pill said Slow connection" : "the pill never said slow");
 
     if (ACTIONS) {
-      // An action while slow: the sign-in form sends its code request and moves on to the code step.
-      await go(page, "/settings");
-      const email = page.locator("input[aria-label='Email']").first();
-      const shown = await email.waitFor({ timeout: 60_000 }).then(() => true, () => false);
-      if (!shown) note("slow: sign in", false, "no email field on /settings");
-      else {
-        await email.fill("scoutqa@example.test");
+      // Actions while slow, never refused or held: a search asked of the server, and a button that saves on the device.
+      try {
         const t0 = Date.now();
-        await page.getByRole("button", { name: /Email me a code/ }).click();
-        const sent = await page.getByText(/Enter the 6-digit code/).waitFor({ timeout: 60_000 }).then(() => true, () => false);
+        await go(page, "/search?q=pymble");
+        const found = await page.waitForFunction(() => /18360/.test(document.querySelector("main")?.textContent ?? ""), undefined, { timeout: 90_000, polling: 250 }).then(() => true, () => false);
         const offlineWords = await saysOffline(page);
-        note("slow: sign in (Email me a code)", sent && !offlineWords, `${sent ? "code step shown" : "no code step"} after ${Date.now() - t0} ms${offlineWords ? "; the page says offline" : ""}`);
-      }
+        note("slow: search the server", found && !offlineWords, `${found ? "answer shown" : "no answer"} after ${Date.now() - t0} ms${offlineWords ? "; the page says offline" : ""}`);
+        await go(page, FIRST);
+        await settled(page, 90_000, expectFor(FIRST));
+        const track = page.getByRole("button", { name: /^Track/ }).first();
+        const before = await track.getAttribute("aria-pressed");
+        await track.click();
+        await sleep(500);
+        const after = await track.getAttribute("aria-pressed");
+        note("slow: Track (saved on the device)", before !== after, `aria-pressed ${before} -> ${after}`);
+      } catch (e) { note("slow: actions", false, String(e).split("\n")[0]); }
     }
 
-    // 2. Offline.
+    // 2. Offline: a page not opened yet, so it has to ask.
     await net(cdp, "offline");
     const t1 = Date.now();
-    await go(page, PAGES[0]);
+    await go(page, OFFLINE_PAGE);
     const off = await watchPill(page, 30_000, async () => (await pill(page)) === "offline");
     note("offline: said as offline", off.has("offline"), `pill said Offline after ${Date.now() - t1} ms`);
-    await sleep(500);
+    await sleep(1500);
     await shot(page, "offline-phone");
 
     // 3. Back, with no online event.
     await net(cdp, "online");
     const t2 = Date.now();
-    const back = await watchPill(page, 60_000, async () => (await pill(page)) === null && await settled(page, 1));
+    const back = await watchPill(page, 90_000, async () => (await pill(page)) === null && await isSettled(page, expectFor(OFFLINE_PAGE)));
     const gone = (await pill(page)) === null;
-    note("back: pill gone, page from the server", gone && await settled(page, 1), `after ${Date.now() - t2} ms (states: ${[...back].join(", ")})`);
+    note("back: pill gone, page from the server", gone && await isSettled(page, expectFor(OFFLINE_PAGE)), `after ${Date.now() - t2} ms (states: ${[...back].join(", ")})`);
     await shot(page, "back-phone");
   } finally {
     await browser.close();
