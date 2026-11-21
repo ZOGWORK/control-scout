@@ -295,7 +295,7 @@ export function TooltipContent({ className, sideOffset = 6, children, ...props }
         sideOffset={sideOffset}
         className={cn('z-[95] rounded-lg bg-text-base px-2.5 py-1.5 text-xs font-medium text-primary shadow-lg', fade, grow,
           // v8: a dark tip on the menu surface; moving from one tip to the next (Radix's instant-open) shows it at once.
-          'v8:origin-(--radix-tooltip-content-transform-origin) v8:bg-popover v8:text-text-base v8:ring-1 v8:ring-white/10 v8:data-[state=instant-open]:animate-none',
+          'v8:origin-(--radix-tooltip-content-transform-origin) v8:bg-popover v8:text-text-base v8:ring-1 v8:ring-ink/10 v8:data-[state=instant-open]:animate-none',
           className)}
         {...props}
       >

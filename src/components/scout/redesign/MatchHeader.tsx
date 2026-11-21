@@ -34,10 +34,10 @@ const STATE_WORDS: Record<ChipState, string> = { current: "current", done: "done
 // v8: the open match is white on a faint fill with the slate-blue line (picked); done is green, partly done
 // and skipped a dashed hairline, upcoming muted. No orange.
 const CHIP: Record<ChipState, string> = {
-  current: "border-transparent bg-accent/15 font-semibold text-accent-text ring-1 ring-accent/60 v8:bg-white/10 v8:text-text-base v8:ring-accent/70",
-  done: "border-transparent bg-success/12 text-success v8:bg-white/[0.06] v8:text-emerald-400",
-  partial: "border-transparent bg-warning/12 text-warning v8:border-dashed v8:border-white/25 v8:bg-transparent v8:text-text-muted",
-  skipped: "border-transparent bg-warning/12 text-warning v8:border-dashed v8:border-white/25 v8:bg-transparent v8:text-text-muted",
+  current: "border-transparent bg-accent/15 font-semibold text-accent-text ring-1 ring-accent/60 v8:bg-ink/10 v8:text-text-base v8:ring-accent/70",
+  done: "border-transparent bg-success/12 text-success v8:bg-ink/[0.06] v8:text-emerald-400",
+  partial: "border-transparent bg-warning/12 text-warning v8:border-dashed v8:border-ink/25 v8:bg-transparent v8:text-text-muted",
+  skipped: "border-transparent bg-warning/12 text-warning v8:border-dashed v8:border-ink/25 v8:bg-transparent v8:text-text-muted",
   upcoming: "border-border text-text-muted still-hover:bg-text-base/[0.06] v8:border-line",
 };
 

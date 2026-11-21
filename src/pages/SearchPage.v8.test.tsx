@@ -148,7 +148,7 @@ describe("search page, v8 on", () => {
       expect(TONE[m].fill.startsWith(SEARCH_PALETTE[m].fill)).toBe(true);
       expect(TONE[m].tint).toContain("v8:bg-transparent");
       // A chip is a light tint (at most 10%) or the neutral white/8%: no full-colour fill.
-      expect(TONE[m].fill).toMatch(/v8:bg-(?:[a-z]+-\d00|accent|live)\/10|v8:bg-white\/\[0\.08\]/);
+      expect(TONE[m].fill).toMatch(/v8:bg-(?:[a-z]+-\d00|accent|live)\/10|v8:bg-ink\/\[0\.08\]/);
     }
     // The category colours: Auto blue, TeleOp orange, Endgame green, Penalties red.
     expect(TONE.auto.text).toContain("v8:text-sky-300");
@@ -160,7 +160,7 @@ describe("search page, v8 on", () => {
     expect(TONE.rp.text).toContain("v8:text-foreground");
     // The team hue is the accent.
     expect(TEAM_BAR).toContain("v8:bg-accent");
-    expect(swatchOf("Inspire Award").fill).toContain("v8:bg-white/[0.08]");
+    expect(swatchOf("Inspire Award").fill).toContain("v8:bg-ink/[0.08]");
   });
 
   it("colours a stat tile by what its number is: without penalties blue, a result won green or lost red, a highest purple", () => {

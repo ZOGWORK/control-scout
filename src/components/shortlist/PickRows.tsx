@@ -24,7 +24,7 @@ export function RankBadge({ rank, className }: { rank: number; className?: strin
     : rank === 2 ? "bg-info/20 text-info ring-1 ring-info/40"
     : rank === 3 ? "bg-success/20 text-success ring-1 ring-success/40"
     : "bg-muted text-text-base/80 ring-1 ring-border";
-  const v8 = rank === 1 ? "v8:bg-transparent v8:text-accent v8:shadow-none v8:ring-1 v8:ring-accent/45" : "v8:bg-transparent v8:text-text-muted v8:ring-1 v8:ring-white/[0.08]";
+  const v8 = rank === 1 ? "v8:bg-transparent v8:text-accent v8:shadow-none v8:ring-1 v8:ring-accent/45" : "v8:bg-transparent v8:text-text-muted v8:ring-1 v8:ring-ink/[0.08]";
   return <span className={cn("inline-flex size-7 shrink-0 items-center justify-center rounded-lg font-mono text-xs font-bold tabular-nums v8:rounded-md v8:font-semibold", tone, v8, className)} role="img" aria-label={`Pick ${rank}`}>{rank}</span>;
 }
 
@@ -37,7 +37,7 @@ export const LIST_COLS = "grid items-center gap-x-2 grid-cols-[2.5rem_1.75rem_mi
 /** The list view's column headings (aligned with ListRow's grid). */
 export function ListHeader() {
   return (
-    <div aria-hidden className={cn(LIST_COLS, "border-b border-border bg-muted/40 px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-text-muted sm:px-3 v8:border-white/[0.12] v8:bg-transparent v8:py-2.5 v8:text-xs v8:font-normal v8:normal-case v8:tracking-normal v8:text-text-faint")}>
+    <div aria-hidden className={cn(LIST_COLS, "border-b border-border bg-muted/40 px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-text-muted sm:px-3 v8:border-ink/[0.12] v8:bg-transparent v8:py-2.5 v8:text-xs v8:font-normal v8:normal-case v8:tracking-normal v8:text-text-faint")}>
       <span /><span>Pick</span><span className="max-sm:hidden" /><span>Team</span><span className="max-md:hidden">Trend</span>
       <span className="text-right">OPR</span><span className="text-right max-sm:hidden">World</span><span className="text-right max-lg:hidden">Rating</span><span className="text-right max-sm:hidden">W-L-T</span><span />
     </div>
@@ -66,7 +66,7 @@ function Grip({ t, rank, handle, className }: { t: ShortlistTeam; rank: number; 
   return (
     <button type="button" {...handle} aria-label={`Reorder ${t.team}${t.name ? ` ${t.name}` : ""}, pick ${rank}. Arrow keys move it; or drag.`}
       aria-roledescription="sortable handle"
-      className={cn("flex size-8 cursor-grab touch-none items-center justify-center rounded-lg text-text-muted outline-none transition-colors hover:bg-accent/10 hover:text-accent v8:hover:bg-white/[0.06] v8:hover:text-text-base active:cursor-grabbing focus-visible:ring-2 focus-visible:ring-ring/60 max-sm:size-10", className)}>
+      className={cn("flex size-8 cursor-grab touch-none items-center justify-center rounded-lg text-text-muted outline-none transition-colors hover:bg-accent/10 hover:text-accent v8:hover:bg-ink/[0.06] v8:hover:text-text-base active:cursor-grabbing focus-visible:ring-2 focus-visible:ring-ring/60 max-sm:size-10", className)}>
       <GripVertical className="size-4" />
     </button>
   );
@@ -89,8 +89,8 @@ export function ListRow(p: RowProps) {
   const { t, rank, open, dragging } = p;
   const detailsId = `${p.idPrefix ?? "shortlist"}-${t.team}`;
   return (
-    <li data-reorder-key={t.team} className={cn("relative border-b border-border bg-card last:border-b-0 v8:border-white/[0.08]", dragging && "z-20 rounded-xl border-transparent shadow-2xl ring-2 ring-accent/70 v8:ring-white/25")}>
-      <div className={cn(LIST_COLS, "density-row cursor-pointer px-2 py-2 transition-colors hover:bg-accent/[0.06] sm:px-3 v8:min-h-11 v8:hover:bg-white/[0.03]", open && "bg-accent/[0.05] v8:bg-white/[0.02]")}
+    <li data-reorder-key={t.team} className={cn("relative border-b border-border bg-card last:border-b-0 v8:border-ink/[0.08]", dragging && "z-20 rounded-xl border-transparent shadow-2xl ring-2 ring-accent/70 v8:ring-ink/25")}>
+      <div className={cn(LIST_COLS, "density-row cursor-pointer px-2 py-2 transition-colors hover:bg-accent/[0.06] sm:px-3 v8:min-h-11 v8:hover:bg-ink/[0.03]", open && "bg-accent/[0.05] v8:bg-ink/[0.02]")}
         onClick={(e) => { if (!interactive(e)) p.onToggle(); }}>
         {p.readOnly ? <span aria-hidden /> : <Grip t={t} rank={rank} handle={p.handle} />}
         <RankBadge rank={rank} />
@@ -129,7 +129,7 @@ export function GridCard(p: RowProps) {
   const { t, rank, open, dragging } = p;
   const detailsId = `${p.idPrefix ?? "shortlist"}-${t.team}`;
   return (
-    <li data-reorder-key={t.team} className={cn("relative min-w-0 overflow-hidden rounded-2xl border border-border bg-card transition-shadow v8:rounded-xl v8:border-line", open && "sm:col-span-2 xl:col-span-3", rank === 1 && "border-accent/40 v8:border-line", dragging && "z-20 shadow-2xl ring-2 ring-accent/70 v8:ring-white/25")}>
+    <li data-reorder-key={t.team} className={cn("relative min-w-0 overflow-hidden rounded-2xl border border-border bg-card transition-shadow v8:rounded-xl v8:border-line", open && "sm:col-span-2 xl:col-span-3", rank === 1 && "border-accent/40 v8:border-line", dragging && "z-20 shadow-2xl ring-2 ring-accent/70 v8:ring-ink/25")}>
       {rank === 1 && <div aria-hidden className="pointer-events-none absolute -right-10 -top-10 size-32 rounded-full bg-accent/10 blur-2xl v8:hidden" />}
       <div className="relative p-3.5">
         <div className="flex items-center gap-2">
@@ -148,10 +148,10 @@ export function GridCard(p: RowProps) {
           {t.place && <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-text-muted"><MapPin className="size-3 shrink-0" />{t.place}</p>}
         </div>
         <dl className="mt-3 grid grid-cols-2 gap-2 min-[380px]:grid-cols-4">
-          <div className="rounded-lg bg-accent/10 px-2.5 py-1.5 v8:bg-white/[0.03]"><dt className="text-[10px] font-semibold uppercase tracking-wider text-text-muted v8:text-xs v8:font-normal v8:normal-case v8:tracking-normal v8:text-text-faint">OPR</dt><dd className="whitespace-nowrap font-display text-base font-semibold tabular-nums text-accent-text sm:text-lg v8:text-violet-400">{num(t.opr)}</dd></div>
-          <div className="rounded-lg bg-success/10 px-2.5 py-1.5 v8:bg-white/[0.03]" title="Reliability: an estimate from match results, 0–100"><dt className="text-[10px] font-semibold uppercase tracking-wider text-text-muted v8:text-xs v8:font-normal v8:normal-case v8:tracking-normal v8:text-text-faint">Reliab.</dt><dd className="whitespace-nowrap font-display text-base font-semibold tabular-nums sm:text-lg"><ReliabilityCell index={t.reliability} matches={t.reliabilityMatches} /></dd></div>
-          <div className="rounded-lg bg-info/10 px-2.5 py-1.5 v8:bg-white/[0.03]"><dt className="text-[10px] font-semibold uppercase tracking-wider text-text-muted v8:text-xs v8:font-normal v8:normal-case v8:tracking-normal v8:text-text-faint">World</dt><dd className="whitespace-nowrap font-display text-base font-semibold tabular-nums text-info sm:text-lg v8:text-text-base">{t.oprRank ? `#${t.oprRank.toLocaleString()}` : "—"}</dd></div>
-          <div className="rounded-lg bg-success/10 px-2.5 py-1.5 v8:bg-white/[0.03]"><dt className="text-[10px] font-semibold uppercase tracking-wider text-text-muted v8:text-xs v8:font-normal v8:normal-case v8:tracking-normal v8:text-text-faint">W-L-T</dt><dd className="whitespace-nowrap font-display text-base font-semibold tabular-nums text-success sm:text-lg v8:text-text-base">{t.record ?? "—"}</dd></div>
+          <div className="rounded-lg bg-accent/10 px-2.5 py-1.5 v8:bg-ink/[0.03]"><dt className="text-[10px] font-semibold uppercase tracking-wider text-text-muted v8:text-xs v8:font-normal v8:normal-case v8:tracking-normal v8:text-text-faint">OPR</dt><dd className="whitespace-nowrap font-display text-base font-semibold tabular-nums text-accent-text sm:text-lg v8:text-violet-400">{num(t.opr)}</dd></div>
+          <div className="rounded-lg bg-success/10 px-2.5 py-1.5 v8:bg-ink/[0.03]" title="Reliability: an estimate from match results, 0–100"><dt className="text-[10px] font-semibold uppercase tracking-wider text-text-muted v8:text-xs v8:font-normal v8:normal-case v8:tracking-normal v8:text-text-faint">Reliab.</dt><dd className="whitespace-nowrap font-display text-base font-semibold tabular-nums sm:text-lg"><ReliabilityCell index={t.reliability} matches={t.reliabilityMatches} /></dd></div>
+          <div className="rounded-lg bg-info/10 px-2.5 py-1.5 v8:bg-ink/[0.03]"><dt className="text-[10px] font-semibold uppercase tracking-wider text-text-muted v8:text-xs v8:font-normal v8:normal-case v8:tracking-normal v8:text-text-faint">World</dt><dd className="whitespace-nowrap font-display text-base font-semibold tabular-nums text-info sm:text-lg v8:text-text-base">{t.oprRank ? `#${t.oprRank.toLocaleString()}` : "—"}</dd></div>
+          <div className="rounded-lg bg-success/10 px-2.5 py-1.5 v8:bg-ink/[0.03]"><dt className="text-[10px] font-semibold uppercase tracking-wider text-text-muted v8:text-xs v8:font-normal v8:normal-case v8:tracking-normal v8:text-text-faint">W-L-T</dt><dd className="whitespace-nowrap font-display text-base font-semibold tabular-nums text-success sm:text-lg v8:text-text-base">{t.record ?? "—"}</dd></div>
         </dl>
         <OprSpark events={t.events} interactive width={320} height={44} className="mt-3 min-h-9" />
         <div className="-mx-1.5 mt-2">{p.note}</div>
