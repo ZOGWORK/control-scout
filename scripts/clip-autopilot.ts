@@ -75,6 +75,10 @@ if (typeof LANES === "string") { console.error(`--lanes: ${LANES}`); process.exi
 if (LANE && (LANES.length || DRY || DB)) { console.error("--lane: a lane reads only the job it was sent (no --lanes, --dry or --db)"); process.exit(2); }
 
 const DIR = ".data/autopilot", STAMP = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+/** Reader lanes (a browser and OCR each) per read call: the start sets AUTOPILOT_LANES by the memory free (3 over 6 GB,
+ *  else 2). Not the coordinator's --lanes (other computers' lanes).
+ *  Declared up here: a lane's run (if (LANE), below) reads (readSeason) before the rest of the file runs. */
+const READER_LANES = /^[1-4]$/.test(process.env.AUTOPILOT_LANES ?? "") ? process.env.AUTOPILOT_LANES! : "2";
 mkdirSync(join(DIR, "runs"), { recursive: true });
 const LOG = join(DIR, "runs", `${STAMP}.log`);
 const log = (s: string) => { const line = `${new Date().toISOString()} ${s}`; console.log(line); appendFileSync(LOG, `${line}\n`); };
@@ -561,9 +565,6 @@ async function eventLimits(season: number): Promise<Map<string, number>> {
     return new Map();
   }
 }
-/** Reader lanes (a browser and OCR each) per read call: the start sets AUTOPILOT_LANES by the memory free (3 over 6 GB,
- *  else 2). Not the coordinator's --lanes (other computers' lanes). */
-const READER_LANES = /^[1-4]$/.test(process.env.AUTOPILOT_LANES ?? "") ? process.env.AUTOPILOT_LANES! : "2";
 /** Reads `codes` of `season` into its file (those not read yet, then those with rows already whole, then --verify and
  *  --bounds), and puts the file back: the rows the read changed, whether a read failed, and the events the reader
  *  stopped at its per-event limit (and the video each was on). This computer's reads and a lane's alike. */
