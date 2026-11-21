@@ -2,7 +2,7 @@
 // nothing new is tried again, and what its data PR's CHANGELOG entry says.
 import { describe, expect, it } from "vitest";
 import { nextRelease, parseChangelog } from "../../src/lib/changelog";
-import { ASK_EVERY_MS, GIVE_UP, RETRY_MS, TIMEOUTS_TO_TRY, WAIT_MS, askDue, changelogEntry, forgetSettled, needsRebuild, nextVersion, LANE_KICK_MS, frameFileSeason, heldElsewhere, holdCodes, laneJobMs, laneResults, laneStep, overLimit, parseLanes, parseShard, pickEvents, prShard, readOutcome, remember, rememberTimeout, rememberWait, rowsDelta, shardOf, waitBackoff, type Memory, type Queued } from "./autopilotRun";
+import { ASK_EVERY_MS, GIVE_UP, RETRY_MS, TIMEOUTS_TO_TRY, WAIT_MS, askDue, changelogEntry, forgetSettled, needsRebuild, nextVersion, LANE_KICK_MS, READ_CALL_MS, laneJobMs, readCallMs, laneResults, laneStep, overLimit, parseLanes, parseShard, parseSkip, pickEvents, prShard, readOutcome, remember, rememberTimeout, rememberWait, rowsDelta, shardOf, waitBackoff, type Memory, type Queued, frameFileSeason, heldElsewhere, holdCodes } from "./autopilotRun";
 import type { Row } from "./autopilotRows";
 
 const NOW = Date.parse("2026-11-17T12:00:00Z");
@@ -248,7 +248,10 @@ describe("lanes: computers with no credentials, each reading a shard for the one
   });
   it("a lane still running past every read's limits was killed: what it finished is collected", () => {
     const at = new Date(NOW).toISOString();
-    expect(laneJobMs(job)).toBe(31 * 3600_000);
+    // One season of 2 events, lengths unknown: two day-long reads, 6 h of checks, an hour.
+    expect(laneJobMs(job)).toBe(55 * 3600_000);
+    // Long events (27 h each): each read call covers both and an hour, so a long read is never called killed.
+    expect(laneJobMs(job, () => 27 * 3600_000)).toBe((2 * 55 + 6 + 1) * 3600_000);
     expect(laneStep(st({ state: "running", id: job.id, at }), job, NOW + laneJobMs(job)).do).toBe("wait");
     const late = laneStep(st({ state: "running", id: job.id, at }), job, NOW + laneJobMs(job) + 1);
     expect(late.do).toBe("collect");
@@ -276,6 +279,20 @@ describe("lanes: computers with no credentials, each reading a shard for the one
     expect(laneResults(job, [])[0].readFailed).toBe(true);
     // readFailed only false when the lane says so plainly.
     expect(laneResults(job, [{ name: "2024.json", text: JSON.stringify({ season: 2024, changed: [] }) }])[0].readFailed).toBe(true);
+  });
+});
+
+describe("readCallMs: a read call's backstop never cuts before its events' own limits", () => {
+  const H = 3600_000;
+  it("is a day for calls whose events fit in one", () => {
+    expect(READ_CALL_MS).toBe(24 * H);
+    expect(readCallMs([])).toBe(24 * H);
+    expect(readCallMs([3 * H, 5 * H])).toBe(24 * H);
+  });
+  it("covers the sum of its events' limits and an hour more: an event with 27 h of video gets 28 h", () => {
+    expect(readCallMs([27 * H])).toBe(28 * H);
+    expect(readCallMs([27 * H, 20.5 * H, 3 * H])).toBe(51.5 * H);
+    expect(readCallMs([NaN, -1, 30 * H])).toBe(31 * H);
   });
 });
 
@@ -320,5 +337,13 @@ describe("heldElsewhere: events other open PRs carry frame-read rows for", () =>
     const h = new Map([["2025/USA", 3]]);
     holdCodes(h, 2025, ["USA", "USB"], 11);
     expect([...h]).toEqual([["2025/USA", 3], ["2025/USB", 11]]);
+  });
+});
+
+describe("parseSkip", () => {
+  it("reads one season/code a line, with comments, blank lines and junk left out", () => {
+    const text = "# 2025 A-M session, reading 2026\r\n2026/USIACFN\n  2026/uspaksn   # N-Z session\n\nUSIACONEM1\n2026/US IA\nnot a line\n";
+    expect([...parseSkip(text)]).toEqual(["2026/USIACFN", "2026/USPAKSN"]);
+    expect(parseSkip("").size).toBe(0);
   });
 });

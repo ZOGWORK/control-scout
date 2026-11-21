@@ -33,7 +33,7 @@ function WorkspacePicker({ c, className }: { c: Consensus; className?: string })
 
 function Chips({ tags, tone, label }: { tags: ConsensusTag[]; tone: "good" | "bad" | "plain"; label: string }) {
   if (!tags.length) return null;
-  const cls = tone === "good" ? "border-success/30 bg-success/[0.08]" : tone === "bad" ? "border-danger/30 bg-danger/[0.08]" : "border-border bg-card";
+  const cls = tone === "good" ? "border-success/30 v8:border-emerald-400/30 bg-success/[0.08] v8:bg-emerald-400/[0.08]" : tone === "bad" ? "border-danger/30 bg-danger/[0.08]" : "border-border bg-card";
   return (
     <ul className="flex flex-wrap gap-1.5" aria-label={label}>
       {tags.map((t) => (
@@ -88,7 +88,7 @@ export function TeamConsensusSection({ team, season, reliability }: { team: numb
             </dl>
           )}
           <div className="grid gap-4 sm:grid-cols-3">
-            <TagGroup title="Strengths" icon={<ThumbsUp className="size-4 text-success" aria-hidden />} tags={d.strengths} tone="good" empty="No rating stands out high yet." />
+            <TagGroup title="Strengths" icon={<ThumbsUp className="size-4 text-success v8:text-emerald-400" aria-hidden />} tags={d.strengths} tone="good" empty="No rating stands out high yet." />
             <TagGroup title="Weaknesses" icon={<ThumbsDown className="size-4 text-danger" aria-hidden />} tags={d.weaknesses} tone="bad" empty="No rating stands out low yet." />
             <TagGroup title="Most noted" tags={d.tags} tone="plain" empty="No choices or yes answers yet." />
           </div>

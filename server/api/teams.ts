@@ -14,6 +14,7 @@ import { teamLeagueStanding } from "./leagues.js";
 import { teamRegionRank } from "./regionRankings.js";
 import { hasHighlightsSql, teamIndexableSql } from "../indexable.js";
 import { hasRecordSplit } from "../teamRecordPage.js";
+import { plainText } from "../../src/shared/format.js";
 
 /**
  * Many teams' stored season reliability, in the order asked (null: none stored). Public match data only; also
@@ -190,7 +191,7 @@ export async function teamProfile(number: number, season?: number): Promise<Team
   return {
     team: team ?? { number, name: null, fullName: null, school: null, sponsors: [], city: null, state: null, country: null, rookieYear: null, website: null, homeRegion: null },
     season: s, seasons, stats, events,
-    awardsAllTime: awardsAllTime.map((a) => ({ season: a.season, code: a.code, event: a.event, type: a.type, placement: a.placement, name: a.name })),
+    awardsAllTime: awardsAllTime.map((a) => ({ season: a.season, code: a.code, event: a.event, type: a.type, placement: a.placement, name: a.name == null ? null : plainText(a.name) || null })),
     league,
     region,
     highlights: !!highlights,
