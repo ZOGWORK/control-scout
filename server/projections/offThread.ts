@@ -28,9 +28,15 @@ export const WORKER_TIMEOUT_MS = 5 * 60_000;
  * or the TypeScript source through tsx (npm run dev, scripts, vitest).
  */
 export function workerEntry(moduleUrl = import.meta.url, execArgv: readonly string[] = process.execArgv): { url: URL; execArgv?: string[] } {
-  if (fileURLToPath(moduleUrl).endsWith(".mjs")) return { url: new URL("./projectionWorker.mjs", moduleUrl) };
+  return entryFor("./projectionWorker.mjs", "./simWorker.ts", moduleUrl, execArgv);
+}
+
+/** A worker's entry: `bundled` next to the server bundle when `moduleUrl` is the bundle (an .mjs), else the TypeScript
+ *  `source` (relative to `moduleUrl`) through tsx. The forecaster's rebuild worker starts the same way (predict/offThread.ts). */
+export function entryFor(bundled: string, source: string, moduleUrl: string, execArgv: readonly string[] = process.execArgv): { url: URL; execArgv?: string[] } {
+  if (fileURLToPath(moduleUrl).endsWith(".mjs")) return { url: new URL(bundled, moduleUrl) };
   const flags = execArgv.some((a) => a.includes("tsx")) ? [...execArgv] : [...execArgv, "--import", "tsx"];
-  return { url: new URL("./simWorker.ts", moduleUrl), execArgv: flags };
+  return { url: new URL(source, moduleUrl), execArgv: flags };
 }
 
 let started = 0, live = 0;
