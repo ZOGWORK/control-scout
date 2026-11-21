@@ -69,11 +69,11 @@ const iso = (d: Date) => d.toISOString().slice(0, 10);
 const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
 
 /** The new look's surfaces, written once. */
-const card = "flex min-w-0 flex-col gap-4 rounded-2xl border border-white/[0.08] bg-[#121214] p-5 sm:p-6";
+const card = "flex min-w-0 flex-col gap-4 rounded-2xl border border-ink/[0.08] bg-[#121214] p-5 sm:p-6 v8light:bg-card [html.dim_&]:bg-card";
 const cardTitle = "flex items-center gap-2 text-sm font-semibold text-text-base";
 /** A card's way on: white, mint on hover. */
 const cardLink = "mt-auto inline-flex min-h-11 items-center gap-1 self-start text-sm font-medium text-text-base transition-colors hover:text-accent";
-const rowLink = "group flex min-h-11 items-center gap-3 rounded-lg -mx-2 px-2 transition-colors hover:bg-white/[0.04] focus-visible:outline-2 focus-visible:outline-ring";
+const rowLink = "group flex min-h-11 items-center gap-3 rounded-lg -mx-2 px-2 transition-colors hover:bg-ink/[0.04] focus-visible:outline-2 focus-visible:outline-ring";
 
 /** Your teams, in the app's own order: the teams the account is on (Control Point), this device's My team, then the
  *  teams you follow; each once. Usually just one. */
@@ -112,14 +112,14 @@ export function HomeDashboard({ framed = false }: { framed?: boolean }) {
           onPick={(h: SearchHit) => { const to = hitHref(h); return glideTo(to, () => nav(to)); }}
           glide
           className="w-full"
-          fieldClassName="h-14 rounded-2xl border-white/15 bg-[#121214]/85 px-5 text-lg shadow-none backdrop-blur max-sm:text-base focus-within:border-accent focus-within:shadow-[0_0_0_3px_rgb(127_209_174/0.18)] [&_[data-search-submit]_svg]:text-text-muted [&_[data-search-submit]:hover]:bg-white/[0.08]"
+          fieldClassName="h-14 rounded-2xl border-ink/15 bg-[#121214]/85 v8light:bg-card/85 [html.dim_&]:bg-card/85 px-5 text-lg shadow-none backdrop-blur max-sm:text-base focus-within:border-accent focus-within:shadow-[0_0_0_3px_rgb(127_209_174/0.18)] [&_[data-search-submit]_svg]:text-text-muted [&_[data-search-submit]:hover]:bg-ink/[0.08]"
         />
         <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
           <span className="text-sm text-text-muted">Try:</span>
           {examples.map((s) => (
             <Link
               key={s.q} data-example-chip to={hitHref(searchPagePick(s.q))} onClick={() => addRecentSearch(s.q)}
-              className="tap-44 inline-flex h-8 items-center rounded-full border border-white/15 bg-white/[0.03] px-3 text-sm text-text-base transition-colors hover:border-white/30 hover:bg-white/[0.07] active:scale-[0.97] motion-reduce:active:scale-100"
+              className="tap-44 inline-flex h-8 items-center rounded-full border border-ink/15 bg-ink/[0.03] px-3 text-sm text-text-base transition-colors hover:border-ink/30 hover:bg-ink/[0.07] active:scale-[0.97] motion-reduce:active:scale-100"
             >{suggestionLabel(s)}</Link>
           ))}
         </div>
@@ -138,7 +138,7 @@ export function HomeDashboard({ framed = false }: { framed?: boolean }) {
 }
 
 function Loading({ rows }: { rows: number }) {
-  return <ul aria-busy="true" className="flex flex-col gap-2">{Array.from({ length: rows }, (_, i) => <li key={i} className="h-11 rounded-lg bg-white/[0.04]" />)}</ul>;
+  return <ul aria-busy="true" className="flex flex-col gap-2">{Array.from({ length: rows }, (_, i) => <li key={i} className="h-11 rounded-lg bg-ink/[0.04]" />)}</ul>;
 }
 
 function Failed({ what, retry }: { what: string; retry: () => void }) {
@@ -162,7 +162,7 @@ function LiveCard({ season }: { season: number }) {
           {/* Live is red, the one place it is (the universal on-air colour), with the slow ring (index.css live-ring) while something is on; still for anyone who turns motion off. */}
           <span data-live-dot className="relative flex size-2" aria-hidden>
             {count > 0 && <span data-live-pulse className="absolute inset-0 animate-[live-ring_2s_cubic-bezier(0.23,1,0.32,1)_infinite] rounded-full bg-live motion-reduce:hidden" />}
-            <span className={cn("relative size-2 rounded-full", count ? "bg-live" : "bg-white/25")} />
+            <span className={cn("relative size-2 rounded-full", count ? "bg-live" : "bg-ink/25")} />
           </span> Events live now
         </h2>
         {res.data && count > 0 && <span className="text-xs tabular-nums text-text-muted">{count} live</span>}
@@ -172,7 +172,7 @@ function LiveCard({ season }: { season: number }) {
           <p className="text-text-muted">Nothing live right now.</p>
           {next && (
             <Link to={`/events/${next.season}/${encodeURIComponent(next.code)}`} className={rowLink}>
-              <span className="w-14 shrink-0 rounded-md border border-white/10 py-0.5 text-center text-xs font-medium tabular-nums">{shortDate(next.start)}</span>
+              <span className="w-14 shrink-0 rounded-md border border-ink/10 py-0.5 text-center text-xs font-medium tabular-nums">{shortDate(next.start)}</span>
               <span className="min-w-0 flex-1"><span className="block text-xs text-text-muted">Next up</span><span className="block truncate font-medium group-hover:underline">{next.name}</span></span>
             </Link>
           )}
@@ -198,7 +198,7 @@ function LiveRow({ e }: { e: EventListItem }) {
           <span className="block truncate text-sm font-medium group-hover:underline" title={e.name}>{e.name}</span>
           {e.matchesTotal > 0 && e.matchesPlayed > 0 ? (
             <span className="mt-1.5 flex items-center gap-2">
-              <span className="h-1 flex-1 overflow-hidden rounded-full bg-white/10" aria-hidden>
+              <span className="h-1 flex-1 overflow-hidden rounded-full bg-ink/10" aria-hidden>
                 <span data-progress className="block h-full rounded-full bg-accent" style={{ width: `${Math.round(share * 100)}%` }} />
               </span>
               <span className="shrink-0 text-xs tabular-nums text-text-muted">{e.matchesPlayed}/{e.matchesTotal} played</span>
@@ -208,7 +208,7 @@ function LiveRow({ e }: { e: EventListItem }) {
           )}
         </span>
         {!(e.matchesTotal > 0 && e.matchesPlayed > 0) && (
-          <span data-no-results className="shrink-0 rounded-md border border-white/10 px-1.5 py-0.5 text-[0.6875rem] text-text-muted">No results yet</span>
+          <span data-no-results className="shrink-0 rounded-md border border-ink/10 px-1.5 py-0.5 text-[0.6875rem] text-text-muted">No results yet</span>
         )}
       </Link>
     </li>
@@ -325,7 +325,7 @@ function OneTeam({ team, season, t, loaded }: { team: number; season: number; t:
           {t?.place && <span className="block truncate text-xs text-text-muted">{t.place}</span>}
         </span>
       </Link>
-      <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] px-4 py-3 text-sm">
+      <div className="rounded-xl border border-ink/[0.08] bg-ink/[0.02] px-4 py-3 text-sm">
         {next ? (
           <Link to={matchHref(next)} className="group flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
             <span className="min-w-0">
@@ -430,4 +430,4 @@ function PickTeamCard({ onPick }: { onPick: () => void }) {
 
 /** Picking a team: a plain icon-and-label button like the sidebar's rows (no colour, no fill, no border; a faint
  *  wash on hover), where the other cards' links sit. */
-const pickTeam = "mt-auto -ml-2.5 inline-flex h-10 items-center gap-2.5 self-start rounded-lg px-2.5 text-sm font-medium text-text-base transition-colors hover:bg-white/[0.06] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring";
+const pickTeam = "mt-auto -ml-2.5 inline-flex h-10 items-center gap-2.5 self-start rounded-lg px-2.5 text-sm font-medium text-text-base transition-colors hover:bg-ink/[0.06] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring";

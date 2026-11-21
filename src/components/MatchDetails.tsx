@@ -112,7 +112,7 @@ const NAME: Record<Side, string> = { red: "Red", blue: "Blue" };
 /** A match video's button: filled in the video colour, 44 px tall on a touch screen. */
 const WATCH = "min-h-9 gap-1.5 rounded-lg bg-video px-3 text-sm font-semibold text-on-video shadow-sm hover:opacity-90 max-sm:min-h-11 [&_svg]:size-4"
   // v8: no coloured buttons (brief §5): the primary look, a white/10% fill with a hairline, and the 0.97 press.
-  + " v8:border v8:border-white/[0.08] v8:bg-white/10 v8:font-medium v8:text-text-base v8:shadow-none v8:transition-[background-color,scale] v8:duration-150 v8:hover:opacity-100 v8:hover:bg-white/[0.14] v8:active:scale-[0.97] motion-reduce:active:scale-100";
+  + " v8:border v8:border-ink/[0.08] v8:bg-ink/10 v8:font-medium v8:text-text-base v8:shadow-none v8:transition-[background-color,scale] v8:duration-150 v8:hover:opacity-100 v8:hover:bg-ink/[0.14] v8:active:scale-[0.97] motion-reduce:active:scale-100";
 
 /** The whole match in one glance: the score and the margin in the biggest type on the page, then which match
  *  and when, muted, with its links as icons (their names on hover, and for screen readers). */
@@ -175,7 +175,7 @@ function MatchVideoSection({ m }: { m: MatchView }) {
     // Mounted only while open: closing it unmounts the recorder, which stops (and saves) any recording and releases the camera.
     <details className="group mt-6" onToggle={(e) => setOpen((e.currentTarget as HTMLDetailsElement).open)}>
       {/* Saved videos of this match: as loud as the watch button; none yet: a quiet row to add one. */}
-      <summary className={cn("flex min-h-11 w-fit cursor-pointer select-none items-center gap-2 [&::-webkit-details-marker]:hidden", saved > 0 ? "rounded-lg bg-video px-3 text-sm font-semibold text-on-video v8:bg-white/10 v8:font-medium v8:text-text-base" : "text-xs text-text-muted hover:text-text-base")} title="Record, add a file or a YouTube link">
+      <summary className={cn("flex min-h-11 w-fit cursor-pointer select-none items-center gap-2 [&::-webkit-details-marker]:hidden", saved > 0 ? "rounded-lg bg-video px-3 text-sm font-semibold text-on-video v8:bg-ink/10 v8:font-medium v8:text-text-base" : "text-xs text-text-muted hover:text-text-base")} title="Record, add a file or a YouTube link">
         <Video className={cn("size-4", saved > 0 ? "" : "text-accent-text v8:text-text-muted")} aria-hidden />{saved > 0 ? `Your videos (${saved})` : "Video"}<span className="sr-only"> for {m.label}: record, add a file or a YouTube link</span><ChevronDown className="size-3.5 transition-transform group-open:rotate-180 motion-reduce:transition-none" aria-hidden />
       </summary>
       {open && <div className="pt-2"><VideoPanel matchRef={matchRef(m)} label={`${m.code} ${m.label}`} /></div>}
@@ -280,8 +280,8 @@ export function PairedBar({ red, blue, max, className }: { red: number | null; b
   const w = (v: number | null) => `${max > 0 && v != null && v > 0 ? Math.min(100, (v / max) * 100) : 0}%`;
   return (
     <span aria-hidden className={cn("grid grid-cols-2 items-center gap-px", className)} data-paired-bar>
-      <span className="flex h-1.5 justify-end overflow-hidden rounded-l-full bg-white/[0.04]"><span className="h-full rounded-l-full bg-red-alliance" style={{ width: w(red) }} data-bar="red" /></span>
-      <span className="flex h-1.5 overflow-hidden rounded-r-full bg-white/[0.04]"><span className="h-full rounded-r-full bg-blue-alliance" style={{ width: w(blue) }} data-bar="blue" /></span>
+      <span className="flex h-1.5 justify-end overflow-hidden rounded-l-full bg-ink/[0.04]"><span className="h-full rounded-l-full bg-red-alliance" style={{ width: w(red) }} data-bar="red" /></span>
+      <span className="flex h-1.5 overflow-hidden rounded-r-full bg-ink/[0.04]"><span className="h-full rounded-r-full bg-blue-alliance" style={{ width: w(blue) }} data-bar="blue" /></span>
     </span>
   );
 }

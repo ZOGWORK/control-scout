@@ -208,9 +208,9 @@ const toggleItem = cva(
         segment: 'rounded-md px-3 hover:bg-text-base/[0.06] aria-checked:bg-background aria-checked:text-foreground aria-checked:shadow-sm aria-pressed:bg-background aria-pressed:text-foreground aria-pressed:shadow-sm dark:aria-checked:bg-text-base/[0.16] dark:aria-pressed:bg-text-base/[0.16]',
         chips: 'h-8 shrink-0 rounded-full border border-border px-3 max-sm:h-9 aria-checked:border-accent/50 aria-checked:bg-accent/10 aria-checked:text-foreground aria-pressed:border-accent/50 aria-pressed:bg-accent/10 aria-pressed:text-foreground ' +
           // v8: a picked chip is white on white/10%, never the accent (brief §5).
-          'v8:border-white/[0.12] v8:aria-checked:border-white/25 v8:aria-checked:bg-white/10 v8:aria-pressed:border-white/25 v8:aria-pressed:bg-white/10',
+          'v8:border-ink/[0.12] v8:aria-checked:border-ink/25 v8:aria-checked:bg-ink/10 v8:aria-pressed:border-ink/25 v8:aria-pressed:bg-ink/10',
         cards: 'h-auto min-h-12 shrink-0 flex-col items-start gap-0.5 rounded-xl border border-border bg-background px-3 py-2 text-left aria-checked:border-accent/60 aria-checked:bg-accent/10 aria-checked:text-foreground aria-pressed:border-accent/60 aria-pressed:bg-accent/10 aria-pressed:text-foreground ' +
-          'v8:aria-checked:border-white/25 v8:aria-checked:bg-white/[0.06] v8:aria-pressed:border-white/25 v8:aria-pressed:bg-white/[0.06]',
+          'v8:aria-checked:border-ink/25 v8:aria-checked:bg-ink/[0.06] v8:aria-pressed:border-ink/25 v8:aria-pressed:bg-ink/[0.06]',
       },
       size: { default: '', sm: '', lg: '' },
     },

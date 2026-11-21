@@ -185,6 +185,13 @@ describe("the shipped list", () => {
     expect(rows).toEqual([expect.objectContaining({ season: 2022, code: "CABCSUQ", kind: "recording", day: "2023-01-28" })]);
     expect(data.videos.some((x) => x.season === 2022 && x.code === "CABCVIQ")).toBe(false);
   });
+  it("puts FTC Benelux's 2024 qualifier uploads on the event at the venue their titles name", () => {
+    // Uploads with no broadcast date, put up a day or two after a one-day qualifier: "Qualifier 05 - Pius X-College"
+    // is Bladel's (held at Pius X-College, 2025-01-25), "Qualifier 02 - Maerlant-Lyceum" The Hague's (2024-12-08).
+    const on = (id: string) => data.videos.filter((x) => x.videoId === id);
+    expect(on("WGgHduHTkvg")).toEqual([expect.objectContaining({ season: 2024, code: "NLBLQ", kind: "recording", day: "2025-01-25" })]);
+    expect(on("zcD2gtqEi4s")).toEqual([expect.objectContaining({ season: 2024, code: "NLTHQ", kind: "recording", day: "2024-12-08" })]);
+  });
 
   it("keeps one video per event, day and part", () => {
     const k = new Set<string>();
