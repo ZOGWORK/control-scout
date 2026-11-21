@@ -15,6 +15,25 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 7.7.1 — 2026-11-21
+
+The Discord bot's mentions are a conversation first: Bruno's chat answers them, and when no model can, one honest line says so instead of a canned persona.
+
+### Highlights
+- [alerts] Mentions get Bruno's chat, not a canned reply
+- [alerts] One honest fallback when the AI can't answer
+- [fixes] Discord chats reach Bruno again: the facts were over his cap
+- [fixes] A chat that didn't happen says why in the bot's log
+
+### Changed
+- `@Control Scout …`, a reply to its answer and `/ask` ask Bruno's chat first, before search's query rewrite, so the model leads and the website's card is the fallback. A chat waits up to 30 s, with the mention's typing indicator kept up. (`bot/ask.ts`, `bot/handler.ts`)
+- A short message that isn't a records question and that no chat answered gets one line from `bot/smallTalk.ts` — "I can't chat right now — my AI answers aren't reachable…" — credited to Control Scout, in place of eleven keyword replies that read as canned. A message with a number in it, or a long one search couldn't answer, keeps the honest card. (`bot/smallTalk.ts`, `bot/ask.ts`)
+
+### Fixed
+- Bruno's Discord chats were refused by Control Point: it caps one fact line at 400 characters, and two of the product facts the bot always sent are longer (434 and 584), so every packet got a 400 `facts[i]` and the card posted instead. Every line is now cut to the cap. (`bot/ask.ts`, `bot/productFacts.ts`)
+- A chat that wasn't configured, was refused, timed out or came back empty now says why in the bot's log (`[bot] chat off: …`, `[bot] chat failed: …`, `[bot] chat empty: …`), so a deployment is diagnosed from `journalctl -u control-scout-bot` without a code change. (`bot/ask.ts`)
+- `bot/README.md` lists the Control Point settings Bruno's chat needs, and how the bot says a chat didn't happen.
+
 ## 7.7.0 — 2026-11-19
 
 A new look for Control Scout: calmer and darker, with each page built around what you came for. The classic look is one click away at Settings › Display › Look.
