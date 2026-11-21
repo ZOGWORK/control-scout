@@ -24,8 +24,8 @@ const lum = (c: number[]) => {
 const ratio = (a: number[], b: number[]) => { const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x); return (hi + 0.05) / (lo + 0.05); };
 const over = (fg: number[], alpha: number, bg: number[]) => fg.map((v, i) => v * alpha + bg[i] * (1 - alpha));
 
-/** Where each theme's tokens come from, own block first: Dim and Midnight are dark (`:root`, `@theme`) with their own surfaces. */
-const THEMES = { light: ["html.light", ":root", "@theme"], dim: ["html.dim", ":root", "@theme"], dark: [":root", "@theme"], midnight: ["html.midnight", ":root", "@theme"] } as const;
+/** Where each theme's tokens come from, own block first: Dim is dark (`:root`, `@theme`) with their own surfaces. */
+const THEMES = { light: ["html.light", ":root", "@theme"], dim: ["html.dim", ":root", "@theme"], dark: [":root", "@theme"] } as const;
 type Theme = keyof typeof THEMES;
 const declares = (selector: string, name: string) => {
   const start = css.findIndex((l) => l.startsWith(`${selector} {`));

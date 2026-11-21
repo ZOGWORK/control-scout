@@ -5,7 +5,7 @@
 // readings search answers from, so the page and search never list different events or a different match.
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { CalendarDays, PlayCircle, Radio, Search, Star } from "lucide-react";
+import { CalendarDays, CalendarX2, PlayCircle, Radio, Search, Star } from "lucide-react";
 import { useApi, qs } from "../lib/api";
 import { useTitle } from "../lib/meta";
 import { usePersonal } from "../lib/personal";
@@ -19,6 +19,9 @@ import { PlacePicker, active, idle, placeName, trigger } from "./RankingsPage";
 import type { RankingPlaces } from "../shared/rankings";
 import { eventKindLabel, noEventsLine, type NextMatchAnswer, type WeekendAnswer, type WeekendEvent, viewerToday } from "../shared/weekend";
 import type { Weekend } from "../shared/query/time";
+import { useIsV8 } from "../lib/v8";
+import { LiveDot } from "../components/EventChips";
+import { shortDates } from "../components/EventBrowse";
 
 const WHICH: { id: Weekend; label: string }[] = [{ id: "last", label: "Last weekend" }, { id: "this", label: "This weekend" }, { id: "next", label: "Next weekend" }];
 
@@ -42,6 +45,71 @@ export default function WeekendPage() {
   useTitle(`FTC events ${label.toLowerCase()}${region ? ` in ${placeName(region)}` : ""}`);
   const mine = places.data?.mine ?? null;
   const mineOn = !!mine && region === mine;
+  const v8 = useIsV8();
+  if (v8) {
+    // v8 (docs/design/v8-revamp-brief.md §7.9, the PR's page plan): the title and a one-line summary, the weekend
+    // tabs and place, then the events grouped live → upcoming → finished; the next match beside (under, on a phone).
+    const live = d?.events.filter((e) => e.status === "live").length ?? 0;
+    const summary = d ? [d.window.label, `${d.seasonLabel} season`, `${d.events.length} event${d.events.length === 1 ? "" : "s"}`, live ? `${live} live` : null].filter(Boolean).join(" · ") : label;
+    return (
+      <div data-weekend-page="v8">
+        <header className="mb-4">
+          <h1 className="text-[1.375rem] font-semibold leading-7 tracking-tight text-text-base">{label}{region ? ` in ${placeName(region)}` : ""}</h1>
+          <p className="mt-1 truncate text-sm tabular-nums text-text-muted" data-weekend-count>{summary}</p>
+        </header>
+        <div className="mb-5 flex flex-wrap items-end gap-x-4 gap-y-3 border-b border-line max-sm:border-0" data-weekend-filters>
+          <div role="tablist" aria-label="Which weekend" className="-mb-px flex max-sm:w-full max-sm:border-b max-sm:border-line">
+            {WHICH.map((w) => (
+              <button key={w.id} type="button" role="tab" aria-selected={which === w.id} onClick={() => go({ which: w.id === "this" ? null : w.id })}
+                className={cn("relative h-11 px-3 text-sm font-medium transition-colors duration-150 active:scale-[0.97] motion-reduce:active:scale-100 max-sm:flex-1 max-sm:px-1",
+                  which === w.id ? "text-text-base after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:rounded-full after:bg-accent max-sm:after:inset-x-2" : "text-text-muted hover:text-text-base")}>{w.label}</button>
+            ))}
+          </div>
+          <div className="flex flex-wrap items-center gap-2 pb-2 max-sm:pb-0 sm:ml-auto [&_svg]:text-text-faint">
+            <PlacePicker info={places.data} loading={places.loading} value={region ? [region] : []} onChange={(keys) => go({ region: keys.at(-1) ?? null })} />
+            {mine && (
+              <button type="button" onClick={() => go({ region: mineOn ? null : mine })} aria-pressed={mineOn} className={cn(trigger, mineOn ? "border-white/20 bg-white/[0.08]" : "border-white/[0.12] bg-transparent still-hover:bg-white/[0.04]")} title={`Events in ${placeName(mine)}, where team ${myTeam} is from`}>
+                <Star className="size-4" />My region<span className="text-text-muted max-sm:hidden">· {placeName(mine)}</span>
+              </button>
+            )}
+          </div>
+        </div>
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+          <section aria-labelledby="weekend-events" className="min-w-0">
+            <h2 id="weekend-events" className="sr-only">Events</h2>
+            {res.error && !d ? <ErrorState error={res.error} onRetry={res.reload} /> : !d ? (
+              <ul aria-busy="true" className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-card">{[0, 1, 2, 3, 4, 5].map((i) => <li key={i} className="flex h-14 items-center px-4"><span className="skeleton h-4 w-2/3 rounded" /></li>)}</ul>
+            ) : !d.events.length ? (
+              <div className="flex flex-col items-center gap-3 rounded-xl border border-line bg-card px-6 py-10 text-center" data-no-events>
+                <CalendarX2 className="size-5 text-text-faint" aria-hidden />
+                <p className="text-sm text-text-muted">{noEventsLine(which, d.region)}</p>
+                <Button variant="outline" size="sm" asChild><Link to="/events">Browse the season calendar</Link></Button>
+              </div>
+            ) : (
+              <div className="space-y-5" data-weekend-list>
+                {(["live", "upcoming", "finished"] as const).map((st) => {
+                  const evs = d.events.filter((e) => e.status === st);
+                  if (!evs.length) return null;
+                  return (
+                    <section key={st} aria-label={GROUP[st]} data-weekend-group={st}>
+                      <h3 className="mb-2 flex items-center gap-2 px-1 font-sans text-sm font-semibold text-text-base">{st === "live" && <LiveDot />}{GROUP[st]}<span className="font-normal tabular-nums text-text-faint">{evs.length}</span></h3>
+                      <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-card">{evs.map((e) => <EventRowV8 key={e.code} e={e} />)}</ul>
+                    </section>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+          <aside aria-label="Next match" className="space-y-4">
+            {myTeam ? <TeamNext team={myTeam} /> : (
+              <p className="flex items-start gap-2.5 rounded-xl border border-line bg-card px-4 py-3.5 text-sm text-text-muted"><Star className="mt-0.5 size-4 shrink-0 text-text-faint" aria-hidden />Pick My team on its team page to see its next match here.</p>
+            )}
+            <AnyTeam mine={myTeam} />
+          </aside>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -89,6 +157,25 @@ export default function WeekendPage() {
         </aside>
       </div>
     </div>
+  );
+}
+
+const GROUP = { live: "Live now", upcoming: "Upcoming", finished: "Finished" } as const;
+
+/** v8's row: day, name with kind, place and teams; live is the red dot, a recording is its own link beside the row. */
+function EventRowV8({ e }: { e: WeekendEvent }) {
+  return (
+    <li className="flex items-center" data-weekend-event={e.code}>
+      <Link to={e.href} className="flex min-h-14 min-w-0 flex-1 items-center gap-4 px-4 py-2.5 transition-colors duration-150 still-hover:bg-white/[0.03]">
+        <span className="w-[4.75rem] shrink-0 text-sm tabular-nums text-text-muted max-sm:hidden">{shortDates(e.start, e.end)}</span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate font-medium text-text-base" title={e.name}>{e.name}</span>
+          <span className="block truncate text-xs text-text-faint"><span className="sm:hidden">{shortDates(e.start, e.end)} · </span>{[eventKindLabel(e.type), e.place, e.teams ? `${e.teams} team${e.teams === 1 ? "" : "s"}` : null].filter(Boolean).join(" · ")}</span>
+        </span>
+        {e.status === "live" && <span className="inline-flex shrink-0 items-center gap-1.5 text-sm font-medium text-live"><LiveDot />Live</span>}
+      </Link>
+      {e.recording && <a href={e.recording} target="_blank" rel="noreferrer" className="tap-44 mr-3 inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-sm text-text-muted transition-colors duration-150 still-hover:bg-white/[0.06] still-hover:text-text-base"><PlayCircle className="size-4" aria-hidden /> Recording</a>}
+    </li>
   );
 }
 

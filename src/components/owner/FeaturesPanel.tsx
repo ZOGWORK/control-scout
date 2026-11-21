@@ -22,20 +22,20 @@ export const FLAGS_PATH = "/api/owner/flags";
 
 /** Each feature toggle's colour and icon (literal classes, so Tailwind keeps them). */
 const LOOK: Partial<Record<Flag, { icon: LucideIcon; chip: string; edge: string }>> = {
-  livePredictions: { icon: Sparkles, chip: "bg-accent/15 text-accent-text", edge: "border-l-accent" },
+  livePredictions: { icon: Sparkles, chip: "bg-accent/15 text-accent-text v8:text-accent", edge: "border-l-accent" },
   advancementOdds: { icon: TrendingUp, chip: "bg-info/15 text-info", edge: "border-l-info" },
   bracketOdds: { icon: Swords, chip: "bg-rose-500/15 text-rose-600 dark:text-rose-300", edge: "border-l-rose-500" },
   powerRankings: { icon: Trophy, chip: "bg-warning/15 text-warning", edge: "border-l-warning" },
-  coinFlips: { icon: Coins, chip: "bg-success/15 text-success", edge: "border-l-success" },
+  coinFlips: { icon: Coins, chip: "bg-success/15 v8:bg-emerald-400/15 text-success v8:text-emerald-400", edge: "border-l-success" },
   factorSheet: { icon: ChartBarBig, chip: "bg-rose-500/15 text-rose-500 dark:text-rose-300", edge: "border-l-rose-500" },
   offlinePacks: { icon: Download, chip: "bg-info/15 text-info", edge: "border-l-info" },
   eventBundle: { icon: Luggage, chip: "bg-warning/15 text-warning", edge: "border-l-warning" },
   discordBot: { icon: MessageCircle, chip: "bg-violet-500/15 text-violet-500 dark:text-violet-300", edge: "border-l-violet-500" },
-  seasonRoadMap: { icon: Route, chip: "bg-accent/15 text-accent-text", edge: "border-l-accent" },
+  seasonRoadMap: { icon: Route, chip: "bg-accent/15 text-accent-text v8:text-accent", edge: "border-l-accent" },
   workspaceScouting: { icon: ClipboardList, chip: "bg-danger/15 text-danger", edge: "border-l-danger" },
   scheduleDifficulty: { icon: Dices, chip: "bg-rose-500/15 text-rose-500 dark:text-rose-300", edge: "border-l-rose-500" },
   rulesReference: { icon: Gavel, chip: "bg-orange-500/15 text-orange-500", edge: "border-l-orange-500" },
-  dogTheme: { icon: Dog, chip: "bg-accent/15 text-accent-text", edge: "border-l-accent" },
+  dogTheme: { icon: Dog, chip: "bg-accent/15 text-accent-text v8:text-accent", edge: "border-l-accent" },
 };
 
 /** How many workspaces the overrides list shows before asking for a search. */
@@ -51,7 +51,7 @@ export function FeaturesPanel() {
     try {
       const r = await apiFetch<OwnerFlags>(`${FLAGS_PATH}/${f.name}`, { method: "PUT", json: { enabled, confirm: true } });
       prime(FLAGS_PATH, r);
-      void refreshFlags();
+      void refreshFlags({ fresh: true });
       toast.success(`${FLAG_INFO[f.name].label} ${enabled ? "on" : "off"} everywhere. Every server has it within a few seconds.`);
       setAsk(null);
     } catch (e) {
@@ -69,7 +69,7 @@ export function FeaturesPanel() {
           return (
             <>
               <Section title="Feature toggles"
-                description={<>Switch a feature off for everyone, and back on, without a deploy. The server refuses it while it's off (pages say it's switched off for now), and nothing is deleted: switching back on brings everything back as it was. {off ? <strong className="text-foreground">{off} of {features.length} off right now.</strong> : `All ${features.length} on.`}</>}>
+                description={<>Switch a feature off for everyone, and back on, without a deploy. Your data stays available when you switch a feature back on. {off ? <strong className="text-foreground">{off} of {features.length} off right now.</strong> : `All ${features.length} on.`}</>}>
                 <ul className="grid gap-3 lg:grid-cols-2">
                   {features.map((f) => (
                     <FeatureCard key={f.name} f={f} busy={busy === f.name} onFlip={(enabled) => setAsk({ flag: f, enabled })}>
@@ -95,7 +95,7 @@ export function FeaturesPanel() {
                 <DialogTitle>Turn {FLAG_INFO[ask.flag.name].label.toLowerCase()} {ask.enabled ? "on" : "off"} for everyone?</DialogTitle>
                 <DialogDescription>{ask.enabled ? FLAG_INFO[ask.flag.name].on : FLAG_INFO[ask.flag.name].off}</DialogDescription>
               </DialogHeader>
-              <p className="rounded-lg border border-success/30 bg-success/10 px-3 py-2 text-sm text-foreground">
+              <p className="rounded-lg border border-success/30 v8:border-emerald-400/30 bg-success/10 v8:bg-emerald-400/10 px-3 py-2 text-sm text-foreground">
                 {ask.enabled ? "Everything that was kept while it was off is back as it was." : "Nothing is deleted. Switching it back on restores everything exactly as it was."}
                 {ask.flag.scope === "workspace" && " Workspaces with their own setting keep it."}
               </p>
@@ -117,7 +117,7 @@ const changed = (f: OwnerFlag) => (f.updatedAt ? `Changed ${ago(f.updatedAt)} by
 
 function FeatureCard({ f, busy, onFlip, children }: { f: OwnerFlag; busy: boolean; onFlip: (enabled: boolean) => void; children?: React.ReactNode }) {
   const info = FLAG_INFO[f.name];
-  const look = LOOK[f.name] ?? { icon: Power, chip: "bg-accent/15 text-accent-text", edge: "border-l-accent" };
+  const look = LOOK[f.name] ?? { icon: Power, chip: "bg-accent/15 text-accent-text v8:text-accent", edge: "border-l-accent" };
   const Icon = look.icon;
   const id = `feature-${f.name}`;
   return (
@@ -215,7 +215,7 @@ function WorkspaceOverrides({ flag, data }: { flag: OwnerFlag; data: OwnerFlags 
                 <li key={w.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 py-2.5" data-workspace={w.id}>
                   <div className="min-w-0 flex-1 basis-40">
                     <p className="truncate text-sm font-medium text-foreground">{w.name || "Unnamed workspace"}</p>
-                    <p className={cn("text-xs", effective ? "text-success" : "text-danger")}>{effective ? "On" : "Off"}{o ? " (its own setting)" : " (follows global)"}</p>
+                    <p className={cn("text-xs", effective ? "text-success v8:text-emerald-400" : "text-danger")}>{effective ? "On" : "Off"}{o ? " (its own setting)" : " (follows global)"}</p>
                   </div>
                   <ToggleGroup type="single" value={value} disabled={busy === w.id} aria-label={`${info.label} for ${w.name || "this workspace"}`}
                     onValueChange={(v) => { if (v && v !== value) void set(w, v as Setting); }} className="shrink-0">

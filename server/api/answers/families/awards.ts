@@ -5,7 +5,7 @@
 //   Performance awards are the Winning and Finalist Alliances; individual awards are Dean's List, Compass and
 //   Volunteer; every other award is a judged team award.
 import type { StatAnswer, StatBlock } from "../../../../src/shared/searchStat.js";
-import { awardLabel, dateRange, seasonLabel } from "../../../../src/shared/format.js";
+import { awardLabel, dateRange, plainText, seasonLabel } from "../../../../src/shared/format.js";
 import { all } from "../../../db.js";
 import { eventSql, scopeChips, scopePhrase, type Scope } from "../clauses.js";
 import { eventHref, shortEvent } from "../matchSet.js";
@@ -28,7 +28,7 @@ async function awardRows(team: number, scope: Scope): Promise<AwardRow[]> {
   return all<AwardRow>(
     `SELECT a.season, a.code, e.name, e.type event_type, a.type award, a.name award_name, a.placement, e.start, e.end FROM awards a JOIN events e ON e.season = a.season AND e.code = a.code
      WHERE a.team = ? AND ${w.sql} ORDER BY e.start DESC, a.code, a.type = 'Winner' DESC, a.type = 'Inspire' DESC, a.placement`,
-    [team, ...w.args]).then((rs) => rs.map((r: any) => ({ season: Number(r.season), code: r.code, name: shortEvent(r.name, r.event_type ?? null), type: r.award, placement: Number(r.placement), start: r.start, end: r.end, award: r.award_name ?? null })));
+    [team, ...w.args]).then((rs) => rs.map((r: any) => ({ season: Number(r.season), code: r.code, name: shortEvent(r.name, r.event_type ?? null), type: r.award, placement: Number(r.placement), start: r.start, end: r.end, award: r.award_name ? plainText(r.award_name) || null : null })));
 }
 
 const label = (r: AwardRow) => (r.type === "Winner" ? "1st place (Winning Alliance)" : r.type === "Inspire" && r.placement === 1 ? "Inspire Award" : awardLabel(r.type, r.placement));

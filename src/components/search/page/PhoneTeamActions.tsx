@@ -44,7 +44,7 @@ export function PhoneTeamCard({ team, name, season, picked, onPick, children }: 
     <div className="relative" data-phone-team={team}>
       {/* What a swipe will do, uncovered as the card moves. */}
       {dx !== 0 && (
-        <div aria-hidden className={cn("absolute inset-0 flex items-center rounded-xl px-4 text-sm font-semibold", dx > 0 ? "justify-start bg-accent/20 text-accent-text" : "justify-end bg-sky-500/20 text-sky-700 dark:text-sky-300")}>
+        <div aria-hidden className={cn("absolute inset-0 flex items-center rounded-xl px-4 text-sm font-semibold", dx > 0 ? "justify-start bg-accent/20 text-accent-text v8:bg-white/[0.06] v8:text-foreground" : "justify-end bg-sky-500/20 text-sky-700 dark:text-sky-300 v8:bg-white/[0.06] v8:text-foreground")}>
           {dx > 0 ? (flags.bookmarked ? "Remove from Shortlist" : "Add to Shortlist") : "Matches"}
         </div>
       )}
@@ -72,8 +72,8 @@ export function PhoneTeamCard({ team, name, season, picked, onPick, children }: 
         {children}
       </div>
       <div className="mt-1.5 flex flex-wrap gap-1.5" data-team-actions>
-        <button type="button" onClick={onPick} aria-pressed={picked} data-vs-compare className={cn(btn, picked ? "border-accent bg-accent text-accent-ink" : "border-accent/50 bg-accent/[0.1] text-accent-text")}>{picked ? "Picked ✓" : "VS Compare"}</button>
-        <button type="button" onClick={shortlist} aria-pressed={flags.bookmarked} data-shortlist className={cn(btn, flags.bookmarked ? "border-accent/50 bg-accent/[0.1] text-accent-text" : "border-border bg-card text-foreground")}>
+        <button type="button" onClick={onPick} aria-pressed={picked} data-vs-compare className={cn(btn, picked ? "border-accent bg-accent text-accent-ink v8:border-white/12 v8:bg-white/10 v8:text-foreground" : "border-accent/50 bg-accent/[0.1] text-accent-text v8:border-white/12 v8:bg-transparent v8:text-foreground")}>{picked ? "Picked ✓" : "VS Compare"}</button>
+        <button type="button" onClick={shortlist} aria-pressed={flags.bookmarked} data-shortlist className={cn(btn, flags.bookmarked ? "border-accent/50 bg-accent/[0.1] text-accent-text v8:border-white/12 v8:bg-white/10 v8:text-foreground" : "border-border bg-card text-foreground")}>
           {flags.bookmarked ? <BookmarkCheck className="size-4" aria-hidden /> : <Bookmark className="size-4" aria-hidden />}{flags.bookmarked ? "Shortlisted" : "Shortlist"}
         </button>
         <button ref={matchesBtn} type="button" onClick={() => setMatches(true)} data-matches className={cn(btn, "border-border bg-card text-foreground")}>
@@ -111,7 +111,7 @@ function MatchHistory({ team, name, season }: { team: number; name: string; seas
               return (
                 <li key={`${m.code}:${m.key}`}>
                   <Link to={`/events/${m.season}/${m.code}?match=${m.key}`} className="flex min-h-[44px] items-center gap-3 px-3 py-2 text-sm">
-                    <span className={cn("grid size-7 shrink-0 place-items-center rounded-md text-xs font-bold", res === "W" ? "bg-success/15 text-success" : res === "L" ? "bg-danger/15 text-danger" : "bg-muted text-muted-foreground")}>{res}</span>
+                    <span className={cn("grid size-7 shrink-0 place-items-center rounded-md text-xs font-bold", res === "W" ? "bg-success/15 text-success v8:bg-white/[0.08] v8:text-foreground" : res === "L" ? "bg-danger/15 text-danger v8:bg-transparent v8:text-muted-foreground" : "bg-muted text-muted-foreground")}>{res}</span>
                     <span className="min-w-0 flex-1 truncate"><span className="font-medium text-foreground">{m.label}</span> <span className="text-muted-foreground">· {m.code}</span></span>
                     <span className="shrink-0 tabular-nums text-foreground">{us}–{them}</span>
                   </Link>
@@ -120,7 +120,7 @@ function MatchHistory({ team, name, season }: { team: number; name: string; seas
             })}
           </ul>
         )}
-      <Link to={`/teams/${team}?season=${season}#matches`} className="inline-flex min-h-[44px] items-center text-sm font-semibold text-accent-text">All matches →</Link>
+      <Link to={`/teams/${team}?season=${season}#matches`} className="inline-flex min-h-[44px] items-center text-sm font-semibold text-accent-text v8:text-foreground">All matches →</Link>
     </>
   );
 }
