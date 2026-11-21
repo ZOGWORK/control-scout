@@ -25,7 +25,7 @@ Enter opens the results page with what the search box already found, instead of 
 - [speed] Typing still waits a second, so no request goes out per keystroke
 
 ### Search
-- The results page starts from the answer the box's dropdown already had when Enter was pressed (`src/components/search/handoff.ts`), so a submitted search draws its teams, events and cards at once; the page's own answer replaces it as soon as it arrives. The typing pause is unchanged at one second (`SEARCH_DEBOUNCE_MS`); only Enter is served instantly.
+- The results page starts from the answer the box's dropdown already had when Enter was pressed (`src/components/search/handoff.ts`), so a submitted search draws its teams, events and cards at once; the page's own answer replaces it as soon as it arrives. The typing pause is unchanged at one second (`SEARCH_DEBOUNCE_MS`); only Enter is served instantly. (#2037)
 
 ## 7.7.0 — 2026-11-19
 
