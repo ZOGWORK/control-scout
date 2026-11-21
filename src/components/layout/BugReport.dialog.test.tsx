@@ -59,8 +59,9 @@ describe("Report a bug dialog", () => {
     const link = screen.getByTestId("bug-issue-link") as HTMLAnchorElement;
     expect(link.href).toBe("https://github.com/ZOGWORK/control-scout/issues/1520");
     expect(link.textContent).toContain("#1520 — https://github.com/ZOGWORK/control-scout/issues/1520");
-    expect(screen.getByText(PUBLIC_NOTE)).toBeTruthy();
-    expect(screen.getByTestId("bug-private-note")).toBeTruthy();
+    // The public warning was for before sending: once it's filed it's gone.
+    expect(screen.queryByText(PUBLIC_NOTE)).toBeNull();
+    expect(screen.queryByTestId("bug-private-note")).toBeNull();
   });
 
   it("a failed try: says something went wrong and the report is saved, with no link", async () => {

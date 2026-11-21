@@ -2,7 +2,6 @@
 // shadcn/ui Tabs on Radix, mapped to Control Point tokens. The active tab is
 // filled with the team accent, matching the existing segmented controls.
 import * as React from 'react';
-import { smoothBehavior } from '../../lib/pageScroll';
 import { scrollStripTo, stopStripGlide } from '../../lib/revealInStrip';
 import { Tabs as TabsPrimitive } from 'radix-ui';
 import { cn } from '../cn';
@@ -49,7 +48,7 @@ export function TabsList({ className, ref, ...props }: React.ComponentProps<type
       data-fade={fade}
       // Phones: sideways only (no up-and-down give from the tabs' 44px tap areas), no rubber-band past either end,
       // and no scrollbar drawn over the tabs (.tabs-fade in src/index.css); the faded edge says there's more.
-      className={cn('tabs-fade inline-flex w-full sm:w-fit items-center gap-1 max-sm:gap-1.5 rounded-2xl max-sm:rounded-xl border border-text-base/15 bg-text-base/[0.03] p-1 max-sm:p-1 overflow-x-auto overflow-y-hidden overscroll-x-none custom-scrollbar', className)}
+      className={cn('tabs-fade inline-flex w-full sm:w-fit items-center gap-1 max-sm:gap-1.5 rounded-2xl max-sm:rounded-xl border border-text-base/15 bg-text-base/[0.03] p-1 max-sm:p-1 overflow-x-auto overflow-y-hidden overscroll-x-none custom-scrollbar v8:gap-0 v8:rounded-none v8:border-0 v8:border-b v8:border-line v8:bg-transparent v8:p-0 max-sm:v8:p-0', className)}
       {...props}
     />
   );
@@ -58,16 +57,15 @@ export function TabsList({ className, ref, ...props }: React.ComponentProps<type
 export function TabsTrigger({ className, ...props }: React.ComponentProps<typeof TabsPrimitive.Trigger>) {
   // When the list scrolls sideways (phones), keep the selected tab in view —
   // e.g. an upcoming event that opens on its last tab.
-  // It jumps there on arrival and glides when the reader picks another tab (instant under reduced motion).
+  // It jumps there, on arrival and when the reader picks another tab.
   const ref = React.useRef<HTMLButtonElement>(null);
   const shown = React.useRef(false);
   React.useEffect(() => {
     const el = ref.current, list = el?.parentElement;
-    const first = !shown.current;
     shown.current = true;
     if (!el || !list || el.dataset.state !== 'active' || list.scrollWidth <= list.clientWidth) return;
     if (el.offsetLeft < list.scrollLeft || el.offsetLeft + el.offsetWidth > list.scrollLeft + list.clientWidth) {
-      scrollStripTo(list, el.offsetLeft - (list.clientWidth - el.offsetWidth) / 2, first ? 'auto' : smoothBehavior());
+      scrollStripTo(list, el.offsetLeft - (list.clientWidth - el.offsetWidth) / 2, "auto");
     } else {
       // Already showing: a glide still heading for the tab just left stops here (src/lib/revealInStrip.ts).
       stopStripGlide(list);
@@ -84,6 +82,10 @@ export function TabsTrigger({ className, ...props }: React.ComponentProps<typeof
         'border border-text-base/10 bg-text-base/[0.05] text-text-base/80 transition-colors hover:bg-text-base/[0.1] hover:text-text-base outline-none focus-visible:ring-2 focus-visible:ring-ring/60',
         'data-[state=active]:border-transparent',
         'data-[state=active]:bg-accent data-[state=active]:text-accent-ink disabled:pointer-events-none disabled:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0',
+        // v8 (brief §5): plain labels, muted to white, with a slate-blue underline under the picked one.
+        'v8:relative v8:rounded-none v8:border-0 v8:bg-transparent v8:px-3 v8:text-text-muted v8:hover:bg-transparent v8:hover:text-text-base',
+        'v8:data-[state=active]:bg-transparent v8:data-[state=active]:text-text-base',
+        "v8:after:absolute v8:after:inset-x-3 v8:after:-bottom-px v8:after:h-0.5 v8:after:rounded-full v8:after:bg-accent v8:after:opacity-0 v8:after:transition-opacity v8:after:duration-150 v8:after:content-[''] v8:data-[state=active]:after:opacity-100",
         className,
       )}
       {...props}

@@ -21,7 +21,7 @@ import { RANKED_MIN_MATCHES, parsePlaces } from "../../src/shared/rankings.js";
 import { predictHref } from "../../src/shared/predictUrl.js";
 import { cleanTeamName } from "../../src/shared/teamTitle.js";
 import type { Region } from "../../src/shared/regions.js";
-import { dateRange, possessive, seasonLabel } from "../../src/shared/format.js";
+import { dateRange, plainText, possessive, seasonLabel } from "../../src/shared/format.js";
 import { matchDay } from "../../src/shared/coinFlips.js";
 import { teamPageSql } from "../../src/shared/teamPages.js";
 import { CURRENT_SEASON, FIRST_PREDICT_SEASON, SEASONS, isLegacy } from "../data/seasons.js";
@@ -99,7 +99,9 @@ function leaderWords(t: string): { t: string; opened: boolean } {
   const opener = /^(?:what|who|which)(?: is| are|s)? (?:the )?/;
   const opened = opener.test(t);
   t = t.replace(opener, "").replace(/(?:^| )(?:in |of )?(?:ftc|first tech challenge)(?= |$)/g, " ").replace(SCOPE_WORDS, " ")
-    .replace(/\s+/g, " ").trim();
+    .replace(/\s+/g, " ").trim()
+    // "Ranked" beside the best says the board's own order ("best ranked team in nj", "best nj team ranked").
+    .replace(/^((?:the )?(?:top|best|strongest))[ -]ranked\b/, "$1").replace(/ ranked$/, "");
   return { t, opened };
 }
 
@@ -219,7 +221,7 @@ async function eventAwards(season: number, code: string, name: string): Promise<
   const rows = await all<any>(
     `SELECT a.type, a.placement, a.team, a.name, t.name team_name FROM awards a LEFT JOIN teams t ON t.number = a.team WHERE a.season = ? AND a.code = ?
      ORDER BY CASE a.type WHEN 'Inspire' THEN 0 WHEN 'Winner' THEN 1 WHEN 'Finalist' THEN 2 ELSE 3 END, a.type, (a.type NOT IN ('Winner', 'Finalist') AND COALESCE(a.name, '') LIKE '%Finalist'), a.placement`, [season, code]);
-  const awards: SearchCardAward[] = rows.map((r) => ({ type: r.type, placement: Number(r.placement), team: Number(r.team), teamName: r.team_name ?? null, name: r.name ?? null }));
+  const awards: SearchCardAward[] = rows.map((r) => ({ type: r.type, placement: Number(r.placement), team: Number(r.team), teamName: r.team_name ?? null, name: r.name ? plainText(r.name) || null : null }));
   return { event: { season, code, name }, awards };
 }
 

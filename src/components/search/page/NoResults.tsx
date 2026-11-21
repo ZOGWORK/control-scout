@@ -8,12 +8,12 @@ import type { SearchAnswer, SearchHit } from "../../../shared/api";
 import { EventCard, TeamCard, type SeasonSummary } from "./ResultCards";
 import { RelatedQuestions } from "./TeamAnswer";
 import { seasonLabel } from "../../../shared/format";
-import { SEARCH_PALETTE } from "../../../lib/textTones";
+import { TONE } from "./v8tone";
 import { cn } from "../../cn";
 
 /** No answer is the answer "no" (search's palette): No's slate as a thick bar on its wash, a filled chip, the words bold. */
-export const NO_BOX = cn("flex items-start gap-3 rounded-xl border border-l-[6px] border-border px-4 py-3", SEARCH_PALETTE.no.edge, SEARCH_PALETTE.no.tint);
-export const NO_CHIP = cn("grid size-8 shrink-0 place-items-center rounded-lg", SEARCH_PALETTE.no.fill);
+export const NO_BOX = cn("flex items-start gap-3 rounded-xl border border-l-[6px] border-border px-4 py-3", TONE.no.edge, TONE.no.tint);
+export const NO_CHIP = cn("grid size-8 shrink-0 place-items-center rounded-lg", TONE.no.fill);
 
 /** Searches that answer about the closest results: a team's record and OPR, an event's winners in the card's own
  *  season (an event's name is reused year to year). At most four. */
@@ -73,8 +73,8 @@ export function NoResults({ query, understood, closest, summaries, onOpen, sorry
       {!!related.length && <RelatedQuestions queries={related} title="Searches that answer about them" className="" />}
       <section aria-label="Browse">
         <div className="flex flex-wrap gap-2">
-          <Link to="/events" className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-foreground hover:border-accent/60"><CalendarDays className="size-4 text-muted-foreground" aria-hidden />Browse all events</Link>
-          <Link to="/teams" className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-foreground hover:border-accent/60"><Shield className="size-4 text-muted-foreground" aria-hidden />Browse all teams</Link>
+          <Link to="/events" className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-foreground hover:border-accent/60 v8:hover:border-ink/25"><CalendarDays className="size-4 text-muted-foreground" aria-hidden />Browse all events</Link>
+          <Link to="/teams" className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-foreground hover:border-accent/60 v8:hover:border-ink/25"><Shield className="size-4 text-muted-foreground" aria-hidden />Browse all teams</Link>
         </div>
       </section>
     </div>

@@ -20,10 +20,10 @@ const fingerprint = (s: string) => { let h = 0x811c9dc5; for (let i = 0; i < s.l
 
 const pct = (p: number) => (p >= 0.995 ? ">99%" : p > 0 && p < 0.005 ? "<1%" : `${Math.round(p * 100)}%`);
 
-/** A share as a cell: gold, stronger the likelier. */
+/** A share as a cell: gold, stronger the likelier. v8: no fill behind the number (the !important beats the inline tint). */
 function Odds({ p }: { p: number }) {
   return (
-    <span className="inline-block min-w-[3.25rem] rounded-md px-1.5 py-0.5 text-center tabular-nums max-sm:min-w-[2.6rem] max-sm:px-1 max-sm:text-xs"
+    <span className="inline-block min-w-[3.25rem] rounded-md px-1.5 py-0.5 text-center tabular-nums max-sm:min-w-[2.6rem] max-sm:px-1 max-sm:text-xs v8:!bg-transparent"
       style={{ background: `color-mix(in srgb, var(--color-accent) ${Math.round(Math.min(1, p) * 55)}%, transparent)` }}>
       {pct(p)}
     </span>
@@ -42,10 +42,10 @@ export function SimulatedRankings({ d, team }: { d: EventDetail; team: number | 
   const names = new Map(d.field.map((t) => [t.team, t.name]));
 
   if (!on) return (
-    <section aria-labelledby="sim-rank-h" className="mb-6 flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-card p-4 max-sm:mb-4" data-sim-rankings>
-      <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-accent/15 text-accent-text"><Dices className="size-5" aria-hidden /></span>
+    <section aria-labelledby="sim-rank-h" className="mb-6 flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-card p-4 max-sm:mb-4 v8:border-line" data-sim-rankings>
+      <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-accent/15 text-accent-text v8:bg-ink/[0.05] v8:text-text-muted"><Dices className="size-5" aria-hidden /></span>
       <div className="min-w-0 flex-1">
-        <h2 id="sim-rank-h" className="font-display text-base font-semibold text-foreground">Simulated rankings</h2>
+        <h2 id="sim-rank-h" className="font-display text-base font-semibold text-foreground v8:font-sans">Simulated rankings</h2>
         <p className="text-sm text-muted-foreground">How the model thinks qualification could end, before a match is played. A rough guess: open it knowing that.</p>
       </div>
       <Button variant="outline" size="sm" onClick={() => setOn(true)} className="max-sm:h-10 max-sm:w-full"><Dices /> Simulate the rankings</Button>
@@ -54,9 +54,9 @@ export function SimulatedRankings({ d, team }: { d: EventDetail; team: number | 
 
   const ok = data?.status === "ok" ? data : null;
   return (
-    <section aria-labelledby="sim-rank-h" className="mb-6 rounded-2xl border border-border bg-card p-4 max-sm:mb-4 max-sm:p-3" data-sim-rankings>
+    <section aria-labelledby="sim-rank-h" className="mb-6 rounded-2xl border border-border bg-card p-4 max-sm:mb-4 max-sm:p-3 v8:border-line" data-sim-rankings>
       <div className="mb-3 flex flex-wrap items-center gap-3">
-        <h2 id="sim-rank-h" className="flex items-center gap-2 font-display text-base font-semibold text-foreground"><Dices className="size-5 text-accent-text" aria-hidden /> Simulated rankings</h2>
+        <h2 id="sim-rank-h" className="flex items-center gap-2 font-display text-base font-semibold text-foreground v8:font-sans"><Dices className="size-5 text-accent-text v8:text-text-muted" aria-hidden /> Simulated rankings</h2>
         {!scheduled && (
           <div className="ml-auto flex items-center gap-2 text-xs text-muted-foreground max-sm:ml-0 max-sm:w-full">
             <span id="sim-rank-pt">Matches per team</span>
@@ -64,13 +64,13 @@ export function SimulatedRankings({ d, team }: { d: EventDetail; team: number | 
               {PER_TEAM_CHOICES.map((n) => (
                 <button key={n} type="button" role="radio" aria-checked={perTeam === n} onClick={() => setPerTeam(n)}
                   className={cn("h-8 min-w-8 rounded-md border px-2 text-xs font-semibold tabular-nums max-sm:h-9 max-sm:min-w-9",
-                    perTeam === n ? "border-accent bg-accent text-accent-ink" : "border-line bg-background text-muted-foreground hover:text-foreground")}>{n}</button>
+                    perTeam === n ? "border-accent bg-accent text-accent-ink v8:border-ink/[0.12] v8:bg-ink/10 v8:text-text-base" : "border-line bg-background text-muted-foreground hover:text-foreground v8:bg-transparent")}>{n}</button>
               ))}
             </div>
           </div>
         )}
       </div>
-      <p className="mb-4 flex items-start gap-2 rounded-xl border border-warning/40 bg-warning/10 px-3 py-2.5 text-sm text-foreground" role="note" data-sim-warning>
+      <p className="mb-4 flex items-start gap-2 rounded-xl border border-warning/40 bg-warning/10 px-3 py-2.5 text-sm text-foreground v8:border-line v8:bg-ink/[0.03]" role="note" data-sim-warning>
         <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
         <span>
           <b>Highly uncertain.</b> No match here has been played yet. Each team's strength comes from its matches so far
@@ -91,7 +91,7 @@ export function SimulatedRankings({ d, team }: { d: EventDetail; team: number | 
         <>
           <div className={cn("overflow-x-auto", loading && "opacity-60")}>
             <table className="w-full text-sm max-sm:text-[13px]">
-              <thead className="text-left text-[11px] uppercase tracking-wider text-muted-foreground">
+              <thead className="text-left text-[11px] uppercase tracking-wider text-muted-foreground v8:text-xs v8:normal-case v8:tracking-normal v8:text-text-faint v8:[&_th]:font-medium">
                 <tr>
                   <th className="py-2 pr-2 font-semibold max-sm:hidden">Proj.</th>
                   <th className="py-2 pr-2 font-semibold">Team</th>
@@ -103,7 +103,7 @@ export function SimulatedRankings({ d, team }: { d: EventDetail; team: number | 
               </thead>
               <tbody>
                 {ok.teams.map((t, i) => (
-                  <tr key={t.team} className={cn("border-t border-border", team === t.team && "bg-accent/[0.08]")} data-team={t.team}>
+                  <tr key={t.team} className={cn("border-t border-border v8:h-11 v8:border-line", team === t.team && "bg-accent/[0.08] v8:bg-accent/[0.08] v8:shadow-[inset_2px_0_0_var(--color-accent)]")} data-team={t.team}>
                     <td className="py-2 pr-2 tabular-nums text-muted-foreground max-sm:hidden">{i + 1}</td>
                     <td className="py-2 pr-2 max-sm:w-full max-sm:max-w-0">
                       <Link to={`/teams/${t.team}`} className="hover:text-accent-text max-sm:block max-sm:truncate"><span className="font-mono font-semibold">{t.team}</span> <span className="text-foreground/85">{names.get(t.team) ?? ""}</span></Link>

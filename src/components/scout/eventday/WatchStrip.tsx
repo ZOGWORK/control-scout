@@ -27,23 +27,23 @@ export function WatchStrip({ watching, onChange, disabled, className }: { watchi
   return (
     <div className={cn("flex flex-wrap items-end gap-x-5 gap-y-3", className)}>
       <div className="grid gap-1.5">
-        <p id={kindLabel} className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">What are you watching?</p>
+        <p id={kindLabel} className="text-xs font-semibold uppercase tracking-wider text-muted-foreground v8:font-normal v8:normal-case v8:tracking-normal v8:text-text-faint">What are you watching?</p>
         <ToggleGroup type="single" aria-labelledby={kindLabel} value={watching.kind} disabled={disabled}
           onValueChange={(v) => { if (v) onChange(switchKind(watching, v as Watching["kind"])); }}>
-          {KINDS.map((k) => <ToggleGroupItem key={k.kind} value={k.kind} size="lg" className="max-sm:h-11">{k.label}</ToggleGroupItem>)}
+          {KINDS.map((k) => <ToggleGroupItem key={k.kind} value={k.kind} size="lg" className="max-sm:h-11 v8:h-12 max-sm:v8:h-12">{k.label}</ToggleGroupItem>)}
         </ToggleGroup>
       </div>
       {watching.kind !== "all" && (
         <div className="grid gap-1.5">
-          <p id={whichLabel} className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{watching.kind === "slot" ? "Which team" : "Which alliance"}</p>
+          <p id={whichLabel} className="text-xs font-semibold uppercase tracking-wider text-muted-foreground v8:font-normal v8:normal-case v8:tracking-normal v8:text-text-faint">{watching.kind === "slot" ? "Which team" : "Which alliance"}</p>
           <ToggleGroup type="single" aria-labelledby={whichLabel} disabled={disabled} value={watching.kind === "slot" ? watching.slot : watching.side}
             onValueChange={(v) => {
               if (!v) return;
               onChange(watching.kind === "slot" ? { kind: "slot", slot: v as SlotId } : { kind: "alliance", side: v as AllianceSide });
             }}>
             {watching.kind === "slot"
-              ? SLOTS.map((s) => <ToggleGroupItem key={s} value={s} size="lg" className="max-sm:h-11"><Dot side={sideOf(s)} />{slotLabel(s)}</ToggleGroupItem>)
-              : (["red", "blue"] as const).map((s) => <ToggleGroupItem key={s} value={s} size="lg" className="max-sm:h-11"><Dot side={s} />{s === "red" ? "Red" : "Blue"}</ToggleGroupItem>)}
+              ? SLOTS.map((s) => <ToggleGroupItem key={s} value={s} size="lg" className="max-sm:h-11 v8:h-12 max-sm:v8:h-12"><Dot side={sideOf(s)} />{slotLabel(s)}</ToggleGroupItem>)
+              : (["red", "blue"] as const).map((s) => <ToggleGroupItem key={s} value={s} size="lg" className="max-sm:h-11 v8:h-12 max-sm:v8:h-12"><Dot side={s} />{s === "red" ? "Red" : "Blue"}</ToggleGroupItem>)}
           </ToggleGroup>
         </div>
       )}

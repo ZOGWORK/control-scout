@@ -5,16 +5,18 @@
 //
 // An event is due when it's over (the day after its last day) and a missing match sits in one of its videos that a
 // frame read can place: that video hasn't been read for this event yet (or its read couldn't play it), or it was read
-// on or before the event's last day, while matches could still be coming (read again once, after the event). The most
-// missing go first. A match no frame read can help (no video, a private one, no real start time from FIRST) never
+// on or before the event's last day, while matches could still be coming (read again once, after the event). The
+// current season's events go first, then any event with an official video added in the last week, then the rest; the
+// most missing first within each (rankQueue). A match no frame read can help (no video, a private one, no real start time from FIRST) never
 // queues: its reason stands as it is.
 import { all, busyTurn } from "../db.js";
 import { WHY, videoCheck } from "./coverage.js";
 import { localToUtcMs } from "../../src/shared/time.js";
+import { CURRENT_SEASON } from "../data/seasons.js";
 import type { CoverageFrames, CoverageMatch, CoverageReason, FrameQueueSummary } from "../../src/shared/api.js";
 
 /** Reasons a frame read can't change: no video to read, one YouTube won't play, or no start time to place a match by. */
-export const UNREADABLE: ReadonlySet<CoverageReason> = new Set<CoverageReason>(["no-start", "no-zone", "no-recording-day", "video-unavailable", "no-first-video"]);
+export const UNREADABLE: ReadonlySet<CoverageReason> = new Set<CoverageReason>(["no-start", "no-zone", "no-recording-day", "video-unavailable", "video-no-embed", "video-no-overlay", "video-stutters", "no-first-video"]);
 /** The video's YouTube facts aren't in yet: the reader waits for them (it reads no video without its facts). */
 const FACTS_PENDING: CoverageReason = "video-unread";
 
@@ -89,10 +91,16 @@ function topReason(missing: CoverageMatch[]): string | null {
   return top ? WHY[top[0]] : null;
 }
 
-/** The queue, most missing first (then newest season, then code), each given its place in line (`rank`, 1 = next). */
-export function rankQueue<T extends { season: number; code: string; frames: FrameStatus }>(events: T[]): T[] {
+/** How long a newly added official video puts its event ahead of the older backlog. */
+export const FRESH_MS = 7 * 86_400_000;
+/** The queue in reading order, each given its place in line (`rank`, 1 = next): the current season's events first,
+ *  then events with an official video added in the last FRESH_MS (`added`, the newest one's ISO time), then the rest
+ *  (the backlog of past seasons). A new video is read within a run or two of being added, never behind hundreds of
+ *  older events. Within each: the most missing first, then the newest season, then the code. */
+export function rankQueue<T extends { season: number; code: string; added?: string | null; frames: FrameStatus }>(events: T[], now = Date.now(), current = CURRENT_SEASON): T[] {
+  const tier = (e: T) => (e.season === current ? 0 : e.added && now - Date.parse(e.added) < FRESH_MS ? 1 : 2);
   const queued = events.filter((e) => e.frames.state === "queued")
-    .sort((a, b) => b.frames.due - a.frames.due || b.season - a.season || (a.code < b.code ? -1 : a.code > b.code ? 1 : 0));
+    .sort((a, b) => tier(a) - tier(b) || b.frames.due - a.frames.due || b.season - a.season || (a.code < b.code ? -1 : a.code > b.code ? 1 : 0));
   // Ranking again (a list ranked before, filtered) replaces each place: never two, and none left on an event no longer queued.
   for (const e of events) { delete e.frames.rank; e.frames.why = e.frames.why.replace(IN_LINE, ""); }
   queued.forEach((e, i) => { e.frames.rank = i + 1; e.frames.why += ` · ${ordinal(i + 1)} in line`; });
@@ -103,11 +111,14 @@ const IN_LINE = / · \d+(?:st|nd|rd|th) in line$/;
 const ordinal = (n: number) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? "th" : ["th", "st", "nd", "rd"][n % 10] ?? "th"}`;
 
 /** Every event with a played match missing a clip, as clip_coverage holds it, with its place with the frame reader. */
-export async function frameQueue(now = Date.now(), read: Read = all): Promise<{ season: number; code: string; name: string; frames: FrameStatus }[]> {
-  const rows = await read<{ season: number; code: string; name: string | null; end: string | null; timezone: string | null; detail: string }>(
-    `SELECT c.season, c.code, e.name, e.end, e.timezone, c.detail FROM clip_coverage c LEFT JOIN events e ON e.season = c.season AND e.code = c.code
+export async function frameQueue(now = Date.now(), read: Read = all): Promise<{ season: number; code: string; name: string; added: string | null; frames: FrameStatus }[]> {
+  // `added`: when the event's newest official video was added (rankQueue reads a new one ahead of the backlog).
+  const rows = await read<{ season: number; code: string; name: string | null; end: string | null; timezone: string | null; detail: string; added: string | null }>(
+    `SELECT c.season, c.code, e.name, e.end, e.timezone, c.detail,
+       (SELECT MAX(o.added_at) FROM official_videos o WHERE o.season = c.season AND o.code = c.code AND o.removed_at IS NULL) AS added
+     FROM clip_coverage c LEFT JOIN events e ON e.season = c.season AND e.code = c.code
      WHERE c.with_clip < c.played AND c.state != 'none'`);
-  const out: { season: number; code: string; name: string; frames: FrameStatus }[] = [];
+  const out: { season: number; code: string; name: string; added: string | null; frames: FrameStatus }[] = [];
   for (let i = 0; i < rows.length; i++) {
     // Parsing hundreds of missing lists is work between reads: let other requests in as it goes.
     if (i % 50 === 49) await busyTurn();
@@ -115,9 +126,9 @@ export async function frameQueue(now = Date.now(), read: Read = all): Promise<{ 
     let missing: CoverageMatch[] = [];
     try { missing = (JSON.parse(String(r.detail)) ?? {}).missing ?? []; } catch { /* an unreadable detail: nothing to queue */ }
     const e: QueueEvent = { season: Number(r.season), code: String(r.code), name: String(r.name ?? r.code), end: r.end ?? null, timezone: r.timezone ?? null, missing };
-    out.push({ season: e.season, code: e.code, name: e.name, frames: frameStatus(e, now) });
+    out.push({ season: e.season, code: e.code, name: e.name, added: r.added ? String(r.added) : null, frames: frameStatus(e, now) });
   }
-  rankQueue(out);
+  rankQueue(out, now);
   return out;
 }
 

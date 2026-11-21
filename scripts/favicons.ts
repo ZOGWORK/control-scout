@@ -1,10 +1,12 @@
-// Favicons from the brand icon (brand/favicon-master.png, Sushil's 1254×1254
-// artwork: the yellow mark on the dark square), for every place an icon shows:
+// Favicons from the brand icon (brand/favicon-master.png, 1254×1254: the v8 icon, Sushil's mark in soft white on the
+// near-black square with the v8 wash, made by scripts/brand-icon.mjs), for every place an icon shows:
 // Google Search (ICO/PNG, a multiple of 48 px), browsers and iOS home screens.
 //   public/favicon.ico          16, 32 and 48 px (PNG images inside an ICO)
 //   public/favicon-48.png       48×48
 //   public/apple-touch-icon.png 180×180
 //   public/icon-192.png, icon-512.png  the installed app's icons (manifest.webmanifest)
+//   public/icon-512-maskable.png  the installed app's icon for Android's cropped shapes (brand/favicon-master-maskable.png:
+//                                 the mark inside the 80% safe zone, so a circle crop never cuts the arrow)
 //   public/logo.png             96×96 (sharp at 48 px on 2x screens), rounded corners: the logo in emails
 //   public/logo-56.webp         56×56 WebP, rounded: the logo in the app and its first paint (28 px, sharp on 2x screens; a quarter of logo.png)
 //   public/logo-512.png         512×512, rounded: the logo in structured data and the share image
@@ -17,10 +19,12 @@ import { readFileSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const pub = join(process.cwd(), "public");
-const master = `data:image/png;base64,${readFileSync(join(process.cwd(), "brand", "favicon-master.png")).toString("base64")}`;
+const masterOf = (f: string) => `data:image/png;base64,${readFileSync(join(process.cwd(), "brand", f)).toString("base64")}`;
+const master = masterOf("favicon-master.png");
+const maskable = masterOf("favicon-master-maskable.png");
 
 /** The master at `size` px: halved step by step (sharp small sizes), then drawn at the target. */
-async function render(page: Page, size: number, opts: { round?: boolean; webp?: boolean } = {}): Promise<Buffer> {
+async function render(page: Page, size: number, opts: { round?: boolean; webp?: boolean; src?: string } = {}): Promise<Buffer> {
   const round = !!opts.round, type = opts.webp ? "image/webp" : "image/png";
   const dataUrl = await page.evaluate(async ({ src, size, round, type }) => {
     const img = new Image();
@@ -46,7 +50,7 @@ async function render(page: Page, size: number, opts: { round?: boolean; webp?: 
     if (round) { o.beginPath(); o.roundRect(0, 0, size, size, size * 0.22); o.clip(); }
     o.drawImage(canvas, 0, 0, size, size);
     return out.toDataURL(type, 0.9);
-  }, { src: master, size, round, type });
+  }, { src: opts.src ?? master, size, round, type });
   return Buffer.from(dataUrl.split(",")[1], "base64");
 }
 
@@ -82,8 +86,9 @@ writeFileSync(join(pub, "favicon-48.png"), pngs[2].png);
 writeFileSync(join(pub, "apple-touch-icon.png"), await render(page, 180));
 writeFileSync(join(pub, "icon-192.png"), await render(page, 192));
 writeFileSync(join(pub, "icon-512.png"), await render(page, 512));
+writeFileSync(join(pub, "icon-512-maskable.png"), await render(page, 512, { src: maskable }));
 writeFileSync(join(pub, "logo.png"), await render(page, 96, { round: true }));
 writeFileSync(join(pub, "logo-512.png"), await render(page, 512, { round: true }));
 writeFileSync(join(pub, "logo-56.webp"), await render(page, 56, { round: true, webp: true }));
 await b.close();
-for (const f of ["favicon.ico", "favicon-48.png", "apple-touch-icon.png", "icon-192.png", "icon-512.png", "logo.png", "logo-512.png", "logo-56.webp"]) console.log(`${f}: ${statSync(join(pub, f)).size} bytes`);
+for (const f of ["favicon.ico", "favicon-48.png", "apple-touch-icon.png", "icon-192.png", "icon-512.png", "icon-512-maskable.png", "logo.png", "logo-512.png", "logo-56.webp"]) console.log(`${f}: ${statSync(join(pub, f)).size} bytes`);

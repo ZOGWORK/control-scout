@@ -27,13 +27,15 @@ import { BugReportButton } from "./BugReport";
 import { usePersonal } from "../../lib/personal";
 import { isBareRoute, pageTitle } from "../../shared/routes";
 import { SiteFooter } from "./SiteFooter";
+import { SidebarLinks } from "./SidebarLinks";
 import { useYoursRow, FOLLOWED_TEAM_PATH } from "../../lib/yoursRow";
 import { HEADER_ID, usePageScroll } from "../../lib/pageScroll";
-import { useSmoothWheel } from "../../lib/smoothWheel";
 import { tabDef, useTabBar } from "../../lib/tabBar";
 import { watchTextSize } from "../../lib/textSize";
 import { useFlag } from "../../lib/flags";
 import { PAGE_FRAME } from "../../shared/boot";
+import { isV8, useIsV8 } from "../../lib/v8";
+import { Wash, washSize } from "./Wash";
 
 /** `children`: a row that opens to its own pages instead of being one (How it works: Predictions, FTC One Search).
  *  `sub`: a row that is a page itself, with a small arrow beside it that shows its sub-pages (Rankings: Region
@@ -78,7 +80,10 @@ function useSections() {
 }
 
 export function BrandMark({ className }: { className?: string }) {
-  return <img src="/logo-56.webp" alt="" aria-hidden width={56} height={56} className={cn("size-7 shrink-0", className)} />;
+  // v8: the white mark (no yellow anywhere, docs/design/v8-revamp-brief.md §3.1).
+  if (isV8()) return <img src="/mark-white.webp" alt="" aria-hidden width={40} height={40} className={cn("size-5 shrink-0", className)} />;
+  // The classic look keeps the yellow logo it always had (public/legacy/, kept when the icon changed).
+  return <img src="/legacy/logo-56.webp" alt="" aria-hidden width={56} height={56} className={cn("size-7 shrink-0", className)} />;
 }
 
 /** `dense`: the sidebar's rows, sized to the screen's height (--nav-row in index.css: they fit a laptop screen and
@@ -102,8 +107,9 @@ function RailTip({ on, label, children }: { on?: boolean; label: string; childre
 function RowInner({ item, on, pill = on, collapsed, dense }: { item: NavItem; on: boolean; pill?: boolean; collapsed?: boolean; dense?: boolean }) {
   return (
     <>
-      {pill && <m.span layoutId="cs-nav-active" transition={{ type: "spring", stiffness: 500, damping: 38 }} className="absolute inset-0 rounded-lg bg-text-base/[0.08]" />}
-      <item.icon className={cn("relative shrink-0", dense ? "size-[18px]" : "size-5", on && "text-accent")} />
+      {pill && (isV8() ? <span data-nav-pill className="absolute inset-0 rounded-lg bg-ink/[0.07]" />
+        : <m.span layoutId="cs-nav-active" transition={{ type: "spring", stiffness: 500, damping: 38 }} className="absolute inset-0 rounded-lg bg-text-base/[0.08]" />)}
+      <item.icon className={cn("relative shrink-0", dense ? "size-[18px]" : "size-5", on && "text-accent v8:text-text-base")} />
       <span className={collapsed ? "sr-only" : "relative truncate"}>{item.label}</span>
     </>
   );
@@ -144,13 +150,19 @@ function SectionRows({ items, ...opts }: RowOpts & { items: NavItem[] }) {
 }
 
 /** A page row with an arrow beside it that folds out its sub-pages (Rankings: Region rankings, Leagues, Power
- *  rankings). Shut until the arrow is pressed: arriving on the page, or on one of the sub-pages, never opens it (the
- *  row's icon lights instead, so you can still tell where you are). In the icon rail the arrow sits under the icon. */
+ *  rankings). In v8, arriving on the page or one of its sub-pages opens the list (the arrow still folds it). In the
+ *  classic look it stays shut until the arrow is pressed, and the row's icon lights instead, so you can still tell
+ *  where you are. In the icon rail the arrow sits under the icon. */
 function SubPagesRow({ item, collapsed, dense, onNavigate }: RowOpts & { item: NavItem }) {
   const { pathname } = useLocation();
   const kids = item.sub ?? [];
   const inSub = kids.some((k) => isUnder(pathname.toLowerCase(), k.to));
-  const [open, setOpen] = useState(false);
+  // v8: on the page or one of its sub-pages the list is open (Sushil 11-19: "when I click Rankings, auto open the
+  // sub-pages"); the arrow still folds it. The classic look keeps it shut until the arrow is pressed.
+  const v8 = useIsV8();
+  const here = v8 && (inSub || isUnder(pathname.toLowerCase(), item.to.toLowerCase()));
+  const [open, setOpen] = useState(here);
+  useEffect(() => { if (here) setOpen(true); }, [here, pathname]);
   const button = useRef<HTMLButtonElement>(null);
   const id = useId();
   const label = `${open ? "Hide" : "Show"} more ${item.label.toLowerCase()}`;
@@ -246,10 +258,27 @@ function MoreGroup({ items, collapsed }: { items: NavItem[]; collapsed?: boolean
   );
 }
 
+/** The sidebar's pages, section by section (More folded away): the app's sidebar and the v8 sample Home's share it.
+ *  `collapsed`: icons only, names in tooltips. */
+export function MainNav({ collapsed }: { collapsed?: boolean }) {
+  const sections = useSections();
+  return (
+    <>
+      {sections.map((s, i) => s.more ? <MoreGroup key={i} items={s.items} collapsed={collapsed} /> : (
+        <div key={i} className="space-y-(--nav-gap)">
+          {s.title && (collapsed
+            ? <div className="mx-auto mb-1 h-px w-6 bg-line" aria-hidden />
+            : <p className="px-2.5 pb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-text-muted">{s.title}</p>)}
+          <SectionRows items={s.items} collapsed={collapsed} dense />
+        </div>
+      ))}
+    </>
+  );
+}
+
 /** `rail`: icons only (a narrow desktop, or folded by hand). `wide`: the screen has room for the full sidebar, so its
  *  button folds it in and out (remembered); below that the button opens the labelled menu sheet instead. */
 function Sidebar({ rail, wide, onToggle, onMenu }: { rail: boolean; wide: boolean; onToggle: () => void; onMenu: (from: HTMLElement) => void }) {
-  const sections = useSections();
   const toggleLabel = !wide ? "Show page names" : rail ? "Expand sidebar" : "Collapse sidebar";
   return (
     // Held in place while the page scrolls under it. Its rows fit the screen's height (index.css --nav-row); the nav still scrolls on one under 768 px.
@@ -262,15 +291,10 @@ function Sidebar({ rail, wide, onToggle, onMenu }: { rail: boolean; wide: boolea
         </Link>
       </div>
       <nav className="custom-scrollbar flex-1 space-y-(--nav-section) overflow-y-auto px-2 pt-(--nav-top) pb-1.5" aria-label="Main">
-        {sections.map((s, i) => s.more ? <MoreGroup key={i} items={s.items} collapsed={rail} /> : (
-          <div key={i} className="space-y-(--nav-gap)">
-            {s.title && (rail
-              ? <div className="mx-auto mb-1 h-px w-6 bg-line" aria-hidden />
-              : <p className="px-2.5 pb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-text-muted">{s.title}</p>)}
-            <SectionRows items={s.items} collapsed={rail} dense />
-          </div>
-        ))}
+        <MainNav collapsed={rail} />
       </nav>
+      {/* About, Donate, Privacy and the round links, pinned under the scrolling nav (not on the icon rail). */}
+      {!rail && <SidebarLinks />}
       {/* What's new (always in view) beside the fold button, then who's signed in (Control Point's footer: avatar, name, status, Settings, Sign out). */}
       <div className="shrink-0 space-y-1 border-t border-line p-2">
         <div className={cn("flex items-center gap-1", rail && "flex-col")}>
@@ -284,6 +308,42 @@ function Sidebar({ rail, wide, onToggle, onMenu }: { rail: boolean; wide: boolea
         </div>
         <AccountFooter place={rail ? "rail" : "sidebar"} />
       </div>
+    </aside>
+  );
+}
+
+/** v8's sidebar (docs/design/v8-revamp-brief.md §6), Gemini-like: the white mark and name with one round fold button
+ *  beside them (over the icons when folded), the pages below, and at its foot only the quiet About / Donate / Privacy
+ *  links (SidebarLinks): you, Settings, What's new, the owner console and signing out are in the menu under your
+ *  profile picture, top-right. Below 1280px it's the rail and
+ *  the button opens the labelled menu sheet instead, as before. */
+function V8Sidebar({ rail, wide, onToggle, onMenu }: { rail: boolean; wide: boolean; onToggle: () => void; onMenu: (from: HTMLElement) => void }) {
+  const label = !wide ? "Show page names" : rail ? "Expand sidebar" : "Collapse sidebar";
+  return (
+    <aside aria-label="Sidebar" data-v8-sidebar data-rail={rail ? "" : undefined}
+      className={cn("sticky top-0 z-20 hidden h-dvh shrink-0 flex-col self-start border-r border-line bg-card transition-[width] duration-200 ease-out motion-reduce:transition-none md:flex", rail ? "w-16" : "w-[15.5rem]")}>
+      <div className={cn("flex shrink-0 items-center gap-1 pb-2 pt-3", rail ? "flex-col px-0" : "h-14 pl-4 pr-2.5")}>
+        {!rail && (
+          <Link to="/" aria-label="Control Scout home" className="mr-auto flex min-w-0 items-center gap-2.5 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
+            <BrandMark />
+            <span className="truncate font-display text-[0.9375rem] font-semibold tracking-tight">Control Scout</span>
+          </Link>
+        )}
+        {/* One button in one place, folded or not, so pressing it keeps keyboard focus on it. */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button type="button" data-fold onClick={(e) => (wide ? onToggle() : onMenu(e.currentTarget))} aria-label={label}
+              className="flex size-9 shrink-0 items-center justify-center rounded-full bg-ink/[0.06] text-text-muted outline-none transition-[color,background-color,scale] duration-150 ease-out hover:bg-ink/[0.1] hover:text-text-base active:scale-[0.97] motion-reduce:active:scale-100 focus-visible:ring-2 focus-visible:ring-ring/60">
+              <PanelLeft className="size-[1.125rem]" />
+            </button>
+          </TooltipTrigger>
+          {rail && <TooltipContent side="right">{label}</TooltipContent>}
+        </Tooltip>
+      </div>
+      <nav className="custom-scrollbar flex-1 space-y-(--nav-section) overflow-y-auto px-2 pb-4 pt-2" aria-label="Main">
+        <MainNav collapsed={rail} />
+      </nav>
+      {!rail && <SidebarLinks />}
     </aside>
   );
 }
@@ -346,8 +406,6 @@ export function Shell({ children }: { children: ReactNode }) {
   // The page scrolls the document (so phone browsers fold their toolbars away). Back/forward return to where
   // the page was left once its data is back, and a new page starts at the top (src/lib/pageScroll.ts).
   usePageScroll(mainRef);
-  // On desktop the wheel and trackpad ease the page along instead of stepping it (src/lib/smoothWheel.ts).
-  useSmoothWheel();
   const loc = useLocation();
   // No internet: the Offline pill takes the centred logo's place on a phone (src/components/ConnectionStatus.tsx).
   const offline = useShowOffline();
@@ -364,6 +422,8 @@ export function Shell({ children }: { children: ReactNode }) {
   // The pit display is the whole screen: no sidebar, top bar, tab bar or footer (src/shared/routes.ts isBareRoute).
   // Only the chrome is left out: the same <main> stays, so the page scroll's hold on it (usePageScroll) stays good.
   const bare = isBareRoute(loc.pathname);
+  // v8 (docs/design/v8-revamp-brief.md), fixed for this page load (src/lib/v8.ts).
+  const v8 = isV8();
   return (
     <AccountProvider>
     <AccountSetupProvider>
@@ -373,10 +433,13 @@ export function Shell({ children }: { children: ReactNode }) {
         {/* At least a screen tall; sideways overflow is clipped (clip, not hidden: no scroll box, so the sticky bars still stick). */}
         <div className="flex min-h-dvh w-full overflow-x-clip bg-primary text-text-base">
           <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[200] focus:rounded-lg focus:bg-accent focus:px-3 focus:py-2 focus:text-accent-ink">Skip to content</a>
-          {!bare && <Sidebar rail={collapsed || !wide} wide={wide} onToggle={toggle} onMenu={openMenu} />}
-          <div className="flex min-w-0 flex-1 flex-col">
+          {!bare && (v8 ? <V8Sidebar rail={collapsed || !wide} wide={wide} onToggle={toggle} onMenu={openMenu} />
+            : <Sidebar rail={collapsed || !wide} wide={wide} onToggle={toggle} onMenu={openMenu} />)}
+          <div className="relative flex min-w-0 flex-1 flex-col">
+            {/* v8's only texture: the wash across the top, under the bar (tall on a top-level page, short inside one). */}
+            {!bare && v8 && <Wash size={washSize(loc.pathname)} />}
             {/* Sticky over the scrolling page: opaque, and --header-h tall (index.css: anchors land below it). */}
-            {!bare && <header id={HEADER_ID} className="sticky top-0 z-30 flex h-(--header-h) shrink-0 items-center gap-1 border-b border-line bg-primary px-3 sm:px-6 md:gap-3 lg:px-8">
+            {!bare && <header id={HEADER_ID} className="sticky top-0 z-30 flex h-(--header-h) shrink-0 items-center gap-1 border-b border-line bg-primary px-3 sm:px-6 md:gap-3 lg:px-8 v8:relative v8:h-14 v8:border-transparent v8:bg-transparent">
               {/* Phones: the menu (every page) top left with search beside it, the logo centred, and the bell right. On a
                   touch screen the menu and search buttons are 44px boxes (side by side, a widened tap area would overlap). */}
               <div className="flex items-center gap-0.5 md:hidden">
@@ -387,29 +450,32 @@ export function Shell({ children }: { children: ReactNode }) {
                 <GlobalSearch part="button" />
               </div>
               {offline ? <ConnectionPill place="phone" /> : <Link to="/" className="tap-44 absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring/60 md:hidden" aria-label="Control Scout home"><BrandMark /></Link>}
-              <p className="hidden truncate text-sm text-text-muted md:block"><span>Control Scout / </span><span className="text-text-base">{title}</span></p>
+              <p className="hidden truncate text-sm text-text-muted md:block v8:md:hidden"><span>Control Scout / </span><span className="text-text-base">{title}</span></p>
               <div className="flex flex-1 justify-end md:justify-center"><GlobalSearch part="field" /></div>
               {/* Far right, against the bar's edge: connection, clock · weather, Report a bug, the light/dark switch and the
                   notification inbox (header only, never the sidebar). */}
               <div className="relative -mr-1.5 flex shrink-0 items-center gap-1 md:-mr-3 md:gap-2 lg:-mr-5">
                 <ConnectionPill place="wide" />
                 {showsClockWeather(loc.pathname) && <ClockWeather />}
-                <BugReportButton />
-                <ThemeToggle />
+                {/* v8: dark only (no light/dark switch), Report a bug is the quiet corner circle, and your picture opens
+                    your menu (AccountFooter "corner"). */}
+                {!v8 && <BugReportButton />}
+                {!v8 && <ThemeToggle />}
                 <InboxBell />
+                {v8 && <AccountFooter place="corner" />}
               </div>
             </header>}
             <div className="relative flex-1">
               {/* The ambient layer fills the screen under the top bar and stays there while the page scrolls
                   over it (sticky, and pulled out of the flow by its negative margin). svh, not dvh: a phone's
                   toolbar folding away must not resize it mid-scroll. */}
-              {!bare && <div className="pointer-events-none sticky top-(--header-h) -mb-[calc(100svh-var(--header-h))] h-[calc(100svh-var(--header-h))]">
-                <Ambient target={mainRef} />
+              {!bare && (!v8 || dog) && <div className="pointer-events-none sticky top-(--header-h) -mb-[calc(100svh-var(--header-h))] h-[calc(100svh-var(--header-h))]">
+                {!v8 && <Ambient target={mainRef} />}
                 {dog && <div aria-hidden className="dog-bg" data-dog-bg />}
               </div>}
               <main id="main" ref={mainRef} className={bare ? "relative" : "m-canvas relative z-10"}>
                 {bare ? children : (
-                <m.div key={loc.pathname} initial={firstPage.current ? false : { opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.18, ease: "easeOut" }} className={PAGE_FRAME}>
+                <m.div key={loc.pathname} initial={firstPage.current || v8 ? false : { opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.18, ease: "easeOut" }} className={PAGE_FRAME}>
                   <NoDataNotice />
                   {/* The page grows to fill the screen, so a short page (a one-card search answer too) has its footer
                       at the bottom of the screen, never floating mid-page (the search results guide's §9). */}
@@ -423,23 +489,27 @@ export function Shell({ children }: { children: ReactNode }) {
             </div>
           </div>
           {!bare && <MobileTabs />}
+          {/* v8: Report a bug, a quiet circle in the screen's bottom corner (above the phone's tab bar). */}
+          {!bare && v8 && <div className="fixed bottom-0 right-0 z-30 size-0 max-md:bottom-(--tabbar-h)"><BugReportButton corner /></div>}
           <WhatsNewHost />
           <Sheet open={menu} onOpenChange={setMenu}>
             <SheetContent side="left" returnFocus={toMenu} className="w-[85vw] max-w-[320px] p-3">
-              <SheetTitle className="px-2 pb-2 pt-1 font-display text-base">Control Scout</SheetTitle>
+              <SheetTitle className="flex items-center gap-2.5 px-2 pb-2 pt-1 font-display text-base">{v8 && <BrandMark />}Control Scout</SheetTitle>
               <nav className="space-y-4" aria-label="All pages">
                 {sections.map((s, i) => (
                   <div key={i} className="space-y-0.5">
-                    {s.title && <p className="px-3 pb-1.5 text-[11px] font-bold uppercase tracking-[0.2em] text-text-muted">{s.title}</p>}
+                    {s.title && <p className="px-3 pb-1.5 text-[11px] font-bold uppercase tracking-[0.2em] text-text-muted v8:text-xs v8:font-medium v8:normal-case v8:tracking-normal v8:text-text-faint">{s.title}</p>}
                     <SectionRows items={s.items} onNavigate={() => setMenu(false)} />
                   </div>
                 ))}
               </nav>
+              <SidebarLinks place="sheet" onNavigate={() => setMenu(false)} />
               {/* What's new, then the same account footer as the sidebar's, at the foot of the sheet. */}
-              <div className="mt-auto space-y-1 border-t border-line pt-3">
+              {/* v8: nothing at the foot; you and What's new are under your picture in the top row. */}
+              {!v8 && <div className="mt-auto space-y-1 border-t border-line pt-3">
                 <WhatsNewRow onOpen={() => setMenu(false)} returnTo={toMenu} />
                 <AccountFooter place="sheet" onNavigate={() => setMenu(false)} />
-              </div>
+              </div>}
             </SheetContent>
           </Sheet>
         </div>

@@ -285,8 +285,8 @@ function ConsensusCard({ t, name }: { t: TeamConsensus; name: string | null }) {
         </dl>
       )}
       {t.strengths.length > 0 && (
-        <p className="mt-2 flex flex-wrap items-center gap-1.5 text-xs"><ThumbsUp aria-hidden className="size-3.5 text-success" />
-          {t.strengths.slice(0, 3).map((s) => <span key={s.label} className="rounded-md border border-success/30 bg-success/[0.08] px-1.5 py-0.5">{s.label} ×{s.count}</span>)}
+        <p className="mt-2 flex flex-wrap items-center gap-1.5 text-xs"><ThumbsUp aria-hidden className="size-3.5 text-success v8:text-emerald-400" />
+          {t.strengths.slice(0, 3).map((s) => <span key={s.label} className="rounded-md border border-success/30 v8:border-emerald-400/30 bg-success/[0.08] v8:bg-emerald-400/[0.08] px-1.5 py-0.5">{s.label} ×{s.count}</span>)}
         </p>
       )}
     </li>
@@ -358,7 +358,7 @@ function AllAssignments({ data, tone }: { data: AllianceShared; tone: Tones }) {
                   {matches.map((m) => <li key={`m${m.id}`}>{m.assigneeName}: <span className="text-muted-foreground">{watchingLabel(m.watching)}, {matchRangeLabel(m.fromMatch, m.toMatch)}</span></li>)}
                   {teams.map((a) => (
                     <li key={`t${a.id}`} className="flex items-center gap-1.5">
-                      {a.status === "done" && <Check aria-label="Done" className="size-3.5 text-success" />}
+                      {a.status === "done" && <Check aria-label="Done" className="size-3.5 text-success v8:text-emerald-400" />}
                       <span className="font-mono tabular-nums">{a.team}</span><span className="text-muted-foreground">{a.assigneeName}</span>
                     </li>
                   ))}

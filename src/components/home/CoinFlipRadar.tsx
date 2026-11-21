@@ -112,13 +112,13 @@ function FlipCard({ r, closest }: { r: CoinFlipRow; closest: boolean }) {
   return (
     <li className="min-w-0">
       <Link to={coinFlipHref(r)} aria-label={label}
-        className={cn("lift group flex h-full flex-col gap-2.5 rounded-xl border bg-card p-3.5 focus-visible:outline-2 focus-visible:outline-ring", closest ? "border-accent/60 bg-accent/[0.05]" : "border-line")}>
+        className={cn("lift group flex h-full flex-col gap-2.5 rounded-xl border bg-card p-3.5 focus-visible:outline-2 focus-visible:outline-ring", closest ? "border-accent/60 bg-accent/[0.05] v8:bg-transparent" : "border-line", "v8:transition-colors v8:duration-150 v8:hover:translate-y-0 v8:hover:shadow-none v8:still-hover:bg-ink/[0.02]")}>
         <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
           <span className="rounded-md bg-text-base/10 px-1.5 py-0.5 font-mono font-semibold text-text-base">{r.label}</span>
           {clock && <span className="text-text-muted">{clock} venue time</span>}
           {due && <span className={cn("font-medium", due === "awaiting result" ? "text-text-muted" : "text-accent-text")}>· {due}</span>}
           <span className="ml-auto flex items-center gap-2">
-            {closest && <span className="rounded-md bg-accent px-1.5 py-0.5 text-[11px] font-semibold text-accent-ink">Closest call</span>}
+            {closest && <span className="rounded-md bg-accent px-1.5 py-0.5 text-[11px] font-semibold text-accent-ink v8:rounded-full v8:bg-transparent v8:text-xs v8:font-medium v8:text-accent v8:ring-1 v8:ring-inset v8:ring-accent/40">Closest call</span>}
             <TierMark tier={r.tier} />
           </span>
         </span>
@@ -176,8 +176,9 @@ export function CoinFlipRadarSection({ className }: { className?: string }) {
     <section aria-labelledby="radar-title" className={cn("@container/radar min-w-0", className)}>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
-          <h2 id="radar-title" className="flex items-center gap-2 font-display text-2xl font-semibold">
-            <span className="flex size-8 items-center justify-center rounded-lg bg-accent text-accent-ink"><Coins className="size-[18px]" aria-hidden /></span>
+          <h2 id="radar-title" className="flex items-center gap-2 font-display text-2xl font-semibold v8:font-sans v8:text-base v8:text-text-base">
+            {/* v8 (the Events page): a card-header icon in the text colour, not an accent chip. */}
+            <span className="flex size-8 items-center justify-center rounded-lg bg-accent text-accent-ink v8:size-auto v8:bg-transparent v8:text-text-faint"><Coins className="size-[18px]" aria-hidden /></span>
             Today’s coin flips
           </h2>
           <p className="mt-1 max-w-[44rem] text-sm text-text-muted">
@@ -185,7 +186,7 @@ export function CoinFlipRadarSection({ className }: { className?: string }) {
           </p>
         </div>
         {r && (
-          <span className="shrink-0 rounded-lg border border-accent/40 bg-accent/10 px-2.5 py-1 text-xs font-medium tabular-nums text-accent-text">
+          <span className="shrink-0 rounded-lg border border-accent/40 bg-accent/10 px-2.5 py-1 text-xs font-medium tabular-nums text-accent-text v8:rounded-full v8:border-ink/[0.12] v8:bg-transparent v8:text-text-muted">
             {r.upcoming.length} to play
           </span>
         )}

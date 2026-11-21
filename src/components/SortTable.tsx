@@ -5,9 +5,11 @@ import { Button } from "./ui/button";
 import { cn } from "./cn";
 import { downloadCsv } from "../lib/csv";
 import { Spacer, useSteadyColumns, useVirtualRows } from "./ui/windowing";
+import { isV8 } from "../lib/v8";
 
-/** A row's height (desktop density), for rows not measured yet. */
+/** A row's height (desktop density), for rows not measured yet: v8 rows are 44px (brief §3.3). */
 const ROW_H = 37;
+const ROW_H_V8 = 44;
 
 export interface Col<T> {
   key: string;
@@ -21,6 +23,8 @@ export interface Col<T> {
   className?: string;
   hideOnMobile?: boolean;
   title?: string;
+  /** v8: the column's category colour (head and numbers), e.g. V8_PHASE.auto; v8 has no heat bands. */
+  v8Tone?: string;
   /** Colour each number by where the row stands in this column (green top fifth … red bottom fifth); `asc` flips it. */
   heat?: boolean;
 }
@@ -63,7 +67,10 @@ export function SortTable<T>({ rows, cols, initial, csvName, rowKey, highlight, 
   const heatVals = useMemo(() => new Map(cols.filter((c) => c.heat).map((c) => [c.key,
     rows.map((r) => c.value(r)).filter((v): v is number => typeof v === "number" && Number.isFinite(v)).sort((a, b) => a - b)])), [rows, cols]);
   // A big event's standings (60+ teams) render only the rows on screen (src/components/ui/windowing.tsx).
-  const vr = useVirtualRows<HTMLTableSectionElement>(sorted.length, ROW_H, { key: (i) => rowKey(sorted[i]) });
+  // v8 (docs/design/v8-revamp-brief.md §5 Tables): numbers keep the text colour (no heat bands), a quiet
+  // sentence-case head, 44px rows with hairlines, and the highlighted row ("your team") marked in mint at its edge.
+  const v8 = isV8();
+  const vr = useVirtualRows<HTMLTableSectionElement>(sorted.length, v8 ? ROW_H_V8 : ROW_H, { key: (i) => rowKey(sorted[i]) });
   const table = useRef<HTMLTableElement>(null);
   useSteadyColumns(table, vr.windowed, cols.map((c) => c.key).join());
   const click = (c: Col<T>) => setSort((s) => (s.key === c.key ? { key: c.key, dir: s.dir === "asc" ? "desc" : "asc" } : { key: c.key, dir: c.asc || c.align !== "right" ? "asc" : "desc" }));
@@ -75,13 +82,13 @@ export function SortTable<T>({ rows, cols, initial, csvName, rowKey, highlight, 
           <Button variant="ghost" size="sm" onClick={() => downloadCsv(csvName, sorted.map((r) => Object.fromEntries(cols.map((c) => [c.label, c.value(r)]))))}><Download /> CSV</Button>
         </div>
       )}
-      <div className="custom-scrollbar overflow-x-auto rounded-xl border border-border bg-card">
+      <div className="custom-scrollbar overflow-x-auto rounded-xl border border-border bg-card v8:border-line">
         <table ref={table} className="w-full text-sm" aria-rowcount={vr.windowed ? sorted.length + 1 : undefined}>
           <thead>
-            <tr className="border-b border-border" aria-rowindex={vr.windowed ? 1 : undefined}>
+            <tr className="border-b border-border v8:border-line" aria-rowindex={vr.windowed ? 1 : undefined}>
               {cols.map((c) => (
                 <th key={c.key} scope="col" aria-sort={sort.key === c.key ? (sort.dir === "asc" ? "ascending" : "descending") : "none"}
-                  className={cn("h-10 whitespace-nowrap px-3 text-[10px] font-bold uppercase tracking-wider text-text-muted", c.align === "right" ? "text-right" : "text-left", c.hideOnMobile && "max-sm:hidden")}>
+                  className={cn("h-10 whitespace-nowrap px-3 text-[10px] font-bold uppercase tracking-wider text-text-muted v8:text-xs v8:font-medium v8:normal-case v8:tracking-normal", c.v8Tone ?? cn("v8:text-text-faint", sort.key === c.key && "v8:text-text-base"), c.align === "right" ? "text-right" : "text-left", c.hideOnMobile && "max-sm:hidden")}>
                   <button onClick={() => click(c)} title={c.title} className={cn("inline-flex items-center gap-1 rounded hover:text-text-base", c.align === "right" && "flex-row-reverse")}>
                     {c.label}{sort.key === c.key && (sort.dir === "asc" ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />)}
                   </button>
@@ -94,8 +101,8 @@ export function SortTable<T>({ rows, cols, initial, csvName, rowKey, highlight, 
             {vr.rows(sorted).map(({ item: r, index, rowProps, gapBefore }) => (
               <Fragment key={rowKey(r)}>
                 <Spacer height={gapBefore} colSpan={cols.length} />
-                <tr {...rowProps} aria-rowindex={vr.windowed ? index + 2 : undefined} className={cn("border-b border-border last:border-b-0 hover:bg-text-base/[0.03]", highlight?.(r) && "bg-accent/[0.06]")}>
-                  {cols.map((c) => <td key={c.key} className={cn("density-row whitespace-nowrap px-3 py-2", c.align === "right" && "text-right tabular-nums", c.hideOnMobile && "max-sm:hidden", c.className, c.heat && bandOf(heatVals.get(c.key)!, c.value(r), c.asc))}>{c.render ? c.render(r) : (c.value(r) ?? "—")}</td>)}
+                <tr {...rowProps} aria-rowindex={vr.windowed ? index + 2 : undefined} className={cn("border-b border-border last:border-b-0 hover:bg-text-base/[0.03] v8:h-11 v8:border-line v8:transition-colors v8:duration-150 v8:hover:bg-ink/[0.03]", highlight?.(r) && "bg-accent/[0.06] v8:bg-accent/[0.08] v8:shadow-[inset_2px_0_0_var(--color-accent)]")} data-highlight={highlight?.(r) || undefined}>
+                  {cols.map((c) => <td key={c.key} className={cn("density-row whitespace-nowrap px-3 py-2", c.align === "right" && "text-right tabular-nums", c.hideOnMobile && "max-sm:hidden", c.className, c.heat && !v8 && bandOf(heatVals.get(c.key)!, c.value(r), c.asc), v8 && cn("v8:py-0", c.v8Tone))}>{c.render ? c.render(r) : (c.value(r) ?? "—")}</td>)}
                 </tr>
               </Fragment>
             ))}

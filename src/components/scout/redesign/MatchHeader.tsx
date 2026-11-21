@@ -3,7 +3,6 @@
 // alliances with the teams this scout watches picked out. Built from the app's own pieces: the alliance boxes and
 // team highlight are MatchRow's (components/predict.tsx), the states are EmptyState / Skeleton / OfflineNote's look. ScheduleState is the line or card the page shows
 // instead while the schedule loads, isn't published, or can't be fetched.
-import { smoothBehavior } from "../../../lib/pageScroll";
 import { useEffect, useRef, useState } from "react";
 import { AlertTriangle, CalendarX, ChevronLeft, ChevronRight, RefreshCw, WifiOff } from "lucide-react";
 import { Button } from "../../ui/button";
@@ -32,12 +31,14 @@ export function clockTime(t: string | null | undefined): string | null {
 
 const STATE_WORDS: Record<ChipState, string> = { current: "current", done: "done", partial: "partly scouted", skipped: "skipped", upcoming: "" };
 // The same tints as MatchRow's status chips (Right / Upset) and its highlighted team (accent ring).
+// v8: the open match is white on a faint fill with the slate-blue line (picked); done is green, partly done
+// and skipped a dashed hairline, upcoming muted. No orange.
 const CHIP: Record<ChipState, string> = {
-  current: "border-transparent bg-accent/15 font-semibold text-accent-text ring-1 ring-accent/60",
-  done: "border-transparent bg-success/12 text-success",
-  partial: "border-transparent bg-warning/12 text-warning",
-  skipped: "border-transparent bg-warning/12 text-warning",
-  upcoming: "border-border text-text-muted still-hover:bg-text-base/[0.06]",
+  current: "border-transparent bg-accent/15 font-semibold text-accent-text ring-1 ring-accent/60 v8:bg-ink/10 v8:text-text-base v8:ring-accent/70",
+  done: "border-transparent bg-success/12 text-success v8:bg-ink/[0.06] v8:text-emerald-400",
+  partial: "border-transparent bg-warning/12 text-warning v8:border-dashed v8:border-ink/25 v8:bg-transparent v8:text-text-muted",
+  skipped: "border-transparent bg-warning/12 text-warning v8:border-dashed v8:border-ink/25 v8:bg-transparent v8:text-text-muted",
+  upcoming: "border-border text-text-muted still-hover:bg-text-base/[0.06] v8:border-line",
 };
 
 /** A horizontal swipe this far (px), and clearly more sideways than up or down, steps a match. */
@@ -70,8 +71,7 @@ export function MatchHeader({ schedule, index, watching, progress, onIndex, next
     // From both boxes, so where the strip sits on the page never counts.
     const sr = strip.getBoundingClientRect(), cr = cur.getBoundingClientRect();
     const left = strip.scrollLeft + (cr.left - sr.left) - (strip.clientWidth - cr.width) / 2;
-    // Glides on desktop; instant on phones, tablets and under reduced motion (smoothBehavior).
-    if (typeof strip.scrollTo === "function") strip.scrollTo({ left: Math.max(0, left), behavior: smoothBehavior() });
+    if (typeof strip.scrollTo === "function") strip.scrollTo({ left: Math.max(0, left) });
     else strip.scrollLeft = Math.max(0, left);
   }, [index, schedule.length]);
 
@@ -101,8 +101,8 @@ export function MatchHeader({ schedule, index, watching, progress, onIndex, next
         return (
           <div key={`${side}${i}`} data-watched={mine || undefined}
             className={cn("flex min-w-0 flex-col rounded-md px-1.5 py-0.5 leading-tight", side === "blue" && "items-end text-right", mine && "bg-accent/15 ring-1 ring-accent/60")}>
-            <span className={cn("tabular font-mono text-[0.8125rem]", mine ? "font-bold text-accent-text" : "text-text-muted")}>{team}</span>
-            <span className={cn("text-[11px]", mine ? "text-text-base" : "text-text-muted")}>{where}{mine && <span className="sr-only">, watching</span>}</span>
+            <span className={cn("tabular font-mono text-[0.8125rem] v8:text-[0.875rem]", mine ? "font-bold text-accent-text" : "text-text-muted")}>{team}</span>
+            <span className={cn("text-[11px] v8:text-[0.6875rem]", mine ? "text-text-base" : "text-text-muted")}>{where}{mine && <span className="sr-only">, watching</span>}</span>
           </div>
         );
       })}
@@ -119,7 +119,7 @@ export function MatchHeader({ schedule, index, watching, progress, onIndex, next
             dir > 0 ? "motion-safe:slide-in-from-right-4" : "motion-safe:slide-in-from-left-4")}>{m.label}</h2>
           <p className="mt-1 text-xs text-muted-foreground">
             {done ? <><span className="font-semibold text-success">Saved</span> · tap to edit</>
-              : index === nextIndex ? <><span className="font-semibold text-success">Next up</span>{time && <> · ~{time}</>}</>
+              : index === nextIndex ? <><span className="font-semibold text-success v8:font-medium v8:text-text-base">Next up</span>{time && <> · ~{time}</>}</>
                 : time ? `~${time}` : m.played ? "Played" : "No time yet"}
           </p>
         </div>
@@ -167,8 +167,8 @@ export function ScheduleState({ status, fromDevice, error, onManual, onRetry, cl
   if (status === "ready") {
     return fromDevice ? (
       // OfflineNote's look: the same note wherever data comes from this device instead of the server.
-      <p role="status" className={cn("flex items-start gap-2 rounded-lg border border-info/30 bg-info/[0.06] px-3 py-2 text-xs", className)}>
-        <WifiOff className="mt-px size-3.5 shrink-0 text-info" />
+      <p role="status" className={cn("flex items-start gap-2 rounded-lg border border-info/30 bg-info/[0.06] px-3 py-2 text-xs v8:border-0 v8:bg-transparent v8:px-0 v8:py-0 v8:text-text-muted", className)}>
+        <WifiOff className="mt-px size-3.5 shrink-0 text-info v8:text-text-muted" />
         <span>Showing the schedule saved on this phone</span>
       </p>
     ) : null;

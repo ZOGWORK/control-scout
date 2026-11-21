@@ -97,11 +97,11 @@ async function api(path: string, params: Record<string, string>, key: string, fe
 /** The events on any day from lo to hi (YYYY-MM-DD): their listed days and the days they played (eventDays.ts). */
 export async function eventsBetween(lo: string, hi: string): Promise<WatchEvent[]> {
   const rows = await all<any>(
-    `SELECT season, code, name, type, city, state, country, start, end, timezone, division_code, remote, parent, played_days FROM (SELECT e.season, e.code, e.name, e.type, e.city, e.state, e.country, ${EVENT_FIRST_DAY} AS start, ${EVENT_LAST_DAY} AS end, e.timezone, e.division_code, e.remote, ${EVENT_PLAYED_DAYS} AS played_days,
+    `SELECT season, code, name, type, city, venue, state, country, start, end, timezone, division_code, remote, parent, played_days FROM (SELECT e.season, e.code, e.name, e.type, e.city, e.venue, e.state, e.country, ${EVENT_FIRST_DAY} AS start, ${EVENT_LAST_DAY} AS end, e.timezone, e.division_code, e.remote, ${EVENT_PLAYED_DAYS} AS played_days,
             EXISTS (SELECT 1 FROM events c WHERE c.season = e.season AND c.division_code = e.code AND c.code != e.code) AS parent
      FROM events e WHERE e.start IS NOT NULL) WHERE start <= ? AND end >= ?`, [hi, lo]);
   return rows.map((r) => ({
-    season: Number(r.season), code: String(r.code), name: String(r.name ?? ""), type: String(r.type ?? ""), city: r.city ?? null, state: r.state ?? null,
+    season: Number(r.season), code: String(r.code), name: String(r.name ?? ""), type: String(r.type ?? ""), city: r.city ?? null, venue: r.venue ?? null, state: r.state ?? null,
     country: r.country ?? null, start: String(r.start).slice(0, 10), end: r.end ? String(r.end).slice(0, 10) : null, timezone: r.timezone ?? null,
     divisionCode: r.division_code ?? null, parent: !!Number(r.parent), remote: !!Number(r.remote), playedDays: playedDays(r.played_days),
   }));
@@ -496,7 +496,7 @@ export async function removeOfficial(videoId: string, actor: string, now = Date.
     { sql: "UPDATE official_videos SET removed_at = ? WHERE video_id = ?", args: [at, videoId] },
     { sql: "UPDATE official_watch SET status = 'rejected', decided_at = ?, decided_by = ? WHERE video_id = ?", args: [at, actor, videoId] },
   ], "write");
-  forgetOfficial();
+  forgetOfficial(); // also reloads the typed match starts: this video's stop playing (kept on record)
   await recordAudit(actor, "officialVideo.remove", { videoId, season: Number(v.season), code: String(v.code), kind: String(v.kind), source: String(v.source) });
   return { ok: true };
 }

@@ -59,20 +59,21 @@ export function ConsentBanner() {
           aria-describedby="cs-consent-text"
           initial={fromBoot ? false : { opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 12 }} transition={{ duration: 0.2, ease: "easeOut" }}
           onKeyDown={(e) => { if (e.key === "Escape") { e.stopPropagation(); setAnalytics(false); } }}
-          className="fixed inset-x-3 bottom-[calc(var(--tabbar-h)+env(safe-area-inset-bottom)+0.75rem)] z-[60] rounded-xl border border-border bg-popover p-4 text-popover-foreground shadow-[0_18px_40px_-16px_rgba(0,0,0,.55)] md:inset-x-auto md:bottom-28 md:left-4 md:w-[22rem]"
+          className="fixed inset-x-3 bottom-[calc(var(--tabbar-h)+env(safe-area-inset-bottom)+0.75rem)] z-[60] rounded-xl border border-border bg-popover p-4 text-popover-foreground shadow-[0_18px_40px_-16px_rgba(0,0,0,.55)] md:inset-x-auto md:bottom-28 md:left-4 md:w-[22rem] v8:max-md:p-3"
         >
           <div className="flex items-start gap-3">
-            <span className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-lg bg-accent-soft text-accent-text" aria-hidden><ShieldCheck className="size-4" /></span>
+            <span className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-lg bg-accent-soft text-accent-text v8:max-md:hidden" aria-hidden><ShieldCheck className="size-4" /></span>
             <div className="min-w-0 space-y-1">
-              <p className="font-display text-sm font-semibold text-foreground">Your privacy</p>
+              <p className="font-display text-sm font-semibold text-foreground v8:max-md:hidden">Your privacy</p>
               <p id="cs-consent-text" className="text-xs leading-relaxed text-muted-foreground">
-                Sign-in, preferences and offline data are stored on this device so the app works. That's always on.
-                {" "}May we also count <span className="text-foreground">anonymous page views</span>? No cookies, no IDs, no third parties.
+                {/* v8 phones: the short version (the question and the link), so the banner stays a small strip. */}
+                <span className="v8:max-md:hidden">Sign-in, preferences and offline data are stored on this device so the app works. That's always on.{" "}</span>
+                May we also count <span className="text-foreground">anonymous page views</span>? No cookies, no IDs, no third parties.
                 {" "}<Link to="/privacy" className="underline underline-offset-2 hover:text-foreground">Privacy policy</Link>
               </p>
             </div>
           </div>
-          <div className="mt-3 grid grid-cols-2 gap-2">
+          <div className="mt-3 grid grid-cols-2 gap-2 v8:max-md:mt-2">
             <Button variant="secondary" size="sm" onClick={() => setAnalytics(false)}>No thanks</Button>
             <Button variant="secondary" size="sm" onClick={() => setAnalytics(true)}>Allow</Button>
           </div>
