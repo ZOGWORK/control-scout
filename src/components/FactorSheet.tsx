@@ -163,7 +163,7 @@ function Row({ f, top, winner }: { f: SheetFactor; top: number; winner: "A" | "B
         <p className="text-xs text-text-muted">{factorLabel(f.label)}</p>
       </div>
       <span className={cn("text-sm font-semibold tabular-nums", tone.text)} title={f.kind === "reason" ? "Words only: this never moves the odds" : undefined}>{pctOf(f.weight)}</span>
-      <div className="col-span-2 col-start-2 h-1.5 overflow-hidden rounded-full bg-muted v8:h-1 v8:bg-white/[0.04]" aria-hidden>
+      <div className="col-span-2 col-start-2 h-1.5 overflow-hidden rounded-full bg-muted v8:h-1 v8:bg-ink/[0.04]" aria-hidden>
         <div className={cn("h-full rounded-full", tone.bar)} style={{ width: `${(f.weight / top) * 100}%` }} />
       </div>
     </li>
