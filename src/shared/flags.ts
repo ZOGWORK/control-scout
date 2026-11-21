@@ -9,7 +9,7 @@
 export const FLAGS = [
   "livePredictions", "advancementOdds", "bracketOdds", "powerRankings", "coinFlips", "factorSheet", "offlinePacks", "eventBundle", "discordBot", "workspaceScouting", "scoutingAlliances", "scoutingCommons", "rulesReference", "venueLightMode", "scheduleDifficulty",
   "realtime", "errorReporting", "failedSearchReports", "photos", "push", "autoPowerRankings", "dailyPowerRankings", "weeklyDigest", "publicAccess",
-  "seasonRoadMap", "brunoSearch", "brunoAnswers", "searchLearning", "dogTheme", "discordBruno", "statusPage", "particleWave",
+  "seasonRoadMap", "brunoSearch", "brunoAnswers", "searchLearning", "dogTheme", "discordBruno", "statusPage", "particleWave", "pageEndGlow",
 ] as const;
 export type Flag = (typeof FLAGS)[number];
 export type FlagSet = Record<Flag, boolean>;
@@ -59,6 +59,7 @@ export const FLAG_META: Record<Flag, { group: FlagGroup; scope: FlagScope }> = {
   brunoAnswers: { group: "feature", scope: "global" },
   discordBruno: { group: "feature", scope: "global" },
   searchLearning: { group: "feature", scope: "global" },
+  pageEndGlow: { group: "feature", scope: "global" },
 };
 
 /** The owner console's feature toggles, in the order its Features tab lists them. */
@@ -110,6 +111,11 @@ export const FLAG_INFO: Record<Flag, { label: string; on: string; off: string; p
     label: "Particle wave",
     on: "The particle wave appears behind pages in the v8 look. It stays still for visitors who prefer reduced motion.",
     off: "The v8 background keeps its color wash and removes the particle wave for everyone.",
+  },
+  pageEndGlow: {
+    label: "Page-end glow",
+    on: "A soft, grainy orange-to-purple glow sits at the end of every v8 page: it scrolls into view as the footer approaches, and rests at the bottom of a short page. The footer text stays readable over it.",
+    off: "Pages end on the plain background without the glow. Nothing else changes, and switching it back on brings it straight back.",
   },
   livePredictions: {
     label: "Live predictions",
