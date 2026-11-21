@@ -209,6 +209,8 @@ describe("feature flags", () => {
       discordBruno: true,
       statusPage: true,
       particleWave: true,
+      // The glow at the page's end: its own switch, on by default.
+      pageEndGlow: true,
     });
     expect(r.headers.get("cache-control")).toBe("public, max-age=15");
   });

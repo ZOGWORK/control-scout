@@ -109,7 +109,9 @@ export async function eventVideosByDay(season: number, code: string): Promise<{ 
      UNION SELECT video_id, NULL, NULL, NULL FROM event_streams WHERE season = ? AND code = ?
      UNION SELECT video_id, day, part, NULL FROM official_videos WHERE season = ? AND code = ? AND kind = 'recording' AND removed_at IS NULL`,
     [season, code, season, code, season, code, season, code]);
-  const ids = [...new Set([...(first ? [first] : []), ...others.map((o) => String(o.video_id))])];
+  // A video the owner took off the event on its page (server/videos/ownerRecordings.ts) holds no day of it.
+  const off = new Set((await all<{ video_id: string }>("SELECT video_id FROM official_videos WHERE season = ? AND code = ? AND source = 'owner-page' AND removed_at IS NOT NULL", [season, code])).map((r) => String(r.video_id)));
+  const ids = [...new Set([...(first ? [first] : []), ...others.map((o) => String(o.video_id))])].filter((id) => !off.has(id));
   const starts = new Map<string, string | null>();
   const gone = new Set<string>();
   if (ids.length) for (const r of await all<{ video_id: string; start: string | null; status: string }>(`SELECT video_id, start, status FROM video_meta WHERE video_id IN (${ids.map(() => "?").join(",")})`, ids)) {

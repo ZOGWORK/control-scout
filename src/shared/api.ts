@@ -228,7 +228,7 @@ export interface SearchVideo {
   mainRow?: string;
   /** The headline's match has no clip (main is then unset: never another match under it): the recording it's in, from
    *  its start, as a link to watch it on YouTube. `day`: that video's weekday, for an event broadcast a day at a time. */
-  watch?: SearchVideoItem & { day?: string };
+  watch?: SearchVideoItem & { day?: string; /** The event page's own player for it (watchHref): where the link goes, never YouTube. */ href?: string };
 }
 
 /** A next question after a search (server/api/answers/followUps.ts, GET /api/search/follow): one search answers
@@ -725,6 +725,14 @@ export interface EventStream {
   days?: { videoId: string; label: string }[];
   /** Its videos whose owner turned off playing on other sites (video_meta.embeddable): they open on YouTube. */
   youtubeOnly?: string[];
+}
+
+/** The owner's recording controls on an event page (server/videos/ownerRecordings.ts): the event's days, each video
+ *  its player plays (`owner`: the owner's own pick, which holds its day), and the videos the owner took off it. */
+export interface OwnerEventRecordings {
+  season: number; code: string; days: string[];
+  videos: { videoId: string; day: string | null; part: string | null; owner: boolean }[];
+  removed: { videoId: string; day: string | null }[];
 }
 
 /** A row of the owner portal's stream list. */
