@@ -51,7 +51,7 @@ export function Timeline({ apps }: { apps: Appearance[] }) {
           <li key={a.id} className="flex shrink-0 items-center gap-1">
             {i > 0 && <span aria-hidden className="text-muted-foreground">←</span>}
             <button type="button" onClick={() => jumpTo(a.id)} data-chip={a.season}
-              className={cn("min-h-[44px] rounded-full border px-3 text-sm font-medium tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ring/60", a.id === latest ? cn("border-team-a bg-card font-semibold v8:border-white/12 v8:bg-white/10", TEAM_TEXT) : "border-border bg-muted/50 text-foreground v8:bg-transparent")} data-latest={a.id === latest || undefined}>
+              className={cn("min-h-[44px] rounded-full border px-3 text-sm font-medium tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ring/60", a.id === latest ? cn("border-team-a bg-card font-semibold v8:border-ink/12 v8:bg-ink/10", TEAM_TEXT) : "border-border bg-muted/50 text-foreground v8:bg-transparent")} data-latest={a.id === latest || undefined}>
               {a.seasonLabel}: {a.rank != null ? `#${a.rank}` : a.division ?? "—"}
             </button>
           </li>
@@ -137,7 +137,7 @@ export function QualityBanner({ s }: { s: Standing }) {
 const PILL = "inline-flex items-baseline gap-1 rounded-md px-1.5 py-0.5 text-[11px] v8:text-[0.75rem]";
 /** A trip's numbers as pills in the team's hue (a tint, the number in the hue), its awards as chips filled in their
  *  kind's colour (answerCells AwardChip), "Played the finals" in the Winning Alliance's. */
-const NUM_PILL = cn(PILL, "bg-team-a/10 text-foreground v8:bg-white/[0.06]");
+const NUM_PILL = cn(PILL, "bg-team-a/10 text-foreground v8:bg-ink/[0.06]");
 const FINALS_CHIP = cn(PILL, "items-center font-semibold", TONE.finalist.fill);
 
 /** One championship trip as a card: its division as the title, the event, place and season as badges, its numbers
@@ -164,7 +164,7 @@ export function AppearanceCard({ a, marked }: { a: Appearance; marked?: "first" 
       {a.href && <span className="mt-2.5 inline-flex items-center gap-1 text-xs font-semibold text-foreground group-hover:text-accent-text v8:group-hover:text-foreground group-hover:underline max-sm:hidden" data-cta>View event<ArrowRight className="size-3.5" aria-hidden /></span>}
     </>
   );
-  const cls = cn("lift group block scroll-mt-24 rounded-xl border p-4", marked ? "border-team-a bg-card v8:border-white/12" : "border-border bg-card", " outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent transition-shadow data-[highlight=on]:border-info data-[highlight=on]:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-info)_35%,transparent)]");
+  const cls = cn("lift group block scroll-mt-24 rounded-xl border p-4", marked ? "border-team-a bg-card v8:border-ink/12" : "border-border bg-card", " outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent transition-shadow data-[highlight=on]:border-info data-[highlight=on]:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-info)_35%,transparent)]");
   return a.href
     ? <Link id={a.id} to={a.href} className={cls} data-appearance={a.season}>{body}</Link>
     : <div id={a.id} tabIndex={-1} className={cls} data-appearance={a.season}>{body}</div>;

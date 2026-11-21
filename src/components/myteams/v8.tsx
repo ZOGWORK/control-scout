@@ -9,7 +9,7 @@ export const V8_LABEL = "text-xs font-normal text-text-faint";
 /** A card: the surface, a hairline, 14px corners, 16–20px padding. */
 export const V8_CARD = "rounded-xl border border-line bg-card p-4 sm:p-5";
 /** A row that answers the pointer: a faint fill (no lift), 44px tall, and the 0.97-style press kept small for rows. */
-export const V8_ROW = "flex min-h-11 items-center gap-3 transition-colors duration-150 hover:bg-white/[0.03]";
+export const V8_ROW = "flex min-h-11 items-center gap-3 transition-colors duration-150 hover:bg-ink/[0.03]";
 /** A press on a button-like element. */
 export const V8_PRESS = "active:scale-[0.97] motion-reduce:active:scale-100";
 

@@ -93,7 +93,7 @@ export interface BugContext {
   viewport: string;
   /** The browser's user-agent string, shortened. */
   device: string;
-  /** "Dark", "Light", "Dim", "Midnight". */
+  /** "Dark", "Light", "Dim". */
   theme: string;
 }
 

@@ -18,7 +18,7 @@ export function SearchFilters({ f, seasons, types, counts, asked = "all", onChan
       <div role="radiogroup" aria-label="Time" className="inline-flex rounded-lg border border-border bg-card p-0.5 v8:border-input">
         {WHEN.map((w) => (
           <button key={w.v} type="button" role="radio" aria-checked={f.when === w.v} aria-label={counts ? `${w.label}, ${counts[w.v]} ${counts[w.v] === 1 ? "event" : "events"}${w.v === "upcoming" && counts.live ? ` and ${counts.live} live now` : ""}` : undefined} onClick={() => onChange({ ...f, when: w.v })}
-            className={cn("rounded-md px-3 py-1 text-xs font-medium max-md:min-h-[44px] pointer-coarse:min-h-[44px]", f.when === w.v ? "bg-accent text-accent-ink v8:bg-white/10 v8:text-foreground" : "text-muted-foreground hover:text-foreground")}>
+            className={cn("rounded-md px-3 py-1 text-xs font-medium max-md:min-h-[44px] pointer-coarse:min-h-[44px]", f.when === w.v ? "bg-accent text-accent-ink v8:bg-ink/10 v8:text-foreground" : "text-muted-foreground hover:text-foreground")}>
             {w.label}{counts && <span className={cn("ml-1.5 tabular-nums", f.when === w.v ? "opacity-80" : counts[w.v] === 0 && !(w.v === "upcoming" && counts.live) && "opacity-60")} aria-hidden data-count>{counts[w.v]}{w.v === "upcoming" && !!counts.live && ` · ${counts.live} live`}</span>}
           </button>
         ))}

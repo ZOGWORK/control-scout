@@ -191,6 +191,16 @@ export async function allConferences(): Promise<{ season: number; code: string; 
   return rows.map((r) => ({ season: Number(r.season), code: r.code, region: r.region, league: r.league, leagueName: r.league_name?.trim() || null, name: r.name, slug: r.slug, aliases: aliasesOf(r), start: r.start, end: r.end }));
 }
 
+/** A conference tournament's teams, as its table lists them: FIRST's team list, else FTC New Jersey's sign-ups (never
+ *  both as one list); `from` says which. */
+export async function conferenceTeams(season: number, code: string): Promise<{ teams: number[]; from: Conference["teamsFrom"] }> {
+  const field = await all<{ team: number }>("SELECT team FROM event_teams WHERE season = ? AND code = ? ORDER BY team", [season, code]);
+  if (field.length) return { teams: field.map((t) => Number(t.team)), from: "field" };
+  const prov = await provisionalFor(season, code);
+  const teams = (prov?.teams ?? []).map((t) => Number(t.team));
+  return { teams, from: teams.length ? "registered" : "none" };
+}
+
 /** The conference tournament a team is in for a season: FIRST's field first, else FTC New Jersey's sign-ups
  *  (`registered`; `waitlist` when FTC New Jersey lists it as pending, not registered). */
 export async function teamConferenceEvent(season: number, team: number): Promise<{ code: string; registered: boolean; waitlist: boolean } | null> {

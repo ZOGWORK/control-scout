@@ -250,3 +250,41 @@ describe("each fact printed once (the guide's §8)", () => {
     expect(c.querySelector("[data-definition]")!.textContent).not.toContain("How this is counted:");
   });
 });
+
+describe("a leaderboard in v8", () => {
+  const rows = Array.from({ length: 10 }, (_, i) => ({ rank: i + 1, team: { label: `${100 + i} Team ${i + 1}`, href: `/teams/${100 + i}` }, location: null, record: "1-0-0", opr: 100 - i, value: 100 - i, display: (100 - i).toFixed(1), parts: null }));
+  const board = (whole?: boolean): StatAnswer => ({
+    family: "leaderboard", intent: "top", title: "Top 10 teams", scope: ["2026–27"], definition: "", source: "From the season numbers",
+    blocks: [{ kind: "leaderboard", title: "Top 10 by OPR", stat: { id: "opr", label: "OPR" }, note: "2026–27", rows, ...(whole ? { whole } : {}) }],
+  });
+  afterEach(() => document.documentElement.removeAttribute("data-v8"));
+  it("shows its top five with Show all, but every row when the question said how many (bug report #2026)", () => {
+    document.documentElement.setAttribute("data-v8", "");
+    const short = draw(board());
+    expect(short.querySelectorAll("[data-block=leaderboard] tbody tr")).toHaveLength(5);
+    expect(short.querySelector("[data-show-all]")).not.toBeNull();
+    cleanup();
+    const whole = draw(board(true));
+    expect(whole.querySelectorAll("[data-block=leaderboard] tbody tr")).toHaveLength(10);
+    expect(whole.querySelector("[data-show-all]")).toBeNull();
+  });
+});
+
+describe("a table whose first column is the list's place (#)", () => {
+  const climbs: StatAnswer = {
+    family: "leaderboard", intent: "most-improved", title: "Most improved teams in New Jersey · 2026–27", scope: ["New Jersey"], definition: "", source: "From the season numbers",
+    blocks: [{ kind: "table", title: "Biggest climbs", columns: [{ key: "rank", label: "#", num: true }, { key: "team", label: "Team" }, { key: "climb", label: "OPR rank", num: true }, { key: "opr", label: "OPR now", num: true }],
+      rows: [{ cells: { rank: 1, team: "31255 ctrl+r", climb: "#5204 → #571", opr: "38.2" }, href: "/teams/31255", strong: true }, { cells: { rank: 2, team: "25733 County Prep Exponents", climb: "#5039 → #605", opr: "37.2" }, href: "/teams/25733" }] }],
+  };
+  it("keeps the # narrow and lets the team lead the row, linked (bug report #2040)", () => {
+    const c = draw(climbs);
+    const [num, team] = [...c.querySelectorAll("[data-block=table] tbody tr:first-child td")];
+    expect(num.className).toMatch(/\bw-px\b/);
+    expect(num.className).not.toMatch(/min-w-/);
+    expect(num.querySelector("a")).toBeNull();
+    expect(team.className).toMatch(/min-w-/);
+    expect(team.querySelector("a")!.getAttribute("href")).toBe("/teams/31255");
+    expect(team.querySelector("a")!.textContent).toBe("31255 ctrl+r");
+    expect(c.querySelector("[data-block=table] thead th")!.className).toMatch(/\bw-px\b/);
+  });
+});

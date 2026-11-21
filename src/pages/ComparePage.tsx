@@ -196,7 +196,7 @@ function SuggestionChip({ s, onPick, big }: { s: Suggestion; onPick: (n: number)
   const v8 = useIsV8();
   return (
     <button type="button" onClick={() => onPick(s.team)}
-      className={cn(v8 ? "inline-flex min-w-0 items-center gap-2 rounded-lg border border-line bg-card text-left transition-colors duration-150 hover:bg-white/[0.04] active:scale-[0.97] motion-reduce:active:scale-100"
+      className={cn(v8 ? "inline-flex min-w-0 items-center gap-2 rounded-lg border border-line bg-card text-left transition-colors duration-150 hover:bg-ink/[0.04] active:scale-[0.97] motion-reduce:active:scale-100"
         : "lift inline-flex min-w-0 items-center gap-2 rounded-xl border border-border bg-card text-left hover:border-accent/50",
         big ? "w-full px-3.5 py-3" : "h-9 px-3 text-sm max-sm:h-10")}>
       {/* The name is the chip's own text with "Add" in front ("Add 18360 Robo Raiders"); the spaces are explicit
@@ -372,7 +372,7 @@ function StatsTable({ d, onRemove, onMove }: { d: CompareView; onRemove: (n: num
       moveTo(team, to);
     },
   });
-  const colClass = (i: number) => cn(i === 0 && t.length > 1 && BASELINE, drag && drag.over === i && drag.from !== i && "outline-2 -outline-offset-2 outline-accent v8:outline-white/40", drag?.from === i && "opacity-60");
+  const colClass = (i: number) => cn(i === 0 && t.length > 1 && BASELINE, drag && drag.over === i && drag.from !== i && "outline-2 -outline-offset-2 outline-accent v8:outline-ink/40", drag?.from === i && "opacity-60");
   return (
     <Reveal className="min-w-0 self-start overflow-x-auto rounded-2xl border border-border bg-card v8:rounded-xl v8:border-line" data-stats-table>
       <p className="sr-only" aria-live="polite">{said}</p>
@@ -381,7 +381,7 @@ function StatsTable({ d, onRemove, onMove }: { d: CompareView; onRemove: (n: num
       <table ref={table} className="w-full table-fixed border-collapse text-sm" style={{ minWidth: v8 ? `${4.75 + t.length * 6.5}rem` : `${5 + t.length * 8}rem` }}>
         <caption className="sr-only">Season stats; the best in each row is marked</caption>
         <thead>
-          <tr className="v8:border-b v8:border-white/[0.12]">
+          <tr className="v8:border-b v8:border-ink/[0.12]">
             <th scope="col" className="w-20 p-3 sm:w-24 v8:w-[4.75rem] sm:v8:w-32"><span className="sr-only">Stat</span></th>
             {t.map((x, i) => (
               <Th key={x.team.number} scope="col" data-col={i} className={cn("border-l border-border p-3 text-left align-top font-normal v8:border-line", colClass(i))} style={{ boxShadow: `inset 0 ${v8 ? 2 : 3}px 0 ${COLORS[i]}` }}
@@ -396,7 +396,7 @@ function StatsTable({ d, onRemove, onMove }: { d: CompareView; onRemove: (n: num
                       {t.length > 1 && (
                         <button type="button" {...gripProps(x.team.number, i)}
                           aria-label={`Reorder ${x.team.number}, ${ORDINAL[i]} of ${t.length}: drag, or use the arrow keys`} title="Drag to reorder: the first team is the one the others are measured against"
-                          className="flex size-8 shrink-0 cursor-grab touch-none items-center justify-center rounded-md text-text-faint hover:bg-white/[0.06] hover:text-text-base focus-visible:outline-2 focus-visible:outline-ring active:cursor-grabbing pointer-coarse:size-[44px]">
+                          className="flex size-8 shrink-0 cursor-grab touch-none items-center justify-center rounded-md text-text-faint hover:bg-ink/[0.06] hover:text-text-base focus-visible:outline-2 focus-visible:outline-ring active:cursor-grabbing pointer-coarse:size-[44px]">
                           <GripVertical className="size-4" aria-hidden />
                         </button>
                       )}
@@ -430,13 +430,13 @@ function StatsTable({ d, onRemove, onMove }: { d: CompareView; onRemove: (n: num
           {METRICS.map((metric, row) => {
             const best = leaders(metric, t);
             return (
-              <Tr key={metric.label} className="border-t border-border v8:border-white/[0.08] v8:first:border-t-0" {...fade({ initial: { opacity: 0 }, animate: { opacity: 1 }, transition: { ...CELL, delay: 0.05 + row * 0.03 } })}>
+              <Tr key={metric.label} className="border-t border-border v8:border-ink/[0.08] v8:first:border-t-0" {...fade({ initial: { opacity: 0 }, animate: { opacity: 1 }, transition: { ...CELL, delay: 0.05 + row * 0.03 } })}>
                 <th scope="row" className={cn("px-3 py-2 text-left font-normal text-muted-foreground v8:h-11 v8:truncate v8:py-0", metric.phase ? V8_PHASE[metric.phase] : "v8:text-text-muted")} title={metric.title?.(null) ?? metric.label}>{v8 && metric.short ? <><span className="sm:hidden" aria-hidden>{metric.short}</span><span className="max-sm:sr-only">{metric.label}</span></> : metric.label}</th>
                 {t.map((x, i) => {
                   const lead = best.has(x.team.number);
                   const sub = metric.sub?.(x);
                   return (
-                    <Td key={x.team.number} data-col={i} data-lead={lead || undefined} title={metric.title?.(x)} className={cn("border-l border-border px-3 py-2 tabular-nums transition-colors duration-300 v8:h-11 v8:whitespace-nowrap v8:border-line v8:py-0 v8:text-right v8:duration-150", colClass(i), lead && "bg-foreground/[0.07] v8:bg-white/[0.06]")}
+                    <Td key={x.team.number} data-col={i} data-lead={lead || undefined} title={metric.title?.(x)} className={cn("border-l border-border px-3 py-2 tabular-nums transition-colors duration-300 v8:h-11 v8:whitespace-nowrap v8:border-line v8:py-0 v8:text-right v8:duration-150", colClass(i), lead && "bg-foreground/[0.07] v8:bg-ink/[0.06]")}
                       {...fade({ initial: { opacity: 0 }, animate: { opacity: 1 }, transition: CELL })}>
                       <span className={cn("whitespace-nowrap font-medium", lead ? cn("font-bold text-foreground v8:font-semibold", metric.phase ? V8_PHASE[metric.phase] : "v8:text-text-base") : best.size > 0 ? "v8:text-text-muted" : metric.phase && V8_PHASE[metric.phase])}>{metric.show(x)}</span>
                       {lead && <span className="sr-only"> (best)</span>}
@@ -451,7 +451,7 @@ function StatsTable({ d, onRemove, onMove }: { d: CompareView; onRemove: (n: num
       </table>
       {v8 ? (
         // v8: the explanation waits behind a disclosure.
-        <details className="group border-t border-white/[0.08] text-xs text-text-faint" data-swing-line>
+        <details className="group border-t border-ink/[0.08] text-xs text-text-faint" data-swing-line>
           <summary className="flex min-h-11 cursor-pointer list-none items-center gap-1.5 px-3 hover:text-text-muted [&::-webkit-details-marker]:hidden">
             <Info className="size-3.5" aria-hidden />About these numbers
           </summary>

@@ -1,5 +1,12 @@
 # Self-audit log
 
+## Team season placement and green Right badges
+
+- Moved the v8 season selector below Sponsors and above Standing, removing its old action-row placement. Captured and inspected desktop/mobile `/teams/4215?v8=1` with `npm run shots`; files remain outside the repository at `/workspace/scratch/team-season-position/`. The desktop capture also shows real Right badges in green.
+- Restored the shared v8 success colour to green and aligned the Lite token parity test; rating/reliability foreground and percentile styling are unchanged.
+- 164 focused layout, match, token/contrast and text-tone tests passed. TypeScript and the production build passed.
+- Targeted desktop/mobile team-route audit completed with one slow-load finding only (`/workspace/scratch/team-season-audit/`). Post-build team-page interaction flow passed 1/1. This was a targeted check, not a new full-app audit.
+
 ## Page-end gradient (2026-11-20)
 
 - Added a still, grainy orange/purple glow at the bottom of the shared v8 shell, behind the content. It follows the content's height and reveals itself naturally at the end of a long page; short pages show it at their footer. It adds no scroll listener, animation, request, extra page height or focus target. Bare display routes and the legacy shell are excluded.

@@ -93,7 +93,7 @@ export function CurrentlyTracking({ season, current, events, listSettled, classN
         {more > 0 && (
           <li className="shrink-0 sm:justify-self-start">
             <button type="button" onClick={() => setAll(true)}
-              className="flex h-full min-h-[4.75rem] items-center rounded-xl border border-dashed border-line px-4 text-sm font-semibold text-muted-foreground hover:border-accent/60 hover:text-foreground v8:hover:border-white/20">
+              className="flex h-full min-h-[4.75rem] items-center rounded-xl border border-dashed border-line px-4 text-sm font-semibold text-muted-foreground hover:border-accent/60 hover:text-foreground v8:hover:border-ink/20">
               and {more} more
             </button>
           </li>
@@ -104,12 +104,12 @@ export function CurrentlyTracking({ season, current, events, listSettled, classN
 }
 
 // v8: no hover lift (brief §4.2), a neutral hairline (live is the red dot, not a red frame), and a faint fill on hover.
-const V8_CARD = "v8:border-line v8:transition-colors v8:duration-150 v8:hover:translate-y-0 v8:hover:shadow-none v8:hover:border-white/[0.12] v8:still-hover:bg-white/[0.02]";
+const V8_CARD = "v8:border-line v8:transition-colors v8:duration-150 v8:hover:translate-y-0 v8:hover:shadow-none v8:hover:border-ink/[0.12] v8:still-hover:bg-ink/[0.02]";
 
 /** A link to the event's page, or (quick-pick mode) a button that picks it, pressed while it's the one picked. */
 function CardShell({ season, code, onPick, picked, className, children }: { season: number; code: string; onPick?: (season: number, code: string) => void; picked?: boolean; className: string; children: ReactNode }) {
   return onPick
-    ? <button type="button" aria-pressed={!!picked} onClick={() => onPick(season, code)} className={cn(className, "w-full text-left", picked && "border-accent/70 bg-accent/[0.08] v8:border-accent/60 v8:bg-white/[0.04]")}>{children}</button>
+    ? <button type="button" aria-pressed={!!picked} onClick={() => onPick(season, code)} className={cn(className, "w-full text-left", picked && "border-accent/70 bg-accent/[0.08] v8:border-accent/60 v8:bg-ink/[0.04]")}>{children}</button>
     : <Link to={`/events/${season}/${code}`} className={className}>{children}</Link>;
 }
 

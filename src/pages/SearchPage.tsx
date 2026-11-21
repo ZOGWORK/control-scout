@@ -64,7 +64,8 @@ export default function SearchPage() {
   // about that season. A step Back undoes; the address shares it.
   const held = useMeta()?.seasons.map((s) => s.season) ?? [];
   const picked = pickedSeason(params.get("in"), held);
-  const { hits, answer, busy, error, retry, logPick, stale, reseason, prefer, searchNow, live } = useSearchHits(q, undefined, SEARCH_PAGE_LIMIT, BOOT_HITS, false, picked);
+    // `thread`: this question, once answered, is what a follow-up refers back to (src/components/search/thread.ts).
+  const { hits, answer, busy, error, retry, logPick, stale, reseason, prefer, searchNow, live } = useSearchHits(q, undefined, SEARCH_PAGE_LIMIT, BOOT_HITS, false, picked, true);
   const seasonPick = useMemo<SeasonPick>(() => ({
     picked, pending: reseason,
     pick: (s) => setParams((p) => { const next = new URLSearchParams(p); next.set("in", String(s)); return next; }),
@@ -564,7 +565,7 @@ function V8Group({ s, statuses, summaries, skip, fuzzyWord, picks, onPick, phone
       return (
         <div key={h.ref} data-team-group={h.ref}>
           {card}
-          <ul className="mb-2 ml-10 border-l border-white/[0.12] pl-1" data-team-events>
+          <ul className="mb-2 ml-10 border-l border-ink/[0.12] pl-1" data-team-events>
             {subs.map((e) => <li key={e.ref}><EventRow h={e} onOpen={() => onOpen(e)} /></li>)}
           </ul>
         </div>
