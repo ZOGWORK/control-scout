@@ -18,12 +18,12 @@ describe("the dark theme the light/dark switch returns to", () => {
   const written = () => update.mock.calls.filter(([k]) => k === "settings").map(([, fn]) => (fn as (s: Record<string, unknown>) => Record<string, unknown>)(h.settings));
   it("is remembered when a dark theme is picked anywhere, Settings included", () => {
     update.mockClear();
-    h.settings = { ...h.settings, theme: "midnight" };
+    h.settings = { ...h.settings, theme: "dim" };
     render(<ThemeSync />);
-    expect(written().some((s) => s.darkTheme === "midnight" && s.theme === "midnight")).toBe(true);
+    expect(written().some((s) => s.darkTheme === "dim" && s.theme === "dim")).toBe(true);
   });
   it("writes nothing for Dark with none remembered (the default already means it), for Light, or when already remembered", () => {
-    for (const settings of [{ theme: "dark" }, { theme: "light", darkTheme: "midnight" }, { theme: "dim", darkTheme: "dim" }]) {
+    for (const settings of [{ theme: "dark" }, { theme: "light", darkTheme: "dim" }, { theme: "dim", darkTheme: "dim" }]) {
       update.mockClear();
       h.settings = { density: "comfortable", ambient: true, ...settings };
       render(<ThemeSync />);

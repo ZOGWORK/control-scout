@@ -77,7 +77,7 @@ function Row({ row, i, count, live, onMove, onAsk, onSaved }: {
       <div className="flex items-start gap-3">
         <span className="mt-0.5 w-6 shrink-0 text-right text-xs tabular-nums text-muted-foreground">{i + 1}</span>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium text-foreground">{row.plain} <span className="text-accent-text">{row.accent}</span></p>
+          <p className="text-sm font-medium text-foreground">{row.plain} <span className="text-accent-text v8:text-accent">{row.accent}</span></p>
           <div className="mt-1 flex flex-wrap gap-1.5">
             {live && <Badge variant="soft"><Clock aria-hidden /> On the home page now</Badge>}
             {!row.enabled && <Badge variant="secondary">Off</Badge>}
@@ -130,7 +130,7 @@ function AddLine({ onSaved, empty }: { onSaved: (p: OwnerHeroLines) => void; emp
   };
   return (
     <div className="grid gap-3 rounded-xl border border-border bg-card p-4">
-      <p className="flex items-center gap-2 text-sm font-medium text-foreground"><Plus className="size-4 text-accent-text" aria-hidden /> Add a line</p>
+      <p className="flex items-center gap-2 text-sm font-medium text-foreground"><Plus className="size-4 text-accent-text v8:text-accent" aria-hidden /> Add a line</p>
       <LineFields plain={plain} accent={accent} setPlain={setPlain} setAccent={setAccent} idPrefix="hero-new" />
       <div className="rounded-lg border border-dashed border-border p-3">
         <p className="mb-2 flex items-center gap-1.5 text-xs text-muted-foreground"><Eye className="size-3.5" aria-hidden /> Preview, as the home page draws it</p>
@@ -187,7 +187,7 @@ export function HeroLinesPanel() {
                   </div>
                   <ol className="grid gap-1.5 rounded-xl border border-border bg-card p-3 text-sm" aria-label="Built-in lines">
                     {p.defaults.map(([a, b], i) => (
-                      <li key={i} className="flex gap-3"><span className="w-6 shrink-0 text-right text-xs tabular-nums text-muted-foreground">{i + 1}</span><span className={cn("min-w-0", i === p.live.index && "font-medium")}>{a} <span className="text-accent-text">{b}</span></span></li>
+                      <li key={i} className="flex gap-3"><span className="w-6 shrink-0 text-right text-xs tabular-nums text-muted-foreground">{i + 1}</span><span className={cn("min-w-0", i === p.live.index && "font-medium")}>{a} <span className="text-accent-text v8:text-accent">{b}</span></span></li>
                     ))}
                   </ol>
                 </div>
