@@ -11,6 +11,7 @@
 // queues: its reason stands as it is.
 import { all, busyTurn } from "../db.js";
 import { WHY, videoCheck } from "./coverage.js";
+import { frameRow } from "../data/frameTimings.js";
 import { localToUtcMs } from "../../src/shared/time.js";
 import { CURRENT_SEASON } from "../data/seasons.js";
 import type { CoverageFrames, CoverageMatch, CoverageReason, FrameQueueSummary } from "../../src/shared/api.js";
@@ -41,8 +42,17 @@ function lastUtcDay(end: string, timezone: string | null | undefined): string {
  *  of both (betweenCheck) stands. */
 const checkedOf = (m: CoverageMatch, code: string) => (m.videoId ? videoCheck(m.videoId, code, m.label, []).checked : m.video?.checked) ?? null;
 
+/** Whether a match's video was read for this event with starts placed but its edges (opensOn, endsOn: the proof that a
+ *  match was played before the recording starts or after it ends) not both read yet. Off the frame rows as the site
+ *  serves them (the code's, with the autopilot's live database rows laid over: setAutoFrameRows), so edges read since
+ *  count at once. */
+const lacksEdges = (m: CoverageMatch, code: string) => {
+  const row = m.videoId ? frameRow(m.videoId, code) : null;
+  return !!row && Object.keys(row.starts).length > 0 && (!row.opensOn || !row.endsOn);
+};
+
 /** How one missing match stands with the frame reader. */
-function matchState(m: CoverageMatch, checked: string | null, last: string | null): "unreadable" | "facts" | "unread" | "stale" | "read" {
+function matchState(m: CoverageMatch, checked: string | null, last: string | null, code: string): "unreadable" | "facts" | "unread" | "stale" | "edges" | "read" {
   const reason = m.reason ?? "unexplained";
   // Between two recordings it has no video of its own, only its check of both.
   const between = reason === "between-recordings" && !!m.video;
@@ -52,7 +62,11 @@ function matchState(m: CoverageMatch, checked: string | null, last: string | nul
   // Read on or before the UTC day the event's last day ends on: matches played after that read may not be in it. The
   // queue only reads after that day (frameStatus), so a read it makes settles: never read twice for this.
   // No last day known: the event may still be on, so no read of it is taken as after it.
-  return !last || checked.slice(0, 10) <= last ? "stale" : "read";
+  if (!last || checked.slice(0, 10) <= last) return "stale";
+  // Read after the event, but its video's edges never were: the autopilot's --bounds pass could still show it played
+  // outside the recording. Due until both are in; an edge no read finds leaves the row as it was, so the autopilot's
+  // retry and give-up counts (pickEvents, scripts/lib/autopilotRun.ts) keep it from being read forever.
+  return lacksEdges(m, code) ? "edges" : "read";
 }
 
 /** Where one event stands with the frame reader (not yet ranked): queued, waiting for the event to end or for its
@@ -61,9 +75,9 @@ export function frameStatus(e: QueueEvent, now = Date.now()): FrameStatus {
   // The last day: the event's own, else its latest missing match's.
   const end = e.end ?? e.missing.map((m) => m.date).filter((d): d is string => !!d).sort().at(-1) ?? null;
   const last = end ? lastUtcDay(end, e.timezone) : null;
-  const states = e.missing.map((m) => { const checked = checkedOf(m, e.code); return { m, checked, s: matchState(m, checked, last) }; });
+  const states = e.missing.map((m) => { const checked = checkedOf(m, e.code); return { m, checked, s: matchState(m, checked, last, e.code) }; });
   const n = (s: string) => states.filter((x) => x.s === s).length;
-  const due = n("unread") + n("stale"), readable = due + n("read") + n("facts");
+  const due = n("unread") + n("stale") + n("edges"), readable = due + n("read") + n("facts");
   if (!readable) {
     const top = topReason(e.missing);
     return { state: "unreadable", matches: 0, due: 0, why: `Nothing a frame read can place${top ? `: ${top}` : ""}` };
@@ -72,8 +86,10 @@ export function frameStatus(e: QueueEvent, now = Date.now()): FrameStatus {
   if (due && !last) return { state: "waiting", matches: due, due: 0, why: `Waits for the event's last day to be known: ${plural(due, "match")} to read then` };
   if (due && last && last >= utcDay(now)) return { state: "waiting", matches: due, due: 0, why: `Waits for the event to finish (last day ${end}): ${plural(due, "match")} to read then` };
   if (due) {
-    const stale = n("stale");
-    return { state: "queued", matches: due, due, why: `Queued for a frame read: ${plural(due, "match")}${stale === due ? ", read before the event finished" : stale ? ` (${stale} read before the event finished)` : ""}` };
+    const stale = n("stale"), edges = n("edges");
+    const notes = [stale ? `${stale} read before the event finished` : "", edges ? `${edges} in a video whose first and last frames aren't read yet` : ""].filter(Boolean);
+    const said = stale === due ? ", read before the event finished" : edges === due ? ", its video's first and last frames not read yet" : notes.length ? ` (${notes.join("; ")})` : "";
+    return { state: "queued", matches: due, due, why: `Queued for a frame read: ${plural(due, "match")}${said}` };
   }
   // A video whose facts aren't in yet is still to read, whatever the event's other videos showed.
   if (n("facts")) return { state: "waiting", matches: n("facts"), due: 0, why: `Waits for YouTube's facts for its video: ${plural(n("facts"), "match")}${n("read") ? ` (${n("read")} more read, no clip)` : ""}` };
