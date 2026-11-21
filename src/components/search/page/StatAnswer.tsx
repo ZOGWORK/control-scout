@@ -267,8 +267,8 @@ function Block({ b: block, team, teams, said, hue }: { b: StatBlock; team?: Stat
           {b.title && <figcaption className={H3}>{b.title}</figcaption>}
           <div className="flex h-1.5 overflow-hidden rounded-full bg-muted" role="img" aria-label={recordWords(b.wins, b.losses, b.ties)}>
             <span className={TEAM_BAR} style={{ width: w(b.wins) }} data-bar data-value={b.wins} data-scale={n} />
-            <span className="bg-team-a/40 v8:bg-white/30" style={{ width: w(b.losses) }} data-bar data-value={b.losses} data-scale={n} />
-            <span className="bg-team-a/20 v8:bg-white/15" style={{ width: w(b.ties) }} data-bar data-value={b.ties} data-scale={n} />
+            <span className="bg-team-a/40 v8:bg-ink/30" style={{ width: w(b.losses) }} data-bar data-value={b.losses} data-scale={n} />
+            <span className="bg-team-a/20 v8:bg-ink/15" style={{ width: w(b.ties) }} data-bar data-value={b.ties} data-scale={n} />
           </div>
           <p className="mt-1.5 flex flex-wrap gap-x-4 text-xs tabular-nums text-foreground" aria-hidden>
             <span><b>{b.wins}</b> won</span><span><b>{b.losses}</b> lost</span><span><b>{b.ties}</b> tied</span>
@@ -636,7 +636,7 @@ function Leaderboard({ b }: { b: Extract<StatBlock, { kind: "leaderboard" }> }) 
       <TeamTable table={table} label={b.title} limit={short ? V8_TOP : undefined} />
       {v8 && table.rows.length > V8_TOP && (
         <button type="button" onClick={() => setAll((a) => !a)} aria-expanded={all}
-          className="mt-2 inline-flex min-h-9 items-center gap-1 rounded-lg px-2 text-sm text-text-muted hover:bg-white/[0.06] hover:text-foreground max-md:min-h-[44px]" data-show-all>
+          className="mt-2 inline-flex min-h-9 items-center gap-1 rounded-lg px-2 text-sm text-text-muted hover:bg-ink/[0.06] hover:text-foreground max-md:min-h-[44px]" data-show-all>
           {all ? "Show top 5" : `Show all ${table.rows.length}`}
         </button>
       )}
