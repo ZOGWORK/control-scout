@@ -4,6 +4,7 @@
 import type { InStatement } from "@libsql/client";
 import { isLegacy, type ScoreSplit } from "./seasons.js";
 import { cleanCity, cleanSchool } from "../../src/shared/placeClean.js";
+import { plainText } from "../../src/shared/format.js";
 
 export interface EventRow {
   season: number;
@@ -211,7 +212,7 @@ export function bundleStatements(b: EventBundle): InStatement[] {
     }
   }
   for (const a of b.detail.alliances) s.push({ sql: "INSERT OR REPLACE INTO alliances (season, code, number, name, captain, pick1, pick2, backup) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", args: [...k, a.number, a.name, a.captain, a.pick1, a.pick2, a.backup] });
-  for (const a of b.detail.awards) s.push({ sql: "INSERT OR REPLACE INTO awards (season, code, type, placement, team, name) VALUES (?, ?, ?, ?, ?, ?)", args: [...k, a.type, a.placement, a.team, a.name] });
+  for (const a of b.detail.awards) s.push({ sql: "INSERT OR REPLACE INTO awards (season, code, type, placement, team, name) VALUES (?, ?, ?, ?, ?, ?)", args: [...k, a.type, a.placement, a.team, a.name == null ? null : plainText(a.name) || null] });
   if (b.detail.advancement !== undefined) {
     s.push({ sql: "DELETE FROM advancement WHERE season = ? AND code = ?", args: k });
     const adv = b.detail.advancement;

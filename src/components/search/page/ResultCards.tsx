@@ -12,6 +12,7 @@ import { dateRange, seasonLabel } from "../../../lib/format";
 import { EventStatusChip } from "../../EventChips";
 import { HitFacts } from "../SearchBox";
 import { cn } from "../../cn";
+import { V8_STATUS } from "./v8tone";
 import { RecordText, better } from "./answerCells";
 import { compareSides, compareTeams, eventFacts, teamParts } from "./results";
 import { eventName } from "./records";
@@ -19,7 +20,7 @@ import { eventName } from "./records";
 /** "View event →": where the card goes, as part of the card's own link. */
 function Cta({ children }: { children: string }) {
   return (
-    <span className="inline-flex items-center gap-1 text-xs font-semibold text-accent-text group-hover:underline" data-cta>
+    <span className="inline-flex items-center gap-1 text-xs font-semibold text-accent-text v8:text-foreground group-hover:underline" data-cta>
       {children}<ArrowRight className="size-3.5" aria-hidden />
     </span>
   );
@@ -65,14 +66,14 @@ export function EventCard({ h, onOpen }: { h: SearchHit; onOpen: (h: SearchHit) 
   const { title, badges } = eventName(h.title);
   const [s, c] = h.ref.split(":");
   return (
-    <div data-result="event" className="lift group relative flex h-full flex-col overflow-hidden rounded-xl border border-border bg-card p-4 pl-5 max-sm:py-3">
-      <span aria-hidden className={cn("absolute inset-y-0 left-0 w-1", tone?.bar ?? "bg-text-base/25")} />
+    <div data-result="event" className="lift group relative flex h-full flex-col overflow-hidden rounded-xl border border-border bg-card p-4 pl-5 max-sm:py-3 v8:border-line v8:p-5">
+      <span aria-hidden className={cn("absolute inset-y-0 left-0 w-1 v8:hidden", tone?.bar ?? "bg-text-base/25")} />
       <div className="flex flex-wrap items-center gap-2 text-xs">
         {e.status === "started"
           ? <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-xs font-semibold text-foreground/80" data-event-chip="status">Started</span>
-          : <EventStatusChip status={e.status} className="px-2 py-0.5" />}
-        {e.type && <span className={cn("truncate font-semibold", tone?.text ?? "text-muted-foreground")}>{e.typeLabel ?? eventTypeLabel(e.type)}</span>}
-        {e.teams != null && e.teams > 0 && <span className="ml-auto inline-flex shrink-0 items-center gap-1 tabular-nums text-muted-foreground"><Users className="size-3.5" aria-hidden />{e.teams}<span className="sr-only"> teams registered</span></span>}
+          : <EventStatusChip status={e.status} className={cn("px-2 py-0.5", V8_STATUS[e.status === "upcoming" ? "upcoming" : e.status === "live" ? "live" : "finished"].chip)} />}
+        {e.type && <span className={cn("truncate font-semibold", tone?.text ?? "text-muted-foreground", "v8:font-normal v8:text-text-muted")}>{e.typeLabel ?? eventTypeLabel(e.type)}</span>}
+        {e.teams != null && e.teams > 0 && <span className="ml-auto inline-flex shrink-0 items-center gap-1 tabular-nums text-muted-foreground"><Users className="size-3.5" aria-hidden /><span className="v8:text-accent">{e.teams}</span><span className="sr-only"> teams registered</span></span>}
       </div>
       <Link to={hitHref(h)} onClick={() => onOpen(h)} className="mt-2 line-clamp-2 font-medium leading-snug text-foreground outline-none group-hover:underline after:absolute after:inset-0 after:content-[''] focus-visible:after:rounded-xl focus-visible:after:outline-2 focus-visible:after:outline-accent">{title}</Link>
       <p className="mt-1.5 flex flex-wrap gap-1 text-[11px]">
@@ -119,7 +120,7 @@ export function TeamCard({ h, summary, bare, onOpen }: { h: SearchHit; summary?:
     <div data-result="team" className="lift group relative flex min-h-14 items-start gap-3 rounded-xl border border-border bg-card px-3.5 py-3">
       <span className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground"><Shield className="size-4" aria-hidden /></span>
       <span className="min-w-0 flex-1">
-        <Link to={hitHref(h)} onClick={onOpen} className="block break-words text-sm font-medium text-foreground outline-none group-hover:text-accent-text after:absolute after:inset-0 after:content-[''] focus-visible:after:rounded-xl focus-visible:after:outline-2 focus-visible:after:outline-accent max-md:text-base">{teamTitle(h.title)}</Link>
+        <Link to={hitHref(h)} onClick={onOpen} className="block break-words text-sm font-medium text-foreground outline-none group-hover:text-accent-text v8:group-hover:text-foreground after:absolute after:inset-0 after:content-[''] focus-visible:after:rounded-xl focus-visible:after:outline-2 focus-visible:after:outline-accent max-md:text-base">{teamTitle(h.title)}</Link>
         {h.subtitle && <span className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground max-md:text-sm"><MapPin className="size-3.5 shrink-0 md:hidden" aria-hidden /><span className="truncate">{h.subtitle}</span></span>}
         {bare ? null : h.facts?.length ? <HitFacts facts={h.facts} /> : <TeamBadges summary={summary} />}
       </span>
@@ -152,7 +153,7 @@ export function CompareCard({ h, summaries, onOpen, preview }: { h: SearchHit; s
           const { name, place } = side(n, i);
           return (
             <span key={n} className={cn("min-w-0", right && "col-start-3 text-right")} data-compare-side={n}>
-              <span className="block font-display text-3xl font-semibold leading-none tracking-tight tabular-nums text-foreground group-hover:text-accent-text sm:text-4xl">{n}</span>
+              <span className="block font-display text-3xl font-semibold leading-none tracking-tight tabular-nums text-foreground group-hover:text-accent-text v8:text-accent v8:group-hover:text-accent-hover sm:text-4xl">{n}</span>
               <span className="mt-1.5 block break-words text-base text-foreground/90 sm:text-lg">{name}</span>
               {place && <span className="mt-0.5 block truncate text-xs text-muted-foreground">{place}</span>}
             </span>
@@ -199,7 +200,7 @@ export function HeadToHead({ h, now, before, season: current }: { h: SearchHit; 
       <div className={cn("mt-3 grid gap-3", cols)}>
         {sides.map(({ n, s }) => (
           <div key={n} className="min-w-0">
-            <p className={cn("font-display font-semibold leading-none tabular-nums text-foreground", nums.length > 2 ? "text-xl" : "text-2xl")}>{n}</p>
+            <p className={cn("font-display font-semibold leading-none tabular-nums text-foreground v8:text-accent", nums.length > 2 ? "text-xl" : "text-2xl")}>{n}</p>
             <p className={cn("mt-1 text-sm text-foreground/90", nums.length > 2 ? "break-words" : "truncate")}>{s?.name ?? " "}</p>
           </div>
         ))}
@@ -227,7 +228,7 @@ export function HeadToHead({ h, now, before, season: current }: { h: SearchHit; 
           ))}
         </dl>
       ) : <p className="mt-3 text-xs text-muted-foreground">No season numbers yet for these teams.</p>}
-      <Link to={hitHref(h)} className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-accent-text hover:underline max-md:min-h-[44px] pointer-coarse:min-h-[44px]">View full comparison<ArrowRight className="size-4" aria-hidden /></Link>
+      <Link to={hitHref(h)} className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-accent-text v8:text-foreground hover:underline max-md:min-h-[44px] pointer-coarse:min-h-[44px]">View full comparison<ArrowRight className="size-4" aria-hidden /></Link>
     </aside>
   );
 }
@@ -239,7 +240,7 @@ export function ResultRow({ h, icon, sub, onOpen }: { h: SearchHit; icon: keyof 
   const Icon = ROW_ICON[icon];
   return (
     <Link to={hitHref(h)} onClick={onOpen} className={cn("group flex min-h-[44px] items-center gap-2.5 px-3 py-2.5 text-sm text-foreground/90 hover:bg-muted/60 hover:text-foreground", sub && "pl-9")}>
-      <Icon className={cn("size-4 shrink-0", icon === "place" && !h.href ? "text-accent" : "text-muted-foreground")} aria-hidden />
+      <Icon className={cn("size-4 shrink-0", icon === "place" && !h.href ? "text-accent v8:text-muted-foreground" : "text-muted-foreground")} aria-hidden />
       <span className="min-w-0 flex-1">
         <span className="line-clamp-2 break-words">{h.title}</span>
         {(h.subtitle || (h.season != null && (h.kind === "match" || h.atEvent))) && (
