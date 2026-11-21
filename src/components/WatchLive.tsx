@@ -16,7 +16,6 @@ import { watchUrl } from "../shared/recording";
 import { bridgedSrc, useVideoClock } from "../lib/ytBridge";
 import { MATCH_S, videoMoment } from "../lib/videoMoment";
 import { VideoPredictions, useVideoPredictions, type OverlayCall } from "./VideoPredictions";
-import { smoothBehavior } from "../lib/pageScroll";
 import { oddsPct } from "../shared/share";
 import { nextFlip, railModel, verdict, type Calling, type Flip } from "../lib/watchRail";
 import { venueClock } from "../lib/liveMode";
@@ -84,7 +83,7 @@ function Player({ stream, title, matches, liveCall, recording }: { stream: Event
     else if (videoId !== dayRef.current) { setDay(videoId); setPlay((p) => ({ t, end, n: (p?.n ?? 0) + 1 })); }
     // Within the open recording: that match's clip, from its start to its end (a loaded clip, not a seek: see ClipLoad).
     else if (ownRef.current || !seekRef.current(t, { videoId, end })) setPlay((p) => ({ t, end, n: (p?.n ?? 0) + 1 }));
-    box.current?.scrollIntoView({ block: "center", behavior: smoothBehavior() });
+    box.current?.scrollIntoView({ block: "center" });
   }), [dayIds]);
   // What the overlay shows: a recording follows the player's second; live, the match being called.
   // A match's own video: that match, its result once the video stops past the match's length (from where its link starts).

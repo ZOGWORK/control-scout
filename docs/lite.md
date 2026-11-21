@@ -62,7 +62,7 @@ Lite runs no script, so it can't read the app's settings from localStorage. The 
 
 | Cookie | Values | Lite draws |
 |---|---|---|
-| `cs-theme` | `light`, `dim`, `dark`, `midnight`, `system` (absent: dark, the app's default) | `<html class="light|dim|midnight">`; System is `class="sys"`, Light or Dark by `prefers-color-scheme` |
+| `cs-theme` | `light`, `dim`, `dark`, `system` (absent, unknown or the retired `midnight`: dark, the app's default) | `<html class="light|dim">`; System is `class="sys"`, Light or Dark by `prefers-color-scheme` |
 | `cs-text-size` | `s`, `l`, `xl` (absent: Default) | `<html data-text-size>`, scaling the root font size as the app does (14 px on phones, 16 px wider, × 0.9 / 1.125 / 1.25) |
 
 Lite's Settings page changes them with plain links, no script:

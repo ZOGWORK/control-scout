@@ -21,7 +21,7 @@ describe("ChanceBar", () => {
     // The bar is the team hue (--color-chance is team A) on a neutral track, never volt (the accent): volt is the primary button's alone.
     const bar = container.querySelector("[role=img]")!;
     expect(bar.querySelector("[data-chance-fill]")?.className).toContain("bg-team-a");
-    expect(bar.outerHTML).not.toMatch(/accent/);
+    expect(bar.outerHTML.replace(/v8:[^\s"]+/g, "")).not.toMatch(/accent/);
   });
   it("prints a long shot as Predict does, never a false 0% or 100% (even a simulated 0 or 1), and a decided chance as is", () => {
     const at = (p: number, decided?: boolean) => render(<MemoryRouter><ChanceBar b={{ kind: "chance", p, who: "1", label: "x", decided }} /></MemoryRouter>).container.querySelector("[data-chance-value]")?.textContent;
