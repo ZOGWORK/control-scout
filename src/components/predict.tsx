@@ -63,7 +63,7 @@ export function TierMark({ tier, className, chip }: { tier: ConfidenceTier; clas
   const t = TIER[tier];
   const color = t.cls.split(" ").find((c) => c.startsWith("text-"));
   return (
-    <span className={cn("inline-flex items-center gap-0.5 whitespace-nowrap [&_svg]:size-3", chip ? cn(STATUS_CHIP, "border", t.cls, "v8:border-white/[0.12] v8:bg-transparent") : color, className)} title={`Confidence: ${t.label.toLowerCase()}. ${t.blurb}`}>
+    <span className={cn("inline-flex items-center gap-0.5 whitespace-nowrap [&_svg]:size-3", chip ? cn(STATUS_CHIP, "border", t.cls, "v8:border-ink/[0.12] v8:bg-transparent") : color, className)} title={`Confidence: ${t.label.toLowerCase()}. ${t.blurb}`}>
       <t.icon aria-hidden /><span className="sr-only">confidence: </span>{t.label.toLowerCase()}
     </span>
   );
@@ -342,7 +342,7 @@ function MatchRowClassic({ m, highlight, showEvent, eventName, open, onToggle, o
         "v8:grid-cols-[minmax(min-content,1fr)_auto] v8:gap-y-1 v8:py-1.5 v8:@3xl:grid-cols-[6.5rem_minmax(0,1fr)_minmax(0,1fr)_20rem]",
         onToggle ? "cursor-pointer still-hover:bg-accent/[0.07]" : "still-hover:bg-text-base/[0.03]", open && "bg-accent/[0.05]",
         // v8: a plain white fill on hover and while open, never an accent tint.
-        "v8:still-hover:bg-white/[0.03]", open && "v8:bg-white/[0.035]")}
+        "v8:still-hover:bg-ink/[0.03]", open && "v8:bg-ink/[0.035]")}
       onClick={onToggle ? (e) => { if (!(e.target as HTMLElement).closest("a, button, input")) onToggle(); } : undefined}
       data-row
     >

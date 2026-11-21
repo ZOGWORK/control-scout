@@ -107,7 +107,7 @@ function RailTip({ on, label, children }: { on?: boolean; label: string; childre
 function RowInner({ item, on, pill = on, collapsed, dense }: { item: NavItem; on: boolean; pill?: boolean; collapsed?: boolean; dense?: boolean }) {
   return (
     <>
-      {pill && (isV8() ? <span data-nav-pill className="absolute inset-0 rounded-lg bg-white/[0.07]" />
+      {pill && (isV8() ? <span data-nav-pill className="absolute inset-0 rounded-lg bg-ink/[0.07]" />
         : <m.span layoutId="cs-nav-active" transition={{ type: "spring", stiffness: 500, damping: 38 }} className="absolute inset-0 rounded-lg bg-text-base/[0.08]" />)}
       <item.icon className={cn("relative shrink-0", dense ? "size-[18px]" : "size-5", on && "text-accent v8:text-text-base")} />
       <span className={collapsed ? "sr-only" : "relative truncate"}>{item.label}</span>
@@ -335,7 +335,7 @@ function V8Sidebar({ rail, wide, onToggle, onMenu }: { rail: boolean; wide: bool
         <Tooltip>
           <TooltipTrigger asChild>
             <button type="button" data-fold onClick={(e) => (wide ? onToggle() : onMenu(e.currentTarget))} aria-label={label}
-              className="flex size-9 shrink-0 items-center justify-center rounded-full bg-white/[0.06] text-text-muted outline-none transition-[color,background-color,scale] duration-150 ease-out hover:bg-white/[0.1] hover:text-text-base active:scale-[0.97] motion-reduce:active:scale-100 focus-visible:ring-2 focus-visible:ring-ring/60">
+              className="flex size-9 shrink-0 items-center justify-center rounded-full bg-ink/[0.06] text-text-muted outline-none transition-[color,background-color,scale] duration-150 ease-out hover:bg-ink/[0.1] hover:text-text-base active:scale-[0.97] motion-reduce:active:scale-100 focus-visible:ring-2 focus-visible:ring-ring/60">
               <PanelLeft className="size-[1.125rem]" />
             </button>
           </TooltipTrigger>

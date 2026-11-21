@@ -26,7 +26,7 @@ export default function TeamRecordSplitPage() {
   const err = state.error as ApiError | undefined;
   if (err?.status === 404 && !err.offline) {
     return <EmptyState icon={Trophy} title="No playoff record yet" description="This shows once a team has played both qualification and playoff matches in a season."
-      action={<Link to={`/teams/${n}`} className="inline-flex h-[44px] items-center rounded-lg border border-border bg-card px-3 text-sm font-medium hover:border-accent/60 v8:border-white/[0.12] v8:bg-transparent v8:hover:border-white/[0.12] v8:hover:bg-white/[0.06]">Team {n}</Link>} />;
+      action={<Link to={`/teams/${n}`} className="inline-flex h-[44px] items-center rounded-lg border border-border bg-card px-3 text-sm font-medium hover:border-accent/60 v8:border-ink/[0.12] v8:bg-transparent v8:hover:border-ink/[0.12] v8:hover:bg-ink/[0.06]">Team {n}</Link>} />;
   }
   return (
     <div className="space-y-5">

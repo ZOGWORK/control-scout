@@ -182,7 +182,7 @@ export function PitQueue({ event, entries, readOnly, onPit, current, className }
           : <EmptyState icon={ListChecks} title="No team list yet" description="FIRST hasn't posted this event's teams. Pit scouting fills in once it does." />
       ) : (
         <div className="grid gap-3">
-          {v8 ? <div aria-hidden className="h-1 overflow-hidden rounded-full bg-white/[0.06]"><div className="h-full origin-left rounded-full bg-accent transition-transform duration-300 ease-out" style={{ transform: `scaleX(${pct / 100})` }} /></div>
+          {v8 ? <div aria-hidden className="h-1 overflow-hidden rounded-full bg-ink/[0.06]"><div className="h-full origin-left rounded-full bg-accent transition-transform duration-300 ease-out" style={{ transform: `scaleX(${pct / 100})` }} /></div>
             : <div aria-hidden className="h-1.5 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-accent transition-[width]" style={{ width: `${pct}%` }} /></div>}
           <div className="flex flex-wrap items-center justify-between gap-2">
             <ToggleGroup type="single" variant="chips" value={filter} onValueChange={(v) => v && setFilter(v as PitFilter)} aria-label="Show pit teams">
@@ -198,20 +198,20 @@ export function PitQueue({ event, entries, readOnly, onPit, current, className }
                 const isDone = done.has(t.team), isNext = t.team === nextTeam, isCurrent = t.team === current;
                 const body = (
                   <>
-                    {isDone ? <span className="grid size-6 shrink-0 place-items-center rounded-full bg-success text-background v8:bg-white/10 v8:text-emerald-400"><Check className="size-3.5" aria-hidden /></span>
+                    {isDone ? <span className="grid size-6 shrink-0 place-items-center rounded-full bg-success text-background v8:bg-ink/10 v8:text-emerald-400"><Check className="size-3.5" aria-hidden /></span>
                       : <CircleDashed className={cn("size-6 shrink-0", isNext || isCurrent ? "text-accent" : "text-muted-foreground/60")} aria-hidden />}
                     <span className="min-w-0 flex-1 truncate"><span className="font-mono font-semibold text-foreground">{t.team}</span>{t.name && <span className="ml-2 text-sm text-muted-foreground">{t.name}</span>}</span>
                     {v8 ? (isCurrent || isDone || isNext) && <span className={cn("shrink-0 text-xs", isCurrent || isNext ? "text-text-base" : "text-text-faint")}>{isCurrent ? "Open" : isDone ? "Done" : "Next"}</span>
                       : isCurrent ? <Badge variant="soft">Open</Badge> : isDone ? <Badge variant="success">Done</Badge> : isNext ? <Badge variant="soft">Next</Badge> : null}
                   </>
                 );
-                const cls = cn("flex min-h-12 w-full items-center gap-3 px-3 py-2 text-left", isCurrent && "bg-accent/[0.07] v8:bg-white/[0.05]");
+                const cls = cn("flex min-h-12 w-full items-center gap-3 px-3 py-2 text-left", isCurrent && "bg-accent/[0.07] v8:bg-ink/[0.05]");
                 return (
                   <li key={t.team}>
                     {readOnly ? <div className={cls}>{body}</div> : (
                       <button type="button" onClick={() => onPit(t.team)} aria-current={isCurrent ? "true" : undefined}
                         aria-label={`${t.team}${t.name ? ` ${t.name}` : ""}, ${isDone ? "pit done, open its entry" : "pit to do, scout it"}`}
-                        className={cn(cls, "outline-none transition-colors still-hover:bg-accent/[0.07] v8:still-hover:bg-white/[0.04] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/60")}>{body}</button>
+                        className={cn(cls, "outline-none transition-colors still-hover:bg-accent/[0.07] v8:still-hover:bg-ink/[0.04] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/60")}>{body}</button>
                     )}
                   </li>
                 );
