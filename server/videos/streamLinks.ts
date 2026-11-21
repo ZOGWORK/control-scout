@@ -352,14 +352,18 @@ async function resolveLate(now: number, opts: { max?: number; hop?: Hop; facts: 
   const rows = await all<LinkRow>(
     `SELECT e.season, e.code, e.start, e.end, e.timezone, e.livestream, l.url, l.video_id, l.checked_at FROM events e
      LEFT JOIN event_stream_links l ON l.season = e.season AND l.code = e.code
-     WHERE e.livestream LIKE 'http%' AND (l.video_id IS NULL OR l.url != e.livestream OR substr(l.checked_at, 1, 10) <= substr(COALESCE(e.end, e.start), 1, 10))
+     WHERE e.livestream LIKE 'http%'
        AND substr(COALESCE(e.end, e.start), 1, 10) >= ? AND substr(e.start, 1, 10) <= ?
      ORDER BY e.start DESC`, [day(now - (LATE_DAYS + 1) * 86_400_000), day(now)]);
   const todo = rows.filter((r) => {
     if (!maybeShort(r.livestream)) return false;
     const last = (r.end ?? r.start).slice(0, 10);
     // Dates over at the venue (today's events are the pass above's), and not longer ago than LATE_DAYS.
-    return last < eventToday(now, r.timezone).from && last >= day(now - LATE_DAYS * 86_400_000) && linkDue(r, r.livestream, now);
+    if (!(last < eventToday(now, r.timezone).from && last >= day(now - LATE_DAYS * 86_400_000))) return false;
+    // A video kept: only while its last follow was on its dates, by the venue's calendar (an evening follow in the US
+    // is already the next day in UTC).
+    if (r.video_id && r.url === r.livestream && !(r.checked_at && eventToday(Date.parse(r.checked_at), r.timezone).from <= last)) return false;
+    return linkDue(r, r.livestream, now);
   })
     // Never tried first, then the longest since a try: a run of failing links can't hold every slot.
     .sort((a, b) => (a.checked_at ?? "").localeCompare(b.checked_at ?? ""))
