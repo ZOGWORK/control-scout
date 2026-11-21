@@ -277,7 +277,7 @@ const METRICS: Metric[] = [
   { label: "Auto", phase: "auto", better: "high", value: (x) => x.stats?.opr.auto.value ?? null, show: (x) => num(x.stats?.opr.auto.value) },
   { label: "TeleOp", phase: "teleop", better: "high", value: (x) => x.stats?.opr.teleop.value ?? null, show: (x) => num(x.stats?.opr.teleop.value) },
   { label: "Endgame", phase: "endgame", better: "high", value: (x) => x.stats?.opr.endgame.value ?? null, show: (x) => num(x.stats?.opr.endgame.value) },
-  { label: "Rating", better: "high", value: (x) => x.stats?.rating?.np ?? null, show: (x) => (x.stats?.rating ? `${num(x.stats.rating.np)} ±${num(x.stats.rating.sd, 0)}` : "—"), sub: (x) => (x.stats?.rating?.rank ? `#${x.stats.rating.rank.toLocaleString()}` : null) },
+  { label: "Rating", phase: "np", better: "high", value: (x) => x.stats?.rating?.np ?? null, show: (x) => (x.stats?.rating ? `${num(x.stats.rating.np)} ±${num(x.stats.rating.sd, 0)}` : "—"), sub: (x) => (x.stats?.rating?.rank ? `#${x.stats.rating.rank.toLocaleString()}` : null) },
   { label: "Record", better: "high", value: winRate, show: (x) => (x.stats ? `${x.stats.record.wins}-${x.stats.record.losses}-${x.stats.record.ties}` : "—"), sub: (x) => { const w = winRate(x); return w == null ? null : `${Math.round(w * 100)}% won`; } },
   { label: "Events", better: null, value: (x) => x.stats?.record.events ?? null, show: (x) => (x.stats ? String(x.stats.record.events) : "—") },
   { label: "Avg score", better: "high", value: (x) => x.stats?.avg.score ?? null, show: (x) => num(x.stats?.avg.score) },

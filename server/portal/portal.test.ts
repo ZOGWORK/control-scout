@@ -208,6 +208,7 @@ describe("feature flags", () => {
       // Bruno AI in the Discord bot: its own switch, on by default.
       discordBruno: true,
       statusPage: true,
+      particleWave: true,
     });
     expect(r.headers.get("cache-control")).toBe("public, max-age=15");
   });
