@@ -36,7 +36,8 @@ point, and reads two things with tesseract.js:
    the icon under them nor a field monitor's box beside the bar is read (Nevada 2023's top bar stands its box above the
    coloured band, where a fixed crop read the robot icon and put every match ~20 s late). Digits over 90 rows tall are no timer's
    (`timerDigits`' MAX_H: a white slide at the centre), and a box read has 20 s of its own (`BOX_LIMIT_S`), after which the
-   OCR workers are replaced and the frame goes on to the other crops.
+   OCR workers are replaced and the box counts as unread: the frame then tries only the crops that don't read the
+   icon (`afterUnreadBox`), and reads nothing if those don't read either.
    Two meets streamed side by side, each half with its own half-size bar (FIRST in Texas's league meets, USTXCENSAM4
    2022), read nothing whole: a video that reads nothing twice has its bar's row read zoomed to each half
    (`splitSide`), and the half naming this event (its name or its match total) is read zoomed to twice its size

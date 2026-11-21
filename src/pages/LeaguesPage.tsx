@@ -14,6 +14,9 @@ import { PageHeader, EmptyState } from "../components/page";
 import { Async } from "../components/states";
 import { Input } from "../components/ui/basic";
 import { SeasonPick } from "./RankingsPage";
+import { cn } from "../components/cn";
+import { useIsV8 } from "../lib/v8";
+import { RankingsTabs, V8_CAPTION, V8_CARD_LINK, V8_EYEBROW, V8_HEAD, V8_ICON, V8_LINK, V8_SEARCH } from "../components/rankings/v8";
 import { conferenceShown, useMyConference } from "../lib/conferenceGate";
 import { CONFERENCE_REGION, conferenceHref } from "../shared/conferences";
 
@@ -32,18 +35,19 @@ export default function LeaguesPage() {
   const season = state.data?.season ?? seasonParam ?? current;
   useTitle(`FTC leagues ${seasonLabel(season)}`);
   return (
-    <div className="space-y-5">
+    <div className={cn("space-y-5", V8_HEAD)}>
       <PageHeader
-        eyebrow={<span className="text-accent-text"><Link to={`/rankings/regions${qs({ season: seasonParam })}`} className="hover:underline">Region rankings</Link> · {seasonLabel(season)}</span>}
+        eyebrow={<span className={cn("text-accent-text", V8_EYEBROW)}><Link to={`/rankings/regions${qs({ season: seasonParam })}`} className="hover:underline">Region rankings</Link> · {seasonLabel(season)}</span>}
         title="Leagues"
         description="Every FTC league this season, by where it plays: meets played, teams, and FIRST's league leader by ranking score. Open one for its standings."
         phoneDescription="Every league, by where it plays."
       >
-        <div className="flex flex-wrap items-center gap-2">
+        <RankingsTabs at="leagues" season={seasonParam} />
+        <div className="flex flex-wrap items-center gap-2 max-sm:v8:flex-nowrap">
           <SeasonPick value={season} onChange={(s) => { const n = new URLSearchParams(sp); n.set("season", String(s)); setSp(n); }} />
-          <div className="relative w-full max-w-xs">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-text-muted" aria-hidden />
-            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Northeast, New Jersey…" aria-label="Search leagues" className="h-9 pl-8 max-sm:h-10" />
+          <div className="relative w-full max-w-xs max-sm:v8:min-w-0 max-sm:v8:flex-1">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-text-muted v8:text-text-faint" aria-hidden />
+            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Northeast, New Jersey…" aria-label="Search leagues" className={cn("h-9 pl-8 max-sm:h-10", V8_SEARCH)} />
           </div>
         </div>
       </PageHeader>
@@ -53,6 +57,7 @@ export default function LeaguesPage() {
 }
 
 function Groups({ d, q }: { d: LeaguesResponse; q: string }) {
+  const v8 = useIsV8();
   if (!d.leagues.length) return <EmptyState icon={ListOrdered} title={`No leagues in ${seasonLabel(d.season)} yet`} description="Leagues show here once FIRST lists their meets." />;
   const f = fold(q.trim());
   const shown = f ? d.leagues.filter((l) => fold(`${leagueTitle(l.name, l.code)} ${l.placeName ?? ""} ${l.code}`).includes(f)) : d.leagues;
@@ -63,18 +68,18 @@ function Groups({ d, q }: { d: LeaguesResponse; q: string }) {
     <div className="space-y-5" data-leagues>
       {[...groups].map(([place, list]) => (
         <section key={place || "-"} aria-label={list[0].placeName ?? "Place not listed"} className="space-y-2">
-          <h2 className="flex flex-wrap items-baseline gap-x-3 font-display text-lg font-semibold">
+          <h2 className="flex flex-wrap items-baseline gap-x-3 font-display text-lg font-semibold v8:font-sans v8:text-base">
             {list[0].placeName ?? "Place not listed"}
-            {place && <Link to={regionHref(place, { season: d.season })} className="text-sm font-normal text-accent-text hover:underline">{list[0].placeName} rankings →</Link>}
+            {place && <Link to={regionHref(place, { season: d.season })} className={cn("text-sm font-normal text-accent-text hover:underline", V8_LINK)}>{list[0].placeName} rankings →</Link>}
           </h2>
           {list.some((l) => l.region.toUpperCase() === CONFERENCE_REGION) && <ConferenceButton season={d.season} leagues={list.filter((l) => l.region.toUpperCase() === CONFERENCE_REGION)} />}
           <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {list.map((l) => (
               <li key={`${l.region}-${l.code}`}>
-                <Link to={leagueHref(d.season, l.region, l.code)} data-league={`${l.region}/${l.code}`} className="lift flex h-full flex-col gap-0.5 rounded-xl border border-border bg-card p-3 hover:border-accent/60">
-                  <span className="flex items-center gap-2 text-sm font-medium"><CalendarDays className="size-4 shrink-0 text-muted-foreground" aria-hidden /><span className="truncate">{leagueTitle(l.name, l.code)}</span></span>
-                  <span className="text-xs text-muted-foreground">{l.meetsPlayed} of {l.meets} meet{l.meets === 1 ? "" : "s"} played{l.teams ? ` · ${l.teams} teams` : ""}</span>
-                  <span className="truncate text-xs text-muted-foreground">{l.top ? <>#1 by RS: <span className="font-mono tabular-nums">{l.top.team}</span> {l.top.name ?? ""}{l.top.rs != null ? ` (${rankingScore(l.top.rs)})` : ""}</> : "No standings yet"}</span>
+                <Link to={leagueHref(d.season, l.region, l.code)} data-league={`${l.region}/${l.code}`} className={cn(!v8 && "lift", "flex h-full flex-col gap-0.5 rounded-xl border border-border bg-card p-3 hover:border-accent/60 v8:transition-colors v8:duration-150", V8_CARD_LINK)}>
+                  <span className="flex items-center gap-2 text-sm font-medium"><CalendarDays className={cn("size-4 shrink-0 text-muted-foreground", V8_ICON)} aria-hidden /><span className="truncate">{leagueTitle(l.name, l.code)}</span></span>
+                  <span className={cn("text-xs text-muted-foreground tabular-nums", V8_CAPTION)}>{l.meetsPlayed} of {l.meets} meet{l.meets === 1 ? "" : "s"} played{l.teams ? ` · ${l.teams} teams` : ""}</span>
+                  <span className={cn("truncate text-xs text-muted-foreground", "v8:text-text-muted")}>{l.top ? <>#1 by RS: <span className="font-mono tabular-nums v8:font-sans">{l.top.team}</span> {l.top.name ?? ""}{l.top.rs != null ? ` (${rankingScore(l.top.rs)})` : ""}</> : "No standings yet"}</span>
                 </Link>
               </li>
             ))}
@@ -91,7 +96,8 @@ function ConferenceButton({ season, leagues }: { season: number; leagues: League
   const my = useMyConference(season);
   if (!conferenceShown(CONFERENCE_REGION, my)) return null;
   const mine = my.info?.league && leagues.find((l) => l.region === my.info!.league!.region && l.code === my.info!.league!.code);
-  const btn = "inline-flex h-9 items-center rounded-lg border border-accent/60 bg-accent/10 px-3 text-sm font-medium text-accent-text hover:bg-accent/15 max-sm:h-[44px]";
+  // v8: an outline button (no accent fill).
+  const btn = "inline-flex h-9 items-center rounded-lg border border-accent/60 bg-accent/10 px-3 text-sm font-medium text-accent-text hover:bg-accent/15 max-sm:h-[44px] v8:border-white/[0.12] v8:bg-transparent v8:text-text-base v8:transition-[background-color,scale] v8:duration-150 v8:hover:bg-white/[0.06] v8:active:scale-[0.97] v8:motion-reduce:active:scale-100";
   if (mine) return <Link to={conferenceHref(season, mine.region, mine.code, { slug: my.info!.conference?.slug, team: my.team })} className={btn} data-conference-button>View Conference Rankings</Link>;
   return (
     <div className="flex flex-wrap items-center gap-2" data-conference-button>

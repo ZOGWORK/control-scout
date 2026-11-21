@@ -12,7 +12,7 @@ import { buttonVariants } from "../components/ui/button";
 import { ALLIANCE_HUES } from "../components/PlayoffBracket";
 import { TEAM_SWATCH, TEAM_TEXT } from "../components/search/page/answerCells";
 
-const THEMES: Theme[] = ["light", "dim", "dark", "midnight"];
+const THEMES: Theme[] = ["light", "dim", "dark"];
 const AA = 4.5, LARGE = 3;
 
 describe("search's palette", () => {
@@ -26,7 +26,7 @@ describe("search's palette", () => {
 });
 
 describe("text tones reach WCAG AA in every theme", () => {
-  it("the `dark:` variant covers Dim and Midnight, so measuring them with dark's `dark:` classes is right", () => {
+  it("the `dark:` variant covers Dim, so measuring them with dark's `dark:` classes is right", () => {
     expect(css).toContain("@custom-variant dark (&:where(html:not(.light), html:not(.light) *));");
   });
 

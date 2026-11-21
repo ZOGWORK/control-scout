@@ -437,6 +437,43 @@ export function teamsSay(text: string, own: number[] | undefined, others: (numbe
   return null;
 }
 
+/**
+ * Seconds into a match that its frames are read again for its division, when the reads that confirmed its start
+ * showed none. A shared stream's bar scrolls the division's name off for most of a match (Iowa 2019: "Iowa
+ * Championship - Black Division" is wider than the bar), and the confirming reads usually stop at the first one,
+ * 70 s on. These spread over Auto and TeleOp, all inside the match (MATCH_S).
+ */
+export const DIVISION_AFTER = [20, 35, 50, 60, 95, 110, 125, 140];
+
+/**
+ * What one more frame of a match says of its division: the overlay's division name, else its teams (teamsSay).
+ * A frame naming another match says nothing of this one (the stream cut to the other field between matches).
+ */
+export function frameDivision(read: { label: string | null; division?: "own" | "other" | null }, label: string, team: "own" | "other" | null): "own" | "other" | null {
+  if (read.label && read.label !== label) return null;
+  if (read.division === "other" || team === "other") return "other";
+  if (read.division === "own" || team === "own") return "own";
+  return null;
+}
+
+/** A frame read that ran past its time limit (READ_LIMIT_S): the OCR workers are replaced when one is thrown. */
+export class ReadHung extends Error {}
+
+/**
+ * Runs a frame read, and once more if it hung: one stuck OCR job late in a six-hour stream (Iowa 2019 at 11207 s
+ * and 21800 s) otherwise fails the whole video, every start in it written "couldn't be played". `ready` waits for
+ * the fresh workers and says whether to try again (false when they couldn't be replaced). A second hang, or any
+ * other error, is thrown as it was.
+ */
+export async function onceMoreIfHung<T>(read: () => Promise<T>, ready: () => Promise<boolean>): Promise<T> {
+  try {
+    return await read();
+  } catch (e) {
+    if (!(e instanceof ReadHung) || !(await ready())) throw e;
+    return read();
+  }
+}
+
 const plain = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase();
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
